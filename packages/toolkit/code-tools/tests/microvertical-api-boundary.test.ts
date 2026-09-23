@@ -70,18 +70,37 @@ beforeEach(() => {
   file = path.join(root, 'verticals/catalog/shared/api.ts');
   write(file, contract);
   write(
-    path.join(root, '.modernjs/ultramodern.json'),
+    path.join(root, 'apps/shell/package.json'),
+    JSON.stringify({ name: '@fixture/shell' }),
+  );
+  write(
+    path.join(root, 'verticals/catalog/package.json'),
     JSON.stringify({
-      topology: {
-        apps: [
-          {
-            id: 'catalog',
-            path: 'verticals/catalog',
-            kind: 'vertical',
-            api: {},
-          },
-        ],
+      name: '@fixture/catalog',
+      exports: {
+        './api': './shared/api.ts',
+        './api/client': './src/api/catalog-client.ts',
       },
+    }),
+  );
+  write(
+    path.join(root, 'topology/reference-topology.json'),
+    JSON.stringify({
+      shell: {
+        id: 'shell',
+        kind: 'shell',
+        path: 'apps/shell',
+        package: '@fixture/shell',
+      },
+      verticals: [
+        {
+          id: 'catalog',
+          path: 'verticals/catalog',
+          kind: 'vertical',
+          package: '@fixture/catalog',
+          api: {},
+        },
+      ],
     }),
   );
   write(path.join(root, 'verticals/catalog/api/index.ts'), entry);
@@ -139,6 +158,85 @@ test('still rejects a composed identifier it cannot resolve', () => {
     subApi('catalogSearchApi', 'catalogSearch', '/catalog/search'),
   );
   // `./commands` is never created, so `catalogCommandsApi` stays unresolved.
+  expect(validate(composed)).toContain('bounded native endpoint declarations');
+});
+
+test('resolves a public shared workspace export under an arbitrary scope', () => {
+  write(
+    path.join(root, 'pnpm-workspace.yaml'),
+    'packages:\n  - packages/*\n  - verticals/*\n',
+  );
+  const shared = path.join(root, 'packages/contracts');
+  write(
+    path.join(shared, 'package.json'),
+    JSON.stringify({
+      name: '@domain/shared-contracts',
+      exports: {
+        './catalog': {
+          'modern:source': './src/catalog.ts',
+          import: './dist/catalog.js',
+        },
+      },
+    }),
+  );
+  write(
+    path.join(shared, 'src/catalog.ts'),
+    `export { catalogSearchApi } from './catalog-search.ts';`,
+  );
+  write(
+    path.join(shared, 'src/catalog-search.ts'),
+    subApi('catalogSearchApi', 'catalogSearch', '/catalog/search'),
+  );
+  const link = path.join(root, 'node_modules/@domain/shared-contracts');
+  fs.mkdirSync(path.dirname(link), { recursive: true });
+  fs.symlinkSync(shared, link);
+  write(
+    path.join(root, 'verticals/catalog/shared/commands/index.ts'),
+    subApi('catalogCommandsApi', 'catalogCommands', '/catalog/commands'),
+  );
+  const publicSource = composed.replace(
+    "'./apis/catalog-search.ts'",
+    "'@domain/shared-contracts/catalog'",
+  );
+  expect(validate(publicSource)).toBeUndefined();
+  expect(validate(publicSource.replace("/catalog'", "/private'"))).toContain(
+    'bounded native endpoint declarations',
+  );
+  expect(
+    validate(
+      publicSource.replace(
+        "'@domain/shared-contracts/catalog'",
+        "'@domain/shared-contracts/src/catalog-search'",
+      ),
+    ),
+  ).toContain('bounded native endpoint declarations');
+});
+
+test('rejects private cross-owner paths and export cycles', () => {
+  write(
+    path.join(root, 'verticals/foreign/shared/api.ts'),
+    subApi('catalogSearchApi', 'catalogSearch', '/catalog/search'),
+  );
+  write(
+    path.join(root, 'verticals/catalog/shared/commands/index.ts'),
+    subApi('catalogCommandsApi', 'catalogCommands', '/catalog/commands'),
+  );
+  expect(
+    validate(
+      composed.replace(
+        "'./apis/catalog-search.ts'",
+        "'../../foreign/shared/api.ts'",
+      ),
+    ),
+  ).toContain('bounded native endpoint declarations');
+  write(
+    path.join(root, 'verticals/catalog/shared/apis/catalog-search.ts'),
+    "export { catalogSearchApi } from './cycle.ts';",
+  );
+  write(
+    path.join(root, 'verticals/catalog/shared/apis/cycle.ts'),
+    "export { catalogSearchApi } from './catalog-search.ts';",
+  );
   expect(validate(composed)).toContain('bounded native endpoint declarations');
 });
 
@@ -397,7 +495,36 @@ test('full and files phases both report a clean workspace', () => {
   ).toEqual([]);
 });
 test('config errors and missing owners fail closed as tool failures', () => {
-  write(path.join(root, '.modernjs/ultramodern.json'), '{');
+  write(
+    path.join(root, 'topology/reference-topology.json'),
+    JSON.stringify({
+      shell: { id: 'shell', kind: 'shell', package: '@fixture/shell' },
+      verticals: [],
+    }),
+  );
+  expect(
+    checkMicroVerticalApiConsumerFiles({ workspaceRoot: root }).toolErrors.join(
+      '\n',
+    ),
+  ).toContain('explicit workspace path');
+  write(
+    path.join(root, 'topology/reference-topology.json'),
+    JSON.stringify({
+      shell: {
+        id: 'shell',
+        kind: 'shell',
+        path: 'apps/shell',
+        package: '@foreign/shell',
+      },
+      verticals: [],
+    }),
+  );
+  expect(
+    checkMicroVerticalApiConsumerFiles({ workspaceRoot: root }).toolErrors.join(
+      '\n',
+    ),
+  ).toContain('package name must match topology');
+  write(path.join(root, 'topology/reference-topology.json'), '{');
   expect(
     checkMicroVerticalApiBoundaries({ workspaceRoot: root }).toolErrors.length,
   ).toBe(1);
@@ -422,7 +549,7 @@ test('CLI distinguishes success, consumer and infrastructure failures', () => {
   expect(runMicroVerticalApiCheckCli(['--workspace-root', root])).toBe(0);
   write(file, contract.replace("ownerId: 'catalog'", "ownerId: 'foreign'"));
   expect(runMicroVerticalApiCheckCli(['--workspace-root', root])).toBe(1);
-  write(path.join(root, '.modernjs/ultramodern.json'), '{');
+  write(path.join(root, 'topology/reference-topology.json'), '{');
   expect(runMicroVerticalApiCheckCli(['--workspace-root', root])).toBe(2);
   expect(runMicroVerticalApiCheckCli(['--workspace-root'])).toBe(2);
 });
@@ -476,6 +603,16 @@ test('explicit owner directory supports isolated installation but cannot overrid
   ).toContain('exact framework owner');
 });
 test('classifies RPC surfaces and validates native RPC topology', () => {
+  write(
+    path.join(root, 'verticals/catalog/package.json'),
+    JSON.stringify({
+      name: '@fixture/catalog',
+      exports: {
+        './api': './shared/rpc.ts',
+        './api/rpc-client': './src/api/catalog-rpc-client.ts',
+      },
+    }),
+  );
   fs.rmSync(file);
   fs.rmSync(path.join(root, 'verticals/catalog/src/api/catalog-client.ts'));
   write(

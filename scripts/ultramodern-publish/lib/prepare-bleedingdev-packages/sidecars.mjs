@@ -1,8 +1,7 @@
 // Consumer: prepare-bleedingdev-packages.mjs version-preserving sidecar staging lane.
 //
-// Sidecars are fork-owned republications of upstream packages that the shipped
-// @modern-js/image dependency cone cannot redirect any other way (plain
-// dependencies are not reachable from a consumer's overrides). They are NOT
+// Sidecars are fork-owned republications of upstream packages whose dependency
+// edges must resolve corrected artifacts without consumer overrides. They are NOT
 // part of the Modern.js cohort:
 //   * their names are never prefixed with the cohort prefix (`modern-js-`) -
 //     npm-normalize-package-bin derives a string-form bin's key from
@@ -14,14 +13,15 @@
 //     @rsbuild-image/react) with a loose-only semver check that EXCLUDES
 //     prereleases, so a prerelease sidecar would satisfy pnpm but fail every
 //     strict npm/yarn-classic consumer;
-//   * their dependency keys are never rewritten - a sidecar manifest is
-//     published exactly as it is vendored.
+//   * their dependency keys are retained - recipe-only packages are rebuilt
+//     from authenticated upstream tarballs, canonical patches and exact aliases.
 import { execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import fsKit from '../../../lib/fs-kit.js';
 import {
+  isQualifiedSidecarVersion,
   repoRoot as defaultRepoRoot,
   sidecarManifestFile,
   sidecarManifestSchema,
@@ -33,19 +33,30 @@ import {
   canonicalJson,
   inspectNpmTarball,
 } from './release-artifacts.mjs';
+import { verifySidecar } from '../../../ultramodern-supply/verify-sidecars.mjs';
 
 const { readJsonFile } = fsKit;
+const recipeSidecars = JSON.parse(
+  fs.readFileSync(new URL('../../../ultramodern-supply/sidecars.json', import.meta.url), 'utf8'),
+).filter(recipe => recipe.artifacts.length === 1 && recipe.artifacts[0] === '*');
+const recipeByRoot = new Map(recipeSidecars.map(recipe => [
+  `packages/sidecar/${recipe.id}`,
+  recipe,
+]));
 
 const SIDECAR_PACKAGE_ROOTS = [
   'packages/sidecar/ipx',
   'packages/sidecar/image-size',
   'packages/sidecar/rsbuild-image-core',
+  ...recipeSidecars.map(recipe => `packages/sidecar/${recipe.id}`),
 ];
 
 // Upstream CLI contracts that must survive republication verbatim.
 const sidecarBinNames = new Map([
   ['@bleedingdev/ipx', 'ipx'],
   ['@bleedingdev/image-size', 'image-size'],
+  ['@bleedingdev/mf-cli', 'mf'],
+  ['@bleedingdev/mf-enhanced', 'mf'],
 ]);
 
 const stableVersionPattern = /^\d+\.\d+\.\d+$/u;
@@ -60,9 +71,36 @@ const dependencyBlockNames = [
   'peerDependencies',
 ];
 
-const sidecarConsumerDependencyTargets = Object.freeze({
+const requiredImageDependencyTargets = Object.freeze({
   '@rsbuild-image/core': '@bleedingdev/rsbuild-image-core',
   ipx: '@bleedingdev/ipx',
+});
+
+const correctedDependencyTargets = Object.freeze({
+  effect: '@bleedingdev/effect',
+  'drizzle-orm': '@bleedingdev/drizzle-orm',
+  msgpackr: '@bleedingdev/msgpackr',
+  zod: '@bleedingdev/zod',
+  ...Object.fromEntries(
+    [
+      'bridge-react',
+      'cli',
+      'dts-plugin',
+      'enhanced',
+      'manifest',
+      'modern-js-v3',
+      'node',
+      'rsbuild-plugin',
+      'rspack',
+      'runtime',
+      'runtime-core',
+      'runtime-tools',
+      'webpack-bundler-runtime',
+    ].map(name => [
+      `@module-federation/${name}`,
+      `@bleedingdev/mf-${name}`,
+    ]),
+  ),
 });
 
 const stagedDirectoryName = name => name.replaceAll('/', '__');
@@ -129,11 +167,14 @@ function assertSidecarName(name, root) {
 }
 
 function assertSidecarVersion(name, version) {
+  if (isQualifiedSidecarVersion(name, version)) {
+    return;
+  }
   if (typeof version !== 'string' || !stableVersionPattern.test(version)) {
     throw new Error(
       [
         `Sidecar ${name} version ${String(version)} must be stable semver (X.Y.Z).`,
-        "npm resolves the peer range 'ipx: >=3.0.3' with a prerelease-excluding check, so a prerelease sidecar passes pnpm and fails npm and yarn-classic consumers.",
+        "Only the exact Effect and Drizzle prereleases are qualified; npm resolves the ipx peer range '>=3.0.3' with a prerelease-excluding check.",
       ].join('\n'),
     );
   }
@@ -219,6 +260,29 @@ function collectSidecarPackages(
   { roots = SIDECAR_PACKAGE_ROOTS } = {},
 ) {
   const sidecars = roots.map(root => {
+    const recipe = repoRoot === defaultRepoRoot ? recipeByRoot.get(root) : undefined;
+    if (recipe) {
+      const packageJson = {
+        name: recipe.fork.name,
+        version: recipe.fork.version,
+        license: recipe.license,
+        publishConfig: { registry: 'https://registry.npmjs.org/', access: 'public' },
+        ...recipe.manifestChanges,
+      };
+      assertSidecarName(packageJson.name, root);
+      assertSidecarVersion(packageJson.name, packageJson.version);
+      assertSidecarDependencies(packageJson, root);
+      return {
+        bin: undefined,
+        dir: undefined,
+        name: packageJson.name,
+        packageJson,
+        packageJsonPath: undefined,
+        recipeOnly: true,
+        root,
+        version: packageJson.version,
+      };
+    }
     const { dir, packageJson, packageJsonPath } = readSidecarManifest(
       repoRoot,
       root,
@@ -264,30 +328,37 @@ function collectSidecarPackages(
 }
 
 function rewriteSidecarConsumerAliases(packageJson, sidecars) {
-  const dependencies = packageJson.dependencies;
-  if (!dependencies || typeof dependencies !== 'object' || Array.isArray(dependencies)) {
-    throw new Error(
-      `Sidecar consumer ${String(packageJson.name)} must declare dependencies`,
-    );
-  }
-
   const byName = new Map(sidecars.map(sidecar => [sidecar.name, sidecar]));
-  for (const [dependencyName, targetName] of Object.entries(
-    sidecarConsumerDependencyTargets,
-  )) {
-    const sourceSpecifier = dependencies[dependencyName];
-    if (typeof sourceSpecifier !== 'string' || sourceSpecifier.length === 0) {
-      throw new Error(
-        `Sidecar consumer ${String(packageJson.name)} must declare dependencies.${dependencyName} before release staging can redirect it`,
-      );
+  if (packageJson.name === '@bleedingdev/modern-js-image') {
+    for (const dependencyName of Object.keys(requiredImageDependencyTargets)) {
+      if (typeof packageJson.dependencies?.[dependencyName] !== 'string') {
+        throw new Error(
+          `Sidecar consumer ${String(packageJson.name)} must declare dependencies.${dependencyName} before release staging can redirect it`,
+        );
+      }
     }
-    const sidecar = byName.get(targetName);
-    if (!sidecar) {
-      throw new Error(
-        `Sidecar consumer ${String(packageJson.name)} cannot redirect dependencies.${dependencyName}; staged sidecar ${targetName} is missing`,
-      );
+  }
+  for (const blockName of ['dependencies', 'devDependencies', 'optionalDependencies']) {
+    const block = packageJson[blockName];
+    if (!block || typeof block !== 'object' || Array.isArray(block)) {
+      continue;
     }
-    dependencies[dependencyName] = `npm:${targetName}@${sidecar.version}`;
+    for (const [dependencyName, sourceSpecifier] of Object.entries(block)) {
+      const targetName = packageJson.name === '@bleedingdev/modern-js-image'
+        ? requiredImageDependencyTargets[dependencyName] ?? correctedDependencyTargets[dependencyName]
+        : correctedDependencyTargets[dependencyName];
+      if (!targetName) continue;
+      if (typeof sourceSpecifier !== 'string' || sourceSpecifier.length === 0) {
+        throw new Error(`Sidecar consumer ${String(packageJson.name)} has invalid ${blockName}.${dependencyName}`);
+      }
+      const sidecar = byName.get(targetName);
+      if (!sidecar) {
+        throw new Error(
+          `Sidecar consumer ${String(packageJson.name)} cannot redirect ${blockName}.${dependencyName}; staged sidecar ${targetName} is missing`,
+        );
+      }
+      block[dependencyName] = `npm:${targetName}@${sidecar.version}`;
+    }
   }
 
   return packageJson;
@@ -359,31 +430,44 @@ function sidecarPublishOrder(sidecars) {
 }
 
 /**
- * Copy a sidecar package into the staging directory VERBATIM: no name
- * prefixing, no cohort-version forcing, no dependency rewriting. A sidecar
- * never passes through enforceSingleVersionPolicy or the cohort
- * X.Y.Z-ultramodern.N gate.
+ * Stage an image sidecar verbatim or reconstruct a recipe-only sidecar from its
+ * authenticated upstream artifact. Neither path applies cohort name/version
+ * rewriting or consumer overrides.
  */
-function stageSidecarPackage(
+async function stageSidecarPackage(
   sidecar,
   stageDir,
   { repoRoot = defaultRepoRoot } = {},
 ) {
   const packageDir = path.join(stageDir, stagedDirectoryName(sidecar.name));
   fs.rmSync(packageDir, { force: true, recursive: true });
-  fs.mkdirSync(packageDir, { recursive: true });
-  fs.cpSync(sidecar.dir, packageDir, {
-    recursive: true,
-    filter: source => {
-      const base = path.basename(source);
-      return base !== 'node_modules' && base !== '.git';
-    },
-  });
+  if (sidecar.recipeOnly) {
+    await verifySidecar(path.basename(sidecar.root), {
+      materializeTo: packageDir,
+    });
+  } else {
+    fs.mkdirSync(packageDir, { recursive: true });
+    fs.cpSync(sidecar.dir, packageDir, {
+      recursive: true,
+      filter: source => {
+        const base = path.basename(source);
+        return base !== 'node_modules' && base !== '.git';
+      },
+    });
+  }
 
   const stagedPackageJsonPath = path.join(packageDir, 'package.json');
   const stagedBytes = fs.readFileSync(stagedPackageJsonPath);
-  const sourceBytes = fs.readFileSync(sidecar.packageJsonPath);
-  if (!stagedBytes.equals(sourceBytes)) {
+  const stagedPackageJson = JSON.parse(stagedBytes);
+  if (sidecar.recipeOnly) {
+    assertSidecarName(stagedPackageJson.name, sidecar.root);
+    assertSidecarVersion(stagedPackageJson.name, stagedPackageJson.version);
+    assertSidecarBin(stagedPackageJson, sidecar.root);
+    assertSidecarDependencies(stagedPackageJson, sidecar.root);
+    if (stagedPackageJson.name !== sidecar.name || stagedPackageJson.version !== sidecar.version) {
+      throw new Error(`Reconstructed sidecar ${sidecar.name} identity changed`);
+    }
+  } else if (!stagedBytes.equals(fs.readFileSync(sidecar.packageJsonPath))) {
     throw new Error(
       `Staged sidecar ${sidecar.name} manifest differs from ${sidecar.root}/package.json; sidecars must stage verbatim`,
     );
@@ -391,6 +475,9 @@ function stageSidecarPackage(
 
   return {
     ...sidecar,
+    bin: assertSidecarBin(stagedPackageJson, sidecar.root),
+    packageJson: stagedPackageJson,
+    packageJsonPath: stagedPackageJsonPath,
     packageDir: path.relative(repoRoot, packageDir),
     stagedDir: packageDir,
   };
@@ -615,6 +702,7 @@ function writeSidecarStagingManifest(
 export {
   SIDECAR_PACKAGE_ROOTS,
   collectSidecarPackages,
+  isQualifiedSidecarVersion,
   normalizeSidecarBin,
   packStagedSidecar,
   rewriteSidecarConsumerAliases,

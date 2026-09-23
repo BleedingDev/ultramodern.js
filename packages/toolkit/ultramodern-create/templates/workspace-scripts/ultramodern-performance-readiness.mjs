@@ -6,7 +6,7 @@ const root = process.cwd();
 const defaultReportPath =
   '.codex/reports/performance-readiness/ultramodern-performance-readiness.json';
 const configPath = 'scripts/ultramodern-performance-readiness.config.mjs';
-const compactConfigPath = '.modernjs/ultramodern.json';
+const topologyPath = 'topology/reference-topology.json';
 const optOutEnv = 'ULTRAMODERN_PERFORMANCE_READINESS_DIAGNOSTICS';
 const signalIds = [
   'bfcache',
@@ -62,89 +62,6 @@ const createSignal = (id, status, evidence) => ({
 
 const unique = values => new Set(values).size === values.length;
 
-const toKebabCase = value =>
-  String(value)
-    .trim()
-    .replace(/([a-z0-9])([A-Z])/gu, '$1-$2')
-    .replace(/[^a-zA-Z0-9._-]+/gu, '-')
-    .replace(/[._]+/gu, '-')
-    .toLowerCase()
-    .replace(/-+/gu, '-')
-    .replace(/^-+|-+$/gu, '');
-
-const toPascalCase = value =>
-  toKebabCase(value)
-    .split('-')
-    .filter(Boolean)
-    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
-    .join('');
-
-const normalizeRelativePath = value =>
-  String(value ?? '').replace(/\\/gu, '/').replace(/^\.\/+/u, '');
-
-const appNamespace = app => (app.kind === 'shell' ? 'shell' : (app.domain ?? app.id));
-
-const normalizeCompactApp = rawApp => {
-  const id = String(rawApp.id);
-  const kind = rawApp.kind === 'vertical' ? 'vertical' : 'shell';
-  const appPath =
-    typeof rawApp.path === 'string'
-      ? normalizeRelativePath(rawApp.path)
-      : kind === 'shell'
-        ? 'apps/shell-super-app'
-        : `verticals/${toKebabCase(id)}`;
-  const packageSuffix =
-    typeof rawApp.packageSuffix === 'string'
-      ? rawApp.packageSuffix
-      : appPath.split('/').at(-1) ?? id;
-  const domain =
-    typeof rawApp.domain === 'string'
-      ? rawApp.domain
-      : kind === 'vertical'
-        ? packageSuffix
-        : undefined;
-  const moduleFederation =
-    rawApp.moduleFederation && typeof rawApp.moduleFederation === 'object'
-      ? rawApp.moduleFederation
-      : {};
-
-  return {
-    id,
-    kind,
-    path: appPath,
-    packageSuffix,
-    domain,
-    port:
-      typeof rawApp.port === 'number'
-        ? rawApp.port
-        : kind === 'shell'
-          ? 3020
-          : 3030,
-    mfName:
-      typeof moduleFederation.name === 'string'
-        ? moduleFederation.name
-        : kind === 'shell'
-          ? 'shellSuperApp'
-          : `vertical${toPascalCase(domain ?? id)}`,
-    moduleFederation: {
-      remotes: [],
-      verticalRefs: Array.isArray(moduleFederation.verticalRefs)
-        ? moduleFederation.verticalRefs.filter(ref => typeof ref === 'string')
-        : [],
-    },
-  };
-};
-
-const createRemoteContracts = (app, apps) =>
-  (app.moduleFederation?.verticalRefs ?? [])
-    .map(ref => apps.find(candidate => candidate.id === ref))
-    .filter(Boolean)
-    .map(remote => ({
-      id: remote.id,
-      name: remote.mfName,
-      manifestUrl: `http://localhost:${remote.port ?? 3030}/mf-manifest.json`,
-    }));
-
 const createPerformanceReadinessContract = () => ({
   schemaVersion: 1,
   default: 'enabled',
@@ -159,69 +76,27 @@ const createPerformanceReadinessContract = () => ({
   signals: signalIds.map(id => ({ id })),
 });
 
-const createContractApp = (config, app, apps) => {
-  const compatibilityDate =
-    typeof config.deploy?.worker?.compatibilityDate === 'string'
-      ? config.deploy.worker.compatibilityDate
-      : '2026-06-02';
-
-  return {
-    id: app.id,
-    path: app.path,
-    config: {
-      plugins: [
-        'appTools',
-        'tanstackRouterPlugin',
-        'i18nPlugin',
-        ...(app.kind === 'vertical' ? ['bffPlugin'] : []),
-        'moduleFederationPlugin',
-        'zephyrRspackPlugin',
-      ],
-    },
-    deploy: {
-      cloudflare: {
-        compatibilityDate,
-        compatibilityFlags: ['nodejs_compat', 'global_fetch_strictly_public'],
-        routes: {
-          ssr: '/en',
-          mfManifest: '/mf-manifest.json',
-          locale: `/locales/en/${appNamespace(app)}.json`,
-        },
-        qualityGates: {
-          assets: {
-            cacheControlRequiredForCss: true,
-          },
-        },
-      },
-    },
-    moduleFederation: {
-      remotes: createRemoteContracts(app, apps),
-    },
-    routes: {
-      localisedUrls: {},
-      publicSurface: {
-        artifactLifecycle: 'build-and-deploy-output',
-      },
-    },
-  };
-};
-
 const readGeneratedContractView = () => {
-  if (exists(compactConfigPath)) {
-    const compactConfig = readJson(compactConfigPath);
-    const apps = Array.isArray(compactConfig.topology?.apps)
-      ? compactConfig.topology.apps.map(normalizeCompactApp)
-      : [];
-    return {
-      sourcePath: compactConfigPath,
-      performanceReadiness: createPerformanceReadinessContract(),
-      apps: apps.map(app => createContractApp(compactConfig, app, apps)),
-    };
-  }
-
-  throw new Error(
-    `Missing UltraModern config. Expected ${compactConfigPath}.`,
-  );
+  const topology = readJson(topologyPath);
+  assert(topology.schemaVersion === 1 && topology.shell && Array.isArray(topology.verticals), 'Invalid topology/reference-topology.json');
+  const apps = [topology.shell, ...topology.verticals, ...(topology.shells ?? [])];
+  return {
+    sourcePath: topologyPath,
+    performanceReadiness: createPerformanceReadinessContract(),
+    apps: apps.map(app => {
+      assert(typeof app.path === 'string' && app.path, `${app.id} topology path is missing`);
+      return {
+        id: app.id,
+        path: app.path,
+        deploy: { cloudflare: app.cloudflare },
+        moduleFederation: { remotes: app.moduleFederation?.remotes ?? [] },
+        routes: {
+          localisedUrls: app.routes?.localisedUrls ?? {},
+          publicSurface: { artifactLifecycle: 'build-and-deploy-output' },
+        },
+      };
+    }),
+  };
 };
 
 const appGeneratedFiles = app => [
@@ -300,7 +175,7 @@ const evaluateApp = (app, contract, failOn) => {
     ),
     createSignal(
       'save-data-behavior',
-      app.config?.plugins?.includes('tanstackRouterPlugin') &&
+      /\btanstackRouterPlugin\b/u.test(generatedSource) &&
         contract.performanceReadiness?.signals?.some(
           signal => signal.id === 'save-data-behavior',
         )

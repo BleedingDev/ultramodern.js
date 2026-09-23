@@ -91,16 +91,13 @@ test('discovers Module Federation configs from generated metadata and app-root f
     'apps/contract-remote/module-federation.config.ts': mfConfig(),
     'apps/scanned-remote/module-federation.config.ts': mfConfig(),
   });
-  writeJson(workspaceRoot, '.modernjs/ultramodern.json', {
-    topology: {
-      apps: [
-        {
-          id: 'contract-remote',
-          moduleFederation: { exposes: ['./Widget'] },
-          path: 'apps/contract-remote',
-        },
-      ],
+  writeJson(workspaceRoot, 'topology/reference-topology.json', {
+    shell: {
+      id: 'contract-remote',
+      moduleFederation: { exposes: ['./Widget'] },
+      path: 'apps/contract-remote',
     },
+    verticals: [],
   });
 
   assert.deepEqual(
@@ -115,22 +112,13 @@ test('validates real exposes even when the generated contract exposes are stale'
   const workspaceRoot = createWorkspace({
     'apps/custom/module-federation.config.ts': mfConfig(),
   });
-  writeJson(workspaceRoot, '.modernjs/ultramodern.json', {
-    topology: {
-      apps: [
-        {
-          id: 'custom',
-          moduleFederation: {
-            dts: {
-              compilerInstance: 'effect-tsgo',
-              tsConfigPath: './tsconfig.mf-types.json',
-            },
-            exposes: [],
-          },
-          path: 'apps/custom',
-        },
-      ],
+  writeJson(workspaceRoot, 'topology/reference-topology.json', {
+    shell: {
+      id: 'custom',
+      moduleFederation: { exposes: [] },
+      path: 'apps/custom',
     },
+    verticals: [],
   });
 
   assertThrowsWithMessage(

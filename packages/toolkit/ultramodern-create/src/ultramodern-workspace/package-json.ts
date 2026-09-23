@@ -1,5 +1,4 @@
 import {
-  modernPackageSpecifier,
   ULTRAMODERN_CREATE_PACKAGE,
   WORKSPACE_PACKAGE_VERSION,
 } from '../ultramodern-package-source';
@@ -28,6 +27,9 @@ import {
   GENERATED_POSTINSTALL_SCRIPT,
 } from './workspace-script-plan';
 
+const frameworkRequest = (packageSource: ResolvedPackageSource) =>
+  packageSource.strategy === 'install' ? 'catalog:ultramodern' : 'workspace:*';
+
 export function appDependencies(
   scope: string,
   packageSource: ResolvedPackageSource,
@@ -36,44 +38,21 @@ export function appDependencies(
   bridge?: UltramodernBridgeConfig,
 ): Record<string, string> {
   const dependencies: Record<string, string> = {
-    '@modern-js/plugin-tanstack': modernPackageSpecifier(
-      '@modern-js/plugin-tanstack',
-      packageSource,
-    ),
-    '@modern-js/i18n-integration': modernPackageSpecifier(
-      '@modern-js/i18n-integration',
-      packageSource,
-    ),
-    '@modern-js/plugin-i18n': modernPackageSpecifier(
-      '@modern-js/plugin-i18n',
-      packageSource,
-    ),
-    '@modern-js/federation-runtime': modernPackageSpecifier(
-      '@modern-js/federation-runtime',
-      packageSource,
-    ),
-    '@modern-js/runtime-renderer-extensions': modernPackageSpecifier(
-      '@modern-js/runtime-renderer-extensions',
-      packageSource,
-    ),
-    '@modern-js/runtime-extensions': modernPackageSpecifier(
-      '@modern-js/runtime-extensions',
-      packageSource,
-    ),
-    '@modern-js/runtime': modernPackageSpecifier(
-      '@modern-js/runtime',
-      packageSource,
-    ),
+    '@modern-js/plugin-tanstack': frameworkRequest(packageSource),
+    '@modern-js/i18n-integration': frameworkRequest(packageSource),
+    '@modern-js/plugin-i18n': frameworkRequest(packageSource),
+    '@modern-js/federation-runtime': frameworkRequest(packageSource),
+    '@modern-js/runtime-renderer-extensions': frameworkRequest(packageSource),
+    '@modern-js/runtime-extensions': frameworkRequest(packageSource),
+    '@modern-js/runtime': frameworkRequest(packageSource),
     ...ULTRAMODERN_PACKAGE_PINS.appDependencies,
     [packageName(scope, 'shared-contracts')]: WORKSPACE_PACKAGE_VERSION,
     [packageName(scope, 'shared-design-tokens')]: WORKSPACE_PACKAGE_VERSION,
   };
 
   if (appHasApi(app) || app.kind === 'shell') {
-    dependencies['@modern-js/plugin-bff-extensions'] = modernPackageSpecifier(
-      '@modern-js/plugin-bff-extensions',
-      packageSource,
-    );
+    dependencies['@modern-js/plugin-bff-extensions'] =
+      frameworkRequest(packageSource);
   }
 
   const appRemotes = resolveRemoteRefs(app, remotes);
@@ -89,14 +68,9 @@ export function appDependencies(
   }
 
   if (app.kind === 'shell') {
-    dependencies['@modern-js/boundary-debugger'] = modernPackageSpecifier(
-      '@modern-js/boundary-debugger',
-      packageSource,
-    );
-    dependencies['@modern-js/plugin-bff'] = modernPackageSpecifier(
-      '@modern-js/plugin-bff',
-      packageSource,
-    );
+    dependencies['@modern-js/boundary-debugger'] =
+      frameworkRequest(packageSource);
+    dependencies['@modern-js/plugin-bff'] = frameworkRequest(packageSource);
     Object.assign(dependencies, ULTRAMODERN_PACKAGE_PINS.bffEffectDependencies);
     for (const remote of verticalApiApps(remotes)) {
       dependencies[packageName(scope, remote.packageSuffix)] =
@@ -110,14 +84,8 @@ export function appDependencies(
   }
 
   if (appHasApi(app)) {
-    dependencies['@modern-js/plugin-bff'] = modernPackageSpecifier(
-      '@modern-js/plugin-bff',
-      packageSource,
-    );
-    dependencies['@modern-js/bff-effect'] = modernPackageSpecifier(
-      '@modern-js/bff-effect',
-      packageSource,
-    );
+    dependencies['@modern-js/plugin-bff'] = frameworkRequest(packageSource);
+    dependencies['@modern-js/bff-effect'] = frameworkRequest(packageSource);
     Object.assign(dependencies, ULTRAMODERN_PACKAGE_PINS.bffEffectDependencies);
   }
 
@@ -138,24 +106,13 @@ function appDevDependencies(
   return {
     ...(appHasApi(app) || app.kind === 'shell'
       ? {
-          '@modern-js/plugin-bff-build-extensions': modernPackageSpecifier(
-            '@modern-js/plugin-bff-build-extensions',
-            packageSource,
-          ),
+          '@modern-js/plugin-bff-build-extensions':
+            frameworkRequest(packageSource),
         }
       : {}),
-    '@modern-js/ultramodern-app-tools': modernPackageSpecifier(
-      '@modern-js/ultramodern-app-tools',
-      packageSource,
-    ),
-    '@modern-js/app-tools-extensions': modernPackageSpecifier(
-      '@modern-js/app-tools-extensions',
-      packageSource,
-    ),
-    '@modern-js/app-tools': modernPackageSpecifier(
-      '@modern-js/app-tools',
-      packageSource,
-    ),
+    '@modern-js/ultramodern-app-tools': frameworkRequest(packageSource),
+    '@modern-js/app-tools-extensions': frameworkRequest(packageSource),
+    '@modern-js/app-tools': frameworkRequest(packageSource),
     ...always,
     ...(enableTailwind
       ? {
@@ -235,8 +192,8 @@ export function createRootPackageJson(
       'format:check': 'oxfmt --check .',
       lint: 'oxlint apps verticals packages',
       'lint:fix': 'oxlint apps verticals packages --fix',
-      'skills:install': 'node ./scripts/bootstrap-agent-skills.mts',
-      'skills:check': 'node ./scripts/bootstrap-agent-skills.mts --check',
+      'skills:install': 'ultramodern-create ultramodern skills install',
+      'skills:check': 'ultramodern-create ultramodern skills check',
       'agents:refs:install': 'node ./scripts/setup-agent-reference-repos.mts',
       'agents:refs:check':
         'node ./scripts/setup-agent-reference-repos.mts --check',
@@ -256,53 +213,19 @@ export function createRootPackageJson(
       workspace: 'ultramodern-superapp',
       topology: './topology/reference-topology.json',
       ownership: './topology/ownership.json',
-      packageSource: {
-        strategy: packageSource.strategy,
-        config: './.modernjs/ultramodern.json',
-      },
     },
     devDependencies: {
       ...ULTRAMODERN_PACKAGE_PINS.rootDevDependencies,
-      '@modern-js/app-tools': modernPackageSpecifier(
-        '@modern-js/app-tools',
-        packageSource,
-      ),
-      '@modern-js/plugin-bff-extensions': modernPackageSpecifier(
-        '@modern-js/plugin-bff-extensions',
-        packageSource,
-      ),
-      '@modern-js/plugin-bff-build-extensions': modernPackageSpecifier(
-        '@modern-js/plugin-bff-build-extensions',
-        packageSource,
-      ),
-      '@modern-js/runtime-renderer-extensions': modernPackageSpecifier(
-        '@modern-js/runtime-renderer-extensions',
-        packageSource,
-      ),
-      '@modern-js/ultramodern-app-tools': modernPackageSpecifier(
-        '@modern-js/ultramodern-app-tools',
-        packageSource,
-      ),
-      '@modern-js/app-tools-extensions': modernPackageSpecifier(
-        '@modern-js/app-tools-extensions',
-        packageSource,
-      ),
-      '@modern-js/bff-effect': modernPackageSpecifier(
-        '@modern-js/bff-effect',
-        packageSource,
-      ),
-      '@modern-js/code-tools': modernPackageSpecifier(
-        '@modern-js/code-tools',
-        packageSource,
-      ),
-      [ULTRAMODERN_CREATE_PACKAGE]: modernPackageSpecifier(
-        ULTRAMODERN_CREATE_PACKAGE,
-        packageSource,
-      ),
-      '@modern-js/plugin-bff': modernPackageSpecifier(
-        '@modern-js/plugin-bff',
-        packageSource,
-      ),
+      '@modern-js/app-tools': frameworkRequest(packageSource),
+      '@modern-js/plugin-bff-extensions': frameworkRequest(packageSource),
+      '@modern-js/plugin-bff-build-extensions': frameworkRequest(packageSource),
+      '@modern-js/runtime-renderer-extensions': frameworkRequest(packageSource),
+      '@modern-js/ultramodern-app-tools': frameworkRequest(packageSource),
+      '@modern-js/app-tools-extensions': frameworkRequest(packageSource),
+      '@modern-js/bff-effect': frameworkRequest(packageSource),
+      '@modern-js/code-tools': frameworkRequest(packageSource),
+      [ULTRAMODERN_CREATE_PACKAGE]: frameworkRequest(packageSource),
+      '@modern-js/plugin-bff': frameworkRequest(packageSource),
       ...ULTRAMODERN_PACKAGE_PINS.bffEffectDependencies,
     },
   };
@@ -421,13 +344,13 @@ export function createSharedPackage(
     packageJson.dependencies = {
       ...ULTRAMODERN_PACKAGE_PINS.bffEffectDependencies,
       '@modern-js/bff-effect': packageSource
-        ? modernPackageSpecifier('@modern-js/bff-effect', packageSource)
+        ? frameworkRequest(packageSource)
         : WORKSPACE_PACKAGE_VERSION,
       '@modern-js/runtime-extensions': packageSource
-        ? modernPackageSpecifier('@modern-js/runtime-extensions', packageSource)
+        ? frameworkRequest(packageSource)
         : WORKSPACE_PACKAGE_VERSION,
       '@modern-js/plugin-bff': packageSource
-        ? modernPackageSpecifier('@modern-js/plugin-bff', packageSource)
+        ? frameworkRequest(packageSource)
         : WORKSPACE_PACKAGE_VERSION,
     };
   }

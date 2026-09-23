@@ -22,6 +22,7 @@ import { renderFileTemplate } from '../fs-io';
 import {
   createRspackChunkLoadingGlobal,
   createRspackUniqueName,
+  relativeRootFor,
 } from '../naming';
 import { createCloudflareSecurityContract, formatTsJsonValue } from '../policy';
 import type { WorkspaceApp } from '../types';
@@ -41,7 +42,7 @@ export function createAppModernConfig(
   app: WorkspaceApp,
   remotes: WorkspaceApp[] = [],
   enableTailwind = true,
-  configuredDevPorts?: number[],
+  _configuredDevPorts?: number[],
 ): string {
   const deliveryUnit = createDeliveryUnitRecord(scope, app);
   const emitsUi = appEmitsBrowserUi(app);
@@ -174,20 +175,7 @@ const defaultAssetPrefix = defaultRemoteAssetPrefix;`;
       : `        // Remote dev manifests must publish an absolute publicPath so host
         // shells load remoteEntry.js and exposed chunks from this dev server.
         assetPrefix,`;
-  const developmentPorts = [
-    ...new Set(
-      (
-        configuredDevPorts ?? [
-          shellApp.port,
-          app.port,
-          ...remotes.map(remote => remote.port),
-        ]
-      ).filter(port => typeof port === 'number' && Number.isFinite(port)),
-    ),
-  ].toSorted((left, right) => left - right);
-  const configuredCorsSource = `const moduleFederationDevServerAllowedOrigins = [
-${developmentPorts.map(port => `  'http://localhost:${port}',`).join('\n')}
-];`;
+  const configuredCorsSource = `const moduleFederationDevServerAllowedOrigins = Object.values(developmentOverlay.ports).map(localPort => \`http://localhost:\${localPort}\`);`;
   const configuredCorsDevServer = `        // MF assets are non-credentialed and only permit configured local app origins.
         server: {
           cors: {
@@ -196,9 +184,7 @@ ${developmentPorts.map(port => `  'http://localhost:${port}',`).join('\n')}
           },
         },`;
   const configuredCorsHeader =
-    developmentPorts.length === 1
-      ? "'Access-Control-Allow-Origin': moduleFederationDevServerAllowedOrigins[0],"
-      : '';
+    "...(moduleFederationDevServerAllowedOrigins.length === 1 ? { 'Access-Control-Allow-Origin': moduleFederationDevServerAllowedOrigins[0] } : {}),";
   return renderFileTemplate('workspace/apps/modern.config.ts', {
     value0: `${bffImport}${tailwindImport}`,
     value1: app.id,
@@ -232,6 +218,7 @@ ${developmentPorts.map(port => `  'http://localhost:${port}',`).join('\n')}
     value26: deliveryUnit.unitId,
     value27: deliveryUnit.buildMarker,
     value28: deliveryUnit.version,
+    value29: relativeRootFor(app.directory),
   });
 }
 

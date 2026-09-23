@@ -28,7 +28,11 @@ import {
   trustedPublishRef,
   trustedPublishRepository,
 } from './constants.mjs';
-import { normalizeSidecarBin, sidecarAliasEntries } from './sidecars.mjs';
+import {
+  isQualifiedSidecarVersion,
+  normalizeSidecarBin,
+  sidecarAliasEntries,
+} from './sidecars.mjs';
 
 const { assertNonEmptyString, assertPlainObject, isPlainObject } = validationKit;
 
@@ -54,6 +58,7 @@ const sidecarResolutionFields = Object.freeze([
   'os',
   'peerDependencies',
   'peerDependenciesMeta',
+  'react-native',
   'sideEffects',
   'type',
   'types',
@@ -76,14 +81,21 @@ const sidecarIgnoredFields = Object.freeze([
   'homepage',
   'keywords',
   'license',
+  'llms',
+  'llmsFull',
   'man',
+  'mcpServer',
   'name',
   'private',
   'publishConfig',
+  'public',
   'readme',
   'repository',
   'scripts',
+  'support',
+  'tags',
   'version',
+  'zshy',
 ]);
 
 const resolutionFieldSet = new Set(sidecarResolutionFields);
@@ -142,6 +154,9 @@ function registryContentProjection(source, name) {
 }
 
 function assertStableSidecarVersion(name, version) {
+  if (isQualifiedSidecarVersion(name, version)) {
+    return;
+  }
   if (typeof version !== 'string' || !stableVersionPattern.test(version)) {
     throw new Error(
       `Sidecar ${name} version ${String(version)} must be stable semver (X.Y.Z) to publish`,

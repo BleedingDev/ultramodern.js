@@ -12,6 +12,11 @@ const test = require('node:test');
 
 const repoRoot = path.resolve(__dirname, '../../..');
 const cohortAliasConsumer = '@bleedingdev/modern-js-image';
+const imageSidecarRoots = [
+  'packages/sidecar/ipx',
+  'packages/sidecar/image-size',
+  'packages/sidecar/rsbuild-image-core',
+];
 
 const importPublication = () =>
   import('../lib/prepare-bleedingdev-packages/sidecar-publication.mjs');
@@ -32,8 +37,11 @@ const stageRelease = async () => {
   const releaseDir = makeTempDir();
   const stageDir = path.join(releaseDir, 'sidecars');
   fs.mkdirSync(stageDir, { recursive: true });
-  const staged = collectSidecarPackages(repoRoot).map(sidecar =>
-    stageSidecarPackage(sidecar, stageDir, { repoRoot: releaseDir }),
+  const staged = await Promise.all(
+    collectSidecarPackages(repoRoot, { roots: imageSidecarRoots }).map(
+      sidecar =>
+        stageSidecarPackage(sidecar, stageDir, { repoRoot: releaseDir }),
+    ),
   );
   const { descriptor } = writeSidecarStagingManifest(releaseDir, staged, {
     publishBefore: cohortAliasConsumer,
@@ -267,9 +275,10 @@ test('immutable sidecar verification rejects manifest and archive tampering', as
   }
 });
 
-test('the CLI reads the staged lane from the release bundle and fails closed on drift', async () => {
+test('the CLI reads the staged lane from the release bundle and fails closed on drift', async t => {
   const { readStagedSidecars } = await importCli();
   const { releaseDir } = await stageRelease();
+  t.after(() => fs.rmSync(releaseDir, { recursive: true, force: true }));
   const accepted = await acceptedSidecarRelease(releaseDir);
 
   const read = readStagedSidecars(releaseDir, {
@@ -417,9 +426,10 @@ test('a dist-tag on a different real version is terminal, never retried', async 
   assert.deepEqual(waits, [], 'no terminal state may sleep');
 });
 
-test('the trusted-publishing lane refuses to bootstrap a package npm cannot create', async () => {
+test('the trusted-publishing lane refuses to bootstrap a package npm cannot create', async t => {
   const { publishSidecars } = await importCli();
   const { releaseDir } = await stageRelease();
+  t.after(() => fs.rmSync(releaseDir, { recursive: true, force: true }));
   const accepted = await acceptedSidecarRelease(releaseDir);
   const unavailable = {
     readPackument: async () => null,

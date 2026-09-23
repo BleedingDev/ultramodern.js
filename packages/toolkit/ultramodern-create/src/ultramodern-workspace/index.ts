@@ -24,7 +24,6 @@ export { SHARED_ULTRAMODERN_WORKSPACE_PATCH_FILES } from './shared-patches';
 export {
   createShellDescriptor,
   PRIMARY_SHELL_ID,
-  resolveConfiguredAdditionalShells,
 } from './shells';
 export type {
   AddUltramodernShellOptions,

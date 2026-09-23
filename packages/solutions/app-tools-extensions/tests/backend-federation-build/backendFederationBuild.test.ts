@@ -51,7 +51,7 @@ const createBuildArtifact = (overrides: Record<string, unknown> = {}) => {
 type WorkspaceOptions = {
   artifactOverrides?: Record<string, unknown>;
   backendBase?: string;
-  compactDeliveryUnit?: Record<string, unknown>;
+  topologyDeliveryUnit?: Record<string, unknown>;
   distName?: string;
   effectApiSource?: string;
   appId?: string;
@@ -60,7 +60,7 @@ type WorkspaceOptions = {
 const createWorkspace = async ({
   artifactOverrides = {},
   backendBase = 'http://localhost:3021',
-  compactDeliveryUnit,
+  topologyDeliveryUnit,
   distName = 'dist',
   effectApiSource = 'export const backendFederationContract = {};\n',
   appId = 'explore',
@@ -87,16 +87,21 @@ const createWorkspace = async ({
     path.join(appDirectory, 'shared/ultramodern-build.json'),
     createBuildArtifact(artifactOverrides),
   );
-  await writeJson(path.join(workspaceRoot, '.modernjs/ultramodern.json'), {
-    topology: {
-      apps: [
+  await writeJson(path.join(appDirectory, 'package.json'), {
+    name: '@tractor-store-vertical-demo/explore',
+    version: '0.1.0',
+  });
+  await writeJson(
+    path.join(workspaceRoot, 'topology/reference-topology.json'),
+    {
+      shell: { id: 'shell', kind: 'shell', path: 'shell' },
+      verticals: [
         {
           id: appId,
           kind: 'vertical',
           package: '@tractor-store-vertical-demo/explore',
           path: 'verticals/explore',
-          port: 3021,
-          api: { prefix: '/explore-api', stem: 'explore' },
+          api: { bff: { prefix: '/explore-api' }, stem: 'explore' },
           moduleFederation: {
             name: 'verticalExplore',
             manifestUrl: `${backendBase}/mf-manifest.json`,
@@ -115,11 +120,30 @@ const createWorkspace = async ({
               },
             },
           },
-          ...(compactDeliveryUnit ? { deliveryUnit: compactDeliveryUnit } : {}),
+          ...(topologyDeliveryUnit
+            ? { deliveryUnit: topologyDeliveryUnit }
+            : {}),
         },
       ],
     },
-  });
+  );
+  await writeJson(
+    path.join(workspaceRoot, 'topology/local-overlays/development.json'),
+    {
+      ports: { explore: 3021 },
+      manifests: { explore: `${backendBase}/mf-manifest.json` },
+      serverExecution: {
+        explore: {
+          node: {
+            remoteName: 'verticalExploreBackend',
+            manifestUrl: `${backendBase}/backend-mf-manifest.json`,
+            containerEntry: `${backendBase}/backendRemoteEntry.cjs`,
+            remoteType: 'commonjs-module',
+          },
+        },
+      },
+    },
+  );
   return { appDirectory, distDirectory, workspaceRoot };
 };
 
@@ -269,7 +293,7 @@ export { api as nativeApi, runtime as nativeRuntime };
         build: 'tractor-explore-build-DRIFTED',
         buildMarker: 'tractor-explore-build-DRIFTED',
       },
-      compactDeliveryUnit: {
+      topologyDeliveryUnit: {
         unitId: 'tractor-store-vertical-demo/explore',
         buildMarker: 'tractor-explore-build-1234',
         sourceRevision: 'workspace',
@@ -313,7 +337,7 @@ export { api as nativeApi, runtime as nativeRuntime };
     await expect(fs.access(workspace.distDirectory)).rejects.toThrow();
 
     await fs.rm(
-      path.join(workspace.workspaceRoot, '.modernjs/ultramodern.json'),
+      path.join(workspace.workspaceRoot, 'topology/reference-topology.json'),
     );
     await expect(
       emitBackendFederationArtifacts(
@@ -328,11 +352,10 @@ export { api as nativeApi, runtime as nativeRuntime };
     const workspace = await createWorkspace();
     const configPath = path.join(
       workspace.workspaceRoot,
-      '.modernjs/ultramodern.json',
+      'topology/local-overlays/development.json',
     );
     const config = JSON.parse(await fs.readFile(configPath, 'utf8'));
-    const node =
-      config.topology.apps[0].backendFederation.executionSurfaces.node;
+    const node = config.serverExecution.explore.node;
     node.remoteType = 'module';
     await writeJson(configPath, config);
     await expect(

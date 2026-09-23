@@ -4,10 +4,10 @@ overview: "Generate only canonical app configuration and direct commands; retire
 todos:
   - id: cc-generator-canonical-generation
     content: "Rewrite workspace and add operations to maintain each application choice in exactly one canonical source."
-    status: pending
+    status: completed
   - id: cc-generator-direct-tooling
     content: "Generate direct installed CLI commands and centralized dependency declarations; remove retired metadata and redundant wrappers."
-    status: pending
+    status: completed
 isProject: false
 ---
 

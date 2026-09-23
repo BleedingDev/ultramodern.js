@@ -19,12 +19,6 @@ function readRequiredJson(projectDir, relativePath) {
   return readJsonFile(filePath);
 }
 
-function compactApps(compactConfig) {
-  return Array.isArray(compactConfig?.topology?.apps)
-    ? compactConfig.topology.apps
-    : [];
-}
-
 function appId(value) {
   return typeof value === 'string'
     ? value
@@ -61,10 +55,79 @@ function assertSameIds(actual, expected, label) {
 }
 
 function readWorkspaceAcceptanceArtifacts(projectDir) {
+  const topology = readRequiredJson(
+    projectDir,
+    'topology/reference-topology.json',
+  );
+  const overlay = readRequiredJson(
+    projectDir,
+    'topology/local-overlays/development.json',
+  );
+  assertCondition(
+    topology?.shell &&
+      Array.isArray(topology.verticals) &&
+      (topology.shells === undefined || Array.isArray(topology.shells)),
+    'Reference topology must declare a shell, verticals and optional shells',
+  );
+  const records = [
+    topology.shell,
+    ...topology.verticals,
+    ...(topology.shells ?? []),
+  ];
+  const ids = new Set();
+  const paths = new Set();
+  const ports = new Set();
+  const workspaceRoot = fs.realpathSync(projectDir);
+  const apps = records.map((app, index) => {
+    assertCondition(
+      typeof app?.id === 'string' && app.id.length > 0 && !ids.has(app.id),
+      'Reference topology app IDs must be unique non-empty strings',
+    );
+    ids.add(app.id);
+    const kind =
+      index === 0 || index > topology.verticals.length ? 'shell' : 'vertical';
+    assertCondition(
+      app.kind === kind,
+      `${app.id} topology kind must be ${kind}`,
+    );
+    assertCondition(
+      typeof app.path === 'string' &&
+        app.path.length > 0 &&
+        !path.isAbsolute(app.path) &&
+        !app.path.split(/[\\/]/u).includes('..'),
+      `${app.id} topology path must be workspace-relative`,
+    );
+    const appRoot = fs.realpathSync(path.join(projectDir, app.path));
+    const relative = path.relative(workspaceRoot, appRoot);
+    assertCondition(
+      relative &&
+        relative !== '..' &&
+        !relative.startsWith(`..${path.sep}`) &&
+        !path.isAbsolute(relative) &&
+        !paths.has(appRoot),
+      `${app.id} topology path must be unique and inside workspace`,
+    );
+    paths.add(appRoot);
+    const manifest = readJsonFile(path.join(appRoot, 'package.json'));
+    assertCondition(
+      typeof manifest.name === 'string' &&
+        manifest.name.length > 0 &&
+        (app.package === undefined || app.package === manifest.name),
+      `${app.id} topology package identity must match its manifest`,
+    );
+    const port = overlay?.ports?.[app.id];
+    assertCondition(
+      Number.isInteger(port) && port > 0 && port <= 65535 && !ports.has(port),
+      `${app.id} must have a unique development overlay port`,
+    );
+    ports.add(port);
+    return { ...app, package: manifest.name, port };
+  });
   return {
     projectDir,
-    topology: readRequiredJson(projectDir, 'topology/reference-topology.json'),
-    compactConfig: readRequiredJson(projectDir, '.modernjs/ultramodern.json'),
+    topology,
+    overlay,
+    apps,
   };
 }
 
@@ -94,7 +157,9 @@ function assertWorkspaceCheckContract(projectDir) {
   const nodeProof = packageJson.scripts?.['node:proof'];
   assertCondition(
     typeof nodeProof === 'string' &&
-      nodeProof.includes('proof-node-backend-federation') &&
+      nodeProof.includes(
+        'ultramodern-create ultramodern backend-federation-proof',
+      ) &&
       !nodeProof.includes('backend-federation:generate'),
     'Generated node:proof must read already-built live outputs without regenerating backend federation artifacts',
   );
@@ -117,22 +182,21 @@ function assertTopologyAcceptance(artifacts, verticalNames) {
     'Reference topology vertical ids',
   );
 
-  const apps = compactApps(artifacts.compactConfig);
-  const compactVerticals = apps.filter(app => app.kind === 'vertical');
-  const shells = apps.filter(app => app.kind === 'shell');
+  const verticals = artifacts.apps.filter(app => app.kind === 'vertical');
+  const shells = artifacts.apps.filter(app => app.kind === 'shell');
   assertCondition(
-    shells.length === 1,
-    `Compact topology must contain one shell, found ${shells.length}`,
+    shells.length >= 1,
+    'Reference topology must contain a shell',
   );
   assertSameIds(
-    compactVerticals.map(app => app.id),
+    verticals.map(app => app.id),
     verticalNames,
-    'Compact topology vertical ids',
+    'Reference topology app vertical ids',
   );
   return {
     shellId: shells[0].id,
     topologyVerticalCount: topologyVerticals.length,
-    compactVerticalCount: compactVerticals.length,
+    appVerticalCount: verticals.length,
   };
 }
 
@@ -168,7 +232,6 @@ function assertModuleFederationAcceptance(artifacts, verticalNames) {
 
   const sharedContract = createSharedContractVersionAssertion({
     topology,
-    generatedContract: { apps: compactApps(artifacts.compactConfig) },
   });
   assertCondition(
     sharedContract.status === 'pass',
@@ -182,26 +245,29 @@ function assertModuleFederationAcceptance(artifacts, verticalNames) {
 }
 
 function assertApiAcceptance(artifacts, verticalNames) {
-  const compactById = new Map(
-    compactApps(artifacts.compactConfig).map(app => [app.id, app]),
-  );
   const readinessRoutes = [];
   for (const vertical of artifacts.topology.verticals) {
-    const compact = compactById.get(vertical.id);
-    assertCondition(compact, `${vertical.id} compact API metadata is missing`);
     assertCondition(
-      typeof compact.api?.prefix === 'string' && compact.api.prefix.length > 0,
-      `${vertical.id} compact API prefix is missing`,
+      typeof vertical.api?.bff?.prefix === 'string' &&
+        vertical.api.bff.prefix.length > 0,
+      `${vertical.id} API prefix is missing`,
     );
     assertCondition(
-      typeof compact.api?.stem === 'string' && compact.api.stem.length > 0,
-      `${vertical.id} compact API stem is missing`,
+      typeof vertical.api?.readiness?.endpoint === 'string' &&
+        vertical.api.readiness.endpoint.startsWith('/') &&
+        vertical.api.readiness.endpoint.length > 1,
+      `${vertical.id} API readiness endpoint is missing`,
     );
     const readiness =
       vertical.backendFederation?.versionBoundary?.api?.readiness;
     assertCondition(
       typeof readiness === 'string' && readiness.length > 0,
       `${vertical.id} API readiness contract is missing`,
+    );
+    assertCondition(
+      readiness ===
+        `${vertical.api.bff.prefix}${vertical.api.readiness.endpoint}`,
+      `${vertical.id} API readiness route differs from its topology prefix and endpoint`,
     );
     readinessRoutes.push({ appId: vertical.id, route: readiness });
   }
@@ -217,12 +283,10 @@ function assertApiAcceptance(artifacts, verticalNames) {
 }
 
 function assertBackendAcceptance(artifacts, verticalNames) {
-  const compactById = new Map(
-    compactApps(artifacts.compactConfig).map(app => [app.id, app]),
-  );
+  const appsById = new Map(artifacts.apps.map(app => [app.id, app]));
   const results = verticalNames.map(vertical => {
-    const app = compactById.get(vertical);
-    assertCondition(app, `${vertical} compact backend metadata is missing`);
+    const app = appsById.get(vertical);
+    assertCondition(app, `${vertical} backend topology is missing`);
     return readNodeBackendArtifactEvidence(artifacts.projectDir, app);
   });
   return {

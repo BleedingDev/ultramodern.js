@@ -174,6 +174,26 @@ export const verifyCloudflareOutput = async (
   }
 
   if (wrangler) {
+    if (
+      typeof wrangler.name !== 'string' ||
+      wrangler.name.trim().length === 0
+    ) {
+      addIssue(issues, {
+        code: 'invalid-wrangler',
+        message: 'wrangler.json name must be a non-empty worker name.',
+        path: wranglerPath,
+      });
+    }
+    if (
+      typeof wrangler.compatibility_date !== 'string' ||
+      !/^\d{4}-\d{2}-\d{2}$/u.test(wrangler.compatibility_date)
+    ) {
+      addIssue(issues, {
+        code: 'invalid-wrangler',
+        message: 'wrangler.json compatibility_date must use YYYY-MM-DD.',
+        path: wranglerPath,
+      });
+    }
     assertEqual(issues, wrangler.main, outputPlan.wrangler.main, {
       code: 'invalid-wrangler',
       message: `wrangler.json main must be ${outputPlan.wrangler.main}.`,

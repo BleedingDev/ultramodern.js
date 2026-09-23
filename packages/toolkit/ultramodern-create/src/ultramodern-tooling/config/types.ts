@@ -1,4 +1,3 @@
-import type { UltramodernBridgeConfig } from '../../ultramodern-workspace/bridge-config';
 import type {
   ResolvedPackageSource,
   VerticalPreset,
@@ -6,8 +5,6 @@ import type {
   WorkspaceApp,
   WorkspaceDeliveryUnitKind,
 } from '../../ultramodern-workspace/types';
-
-export type UltramodernToolingConfigSource = 'compact';
 
 export type UltramodernToolingConfigApp = {
   id: string;
@@ -35,10 +32,6 @@ export type UltramodernToolingConfigApp = {
 };
 
 export type UltramodernToolingConfig = {
-  schemaVersion: number;
-  profile?: string;
-  source: UltramodernToolingConfigSource;
-  sourcePath: string;
   workspace: {
     packageScope: string;
   };
@@ -46,10 +39,8 @@ export type UltramodernToolingConfig = {
   features: {
     tailwind: boolean;
   };
-  bridge?: UltramodernBridgeConfig;
+  inheritedWorkspaceDependencies: Record<string, string>;
   topology: {
     apps: UltramodernToolingConfigApp[];
   };
-  /** Additional shells live in the additive compact-config collection. */
-  shells?: Array<Record<string, unknown>>;
 };

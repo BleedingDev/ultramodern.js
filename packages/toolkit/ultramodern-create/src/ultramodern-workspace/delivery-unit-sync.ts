@@ -1,15 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
-import {
-  readUltramodernConfig,
-  workspaceAppsFromToolingConfig,
-} from '../ultramodern-tooling/config';
+import { readUltramodernWorkspaceInputs } from '../ultramodern-tooling/config';
+import { createBuildMarker } from './delivery-unit';
 import {
   isPlainObject,
   stampDeliveryUnitIdentity,
 } from './delivery-unit-stamp';
-import { ULTRAMODERN_CONFIG_PATH } from './descriptors';
 import {
   createUltramodernBuildArtifactJson,
   createUltramodernBuildModule,
@@ -67,8 +64,8 @@ export function runSyncDeliveryUnit(
 Backfills the per-delivery-unit identity blocks required by
 \`ultramodern validate\` onto an existing generated workspace, in place and
 through framework tooling only. For each delivery unit it writes the
-delivery-unit block into .modernjs/ultramodern.json topology.apps[] and
-topology/reference-topology.json verticals[] (plus backendFederation.deliveryUnit
+delivery-unit block into topology/reference-topology.json shell/verticals/shells
+(plus backendFederation.deliveryUnit
 and backendFederation.versionBoundary.identityRoot) and regenerates
 <app>/shared/ultramodern-build.{json,ts}. Idempotent: a second run writes
 nothing.
@@ -81,19 +78,33 @@ nothing.
     ? path.resolve(context.invocationCwd, workspaceOverride)
     : context.workspaceRoot;
 
-  const compactPath = path.join(workspaceRoot, ULTRAMODERN_CONFIG_PATH);
-  if (!fs.existsSync(compactPath)) {
-    throw new Error(
-      `Missing ${ULTRAMODERN_CONFIG_PATH}. sync-delivery-unit needs the compact ` +
-        'UltraModern config. Create a workspace with the current generator.',
-    );
-  }
-
-  const config = readUltramodernConfig(workspaceRoot);
-  const scope = config.workspace.packageScope;
+  const workspace = readUltramodernWorkspaceInputs(workspaceRoot);
+  const scope = workspace.config.workspace.packageScope;
   // Delivery-unit identity applies to ALL unit kinds (G29): shell, UI-only
   // verticals, and API-bearing verticals each carry a record.
-  const workspaceApps = workspaceAppsFromToolingConfig(config, workspaceRoot);
+  const packageVersions = new Map<string, string>();
+  const workspaceApps = workspace.apps.map(app => {
+    const manifestPath = path.join(
+      workspaceRoot,
+      app.directory,
+      'package.json',
+    );
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+    if (typeof manifest.version !== 'string' || !manifest.version) {
+      throw new Error(
+        `${manifestPath} requires a package version for delivery-unit sync.`,
+      );
+    }
+    packageVersions.set(app.id, manifest.version);
+    return {
+      ...app,
+      deliveryUnit: {
+        ...app.deliveryUnit,
+        version: manifest.version,
+        buildMarker: createBuildMarker(scope, app, manifest.version),
+      },
+    };
+  });
 
   const written: string[] = [];
   const unchanged: string[] = [];
@@ -103,22 +114,7 @@ nothing.
 
   const appById = new Map(workspaceApps.map(app => [app.id, app]));
 
-  // (1) .modernjs/ultramodern.json topology.apps[]
-  const compact = JSON.parse(fs.readFileSync(compactPath, 'utf-8'));
-  if (isPlainObject(compact) && Array.isArray(compact.topology?.apps)) {
-    for (const entry of compact.topology.apps) {
-      if (!isPlainObject(entry)) {
-        continue;
-      }
-      const app = appById.get(String(entry.id));
-      if (app) {
-        stampDeliveryUnitIdentity(entry, scope, app);
-      }
-    }
-  }
-  track(ULTRAMODERN_CONFIG_PATH, writeJsonIfChanged(compactPath, compact));
-
-  // (2) topology/reference-topology.json verticals[]
+  // Topology contains the canonical delivery-unit declarations.
   const topologyPath = path.join(workspaceRoot, REFERENCE_TOPOLOGY_PATH);
   if (fs.existsSync(topologyPath)) {
     const topology = JSON.parse(fs.readFileSync(topologyPath, 'utf-8'));
@@ -129,21 +125,44 @@ nothing.
         }
         const app = appById.get(String(entry.id));
         if (app) {
-          stampDeliveryUnitIdentity(entry, scope, app);
+          stampDeliveryUnitIdentity(
+            entry,
+            scope,
+            app,
+            packageVersions.get(app.id)!,
+          );
         }
+      }
+    }
+    if (isPlainObject(topology) && Array.isArray(topology.shells)) {
+      for (const entry of topology.shells) {
+        if (!isPlainObject(entry)) continue;
+        const app = appById.get(String(entry.id));
+        if (app)
+          stampDeliveryUnitIdentity(
+            entry,
+            scope,
+            app,
+            packageVersions.get(app.id)!,
+          );
       }
     }
     // The shell is its own delivery unit (G29): stamp its identity block too.
     if (isPlainObject(topology) && isPlainObject(topology.shell)) {
       const shell = appById.get(String(topology.shell.id));
       if (shell) {
-        stampDeliveryUnitIdentity(topology.shell, scope, shell);
+        stampDeliveryUnitIdentity(
+          topology.shell,
+          scope,
+          shell,
+          packageVersions.get(shell.id)!,
+        );
       }
     }
     track(REFERENCE_TOPOLOGY_PATH, writeJsonIfChanged(topologyPath, topology));
   }
 
-  // (3) <app>/shared/ultramodern-build.{json,ts} for every unit kind
+  // <app>/shared/ultramodern-build.{json,ts} for every unit kind
   // (framework-owned; regenerate from canonical descriptors)
   for (const app of workspaceApps) {
     const buildModulePath = path.join(

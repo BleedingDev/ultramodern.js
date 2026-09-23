@@ -4,10 +4,7 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
-import {
-  readUltramodernConfig,
-  workspaceAppsFromToolingConfig,
-} from '../src/ultramodern-tooling/config';
+import { readUltramodernWorkspaceInputs } from '../src/ultramodern-tooling/config';
 import {
   addUltramodernVertical,
   generateUltramodernWorkspace,
@@ -43,11 +40,11 @@ function writeJson(workspaceDir: string, relativePath: string, value: unknown) {
 function runGeneratedWorkspaceCheck(workspaceDir: string) {
   return spawnSync(
     process.execPath,
-    ['scripts/validate-ultramodern-workspace.mts'],
+    [createBinPath, 'ultramodern', 'validate'],
     {
       cwd: workspaceDir,
       encoding: 'utf8',
-      env: hermeticEnv,
+      env: { ...hermeticEnv, ULTRAMODERN_WORKSPACE_ROOT: workspaceDir },
     },
   );
 }
@@ -151,16 +148,13 @@ test('referenced remote declaration prebuild emits declarations from a clean cac
     // A cross-remote reference is the only topology the generator prebuilds
     // with `--emit --project`, so take the executed command from the generator
     // instead of restating it here.
-    const toolingConfig = readJson(workspaceDir, '.modernjs/ultramodern.json');
-    appById(
-      toolingConfig.topology.apps,
-      'checkout',
-    ).moduleFederation.verticalRefs = ['catalog'];
-    writeJson(workspaceDir, '.modernjs/ultramodern.json', toolingConfig);
+    const topology = readJson(workspaceDir, 'topology/reference-topology.json');
+    appById(topology.verticals, 'checkout').moduleFederation.verticalRefs = [
+      'catalog',
+    ];
+    writeJson(workspaceDir, 'topology/reference-topology.json', topology);
     const declarationPrebuild = createWorkspaceRootPackageScripts(
-      workspaceAppsFromToolingConfig(
-        readUltramodernConfig(workspaceDir),
-      ).filter(app => app.kind !== 'shell'),
+      readUltramodernWorkspaceInputs(workspaceDir).verticals,
     )
       .build.split(' && ')
       .find(segment => segment.includes('--emit --project verticals/catalog/'));
@@ -202,6 +196,12 @@ test('referenced remote declaration prebuild emits declarations from a clean cac
       nodeTypesLink,
       'dir',
     );
+    const installedCli = path.join(
+      workspaceDir,
+      'node_modules/.bin/ultramodern-create',
+    );
+    fs.mkdirSync(path.dirname(installedCli), { recursive: true });
+    fs.symlinkSync(createBinPath, installedCli);
     const declarationFile = path.resolve(
       workspaceDir,
       'verticals/catalog',
@@ -215,6 +215,7 @@ test('referenced remote declaration prebuild emits declarations from a clean cac
         encoding: 'utf8',
         env: {
           ...hermeticEnv,
+          PATH: `${path.join(workspaceDir, 'node_modules/.bin')}${path.delimiter}${process.env.PATH ?? ''}`,
           EFFECT_TSGO_BIN: resolveInstalledTsgoExecutable(),
         },
         shell: true,
@@ -284,7 +285,7 @@ if (!existsSync(process.argv[2])) {
   }
 });
 
-test('generated MicroVertical self-check names corrupted contracts and fix areas', () => {
+test('generated MicroVertical validation rejects missing API and identity drift', () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-self-check-'));
 
   const scenarios = [
@@ -294,31 +295,46 @@ test('generated MicroVertical self-check names corrupted contracts and fix areas
         fs.rmSync(path.join(workspaceDir, 'verticals/catalog/shared/api.ts'));
       },
       expectedContract:
-        /MicroVertical contract self-check failed: required files for catalog\. Missing verticals\/catalog\/shared\/api\.ts\./,
-      expectedFixArea:
-        /Fix area: restore the generated MicroVertical files or rerun the MicroVertical generator\./,
+        /catalog shared API contract \.\/shared\/api\.ts is missing/,
     },
     {
       workspaceName: 'delivery-unit-drift',
       mutate: (workspaceDir: string) => {
-        const ultramodernConfig = readJson(
+        const topology = readJson(
           workspaceDir,
-          '.modernjs/ultramodern.json',
+          'topology/reference-topology.json',
         );
-        appById(
-          ultramodernConfig.topology.apps,
-          'catalog',
-        ).deliveryUnit.buildMarker = 'deadbeefdeadbeef';
-        writeJson(
-          workspaceDir,
-          '.modernjs/ultramodern.json',
-          ultramodernConfig,
+        appById(topology.verticals, 'catalog').deliveryUnit.buildMarker =
+          'deadbeefdeadbeef';
+        writeJson(workspaceDir, 'topology/reference-topology.json', topology);
+      },
+      expectedContract:
+        /catalog (?:backend federation delivery|build) identity contradicts topology/,
+    },
+    {
+      workspaceName: 'missing-build-stamp',
+      mutate: (workspaceDir: string) => {
+        fs.rmSync(
+          path.join(
+            workspaceDir,
+            'verticals/catalog/shared/ultramodern-build.json',
+          ),
+        );
+      },
+      expectedContract: /catalog build stamp is missing/,
+    },
+    {
+      workspaceName: 'missing-backend-config',
+      mutate: (workspaceDir: string) => {
+        fs.rmSync(
+          path.join(
+            workspaceDir,
+            'verticals/catalog/backend-federation.config.ts',
+          ),
         );
       },
       expectedContract:
-        /MicroVertical contract self-check failed: \.modernjs\/ultramodern\.json topology\.apps\.catalog\.backendFederation\.deliveryUnit\./,
-      expectedFixArea:
-        /Fix area: regenerate vertical identity from delivery-unit record; do not hand-edit surface markers\./,
+        /catalog API surface is missing: verticals\/catalog\/backend-federation\.config\.ts/,
     },
   ] as const;
 
@@ -346,8 +362,93 @@ test('generated MicroVertical self-check names corrupted contracts and fix areas
       const output = commandOutput(failingResult);
       assert.notEqual(failingResult.status, 0, output);
       assert.match(output, scenario.expectedContract);
-      assert.match(output, scenario.expectedFixArea);
     }
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('generated validator accepts authored remote development URLs', () => {
+  const tempRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'um-custom-endpoints-'),
+  );
+  const workspaceDir = path.join(tempRoot, 'workspace');
+  try {
+    generateUltramodernWorkspace({
+      targetDir: workspaceDir,
+      packageName: 'custom-endpoints',
+      modernVersion: '3.2.1',
+      enableTailwind: true,
+      packageSource: { strategy: 'workspace' },
+    });
+    addUltramodernVertical({
+      workspaceRoot: workspaceDir,
+      name: 'catalog',
+      modernVersion: '3.2.1',
+    });
+    const overlay = readJson(
+      workspaceDir,
+      'topology/local-overlays/development.json',
+    );
+    overlay.manifests.catalog =
+      'https://preview.example.test/federation/catalog.json';
+    overlay.apis.catalog = 'https://api.example.test/catalog';
+    overlay.serverExecution.catalog.apiBaseUrl = overlay.apis.catalog;
+    overlay.serverExecution.catalog.node.manifestUrl =
+      'https://backend.example.test/manifest.json';
+    overlay.serverExecution.catalog.node.containerEntry =
+      'https://backend.example.test/entry.cjs';
+    writeJson(
+      workspaceDir,
+      'topology/local-overlays/development.json',
+      overlay,
+    );
+    const topology = readJson(workspaceDir, 'topology/reference-topology.json');
+    const catalog = appById(topology.verticals, 'catalog');
+    catalog.moduleFederation.manifestUrl = overlay.manifests.catalog;
+    catalog.backendFederation.executionSurfaces.node.manifestUrl =
+      overlay.serverExecution.catalog.node.manifestUrl;
+    catalog.backendFederation.executionSurfaces.node.containerEntry =
+      overlay.serverExecution.catalog.node.containerEntry;
+    writeJson(workspaceDir, 'topology/reference-topology.json', topology);
+    const result = runGeneratedWorkspaceCheck(workspaceDir);
+    assert.equal(result.status, 0, commandOutput(result));
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('UI-only vertical rejects a planted backend federation surface', () => {
+  const tempRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'um-ui-only-boundary-'),
+  );
+  const workspaceDir = path.join(tempRoot, 'workspace');
+  try {
+    generateUltramodernWorkspace({
+      targetDir: workspaceDir,
+      packageName: 'ui-only-boundary',
+      modernVersion: '3.2.1',
+      enableTailwind: true,
+      packageSource: { strategy: 'workspace' },
+    });
+    addUltramodernVertical({
+      workspaceRoot: workspaceDir,
+      name: 'catalog',
+      preset: 'ui-only',
+      modernVersion: '3.2.1',
+    });
+    const passing = runGeneratedWorkspaceCheck(workspaceDir);
+    assert.equal(passing.status, 0, commandOutput(passing));
+    fs.writeFileSync(
+      path.join(workspaceDir, 'verticals/catalog/backend-federation.config.ts'),
+      'export default {}',
+    );
+    const failing = runGeneratedWorkspaceCheck(workspaceDir);
+    assert.notEqual(failing.status, 0, commandOutput(failing));
+    assert.match(
+      commandOutput(failing),
+      /Unexpected verticals\/catalog\/backend-federation\.config\.ts for a ui-only unit/,
+    );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

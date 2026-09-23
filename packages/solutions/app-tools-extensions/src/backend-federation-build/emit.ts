@@ -16,10 +16,10 @@ import {
 import {
   type BackendFederationApp,
   buildArtifactPathFor,
-  COMPACT_CONFIG_PATH,
   createStampedDeliveryUnit,
   findBackendFederationApp,
   findWorkspaceRoot,
+  REFERENCE_TOPOLOGY_PATH,
   readBuildIdentity,
   resolveWorkspaceSourceRevision,
 } from './config';
@@ -58,13 +58,13 @@ export const emitBackendFederationArtifacts = async (
     return undefined;
   }
   const buildIdentity = await readBuildIdentity(appDirectory);
-  const compactDeliveryUnit = app.compactDeliveryUnit;
-  const hasCompactDeliveryUnit =
-    compactDeliveryUnit !== undefined &&
-    (compactDeliveryUnit.unitId !== undefined ||
-      compactDeliveryUnit.buildMarker !== undefined ||
-      compactDeliveryUnit.packageName !== undefined ||
-      compactDeliveryUnit.version !== undefined);
+  const topologyDeliveryUnit = app.topologyDeliveryUnit;
+  const hasTopologyDeliveryUnit =
+    topologyDeliveryUnit !== undefined &&
+    (topologyDeliveryUnit.unitId !== undefined ||
+      topologyDeliveryUnit.buildMarker !== undefined ||
+      topologyDeliveryUnit.packageName !== undefined ||
+      topologyDeliveryUnit.version !== undefined);
   const hasBuildIdentity =
     buildIdentity.unitId !== undefined ||
     buildIdentity.buildVersion !== undefined ||
@@ -72,7 +72,7 @@ export const emitBackendFederationArtifacts = async (
     buildIdentity.version !== undefined;
 
   if (hasBuildIdentity) {
-    const compactConfigPath = path.join(workspaceRoot, COMPACT_CONFIG_PATH);
+    const topologyPath = path.join(workspaceRoot, REFERENCE_TOPOLOGY_PATH);
     const buildIdentityPath = buildArtifactPathFor(appDirectory);
     const mismatches: string[] = [];
     const compare = (
@@ -89,31 +89,45 @@ export const emitBackendFederationArtifacts = async (
     };
     compare('appId', app.id, buildIdentity.appId, 'topology');
 
-    if (hasCompactDeliveryUnit) {
-      compare('unitId', compactDeliveryUnit?.unitId, buildIdentity.unitId);
+    if (hasTopologyDeliveryUnit) {
+      compare('unitId', topologyDeliveryUnit?.unitId, buildIdentity.unitId);
       compare(
         'buildMarker/build',
-        compactDeliveryUnit?.buildMarker,
+        topologyDeliveryUnit?.buildMarker,
         buildIdentity.buildVersion,
       );
       compare(
         'packageName',
-        compactDeliveryUnit?.packageName,
+        topologyDeliveryUnit?.packageName,
         buildIdentity.packageName,
       );
-      compare('version', compactDeliveryUnit?.version, buildIdentity.version);
+      compare('version', topologyDeliveryUnit?.version, buildIdentity.version);
     }
+    compare(
+      'packageName',
+      app.packageName,
+      buildIdentity.packageName,
+      'package.json',
+    );
+    compare(
+      'packageName',
+      topologyDeliveryUnit?.packageName,
+      app.packageName,
+      'topology',
+    );
+    compare('version', app.version, buildIdentity.version, 'package.json');
+    compare('version', topologyDeliveryUnit?.version, app.version, 'topology');
 
     if (mismatches.length > 0) {
       throw new Error(
-        `[backend-federation-build] Delivery-unit identity drift between ${compactConfigPath} (topology) and ${buildIdentityPath}: ${mismatches.join('; ')}`,
+        `[backend-federation-build] Delivery-unit identity drift between ${topologyPath}, package.json and ${buildIdentityPath}: ${mismatches.join('; ')}`,
       );
     }
   }
 
-  const unitId = compactDeliveryUnit?.unitId ?? buildIdentity.unitId;
+  const unitId = topologyDeliveryUnit?.unitId ?? buildIdentity.unitId;
   const generationBuildMarker =
-    compactDeliveryUnit?.buildMarker ?? buildIdentity.buildVersion;
+    topologyDeliveryUnit?.buildMarker ?? buildIdentity.buildVersion;
   const sourceRevision = await resolveWorkspaceSourceRevision(workspaceRoot);
   const buildVersion =
     generationBuildMarker && unitId
@@ -123,11 +137,8 @@ export const emitBackendFederationArtifacts = async (
           workspaceRoot,
         }).buildMarker
       : undefined;
-  const packageName =
-    compactDeliveryUnit?.packageName ??
-    buildIdentity.packageName ??
-    app.packageName;
-  const version = compactDeliveryUnit?.version ?? buildIdentity.version;
+  const packageName = app.packageName;
+  const version = app.version;
   const deliveryUnit = createStampedDeliveryUnit({
     appId: app.id,
     unitId,

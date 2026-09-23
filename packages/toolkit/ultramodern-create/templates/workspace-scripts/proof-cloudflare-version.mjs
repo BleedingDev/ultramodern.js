@@ -3,12 +3,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateApp } from './ultramodern-cloudflare-proof.mjs';
+import {
+  readGeneratedContractView as readPublicSurfaceView,
+  resolvePublicSurface,
+} from './generate-public-surface-assets.mjs';
 
 const workspaceRoot = path.resolve(
   process.env.ULTRAMODERN_WORKSPACE_ROOT ??
     path.join(path.dirname(fileURLToPath(import.meta.url)), '..'),
 );
-const compactConfigPath = path.join(workspaceRoot, '.modernjs/ultramodern.json');
+const topologyPath = path.join(workspaceRoot, 'topology/reference-topology.json');
 const localOverlayPath = path.join(
   workspaceRoot,
   'topology/local-overlays/development.json',
@@ -22,10 +26,6 @@ function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 }
 
-function readOptionalJson(filePath) {
-  return fs.existsSync(filePath) ? readJson(filePath) : {};
-}
-
 function toKebabCase(value) {
   return String(value)
     .trim()
@@ -37,113 +37,12 @@ function toKebabCase(value) {
     .replace(/^-+|-+$/gu, '');
 }
 
-function toPascalCase(value) {
-  return toKebabCase(value)
-    .split('-')
-    .filter(Boolean)
-    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
-    .join('');
-}
-
 function toEnvSegment(value) {
   return toKebabCase(value).replace(/-/gu, '_').toUpperCase();
 }
 
-function normalizeRelativePath(value) {
-  return String(value ?? '').replace(/\\/gu, '/').replace(/^\.\/+/u, '');
-}
-
 function appNamespace(app) {
   return app.kind === 'shell' ? 'shell' : (app.domain ?? app.id);
-}
-
-function normalizeCompactApp(rawApp, localOverlay = {}) {
-  const id = String(rawApp.id);
-  const kind = rawApp.kind === 'vertical' ? 'vertical' : 'shell';
-  const appPath =
-    typeof rawApp.path === 'string'
-      ? normalizeRelativePath(rawApp.path)
-      : kind === 'shell'
-        ? 'apps/shell-super-app'
-        : `verticals/${toKebabCase(id)}`;
-  const packageSuffix =
-    typeof rawApp.packageSuffix === 'string'
-      ? rawApp.packageSuffix
-      : appPath.split('/').at(-1) ?? id;
-  const domain =
-    typeof rawApp.domain === 'string'
-      ? rawApp.domain
-      : kind === 'vertical'
-        ? packageSuffix
-        : undefined;
-  const moduleFederation =
-    rawApp.moduleFederation && typeof rawApp.moduleFederation === 'object'
-      ? rawApp.moduleFederation
-      : {};
-  const surfaceProfile =
-    rawApp.surfaceProfile === 'api-only' || rawApp.surfaceProfile === 'ui-only'
-      ? rawApp.surfaceProfile
-      : 'full-stack';
-  const api =
-    rawApp.api && typeof rawApp.api === 'object'
-      ? {
-          stem:
-            typeof rawApp.api.stem === 'string'
-              ? rawApp.api.stem
-              : domain ?? id,
-          prefix:
-            typeof rawApp.api.prefix === 'string'
-              ? rawApp.api.prefix
-              : `/${domain ?? id}-api`,
-          protocol: rawApp.api.protocol === 'rpc' ? 'rpc' : 'rest',
-        }
-      : undefined;
-  const cloudflare =
-    rawApp.deploy?.cloudflare && typeof rawApp.deploy.cloudflare === 'object'
-      ? rawApp.deploy.cloudflare
-      : {};
-  const jsonSmokeChecks = Array.isArray(cloudflare.jsonSmokeChecks)
-    ? cloudflare.jsonSmokeChecks
-    : undefined;
-  const port =
-    typeof rawApp.port === 'number'
-      ? rawApp.port
-      : typeof localOverlay.ports?.[id] === 'number'
-        ? localOverlay.ports[id]
-        : undefined;
-
-  return {
-    id,
-    kind,
-    path: appPath,
-    packageSuffix,
-    domain,
-    port,
-    surfaceProfile,
-    emitsUi: kind === 'shell' || surfaceProfile !== 'api-only',
-    mfName:
-      typeof moduleFederation.name === 'string'
-        ? moduleFederation.name
-        : kind === 'shell'
-          ? 'shellSuperApp'
-          : `vertical${toPascalCase(domain ?? id)}`,
-    api,
-    cloudflare,
-    deliveryUnit:
-      rawApp.deliveryUnit && typeof rawApp.deliveryUnit === 'object'
-        ? rawApp.deliveryUnit
-        : undefined,
-    backendFederation:
-      rawApp.backendFederation && typeof rawApp.backendFederation === 'object'
-        ? rawApp.backendFederation
-        : undefined,
-    serverExecution:
-      localOverlay.serverExecution?.[id] &&
-      typeof localOverlay.serverExecution[id] === 'object'
-        ? localOverlay.serverExecution[id]
-        : undefined,
-    jsonSmokeChecks,
-  };
 }
 
 function buildMarkerFor(app) {
@@ -174,85 +73,6 @@ function createDeliveryUnit(app) {
   };
 }
 
-function createCloudflareSecurity() {
-  return {
-    enabled: true,
-    headers: {
-      referrerPolicy: 'strict-origin-when-cross-origin',
-      contentTypeOptions: 'nosniff',
-      permissionsPolicy:
-        'camera=(), geolocation=(), microphone=(), payment=(), usb=()',
-    },
-    contentSecurityPolicy: {
-      mode: 'report-only',
-      directives: {
-        'base-uri': [`'self'`],
-        'connect-src': [`'self'`, 'https:', 'http:', 'wss:', 'ws:'],
-        'default-src': [`'self'`],
-        'font-src': [`'self'`, 'data:', 'https:', 'http:'],
-        'form-action': [`'self'`],
-        'frame-ancestors': [`'self'`],
-        'img-src': [`'self'`, 'data:', 'blob:', 'https:', 'http:'],
-        'manifest-src': [`'self'`, 'https:', 'http:'],
-        'object-src': [`'none'`],
-        'script-src': [
-          `'self'`,
-          `'unsafe-inline'`,
-          `'unsafe-eval'`,
-          'https:',
-          'http:',
-          'blob:',
-        ],
-        'style-src': [`'self'`, `'unsafe-inline'`, 'https:', 'http:'],
-        'worker-src': [`'self'`, 'blob:'],
-      },
-      reason:
-        'Report-only by default so Cloudflare Module Federation SSR can prove remote script, style, and connect compatibility before enforcement.',
-    },
-    noindex: {
-      workersDev: true,
-      localhost: true,
-      previewHostnames: [],
-    },
-  };
-}
-
-function createQualityGates() {
-  return {
-    publicRoutes: {
-      requireSitemapWhenPresent: true,
-      requireRobotsSitemapConsistency: true,
-      requireWebManifestWhenPresent: true,
-    },
-    statusCodes: {
-      notFoundRoute: '/__ultramodern-smoke-missing/nope',
-      unknownRouteStatus: 404,
-    },
-    indexing: {
-      previewNoindex: true,
-      productionPublicRoutesIndexable: true,
-    },
-    assets: {
-      cssPreloadRequired: true,
-      cssResponseRequired: true,
-      cacheControlRequiredForCss: true,
-      sourcemapsPubliclyReferenced: false,
-    },
-    budgets: {
-      ssrHtmlMaxBytes: 250_000,
-      mfManifestMaxBytes: 500_000,
-      localeJsonMaxBytes: 100_000,
-      sitemapXmlMaxBytes: 500_000,
-      cssAssetMaxBytes: 750_000,
-    },
-    csp: {
-      finalMode: 'report-only-dogfood',
-      decision:
-        'Report-only remains the generated final mode until public smoke proof records MF SSR script/style/connect compatibility for the deployed surface.',
-    },
-  };
-}
-
 function createPublicHead() {
   return {
     alternates: {
@@ -260,42 +80,6 @@ function createPublicHead() {
       xDefault: 'en',
     },
   };
-}
-
-function createPublicSurface() {
-  return {
-    publicRoutes: [],
-    routeEntries: [],
-    contentSources: [],
-    concreteUrlPaths: [],
-  };
-}
-
-function createCloudflareRoutes(app) {
-  return {
-    ...(app.emitsUi
-      ? {
-          ssr: '/en',
-          mfManifest: '/mf-manifest.json',
-          locale: `/locales/en/${appNamespace(app)}.json`,
-        }
-      : {}),
-    ...(app.api
-      ? app.api.protocol === 'rpc'
-        ? { rpc: `${app.api.prefix}/rpc` }
-        : { apiReadiness: `${app.api.prefix}/${app.api.stem}/readiness` }
-      : {}),
-  };
-}
-
-function createApiReadinessRoute(app) {
-  return app.api?.protocol === 'rest'
-    ? `${app.api.prefix}/${app.api.stem}/readiness`
-    : undefined;
-}
-
-function createRpcRoute(app) {
-  return app.api?.protocol === 'rpc' ? `${app.api.prefix}/rpc` : undefined;
 }
 
 function createRpcProbe(app) {
@@ -307,147 +91,8 @@ function createRpcProbe(app) {
   };
 }
 
-function createCloudflareWorkerName(packageScope, app) {
-  return `${toKebabCase(packageScope)}-${app.packageSuffix}`.slice(0, 63);
-}
-
 function createWorkerBindingName(app) {
   return `VERTICAL_${toEnvSegment(app.domain ?? app.id)}_WORKER`;
-}
-
-function createWorkerBindingEnv(app) {
-  return `VERTICAL_${toEnvSegment(app.domain ?? app.id)}_WORKER_BINDING`;
-}
-
-function createDispatchNamespaceEnv(app) {
-  return `VERTICAL_${toEnvSegment(app.domain ?? app.id)}_DISPATCH_NAMESPACE`;
-}
-
-function createDispatchWorkerNameEnv(app) {
-  return `VERTICAL_${toEnvSegment(app.domain ?? app.id)}_WORKER_NAME`;
-}
-
-function createBackendRemoteName(app) {
-  return `${app.mfName ?? `vertical${toPascalCase(app.id)}`}Backend`;
-}
-
-function createCloudflareExecutionSurface(packageScope, app) {
-  const workerRuntime = {
-    workerEntry: '.output/server/index.mjs',
-    workerManifest: '.output/server/modern-worker-manifest.json',
-    effectBffBundle: '.output/worker/__modern_bff_effect.js',
-  };
-  return {
-    kind: 'cloudflare-worker-snapshot',
-    workerName: createCloudflareWorkerName(packageScope, app),
-    publicUrlEnv: `ULTRAMODERN_PUBLIC_URL_${toEnvSegment(app.id)}`,
-    ...(app.emitsUi
-      ? {
-          ssr: {
-            ...workerRuntime,
-            routeManifest: '.output/server/route.json',
-            ssrBundle: '.output/worker/index.js',
-            assetsBinding: 'ASSETS',
-          },
-        }
-      : { api: workerRuntime }),
-    zephyr: {
-      runtime: app.emitsUi ? 'ssr-worker' : 'api-worker',
-      integration: 'managed-cloudflare',
-      snapshotIdEnv: `ZEPHYR_${toEnvSegment(app.domain ?? app.id)}_SNAPSHOT_ID`,
-      versionIdEnv: `ZEPHYR_${toEnvSegment(app.domain ?? app.id)}_VERSION_ID`,
-      applicationUidEnv: `ZEPHYR_${toEnvSegment(app.domain ?? app.id)}_APPLICATION_UID`,
-    },
-    workerDispatch: {
-      preferred: 'service-binding',
-      serviceBinding: createWorkerBindingName(app),
-      serviceBindingEnv: createWorkerBindingEnv(app),
-      dispatchNamespaceEnv: createDispatchNamespaceEnv(app),
-      dispatchWorkerNameEnv: createDispatchWorkerNameEnv(app),
-      requestInterface: 'fetch',
-    },
-  };
-}
-
-function createNodeExecutionSurface(app) {
-  return {
-    kind: 'node-mf-runtime',
-    adapterVersion: 'backend-mf-effect-v1',
-    remoteName: createBackendRemoteName(app),
-    manifestUrl: `http://localhost:${app.port}/backend-mf-manifest.json`,
-    containerEntry: `http://localhost:${app.port}/backendRemoteEntry.cjs`,
-    remoteType: 'commonjs-module',
-    expose: './effect-api',
-    runtimePackage: '@modern-js/plugin-bff-extensions/backend-federation-manifest/node',
-  };
-}
-
-function createServerExecutionProof(packageScope, app) {
-  if (!app.api) {
-    return undefined;
-  }
-  const rpc = createRpcRoute(app);
-  const readiness = createApiReadinessRoute(app);
-  return {
-    apiBaseUrl: `http://localhost:${app.port}${rpc ?? app.api.prefix}`,
-    versionBoundary: 'web-and-api-same-build',
-    cloudflare: {
-      ...createCloudflareExecutionSurface(packageScope, app),
-      ...(rpc ? { rpcPath: rpc, rpcSerialization: 'json' } : {}),
-      ...(readiness ? { apiReadiness: readiness } : {}),
-    },
-    node: createNodeExecutionSurface(app),
-  };
-}
-
-function createBackendFederationProof(packageScope, app) {
-  if (!app.api) {
-    return undefined;
-  }
-  const apiReadiness = createApiReadinessRoute(app);
-  const rpc = createRpcRoute(app);
-  const marker = buildMarkerFor(app);
-  const remoteName = createBackendRemoteName(app);
-  return {
-    role: 'microvertical-server',
-    name: remoteName,
-    runtimeFramework: 'effect',
-    strictEffectApproach: true,
-    exposes: {
-      './effect-api': {
-        runtime: `${app.path}/api/index.ts`,
-        ...(rpc
-          ? {
-              contract: `${app.path}/shared/rpc.ts`,
-              rpc,
-              serialization: 'json',
-            }
-          : { readiness: apiReadiness }),
-      },
-    },
-    versionBoundary: {
-      invariant: 'web-and-api-same-build',
-      ...(app.emitsUi
-        ? {
-            ui: {
-              manifestUrl: `http://localhost:${app.port}/mf-manifest.json`,
-              marker,
-            },
-          }
-        : {}),
-      api: {
-        ...(rpc ? { rpc, serialization: 'json' } : { readiness: apiReadiness }),
-        marker,
-      },
-    },
-    executionSurfaces: {
-      cloudflare: createCloudflareExecutionSurface(packageScope, app),
-      node: createNodeExecutionSurface(app),
-    },
-    compatibility: {
-      contractVersion: 'microvertical-server-effect-v1',
-    },
-  };
 }
 
 function createProofTarget(app) {
@@ -462,6 +107,7 @@ function createProofTarget(app) {
       serviceBindings: cloudflare?.serviceBindings,
       jsonSmokeChecks: cloudflare?.jsonSmokeChecks,
     },
+    publicSurface: app.routes?.publicSurface,
     ...(app.backendFederation
       ? { backendFederation: app.backendFederation }
       : {}),
@@ -470,7 +116,7 @@ function createProofTarget(app) {
   };
 }
 
-function createShellServiceBindingProof(packageScope, app, apps) {
+function createShellServiceBindingProof(app, apps) {
   if (app.kind !== 'shell') {
     return undefined;
   }
@@ -478,12 +124,12 @@ function createShellServiceBindingProof(packageScope, app, apps) {
   const bindings = apps
     .filter(candidate => candidate.kind !== 'shell' && candidate.api)
     .map(candidate => {
-      const rpc = createRpcRoute(candidate);
+      const rpc = candidate.cloudflare.routes?.rpc;
       return {
         appId: candidate.id,
         binding: createWorkerBindingName(candidate),
-        route: rpc ?? `${candidate.api.prefix}/${candidate.api.stem}/readiness`,
-        service: createCloudflareWorkerName(packageScope, candidate),
+        route: rpc ?? candidate.cloudflare.routes?.apiReadiness,
+        service: candidate.cloudflare.workerName,
         interface: 'fetch',
         ...(rpc
           ? createRpcProbe(candidate)
@@ -494,85 +140,48 @@ function createShellServiceBindingProof(packageScope, app, apps) {
   return bindings.length > 0 ? bindings : undefined;
 }
 
-function createContractApp(config, app, apps) {
-  const packageScope =
-    typeof config.workspace?.packageScope === 'string'
-      ? config.workspace.packageScope
-      : path.basename(workspaceRoot);
-  const compatibilityDate =
-    typeof config.deploy?.worker?.compatibilityDate === 'string'
-      ? config.deploy.worker.compatibilityDate
-      : '2026-06-02';
-  const workerName = createCloudflareWorkerName(packageScope, app);
-  const backendFederation = createBackendFederationProof(packageScope, app);
-  const serverExecution = createServerExecutionProof(packageScope, app);
-  const deliveryUnit = createDeliveryUnit(app);
-  const serviceBindings = createShellServiceBindingProof(
-    packageScope,
-    app,
-    apps,
-  );
-
-  return {
-    id: app.id,
-    deploy: {
-      cloudflare: {
-        ...app.cloudflare,
-        workerName,
-        publicUrlEnv: `ULTRAMODERN_PUBLIC_URL_${toEnvSegment(app.id)}`,
-        compatibilityDate,
-        compatibilityFlags: ['nodejs_compat', 'global_fetch_strictly_public'],
-        routes: app.cloudflare.routes ?? createCloudflareRoutes(app),
-        ...(serviceBindings ? { serviceBindings } : {}),
-        ...(app.jsonSmokeChecks ? { jsonSmokeChecks: app.jsonSmokeChecks } : {}),
-        security: app.cloudflare.security ?? createCloudflareSecurity(),
-        qualityGates: app.cloudflare.qualityGates ?? createQualityGates(),
-      },
-    },
-    i18n: {
-      namespace: appNamespace(app),
-    },
-    marker: {
-      appId: app.id,
-      build: buildMarkerFor(app),
-    },
-    ...(deliveryUnit ? { deliveryUnit } : {}),
-    ...(backendFederation ? { backendFederation } : {}),
-    ...(serverExecution ? { serverExecution } : {}),
-    routes: {
-      publicHead: createPublicHead(),
-      publicSurface: createPublicSurface(),
-    },
-    styling: {
-      federation: {
-        rootSelector: `[data-app-id="${app.id}"]`,
-      },
-    },
-  };
-}
-
-function synthesizeContractFromCompactConfig(config) {
-  const localOverlay = readOptionalJson(localOverlayPath);
-  const apps = Array.isArray(config.topology?.apps)
-    ? config.topology.apps.map(app => normalizeCompactApp(app, localOverlay))
-    : [];
-
-  return {
-    sourcePath: compactConfigPath,
-    apps: apps.map(app => createContractApp(config, app, apps)),
-  };
-}
-
-function readGeneratedContractView() {
-  if (fs.existsSync(compactConfigPath)) {
-    return synthesizeContractFromCompactConfig(readJson(compactConfigPath));
+async function readGeneratedContractView() {
+  const topology = readJson(topologyPath);
+  const localOverlay = readJson(localOverlayPath);
+  if (topology.schemaVersion !== 1 || !topology.shell || !Array.isArray(topology.verticals)) {
+    throw new Error('Invalid topology/reference-topology.json');
   }
-  throw new Error(
-    `Missing UltraModern config. Expected ${path.relative(
-      workspaceRoot,
-      compactConfigPath,
-    )}.`,
-  );
+  const apps = [topology.shell, ...topology.verticals, ...(topology.shells ?? [])];
+  const publicApps = new Map((await readPublicSurfaceView()).apps.map(app => [app.id, app]));
+  return {
+    sourcePath: topologyPath,
+    apps: await Promise.all(apps.map(async app => {
+      if (typeof app.path !== 'string' || !app.path || !app.cloudflare) {
+        throw new Error(`${app.id} is missing its topology path or Cloudflare contract`);
+      }
+      const buildMarker = buildMarkerFor(app);
+      const serviceBindings = createShellServiceBindingProof(app, apps);
+      return {
+        id: app.id,
+        deploy: {
+          cloudflare: {
+            ...app.cloudflare,
+            ...(serviceBindings ? { serviceBindings } : {}),
+          },
+        },
+        i18n: { namespace: appNamespace(app) },
+        marker: { appId: app.id, build: buildMarker },
+        deliveryUnit: createDeliveryUnit({
+          ...app,
+          emitsUi: app.kind === 'shell' || app.surfaceProfile !== 'api-only',
+        }),
+        ...(app.backendFederation ? { backendFederation: app.backendFederation } : {}),
+        ...(localOverlay.serverExecution?.[app.id]
+          ? { serverExecution: localOverlay.serverExecution[app.id] }
+          : {}),
+        routes: {
+          publicHead: createPublicHead(),
+          publicSurface: await resolvePublicSurface(publicApps.get(app.id)),
+        },
+        styling: { federation: { rootSelector: `[data-app-id="${app.id}"]` } },
+      };
+    })),
+  };
 }
 
 function parseArgs(argv) {
@@ -606,7 +215,7 @@ function parseArgs(argv) {
 
 function printHelp() {
   process.stdout.write(`Usage:
-  node scripts/proof-cloudflare-version.mts [--app workspace] [--out evidence.json] [--require-public-urls]
+  ultramodern-create ultramodern cloudflare-proof [--app workspace] [--out evidence.json] [--require-public-urls]
 
 Set each app's public URL using the contract env key, for example:
   ULTRAMODERN_PUBLIC_URL_WORKSPACE=https://workspace.example.workers.dev
@@ -626,7 +235,7 @@ async function main(argv = process.argv.slice(2)) {
     return 0;
   }
 
-  const contract = readGeneratedContractView();
+  const contract = await readGeneratedContractView();
   const apps = args.appId
     ? contract.apps.filter(app => app.id === args.appId)
     : contract.apps;
@@ -657,7 +266,7 @@ async function main(argv = process.argv.slice(2)) {
     schemaVersion: 1,
     generatedAt: new Date().toISOString(),
     status: results.length > 0 ? 'pass' : 'skipped',
-    contractPath: contract.sourcePath ?? compactConfigPath,
+    contractPath: contract.sourcePath,
     proofTargets: apps.map(createProofTarget),
     results,
     skipped,

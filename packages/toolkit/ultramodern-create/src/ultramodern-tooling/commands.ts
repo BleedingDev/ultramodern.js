@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { GENERATED_TOOLING_COMMANDS } from '../ultramodern-workspace/tooling-command-catalog';
 import { runCloudflareOutputVerify } from './commands/cloudflare-output-verify';
@@ -19,8 +20,22 @@ export async function runUltramodernToolingCli(
 ): Promise<number> {
   try {
     const [command, ...rest] = args;
+    let discoveredRoot = path.resolve(workspaceRoot);
+    for (
+      let candidate = discoveredRoot;
+      ;
+      candidate = path.dirname(candidate)
+    ) {
+      if (
+        fs.existsSync(path.join(candidate, 'topology/reference-topology.json'))
+      ) {
+        discoveredRoot = candidate;
+        break;
+      }
+      if (path.dirname(candidate) === candidate) break;
+    }
     const context = {
-      workspaceRoot: path.resolve(workspaceRoot),
+      workspaceRoot: discoveredRoot,
       invocationCwd: process.cwd(),
     };
 

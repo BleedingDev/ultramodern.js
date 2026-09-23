@@ -2,15 +2,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parse } from '@babel/parser';
 import { configuredDevelopmentPorts } from './add-vertical/workspace-state';
-import { appHasApi, resolveRemoteRefs } from './descriptors';
+import { resolveRemoteRefs } from './descriptors';
 import { formatGeneratedSourceCandidates, writeFileReplacing } from './fs-io';
 import { createAppModernConfig } from './module-federation';
 import { createRootTsConfig } from './tsconfigs';
 import type { WorkspaceApp } from './types';
-import {
-  createWorkspaceScriptArtifacts,
-  createWorkspaceValidationScript,
-} from './workspace-scripts';
+import { createWorkspaceScriptArtifacts } from './workspace-scripts';
 import { createZeropsYaml } from './zerops';
 
 /** The same projections identify generator ownership for every update command. */
@@ -20,13 +17,8 @@ export function workspaceArtifactCandidates(
   enableTailwind: boolean,
   alternateApps: WorkspaceApp[] = [],
 ): ArtifactCandidate[] {
-  const remotes = apps.filter(app => app.kind === 'vertical');
   return [
-    ...createWorkspaceScriptArtifacts({
-      shellOnly: remotes.length === 0,
-      hasBackendSurface: remotes.some(appHasApi),
-      validationScript: createWorkspaceValidationScript(),
-    }),
+    ...createWorkspaceScriptArtifacts(),
     {
       relativePath: 'tsconfig.json',
       content: `${JSON.stringify(createRootTsConfig(apps), null, 2)}\n`,

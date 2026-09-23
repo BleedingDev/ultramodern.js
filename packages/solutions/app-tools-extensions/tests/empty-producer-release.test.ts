@@ -120,7 +120,7 @@ describe('workspace source revision', () => {
         distDirectory: f.root,
         target: 'node',
       }),
-    ).rejects.toThrow(/cannot produce a promotable full-stack envelope/);
+    ).rejects.toThrow(/cannot produce a promotable envelope/);
   });
 });
 
@@ -278,5 +278,154 @@ describe('empty MF producer', () => {
       },
     });
     await expect(f.emit()).rejects.toThrow(/must match/u);
+  });
+});
+
+describe('API-only release', () => {
+  const framework = sourceFramework;
+
+  async function apiOnlyFixture(target: 'node' | 'cloudflare') {
+    const f = await fixture(framework);
+    for (const name of [
+      'static',
+      'bundles',
+      'mf-manifest.json',
+      'routes-manifest.json',
+      'route.json',
+    ]) {
+      await fs.rm(path.join(f.root, name), { force: true, recursive: true });
+    }
+    if (target === 'cloudflare') {
+      await f.put(
+        'worker/__modern_bff_effect.js',
+        'exports.fetch = () => "api";',
+      );
+    }
+    const emit = () =>
+      framework.emitFrameworkMicroVerticalReleaseEnvelope({
+        apiOnly: true,
+        distDirectory: f.root,
+        target,
+      });
+    return { ...f, emit };
+  }
+
+  test('binds the real Node API, backend container and build identity', async () => {
+    const f = await apiOnlyFixture('node');
+    const envelope = await f.emit();
+    expect(envelope?.surfaces).toMatchObject({
+      uiClient: [],
+      ssr: [],
+      apiBackend: [api],
+      backendFederation: {
+        manifest: 'backend-mf-manifest.json',
+        container: 'backendRemoteEntry.cjs',
+      },
+    });
+    await framework.verifyBuildOutputReleaseEnvelope(f.root, 'node');
+    const staged = await framework.emitNodeStagedReleaseEnvelope({
+      distDirectory: f.root,
+      outputDirectory: f.root,
+    });
+    expect(staged?.surfaces.uiClient).toEqual([]);
+    expect(staged?.surfaces.ssr).toEqual([]);
+    await framework.verifyNodeReleaseEnvelopeStaging({
+      outputDirectory: f.root,
+    });
+    await fs.writeFile(path.join(f.root, api), 'changed API bytes');
+    await expect(
+      framework.verifyNodeReleaseEnvelopeStaging({ outputDirectory: f.root }),
+    ).rejects.toThrow(/digest/u);
+  });
+
+  test('rejects missing backend evidence, foreign revision and undeclared UI', async () => {
+    const missing = await apiOnlyFixture('node');
+    await fs.rm(path.join(missing.root, 'backendRemoteEntry.cjs'));
+    await expect(missing.emit()).rejects.toThrow(/manifest and container/u);
+
+    const missingApi = await apiOnlyFixture('node');
+    await fs.rm(path.join(missingApi.root, api));
+    await expect(missingApi.emit()).rejects.toThrow(
+      /no actual compiled Node Effect API artifact/u,
+    );
+
+    const missingEnvelope = await apiOnlyFixture('node');
+    await missingEnvelope.emit();
+    await fs.rm(
+      path.join(
+        missingEnvelope.root,
+        framework.MICROVERTICAL_RELEASE_ENVELOPE_PATH,
+      ),
+    );
+    await expect(
+      framework.verifyBuildOutputReleaseEnvelope(missingEnvelope.root, 'node'),
+    ).rejects.toThrow(/required envelope is missing/u);
+
+    const foreign = await apiOnlyFixture('node');
+    await foreign.json('backend-mf-manifest.json', {
+      backendFederation: {
+        deliveryUnit: { ...deliveryUnit, sourceRevision: 'b'.repeat(40) },
+        versionBoundary: { deliveryUnit },
+      },
+    });
+    await expect(foreign.emit()).rejects.toThrow(/must match/u);
+
+    const undeclared = await apiOnlyFixture('node');
+    await undeclared.put(client, 'console.log("unexpected UI")');
+    await expect(undeclared.emit()).rejects.toThrow(/undeclared UI\/client/u);
+  });
+
+  test('binds a Cloudflare API worker through final output', async () => {
+    const f = await apiOnlyFixture('cloudflare');
+    const source = await f.emit();
+    expect(source?.surfaces.uiClient).toEqual([]);
+    expect(source?.surfaces.ssr).toEqual([]);
+    expect(source?.surfaces.apiBackend).toEqual([
+      'worker/__modern_bff_effect.js',
+    ]);
+    const outputDirectory = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'api-only-cloudflare-release-'),
+    );
+    roots.push(outputDirectory);
+    for (const [from, to] of [
+      ['backend-mf-manifest.json', 'public/backend-mf-manifest.json'],
+      ['backendRemoteEntry.cjs', 'public/backendRemoteEntry.cjs'],
+      ['worker/__modern_bff_effect.js', 'worker/__modern_bff_effect.js'],
+    ]) {
+      await fs.mkdir(path.dirname(path.join(outputDirectory, to)), {
+        recursive: true,
+      });
+      await fs.copyFile(
+        path.join(f.root, from),
+        path.join(outputDirectory, to),
+      );
+    }
+    for (const name of [
+      'server/index.mjs',
+      'server/modern-worker-manifest.json',
+      'wrangler.json',
+      'package.json',
+      'worker/package.json',
+    ]) {
+      await fs.mkdir(path.dirname(path.join(outputDirectory, name)), {
+        recursive: true,
+      });
+      await fs.writeFile(path.join(outputDirectory, name), '{}');
+    }
+    await framework.stageCloudflareReleaseEnvelope({
+      distDirectory: f.root,
+      outputDirectory,
+    });
+    const staged = await framework.emitCloudflareStagedReleaseEnvelope({
+      distDirectory: f.root,
+      outputDirectory,
+    });
+    expect(staged?.surfaces.uiClient).toEqual([]);
+    expect(staged?.surfaces.ssr).toEqual([]);
+    await framework.verifyCloudflareReleaseEnvelopeStaging(outputDirectory);
+    await fs.rm(path.join(outputDirectory, 'worker/__modern_bff_effect.js'));
+    await expect(
+      framework.verifyCloudflareReleaseEnvelopeStaging(outputDirectory),
+    ).rejects.toThrow(/does not exist/u);
   });
 });

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
+import { stringify as dump, parse as load } from 'yaml';
 import {
   inspectNpmTarball,
   readVerifiedPackageArtifactBytes,
@@ -8,107 +9,94 @@ import {
 import { expectedReleaseCohort } from '../published-create-proof/package-cohort.mjs';
 import { collectPackageJsonFiles } from './contract.mjs';
 
-// Installs one authenticated release into a workspace already using the current
-// contract. Adopt template-owned patch bytes before pnpm computes its lock and
-// installs dependencies; authored application files remain untouched.
-export function prepareTractorCohortInstallation(
-  workspace,
-  release,
-  minimumReleaseAgeExclude,
-) {
+const dependencyBlocks = [
+  'dependencies',
+  'devDependencies',
+  'optionalDependencies',
+  'peerDependencies',
+];
+
+/** Select the exact supplied bundle through the consumer's native pnpm catalog. */
+export function prepareTractorCohortInstallation(workspace, release) {
   const cohort = expectedReleaseCohort(release);
   const version = release.release.version;
-  const projection = release.cohortProjection?.value;
-  if (
-    !projection ||
-    !isDeepStrictEqual(projection.aliases, cohort.aliases) ||
-    projection.release.version !== version
-  ) {
-    throw new Error(
-      'Tractor cohort installation requires the authenticated release projection',
-    );
-  }
   const create = release.createPackage;
-  const template = inspectNpmTarball(
+  const packed = inspectNpmTarball(
     readVerifiedPackageArtifactBytes(create, create.artifactPath),
   );
-  const patches = [...template.fileContents].filter(([file]) =>
-    /^template-workspace\/patches\/[^/]+\.patch$/u.test(file),
-  );
-  if (patches.length === 0)
-    throw new Error('Release create template contains no workspace patches');
-  const configPath = path.join(workspace, '.modernjs/ultramodern.json');
-  const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-  if (
-    config.packageSource?.strategy !== 'install' ||
-    !config.generator?.version
-  ) {
+  const cohortBytes = packed.fileContents.get('release-cohort.json');
+  if (!cohortBytes) {
     throw new Error(
-      'Tractor must already use the current install-backed workspace contract',
+      'Release create package is missing its producer-owned release-cohort.json',
     );
   }
-  const policyPath = path.join(workspace, 'pnpm-workspace.yaml');
-  const policy = fs.readFileSync(policyPath, 'utf8');
-  const exclusionsBlock =
-    /^minimumReleaseAgeExclude:[^\r\n]*\r?\n(?:[ \t]+[^\r\n]*\r?\n)*/gm;
-  const matches = [...policy.matchAll(exclusionsBlock)];
-  if (
-    matches.length !== 1 ||
-    !Array.isArray(minimumReleaseAgeExclude) ||
-    minimumReleaseAgeExclude.length === 0 ||
-    minimumReleaseAgeExclude.some(
-      value => typeof value !== 'string' || /[\r\n'"*?]/u.test(value),
-    )
-  ) {
+  let installedCohort;
+  try {
+    installedCohort = JSON.parse(cohortBytes.toString('utf8'));
+  } catch {
     throw new Error(
-      'Tractor requires the current release-age policy and exact reviewed exclusions',
+      'Release create package has an invalid release-cohort.json',
     );
   }
-  const nextPolicy = policy.replace(
-    exclusionsBlock,
-    `minimumReleaseAgeExclude:\n${minimumReleaseAgeExclude.map(value => `  - '${value}'\n`).join('')}`,
-  );
-  const writes = [];
+  if (
+    !isDeepStrictEqual(installedCohort.aliases, cohort.aliases) ||
+    installedCohort.release?.version !== version ||
+    (release.cohortProjection?.value &&
+      !isDeepStrictEqual(installedCohort, release.cohortProjection.value))
+  ) {
+    throw new Error(
+      'Installed producer release cohort disagrees with the authenticated bundle',
+    );
+  }
+
+  const workspaceFile = path.join(workspace, 'pnpm-workspace.yaml');
+  const policy = load(fs.readFileSync(workspaceFile, 'utf8'));
+  const catalog = policy?.catalogs?.ultramodern;
+  if (!catalog || typeof catalog !== 'object' || Array.isArray(catalog)) {
+    throw new Error('Tractor requires a native catalogs.ultramodern entry');
+  }
+  const requested = new Set();
   let dependencyCount = 0;
   for (const file of collectPackageJsonFiles(workspace)) {
     const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
-    let changed = false;
-    for (const block of [
-      'dependencies',
-      'devDependencies',
-      'optionalDependencies',
-      'peerDependencies',
-    ]) {
-      for (const name of Object.keys(manifest[block] ?? {})) {
+    for (const block of dependencyBlocks) {
+      for (const [name, specifier] of Object.entries(manifest[block] ?? {})) {
         if (!name.startsWith('@modern-js/')) continue;
-        const target = cohort.aliases[name];
-        if (!target)
+        if (!cohort.aliases[name]) {
           throw new Error(
             `Tractor dependency ${name} is absent from the release cohort`,
           );
-        manifest[block][name] = `npm:${target}@${version}`;
+        }
+        if (specifier !== 'catalog:ultramodern') {
+          throw new Error(
+            `Tractor dependency ${name} in ${path.relative(workspace, file)} must use catalog:ultramodern`,
+          );
+        }
+        requested.add(name);
         dependencyCount += 1;
-        changed = true;
       }
     }
-    if (changed) writes.push([file, manifest]);
   }
-  if (dependencyCount === 0)
+  if (dependencyCount === 0) {
     throw new Error('Tractor has no framework dependencies to install');
-  config.generator.version = version;
-  config.packageSource.modernPackageVersion = version;
-  writes.push(
-    [configPath, config],
-    [path.join(workspace, '.modernjs/release-cohort.json'), projection],
-  );
-  fs.mkdirSync(path.join(workspace, 'patches'), { recursive: true });
-  for (const [file, bytes] of patches)
-    fs.writeFileSync(
-      path.join(workspace, file.slice('template-workspace/'.length)),
-      bytes,
-    );
-  for (const [file, value] of writes)
-    fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`);
-  fs.writeFileSync(policyPath, nextPolicy);
-  return { dependencyCount };
+  }
+  for (const name of Object.keys(catalog)) {
+    if (!cohort.aliases[name]) {
+      throw new Error(
+        `Tractor catalog entry ${name} is absent from the release cohort`,
+      );
+    }
+  }
+  for (const name of requested) {
+    if (!Object.hasOwn(catalog, name)) {
+      throw new Error(
+        `Tractor catalog is missing requested framework dependency ${name}`,
+      );
+    }
+  }
+  for (const [name, target] of Object.entries(cohort.aliases)) {
+    catalog[name] = `npm:${target}@${version}`;
+  }
+  fs.writeFileSync(workspaceFile, dump(policy, { lineWidth: 0 }));
+  return { catalogCount: Object.keys(cohort.aliases).length, dependencyCount };
 }

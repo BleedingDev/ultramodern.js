@@ -9,7 +9,8 @@ const workspaceRoot = path.resolve(
   process.env.ULTRAMODERN_WORKSPACE_ROOT ??
     path.join(path.dirname(fileURLToPath(import.meta.url)), '../..'),
 );
-const configPath = path.join(workspaceRoot, '.modernjs/ultramodern.json');
+const topologyPath = path.join(workspaceRoot, 'topology/reference-topology.json');
+const overlayPath = path.join(workspaceRoot, 'topology/local-overlays/development.json');
 const { build } = createRequire(import.meta.url)('esbuild');
 // Keep these constants/checks in sync with
 // @modern-js/backend-federation-contracts backend-federation-contract. Generated workspace
@@ -27,43 +28,23 @@ function readBuildIdentity(app) {
     app.path,
     'shared/ultramodern-build.json',
   );
-  if (fs.existsSync(buildArtifactPath)) {
-    const artifact = readJson(buildArtifactPath);
-    const deliveryUnit = artifact.deliveryUnit ?? {};
-    return {
-      buildVersion: deliveryUnit.buildMarker ?? deliveryUnit.build,
-      packageName: deliveryUnit.packageName,
-      version: deliveryUnit.version,
-      unitId: deliveryUnit.unitId,
-      sourceRevision: deliveryUnit.sourceRevision,
-    };
+  const artifact = readJson(buildArtifactPath);
+  const deliveryUnit = artifact.deliveryUnit ?? {};
+  const manifest = readJson(path.join(workspaceRoot, app.path, 'package.json'));
+  if (
+    app.package !== manifest.name ||
+    app.deliveryUnit?.unitId !== deliveryUnit.unitId ||
+    deliveryUnit.packageName !== manifest.name ||
+    deliveryUnit.version !== manifest.version
+  ) {
+    throw new Error(`${app.id} topology, package.json and stamped build identity disagree`);
   }
-
-  const buildModulePath = path.join(
-    workspaceRoot,
-    app.path,
-    'shared/ultramodern-build.ts',
-  );
-  if (!fs.existsSync(buildModulePath)) {
-    return {};
-  }
-  console.warn(
-    `[backend-federation] ${path.relative(
-      workspaceRoot,
-      buildArtifactPath,
-    )} missing; falling back to legacy regex parsing of ${path.relative(
-      workspaceRoot,
-      buildModulePath,
-    )}.`,
-  );
-
-  const source = fs.readFileSync(buildModulePath, 'utf8');
   return {
-    buildVersion: source.match(/\bbuild:\s*['"]([^'"]+)['"]/u)?.[1],
-    packageName: source.match(/\bpackageName:\s*['"]([^'"]+)['"]/u)?.[1],
-    version: source.match(/\bversion:\s*['"]([^'"]+)['"]/u)?.[1],
-    unitId: source.match(/\bunitId:\s*['"]([^'"]+)['"]/u)?.[1],
-    sourceRevision: source.match(/\bsourceRevision:\s*['"]([^'"]+)['"]/u)?.[1],
+    buildVersion: deliveryUnit.buildMarker ?? deliveryUnit.build,
+    packageName: deliveryUnit.packageName,
+    version: deliveryUnit.version,
+    unitId: deliveryUnit.unitId,
+    sourceRevision: deliveryUnit.sourceRevision,
   };
 }
 
@@ -94,8 +75,8 @@ function parseArgs(argv) {
   return options;
 }
 
-function backendApps(config, appFilter) {
-  return (config.topology?.apps ?? []).filter(app => {
+function backendApps(topology, appFilter) {
+  return topology.verticals.filter(app => {
     if (app.kind !== 'vertical') {
       return false;
     }
@@ -107,7 +88,7 @@ function backendApps(config, appFilter) {
 }
 
 function backendFederationMetadata(app) {
-  return app.backendFederation ?? app.api?.backendFederation;
+  return app.backendFederation;
 }
 
 function backendFederationExposes(app) {
@@ -133,7 +114,7 @@ function backendFederationExposes(app) {
 
 function normalizeBackendFederation(app) {
   const backend = backendFederationMetadata(app);
-  const nodeSurface = backend.executionSurfaces?.node ?? {};
+  const nodeSurface = app.nodeExecution ?? {};
   const exposes = backendFederationExposes(app);
 
   return {
@@ -242,13 +223,8 @@ function createManifest(app, outputDir, entrySource) {
     );
   }
   const buildIdentity = readBuildIdentity(app);
-  const compactDeliveryUnit =
-    app.deliveryUnit && typeof app.deliveryUnit === 'object'
-      ? app.deliveryUnit
-      : undefined;
-  const unitId = compactDeliveryUnit?.unitId ?? buildIdentity.unitId;
-  const sourceRevision =
-    compactDeliveryUnit?.sourceRevision ?? buildIdentity.sourceRevision;
+  const unitId = app.deliveryUnit?.unitId ?? buildIdentity.unitId;
+  const sourceRevision = app.deliveryUnit?.sourceRevision ?? buildIdentity.sourceRevision;
   const publicPath = new URL('.', backend.containerEntry).href;
   return {
     schemaVersion: 1,
@@ -349,8 +325,22 @@ function createManifest(app, outputDir, entrySource) {
 }
 
 const options = parseArgs(process.argv.slice(2));
-const config = readJson(configPath);
-const apps = backendApps(config, options.app);
+const topology = readJson(topologyPath);
+const overlay = readJson(overlayPath);
+if (topology.schemaVersion !== 1 || !Array.isArray(topology.verticals)) {
+  throw new Error('Invalid topology/reference-topology.json');
+}
+const apps = backendApps(topology, options.app).map(app => {
+  const nodeExecution = overlay.serverExecution?.[app.id]?.node;
+  if (
+    typeof app.path !== 'string' ||
+    !nodeExecution?.manifestUrl ||
+    !nodeExecution?.containerEntry
+  ) {
+    throw new Error(`${app.id} requires a topology path and Node execution URLs`);
+  }
+  return { ...app, nodeExecution };
+});
 
 if (options.app && apps.length === 0) {
   throw new Error(`No generated backend federation app matched ${options.app}`);

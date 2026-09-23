@@ -71,7 +71,7 @@ test('generated root typecheck follows references and includes Node types under 
       spawnSync(
         compiler,
         [
-          ...createWorkspaceRootScriptPlan([]).typecheck.split(' ').slice(2),
+          ...createWorkspaceRootScriptPlan([]).typecheck.split(' ').slice(3),
           '--pretty',
           'false',
         ],

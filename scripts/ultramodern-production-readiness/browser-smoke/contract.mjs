@@ -10,9 +10,8 @@ const { readJsonFile } = fsKit;
 const defaultArtifactDir = '.modern/production-readiness/browser-smoke/local';
 const defaultReportPath =
   '.modern/production-readiness/browser-smoke/summary.json';
-const compactContractRelativePath = '.modernjs/ultramodern.json';
-const legacyContractRelativePath =
-  '.modernjs/ultramodern-generated-contract.json';
+const topologyRelativePath = 'topology/reference-topology.json';
+const overlayRelativePath = 'topology/local-overlays/development.json';
 
 export class BrowserSmokeError extends Error {
   constructor(message, details = {}) {
@@ -202,67 +201,6 @@ export function appNamespace(app) {
   return app.kind === 'shell' ? 'shell' : (app.domain ?? app.id);
 }
 
-export function normalizeCompactApp(rawApp) {
-  const id = String(rawApp.id);
-  if (!['shell', 'vertical'].includes(rawApp.kind)) {
-    throw new Error(
-      `Compact app ${id} kind must be exactly "shell" or "vertical"`,
-    );
-  }
-  const kind = rawApp.kind;
-  const appPath =
-    typeof rawApp.path === 'string'
-      ? normalizeRelativePath(rawApp.path)
-      : kind === 'shell'
-        ? 'apps/shell-super-app'
-        : `verticals/${toKebabCase(id)}`;
-  const packageSuffix =
-    typeof rawApp.packageSuffix === 'string'
-      ? rawApp.packageSuffix
-      : (appPath.split('/').at(-1) ?? id);
-  const domain =
-    typeof rawApp.domain === 'string'
-      ? rawApp.domain
-      : kind === 'vertical'
-        ? packageSuffix
-        : undefined;
-  const moduleFederation =
-    rawApp.moduleFederation && typeof rawApp.moduleFederation === 'object'
-      ? rawApp.moduleFederation
-      : {};
-  const port = Number.isInteger(rawApp.port) ? rawApp.port : undefined;
-  const portEnv =
-    typeof rawApp.portEnv === 'string'
-      ? rawApp.portEnv
-      : `${toEnvSegment(id)}_PORT`;
-  const api =
-    rawApp.api && typeof rawApp.api === 'object'
-      ? {
-          stem:
-            typeof rawApp.api.stem === 'string'
-              ? rawApp.api.stem
-              : (domain ?? id),
-          prefix:
-            typeof rawApp.api.prefix === 'string'
-              ? rawApp.api.prefix
-              : `/${domain ?? id}-api`,
-        }
-      : undefined;
-
-  return {
-    ...rawApp,
-    id,
-    kind,
-    path: appPath,
-    packageSuffix,
-    domain,
-    port,
-    portEnv,
-    moduleFederation,
-    api,
-  };
-}
-
 // Must stay in sync with packages/toolkit/ultramodern-create delivery-unit.ts
 // createBuildMarker, which seeds the hash with the delivery-unit generation
 // seed. Without this prefix the expected marker drifts from what generated apps
@@ -330,12 +268,14 @@ function createSmokeContractApp(config, app) {
                 app.deploy.cloudflare.distributedSsrProofRoutes,
             }
           : {}),
-        workerName: `${toKebabCase(packageScope)}-${app.packageSuffix}`.slice(
-          0,
-          63,
-        ),
-        publicUrlEnv: `ULTRAMODERN_PUBLIC_URL_${toEnvSegment(app.id)}`,
-        routes: createCloudflareRoutes(app),
+        ...app.deploy?.cloudflare,
+        workerName:
+          app.deploy?.cloudflare?.workerName ??
+          `${toKebabCase(packageScope)}-${app.packageSuffix}`.slice(0, 63),
+        publicUrlEnv:
+          app.deploy?.cloudflare?.publicUrlEnv ??
+          `ULTRAMODERN_PUBLIC_URL_${toEnvSegment(app.id)}`,
+        routes: app.deploy?.cloudflare?.routes ?? createCloudflareRoutes(app),
       },
     },
     ...(app.deliveryUnit &&
@@ -361,25 +301,6 @@ function createSmokeContractApp(config, app) {
   };
 }
 
-export function synthesizeContractFromCompactConfig(
-  config,
-  { sourcePath } = {},
-) {
-  const apps = Array.isArray(config.topology?.apps)
-    ? config.topology.apps.map(normalizeCompactApp)
-    : [];
-
-  return {
-    sourcePath,
-    ...(config.workspace &&
-    typeof config.workspace === 'object' &&
-    !Array.isArray(config.workspace)
-      ? { workspace: { ...config.workspace } }
-      : {}),
-    apps: apps.map(app => createSmokeContractApp(config, app)),
-  };
-}
-
 export function normalizeSmokeContract(contract, options = {}) {
   if (Array.isArray(contract?.apps)) {
     return {
@@ -387,35 +308,132 @@ export function normalizeSmokeContract(contract, options = {}) {
       sourcePath: contract.sourcePath ?? options.sourcePath,
     };
   }
-  if (Array.isArray(contract?.topology?.apps)) {
-    return synthesizeContractFromCompactConfig(contract, options);
-  }
-  return {
-    ...contract,
-    sourcePath: contract?.sourcePath ?? options.sourcePath,
-  };
-}
-
-function resolveContractPath(projectDir) {
-  const compactPath = path.join(projectDir, compactContractRelativePath);
-  if (fs.existsSync(compactPath)) {
-    return compactPath;
-  }
-
-  const legacyPath = path.join(projectDir, legacyContractRelativePath);
-  if (fs.existsSync(legacyPath)) {
-    return legacyPath;
-  }
-
-  return compactPath;
+  throw new BrowserSmokeError(
+    'Browser smoke requires an explicit app contract.',
+  );
 }
 
 export function readSmokeContract(projectDir) {
-  const contractPath = resolveContractPath(projectDir);
+  const contractPath = path.join(projectDir, topologyRelativePath);
+  const topology = readJsonFile(contractPath);
+  const overlay = readJsonFile(path.join(projectDir, overlayRelativePath));
+  if (
+    !topology?.shell ||
+    !Array.isArray(topology.verticals) ||
+    (topology.shells !== undefined && !Array.isArray(topology.shells))
+  )
+    throw new BrowserSmokeError(
+      'Reference topology requires shell, verticals and optional shells.',
+    );
+  const rootManifest = readJsonFile(path.join(projectDir, 'package.json'));
+  const records = [
+    topology.shell,
+    ...topology.verticals,
+    ...(topology.shells ?? []),
+  ];
+  const ids = new Set();
+  const paths = new Set();
+  const ports = new Set();
+  const workspace = fs.realpathSync(projectDir);
+  const apps = records.map((entry, index) => {
+    const kind =
+      index === 0 || index > topology.verticals.length ? 'shell' : 'vertical';
+    if (
+      entry?.kind !== kind ||
+      typeof entry.id !== 'string' ||
+      !entry.id ||
+      ids.has(entry.id)
+    )
+      throw new BrowserSmokeError(
+        'Reference topology app identity or kind is invalid.',
+      );
+    ids.add(entry.id);
+    if (
+      typeof entry.path !== 'string' ||
+      !entry.path ||
+      path.isAbsolute(entry.path) ||
+      entry.path.split(/[\\/]/u).includes('..')
+    )
+      throw new BrowserSmokeError(
+        `${entry.id} requires a safe explicit topology path.`,
+      );
+    const appRoot = fs.realpathSync(path.join(projectDir, entry.path));
+    const relative = path.relative(workspace, appRoot);
+    if (
+      !relative ||
+      relative === '..' ||
+      relative.startsWith(`..${path.sep}`) ||
+      path.isAbsolute(relative)
+    )
+      throw new BrowserSmokeError(
+        `${entry.id} topology path escapes the workspace.`,
+      );
+    if (paths.has(appRoot))
+      throw new BrowserSmokeError(`${entry.id} topology path is duplicated.`);
+    paths.add(appRoot);
+    const manifest = readJsonFile(path.join(appRoot, 'package.json'));
+    if (
+      typeof manifest.name !== 'string' ||
+      !manifest.name ||
+      (entry.package !== undefined && entry.package !== manifest.name) ||
+      typeof manifest.version !== 'string' ||
+      !manifest.version
+    )
+      throw new BrowserSmokeError(
+        `${entry.id} package identity must match its app manifest.`,
+      );
+    const port = overlay?.ports?.[entry.id];
+    if (!Number.isInteger(port) || port < 1 || port > 65535 || ports.has(port))
+      throw new BrowserSmokeError(
+        `${entry.id} requires a unique development overlay port.`,
+      );
+    ports.add(port);
+    const domain = kind === 'vertical' ? (entry.domain ?? entry.id) : undefined;
+    const api =
+      entry.api?.runtime === 'effect'
+        ? {
+            stem:
+              entry.api.stem ??
+              entry.api.basePath?.split('/').filter(Boolean).at(-1) ??
+              domain,
+            prefix: entry.api.bff?.prefix,
+          }
+        : undefined;
+    if (
+      api &&
+      (typeof api.prefix !== 'string' ||
+        !api.prefix.startsWith('/') ||
+        typeof api.stem !== 'string' ||
+        !api.stem)
+    )
+      throw new BrowserSmokeError(`${entry.id} Effect API route is invalid.`);
+    return {
+      ...entry,
+      kind,
+      package: manifest.name,
+      version: manifest.version,
+      packageSuffix: manifest.name.split('/').at(-1),
+      domain,
+      port,
+      portEnv:
+        entry.portEnv ??
+        (kind === 'vertical'
+          ? `VERTICAL_${toEnvSegment(domain)}_PORT`
+          : entry.id === 'shell-super-app'
+            ? 'SHELL_SUPER_APP_PORT'
+            : `SHELL_${toEnvSegment(entry.id.replace(/^shell-/u, ''))}_PORT`),
+      moduleFederation: entry.moduleFederation ?? {},
+      api,
+      deploy: { cloudflare: entry.cloudflare },
+    };
+  });
+  const config = { workspace: { packageScope: rootManifest.name } };
   return {
-    contract: normalizeSmokeContract(readJsonFile(contractPath), {
+    contract: {
       sourcePath: contractPath,
-    }),
+      workspace: config.workspace,
+      apps: apps.map(app => createSmokeContractApp(config, app)),
+    },
     contractPath,
   };
 }

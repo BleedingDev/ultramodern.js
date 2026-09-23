@@ -2,155 +2,59 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { format } from 'oxfmt';
+import { tsImport } from 'tsx/esm/api';
+import ultracite from 'ultracite/oxfmt';
 
 const workspaceRoot = path.resolve(
   process.env.ULTRAMODERN_WORKSPACE_ROOT ??
     path.join(path.dirname(fileURLToPath(import.meta.url)), '..'),
 );
-const compactConfigPath = path.join(workspaceRoot, '.modernjs/ultramodern.json');
+const topologyPath = path.join(workspaceRoot, 'topology/reference-topology.json');
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
 }
 
-function toKebabCase(value) {
-  return String(value)
-    .trim()
-    .replace(/([a-z0-9])([A-Z])/gu, '$1-$2')
-    .replace(/[^a-zA-Z0-9._-]+/gu, '-')
-    .replace(/[._]+/gu, '-')
-    .toLowerCase()
-    .replace(/-+/gu, '-')
-    .replace(/^-+|-+$/gu, '');
+async function readRouteOwnedEntries(app) {
+  const appRoot = fs.realpathSync(path.join(workspaceRoot, app.path));
+  const workspaceReal = fs.realpathSync(workspaceRoot);
+  const relativeAppPath = path.relative(workspaceReal, appRoot);
+  if (!relativeAppPath || relativeAppPath === '..' ||
+      relativeAppPath.startsWith(`..${path.sep}`) || path.isAbsolute(relativeAppPath))
+    throw new Error(`${app.id} topology path escapes the workspace`);
+  const routesRoot = path.join(appRoot, 'src/routes');
+  if (!fs.existsSync(routesRoot)) {
+    if (app.surfaceProfile === 'api-only') return [];
+    throw new Error(`${app.id} is missing its route-owned metadata directory`);
+  }
+  const files = [];
+  function visit(directory) {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const file = path.join(directory, entry.name);
+      if (entry.isSymbolicLink()) throw new Error(`${app.id} route metadata may not be a symbolic link`);
+      if (entry.isDirectory()) visit(file);
+      else if (entry.name === 'route.meta.ts') files.push(file);
+    }
+  }
+  visit(routesRoot);
+  const routes = [];
+  for (const file of files.sort()) {
+    const module = await tsImport(pathToFileURL(file).href, { parentURL: import.meta.url, tsconfig: false });
+    const namedRoute = module.routeMeta ?? module.default?.routeMeta;
+    const route = namedRoute ?? module.default?.default ?? module.default;
+    if (!route || typeof route !== 'object' || route.ownerAppId !== app.id ||
+        typeof route.id !== 'string' || typeof route.canonicalPath !== 'string' ||
+        !route.localisedPaths || typeof route.localisedPaths.en !== 'string' ||
+        typeof route.localisedPaths.cs !== 'string')
+      throw new Error(`${app.id} has invalid route-owned metadata in ${file}`);
+    routes.push({ file, route, exportName: namedRoute ? 'routeMeta' : 'default' });
+  }
+  return routes;
 }
 
-function toEnvSegment(value) {
-  return toKebabCase(value).replace(/-/gu, '_').toUpperCase();
-}
-
-function normalizeRelativePath(value) {
-  return String(value ?? '').replace(/\\/gu, '/').replace(/^\.\/+/u, '');
-}
-
-function appNamespace(app) {
-  return app.kind === 'shell' ? 'shell' : (app.domain ?? app.id);
-}
-
-function defaultPortEnv(app) {
-  return app.kind === 'shell'
-    ? 'SHELL_SUPER_APP_PORT'
-    : `VERTICAL_${toEnvSegment(app.domain ?? app.id)}_PORT`;
-}
-
-function defaultPort(app) {
-  return app.kind === 'shell' ? 3020 : 3030;
-}
-
-function normalizeCompactApp(rawApp) {
-  const id = String(rawApp.id);
-  const kind = rawApp.kind === 'vertical' ? 'vertical' : 'shell';
-  const appPath =
-    typeof rawApp.path === 'string'
-      ? normalizeRelativePath(rawApp.path)
-      : kind === 'shell'
-        ? 'apps/shell-super-app'
-        : `verticals/${toKebabCase(id)}`;
-  const packageSuffix =
-    typeof rawApp.packageSuffix === 'string'
-      ? rawApp.packageSuffix
-      : appPath.split('/').at(-1) ?? id;
-  const domain =
-    typeof rawApp.domain === 'string'
-      ? rawApp.domain
-      : kind === 'vertical'
-        ? packageSuffix
-        : undefined;
-  const moduleFederation =
-    rawApp.moduleFederation && typeof rawApp.moduleFederation === 'object'
-      ? rawApp.moduleFederation
-      : {};
-
-  return {
-    id,
-    kind,
-    path: appPath,
-    packageSuffix,
-    domain,
-    port:
-      typeof rawApp.port === 'number'
-        ? rawApp.port
-        : defaultPort({ id, kind, domain }),
-    portEnv:
-      typeof rawApp.portEnv === 'string'
-        ? rawApp.portEnv
-        : defaultPortEnv({ id, kind, domain }),
-    mfName:
-      typeof moduleFederation.name === 'string'
-        ? moduleFederation.name
-        : kind === 'shell'
-          ? 'shellSuperApp'
-          : `vertical${toKebabCase(domain ?? id)
-              .split('-')
-              .filter(Boolean)
-              .map(part => part.charAt(0).toUpperCase() + part.slice(1))
-              .join('')}`,
-    exposes: Array.isArray(moduleFederation.exposes)
-      ? moduleFederation.exposes.filter(expose => typeof expose === 'string')
-      : [],
-    verticalRefs: Array.isArray(moduleFederation.verticalRefs)
-      ? moduleFederation.verticalRefs.filter(ref => typeof ref === 'string')
-      : [],
-    marker: {
-      appId: id,
-    },
-    routes:
-      rawApp.routes && typeof rawApp.routes === 'object'
-        ? rawApp.routes
-        : undefined,
-    api:
-      rawApp.api && typeof rawApp.api === 'object'
-        ? {
-            stem:
-              typeof rawApp.api.stem === 'string'
-                ? rawApp.api.stem
-                : domain ?? id,
-            prefix:
-              typeof rawApp.api.prefix === 'string'
-                ? rawApp.api.prefix
-                : `/${domain ?? id}-api`,
-          }
-        : undefined,
-  };
-}
-
-function createRouteOwnedEntries(app) {
-  const namespace = appNamespace(app);
-  const base = {
-    descriptionKey: `${namespace}.seo.description`,
-    mfBoundaryId: app.mfName,
-    namespace,
-    ownerAppId: app.id,
-    public: false,
-    indexable: false,
-    publicSurface: 'private-app-screen',
-  };
-
-  return [
-    {
-      ...base,
-      canonicalPath: '/',
-      id: app.kind === 'shell' ? 'shell-home' : `${app.id}-home`,
-      localisedPaths: {
-        cs: '/',
-        en: '/',
-      },
-      titleKey: app.kind === 'shell' ? 'shell.title' : `${namespace}.title`,
-    },
-  ];
-}
-
-function createPublicRoutes(app) {
-  return createRouteOwnedEntries(app)
+function createPublicRoutes(routes) {
+  return routes
     .filter(route => route.public && route.indexable)
     .map(route => ({
       canonicalPath: route.canonicalPath,
@@ -163,15 +67,24 @@ function createPublicRoutes(app) {
     }));
 }
 
-function createPublicSurface(app) {
-  const publicRoutes = createPublicRoutes(app);
+function createPublicSurface(app, routes) {
+  const publicRoutes = createPublicRoutes(routes);
+  const routeEntries = publicRoutes.filter(route =>
+    Object.values(route.localisedPaths).every(routePath =>
+      !/(?:^|\/):[^/]+|\[[^\]]+\]|\*/u.test(routePath),
+    ),
+  ).map(route => ({ ...route,
+    canonicalUrlPath: createLocalisedPublicPath(route.localisedPaths.en, 'en'),
+    localeUrlPaths: Object.fromEntries(['en', 'cs'].map(language =>
+      [language, createLocalisedPublicPath(route.localisedPaths[language], language)])),
+  }));
   const basePublicSurface = {
     authoring: 'colocated-route-meta',
     artifactLifecycle: 'build-and-deploy-output',
     generatedManifest: './src/routes/ultramodern-route-metadata',
     source: 'route-owned-public-routes',
     metadataExport: './src/routes/ultramodern-route-metadata',
-    generator: 'scripts/generate-public-surface-assets.mts',
+    generator: 'ultramodern-create ultramodern public-surface',
     outputRoot: 'dist/public',
     cloudflareBuildOutputRoot: 'dist-cloudflare/public',
     privateRoutePolicy: 'omit-from-generated-public-surface',
@@ -192,8 +105,8 @@ function createPublicSurface(app) {
     },
     contentSources: [],
     publicRoutes,
-    routeEntries: [],
-    concreteUrlPaths: [],
+    routeEntries,
+    concreteUrlPaths: uniqueSorted(routeEntries.flatMap(route => Object.values(route.localeUrlPaths))),
   };
 
   return app.routes?.publicSurface &&
@@ -205,52 +118,33 @@ function createPublicSurface(app) {
     : basePublicSurface;
 }
 
-function createCloudflareDeploy(config, app) {
-  const packageScope =
-    typeof config.workspace?.packageScope === 'string'
-      ? config.workspace.packageScope
-      : path.basename(workspaceRoot);
-  const compatibilityDate =
-    typeof config.deploy?.worker?.compatibilityDate === 'string'
-      ? config.deploy.worker.compatibilityDate
-      : '2026-06-02';
+export async function readGeneratedContractView() {
+  const topology = readJson(topologyPath);
+  if (topology.schemaVersion !== 1 || !topology.shell || !Array.isArray(topology.verticals)) {
+    throw new Error('Invalid topology/reference-topology.json');
+  }
+  const apps = [topology.shell, ...topology.verticals, ...(topology.shells ?? [])];
   return {
-    workerName: `${toKebabCase(packageScope)}-${app.packageSuffix}`.slice(0, 63),
-    publicUrlEnv: `ULTRAMODERN_PUBLIC_URL_${toEnvSegment(app.id)}`,
-    compatibilityDate,
-    compatibilityFlags: ['nodejs_compat', 'global_fetch_strictly_public'],
-  };
-}
-
-function synthesizeContractFromCompactConfig(config) {
-  const apps = Array.isArray(config.topology?.apps)
-    ? config.topology.apps.map(normalizeCompactApp)
-    : [];
-
-  return {
-    sourcePath: compactConfigPath,
-    apps: apps.map(app => ({
-      ...app,
-      deploy: {
-        cloudflare: createCloudflareDeploy(config, app),
-      },
-      routes: {
-        publicSurface: createPublicSurface(app),
-      },
+    sourcePath: topologyPath,
+    apps: await Promise.all(apps.map(async app => {
+      if (typeof app.path !== 'string' || !app.path) {
+        throw new Error(`${app.id} topology path is missing`);
+      }
+      const routeModules = await readRouteOwnedEntries(app);
+      return {
+        id: app.id,
+        kind: app.kind,
+        surfaceProfile: app.surfaceProfile,
+        path: app.path,
+        domain: app.domain,
+        mfName: app.moduleFederation?.name,
+        marker: { appId: app.id },
+        deploy: { cloudflare: app.cloudflare },
+        routes: { publicSurface: createPublicSurface(app, routeModules.map(entry => entry.route)) },
+        routeModules,
+      };
     })),
   };
-}
-
-function readGeneratedContractView() {
-  if (fs.existsSync(compactConfigPath)) {
-    return synthesizeContractFromCompactConfig(readJson(compactConfigPath));
-  }
-  throw new Error(
-    `Missing UltraModern config. Expected ${path.relative(
-      workspaceRoot,
-      compactConfigPath,
-    )}.`,
-  );
 }
 
 function parseArgs(argv) {
@@ -258,6 +152,7 @@ function parseArgs(argv) {
     appId: undefined,
     target: 'dist',
     requirePublicOrigin: false,
+    syncRouteMetadata: false,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -270,6 +165,8 @@ function parseArgs(argv) {
       index += 1;
     } else if (arg === '--require-public-origin') {
       parsed.requirePublicOrigin = true;
+    } else if (arg === '--sync-route-metadata') {
+      parsed.syncRouteMetadata = true;
     } else if (arg === '--help' || arg === '-h') {
       parsed.help = true;
     } else {
@@ -289,7 +186,7 @@ function parseArgs(argv) {
 
 function printHelp() {
   process.stdout.write(`Usage:
-  node scripts/generate-public-surface-assets.mts --app shell-super-app [--target dist|cloudflare-dist] [--require-public-origin]
+  ultramodern-create ultramodern public-surface --app shell-super-app [--target dist|cloudflare-dist] [--require-public-origin|--sync-route-metadata]
 
 Set each app's production URL using the contract env key, for example:
   ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP=https://example.com
@@ -714,19 +611,55 @@ function writeText(outputDir, fileName, content) {
   fs.writeFileSync(path.join(outputDir, fileName), content);
 }
 
-async function generatePublicSurfaceAssets(app, target, requirePublicOrigin) {
+async function syncRouteMetadata(app) {
+  if (app.surfaceProfile === 'api-only') return;
+  const file = path.join(fs.realpathSync(path.join(workspaceRoot, app.path)),
+    'src/routes/ultramodern-route-metadata.ts');
+  const imports = app.routeModules.map(({ file: routeFile, exportName }, index) => {
+    const relative = path.relative(path.dirname(file), routeFile).replaceAll(path.sep, '/').replace(/\.ts$/u, '');
+    const specifier = JSON.stringify(relative.startsWith('.') ? relative : `./${relative}`);
+    return exportName === 'routeMeta'
+      ? `import { routeMeta as route${index} } from ${specifier};`
+      : `import route${index} from ${specifier};`;
+  });
+  const namespace = app.kind === 'shell' ? 'shell' : (app.domain ?? app.id);
+  const content = `// @generated by @modern-js/ultramodern-create from route-owned metadata.\n${imports.join('\n')}\n\nexport const ultramodernRouteNamespace = ${JSON.stringify(namespace)} as const;\nexport const ultramodernRouteMetadata = [${app.routeModules.map((_, index) => `route${index}`).join(', ')}] as const;\nexport const ultramodernLocalisedUrls = Object.fromEntries(ultramodernRouteMetadata.filter(route => route.canonicalPath !== '/').map(route => [route.canonicalPath, route.localisedPaths]));\nexport const ultramodernPublicRoutes = ultramodernRouteMetadata.filter(route => route.public && route.indexable).map(route => ({ canonicalPath: route.canonicalPath, id: route.id, localisedPaths: route.localisedPaths, namespace: route.namespace, ownerAppId: route.ownerAppId, descriptionKey: route.descriptionKey, titleKey: route.titleKey, ...('jsonLd' in route ? { jsonLd: route.jsonLd } : {}) }));\nexport const ultramodernRouteConfig = { authoring: 'colocated-route-meta', generatedManifest: true, localisedUrls: ultramodernLocalisedUrls, namespace: ultramodernRouteNamespace, publicRoutes: ultramodernPublicRoutes, routes: ultramodernRouteMetadata, source: 'route-owned' } as const;\n`;
+  const formatted = await format(file, content, {
+    ...ultracite,
+    printWidth: 120,
+    singleQuote: true,
+    trailingComma: 'all',
+  });
+  if (formatted.errors.length > 0)
+    throw new Error(`${app.id} route metadata aggregate could not be formatted`);
+  if (!fs.existsSync(file) || fs.readFileSync(file, 'utf8') !== formatted.code)
+    fs.writeFileSync(file, formatted.code);
+}
+
+export async function resolvePublicSurface(app) {
   const publicSurface = app.routes?.publicSurface ?? {};
   const languages = publicSurface.languages ?? ['en', 'cs'];
-  const outputDir = ensureOutputDir(app, target);
-  const shouldRequirePublicOrigin =
-    requirePublicOrigin ||
-    process.env.ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS === 'true';
   const routeEntries = mergeRouteEntries(
     publicSurface.routeEntries ?? [],
     await expandContentSources(app, publicSurface, languages),
     languages,
   );
-  const urlPaths = createConcreteUrlPaths(routeEntries, languages);
+  return {
+    ...publicSurface,
+    routeEntries,
+    concreteUrlPaths: createConcreteUrlPaths(routeEntries, languages),
+  };
+}
+
+async function generatePublicSurfaceAssets(app, target, requirePublicOrigin) {
+  const publicSurface = await resolvePublicSurface(app);
+  const languages = publicSurface.languages ?? ['en', 'cs'];
+  const outputDir = ensureOutputDir(app, target);
+  const shouldRequirePublicOrigin =
+    requirePublicOrigin ||
+    process.env.ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS === 'true';
+  const routeEntries = publicSurface.routeEntries;
+  const urlPaths = publicSurface.concreteUrlPaths;
 
   if (routeEntries.length === 0) {
     writeText(outputDir, 'robots.txt', renderRobotsTxt([], undefined));
@@ -748,19 +681,22 @@ async function generatePublicSurfaceAssets(app, target, requirePublicOrigin) {
   writeText(outputDir, 'robots.txt', renderRobotsTxt(urlPaths, `${origin}/sitemap.xml`));
 }
 
-try {
-  const args = parseArgs(process.argv.slice(2));
-  if (args.help) {
-    printHelp();
-    process.exit(0);
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  try {
+    const args = parseArgs(process.argv.slice(2));
+    if (args.help) {
+      printHelp();
+      process.exit(0);
+    }
+    const contract = await readGeneratedContractView();
+    const app = contract.apps?.find(candidate => candidate.id === args.appId);
+    if (!app) {
+      throw new Error(`Unknown app in UltraModern config: ${args.appId}`);
+    }
+    if (args.syncRouteMetadata) await syncRouteMetadata(app);
+    else await generatePublicSurfaceAssets(app, args.target, args.requirePublicOrigin);
+  } catch (error) {
+    process.stderr.write(`[public-surface] ${error.message}\n`);
+    process.exitCode = 1;
   }
-  const contract = readGeneratedContractView();
-  const app = contract.apps?.find(candidate => candidate.id === args.appId);
-  if (!app) {
-    throw new Error(`Unknown app in UltraModern config: ${args.appId}`);
-  }
-  await generatePublicSurfaceAssets(app, args.target, args.requirePublicOrigin);
-} catch (error) {
-  process.stderr.write(`[public-surface] ${error.message}\n`);
-  process.exitCode = 1;
 }

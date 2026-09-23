@@ -8,11 +8,7 @@ import type {
   DeliveryUnitDescriptor,
   SurfaceDescriptor,
 } from './delivery-unit-schema/types';
-import {
-  appHasApi,
-  resolveApiProtocol,
-  ULTRAMODERN_CONFIG_PATH,
-} from './descriptors';
+import { appHasApi, resolveApiProtocol } from './descriptors';
 import { normalizePath, packageName } from './naming';
 import type {
   ResolvedPackageSource,
@@ -128,7 +124,7 @@ export function createGenerationResult(options: {
         .filter(app => app.apiPrefix)
         .map(app => [app.id, app.apiPrefix as string]),
     ),
-    generatedContractPath: ULTRAMODERN_CONFIG_PATH,
+    generatedContractPath: 'topology/reference-topology.json',
     warnings: options.warnings ?? [],
     deliveryUnits: options.createdApps.map(app =>
       createGeneratedDeliveryUnitDescriptor(options.packageScope, app),

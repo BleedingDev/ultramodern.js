@@ -191,20 +191,51 @@ test('baseline build coverage fails closed on a missing or wrong-target MicroVer
       appPath,
       '.output/release/microvertical-release-envelope.json',
     );
-  const configPath = path.join(root, '.modernjs', 'ultramodern.json');
+  const configPath = path.join(root, 'topology', 'reference-topology.json');
   fs.mkdirSync(path.dirname(configPath), { recursive: true });
   fs.writeFileSync(
     configPath,
     JSON.stringify({
-      topology: {
-        apps: [
-          { id: 'shell-super-app', kind: 'shell', path: 'apps/shell' },
-          { id: 'catalog', kind: 'vertical', path: 'verticals/catalog' },
-          { id: 'checkout', kind: 'vertical', path: 'verticals/checkout' },
-        ],
+      shell: {
+        id: 'shell-super-app',
+        kind: 'shell',
+        path: 'apps/shell',
+        package: '@fixture/shell',
       },
+      verticals: [
+        {
+          id: 'catalog',
+          kind: 'vertical',
+          path: 'verticals/catalog',
+          package: '@fixture/catalog',
+        },
+        {
+          id: 'checkout',
+          kind: 'vertical',
+          path: 'verticals/checkout',
+          package: '@fixture/checkout',
+        },
+      ],
     }),
   );
+  fs.mkdirSync(path.join(root, 'topology/local-overlays'), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, 'topology/local-overlays/development.json'),
+    JSON.stringify({
+      ports: { 'shell-super-app': 3000, catalog: 3001, checkout: 3002 },
+    }),
+  );
+  for (const [appPath, name] of [
+    ['apps/shell', '@fixture/shell'],
+    ['verticals/catalog', '@fixture/catalog'],
+    ['verticals/checkout', '@fixture/checkout'],
+  ]) {
+    fs.mkdirSync(path.join(root, appPath), { recursive: true });
+    fs.writeFileSync(
+      path.join(root, appPath, 'package.json'),
+      JSON.stringify({ name }),
+    );
+  }
   fs.mkdirSync(path.join(root, 'apps/shell/.output'), { recursive: true });
   fs.writeFileSync(path.join(root, 'apps/shell/.output/index.js'), 'served');
   for (const appPath of ['verticals/catalog', 'verticals/checkout']) {

@@ -12,9 +12,9 @@ description: 在已有的 Modern.js 3.0 应用里启用可选功能：自动启�
 
 ## UltraModern 工作区先分流
 
-若项目包含 `.modernjs/ultramodern.json`，添加业务域使用现有生成器：
-`pnpm dlx @bleedingdev/modern-js-ultramodern-create@<V> catalog --vertical`。
-`<V>` 必须是工作区选定的真实发布 cohort。只需要 API 时加
+若项目包含 `topology/reference-topology.json`、`topology/ownership.json` 和
+`pnpm-workspace.yaml` 中的 `ultramodern` catalog，添加业务域使用工作区已安装的生成器：
+`pnpm exec ultramodern-create catalog --vertical`。依赖版本由 catalog 和已安装包确定。只需要 API 时加
 `--preset api-only`，只需要 UI 时加 `--preset ui-only`。完成后运行
 `pnpm install` 和 `pnpm check`。不要用下面的函数式 BFF 启用脚本替换
 UltraModern 的 Effect API，也不要创建路由适配器来隐藏框架问题。

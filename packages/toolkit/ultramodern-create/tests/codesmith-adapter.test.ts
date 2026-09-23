@@ -73,10 +73,8 @@ test('CodeSmith adapter creates a workspace with non-interactive config', async 
       packageSourceStrategy: 'workspace',
     });
     const workspaceDir = path.join(tempRoot, 'codesmith-workspace');
-    const ultramodernConfig = readJson(
-      workspaceDir,
-      '.modernjs/ultramodern.json',
-    );
+    const topology = readJson(workspaceDir, 'topology/reference-topology.json');
+    const rootPackage = readJson(workspaceDir, 'package.json');
     const shellPackage = readJson(
       workspaceDir,
       'apps/shell-super-app/package.json',
@@ -84,7 +82,11 @@ test('CodeSmith adapter creates a workspace with non-interactive config', async 
 
     assert.equal(result.operation, 'workspace');
     assert.equal(result.packageSource.strategy, 'workspace');
-    assert.equal(ultramodernConfig.packageSource.strategy, 'workspace');
+    assert.equal(topology.shell.kind, 'shell');
+    assert.equal(
+      rootPackage.devDependencies['@modern-js/ultramodern-create'],
+      'workspace:*',
+    );
     assert.equal(
       shellPackage.dependencies['@modern-js/runtime'],
       'workspace:*',

@@ -1,10 +1,3 @@
-import type { ResolvedUltramodernPackageSource } from '../ultramodern-package-source';
-import {
-  assertReleaseCohortPackageSource,
-  parseUltramodernReleaseCohort,
-  releaseCohortSelectors,
-  type UltramodernReleaseCohort,
-} from '../ultramodern-release-cohort';
 import { rpcPath } from './api/rpc';
 import {
   appEmitsBrowserUi,
@@ -16,7 +9,6 @@ import {
   resolveApiProtocol,
   resolveApiStem,
 } from './descriptors';
-import PATCH_INVENTORY from './patch-inventory';
 import { createLocalisedUrlsMap } from './routes';
 import type { JsonValue, WorkspaceApp } from './types';
 import { isRecord } from './types';
@@ -26,13 +18,11 @@ import {
   CROSS_ENV_VERSION,
   EFFECT_TSGO_VERSION,
   EFFECT_VERSION,
-  EFFECT_VITEST_VERSION,
   I18NEXT_VERSION,
   LEFTHOOK_VERSION,
   MINIFLARE_VERSION,
   MODULE_FEDERATION_NODE_VERSION,
   MODULE_FEDERATION_VERSION,
-  MSGPACKR_VERSION,
   NODE_FETCH_VERSION,
   NODE_VERSION,
   OXFMT_VERSION,
@@ -55,7 +45,6 @@ import {
   WRANGLER_VERSION,
   ZEPHYR_AGENT_VERSION,
   ZEPHYR_RSPACK_PLUGIN_VERSION,
-  ZOD_VERSION,
 } from './versions';
 
 function createCloudflareProofRoute(app: WorkspaceApp): JsonValue {
@@ -252,11 +241,6 @@ export function createCloudflareDeployContract(
     routes: createCloudflareProofRoute(app),
     security: createCloudflareSecurityContract(),
     qualityGates: createPublicWebsiteQualityGateContract(),
-    evidence: {
-      proofScript: 'scripts/proof-cloudflare-version.mts',
-      reportDefault:
-        '.codex/reports/cloudflare-version-proof/public-url-proof.json',
-    },
     // Exercise the actual public protocol rather than treating generated files
     // as proof that the worker route is callable.
     ...(app.api
@@ -267,43 +251,6 @@ export function createCloudflareDeployContract(
   };
 }
 
-export type UltramodernReleaseAgeApproval = {
-  packageName: string;
-  version: string;
-  reason: string;
-  reviewer: string;
-  reviewedAt: string;
-  evidence: {
-    uri: string;
-    sha256: string;
-    sha256Subject: 'git-commit-payload';
-  };
-  registry: {
-    publishedAt: string;
-    dist: {
-      integrity: string;
-    };
-  };
-  expiresAt: string;
-};
-
-export type UltramodernReleaseAgeCandidate = {
-  packageName: string;
-  version: string;
-  registry: {
-    publishedAt?: string;
-    dist: {
-      integrity: string;
-    };
-  };
-};
-
-export type UltramodernPatchPolicy = {
-  packageName: string;
-  version: string;
-  path: string;
-};
-
 export const ULTRAMODERN_PACKAGE_PINS = {
   appDependencies: {
     // Generated apps never install react-router — TanStack Router is the
@@ -312,27 +259,19 @@ export const ULTRAMODERN_PACKAGE_PINS = {
     // by aliasing bridge-react to its router-free `base` entry when it finds
     // the package in the app's own `package.json`. Drop it and the default,
     // `react-router-dom`-importing entry is bundled again.
-    '@module-federation/bridge-react': MODULE_FEDERATION_VERSION,
-    '@module-federation/modern-js-v3': MODULE_FEDERATION_VERSION,
-    '@module-federation/runtime': MODULE_FEDERATION_VERSION,
+    '@module-federation/bridge-react': `npm:@bleedingdev/mf-bridge-react@${MODULE_FEDERATION_VERSION}`,
+    '@module-federation/modern-js-v3': `npm:@bleedingdev/mf-modern-js-v3@${MODULE_FEDERATION_VERSION}`,
+    '@module-federation/runtime': `npm:@bleedingdev/mf-runtime@${MODULE_FEDERATION_VERSION}`,
     '@tanstack/react-router': TANSTACK_ROUTER_VERSION,
     i18next: I18NEXT_VERSION,
     'node-fetch': NODE_FETCH_VERSION,
     react: REACT_VERSION,
     'react-dom': REACT_DOM_VERSION,
   },
-  // FORK: `@modern-js/plugin-bff` declares `effect` and `@effect/opentelemetry`
-  // as OPTIONAL peers so a hono-only consumer is never forced to install Effect.
-  // Every generated UltraModern workspace runs the strict Effect BFF lane, so
-  // whoever depends on plugin-bff must supply that peer itself — at the exact
-  // cohort version, which is the whole point of the optional-peer shape (one
-  // Effect Context/Service identity). Without this the generated workspace
-  // installs no `effect` at all: the BFF lane fails at runtime, and the
-  // `effect@<version>` entry in `patchedDependencies` matches nothing, so pnpm
-  // rejects the install with ERR_PNPM_UNUSED_PATCH.
+  // Optional Effect peers are supplied by each Effect app using one exact package identity.
   bffEffectDependencies: {
     '@effect/opentelemetry': EFFECT_VERSION,
-    effect: EFFECT_VERSION,
+    effect: `npm:@bleedingdev/effect@${EFFECT_VERSION}`,
   },
   appDevDependencies: {
     '@effect/tsgo': EFFECT_TSGO_VERSION,
@@ -371,125 +310,6 @@ export const ULTRAMODERN_PACKAGE_PINS = {
   },
 } as const;
 
-const requiredPatchPolicies: readonly UltramodernPatchPolicy[] =
-  PATCH_INVENTORY.filter(patch => patch.workspace === 'required');
-const conditionalPatchPolicies: readonly UltramodernPatchPolicy[] =
-  PATCH_INVENTORY.filter(patch => patch.workspace === 'conditional');
-
-const moduleFederationRegistryReleases = [
-  [
-    'bridge-react',
-    '2026-08-24T08:18:02.542Z',
-    'sha512-3wEVz9IMsDnbdTZjG+0XA7BHUU2yIvfTqWRrMPR9RciSOVojJUXocZ6Anksu7WhuYnasc7am8szpms7pZGotnA==',
-  ],
-  [
-    'bridge-react-webpack-plugin',
-    '2026-08-24T08:19:41.007Z',
-    'sha512-hv3fuQkGERQ/COBKTVbFV1GWovReSg/bzJzDuxWR1F84h6NYtbYMWQqX8Egvb7HKMtn9Rflzw0GeaLr8F08vDg==',
-  ],
-  [
-    'cli',
-    '2026-08-24T08:21:41.802Z',
-    'sha512-r9RdlLRy3zWxuWQRonif48xdDu1reBGx18QpkZwLQ4JfSrOARjycNIGY2Y7QaUw7dedzxyee4FtKFeX/kOVLYQ==',
-  ],
-  [
-    'dts-plugin',
-    '2026-08-24T08:19:17.035Z',
-    'sha512-uMGqEG/p9odG2BVr7WRbBe2OgrvzBd3LPzcp5WP+bm3djBdUJ4PZ3ozqKp6qpy+NFnlh6vnM815Xn6AXkKy1Vw==',
-  ],
-  [
-    'enhanced',
-    '2026-08-24T08:20:25.023Z',
-    'sha512-Jd/JHoFL9fNKL4Nnzo/9hf6FD/oQo3gKpE8xt6EGuhxmrvg6wM0radPtqgHiSSWLMW7CiXr2agNjKvquKd83rw==',
-  ],
-  [
-    'error-codes',
-    '2026-08-24T08:22:25.614Z',
-    'sha512-IGpd+VRlji3NyGOGGTsk7YEmPRKcDoBK4YHqIuP+OQwyb2YhHCUHO2vW9RXeQxCuKwi+c6xkTweRYG+Umy+0Zw==',
-  ],
-  [
-    'inject-external-runtime-core-plugin',
-    '2026-08-24T08:21:16.321Z',
-    'sha512-k3wCSZsY21HjYQ61wmIJUQleOgcHgqx/sX4qXYw0XnJnzHuFo64rzMvgr+TuBIgZ1peAQtfILLlTnWyTRjtZHw==',
-  ],
-  [
-    'managers',
-    '2026-08-24T08:19:45.898Z',
-    'sha512-8KhB2PF4g+M0hGaethU1H4GVWabLn5sF5TvnM6VxgAcDL4TfLY8aC/YobAXHG/SV0jpU5lsGe6s6xy6ccV0MQw==',
-  ],
-  [
-    'manifest',
-    '2026-08-24T08:19:49.387Z',
-    'sha512-Zhm9luVOw9XPou50eTwsvdgr208CszoQ6cGORQDCPAMhjpGb5oYFtilJ+LKW7hQ1LktD15bEZmGhC1anvgXEiQ==',
-  ],
-  [
-    'modern-js-v3',
-    '2026-08-24T08:21:54.080Z',
-    'sha512-IzFEJnO53vEVLrm5qlDrCPO1bEmN11TLaPHrZtPqHfy7yjwhBDi/63uLAVwcqKVGZnK5Erbqg9Y3hJkZKxd4AQ==',
-  ],
-  [
-    'rsbuild-plugin',
-    '2026-08-24T08:19:38.788Z',
-    'sha512-CaWAxZg+zOMw/BfgRXQdNBQZ/e5U7DBZvE13LzG13GEclt7yxaMQgKH0si3uOsq9f/X2NC8UnuhNHLIkloqlqA==',
-  ],
-  [
-    'rspack',
-    '2026-08-24T08:21:20.630Z',
-    'sha512-9zSlmQYKRHKVWqhlZSMyjstp2A3VVrQV2Of8mrF5NXhngFemNx7Hw35+MTo+gsRfF5glpN8bAzLyIokRUo1Cog==',
-  ],
-  [
-    'runtime',
-    '2026-08-24T08:21:03.780Z',
-    'sha512-3cyAav0hWP+dNvB7qrcK9CKxQn+JvkbRvLtZz3zS2g0EyxtDFDjgbHY0Afcf7oHf8IHhKeEdzb/3Kjr1Pjmr7A==',
-  ],
-  [
-    'runtime-core',
-    '2026-08-24T08:19:49.581Z',
-    'sha512-dLykRYfpbEJBTdk2NlbNoVVTB196O3qujawTBguLABJkPCWETJNk60NR1yZO34eI+DTH+eGwHU3m7FddAWnbnw==',
-  ],
-  [
-    'runtime-tools',
-    '2026-08-24T08:19:57.575Z',
-    'sha512-u2puqsaHiw1bVvLNk1uh98iPo6UzaBuci/aTvOFwKvbT/RF18C3vGGnm+ShHPKQEnoN6ctPtnygyOZDPR+8cgg==',
-  ],
-  [
-    'sdk',
-    '2026-08-24T08:20:29.076Z',
-    'sha512-IMjObgBGQTXd33jTTCYcxvz8iOQGLsZ2QIPOj90rDxuBtJsN4WJwYyXqligrhY/e5p/BipUPdbIgKmWL7zFhTw==',
-  ],
-  [
-    'third-party-dts-extractor',
-    '2026-08-24T08:22:33.751Z',
-    'sha512-R1Xuqnqzw6wQxWV3yU9fX1FydXAeZF2TNVFAVo1N1oLBA2j5y7aUO/Fc3VSNgd9/gxMzJgTVBdA+nMiD2SFCgg==',
-  ],
-  [
-    'webpack-bundler-runtime',
-    '2026-08-24T08:20:31.955Z',
-    'sha512-MdU6NQibT57MaJG3KPBjC30IVBrz5eU7IcjHoVDYnMh7OmASw3stagBu7hYjdMTP31luNdtzUn85s9axvdwTlw==',
-  ],
-] as const;
-
-const moduleFederationNodeRegistryRelease = {
-  packageName: '@module-federation/node',
-  version: MODULE_FEDERATION_NODE_VERSION,
-  registry: {
-    publishedAt: '2026-08-24T08:22:30.137Z',
-    dist: {
-      integrity:
-        'sha512-mbpQRdafyeWgsmYoJfdhOQf76zS6onOGpC2X1ELpWXB1Y4BcZGloL0CLjNMNon9m3ucfpc99tOGAQqFzQVkSBQ==',
-    },
-  },
-} as const;
-
-const releaseAgeApprovals: readonly UltramodernReleaseAgeApproval[] = [
-  // FORK: fresh-cohort approvals are added only after the purpose-built review
-  // artifact has an immutable pushed commit identity. Never attest a cohort
-  // from a commit that predates its reviewed versions, timestamps, integrities,
-  // optional-platform closure, and patch applicability evidence. The 2026-08-26
-  // Rsbuild/Rspack 2.2.0 approvals expired on 2026-08-27 and the cohort now
-  // pins 2.2.3, which clears the minimum release age on its own.
-];
-
 export const ULTRAMODERN_WORKSPACE_POLICY = {
   schemaVersion: 1,
   dependencies: ULTRAMODERN_PACKAGE_PINS,
@@ -510,10 +330,6 @@ export const ULTRAMODERN_WORKSPACE_POLICY = {
     minimumReleaseAgeIgnoreMissingTime: false,
     trustPolicy: 'no-downgrade',
     trustPolicyIgnoreAfter: 1440,
-    trustPolicyExclude: [
-      `@effect/opentelemetry@${EFFECT_VERSION}`,
-      `effect@${EFFECT_VERSION}`,
-    ],
     blockExoticSubdeps: true,
     engineStrict: true,
     pmOnFail: 'error',
@@ -525,17 +341,6 @@ export const ULTRAMODERN_WORKSPACE_POLICY = {
         '@effect/vitest>effect': EFFECT_VERSION,
       },
     },
-    overrides: {
-      '@effect/opentelemetry': EFFECT_VERSION,
-      '@effect/vitest': EFFECT_VITEST_VERSION,
-      '@tanstack/history': TANSTACK_HISTORY_VERSION,
-      '@tanstack/react-router': TANSTACK_ROUTER_VERSION,
-      '@tanstack/router-core': TANSTACK_ROUTER_CORE_VERSION,
-      effect: EFFECT_VERSION,
-      msgpackr: MSGPACKR_VERSION,
-      'node-fetch': NODE_FETCH_VERSION,
-      zod: ZOD_VERSION,
-    },
     allowBuilds: {
       '@parcel/watcher': true,
       '@swc/core': true,
@@ -546,400 +351,5 @@ export const ULTRAMODERN_WORKSPACE_POLICY = {
       sharp: true,
       workerd: true,
     },
-    patchedDependencies: {
-      required: requiredPatchPolicies,
-      conditional: conditionalPatchPolicies,
-    },
-    releaseAge: {
-      approvals: releaseAgeApprovals,
-      registryEvidence: {
-        moduleFederation: {
-          version: MODULE_FEDERATION_VERSION,
-          nodeVersion: MODULE_FEDERATION_NODE_VERSION,
-          releases: moduleFederationRegistryReleases.map(
-            ([packageSuffix, publishedAt, integrity]) => ({
-              packageName: `@module-federation/${packageSuffix}`,
-              version: MODULE_FEDERATION_VERSION,
-              registry: {
-                publishedAt,
-                dist: { integrity },
-              },
-            }),
-          ),
-          node: moduleFederationNodeRegistryRelease,
-        },
-      },
-      firstParty: {
-        source: 'authenticated-release-cohort-projection',
-        exactVersionOnly: true,
-        staticApprovals: false,
-      },
-    },
-  },
-  metadata: {
-    packageSource: {
-      configPath: '.modernjs/ultramodern.json',
-      rootManifestPath: 'modernjs.packageSource',
-      ownedKeys: [
-        'strategy',
-        'modernPackageVersion',
-        'registry',
-        'aliasScope',
-        'aliasPackageNamePrefix',
-      ],
-    },
-    moduleFederation: {
-      version: MODULE_FEDERATION_VERSION,
-      nodeVersion: MODULE_FEDERATION_NODE_VERSION,
-      configPath: 'moduleFederation',
-      appConfigPath: 'topology.apps[].moduleFederation',
-    },
-    nativePreview: {
-      packageName: '@typescript/native-preview',
-      version: TYPESCRIPT_NATIVE_PREVIEW_VERSION,
-      generatedDependencyPolicy: 'forbidden',
-      releaseAgePolicy: 'exact-reviewed-closure-only',
-    },
   },
 } as const;
-
-const exactPackageNamePattern =
-  /^(?:@[a-z0-9][a-z0-9._~-]*\/[a-z0-9][a-z0-9._~-]*|[a-z0-9][a-z0-9._~-]*)$/u;
-const exactVersionPattern =
-  /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/u;
-const integrityPattern = /^sha(?:256|384|512)-[A-Za-z0-9+/]+={0,2}$/u;
-const sha256Pattern = /^[a-f0-9]{64}$/u;
-const immutableCommitUriPattern =
-  /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/commit\/[a-f0-9]{40}$/u;
-
-function comparePackageVersions(
-  left: Pick<UltramodernReleaseAgeApproval, 'packageName' | 'version'>,
-  right: Pick<UltramodernReleaseAgeApproval, 'packageName' | 'version'>,
-) {
-  if (left.packageName !== right.packageName) {
-    return left.packageName < right.packageName ? -1 : 1;
-  }
-  if (left.version === right.version) {
-    return 0;
-  }
-  return left.version < right.version ? -1 : 1;
-}
-
-function packageVersionKey(value: { packageName: string; version: string }) {
-  return `${value.packageName}@${value.version}`;
-}
-
-function assertCanonicalInstant(value: unknown, label: string) {
-  if (typeof value !== 'string') {
-    throw new Error(`${label} must be an ISO-8601 UTC timestamp.`);
-  }
-  const timestamp = Date.parse(value);
-  if (
-    !Number.isFinite(timestamp) ||
-    new Date(timestamp).toISOString() !== value
-  ) {
-    throw new Error(`${label} must be a canonical ISO-8601 UTC timestamp.`);
-  }
-  return timestamp;
-}
-
-function assertExactPackageVersion(
-  value: Record<string, any>,
-  label: string,
-): asserts value is Record<string, any> & {
-  packageName: string;
-  version: string;
-} {
-  if (
-    typeof value.packageName !== 'string' ||
-    !exactPackageNamePattern.test(value.packageName)
-  ) {
-    throw new Error(
-      `${label}.packageName must be an exact npm package name without ranges, tags, or globs.`,
-    );
-  }
-  if (
-    typeof value.version !== 'string' ||
-    !exactVersionPattern.test(value.version)
-  ) {
-    throw new Error(
-      `${label}.version must be one exact semantic version without ranges, tags, or globs.`,
-    );
-  }
-}
-
-function requiredRecord(value: unknown, label: string): Record<string, any> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error(`${label} must be an object.`);
-  }
-  return value as Record<string, any>;
-}
-
-export function validateReleaseAgeApprovals(
-  approvals: readonly unknown[],
-  options: { now?: Date } = {},
-): UltramodernReleaseAgeApproval[] {
-  if (!Array.isArray(approvals)) {
-    throw new Error('releaseAge.approvals must be an array.');
-  }
-
-  const now = options.now ?? new Date();
-  if (!Number.isFinite(now.getTime())) {
-    throw new Error('Release-age validation requires a valid current time.');
-  }
-
-  const seen = new Set<string>();
-  const validated = approvals.map((rawApproval, index) => {
-    const label = `releaseAge.approvals[${index}]`;
-    const approval = requiredRecord(rawApproval, label);
-    assertExactPackageVersion(approval, label);
-    const key = packageVersionKey({
-      packageName: approval.packageName,
-      version: approval.version,
-    });
-    if (seen.has(key)) {
-      throw new Error(`Duplicate release-age approval for ${key}.`);
-    }
-    seen.add(key);
-
-    for (const field of ['reason', 'reviewer'] as const) {
-      const value = approval[field];
-      if (
-        typeof value !== 'string' ||
-        value.trim().length === 0 ||
-        /^(?:unknown|todo|tbd|placeholder)$/iu.test(value.trim())
-      ) {
-        throw new Error(
-          `${label}.${field} must identify real review evidence.`,
-        );
-      }
-    }
-
-    const reviewedAt = assertCanonicalInstant(
-      approval.reviewedAt,
-      `${label}.reviewedAt`,
-    );
-    const expiresAt = assertCanonicalInstant(
-      approval.expiresAt,
-      `${label}.expiresAt`,
-    );
-    if (expiresAt <= reviewedAt) {
-      throw new Error(`${key} expiresAt must be after reviewedAt.`);
-    }
-    const evidence = requiredRecord(approval.evidence, `${label}.evidence`);
-    if (
-      typeof evidence.uri !== 'string' ||
-      !immutableCommitUriPattern.test(evidence.uri)
-    ) {
-      throw new Error(
-        `${label}.evidence.uri must reference an immutable full GitHub commit.`,
-      );
-    }
-    if (
-      typeof evidence.sha256 !== 'string' ||
-      !sha256Pattern.test(evidence.sha256)
-    ) {
-      throw new Error(`${label}.evidence.sha256 must be a SHA-256 digest.`);
-    }
-    if (evidence.sha256Subject !== 'git-commit-payload') {
-      throw new Error(
-        `${label}.evidence.sha256Subject must identify the raw Git commit payload.`,
-      );
-    }
-
-    const registry = requiredRecord(approval.registry, `${label}.registry`);
-    const publishedAt = assertCanonicalInstant(
-      registry.publishedAt,
-      `${label}.registry.publishedAt`,
-    );
-    if (publishedAt > reviewedAt) {
-      throw new Error(
-        `${key} cannot be reviewed before its registry publish time.`,
-      );
-    }
-    const dist = requiredRecord(registry.dist, `${label}.registry.dist`);
-    if (
-      typeof dist.integrity !== 'string' ||
-      !integrityPattern.test(dist.integrity)
-    ) {
-      throw new Error(`${label}.registry.dist.integrity must be a valid SRI.`);
-    }
-
-    return approval as UltramodernReleaseAgeApproval;
-  });
-
-  return validated.sort(comparePackageVersions);
-}
-
-export function renderMinimumReleaseAgeExclude(
-  options: {
-    approvals?: readonly unknown[];
-    now?: Date;
-    packageSource?: ResolvedUltramodernPackageSource;
-    releaseCohort?: UltramodernReleaseCohort;
-  } = {},
-) {
-  const now = options.now ?? new Date();
-  const nowTimestamp = now.getTime();
-  const reviewedSelectors = validateReleaseAgeApprovals(
-    options.approvals ?? ULTRAMODERN_WORKSPACE_POLICY.pnpm.releaseAge.approvals,
-    { now },
-  )
-    .filter(approval => {
-      const reviewedAt = Date.parse(approval.reviewedAt);
-      const expiresAt = Date.parse(approval.expiresAt);
-      const maturesAt =
-        Date.parse(approval.registry.publishedAt) +
-        ULTRAMODERN_WORKSPACE_POLICY.pnpm.minimumReleaseAge * 60_000;
-      return (
-        reviewedAt <= nowTimestamp &&
-        nowTimestamp < expiresAt &&
-        nowTimestamp < maturesAt
-      );
-    })
-    .map(packageVersionKey)
-    .sort();
-
-  const packageSource = options.packageSource;
-  if (
-    packageSource?.strategy !== 'install' ||
-    !exactVersionPattern.test(packageSource.modernPackageVersion)
-  ) {
-    return reviewedSelectors;
-  }
-
-  if (options.releaseCohort === undefined) {
-    throw new Error(
-      'Authenticated release cohort projection is required for install package sources.',
-    );
-  }
-  const releaseCohort = parseUltramodernReleaseCohort(options.releaseCohort);
-  assertReleaseCohortPackageSource(releaseCohort, packageSource);
-  const firstPartySelectors = releaseCohortSelectors(releaseCohort);
-  return [...new Set([...reviewedSelectors, ...firstPartySelectors])].sort();
-}
-
-export function resolveReleaseAgeApprovals(
-  candidates: readonly UltramodernReleaseAgeCandidate[],
-  options: {
-    approvals?: readonly unknown[];
-    now?: Date;
-  } = {},
-) {
-  if (!Array.isArray(candidates)) {
-    throw new Error('Release-age dependency closure must be an array.');
-  }
-
-  const approvals = validateReleaseAgeApprovals(
-    options.approvals ?? ULTRAMODERN_WORKSPACE_POLICY.pnpm.releaseAge.approvals,
-    { now: options.now },
-  );
-  const now = options.now ?? new Date();
-  const nowTimestamp = now.getTime();
-  const approvalsByKey = new Map(
-    approvals.map(approval => [packageVersionKey(approval), approval]),
-  );
-  const candidatesByKey = new Map<
-    string,
-    {
-      candidate: UltramodernReleaseAgeCandidate;
-      publishedAt: number;
-    }
-  >();
-
-  for (const [index, candidate] of candidates.entries()) {
-    const label = `dependencyClosure[${index}]`;
-    const record = requiredRecord(candidate, label);
-    assertExactPackageVersion(record, label);
-    const registry = requiredRecord(record.registry, `${label}.registry`);
-    const dist = requiredRecord(registry.dist, `${label}.registry.dist`);
-    if (
-      typeof dist.integrity !== 'string' ||
-      !integrityPattern.test(dist.integrity)
-    ) {
-      throw new Error(
-        `${label}.registry.dist.integrity is required; registry uncertainty is fail-closed.`,
-      );
-    }
-    const publishedAt = assertCanonicalInstant(
-      registry.publishedAt,
-      `${label}.registry.publishedAt`,
-    );
-    if (publishedAt > nowTimestamp) {
-      throw new Error(
-        `${label}.registry.publishedAt is in the future; registry uncertainty is fail-closed.`,
-      );
-    }
-
-    const key = packageVersionKey(record as UltramodernReleaseAgeCandidate);
-    if (candidatesByKey.has(key)) {
-      throw new Error(`Duplicate dependency-closure candidate for ${key}.`);
-    }
-    candidatesByKey.set(key, { candidate, publishedAt });
-  }
-
-  const approved: UltramodernReleaseAgeCandidate[] = [];
-  const reviewCandidates: UltramodernReleaseAgeCandidate[] = [];
-  for (const [key, resolvedCandidate] of candidatesByKey) {
-    const { candidate, publishedAt } = resolvedCandidate;
-    const approval = approvalsByKey.get(key);
-    const maturesAt =
-      publishedAt +
-      ULTRAMODERN_WORKSPACE_POLICY.pnpm.minimumReleaseAge * 60_000;
-
-    if (approval) {
-      if (
-        candidate.registry.dist.integrity !== approval.registry.dist.integrity
-      ) {
-        throw new Error(
-          `Release-age approval ${key} does not match lock integrity.`,
-        );
-      }
-      if (candidate.registry.publishedAt !== approval.registry.publishedAt) {
-        throw new Error(
-          `Release-age approval ${key} does not match registry publish time.`,
-        );
-      }
-    }
-
-    if (nowTimestamp >= maturesAt) {
-      continue;
-    }
-    if (!approval || Date.parse(approval.reviewedAt) > nowTimestamp) {
-      reviewCandidates.push(candidate);
-      continue;
-    }
-    if (Date.parse(approval.expiresAt) <= nowTimestamp) {
-      throw new Error(
-        `Release-age approval for immature ${key} expired at ${approval.expiresAt}.`,
-      );
-    }
-    approved.push(candidate);
-  }
-
-  for (const approval of approvals) {
-    const key = packageVersionKey(approval);
-    const reviewedAt = Date.parse(approval.reviewedAt);
-    const expiresAt = Date.parse(approval.expiresAt);
-    const maturesAt =
-      Date.parse(approval.registry.publishedAt) +
-      ULTRAMODERN_WORKSPACE_POLICY.pnpm.minimumReleaseAge * 60_000;
-    if (
-      reviewedAt <= nowTimestamp &&
-      nowTimestamp < expiresAt &&
-      nowTimestamp < maturesAt &&
-      !candidatesByKey.has(key)
-    ) {
-      throw new Error(
-        `Release-age approval ${key} is unmatched by the dependency closure.`,
-      );
-    }
-  }
-
-  return {
-    minimumReleaseAgeExclude: approved
-      .sort(comparePackageVersions)
-      .map(packageVersionKey),
-    reviewCandidates: reviewCandidates.sort(comparePackageVersions),
-  };
-}

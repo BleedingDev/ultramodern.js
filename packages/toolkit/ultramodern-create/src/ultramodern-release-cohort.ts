@@ -1,9 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { ResolvedUltramodernPackageSource } from './ultramodern-package-source';
-import { createPackageRoot, writeFile } from './ultramodern-workspace/fs-io';
+import { createPackageRoot } from './ultramodern-workspace/fs-io';
 
-export const RELEASE_COHORT_PROJECTION_PATH = '.modernjs/release-cohort.json';
+export const RELEASE_COHORT_PATH = 'release-cohort.json';
 const RELEASE_COHORT_PROJECTION_SCHEMA =
   'bleedingdev.ultramodern.release-cohort';
 const RELEASE_COHORT_PROJECTION_SCHEMA_VERSION = 1;
@@ -182,48 +182,15 @@ function readCohortFile(filePath: string) {
 }
 
 export function readCreateReleaseCohort() {
-  return readCohortFile(
-    path.join(
-      createPackageRoot,
-      'template-workspace',
-      RELEASE_COHORT_PROJECTION_PATH,
-    ),
-  );
+  return readCohortFile(path.join(createPackageRoot, RELEASE_COHORT_PATH));
 }
 
 export function hasCreateReleaseCohort() {
-  return fs.existsSync(
-    path.join(
-      createPackageRoot,
-      'template-workspace',
-      RELEASE_COHORT_PROJECTION_PATH,
-    ),
-  );
+  return fs.existsSync(path.join(createPackageRoot, RELEASE_COHORT_PATH));
 }
 
 export function isCreatePackageSourceCheckout() {
   return fs.existsSync(path.join(createPackageRoot, 'src'));
-}
-
-export function readWorkspaceReleaseCohort(workspaceRoot: string) {
-  return readCohortFile(
-    path.join(workspaceRoot, RELEASE_COHORT_PROJECTION_PATH),
-  );
-}
-
-export function copyCreateReleaseCohort(workspaceRoot: string) {
-  const sourcePath = path.join(
-    createPackageRoot,
-    'template-workspace',
-    RELEASE_COHORT_PROJECTION_PATH,
-  );
-  const cohort = readCohortFile(sourcePath);
-  writeFile(
-    workspaceRoot,
-    RELEASE_COHORT_PROJECTION_PATH,
-    fs.readFileSync(sourcePath, 'utf8'),
-  );
-  return cohort;
 }
 
 export function assertReleaseCohortPackageSource(

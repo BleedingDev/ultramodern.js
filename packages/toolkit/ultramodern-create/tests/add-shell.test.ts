@@ -62,6 +62,8 @@ function runRecordedRootBuild(
   );
   const binDir = path.join(recorderRoot, 'bin');
   const invocationLog = path.join(recorderRoot, 'invocations.jsonl');
+  fs.mkdirSync(binDir, { recursive: true });
+  fs.symlinkSync(createBinPath, path.join(binDir, 'ultramodern-create'));
   writeNodeCommandFixture(
     binDir,
     'pnpm',
@@ -218,14 +220,12 @@ test('add-vertical targets an additional shell and rejects unknown shell ids dur
       shell: 'shell-admin',
     });
 
-    const config = readJson(workspaceDir, '.modernjs/ultramodern.json');
-    const primary = config.topology.apps.find(
-      (app: { id?: string }) => app.id === 'shell-super-app',
-    );
-    const additional = config.shells.find(
+    const topology = readJson(workspaceDir, 'topology/reference-topology.json');
+    const primary = topology.shell;
+    const additional = topology.shells.find(
       (shell: { id?: string }) => shell.id === 'shell-admin',
     );
-    assert.deepEqual(primary.moduleFederation.verticalRefs, ['catalog']);
+    assert.deepEqual(primary.verticalRefs, ['catalog']);
     assert.deepEqual(additional.verticalRefs, ['catalog', 'orders']);
     assert.ok(
       additional.moduleFederation.remotes.some(
@@ -258,7 +258,6 @@ test('add-vertical targets an additional shell and rejects unknown shell ids dur
       '@workspace/orders@workspace:*',
     );
 
-    const topology = readJson(workspaceDir, 'topology/reference-topology.json');
     assert.deepEqual(topology.shell.verticalRefs, ['catalog']);
     assert.deepEqual(
       topology.shell.moduleFederation.remotes.map(
@@ -329,21 +328,29 @@ test('workspace-wide port allocation avoids customized shell and overlay ports',
       name: 'partner',
       modernVersion: '3.2.1',
     });
-    const configAfterShell = readJson(
+    const topologyAfterShell = readJson(
       workspaceDir,
-      '.modernjs/ultramodern.json',
+      'topology/reference-topology.json',
+    );
+    const overlayAfterShell = readJson(
+      workspaceDir,
+      'topology/local-overlays/development.json',
     );
     assert.deepEqual(
-      configAfterShell.shells.map((shell: { id: string }) => shell.id),
+      topologyAfterShell.shells.map((shell: { id: string }) => shell.id),
       ['shell-admin', 'shell-partner'],
     );
     assert.deepEqual(
-      configAfterShell.shells.map((shell: { port: number }) => shell.port),
+      topologyAfterShell.shells.map(
+        (shell: { id: string }) => overlayAfterShell.ports[shell.id],
+      ),
       [3121, 3122],
     );
     assert.equal(
       new Set(
-        configAfterShell.shells.map((shell: { port: number }) => shell.port),
+        topologyAfterShell.shells.map(
+          (shell: { id: string }) => overlayAfterShell.ports[shell.id],
+        ),
       ).size,
       2,
       'additional shell ports are distinct',
@@ -356,30 +363,31 @@ test('workspace-wide port allocation avoids customized shell and overlay ports',
     assert.ok(referencePaths.includes('apps/shell-admin'));
     assert.ok(referencePaths.includes('apps/shell-partner'));
 
-    configAfterShell.shells[0].port = 4101;
+    overlayAfterShell.ports['shell-admin'] = 4101;
     fs.writeFileSync(
-      path.join(workspaceDir, '.modernjs/ultramodern.json'),
-      `${JSON.stringify(configAfterShell, null, 2)}\n`,
+      overlayPath,
+      `${JSON.stringify(overlayAfterShell, null, 2)}\n`,
     );
     addUltramodernVertical({
       workspaceRoot: workspaceDir,
       name: 'orders',
       modernVersion: '3.2.1',
     });
-    const configAfterVertical = readJson(
+    const topologyAfterVertical = readJson(
       workspaceDir,
-      '.modernjs/ultramodern.json',
+      'topology/reference-topology.json',
     );
-    const orders = configAfterVertical.topology.apps.find(
-      (app: { id?: string }) => app.id === 'orders',
+    const overlayAfterVertical = readJson(
+      workspaceDir,
+      'topology/local-overlays/development.json',
     );
-    assert.equal(orders.port, 4102);
+    assert.equal(overlayAfterVertical.ports.orders, 4102);
     assert.deepEqual(
-      configAfterVertical.shells.map((shell: { id: string }) => shell.id),
+      topologyAfterVertical.shells.map((shell: { id: string }) => shell.id),
       ['shell-admin', 'shell-partner'],
     );
-    assert.equal(configAfterVertical.shells[0].port, 4101);
-    assert.equal(configAfterVertical.shells[1].port, 3122);
+    assert.equal(overlayAfterVertical.ports['shell-admin'], 4101);
+    assert.equal(overlayAfterVertical.ports['shell-partner'], 3122);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
@@ -411,7 +419,7 @@ test('planUltramodernShell reports the planned shell without mutating the worksp
       false,
     );
     assert.equal(
-      (readJson(workspaceDir, '.modernjs/ultramodern.json').shells ?? [])
+      (readJson(workspaceDir, 'topology/reference-topology.json').shells ?? [])
         .length,
       0,
     );
@@ -430,12 +438,13 @@ test('add-shell keeps consumer-authored root scripts and tsconfig bytes', () => 
     manifest.scripts['consumer:check'] = 'echo authored';
     manifest.scripts.build = 'echo authored-build';
     fs.writeFileSync(packagePath, JSON.stringify(manifest, null, 2));
-    const configPath = path.join(workspaceDir, '.modernjs/ultramodern.json');
-    const config = readJson(workspaceDir, '.modernjs/ultramodern.json');
-    config.topology.apps.find(
-      (app: { id: string }) => app.id === 'shell-super-app',
-    ).moduleFederation.verticalRefs = [];
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+    const topologyPath = path.join(
+      workspaceDir,
+      'topology/reference-topology.json',
+    );
+    const topology = readJson(workspaceDir, 'topology/reference-topology.json');
+    topology.shell.verticalRefs = [];
+    fs.writeFileSync(topologyPath, JSON.stringify(topology, null, 2));
     const tsconfigPath = path.join(workspaceDir, 'tsconfig.json');
     const authoredTsconfig =
       '{"references":[],"compilerOptions":{"strict":true},"extra":"authored"}\n';
@@ -452,9 +461,8 @@ test('add-shell keeps consumer-authored root scripts and tsconfig bytes', () => 
     assert.equal(next.scripts.build, 'echo authored-build');
     assert.equal(fs.readFileSync(tsconfigPath, 'utf-8'), authoredTsconfig);
     assert.deepEqual(
-      readJson(workspaceDir, '.modernjs/ultramodern.json').topology.apps.find(
-        (app: { id: string }) => app.id === 'shell-super-app',
-      ).moduleFederation.verticalRefs,
+      readJson(workspaceDir, 'topology/reference-topology.json').shell
+        .verticalRefs,
       [],
     );
   } finally {

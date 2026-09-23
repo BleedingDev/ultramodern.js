@@ -5,7 +5,7 @@ export default [
     path: 'patches/@module-federation__bridge-react@2.9.0.patch',
     sha256: '8c084f41790295af8fd015b897c6298bbc13d927b796c624ac96cb2bdb4bc87c',
     repository: true,
-    workspace: 'required',
+    workspace: null,
     reason: 'Portable React declaration specifiers.',
   },
   {
@@ -14,7 +14,7 @@ export default [
     path: 'patches/@module-federation__dts-plugin@2.9.0.patch',
     sha256: 'c52b86d551da354492cf255cfb8c0e56e51cb6b4452319b47295ac969704819d',
     repository: true,
-    workspace: 'required',
+    workspace: null,
     reason:
       'Preserve declaration rootDir and execute native compiler paths without shell parsing.',
   },
@@ -33,7 +33,7 @@ export default [
     path: 'patches/@module-federation__modern-js-v3@2.9.0.patch',
     sha256: '0ab5fa14ed744c31c8221c6f663c9fc5b50a134f641e65277900c88da6cb72d0',
     repository: true,
-    workspace: 'required',
+    workspace: null,
     reason:
       'Preserve lazy compilation, framework CSS ownership, SSR manifest recovery, valid async splitting and native ESM CLI package resolution.',
   },
@@ -52,7 +52,7 @@ export default [
     path: 'patches/@module-federation__runtime-core@2.9.0.patch',
     sha256: 'b241be221397f0e07dbe6c515725e12eaf3b418469bb7dd21750e6e4b215dd8d',
     repository: true,
-    workspace: 'required',
+    workspace: null,
     reason: 'Import ResourceLoadContext used by public remote hooks.',
   },
   {
@@ -61,7 +61,7 @@ export default [
     path: 'patches/drizzle-orm-ts7-strict-declarations.patch',
     sha256: '61a360625e5828c17810d0a33eac762b195ee872fd9cbb265c6e1c500c823e3e',
     repository: false,
-    workspace: 'conditional',
+    workspace: null,
     reason:
       'Strict TypeScript declarations for generated database applications.',
   },
@@ -81,7 +81,7 @@ export default [
     path: 'patches/msgpackr@2.1.0.patch',
     sha256: 'de5c91fa6cfd894d171ed06673af40046ba97c7eb604409caf5f510e1a8a5b7a',
     repository: true,
-    workspace: 'required',
+    workspace: null,
     reason:
       'Use CSP-safe ordinary decoder without dynamic Function optimization.',
   },
@@ -91,7 +91,7 @@ export default [
     path: 'patches/zod@4.5.4.patch',
     sha256: '30612645af6a21cba7258bc2be3b51d9bfc0841b78dc581a56a4283c3bb142b6',
     repository: true,
-    workspace: 'required',
+    workspace: null,
     reason: 'Disable code-generation capability probing in CSP/Worker bundles.',
   },
 ];

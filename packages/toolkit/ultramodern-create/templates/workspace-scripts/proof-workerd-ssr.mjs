@@ -120,20 +120,18 @@ const bindExecutedModule = (app, envelope, module) => {
   };
 };
 
-const compactConfig = readJson(path.join(workspaceRoot, ".modernjs/ultramodern.json"));
-const apps = (compactConfig.topology?.apps ?? []).map((rawApp) => {
+const topology = readJson(path.join(workspaceRoot, "topology/reference-topology.json"));
+const overlay = readJson(path.join(workspaceRoot, "topology/local-overlays/development.json"));
+assert(topology.schemaVersion === 1 && topology.shell && Array.isArray(topology.verticals), "Invalid topology/reference-topology.json");
+const apps = [topology.shell, ...topology.verticals, ...(topology.shells ?? [])].map((rawApp) => {
   const kind = rawApp.kind === "vertical" ? "vertical" : "shell";
-  const appPath =
-    typeof rawApp.path === "string"
-      ? normalizePath(rawApp.path)
-      : kind === "shell"
-        ? "apps/shell-super-app"
-        : `verticals/${rawApp.id}`;
+  const appPath = rawApp.path;
+  assert(typeof appPath === "string" && appPath.length > 0, `${rawApp.id} topology path is missing`);
   const moduleFederation =
     rawApp.moduleFederation && typeof rawApp.moduleFederation === "object"
       ? rawApp.moduleFederation
       : {};
-  const configuredProofRoutes = rawApp.deploy?.cloudflare?.distributedSsrProofRoutes;
+  const configuredProofRoutes = rawApp.cloudflare?.distributedSsrProofRoutes;
   const proofRoutes = Array.isArray(configuredProofRoutes)
     ? [...new Set(configuredProofRoutes.filter(
         (route) => typeof route === "string" && route.startsWith("/"),
@@ -160,20 +158,20 @@ const apps = (compactConfig.topology?.apps ?? []).map((rawApp) => {
     kind,
     path: appPath,
     mfName: typeof moduleFederation.name === "string" ? moduleFederation.name : String(rawApp.id),
-    verticalRefs: Array.isArray(moduleFederation.verticalRefs)
-      ? moduleFederation.verticalRefs.filter((ref) => typeof ref === "string")
+    verticalRefs: Array.isArray(rawApp.verticalRefs ?? moduleFederation.verticalRefs)
+      ? (rawApp.verticalRefs ?? moduleFederation.verticalRefs).filter((ref) => typeof ref === "string")
       : [],
     apiPrefix:
-      typeof rawApp.api?.prefix === "string"
-        ? rawApp.api.prefix.replace(/\/+$/u, "")
+      typeof rawApp.api?.bff?.prefix === "string"
+        ? rawApp.api.bff.prefix.replace(/\/+$/u, "")
         : undefined,
     proofRoutes: proofRoutes.length > 0 ? proofRoutes : defaultProofRoutes,
-    jsonSmokeChecks: Array.isArray(rawApp.deploy?.cloudflare?.jsonSmokeChecks)
-      ? rawApp.deploy.cloudflare.jsonSmokeChecks
+    jsonSmokeChecks: Array.isArray(rawApp.cloudflare?.jsonSmokeChecks)
+      ? rawApp.cloudflare.jsonSmokeChecks
       : [],
     ...executedEnvelope,
     outputRoot,
-    port: Number(rawApp.port),
+    port: Number(overlay.ports?.[rawApp.id]),
     wrangler,
   };
 });

@@ -120,7 +120,7 @@ async function prepareBleedingdevPackages(options) {
     const sidecarStageDir = path.join(options.out, sidecarStagingDirectory);
     fs.mkdirSync(sidecarStageDir, { recursive: true });
     for (const sidecar of sidecars) {
-      stagedSidecars.push(stageSidecarPackage(sidecar, sidecarStageDir));
+      stagedSidecars.push(await stageSidecarPackage(sidecar, sidecarStageDir));
     }
   }
 
@@ -142,11 +142,8 @@ async function prepareBleedingdevPackages(options) {
     const packageJsonPath = path.join(packageDir, 'package.json');
     const packageJson = readJsonFile(packageJsonPath);
     rewritePackageJson(packageJson, sourceName, options, sourceNames);
-    if (
-      options.includeSidecars &&
-      targetName === sidecarAliasConsumerTargetName
-    ) {
-      sidecarAliasConsumerCount += 1;
+    if (options.includeSidecars) {
+      if (targetName === sidecarAliasConsumerTargetName) sidecarAliasConsumerCount += 1;
       rewriteSidecarConsumerAliases(packageJson, stagedSidecars);
     }
     normalizeDeclaredTypePaths(packageDir, packageJson);

@@ -14,8 +14,6 @@ import type {
   WorkspaceApp,
 } from './types';
 
-export const ULTRAMODERN_CONFIG_PATH = '.modernjs/ultramodern.json';
-
 export function distributedSsrExposes(app: WorkspaceApp) {
   return Object.keys(app.exposes ?? {})
     .filter(expose => expose !== './Route')

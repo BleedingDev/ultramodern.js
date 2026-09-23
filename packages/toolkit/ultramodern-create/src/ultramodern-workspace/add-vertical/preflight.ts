@@ -5,7 +5,6 @@ import type { UltramodernBridgeConfig } from '../bridge-config';
 import {
   createRemoteManifestEnv,
   createVerticalDescriptor,
-  ULTRAMODERN_CONFIG_PATH,
 } from '../descriptors';
 import { readJsonFile } from '../fs-io';
 import {
@@ -33,8 +32,6 @@ import {
   workspaceOperationSettings,
 } from './workspace-state';
 
-export { createPrimaryShellDescriptor } from './topology';
-
 export type AddUltramodernVerticalPreflight = {
   name: string;
   scope: string;
@@ -48,7 +45,7 @@ export type AddUltramodernVerticalPreflight = {
   packageSource: ResolvedPackageSource;
   enableTailwind: boolean;
   bridge?: UltramodernBridgeConfig;
-  config: Record<string, any>;
+  config: ReturnType<typeof normalizeWorkspaceInputs>['config'];
   primaryShell: WorkspaceApp;
   additionalShells: WorkspaceApp[];
   targetShell: WorkspaceApp;
@@ -66,7 +63,7 @@ export type UnknownUltramodernShellIssue = {
 
 /**
  * Typed preflight rejection for an add-vertical request whose shell target is
- * not present in the workspace's additive config.shells collection.
+ * not present in the workspace topology's shells collection.
  */
 export class UnknownUltramodernShellError extends Error {
   readonly code = 'ULTRAMODERN_UNKNOWN_TARGET_SHELL';
@@ -108,9 +105,6 @@ export function prepareAddUltramodernVertical(
   const topology = readRequiredJsonObject(topologyPath);
   const ownership = readRequiredJsonObject(ownershipPath);
   const overlay = readRequiredJsonObject(overlayPath);
-  const config = readRequiredJsonObject(
-    path.join(options.workspaceRoot, ULTRAMODERN_CONFIG_PATH),
-  );
 
   assertOptionalJsonObject(topology.shell, 'topology.shell', topologyPath);
   assertOptionalJsonArray(
@@ -124,7 +118,6 @@ export function prepareAddUltramodernVertical(
   assertOptionalJsonObject(overlay.apis, 'overlay.apis', overlayPath);
 
   const workspace = normalizeWorkspaceInputs(options.workspaceRoot, {
-    config,
     topology,
     overlay,
   });
@@ -146,7 +139,7 @@ export function prepareAddUltramodernVertical(
     options.shell,
     resolvedPrimaryShell,
     additionalShells,
-    path.join(options.workspaceRoot, ULTRAMODERN_CONFIG_PATH),
+    topologyPath,
   );
   const portsWithPrimary = {
     ...overlay.ports,
@@ -184,7 +177,7 @@ export function prepareAddUltramodernVertical(
     ownershipPath,
     overlayPath,
     rootPackage,
-    config,
+    config: workspace.config,
     topology,
     ownership,
     overlay,

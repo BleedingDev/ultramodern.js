@@ -3,23 +3,20 @@ import path from 'node:path';
 import { normalizeWorkspaceInputs } from '../ultramodern-tooling/config';
 import {
   DEVELOPMENT_OVERLAY_PATH,
+  OWNERSHIP_PATH,
   TOPOLOGY_PATH,
 } from './add-vertical/constants';
 import { readRequiredJsonObject } from './add-vertical/preflight';
 import { describeJsonChanges } from './add-vertical/preview';
 import { updateRootWorkspaceScripts } from './add-vertical/shell-files';
+import { ownershipEntry } from './add-vertical/topology';
 import { runWorkspaceTransaction } from './add-vertical/transaction';
 import {
   assertGlobalPortUniqueness,
   nextAvailablePort,
   workspaceOperationSettings,
 } from './add-vertical/workspace-state';
-import {
-  appEmitsBrowserUi,
-  resolveRemoteRefs,
-  shellApp,
-  ULTRAMODERN_CONFIG_PATH,
-} from './descriptors';
+import { appEmitsBrowserUi, resolveRemoteRefs, shellApp } from './descriptors';
 import { formatGeneratedWorkspaceFiles, writeJsonFile } from './fs-io';
 import {
   createFileSnapshot,
@@ -27,13 +24,18 @@ import {
   diffFileSnapshots,
 } from './generation-result';
 import { createAppModernConfig } from './module-federation';
-import { assertUniqueTailwindPrefixes, toPackageScope } from './naming';
+import {
+  assertUniqueTailwindPrefixes,
+  packageName,
+  toPackageScope,
+} from './naming';
+import { createCloudflareDeployContract } from './policy';
 import {
   assertValidShellName,
-  createAdditionalShellConfigEntry,
   createShellDescriptor,
   FIRST_ADDITIONAL_SHELL_PORT,
   PRIMARY_SHELL_ID,
+  shellDeliveryUnitBlock,
 } from './shells';
 import { createRootTsConfig } from './tsconfigs';
 import type {
@@ -54,9 +56,12 @@ import { createZeropsYaml } from './zerops';
 
 type AddUltramodernShellPreflight = {
   scope: string;
-  configPath: string;
+  topologyPath: string;
+  ownershipPath: string;
   overlayPath: string;
-  config: Record<string, any>;
+  config: ReturnType<typeof normalizeWorkspaceInputs>['config'];
+  topology: Record<string, any>;
+  ownership: Record<string, any>;
   overlay: Record<string, any>;
   packageSource: ReturnType<typeof workspaceOperationSettings>['packageSource'];
   enableTailwind: boolean;
@@ -71,35 +76,29 @@ function prepareAddUltramodernShell(
   options: AddUltramodernShellOptions,
 ): AddUltramodernShellPreflight {
   const name = assertValidShellName(options.name);
-  const configPath = path.join(options.workspaceRoot, ULTRAMODERN_CONFIG_PATH);
   const overlayPath = path.join(
     options.workspaceRoot,
     DEVELOPMENT_OVERLAY_PATH,
   );
   const topologyPath = path.join(options.workspaceRoot, TOPOLOGY_PATH);
+  const ownershipPath = path.join(options.workspaceRoot, OWNERSHIP_PATH);
 
   const rootPackage = readRequiredJsonObject(
     path.join(options.workspaceRoot, 'package.json'),
   );
-  const config = readRequiredJsonObject(configPath);
   const overlay = readRequiredJsonObject(overlayPath);
   const topology = readRequiredJsonObject(topologyPath);
+  const ownership = readRequiredJsonObject(ownershipPath);
   overlay.ports ??= {};
 
   const scope = toPackageScope(
     String(rootPackage.name ?? path.basename(options.workspaceRoot)),
   );
 
-  const workspace = normalizeWorkspaceInputs(
-    options.workspaceRoot,
-    {
-      config,
-      topology,
-      overlay,
-    },
-    undefined,
-    { primaryComposition: 'compact' },
-  );
+  const workspace = normalizeWorkspaceInputs(options.workspaceRoot, {
+    topology,
+    overlay,
+  });
   const { packageSource, enableTailwind, bridge } = workspaceOperationSettings(
     options,
     workspace.config,
@@ -167,9 +166,12 @@ function prepareAddUltramodernShell(
 
   return {
     scope,
-    configPath,
+    topologyPath,
+    ownershipPath,
     overlayPath,
-    config,
+    config: workspace.config,
+    topology,
+    ownership,
     overlay,
     packageSource,
     enableTailwind,
@@ -208,7 +210,10 @@ function executeAddUltramodernShell(
   const preflight = prepareAddUltramodernShell(options);
   const {
     scope,
-    configPath,
+    topologyPath,
+    ownershipPath,
+    topology,
+    ownership,
     config,
     packageSource,
     enableTailwind,
@@ -230,16 +235,13 @@ function executeAddUltramodernShell(
     ...existingVerticals,
     ...existingAdditionalShells,
   ];
-  const compactWorkspace = normalizeWorkspaceInputs(options.workspaceRoot, {
-    config,
-  });
   const { io: ownedIo } = preserveConsumerWorkspaceArtifacts(
     options.workspaceRoot,
     workspaceArtifactCandidates(
       scope,
       previousApps,
       enableTailwind,
-      compactWorkspace.apps,
+      previousApps,
     ),
   );
 
@@ -254,17 +256,48 @@ function executeAddUltramodernShell(
     configuredDevPorts,
   );
 
-  // Register the additional shell in the additive `shells` collection of the
-  // compact config. It is deliberately kept out of the strict topology.apps /
-  // ownership cohort so a single-shell workspace stays byte-identical.
-  const shellsCollection = Array.isArray(config.shells)
-    ? config.shells.filter((entry: { id?: unknown }) => entry?.id !== shell.id)
-    : [];
-  shellsCollection.push(
-    createAdditionalShellConfigEntry(scope, shell, existingVerticals),
+  topology.shells ??= [];
+  topology.shells.push({
+    id: shell.id,
+    kind: 'shell',
+    package: packageName(scope, shell.packageSuffix),
+    path: shell.directory,
+    displayName: shell.displayName,
+    portEnv: shell.portEnv,
+    verticalRefs: shell.verticalRefs,
+    moduleFederation: {
+      role: 'host',
+      name: shell.mfName,
+      verticalRefs: shell.verticalRefs,
+      remotes: resolveRemoteRefs(shell, existingVerticals).map(remote => ({
+        id: remote.id,
+        name: remote.mfName,
+        manifestUrl: `http://localhost:${remote.port}/mf-manifest.json`,
+      })),
+      ssr: true,
+      sharedContractVersion: 'mf-ssr-contract-v1',
+    },
+    deliveryUnit: shellDeliveryUnitBlock(scope, shell),
+    cloudflare: createCloudflareDeployContract(scope, shell),
+    ownership: shell.ownership,
+  });
+  writeJsonFile(topologyPath, topology as JsonValue);
+  ownership.owners ??= [];
+  ownership.owners.push(ownershipEntry(scope, shell));
+  writeJsonFile(ownershipPath, ownership as JsonValue);
+  preflight.overlay.ports[shell.id] = shell.port;
+  writeJsonFile(preflight.overlayPath, preflight.overlay as JsonValue);
+  const newPackagePath = path.join(
+    options.workspaceRoot,
+    shell.directory,
+    'package.json',
   );
-  config.shells = shellsCollection;
-  writeJsonFile(configPath, config as JsonValue);
+  const newPackage = readRequiredJsonObject(newPackagePath);
+  newPackage.dependencies = {
+    ...newPackage.dependencies,
+    ...config.inheritedWorkspaceDependencies,
+  };
+  writeJsonFile(newPackagePath, newPackage as JsonValue);
 
   for (const app of previousApps) {
     ownedIo.write(
@@ -296,7 +329,7 @@ function executeAddUltramodernShell(
     `${JSON.stringify(createRootTsConfig([primaryShell, ...existingVerticals, ...allAdditionalShells]), null, 2)}\n`,
   );
 
-  writeGeneratedWorkspaceScripts(options.workspaceRoot, existingVerticals, {
+  writeGeneratedWorkspaceScripts(options.workspaceRoot, {
     io: { writeGenerated: ownedIo.write },
   });
 
@@ -374,7 +407,7 @@ export function planUltramodernShell(
     shellDependencyChanges: [],
     generatedContractChanges: [
       {
-        path: ULTRAMODERN_CONFIG_PATH,
+        path: 'topology/reference-topology.json',
         addedAppIds: [shell?.id ?? ''],
         shellVerticalRefs: preflight.shell.verticalRefs ?? [],
       },

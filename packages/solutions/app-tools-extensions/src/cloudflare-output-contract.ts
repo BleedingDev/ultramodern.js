@@ -27,6 +27,7 @@ export const CLOUDFLARE_WORKER_NODE_BUILTINS = [
   'fs/promises',
   'http',
   'http2',
+  'https',
   'inspector',
   'module',
   'net',

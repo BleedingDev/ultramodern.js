@@ -252,7 +252,7 @@ test('generated postinstall installs vendored Codex skills without formatting co
   }
 });
 
-test('bootstrap-agent-skills --postinstall skips Lefthook in nested Git worktrees', () => {
+test('installed skills command --postinstall skips Lefthook in nested Git worktrees', () => {
   const { tempRoot, workspaceDir } = scaffoldWorkspace();
 
   try {
@@ -266,7 +266,7 @@ test('bootstrap-agent-skills --postinstall skips Lefthook in nested Git worktree
 
     const result = spawnSync(
       process.execPath,
-      ['scripts/bootstrap-agent-skills.mts', '--postinstall'],
+      [createBinPath, 'ultramodern', 'skills', 'install', '--postinstall'],
       {
         cwd: workspaceDir,
         encoding: 'utf-8',
@@ -284,7 +284,7 @@ test('bootstrap-agent-skills --postinstall skips Lefthook in nested Git worktree
   }
 });
 
-test('bootstrap-agent-skills --postinstall installs Lefthook for standalone generated repos', () => {
+test('installed skills command --postinstall installs Lefthook for standalone generated repos', () => {
   const { tempRoot, workspaceDir } = scaffoldWorkspace();
 
   try {
@@ -298,7 +298,7 @@ test('bootstrap-agent-skills --postinstall installs Lefthook for standalone gene
 
     const result = spawnSync(
       process.execPath,
-      ['scripts/bootstrap-agent-skills.mts', '--postinstall'],
+      [createBinPath, 'ultramodern', 'skills', 'install', '--postinstall'],
       {
         cwd: workspaceDir,
         encoding: 'utf-8',
@@ -314,7 +314,7 @@ test('bootstrap-agent-skills --postinstall installs Lefthook for standalone gene
   }
 });
 
-test('bootstrap-agent-skills --postinstall supports documented Codex skill opt-outs', () => {
+test('installed skills command --postinstall supports documented Codex skill opt-outs', () => {
   for (const envPatch of [{ ULTRAMODERN_SKIP_CODEX_SKILLS: '1' }]) {
     const { tempRoot, workspaceDir } = scaffoldWorkspace();
 
@@ -333,7 +333,7 @@ test('bootstrap-agent-skills --postinstall supports documented Codex skill opt-o
 
       const result = spawnSync(
         process.execPath,
-        ['scripts/bootstrap-agent-skills.mts', '--postinstall'],
+        [createBinPath, 'ultramodern', 'skills', 'install', '--postinstall'],
         {
           cwd: workspaceDir,
           encoding: 'utf-8',
@@ -361,7 +361,7 @@ test('bootstrap-agent-skills --postinstall supports documented Codex skill opt-o
   }
 });
 
-test('bootstrap-agent-skills resolves the agents-standard .agents/ lockfile layout', () => {
+test('installed skills command resolves the agents-standard .agents/ lockfile layout', () => {
   const { tempRoot, workspaceDir } = scaffoldWorkspace();
 
   try {
@@ -373,7 +373,7 @@ test('bootstrap-agent-skills resolves the agents-standard .agents/ lockfile layo
 
     const result = spawnSync(
       process.execPath,
-      ['scripts/bootstrap-agent-skills.mts', '--check'],
+      [createBinPath, 'ultramodern', 'skills', 'check'],
       {
         cwd: workspaceDir,
         encoding: 'utf-8',

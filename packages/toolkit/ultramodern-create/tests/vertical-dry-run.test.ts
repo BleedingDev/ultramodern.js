@@ -33,7 +33,8 @@ test('workspace snapshots ignore Git maintenance state and retain generated file
   try {
     const before = snapshotWorkspace(workspaceDir);
     assert.ok(before['.gitignore']);
-    assert.ok(before['.modernjs/ultramodern.json']);
+    assert.ok(before['topology/reference-topology.json']);
+    assert.equal(before['.modernjs/ultramodern.json'], undefined);
 
     const gitDir = path.join(workspaceDir, '.git');
     fs.mkdirSync(path.join(gitDir, 'logs'), { recursive: true });
@@ -136,7 +137,7 @@ test('public dry-run plan leaves workspace unchanged and matches normal run summ
     ]);
     assert.deepEqual(plan.generatedContractChanges, [
       {
-        path: '.modernjs/ultramodern.json',
+        path: 'topology/reference-topology.json',
         addedAppIds: ['catalog'],
         shellVerticalRefs: ['catalog'],
       },

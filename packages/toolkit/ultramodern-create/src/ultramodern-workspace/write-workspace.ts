@@ -1,10 +1,9 @@
 import fs from 'node:fs';
 import {
-  copyCreateReleaseCohort,
-  isCreatePackageSourceCheckout,
-  RELEASE_COHORT_PROJECTION_PATH,
-  readCreateReleaseCohort,
-} from '../ultramodern-release-cohort';
+  modernPackageSpecifier,
+  ULTRAMODERN_WORKSPACE_MODERN_PACKAGES,
+} from '../ultramodern-package-source';
+import { isCreatePackageSourceCheckout } from '../ultramodern-release-cohort';
 import { runFreshWorkspaceTransaction } from './add-vertical/transaction';
 import { createSharedDesignTokensCss } from './app-files';
 import type { UltramodernBridgeConfig } from './bridge-config';
@@ -13,14 +12,8 @@ import {
   createDevelopmentOverlay,
   createOwnership,
   createTopology,
-  createUltramodernConfig,
 } from './contracts';
-import {
-  createShellHost,
-  sharedPackages,
-  shellApp,
-  ULTRAMODERN_CONFIG_PATH,
-} from './descriptors';
+import { createShellHost, sharedPackages, shellApp } from './descriptors';
 import {
   copyRootTemplate,
   formatGeneratedWorkspaceFiles,
@@ -48,9 +41,7 @@ import {
   resolvePackageSource,
   resolveWorkspacePackageLinkingPolicy,
 } from './package-source';
-import { renderMinimumReleaseAgeExclude } from './policy';
 import type {
-  JsonValue,
   ResolvedPackageSource,
   UltramodernGenerationResult,
   UltramodernWorkspaceOptions,
@@ -138,86 +129,35 @@ function writeSharedPackages(
   );
 }
 
-function createCompactRootPackageJson(
-  scope: string,
-  packageSource: ResolvedPackageSource,
-  remotes: WorkspaceApp[],
-  bridge?: UltramodernBridgeConfig,
-) {
-  const rootPackage = createRootPackageJson(
-    scope,
-    packageSource,
-    remotes,
-    bridge,
-  ) as Record<string, any>;
-
-  if (
-    rootPackage.modernjs?.packageSource &&
-    typeof rootPackage.modernjs.packageSource === 'object'
-  ) {
-    rootPackage.modernjs.packageSource.config = `./${ULTRAMODERN_CONFIG_PATH}`;
-  }
-
-  return rootPackage as JsonValue;
-}
-
-export function createCompactUltramodernConfig(
-  scope: string,
-  modernVersion: string,
-  packageSource: ResolvedPackageSource,
-  apps: WorkspaceApp[] = [createShellHost()],
-  enableTailwind = true,
-  bridge?: UltramodernBridgeConfig,
-  additionalShells: WorkspaceApp[] = [],
-  primaryShell?: WorkspaceApp,
-): JsonValue {
-  const config = createUltramodernConfig(
-    scope,
-    modernVersion,
-    packageSource,
-    apps,
-    enableTailwind,
-    bridge,
-    additionalShells,
-    primaryShell,
-  ) as Record<string, any>;
-
-  if (
-    config.packageSource &&
-    typeof config.packageSource === 'object' &&
-    !Array.isArray(config.packageSource)
-  ) {
-    delete config.packageSource.metadata;
-  }
-
-  return config as JsonValue;
-}
-
 function writePnpmWorkspacePackages(
   targetDir: string,
   bridge: UltramodernBridgeConfig | undefined,
+  packageSource: ResolvedPackageSource,
 ) {
-  if (!bridge) {
-    return;
-  }
-
   const pnpmWorkspacePath = `${targetDir}/pnpm-workspace.yaml`;
   const pnpmWorkspace = fs.readFileSync(pnpmWorkspacePath, 'utf-8');
   const packages = [
     'apps/*',
     'verticals/*',
     'packages/*',
-    ...bridge.workspacePackages.map(entry => entry.pattern),
+    ...(bridge?.workspacePackages.map(entry => entry.pattern) ?? []),
   ];
   const renderedPackages = packages.map(pattern => `  - ${pattern}`).join('\n');
 
+  const catalog =
+    packageSource.strategy === 'install'
+      ? `catalogs:\n  ultramodern:\n${ULTRAMODERN_WORKSPACE_MODERN_PACKAGES.map(
+          name =>
+            `    ${JSON.stringify(name)}: ${JSON.stringify(modernPackageSpecifier(name, packageSource))}`,
+        ).join('\n')}\n\n`
+      : '';
   writeFileReplacing(
     targetDir,
     'pnpm-workspace.yaml',
-    pnpmWorkspace.replace(
+    `${catalog}${pnpmWorkspace.replace(
       /^packages:\r?\n(?: {2}- .+\r?\n)+/u,
       `packages:\n${renderedPackages}\n`,
-    ),
+    )}`,
   );
 }
 
@@ -243,11 +183,10 @@ function generateUltramodernWorkspaceInPlace(
   const beforeFiles = createFileSnapshot(options.targetDir);
   const scope = toPackageScope(options.packageName);
   let packageSource: ResolvedPackageSource;
-  let releaseCohort;
   if (isCreatePackageSourceCheckout()) {
     if (hasExplicitInstallRequest(options)) {
       throw new Error(
-        'A local @modern-js/ultramodern-create source checkout cannot satisfy an explicit install package source. Use workspace mode locally or run the packed published package with its authenticated release cohort projection.',
+        'A local @modern-js/ultramodern-create source checkout cannot satisfy an explicit install package source. Use workspace mode locally or run the packed published package.',
       );
     }
     // A source checkout has no shipped release identity. Do this before any
@@ -258,9 +197,6 @@ function generateUltramodernWorkspaceInPlace(
     });
   } else {
     packageSource = resolvePackageSource(options);
-    if (packageSource.strategy === 'install') {
-      releaseCohort = readCreateReleaseCohort();
-    }
   }
   const bridge = normalizeUltramodernBridgeConfig(options.bridge);
   const enableTailwind = options.enableTailwind !== false;
@@ -269,16 +205,10 @@ function generateUltramodernWorkspaceInPlace(
   assertUniqueTailwindPrefixes([shellApp, ...initialVerticals]);
   fs.mkdirSync(options.targetDir, { recursive: true });
 
-  const minimumReleaseAgeExclude = renderMinimumReleaseAgeExclude({
-    packageSource,
-    releaseCohort,
-  });
   const workspacePackageLinkingPolicy =
     resolveWorkspacePackageLinkingPolicy(packageSource);
 
   const excludedRootTemplates = new Set([
-    RELEASE_COHORT_PROJECTION_PATH,
-    'scripts/bootstrap-agent-skills.mjs',
     'scripts/setup-agent-reference-repos.mjs',
   ]);
   if (options.generateAgentFiles === false) {
@@ -306,12 +236,6 @@ function generateUltramodernWorkspaceInPlace(
       tanstackRouterVersion: TANSTACK_ROUTER_VERSION,
       typescriptVersion: TYPESCRIPT_VERSION,
       wranglerVersion: WRANGLER_VERSION,
-      minimumReleaseAgeExcludeYaml:
-        minimumReleaseAgeExclude.length === 0
-          ? ' []'
-          : `\n${minimumReleaseAgeExclude
-              .map(selector => `  - '${selector}'`)
-              .join('\n')}`,
       workspacePackageLinkingYaml: Object.entries(workspacePackageLinkingPolicy)
         .map(([key, value]) => `${key}: ${String(value)}\n`)
         .join(''),
@@ -319,20 +243,12 @@ function generateUltramodernWorkspaceInPlace(
     },
     excludedRootTemplates,
   );
-  if (releaseCohort) {
-    copyCreateReleaseCohort(options.targetDir);
-  }
-  writePnpmWorkspacePackages(options.targetDir, bridge);
+  writePnpmWorkspacePackages(options.targetDir, bridge, packageSource);
 
   writeJson(
     options.targetDir,
     'package.json',
-    createCompactRootPackageJson(
-      scope,
-      packageSource,
-      initialVerticals,
-      bridge,
-    ),
+    createRootPackageJson(scope, packageSource, initialVerticals, bridge),
   );
   // Zerops materialization is a delivery-unit capability. Fresh workspaces
   // start with the shell alone; add-vertical writes the manifest together
@@ -366,19 +282,6 @@ function generateUltramodernWorkspaceInPlace(
     'topology/local-overlays/development.json',
     createDevelopmentOverlay(scope, initialVerticals),
   );
-  writeJson(
-    options.targetDir,
-    ULTRAMODERN_CONFIG_PATH,
-    createCompactUltramodernConfig(
-      scope,
-      options.modernVersion,
-      packageSource,
-      createdApps,
-      enableTailwind,
-      bridge,
-    ),
-  );
-
   writeApp(
     options.targetDir,
     scope,
@@ -400,7 +303,7 @@ function generateUltramodernWorkspaceInPlace(
     );
   }
   writeSharedPackages(options.targetDir, scope, packageSource);
-  writeGeneratedWorkspaceScripts(options.targetDir, initialVerticals);
+  writeGeneratedWorkspaceScripts(options.targetDir);
 
   const preliminaryAfterFiles = createFileSnapshot(options.targetDir);
   const preliminaryDiff = diffFileSnapshots(beforeFiles, preliminaryAfterFiles);

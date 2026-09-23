@@ -4,10 +4,10 @@ overview: "Integrate the four implementation lanes, remove central patch policy 
 todos:
   - id: cc-integration-integrate-cuts
     content: "Apply dependency manifests, proof readers, central policy and template deletions from the completed lanes."
-    status: pending
+    status: completed
   - id: cc-integration-source-acceptance
     content: "Run affected source/build tests and fork-boundary gates; eliminate obsolete scaffolding tests and document the current contract."
-    status: pending
+    status: completed
 isProject: false
 ---
 

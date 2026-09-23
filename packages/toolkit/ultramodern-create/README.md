@@ -36,8 +36,8 @@ domains to delete. It generates:
 - `verticals/*` empty until a real domain is added with `--vertical`.
 - `packages/shared-*` placeholders for shared contracts, tokens, and Effect
 API support.
-- `.modernjs/ultramodern.json` as compact generator provenance, package-source
-  config, app topology, bridge, deploy, Module Federation, and tooling config.
+- `catalogs.ultramodern` in `pnpm-workspace.yaml` for published framework
+  dependency versions, referenced by application manifests.
 - `topology/*` as app-owned topology, ownership, and local development overlay
   JSON.
 
@@ -169,38 +169,35 @@ contract so automation can stop safely:
 | --- | --- | --- |
 | Fresh input | Invalid or missing vertical name | Use `<name> --vertical`, `--vertical=<name>`, or `--vertical-name <name>` |
 | Existing topology | Duplicate app ID, package suffix, path, Module Federation name, port, API prefix, or manifest key | Choose a new vertical name or repair the existing topology/local overlay first |
-| Workspace files | Missing or non-object compact UltraModern config, topology, ownership, or local overlay JSON | Restore the generated config files from source control or rerun from a valid workspace |
+| Workspace files | Missing or invalid topology, ownership, local overlay or app manifest | Repair the named authoritative file |
 | Tailwind prefix | Existing app already owns the generated CSS prefix | Rename the vertical before generation |
 | Output path | A generated path already exists | Treat it as an existing vertical and do not overwrite it |
 
-Package source is explicit and recorded in `.modernjs/ultramodern.json`.
+Package source is selected by the installed generator dependency and native pnpm catalog.
+Application manifests own package identity; the development overlay owns local ports.
 
 | Strategy | Use when | CLI |
 | --- | --- | --- |
 | `install` | Published BleedingDev package cohort or release proof | Default for the BleedingDev create package; optional `--ultramodern-package-version`, `--ultramodern-package-registry` (serves the cohort scope only; release-age metadata for every other dependency is validated against npmjs), `--ultramodern-package-scope`, and `--ultramodern-package-name-prefix` |
 | `workspace` | Local monorepo testing against unreleased packages | `--workspace` or `--ultramodern-package-source=workspace` |
 
-## Framework Cohort
+## Framework dependencies
 
-Generated strict Effect workspaces pin the compatible Effect cohort through
-`pnpm-workspace.yaml` overrides: `effect@4.0.0-rc.112`,
-`@effect/opentelemetry@4.0.0-rc.112`, and
-`@effect/vitest@4.0.0-rc.112` (requiring `vitest >=4.1.0 <5`). The strict
-24-hour release-age gate applies to the installed cohort; the current policy carries no Effect age exemption, and
-the override-only `@effect/vitest` entry is not an installed approval target.
-Separately, exact
-`trustPolicyExclude` entries for `effect` and `@effect/opentelemetry` cover the
-trusted-publisher to provenance transition. Trust exclusions are not
-release-age approvals. Do not override the cohort in app packages; update the
-framework cohort when the runtime moves.
+Published framework versions live in `catalogs.ultramodern` in
+`pnpm-workspace.yaml`. Application manifests reference `catalog:ultramodern`;
+the lockfile records resolved packages. Corrected third-party dependencies ship
+as published packages. Applications do not install framework patches or carry
+a copied release manifest.
 
-Use `--ultramodern-package-source=install` for published cohort proof and pin a
-specific release with `--ultramodern-package-version` when CI must prove an
-exact framework version. Keep `--workspace` only for local monorepo testing
-against unpublished packages. After install, run the generated
-`scripts/validate-ultramodern-workspace.mts` contract check and fix ownership
-conflicts in the owning JSON/config files instead of editing generated metadata
-by hand.
+Use `--ultramodern-package-source=install` for published package acceptance and
+`--ultramodern-package-version` to select an exact release. Use `--workspace`
+for local monorepo development. After installation, run `pnpm contract:check`,
+which invokes the installed CLI directly. The installed generator owns its
+release-integrity metadata.
+
+Normal installs retain the generated release-age and trust policy. Release
+acceptance uses exact, temporary exceptions for the artifacts being tested;
+it does not add permanent exception lists to the application.
 
 ## CodeSmith Adapter And Overlays
 
@@ -379,13 +376,12 @@ Each generated workspace app has:
 
 - `cloudflare:build`, `cloudflare:deploy`, `cloudflare:preview`, and
   `cloudflare:proof` scripts.
-- Cloudflare Worker deploy config from Modern config plus
-  `.modernjs/ultramodern.json`.
+- Cloudflare Worker deploy config emitted from native Modern config.
 - `zephyr:dependencies` for any consumed verticals.
 - `zephyr-rspack-plugin` wired through the generated Modern.js Rspack bridge.
 
 Deploy first, then pass each deployed app's generated public URL env key into
-the proof step. The proof script reads the compact UltraModern config and checks the
+the proof step. The installed proof command reads topology and deployment contracts and checks the
 Cloudflare Worker surface, including public-route sitemap/robots consistency,
 preview noindex behavior, unknown-route status, asset headers, byte budgets,
 and public sourcemap exposure. Shell-only workspaces only need the shell URL;
@@ -407,10 +403,10 @@ proven.
 
 | Symptom | Current check | Owner |
 | --- | --- | --- |
-| Package cohort mismatch | Regenerate with one package source strategy, run `mise install`, then rerun `pnpm install` from the activated shell. | Generated workspace package source metadata |
+| Package version mismatch | Align the native framework catalog and regenerate the lockfile with `pnpm install`. | Workspace dependency manifests |
 | Install failure | Check the active Node/pnpm from `mise install`; rerun `pnpm install` after the shell sees the pinned versions. | Toolchain setup |
 | Build failure | Run the matching primitive gate (`pnpm lint`, `pnpm typecheck`, `pnpm i18n:boundaries`, `pnpm contract:check`) before `pnpm build`; fix the owning failure first. | Owning package or generated contract |
-| Missing public URL | Set the app public URL env key recorded in `.modernjs/ultramodern.json`, for example `ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP`. | Deployment operator |
+| Missing public URL | Set the app public URL env key declared in topology, for example `ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP`. | Deployment operator |
 | Cloudflare credentials | Confirm Wrangler credentials before `pnpm cloudflare:deploy`; local checks do not prove live Worker access. | Deployment operator |
 | Asset or CSS 404 | Rebuild with `pnpm build` or `pnpm cloudflare:deploy` and inspect emitted Modern/Rspack asset paths instead of hardcoding CSS URLs. | Framework/runtime asset pipeline |
 | Federation manifest failure | Run the shell and vertical build scripts, then check each deployed `/mf-manifest.json` URL used by the shell. | Module Federation owner |

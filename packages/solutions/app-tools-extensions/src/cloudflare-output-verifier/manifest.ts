@@ -61,6 +61,83 @@ export const verifyManifestShape = (
       path: manifestPath,
     });
   }
+  const security = manifest.security;
+  if (
+    !security ||
+    typeof security !== 'object' ||
+    typeof security.enabled !== 'boolean'
+  ) {
+    addIssue(issues, {
+      code: 'invalid-manifest',
+      message: 'Cloudflare output manifest security.enabled must be a boolean.',
+      path: manifestPath,
+    });
+  } else {
+    const cors = security.cors;
+    if (
+      !cors ||
+      typeof cors !== 'object' ||
+      typeof cors.assets !== 'boolean' ||
+      !Array.isArray(cors.allowedOrigins) ||
+      !Array.isArray(cors.allowedMethods) ||
+      !Array.isArray(cors.allowedHeaders)
+    ) {
+      addIssue(issues, {
+        code: 'invalid-manifest',
+        message: 'Cloudflare output manifest security.cors is incomplete.',
+        path: manifestPath,
+      });
+    }
+    if (security.enabled) {
+      const headers = security.headers;
+      const csp = security.contentSecurityPolicy;
+      const noindex = security.noindex;
+      if (
+        !headers ||
+        typeof headers !== 'object' ||
+        !['string', 'boolean'].includes(typeof headers.referrerPolicy) ||
+        !['string', 'boolean'].includes(typeof headers.contentTypeOptions) ||
+        !['string', 'boolean'].includes(typeof headers.permissionsPolicy)
+      ) {
+        addIssue(issues, {
+          code: 'invalid-manifest',
+          message: 'Cloudflare output manifest security.headers is incomplete.',
+          path: manifestPath,
+        });
+      }
+      if (
+        !csp ||
+        !['off', 'report-only', 'enforce'].includes(csp.mode) ||
+        !csp.directives ||
+        typeof csp.directives !== 'object' ||
+        Array.isArray(csp.directives) ||
+        Object.values(csp.directives).some(
+          value =>
+            !Array.isArray(value) ||
+            value.some(entry => typeof entry !== 'string'),
+        )
+      ) {
+        addIssue(issues, {
+          code: 'invalid-manifest',
+          message:
+            'Cloudflare output manifest security.contentSecurityPolicy is invalid.',
+          path: manifestPath,
+        });
+      }
+      if (
+        !noindex ||
+        typeof noindex.workersDev !== 'boolean' ||
+        typeof noindex.localhost !== 'boolean' ||
+        !Array.isArray(noindex.previewHostnames)
+      ) {
+        addIssue(issues, {
+          code: 'invalid-manifest',
+          message: 'Cloudflare output manifest security.noindex is incomplete.',
+          path: manifestPath,
+        });
+      }
+    }
+  }
   if (manifest.bff?.runtimeFramework === 'effect') {
     assertEqual(
       issues,

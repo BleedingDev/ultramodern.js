@@ -1,7 +1,7 @@
 # Native UltraModern workflows
 
 Use the exact release selected for your workspace. In the commands below, replace
-`<V>` with that release's authenticated cohort version. The public CLI package is
+`<V>` with the published framework version. The public CLI package is
 `@bleedingdev/modern-js-ultramodern-create`; a source checkout's package version
 is not proof that a release is published.
 
@@ -24,7 +24,7 @@ workspace instead of substituting global tool versions.
 From an existing workspace root, add a business domain:
 
 ```sh
-pnpm dlx @bleedingdev/modern-js-ultramodern-create@<V> catalog --vertical
+pnpm exec ultramodern-create catalog --vertical
 pnpm install
 pnpm check
 ```
@@ -143,5 +143,5 @@ For deployment rollback, select a complete previous delivery unit through the
 deployment system so its UI, API and static assets retain one identity.
 
 `pnpm exec ultramodern-create ultramodern sync-delivery-unit` explicitly
-synchronizes delivery identity in the current compact workspace. It can write topology and
+synchronizes delivery identity from app manifest versions and topology. It can write topology and
 `shared/ultramodern-build.{json,ts}`; it is not a routine dependency-update step.

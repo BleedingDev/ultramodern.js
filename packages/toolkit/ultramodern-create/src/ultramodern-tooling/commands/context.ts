@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import { constants as osConstants } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveCreatePackageRoot } from '../../create-package-root';
@@ -58,7 +59,10 @@ export function spawnNodeScript(
     throw result.error;
   }
 
-  return result.status ?? 1;
+  return (
+    result.status ??
+    (result.signal ? 128 + osConstants.signals[result.signal] : 1)
+  );
 }
 
 export function runTemplateBackedToolingCommand(

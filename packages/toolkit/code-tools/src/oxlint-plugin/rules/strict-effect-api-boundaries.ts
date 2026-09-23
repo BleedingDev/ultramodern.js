@@ -56,7 +56,7 @@ export const createStrictEffectApiBoundariesRule = (): Rule => ({
           context,
           node,
           source,
-          /(?:from|import)\s*['"][^'"]*(?:api\/effect|shared\/effect)[^'"]*['"]|shared-effect-api/u,
+          /(?:from|import)\s*['"][^'"]*(?:api\/effect|shared\/effect)(?=\/|\.[cm]?[jt]sx?['"]|['"])[^'"]*['"]|shared-effect-api/u,
           'Import API code from direct api/index.ts, shared/api.ts or src/api/* paths, not api/effect, shared/effect or shared Effect API packages.',
         );
         reportProgramPattern(

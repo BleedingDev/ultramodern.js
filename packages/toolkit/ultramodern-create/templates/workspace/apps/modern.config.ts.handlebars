@@ -1,3 +1,4 @@
+import developmentOverlay from '{{value29}}/topology/local-overlays/development.json';
 import { defineConfig } from '@modern-js/app-tools';
 import {
   presetUltramodern,
@@ -15,7 +16,10 @@ const cloudflareDeployEnabled =
 
 {{value23}}const appId = '{{value1}}';
 const cloudflareWorkerName = '{{value2}}';
-const port = Number(getBuildConfigEnvironment('{{value3}}') ?? {{value4}});
+const port = Number(getBuildConfigEnvironment('{{value3}}') ?? developmentOverlay.ports[appId]);
+if (!Number.isInteger(port) || port < 1 || port > 65_535) {
+  throw new Error(`Invalid development port for ${appId}: ${port}`);
+}
 const envValue = (name: string) => {
   const value = getBuildConfigEnvironment(name)?.trim();
   return value !== undefined && value.length > 0 ? value : undefined;

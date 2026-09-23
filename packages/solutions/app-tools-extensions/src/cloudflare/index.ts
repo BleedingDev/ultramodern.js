@@ -93,12 +93,7 @@ export const createCloudflarePreset: CreateCloudflarePreset = ({
       await fse.remove(outputDirectory);
     },
     async writeOutput() {
-      if (
-        releaseEnvelopeEnabled &&
-        (await fse.pathExists(
-          path.join(distDirectory, MICROVERTICAL_RELEASE_ENVELOPE_PATH),
-        ))
-      ) {
+      if (releaseEnvelopeEnabled) {
         await emitFrameworkMicroVerticalReleaseEnvelope({
           apiOnly,
           distDirectory,
