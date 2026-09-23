@@ -96,6 +96,7 @@ test('Node proof consumes the real API-only envelope and rejects changed artifac
           surfaceProfile: 'api-only',
           api: { bff: { prefix: '/catalog-api' }, stem: 'catalog' },
           backendFederation: { name: 'verticalCatalogBackend' },
+          cloudflare: { publicUrlEnv: 'ULTRAMODERN_PUBLIC_URL_CATALOG' },
         },
       ],
     };
@@ -111,9 +112,73 @@ test('Node proof consumes the real API-only envelope and rejects changed artifac
         },
       },
     };
-    const [app] = proof.topologyApps(topology, overlay);
+    const [app] = proof.topologyApps(topology, overlay, undefined, {});
     assert.equal(app.apiOnly, true);
     assert.equal(app.portEnv, 'VERTICAL_CATALOG_PORT');
+    const [dynamicApp] = proof.topologyApps(topology, overlay, undefined, {
+      VERTICAL_CATALOG_PORT: '49152',
+      ULTRAMODERN_PUBLIC_URL_CATALOG: 'http://127.0.0.1:49152',
+    });
+    assert.equal(dynamicApp.port, 49152);
+    assert.equal(
+      dynamicApp.manifestUrl,
+      'http://127.0.0.1:49152/backend-mf-manifest.json',
+    );
+    assert.equal(
+      dynamicApp.containerEntry,
+      'http://127.0.0.1:49152/backendRemoteEntry.cjs',
+    );
+    assert.throws(
+      () =>
+        proof.topologyApps(topology, overlay, undefined, {
+          VERTICAL_CATALOG_PORT: '65536',
+        }),
+      /missing its declared path, port or Node server execution/u,
+    );
+    const customOverlay = {
+      ...overlay,
+      serverExecution: {
+        catalog: {
+          node: {
+            ...overlay.serverExecution.catalog.node,
+            manifestUrl: 'https://custom.example.test/backend-mf-manifest.json',
+          },
+        },
+      },
+    };
+    const [customApp] = proof.topologyApps(topology, customOverlay, undefined, {
+      VERTICAL_CATALOG_PORT: '49152',
+      ULTRAMODERN_PUBLIC_URL_CATALOG: 'http://127.0.0.1:49152',
+    });
+    assert.equal(
+      customApp.manifestUrl,
+      'https://custom.example.test/backend-mf-manifest.json',
+    );
+    assert.equal(
+      customApp.containerEntry,
+      'http://127.0.0.1:49152/backendRemoteEntry.cjs',
+    );
+    customOverlay.serverExecution.catalog.node.manifestUrl =
+      'https://localhost:3021/backend-mf-manifest.json';
+    const [httpsApp] = proof.topologyApps(topology, customOverlay, undefined, {
+      VERTICAL_CATALOG_PORT: '49152',
+    });
+    assert.equal(
+      httpsApp.manifestUrl,
+      'https://localhost:3021/backend-mf-manifest.json',
+    );
+    customOverlay.serverExecution.catalog.node.manifestUrl =
+      'http://user:pass@localhost:3021/backend-mf-manifest.json';
+    const [authenticatedApp] = proof.topologyApps(
+      topology,
+      customOverlay,
+      undefined,
+      { VERTICAL_CATALOG_PORT: '49152' },
+    );
+    assert.equal(
+      authenticatedApp.manifestUrl,
+      'http://user:pass@localhost:3021/backend-mf-manifest.json',
+    );
     assert.deepEqual(
       proof.readBoundReleaseEnvelope(app, 'dist').envelope.surfaces.uiClient,
       [],

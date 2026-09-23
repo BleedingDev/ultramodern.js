@@ -19,18 +19,22 @@ export function discoverModuleFederationConfigs(
 ): ModuleFederationDiscoveredConfig[] {
   const workspaceRoot = path.resolve(options.workspaceRoot);
   const appDirs = new Set<string>();
+  const metadata = readJsonIfExists(
+    path.join(workspaceRoot, 'topology/reference-topology.json'),
+  );
+  const metadataAppDirs = new Set<string>();
+  const apiOnlyDirs = collectMetadataAppDirs(metadata, metadataAppDirs);
 
   if (options.appDirs && options.appDirs.length > 0) {
     for (const appDir of options.appDirs) {
       appDirs.add(normalizeRelativePath(appDir));
     }
   } else {
-    const metadata = readJsonIfExists(
-      path.join(workspaceRoot, 'topology/reference-topology.json'),
-    );
     const scanRoots = new Set(defaultAppRootDirs);
 
-    collectMetadataAppDirs(metadata, appDirs);
+    for (const appDir of metadataAppDirs) {
+      appDirs.add(appDir);
+    }
     collectWorkspaceScanRoots(workspaceRoot, scanRoots);
 
     for (const appDir of appDirs) {
@@ -51,6 +55,13 @@ export function discoverModuleFederationConfigs(
 
   return Array.from(appDirs)
     .sort()
+    .filter(
+      appDir =>
+        !apiOnlyDirs.has(appDir) ||
+        fs.existsSync(
+          path.join(workspaceRoot, appDir, moduleFederationConfigFile),
+        ),
+    )
     .map(appDir => ({
       appDir,
       configPath: path.join(workspaceRoot, appDir, moduleFederationConfigFile),

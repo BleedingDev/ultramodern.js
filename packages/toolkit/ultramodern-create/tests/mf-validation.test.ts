@@ -108,6 +108,81 @@ test('discovers Module Federation configs from generated metadata and app-root f
   );
 });
 
+test('omits absent API-only UI federation configs while retaining UI declaration proof', () => {
+  const workspaceRoot = createWorkspace({
+    'apps/host/module-federation.config.ts': mfConfig({
+      hostOnly: true,
+      includeExposes: false,
+    }),
+    'verticals/inventory/backend-federation.config.ts': 'export default {};\n',
+  });
+  writeJson(workspaceRoot, 'topology/reference-topology.json', {
+    shell: { id: 'host', path: 'apps/host' },
+    verticals: [
+      {
+        id: 'inventory',
+        path: 'verticals/inventory',
+        surfaceProfile: 'api-only',
+      },
+    ],
+  });
+
+  assert.deepEqual(
+    discoverModuleFederationConfigs({ workspaceRoot }).map(app => app.appDir),
+    ['apps/host'],
+  );
+  assert.equal(
+    validateModuleFederationTypes({ workspaceRoot }).hostOnlyAppCount,
+    1,
+  );
+  assert.equal(
+    validateModuleFederationTypes({
+      workspaceRoot,
+      appDirs: ['verticals/inventory'],
+    }).configCount,
+    0,
+  );
+
+  const topologyPath = path.join(
+    workspaceRoot,
+    'topology/reference-topology.json',
+  );
+  const topology = JSON.parse(fs.readFileSync(topologyPath, 'utf-8'));
+  for (const surfaceProfile of ['ui-only', 'full-stack']) {
+    topology.verticals[0].surfaceProfile = surfaceProfile;
+    writeJson(workspaceRoot, 'topology/reference-topology.json', topology);
+    assertThrowsWithMessage(
+      () => validateModuleFederationTypes({ workspaceRoot }),
+      /Missing Module Federation config: verticals\/inventory\/module-federation\.config\.ts/u,
+    );
+  }
+});
+
+test('inspects an unexpected API-only UI federation config rather than hiding it', () => {
+  const workspaceRoot = createWorkspace({
+    'apps/host/module-federation.config.ts': mfConfig({
+      hostOnly: true,
+      includeExposes: false,
+    }),
+    'verticals/inventory/module-federation.config.ts': mfConfig(),
+  });
+  writeJson(workspaceRoot, 'topology/reference-topology.json', {
+    shell: { id: 'host', path: 'apps/host' },
+    verticals: [
+      {
+        id: 'inventory',
+        path: 'verticals/inventory',
+        surfaceProfile: 'api-only',
+      },
+    ],
+  });
+
+  assertThrowsWithMessage(
+    () => validateModuleFederationTypes({ workspaceRoot }),
+    /Missing Module Federation DTS archive: verticals\/inventory\/dist\/@mf-types\.zip/u,
+  );
+});
+
 test('validates real exposes even when the generated contract exposes are stale', () => {
   const workspaceRoot = createWorkspace({
     'apps/custom/module-federation.config.ts': mfConfig(),

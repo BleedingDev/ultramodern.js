@@ -6,6 +6,7 @@ import { loadBackendFederatedEffectApiFromManifest } from '@modern-js/plugin-bff
 import { Effect, ManagedRuntime } from 'effect';
 import { HttpApi } from 'effect/unstable/httpapi';
 import { emitBackendFederationArtifacts } from '../../src/backend-federation-build';
+import { findBackendFederationApp } from '../../src/backend-federation-build/config';
 
 const temporaryDirectories: string[] = [];
 
@@ -98,9 +99,11 @@ const createWorkspace = async ({
       verticals: [
         {
           id: appId,
+          domain: 'explore',
           kind: 'vertical',
           package: '@tractor-store-vertical-demo/explore',
           path: 'verticals/explore',
+          cloudflare: { publicUrlEnv: 'ULTRAMODERN_PUBLIC_URL_EXPLORE' },
           api: { bff: { prefix: '/explore-api' }, stem: 'explore' },
           moduleFederation: {
             name: 'verticalExplore',
@@ -164,6 +167,33 @@ const withSourceRevision = async <T>(
   }
 };
 
+const withEnvironment = async <T>(
+  values: Record<string, string | undefined>,
+  callback: () => Promise<T>,
+) => {
+  const previous = Object.fromEntries(
+    Object.keys(values).map(name => [name, process.env[name]]),
+  );
+  try {
+    for (const [name, value] of Object.entries(values)) {
+      if (value === undefined) {
+        delete process.env[name];
+      } else {
+        process.env[name] = value;
+      }
+    }
+    return await callback();
+  } finally {
+    for (const [name, value] of Object.entries(previous)) {
+      if (value === undefined) {
+        delete process.env[name];
+      } else {
+        process.env[name] = value;
+      }
+    }
+  }
+};
+
 afterEach(async () => {
   await Promise.all(
     temporaryDirectories
@@ -173,6 +203,117 @@ afterEach(async () => {
 });
 
 describe('backend federation build artifacts', () => {
+  it('stamps the configured local port and declared public origin into native backend URLs', async () => {
+    const workspace = await createWorkspace();
+    await withEnvironment(
+      {
+        VERTICAL_EXPLORE_PORT: '49117',
+        ULTRAMODERN_PUBLIC_URL_EXPLORE: undefined,
+      },
+      async () => {
+        await withSourceRevision('2'.repeat(40), () =>
+          emitBackendFederationArtifacts(
+            workspace.appDirectory,
+            workspace.distDirectory,
+          ),
+        );
+        const manifest = JSON.parse(
+          await fs.readFile(
+            path.join(workspace.distDirectory, 'backend-mf-manifest.json'),
+            'utf8',
+          ),
+        );
+        expect(manifest.backendFederation.manifestUrl).toBe(
+          'http://localhost:49117/backend-mf-manifest.json',
+        );
+        expect(manifest.entry.url).toBe(
+          'http://localhost:49117/backendRemoteEntry.cjs',
+        );
+        expect(manifest.metaData.publicPath).toBe('http://localhost:49117/');
+      },
+    );
+
+    await withEnvironment(
+      {
+        VERTICAL_EXPLORE_PORT: '49117',
+        ULTRAMODERN_PUBLIC_URL_EXPLORE: 'https://deploy.example/edge/path',
+      },
+      async () => {
+        const app = await findBackendFederationApp(
+          workspace.workspaceRoot,
+          workspace.appDirectory,
+        );
+        expect(app?.manifestUrl).toBe(
+          'https://deploy.example/backend-mf-manifest.json',
+        );
+        expect(app?.containerEntry).toBe(
+          'https://deploy.example/backendRemoteEntry.cjs',
+        );
+        expect(app?.uiManifestUrl).toBe(
+          'https://deploy.example/mf-manifest.json',
+        );
+      },
+    );
+  });
+
+  it('preserves authored remote URLs when the local port changes', async () => {
+    const workspace = await createWorkspace({
+      backendBase: 'https://custom.example.com/releases/explore',
+    });
+    await withEnvironment(
+      {
+        VERTICAL_EXPLORE_PORT: '49117',
+        ULTRAMODERN_PUBLIC_URL_EXPLORE: 'https://deploy.example',
+      },
+      async () => {
+        const app = await findBackendFederationApp(
+          workspace.workspaceRoot,
+          workspace.appDirectory,
+        );
+        expect(app?.port).toBe(49117);
+        expect(app?.manifestUrl).toBe(
+          'https://custom.example.com/releases/explore/backend-mf-manifest.json',
+        );
+        expect(app?.containerEntry).toBe(
+          'https://custom.example.com/releases/explore/backendRemoteEntry.cjs',
+        );
+        expect(app?.uiManifestUrl).toBe(
+          'https://custom.example.com/releases/explore/mf-manifest.json',
+        );
+      },
+    );
+  });
+
+  it('keeps native URL path, query, and hash when changing its origin', async () => {
+    const workspace = await createWorkspace();
+    const overlayPath = path.join(
+      workspace.workspaceRoot,
+      'topology/local-overlays/development.json',
+    );
+    const overlay = JSON.parse(await fs.readFile(overlayPath, 'utf8'));
+    overlay.serverExecution.explore.node.manifestUrl =
+      'http://localhost:3021//edge/backend-mf-manifest.json?revision=1#manifest';
+    overlay.serverExecution.explore.node.containerEntry =
+      'http://localhost:3021//edge/backendRemoteEntry.cjs?revision=1#entry';
+    await writeJson(overlayPath, overlay);
+
+    await withEnvironment(
+      { ULTRAMODERN_PUBLIC_URL_EXPLORE: 'https://deploy.example' },
+      async () => {
+        const app = await findBackendFederationApp(
+          workspace.workspaceRoot,
+          workspace.appDirectory,
+        );
+        expect(app?.manifestUrl).toBe(
+          'https://deploy.example//edge/backend-mf-manifest.json?revision=1#manifest',
+        );
+        expect(app?.containerEntry).toBe(
+          'https://deploy.example//edge/backendRemoteEntry.cjs?revision=1#entry',
+        );
+      },
+    );
+  });
+
   it('loads its emitted container from a verified live HTTP path', async () => {
     const publicBasePath = '/delivery/explore/assets';
     let distDirectory = '';

@@ -1071,7 +1071,7 @@ function operationalSourceRevisions(
 
 function smokeTargets(
   workspace,
-  { baselineRevision, changedAppId, changedRevision, platform },
+  { baselineRevision, changedAppId, changedRevision, platform, processEnv },
 ) {
   const { contract: sourceContract } = readSmokeContract(workspace);
   const contract = bindContractToExpectedReleaseIdentities({
@@ -1084,7 +1084,10 @@ function smokeTargets(
     platform,
     projectDir: workspace,
   });
-  const { targets } = createSmokeTargets(contract, { mode: 'local' });
+  const { targets } = createSmokeTargets(contract, {
+    env: processEnv,
+    mode: 'local',
+  });
   return targets;
 }
 
@@ -1148,6 +1151,7 @@ async function runNodeServedBehavior({
     changedAppId: apps.changed.id,
     changedRevision,
     platform: 'node',
+    processEnv,
   });
   const changedTarget = requiredSmokeTarget(targets, apps.changed.id);
   requiredSmokeTarget(targets, apps.sibling.id);
@@ -1234,6 +1238,7 @@ async function runWorkerdServedBehavior({
     changedAppId: apps.changed.id,
     changedRevision,
     platform: 'workerd',
+    processEnv,
   });
   const target = requiredSmokeTarget(targets, appId);
   const server = await startWorkerdProof({
