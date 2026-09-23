@@ -12,6 +12,7 @@ import {
   type EffectBffOpenApiConfig,
   type EffectDataPlatformValidationOptions,
   type EffectRequestValidator,
+  type EffectRpcBffDefinition,
   type EffectRuntimeLayer,
 } from './handler';
 import type { EffectContext } from './operation-context';
@@ -33,6 +34,7 @@ export type EffectBffHandlerFactory = (options?: {
 export type EffectApiModule = {
   api?: unknown;
   layer?: unknown;
+  rpc?: EffectRpcBffDefinition;
   handler?: EffectBffRequestHandler;
   createHandler?: EffectBffHandlerFactory;
   default?: unknown;
@@ -158,6 +160,7 @@ function resolveClassifiedEffectBffModuleHandler(
     const webHandler = createHttpApiHandler({
       api: facts.api as HttpApi.Top,
       layer: facts.layer as EffectRuntimeLayer,
+      rpc: facts.module.rpc,
       openapi: options.openapi,
       dataPlatform: options.dataPlatform,
       validateRequest: options.validateRequest,

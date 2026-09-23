@@ -1,10 +1,12 @@
 import fs from 'node:fs/promises';
 import http from 'node:http';
+import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { loadBackendFederatedEffectApiFromManifest } from '@modern-js/plugin-bff-extensions/backend-federation-manifest/node';
 import { Effect, ManagedRuntime } from 'effect';
 import { HttpApi } from 'effect/unstable/httpapi';
+import { createEffectBffTestHandler } from '../../../../server/bff-effect/src/effect/edge';
 import { emitBackendFederationArtifacts } from '../../src/backend-federation-build';
 import { findBackendFederationApp } from '../../src/backend-federation-build/config';
 
@@ -215,6 +217,78 @@ afterEach(async () => {
 });
 
 describe('backend federation build artifacts', () => {
+  it('serves RPC from a separately bundled Effect runtime through the host handler', async () => {
+    const effectEdgePath = path.resolve(
+      __dirname,
+      '../../../../server/bff-effect/dist/esm-node/effect/edge.mjs',
+    );
+    const workspace = await createWorkspace({
+      apiProtocol: 'rpc',
+      effectApiSource: `
+import { defineEffectBff, Effect, HttpApi, Layer, Rpc, RpcGroup, Schema } from ${JSON.stringify(effectEdgePath)};
+const group = RpcGroup.make(Rpc.make('list', {
+  payload: { limit: Schema.optional(Schema.Number) },
+  success: Schema.Struct({ items: Schema.Array(Schema.Struct({ id: Schema.String })) }),
+}));
+const runtime = defineEffectBff({
+  api: HttpApi.make('ExploreRpcTransport'),
+  layer: Layer.empty,
+  rpc: {
+    group,
+    layer: group.toLayer(group.of({ list: () => Effect.succeed({ items: [{ id: 'bundled-explore' }] }) })),
+    path: '/rpc',
+    serialization: 'json',
+  },
+});
+export const api = group;
+export { runtime };
+export default runtime;
+`,
+    });
+    await withSourceRevision('2'.repeat(40), () =>
+      emitBackendFederationArtifacts(
+        workspace.appDirectory,
+        workspace.distDirectory,
+      ),
+    );
+    const requireEntry = createRequire(import.meta.url);
+    const container = requireEntry(
+      path.join(workspace.distDirectory, 'backendRemoteEntry.cjs'),
+    );
+    const exposed = await (await container.get('./effect-api'))();
+    const warnings: string[] = [];
+    const edge = await createEffectBffTestHandler({
+      module: exposed.runtime,
+      prefix: '/explore-api',
+      onWarning: message => warnings.push(message),
+    });
+    try {
+      const response = await edge.handler(
+        new Request('http://localhost/explore-api/rpc', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 'proof',
+            method: 'list',
+            params: {},
+          }),
+        }),
+      );
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({
+        jsonrpc: '2.0',
+        id: 'proof',
+        result: { items: [{ id: 'bundled-explore' }] },
+      });
+      expect(warnings).toEqual(
+        expect.arrayContaining([expect.stringContaining('Ignored unbranded')]),
+      );
+    } finally {
+      await edge.dispose();
+    }
+  });
+
   it('advertises the generated RPC route without REST-only endpoints', async () => {
     const workspace = await createWorkspace({ apiProtocol: 'rpc' });
     await withSourceRevision('2'.repeat(40), () =>

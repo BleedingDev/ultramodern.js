@@ -440,6 +440,7 @@ describe('API-only release', () => {
     for (const [from, to] of [
       ['backend-mf-manifest.json', 'public/backend-mf-manifest.json'],
       ['backendRemoteEntry.cjs', 'public/backendRemoteEntry.cjs'],
+      ['ultramodern-build.json', 'public/ultramodern-build.json'],
       ['public/robots.txt', 'public/robots.txt'],
       ['worker/__modern_bff_effect.js', 'worker/__modern_bff_effect.js'],
       [
@@ -486,12 +487,27 @@ describe('API-only release', () => {
           runtime: 'crawler-policy',
         }),
         expect.objectContaining({
+          logicalPath: 'public/ultramodern-build.json',
+          runtime: 'cloudflare-deployment',
+        }),
+        expect.objectContaining({
           logicalPath: 'worker/__modern_worker_shared.js',
           runtime: 'workerd-effect',
         }),
       ]),
     );
     await framework.verifyCloudflareReleaseEnvelopeStaging(outputDirectory);
+    await fs.writeFile(
+      path.join(outputDirectory, 'public/ultramodern-build.json'),
+      '{}',
+    );
+    await expect(
+      framework.verifyCloudflareReleaseEnvelopeStaging(outputDirectory),
+    ).rejects.toThrow(/digest/u);
+    await fs.copyFile(
+      path.join(f.root, 'ultramodern-build.json'),
+      path.join(outputDirectory, 'public/ultramodern-build.json'),
+    );
     await fs.writeFile(
       path.join(outputDirectory, 'worker/__modern_worker_shared.js'),
       'export const chunk = "tampered";',
