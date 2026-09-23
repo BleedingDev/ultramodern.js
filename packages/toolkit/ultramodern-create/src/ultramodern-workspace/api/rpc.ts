@@ -67,7 +67,9 @@ export const ${itemSchema}: Schema.Codec<${pascalStem}RpcItem> = Schema.Struct({
   title: Schema.String,
 });
 
-export class ${notFound} extends Schema.TaggedError<${notFound}>()(
+const taggedErrorSchema = Schema.TaggedError;
+
+export class ${notFound} extends taggedErrorSchema<${notFound}>()(
   '${notFound}',
   {
   id: Schema.String,
@@ -78,13 +80,13 @@ export class ${notFound} extends Schema.TaggedError<${notFound}>()(
 // (mirrors the shapes Effect BFF's RpcServer/RpcClient runtime accepts).
 export const ${groupExport} = RpcGroup.make(
   Rpc.make('list', {
-    success: Schema.Struct({ items: Schema.Array(${itemSchema}) }),
     payload: { limit: Schema.optional(Schema.Number) },
+    success: Schema.Struct({ items: Schema.Array(${itemSchema}) }),
   }),
   Rpc.make('get', {
-    success: ${itemSchema},
     error: ${notFound},
     payload: { id: Schema.String },
+    success: ${itemSchema},
   }),
 );
 
@@ -120,6 +122,12 @@ export function rpcServiceEntryWiring(service: ApiService): {
   const layer = `
 const ${groupName}RpcLayer = ${groupExport}.toLayer(
   ${groupExport}.of({
+    get: ({ id }) => {
+      const matched = ${groupName}Items.find(candidate => candidate.id === id);
+      return matched === undefined
+        ? Effect.fail(new ${notFound}({ id }))
+        : Effect.succeed({ id: matched.id, title: matched.title });
+    },
     list: ({ limit }) =>
       Effect.succeed({
         items:
@@ -133,12 +141,6 @@ const ${groupName}RpcLayer = ${groupExport}.toLayer(
                 title: item.title,
               })),
       }),
-    get: ({ id }) => {
-      const matched = ${groupName}Items.find(candidate => candidate.id === id);
-      return matched === undefined
-        ? Effect.fail(new ${notFound}({ id }))
-        : Effect.succeed({ id: matched.id, title: matched.title });
-    },
   }),
 );
 `;
@@ -194,7 +196,7 @@ const apiRuntime = defineEffectBff({
 ${rpc.field}
 });
 
-export { ${groupExport} };
+export { ${groupExport} } from '../shared/rpc.ts';
 export default apiRuntime;
 `;
 }
@@ -223,7 +225,7 @@ import {
 
 export { Effect } from '@modern-js/bff-effect/effect-client';
 
-export const ${pascalStem}RpcContract = ${contractExport};
+export { ${contractExport} as ${pascalStem}RpcContract } from '${contractImportPath}';
 
 export interface ${pascalStem}RpcClientOptions {
   url?: string | URL;
@@ -233,8 +235,8 @@ export const make${pascalStem}RpcClient = (
   options: ${pascalStem}RpcClientOptions = {},
 ) =>
   makeEffectRpcClient(${groupExport}, {
-    url: String(options.url ?? ${contractExport}.path),
     serialization: 'json',
+    url: String(options.url ?? ${contractExport}.path),
   });
 
 export const list${pascalStem}Rpc = (

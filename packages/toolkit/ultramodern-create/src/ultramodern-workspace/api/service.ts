@@ -219,13 +219,8 @@ export function createBackendEffectApiExpose(
 ): string {
   if ((service.api?.protocol ?? 'rest') === 'rpc') {
     const groupExport = verticalRpcGroupExport(service);
-    const contractExport = verticalRpcContractExport(service);
-
     return `import { ultramodernApiMarker } from '../shared/ultramodern-build.ts';
-import {
-  ${contractExport},
-  ${groupExport},
-} from '../shared/rpc.ts';
+import { ${groupExport} } from '../shared/rpc.ts';
 
 export const backendFederationContract = {
   compatibility: {
@@ -239,16 +234,16 @@ export const backendFederationContract = {
   executionSurfaces: ['node-mf-runtime'],
   exposes: ['./effect-api'],
   name: '${createBackendFederationName(service)}',
+  role: 'microvertical-server',
   rpcPath: '${rpcPath(service)}',
   rpcSerialization: 'json',
-  role: 'microvertical-server',
   runtimeFramework: 'effect',
   strictEffectApproach: true,
 } as const;
 
 export { default, default as runtime } from './index.ts';
 export {
-  ${contractExport} as contract,
+  ${verticalRpcContractExport(service)} as contract,
   ${groupExport} as rpc,
 } from '../shared/rpc.ts';
 export const api: unknown = ${groupExport};

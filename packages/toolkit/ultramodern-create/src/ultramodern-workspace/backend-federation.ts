@@ -314,9 +314,9 @@ export const backendFederationContract = {
   exposes: ['${BACKEND_FEDERATION_EFFECT_EXPOSE}'],
   name: '${createBackendFederationName(app)}',
   nodeAdapterVersion: '${BACKEND_FEDERATION_NODE_ADAPTER_VERSION}',
+  role: 'microvertical-server',
   rpcPath: '${rpcPath(app)}',
   rpcSerialization: 'json',
-  role: 'microvertical-server',
   runtimeFramework: 'effect',
   strictEffectApproach: true,
 } as const;
