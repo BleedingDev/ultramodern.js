@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type {
@@ -8,9 +9,18 @@ import type {
   UltramodernGenerationResult,
 } from '../src/ultramodern-workspace';
 import { addUltramodernVertical } from '../src/ultramodern-workspace';
-import { createWorkspace, runValidation } from './helpers/workspace-kit';
+import {
+  createWorkspace,
+  linkWorkspaceFormatterDependencies,
+  runValidation,
+} from './helpers/workspace-kit';
 
 const MODERN_VERSION = '3.2.1';
+const require = createRequire(import.meta.url);
+const oxlintEntry = require.resolve('oxlint', {
+  paths: [path.dirname(require.resolve('ultracite/oxlint/core'))],
+});
+const oxlintBin = path.resolve(path.dirname(oxlintEntry), '../bin/oxlint');
 
 function withWorkspace(
   fn: (workspaceDir: string) => void,
@@ -158,6 +168,24 @@ test('rpc protocol emits its contract and routes metadata without a REST surface
         .protocol,
       'rpc',
     );
+    linkWorkspaceFormatterDependencies(dir);
+    fs.symlinkSync(
+      path.resolve(path.dirname(oxlintEntry), '..'),
+      path.join(dir, 'node_modules/oxlint'),
+      process.platform === 'win32' ? 'junction' : 'dir',
+    );
+    const lint = spawnSync(
+      oxlintBin,
+      [
+        'verticals/catalog/api',
+        'verticals/catalog/shared',
+        'verticals/catalog/src/api/catalog-rpc-client.ts',
+        'verticals/headless-rpc/api',
+        'verticals/headless-rpc/shared',
+      ],
+      { cwd: dir, encoding: 'utf8' },
+    );
+    assert.equal(lint.status, 0, `${lint.stdout}\n${lint.stderr}`);
     assertWorkspaceValid(dir);
   });
 });

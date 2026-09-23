@@ -24,6 +24,7 @@ import {
 import {
   Rpc,
   RpcClient,
+  RpcClientError,
   RpcGroup,
   RpcSchema,
   RpcSerialization,
@@ -138,8 +139,8 @@ export type EffectRpcClientHandle<
   Rpcs extends Rpc.Any,
   Flatten extends boolean = false,
 > = (Flatten extends true
-  ? RpcClient.RpcClient.Flat<Rpcs, unknown>
-  : RpcClient.RpcClient<Rpcs, unknown>) & {
+  ? RpcClient.RpcClient.Flat<Rpcs, RpcClientError.RpcClientError>
+  : RpcClient.RpcClient<Rpcs, RpcClientError.RpcClientError>) & {
   dispose: () => Promise<void>;
 };
 

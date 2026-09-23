@@ -124,6 +124,7 @@ describe('Cloudflare builder environments', () => {
         appContext: { apiOnly: true, apiDirectory, appDirectory },
         environments: {
           client: { output: { target: 'web' }, source: { entry: {} } },
+          server: { output: { target: 'node' }, source: { entry: {} } },
         },
         normalizedConfig: {
           bff: { runtimeFramework: 'effect' },

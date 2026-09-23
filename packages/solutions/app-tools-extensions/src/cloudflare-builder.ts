@@ -635,14 +635,12 @@ export function getCloudflareBuilderEnvironments({
     createCloudflareBundlerChain(appContext, Object.keys(workerEntries)),
   );
 
-  const headlessEnvironments = appContext.apiOnly
-    ? Object.fromEntries(
-        Object.entries(environments).filter(([name]) => name !== 'client'),
-      )
-    : environments;
+  if (appContext.apiOnly) {
+    return { [SERVICE_WORKER_ENVIRONMENT_NAME]: cloudflareWorkerEnvironment };
+  }
 
   return {
-    ...headlessEnvironments,
+    ...environments,
     [SERVICE_WORKER_ENVIRONMENT_NAME]: cloudflareWorkerEnvironment,
   };
 }

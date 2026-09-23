@@ -39,8 +39,11 @@ describe('@modern-js/bff-effect public types', () => {
   HttpApi,
   HttpApiEndpoint,
   HttpApiGroup,
+  Rpc,
+  RpcGroup,
   Schema,
   makeEffectHttpApiClient,
+  makeEffectRpcClient,
 } from '@modern-js/bff-effect/effect-client';
 import { defineEffectBff, Layer } from '@modern-js/bff-effect/effect';
 import type {
@@ -147,6 +150,10 @@ type EffectSuccess<T> = T extends Effect.Effect<
 >
   ? Success
   : never;
+type EffectError<T> = T extends Effect.Effect<unknown, infer Error, unknown>
+  ? Error
+  : never;
+type IsUnknown<T> = unknown extends T ? true : false;
 
 type Client = EffectSuccess<typeof clientEffect>;
 type ServerHelperClient = EffectApiClientFromApi<typeof PingApi>;
@@ -163,6 +170,18 @@ type _PingMethodRequirementsAreNever = Assert<IsNever<PingMethodRequirements>>;
 type _ServerHelperPingMethodRequirementsAreNever = Assert<
   IsNever<ServerHelperPingMethodRequirements>
 >;
+
+const rpcGroup = RpcGroup.make(Rpc.make('get', {
+  error: Schema.String,
+  payload: { id: Schema.String },
+  success: Schema.String,
+}));
+const rpcClientEffect = makeEffectRpcClient(rpcGroup, { url: '/rpc' });
+type RpcClient = EffectSuccess<typeof rpcClientEffect>;
+type RpcCallError = EffectError<ReturnType<RpcClient['get']>>;
+type _RpcCallErrorIsSpecific = Assert<IsUnknown<RpcCallError> extends false ? true : false>;
+type _RpcCallRetainsDomainError = Assert<IsNever<Extract<RpcCallError, string>> extends false ? true : false>;
+type _RpcCallRetainsTransportError = Assert<IsNever<Extract<RpcCallError, { _tag: 'RpcClientError' }>> extends false ? true : false>;
 
 const api = HttpApi.make('StrictApi');
 const layer = Layer.empty satisfies EffectRuntimeLayer;
