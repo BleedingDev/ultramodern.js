@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const { spawnSync } = require('node:child_process');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
+const net = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
@@ -331,6 +332,65 @@ test('acceptance production builds and runtime proofs use the same explicit loca
     packageManagerEnv.ULTRAMODERN_PUBLIC_URL_ANALYTICS,
     'https://unrelated.example',
   );
+});
+
+test('acceptance smoke ports stay reserved through build and release for runtime startup', async () => {
+  const { createAcceptanceDeploymentEnv, reserveAcceptanceSmokePorts } =
+    await import('../published-create-proof/acceptance-profile.mjs');
+  const contract = {
+    apps: [
+      {
+        id: 'shell-super-app',
+        kind: 'shell',
+        config: {
+          source: {
+            siteUrl: {
+              defaultLocalhostPort: 3020,
+              envFallbackOrder: ['SHELL_SUPER_APP_PORT'],
+            },
+          },
+        },
+        deploy: {
+          cloudflare: {
+            publicUrlEnv: 'ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP',
+          },
+        },
+      },
+    ],
+  };
+  const first = await reserveAcceptanceSmokePorts(contract);
+  const second = await reserveAcceptanceSmokePorts(contract);
+  try {
+    const firstPort = Number(first.portEnv.SHELL_SUPER_APP_PORT);
+    const secondPort = Number(second.portEnv.SHELL_SUPER_APP_PORT);
+    assert.ok(firstPort > 0);
+    assert.ok(secondPort > 0);
+    assert.notEqual(firstPort, secondPort);
+    const deploymentEnv = createAcceptanceDeploymentEnv(
+      contract,
+      first.portEnv,
+    );
+    assert.equal(
+      deploymentEnv.ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP,
+      `http://localhost:${firstPort}`,
+    );
+    await first.release();
+    await first.release();
+    const rebound = net.createServer();
+    try {
+      await new Promise((resolve, reject) => {
+        rebound.once('error', reject);
+        rebound.listen(firstPort, '127.0.0.1', resolve);
+      });
+    } finally {
+      await new Promise((resolve, reject) =>
+        rebound.close(error => (error ? reject(error) : resolve())),
+      );
+    }
+  } finally {
+    await first.release();
+    await second.release();
+  }
 });
 
 test('acceptance children never inherit a source create bin or framework override', async () => {

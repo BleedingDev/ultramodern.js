@@ -88,6 +88,8 @@ const readGeneratedContractView = () => {
       return {
         id: app.id,
         path: app.path,
+        api: app.api,
+        surfaceProfile: app.surfaceProfile,
         deploy: { cloudflare: app.cloudflare },
         moduleFederation: { remotes: app.moduleFederation?.remotes ?? [] },
         routes: {
@@ -126,6 +128,18 @@ const evaluateApp = (app, contract, failOn) => {
         : [],
   );
   const remotes = app.moduleFederation?.remotes ?? [];
+  const apiOnly = app.surfaceProfile === 'api-only';
+  const cloudflareRoutes = app.deploy?.cloudflare?.routes;
+  const apiRouteKey = app.api?.protocol === 'rpc' ? 'rpc' : 'apiReadiness';
+  const otherApiRouteKey = apiRouteKey === 'rpc' ? 'apiReadiness' : 'rpc';
+  const cloudflareRoutesValid = apiOnly
+    ? app.api &&
+      typeof cloudflareRoutes?.[apiRouteKey] === 'string' &&
+      cloudflareRoutes[apiRouteKey].startsWith('/') &&
+      cloudflareRoutes?.[otherApiRouteKey] === undefined &&
+      cloudflareRoutes?.ssr === undefined &&
+      cloudflareRoutes?.mfManifest === undefined
+    : cloudflareRoutes?.ssr && cloudflareRoutes?.mfManifest;
   const signals = [
     createSignal(
       'bfcache',
@@ -188,12 +202,21 @@ const evaluateApp = (app, contract, failOn) => {
     ),
     createSignal(
       'cloudflare-ssr-cache-hints',
-      app.deploy?.cloudflare?.routes?.ssr &&
-        app.deploy?.cloudflare?.routes?.mfManifest &&
+      cloudflareRoutesValid &&
         app.deploy?.cloudflare?.compatibilityFlags?.includes('nodejs_compat')
         ? 'configuration-valid'
         : 'configuration-invalid',
-      ['ssr-route-present', 'mf-manifest-route-present', 'nodejs-compat'],
+      [
+        ...(apiOnly
+          ? [
+              apiRouteKey === 'rpc'
+                ? 'rpc-route-present'
+                : 'api-readiness-route-present',
+              'ui-routes-absent',
+            ]
+          : ['ssr-route-present', 'mf-manifest-route-present']),
+        'nodejs-compat',
+      ],
     ),
   ];
 

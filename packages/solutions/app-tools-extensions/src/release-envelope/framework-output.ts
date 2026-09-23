@@ -33,6 +33,7 @@ const MICROVERTICAL_RELEASE_IDENTITY_CARRIERS_SCHEMA_VERSION = 1;
 
 const COMPILED_MODULE_PATTERN = /\.(?:c|m)?js$/u;
 const EFFECT_BFF_WORKER_PATTERN = /^worker\/__modern_bff_effect\.(?:c|m)?js$/u;
+const CRAWLER_POLICY_PATH = 'public/robots.txt';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -611,7 +612,7 @@ const createReleaseArtifactInputs = async (
     return (
       topLevel === 'static' ||
       topLevel === 'html' ||
-      topLevel === 'public' ||
+      (topLevel === 'public' && logicalPath !== CRAWLER_POLICY_PATH) ||
       [
         'index.html',
         'mf-manifest.json',
@@ -706,6 +707,10 @@ const createReleaseArtifactInputs = async (
     }
   };
   add(uiClientPaths, 'browser');
+  add(
+    files.filter(logicalPath => logicalPath === CRAWLER_POLICY_PATH),
+    'crawler-policy',
+  );
   add(ssrPaths, target === 'node' ? 'nodejs' : 'workerd');
   add(apiBackendPaths, target === 'node' ? 'nodejs' : 'workerd-effect');
   add([BACKEND_FEDERATION_MANIFEST_FILE], 'module-federation-manifest');
@@ -910,7 +915,7 @@ const createNodeStagedReleaseArtifactInputs = async (
     return (
       topLevel === 'static' ||
       topLevel === 'html' ||
-      topLevel === 'public' ||
+      (topLevel === 'public' && logicalPath !== CRAWLER_POLICY_PATH) ||
       [
         'index.html',
         'mf-manifest.json',
@@ -973,6 +978,9 @@ const createNodeStagedReleaseArtifactInputs = async (
   );
   for (const logicalPath of uiClientPaths) {
     runtimeByPath.set(logicalPath, 'browser');
+  }
+  if (files.includes(CRAWLER_POLICY_PATH)) {
+    runtimeByPath.set(CRAWLER_POLICY_PATH, 'crawler-policy');
   }
   for (const logicalPath of apiOnly ? [] : ssrPaths) {
     runtimeByPath.set(logicalPath, 'nodejs');
@@ -1131,6 +1139,7 @@ const createCloudflareStagedReleaseArtifactInputs = async (
   const uiClientPaths = files.filter(
     logicalPath =>
       logicalPath.startsWith('public/') &&
+      logicalPath !== CRAWLER_POLICY_PATH &&
       logicalPath !== backendManifestPath &&
       logicalPath !== backendContainerPath,
   );
@@ -1199,6 +1208,9 @@ const createCloudflareStagedReleaseArtifactInputs = async (
     }
   };
   add(uiClientPaths, 'browser');
+  if (files.includes(CRAWLER_POLICY_PATH)) {
+    runtimeByPath.set(CRAWLER_POLICY_PATH, 'crawler-policy');
+  }
   add(apiOnly ? [] : ssrPaths, 'workerd');
   add(apiBackendPaths, 'workerd-effect');
   add([backendManifestPath], 'module-federation-manifest');

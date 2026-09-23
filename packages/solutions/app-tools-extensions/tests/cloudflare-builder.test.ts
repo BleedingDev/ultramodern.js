@@ -110,4 +110,39 @@ describe('Cloudflare builder environments', () => {
       fs.rmSync(appDirectory, { force: true, recursive: true });
     }
   });
+
+  it('creates only a genuine Effect worker environment for a headless Cloudflare API', () => {
+    const appDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'modern-cloudflare-headless-builder-'),
+    );
+    const apiDirectory = path.join(appDirectory, 'api');
+
+    try {
+      fs.mkdirSync(apiDirectory, { recursive: true });
+      fs.writeFileSync(path.join(apiDirectory, 'index.ts'), '');
+      const result = getCloudflareBuilderEnvironments({
+        appContext: { apiOnly: true, apiDirectory, appDirectory },
+        environments: {
+          client: { output: { target: 'web' }, source: { entry: {} } },
+        },
+        normalizedConfig: {
+          bff: { runtimeFramework: 'effect' },
+          deploy: { target: 'cloudflare' },
+        },
+      });
+
+      expect(Object.keys(result)).toEqual(['workerSSR']);
+      expect(result.workerSSR?.output).toMatchObject({
+        module: true,
+        target: 'web',
+      });
+      expect(result.workerSSR?.source?.entry).toEqual({
+        __modern_bff_effect: [
+          `${path.join(apiDirectory, 'index.ts')}?modern-bff-runtime`,
+        ],
+      });
+    } finally {
+      fs.rmSync(appDirectory, { force: true, recursive: true });
+    }
+  });
 });

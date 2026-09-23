@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
+import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
@@ -360,6 +361,45 @@ function createAcceptanceDeploymentEnv(contract, packageManagerEnv) {
     }
   }
   return env;
+}
+
+async function reserveAcceptanceSmokePorts(contract) {
+  const { targets } = createSmokeTargets(contract, { env: {}, mode: 'local' });
+  const servers = [];
+  const portEnv = {};
+  let released = false;
+  const release = async () => {
+    if (released) return;
+    released = true;
+    await Promise.all(
+      servers.map(
+        server =>
+          new Promise((resolve, reject) => {
+            server.close(error => (error ? reject(error) : resolve()));
+          }),
+      ),
+    );
+  };
+  try {
+    for (const target of targets) {
+      if (!target.portEnv || target.portEnv in portEnv) {
+        throw new Error(
+          `${target.app.id} requires a unique local smoke port environment name`,
+        );
+      }
+      const server = net.createServer();
+      await new Promise((resolve, reject) => {
+        server.once('error', reject);
+        server.listen(0, '127.0.0.1', resolve);
+      });
+      servers.push(server);
+      portEnv[target.portEnv] = String(server.address().port);
+    }
+    return { portEnv, release };
+  } catch (error) {
+    await release();
+    throw error;
+  }
 }
 
 async function withDuration(action) {
@@ -1064,6 +1104,7 @@ async function runAcceptanceProfile({
     suppliedWorkDir ??
     fs.mkdtempSync(path.join(os.tmpdir(), 'ultramodern-release-acceptance-'));
   const ownsWorkDir = suppliedWorkDir === undefined;
+  let reservedSmokePorts;
   if (ownsWorkDir) {
     startOwnedWorkDirGuardian(workDir);
   }
@@ -1275,10 +1316,12 @@ async function runAcceptanceProfile({
         }),
       );
 
-      const deploymentEnv = createAcceptanceDeploymentEnv(
-        readSmokeContract(projectDir).contract,
-        packageManagerEnv,
-      );
+      const smokeContract = readSmokeContract(projectDir).contract;
+      reservedSmokePorts = await reserveAcceptanceSmokePorts(smokeContract);
+      const deploymentEnv = createAcceptanceDeploymentEnv(smokeContract, {
+        ...packageManagerEnv,
+        ...reservedSmokePorts.portEnv,
+      });
       await recordAcceptanceResult(receipt, 'build', () =>
         withDuration(() => {
           runImpl('pnpm', requiredPnpmCommands.build, {
@@ -1293,6 +1336,7 @@ async function runAcceptanceProfile({
       // the strict Node report while the final Node deployment roots still
       // exist; the receipt loop below consumes this exact report in its normal
       // platform/dimension order.
+      await reservedSmokePorts.release();
       const nodeRuntimeReport = await browserSmokeImpl(projectDir, {
         ...runtimeAcceptanceInvocation(mode, 'node'),
         packageManagerEnv: deploymentEnv,
@@ -1416,6 +1460,7 @@ async function runAcceptanceProfile({
     }
     return receipt;
   } finally {
+    await reservedSmokePorts?.release();
     if (ownsWorkDir) {
       fs.rmSync(workDir, { recursive: true, force: true });
     }
@@ -1434,6 +1479,7 @@ export {
   createAcceptanceRuntimeContext,
   inheritedPlaywrightBrowsersPath,
   requiredPnpmCommands,
+  reserveAcceptanceSmokePorts,
   resolveExactPnpmExecutable,
   runAcceptanceProfile,
   runOperationalIndependenceAcceptance,
