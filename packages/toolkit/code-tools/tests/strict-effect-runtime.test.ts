@@ -44,6 +44,8 @@ export default assembleEffectBffRuntime({ api: fixtureApi, handlers });`;
   test('proves parameterized factories and handler-local declarations without trusting parameters as topology', () => {
     const source = `${imports}
 const make = (...args: readonly [unknown]) => {
+  type HandlerRequirements = { readonly dependency: unknown };
+  interface RuntimeContract { readonly api: typeof fixtureApi }
   const [dependency] = args;
   const group = HttpApiBuilder.group(fixtureApi, 'fixture', handlers => {
     const handle = () => undefined;
@@ -68,6 +70,10 @@ export default make(Layer.empty);`;
       source.replace(
         'return assembleEffectBffRuntime',
         'if (false) return assembleEffectBffRuntime',
+      ),
+      source.replace(
+        'type HandlerRequirements = { readonly dependency: unknown };',
+        'if (false) throw new Error("runtime branch");',
       ),
     ])
       expect(violation(invalid)).toBeDefined();
