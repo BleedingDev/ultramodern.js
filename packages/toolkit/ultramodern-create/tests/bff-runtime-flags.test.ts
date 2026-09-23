@@ -7,18 +7,11 @@ import path from 'node:path';
 const packageRoot = path.resolve(__dirname, '..');
 const builtCliPath = path.join(packageRoot, 'dist/esm-node/index.js');
 
-// Keeps every spawned CLI hermetic: no test may dial the npm registry for
-// the @bleedingdev/modern-js-create framework cohort.
-const hermeticEnv = {
-  ...process.env,
-  MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION: '3.2.0-ultramodern.108',
-};
-
 const runCli = (cwd: string, args: string[]) =>
   spawnSync(process.execPath, [builtCliPath, ...args], {
     cwd,
     encoding: 'utf8',
-    env: hermeticEnv,
+    env: process.env,
   });
 
 const withTempDir = (fn: (tmpDir: string) => void) => {
@@ -39,16 +32,17 @@ test('--bff keeps the default strict Effect approach workspace scaffold', () => 
     const verticalResult = runCli(workspaceDir, ['catalog', '--vertical']);
     assert.equal(verticalResult.status, 0, verticalResult.stderr);
 
-    const workspaceContract = JSON.parse(
+    const topology = JSON.parse(
       fs.readFileSync(
-        path.join(workspaceDir, '.modernjs/ultramodern.json'),
+        path.join(workspaceDir, 'topology/reference-topology.json'),
         'utf8',
       ),
     );
-    const catalog = workspaceContract.topology.apps.find(
+    const catalog = topology.verticals.find(
       (app: { id?: string }) => app.id === 'catalog',
     );
     assert.equal(catalog.api.runtime, 'effect');
+    assert.equal(catalog.api.bff.strictEffectApproach, true);
     assert.equal(
       fs.existsSync(path.join(workspaceDir, 'verticals/catalog/api/index.ts')),
       true,

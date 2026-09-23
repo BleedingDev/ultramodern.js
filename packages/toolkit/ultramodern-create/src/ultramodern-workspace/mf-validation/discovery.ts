@@ -2,11 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { defaultAppRootDirs, moduleFederationConfigFile } from './constants';
 import {
-  collectBridgeScanRoots,
   collectMetadataAppDirs,
+  collectWorkspaceScanRoots,
   firstSegment,
   normalizeRelativePath,
-  readGeneratedMetadata,
+  readJsonIfExists,
   scanForModuleFederationConfigs,
 } from './path-utils';
 import type {
@@ -25,13 +25,13 @@ export function discoverModuleFederationConfigs(
       appDirs.add(normalizeRelativePath(appDir));
     }
   } else {
-    const metadata = readGeneratedMetadata(workspaceRoot);
+    const metadata = readJsonIfExists(
+      path.join(workspaceRoot, 'topology/reference-topology.json'),
+    );
     const scanRoots = new Set(defaultAppRootDirs);
 
-    for (const metadataEntry of metadata) {
-      collectMetadataAppDirs(metadataEntry, appDirs);
-      collectBridgeScanRoots(metadataEntry, scanRoots);
-    }
+    collectMetadataAppDirs(metadata, appDirs);
+    collectWorkspaceScanRoots(workspaceRoot, scanRoots);
 
     for (const appDir of appDirs) {
       const segment = firstSegment(appDir);

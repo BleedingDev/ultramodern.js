@@ -8,7 +8,7 @@ import type {
   UltramodernGenerationResult,
 } from '../src/ultramodern-workspace';
 import { addUltramodernVertical } from '../src/ultramodern-workspace';
-import { createWorkspace } from './helpers/workspace-kit';
+import { createWorkspace, runValidation } from './helpers/workspace-kit';
 
 const MODERN_VERSION = '3.2.1';
 
@@ -49,11 +49,7 @@ function verticalPaths(result: UltramodernGenerationResult, name: string) {
 }
 
 function assertWorkspaceValid(workspaceDir: string) {
-  const result = spawnSync(
-    process.execPath,
-    ['scripts/validate-ultramodern-workspace.mts'],
-    { cwd: workspaceDir, encoding: 'utf-8' },
-  );
+  const result = runValidation(workspaceDir);
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
 }
 
@@ -92,42 +88,27 @@ test('topology rehydration preserves protocol, profile and delivery-unit identit
     add(dir, 'design-system', { horizontalRemote: true });
 
     const topologyPath = path.join(dir, 'topology/reference-topology.json');
-    const compactPath = path.join(dir, '.modernjs/ultramodern.json');
     const topology = JSON.parse(fs.readFileSync(topologyPath, 'utf-8'));
-    const compact = JSON.parse(fs.readFileSync(compactPath, 'utf-8'));
     const topologyEntry = (id: string) =>
       topology.verticals.find((entry: any) => entry.id === id);
-    const compactEntry = (id: string) =>
-      compact.topology.apps.find((entry: any) => entry.id === id);
 
     assert.equal(topologyEntry('catalog').api.protocol, 'rpc');
     assert.equal(
       topologyEntry('design-system').deliveryUnitKind,
       'horizontal-remote',
     );
-    assert.equal(compactEntry('catalog').api.protocol, 'rpc');
     assert.ok(topologyEntry('catalog').deliveryUnit);
-    assert.ok(compactEntry('catalog').deliveryUnit);
 
     topologyEntry('catalog').api.protocol = 'rest';
-    compactEntry('catalog').api.protocol = 'rest';
     fs.writeFileSync(topologyPath, `${JSON.stringify(topology, null, 2)}\n`);
-    fs.writeFileSync(compactPath, `${JSON.stringify(compact, null, 2)}\n`);
     add(dir, 'rest-preserved');
 
     const rehydratedTopology = JSON.parse(
       fs.readFileSync(topologyPath, 'utf-8'),
     );
-    const rehydratedCompact = JSON.parse(fs.readFileSync(compactPath, 'utf-8'));
     assert.equal(
       rehydratedTopology.verticals.find((entry: any) => entry.id === 'catalog')
         .api.protocol,
-      'rest',
-    );
-    assert.equal(
-      rehydratedCompact.topology.apps.find(
-        (entry: any) => entry.id === 'catalog',
-      ).api.protocol,
       'rest',
     );
   });

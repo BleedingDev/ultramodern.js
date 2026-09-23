@@ -338,7 +338,6 @@ test('bridge mode materializes delegated gates and preserves external parent par
       workspaceDir,
       'apps/shell-super-app/package.json',
     );
-    const compactConfig = readJson(workspaceDir, '.modernjs/ultramodern.json');
     const pnpmWorkspace = yaml.load(
       fs.readFileSync(path.join(workspaceDir, 'pnpm-workspace.yaml'), 'utf-8'),
     ) as { packages: string[] };
@@ -350,8 +349,10 @@ test('bridge mode materializes delegated gates and preserves external parent par
       shellPackage.dependencies['@acme/domain-react'],
       'workspace:*',
     );
-    assert.equal(compactConfig.bridge.enabled, true);
-    assert.equal(compactConfig.bridge.parentRoot, '../..');
+    assert.equal(
+      fs.existsSync(path.join(workspaceDir, '.modernjs/ultramodern.json')),
+      false,
+    );
 
     const commandRecorder = createCommandRecorder(tempRoot);
     const canonicalParentDir = fs.realpathSync(

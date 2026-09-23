@@ -10,10 +10,11 @@ export function assertCompilerArchitecture(
   root: string,
   workspaceValidationContract: ValidationContract,
 ): void {
-  const fullStackVerticals = workspaceValidationContract.fullStackVerticals;
+  const fullStackVerticals = workspaceValidationContract.apps.filter(
+    app => app.kind !== 'shell',
+  );
   const tailwindEnabled = workspaceValidationContract.tailwindEnabled;
-  const compactConfigPath =
-    workspaceValidationContract.metadata.compactConfig.path;
+  const compactConfigPath = 'topology/reference-topology.json';
   const readJson = (relativePath: string): JsonRecord =>
     JSON.parse(fs.readFileSync(path.join(root, relativePath), 'utf-8'));
   // Compiler evidence belongs to the consumer's declared toolchain. Resolve only
@@ -394,8 +395,8 @@ export function assertCompilerArchitecture(
         ...(compositionPolicy.hosts ?? []).flatMap(host =>
           collectCompilerInputs(host.srcDir),
         ),
-        ...workspaceValidationContract.topology.compactConfig.apps.flatMap(
-          app => collectCompilerInputs(app.path),
+        ...workspaceValidationContract.apps.flatMap(app =>
+          collectCompilerInputs(app.path),
         ),
       ]);
       initializeCompilerSnapshot(compilerInputs);
@@ -608,10 +609,9 @@ export function assertCompilerArchitecture(
       const shellRouteDirectories = (structuralPolicy.shells ?? []).map(
         (shell: JsonRecord) => `${shell.packageDir}/src/routes`,
       );
-      const appPaths: string[] =
-        workspaceValidationContract.topology.compactConfig.apps.map(
-          app => app.path,
-        );
+      const appPaths: string[] = workspaceValidationContract.apps.map(
+        app => app.path,
+      );
       const configFiles = appPaths.flatMap(appPath => [
         `${appPath}/modern.config.ts`,
         `${appPath}/module-federation.config.ts`,
@@ -671,11 +671,9 @@ export function assertCompilerArchitecture(
               presetFactories.add(binding.name.text);
           }
         }
-        const modernConfigApp =
-          workspaceValidationContract.topology.compactConfig.apps.find(
-            app =>
-              absolutePath === path.join(root, app.path, 'modern.config.ts'),
-          );
+        const modernConfigApp = workspaceValidationContract.apps.find(
+          app => absolutePath === path.join(root, app.path, 'modern.config.ts'),
+        );
         let insideDefaultExport = false;
         const visit = (node: ts.Node): void => {
           const previousDefaultExport = insideDefaultExport;

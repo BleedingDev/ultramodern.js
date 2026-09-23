@@ -7,13 +7,14 @@ import {
   SourceSyntaxError,
   traverseSource,
   unwrapExpression,
-} from './source-analysis';
+} from './source-analysis.ts';
 
 const edge = '@modern-js/bff-effect/effect-edge';
 const nodeRuntime = '@modern-js/bff-effect/effect';
 const sharedRuntime = /^@[^/]+\/shared-contracts\/server\/effect-bff-runtime$/u;
 const failure =
   'Generated API entries must export defineEffectBff(...) or the server-only shared Effect BFF assembly helper with an explicitly composed handler Layer and an unshadowed executable root; entries must implement handlers through HttpApiBuilder.group.';
+const MAX_API_SOURCE_MODULES = 256;
 
 /** A bounded, owner-local source resolver; never executes application modules. */
 export interface EffectApiSource {
@@ -75,7 +76,10 @@ export function strictEffectRuntimeTopologyViolation(
   const load = (input: EffectApiSource): ApiModule => {
     const existing = modules.get(input.id);
     if (existing) return existing;
-    if (modules.size >= 64 || input.source.length > 1_000_000)
+    if (
+      modules.size >= MAX_API_SOURCE_MODULES ||
+      input.source.length > 1_000_000
+    )
       throw new SourceSyntaxError('API source budget exceeded');
     const file = parseSource(input.source, input.id, 'Invalid API syntax');
     const module = { ...input, file };

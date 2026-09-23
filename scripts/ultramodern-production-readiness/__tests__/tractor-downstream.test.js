@@ -50,10 +50,26 @@ function fixture() {
     path.join(root, 'package.json'),
     `${JSON.stringify({
       dependencies: {
-        '@modern-js/runtime':
-          'npm:@bleedingdev/modern-js-runtime@3.5.0-ultramodern.50',
+        '@modern-js/runtime': 'catalog:ultramodern',
       },
     })}\n`,
+  );
+  fs.writeFileSync(
+    path.join(root, 'pnpm-workspace.yaml'),
+    "catalogs:\n  ultramodern:\n    '@modern-js/runtime': npm:@bleedingdev/modern-js-runtime@3.5.0-ultramodern.50\n",
+  );
+  fs.mkdirSync(path.join(root, 'node_modules/@modern-js/ultramodern-create'), {
+    recursive: true,
+  });
+  fs.mkdirSync(path.join(root, 'node_modules/@modern-js/runtime'), {
+    recursive: true,
+  });
+  fs.writeFileSync(
+    path.join(root, 'node_modules/@modern-js/runtime/package.json'),
+    JSON.stringify({
+      name: '@bleedingdev/modern-js-runtime',
+      version: '3.5.0-ultramodern.50',
+    }),
   );
   fs.writeFileSync(
     path.join(root, 'apps/shell-super-app/locales/en/shell.json'),
@@ -86,20 +102,12 @@ function writeAuthenticatedCohort(root) {
     schemaVersion: 1,
   };
   release.cohortProjection = { value: projection };
-  fs.mkdirSync(path.join(root, '.modernjs'), { recursive: true });
   fs.writeFileSync(
-    path.join(root, '.modernjs/release-cohort.json'),
+    path.join(
+      root,
+      'node_modules/@modern-js/ultramodern-create/release-cohort.json',
+    ),
     `${JSON.stringify(projection)}\n`,
-  );
-  fs.writeFileSync(
-    path.join(root, '.modernjs/ultramodern.json'),
-    `${JSON.stringify({
-      generator: { version: release.release.version },
-      packageSource: {
-        modernPackageVersion: release.release.version,
-        strategy: 'install',
-      },
-    })}\n`,
   );
 }
 
@@ -131,7 +139,7 @@ function packageManagerOptions(overrides) {
   };
 }
 
-test('generated consumer manifests must pin the exact release cohort, under any alias', async () => {
+test('native catalog and installed framework bind to the exact release', async () => {
   const {
     assertAuthenticatedTractorCohort,
     assertExactModernDependencySpecifiers,
@@ -140,48 +148,52 @@ test('generated consumer manifests must pin the exact release cohort, under any 
   try {
     writeAuthenticatedCohort(root);
     assert.equal(
-      assertAuthenticatedTractorCohort(root, release).packageCount,
+      assertAuthenticatedTractorCohort(root, release).catalogCount,
       1,
     );
     assert.equal(
       assertExactModernDependencySpecifiers(root, release).length,
       1,
     );
-
+    fs.mkdirSync(path.join(root, '.modernjs'));
+    fs.writeFileSync(path.join(root, '.modernjs/release-cohort.json'), '{}');
+    assert.throws(
+      () => assertAuthenticatedTractorCohort(root, release),
+      /still carries retired/u,
+    );
+    fs.rmSync(path.join(root, '.modernjs'), { recursive: true });
+    const catalogPath = path.join(root, 'pnpm-workspace.yaml');
+    const catalogText = fs.readFileSync(catalogPath, 'utf8');
+    fs.writeFileSync(
+      catalogPath,
+      catalogText.replace('3.5.0-ultramodern.50', '3.5.0-ultramodern.49'),
+    );
+    assert.throws(
+      () => assertAuthenticatedTractorCohort(root, release),
+      /catalog.*exact release/u,
+    );
+    fs.writeFileSync(catalogPath, catalogText);
     const manifestPath = path.join(root, 'package.json');
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-
-    // A workspace link in a vendored reference repo is not a cohort dependency.
-    fs.mkdirSync(path.join(root, 'repos/reference'), { recursive: true });
-    fs.writeFileSync(
-      path.join(root, 'repos/reference/package.json'),
-      `${JSON.stringify({
-        dependencies: { '@modern-js/runtime': 'workspace:*' },
-      })}\n`,
-    );
-    assert.equal(
-      assertExactModernDependencySpecifiers(root, release).length,
-      1,
-    );
-
-    // An off-by-one cohort version silently ships a different framework build.
-    manifest.dependencies['@modern-js/runtime'] =
-      'npm:@bleedingdev/modern-js-runtime@3.5.0-ultramodern.49';
-    fs.writeFileSync(manifestPath, `${JSON.stringify(manifest)}\n`);
-    assert.throws(
-      () => assertExactModernDependencySpecifiers(root, release),
-      /must be npm:@bleedingdev\/modern-js-runtime@3\.5\.0-ultramodern\.50/u,
-    );
-
-    // A range specifier behind an arbitrary alias is the same escape.
     manifest.dependencies['@modern-js/runtime'] =
       'npm:@bleedingdev/modern-js-runtime@3.5.0-ultramodern.50';
-    manifest.dependencies['framework-runtime'] =
-      'npm:@bleedingdev/modern-js-runtime@~3.5.0-ultramodern.50';
-    fs.writeFileSync(manifestPath, `${JSON.stringify(manifest)}\n`);
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest));
     assert.throws(
       () => assertExactModernDependencySpecifiers(root, release),
-      /dependencies\.framework-runtime must be npm:@bleedingdev\/modern-js-runtime@3\.5\.0-ultramodern\.50/u,
+      /must use catalog:ultramodern/u,
+    );
+    manifest.dependencies['@modern-js/runtime'] = 'catalog:ultramodern';
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest));
+    fs.writeFileSync(
+      path.join(root, 'node_modules/@modern-js/runtime/package.json'),
+      JSON.stringify({
+        name: '@bleedingdev/modern-js-runtime',
+        version: '3.5.0-ultramodern.49',
+      }),
+    );
+    assert.throws(
+      () => assertExactModernDependencySpecifiers(root, release),
+      /installed identity\/version differs/u,
     );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -559,19 +571,16 @@ test('Node backend proof requires every API-bearing MicroVertical exactly once a
     fs.writeFileSync(evidencePath, `${JSON.stringify(proof)}\n`);
   try {
     fs.mkdirSync(path.dirname(evidencePath), { recursive: true });
-    fs.mkdirSync(path.join(root, '.modernjs'), { recursive: true });
+    fs.mkdirSync(path.join(root, 'topology'), { recursive: true });
     fs.writeFileSync(
-      path.join(root, '.modernjs/ultramodern.json'),
+      path.join(root, 'topology/reference-topology.json'),
       `${JSON.stringify({
-        topology: {
-          apps: [
-            { id: 'shell-super-app', kind: 'shell' },
-            { api: {}, id: 'explore', kind: 'vertical' },
-            { api: {}, id: 'decide', kind: 'vertical' },
-            { api: {}, id: 'checkout', kind: 'vertical' },
-            { id: 'content', kind: 'vertical' },
-          ],
-        },
+        verticals: [
+          { api: {}, id: 'explore', kind: 'vertical' },
+          { api: {}, id: 'decide', kind: 'vertical' },
+          { api: {}, id: 'checkout', kind: 'vertical' },
+          { id: 'content', kind: 'vertical' },
+        ],
       })}\n`,
     );
 
@@ -849,14 +858,10 @@ test('source-candidate rehearsal tears down its registry and refuses an escaped 
   assert.equal(driftedStarts, 0);
 });
 
-test('cohort installation adopts authenticated template patches and dependencies without changing authored Tractor source', async () => {
+test('cohort installation updates native catalog to exact bundle without changing authored Tractor source', async () => {
   const { prepareTractorCohortInstallation } = await import(
     '../tractor-downstream/cohort-install.mjs'
   );
-  const {
-    assertAuthenticatedTractorCohort,
-    assertExactModernDependencySpecifiers,
-  } = await contractPromise;
   const root = fixture();
   try {
     writeAuthenticatedCohort(root);
@@ -872,18 +877,15 @@ test('cohort installation adopts authenticated template patches and dependencies
       '../../ultramodern-publish/lib/prepare-bleedingdev-packages/constants.mjs'
     );
     const packageDir = path.join(root, 'candidate/package');
+    fs.mkdirSync(packageDir, { recursive: true });
     for (const relativePath of createTemplateRequiredFiles) {
       const file = path.join(packageDir, relativePath);
       fs.mkdirSync(path.dirname(file), { recursive: true });
       fs.writeFileSync(file, 'candidate template content');
     }
-    const patch = 'patches/@module-federation__dts-plugin@2.9.0.patch';
-    fs.mkdirSync(path.join(packageDir, 'template-workspace/patches'), {
-      recursive: true,
-    });
     fs.writeFileSync(
-      path.join(packageDir, 'template-workspace', patch),
-      'candidate patch\n',
+      path.join(packageDir, 'release-cohort.json'),
+      JSON.stringify(next.cohortProjection.value),
     );
     fs.writeFileSync(
       path.join(packageDir, 'package.json'),
@@ -894,13 +896,20 @@ test('cohort installation adopts authenticated template patches and dependencies
       }),
     );
     const artifactPath = path.join(root, 'candidate.tgz');
-    runCommand('tar', [
-      '-czf',
-      artifactPath,
-      '-C',
-      path.dirname(packageDir),
-      'package',
-    ]);
+    const priorCopyfile = process.env.COPYFILE_DISABLE;
+    process.env.COPYFILE_DISABLE = '1';
+    try {
+      runCommand('tar', [
+        '-czf',
+        artifactPath,
+        '-C',
+        path.dirname(packageDir),
+        'package',
+      ]);
+    } finally {
+      if (priorCopyfile === undefined) delete process.env.COPYFILE_DISABLE;
+      else process.env.COPYFILE_DISABLE = priorCopyfile;
+    }
     const bytes = fs.readFileSync(artifactPath);
     next.createPackage = {
       ...inspectNpmTarball(bytes),
@@ -913,67 +922,54 @@ test('cohort installation adopts authenticated template patches and dependencies
       shasum: crypto.createHash('sha1').update(bytes).digest('hex'),
       integrity: `sha512-${crypto.createHash('sha512').update(bytes).digest('base64')}`,
     };
-    fs.rmSync(path.dirname(packageDir), { recursive: true });
-    fs.mkdirSync(path.join(root, 'patches'));
-    fs.writeFileSync(path.join(root, patch), 'previous cohort patch\n');
-    fs.writeFileSync(
-      path.join(root, 'patches/tractor.patch'),
-      'authored patch\n',
-    );
     const uiFile = path.join(
       root,
       'apps/shell-super-app/locales/en/shell.json',
     );
-    const before = fs.readFileSync(uiFile, 'utf8');
-    const exclusions = [
-      `@bleedingdev/modern-js-runtime@${next.release.version}`,
-    ];
-    fs.writeFileSync(
-      path.join(root, 'pnpm-workspace.yaml'),
-      "minimumReleaseAge: 1440\nminimumReleaseAgeExclude:\n  - '@bleedingdev/modern-js-runtime@3.5.0-ultramodern.50'\ntrustPolicy: no-downgrade\n",
+    const beforeUi = fs.readFileSync(uiFile, 'utf8');
+    const beforeManifest = fs.readFileSync(
+      path.join(root, 'package.json'),
+      'utf8',
     );
-    const result = prepareTractorCohortInstallation(root, next, exclusions);
+    const result = prepareTractorCohortInstallation(root, next);
     assert.equal(result.dependencyCount, 1);
+    assert.match(
+      fs.readFileSync(path.join(root, 'pnpm-workspace.yaml'), 'utf8'),
+      /npm:@bleedingdev\/modern-js-runtime@3\.9\.0-ultramodern\.6/u,
+    );
+    assert.equal(fs.readFileSync(uiFile, 'utf8'), beforeUi);
     assert.equal(
-      fs.readFileSync(path.join(root, patch), 'utf8'),
-      'candidate patch\n',
+      fs.readFileSync(path.join(root, 'package.json'), 'utf8'),
+      beforeManifest,
     );
     assert.equal(
-      fs.readFileSync(path.join(root, 'patches/tractor.patch'), 'utf8'),
-      'authored patch\n',
+      fs.existsSync(path.join(root, '.modernjs/ultramodern.json')),
+      false,
     );
     assert.equal(
-      assertAuthenticatedTractorCohort(root, next).version,
-      next.release.version,
+      fs.existsSync(path.join(root, '.modernjs/release-cohort.json')),
+      false,
     );
-    assert.equal(assertExactModernDependencySpecifiers(root, next).length, 1);
-    assert.equal(fs.readFileSync(uiFile, 'utf8'), before);
     fs.appendFileSync(artifactPath, 'tampered');
     assert.throws(
-      () => prepareTractorCohortInstallation(root, next, exclusions),
-      /tarball size mismatch/,
+      () => prepareTractorCohortInstallation(root, next),
+      /tarball size mismatch/u,
     );
     fs.writeFileSync(artifactPath, bytes);
-    const manifestFile = path.join(root, 'package.json');
-    const manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
-    manifest.dependencies['@modern-js/unknown'] = 'workspace:*';
-    fs.writeFileSync(manifestFile, JSON.stringify(manifest));
-    const manifestBefore = fs.readFileSync(manifestFile, 'utf8');
-    const configFile = path.join(root, '.modernjs/ultramodern.json');
-    const configBefore = fs.readFileSync(configFile, 'utf8');
-    assert.throws(
-      () => prepareTractorCohortInstallation(root, next, exclusions),
-      /absent from the release cohort/,
+    const manifest = JSON.parse(beforeManifest);
+    manifest.dependencies['@modern-js/unknown'] = 'catalog:ultramodern';
+    fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify(manifest));
+    const beforeRejectedPolicy = fs.readFileSync(
+      path.join(root, 'pnpm-workspace.yaml'),
+      'utf8',
     );
-    assert.equal(fs.readFileSync(manifestFile, 'utf8'), manifestBefore);
-    assert.equal(fs.readFileSync(configFile, 'utf8'), configBefore);
-    const tampered = structuredClone(next);
-    tampered.cohortProjection.value.aliases = {
-      '@modern-js/runtime': '@untrusted/runtime',
-    };
     assert.throws(
-      () => prepareTractorCohortInstallation(root, tampered, exclusions),
-      /authenticated release projection/,
+      () => prepareTractorCohortInstallation(root, next),
+      /absent from the release cohort/u,
+    );
+    assert.equal(
+      fs.readFileSync(path.join(root, 'pnpm-workspace.yaml'), 'utf8'),
+      beforeRejectedPolicy,
     );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

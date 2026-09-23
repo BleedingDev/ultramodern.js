@@ -17,43 +17,24 @@ export type GeneratedToolingCommandKey = GeneratedToolingCommandId;
 interface GeneratedToolingCommand {
   id: GeneratedToolingCommandId;
   command: string;
-  wrapperName: string;
-  wrapperPath: `scripts/${string}.mts` | `scripts/${string}.mjs`;
-  requiresBackendSurface: boolean;
+  requiresBackendSurface?: boolean;
   requiresRemotes?: boolean;
-  contractKey: string;
   rootScript?: string;
   templatePath?: `templates/workspace-scripts/${string}.mjs`;
   cwd?: 'invocation';
 }
 
-const defineToolingCommand = (
-  command: Omit<
-    GeneratedToolingCommand,
-    'wrapperPath' | 'requiresBackendSurface'
-  > & {
-    requiresBackendSurface?: boolean;
-    wrapperPath?: GeneratedToolingCommand['wrapperPath'];
-  },
-): GeneratedToolingCommand => ({
-  requiresBackendSurface: false,
-  ...command,
-  wrapperPath: command.wrapperPath ?? `scripts/${command.wrapperName}.mts`,
-});
+const defineToolingCommand = (command: GeneratedToolingCommand) => command;
 
 export const generatedToolingCommands = [
   defineToolingCommand({
     id: 'validate',
     command: 'validate',
-    wrapperName: 'validate-ultramodern-workspace',
-    contractKey: 'validate',
     rootScript: 'contract:check',
   }),
   defineToolingCommand({
     id: 'typecheck',
     command: 'typecheck',
-    wrapperName: 'ultramodern-typecheck',
-    contractKey: 'typecheck',
     rootScript: 'typecheck',
     templatePath: 'templates/workspace-scripts/ultramodern-typecheck.mjs',
     cwd: 'invocation',
@@ -61,15 +42,11 @@ export const generatedToolingCommands = [
   defineToolingCommand({
     id: 'mfTypes',
     command: 'mf-types',
-    wrapperName: 'assert-mf-types',
-    contractKey: 'mfTypes',
     rootScript: 'mf:types',
   }),
   defineToolingCommand({
     id: 'publicSurface',
     command: 'public-surface',
-    wrapperName: 'generate-public-surface-assets',
-    contractKey: 'publicSurface',
     templatePath:
       'templates/workspace-scripts/generate-public-surface-assets.mjs',
   }),
@@ -77,8 +54,6 @@ export const generatedToolingCommands = [
     id: 'backendFederationGenerate',
     requiresBackendSurface: true,
     command: 'backend-federation-generate',
-    wrapperName: 'generate-node-backend-federation',
-    contractKey: 'backendFederationGenerate',
     rootScript: 'node:backend-federation:generate',
     templatePath:
       'templates/workspace-scripts/generate-node-backend-federation.mjs',
@@ -87,8 +62,6 @@ export const generatedToolingCommands = [
     id: 'backendFederationProof',
     requiresBackendSurface: true,
     command: 'backend-federation-proof',
-    wrapperName: 'proof-node-backend-federation',
-    contractKey: 'backendFederationProof',
     rootScript: 'node:proof',
     templatePath:
       'templates/workspace-scripts/proof-node-backend-federation.mjs',
@@ -96,23 +69,17 @@ export const generatedToolingCommands = [
   defineToolingCommand({
     id: 'cloudflareProof',
     command: 'cloudflare-proof',
-    wrapperName: 'proof-cloudflare-version',
-    contractKey: 'cloudflareProof',
     rootScript: 'cloudflare:proof',
     templatePath: 'templates/workspace-scripts/proof-cloudflare-version.mjs',
   }),
   defineToolingCommand({
     id: 'cloudflareOutputVerify',
     command: 'cloudflare-output-verify',
-    wrapperName: 'verify-cloudflare-output',
-    contractKey: 'cloudflareOutputVerify',
     rootScript: 'cloudflare-output:verify',
   }),
   defineToolingCommand({
     id: 'performanceReadiness',
     command: 'performance-readiness',
-    wrapperName: 'ultramodern-performance-readiness',
-    contractKey: 'performanceReadiness',
     rootScript: 'performance:readiness',
     templatePath:
       'templates/workspace-scripts/ultramodern-performance-readiness.mjs',
@@ -120,27 +87,20 @@ export const generatedToolingCommands = [
   defineToolingCommand({
     id: 'routesGenerate',
     command: 'routes-generate',
-    wrapperName: 'generate-tanstack-routes',
-    contractKey: 'routesGenerate',
   }),
   defineToolingCommand({
     id: 'zeropsMaterialize',
     command: 'zerops-materialize',
-    wrapperName: 'materialize-zerops-runtime',
-    wrapperPath: 'scripts/materialize-zerops-runtime.mjs',
-    contractKey: 'zeropsMaterialize',
     rootScript: 'zerops:materialize',
-    templatePath: 'templates/workspace-scripts/materialize-zerops-runtime.mjs',
     requiresRemotes: true,
+    templatePath: 'templates/workspace-scripts/materialize-zerops-runtime.mjs',
   }),
   defineToolingCommand({
     id: 'cloudflareSsrProof',
     command: 'cloudflare-ssr-proof',
-    wrapperName: 'proof-workerd-ssr',
-    contractKey: 'cloudflareSsrProof',
     rootScript: 'cloudflare:ssr-proof',
-    templatePath: 'templates/workspace-scripts/proof-workerd-ssr.mjs',
     requiresRemotes: true,
+    templatePath: 'templates/workspace-scripts/proof-workerd-ssr.mjs',
   }),
 ] as const satisfies readonly GeneratedToolingCommand[];
 
@@ -164,16 +124,3 @@ export const GENERATED_TOOLING_COMMANDS = toolingCommandById;
 
 export const generatedToolingCommandList = () =>
   generatedToolingCommands.map(command => command.command);
-
-const createToolingWrapperContract = () =>
-  Object.fromEntries(
-    generatedToolingCommands.map(command => [
-      command.contractKey,
-      command.wrapperPath,
-    ]),
-  ) as Record<
-    GeneratedToolingCommandKey,
-    GeneratedToolingCommand['wrapperPath']
-  >;
-
-export const createGeneratedToolingWrapperMap = createToolingWrapperContract;

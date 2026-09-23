@@ -9,7 +9,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const workspaceRoot = path.resolve(process.env.ULTRAMODERN_WORKSPACE_ROOT ?? process.cwd());
 const workspaceRequire = createRequire(path.join(workspaceRoot, 'package.json'));
-const compactConfigPath = path.join(workspaceRoot, '.modernjs/ultramodern.json');
+const topologyPath = path.join(workspaceRoot, 'topology/reference-topology.json');
+const localOverlayPath = path.join(workspaceRoot, 'topology/local-overlays/development.json');
 const defaultOut = path.join(
   workspaceRoot,
   '.codex/reports/node-backend-federation-proof/proof.json',
@@ -96,7 +97,6 @@ function createBackendName(app) {
   return (
     app.backendFederation?.name ??
     app.backendFederation?.executionSurfaces?.node?.remoteName ??
-    app.serverExecution?.node?.remoteName ??
     (typeof app.moduleFederation?.name === 'string'
       ? `${app.moduleFederation.name}Backend`
       : `vertical${toPascalCase(app.id)}Backend`)
@@ -105,7 +105,6 @@ function createBackendName(app) {
 
 function createBackendManifestUrl(app) {
   return (
-    app.backendFederation?.executionSurfaces?.node?.manifestUrl ??
     app.serverExecution?.node?.manifestUrl ??
     `http://localhost:${app.port}/backend-mf-manifest.json`
   );
@@ -113,7 +112,6 @@ function createBackendManifestUrl(app) {
 
 function createBackendContainerEntry(app) {
   return (
-    app.backendFederation?.executionSurfaces?.node?.containerEntry ??
     app.serverExecution?.node?.containerEntry ??
     `http://localhost:${app.port}/backendRemoteEntry.cjs`
   );
@@ -121,8 +119,8 @@ function createBackendContainerEntry(app) {
 
 function resolveRemoteType(app) {
   return (
-    app.backendFederation?.executionSurfaces?.node?.remoteType ??
     app.serverExecution?.node?.remoteType ??
+    app.backendFederation?.executionSurfaces?.node?.remoteType ??
     'commonjs-module'
   );
 }
@@ -140,8 +138,8 @@ function collectJsonSmokeChecks(apps, targetApp) {
 
   const configuredChecks = apps
     .flatMap((app) =>
-      Array.isArray(app?.deploy?.cloudflare?.jsonSmokeChecks)
-        ? app.deploy.cloudflare.jsonSmokeChecks
+      Array.isArray(app?.cloudflare?.jsonSmokeChecks)
+        ? app.cloudflare.jsonSmokeChecks
         : [],
     )
     .filter((check) => {
@@ -178,27 +176,46 @@ function collectJsonSmokeChecks(apps, targetApp) {
   ];
 }
 
-function compactApps(config, appFilter) {
-  const apps = Array.isArray(config.topology?.apps) ? config.topology.apps : [];
+export function topologyApps(topology, localOverlay, appFilter) {
+  if (!Array.isArray(topology?.verticals) || !localOverlay?.ports || !localOverlay?.serverExecution) {
+    throw new Error('Node proof requires declared reference topology and development overlay.');
+  }
+  const apps = topology.verticals;
   const filteredApps = apps
     .filter((app) => app?.kind === 'vertical' && app.api)
     .filter((app) => !appFilter || app.id === appFilter)
-    .map((app) => ({
+    .map((app) => {
+      const port = localOverlay.ports[app.id];
+      const serverExecution = localOverlay.serverExecution[app.id];
+      if (!app.path || !Number.isInteger(port) || !serverExecution?.node) {
+        throw new Error(`${app.id} is missing its declared path, port or Node server execution.`);
+      }
+      const appManifest = readJson(path.join(workspaceRoot, app.path, 'package.json'));
+      if (app.package !== appManifest.name || typeof appManifest.version !== 'string') {
+        throw new Error(`${app.id} topology package identity must match package.json`);
+      }
+      const api = { ...app.api, prefix: app.api.bff?.prefix };
+      const declared = { ...app, api, serverExecution };
+      const domain = app.domain ?? app.id;
+      return {
       id: app.id,
-      directory:
-        typeof app.path === 'string' ? normalizeRelativePath(app.path) : `verticals/${app.id}`,
-      backendName: createBackendName(app),
-      manifestUrl: createBackendManifestUrl(app),
-      containerEntry: createBackendContainerEntry(app),
-      port: app.port,
-      portEnv: app.portEnv,
-      remoteType: resolveRemoteType(app),
-      smokeChecks: collectJsonSmokeChecks(apps, app),
-      compactDeliveryUnit:
+      directory: normalizeRelativePath(app.path),
+      backendName: createBackendName(declared),
+      manifestUrl: createBackendManifestUrl(declared),
+      containerEntry: createBackendContainerEntry(declared),
+      port,
+      portEnv: `VERTICAL_${String(domain).replace(/[^a-zA-Z0-9]/gu, '_').toUpperCase()}_PORT`,
+      remoteType: resolveRemoteType(declared),
+      apiOnly: app.surfaceProfile === 'api-only',
+      smokeChecks: collectJsonSmokeChecks(apps, declared),
+      topologyDeliveryUnit:
         app.deliveryUnit && typeof app.deliveryUnit === 'object'
           ? app.deliveryUnit
           : undefined,
-    }));
+      packageName: appManifest.name,
+      version: appManifest.version,
+    };
+    });
 
   if (appFilter && filteredApps.length === 0) {
     throw new Error(`No vertical API app matched --app ${appFilter}`);
@@ -440,7 +457,7 @@ function sha256(bytes) {
   return createHash('sha256').update(bytes).digest('hex');
 }
 
-function readBoundReleaseEnvelope(app, target) {
+export function readBoundReleaseEnvelope(app, target) {
   const targetDirectory = path.join(workspaceRoot, app.directory, target);
   const envelopePath = path.join(targetDirectory, releaseEnvelopePath);
   assertFile(envelopePath, app.id, 'Node release envelope');
@@ -451,6 +468,18 @@ function readBoundReleaseEnvelope(app, target) {
     `${app.id} release-envelope schema`,
   );
   assertEqual(envelope.target, 'node', `${app.id} release-envelope target`);
+  assertEqual(
+    envelope.kind,
+    'ultramodern-target-microvertical-release-envelope',
+    `${app.id} release-envelope kind`,
+  );
+  if (app.apiOnly) {
+    if (envelope.surfaces?.uiClient?.length !== 0 || envelope.surfaces?.ssr?.length !== 0) {
+      throw new Error(`${app.id} API-only release envelope must declare empty UI/client and SSR surfaces`);
+    }
+  } else if (!envelope.surfaces?.uiClient?.length || !envelope.surfaces?.ssr?.length) {
+    throw new Error(`${app.id} full-stack release envelope must bind UI/client and SSR surfaces`);
+  }
 
   const manifestLogicalPath = envelope.surfaces?.backendFederation?.manifest;
   const containerLogicalPath = envelope.surfaces?.backendFederation?.container;
@@ -962,10 +991,10 @@ function validateManifest(app, manifest, buildIdentity) {
   }
 }
 
-function assertCompactStableIdentityMatchesBuild(app, buildIdentity) {
-  const compactDeliveryUnit = app.compactDeliveryUnit;
-  if (!compactDeliveryUnit) {
-    return;
+function assertTopologyStableIdentityMatchesBuild(app, buildIdentity) {
+  const topologyDeliveryUnit = app.topologyDeliveryUnit;
+  if (!topologyDeliveryUnit) {
+    throw new Error(`${app.id} is missing its declared topology delivery-unit identity`);
   }
 
   const mismatches = [];
@@ -974,20 +1003,22 @@ function assertCompactStableIdentityMatchesBuild(app, buildIdentity) {
       mismatches.push(`${label}: deliveryUnit=${a} vs ultramodern-build=${b}`);
     }
   };
-  compare('unitId', compactDeliveryUnit.unitId, buildIdentity.unitId);
+  compare('unitId', topologyDeliveryUnit.unitId, buildIdentity.unitId);
   compare(
     'packageName',
-    compactDeliveryUnit.packageName,
+    topologyDeliveryUnit.packageName,
     buildIdentity.packageName,
   );
-  compare('version', compactDeliveryUnit.version, buildIdentity.version);
+  compare('version', topologyDeliveryUnit.version, buildIdentity.version);
+  compare('packageName', app.packageName, buildIdentity.packageName);
+  compare('version', app.version, buildIdentity.version);
 
   if (mismatches.length > 0) {
     throw new Error(
       `${app.id} delivery-unit identity drift between ${path.relative(
         workspaceRoot,
-        compactConfigPath,
-      )} (generation metadata) and ${path.relative(
+        topologyPath,
+      )} (reference topology) and ${path.relative(
         workspaceRoot,
         buildIdentity.artifactPath,
       )} (stamped target identity): ${mismatches.join('; ')}`,
@@ -1006,7 +1037,7 @@ async function proveBackend(app, backendRuntime, target) {
   assertFile(entryPath, app.id, 'backend remote entry');
 
   const buildIdentity = readBuildIdentity(app, target);
-  assertCompactStableIdentityMatchesBuild(app, buildIdentity);
+  assertTopologyStableIdentityMatchesBuild(app, buildIdentity);
   const manifest = readJson(manifestPath);
   validateManifest(app, manifest, buildIdentity);
   const releaseBinding = readBoundReleaseEnvelope(app, target);
@@ -1185,9 +1216,10 @@ async function main(argv = process.argv.slice(2)) {
     return 0;
   }
 
-  const config = readJson(compactConfigPath);
-  const runtimeApps = compactApps(config);
-  const apps = args.app ? compactApps(config, args.app) : runtimeApps;
+  const topology = readJson(topologyPath);
+  const localOverlay = readJson(localOverlayPath);
+  const runtimeApps = topologyApps(topology, localOverlay);
+  const apps = args.app ? topologyApps(topology, localOverlay, args.app) : runtimeApps;
   const results = [];
   const backendRuntime =
     apps.length > 0 ? await importBackendFederationRuntime() : undefined;

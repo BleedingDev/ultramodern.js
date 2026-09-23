@@ -133,6 +133,9 @@ importers:
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
+      yaml:
+        specifier: '>=2.9.0'
+        version: 2.9.0
 
   benchmark/bundle-diff:
     dependencies:
@@ -3127,6 +3130,9 @@ importers:
       oxlint:
         specifier: 1.81.0
         version: 1.81.0
+      resolve.exports:
+        specifier: 2.0.3
+        version: 2.0.3
     devDependencies:
       '@modern-js/rslib':
         specifier: workspace:*
@@ -3428,6 +3434,9 @@ importers:
       oxfmt:
         specifier: 0.66.0
         version: 0.66.0
+      tsx:
+        specifier: ^4.23.13
+        version: 4.23.13
       ultracite:
         specifier: 7.11.0
         version: 7.11.0(@biomejs/biome@2.5.3)(oxfmt@0.66.0)(oxlint@1.81.0)(prettier@3.9.4)
@@ -3459,9 +3468,6 @@ importers:
       drizzle-orm:
         specifier: 1.0.0-rc.4
         version: 1.0.0-rc.4(@opentelemetry/api@1.9.1)(@sinclair/typebox@0.34.49)(effect@4.0.0-rc.112)(zod@4.5.4(patch_hash=30612645af6a21cba7258bc2be3b51d9bfc0841b78dc581a56a4283c3bb142b6))
-      tsx:
-        specifier: ^4.23.13
-        version: 4.23.13
       typescript:
         specifier: ^7.0.2
         version: 7.0.2

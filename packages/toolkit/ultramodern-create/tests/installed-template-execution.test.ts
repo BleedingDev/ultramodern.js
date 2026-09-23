@@ -71,14 +71,19 @@ test('the installed workerd proof reaches its native validation through plain No
       path.join(dependencies, 'miniflare'),
       process.platform === 'win32' ? 'junction' : 'dir',
     );
-    fs.mkdirSync(path.join(root, '.modernjs'));
+    fs.mkdirSync(path.join(root, 'topology'));
     fs.writeFileSync(
-      path.join(root, '.modernjs/ultramodern.json'),
-      JSON.stringify({ topology: { apps: [] } }),
+      path.join(root, 'topology/reference-topology.json'),
+      JSON.stringify({ schemaVersion: 1, shell: null, verticals: [] }),
+    );
+    fs.mkdirSync(path.join(root, 'topology/local-overlays'));
+    fs.writeFileSync(
+      path.join(root, 'topology/local-overlays/development.json'),
+      JSON.stringify({ schemaVersion: 1, ports: {} }),
     );
     // Match spawnNodeScript's native Node invocation and workspace context.
     // No workers are needed to prove that the installed implementation loads:
-    // an empty topology must reach the proof's own validation error.
+    // an invalid topology must reach the proof's own validation error.
     const result = spawnSync(process.execPath, [target], {
       cwd: root,
       env: { ...process.env, ULTRAMODERN_WORKSPACE_ROOT: root },
@@ -87,7 +92,7 @@ test('the installed workerd proof reaches its native validation through plain No
     if (result.error) throw result.error;
     const output = `${result.stdout}${result.stderr}`;
     assert.equal(result.status, 1, output);
-    assert.match(output, /Workerd SSR proof requires at least one shell/u);
+    assert.match(output, /Invalid topology\/reference-topology\.json/u);
     assert.doesNotMatch(
       output,
       /ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING|ERR_MODULE_NOT_FOUND|SyntaxError/u,

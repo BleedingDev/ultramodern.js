@@ -29,19 +29,36 @@ test('API checker excludes only registered app Cloudflare output, not authored l
     linkBuiltCodeTools(path.join(root, 'node_modules'));
     write(
       root,
-      '.modernjs/ultramodern.json',
+      'topology/reference-topology.json',
       JSON.stringify({
-        topology: {
-          apps: [
-            { path: 'apps/shell-super-app', kind: 'shell' },
-            {
-              path: 'verticals/catalog',
-              kind: 'vertical',
-              surfaceProfile: 'ui-only',
-            },
-          ],
+        schemaVersion: 1,
+        shell: {
+          id: 'shell-super-app',
+          path: 'apps/shell-super-app',
+          kind: 'shell',
         },
+        verticals: [
+          {
+            id: 'catalog',
+            path: 'verticals/catalog',
+            kind: 'vertical',
+            surfaceProfile: 'ui-only',
+          },
+        ],
       }),
+    );
+    write(
+      root,
+      'apps/shell-super-app/package.json',
+      JSON.stringify({
+        name: '@fixture/shell',
+        exports: { './api/clients': './src/api/vertical-clients.ts' },
+      }),
+    );
+    write(
+      root,
+      'verticals/catalog/package.json',
+      JSON.stringify({ name: '@fixture/catalog' }),
     );
     for (const app of ['apps/shell-super-app', 'verticals/catalog']) {
       write(root, `${app}/dist-cloudflare/api/index.js`, invalidApi);
@@ -81,10 +98,10 @@ test('API checker excludes only registered app Cloudflare output, not authored l
     }
 
     // Missing topology cannot promote a path into trusted generated output.
-    fs.rmSync(path.join(root, '.modernjs/ultramodern.json'));
+    fs.rmSync(path.join(root, 'topology/reference-topology.json'));
     const missingTopology = check(root);
     assert.equal(missingTopology.status, 2);
-    assert.match(missingTopology.stderr, /ultramodern.json/u);
+    assert.match(missingTopology.stderr, /reference-topology.json/u);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

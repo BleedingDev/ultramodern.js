@@ -64,6 +64,7 @@ function createVerdaccioConfig({
 }) {
   return [
     `storage: ${JSON.stringify(storageDir)}`,
+    'max_body_size: 50mb',
     'auth:',
     '  htpasswd:',
     `    file: ${JSON.stringify(htpasswdPath)}`,

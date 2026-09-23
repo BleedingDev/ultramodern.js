@@ -173,7 +173,7 @@ function assertGeneratedWorkspaceContractClean(
 ) {
   const result = spawnSync(
     process.execPath,
-    ['scripts/validate-ultramodern-workspace.mts'],
+    [path.resolve(__dirname, '../bin/run.js'), 'ultramodern', 'validate'],
     { cwd: workspaceDir, encoding: 'utf8' },
   );
   assert.equal(

@@ -1,11 +1,9 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import type { UnsupportedUltramodernConfigError } from '../src/ultramodern-tooling/config';
 import { addUltramodernVertical } from '../src/ultramodern-workspace';
 import { createWorkspace, snapshotWorkspace } from './helpers/workspace-kit';
 
-const ultramodernConfigPath = '.modernjs/ultramodern.json';
 const topologyPath = 'topology/reference-topology.json';
 const overlayPath = 'topology/local-overlays/development.json';
 
@@ -80,6 +78,15 @@ function addExistingTopologyVertical(
     },
   });
   overlay.ports[id] = port;
+  const appDir = path.join(
+    workspaceDir,
+    patch.verticalPath ?? `verticals/${id}`,
+  );
+  fs.mkdirSync(appDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(appDir, 'package.json'),
+    JSON.stringify({ name: patch.packageName ?? `@preflight-workspace/${id}` }),
+  );
   writeJson(workspaceDir, topologyPath, topology);
   writeJson(workspaceDir, overlayPath, overlay);
 }
@@ -139,73 +146,31 @@ test('preflight rejects invalid fresh vertical input before writes', () => {
 
 test.each([
   {
-    label: 'unsupported app kind',
-    mutate: (config: Record<string, any>) => {
-      config.topology.apps[0].kind = 'horizontal-remote';
-    },
-    error: /Unsupported UltraModern config app kind "horizontal-remote"/,
-    issue: {
-      field: 'topology.apps.kind',
-      index: 0,
-      value: 'horizontal-remote',
-    },
-  },
-])('preflight rejects $label before writes', entry => {
-  const { tempRoot, workspaceDir } = createWorkspace('preflight-workspace', {
-    tempPrefix: 'um-vertical-preflight-',
-  });
-  try {
-    const config = readJson(workspaceDir, ultramodernConfigPath);
-    entry.mutate(config);
-    writeJson(workspaceDir, ultramodernConfigPath, config);
-    const before = snapshotWorkspace(workspaceDir);
-    assert.throws(
-      () =>
-        addUltramodernVertical({
-          workspaceRoot: workspaceDir,
-          name: 'checkout',
-          modernVersion: '3.2.1',
-        }),
-      error => {
-        const typedError = error as UnsupportedUltramodernConfigError;
-        assert.equal(typedError.name, 'UnsupportedUltramodernConfigError');
-        for (const [key, value] of Object.entries(entry.issue)) {
-          assert.deepEqual(
-            (typedError.issue as Record<string, unknown>)[key],
-            value,
-          );
-        }
-        assert.match(typedError.message, entry.error);
-        return true;
-      },
-    );
-    assert.deepEqual(snapshotWorkspace(workspaceDir), before);
-  } finally {
-    fs.rmSync(tempRoot, { recursive: true, force: true });
-  }
-});
-
-test.each([
-  {
     label: 'duplicate app IDs',
     mutate: (workspaceDir: string) =>
       addExistingTopologyVertical(workspaceDir, { id: 'catalog' }),
-    error: /Duplicate app id "catalog"/,
+    error: /Missing or duplicate topology app id: catalog/,
   },
   {
     label: 'duplicate development ports',
     mutate: (workspaceDir: string) =>
       addExistingTopologyVertical(workspaceDir, { port: 4101 }),
-    error: /Duplicate development port "4101"/,
+    error: /Invalid or duplicate development port for inventory: 4101/,
   },
   {
     label: 'unsafe normalized existing descriptors',
     mutate: (workspaceDir: string) => {
       const topology = readJson(workspaceDir, topologyPath);
+      const outside = path.join(workspaceDir, '..', 'outside');
+      fs.mkdirSync(outside, { recursive: true });
+      fs.writeFileSync(
+        path.join(outside, 'package.json'),
+        JSON.stringify({ name: '@preflight-workspace/catalog' }),
+      );
       topology.verticals[0].path = '../outside';
       writeJson(workspaceDir, topologyPath, topology);
     },
-    error: /Unsafe output path for catalog: \.\.\/outside/,
+    error: /unsafe or duplicate path: \.\.\/outside/,
   },
 ])('preflight rejects invalid existing state: $label', entry => {
   const workspace = createWorkspace('preflight-workspace', {

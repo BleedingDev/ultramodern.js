@@ -49,18 +49,12 @@ test('generated command plans reference emitted deployment capabilities', () => 
 
     assertReferencedScriptsExist(workspaceDir);
     assert.equal(fs.existsSync(path.join(workspaceDir, 'zerops.yaml')), true);
-    assert.equal(
-      fs.existsSync(
-        path.join(workspaceDir, 'scripts/materialize-zerops-runtime.mjs'),
-      ),
-      true,
-    );
     const packageJson = JSON.parse(
       fs.readFileSync(path.join(workspaceDir, 'package.json'), 'utf-8'),
     ) as { scripts?: Record<string, string> };
     assert.equal(
       packageJson.scripts?.['zerops:materialize'],
-      'node ./scripts/materialize-zerops-runtime.mjs',
+      'ultramodern-create ultramodern zerops-materialize',
     );
     assert.match(
       packageJson.scripts?.['cloudflare:build'] ?? '',
@@ -89,7 +83,7 @@ test('workspace validation accepts explicitly disabled agent instruction files',
     assert.equal(fs.existsSync(path.join(workspaceDir, 'CLAUDE.md')), false);
     const result = spawnSync(
       process.execPath,
-      ['scripts/validate-ultramodern-workspace.mts'],
+      [path.resolve(__dirname, '../bin/run.js'), 'ultramodern', 'validate'],
       {
         cwd: workspaceDir,
         encoding: 'utf-8',

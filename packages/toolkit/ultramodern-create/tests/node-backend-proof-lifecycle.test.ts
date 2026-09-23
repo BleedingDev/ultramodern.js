@@ -6,6 +6,7 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { createMicroVerticalReleaseEnvelope } from '@modern-js/app-tools-extensions/release-envelope';
 
 const reservePort = async () => {
   const server = net.createServer();
@@ -21,6 +22,136 @@ const reservePort = async () => {
   );
   return port;
 };
+
+test('Node proof consumes the real API-only envelope and rejects changed artifacts', async () => {
+  const workspaceRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'node-proof-api-envelope-'),
+  );
+  const targetDirectory = path.join(workspaceRoot, 'verticals/catalog/dist');
+  const priorRoot = process.env.ULTRAMODERN_WORKSPACE_ROOT;
+  try {
+    fs.mkdirSync(targetDirectory, { recursive: true });
+    fs.writeFileSync(
+      path.join(workspaceRoot, 'package.json'),
+      '{"type":"module"}',
+    );
+    fs.writeFileSync(
+      path.join(workspaceRoot, 'verticals/catalog/package.json'),
+      '{"name":"@test/catalog","version":"1.0.0"}',
+    );
+    const content = new Map([
+      ['api/index.js', 'exports.api = true;'],
+      ['backend-mf-manifest.json', '{"name":"catalog"}'],
+      ['backendRemoteEntry.cjs', 'module.exports = {};'],
+    ]);
+    for (const [logicalPath, bytes] of content) {
+      const artifactPath = path.join(targetDirectory, logicalPath);
+      fs.mkdirSync(path.dirname(artifactPath), { recursive: true });
+      fs.writeFileSync(artifactPath, bytes);
+    }
+    const envelope = await createMicroVerticalReleaseEnvelope({
+      artifactRoot: targetDirectory,
+      target: 'node',
+      identity: {
+        unitId: 'test/catalog',
+        buildMarker: '0123456789abcdef',
+        sourceRevision: 'a'.repeat(40),
+        releaseVersion: '1.0.0',
+      },
+      artifacts: [
+        { logicalPath: 'api/index.js', runtime: 'nodejs' },
+        {
+          logicalPath: 'backend-mf-manifest.json',
+          runtime: 'module-federation-manifest',
+        },
+        { logicalPath: 'backendRemoteEntry.cjs', runtime: 'nodejs' },
+      ],
+      surfaces: {
+        uiClient: [],
+        ssr: [],
+        apiBackend: ['api/index.js'],
+        backendFederation: {
+          manifest: 'backend-mf-manifest.json',
+          container: 'backendRemoteEntry.cjs',
+        },
+      },
+    });
+    const envelopePath = path.join(
+      targetDirectory,
+      'release/microvertical-release-envelope.json',
+    );
+    fs.mkdirSync(path.dirname(envelopePath), { recursive: true });
+    fs.writeFileSync(envelopePath, JSON.stringify(envelope));
+    process.env.ULTRAMODERN_WORKSPACE_ROOT = workspaceRoot;
+    const proof = await import(
+      `${pathToFileURL(path.resolve(__dirname, '../templates/workspace-scripts/proof-node-backend-federation.mjs')).href}?apiOnly=${Date.now()}`
+    );
+    const topology = {
+      verticals: [
+        {
+          id: 'catalog',
+          kind: 'vertical',
+          path: 'verticals/catalog',
+          package: '@test/catalog',
+          surfaceProfile: 'api-only',
+          api: { bff: { prefix: '/catalog-api' }, stem: 'catalog' },
+          backendFederation: { name: 'verticalCatalogBackend' },
+        },
+      ],
+    };
+    const overlay = {
+      ports: { catalog: 3021 },
+      serverExecution: {
+        catalog: {
+          node: {
+            manifestUrl: 'http://localhost:3021/backend-mf-manifest.json',
+            containerEntry: 'http://localhost:3021/backendRemoteEntry.cjs',
+            remoteType: 'commonjs-module',
+          },
+        },
+      },
+    };
+    const [app] = proof.topologyApps(topology, overlay);
+    assert.equal(app.apiOnly, true);
+    assert.equal(app.portEnv, 'VERTICAL_CATALOG_PORT');
+    assert.deepEqual(
+      proof.readBoundReleaseEnvelope(app, 'dist').envelope.surfaces.uiClient,
+      [],
+    );
+
+    fs.writeFileSync(
+      path.join(targetDirectory, 'api/index.js'),
+      'exports.api = frue;',
+    );
+    assert.throws(
+      () => proof.readBoundReleaseEnvelope(app, 'dist'),
+      /envelope SHA-256/u,
+    );
+    fs.writeFileSync(
+      path.join(targetDirectory, 'api/index.js'),
+      content.get('api/index.js')!,
+    );
+
+    fs.writeFileSync(
+      envelopePath,
+      JSON.stringify({
+        ...envelope,
+        surfaces: { ...envelope.surfaces, uiClient: ['api/index.js'] },
+      }),
+    );
+    assert.throws(
+      () => proof.readBoundReleaseEnvelope(app, 'dist'),
+      /empty UI\/client and SSR/u,
+    );
+  } finally {
+    if (priorRoot === undefined) {
+      delete process.env.ULTRAMODERN_WORKSPACE_ROOT;
+    } else {
+      process.env.ULTRAMODERN_WORKSPACE_ROOT = priorRoot;
+    }
+    fs.rmSync(workspaceRoot, { recursive: true, force: true });
+  }
+});
 
 test('Node backend proof composes public runtime owners and runs a native Effect handler', () => {
   const workspaceRoot = fs.mkdtempSync(

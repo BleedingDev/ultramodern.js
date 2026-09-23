@@ -1,13 +1,15 @@
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import * as t from '@babel/types';
-import { baselinePublicIdentityIsExact } from './microvertical-api-owner';
+import { type Exports, exports as resolvePackageExport } from 'resolve.exports';
+import { baselinePublicIdentityIsExact } from './microvertical-api-owner.ts';
 import {
   parseSource,
   SourceSyntaxError,
   traverseSource,
   unwrapExpression,
-} from './source-analysis';
+} from './source-analysis.ts';
 
 type Node = t.Node;
 type Expression = t.Node;
@@ -177,6 +179,7 @@ const exportedConst = (
 interface ConsumerModule {
   readonly file: SourceFile;
   readonly path: string;
+  readonly boundary: string;
 }
 
 interface ResolvedBinding {
@@ -184,22 +187,127 @@ interface ResolvedBinding {
   readonly module: ConsumerModule;
 }
 
-/** Relative specifiers only: a composed contract never reaches outside the consumer workspace. */
-const resolveRelativeModulePath = (
-  fromPath: string,
-  specifier: string,
-): string | undefined => {
-  if (!/^\.\.?\//u.test(specifier)) return undefined;
-  const resolved = path.resolve(path.dirname(fromPath), specifier);
-  const stem = resolved.replace(/\.(?:[cm]?[jt]sx?)$/u, '');
+const inside = (file: string, boundary: string): boolean =>
+  file === boundary || file.startsWith(`${boundary}${path.sep}`);
+
+const containingWorkspace = (file: string): string | undefined => {
+  for (
+    let directory = path.dirname(file);
+    ;
+    directory = path.dirname(directory)
+  ) {
+    if (fs.existsSync(path.join(directory, 'pnpm-workspace.yaml')))
+      return fs.realpathSync(directory);
+    if (directory === path.dirname(directory)) return undefined;
+  }
+};
+
+const sourceBoundary = (file: string, workspace?: string): string => {
+  for (
+    let directory = path.dirname(file);
+    ;
+    directory = path.dirname(directory)
+  ) {
+    if (
+      fs.existsSync(path.join(directory, 'package.json')) &&
+      directory !== workspace
+    )
+      return fs.realpathSync(directory);
+    if (directory === workspace || directory === path.dirname(directory))
+      return fs.realpathSync(path.dirname(file));
+  }
+};
+
+/** Resolve TypeScript source substitutions without interpreting tsconfig paths as public exports. */
+const sourceFileAt = (target: string, boundary: string): string | undefined => {
+  const stem = target.replace(/\.(?:[cm]?[jt]sx?)$/u, '');
   for (const candidate of [
     `${stem}.ts`,
     `${stem}.tsx`,
-    path.join(stem, 'index.ts'),
-    path.join(stem, 'index.tsx'),
-  ])
-    if (fs.existsSync(candidate) && fs.statSync(candidate).isFile())
-      return candidate;
+    `${stem}.mts`,
+    `${stem}.cts`,
+    target,
+    path.join(target, 'index.ts'),
+    path.join(target, 'index.tsx'),
+  ]) {
+    try {
+      const real = fs.realpathSync(candidate);
+      if (inside(real, boundary) && fs.statSync(real).isFile()) return real;
+    } catch {
+      // A missing candidate cannot establish a public contract binding.
+    }
+  }
+  return undefined;
+};
+
+const packageEntry = (
+  specifier: string,
+): { name: string; exportKey: string } | undefined => {
+  if (
+    specifier.startsWith('.') ||
+    specifier.startsWith('/') ||
+    specifier.startsWith('#')
+  )
+    return undefined;
+  const parts = specifier.split('/');
+  const count = specifier.startsWith('@') ? 2 : 1;
+  if (parts.length < count || parts.slice(0, count).some(part => !part))
+    return undefined;
+  return {
+    name: parts.slice(0, count).join('/'),
+    exportKey:
+      parts.length === count ? '.' : `./${parts.slice(count).join('/')}`,
+  };
+};
+
+/** Public package exports are the only cross-package source traversal edge. */
+const resolveModulePath = (
+  module: ConsumerModule,
+  specifier: string,
+  workspace?: string,
+): { path: string; boundary: string } | undefined => {
+  if (/^\.\.?\//u.test(specifier)) {
+    const file = sourceFileAt(
+      path.resolve(path.dirname(module.path), specifier),
+      module.boundary,
+    );
+    return file === undefined
+      ? undefined
+      : { path: file, boundary: module.boundary };
+  }
+  const entry = packageEntry(specifier);
+  if (!entry || !workspace) return undefined;
+  const paths = createRequire(module.path).resolve.paths(entry.name) ?? [];
+  for (const lookup of paths) {
+    const directory = path.join(lookup, entry.name);
+    const manifest = path.join(directory, 'package.json');
+    if (!fs.existsSync(manifest)) continue;
+    const boundary = fs.realpathSync(directory);
+    // Installed third-party dependencies and a sibling's private paths cannot
+    // become declarations in this workspace's composed API.
+    if (
+      !inside(boundary, workspace) ||
+      boundary.split(path.sep).includes('node_modules')
+    )
+      return undefined;
+    const pkg = JSON.parse(fs.readFileSync(manifest, 'utf8')) as {
+      name: string;
+      exports?: Exports;
+    };
+    if (pkg.name !== entry.name || pkg.exports === undefined) return undefined;
+    let target: string | undefined;
+    try {
+      const targets = resolvePackageExport(pkg, entry.exportKey, {
+        conditions: ['modern:source'],
+      });
+      target = Array.isArray(targets) ? targets[0] : undefined;
+    } catch {
+      return undefined;
+    }
+    if (!target || !target.startsWith('./')) return undefined;
+    const file = sourceFileAt(path.resolve(boundary, target), boundary);
+    return file === undefined ? undefined : { path: file, boundary };
+  }
   return undefined;
 };
 
@@ -208,12 +316,12 @@ const createModuleReader = (root: ConsumerModule) => {
   const modules = new Map<string, ConsumerModule | undefined>([
     [root.path, root],
   ]);
-  return (filePath: string): ConsumerModule | undefined => {
+  return (filePath: string, boundary: string): ConsumerModule | undefined => {
     if (modules.has(filePath)) return modules.get(filePath);
     if (modules.size >= 256) return undefined;
     let module: ConsumerModule | undefined;
     try {
-      module = { file: parseConsumer(filePath), path: filePath };
+      module = { file: parseConsumer(filePath), path: filePath, boundary };
     } catch {
       module = undefined;
     }
@@ -291,7 +399,11 @@ const resolveBinding = (
   module: ConsumerModule,
   name: string,
   scope: 'export' | 'local',
-  readModule: (filePath: string) => ConsumerModule | undefined,
+  readModule: (
+    filePath: string,
+    boundary: string,
+  ) => ConsumerModule | undefined,
+  workspace: string | undefined,
   seen: Set<string>,
 ): ResolvedBinding | undefined => {
   const key = `${scope}:${module.path}#${name}`;
@@ -306,12 +418,11 @@ const resolveBinding = (
     specifier: string,
     imported: string,
   ): ResolvedBinding | undefined => {
-    const resolvedPath = resolveRelativeModulePath(module.path, specifier);
-    const target =
-      resolvedPath === undefined ? undefined : readModule(resolvedPath);
+    const resolved = resolveModulePath(module, specifier, workspace);
+    const target = resolved && readModule(resolved.path, resolved.boundary);
     return target === undefined
       ? undefined
-      : resolveBinding(target, imported, 'export', readModule, seen);
+      : resolveBinding(target, imported, 'export', readModule, workspace, seen);
   };
   if (scope === 'local') {
     const imported = importedBinding(module, name);
@@ -322,7 +433,14 @@ const resolveBinding = (
   if (name === 'default') {
     const exported = defaultExport(module);
     if (typeof exported === 'string')
-      return resolveBinding(module, exported, 'local', readModule, seen);
+      return resolveBinding(
+        module,
+        exported,
+        'local',
+        readModule,
+        workspace,
+        seen,
+      );
     return exported === undefined
       ? undefined
       : { expression: exported, module };
@@ -330,7 +448,14 @@ const resolveBinding = (
   const reexported = reexportedBinding(module, name);
   if (reexported !== undefined)
     return reexported.specifier === undefined
-      ? resolveBinding(module, reexported.local, 'local', readModule, seen)
+      ? resolveBinding(
+          module,
+          reexported.local,
+          'local',
+          readModule,
+          workspace,
+          seen,
+        )
       : throughModule(reexported.specifier, reexported.local);
   for (const statement of module.file.program.body) {
     if (!t.isExportAllDeclaration(statement) || statement.exportKind === 'type')
@@ -643,6 +768,7 @@ const reachableEndpoints = (
   declaration: VariableDeclaration | undefined,
 ): readonly ReachableEndpoint[] | undefined => {
   const readModule = createModuleReader(rootModule);
+  const workspace = containingWorkspace(rootModule.path);
   const active = new Set<Node>();
   const endpoints: ReachableEndpoint[] = [];
   const identities = new Set<string>();
@@ -674,6 +800,7 @@ const reachableEndpoints = (
           node.name,
           'local',
           readModule,
+          workspace,
           new Set(),
         );
         return (
@@ -1114,11 +1241,16 @@ export const microVerticalApiBaselineViolation = (
   expectation: MicroVerticalApiBaselineExpectation,
 ): string | undefined => {
   try {
-    const sourceFile = parseConsumer(filePath);
+    const realPath = fs.realpathSync(filePath);
+    const sourceFile = parseConsumer(realPath);
     if (!baselinePublicIdentityIsExact(filePath, expectation))
       return 'MicroVertical baseline imports must resolve the exact framework owner public export and schema identity';
     return validateParsedContract(
-      { file: sourceFile, path: filePath },
+      {
+        file: sourceFile,
+        path: realPath,
+        boundary: sourceBoundary(realPath, containingWorkspace(realPath)),
+      },
       stem,
       expectation,
     );

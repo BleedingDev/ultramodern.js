@@ -4,10 +4,10 @@ overview: "Remove consumer metadata readers and validate the installed framework
 todos:
   - id: cc-metadata-canonical-readers
     content: "Replace compact-config loading with the agreed canonical inputs and remove the consumer cohort copy requirement."
-    status: pending
+    status: completed
   - id: cc-metadata-reader-invariants
     content: "Retarget command validation and test actual configuration and installed-dependency failures."
-    status: pending
+    status: completed
 isProject: false
 ---
 

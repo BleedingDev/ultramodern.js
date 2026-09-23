@@ -4,7 +4,6 @@ import {
   appHasApi,
   remoteDependencyAlias,
   resolveApiPrefix,
-  ULTRAMODERN_CONFIG_PATH,
   zephyrRemoteDependency,
 } from '../descriptors';
 import { packageName } from '../naming';
@@ -70,7 +69,7 @@ function createVerticalPlan(
     ),
     generatedContractChanges: [
       {
-        path: ULTRAMODERN_CONFIG_PATH,
+        path: 'topology/reference-topology.json',
         addedAppIds: [vertical.id],
         shellVerticalRefs: targetVerticals
           .filter(appEmitsBrowserUi)

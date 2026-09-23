@@ -70,18 +70,105 @@ const apiApp = (app: MicroVerticalConfiguredApp) =>
   app.surfaceProfile !== 'ui-only' &&
   app.deliveryUnitKind !== 'horizontal-remote';
 
+interface ReferenceTopologyApp {
+  readonly id?: string;
+  readonly kind?: string;
+  readonly path?: string;
+  readonly package?: string;
+  readonly surfaceProfile?: string;
+  readonly deliveryUnitKind?: string;
+  readonly api?: {
+    readonly stem?: string;
+    readonly protocol?: 'rest' | 'rpc';
+    readonly bff?: { readonly prefix?: string };
+    readonly readiness?: { readonly endpoint?: string };
+  };
+}
+
+interface ReferenceTopology {
+  readonly shell?: ReferenceTopologyApp;
+  readonly shells?: readonly ReferenceTopologyApp[];
+  readonly verticals?: readonly ReferenceTopologyApp[];
+}
+
 function configuredApps(
   root: string,
   supplied?: readonly MicroVerticalConfiguredApp[],
 ): readonly MicroVerticalConfiguredApp[] {
-  const source =
+  const topology: ReferenceTopology | undefined = supplied
+    ? undefined
+    : JSON.parse(
+        fs.readFileSync(
+          path.join(root, 'topology/reference-topology.json'),
+          'utf8',
+        ),
+      );
+  if (
+    topology &&
+    (!topology.shell ||
+      !Array.isArray(topology.verticals) ||
+      (topology.shells !== undefined && !Array.isArray(topology.shells)))
+  )
+    throw new Error(
+      'topology/reference-topology.json: shell and verticals must be present',
+    );
+  const entries = topology?.shell
+    ? [
+        topology.shell,
+        ...(topology.shells ?? []),
+        ...(topology.verticals ?? []),
+      ]
+    : undefined;
+  const source: readonly MicroVerticalConfiguredApp[] | undefined =
     supplied ??
-    JSON.parse(
-      fs.readFileSync(path.join(root, '.modernjs/ultramodern.json'), 'utf8'),
-    ).topology?.apps;
+    entries?.map(entry => {
+      if (
+        !entry ||
+        typeof entry.path !== 'string' ||
+        !entry.path ||
+        path.isAbsolute(entry.path) ||
+        entry.path.split(/[\\/]/u).includes('..')
+      )
+        throw new Error(
+          'topology/reference-topology.json: each app must have an explicit workspace path',
+        );
+      const packageFile = path.join(root, entry.path, 'package.json');
+      const manifest = JSON.parse(fs.readFileSync(packageFile, 'utf8'));
+      if (
+        typeof manifest.name !== 'string' ||
+        !manifest.name ||
+        (entry.package !== undefined && entry.package !== manifest.name)
+      )
+        throw new Error(
+          `${entry.path}/package.json: package name must match topology`,
+        );
+      const api = entry.api;
+      const stem =
+        api?.stem ??
+        api?.readiness?.endpoint?.match(
+          /^\/([a-z0-9]+(?:-[a-z0-9]+)*)\/readiness$/u,
+        )?.[1];
+      return {
+        id: entry.id,
+        kind: entry.kind,
+        path: entry.path,
+        package: manifest.name,
+        surfaceProfile: entry.surfaceProfile,
+        deliveryUnitKind: entry.deliveryUnitKind,
+        ...(api === undefined
+          ? {}
+          : {
+              api: {
+                stem,
+                prefix: api.bff?.prefix,
+                protocol: api.protocol,
+              },
+            }),
+      };
+    });
   if (!Array.isArray(source))
     throw new Error(
-      '.modernjs/ultramodern.json: topology.apps must be an array',
+      'topology/reference-topology.json: shell and verticals must describe apps',
     );
   const paths = new Set<string>();
   for (const app of source) {
@@ -94,11 +181,13 @@ function configuredApps(
       app.path.split(/[\\/]/u).includes('..')
     )
       throw new Error(
-        '.modernjs/ultramodern.json: each app must have a relative workspace path',
+        'topology/reference-topology.json: each app must have a relative workspace path',
       );
     const key = normalize(app.path);
     if (paths.has(key))
-      throw new Error(`.modernjs/ultramodern.json: duplicate app path ${key}`);
+      throw new Error(
+        `topology/reference-topology.json: duplicate app path ${key}`,
+      );
     paths.add(key);
     for (const name of [
       'id',
@@ -106,15 +195,22 @@ function configuredApps(
       'package',
       'surfaceProfile',
       'deliveryUnitKind',
-    ])
+    ] as const)
       if (app[name] !== undefined && typeof app[name] !== 'string')
         throw new Error(`${key}: ${name} must be a string`);
-    for (const [field, allowed] of Object.entries({
+    const allowedFields = {
       kind: ['shell', 'vertical'],
       surfaceProfile: ['full-stack', 'api-only', 'ui-only'],
       deliveryUnitKind: ['microvertical', 'horizontal-remote'],
-    })) {
-      if (app[field] !== undefined && !allowed.includes(app[field]))
+    } as const;
+    for (const field of Object.keys(
+      allowedFields,
+    ) as (keyof typeof allowedFields)[]) {
+      const value = app[field];
+      if (
+        value !== undefined &&
+        !(allowedFields[field] as readonly string[]).includes(value)
+      )
         throw new Error(`${key}: invalid ${field}`);
     }
     if (app.api !== undefined) {
@@ -137,7 +233,7 @@ function configuredApps(
           !/^\/[^\s?#]*$/u.test(app.api.prefix))
       )
         throw new Error(`${key}: invalid api.prefix`);
-      for (const field of ['additionalPaths', 'operationPaths']) {
+      for (const field of ['additionalPaths', 'operationPaths'] as const) {
         const value = app.api[field];
         if (
           value !== undefined &&
@@ -467,7 +563,7 @@ function check(
         if (app?.kind === 'vertical')
           assert(
             app.api !== undefined,
-            `${appPath}: vertical must declare its Effect API in .modernjs/ultramodern.json`,
+            `${appPath}: vertical must declare its Effect API in topology/reference-topology.json`,
           );
         const stem = app?.api?.stem ?? path.posix.basename(appPath);
         const rpc = app?.api?.protocol === 'rpc';

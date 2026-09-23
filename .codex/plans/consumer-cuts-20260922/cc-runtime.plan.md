@@ -4,10 +4,10 @@ overview: "Implement API-only release identity and artifact verification nativel
 todos:
   - id: cc-runtime-native-api-envelope
     content: "Emit and consume the normal release envelope using actual declared API-only surfaces."
-    status: pending
+    status: completed
   - id: cc-runtime-runtime-negative-controls
     content: "Preserve identity, absent-surface, and Cloudflare builtin behavior with focused positive and negative tests."
-    status: pending
+    status: completed
 isProject: false
 ---
 

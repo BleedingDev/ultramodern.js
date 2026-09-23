@@ -22,11 +22,12 @@ const deliveryUnitGenerationSeed = 'ultramodern-delivery-unit-build-marker:v1';
 export function createBuildMarker(
   scope: string,
   app: { id: string; packageSuffix: string },
+  version = '0.1.0',
 ) {
   return crypto
     .createHash('sha256')
     .update(
-      `${deliveryUnitGenerationSeed}:${scope}:${app.packageSuffix}:${app.id}:0.1.0`,
+      `${deliveryUnitGenerationSeed}:${scope}:${app.packageSuffix}:${app.id}:${version}`,
     )
     .digest('hex')
     .slice(0, 16);
@@ -37,17 +38,22 @@ export { deliveryUnitContractBlock };
 export function createDeliveryUnitRecord(
   scope: string,
   app: WorkspaceApp,
+  version?: string,
 ): DeliveryUnitRecord {
+  const resolvedVersion = version ?? '0.1.0';
   return {
     appId: app.id,
-    buildMarker: createBuildMarker(scope, app),
+    buildMarker: createBuildMarker(scope, app, resolvedVersion),
     deployProfile: DELIVERY_UNIT_DEPLOY_PROFILE,
     kind: DELIVERY_UNIT_KIND,
     packageName: packageName(scope, app.packageSuffix),
     schemaVersion: DELIVERY_UNIT_SCHEMA_VERSION,
     sourceRevision: 'workspace',
     unitId: `${scope}/${app.domain ?? app.id}`,
-    version: '0.1.0',
+    version: resolvedVersion,
     ...app.deliveryUnit,
+    ...(version === undefined
+      ? {}
+      : { version, buildMarker: createBuildMarker(scope, app, version) }),
   };
 }

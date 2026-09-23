@@ -1,5 +1,4 @@
 import { appHasApi, sharedPackages, shellApp } from './descriptors';
-import { relativeRootFor } from './naming';
 import { createPublicSurfaceGenerationCommand } from './public-surface';
 import {
   GENERATED_TOOLING_COMMANDS,
@@ -8,7 +7,7 @@ import {
 import type { WorkspaceApp } from './types';
 
 export const GENERATED_POSTINSTALL_SCRIPT =
-  'node ./scripts/bootstrap-agent-skills.mts --postinstall';
+  'ultramodern-create ultramodern skills install --postinstall';
 
 // Recognize only flat && chains with quoted or escaped arguments. A caller
 // must reconstruct the entire command before treating these matches as owned.
@@ -16,8 +15,8 @@ export const GENERATED_POSTINSTALL_SCRIPT =
 export const WORKSPACE_SCRIPT_SEGMENT_PATTERN =
   /(?:'[^']*'|"(?:\\[^\r\n]|[^"\\`$]|\$(?![(']))*"|\\[^\r\n]|[^"'\\`&|;()<>\r\n^#$]|\$(?![('"]))+/gu;
 
-const toolingWrapperPath = (key: GeneratedToolingCommandKey) =>
-  GENERATED_TOOLING_COMMANDS[key].wrapperPath;
+const toolingCommand = (key: GeneratedToolingCommandKey) =>
+  `ultramodern-create ultramodern ${GENERATED_TOOLING_COMMANDS[key].command}`;
 
 const rootToolingScriptName = (key: GeneratedToolingCommandKey) => {
   const rootScript = GENERATED_TOOLING_COMMANDS[key].rootScript;
@@ -29,18 +28,11 @@ const rootToolingScriptName = (key: GeneratedToolingCommandKey) => {
   return rootScript;
 };
 
-const rootToolingWrapperCommand = (key: GeneratedToolingCommandKey) =>
-  `node ./${toolingWrapperPath(key)}`;
-
-const relativeToolingWrapperPath = (
-  packageDir: string,
-  key: GeneratedToolingCommandKey,
-) => `${relativeRootFor(packageDir)}/${toolingWrapperPath(key)}`;
-
+const rootToolingWrapperCommand = toolingCommand;
 const packageToolingWrapperCommand = (
-  packageDir: string,
+  _packageDir: string,
   key: GeneratedToolingCommandKey,
-) => `node ${relativeToolingWrapperPath(packageDir, key)}`;
+) => toolingCommand(key);
 
 export interface WorkspaceRootScriptPlan {
   build: string;
@@ -126,6 +118,7 @@ function createWorkspaceAppScriptPlan(
   app: WorkspaceApp,
 ): WorkspaceAppScriptPlan {
   const buildSteps = [
+    `${createPublicSurfaceGenerationCommand(app, 'dist')} --sync-route-metadata`,
     'modern build',
     createPublicSurfaceGenerationCommand(app, 'dist'),
     'cross-env MODERNJS_DEPLOY=node modern deploy --skip-build',
@@ -136,6 +129,7 @@ function createWorkspaceAppScriptPlan(
     // not-yet-emitted archive — so it is intentionally omitted.
   ].filter((step): step is string => Boolean(step));
   const cloudflareBuildSteps = [
+    `${createPublicSurfaceGenerationCommand(app, 'cloudflare-dist')} --sync-route-metadata`,
     'cross-env MODERNJS_DEPLOY=cloudflare modern build',
     createPublicSurfaceGenerationCommand(app, 'cloudflare-dist'),
     'cross-env MODERNJS_DEPLOY=cloudflare modern deploy --skip-build',
@@ -146,7 +140,7 @@ function createWorkspaceAppScriptPlan(
   ].filter((step): step is string => Boolean(step));
 
   return {
-    dev: 'modern dev',
+    dev: `${createPublicSurfaceGenerationCommand(app, 'dist')} --sync-route-metadata && modern dev`,
     build: buildSteps.join(' && '),
     cloudflareBuild: cloudflareBuildSteps.join(' && '),
     cloudflareDeploy:

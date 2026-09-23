@@ -18,8 +18,22 @@ const writeFile = (filePath, contents = 'fixture\n') => {
   fs.writeFileSync(filePath, contents);
 };
 
-const importSidecars = () =>
-  import('../lib/prepare-bleedingdev-packages/sidecars.mjs');
+const legacyRoots = [
+  'packages/sidecar/ipx',
+  'packages/sidecar/image-size',
+  'packages/sidecar/rsbuild-image-core',
+];
+
+const importSidecars = async () => {
+  const sidecars = await import(
+    '../lib/prepare-bleedingdev-packages/sidecars.mjs'
+  );
+  return {
+    ...sidecars,
+    collectSidecarPackages: (root, options = {}) =>
+      sidecars.collectSidecarPackages(root, { roots: legacyRoots, ...options }),
+  };
+};
 
 const ipxManifest = (overrides = {}) => ({
   name: '@bleedingdev/ipx',
@@ -126,8 +140,10 @@ test('stable sidecars are collected and staged verbatim', async () => {
 
   const stageDir = path.join(root, '.modern/bleedingdev-publish/sidecars');
   fs.mkdirSync(stageDir, { recursive: true });
-  const staged = sidecars.map(sidecar =>
-    stageSidecarPackage(sidecar, stageDir, { repoRoot: root }),
+  const staged = await Promise.all(
+    sidecars.map(sidecar =>
+      stageSidecarPackage(sidecar, stageDir, { repoRoot: root }),
+    ),
   );
 
   for (const item of staged) {
@@ -163,6 +179,50 @@ test('stable sidecars are collected and staged verbatim', async () => {
   assert.equal(
     stagedIpx.packageDir,
     path.join('.modern/bleedingdev-publish/sidecars', '@bleedingdev__ipx'),
+  );
+});
+
+test('recipe-only sidecar closure records exact publication identities and alias edges', async () => {
+  const sidecarsModule = await import(
+    '../lib/prepare-bleedingdev-packages/sidecars.mjs'
+  );
+  const publication = await import(
+    '../lib/prepare-bleedingdev-packages/sidecar-publication.mjs'
+  );
+  const sidecars = sidecarsModule.collectSidecarPackages();
+  const byName = new Map(sidecars.map(sidecar => [sidecar.name, sidecar]));
+  assert.equal(sidecars.length, 20);
+  assert.equal(byName.get('@bleedingdev/effect').version, '4.0.0-rc.112');
+  assert.equal(byName.get('@bleedingdev/drizzle-orm').version, '1.0.0-rc.4');
+  assert.equal(
+    byName.get('@bleedingdev/effect').packageJson.dependencies.msgpackr,
+    'npm:@bleedingdev/msgpackr@2.1.0',
+  );
+  assert.equal(byName.get('@bleedingdev/mf-cli').recipeOnly, true);
+  assert.equal(byName.get('@bleedingdev/mf-enhanced').recipeOnly, true);
+
+  const ordered = sidecarsModule.sidecarPublishOrder(sidecars);
+  sidecarsModule.validateAliasConsistency([], ordered);
+  publication.assertSidecarPublishOrder(ordered);
+  for (const sidecar of ordered) {
+    publication.sidecarContentProjection(sidecar.packageJson, sidecar.name);
+  }
+
+  const consumer = {
+    name: '@bleedingdev/modern-js-plugin-bff-extensions',
+    dependencies: {
+      '@module-federation/runtime': '2.9.0',
+      effect: '4.0.0-rc.112',
+    },
+  };
+  sidecarsModule.rewriteSidecarConsumerAliases(consumer, sidecars);
+  assert.equal(
+    consumer.dependencies['@module-federation/runtime'],
+    'npm:@bleedingdev/mf-runtime@2.9.0',
+  );
+  assert.equal(
+    consumer.dependencies.effect,
+    'npm:@bleedingdev/effect@4.0.0-rc.112',
   );
 });
 
@@ -326,8 +386,10 @@ test('sidecar-internal aliases are validated and ordered before their dependents
   const outDir = path.join(root, '.modern/bleedingdev-publish');
   const stageDir = path.join(outDir, 'sidecars');
   fs.mkdirSync(stageDir, { recursive: true });
-  const staged = sidecars.map(sidecar =>
-    stageSidecarPackage(sidecar, stageDir, { repoRoot: root }),
+  const staged = await Promise.all(
+    sidecars.map(sidecar =>
+      stageSidecarPackage(sidecar, stageDir, { repoRoot: root }),
+    ),
   );
   const { manifest, manifestPath } = writeSidecarStagingManifest(
     outDir,

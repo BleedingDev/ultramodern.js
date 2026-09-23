@@ -1,10 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import {
-  generatedMetadataPaths,
-  moduleFederationConfigFile,
-  skippedScanDirs,
-} from './constants';
+import { yaml } from '@modern-js/utils';
+import { moduleFederationConfigFile, skippedScanDirs } from './constants';
 import type { JsonRecord } from './types';
 
 export function isRecord(value: unknown): value is JsonRecord {
@@ -33,54 +30,24 @@ export function readJsonIfExists(filePath: string): unknown {
   return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
 }
 
-function addMetadataAppDir(value: unknown, appDirs: Set<string>, hint = '') {
-  if (!isRecord(value)) {
-    return;
-  }
-
-  const pathValue =
-    typeof value.path === 'string'
-      ? value.path
-      : typeof value.directory === 'string'
-        ? value.directory
-        : undefined;
-  const hasModuleFederationDeclaration =
-    isRecord(value.moduleFederation) ||
-    typeof value.moduleFederationName === 'string' ||
-    hint === 'apps' ||
-    hint === 'verticals' ||
-    hint === 'remotes' ||
-    hint === 'moduleFederation';
-
-  if (
-    pathValue &&
-    hasModuleFederationDeclaration &&
-    !path.isAbsolute(pathValue)
-  ) {
-    appDirs.add(normalizeRelativePath(pathValue));
-  }
-}
-
-export function collectMetadataAppDirs(
-  value: unknown,
-  appDirs: Set<string>,
-  hint = '',
-) {
-  if (Array.isArray(value)) {
-    for (const entry of value) {
-      collectMetadataAppDirs(entry, appDirs, hint);
-    }
-    return;
-  }
-
-  if (!isRecord(value)) {
-    return;
-  }
-
-  addMetadataAppDir(value, appDirs, hint);
-
-  for (const [key, entry] of Object.entries(value)) {
-    collectMetadataAppDirs(entry, appDirs, key);
+export function collectMetadataAppDirs(value: unknown, appDirs: Set<string>) {
+  if (!isRecord(value)) return;
+  const entries = [
+    value.shell,
+    ...(Array.isArray(value.verticals) ? value.verticals : []),
+    ...(Array.isArray(value.shells) ? value.shells : []),
+  ];
+  for (const entry of entries) {
+    if (
+      !isRecord(entry) ||
+      typeof entry.path !== 'string' ||
+      path.isAbsolute(entry.path)
+    )
+      throw new Error('Reference topology apps require relative paths.');
+    const normalized = normalizeRelativePath(entry.path);
+    if (normalized === '..' || normalized.startsWith('../'))
+      throw new Error(`Topology app path leaves workspace: ${entry.path}`);
+    appDirs.add(normalized);
   }
 }
 
@@ -107,44 +74,19 @@ function literalRootFromPattern(pattern: string): string | undefined {
   return literalSegments.length > 0 ? literalSegments.join('/') : undefined;
 }
 
-export function collectBridgeScanRoots(value: unknown, roots: Set<string>) {
-  if (Array.isArray(value)) {
-    for (const entry of value) {
-      collectBridgeScanRoots(entry, roots);
-    }
-    return;
+export function collectWorkspaceScanRoots(
+  workspaceRoot: string,
+  roots: Set<string>,
+) {
+  const file = path.join(workspaceRoot, 'pnpm-workspace.yaml');
+  if (!fs.existsSync(file)) return;
+  const workspace = yaml.load(fs.readFileSync(file, 'utf8'));
+  if (!isRecord(workspace) || !Array.isArray(workspace.packages)) return;
+  for (const pattern of workspace.packages) {
+    if (typeof pattern !== 'string' || pattern.startsWith('!')) continue;
+    const root = literalRootFromPattern(pattern);
+    if (root) roots.add(root);
   }
-
-  if (!isRecord(value)) {
-    return;
-  }
-
-  const workspacePackages = value.bridge;
-  if (isRecord(workspacePackages)) {
-    const entries = workspacePackages.workspacePackages;
-    if (Array.isArray(entries)) {
-      for (const entry of entries) {
-        if (isRecord(entry) && typeof entry.pattern === 'string') {
-          const root = literalRootFromPattern(entry.pattern);
-          if (root) {
-            roots.add(root);
-          }
-        }
-      }
-    }
-  }
-
-  for (const entry of Object.values(value)) {
-    collectBridgeScanRoots(entry, roots);
-  }
-}
-
-export function readGeneratedMetadata(workspaceRoot: string): unknown[] {
-  return generatedMetadataPaths
-    .map(metadataPath =>
-      readJsonIfExists(path.join(workspaceRoot, metadataPath)),
-    )
-    .filter((metadata): metadata is unknown => metadata !== undefined);
 }
 
 export function firstSegment(appDir: string): string | undefined {

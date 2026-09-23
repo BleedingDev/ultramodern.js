@@ -1,6 +1,6 @@
 # UltraModern consumer maintenance cuts
 
-This is an implementation plan and a validated orchestration handoff. No implementation has started. Read this document, the assigned lane, and the repository's AGENTS.md before writing code.
+Implementation is running from `4031db83e38aae6f05c380c4343e9df5f923aeb9` with native GPT-6 Sol Medium workers. Runtime, analyzer, generator and dependency reconstruction have passed their focused checks. Source integration checks pass; packed acceptance is in progress. Read this document, the assigned lane, and the repository's AGENTS.md before writing code.
 
 The intended result is an ordinary application dependency update. OntOS and generated applications must not carry a second framework release manifest, a serialized copy of framework defaults, patches against our own packages, or pass-through launch scripts. Preserve application behavior and actual security, ownership, dependency and delivery-unit invariants.
 
@@ -22,7 +22,7 @@ No backwards compatibility, dual writes, silent fallbacks, alias APIs, shims, mo
 
 Planning base: Modern.js `a0ae288f342aa1394a87298cda398eb63b19855a`; OntOS `e1690997ba67ba2e19ee0efc3cf2b51e6c65ea62` in [PR #886](https://github.com/TechsioCZ/ontos/pull/886). Recheck actual branch heads and PR state at execution; do not copy stale worktrees or assume a PR remains unmerged.
 
-Plan review checks the repository at `379b4f4edc`. Claude Code 2.1.280 completed an independent plan review with canonical model `claude-opus-5-5`, first-party provider. Codex checked its implementation claims against the source. A separate longer source review was interrupted without a report; no finding below is attributed to that unfinished pass. This review changes planning artifacts only; implementation remains pending.
+Plan review checks the repository at `379b4f4edc`. Claude Code 2.1.280 completed an independent plan review with canonical model `claude-opus-5-5`, first-party provider. Codex checked its implementation claims against the source. A separate longer source review was interrupted without a report; no finding below is attributed to that unfinished pass. That review changed planning artifacts only; execution began afterward under the current user authorization.
 
 | Review finding | Disposition and resulting change |
 | --- | --- |
@@ -182,7 +182,7 @@ python3 /Users/satan/workspace/bleedingdev/resources/skills/code/skills/plan-gra
   --depends cc-ontos:cc-release --depends cc-tractor:cc-release
 ```
 
-The current ready frontier is `cc-contract`, `cc-runtime`, `cc-analyzer`, and `cc-dependencies`. Implementation tasks are all pending. Validating the graph does not complete them or launch workers.
+Use the persisted graph frontier for current execution readiness. Beads statuses below determine the plan status projection.
 
 ## Tracking and completion
 
@@ -205,3 +205,7 @@ Final acceptance requires the deletions and behavior evidence above, zero replac
 | [cc-release](cc-release.plan.md) | `modernjs-h7or2.9` |
 | [cc-runtime](cc-runtime.plan.md) | `modernjs-h7or2.10` |
 | [cc-tractor](cc-tractor.plan.md) | `modernjs-h7or2.11` |
+
+User execution refinement: resolve and merge existing OntOS PR #886 before the new release adoption. Open a new OntOS PR from merged main after publication. Reconstruct corrected third-party packages during release preparation from pinned tarballs and producer patches, without committing their expanded payload.
+
+Implementation accounting against `4031db83e3`: the three affected package `src/` trees fell from 40,503 to 36,278 physical JS/TS lines, a reduction of 4,225. Fresh shell/UI/API fixtures have zero forwarding scripts and zero consumer patches; generated source/script lines are 1,674/2,610/2,364 versus 1,737/2,737/2,565 at baseline. The rejected 1,357,318-line expanded dependency payload was removed before commit; release staging reconstructs it from pinned recipes.

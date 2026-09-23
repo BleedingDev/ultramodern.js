@@ -221,12 +221,40 @@ test('acceptance production builds and runtime proofs use the same explicit loca
     await import('../published-create-proof/acceptance-profile.mjs');
   const { createSmokeTargets } = await import('../browser-smoke/targets.mjs');
   const contract = {
-    topology: {
-      apps: [
-        { id: 'shell-super-app', kind: 'shell', port: 3020 },
-        { id: 'analytics', kind: 'vertical', port: 3030 },
-      ],
-    },
+    apps: [
+      {
+        id: 'shell-super-app',
+        kind: 'shell',
+        config: {
+          source: {
+            siteUrl: {
+              defaultLocalhostPort: 3020,
+              envFallbackOrder: ['SHELL_SUPER_APP_PORT'],
+            },
+          },
+        },
+        deploy: {
+          cloudflare: {
+            publicUrlEnv: 'ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP',
+          },
+        },
+      },
+      {
+        id: 'analytics',
+        kind: 'vertical',
+        config: {
+          source: {
+            siteUrl: {
+              defaultLocalhostPort: 3030,
+              envFallbackOrder: ['ANALYTICS_PORT'],
+            },
+          },
+        },
+        deploy: {
+          cloudflare: { publicUrlEnv: 'ULTRAMODERN_PUBLIC_URL_ANALYTICS' },
+        },
+      },
+    ],
   };
   const packageManagerEnv = {
     NODE_ENV: 'production',
@@ -589,40 +617,54 @@ test('asserts generated cohorts only from strict manifest expectations', async (
   };
 
   try {
-    writeJson(root, '.modernjs/ultramodern.json', {
-      schemaVersion: 1,
-      generator: {
-        package: '@modern-js/ultramodern-create',
-        version,
+    fs.writeFileSync(
+      path.join(root, 'pnpm-workspace.yaml'),
+      `catalogs:\n  ultramodern:\n    '@modern-js/ultramodern-create': npm:@bleedingdev/modern-js-ultramodern-create@${version}\n    '@modern-js/runtime': npm:@bleedingdev/modern-js-runtime@${version}\n`,
+    );
+    writeJson(root, 'package.json', {
+      devDependencies: {
+        '@modern-js/ultramodern-create': 'catalog:ultramodern',
       },
-      packageSource: {
-        strategy: 'install',
-        modernPackageVersion: version,
-        aliasScope: 'bleedingdev',
-        aliasPackageNamePrefix: 'modern-js-',
+      dependencies: {
+        '@modern-js/runtime': 'catalog:ultramodern',
       },
     });
-    writeJson(root, 'package.json', {
-      dependencies: {
-        '@modern-js/runtime': `npm:@bleedingdev/modern-js-runtime@${version}`,
-      },
+    const producer = 'node_modules/@modern-js/ultramodern-create';
+    writeJson(root, `${producer}/package.json`, {
+      name: '@bleedingdev/modern-js-ultramodern-create',
+      version,
     });
     release.cohortProjection = {
       sha256: writeCanonicalJson(
         root,
-        '.modernjs/release-cohort.json',
+        `${producer}/release-cohort.json`,
         cohortProjection,
       ),
       value: cohortProjection,
     };
 
-    assert.equal(assertGeneratedCohort(root, release).observedPackageCount, 1);
+    assert.equal(assertGeneratedCohort(root, release).observedPackageCount, 2);
+
+    const catalogPath = path.join(root, 'pnpm-workspace.yaml');
+    const catalog = fs.readFileSync(catalogPath, 'utf8');
+    fs.writeFileSync(
+      catalogPath,
+      catalog.replace(/^ {4}'@modern-js\/runtime'.*\n/mu, ''),
+    );
+    assert.throws(
+      () => assertGeneratedCohort(root, release),
+      /pnpm catalog ultramodern omits @modern-js\/runtime/u,
+    );
+    fs.writeFileSync(catalogPath, catalog);
 
     // A generated manifest carrying a range instead of the exact cohort
     // version silently installs a different framework build for the user.
     writeJson(root, 'package.json', {
+      devDependencies: {
+        '@modern-js/ultramodern-create': 'catalog:ultramodern',
+      },
       dependencies: {
-        '@modern-js/runtime': `npm:@bleedingdev/modern-js-runtime@${version}`,
+        '@modern-js/runtime': 'catalog:ultramodern',
         'runtime-compat':
           'npm:@bleedingdev/modern-js-runtime@^3.2.0-framework.1',
       },
@@ -632,9 +674,8 @@ test('asserts generated cohorts only from strict manifest expectations', async (
       /runtime-compat must target exact cohort package @bleedingdev\/modern-js-runtime@3\.2\.0-framework\.1/u,
     );
 
-    // Without the authenticated cohort projection the generated app cannot be
-    // proven to come from the published release at all.
-    fs.rmSync(path.join(root, '.modernjs/release-cohort.json'));
+    // The installed producer must carry the authenticated projection.
+    fs.rmSync(path.join(root, producer, 'release-cohort.json'));
     assert.throws(
       () => assertGeneratedCohort(root, release),
       /authenticated release cohort is missing or unsafe/,

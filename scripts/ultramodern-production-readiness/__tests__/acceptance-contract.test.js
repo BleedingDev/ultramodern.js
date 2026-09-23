@@ -8,6 +8,108 @@ function tempRoot(prefix) {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
 }
 
+test('acceptance topology binds app manifests and overlay without compact metadata', async t => {
+  const {
+    readWorkspaceAcceptanceArtifacts,
+    assertTopologyAcceptance,
+    assertModuleFederationAcceptance,
+    assertApiAcceptance,
+  } = await import('../published-create-proof/acceptance-assertions.mjs');
+  const root = tempRoot('acceptance-canonical-topology-');
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const write = (relative, value) => {
+    const file = path.join(root, relative);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify(value));
+  };
+  write('apps/shell/package.json', { name: '@fixture/shell' });
+  write('verticals/inventory/package.json', { name: '@fixture/inventory' });
+  write('topology/reference-topology.json', {
+    shell: {
+      id: 'shell',
+      kind: 'shell',
+      path: 'apps/shell',
+      package: '@fixture/shell',
+      verticalRefs: ['inventory'],
+      moduleFederation: { sharedContractVersion: 'mf-v1' },
+    },
+    verticals: [
+      {
+        id: 'inventory',
+        kind: 'vertical',
+        path: 'verticals/inventory',
+        package: '@fixture/inventory',
+        moduleFederation: {
+          name: 'inventoryRemote',
+          manifestUrl: 'http://localhost:4101/mf-manifest.json',
+          exposes: ['./Route'],
+          sharedContractVersion: 'mf-v1',
+        },
+        api: {
+          bff: { prefix: '/inventory-api' },
+          readiness: { endpoint: '/inventory/readiness' },
+        },
+        backendFederation: {
+          versionBoundary: {
+            api: { readiness: '/inventory-api/inventory/readiness' },
+          },
+        },
+      },
+    ],
+  });
+  write('topology/local-overlays/development.json', {
+    ports: { shell: 4100, inventory: 4101 },
+  });
+  const artifacts = readWorkspaceAcceptanceArtifacts(root);
+  assert.equal(artifacts.apps[1].package, '@fixture/inventory');
+  assert.equal(
+    assertTopologyAcceptance(artifacts, ['inventory']).appVerticalCount,
+    1,
+  );
+  assert.equal(
+    assertModuleFederationAcceptance(artifacts, ['inventory']).remoteCount,
+    1,
+  );
+  assert.deepEqual(
+    assertApiAcceptance(artifacts, ['inventory']).readinessRoutes,
+    [{ appId: 'inventory', route: '/inventory-api/inventory/readiness' }],
+  );
+  assert.equal(
+    fs.existsSync(path.join(root, '.modernjs/ultramodern.json')),
+    false,
+  );
+  write('verticals/inventory/package.json', { name: '@foreign/inventory' });
+  assert.throws(
+    () => readWorkspaceAcceptanceArtifacts(root),
+    /package identity/u,
+  );
+});
+
+test('workspace check requires the installed backend proof command', async t => {
+  const { assertWorkspaceCheckContract } = await import(
+    '../published-create-proof/acceptance-assertions.mjs'
+  );
+  const root = tempRoot('acceptance-installed-proof-');
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const manifest = {
+    scripts: {
+      check:
+        'pnpm format:check && pnpm lint && pnpm typecheck && pnpm api:check:files && pnpm contract:check',
+      'node:proof': 'ultramodern-create ultramodern backend-federation-proof',
+    },
+  };
+  const file = path.join(root, 'package.json');
+  fs.writeFileSync(file, JSON.stringify(manifest));
+  assert.equal(assertWorkspaceCheckContract(root).requiredCommands.length, 5);
+  manifest.scripts['node:proof'] =
+    'node scripts/proof-node-backend-federation.mjs';
+  fs.writeFileSync(file, JSON.stringify(manifest));
+  assert.throws(
+    () => assertWorkspaceCheckContract(root),
+    /already-built live outputs/u,
+  );
+});
+
 function operationalEvidence(options) {
   const baselineIdentity = {
     buildMarker: 'baseline-marker',

@@ -18,16 +18,17 @@ import {
   validateUltramodernBuildArtifact,
 } from '@modern-js/backend-federation-contracts';
 
-export const COMPACT_CONFIG_PATH = '.modernjs/ultramodern.json';
+export const REFERENCE_TOPOLOGY_PATH = 'topology/reference-topology.json';
+export const DEVELOPMENT_OVERLAY_PATH =
+  'topology/local-overlays/development.json';
 
-export type CompactApp = {
+export type TopologyApp = {
   id?: unknown;
   kind?: unknown;
   path?: unknown;
   package?: unknown;
-  port?: unknown;
   api?: {
-    prefix?: unknown;
+    bff?: { prefix?: unknown };
     stem?: unknown;
   };
   moduleFederation?: {
@@ -57,20 +58,28 @@ export type CompactApp = {
     packageName?: unknown;
     version?: unknown;
   };
-  serverExecution?: {
-    node?: {
-      remoteName?: unknown;
-      manifestUrl?: unknown;
-      containerEntry?: unknown;
-      remoteType?: unknown;
-    };
-  };
 };
 
-export type CompactConfig = {
-  topology?: {
-    apps?: CompactApp[];
-  };
+export type DevelopmentOverlay = {
+  ports?: Record<string, unknown>;
+  manifests?: Record<string, unknown>;
+  serverExecution?: Record<
+    string,
+    {
+      node?: {
+        remoteName?: unknown;
+        manifestUrl?: unknown;
+        containerEntry?: unknown;
+        remoteType?: unknown;
+      };
+    }
+  >;
+};
+
+export type ReferenceTopology = {
+  shell?: TopologyApp;
+  shells?: TopologyApp[];
+  verticals?: TopologyApp[];
 };
 
 export type BackendFederationApp = {
@@ -90,7 +99,7 @@ export type BackendFederationApp = {
   containerEntry: string;
   remoteType: string;
   uiManifestUrl?: string;
-  compactDeliveryUnit?: {
+  topologyDeliveryUnit?: {
     unitId?: string;
     buildMarker?: string;
     sourceRevision?: string;
@@ -169,11 +178,10 @@ const toPascalCase = (value: string) =>
 const stringValue = (value: unknown) =>
   typeof value === 'string' && value.length > 0 ? value : undefined;
 
-const createBackendName = (app: CompactApp, id: string) => {
+const createBackendName = (app: TopologyApp, id: string) => {
   const configuredName =
     stringValue(app.backendFederation?.name) ??
-    stringValue(app.backendFederation?.executionSurfaces?.node?.remoteName) ??
-    stringValue(app.serverExecution?.node?.remoteName);
+    stringValue(app.backendFederation?.executionSurfaces?.node?.remoteName);
 
   if (configuredName) {
     return configuredName;
@@ -187,7 +195,7 @@ export const findWorkspaceRoot = (appDirectory: string) => {
   let current = appDirectory;
 
   while (true) {
-    if (existsSync(path.join(current, COMPACT_CONFIG_PATH))) {
+    if (existsSync(path.join(current, REFERENCE_TOPOLOGY_PATH))) {
       return current;
     }
 
@@ -240,50 +248,63 @@ export const createStampedDeliveryUnit = (input: {
   return deliveryUnitContractBlock(record as DeliveryUnitRecord);
 };
 
-export const createAppFromCompactMetadata = (
+export const createAppFromTopology = (
   workspaceRoot: string,
   appDirectory: string,
-  compactApp: CompactApp,
+  topologyApp: TopologyApp,
+  overlay: DevelopmentOverlay,
+  packageManifest: { name?: unknown; version?: unknown },
 ): BackendFederationApp | undefined => {
-  const id = stringValue(compactApp.id);
-  const appPath = stringValue(compactApp.path);
+  const id = stringValue(topologyApp.id);
+  const appPath = stringValue(topologyApp.path);
 
-  if (!id || compactApp.kind !== 'vertical' || !isRecord(compactApp.api)) {
+  if (
+    !id ||
+    !appPath ||
+    topologyApp.kind !== 'vertical' ||
+    !isRecord(topologyApp.api) ||
+    !isRecord(topologyApp.backendFederation)
+  ) {
     return undefined;
   }
 
-  const directory = appPath
-    ? normalizeRelativePath(appPath)
-    : `verticals/${id}`;
+  const directory = normalizeRelativePath(appPath);
   if (path.resolve(workspaceRoot, directory) !== path.resolve(appDirectory)) {
     return undefined;
   }
 
-  const port =
-    typeof compactApp.port === 'number' ? compactApp.port : undefined;
-  if (port === undefined) {
-    return undefined;
+  const port = overlay.ports?.[id];
+  if (
+    typeof port !== 'number' ||
+    !Number.isInteger(port) ||
+    port < 1 ||
+    port > 65535
+  ) {
+    throw new Error(
+      `[backend-federation-build] Invalid development port for ${id}.`,
+    );
   }
 
-  const apiPrefix = stringValue(compactApp.api.prefix) ?? `/${id}-api`;
-  const apiStem = stringValue(compactApp.api.stem) ?? id;
-  const backendName = createBackendName(compactApp, id);
+  const apiPrefix = stringValue(topologyApp.api.bff?.prefix) ?? `/${id}-api`;
+  const apiStem = stringValue(topologyApp.api.stem) ?? id;
+  const backendName = createBackendName(topologyApp, id);
+  const nodeOverlay = overlay.serverExecution?.[id]?.node;
+  if (!isRecord(nodeOverlay)) {
+    throw new Error(
+      `[backend-federation-build] Missing declared Node server execution for ${id}.`,
+    );
+  }
   const manifestUrl =
-    stringValue(
-      compactApp.backendFederation?.executionSurfaces?.node?.manifestUrl,
-    ) ??
-    stringValue(compactApp.serverExecution?.node?.manifestUrl) ??
+    stringValue(nodeOverlay?.manifestUrl) ??
     `http://localhost:${port}/${BACKEND_MANIFEST_FILE}`;
   const containerEntry =
-    stringValue(
-      compactApp.backendFederation?.executionSurfaces?.node?.containerEntry,
-    ) ??
-    stringValue(compactApp.serverExecution?.node?.containerEntry) ??
+    stringValue(nodeOverlay?.containerEntry) ??
     `http://localhost:${port}/${BACKEND_REMOTE_ENTRY_FILE}`;
   const configuredRemoteType =
+    stringValue(nodeOverlay?.remoteType) ??
     stringValue(
-      compactApp.backendFederation?.executionSurfaces?.node?.remoteType,
-    ) ?? stringValue(compactApp.serverExecution?.node?.remoteType);
+      topologyApp.backendFederation?.executionSurfaces?.node?.remoteType,
+    );
   if (
     configuredRemoteType !== undefined &&
     configuredRemoteType !== 'commonjs-module'
@@ -300,18 +321,21 @@ export const createAppFromCompactMetadata = (
     );
   }
   const remoteType = 'commonjs-module';
-  const packageName = stringValue(compactApp.package);
-  const uiManifestUrl =
-    stringValue(
-      compactApp.backendFederation?.versionBoundary?.ui?.manifestUrl,
-    ) ?? stringValue(compactApp.moduleFederation?.manifestUrl);
-  const compactDeliveryUnit = isRecord(compactApp.deliveryUnit)
+  const packageName = stringValue(packageManifest.name);
+  const version = stringValue(packageManifest.version);
+  if (stringValue(topologyApp.package) !== packageName || !version) {
+    throw new Error(
+      `[backend-federation-build] Topology package identity must match package.json for ${id}.`,
+    );
+  }
+  const uiManifestUrl = stringValue(overlay.manifests?.[id]);
+  const topologyDeliveryUnit = isRecord(topologyApp.deliveryUnit)
     ? {
-        unitId: stringValue(compactApp.deliveryUnit.unitId),
-        buildMarker: stringValue(compactApp.deliveryUnit.buildMarker),
-        sourceRevision: stringValue(compactApp.deliveryUnit.sourceRevision),
-        packageName: stringValue(compactApp.deliveryUnit.packageName),
-        version: stringValue(compactApp.deliveryUnit.version),
+        unitId: stringValue(topologyApp.deliveryUnit.unitId),
+        buildMarker: stringValue(topologyApp.deliveryUnit.buildMarker),
+        sourceRevision: stringValue(topologyApp.deliveryUnit.sourceRevision),
+        packageName: stringValue(topologyApp.deliveryUnit.packageName),
+        version: stringValue(topologyApp.deliveryUnit.version),
       }
     : undefined;
 
@@ -319,6 +343,7 @@ export const createAppFromCompactMetadata = (
     id,
     directory,
     packageName,
+    version,
     port,
     apiPrefix,
     apiStem,
@@ -327,7 +352,7 @@ export const createAppFromCompactMetadata = (
     containerEntry,
     remoteType,
     uiManifestUrl,
-    compactDeliveryUnit,
+    topologyDeliveryUnit,
   };
 };
 
@@ -335,22 +360,39 @@ export const findBackendFederationApp = async (
   workspaceRoot: string,
   appDirectory: string,
 ) => {
-  const compactConfigPath = path.join(workspaceRoot, COMPACT_CONFIG_PATH);
-  const compactConfig = await readJsonFile<CompactConfig>(compactConfigPath);
-  const apps = Array.isArray(compactConfig.topology?.apps)
-    ? compactConfig.topology.apps
-    : [];
+  const topologyPath = path.join(workspaceRoot, REFERENCE_TOPOLOGY_PATH);
+  const topology = await readJsonFile<ReferenceTopology>(topologyPath);
+  if (!isRecord(topology) || !Array.isArray(topology.verticals)) {
+    throw new Error(
+      `[backend-federation-build] Invalid declared topology at ${topologyPath}.`,
+    );
+  }
+  const overlayPath = path.join(workspaceRoot, DEVELOPMENT_OVERLAY_PATH);
+  const overlay = await readJsonFile<DevelopmentOverlay>(overlayPath);
+  if (!isRecord(overlay) || !isRecord(overlay.ports)) {
+    throw new Error(
+      `[backend-federation-build] Invalid development overlay at ${overlayPath}.`,
+    );
+  }
+  const packageManifest = await readJsonFile<{
+    name?: unknown;
+    version?: unknown;
+  }>(path.join(appDirectory, 'package.json'));
 
-  for (const app of apps) {
-    const resolved = createAppFromCompactMetadata(
+  for (const app of topology.verticals) {
+    const resolved = createAppFromTopology(
       workspaceRoot,
       appDirectory,
       app,
+      overlay,
+      packageManifest,
     );
     if (resolved) {
       return resolved;
     }
   }
 
-  return undefined;
+  throw new Error(
+    `[backend-federation-build] ${appDirectory} is missing from the declared reference topology.`,
+  );
 };

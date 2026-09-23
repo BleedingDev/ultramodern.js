@@ -14,6 +14,33 @@ const layer = HttpApiBuilder.layer(fixtureApi).pipe(Layer.provide(handlers));
 export default defineEffectBff({api: fixtureApi, layer});`;
 
 describe('strict Effect runtime binding provenance', () => {
+  test('analyzes a valid graph above 64 modules and rejects real budget overflow', () => {
+    const sourceFor = (count: number) => `
+${imports}
+${Array.from({ length: count }, (_, index) => `import { group${index} } from './group${index}.ts';`).join('\n')}
+const handlers = Layer.mergeAll(${Array.from({ length: count }, (_, index) => `group${index}`).join(', ')});
+export default assembleEffectBffRuntime({ api: fixtureApi, handlers });`;
+    const resolve = (specifier: string) => {
+      if (specifier === '../shared/api.ts')
+        return {
+          id: '/fixture/shared/api.ts',
+          source: 'export const fixtureApi = {};',
+        };
+      const match = specifier.match(/^\.\/group(\d+)\.ts$/u);
+      return (
+        (match && {
+          id: `/fixture/api/group${match[1]}.ts`,
+          source: `${imports}export const group${match[1]} = HttpApiBuilder.group(fixtureApi, 'fixture', h => h.handle('get', () => undefined));`,
+          resolveImport: resolve,
+        }) ||
+        undefined
+      );
+    };
+    expect(violation(sourceFor(70), resolve)).toBeUndefined();
+    expect(violation(sourceFor(256), resolve)).toContain(
+      'must export defineEffectBff',
+    );
+  });
   test('proves parameterized factories and handler-local declarations without trusting parameters as topology', () => {
     const source = `${imports}
 const make = (...args: readonly [unknown]) => {

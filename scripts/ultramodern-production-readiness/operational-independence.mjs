@@ -1411,15 +1411,73 @@ function assertCleanGitWorkspace(workspace, expectedHead, label, env) {
   }
 }
 
-function readTopologyApps(workspace, ids) {
-  const configPath = path.join(workspace, '.modernjs', 'ultramodern.json');
-  const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-  const topologyApps = config?.topology?.apps;
-  if (!Array.isArray(topologyApps)) {
+function readCanonicalTopologyApps(workspace) {
+  const topology = JSON.parse(
+    fs.readFileSync(
+      path.join(workspace, 'topology/reference-topology.json'),
+      'utf8',
+    ),
+  );
+  const overlay = JSON.parse(
+    fs.readFileSync(
+      path.join(workspace, 'topology/local-overlays/development.json'),
+      'utf8',
+    ),
+  );
+  if (
+    !topology?.shell ||
+    !Array.isArray(topology.verticals) ||
+    (topology.shells !== undefined && !Array.isArray(topology.shells))
+  ) {
     throw new Error(
-      '.modernjs/ultramodern.json topology.apps must be an array.',
+      'Reference topology must declare a shell, verticals and optional shells.',
     );
   }
+  const records = [
+    topology.shell,
+    ...topology.verticals,
+    ...(topology.shells ?? []),
+  ];
+  const ids = new Set();
+  const paths = new Set();
+  const ports = new Set();
+  const workspaceReal = fs.realpathSync(workspace);
+  return records.map((entry, index) => {
+    const id = assertNonEmptyString(entry?.id, 'topology app id');
+    if (ids.has(id)) throw new Error(`Duplicate topology app id ${id}.`);
+    ids.add(id);
+    const kind =
+      index === 0 || index > topology.verticals.length ? 'shell' : 'vertical';
+    if (entry.kind !== kind)
+      throw new Error(`Topology app ${id} must have kind ${kind}.`);
+    const appPath = normalizeLogicalPath(entry.path, `${id}.path`);
+    const appRoot = fs.realpathSync(path.join(workspace, appPath));
+    if (!isPathInside(workspaceReal, appRoot) || paths.has(appRoot))
+      throw new Error(`Topology app ${id} has an unsafe or duplicate path.`);
+    paths.add(appRoot);
+    const manifest = JSON.parse(
+      fs.readFileSync(path.join(appRoot, 'package.json'), 'utf8'),
+    );
+    const packageName = assertNonEmptyString(
+      manifest.name,
+      `${id} package name`,
+    );
+    if (entry.package !== undefined && entry.package !== packageName)
+      throw new Error(
+        `Topology app ${id} package identity disagrees with its manifest.`,
+      );
+    const port = overlay?.ports?.[id];
+    if (!Number.isInteger(port) || port < 1 || port > 65535 || ports.has(port))
+      throw new Error(
+        `Topology app ${id} has a missing or duplicate overlay port.`,
+      );
+    ports.add(port);
+    return { id, kind, path: appPath, package: packageName, port };
+  });
+}
+
+function readTopologyApps(workspace, ids) {
+  const topologyApps = readCanonicalTopologyApps(workspace);
   const resolve = (id, expectedKind) => {
     const app = topologyApps.find(candidate => candidate?.id === id);
     if (!app) {
@@ -1433,8 +1491,8 @@ function readTopologyApps(workspace, ids) {
     return {
       id,
       kind: expectedKind,
-      package: assertNonEmptyString(app.package, `${id}.package`),
-      path: normalizeLogicalPath(app.path, `${id}.path`),
+      package: app.package,
+      path: app.path,
     };
   };
   const apps = {
@@ -1498,14 +1556,7 @@ function buildWorkspaceBaseline({
 // app-tools framework-output returns before writing one), so its coverage is
 // proven by non-empty .output artifacts from its explicit build invocation.
 function assertBaselineBuildCoverage(workspace, target) {
-  const configPath = path.join(workspace, '.modernjs', 'ultramodern.json');
-  const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-  const topologyApps = config?.topology?.apps;
-  if (!Array.isArray(topologyApps) || topologyApps.length === 0) {
-    throw new Error(
-      '.modernjs/ultramodern.json topology.apps must be a non-empty array.',
-    );
-  }
+  const topologyApps = readCanonicalTopologyApps(workspace);
   let verticalCount = 0;
   for (const app of topologyApps) {
     const appId = assertNonEmptyString(app?.id, 'topology app id');
@@ -1540,7 +1591,7 @@ function assertBaselineBuildCoverage(workspace, target) {
   }
   if (verticalCount === 0) {
     throw new Error(
-      'Baseline build coverage found no MicroVertical apps in topology.apps.',
+      'Baseline build coverage found no MicroVertical apps in reference topology.',
     );
   }
   return { appCount: topologyApps.length, verticalCount };

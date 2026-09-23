@@ -345,7 +345,7 @@ const readBuildArtifact = async (
       return undefined;
     }
     throw new Error(
-      '[ultramodern-release-envelope] sourceRevision "workspace" cannot produce a promotable full-stack envelope.',
+      '[ultramodern-release-envelope] sourceRevision "workspace" cannot produce a promotable envelope.',
     );
   }
   return artifact;
@@ -516,7 +516,11 @@ const writeReleaseIdentityCarrierMetadata = async (
     ReleaseIdentityCarrierSurface,
     string[],
   ][]) {
-    if (logicalPaths.length === 0) {
+    if (
+      logicalPaths.length === 0 &&
+      surface !== 'ssr' &&
+      surface !== 'uiClient'
+    ) {
       throw new Error(
         `[ultramodern-release-envelope] ${surface} has no declared release-identity carrier artifact.`,
       );
@@ -591,6 +595,7 @@ const createReleaseArtifactInputs = async (
   distDirectory: string,
   identity: MicroVerticalReleaseIdentity,
   target: MicroVerticalReleaseTarget,
+  apiOnly: boolean,
 ) => {
   const files = await collectFiles(distDirectory);
   if (
@@ -647,12 +652,17 @@ const createReleaseArtifactInputs = async (
           EFFECT_BFF_WORKER_PATTERN.test(logicalPath),
         );
 
-  if (uiClientPaths.length === 0) {
+  if (apiOnly && (uiClientPaths.length > 0 || ssrPaths.length > 0)) {
+    throw new Error(
+      '[ultramodern-release-envelope] API-only MicroVertical emitted an undeclared UI/client or SSR surface.',
+    );
+  }
+  if (!apiOnly && uiClientPaths.length === 0) {
     throw new Error(
       `[ultramodern-release-envelope] ${target} full-stack MicroVertical has no UI/client artifacts.`,
     );
   }
-  if (ssrPaths.length === 0) {
+  if (!apiOnly && ssrPaths.length === 0) {
     throw new Error(
       `[ultramodern-release-envelope] ${target} full-stack MicroVertical has no ${target === 'node' ? 'Node' : 'workerd'} SSR artifacts.`,
     );
@@ -662,25 +672,22 @@ const createReleaseArtifactInputs = async (
     apiBackendPaths.length === 0
   ) {
     throw new Error(
-      `[ultramodern-release-envelope] ${target} full-stack MicroVertical has no actual ${target === 'node' ? 'compiled Node Effect API artifact' : 'Effect API/BFF worker artifact'}.`,
+      `[ultramodern-release-envelope] ${target} MicroVertical has no actual ${target === 'node' ? 'compiled Node Effect API artifact' : 'Effect API/BFF worker artifact'}.`,
     );
   }
 
-  const clientExecutionPaths = await manifestReferencedClientModules(
-    distDirectory,
-    files,
-  );
-  if (clientExecutionPaths.length === 0) {
+  const clientExecutionPaths = apiOnly
+    ? []
+    : await manifestReferencedClientModules(distDirectory, files);
+  if (!apiOnly && clientExecutionPaths.length === 0) {
     throw new Error(
       '[ultramodern-release-envelope] UI/client manifest references no compiled execution module.',
     );
   }
-  const ssrExecutionPaths = await routeReferencedSsrModules(
-    distDirectory,
-    files,
-    target,
-  );
-  if (ssrExecutionPaths.length === 0) {
+  const ssrExecutionPaths = apiOnly
+    ? []
+    : await routeReferencedSsrModules(distDirectory, files, target);
+  if (!apiOnly && ssrExecutionPaths.length === 0) {
     throw new Error(
       `[ultramodern-release-envelope] route manifest references no emitted ${target === 'node' ? 'Node' : 'Cloudflare'} SSR execution module.`,
     );
@@ -766,9 +773,6 @@ export const emitFrameworkMicroVerticalReleaseEnvelope = async ({
   requirePromotable?: boolean;
   target: MicroVerticalReleaseTarget;
 }): Promise<MicroVerticalReleaseEnvelope | undefined> => {
-  if (apiOnly) {
-    return undefined;
-  }
   const backendManifestPath = path.join(
     distDirectory,
     BACKEND_FEDERATION_MANIFEST_FILE,
@@ -781,12 +785,12 @@ export const emitFrameworkMicroVerticalReleaseEnvelope = async ({
     pathExists(backendManifestPath),
     pathExists(backendContainerPath),
   ]);
-  if (!hasBackendManifest && !hasBackendContainer) {
+  if (!hasBackendManifest && !hasBackendContainer && !apiOnly) {
     return undefined;
   }
   if (!hasBackendManifest || !hasBackendContainer) {
     throw new Error(
-      '[ultramodern-release-envelope] full-stack MicroVertical backend federation manifest and container must be emitted together.',
+      '[ultramodern-release-envelope] MicroVertical backend federation manifest and container must be emitted together.',
     );
   }
 
@@ -808,6 +812,7 @@ export const emitFrameworkMicroVerticalReleaseEnvelope = async ({
     distDirectory,
     identity,
     target,
+    apiOnly,
   );
   const envelope = await createMicroVerticalReleaseEnvelope({
     artifactRoot: distDirectory,
@@ -854,21 +859,14 @@ export const verifyBuildOutputReleaseEnvelope = async (
   distDirectory: string,
   expectedTarget?: MicroVerticalReleaseTarget,
 ) => {
-  const [hasEnvelope, hasBuildArtifact, hasBackendManifest, hasBackendEntry] =
-    await Promise.all([
-      pathExists(path.join(distDirectory, MICROVERTICAL_RELEASE_ENVELOPE_PATH)),
-      pathExists(path.join(distDirectory, ULTRAMODERN_BUILD_ARTIFACT_FILE)),
-      pathExists(path.join(distDirectory, BACKEND_FEDERATION_MANIFEST_FILE)),
-      pathExists(
-        path.join(distDirectory, BACKEND_FEDERATION_REMOTE_ENTRY_FILE),
-      ),
-    ]);
-  const isFullStackMicroVertical =
-    hasBuildArtifact && (hasBackendManifest || hasBackendEntry);
+  const [hasEnvelope, hasBuildArtifact] = await Promise.all([
+    pathExists(path.join(distDirectory, MICROVERTICAL_RELEASE_ENVELOPE_PATH)),
+    pathExists(path.join(distDirectory, ULTRAMODERN_BUILD_ARTIFACT_FILE)),
+  ]);
   return readFrameworkMicroVerticalReleaseEnvelope({
     artifactRoot: distDirectory,
     ...(expectedTarget ? { expectedTarget } : {}),
-    required: hasEnvelope || isFullStackMicroVertical,
+    required: hasEnvelope || hasBuildArtifact,
   });
 };
 
@@ -887,6 +885,7 @@ export const verifyNodeReleaseEnvelopeStaging = async ({
 const createNodeStagedReleaseArtifactInputs = async (
   outputDirectory: string,
   identity: MicroVerticalReleaseIdentity,
+  apiOnly: boolean,
 ) => {
   const files = await collectFiles(outputDirectory);
   for (const requiredPath of [
@@ -933,27 +932,35 @@ const createNodeStagedReleaseArtifactInputs = async (
       (logicalPath.startsWith('api/') || logicalPath.startsWith('shared/')) &&
       COMPILED_MODULE_PATTERN.test(logicalPath),
   );
+  if (
+    apiOnly &&
+    (uiClientPaths.length > 0 || ssrPaths.some(path => path !== 'index.js'))
+  ) {
+    throw new Error(
+      '[ultramodern-release-envelope] final API-only Node staging contains an undeclared UI/client or SSR surface.',
+    );
+  }
   for (const [surface, paths] of [
     ['UI/client', uiClientPaths],
-    ['Node SSR', ssrPaths],
+    ['Node SSR', apiOnly ? [] : ssrPaths],
     ['Node API/backend', apiBackendPaths],
   ] as const) {
-    if (paths.length === 0) {
+    if (paths.length === 0 && (!apiOnly || surface === 'Node API/backend')) {
       throw new Error(
         `[ultramodern-release-envelope] final Node staging has no ${surface} artifacts.`,
       );
     }
   }
-  const clientExecutionPaths = await manifestReferencedClientModules(
-    outputDirectory,
-    files,
-  );
-  const ssrExecutionPaths = await routeReferencedSsrModules(
-    outputDirectory,
-    files,
-    'node',
-  );
-  if (clientExecutionPaths.length === 0 || ssrExecutionPaths.length === 0) {
+  const clientExecutionPaths = apiOnly
+    ? []
+    : await manifestReferencedClientModules(outputDirectory, files);
+  const ssrExecutionPaths = apiOnly
+    ? []
+    : await routeReferencedSsrModules(outputDirectory, files, 'node');
+  if (
+    !apiOnly &&
+    (clientExecutionPaths.length === 0 || ssrExecutionPaths.length === 0)
+  ) {
     throw new Error(
       '[ultramodern-release-envelope] final Node manifests must reference emitted UI/client and SSR execution modules.',
     );
@@ -967,7 +974,7 @@ const createNodeStagedReleaseArtifactInputs = async (
   for (const logicalPath of uiClientPaths) {
     runtimeByPath.set(logicalPath, 'browser');
   }
-  for (const logicalPath of ssrPaths) {
+  for (const logicalPath of apiOnly ? [] : ssrPaths) {
     runtimeByPath.set(logicalPath, 'nodejs');
   }
   for (const logicalPath of apiBackendPaths) {
@@ -988,12 +995,14 @@ const createNodeStagedReleaseArtifactInputs = async (
         BACKEND_FEDERATION_MANIFEST_FILE,
         BACKEND_FEDERATION_REMOTE_ENTRY_FILE,
       ],
-      ssr: [
-        ...new Set([
-          ...ssrExecutionPaths,
-          ...ssrPaths.filter(logicalPath => logicalPath !== 'index.js'),
-        ]),
-      ],
+      ssr: apiOnly
+        ? []
+        : [
+            ...new Set([
+              ...ssrExecutionPaths,
+              ...ssrPaths.filter(logicalPath => logicalPath !== 'index.js'),
+            ]),
+          ],
       uiClient: uiClientPaths.filter(logicalPath =>
         COMPILED_MODULE_PATTERN.test(logicalPath),
       ),
@@ -1010,7 +1019,9 @@ const createNodeStagedReleaseArtifactInputs = async (
       uiClient: [...uiClientPaths].sort((left, right) =>
         left.localeCompare(right),
       ),
-      ssr: [...ssrPaths].sort((left, right) => left.localeCompare(right)),
+      ssr: apiOnly
+        ? []
+        : [...ssrPaths].sort((left, right) => left.localeCompare(right)),
       apiBackend: [...apiBackendPaths].sort((left, right) =>
         left.localeCompare(right),
       ),
@@ -1036,6 +1047,7 @@ export const emitNodeStagedReleaseEnvelope = async ({
   const { artifacts, surfaces } = await createNodeStagedReleaseArtifactInputs(
     outputDirectory,
     source.identity,
+    source.surfaces.uiClient.length === 0,
   );
   const staged = await createMicroVerticalReleaseEnvelope({
     artifactRoot: outputDirectory,
@@ -1077,6 +1089,7 @@ export const stageCloudflareReleaseEnvelope = async ({
 const createCloudflareStagedReleaseArtifactInputs = async (
   outputDirectory: string,
   identity: MicroVerticalReleaseIdentity,
+  apiOnly: boolean,
 ) => {
   const files = await collectFiles(outputDirectory);
   for (const requiredPath of [
@@ -1084,7 +1097,7 @@ const createCloudflareStagedReleaseArtifactInputs = async (
     'server/modern-worker-manifest.json',
     'wrangler.json',
     'package.json',
-    'worker/package.json',
+    ...(apiOnly ? [] : ['worker/package.json']),
   ]) {
     if (!files.includes(requiredPath)) {
       throw new Error(
@@ -1121,12 +1134,24 @@ const createCloudflareStagedReleaseArtifactInputs = async (
       logicalPath !== backendManifestPath &&
       logicalPath !== backendContainerPath,
   );
+  if (
+    apiOnly &&
+    (uiClientPaths.length > 0 ||
+      ssrPaths.some(path => path !== 'server/index.mjs'))
+  ) {
+    throw new Error(
+      '[ultramodern-release-envelope] final API-only Cloudflare staging contains an undeclared UI/client or SSR surface.',
+    );
+  }
   for (const [surface, paths] of [
     ['UI/client', uiClientPaths],
-    ['Cloudflare SSR', ssrPaths],
+    ['Cloudflare SSR', apiOnly ? [] : ssrPaths],
     ['Cloudflare API/backend', apiBackendPaths],
   ] as const) {
-    if (paths.length === 0) {
+    if (
+      paths.length === 0 &&
+      (!apiOnly || surface === 'Cloudflare API/backend')
+    ) {
       throw new Error(
         `[ultramodern-release-envelope] final Cloudflare staging has no ${surface} artifacts.`,
       );
@@ -1140,18 +1165,25 @@ const createCloudflareStagedReleaseArtifactInputs = async (
     }
   }
 
-  const clientExecutionPaths = await manifestReferencedClientModules(
-    outputDirectory,
-    files,
-    'public/mf-manifest.json',
-  );
-  const ssrExecutionPaths = await routeReferencedSsrModules(
-    outputDirectory,
-    files,
-    'cloudflare',
-    'server/route.json',
-  );
-  if (clientExecutionPaths.length === 0 || ssrExecutionPaths.length === 0) {
+  const clientExecutionPaths = apiOnly
+    ? []
+    : await manifestReferencedClientModules(
+        outputDirectory,
+        files,
+        'public/mf-manifest.json',
+      );
+  const ssrExecutionPaths = apiOnly
+    ? []
+    : await routeReferencedSsrModules(
+        outputDirectory,
+        files,
+        'cloudflare',
+        'server/route.json',
+      );
+  if (
+    !apiOnly &&
+    (clientExecutionPaths.length === 0 || ssrExecutionPaths.length === 0)
+  ) {
     throw new Error(
       '[ultramodern-release-envelope] final Cloudflare manifests must reference emitted UI/client and SSR execution modules.',
     );
@@ -1167,7 +1199,7 @@ const createCloudflareStagedReleaseArtifactInputs = async (
     }
   };
   add(uiClientPaths, 'browser');
-  add(ssrPaths, 'workerd');
+  add(apiOnly ? [] : ssrPaths, 'workerd');
   add(apiBackendPaths, 'workerd-effect');
   add([backendManifestPath], 'module-federation-manifest');
   add([backendContainerPath], 'commonjs-module');
@@ -1178,12 +1210,16 @@ const createCloudflareStagedReleaseArtifactInputs = async (
     {
       apiBackend: apiBackendPaths,
       backendFederation: [backendManifestPath, backendContainerPath],
-      ssr: [
-        ...new Set([
-          ...ssrExecutionPaths,
-          ...ssrPaths.filter(logicalPath => logicalPath.startsWith('worker/')),
-        ]),
-      ],
+      ssr: apiOnly
+        ? []
+        : [
+            ...new Set([
+              ...ssrExecutionPaths,
+              ...ssrPaths.filter(logicalPath =>
+                logicalPath.startsWith('worker/'),
+              ),
+            ]),
+          ],
       uiClient: uiClientPaths.filter(logicalPath =>
         COMPILED_MODULE_PATTERN.test(logicalPath),
       ),
@@ -1200,7 +1236,9 @@ const createCloudflareStagedReleaseArtifactInputs = async (
       uiClient: [...uiClientPaths].sort((left, right) =>
         left.localeCompare(right),
       ),
-      ssr: [...ssrPaths].sort((left, right) => left.localeCompare(right)),
+      ssr: apiOnly
+        ? []
+        : [...ssrPaths].sort((left, right) => left.localeCompare(right)),
       apiBackend: [...apiBackendPaths].sort((left, right) =>
         left.localeCompare(right),
       ),
@@ -1230,6 +1268,7 @@ export const emitCloudflareStagedReleaseEnvelope = async ({
     await createCloudflareStagedReleaseArtifactInputs(
       outputDirectory,
       source.identity,
+      source.surfaces.uiClient.length === 0,
     );
   const staged = await createMicroVerticalReleaseEnvelope({
     artifactRoot: outputDirectory,

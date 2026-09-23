@@ -9,16 +9,16 @@ export function isPlainObject(value: unknown): value is Record<string, any> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/** Stamp one compact-config or reference-topology app with canonical identity. */
+/** Stamp one topology app with identity derived from its package manifest. */
 export function stampDeliveryUnitIdentity(
   entry: Record<string, any>,
   scope: string,
   app: WorkspaceApp,
+  version: string,
 ): void {
   const block = {
-    ...deliveryUnitContractBlock(createDeliveryUnitRecord(scope, app)),
-    ...app.deliveryUnit,
     ...(isPlainObject(entry.deliveryUnit) ? entry.deliveryUnit : {}),
+    ...deliveryUnitContractBlock(createDeliveryUnitRecord(scope, app, version)),
   };
 
   entry.deliveryUnit = block;
@@ -37,7 +37,10 @@ export function stampDeliveryUnitIdentity(
     return;
   }
 
-  const contract = createBackendFederationContract(scope, app);
+  const contract = createBackendFederationContract(scope, {
+    ...app,
+    deliveryUnit: { ...app.deliveryUnit, ...block },
+  });
   if (contract !== undefined) {
     entry.backendFederation = contract;
   }

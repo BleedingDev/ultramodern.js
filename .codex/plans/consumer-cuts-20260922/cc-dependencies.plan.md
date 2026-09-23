@@ -4,10 +4,10 @@ overview: "Deliver corrected third-party dependencies through published package 
 todos:
   - id: cc-dependencies-dependency-closure
     content: "Map framework-required patch consumers and prepare corrected packages through the existing sidecar mechanism."
-    status: pending
+    status: completed
   - id: cc-dependencies-packed-dependency-proof
     content: "Verify corrected sidecar exports, peers, types and runtime identity; hand off every framework dependency edge for full closure proof."
-    status: pending
+    status: completed
 isProject: false
 ---
 
@@ -34,3 +34,5 @@ Own new corrected sources under packages/sidecar/** and scripts/ultramodern-supp
 ## Operator Guidance
 
 Independent at the initial frontier; run alongside cc-contract using existing source contracts. Route any proposed shared-config change to root. Stop after producing verified corrected tarballs, sidecar-only clean-install proof and a complete dependency-edge change list. Full framework transitive-closure proof requires root manifest integration and is mandatory in cc-package-proof; it is not a prerequisite for releasing this lane to integration. Test clean temporary consumer installs with no framework-required patchedDependencies and inspect actual resolved modules, not only manifest strings. Validate pnpm consumer behavior and the existing published-package npm checks. No registry publication in this lane. If an upstream version removes a patch, prove equivalent behavior before choosing it. A missing corrected transitive edge is a release blocker.
+
+Release preparation reconstructs new corrected dependencies from integrity-pinned upstream tarballs and producer patches. Do not commit expanded third-party package trees.

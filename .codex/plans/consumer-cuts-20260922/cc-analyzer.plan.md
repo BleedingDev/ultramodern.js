@@ -4,10 +4,10 @@ overview: "Absorb the code-tools fixes generically without OntOS-specific paths 
 todos:
   - id: cc-analyzer-native-analysis
     content: "Fix legacy import matching, bounded graph analysis and workspace export resolution in source."
-    status: pending
+    status: completed
   - id: cc-analyzer-analysis-controls
     content: "Verify valid large/shared-package applications and nearby invalid boundary cases in packed code-tools."
-    status: pending
+    status: completed
 isProject: false
 ---
 

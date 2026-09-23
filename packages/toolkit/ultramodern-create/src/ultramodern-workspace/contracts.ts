@@ -1,13 +1,9 @@
-import { ULTRAMODERN_CREATE_PACKAGE } from '../ultramodern-package-source';
 import { apiTopologyMetadata } from './api';
 import { rpcPath } from './api/rpc';
 import {
   createBackendFederationContract,
-  createBackendFederationSummary,
   createServerExecutionOverlay,
 } from './backend-federation';
-import type { UltramodernBridgeConfig } from './bridge-config';
-import { defaultReactSingletons } from './bridge-config/defaults';
 import {
   createDeliveryUnitRecord,
   deliveryUnitContractBlock,
@@ -24,14 +20,7 @@ import {
 } from './descriptors';
 import { packageName } from './naming';
 import { createCloudflareDeployContract } from './policy';
-import { createAdditionalShellConfigEntry } from './shells';
-import { createGeneratedToolingWrapperMap } from './tooling-command-catalog';
-import type { JsonValue, ResolvedPackageSource, WorkspaceApp } from './types';
-import {
-  CLOUDFLARE_COMPATIBILITY_DATE,
-  NODE_VERSION,
-  PNPM_VERSION,
-} from './versions';
+import type { JsonValue, WorkspaceApp } from './types';
 
 function isJsonValue(value: JsonValue | undefined): value is JsonValue {
   return value !== undefined;
@@ -52,10 +41,6 @@ function jsonEntries(
       isJsonValue(entry[1]),
     ),
   );
-}
-
-function presentJsonValues(values: (JsonValue | undefined)[]): JsonValue[] {
-  return values.filter(isJsonValue);
 }
 
 function createReferenceRemoteContracts(
@@ -82,13 +67,16 @@ export function createTopology(
       'Generated UltraModern SuperApp shell that can grow by adding full-stack verticals.',
     preset: 'presetUltramodern',
     shell: {
-      id: shellApp.id,
+      id: shellHost.id,
       kind: 'shell',
-      package: packageName(scope, shellApp.packageSuffix),
+      package: packageName(scope, shellHost.packageSuffix),
+      path: shellHost.directory,
+      displayName: shellHost.displayName,
+      portEnv: shellHost.portEnv,
       verticalRefs: shellHost.verticalRefs ?? [],
       moduleFederation: {
         role: 'host',
-        name: shellApp.mfName,
+        name: shellHost.mfName,
         remotes: createReferenceRemoteContracts(shellHost, remotes),
         ssr: true,
         sharedContractVersion: 'mf-ssr-contract-v1',
@@ -96,10 +84,10 @@ export function createTopology(
       // Every unit kind carries a delivery-unit identity (G29): the shell is
       // its own delivery unit even though it has no API surface.
       deliveryUnit: deliveryUnitContractBlock(
-        createDeliveryUnitRecord(scope, shellApp),
+        createDeliveryUnitRecord(scope, shellHost),
       ),
-      cloudflare: createCloudflareDeployContract(scope, shellApp),
-      ownership: shellApp.ownership,
+      cloudflare: createCloudflareDeployContract(scope, shellHost),
+      ownership: shellHost.ownership,
     },
     verticals: remotes.map(vertical => ({
       id: vertical.id,
@@ -113,6 +101,8 @@ export function createTopology(
       ...(vertical.domain ? { domain: vertical.domain } : {}),
       package: packageName(scope, vertical.packageSuffix),
       path: vertical.directory,
+      displayName: vertical.displayName,
+      portEnv: vertical.portEnv,
       moduleFederation: {
         role: 'remote',
         name: vertical.mfName,
@@ -147,14 +137,6 @@ export function createTopology(
       path: sharedPackage.directory,
       description: sharedPackage.description,
     })),
-    validation: {
-      script: 'scripts/validate-ultramodern-workspace.mts',
-      commands: [
-        'pnpm i18n:boundaries',
-        'pnpm api:check',
-        'pnpm contract:check',
-      ],
-    },
   };
 }
 
@@ -231,193 +213,5 @@ export function createDevelopmentOverlay(
         }`,
       ]),
     ),
-  };
-}
-
-export function createUltramodernConfig(
-  scope: string,
-  modernVersion: string,
-  packageSource: ResolvedPackageSource,
-  apps: WorkspaceApp[] = [createShellHost()],
-  enableTailwind = true,
-  bridge?: UltramodernBridgeConfig,
-  additionalShells: WorkspaceApp[] = [],
-  primaryShell?: WorkspaceApp,
-  effectiveRemotes?: WorkspaceApp[],
-): JsonValue {
-  const remotes = effectiveRemotes ?? apps.filter(app => app.kind !== 'shell');
-  const shellHost = primaryShell ?? createShellHost(remotes);
-
-  return {
-    schemaVersion: 1,
-    profile: 'cloudflare-ssr-mf-effect-v1',
-    generator: {
-      package: ULTRAMODERN_CREATE_PACKAGE,
-      version: modernVersion,
-    },
-    workspace: {
-      packageScope: scope,
-      packageManager: {
-        name: 'pnpm',
-        version: PNPM_VERSION,
-      },
-      node: {
-        version: NODE_VERSION,
-        engineRange: '>=26',
-      },
-    },
-    packageSource: {
-      strategy: packageSource.strategy,
-      modernPackageVersion: packageSource.modernPackageVersion,
-      ...(packageSource.registry ? { registry: packageSource.registry } : {}),
-      ...(packageSource.aliasScope
-        ? { aliasScope: packageSource.aliasScope }
-        : {}),
-      ...(packageSource.aliasPackageNamePrefix
-        ? { aliasPackageNamePrefix: packageSource.aliasPackageNamePrefix }
-        : {}),
-    },
-    features: {
-      tailwind: enableTailwind,
-    },
-    topology: {
-      source: './topology/reference-topology.json',
-      apps: apps.map(app => ({
-        id: app.id,
-        kind: app.kind,
-        package: packageName(scope, app.packageSuffix),
-        packageSuffix: app.packageSuffix,
-        displayName: app.displayName,
-        path: app.directory,
-        ...(app.domain ? { domain: app.domain } : {}),
-        ...(app.surfaceProfile ? { surfaceProfile: app.surfaceProfile } : {}),
-        ...(app.deliveryUnitKind
-          ? { deliveryUnitKind: app.deliveryUnitKind }
-          : {}),
-        port: app.port,
-        portEnv: app.portEnv,
-        moduleFederation: {
-          role: app.kind === 'shell' ? 'host' : 'remote',
-          name: app.mfName,
-          exposes: Object.keys(app.exposes ?? {}),
-          ...(app.kind === 'shell'
-            ? {
-                verticalRefs: shellHost.verticalRefs ?? [],
-                remotes: createModuleFederationRemoteContracts(
-                  shellHost,
-                  remotes,
-                ),
-              }
-            : app.verticalRefs?.length
-              ? {
-                  verticalRefs: app.verticalRefs,
-                  remotes: createModuleFederationRemoteContracts(app, remotes),
-                }
-              : {}),
-          ssr: true,
-          dts: {
-            compilerInstance: 'effect-tsgo',
-            tsConfigPath: './tsconfig.mf-types.json',
-          },
-        },
-        ...optionalJsonEntry(
-          'backendFederation',
-          createBackendFederationContract(
-            scope,
-            remotes.find(remote => remote.id === app.id) ?? app,
-          ),
-        ),
-        // Delivery-unit identity for ALL unit kinds (G29): shell and UI-only
-        // verticals carry the record too; API-bearing apps keep the same key
-        // position, so their output is unchanged.
-        deliveryUnit: deliveryUnitContractBlock(
-          createDeliveryUnitRecord(scope, app),
-        ),
-        ...(app.api
-          ? {
-              api: {
-                runtime: 'effect',
-                stem: app.api.stem,
-                prefix: app.api.prefix,
-                consumedBy: app.api.consumedBy,
-                serverEntry: `${app.directory}/api/index.ts`,
-                ...(app.api.protocol === undefined
-                  ? {}
-                  : { protocol: app.api.protocol }),
-              },
-            }
-          : {}),
-        deploy: {
-          cloudflare: createCloudflareDeployContract(scope, app),
-        },
-      })),
-    },
-    ...(additionalShells.length > 0
-      ? {
-          shells: additionalShells.map(shell =>
-            createAdditionalShellConfigEntry(scope, shell, remotes),
-          ),
-        }
-      : {}),
-    bridge: bridge ?? {
-      enabled: false,
-      workspacePackages: [],
-      dependencies: [],
-      lockfilePolicy: 'nested',
-      gates: [],
-      reactSingletons: [...defaultReactSingletons],
-    },
-    deploy: {
-      worker: {
-        wrangler: {
-          compatibility_date: CLOUDFLARE_COMPATIBILITY_DATE,
-          compatibility_flags: [
-            'nodejs_compat',
-            'global_fetch_strictly_public',
-          ],
-        },
-        artifacts: [],
-        publicAssetExcludes: [],
-      },
-    },
-    moduleFederation: {
-      apps: apps.map(app => ({
-        id: app.id,
-        path: app.directory,
-        role: app.kind === 'shell' ? 'host' : 'remote',
-        name: app.mfName,
-        exposes: Object.keys(app.exposes ?? {}),
-        hostOnly:
-          app.kind === 'shell' && Object.keys(app.exposes ?? {}).length === 0,
-      })),
-    },
-    backendFederation: {
-      apps: presentJsonValues(
-        verticalApiApps(remotes).map(app =>
-          createBackendFederationSummary(scope, app),
-        ),
-      ),
-    },
-    agentSkills: {
-      target: 'codex',
-      // Fresh scaffolds default to .codex/; the generated bootstrap script and
-      // validator also accept .agents/skills-lock.json for agents-standard layouts.
-      lockfile: './.codex/skills-lock.json',
-      installDir: './.codex/skills',
-      mode: 'repo-owned-default-on',
-      selfContainedVendoring: true,
-      optOutEnv: [
-        'ULTRAMODERN_SKIP_CODEX_SKILLS=1',
-        'ULTRAMODERN_CODEX_SKILLS=0',
-      ],
-    },
-    tooling: {
-      command: 'ultramodern-create ultramodern',
-      wrappers: {
-        ...createGeneratedToolingWrapperMap(),
-        apiBoundaries: 'modern-api-check',
-        skills: 'scripts/bootstrap-agent-skills.mts',
-      },
-    },
   };
 }

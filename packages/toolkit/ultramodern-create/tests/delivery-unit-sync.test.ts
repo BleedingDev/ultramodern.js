@@ -62,19 +62,6 @@ function scaffoldWorkspace(): { tempRoot: string; workspaceDir: string } {
 }
 
 function stripDeliveryUnitIdentity(workspaceDir: string) {
-  const compactPath = '.modernjs/ultramodern.json';
-  const compact = JSON.parse(read(workspaceDir, compactPath));
-  for (const app of compact.topology.apps) {
-    delete app.deliveryUnit;
-    if (app.backendFederation) {
-      delete app.backendFederation.deliveryUnit;
-      if (app.backendFederation.versionBoundary) {
-        delete app.backendFederation.versionBoundary.identityRoot;
-      }
-    }
-  }
-  writeJson(workspaceDir, compactPath, compact);
-
   const topologyPath = 'topology/reference-topology.json';
   const topology = JSON.parse(read(workspaceDir, topologyPath));
   if (topology.shell) {
@@ -97,7 +84,7 @@ function stripDeliveryUnitIdentity(workspaceDir: string) {
   }
   writeJson(workspaceDir, topologyPath, topology);
 
-  // Simulate legacy build modules without the delivery-unit identity export.
+  // Simulate incomplete build modules without the delivery-unit identity export.
   fs.writeFileSync(
     path.join(workspaceDir, 'apps/shell-super-app/shared/ultramodern-build.ts'),
     "export const ultramodernVerticalIdentity = { appId: 'shell-super-app' } as const;\n",
@@ -112,12 +99,12 @@ test('sync-delivery-unit backfills identity blocks matching the generator', () =
   const { tempRoot, workspaceDir } = scaffoldWorkspace();
   try {
     stripDeliveryUnitIdentity(workspaceDir);
-    // Sanity: stripping actually removed the identity.
+    const stripped = JSON.parse(
+      read(workspaceDir, 'topology/reference-topology.json'),
+    );
+    assert.equal(stripped.shell.deliveryUnit, undefined);
     assert.ok(
-      !JSON.parse(
-        read(workspaceDir, '.modernjs/ultramodern.json'),
-      ).topology.apps.some((app: any) => app.deliveryUnit),
-      'precondition: stripped config has no deliveryUnit',
+      stripped.verticals.every((app: any) => app.deliveryUnit === undefined),
     );
 
     const status = runSyncDeliveryUnit([], {
@@ -129,12 +116,10 @@ test('sync-delivery-unit backfills identity blocks matching the generator', () =
     // Check the repaired identity independently of generator output. This
     // catches a shared-oracle regression while keeping the public identity
     // contract explicit.
-    const compact = JSON.parse(
-      read(workspaceDir, '.modernjs/ultramodern.json'),
+    const topology = JSON.parse(
+      read(workspaceDir, 'topology/reference-topology.json'),
     );
-    const shell = JSON.parse(
-      read(workspaceDir, '.modernjs/ultramodern.json'),
-    ).topology.apps.find((app: any) => app.id === 'shell-super-app');
+    const shell = topology.shell;
     assert.equal(
       shell.deliveryUnit.unitId,
       'du-sync-workspace/shell-super-app',
@@ -157,10 +142,8 @@ test('sync-delivery-unit backfills identity blocks matching the generator', () =
       buildArtifact.deliveryUnit.buildMarker,
     );
 
-    // Validator-shaped assertions on the restored compact config.
-    const catalog = compact.topology.apps.find(
-      (app: any) => app.id === 'catalog',
-    );
+    // Validate the restored canonical topology.
+    const catalog = topology.verticals.find((app: any) => app.id === 'catalog');
     assert.equal(catalog.deliveryUnit.kind, 'microvertical-delivery-unit');
     assert.deepEqual(
       catalog.backendFederation.deliveryUnit,
@@ -175,7 +158,7 @@ test('sync-delivery-unit backfills identity blocks matching the generator', () =
   }
 });
 
-test('sync-delivery-unit is idempotent and only touches the three target sets', () => {
+test('sync-delivery-unit is idempotent and only touches topology and build records', () => {
   const { tempRoot, workspaceDir } = scaffoldWorkspace();
   try {
     stripDeliveryUnitIdentity(workspaceDir);
@@ -192,6 +175,57 @@ test('sync-delivery-unit is idempotent and only touches the three target sets', 
       invocationCwd: workspaceDir,
     });
     assert.equal(status, 0);
+    assert.deepEqual(snapshotAllFiles(workspaceDir), afterFirst);
+  } finally {
+    fs.rmSync(tempRoot, { force: true, recursive: true });
+  }
+});
+
+test('sync-delivery-unit follows an authored app package version and remains idempotent', () => {
+  const { tempRoot, workspaceDir } = scaffoldWorkspace();
+  try {
+    const manifestPath = 'verticals/catalog/package.json';
+    const manifest = JSON.parse(read(workspaceDir, manifestPath));
+    const previousTopology = JSON.parse(
+      read(workspaceDir, 'topology/reference-topology.json'),
+    );
+    const previousMarker =
+      previousTopology.verticals[0].deliveryUnit.buildMarker;
+    manifest.version = '0.2.0';
+    writeJson(workspaceDir, manifestPath, manifest);
+
+    assert.equal(
+      runSyncDeliveryUnit([], {
+        workspaceRoot: workspaceDir,
+        invocationCwd: workspaceDir,
+      }),
+      0,
+    );
+    const topology = JSON.parse(
+      read(workspaceDir, 'topology/reference-topology.json'),
+    );
+    const catalog = topology.verticals.find(
+      (entry: { id: string }) => entry.id === 'catalog',
+    );
+    const build = JSON.parse(
+      read(workspaceDir, 'verticals/catalog/shared/ultramodern-build.json'),
+    );
+    assert.equal(catalog.deliveryUnit.version, '0.2.0');
+    assert.notEqual(catalog.deliveryUnit.buildMarker, previousMarker);
+    assert.equal(build.deliveryUnit.version, '0.2.0');
+    assert.equal(
+      build.deliveryUnit.buildMarker,
+      catalog.deliveryUnit.buildMarker,
+    );
+
+    const afterFirst = snapshotAllFiles(workspaceDir);
+    assert.equal(
+      runSyncDeliveryUnit([], {
+        workspaceRoot: workspaceDir,
+        invocationCwd: workspaceDir,
+      }),
+      0,
+    );
     assert.deepEqual(snapshotAllFiles(workspaceDir), afterFirst);
   } finally {
     fs.rmSync(tempRoot, { force: true, recursive: true });

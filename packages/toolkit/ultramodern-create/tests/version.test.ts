@@ -152,7 +152,7 @@ test('built public UltraModern subpath imports from an ESM consumer and generate
             modernVersion: '3.2.1',
           });
           for (const relativePath of [
-            '.modernjs/ultramodern.json',
+            'topology/reference-topology.json',
             'apps/shell-super-app/package.json',
             'verticals/catalog/package.json',
             'verticals/catalog/shared/api.ts',
@@ -192,7 +192,9 @@ test('built CLI scaffolds a workspace whose asset prefix resolves by precedence'
     assert.equal(result.status, 0, result.stderr);
     const workspacePath = path.join(tmpDir, 'smoke-workspace');
     assert.ok(
-      fs.existsSync(path.join(workspacePath, '.modernjs/ultramodern.json')),
+      fs.existsSync(
+        path.join(workspacePath, 'topology/reference-topology.json'),
+      ),
     );
 
     linkGeneratedConfigRuntime(workspacePath, 'shell-super-app');
@@ -277,15 +279,11 @@ test('local source initializes Git offline and leaves the first commit to the us
     assert.equal(fs.readFileSync(isolatedGitConfig, 'utf8'), gitConfig);
     assert.equal(git(['config', '--local', '--get', 'user.name']).status, 1);
 
-    const ultramodernConfig = JSON.parse(
-      fs.readFileSync(
-        path.join(workspaceDir, '.modernjs/ultramodern.json'),
-        'utf8',
-      ),
+    const rootPackage = JSON.parse(
+      fs.readFileSync(path.join(workspaceDir, 'package.json'), 'utf8'),
     );
-    assert.equal(ultramodernConfig.packageSource.strategy, 'workspace');
     assert.equal(
-      ultramodernConfig.packageSource.modernPackageVersion,
+      rootPackage.devDependencies['@modern-js/ultramodern-create'],
       'workspace:*',
     );
 

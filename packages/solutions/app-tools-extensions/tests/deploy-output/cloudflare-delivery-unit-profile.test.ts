@@ -31,18 +31,18 @@ it('stamps and verifies only the surfaces emitted by each topology profile', asy
   ] as const;
 
   try {
-    await fs.mkdir(path.join(workspaceRoot, '.modernjs'), { recursive: true });
+    await fs.mkdir(path.join(workspaceRoot, 'topology'), { recursive: true });
     await fs.writeFile(
-      path.join(workspaceRoot, '.modernjs/ultramodern.json'),
+      path.join(workspaceRoot, 'topology/reference-topology.json'),
       `${JSON.stringify({
-        topology: {
-          apps: profiles.map(({ appId, profile }) => ({
-            id: appId,
-            path: `verticals/${appId}`,
-            surfaceProfile: profile,
-            deliveryUnit: createDeliveryUnit(appId),
-          })),
-        },
+        shell: { id: 'shell', kind: 'shell', path: 'shell' },
+        verticals: profiles.map(({ appId, profile }) => ({
+          id: appId,
+          kind: 'vertical',
+          path: `verticals/${appId}`,
+          surfaceProfile: profile,
+          deliveryUnit: createDeliveryUnit(appId),
+        })),
       })}\n`,
     );
 
@@ -95,6 +95,31 @@ it('rejects a worker manifest that invents a UI surface for api-only', () => {
     expect.objectContaining({
       code: 'delivery-unit-drift',
       message: expect.stringContaining('unexpected ui delivery-unit surface'),
+    }),
+  ]);
+});
+
+it('rejects a missing declared API surface marker', () => {
+  const deliveryUnit = createDeliveryUnit('catalog');
+  const topology = {
+    ...deliveryUnit,
+    surfaces: { api: { ...deliveryUnit, surface: 'api' as const } },
+  };
+  const issues: Parameters<typeof verifyDeliveryUnitIdentity>[0] = [];
+
+  verifyDeliveryUnitIdentity(
+    issues,
+    { deliveryUnit: { ...deliveryUnit, surfaces: {} } },
+    'modern-worker-manifest.json',
+    topology,
+  );
+
+  expect(issues).toEqual([
+    expect.objectContaining({
+      code: 'missing-delivery-unit',
+      message: expect.stringContaining(
+        'missing the api delivery-unit surface marker',
+      ),
     }),
   ]);
 });

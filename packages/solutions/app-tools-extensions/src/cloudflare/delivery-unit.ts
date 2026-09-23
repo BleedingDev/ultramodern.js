@@ -10,7 +10,7 @@ import { fs as fse } from '@modern-js/utils';
 import { resolveUltramodernReleaseIdentity } from '../release-identity';
 import { isRecord } from './utils';
 
-const COMPACT_CONFIG_PATH = '.modernjs/ultramodern.json';
+const TOPOLOGY_PATH = 'topology/reference-topology.json';
 
 export type DeliveryUnitStamp = DeliveryUnitIdentity & {
   surfaces: {
@@ -19,7 +19,7 @@ export type DeliveryUnitStamp = DeliveryUnitIdentity & {
   };
 };
 
-type CompactAppResolution = {
+type TopologyAppResolution = {
   app?: Record<string, unknown>;
   workspaceRoot: string;
 };
@@ -30,7 +30,7 @@ const findWorkspaceRoot = async (
   let current = path.resolve(appDirectory);
 
   for (;;) {
-    if (await fse.pathExists(path.join(current, COMPACT_CONFIG_PATH))) {
+    if (await fse.pathExists(path.join(current, TOPOLOGY_PATH))) {
       return current;
     }
 
@@ -60,34 +60,32 @@ const stampReleaseIdentity = (
   };
 };
 
-const resolveCompactApp = async (
+const resolveTopologyApp = async (
   appDirectory: string,
-): Promise<CompactAppResolution | undefined> => {
+): Promise<TopologyAppResolution | undefined> => {
   const workspaceRoot = await findWorkspaceRoot(appDirectory);
   if (!workspaceRoot) {
     return undefined;
   }
 
-  let compactConfig: unknown;
-  try {
-    compactConfig = await fse.readJSON(
-      path.join(workspaceRoot, COMPACT_CONFIG_PATH),
+  const topology: unknown = await fse.readJSON(
+    path.join(workspaceRoot, TOPOLOGY_PATH),
+  );
+  if (
+    !isRecord(topology) ||
+    !isRecord(topology.shell) ||
+    !Array.isArray(topology.verticals) ||
+    (topology.shells !== undefined && !Array.isArray(topology.shells))
+  ) {
+    throw new Error(
+      '[cloudflare-delivery-unit] Invalid declared reference topology.',
     );
-  } catch {
-    return { workspaceRoot };
   }
-
-  if (!isRecord(compactConfig)) {
-    return { workspaceRoot };
-  }
-
-  const topology = isRecord(compactConfig.topology)
-    ? compactConfig.topology
-    : undefined;
-  const apps = Array.isArray(topology?.apps) ? topology.apps : undefined;
-  if (!apps) {
-    return { app: compactConfig, workspaceRoot };
-  }
+  const apps = [
+    topology.shell,
+    ...topology.verticals,
+    ...(Array.isArray(topology.shells) ? topology.shells : []),
+  ];
 
   const resolvedAppDirectory = path.resolve(appDirectory);
   const app = apps.find(candidate => {
@@ -101,8 +99,13 @@ const resolveCompactApp = async (
         resolvedAppDirectory
     );
   });
+  if (!isRecord(app)) {
+    throw new Error(
+      `[cloudflare-delivery-unit] ${appDirectory} is missing from the declared reference topology.`,
+    );
+  }
   return {
-    ...(isRecord(app) ? { app } : {}),
+    app,
     workspaceRoot,
   };
 };
@@ -126,23 +129,26 @@ const createDeliveryUnitStamp = (
 
 /**
  * Resolve the delivery-unit record declared for this app by the workspace
- * compact config (`.modernjs/ultramodern.json`). This is the topology source
+ * reference topology. This is the topology source
  * of truth the Cloudflare worker snapshot is verified against.
  */
 export const resolveTopologyDeliveryUnit = async (
   appDirectory: string,
 ): Promise<DeliveryUnitStamp | undefined> => {
-  const resolved = await resolveCompactApp(appDirectory);
+  const resolved = await resolveTopologyApp(appDirectory);
   if (!resolved?.app) {
     return undefined;
   }
   const identity = toDeliveryUnitIdentity(resolved.app.deliveryUnit);
-  return identity
-    ? createDeliveryUnitStamp(
-        stampReleaseIdentity(identity, resolved.workspaceRoot),
-        resolved.app,
-      )
-    : undefined;
+  if (!identity) {
+    throw new Error(
+      '[cloudflare-delivery-unit] Declared app is missing a valid delivery-unit identity.',
+    );
+  }
+  return createDeliveryUnitStamp(
+    stampReleaseIdentity(identity, resolved.workspaceRoot),
+    resolved.app,
+  );
 };
 
 /**
@@ -170,7 +176,7 @@ export const resolveWorkerDeliveryUnitStamp = async (
   if (!identity) {
     return undefined;
   }
-  const resolved = await resolveCompactApp(appDirectory);
+  const resolved = await resolveTopologyApp(appDirectory);
   if (resolved) {
     identity = stampReleaseIdentity(identity, resolved.workspaceRoot);
   }

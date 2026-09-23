@@ -71,11 +71,13 @@ test('Zerops runtime materializer executes deploy, assembles runtime output, and
     });
     const workspaceRealPath = fs.realpathSync(workspaceRoot);
     writeText(path.join(workspaceRoot, 'README.md'), 'original source\n');
-    writeJson(path.join(workspaceRoot, '.modernjs/ultramodern.json'), {
-      packageSource: {
-        modernPackageVersion: modernVersion,
-        aliasScope: 'bleedingdev',
-        aliasPackageNamePrefix: 'modern-js-',
+    const rootManifest = readJson<Record<string, unknown>>(
+      path.join(workspaceRoot, 'package.json'),
+    );
+    writeJson(path.join(workspaceRoot, 'package.json'), {
+      ...rootManifest,
+      devDependencies: {
+        '@modern-js/ultramodern-create': `npm:@bleedingdev/modern-js-ultramodern-create@${modernVersion}`,
       },
     });
 

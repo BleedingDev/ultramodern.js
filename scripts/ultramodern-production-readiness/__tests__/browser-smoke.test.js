@@ -17,6 +17,107 @@ function tempRoot() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'ultramodern-browser-smoke-'));
 }
 
+test('browser smoke reads canonical topology, overlay and app security choices', async t => {
+  const { readSmokeContract } = await import('../browser-smoke/contract.mjs');
+  const root = tempRoot();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const write = (relative, value) => {
+    const file = path.join(root, relative);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify(value));
+  };
+  write('package.json', { name: '@fixture/root' });
+  write('apps/shell/package.json', {
+    name: '@fixture/shell',
+    version: '0.2.0',
+  });
+  write('verticals/inventory/package.json', {
+    name: '@fixture/inventory',
+    version: '0.3.0',
+  });
+  write('topology/reference-topology.json', {
+    shell: {
+      id: 'shell',
+      kind: 'shell',
+      path: 'apps/shell',
+      package: '@fixture/shell',
+      cloudflare: {
+        workerName: 'custom-shell-worker',
+        security: { enabled: true, contentSecurityPolicy: { mode: 'enforce' } },
+        routes: { ssr: '/cs' },
+      },
+    },
+    verticals: [
+      {
+        id: 'inventory',
+        kind: 'vertical',
+        path: 'verticals/inventory',
+        package: '@fixture/inventory',
+        api: {
+          runtime: 'effect',
+          basePath: '/inventory-api/inventory',
+          bff: { prefix: '/inventory-api' },
+        },
+        cloudflare: {
+          routes: { apiReadiness: '/inventory-api/inventory/readiness' },
+          jsonSmokeChecks: [
+            {
+              id: 'inventory-ready',
+              route: '/inventory-api/inventory/readiness',
+            },
+          ],
+        },
+      },
+    ],
+  });
+  write('topology/local-overlays/development.json', {
+    ports: { shell: 4100, inventory: 4101 },
+  });
+  const { contract, contractPath } = readSmokeContract(root);
+  assert.equal(
+    contractPath,
+    path.join(root, 'topology/reference-topology.json'),
+  );
+  assert.deepEqual(
+    contract.apps.map(app => [
+      app.id,
+      app.config.source.siteUrl.defaultLocalhostPort,
+    ]),
+    [
+      ['shell', 4100],
+      ['inventory', 4101],
+    ],
+  );
+  assert.equal(
+    contract.apps[0].deploy.cloudflare.workerName,
+    'custom-shell-worker',
+  );
+  assert.equal(
+    contract.apps[0].deploy.cloudflare.security.contentSecurityPolicy.mode,
+    'enforce',
+  );
+  assert.equal(contract.apps[0].deploy.cloudflare.routes.ssr, '/cs');
+  assert.equal(
+    contract.apps[1].deploy.cloudflare.jsonSmokeChecks[0].id,
+    'inventory-ready',
+  );
+  assert.equal(
+    contract.apps[1].deploy.cloudflare.routes.apiReadiness,
+    '/inventory-api/inventory/readiness',
+  );
+  assert.equal(
+    fs.existsSync(path.join(root, '.modernjs/ultramodern.json')),
+    false,
+  );
+  write('topology/local-overlays/development.json', {
+    ports: { shell: 4100, inventory: 4100 },
+  });
+  assert.throws(
+    () => readSmokeContract(root),
+    /unique development overlay port/u,
+  );
+});
+
 function createNodeBackendProofResult() {
   const manifestUrl = 'http://localhost:3021/backend-mf-manifest.json';
   const containerEntry = 'http://localhost:3021/backendRemoteEntry.cjs';

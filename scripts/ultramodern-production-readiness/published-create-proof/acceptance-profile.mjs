@@ -1088,14 +1088,10 @@ async function runAcceptanceProfile({
               runImpl,
             );
           }
-          const cohort = assertGeneratedCohort(projectDir, release, {
-            registryUrl,
-          });
           return {
             count: options.verticals.length,
             verticals: options.verticals,
             frameworkVersion: createPackage.frameworkVersion,
-            cohort,
           };
         }),
       );
@@ -1158,6 +1154,7 @@ async function runAcceptanceProfile({
             command: 'pnpm install --frozen-lockfile',
             beforeInstall,
             afterInstall,
+            cohort: assertGeneratedCohort(projectDir, release),
             defaultOffRsc: assertDefaultOffRscInstall(
               projectDir,
               audit.closureIdentities,

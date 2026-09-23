@@ -8,18 +8,38 @@ test('performance configuration validation never claims runtime performance', ()
   const workspaceRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), 'performance-configuration-validation-'),
   );
-  const configDirectory = path.join(workspaceRoot, '.modernjs');
-  fs.mkdirSync(configDirectory, { recursive: true });
+  const appPath = 'apps/shell-super-app';
+  const topologyPath = path.join(
+    workspaceRoot,
+    'topology/reference-topology.json',
+  );
+  fs.mkdirSync(path.dirname(topologyPath), { recursive: true });
   fs.writeFileSync(
-    path.join(configDirectory, 'ultramodern.json'),
+    topologyPath,
     `${JSON.stringify({
-      topology: {
-        apps: [{ id: 'shell-super-app', kind: 'shell' }],
+      schemaVersion: 1,
+      shell: {
+        id: 'shell-super-app',
+        kind: 'shell',
+        path: appPath,
+        cloudflare: {
+          compatibilityFlags: ['nodejs_compat'],
+          routes: { ssr: '/en', mfManifest: '/mf-manifest.json' },
+          qualityGates: { assets: { cacheControlRequiredForCss: true } },
+        },
       },
+      verticals: [],
     })}\n`,
   );
 
   try {
+    const modernConfigPath = path.join(
+      workspaceRoot,
+      appPath,
+      'modern.config.ts',
+    );
+    fs.mkdirSync(path.dirname(modernConfigPath), { recursive: true });
+    fs.writeFileSync(modernConfigPath, 'tanstackRouterPlugin();\n');
     const scriptPath = path.resolve(
       __dirname,
       '../templates/workspace-scripts/ultramodern-performance-readiness.mjs',

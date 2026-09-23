@@ -188,6 +188,25 @@ const createOutputFixture = async ({
           ]
         : [],
     },
+    security: {
+      enabled: true,
+      headers: {
+        referrerPolicy: 'strict-origin-when-cross-origin',
+        contentTypeOptions: 'nosniff',
+        permissionsPolicy: 'camera=()',
+      },
+      contentSecurityPolicy: {
+        mode: 'report-only',
+        directives: { 'default-src': ["'self'"] },
+      },
+      noindex: { workersDev: true, localhost: true, previewHostnames: [] },
+      cors: {
+        assets: true,
+        allowedOrigins: [],
+        allowedMethods: ['GET'],
+        allowedHeaders: ['*'],
+      },
+    },
     ...(bffWorkerSource === false
       ? {}
       : {
@@ -209,7 +228,9 @@ const createOutputFixture = async ({
     `export const modernWorkerManifest = ${JSON.stringify(workerManifest)};\nexport default { fetch: async () => new Response("ok") };\n`,
   );
   await writeJson(path.join(outputDirectory, 'wrangler.json'), {
+    name: 'fixture-worker',
     main: 'server/index.mjs',
+    compatibility_date: '2026-06-02',
     compatibility_flags: ['nodejs_compat', 'global_fetch_strictly_public'],
     assets: {
       binding: 'ASSETS',
@@ -241,6 +262,54 @@ describe('Cloudflare output verifier', () => {
     await expect(
       verifyCloudflareOutput({ outputDirectory, importWorker: false }),
     ).resolves.toEqual({ ok: true, issues: [] });
+  });
+
+  it('preserves custom security policy while rejecting missing output security and deployment identity', async () => {
+    const { outputDirectory } = await createOutputFixture();
+    const manifestPath = path.join(
+      outputDirectory,
+      'server/modern-worker-manifest.json',
+    );
+    const wranglerPath = path.join(outputDirectory, 'wrangler.json');
+    const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf-8'));
+    manifest.security.contentSecurityPolicy = {
+      mode: 'enforce',
+      directives: {
+        'default-src': ["'none'"],
+        'connect-src': ['https://api.example'],
+      },
+    };
+    await writeJson(manifestPath, manifest);
+    await expect(
+      verifyCloudflareOutput({ outputDirectory, importWorker: false }),
+    ).resolves.toEqual({ ok: true, issues: [] });
+
+    manifest.security = {
+      enabled: false,
+      cors: manifest.security.cors,
+    };
+    await writeJson(manifestPath, manifest);
+    await expect(
+      verifyCloudflareOutput({ outputDirectory, importWorker: false }),
+    ).resolves.toEqual({ ok: true, issues: [] });
+
+    delete manifest.security;
+    await writeJson(manifestPath, manifest);
+    const wrangler = JSON.parse(await fs.readFile(wranglerPath, 'utf-8'));
+    delete wrangler.name;
+    wrangler.compatibility_date = 'invalid';
+    await writeJson(wranglerPath, wrangler);
+    const result = await verifyCloudflareOutput({
+      outputDirectory,
+      importWorker: false,
+    });
+    expect(result.issues.map(issue => issue.message)).toEqual(
+      expect.arrayContaining([
+        'Cloudflare output manifest security.enabled must be a boolean.',
+        'wrangler.json name must be a non-empty worker name.',
+        'wrangler.json compatibility_date must use YYYY-MM-DD.',
+      ]),
+    );
   });
 
   it('rejects a worker whose runtime manifest differs from its verified manifest artifact', async () => {
@@ -385,6 +454,11 @@ describe('Cloudflare output verifier', () => {
     {
       name: 'accepts a supported Worker node builtin',
       source: "require('node:async_hooks');",
+      expectedOk: true,
+    },
+    {
+      name: 'accepts https in the supported nodejs_compat mode',
+      source: "require('node:https');",
       expectedOk: true,
     },
     {

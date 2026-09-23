@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { UltramodernToolingConfig } from '../../ultramodern-tooling/config';
-import { ULTRAMODERN_CONFIG_PATH } from '../descriptors';
 import { packageName, toKebabCase } from '../naming';
 import { resolvePackageSource } from '../package-source';
 import type { AddUltramodernShellOptions, WorkspaceApp } from '../types';
@@ -22,12 +21,12 @@ export function workspaceOperationSettings(
     : config.packageSource;
   if (!packageSource)
     throw new Error(
-      `Missing UltraModern package source: ${path.join(options.workspaceRoot, ULTRAMODERN_CONFIG_PATH)}`,
+      `Missing UltraModern package source in workspace manifests: ${options.workspaceRoot}`,
     );
   return {
     packageSource,
     enableTailwind: options.enableTailwind ?? config.features.tailwind,
-    bridge: config.bridge,
+    bridge: undefined,
   };
 }
 
@@ -47,10 +46,7 @@ export function configuredDevelopmentPorts(
 ): number[] {
   return [
     ...new Set(
-      [
-        ...Object.values(ports),
-        ...additionalShells.map(shell => shell.port),
-      ].filter(
+      [...Object.values(ports)].filter(
         (value): value is number =>
           typeof value === 'number' && Number.isFinite(value),
       ),
@@ -74,15 +70,6 @@ export function assertGlobalPortUniqueness(
       );
     }
     owners.set(value, id);
-  }
-  for (const shell of additionalShells) {
-    const previous = owners.get(shell.port);
-    if (previous) {
-      throw new Error(
-        `Duplicate development port "${shell.port}" for ${previous} and ${shell.id}.`,
-      );
-    }
-    owners.set(shell.port, shell.id);
   }
 }
 

@@ -381,8 +381,8 @@ const assertUniqueSortedArtifacts = (
 };
 
 const assertSurfacePaths = (value: unknown, location: string): string[] => {
-  if (!Array.isArray(value) || value.length === 0) {
-    throw new Error(`${location} must contain at least one artifact path.`);
+  if (!Array.isArray(value)) {
+    throw new Error(`${location} must be an array of artifact paths.`);
   }
   const paths = value.map((item, index) =>
     assertNormalizedLogicalPath(item, `${location}[${index}]`),
@@ -413,10 +413,31 @@ const assertSurfaces = (value: unknown): MicroVerticalReleaseSurfaces => {
     ['manifest', 'container'],
     'surfaces.backendFederation',
   );
+  const uiClient = assertSurfacePaths(surfaces.uiClient, 'surfaces.uiClient');
+  const ssr = assertSurfacePaths(surfaces.ssr, 'surfaces.ssr');
+  const apiBackend = assertSurfacePaths(
+    surfaces.apiBackend,
+    'surfaces.apiBackend',
+  );
+  if (uiClient.length > 0 && ssr.length === 0) {
+    throw new Error(
+      'surfaces.ssr must contain at least one artifact path when UI/client is declared.',
+    );
+  }
+  if (ssr.length > 0 && uiClient.length === 0) {
+    throw new Error(
+      'surfaces.uiClient must contain at least one artifact path when SSR is declared.',
+    );
+  }
+  if (apiBackend.length === 0) {
+    throw new Error(
+      'surfaces.apiBackend must contain at least one artifact path.',
+    );
+  }
   return {
-    uiClient: assertSurfacePaths(surfaces.uiClient, 'surfaces.uiClient'),
-    ssr: assertSurfacePaths(surfaces.ssr, 'surfaces.ssr'),
-    apiBackend: assertSurfacePaths(surfaces.apiBackend, 'surfaces.apiBackend'),
+    uiClient,
+    ssr,
+    apiBackend,
     backendFederation: {
       manifest: assertNormalizedLogicalPath(
         backendFederation.manifest,

@@ -25,8 +25,12 @@ export function linkInstalledCompiler(workspaceDir: string) {
 export function runValidation(workspaceDir: string) {
   return spawnSync(
     process.execPath,
-    ['scripts/validate-ultramodern-workspace.mts'],
-    { cwd: workspaceDir, encoding: 'utf-8' },
+    [path.resolve(__dirname, '../../bin/run.js'), 'ultramodern', 'validate'],
+    {
+      cwd: workspaceDir,
+      encoding: 'utf-8',
+      env: { ...process.env, ULTRAMODERN_WORKSPACE_ROOT: workspaceDir },
+    },
   );
 }
 

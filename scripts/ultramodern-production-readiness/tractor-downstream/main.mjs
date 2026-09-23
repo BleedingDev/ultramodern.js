@@ -759,14 +759,12 @@ function runVisibleWorkflow({
 }
 
 function expectedNodeBackendAppIds(workspace) {
-  const configPath = path.join(workspace, '.modernjs/ultramodern.json');
-  const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-  if (!Array.isArray(config.topology?.apps)) {
-    throw new Error(
-      'Tractor compact config is missing the current topology app set',
-    );
+  const topologyPath = path.join(workspace, 'topology/reference-topology.json');
+  const topology = JSON.parse(fs.readFileSync(topologyPath, 'utf8'));
+  if (!Array.isArray(topology.verticals)) {
+    throw new Error('Tractor reference topology is missing verticals');
   }
-  const expected = config.topology.apps
+  const expected = topology.verticals
     .filter(app => app?.kind === 'vertical' && app.api)
     .map(app => app.id);
   if (
@@ -775,7 +773,7 @@ function expectedNodeBackendAppIds(workspace) {
     new Set(expected).size !== expected.length
   ) {
     throw new Error(
-      'Tractor current topology must contain unique API-bearing MicroVertical ids',
+      'Tractor reference topology must contain unique API-bearing MicroVertical ids',
     );
   }
   return expected.sort((left, right) => left.localeCompare(right));
@@ -912,11 +910,7 @@ async function runTractorDownstreamAcceptance(
       options.workspace,
       runImpl,
     );
-    prepareTractorCohortInstallation(
-      options.workspace,
-      release,
-      minimumReleaseAgeExclude,
-    );
+    prepareTractorCohortInstallation(options.workspace, release);
     // pnpm validates the existing lock before resolving new dependencies. A
     // recently accepted previous cohort is outside this candidate's exact
     // release-age approvals, so resolve the candidate from a fresh native lock.

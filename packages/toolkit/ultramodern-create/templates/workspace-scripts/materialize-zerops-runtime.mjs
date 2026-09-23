@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import execa from '@modern-js/utils/execa';
+import { readWorkspacePackageSource } from '../../dist/esm-node/ultramodern-tooling/config/metadata.js';
 
 const workspaceRoot = path.resolve(
   process.env.ULTRAMODERN_WORKSPACE_ROOT ?? process.cwd(),
@@ -43,10 +44,6 @@ function assertInsideWorkspace(label, targetPath) {
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-}
-
-function readOptionalJson(filePath) {
-  return fs.existsSync(filePath) ? readJson(filePath) : undefined;
 }
 
 function writeJson(filePath, value) {
@@ -221,13 +218,8 @@ console.log(
 );
 
 function normalizeRuntimePackageDependencies(packageJson) {
-  const compactConfig = readOptionalJson(
-    path.join(workspaceRoot, '.modernjs/ultramodern.json'),
-  );
-  const packageSource = compactConfig?.packageSource;
-  const modernPackageVersion = packageSource?.modernPackageVersion;
-  const aliasScope = packageSource?.aliasScope;
-  const aliasPackageNamePrefix = packageSource?.aliasPackageNamePrefix;
+  const { modernPackageVersion, aliasScope, aliasPackageNamePrefix } =
+    readWorkspacePackageSource(workspaceRoot);
 
   if (!modernPackageVersion || !aliasScope || !aliasPackageNamePrefix) {
     return;

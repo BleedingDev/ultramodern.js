@@ -51,6 +51,10 @@ export const verifyDeliveryUnitIdentity = (
       const marker = stamped.surfaces[surface];
       const expected = declared?.surfaces?.[surface];
 
+      if (!expected && !marker) {
+        continue;
+      }
+
       if (declared?.surfaces && !expected) {
         if (marker) {
           addIssue(issues, {

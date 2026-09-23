@@ -2,194 +2,103 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {
-  normalizeWorkspaceInputs,
-  readUltramodernConfig,
-  readUltramodernWorkspaceInputs,
-  workspaceAppsFromToolingConfig,
-} from '../src/ultramodern-tooling/config';
-import { shellApp } from '../src/ultramodern-workspace/descriptors';
-import { createWorkspaceValidationContract } from '../src/ultramodern-workspace/workspace-validation-contract';
+import { readUltramodernWorkspaceInputs } from '../src/ultramodern-tooling/config';
 
-function inputs() {
-  return {
-    config: {
-      schemaVersion: 1,
-      workspace: { packageScope: '@test', customWorkspaceChoice: true },
-      customRoot: { deployment: 'consumer-owned' },
-      topology: {
-        apps: [
-          {
-            id: shellApp.id,
-            kind: 'shell',
-            path: 'apps/custom-shell',
-            port: 3000,
-            customApp: 'preserve',
-            moduleFederation: { verticalRefs: ['orders'], customMf: true },
-          },
-          {
-            id: 'orders',
-            kind: 'vertical',
-            path: 'verticals/orders',
-            port: 3001,
-            moduleFederation: { exposes: ['./Route'] },
-          },
-        ],
-      },
-      shells: [
-        {
-          id: 'shell-admin',
-          name: 'admin',
-          path: 'apps/admin',
-          port: 3300,
-          verticalRefs: [],
-          customShell: { keep: true },
-        },
-      ],
-    },
-    topology: {
-      shell: { verticalRefs: [], customComposition: 'preserve' },
-      verticals: [
-        {
-          id: 'orders',
-          path: 'verticals/orders',
-          customTopologyField: true,
-          moduleFederation: { exposes: ['./Route'], verticalRefs: [] },
-        },
-      ],
-      customTopology: true,
-    },
-    overlay: {
-      ports: { [shellApp.id]: 3120, orders: 3121 },
-      customOverlay: { host: 'consumer.example' },
-    },
+function fixture() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'um-canonical-inputs-'));
+  const write = (relative: string, content: string | object) => {
+    const file = path.join(root, relative);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(
+      file,
+      typeof content === 'string' ? content : JSON.stringify(content),
+    );
   };
-}
-
-test('workspace reads retain unknown input fields without mutating consumer inputs', () => {
-  const raw = inputs();
-  const before = structuredClone(raw);
-  const view = normalizeWorkspaceInputs('/workspace', raw);
-  assert.equal(view.raw, raw);
-  assert.deepEqual(view.primaryShell?.verticalRefs, []);
-  assert.deepEqual(
-    normalizeWorkspaceInputs('/workspace', raw, undefined, {
-      primaryComposition: 'compact',
-    }).primaryShell?.verticalRefs,
-    ['orders'],
-  );
-  const emptyComposition = structuredClone(raw);
-  emptyComposition.config.topology.apps[0].moduleFederation.verticalRefs = [];
-  assert.deepEqual(
-    normalizeWorkspaceInputs('/workspace', emptyComposition, undefined, {
-      primaryComposition: 'compact',
-    }).primaryShell?.verticalRefs,
-    [],
-  );
-  assert.deepEqual(view.raw, before);
-  assert.deepEqual(raw, before);
-});
-
-test('disk read exposes raw fields and leaves the existing config reader compatible', () => {
-  const workspaceRoot = fs.mkdtempSync(
-    path.join(os.tmpdir(), 'um-normalization-'),
-  );
-  try {
-    fs.mkdirSync(path.join(workspaceRoot, '.modernjs'));
-    const raw = inputs();
-    const configPath = path.join(workspaceRoot, '.modernjs/ultramodern.json');
-    const bytes = `${JSON.stringify(raw.config)}\n`;
-    fs.writeFileSync(configPath, bytes);
-    const view = readUltramodernWorkspaceInputs(workspaceRoot, {
-      topology: raw.topology,
-      overlay: raw.overlay,
-    });
-    assert.deepEqual(view.raw.config, raw.config);
-    assert.deepEqual(view.config, readUltramodernConfig(workspaceRoot));
-    assert.equal(view.primaryShell?.port, 3120);
-    assert.equal(fs.readFileSync(configPath, 'utf8'), bytes);
-  } finally {
-    fs.rmSync(workspaceRoot, { recursive: true, force: true });
-  }
-});
-
-function federationSurfaceWorkspace() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ultramodern-expose-'));
-  const vertical = path.join(root, 'verticals/party-registry');
-  const surface = path.join(vertical, 'src/federation/page-contacts.tsx');
-  fs.mkdirSync(path.dirname(surface), { recursive: true });
-  fs.writeFileSync(surface, 'export default function PageContacts() {}\n');
-  fs.mkdirSync(path.join(root, '.modernjs'), { recursive: true });
-  fs.writeFileSync(
-    path.join(root, '.modernjs/ultramodern.json'),
-    JSON.stringify({
-      schemaVersion: 1,
-      workspace: { packageScope: '@app' },
-      topology: {
-        apps: [
-          {
-            id: shellApp.id,
-            kind: 'shell',
-            path: 'apps/shell-super-app',
-            moduleFederation: { verticalRefs: ['party-registry'] },
-          },
-          {
-            id: 'party-registry',
-            kind: 'vertical',
-            path: 'verticals/party-registry',
-            moduleFederation: { exposes: ['./PageContacts'] },
-          },
-        ],
+  write('package.json', {
+    name: 'app',
+    devDependencies: { '@modern-js/ultramodern-create': 'workspace:*' },
+  });
+  write('apps/shell/package.json', {
+    name: '@app/shell',
+    modernjs: { appId: 'shell' },
+  });
+  write('verticals/party-registry/package.json', {
+    name: '@app/party-registry',
+    modernjs: { appId: 'party-registry' },
+  });
+  const topology = {
+    schemaVersion: 1,
+    shell: {
+      id: 'shell',
+      kind: 'shell',
+      path: 'apps/shell',
+      package: '@app/shell',
+      verticalRefs: [],
+      consumerChoice: 'keep',
+    },
+    verticals: [
+      {
+        id: 'party-registry',
+        kind: 'vertical',
+        path: 'verticals/party-registry',
+        package: '@app/party-registry',
+        moduleFederation: {
+          name: 'partyRegistry',
+          exposes: ['./PageContacts'],
+        },
       },
-    }),
-  );
-  fs.writeFileSync(
-    path.join(vertical, 'module-federation.config.ts'),
+    ],
+    consumerTopology: { keep: true },
+  };
+  const overlay = {
+    schemaVersion: 1,
+    ports: { shell: 3120, 'party-registry': 3121 },
+    consumerOverlay: { host: 'consumer.example' },
+  };
+  write('topology/reference-topology.json', topology);
+  write('topology/local-overlays/development.json', overlay);
+  write(
+    'verticals/party-registry/module-federation.config.ts',
     `import { createModuleFederationConfig } from '@module-federation/modern-js-v3';
-export default createModuleFederationConfig({
-  name: 'verticalPartyRegistry',
-  exposes: { './PageContacts': './src/federation/page-contacts.tsx' },
-});
-`,
+export default createModuleFederationConfig({ name: 'partyRegistry', exposes: { './PageContacts': './src/federation/page-contacts.tsx' } });`,
   );
-  return { root, surface };
+  write(
+    'verticals/party-registry/src/federation/page-contacts.tsx',
+    'export default function PageContacts() {}',
+  );
+  write(
+    'apps/shell/modern.config.ts',
+    'throw new Error("application config must not execute during discovery")',
+  );
+  return { root, topology, overlay };
 }
 
-test('the generated validator expects the surface the expose map declares', () => {
-  const { root } = federationSurfaceWorkspace();
+test('canonical reader preserves authored topology and explicit composition without evaluating app config', () => {
+  const { root, topology, overlay } = fixture();
   try {
-    // Remotes derived without a workspace root still carry the generator's
-    // `src/components` guess; the emitted validator must not inherit it.
-    const remotes = workspaceAppsFromToolingConfig(
-      readUltramodernConfig(root),
-    ).filter(app => app.kind === 'vertical');
-    assert.equal(
-      remotes[0]?.exposes?.['./PageContacts'],
-      './src/components/page-contacts.tsx',
+    const before = fs.readFileSync(
+      path.join(root, 'topology/reference-topology.json'),
+      'utf8',
     );
-
-    const contract = createWorkspaceValidationContract(
-      '@app',
-      false,
-      remotes,
-      undefined,
-      [],
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      root,
+    const view = readUltramodernWorkspaceInputs(root);
+    assert.equal(view.primaryShell.id, 'shell');
+    assert.deepEqual(view.primaryShell.verticalRefs, []);
+    assert.equal(view.primaryShell.port, 3120);
+    assert.equal(view.raw.topology.shell.consumerChoice, 'keep');
+    assert.deepEqual(
+      view.raw.topology.consumerTopology,
+      topology.consumerTopology,
     );
+    assert.deepEqual(view.raw.overlay.consumerOverlay, overlay.consumerOverlay);
     assert.equal(
-      JSON.stringify(contract).includes(
-        'verticals/party-registry/src/federation/page-contacts.tsx',
+      fs.readFileSync(
+        path.join(root, 'topology/reference-topology.json'),
+        'utf8',
       ),
-      true,
+      before,
     );
     assert.equal(
-      JSON.stringify(contract).includes(
-        'verticals/party-registry/src/components/page-contacts.tsx',
-      ),
+      fs.existsSync(path.join(root, '.modernjs/ultramodern.json')),
       false,
     );
   } finally {
@@ -197,28 +106,21 @@ test('the generated validator expects the surface the expose map declares', () =
   }
 });
 
-test('derives federated surface paths from the Module Federation config', () => {
-  const { root, surface } = federationSurfaceWorkspace();
+test('custom Module Federation expose path is read from native config', () => {
+  const { root } = fixture();
   try {
     const expose = () =>
-      readUltramodernWorkspaceInputs(root).verticals[0]?.exposes?.[
+      readUltramodernWorkspaceInputs(root).verticals[0].exposes?.[
         './PageContacts'
       ];
-    // The surface the workspace actually exposes is the file validation
-    // requires, wherever the vertical chose to keep it.
     assert.equal(expose(), './src/federation/page-contacts.tsx');
-    assert.equal(
-      fs.existsSync(path.join(root, 'verticals/party-registry', expose()!)),
-      true,
+    fs.rmSync(
+      path.join(
+        root,
+        'verticals/party-registry/src/federation/page-contacts.tsx',
+      ),
     );
-
-    // A declared surface that is not on disk still fails the existence gate.
-    fs.rmSync(surface);
     assert.equal(expose(), './src/federation/page-contacts.tsx');
-    assert.equal(
-      fs.existsSync(path.join(root, 'verticals/party-registry', expose()!)),
-      false,
-    );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

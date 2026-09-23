@@ -1,12 +1,14 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { parse as parseYaml } from 'yaml';
 import { canonicalJson } from '../../ultramodern-publish/lib/prepare-bleedingdev-packages/release-artifacts.mjs';
 import { readJsonFile } from './constants.mjs';
 
-const compactMetadataPath = '.modernjs/ultramodern.json';
-const releaseCohortPath = '.modernjs/release-cohort.json';
+const releaseCohortPath = 'release-cohort.json';
 const retiredMetadataPaths = Object.freeze([
+  '.modernjs/ultramodern.json',
+  '.modernjs/release-cohort.json',
   '.modernjs/ultramodern-package-source.json',
   '.modernjs/ultramodern-workspace-template-manifest.json',
 ]);
@@ -37,18 +39,33 @@ function isPlainObject(value) {
   return prototype === Object.prototype || prototype === null;
 }
 
-function assertGeneratedReleaseCohort(projectDir, release) {
+function assertInstalledProducerCohort(projectDir, release) {
   assertCondition(
     isPlainObject(release?.cohortProjection) &&
       /^[a-f0-9]{64}$/u.test(release.cohortProjection.sha256) &&
       isPlainObject(release.cohortProjection.value),
-    'Strict release manifest cohort projection is required for generated cohort validation',
+    'Strict release manifest cohort projection is required for installed producer validation',
   );
-  const filePath = path.join(projectDir, releaseCohortPath);
+  const packageRoot = path.join(
+    projectDir,
+    'node_modules',
+    '@modern-js',
+    'ultramodern-create',
+  );
+  const installedRoot = fs.realpathSync(packageRoot);
+  const installedManifest = readJsonFile(
+    path.join(installedRoot, 'package.json'),
+  );
+  assertCondition(
+    installedManifest.name === release.createPackage.targetName &&
+      installedManifest.version === release.release.version,
+    'Installed create package identity differs from strict release manifest',
+  );
+  const filePath = path.join(installedRoot, releaseCohortPath);
   const stat = fs.lstatSync(filePath, { throwIfNoEntry: false });
   assertCondition(
     stat?.isFile() && !stat.isSymbolicLink(),
-    `Generated authenticated release cohort is missing or unsafe: ${releaseCohortPath}`,
+    `Installed producer authenticated release cohort is missing or unsafe: ${releaseCohortPath}`,
   );
   const bytes = fs.readFileSync(filePath);
   const expectedBytes = Buffer.from(
@@ -57,12 +74,12 @@ function assertGeneratedReleaseCohort(projectDir, release) {
   );
   assertCondition(
     bytes.equals(expectedBytes),
-    `Generated authenticated release cohort differs from strict release manifest: ${releaseCohortPath}`,
+    `Installed producer authenticated release cohort differs from strict release manifest: ${releaseCohortPath}`,
   );
   assertCondition(
     crypto.createHash('sha256').update(bytes).digest('hex') ===
       release.cohortProjection.sha256,
-    `Generated authenticated release cohort SHA-256 differs from strict release manifest: ${releaseCohortPath}`,
+    `Installed producer authenticated release cohort SHA-256 differs from strict release manifest: ${releaseCohortPath}`,
   );
 }
 
@@ -439,109 +456,42 @@ function packageJsonFiles(root) {
   return files.sort();
 }
 
-function readCompactMetadata(projectDir) {
+function assertNoRetiredMetadata(projectDir) {
   for (const retiredPath of retiredMetadataPaths) {
     const filePath = path.join(projectDir, retiredPath);
     if (fs.existsSync(filePath)) {
       throw new Error(
-        `Generated workspace contains retired package-cohort metadata ${retiredPath}; strict acceptance never mixes legacy metadata with ${compactMetadataPath}`,
+        `Generated workspace contains retired metadata ${retiredPath}`,
       );
     }
   }
-
-  const filePath = path.join(projectDir, compactMetadataPath);
-  const stat = fs.lstatSync(filePath, { throwIfNoEntry: false });
-  assertCondition(
-    stat?.isFile() && !stat.isSymbolicLink(),
-    `Generated compact metadata is missing or unsafe: ${compactMetadataPath}`,
-  );
-  return readJsonFile(filePath);
 }
 
-function normalizedRegistry(value) {
-  if (value === undefined) {
-    return undefined;
-  }
-  try {
-    return new URL(value).toString();
-  } catch {
-    throw new Error(
-      `Generated package source registry is invalid: ${String(value)}`,
-    );
-  }
-}
-
-function assertGeneratedCohort(projectDir, release, { registryUrl } = {}) {
-  assertGeneratedReleaseCohort(projectDir, release);
+function assertGeneratedCohort(projectDir, release) {
+  assertNoRetiredMetadata(projectDir);
+  assertInstalledProducerCohort(projectDir, release);
   const expected = expectedReleaseCohort(release);
-  const compact = readCompactMetadata(projectDir);
-  assertCondition(
-    compact?.schemaVersion === 1,
-    `Generated compact metadata schemaVersion must be 1, found ${String(
-      compact?.schemaVersion,
-    )}`,
+  const workspace = parseYaml(
+    fs.readFileSync(path.join(projectDir, 'pnpm-workspace.yaml'), 'utf8'),
   );
   assertCondition(
-    isPlainObject(compact.generator),
-    'Generated compact metadata generator identity is missing',
+    isPlainObject(workspace),
+    'Generated pnpm-workspace.yaml must be a mapping',
   );
-  assertCondition(
-    compact.generator.package === release.createPackage.sourceName &&
-      compact.generator.version === release.createPackage.version,
-    `Generated compact metadata must observe exact create ${release.createPackage.sourceName}@${release.createPackage.version}`,
-  );
-  assertCondition(
-    isPlainObject(compact.packageSource),
-    'Generated compact metadata packageSource is missing',
-  );
-  const forbiddenPackageSourceKeys = [
-    'metadata',
-    'modernPackages',
-    'modernPackageSpecifier',
-  ].filter(key => compact.packageSource[key] !== undefined);
-  assertCondition(
-    forbiddenPackageSourceKeys.length === 0,
-    `Generated compact metadata mixes retired package-source fields: ${forbiddenPackageSourceKeys.join(
-      ', ',
-    )}`,
-  );
-  assertCondition(
-    compact.packageSource.strategy === 'install',
-    `Generated package source strategy must be install, found ${String(
-      compact.packageSource.strategy,
-    )}`,
-  );
-  assertCondition(
-    compact.packageSource.modernPackageVersion === release.release.version,
-    `Generated package source version must be ${release.release.version}, found ${String(
-      compact.packageSource.modernPackageVersion,
-    )}`,
-  );
-  assertCondition(
-    compact.packageSource.aliasScope === expected.aliasScope,
-    `Generated package source aliasScope must be ${expected.aliasScope}, found ${String(
-      compact.packageSource.aliasScope,
-    )}`,
-  );
-  assertCondition(
-    compact.packageSource.aliasPackageNamePrefix ===
-      expected.aliasPackageNamePrefix,
-    `Generated package source aliasPackageNamePrefix must be ${expected.aliasPackageNamePrefix}, found ${String(
-      compact.packageSource.aliasPackageNamePrefix,
-    )}`,
-  );
-  if (
-    compact.packageSource.registry !== undefined &&
-    registryUrl !== undefined
-  ) {
+  const resolveRequest = (sourceName, request) => {
+    if (typeof request !== 'string' || !request.startsWith('catalog:'))
+      return request;
+    const catalogName = request.slice('catalog:'.length);
+    const catalog = catalogName
+      ? workspace.catalogs?.[catalogName]
+      : workspace.catalog;
+    const resolved = catalog?.[sourceName];
     assertCondition(
-      normalizedRegistry(compact.packageSource.registry) ===
-        normalizedRegistry(registryUrl),
-      `Generated package source registry must be ${normalizedRegistry(
-        registryUrl,
-      )}, found ${String(compact.packageSource.registry)}`,
+      typeof resolved === 'string',
+      `Generated pnpm catalog ${catalogName || 'default'} omits ${sourceName}`,
     );
-  }
+    return resolved;
+  };
 
   const sourceNames = new Set(expected.sourceNames);
   const targetNames = new Set(expected.targetNames);
@@ -554,7 +504,8 @@ function assertGeneratedCohort(projectDir, release, { registryUrl } = {}) {
       if (!isPlainObject(block)) {
         continue;
       }
-      for (const [dependencyName, specifier] of Object.entries(block)) {
+      for (const [dependencyName, request] of Object.entries(block)) {
+        const specifier = resolveRequest(dependencyName, request);
         if (targetNames.has(dependencyName)) {
           throw new Error(
             `${relative} ${blockName}.${dependencyName} bypasses the source-name alias contract`,

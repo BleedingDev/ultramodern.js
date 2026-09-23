@@ -162,7 +162,7 @@ test('root package json pins workspace package versions and bridge workspace glo
   assert.equal(rootScripts['format:check'], 'oxfmt --check .');
   assert.equal(
     rootScripts.postinstall,
-    'node ./scripts/bootstrap-agent-skills.mts --postinstall',
+    'ultramodern-create ultramodern skills install --postinstall',
   );
 });
 
@@ -183,14 +183,14 @@ test('generated roots provide the native app-tools peer required by their BFF bu
   );
   for (const [packageSource, expected] of [
     [workspacePackageSource, 'workspace:*'],
-    [installPackageSource, packageVersion],
+    [installPackageSource, 'catalog:ultramodern'],
     [
       {
         ...installPackageSource,
         aliasScope: 'bleedingdev',
         aliasPackageNamePrefix: 'modern-js-',
       },
-      `npm:@bleedingdev/modern-js-app-tools@${packageVersion}`,
+      'catalog:ultramodern',
     ],
   ] as const) {
     const root = packageRecord(
@@ -275,7 +275,7 @@ test('BFF build dependencies follow app capabilities and retain runtime packages
     const manifest = packageRecord(
       createAppPackage(scope, app, installPackageSource, false),
     );
-    const expected = preset === 'ui-only' ? undefined : packageVersion;
+    const expected = preset === 'ui-only' ? undefined : 'catalog:ultramodern';
     assert.equal(
       manifest.devDependencies['@modern-js/plugin-bff-build-extensions'],
       expected,
@@ -307,11 +307,11 @@ test('every generated i18n profile directly declares the descriptor provider', (
     );
     assert.equal(
       manifest.dependencies['@modern-js/i18n-integration'],
-      `npm:@bleedingdev/modern-js-i18n-integration@${packageVersion}`,
+      'catalog:ultramodern',
     );
     assert.equal(
       manifest.dependencies['@modern-js/plugin-i18n'],
-      `npm:@bleedingdev/modern-js-plugin-i18n@${packageVersion}`,
+      'catalog:ultramodern',
     );
     assert.equal(
       manifest.dependencies['@modern-js/i18n-runtime-extensions'],
