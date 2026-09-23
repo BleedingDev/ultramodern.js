@@ -327,7 +327,10 @@ describe('Node deployment npm aliases', () => {
     }
   });
 
-  it('resolves installed catalog aliases into relocatable deployment aliases', async () => {
+  it.each([
+    'dependencies',
+    'devDependencies',
+  ] as const)('resolves installed %s catalog aliases into relocatable deployment aliases', async dependencyKey => {
     const appDirectory = await mkdtemp(
       path.join(tmpdir(), 'app-tools-catalog-alias-'),
     );
@@ -342,7 +345,7 @@ describe('Node deployment npm aliases', () => {
     try {
       await writeJson(path.join(appDirectory, 'package.json'), {
         name: 'catalog-alias-app',
-        dependencies: { [aliasName]: 'catalog:ultramodern' },
+        [dependencyKey]: { [aliasName]: 'catalog:ultramodern' },
       });
       await writeJson(path.join(installedDirectory, 'package.json'), {
         name: targetName,

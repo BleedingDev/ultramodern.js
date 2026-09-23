@@ -5,8 +5,8 @@
   "pathspec": ["packages"],
   "migrationGoal": "Shrink-only budget of fork edits inside upstream-owned files. Every entry is debt: move it upstream or behind an extension point, then re-run --write-divergence-allowlist.",
   "totalFiles": 817,
-  "totalHunks": 3089,
-  "totalChangedLines": 51141,
+  "totalHunks": 3094,
+  "totalChangedLines": 51156,
   "files": [
     {
       "file": "packages/cli/adapter-rstest/package.json",
@@ -3320,8 +3320,8 @@
     },
     {
       "file": "packages/solutions/app-tools/src/plugins/deploy/platforms/node.ts",
-      "hunks": 2,
-      "changedLines": 12
+      "hunks": 6,
+      "changedLines": 25
     },
     {
       "file": "packages/solutions/app-tools/src/plugins/deploy/platforms/templates/vercel-entry.cjs",
@@ -3875,8 +3875,8 @@
     },
     {
       "file": "packages/toolkit/types/common/index.d.ts",
-      "hunks": 1,
-      "changedLines": 9
+      "hunks": 2,
+      "changedLines": 11
     },
     {
       "file": "packages/toolkit/types/index.d.ts",
