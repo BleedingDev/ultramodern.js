@@ -942,6 +942,210 @@ test('workerd RPC response evidence requires the declared POST result without in
   );
 });
 
+test('workerd API proof requires the actual service binding or an unbound headless worker', async () => {
+  const { assertWorkerdApiProofTarget } = await import(
+    '../browser-smoke/runtime-evidence.mjs'
+  );
+  const app = { id: 'inventory', surfaceProfile: 'api-only' };
+  const worker = 'fixture-inventory';
+  const envelopeDigest = 'a'.repeat(64);
+  const target = { appId: app.id, envelopeDigest, worker };
+  const direct = { directTarget: target };
+  assert.equal(
+    assertWorkerdApiProofTarget(direct, app, worker, envelopeDigest),
+    'direct',
+  );
+  assert.throws(
+    () => assertWorkerdApiProofTarget(direct, app, worker, 'b'.repeat(64)),
+    /not tied to its Miniflare worker identity/u,
+  );
+  assert.throws(
+    () =>
+      assertWorkerdApiProofTarget(
+        direct,
+        { ...app, surfaceProfile: 'full-stack' },
+        worker,
+        envelopeDigest,
+      ),
+    /omitted a required service binding/u,
+  );
+  const binding = { binding: 'VERTICAL_INVENTORY_WORKER', service: worker };
+  assert.throws(
+    () =>
+      assertWorkerdApiProofTarget(direct, app, worker, envelopeDigest, binding),
+    /not tied to its Miniflare worker identity/u,
+  );
+  const bound = {
+    binding: binding.binding,
+    bindingTarget: target,
+    throughShell: { status: 200 },
+  };
+  assert.equal(
+    assertWorkerdApiProofTarget(bound, app, worker, envelopeDigest, binding),
+    'service-binding',
+  );
+  assert.throws(
+    () =>
+      assertWorkerdApiProofTarget(
+        { ...bound, binding: 'OTHER_WORKER' },
+        app,
+        worker,
+        envelopeDigest,
+        binding,
+      ),
+    /does not match its deployed worker configuration/u,
+  );
+});
+
+test('workerd API evidence correlates each mixed-topology shell with its own binding', async t => {
+  const { verifyWorkerdRuntimeCorrelation } = await import(
+    '../browser-smoke/runtime-evidence.mjs'
+  );
+  const root = tempRoot();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const write = (relative, value) => {
+    const file = path.join(root, relative);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify(value));
+  };
+  const worker = 'fixture-inventory';
+  const digest = 'a'.repeat(64);
+  const identity = {
+    buildMarker: 'fixture',
+    releaseVersion: '1',
+    sourceRevision: 'abc',
+  };
+  const check = {
+    id: 'rpc-readiness',
+    method: 'POST',
+    route: '/rpc',
+    body: { jsonrpc: '2.0', id: 'proof', method: 'list', params: {} },
+    expect: { id: 'proof', 'result.items.0.id': 'item' },
+  };
+  const app = {
+    id: 'inventory',
+    path: 'verticals/inventory',
+    surfaceProfile: 'api-only',
+    api: { protocol: 'rpc' },
+    deploy: {
+      cloudflare: { routes: { rpc: '/rpc' }, jsonSmokeChecks: [check] },
+    },
+  };
+  const shells = [
+    { id: 'shell-ui', path: 'apps/shell-ui', verticalRefs: ['catalog'] },
+    { id: 'shell-api', path: 'apps/shell-api', verticalRefs: [] },
+  ];
+  write('topology/reference-topology.json', {
+    shell: shells[0],
+    shells: [shells[1]],
+  });
+  write('apps/shell-ui/.output/wrangler.json', { services: [] });
+  const binding = { binding: 'INVENTORY_WORKER', service: worker };
+  write('apps/shell-api/.output/wrangler.json', { services: [binding] });
+  const body = Buffer.from(
+    JSON.stringify({
+      jsonrpc: '2.0',
+      id: 'proof',
+      result: { items: [{ id: 'item' }] },
+    }),
+  );
+  const response = {
+    bodyBase64: body.toString('base64'),
+    byteLength: body.length,
+    sha256: crypto.createHash('sha256').update(body).digest('hex'),
+    status: 200,
+  };
+  const target = { appId: app.id, envelopeDigest: digest, worker };
+  const modules = [
+    {
+      logicalPath: 'server/index.mjs',
+      byteLength: 1,
+      sha256: 'b'.repeat(64),
+      type: 'ESModule',
+    },
+    {
+      logicalPath: 'worker/__modern_bff_effect.js',
+      byteLength: 1,
+      sha256: 'c'.repeat(64),
+      type: 'ESModule',
+    },
+  ];
+  const report = {
+    schemaVersion: 3,
+    runtime: 'workerd',
+    executions: [
+      {
+        appId: app.id,
+        modulesRoot: 'verticals/inventory/.output',
+        envelopeDigest: digest,
+        identity,
+        worker,
+        main: 'server/index.mjs',
+        modules,
+      },
+    ],
+    apiProofs: [
+      {
+        ...check,
+        appId: app.id,
+        shellId: 'shell-ui',
+        directTarget: target,
+        direct: response,
+      },
+      {
+        ...check,
+        appId: app.id,
+        shellId: 'shell-api',
+        binding: binding.binding,
+        bindingTarget: target,
+        direct: response,
+        throughShell: response,
+      },
+    ],
+  };
+  const reportPath =
+    '.codex/reports/cloudflare-workerd-ssr/composition-proof.json';
+  const location = {
+    envelope: {
+      envelopeDigest: digest,
+      identity,
+      artifacts: modules.map(({ logicalPath, byteLength, sha256 }) => ({
+        logicalPath,
+        byteLength,
+        sha256,
+        kind: 'file',
+      })),
+      surfaces: {
+        uiClient: [],
+        ssr: [],
+        apiBackend: ['worker/__modern_bff_effect.js'],
+      },
+    },
+  };
+  write(reportPath, report);
+  assert.equal(
+    verifyWorkerdRuntimeCorrelation(root, app, location).apiProofCount,
+    2,
+  );
+  write('apps/shell-api/.output/wrangler.json', { services: [] });
+  assert.throws(
+    () => verifyWorkerdRuntimeCorrelation(root, app, location),
+    /not tied to its Miniflare worker identity/u,
+  );
+  write('apps/shell-api/.output/wrangler.json', { services: [binding] });
+  write(reportPath, {
+    ...report,
+    apiProofs: [
+      report.apiProofs[0],
+      { ...report.apiProofs[1], shellId: 'shell-ui' },
+    ],
+  });
+  assert.throws(
+    () => verifyWorkerdRuntimeCorrelation(root, app, location),
+    /do not exactly match configured shell JSON smoke checks/u,
+  );
+});
+
 test('fails when the SSR route is not healthy', async () => {
   const { createSmokeTargets, validateHttpTarget } = await loadSmoke();
   const [target] = createSmokeTargets(createContract()).targets;

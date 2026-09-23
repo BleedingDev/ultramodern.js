@@ -172,6 +172,7 @@ const apps = [topology.shell, ...topology.verticals, ...(topology.shells ?? [])]
     id: String(rawApp.id),
     kind,
     hasApiSurface,
+    apiOnly: rawApp.surfaceProfile === "api-only",
     path: appPath,
     mfName: typeof moduleFederation.name === "string" ? moduleFederation.name : String(rawApp.id),
     verticalRefs: Array.isArray(rawApp.verticalRefs ?? moduleFederation.verticalRefs)
@@ -249,11 +250,14 @@ const createWorkerOptions = (app, extra = {}) => {
   assert(
     !app.hasApiSurface ||
       (Array.isArray(ssr) &&
-        ssr.includes(mainLogicalPath) &&
+        (app.apiOnly
+          ? ssr.length === 0 && mainLogicalPath === "server/index.mjs"
+          : ssr.includes(mainLogicalPath)) &&
         boundModules.every((module) =>
-          [...ssr, ...(apiBackend ?? [])].includes(module.logicalPath),
+          [...ssr, ...(apiBackend ?? []), ...(app.apiOnly ? [mainLogicalPath] : [])]
+            .includes(module.logicalPath),
         )),
-    `${app.id} Miniflare main/SSR modules are not envelope-bound SSR surfaces`,
+    `${app.id} Miniflare main/SSR modules do not match its envelope surfaces`,
   );
 
   return {
@@ -395,7 +399,10 @@ const runApiProofs = async (miniflare, shell, executionByAppId) => {
     const binding = (shell.wrangler.services ?? []).find(
       (candidate) => candidate.service === workerName(app),
     );
-    assert(binding, `${shell.id} has no service binding for ${app.id}`);
+    assert(
+      binding || (app.apiOnly && !shell.verticalRefs.includes(app.id)),
+      `${shell.id} has no service binding for ${app.id}`,
+    );
     for (const check of jsonSmokeChecks) {
       const method = String(check.method ?? "GET").toUpperCase();
       const headers = {};
@@ -411,31 +418,37 @@ const runApiProofs = async (miniflare, shell, executionByAppId) => {
         ).fetch(`https://${workerName(app)}.invalid${check.route}`, init),
         check,
       );
-      const throughShell = await responseEvidence(
-        app,
-        await miniflare.dispatchFetch(
-          `https://${workerName(shell)}.invalid${check.route}`,
-          init,
-        ),
-        check,
-      );
-      assert(
-        direct.sha256 === throughShell.sha256,
-        `${app.id} direct and service-binding API responses differ`,
-      );
+      const throughShell = binding
+        ? await responseEvidence(
+            app,
+            await miniflare.dispatchFetch(
+              `https://${workerName(shell)}.invalid${check.route}`,
+              init,
+            ),
+            check,
+          )
+        : undefined;
+      if (throughShell) {
+        assert(
+          direct.sha256 === throughShell.sha256,
+          `${app.id} direct and service-binding API responses differ`,
+        );
+      }
+      const target = {
+        appId: app.id,
+        envelopeDigest: executionByAppId.get(app.id).envelopeDigest,
+        worker: workerName(app),
+      };
       results.push({
         appId: app.id,
-        binding: binding.binding,
-        bindingTarget: {
-          appId: app.id,
-          envelopeDigest: executionByAppId.get(app.id).envelopeDigest,
-          worker: workerName(app),
-        },
+        shellId: shell.id,
+        ...(binding
+          ? { binding: binding.binding, bindingTarget: target, throughShell }
+          : { directTarget: target }),
         direct,
         id: check.id,
         method,
         route: check.route,
-        throughShell,
       });
     }
   }
@@ -729,7 +742,11 @@ for (const shell of shells) {
     assert(remote, `${shell.id} references missing MicroVertical ${ref}`);
     return remote;
   });
-  assert(expectedRemotes.length > 0, `${shell.id} has no MicroVerticals to prove`);
+  const headlessApiVerticals = apps.filter((app) => app.kind === "vertical" && app.apiOnly);
+  assert(
+    expectedRemotes.length > 0 || headlessApiVerticals.length > 0,
+    `${shell.id} has no UI MicroVerticals or headless APIs to prove`,
+  );
 
   const apiBindingRequests = [];
   const failedServices = new Set();
@@ -785,8 +802,10 @@ for (const shell of shells) {
 
       const boundaries = collectDistributedBoundaries(html);
       assert(
-        boundaries.length > 0,
-        `${shell.id} rendered no distributed SSR boundaries for ${route}`,
+        expectedRemotes.length > 0 ? boundaries.length > 0 : boundaries.length === 0,
+        expectedRemotes.length > 0
+          ? `${shell.id} rendered no distributed SSR boundaries for ${route}`
+          : `${shell.id} rendered unexpected distributed SSR boundaries for ${route}`,
       );
       const routeApiBindingRequests = apiBindingRequests.slice(
         apiBindingRequestStart,
