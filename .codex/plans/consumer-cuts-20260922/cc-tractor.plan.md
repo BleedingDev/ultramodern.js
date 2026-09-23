@@ -4,10 +4,10 @@ overview: "Validate the same candidate in Tractor without preserving generated f
 todos:
   - id: cc-tractor-tractor-native-adoption
     content: "Update the persistent Tractor acceptance app to canonical configuration and patch-free framework dependencies."
-    status: in_progress
+    status: completed
   - id: cc-tractor-tractor-acceptance
     content: "Run the existing published-consumer-equivalent acceptance and verify the visible Tractor UI."
-    status: pending
+    status: completed
 isProject: false
 ---
 
