@@ -288,15 +288,17 @@ export function createAppPackage(
   };
 
   if (appHasApi(app)) {
+    const clientDirectory =
+      app.surfaceProfile === 'api-only' ? 'shared' : 'src/api';
     if (resolveApiProtocol(app) === 'rpc') {
       Object.assign(packageExports, {
         './api': './shared/rpc.ts',
-        './api/rpc-client': `./src/api/${app.api.stem}-rpc-client.ts`,
+        './api/rpc-client': `./${clientDirectory}/${app.api.stem}-rpc-client.ts`,
       });
     } else {
       Object.assign(packageExports, {
         './api': './shared/api.ts',
-        './api/client': `./src/api/${app.api.stem}-client.ts`,
+        './api/client': `./${clientDirectory}/${app.api.stem}-client.ts`,
       });
     }
   } else if (app.kind === 'shell') {

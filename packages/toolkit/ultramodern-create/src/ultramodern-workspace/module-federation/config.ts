@@ -52,11 +52,12 @@ export function createAppModernConfig(
   // A headless (api-only) unit has no browser MF surface, no Zephyr build and
   // no generated route metadata — its config must not import or register them.
   const uiImports = emitsUi
-    ? `import { moduleFederationPlugin } from '@module-federation/modern-js-v3';
+    ? `import { getBuildConfigEnvironment, withBuildConfigEnvironment } from '@modern-js/app-tools-extensions/config';
+import { moduleFederationPlugin } from '@module-federation/modern-js-v3';
 import { withZephyr as withZephyrRspack } from 'zephyr-rspack-plugin';
 import { ultramodernLocalisedUrls } from './src/routes/ultramodern-route-metadata';
 `
-    : '';
+    : "import { getBuildConfigEnvironment } from '@modern-js/app-tools-extensions/config';\n";
   const zephyrPluginSource = emitsUi
     ? `const zephyrRspackPlugin = () => ({
   name: 'ultramodern-zephyr-rspack-plugin',

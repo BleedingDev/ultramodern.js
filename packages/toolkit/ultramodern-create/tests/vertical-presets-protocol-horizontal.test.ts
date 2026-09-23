@@ -61,6 +61,15 @@ test('api-only and ui-only presets keep their distinct generated surfaces', () =
     assert.ok(apiFiles.has('shared/api.ts'));
     assert.ok(!apiFiles.has('src/routes/layout.tsx'));
     assert.ok(!apiFiles.has('module-federation.config.ts'));
+    assert.ok(apiFiles.has('shared/headless-client.ts'));
+    assert.ok(!apiFiles.has('src/modern.runtime.ts'));
+    assert.ok(!apiFiles.has('src/modern-app-env.d.ts'));
+    assert.ok(!fs.existsSync(path.join(dir, 'verticals/headless/src')));
+    const apiConfig = fs.readFileSync(
+      path.join(dir, 'verticals/headless/modern.config.ts'),
+      'utf-8',
+    );
+    assert.doesNotMatch(apiConfig, /withBuildConfigEnvironment/u);
     assert.deepEqual(
       apiResult.deliveryUnits
         ?.find(unit => unit.unitId.endsWith('/headless'))
@@ -122,6 +131,13 @@ test('rpc protocol emits its contract and routes metadata without a REST surface
     assert.ok(files.has('src/api/catalog-rpc-client.ts'));
     assert.ok(!files.has('shared/api.ts'));
     assert.ok(!files.has('src/api/catalog-client.ts'));
+    const headless = add(dir, 'headless-rpc', {
+      preset: 'api-only',
+      apiProtocol: 'rpc',
+    });
+    const headlessFiles = verticalPaths(headless, 'headless-rpc');
+    assert.ok(headlessFiles.has('shared/headless-rpc-rpc-client.ts'));
+    assert.ok(!fs.existsSync(path.join(dir, 'verticals/headless-rpc/src')));
 
     const overlay = JSON.parse(
       fs.readFileSync(

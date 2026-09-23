@@ -220,26 +220,27 @@ async function createFixture({
   }
 
   if (deliveryUnit) {
-    await fs.mkdir(path.join(appDirectory, '.modernjs'), { recursive: true });
+    await fs.mkdir(path.join(appDirectory, 'topology'), { recursive: true });
     await fs.writeFile(
-      path.join(appDirectory, '.modernjs/ultramodern.json'),
+      path.join(appDirectory, 'topology/reference-topology.json'),
       `${JSON.stringify(
         {
-          topology: {
-            apps: [
-              {
-                id: 'checkout',
-                kind: 'remote',
-                path: '.',
-                api: { prefix: '/commerce-api' },
-                deliveryUnit,
-              },
-            ],
+          shell: {
+            id: 'checkout',
+            kind: 'shell',
+            path: '.',
+            package: '@acme/checkout',
+            deliveryUnit,
           },
+          verticals: [],
         },
         null,
         2,
       )}\n`,
+    );
+    await fs.writeFile(
+      path.join(appDirectory, 'package.json'),
+      JSON.stringify({ name: '@acme/checkout', version: '0.1.0' }),
     );
 
     const buildIdentity = buildArtifactIdentity ?? deliveryUnit;

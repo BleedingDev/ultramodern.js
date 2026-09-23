@@ -174,11 +174,13 @@ function writeAppConfigFiles({
     `${resolvedApp.directory}/tsconfig.mf-types.json`,
     createAppMfTypesTsConfig(resolvedApp),
   );
-  writeFile(
-    targetDir,
-    `${resolvedApp.directory}/src/modern-app-env.d.ts`,
-    createAppEnvDts(resolvedApp, remotes, scope),
-  );
+  if (emitsUi) {
+    writeFile(
+      targetDir,
+      `${resolvedApp.directory}/src/modern-app-env.d.ts`,
+      createAppEnvDts(resolvedApp, remotes, scope),
+    );
+  }
   if (resolvedApp.surfaceProfile !== 'api-only') {
     writeFile(
       targetDir,
@@ -224,11 +226,13 @@ function writeAppConfigFiles({
       devPorts,
     ),
   );
-  writeFile(
-    targetDir,
-    `${resolvedApp.directory}/src/modern.runtime.ts`,
-    createAppRuntimeConfig(resolvedApp, scope, remotes),
-  );
+  if (emitsUi) {
+    writeFile(
+      targetDir,
+      `${resolvedApp.directory}/src/modern.runtime.ts`,
+      createAppRuntimeConfig(resolvedApp, scope, remotes),
+    );
+  }
 }
 
 function writeAppLocaleAndStyleFiles({
@@ -384,6 +388,7 @@ function writeAppApiAndRemoteExposeFiles({
 }: WriteAppContext) {
   if (appHasApi(resolvedApp)) {
     const rpcProtocol = resolveApiProtocol(resolvedApp) === 'rpc';
+    const clientDirectory = emitsUi ? 'src/api' : 'shared';
     if (rpcProtocol) {
       writeFile(
         targetDir,
@@ -419,14 +424,19 @@ function writeAppApiAndRemoteExposeFiles({
     if (rpcProtocol) {
       writeFile(
         targetDir,
-        `${resolvedApp.directory}/src/api/${resolvedApp.api.stem}-rpc-client.ts`,
-        createRpcClientFile(resolvedApp),
+        `${resolvedApp.directory}/${clientDirectory}/${resolvedApp.api.stem}-rpc-client.ts`,
+        createRpcClientFile(
+          resolvedApp,
+          emitsUi ? '../../shared/rpc.ts' : './rpc.ts',
+        ),
       );
     } else {
       writeFile(
         targetDir,
-        `${resolvedApp.directory}/src/api/${resolvedApp.api.stem}-client.ts`,
-        createApiClient(resolvedApp, '../../shared/api', { scope }),
+        `${resolvedApp.directory}/${clientDirectory}/${resolvedApp.api.stem}-client.ts`,
+        createApiClient(resolvedApp, emitsUi ? '../../shared/api' : './api', {
+          scope,
+        }),
       );
     }
   }

@@ -567,8 +567,10 @@ function check(
           );
         const stem = app?.api?.stem ?? path.posix.basename(appPath);
         const rpc = app?.api?.protocol === 'rpc';
+        const clientDirectory =
+          app?.surfaceProfile === 'api-only' ? 'shared' : 'src/api';
         const contract = `${appPath}/shared/${rpc ? 'rpc' : 'api'}.ts`;
-        const client = `${appPath}/src/api/${stem}-${rpc ? 'rpc-client' : 'client'}.ts`;
+        const client = `${appPath}/${clientDirectory}/${stem}-${rpc ? 'rpc-client' : 'client'}.ts`;
         const entry = `${appPath}/api/index.ts`;
         for (const file of [entry, contract, client])
           assert(exists(file), `${file}: required API surface is missing`);
@@ -577,7 +579,7 @@ function check(
           `must not emit a ${rpc ? 'REST' : 'RPC'} contract`,
         );
         noPath(
-          `${appPath}/src/api/${stem}-${rpc ? 'client' : 'rpc-client'}.ts`,
+          `${appPath}/${clientDirectory}/${stem}-${rpc ? 'client' : 'rpc-client'}.ts`,
           `must not emit a ${rpc ? 'REST' : 'RPC'} client`,
         );
         if (rpc) {
@@ -645,7 +647,16 @@ function check(
                 rpc ? 'makeEffectRpcClient' : 'makeEffectHttpApiClient',
               ],
             ],
-            [rpc ? '../../shared/rpc.ts' : '../../shared/api', []],
+            [
+              app?.surfaceProfile === 'api-only'
+                ? rpc
+                  ? './rpc.ts'
+                  : './api'
+                : rpc
+                  ? '../../shared/rpc.ts'
+                  : '../../shared/api',
+              [],
+            ],
           ],
           [rpc ? 'makeEffectRpcClient' : 'makeEffectHttpApiClient'],
           [],
@@ -709,7 +720,7 @@ function check(
           );
           assert(
             manifest.exports?.[`./api/${rpc ? 'rpc-client' : 'client'}`] ===
-              `./src/api/${stem}-${rpc ? 'rpc-client' : 'client'}.ts`,
+              `./${clientDirectory}/${stem}-${rpc ? 'rpc-client' : 'client'}.ts`,
             `${packageFile}: invalid API client export`,
           );
           assert(

@@ -48,7 +48,11 @@ test('bridge router gate consumes the declaration and dependency boundary', () =
     assert.equal(baseline.status, 0, output(baseline));
 
     const unauthorizedDir = path.join(tempRoot, 'unauthorized');
-    fs.cpSync(baselineDir, unauthorizedDir, { recursive: true });
+    fs.cpSync(baselineDir, unauthorizedDir, {
+      recursive: true,
+      filter: source => path.basename(source) !== 'node_modules',
+    });
+    linkInstalledCompiler(unauthorizedDir);
     rewrite(unauthorizedDir, moduleFederationConfigPath, source =>
       source.replace('enableBridgeRouter: false', 'enableBridgeRouter: true'),
     );
@@ -60,7 +64,11 @@ test('bridge router gate consumes the declaration and dependency boundary', () =
     );
 
     const authorizedDir = path.join(tempRoot, 'authorized');
-    fs.cpSync(baselineDir, authorizedDir, { recursive: true });
+    fs.cpSync(baselineDir, authorizedDir, {
+      recursive: true,
+      filter: source => path.basename(source) !== 'node_modules',
+    });
+    linkInstalledCompiler(authorizedDir);
     rewrite(authorizedDir, moduleFederationConfigPath, source =>
       source.replace('enableBridgeRouter: false', 'enableBridgeRouter: true'),
     );

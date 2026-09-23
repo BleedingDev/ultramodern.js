@@ -43,7 +43,7 @@ describe('bundleBuiltEffectEntryForNode', () => {
             format: 'esm',
           }),
         ).rejects.toThrow(
-          `Effect BFF entry must be inside the application directory: ${outsideEntry}`,
+          `Effect BFF entry must be inside the application directory: ${outsideEntry.replaceAll(path.sep, '/')}`,
         );
       },
     );

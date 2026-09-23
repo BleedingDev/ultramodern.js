@@ -211,11 +211,13 @@ export function validateWorkspace(
       `${app.path}/modern.config.ts`,
       `${app.id} Modern.js config`,
     );
-    requiredFile(
-      root,
-      `${app.path}/src/modern.runtime.ts`,
-      `${app.id} runtime`,
-    );
+    if (input.emitsUi) {
+      requiredFile(
+        root,
+        `${app.path}/src/modern.runtime.ts`,
+        `${app.id} runtime`,
+      );
+    }
     requiredFile(
       root,
       `${app.path}/shared/ultramodern-build.json`,
@@ -332,8 +334,9 @@ export function validateWorkspace(
       const apiClient =
         manifest.exports?.['./api/client'] ??
         manifest.exports?.['./api/rpc-client'];
+      const clientDirectory = input.emitsUi ? './src/api/' : './shared/';
       assert(
-        typeof apiClient === 'string' && apiClient.startsWith('./src/api/'),
+        typeof apiClient === 'string' && apiClient.startsWith(clientDirectory),
         `${app.id} must export its API client`,
       );
       requiredFile(root, `${app.path}/${apiClient}`, `${app.id} API client`);
@@ -370,6 +373,10 @@ export function validateWorkspace(
       );
     }
     if (app.kind === 'vertical' && !input.emitsUi) {
+      assert(
+        !fs.existsSync(path.join(root, app.path, 'src')),
+        `Unexpected ${app.path}/src for a api-only unit`,
+      );
       assert(
         !Object.hasOwn(app.backendFederation?.versionBoundary ?? {}, 'ui'),
         `topology/reference-topology.json verticals.${app.id}.backendFederation must omit the UI boundary for an api-only unit`,

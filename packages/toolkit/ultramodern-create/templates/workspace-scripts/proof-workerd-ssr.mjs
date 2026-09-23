@@ -125,6 +125,7 @@ const overlay = readJson(path.join(workspaceRoot, "topology/local-overlays/devel
 assert(topology.schemaVersion === 1 && topology.shell && Array.isArray(topology.verticals), "Invalid topology/reference-topology.json");
 const apps = [topology.shell, ...topology.verticals, ...(topology.shells ?? [])].map((rawApp) => {
   const kind = rawApp.kind === "vertical" ? "vertical" : "shell";
+  const hasApiSurface = kind === "vertical" && rawApp.surfaceProfile !== "ui-only";
   const appPath = rawApp.path;
   assert(typeof appPath === "string" && appPath.length > 0, `${rawApp.id} topology path is missing`);
   const moduleFederation =
@@ -145,7 +146,7 @@ const apps = [topology.shell, ...topology.verticals, ...(topology.shells ?? [])]
   );
   const wrangler = readJson(wranglerPath);
   const executedEnvelope =
-    kind === "vertical"
+    hasApiSurface
       ? readExecutionEnvelope(
           String(rawApp.id),
           outputRoot,
@@ -156,6 +157,7 @@ const apps = [topology.shell, ...topology.verticals, ...(topology.shells ?? [])]
   return {
     id: String(rawApp.id),
     kind,
+    hasApiSurface,
     path: appPath,
     mfName: typeof moduleFederation.name === "string" ? moduleFederation.name : String(rawApp.id),
     verticalRefs: Array.isArray(rawApp.verticalRefs ?? moduleFederation.verticalRefs)
@@ -220,7 +222,7 @@ const createWorkerOptions = (app, extra = {}) => {
   const apiBackend = app.envelope?.surfaces?.apiBackend;
   const ssr = app.envelope?.surfaces?.ssr;
   assert(
-    app.kind !== "vertical" ||
+    !app.hasApiSurface ||
       (Array.isArray(apiBackend) &&
         apiBackend.length > 0 &&
         apiBackend.every((logicalPath) =>
@@ -229,7 +231,7 @@ const createWorkerOptions = (app, extra = {}) => {
     `${app.id} BFF worker surface is not selected by Miniflare`,
   );
   assert(
-    app.kind !== "vertical" ||
+    !app.hasApiSurface ||
       (Array.isArray(ssr) &&
         ssr.includes(mainLogicalPath) &&
         boundModules.every((module) =>
@@ -348,7 +350,7 @@ const resolveApiSmokeChecks = (app, shell) => {
 
 const runApiProofs = async (miniflare, shell, executionByAppId) => {
   const results = [];
-  for (const app of apps.filter((candidate) => candidate.kind === "vertical")) {
+  for (const app of apps.filter((candidate) => candidate.hasApiSurface)) {
     const jsonSmokeChecks = resolveApiSmokeChecks(app, shell);
     assert(
       jsonSmokeChecks.length > 0,

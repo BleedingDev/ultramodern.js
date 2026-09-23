@@ -68,7 +68,7 @@ function createEffectExpose(
     return {
       contract: `${app.directory}/shared/rpc.ts`,
       runtime: `${app.directory}/api/index.ts`,
-      client: `${app.directory}/src/api/${app.api.stem}-rpc-client.ts`,
+      client: `${app.directory}/${app.surfaceProfile === 'api-only' ? 'shared' : 'src/api'}/${app.api.stem}-rpc-client.ts`,
       rpc: rpcPath(app),
       serialization: 'json',
     };
@@ -77,7 +77,7 @@ function createEffectExpose(
   return {
     contract: `${app.directory}/shared/api.ts`,
     runtime: `${app.directory}/api/index.ts`,
-    client: `${app.directory}/src/api/${app.api.stem}-client.ts`,
+    client: `${app.directory}/${app.surfaceProfile === 'api-only' ? 'shared' : 'src/api'}/${app.api.stem}-client.ts`,
     openapi: `${app.api.prefix}/openapi.json`,
     readiness: `${app.api.prefix}/${apiStem}/readiness`,
   };
