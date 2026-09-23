@@ -435,6 +435,87 @@ test('orders remote consumers after their remote producers are ready', async () 
   );
 });
 
+test('shell federation proof matches each remote against its deployed target URL', async () => {
+  const { remoteFederationNetworkEvidence } = await import(
+    '../browser-smoke/browser-validate.mjs'
+  );
+  const remotes = [
+    { id: 'inventory', manifestUrl: 'http://localhost:4101/mf-manifest.json' },
+    { id: 'finance', manifestUrl: 'http://localhost:4102/mf-manifest.json' },
+  ];
+  const targets = [
+    {
+      app: { id: 'inventory' },
+      baseUrl: 'http://localhost:62924',
+      routes: { mfManifest: '/mf-manifest.json' },
+    },
+    {
+      app: { id: 'finance' },
+      baseUrl: 'http://localhost:62925',
+      routes: { mfManifest: '/mf-manifest.json' },
+    },
+  ];
+  const responses = targets.flatMap(target =>
+    [
+      ['manifest', '/mf-manifest.json'],
+      ['remote-entry', '/remoteEntry.js'],
+      ['exposed-chunk', '/static/js/async/__federation_expose_Widget.js'],
+    ].map(([kind, route]) => ({
+      kind,
+      status: 200,
+      url: `${target.baseUrl}${route}`,
+    })),
+  );
+
+  assert.deepEqual(
+    remoteFederationNetworkEvidence(remotes, targets, responses).map(remote => [
+      remote.manifestUrl,
+      remote.status,
+    ]),
+    [
+      ['http://localhost:62924/mf-manifest.json', 'pass'],
+      ['http://localhost:62925/mf-manifest.json', 'pass'],
+    ],
+  );
+  assert.equal(
+    remoteFederationNetworkEvidence(remotes, targets, responses.slice(0, -1))[1]
+      .status,
+    'fail',
+  );
+  assert.equal(
+    remoteFederationNetworkEvidence(remotes, targets, [
+      ...responses.filter(response => response.kind !== 'manifest'),
+      {
+        kind: 'manifest',
+        status: 200,
+        url: 'http://localhost:62924/wrong-mf-manifest.json',
+      },
+    ])[0].status,
+    'fail',
+  );
+  assert.equal(
+    remoteFederationNetworkEvidence(
+      [{ id: 'inventory', manifestUrl: 'not-a-url' }],
+      targets,
+      responses,
+    )[0].status,
+    'fail',
+  );
+  assert.equal(
+    remoteFederationNetworkEvidence(
+      [
+        {
+          id: 'missing',
+          manifestUrl: 'http://localhost:4103/mf-manifest.json',
+        },
+      ],
+      targets,
+      responses,
+    )[0].status,
+    'fail',
+  );
+});
+
 test('does not accept SSR readiness from a foreign build marker', async () => {
   const { createSmokeTargets, waitForTarget } = await loadSmoke();
   const [target] = createSmokeTargets(createContract()).targets;

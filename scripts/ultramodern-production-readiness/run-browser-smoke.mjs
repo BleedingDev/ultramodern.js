@@ -257,6 +257,7 @@ export async function runUltramodernBrowserSmoke(options) {
           {
             artifactDir: options.artifactDir,
             runtime,
+            targets,
           },
         );
         report.results.push({
