@@ -514,6 +514,59 @@ test('shell federation proof matches each remote against its deployed target URL
     )[0].status,
     'fail',
   );
+
+  const workerdTargets = targets.map(target => ({
+    ...target,
+    baseUrl: target.baseUrl.replace('localhost', '127.0.0.1'),
+  }));
+  assert.deepEqual(
+    remoteFederationNetworkEvidence(
+      remotes,
+      workerdTargets,
+      responses,
+      'workerd',
+    ).map(remote => remote.status),
+    ['pass', 'pass'],
+  );
+  assert.equal(
+    remoteFederationNetworkEvidence(remotes, workerdTargets, responses)[0]
+      .status,
+    'fail',
+  );
+  const replaceInventoryHost = host =>
+    responses.map(response => ({
+      ...response,
+      url: response.url.replace('localhost:62924', host),
+    }));
+  assert.equal(
+    remoteFederationNetworkEvidence(
+      remotes,
+      workerdTargets,
+      replaceInventoryHost('localhost:62926'),
+      'workerd',
+    )[0].status,
+    'fail',
+  );
+  assert.equal(
+    remoteFederationNetworkEvidence(
+      remotes,
+      workerdTargets,
+      replaceInventoryHost('example.com:62924'),
+      'workerd',
+    )[0].status,
+    'fail',
+  );
+  assert.equal(
+    remoteFederationNetworkEvidence(
+      remotes,
+      workerdTargets,
+      responses.filter(
+        response => response.url !== 'http://localhost:62924/mf-manifest.json',
+      ),
+      'workerd',
+    )[0].status,
+    'fail',
+  );
 });
 
 test('does not accept SSR readiness from a foreign build marker', async () => {

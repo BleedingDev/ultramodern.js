@@ -154,7 +154,24 @@ export function federationAssetKind(url, app, observedRemoteOrigins = []) {
   return undefined;
 }
 
-export function remoteFederationNetworkEvidence(remotes, targets, responses) {
+function sameFederationOrigin(actual, expected, runtime) {
+  if (actual.origin === expected.origin) return true;
+  const loopbackHosts = new Set(['localhost', '127.0.0.1']);
+  return (
+    runtime === 'workerd' &&
+    actual.protocol === expected.protocol &&
+    actual.port === expected.port &&
+    loopbackHosts.has(actual.hostname) &&
+    loopbackHosts.has(expected.hostname)
+  );
+}
+
+export function remoteFederationNetworkEvidence(
+  remotes,
+  targets,
+  responses,
+  runtime = 'node',
+) {
   const requiredKinds = ['manifest', 'remote-entry', 'exposed-chunk'];
   const targetsById = new Map(targets.map(target => [target.app.id, target]));
   return remotes.map(remote => {
@@ -173,13 +190,20 @@ export function remoteFederationNetworkEvidence(remotes, targets, responses) {
       };
     }
     const manifestUrl = joinUrl(target.baseUrl, target.routes.mfManifest);
-    if (configuredManifestUrl.pathname !== new URL(manifestUrl).pathname) {
+    const deployedManifestUrl = new URL(manifestUrl);
+    if (
+      configuredManifestUrl.pathname !== deployedManifestUrl.pathname ||
+      configuredManifestUrl.search !== deployedManifestUrl.search
+    ) {
       return { manifestUrl, remoteId: remote.id, status: 'fail' };
     }
-    const remoteOrigin = new URL(manifestUrl).origin;
     const remoteResponses = responses.filter(response => {
       try {
-        return new URL(response.url).origin === remoteOrigin;
+        return sameFederationOrigin(
+          new URL(response.url),
+          deployedManifestUrl,
+          runtime,
+        );
       } catch {
         return false;
       }
@@ -188,10 +212,14 @@ export function remoteFederationNetworkEvidence(remotes, targets, responses) {
       ...new Set(
         remoteResponses
           .filter(response => response.status >= 200 && response.status < 400)
-          .filter(
-            response =>
-              response.kind !== 'manifest' || response.url === manifestUrl,
-          )
+          .filter(response => {
+            if (response.kind !== 'manifest') return true;
+            const responseUrl = new URL(response.url);
+            return (
+              responseUrl.pathname === deployedManifestUrl.pathname &&
+              responseUrl.search === deployedManifestUrl.search
+            );
+          })
           .map(response => response.kind),
       ),
     ];
@@ -1068,6 +1096,7 @@ export async function validateBrowserTarget(
         app.moduleFederation?.remotes ?? [],
         targets,
         federationResponses,
+        runtime,
       );
       const hasConfiguredRemoteUrls = remoteNetworkEvidence.length > 0;
       const networkEvidence = {
