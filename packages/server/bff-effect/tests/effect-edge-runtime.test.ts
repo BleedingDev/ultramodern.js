@@ -1,5 +1,6 @@
 import {
   createEffectBffEdgeHandler,
+  defineEffectBff,
   dispatchEffectBffRequest,
   Effect,
   HttpApi,
@@ -7,6 +8,8 @@ import {
   HttpApiEndpoint,
   HttpApiGroup,
   Layer,
+  Rpc,
+  RpcGroup,
   Schema,
   useEffectContext,
 } from '../src/effect/edge';
@@ -200,6 +203,35 @@ describe('effect edge runtime', () => {
     await expect(
       createEffectBffEdgeHandler({ module: { createHandler } }),
     ).rejects.toThrow(/Invalid Effect edge module/u);
+  });
+
+  test('rejects an unbranded RPC factory instead of rebuilding it with a different Effect runtime', async () => {
+    const group = RpcGroup.make(Rpc.make('list', { success: Schema.String }));
+    const runtime = defineEffectBff({
+      api: HttpApi.make('UnbrandedRpcTransport'),
+      layer: Layer.empty,
+      rpc: {
+        group,
+        layer: group.toLayer(group.of({ list: () => Effect.succeed('ok') })),
+        path: '/rpc',
+      },
+    });
+    const warnings: string[] = [];
+    await expect(
+      createEffectBffEdgeHandler({
+        module: {
+          ...runtime,
+          createHandler: () => ({
+            handler: () => Response.json({ result: 'unvalidated' }),
+            dispose: async () => {},
+          }),
+        },
+        onWarning: message => warnings.push(message),
+      }),
+    ).rejects.toThrow(/Invalid Effect edge module/u);
+    expect(warnings).toEqual([
+      expect.stringContaining('Rejected unbranded RPC runtime'),
+    ]);
   });
 
   test('serves OpenAPI, method/not-found, and data-platform validation from api/layer fallback', async () => {

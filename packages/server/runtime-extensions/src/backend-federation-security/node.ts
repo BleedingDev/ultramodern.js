@@ -26,26 +26,36 @@ export function createBackendFederationEntryIntegrity(
   };
 }
 
-export const evaluateNodeBackendFederationCommonJs: BackendFederationCommonJsEvaluator =
-  (source, { remote }) => {
-    const module = { exports: {} as Record<string, unknown> };
-    const exports = module.exports;
-    const requireBuiltin = (specifier: string) => {
-      if (!nodeBuiltins.has(specifier)) {
-        throw new BackendFederationRemoteEntryError(
-          'unsupported_entry',
-          `[Module Federation] Backend remote ${remote.name} attempted to require non-builtin module ${specifier}. Bundle package dependencies into the remote entry.`,
-        );
-      }
-      return nodeRequire(specifier);
-    };
-    const evaluate = new Function(
-      'module',
-      'exports',
-      'globalThis',
-      'require',
-      source,
-    );
-    evaluate(module, exports, globalThis, requireBuiltin);
-    return module.exports;
+export const evaluateNodeBackendFederationCommonJs = (
+  source: Parameters<BackendFederationCommonJsEvaluator>[0],
+  { remote }: Parameters<BackendFederationCommonJsEvaluator>[1],
+  privateRuntimeCapability?: unknown,
+) => {
+  const module = { exports: {} as Record<string, unknown> };
+  const exports = module.exports;
+  const requireBuiltin = (specifier: string) => {
+    if (!nodeBuiltins.has(specifier)) {
+      throw new BackendFederationRemoteEntryError(
+        'unsupported_entry',
+        `[Module Federation] Backend remote ${remote.name} attempted to require non-builtin module ${specifier}. Bundle package dependencies into the remote entry.`,
+      );
+    }
+    return nodeRequire(specifier);
   };
+  const evaluate = new Function(
+    'module',
+    'exports',
+    'globalThis',
+    'require',
+    '__modernjs_backend_private_capability__',
+    source,
+  );
+  evaluate(
+    module,
+    exports,
+    globalThis,
+    requireBuiltin,
+    privateRuntimeCapability,
+  );
+  return module.exports;
+};

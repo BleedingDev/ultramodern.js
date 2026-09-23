@@ -1,6 +1,5 @@
-import { evaluateNodeBackendFederationCommonJs } from '@modern-js/server-runtime-extensions/backend-federation-security/node';
-
 import type { BackendFederatedEffectApiModule } from '../backend-federation';
+import { evaluateEffectBackendFederationCommonJs } from '../backend-federation/node-evaluator';
 import { loadBackendFederatedEffectApiFromManifest as loadUniversalBackendFederatedEffectApiFromManifest } from './load';
 import type { BackendFederationManifestAdapterOptions } from './types';
 
@@ -13,7 +12,7 @@ export function loadBackendFederatedEffectApiFromManifest(
       ...options.entryPolicy,
       evaluateCommonJs:
         options.entryPolicy?.evaluateCommonJs ??
-        evaluateNodeBackendFederationCommonJs,
+        evaluateEffectBackendFederationCommonJs,
     },
   });
 }

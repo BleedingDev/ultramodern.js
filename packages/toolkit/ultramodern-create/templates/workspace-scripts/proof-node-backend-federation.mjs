@@ -57,11 +57,9 @@ export async function importBackendFederationRuntime() {
     '@modern-js/plugin-bff-extensions/backend-federation-manifest/node',
   );
   const effectPath = workspaceRequire.resolve('@modern-js/bff-effect/effect');
-  const clientPath = workspaceRequire.resolve('@modern-js/bff-effect/effect-client');
-  const [runtime, effect, client] = await Promise.all([
+  const [runtime, effect] = await Promise.all([
     import(pathToFileURL(runtimePath).href),
     import(pathToFileURL(effectPath).href),
-    import(pathToFileURL(clientPath).href),
   ]);
   if (!hasBackendFederationManifestAdapter(runtime)) {
     throw new Error(
@@ -73,16 +71,10 @@ export async function importBackendFederationRuntime() {
       `${effectPath} does not export createEffectBffTestHandler`,
     );
   }
-  if (typeof client.makeEffectRpcClient !== 'function' || typeof client.Effect?.runPromise !== 'function') {
-    throw new Error(`${clientPath} does not export the native Effect RPC client`);
-  }
-
   return {
     loadBackendFederatedEffectApiFromManifest:
       runtime.loadBackendFederatedEffectApiFromManifest,
     createEffectBffTestHandler: effect.createEffectBffTestHandler,
-    Effect: client.Effect,
-    makeEffectRpcClient: client.makeEffectRpcClient,
   };
 }
 
@@ -756,7 +748,7 @@ async function proveLiveApi(app, manifest, releaseBinding) {
   };
 }
 
-export async function proveLiveRpcApi(app, loaded, manifest, releaseBinding, effectClient) {
+export async function proveLiveRpcApi(app, loaded, manifest, releaseBinding) {
   const contract = loaded.contract;
   if (contract?.protocol !== 'rpc' || typeof contract.group !== 'string' ||
       typeof contract.path !== 'string' || contract.serialization !== 'json') {
@@ -772,14 +764,25 @@ export async function proveLiveRpcApi(app, loaded, manifest, releaseBinding, eff
   }
   const route = normalizeRoutePath(contract.path);
   const url = new URL(route, app.manifestUrl).href;
-  const client = await effectClient.Effect.runPromise(
-    effectClient.makeEffectRpcClient(loaded.api, {
-      serialization: contract.serialization,
-      url,
-    }),
-  );
+  const clientModule = createRequire(
+    path.join(workspaceRoot, app.directory, 'package.json'),
+  )(`${app.packageName}/api/rpc-client`);
+  const clientName = toPascalCase(contract.group);
+  const localContract = clientModule[`${clientName}RpcContract`];
+  if (localContract?.path !== contract.path ||
+      localContract?.group !== contract.group ||
+      localContract?.serialization !== contract.serialization ||
+      localContract?.protocol !== contract.protocol) {
+    throw new Error(`${app.id} public RPC client contract does not match the verified backend expose`);
+  }
+  const makeClient = clientModule[`make${clientName}RpcClient`];
+  if (typeof makeClient !== 'function' ||
+      typeof clientModule.Effect?.runPromise !== 'function') {
+    throw new Error(`${app.id} has no native public RPC client`);
+  }
+  const client = await clientModule.Effect.runPromise(makeClient({ url }));
   try {
-    const listed = await effectClient.Effect.runPromise(client.list({ limit: check.body.params.limit }));
+    const listed = await clientModule.Effect.runPromise(client.list({ limit: check.body.params.limit }));
     const item = listed?.items?.[0];
     if (typeof item?.id !== 'string' || item.id.length === 0) {
       throw new Error(`${app.id} native RPC list returned no item id`);
@@ -797,11 +800,11 @@ export async function proveLiveRpcApi(app, loaded, manifest, releaseBinding, eff
         throw new Error(`${app.id} RPC smoke check has unsupported expectation ${expectation.path}`);
       }
     }
-    const fetched = await effectClient.Effect.runPromise(client.get({ id: item.id }));
+    const fetched = await clientModule.Effect.runPromise(client.get({ id: item.id }));
     assertEqual(fetched?.id, item.id, `${app.id} native RPC get item id`);
     const missingId = `__ultramodern-proof-missing-${item.id}__`;
-    const missing = await effectClient.Effect.runPromise(
-      effectClient.Effect.match(client.get({ id: missingId }), {
+    const missing = await clientModule.Effect.runPromise(
+      clientModule.Effect.match(client.get({ id: missingId }), {
         onFailure: (error) => ({ error }),
         onSuccess: (value) => ({ value }),
       }),
@@ -1257,7 +1260,7 @@ async function proveBackend(app, backendRuntime, target) {
 
   const smokeChecks = await runSmokeChecks(app, loaded, createEffectBffTestHandler);
   const liveApi = loaded.contract?.protocol === 'rpc'
-    ? await proveLiveRpcApi(app, loaded, manifest, releaseBinding, backendRuntime)
+    ? await proveLiveRpcApi(app, loaded, manifest, releaseBinding)
     : await proveLiveApi(app, manifest, releaseBinding);
 
   return {

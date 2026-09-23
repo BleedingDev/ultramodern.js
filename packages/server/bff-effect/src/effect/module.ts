@@ -127,6 +127,11 @@ function resolveClassifiedEffectBffModuleHandler(
     }
   }
 
+  if (facts.module.rpc !== undefined && !facts.createHandlerValidatorAware) {
+    rejectUnsupportedEffectModuleShape(options, 'unbranded RPC runtime');
+    return null;
+  }
+
   if (typeof facts.createHandler === 'function') {
     if (facts.createHandlerValidatorAware) {
       const factory = facts.createHandler as EffectBffHandlerFactory;
@@ -160,7 +165,6 @@ function resolveClassifiedEffectBffModuleHandler(
     const webHandler = createHttpApiHandler({
       api: facts.api as HttpApi.Top,
       layer: facts.layer as EffectRuntimeLayer,
-      rpc: facts.module.rpc,
       openapi: options.openapi,
       dataPlatform: options.dataPlatform,
       validateRequest: options.validateRequest,

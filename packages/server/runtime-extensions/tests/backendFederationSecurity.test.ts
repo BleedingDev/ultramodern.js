@@ -402,10 +402,18 @@ describe('verified backend federation entry loading', () => {
     ) as { get(id: string): () => string };
 
     expect(builtinEntry.get('./effect-api')()).toBe('value');
+    const privateCapability = { register: () => undefined };
+    const capabilityEntry = evaluateNodeBackendFederationCommonJs(
+      'module.exports = { get: () => () => __modernjs_backend_private_capability__ };',
+      { remote: { entry: entryUrl, name: remoteName } },
+      privateCapability,
+    ) as { get(id: string): () => unknown };
+    expect(capabilityEntry.get('./effect-api')()).toBe(privateCapability);
     expect(() =>
       evaluateNodeBackendFederationCommonJs(
         "require('@attacker/package'); module.exports = { get() {} };",
         { remote: { entry: entryUrl, name: remoteName } },
+        privateCapability,
       ),
     ).toThrow(
       expect.objectContaining<Partial<BackendFederationRemoteEntryError>>({
