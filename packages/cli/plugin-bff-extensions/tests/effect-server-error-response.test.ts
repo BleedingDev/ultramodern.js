@@ -1,7 +1,7 @@
 import type { Context, ServerPluginAPI } from '@modern-js/server-core';
 import { describe, expect, test } from '@rstest/core';
 
-import { createEffectAdapterRuntimeErrorResponse } from '../src/effect-adapter/error-response';
+import { createEffectServerRuntimeErrorResponse } from '../src/effect-server/error-response';
 
 const createApi = (
   onError?: (error: Error, context: Context) => Response | void,
@@ -10,9 +10,9 @@ const createApi = (
     getServerConfig: () => ({ onError }),
   }) as unknown as ServerPluginAPI;
 
-describe('Effect adapter failure responses', () => {
+describe('Effect server failure responses', () => {
   test('keeps the safe failure envelope and drops private error fields', async () => {
-    const response = await createEffectAdapterRuntimeErrorResponse(
+    const response = await createEffectServerRuntimeErrorResponse(
       createApi(),
       Object.assign(new Error('database-password'), {
         status: 503,
@@ -32,7 +32,7 @@ describe('Effect adapter failure responses', () => {
   });
 
   test('provides c.json to a configured onError handler', async () => {
-    const response = await createEffectAdapterRuntimeErrorResponse(
+    const response = await createEffectServerRuntimeErrorResponse(
       createApi((_error, context) =>
         (
           context as Context & {
@@ -56,7 +56,7 @@ describe('Effect adapter failure responses', () => {
   });
 
   test('falls back safely when configured onError throws', async () => {
-    const response = await createEffectAdapterRuntimeErrorResponse(
+    const response = await createEffectServerRuntimeErrorResponse(
       createApi(() => {
         throw new Error('configuration-secret');
       }),

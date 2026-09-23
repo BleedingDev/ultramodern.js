@@ -50,8 +50,6 @@ export const bffPlugin = (): CliPlugin<AppTools> => ({
         throw new Error('Expected exactly one native BFF server plugin.');
       }
       const native = nativePlugins[0]!;
-      const runtimeAdapters = native.options?.runtimeAdapters ?? {};
-      const effect = '@modern-js/plugin-bff-extensions/effect-adapter';
       const honoRouteBinder = '@modern-js/plugin-bff-extensions/hono/node';
       if (
         native.options?.honoRouteBinder !== undefined &&
@@ -59,24 +57,18 @@ export const bffPlugin = (): CliPlugin<AppTools> => ({
       ) {
         throw new Error('The Hono BFF route binder is already configured.');
       }
-      if (
-        runtimeAdapters.effect !== undefined &&
-        runtimeAdapters.effect !== effect
-      ) {
-        throw new Error(
-          'The Effect BFF runtime adapter is already configured.',
-        );
+      if (runtimeFramework !== 'hono') {
+        plugins.splice(plugins.indexOf(native), 1, {
+          name: '@modern-js/plugin-bff-extensions/effect-server',
+        });
+        return { plugins };
       }
       native.options = {
         ...native.options,
         honoRouteBinder,
-        runtimeAdapters: { ...runtimeAdapters, effect },
       };
       native.includeEntries = [
-        ...new Set([
-          ...(native.includeEntries ?? []),
-          runtimeFramework === 'hono' ? honoRouteBinder : effect,
-        ]),
+        ...new Set([...(native.includeEntries ?? []), honoRouteBinder]),
       ];
       return { plugins };
     });

@@ -4,7 +4,7 @@ import path from 'node:path';
 import type { ServerPluginAPI } from '@modern-js/server-core';
 import { afterEach, describe, expect, test } from '@rstest/core';
 
-import { resolveEffectAdapterEntryFile } from '../src/effect-adapter/entry';
+import { resolveEffectServerEntryFile } from '../src/effect-server/entry';
 
 const originalNodeEnv = process.env.NODE_ENV;
 
@@ -12,7 +12,7 @@ afterEach(() => {
   process.env.NODE_ENV = originalNodeEnv;
 });
 
-describe('resolveEffectAdapterEntryFile', () => {
+describe('resolveEffectServerEntryFile', () => {
   test('runs an explicit TypeScript entry from output after sources have been removed', () => {
     const appDirectory = fs.mkdtempSync(
       path.join(os.tmpdir(), 'modern-effect-output-'),
@@ -33,7 +33,7 @@ describe('resolveEffectAdapterEntryFile', () => {
           bff: { effect: { entry: 'api/custom.ts' } },
         }),
       } as unknown as ServerPluginAPI;
-      expect(resolveEffectAdapterEntryFile(api)).toBe(
+      expect(resolveEffectServerEntryFile(api)).toBe(
         builtEntry.replaceAll(path.sep, '/'),
       );
     } finally {
@@ -62,7 +62,7 @@ describe('resolveEffectAdapterEntryFile', () => {
         getServerConfig: () => ({}),
       } as unknown as ServerPluginAPI;
 
-      expect(resolveEffectAdapterEntryFile(api)).toBe(
+      expect(resolveEffectServerEntryFile(api)).toBe(
         builtEntry.replaceAll(path.sep, '/'),
       );
     } finally {
@@ -100,7 +100,7 @@ describe('resolveEffectAdapterEntryFile', () => {
         }),
       } as unknown as ServerPluginAPI;
 
-      expect(resolveEffectAdapterEntryFile(api)).toBe(
+      expect(resolveEffectServerEntryFile(api)).toBe(
         builtEntry.replaceAll(path.sep, '/'),
       );
     } finally {

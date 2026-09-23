@@ -128,7 +128,7 @@ export const createEffectOperationContext = ({
       : {}),
     routePath: servicePath,
     method: (method || request.method || 'GET').toUpperCase(),
-    source: 'effect-adapter',
+    source: 'effect-server',
     ...(path && path !== servicePath
       ? { attributes: { mountedPath: path } }
       : {}),

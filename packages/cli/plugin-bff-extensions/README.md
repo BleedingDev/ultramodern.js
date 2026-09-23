@@ -1,7 +1,7 @@
 # @modern-js/plugin-bff-extensions
 
 Fork-owned integration extensions for UltraModern.js BFFs. This package keeps
-Effect adapter lifecycle integration, server source loading,
+Effect server lifecycle integration, server source loading,
 cross-project policy, Hono middleware, and backend federation out of the
 upstream-owned `@modern-js/plugin-bff` implementation.
 
@@ -12,7 +12,7 @@ upstream Modern.js project.
 ## Entry points
 
 - `/hono` exposes the peer-independent Hono route binder.
-- `/cross-project-policy`, `/effect-adapter`, and `/effect-source-loader` expose Node tooling and server integration.
+- `/cross-project-policy`, `/effect-server`, and `/effect-source-loader` expose Node tooling and server integration.
 - `/cross-project-generation` renders the generated producer client runtime
   consumed by `@modern-js/plugin-bff`.
 - `/backend-federation` exposes the portable federation runtime, while
@@ -32,7 +32,7 @@ upstream Modern.js project.
 Effect and its OpenTelemetry integration are exact-cohort optional peers. A
 Hono-only consumer can import `/hono` without installing Effect.
 
-There is deliberately no adapter-kit or re-export-only compatibility layer.
+There is deliberately no adapter registry or re-export-only compatibility layer.
 
 Effect server tooling derives operation-contract metadata without generating
 client code. Import shared `HttpApi` contracts in clients and use native

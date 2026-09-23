@@ -2,7 +2,7 @@ import { createSafeFailureResponse } from '@modern-js/runtime-extensions/safe-fa
 import type { Context, ServerPluginAPI } from '@modern-js/server-core';
 import { logger } from '@modern-js/utils';
 
-export function createEffectAdapterRuntimeErrorResponse(
+export function createEffectServerRuntimeErrorResponse(
   api: ServerPluginAPI,
   error: unknown,
   context: Context,

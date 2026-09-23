@@ -16,9 +16,7 @@ import {
 import type { ServerNodeMiddleware } from '@modern-js/server-core/node';
 import { fs } from '@modern-js/utils';
 import { bffPlugin as nativeBffPlugin } from '../../plugin-bff/src/cli';
-import plugin, {
-  type BffServerPluginOptions,
-} from '../../plugin-bff/src/server';
+import effectServerPlugin from '../../plugin-bff-extensions/src/effect-server';
 import { bffPlugin } from '../src';
 
 rstest.mock('@modern-js/plugin-bff', () => ({
@@ -46,9 +44,7 @@ async function configuredServerOptions(appDirectory: string) {
   const configured = await api
     .getHooks()
     ._internalServerPlugins.call({ plugins: [] });
-  return JSON.parse(
-    JSON.stringify(configured.plugins[0]!.options),
-  ) as BffServerPluginOptions;
+  return configured.plugins[0]!;
 }
 
 test('CLI-composed Effect server registers every configured prefix after serializing its options', async () => {
@@ -87,9 +83,12 @@ test('CLI-composed Effect server registers every configured prefix after seriali
       path.join(appDirectory, 'node_modules/@modern-js/plugin-bff-extensions'),
       'dir',
     );
-    const options = await configuredServerOptions(appDirectory);
+    const descriptor = await configuredServerOptions(appDirectory);
+    expect(descriptor.name).toBe(
+      '@modern-js/plugin-bff-extensions/effect-server',
+    );
     const { serverContext } = await server.run({
-      plugins: [compatPlugin(), plugin(options), observer] as BasePlugin[],
+      plugins: [compatPlugin(), effectServerPlugin(), observer] as BasePlugin[],
       options: {
         appContext: {
           appDirectory,
@@ -103,61 +102,9 @@ test('CLI-composed Effect server registers every configured prefix after seriali
       handleSetupResult,
     });
     const hooks = serverContext.pluginAPI!.getHooks();
-    await hooks.prepareApiServer.call({ pwd: appDirectory, prefix: '/' });
     expect(apiHandlerInfos).toBeUndefined();
     await hooks.onPrepare.call();
     expect(effectPaths).toEqual(['/api/*', '/rpc/*']);
-  } finally {
-    await fs.remove(appDirectory);
-  }
-});
-
-test.each([
-  'commonjs',
-  'module',
-] as const)('loads only the selected %s adapter lazily from the application', async moduleType => {
-  const appDirectory = await fs.mkdtemp(
-    path.join(os.tmpdir(), 'bff-lazy-adapter-'),
-  );
-  try {
-    const adapterDirectory = path.join(
-      appDirectory,
-      'node_modules/fixture-adapter',
-    );
-    const receipt = path.join(appDirectory, 'receipt.json');
-    await fs.outputJSON(path.join(adapterDirectory, 'package.json'), {
-      name: 'fixture-adapter',
-      type: moduleType,
-      exports: './index.js',
-    });
-    const source = `${moduleType === 'commonjs' ? "const fs = require('node:fs');" : "import * as fs from 'node:fs';"}
-fs.writeFileSync(${JSON.stringify(receipt)}, '"loaded"');
-${moduleType === 'commonjs' ? 'exports.createRuntimeAdapters =' : 'export const createRuntimeAdapters ='} () => [{
-  registerMiddleware: async options => fs.writeFileSync(${JSON.stringify(receipt)}, JSON.stringify(options))
-}];`;
-    await fs.outputFile(path.join(adapterDirectory, 'index.js'), source);
-    const { serverContext } = await server.run({
-      plugins: [
-        compatPlugin(),
-        plugin({
-          runtimeAdapters: { effect: 'fixture-adapter' },
-          honoRouteBinder: 'must-not-resolve-in-effect-mode',
-        }),
-      ] as BasePlugin[],
-      options: {
-        appContext: {
-          appDirectory,
-          bffRuntimeFramework: 'effect',
-          middlewares: [],
-        },
-        pwd: appDirectory,
-      },
-      config: { bff: { prefix: ['/api', '/rpc'] } },
-      handleSetupResult,
-    });
-    expect(await fs.pathExists(receipt)).toBe(false);
-    await serverContext.pluginAPI!.getHooks().onPrepare.call();
-    expect(await fs.readJSON(receipt)).toEqual({ prefix: ['/api', '/rpc'] });
   } finally {
     await fs.remove(appDirectory);
   }

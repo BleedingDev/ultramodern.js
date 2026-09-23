@@ -6,7 +6,36 @@ import type { ServerPluginAPI } from '@modern-js/server-core';
 import { disposeServerRuntime } from '@modern-js/server-runtime-extensions/runtime-lifecycle';
 import { describe, expect, test } from '@rstest/core';
 
-import { EffectAdapter } from '../src/effect-adapter';
+import effectServerPlugin from '../src/effect-server';
+
+function createServerHarness(api: ServerPluginAPI) {
+  const serverBase =
+    (api.getServerContext() as { serverBase?: object }).serverBase ?? {};
+  return {
+    async prepare(options: {
+      prefix: string | readonly string[];
+      enableHandleWeb?: boolean;
+    }) {
+      let onPrepare: (() => Promise<void>) | undefined;
+      const originalConfig = api.getServerConfig();
+      effectServerPlugin().setup({
+        ...api,
+        getServerContext: () => ({ ...api.getServerContext(), serverBase }),
+        getServerConfig: () => ({
+          ...originalConfig,
+          bff: { ...originalConfig?.bff, ...options },
+        }),
+        onPrepare: callback => {
+          onPrepare = callback as () => Promise<void>;
+        },
+      } as ServerPluginAPI);
+      if (!onPrepare)
+        throw new Error('Effect server did not register onPrepare');
+      await onPrepare();
+    },
+    dispose: () => disposeServerRuntime(serverBase),
+  };
+}
 
 type Middleware = {
   before?: string[];
@@ -14,13 +43,23 @@ type Middleware = {
   path: string;
 };
 
-describe('EffectAdapter runtime ownership', () => {
+describe('Effect server runtime ownership', () => {
+  test('rejects a Hono runtime instead of installing Effect middleware', () => {
+    expect(() =>
+      effectServerPlugin().setup({
+        getServerContext: () => ({
+          bffRuntimeFramework: 'hono',
+          middlewares: [],
+        }),
+      } as unknown as ServerPluginAPI),
+    ).toThrow('Effect BFF server plugin requires Effect');
+  });
   test('shares one public Effect runtime across prefixes and disposes once', async () => {
     const appDirectory = await fs.promises.mkdtemp(
-      path.join(os.tmpdir(), 'modern-effect-adapter-shared-'),
+      path.join(os.tmpdir(), 'modern-effect-server-shared-'),
     );
     const lifecycleMarker = Symbol.for(
-      `modernjs.effect-adapter.shared.${path.basename(appDirectory)}`,
+      `modernjs.effect-server.shared.${path.basename(appDirectory)}`,
     );
     const lifecycle = { initialized: 0, disposed: 0 };
     const testGlobal = globalThis as typeof globalThis & {
@@ -109,7 +148,7 @@ export { effectApi as api, effectLayer as layer };
           bff: { effect: { entry: entryFile } },
         }),
       } as unknown as ServerPluginAPI;
-      const adapter = new EffectAdapter(api);
+      const adapter = createServerHarness(api);
       const invoke = async (middleware: Middleware, prefix: string) => {
         const response = (await middleware.handler(
           {
@@ -125,7 +164,7 @@ export { effectApi as api, effectLayer as layer };
         return response.json();
       };
 
-      await adapter.registerMiddleware({ prefix: ['/api', '/api/internal'] });
+      await adapter.prepare({ prefix: ['/api', '/api/internal'] });
       await expect(invoke(middlewares[0]!, '/api/internal')).resolves.toEqual({
         value: 'shared-runtime',
         requestPath: '/value',
@@ -155,7 +194,7 @@ export { effectApi as api, effectLayer as layer };
 
   test('validates an external built producer and mounted batches using its version after source removal', async () => {
     const appDirectory = await fs.promises.mkdtemp(
-      path.join(os.tmpdir(), 'modern-effect-adapter-policy-'),
+      path.join(os.tmpdir(), 'modern-effect-server-policy-'),
     );
     const producerDirectory = await fs.promises.mkdtemp(
       path.join(os.tmpdir(), 'modern-effect-producer-'),
@@ -273,8 +312,8 @@ export { effectApi as api, effectLayer as layer };
         ) as Promise<Response>;
 
       const defaultMiddlewares: Middleware[] = [];
-      const defaultAdapter = new EffectAdapter(createApi(defaultMiddlewares));
-      await defaultAdapter.registerMiddleware({ prefix: [] });
+      const defaultAdapter = createServerHarness(createApi(defaultMiddlewares));
+      await defaultAdapter.prepare({ prefix: [] });
       const defaultResponse = await invoke(
         defaultMiddlewares[0]!,
         new Request('https://example.com/api/value', {
@@ -287,8 +326,8 @@ export { effectApi as api, effectLayer as layer };
       await defaultAdapter.dispose();
 
       const nestedMiddlewares: Middleware[] = [];
-      const nestedAdapter = new EffectAdapter(createApi(nestedMiddlewares));
-      await nestedAdapter.registerMiddleware({
+      const nestedAdapter = createServerHarness(createApi(nestedMiddlewares));
+      await nestedAdapter.prepare({
         prefix: ['/api', '/api/internal'],
       });
       const routePath = '/api/internal/value';
@@ -320,13 +359,13 @@ export { effectApi as api, effectLayer as layer };
       await nestedAdapter.dispose();
 
       const wildcardMiddlewares: Middleware[] = [];
-      const wildcardAdapter = new EffectAdapter(
+      const wildcardAdapter = createServerHarness(
         createApi(wildcardMiddlewares, {
           enabled: true,
           allowUnknownOperations: true,
         }),
       );
-      await wildcardAdapter.registerMiddleware({
+      await wildcardAdapter.prepare({
         prefix: '/api',
         enableHandleWeb: true,
       });
@@ -356,7 +395,7 @@ export { effectApi as api, effectLayer as layer };
 
   test('propagates terminal runtime disposal failures through the server lifecycle', async () => {
     const appDirectory = await fs.promises.mkdtemp(
-      path.join(os.tmpdir(), 'modern-effect-adapter-dispose-'),
+      path.join(os.tmpdir(), 'modern-effect-server-dispose-'),
     );
     const originalNodeEnv = process.env.NODE_ENV;
     const entryFile = path.join(appDirectory, 'api', 'effect.mjs');
@@ -420,8 +459,8 @@ export { effectApi as api, effectLayer as layer };
           bff: { effect: { entry: entryFile } },
         }),
       } as unknown as ServerPluginAPI;
-      const adapter = new EffectAdapter(api);
-      await adapter.registerMiddleware({ prefix: '/api' });
+      const adapter = createServerHarness(api);
+      await adapter.prepare({ prefix: '/api' });
 
       const response = (await middlewares[0]!.handler(
         {
@@ -449,10 +488,10 @@ export { effectApi as api, effectLayer as layer };
 
   test('retires a concurrently loading runtime before publishing middleware', async () => {
     const appDirectory = await fs.promises.mkdtemp(
-      path.join(os.tmpdir(), 'modern-effect-adapter-retire-'),
+      path.join(os.tmpdir(), 'modern-effect-server-retire-'),
     );
     const gateMarker = Symbol.for(
-      `modernjs.effect-adapter.retire.${path.basename(appDirectory)}`,
+      `modernjs.effect-server.retire.${path.basename(appDirectory)}`,
     );
     let releaseLoad!: () => void;
     const loadGate = new Promise<void>(resolve => {
@@ -512,7 +551,7 @@ export { effectApi as api, effectLayer as layer };
       await fs.promises.mkdir(path.dirname(entryFile), { recursive: true });
       await fs.promises.writeFile(entryFile, entrySource);
       process.env.NODE_ENV = 'production';
-      const adapter = new EffectAdapter({
+      const adapter = createServerHarness({
         getServerContext: () => ({
           appDirectory,
           apiDirectory: path.dirname(entryFile),
@@ -524,13 +563,13 @@ export { effectApi as api, effectLayer as layer };
         }),
       } as unknown as ServerPluginAPI);
 
-      const registering = adapter.registerMiddleware({ prefix: '/api' });
+      const registering = adapter.prepare({ prefix: '/api' });
       await started;
       await adapter.dispose();
       releaseLoad();
 
       await expect(registering).rejects.toThrow(
-        'Cannot initialize a retired Effect adapter.',
+        'Cannot initialize a retired Effect server.',
       );
       expect(middlewares).toEqual([]);
     } finally {
