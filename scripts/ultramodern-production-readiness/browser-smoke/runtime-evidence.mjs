@@ -147,8 +147,8 @@ function assertLogicalPath(value, label) {
   return logicalPath;
 }
 
-function assertSortedUniquePaths(value, label) {
-  if (!Array.isArray(value) || value.length === 0) {
+function assertSortedUniquePaths(value, label, allowEmpty = false) {
+  if (!Array.isArray(value) || (!allowEmpty && value.length === 0)) {
     throw new Error(`${label} must be a non-empty array`);
   }
   const paths = value.map((item, index) =>
@@ -419,7 +419,7 @@ function readAndVerifyEnvelopeArtifact(location, appId, value, index) {
   };
 }
 
-function verifyEnvelope(location, appId) {
+function verifyEnvelope(location, appId, apiOnly = false) {
   const { envelope } = location;
   assertExactKeys(
     envelope,
@@ -499,10 +499,12 @@ function verifyEnvelope(location, appId) {
     uiClient: assertSortedUniquePaths(
       envelope.surfaces.uiClient,
       `${appId} surfaces.uiClient`,
+      apiOnly,
     ),
     ssr: assertSortedUniquePaths(
       envelope.surfaces.ssr,
       `${appId} surfaces.ssr`,
+      apiOnly,
     ),
     apiBackend: assertSortedUniquePaths(
       envelope.surfaces.apiBackend,
@@ -517,6 +519,11 @@ function verifyEnvelope(location, appId) {
       `${appId} surfaces.backendFederation.container`,
     ),
   };
+  if (apiOnly && (surfaces.uiClient.length > 0 || surfaces.ssr.length > 0)) {
+    throw new Error(
+      `${appId} API-only release declares an unexpected UI or SSR surface`,
+    );
+  }
   const artifactByPath = new Map(
     artifacts.map(artifact => [artifact.logicalPath, artifact]),
   );
@@ -644,6 +651,45 @@ function verifyWorkerdResponse(response, app, identity, label, check) {
   }
 }
 
+function assertWorkerdApiProofTarget(
+  proof,
+  app,
+  worker,
+  envelopeDigest,
+  shellBinding,
+) {
+  const target = shellBinding ? proof.bindingTarget : proof.directTarget;
+  if (
+    target?.appId !== app.id ||
+    target.envelopeDigest !== envelopeDigest ||
+    target.worker !== worker
+  ) {
+    throw new Error(
+      `${app.id} API proof target is not tied to its Miniflare worker identity`,
+    );
+  }
+  if (shellBinding) {
+    if (
+      proof.binding !== shellBinding.binding ||
+      proof.directTarget !== undefined
+    ) {
+      throw new Error(
+        `${app.id} service binding does not match its deployed worker configuration`,
+      );
+    }
+    return 'service-binding';
+  }
+  if (
+    app.surfaceProfile !== 'api-only' ||
+    proof.binding !== undefined ||
+    proof.bindingTarget !== undefined ||
+    proof.throughShell !== undefined
+  ) {
+    throw new Error(`${app.id} API proof omitted a required service binding`);
+  }
+  return 'direct';
+}
+
 function verifyWorkerdRuntimeCorrelation(projectDir, app, location) {
   const reportPath = path.join(
     projectDir,
@@ -718,6 +764,52 @@ function verifyWorkerdRuntimeCorrelation(projectDir, app, location) {
       `${app.id} workerd main/SSR/BFF surfaces are not all selected`,
     );
   }
+  if (
+    app.surfaceProfile === 'api-only' &&
+    (execution.main !== 'server/index.mjs' ||
+      location.envelope.surfaces.uiClient.length !== 0 ||
+      location.envelope.surfaces.ssr.length !== 0 ||
+      [...selectedPaths].some(
+        logicalPath =>
+          logicalPath !== execution.main &&
+          !location.envelope.surfaces.apiBackend.includes(logicalPath),
+      ))
+  ) {
+    throw new Error(
+      `${app.id} headless workerd selected an undeclared UI or SSR module`,
+    );
+  }
+
+  const topology = JSON.parse(
+    fs.readFileSync(
+      path.join(projectDir, 'topology/reference-topology.json'),
+      'utf8',
+    ),
+  );
+  const shellBindings = [topology.shell, ...(topology.shells ?? [])]
+    .filter(Boolean)
+    .map(shell => {
+      const wrangler = JSON.parse(
+        fs.readFileSync(
+          path.join(projectDir, shell.path, '.output/wrangler.json'),
+          'utf8',
+        ),
+      );
+      const bindings = (wrangler.services ?? []).filter(
+        service => service.service === execution.worker,
+      );
+      if (bindings.length > 1) {
+        throw new Error(
+          `${shell.id} has ambiguous service bindings for ${app.id}`,
+        );
+      }
+      if (shell.verticalRefs?.includes(app.id) && bindings.length === 0) {
+        throw new Error(
+          `${shell.id} is missing its declared ${app.id} service binding`,
+        );
+      }
+      return { shell, binding: bindings[0] };
+    });
 
   const apiProofs = report.apiProofs.filter(item => item.appId === app.id);
   const expectedChecks = app.deploy?.cloudflare?.jsonSmokeChecks ?? [];
@@ -727,34 +819,42 @@ function verifyWorkerdRuntimeCorrelation(projectDir, app, location) {
       method: String(check.method ?? 'GET').toUpperCase(),
       route: check.route,
     });
-  const expectedKeys = expectedChecks.map(checkKey).sort();
-  const actualKeys = apiProofs.map(checkKey).sort();
+  const expectedProofs = shellBindings.flatMap(({ shell, binding }) => {
+    const shellChecks = (shell.cloudflare?.jsonSmokeChecks ?? []).filter(
+      check =>
+        typeof app.api?.bff?.prefix === 'string' &&
+        (check.route === app.api.bff.prefix ||
+          check.route?.startsWith(
+            `${app.api.bff.prefix.replace(/\/+$/u, '')}/`,
+          )),
+    );
+    const uniqueChecks = new Map(
+      [...expectedChecks, ...shellChecks].map(check => [
+        checkKey(check),
+        check,
+      ]),
+    );
+    return [...uniqueChecks.values()].map(check => ({ shell, binding, check }));
+  });
+  const expectedKeys = expectedProofs
+    .map(({ shell, check }) => JSON.stringify([shell.id, checkKey(check)]))
+    .sort();
+  const actualKeys = apiProofs
+    .map(proof => JSON.stringify([proof.shellId, checkKey(proof)]))
+    .sort();
   if (
     expectedKeys.length === 0 ||
     new Set(expectedKeys).size !== expectedKeys.length ||
-    new Set(actualKeys).size !== actualKeys.length ||
     JSON.stringify(actualKeys) !== JSON.stringify(expectedKeys)
   ) {
     throw new Error(
-      `${app.id} workerd API execution proofs do not exactly match configured JSON smoke checks`,
+      `${app.id} workerd API execution proofs do not exactly match configured shell JSON smoke checks`,
     );
   }
-  for (const proof of apiProofs) {
-    const check = expectedChecks.find(
-      candidate => checkKey(candidate) === checkKey(proof),
+  for (const { shell, binding, check } of expectedProofs) {
+    const proof = apiProofs.find(
+      item => item.shellId === shell.id && checkKey(item) === checkKey(check),
     );
-    if (
-      proof.bindingTarget?.appId !== app.id ||
-      proof.bindingTarget?.envelopeDigest !==
-        location.envelope.envelopeDigest ||
-      proof.bindingTarget?.worker !== execution.worker ||
-      typeof proof.binding !== 'string' ||
-      proof.binding.length === 0
-    ) {
-      throw new Error(
-        `${app.id} service binding is not tied to its Miniflare worker identity`,
-      );
-    }
     verifyWorkerdResponse(
       proof.direct,
       app,
@@ -762,17 +862,26 @@ function verifyWorkerdRuntimeCorrelation(projectDir, app, location) {
       'direct',
       check,
     );
-    verifyWorkerdResponse(
-      proof.throughShell,
+    const targetMode = assertWorkerdApiProofTarget(
+      proof,
       app,
-      location.envelope.identity,
-      'service-binding',
-      check,
+      execution.worker,
+      location.envelope.envelopeDigest,
+      binding,
     );
-    if (proof.direct.sha256 !== proof.throughShell.sha256) {
-      throw new Error(
-        `${app.id} direct and service-binding API response digests differ`,
+    if (targetMode === 'service-binding') {
+      verifyWorkerdResponse(
+        proof.throughShell,
+        app,
+        location.envelope.identity,
+        'service-binding',
+        check,
       );
+      if (proof.direct.sha256 !== proof.throughShell.sha256) {
+        throw new Error(
+          `${app.id} direct and service-binding API response digests differ`,
+        );
+      }
     }
   }
   return {
@@ -792,7 +901,7 @@ function releaseIdentity(
 ) {
   const deliveryUnit = configuredDeliveryUnit(app);
   const location = envelopeLocation(projectDir, app, platform);
-  verifyEnvelope(location, app.id);
+  verifyEnvelope(location, app.id, app.surfaceProfile === 'api-only');
   const packageJson = readAppPackageJson(projectDir, app);
   if (
     typeof packageJson.version !== 'string' ||
@@ -825,25 +934,28 @@ function releaseIdentity(
       `${app.id} release envelope build marker does not derive from its configured delivery unit and source revision`,
     );
   }
+  const apiOnly = app.surfaceProfile === 'api-only';
   const frontendManifest = location.envelope.surfaces.uiClient.find(
     logicalPath =>
       logicalPath ===
       (platform === 'workerd' ? 'public/mf-manifest.json' : 'mf-manifest.json'),
   );
-  if (!frontendManifest) {
+  if (!frontendManifest && !apiOnly) {
     throw new Error(
       `${app.id} release envelope does not bind its executed mf-manifest.json`,
     );
   }
-  const moduleFederation = manifestModuleFederationCohort(
-    location,
-    frontendManifest,
-    app.id,
-    readModuleFederationCohort(projectDir, app),
-  );
+  const moduleFederation = apiOnly
+    ? undefined
+    : manifestModuleFederationCohort(
+        location,
+        frontendManifest,
+        app.id,
+        readModuleFederationCohort(projectDir, app),
+      );
   const identity = {
     buildMarker: location.envelope.identity.buildMarker,
-    moduleFederation,
+    ...(moduleFederation ? { moduleFederation } : {}),
     releaseVersion: location.envelope.identity.releaseVersion,
     sourceRevision: location.envelope.identity.sourceRevision,
   };
@@ -862,8 +974,7 @@ function releaseIdentity(
     surfaces: {
       api: { ...identity },
       backend: { ...identity },
-      frontend: { ...identity },
-      ssr: { ...identity },
+      ...(apiOnly ? {} : { frontend: { ...identity }, ssr: { ...identity } }),
     },
   };
 }
@@ -1033,7 +1144,10 @@ function bindContractToExpectedReleaseIdentities({
       const release = releaseIdentity(projectDir, app, platform, {
         verifyRuntime: false,
       });
-      const identity = release.surfaces.frontend;
+      const identity =
+        app.surfaceProfile === 'api-only'
+          ? release.surfaces.api
+          : release.surfaces.frontend;
       if (identity.sourceRevision !== sourceRevision) {
         throw new Error(
           `${app.id} release envelope source revision differs from its expected deployed revision`,
@@ -1274,9 +1388,12 @@ function createRuntimeEvidence({
 }
 
 export {
+  assertWorkerdApiProofTarget,
   bindContractToExpectedReleaseIdentities,
   bindContractToReleaseIdentity,
   createRuntimeEvidence,
   readNodeBackendArtifactEvidence,
+  releaseIdentity,
   verifyWorkerdResponse,
+  verifyWorkerdRuntimeCorrelation,
 };
