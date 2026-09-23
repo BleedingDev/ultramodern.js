@@ -293,8 +293,12 @@ export function strictEffectRuntimeTopologyViolation(
       const last = statements.at(-1);
       return statements
         .slice(0, -1)
-        .every(statement => t.isVariableDeclaration(statement)) &&
-        t.isReturnStatement(last)
+        .every(
+          statement =>
+            t.isVariableDeclaration(statement) ||
+            t.isTSTypeAliasDeclaration(statement) ||
+            t.isTSInterfaceDeclaration(statement),
+        ) && t.isReturnStatement(last)
         ? last.argument
         : undefined;
     };
