@@ -4,7 +4,7 @@ overview: "Adopt the candidate in OntOS and delete framework-owned metadata, pat
 todos:
   - id: cc-ontos-ontos-native-adoption
     content: "Update OntOS dependencies and canonical choices, then remove retired metadata and framework-required patches/wrappers."
-    status: pending
+    status: in_progress
   - id: cc-ontos-ontos-acceptance
     content: "Run full OntOS checks and runtime proofs against the candidate and deliver a focused committed downstream diff."
     status: pending

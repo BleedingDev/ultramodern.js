@@ -4,10 +4,10 @@ overview: "Build and validate immutable candidate tarballs without consumer meta
 todos:
   - id: cc-package-proof-package-candidate
     content: "Prepare rehearsal tarballs and prove the complete corrected framework and sidecar dependency closure in clean consumers."
-    status: in_progress
+    status: completed
   - id: cc-package-proof-fresh-app-proof
     content: "Exercise newly generated UI and API-only workspaces on Node and Cloudflare using the packed packages."
-    status: pending
+    status: completed
 isProject: false
 ---
 
