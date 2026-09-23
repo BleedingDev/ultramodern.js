@@ -94,6 +94,42 @@ function validateLiveArtifact(failures, artifact, expected) {
   }
 }
 
+function isValidRpcOperations(liveApi) {
+  const operations = liveApi?.operations;
+  if (
+    liveApi?.method !== 'RPC' ||
+    liveApi.protocol !== 'rpc' ||
+    liveApi.serialization !== 'json' ||
+    typeof liveApi.group !== 'string' ||
+    liveApi.group.length === 0 ||
+    !Array.isArray(operations) ||
+    operations.length !== 3
+  ) {
+    return false;
+  }
+  const [listed, fetched, missing] = operations;
+  const expectedErrorTag = `${liveApi.group
+    .split(/[^a-zA-Z0-9]+/u)
+    .filter(Boolean)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join('')}NotFoundRpc`;
+  return (
+    listed?.method === 'list' &&
+    listed.status === 'pass' &&
+    typeof listed.itemId === 'string' &&
+    listed.itemId.length > 0 &&
+    fetched?.method === 'get' &&
+    fetched.status === 'pass' &&
+    fetched.itemId === listed.itemId &&
+    missing?.method === 'get' &&
+    missing.status === 'pass' &&
+    missing.errorTag === expectedErrorTag &&
+    typeof missing.missingId === 'string' &&
+    missing.missingId.length > 0 &&
+    missing.missingId !== listed.itemId
+  );
+}
+
 function validateNodeBackendFederationProofResult(result) {
   const failures = [];
   const appId =
@@ -153,7 +189,6 @@ function validateNodeBackendFederationProofResult(result) {
     !isRecord(boundary) ||
     !isRecord(liveApi) ||
     liveApi.status !== 'pass' ||
-    liveApi.method !== 'GET' ||
     typeof liveApi.route !== 'string' ||
     !liveApi.route.startsWith('/') ||
     liveApiUrl?.pathname !== liveApi.route ||
@@ -161,7 +196,6 @@ function validateNodeBackendFederationProofResult(result) {
       (isHttpUrl(result.manifestUrl)
         ? new URL(result.manifestUrl).origin
         : undefined) ||
-    !isPassingStatusCode(liveApi.statusCode) ||
     !haveSameOrigin(
       result.manifestUrl,
       result.containerEntry,
@@ -172,10 +206,14 @@ function validateNodeBackendFederationProofResult(result) {
     // reference. runtime-evidence.verifyEnvelope independently recomputes the
     // canonical envelope digest and every artifact digest from executed bytes.
     liveApi.envelopeDigest !== envelope?.envelopeDigest ||
-    liveApi.marker?.unitId !== boundary.unitId ||
-    liveApi.marker?.buildMarker !== boundary.buildVersion ||
-    liveApi.marker?.sourceRevision !== boundary.sourceRevision ||
-    liveApi.marker?.releaseVersion !== boundary.version
+    (liveApi.protocol === 'rpc'
+      ? !isValidRpcOperations(liveApi)
+      : liveApi.method !== 'GET' ||
+        !isPassingStatusCode(liveApi.statusCode) ||
+        liveApi.marker?.unitId !== boundary.unitId ||
+        liveApi.marker?.buildMarker !== boundary.buildVersion ||
+        liveApi.marker?.sourceRevision !== boundary.sourceRevision ||
+        liveApi.marker?.releaseVersion !== boundary.version)
   ) {
     failures.push(
       `${appId} live API is not correlated to its release envelope and identity`,
@@ -210,6 +248,15 @@ function validateNodeBackendFederationProofResult(result) {
     )
   ) {
     failures.push(`${appId} backend runtime smoke checks are empty or failed`);
+  }
+  if (
+    liveApi?.protocol === 'rpc' &&
+    (!Array.isArray(result.smokeChecks) ||
+      !result.smokeChecks.some(
+        check => check.method === 'POST' && check.route === liveApi.route,
+      ))
+  ) {
+    failures.push(`${appId} native RPC route has no passing POST smoke check`);
   }
 
   return { appId, failures, ok: failures.length === 0 };

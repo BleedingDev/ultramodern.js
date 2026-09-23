@@ -32,6 +32,9 @@ export type TopologyApp = {
   cloudflare?: { publicUrlEnv?: unknown };
   api?: {
     bff?: { prefix?: unknown };
+    protocol?: unknown;
+    rpcPath?: unknown;
+    rpcSerialization?: unknown;
     stem?: unknown;
   };
   moduleFederation?: {
@@ -96,6 +99,8 @@ export type BackendFederationApp = {
   deliveryUnit?: DeliveryUnitContractBlock;
   port: number;
   apiPrefix: string;
+  apiProtocol: 'rest' | 'rpc';
+  rpcPath?: string;
   apiStem: string;
   backendName: string;
   manifestUrl: string;
@@ -348,6 +353,22 @@ export const createAppFromTopology = (
   }
 
   const apiPrefix = stringValue(topologyApp.api.bff?.prefix) ?? `/${id}-api`;
+  const apiProtocol = topologyApp.api.protocol ?? 'rest';
+  if (apiProtocol !== 'rest' && apiProtocol !== 'rpc') {
+    throw new Error(
+      `[backend-federation-build] Unsupported API protocol for ${id}.`,
+    );
+  }
+  const rpcPath =
+    apiProtocol === 'rpc' ? stringValue(topologyApp.api.rpcPath) : undefined;
+  if (
+    apiProtocol === 'rpc' &&
+    (!rpcPath || topologyApp.api.rpcSerialization !== 'json')
+  ) {
+    throw new Error(
+      `[backend-federation-build] Missing JSON RPC route metadata for ${id}.`,
+    );
+  }
   const apiStem = stringValue(topologyApp.api.stem) ?? id;
   const backendName = createBackendName(topologyApp, id);
   const nodeOverlay = overlay.serverExecution?.[id]?.node;
@@ -417,6 +438,8 @@ export const createAppFromTopology = (
     version,
     port,
     apiPrefix,
+    apiProtocol,
+    rpcPath,
     apiStem,
     backendName,
     manifestUrl,

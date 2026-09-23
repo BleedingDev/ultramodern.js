@@ -50,6 +50,7 @@ const createBuildArtifact = (overrides: Record<string, unknown> = {}) => {
 };
 
 type WorkspaceOptions = {
+  apiProtocol?: 'rest' | 'rpc';
   artifactOverrides?: Record<string, unknown>;
   backendBase?: string;
   topologyDeliveryUnit?: Record<string, unknown>;
@@ -59,6 +60,7 @@ type WorkspaceOptions = {
 };
 
 const createWorkspace = async ({
+  apiProtocol = 'rest',
   artifactOverrides = {},
   backendBase = 'http://localhost:3021',
   topologyDeliveryUnit,
@@ -104,7 +106,17 @@ const createWorkspace = async ({
           package: '@tractor-store-vertical-demo/explore',
           path: 'verticals/explore',
           cloudflare: { publicUrlEnv: 'ULTRAMODERN_PUBLIC_URL_EXPLORE' },
-          api: { bff: { prefix: '/explore-api' }, stem: 'explore' },
+          api: {
+            bff: { prefix: '/explore-api' },
+            ...(apiProtocol === 'rpc'
+              ? {
+                  protocol: 'rpc',
+                  rpcPath: '/explore-api/rpc',
+                  rpcSerialization: 'json',
+                }
+              : {}),
+            stem: 'explore',
+          },
           moduleFederation: {
             name: 'verticalExplore',
             manifestUrl: `${backendBase}/mf-manifest.json`,
@@ -203,6 +215,28 @@ afterEach(async () => {
 });
 
 describe('backend federation build artifacts', () => {
+  it('advertises the generated RPC route without REST-only endpoints', async () => {
+    const workspace = await createWorkspace({ apiProtocol: 'rpc' });
+    await withSourceRevision('2'.repeat(40), () =>
+      emitBackendFederationArtifacts(
+        workspace.appDirectory,
+        workspace.distDirectory,
+      ),
+    );
+    const manifest = JSON.parse(
+      await fs.readFile(
+        path.join(workspace.distDirectory, 'backend-mf-manifest.json'),
+        'utf8',
+      ),
+    );
+    expect(manifest.backendFederation).toMatchObject({
+      rpcPath: '/explore-api/rpc',
+      rpcSerialization: 'json',
+    });
+    expect(manifest.backendFederation).not.toHaveProperty('readinessPath');
+    expect(manifest.backendFederation).not.toHaveProperty('openapiPath');
+  });
+
   it('stamps the configured local port and declared public origin into native backend URLs', async () => {
     const workspace = await createWorkspace();
     await withEnvironment(
@@ -230,6 +264,11 @@ describe('backend federation build artifacts', () => {
           'http://localhost:49117/backendRemoteEntry.cjs',
         );
         expect(manifest.metaData.publicPath).toBe('http://localhost:49117/');
+        expect(manifest.backendFederation).toMatchObject({
+          readinessPath: '/explore-api/explore/readiness',
+          openapiPath: '/explore-api/openapi.json',
+        });
+        expect(manifest.backendFederation).not.toHaveProperty('rpcPath');
       },
     );
 

@@ -204,8 +204,12 @@ export const createBackendManifest = (
       source: {
         module: sourceModule,
       },
-      readinessPath: `${app.apiPrefix}/${app.apiStem}/readiness`,
-      openapiPath: `${app.apiPrefix}/openapi.json`,
+      ...(app.apiProtocol === 'rpc'
+        ? { rpcPath: app.rpcPath, rpcSerialization: 'json' }
+        : {
+            readinessPath: `${app.apiPrefix}/${app.apiStem}/readiness`,
+            openapiPath: `${app.apiPrefix}/openapi.json`,
+          }),
       ...(app.deliveryUnit ? { deliveryUnit: app.deliveryUnit } : {}),
       versionBoundary: {
         invariant: 'web-and-api-same-build',

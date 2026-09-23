@@ -33,6 +33,11 @@ const MICROVERTICAL_RELEASE_IDENTITY_CARRIERS_SCHEMA_VERSION = 1;
 
 const COMPILED_MODULE_PATTERN = /\.(?:c|m)?js$/u;
 const EFFECT_BFF_WORKER_PATTERN = /^worker\/__modern_bff_effect\.(?:c|m)?js$/u;
+const EFFECT_BFF_WORKER_SUPPORT_PATTERN =
+  /^worker\/__modern_worker_(?:runtime|shared)_*\.(?:c|m)?js$/u;
+const isEffectBffWorkerArtifact = (logicalPath: string) =>
+  EFFECT_BFF_WORKER_PATTERN.test(logicalPath) ||
+  EFFECT_BFF_WORKER_SUPPORT_PATTERN.test(logicalPath);
 const CRAWLER_POLICY_PATH = 'public/robots.txt';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -599,10 +604,7 @@ const createReleaseArtifactInputs = async (
   apiOnly: boolean,
 ) => {
   const files = await collectFiles(distDirectory);
-  if (
-    target === 'node' &&
-    files.some(logicalPath => EFFECT_BFF_WORKER_PATTERN.test(logicalPath))
-  ) {
+  if (target === 'node' && files.some(isEffectBffWorkerArtifact)) {
     throw new Error(
       '[ultramodern-release-envelope] Node target conflicts with a Cloudflare Effect API/BFF worker artifact; resolve the canonical deploy target instead of emitting a Node envelope for Cloudflare output.',
     );
@@ -634,7 +636,7 @@ const createReleaseArtifactInputs = async (
           logicalPath =>
             logicalPath.startsWith('worker/') &&
             COMPILED_MODULE_PATTERN.test(logicalPath) &&
-            !EFFECT_BFF_WORKER_PATTERN.test(logicalPath),
+            !isEffectBffWorkerArtifact(logicalPath),
         );
   const nodeApiEntryPaths = files.filter(
     logicalPath =>
@@ -649,9 +651,7 @@ const createReleaseArtifactInputs = async (
               logicalPath.startsWith('shared/')) &&
             COMPILED_MODULE_PATTERN.test(logicalPath),
         )
-      : files.filter(logicalPath =>
-          EFFECT_BFF_WORKER_PATTERN.test(logicalPath),
-        );
+      : files.filter(isEffectBffWorkerArtifact);
 
   if (apiOnly && (uiClientPaths.length > 0 || ssrPaths.length > 0)) {
     throw new Error(
@@ -670,6 +670,10 @@ const createReleaseArtifactInputs = async (
   }
   if (
     (target === 'node' && nodeApiEntryPaths.length === 0) ||
+    (target === 'cloudflare' &&
+      !files.some(logicalPath =>
+        EFFECT_BFF_WORKER_PATTERN.test(logicalPath),
+      )) ||
     apiBackendPaths.length === 0
   ) {
     throw new Error(
@@ -1126,15 +1130,18 @@ const createCloudflareStagedReleaseArtifactInputs = async (
   }
   const backendManifestPath = `public/${BACKEND_FEDERATION_MANIFEST_FILE}`;
   const backendContainerPath = `public/${BACKEND_FEDERATION_REMOTE_ENTRY_FILE}`;
-  const apiBackendPaths = files.filter(logicalPath =>
-    EFFECT_BFF_WORKER_PATTERN.test(logicalPath),
-  );
+  const apiBackendPaths = files.filter(isEffectBffWorkerArtifact);
+  if (!files.some(logicalPath => EFFECT_BFF_WORKER_PATTERN.test(logicalPath))) {
+    throw new Error(
+      '[ultramodern-release-envelope] final Cloudflare staging has no actual Effect API/BFF worker artifact.',
+    );
+  }
   const ssrPaths = files.filter(
     logicalPath =>
       (logicalPath.startsWith('server/') ||
         logicalPath.startsWith('worker/')) &&
       COMPILED_MODULE_PATTERN.test(logicalPath) &&
-      !EFFECT_BFF_WORKER_PATTERN.test(logicalPath),
+      !isEffectBffWorkerArtifact(logicalPath),
   );
   const uiClientPaths = files.filter(
     logicalPath =>
