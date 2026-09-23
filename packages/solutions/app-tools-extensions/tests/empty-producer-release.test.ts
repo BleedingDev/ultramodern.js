@@ -312,6 +312,7 @@ describe('API-only release', () => {
 
   test('binds the real Node API, backend container and build identity', async () => {
     const f = await apiOnlyFixture('node');
+    await f.put('public/robots.txt', 'User-agent: *\nDisallow: /\n');
     const envelope = await f.emit();
     expect(envelope?.surfaces).toMatchObject({
       uiClient: [],
@@ -322,6 +323,14 @@ describe('API-only release', () => {
         container: 'backendRemoteEntry.cjs',
       },
     });
+    expect(envelope?.artifacts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          logicalPath: 'public/robots.txt',
+          runtime: 'crawler-policy',
+        }),
+      ]),
+    );
     await framework.verifyBuildOutputReleaseEnvelope(f.root, 'node');
     const staged = await framework.emitNodeStagedReleaseEnvelope({
       distDirectory: f.root,
@@ -329,10 +338,18 @@ describe('API-only release', () => {
     });
     expect(staged?.surfaces.uiClient).toEqual([]);
     expect(staged?.surfaces.ssr).toEqual([]);
+    expect(staged?.artifacts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          logicalPath: 'public/robots.txt',
+          runtime: 'crawler-policy',
+        }),
+      ]),
+    );
     await framework.verifyNodeReleaseEnvelopeStaging({
       outputDirectory: f.root,
     });
-    await fs.writeFile(path.join(f.root, api), 'changed API bytes');
+    await fs.writeFile(path.join(f.root, 'public/robots.txt'), 'Allow: /\n');
     await expect(
       framework.verifyNodeReleaseEnvelopeStaging({ outputDirectory: f.root }),
     ).rejects.toThrow(/digest/u);
@@ -373,13 +390,26 @@ describe('API-only release', () => {
     const undeclared = await apiOnlyFixture('node');
     await undeclared.put(client, 'console.log("unexpected UI")');
     await expect(undeclared.emit()).rejects.toThrow(/undeclared UI\/client/u);
+
+    const publicUi = await apiOnlyFixture('node');
+    await publicUi.put('public/index.html', '<main>unexpected UI</main>');
+    await expect(publicUi.emit()).rejects.toThrow(/undeclared UI\/client/u);
   });
 
   test('binds a Cloudflare API worker through final output', async () => {
     const f = await apiOnlyFixture('cloudflare');
+    await f.put('public/robots.txt', 'User-agent: *\nDisallow: /\n');
     const source = await f.emit();
     expect(source?.surfaces.uiClient).toEqual([]);
     expect(source?.surfaces.ssr).toEqual([]);
+    expect(source?.artifacts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          logicalPath: 'public/robots.txt',
+          runtime: 'crawler-policy',
+        }),
+      ]),
+    );
     expect(source?.surfaces.apiBackend).toEqual([
       'worker/__modern_bff_effect.js',
     ]);
@@ -390,6 +420,7 @@ describe('API-only release', () => {
     for (const [from, to] of [
       ['backend-mf-manifest.json', 'public/backend-mf-manifest.json'],
       ['backendRemoteEntry.cjs', 'public/backendRemoteEntry.cjs'],
+      ['public/robots.txt', 'public/robots.txt'],
       ['worker/__modern_bff_effect.js', 'worker/__modern_bff_effect.js'],
     ]) {
       await fs.mkdir(path.dirname(path.join(outputDirectory, to)), {
@@ -422,7 +453,26 @@ describe('API-only release', () => {
     });
     expect(staged?.surfaces.uiClient).toEqual([]);
     expect(staged?.surfaces.ssr).toEqual([]);
+    expect(staged?.artifacts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          logicalPath: 'public/robots.txt',
+          runtime: 'crawler-policy',
+        }),
+      ]),
+    );
     await framework.verifyCloudflareReleaseEnvelopeStaging(outputDirectory);
+    await fs.writeFile(
+      path.join(outputDirectory, 'public/app.js'),
+      'console.log("unexpected UI")',
+    );
+    await expect(
+      framework.emitCloudflareStagedReleaseEnvelope({
+        distDirectory: f.root,
+        outputDirectory,
+      }),
+    ).rejects.toThrow(/undeclared UI\/client/u);
+    await fs.rm(path.join(outputDirectory, 'public/app.js'));
     await fs.rm(path.join(outputDirectory, 'worker/__modern_bff_effect.js'));
     await expect(
       framework.verifyCloudflareReleaseEnvelopeStaging(outputDirectory),

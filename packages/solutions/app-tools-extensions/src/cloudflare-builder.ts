@@ -39,6 +39,7 @@ export interface CloudflareBuilderNormalizedConfig {
 }
 
 export interface CloudflareBuilderAppContext {
+  apiOnly?: boolean;
   apiDirectory: string;
   appDirectory: string;
 }
@@ -403,12 +404,14 @@ const getWorkerEntries = (
   appContext: CloudflareBuilderAppContext,
 ) => {
   const configuredEntries = environment.source?.entry;
-  if (!configuredEntries) {
+  const effectApiEntry = getEffectBffEntry(normalizedConfig, appContext);
+  if (!configuredEntries && !effectApiEntry) {
     return undefined;
   }
 
-  const entries = rewriteWorkerEntries(configuredEntries);
-  const effectApiEntry = getEffectBffEntry(normalizedConfig, appContext);
+  const entries = configuredEntries
+    ? rewriteWorkerEntries(configuredEntries)
+    : {};
   return effectApiEntry
     ? {
         ...entries,
@@ -595,7 +598,14 @@ export function getCloudflareBuilderEnvironments({
     return environments;
   }
 
-  const workerEnvironment = environments[SERVICE_WORKER_ENVIRONMENT_NAME];
+  const workerEnvironment =
+    environments[SERVICE_WORKER_ENVIRONMENT_NAME] ??
+    (appContext.apiOnly
+      ? {
+          output: { target: 'web-worker' as const },
+          source: { entry: {} },
+        }
+      : undefined);
   if (!workerEnvironment) {
     return environments;
   }
@@ -625,8 +635,14 @@ export function getCloudflareBuilderEnvironments({
     createCloudflareBundlerChain(appContext, Object.keys(workerEntries)),
   );
 
+  const headlessEnvironments = appContext.apiOnly
+    ? Object.fromEntries(
+        Object.entries(environments).filter(([name]) => name !== 'client'),
+      )
+    : environments;
+
   return {
-    ...environments,
+    ...headlessEnvironments,
     [SERVICE_WORKER_ENVIRONMENT_NAME]: cloudflareWorkerEnvironment,
   };
 }

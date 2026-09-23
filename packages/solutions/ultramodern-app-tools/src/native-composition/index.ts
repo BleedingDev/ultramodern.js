@@ -1,7 +1,9 @@
 import { type AppTools, appTools, type CliPlugin } from '@modern-js/app-tools';
+import { createBuilderGenerator } from '@modern-js/app-tools/builder';
 import backendFederationBuildPlugin from '@modern-js/app-tools-extensions/backend-federation-build';
 import { createCloudflareBuilderPlugin } from '@modern-js/app-tools-extensions/cloudflare-builder';
 import { createDeployOutputAliasesPlugin } from '@modern-js/app-tools-extensions/deploy-output/plugin';
+import { resolveDeployTarget } from '@modern-js/app-tools-extensions/deploy-output/target';
 import {
   RENDERER_EXTENSIONS_PACKAGE,
   SERVER_EXTENSIONS_PLUGIN_NAME,
@@ -24,6 +26,32 @@ export {
 export { ultramodernReleaseEnvelopePlugin } from './release-envelope-plugin';
 export type { AppUserConfig, UltramodernAppUserConfig } from './types';
 
+const headlessCloudflareWorkerPlugin = (): CliPlugin<AppTools> => ({
+  name: '@modern-js/headless-cloudflare-worker',
+  post: ['@modern-js/ultramodern-release-envelope'],
+  setup(api) {
+    api.onAfterBuild(async () => {
+      const appContext = api.getAppContext();
+      const normalizedConfig = api.getNormalizedConfig();
+      if (
+        !appContext.apiOnly ||
+        resolveDeployTarget(normalizedConfig) !== 'cloudflare'
+      ) {
+        return;
+      }
+
+      // Native API-only builds intentionally skip their UI builder. Reuse the
+      // same builder generator with the Cloudflare plugin's worker-only entry.
+      const createBuilderForModern = await createBuilderGenerator();
+      const builder = await createBuilderForModern({
+        appContext,
+        normalizedConfig,
+      });
+      await builder.build();
+    });
+  },
+});
+
 /** Compose the fork's build and release features through native CLI plugins. */
 export const ultramodernAppTools = (): CliPlugin<AppTools> => ({
   name: '@modern-js/ultramodern-app-tools',
@@ -34,6 +62,7 @@ export const ultramodernAppTools = (): CliPlugin<AppTools> => ({
     ultramodernSSRIntegrationPlugin(),
     backendFederationBuildPlugin(),
     createCloudflareBuilderPlugin(),
+    headlessCloudflareWorkerPlugin(),
     createDeployOutputAliasesPlugin(),
     ultramodernReleaseEnvelopePlugin(),
   ],
