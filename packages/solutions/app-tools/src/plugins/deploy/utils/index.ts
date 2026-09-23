@@ -1,5 +1,5 @@
 import { createRequire } from 'node:module';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { ServerRoute } from '@modern-js/types';
 import {
   dynamicImport,
@@ -83,16 +83,15 @@ export const resolveESMDependency = async (
         preserveSymlinks?: boolean,
       ) => URL;
     };
-    return normalizePath(
-      moduleResolve(
-        entry,
-        fromDirectory
-          ? pathToFileURL(path.join(fromDirectory, 'package.json'))
-          : pathToFileURL(`${__dirname}/`),
-        conditions,
-        false,
-      ).pathname.replace(/^\/(\w):/, '$1:'),
+    const resolved = moduleResolve(
+      entry,
+      fromDirectory
+        ? pathToFileURL(path.join(fromDirectory, 'package.json'))
+        : pathToFileURL(`${__dirname}/`),
+      conditions,
+      false,
     );
+    return normalizePath(fileURLToPath(resolved));
   } catch (err) {
     // ignore
   }

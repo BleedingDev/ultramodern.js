@@ -25,7 +25,7 @@ test('the real Hono binder remains available through Node import and require', a
 
 test('Node deploy traces both runtime conditions for a declared Hono binder', async () => {
   const appDirectory = await fs.realpath(
-    await fs.mkdtemp(path.join(os.tmpdir(), 'hono-deploy-conditions-')),
+    await fs.mkdtemp(path.join(os.tmpdir(), 'hono deploy # conditions-')),
   );
   try {
     const packageDirectory = path.join(
@@ -65,13 +65,13 @@ test('Node deploy traces both runtime conditions for a declared Hono binder', as
       path.join(appDirectory, 'package.json'),
     ).resolve(specifier);
     const importEntry = await resolveESMDependency(specifier, appDirectory);
-    expect(importEntry).toBe(
+    expect(path.normalize(importEntry!)).toBe(
       path.join(packageDirectory, 'dist/esm-node/hono/node.mjs'),
     );
     const trace = await nodeFileTrace([entry, requireEntry, importEntry], {
       base: appDirectory,
     });
-    expect([...trace.fileList]).toEqual(
+    expect([...trace.fileList].map(file => file.replace(/\\/g, '/'))).toEqual(
       expect.arrayContaining([
         'node_modules/@modern-js/plugin-bff-extensions/dist/cjs/hono/node.js',
         'node_modules/@modern-js/plugin-bff-extensions/dist/esm-node/hono/node.mjs',
