@@ -66,6 +66,46 @@ function aliasesFromPackageJson(packageJson: PackageJson): NpmAlias[] {
   return aliases;
 }
 
+async function catalogAliasesFromInstalledPackages(
+  appDirectory: string,
+  packageJson: PackageJson,
+): Promise<NpmAlias[]> {
+  const aliases: NpmAlias[] = [];
+  for (const dependencyKey of dependencyKeys) {
+    for (const [aliasName, specifier] of Object.entries(
+      packageJson[dependencyKey] ?? {},
+    )) {
+      if (!specifier.startsWith('catalog:')) {
+        continue;
+      }
+      let installedPackage: PackageJson;
+      try {
+        installedPackage = await readPackageJson(
+          path.join(appDirectory, 'node_modules', aliasName, 'package.json'),
+        );
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+          continue;
+        }
+        throw error;
+      }
+      if (!installedPackage.name || !installedPackage.version) {
+        throw new Error(
+          `Installed catalog package ${aliasName} has no identity`,
+        );
+      }
+      if (installedPackage.name !== aliasName) {
+        aliases.push({
+          aliasName,
+          targetName: installedPackage.name,
+          targetVersion: installedPackage.version,
+        });
+      }
+    }
+  }
+  return aliases;
+}
+
 async function collectPackageRecords(
   nodeModulesDirectory: string,
 ): Promise<PackageRecord[]> {
@@ -279,6 +319,10 @@ export async function preserveNpmAliases({
   );
   const rootAliases = [
     ...aliasesFromPackageJson(appPackageJson),
+    ...(await catalogAliasesFromInstalledPackages(
+      appDirectory,
+      appPackageJson,
+    )),
     ...implicitAliases,
   ].filter(alias => alias.aliasName !== alias.targetName);
 

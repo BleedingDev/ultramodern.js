@@ -327,6 +327,69 @@ describe('Node deployment npm aliases', () => {
     }
   });
 
+  it('resolves installed catalog aliases into relocatable deployment aliases', async () => {
+    const appDirectory = await mkdtemp(
+      path.join(tmpdir(), 'app-tools-catalog-alias-'),
+    );
+    const relocationRoot = await mkdtemp(
+      path.join(tmpdir(), 'app-tools-catalog-relocated-'),
+    );
+    const outputDirectory = path.join(appDirectory, '.output');
+    const installedDirectory = path.join(appDirectory, 'installed-rpc-runtime');
+    const aliasName = '@modern-js/rpc-runtime';
+    const targetName = '@bleedingdev/rpc-runtime';
+
+    try {
+      await writeJson(path.join(appDirectory, 'package.json'), {
+        name: 'catalog-alias-app',
+        dependencies: { [aliasName]: 'catalog:ultramodern' },
+      });
+      await writeJson(path.join(installedDirectory, 'package.json'), {
+        name: targetName,
+        version: '1.2.3',
+      });
+      await mkdir(path.join(appDirectory, 'node_modules/@modern-js'), {
+        recursive: true,
+      });
+      await symlink(
+        path.relative(
+          path.join(appDirectory, 'node_modules/@modern-js'),
+          installedDirectory,
+        ),
+        path.join(appDirectory, 'node_modules', aliasName),
+        'dir',
+      );
+      await writeJson(path.join(outputDirectory, 'package.json'), {
+        name: 'catalog-alias-output',
+      });
+      await writeJson(
+        path.join(outputDirectory, 'node_modules', targetName, 'package.json'),
+        { name: targetName, version: '1.2.3', main: 'index.js' },
+      );
+      await writeFile(
+        path.join(outputDirectory, 'node_modules', targetName, 'index.js'),
+        "module.exports = 'deployed-rpc-runtime';\n",
+      );
+
+      await preserveNpmAliases({ appDirectory, outputDirectory });
+      const relocatedOutput = path.join(relocationRoot, '.relocated-output');
+      await rename(outputDirectory, relocatedOutput);
+      const requireFromOutput = createRequire(
+        path.join(relocatedOutput, 'index.js'),
+      );
+      expect(requireFromOutput(aliasName)).toBe('deployed-rpc-runtime');
+      const outputPackageJson = JSON.parse(
+        await readFile(path.join(relocatedOutput, 'package.json'), 'utf8'),
+      );
+      expect(outputPackageJson.dependencies[aliasName]).toBe(
+        `npm:${targetName}@1.2.3`,
+      );
+    } finally {
+      await rm(appDirectory, { recursive: true, force: true });
+      await rm(relocationRoot, { recursive: true, force: true });
+    }
+  });
+
   it('preserves each owner-specific target in an ndepe multi-version layout', async () => {
     const appDirectory = await mkdtemp(
       path.join(tmpdir(), 'app-tools-multi-alias-'),

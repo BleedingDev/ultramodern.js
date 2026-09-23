@@ -8,6 +8,8 @@ export type ServerPlugin = {
   name: string;
 
   options?: Record<string, any>;
+  /** Module specifiers loaded dynamically by this plugin in a Node deployment. */
+  includeEntries?: string[];
 };
 
 export type SSRMode = 'string' | 'stream' | false;

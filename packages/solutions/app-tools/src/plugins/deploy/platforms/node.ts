@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import {
   chalk,
@@ -13,7 +14,7 @@ export const createNodePreset: CreatePreset = ({
   appContext,
   modernConfig,
 }) => {
-  const { appDirectory, distDirectory, moduleType } = appContext;
+  const { appDirectory, distDirectory, moduleType, serverPlugins } = appContext;
   const isEsmProject = moduleType === 'module';
 
   const outputDirectory = path.join(appDirectory, '.output');
@@ -62,10 +63,18 @@ export const createNodePreset: CreatePreset = ({
       if (!entry) {
         throw new Error('Cannot find @modern-js/prod-server');
       }
+      const requireFromApp = createRequire(
+        path.join(appDirectory, 'package.json'),
+      );
+      const pluginEntries = serverPlugins.flatMap(plugin =>
+        (plugin.includeEntries ?? []).map(specifier =>
+          requireFromApp.resolve(specifier),
+        ),
+      );
       await handleDependencies({
         appDir: appDirectory,
         sourceDir: outputDirectory,
-        includeEntries: [entry],
+        includeEntries: [entry, ...pluginEntries],
         copyWholePackage(pkgName) {
           return pkgName === '@modern-js/utils';
         },

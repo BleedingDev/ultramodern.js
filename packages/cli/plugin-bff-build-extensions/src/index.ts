@@ -72,6 +72,12 @@ export const bffPlugin = (): CliPlugin<AppTools> => ({
         honoRouteBinder,
         runtimeAdapters: { ...runtimeAdapters, effect },
       };
+      native.includeEntries = [
+        ...new Set([
+          ...(native.includeEntries ?? []),
+          runtimeFramework === 'hono' ? honoRouteBinder : effect,
+        ]),
+      ];
       return { plugins };
     });
     const metadata = new WeakMap<BffGeneration, BffGenerationMetadata>();

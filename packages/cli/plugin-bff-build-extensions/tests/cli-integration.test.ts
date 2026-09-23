@@ -121,6 +121,24 @@ test('missing native hooks reject setup instead of silently dropping taps', asyn
   ).rejects.toThrow('Native BFF build hook onBeforeBffCompile is unavailable');
 });
 
+test.each([
+  ['effect', '@modern-js/plugin-bff-extensions/effect-adapter'],
+  ['hono', '@modern-js/plugin-bff-extensions/hono/node'],
+] as const)('declares the selected %s BFF adapter as a Node deploy entry', async (runtimeFramework, entry) => {
+  const { appDirectory, api } = await createFixture(runtimeFramework);
+  try {
+    const registered = await api
+      .getHooks()
+      ._internalServerPlugins.call({ plugins: [] });
+    const bff = registered.plugins.find(
+      plugin => plugin.name === '@modern-js/plugin-bff/server-plugin',
+    );
+    expect(bff?.includeEntries).toEqual([entry]);
+  } finally {
+    await fs.remove(appDirectory);
+  }
+});
+
 test('fork hono composition passes the same codegen module through native lambda loader and publication', async () => {
   const runtimeFramework = 'hono' as const;
   const { appDirectory, api, config } = await createFixture(runtimeFramework);

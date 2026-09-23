@@ -5,6 +5,9 @@
 '@modern-js/bff-effect': patch
 '@modern-js/plugin-bff-extensions': patch
 '@modern-js/server-runtime-extensions': patch
+'@modern-js/app-tools': patch
+'@modern-js/types': patch
+'@modern-js/plugin-bff-build-extensions': patch
 ---
 
 Use native workspace topology, application manifests and pnpm catalogs instead of copied framework metadata, consumer patch sets and generated CLI forwarders. Preserve authored configuration and delivery identity in generation, validation and add operations.
@@ -12,3 +15,6 @@ Use native workspace topology, application manifests and pnpm catalogs instead o
 Emit native API-only release envelopes and validate their real artifacts. Resolve shared API imports through package exports while retaining private-boundary checks and bounded analysis.
 
 Keep bundled RPC handlers in their native Effect runtime and preserve host request validation. Verify RPC with the app's public client, and verify headless Cloudflare workers in standalone and mixed workspaces with multiple shells.
+
+Preserve catalog-backed npm aliases in standalone Node output so deployed apps resolve their packaged dependencies without falling back to the source workspace.
+Include server plugins' declared runtime modules in Node dependency tracing, including dynamically loaded BFF adapters.
