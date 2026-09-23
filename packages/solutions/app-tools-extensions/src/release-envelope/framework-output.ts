@@ -39,6 +39,7 @@ const isEffectBffWorkerArtifact = (logicalPath: string) =>
   EFFECT_BFF_WORKER_PATTERN.test(logicalPath) ||
   EFFECT_BFF_WORKER_SUPPORT_PATTERN.test(logicalPath);
 const CRAWLER_POLICY_PATH = 'public/robots.txt';
+const PUBLIC_BUILD_ARTIFACT_PATH = `public/${ULTRAMODERN_BUILD_ARTIFACT_FILE}`;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -1147,6 +1148,7 @@ const createCloudflareStagedReleaseArtifactInputs = async (
     logicalPath =>
       logicalPath.startsWith('public/') &&
       logicalPath !== CRAWLER_POLICY_PATH &&
+      logicalPath !== PUBLIC_BUILD_ARTIFACT_PATH &&
       logicalPath !== backendManifestPath &&
       logicalPath !== backendContainerPath,
   );

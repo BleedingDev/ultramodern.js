@@ -1,3 +1,5 @@
+import type { EffectRpcBffDefinition } from './handler/types';
+
 type ValidatorAwareHandlerFactoryRegistry = {
   register<TFactory extends Function>(factory: TFactory): TFactory;
   is(factory: unknown): boolean;
@@ -53,6 +55,7 @@ const validatorAwareHandlerFactoryRegistry =
 type EffectBffEntryModule = {
   api?: unknown;
   layer?: unknown;
+  rpc?: EffectRpcBffDefinition;
   handler?: unknown;
   createHandler?: unknown;
   default?: unknown;
