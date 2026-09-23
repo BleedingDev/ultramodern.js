@@ -345,15 +345,44 @@ function check(
         `${base}/index.tsx`,
       ].find(candidate => exists(candidate));
     };
+    const clientExportFile = (
+      appPath: string,
+      exported: unknown,
+    ): string | undefined => {
+      if (
+        typeof exported !== 'string' ||
+        !exported.startsWith('./') ||
+        exported.split(/[\\/]/u).includes('..') ||
+        !/\.[cm]?[jt]sx?$/u.test(exported)
+      )
+        return undefined;
+      const appDirectory = absolute(appPath);
+      const candidate = path.resolve(appDirectory, exported);
+      try {
+        const workspace = fs.realpathSync(root);
+        const owner = fs.realpathSync(appDirectory);
+        const real = fs.realpathSync(candidate);
+        if (
+          !owner.startsWith(`${workspace}${path.sep}`) ||
+          !real.startsWith(`${owner}${path.sep}`) ||
+          !fs.statSync(real).isFile()
+        )
+          return undefined;
+      } catch {
+        return undefined;
+      }
+      return normalize(path.relative(root, candidate));
+    };
     /**
      * A module plus everything it pulls in through relative imports and
      * re-exports. A consumer may split one governed surface across sibling
      * modules; the surface is still the union of what they import and call.
      */
-    const composedModules = (file: string): string[] => {
+    const composedModules = (file: string, appPath: string): string[] => {
       const order: string[] = [];
       const seen = new Set<string>();
       const queue = [file];
+      const owner = fs.realpathSync(absolute(appPath));
       while (queue.length > 0 && order.length < 128) {
         const current = queue.shift()!;
         if (seen.has(current)) continue;
@@ -371,8 +400,10 @@ function check(
               : undefined;
           const resolved =
             source === undefined ? undefined : resolveRelative(current, source);
-          if (resolved !== undefined && !seen.has(resolved))
-            queue.push(resolved);
+          if (resolved !== undefined && !seen.has(resolved)) {
+            const real = fs.realpathSync(absolute(resolved));
+            if (real.startsWith(`${owner}${path.sep}`)) queue.push(resolved);
+          }
         }
       }
       return order;
@@ -383,14 +414,16 @@ function check(
       calls: readonly string[],
       patterns: readonly (readonly [RegExp, string])[] = [],
       defaultExport?: string,
-      composed = false,
+      composedAppPath?: string,
     ) => {
       if (!exists(file)) return;
       const ast = parseFile(file);
       if (!ast) return;
       // Source-shape rules (`patterns`, `defaultExport`) stay on this file;
       // only imports and calls may be satisfied by a composed module.
-      const shapeFiles = composed ? composedModules(file) : [file];
+      const shapeFiles = composedAppPath
+        ? composedModules(file, composedAppPath)
+        : [file];
       const body = shapeFiles.flatMap(
         shapeFile => parseFile(shapeFile)?.program.body ?? [],
       );
@@ -567,20 +600,35 @@ function check(
           );
         const stem = app?.api?.stem ?? path.posix.basename(appPath);
         const rpc = app?.api?.protocol === 'rpc';
-        const clientDirectory =
-          app?.surfaceProfile === 'api-only' ? 'shared' : 'src/api';
         const contract = `${appPath}/shared/${rpc ? 'rpc' : 'api'}.ts`;
-        const client = `${appPath}/${clientDirectory}/${stem}-${rpc ? 'rpc-client' : 'client'}.ts`;
         const entry = `${appPath}/api/index.ts`;
-        for (const file of [entry, contract, client])
+        for (const file of [entry, contract])
           assert(exists(file), `${file}: required API surface is missing`);
+        const packageFile = `${appPath}/package.json`;
+        assert(
+          exists(packageFile),
+          `${packageFile}: required API package is missing`,
+        );
+        if (!exists(packageFile)) return;
+        const manifest = JSON.parse(read(packageFile));
+        assert(
+          manifest.exports?.['./api'] === `./shared/${rpc ? 'rpc' : 'api'}.ts`,
+          `${packageFile}: invalid ./api export`,
+        );
+        const clientKey = `./api/${rpc ? 'rpc-client' : 'client'}`;
+        const client = clientExportFile(appPath, manifest.exports?.[clientKey]);
+        assert(
+          client !== undefined,
+          `${packageFile}: invalid API client export`,
+        );
+        assert(
+          manifest.exports?.[`./api/${rpc ? 'client' : 'rpc-client'}`] ===
+            undefined,
+          `${packageFile}: forbidden opposite protocol client export`,
+        );
         noPath(
           `${appPath}/shared/${rpc ? 'api' : 'rpc'}.ts`,
           `must not emit a ${rpc ? 'REST' : 'RPC'} contract`,
-        );
-        noPath(
-          `${appPath}/${clientDirectory}/${stem}-${rpc ? 'client' : 'rpc-client'}.ts`,
-          `must not emit a ${rpc ? 'REST' : 'RPC'} client`,
         );
         if (rpc) {
           moduleShape(
@@ -637,32 +685,34 @@ function check(
           );
           if (violation) diagnostics.push(`${contract}: ${violation}`);
         }
-        moduleShape(
-          client,
-          [
+        if (client) {
+          const relativeContract = path.posix.relative(
+            path.posix.dirname(client),
+            contract,
+          );
+          moduleShape(
+            client,
             [
-              effect,
               [
-                'Effect',
-                rpc ? 'makeEffectRpcClient' : 'makeEffectHttpApiClient',
+                effect,
+                [
+                  'Effect',
+                  rpc ? 'makeEffectRpcClient' : 'makeEffectHttpApiClient',
+                ],
+              ],
+              [
+                relativeContract.startsWith('.')
+                  ? relativeContract
+                  : `./${relativeContract}`,
+                [],
               ],
             ],
-            [
-              app?.surfaceProfile === 'api-only'
-                ? rpc
-                  ? './rpc.ts'
-                  : './api'
-                : rpc
-                  ? '../../shared/rpc.ts'
-                  : '../../shared/api',
-              [],
-            ],
-          ],
-          [rpc ? 'makeEffectRpcClient' : 'makeEffectHttpApiClient'],
-          [],
-          undefined,
-          true,
-        );
+            [rpc ? 'makeEffectRpcClient' : 'makeEffectHttpApiClient'],
+            [],
+            undefined,
+            appPath,
+          );
+        }
         moduleShape(
           `${appPath}/api/effect-api.ts`,
           [],
@@ -710,25 +760,6 @@ function check(
             ],
           ],
         );
-        const packageFile = `${appPath}/package.json`;
-        if (exists(packageFile)) {
-          const manifest = JSON.parse(read(packageFile));
-          assert(
-            manifest.exports?.['./api'] ===
-              `./shared/${rpc ? 'rpc' : 'api'}.ts`,
-            `${packageFile}: invalid ./api export`,
-          );
-          assert(
-            manifest.exports?.[`./api/${rpc ? 'rpc-client' : 'client'}`] ===
-              `./${clientDirectory}/${stem}-${rpc ? 'rpc-client' : 'client'}.ts`,
-            `${packageFile}: invalid API client export`,
-          );
-          assert(
-            manifest.exports?.[`./api/${rpc ? 'client' : 'rpc-client'}`] ===
-              undefined,
-            `${packageFile}: forbidden opposite protocol client export`,
-          );
-        }
       });
     const shell = 'apps/shell-super-app';
     const verticals = apps.filter(

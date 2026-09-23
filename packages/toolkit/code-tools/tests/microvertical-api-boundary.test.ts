@@ -568,7 +568,7 @@ test('UI-only units reject API surfaces', () => {
   expect(result.diagnostics.join('\n')).toContain('unit has no API surface');
 });
 
-test('API-only units keep a callable shared client behind the public client export', () => {
+test('API-only units resolve a callable app-owned client from the public export', () => {
   const topologyPath = path.join(root, 'topology/reference-topology.json');
   const topology = JSON.parse(fs.readFileSync(topologyPath, 'utf8'));
   topology.verticals[0].surfaceProfile = 'api-only';
@@ -594,23 +594,60 @@ test('API-only units keep a callable shared client behind the public client expo
     topologyFilesAnalyzed: 1,
   });
 
-  manifest.exports['./api/client'] = './shared/other-client.ts';
+  manifest.exports['./api/client'] = './shared/missing-client.ts';
   write(packagePath, JSON.stringify(manifest));
   expect(check().diagnostics.join('\n')).toContain('invalid API client export');
   manifest.exports['./api/client'] = './shared/catalog-client.ts';
   write(packagePath, JSON.stringify(manifest));
 
-  write(path.join(root, 'verticals/catalog/shared/catalog-rpc-client.ts'), '');
-  expect(check().diagnostics.join('\n')).toContain(
-    'must not emit a RPC client',
+  const authoredClient = path.join(
+    root,
+    'verticals/catalog/src/api/public-catalog.ts',
   );
-  fs.rmSync(path.join(root, 'verticals/catalog/shared/catalog-rpc-client.ts'));
+  write(
+    authoredClient,
+    `import { Effect, makeEffectHttpApiClient } from '@modern-js/bff-effect/effect-client'; import { catalogApi } from '../../shared/api'; export const client = makeEffectHttpApiClient(catalogApi);`,
+  );
+  manifest.exports['./api/client'] = './src/api/public-catalog.ts';
+  write(packagePath, JSON.stringify(manifest));
+  expect(check().diagnostics).toEqual([]);
+
+  manifest.exports['./api/client'] = undefined;
+  write(packagePath, JSON.stringify(manifest));
+  expect(check().diagnostics.join('\n')).toContain('invalid API client export');
+  manifest.exports['./api/client'] = './src/api/public-catalog.ts';
+  write(packagePath, JSON.stringify(manifest));
+
+  manifest.exports['./api/client'] = '../foreign-client.ts';
+  write(packagePath, JSON.stringify(manifest));
+  expect(check().diagnostics.join('\n')).toContain('invalid API client export');
+  manifest.exports['./api/client'] = './src/api/public-catalog.ts';
+  write(packagePath, JSON.stringify(manifest));
+
+  const foreignClient = path.join(root, 'verticals/foreign-client.ts');
+  write(foreignClient, fs.readFileSync(authoredClient, 'utf8'));
+  const symlinkClient = path.join(
+    root,
+    'verticals/catalog/src/api/foreign-client.ts',
+  );
+  fs.symlinkSync(foreignClient, symlinkClient);
+  manifest.exports['./api/client'] = './src/api/foreign-client.ts';
+  write(packagePath, JSON.stringify(manifest));
+  expect(check().diagnostics.join('\n')).toContain('invalid API client export');
+  manifest.exports['./api/client'] = './src/api/public-catalog.ts';
+  write(packagePath, JSON.stringify(manifest));
+
+  write(authoredClient, `export { client } from '../../../foreign-client.ts';`);
+  expect(check().diagnostics.join('\n')).toContain(
+    'must call makeEffectHttpApiClient(...)',
+  );
+  write(authoredClient, fs.readFileSync(foreignClient, 'utf8'));
 
   write(
-    clientPath,
+    authoredClient,
     fs
-      .readFileSync(clientPath, 'utf8')
-      .replace("'./api'", "'../../shared/api'"),
+      .readFileSync(authoredClient, 'utf8')
+      .replace("'../../shared/api'", "'../../shared/rpc'"),
   );
   expect(check().diagnostics.join('\n')).toContain('must import');
 });
@@ -685,6 +722,40 @@ test('classifies RPC surfaces and validates native RPC topology', () => {
     toolErrors: [],
     topologyFilesAnalyzed: 1,
   });
+  const packagePath = path.join(root, 'verticals/catalog/package.json');
+  const manifest = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+  manifest.exports['./api/rpc-client'] = './shared/public-rpc-client.ts';
+  write(packagePath, JSON.stringify(manifest));
+  write(
+    path.join(root, 'verticals/catalog/shared/public-rpc-client.ts'),
+    `import { Effect, makeEffectRpcClient } from '@modern-js/bff-effect/effect-client'; import { CatalogRpcGroup } from './rpc.ts'; export const client = makeEffectRpcClient(CatalogRpcGroup);`,
+  );
+  expect(
+    checkMicroVerticalApiBoundaries({
+      workspaceRoot: root,
+      configuredApps: [
+        {
+          path: 'verticals/catalog',
+          kind: 'vertical',
+          api: { protocol: 'rpc' },
+        },
+      ],
+    }).diagnostics,
+  ).toEqual([]);
+  manifest.exports['./api/client'] = './src/api/catalog-client.ts';
+  write(packagePath, JSON.stringify(manifest));
+  expect(
+    checkMicroVerticalApiConsumerFiles({
+      workspaceRoot: root,
+      configuredApps: [
+        {
+          path: 'verticals/catalog',
+          kind: 'vertical',
+          api: { protocol: 'rpc' },
+        },
+      ],
+    }).diagnostics.join('\n'),
+  ).toContain('forbidden opposite protocol client export');
 });
 
 test.each([
