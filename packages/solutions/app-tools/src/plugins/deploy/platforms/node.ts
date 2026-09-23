@@ -66,11 +66,26 @@ export const createNodePreset: CreatePreset = ({
       const requireFromApp = createRequire(
         path.join(appDirectory, 'package.json'),
       );
-      const pluginEntries = serverPlugins.flatMap(plugin =>
-        (plugin.includeEntries ?? []).map(specifier =>
-          requireFromApp.resolve(specifier),
-        ),
-      );
+      const pluginEntries = new Set<string>();
+      for (const plugin of serverPlugins) {
+        for (const specifier of plugin.includeEntries ?? []) {
+          pluginEntries.add(requireFromApp.resolve(specifier));
+          if (!isEsmProject) continue;
+          // The generated ESM server uses Node import conditions when
+          // resolving plugin options at runtime. Trace that export as
+          // well as the require branch used by the native deploy pass.
+          const importEntry = await resolveESMDependency(
+            specifier,
+            appDirectory,
+          );
+          if (!importEntry) {
+            throw new Error(
+              `Cannot resolve Node import entry for server plugin ${specifier}`,
+            );
+          }
+          pluginEntries.add(importEntry);
+        }
+      }
       await handleDependencies({
         appDir: appDirectory,
         sourceDir: outputDirectory,
