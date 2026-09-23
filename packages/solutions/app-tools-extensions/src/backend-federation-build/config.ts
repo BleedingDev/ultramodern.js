@@ -24,9 +24,12 @@ export const DEVELOPMENT_OVERLAY_PATH =
 
 export type TopologyApp = {
   id?: unknown;
+  domain?: unknown;
   kind?: unknown;
   path?: unknown;
   package?: unknown;
+  portEnv?: unknown;
+  cloudflare?: { publicUrlEnv?: unknown };
   api?: {
     bff?: { prefix?: unknown };
     stem?: unknown;
@@ -191,6 +194,29 @@ const createBackendName = (app: TopologyApp, id: string) => {
   return mfName ? `${mfName}Backend` : `vertical${toPascalCase(id)}Backend`;
 };
 
+const rebaseDefaultLocalUrl = (
+  value: string,
+  defaultPort: number,
+  publicOrigin: string,
+) => {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return value;
+  }
+  if (
+    url.protocol !== 'http:' ||
+    url.hostname !== 'localhost' ||
+    Number(url.port) !== defaultPort ||
+    url.username ||
+    url.password
+  ) {
+    return value;
+  }
+  return `${publicOrigin}${url.pathname}${url.search}${url.hash}`;
+};
+
 export const findWorkspaceRoot = (appDirectory: string) => {
   let current = appDirectory;
 
@@ -273,16 +299,52 @@ export const createAppFromTopology = (
     return undefined;
   }
 
-  const port = overlay.ports?.[id];
+  const defaultPort = overlay.ports?.[id];
   if (
-    typeof port !== 'number' ||
-    !Number.isInteger(port) ||
-    port < 1 ||
-    port > 65535
+    typeof defaultPort !== 'number' ||
+    !Number.isInteger(defaultPort) ||
+    defaultPort < 1 ||
+    defaultPort > 65535
   ) {
     throw new Error(
       `[backend-federation-build] Invalid development port for ${id}.`,
     );
+  }
+  const portEnv =
+    stringValue(topologyApp.portEnv) ??
+    `VERTICAL_${(stringValue(topologyApp.domain) ?? id)
+      .replace(/[^a-zA-Z0-9]/gu, '_')
+      .toUpperCase()}_PORT`;
+  const port = Number(process.env[portEnv] ?? defaultPort);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error(
+      `[backend-federation-build] Invalid ${portEnv} development port for ${id}.`,
+    );
+  }
+  const publicUrlEnv = stringValue(topologyApp.cloudflare?.publicUrlEnv);
+  const configuredPublicUrl = publicUrlEnv
+    ? process.env[publicUrlEnv]?.trim()
+    : undefined;
+  let publicOrigin = `http://localhost:${port}`;
+  if (configuredPublicUrl) {
+    let url: URL;
+    try {
+      url = new URL(configuredPublicUrl);
+    } catch {
+      throw new Error(
+        `[backend-federation-build] Invalid ${publicUrlEnv} public URL for ${id}.`,
+      );
+    }
+    if (
+      !['http:', 'https:'].includes(url.protocol) ||
+      url.username ||
+      url.password
+    ) {
+      throw new Error(
+        `[backend-federation-build] Invalid ${publicUrlEnv} public URL for ${id}.`,
+      );
+    }
+    publicOrigin = url.origin;
   }
 
   const apiPrefix = stringValue(topologyApp.api.bff?.prefix) ?? `/${id}-api`;
@@ -294,12 +356,18 @@ export const createAppFromTopology = (
       `[backend-federation-build] Missing declared Node server execution for ${id}.`,
     );
   }
-  const manifestUrl =
+  const manifestUrl = rebaseDefaultLocalUrl(
     stringValue(nodeOverlay?.manifestUrl) ??
-    `http://localhost:${port}/${BACKEND_MANIFEST_FILE}`;
-  const containerEntry =
+      `http://localhost:${defaultPort}/${BACKEND_MANIFEST_FILE}`,
+    defaultPort,
+    publicOrigin,
+  );
+  const containerEntry = rebaseDefaultLocalUrl(
     stringValue(nodeOverlay?.containerEntry) ??
-    `http://localhost:${port}/${BACKEND_REMOTE_ENTRY_FILE}`;
+      `http://localhost:${defaultPort}/${BACKEND_REMOTE_ENTRY_FILE}`,
+    defaultPort,
+    publicOrigin,
+  );
   const configuredRemoteType =
     stringValue(nodeOverlay?.remoteType) ??
     stringValue(
@@ -328,7 +396,10 @@ export const createAppFromTopology = (
       `[backend-federation-build] Topology package identity must match package.json for ${id}.`,
     );
   }
-  const uiManifestUrl = stringValue(overlay.manifests?.[id]);
+  const declaredUiManifestUrl = stringValue(overlay.manifests?.[id]);
+  const uiManifestUrl = declaredUiManifestUrl
+    ? rebaseDefaultLocalUrl(declaredUiManifestUrl, defaultPort, publicOrigin)
+    : undefined;
   const topologyDeliveryUnit = isRecord(topologyApp.deliveryUnit)
     ? {
         unitId: stringValue(topologyApp.deliveryUnit.unitId),

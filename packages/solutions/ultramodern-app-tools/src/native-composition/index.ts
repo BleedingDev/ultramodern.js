@@ -47,6 +47,10 @@ const headlessCloudflareWorkerPlugin = (): CliPlugin<AppTools> => ({
         appContext,
         normalizedConfig,
       });
+      // This compiler has only an Effect worker entry. The framework SSR
+      // adapter filters page entries and requires a UI route, so it does not
+      // apply to a headless API worker.
+      builder.removePlugins(['builder-plugin-adapter-modern-ssr']);
       await builder.build();
     });
   },

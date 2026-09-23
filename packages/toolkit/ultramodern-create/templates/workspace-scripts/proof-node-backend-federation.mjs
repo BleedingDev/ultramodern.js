@@ -176,7 +176,7 @@ function collectJsonSmokeChecks(apps, targetApp) {
   ];
 }
 
-export function topologyApps(topology, localOverlay, appFilter) {
+export function topologyApps(topology, localOverlay, appFilter, env = process.env) {
   if (!Array.isArray(topology?.verticals) || !localOverlay?.ports || !localOverlay?.serverExecution) {
     throw new Error('Node proof requires declared reference topology and development overlay.');
   }
@@ -185,9 +185,14 @@ export function topologyApps(topology, localOverlay, appFilter) {
     .filter((app) => app?.kind === 'vertical' && app.api)
     .filter((app) => !appFilter || app.id === appFilter)
     .map((app) => {
-      const port = localOverlay.ports[app.id];
+      const overlayPort = localOverlay.ports[app.id];
+      const domain = app.domain ?? app.id;
+      const portEnv = app.portEnv ??
+        `VERTICAL_${String(domain).replace(/[^a-zA-Z0-9]/gu, '_').toUpperCase()}_PORT`;
+      const configuredPort = env[portEnv];
+      const port = configuredPort === undefined ? overlayPort : Number(configuredPort);
       const serverExecution = localOverlay.serverExecution[app.id];
-      if (!app.path || !Number.isInteger(port) || !serverExecution?.node) {
+      if (!app.path || !Number.isInteger(overlayPort) || !Number.isInteger(port) || port < 1 || port > 65535 || !serverExecution?.node) {
         throw new Error(`${app.id} is missing its declared path, port or Node server execution.`);
       }
       const appManifest = readJson(path.join(workspaceRoot, app.path, 'package.json'));
@@ -196,15 +201,30 @@ export function topologyApps(topology, localOverlay, appFilter) {
       }
       const api = { ...app.api, prefix: app.api.bff?.prefix };
       const declared = { ...app, api, serverExecution };
-      const domain = app.domain ?? app.id;
+      const publicUrlEnv = app.cloudflare?.publicUrlEnv;
+      const configuredPublicUrl = publicUrlEnv ? env[publicUrlEnv] : undefined;
+      const publicOrigin = configuredPublicUrl
+        ? new URL(configuredPublicUrl).origin
+        : `http://localhost:${port}`;
+      if (!/^https?:\/\//u.test(publicOrigin)) {
+        throw new Error(`${app.id} has an invalid declared public URL.`);
+      }
+      const nodeUrl = (declaredUrl) => {
+        const url = new URL(declaredUrl);
+        return url.origin === new URL(`http://localhost:${overlayPort}`).origin &&
+          url.username === '' &&
+          url.password === ''
+          ? `${publicOrigin}${url.pathname}${url.search}${url.hash}`
+          : declaredUrl;
+      };
       return {
       id: app.id,
       directory: normalizeRelativePath(app.path),
       backendName: createBackendName(declared),
-      manifestUrl: createBackendManifestUrl(declared),
-      containerEntry: createBackendContainerEntry(declared),
+      manifestUrl: nodeUrl(createBackendManifestUrl(declared)),
+      containerEntry: nodeUrl(createBackendContainerEntry(declared)),
       port,
-      portEnv: `VERTICAL_${String(domain).replace(/[^a-zA-Z0-9]/gu, '_').toUpperCase()}_PORT`,
+      portEnv,
       remoteType: resolveRemoteType(declared),
       apiOnly: app.surfaceProfile === 'api-only',
       smokeChecks: collectJsonSmokeChecks(apps, declared),

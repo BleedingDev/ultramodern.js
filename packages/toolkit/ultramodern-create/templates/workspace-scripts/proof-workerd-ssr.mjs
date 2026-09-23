@@ -153,6 +153,20 @@ const apps = [topology.shell, ...topology.verticals, ...(topology.shells ?? [])]
           rawApp.deliveryUnit?.unitId,
         )
       : {};
+  const domain = rawApp.domain ?? rawApp.id;
+  const portEnv = rawApp.portEnv ??
+    (kind === "vertical"
+      ? `VERTICAL_${String(domain).replace(/[^a-zA-Z0-9]/gu, "_").toUpperCase()}_PORT`
+      : undefined);
+  assert(typeof portEnv === "string" && portEnv.length > 0, `${rawApp.id} has no declared port environment name`);
+  const configuredPort = process.env[portEnv];
+  const port = configuredPort === undefined
+    ? Number(overlay.ports?.[rawApp.id])
+    : Number(configuredPort);
+  assert(
+    Number.isInteger(port) && port > 0 && port <= 65535,
+    `${rawApp.id} has an invalid local proof port from ${portEnv}`,
+  );
 
   return {
     id: String(rawApp.id),
@@ -173,7 +187,7 @@ const apps = [topology.shell, ...topology.verticals, ...(topology.shells ?? [])]
       : [],
     ...executedEnvelope,
     outputRoot,
-    port: Number(overlay.ports?.[rawApp.id]),
+    port,
     wrangler,
   };
 });

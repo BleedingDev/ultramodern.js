@@ -101,3 +101,62 @@ test('the installed workerd proof reaches its native validation through plain No
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('the installed workerd proof reads the declared runtime port environment', () => {
+  const { root, installedPackage } = createInstalledFixture();
+  try {
+    const command = generatedToolingCommands.find(
+      entry => entry.id === 'cloudflareSsrProof',
+    );
+    assert.ok(command?.templatePath);
+    const target = installTemplate(installedPackage, command.templatePath);
+    const dependencies = path.join(installedPackage, 'node_modules');
+    fs.mkdirSync(dependencies);
+    fs.symlinkSync(
+      path.dirname(require.resolve('miniflare/package.json')),
+      path.join(dependencies, 'miniflare'),
+      process.platform === 'win32' ? 'junction' : 'dir',
+    );
+    const topologyPath = path.join(root, 'topology/reference-topology.json');
+    const overlayPath = path.join(
+      root,
+      'topology/local-overlays/development.json',
+    );
+    const wranglerPath = path.join(root, 'apps/shell/.output/wrangler.json');
+    for (const filePath of [topologyPath, overlayPath, wranglerPath]) {
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    }
+    fs.writeFileSync(
+      topologyPath,
+      JSON.stringify({
+        schemaVersion: 1,
+        shell: {
+          id: 'shell',
+          kind: 'shell',
+          path: 'apps/shell',
+          portEnv: 'SHELL_PORT',
+        },
+        verticals: [],
+      }),
+    );
+    fs.writeFileSync(overlayPath, JSON.stringify({ ports: { shell: 3020 } }));
+    fs.writeFileSync(wranglerPath, JSON.stringify({ name: 'shell' }));
+    const result = spawnSync(process.execPath, [target], {
+      cwd: root,
+      env: {
+        ...process.env,
+        ULTRAMODERN_WORKSPACE_ROOT: root,
+        SHELL_PORT: '65536',
+      },
+      encoding: 'utf8',
+    });
+    if (result.error) throw result.error;
+    assert.equal(result.status, 1);
+    assert.match(
+      `${result.stdout}${result.stderr}`,
+      /shell has an invalid local proof port from SHELL_PORT/u,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

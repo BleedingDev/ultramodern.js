@@ -22,12 +22,16 @@ const getPlugin = () => {
 describe('headless Cloudflare worker build', () => {
   it('awaits the worker compiler before the release-envelope hook', async () => {
     const events: string[] = [];
+    const removePlugins = rstest.fn((names: string[]) => {
+      expect(names).toEqual(['builder-plugin-adapter-modern-ssr']);
+      events.push('remove-ui-ssr');
+    });
     const build = rstest.fn(async () => {
       events.push('worker');
     });
     rstest
       .mocked(createBuilderGenerator)
-      .mockResolvedValue(async () => ({ build }) as never);
+      .mockResolvedValue(async () => ({ build, removePlugins }) as never);
     const releaseProbe: CliPlugin<AppTools> = {
       name: '@modern-js/ultramodern-release-envelope',
       setup(api) {
@@ -65,12 +69,13 @@ describe('headless Cloudflare worker build', () => {
     }
     await onAfterBuild.call();
 
-    expect(events).toEqual(['worker', 'envelope']);
+    expect(events).toEqual(['remove-ui-ssr', 'worker', 'envelope']);
   });
 
   it('uses the native builder once for API-only Cloudflare before release validation', async () => {
     const build = rstest.fn(async () => undefined);
-    const createBuilder = rstest.fn(async () => ({ build }));
+    const removePlugins = rstest.fn(() => undefined);
+    const createBuilder = rstest.fn(async () => ({ build, removePlugins }));
     rstest
       .mocked(createBuilderGenerator)
       .mockResolvedValue(
@@ -95,6 +100,10 @@ describe('headless Cloudflare worker build', () => {
       appContext,
       normalizedConfig,
     });
+    expect(removePlugins).toHaveBeenCalledOnce();
+    expect(removePlugins).toHaveBeenCalledWith([
+      'builder-plugin-adapter-modern-ssr',
+    ]);
     expect(build).toHaveBeenCalledOnce();
   });
 

@@ -31,13 +31,18 @@ export function readJsonIfExists(filePath: string): unknown {
 }
 
 export function collectMetadataAppDirs(value: unknown, appDirs: Set<string>) {
-  if (!isRecord(value)) return;
+  const apiOnlyDirs = new Set<string>();
+  if (!isRecord(value)) return apiOnlyDirs;
   const entries = [
-    value.shell,
-    ...(Array.isArray(value.verticals) ? value.verticals : []),
-    ...(Array.isArray(value.shells) ? value.shells : []),
+    { app: value.shell, vertical: false },
+    ...(Array.isArray(value.verticals)
+      ? value.verticals.map(app => ({ app, vertical: true }))
+      : []),
+    ...(Array.isArray(value.shells)
+      ? value.shells.map(app => ({ app, vertical: false }))
+      : []),
   ];
-  for (const entry of entries) {
+  for (const { app: entry, vertical } of entries) {
     if (
       !isRecord(entry) ||
       typeof entry.path !== 'string' ||
@@ -47,8 +52,13 @@ export function collectMetadataAppDirs(value: unknown, appDirs: Set<string>) {
     const normalized = normalizeRelativePath(entry.path);
     if (normalized === '..' || normalized.startsWith('../'))
       throw new Error(`Topology app path leaves workspace: ${entry.path}`);
-    appDirs.add(normalized);
+    if (vertical && entry.surfaceProfile === 'api-only') {
+      apiOnlyDirs.add(normalized);
+    } else {
+      appDirs.add(normalized);
+    }
   }
+  return apiOnlyDirs;
 }
 
 function literalRootFromPattern(pattern: string): string | undefined {
