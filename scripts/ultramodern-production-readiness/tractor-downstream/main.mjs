@@ -23,6 +23,7 @@ import {
 } from '../browser-smoke/targets.mjs';
 import {
   acceptancePlaywrightInstallArgs,
+  createAcceptanceReleaseAgeEnv,
   createAcceptanceRuntimeContext,
   resolveExactPnpmExecutable,
   snapshotAcceptanceWorkspaceSource,
@@ -162,21 +163,10 @@ function createTractorPackageManagerContext({
   resolveExactPnpmExecutableImpl = resolveExactPnpmExecutable,
   runImpl = run,
 }) {
-  const bootstrapReleaseAgePolicy =
-    assertBootstrapReleaseAgePolicy(createPackage);
   const exactExclusions = validateExactExclusions(
     minimumReleaseAgeExclude,
     'Tractor bootstrap minimumReleaseAgeExclude',
   );
-  if (
-    bootstrapReleaseAgePolicy.minimumReleaseAgeExclude.some(
-      specifier => !exactExclusions.includes(specifier),
-    )
-  ) {
-    throw new Error(
-      'Tractor bootstrap exclusions must contain the authenticated create closure',
-    );
-  }
   // Thin delegate: the shared acceptance owner decides the exact pnpm
   // executable, PATH, registry, npm/pnpm stores, XDG cache, and
   // PLAYWRIGHT_BROWSERS_PATH. Only the Tractor bootstrap release-age policy
@@ -191,30 +181,12 @@ function createTractorPackageManagerContext({
     workDir: packageManagerRoot,
   });
   return {
-    env: {
-      ...runtime.env,
-      NPM_CONFIG_MINIMUM_RELEASE_AGE_EXCLUDE: undefined,
-      NPM_CONFIG_TRUST_POLICY_EXCLUDE: undefined,
-      PNPM_CONFIG_MINIMUM_RELEASE_AGE_EXCLUDE: undefined,
-      PNPM_CONFIG_TRUST_POLICY_EXCLUDE: undefined,
-      npm_config_minimum_release_age_exclude: undefined,
-      npm_config_trust_policy_exclude: undefined,
-      pnpm_config_pm_on_fail: 'ignore',
-      pnpm_config_minimum_release_age: String(
-        bootstrapReleaseAgePolicy.minimumReleaseAge,
-      ),
-      pnpm_config_minimum_release_age_exclude: JSON.stringify(exactExclusions),
-      // Only the verified source registry may supply exact candidate selectors.
-      // Published acceptance supplies none; inherited overrides remain cleared.
-      pnpm_config_trust_policy_exclude:
-        registryEnv?.PNPM_CONFIG_TRUST_POLICY_EXCLUDE,
-      pnpm_config_minimum_release_age_ignore_missing_time: String(
-        bootstrapReleaseAgePolicy.minimumReleaseAgeIgnoreMissingTime,
-      ),
-      pnpm_config_minimum_release_age_strict: String(
-        bootstrapReleaseAgePolicy.minimumReleaseAgeStrict,
-      ),
-    },
+    env: createAcceptanceReleaseAgeEnv(
+      runtime.env,
+      createPackage,
+      exactExclusions,
+      registryEnv,
+    ),
     pnpmExecutable: runtime.pnpmExecutable,
   };
 }

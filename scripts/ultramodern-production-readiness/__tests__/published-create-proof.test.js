@@ -220,8 +220,11 @@ test('fresh-release installs use exact command-scoped cohort and source sidecar 
   const { resolveAcceptanceReleaseAgeExclusions } = await import(
     '../published-create-proof/release-age-audit.mjs'
   );
-  const { createAcceptancePnpmInstallArgs } = await import(
+  const { createAcceptanceReleaseAgeEnv } = await import(
     '../published-create-proof/acceptance-profile.mjs'
+  );
+  const { resolveCreatePackage } = await import(
+    '../published-create-proof/package-cohort.mjs'
   );
   const release = makeBootstrapRelease();
   release.sidecars = {
@@ -240,16 +243,18 @@ test('fresh-release installs use exact command-scoped cohort and source sidecar 
     source,
     [...published, '@bleedingdev/mf-bridge-react@1.0.0'].sort(),
   );
-  assert.deepEqual(
-    createAcceptancePnpmInstallArgs(['install', '--lockfile-only'], source),
-    [
-      ...source.map(
-        selector => `--config.minimum-release-age-exclude=${selector}`,
-      ),
-      'install',
-      '--lockfile-only',
-    ],
+  const env = createAcceptanceReleaseAgeEnv(
+    { PATH: '/exact/pnpm' },
+    resolveCreatePackage(release),
+    source,
   );
+  assert.equal(
+    env.pnpm_config_minimum_release_age_exclude,
+    JSON.stringify(source),
+  );
+  assert.equal(env.pnpm_config_minimum_release_age, '1440');
+  assert.equal(env.pnpm_config_minimum_release_age_strict, 'true');
+  assert.equal(env.PATH, '/exact/pnpm');
   release.sidecars.packages[0].version = '1.*';
   assert.throws(
     () => resolveAcceptanceReleaseAgeExclusions({ release, mode: 'source' }),
