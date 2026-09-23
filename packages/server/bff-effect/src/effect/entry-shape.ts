@@ -5,6 +5,10 @@ type ValidatorAwareHandlerFactoryRegistry = {
   is(factory: unknown): boolean;
 };
 
+declare const __modernjs_backend_private_capability__:
+  | ValidatorAwareHandlerFactoryRegistry
+  | undefined;
+
 function createLocalValidatorAwareHandlerFactoryRegistry(): ValidatorAwareHandlerFactoryRegistry {
   const factories = new WeakSet<Function>();
   return {
@@ -21,6 +25,11 @@ function createLocalValidatorAwareHandlerFactoryRegistry(): ValidatorAwareHandle
 function loadNodeValidatorAwareHandlerFactoryRegistry(): ValidatorAwareHandlerFactoryRegistry {
   const moduleUrl = import.meta.url;
   if (typeof moduleUrl !== 'string' || !moduleUrl.startsWith('file:')) {
+    // A verified CommonJS backend bundle has no import.meta.url. Its Node
+    // evaluator supplies the package-private registry directly.
+    if (typeof __modernjs_backend_private_capability__ !== 'undefined') {
+      return __modernjs_backend_private_capability__;
+    }
     return createLocalValidatorAwareHandlerFactoryRegistry();
   }
 

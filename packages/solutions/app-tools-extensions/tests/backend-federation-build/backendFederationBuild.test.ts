@@ -1,12 +1,11 @@
 import fs from 'node:fs/promises';
 import http from 'node:http';
-import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { loadBackendFederatedEffectApiFromManifest } from '@modern-js/plugin-bff-extensions/backend-federation-manifest/node';
 import { Effect, ManagedRuntime } from 'effect';
 import { HttpApi } from 'effect/unstable/httpapi';
-import { createEffectBffTestHandler } from '../../../../server/bff-effect/src/effect/edge';
 import { emitBackendFederationArtifacts } from '../../src/backend-federation-build';
 import { findBackendFederationApp } from '../../src/backend-federation-build/config';
 
@@ -218,74 +217,215 @@ afterEach(async () => {
 
 describe('backend federation build artifacts', () => {
   it('serves RPC from a separately bundled Effect runtime through the host handler', async () => {
-    const effectEdgePath = path.resolve(
-      __dirname,
-      '../../../../server/bff-effect/dist/esm-node/effect/edge.mjs',
-    );
-    const workspace = await createWorkspace({
-      apiProtocol: 'rpc',
-      effectApiSource: `
+    let distDirectory = '';
+    let dispatchRpc: ((request: Request) => Promise<Response>) | undefined;
+    const server = http.createServer(async (request, response) => {
+      const pathname = new URL(request.url ?? '/', 'http://localhost').pathname;
+      if (pathname === '/explore-api/rpc' && dispatchRpc) {
+        const chunks: Buffer[] = [];
+        for await (const chunk of request) {
+          chunks.push(Buffer.from(chunk));
+        }
+        const result = await dispatchRpc(
+          new Request(`http://localhost${pathname}`, {
+            method: request.method,
+            headers: {
+              'content-type':
+                request.headers['content-type'] ?? 'application/json',
+            },
+            body: Buffer.concat(chunks),
+          }),
+        );
+        response.writeHead(result.status, Object.fromEntries(result.headers));
+        response.end(Buffer.from(await result.arrayBuffer()));
+        return;
+      }
+      const fileName = pathname.slice(1);
+      if (
+        fileName !== 'backend-mf-manifest.json' &&
+        fileName !== 'backendRemoteEntry.cjs'
+      ) {
+        response.statusCode = 404;
+        response.end();
+        return;
+      }
+      response.setHeader(
+        'content-type',
+        fileName.endsWith('.json') ? 'application/json' : 'text/javascript',
+      );
+      response.end(await fs.readFile(path.join(distDirectory, fileName)));
+    });
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(0, '127.0.0.1', () => {
+        server.off('error', reject);
+        resolve();
+      });
+    });
+
+    try {
+      const address = server.address();
+      if (!address || typeof address === 'string') {
+        throw new Error('Expected backend federation test server address.');
+      }
+      const effectEdgePath = path.resolve(
+        __dirname,
+        '../../../../server/bff-effect/dist/esm-node/effect/edge.mjs',
+      );
+      const effectDirectory = path.dirname(effectEdgePath);
+      const [hostEffect, hostModule] = await Promise.all([
+        import(pathToFileURL(path.join(effectDirectory, 'index.mjs')).href),
+        import(pathToFileURL(path.join(effectDirectory, 'module.mjs')).href),
+      ]);
+      const workspace = await createWorkspace({
+        apiProtocol: 'rpc',
+        backendBase: `http://127.0.0.1:${address.port}`,
+        effectApiSource: `
 import { defineEffectBff, Effect, HttpApi, Layer, Rpc, RpcGroup, Schema } from ${JSON.stringify(effectEdgePath)};
-const group = RpcGroup.make(Rpc.make('list', {
-  payload: { limit: Schema.optional(Schema.Number) },
-  success: Schema.Struct({ items: Schema.Array(Schema.Struct({ id: Schema.String })) }),
-}));
+const item = Schema.Struct({ id: Schema.String, title: Schema.String });
+const notFound = Schema.TaggedError;
+class ExploreNotFoundRpc extends notFound<ExploreNotFoundRpc>()('ExploreNotFoundRpc', { id: Schema.String }) {}
+const items = [{ id: 'bundled-explore', title: 'Bundled Effect RPC' }];
+const group = RpcGroup.make(
+  Rpc.make('list', {
+    payload: { limit: Schema.optional(Schema.Number) },
+    success: Schema.Struct({ items: Schema.Array(item) }),
+  }),
+  Rpc.make('get', {
+    error: ExploreNotFoundRpc,
+    payload: { id: Schema.String },
+    success: item,
+  }),
+);
 const runtime = defineEffectBff({
   api: HttpApi.make('ExploreRpcTransport'),
   layer: Layer.empty,
   rpc: {
     group,
-    layer: group.toLayer(group.of({ list: () => Effect.succeed({ items: [{ id: 'bundled-explore' }] }) })),
+    layer: group.toLayer(group.of({
+      get: ({ id }) => {
+        const matched = items.find(candidate => candidate.id === id);
+        return matched === undefined
+          ? Effect.fail(new ExploreNotFoundRpc({ id }))
+          : Effect.succeed(matched);
+      },
+      list: ({ limit }) => Effect.succeed({
+        items: typeof limit === 'number' ? items.slice(0, limit) : items,
+      }),
+    })),
     path: '/rpc',
     serialization: 'json',
   },
 });
+export const backendFederationContract = {
+  name: 'verticalExploreBackend',
+  role: 'microvertical-server',
+  runtimeFramework: 'effect',
+  strictEffectApproach: true,
+};
 export const api = group;
 export { runtime };
 export default runtime;
 `,
-    });
-    await withSourceRevision('2'.repeat(40), () =>
-      emitBackendFederationArtifacts(
-        workspace.appDirectory,
-        workspace.distDirectory,
-      ),
-    );
-    const requireEntry = createRequire(import.meta.url);
-    const container = requireEntry(
-      path.join(workspace.distDirectory, 'backendRemoteEntry.cjs'),
-    );
-    const exposed = await (await container.get('./effect-api'))();
-    const warnings: string[] = [];
-    const edge = await createEffectBffTestHandler({
-      module: exposed.runtime,
-      prefix: '/explore-api',
-      onWarning: message => warnings.push(message),
-    });
-    try {
-      const response = await edge.handler(
-        new Request('http://localhost/explore-api/rpc', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            jsonrpc: '2.0',
-            id: 'proof',
-            method: 'list',
-            params: {},
-          }),
-        }),
-      );
-      expect(response.status).toBe(200);
-      await expect(response.json()).resolves.toEqual({
-        jsonrpc: '2.0',
-        id: 'proof',
-        result: { items: [{ id: 'bundled-explore' }] },
       });
-      expect(warnings).toEqual(
-        expect.arrayContaining([expect.stringContaining('Ignored unbranded')]),
+      distDirectory = workspace.distDirectory;
+      await withSourceRevision('2'.repeat(40), () =>
+        emitBackendFederationArtifacts(
+          workspace.appDirectory,
+          workspace.distDirectory,
+        ),
       );
+      const manifest = JSON.parse(
+        await fs.readFile(
+          path.join(distDirectory, 'backend-mf-manifest.json'),
+          'utf8',
+        ),
+      );
+      const loaded = await loadBackendFederatedEffectApiFromManifest({
+        hostName: `appToolsRpcHost-${Date.now()}`,
+        manifestUrl: `http://127.0.0.1:${address.port}/backend-mf-manifest.json`,
+        entryPolicy: {
+          expected: {
+            byteLength: manifest.entry.byteLength,
+            entryUrl: manifest.entry.url,
+            remoteName: manifest.backendFederation.name,
+            sha256: manifest.entry.sha256,
+          },
+        },
+        expected: {
+          buildMarker: manifest.backendFederation.deliveryUnit.buildMarker,
+          unitId: manifest.backendFederation.deliveryUnit.unitId,
+        },
+      });
+      if (!loaded.runtime || typeof loaded.runtime !== 'object') {
+        throw new Error('Expected bundled Effect runtime.');
+      }
+      const warnings: string[] = [];
+      const edge = await hostEffect.createEffectBffTestHandler({
+        module: loaded.runtime,
+        prefix: '/explore-api',
+        onWarning: message => warnings.push(message),
+      });
+      dispatchRpc = request => edge.handler(request);
+      expect(warnings).toEqual([]);
+      try {
+        const response = await fetch(
+          `http://127.0.0.1:${address.port}/explore-api/rpc`,
+          {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 'proof',
+              method: 'list',
+              params: { limit: 1 },
+            }),
+          },
+        );
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toEqual({
+          jsonrpc: '2.0',
+          id: 'proof',
+          result: {
+            items: [{ id: 'bundled-explore', title: 'Bundled Effect RPC' }],
+          },
+        });
+        expect(warnings).toEqual([]);
+        const restricted = await hostModule.resolveEffectBffModuleHandler(
+          loaded.runtime,
+          {
+            validateRequest: () => new Response('denied', { status: 403 }),
+          },
+        );
+        if (!restricted) {
+          throw new Error('Expected a validator-aware bundled Effect handler.');
+        }
+        try {
+          const denied = await restricted.handler(
+            new Request('http://localhost/rpc', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({
+                jsonrpc: '2.0',
+                id: 'blocked',
+                method: 'list',
+                params: { limit: 1 },
+              }),
+            }),
+          );
+          expect(denied.status).toBe(403);
+          await expect(denied.text()).resolves.toBe('denied');
+        } finally {
+          await restricted.dispose?.();
+        }
+      } finally {
+        await edge.dispose();
+      }
     } finally {
-      await edge.dispose();
+      server.closeAllConnections();
+      await new Promise<void>((resolve, reject) => {
+        server.close(error => (error ? reject(error) : resolve()));
+      });
     }
   });
 

@@ -7,6 +7,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createMicroVerticalReleaseEnvelope } from '@modern-js/app-tools-extensions/release-envelope';
+import {
+  createRpcClientFile,
+  createRpcContractFile,
+} from '../src/ultramodern-workspace/api/rpc';
 
 const reservePort = async () => {
   const server = net.createServer();
@@ -239,6 +243,37 @@ test('Node backend proof composes public runtime owners and runs a native Effect
         'dir',
       );
     }
+    fs.symlinkSync(
+      path.resolve(__dirname, '../../../server/bff-effect/node_modules/effect'),
+      path.join(workspaceRoot, 'node_modules/effect'),
+      'dir',
+    );
+    const catalogDirectory = path.join(workspaceRoot, 'verticals/catalog');
+    fs.mkdirSync(path.join(catalogDirectory, 'shared'), { recursive: true });
+    fs.writeFileSync(
+      path.join(catalogDirectory, 'package.json'),
+      JSON.stringify({
+        name: '@test/catalog',
+        exports: { './api/rpc-client': './shared/catalog-rpc-client.ts' },
+      }),
+    );
+    const catalogApi = {
+      id: 'catalog',
+      api: {
+        consumedBy: [],
+        prefix: '/catalog-api',
+        protocol: 'rpc' as const,
+        stem: 'catalog',
+      },
+    };
+    fs.writeFileSync(
+      path.join(catalogDirectory, 'shared/rpc.ts'),
+      createRpcContractFile(catalogApi),
+    );
+    fs.writeFileSync(
+      path.join(catalogDirectory, 'shared/catalog-rpc-client.ts'),
+      createRpcClientFile(catalogApi, './rpc.ts'),
+    );
 
     const proofUrl = pathToFileURL(
       path.resolve(
@@ -325,6 +360,8 @@ try {
   const port = server.address().port;
   const proofApp = {
     id: 'catalog',
+    directory: 'verticals/catalog',
+    packageName: '@test/catalog',
     manifestUrl: 'http://127.0.0.1:' + port + '/backend-mf-manifest.json',
     rpcPath: '/catalog-api/rpc',
     rpcSerialization: 'json',
@@ -338,14 +375,18 @@ try {
   const manifest = { backendFederation: { rpcPath: '/catalog-api/rpc', rpcSerialization: 'json' } };
   const releaseBinding = { envelope: { envelopeDigest: 'proof-digest' }, apiBackendArtifacts: [] };
   await assert.rejects(
-    proof.proveLiveRpcApi(proofApp, loadedRpc, { backendFederation: { ...manifest.backendFederation, rpcPath: '/wrong/rpc' } }, releaseBinding, runtime),
+    proof.proveLiveRpcApi(proofApp, loadedRpc, { backendFederation: { ...manifest.backendFederation, rpcPath: '/wrong/rpc' } }, releaseBinding),
     new RegExp('RPC contract/manifest path'),
   );
   await assert.rejects(
-    proof.proveLiveRpcApi(proofApp, loadedRpc, { backendFederation: { ...manifest.backendFederation, rpcSerialization: 'msgPack' } }, releaseBinding, runtime),
+    proof.proveLiveRpcApi(proofApp, loadedRpc, { backendFederation: { ...manifest.backendFederation, rpcSerialization: 'msgPack' } }, releaseBinding),
     new RegExp('RPC contract/manifest serialization'),
   );
-  const proofResult = await proof.proveLiveRpcApi(proofApp, loadedRpc, manifest, releaseBinding, runtime);
+  await assert.rejects(
+    proof.proveLiveRpcApi(proofApp, { ...loadedRpc, contract: { ...loadedRpc.contract, group: 'other' } }, manifest, releaseBinding),
+    new RegExp('public RPC client contract'),
+  );
+  const proofResult = await proof.proveLiveRpcApi(proofApp, loadedRpc, manifest, releaseBinding);
   assert.equal(proofResult.status, 'pass');
   assert.equal(proofResult.method, 'RPC');
   assert.deepEqual(proofResult.operations.map(operation => operation.method), ['list', 'get', 'get']);
