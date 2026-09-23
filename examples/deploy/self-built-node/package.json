@@ -17,7 +17,7 @@
   "dependencies": {
     "@modern-js/runtime": "workspace:*",
     "@types/koa": "^2.15.0",
-    "koa": "^2.15.3",
+    "koa": "^3.1.2",
     "mime-types": "^2.1.35",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
