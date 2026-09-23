@@ -495,6 +495,18 @@ function assertGeneratedCohort(projectDir, release) {
 
   const sourceNames = new Set(expected.sourceNames);
   const targetNames = new Set(expected.targetNames);
+  const sidecarVersions = new Map();
+  for (const [index, sidecar] of (release.sidecars?.packages ?? []).entries()) {
+    assertCondition(
+      typeof sidecar?.name === 'string' &&
+        sidecar.name.startsWith('@bleedingdev/') &&
+        typeof sidecar.version === 'string' &&
+        sidecar.version.length > 0 &&
+        !sidecarVersions.has(sidecar.name),
+      `Verified sidecar observation ${index} must bind one exact BleedingDev package and version`,
+    );
+    sidecarVersions.set(sidecar.name, sidecar.version);
+  }
   const observed = new Set();
   for (const packageJsonPath of packageJsonFiles(projectDir)) {
     const relative = path.relative(projectDir, packageJsonPath);
@@ -546,12 +558,20 @@ function assertGeneratedCohort(projectDir, release) {
             )}`,
           );
         }
+        if (npmAlias && sidecarVersions.has(npmAlias.target)) {
+          const expectedSpecifier = `npm:${npmAlias.target}@${sidecarVersions.get(npmAlias.target)}`;
+          assertCondition(
+            specifier === expectedSpecifier,
+            `${relative} ${blockName}.${dependencyName} must target exact verified sidecar ${npmAlias.target}@${sidecarVersions.get(npmAlias.target)}, found ${String(specifier)}`,
+          );
+        }
         if (
           typeof specifier === 'string' &&
           specifier.startsWith('npm:@bleedingdev/')
         ) {
           assertCondition(
-            targetNames.has(npmAlias?.target),
+            targetNames.has(npmAlias?.target) ||
+              sidecarVersions.has(npmAlias?.target),
             `${relative} ${blockName}.${dependencyName} aliases an unknown BleedingDev cohort target ${String(
               npmAlias?.target,
             )}`,

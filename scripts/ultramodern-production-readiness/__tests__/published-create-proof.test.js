@@ -216,6 +216,47 @@ test('fails closed when the authenticated create closure is omitted or version-s
   );
 });
 
+test('fresh-release installs use exact command-scoped cohort and source sidecar selectors', async () => {
+  const { resolveAcceptanceReleaseAgeExclusions } = await import(
+    '../published-create-proof/release-age-audit.mjs'
+  );
+  const { createAcceptancePnpmInstallArgs } = await import(
+    '../published-create-proof/acceptance-profile.mjs'
+  );
+  const release = makeBootstrapRelease();
+  release.sidecars = {
+    packages: [{ name: '@bleedingdev/mf-bridge-react', version: '1.0.0' }],
+  };
+  const published = resolveAcceptanceReleaseAgeExclusions({
+    release,
+    mode: 'published',
+  });
+  const source = resolveAcceptanceReleaseAgeExclusions({
+    release,
+    mode: 'source',
+  });
+  assert.equal(published.length, release.packages.length);
+  assert.deepEqual(
+    source,
+    [...published, '@bleedingdev/mf-bridge-react@1.0.0'].sort(),
+  );
+  assert.deepEqual(
+    createAcceptancePnpmInstallArgs(['install', '--lockfile-only'], source),
+    [
+      ...source.map(
+        selector => `--config.minimum-release-age-exclude=${selector}`,
+      ),
+      'install',
+      '--lockfile-only',
+    ],
+  );
+  release.sidecars.packages[0].version = '1.*';
+  assert.throws(
+    () => resolveAcceptanceReleaseAgeExclusions({ release, mode: 'source' }),
+    /Acceptance command release-age exclusions/u,
+  );
+});
+
 test('acceptance production builds and runtime proofs use the same explicit local deployment addresses', async () => {
   const { createAcceptanceBuildEnv, createAcceptanceDeploymentEnv } =
     await import('../published-create-proof/acceptance-profile.mjs');
@@ -644,6 +685,51 @@ test('asserts generated cohorts only from strict manifest expectations', async (
     };
 
     assert.equal(assertGeneratedCohort(root, release).observedPackageCount, 2);
+
+    release.sidecars = {
+      packages: [{ name: '@bleedingdev/mf-bridge-react', version: '1.0.0' }],
+    };
+    writeJson(root, 'package.json', {
+      devDependencies: {
+        '@modern-js/ultramodern-create': 'catalog:ultramodern',
+      },
+      dependencies: {
+        '@modern-js/runtime': 'catalog:ultramodern',
+        '@module-federation/bridge-react':
+          'npm:@bleedingdev/mf-bridge-react@1.0.0',
+      },
+    });
+    assert.equal(assertGeneratedCohort(root, release).observedPackageCount, 2);
+    writeJson(root, 'package.json', {
+      dependencies: {
+        '@modern-js/runtime': 'catalog:ultramodern',
+        '@module-federation/bridge-react':
+          'npm:@bleedingdev/mf-bridge-react@1.0.1',
+      },
+    });
+    assert.throws(
+      () => assertGeneratedCohort(root, release),
+      /must target exact verified sidecar/u,
+    );
+    writeJson(root, 'package.json', {
+      dependencies: {
+        '@modern-js/runtime': 'catalog:ultramodern',
+        '@module-federation/bridge-react':
+          'npm:@bleedingdev/unknown-sidecar@1.0.0',
+      },
+    });
+    assert.throws(
+      () => assertGeneratedCohort(root, release),
+      /unknown BleedingDev cohort target/u,
+    );
+    writeJson(root, 'package.json', {
+      devDependencies: {
+        '@modern-js/ultramodern-create': 'catalog:ultramodern',
+      },
+      dependencies: {
+        '@modern-js/runtime': 'catalog:ultramodern',
+      },
+    });
 
     const catalogPath = path.join(root, 'pnpm-workspace.yaml');
     const catalog = fs.readFileSync(catalogPath, 'utf8');

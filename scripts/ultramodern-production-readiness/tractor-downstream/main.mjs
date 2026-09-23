@@ -36,7 +36,7 @@ import {
 } from '../published-create-proof/package-cohort.mjs';
 import { run } from '../published-create-proof/process.mjs';
 import {
-  readActiveReleaseAgeExceptionSelectors,
+  resolveAcceptanceReleaseAgeExclusions,
   validateExactExclusions,
 } from '../published-create-proof/release-age-audit.mjs';
 import { prepareTractorCohortInstallation } from './cohort-install.mjs';
@@ -90,46 +90,11 @@ const executionCommands = Object.freeze([
     .map(command => Object.freeze({ command, report: true })),
 ]);
 
-// Sidecars are not cohort members: they keep their own stable versions and the
-// published lane reads their real npmjs publish times. A source-candidate
-// rehearsal seeds those exact accepted tarballs into the ephemeral registry
-// moments before the install, so their registry publish time is always "now"
-// and the bootstrap release-age floor would reject the bundle for being a
-// bundle. They are exempted the same way the cohort already is, derived from
-// the verified staged sidecar observations in the immutable manifest, and only
-// in this mode.
-function sourceCandidateSidecarSelectors(release) {
-  const sidecars = release?.sidecars;
-  if (sidecars === null || sidecars === undefined) {
-    return [];
-  }
-  const packages = sidecars.packages;
-  if (!Array.isArray(packages) || packages.length === 0) {
-    throw new Error(
-      'Source-candidate Tractor rehearsal requires verified staged sidecar observations',
-    );
-  }
-  return packages.map((item, index) => {
-    if (
-      typeof item?.name !== 'string' ||
-      item.name.length === 0 ||
-      typeof item.version !== 'string' ||
-      item.version.length === 0
-    ) {
-      throw new Error(
-        `Verified staged sidecar observation ${index} must bind an exact name and version`,
-      );
-    }
-    return `${item.name}@${item.version}`;
-  });
-}
-
 function resolveTractorMinimumReleaseAgeExclude({
   mode = promotableTractorAcceptanceMode,
   release,
   releaseAgePolicyPath,
   now = new Date(),
-  readActiveReleaseAgeExceptionSelectorsImpl = readActiveReleaseAgeExceptionSelectors,
 }) {
   if (
     typeof releaseAgePolicyPath !== 'string' ||
@@ -139,46 +104,12 @@ function resolveTractorMinimumReleaseAgeExclude({
       'Tractor bootstrap requires the audited release-age exception policy path',
     );
   }
-  if (!Array.isArray(release?.packages) || release.packages.length === 0) {
-    throw new Error(
-      'Strict release manifest package observations are required for Tractor bootstrap policy',
-    );
-  }
-  const releaseVersion = release.release?.version;
-  const firstParty = release.packages.map((item, index) => {
-    if (
-      typeof item?.targetName !== 'string' ||
-      item.version !== releaseVersion
-    ) {
-      throw new Error(
-        `Strict release manifest package observation ${index} must bind targetName to release version ${String(
-          releaseVersion,
-        )}`,
-      );
-    }
-    return `${item.targetName}@${item.version}`;
+  return resolveAcceptanceReleaseAgeExclusions({
+    release,
+    mode,
+    policyPath: releaseAgePolicyPath,
+    now,
   });
-  const exactFirstParty = validateExactExclusions(
-    firstParty.sort(),
-    'Strict release manifest package selectors',
-  );
-  const activeReviewed = readActiveReleaseAgeExceptionSelectorsImpl(
-    releaseAgePolicyPath,
-    { now },
-  );
-  if (!Array.isArray(activeReviewed)) {
-    throw new Error('Active release-age exception selectors must be an array');
-  }
-  const seededSidecars =
-    mode === promotableTractorAcceptanceMode
-      ? []
-      : sourceCandidateSidecarSelectors(release);
-  return validateExactExclusions(
-    [
-      ...new Set([...exactFirstParty, ...activeReviewed, ...seededSidecars]),
-    ].sort(),
-    'Tractor bootstrap minimumReleaseAgeExclude',
-  );
 }
 
 function createTractorPnpmDlxArgs(
