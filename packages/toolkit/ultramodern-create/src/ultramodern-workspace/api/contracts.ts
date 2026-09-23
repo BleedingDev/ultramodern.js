@@ -127,7 +127,7 @@ export function apiTopologyMetadata(app: WorkspaceApp): JsonValue | undefined {
       },
       client: {
         export: './api/rpc-client',
-        path: `${app.directory}/src/api/${app.api.stem}-rpc-client.ts`,
+        path: `${app.directory}/${app.surfaceProfile === 'api-only' ? 'shared' : 'src/api'}/${app.api.stem}-rpc-client.ts`,
       },
       serverEntry: `${app.directory}/api/index.ts`,
       rpcPath: rpcPath(app),
@@ -153,7 +153,7 @@ export function apiTopologyMetadata(app: WorkspaceApp): JsonValue | undefined {
     },
     client: {
       export: './api/client',
-      path: `${app.directory}/src/api/${app.api.stem}-client.ts`,
+      path: `${app.directory}/${app.surfaceProfile === 'api-only' ? 'shared' : 'src/api'}/${app.api.stem}-client.ts`,
     },
     serverEntry: `${app.directory}/api/index.ts`,
     basePath: `${app.api.prefix}/${app.api.stem}`,

@@ -33,7 +33,9 @@ describe('resolveEffectAdapterEntryFile', () => {
           bff: { effect: { entry: 'api/custom.ts' } },
         }),
       } as unknown as ServerPluginAPI;
-      expect(resolveEffectAdapterEntryFile(api)).toBe(builtEntry);
+      expect(resolveEffectAdapterEntryFile(api)).toBe(
+        builtEntry.replaceAll(path.sep, '/'),
+      );
     } finally {
       fs.rmSync(appDirectory, { recursive: true, force: true });
     }
@@ -60,7 +62,9 @@ describe('resolveEffectAdapterEntryFile', () => {
         getServerConfig: () => ({}),
       } as unknown as ServerPluginAPI;
 
-      expect(resolveEffectAdapterEntryFile(api)).toBe(builtEntry);
+      expect(resolveEffectAdapterEntryFile(api)).toBe(
+        builtEntry.replaceAll(path.sep, '/'),
+      );
     } finally {
       fs.rmSync(appDirectory, { recursive: true, force: true });
     }
@@ -96,7 +100,9 @@ describe('resolveEffectAdapterEntryFile', () => {
         }),
       } as unknown as ServerPluginAPI;
 
-      expect(resolveEffectAdapterEntryFile(api)).toBe(builtEntry);
+      expect(resolveEffectAdapterEntryFile(api)).toBe(
+        builtEntry.replaceAll(path.sep, '/'),
+      );
     } finally {
       fs.rmSync(appDirectory, { recursive: true, force: true });
       fs.rmSync(producerDirectory, { recursive: true, force: true });

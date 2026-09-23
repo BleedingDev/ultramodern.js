@@ -1,5 +1,10 @@
 import path from 'node:path';
-import { appHasApi, resolveRemoteRefs, sharedPackages } from './descriptors';
+import {
+  appHasApi,
+  resolveApiProtocol,
+  resolveRemoteRefs,
+  sharedPackages,
+} from './descriptors';
 import { effectDiagnostics } from './effect-diagnostics';
 import { relativeRootFor } from './naming';
 import type { JsonValue, WorkspaceApp } from './types';
@@ -149,7 +154,14 @@ export function createAppMfTypesTsConfig(app: WorkspaceApp): JsonValue {
 
   return {
     extends: `${relativeRootFor(app.directory)}/tsconfig.base.json`,
-    include: [...new Set([...exposedFiles, 'src/modern-app-env.d.ts'])],
+    include:
+      app.surfaceProfile === 'api-only'
+        ? [
+            resolveApiProtocol(app) === 'rpc'
+              ? 'shared/rpc.ts'
+              : 'shared/api.ts',
+          ]
+        : [...new Set([...exposedFiles, 'src/modern-app-env.d.ts'])],
     // The MF declaration compiler follows framework implementation types that
     // are not part of the exposed application surface. Application source is
     // still checked separately; composed apps use the same dependency boundary.

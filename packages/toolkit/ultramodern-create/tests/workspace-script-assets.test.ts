@@ -38,6 +38,49 @@ test('public surface generation invokes the installed CLI from the workspace roo
   );
 });
 
+test('fresh route aggregates are unchanged by their first metadata sync', () => {
+  const { tempRoot, workspaceDir } = createWorkspace(
+    'route-aggregate-stability',
+  );
+  try {
+    addUltramodernVertical({
+      workspaceRoot: workspaceDir,
+      name: 'catalog',
+      modernVersion: '3.2.1',
+    });
+    const script = fileURLToPath(
+      new URL(
+        '../templates/workspace-scripts/generate-public-surface-assets.mjs',
+        import.meta.url,
+      ),
+    );
+    for (const [appId, appPath] of [
+      ['shell-super-app', 'apps/shell-super-app'],
+      ['catalog', 'verticals/catalog'],
+    ]) {
+      const aggregatePath = path.join(
+        workspaceDir,
+        appPath,
+        'src/routes/ultramodern-route-metadata.ts',
+      );
+      const before = fs.readFileSync(aggregatePath, 'utf8');
+      assert.match(before, /import \{ routeMeta as route0 \}/u);
+      const sync = spawnSync(
+        process.execPath,
+        [script, '--app', appId, '--sync-route-metadata'],
+        {
+          env: { ...process.env, ULTRAMODERN_WORKSPACE_ROOT: workspaceDir },
+          encoding: 'utf8',
+        },
+      );
+      assert.equal(sync.status, 0, sync.stderr);
+      assert.equal(fs.readFileSync(aggregatePath, 'utf8'), before);
+    }
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('public surface reads authored route metadata and preserves output and content choices', async () => {
   const root = fs.mkdtempSync(
     path.join(os.tmpdir(), 'ultramodern-public-surface-'),

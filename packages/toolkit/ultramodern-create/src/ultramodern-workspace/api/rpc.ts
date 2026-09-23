@@ -203,7 +203,10 @@ export default apiRuntime;
  * Generate the RPC client file (`src/api/${stem}-rpc-client.ts`) built from the
  * shared `RpcGroup` through Effect BFF's public HTTP RPC client primitive.
  */
-export function createRpcClientFile(service: ApiService): string {
+export function createRpcClientFile(
+  service: ApiService,
+  contractImportPath = '../../shared/rpc.ts',
+): string {
   const groupExport = verticalRpcGroupExport(service);
   const contractExport = verticalRpcContractExport(service);
   const stem = resolveApiStem(service);
@@ -216,7 +219,7 @@ export function createRpcClientFile(service: ApiService): string {
 import {
   ${contractExport},
   ${groupExport},
-} from '../../shared/rpc.ts';
+} from '${contractImportPath}';
 
 export { Effect } from '@modern-js/bff-effect/effect-client';
 

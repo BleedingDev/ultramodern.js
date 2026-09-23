@@ -568,6 +568,53 @@ test('UI-only units reject API surfaces', () => {
   expect(result.diagnostics.join('\n')).toContain('unit has no API surface');
 });
 
+test('API-only units keep a callable shared client behind the public client export', () => {
+  const topologyPath = path.join(root, 'topology/reference-topology.json');
+  const topology = JSON.parse(fs.readFileSync(topologyPath, 'utf8'));
+  topology.verticals[0].surfaceProfile = 'api-only';
+  write(topologyPath, JSON.stringify(topology));
+  fs.rmSync(path.join(root, 'verticals/catalog/src'), { recursive: true });
+  const clientPath = path.join(
+    root,
+    'verticals/catalog/shared/catalog-client.ts',
+  );
+  write(
+    clientPath,
+    `import { Effect, makeEffectHttpApiClient } from '@modern-js/bff-effect/effect-client'; import { catalogApi } from './api'; export const client = makeEffectHttpApiClient(catalogApi);`,
+  );
+  const packagePath = path.join(root, 'verticals/catalog/package.json');
+  const manifest = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+  manifest.exports['./api/client'] = './shared/catalog-client.ts';
+  write(packagePath, JSON.stringify(manifest));
+
+  const check = () => checkMicroVerticalApiBoundaries({ workspaceRoot: root });
+  expect(check()).toEqual({
+    diagnostics: [],
+    toolErrors: [],
+    topologyFilesAnalyzed: 1,
+  });
+
+  manifest.exports['./api/client'] = './shared/other-client.ts';
+  write(packagePath, JSON.stringify(manifest));
+  expect(check().diagnostics.join('\n')).toContain('invalid API client export');
+  manifest.exports['./api/client'] = './shared/catalog-client.ts';
+  write(packagePath, JSON.stringify(manifest));
+
+  write(path.join(root, 'verticals/catalog/shared/catalog-rpc-client.ts'), '');
+  expect(check().diagnostics.join('\n')).toContain(
+    'must not emit a RPC client',
+  );
+  fs.rmSync(path.join(root, 'verticals/catalog/shared/catalog-rpc-client.ts'));
+
+  write(
+    clientPath,
+    fs
+      .readFileSync(clientPath, 'utf8')
+      .replace("'./api'", "'../../shared/api'"),
+  );
+  expect(check().diagnostics.join('\n')).toContain('must import');
+});
+
 test('legacy operation mappings are explicit and business-agnostic', () => {
   const source = contract.replace(
     'readiness: createMicroVerticalOperationContext',

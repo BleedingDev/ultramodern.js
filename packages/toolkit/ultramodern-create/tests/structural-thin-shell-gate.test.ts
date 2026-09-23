@@ -107,7 +107,11 @@ test('generated validator enforces the structural thin-shell gate', () => {
 
     for (const scenario of scenarios) {
       const workspaceDir = path.join(tempRoot, scenario.name);
-      fs.cpSync(baselineDir, workspaceDir, { recursive: true });
+      fs.cpSync(baselineDir, workspaceDir, {
+        recursive: true,
+        filter: source => path.basename(source) !== 'node_modules',
+      });
+      linkInstalledCompiler(workspaceDir);
       scenario.mutate(workspaceDir);
 
       const result = runValidation(workspaceDir);

@@ -111,18 +111,26 @@ export function createJsonLdHelperModule(): string {
 }
 
 export function createRouteMetadataModule(app: WorkspaceApp): string {
-  const routes = sortJsonValue(createRouteOwnedI18nPaths(app));
-  const localisedUrls = sortJsonValue(createLocalisedUrlsMap(app));
-  const publicRoutes = sortJsonValue(createPublicRouteMetadata(app));
+  const routes = createRouteOwnedI18nPaths(app)
+    .map(route => ({
+      file: createRouteMetaFilePath(app, route.canonicalPath),
+    }))
+    .sort((left, right) =>
+      left.file < right.file ? -1 : left.file > right.file ? 1 : 0,
+    );
+  const routesRoot = `${app.directory}/src/routes/`;
+  const imports = routes.map(({ file }, index) => {
+    const relative = file.slice(routesRoot.length).replace(/\.ts$/u, '');
+    return `import { routeMeta as route${index} } from ${JSON.stringify(`./${relative}`)};`;
+  });
   const namespace = appI18nNamespace(app);
 
   return renderFileTemplate(
     'workspace/apps/shared/src/routes/ultramodern-route-metadata.ts',
     {
-      value0: namespace,
-      value1: JSON.stringify(routes, null, 2),
-      value2: JSON.stringify(localisedUrls, null, 2),
-      value3: JSON.stringify(publicRoutes, null, 2),
+      value0: imports.join('\n'),
+      value1: JSON.stringify(namespace),
+      value2: routes.map((_, index) => `route${index}`).join(', '),
     },
   );
 }
