@@ -57,9 +57,11 @@ export async function importBackendFederationRuntime() {
     '@modern-js/plugin-bff-extensions/backend-federation-manifest/node',
   );
   const effectPath = workspaceRequire.resolve('@modern-js/bff-effect/effect');
-  const [runtime, effect] = await Promise.all([
+  const clientPath = workspaceRequire.resolve('@modern-js/bff-effect/effect-client');
+  const [runtime, effect, client] = await Promise.all([
     import(pathToFileURL(runtimePath).href),
     import(pathToFileURL(effectPath).href),
+    import(pathToFileURL(clientPath).href),
   ]);
   if (!hasBackendFederationManifestAdapter(runtime)) {
     throw new Error(
@@ -71,11 +73,16 @@ export async function importBackendFederationRuntime() {
       `${effectPath} does not export createEffectBffTestHandler`,
     );
   }
+  if (typeof client.makeEffectRpcClient !== 'function' || typeof client.Effect?.runPromise !== 'function') {
+    throw new Error(`${clientPath} does not export the native Effect RPC client`);
+  }
 
   return {
     loadBackendFederatedEffectApiFromManifest:
       runtime.loadBackendFederatedEffectApiFromManifest,
     createEffectBffTestHandler: effect.createEffectBffTestHandler,
+    Effect: client.Effect,
+    makeEffectRpcClient: client.makeEffectRpcClient,
   };
 }
 
@@ -226,6 +233,10 @@ export function topologyApps(topology, localOverlay, appFilter, env = process.en
       port,
       portEnv,
       remoteType: resolveRemoteType(declared),
+      apiProtocol: app.api.protocol ?? 'rest',
+      apiPrefix: app.api.bff?.prefix,
+      rpcPath: app.api.rpcPath,
+      rpcSerialization: app.api.rpcSerialization,
       apiOnly: app.surfaceProfile === 'api-only',
       smokeChecks: collectJsonSmokeChecks(apps, declared),
       topologyDeliveryUnit:
@@ -745,6 +756,87 @@ async function proveLiveApi(app, manifest, releaseBinding) {
   };
 }
 
+export async function proveLiveRpcApi(app, loaded, manifest, releaseBinding, effectClient) {
+  const contract = loaded.contract;
+  if (contract?.protocol !== 'rpc' || typeof contract.group !== 'string' ||
+      typeof contract.path !== 'string' || contract.serialization !== 'json') {
+    throw new Error(`${app.id} backend expose missing native RPC contract`);
+  }
+  assertEqual(contract.path, app.rpcPath, `${app.id} RPC contract/topology path`);
+  assertEqual(contract.path, manifest.backendFederation?.rpcPath, `${app.id} RPC contract/manifest path`);
+  assertEqual(contract.serialization, app.rpcSerialization, `${app.id} RPC contract/topology serialization`);
+  assertEqual(contract.serialization, manifest.backendFederation?.rpcSerialization, `${app.id} RPC contract/manifest serialization`);
+  const check = app.smokeChecks.find((entry) => entry?.body?.method === 'list' && entry.route === contract.path);
+  if (!check || !Number.isInteger(check.body?.params?.limit) || check.body.params.limit < 1) {
+    throw new Error(`${app.id} has no declared RPC list smoke check`);
+  }
+  const route = normalizeRoutePath(contract.path);
+  const url = new URL(route, app.manifestUrl).href;
+  const client = await effectClient.Effect.runPromise(
+    effectClient.makeEffectRpcClient(loaded.api, {
+      serialization: contract.serialization,
+      url,
+    }),
+  );
+  try {
+    const listed = await effectClient.Effect.runPromise(client.list({ limit: check.body.params.limit }));
+    const item = listed?.items?.[0];
+    if (typeof item?.id !== 'string' || item.id.length === 0) {
+      throw new Error(`${app.id} native RPC list returned no item id`);
+    }
+    for (const expectation of normalizeJsonExpectations(check)) {
+      if (expectation.path === 'id') {
+        assertJsonEqual(check.body.id, expectation.value, `${app.id} declared RPC request id`);
+      } else if (expectation.path.startsWith('result.')) {
+        assertJsonEqual(
+          jsonPathValue(listed, expectation.path.slice('result.'.length)),
+          expectation.value,
+          `${app.id} native RPC ${expectation.path}`,
+        );
+      } else {
+        throw new Error(`${app.id} RPC smoke check has unsupported expectation ${expectation.path}`);
+      }
+    }
+    const fetched = await effectClient.Effect.runPromise(client.get({ id: item.id }));
+    assertEqual(fetched?.id, item.id, `${app.id} native RPC get item id`);
+    const missingId = `__ultramodern-proof-missing-${item.id}__`;
+    const missing = await effectClient.Effect.runPromise(
+      effectClient.Effect.match(client.get({ id: missingId }), {
+        onFailure: (error) => ({ error }),
+        onSuccess: (value) => ({ value }),
+      }),
+    );
+    const expectedErrorTag = `${toPascalCase(contract.group)}NotFoundRpc`;
+    if (missing?.error?._tag !== expectedErrorTag ||
+        missing.error?.id !== missingId) {
+      throw new Error(`${app.id} native RPC get did not return ${expectedErrorTag} for a missing item`);
+    }
+    return {
+      method: 'RPC',
+      route,
+      url,
+      protocol: contract.protocol,
+      serialization: contract.serialization,
+      group: contract.group,
+      operations: [
+        { method: 'list', itemId: item.id, status: 'pass' },
+        { method: 'get', itemId: fetched.id, status: 'pass' },
+        { method: 'get', errorTag: missing.error._tag, missingId, status: 'pass' },
+      ],
+      envelopeDigest: releaseBinding.envelope.envelopeDigest,
+      apiBackendArtifacts: releaseBinding.apiBackendArtifacts.map((artifact) => ({
+        logicalPath: artifact.logicalPath,
+        runtime: artifact.runtime,
+        byteLength: artifact.byteLength,
+        sha256: artifact.sha256,
+      })),
+      status: 'pass',
+    };
+  } finally {
+    await client.dispose();
+  }
+}
+
 function jsonPathValue(value, path) {
   const segments = String(path ?? '')
     .split('.')
@@ -797,11 +889,16 @@ async function runSmokeChecks(app, loaded, createEffectBffTestHandler) {
     throw new Error(`${app.id} backend runtime cannot create Effect test handler`);
   }
 
-  const servicePrefix = loaded.contract?.servicePrefix ?? loaded.contract?.apiPrefix;
+  const servicePrefix = loaded.contract?.protocol === 'rpc'
+    ? app.apiPrefix
+    : loaded.contract?.servicePrefix ?? loaded.contract?.apiPrefix;
   if (typeof servicePrefix !== 'string' || servicePrefix.length === 0) {
     throw new Error(
-      `${app.id} backend expose missing contract.servicePrefix/apiPrefix`,
+      `${app.id} backend expose missing declared API prefix`,
     );
+  }
+  if (loaded.contract?.protocol === 'rpc') {
+    assertEqual(loaded.contract.path, app.rpcPath, `${app.id} RPC smoke route`);
   }
 
   const edge = await createEffectBffTestHandler({
@@ -1159,7 +1256,9 @@ async function proveBackend(app, backendRuntime, target) {
   }
 
   const smokeChecks = await runSmokeChecks(app, loaded, createEffectBffTestHandler);
-  const liveApi = await proveLiveApi(app, manifest, releaseBinding);
+  const liveApi = loaded.contract?.protocol === 'rpc'
+    ? await proveLiveRpcApi(app, loaded, manifest, releaseBinding, backendRuntime)
+    : await proveLiveApi(app, manifest, releaseBinding);
 
   return {
     appId: app.id,

@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const net = require('node:net');
 const os = require('node:os');
@@ -104,6 +105,21 @@ test('browser smoke reads canonical topology, overlay and app security choices',
   assert.equal(
     contract.apps[1].deploy.cloudflare.routes.apiReadiness,
     '/inventory-api/inventory/readiness',
+  );
+  assert.equal(contract.apps[1].api.protocol, 'rest');
+  const rpcTopology = JSON.parse(
+    fs.readFileSync(path.join(root, 'topology/reference-topology.json')),
+  );
+  rpcTopology.verticals[0].api.protocol = 'rpc';
+  rpcTopology.verticals[0].cloudflare.routes = {
+    rpc: '/inventory-api/rpc',
+  };
+  write('topology/reference-topology.json', rpcTopology);
+  const rpcContract = readSmokeContract(root).contract;
+  assert.equal(rpcContract.apps[1].api.protocol, 'rpc');
+  assert.equal(
+    rpcContract.apps[1].deploy.cloudflare.routes.rpc,
+    '/inventory-api/rpc',
   );
   assert.equal(
     fs.existsSync(path.join(root, '.modernjs/ultramodern.json')),
@@ -806,6 +822,123 @@ test('canonical backend proof shape contract rejects missing live correlation wh
     validateNodeBackendFederationProofResult(malformedDigest).ok,
     false,
     'the shape contract must require a SHA-256 reference even though runtime-evidence recomputes it from executed bytes',
+  );
+});
+
+test('Node backend proof accepts native RPC operations only when live URL, envelope, and backend artifacts remain bound', async () => {
+  const { validateNodeBackendFederationProofResult } = await import(
+    '../browser-smoke/backend-proof-contract.mjs'
+  );
+  const valid = createNodeBackendProofResult();
+  valid.liveApi = {
+    method: 'RPC',
+    protocol: 'rpc',
+    serialization: 'json',
+    group: 'inventory',
+    route: '/inventory-api/rpc',
+    url: 'http://localhost:3021/inventory-api/rpc',
+    operations: [
+      { method: 'list', itemId: 'starter-inventory', status: 'pass' },
+      { method: 'get', itemId: 'starter-inventory', status: 'pass' },
+      {
+        method: 'get',
+        errorTag: 'InventoryNotFoundRpc',
+        missingId: '__missing__',
+        status: 'pass',
+      },
+    ],
+    envelopeDigest: valid.releaseEnvelope.envelopeDigest,
+    apiBackendArtifacts: valid.liveApi.apiBackendArtifacts,
+    status: 'pass',
+  };
+  valid.smokeChecks[0].method = 'POST';
+  valid.smokeChecks[0].route = '/inventory-api/rpc';
+  assert.equal(validateNodeBackendFederationProofResult(valid).ok, true);
+  for (const mutate of [
+    proof => {
+      proof.liveApi.operations[2].errorTag = 'OtherNotFoundRpc';
+    },
+    proof => {
+      proof.liveApi.url = 'http://localhost:3022/inventory-api/rpc';
+    },
+    proof => {
+      proof.liveApi.envelopeDigest = 'f'.repeat(64);
+    },
+    proof => {
+      proof.liveApi.apiBackendArtifacts = [];
+    },
+  ]) {
+    const forged = structuredClone(valid);
+    mutate(forged);
+    assert.equal(validateNodeBackendFederationProofResult(forged).ok, false);
+  }
+});
+
+test('workerd RPC response evidence requires the declared POST result without inventing a release marker', async () => {
+  const { verifyWorkerdResponse } = await import(
+    '../browser-smoke/runtime-evidence.mjs'
+  );
+  const app = {
+    id: 'inventory',
+    api: { protocol: 'rpc' },
+    deploy: { cloudflare: { routes: { rpc: '/inventory-api/rpc' } } },
+  };
+  const check = {
+    method: 'POST',
+    route: '/inventory-api/rpc',
+    body: {
+      jsonrpc: '2.0',
+      id: 'inventory-cloudflare-proof',
+      method: 'list',
+      params: { limit: 1 },
+    },
+    expect: {
+      id: 'inventory-cloudflare-proof',
+      'result.items.0.id': 'starter-inventory',
+    },
+  };
+  const evidence = body => {
+    const bytes = Buffer.from(JSON.stringify(body));
+    return {
+      bodyBase64: bytes.toString('base64'),
+      byteLength: bytes.length,
+      sha256: crypto.createHash('sha256').update(bytes).digest('hex'),
+      status: 200,
+    };
+  };
+  const response = evidence({
+    jsonrpc: '2.0',
+    id: check.body.id,
+    result: { items: [{ id: 'starter-inventory', title: 'Real RPC item' }] },
+  });
+  assert.doesNotThrow(() =>
+    verifyWorkerdResponse(response, app, {}, 'direct', check),
+  );
+  assert.throws(
+    () =>
+      verifyWorkerdResponse(
+        evidence({
+          jsonrpc: '2.0',
+          id: check.body.id,
+          result: { items: [{ id: 'other-app' }] },
+        }),
+        app,
+        {},
+        'direct',
+        check,
+      ),
+    /declared POST smoke check/u,
+  );
+  assert.throws(
+    () =>
+      verifyWorkerdResponse(
+        { ...response, releaseMarker: { appId: 'inventory' } },
+        app,
+        {},
+        'direct',
+        check,
+      ),
+    /declared POST smoke check/u,
   );
 });
 

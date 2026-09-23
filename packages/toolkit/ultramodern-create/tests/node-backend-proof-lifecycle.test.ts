@@ -253,6 +253,7 @@ test('Node backend proof composes public runtime owners and runs a native Effect
         '--eval',
         `
 import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 const require = createRequire(process.cwd() + '/package.json');
@@ -263,7 +264,7 @@ const effect = await import(pathToFileURL(require.resolve('@modern-js/bff-effect
 assert.equal(federation.createEffectBffTestHandler, undefined);
 assert.equal(runtime.loadBackendFederatedEffectApiFromManifest, federation.loadBackendFederatedEffectApiFromManifest);
 assert.equal(runtime.createEffectBffTestHandler, effect.createEffectBffTestHandler);
-const { Effect, HttpApi, HttpApiBuilder, HttpApiEndpoint, HttpApiGroup, Layer, Schema } = await import(
+const { Effect, HttpApi, HttpApiBuilder, HttpApiEndpoint, HttpApiGroup, Layer, Rpc, RpcGroup, Schema, defineEffectBff } = await import(
   '@modern-js/bff-effect/effect-edge'
 );
 const api = HttpApi.make('ProofApi').add(
@@ -282,6 +283,76 @@ try {
   assert.deepEqual(await response.json(), { status: 'ready' });
 } finally {
   await handler.dispose();
+}
+
+const Item = Schema.Struct({ id: Schema.String, title: Schema.String });
+const taggedErrorSchema = Schema.TaggedError;
+class CatalogNotFoundRpc extends taggedErrorSchema()('CatalogNotFoundRpc', { id: Schema.String }) {}
+const group = RpcGroup.make(
+  Rpc.make('list', { payload: { limit: Schema.optional(Schema.Number) }, success: Schema.Struct({ items: Schema.Array(Item) }) }),
+  Rpc.make('get', { error: CatalogNotFoundRpc, payload: { id: Schema.String }, success: Item }),
+);
+const rpcLayer = group.toLayer(group.of({
+  get: ({ id }) => id === 'starter-catalog'
+    ? Effect.succeed({ id, title: 'Catalog' })
+    : Effect.fail(new CatalogNotFoundRpc({ id })),
+  list: () => Effect.succeed({ items: [{ id: 'starter-catalog', title: 'Catalog' }] }),
+}));
+const rpcRuntime = defineEffectBff({
+  api: HttpApi.make('RpcTransport'),
+  layer: Layer.empty,
+  rpc: { group, layer: rpcLayer, path: '/rpc', serialization: 'json' },
+});
+const rpcHandler = await runtime.createEffectBffTestHandler({ module: rpcRuntime, prefix: '/catalog-api' });
+const server = createServer(async (request, response) => {
+  try {
+    const chunks = [];
+    for await (const chunk of request) chunks.push(chunk);
+    const body = Buffer.concat(chunks);
+    const webResponse = await rpcHandler.handler(new Request(
+      'http://127.0.0.1' + request.url,
+      { method: request.method, headers: request.headers, body: body.length ? body : undefined, duplex: 'half' },
+    ));
+    response.writeHead(webResponse.status, Object.fromEntries(webResponse.headers));
+    response.end(Buffer.from(await webResponse.arrayBuffer()));
+  } catch (error) {
+    response.writeHead(500);
+    response.end(String(error));
+  }
+});
+await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+try {
+  const port = server.address().port;
+  const proofApp = {
+    id: 'catalog',
+    manifestUrl: 'http://127.0.0.1:' + port + '/backend-mf-manifest.json',
+    rpcPath: '/catalog-api/rpc',
+    rpcSerialization: 'json',
+    smokeChecks: [{
+      id: 'catalog-rpc-smoke', route: '/catalog-api/rpc',
+      body: { id: 'catalog-proof', method: 'list', params: { limit: 1 } },
+      expect: { id: 'catalog-proof', 'result.items.0.id': 'starter-catalog' },
+    }],
+  };
+  const loadedRpc = { api: group, contract: { group: 'catalog', path: '/catalog-api/rpc', protocol: 'rpc', serialization: 'json' } };
+  const manifest = { backendFederation: { rpcPath: '/catalog-api/rpc', rpcSerialization: 'json' } };
+  const releaseBinding = { envelope: { envelopeDigest: 'proof-digest' }, apiBackendArtifacts: [] };
+  await assert.rejects(
+    proof.proveLiveRpcApi(proofApp, loadedRpc, { backendFederation: { ...manifest.backendFederation, rpcPath: '/wrong/rpc' } }, releaseBinding, runtime),
+    new RegExp('RPC contract/manifest path'),
+  );
+  await assert.rejects(
+    proof.proveLiveRpcApi(proofApp, loadedRpc, { backendFederation: { ...manifest.backendFederation, rpcSerialization: 'msgPack' } }, releaseBinding, runtime),
+    new RegExp('RPC contract/manifest serialization'),
+  );
+  const proofResult = await proof.proveLiveRpcApi(proofApp, loadedRpc, manifest, releaseBinding, runtime);
+  assert.equal(proofResult.status, 'pass');
+  assert.equal(proofResult.method, 'RPC');
+  assert.deepEqual(proofResult.operations.map(operation => operation.method), ['list', 'get', 'get']);
+  assert.equal(proofResult.operations[2].errorTag, 'CatalogNotFoundRpc');
+} finally {
+  await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+  await rpcHandler.dispose();
 }
 `,
       ],

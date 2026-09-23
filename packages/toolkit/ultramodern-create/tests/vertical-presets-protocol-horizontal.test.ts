@@ -175,8 +175,9 @@ test('rpc protocol emits its contract and routes metadata without a REST surface
       process.platform === 'win32' ? 'junction' : 'dir',
     );
     const lint = spawnSync(
-      oxlintBin,
+      process.execPath,
       [
+        oxlintBin,
         'verticals/catalog/api',
         'verticals/catalog/shared',
         'verticals/catalog/src/api/catalog-rpc-client.ts',
@@ -185,7 +186,11 @@ test('rpc protocol emits its contract and routes metadata without a REST surface
       ],
       { cwd: dir, encoding: 'utf8' },
     );
-    assert.equal(lint.status, 0, `${lint.stdout}\n${lint.stderr}`);
+    assert.equal(
+      lint.status,
+      0,
+      `${lint.error ?? ''}\n${lint.stdout}\n${lint.stderr}`,
+    );
     assertWorkspaceValid(dir);
   });
 });

@@ -181,6 +181,8 @@ const apps = [topology.shell, ...topology.verticals, ...(topology.shells ?? [])]
       typeof rawApp.api?.bff?.prefix === "string"
         ? rawApp.api.bff.prefix.replace(/\/+$/u, "")
         : undefined,
+    apiProtocol: rawApp.api?.protocol ?? "rest",
+    rpcRoute: rawApp.api?.protocol === "rpc" ? rawApp.cloudflare?.routes?.rpc : undefined,
     proofRoutes: proofRoutes.length > 0 ? proofRoutes : defaultProofRoutes,
     jsonSmokeChecks: Array.isArray(rawApp.cloudflare?.jsonSmokeChecks)
       ? rawApp.cloudflare.jsonSmokeChecks
@@ -309,7 +311,10 @@ const findReleaseMarkers = (value, markers = []) => {
   return markers;
 };
 
-const responseEvidence = async (app, response) => {
+const jsonPathValue = (value, key) =>
+  String(key).split(".").reduce((current, segment) => current?.[segment], value);
+
+const responseEvidence = async (app, response, check) => {
   const bytes = Buffer.from(await response.arrayBuffer());
   let body;
   try {
@@ -317,19 +322,36 @@ const responseEvidence = async (app, response) => {
   } catch (error) {
     throw new Error(`${app.id} API response is not JSON: ${error.message}`);
   }
-  const markers = findReleaseMarkers(body);
-  const marker = markers.find(
-    (candidate) =>
-      candidate.appId === app.id &&
-      candidate.build === app.envelope.identity.buildMarker &&
-      candidate.version === app.envelope.identity.releaseVersion,
-  );
-  assert(marker, `${app.id} API response is not tied to its executed release identity`);
   assert(response.ok, `${app.id} API response returned HTTP ${response.status}`);
+  let marker;
+  if (app.apiProtocol === "rpc") {
+    assert(
+      typeof app.rpcRoute === "string" && app.rpcRoute.startsWith("/") &&
+        check.route === app.rpcRoute && String(check.method).toUpperCase() === "POST" &&
+        check.body?.jsonrpc === "2.0" && check.body?.id !== undefined &&
+        body?.jsonrpc === "2.0" && body.id === check.body.id,
+      `${app.id} RPC response does not match its declared POST request`,
+    );
+    assert(
+      check.expect && Object.keys(check.expect).length > 0 &&
+        Object.entries(check.expect).every(([key, expected]) =>
+          JSON.stringify(jsonPathValue(body, key)) === JSON.stringify(expected)),
+      `${app.id} RPC response does not satisfy its declared JSON smoke check`,
+    );
+  } else {
+    const markers = findReleaseMarkers(body);
+    marker = markers.find(
+      (candidate) =>
+        candidate.appId === app.id &&
+        candidate.build === app.envelope.identity.buildMarker &&
+        candidate.version === app.envelope.identity.releaseVersion,
+    );
+    assert(marker, `${app.id} API response is not tied to its executed release identity`);
+  }
   return {
     bodyBase64: bytes.toString("base64"),
     byteLength: bytes.byteLength,
-    releaseMarker: marker,
+    ...(marker ? { releaseMarker: marker } : {}),
     sha256: sha256(bytes),
     status: response.status,
   };
@@ -387,6 +409,7 @@ const runApiProofs = async (miniflare, shell, executionByAppId) => {
         await (
           await miniflare.getWorker(workerName(app))
         ).fetch(`https://${workerName(app)}.invalid${check.route}`, init),
+        check,
       );
       const throughShell = await responseEvidence(
         app,
@@ -394,6 +417,7 @@ const runApiProofs = async (miniflare, shell, executionByAppId) => {
           `https://${workerName(shell)}.invalid${check.route}`,
           init,
         ),
+        check,
       );
       assert(
         direct.sha256 === throughShell.sha256,

@@ -399,6 +399,12 @@ describe('API-only release', () => {
   test('binds a Cloudflare API worker through final output', async () => {
     const f = await apiOnlyFixture('cloudflare');
     await f.put('public/robots.txt', 'User-agent: *\nDisallow: /\n');
+    for (const name of [
+      'worker/__modern_worker_runtime.js',
+      'worker/__modern_worker_shared.js',
+    ]) {
+      await f.put(name, `export const chunk = '${name}';`);
+    }
     const source = await f.emit();
     expect(source?.surfaces.uiClient).toEqual([]);
     expect(source?.surfaces.ssr).toEqual([]);
@@ -412,7 +418,21 @@ describe('API-only release', () => {
     );
     expect(source?.surfaces.apiBackend).toEqual([
       'worker/__modern_bff_effect.js',
+      'worker/__modern_worker_runtime.js',
+      'worker/__modern_worker_shared.js',
     ]);
+    expect(source?.artifacts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          logicalPath: 'worker/__modern_worker_runtime.js',
+          runtime: 'workerd-effect',
+        }),
+        expect.objectContaining({
+          logicalPath: 'worker/__modern_worker_shared.js',
+          runtime: 'workerd-effect',
+        }),
+      ]),
+    );
     const outputDirectory = await fs.mkdtemp(
       path.join(os.tmpdir(), 'api-only-cloudflare-release-'),
     );
@@ -422,6 +442,11 @@ describe('API-only release', () => {
       ['backendRemoteEntry.cjs', 'public/backendRemoteEntry.cjs'],
       ['public/robots.txt', 'public/robots.txt'],
       ['worker/__modern_bff_effect.js', 'worker/__modern_bff_effect.js'],
+      [
+        'worker/__modern_worker_runtime.js',
+        'worker/__modern_worker_runtime.js',
+      ],
+      ['worker/__modern_worker_shared.js', 'worker/__modern_worker_shared.js'],
     ]) {
       await fs.mkdir(path.dirname(path.join(outputDirectory, to)), {
         recursive: true,
@@ -453,15 +478,31 @@ describe('API-only release', () => {
     });
     expect(staged?.surfaces.uiClient).toEqual([]);
     expect(staged?.surfaces.ssr).toEqual([]);
+    expect(staged?.surfaces.apiBackend).toEqual(source?.surfaces.apiBackend);
     expect(staged?.artifacts).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           logicalPath: 'public/robots.txt',
           runtime: 'crawler-policy',
         }),
+        expect.objectContaining({
+          logicalPath: 'worker/__modern_worker_shared.js',
+          runtime: 'workerd-effect',
+        }),
       ]),
     );
     await framework.verifyCloudflareReleaseEnvelopeStaging(outputDirectory);
+    await fs.writeFile(
+      path.join(outputDirectory, 'worker/__modern_worker_shared.js'),
+      'export const chunk = "tampered";',
+    );
+    await expect(
+      framework.verifyCloudflareReleaseEnvelopeStaging(outputDirectory),
+    ).rejects.toThrow(/digest/u);
+    await fs.copyFile(
+      path.join(f.root, 'worker/__modern_worker_shared.js'),
+      path.join(outputDirectory, 'worker/__modern_worker_shared.js'),
+    );
     await fs.writeFile(
       path.join(outputDirectory, 'public/app.js'),
       'console.log("unexpected UI")',
@@ -475,7 +516,31 @@ describe('API-only release', () => {
     await fs.rm(path.join(outputDirectory, 'public/app.js'));
     await fs.rm(path.join(outputDirectory, 'worker/__modern_bff_effect.js'));
     await expect(
+      framework.emitCloudflareStagedReleaseEnvelope({
+        distDirectory: f.root,
+        outputDirectory,
+      }),
+    ).rejects.toThrow(/no actual Effect API\/BFF worker/u);
+    await expect(
       framework.verifyCloudflareReleaseEnvelopeStaging(outputDirectory),
     ).rejects.toThrow(/does not exist/u);
+  });
+
+  test('rejects worker support chunks without an API entry and actual SSR code', async () => {
+    const missingApi = await apiOnlyFixture('cloudflare');
+    await fs.rm(path.join(missingApi.root, 'worker/__modern_bff_effect.js'));
+    await missingApi.put('worker/__modern_worker_runtime.js', 'export {};');
+    await expect(missingApi.emit()).rejects.toThrow(
+      /no actual Effect API\/BFF worker artifact/u,
+    );
+
+    const undeclaredSsr = await apiOnlyFixture('cloudflare');
+    await undeclaredSsr.put(
+      'worker/main.js',
+      'export const render = () => null;',
+    );
+    await expect(undeclaredSsr.emit()).rejects.toThrow(
+      /undeclared UI\/client or SSR surface/u,
+    );
   });
 });

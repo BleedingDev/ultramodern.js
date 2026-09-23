@@ -583,7 +583,13 @@ function manifestModuleFederationCohort(
   return configuredCohort;
 }
 
-function verifyWorkerdResponse(response, app, identity, label) {
+function jsonPathValue(value, key) {
+  return String(key)
+    .split('.')
+    .reduce((current, segment) => current?.[segment], value);
+}
+
+function verifyWorkerdResponse(response, app, identity, label, check) {
   if (
     !isRecord(response) ||
     typeof response.bodyBase64 !== 'string' ||
@@ -601,7 +607,32 @@ function verifyWorkerdResponse(response, app, identity, label) {
   ) {
     throw new Error(`${app.id} ${label} API response digest mismatch`);
   }
-  JSON.parse(bytes.toString('utf8'));
+  const body = JSON.parse(bytes.toString('utf8'));
+  const rpcRoute = app.deploy?.cloudflare?.routes?.rpc;
+  if (app.api?.protocol === 'rpc') {
+    if (
+      typeof rpcRoute !== 'string' ||
+      !rpcRoute.startsWith('/') ||
+      check?.route !== rpcRoute ||
+      String(check.method).toUpperCase() !== 'POST' ||
+      check.body?.jsonrpc !== '2.0' ||
+      check.body?.id === undefined ||
+      body?.jsonrpc !== '2.0' ||
+      body.id !== check.body.id ||
+      !isRecord(check.expect) ||
+      Object.keys(check.expect).length === 0 ||
+      Object.entries(check.expect).some(
+        ([key, expected]) =>
+          JSON.stringify(jsonPathValue(body, key)) !== JSON.stringify(expected),
+      ) ||
+      response.releaseMarker !== undefined
+    ) {
+      throw new Error(
+        `${app.id} ${label} RPC response is not bound to its declared POST smoke check`,
+      );
+    }
+    return;
+  }
   if (
     response.releaseMarker?.appId !== app.id ||
     response.releaseMarker?.build !== identity.buildMarker ||
@@ -709,6 +740,9 @@ function verifyWorkerdRuntimeCorrelation(projectDir, app, location) {
     );
   }
   for (const proof of apiProofs) {
+    const check = expectedChecks.find(
+      candidate => checkKey(candidate) === checkKey(proof),
+    );
     if (
       proof.bindingTarget?.appId !== app.id ||
       proof.bindingTarget?.envelopeDigest !==
@@ -726,12 +760,14 @@ function verifyWorkerdRuntimeCorrelation(projectDir, app, location) {
       app,
       location.envelope.identity,
       'direct',
+      check,
     );
     verifyWorkerdResponse(
       proof.throughShell,
       app,
       location.envelope.identity,
       'service-binding',
+      check,
     );
     if (proof.direct.sha256 !== proof.throughShell.sha256) {
       throw new Error(
@@ -1242,4 +1278,5 @@ export {
   bindContractToReleaseIdentity,
   createRuntimeEvidence,
   readNodeBackendArtifactEvidence,
+  verifyWorkerdResponse,
 };

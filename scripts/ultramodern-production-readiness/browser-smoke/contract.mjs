@@ -392,6 +392,7 @@ export function readSmokeContract(projectDir) {
     const api =
       entry.api?.runtime === 'effect'
         ? {
+            protocol: entry.api.protocol ?? 'rest',
             stem:
               entry.api.stem ??
               entry.api.basePath?.split('/').filter(Boolean).at(-1) ??
