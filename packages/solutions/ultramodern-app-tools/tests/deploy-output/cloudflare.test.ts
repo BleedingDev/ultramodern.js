@@ -60,6 +60,7 @@ module.exports = {
 `;
 
 async function createFixture({
+  apiOnly = false,
   artifacts,
   bffCrossProjectPolicy,
   d1Databases,
@@ -74,6 +75,7 @@ async function createFixture({
   deliveryUnit,
   buildArtifactIdentity,
 }: {
+  apiOnly?: boolean;
   artifacts?: CloudflareWorkerArtifactConfig[];
   bffCrossProjectPolicy?: Record<string, unknown>;
   d1Databases?: CloudflareWorkerD1DatabaseConfig[];
@@ -263,6 +265,7 @@ async function createFixture({
 
   const preset = createCloudflarePreset({
     appContext: {
+      apiOnly,
       appDirectory,
       distDirectory,
       serverPlugins: [],
@@ -536,6 +539,61 @@ describe('cloudflare deploy preset', () => {
     await expect(
       fs.access(path.join(outputDirectory, 'worker/main.js.map')),
     ).rejects.toThrow();
+  });
+
+  it('publishes only explicit assets and backend contracts from API-only builds', async () => {
+    const publicFiles = {
+      '.well-known/ontos-module-manifest.json': '{"kind":"api-only"}',
+      _headers: '/api/*\n  Cache-Control: no-store',
+      'robots.txt': 'User-agent: *\nDisallow: /',
+    };
+    const backendFiles = {
+      'backend-mf-manifest.json': '{"name":"payment-term"}',
+      'backendRemoteEntry.cjs': 'module.exports = {};',
+      'ultramodern-build.json': '{"buildMarker":"api-only"}',
+    };
+    const privateFiles = {
+      'src/actions/change.js': 'export const change = () => {};',
+      'src/actions/change.d.ts': 'export declare const change: () => void;',
+      'domain/persistence/repository.js': 'export const database = "private";',
+      'arbitrary-import-root/secret.json': '{"token":"private"}',
+      'vertical.registration.js': 'export const registration = {};',
+      'private.d.ts': 'export declare const privateValue: string;',
+    };
+    const { outputDirectory } = await createFixture({
+      apiOnly: true,
+      distFiles: {
+        ...backendFiles,
+        ...privateFiles,
+        ...Object.fromEntries(
+          Object.entries(publicFiles).map(([filename, content]) => [
+            `public/${filename}`,
+            content,
+          ]),
+        ),
+      },
+    });
+    const publicDirectory = path.join(outputDirectory, 'public');
+
+    for (const [filename, content] of Object.entries({
+      ...publicFiles,
+      ...backendFiles,
+    })) {
+      await expect(
+        fs.readFile(path.join(publicDirectory, filename), 'utf-8'),
+      ).resolves.toBe(content);
+    }
+    for (const filename of Object.keys(privateFiles)) {
+      await expect(
+        fs.access(path.join(publicDirectory, filename)),
+      ).rejects.toThrow();
+    }
+    await expect(
+      fs.readFile(
+        path.join(outputDirectory, 'worker/__modern_bff_effect.js'),
+        'utf-8',
+      ),
+    ).resolves.toBe(effectBffWorkerSource);
   });
 
   it('does not expose dotenv files through Cloudflare public assets', async () => {
