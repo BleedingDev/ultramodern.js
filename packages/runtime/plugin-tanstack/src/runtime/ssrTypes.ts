@@ -34,13 +34,6 @@ type RouterRouteWithOptions = {
 
 export type TanstackRouterWithServerSsr = AnyRouter & {
   routesById?: Record<string, RouterRouteWithOptions>;
-  serverSsr?: {
-    cleanup?: () => void;
-    dehydrate?: () => Promise<void> | void;
-    isSerializationFinished?: () => boolean;
-    onSerializationFinished?: (listener: () => void) => void;
-    takeBufferedScripts?: () => unknown;
-  };
   state: AnyRouter['state'] & {
     matches?: unknown;
   };

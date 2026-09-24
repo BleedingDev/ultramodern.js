@@ -56,7 +56,6 @@ import {
   collectRouterErrors,
   createGetSsrHref,
   routerManagedTagsToHtml,
-  waitForRouterSerialization,
 } from './ssrManagedTags';
 import { preloadMatchedRouteComponents } from './ssrPreload';
 import type {
@@ -178,7 +177,7 @@ export const tanstackRouterPlugin = (
           disposed = true;
           rawRequest.signal.removeEventListener('abort', onAbort);
           controller.abort();
-          serverRouter.serverSsr?.cleanup?.();
+          serverRouter.serverSsr?.cleanup();
         };
         // Acquire the disposer before attachment: every subsequent failure,
         // including partial attachment, has an owner. Successful preparation
@@ -244,16 +243,9 @@ export const tanstackRouterPlugin = (
               | undefined
           )?.status(serverLoadResult.status);
 
-          await serverRouter.serverSsr?.dehydrate?.();
+          await serverRouter.serverSsr?.dehydrate();
 
           if (enableRsc) {
-            if (isRSCNavigation) {
-              // RSC navigations consume the server payload directly. Normal HTML SSR
-              // emits the buffered bootstrap script below and must not wait here
-              // because Modern's non-streaming hook has not rendered the app yet.
-              await waitForRouterSerialization(serverRouter);
-            }
-
             setTanstackRscServerPayload(
               createTanstackRscServerPayload(serverRouter, {
                 omitClientLoaderData: isRSCNavigation,
@@ -261,8 +253,14 @@ export const tanstackRouterPlugin = (
             );
           }
 
-          const ssrScriptTags = serverRouter.serverSsr?.takeBufferedScripts?.();
-          const hydrationScripts = routerManagedTagsToHtml(ssrScriptTags);
+          const initialScriptTags =
+            serverRouter.serverSsr?.takeInitialHydrationScriptTags();
+          const hydrationScripts = initialScriptTags
+            ? routerManagedTagsToHtml([
+                ...initialScriptTags.before,
+                initialScriptTags.boundary,
+              ])
+            : [];
           const matchedRouteIds = getModernRouteIdsFromMatches(serverRouter);
           const routerServerSnapshot: InternalRouterServerSnapshot = {
             framework: 'tanstack',
