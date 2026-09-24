@@ -45,11 +45,11 @@
   },
   "devDependencies": {
     "@modern-js/app-tools": "workspace:*",
-    "@rslib/core": "1.0.0",
-    "@types/node": "^26.4.1",
+    "@rslib/core": "1.0.2",
+    "@types/node": "^26.6.2",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
     "typescript": "^7.0.2"
   }
 }

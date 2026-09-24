@@ -191,13 +191,10 @@ test('recipe-only sidecar closure records exact publication identities and alias
   );
   const sidecars = sidecarsModule.collectSidecarPackages();
   const byName = new Map(sidecars.map(sidecar => [sidecar.name, sidecar]));
-  assert.equal(sidecars.length, 20);
-  assert.equal(byName.get('@bleedingdev/effect').version, '4.0.0-rc.112');
+  assert.equal(sidecars.length, 19);
+  assert.equal(byName.get('@bleedingdev/effect').version, '4.0.0-rc.117');
+  assert.equal(byName.has('@bleedingdev/msgpackr'), false);
   assert.equal(byName.get('@bleedingdev/drizzle-orm').version, '1.0.0-rc.4');
-  assert.equal(
-    byName.get('@bleedingdev/effect').packageJson.dependencies.msgpackr,
-    'npm:@bleedingdev/msgpackr@2.1.0',
-  );
   assert.equal(byName.get('@bleedingdev/mf-cli').recipeOnly, true);
   assert.equal(byName.get('@bleedingdev/mf-enhanced').recipeOnly, true);
 
@@ -211,18 +208,18 @@ test('recipe-only sidecar closure records exact publication identities and alias
   const consumer = {
     name: '@bleedingdev/modern-js-plugin-bff-extensions',
     dependencies: {
-      '@module-federation/runtime': '2.9.0',
-      effect: '4.0.0-rc.112',
+      '@module-federation/runtime': '2.9.1',
+      effect: '4.0.0-rc.117',
     },
   };
   sidecarsModule.rewriteSidecarConsumerAliases(consumer, sidecars);
   assert.equal(
     consumer.dependencies['@module-federation/runtime'],
-    'npm:@bleedingdev/mf-runtime@2.9.0',
+    'npm:@bleedingdev/mf-runtime@2.9.1',
   );
   assert.equal(
     consumer.dependencies.effect,
-    'npm:@bleedingdev/effect@4.0.0-rc.112',
+    'npm:@bleedingdev/effect@4.0.0-rc.117',
   );
 });
 

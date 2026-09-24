@@ -43,8 +43,7 @@ export type EffectRpcSerialization =
   | 'json'
   | 'ndjson'
   | 'jsonRpc'
-  | 'ndJsonRpc'
-  | 'msgPack';
+  | 'ndJsonRpc';
 
 export type EffectRpcRuntimeLayer<TRpcs extends Rpc.Any = Rpc.Any> =
   Layer.Layer<

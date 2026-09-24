@@ -15,7 +15,7 @@ export const pluginManifest = (): RsbuildPlugin => ({
             target === 'web'
               ? 'asset-manifest.json'
               : `asset-manifest-${target}.json`,
-          publicPath,
+          publicPath: typeof publicPath === 'string' ? publicPath : undefined,
           generate: generateManifest,
         },
       ]);

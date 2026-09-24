@@ -40,21 +40,21 @@
     "@swc/helpers": "^0.5.23",
     "koa-compose": "^4.1.0",
     "reflect-metadata": "^0.2.2",
-    "type-fest": "5.9.0"
+    "type-fest": "5.10.0"
   },
   "devDependencies": {
     "@modern-js/bff-runtime": "workspace:*",
     "@modern-js/rslib": "workspace:*",
+    "@modern-js/server-runtime-extensions": "workspace:*",
     "@modern-js/types": "workspace:*",
-    "@rslib/core": "1.0.0",
+    "@rslib/core": "1.0.2",
     "@scripts/rstest-config": "workspace:*",
     "@types/koa-compose": "^3.2.9",
-    "@types/node": "^26.4.1",
+    "@types/node": "^26.6.2",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "esbuild": "^0.28.2",
     "tsconfig-paths": "^4.2.0",
-    "zod": "^4.5.4",
-    "@modern-js/server-runtime-extensions": "workspace:*"
+    "zod": "^4.6.5"
   },
   "peerDependencies": {
     "tsconfig-paths": "^4.2.0",

@@ -10,7 +10,10 @@
   },
   "license": "MIT",
   "version": "3.8.3",
-  "files": ["dist", "src"],
+  "files": [
+    "dist",
+    "src"
+  ],
   "types": "./src/backend-federation-contract/index.ts",
   "main": "./dist/cjs/backend-federation-contract/index.js",
   "module": "./dist/esm/backend-federation-contract/index.mjs",
@@ -35,7 +38,7 @@
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
     "@modern-js/tsconfig": "workspace:*",
-    "@rslib/core": "1.0.0",
+    "@rslib/core": "1.0.2",
     "@rstest/core": "0.11.12",
     "@scripts/rstest-config": "workspace:*",
     "@typescript/native-preview": "7.0.0-dev.20260707.2"

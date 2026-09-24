@@ -5,16 +5,16 @@ Edit `packages/toolkit/ultramodern-create/src/ultramodern-workspace/patch-invent
 
 | Package | Repository | Workspace | Purpose |
 | --- | --- | --- | --- |
-| @module-federation/bridge-react@2.9.0 | yes | none | Portable React declaration specifiers. |
-| @module-federation/dts-plugin@2.9.0 | yes | none | Preserve declaration rootDir and execute native compiler paths without shell parsing. |
-| @module-federation/manifest@2.9.0 | yes | none | Defer DTS loading when DTS is disabled. |
-| @module-federation/modern-js-v3@2.9.0 | yes | none | Preserve lazy compilation, framework CSS ownership, SSR manifest recovery, valid async splitting and native ESM CLI package resolution. |
-| @module-federation/rspack@2.9.0 | yes | none | Defer DTS plugin loading when DTS is disabled. |
-| @module-federation/runtime-core@2.9.0 | yes | none | Import ResourceLoadContext used by public remote hooks. |
+| @module-federation/bridge-react@2.9.1 | yes | none | Portable React declaration specifiers. |
+| @module-federation/dts-plugin@2.9.1 | yes | none | Preserve declaration rootDir and execute native compiler paths without shell parsing. |
+| @module-federation/manifest@2.9.1 | yes | none | Defer DTS loading when DTS is disabled. |
+| @module-federation/modern-js-v3@2.9.1 | yes | none | Preserve lazy compilation, framework CSS ownership, SSR manifest recovery, valid async splitting and native ESM CLI package resolution. |
+| @module-federation/rspack@2.9.1 | yes | none | Defer DTS plugin loading when DTS is disabled. |
+| @module-federation/runtime-core@2.9.1 | yes | none | Import ResourceLoadContext used by public remote hooks. |
 | drizzle-orm@1.0.0-rc.4 | no | none | Strict TypeScript declarations for generated database applications. |
+| effect@4.0.0-rc.117 | yes | none | Build router params without string code generation in CSP/Worker bundles. |
 | image-size@2.0.2 | yes | none | Bound malformed image parser loops; also the image-size sidecar recipe. |
-| msgpackr@2.1.0 | yes | none | Use CSP-safe ordinary decoder without dynamic Function optimization. |
-| zod@4.5.4 | yes | none | Disable code-generation capability probing in CSP/Worker bundles. |
+| zod@4.6.5 | yes | none | Disable code-generation capability probing in CSP/Worker bundles. |
 
 Run the command without flags to verify integrity and all projections. `--write-assets` updates only packaged assets and this document; `--write` also regenerates the repository configuration. Regenerate the lockfile with pnpm when patch bytes or dependency selectors change. Never hand-edit packaged copies.
 

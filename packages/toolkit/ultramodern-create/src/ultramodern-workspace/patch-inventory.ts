@@ -1,8 +1,8 @@
 export default [
   {
     packageName: '@module-federation/bridge-react',
-    version: '2.9.0',
-    path: 'patches/@module-federation__bridge-react@2.9.0.patch',
+    version: '2.9.1',
+    path: 'patches/@module-federation__bridge-react@2.9.1.patch',
     sha256: '8c084f41790295af8fd015b897c6298bbc13d927b796c624ac96cb2bdb4bc87c',
     repository: true,
     workspace: null,
@@ -10,8 +10,8 @@ export default [
   },
   {
     packageName: '@module-federation/dts-plugin',
-    version: '2.9.0',
-    path: 'patches/@module-federation__dts-plugin@2.9.0.patch',
+    version: '2.9.1',
+    path: 'patches/@module-federation__dts-plugin@2.9.1.patch',
     sha256: 'c52b86d551da354492cf255cfb8c0e56e51cb6b4452319b47295ac969704819d',
     repository: true,
     workspace: null,
@@ -20,8 +20,8 @@ export default [
   },
   {
     packageName: '@module-federation/manifest',
-    version: '2.9.0',
-    path: 'patches/@module-federation__manifest@2.9.0.patch',
+    version: '2.9.1',
+    path: 'patches/@module-federation__manifest@2.9.1.patch',
     sha256: 'a31d4d30913ffb579faf42be4f1c03a0f330d3f09348e9eedc00059d6e8d123f',
     repository: true,
     workspace: null,
@@ -29,8 +29,8 @@ export default [
   },
   {
     packageName: '@module-federation/modern-js-v3',
-    version: '2.9.0',
-    path: 'patches/@module-federation__modern-js-v3@2.9.0.patch',
+    version: '2.9.1',
+    path: 'patches/@module-federation__modern-js-v3@2.9.1.patch',
     sha256: '0ab5fa14ed744c31c8221c6f663c9fc5b50a134f641e65277900c88da6cb72d0',
     repository: true,
     workspace: null,
@@ -39,8 +39,8 @@ export default [
   },
   {
     packageName: '@module-federation/rspack',
-    version: '2.9.0',
-    path: 'patches/@module-federation__rspack@2.9.0.patch',
+    version: '2.9.1',
+    path: 'patches/@module-federation__rspack@2.9.1.patch',
     sha256: '7beed0f736d66f78abeba9ed9b5537e571eff92f49aa03bd30a6b674f32f4eae',
     repository: true,
     workspace: null,
@@ -48,8 +48,8 @@ export default [
   },
   {
     packageName: '@module-federation/runtime-core',
-    version: '2.9.0',
-    path: 'patches/@module-federation__runtime-core@2.9.0.patch',
+    version: '2.9.1',
+    path: 'patches/@module-federation__runtime-core@2.9.1.patch',
     sha256: 'b241be221397f0e07dbe6c515725e12eaf3b418469bb7dd21750e6e4b215dd8d',
     repository: true,
     workspace: null,
@@ -66,6 +66,16 @@ export default [
       'Strict TypeScript declarations for generated database applications.',
   },
   {
+    packageName: 'effect',
+    version: '4.0.0-rc.117',
+    path: 'patches/effect@4.0.0-rc.117.patch',
+    sha256: '1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5',
+    repository: true,
+    workspace: null,
+    reason:
+      'Build router params without string code generation in CSP/Worker bundles.',
+  },
+  {
     packageName: 'image-size',
     version: '2.0.2',
     path: 'patches/image-size@2.0.2.patch',
@@ -76,20 +86,10 @@ export default [
       'Bound malformed image parser loops; also the image-size sidecar recipe.',
   },
   {
-    packageName: 'msgpackr',
-    version: '2.1.0',
-    path: 'patches/msgpackr@2.1.0.patch',
-    sha256: 'de5c91fa6cfd894d171ed06673af40046ba97c7eb604409caf5f510e1a8a5b7a',
-    repository: true,
-    workspace: null,
-    reason:
-      'Use CSP-safe ordinary decoder without dynamic Function optimization.',
-  },
-  {
     packageName: 'zod',
-    version: '4.5.4',
-    path: 'patches/zod@4.5.4.patch',
-    sha256: '30612645af6a21cba7258bc2be3b51d9bfc0841b78dc581a56a4283c3bb142b6',
+    version: '4.6.5',
+    path: 'patches/zod@4.6.5.patch',
+    sha256: '7640b49bb7addea5feff95947618c322ddb94b0bc834b4eb3ad349cff6fbf73b',
     repository: true,
     workspace: null,
     reason: 'Disable code-generation capability probing in CSP/Worker bundles.',

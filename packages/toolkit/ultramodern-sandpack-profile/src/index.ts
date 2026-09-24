@@ -6,7 +6,7 @@ const packageJson = `${JSON.stringify(
     version: '0.1.0',
     private: true,
     type: 'module',
-    packageManager: 'pnpm@11.24.0',
+    packageManager: 'pnpm@11.27.1',
     scripts: {
       dev: 'modern dev',
       start: 'modern dev --host 0.0.0.0',
@@ -14,7 +14,7 @@ const packageJson = `${JSON.stringify(
     },
     engines: {
       node: '>=26.7.0',
-      pnpm: '>=11.24.0',
+      pnpm: '>=11.27.1',
     },
     dependencies: {
       '@modern-js/i18n-integration':
@@ -25,7 +25,7 @@ const packageJson = `${JSON.stringify(
       '@modern-js/plugin-tanstack':
         'npm:@bleedingdev/modern-js-plugin-tanstack@latest',
       '@modern-js/runtime': 'npm:@bleedingdev/modern-js-runtime@latest',
-      effect: '4.0.0-rc.112',
+      effect: '4.0.0-rc.117',
       i18next: '26.3.6',
       react: '19.2.8',
       'react-dom': '19.2.8',

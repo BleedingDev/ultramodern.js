@@ -51,15 +51,15 @@ pnpm check
 pnpm build
 ```
 
-The generated toolchain pins Node `26.7.0`, pnpm `11.24.0`, and
-`@types/node@^26.4.1`; its engine baseline remains Node `>=26` with pnpm `11+`.
+The generated toolchain pins Node `26.7.0`, pnpm `11.27.1`, and
+`@types/node@^26.6.2`; its engine baseline remains Node `>=26` with pnpm `11+`.
 `packageManager`, `.mise.toml`, generated validation, and CI should all agree
 on those values; do not reintroduce Corepack or older pnpm aliases.
 
-The current generated dependency cohort also pins `@effect/tsgo@0.41.0`,
-`@tanstack/react-router@1.170.33`, `@tanstack/router-core@1.171.28`,
-`@tanstack/history@1.162.2`, and the Module Federation integration `2.9.0`
-cohort, `@module-federation/node@2.7.50`. Move these only through the
+The current generated dependency cohort also pins `@effect/tsgo@0.45.0`,
+`@tanstack/react-router@1.170.35`, `@tanstack/router-core@1.171.29`,
+`@tanstack/history@1.162.3`, and the Module Federation integration `2.9.1`
+cohort, `@module-federation/node@2.7.51`. Move these only through the
 generator-owned version policy so templates, validation, and the published
 workspace contract stay aligned.
 

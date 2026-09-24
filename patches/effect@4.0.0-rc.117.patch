@@ -1,0 +1,64 @@
+diff --git a/dist/unstable/http/FindMyWay/internal/router.js b/dist/unstable/http/FindMyWay/internal/router.js
+index b2cea373ce6f9192b3ca3bfa84de52d19ce22561..293fb6ec42262e6889ea5bf5bce0cfd48ae24cf8 100644
+--- a/dist/unstable/http/FindMyWay/internal/router.js
++++ b/dist/unstable/http/FindMyWay/internal/router.js
+@@ -607,23 +607,12 @@ function trimLastSlash(path) {
+   }
+   return path;
+ }
+-// Compile safe, unique parameter names into a stable null-prototype shape.
+-// Other names and codegen-restricted runtimes use assignment.
+-const safeParamName = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
+-const isCompilableParamName = name => name !== "__proto__" && safeParamName.test(name);
++// Build params by assignment; UltraModern worker bundles forbid string code generation.
+ function compileCreateParams(params) {
+   const len = params.length;
+   if (len === 0) {
+     return () => Object.create(null);
+   }
+-  if (params.every(isCompilableParamName) && new Set(params).size === len) {
+-    try {
+-      // eslint-disable-next-line no-new-func
+-      return new Function("a", `return {__proto__:null,${params.map((name, i) => `${name}:a[${i}]`).join(",")}}`);
+-    } catch {
+-      // Use assignment when CSP blocks Function construction.
+-    }
+-  }
+   return function (paramsArray) {
+     const paramsObject = Object.create(null);
+     for (let i = 0; i < len; i++) {
+diff --git a/src/unstable/http/FindMyWay/internal/router.ts b/src/unstable/http/FindMyWay/internal/router.ts
+index 66f6aa2adb6daa55e2b44c4a9d263dbab466e595..d3f7f5385cad1e7ed31ff97f43d0de2ec9f337a5 100644
+--- a/src/unstable/http/FindMyWay/internal/router.ts
++++ b/src/unstable/http/FindMyWay/internal/router.ts
+@@ -842,11 +842,7 @@ function trimLastSlash(path: string): Router.PathInput {
+   return path as Router.PathInput
+ }
+ 
+-// Compile safe, unique parameter names into a stable null-prototype shape.
+-// Other names and codegen-restricted runtimes use assignment.
+-const safeParamName = /^[A-Za-z_$][A-Za-z0-9_$]*$/
+-const isCompilableParamName = (name: string): boolean => name !== "__proto__" && safeParamName.test(name)
+-
++// Build params by assignment; UltraModern worker bundles forbid string code generation.
+ function compileCreateParams(
+   params: ReadonlyArray<string>
+ ): (paramsArray: ReadonlyArray<string>) => Record<string, string> {
+@@ -854,17 +850,6 @@ function compileCreateParams(
+   if (len === 0) {
+     return () => Object.create(null)
+   }
+-  if (params.every(isCompilableParamName) && new Set(params).size === len) {
+-    try {
+-      // eslint-disable-next-line no-new-func
+-      return new Function(
+-        "a",
+-        `return {__proto__:null,${params.map((name, i) => `${name}:a[${i}]`).join(",")}}`
+-      ) as (paramsArray: ReadonlyArray<string>) => Record<string, string>
+-    } catch {
+-      // Use assignment when CSP blocks Function construction.
+-    }
+-  }
+   return function(paramsArray) {
+     const paramsObject: Record<string, string> = Object.create(null)
+     for (let i = 0; i < len; i++) {

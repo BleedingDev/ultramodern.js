@@ -91,16 +91,16 @@
     "@modern-js/runtime-utils": "workspace:*",
     "@modern-js/types": "workspace:*",
     "@modern-js/utils": "workspace:*",
-    "@rsbuild/core": "2.2.3",
+    "@rsbuild/core": "2.2.9",
     "@swc/helpers": "^0.5.23",
     "jiti": "^2.7.0"
   },
   "devDependencies": {
     "@modern-js/builder": "workspace:*",
     "@modern-js/rslib": "workspace:*",
-    "@rslib/core": "1.0.0",
-    "@types/node": "^26.4.1",
-    "@types/react": "^19.2.18",
+    "@rslib/core": "1.0.2",
+    "@types/node": "^26.6.2",
+    "@types/react": "^19.3.0",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "typescript": "^7.0.2"
   },

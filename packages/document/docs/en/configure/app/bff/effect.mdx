@@ -53,7 +53,7 @@ the framework use the same Effect instance. Before setting
 `/effect-edge` or `/effect-client`, install the exact cohort:
 
 ```bash
-pnpm add effect@4.0.0-rc.112 @effect/opentelemetry@4.0.0-rc.112
+pnpm add effect@4.0.0-rc.117 @effect/opentelemetry@4.0.0-rc.117
 ```
 
 The pin is exact because UltraModern ships Effect as one lockstep cohort. Apps
@@ -230,13 +230,13 @@ generated apps use:
 
 ```yaml
 trustPolicyExclude:
-  - 'effect@4.0.0-rc.112'
-  - '@effect/opentelemetry@4.0.0-rc.112'
+  - 'effect@4.0.0-rc.117'
+  - '@effect/opentelemetry@4.0.0-rc.117'
 
 overrides:
-  '@effect/opentelemetry': 4.0.0-rc.112
-  '@effect/vitest': 4.0.0-rc.112
-  effect: 4.0.0-rc.112
+  '@effect/opentelemetry': 4.0.0-rc.117
+  '@effect/vitest': 4.0.0-rc.117
+  effect: 4.0.0-rc.117
 ```
 
 Do not add a different direct `effect` version in an app package. A mismatched
