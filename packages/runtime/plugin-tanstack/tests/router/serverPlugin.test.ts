@@ -118,6 +118,11 @@ describe('tanstack server plugin router results', () => {
       framework: 'tanstack',
       statusCode: 200,
     });
+    // Without the dehydrated router the client re-renders matched remotes
+    // from scratch instead of hydrating the server HTML.
+    expect(getRouterServerSnapshot(context)?.hydrationScripts).toEqual(
+      expect.arrayContaining([expect.stringContaining('$_TSR')]),
+    );
   });
 
   test('interrupts SSR with the router redirect response', async () => {

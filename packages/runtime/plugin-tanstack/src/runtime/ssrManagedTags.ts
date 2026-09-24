@@ -6,23 +6,6 @@ import type {
   TanstackRouterWithServerSsr,
 } from './ssrTypes';
 
-export async function waitForRouterSerialization(
-  tanstackRouter: TanstackRouterWithServerSsr,
-) {
-  const serverSsr = tanstackRouter.serverSsr;
-  if (
-    !serverSsr ||
-    typeof serverSsr.onSerializationFinished !== 'function' ||
-    serverSsr.isSerializationFinished?.()
-  ) {
-    return;
-  }
-
-  await new Promise<void>(resolve => {
-    serverSsr.onSerializationFinished?.(resolve);
-  });
-}
-
 function htmlEscapeAttr(value: string) {
   return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 }

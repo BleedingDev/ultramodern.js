@@ -95,7 +95,7 @@ describe('i18n TanStack localisedUrls', () => {
     );
 
     expect(html.res.status).toBe(200);
-    expect(html.text).toContain('id="$tsr-stream-barrier"');
+    expect(html.text).toContain('/*$tsr-stream-boundary');
     expect(html.text).toContain('$_TSR');
     expect(html.text).toMatch(/product:.*cs.*bota.*Produkty/s);
     expect(html.text).toMatch(/path:.*\/cs\/produkty\/bota/s);

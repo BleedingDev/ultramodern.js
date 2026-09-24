@@ -70,7 +70,7 @@ describe('routes-tanstack', () => {
   test('injects TanStack SSR bootstrap before the entry script (string + stream)', async () => {
     for (const route of ['string', 'stream'] as const) {
       const { text } = await fetchHtml(`http://localhost:${appPort}/${route}`);
-      expect(text).toContain('id="$tsr-stream-barrier"');
+      expect(text).toContain('/*$tsr-stream-boundary');
       expect(text).toContain('$_TSR');
       const bootstrapIndex = text.indexOf('$_TSR');
       const entryIndex = text.search(
