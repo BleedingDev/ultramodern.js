@@ -280,7 +280,6 @@ const createWorkerOptions = (app, extra = {}) => {
     compatibilityDate: app.wrangler.compatibility_date,
     compatibilityFlags: app.wrangler.compatibility_flags,
     assets: {
-      workerName: workerName(app),
       binding: typeof assets.binding === "string" ? assets.binding : "ASSETS",
       directory: path.resolve(app.outputRoot, directory),
       routerConfig: {
