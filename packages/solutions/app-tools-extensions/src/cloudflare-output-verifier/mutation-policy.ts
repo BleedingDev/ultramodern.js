@@ -140,7 +140,17 @@ export const verifyCloudflareOutputMutationPolicy = async (
     if (excludedFiles.has(file)) {
       continue;
     }
-    const source = await fs.readFile(file, 'utf-8');
+    let source: string;
+    try {
+      source = await fs.readFile(file, 'utf-8');
+    } catch (error) {
+      // Concurrent sibling builds delete transient files (for example tsgo
+      // resolved configs) between the walk and the read.
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        continue;
+      }
+      throw error;
+    }
     for (const forbidden of FORBIDDEN_MUTATION_PATTERNS) {
       if (forbidden.pattern.test(source)) {
         addIssue(issues, {
