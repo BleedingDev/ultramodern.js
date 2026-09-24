@@ -266,6 +266,25 @@ index 8dddf4c..8cf30d5 100644
    readonly name: string;
    static readonly [entityKind]: string;
    readonly as: PgPolicyConfig['as'];
+diff --git a/pg-core/query-builders/refresh-materialized-view.d.ts b/pg-core/query-builders/refresh-materialized-view.d.ts
+index e2d890d..90f50e2 100644
+--- a/pg-core/query-builders/refresh-materialized-view.d.ts
++++ b/pg-core/query-builders/refresh-materialized-view.d.ts
+@@ -1,5 +1,5 @@
+ import { entityKind } from "../../entity.js";
+-import { Query, SQLWrapper } from "../../sql/sql.js";
++import { Query, SQL, SQLWrapper } from "../../sql/sql.js";
+ import { PgDialect } from "../dialect.js";
+ import { PgMaterializedView } from "../view.js";
+ import { PgQueryResultHKT, PgQueryResultKind, PgSession } from "../session.js";
+@@ -21,6 +21,7 @@ declare class PgRefreshMaterializedView<TQueryResult extends PgQueryResultHKT> i
+   constructor(view: PgMaterializedView, session: PgSession, dialect: PgDialect);
+   concurrently(): this;
+   withNoData(): this;
++  getSQL(): SQL;
+   toSQL(): Query;
+ }
+ //#endregion
 diff --git a/pg-core/roles.d.ts b/pg-core/roles.d.ts
 index 24534db..2fa36a4 100644
 --- a/pg-core/roles.d.ts
@@ -450,22 +469,3 @@ index b542477..dd71e63 100644
  
  //#region src/zod/column.types.d.ts
  type GetArrayDepth<T, Depth extends number = 0> = Depth extends 5 ? 5 : T extends readonly (infer U)[] ? GetArrayDepth<U, [1, 2, 3, 4, 5][Depth]> : Depth;
-diff --git a/pg-core/query-builders/refresh-materialized-view.d.ts b/pg-core/query-builders/refresh-materialized-view.d.ts
---- a/pg-core/query-builders/refresh-materialized-view.d.ts
-+++ b/pg-core/query-builders/refresh-materialized-view.d.ts
-@@ -1,5 +1,5 @@
- import { entityKind } from "../../entity.js";
--import { Query, SQLWrapper } from "../../sql/sql.js";
-+import { Query, SQL, SQLWrapper } from "../../sql/sql.js";
- import { PgDialect } from "../dialect.js";
- import { PgMaterializedView } from "../view.js";
- import { PgQueryResultHKT, PgQueryResultKind, PgSession } from "../session.js";
-@@ -21,6 +21,7 @@ declare class PgRefreshMaterializedView<TQueryResult extends PgQueryResultHKT> i
-   };
-   constructor(view: PgMaterializedView, session: PgSession, dialect: PgDialect);
-   concurrently(): this;
-   withNoData(): this;
-+  getSQL(): SQL;
-   toSQL(): Query;
- }
- //#endregion

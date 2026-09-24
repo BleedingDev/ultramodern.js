@@ -59,7 +59,7 @@ export default [
     packageName: 'drizzle-orm',
     version: '1.0.0-rc.4',
     path: 'patches/drizzle-orm-ts7-strict-declarations.patch',
-    sha256: '61a360625e5828c17810d0a33eac762b195ee872fd9cbb265c6e1c500c823e3e',
+    sha256: '5c37f228e3916f32a502dbb0a5075acdd60751047f72778d789a2362b6cdfbc6',
     repository: false,
     workspace: null,
     reason:
