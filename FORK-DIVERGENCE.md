@@ -334,7 +334,7 @@ identified as a capped fork correction within the same four-line manifest delta.
 
 | Upstream-owned path | Owner | Reason | Disposition |
 | --- | --- | --- | --- |
-| `packages/**/package.json` (2026-09-24 dependency cohort) | bleedingdev | Exact-version bumps of shared third-party dependencies to their newest matured releases (Rsbuild 2.2.9, SWC 1.16.2, Babel 8.0.6, cssnano 9, TanStack Router 1.170.35/1.171.29/1.162.3, i18next 26.4.2, Hono 4.13.8, Zod 4.6.5, OpenTelemetry 2.11, `@types/*`); every touched upstream-owned manifest carries no fork behaviour | `keep-[M]` + `inline-patch` |
+| `packages/**/package.json` (2026-09-24 dependency cohort) | bleedingdev | Exact-version bumps of shared third-party dependencies to their newest matured releases (Rsbuild 2.2.9, SWC 1.16.2, Babel 8.0.6, cssnano 9, TanStack Router 1.170.39/1.171.32/1.162.4, i18next 26.4.2, Hono 4.13.8, Zod 4.6.5, OpenTelemetry 2.11, `@types/*`); every touched upstream-owned manifest carries no fork behaviour | `keep-[M]` + `inline-patch` |
 
 ### 2026-09-02 app-tools deployment-template packaging repair
 
@@ -430,9 +430,9 @@ it covers root and infrastructure files outside `packages/`.
 | --- | --- | --- | --- | --- | --- |
 | ROOT-01 | `pnpm-workspace.yaml`, `pnpm-lock.yaml`, `.npmrc`, root `package.json`, `nx.json`, `biome.json`, `.gitignore`, `.mise.toml` | bleedingdev | Fork package-manager, Renovate/security, tsgo/rstest/biome and publish policy | keep-[F] | — |
 | ROOT-02 | Effect cohort pinned lockstep across generator and BFF surfaces (`4.0.0-rc.117`) | bleedingdev | Upstream has no Effect lane; a partial revert leaves generated workspaces and plugin-bff on incompatible Effect identities | keep-[F] — see note N1 | — |
-| ROOT-03 | Generated dependency/toolchain cohort pins (tsgo 0.45.0, TanStack Router 1.170.35/core 1.171.29/history 1.162.3, MF 2.9.1, `@module-federation/node@2.7.51`, Node 26.7.0, pnpm 11.27.1) | bleedingdev | Generator, templates, validation and docs must agree or generated workspaces break | keep-[F] | — |
+| ROOT-03 | Generated dependency/toolchain cohort pins (tsgo 0.45.0, TanStack Router 1.170.39/core 1.171.32/history 1.162.4, MF 2.9.1, `@module-federation/node@2.7.51`, Node 26.7.0, pnpm 11.27.1) | bleedingdev | Generator, templates, validation and docs must agree or generated workspaces break | keep-[F] | — |
 | ROOT-04 | 15 `examples/**` members use `workspace:*`; upstream uses `latest` | bleedingdev | Upstream's spelling installs real Modern.js 3.7.0 beside the fork and pnpm non-deterministically hoists one | keep-[F] — see note N2 | — |
-| ROOT-05 | `patchedDependencies` for MF 2.9.1 (`manifest`, `rspack`, `bridge-react`, `modern-js-v3`, `runtime-core`), Effect router and zod CSP hardening | bleedingdev | MF lazy-DTS/SSR/topology and CSP/Worker-safe runtime lanes; the TanStack router-core declaration patch retired at 1.171.29 | keep-[F] | — |
+| ROOT-05 | `patchedDependencies` for MF 2.9.1 (`manifest`, `rspack`, `bridge-react`, `modern-js-v3`, `runtime-core`), Effect router and zod CSP hardening | bleedingdev | MF lazy-DTS/SSR/topology and CSP/Worker-safe runtime lanes; the TanStack router-core declaration patch retired at 1.171.32 | keep-[F] | — |
 | ROOT-07 | `pnpm-workspace.yaml` negative globs `!tests/integration/**/{dist,node_modules}/**` | bleedingdev | Gitignored build output emits `package.json` files that match the positive globs and add phantom importers to the lockfile | keep-[F] | — |
 | ROOT-08 | 8 fork-owned workflows added | bleedingdev | Fork gates (boundary, publish, certification, nightly, readiness, security), docs publishing (`docs-pages`), and Tractor downstream acceptance (`ultramodern-tractor-downstream`). The contract-gate and bun-smoke workflows were retired 2026-09-11. | keep-[F] | — |
 | ROOT-09 | Modified upstream workflows (dependency check, diff, integration, lint, type-check, unit, builder e2e, issue labels) | bleedingdev | Fork toolchain + gate wiring | inline-patch — reconcile upstream infra fixes by hand | — |
@@ -979,7 +979,7 @@ five previously invalid advisory rows remain non-authorizing historical prose.
     {"path":"packages/cli/plugin-styled-components/package.json","owner":"bleedingdev","reason":"2026-09-24 dependency cohort: exact bumps of third-party dependencies to their newest releases older than 24 hours (React 19.3 dev/test pins, Rsbuild 2.2.9, Rslib 1.0.2, @types, tooling). Peer ranges stay unchanged; regenerate with taze and pnpm on upstream sync.","dispositions":["keep-[M]"]},
     {"path":"packages/document/docs/en/components/prerequisites.mdx","owner":"bleedingdev","reason":"Prerequisites name the repository pnpm 11.27.1 toolchain.","dispositions":["keep-[M]"]},
     {"path":"packages/document/docs/en/configure/app/bff/effect.mdx","owner":"bleedingdev","reason":"Effect BFF guide pins the Effect 4.0.0-rc.117 cohort.","dispositions":["keep-[F]"]},
-    {"path":"packages/document/docs/en/guides/get-started/ultramodern.mdx","owner":"bleedingdev","reason":"UltraModern cohort table lists the 2026-09-24 generated pins (Effect rc.117, MF 2.9.1, TanStack held at 1.170.35, tooling).","dispositions":["keep-[F]"]},
+    {"path":"packages/document/docs/en/guides/get-started/ultramodern.mdx","owner":"bleedingdev","reason":"UltraModern cohort table lists the 2026-09-24 generated pins (Effect rc.117, MF 2.9.1, TanStack 1.170.39, Wrangler 4.137.0, tooling).","dispositions":["keep-[F]"]},
     {"path":"packages/document/docs/zh/components/prerequisites.mdx","owner":"bleedingdev","reason":"Chinese prerequisites name the repository pnpm 11.27.1 toolchain.","dispositions":["keep-[M]"]},
     {"path":"packages/document/docs/zh/configure/app/bff/effect.mdx","owner":"bleedingdev","reason":"Chinese Effect BFF guide pins the Effect 4.0.0-rc.117 cohort.","dispositions":["keep-[F]"]},
     {"path":"packages/document/docs/zh/guides/get-started/ultramodern.mdx","owner":"bleedingdev","reason":"Chinese UltraModern cohort table lists the 2026-09-24 generated pins.","dispositions":["keep-[F]"]},
@@ -1512,7 +1512,7 @@ five previously invalid advisory rows remain non-authorizing historical prose.
 | `packages/cli/plugin-styled-components/package.json` | bleedingdev | 2026-09-24 dependency cohort: exact bumps of third-party dependencies to their newest releases older than 24 hours (React 19.3 dev/test pins, Rsbuild 2.2.9, Rslib 1.0.2, @types, tooling). Peer ranges stay unchanged; regenerate with taze and pnpm on upstream sync. | `keep-[M]` |
 | `packages/document/docs/en/components/prerequisites.mdx` | bleedingdev | Prerequisites name the repository pnpm 11.27.1 toolchain. | `keep-[M]` |
 | `packages/document/docs/en/configure/app/bff/effect.mdx` | bleedingdev | Effect BFF guide pins the Effect 4.0.0-rc.117 cohort. | `keep-[F]` |
-| `packages/document/docs/en/guides/get-started/ultramodern.mdx` | bleedingdev | UltraModern cohort table lists the 2026-09-24 generated pins (Effect rc.117, MF 2.9.1, TanStack held at 1.170.35, tooling). | `keep-[F]` |
+| `packages/document/docs/en/guides/get-started/ultramodern.mdx` | bleedingdev | UltraModern cohort table lists the 2026-09-24 generated pins (Effect rc.117, MF 2.9.1, TanStack 1.170.39, Wrangler 4.137.0, tooling). | `keep-[F]` |
 | `packages/document/docs/zh/components/prerequisites.mdx` | bleedingdev | Chinese prerequisites name the repository pnpm 11.27.1 toolchain. | `keep-[M]` |
 | `packages/document/docs/zh/configure/app/bff/effect.mdx` | bleedingdev | Chinese Effect BFF guide pins the Effect 4.0.0-rc.117 cohort. | `keep-[F]` |
 | `packages/document/docs/zh/guides/get-started/ultramodern.mdx` | bleedingdev | Chinese UltraModern cohort table lists the 2026-09-24 generated pins. | `keep-[F]` |

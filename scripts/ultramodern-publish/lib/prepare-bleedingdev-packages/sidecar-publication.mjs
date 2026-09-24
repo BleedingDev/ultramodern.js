@@ -202,9 +202,7 @@ function assertSidecarPublishTarget(packageJson, label) {
 
 /**
  * Validate the sidecars.json the staging lane wrote, offline: schema, the
- * publish-before contract, identity, and the alias ordering that makes
- * @bleedingdev/image-size reach the registry before the
- * @bleedingdev/rsbuild-image-core fork that aliases it.
+ * publish-before contract, identity, and the alias ordering between sidecars.
  */
 function assertSidecarStagingManifest(
   manifest,

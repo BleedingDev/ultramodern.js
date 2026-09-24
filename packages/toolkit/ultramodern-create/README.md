@@ -57,8 +57,8 @@ The generated toolchain pins Node `26.7.0`, pnpm `11.27.1`, and
 on those values; do not reintroduce Corepack or older pnpm aliases.
 
 The current generated dependency cohort also pins `@effect/tsgo@0.45.0`,
-`@tanstack/react-router@1.170.35`, `@tanstack/router-core@1.171.29`,
-`@tanstack/history@1.162.3`, and the Module Federation integration `2.9.1`
+`@tanstack/react-router@1.170.39`, `@tanstack/router-core@1.171.32`,
+`@tanstack/history@1.162.4`, and the Module Federation integration `2.9.1`
 cohort, `@module-federation/node@2.7.51`. Move these only through the
 generator-owned version policy so templates, validation, and the published
 workspace contract stay aligned.

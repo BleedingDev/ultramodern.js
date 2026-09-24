@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { buildSync } from 'esbuild';
-import { Miniflare } from 'miniflare';
+import { convertV4MiniflareOptions, Miniflare } from 'miniflare';
 import { createVerticalDescriptor } from '../src/ultramodern-workspace/descriptors';
 import {
   createUltramodernBuildArtifactJson,
@@ -183,11 +183,13 @@ test('browser and workerd bundles preserve native JSON identity and compiler mar
           : {}),
       }).outputFiles[0]!.text;
       assert.doesNotMatch(source, /node:module|createRequire/u);
-      worker = new Miniflare({
-        modules: true,
-        script: source,
-        compatibilityDate: '2026-07-30',
-      });
+      worker = new Miniflare(
+        convertV4MiniflareOptions({
+          modules: true,
+          script: source,
+          compatibilityDate: '2026-07-30',
+        }),
+      );
       const response = await worker.dispatchFetch('http://localhost/');
       assert.equal(response.status, 200);
       const result = (await response.json()) as Record<

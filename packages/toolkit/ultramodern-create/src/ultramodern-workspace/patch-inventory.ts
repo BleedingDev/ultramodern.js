@@ -76,16 +76,6 @@ export default [
       'Build router params without string code generation in CSP/Worker bundles.',
   },
   {
-    packageName: 'image-size',
-    version: '2.0.2',
-    path: 'patches/image-size@2.0.2.patch',
-    sha256: 'a415773e955878a9876448317ce183de538fe49d9083bd160abe668a0ec53801',
-    repository: true,
-    workspace: null,
-    reason:
-      'Bound malformed image parser loops; also the image-size sidecar recipe.',
-  },
-  {
     packageName: 'zod',
     version: '4.6.5',
     path: 'patches/zod@4.6.5.patch',

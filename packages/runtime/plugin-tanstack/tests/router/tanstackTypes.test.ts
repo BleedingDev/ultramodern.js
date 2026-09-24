@@ -14,6 +14,7 @@ import {
 import { createModernBasepathRewrite } from '../../src/runtime/basepathRewrite';
 import { createRouteTreeFromRouteObjects } from '../../src/runtime/routeTree';
 import { createTanstackRouteObjectsFromConfig } from '../../src/runtime/utils';
+import { navigateOnClient } from './clientNavigation';
 
 const execFileAsync = promisify(execFile);
 const strictestTsconfigPath = path.resolve(
@@ -330,7 +331,7 @@ describe('tanstack router type generation', () => {
       import { router } from ${JSON.stringify(pathToFileURL(generated).href)};
       import { createModernBasepathRewrite } from ${JSON.stringify(pathToFileURL(path.resolve(__dirname, '../../dist/esm/runtime/basepathRewrite.mjs')).href)};
       router.update({ rewrite: createModernBasepathRewrite('/base', false, ${JSON.stringify(routes)}) });
-      await router.navigate({ to: '/cs/produkty/a/b', search: { q: 'tractor' }, hash: 'files' });
+      router.history.push(router.buildLocation({ to: '/cs/produkty/a/b', search: { q: 'tractor' }, hash: 'files' }).publicHref); router.updateLatestLocation(); await router.load();
       console.log(JSON.stringify({ ids: Object.keys(router.routesById).sort(), match: router.state.matches.at(-1).routeId, params: router.state.matches.at(-1).params, href: router.history.location.href }));
     `,
     ]);
@@ -356,13 +357,13 @@ describe('tanstack router type generation', () => {
       lang: 'cs',
       _splat: 'a/b',
     });
-    await runtime.navigate({ to: '/cs/missing/path' });
+    await navigateOnClient(runtime, { to: '/cs/missing/path' });
     expect(runtime.state.matches.at(-1)?.routeId).toBe('/$lang/$');
     expect(runtime.state.matches.at(-1)?.params).toMatchObject({
       lang: 'cs',
       _splat: 'missing/path',
     });
-    await runtime.navigate({ to: '/outside/cs' });
+    await navigateOnClient(runtime, { to: '/outside/cs' });
     expect(runtime.state.matches.at(-1)?.params).toEqual({ lang: 'cs' });
     const canonicalRoutes = collectCanonicalRoutesForEntry(localized as any)!;
     expect(Object.keys(canonicalRoutes)).toEqual(['/$', '/products/$']);

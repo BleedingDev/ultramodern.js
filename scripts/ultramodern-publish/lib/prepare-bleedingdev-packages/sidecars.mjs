@@ -46,7 +46,6 @@ const recipeByRoot = new Map(recipeSidecars.map(recipe => [
 
 const SIDECAR_PACKAGE_ROOTS = [
   'packages/sidecar/ipx',
-  'packages/sidecar/image-size',
   'packages/sidecar/rsbuild-image-core',
   ...recipeSidecars.map(recipe => `packages/sidecar/${recipe.id}`),
 ];
@@ -54,7 +53,6 @@ const SIDECAR_PACKAGE_ROOTS = [
 // Upstream CLI contracts that must survive republication verbatim.
 const sidecarBinNames = new Map([
   ['@bleedingdev/ipx', 'ipx'],
-  ['@bleedingdev/image-size', 'image-size'],
   ['@bleedingdev/mf-cli', 'mf'],
   ['@bleedingdev/mf-enhanced', 'mf'],
 ]);

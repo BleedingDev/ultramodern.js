@@ -14,7 +14,6 @@ const repoRoot = path.resolve(__dirname, '../../..');
 const cohortAliasConsumer = '@bleedingdev/modern-js-image';
 const imageSidecarRoots = [
   'packages/sidecar/ipx',
-  'packages/sidecar/image-size',
   'packages/sidecar/rsbuild-image-core',
 ];
 
