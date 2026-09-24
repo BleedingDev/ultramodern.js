@@ -2,13 +2,12 @@
 // ROOT-ONLY. Packed-consumer proof for the sidecar publication lane.
 //
 // What it proves, end to end, against a LOOPBACK registry only:
-//   * the three stable sidecars publish in alias order (image-size before the
-//     rsbuild-image-core fork that aliases it; ipx before the cohort);
+//   * the committed image sidecars publish before the cohort;
 //   * the cohort package @bleedingdev/modern-js-image, packed from this
 //     checkout, installs from that registry with strict npm peer resolution;
 //   * its `npm:@bleedingdev/...` aliases resolve to the fork packages;
-//   * sharp resolves on the 0.35 line, image-size resolves to the hardened
-//     fork through the core fork's own dependency edge;
+//   * sharp resolves on the 0.35 line, image-size resolves upstream at
+//     2.0.3+ through the core fork's own dependency edge;
 //   * ipx and @rsbuild-image/core/shared import through BOTH CJS and ESM;
 //   * `npm ls` reports no invalid or missing peer edges.
 //
@@ -779,21 +778,19 @@ async function consumerProofMain(config, io) {
   );
   record('sharp resolves on 0.35', sharp.manifest.version);
 
-  // 3. image-size resolves to the hardened fork, from inside the core fork.
+  // 3. image-size resolves upstream at 2.0.3+, which bounds malformed parser loops.
   const coreRequire = createRequire(coreEntry);
   const imageSize = resolvePackageFromEntry(
     coreRequire.resolve('image-size'),
-    config.imageSizeName,
+    'image-size',
     walkIo,
   );
-  assert.equal(
-    core.manifest.dependencies['image-size'],
-    `npm:${config.imageSizeName}@${imageSize.manifest.version}`,
+  assert.match(
+    imageSize.manifest.version,
+    /^2\.(?:0\.(?:[3-9]|\d{2,})|[1-9]\d*\.\d+)$/u,
+    `image-size must resolve at 2.0.3 or newer, found ${imageSize.manifest.version}`,
   );
-  record(
-    'image-size fork resolves',
-    `${imageSize.manifest.name}@${imageSize.manifest.version}`,
-  );
+  record('image-size resolves', `image-size@${imageSize.manifest.version}`);
 
   // 4. CJS: ipx and the core fork's shared subpath.
   const ipxCjs = imageRequire('ipx');
@@ -1187,7 +1184,6 @@ async function verifySidecarConsumer(options) {
       buildConsumerProofSource({
         coreName: '@bleedingdev/rsbuild-image-core',
         imageName: cohortImageTargetName,
-        imageSizeName: '@bleedingdev/image-size',
         imageVersion: packedImage.version,
         ipxName: '@bleedingdev/ipx',
         sharpVersionPattern: '^0\\.35\\.',

@@ -8,6 +8,7 @@ import {
 import React from 'react';
 import { renderToString } from 'react-dom/server';
 import { useMatches } from '../../src/runtime/routeHooks';
+import { navigateOnClient } from './clientNavigation';
 
 function MatchIds() {
   const matches = useMatches();
@@ -41,7 +42,7 @@ test('updates whole match objects after navigation with the structural-sharing g
     renderToString(React.createElement(RouterProvider, { router })),
   ).toContain('__root__');
 
-  await router.navigate({ to: '/settings' });
+  await navigateOnClient(router, { to: '/settings' });
 
   expect(
     renderToString(React.createElement(RouterProvider, { router })),

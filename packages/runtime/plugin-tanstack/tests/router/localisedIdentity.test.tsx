@@ -12,6 +12,7 @@ import { renderToString } from 'react-dom/server';
 import { createModernBasepathRewrite } from '../../src/runtime/basepathRewrite';
 import { createRouteTreeFromRouteObjects } from '../../src/runtime/routeTree';
 import { createTanstackRouteObjectsFromConfig } from '../../src/runtime/utils';
+import { navigateOnClient } from './clientNavigation';
 
 function SearchPage() {
   const data = useLoaderData({ from: '/$lang/search' }) as { language: string };
@@ -80,14 +81,17 @@ test('localized URLs preserve native loader and params route identity in SSR and
   );
   expect(history.location.href).toBe('/base/cs/hledat?q=tractor#results');
 
-  await router.navigate({ to: '/en/search', search: { q: 'tractor' } });
+  await navigateOnClient(router, {
+    to: '/en/search',
+    search: { q: 'tractor' },
+  });
   expect(history.location.href).toBe('/base/en/find?q=tractor');
   expect(router.state.matches.at(-1)?.routeId).toBe('/$lang/search');
   expect(renderToString(createElement(RouterProvider, { router }))).toContain(
     'search:en',
   );
 
-  await router.navigate({ to: '/cs/zdroje/a%2Fb' });
+  await navigateOnClient(router, { to: '/cs/zdroje/a%2Fb' });
   expect(history.location.href).toBe('/base/cs/zdroje/a%2Fb');
   expect(router.state.matches.at(-1)?.routeId).toBe('/$lang/resources/$id');
   expect(renderToString(createElement(RouterProvider, { router }))).toContain(

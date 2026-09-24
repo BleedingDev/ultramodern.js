@@ -3,16 +3,13 @@
  * UltraModern workspaces lives here. Values must stay in lockstep with the
  * checked-in templates under templates/ and template-workspace/.
  */
-// Held below router-core 1.171.30: its path-interpolation rewrite stops
-// localized basepath navigation (plugin-tanstack router tests).
-export const TANSTACK_ROUTER_VERSION = '1.170.35';
-export const TANSTACK_ROUTER_CORE_VERSION = '1.171.29';
-export const TANSTACK_HISTORY_VERSION = '1.162.3';
+export const TANSTACK_ROUTER_VERSION = '1.170.39';
+export const TANSTACK_ROUTER_CORE_VERSION = '1.171.32';
+export const TANSTACK_HISTORY_VERSION = '1.162.4';
 export const MODULE_FEDERATION_VERSION = '2.9.1';
 export const ZEPHYR_RSPACK_PLUGIN_VERSION = '1.4.0';
 export const ZEPHYR_AGENT_VERSION = '1.4.0';
-// Wrangler 4.120.0 pulls Miniflare 5 alpha. Keep the newest coherent v4 lane.
-export const WRANGLER_VERSION = '4.116.0';
+export const WRANGLER_VERSION = '4.137.0';
 export const CLOUDFLARE_COMPATIBILITY_DATE = '2026-06-02';
 export const TAILWIND_VERSION = '4.3.3';
 export const RSBUILD_PLUGIN_TAILWINDCSS_VERSION = '2.0.3';
@@ -38,8 +35,8 @@ export const CROSS_ENV_VERSION = '10.1.0';
 export const LEFTHOOK_VERSION = '^2.1.14';
 export const I18NEXT_VERSION = '26.4.2';
 export const MODULE_FEDERATION_NODE_VERSION = '2.7.51';
-export const MINIFLARE_VERSION = '4.20260730.0';
-export const WORKERD_VERSION = '1.20260730.1';
+export const MINIFLARE_VERSION = '5.20260921.0-alpha';
+export const WORKERD_VERSION = '1.20260921.1';
 export const CLOUDFLARE_WORKERS_TYPES_VERSION = '5.20260923.1';
 export const NODE_FETCH_VERSION = '^3.3.2';
 // Platform Baseline producer pins are exact (CONTEXT.md: "pinned platform-wide";

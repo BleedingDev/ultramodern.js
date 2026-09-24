@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
-import { Log, LogLevel, Miniflare } from "miniflare";
+import { convertV4MiniflareOptions, Log, LogLevel, Miniflare } from "miniflare";
 
 const workspaceRoot = path.resolve(process.env.ULTRAMODERN_WORKSPACE_ROOT ?? process.cwd());
 const defaultProofRoutes = ["/en"];
@@ -491,16 +491,18 @@ const startWorkerdTargetServers = async (
         Number.isInteger(app.port) && app.port > 0,
         `${app.id} requires a configured local port for all-workerd browser proof`,
       );
-      // Miniflare 4 currently assigns one shared assets storage service inside
+      // Miniflare assigns one shared assets storage service inside
       // a multi-worker instance. Keep the shell composition runtime intact,
       // but give every directly browsed MicroVertical its own runtime so its
       // static assets and MF manifest cannot resolve from a sibling Worker.
       const runtime =
         app.kind === "vertical"
-          ? new Miniflare({
-              log: new Log(LogLevel.ERROR),
-              workers: [workerConfigurations[index]],
-            })
+          ? new Miniflare(
+              convertV4MiniflareOptions({
+                log: new Log(LogLevel.ERROR),
+                workers: [workerConfigurations[index]],
+              }),
+            )
           : miniflare;
       if (runtime !== miniflare) {
         isolatedVerticalRuntimes.push(runtime);
@@ -775,10 +777,12 @@ for (const shell of shells) {
   const workers = workerConfigurations.map(
     ({ executionEvidence: _executionEvidence, ...configuration }) => configuration,
   );
-  const miniflare = new Miniflare({
-    log: new Log(LogLevel.ERROR),
-    workers,
-  });
+  const miniflare = new Miniflare(
+    convertV4MiniflareOptions({
+      log: new Log(LogLevel.ERROR),
+      workers,
+    }),
+  );
   const renderedRemoteIds = new Set();
 
   try {

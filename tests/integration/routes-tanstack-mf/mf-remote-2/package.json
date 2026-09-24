@@ -15,7 +15,7 @@
     "@modern-js/runtime": "workspace:*",
     "@module-federation/modern-js-v3": "2.9.1",
     "@module-federation/runtime": "2.9.1",
-    "@tanstack/react-router": "1.170.35",
+    "@tanstack/react-router": "1.170.39",
     "effect": "4.0.0-rc.117",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"

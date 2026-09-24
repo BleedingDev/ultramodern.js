@@ -47,7 +47,6 @@ allowBuilds:
   cypress: false
   es5-ext: true
   esbuild: true
-  msgpackr-extract: set this to true or false
   nx: true
   puppeteer: true
   sharp: true
@@ -63,7 +62,6 @@ patchedDependencies:
   '@module-federation/rspack@2.9.1': patches/@module-federation__rspack@2.9.1.patch
   '@module-federation/runtime-core@2.9.1': patches/@module-federation__runtime-core@2.9.1.patch
   'effect@4.0.0-rc.117': patches/effect@4.0.0-rc.117.patch
-  'image-size@2.0.2': patches/image-size@2.0.2.patch
   'zod@4.6.5': patches/zod@4.6.5.patch
 overrides:
   micromatch: ^4.0.8

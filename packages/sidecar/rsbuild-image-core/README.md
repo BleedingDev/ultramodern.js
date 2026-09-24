@@ -1,8 +1,8 @@
 # @bleedingdev/rsbuild-image-core
 
 UltraModern **sidecar repackage** of [`@rsbuild-image/core`](https://github.com/rspack-contrib/rsbuild-image)
-`0.0.1-next.36`, published so that `@modern-js/image` can ship a hardened
-`image-size` to its consumers.
+`0.0.1-next.36`, published so that `@modern-js/image` ships a Sharp peer floor
+of 0.35.4 to its consumers.
 
 Upstream is MIT licensed, © 2025-present **Rspack Contrib**. The bundled
 `LICENSE` is the upstream file byte-for-byte and all credit for the code in
@@ -10,15 +10,11 @@ Upstream is MIT licensed, © 2025-present **Rspack Contrib**. The bundled
 
 ## Why this package exists
 
-`@rsbuild-image/core` declares `image-size` as a **plain dependency**. Plain
-dependencies cannot be redirected by anything a consumer declares: `pnpm`
-`overrides` and `patchedDependencies` are root-project-only and are *not*
-carried into a published tarball, so a fix applied in this monorepo would never
-reach anyone who installs `@modern-js/image` from npm.
-
-`image-size@2.0.2` carries a parser denial-of-service that upstream fixed in
-PR 459. To ship that fix to real consumers, the dependency edge itself has to
-change — which means republishing the package that owns the edge.
+Peer ranges cannot be tightened by anything a consumer declares: `pnpm`
+`overrides` are root-project-only and are *not* carried into a published
+tarball. Raising the Sharp peer floor for real consumers therefore means
+republishing the package that owns the peer declaration. `image-size` stays the
+upstream `^2.0.1` dependency; 2.0.3 and newer carry the parser loop bounds.
 
 ## What is different from upstream
 
@@ -30,34 +26,20 @@ byte under `dist/` is vendored verbatim and the entire delta lives in
 | Field | Upstream | Here |
 | --- | --- | --- |
 | `name` | `@rsbuild-image/core` | `@bleedingdev/rsbuild-image-core` |
-| `version` | `0.0.1-next.36` | `0.1.2` |
-| `dependencies["image-size"]` | `^2.0.1` | `npm:@bleedingdev/image-size@2.1.1` |
+| `version` | `0.0.1-next.36` | `0.1.3` |
 | `devDependencies` | build/test toolchain | dropped (nothing is built here) |
 | `peerDependencies.sharp` | `>=0.33.5` | `>=0.35.4` (patched floor) |
 
-Everything else — `type`, `main`, `module`, `types`, the full five-subpath
+Everything else — `dependencies`, `type`, `main`, `module`, `types`, the full five-subpath
 `exports` map with all of its conditions, `typesVersions`, `sideEffects`,
 `files`, peers other than Sharp, and `peerDependenciesMeta` — is copied verbatim.
 `scripts/verify-manifest.mjs` checks that fidelity and the exact patched Sharp floor.
 
-`0.1.2` is a **stable** semver version on purpose. `@rsbuild-image/react`
+`0.1.3` is a **stable** semver version on purpose. `@rsbuild-image/react`
 declares its peer on core as the wildcard `"*"`, which every resolver
 short-circuits before semver, so the exact number is free; a stable one keeps
 strict-peer consumers (npm, yarn classic) from ever having to opt into
 prerelease matching.
-
-### `image-size` is redirected without touching a single dist byte
-
-The alias keeps the **install name** `image-size`, so the compiled
-
-```js
-import * as … from "image-size";      // dist/image.mjs:1
-const … = require("image-size");      // dist/image.js:48
-```
-
-resolve to `@bleedingdev/image-size@2.1.1` with zero rewrites. Those two lines
-are the only places `image-size` appears in the whole bundle, and both use the
-bare specifier — no deep or file-path import can bypass the alias.
 
 ### Self-reference audit (no dist rewrites were required)
 
@@ -127,6 +109,6 @@ It never discovers or trusts an incidental pnpm-store copy. See the
 1. Copy `dist/` and `LICENSE` verbatim from the new upstream release.
 2. Update the upstream URL/integrity, version and allowed manifest changes in
    `scripts/ultramodern-supply/sidecars.json`.
-3. Re-apply the `image-size` alias and patched Sharp peer floor, then bump this package's version.
+3. Re-apply the patched Sharp peer floor, then bump this package's version.
 4. Run the verifier; it will flag any newly introduced self-reference,
    deep import, or Node dependency that leaked into `dist/shared/**`.
