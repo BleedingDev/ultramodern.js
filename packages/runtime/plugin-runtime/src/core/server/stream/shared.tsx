@@ -54,6 +54,16 @@ export enum ShellChunkStatus {
   FINISH = 1,
 }
 
+/**
+ * The document head is sealed when the shell end mark is written, so only head
+ * tags emitted before it reach `<head>`. React writes a completed Suspense
+ * boundary after the shell once the flushed bytes exceed `progressiveChunkSize`,
+ * which drops the head of every large route and keeps its content hidden until
+ * the inline `$RC` script runs. Completed boundaries therefore stay inline in
+ * the shell; pending boundaries still stream when they resolve.
+ */
+export const SHELL_PROGRESSIVE_CHUNK_SIZE = Number.MAX_SAFE_INTEGER;
+
 const SHOULD_STREAM_ALL_HEADER = 'x-should-stream-all';
 
 function parseShouldStreamAllFlag(value: string | null): boolean | undefined {

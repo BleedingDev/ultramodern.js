@@ -86,6 +86,31 @@ test('worker orders transforms and preserves split UTF-8 shell/tail until delive
   expect(terminal).toHaveBeenCalledExactlyOnceWith({ status: 'complete' });
 });
 
+test('worker seals the shell after completed route content', async () => {
+  const hooks = install();
+  const shells: string[] = [];
+  hooks.extendStreamSSR.tap(() => ({
+    completedBody(html, { phase }) {
+      if (phase === 'shell') shells.push(html);
+      return html;
+    },
+  }));
+  const content = 'Route content. '.repeat(1000);
+  const stream = await render(
+    <>
+      <div id="app">
+        <React.Suspense fallback="loading">
+          <main>{content}</main>
+        </React.Suspense>
+      </div>
+      {JSX_SHELL_STREAM_END_MARK}
+    </>,
+  );
+  await new Response(stream).text();
+  expect(shells).toHaveLength(1);
+  expect(shells[0]).toContain(`<main>${content}</main>`);
+});
+
 test('worker missing marker is a delivered stream error reported once', async () => {
   const hooks = install();
   const terminal = rs.fn();

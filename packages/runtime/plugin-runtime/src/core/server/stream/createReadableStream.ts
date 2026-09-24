@@ -23,6 +23,7 @@ import {
   type CreateReadableStreamFromElement,
   getReadableStreamFromString,
   resolveStreamingMode,
+  SHELL_PROGRESSIVE_CHUNK_SIZE,
   ShellChunkStatus,
 } from './shared';
 import { getTemplates } from './template';
@@ -285,6 +286,7 @@ export const createReadableStreamFromElement: CreateReadableStreamFromElement =
         reactStream = renderToPipeableStream(processedRootElement, {
           nonce: config.nonce,
           identifierPrefix: SSR_HYDRATION_ID_PREFIX,
+          progressiveChunkSize: SHELL_PROGRESSIVE_CHUNK_SIZE,
           [onReady]() {
             startOutput().catch(fail);
           },
