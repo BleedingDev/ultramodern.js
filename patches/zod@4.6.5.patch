@@ -1,8 +1,8 @@
 diff --git a/v4/core/util.cjs b/v4/core/util.cjs
-index 6c74bff..6999a5d 100644
+index aeb65e0..2b6dea6 100644
 --- a/v4/core/util.cjs
 +++ b/v4/core/util.cjs
-@@ -213,22 +213,7 @@ function isObject(data) {
+@@ -285,22 +285,7 @@ function isObject(data) {
      return typeof data === "object" && data !== null && !Array.isArray(data);
  }
  exports.allowsEval = cached(() => {
@@ -27,10 +27,10 @@ index 6c74bff..6999a5d 100644
  function isPlainObject(o) {
      if (isObject(o) === false)
 diff --git a/v4/core/util.js b/v4/core/util.js
-index a7029b8..ac36de1 100644
+index 7a6e969..4c4b76f 100644
 --- a/v4/core/util.js
 +++ b/v4/core/util.js
-@@ -146,22 +146,7 @@ export function isObject(data) {
+@@ -216,22 +216,7 @@ export function isObject(data) {
      return typeof data === "object" && data !== null && !Array.isArray(data);
  }
  export const allowsEval = /* @__PURE__*/ cached(() => {

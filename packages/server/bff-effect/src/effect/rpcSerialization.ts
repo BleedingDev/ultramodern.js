@@ -12,8 +12,6 @@ export function getRpcSerializationLayer(
       return RpcSerialization.layerJsonRpc();
     case 'ndJsonRpc':
       return RpcSerialization.layerNdJsonRpc();
-    case 'msgPack':
-      return RpcSerialization.layerMsgPack;
     default:
       return RpcSerialization.layerJsonRpc();
   }

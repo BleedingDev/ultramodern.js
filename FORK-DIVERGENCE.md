@@ -334,7 +334,7 @@ identified as a capped fork correction within the same four-line manifest delta.
 
 | Upstream-owned path | Owner | Reason | Disposition |
 | --- | --- | --- | --- |
-| `packages/**/package.json` (2026-09-08 dependency cohort) | bleedingdev | Exact-version bumps of shared third-party dependencies to their newest matured releases (Rsbuild 2.2.3, SWC 1.16.2, Babel 8.0.4, cssnano 9, TanStack Router 1.170.33/1.171.28/1.162.2, i18next 26.4.2, Hono 4.13.7, Zod 4.5.4, OpenTelemetry 2.11, `@types/*`); every touched upstream-owned manifest carries no fork behaviour | `keep-[M]` + `inline-patch` |
+| `packages/**/package.json` (2026-09-24 dependency cohort) | bleedingdev | Exact-version bumps of shared third-party dependencies to their newest matured releases (Rsbuild 2.2.9, SWC 1.16.2, Babel 8.0.6, cssnano 9, TanStack Router 1.170.35/1.171.29/1.162.3, i18next 26.4.2, Hono 4.13.8, Zod 4.6.5, OpenTelemetry 2.11, `@types/*`); every touched upstream-owned manifest carries no fork behaviour | `keep-[M]` + `inline-patch` |
 
 ### 2026-09-02 app-tools deployment-template packaging repair
 
@@ -429,10 +429,10 @@ it covers root and infrastructure files outside `packages/`.
 | ID | What diverged | Owner | Reason | Disposition | Lane |
 | --- | --- | --- | --- | --- | --- |
 | ROOT-01 | `pnpm-workspace.yaml`, `pnpm-lock.yaml`, `.npmrc`, root `package.json`, `nx.json`, `biome.json`, `.gitignore`, `.mise.toml` | bleedingdev | Fork package-manager, Renovate/security, tsgo/rstest/biome and publish policy | keep-[F] | — |
-| ROOT-02 | Effect cohort pinned lockstep across generator and BFF surfaces (`4.0.0-rc.112`) | bleedingdev | Upstream has no Effect lane; a partial revert leaves generated workspaces and plugin-bff on incompatible Effect identities | keep-[F] — see note N1 | — |
-| ROOT-03 | Generated dependency/toolchain cohort pins (tsgo 0.41.0, TanStack Router 1.170.33/core 1.171.28/history 1.162.2, MF 2.9.0, `@module-federation/node@2.7.50`, Node 26.7.0, pnpm 11.24.0) | bleedingdev | Generator, templates, validation and docs must agree or generated workspaces break | keep-[F] | — |
+| ROOT-02 | Effect cohort pinned lockstep across generator and BFF surfaces (`4.0.0-rc.117`) | bleedingdev | Upstream has no Effect lane; a partial revert leaves generated workspaces and plugin-bff on incompatible Effect identities | keep-[F] — see note N1 | — |
+| ROOT-03 | Generated dependency/toolchain cohort pins (tsgo 0.45.0, TanStack Router 1.170.35/core 1.171.29/history 1.162.3, MF 2.9.1, `@module-federation/node@2.7.51`, Node 26.7.0, pnpm 11.27.1) | bleedingdev | Generator, templates, validation and docs must agree or generated workspaces break | keep-[F] | — |
 | ROOT-04 | 15 `examples/**` members use `workspace:*`; upstream uses `latest` | bleedingdev | Upstream's spelling installs real Modern.js 3.7.0 beside the fork and pnpm non-deterministically hoists one | keep-[F] — see note N2 | — |
-| ROOT-05 | `patchedDependencies` for MF 2.9.0 (`manifest`, `rspack`, `bridge-react`, `modern-js-v3`, `runtime-core`), msgpackr and zod CSP hardening | bleedingdev | MF lazy-DTS/SSR/topology and CSP/Worker-safe runtime lanes; the TanStack router-core declaration patch retired at 1.171.28 | keep-[F] | — |
+| ROOT-05 | `patchedDependencies` for MF 2.9.1 (`manifest`, `rspack`, `bridge-react`, `modern-js-v3`, `runtime-core`), Effect router and zod CSP hardening | bleedingdev | MF lazy-DTS/SSR/topology and CSP/Worker-safe runtime lanes; the TanStack router-core declaration patch retired at 1.171.29 | keep-[F] | — |
 | ROOT-07 | `pnpm-workspace.yaml` negative globs `!tests/integration/**/{dist,node_modules}/**` | bleedingdev | Gitignored build output emits `package.json` files that match the positive globs and add phantom importers to the lockfile | keep-[F] | — |
 | ROOT-08 | 8 fork-owned workflows added | bleedingdev | Fork gates (boundary, publish, certification, nightly, readiness, security), docs publishing (`docs-pages`), and Tractor downstream acceptance (`ultramodern-tractor-downstream`). The contract-gate and bun-smoke workflows were retired 2026-09-11. | keep-[F] | — |
 | ROOT-09 | Modified upstream workflows (dependency check, diff, integration, lint, type-check, unit, builder e2e, issue labels) | bleedingdev | Fork toolchain + gate wiring | inline-patch — reconcile upstream infra fixes by hand | — |
@@ -592,7 +592,7 @@ result**. Referenced by ID from the tables above.
 `packages/toolkit/ultramodern-create/src/ultramodern-workspace/versions.ts`;
 the canonical `bff-effect` and BFF extension package manifests (see N5); the generated
 `pnpm.overrides`/`trustPolicyExclude` emitted by
-`ultramodern-workspace/policy.ts`. Effect 4.0.0-rc.112 includes the former
+`ultramodern-workspace/policy.ts`. Effect 4.0.0-rc.117 includes the former
 `SchemaAST.Sentinel` declaration repair, so generated workspaces carry no
 active Effect patch. `stalePatchPolicies` retains the reviewed beta.107 digest
 (`ed9f636…`) and the beta.94/beta.97/beta.102 legacy digests only so migration

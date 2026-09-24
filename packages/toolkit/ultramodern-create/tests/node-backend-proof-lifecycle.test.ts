@@ -379,7 +379,7 @@ try {
     new RegExp('RPC contract/manifest path'),
   );
   await assert.rejects(
-    proof.proveLiveRpcApi(proofApp, loadedRpc, { backendFederation: { ...manifest.backendFederation, rpcSerialization: 'msgPack' } }, releaseBinding),
+    proof.proveLiveRpcApi(proofApp, loadedRpc, { backendFederation: { ...manifest.backendFederation, rpcSerialization: 'ndjson' } }, releaseBinding),
     new RegExp('RPC contract/manifest serialization'),
   );
   await assert.rejects(

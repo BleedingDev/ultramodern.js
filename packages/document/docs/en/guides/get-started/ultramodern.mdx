@@ -65,8 +65,8 @@ curl -I -H 'Accept-Language: cs-CZ,cs;q=0.9,en;q=0.1' https://<worker-host>/
 ```
 
 Generated strict Effect workspaces pin the compatible Effect cohort with pnpm
-overrides: `effect@4.0.0-rc.112`, `@effect/opentelemetry@4.0.0-rc.112`,
-and `@effect/vitest@4.0.0-rc.112`. Do not add app-local direct Effect
+overrides: `effect@4.0.0-rc.117`, `@effect/opentelemetry@4.0.0-rc.117`,
+and `@effect/vitest@4.0.0-rc.117`. Do not add app-local direct Effect
 versions that disagree with those overrides. The strict 24-hour release-age
 gate applies to installed packages; this cohort carries no Effect age
 exemption, and override-only `@effect/vitest` is not an installed approval
@@ -78,13 +78,13 @@ metadata transition; they are not release-age approvals.
 
 | Surface | Pin |
 | --- | --- |
-| Effect runtime and test cohort | `effect`, `@effect/opentelemetry`, and `@effect/vitest`: `4.0.0-rc.112` |
-| Effect compiler | `@effect/tsgo@0.41.0` |
-| Oxc and Ultracite | `oxlint@1.81.0`, `oxfmt@0.66.0`, `ultracite@7.11.0` |
-| TanStack Router | `@tanstack/react-router@1.170.33`, `@tanstack/router-core@1.171.28`, `@tanstack/history@1.162.2` |
-| Module Federation | `bridge-react`, `manifest`, `modern-js-v3`, and `rspack`: `2.9.0`; `@module-federation/node@2.7.50` |
+| Effect runtime and test cohort | `effect`, `@effect/opentelemetry`, and `@effect/vitest`: `4.0.0-rc.117` |
+| Effect compiler | `@effect/tsgo@0.45.0` |
+| Oxc and Ultracite | `oxlint@1.85.0`, `oxfmt@0.70.0`, `ultracite@7.12.0` |
+| TanStack Router | `@tanstack/react-router@1.170.35`, `@tanstack/router-core@1.171.29`, `@tanstack/history@1.162.3` |
+| Module Federation | `bridge-react`, `manifest`, `modern-js-v3`, and `rspack`: `2.9.1`; `@module-federation/node@2.7.51` |
 | Tailwind CSS | `tailwindcss@4.3.3` |
-| Node and package tooling | Node `26.7.0`, `@types/node@^26.4.1`, pnpm `11.24.0` |
+| Node and package tooling | Node `26.7.0`, `@types/node@^26.6.2`, pnpm `11.27.1` |
 
 Generated workspaces default to Module Federation bridge-react's router-free
 base entry (`bridge.enableBridgeRouter: false`), with TanStack Router as the

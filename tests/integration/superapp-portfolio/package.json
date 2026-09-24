@@ -8,24 +8,24 @@
     "serve": "modern serve"
   },
   "dependencies": {
-    "@effect/opentelemetry": "4.0.0-rc.112",
+    "@effect/opentelemetry": "4.0.0-rc.117",
+    "@modern-js/bff-effect": "workspace:*",
     "@modern-js/plugin-bff": "workspace:*",
+    "@modern-js/plugin-bff-extensions": "workspace:*",
     "@modern-js/plugin-tanstack": "workspace:*",
     "@modern-js/runtime": "workspace:*",
     "@modern-js/server-runtime": "workspace:*",
-    "effect": "4.0.0-rc.112",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
-    "@modern-js/bff-effect": "workspace:*",
-    "@modern-js/plugin-bff-extensions": "workspace:*"
+    "effect": "4.0.0-rc.117",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
   },
   "devDependencies": {
     "@modern-js/app-tools": "workspace:*",
     "@modern-js/plugin-bff-build-extensions": "workspace:*",
     "@types/jest": "^30.0.0",
-    "@types/node": "^26.4.1",
-    "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.7",
+    "@types/node": "^26.6.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "@typescript/native-preview": "7.0.0-dev.20260707.2"
   }
 }

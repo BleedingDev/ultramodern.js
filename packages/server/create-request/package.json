@@ -82,9 +82,9 @@
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
     "@modern-js/types": "workspace:*",
-    "@rslib/core": "1.0.0",
+    "@rslib/core": "1.0.2",
     "@scripts/rstest-config": "workspace:*",
-    "@types/node": "^26.4.1",
+    "@types/node": "^26.6.2",
     "@types/qs": "^6.15.1",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "nock": "^14.0.17",

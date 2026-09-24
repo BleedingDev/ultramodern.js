@@ -10,25 +10,25 @@
     "test": "node --experimental-strip-types --test profile-build.smoke.ts"
   },
   "devDependencies": {
-    "@types/node": "^26.4.1",
+    "@modern-js/app-tools": "workspace:*",
     "@modern-js/i18n-integration": "workspace:*",
-    "@modern-js/runtime-renderer-extensions": "workspace:*",
     "@modern-js/plugin-i18n": "workspace:*",
     "@modern-js/plugin-tanstack": "workspace:*",
     "@modern-js/runtime": "workspace:*",
-    "effect": "4.0.0-rc.112",
-    "i18next": "26.4.2",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
-    "@modern-js/ultramodern-app-tools": "workspace:*",
-    "@modern-js/app-tools": "workspace:*",
+    "@modern-js/runtime-renderer-extensions": "workspace:*",
     "@modern-js/tsconfig": "workspace:*",
+    "@modern-js/ultramodern-app-tools": "workspace:*",
+    "@modern-js/ultramodern-sandpack-profile": "workspace:*",
     "@rsbuild/plugin-tailwindcss": "2.0.3",
-    "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.7",
-    "tailwindcss": "4.3.3",
-    "typescript": "^7.0.2",
+    "@types/node": "^26.6.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "effect": "4.0.0-rc.117",
+    "i18next": "26.4.2",
     "playwright": "^1.63.0",
-    "@modern-js/ultramodern-sandpack-profile": "workspace:*"
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "tailwindcss": "4.3.3",
+    "typescript": "^7.0.2"
   }
 }

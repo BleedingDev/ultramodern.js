@@ -74,18 +74,18 @@
   },
   "dependencies": {
     "@modern-js/bff-core": "workspace:*",
+    "@modern-js/plugin": "workspace:*",
     "@modern-js/plugin-bff": "workspace:*",
     "@modern-js/plugin-bff-extensions": "workspace:*",
-    "@modern-js/utils": "workspace:*",
-    "@swc/core": "1.16.2",
-    "@modern-js/plugin": "workspace:*",
     "@modern-js/runtime-extensions": "workspace:*",
-    "@modern-js/server-runtime-extensions": "workspace:*"
+    "@modern-js/server-runtime-extensions": "workspace:*",
+    "@modern-js/utils": "workspace:*",
+    "@swc/core": "1.16.2"
   },
   "peerDependencies": {
     "@modern-js/app-tools": "workspace:^3.9.0",
-    "@effect/opentelemetry": "4.0.0-rc.112",
-    "effect": "4.0.0-rc.112"
+    "@effect/opentelemetry": "4.0.0-rc.117",
+    "effect": "4.0.0-rc.117"
   },
   "peerDependenciesMeta": {
     "@effect/opentelemetry": {
@@ -96,21 +96,21 @@
     }
   },
   "devDependencies": {
+    "@effect/opentelemetry": "4.0.0-rc.117",
     "@modern-js/app-tools": "workspace:*",
     "@modern-js/bff-effect": "workspace:*",
     "@modern-js/builder": "workspace:*",
-    "@modern-js/types": "workspace:*",
     "@modern-js/rslib": "workspace:*",
-    "@scripts/rstest-config": "workspace:*",
-    "@effect/opentelemetry": "4.0.0-rc.112",
-    "@rslib/core": "1.0.0",
-    "@rsbuild/core": "2.2.3",
-    "@types/node": "^26.4.1",
-    "@typescript/native-preview": "7.0.0-dev.20260707.2",
-    "effect": "4.0.0-rc.112",
-    "@modern-js/tsconfig": "workspace:*",
     "@modern-js/server-core": "workspace:*",
+    "@modern-js/tsconfig": "workspace:*",
+    "@modern-js/types": "workspace:*",
+    "@rsbuild/core": "2.2.9",
+    "@rslib/core": "1.0.2",
+    "@scripts/rstest-config": "workspace:*",
+    "@types/node": "^26.6.2",
+    "@typescript/native-preview": "7.0.0-dev.20260707.2",
+    "effect": "4.0.0-rc.117",
     "esbuild": "^0.28.2",
-    "zod": "^4.5.4"
+    "zod": "^4.6.5"
   }
 }

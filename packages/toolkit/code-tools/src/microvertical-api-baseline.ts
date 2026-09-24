@@ -369,7 +369,9 @@ const reexportedBinding = (
     );
     if (specifier !== undefined && t.isExportSpecifier(specifier))
       return {
-        local: specifier.local.name,
+        local: t.isIdentifier(specifier.local)
+          ? specifier.local.name
+          : specifier.local.value,
         ...(statement.source ? { specifier: statement.source.value } : {}),
       };
   }

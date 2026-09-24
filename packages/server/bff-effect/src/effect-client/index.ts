@@ -107,8 +107,7 @@ export type EffectRpcSerialization =
   | 'json'
   | 'ndjson'
   | 'jsonRpc'
-  | 'ndJsonRpc'
-  | 'msgPack';
+  | 'ndJsonRpc';
 
 export class EffectRpcClientError extends Data.TaggedError(
   'EffectRpcClientError',

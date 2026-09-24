@@ -347,7 +347,6 @@ export const ULTRAMODERN_WORKSPACE_POLICY = {
       'core-js': true,
       esbuild: true,
       lefthook: true,
-      'msgpackr-extract': true,
       sharp: true,
       workerd: true,
     },

@@ -144,6 +144,7 @@
     "@modern-js/bff-core": "workspace:*",
     "@modern-js/create-request": "workspace:*",
     "@modern-js/runtime-extensions": "workspace:*",
+    "@modern-js/server-runtime-extensions": "workspace:*",
     "@opentelemetry/api": "1.9.1",
     "@opentelemetry/api-logs": "0.222.0",
     "@opentelemetry/resources": "2.11.0",
@@ -152,12 +153,11 @@
     "@opentelemetry/sdk-trace-base": "2.11.0",
     "@opentelemetry/sdk-trace-node": "2.11.0",
     "@opentelemetry/sdk-trace-web": "2.11.0",
-    "@opentelemetry/semantic-conventions": "1.43.0",
-    "@modern-js/server-runtime-extensions": "workspace:*"
+    "@opentelemetry/semantic-conventions": "1.43.0"
   },
   "peerDependencies": {
-    "@effect/opentelemetry": "4.0.0-rc.112",
-    "effect": "4.0.0-rc.112"
+    "@effect/opentelemetry": "4.0.0-rc.117",
+    "effect": "4.0.0-rc.117"
   },
   "peerDependenciesMeta": {
     "@effect/opentelemetry": {
@@ -168,14 +168,14 @@
     }
   },
   "devDependencies": {
-    "@effect/opentelemetry": "4.0.0-rc.112",
+    "@effect/opentelemetry": "4.0.0-rc.117",
     "@modern-js/rslib": "workspace:*",
-    "@rslib/core": "1.0.0",
+    "@rslib/core": "1.0.2",
     "@scripts/rstest-config": "workspace:*",
-    "@types/node": "^26.4.1",
-    "@types/react": "^19.2.18",
+    "@types/node": "^26.6.2",
+    "@types/react": "^19.3.0",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
-    "effect": "4.0.0-rc.112"
+    "effect": "4.0.0-rc.117"
   },
   "sideEffects": false,
   "publishConfig": {
