@@ -33,12 +33,15 @@
     },
     "fork": {
       "name": "@bleedingdev/rsbuild-image-core",
-      "version": "0.1.3"
+      "version": "0.1.4"
     },
     "license": "MIT",
     "artifacts": ["dist", "LICENSE"],
     "patch": null,
     "manifestChanges": {
+      "dependencies": {
+        "image-size": "^2.0.3"
+      },
       "peerDependencies": {
         "sharp": ">=0.35.4"
       }

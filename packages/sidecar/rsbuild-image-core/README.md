@@ -1,8 +1,8 @@
 # @bleedingdev/rsbuild-image-core
 
 UltraModern **sidecar repackage** of [`@rsbuild-image/core`](https://github.com/rspack-contrib/rsbuild-image)
-`0.0.1-next.36`, published so that `@modern-js/image` ships a Sharp peer floor
-of 0.35.4 to its consumers.
+`0.0.1-next.36`, published so that `@modern-js/image` ships hardened
+`image-size` and Sharp floors to its consumers.
 
 Upstream is MIT licensed, © 2025-present **Rspack Contrib**. The bundled
 `LICENSE` is the upstream file byte-for-byte and all credit for the code in
@@ -10,11 +10,12 @@ Upstream is MIT licensed, © 2025-present **Rspack Contrib**. The bundled
 
 ## Why this package exists
 
-Peer ranges cannot be tightened by anything a consumer declares: `pnpm`
-`overrides` are root-project-only and are *not* carried into a published
-tarball. Raising the Sharp peer floor for real consumers therefore means
-republishing the package that owns the peer declaration. `image-size` stays the
-upstream `^2.0.1` dependency; 2.0.3 and newer carry the parser loop bounds.
+Dependency and peer ranges cannot be tightened by anything a consumer declares:
+`pnpm` `overrides` are root-project-only and are *not* carried into a published
+tarball. Upstream declares `image-size` as `^2.0.1`, which lets a consumer
+lockfile keep 2.0.1 or 2.0.2 with the unbounded parser loops; 2.0.3 is the first
+release that bounds them. Raising both floors for real consumers therefore means
+republishing the package that owns those edges.
 
 ## What is different from upstream
 
@@ -26,16 +27,17 @@ byte under `dist/` is vendored verbatim and the entire delta lives in
 | Field | Upstream | Here |
 | --- | --- | --- |
 | `name` | `@rsbuild-image/core` | `@bleedingdev/rsbuild-image-core` |
-| `version` | `0.0.1-next.36` | `0.1.3` |
+| `version` | `0.0.1-next.36` | `0.1.4` |
+| `dependencies["image-size"]` | `^2.0.1` | `^2.0.3` (hardened floor) |
 | `devDependencies` | build/test toolchain | dropped (nothing is built here) |
 | `peerDependencies.sharp` | `>=0.33.5` | `>=0.35.4` (patched floor) |
 
-Everything else — `dependencies`, `type`, `main`, `module`, `types`, the full five-subpath
+Everything else — `type`, `main`, `module`, `types`, the full five-subpath
 `exports` map with all of its conditions, `typesVersions`, `sideEffects`,
 `files`, peers other than Sharp, and `peerDependenciesMeta` — is copied verbatim.
-`scripts/verify-manifest.mjs` checks that fidelity and the exact patched Sharp floor.
+`scripts/verify-manifest.mjs` checks that fidelity and the exact patched floors.
 
-`0.1.3` is a **stable** semver version on purpose. `@rsbuild-image/react`
+`0.1.4` is a **stable** semver version on purpose. `@rsbuild-image/react`
 declares its peer on core as the wildcard `"*"`, which every resolver
 short-circuits before semver, so the exact number is free; a stable one keeps
 strict-peer consumers (npm, yarn classic) from ever having to opt into
@@ -109,6 +111,6 @@ It never discovers or trusts an incidental pnpm-store copy. See the
 1. Copy `dist/` and `LICENSE` verbatim from the new upstream release.
 2. Update the upstream URL/integrity, version and allowed manifest changes in
    `scripts/ultramodern-supply/sidecars.json`.
-3. Re-apply the patched Sharp peer floor, then bump this package's version.
+3. Re-apply the image-size and Sharp floors, then bump this package's version.
 4. Run the verifier; it will flag any newly introduced self-reference,
    deep import, or Node dependency that leaked into `dist/shared/**`.
