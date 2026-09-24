@@ -4,9 +4,9 @@
   "upstreamRef": "2f4d9c4559e26209a0d77f02c6757f29fe3699a2",
   "pathspec": ["packages"],
   "migrationGoal": "Shrink-only budget of fork edits inside upstream-owned files. Every entry is debt: move it upstream or behind an extension point, then re-run --write-divergence-allowlist.",
-  "totalFiles": 817,
-  "totalHunks": 3090,
-  "totalChangedLines": 50957,
+  "totalFiles": 821,
+  "totalHunks": 3092,
+  "totalChangedLines": 51028,
   "files": [
     {
       "file": "packages/cli/adapter-rstest/package.json",
@@ -36,7 +36,7 @@
     {
       "file": "packages/cli/builder/package.json",
       "hunks": 11,
-      "changedLines": 50
+      "changedLines": 54
     },
     {
       "file": "packages/cli/builder/rslib.config.mts",
@@ -55,7 +55,12 @@
     },
     {
       "file": "packages/cli/builder/src/plugins/environmentDefaults.ts",
-      "hunks": 2,
+      "hunks": 4,
+      "changedLines": 16
+    },
+    {
+      "file": "packages/cli/builder/src/plugins/manifest.ts",
+      "hunks": 1,
       "changedLines": 2
     },
     {
@@ -315,8 +320,8 @@
     },
     {
       "file": "packages/cli/plugin-data-loader/package.json",
-      "hunks": 6,
-      "changedLines": 23
+      "hunks": 5,
+      "changedLines": 27
     },
     {
       "file": "packages/cli/plugin-data-loader/src/cli/loader.ts",
@@ -365,8 +370,8 @@
     },
     {
       "file": "packages/cli/plugin-ssg/package.json",
-      "hunks": 8,
-      "changedLines": 32
+      "hunks": 7,
+      "changedLines": 36
     },
     {
       "file": "packages/cli/plugin-ssg/rslib.config.mts",
@@ -1010,8 +1015,8 @@
     },
     {
       "file": "packages/document/package.json",
-      "hunks": 11,
-      "changedLines": 37
+      "hunks": 10,
+      "changedLines": 41
     },
     {
       "file": "packages/document/rspress.config.ts",
@@ -1110,8 +1115,8 @@
     },
     {
       "file": "packages/runtime/plugin-i18n/package.json",
-      "hunks": 15,
-      "changedLines": 74
+      "hunks": 13,
+      "changedLines": 83
     },
     {
       "file": "packages/runtime/plugin-i18n/README.md",
@@ -1450,8 +1455,8 @@
     },
     {
       "file": "packages/runtime/plugin-image/package.json",
-      "hunks": 6,
-      "changedLines": 16
+      "hunks": 5,
+      "changedLines": 20
     },
     {
       "file": "packages/runtime/plugin-image/src/cli.ts",
@@ -1476,7 +1481,7 @@
     {
       "file": "packages/runtime/plugin-runtime/package.json",
       "hunks": 15,
-      "changedLines": 55
+      "changedLines": 59
     },
     {
       "file": "packages/runtime/plugin-runtime/rstest.config.mts",
@@ -2256,7 +2261,7 @@
     {
       "file": "packages/runtime/render/package.json",
       "hunks": 13,
-      "changedLines": 45
+      "changedLines": 49
     },
     {
       "file": "packages/runtime/render/react-server-dom-rspack.d.ts",
@@ -2375,7 +2380,7 @@
     },
     {
       "file": "packages/server/bff-core/package.json",
-      "hunks": 10,
+      "hunks": 11,
       "changedLines": 22
     },
     {
@@ -3174,6 +3179,11 @@
       "changedLines": 5
     },
     {
+      "file": "packages/solutions/app-tools/src/builder/generator/createCopyPattern.ts",
+      "hunks": 2,
+      "changedLines": 3
+    },
+    {
       "file": "packages/solutions/app-tools/src/builder/generator/getBuilderEnvironments.ts",
       "hunks": 7,
       "changedLines": 160
@@ -3182,6 +3192,11 @@
       "file": "packages/solutions/app-tools/src/builder/shared/builderPlugins/adapterBasic.ts",
       "hunks": 7,
       "changedLines": 47
+    },
+    {
+      "file": "packages/solutions/app-tools/src/builder/shared/builderPlugins/adapterHtml.ts",
+      "hunks": 1,
+      "changedLines": 5
     },
     {
       "file": "packages/solutions/app-tools/src/builder/shared/builderPlugins/adapterSSR.ts",
@@ -3479,6 +3494,11 @@
       "changedLines": 51
     },
     {
+      "file": "packages/solutions/app-tools/tests/fixtures/subcommand/package.json",
+      "hunks": 1,
+      "changedLines": 2
+    },
+    {
       "file": "packages/solutions/app-tools/tests/index.test.ts",
       "hunks": 2,
       "changedLines": 2
@@ -3761,7 +3781,7 @@
     {
       "file": "packages/toolkit/runtime-utils/package.json",
       "hunks": 8,
-      "changedLines": 34
+      "changedLines": 38
     },
     {
       "file": "packages/toolkit/runtime-utils/rslib.config.mts",
@@ -3841,7 +3861,7 @@
     {
       "file": "packages/toolkit/sandpack-react/package.json",
       "hunks": 8,
-      "changedLines": 20
+      "changedLines": 24
     },
     {
       "file": "packages/toolkit/sandpack-react/scripts/template.mts",
