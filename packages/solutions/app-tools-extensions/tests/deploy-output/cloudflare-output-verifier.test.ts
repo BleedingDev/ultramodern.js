@@ -574,6 +574,12 @@ describe('Cloudflare output verifier', () => {
       path.join(directory, 'scripts/patch-output.mjs'),
       "server = '.output/server/index.mjs'; bundle = '.output/worker/__modern_bff_effect.js'; source.replaceAll(';entityKind;', ';');\n",
     );
+    // Listed by the walk but gone before the read, like a sibling build's
+    // transient tsgo config.
+    await fs.symlink(
+      path.join(directory, 'deleted.json'),
+      path.join(directory, 'scripts/.tsgo.1.0.resolved.json'),
+    );
 
     const outputResult = await verifyCloudflareOutput({
       outputDirectory,
