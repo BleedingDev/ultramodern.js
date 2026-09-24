@@ -27,10 +27,7 @@ export const RSBUILD_PLUGIN_TAILWINDCSS_VERSION = '2.0.3';
 // carried by generated workspaces.
 // See FORK-DIVERGENCE.md, packages/toolkit/ultramodern-create.
 export const EFFECT_VERSION = '4.0.0-rc.117';
-export const EFFECT_VITEST_VERSION = '4.0.0-rc.117';
 export const EFFECT_TSGO_VERSION = '0.45.0';
-export const ZOD_VERSION = '4.6.5';
-export const DRIZZLE_ORM_VERSION = '1.0.0-rc.4';
 export const TYPESCRIPT_STABLE_VERSION = '7.0.2';
 export const TYPESCRIPT_VERSION = TYPESCRIPT_STABLE_VERSION;
 export const TYPESCRIPT_NATIVE_PREVIEW_VERSION = '7.0.0-dev.20260707.2';

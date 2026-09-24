@@ -47,20 +47,10 @@ import type {
   WorkspaceApp,
 } from './types';
 import {
-  DRIZZLE_ORM_VERSION,
   EFFECT_VERSION,
-  EFFECT_VITEST_VERSION,
   I18NEXT_VERSION,
-  MODULE_FEDERATION_VERSION,
-  NODE_FETCH_VERSION,
   NODE_VERSION,
   PNPM_VERSION,
-  TANSTACK_HISTORY_VERSION,
-  TANSTACK_ROUTER_CORE_VERSION,
-  TANSTACK_ROUTER_VERSION,
-  TYPESCRIPT_VERSION,
-  WRANGLER_VERSION,
-  ZOD_VERSION,
 } from './versions';
 import { writeGeneratedWorkspaceScripts } from './workspace-scripts';
 import { writeApp } from './write-app';
@@ -216,18 +206,8 @@ function generateUltramodernWorkspaceInPlace(
       packageScope: scope,
       nodeVersion: NODE_VERSION,
       pnpmVersion: PNPM_VERSION,
-      nodeFetchVersion: NODE_FETCH_VERSION,
-      drizzleOrmVersion: DRIZZLE_ORM_VERSION,
       effectVersion: EFFECT_VERSION,
-      effectVitestVersion: EFFECT_VITEST_VERSION,
       i18nextVersion: I18NEXT_VERSION,
-      moduleFederationVersion: MODULE_FEDERATION_VERSION,
-      zodVersion: ZOD_VERSION,
-      tanstackHistoryVersion: TANSTACK_HISTORY_VERSION,
-      tanstackRouterCoreVersion: TANSTACK_ROUTER_CORE_VERSION,
-      tanstackRouterVersion: TANSTACK_ROUTER_VERSION,
-      typescriptVersion: TYPESCRIPT_VERSION,
-      wranglerVersion: WRANGLER_VERSION,
       workspacePackageLinkingYaml: Object.entries(workspacePackageLinkingPolicy)
         .map(([key, value]) => `${key}: ${String(value)}\n`)
         .join(''),
