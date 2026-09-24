@@ -22,6 +22,7 @@ import {
   type CreateReadableStreamFromElement,
   getReadableStreamFromString,
   resolveStreamingMode,
+  SHELL_PROGRESSIVE_CHUNK_SIZE,
   ShellChunkStatus,
 } from './shared';
 import { getTemplates } from './template';
@@ -79,6 +80,7 @@ export const createReadableStreamFromElement: CreateReadableStreamFromElement =
         request,
         signal: request.signal,
         nonce: config.nonce,
+        progressiveChunkSize: SHELL_PROGRESSIVE_CHUNK_SIZE,
         rscManifest,
         rscRoot: rscRoot!,
         routes: runtimeContext.routes,
