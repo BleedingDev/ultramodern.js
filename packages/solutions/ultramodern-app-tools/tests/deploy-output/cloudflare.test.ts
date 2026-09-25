@@ -374,7 +374,7 @@ describe('cloudflare deploy preset', () => {
         },
       },
       wrangler: {
-        compatibility_date: '2026-05-01',
+        compatibility_date: '2026-07-01',
         compatibility_flags: ['streams_enable_constructors', 'nodejs_compat'],
         main: 'custom-entry.mjs',
         assets: {
@@ -394,7 +394,7 @@ describe('cloudflare deploy preset', () => {
     );
 
     expect(wranglerConfig.name).toBe('commerce-production-worker');
-    expect(wranglerConfig.compatibility_date).toBe('2026-05-01');
+    expect(wranglerConfig.compatibility_date).toBe('2026-07-01');
     expect(wranglerConfig.main).toBe('server/index.mjs');
     expect(wranglerConfig.compatibility_flags).toEqual([
       'streams_enable_constructors',
