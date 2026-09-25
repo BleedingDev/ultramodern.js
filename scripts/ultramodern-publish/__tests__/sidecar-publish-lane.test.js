@@ -477,6 +477,107 @@ test('a sidecar that never propagates fails after the whole shared schedule', as
   assert.deepEqual(waits, [...registryPropagationDelaysMs]);
 });
 
+test('propagation waits overlap except where a later sidecar aliases an earlier one', async t => {
+  const { publishSidecars } = await importCli();
+  const trustedEnv = {
+    GITHUB_ACTIONS: 'true',
+    GITHUB_REF: 'refs/heads/main-ultramodern',
+    GITHUB_REPOSITORY: 'BleedingDev/ultramodern.js',
+  };
+  const savedEnv = Object.fromEntries(
+    Object.keys(trustedEnv).map(key => [key, process.env[key]]),
+  );
+  Object.assign(process.env, trustedEnv);
+  t.after(() => {
+    for (const [key, value] of Object.entries(savedEnv)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+
+  const named = (name, dependencies = { sharp: '^0.35.3' }) => {
+    const base = stagedIpx();
+    return {
+      ...base,
+      name,
+      packageJson: { ...base.packageJson, name, dependencies },
+    };
+  };
+  const first = named('@bleedingdev/ipx-first');
+  const independent = named('@bleedingdev/ipx-independent');
+  const aliasing = named('@bleedingdev/ipx-aliasing', {
+    sharp: '^0.35.3',
+    ipx: 'npm:@bleedingdev/ipx-first@3.2.0',
+  });
+  const sidecars = [first, independent, aliasing];
+  const byName = new Map(sidecars.map(sidecar => [sidecar.name, sidecar]));
+
+  const events = [];
+  const publishedNames = new Set();
+  const verified = new Set();
+  let releaseFirst;
+  const firstMayPropagate = new Promise(resolve => {
+    releaseFirst = resolve;
+  });
+  const readPackument = async name => {
+    const sidecar = byName.get(name);
+    if (!publishedNames.has(name)) return priorReleaseOnly(sidecar);
+    if (name === first.name) await firstMayPropagate;
+    verified.add(name);
+    return packumentFor(sidecar, {
+      overrides: {
+        // npm normalizes a string bin under the unscoped package name.
+        bin: { [name.split('/')[1]]: 'bin/ipx.mjs' },
+        dependencies: sidecar.packageJson.dependencies,
+      },
+    });
+  };
+
+  const result = await publishSidecars(
+    { checkStaging: false, dryRun: false, out: '/unused', tag: 'latest' },
+    {
+      loadRuntime: () => ({
+        npmVersion: '11.10.1',
+        publish: async packageJson => {
+          events.push(`publish ${packageJson.name}`);
+          publishedNames.add(packageJson.name);
+          // The first sidecar's propagation only completes once the lane has
+          // moved on: a serial wait would never reach this publish.
+          if (packageJson.name === independent.name) releaseFirst();
+          if (packageJson.name === aliasing.name) {
+            assert.ok(
+              verified.has(first.name),
+              'an aliasing sidecar publishes only after its target verified',
+            );
+          }
+        },
+      }),
+      readPackument,
+      readSidecars: () => ({
+        manifest: { publishBefore: '@bleedingdev/modern-js-image' },
+        release: {
+          manifest: {
+            tools: { node: process.version, npm: '11.10.1', pnpm: '11.24.0' },
+          },
+        },
+        sidecars,
+      }),
+      requestToken: async () => 'oidc-token',
+      wait: async () => {},
+    },
+  );
+  assert.deepEqual(events, [
+    `publish ${first.name}`,
+    `publish ${independent.name}`,
+    `publish ${aliasing.name}`,
+  ]);
+  assert.deepEqual(
+    result.published,
+    sidecars.map(sidecar => `${sidecar.name}@3.2.0`),
+  );
+  assert.deepEqual([...verified].sort(), sidecars.map(s => s.name).sort());
+});
+
 test('a dist-tag on a different real version is terminal, never retried', async () => {
   const { awaitPublishedSidecar, classifySidecarPropagation } =
     await importCli();
