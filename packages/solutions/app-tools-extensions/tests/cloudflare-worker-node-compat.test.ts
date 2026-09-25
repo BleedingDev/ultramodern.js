@@ -103,6 +103,17 @@ describe('Cloudflare worker Node.js compatibility', () => {
       DEFAULT_COMPATIBILITY_DATE,
     );
     expect(configFor('2026-09-09').compatibility_date).toBe('2026-09-09');
+    const wranglerConfigFor = (compatibility_date: unknown) =>
+      createWranglerConfig('/app', {
+        deploy: { worker: { wrangler: { compatibility_date } } },
+      } as never);
+    expect(() => wranglerConfigFor('2025-01-01')).toThrow(
+      `deploy.worker.compatibilityDate must be ${DEFAULT_COMPATIBILITY_DATE} or later`,
+    );
+    expect(() => wranglerConfigFor(20260602)).toThrow('YYYY-MM-DD string');
+    expect(wranglerConfigFor('2026-09-09').compatibility_date).toBe(
+      '2026-09-09',
+    );
   });
 
   it('externalizes bare built-ins only where Node accepts the bare name', () => {
@@ -165,7 +176,11 @@ describe('Cloudflare worker Node.js compatibility', () => {
 
   it('keeps app aliases and object externals ahead of the absent fallback', () => {
     const isRedirected = createRequestRedirectMatcher({
-      externals: [{ 'external-peer': 'module-import external-peer' }, /re/u],
+      externals: [
+        { 'external-peer': 'module-import external-peer' },
+        /^regex-peer(?:\/.*)?$/u,
+        'string-peer',
+      ],
       resolve: {
         alias: { 'aliased-peer': '/replacement.js', 'exact-peer$': '/x' },
       },
@@ -178,6 +193,10 @@ describe('Cloudflare worker Node.js compatibility', () => {
     expect(isRedirected('exact-peer')).toBe(true);
     expect(isRedirected('exact-peer/subpath')).toBe(false);
     expect(isRedirected('external-peer')).toBe(true);
+    expect(isRedirected('regex-peer')).toBe(true);
+    expect(isRedirected('regex-peer/subpath')).toBe(true);
+    expect(isRedirected('regex-peer-other')).toBe(false);
+    expect(isRedirected('string-peer')).toBe(true);
     expect(isIgnored('aliased-peer', '/any/context')).toBe(false);
     expect(
       createRequestRedirectMatcher({

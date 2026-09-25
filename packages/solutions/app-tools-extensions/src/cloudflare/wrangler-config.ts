@@ -15,8 +15,22 @@ import {
 import type { CloudflareModernConfig } from './types';
 import { isJsonRecord, normalizeRelativePath } from './utils';
 
-const getCompatibilityDate = (modernConfig: CloudflareModernConfig) => {
-  const configuredDate = modernConfig.deploy?.worker?.compatibilityDate?.trim();
+const getCompatibilityDate = (
+  modernConfig: CloudflareModernConfig,
+  wranglerCompatibilityDate: JsonValue | undefined,
+) => {
+  if (
+    wranglerCompatibilityDate !== undefined &&
+    typeof wranglerCompatibilityDate !== 'string'
+  ) {
+    throw new Error(
+      'deploy.worker.wrangler.compatibility_date must be a YYYY-MM-DD string.',
+    );
+  }
+  // A raw Wrangler override is the effective date, so it is validated too.
+  const configuredDate =
+    wranglerCompatibilityDate?.trim() ||
+    modernConfig.deploy?.worker?.compatibilityDate?.trim();
   const compatibilityDate = configuredDate || DEFAULT_COMPATIBILITY_DATE;
 
   if (!COMPATIBILITY_DATE_PATTERN.test(compatibilityDate)) {
@@ -335,8 +349,11 @@ export const createWranglerConfig = (
   return {
     $schema: 'node_modules/wrangler/config-schema.json',
     name: getConfiguredWorkerName(appDirectory, modernConfig),
-    compatibility_date: getCompatibilityDate(modernConfig),
     ...wrangler,
+    compatibility_date: getCompatibilityDate(
+      modernConfig,
+      wrangler.compatibility_date,
+    ),
     main: WORKER_ENTRY,
     compatibility_flags: createWranglerCompatibilityFlags(
       wrangler.compatibility_flags,
