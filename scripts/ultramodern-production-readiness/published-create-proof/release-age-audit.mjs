@@ -790,15 +790,17 @@ function resolveAcceptanceReleaseAgeExclusions({
     );
     return `${item.targetName}@${item.version}`;
   });
-  const sidecars = mode === 'source' ? (release.sidecars?.packages ?? []) : [];
+  // Sidecars are first-party @bleedingdev packages the release publishes just
+  // before the cohort, so both lanes exempt exactly the manifest's versions.
+  const sidecars = release.sidecars?.packages ?? [];
   assertCondition(
     Array.isArray(sidecars),
-    'Source-candidate sidecar observations must be an array',
+    'Release manifest sidecar observations must be an array',
   );
   const sidecarSelectors = sidecars.map((item, index) => {
     assertCondition(
       typeof item?.name === 'string' && typeof item.version === 'string',
-      `Verified staged sidecar observation ${index} must bind an exact name and version`,
+      `Verified sidecar observation ${index} must bind an exact name and version`,
     );
     return `${item.name}@${item.version}`;
   });
@@ -945,15 +947,15 @@ async function fetchRegistryMetadata(
   return results;
 }
 
-function approveImmaturePackages({ metadata, policy, release, mode, now }) {
+function approveImmaturePackages({ metadata, policy, release, now }) {
   const policyByIdentity = new Map(
     policy.entries.map(entry => [identityKey(entry), entry]),
   );
   const releaseByIdentity = new Map(
     release.packages.map(item => [`${item.targetName}@${item.version}`, item]),
   );
-  const sourceSidecars = new Map(
-    (mode === 'source' ? (release.sidecars?.packages ?? []) : []).map(item => [
+  const sidecars = new Map(
+    (release.sidecars?.packages ?? []).map(item => [
       `${item.name}@${item.version}`,
       item,
     ]),
@@ -964,10 +966,10 @@ function approveImmaturePackages({ metadata, policy, release, mode, now }) {
   const matchedPolicyEntries = new Set();
   for (const item of metadata) {
     const key = identityKey(item);
-    const sidecar = sourceSidecars.get(key);
+    const sidecar = sidecars.get(key);
     assertCondition(
       !sidecar || sidecar.integrity === item.integrity,
-      `Source sidecar ${key} registry integrity differs from authenticated release manifest`,
+      `Sidecar ${key} registry integrity differs from authenticated release manifest`,
     );
     const exception = policyByIdentity.get(key);
     if (exception?.integrity === item.integrity) {
@@ -1193,9 +1195,7 @@ async function auditReleaseAgePolicy({
   const closureResult = buildDependencyClosure(nativeLock.lock);
   const cohortNames = new Set([
     ...release.packages.flatMap(item => [item.targetName, item.sourceName]),
-    ...(mode === 'source'
-      ? (release.sidecars?.packages ?? []).map(item => item.name)
-      : []),
+    ...(release.sidecars?.packages ?? []).map(item => item.name),
   ]);
   for (const tarball of closureResult.tarballs) {
     assertCondition(
@@ -1228,13 +1228,11 @@ async function auditReleaseAgePolicy({
   // direct to npmjs — strictly stronger (authoritative publishedAt/integrity)
   // and faster than proxying through Verdaccio.
   const cohortScopePrefix = `@${release.targetScope}/`;
-  const sourceSidecarNames = new Set(
-    (mode === 'source' ? (release.sidecars?.packages ?? []) : []).map(
-      item => item.name,
-    ),
+  const sidecarNames = new Set(
+    (release.sidecars?.packages ?? []).map(item => item.name),
   );
   const registryUrlFor = name =>
-    name.startsWith(cohortScopePrefix) || sourceSidecarNames.has(name)
+    name.startsWith(cohortScopePrefix) || sidecarNames.has(name)
       ? registryUrl
       : NPM_REGISTRY;
   const metadata = await fetchRegistryMetadata(closureResult.closure, {
@@ -1247,7 +1245,6 @@ async function auditReleaseAgePolicy({
       metadata,
       policy,
       release,
-      mode,
       now,
     });
   // The generated workspace keeps its ordinary age policy. This exact command

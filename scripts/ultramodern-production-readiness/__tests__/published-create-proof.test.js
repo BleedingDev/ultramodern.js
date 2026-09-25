@@ -217,7 +217,7 @@ test('fails closed when the authenticated create closure is omitted or version-s
   );
 });
 
-test('fresh-release installs use exact command-scoped cohort and source sidecar selectors', async () => {
+test('fresh-release installs use exact command-scoped cohort and sidecar selectors in both lanes', async () => {
   const { resolveAcceptanceReleaseAgeExclusions } = await import(
     '../published-create-proof/release-age-audit.mjs'
   );
@@ -239,11 +239,9 @@ test('fresh-release installs use exact command-scoped cohort and source sidecar 
     release,
     mode: 'source',
   });
-  assert.equal(published.length, release.packages.length);
-  assert.deepEqual(
-    source,
-    [...published, '@bleedingdev/mf-bridge-react@1.0.0'].sort(),
-  );
+  assert.equal(published.length, release.packages.length + 1);
+  assert.ok(published.includes('@bleedingdev/mf-bridge-react@1.0.0'));
+  assert.deepEqual(source, published);
   const env = createAcceptanceReleaseAgeEnv(
     { PATH: '/exact/pnpm' },
     resolveCreatePackage(release),
@@ -257,10 +255,12 @@ test('fresh-release installs use exact command-scoped cohort and source sidecar 
   assert.equal(env.pnpm_config_minimum_release_age_strict, 'true');
   assert.equal(env.PATH, '/exact/pnpm');
   release.sidecars.packages[0].version = '1.*';
-  assert.throws(
-    () => resolveAcceptanceReleaseAgeExclusions({ release, mode: 'source' }),
-    /Acceptance command release-age exclusions/u,
-  );
+  for (const mode of ['source', 'published']) {
+    assert.throws(
+      () => resolveAcceptanceReleaseAgeExclusions({ release, mode }),
+      /Acceptance command release-age exclusions/u,
+    );
+  }
 });
 
 test('acceptance production builds and runtime proofs use the same explicit local deployment addresses', async () => {
