@@ -200,6 +200,10 @@ export const planWorkerdSsrProof = (topology) => {
     };
   });
   assert(
+    plans.some((plan) => plan.kind === "shell"),
+    "Workerd SSR proof requires at least one shell",
+  );
+  assert(
     plans.some((plan) => plan.kind === "vertical"),
     "Workerd SSR proof requires at least one MicroVertical or headless API",
   );

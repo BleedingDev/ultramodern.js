@@ -176,6 +176,13 @@ describe('workerd SSR proof topology planning', () => {
     );
     assert.throws(
       () =>
+        planWorkerdSsrProof(
+          topology({ ...shell(), kind: 'vertical', verticalRefs: [] }),
+        ),
+      /Workerd SSR proof requires at least one shell/u,
+    );
+    assert.throws(
+      () =>
         planWorkerdSsrProof({ schemaVersion: 1, shell: null, verticals: [] }),
       /Invalid topology\/reference-topology\.json/u,
     );
