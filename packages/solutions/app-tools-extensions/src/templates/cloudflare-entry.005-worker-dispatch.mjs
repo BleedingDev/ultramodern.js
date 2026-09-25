@@ -52,7 +52,51 @@ async function getRequestHandler(workerModule) {
   );
 }
 
+const ROUTE_DATA_REQUEST_PARAM = '__loader';
+
+// Route data requests (`?__loader=`) are answered by the entry's route data
+// worker, like the Node server's data handler. Without a match the request
+// falls through to page rendering, as it does on Node.
+async function dispatchRouteDataRequest(route, request) {
+  const routeDataWorkerPath = route.routeDataWorker;
+  if (
+    !routeDataWorkerPath ||
+    !new URL(request.url).searchParams.has(ROUTE_DATA_REQUEST_PARAM)
+  ) {
+    return undefined;
+  }
+
+  const routeDataWorkerModule = await loadWorkerModule(routeDataWorkerPath);
+  const handleRouteDataRequest = routeDataWorkerModule
+    ? getRuntimeModule(routeDataWorkerModule).handleRouteDataRequest
+    : undefined;
+
+  if (typeof handleRouteDataRequest !== 'function') {
+    return new Response(
+      `Route data worker bundle has no handleRouteDataRequest export: ${routeDataWorkerPath}`,
+      {
+        status: 500,
+        headers: {
+          'content-type': 'text/plain; charset=utf-8',
+          'x-modern-js-route-data-worker': routeDataWorkerPath,
+        },
+      },
+    );
+  }
+
+  return handleRouteDataRequest({
+    request,
+    serverRoutes: MODERN_WORKER_MANIFEST.routeSpec.routes,
+  });
+}
+
 async function dispatchRouteWorker(route, request, env, ctx) {
+  const routeDataResponse = await dispatchRouteDataRequest(route, request);
+
+  if (routeDataResponse) {
+    return routeDataResponse;
+  }
+
   const workerPath = route.worker;
   if (!workerPath) {
     return new Response('Worker bundle not configured for SSR route', {

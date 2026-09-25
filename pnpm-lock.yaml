@@ -2991,6 +2991,9 @@ importers:
       '@modern-js/plugin-bff-extensions':
         specifier: workspace:*
         version: link:../../cli/plugin-bff-extensions
+      '@modern-js/plugin-data-loader':
+        specifier: workspace:*
+        version: link:../../cli/plugin-data-loader
       '@modern-js/rslib':
         specifier: workspace:*
         version: link:../../../scripts/rslib

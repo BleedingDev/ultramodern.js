@@ -190,6 +190,7 @@
   "devDependencies": {
     "@modern-js/plugin": "workspace:*",
     "@modern-js/plugin-bff-extensions": "workspace:*",
+    "@modern-js/plugin-data-loader": "workspace:*",
     "@modern-js/rslib": "workspace:*",
     "@module-federation/runtime-tools": "2.9.1",
     "@rsbuild/core": "2.2.9",
