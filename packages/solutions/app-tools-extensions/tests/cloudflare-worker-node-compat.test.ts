@@ -156,6 +156,7 @@ describe('Cloudflare worker Node.js compatibility', () => {
         fs.symlinkSync(
           path.dirname(require.resolve('pg/package.json')),
           path.join(root, 'node_modules/pg'),
+          'junction',
         );
         // Mirrors `@redis/client`, which guards an import of its optional
         // `@node-rs/xxhash` peer.
