@@ -374,8 +374,8 @@ const getAliasNames = (alias: AliasOption) =>
 
 type ExternalMatcher = (request: string) => boolean;
 
-// Function externals are asynchronous callbacks and cannot be consulted
-// before resolution; string, RegExp and object-key externals are matched.
+// String, RegExp and object-key externals are matched synchronously; function
+// externals are consulted per request by `claimsByFunctionExternal`.
 // An object entry mapped to `false` keeps the request bundled, so it is not
 // a redirect.
 const getExternalMatchers = (externals: unknown): ExternalMatcher[] => {
@@ -428,15 +428,105 @@ export const createRequestRedirectMatcher = (options: {
     );
 };
 
+type FunctionExternal = (
+  data: Rspack.ExternalItemFunctionData,
+  callback: (error?: Error | null, result?: unknown) => void,
+) => unknown;
+
+const getFunctionExternals = (externals: unknown): FunctionExternal[] =>
+  Array.isArray(externals)
+    ? externals.flatMap(getFunctionExternals)
+    : typeof externals === 'function'
+      ? [externals as FunctionExternal]
+      : [];
+
+// Calls a function external with the same callback, promise and synchronous
+// return forms Rspack accepts. `undefined`, `null` and `false` decline.
+const callFunctionExternal = (
+  external: FunctionExternal,
+  data: Rspack.ExternalItemFunctionData,
+) =>
+  new Promise<unknown>((resolve, reject) => {
+    const returned = external(data, (error, result) =>
+      error ? reject(error) : resolve(result),
+    );
+    if (
+      returned !== null &&
+      typeof returned === 'object' &&
+      typeof (returned as PromiseLike<unknown>).then === 'function'
+    ) {
+      (returned as PromiseLike<unknown>).then(resolve, reject);
+    } else if (external.length === 1) {
+      resolve(returned);
+    }
+  });
+
+/**
+ * Reports whether any function external claims the request. A function that
+ * throws is treated as claiming it, so the request goes through ordinary
+ * external processing and surfaces that error instead of being ignored.
+ */
+export const claimsByFunctionExternal = async (
+  externals: readonly FunctionExternal[],
+  data: Rspack.ExternalItemFunctionData,
+) => {
+  for (const external of externals) {
+    try {
+      const result = await callFunctionExternal(external, data);
+      if (result !== undefined && result !== null && result !== false) {
+        return true;
+      }
+    } catch {
+      return true;
+    }
+  }
+  return false;
+};
+
+const PLUGIN_NAME = 'AbsentOptionalDependencyPlugin';
+
 class AbsentOptionalDependencyPlugin {
   apply(compiler: Rspack.Compiler) {
-    new compiler.rspack.IgnorePlugin({
-      checkResource: createAbsentOptionalDependencyFilter(
-        createRequestRedirectMatcher(compiler.options),
-        compiler.options.resolve.modules,
-        compiler.options.resolve.aliasFields,
-      ),
-    }).apply(compiler);
+    const isAbsent = createAbsentOptionalDependencyFilter(
+      createRequestRedirectMatcher(compiler.options),
+      compiler.options.resolve.modules,
+      compiler.options.resolve.aliasFields,
+    );
+    const functionExternals = getFunctionExternals(compiler.options.externals);
+    compiler.hooks.normalModuleFactory.tap(PLUGIN_NAME, factory => {
+      factory.hooks.beforeResolve.tapPromise(PLUGIN_NAME, async data => {
+        if (!isAbsent(data.request, data.context)) {
+          return undefined;
+        }
+        const claimed = await claimsByFunctionExternal(functionExternals, {
+          context: data.context,
+          contextInfo: {
+            issuer: data.contextInfo.issuer,
+            issuerLayer: data.contextInfo.issuerLayer ?? null,
+          },
+          getResolve: options => {
+            const resolver = factory.getResolver('normal', options ?? {});
+            return (
+              context: string,
+              request: string,
+              callback?: Parameters<typeof resolver.resolve>[4],
+            ) => {
+              if (callback) {
+                resolver.resolve({}, context, request, {}, callback);
+                return undefined;
+              }
+              return new Promise<string | undefined>((resolve, reject) => {
+                resolver.resolve({}, context, request, {}, (error, result) =>
+                  error ? reject(error) : resolve(result || undefined),
+                );
+              });
+            };
+          },
+          request: data.request,
+        });
+        return claimed ? undefined : false;
+      });
+    });
   }
 }
 

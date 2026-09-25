@@ -11,6 +11,7 @@ import {
 } from '../src/cloudflare/constants';
 import { createWranglerConfig } from '../src/cloudflare/wrangler-config';
 import {
+  claimsByFunctionExternal,
   createAbsentOptionalDependencyFilter,
   createRequestRedirectMatcher,
   getCloudflareBuilderEnvironments,
@@ -264,6 +265,40 @@ describe('Cloudflare worker Node.js compatibility', () => {
     }
   });
 
+  it('lets function externals claim a request before the absent fallback', async () => {
+    const claims = (
+      externals: Parameters<typeof claimsByFunctionExternal>[0],
+    ) => claimsByFunctionExternal(externals, { request: 'optional-peer' });
+
+    expect(await claims([])).toBe(false);
+    expect(await claims([(_data, callback) => callback(null, undefined)])).toBe(
+      false,
+    );
+    expect(await claims([(_data, callback) => callback(null, false)])).toBe(
+      false,
+    );
+    expect(
+      await claims([
+        (_data, callback) => callback(null, undefined),
+        ({ request }, callback) => callback(null, `module-import ${request}`),
+      ]),
+    ).toBe(true);
+    expect(await claims([async () => 'module-import optional-peer'])).toBe(
+      true,
+    );
+    expect(await claims([async () => undefined])).toBe(false);
+    const synchronous = ((data: { request?: string }) =>
+      data.request === 'optional-peer'
+        ? 'module-import optional-peer'
+        : undefined) as Parameters<typeof claimsByFunctionExternal>[0][number];
+    expect(await claims([synchronous])).toBe(true);
+    expect(
+      await claims([
+        (_data, callback) => callback(new Error('external lookup failed')),
+      ]),
+    ).toBe(true);
+  });
+
   it('keeps app aliases and object externals ahead of the absent fallback', () => {
     const isRedirected = createRequestRedirectMatcher({
       externals: [
@@ -328,10 +363,12 @@ describe('Cloudflare worker Node.js compatibility', () => {
             peerDependencies: {
               'absent-optional-peer': '*',
               'aliased-optional-peer': '*',
+              'function-external-peer': '*',
             },
             peerDependenciesMeta: {
               'absent-optional-peer': { optional: true },
               'aliased-optional-peer': { optional: true },
+              'function-external-peer': { optional: true },
             },
           },
           `const load = async (importPeer) => {
@@ -339,7 +376,12 @@ describe('Cloudflare worker Node.js compatibility', () => {
             catch (error) { return error.code; }
           };
           export const loadOptionalPeer = () => load(() => import('absent-optional-peer'));
-          export const loadAliasedPeer = () => load(() => import('aliased-optional-peer'));`,
+          export const loadAliasedPeer = () => load(() => import('aliased-optional-peer'));
+          export const loadFunctionExternalPeer = () =>
+            import('function-external-peer').then(
+              peer => typeof peer.inspect,
+              error => error.code,
+            );`,
         );
         writeFile(root, 'aliased-peer.js', "export const value = 'aliased';\n");
         writeFile(
@@ -350,7 +392,11 @@ import diagnosticsChannel from 'node:diagnostics_channel';
 import { performance } from 'perf_hooks';
 import querystring from 'node:querystring';
 import pg from 'pg';
-import { loadAliasedPeer, loadOptionalPeer } from 'optional-peer-consumer';
+import {
+  loadAliasedPeer,
+  loadFunctionExternalPeer,
+  loadOptionalPeer,
+} from 'optional-peer-consumer';
 
 export default {
   async fetch() {
@@ -369,6 +415,7 @@ export default {
       console: typeof Console,
       now: typeof performance.now(),
       aliasedPeer: await loadAliasedPeer(),
+      functionExternalPeer: await loadFunctionExternalPeer(),
       optionalPeer: await loadOptionalPeer(),
       query,
       search: querystring.stringify({ worker: 'workerd' }),
@@ -404,6 +451,24 @@ export default {
                         root,
                         'aliased-peer.js',
                       ),
+                    },
+                  },
+                  tools: {
+                    ...environment.tools,
+                    rspack: (config: { externals?: unknown }) => {
+                      config.externals = [
+                        config.externals,
+                        (
+                          { request }: { request?: string },
+                          callback: (error?: null, result?: string) => void,
+                        ) =>
+                          callback(
+                            null,
+                            request === 'function-external-peer'
+                              ? 'module-import node:util'
+                              : undefined,
+                          ),
+                      ];
                     },
                   },
                   output: {
@@ -453,6 +518,7 @@ export default {
           console: 'function',
           now: 'number',
           aliasedPeer: 'aliased',
+          functionExternalPeer: 'function',
           optionalPeer: 'MODULE_NOT_FOUND',
           search: 'worker=workerd',
         });
