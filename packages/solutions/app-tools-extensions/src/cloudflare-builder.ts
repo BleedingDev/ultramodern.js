@@ -253,11 +253,12 @@ type AliasField = string | readonly string[];
 
 // Mirrors the resolver's `resolve.aliasFields` lookup: a field is a key or a
 // nested key path into the importing package's manifest whose object maps
-// requests to replacements (or to `false` for an empty module).
+// exact requests to replacements (or to `false` for an empty module); an
+// entry for a package name does not cover its subpaths.
 const isRedirectedByAliasField = (
   manifest: OptionalDependencyManifest,
   aliasFields: readonly AliasField[],
-  requests: readonly string[],
+  request: string,
 ) =>
   aliasFields.some(field => {
     let value: unknown = manifest;
@@ -268,9 +269,9 @@ const isRedirectedByAliasField = (
           : undefined;
     }
     return (
-      Boolean(value) &&
       typeof value === 'object' &&
-      requests.some(request => Object.hasOwn(value as object, request))
+      value !== null &&
+      Object.hasOwn(value, request)
     );
   });
 
@@ -352,10 +353,7 @@ export const createAbsentOptionalDependencyFilter = (
       Object.hasOwn(manifest.optionalDependencies ?? {}, packageName);
     return (
       optional &&
-      !isRedirectedByAliasField(manifest, aliasFields, [
-        request,
-        packageName,
-      ]) &&
+      !isRedirectedByAliasField(manifest, aliasFields, request) &&
       !isPackageInstalled(packageName, context, moduleDirectories)
     );
   };
