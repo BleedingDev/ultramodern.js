@@ -558,109 +558,112 @@ test('release-age audit rejects a fresh dependency whose approval has expired', 
   }
 });
 
-test('source release-age audit binds fresh seeded sidecars to verified manifest integrity', async t => {
-  const { auditReleaseAgePolicy, resolveAcceptanceReleaseAgeExclusions } =
-    await import('../published-create-proof/release-age-audit.mjs');
-  const root = tempRoot('release-age-source-sidecar-');
-  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  const version = '3.9.0-ultramodern.13';
-  const firstParty = {
-    targetName: '@bleedingdev/modern-js-runtime',
-    sourceName: '@modern-js/runtime',
-    version,
-    integrity: 'sha512-Zmlyc3QtcGFydHk=',
-  };
-  const sidecar = {
-    name: '@bleedingdev/mf-bridge-react',
-    version: '1.0.0',
-    integrity: 'sha512-c2lkZWNhcg==',
-  };
-  const release = {
-    cohortDigest: 'a'.repeat(64),
-    manifestSha256: 'b'.repeat(64),
-    packages: [firstParty],
-    release: { version },
-    sidecars: { packages: [sidecar] },
-    source: {
-      commit: 'c'.repeat(40),
-      repository: 'BleedingDev/ultramodern.js',
-    },
-    targetScope: 'bleedingdev',
-  };
-  fs.writeFileSync(
-    path.join(root, 'pnpm-workspace.yaml'),
-    JSON.stringify({
-      minimumReleaseAge: 1440,
-      minimumReleaseAgeIgnoreMissingTime: false,
-      minimumReleaseAgeStrict: true,
-      trustPolicy: 'no-downgrade',
-      trustPolicyIgnoreAfter: 1440,
-    }),
-  );
-  const sidecarKey = `${sidecar.name}@${sidecar.version}`;
-  fs.writeFileSync(
-    path.join(root, 'pnpm-lock.yaml'),
-    JSON.stringify({
-      lockfileVersion: '9.0',
-      importers: {
-        '.': {
-          dependencies: {
-            [sidecar.name]: {
-              specifier: sidecar.version,
-              version: sidecar.version,
+for (const { mode, registryUrl } of [
+  { mode: 'source', registryUrl: 'http://127.0.0.1:4873/' },
+  { mode: 'published', registryUrl: 'https://registry.npmjs.org/' },
+]) {
+  test(`${mode} release-age audit binds fresh sidecars to verified manifest integrity`, async t => {
+    const { auditReleaseAgePolicy, resolveAcceptanceReleaseAgeExclusions } =
+      await import('../published-create-proof/release-age-audit.mjs');
+    const root = tempRoot(`release-age-${mode}-sidecar-`);
+    t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+    const version = '3.9.0-ultramodern.13';
+    const firstParty = {
+      targetName: '@bleedingdev/modern-js-runtime',
+      sourceName: '@modern-js/runtime',
+      version,
+      integrity: 'sha512-Zmlyc3QtcGFydHk=',
+    };
+    const sidecar = {
+      name: '@bleedingdev/mf-bridge-react',
+      version: '1.0.0',
+      integrity: 'sha512-c2lkZWNhcg==',
+    };
+    const release = {
+      cohortDigest: 'a'.repeat(64),
+      manifestSha256: 'b'.repeat(64),
+      packages: [firstParty],
+      release: { version },
+      sidecars: { packages: [sidecar] },
+      source: {
+        commit: 'c'.repeat(40),
+        repository: 'BleedingDev/ultramodern.js',
+      },
+      targetScope: 'bleedingdev',
+    };
+    fs.writeFileSync(
+      path.join(root, 'pnpm-workspace.yaml'),
+      JSON.stringify({
+        minimumReleaseAge: 1440,
+        minimumReleaseAgeIgnoreMissingTime: false,
+        minimumReleaseAgeStrict: true,
+        trustPolicy: 'no-downgrade',
+        trustPolicyIgnoreAfter: 1440,
+      }),
+    );
+    const sidecarKey = `${sidecar.name}@${sidecar.version}`;
+    fs.writeFileSync(
+      path.join(root, 'pnpm-lock.yaml'),
+      JSON.stringify({
+        lockfileVersion: '9.0',
+        importers: {
+          '.': {
+            dependencies: {
+              [sidecar.name]: {
+                specifier: sidecar.version,
+                version: sidecar.version,
+              },
             },
           },
         },
-      },
-      packages: {
-        [sidecarKey]: { resolution: { integrity: sidecar.integrity } },
-      },
-      snapshots: { [sidecarKey]: {} },
-    }),
-  );
-  const urls = [];
-  const fetchImpl = async url => {
-    urls.push(String(url));
-    return new Response(
-      JSON.stringify({
-        time: { [sidecar.version]: '2026-09-23T07:41:30.000Z' },
-        versions: {
-          [sidecar.version]: { dist: { integrity: 'sha512-c2lkZWNhcg==' } },
+        packages: {
+          [sidecarKey]: { resolution: { integrity: sidecar.integrity } },
         },
+        snapshots: { [sidecarKey]: {} },
       }),
-      { status: 200 },
     );
-  };
-  const options = {
-    commandExclusions: resolveAcceptanceReleaseAgeExclusions({
-      release,
-      mode: 'source',
+    const urls = [];
+    const fetchImpl = async url => {
+      urls.push(String(url));
+      return new Response(
+        JSON.stringify({
+          time: { [sidecar.version]: '2026-09-23T07:41:30.000Z' },
+          versions: {
+            [sidecar.version]: { dist: { integrity: 'sha512-c2lkZWNhcg==' } },
+          },
+        }),
+        { status: 200 },
+      );
+    };
+    const options = {
+      commandExclusions: resolveAcceptanceReleaseAgeExclusions({
+        release,
+        mode,
+        now: new Date('2026-09-23T08:00:00.000Z'),
+      }),
+      fetchImpl,
+      mode,
       now: new Date('2026-09-23T08:00:00.000Z'),
-    }),
-    fetchImpl,
-    mode: 'source',
-    now: new Date('2026-09-23T08:00:00.000Z'),
-    parseYamlImpl: JSON.parse,
-    projectDir: root,
-    registryUrl: 'http://127.0.0.1:4873/',
-    release,
-    verifyYamlTool: false,
-  };
-  const audit = await auditReleaseAgePolicy(options);
-  assert.equal(
-    audit.approvals.find(item => item.package === sidecar.name)?.authority,
-    'strict-release-manifest-sidecar',
-  );
-  assert.ok(
-    urls.some(
-      url =>
-        url.startsWith('http://127.0.0.1:4873/') &&
-        url.includes('mf-bridge-react'),
-    ),
-  );
-  sidecar.integrity = 'sha512-Zm9yZ2Vk';
-  await assert.rejects(
-    auditReleaseAgePolicy(options),
-    /registry integrity differs from authenticated release manifest/u,
-  );
-});
+      parseYamlImpl: JSON.parse,
+      projectDir: root,
+      registryUrl,
+      release,
+      verifyYamlTool: false,
+    };
+    const audit = await auditReleaseAgePolicy(options);
+    assert.equal(
+      audit.approvals.find(item => item.package === sidecar.name)?.authority,
+      'strict-release-manifest-sidecar',
+    );
+    assert.ok(
+      urls.some(
+        url => url.startsWith(registryUrl) && url.includes('mf-bridge-react'),
+      ),
+    );
+    sidecar.integrity = 'sha512-Zm9yZ2Vk';
+    await assert.rejects(
+      auditReleaseAgePolicy(options),
+      /registry integrity differs from authenticated release manifest/u,
+    );
+  });
+}
