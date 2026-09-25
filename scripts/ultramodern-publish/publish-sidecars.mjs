@@ -31,6 +31,7 @@ import {
 } from './lib/prepare-bleedingdev-packages/npm-buffer-publisher.mjs';
 import { resolveOwnedPreparationOutput } from './lib/prepare-bleedingdev-packages/options.mjs';
 import { lookupRegistryPackument } from './lib/prepare-bleedingdev-packages/registry.mjs';
+import { pollRegistryPropagation } from './lib/prepare-bleedingdev-packages/registry-propagation.mjs';
 import { verifyReleaseArtifacts } from './lib/prepare-bleedingdev-packages/release-artifacts.mjs';
 import {
   assertSidecarPublishOrder,
@@ -46,11 +47,6 @@ const { parseCliArgs } = cliKit;
 const { isPlainObject } = validationKit;
 
 const registryNotFoundPattern = /registry metadata returned HTTP 404$/u;
-// Bounded post-publish propagation window; npm needs a few seconds before a
-// freshly published version and its dist-tag are both readable.
-const propagationDelaysMs = Object.freeze([
-  2000, 3000, 5000, 5000, 10000, 10000, 10000, 15000, 15000, 15000,
-]);
 const initialPackumentDelaysMs = Object.freeze([2000, 3000, 5000]);
 
 // The only registry states a post-publish wait may retry. Each one is a state
@@ -276,27 +272,36 @@ function classifySidecarPropagation(sidecar, packument, { tag }) {
   };
 }
 
+// Post-publish, the sidecar lane waits on the same bounded propagation schedule
+// as the cohort: npm has needed minutes, not seconds, before a freshly
+// published version is readable (run 36137116871).
 async function awaitPublishedSidecar(sidecar, options, dependencies = {}) {
   const readPackument = dependencies.readPackument ?? readSidecarPackument;
-  const wait = dependencies.wait ?? sleep;
   const classify =
     dependencies.classifyPropagation ?? classifySidecarPropagation;
-  let lastState = `${sidecar.name}@${sidecar.version} did not appear on the registry`;
-  for (let attempt = 0; attempt <= propagationDelaysMs.length; attempt += 1) {
-    const packument = await readPackument(sidecar.name);
-    // A throw from either call is terminal by construction: the classifier only
-    // ever returns a pending state it has already proved is transient.
-    const pending = classify(sidecar, packument, { tag: options.tag });
-    if (pending === null) {
-      return sidecarRegistryDecision(sidecar, packument, { tag: options.tag });
-    }
-    lastState = pending.detail;
-    if (attempt < propagationDelaysMs.length) {
-      await wait(propagationDelaysMs[attempt]);
-    }
+  const outcome = await pollRegistryPropagation(
+    async () => {
+      const packument = await readPackument(sidecar.name);
+      // A throw from either call is terminal by construction: the classifier
+      // only ever returns a pending state it has already proved is transient.
+      const pending = classify(sidecar, packument, { tag: options.tag });
+      if (pending === null) {
+        return {
+          settled: true,
+          value: sidecarRegistryDecision(sidecar, packument, {
+            tag: options.tag,
+          }),
+        };
+      }
+      return { detail: pending.detail, settled: false };
+    },
+    { wait: dependencies.wait },
+  );
+  if (outcome.settled) {
+    return outcome.value;
   }
   throw new Error(
-    `Published sidecar ${sidecar.name}@${sidecar.version} did not become verifiable: ${lastState}`,
+    `Published sidecar ${sidecar.name}@${sidecar.version} did not become verifiable after ${outcome.attempts} registry reads: ${outcome.detail}`,
   );
 }
 
@@ -425,7 +430,6 @@ export {
   classifySidecarPropagation,
   initialPackumentDelaysMs,
   parseArgs,
-  propagationDelaysMs,
   propagationPendingStates,
   publishSidecarBuffer,
   publishSidecars,

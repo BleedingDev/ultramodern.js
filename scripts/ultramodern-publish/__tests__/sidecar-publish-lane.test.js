@@ -379,6 +379,104 @@ test('a missing dist-tag and an unindexed version are retried until they settle'
   );
 });
 
+// Run 36137116871: @bleedingdev/rsbuild-image-core@0.1.4 published, stayed
+// absent from the packument past the lane's 90s window, and became readable a
+// few minutes later. The lane now waits on the shared post-publish schedule.
+const priorReleaseOnly = sidecar => {
+  const prior = packumentFor(sidecar).versions[sidecar.version];
+  return {
+    name: sidecar.name,
+    'dist-tags': { latest: '3.1.0' },
+    versions: {
+      '3.1.0': {
+        ...prior,
+        version: '3.1.0',
+        _id: `${sidecar.name}@3.1.0`,
+        dist: {
+          ...prior.dist,
+          integrity: `sha512-${Buffer.from('prior-ipx').toString('base64')}`,
+          shasum: 'b'.repeat(40),
+        },
+      },
+    },
+  };
+};
+
+test('a published version absent for minutes is still verified by exact integrity', async () => {
+  const { awaitPublishedSidecar } = await importCli();
+  const { registryPropagationDelaysMs } = await import(
+    '../lib/prepare-bleedingdev-packages/registry-propagation.mjs'
+  );
+  const sidecar = stagedIpx();
+  const waits = [];
+  let waitedMs = 0;
+  // The version stays absent until more than five minutes of waiting have
+  // passed, then appears byte-identical and tagged.
+  const decision = await awaitPublishedSidecar(
+    sidecar,
+    { tag: 'latest' },
+    {
+      readPackument: async () =>
+        waitedMs > 300_000 ? packumentFor(sidecar) : priorReleaseOnly(sidecar),
+      wait: async ms => {
+        waits.push(ms);
+        waitedMs += ms;
+      },
+    },
+  );
+  assert.equal(decision.action, 'reuse');
+  assert.equal(decision.currentTag, '3.2.0');
+  assert.deepEqual(waits, registryPropagationDelaysMs.slice(0, waits.length));
+
+  // Propagation that finally surfaces different bytes is terminal, not a pass.
+  waitedMs = 0;
+  await assert.rejects(
+    awaitPublishedSidecar(
+      sidecar,
+      { tag: 'latest' },
+      {
+        readPackument: async () =>
+          waitedMs > 300_000
+            ? packumentFor({
+                ...sidecar,
+                integrity: `sha512-${Buffer.from('drift').toString('base64')}`,
+              })
+            : priorReleaseOnly(sidecar),
+        wait: async ms => {
+          waitedMs += ms;
+        },
+      },
+    ),
+    /integrity/u,
+  );
+});
+
+test('a sidecar that never propagates fails after the whole shared schedule', async () => {
+  const { awaitPublishedSidecar } = await importCli();
+  const { registryPropagationDelaysMs } = await import(
+    '../lib/prepare-bleedingdev-packages/registry-propagation.mjs'
+  );
+  const sidecar = stagedIpx();
+  const waits = [];
+  await assert.rejects(
+    awaitPublishedSidecar(
+      sidecar,
+      { tag: 'latest' },
+      {
+        readPackument: async () => priorReleaseOnly(sidecar),
+        wait: async ms => {
+          waits.push(ms);
+        },
+      },
+    ),
+    new RegExp(
+      `did not become verifiable after ${registryPropagationDelaysMs.length + 1} registry reads: @bleedingdev/ipx@3\\.2\\.0 is still absent from the registry`,
+      'u',
+    ),
+  );
+  assert.deepEqual(waits, [...registryPropagationDelaysMs]);
+});
+
 test('a dist-tag on a different real version is terminal, never retried', async () => {
   const { awaitPublishedSidecar, classifySidecarPropagation } =
     await importCli();
