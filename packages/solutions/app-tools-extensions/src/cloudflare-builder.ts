@@ -313,7 +313,7 @@ export const createAbsentOptionalDependencyFilter = (
 
 type AliasOption =
   | Record<string, unknown>
-  | { name: string }[]
+  | { name: string; onlyModule?: boolean }[]
   | false
   | undefined;
 
@@ -321,7 +321,7 @@ const getAliasNames = (alias: AliasOption) =>
   !alias
     ? []
     : Array.isArray(alias)
-      ? alias.map(entry => entry.name)
+      ? alias.map(entry => (entry.onlyModule ? `${entry.name}$` : entry.name))
       : Object.keys(alias);
 
 const getObjectExternalNames = (externals: unknown): string[] =>

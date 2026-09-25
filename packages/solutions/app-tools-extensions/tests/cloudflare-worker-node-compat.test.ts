@@ -184,6 +184,11 @@ describe('Cloudflare worker Node.js compatibility', () => {
         resolve: { alias: [{ name: 'array-peer' }] },
       })('array-peer'),
     ).toBe(true);
+    const isArrayRedirected = createRequestRedirectMatcher({
+      resolve: { alias: [{ name: 'exact-array-peer', onlyModule: true }] },
+    });
+    expect(isArrayRedirected('exact-array-peer')).toBe(true);
+    expect(isArrayRedirected('exact-array-peer/subpath')).toBe(false);
   });
 
   it(
