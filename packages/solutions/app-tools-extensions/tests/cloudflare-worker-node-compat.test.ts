@@ -195,6 +195,7 @@ describe('Cloudflare worker Node.js compatibility', () => {
       ],
       resolve: {
         alias: { 'aliased-peer': '/replacement.js', 'exact-peer$': '/x' },
+        fallback: { 'fallback-peer': '/fallback.js' },
       },
     });
     const isIgnored = createAbsentOptionalDependencyFilter(isRedirected);
@@ -206,6 +207,8 @@ describe('Cloudflare worker Node.js compatibility', () => {
     expect(isRedirected('exact-peer/subpath')).toBe(false);
     expect(isRedirected('external-peer')).toBe(true);
     expect(isRedirected('disabled-peer')).toBe(false);
+    expect(isRedirected('fallback-peer')).toBe(true);
+    expect(isRedirected('fallback-peer/subpath')).toBe(true);
     expect(isRedirected('regex-peer')).toBe(true);
     expect(isRedirected('regex-peer/subpath')).toBe(true);
     expect(isRedirected('regex-peer-other')).toBe(false);
