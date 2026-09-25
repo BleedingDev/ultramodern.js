@@ -60,27 +60,6 @@ const getCompatibilityDate = (
   );
 };
 
-// `wrangler deploy --env <name>` uses an environment's own
-// compatibility_date, so every environment override is held to the same floor.
-const assertSupportedEnvCompatibilityDates = (
-  wranglerEnv: JsonValue | undefined,
-) => {
-  if (!isJsonRecord(wranglerEnv)) {
-    return;
-  }
-  for (const [name, environment] of Object.entries(wranglerEnv)) {
-    if (
-      isJsonRecord(environment) &&
-      environment.compatibility_date !== undefined
-    ) {
-      assertSupportedCompatibilityDate(
-        environment.compatibility_date,
-        `deploy.worker.wrangler.env.${name}.compatibility_date`,
-      );
-    }
-  }
-};
-
 const getWorkerName = (appDirectory: string) => {
   const basename = path.basename(appDirectory);
   return basename.replace(/[^a-zA-Z0-9-_]/g, '-') || 'modern-cloudflare-worker';
@@ -110,6 +89,7 @@ const getConfiguredWrangler = (modernConfig: CloudflareModernConfig) => {
 
 const createWranglerCompatibilityFlags = (
   configuredFlags: JsonValue | undefined,
+  label = 'deploy.worker.wrangler.compatibility_flags',
 ) => {
   if (configuredFlags === undefined) {
     return [...REQUIRED_COMPATIBILITY_FLAGS];
@@ -119,12 +99,52 @@ const createWranglerCompatibilityFlags = (
     !Array.isArray(configuredFlags) ||
     configuredFlags.some(flag => typeof flag !== 'string')
   ) {
-    throw new Error(
-      'deploy.worker.wrangler.compatibility_flags must be an array of strings.',
-    );
+    throw new Error(`${label} must be an array of strings.`);
   }
 
   return [...new Set([...configuredFlags, ...REQUIRED_COMPATIBILITY_FLAGS])];
+};
+
+// `wrangler deploy --env <name>` uses an environment's own compatibility_date
+// and compatibility_flags instead of the top-level values, so each override
+// is held to the same verified date floor and required flags.
+const createWranglerEnvironments = (wranglerEnv: JsonValue | undefined) => {
+  if (wranglerEnv === undefined) {
+    return undefined;
+  }
+  if (!isJsonRecord(wranglerEnv)) {
+    throw new Error('deploy.worker.wrangler.env must be an object.');
+  }
+  return Object.fromEntries(
+    Object.entries(wranglerEnv).map(([name, environment]) => {
+      const label = `deploy.worker.wrangler.env.${name}`;
+      if (!isJsonRecord(environment)) {
+        throw new Error(`${label} must be an object.`);
+      }
+      return [
+        name,
+        {
+          ...environment,
+          ...(environment.compatibility_date === undefined
+            ? {}
+            : {
+                compatibility_date: assertSupportedCompatibilityDate(
+                  environment.compatibility_date,
+                  `${label}.compatibility_date`,
+                ),
+              }),
+          ...(environment.compatibility_flags === undefined
+            ? {}
+            : {
+                compatibility_flags: createWranglerCompatibilityFlags(
+                  environment.compatibility_flags,
+                  `${label}.compatibility_flags`,
+                ),
+              }),
+        },
+      ];
+    }),
+  );
 };
 
 const createWranglerAssetsConfig = (
@@ -363,7 +383,7 @@ export const createWranglerConfig = (
   modernConfig: CloudflareModernConfig,
 ) => {
   const wrangler = getConfiguredWrangler(modernConfig);
-  assertSupportedEnvCompatibilityDates(wrangler.env);
+  const environments = createWranglerEnvironments(wrangler.env);
   const d1Databases = createWranglerD1Databases(
     modernConfig,
     wrangler.d1_databases,
@@ -387,6 +407,7 @@ export const createWranglerConfig = (
       wrangler.compatibility_flags,
     ),
     assets: createWranglerAssetsConfig(wrangler.assets),
+    ...(environments === undefined ? {} : { env: environments }),
     ...(d1Databases === undefined ? {} : { d1_databases: d1Databases }),
     ...(wranglerServices === undefined ? {} : { services: wranglerServices }),
   };
