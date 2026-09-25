@@ -185,7 +185,7 @@ export const planWorkerdSsrProof = (topology) => {
     ]);
     const apiOnly = rawApp.surfaceProfile === "api-only";
     assert(
-      apiOnly || ssrRoutes.length > 0,
+      apiOnly || normalizeRoutes([cloudflare.routes?.ssr]).length === 1,
       `${id} declares no cloudflare.routes.ssr to prove on its own Worker`,
     );
     return {
@@ -940,6 +940,10 @@ const main = async () => {
           (url, init) => miniflare.dispatchFetch(url, init),
           apps,
           recorders,
+        );
+        assert(
+          shell.serverRenderedRoutes.length > 0 || proof.boundaries.length === 0,
+          `${shell.id} declares client composition but rendered distributed SSR boundaries for ${route}`,
         );
         if (shell.serverRenderedRoutes.includes(route)) {
           assert(
