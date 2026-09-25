@@ -1,6 +1,7 @@
 import path from 'node:path';
 import type {} from '@modern-js/server-runtime-extensions/server-config';
 import { fs as fse } from '@modern-js/utils';
+import { getCloudflareWorkerRouteDataEntryName } from '../cloudflare-output-contract';
 import { readRouteSpec } from './artifacts';
 import {
   ASSETS_BINDING,
@@ -132,6 +133,15 @@ export const createWorkerManifest = async (
     routeSpec.routes.map(async (route: Record<string, any>) => {
       const worker =
         typeof route.worker === 'string' ? route.worker : undefined;
+      const routeDataWorker =
+        route.isSSR && typeof route.entryName === 'string'
+          ? `${WORKER_BUNDLE_DIRECTORY}/${getCloudflareWorkerRouteDataEntryName(
+              route.entryName,
+            )}.js`
+          : undefined;
+      const hasRouteDataWorker = routeDataWorker
+        ? await fse.pathExists(path.join(outputDirectory, routeDataWorker))
+        : false;
 
       return {
         urlPath: route.urlPath,
@@ -142,6 +152,7 @@ export const createWorkerManifest = async (
         workerExists: worker
           ? await fse.pathExists(path.join(outputDirectory, worker))
           : false,
+        ...(hasRouteDataWorker ? { routeDataWorker } : {}),
       };
     }),
   );
@@ -218,9 +229,14 @@ export const createWorkerModuleLoaders = (manifest: any) => {
   const imports = new Map<string, string>();
 
   for (const route of manifest.routeSpec.routes) {
-    if (route.worker && route.workerExists) {
-      const importPath = `../${String(route.worker).replace(/^\/+/u, '')}`;
-      imports.set(route.worker, `() => import(${JSON.stringify(importPath)})`);
+    for (const worker of [
+      route.workerExists ? route.worker : undefined,
+      route.routeDataWorker,
+    ]) {
+      if (worker) {
+        const importPath = `../${String(worker).replace(/^\/+/u, '')}`;
+        imports.set(worker, `() => import(${JSON.stringify(importPath)})`);
+      }
     }
   }
 

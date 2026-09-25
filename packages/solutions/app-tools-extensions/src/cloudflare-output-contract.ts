@@ -10,6 +10,11 @@ export const CLOUDFLARE_RUNTIME_TYPE = 'cloudflare-module-worker';
 export const CLOUDFLARE_OUTPUT_PACKAGE_TYPE = 'module';
 export const CLOUDFLARE_WORKER_PACKAGE_TYPE = 'commonjs';
 export const CLOUDFLARE_WORKER_BUNDLE_FORMAT = 'commonjs';
+// Each SSR entry with route data loaders gets a worker bundle that answers
+// `?__loader=` route data requests through this export.
+export const CLOUDFLARE_ROUTE_DATA_HANDLER_EXPORT = 'handleRouteDataRequest';
+export const getCloudflareWorkerRouteDataEntryName = (entryName: string) =>
+  `${entryName}-server-loaders`;
 // Every Node.js built-in that workerd resolves for the default 2026-06-02
 // nodejs_compat target (tests/cloudflare-worker-node-builtins.test.ts probes
 // workerd against Node's own `builtinModules`). Names are listed without the

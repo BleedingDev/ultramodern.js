@@ -87,6 +87,25 @@
       "default": "./dist/esm/runtimeLifecycle.mjs",
       "types": "./dist/types-esm/runtimeLifecycle.d.mts"
     },
+    "./localised-loader": {
+      "modern:source": "./src/localisedLoader.ts",
+      "node": {
+        "import": {
+          "types": "./dist/types-esm/localisedLoader.d.mts",
+          "default": "./dist/esm-node/localisedLoader.mjs"
+        },
+        "require": {
+          "types": "./dist/types/localisedLoader.d.ts",
+          "default": "./dist/cjs/localisedLoader.js"
+        }
+      },
+      "import": {
+        "types": "./dist/types-esm/localisedLoader.d.mts",
+        "default": "./dist/esm/localisedLoader.mjs"
+      },
+      "default": "./dist/esm/localisedLoader.mjs",
+      "types": "./dist/types-esm/localisedLoader.d.mts"
+    },
     "./static-serving/node": {
       "node": {
         "modern:source": "./src/static-serving/plugin.ts",
@@ -178,6 +197,10 @@
       "runtime-lifecycle": [
         "./dist/types/runtimeLifecycle.d.ts",
         "./src/runtimeLifecycle.ts"
+      ],
+      "localised-loader": [
+        "./dist/types/localisedLoader.d.ts",
+        "./src/localisedLoader.ts"
       ],
       "static-serving/node": [
         "./dist/types/static-serving/plugin.d.ts",
