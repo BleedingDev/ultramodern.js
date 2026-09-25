@@ -10,6 +10,7 @@ import type {
   ModifyBundlerChainFn,
   RsbuildEntry,
   RsbuildEntryDescription,
+  Rspack,
 } from '@rsbuild/core';
 import { provider } from 'std-env';
 import {
@@ -288,15 +289,18 @@ const isPackageInstalled = (packageName: string, directory: string) => {
  * does, instead of failing the worker build. It applies only when the
  * importing package itself declares the request as an optional peer
  * (`peerDependenciesMeta.<name>.optional`) or an `optionalDependencies`
- * entry and the package is not installed; the import then rejects with
- * "Cannot find module" so the library's own fallback handles it (for example
- * `@redis/client` guards `import('@node-rs/xxhash')`).
+ * entry, the package is not installed, and the app does not redirect the
+ * request through `resolve.alias` or an object `externals` entry. The import
+ * then rejects with "Cannot find module" so the library's own fallback
+ * handles it (for example `@redis/client` guards `import('@node-rs/xxhash')`).
  */
-export const createAbsentOptionalDependencyFilter = () => {
+export const createAbsentOptionalDependencyFilter = (
+  isRedirected: (request: string) => boolean = () => false,
+) => {
   const manifests = new Map<string, OptionalDependencyManifest | undefined>();
   return (request: string, context: string) => {
     const packageName = getPackageNameFromRequest(request);
-    if (!packageName || !context) {
+    if (!packageName || !context || isRedirected(request)) {
       return false;
     }
     const manifest = findOwningPackageManifest(context, manifests);
@@ -306,6 +310,58 @@ export const createAbsentOptionalDependencyFilter = () => {
     return optional && !isPackageInstalled(packageName, context);
   };
 };
+
+type AliasOption =
+  | Record<string, unknown>
+  | { name: string }[]
+  | false
+  | undefined;
+
+const getAliasNames = (alias: AliasOption) =>
+  !alias
+    ? []
+    : Array.isArray(alias)
+      ? alias.map(entry => entry.name)
+      : Object.keys(alias);
+
+const getObjectExternalNames = (externals: unknown): string[] =>
+  Array.isArray(externals)
+    ? externals.flatMap(getObjectExternalNames)
+    : externals &&
+        typeof externals === 'object' &&
+        !(externals instanceof RegExp)
+      ? Object.keys(externals)
+      : [];
+
+/**
+ * Reads the final resolved `resolve.alias` and object `externals` so an app's
+ * own replacement for an optional package still wins over the absent-module
+ * fallback (the fallback runs before resolution).
+ */
+export const createRequestRedirectMatcher = (options: {
+  externals?: unknown;
+  resolve?: { alias?: AliasOption };
+}) => {
+  const aliasNames = getAliasNames(options.resolve?.alias);
+  const externalNames = new Set(getObjectExternalNames(options.externals));
+  return (request: string) =>
+    externalNames.has(request) ||
+    aliasNames.some(name =>
+      name.endsWith('$')
+        ? request === name.slice(0, -1)
+        : request === name || request.startsWith(`${name}/`),
+    );
+};
+
+class AbsentOptionalDependencyPlugin {
+  apply(compiler: Rspack.Compiler) {
+    new compiler.rspack.IgnorePlugin({
+      checkResource: createAbsentOptionalDependencyFilter(
+        createRequestRedirectMatcher(compiler.options),
+      ),
+    }).apply(compiler);
+  }
+}
 
 const normalizeWorkerOutputName = (name: string) =>
   path.posix.normalize(name.replace(/\\/gu, '/')).toLowerCase();
@@ -582,7 +638,7 @@ const createCloudflareBundlerChain = (
   const pathWorkerFile = getTemplatePath('cloudflare-worker-path.mjs');
   const entryNames = [...workerEntryNames];
 
-  return (chain, { bundler }) => {
+  return chain => {
     applyCloudflareWorkerRspackConfig(chain, entryNames);
     chain.output
       .module(true)
@@ -613,9 +669,7 @@ const createCloudflareBundlerChain = (
     }
     chain
       .plugin('cloudflare-worker-absent-optional-dependencies')
-      .use(bundler.IgnorePlugin, [
-        { checkResource: createAbsentOptionalDependencyFilter() },
-      ]);
+      .use(AbsentOptionalDependencyPlugin);
 
     applyCloudflareWorkerMfRuntimeBoundary(chain);
     if (tanstackRouterSsrServerFile) {
