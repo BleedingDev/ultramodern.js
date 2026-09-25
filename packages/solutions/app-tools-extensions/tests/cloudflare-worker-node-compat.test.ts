@@ -8,6 +8,7 @@ import { convertV4MiniflareOptions, Miniflare } from 'miniflare';
 import { DEFAULT_COMPATIBILITY_DATE } from '../src/cloudflare/constants';
 import {
   createAbsentOptionalDependencyFilter,
+  createRequestRedirectMatcher,
   getCloudflareBuilderEnvironments,
   getCloudflareWorkerRspackConfig,
 } from '../src/cloudflare-builder';
@@ -146,6 +147,29 @@ describe('Cloudflare worker Node.js compatibility', () => {
     }
   });
 
+  it('keeps app aliases and object externals ahead of the absent fallback', () => {
+    const isRedirected = createRequestRedirectMatcher({
+      externals: [{ 'external-peer': 'module-import external-peer' }, /re/u],
+      resolve: {
+        alias: { 'aliased-peer': '/replacement.js', 'exact-peer$': '/x' },
+      },
+    });
+    const isIgnored = createAbsentOptionalDependencyFilter(isRedirected);
+
+    expect(isRedirected('aliased-peer')).toBe(true);
+    expect(isRedirected('aliased-peer/subpath')).toBe(true);
+    expect(isRedirected('aliased-peer-other')).toBe(false);
+    expect(isRedirected('exact-peer')).toBe(true);
+    expect(isRedirected('exact-peer/subpath')).toBe(false);
+    expect(isRedirected('external-peer')).toBe(true);
+    expect(isIgnored('aliased-peer', '/any/context')).toBe(false);
+    expect(
+      createRequestRedirectMatcher({
+        resolve: { alias: [{ name: 'array-peer' }] },
+      })('array-peer'),
+    ).toBe(true);
+  });
+
   it(
     'bundles pg, the added built-ins, and an absent optional peer into a worker that loads in workerd',
     async () => {
@@ -164,16 +188,23 @@ describe('Cloudflare worker Node.js compatibility', () => {
           root,
           'optional-peer-consumer',
           {
-            peerDependencies: { 'absent-optional-peer': '*' },
+            peerDependencies: {
+              'absent-optional-peer': '*',
+              'aliased-optional-peer': '*',
+            },
             peerDependenciesMeta: {
               'absent-optional-peer': { optional: true },
+              'aliased-optional-peer': { optional: true },
             },
           },
-          `export const loadOptionalPeer = async () => {
-            try { return (await import('absent-optional-peer')).value; }
+          `const load = async (importPeer) => {
+            try { return (await importPeer()).value; }
             catch (error) { return error.code; }
-          };`,
+          };
+          export const loadOptionalPeer = () => load(() => import('absent-optional-peer'));
+          export const loadAliasedPeer = () => load(() => import('aliased-optional-peer'));`,
         );
+        writeFile(root, 'aliased-peer.js', "export const value = 'aliased';\n");
         writeFile(
           root,
           'worker.ts',
@@ -182,7 +213,7 @@ import diagnosticsChannel from 'node:diagnostics_channel';
 import { performance } from 'perf_hooks';
 import querystring from 'node:querystring';
 import pg from 'pg';
-import { loadOptionalPeer } from 'optional-peer-consumer';
+import { loadAliasedPeer, loadOptionalPeer } from 'optional-peer-consumer';
 
 export default {
   async fetch() {
@@ -200,6 +231,7 @@ export default {
       client: typeof pg.Client,
       console: typeof Console,
       now: typeof performance.now(),
+      aliasedPeer: await loadAliasedPeer(),
       optionalPeer: await loadOptionalPeer(),
       query,
       search: querystring.stringify({ worker: 'workerd' }),
@@ -229,6 +261,14 @@ export default {
                 name,
                 {
                   ...environment,
+                  resolve: {
+                    alias: {
+                      'aliased-optional-peer': path.join(
+                        root,
+                        'aliased-peer.js',
+                      ),
+                    },
+                  },
                   output: {
                     ...environment.output,
                     distPath: { root: 'dist', js: 'worker' },
@@ -275,6 +315,7 @@ export default {
           client: 'function',
           console: 'function',
           now: 'number',
+          aliasedPeer: 'aliased',
           optionalPeer: 'MODULE_NOT_FOUND',
           search: 'worker=workerd',
         });
