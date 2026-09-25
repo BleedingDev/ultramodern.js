@@ -2,9 +2,13 @@ function createNoopMonitors() {
   const noop = () => {};
 
   return {
+    counter: noop,
     debug: noop,
     error: noop,
     info: noop,
+    push: noop,
+    timing: noop,
+    trace: noop,
     warn: noop,
   };
 }

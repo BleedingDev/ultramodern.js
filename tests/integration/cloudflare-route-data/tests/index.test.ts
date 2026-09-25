@@ -191,4 +191,32 @@ describe('Cloudflare worker route data loaders', () => {
     expect(index.response.headers.get('X-Modernjs-Response')).toBe('yes');
     expect(index.body).toContain('{"page":"index"}');
   });
+
+  test('encodes loader redirects, thrown responses and errors like the Node server', async () => {
+    const redirect = await request('/redirect?__loader=redirect/page');
+    expect(redirect.response.status).toBe(204);
+    expect(redirect.response.headers.get('X-Modernjs-Redirect')).toBe(
+      '/user/7',
+    );
+    expect(redirect.response.headers.get('X-Modernjs-Response')).toBe('yes');
+    expect(redirect.response.headers.get('Location')).toBeNull();
+
+    const gone = await request('/gone?__loader=gone/page');
+    expect(gone.response.status).toBe(410);
+    expect(gone.response.headers.get('X-Modernjs-Catch')).toBe('yes');
+    expect(gone.body).toBe('Gone from the worker');
+
+    // Production builds redact loader errors.
+    const error = await request('/error?__loader=error/page');
+    expect(error.response.status).toBe(500);
+    expect(error.response.headers.get('X-Modernjs-Error')).toBe('yes');
+    expect(JSON.parse(error.body)).toEqual({
+      message: 'Unexpected Server Error',
+    });
+
+    // A loader ID outside the matched route branch.
+    const forbidden = await request('/user/42?__loader=page');
+    expect(forbidden.response.status).toBe(403);
+    expect(forbidden.response.headers.get('X-Modernjs-Error')).toBe('yes');
+  });
 });
