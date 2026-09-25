@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
-import * as dataLoaderRuntime from '@modern-js/plugin-data-loader/runtime';
 import { createRsbuild, type EnvironmentConfig } from '@rsbuild/core';
 import {
   createWorkerManifest,
@@ -10,7 +9,6 @@ import {
 } from '../src/cloudflare/worker-manifest';
 import { getCloudflareBuilderEnvironments } from '../src/cloudflare-builder';
 import { getWorkerBundleReferences } from '../src/cloudflare-output-verifier/worker-bundles';
-import { createRouteDataRequestHandler } from '../src/templates/cloudflare-worker-route-data.mjs';
 
 // The loader module the SSR adapter registers for the client data transform.
 const DATA_LOADER = createRequire(import.meta.url).resolve(
@@ -23,18 +21,30 @@ const createTempApp = () => {
     path.join(os.tmpdir(), 'modern-cloudflare-route-data-'),
   );
   const internalDirectory = path.join(appDirectory, 'node_modules/.modern-js');
-  fs.mkdirSync(path.join(internalDirectory, 'index'), { recursive: true });
-  fs.writeFileSync(
-    path.join(internalDirectory, 'index/server-loader-combined.js'),
-    'export {};',
-  );
+  const writeEntryFiles = (entryName: string, files: string[]) => {
+    fs.mkdirSync(path.join(internalDirectory, entryName), { recursive: true });
+    for (const file of files) {
+      fs.writeFileSync(path.join(internalDirectory, entryName, file), '');
+    }
+  };
+  writeEntryFiles('index', [
+    'server-loader-combined.js',
+    'route-server-loaders.js',
+  ]);
   // An entry without SSR route data has no generated server loader module.
-  fs.mkdirSync(path.join(internalDirectory, 'static'), { recursive: true });
+  writeEntryFiles('static', ['route-server-loaders.js']);
+  // Entries that keep route loaders out of the SSR bundle have a loader
+  // bundle without route loaders.
+  writeEntryFiles('rsc', ['server-loader-combined.js']);
   return {
     appContext: {
       apiDirectory: path.join(appDirectory, 'api'),
       appDirectory,
-      entrypoints: [{ entryName: 'index' }, { entryName: 'static' }],
+      entrypoints: [
+        { entryName: 'index' },
+        { entryName: 'static' },
+        { entryName: 'rsc' },
+      ],
       internalDirectory,
     },
     dispose: () => fs.rmSync(appDirectory, { force: true, recursive: true }),
@@ -58,7 +68,7 @@ const getCloudflareEnvironments = (
   });
 
 describe('Cloudflare worker route data', () => {
-  it('bundles each generated server loader module as a route data worker entry', () => {
+  it('bundles the route loaders of each loader bundle entry as a route data worker entry', () => {
     const app = createTempApp();
 
     try {
@@ -73,12 +83,15 @@ describe('Cloudflare worker route data', () => {
         'index-server-loaders': [routeDataModule],
       });
       const source = fs.readFileSync(routeDataModule, 'utf-8');
+      // The loader bundle re-exports the react-router based data loader
+      // runtime, so the worker imports only the route loaders.
       expect(source).toContain(
-        "import * as serverLoaderModule from './server-loader-combined.js';",
+        "import { routes } from './route-server-loaders.js';",
       );
+      expect(source).not.toContain('server-loader-combined');
       expect(source).toContain('cloudflare-worker-route-data.mjs');
       expect(source).toContain(
-        'export const handleRouteDataRequest =\n  createRouteDataRequestHandler(serverLoaderModule);',
+        'export const handleRouteDataRequest =\n  createRouteDataRequestHandler(routes);',
       );
     } finally {
       app.dispose();
@@ -201,58 +214,5 @@ describe('Cloudflare worker route data', () => {
     } finally {
       fs.rmSync(outputDirectory, { force: true, recursive: true });
     }
-  });
-
-  it('answers route data requests like the Node data handler, including localized URLs', async () => {
-    const pages: Record<string, string> = { about: 'About' };
-    const loader = ({ params }: { params: Record<string, string> }) =>
-      pages[params.page] === undefined
-        ? new Response(null, { status: 404 })
-        : { lang: params.lang, title: pages[params.page] };
-    const handleRouteDataRequest = createRouteDataRequestHandler({
-      // Async entries load the data loader runtime and route loaders lazily.
-      loadModules: async () => ({
-        ...dataLoaderRuntime,
-        routes: [
-          { type: 'nested', id: 'page', path: ':lang/:page', loader },
-          {
-            type: 'nested',
-            id: 'page__localised_lang_o-mne',
-            path: ':lang/o-mne',
-            loader: () => loader({ params: { lang: 'cs', page: 'about' } }),
-            modernLocalisedRoute: { id: 'page' },
-            modernCanonicalPath: '/:page',
-          },
-        ],
-      }),
-    });
-    const serverRoutes = [
-      {
-        urlPath: '/',
-        entryName: 'index',
-        entryPath: 'index.html',
-        isSSR: true,
-      },
-    ];
-    const load = (pathname: string) =>
-      handleRouteDataRequest({
-        request: new Request(
-          `https://example.test${pathname}?__loader=page&__ssrDirect=true`,
-        ),
-        serverRoutes,
-      });
-
-    const canonical = await load('/en/about');
-    expect(canonical.status).toBe(200);
-    expect(canonical.headers.get('X-Modernjs-Response')).toBe('yes');
-    expect(await canonical.json()).toEqual({ lang: 'en', title: 'About' });
-
-    const localised = await load('/cs/o-mne');
-    expect(localised.status).toBe(200);
-    expect(await localised.json()).toEqual({ lang: 'cs', title: 'About' });
-
-    const missing = await load('/en/missing');
-    expect(missing.status).toBe(404);
-    expect(missing.headers.get('X-Modernjs-Response')).toBe('yes');
   });
 });

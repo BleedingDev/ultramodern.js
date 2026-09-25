@@ -87,16 +87,18 @@ async function dispatchRouteDataRequest(route, request) {
   return handleRouteDataRequest({
     request,
     serverRoutes: MODERN_WORKER_MANIFEST.routeSpec.routes,
+    context: {
+      loaderContext: new Map(),
+      monitors: createNoopMonitors(),
+      reporter: {
+        reportTiming: () => {},
+      },
+    },
+    onTiming() {},
   });
 }
 
 async function dispatchRouteWorker(route, request, env, ctx) {
-  const routeDataResponse = await dispatchRouteDataRequest(route, request);
-
-  if (routeDataResponse) {
-    return routeDataResponse;
-  }
-
   const workerPath = route.worker;
   if (!workerPath) {
     return new Response('Worker bundle not configured for SSR route', {

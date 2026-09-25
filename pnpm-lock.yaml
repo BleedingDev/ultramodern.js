@@ -2957,6 +2957,9 @@ importers:
       '@modern-js/runtime-renderer-extensions':
         specifier: workspace:*
         version: link:../../runtime/renderer-extensions
+      '@modern-js/runtime-utils':
+        specifier: workspace:*
+        version: link:../../toolkit/runtime-utils
       '@modern-js/server-core':
         specifier: workspace:*
         version: link:../../server/core
