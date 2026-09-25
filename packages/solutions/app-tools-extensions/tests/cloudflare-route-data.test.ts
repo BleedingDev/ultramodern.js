@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import * as dataLoaderRuntime from '@modern-js/plugin-data-loader/runtime';
@@ -11,7 +12,11 @@ import { getCloudflareBuilderEnvironments } from '../src/cloudflare-builder';
 import { getWorkerBundleReferences } from '../src/cloudflare-output-verifier/worker-bundles';
 import { createRouteDataRequestHandler } from '../src/templates/cloudflare-worker-route-data.mjs';
 
-const DATA_LOADER = '/modern/plugin-data-loader/loader.js';
+// The loader module the SSR adapter registers for the client data transform.
+const DATA_LOADER = createRequire(import.meta.url).resolve(
+  '@modern-js/plugin-data-loader/loader',
+);
+const OTHER_LOADER = '/fixture/other-loader.js';
 
 const createTempApp = () => {
   const appDirectory = fs.mkdtempSync(
@@ -90,28 +95,40 @@ describe('Cloudflare worker route data', () => {
       });
       // Mirrors the SSR adapter, which registers the client data loader
       // transform for every environment before environment bundler chains run.
+      // The rule is found by its loader module, so a renamed rule is removed
+      // too, while unrelated rules stay.
       rsbuild.addPlugins([
         {
           name: 'fixture-ssr-data-loader',
           setup(api) {
             api.modifyBundlerChain(chain => {
+              for (const rule of ['ssr-data-loader', 'renamed-data-loader']) {
+                chain.module
+                  .rule(rule)
+                  .test(/\.data\.[jt]sx?$/u)
+                  .use('data-loader')
+                  .loader(DATA_LOADER);
+              }
               chain.module
-                .rule('ssr-data-loader')
-                .test(/\.data\.[jt]sx?$/u)
-                .use('data-loader')
-                .loader(DATA_LOADER);
+                .rule('other')
+                .test(/\.other$/u)
+                .use('other')
+                .loader(OTHER_LOADER);
             });
           },
         },
       ]);
       const rspackConfigs = await rsbuild.initConfigs();
-      const usesDataLoader = (name: string) =>
+      const rules = (name: string) =>
         JSON.stringify(
           rspackConfigs.find(config => config.name === name)?.module?.rules,
-        ).includes(DATA_LOADER);
+        );
+      const dataLoaderUses = (name: string) =>
+        rules(name).split(JSON.stringify(DATA_LOADER)).length - 1;
 
-      expect(usesDataLoader('client')).toBe(true);
-      expect(usesDataLoader('workerSSR')).toBe(false);
+      expect(dataLoaderUses('client')).toBe(2);
+      expect(dataLoaderUses('workerSSR')).toBe(0);
+      expect(rules('workerSSR')).toContain(OTHER_LOADER);
     } finally {
       app.dispose();
     }
