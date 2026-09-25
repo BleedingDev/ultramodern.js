@@ -10,17 +10,35 @@ export const CLOUDFLARE_RUNTIME_TYPE = 'cloudflare-module-worker';
 export const CLOUDFLARE_OUTPUT_PACKAGE_TYPE = 'module';
 export const CLOUDFLARE_WORKER_PACKAGE_TYPE = 'commonjs';
 export const CLOUDFLARE_WORKER_BUNDLE_FORMAT = 'commonjs';
-// Import availability for the default 2026-06-02 nodejs_compat target.
-// Some modules are runtime-provided stubs whose unsupported operations throw.
+// Every Node.js built-in that workerd resolves for the default 2026-06-02
+// nodejs_compat target (tests/cloudflare-worker-node-builtins.test.ts probes
+// workerd against Node's own `builtinModules`). Names are listed without the
+// `node:` scheme; bare-name imports are only valid where Node itself accepts
+// them (`isBuiltin`), so prefix-only modules such as `sqlite` and `test` are
+// externalized solely as `node:sqlite` and `node:test`. Some modules are
+// runtime-provided stubs whose unsupported operations throw.
 export const CLOUDFLARE_WORKER_NODE_BUILTINS = [
+  '_http_agent',
+  '_http_client',
+  '_http_common',
+  '_http_incoming',
+  '_http_outgoing',
+  '_http_server',
+  '_tls_common',
+  '_tls_wrap',
   'assert',
   'assert/strict',
   'async_hooks',
   'buffer',
   'child_process',
+  'cluster',
+  'console',
+  'constants',
   'crypto',
   'dgram',
+  'diagnostics_channel',
   'dns',
+  'dns/promises',
   'domain',
   'events',
   'fs',
@@ -29,11 +47,17 @@ export const CLOUDFLARE_WORKER_NODE_BUILTINS = [
   'http2',
   'https',
   'inspector',
+  'inspector/promises',
   'module',
   'net',
   'os',
   'path',
+  'path/posix',
+  'path/win32',
+  'perf_hooks',
   'process',
+  'punycode',
+  'querystring',
   'readline',
   'readline/promises',
   'repl',
@@ -43,6 +67,8 @@ export const CLOUDFLARE_WORKER_NODE_BUILTINS = [
   'stream/promises',
   'stream/web',
   'string_decoder',
+  'sys',
+  'test',
   'timers',
   'timers/promises',
   'tls',
