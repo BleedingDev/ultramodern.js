@@ -5,7 +5,10 @@ import path from 'node:path';
 import { SERVICE_WORKER_ENVIRONMENT_NAME } from '@modern-js/builder';
 import { createRsbuild } from '@rsbuild/core';
 import { convertV4MiniflareOptions, Miniflare } from 'miniflare';
-import { DEFAULT_COMPATIBILITY_DATE } from '../src/cloudflare/constants';
+import {
+  DEFAULT_COMPATIBILITY_DATE,
+  REQUIRED_COMPATIBILITY_FLAGS,
+} from '../src/cloudflare/constants';
 import { createWranglerConfig } from '../src/cloudflare/wrangler-config';
 import {
   createAbsentOptionalDependencyFilter,
@@ -114,22 +117,39 @@ describe('Cloudflare worker Node.js compatibility', () => {
     expect(wranglerConfigFor('2026-09-09').compatibility_date).toBe(
       '2026-09-09',
     );
-    const envConfigFor = (compatibility_date: unknown) =>
+    const envConfigFor = (staging: unknown) =>
       createWranglerConfig('/app', {
         deploy: {
-          worker: {
-            wrangler: {
-              env: { staging: { compatibility_date }, preview: { vars: {} } },
-            },
-          },
+          worker: { wrangler: { env: { staging, preview: { vars: {} } } } },
         },
       } as never);
-    expect(() => envConfigFor('2025-01-01')).toThrow(
+    expect(() => envConfigFor({ compatibility_date: '2025-01-01' })).toThrow(
       `deploy.worker.wrangler.env.staging.compatibility_date must be ${DEFAULT_COMPATIBILITY_DATE} or later`,
     );
-    expect(() => envConfigFor(20260602)).toThrow('YYYY-MM-DD string');
-    expect(envConfigFor('2026-09-09').env).toEqual({
-      staging: { compatibility_date: '2026-09-09' },
+    expect(() => envConfigFor({ compatibility_date: 20260602 })).toThrow(
+      'YYYY-MM-DD string',
+    );
+    expect(() =>
+      envConfigFor({ compatibility_flags: 'nodejs_compat' }),
+    ).toThrow(
+      'deploy.worker.wrangler.env.staging.compatibility_flags must be an array of strings.',
+    );
+    expect(() => envConfigFor('staging')).toThrow(
+      'deploy.worker.wrangler.env.staging must be an object.',
+    );
+    expect(
+      envConfigFor({
+        compatibility_date: '2026-09-09',
+        compatibility_flags: ['streams_enable_constructors'],
+      }).env,
+    ).toEqual({
+      staging: {
+        compatibility_date: '2026-09-09',
+        compatibility_flags: [
+          'streams_enable_constructors',
+          ...REQUIRED_COMPATIBILITY_FLAGS,
+        ],
+      },
       preview: { vars: {} },
     });
   });
