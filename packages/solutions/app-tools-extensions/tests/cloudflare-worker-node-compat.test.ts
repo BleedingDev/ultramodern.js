@@ -169,6 +169,15 @@ describe('Cloudflare worker Node.js compatibility', () => {
       expect(isIgnored('required-peer', context)).toBe(false);
       expect(isIgnored('./absent-peer', context)).toBe(false);
       expect(isIgnored('absent-peer', root)).toBe(false);
+
+      writeFile(root, 'vendor/absent-peer/package.json', '{}');
+      writeFile(root, 'custom_modules/absent-optional/package.json', '{}');
+      const isIgnoredWithModules = createAbsentOptionalDependencyFilter(
+        undefined,
+        [path.join(root, 'vendor'), 'custom_modules', 'node_modules'],
+      );
+      expect(isIgnoredWithModules('absent-peer', context)).toBe(false);
+      expect(isIgnoredWithModules('absent-optional', context)).toBe(false);
     } finally {
       fs.rmSync(root, { force: true, recursive: true });
     }
@@ -177,7 +186,10 @@ describe('Cloudflare worker Node.js compatibility', () => {
   it('keeps app aliases and object externals ahead of the absent fallback', () => {
     const isRedirected = createRequestRedirectMatcher({
       externals: [
-        { 'external-peer': 'module-import external-peer' },
+        {
+          'disabled-peer': false,
+          'external-peer': 'module-import external-peer',
+        },
         /^regex-peer(?:\/.*)?$/u,
         'string-peer',
       ],
@@ -193,6 +205,7 @@ describe('Cloudflare worker Node.js compatibility', () => {
     expect(isRedirected('exact-peer')).toBe(true);
     expect(isRedirected('exact-peer/subpath')).toBe(false);
     expect(isRedirected('external-peer')).toBe(true);
+    expect(isRedirected('disabled-peer')).toBe(false);
     expect(isRedirected('regex-peer')).toBe(true);
     expect(isRedirected('regex-peer/subpath')).toBe(true);
     expect(isRedirected('regex-peer-other')).toBe(false);
