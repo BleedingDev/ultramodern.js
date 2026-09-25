@@ -255,6 +255,7 @@ describe('Cloudflare worker Node.js compatibility', () => {
         ['browser', ['exports', 'worker']],
       );
       expect(isIgnored('browser-peer', context)).toBe(false);
+      expect(isIgnored('browser-peer/subpath', context)).toBe(true);
       expect(isIgnored('empty-peer', context)).toBe(false);
       expect(isIgnored('nested-peer', context)).toBe(false);
       expect(isIgnored('absent-peer', context)).toBe(true);
