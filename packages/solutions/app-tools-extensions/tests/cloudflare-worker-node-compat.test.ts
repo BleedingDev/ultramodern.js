@@ -221,6 +221,48 @@ describe('Cloudflare worker Node.js compatibility', () => {
     }
   });
 
+  it('keeps package alias-field redirects ahead of the absent fallback', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cf-alias-field-'));
+    try {
+      writePackage(
+        root,
+        'consumer',
+        {
+          browser: { 'browser-peer': './worker-shim.js', 'empty-peer': false },
+          exports: { worker: { 'nested-peer': './nested-shim.js' } },
+          peerDependencies: {
+            'absent-peer': '*',
+            'browser-peer': '*',
+            'empty-peer': '*',
+            'nested-peer': '*',
+          },
+          peerDependenciesMeta: {
+            'absent-peer': { optional: true },
+            'browser-peer': { optional: true },
+            'empty-peer': { optional: true },
+            'nested-peer': { optional: true },
+          },
+        },
+        '',
+      );
+      const context = path.join(root, 'node_modules/consumer');
+      const withoutAliasFields = createAbsentOptionalDependencyFilter();
+      expect(withoutAliasFields('browser-peer', context)).toBe(true);
+
+      const isIgnored = createAbsentOptionalDependencyFilter(
+        undefined,
+        undefined,
+        ['browser', ['exports', 'worker']],
+      );
+      expect(isIgnored('browser-peer', context)).toBe(false);
+      expect(isIgnored('empty-peer', context)).toBe(false);
+      expect(isIgnored('nested-peer', context)).toBe(false);
+      expect(isIgnored('absent-peer', context)).toBe(true);
+    } finally {
+      fs.rmSync(root, { force: true, recursive: true });
+    }
+  });
+
   it('keeps app aliases and object externals ahead of the absent fallback', () => {
     const isRedirected = createRequestRedirectMatcher({
       externals: [
