@@ -300,8 +300,8 @@ const isPackageInstalled = (
  * importing package itself declares the request as an optional peer
  * (`peerDependenciesMeta.<name>.optional`) or an `optionalDependencies`
  * entry, the package is not found in any `resolve.modules` directory, and
- * the app does not redirect the request through `resolve.alias` or
- * `externals`. The import
+ * the app does not redirect the request through `resolve.alias`,
+ * `resolve.fallback` or `externals`. The import
  * then rejects with "Cannot find module" so the library's own fallback
  * handles it (for example `@redis/client` guards `import('@node-rs/xxhash')`).
  */
@@ -371,15 +371,19 @@ const getExternalMatchers = (externals: unknown): ExternalMatcher[] => {
 };
 
 /**
- * Reads the final resolved `resolve.alias` and `externals` so an app's own
+ * Reads the final resolved `resolve.alias`, `resolve.fallback` and
+ * `externals` so an app's own
  * replacement for an optional package still wins over the absent-module
  * fallback (the fallback runs before resolution).
  */
 export const createRequestRedirectMatcher = (options: {
   externals?: unknown;
-  resolve?: { alias?: AliasOption };
+  resolve?: { alias?: AliasOption; fallback?: AliasOption };
 }) => {
-  const aliasNames = getAliasNames(options.resolve?.alias);
+  const aliasNames = [
+    ...getAliasNames(options.resolve?.alias),
+    ...getAliasNames(options.resolve?.fallback),
+  ];
   const externalMatchers = getExternalMatchers(options.externals);
   return (request: string) =>
     externalMatchers.some(matches => matches(request)) ||
