@@ -1,24 +1,79 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { registryVerificationRetryDelaysMs } from '../lib/prepare-bleedingdev-packages/registry.mjs';
+import {
+  pollRegistryPropagation,
+  registryPropagationDelaysMs,
+} from '../lib/prepare-bleedingdev-packages/registry-propagation.mjs';
 
-// The post-publish verifier runs after the unrollbackable publish. If it gives
-// up before npm has propagated a freshly published version into the packument,
-// a complete cohort is reported as a failed publication (run 34689880072:
-// one package's packument lagged for more than the 360s the loop then spent).
-test('post-publish verification outlasts npm packument propagation', () => {
-  const delays = [...registryVerificationRetryDelaysMs];
-  // The loop sleeps only between attempts: the final entry is never spent.
-  const spentMs = delays.slice(0, -1).reduce((sum, delay) => sum + delay, 0);
+// The cohort verifier and the sidecar lane both run this schedule after the
+// unrollbackable publish. If it gives up before npm has propagated a freshly
+// published version, a complete publish is reported as a failure (run
+// 34689880072: one cohort packument lagged for more than 360s; run
+// 36137116871: a sidecar became readable minutes after a 90s window).
+test('post-publish propagation schedule outlasts npm packument propagation', () => {
+  const delays = [...registryPropagationDelaysMs];
+  // The poller sleeps once between each pair of reads: every delay is spent.
+  const spentMs = delays.reduce((sum, delay) => sum + delay, 0);
   assert.ok(
     spentMs >= 840_000,
-    `verification waits ${spentMs}ms; npm has needed more than 420s`,
+    `propagation waits ${spentMs}ms; npm has needed more than 420s`,
   );
   // Front-loaded: a package that is already coherent is accepted in seconds.
   assert.ok(delays[0] <= 2000);
   for (let index = 1; index < delays.length; index += 1) {
     assert.ok(delays[index] >= delays[index - 1], 'delays never shrink');
   }
+  assert.ok(Math.max(...delays) <= 20_000, 'reads stay at most 20s apart');
+});
+
+test('propagation poller spends the schedule, then reports the last pending state', async () => {
+  const waits = [];
+  const outcome = await pollRegistryPropagation(
+    async attempt => ({ detail: `pending ${attempt}`, settled: false }),
+    {
+      delaysMs: [1, 2, 3],
+      wait: async ms => {
+        waits.push(ms);
+      },
+    },
+  );
+  assert.deepEqual(outcome, {
+    attempts: 4,
+    detail: 'pending 4',
+    settled: false,
+  });
+  assert.deepEqual(waits, [1, 2, 3]);
+});
+
+test('propagation poller settles without waiting further and never retries a throw', async () => {
+  const waits = [];
+  const wait = async ms => {
+    waits.push(ms);
+  };
+  let reads = 0;
+  const settled = await pollRegistryPropagation(
+    async () => {
+      reads += 1;
+      return reads < 3
+        ? { detail: 'absent', settled: false }
+        : { settled: true, value: 'dist' };
+    },
+    { wait },
+  );
+  assert.deepEqual(settled, { attempts: 3, settled: true, value: 'dist' });
+  assert.deepEqual(waits, registryPropagationDelaysMs.slice(0, 2));
+
+  waits.length = 0;
+  await assert.rejects(
+    pollRegistryPropagation(
+      async () => {
+        throw new Error('integrity drift');
+      },
+      { wait },
+    ),
+    /integrity drift/u,
+  );
+  assert.deepEqual(waits, [], 'a terminal probe failure never sleeps');
 });
 
 test('registry readers drain concurrent work before reporting the first input failure', async () => {

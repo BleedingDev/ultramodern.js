@@ -19,6 +19,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { npmPublishAttempts, npmPublishRetryDelayMs } from './constants.mjs';
 import { run, sleep } from './commands.mjs';
+import { pollRegistryPropagation } from './registry-propagation.mjs';
 import {
   preflightTrustedPublishingPackages,
   publishAcceptedPackage,
@@ -514,24 +515,6 @@ async function verifyRegistryPackageDist(
   return dist;
 }
 
-// 60 attempts, front-loaded so a package that is already coherent is accepted
-// in seconds. The delays the loop can spend must outlast npm's propagation:
-// 350s was the attestation window it had needed, and on 2026-09-12 (run
-// 34689880072) the packument of one freshly published package stayed without
-// its version for more than the 360s the previous shape spent, failing an
-// otherwise complete cohort after the unrollbackable publish. The loop sleeps
-// only between attempts, so the last entry is never spent: this shape waits
-// 855s; the publish job's timeout leaves room for it.
-const registryVerificationRetryDelaysMs = Object.freeze([
-  2000,
-  3000,
-  5000,
-  5000,
-  ...Array.from({ length: 24 }, () => 10000),
-  ...Array.from({ length: 8 }, () => 15000),
-  ...Array.from({ length: 25 }, () => 20000),
-]);
-
 async function verifyRegistryPackage(
   item,
   provenanceExpectation,
@@ -545,10 +528,9 @@ async function verifyRegistryPackage(
 ) {
   // npm's attestation propagation regularly exceeds one minute right after
   // publish (observed: attestations endpoint 404s ~60s in, then appears), so
-  // the window must comfortably outlast that lag or the cohort aborts on a
-  // package that in fact published fine.
-  const attempts = registryVerificationRetryDelaysMs.length;
-  let lastError = '';
+  // the shared post-publish schedule (registry-propagation.mjs) must
+  // comfortably outlast that lag or the cohort aborts on a package that in
+  // fact published fine.
   // Byte identity is established against the manifest-pinned integrity, shasum,
   // and size, none of which change between attempts, so the tarball download is
   // not repeated once it has matched. The dist itself is re-resolved every
@@ -567,14 +549,18 @@ async function verifyRegistryPackage(
     tarballVerified = true;
   };
 
-  for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    const dist = await registry.lookupRegistryPackageDist(
-      item.targetName,
-      item.version,
-    );
-    if (dist === null) {
-      lastError = `${item.targetName}@${item.version} is not present in the registry`;
-    } else {
+  const outcome = await pollRegistryPropagation(
+    async () => {
+      const dist = await registry.lookupRegistryPackageDist(
+        item.targetName,
+        item.version,
+      );
+      if (dist === null) {
+        return {
+          detail: `${item.targetName}@${item.version} is not present in the registry`,
+          settled: false,
+        };
+      }
       try {
         await registry.verifyRegistryPackageDist(
           item,
@@ -586,21 +572,22 @@ async function verifyRegistryPackage(
             verifyRegistryTarball: verifyTarballOnce,
           },
         );
-        return dist;
+        return { settled: true, value: dist };
       } catch (error) {
-        lastError = error instanceof Error ? error.message : String(error);
+        return {
+          detail: error instanceof Error ? error.message : String(error),
+          settled: false,
+        };
       }
-    }
-
-    if (attempt < attempts) {
-      await new Promise(resolve =>
-        setTimeout(resolve, registryVerificationRetryDelaysMs[attempt - 1]),
-      );
-    }
+    },
+    { wait: registry.wait },
+  );
+  if (outcome.settled) {
+    return outcome.value;
   }
 
   throw new Error(
-    `Published package ${item.targetName}@${item.version} did not verify on npm after ${attempts} attempts: ${lastError}`,
+    `Published package ${item.targetName}@${item.version} did not verify on npm after ${outcome.attempts} attempts: ${outcome.detail}`,
   );
 }
 
@@ -1159,7 +1146,6 @@ export {
   preflightRegistryPackages,
   publishManifestPackages,
   publishPackage,
-  registryVerificationRetryDelaysMs,
   validateRegistryCohort,
   verifyRegistryDistTag,
   verifyRegistryPackage,
