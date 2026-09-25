@@ -266,14 +266,12 @@ describe('create-ultramodern-workspace', () => {
     fs.rmSync(workspaceDir, { recursive: true, force: true });
     runCreate(workspaceDir, ['--lang', 'en']);
 
-    const ultramodernConfig = readJson<Record<string, any>>(
+    const topology = readJson<Record<string, any>>(
       workspaceDir,
-      '.modernjs/ultramodern.json',
+      'topology/reference-topology.json',
     );
-    const shellApp = ultramodernConfig.topology.apps.find(
-      (app: { id: string }) => app.id === 'shell-super-app',
-    );
-    expect(shellApp).toBeDefined();
+    const shellApp = topology.shell;
+    expect(shellApp.id).toBe('shell-super-app');
     shellApp.routes = {
       ...(shellApp.routes ?? {}),
       publicSurface: {
@@ -349,8 +347,8 @@ describe('create-ultramodern-workspace', () => {
     };
     writeText(
       workspaceDir,
-      '.modernjs/ultramodern.json',
-      JSON.stringify(ultramodernConfig, null, 2) + '\n',
+      'topology/reference-topology.json',
+      JSON.stringify(topology, null, 2) + '\n',
     );
 
     writeText(
