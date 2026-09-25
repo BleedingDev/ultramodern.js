@@ -29,9 +29,13 @@ const BFF_EFFECT_WORKER_RUNTIME_QUERY = 'modern-bff-runtime';
 const SERVER_LOADER_COMBINED_FILE = 'server-loader-combined.js';
 const WORKER_ROUTE_DATA_FILE = 'cloudflare-worker-route-data.js';
 const WORKER_ROUTE_DATA_TEMPLATE = 'cloudflare-worker-route-data.mjs';
-// Client builds rewrite `*.data.*` modules into `?__loader=` fetch clients.
-// The worker is a server runtime and must execute route loaders in-process.
-const DATA_LOADER_CLIENT_TRANSFORM_RULE = 'ssr-data-loader';
+// Client builds rewrite `*.data.*` modules into `?__loader=` fetch clients
+// through the data loader plugin's webpack loader. The worker is a server
+// runtime and must execute route loaders in-process. The rule is matched by
+// that loader module, not by the rule name the SSR adapter registers, in both
+// the workspace package and the published `@bleedingdev/modern-js-*` name.
+const DATA_LOADER_CLIENT_TRANSFORM =
+  /plugin-data-loader[\\/](?:.+[\\/])?loader\.[cm]?js$/u;
 const MF_SSR_DATA_FETCH_RUNTIME_PLUGIN =
   '@module-federation/modern-js-v3/ssr-inject-data-fetch-function-plugin';
 const MF_SSR_DEV_RUNTIME_PLUGIN =
@@ -623,6 +627,30 @@ export function applyCloudflareWorkerRspackConfig(
   chain.optimization.splitChunks(config.optimization.splitChunks);
 }
 
+/**
+ * The worker environment uses Rspack's web target for ESM output, which the
+ * data loader transform treats as a browser bundle. Remove every module rule
+ * that applies it, so SSR runs route loaders in-process as the Node server
+ * does instead of fetching the worker's own `?__loader=` URL.
+ */
+function removeCloudflareWorkerDataLoaderClientTransform(
+  chain: Parameters<ModifyBundlerChainFn>[0],
+) {
+  for (const [name, rule] of Object.entries(
+    chain.module.rules.entries() ?? {},
+  )) {
+    if (
+      rule.uses
+        .values()
+        .some(use =>
+          DATA_LOADER_CLIENT_TRANSFORM.test(String(use.get('loader'))),
+        )
+    ) {
+      chain.module.rules.delete(name);
+    }
+  }
+}
+
 export function applyCloudflareWorkerMfRuntimeBoundary(
   chain: Parameters<ModifyBundlerChainFn>[0],
 ) {
@@ -866,11 +894,7 @@ const createCloudflareBundlerChain = (
 
   return chain => {
     applyCloudflareWorkerRspackConfig(chain, entryNames);
-    // The worker environment uses Rspack's web target for ESM output, which
-    // the data loader transform treats as a browser bundle. Without this, SSR
-    // would fetch the worker's own `?__loader=` URL instead of running the
-    // route loader in-process as the Node server does.
-    chain.module.rules.delete(DATA_LOADER_CLIENT_TRANSFORM_RULE);
+    removeCloudflareWorkerDataLoaderClientTransform(chain);
     chain.output
       .module(true)
       .library({ type: 'module' })
