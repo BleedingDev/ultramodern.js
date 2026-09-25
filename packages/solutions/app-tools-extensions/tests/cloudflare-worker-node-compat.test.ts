@@ -108,12 +108,30 @@ describe('Cloudflare worker Node.js compatibility', () => {
         deploy: { worker: { wrangler: { compatibility_date } } },
       } as never);
     expect(() => wranglerConfigFor('2025-01-01')).toThrow(
-      `deploy.worker.compatibilityDate must be ${DEFAULT_COMPATIBILITY_DATE} or later`,
+      `deploy.worker.wrangler.compatibility_date must be ${DEFAULT_COMPATIBILITY_DATE} or later`,
     );
     expect(() => wranglerConfigFor(20260602)).toThrow('YYYY-MM-DD string');
     expect(wranglerConfigFor('2026-09-09').compatibility_date).toBe(
       '2026-09-09',
     );
+    const envConfigFor = (compatibility_date: unknown) =>
+      createWranglerConfig('/app', {
+        deploy: {
+          worker: {
+            wrangler: {
+              env: { staging: { compatibility_date }, preview: { vars: {} } },
+            },
+          },
+        },
+      } as never);
+    expect(() => envConfigFor('2025-01-01')).toThrow(
+      `deploy.worker.wrangler.env.staging.compatibility_date must be ${DEFAULT_COMPATIBILITY_DATE} or later`,
+    );
+    expect(() => envConfigFor(20260602)).toThrow('YYYY-MM-DD string');
+    expect(envConfigFor('2026-09-09').env).toEqual({
+      staging: { compatibility_date: '2026-09-09' },
+      preview: { vars: {} },
+    });
   });
 
   it('externalizes bare built-ins only where Node accepts the bare name', () => {
