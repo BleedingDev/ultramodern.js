@@ -176,17 +176,6 @@ directories, and caches are isolated per app, build target, and Rspack
 environment so local `build`, `cloudflare:build`, and multi-environment
 compilers do not share mutable build state.
 
-Cloudflare worker bundles, including the headless worker of an API-only app,
-externalize every Node.js built-in that workerd provides under `nodejs_compat`
-(for example `console`, `diagnostics_channel`, `perf_hooks`, and `querystring`)
-plus `cloudflare:sockets`. Package `exports` resolve the `workerd` and `worker`
-conditions with `import` for ES imports and `require` for CommonJS, so drivers
-such as `pg` bundle without aliases. An optional peer or optional dependency
-that is not installed stays missing at runtime, as in Node, so libraries that
-guard it (for example `@redis/client` and `@node-rs/xxhash`) need no stub. Use
-the standard `resolve.alias` config only for genuinely app-specific
-replacements; do not post-process the worker with a separate bundler.
-
 ## Configure the public preset
 
 Use `presetUltramodern(appConfig, presetOptions)` inside the normal Modern.js

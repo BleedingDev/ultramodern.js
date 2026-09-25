@@ -158,15 +158,6 @@ migration 时不要再用 app 本地 postprocess。Cloudflare public output 默�
 会按 app、构建目标和 Rspack environment 隔离，避免本地 `build`、`cloudflare:build`
 以及多 environment compiler 共享可变构建状态。
 
-Cloudflare worker bundle（包括 API-only app 的 headless worker）会把 workerd 在
-`nodejs_compat` 下提供的全部 Node.js 内置模块（例如 `console`、
-`diagnostics_channel`、`perf_hooks`、`querystring`）以及 `cloudflare:sockets`
-作为 external。包的 `exports` 会按 `workerd`、`worker` 条件解析，ES import 使用
-`import`，CommonJS 使用 `require`，因此 `pg` 等驱动无需 alias 即可打包。未安装的
-optional peer 或 optional dependency 会像在 Node 中一样在运行时保持缺失，自行兜底的库
-（例如 `@redis/client` 与 `@node-rs/xxhash`）无需 stub。只有真正属于 app 的替换才使用
-标准 `resolve.alias` 配置；不要再用单独的 bundler 对 worker 做后处理。
-
 ## 配置公开预设
 
 在标准 Modern.js `defineConfig` 调用中使用
