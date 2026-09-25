@@ -270,32 +270,44 @@ const findOwningPackageManifest = (
   return manifest;
 };
 
-const isPackageInstalled = (packageName: string, directory: string) => {
-  let current = directory;
-  while (true) {
-    if (fs.existsSync(path.join(current, 'node_modules', packageName))) {
-      return true;
+// Mirrors the resolver's `resolve.modules` lookup: absolute entries are
+// searched directly, named entries in the context directory and each ancestor.
+const isPackageInstalled = (
+  packageName: string,
+  directory: string,
+  moduleDirectories: readonly string[],
+) =>
+  moduleDirectories.some(moduleDirectory => {
+    if (path.isAbsolute(moduleDirectory)) {
+      return fs.existsSync(path.join(moduleDirectory, packageName));
     }
-    const parent = path.dirname(current);
-    if (parent === current) {
-      return false;
+    let current = directory;
+    while (true) {
+      if (fs.existsSync(path.join(current, moduleDirectory, packageName))) {
+        return true;
+      }
+      const parent = path.dirname(current);
+      if (parent === current) {
+        return false;
+      }
+      current = parent;
     }
-    current = parent;
-  }
-};
+  });
 
 /**
  * Leaves an absent optional dependency missing at runtime, exactly as Node
  * does, instead of failing the worker build. It applies only when the
  * importing package itself declares the request as an optional peer
  * (`peerDependenciesMeta.<name>.optional`) or an `optionalDependencies`
- * entry, the package is not installed, and the app does not redirect the
- * request through `resolve.alias` or an object `externals` entry. The import
+ * entry, the package is not found in any `resolve.modules` directory, and
+ * the app does not redirect the request through `resolve.alias` or
+ * `externals`. The import
  * then rejects with "Cannot find module" so the library's own fallback
  * handles it (for example `@redis/client` guards `import('@node-rs/xxhash')`).
  */
 export const createAbsentOptionalDependencyFilter = (
   isRedirected: (request: string) => boolean = () => false,
+  moduleDirectories: readonly string[] = ['node_modules'],
 ) => {
   const manifests = new Map<string, OptionalDependencyManifest | undefined>();
   return (request: string, context: string) => {
@@ -307,7 +319,9 @@ export const createAbsentOptionalDependencyFilter = (
     const optional =
       manifest?.peerDependenciesMeta?.[packageName]?.optional === true ||
       Object.hasOwn(manifest?.optionalDependencies ?? {}, packageName);
-    return optional && !isPackageInstalled(packageName, context);
+    return (
+      optional && !isPackageInstalled(packageName, context, moduleDirectories)
+    );
   };
 };
 
@@ -328,6 +342,8 @@ type ExternalMatcher = (request: string) => boolean;
 
 // Function externals are asynchronous callbacks and cannot be consulted
 // before resolution; string, RegExp and object-key externals are matched.
+// An object entry mapped to `false` keeps the request bundled, so it is not
+// a redirect.
 const getExternalMatchers = (externals: unknown): ExternalMatcher[] => {
   if (Array.isArray(externals)) {
     return externals.flatMap(getExternalMatchers);
@@ -344,7 +360,11 @@ const getExternalMatchers = (externals: unknown): ExternalMatcher[] => {
     ];
   }
   if (externals && typeof externals === 'object') {
-    const names = new Set(Object.keys(externals));
+    const names = new Set(
+      Object.entries(externals)
+        .filter(([, value]) => value !== false)
+        .map(([name]) => name),
+    );
     return [request => names.has(request)];
   }
   return [];
@@ -375,6 +395,7 @@ class AbsentOptionalDependencyPlugin {
     new compiler.rspack.IgnorePlugin({
       checkResource: createAbsentOptionalDependencyFilter(
         createRequestRedirectMatcher(compiler.options),
+        compiler.options.resolve.modules,
       ),
     }).apply(compiler);
   }
