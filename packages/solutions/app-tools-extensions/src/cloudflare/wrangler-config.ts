@@ -15,43 +15,70 @@ import {
 import type { CloudflareModernConfig } from './types';
 import { isJsonRecord, normalizeRelativePath } from './utils';
 
+// Workers only add Node.js built-ins at later dates, and the bundler
+// externalizes the set probed at DEFAULT_COMPATIBILITY_DATE; an earlier date
+// could leave an externalized built-in unresolvable at deploy time.
+const assertSupportedCompatibilityDate = (
+  compatibilityDate: JsonValue | undefined,
+  label: string,
+) => {
+  if (typeof compatibilityDate !== 'string') {
+    throw new Error(`${label} must be a YYYY-MM-DD string.`);
+  }
+  if (!COMPATIBILITY_DATE_PATTERN.test(compatibilityDate)) {
+    throw new Error(
+      `${label} must use YYYY-MM-DD, received ${JSON.stringify(
+        compatibilityDate,
+      )}.`,
+    );
+  }
+  if (compatibilityDate < DEFAULT_COMPATIBILITY_DATE) {
+    throw new Error(
+      `${label} must be ${DEFAULT_COMPATIBILITY_DATE} or later, the date the Cloudflare worker Node.js built-in contract is verified against; received ${JSON.stringify(
+        compatibilityDate,
+      )}.`,
+    );
+  }
+  return compatibilityDate;
+};
+
 const getCompatibilityDate = (
   modernConfig: CloudflareModernConfig,
   wranglerCompatibilityDate: JsonValue | undefined,
 ) => {
-  if (
-    wranglerCompatibilityDate !== undefined &&
-    typeof wranglerCompatibilityDate !== 'string'
-  ) {
-    throw new Error(
-      'deploy.worker.wrangler.compatibility_date must be a YYYY-MM-DD string.',
+  if (wranglerCompatibilityDate !== undefined) {
+    // A raw Wrangler override is the effective date, so it is validated too.
+    return assertSupportedCompatibilityDate(
+      wranglerCompatibilityDate,
+      'deploy.worker.wrangler.compatibility_date',
     );
   }
-  // A raw Wrangler override is the effective date, so it is validated too.
-  const configuredDate =
-    wranglerCompatibilityDate?.trim() ||
-    modernConfig.deploy?.worker?.compatibilityDate?.trim();
-  const compatibilityDate = configuredDate || DEFAULT_COMPATIBILITY_DATE;
+  return assertSupportedCompatibilityDate(
+    modernConfig.deploy?.worker?.compatibilityDate?.trim() ||
+      DEFAULT_COMPATIBILITY_DATE,
+    'deploy.worker.compatibilityDate',
+  );
+};
 
-  if (!COMPATIBILITY_DATE_PATTERN.test(compatibilityDate)) {
-    throw new Error(
-      `deploy.worker.compatibilityDate must use YYYY-MM-DD, received ${JSON.stringify(
-        compatibilityDate,
-      )}.`,
-    );
+// `wrangler deploy --env <name>` uses an environment's own
+// compatibility_date, so every environment override is held to the same floor.
+const assertSupportedEnvCompatibilityDates = (
+  wranglerEnv: JsonValue | undefined,
+) => {
+  if (!isJsonRecord(wranglerEnv)) {
+    return;
   }
-  // Workers only add Node.js built-ins at later dates, and the bundler
-  // externalizes the set probed at DEFAULT_COMPATIBILITY_DATE; an earlier
-  // date could leave an externalized built-in unresolvable at deploy time.
-  if (compatibilityDate < DEFAULT_COMPATIBILITY_DATE) {
-    throw new Error(
-      `deploy.worker.compatibilityDate must be ${DEFAULT_COMPATIBILITY_DATE} or later, the date the Cloudflare worker Node.js built-in contract is verified against; received ${JSON.stringify(
-        compatibilityDate,
-      )}.`,
-    );
+  for (const [name, environment] of Object.entries(wranglerEnv)) {
+    if (
+      isJsonRecord(environment) &&
+      environment.compatibility_date !== undefined
+    ) {
+      assertSupportedCompatibilityDate(
+        environment.compatibility_date,
+        `deploy.worker.wrangler.env.${name}.compatibility_date`,
+      );
+    }
   }
-
-  return compatibilityDate;
 };
 
 const getWorkerName = (appDirectory: string) => {
@@ -336,6 +363,7 @@ export const createWranglerConfig = (
   modernConfig: CloudflareModernConfig,
 ) => {
   const wrangler = getConfiguredWrangler(modernConfig);
+  assertSupportedEnvCompatibilityDates(wrangler.env);
   const d1Databases = createWranglerD1Databases(
     modernConfig,
     wrangler.d1_databases,
