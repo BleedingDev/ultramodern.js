@@ -185,7 +185,7 @@
     "std-env": "4.2.0"
   },
   "peerDependencies": {
-    "@rsbuild/core": "2.2.3"
+    "@rsbuild/core": "2.2.9"
   },
   "devDependencies": {
     "@modern-js/plugin": "workspace:*",
