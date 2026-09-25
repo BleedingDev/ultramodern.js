@@ -208,13 +208,7 @@
     "std-env": "4.3.0"
   },
   "peerDependencies": {
-    "@rsbuild/core": "2.2.11",
-    "react": "^19.2.8"
-  },
-  "peerDependenciesMeta": {
-    "react": {
-      "optional": true
-    }
+    "@rsbuild/core": "2.2.9"
   },
   "devDependencies": {
     "@modern-js/bff-effect": "workspace:*",
