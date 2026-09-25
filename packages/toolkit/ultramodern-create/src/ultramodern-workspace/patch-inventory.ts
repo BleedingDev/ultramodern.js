@@ -75,13 +75,4 @@ export default [
     reason:
       'Build router params without string code generation in CSP/Worker bundles.',
   },
-  {
-    packageName: 'zod',
-    version: '4.6.5',
-    path: 'patches/zod@4.6.5.patch',
-    sha256: '7640b49bb7addea5feff95947618c322ddb94b0bc834b4eb3ad349cff6fbf73b',
-    repository: true,
-    workspace: null,
-    reason: 'Disable code-generation capability probing in CSP/Worker bundles.',
-  },
 ];

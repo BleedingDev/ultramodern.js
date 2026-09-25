@@ -53,7 +53,6 @@ patchedDependencies:
   '@module-federation/rspack@2.9.1': 7beed0f736d66f78abeba9ed9b5537e571eff92f49aa03bd30a6b674f32f4eae
   '@module-federation/runtime-core@2.9.1': b241be221397f0e07dbe6c515725e12eaf3b418469bb7dd21750e6e4b215dd8d
   effect@4.0.0-rc.117: 1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5
-  zod@4.6.5: 7640b49bb7addea5feff95947618c322ddb94b0bc834b4eb3ad349cff6fbf73b
 
 importers:
 
@@ -1205,7 +1204,7 @@ importers:
         version: 7.0.2
       zod:
         specifier: ^4.6.5
-        version: 4.6.5(patch_hash=7640b49bb7addea5feff95947618c322ddb94b0bc834b4eb3ad349cff6fbf73b)
+        version: 4.6.5
 
   packages/cli/plugin-bff-build-extensions:
     dependencies:
@@ -1281,7 +1280,7 @@ importers:
         version: 0.28.2
       zod:
         specifier: ^4.6.5
-        version: 4.6.5(patch_hash=7640b49bb7addea5feff95947618c322ddb94b0bc834b4eb3ad349cff6fbf73b)
+        version: 4.6.5
 
   packages/cli/plugin-bff-extensions:
     dependencies:
@@ -2331,7 +2330,7 @@ importers:
         version: 4.2.0
       zod:
         specifier: ^4.6.5
-        version: 4.6.5(patch_hash=7640b49bb7addea5feff95947618c322ddb94b0bc834b4eb3ad349cff6fbf73b)
+        version: 4.6.5
 
   packages/server/bff-effect:
     dependencies:
@@ -2689,7 +2688,7 @@ importers:
         version: 0.28.2
       zod:
         specifier: ^4.6.5
-        version: 4.6.5(patch_hash=7640b49bb7addea5feff95947618c322ddb94b0bc834b4eb3ad349cff6fbf73b)
+        version: 4.6.5
 
   packages/server/server:
     dependencies:
@@ -3471,7 +3470,7 @@ importers:
         version: 7.0.0-dev.20260707.2
       drizzle-orm:
         specifier: 1.0.0-rc.4
-        version: 1.0.0-rc.4(@opentelemetry/api@1.9.1)(@sinclair/typebox@0.34.49)(effect@4.0.0-rc.117(patch_hash=1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5))(zod@4.6.5(patch_hash=7640b49bb7addea5feff95947618c322ddb94b0bc834b4eb3ad349cff6fbf73b))
+        version: 1.0.0-rc.4(@opentelemetry/api@1.9.1)(@sinclair/typebox@0.34.49)(effect@4.0.0-rc.117(patch_hash=1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5))(zod@4.6.5)
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
@@ -4259,7 +4258,7 @@ importers:
         version: 4.2.0
       zod:
         specifier: ^4.6.5
-        version: 4.6.5(patch_hash=7640b49bb7addea5feff95947618c322ddb94b0bc834b4eb3ad349cff6fbf73b)
+        version: 4.6.5
     devDependencies:
       '@modern-js/app-tools':
         specifier: workspace:*
@@ -4323,7 +4322,7 @@ importers:
         version: 4.2.0
       zod:
         specifier: ^4.6.5
-        version: 4.6.5(patch_hash=7640b49bb7addea5feff95947618c322ddb94b0bc834b4eb3ad349cff6fbf73b)
+        version: 4.6.5
     devDependencies:
       '@modern-js/app-tools':
         specifier: workspace:*
@@ -4393,7 +4392,7 @@ importers:
         version: 4.2.0
       zod:
         specifier: ^4.6.5
-        version: 4.6.5(patch_hash=7640b49bb7addea5feff95947618c322ddb94b0bc834b4eb3ad349cff6fbf73b)
+        version: 4.6.5
     devDependencies:
       '@modern-js/app-tools':
         specifier: workspace:*
@@ -4506,7 +4505,7 @@ importers:
         version: 4.2.0
       zod:
         specifier: ^4.6.5
-        version: 4.6.5(patch_hash=7640b49bb7addea5feff95947618c322ddb94b0bc834b4eb3ad349cff6fbf73b)
+        version: 4.6.5
     devDependencies:
       '@modern-js/app-tools':
         specifier: workspace:*
@@ -4800,7 +4799,7 @@ importers:
         version: 4.2.0
       zod:
         specifier: ^4.6.5
-        version: 4.6.5(patch_hash=7640b49bb7addea5feff95947618c322ddb94b0bc834b4eb3ad349cff6fbf73b)
+        version: 4.6.5
     devDependencies:
       '@modern-js/app-tools':
         specifier: workspace:*
@@ -5626,7 +5625,7 @@ importers:
         version: 19.3.0(react@19.3.0)
       zod:
         specifier: ^4.6.5
-        version: 4.6.5(patch_hash=7640b49bb7addea5feff95947618c322ddb94b0bc834b4eb3ad349cff6fbf73b)
+        version: 4.6.5
     devDependencies:
       '@modern-js/app-tools':
         specifier: workspace:*
@@ -29516,12 +29515,12 @@ snapshots:
 
   dotenv@17.4.2: {}
 
-  drizzle-orm@1.0.0-rc.4(@opentelemetry/api@1.9.1)(@sinclair/typebox@0.34.49)(effect@4.0.0-rc.117(patch_hash=1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5))(zod@4.6.5(patch_hash=7640b49bb7addea5feff95947618c322ddb94b0bc834b4eb3ad349cff6fbf73b)):
+  drizzle-orm@1.0.0-rc.4(@opentelemetry/api@1.9.1)(@sinclair/typebox@0.34.49)(effect@4.0.0-rc.117(patch_hash=1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5))(zod@4.6.5):
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
       '@sinclair/typebox': 0.34.49
       effect: 4.0.0-rc.117(patch_hash=1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5)
-      zod: 4.6.5(patch_hash=7640b49bb7addea5feff95947618c322ddb94b0bc834b4eb3ad349cff6fbf73b)
+      zod: 4.6.5
 
   dts-packer@0.0.3:
     dependencies:
@@ -36911,6 +36910,6 @@ snapshots:
 
   zod@4.5.4: {}
 
-  zod@4.6.5(patch_hash=7640b49bb7addea5feff95947618c322ddb94b0bc834b4eb3ad349cff6fbf73b): {}
+  zod@4.6.5: {}
 
   zwitch@2.0.4: {}

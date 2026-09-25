@@ -77,7 +77,6 @@ const requiredImageDependencyTargets = Object.freeze({
 const correctedDependencyTargets = Object.freeze({
   effect: '@bleedingdev/effect',
   'drizzle-orm': '@bleedingdev/drizzle-orm',
-  zod: '@bleedingdev/zod',
   ...Object.fromEntries(
     [
       'bridge-react',

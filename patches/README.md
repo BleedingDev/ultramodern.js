@@ -13,7 +13,6 @@ Edit `packages/toolkit/ultramodern-create/src/ultramodern-workspace/patch-invent
 | @module-federation/runtime-core@2.9.1 | yes | none | Import ResourceLoadContext used by public remote hooks. |
 | drizzle-orm@1.0.0-rc.4 | no | none | Strict TypeScript declarations for generated database applications. |
 | effect@4.0.0-rc.117 | yes | none | Build router params without string code generation in CSP/Worker bundles. |
-| zod@4.6.5 | yes | none | Disable code-generation capability probing in CSP/Worker bundles. |
 
 Run the command without flags to verify integrity and all projections. `--write-assets` updates only packaged assets and this document; `--write` also regenerates the repository configuration. Regenerate the lockfile with pnpm when patch bytes or dependency selectors change. Never hand-edit packaged copies.
 
