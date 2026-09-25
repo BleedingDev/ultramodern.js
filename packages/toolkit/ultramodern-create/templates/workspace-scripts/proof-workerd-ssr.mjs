@@ -7,6 +7,8 @@ import { parseEnv } from "node:util";
 import { convertV4MiniflareOptions, Log, LogLevel, Miniflare } from "miniflare";
 
 const reportRelativePath = ".codex/reports/cloudflare-workerd-ssr/composition-proof.json";
+// Mirrors the public website quality gate default for server-rendered HTML.
+const defaultSsrHtmlMaxBytes = 250_000;
 
 const assert = (condition, message) => {
   if (!condition) {
@@ -259,6 +261,10 @@ const loadApps = (workspaceRoot, topology, overlay) => {
           : undefined,
       apiProtocol: rawApp.api?.protocol ?? "rest",
       rpcRoute: rawApp.api?.protocol === "rpc" ? rawApp.cloudflare?.routes?.rpc : undefined,
+      ssrHtmlMaxBytes: Number(
+        rawApp.cloudflare?.qualityGates?.budgets?.ssrHtmlMaxBytes ??
+          defaultSsrHtmlMaxBytes,
+      ),
       jsonSmokeChecks: Array.isArray(rawApp.cloudflare?.jsonSmokeChecks)
         ? rawApp.cloudflare.jsonSmokeChecks
         : [],
@@ -798,6 +804,7 @@ const proveRoute = async (app, route, fetchRoute, apps, recorders) => {
     headers: { accept: "text/html" },
   });
   const html = await response.text();
+  const htmlBytes = Buffer.byteLength(html);
   const routeOutboundRequests = recorders.outboundRequests.slice(outboundRequestStart);
   assert(
     response.status === 200,
@@ -806,6 +813,12 @@ const proveRoute = async (app, route, fetchRoute, apps, recorders) => {
   assert(
     response.headers.get("content-type")?.includes("text/html") === true,
     `${app.id} did not return HTML for ${route} in workerd`,
+  );
+  // Runaway server rendering (for example a worker re-rendering its own
+  // route data requests) can still end in an oversized document.
+  assert(
+    htmlBytes <= app.ssrHtmlMaxBytes,
+    `${app.id} rendered ${htmlBytes} bytes for ${route} in workerd, over the ${app.ssrHtmlMaxBytes} byte ssrHtmlMaxBytes budget`,
   );
   assert(
     !html.includes('data-modern-distributed-ssr-status="degraded"'),
@@ -862,6 +875,7 @@ const proveRoute = async (app, route, fetchRoute, apps, recorders) => {
     worker: workerName(app),
     route,
     status: response.status,
+    htmlBytes,
     boundaries,
     fragmentBindingRequests: routeFragmentBindingRequests,
     apiBindingRequests: routeApiBindingRequests,
