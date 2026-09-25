@@ -324,18 +324,35 @@ const getAliasNames = (alias: AliasOption) =>
       ? alias.map(entry => (entry.onlyModule ? `${entry.name}$` : entry.name))
       : Object.keys(alias);
 
-const getObjectExternalNames = (externals: unknown): string[] =>
-  Array.isArray(externals)
-    ? externals.flatMap(getObjectExternalNames)
-    : externals &&
-        typeof externals === 'object' &&
-        !(externals instanceof RegExp)
-      ? Object.keys(externals)
-      : [];
+type ExternalMatcher = (request: string) => boolean;
+
+// Function externals are asynchronous callbacks and cannot be consulted
+// before resolution; string, RegExp and object-key externals are matched.
+const getExternalMatchers = (externals: unknown): ExternalMatcher[] => {
+  if (Array.isArray(externals)) {
+    return externals.flatMap(getExternalMatchers);
+  }
+  if (typeof externals === 'string') {
+    return [request => request === externals];
+  }
+  if (externals instanceof RegExp) {
+    return [
+      request => {
+        externals.lastIndex = 0;
+        return externals.test(request);
+      },
+    ];
+  }
+  if (externals && typeof externals === 'object') {
+    const names = new Set(Object.keys(externals));
+    return [request => names.has(request)];
+  }
+  return [];
+};
 
 /**
- * Reads the final resolved `resolve.alias` and object `externals` so an app's
- * own replacement for an optional package still wins over the absent-module
+ * Reads the final resolved `resolve.alias` and `externals` so an app's own
+ * replacement for an optional package still wins over the absent-module
  * fallback (the fallback runs before resolution).
  */
 export const createRequestRedirectMatcher = (options: {
@@ -343,9 +360,9 @@ export const createRequestRedirectMatcher = (options: {
   resolve?: { alias?: AliasOption };
 }) => {
   const aliasNames = getAliasNames(options.resolve?.alias);
-  const externalNames = new Set(getObjectExternalNames(options.externals));
+  const externalMatchers = getExternalMatchers(options.externals);
   return (request: string) =>
-    externalNames.has(request) ||
+    externalMatchers.some(matches => matches(request)) ||
     aliasNames.some(name =>
       name.endsWith('$')
         ? request === name.slice(0, -1)
