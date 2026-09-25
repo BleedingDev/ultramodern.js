@@ -26,6 +26,16 @@ const getCompatibilityDate = (modernConfig: CloudflareModernConfig) => {
       )}.`,
     );
   }
+  // Workers only add Node.js built-ins at later dates, and the bundler
+  // externalizes the set probed at DEFAULT_COMPATIBILITY_DATE; an earlier
+  // date could leave an externalized built-in unresolvable at deploy time.
+  if (compatibilityDate < DEFAULT_COMPATIBILITY_DATE) {
+    throw new Error(
+      `deploy.worker.compatibilityDate must be ${DEFAULT_COMPATIBILITY_DATE} or later, the date the Cloudflare worker Node.js built-in contract is verified against; received ${JSON.stringify(
+        compatibilityDate,
+      )}.`,
+    );
+  }
 
   return compatibilityDate;
 };

@@ -6,6 +6,7 @@ import { SERVICE_WORKER_ENVIRONMENT_NAME } from '@modern-js/builder';
 import { createRsbuild } from '@rsbuild/core';
 import { convertV4MiniflareOptions, Miniflare } from 'miniflare';
 import { DEFAULT_COMPATIBILITY_DATE } from '../src/cloudflare/constants';
+import { createWranglerConfig } from '../src/cloudflare/wrangler-config';
 import {
   createAbsentOptionalDependencyFilter,
   createRequestRedirectMatcher,
@@ -88,6 +89,21 @@ describe('Cloudflare worker Node.js compatibility', () => {
     },
     WORKER_TIMEOUT,
   );
+
+  it('rejects compatibility dates older than the verified built-in contract', () => {
+    const configFor = (compatibilityDate: string) =>
+      createWranglerConfig('/app', {
+        deploy: { worker: { compatibilityDate } },
+      } as never);
+
+    expect(() => configFor('2025-01-01')).toThrow(
+      `deploy.worker.compatibilityDate must be ${DEFAULT_COMPATIBILITY_DATE} or later`,
+    );
+    expect(configFor(DEFAULT_COMPATIBILITY_DATE).compatibility_date).toBe(
+      DEFAULT_COMPATIBILITY_DATE,
+    );
+    expect(configFor('2026-09-09').compatibility_date).toBe('2026-09-09');
+  });
 
   it('externalizes bare built-ins only where Node accepts the bare name', () => {
     const { externals } = getCloudflareWorkerRspackConfig(['worker']);

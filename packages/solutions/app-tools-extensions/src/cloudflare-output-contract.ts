@@ -16,7 +16,8 @@ export const CLOUDFLARE_WORKER_BUNDLE_FORMAT = 'commonjs';
 // `node:` scheme; bare-name imports are only valid where Node itself accepts
 // them (`isBuiltin`), so prefix-only modules such as `sqlite` and `test` are
 // externalized solely as `node:sqlite` and `node:test`. Some modules are
-// runtime-provided stubs whose unsupported operations throw.
+// runtime-provided stubs whose unsupported operations throw. Earlier
+// compatibility dates are rejected when the Wrangler config is generated.
 export const CLOUDFLARE_WORKER_NODE_BUILTINS = [
   '_http_agent',
   '_http_client',
