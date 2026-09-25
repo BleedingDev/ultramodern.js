@@ -135,8 +135,16 @@ test('the installed workerd proof reads the declared runtime port environment', 
           kind: 'shell',
           path: 'apps/shell',
           portEnv: 'SHELL_PORT',
+          cloudflare: { routes: { ssr: '/en' } },
         },
-        verticals: [],
+        verticals: [
+          {
+            id: 'party',
+            kind: 'vertical',
+            path: 'verticals/party',
+            surfaceProfile: 'api-only',
+          },
+        ],
       }),
     );
     fs.writeFileSync(overlayPath, JSON.stringify({ ports: { shell: 3020 } }));
