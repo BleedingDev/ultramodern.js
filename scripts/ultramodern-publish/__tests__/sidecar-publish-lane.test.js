@@ -477,8 +477,7 @@ test('a sidecar that never propagates fails after the whole shared schedule', as
   assert.deepEqual(waits, [...registryPropagationDelaysMs]);
 });
 
-test('propagation waits overlap except where a later sidecar aliases an earlier one', async t => {
-  const { publishSidecars } = await importCli();
+const withTrustedPublishEnv = t => {
   const trustedEnv = {
     GITHUB_ACTIONS: 'true',
     GITHUB_REF: 'refs/heads/main-ultramodern',
@@ -494,18 +493,59 @@ test('propagation waits overlap except where a later sidecar aliases an earlier 
       else process.env[key] = value;
     }
   });
+};
 
-  const named = (name, dependencies = { sharp: '^0.35.3' }) => {
-    const base = stagedIpx();
-    return {
-      ...base,
-      name,
-      packageJson: { ...base.packageJson, name, dependencies },
-    };
+const namedSidecar = (name, dependencies = { sharp: '^0.35.3' }) => {
+  const base = stagedIpx();
+  return {
+    ...base,
+    name,
+    packageJson: { ...base.packageJson, name, dependencies },
   };
-  const first = named('@bleedingdev/ipx-first');
-  const independent = named('@bleedingdev/ipx-independent');
-  const aliasing = named('@bleedingdev/ipx-aliasing', {
+};
+
+const publishedPackumentFor = (sidecar, overrides = {}) =>
+  packumentFor(sidecar, {
+    overrides: {
+      // npm normalizes a string bin under the unscoped package name.
+      bin: { [sidecar.name.split('/')[1]]: 'bin/ipx.mjs' },
+      dependencies: sidecar.packageJson.dependencies,
+      ...overrides,
+    },
+  });
+
+const sidecarLaneDependencies = ({ sidecars, readPackument, onPublish }) => ({
+  loadRuntime: () => ({
+    npmVersion: '11.10.1',
+    publish: async packageJson => onPublish(packageJson.name),
+  }),
+  readPackument,
+  readSidecars: () => ({
+    manifest: { publishBefore: '@bleedingdev/modern-js-image' },
+    release: {
+      manifest: {
+        tools: { node: process.version, npm: '11.10.1', pnpm: '11.24.0' },
+      },
+    },
+    sidecars,
+  }),
+  requestToken: async () => 'oidc-token',
+  wait: async () => {},
+});
+
+const publishOptions = {
+  checkStaging: false,
+  dryRun: false,
+  out: '/unused',
+  tag: 'latest',
+};
+
+test('sidecars publish in alias order while their propagation waits overlap', async t => {
+  const { publishSidecars } = await importCli();
+  withTrustedPublishEnv(t);
+  const first = namedSidecar('@bleedingdev/ipx-first');
+  const independent = namedSidecar('@bleedingdev/ipx-independent');
+  const aliasing = namedSidecar('@bleedingdev/ipx-aliasing', {
     sharp: '^0.35.3',
     ipx: 'npm:@bleedingdev/ipx-first@3.2.0',
   });
@@ -519,63 +559,81 @@ test('propagation waits overlap except where a later sidecar aliases an earlier 
   const firstMayPropagate = new Promise(resolve => {
     releaseFirst = resolve;
   });
-  const readPackument = async name => {
-    const sidecar = byName.get(name);
-    if (!publishedNames.has(name)) return priorReleaseOnly(sidecar);
-    if (name === first.name) await firstMayPropagate;
-    verified.add(name);
-    return packumentFor(sidecar, {
-      overrides: {
-        // npm normalizes a string bin under the unscoped package name.
-        bin: { [name.split('/')[1]]: 'bin/ipx.mjs' },
-        dependencies: sidecar.packageJson.dependencies,
-      },
-    });
-  };
-
   const result = await publishSidecars(
-    { checkStaging: false, dryRun: false, out: '/unused', tag: 'latest' },
-    {
-      loadRuntime: () => ({
-        npmVersion: '11.10.1',
-        publish: async packageJson => {
-          events.push(`publish ${packageJson.name}`);
-          publishedNames.add(packageJson.name);
-          // The first sidecar's propagation only completes once the lane has
-          // moved on: a serial wait would never reach this publish.
-          if (packageJson.name === independent.name) releaseFirst();
-          if (packageJson.name === aliasing.name) {
-            assert.ok(
-              verified.has(first.name),
-              'an aliasing sidecar publishes only after its target verified',
-            );
-          }
-        },
-      }),
-      readPackument,
-      readSidecars: () => ({
-        manifest: { publishBefore: '@bleedingdev/modern-js-image' },
-        release: {
-          manifest: {
-            tools: { node: process.version, npm: '11.10.1', pnpm: '11.24.0' },
-          },
-        },
-        sidecars,
-      }),
-      requestToken: async () => 'oidc-token',
-      wait: async () => {},
-    },
+    publishOptions,
+    sidecarLaneDependencies({
+      sidecars,
+      // The first sidecar only becomes readable once the last one has
+      // published: a lane that waited per sidecar, or per alias level, would
+      // never get there.
+      readPackument: async name => {
+        const sidecar = byName.get(name);
+        if (!publishedNames.has(name)) return priorReleaseOnly(sidecar);
+        if (name === first.name) await firstMayPropagate;
+        verified.add(name);
+        return publishedPackumentFor(sidecar);
+      },
+      onPublish: name => {
+        events.push(`publish ${name}`);
+        publishedNames.add(name);
+        if (name === aliasing.name) releaseFirst();
+      },
+    }),
   );
-  assert.deepEqual(events, [
-    `publish ${first.name}`,
-    `publish ${independent.name}`,
-    `publish ${aliasing.name}`,
-  ]);
+  assert.deepEqual(
+    events,
+    sidecars.map(sidecar => `publish ${sidecar.name}`),
+    'alias targets still publish before the sidecars that alias them',
+  );
   assert.deepEqual(
     result.published,
     sidecars.map(sidecar => `${sidecar.name}@3.2.0`),
   );
-  assert.deepEqual([...verified].sort(), sidecars.map(s => s.name).sort());
+  assert.deepEqual(
+    [...verified].sort(),
+    sidecars.map(sidecar => sidecar.name).sort(),
+    'the lane resolves only after every published sidecar verified',
+  );
+});
+
+test('a failed verification stops the next irreversible publish', async t => {
+  const { publishSidecars } = await importCli();
+  withTrustedPublishEnv(t);
+  const first = namedSidecar('@bleedingdev/ipx-first');
+  const second = namedSidecar('@bleedingdev/ipx-second');
+  const sidecars = [first, second];
+  const byName = new Map(sidecars.map(sidecar => [sidecar.name, sidecar]));
+  const publishedNames = [];
+  await assert.rejects(
+    publishSidecars(
+      publishOptions,
+      sidecarLaneDependencies({
+        sidecars,
+        readPackument: async name => {
+          const sidecar = byName.get(name);
+          if (!publishedNames.includes(name)) {
+            // Real registry reads take I/O time, during which the first
+            // sidecar's verification settles.
+            await new Promise(resolve => setImmediate(resolve));
+            return priorReleaseOnly(sidecar);
+          }
+          // The first sidecar surfaces with different bytes: terminal.
+          return publishedPackumentFor(sidecar, {
+            dist: {
+              integrity: `sha512-${Buffer.from('drift').toString('base64')}`,
+              shasum: sidecar.shasum,
+              tarball: 'https://example.invalid/x.tgz',
+            },
+          });
+        },
+        onPublish: name => {
+          publishedNames.push(name);
+        },
+      }),
+    ),
+    /integrity/u,
+  );
+  assert.deepEqual(publishedNames, [first.name]);
 });
 
 test('a dist-tag on a different real version is terminal, never retried', async () => {
