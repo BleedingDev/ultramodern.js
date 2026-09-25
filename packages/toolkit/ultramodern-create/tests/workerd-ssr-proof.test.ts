@@ -154,6 +154,21 @@ describe('workerd SSR proof topology planning', () => {
     );
     assert.throws(
       () =>
+        planWorkerdSsrProof({
+          ...topology(shell()),
+          verticals: [
+            {
+              ...catalog,
+              cloudflare: { distributedSsrProofRoutes: ['/en'] },
+            },
+            contacts,
+            pricing,
+          ],
+        }),
+      /catalog declares no cloudflare\.routes\.ssr/u,
+    );
+    assert.throws(
+      () =>
         planWorkerdSsrProof(
           topology({ ...shell(), verticalRefs: ['contacts', 'missing'] }),
         ),
@@ -394,6 +409,23 @@ describe('workerd SSR proof fixture execution', () => {
       assert.match(
         output,
         /shell rendered no distributed SSR boundaries for \/en/u,
+      );
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  test('rejects server-rendered boundaries from a client-composed shell', () => {
+    const root = createFixtureWorkspace({
+      renderBoundary: true,
+      shellCloudflare: { distributedSsrProofRoutes: [] },
+    });
+    try {
+      const { status, output } = runProof(root);
+      assert.equal(status, 1, output);
+      assert.match(
+        output,
+        /shell declares client composition but rendered distributed SSR boundaries for \/en/u,
       );
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
