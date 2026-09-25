@@ -246,7 +246,33 @@ const getPackageNameFromRequest = (request: string) => {
 interface OptionalDependencyManifest {
   optionalDependencies?: Record<string, string>;
   peerDependenciesMeta?: Record<string, { optional?: boolean }>;
+  [field: string]: unknown;
 }
+
+type AliasField = string | readonly string[];
+
+// Mirrors the resolver's `resolve.aliasFields` lookup: a field is a key or a
+// nested key path into the importing package's manifest whose object maps
+// requests to replacements (or to `false` for an empty module).
+const isRedirectedByAliasField = (
+  manifest: OptionalDependencyManifest,
+  aliasFields: readonly AliasField[],
+  requests: readonly string[],
+) =>
+  aliasFields.some(field => {
+    let value: unknown = manifest;
+    for (const key of typeof field === 'string' ? [field] : field) {
+      value =
+        value && typeof value === 'object'
+          ? (value as Record<string, unknown>)[key]
+          : undefined;
+    }
+    return (
+      Boolean(value) &&
+      typeof value === 'object' &&
+      requests.some(request => Object.hasOwn(value as object, request))
+    );
+  });
 
 const findOwningPackageManifest = (
   directory: string,
@@ -300,14 +326,16 @@ const isPackageInstalled = (
  * importing package itself declares the request as an optional peer
  * (`peerDependenciesMeta.<name>.optional`) or an `optionalDependencies`
  * entry, the package is not found in any `resolve.modules` directory, and
- * the app does not redirect the request through `resolve.alias`,
- * `resolve.fallback` or `externals`. The import
+ * neither the app (`resolve.alias`, `resolve.fallback`, `externals`) nor the
+ * importing package (an enabled `resolve.aliasFields` entry such as
+ * `browser`) redirects the request. The import
  * then rejects with "Cannot find module" so the library's own fallback
  * handles it (for example `@redis/client` guards `import('@node-rs/xxhash')`).
  */
 export const createAbsentOptionalDependencyFilter = (
   isRedirected: (request: string) => boolean = () => false,
   moduleDirectories: readonly string[] = ['node_modules'],
+  aliasFields: readonly AliasField[] = [],
 ) => {
   const manifests = new Map<string, OptionalDependencyManifest | undefined>();
   return (request: string, context: string) => {
@@ -316,11 +344,19 @@ export const createAbsentOptionalDependencyFilter = (
       return false;
     }
     const manifest = findOwningPackageManifest(context, manifests);
+    if (!manifest) {
+      return false;
+    }
     const optional =
-      manifest?.peerDependenciesMeta?.[packageName]?.optional === true ||
-      Object.hasOwn(manifest?.optionalDependencies ?? {}, packageName);
+      manifest.peerDependenciesMeta?.[packageName]?.optional === true ||
+      Object.hasOwn(manifest.optionalDependencies ?? {}, packageName);
     return (
-      optional && !isPackageInstalled(packageName, context, moduleDirectories)
+      optional &&
+      !isRedirectedByAliasField(manifest, aliasFields, [
+        request,
+        packageName,
+      ]) &&
+      !isPackageInstalled(packageName, context, moduleDirectories)
     );
   };
 };
@@ -400,6 +436,7 @@ class AbsentOptionalDependencyPlugin {
       checkResource: createAbsentOptionalDependencyFilter(
         createRequestRedirectMatcher(compiler.options),
         compiler.options.resolve.modules,
+        compiler.options.resolve.aliasFields,
       ),
     }).apply(compiler);
   }
