@@ -62,7 +62,6 @@ patchedDependencies:
   '@module-federation/rspack@2.9.1': patches/@module-federation__rspack@2.9.1.patch
   '@module-federation/runtime-core@2.9.1': patches/@module-federation__runtime-core@2.9.1.patch
   'effect@4.0.0-rc.117': patches/effect@4.0.0-rc.117.patch
-  'zod@4.6.5': patches/zod@4.6.5.patch
 overrides:
   micromatch: ^4.0.8
   'js-yaml@>=3.0.0 <3.15.2': 3.15.2
