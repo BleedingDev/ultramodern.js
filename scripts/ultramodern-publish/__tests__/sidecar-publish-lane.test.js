@@ -514,7 +514,12 @@ const publishedPackumentFor = (sidecar, overrides = {}) =>
     },
   });
 
-const sidecarLaneDependencies = ({ sidecars, readPackument, onPublish }) => ({
+const sidecarLaneDependencies = ({
+  sidecars,
+  readPackument,
+  onPublish,
+  requestToken = async () => 'oidc-token',
+}) => ({
   loadRuntime: () => ({
     npmVersion: '11.10.1',
     publish: async packageJson => onPublish(packageJson.name),
@@ -529,7 +534,7 @@ const sidecarLaneDependencies = ({ sidecars, readPackument, onPublish }) => ({
     },
     sidecars,
   }),
-  requestToken: async () => 'oidc-token',
+  requestToken,
   wait: async () => {},
 });
 
@@ -596,45 +601,53 @@ test('sidecars publish in alias order while their propagation waits overlap', as
   );
 });
 
-test('a failed verification stops the next irreversible publish', async t => {
-  const { publishSidecars } = await importCli();
-  withTrustedPublishEnv(t);
-  const first = namedSidecar('@bleedingdev/ipx-first');
-  const second = namedSidecar('@bleedingdev/ipx-second');
-  const sidecars = [first, second];
-  const byName = new Map(sidecars.map(sidecar => [sidecar.name, sidecar]));
-  const publishedNames = [];
-  await assert.rejects(
-    publishSidecars(
-      publishOptions,
-      sidecarLaneDependencies({
-        sidecars,
-        readPackument: async name => {
-          const sidecar = byName.get(name);
-          if (!publishedNames.includes(name)) {
-            // Real registry reads take I/O time, during which the first
-            // sidecar's verification settles.
-            await new Promise(resolve => setImmediate(resolve));
-            return priorReleaseOnly(sidecar);
-          }
-          // The first sidecar surfaces with different bytes: terminal.
-          return publishedPackumentFor(sidecar, {
-            dist: {
-              integrity: `sha512-${Buffer.from('drift').toString('base64')}`,
-              shasum: sidecar.shasum,
-              tarball: 'https://example.invalid/x.tgz',
-            },
-          });
-        },
-        onPublish: name => {
-          publishedNames.push(name);
-        },
-      }),
-    ),
-    /integrity/u,
-  );
-  assert.deepEqual(publishedNames, [first.name]);
-});
+const nextMacrotask = () => new Promise(resolve => setImmediate(resolve));
+
+for (const settlesDuring of ['registry read', 'token exchange']) {
+  test(`a verification failing during the next ${settlesDuring} stops that publish`, async t => {
+    const { publishSidecars } = await importCli();
+    withTrustedPublishEnv(t);
+    const first = namedSidecar('@bleedingdev/ipx-first');
+    const second = namedSidecar('@bleedingdev/ipx-second');
+    const sidecars = [first, second];
+    const byName = new Map(sidecars.map(sidecar => [sidecar.name, sidecar]));
+    const publishedNames = [];
+    await assert.rejects(
+      publishSidecars(
+        publishOptions,
+        sidecarLaneDependencies({
+          sidecars,
+          readPackument: async name => {
+            const sidecar = byName.get(name);
+            if (!publishedNames.includes(name)) {
+              // Real registry reads take I/O time, during which the first
+              // sidecar's verification can settle.
+              if (settlesDuring === 'registry read') await nextMacrotask();
+              return priorReleaseOnly(sidecar);
+            }
+            // The first sidecar surfaces with different bytes: terminal.
+            return publishedPackumentFor(sidecar, {
+              dist: {
+                integrity: `sha512-${Buffer.from('drift').toString('base64')}`,
+                shasum: sidecar.shasum,
+                tarball: 'https://example.invalid/x.tgz',
+              },
+            });
+          },
+          onPublish: name => {
+            publishedNames.push(name);
+          },
+          requestToken: async () => {
+            if (settlesDuring === 'token exchange') await nextMacrotask();
+            return 'oidc-token';
+          },
+        }),
+      ),
+      /integrity/u,
+    );
+    assert.deepEqual(publishedNames, [first.name]);
+  });
+}
 
 test('a dist-tag on a different real version is terminal, never retried', async () => {
   const { awaitPublishedSidecar, classifySidecarPropagation } =

@@ -185,6 +185,8 @@ async function publishSidecarBuffer(
   const token = await requestToken(sidecar.name, {
     registryUrl: npmRegistryUrl,
   });
+  // The lane's last chance to stop: nothing below is reversible.
+  options.assertMayPublish?.();
   const registry = new URL(npmRegistryUrl);
   const authKey = `//${registry.host}${registry.pathname}:_authToken`;
   await runtime.publish(sidecar.packageJson, bytes, {
@@ -347,6 +349,11 @@ async function publishSidecars(options, dependencies = {}) {
   // per alias level (the job has a fixed timeout).
   const propagating = [];
   let propagationFailure;
+  const assertNoPropagationFailure = () => {
+    if (propagationFailure) {
+      throw propagationFailure.error;
+    }
+  };
   const trackPropagation = (sidecar, settledMessage) => {
     const verification = awaitPublishedSidecar(
       sidecar,
@@ -415,15 +422,17 @@ async function publishSidecars(options, dependencies = {}) {
     }
 
     assertSidecarTrustedPublishContext();
-    // Checked immediately before the irreversible publish: an earlier
-    // sidecar's verification may have failed during any await above.
-    if (propagationFailure) {
-      throw propagationFailure.error;
-    }
+    // An earlier sidecar's verification may have failed during any await
+    // above; the publisher re-checks after its own token await as well.
+    assertNoPropagationFailure();
     await publishSidecarBuffer(
       sidecar,
       sidecar.bytes,
-      { ...options, acceptedTools },
+      {
+        ...options,
+        acceptedTools,
+        assertMayPublish: assertNoPropagationFailure,
+      },
       dependencies,
     );
     trackPropagation(
