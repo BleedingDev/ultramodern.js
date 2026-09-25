@@ -200,7 +200,9 @@
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "core-js": "^3.50.0",
     "effect": "4.0.0-rc.117",
-    "ndepe": "^0.1.13"
+    "miniflare": "5.20260921.0-alpha",
+    "ndepe": "^0.1.13",
+    "pg": "8.23.0"
   },
   "sideEffects": false,
   "publishConfig": {

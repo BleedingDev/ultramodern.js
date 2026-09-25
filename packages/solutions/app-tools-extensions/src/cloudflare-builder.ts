@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { createRequire } from 'node:module';
+import { createRequire, isBuiltin } from 'node:module';
 import path from 'node:path';
 import { SERVICE_WORKER_ENVIRONMENT_NAME } from '@modern-js/builder';
 import type { BffUserConfig } from '@modern-js/server-core';
@@ -12,7 +12,10 @@ import type {
   RsbuildEntryDescription,
 } from '@rsbuild/core';
 import { provider } from 'std-env';
-import { CLOUDFLARE_WORKER_NODE_BUILTINS } from './cloudflare-output-contract';
+import {
+  CLOUDFLARE_WORKER_NODE_BUILTINS,
+  CLOUDFLARE_WORKER_PLATFORM_MODULES,
+} from './cloudflare-output-contract';
 import { getTemplatePath } from './read-template';
 
 const moduleRequire = createRequire(import.meta.url);
@@ -22,6 +25,17 @@ const MF_SSR_DATA_FETCH_RUNTIME_PLUGIN =
   '@module-federation/modern-js-v3/ssr-inject-data-fetch-function-plugin';
 const MF_SSR_DEV_RUNTIME_PLUGIN =
   '@module-federation/modern-js-v3/ssr-dev-plugin';
+// Rspack's default dependency-type conditions (`resolve.byDependency`).
+const WORKER_DEPENDENCY_CONDITIONS = [
+  ['esm', 'import'],
+  ['wasm', 'import'],
+  ['loaderImport', 'import'],
+  ['worker', 'import'],
+  ['commonjs', 'require'],
+  ['amd', 'require'],
+  ['loader', 'require'],
+  ['unknown', 'require'],
+] as const;
 const JS_OR_TS_EXTENSIONS = new Set([
   '.js',
   '.jsx',
@@ -191,16 +205,107 @@ const setAliasIfPresent = (
   }
 };
 
+// Node accepts a bare specifier only for built-ins that are not prefix-only
+// (`sqlite` and `test` are ordinary npm package names without `node:`).
 const getCloudflareWorkerNodeExternals = () =>
-  Object.fromEntries(
-    CLOUDFLARE_WORKER_NODE_BUILTINS.flatMap(builtin => {
+  Object.fromEntries([
+    ...CLOUDFLARE_WORKER_NODE_BUILTINS.flatMap(builtin => {
       const nodeBuiltin = `node:${builtin}`;
-      return [
-        [builtin, `module-import ${nodeBuiltin}`],
-        [nodeBuiltin, `module-import ${nodeBuiltin}`],
-      ];
+      const external = `module-import ${nodeBuiltin}`;
+      return isBuiltin(builtin)
+        ? [
+            [builtin, external],
+            [nodeBuiltin, external],
+          ]
+        : [[nodeBuiltin, external]];
     }),
-  );
+    ...CLOUDFLARE_WORKER_PLATFORM_MODULES.map(platformModule => [
+      platformModule,
+      `module-import ${platformModule}`,
+    ]),
+  ]);
+
+const getPackageNameFromRequest = (request: string) => {
+  if (
+    request.startsWith('.') ||
+    request.startsWith('/') ||
+    request.includes(':') ||
+    path.isAbsolute(request)
+  ) {
+    return undefined;
+  }
+  const segments = request.split('/');
+  return request.startsWith('@')
+    ? segments.length > 1
+      ? `${segments[0]}/${segments[1]}`
+      : undefined
+    : segments[0];
+};
+
+interface OptionalDependencyManifest {
+  optionalDependencies?: Record<string, string>;
+  peerDependenciesMeta?: Record<string, { optional?: boolean }>;
+}
+
+const findOwningPackageManifest = (
+  directory: string,
+  cache: Map<string, OptionalDependencyManifest | undefined>,
+): OptionalDependencyManifest | undefined => {
+  if (cache.has(directory)) {
+    return cache.get(directory);
+  }
+  let manifest: OptionalDependencyManifest | undefined;
+  const packageJsonPath = path.join(directory, 'package.json');
+  if (fs.existsSync(packageJsonPath)) {
+    try {
+      manifest = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+    } catch {
+      manifest = undefined;
+    }
+  } else if (path.dirname(directory) !== directory) {
+    manifest = findOwningPackageManifest(path.dirname(directory), cache);
+  }
+  cache.set(directory, manifest);
+  return manifest;
+};
+
+const isPackageInstalled = (packageName: string, directory: string) => {
+  let current = directory;
+  while (true) {
+    if (fs.existsSync(path.join(current, 'node_modules', packageName))) {
+      return true;
+    }
+    const parent = path.dirname(current);
+    if (parent === current) {
+      return false;
+    }
+    current = parent;
+  }
+};
+
+/**
+ * Leaves an absent optional dependency missing at runtime, exactly as Node
+ * does, instead of failing the worker build. It applies only when the
+ * importing package itself declares the request as an optional peer
+ * (`peerDependenciesMeta.<name>.optional`) or an `optionalDependencies`
+ * entry and the package is not installed; the import then rejects with
+ * "Cannot find module" so the library's own fallback handles it (for example
+ * `@redis/client` guards `import('@node-rs/xxhash')`).
+ */
+export const createAbsentOptionalDependencyFilter = () => {
+  const manifests = new Map<string, OptionalDependencyManifest | undefined>();
+  return (request: string, context: string) => {
+    const packageName = getPackageNameFromRequest(request);
+    if (!packageName || !context) {
+      return false;
+    }
+    const manifest = findOwningPackageManifest(context, manifests);
+    const optional =
+      manifest?.peerDependenciesMeta?.[packageName]?.optional === true ||
+      Object.hasOwn(manifest?.optionalDependencies ?? {}, packageName);
+    return optional && !isPackageInstalled(packageName, context);
+  };
+};
 
 const normalizeWorkerOutputName = (name: string) =>
   path.posix.normalize(name.replace(/\\/gu, '/')).toLowerCase();
@@ -477,7 +582,7 @@ const createCloudflareBundlerChain = (
   const pathWorkerFile = getTemplatePath('cloudflare-worker-path.mjs');
   const entryNames = [...workerEntryNames];
 
-  return chain => {
+  return (chain, { bundler }) => {
     applyCloudflareWorkerRspackConfig(chain, entryNames);
     chain.output
       .module(true)
@@ -492,12 +597,25 @@ const createCloudflareBundlerChain = (
       'worker',
       'webpack',
       isProd() ? 'production' : 'development',
-      'import',
-      'require',
       'module',
     ]) {
       chain.resolve.conditionNames.add(condition);
     }
+    // Setting base conditions drops Rspack's per-dependency `import` /
+    // `require` defaults, and adding both globally lets a dual package's
+    // first-listed `import` branch win for `require()` (so `pg` received an
+    // ES module namespace for `pg-pool` and missed `pg-cloudflare`'s
+    // `workerd.require` entry). Restore Rspack's own per-dependency split.
+    for (const [dependencyType, condition] of WORKER_DEPENDENCY_CONDITIONS) {
+      chain.resolve.byDependency.set(dependencyType, {
+        conditionNames: [condition, '...'],
+      });
+    }
+    chain
+      .plugin('cloudflare-worker-absent-optional-dependencies')
+      .use(bundler.IgnorePlugin, [
+        { checkResource: createAbsentOptionalDependencyFilter() },
+      ]);
 
     applyCloudflareWorkerMfRuntimeBoundary(chain);
     if (tanstackRouterSsrServerFile) {
