@@ -111,15 +111,21 @@ describe('workerd SSR proof topology planning', () => {
     const planWorkerdSsrProof = await loadPlanner();
     const shellPlan = planFor(
       planWorkerdSsrProof(
-        topology(
-          shell({ distributedSsrProofRoutes: ['/en/home', 'relative'] }),
-        ),
+        topology(shell({ distributedSsrProofRoutes: ['/en/home'] })),
       ).plans,
       'shell',
     );
 
     assert.deepEqual(shellPlan.serverRenderedRoutes, ['/en/home']);
     assert.deepEqual(shellPlan.ssrRoutes, ['/en/home', '/en']);
+    // A malformed list must not read as the client-composed [] declaration.
+    assert.throws(
+      () =>
+        planWorkerdSsrProof(
+          topology(shell({ distributedSsrProofRoutes: ['en'] })),
+        ),
+      /shell cloudflare\.distributedSsrProofRoutes must list unique absolute routes/u,
+    );
   });
 
   test('an empty distributed SSR route list declares a client-composed shell', async () => {

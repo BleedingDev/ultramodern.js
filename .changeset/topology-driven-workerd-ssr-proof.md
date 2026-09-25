@@ -6,4 +6,4 @@ Drive `ultramodern-create ultramodern cloudflare-ssr-proof` from the workspace t
 
 Shells still must server-render a verified boundary for every referenced MicroVertical that declares a distributed SSR expose, on `cloudflare.distributedSsrProofRoutes` or, when that is absent, on `cloudflare.routes.ssr`. A shell whose MicroVerticals load on the client declares `distributedSsrProofRoutes: []`.
 
-All apps now run in one Miniflare instance, and each Worker receives its Wrangler `vars` and the `.dev.vars` file beside its executed `wrangler.json`, matching `wrangler dev`.
+Shell composition runs in one Miniflare instance, while each vertical route runs in its own runtime so it serves its own assets; service bindings still resolve through the shared runtime. Each Worker receives its Wrangler `vars` and the `.dev.vars` file beside its executed `wrangler.json`, matching `wrangler dev`.

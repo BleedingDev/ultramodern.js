@@ -167,6 +167,12 @@ export const planWorkerdSsrProof = (topology) => {
       kind === "shell"
         ? verticalRefs.filter((ref) => declaresDistributedSsrExpose(rawAppsById.get(ref)))
         : [];
+    assert(
+      !Array.isArray(declaredServerRenderedRoutes) ||
+        normalizeRoutes(declaredServerRenderedRoutes).length ===
+          declaredServerRenderedRoutes.length,
+      `${id} cloudflare.distributedSsrProofRoutes must list unique absolute routes`,
+    );
     const serverRenderedRoutes =
       kind !== "shell"
         ? []
@@ -551,18 +557,9 @@ const startWorkerdTargetServers = async (
         Number.isInteger(app.port) && app.port > 0,
         `${app.id} requires a configured local port for all-workerd browser proof`,
       );
-      // Miniflare assigns one shared assets storage service inside
-      // a multi-worker instance. Keep the shell composition runtime intact,
-      // but give every directly browsed MicroVertical its own runtime so its
-      // static assets and MF manifest cannot resolve from a sibling Worker.
       const runtime =
         app.kind === "vertical"
-          ? new Miniflare(
-              convertV4MiniflareOptions({
-                log: new Log(LogLevel.ERROR),
-                workers: [workerConfigurations[index]],
-              }),
-            )
+          ? createIsolatedRuntime(workerConfigurations[index])
           : miniflare;
       if (runtime !== miniflare) {
         isolatedVerticalRuntimes.push(runtime);
@@ -710,9 +707,22 @@ const decodeDistributedSsrFragmentRequest = (request) => {
   };
 };
 
+// Miniflare assigns one shared assets storage service inside a multi-worker
+// instance. Keep the shell composition runtime intact, but give every directly
+// requested MicroVertical its own runtime so its static assets and MF manifest
+// cannot resolve from a sibling Worker. Its service bindings still resolve
+// through the shared composition runtime.
+const createIsolatedRuntime = (workerOptions) =>
+  new Miniflare(
+    convertV4MiniflareOptions({
+      log: new Log(LogLevel.ERROR),
+      workers: [workerOptions],
+    }),
+  );
+
 const createServiceBindings = (
   caller,
-  { apiBindingRequests, failedServices, fragmentBindingRequests },
+  { apiBindingRequests, composition, failedServices, fragmentBindingRequests },
 ) => {
   const services = Array.isArray(caller.wrangler.services) ? caller.wrangler.services : [];
   return Object.fromEntries(
@@ -723,7 +733,7 @@ const createServiceBindings = (
       );
       return [
         service.binding,
-        async (request, miniflare) => {
+        async (request) => {
           if (failedServices.has(service.service)) {
             throw new Error(
               `Injected unavailable service binding ${service.binding} -> ${service.service}`,
@@ -760,7 +770,7 @@ const createServiceBindings = (
             };
             apiBindingRequests.push(apiBindingRequest);
           }
-          const target = await miniflare.getWorker(service.service);
+          const target = await composition.miniflare.getWorker(service.service);
           const response = await target.fetch(request);
           if (apiBindingRequest !== undefined) {
             apiBindingRequest.response = {
@@ -891,9 +901,10 @@ const main = async () => {
     outboundRequests: [],
   };
   const failedServices = new Set();
+  const composition = {};
   const workerConfigurations = apps.map((app) =>
     createWorkerOptions(app, workspaceRoot, {
-      serviceBindings: createServiceBindings(app, { ...recorders, failedServices }),
+      serviceBindings: createServiceBindings(app, { ...recorders, composition, failedServices }),
       async outboundService(request) {
         const requestUrl = new URL(request.url);
         recorders.outboundRequests.push({ callerId: app.id, url: requestUrl.href });
@@ -914,6 +925,7 @@ const main = async () => {
       workers,
     }),
   );
+  composition.miniflare = miniflare;
   const report = { executions, apiProofs: [], proofs: [], verticalProofs: [] };
 
   try {
@@ -953,19 +965,26 @@ const main = async () => {
 
     // Every UI MicroVertical proves its own Worker at its declared SSR routes,
     // whether or not a shell also composes it on the server.
-    for (const vertical of apps.filter((app) => app.kind === "vertical")) {
-      const worker = await miniflare.getWorker(workerName(vertical));
-      for (const route of vertical.ssrRoutes) {
-        report.verticalProofs.push({
-          appId: vertical.id,
-          ...(await proveRoute(
-            vertical,
-            route,
-            (url, init) => worker.fetch(url, init),
-            apps,
-            recorders,
-          )),
-        });
+    for (const [index, vertical] of apps.entries()) {
+      if (vertical.kind !== "vertical" || vertical.ssrRoutes.length === 0) {
+        continue;
+      }
+      const runtime = createIsolatedRuntime(workers[index]);
+      try {
+        for (const route of vertical.ssrRoutes) {
+          report.verticalProofs.push({
+            appId: vertical.id,
+            ...(await proveRoute(
+              vertical,
+              route,
+              (url, init) => runtime.dispatchFetch(url, init),
+              apps,
+              recorders,
+            )),
+          });
+        }
+      } finally {
+        await runtime.dispose();
       }
     }
 
