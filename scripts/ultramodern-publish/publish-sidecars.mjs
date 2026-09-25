@@ -42,7 +42,6 @@ import {
   sidecarPublishTag,
   sidecarRegistryDecision,
 } from './lib/prepare-bleedingdev-packages/sidecar-publication.mjs';
-import { sidecarAliasEntries } from './lib/prepare-bleedingdev-packages/sidecars.mjs';
 
 const { parseCliArgs } = cliKit;
 const { isPlainObject } = validationKit;
@@ -340,24 +339,30 @@ async function publishSidecars(options, dependencies = {}) {
   const readPackument = dependencies.readPackument ?? readSidecarPackument;
   const published = [];
   const reused = [];
-  // Post-publish propagation waits overlap: a sidecar only waits for the staged
-  // sidecars it aliases to become verifiable before it publishes, and the lane
-  // waits for every remaining one at the end. The lane's wall clock is then
-  // bounded by the alias depth times the propagation window, not by the
-  // number of sidecars times it (the job has a fixed timeout).
-  const propagating = new Map();
+  // Sidecars publish in alias order, so an alias target version exists on the
+  // registry before anything that aliases it is published. Read-side
+  // propagation is verified concurrently: every published sidecar must become
+  // verifiable before the lane reports success (and so before the cohort), but
+  // the lane's wall clock is one propagation window, not one per sidecar or
+  // per alias level (the job has a fixed timeout).
+  const propagating = [];
   let propagationFailure;
-  const awaitAliasTargets = async sidecar => {
-    const targets = sidecarAliasEntries(sidecar.packageJson)
-      .map(entry => propagating.get(entry.target))
-      .filter(Boolean);
-    await Promise.all(targets);
+  const trackPropagation = (sidecar, settledMessage) => {
+    const verification = awaitPublishedSidecar(
+      sidecar,
+      options,
+      dependencies,
+    ).then(decision => {
+      console.log(settledMessage(decision));
+    });
+    // Record the first failure so the lane stops publishing; the rejection
+    // itself is still surfaced by the final Promise.all.
+    verification.catch(error => {
+      propagationFailure ??= { error };
+    });
+    propagating.push(verification);
   };
   for (const sidecar of sidecars) {
-    if (propagationFailure) {
-      throw propagationFailure.error;
-    }
-    await awaitAliasTargets(sidecar);
     let packument = await readPackument(sidecar.name);
     if (packument === null || packument === undefined) {
       packument = await awaitInitialSidecarPackument(sidecar, {
@@ -373,10 +378,14 @@ async function publishSidecars(options, dependencies = {}) {
     // the tag already names this version, or the identical version is readable
     // and only its tag is missing. An absent package/version still takes the
     // ordinary publish/bootstrap path instead of sleeping on an assumption.
-    const decision =
-      pending && resumableInitialStates.has(pending.state)
-        ? await awaitPublishedSidecar(sidecar, options, dependencies)
-        : sidecarRegistryDecision(sidecar, packument, { tag: options.tag });
+    if (pending && resumableInitialStates.has(pending.state)) {
+      trackPropagation(sidecar, decision => `Reusing ${decision.reason}`);
+      reused.push(`${sidecar.name}@${sidecar.version}`);
+      continue;
+    }
+    const decision = sidecarRegistryDecision(sidecar, packument, {
+      tag: options.tag,
+    });
     if (decision.action === 'reuse') {
       console.log(`Reusing ${decision.reason}`);
       reused.push(`${sidecar.name}@${sidecar.version}`);
@@ -406,30 +415,24 @@ async function publishSidecars(options, dependencies = {}) {
     }
 
     assertSidecarTrustedPublishContext();
+    // Checked immediately before the irreversible publish: an earlier
+    // sidecar's verification may have failed during any await above.
+    if (propagationFailure) {
+      throw propagationFailure.error;
+    }
     await publishSidecarBuffer(
       sidecar,
       sidecar.bytes,
       { ...options, acceptedTools },
       dependencies,
     );
-    const verification = awaitPublishedSidecar(
+    trackPropagation(
       sidecar,
-      options,
-      dependencies,
-    ).then(() => {
-      console.log(
-        `Published ${sidecar.name}@${sidecar.version} at ${options.tag}`,
-      );
-    });
-    // Record the first failure so the next iteration stops publishing; the
-    // rejection itself is still surfaced by whichever await observes it.
-    verification.catch(error => {
-      propagationFailure ??= { error };
-    });
-    propagating.set(sidecar.name, verification);
+      () => `Published ${sidecar.name}@${sidecar.version} at ${options.tag}`,
+    );
     published.push(`${sidecar.name}@${sidecar.version}`);
   }
-  await Promise.all(propagating.values());
+  await Promise.all(propagating);
 
   console.log(
     [
