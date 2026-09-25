@@ -168,9 +168,10 @@ export const planWorkerdSsrProof = (topology) => {
         ? verticalRefs.filter((ref) => declaresDistributedSsrExpose(rawAppsById.get(ref)))
         : [];
     assert(
-      !Array.isArray(declaredServerRenderedRoutes) ||
-        normalizeRoutes(declaredServerRenderedRoutes).length ===
-          declaredServerRenderedRoutes.length,
+      declaredServerRenderedRoutes === undefined ||
+        (Array.isArray(declaredServerRenderedRoutes) &&
+          normalizeRoutes(declaredServerRenderedRoutes).length ===
+            declaredServerRenderedRoutes.length),
       `${id} cloudflare.distributedSsrProofRoutes must list unique absolute routes`,
     );
     const serverRenderedRoutes =

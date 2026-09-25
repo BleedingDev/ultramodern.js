@@ -126,6 +126,13 @@ describe('workerd SSR proof topology planning', () => {
         ),
       /shell cloudflare\.distributedSsrProofRoutes must list unique absolute routes/u,
     );
+    assert.throws(
+      () =>
+        planWorkerdSsrProof(
+          topology(shell({ distributedSsrProofRoutes: '/en/home' })),
+        ),
+      /shell cloudflare\.distributedSsrProofRoutes must list unique absolute routes/u,
+    );
   });
 
   test('an empty distributed SSR route list declares a client-composed shell', async () => {
