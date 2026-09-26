@@ -11,6 +11,10 @@ const acceptanceProfilePath = path.resolve(
   __dirname,
   '../published-create-proof/acceptance-profile.mjs',
 );
+const releaseAgePolicyPath = path.resolve(
+  __dirname,
+  '../../ultramodern-publish/release-age-exceptions-2026-08-10.json',
+);
 
 const createPackage = Object.freeze({
   packageJson: Object.freeze({
@@ -95,6 +99,7 @@ test('removes its temporary workspace when runtime discovery fails', async () =>
         mode: 'source',
         release,
         registryUrl: 'https://registry.example.test/',
+        releaseAgePolicyPath,
         options,
         outPath: path.join(temporaryRoot, 'receipt.json'),
         runIdentity: 'test:acceptance-cleanup',
@@ -133,6 +138,7 @@ test('removes its temporary workspace when the process receives SIGTERM', {
         mode: 'source',
         release,
         registryUrl: 'https://registry.example.test/',
+        releaseAgePolicyPath: ${JSON.stringify(releaseAgePolicyPath)},
         options,
         outPath: ${JSON.stringify(path.join(temporaryRoot, 'receipt.json'))},
         runIdentity: 'test:acceptance-signal-cleanup',

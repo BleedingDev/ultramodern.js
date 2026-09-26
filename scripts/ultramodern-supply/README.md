@@ -17,4 +17,10 @@ node packages/sidecar/rsbuild-image-core/scripts/verify-manifest.mjs
 
 Verification downloads the exact pinned tarball, authenticates its bytes before extraction, and applies the integrity-checked patch with zero fuzz in an owned temporary directory. For the two image sidecars it compares committed runtime artifacts byte for byte; for recipe-only sidecars it reconstructs the complete upstream artifact set and projects only the declared identity, repository and dependency changes. Temporary staging is always removed, including on failure. There is no pnpm-store discovery and no skip-on-missing path. Offline verification accepts an explicit directory containing one `<recipe-id>.tgz` per recipe through `--artifacts <directory>`; the same pinned integrity checks apply. It does not need installed runtime dependencies. Behavioral scripts additionally require their normal dependencies.
 
+## Release age
+
+Every release lane (source acceptance, published acceptance, the Tractor rehearsal and published Tractor) passes pnpm the single set from `releaseAgeExemptions(manifest, policy)` in `scripts/ultramodern-production-readiness/published-create-proof/release-age-audit.mjs`: the cohort, the manifest's exact sidecar versions and reviewed exceptions. The pre-install audit rejects any lane whose set differs and names each immature package with its publish time and remaining wait. Third-party packages keep the 1440-minute gate.
+
+Consumers that install outside these lanes keep the gate for sidecars. Publish a new or changed sidecar or fork version at least 24 hours before dispatching the cohort that pins it.
+
 Update pins only after reviewing an exact upstream artifact and its license. Refresh patches with a deterministic diff against that artifact, then run reconstruction and behavioral verification. Reconstructed vendor bytes are not authored-code savings; no sidecar is retired without equivalent actual sharpening, CLI, exports and browser isolation.

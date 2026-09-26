@@ -8,6 +8,19 @@ function tempRoot(prefix) {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
 }
 
+function writeEmptyReleaseAgePolicy(root) {
+  const policyPath = path.join(root, 'release-age-policy.json');
+  fs.writeFileSync(
+    policyPath,
+    JSON.stringify({
+      schema: 'bleedingdev.ultramodern.release-age-exceptions',
+      schemaVersion: 2,
+      entries: [],
+    }),
+  );
+  return policyPath;
+}
+
 test('acceptance topology binds app manifests and overlay without compact metadata', async t => {
   const {
     readWorkspaceAcceptanceArtifacts,
@@ -511,7 +524,6 @@ test('release-age audit rejects a fresh dependency whose approval has expired', 
   try {
     await assert.rejects(
       auditReleaseAgePolicy({
-        mode: 'published',
         commandExclusions: [locator(firstParty)],
         fetchImpl: async url => {
           const item = registry.get(
@@ -551,7 +563,8 @@ test('release-age audit rejects a fresh dependency whose approval has expired', 
         },
         verifyYamlTool: false,
       }),
-      /without an exact, unexpired approval/u,
+      // Names the package, its publish time and the wait until it matures.
+      /@effect\/tsgo@0\.36\.2 published 2026-09-10T00:30:00\.000Z, mature at 2026-09-11T00:30:00\.000Z \(wait 23\.5h\)/u,
     );
   } finally {
     fs.rmSync(root, { force: true, recursive: true });
@@ -563,8 +576,9 @@ for (const { mode, registryUrl } of [
   { mode: 'published', registryUrl: 'https://registry.npmjs.org/' },
 ]) {
   test(`${mode} release-age audit binds fresh sidecars to verified manifest integrity`, async t => {
-    const { auditReleaseAgePolicy, resolveAcceptanceReleaseAgeExclusions } =
-      await import('../published-create-proof/release-age-audit.mjs');
+    const { auditReleaseAgePolicy, releaseAgeExemptions } = await import(
+      '../published-create-proof/release-age-audit.mjs'
+    );
     const root = tempRoot(`release-age-${mode}-sidecar-`);
     t.after(() => fs.rmSync(root, { recursive: true, force: true }));
     const version = '3.9.0-ultramodern.13';
@@ -601,6 +615,7 @@ for (const { mode, registryUrl } of [
         trustPolicyIgnoreAfter: 1440,
       }),
     );
+    const policyPath = writeEmptyReleaseAgePolicy(root);
     const sidecarKey = `${sidecar.name}@${sidecar.version}`;
     fs.writeFileSync(
       path.join(root, 'pnpm-lock.yaml'),
@@ -636,15 +651,14 @@ for (const { mode, registryUrl } of [
       );
     };
     const options = {
-      commandExclusions: resolveAcceptanceReleaseAgeExclusions({
-        release,
-        mode,
+      commandExclusions: releaseAgeExemptions(release, {
+        policyPath,
         now: new Date('2026-09-23T08:00:00.000Z'),
       }),
       fetchImpl,
-      mode,
       now: new Date('2026-09-23T08:00:00.000Z'),
       parseYamlImpl: JSON.parse,
+      policyPath,
       projectDir: root,
       registryUrl,
       release,
@@ -667,3 +681,128 @@ for (const { mode, registryUrl } of [
     );
   });
 }
+
+// Replays the 3.9.0-ultramodern.13 edge (publish run 36137116871): the
+// release reused sidecars published under 24h earlier. The source lane
+// exempted them and passed; both published lanes did not and failed with
+// ERR_PNPM_NO_MATURE_MATCHING_VERSION after the cohort was already public.
+test('a lane that drops the fresh .13 sidecars fails the audit before install, naming them', async t => {
+  const { auditReleaseAgePolicy, releaseAgeExemptions } = await import(
+    '../published-create-proof/release-age-audit.mjs'
+  );
+  const root = tempRoot('release-age-13-replay-');
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const version = '3.9.0-ultramodern.13';
+  const sidecars = [
+    ['@bleedingdev/effect', '4.0.0-rc.117', '2026-09-25T11:12:17.532Z'],
+    ['@bleedingdev/mf-bridge-react', '2.9.1', '2026-09-25T11:28:45.731Z'],
+    ['@bleedingdev/mf-enhanced', '2.9.1', '2026-09-25T12:19:54.880Z'],
+    ['@bleedingdev/mf-modern-js-v3', '2.9.1', '2026-09-25T12:37:57.875Z'],
+    ['@bleedingdev/mf-node', '2.7.51', '2026-09-25T12:27:16.233Z'],
+  ].map(([name, sidecarVersion, publishedAt], index) => ({
+    name,
+    version: sidecarVersion,
+    publishedAt,
+    integrity: `sha512-${Buffer.from(`sidecar-${index}`).toString('base64')}`,
+  }));
+  const release = {
+    cohortDigest: 'a'.repeat(64),
+    manifestSha256: 'b'.repeat(64),
+    packages: [
+      {
+        targetName: '@bleedingdev/modern-js-runtime',
+        sourceName: '@modern-js/runtime',
+        version,
+        integrity: 'sha512-Zmlyc3QtcGFydHk=',
+      },
+    ],
+    release: { version },
+    sidecars: {
+      packages: sidecars.map(({ name, version: v, integrity }) => ({
+        name,
+        version: v,
+        integrity,
+      })),
+    },
+    source: {
+      commit: 'c'.repeat(40),
+      repository: 'BleedingDev/ultramodern.js',
+    },
+    targetScope: 'bleedingdev',
+  };
+  const key = item => `${item.name}@${item.version}`;
+  fs.writeFileSync(
+    path.join(root, 'pnpm-workspace.yaml'),
+    JSON.stringify({
+      minimumReleaseAge: 1440,
+      minimumReleaseAgeIgnoreMissingTime: false,
+      minimumReleaseAgeStrict: true,
+      trustPolicy: 'no-downgrade',
+      trustPolicyIgnoreAfter: 1440,
+    }),
+  );
+  fs.writeFileSync(
+    path.join(root, 'pnpm-lock.yaml'),
+    JSON.stringify({
+      lockfileVersion: '9.0',
+      importers: {
+        '.': {
+          dependencies: Object.fromEntries(
+            sidecars.map(item => [
+              item.name,
+              { specifier: item.version, version: item.version },
+            ]),
+          ),
+        },
+      },
+      packages: Object.fromEntries(
+        sidecars.map(item => [
+          key(item),
+          { resolution: { integrity: item.integrity } },
+        ]),
+      ),
+      snapshots: Object.fromEntries(sidecars.map(item => [key(item), {}])),
+    }),
+  );
+  const byName = new Map(sidecars.map(item => [item.name, item]));
+  const policyPath = writeEmptyReleaseAgePolicy(root);
+  // The moment published ERP-10 acceptance resolved the cohort.
+  const now = new Date('2026-09-25T13:23:48.867Z');
+  const options = {
+    fetchImpl: async url => {
+      const item = byName.get(
+        decodeURIComponent(new URL(url).pathname.slice(1)),
+      );
+      return new Response(
+        JSON.stringify({
+          time: { [item.version]: item.publishedAt },
+          versions: { [item.version]: { dist: { integrity: item.integrity } } },
+        }),
+        { status: 200 },
+      );
+    },
+    now,
+    parseYamlImpl: JSON.parse,
+    policyPath,
+    projectDir: root,
+    registryUrl: 'https://registry.npmjs.org/',
+    release,
+    verifyYamlTool: false,
+  };
+  const exemptions = releaseAgeExemptions(release, { policyPath, now });
+  const audit = await auditReleaseAgePolicy({
+    ...options,
+    commandExclusions: exemptions,
+  });
+  assert.equal(audit.approvals.length, sidecars.length);
+
+  const cohortOnly = exemptions.filter(selector =>
+    selector.startsWith('@bleedingdev/modern-js-'),
+  );
+  await assert.rejects(
+    auditReleaseAgePolicy({ ...options, commandExclusions: cohortOnly }),
+    error =>
+      error.message.includes('every lane must pass that exact set') &&
+      sidecars.every(item => error.message.includes(key(item))),
+  );
+});

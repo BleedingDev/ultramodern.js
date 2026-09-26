@@ -37,7 +37,7 @@ import {
 } from '../published-create-proof/package-cohort.mjs';
 import { run } from '../published-create-proof/process.mjs';
 import {
-  resolveAcceptanceReleaseAgeExclusions,
+  releaseAgeExemptions,
   validateExactExclusions,
 } from '../published-create-proof/release-age-audit.mjs';
 import {
@@ -92,28 +92,6 @@ const executionCommands = Object.freeze([
     .slice(1)
     .map(command => Object.freeze({ command, report: true })),
 ]);
-
-function resolveTractorMinimumReleaseAgeExclude({
-  mode = promotableTractorAcceptanceMode,
-  release,
-  releaseAgePolicyPath,
-  now = new Date(),
-}) {
-  if (
-    typeof releaseAgePolicyPath !== 'string' ||
-    releaseAgePolicyPath.length === 0
-  ) {
-    throw new Error(
-      'Tractor bootstrap requires the audited release-age exception policy path',
-    );
-  }
-  return resolveAcceptanceReleaseAgeExclusions({
-    release,
-    mode,
-    policyPath: releaseAgePolicyPath,
-    now,
-  });
-}
 
 function createTractorPnpmDlxArgs(
   createPackage,
@@ -773,10 +751,8 @@ async function runTractorDownstreamAcceptance(
   });
   const createPackage = resolveCreatePackage(release);
   const startedAt = new now();
-  const minimumReleaseAgeExclude = resolveTractorMinimumReleaseAgeExclude({
-    mode,
-    release,
-    releaseAgePolicyPath: options.releaseAgePolicyPath,
+  const minimumReleaseAgeExclude = releaseAgeExemptions(release, {
+    policyPath: options.releaseAgePolicyPath,
     now: startedAt,
   });
   const packageManagerRoot = fs.mkdtempSync(
@@ -1140,7 +1116,6 @@ export {
   requiredCommands,
   requiredVisibleRuntimePlatforms,
   resolveAcceptanceRegistryEnv,
-  resolveTractorMinimumReleaseAgeExclude,
   runTractorDownstreamAcceptance,
   runVisibleWorkflow,
   sourceCandidateRegistryPath,

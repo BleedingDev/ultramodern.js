@@ -768,15 +768,16 @@ function readActiveReleaseAgeExceptionSelectors(
     .sort(compareCodeUnits);
 }
 
-function resolveAcceptanceReleaseAgeExclusions({
-  release,
-  mode,
-  policyPath,
-  now = new Date(),
-}) {
+// The one release-age exemption set. Every lane that installs a release —
+// source acceptance, published acceptance, the Tractor rehearsal and the
+// published Tractor run — passes exactly this set to pnpm, so the source
+// rehearsal reproduces the published install. There is deliberately no lane
+// parameter: a lane-specific set is how the published lanes of
+// 3.9.0-ultramodern.13 missed the sidecars the source lane exempted.
+function releaseAgeExemptions(release, { policyPath, now = new Date() } = {}) {
   assertCondition(
-    mode === 'source' || mode === 'published',
-    `Release-age acceptance mode must be source or published, found ${String(mode)}`,
+    typeof policyPath === 'string' && policyPath.length > 0,
+    'Release-age exemptions require the reviewed exception policy path (pass --release-age-policy)',
   );
   assertCondition(
     Array.isArray(release?.packages) && release.packages.length > 0,
@@ -791,7 +792,7 @@ function resolveAcceptanceReleaseAgeExclusions({
     return `${item.targetName}@${item.version}`;
   });
   // Sidecars are first-party @bleedingdev packages the release publishes just
-  // before the cohort, so both lanes exempt exactly the manifest's versions.
+  // before the cohort, so every lane exempts exactly the manifest's versions.
   const sidecars = release.sidecars?.packages ?? [];
   assertCondition(
     Array.isArray(sidecars),
@@ -947,6 +948,16 @@ async function fetchRegistryMetadata(
   return results;
 }
 
+function formatImmaturePackage(item) {
+  const matureAt = new Date(
+    Date.parse(item.publishedAt) + minimumReleaseAgeMinutes * 60_000,
+  ).toISOString();
+  const waitHours = (minimumReleaseAgeMinutes - item.ageMinutes) / 60;
+  return `- ${identityKey(item)} published ${item.publishedAt}, mature at ${matureAt} (wait ${waitHours.toFixed(
+    1,
+  )}h); path ${item.path.join(' -> ')}`;
+}
+
 function approveImmaturePackages({ metadata, policy, release, now }) {
   const policyByIdentity = new Map(
     policy.entries.map(entry => [identityKey(entry), entry]),
@@ -1034,14 +1045,8 @@ function approveImmaturePackages({ metadata, policy, release, now }) {
     throw new Error(
       [
         `Dependency closure contains ${rejected.length} immature package(s) without an exact, unexpired approval:`,
-        ...rejected
-          .slice(0, 20)
-          .map(
-            item =>
-              `- ${identityKey(item)} (${item.ageMinutes.toFixed(
-                2,
-              )} minutes); path ${item.path.join(' -> ')}`,
-          ),
+        ...rejected.slice(0, 20).map(formatImmaturePackage),
+        'Wait until the listed time, pin an older mature version, or add a reviewed exact entry (package, version, integrity) to the release-age exception policy.',
       ].join('\n'),
     );
   }
@@ -1169,7 +1174,6 @@ function assertExternalApprovalUnexpired(approval, now) {
 async function auditReleaseAgePolicy({
   projectDir,
   release,
-  mode,
   commandExclusions,
   registryUrl,
   policyPath,
@@ -1212,16 +1216,22 @@ async function auditReleaseAgePolicy({
   }
 
   const policy = readExceptionPolicy(policyPath, now);
-  const expectedExclusions = resolveAcceptanceReleaseAgeExclusions({
-    release,
-    mode,
-    policyPath,
-    now,
-  });
-  assertCondition(
-    JSON.stringify(commandExclusions) === JSON.stringify(expectedExclusions),
-    'Acceptance command release-age exclusions differ from authenticated manifest and reviewed policy',
-  );
+  const expectedExclusions = releaseAgeExemptions(release, { policyPath, now });
+  if (
+    JSON.stringify(commandExclusions) !== JSON.stringify(expectedExclusions)
+  ) {
+    const declared = new Set(
+      Array.isArray(commandExclusions) ? commandExclusions : [],
+    );
+    const expected = new Set(expectedExclusions);
+    throw new Error(
+      [
+        'Acceptance command release-age exclusions differ from releaseAgeExemptions(manifest, policy); every lane must pass that exact set.',
+        `Missing: ${expectedExclusions.filter(key => !declared.has(key)).join(', ') || '(none)'}`,
+        `Unexpected: ${[...declared].filter(key => !expected.has(key)).join(', ') || '(none)'}`,
+      ].join('\n'),
+    );
+  }
   // Cohort packuments stay on the selected registry (in source mode that is
   // the ephemeral Verdaccio, where the cohort's publishedAt lives and what
   // feeds the strict-release-manifest exclusion path). External packuments go
@@ -1347,7 +1357,7 @@ export {
   parseYaml,
   parseYamlFile,
   readActiveReleaseAgeExceptionSelectors,
-  resolveAcceptanceReleaseAgeExclusions,
+  releaseAgeExemptions,
   sha256,
   validateExactExclusions,
   validateExceptionPolicy,

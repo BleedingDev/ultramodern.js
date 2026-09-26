@@ -218,8 +218,8 @@ test('fails closed when the authenticated create closure is omitted or version-s
   );
 });
 
-test('fresh-release installs use exact command-scoped cohort and sidecar selectors in both lanes', async () => {
-  const { resolveAcceptanceReleaseAgeExclusions } = await import(
+test('fresh-release installs use one exact cohort and sidecar selector set', async t => {
+  const { releaseAgeExemptions } = await import(
     '../published-create-proof/release-age-audit.mjs'
   );
   const { createAcceptanceReleaseAgeEnv } = await import(
@@ -228,40 +228,43 @@ test('fresh-release installs use exact command-scoped cohort and sidecar selecto
   const { resolveCreatePackage } = await import(
     '../published-create-proof/package-cohort.mjs'
   );
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'release-age-set-'));
+  t.after(() => fs.rmSync(root, { force: true, recursive: true }));
+  const policyPath = path.join(root, 'release-age-policy.json');
+  writeJson(root, 'release-age-policy.json', {
+    schema: 'bleedingdev.ultramodern.release-age-exceptions',
+    schemaVersion: 2,
+    entries: [],
+  });
   const release = makeBootstrapRelease();
   release.sidecars = {
     packages: [{ name: '@bleedingdev/mf-bridge-react', version: '1.0.0' }],
   };
-  const published = resolveAcceptanceReleaseAgeExclusions({
-    release,
-    mode: 'published',
-  });
-  const source = resolveAcceptanceReleaseAgeExclusions({
-    release,
-    mode: 'source',
-  });
-  assert.equal(published.length, release.packages.length + 1);
-  assert.ok(published.includes('@bleedingdev/mf-bridge-react@1.0.0'));
-  assert.deepEqual(source, published);
+  const exemptions = releaseAgeExemptions(release, { policyPath });
+  assert.equal(exemptions.length, release.packages.length + 1);
+  assert.ok(exemptions.includes('@bleedingdev/mf-bridge-react@1.0.0'));
+  // No lane may derive a set without the reviewed policy.
+  assert.throws(
+    () => releaseAgeExemptions(release, {}),
+    /require the reviewed exception policy path/u,
+  );
   const env = createAcceptanceReleaseAgeEnv(
     { PATH: '/exact/pnpm' },
     resolveCreatePackage(release),
-    source,
+    exemptions,
   );
   assert.equal(
     env.pnpm_config_minimum_release_age_exclude,
-    JSON.stringify(source),
+    JSON.stringify(exemptions),
   );
   assert.equal(env.pnpm_config_minimum_release_age, '1440');
   assert.equal(env.pnpm_config_minimum_release_age_strict, 'true');
   assert.equal(env.PATH, '/exact/pnpm');
   release.sidecars.packages[0].version = '1.*';
-  for (const mode of ['source', 'published']) {
-    assert.throws(
-      () => resolveAcceptanceReleaseAgeExclusions({ release, mode }),
-      /Acceptance command release-age exclusions/u,
-    );
-  }
+  assert.throws(
+    () => releaseAgeExemptions(release, { policyPath }),
+    /Acceptance command release-age exclusions/u,
+  );
 });
 
 test('acceptance production builds and runtime proofs use the same explicit local deployment addresses', async () => {
