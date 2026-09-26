@@ -12,6 +12,9 @@ import {
 
 const key = distributedSsrFragmentKey('inventory', './Widget');
 
+const unreachableLoader = (): Promise<never> =>
+  Promise.reject(new Error('native remote must not load in this test'));
+
 interface CheckoutRemoteProps {
   price: number;
   sku: string;
@@ -158,9 +161,11 @@ describe('createDistributedSsrComponent', () => {
     let resolved = false;
     let pending: Promise<typeof fragment> | undefined;
     const Remote = createDistributedSsrComponent<{ sku: string }>({
-      createComponent: () => () => (
+      createLazyComponent: () => () => (
         <section data-native-mf="checkout">native checkout</section>
       ),
+      getInstance: () => null,
+      loader: unreachableLoader,
       expose: './AddToCart',
       fallback: <p>unavailable</p>,
       remote: 'checkout',
@@ -211,9 +216,11 @@ describe('createDistributedSsrComponent', () => {
       remote: string;
     }> = [];
     const Remote = createDistributedSsrComponent<CheckoutRemoteProps>({
-      createComponent: () => () => (
+      createLazyComponent: () => () => (
         <section data-native-mf="inventory">native inventory</section>
       ),
+      getInstance: () => null,
+      loader: unreachableLoader,
       expose: './AddToCart',
       fallback: <p>unavailable</p>,
       remote: 'checkout',
@@ -275,15 +282,20 @@ describe('createDistributedSsrComponent', () => {
     expect(html).not.toContain('data-native-mf');
   });
 
-  it('constructs and caches the native remote for Node SSR', () => {
-    let nativeRemoteCreations = 0;
+  it('constructs and caches the native remote for Node SSR without bridge-injected links', () => {
+    const instance = { name: 'shell' };
+    const loader = unreachableLoader;
+    const fallback = <p>unavailable</p>;
+    const lazyOptions: unknown[] = [];
     const Remote = createDistributedSsrComponent({
-      createComponent: () => {
-        nativeRemoteCreations += 1;
+      createLazyComponent: options => {
+        lazyOptions.push(options);
         return () => <section data-native-mf="inventory">inventory</section>;
       },
       expose: './Widget',
-      fallback: <p>unavailable</p>,
+      fallback,
+      getInstance: () => instance,
+      loader,
       remote: 'inventory',
     });
     const context = {
@@ -304,6 +316,18 @@ describe('createDistributedSsrComponent', () => {
       </RuntimeContext.Provider>,
     );
 
-    expect(nativeRemoteCreations).toBe(1);
+    // The bridge renders a remote CSS <link> into SSR HTML unless injectLink
+    // is false; the boundary owns remote CSS, so every build format must pass
+    // it here rather than rely on a patched bridge default.
+    expect(lazyOptions).toEqual([
+      {
+        export: 'default',
+        fallback,
+        injectLink: false,
+        instance,
+        loader,
+        loading: null,
+      },
+    ]);
   });
 });
