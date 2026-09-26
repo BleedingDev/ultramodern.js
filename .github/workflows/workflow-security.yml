@@ -1,28 +1,12 @@
 name: Workflow Security
 
 on:
+  # No path filter: bare-checkout jobs load a static import closure that can
+  # reach any tracked file, so any change can break it.
   pull_request:
-    paths:
-      - '.github/workflows/**'
-      - '.github/renovate.json'
-      - 'packages/toolkit/ultramodern-create/template-workspace/.github/**'
-      - 'scripts/security/**'
-      - 'scripts/__tests__/workflow-cache-writers.test.mjs'
-      - 'scripts/ultramodern-publish/**'
-      - 'scripts/ultramodern-production-readiness/**'
-      - 'package.json'
   push:
     branches:
       - main-ultramodern
-    paths:
-      - '.github/workflows/**'
-      - '.github/renovate.json'
-      - 'packages/toolkit/ultramodern-create/template-workspace/.github/**'
-      - 'scripts/security/**'
-      - 'scripts/__tests__/workflow-cache-writers.test.mjs'
-      - 'scripts/ultramodern-publish/**'
-      - 'scripts/ultramodern-production-readiness/**'
-      - 'package.json'
   workflow_dispatch:
 
 permissions:
