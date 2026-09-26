@@ -3,9 +3,10 @@
  * from a bare checkout (no dependency install).
  *
  * Followed edges: `import ... from`, `import '...'`, `export ... from`,
- * `require('...')`, and a module-scope `await import('...')`, which runs
- * as soon as the module loads. Any other dynamic `import()` is a lazy
- * boundary and is not followed. Dependency-free on purpose: the workflow
+ * `require('...')`, and a dynamic `import('...')` outside any block that
+ * is not an arrow function body: at module scope it starts loading as soon
+ * as the module runs. A dynamic `import()` inside a function or block is a
+ * lazy boundary and is not followed. Dependency-free on purpose: the workflow
  * validator itself runs without a root install.
  */
 import { spawnSync } from 'node:child_process';
@@ -226,9 +227,11 @@ export function collectStaticSpecifiers(source) {
       if (next?.type === 'string') {
         pushImport(next.value);
       } else if (isPunct(next, '(')) {
+        const arrowBody =
+          isPunct(previous, '>') && isPunct(tokens[index - 2], '=');
         if (
           token.depth === 0 &&
-          isIdentifier(previous, 'await') &&
+          !arrowBody &&
           tokens[index + 2]?.type === 'string'
         ) {
           pushImport(tokens[index + 2].value);
