@@ -8,6 +8,9 @@ const { createProcessEnv, runCommand } = require('../../lib/process-kit');
 
 const cohortInstallPromise = import('../tractor-downstream/cohort-install.mjs');
 const runnerPromise = import('../tractor-downstream/main.mjs');
+const releaseAgePromise = import(
+  '../published-create-proof/release-age-audit.mjs'
+);
 
 function releaseAgeEntry(selector, overrides = {}) {
   const separator = selector.lastIndexOf('@');
@@ -201,8 +204,8 @@ test('native catalog and installed framework bind to the exact release', async (
 });
 
 test('release-age exclusions are exact specifiers, sorted as specifiers, and reach pnpm dlx', async t => {
-  const { createTractorPnpmDlxArgs, resolveTractorMinimumReleaseAgeExclude } =
-    await runnerPromise;
+  const { createTractorPnpmDlxArgs } = await runnerPromise;
+  const { releaseAgeExemptions } = await releaseAgePromise;
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tractor-dlx-policy-'));
   t.after(() => fs.rmSync(root, { force: true, recursive: true }));
 
@@ -233,17 +236,15 @@ test('release-age exclusions are exact specifiers, sorted as specifiers, and rea
   // An empty policy must not resurrect retired third-party exceptions into a
   // release install.
   assert.deepEqual(
-    resolveTractorMinimumReleaseAgeExclude({
-      release: strictRelease,
-      releaseAgePolicyPath: writeReleaseAgePolicy(root, []),
+    releaseAgeExemptions(strictRelease, {
+      policyPath: writeReleaseAgePolicy(root, []),
       now: new Date('2026-08-26T12:00:00.000Z'),
     }),
     expected.filter(selector => selector.startsWith('@bleedingdev/')),
   );
 
-  const minimumReleaseAgeExclude = resolveTractorMinimumReleaseAgeExclude({
-    release: strictRelease,
-    releaseAgePolicyPath: writeReleaseAgePolicy(root, [
+  const minimumReleaseAgeExclude = releaseAgeExemptions(strictRelease, {
+    policyPath: writeReleaseAgePolicy(root, [
       releaseAgeEntry('@rspack/core@2.2.0'),
     ]),
     now: new Date('2026-08-26T12:00:00.000Z'),
@@ -278,7 +279,7 @@ test('release-age exclusions are exact specifiers, sorted as specifiers, and rea
 });
 
 test('Tractor bootstrap rejects wildcard, future-dated and unbound release-age approvals', async t => {
-  const { resolveTractorMinimumReleaseAgeExclude } = await runnerPromise;
+  const { releaseAgeExemptions } = await releaseAgePromise;
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tractor-dlx-invalid-'));
   t.after(() => fs.rmSync(root, { force: true, recursive: true }));
   const now = new Date('2026-08-26T12:00:00.000Z');
@@ -294,9 +295,8 @@ test('Tractor bootstrap rejects wildcard, future-dated and unbound release-age a
 
   assert.throws(
     () =>
-      resolveTractorMinimumReleaseAgeExclude({
-        release: strictRelease,
-        releaseAgePolicyPath: writeReleaseAgePolicy(root, [
+      releaseAgeExemptions(strictRelease, {
+        policyPath: writeReleaseAgePolicy(root, [
           releaseAgeEntry('@rspack/core@2.2.0', { package: '@rspack/*' }),
         ]),
         now,
@@ -306,9 +306,8 @@ test('Tractor bootstrap rejects wildcard, future-dated and unbound release-age a
 
   assert.throws(
     () =>
-      resolveTractorMinimumReleaseAgeExclude({
-        release: strictRelease,
-        releaseAgePolicyPath: writeReleaseAgePolicy(root, [
+      releaseAgeExemptions(strictRelease, {
+        policyPath: writeReleaseAgePolicy(root, [
           releaseAgeEntry('@rspack/core@2.2.0', {
             expiresAt: '2026-08-28T12:00:00.000Z',
             reviewedAt: '2026-08-27T12:00:00.000Z',
@@ -321,8 +320,8 @@ test('Tractor bootstrap rejects wildcard, future-dated and unbound release-age a
 
   assert.throws(
     () =>
-      resolveTractorMinimumReleaseAgeExclude({
-        release: {
+      releaseAgeExemptions(
+        {
           ...strictRelease,
           packages: [
             {
@@ -331,9 +330,8 @@ test('Tractor bootstrap rejects wildcard, future-dated and unbound release-age a
             },
           ],
         },
-        releaseAgePolicyPath: writeReleaseAgePolicy(root, []),
-        now,
-      }),
+        { policyPath: writeReleaseAgePolicy(root, []), now },
+      ),
     /must bind targetName to release version/u,
   );
 });

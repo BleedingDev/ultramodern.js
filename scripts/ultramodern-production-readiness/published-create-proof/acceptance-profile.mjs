@@ -58,7 +58,7 @@ import { verifyRegistryCohort } from './registry-cohort.mjs';
 import {
   auditReleaseAgePolicy,
   parseYamlFile,
-  resolveAcceptanceReleaseAgeExclusions,
+  releaseAgeExemptions,
   validateExactExclusions,
   verifyStrictInstallInputs,
   YAML_INTEGRITY,
@@ -1094,9 +1094,7 @@ async function runAcceptanceProfile({
   assertReleaseAcceptanceProfile(options);
 
   const createPackage = resolveCreatePackage(release, options.createPackage);
-  const commandExclusions = resolveAcceptanceReleaseAgeExclusions({
-    release,
-    mode,
+  const commandExclusions = releaseAgeExemptions(release, {
     policyPath: releaseAgePolicyPath,
     now: currentTime(now),
   });
@@ -1229,7 +1227,6 @@ async function runAcceptanceProfile({
           audit = await auditReleaseAgePolicyImpl({
             projectDir,
             release,
-            mode,
             commandExclusions,
             registryUrl,
             policyPath: releaseAgePolicyPath,
