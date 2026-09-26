@@ -308,6 +308,7 @@ test('release gates reject node:test filter flags', () => {
     `NODE_OPTIONS='--test-skip-pattern=^flaky$' \\\n            ${gate}`,
     `${gate} -- --test-name-pattern=happy`,
     `${gate} -- --test-only`,
+    `${gate} -- --test-shard=1/2`,
   ]) {
     assert.equal(
       filterErrors(content.replace(gate, () => filtered)).length,
