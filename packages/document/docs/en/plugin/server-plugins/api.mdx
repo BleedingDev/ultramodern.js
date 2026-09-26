@@ -191,7 +191,7 @@ Adds additional logic when the server resets.
       - `'file-change'`: File change event
     - `event.payload`: When `type` is `'file-change'`, contains an array of file change information.
 - **Execution Phase:** When files change or repack is needed.
-- **Repack Order:** On `'repack'` the dev server awaits every handler before it purges the previous server bundle from the require cache. New requests wait until all handlers settle; requests already running keep the modules they loaded.
+- **Repack Order:** On `'repack'` the dev server awaits the handlers in registration order before it purges the previous server bundle from the require cache. A rejecting handler skips the handlers after it. New requests wait until the handlers settle; requests already running keep the modules they loaded.
 - **Example:**
 
 ```typescript
