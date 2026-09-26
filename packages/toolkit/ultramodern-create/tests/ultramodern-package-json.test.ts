@@ -115,7 +115,7 @@ test('workspace package source uses workspace versions for generated framework d
   );
   assert.equal(
     scripts['cloudflare:deploy'],
-    'cross-env ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json',
+    'cross-env ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true ZE_FAIL_BUILD=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json',
   );
   for (const command of Object.values(scripts)) {
     assert.doesNotMatch(

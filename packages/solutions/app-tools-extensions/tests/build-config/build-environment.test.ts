@@ -13,26 +13,10 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import type { Rspack } from '@rsbuild/core';
 import {
+  getBuildConfigEnvironment,
   resolveEffectTsgoCompiler,
-  withBuildConfigEnvironment,
 } from '../../src/build-config/public';
-
-const LIFECYCLE_HOOK_NAMES = [
-  'run',
-  'watchRun',
-  'done',
-  'afterDone',
-  'failed',
-  'shutdown',
-  'watchClose',
-] as const;
-
-type LifecycleHookName = (typeof LIFECYCLE_HOOK_NAMES)[number];
-type TestRspackConfig = {
-  plugins?: Rspack.Plugin[];
-};
 
 async function withEnvironment<T>(
   name: string,
@@ -93,208 +77,19 @@ function writeCompiler(compilerPath: string, mode: number): void {
   chmodSync(compilerPath, mode);
 }
 
-function createTestCompiler() {
-  const handlers = Object.fromEntries(
-    LIFECYCLE_HOOK_NAMES.map(name => [name, [] as Array<() => void>]),
-  ) as Record<LifecycleHookName, Array<() => void>>;
-  const hooks = Object.fromEntries(
-    LIFECYCLE_HOOK_NAMES.map(name => [
-      name,
-      {
-        tap: (
-          _options: { name: string; stage: number },
-          handler: () => void,
-        ) => {
-          handlers[name].push(handler);
-        },
-      },
-    ]),
+test('reads build config environment without process-global state', async () => {
+  await withEnvironment('ZE_FAIL_BUILD', 'true', () => {
+    assert.equal(getBuildConfigEnvironment('ZE_FAIL_BUILD'), 'true');
+  });
+  await withEnvironment('ZE_FAIL_BUILD', undefined, () => {
+    assert.equal(getBuildConfigEnvironment('ZE_FAIL_BUILD'), undefined);
+  });
+  assert.deepEqual(
+    Object.getOwnPropertySymbols(process).filter(symbol =>
+      symbol.description?.startsWith('@modern-js/app-tools/'),
+    ),
+    [],
   );
-  const compiler = {
-    hooks,
-    watchMode: false,
-  } as unknown as Rspack.Compiler;
-
-  return {
-    compiler,
-    handlers,
-    call(name: LifecycleHookName) {
-      if (name === 'run') {
-        compiler.watchMode = false;
-      } else if (name === 'watchRun') {
-        compiler.watchMode = true;
-      } else if (name === 'watchClose') {
-        compiler.watchMode = false;
-      }
-
-      for (const handler of handlers[name]) {
-        handler();
-      }
-    },
-  };
-}
-
-function getLeasePlugin(config: TestRspackConfig): Rspack.RspackPluginInstance {
-  const plugin = config.plugins?.at(-1);
-  assert.ok(plugin && typeof plugin === 'object' && 'apply' in plugin);
-  return plugin as Rspack.RspackPluginInstance;
-}
-
-test('reference-counts overlapping leases for the same value', async () => {
-  const name = 'ULTRAMODERN_CONFIG_SAME_VALUE_LEASE_TEST';
-
-  await withEnvironment(name, 'original', async () => {
-    const firstConfig = await withBuildConfigEnvironment(
-      name,
-      'leased',
-      (config: TestRspackConfig) => config,
-    )({ plugins: [] });
-    const secondConfig = await withBuildConfigEnvironment(
-      name,
-      'leased',
-      (config: TestRspackConfig) => config,
-    )({ plugins: [] });
-
-    assert.equal(process.env[name], 'leased');
-
-    const firstCompiler = createTestCompiler();
-    const secondCompiler = createTestCompiler();
-    getLeasePlugin(firstConfig).apply(firstCompiler.compiler);
-    getLeasePlugin(secondConfig).apply(secondCompiler.compiler);
-
-    firstCompiler.call('run');
-    firstCompiler.call('afterDone');
-    assert.equal(process.env[name], 'leased');
-
-    secondCompiler.call('run');
-    secondCompiler.call('failed');
-    assert.equal(process.env[name], 'original');
-  });
-});
-
-test('rejects overlapping leases for conflicting values', async () => {
-  const name = 'ULTRAMODERN_CONFIG_CONFLICTING_LEASE_TEST';
-
-  await withEnvironment(name, 'original', async () => {
-    const ownerConfig = await withBuildConfigEnvironment(
-      name,
-      'owner',
-      (config: TestRspackConfig) => config,
-    )({ plugins: [] });
-    let conflictingSetupCalled = false;
-
-    await assert.rejects(
-      withBuildConfigEnvironment(
-        name,
-        'conflict',
-        (config: TestRspackConfig) => {
-          conflictingSetupCalled = true;
-          return config;
-        },
-      )({ plugins: [] }),
-      /already has an active lease for a different value/u,
-    );
-    assert.equal(conflictingSetupCalled, false);
-    assert.equal(process.env[name], 'owner');
-
-    const compiler = createTestCompiler();
-    getLeasePlugin(ownerConfig).apply(compiler.compiler);
-    compiler.call('failed');
-    assert.equal(process.env[name], 'original');
-  });
-});
-
-test('holds a lease through watch-mode rebuilds and a one-shot done cycle, restoring on close', async () => {
-  const name = 'ULTRAMODERN_CONFIG_HOOK_LIFECYCLE_TEST';
-
-  await withEnvironment(name, 'original', async () => {
-    // Watch mode: repeated done/afterDone/failed cycles must not release the
-    // lease early — only watchClose ends it.
-    const watchConfig = await withBuildConfigEnvironment(
-      name,
-      'leased',
-      (rspackConfig: TestRspackConfig) => rspackConfig,
-    )({ plugins: [] });
-    const watchCompiler = createTestCompiler();
-    getLeasePlugin(watchConfig).apply(watchCompiler.compiler);
-
-    watchCompiler.call('watchRun');
-    watchCompiler.call('done');
-    watchCompiler.call('afterDone');
-    watchCompiler.call('failed');
-    assert.equal(process.env[name], 'leased');
-    watchCompiler.call('watchClose');
-    assert.equal(process.env[name], 'original');
-
-    // One-shot mode: the lease is acquired for `run` and released as soon as
-    // `afterDone` fires, without needing a watchClose.
-    const oneShotConfig = await withBuildConfigEnvironment(
-      name,
-      'leased',
-      (rspackConfig: TestRspackConfig) => rspackConfig,
-    )({ plugins: [] });
-    const oneShotCompiler = createTestCompiler();
-    getLeasePlugin(oneShotConfig).apply(oneShotCompiler.compiler);
-
-    oneShotCompiler.call('run');
-    oneShotCompiler.call('done');
-    assert.equal(process.env[name], 'leased');
-    oneShotCompiler.call('afterDone');
-    assert.equal(process.env[name], 'original');
-  });
-});
-
-test('restores the lease when setup throws or rejects', async () => {
-  const name = 'ULTRAMODERN_CONFIG_THROWN_SETUP_TEST';
-
-  await withEnvironment(name, 'original', async () => {
-    const thrownError = new Error('synchronous setup failure');
-    await assert.rejects(
-      withBuildConfigEnvironment(
-        name,
-        'leased',
-        (_config: TestRspackConfig) => {
-          throw thrownError;
-        },
-      )({ plugins: [] }),
-      error => error === thrownError,
-    );
-    assert.equal(process.env[name], 'original');
-
-    const rejectedError = new Error('asynchronous setup failure');
-    await assert.rejects(
-      withBuildConfigEnvironment(
-        name,
-        'leased',
-        async (_config: TestRspackConfig) => {
-          throw rejectedError;
-        },
-      )({ plugins: [] }),
-      error => error === rejectedError,
-    );
-    assert.equal(process.env[name], 'original');
-  });
-});
-
-test('fails closed and restores the original value after ownership drift', async () => {
-  const name = 'ULTRAMODERN_CONFIG_OWNERSHIP_DRIFT_TEST';
-
-  await withEnvironment(name, 'original', async () => {
-    const config = await withBuildConfigEnvironment(
-      name,
-      'leased',
-      (rspackConfig: TestRspackConfig) => rspackConfig,
-    )({ plugins: [] });
-    const compiler = createTestCompiler();
-    getLeasePlugin(config).apply(compiler.compiler);
-
-    process.env[name] = 'unowned';
-    assert.throws(
-      () => compiler.call('failed'),
-      /lost ownership before restoration/u,
-    );
-    assert.equal(process.env[name], 'original');
-  });
 });
 
 test('repairs Unix execute bits and preserves Windows package paths without mutation', async () => {

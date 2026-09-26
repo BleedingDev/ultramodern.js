@@ -8,7 +8,6 @@ import {
   getBuildConfigEnvironment,
   type ResolveEffectTsgoCompilerOptions,
   resolveEffectTsgoCompiler,
-  withBuildConfigEnvironment,
 } from '@modern-js/app-tools-extensions/config';
 
 type Equal<Left, Right> =
@@ -28,17 +27,10 @@ const compilerPath: string = resolveEffectTsgoCompiler({
 const environmentValue: string | undefined = getBuildConfigEnvironment(
   'PUBLIC_SURFACE_CONSUMER',
 );
-const configure = withBuildConfigEnvironment(
-  'PUBLIC_SURFACE_CONSUMER',
-  'enabled',
-  config => config,
-);
-const configured = configure({ plugins: [] });
 
 void compilerOriginContract;
 void compilerPath;
 void environmentValue;
-void configured;
 
 const cloudflareConfig: CloudflareDeployConfig = {
   worker: { name: 'public-config-consumer', compatibilityDate: '2026-09-09' },

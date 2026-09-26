@@ -31,81 +31,18 @@ try {
 const cjsConfig = require('@modern-js/app-tools-extensions/config');
 const esmConfig = await import('@modern-js/app-tools-extensions/config');
 
-const hookNames = [
-  'run',
-  'watchRun',
-  'done',
-  'afterDone',
-  'failed',
-  'shutdown',
-  'watchClose',
-];
-const createCompiler = () => {
-  const handlers = Object.fromEntries(hookNames.map(name => [name, []]));
-  return {
-    compiler: {
-      hooks: Object.fromEntries(
-        hookNames.map(name => [
-          name,
-          { tap: (_options, handler) => handlers[name].push(handler) },
-        ]),
-      ),
-      watchMode: false,
-    },
-    call(name) {
-      if (name === 'watchRun') {
-        this.compiler.watchMode = true;
-      } else if (name === 'run' || name === 'watchClose') {
-        this.compiler.watchMode = false;
-      }
-      for (const handler of handlers[name]) {
-        handler();
-      }
-    },
-  };
-};
-const leaseName = 'ULTRAMODERN_CONFIG_CROSS_FORMAT_LEASE_TEST';
-const originalLeaseValue = process.env[leaseName];
-
-try {
-  process.env[leaseName] = 'original';
-  const cjsOwner = await cjsConfig.withBuildConfigEnvironment(
-    leaseName,
-    'leased',
-    config => config,
-  )({ plugins: [] });
-  const esmOwner = await esmConfig.withBuildConfigEnvironment(
-    leaseName,
-    'leased',
-    config => config,
-  )({ plugins: [] });
-
-  await assert.rejects(
-    esmConfig.withBuildConfigEnvironment(
-      leaseName,
-      'conflict',
-      config => config,
-    )({ plugins: [] }),
-    /already has an active lease for a different value/u,
-  );
-
-  const cjsCompiler = createCompiler();
-  const esmCompiler = createCompiler();
-  cjsOwner.plugins.at(-1).apply(cjsCompiler.compiler);
-  esmOwner.plugins.at(-1).apply(esmCompiler.compiler);
-  cjsCompiler.call('run');
-  cjsCompiler.call('afterDone');
-  assert.equal(process.env[leaseName], 'leased');
-  esmCompiler.call('run');
-  esmCompiler.call('afterDone');
-  assert.equal(process.env[leaseName], 'original');
-} finally {
-  if (originalLeaseValue === undefined) {
-    delete process.env[leaseName];
-  } else {
-    process.env[leaseName] = originalLeaseValue;
-  }
+for (const surface of [cjsConfig, esmConfig]) {
+  assert.equal(typeof surface.getBuildConfigEnvironment, 'function');
+  // Deploy environment owns Zephyr's ZE_FAIL_BUILD; config never leases
+  // process-global environment.
+  assert.equal('withBuildConfigEnvironment' in surface, false);
 }
+assert.deepEqual(
+  Object.getOwnPropertySymbols(process).filter(symbol =>
+    symbol.description?.startsWith('@modern-js/app-tools/'),
+  ),
+  [],
+);
 
 console.log(
   'Verified @modern-js/app-tools-extensions/config built public surface.',

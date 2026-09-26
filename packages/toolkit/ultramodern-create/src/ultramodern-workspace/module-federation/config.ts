@@ -52,7 +52,7 @@ export function createAppModernConfig(
   // A headless (api-only) unit has no browser MF surface, no Zephyr build and
   // no generated route metadata — its config must not import or register them.
   const uiImports = emitsUi
-    ? `import { getBuildConfigEnvironment, withBuildConfigEnvironment } from '@modern-js/app-tools-extensions/config';
+    ? `import { getBuildConfigEnvironment } from '@modern-js/app-tools-extensions/config';
 import { moduleFederationPlugin } from '@module-federation/modern-js-v3';
 import { withZephyr as withZephyrRspack } from 'zephyr-rspack-plugin';
 import { ultramodernLocalisedUrls } from './src/routes/ultramodern-route-metadata';
@@ -75,16 +75,19 @@ import { ultramodernLocalisedUrls } from './src/routes/ultramodern-route-metadat
     // no account, and is never blocked. This is the framework's "works with or
     // without Zephyr" contract. The plugin stays registered unconditionally
     // (this gate keys on Zephyr's native deploy token, not any UltraModern
-    // opt-out). When deploying, ZE_FAIL_BUILD=true makes an upload failure a
-    // hard build failure.
+    // opt-out). The deploy environment sets ZE_FAIL_BUILD=true next to
+    // ZE_CI_TOKEN so an upload failure is a hard build failure.
     const zephyrCiDeploy =
       (getBuildConfigEnvironment('ZE_CI_TOKEN') ?? '').length > 0;
     if (!zephyrCiDeploy) {
       return;
     }
-    api.modifyRspackConfig(
-      withBuildConfigEnvironment('ZE_FAIL_BUILD', 'true', withZephyrRspack()),
-    );
+    if (getBuildConfigEnvironment('ZE_FAIL_BUILD') !== 'true') {
+      throw new Error(
+        'ZE_CI_TOKEN is set but ZE_FAIL_BUILD is not "true", so a failed Zephyr upload would not fail the deploy. Set ZE_FAIL_BUILD=true in the deploy environment next to ZE_CI_TOKEN.',
+      );
+    }
+    api.modifyRspackConfig(withZephyrRspack());
   },
 });
 

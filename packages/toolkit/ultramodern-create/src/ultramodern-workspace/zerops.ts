@@ -47,6 +47,10 @@ function createZeropsService(scope: string, app: WorkspaceApp) {
     `  - setup: ${quoteYamlString(app.id)}`,
     '    build:',
     `      base: ${quoteYamlString(zeropsNodeRuntime)}`,
+    '      envVariables:',
+    // Zephyr uploads only when the deploy provides ZE_CI_TOKEN; a failed
+    // upload must then fail the build.
+    `        ZE_FAIL_BUILD: ${quoteYamlString('true')}`,
     '      buildCommands:',
     '        - |',
     ...commands.map(command => `          ${command}`),

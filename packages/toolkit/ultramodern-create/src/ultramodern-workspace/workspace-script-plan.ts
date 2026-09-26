@@ -144,7 +144,7 @@ function createWorkspaceAppScriptPlan(
     build: buildSteps.join(' && '),
     cloudflareBuild: cloudflareBuildSteps.join(' && '),
     cloudflareDeploy:
-      'cross-env ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json',
+      'cross-env ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true ZE_FAIL_BUILD=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json',
     cloudflarePreview:
       'pnpm run cloudflare:build && wrangler dev --config .output/wrangler.json',
     cloudflareProof: `${packageToolingWrapperCommand(

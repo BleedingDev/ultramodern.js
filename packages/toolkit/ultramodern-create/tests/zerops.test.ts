@@ -114,6 +114,7 @@ test('Zerops commands preserve interpolated arguments and launch the materialize
       service.deploy.readinessCheck.httpGet.path,
       "/catalog api/catalog 'stem'/readiness",
     );
+    assert.deepEqual(service.build.envVariables, { ZE_FAIL_BUILD: 'true' });
 
     const fakeHome = path.join(tempRoot, 'home');
     const fakeBin = path.join(tempRoot, 'bin');
