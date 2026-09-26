@@ -41,12 +41,19 @@ importers:
       '@testing-library/react':
         specifier: ^16.3.0
         version: 16.3.3(react@19.3.0)
+      docs-kit:
+        specifier: 1.0.0
+        version: 1.0.0
   packages/document:
     dependencies:
       react:
         specifier: 19.2.8
         version: 19.2.8
 snapshots:
+  docs-kit@1.0.0:
+    dependencies:
+      '@mdx-js/react': 3.1.1(react@19.2.8)
+  '@mdx-js/react@3.1.1(react@19.2.8)': {}
   react-dom@19.3.0(react@19.2.8):
     dependencies:
       react: 19.2.8
@@ -54,7 +61,7 @@ snapshots:
 
 test('names the importer and devDependency that resolve react off the pin', () => {
   const violations = findReactCohortViolations(preFixLockfile, '19.3.0');
-  assert.equal(violations.length, 3, violations.join('\n'));
+  assert.equal(violations.length, 4, violations.join('\n'));
   assert.match(
     violations[0],
     /^packages\/cli\/plugin-styled-components: .*react@19\.2\.8.*Add "react": "\^19\.3\.0" to devDependencies/,
@@ -63,7 +70,11 @@ test('names the importer and devDependency that resolve react off the pin', () =
     violations[1],
     /^packages\/solutions\/app-tools: @loadable\/component@5\.16\.7\(react@19\.2\.8\)/,
   );
-  assert.match(violations[2], /react-dom@19\.3\.0\(react@19\.2\.8\)/);
+  assert.match(
+    violations[2],
+    /^packages\/solutions\/app-tools: docs-kit@1\.0\.0 > @mdx-js\/react@3\.1\.1\(react@19\.2\.8\) pulls react@19\.2\.8/,
+  );
+  assert.match(violations[3], /react-dom@19\.3\.0\(react@19\.2\.8\)/);
 });
 
 test('reads the pin from ultramodern-create versions', () => {
