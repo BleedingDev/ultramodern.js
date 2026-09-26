@@ -3,8 +3,8 @@ name: CI Cache
 # The one writer of the dependency caches PR jobs restore. Caches saved on a
 # PR ref are visible only to that PR, so per-PR saves parked one ~500 MB pnpm
 # store (plus mise and browsers) per PR and OS and blew the 10 GB repository
-# quota. PR and merge-queue jobs restore only; this workflow saves on
-# main-ultramodern, whose caches every PR can read.
+# quota. Jobs on other refs restore only; this workflow saves on
+# main-ultramodern, whose caches every ref can read.
 on:
   push:
     branches: [main-ultramodern]
@@ -29,6 +29,9 @@ permissions:
 
 jobs:
   seed:
+    # workflow_dispatch accepts any ref; a seed there would park branch-scoped
+    # entries again.
+    if: github.ref == 'refs/heads/main-ultramodern'
     strategy:
       fail-fast: false
       matrix:
