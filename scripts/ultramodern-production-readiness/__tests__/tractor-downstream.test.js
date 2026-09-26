@@ -6,7 +6,7 @@ const path = require('node:path');
 const test = require('node:test');
 const { createProcessEnv, runCommand } = require('../../lib/process-kit');
 
-const contractPromise = import('../tractor-downstream/contract.mjs');
+const cohortInstallPromise = import('../tractor-downstream/cohort-install.mjs');
 const runnerPromise = import('../tractor-downstream/main.mjs');
 
 function releaseAgeEntry(selector, overrides = {}) {
@@ -143,7 +143,7 @@ test('native catalog and installed framework bind to the exact release', async (
   const {
     assertAuthenticatedTractorCohort,
     assertExactModernDependencySpecifiers,
-  } = await contractPromise;
+  } = await cohortInstallPromise;
   const root = fixture();
   try {
     writeAuthenticatedCohort(root);

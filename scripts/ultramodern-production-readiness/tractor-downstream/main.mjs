@@ -40,10 +40,12 @@ import {
   resolveAcceptanceReleaseAgeExclusions,
   validateExactExclusions,
 } from '../published-create-proof/release-age-audit.mjs';
-import { prepareTractorCohortInstallation } from './cohort-install.mjs';
 import {
   assertAuthenticatedTractorCohort,
   assertExactModernDependencySpecifiers,
+  prepareTractorCohortInstallation,
+} from './cohort-install.mjs';
+import {
   assertNativeTanStackSearch,
   assertVisibleTractorUi,
   promotableTractorAcceptanceMode,
