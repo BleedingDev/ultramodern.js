@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'path';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
+import { collectBrowserErrors } from '../../../utils/browserErrors';
 import {
   acquireFixtureLock,
   type ReleaseFixtureLock,
@@ -762,11 +763,7 @@ describe('routes-tanstack-mf', () => {
 
     browser = await puppeteer.launch(launchOptions as any);
     page = await browser.newPage();
-    page.on('console', msg => {
-      if (msg.type() === 'error') {
-        errors.push(msg.text());
-      }
-    });
+    await collectBrowserErrors(page, errors);
   });
 
   afterAll(async () => {

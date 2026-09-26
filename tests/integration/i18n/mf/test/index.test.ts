@@ -1,5 +1,6 @@
 import path from 'path';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
+import { collectBrowserErrors } from '../../../../utils/browserErrors';
 import {
   killApp,
   launchApp,
@@ -46,17 +47,6 @@ const APP_MF_SSR_ENV = {
 };
 const MULTIPLE_RENDERERS_WARNING =
   'Detected multiple renderers concurrently rendering the same context provider.';
-
-function collectBrowserErrors(page: Page, browserErrors: string[]) {
-  page.on('console', message => {
-    if (message.type() === 'error') {
-      browserErrors.push(message.text());
-    }
-  });
-  page.on('pageerror', error => {
-    browserErrors.push(error instanceof Error ? error.message : String(error));
-  });
-}
 
 function expectNoRendererWarnings(output: string[]) {
   expect(output.join('')).not.toContain(MULTIPLE_RENDERERS_WARNING);
@@ -114,14 +104,17 @@ describe('mf-i18n-tests', () => {
 
     componentProviderBrowser = await puppeteer.launch(launchOptions as any);
     componentProviderPage = await componentProviderBrowser.newPage();
-    collectBrowserErrors(componentProviderPage, componentProviderBrowserErrors);
+    await collectBrowserErrors(
+      componentProviderPage,
+      componentProviderBrowserErrors,
+    );
     await componentProviderPage.setExtraHTTPHeaders({
       'Accept-Language': 'en-US,en;q=0.9',
     });
 
     appProviderBrowser = await puppeteer.launch(launchOptions as any);
     appProviderPage = await appProviderBrowser.newPage();
-    collectBrowserErrors(appProviderPage, appProviderBrowserErrors);
+    await collectBrowserErrors(appProviderPage, appProviderBrowserErrors);
     await appProviderPage.setExtraHTTPHeaders({
       'Accept-Language': 'en-US,en;q=0.9',
     });
@@ -337,7 +330,7 @@ describe('mf-i18n-tests', () => {
 
       browser = await puppeteer.launch(launchOptions as any);
       page = await browser.newPage();
-      collectBrowserErrors(page, browserErrors);
+      await collectBrowserErrors(page, browserErrors);
       await page.setExtraHTTPHeaders({
         'Accept-Language': 'en-US,en;q=0.9',
       });
@@ -459,7 +452,7 @@ describe('mf-i18n-tests', () => {
 
       browser = await puppeteer.launch(launchOptions as any);
       page = await browser.newPage();
-      collectBrowserErrors(page, browserErrors);
+      await collectBrowserErrors(page, browserErrors);
       await page.setExtraHTTPHeaders({
         'Accept-Language': 'en-US,en;q=0.9',
       });

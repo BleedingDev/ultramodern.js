@@ -1,5 +1,6 @@
 import path from 'path';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
+import { collectBrowserErrors } from '../../../utils/browserErrors';
 import {
   getPort,
   killApp,
@@ -46,14 +47,7 @@ describe('routes-tanstack-rsc', () => {
 
     browser = await puppeteer.launch(launchOptions as any);
     page = await browser.newPage();
-    page.on('console', msg => {
-      if (msg.type() === 'error') {
-        errors.push(msg.text());
-      }
-    });
-    page.on('pageerror', error => {
-      errors.push((error as Error).message);
-    });
+    await collectBrowserErrors(page, errors);
   });
 
   afterAll(async () => {

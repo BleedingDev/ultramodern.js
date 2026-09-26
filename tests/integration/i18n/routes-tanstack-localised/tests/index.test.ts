@@ -1,5 +1,6 @@
 import path from 'path';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
+import { collectBrowserErrors } from '../../../../utils/browserErrors';
 import {
   getPort,
   killApp,
@@ -45,14 +46,7 @@ describe('i18n TanStack localisedUrls', () => {
     await trackedPage.setExtraHTTPHeaders({
       'Accept-Language': 'en-US,en;q=0.9',
     });
-    trackedPage.on('console', msg => {
-      if (msg.type() === 'error') {
-        errors.push(msg.text());
-      }
-    });
-    trackedPage.on('pageerror', error => {
-      errors.push((error as Error).message);
-    });
+    await collectBrowserErrors(trackedPage, errors);
     await clearI18nTestState(trackedPage);
     return trackedPage;
   }
