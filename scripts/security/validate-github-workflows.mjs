@@ -754,6 +754,36 @@ function collectBleedingdevPublishStructureErrors(workflow, relativePath) {
   return errors;
 }
 
+/**
+ * Release gates must run whole suites. A node:test filter flag (argv or
+ * NODE_OPTIONS) silently drops cases, so a qualify step can go green on a
+ * suite that is partly skipped.
+ */
+const testFilterFlagPattern = /--test-(?:skip-pattern|name-pattern|only)\b/u;
+
+const collectTestFilterFindings = (workflow, content) => {
+  const findings = [];
+  walkValues(workflow, (value, valuePath) => {
+    if (
+      typeof value !== 'string' ||
+      !(valuePath.at(-1) === 'run' || valuePath.includes('env'))
+    ) {
+      return;
+    }
+    const match = stripShellComments(value).match(testFilterFlagPattern);
+    if (match) {
+      findings.push(
+        sourceFinding(
+          content,
+          new RegExp(escapeRegExp(match[0]), 'u'),
+          match[0],
+        ),
+      );
+    }
+  });
+  return findings;
+};
+
 const getTriggers = workflow => {
   const triggers = workflow.on;
   if (typeof triggers === 'string') {
@@ -1201,6 +1231,12 @@ export function validateWorkflowContent(relativePath, content, options = {}) {
   }
 
   if (sensitive) {
+    for (const finding of collectTestFilterFindings(workflow, content)) {
+      push(
+        'release-test-filter',
+        `${relativePath}:${finding.line} must not filter node:test cases in a release gate; fix or delete the failing test instead: ${finding.text}`,
+      );
+    }
     for (const check of requiredSensitiveChecks) {
       if (!check.test(workflow)) {
         push(
