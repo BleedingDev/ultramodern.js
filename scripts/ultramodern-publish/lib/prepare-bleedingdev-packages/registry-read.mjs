@@ -12,14 +12,20 @@ import validationKit from '../../../lib/validation-kit.js';
 const { assertNonEmptyString, isPlainObject } = validationKit;
 const execFileAsync = promisify(execFile);
 
+// Walks the cause chain: undici reports a reset as `TypeError: fetch failed`
+// and keeps the ECONNRESET/ETIMEDOUT code on `cause`.
 function isTransientNpmPublishError(error) {
-  const output = [
-    error instanceof Error ? error.message : '',
-    typeof error?.stdout === 'string' ? error.stdout : '',
-    typeof error?.stderr === 'string' ? error.stderr : '',
-  ].join('\n');
-
-  return transientNpmPublishErrorPatterns.some(pattern => pattern.test(output));
+  const output = [];
+  for (let current = error; current; current = current.cause) {
+    output.push(
+      current instanceof Error ? current.message : '',
+      typeof current.code === 'string' ? current.code : '',
+      typeof current.stdout === 'string' ? current.stdout : '',
+      typeof current.stderr === 'string' ? current.stderr : '',
+    );
+  }
+  const text = output.join('\n');
+  return transientNpmPublishErrorPatterns.some(pattern => pattern.test(text));
 }
 
 async function mapWithConcurrency(items, limit, mapper) {
