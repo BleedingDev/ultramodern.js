@@ -14,9 +14,10 @@ on:
       - 'scripts/lib/browser-provisioning.js'
       - '.github/workflows/ci-cache.yml'
 
-  # GitHub evicts entries nobody read for 7 days; reseed after quiet weeks.
+  # GitHub evicts entries nobody read for 7 days. A weekly refresh lands on
+  # that boundary, so refresh twice a week to stay well inside it.
   schedule:
-    - cron: '17 3 * * 1'
+    - cron: '17 3 * * 1,4'
 
   workflow_dispatch:
 
