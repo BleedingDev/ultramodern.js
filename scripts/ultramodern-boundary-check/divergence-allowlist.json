@@ -5,8 +5,8 @@
   "pathspec": ["packages"],
   "migrationGoal": "Shrink-only budget of fork edits inside upstream-owned files. Every entry is debt: move it upstream or behind an extension point, then re-run --write-divergence-allowlist.",
   "totalFiles": 828,
-  "totalHunks": 3131,
-  "totalChangedLines": 51536,
+  "totalHunks": 3130,
+  "totalChangedLines": 51538,
   "files": [
     {
       "file": "packages/cli/adapter-rstest/package.json",
@@ -1465,8 +1465,8 @@
     },
     {
       "file": "packages/runtime/plugin-image/package.json",
-      "hunks": 5,
-      "changedLines": 20
+      "hunks": 4,
+      "changedLines": 22
     },
     {
       "file": "packages/runtime/plugin-image/src/cli.ts",
