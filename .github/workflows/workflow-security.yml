@@ -7,6 +7,7 @@ on:
       - '.github/renovate.json'
       - 'packages/toolkit/ultramodern-create/template-workspace/.github/**'
       - 'scripts/security/**'
+      - 'scripts/__tests__/workflow-cache-writers.test.mjs'
       - 'scripts/ultramodern-publish/**'
       - 'scripts/ultramodern-production-readiness/**'
       - 'package.json'
@@ -18,6 +19,7 @@ on:
       - '.github/renovate.json'
       - 'packages/toolkit/ultramodern-create/template-workspace/.github/**'
       - 'scripts/security/**'
+      - 'scripts/__tests__/workflow-cache-writers.test.mjs'
       - 'scripts/ultramodern-publish/**'
       - 'scripts/ultramodern-production-readiness/**'
       - 'package.json'
@@ -63,6 +65,7 @@ jobs:
       - name: Run validator unit tests
         run: |
           node --test scripts/security/__tests__/*.test.mjs
+          node --test scripts/__tests__/workflow-cache-writers.test.mjs
           node --test scripts/ultramodern-publish/__tests__/build-bleedingdev-packages.test.js
           node --test scripts/ultramodern-production-readiness/__tests__/*.test.js
 

@@ -121,3 +121,30 @@ test(`${seedWorkflow} seeds on main-ultramodern the keys other jobs restore`, ()
     );
   }
 });
+
+// Saving an immutable key that already exists neither replaces it nor
+// refreshes its last access, so a quiet week let GitHub evict the seeds.
+test(`${seedWorkflow} restores each key before saving it only on a miss`, () => {
+  const seed = workflows.find(({ file }) => file === seedWorkflow).workflow;
+  const seedSteps = steps(seed);
+  const saves = seedSteps.filter(({ uses }) =>
+    uses.startsWith('actions/cache/save@'),
+  );
+  assert.ok(saves.length > 0);
+  for (const save of saves) {
+    const restore = seedSteps
+      .slice(0, seedSteps.indexOf(save))
+      .find(
+        ({ step, uses }) =>
+          uses.startsWith('actions/cache/restore@') &&
+          step.with?.key === save.step.with.key,
+      );
+    const at = where(seedWorkflow, save.job, save.step);
+    assert.ok(restore?.step.id, `${at} saves a key no earlier step restores`);
+    assert.equal(
+      save.step.if,
+      `steps.${restore.step.id}.outputs.cache-hit != 'true'`,
+      `${at} must save only when ${restore.step.id} missed`,
+    );
+  }
+});
