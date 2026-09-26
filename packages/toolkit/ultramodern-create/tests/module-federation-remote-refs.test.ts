@@ -16,6 +16,7 @@ import {
 import {
   createModuleFederationRemotesConfig,
   createModuleFederationRemoteUrlHelpers,
+  createSharedModuleFederationConfig,
 } from '../src/ultramodern-workspace/module-federation';
 
 function evaluateGeneratedRemoteManifestUrl(
@@ -191,5 +192,29 @@ test('generated federation modules import i18n specifiers that really resolve', 
     }
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('generated shared config shares both JSX runtimes as React singletons', () => {
+  const { shared } = vm.runInNewContext(
+    `({${createSharedModuleFederationConfig()}})`,
+    {
+      dependencies: {},
+      pluginI18nVersion: 'i18n',
+      pluginTanstackVersion: 'tanstack',
+      reactDomVersion: 'react-dom',
+      reactVersion: 'react',
+      runtimeVersion: 'runtime',
+    },
+  );
+  for (const request of ['react/jsx-runtime', 'react/jsx-dev-runtime']) {
+    assert.deepEqual(
+      { ...shared[request] },
+      {
+        requiredVersion: 'react',
+        singleton: true,
+        treeShaking: false,
+      },
+    );
   }
 });
