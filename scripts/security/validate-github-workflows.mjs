@@ -434,32 +434,41 @@ const bareSteps = steps => {
     if (installInFlight && joinCommandPattern.test(run)) {
       break;
     }
-    if (
-      step.if === undefined &&
-      dependencyInstallCommands.some(command => run.includes(command))
-    ) {
-      if (!backgroundCommandPattern.test(run)) {
-        break;
-      }
-      installInFlight = true;
+    const installAt =
+      step.if === undefined
+        ? Math.min(
+            ...dependencyInstallCommands.map(command => {
+              const at = run.indexOf(command);
+              return at === -1 ? Number.POSITIVE_INFINITY : at;
+            }),
+          )
+        : Number.POSITIVE_INFINITY;
+    if (installAt === Number.POSITIVE_INFINITY) {
+      result.push(run);
       continue;
     }
-    result.push(run);
+    // Commands before the install in the same step still run bare.
+    result.push(run.slice(0, installAt));
+    if (!backgroundCommandPattern.test(run)) {
+      break;
+    }
+    installInFlight = true;
   }
   return result;
 };
 
-const bareJobNodeEntrypoints = workflow =>
-  Object.entries(isObject(workflow.jobs) ? workflow.jobs : {}).flatMap(
-    ([jobId, job]) => {
-      const steps = Array.isArray(job?.steps) ? job.steps.filter(isObject) : [];
-      const entrypoints = new Set(
-        bareSteps(steps).flatMap(run =>
-          [...run.matchAll(nodeScriptPattern)].map(match => match[1]),
-        ),
-      );
-      return [...entrypoints].map(entrypoint => ({ entrypoint, jobId }));
-    },
+// Node options that load a module before the entrypoint.
+const nodePreloadPattern =
+  /(?:^|[\s;&|(`])node\s(?:[^\n]*?\s)?(-r|--require|--import|--loader|--experimental-loader)(?=[\s=])/gu;
+
+const bareJobRuns = workflow =>
+  Object.entries(isObject(workflow.jobs) ? workflow.jobs : {}).map(
+    ([jobId, job]) => ({
+      jobId,
+      runs: bareSteps(
+        Array.isArray(job?.steps) ? job.steps.filter(isObject) : [],
+      ),
+    }),
   );
 
 /**
@@ -470,18 +479,37 @@ const bareJobNodeEntrypoints = workflow =>
  * ERR_MODULE_NOT_FOUND at run time, possibly after it already published.
  */
 function collectBareJobImportErrors(workflow, relativePath, options) {
-  const entrypoints = bareJobNodeEntrypoints(workflow);
+  const jobs = bareJobRuns(workflow);
+  const preloadErrors = jobs.flatMap(({ jobId, runs }) =>
+    runs.flatMap(run =>
+      [...run.matchAll(nodePreloadPattern)].map(
+        match =>
+          `${relativePath} job ${jobId} runs node ${match[1]} before any dependency install; a preloaded module is not checked, so import it from the entrypoint instead`,
+      ),
+    ),
+  );
+  const entrypoints = jobs.flatMap(({ jobId, runs }) =>
+    [
+      ...new Set(
+        runs.flatMap(run =>
+          [...run.matchAll(nodeScriptPattern)].map(match => match[1]),
+        ),
+      ),
+    ].map(entrypoint => ({ entrypoint, jobId })),
+  );
   if (entrypoints.length === 0) {
-    return [];
+    return preloadErrors;
   }
   const rootDir = options.rootDir ?? repoRoot;
   const trackedFiles = options.trackedFiles ?? listTrackedFiles(rootDir);
-  return entrypoints.flatMap(({ entrypoint, jobId }) =>
-    findUnloadableImports(rootDir, entrypoint, trackedFiles).map(
-      ({ chain, specifier }) =>
-        chain.length === 0
-          ? `${relativePath} job ${jobId} runs ${entrypoint}, which is not a tracked file`
-          : `${relativePath} job ${jobId} runs ${entrypoint} before any dependency install, but it statically loads ${specifier} via ${chain.join(' -> ')}; add a dependency install step before it or move the import into a function behind a dynamic import()`,
+  return preloadErrors.concat(
+    entrypoints.flatMap(({ entrypoint, jobId }) =>
+      findUnloadableImports(rootDir, entrypoint, trackedFiles).map(
+        ({ chain, specifier }) =>
+          chain.length === 0
+            ? `${relativePath} job ${jobId} runs ${entrypoint}, which is not a tracked file`
+            : `${relativePath} job ${jobId} runs ${entrypoint} before any dependency install, but it statically loads ${specifier} via ${chain.join(' -> ')}; add a dependency install step before it or move the import into a function behind a dynamic import()`,
+      ),
     ),
   );
 }
