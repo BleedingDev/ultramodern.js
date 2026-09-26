@@ -6,6 +6,7 @@ import { createCloudflarePreset } from '@modern-js/app-tools-extensions/cloudfla
 import type {
   CloudflareWorkerArtifactConfig,
   CloudflareWorkerD1DatabaseConfig,
+  CloudflareWorkerPublicAssetConfig,
   CloudflareWorkerServiceBindingConfig,
   JsonValue,
 } from '@modern-js/app-tools-extensions/config';
@@ -67,6 +68,7 @@ async function createFixture({
   distFiles,
   includeBffWorker = true,
   publicAssetExcludes,
+  publicAssets,
   services,
   sourceFiles,
   wrangler,
@@ -82,6 +84,7 @@ async function createFixture({
   distFiles?: Record<string, string>;
   includeBffWorker?: boolean;
   publicAssetExcludes?: string[];
+  publicAssets?: CloudflareWorkerPublicAssetConfig[];
   services?: CloudflareWorkerServiceBindingConfig[];
   sourceFiles?: Record<string, Record<string, string>>;
   wrangler?: Record<string, JsonValue>;
@@ -282,6 +285,7 @@ async function createFixture({
           d1Databases,
           name: workerName,
           publicAssetExcludes,
+          publicAssets,
           security: workerSecurity,
           services,
           wrangler,
@@ -594,6 +598,54 @@ describe('cloudflare deploy preset', () => {
         'utf-8',
       ),
     ).resolves.toBe(effectBffWorkerSource);
+  });
+
+  it('stages declared public assets beside generated output', async () => {
+    const { outputDirectory } = await createFixture({
+      apiOnly: true,
+      distFiles: {
+        'backend-mf-manifest.json': '{"name":"presentations"}',
+        'backendRemoteEntry.cjs': 'module.exports = {};',
+        'public/robots.txt': 'User-agent: *\nDisallow: /',
+      },
+      publicAssets: [{ from: 'staging/presentations', to: 'presentations' }],
+      sourceFiles: {
+        'staging/presentations/deck': {
+          'index.html': '<!doctype html><main>deck</main>',
+          'assets/deck.js': 'deck();',
+        },
+      },
+    });
+    const publicDirectory = path.join(outputDirectory, 'public');
+
+    await expect(
+      fs.readFile(
+        path.join(publicDirectory, 'presentations/deck/index.html'),
+        'utf-8',
+      ),
+    ).resolves.toBe('<!doctype html><main>deck</main>');
+    await expect(
+      fs.readFile(
+        path.join(publicDirectory, 'presentations/deck/assets/deck.js'),
+        'utf-8',
+      ),
+    ).resolves.toBe('deck();');
+    await expect(
+      fs.readFile(path.join(publicDirectory, 'robots.txt'), 'utf-8'),
+    ).resolves.toBe('User-agent: *\nDisallow: /');
+  });
+
+  it('lets a declared public asset replace a generated public file', async () => {
+    const { outputDirectory } = await createFixture({
+      apiOnly: true,
+      distFiles: { 'public/robots.txt': 'User-agent: *\nDisallow: /' },
+      publicAssets: [{ from: 'surface', to: '.' }],
+      sourceFiles: { surface: { 'robots.txt': 'User-agent: *\nAllow: /' } },
+    });
+
+    await expect(
+      fs.readFile(path.join(outputDirectory, 'public/robots.txt'), 'utf-8'),
+    ).resolves.toBe('User-agent: *\nAllow: /');
   });
 
   it('does not expose dotenv files through Cloudflare public assets', async () => {

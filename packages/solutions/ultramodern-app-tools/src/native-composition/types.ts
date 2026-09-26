@@ -1,6 +1,9 @@
 import type { AppUserConfig as NativeAppUserConfig } from '@modern-js/app-tools';
 import type { PrecompressConfig } from '@modern-js/app-tools-extensions/build-config/precompress/plugin';
-import type { CloudflareDeployConfig } from '@modern-js/app-tools-extensions/config';
+import type {
+  CloudflareDeployConfig,
+  NodeDeployConfig,
+} from '@modern-js/app-tools-extensions/config';
 import type {
   BffRuntimeUserConfig,
   ServerTelemetryUserConfig,
@@ -26,7 +29,9 @@ export type UltramodernAppUserConfig = Omit<
     keyof BffRuntimeUserConfig
   > &
     BffRuntimeUserConfig & { requestId?: string };
-  deploy?: NonNullable<NativeAppUserConfig['deploy']> & CloudflareDeployConfig;
+  deploy?: NonNullable<NativeAppUserConfig['deploy']> &
+    CloudflareDeployConfig &
+    NodeDeployConfig;
 };
 
 export type AppUserConfig = UltramodernAppUserConfig;

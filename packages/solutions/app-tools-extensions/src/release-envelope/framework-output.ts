@@ -43,6 +43,28 @@ const isPublicMetadataPath = (logicalPath: string) =>
   logicalPath === 'public/_headers' ||
   /^public\/\.well-known\/[^/]+\.json$/u.test(logicalPath);
 const PUBLIC_BUILD_ARTIFACT_PATH = `public/${ULTRAMODERN_BUILD_ARTIFACT_FILE}`;
+// Files an app declared through `deploy.<target>.publicAssets`. The deploy
+// output stages them from app-root sources; they are served data, not a
+// UI/client surface, so API-only units may carry them.
+const DECLARED_PUBLIC_ASSET_RUNTIME = 'public-asset';
+
+const resolveDeclaredPublicAssets = (
+  files: readonly string[],
+  declaredPublicAssets: readonly string[],
+  target: 'Node' | 'Cloudflare',
+) => {
+  const staged = new Set(files);
+  const declared = new Set<string>();
+  for (const logicalPath of declaredPublicAssets) {
+    if (!logicalPath.startsWith('public/') || !staged.has(logicalPath)) {
+      throw new Error(
+        `[ultramodern-release-envelope] final ${target} staging has no declared public asset file ${JSON.stringify(logicalPath)}.`,
+      );
+    }
+    declared.add(logicalPath);
+  }
+  return declared;
+};
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -902,8 +924,14 @@ const createNodeStagedReleaseArtifactInputs = async (
   outputDirectory: string,
   identity: MicroVerticalReleaseIdentity,
   apiOnly: boolean,
+  declaredPublicAssets: readonly string[],
 ) => {
   const files = await collectFiles(outputDirectory);
+  const declaredPublicAssetPaths = resolveDeclaredPublicAssets(
+    files,
+    declaredPublicAssets,
+    'Node',
+  );
   for (const requiredPath of [
     'index.js',
     'package.json',
@@ -928,7 +956,8 @@ const createNodeStagedReleaseArtifactInputs = async (
       topLevel === 'html' ||
       (topLevel === 'public' &&
         logicalPath !== CRAWLER_POLICY_PATH &&
-        !isPublicMetadataPath(logicalPath)) ||
+        !isPublicMetadataPath(logicalPath) &&
+        !declaredPublicAssetPaths.has(logicalPath)) ||
       [
         'index.html',
         'mf-manifest.json',
@@ -991,6 +1020,9 @@ const createNodeStagedReleaseArtifactInputs = async (
   );
   for (const logicalPath of uiClientPaths) {
     runtimeByPath.set(logicalPath, 'browser');
+  }
+  for (const logicalPath of declaredPublicAssetPaths) {
+    runtimeByPath.set(logicalPath, DECLARED_PUBLIC_ASSET_RUNTIME);
   }
   if (files.includes(CRAWLER_POLICY_PATH)) {
     runtimeByPath.set(CRAWLER_POLICY_PATH, 'crawler-policy');
@@ -1058,9 +1090,12 @@ const createNodeStagedReleaseArtifactInputs = async (
 };
 
 export const emitNodeStagedReleaseEnvelope = async ({
+  declaredPublicAssets = [],
   distDirectory,
   outputDirectory,
 }: {
+  /** Staged `deploy.node.publicAssets` files, relative to `outputDirectory`. */
+  declaredPublicAssets?: readonly string[];
   distDirectory: string;
   outputDirectory: string;
 }) => {
@@ -1072,6 +1107,7 @@ export const emitNodeStagedReleaseEnvelope = async ({
     outputDirectory,
     source.identity,
     source.surfaces.uiClient.length === 0,
+    declaredPublicAssets,
   );
   const staged = await createMicroVerticalReleaseEnvelope({
     artifactRoot: outputDirectory,
@@ -1114,8 +1150,14 @@ const createCloudflareStagedReleaseArtifactInputs = async (
   outputDirectory: string,
   identity: MicroVerticalReleaseIdentity,
   apiOnly: boolean,
+  declaredPublicAssets: readonly string[],
 ) => {
   const files = await collectFiles(outputDirectory);
+  const declaredPublicAssetPaths = resolveDeclaredPublicAssets(
+    files,
+    declaredPublicAssets,
+    'Cloudflare',
+  );
   for (const requiredPath of [
     'server/index.mjs',
     'server/modern-worker-manifest.json',
@@ -1160,6 +1202,7 @@ const createCloudflareStagedReleaseArtifactInputs = async (
       logicalPath.startsWith('public/') &&
       logicalPath !== CRAWLER_POLICY_PATH &&
       !isPublicMetadataPath(logicalPath) &&
+      !declaredPublicAssetPaths.has(logicalPath) &&
       logicalPath !== PUBLIC_BUILD_ARTIFACT_PATH &&
       logicalPath !== backendManifestPath &&
       logicalPath !== backendContainerPath,
@@ -1229,6 +1272,7 @@ const createCloudflareStagedReleaseArtifactInputs = async (
     }
   };
   add(uiClientPaths, 'browser');
+  add([...declaredPublicAssetPaths], DECLARED_PUBLIC_ASSET_RUNTIME);
   if (files.includes(CRAWLER_POLICY_PATH)) {
     runtimeByPath.set(CRAWLER_POLICY_PATH, 'crawler-policy');
   }
@@ -1285,9 +1329,12 @@ const createCloudflareStagedReleaseArtifactInputs = async (
 };
 
 export const emitCloudflareStagedReleaseEnvelope = async ({
+  declaredPublicAssets = [],
   distDirectory,
   outputDirectory,
 }: {
+  /** Staged `deploy.worker.publicAssets` files, relative to `outputDirectory`. */
+  declaredPublicAssets?: readonly string[];
   distDirectory: string;
   outputDirectory: string;
 }) => {
@@ -1303,6 +1350,7 @@ export const emitCloudflareStagedReleaseEnvelope = async ({
       outputDirectory,
       source.identity,
       source.surfaces.uiClient.length === 0,
+      declaredPublicAssets,
     );
   const staged = await createMicroVerticalReleaseEnvelope({
     artifactRoot: outputDirectory,

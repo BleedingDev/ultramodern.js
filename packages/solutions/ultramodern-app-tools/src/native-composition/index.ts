@@ -2,7 +2,10 @@ import { type AppTools, appTools, type CliPlugin } from '@modern-js/app-tools';
 import { createBuilderGenerator } from '@modern-js/app-tools/builder';
 import backendFederationBuildPlugin from '@modern-js/app-tools-extensions/backend-federation-build';
 import { createCloudflareBuilderPlugin } from '@modern-js/app-tools-extensions/cloudflare-builder';
-import { createDeployOutputAliasesPlugin } from '@modern-js/app-tools-extensions/deploy-output/plugin';
+import {
+  createDeployOutputAliasesPlugin,
+  createDeployOutputPublicAssetsPlugin,
+} from '@modern-js/app-tools-extensions/deploy-output/plugin';
 import { resolveDeployTarget } from '@modern-js/app-tools-extensions/deploy-output/target';
 import {
   RENDERER_EXTENSIONS_PACKAGE,
@@ -68,6 +71,7 @@ export const ultramodernAppTools = (): CliPlugin<AppTools> => ({
     createCloudflareBuilderPlugin(),
     headlessCloudflareWorkerPlugin(),
     createDeployOutputAliasesPlugin(),
+    createDeployOutputPublicAssetsPlugin(),
     ultramodernReleaseEnvelopePlugin(),
   ],
   setup(api) {
