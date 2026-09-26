@@ -7,6 +7,7 @@ import { resolveUltramodernReleaseIdentity } from '@modern-js/app-tools-extensio
 import { findHostingModuleDirectory } from '@modern-js/app-tools-extensions/runtime-package-resolution';
 import { mergeConfig } from '@modern-js/plugin/cli';
 import { type RspackChain, rspack } from '@rsbuild/core';
+import { ultramodernModuleFederationSharedPlugin } from './module-federation-shared-plugin';
 import type { AppUserConfig } from './types';
 
 const DEFAULT_OTLP_ENDPOINT = 'http://127.0.0.1:4318/v1/logs';
@@ -214,6 +215,7 @@ export const createPresetUltramodernConfig = (
       // Keep build artifacts predictable across apps.
       precompress: true,
     },
+    plugins: [ultramodernModuleFederationSharedPlugin()],
     server,
     source: {
       reactCompiler: true,
