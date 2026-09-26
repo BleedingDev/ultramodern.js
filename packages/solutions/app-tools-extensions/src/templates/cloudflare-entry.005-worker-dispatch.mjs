@@ -160,14 +160,46 @@ async function dispatchRouteWorker(route, request, env, ctx) {
   );
 }
 
-function matchesPrefix(pathname, prefix) {
+// Worker Static Assets decode percent-encoded paths, so an encoded spelling
+// of a mounted prefix (`/%70refix/...`, `/prefix%2F...`) would otherwise skip
+// the BFF or service binding that owns the prefix and reach ASSETS directly.
+// Resolve such spellings to the canonical pathname the owner sees; a
+// backslash or undecodable spelling becomes a path the owner rejects.
+function resolvePrefixPathname(pathname, prefix) {
   if (!prefix || prefix === '/') {
-    return true;
+    return pathname;
   }
 
   const normalized = prefix.endsWith('/') ? prefix.slice(0, -1) : prefix;
+  let candidate = pathname;
 
-  return pathname === normalized || pathname.startsWith(`${normalized}/`);
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    if (candidate === normalized || candidate.startsWith(`${normalized}/`)) {
+      return candidate;
+    }
+    if (candidate.startsWith(`${normalized}\\`)) {
+      return `${normalized}/__invalid_encoded_path__`;
+    }
+
+    let decoded;
+    try {
+      decoded = decodeURIComponent(candidate);
+    } catch {
+      return candidate.toLowerCase().startsWith(normalized.toLowerCase())
+        ? `${normalized}/__invalid_encoded_path__`
+        : null;
+    }
+    if (decoded === candidate) {
+      return null;
+    }
+    candidate = decoded;
+  }
+
+  return null;
+}
+
+function matchesPrefix(pathname, prefix) {
+  return resolvePrefixPathname(pathname, prefix) !== null;
 }
 
 function createRequestForMountedPrefix(request, prefix) {
@@ -177,12 +209,13 @@ function createRequestForMountedPrefix(request, prefix) {
 
   const url = new URL(request.url);
   const normalized = prefix.endsWith('/') ? prefix.slice(0, -1) : prefix;
+  const matchedPathname = resolvePrefixPathname(url.pathname, normalized);
 
-  if (!matchesPrefix(url.pathname, normalized)) {
+  if (matchedPathname === null) {
     return request;
   }
 
-  const nextPath = url.pathname.slice(normalized.length) || '/';
+  const nextPath = matchedPathname.slice(normalized.length) || '/';
   url.pathname = nextPath.startsWith('/') ? nextPath : `/${nextPath}`;
 
   return new Request(url, request);
@@ -309,12 +342,21 @@ function getEffectBffDispatcher(bff, runtime) {
 async function dispatchBffRequest(request, env) {
   const bff = MODERN_WORKER_MANIFEST.bff;
 
-  if (
-    !bff?.worker ||
-    !matchesPrefix(new URL(request.url).pathname, bff.prefix)
-  ) {
+  const requestUrl = new URL(request.url);
+  const matchedPathname = resolvePrefixPathname(
+    requestUrl.pathname,
+    bff?.prefix,
+  );
+  if (!bff?.worker || matchedPathname === null) {
     return null;
   }
+  const canonicalRequest =
+    matchedPathname === requestUrl.pathname
+      ? request
+      : new Request(
+          Object.assign(requestUrl, { pathname: matchedPathname }),
+          request,
+        );
   if (bff.runtimeFramework !== 'effect') {
     return createEffectBffDispatcherErrorResponse(
       bff,
@@ -347,7 +389,7 @@ async function dispatchBffRequest(request, env) {
       return createEffectBffDispatcherErrorResponse(bff, error);
     }
 
-    return effectDispatcher.dispatch(request, { env });
+    return effectDispatcher.dispatch(canonicalRequest, { env });
   }
 
   const directHandler =
