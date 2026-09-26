@@ -47,9 +47,9 @@ import {
 } from './cohort-install.mjs';
 import {
   assertNativeTanStackSearch,
+  assertTractorAcceptanceReport,
   assertVisibleTractorUi,
   promotableTractorAcceptanceMode,
-  requiredTractorCheckIds,
   requiredVisibleRuntimePlatforms,
   tractorAcceptanceModes,
 } from './contract.mjs';
@@ -982,22 +982,16 @@ async function runTractorDownstreamAcceptance(
         ]),
       ),
     });
-    const checkIds = report.checks.map(check => check.id);
-    if (JSON.stringify(checkIds) !== JSON.stringify(requiredTractorCheckIds)) {
-      throw new Error(
-        'Tractor acceptance did not execute every required check exactly once and in contract order',
-      );
-    }
-    for (const platform of requiredVisibleRuntimePlatforms) {
-      const detail = report.checks.find(
-        check => check.id === `${platform}-visible-tractor-workflow`,
-      )?.detail;
-      if (detail?.platform !== platform) {
-        throw new Error(
-          `Tractor acceptance is missing ${platform} visible workflow evidence`,
-        );
-      }
-    }
+    // The recorder's contract, asserted before this report may claim `passed`:
+    // both lanes run it, so a rehearsal catches report drift before publish.
+    assertTractorAcceptanceReport(
+      { ...report, status: 'passed' },
+      {
+        baselineRevision: report.tractor.baselineRevision,
+        manifest: release,
+        mode,
+      },
+    );
     report.finishedAt = new now().toISOString();
     report.status = 'passed';
     return report;
@@ -1144,7 +1138,6 @@ export {
   proveNodeServerRenderedSsr,
   readPassingNodeBackendProof,
   requiredCommands,
-  requiredTractorCheckIds,
   requiredVisibleRuntimePlatforms,
   resolveAcceptanceRegistryEnv,
   resolveTractorMinimumReleaseAgeExclude,
