@@ -40,7 +40,7 @@
   "dependencies": {
     "@rsbuild-image/core": "0.0.1-next.36",
     "@rsbuild-image/react": "0.0.1-next.36",
-    "ipx": "^3.1.1",
+    "ipx": "npm:@bleedingdev/ipx@3.2.2",
     "sharp": "^0.35.4"
   },
   "devDependencies": {
