@@ -12,6 +12,7 @@ import { execFileSync } from 'node:child_process';
 import { appendFile, readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import processKit from '../lib/process-kit.js';
 import { readReleaseManifest } from './lib/source-create-proof/release-manifest.mjs';
 
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
@@ -85,6 +86,7 @@ const git = (args, rootDir) => {
     return execFileSync('git', args, {
       cwd: rootDir,
       encoding: 'utf8',
+      env: processKit.createRepositoryGitEnv(),
       stdio: ['ignore', 'pipe', 'ignore'],
     }).trim();
   } catch {
@@ -100,6 +102,7 @@ const isAncestor = (candidate, descendant, rootDir) => {
       ['merge-base', '--is-ancestor', candidate, descendant],
       {
         cwd: rootDir,
+        env: processKit.createRepositoryGitEnv(),
         stdio: 'ignore',
       },
     );
@@ -202,7 +205,11 @@ export async function collectChangesetEntries(
           '--',
           `.changeset/${file}`,
         ],
-        { cwd: rootDir, encoding: 'utf8' },
+        {
+          cwd: rootDir,
+          encoding: 'utf8',
+          env: processKit.createRepositoryGitEnv(),
+        },
       )
         .trim()
         .split('|');

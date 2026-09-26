@@ -1,10 +1,12 @@
 // Consumer: publish-bleedingdev.yml build and staging source qualification.
 import { spawnSync } from 'node:child_process';
+import processKit from '../../lib/process-kit.js';
 
 function runGit(cwd, args) {
   const result = spawnSync('git', args, {
     cwd,
     encoding: 'utf8',
+    env: processKit.createRepositoryGitEnv(),
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 

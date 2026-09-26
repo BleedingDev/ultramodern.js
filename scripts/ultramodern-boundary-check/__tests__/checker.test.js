@@ -1,7 +1,6 @@
 const assert = require('node:assert/strict');
 const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 
@@ -10,22 +9,19 @@ const {
   createAllowlistSnapshot,
   writeAllowlist,
 } = require('../checker');
+const { createGitFixture } = require('../../lib/git-fixture');
 
 const repoRoot = path.resolve(__dirname, '../../..');
 
-const runGit = (rootDir, args) =>
-  execFileSync('git', args, {
-    cwd: rootDir,
-    encoding: 'utf8',
-  }).trim();
-
 const makeGitFixture = () => {
-  const rootDir = fs.mkdtempSync(
-    path.join(os.tmpdir(), 'modern-fork-boundary-'),
-  );
-  runGit(rootDir, ['init']);
-  runGit(rootDir, ['config', 'user.email', 'fixture@example.test']);
-  runGit(rootDir, ['config', 'user.name', 'Fixture']);
+  const {
+    cleanup,
+    git,
+    repoDir: rootDir,
+  } = createGitFixture({
+    prefix: 'modern-fork-boundary-',
+  });
+  git(['init', '--quiet']);
 
   const sourceDir = path.join(rootDir, 'packages/runtime/src');
   fs.mkdirSync(sourceDir, { recursive: true });
@@ -34,11 +30,13 @@ const makeGitFixture = () => {
     'export const runtimeValue = "upstream";\n',
   );
 
-  runGit(rootDir, ['add', '.']);
-  runGit(rootDir, ['commit', '-m', 'base']);
+  git(['add', '.']);
+  git(['commit', '--quiet', '-m', 'base']);
 
   return {
-    baseRef: runGit(rootDir, ['rev-parse', 'HEAD']),
+    baseRef: git(['rev-parse', 'HEAD']),
+    cleanup,
+    git,
     rootDir,
   };
 };
@@ -57,7 +55,7 @@ const writeFixtureAllowlist = ({ rootDir, baseRef, violations = [] }) => {
 };
 
 test('detects a new fork-only import in an upstream-owned source file', () => {
-  const { rootDir, baseRef } = makeGitFixture();
+  const { rootDir, baseRef, cleanup } = makeGitFixture();
 
   try {
     const allowlistPath = writeFixtureAllowlist({ rootDir, baseRef });
@@ -84,12 +82,12 @@ test('detects a new fork-only import in an upstream-owned source file', () => {
       specifier: '@modern-js/plugin-tanstack',
     });
   } finally {
-    fs.rmSync(rootDir, { recursive: true, force: true });
+    cleanup();
   }
 });
 
 test('ignores package source files that did not exist at the merge-base', () => {
-  const { rootDir, baseRef } = makeGitFixture();
+  const { rootDir, baseRef, cleanup, git } = makeGitFixture();
 
   try {
     const allowlistPath = writeFixtureAllowlist({ rootDir, baseRef });
@@ -97,7 +95,7 @@ test('ignores package source files that did not exist at the merge-base', () => 
       path.join(rootDir, 'packages/runtime/src/new-file.ts'),
       "import '@modern-js/plugin-tanstack';\n",
     );
-    runGit(rootDir, ['add', '.']);
+    git(['add', '.']);
 
     const report = checkForkImportBoundary({
       rootDir,
@@ -108,12 +106,12 @@ test('ignores package source files that did not exist at the merge-base', () => 
     assert.equal(report.ok, true);
     assert.equal(report.added.length, 0);
   } finally {
-    fs.rmSync(rootDir, { recursive: true, force: true });
+    cleanup();
   }
 });
 
 test('writeAllowlist cannot permit existing governed imports', () => {
-  const { rootDir, baseRef } = makeGitFixture();
+  const { rootDir, baseRef, cleanup } = makeGitFixture();
 
   try {
     fs.writeFileSync(
@@ -137,12 +135,12 @@ test('writeAllowlist cannot permit existing governed imports', () => {
     assert.equal(checkReport.ok, false);
     assert.equal(checkReport.added.length, 0);
   } finally {
-    fs.rmSync(rootDir, { recursive: true, force: true });
+    cleanup();
   }
 });
 
 test('an unresolvable ownership base fails closed instead of reporting clean', () => {
-  const { rootDir, baseRef } = makeGitFixture();
+  const { rootDir, baseRef, cleanup } = makeGitFixture();
   try {
     const allowlistPath = writeFixtureAllowlist({ rootDir, baseRef });
     assert.throws(
@@ -155,12 +153,12 @@ test('an unresolvable ownership base fails closed instead of reporting clean', (
       /ownership base.*does not resolve/,
     );
   } finally {
-    fs.rmSync(rootDir, { recursive: true, force: true });
+    cleanup();
   }
 });
 
 test('inherited Git repository redirection cannot empty the import scan', () => {
-  const { rootDir, baseRef } = makeGitFixture();
+  const { rootDir, baseRef, cleanup } = makeGitFixture();
   const previous = process.env.GIT_DIR;
   try {
     const allowlistPath = writeFixtureAllowlist({ rootDir, baseRef });
@@ -177,7 +175,7 @@ test('inherited Git repository redirection cannot empty the import scan', () => 
   } finally {
     if (previous === undefined) delete process.env.GIT_DIR;
     else process.env.GIT_DIR = previous;
-    fs.rmSync(rootDir, { recursive: true, force: true });
+    cleanup();
   }
 });
 
