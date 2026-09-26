@@ -26,27 +26,31 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Nx Cache
-        id: nx-cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: .nx/cache
-          key: nx-${{ github.ref_name }}-${{ github.sha }}
-          restore-keys: |
-            nx-${{ github.ref_name }}-
-            nx-
-
       - name: Setup mise
         uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
         with:
           version: 2026.8.3
+          cache_save: false
           install: true
 
       - name: Setup Node.js 26.7.0
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '26.7.0'
-          cache: 'pnpm'
+
+      - name: Resolve pnpm store path
+        id: pnpm-store
+        shell: bash
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      # Restore only; ci-cache.yml seeds this key on main-ultramodern.
+      - name: Restore pnpm store cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-
 
       - name: Install Dependencies
         run: pnpm install

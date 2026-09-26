@@ -1,0 +1,91 @@
+name: CI Cache
+
+# The one writer of the dependency caches PR jobs restore. Caches saved on a
+# PR ref are visible only to that PR, so per-PR saves parked one ~500 MB pnpm
+# store (plus mise and browsers) per PR and OS and blew the 10 GB repository
+# quota. PR and merge-queue jobs restore only; this workflow saves on
+# main-ultramodern, whose caches every PR can read.
+on:
+  push:
+    branches: [main-ultramodern]
+    paths:
+      - 'pnpm-lock.yaml'
+      - '.mise.toml'
+      - 'scripts/lib/browser-provisioning.js'
+      - '.github/workflows/ci-cache.yml'
+
+  # GitHub evicts entries nobody read for 7 days; reseed after quiet weeks.
+  schedule:
+    - cron: '17 3 * * 1'
+
+  workflow_dispatch:
+
+concurrency:
+  group: ci-cache-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  seed:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [namespace-profile-testing, windows-latest, macos-26]
+
+    runs-on: ${{ matrix.runner }}
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup mise
+        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
+        with:
+          version: 2026.8.3
+          install: true
+
+      - name: Setup Node.js 26.7.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '26.7.0'
+
+      - name: Resolve pnpm store path
+        id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Saved right after install, not in a post step, so a later failure
+      # cannot skip the save.
+      - name: Save pnpm store cache
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      # Every browser runtime resolves the same playwright (the provisioner
+      # fails otherwise), so one runtime seeds the key all jobs restore.
+      - name: Resolve Playwright runtime
+        id: browser-runtime
+        run: node scripts/lib/browser-provisioning.js --resolve --runtime tests/integration/rstest/basic-app-rstest-browser
+
+      - name: Install Playwright browsers
+        run: >-
+          node scripts/lib/browser-provisioning.js --install --runtime tests/integration/rstest/basic-app-rstest-browser
+          --version ${{ steps.browser-runtime.outputs.version }}
+
+      - name: Save Playwright browser cache
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.browser-runtime.outputs.cache_path }}
+          key: ${{ steps.browser-runtime.outputs.cache_key }}
