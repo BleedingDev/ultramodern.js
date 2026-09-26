@@ -513,4 +513,25 @@ describe('ReloadManager', () => {
     await reload;
     expect(manager.currentHandle).toBe(next);
   });
+  it('dispatches held requests before close disposes the runtime', async () => {
+    const dispose = rstest.fn(async () => {});
+    const initial = createDrainingHandle(makeHandle('initial'), dispose);
+    const manager = new ReloadManager({
+      initialHandle: initial,
+      build: async () => makeHandle('next'),
+    });
+    const task = defer<void>();
+    const hold = manager.hold(() => task.promise);
+    const response = manager.handle(fakeRequest);
+
+    manager.close();
+    await flush();
+    expect(dispose).not.toHaveBeenCalled();
+
+    task.resolve();
+    await hold;
+    await expect(response).resolves.toEqual({ tag: 'initial' });
+    await flush();
+    expect(dispose).toHaveBeenCalledTimes(1);
+  });
 });

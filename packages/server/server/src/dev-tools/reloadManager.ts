@@ -339,7 +339,11 @@ export class ReloadManager {
       clearTimeout(this.#debounceTimer);
       this.#debounceTimer = null;
     }
-    void this.#dispose(this.#current);
+    // Requests queued behind a hold were accepted before close: dispose only
+    // once they have dispatched. Their `#released()` waits resolve before this
+    // one, so they enter the draining handle before it retires.
+    const current = this.#current;
+    void this.#released().then(() => this.#dispose(current));
   }
 }
 
