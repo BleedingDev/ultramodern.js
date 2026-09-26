@@ -268,9 +268,7 @@ async function createEvidenceFixture() {
         passed('exact-cohort', {
           dependencyObservationCount: 1,
           generatedCohort: {
-            packageCount: definitions.length,
-            projectionSchema: 'bleedingdev.ultramodern.release-cohort',
-            projectionSchemaVersion: 1,
+            catalogCount: Object.keys(aliases).length,
             version: release.version,
           },
         }),
