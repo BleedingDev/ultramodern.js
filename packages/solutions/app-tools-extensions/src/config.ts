@@ -2,7 +2,6 @@ export type { ResolveEffectTsgoCompilerOptions } from './build-config/public';
 export {
   getBuildConfigEnvironment,
   resolveEffectTsgoCompiler,
-  withBuildConfigEnvironment,
 } from './build-config/public';
 export { createRemoteManifestUrl } from './build-config/remote-address';
 

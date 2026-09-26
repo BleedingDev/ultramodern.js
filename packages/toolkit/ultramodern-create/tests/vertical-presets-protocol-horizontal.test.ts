@@ -101,6 +101,60 @@ test('api-only and ui-only presets keep their distinct generated surfaces', () =
   });
 });
 
+test('generated Zephyr plugin requires ZE_FAIL_BUILD from the deploy environment', () => {
+  withWorkspace(dir => {
+    add(dir, 'presentational', { preset: 'ui-only' });
+    const configPath = path.join(
+      dir,
+      'verticals/presentational/modern.config.ts',
+    );
+    const config = fs.readFileSync(configPath, 'utf-8');
+    assert.doesNotMatch(config, /withBuildConfigEnvironment/u);
+    const pluginSource = config.match(
+      /^const zephyrRspackPlugin = \(\) => \(\{\n[\s\S]*?^\}\);$/mu,
+    )?.[0];
+    assert.ok(pluginSource, 'generated config declares zephyrRspackPlugin');
+
+    const probePath = path.join(dir, 'zephyr-plugin-probe.mts');
+    fs.writeFileSync(
+      probePath,
+      `const getBuildConfigEnvironment = (name: string) => process.env[name];
+const withZephyrRspack = () => 'zephyr-handler';
+${pluginSource}
+const handlers: unknown[] = [];
+try {
+  zephyrRspackPlugin().setup({ modifyRspackConfig: handler => handlers.push(handler) });
+  console.log(JSON.stringify({ handlers }));
+} catch (error) {
+  console.log(JSON.stringify({ error: (error as Error).message }));
+}
+`,
+    );
+    const probe = (env: Record<string, string>) => {
+      const {
+        ZE_CI_TOKEN: _token,
+        ZE_FAIL_BUILD: _fail,
+        ...base
+      } = process.env;
+      const result = spawnSync(process.execPath, [probePath], {
+        encoding: 'utf-8',
+        env: { ...base, ...env },
+      });
+      assert.equal(result.status, 0, result.stderr);
+      return JSON.parse(result.stdout);
+    };
+
+    assert.deepEqual(probe({}), { handlers: [] });
+    assert.match(
+      probe({ ZE_CI_TOKEN: 'token' }).error,
+      /Set ZE_FAIL_BUILD=true in the deploy environment/u,
+    );
+    assert.deepEqual(probe({ ZE_CI_TOKEN: 'token', ZE_FAIL_BUILD: 'true' }), {
+      handlers: ['zephyr-handler'],
+    });
+  });
+});
+
 test('topology rehydration preserves protocol, profile and delivery-unit identity', () => {
   withWorkspace(dir => {
     add(dir, 'catalog', { apiProtocol: 'rpc' });
