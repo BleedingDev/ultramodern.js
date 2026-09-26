@@ -27,6 +27,7 @@ import {
   sidecarManifestSchema,
   sidecarManifestSchemaVersion,
   sidecarScope,
+  sidecarStagingDirectory,
   sidecarTarballsDirectory,
 } from './constants.mjs';
 import {
@@ -479,6 +480,17 @@ async function stageSidecarPackage(
   };
 }
 
+/** Stage every sidecar under `<outDir>/sidecars`; shared by release staging and the test harness. */
+async function stageSidecarPackages(sidecars, outDir) {
+  const stageDir = path.join(outDir, sidecarStagingDirectory);
+  fs.mkdirSync(stageDir, { recursive: true });
+  const staged = [];
+  for (const sidecar of sidecars) {
+    staged.push(await stageSidecarPackage(sidecar, stageDir));
+  }
+  return staged;
+}
+
 function sidecarArtifactDigests(bytes) {
   return {
     integrity: `sha512-${crypto.createHash('sha512').update(bytes).digest('base64')}`,
@@ -707,6 +719,7 @@ export {
   sidecarManifestSchemaVersion,
   sidecarPublishOrder,
   stageSidecarPackage,
+  stageSidecarPackages,
   validateAliasConsistency,
   writeSidecarStagingManifest,
 };
