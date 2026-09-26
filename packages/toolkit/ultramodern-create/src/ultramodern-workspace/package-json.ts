@@ -15,11 +15,9 @@ import {
 } from './descriptors';
 import { readFileTemplate } from './fs-io';
 import { packageName, relativeRootFor } from './naming';
-import {
-  ULTRAMODERN_PACKAGE_PINS,
-  ULTRAMODERN_WORKSPACE_POLICY,
-} from './policy';
+import { ULTRAMODERN_WORKSPACE_POLICY } from './policy';
 import type { JsonValue, ResolvedPackageSource, WorkspaceApp } from './types';
+import { ULTRAMODERN_PACKAGE_PINS } from './versions';
 import {
   createStrictTsgoTypecheckCommand,
   createWorkspaceAppPackageScripts,

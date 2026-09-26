@@ -22,7 +22,7 @@ test('a recipe consumed only through devDependencies or an unaliased edge is rej
   };
   const consumers = {
     patchSelectors: new Set(),
-    generatorSources: [],
+    generatorPins: [],
     publishedManifests: [manifest],
   };
   assert.throws(
@@ -50,7 +50,7 @@ test('recipes reached only through a reachable recipe alias edge are consumed', 
   };
   const consumers = {
     patchSelectors: new Set(),
-    generatorSources: ["parent: 'npm:@bleedingdev/parent@1.0.0'"],
+    generatorPins: [{ parent: 'npm:@bleedingdev/parent@1.0.0' }],
     publishedManifests: [],
   };
   assert.throws(
@@ -61,6 +61,33 @@ test('recipes reached only through a reachable recipe alias edge are consumed', 
     dependencies: { child: 'npm:@bleedingdev/child@1.0.0' },
   };
   assertRecipeConsumers([parent, child], consumers);
+});
+
+test('only exact generator runtime pins of the recipe fork version are consumers', () => {
+  const recipe = {
+    id: 'pinned',
+    upstream: { name: 'pinned', version: '1.0.0' },
+    fork: { name: '@bleedingdev/pinned', version: '1.0.1' },
+    manifestChanges: {},
+  };
+  const consumers = generatorPins => ({
+    patchSelectors: new Set(),
+    generatorPins,
+    publishedManifests: [],
+  });
+  for (const pins of [
+    [{ pinned: 'npm:@bleedingdev/pinned@1.0.0' }],
+    [{ pinned: 'npm:@bleedingdev/pinned@^1.0.1' }],
+    [{ pinned: '// npm:@bleedingdev/pinned@1.0.1' }],
+  ])
+    assert.throws(
+      () => assertRecipeConsumers([recipe], consumers(pins)),
+      /sidecar pinned has no runtime consumer/,
+    );
+  assertRecipeConsumers(
+    [recipe],
+    consumers([{ pinned: 'npm:@bleedingdev/pinned@1.0.1' }]),
+  );
 });
 
 test('explicit offline provenance fails closed on missing or tampered tarballs', async () => {
