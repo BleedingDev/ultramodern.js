@@ -128,6 +128,11 @@ export interface DevInfraOptions {
   /** Accessor for the currently-active runtime ServerBase (a mutable ref). */
   getRuntimeServer: () => ServerBase | undefined;
   /**
+   * Run a repack task while new requests wait for it (`ReloadManager.hold`),
+   * so no request re-requires the server bundle mid-reset.
+   */
+  holdRequests: (task: () => Promise<void>) => Promise<void>;
+  /**
    * Triggered when a watched user server file changes (require cache already
    * busted). Wired to the runtime reload scheduler.
    */
@@ -167,6 +172,7 @@ export function setupDevInfra({
   builder,
   builderDevServer,
   getRuntimeServer,
+  holdRequests,
   onFileChange,
   onClose,
   nodeServer,
@@ -180,12 +186,15 @@ export function setupDevInfra({
   connectWebSocket && nodeServer && connectWebSocket({ server: nodeServer });
 
   // Handle server bundle rebuild: reset SSR cache against the live runtime.
+  // Requests wait until every repack onReset handler has settled.
   builder?.onDevCompileDone(({ stats }) => {
     if (stats.toJson({ all: false }).name !== 'server') {
-      const runtimeServer = getRuntimeServer();
-      if (runtimeServer) {
-        onRepack(distDir, runtimeServer.hooks);
-      }
+      holdRequests(async () => {
+        const runtimeServer = getRuntimeServer();
+        if (runtimeServer) {
+          await onRepack(distDir, runtimeServer.hooks);
+        }
+      }).catch(error => logger.error(error as Error));
     }
   });
 

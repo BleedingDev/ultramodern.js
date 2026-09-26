@@ -135,6 +135,12 @@ export class ReloadManager {
 
   #closed = false;
 
+  /** Settles when every task passed to `hold()` so far has settled. */
+  #held: Promise<void> = Promise.resolve();
+
+  /** Number of `hold()` tasks that have not settled yet. */
+  #holding = 0;
+
   constructor(options: ReloadManagerOptions) {
     this.#current = options.initialHandle ?? notReadyHandle;
     this.#build = options.build;
@@ -159,7 +165,32 @@ export class ReloadManager {
    * be recreated on reload.
    */
   get handle(): ReloadableHandle {
-    return (request, ...args) => this.#current(request, ...args);
+    return (request, ...args) =>
+      this.#holding === 0
+        ? this.#current(request, ...args)
+        : this.#released().then(() => this.#current(request, ...args));
+  }
+
+  /** Settles once no `hold()` task is pending, including ones held later. */
+  async #released(): Promise<void> {
+    while (this.#holding > 0) {
+      await this.#held;
+    }
+  }
+
+  /**
+   * Run `task` after the previously held tasks, and make requests arriving
+   * through `handle` wait until it settles. Requests already dispatched are
+   * not waited for: an SSR loader fetching its own dev server would deadlock.
+   * Returns the task's own result, rejection included.
+   */
+  hold(task: () => Promise<void>): Promise<void> {
+    this.#holding += 1;
+    const run = this.#held.then(task).finally(() => {
+      this.#holding -= 1;
+    });
+    this.#held = run.catch(() => {});
+    return run;
   }
 
   /** The currently active resolved handle (introspection / tests). */
