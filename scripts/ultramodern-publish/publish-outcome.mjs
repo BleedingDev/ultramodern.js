@@ -228,8 +228,8 @@ function hasStrictNodeSsrEvidence(
 function readTractorAcceptanceEvidence({
   baselineRevision,
   cohortDigest,
+  expectedCatalogCount,
   expectedCreateSpecifier,
-  expectedPackageCount,
   manifestSha256,
   reportPath,
   reportSha256,
@@ -312,10 +312,9 @@ function readTractorAcceptanceEvidence({
   if (
     !Number.isSafeInteger(exactCohort?.dependencyObservationCount) ||
     exactCohort.dependencyObservationCount < 1 ||
-    exactCohort.generatedCohort?.packageCount !== expectedPackageCount ||
-    exactCohort.generatedCohort?.projectionSchema !==
-      'bleedingdev.ultramodern.release-cohort' ||
-    exactCohort.generatedCohort?.projectionSchemaVersion !== 1 ||
+    // assertAuthenticatedTractorCohort reports the native catalog it proved:
+    // one exact `npm:<alias>@<version>` entry per release alias.
+    exactCohort.generatedCohort?.catalogCount !== expectedCatalogCount ||
     exactCohort.generatedCohort?.version !== version
   ) {
     throw new Error(
@@ -521,8 +520,8 @@ function readReleaseEvidence({
   const tractorAcceptance = readTractorAcceptanceEvidence({
     baselineRevision: tractorBaselineRevision,
     cohortDigest: manifest.cohortDigest,
+    expectedCatalogCount: Object.keys(manifest.aliases ?? {}).length,
     expectedCreateSpecifier: manifest.packageChecks.create.exactSpecifier,
-    expectedPackageCount: manifest.packages.length,
     manifestSha256,
     reportPath: tractorReportPath,
     reportSha256: tractorReportSha256,
