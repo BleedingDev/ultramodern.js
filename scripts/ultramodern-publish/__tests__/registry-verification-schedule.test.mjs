@@ -198,3 +198,41 @@ test('post-publish registry lookups read the origin, not a cached packument', as
     'an absent version of a present package is not published yet',
   );
 });
+
+test('registry reads retry a network reset that undici reports only on the cause', async () => {
+  const { lookupRegistryPackageDist } = await import(
+    '../lib/prepare-bleedingdev-packages/registry-read.mjs'
+  );
+  const dist = { integrity: 'sha512-fresh', shasum: 'fresh' };
+  let requests = 0;
+  const delays = [];
+  const found = await lookupRegistryPackageDist(
+    '@bleedingdev/modern-js-runtime',
+    '1.0.1',
+    {
+      fetchImpl: async () => {
+        requests += 1;
+        if (requests === 1) {
+          throw new TypeError('fetch failed', {
+            cause: Object.assign(new Error('read ECONNRESET'), {
+              code: 'ECONNRESET',
+            }),
+          });
+        }
+        return {
+          ok: true,
+          json: async () => ({
+            'dist-tags': { latest: '1.0.1' },
+            versions: { '1.0.1': { dist } },
+          }),
+        };
+      },
+      wait: async delay => {
+        delays.push(delay);
+      },
+    },
+  );
+  assert.deepEqual(found, dist);
+  assert.equal(requests, 2);
+  assert.deepEqual(delays, [1000]);
+});
