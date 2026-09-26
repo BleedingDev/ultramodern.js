@@ -129,6 +129,25 @@ test('commands before an install in the same step are still checked', t => {
   );
 });
 
+test('the script after option values and the commands before a join are checked', t => {
+  const rootDir = withRepository(t, recorderFiles);
+  const workflow = workflowWithJob(`      - run: |
+          ( mise exec -- pnpm install --frozen-lockfile ) > install.log 2>&1 &
+      - run: |
+          node --conditions development scripts/record.mjs check
+          wait
+          node scripts/installed.mjs
+`);
+  assert.deepEqual(
+    validateWorkflowContent('.github/workflows/example.yml', workflow, {
+      rootDir,
+    }).map(message => message.split(',')[0]),
+    [
+      '.github/workflows/example.yml job recorder runs scripts/record.mjs before any dependency install',
+    ],
+  );
+});
+
 test('a preloaded module in a bare step is rejected', t => {
   const rootDir = withRepository(t, { 'scripts/ok.mjs': '' });
   const workflow = workflowWithJob(`      - run: node -r yaml scripts/ok.mjs

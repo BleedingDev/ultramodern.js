@@ -412,9 +412,11 @@ function collectReceiptRunIdentityErrors(workflow, relativePath) {
   });
 }
 
-// `node [flags] <script>` inside a run block, including `$(node ...)`.
+// `node [options] <script>` inside a run block, including `$(node ...)`
+// and line continuations. The script is the first `.mjs`/`.cjs`/`.js`
+// argument, so option values such as `--conditions development` are skipped.
 const nodeScriptPattern =
-  /(?:^|[\s;&|(`])node(?:\s+-\S+)*\s+(?:\.\/)?([\w./-]+\.(?:mjs|cjs|js))/gu;
+  /(?:^|[\s;&|(`])node(?:(?:[ \t]|\\\n)+[^\s\\]+?)*?(?:[ \t]|\\\n)+(?:\.\/)?([\w./-]+\.(?:mjs|cjs|js))(?=\s|$|[;&|)`])/gu;
 
 const dependencyInstallCommands = ['pnpm install', 'npm install', 'npm ci'];
 
@@ -431,7 +433,10 @@ const bareSteps = steps => {
   for (const step of steps) {
     const run =
       typeof step.run === 'string' ? stripShellComments(step.run) : '';
-    if (installInFlight && joinCommandPattern.test(run)) {
+    const join = installInFlight ? joinCommandPattern.exec(run) : null;
+    if (join !== null) {
+      // Commands before the join still run while the install is in flight.
+      result.push(run.slice(0, join.index));
       break;
     }
     const installAt =
