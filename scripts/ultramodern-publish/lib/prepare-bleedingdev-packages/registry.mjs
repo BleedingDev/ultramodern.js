@@ -583,11 +583,16 @@ async function verifyRegistryPackage(
     { wait: registry.wait },
   );
   if (outcome.settled) {
+    if (outcome.firstDetail !== undefined) {
+      console.log(
+        `${item.targetName}@${item.version} verified on npm after ${outcome.attempts} reads; first pending: ${outcome.firstDetail}`,
+      );
+    }
     return outcome.value;
   }
 
   throw new Error(
-    `Published package ${item.targetName}@${item.version} did not verify on npm after ${outcome.attempts} attempts: ${outcome.detail}`,
+    `Published package ${item.targetName}@${item.version} did not verify on npm after ${outcome.attempts} attempts: ${outcome.detail} (first pending: ${outcome.firstDetail})`,
   );
 }
 
@@ -949,6 +954,7 @@ async function validateRegistryCohort(
   manifest,
   options,
   registry = { verifyRegistryDistTag, verifyRegistryPackage },
+  now = () => performance.now(),
 ) {
   if (options.dryRun) {
     console.log('Skipping final registry cohort assertion for dry-run publish');
@@ -967,6 +973,8 @@ async function validateRegistryCohort(
       if (failureCount >= cohortVerificationFailureBudget) {
         return { unverified: true };
       }
+      const startedAt = now();
+      const elapsed = () => `${((now() - startedAt) / 1000).toFixed(1)}s`;
       try {
         await registry.verifyRegistryPackage(item, provenanceExpectation);
         await registry.verifyRegistryDistTag(
@@ -974,9 +982,13 @@ async function validateRegistryCohort(
           options.tag,
           manifest.release.version,
         );
+        console.log(`Registry verified ${item.targetName} in ${elapsed()}`);
         return {};
       } catch (error) {
         failureCount += 1;
+        console.log(
+          `Registry verification failed for ${item.targetName} after ${elapsed()}`,
+        );
         return { error };
       }
     },

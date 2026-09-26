@@ -101,16 +101,18 @@ function isRegistryNotFoundError(error) {
   );
 }
 
-async function lookupRegistryDistTag(packageName, tag) {
-  const value = (
-    await readRegistryField(packageName, 'dist-tags', { optional: true })
-  )?.[tag];
-  return typeof value === 'string' ? value : undefined;
-}
-
-function lookupRegistryPackageDist(packageName, version) {
-  return resolveRegistryPackageDist(packageName, version, { optional: true });
-}
+// Every registry read must see the origin, not a CDN or npm-cache copy: the
+// post-publish poll is waiting for a version that a cached packument (or a
+// cached 404 on the attestations endpoint) would never show.
+const registryOriginRequestInit = Object.freeze({
+  cache: 'no-store',
+  headers: Object.freeze({
+    accept: 'application/json',
+    'cache-control': 'no-cache',
+  }),
+  method: 'GET',
+  redirect: 'error',
+});
 
 function pinnedRegistryPackageMetadataUrl(packageName) {
   assertNonEmptyString(packageName, 'Registry package name');
@@ -127,11 +129,7 @@ async function fetchRegistryPackageMetadata(
   }
   let response;
   try {
-    response = await fetchImpl(metadataUrl, {
-      headers: { accept: 'application/json' },
-      method: 'GET',
-      redirect: 'error',
-    });
+    response = await fetchImpl(metadataUrl, registryOriginRequestInit);
   } catch (error) {
     throw new Error(
       `${packageName} registry metadata request failed: ${
@@ -220,7 +218,7 @@ async function fetchRegistryPackumentWithRetry(packageName, overrides) {
 
 // Memoized for the process so one packument answers both preflight phases. The
 // post-publish propagation poll must keep using lookupRegistryPackageDist:
-// a cached packument would never observe the version it is waiting for.
+// a memoized packument would never observe the version it is waiting for.
 const registryPackumentCache = new Map();
 
 async function lookupRegistryPackument(packageName, overrides = {}) {
@@ -268,6 +266,30 @@ function registryPackumentDist(packument, packageName, version) {
     );
   }
   return dist;
+}
+
+// Uncached origin reads, never memoized: `null` means the package is absent.
+async function readFreshRegistryPackument(packageName, overrides = {}) {
+  try {
+    return await fetchRegistryPackumentWithRetry(packageName, overrides);
+  } catch (error) {
+    if (isRegistryMetadataNotFoundError(error)) return null;
+    throw error;
+  }
+}
+
+async function lookupRegistryDistTag(packageName, tag, overrides) {
+  const packument = await readFreshRegistryPackument(packageName, overrides);
+  return packument === null
+    ? undefined
+    : registryPackumentDistTag(packument, packageName, tag);
+}
+
+async function lookupRegistryPackageDist(packageName, version, overrides) {
+  const packument = await readFreshRegistryPackument(packageName, overrides);
+  return packument === null
+    ? null
+    : registryPackumentDist(packument, packageName, version);
 }
 
 function assertRegistryDistMatches(item, dist) {
@@ -409,6 +431,7 @@ export {
   assertRegistryDistMatches,
   fetchRegistryPackageMetadata,
   pinnedRegistryTarballUrl,
+  registryOriginRequestInit,
   isRegistryNotFoundError,
   isRegistryMetadataNotFoundError,
   isThrottledRegistryMetadataError,
