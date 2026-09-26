@@ -64,11 +64,12 @@ const cleanFederationRuntime = () => {
 /**
  * Reset the dev server after the server bundle is rebuilt.
  *
- * Contract: every `onReset({ event: { type: 'repack' } })` handler settles
- * before the previous generation is purged, and the caller holds new requests
- * until this promise settles, so no request re-requires the bundle while a
- * handler is still running. A throwing handler still purges the generation
- * and rejects with its error.
+ * Contract: the `onReset({ event: { type: 'repack' } })` handlers run in
+ * registration order and are awaited before the previous generation is purged.
+ * The caller holds new requests until this promise settles, so no request
+ * re-requires the bundle while a handler is still running. As with every async
+ * server hook, a rejecting handler skips the handlers after it; the generation
+ * is still purged and the promise rejects with that error.
  */
 export const onRepack = async (distDir: string, hooks: ServerPluginHooks) => {
   try {
