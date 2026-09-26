@@ -1333,33 +1333,6 @@ function createBuildCommand(packageName, target) {
   };
 }
 
-// The C0 baseline needs exactly the app builds the proof consumes: every
-// MicroVertical (captured envelopes) and the shell (MF host, served-behavior
-// runtime). The former root `pnpm run build` also rebuilt every non-app
-// workspace package on both target passes; the two ordered invocations below
-// build the same app surface without that repeated non-app work.
-function createWorkspaceBuildCommand(target, shellPackage) {
-  if (target !== 'node' && target !== 'cloudflare') {
-    throw new Error(`Unsupported build target: ${String(target)}.`);
-  }
-  return [
-    {
-      command: 'pnpm',
-      args: [
-        '-r',
-        '--filter',
-        './verticals/*',
-        'run',
-        target === 'node' ? 'build' : 'cloudflare:build',
-      ],
-    },
-    createBuildCommand(
-      assertNonEmptyString(shellPackage, 'shell package'),
-      target,
-    ),
-  ];
-}
-
 function runProcess(command, args, options = {}) {
   const result = spawnSync(command, args, {
     cwd: options.cwd,
@@ -1526,40 +1499,12 @@ function buildApps({ workspace, apps, target, roles, env, run = runProcess }) {
   return commands;
 }
 
-function buildWorkspaceBaseline({
-  workspace,
-  apps,
-  target,
-  env,
-  run = runProcess,
-}) {
-  const [verticalBuild, shellBuild] = createWorkspaceBuildCommand(
-    target,
-    apps.shell.package,
-  );
-  run(verticalBuild.command, verticalBuild.args, { cwd: workspace, env });
-  run(shellBuild.command, shellBuild.args, { cwd: workspace, env });
-  return [
-    {
-      appId: '*',
-      package: 'verticals',
-      command: [verticalBuild.command, ...verticalBuild.args],
-    },
-    {
-      appId: apps.shell.id,
-      package: apps.shell.package,
-      command: [shellBuild.command, ...shellBuild.args],
-    },
-  ];
-}
-
-// Coverage guard for the filtered baseline: the split build must leave every
-// topology app with the artifacts the proof consumes. Full-stack
-// MicroVerticals prove coverage through a parseable release envelope on the
-// requested target; the shell (and any other non-vertical app) emits no
-// MicroVertical envelope by design (the backend-federation gate in
-// app-tools framework-output returns before writing one), so its coverage is
-// proven by non-empty .output artifacts from its explicit build invocation.
+// Coverage guard for the reused acceptance build: the proof consumes every
+// topology app's C0 artifacts. Full-stack MicroVerticals prove coverage
+// through a parseable release envelope on the requested target; the shell
+// (and any other non-vertical app) emits no MicroVertical envelope by design
+// (the backend-federation gate in app-tools framework-output returns before
+// writing one), so its coverage is proven by non-empty .output artifacts.
 function assertBaselineBuildCoverage(workspace, target) {
   const topologyApps = readCanonicalTopologyApps(workspace);
   let verticalCount = 0;
@@ -1574,7 +1519,7 @@ function assertBaselineBuildCoverage(workspace, target) {
         envelope = JSON.parse(fs.readFileSync(envelopePath, 'utf8'));
       } catch (error) {
         throw new Error(
-          `Filtered ${target} baseline build left MicroVertical ${appId} without a parseable release envelope at ${envelopePath}: ${
+          `C0 ${target} build left MicroVertical ${appId} without a parseable release envelope at ${envelopePath}: ${
             error instanceof Error ? error.message : String(error)
           }`,
         );
@@ -1590,7 +1535,7 @@ function assertBaselineBuildCoverage(workspace, target) {
       fs.readdirSync(outputRoot).length === 0
     ) {
       throw new Error(
-        `Filtered ${target} baseline build left ${appId} without .output artifacts.`,
+        `C0 ${target} build left ${appId} without .output artifacts.`,
       );
     }
   }
@@ -1677,149 +1622,144 @@ function writeEvidence(outputPath, evidence) {
   fs.renameSync(temporaryPath, outputPath);
 }
 
-async function runOperationalIndependence(options) {
-  const workspace = fs.realpathSync(path.resolve(options.workspace));
-  const processEnv = createOperationalProcessEnv(options.packageManagerEnv);
-  const expectedApiValue = assertNonEmptyString(
-    options.expectedApiValue,
-    'expected C1 API value',
-  );
-  const expectedUiValue = assertNonEmptyString(
-    options.expectedUiValue,
-    'expected C1 UI value',
-  );
-  const ids = {
-    shell: options.shellId ?? 'shell-super-app',
-    changed: options.changedId ?? 'catalog',
-    sibling: options.siblingId ?? 'checkout',
+// Snapshots the C0 artifacts an acceptance build just produced. The proof
+// never rebuilds C0: it compares C1 against exactly these bytes, so the
+// snapshot must be taken on a clean C0 checkout before anything else runs.
+function captureOperationalBaseline({
+  workspace,
+  target,
+  ids,
+  packageManagerEnv,
+}) {
+  const root = fs.realpathSync(path.resolve(workspace));
+  const env = createOperationalProcessEnv(packageManagerEnv);
+  const revision = git(root, ['rev-parse', 'HEAD'], { env }).stdout;
+  assertCleanGitWorkspace(root, revision, `${target} C0 build`, env);
+  assertBaselineBuildCoverage(root, target);
+  const apps = readTopologyApps(root, ids);
+  return {
+    target,
+    workspace: root,
+    revision,
+    apps,
+    outputs: captureApps(root, apps, target),
   };
-  const apps = readTopologyApps(workspace, ids);
+}
+
+function currentCheckout(workspace, env) {
+  const branch = git(
+    workspace,
+    ['symbolic-ref', '--quiet', '--short', 'HEAD'],
+    {
+      allowedExitCodes: [0, 1],
+      env,
+    },
+  );
+  return {
+    branch: branch.exitCode === 0 ? branch.stdout : undefined,
+    head: git(workspace, ['rev-parse', 'HEAD'], { env }).stdout,
+  };
+}
+
+// Proves one target: rebuild only the changed MicroVertical at C1, require the
+// shell and sibling C0 bytes captured by captureOperationalBaseline to be
+// untouched, and serve C1 beside the C0 siblings. The checkout is restored
+// before returning, so the caller keeps building at C0 afterwards.
+async function proveOperationalTarget({
+  baseline,
+  changedRef,
+  expectedApiValue,
+  expectedUiValue,
+  packageManagerEnv,
+  run,
+}) {
+  const { apps, target, workspace } = baseline;
+  const processEnv = createOperationalProcessEnv(packageManagerEnv);
+  assertNonEmptyString(expectedApiValue, 'expected C1 API value');
+  assertNonEmptyString(expectedUiValue, 'expected C1 UI value');
   const transition = resolveCommitTransition(
     workspace,
-    options.baselineRef,
-    options.changedRef,
+    baseline.revision,
+    changedRef,
     processEnv,
   );
   assertChangedPathsOwnedBy(transition.changedPaths, apps.changed.path);
-  const originalBranch = git(
-    workspace,
-    ['symbolic-ref', '--quiet', '--short', 'HEAD'],
-    { allowedExitCodes: [0, 1], env: processEnv },
-  );
-  const original = {
-    branch: originalBranch.exitCode === 0 ? originalBranch.stdout : undefined,
-    head: git(workspace, ['rev-parse', 'HEAD'], { env: processEnv }).stdout,
-  };
-  assertCleanGitWorkspace(workspace, original.head, 'Initial', processEnv);
+  const original = currentCheckout(workspace, processEnv);
+  if (original.head !== transition.baseline) {
+    throw new Error(
+      `${target} operational proof must start on C0 ${transition.baseline}, where its baseline was captured; HEAD is ${original.head}.`,
+    );
+  }
+  assertCleanGitWorkspace(workspace, original.head, `${target} C0`, processEnv);
 
-  const targets = {};
   const runtimeArtifactDir = fs.mkdtempSync(
     path.join(os.tmpdir(), 'ultramodern-operational-runtime-'),
   );
+  let proof;
   let failure;
   try {
-    for (const target of ['node', 'cloudflare']) {
-      git(workspace, ['switch', '--detach', transition.baseline], {
-        env: processEnv,
-      });
-      assertCleanGitWorkspace(
-        workspace,
-        transition.baseline,
-        `${target} C0`,
-        processEnv,
-      );
-      removeOutputs(workspace, apps, ['shell', 'changed', 'sibling']);
-      const baselineCommands = buildWorkspaceBaseline({
-        workspace,
-        apps,
-        target,
-        env: processEnv,
-        run: options.run,
-      });
-      assertBaselineBuildCoverage(workspace, target);
-      assertCleanGitWorkspace(
-        workspace,
-        transition.baseline,
-        `${target} C0 after build`,
-        processEnv,
-      );
-      const baseline = captureApps(workspace, apps, target);
-
-      git(workspace, ['switch', '--detach', transition.changed], {
-        env: processEnv,
-      });
-      assertCleanGitWorkspace(
-        workspace,
-        transition.changed,
-        `${target} C1`,
-        processEnv,
-      );
-      removeOutputs(workspace, apps, ['changed']);
-      const changedCommands = buildApps({
-        workspace,
-        apps,
-        target,
-        roles: ['changed'],
-        env: processEnv,
-        run: options.run,
-      });
-      assertCleanGitWorkspace(
-        workspace,
-        transition.changed,
-        `${target} C1 after build`,
-        processEnv,
-      );
-      const changed = captureApps(workspace, apps, target, {
-        [apps.changed.id]: baseline[apps.changed.id].envelope.identity,
-      });
-      const comparison = compareTargetSnapshots({
-        target,
-        baseline,
-        changed,
-        apps,
-        revisions: transition,
-      });
-      const identity = changed[apps.changed.id].envelope.identity;
-      const servedBehavior =
-        target === 'node'
-          ? await runNodeServedBehavior({
-              apps,
-              artifactDir: runtimeArtifactDir,
-              baselineRevision: transition.baseline,
-              changedRevision: transition.changed,
-              expectedApiValue,
-              expectedUiValue,
-              identity,
-              processEnv,
-              shellId: apps.shell.id,
-              workspace,
-            })
-          : await runWorkerdServedBehavior({
-              apps,
-              artifactDir: runtimeArtifactDir,
-              baselineRevision: transition.baseline,
-              changedRevision: transition.changed,
-              expectedApiValue,
-              expectedUiValue,
-              identity,
-              processEnv,
-              workspace,
-            });
-      assertCleanGitWorkspace(
-        workspace,
-        transition.changed,
-        `${target} C1 after served-behavior proof`,
-        processEnv,
-      );
-      targets[target] = {
-        baselineCommands,
-        changedCommands,
-        baseline,
-        changed,
-        comparison,
-        servedBehavior,
-      };
-    }
+    git(workspace, ['switch', '--detach', transition.changed], {
+      env: processEnv,
+    });
+    assertCleanGitWorkspace(
+      workspace,
+      transition.changed,
+      `${target} C1`,
+      processEnv,
+    );
+    removeOutputs(workspace, apps, ['changed']);
+    const changedCommands = buildApps({
+      workspace,
+      apps,
+      target,
+      roles: ['changed'],
+      env: processEnv,
+      run,
+    });
+    assertCleanGitWorkspace(
+      workspace,
+      transition.changed,
+      `${target} C1 after build`,
+      processEnv,
+    );
+    const changed = captureApps(workspace, apps, target, {
+      [apps.changed.id]: baseline.outputs[apps.changed.id].envelope.identity,
+    });
+    const comparison = compareTargetSnapshots({
+      target,
+      baseline: baseline.outputs,
+      changed,
+      apps,
+      revisions: transition,
+    });
+    const served = {
+      apps,
+      artifactDir: runtimeArtifactDir,
+      baselineRevision: transition.baseline,
+      changedRevision: transition.changed,
+      expectedApiValue,
+      expectedUiValue,
+      identity: changed[apps.changed.id].envelope.identity,
+      processEnv,
+      workspace,
+    };
+    const servedBehavior =
+      target === 'node'
+        ? await runNodeServedBehavior(served)
+        : await runWorkerdServedBehavior(served);
+    assertCleanGitWorkspace(
+      workspace,
+      transition.changed,
+      `${target} C1 after served-behavior proof`,
+      processEnv,
+    );
+    proof = {
+      changedCommands,
+      baseline: baseline.outputs,
+      changed,
+      comparison,
+      servedBehavior,
+    };
   } catch (error) {
     failure = error;
   } finally {
@@ -1838,11 +1778,30 @@ async function runOperationalIndependence(options) {
   if (failure) {
     throw failure;
   }
+  return { target, workspace, apps, transition, proof };
+}
 
+function assembleOperationalEvidence({ node, cloudflare, out }) {
+  if (node?.target !== 'node' || cloudflare?.target !== 'cloudflare') {
+    throw new Error(
+      'Operational evidence needs one Node and one Cloudflare target proof.',
+    );
+  }
+  if (
+    node.workspace !== cloudflare.workspace ||
+    canonicalSerialize(node.apps) !== canonicalSerialize(cloudflare.apps) ||
+    canonicalSerialize(node.transition) !==
+      canonicalSerialize(cloudflare.transition)
+  ) {
+    throw new Error(
+      'Node and Cloudflare operational proofs must cover the same workspace, apps, and C0 -> C1 transition.',
+    );
+  }
+  const { apps, transition } = node;
   const evidence = {
     schemaVersion: EVIDENCE_SCHEMA_VERSION,
     kind: 'ultramodern-operational-independence-proof',
-    workspace,
+    workspace: node.workspace,
     commits: {
       baseline: transition.baseline,
       changed: transition.changed,
@@ -1850,34 +1809,35 @@ async function runOperationalIndependence(options) {
       ownerPath: apps.changed.path,
     },
     apps,
-    targets,
+    targets: { node: node.proof, cloudflare: cloudflare.proof },
     crossTarget: assertCrossTargetIdentity(
-      targets.node.changed[apps.changed.id],
-      targets.cloudflare.changed[apps.changed.id],
+      node.proof.changed[apps.changed.id],
+      cloudflare.proof.changed[apps.changed.id],
     ),
     result: 'pass',
   };
-  if (options.out) {
-    writeEvidence(path.resolve(options.out), evidence);
+  if (out) {
+    writeEvidence(path.resolve(out), evidence);
   }
   return evidence;
 }
 
 export {
+  assembleOperationalEvidence,
   assertBaselineBuildCoverage,
   assertByteIdentical,
   assertChangedPathsOwnedBy,
   assertCrossTargetIdentity,
   canonicalSerialize,
+  captureOperationalBaseline,
   compareTargetSnapshots,
   createBuildCommand,
   createOperationalProcessEnv,
-  createWorkspaceBuildCommand,
   digestCanonical,
   operationalSourceRevisions,
+  proveOperationalTarget,
   readAndVerifyEnvelope,
   readTopologyApps,
-  runOperationalIndependence,
   servedBehaviorAppIds,
   sha256,
   startNodeTargetsInDependencyOrder,

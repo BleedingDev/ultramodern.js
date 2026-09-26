@@ -9,7 +9,11 @@ import { fileURLToPath } from 'node:url';
 import { parseSync, transformFromAstSync, traverse, types } from '@babel/core';
 import { readSmokeContract } from '../browser-smoke/contract.mjs';
 import { createSmokeTargets } from '../browser-smoke/targets.mjs';
-import { runOperationalIndependence } from '../operational-independence.mjs';
+import {
+  assembleOperationalEvidence,
+  captureOperationalBaseline,
+  proveOperationalTarget,
+} from '../operational-independence.mjs';
 import {
   assertApiAcceptance,
   assertBackendAcceptance,
@@ -131,6 +135,11 @@ const operationalIndependenceUiValue =
   'C1 operational independence: inventory UI and localization moved together.';
 const operationalIndependenceApiValue =
   'Inventory C1 operational proof response';
+const operationalIndependenceIds = Object.freeze({
+  shell: 'shell-super-app',
+  changed: 'inventory',
+  sibling: 'finance',
+});
 const forbiddenDefaultOffRscDependencies = Object.freeze([
   'react-server-dom-rspack',
   'rsbuild-plugin-rsc',
@@ -984,6 +993,19 @@ function createOperationalIndependenceCommit(
     );
   }
   assertCleanApplicationGit(projectDir, changedRevision, env, runImpl, 'C1');
+  // The branch keeps C1; acceptance continues building C0, so HEAD goes back.
+  runImpl('git', ['switch', '--detach', applicationSourceRevision], {
+    cwd: projectDir,
+    env,
+    stdio: 'pipe',
+  });
+  assertCleanApplicationGit(
+    projectDir,
+    applicationSourceRevision,
+    env,
+    runImpl,
+    'C0',
+  );
   return {
     applicationSourceRevision,
     changedPaths,
@@ -1001,22 +1023,19 @@ function createOperationalIndependenceCommit(
   };
 }
 
-async function runOperationalIndependenceAcceptance({
+// Node and Cloudflare builds both write each app's `.output`, so the Node C0
+// artifacts exist only until the Cloudflare build. Prove Node in that window.
+async function proveNodeOperationalIndependence({
   applicationSourceRevision,
+  baseline,
   ephemeralWorkDir,
-  mode,
   outPath,
   packageManagerEnv,
   projectDir,
   runImpl = run,
-  runOperationalIndependenceImpl = runOperationalIndependence,
+  proveOperationalTargetImpl = proveOperationalTarget,
 }) {
-  const transition = createOperationalIndependenceCommit(
-    projectDir,
-    applicationSourceRevision,
-    packageManagerEnv,
-    runImpl,
-  );
+  const startedAt = performance.now();
   const evidencePath = operationalIndependenceEvidencePath(outPath);
   if (ephemeralWorkDir) {
     const relativeEvidencePath = path.relative(
@@ -1033,34 +1052,64 @@ async function runOperationalIndependenceAcceptance({
       );
     }
   }
-  const evidence = await runOperationalIndependenceImpl({
-    baselineRef: transition.applicationSourceRevision,
-    changedId: 'inventory',
+  const transition = createOperationalIndependenceCommit(
+    projectDir,
+    applicationSourceRevision,
+    packageManagerEnv,
+    runImpl,
+  );
+  const proof = await proveOperationalTargetImpl({
+    baseline,
     changedRef: transition.changedRevision,
     expectedApiValue: transition.mutations.apiResponse.value,
     expectedUiValue: transition.mutations.uiLocalization.value,
-    out: evidencePath,
     packageManagerEnv,
-    shellId: 'shell-super-app',
-    siblingId: 'finance',
-    workspace: projectDir,
   });
-  if (!fs.existsSync(evidencePath)) {
-    throw new Error(
-      `Operational-independence runner did not write durable evidence at ${evidencePath}`,
-    );
-  }
-  const details = createOperationalIndependenceResultDetails({
-    applicationSourceRevision,
-    changedRevision: transition.changedRevision,
-    evidence,
+  return {
+    durationMs: performance.now() - startedAt,
     evidencePath,
+    proof,
+    transition,
+  };
+}
+
+async function completeOperationalIndependence({
+  applicationSourceRevision,
+  baseline,
+  mode,
+  node,
+  packageManagerEnv,
+  proveOperationalTargetImpl = proveOperationalTarget,
+}) {
+  const startedAt = performance.now();
+  const { evidencePath, transition } = node;
+  const cloudflare = await proveOperationalTargetImpl({
+    baseline,
+    changedRef: transition.changedRevision,
     expectedApiValue: transition.mutations.apiResponse.value,
-    expectedChangedPaths: transition.changedPaths,
     expectedUiValue: transition.mutations.uiLocalization.value,
-    mode,
+    packageManagerEnv,
   });
-  return details;
+  const evidence = assembleOperationalEvidence({
+    node: node.proof,
+    cloudflare,
+    out: evidencePath,
+  });
+  return {
+    ...createOperationalIndependenceResultDetails({
+      applicationSourceRevision,
+      changedRevision: transition.changedRevision,
+      evidence,
+      evidencePath,
+      expectedApiValue: transition.mutations.apiResponse.value,
+      expectedChangedPaths: transition.changedPaths,
+      expectedUiValue: transition.mutations.uiLocalization.value,
+      mode,
+    }),
+    durationMs: roundDurationMs(
+      node.durationMs + performance.now() - startedAt,
+    ),
+  };
 }
 
 function receiptFailure(receipt, error) {
@@ -1082,7 +1131,7 @@ async function runAcceptanceProfile({
   runImpl = run,
   browserSmokeImpl = runBrowserSmoke,
   auditReleaseAgePolicyImpl = auditReleaseAgePolicy,
-  runOperationalIndependenceImpl = runOperationalIndependence,
+  proveOperationalTargetImpl = proveOperationalTarget,
   now = Date,
   workDir: suppliedWorkDir,
 }) {
@@ -1140,6 +1189,12 @@ async function runAcceptanceProfile({
     let audit;
     let artifacts;
     let applicationSourceRevision;
+    // ACC-1: operational independence is a source-tree property; the
+    // published receipt contract excludes its result id entirely. It reuses
+    // the acceptance C0 builds instead of rebuilding the workspace.
+    const proveOperationalIndependence = mode === 'source';
+    const operationalBaselines = {};
+    let operationalNode;
     const runtimeReports = new Map();
     const runtimeIdentityDetails = new Map();
     try {
@@ -1325,6 +1380,14 @@ async function runAcceptanceProfile({
             cwd: projectDir,
             env: createAcceptanceBuildEnv(deploymentEnv),
           });
+          if (proveOperationalIndependence) {
+            operationalBaselines.node = captureOperationalBaseline({
+              workspace: projectDir,
+              target: 'node',
+              ids: operationalIndependenceIds,
+              packageManagerEnv: deploymentEnv,
+            });
+          }
           return { command: 'pnpm build' };
         }),
       );
@@ -1367,12 +1430,40 @@ async function runAcceptanceProfile({
       // Capture every path-based Node artifact assertion first; the strict Node
       // browser report above and this backend-envelope assertion must describe
       // the same executed deployment roots, not the later Cloudflare staging.
+      if (proveOperationalIndependence) {
+        try {
+          operationalNode = await proveNodeOperationalIndependence({
+            applicationSourceRevision,
+            baseline: operationalBaselines.node,
+            ephemeralWorkDir: ownsWorkDir ? workDir : undefined,
+            outPath,
+            packageManagerEnv: deploymentEnv,
+            projectDir,
+            runImpl,
+            proveOperationalTargetImpl,
+          });
+        } catch (error) {
+          await recordAcceptanceResult(
+            receipt,
+            operationalIndependenceResultId,
+            () => Promise.reject(error),
+          );
+        }
+      }
       await recordAcceptanceResult(receipt, 'cloudflare-build', () =>
         withDuration(() => {
           runImpl('pnpm', requiredPnpmCommands.cloudflareBuild, {
             cwd: projectDir,
             env: createAcceptanceBuildEnv(deploymentEnv),
           });
+          if (proveOperationalIndependence) {
+            operationalBaselines.cloudflare = captureOperationalBaseline({
+              workspace: projectDir,
+              target: 'cloudflare',
+              ids: operationalIndependenceIds,
+              packageManagerEnv: deploymentEnv,
+            });
+          }
           return { command: 'pnpm cloudflare:build' };
         }),
       );
@@ -1412,25 +1503,19 @@ async function runAcceptanceProfile({
           runtimeIdentityDetails.get('workerd'),
         ),
       );
-      // ACC-1: operational independence is a source-tree property; the
-      // published receipt contract excludes this result id entirely.
-      if (mode === 'source') {
+      if (proveOperationalIndependence) {
         await recordAcceptanceResult(
           receipt,
           operationalIndependenceResultId,
           () =>
-            withDuration(() =>
-              runOperationalIndependenceAcceptance({
-                applicationSourceRevision,
-                ephemeralWorkDir: ownsWorkDir ? workDir : undefined,
-                mode,
-                outPath,
-                packageManagerEnv: deploymentEnv,
-                projectDir,
-                runImpl,
-                runOperationalIndependenceImpl,
-              }),
-            ),
+            completeOperationalIndependence({
+              applicationSourceRevision,
+              baseline: operationalBaselines.cloudflare,
+              mode,
+              node: operationalNode,
+              packageManagerEnv: deploymentEnv,
+              proveOperationalTargetImpl,
+            }),
         );
       }
     } catch (error) {
@@ -1479,7 +1564,6 @@ export {
   reserveAcceptanceSmokePorts,
   resolveExactPnpmExecutable,
   runAcceptanceProfile,
-  runOperationalIndependenceAcceptance,
   snapshotAcceptanceWorkspaceSource,
   withAcceptancePlaywrightBrowsersPath,
 };
