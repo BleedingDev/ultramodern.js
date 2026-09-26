@@ -61,13 +61,25 @@ const cleanFederationRuntime = () => {
   }
 };
 
-export const onRepack = (distDir: string, hooks: ServerPluginHooks) => {
-  cleanSSRCache(distDir);
-  cleanFederationRuntime();
-  fileReader.reset();
-  hooks.onReset.call({
-    event: {
-      type: 'repack',
-    },
-  });
+/**
+ * Reset the dev server after the server bundle is rebuilt.
+ *
+ * Contract: every `onReset({ event: { type: 'repack' } })` handler settles
+ * before the previous generation is purged, and the caller holds new requests
+ * until this promise settles, so no request re-requires the bundle while a
+ * handler is still running. A throwing handler still purges the generation
+ * and rejects with its error.
+ */
+export const onRepack = async (distDir: string, hooks: ServerPluginHooks) => {
+  try {
+    await hooks.onReset.call({
+      event: {
+        type: 'repack',
+      },
+    });
+  } finally {
+    cleanSSRCache(distDir);
+    cleanFederationRuntime();
+    fileReader.reset();
+  }
 };

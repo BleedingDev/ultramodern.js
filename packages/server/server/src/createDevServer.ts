@@ -210,6 +210,7 @@ export async function createDevServer(
     compiler,
     nodeServer,
     getRuntimeServer: () => currentRuntimeServer,
+    holdRequests: task => reloadManager.hold(task),
     // A watched user server file changed -> schedule a unified runtime reload.
     // (debounced + serial + last-write-wins; a failed build keeps the old
     // handle serving, so a syntax error never takes the dev server down.)
