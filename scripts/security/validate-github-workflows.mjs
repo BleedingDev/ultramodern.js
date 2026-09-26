@@ -420,15 +420,16 @@ const bareJobNodeEntrypoints = workflow =>
   Object.entries(isObject(workflow.jobs) ? workflow.jobs : {}).flatMap(
     ([jobId, job]) => {
       const steps = Array.isArray(job?.steps) ? job.steps.filter(isObject) : [];
-      if (
-        steps.some(step =>
+      // Steps before the first unconditional install run from a bare checkout.
+      const installIndex = steps.findIndex(
+        step =>
+          step.if === undefined &&
           dependencyInstallCommands.some(command => runIncludes(step, command)),
-        )
-      ) {
-        return [];
-      }
+      );
+      const bareSteps =
+        installIndex === -1 ? steps : steps.slice(0, installIndex);
       const entrypoints = new Set(
-        steps.flatMap(step =>
+        bareSteps.flatMap(step =>
           typeof step.run === 'string'
             ? [...stripShellComments(step.run).matchAll(nodeScriptPattern)].map(
                 match => match[1],
@@ -441,9 +442,9 @@ const bareJobNodeEntrypoints = workflow =>
   );
 
 /**
- * A job without a dependency install (`pnpm install`, `npm install`,
- * `npm ci`) runs scripts from a bare checkout, so every
- * static import reachable from its `node <script>` entrypoints must be a
+ * A step that runs before any unconditional dependency install
+ * (`pnpm install`, `npm install`, `npm ci`) runs from a bare checkout, so
+ * every static import reachable from its `node <script>` entrypoints must be a
  * Node builtin or a tracked repository file. Otherwise the job fails with
  * ERR_MODULE_NOT_FOUND at run time, possibly after it already published.
  */
@@ -459,7 +460,7 @@ function collectBareJobImportErrors(workflow, relativePath, options) {
       ({ chain, specifier }) =>
         chain.length === 0
           ? `${relativePath} job ${jobId} runs ${entrypoint}, which is not a tracked file`
-          : `${relativePath} job ${jobId} has no dependency install, but ${entrypoint} statically loads ${specifier} via ${chain.join(' -> ')}; add a dependency install step to the job or move the import behind a dynamic import()`,
+          : `${relativePath} job ${jobId} runs ${entrypoint} before any dependency install, but it statically loads ${specifier} via ${chain.join(' -> ')}; add a dependency install step before it or move the import into a function behind a dynamic import()`,
     ),
   );
 }

@@ -2,8 +2,9 @@
  * Static import closure of a repository script, for jobs that run scripts
  * from a bare checkout (no dependency install).
  *
- * Only static edges are followed: `import ... from`, `import '...'`,
- * `export ... from` and `require('...')`. A dynamic `import()` is a lazy
+ * Followed edges: `import ... from`, `import '...'`, `export ... from`,
+ * `require('...')`, and a module-scope `await import('...')`, which runs
+ * as soon as the module loads. Any other dynamic `import()` is a lazy
  * boundary and is not followed. Dependency-free on purpose: the workflow
  * validator itself runs without a root install.
  */
@@ -143,7 +144,11 @@ export function tokenize(source) {
       while (end < source.length && identifierPart.test(source[end])) {
         end += 1;
       }
-      tokens.push({ type: 'identifier', value: source.slice(index, end) });
+      tokens.push({
+        type: 'identifier',
+        value: source.slice(index, end),
+        depth: braceDepth,
+      });
       index = end;
     } else if (character === '{') {
       braceDepth += 1;
@@ -197,7 +202,12 @@ const clauseSource = (tokens, start) => {
   return undefined;
 };
 
-/** Static module specifiers of a source text, in source order. */
+/**
+ * Module specifiers a source text loads eagerly, in source order. `kind` is
+ * `import` (ESM resolution) or `require` (CommonJS resolution).
+ *
+ * @returns {Array<{ kind: 'import' | 'require', specifier: string }>}
+ */
 export function collectStaticSpecifiers(source) {
   const tokens = tokenize(source);
   const specifiers = [];
@@ -207,21 +217,28 @@ export function collectStaticSpecifiers(source) {
     if (isPunct(previous, '.') || token.type !== 'identifier') {
       return;
     }
+    const pushImport = specifier => {
+      if (specifier !== undefined) {
+        specifiers.push({ kind: 'import', specifier });
+      }
+    };
     if (token.value === 'import') {
       if (next?.type === 'string') {
-        specifiers.push(next.value);
-      } else if (!isPunct(next, '(') && !isPunct(next, '.')) {
-        const specifier = clauseSource(tokens, index + 1);
-        if (specifier !== undefined) {
-          specifiers.push(specifier);
+        pushImport(next.value);
+      } else if (isPunct(next, '(')) {
+        if (
+          token.depth === 0 &&
+          isIdentifier(previous, 'await') &&
+          tokens[index + 2]?.type === 'string'
+        ) {
+          pushImport(tokens[index + 2].value);
         }
+      } else if (!isPunct(next, '.')) {
+        pushImport(clauseSource(tokens, index + 1));
       }
     } else if (token.value === 'export') {
       if (isPunct(next, '*') || isPunct(next, '{')) {
-        const specifier = clauseSource(tokens, index + 1);
-        if (specifier !== undefined) {
-          specifiers.push(specifier);
-        }
+        pushImport(clauseSource(tokens, index + 1));
       }
     } else if (
       token.value === 'require' &&
@@ -229,7 +246,7 @@ export function collectStaticSpecifiers(source) {
       tokens[index + 2]?.type === 'string' &&
       isPunct(tokens[index + 3], ')')
     ) {
-      specifiers.push(tokens[index + 2].value);
+      specifiers.push({ kind: 'require', specifier: tokens[index + 2].value });
     }
   });
   return specifiers;
@@ -253,14 +270,16 @@ export function listTrackedFiles(rootDir) {
 const toRelative = (rootDir, absolutePath) =>
   path.relative(rootDir, absolutePath).split(path.sep).join('/');
 
-// Node's CommonJS resolver also covers exact-path ESM specifiers. An
-// unresolvable path is undefined, which the caller reports as unloadable.
-const resolveRelative = (rootDir, fromFile, specifier) => {
+// ESM resolves a relative specifier to exactly that path; CommonJS also
+// searches extensions and directory indexes. An unresolvable path is
+// undefined, which the caller reports as unloadable.
+const resolveRelative = (rootDir, fromFile, { kind, specifier }) => {
+  const from = path.resolve(rootDir, fromFile);
+  if (kind === 'import') {
+    return toRelative(rootDir, path.resolve(path.dirname(from), specifier));
+  }
   try {
-    return toRelative(
-      rootDir,
-      createRequire(path.resolve(rootDir, fromFile)).resolve(specifier),
-    );
+    return toRelative(rootDir, createRequire(from).resolve(specifier));
   } catch {
     return undefined;
   }
@@ -286,14 +305,15 @@ export function findUnloadableImports(rootDir, entry, trackedFiles) {
     const file = queue.shift();
     const chain = chains.get(file);
     const source = fs.readFileSync(path.join(realRoot, file), 'utf-8');
-    for (const specifier of collectStaticSpecifiers(source)) {
+    for (const edge of collectStaticSpecifiers(source)) {
+      const { specifier } = edge;
       if (isBuiltin(specifier)) {
         continue;
       }
       const relative =
         specifier.startsWith('./') || specifier.startsWith('../');
       const target = relative
-        ? resolveRelative(realRoot, file, specifier)
+        ? resolveRelative(realRoot, file, edge)
         : undefined;
       if (target === undefined || !trackedFiles.has(target)) {
         failures.push({ chain, specifier });

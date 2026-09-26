@@ -63,7 +63,7 @@ test('a bare job whose script statically imports a package fails, naming job, en
       rootDir,
     }),
     [
-      '.github/workflows/example.yml job recorder has no dependency install, but scripts/record.mjs statically loads yaml via scripts/record.mjs -> scripts/contract.mjs; add a dependency install step to the job or move the import behind a dynamic import()',
+      '.github/workflows/example.yml job recorder runs scripts/record.mjs before any dependency install, but it statically loads yaml via scripts/record.mjs -> scripts/contract.mjs; add a dependency install step before it or move the import into a function behind a dynamic import()',
     ],
   );
 });
@@ -78,10 +78,59 @@ test('the same script passes in a job that installs dependencies', t => {
   );
 });
 
-test('a dynamic import is a lazy boundary and builtins are always loadable', t => {
+test('a script run before the install step is still checked', t => {
+  const rootDir = withRepository(t, recorderFiles);
+  const workflow =
+    workflowWithJob(`      - run: node scripts/record.mjs create --out outcome.json
+      - run: mise exec -- pnpm install --frozen-lockfile
+`);
+  assert.equal(
+    validateWorkflowContent('.github/workflows/example.yml', workflow, {
+      rootDir,
+    }).length,
+    1,
+  );
+});
+
+test('a conditional install does not make later steps installed', t => {
+  const rootDir = withRepository(t, recorderFiles);
+  const workflow = workflowWithJob(`      - if: github.event_name == 'push'
+        run: mise exec -- pnpm install --frozen-lockfile
+      - run: node scripts/record.mjs create --out outcome.json
+`);
+  assert.equal(
+    validateWorkflowContent('.github/workflows/example.yml', workflow, {
+      rootDir,
+    }).length,
+    1,
+  );
+});
+
+test('a module-scope await import() runs on load and is followed', t => {
   const rootDir = withRepository(t, {
     'scripts/record.mjs':
-      "import fs from 'node:fs';\nconst { contract } = await import('./contract.mjs');\n",
+      "const { contract } = await import('./contract.mjs');\n",
+    'scripts/contract.mjs': "import YAML from 'yaml';\n",
+  });
+  assert.deepEqual(
+    findUnloadableImports(
+      rootDir,
+      'scripts/record.mjs',
+      listTrackedFiles(rootDir),
+    ),
+    [
+      {
+        chain: ['scripts/record.mjs', 'scripts/contract.mjs'],
+        specifier: 'yaml',
+      },
+    ],
+  );
+});
+
+test('a dynamic import inside a function is a lazy boundary and builtins are always loadable', t => {
+  const rootDir = withRepository(t, {
+    'scripts/record.mjs':
+      "import fs from 'node:fs';\nexport async function load() {\n  return await import('./contract.mjs');\n}\nconst later = () => import('./contract.mjs');\n",
     'scripts/contract.mjs': "import YAML from 'yaml';\n",
   });
   assert.deepEqual(
@@ -118,6 +167,24 @@ test('CommonJS requires resolve without extensions and untracked files are unloa
   );
 });
 
+test('ESM imports resolve the exact path, without extension or index search', t => {
+  const rootDir = withRepository(t, {
+    'scripts/record.mjs':
+      "import './dep';\nimport './dir';\nimport './ok.mjs';\n",
+    'scripts/dep.js': '',
+    'scripts/dir/index.js': '',
+    'scripts/ok.mjs': '',
+  });
+  assert.deepEqual(
+    findUnloadableImports(
+      rootDir,
+      'scripts/record.mjs',
+      listTrackedFiles(rootDir),
+    ).map(({ specifier }) => specifier),
+    ['./dep', './dir'],
+  );
+});
+
 test('an entrypoint that is not tracked is reported', t => {
   const rootDir = withRepository(t, { 'README.md': '' });
   assert.deepEqual(
@@ -143,16 +210,19 @@ test('static specifiers ignore comments, strings, templates, regexes and import.
     const template = \`require('in-template') \${require('./in-expression.cjs')}\`;
     const pattern = /import 'in-regex'/u;
     const url = new URL('.', import.meta.url);
-    const lazy = await import('lazy');
+    const eager = await import('eager');
+    const lazy = () => import('lazy');
+    function load() { return await import('in-function'); }
     object.require('member');
     const kit = require('./kit');
   `;
   assert.deepEqual(collectStaticSpecifiers(source), [
-    './a.mjs',
-    './side-effect.mjs',
-    './ns.mjs',
-    './d.mjs',
-    './in-expression.cjs',
-    './kit',
+    { kind: 'import', specifier: './a.mjs' },
+    { kind: 'import', specifier: './side-effect.mjs' },
+    { kind: 'import', specifier: './ns.mjs' },
+    { kind: 'import', specifier: './d.mjs' },
+    { kind: 'require', specifier: './in-expression.cjs' },
+    { kind: 'import', specifier: 'eager' },
+    { kind: 'require', specifier: './kit' },
   ]);
 });
