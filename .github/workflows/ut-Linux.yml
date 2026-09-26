@@ -61,10 +61,31 @@ jobs:
         if: ${{steps.skip-ci.outputs.RESULT != 'true'}}
         run: pnpm run build:required
 
-      - name: Install Playwright Chromium
+      # scripts/lib/browser-provisioning.js is the one browser provisioner: it
+      # reads the playwright the frozen install resolved for these runtimes,
+      # and that version keys the browser cache.
+      - name: Resolve Playwright runtime
         if: ${{steps.skip-ci.outputs.RESULT != 'true'}}
-        run: pnpm --dir tests/integration/rstest/basic-app-rstest-browser exec playwright install chromium
+        id: browser-runtime
+        run: node scripts/lib/browser-provisioning.js --resolve --runtime tests/integration/rstest/basic-app-rstest-browser --runtime tests/integration/ultramodern-sandpack-profile-smoke
+
+      - name: Restore Playwright browser cache
+        if: ${{steps.skip-ci.outputs.RESULT != 'true'}}
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.browser-runtime.outputs.cache_path }}
+          key: ${{ steps.browser-runtime.outputs.cache_key }}
+
+      - name: Install Playwright browsers
+        if: ${{steps.skip-ci.outputs.RESULT != 'true'}}
+        run: >-
+          node scripts/lib/browser-provisioning.js --install --runtime tests/integration/rstest/basic-app-rstest-browser --runtime tests/integration/ultramodern-sandpack-profile-smoke
+          --version ${{ steps.browser-runtime.outputs.version }}
 
       - name: Test
         if: ${{steps.skip-ci.outputs.RESULT != 'true'}}
         run: pnpm run test:ut
+
+      - name: Test build consumers
+        if: ${{steps.skip-ci.outputs.RESULT != 'true'}}
+        run: pnpm run test:build-consumers

@@ -82,13 +82,26 @@ jobs:
         # (scripts/prepare-root.mjs); run the build gate explicitly.
         run: pnpm run prepare-build
 
-      - name: Install Puppeteer
+      # scripts/lib/browser-provisioning.js is the one browser provisioner: it
+      # reads the playwright the frozen install resolved for these runtimes,
+      # and that version keys the browser cache.
+      - name: Resolve Playwright runtime
         if: ${{steps.skip-ci.outputs.RESULT != 'true'}}
-        run: cd ./tests/node_modules/puppeteer && npm run postinstall && cd ../..
+        id: browser-runtime
+        run: node scripts/lib/browser-provisioning.js --resolve --runtime tests --runtime tests/integration/rstest/basic-app-rstest-browser
 
-      - name: Install Playwright Chromium
+      - name: Restore Playwright browser cache
         if: ${{steps.skip-ci.outputs.RESULT != 'true'}}
-        run: pnpm --dir tests/integration/rstest/basic-app-rstest-browser exec playwright install chromium
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.browser-runtime.outputs.cache_path }}
+          key: ${{ steps.browser-runtime.outputs.cache_key }}
+
+      - name: Install Playwright browsers
+        if: ${{steps.skip-ci.outputs.RESULT != 'true'}}
+        run: >-
+          node scripts/lib/browser-provisioning.js --install --runtime tests --runtime tests/integration/rstest/basic-app-rstest-browser
+          --version ${{ steps.browser-runtime.outputs.version }}
 
       - name: Test
         if: ${{steps.skip-ci.outputs.RESULT != 'true'}}

@@ -52,11 +52,26 @@ jobs:
       - name: Build Packages
         run: pnpm run prepare-build
 
-      - name: Install Puppeteer
-        run: cd ./tests/node_modules/puppeteer && npm run postinstall && cd ../..
-
       - name: Run script test suites
         run: pnpm run test:scripts
+
+      # scripts/lib/browser-provisioning.js is the one browser provisioner: it
+      # reads the playwright the frozen install resolved for these runtimes,
+      # and that version keys the browser cache.
+      - name: Resolve Playwright runtime
+        id: browser-runtime
+        run: node scripts/lib/browser-provisioning.js --resolve --runtime tests/integration/ultramodern-sandpack-profile-smoke
+
+      - name: Restore Playwright browser cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.browser-runtime.outputs.cache_path }}
+          key: ${{ steps.browser-runtime.outputs.cache_key }}
+
+      - name: Install Playwright browsers
+        run: >-
+          node scripts/lib/browser-provisioning.js --install --runtime tests/integration/ultramodern-sandpack-profile-smoke
+          --version ${{ steps.browser-runtime.outputs.version }}
 
       - name: Run built consumer acceptance
         run: pnpm run test:build-consumers
