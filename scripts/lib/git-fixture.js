@@ -12,16 +12,26 @@ const path = require('node:path');
 
 const { createRepositoryGitEnv } = require('./process-kit');
 
-const FIXTURE_IDENTITY = 'Git Fixture';
-const FIXTURE_EMAIL = 'git-fixture@example.test';
+const FIXTURE_AUTHOR = Object.freeze({
+  email: 'git-fixture@example.test',
+  name: 'Git Fixture',
+});
 const FIXTURE_DATE = '2026-01-01T00:00:00Z';
 
 /**
- * @param {{ prefix?: string, globalConfig?: string }} [options]
- *   `globalConfig` is the complete global config the fixture's git sees;
- *   it defaults to empty.
+ * @param {{
+ *   author?: { email: string, name: string },
+ *   globalConfig?: string,
+ *   prefix?: string,
+ * }} [options]
+ *   `author` is both author and committer. `globalConfig` is the complete
+ *   global config the fixture's git sees; it defaults to empty.
  */
-function createGitFixture({ prefix = 'git-fixture-', globalConfig = '' } = {}) {
+function createGitFixture({
+  author = FIXTURE_AUTHOR,
+  globalConfig = '',
+  prefix = 'git-fixture-',
+} = {}) {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
   // Outside repoDir so it never shows up as an untracked file.
   const globalConfigPath = path.join(tempDir, 'gitconfig');
@@ -33,11 +43,11 @@ function createGitFixture({ prefix = 'git-fixture-', globalConfig = '' } = {}) {
     GIT_CONFIG_GLOBAL: globalConfigPath,
     GIT_CONFIG_NOSYSTEM: '1',
     GIT_TERMINAL_PROMPT: '0',
-    GIT_AUTHOR_NAME: FIXTURE_IDENTITY,
-    GIT_AUTHOR_EMAIL: FIXTURE_EMAIL,
+    GIT_AUTHOR_NAME: author.name,
+    GIT_AUTHOR_EMAIL: author.email,
     GIT_AUTHOR_DATE: FIXTURE_DATE,
-    GIT_COMMITTER_NAME: FIXTURE_IDENTITY,
-    GIT_COMMITTER_EMAIL: FIXTURE_EMAIL,
+    GIT_COMMITTER_NAME: author.name,
+    GIT_COMMITTER_EMAIL: author.email,
     GIT_COMMITTER_DATE: FIXTURE_DATE,
   });
 

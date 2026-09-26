@@ -20,7 +20,7 @@ and script helper families (`boundary-guards`,
   variables so git operates on the repository at its `cwd`.
 - `git-fixture.js` — test support: `createGitFixture()` gives a temp
   repository whose git ignores the caller's global/system config and inherited
-  `GIT_*` redirection, with a fixed author and committer.
+  `GIT_*` redirection, with a fixed (overridable) author and committer.
 - `tsgo-invocation.js` — package-pinned, shell-free TS-Go invocation for build
   verifiers, including Windows where package-manager `.cmd` shims cannot be
   passed to `execFile` directly.
