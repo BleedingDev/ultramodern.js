@@ -208,11 +208,10 @@ jobs:
       - name: Qualify the release publication tooling
         run: |
           mise exec -- pnpm lint
-          # test:publish-tooling covers the scripts the two OIDC jobs load: its
-          # globs cover the `node scripts/...` entrypoints those jobs run *and*
-          # the shared helpers those entrypoints statically import, because an
-          # untested helper in that closure is unqualified code running with
-          # id-token: write. It runs BEFORE any package is built, so it must
+          # test:publish-tooling tests the publication scripts with dependencies
+          # installed, so it cannot show that the bare-checkout jobs can load
+          # them; the workflow validator walks each bare job's static import
+          # closure for that. It runs BEFORE any package is built, so it must
           # stay the pre-build subset: scripts/__tests__ (public declarations,
           # tsgo invocation) needs built @modern-js/utils output and belongs to
           # test:scripts:after-build below.
