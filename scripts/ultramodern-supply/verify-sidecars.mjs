@@ -7,6 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import inventory from '../../packages/toolkit/ultramodern-create/src/ultramodern-workspace/patch-inventory.ts';
+import { ULTRAMODERN_PACKAGE_PINS } from '../../packages/toolkit/ultramodern-create/src/ultramodern-workspace/versions.ts';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const recipes = JSON.parse(
@@ -35,41 +36,45 @@ const consumerBlocks = [
   'optionalDependencies',
   'peerDependencies',
 ];
-const forkSpecifier = /npm:(@bleedingdev\/[\w.-]+)@/gu;
+const forkSpecifier = /^npm:(@bleedingdev\/[\w.-]+)@(.+)$/u;
 
 /**
- * Every recipe must be reachable from a repository patch, a generator pin, or
- * an alias the publisher emits into a runtime, optional or peer dependency of
- * a published cohort manifest, directly or through the alias edges of another
- * reachable recipe. devDependencies never make a consumer.
+ * Every recipe must be reachable from a repository patch, a generator runtime
+ * pin, or an alias the publisher emits into a runtime, optional or peer
+ * dependency of a published cohort manifest, directly or through the alias
+ * edges of another reachable recipe. Only exact aliases of the recipe's fork
+ * version count; devDependencies never make a consumer.
  */
 export function assertRecipeConsumers(
   recipeList,
-  { patchSelectors, generatorSources, publishedManifests },
+  { patchSelectors, generatorPins, publishedManifests },
 ) {
-  const byFork = new Map(recipeList.map(item => [item.fork.name, item]));
+  const byFork = new Map(
+    recipeList.map(item => [`${item.fork.name}@${item.fork.version}`, item]),
+  );
   const reached = new Set();
   const pending = [];
-  const reachAliases = specifier => {
-    for (const [, fork] of String(specifier).matchAll(forkSpecifier)) {
-      const recipe = byFork.get(fork);
-      if (recipe && !reached.has(recipe)) {
-        reached.add(recipe);
-        pending.push(recipe);
-      }
+  const reach = recipe => {
+    if (recipe && !reached.has(recipe)) {
+      reached.add(recipe);
+      pending.push(recipe);
+    }
+  };
+  const reachSpecifiers = dependencies => {
+    for (const specifier of Object.values(dependencies ?? {})) {
+      const [, fork, version] = forkSpecifier.exec(String(specifier)) ?? [];
+      reach(byFork.get(`${fork}@${version}`));
     }
   };
   const reachBlocks = manifest => {
-    for (const block of consumerBlocks)
-      for (const specifier of Object.values(manifest[block] ?? {}))
-        reachAliases(specifier);
+    for (const block of consumerBlocks) reachSpecifiers(manifest[block]);
   };
   for (const recipe of recipeList)
     if (
       patchSelectors.has(`${recipe.upstream.name}@${recipe.upstream.version}`)
     )
-      reachAliases(`npm:${recipe.fork.name}@`);
-  for (const source of generatorSources) reachAliases(source);
+      reach(recipe);
+  for (const pins of generatorPins) reachSpecifiers(pins);
   for (const manifest of publishedManifests) reachBlocks(manifest);
   while (pending.length) reachBlocks(pending.pop().manifestChanges);
   const orphan = recipeList.find(item => !reached.has(item));
@@ -79,21 +84,17 @@ export function assertRecipeConsumers(
   );
 }
 
-/** Check the repository recipes against the inventory's patchedDependencies, generator pins and the published cohort manifests. */
+/** Check the repository recipes against the inventory's patchedDependencies, the generator's runtime pins and the published cohort manifests. */
 export function assertRepositoryRecipeConsumers(publishedManifests) {
-  const read = file => fs.readFileSync(path.join(root, file), 'utf8');
   assertRecipeConsumers(recipes, {
     patchSelectors: new Set(
       inventory
         .filter(item => item.repository)
         .map(item => `${item.packageName}@${item.version}`),
     ),
-    generatorSources: fs
-      .globSync('packages/toolkit/ultramodern-create/src/**/*.ts', {
-        cwd: root,
-        exclude: entry => path.basename(String(entry)) === 'node_modules',
-      })
-      .map(read),
+    generatorPins: Object.entries(ULTRAMODERN_PACKAGE_PINS)
+      .filter(([block]) => !block.endsWith('DevDependencies'))
+      .map(([, pins]) => pins),
     publishedManifests,
   });
 }
