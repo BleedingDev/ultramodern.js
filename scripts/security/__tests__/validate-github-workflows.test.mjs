@@ -289,3 +289,46 @@ test('release jobs reject inline programs and different Tractor acceptance revis
     );
   }
 });
+
+test('release gates reject node:test filter flags', () => {
+  const workflowPath = '.github/workflows/publish-bleedingdev.yml';
+  const content = fs.readFileSync(
+    new URL(`../../../${workflowPath}`, import.meta.url),
+    'utf8',
+  );
+  const gate = 'mise exec -- pnpm run test:scripts:after-build';
+  assert.ok(content.includes(gate));
+  const filterErrors = source =>
+    validateWorkflowContent(workflowPath, source).filter(error =>
+      error.includes('must not filter node:test cases'),
+    );
+
+  assert.deepEqual(filterErrors(content), []);
+  for (const filtered of [
+    `NODE_OPTIONS='--test-skip-pattern=^flaky$' \\\n            ${gate}`,
+    `${gate} -- --test-name-pattern=happy`,
+    `${gate} -- --test-only`,
+  ]) {
+    assert.equal(
+      filterErrors(content.replace(gate, () => filtered)).length,
+      1,
+      filtered,
+    );
+  }
+  assert.deepEqual(
+    filterErrors(content.replace(gate, `${gate} # --test-skip-pattern`)),
+    [],
+  );
+
+  const envFiltered = compliantWorkflow.replace(
+    '        run: echo ok',
+    "        env:\n          NODE_OPTIONS: '--test-skip-pattern=slow'\n        run: node --test",
+  );
+  assert.equal(
+    validateWorkflowContent(workflowPath, envFiltered, {
+      sensitive: true,
+    }).filter(error => error.includes('must not filter node:test cases'))
+      .length,
+    1,
+  );
+});
