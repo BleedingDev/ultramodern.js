@@ -348,25 +348,6 @@
     }
   },
   {
-    "id": "drizzle-orm",
-    "upstream": {
-      "name": "drizzle-orm",
-      "version": "1.0.0-rc.4",
-      "tarball": "https://registry.npmjs.org/drizzle-orm/-/drizzle-orm-1.0.0-rc.4.tgz",
-      "integrity": "sha512-BT+pf+qoiYHqltoA88Jmf6ilGMXPlpfE0hEJKc2adRtMCAl25Swk/t5gXcWxZNAwdtf3F5gCd2FpeOyP/pT0Hw=="
-    },
-    "fork": {
-      "name": "@bleedingdev/drizzle-orm",
-      "version": "1.0.0-rc.4"
-    },
-    "license": "Apache-2.0",
-    "artifacts": ["*"],
-    "patch": {
-      "inventory": "drizzle-orm@1.0.0-rc.4"
-    },
-    "manifestChanges": {}
-  },
-  {
     "id": "effect",
     "upstream": {
       "name": "effect",
