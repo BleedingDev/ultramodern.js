@@ -1,12 +1,11 @@
-import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import {
   createUltramodernReleaseBuildMarker,
   resolveUltramodernReleaseIdentity,
   resolveUltramodernSourceRevision,
 } from '@modern-js/app-tools-extensions/release-identity';
+import { createGitFixture } from '../../../../../scripts/lib/git-fixture.js';
 
 const generationBuildMarker = '0123456789abcdef';
 const sourceRevision = 'a'.repeat(40);
@@ -87,27 +86,20 @@ describe('UltraModern release identity', () => {
   });
 
   it('never labels tracked or untracked dirty source as clean HEAD', () => {
-    const directory = fs.mkdtempSync(
-      path.join(os.tmpdir(), 'ultramodern-release-dirty-'),
-    );
+    const {
+      cleanup,
+      git,
+      repoDir: directory,
+    } = createGitFixture({
+      prefix: 'ultramodern-release-dirty-',
+    });
     try {
-      execFileSync('git', ['init', '--quiet'], { cwd: directory });
-      execFileSync('git', ['config', 'user.email', 'test@example.test'], {
-        cwd: directory,
-      });
-      execFileSync('git', ['config', 'user.name', 'UltraModern Test'], {
-        cwd: directory,
-      });
+      git(['init', '--quiet']);
       const sourcePath = path.join(directory, 'source.txt');
       fs.writeFileSync(sourcePath, 'clean source\n');
-      execFileSync('git', ['add', 'source.txt'], { cwd: directory });
-      execFileSync('git', ['commit', '--quiet', '-m', 'source'], {
-        cwd: directory,
-      });
-      const head = execFileSync('git', ['rev-parse', 'HEAD'], {
-        cwd: directory,
-        encoding: 'utf8',
-      }).trim();
+      git(['add', 'source.txt']);
+      git(['commit', '--quiet', '-m', 'source']);
+      const head = git(['rev-parse', 'HEAD']);
 
       fs.writeFileSync(sourcePath, 'dirty tracked source\n');
       expect(
@@ -129,7 +121,7 @@ describe('UltraModern release identity', () => {
         sourceRevision: 'workspace',
       });
 
-      execFileSync('git', ['restore', 'source.txt'], { cwd: directory });
+      git(['restore', 'source.txt']);
       fs.writeFileSync(path.join(directory, 'untracked.txt'), 'untracked\n');
       expect(
         withSourceRevision(head, () =>
@@ -137,27 +129,23 @@ describe('UltraModern release identity', () => {
         ),
       ).toBe('workspace');
     } finally {
-      fs.rmSync(directory, { recursive: true, force: true });
+      cleanup();
     }
   });
 
   it('rejects an explicit revision that differs from clean Git HEAD', () => {
-    const directory = fs.mkdtempSync(
-      path.join(os.tmpdir(), 'ultramodern-release-mismatch-'),
-    );
+    const {
+      cleanup,
+      git,
+      repoDir: directory,
+    } = createGitFixture({
+      prefix: 'ultramodern-release-mismatch-',
+    });
     try {
-      execFileSync('git', ['init', '--quiet'], { cwd: directory });
-      execFileSync('git', ['config', 'user.email', 'test@example.test'], {
-        cwd: directory,
-      });
-      execFileSync('git', ['config', 'user.name', 'UltraModern Test'], {
-        cwd: directory,
-      });
+      git(['init', '--quiet']);
       fs.writeFileSync(path.join(directory, 'source.txt'), 'source\n');
-      execFileSync('git', ['add', 'source.txt'], { cwd: directory });
-      execFileSync('git', ['commit', '--quiet', '-m', 'source'], {
-        cwd: directory,
-      });
+      git(['add', 'source.txt']);
+      git(['commit', '--quiet', '-m', 'source']);
 
       expect(() =>
         withSourceRevision(secondSourceRevision, () =>
@@ -165,7 +153,37 @@ describe('UltraModern release identity', () => {
         ),
       ).toThrow('does not match clean Git HEAD');
     } finally {
-      fs.rmSync(directory, { recursive: true, force: true });
+      cleanup();
+    }
+  });
+
+  it('never labels dirty source as clean HEAD when a git hook exported GIT_DIR', () => {
+    const {
+      cleanup,
+      git,
+      repoDir: directory,
+    } = createGitFixture({
+      prefix: 'ultramodern-release-git-dir-',
+    });
+    const previous = process.env.GIT_DIR;
+    try {
+      git(['init', '--quiet']);
+      fs.writeFileSync(path.join(directory, 'source.txt'), 'source\n');
+      git(['add', 'source.txt']);
+      git(['commit', '--quiet', '-m', 'source']);
+      const head = git(['rev-parse', 'HEAD']);
+      fs.writeFileSync(path.join(directory, 'source.txt'), 'dirty source\n');
+
+      process.env.GIT_DIR = path.join(directory, 'missing-git-dir');
+      expect(
+        withSourceRevision(head, () =>
+          resolveUltramodernSourceRevision(directory),
+        ),
+      ).toBe('workspace');
+    } finally {
+      if (previous === undefined) delete process.env.GIT_DIR;
+      else process.env.GIT_DIR = previous;
+      cleanup();
     }
   });
 

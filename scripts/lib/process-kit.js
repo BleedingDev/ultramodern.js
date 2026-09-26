@@ -31,6 +31,20 @@ function createProcessEnv(overrides = {}) {
   return env;
 }
 
+// Env for git commands that must operate on the repository at their `cwd`.
+// Inherited GIT_* variables (git hooks export GIT_DIR and GIT_INDEX_FILE,
+// callers may export GIT_CONFIG_*) would redirect or reconfigure them.
+function createRepositoryGitEnv(overrides = {}) {
+  return createProcessEnv({
+    ...Object.fromEntries(
+      Object.keys(process.env)
+        .filter(name => name.toUpperCase().startsWith('GIT_'))
+        .map(name => [name, undefined]),
+    ),
+    ...overrides,
+  });
+}
+
 function writeStream(stream, message) {
   return new Promise((resolve, reject) => {
     stream.write(message, error => (error ? reject(error) : resolve()));
@@ -152,6 +166,7 @@ function sleep(ms) {
 
 module.exports = {
   createProcessEnv,
+  createRepositoryGitEnv,
   killChild,
   runCommand,
   runCommandList,
