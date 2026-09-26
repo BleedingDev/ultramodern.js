@@ -112,6 +112,39 @@ test('a backgrounded install covers only steps after its join', t => {
   );
 });
 
+test('commands before an install in the same step are still checked', t => {
+  const rootDir = withRepository(t, recorderFiles);
+  const workflow = workflowWithJob(`      - run: |
+          node scripts/record.mjs check
+          mise exec -- pnpm install --frozen-lockfile
+          node scripts/installed.mjs
+`);
+  assert.deepEqual(
+    validateWorkflowContent('.github/workflows/example.yml', workflow, {
+      rootDir,
+    }).map(message => message.split(',')[0]),
+    [
+      '.github/workflows/example.yml job recorder runs scripts/record.mjs before any dependency install',
+    ],
+  );
+});
+
+test('a preloaded module in a bare step is rejected', t => {
+  const rootDir = withRepository(t, { 'scripts/ok.mjs': '' });
+  const workflow = workflowWithJob(`      - run: node -r yaml scripts/ok.mjs
+      - run: node --import=yaml scripts/ok.mjs
+`);
+  assert.deepEqual(
+    validateWorkflowContent('.github/workflows/example.yml', workflow, {
+      rootDir,
+    }).map(message => message.split(' before')[0]),
+    [
+      '.github/workflows/example.yml job recorder runs node -r',
+      '.github/workflows/example.yml job recorder runs node --import',
+    ],
+  );
+});
+
 test('a conditional install does not make later steps installed', t => {
   const rootDir = withRepository(t, recorderFiles);
   const workflow = workflowWithJob(`      - if: github.event_name == 'push'
