@@ -1,4 +1,10 @@
 import path from 'node:path';
+import type { NodePublicAssetConfig } from '../config';
+import {
+  NODE_PUBLIC_ASSET_SCOPE,
+  normalizeDeclaredPublicAssets,
+  resolveAddedDeclaredPublicAssetPaths,
+} from '../deploy-output/public-assets';
 import {
   emitFrameworkMicroVerticalReleaseEnvelope,
   emitNodeStagedReleaseEnvelope,
@@ -9,7 +15,10 @@ import {
 type ReleaseEnvelopeTarget = 'cloudflare' | 'node' | string;
 
 export interface ReleaseEnvelopeConfig {
-  deploy?: { target?: string };
+  deploy?: {
+    target?: string;
+    node?: { publicAssets?: NodePublicAssetConfig[] };
+  };
 }
 
 export interface ReleaseEnvelopeAppContext {
@@ -71,6 +80,7 @@ export const createUltramodernReleaseEnvelopePlugin = <
       '@modern-js/backend-federation-build',
       '@modern-js/plugin-bff',
       '@modern-js/deploy-output-aliases',
+      '@modern-js/deploy-output-public-assets',
     ],
     post: ['@modern-js/plugin-deploy'],
     setup(api) {
@@ -123,6 +133,17 @@ export const createUltramodernReleaseEnvelopePlugin = <
         const { appDirectory, distDirectory } = api.getAppContext();
         const outputDirectory = path.join(appDirectory, '.output');
         const releaseEnvelope = await emitNodeStagedReleaseEnvelope({
+          // The Node deploy output is a copy of dist, so a declared file
+          // added output exactly when dist has no file at its path.
+          declaredPublicAssets: await resolveAddedDeclaredPublicAssetPaths({
+            appDirectory,
+            assets: normalizeDeclaredPublicAssets(
+              api.getNormalizedConfig().deploy?.node?.publicAssets,
+              NODE_PUBLIC_ASSET_SCOPE,
+            ),
+            generatedRoot: distDirectory,
+            scope: NODE_PUBLIC_ASSET_SCOPE,
+          }),
           distDirectory,
           outputDirectory,
         });

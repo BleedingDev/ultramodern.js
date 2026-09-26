@@ -47,6 +47,18 @@ export interface CloudflareWorkerPublicAssetConfig {
   to: string;
 }
 
+export interface NodePublicAssetConfig {
+  /**
+   * Source file or directory, relative to the app root, to copy into the
+   * Node deploy output's public directory.
+   */
+  from: string;
+  /**
+   * Destination path relative to `.output/public`.
+   */
+  to: string;
+}
+
 export interface CloudflareWorkerD1DatabaseConfig {
   /**
    * Worker binding name, for example `DB`.
@@ -200,5 +212,19 @@ export interface CloudflareDeployConfig {
     d1Databases?: CloudflareWorkerD1DatabaseConfig[];
     services?: CloudflareWorkerServiceBindingConfig[];
     publicAssetExcludes?: string[];
+  };
+}
+
+export interface NodeDeployConfig {
+  node?: {
+    /**
+     * Additional app-root files or directories to stage under
+     * `.output/public` when `modern deploy` targets Node, the counterpart of
+     * `deploy.worker.publicAssets`. The Node server does not route these
+     * files; serve them from the app, for example from an API handler.
+     * Release envelopes record them as declared public assets, so API-only
+     * units may ship them.
+     */
+    publicAssets?: NodePublicAssetConfig[];
   };
 }
