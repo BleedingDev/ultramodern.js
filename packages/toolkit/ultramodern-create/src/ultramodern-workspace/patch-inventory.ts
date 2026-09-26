@@ -56,16 +56,6 @@ export default [
     reason: 'Import ResourceLoadContext used by public remote hooks.',
   },
   {
-    packageName: 'drizzle-orm',
-    version: '1.0.0-rc.4',
-    path: 'patches/drizzle-orm-ts7-strict-declarations.patch',
-    sha256: '5c37f228e3916f32a502dbb0a5075acdd60751047f72778d789a2362b6cdfbc6',
-    repository: false,
-    workspace: null,
-    reason:
-      'Strict TypeScript declarations for generated database applications.',
-  },
-  {
     packageName: 'effect',
     version: '4.0.0-rc.117',
     path: 'patches/effect@4.0.0-rc.117.patch',

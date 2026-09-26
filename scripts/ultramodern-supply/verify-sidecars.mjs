@@ -30,6 +30,74 @@ const contractFields = [
   'license',
 ];
 
+const consumerBlocks = [
+  'dependencies',
+  'optionalDependencies',
+  'peerDependencies',
+];
+const forkSpecifier = /npm:(@bleedingdev\/[\w.-]+)@/gu;
+
+/**
+ * Every recipe must be reachable from a repository patch, a generator pin, or
+ * an alias the publisher emits into a runtime, optional or peer dependency of
+ * a published cohort manifest, directly or through the alias edges of another
+ * reachable recipe. devDependencies never make a consumer.
+ */
+export function assertRecipeConsumers(
+  recipeList,
+  { patchSelectors, generatorSources, publishedManifests },
+) {
+  const byFork = new Map(recipeList.map(item => [item.fork.name, item]));
+  const reached = new Set();
+  const pending = [];
+  const reachAliases = specifier => {
+    for (const [, fork] of String(specifier).matchAll(forkSpecifier)) {
+      const recipe = byFork.get(fork);
+      if (recipe && !reached.has(recipe)) {
+        reached.add(recipe);
+        pending.push(recipe);
+      }
+    }
+  };
+  const reachBlocks = manifest => {
+    for (const block of consumerBlocks)
+      for (const specifier of Object.values(manifest[block] ?? {}))
+        reachAliases(specifier);
+  };
+  for (const recipe of recipeList)
+    if (
+      patchSelectors.has(`${recipe.upstream.name}@${recipe.upstream.version}`)
+    )
+      reachAliases(`npm:${recipe.fork.name}@`);
+  for (const source of generatorSources) reachAliases(source);
+  for (const manifest of publishedManifests) reachBlocks(manifest);
+  while (pending.length) reachBlocks(pending.pop().manifestChanges);
+  const orphan = recipeList.find(item => !reached.has(item));
+  assert.ok(
+    !orphan,
+    `sidecar ${orphan?.id} has no runtime consumer; delete the recipe or wire a consumer`,
+  );
+}
+
+/** Check the repository recipes against the inventory's patchedDependencies, generator pins and the published cohort manifests. */
+export function assertRepositoryRecipeConsumers(publishedManifests) {
+  const read = file => fs.readFileSync(path.join(root, file), 'utf8');
+  assertRecipeConsumers(recipes, {
+    patchSelectors: new Set(
+      inventory
+        .filter(item => item.repository)
+        .map(item => `${item.packageName}@${item.version}`),
+    ),
+    generatorSources: fs
+      .globSync('packages/toolkit/ultramodern-create/src/**/*.ts', {
+        cwd: root,
+        exclude: entry => path.basename(String(entry)) === 'node_modules',
+      })
+      .map(read),
+    publishedManifests,
+  });
+}
+
 function files(directory, prefix = '') {
   return fs
     .readdirSync(directory, { withFileTypes: true })

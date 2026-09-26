@@ -4,9 +4,64 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { verifySidecar } from './verify-sidecars.mjs';
+import { assertRecipeConsumers, verifySidecar } from './verify-sidecars.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
+
+test('a recipe consumed only through devDependencies or an unaliased edge is rejected', () => {
+  const orphan = {
+    id: 'orphan',
+    upstream: { name: 'orphan', version: '1.0.0' },
+    fork: { name: '@bleedingdev/orphan', version: '1.0.0' },
+    manifestChanges: {},
+  };
+  const manifest = {
+    name: '@bleedingdev/modern-js-fixture',
+    devDependencies: { orphan: 'npm:@bleedingdev/orphan@1.0.0' },
+    dependencies: { orphan: '1.0.0' },
+  };
+  const consumers = {
+    patchSelectors: new Set(),
+    generatorSources: [],
+    publishedManifests: [manifest],
+  };
+  assert.throws(
+    () => assertRecipeConsumers([orphan], consumers),
+    /sidecar orphan has no runtime consumer; delete the recipe or wire a consumer/,
+  );
+  manifest.peerDependencies = { orphan: 'npm:@bleedingdev/orphan@1.0.0' };
+  assertRecipeConsumers([orphan], consumers);
+});
+
+test('recipes reached only through a reachable recipe alias edge are consumed', () => {
+  const child = {
+    id: 'child',
+    upstream: { name: 'child', version: '1.0.0' },
+    fork: { name: '@bleedingdev/child', version: '1.0.0' },
+    manifestChanges: {},
+  };
+  const parent = {
+    id: 'parent',
+    upstream: { name: 'parent', version: '1.0.0' },
+    fork: { name: '@bleedingdev/parent', version: '1.0.0' },
+    manifestChanges: {
+      devDependencies: { child: 'npm:@bleedingdev/child@1.0.0' },
+    },
+  };
+  const consumers = {
+    patchSelectors: new Set(),
+    generatorSources: ["parent: 'npm:@bleedingdev/parent@1.0.0'"],
+    publishedManifests: [],
+  };
+  assert.throws(
+    () => assertRecipeConsumers([parent, child], consumers),
+    /sidecar child has no runtime consumer/,
+  );
+  parent.manifestChanges = {
+    dependencies: { child: 'npm:@bleedingdev/child@1.0.0' },
+  };
+  assertRecipeConsumers([parent, child], consumers);
+});
 
 test('explicit offline provenance fails closed on missing or tampered tarballs', async () => {
   const directory = fs.mkdtempSync(

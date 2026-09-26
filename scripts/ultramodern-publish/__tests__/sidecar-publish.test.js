@@ -191,11 +191,11 @@ test('recipe-only sidecar closure records exact publication identities and alias
   );
   const sidecars = sidecarsModule.collectSidecarPackages();
   const byName = new Map(sidecars.map(sidecar => [sidecar.name, sidecar]));
-  assert.equal(sidecars.length, 17);
+  assert.equal(sidecars.length, 16);
   assert.equal(byName.get('@bleedingdev/effect').version, '4.0.0-rc.117');
   assert.equal(byName.has('@bleedingdev/msgpackr'), false);
   assert.equal(byName.has('@bleedingdev/zod'), false);
-  assert.equal(byName.get('@bleedingdev/drizzle-orm').version, '1.0.0-rc.4');
+  assert.equal(byName.has('@bleedingdev/drizzle-orm'), false);
   assert.equal(byName.get('@bleedingdev/mf-cli').recipeOnly, true);
   assert.equal(byName.get('@bleedingdev/mf-enhanced').recipeOnly, true);
 
@@ -312,6 +312,35 @@ test('alias targets must match a staged sidecar exactly', async () => {
         { cohortTargetNames },
       ),
     /neither a staged sidecar nor a cohort package/u,
+  );
+});
+
+test('every repository recipe has a runtime consumer in the published cohort', async () => {
+  const sidecarsModule = await import(
+    '../lib/prepare-bleedingdev-packages/sidecars.mjs'
+  );
+  const { collectModernPackages, targetPackageName } = await import(
+    '../lib/prepare-bleedingdev-packages/rewrite.mjs'
+  );
+  const { assertRepositoryRecipeConsumers } = await import(
+    '../../ultramodern-supply/verify-sidecars.mjs'
+  );
+  const options = { scope: 'bleedingdev', prefix: 'modern-js-' };
+  const sidecars = sidecarsModule.collectSidecarPackages();
+  const published = collectModernPackages(options).packages.map(
+    ({ packageJson }) =>
+      sidecarsModule.rewriteSidecarConsumerAliases(
+        {
+          ...structuredClone(packageJson),
+          name: targetPackageName(packageJson.name, options),
+        },
+        sidecars,
+      ),
+  );
+  assertRepositoryRecipeConsumers(published);
+  assert.throws(
+    () => assertRepositoryRecipeConsumers([]),
+    /sidecar (ipx|rsbuild-image-core) has no runtime consumer/,
   );
 });
 

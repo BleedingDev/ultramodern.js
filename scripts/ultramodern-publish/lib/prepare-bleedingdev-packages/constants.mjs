@@ -46,7 +46,6 @@ const sidecarManifestSchema = 'bleedingdev.ultramodern.sidecar-manifest';
 const sidecarManifestSchemaVersion = 2;
 const sidecarAliasConsumerTargetName = '@bleedingdev/modern-js-image';
 const qualifiedPrereleaseSidecars = new Map([
-  ['@bleedingdev/drizzle-orm', '1.0.0-rc.4'],
   ['@bleedingdev/effect', '4.0.0-rc.117'],
 ]);
 

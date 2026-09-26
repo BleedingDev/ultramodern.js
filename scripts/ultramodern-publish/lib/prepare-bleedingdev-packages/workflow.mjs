@@ -27,6 +27,7 @@ import {
   validateStagedTypeFiles,
 } from './types.mjs';
 import { validatePublishManifest } from './manifest.mjs';
+import { assertRepositoryRecipeConsumers } from '../../../ultramodern-supply/verify-sidecars.mjs';
 import {
   createReleaseArtifacts,
   resolveSourceIdentity,
@@ -162,6 +163,7 @@ async function prepareBleedingdevPackages(options) {
   let sidecarDescriptor = null;
   if (options.includeSidecars) {
     assertSidecarAliasConsumerCount(sidecarAliasConsumerCount);
+    assertRepositoryRecipeConsumers(stagedManifests.map(item => item.packageJson));
     validateAliasConsistency(stagedManifests, stagedSidecars, {
       cohortTargetNames: new Set(Object.values(aliases)),
     });
