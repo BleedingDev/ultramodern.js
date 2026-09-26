@@ -30,9 +30,10 @@ const registryPropagationDelaysMs = Object.freeze([
  * knows which registry states can resolve on their own, so this loop never
  * retries anything the probe did not explicitly report as pending.
  *
- * Resolves to `{ settled: true, value, attempts }`, or to
- * `{ settled: false, detail, attempts }` once every delay has been spent; the
- * caller owns the failure message.
+ * Resolves to `{ settled: true, value, attempts, firstDetail }`, or to
+ * `{ settled: false, detail, attempts, firstDetail }` once every delay has
+ * been spent; `firstDetail` is the first pending state (undefined when the
+ * first read settled). The caller owns the failure message.
  */
 async function pollRegistryPropagation(
   probe,
@@ -40,17 +41,24 @@ async function pollRegistryPropagation(
 ) {
   const attempts = delaysMs.length + 1;
   let detail;
+  let firstDetail;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     const outcome = await probe(attempt);
     if (outcome.settled) {
-      return { attempts: attempt, settled: true, value: outcome.value };
+      return {
+        attempts: attempt,
+        firstDetail,
+        settled: true,
+        value: outcome.value,
+      };
     }
     detail = outcome.detail;
+    if (attempt === 1) firstDetail = detail;
     if (attempt < attempts) {
       await wait(delaysMs[attempt - 1]);
     }
   }
-  return { attempts, detail, settled: false };
+  return { attempts, detail, firstDetail, settled: false };
 }
 
 export { pollRegistryPropagation, registryPropagationDelaysMs };

@@ -13,6 +13,7 @@ import {
 } from './constants.mjs';
 import validationKit from '../../../lib/validation-kit.js';
 import { normalizeRepositoryIdentity } from './release-artifacts.mjs';
+import { registryOriginRequestInit } from './registry-read.mjs';
 
 const {
   assertNonEmptyString,
@@ -635,11 +636,7 @@ async function verifyRegistryProvenance(
 
   let response;
   try {
-    response = await fetchImpl(attestationsUrl, {
-      headers: { accept: 'application/json' },
-      method: 'GET',
-      redirect: 'error',
-    });
+    response = await fetchImpl(attestationsUrl, registryOriginRequestInit);
   } catch (error) {
     throw new Error(
       `${packageLabel} registry provenance request failed: ${

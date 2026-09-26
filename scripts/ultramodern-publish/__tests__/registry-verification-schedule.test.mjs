@@ -40,6 +40,7 @@ test('propagation poller spends the schedule, then reports the last pending stat
   assert.deepEqual(outcome, {
     attempts: 4,
     detail: 'pending 4',
+    firstDetail: 'pending 1',
     settled: false,
   });
   assert.deepEqual(waits, [1, 2, 3]);
@@ -60,7 +61,12 @@ test('propagation poller settles without waiting further and never retries a thr
     },
     { wait },
   );
-  assert.deepEqual(settled, { attempts: 3, settled: true, value: 'dist' });
+  assert.deepEqual(settled, {
+    attempts: 3,
+    firstDetail: 'absent',
+    settled: true,
+    value: 'dist',
+  });
   assert.deepEqual(waits, registryPropagationDelaysMs.slice(0, 2));
 
   waits.length = 0;
@@ -143,4 +149,52 @@ test('registry reads distinguish absent, throttled and malformed state', async (
     assert.equal(requests, status === 404 ? 1 : 4);
     assert.deepEqual(delays, status === 404 ? [] : [1000, 2000, 3000]);
   }
+});
+
+// The post-publish probe waits for a version npm has just accepted. A CDN or
+// npm-cache copy of the packument never shows it, so every read must bypass
+// caches and still see the fresh version while cached requests get stale data.
+test('post-publish registry lookups read the origin, not a cached packument', async () => {
+  const { lookupRegistryDistTag, lookupRegistryPackageDist } = await import(
+    '../lib/prepare-bleedingdev-packages/registry-read.mjs'
+  );
+  const pkg = '@bleedingdev/modern-js-runtime';
+  const freshDist = { integrity: 'sha512-fresh', shasum: 'fresh' };
+  const stale = {
+    'dist-tags': { latest: '1.0.0' },
+    versions: { '1.0.0': { dist: { integrity: 'old', shasum: 'old' } } },
+  };
+  const fresh = {
+    'dist-tags': { latest: '1.0.1' },
+    versions: { ...stale.versions, '1.0.1': { dist: freshDist } },
+  };
+  const requests = [];
+  const fetchImpl = async (url, init) => {
+    requests.push(url);
+    const bypassesCache =
+      init?.cache === 'no-store' &&
+      init?.headers?.['cache-control'] === 'no-cache';
+    return { ok: true, json: async () => (bypassesCache ? fresh : stale) };
+  };
+  assert.deepEqual(
+    await lookupRegistryPackageDist(pkg, '1.0.1', { fetchImpl }),
+    freshDist,
+  );
+  assert.equal(
+    await lookupRegistryDistTag(pkg, 'latest', { fetchImpl }),
+    '1.0.1',
+  );
+  assert.deepEqual(requests, [
+    `https://registry.npmjs.org/${encodeURIComponent(pkg)}`,
+    `https://registry.npmjs.org/${encodeURIComponent(pkg)}`,
+  ]);
+
+  const absent = { fetchImpl: async () => ({ ok: false, status: 404 }) };
+  assert.equal(await lookupRegistryPackageDist(pkg, '1.0.1', absent), null);
+  assert.equal(await lookupRegistryDistTag(pkg, 'latest', absent), undefined);
+  assert.equal(
+    await lookupRegistryPackageDist(pkg, '9.9.9', { fetchImpl }),
+    null,
+    'an absent version of a present package is not published yet',
+  );
 });
