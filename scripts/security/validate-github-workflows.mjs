@@ -12,6 +12,8 @@
  *   - no npm token environment variables
  *   - no `${{ inputs.* }}` / `${{ github.event.inputs.* }}` interpolation
  *     inside `run:` blocks (shell-injection vector; route through `env:`)
+ *   - every `node <script>` run by a job without a dependency install loads only
+ *     Node builtins and tracked files through its static import closure
  *
  * Sensitive workflows (publish/nightly/production-readiness/...) additionally
  * require persist-credentials: false, timeout-minutes, harden-runner egress
@@ -32,6 +34,10 @@ import {
   evaluateJobSchedule,
   parseJobCondition,
 } from './github-job-condition.mjs';
+import {
+  findUnloadableImports,
+  listTrackedFiles,
+} from './static-import-closure.mjs';
 
 export const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
 
@@ -402,6 +408,60 @@ function collectReceiptRunIdentityErrors(workflow, relativePath) {
         ]
       : [];
   });
+}
+
+// `node [flags] <script>` inside a run block, including `$(node ...)`.
+const nodeScriptPattern =
+  /(?:^|[\s;&|(`])node(?:\s+-\S+)*\s+(?:\.\/)?([\w./-]+\.(?:mjs|cjs|js))/gu;
+
+const dependencyInstallCommands = ['pnpm install', 'npm install', 'npm ci'];
+
+const bareJobNodeEntrypoints = workflow =>
+  Object.entries(isObject(workflow.jobs) ? workflow.jobs : {}).flatMap(
+    ([jobId, job]) => {
+      const steps = Array.isArray(job?.steps) ? job.steps.filter(isObject) : [];
+      if (
+        steps.some(step =>
+          dependencyInstallCommands.some(command => runIncludes(step, command)),
+        )
+      ) {
+        return [];
+      }
+      const entrypoints = new Set(
+        steps.flatMap(step =>
+          typeof step.run === 'string'
+            ? [...stripShellComments(step.run).matchAll(nodeScriptPattern)].map(
+                match => match[1],
+              )
+            : [],
+        ),
+      );
+      return [...entrypoints].map(entrypoint => ({ entrypoint, jobId }));
+    },
+  );
+
+/**
+ * A job without a dependency install (`pnpm install`, `npm install`,
+ * `npm ci`) runs scripts from a bare checkout, so every
+ * static import reachable from its `node <script>` entrypoints must be a
+ * Node builtin or a tracked repository file. Otherwise the job fails with
+ * ERR_MODULE_NOT_FOUND at run time, possibly after it already published.
+ */
+function collectBareJobImportErrors(workflow, relativePath, options) {
+  const entrypoints = bareJobNodeEntrypoints(workflow);
+  if (entrypoints.length === 0) {
+    return [];
+  }
+  const rootDir = options.rootDir ?? repoRoot;
+  const trackedFiles = options.trackedFiles ?? listTrackedFiles(rootDir);
+  return entrypoints.flatMap(({ entrypoint, jobId }) =>
+    findUnloadableImports(rootDir, entrypoint, trackedFiles).map(
+      ({ chain, specifier }) =>
+        chain.length === 0
+          ? `${relativePath} job ${jobId} runs ${entrypoint}, which is not a tracked file`
+          : `${relativePath} job ${jobId} has no dependency install, but ${entrypoint} statically loads ${specifier} via ${chain.join(' -> ')}; add a dependency install step to the job or move the import behind a dynamic import()`,
+    ),
+  );
 }
 
 function collectPublishOutcomeErrors(workflow, relativePath) {
@@ -1221,6 +1281,15 @@ export function validateWorkflowContent(relativePath, content, options = {}) {
   )) {
     push('receipt-run-identity', message);
   }
+  if (relativePath.startsWith('.github/workflows/')) {
+    for (const message of collectBareJobImportErrors(
+      workflow,
+      relativePath,
+      options,
+    )) {
+      push('bare-job-import-closure', message);
+    }
+  }
   for (const message of collectPublishOutcomeErrors(workflow, relativePath)) {
     push('publish-outcome-contract', message);
   }
@@ -1337,10 +1406,12 @@ function validateRenovateConfigFile(rootDir, relativePath, options) {
 }
 
 export function validateRepository(rootDir = repoRoot) {
+  const trackedFiles = listTrackedFiles(rootDir);
   const workflowErrors = collectWorkflowFiles(rootDir).flatMap(relativePath =>
     validateWorkflowContent(
       relativePath,
       fs.readFileSync(path.join(rootDir, relativePath), 'utf-8'),
+      { rootDir, trackedFiles },
     ),
   );
   const renovateErrors = [
