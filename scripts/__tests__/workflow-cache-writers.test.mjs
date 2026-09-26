@@ -1,8 +1,8 @@
-// A cache saved on a PR or merge-queue ref is readable only by that ref, so
-// every PR that saved its own pnpm store, mise tools and browsers parked
-// ~1 GB per OS that no other run could reuse, and the repository blew its
-// 10 GB cache quota. Only main-ultramodern writes; ci-cache.yml seeds the
-// keys PR jobs restore. This pins that edge for every workflow.
+// A cache saved on any ref but the default branch is readable only by that
+// ref, so every PR that saved its own pnpm store, mise tools and browsers
+// parked ~1 GB per OS that no other run could reuse, and the repository blew
+// its 10 GB cache quota. Only jobs pinned to main-ultramodern may save;
+// ci-cache.yml seeds the keys everything else restores.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -17,7 +17,6 @@ const repoRoot = path.resolve(
 );
 const workflowsDir = path.join(repoRoot, '.github/workflows');
 const seedWorkflow = 'ci-cache.yml';
-const prEvents = ['pull_request', 'pull_request_target', 'merge_group'];
 
 function loadWorkflows() {
   return fs
@@ -31,44 +30,48 @@ function loadWorkflows() {
     }));
 }
 
-function triggers(workflow) {
-  const { on } = workflow;
-  if (typeof on === 'string') {
-    return [on];
-  }
-  return Array.isArray(on) ? on : Object.keys(on ?? {});
-}
-
 function steps(workflow) {
-  return Object.entries(workflow.jobs ?? {}).flatMap(([job, { steps = [] }]) =>
-    steps.map(step => ({ job, step, uses: step.uses ?? '' })),
+  return Object.entries(workflow.jobs ?? {}).flatMap(
+    ([job, { if: condition = '', steps = [] }]) =>
+      steps.map(step => ({ condition, job, step, uses: step.uses ?? '' })),
   );
 }
 
 const workflows = loadWorkflows();
 const where = (file, job, step) => `${file}:${job}:${step.name ?? step.uses}`;
 
-test('PR and merge-queue workflows restore caches but never save them', () => {
-  const prWorkflows = workflows.filter(({ workflow }) =>
-    triggers(workflow).some(event => prEvents.includes(event)),
+function savesCache({ step, uses }) {
+  if (/^actions\/cache(\/save)?@/u.test(uses)) {
+    return true;
+  }
+  if (uses.startsWith('jdx/mise-action@')) {
+    return String(step.with?.cache_save) !== 'false';
+  }
+  return false;
+}
+
+// `github.ref == 'refs/heads/main-ultramodern'`, or the publish workflow's
+// `github.ref == format('refs/heads/{0}', ... || 'main-ultramodern')`.
+const pinnedToMain = condition =>
+  /github\.ref == (?:'refs\/heads\/main-ultramodern'|format\('refs\/heads\/\{0\}', vars\.\w+ \|\| 'main-ultramodern'\))/u.test(
+    condition,
   );
-  assert.ok(prWorkflows.some(({ file }) => file === 'ut-Windows.yml'));
-  for (const { file, workflow } of prWorkflows) {
-    for (const { job, step, uses } of steps(workflow)) {
-      assert.doesNotMatch(
-        uses,
-        /^actions\/cache(\/save)?@/u,
-        `${where(file, job, step)} saves a cache on a PR ref; use actions/cache/restore and let ${seedWorkflow} seed the key`,
-      );
-      if (uses.startsWith('jdx/mise-action@')) {
-        assert.equal(
-          String(step.with?.cache_save),
-          'false',
-          `${where(file, job, step)} must set cache_save: false; ${seedWorkflow} seeds the mise cache`,
-        );
+
+test('only jobs pinned to main-ultramodern save caches', () => {
+  const writers = [];
+  for (const { file, workflow } of workflows) {
+    for (const entry of steps(workflow)) {
+      if (!savesCache(entry)) {
+        continue;
       }
+      writers.push(file);
+      assert.ok(
+        pinnedToMain(entry.condition),
+        `${where(file, entry.job, entry.step)} can save a cache on a branch-scoped ref; restore only (actions/cache/restore, mise cache_save: false) and let ${seedWorkflow} seed the key`,
+      );
     }
   }
+  assert.ok(writers.includes(seedWorkflow));
 });
 
 test('setup-node never owns the pnpm store cache', () => {
@@ -85,13 +88,13 @@ test('setup-node never owns the pnpm store cache', () => {
   }
 });
 
-test(`${seedWorkflow} seeds on main-ultramodern the keys PR jobs restore`, () => {
+test(`${seedWorkflow} seeds on main-ultramodern the keys other jobs restore`, () => {
   const seed = workflows.find(({ file }) => file === seedWorkflow).workflow;
-  const seedTriggers = triggers(seed);
-  assert.deepEqual(
-    seedTriggers.filter(event => prEvents.includes(event)),
-    [],
-  );
+  assert.deepEqual(Object.keys(seed.on).sort(), [
+    'push',
+    'schedule',
+    'workflow_dispatch',
+  ]);
   assert.deepEqual(seed.on.push.branches, ['main-ultramodern']);
 
   const saved = new Set(
