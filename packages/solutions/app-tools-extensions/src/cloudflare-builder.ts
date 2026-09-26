@@ -891,13 +891,6 @@ const createCloudflareBundlerChain = (
     'dist/esm/loadable.esm.mjs',
     [...resolvePaths, getTemplatePath('')],
   );
-  const loadableServerWorkerFile = getTemplatePath(
-    'cloudflare-worker-loadable-server.mjs',
-  );
-  const fsPromisesWorkerFile = getTemplatePath(
-    'cloudflare-worker-fs-promises.mjs',
-  );
-  const pathWorkerFile = getTemplatePath('cloudflare-worker-path.mjs');
   const entryNames = [...workerEntryNames];
 
   return chain => {
@@ -985,23 +978,6 @@ const createCloudflareBundlerChain = (
       '@loadable/component$',
       loadableComponentFile,
     );
-    setAliasIfPresent(
-      chain.resolve.alias,
-      '@loadable/server$',
-      loadableServerWorkerFile,
-    );
-    setAliasIfPresent(
-      chain.resolve.alias,
-      'fs/promises$',
-      fsPromisesWorkerFile,
-    );
-    setAliasIfPresent(
-      chain.resolve.alias,
-      'node:fs/promises$',
-      fsPromisesWorkerFile,
-    );
-    setAliasIfPresent(chain.resolve.alias, 'path$', pathWorkerFile);
-    setAliasIfPresent(chain.resolve.alias, 'node:path$', pathWorkerFile);
     chain.resolve.alias.set(
       'react-server-dom-rspack/server.node$',
       'react-server-dom-rspack/server.edge',
@@ -1018,8 +994,6 @@ const createCloudflareBundlerChain = (
       'react-server-dom-rspack/client.node',
       'react-server-dom-rspack/client.edge',
     );
-    chain.resolve.fallback.set('fs', false);
-    chain.resolve.fallback.set('node:fs', false);
   };
 };
 

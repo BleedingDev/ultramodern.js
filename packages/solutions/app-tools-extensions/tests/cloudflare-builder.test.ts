@@ -1,8 +1,10 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { type EnvironmentConfig } from '@rsbuild/core';
+import { createRsbuild, type EnvironmentConfig } from '@rsbuild/core';
 import { getCloudflareBuilderEnvironments } from '../src/cloudflare-builder';
+import { CLOUDFLARE_WORKER_NODE_BUILTINS } from '../src/cloudflare-output-contract';
+import { getTemplatePath } from '../src/read-template';
 
 const createWorkerEnvironments = (
   entry = './src/bootstrap.jsx',
@@ -141,6 +143,54 @@ describe('Cloudflare builder environments', () => {
         __modern_bff_effect: [
           `${path.join(apiDirectory, 'index.ts')}?modern-bff-runtime`,
         ],
+      });
+    } finally {
+      fs.rmSync(appDirectory, { force: true, recursive: true });
+    }
+  });
+
+  it('leaves Node built-ins and @loadable/server to externals and the real package', async () => {
+    const appDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'modern-cloudflare-builder-alias-'),
+    );
+
+    try {
+      fs.mkdirSync(path.join(appDirectory, 'src'));
+      fs.writeFileSync(path.join(appDirectory, 'src/index.server.jsx'), '');
+      const environments = getCloudflareBuilderEnvironments({
+        appContext: { apiDirectory: '/app/api', appDirectory },
+        environments: createWorkerEnvironments(),
+        normalizedConfig: { deploy: { target: 'cloudflare' } },
+      });
+      const rsbuild = await createRsbuild({
+        cwd: appDirectory,
+        rsbuildConfig: { environments: { workerSSR: environments.workerSSR } },
+      });
+      const [config] = await rsbuild.initConfigs();
+      const aliases = config.resolve?.alias as Record<string, unknown>;
+      const aliasKeys = Object.keys(aliases).map(key =>
+        key.replace(/\$$/u, ''),
+      );
+      const builtinRequests = CLOUDFLARE_WORKER_NODE_BUILTINS.flatMap(
+        builtin => [builtin, `node:${builtin}`],
+      );
+
+      expect(aliasKeys.filter(key => builtinRequests.includes(key))).toEqual(
+        [],
+      );
+      expect(aliasKeys).not.toContain('@loadable/server');
+      expect(
+        Object.values(aliases).filter(
+          target =>
+            typeof target === 'string' &&
+            target.startsWith(getTemplatePath('')) &&
+            !target.endsWith('cloudflare-worker-mf-ssr-runtime-plugin.mjs'),
+        ),
+      ).toEqual([]);
+      expect(config.resolve?.fallback ?? {}).not.toHaveProperty('fs');
+      expect(config.externals).toMatchObject({
+        fs: 'module-import node:fs',
+        'node:path': 'module-import node:path',
       });
     } finally {
       fs.rmSync(appDirectory, { force: true, recursive: true });
