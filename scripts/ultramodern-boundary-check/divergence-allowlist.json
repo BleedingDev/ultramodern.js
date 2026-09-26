@@ -4,9 +4,9 @@
   "upstreamRef": "2f4d9c4559e26209a0d77f02c6757f29fe3699a2",
   "pathspec": ["packages"],
   "migrationGoal": "Shrink-only budget of fork edits inside upstream-owned files. Every entry is debt: move it upstream or behind an extension point, then re-run --write-divergence-allowlist.",
-  "totalFiles": 824,
-  "totalHunks": 3100,
-  "totalChangedLines": 51178,
+  "totalFiles": 825,
+  "totalHunks": 3110,
+  "totalChangedLines": 51282,
   "files": [
     {
       "file": "packages/cli/adapter-rstest/package.json",
@@ -3235,8 +3235,8 @@
     },
     {
       "file": "packages/solutions/app-tools/src/builder/shared/lazyCompilation.ts",
-      "hunks": 5,
-      "changedLines": 6
+      "hunks": 7,
+      "changedLines": 37
     },
     {
       "file": "packages/solutions/app-tools/src/builder/shared/types.ts",
@@ -3369,6 +3369,11 @@
       "changedLines": 49
     },
     {
+      "file": "packages/solutions/app-tools/src/plugins/initialize/index.ts",
+      "hunks": 2,
+      "changedLines": 7
+    },
+    {
       "file": "packages/solutions/app-tools/src/plugins/serverBuild.ts",
       "hunks": 5,
       "changedLines": 9
@@ -3480,8 +3485,8 @@
     },
     {
       "file": "packages/solutions/app-tools/tests/builder/lazyCompilation.test.ts",
-      "hunks": 2,
-      "changedLines": 12
+      "hunks": 4,
+      "changedLines": 60
     },
     {
       "file": "packages/solutions/app-tools/tests/builder/routerPlugin.test.ts",
@@ -3530,8 +3535,8 @@
     },
     {
       "file": "packages/solutions/app-tools/tests/plugins/initialize.test.ts",
-      "hunks": 5,
-      "changedLines": 74
+      "hunks": 9,
+      "changedLines": 92
     },
     {
       "file": "packages/solutions/app-tools/tests/serverBuild.test.ts",
