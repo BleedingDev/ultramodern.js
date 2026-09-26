@@ -7,6 +7,7 @@ import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
 import { parseSync, transformFromAstSync, traverse, types } from '@babel/core';
+import { assertNoHighAdvisories } from '../../security/advisory-gate.mjs';
 import { readSmokeContract } from '../browser-smoke/contract.mjs';
 import { createSmokeTargets } from '../browser-smoke/targets.mjs';
 import {
@@ -1131,6 +1132,7 @@ async function runAcceptanceProfile({
   runImpl = run,
   browserSmokeImpl = runBrowserSmoke,
   auditReleaseAgePolicyImpl = auditReleaseAgePolicy,
+  assertNoHighAdvisoriesImpl = assertNoHighAdvisories,
   proveOperationalTargetImpl = proveOperationalTarget,
   now = Date,
   workDir: suppliedWorkDir,
@@ -1289,7 +1291,13 @@ async function runAcceptanceProfile({
             now: currentTime(now),
           });
           bindSupplyChainEvidence(receipt, audit.digests);
+          const advisories = assertNoHighAdvisoriesImpl({
+            cwd: projectDir,
+            env: packageManagerEnv,
+            now: currentTime(now),
+          });
           return {
+            advisories,
             approvals: audit.approvals,
             candidateDiscovery: audit.candidateDiscovery,
             closureCount: audit.closureCount,
