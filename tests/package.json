@@ -13,7 +13,6 @@
     "test:module-tools": "rstest run -c rstest.module-tools.config.ts --passWithNoTests",
     "test:superapp-contracts": "rstest run -c rstest.superapp-contracts.config.mts",
     "test:ut": "pnpm -w run test:ut",
-    "prepare": "node node_modules/puppeteer/install.mjs",
     "pretest:rstest-adapter": "pnpm --dir integration/rstest/basic-app-rstest-browser exec playwright install chromium",
     "test:utils": "rstest run -c rstest.utils.config.mts",
     "test:prepared": "pnpm test:utils && pnpm test:builder && pnpm test:framework && pnpm test:rstest-adapter"

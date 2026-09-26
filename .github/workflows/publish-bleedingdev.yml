@@ -240,17 +240,16 @@ jobs:
         if: inputs.recovery_run_id == ''
         id: browser-runtime
         run: >-
-          node scripts/ultramodern-production-readiness/provision-acceptance-browsers.mjs
-          --resolve --target qualification
+          node scripts/lib/browser-provisioning.js
+          --resolve --runtime tests/integration/rstest/basic-app-rstest-browser
 
       # No restore-keys: the resolved playwright version is the invalidation
       # mechanism.
       - name: Restore Playwright chromium cache
         if: inputs.recovery_run_id == ''
-        id: playwright-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cache/ms-playwright
+          path: ${{ steps.browser-runtime.outputs.cache_path }}
           key: ${{ steps.browser-runtime.outputs.cache_key }}
 
       # --version carries the version resolved before the restore, so the
@@ -259,10 +258,9 @@ jobs:
       - name: Install browser qualification runtime
         if: inputs.recovery_run_id == ''
         run: >-
-          node scripts/ultramodern-production-readiness/provision-acceptance-browsers.mjs
-          --install --target qualification
+          node scripts/lib/browser-provisioning.js
+          --install --runtime tests/integration/rstest/basic-app-rstest-browser
           --version ${{ steps.browser-runtime.outputs.version }}
-          --cache-hit ${{ steps.playwright-cache.outputs.cache-hit == 'true' }}
 
       - name: Qualify release source
         if: inputs.recovery_run_id == ''
@@ -646,15 +644,14 @@ jobs:
         id: browser-runtime
         run: >-
           node scripts/ultramodern-production-readiness/provision-acceptance-browsers.mjs
-          --resolve --target smoke
+          --resolve
 
       # No restore-keys: the resolved playwright version is the invalidation
       # mechanism.
       - name: Restore Playwright chromium cache
-        id: playwright-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
+          path: ${{ steps.browser-runtime.outputs.cache_path }}
           key: ${{ steps.browser-runtime.outputs.cache_key }}
 
       # --version carries the version resolved before the restore, so the
@@ -663,9 +660,8 @@ jobs:
       - name: Install browser smoke runtime
         run: >-
           node scripts/ultramodern-production-readiness/provision-acceptance-browsers.mjs
-          --install --target smoke
+          --install
           --version ${{ steps.browser-runtime.outputs.version }}
-          --cache-hit ${{ steps.playwright-cache.outputs.cache-hit == 'true' }}
 
       - name: Run exact-artifact ERP-10 acceptance
         env:
@@ -1136,15 +1132,14 @@ jobs:
         id: browser-runtime
         run: >-
           node scripts/ultramodern-production-readiness/provision-acceptance-browsers.mjs
-          --resolve --target smoke
+          --resolve
 
       # No restore-keys: the resolved playwright version is the invalidation
       # mechanism.
       - name: Restore Playwright chromium cache
-        id: playwright-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
+          path: ${{ steps.browser-runtime.outputs.cache_path }}
           key: ${{ steps.browser-runtime.outputs.cache_key }}
 
       # --version carries the version resolved before the restore, so the
@@ -1153,9 +1148,8 @@ jobs:
       - name: Install browser smoke runtime
         run: >-
           node scripts/ultramodern-production-readiness/provision-acceptance-browsers.mjs
-          --install --target smoke
+          --install
           --version ${{ steps.browser-runtime.outputs.version }}
-          --cache-hit ${{ steps.playwright-cache.outputs.cache-hit == 'true' }}
 
       # Unconditional join before anything that needs node_modules: a failed
       # install fails the job here, never silently.

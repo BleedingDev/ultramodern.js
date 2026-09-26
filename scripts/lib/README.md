@@ -21,6 +21,12 @@ and script helper families (`boundary-guards`,
   verifiers, including Windows where package-manager `.cmd` shims cannot be
   passed to `execFile` directly.
 - `artifact-schema.js` — the shared SuperApp readiness dimension list.
+- `browser-provisioning.js` — the one Playwright browser provisioner for CI.
+  `--resolve --runtime <dir>` reports the playwright version the frozen
+  install resolved for a package plus the browser cache key and path;
+  `--install` installs chromium through that runtime's own CLI. Every
+  workflow step that launches a browser runs after it
+  (`scripts/__tests__/browser-provisioning-workflows.test.mjs`).
 
 Rules:
 
