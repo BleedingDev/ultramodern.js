@@ -39,15 +39,16 @@ const consumerBlocks = [
 const forkSpecifier = /^npm:(@bleedingdev\/[\w.-]+)@(.+)$/u;
 
 /**
- * Every recipe must be reachable from a repository patch, a generator runtime
- * pin, or an alias the publisher emits into a runtime, optional or peer
- * dependency of a published cohort manifest, directly or through the alias
- * edges of another reachable recipe. Only exact aliases of the recipe's fork
- * version count; devDependencies never make a consumer.
+ * Every recipe must be reachable from a generator runtime pin or an alias the
+ * publisher emits into a runtime, optional or peer dependency of a published
+ * cohort manifest, directly or through the alias edges of another reachable
+ * recipe. Only exact aliases of the recipe's fork version count. A repository
+ * patch never makes a consumer: it patches the upstream identity, not the
+ * published fork. devDependencies never make a consumer either.
  */
 export function assertRecipeConsumers(
   recipeList,
-  { patchSelectors, generatorPins, publishedManifests },
+  { generatorPins, publishedManifests },
 ) {
   const byFork = new Map(
     recipeList.map(item => [`${item.fork.name}@${item.fork.version}`, item]),
@@ -69,11 +70,6 @@ export function assertRecipeConsumers(
   const reachBlocks = manifest => {
     for (const block of consumerBlocks) reachSpecifiers(manifest[block]);
   };
-  for (const recipe of recipeList)
-    if (
-      patchSelectors.has(`${recipe.upstream.name}@${recipe.upstream.version}`)
-    )
-      reach(recipe);
   for (const pins of generatorPins) reachSpecifiers(pins);
   for (const manifest of publishedManifests) reachBlocks(manifest);
   while (pending.length) reachBlocks(pending.pop().manifestChanges);
@@ -84,14 +80,9 @@ export function assertRecipeConsumers(
   );
 }
 
-/** Check the repository recipes against the inventory's patchedDependencies, the generator's runtime pins and the published cohort manifests. */
+/** Check the repository recipes against the generator's runtime pins and the published cohort manifests. */
 export function assertRepositoryRecipeConsumers(publishedManifests) {
   assertRecipeConsumers(recipes, {
-    patchSelectors: new Set(
-      inventory
-        .filter(item => item.repository)
-        .map(item => `${item.packageName}@${item.version}`),
-    ),
     generatorPins: Object.entries(ULTRAMODERN_PACKAGE_PINS)
       .filter(([block]) => !block.endsWith('DevDependencies'))
       .map(([, pins]) => pins),

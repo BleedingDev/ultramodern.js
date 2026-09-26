@@ -21,7 +21,6 @@ test('a recipe consumed only through devDependencies or an unaliased edge is rej
     dependencies: { orphan: '1.0.0' },
   };
   const consumers = {
-    patchSelectors: new Set(),
     generatorPins: [],
     publishedManifests: [manifest],
   };
@@ -49,7 +48,6 @@ test('recipes reached only through a reachable recipe alias edge are consumed', 
     },
   };
   const consumers = {
-    patchSelectors: new Set(),
     generatorPins: [{ parent: 'npm:@bleedingdev/parent@1.0.0' }],
     publishedManifests: [],
   };
@@ -71,7 +69,6 @@ test('only exact generator runtime pins of the recipe fork version are consumers
     manifestChanges: {},
   };
   const consumers = generatorPins => ({
-    patchSelectors: new Set(),
     generatorPins,
     publishedManifests: [],
   });
