@@ -155,6 +155,10 @@ describe('setupDevInfra (process-level singletons)', () => {
     const builder = { onDevCompileDone: rstest.fn() } as any;
     const builderDevServer = makeBuilderDevServer(true);
     const onFileChange = rstest.fn();
+    const reloadManager = new ReloadManager({
+      initialHandle: () => new Response('served'),
+      build: async () => () => new Response('rebuilt'),
+    });
     const infra = setupDevInfra({
       config,
       pwd,
@@ -164,9 +168,17 @@ describe('setupDevInfra (process-level singletons)', () => {
       compiler: null,
       nodeServer,
       getRuntimeServer,
+      holdRequests: task => reloadManager.hold(task),
       onFileChange,
     });
-    return { infra, nodeServer, builder, builderDevServer, onFileChange };
+    return {
+      infra,
+      nodeServer,
+      builder,
+      builderDevServer,
+      onFileChange,
+      reloadManager,
+    };
   }
 
   it('creates each process-level resource exactly once and releases them on close', () => {
@@ -239,7 +251,7 @@ describe('setupDevInfra (process-level singletons)', () => {
     expect(onFileChange).toHaveBeenCalledTimes(1);
   });
 
-  it('onRepack reaches the live runtime via the mutable ref (no stale closure)', () => {
+  it('onRepack reaches the live runtime via the mutable ref (no stale closure)', async () => {
     let current = makeFakeRuntimeServer();
     const first = current;
     const { builder } = setup(() => current);
@@ -249,14 +261,53 @@ describe('setupDevInfra (process-level singletons)', () => {
     const clientStats = { stats: { toJson: () => ({ name: 'client' }) } };
 
     onCompileDone(clientStats);
+    await flush();
     expect(first.hooks.onReset.call).toHaveBeenCalledTimes(1);
 
     // After a reload swaps the runtime, onRepack must hit the NEW runtime.
     const second = makeFakeRuntimeServer();
     current = second;
     onCompileDone(clientStats);
+    await flush();
     expect(second.hooks.onReset.call).toHaveBeenCalledTimes(1);
     expect(first.hooks.onReset.call).toHaveBeenCalledTimes(1);
+  });
+
+  it('holds requests until a slow async repack onReset handler settles', async () => {
+    let releaseReset!: () => void;
+    const runtimeServer = {
+      hooks: {
+        onReset: {
+          call: rstest.fn(
+            () =>
+              new Promise<void>(resolve => {
+                releaseReset = resolve;
+              }),
+          ),
+        },
+      },
+    } as any;
+    const { builder, reloadManager } = setup(() => runtimeServer);
+    const onCompileDone = builder.onDevCompileDone.mock.calls[0][0];
+
+    onCompileDone({ stats: { toJson: () => ({ name: 'client' }) } });
+    await flush();
+    expect(runtimeServer.hooks.onReset.call).toHaveBeenCalledWith({
+      event: { type: 'repack' },
+    });
+
+    let served = false;
+    const response = Promise.resolve(
+      reloadManager.handle(new Request('http://localhost/')),
+    ).then(res => {
+      served = true;
+      return res;
+    });
+    await sleep(20);
+    expect(served).toBe(false);
+
+    releaseReset();
+    expect(await (await response).text()).toBe('served');
   });
 
   it('cancels a scheduled reload when the dev server closes (no build after close)', async () => {
@@ -281,6 +332,7 @@ describe('setupDevInfra (process-level singletons)', () => {
       compiler: null,
       nodeServer,
       getRuntimeServer: () => makeFakeRuntimeServer(),
+      holdRequests: task => reloadManager.hold(task),
       onFileChange: () => reloadManager.schedule(),
       onClose: () => reloadManager.close(),
     });

@@ -4,9 +4,9 @@
   "upstreamRef": "2f4d9c4559e26209a0d77f02c6757f29fe3699a2",
   "pathspec": ["packages"],
   "migrationGoal": "Shrink-only budget of fork edits inside upstream-owned files. Every entry is debt: move it upstream or behind an extension point, then re-run --write-divergence-allowlist.",
-  "totalFiles": 824,
-  "totalHunks": 3098,
-  "totalChangedLines": 51177,
+  "totalFiles": 826,
+  "totalHunks": 3114,
+  "totalChangedLines": 51393,
   "files": [
     {
       "file": "packages/cli/adapter-rstest/package.json",
@@ -724,6 +724,11 @@
       "changedLines": 2
     },
     {
+      "file": "packages/document/docs/en/plugin/server-plugins/api.mdx",
+      "hunks": 1,
+      "changedLines": 1
+    },
+    {
       "file": "packages/document/docs/en/tutorials/examples/csr-auth.mdx",
       "hunks": 3,
       "changedLines": 4
@@ -1007,6 +1012,11 @@
       "file": "packages/document/docs/zh/index.md",
       "hunks": 1,
       "changedLines": 2
+    },
+    {
+      "file": "packages/document/docs/zh/plugin/server-plugins/api.mdx",
+      "hunks": 1,
+      "changedLines": 1
     },
     {
       "file": "packages/document/docs/zh/tutorials/examples/csr-auth.mdx",
@@ -2920,8 +2930,8 @@
     },
     {
       "file": "packages/server/server/src/createDevServer.ts",
-      "hunks": 9,
-      "changedLines": 48
+      "hunks": 10,
+      "changedLines": 49
     },
     {
       "file": "packages/server/server/src/dev-tools/https/index.ts",
@@ -2930,8 +2940,8 @@
     },
     {
       "file": "packages/server/server/src/dev-tools/reloadManager.ts",
-      "hunks": 8,
-      "changedLines": 77
+      "hunks": 10,
+      "changedLines": 110
     },
     {
       "file": "packages/server/server/src/dev-tools/watcher/dependencyTree.ts",
@@ -2945,8 +2955,8 @@
     },
     {
       "file": "packages/server/server/src/dev.ts",
-      "hunks": 2,
-      "changedLines": 3
+      "hunks": 6,
+      "changedLines": 20
     },
     {
       "file": "packages/server/server/src/helpers/fileReader.ts",
@@ -2965,8 +2975,8 @@
     },
     {
       "file": "packages/server/server/src/helpers/repack.ts",
-      "hunks": 2,
-      "changedLines": 53
+      "hunks": 1,
+      "changedLines": 82
     },
     {
       "file": "packages/server/server/src/helpers/utils.ts",
@@ -2990,8 +3000,8 @@
     },
     {
       "file": "packages/server/server/tests/devRuntimeReload.test.ts",
-      "hunks": 2,
-      "changedLines": 2
+      "hunks": 10,
+      "changedLines": 58
     },
     {
       "file": "packages/server/server/tests/fixtures/federated-ssr/bundles/index.js",
@@ -3016,12 +3026,12 @@
     {
       "file": "packages/server/server/tests/reloadManager.test.ts",
       "hunks": 7,
-      "changedLines": 169
+      "changedLines": 208
     },
     {
       "file": "packages/server/server/tests/repack.test.ts",
       "hunks": 1,
-      "changedLines": 32
+      "changedLines": 71
     },
     {
       "file": "packages/server/server/tests/watcher.test.ts",
