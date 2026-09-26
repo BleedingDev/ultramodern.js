@@ -76,7 +76,6 @@ const requiredImageDependencyTargets = Object.freeze({
 
 const correctedDependencyTargets = Object.freeze({
   effect: '@bleedingdev/effect',
-  'drizzle-orm': '@bleedingdev/drizzle-orm',
   ...Object.fromEntries(
     [
       'bridge-react',
@@ -170,7 +169,7 @@ function assertSidecarVersion(name, version) {
     throw new Error(
       [
         `Sidecar ${name} version ${String(version)} must be stable semver (X.Y.Z).`,
-        "Only the exact Effect and Drizzle prereleases are qualified; npm resolves the ipx peer range '>=3.0.3' with a prerelease-excluding check.",
+        "Only the exact Effect prerelease is qualified; npm resolves the ipx peer range '>=3.0.3' with a prerelease-excluding check.",
       ].join('\n'),
     );
   }

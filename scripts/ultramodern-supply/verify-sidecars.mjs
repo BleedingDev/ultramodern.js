@@ -30,6 +30,86 @@ const contractFields = [
   'license',
 ];
 
+const consumerBlocks = [
+  'dependencies',
+  'optionalDependencies',
+  'peerDependencies',
+];
+const forkSpecifier = /npm:(@bleedingdev\/[\w.-]+)@/gu;
+
+/**
+ * Every recipe must be reachable from a repository patch, a generator pin, or a
+ * runtime/peer dependency of a cohort package, directly or through the alias
+ * edges of another reachable recipe. devDependencies never make a consumer.
+ */
+export function assertRecipeConsumers(
+  recipeList,
+  { patchSelectors, generatorSources, cohortManifests },
+) {
+  const byUpstream = new Map(
+    recipeList.map(item => [item.upstream.name, item]),
+  );
+  const byFork = new Map(recipeList.map(item => [item.fork.name, item]));
+  const reached = new Set();
+  const pending = [];
+  const reach = recipe => {
+    if (recipe && !reached.has(recipe)) {
+      reached.add(recipe);
+      pending.push(recipe);
+    }
+  };
+  const reachAliases = specifier => {
+    for (const [, fork] of String(specifier).matchAll(forkSpecifier))
+      reach(byFork.get(fork));
+  };
+  for (const recipe of recipeList)
+    if (
+      patchSelectors.has(`${recipe.upstream.name}@${recipe.upstream.version}`)
+    )
+      reach(recipe);
+  for (const source of generatorSources) reachAliases(source);
+  for (const manifest of cohortManifests)
+    for (const block of consumerBlocks)
+      for (const [name, specifier] of Object.entries(manifest[block] ?? {})) {
+        reach(byUpstream.get(name));
+        reachAliases(specifier);
+      }
+  while (pending.length) {
+    const { manifestChanges } = pending.pop();
+    for (const block of consumerBlocks)
+      for (const specifier of Object.values(manifestChanges[block] ?? {}))
+        reachAliases(specifier);
+  }
+  const orphan = recipeList.find(item => !reached.has(item));
+  assert.ok(
+    !orphan,
+    `sidecar ${orphan?.id} has no runtime consumer; delete the recipe or wire a consumer`,
+  );
+}
+
+/** Repository consumers: the inventory's patchedDependencies, generator sources and published @modern-js manifests. */
+export function collectRecipeConsumers() {
+  const read = file => fs.readFileSync(path.join(root, file), 'utf8');
+  const skip = entry => path.basename(String(entry)) === 'node_modules';
+  return {
+    patchSelectors: new Set(
+      inventory
+        .filter(item => item.repository)
+        .map(item => `${item.packageName}@${item.version}`),
+    ),
+    generatorSources: fs
+      .globSync('packages/toolkit/ultramodern-create/src/**/*.ts', {
+        cwd: root,
+        exclude: skip,
+      })
+      .map(read),
+    cohortManifests: fs
+      .globSync('packages/**/package.json', { cwd: root, exclude: skip })
+      .map(file => JSON.parse(read(file)))
+      .filter(item => item.name?.startsWith('@modern-js/') && !item.private),
+  };
+}
+
 function files(directory, prefix = '') {
   return fs
     .readdirSync(directory, { withFileTypes: true })
@@ -249,6 +329,7 @@ if (
   const offline = args.indexOf('--artifacts');
   const artifactsDir = offline < 0 ? undefined : args.splice(offline, 2)[1];
   assert.ok(offline < 0 || artifactsDir, '--artifacts requires a directory');
+  assertRecipeConsumers(recipes, collectRecipeConsumers());
   for (const id of args.length ? args : recipes.map(item => item.id))
     await verifySidecar(id, { artifactsDir });
 }
