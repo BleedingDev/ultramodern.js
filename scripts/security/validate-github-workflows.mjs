@@ -757,9 +757,10 @@ function collectBleedingdevPublishStructureErrors(workflow, relativePath) {
 /**
  * Release gates must run whole suites. A node:test filter flag (argv or
  * NODE_OPTIONS) silently drops cases, so a qualify step can go green on a
- * suite that is partly skipped.
+ * suite that is partly skipped or sharded.
  */
-const testFilterFlagPattern = /--test-(?:skip-pattern|name-pattern|only)\b/u;
+const testFilterFlagPattern =
+  /--test-(?:skip-pattern|name-pattern|only|shard)\b/u;
 
 const collectTestFilterFindings = (workflow, content) => {
   const findings = [];
