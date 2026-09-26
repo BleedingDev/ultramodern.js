@@ -3,11 +3,52 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { yaml } from '@modern-js/utils';
-import { runPnpm } from './runWithPrerequisites.mjs';
+import { bleedingdevEdges, runPnpm } from './runWithPrerequisites.mjs';
 
 const { dump, load } = yaml;
 
 type PackedPackage = { tarball: string; integrity: string };
+type PackedSidecar = PackedPackage & { version: string };
+type BleedingdevEdge = {
+  name: string;
+  spec: string;
+  target: string;
+  version: string;
+};
+
+function assertPacked(file: string, name: string, integrity: string) {
+  const actual = createHash('sha256')
+    .update(fs.readFileSync(file))
+    .digest('hex');
+  if (actual !== integrity) {
+    throw new Error(`Packed prerequisite changed after preparation: ${name}`);
+  }
+}
+
+/**
+ * Point every `@bleedingdev/*` edge at its packed tarball. pnpm matches an
+ * override by dependency key, so an `npm:` alias needs a `key@npm:...` selector;
+ * a bare target-name override would leave the alias on the registry.
+ */
+export function bleedingdevOverrides(
+  edges: BleedingdevEdge[],
+  sidecars: Record<string, PackedSidecar>,
+): Record<string, string> {
+  const overrides: Record<string, string> = {};
+  for (const edge of edges) {
+    const packed = sidecars[edge.target];
+    if (packed?.version !== edge.version) {
+      throw new Error(
+        `${edge.name}: ${edge.spec} is not in the packed test cohort ` +
+          `(packed ${edge.target}: ${packed?.version ?? 'none'}). ` +
+          'Add it to scripts/ultramodern-supply/sidecars.json / staged cohort ' +
+          'so tests install the artifact the release publishes.',
+      );
+    }
+    overrides[`${edge.name}@${edge.spec}`] = `file:${packed.tarball}`;
+  }
+  return overrides;
+}
 
 function packedPrerequisites() {
   const manifestPath = process.env.MODERN_TEST_PACKAGE_MANIFEST;
@@ -18,23 +59,24 @@ function packedPrerequisites() {
         'tests/utils/runWithPrerequisites.mjs --pack-only <directory>.',
     );
   }
-  const { packages, allowBuilds } = JSON.parse(
+  const { packages, sidecars, edges, allowBuilds } = JSON.parse(
     fs.readFileSync(manifestPath, 'utf8'),
   ) as {
     packages: Record<string, PackedPackage>;
+    sidecars: Record<string, PackedSidecar>;
+    edges: BleedingdevEdge[];
     allowBuilds: Record<string, boolean>;
   };
   const overrides: Record<string, string> = {};
   for (const [name, { tarball, integrity }] of Object.entries(packages)) {
-    const actual = createHash('sha256')
-      .update(fs.readFileSync(tarball))
-      .digest('hex');
-    if (actual !== integrity) {
-      throw new Error(`Packed prerequisite changed after preparation: ${name}`);
-    }
+    assertPacked(tarball, name, integrity);
     overrides[name] = `file:${tarball}`;
   }
-  return { overrides, allowBuilds };
+  for (const [name, { tarball, integrity }] of Object.entries(sidecars)) {
+    assertPacked(tarball, name, integrity);
+  }
+  Object.assign(overrides, bleedingdevOverrides(edges, sidecars));
+  return { framework: Object.keys(packages), overrides, sidecars, allowBuilds };
 }
 
 /** Remove only framework source copies in this disposable consumer. Application
@@ -54,8 +96,7 @@ function prepareSourceUnavailableConsumer(
         ]
       : ['@modern-js/ultramodern-create'],
   );
-  const { overrides } = packedPrerequisites();
-  for (const name of Object.keys(overrides)) {
+  for (const name of packedPrerequisites().framework) {
     for (const manifest of fs.globSync(
       `node_modules/.pnpm/*/node_modules/${name}/package.json`,
       { cwd: consumer },
@@ -102,7 +143,25 @@ function prepareSourceUnavailableConsumer(
 export function materializeGeneratedWorkspaceDependencies(
   workspaceDir: string,
 ): void {
-  const { overrides } = packedPrerequisites();
+  const { overrides: packedOverrides, sidecars } = packedPrerequisites();
+  const overrides = {
+    ...packedOverrides,
+    ...bleedingdevOverrides(
+      fs
+        .globSync('**/package.json', {
+          cwd: workspaceDir,
+          exclude: ['**/node_modules'],
+        })
+        .flatMap(manifest =>
+          bleedingdevEdges(
+            JSON.parse(
+              fs.readFileSync(path.join(workspaceDir, manifest), 'utf8'),
+            ),
+          ),
+        ),
+      sidecars,
+    ),
+  };
   const workspaceFile = path.join(workspaceDir, 'pnpm-workspace.yaml');
   const workspace = load(fs.readFileSync(workspaceFile, 'utf8')) as {
     overrides?: Record<string, string>;
@@ -118,6 +177,18 @@ export function materializeGeneratedWorkspaceDependencies(
     env: { ...process.env, NODE_PATH: '', CI: 'true' },
     stdio: 'pipe',
   });
+  const { packages: locked } = load(
+    fs.readFileSync(path.join(workspaceDir, 'pnpm-lock.yaml'), 'utf8'),
+  ) as { packages?: Record<string, unknown> };
+  const fromRegistry = Object.keys(locked ?? {}).filter(
+    key => key.startsWith('@bleedingdev/') && !key.includes('@file:'),
+  );
+  if (fromRegistry.length) {
+    throw new Error(
+      `Generated workspace resolved @bleedingdev packages from the registry: ${fromRegistry.join(', ')}. ` +
+        'Add them to scripts/ultramodern-supply/sidecars.json / staged cohort.',
+    );
+  }
   prepareSourceUnavailableConsumer(workspaceDir, true);
 }
 

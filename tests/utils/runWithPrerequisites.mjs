@@ -5,6 +5,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { yaml } from '@modern-js/utils';
 import spawn from 'cross-spawn';
+import { inspectNpmTarball } from '../../scripts/ultramodern-publish/lib/prepare-bleedingdev-packages/release-artifacts.mjs';
+import {
+  collectSidecarPackages,
+  stageSidecarPackages,
+  validateAliasConsistency,
+  writeSidecarStagingManifest,
+} from '../../scripts/ultramodern-publish/lib/prepare-bleedingdev-packages/sidecars.mjs';
 
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
 
@@ -19,9 +26,52 @@ export function runPnpm(args, options) {
   return result.stdout;
 }
 
+const sha256 = file =>
+  createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+
+/** Every edge onto a `@bleedingdev/*` package: an `npm:` alias or a direct name. */
+export function bleedingdevEdges(packageJson) {
+  const edges = [];
+  for (const block of [
+    'dependencies',
+    'devDependencies',
+    'optionalDependencies',
+  ]) {
+    for (const [name, spec] of Object.entries(packageJson[block] ?? {})) {
+      if (typeof spec !== 'string') continue;
+      const alias = /^npm:(@bleedingdev\/[^@]+)@(.+)$/u.exec(spec);
+      if (alias) {
+        edges.push({ name, spec, target: alias[1], version: alias[2] });
+      } else if (name.startsWith('@bleedingdev/')) {
+        edges.push({ name, spec, target: name, version: spec });
+      }
+    }
+  }
+  return edges;
+}
+
+/** Stage and pack the release sidecars with the publish workflow's own code. */
+export async function packTestSidecars(outputDir) {
+  const staged = await stageSidecarPackages(
+    collectSidecarPackages(),
+    outputDir,
+  );
+  validateAliasConsistency([], staged);
+  const { manifest } = writeSidecarStagingManifest(outputDir, staged);
+  return Object.fromEntries(
+    manifest.packages.map(item => {
+      const tarball = path.join(outputDir, item.tarballPath);
+      return [
+        item.name,
+        { tarball, version: item.version, integrity: item.sha256 },
+      ];
+    }),
+  );
+}
+
 // The runner is the only writer. Workers consume tarballs and framework dist
 // after this phase finishes; no worker discovers or rebuilds stale packages.
-export function packTestPackages(outputDir) {
+export async function packTestPackages(outputDir) {
   fs.mkdirSync(outputDir, { recursive: true });
   const projects = JSON.parse(
     runPnpm(['--filter', '@modern-js/*', 'list', '--depth', '-1', '--json'], {
@@ -43,20 +93,25 @@ export function packTestPackages(outputDir) {
       cwd: project.path,
       stdio: 'pipe',
     });
-    packages[project.name] = {
-      tarball,
-      integrity: createHash('sha256')
-        .update(fs.readFileSync(tarball))
-        .digest('hex'),
-    };
+    packages[project.name] = { tarball, integrity: sha256(tarball) };
   }
+  const sidecars = await packTestSidecars(outputDir);
+  // Edges inside packed manifests; generated workspaces add their own.
+  const edges = [
+    ...Object.values(packages),
+    ...Object.values(sidecars),
+  ].flatMap(({ tarball }) =>
+    bleedingdevEdges(
+      JSON.parse(inspectNpmTarball(fs.readFileSync(tarball)).packageJsonBytes),
+    ),
+  );
   const manifest = path.join(outputDir, 'packages.json');
   const { allowBuilds } = yaml.load(
     fs.readFileSync(path.join(repoRoot, 'pnpm-workspace.yaml'), 'utf8'),
   );
   fs.writeFileSync(
     manifest,
-    `${JSON.stringify({ packages, allowBuilds }, null, 2)}\n`,
+    `${JSON.stringify({ packages, sidecars, edges, allowBuilds }, null, 2)}\n`,
   );
   return manifest;
 }
@@ -64,7 +119,7 @@ export function packTestPackages(outputDir) {
 async function main() {
   const args = process.argv.slice(2);
   if (args[0] === '--pack-only' && args.length === 2) {
-    console.log(packTestPackages(path.resolve(args[1])));
+    console.log(await packTestPackages(path.resolve(args[1])));
     return;
   }
   const prepared = args[0] === '--prepared';
@@ -85,7 +140,7 @@ async function main() {
     ? undefined
     : fs.mkdtempSync(path.join(os.tmpdir(), 'modern-test-packages-'));
   try {
-    const manifest = inheritedManifest ?? packTestPackages(outputDir);
+    const manifest = inheritedManifest ?? (await packTestPackages(outputDir));
     const child = spawn(args[0], args.slice(1), {
       cwd: process.cwd(),
       env: { ...process.env, MODERN_TEST_PACKAGE_MANIFEST: manifest },
