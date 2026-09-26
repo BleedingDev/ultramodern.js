@@ -290,10 +290,7 @@ jobs:
             --filter "@modern-js/plugin-bff..." \
             --filter "@modern-js/bff-core..." \
             build
-          # Repository-state boundary snapshots remain enforced by the dedicated
-          # boundary workflow; stale bookkeeping must not reject valid release bytes.
-          NODE_OPTIONS='--test-skip-pattern=^(?:repo\x20allowlist\x20has\x20no\x20new\x20upstream-owned\x20imports\x20of\x20fork-only\x20code|full\x20recorded\x20repository\x20scope\x20remains\x20green\x20and\x20fully\x20measured)$' \
-            mise exec -- pnpm run test:scripts:after-build
+          mise exec -- pnpm run test:scripts:after-build
           # Source tooling already passed above in both release lanes.
           # This suite adds the remaining script contracts and real image bytes.
           mise exec -- pnpm run check-changeset
