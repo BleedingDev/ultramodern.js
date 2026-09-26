@@ -186,7 +186,13 @@
     "std-env": "4.2.0"
   },
   "peerDependencies": {
-    "@rsbuild/core": "2.2.9"
+    "@rsbuild/core": "2.2.9",
+    "react": "^19.2.8"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@modern-js/plugin": "workspace:*",
@@ -204,7 +210,9 @@
     "effect": "4.0.0-rc.117",
     "miniflare": "5.20260921.0-alpha",
     "ndepe": "^0.1.13",
-    "pg": "8.23.0"
+    "pg": "8.23.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
   },
   "sideEffects": false,
   "publishConfig": {
