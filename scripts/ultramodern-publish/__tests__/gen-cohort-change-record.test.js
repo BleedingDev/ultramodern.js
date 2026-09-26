@@ -59,7 +59,11 @@ test('generator derives the record from an isolated verified release checkout', 
     import('../lib/prepare-bleedingdev-packages/constants.mjs'),
     loadGenerator(),
   ]);
-  const fixture = createGitFixture({ prefix: 'cohort-record-release-' });
+  // A fork-owned author, so the record classifies the changeset as fork work.
+  const fixture = createGitFixture({
+    author: { email: 'debug@ultramodern.local', name: 'UltraModern Debug' },
+    prefix: 'cohort-record-release-',
+  });
   const root = fixture.repoDir;
   const run = (...args) => fixture.git(args);
   const version = '3.5.0-ultramodern.1';
@@ -160,6 +164,9 @@ test('generator derives the record from an isolated verified release checkout', 
       release,
     });
     assert.equal(entries.length, 1);
+    assert.equal(entries[0].fork, true);
+    assert.match(body, /## UltraModern changes/u);
+    assert.doesNotMatch(body, /## Inherited from upstream Modern\.js/u);
     assert.match(body, new RegExp(`— ${version.replaceAll('.', '\\.')}`));
     assert.ok(
       body.includes(
