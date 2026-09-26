@@ -315,6 +315,35 @@ test('alias targets must match a staged sidecar exactly', async () => {
   );
 });
 
+test('every repository recipe has a runtime consumer in the published cohort', async () => {
+  const sidecarsModule = await import(
+    '../lib/prepare-bleedingdev-packages/sidecars.mjs'
+  );
+  const { collectModernPackages, targetPackageName } = await import(
+    '../lib/prepare-bleedingdev-packages/rewrite.mjs'
+  );
+  const { assertRepositoryRecipeConsumers } = await import(
+    '../../ultramodern-supply/verify-sidecars.mjs'
+  );
+  const options = { scope: 'bleedingdev', prefix: 'modern-js-' };
+  const sidecars = sidecarsModule.collectSidecarPackages();
+  const published = collectModernPackages(options).packages.map(
+    ({ packageJson }) =>
+      sidecarsModule.rewriteSidecarConsumerAliases(
+        {
+          ...structuredClone(packageJson),
+          name: targetPackageName(packageJson.name, options),
+        },
+        sidecars,
+      ),
+  );
+  assertRepositoryRecipeConsumers(published);
+  assert.throws(
+    () => assertRepositoryRecipeConsumers([]),
+    /sidecar (ipx|rsbuild-image-core) has no runtime consumer/,
+  );
+});
+
 test('release staging projects exact sidecar aliases without making source installs depend on unpublished packages', async () => {
   const { collectSidecarPackages, rewriteSidecarConsumerAliases } =
     await importSidecars();

@@ -4,40 +4,32 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import {
-  assertRecipeConsumers,
-  collectRecipeConsumers,
-  verifySidecar,
-} from './verify-sidecars.mjs';
+import { assertRecipeConsumers, verifySidecar } from './verify-sidecars.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
-const recipes = JSON.parse(
-  fs.readFileSync(new URL('./sidecars.json', import.meta.url), 'utf8'),
-);
 
-test('every repository recipe has a runtime consumer', () => {
-  assertRecipeConsumers(recipes, collectRecipeConsumers());
-});
-
-test('a recipe consumed only through devDependencies is rejected', () => {
+test('a recipe consumed only through devDependencies or an unaliased edge is rejected', () => {
   const orphan = {
     id: 'orphan',
     upstream: { name: 'orphan', version: '1.0.0' },
     fork: { name: '@bleedingdev/orphan', version: '1.0.0' },
     manifestChanges: {},
   };
+  const manifest = {
+    name: '@bleedingdev/modern-js-fixture',
+    devDependencies: { orphan: 'npm:@bleedingdev/orphan@1.0.0' },
+    dependencies: { orphan: '1.0.0' },
+  };
   const consumers = {
     patchSelectors: new Set(),
     generatorSources: [],
-    cohortManifests: [
-      { name: '@modern-js/fixture', devDependencies: { orphan: '1.0.0' } },
-    ],
+    publishedManifests: [manifest],
   };
   assert.throws(
     () => assertRecipeConsumers([orphan], consumers),
     /sidecar orphan has no runtime consumer; delete the recipe or wire a consumer/,
   );
-  consumers.cohortManifests[0].peerDependencies = { orphan: '^1.0.0' };
+  manifest.peerDependencies = { orphan: 'npm:@bleedingdev/orphan@1.0.0' };
   assertRecipeConsumers([orphan], consumers);
 });
 
@@ -59,7 +51,7 @@ test('recipes reached only through a reachable recipe alias edge are consumed', 
   const consumers = {
     patchSelectors: new Set(),
     generatorSources: ["parent: 'npm:@bleedingdev/parent@1.0.0'"],
-    cohortManifests: [],
+    publishedManifests: [],
   };
   assert.throws(
     () => assertRecipeConsumers([parent, child], consumers),
