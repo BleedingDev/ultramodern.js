@@ -7,6 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 const { writeJsonFile } = require('../../lib/fs-kit');
+const { createGitFixture } = require('../../lib/git-fixture');
 const { createProcessEnv } = require('../../lib/process-kit');
 
 function writeJson(root, relativePath, value) {
@@ -590,22 +591,16 @@ test('acceptance Git setup refuses to commit into an enclosing repository', asyn
   const { configureAcceptanceWorkspaceGit } = await import(
     '../published-create-proof/acceptance-profile.mjs'
   );
-  const fixture = fs.mkdtempSync(
-    path.join(os.tmpdir(), 'acceptance-git-root-'),
-  );
-  const parent = path.join(fixture, 'parent');
+  const fixture = createGitFixture({ prefix: 'acceptance-git-root-' });
+  const parent = fixture.repoDir;
   const nested = path.join(parent, 'generated');
-  const env = {
-    GIT_CONFIG_GLOBAL: path.join(fixture, 'empty-gitconfig'),
-    GIT_CONFIG_NOSYSTEM: '1',
-  };
   const calls = [];
   const runImpl = (command, args, options = {}) => {
     calls.push(args);
     const result = spawnSync(command, args, {
       cwd: options.cwd ?? parent,
       encoding: 'utf8',
-      env: createProcessEnv({ ...env, ...options.env }),
+      env: options.env ?? fixture.env,
       stdio: 'pipe',
     });
     assert.equal(result.status, 0, result.stderr || result.stdout);
@@ -613,13 +608,10 @@ test('acceptance Git setup refuses to commit into an enclosing repository', asyn
   };
   try {
     fs.mkdirSync(nested, { recursive: true });
-    fs.writeFileSync(env.GIT_CONFIG_GLOBAL, '');
     runImpl('git', ['init', '--quiet']);
-    runImpl('git', ['config', 'user.name', 'Parent Author']);
-    runImpl('git', ['config', 'user.email', 'parent@example.test']);
     fs.writeFileSync(path.join(parent, 'tracked.txt'), 'initial\n');
     runImpl('git', ['add', 'tracked.txt']);
-    runImpl('git', ['-c', 'commit.gpgsign=false', 'commit', '-m', 'initial']);
+    runImpl('git', ['commit', '--quiet', '-m', 'initial']);
     fs.writeFileSync(path.join(parent, 'tracked.txt'), 'staged\n');
     runImpl('git', ['add', 'tracked.txt']);
     fs.writeFileSync(path.join(parent, 'tracked.txt'), 'unstaged\n');
@@ -636,7 +628,7 @@ test('acceptance Git setup refuses to commit into an enclosing repository', asyn
     // rewrite their working tree.
     calls.length = 0;
     assert.throws(
-      () => configureAcceptanceWorkspaceGit(nested, env, runImpl),
+      () => configureAcceptanceWorkspaceGit(nested, fixture.env, runImpl),
       /workspace must be its own Git root:.*Use a work directory outside an existing repository/u,
     );
     assert.deepEqual(calls, [['rev-parse', '--show-toplevel']]);
@@ -649,7 +641,7 @@ test('acceptance Git setup refuses to commit into an enclosing repository', asyn
     }
     assert.equal(runImpl('git', ['rev-parse', 'HEAD']), originalHead);
   } finally {
-    fs.rmSync(fixture, { recursive: true, force: true });
+    fixture.cleanup();
   }
 });
 

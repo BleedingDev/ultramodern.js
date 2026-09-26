@@ -3,7 +3,7 @@ const path = require('path');
 const { parseSync, types: babelTypes } = require('@babel/core');
 
 const { extractImportSpecifiers } = require('../boundary-guards/validator');
-const { createProcessEnv, runCommand } = require('../lib/process-kit');
+const { createRepositoryGitEnv, runCommand } = require('../lib/process-kit');
 const {
   buildProvenanceOwnership,
   parseNameStatus,
@@ -33,15 +33,8 @@ const DEFAULT_DENYLIST = Object.freeze([
 const toPosixPath = value => value.split(path.sep).join('/');
 
 const runGit = ({ rootDir, args, allowFailure = false }) => {
-  const env = createProcessEnv(
-    Object.fromEntries(
-      Object.keys(process.env)
-        .filter(key => key.toUpperCase().startsWith('GIT_'))
-        .map(key => [key, undefined]),
-    ),
-  );
   const result = runCommand('git', ['--literal-pathspecs', ...args], {
-    env,
+    env: createRepositoryGitEnv(),
     cwd: rootDir,
     encoding: 'utf8',
     stdio: 'pipe',

@@ -10,6 +10,15 @@ export type UltramodernReleaseIdentity = {
   sourceRevision: string;
 };
 
+// Inherited GIT_* variables (git hooks export GIT_DIR and GIT_INDEX_FILE)
+// would make git describe some other repository than `workspaceRoot`.
+const workspaceGitEnv = (): NodeJS.ProcessEnv =>
+  Object.fromEntries(
+    Object.entries(process.env).filter(
+      ([name]) => !name.toUpperCase().startsWith('GIT_'),
+    ),
+  );
+
 const gitOutput = (
   workspaceRoot: string,
   args: string[],
@@ -18,6 +27,7 @@ const gitOutput = (
     return execFileSync('git', args, {
       cwd: workspaceRoot,
       encoding: 'utf8',
+      env: workspaceGitEnv(),
       stdio: ['ignore', 'pipe', 'ignore'],
     }).trim();
   } catch {

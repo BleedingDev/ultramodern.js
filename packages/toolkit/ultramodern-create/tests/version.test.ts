@@ -4,16 +4,18 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { createGitFixture } from '../../../../scripts/lib/git-fixture.js';
 
 const packageRoot = path.resolve(__dirname, '..');
 const builtCliPath = path.join(packageRoot, 'dist/esm-node/index.js');
 
-// Keeps every spawned CLI hermetic: no test may dial the npm registry for
-// the @bleedingdev/modern-js-ultramodern-create framework cohort.
-const hermeticEnv = {
-  ...process.env,
+// Keeps every spawned CLI hermetic: its git sees only the fixture's git
+// config and environment, and no test may dial the npm registry for the
+// @bleedingdev/modern-js-ultramodern-create framework cohort.
+const createCliEnv = (gitEnv: NodeJS.ProcessEnv) => ({
+  ...gitEnv,
   ULTRAMODERN_CREATE_FRAMEWORK_VERSION: '3.2.0-ultramodern.108',
-};
+});
 
 const writeExecutable = (filePath: string, content: string) => {
   fs.writeFileSync(filePath, content, { mode: 0o755 });
@@ -176,7 +178,8 @@ test('built public UltraModern subpath imports from an ESM consumer and generate
 });
 
 test('built CLI scaffolds a workspace whose asset prefix resolves by precedence', () => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'modern-create-cli-'));
+  const fixture = createGitFixture({ prefix: 'modern-create-cli-' });
+  const tmpDir = fixture.repoDir;
 
   try {
     const result = spawnSync(
@@ -185,7 +188,7 @@ test('built CLI scaffolds a workspace whose asset prefix resolves by precedence'
       {
         cwd: tmpDir,
         encoding: 'utf8',
-        env: hermeticEnv,
+        env: createCliEnv(fixture.env),
       },
     );
 
@@ -222,21 +225,17 @@ test('built CLI scaffolds a workspace whose asset prefix resolves by precedence'
       );
     }
   } finally {
-    fs.rmSync(tmpDir, {
-      recursive: true,
-      force: true,
-      maxRetries: 5,
-      retryDelay: 200,
-    });
+    fixture.cleanup();
   }
 });
 
 test('local source initializes Git offline and leaves the first commit to the user', () => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'modern-create-cli-'));
+  const fixture = createGitFixture({ prefix: 'modern-create-cli-' });
+  const tmpDir = fixture.repoDir;
   const fakeBinDir = path.join(tmpDir, 'fake-bin');
   const hooksDir = path.join(tmpDir, 'hooks');
   const hookMarker = path.join(tmpDir, 'pre-commit-ran');
-  const isolatedGitConfig = path.join(tmpDir, 'gitconfig');
+  const isolatedGitConfig = fixture.globalConfigPath;
   fs.mkdirSync(fakeBinDir);
   fs.mkdirSync(hooksDir);
   // A failing npm proves the registry is never required on this path.
@@ -247,11 +246,10 @@ test('local source initializes Git offline and leaves the first commit to the us
   );
   // Background maintenance (auto gc, fsmonitor) would keep writing into .git
   // after `git commit` returns and race the cleanup below (ENOTEMPTY on macOS).
-  const gitConfig = `[core]\n\thooksPath = ${JSON.stringify(hooksDir)}\n\tfsmonitor = false\n[user]\n\tname = Scaffold Test\n\temail = scaffold@example.test\n[commit]\n\tgpgsign = false\n[gc]\n\tauto = 0\n[maintenance]\n\tauto = false\n`;
+  const gitConfig = `[core]\n\thooksPath = ${JSON.stringify(hooksDir)}\n\tfsmonitor = false\n[gc]\n\tauto = 0\n[maintenance]\n\tauto = false\n`;
   fs.writeFileSync(isolatedGitConfig, gitConfig);
   const env = {
-    ...hermeticEnv,
-    GIT_CONFIG_GLOBAL: isolatedGitConfig,
+    ...createCliEnv(fixture.env),
     PATH: `${fakeBinDir}${path.delimiter}${process.env.PATH ?? ''}`,
     ULTRAMODERN_TEST_HOOK_MARKER: hookMarker,
   };
@@ -294,36 +292,26 @@ test('local source initializes Git offline and leaves the first commit to the us
     assert.equal(fs.existsSync(hookMarker), true);
     assert.equal(git(['rev-parse', '--verify', 'HEAD']).status, 0);
   } finally {
-    fs.rmSync(tmpDir, {
-      recursive: true,
-      force: true,
-      maxRetries: 5,
-      retryDelay: 200,
-    });
+    fixture.cleanup();
   }
 });
 
 test('creation inside a repository preserves its HEAD and staged changes', () => {
-  const tmpDir = fs.mkdtempSync(
-    path.join(os.tmpdir(), 'modern-create-parent-'),
-  );
-  const parentDir = path.join(tmpDir, 'parent');
-  const hooksDir = path.join(tmpDir, 'hooks');
-  const hookMarker = path.join(tmpDir, 'pre-commit-ran');
-  const isolatedGitConfig = path.join(tmpDir, 'gitconfig');
-  fs.mkdirSync(parentDir);
+  const fixture = createGitFixture({ prefix: 'modern-create-parent-' });
+  const parentDir = fixture.repoDir;
+  const hooksDir = path.join(fixture.tempDir, 'hooks');
+  const hookMarker = path.join(fixture.tempDir, 'pre-commit-ran');
   fs.mkdirSync(hooksDir);
   writeExecutable(
     path.join(hooksDir, 'pre-commit'),
     '#!/bin/sh\n: > "$ULTRAMODERN_TEST_HOOK_MARKER"\n',
   );
   fs.writeFileSync(
-    isolatedGitConfig,
-    `[core]\n\thooksPath = ${JSON.stringify(hooksDir)}\n[user]\n\tname = Parent Test\n\temail = parent@example.test\n[commit]\n\tgpgsign = false\n`,
+    fixture.globalConfigPath,
+    `[core]\n\thooksPath = ${JSON.stringify(hooksDir)}\n`,
   );
   const env = {
-    ...hermeticEnv,
-    GIT_CONFIG_GLOBAL: isolatedGitConfig,
+    ...createCliEnv(fixture.env),
     ULTRAMODERN_TEST_HOOK_MARKER: hookMarker,
   };
   const git = (args: string[]) => {
@@ -371,17 +359,13 @@ test('creation inside a repository preserves its HEAD and staged changes', () =>
     );
     assert.equal(fs.existsSync(hookMarker), false);
   } finally {
-    fs.rmSync(tmpDir, {
-      recursive: true,
-      force: true,
-      maxRetries: 5,
-      retryDelay: 200,
-    });
+    fixture.cleanup();
   }
 });
 
 test('missing git fails fast without attempting a system package install', () => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'modern-create-cli-'));
+  const fixture = createGitFixture({ prefix: 'modern-create-cli-' });
+  const tmpDir = fixture.repoDir;
   const fakeBinDir = path.join(tmpDir, 'fake-bin');
   const brewMarker = path.join(tmpDir, 'brew-was-invoked');
   fs.mkdirSync(fakeBinDir);
@@ -401,7 +385,7 @@ test('missing git fails fast without attempting a system package install', () =>
         cwd: tmpDir,
         encoding: 'utf8',
         env: {
-          ...hermeticEnv,
+          ...createCliEnv(fixture.env),
           PATH: fakeBinDir,
         },
       },
@@ -415,11 +399,6 @@ test('missing git fails fast without attempting a system package install', () =>
       'create must never attempt to install git through a package manager',
     );
   } finally {
-    fs.rmSync(tmpDir, {
-      recursive: true,
-      force: true,
-      maxRetries: 5,
-      retryDelay: 200,
-    });
+    fixture.cleanup();
   }
 });
