@@ -1,4 +1,5 @@
 import { createServer } from 'node:http';
+import path from 'node:path';
 import initializePlugin from '../../src/plugins/initialize';
 
 // Keep the real `isLazyCompilationSafeByDefault`, but stub `createDefaultConfig`
@@ -47,7 +48,23 @@ describe('initialize plugin: default lazyCompilation', () => {
     expect(configCb!().dev.lazyCompilation).toEqual({
       imports: true,
       entries: false,
+      test: expect.any(Function),
     });
+  });
+
+  it('keeps the generated async-entry module eager', () => {
+    const internalDirectory = path.resolve('/tmp/app/.modern-js');
+    const { configCb } = setupPlugin(
+      {},
+      { appDirectory: '/tmp/app', internalDirectory },
+    );
+    const { test } = configCb!().dev.lazyCompilation;
+    expect(
+      test({ resource: path.join(internalDirectory, 'main', 'index.jsx') }),
+    ).toBe(false);
+    expect(
+      test({ resource: path.resolve('/tmp/app/src/components/Heavy.tsx') }),
+    ).toBe(true);
   });
 
   it('does not override an explicit user `false`', () => {
@@ -68,6 +85,7 @@ describe('initialize plugin: default lazyCompilation', () => {
     expect(configCb!().dev.lazyCompilation).toEqual({
       imports: true,
       entries: false,
+      test: expect.any(Function),
     });
   });
 

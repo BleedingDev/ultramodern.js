@@ -4,6 +4,7 @@ import {
   isDev,
   isDevCommand,
 } from '@modern-js/utils';
+import { buildDefaultLazyCompilationTest } from '../../builder/shared/asyncEntryLazyCompilation';
 import {
   createDefaultConfig,
   isLazyCompilationSafeByDefault,
@@ -40,7 +41,11 @@ export default (): CliPlugin<AppTools> => ({
       ) {
         defaultConfig.dev = {
           ...defaultConfig.dev,
-          lazyCompilation: { imports: true, entries: false },
+          lazyCompilation: {
+            imports: true,
+            entries: false,
+            test: buildDefaultLazyCompilationTest(appContext.internalDirectory),
+          },
         };
       }
 
