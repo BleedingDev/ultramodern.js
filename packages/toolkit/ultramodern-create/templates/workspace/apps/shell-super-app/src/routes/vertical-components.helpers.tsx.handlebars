@@ -1,5 +1,5 @@
 interface RemoteComponentModule {
-  default: ComponentType;
+  default: FunctionComponent;
 }
 
 const RemoteUnavailable = () => {
@@ -13,15 +13,10 @@ const createRemoteComponent = (
   loader: () => Promise<RemoteComponentModule>,
 ) =>
   createDistributedSsrComponent({
-    createComponent: () =>
-      createLazyComponent({
-        export: 'default',
-        fallback: <RemoteUnavailable />,
-        instance: getInstance(),
-        loader,
-        loading: null,
-      }),
+    createLazyComponent,
     expose,
     fallback: <RemoteUnavailable />,
+    getInstance,
+    loader,
     remote,
   });

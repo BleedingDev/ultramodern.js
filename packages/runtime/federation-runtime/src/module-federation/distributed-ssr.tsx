@@ -1,5 +1,5 @@
 import { useRuntimeContext } from '@modern-js/runtime';
-import type { ComponentType, ReactNode } from 'react';
+import type { ComponentType, FunctionComponent, ReactNode } from 'react';
 
 export const DISTRIBUTED_SSR_FRAGMENTS_LOCALS_KEY =
   '__modernDistributedSsrFragments';
@@ -51,10 +51,39 @@ export type DistributedSsrBoundaryProps<
   remote: string;
 };
 
-export type CreateDistributedSsrComponentOptions<Props extends object> = {
-  createComponent: () => ComponentType<Props>;
+export type DistributedSsrRemoteModule<Props extends object> = {
+  default: FunctionComponent<Props>;
+};
+
+/**
+ * The subset of Module Federation `createLazyComponent` options the
+ * distributed boundary passes. `injectLink` is always false: the boundary owns
+ * remote CSS (the fragment CSS inventory in workerd, the MF manifest in the
+ * browser), so the bridge must not render a second `<link>` in SSR HTML.
+ */
+export type DistributedSsrLazyComponentOptions<
+  Props extends object,
+  Instance,
+> = {
+  export: 'default';
+  fallback: ReactNode;
+  injectLink: false;
+  instance: Instance;
+  loader: () => Promise<DistributedSsrRemoteModule<Props>>;
+  loading: null;
+};
+
+export type CreateDistributedSsrComponentOptions<
+  Props extends object,
+  Instance,
+> = {
+  createLazyComponent: (
+    options: DistributedSsrLazyComponentOptions<Props, Instance>,
+  ) => ComponentType<Props>;
   expose: string;
   fallback: ReactNode;
+  getInstance: () => Instance;
+  loader: () => Promise<DistributedSsrRemoteModule<Props>>;
   remote: string;
 };
 
@@ -212,16 +241,25 @@ export function DistributedSsrBoundary<
  * forbidden global-scope network I/O. Browser and Node rendering keep using
  * the native Module Federation component unchanged.
  */
-export function createDistributedSsrComponent<Props extends object>({
-  createComponent,
+export function createDistributedSsrComponent<Props extends object, Instance>({
+  createLazyComponent,
   expose,
   fallback,
+  getInstance,
+  loader,
   remote,
-}: CreateDistributedSsrComponentOptions<Props>) {
+}: CreateDistributedSsrComponentOptions<Props, Instance>) {
   let RemoteComponent: ComponentType<Props> | undefined;
 
   function DeferredRemoteComponent(props: Props) {
-    RemoteComponent ??= createComponent();
+    RemoteComponent ??= createLazyComponent({
+      export: 'default',
+      fallback,
+      injectLink: false,
+      instance: getInstance(),
+      loader,
+      loading: null,
+    });
     return <RemoteComponent {...props} />;
   }
 

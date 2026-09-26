@@ -249,23 +249,15 @@ export function createFederatedComponentsRegistry(
       {null}
     </DistributedSsrBoundary>
   ),`
-        : `  ${entry.exportName}: createDistributedSsrComponent<${entry.exportName}Props>({
-    createComponent: () =>
-      createLazyComponent<
-        RemoteComponentModule<${entry.exportName}Props>,
-        'default'
-      >({
-        export: 'default',
-        fallback,
-        instance: getInstance(),
-        loader: () =>
-          import('${entry.remoteAlias}') as Promise<
-            RemoteComponentModule<${entry.exportName}Props>
-          >,
-        loading: null,
-      }),
+        : `  ${entry.exportName}: createDistributedSsrComponent({
+    createLazyComponent,
     expose: '${entry.expose}',
     fallback,
+    getInstance,
+    loader: () =>
+      import('${entry.remoteAlias}') as Promise<
+        RemoteComponentModule<${entry.exportName}Props>
+      >,
     remote: '${entry.remoteId}',
   }),`,
     )
