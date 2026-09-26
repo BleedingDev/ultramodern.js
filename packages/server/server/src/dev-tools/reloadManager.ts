@@ -180,8 +180,10 @@ export class ReloadManager {
 
   /**
    * Run `task` after the previously held tasks, and make requests arriving
-   * through `handle` wait until it settles. Requests already dispatched are
-   * not waited for: an SSR loader fetching its own dev server would deadlock.
+   * through `handle` wait until it settles. A reload waits for it before it
+   * swaps the runtime. Requests already dispatched are not waited for: an SSR
+   * loader fetching its own dev server would deadlock. The task itself must
+   * not await a request to this handle, which waits for the task.
    * Returns the task's own result, rejection included.
    */
   hold(task: () => Promise<void>): Promise<void> {
@@ -258,6 +260,10 @@ export class ReloadManager {
         this.#reportBuildError(error);
         continue;
       }
+
+      // Never swap out a runtime whose held repack task is still running its
+      // reset handlers.
+      await this.#released();
 
       // If the manager was closed while this build was in flight, drop the
       // result without committing — no swap, no onReload after close.

@@ -493,4 +493,24 @@ describe('ReloadManager', () => {
     await expect(hold).rejects.toBe(error);
     await expect(response).resolves.toEqual({ tag: 'initial' });
   });
+
+  it('does not swap the runtime while a held task is running', async () => {
+    const initial = makeHandle('initial');
+    const next = makeHandle('next');
+    const manager = new ReloadManager({
+      initialHandle: initial,
+      build: async () => next,
+    });
+    const task = defer<void>();
+    const hold = manager.hold(() => task.promise);
+
+    const reload = manager.reloadNow();
+    await flush();
+    expect(manager.currentHandle).toBe(initial);
+
+    task.resolve();
+    await hold;
+    await reload;
+    expect(manager.currentHandle).toBe(next);
+  });
 });
