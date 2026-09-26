@@ -12,8 +12,10 @@
  *   - no npm token environment variables
  *   - no `${{ inputs.* }}` / `${{ github.event.inputs.* }}` interpolation
  *     inside `run:` blocks (shell-injection vector; route through `env:`)
- *   - every `node <script>` run by a job without a dependency install loads only
- *     Node builtins and tracked files through its static import closure
+ *   - in `.github/workflows/`, every `node <script>` run before the job's
+ *     dependency install loads only Node builtins and tracked files through
+ *     its eager import closure (the template workflow runs scripts of the
+ *     generated workspace, which this repository cannot resolve)
  *
  * Sensitive workflows (publish/nightly/production-readiness/...) additionally
  * require persist-credentials: false, timeout-minutes, harden-runner egress
@@ -416,25 +418,44 @@ const nodeScriptPattern =
 
 const dependencyInstallCommands = ['pnpm install', 'npm install', 'npm ci'];
 
+// A command line ending in a single `&` runs in the background.
+const backgroundCommandPattern = /(?:^|[^&])&\s*$/mu;
+// A step that waits for a background process: `wait` or a `kill -0` poll.
+const joinCommandPattern = /(?:^|[\s;&|(])(?:wait|kill\s+-0)(?:\s|$)/mu;
+
+// Steps that run before an unconditional dependency install has finished.
+// A backgrounded install finishes at the first later step that joins it.
+const bareSteps = steps => {
+  const result = [];
+  let installInFlight = false;
+  for (const step of steps) {
+    const run =
+      typeof step.run === 'string' ? stripShellComments(step.run) : '';
+    if (installInFlight && joinCommandPattern.test(run)) {
+      break;
+    }
+    if (
+      step.if === undefined &&
+      dependencyInstallCommands.some(command => run.includes(command))
+    ) {
+      if (!backgroundCommandPattern.test(run)) {
+        break;
+      }
+      installInFlight = true;
+      continue;
+    }
+    result.push(run);
+  }
+  return result;
+};
+
 const bareJobNodeEntrypoints = workflow =>
   Object.entries(isObject(workflow.jobs) ? workflow.jobs : {}).flatMap(
     ([jobId, job]) => {
       const steps = Array.isArray(job?.steps) ? job.steps.filter(isObject) : [];
-      // Steps before the first unconditional install run from a bare checkout.
-      const installIndex = steps.findIndex(
-        step =>
-          step.if === undefined &&
-          dependencyInstallCommands.some(command => runIncludes(step, command)),
-      );
-      const bareSteps =
-        installIndex === -1 ? steps : steps.slice(0, installIndex);
       const entrypoints = new Set(
-        bareSteps.flatMap(step =>
-          typeof step.run === 'string'
-            ? [...stripShellComments(step.run).matchAll(nodeScriptPattern)].map(
-                match => match[1],
-              )
-            : [],
+        bareSteps(steps).flatMap(run =>
+          [...run.matchAll(nodeScriptPattern)].map(match => match[1]),
         ),
       );
       return [...entrypoints].map(entrypoint => ({ entrypoint, jobId }));
@@ -442,9 +463,9 @@ const bareJobNodeEntrypoints = workflow =>
   );
 
 /**
- * A step that runs before any unconditional dependency install
- * (`pnpm install`, `npm install`, `npm ci`) runs from a bare checkout, so
- * every static import reachable from its `node <script>` entrypoints must be a
+ * A step that runs before an unconditional dependency install (`pnpm
+ * install`, `npm install`, `npm ci`) has finished runs from a bare checkout,
+ * so every eager import reachable from its `node <script>` entrypoints must be a
  * Node builtin or a tracked repository file. Otherwise the job fails with
  * ERR_MODULE_NOT_FOUND at run time, possibly after it already published.
  */

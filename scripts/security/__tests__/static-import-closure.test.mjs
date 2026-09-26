@@ -92,6 +92,26 @@ test('a script run before the install step is still checked', t => {
   );
 });
 
+test('a backgrounded install covers only steps after its join', t => {
+  const rootDir = withRepository(t, recorderFiles);
+  const workflow = workflowWithJob(`      - run: |
+          ( mise exec -- pnpm install --frozen-lockfile ) > install.log 2>&1 &
+          printf '%s\\n' "$!" > install.pid
+      - run: node scripts/record.mjs resolve
+      - run: |
+          while kill -0 "$(cat install.pid)" 2>/dev/null; do sleep 2; done
+      - run: node scripts/installed.mjs
+`);
+  assert.deepEqual(
+    validateWorkflowContent('.github/workflows/example.yml', workflow, {
+      rootDir,
+    }).map(message => message.split(',')[0]),
+    [
+      '.github/workflows/example.yml job recorder runs scripts/record.mjs before any dependency install',
+    ],
+  );
+});
+
 test('a conditional install does not make later steps installed', t => {
   const rootDir = withRepository(t, recorderFiles);
   const workflow = workflowWithJob(`      - if: github.event_name == 'push'
@@ -106,7 +126,7 @@ test('a conditional install does not make later steps installed', t => {
   );
 });
 
-test('a module-scope await import() runs on load and is followed', t => {
+test('a module-scope import() starts on load and is followed', t => {
   const rootDir = withRepository(t, {
     'scripts/record.mjs':
       "const { contract } = await import('./contract.mjs');\n",
@@ -211,7 +231,10 @@ test('static specifiers ignore comments, strings, templates, regexes and import.
     const pattern = /import 'in-regex'/u;
     const url = new URL('.', import.meta.url);
     const eager = await import('eager');
+    const pending = import('pending');
+    await Promise.all([import('in-array')]);
     const lazy = () => import('lazy');
+    if (process.env.X) { await import('in-block'); }
     function load() { return await import('in-function'); }
     object.require('member');
     const kit = require('./kit');
@@ -223,6 +246,8 @@ test('static specifiers ignore comments, strings, templates, regexes and import.
     { kind: 'import', specifier: './d.mjs' },
     { kind: 'require', specifier: './in-expression.cjs' },
     { kind: 'import', specifier: 'eager' },
+    { kind: 'import', specifier: 'pending' },
+    { kind: 'import', specifier: 'in-array' },
     { kind: 'require', specifier: './kit' },
   ]);
 });
