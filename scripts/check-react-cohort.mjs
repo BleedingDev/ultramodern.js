@@ -47,32 +47,69 @@ export function readReactCohortPin(root = repoRoot) {
   return match[1];
 }
 
+// Snapshot key of a dependency entry: `name@version`, or the aliased target
+// when the version is itself `real-name@version`. Workspace links have none.
+function snapshotKey(name, version) {
+  if (version.startsWith('link:')) return undefined;
+  return /^\d/.test(version) ? `${name}@${version}` : version;
+}
+
+function offPinReact(key, pin) {
+  for (const [, reactName, version] of key.matchAll(REACT_REF)) {
+    if (version !== pin) return `${reactName}@${version}`;
+  }
+  return undefined;
+}
+
 export function findReactCohortViolations(lockfileText, pin) {
   const lockfile = parse(lockfileText);
+  const snapshots = lockfile.snapshots ?? {};
   const violations = [];
 
   for (const [importer, manifest] of Object.entries(lockfile.importers ?? {})) {
     if (EXEMPT_IMPORTERS.has(importer)) continue;
+    // Breadth-first over the importer's snapshot graph so each reported chain
+    // is the shortest route to an off-pin React; stop descending at a hit.
+    const queue = [];
+    const seen = new Set();
     for (const field of DEPENDENCY_FIELDS) {
       for (const [name, entry] of Object.entries(manifest[field] ?? {})) {
-        const resolved = `${name}@${entry.version}`;
-        for (const [, reactName, version] of resolved.matchAll(REACT_REF)) {
-          if (version === pin) continue;
-          violations.push(
-            `${importer}: ${resolved} resolves ${reactName}@${version}, not the cohort pin ${reactName}@${pin}. ` +
-              `Add "${reactName}": "^${pin}" to devDependencies of ${importer}/package.json and run pnpm install.`,
-          );
+        const key = snapshotKey(name, String(entry.version));
+        if (key && !seen.has(key)) {
+          seen.add(key);
+          queue.push([key]);
+        }
+      }
+    }
+    for (let chain = queue.shift(); chain; chain = queue.shift()) {
+      const key = chain.at(-1);
+      const offPin = offPinReact(key, pin);
+      if (offPin) {
+        const reactName = offPin.slice(0, offPin.lastIndexOf('@'));
+        violations.push(
+          chain.length === 1
+            ? `${importer}: ${key} resolves ${offPin}, not the cohort pin ${reactName}@${pin}. ` +
+                `Add "${reactName}": "^${pin}" to devDependencies of ${importer}/package.json and run pnpm install.`
+            : `${importer}: ${chain.join(' > ')} pulls ${offPin}, not the cohort pin ${reactName}@${pin}. ` +
+                `Pin ${reactName} for ${chain[0]} (devDependency or pnpm override) so it resolves the cohort React.`,
+        );
+        continue;
+      }
+      const snapshot = snapshots[key] ?? {};
+      for (const field of ['dependencies', 'optionalDependencies']) {
+        for (const [name, version] of Object.entries(snapshot[field] ?? {})) {
+          const child = snapshotKey(name, String(version));
+          if (child && !seen.has(child)) {
+            seen.add(child);
+            queue.push([...chain, child]);
+          }
         }
       }
     }
   }
 
-  const keys = [
-    ...Object.keys(lockfile.packages ?? {}),
-    ...Object.keys(lockfile.snapshots ?? {}),
-  ];
   const mismatched = new Set();
-  for (const key of keys) {
+  for (const key of Object.keys(snapshots)) {
     for (const [, domVersion, reactVersion] of key.matchAll(
       /(?:^|\()react-dom@([^()]+)\(react@([^()]+)\)/g,
     )) {
