@@ -1198,10 +1198,12 @@ const changeDetectionActions = [
   'tj-actions/changed-files',
 ];
 
-// `steps.<id>` or `steps['<id>']` / `steps["<id>"]` in an expression.
+// `steps.<id>.outputs` or `steps['<id>'].outputs` / `steps["<id>"].outputs`
+// in an expression. Only outputs carry a skip decision; `outcome` and
+// `conclusion` references are failure reporting and cleanup.
 const stepReferencePattern = id =>
   new RegExp(
-    `\\bsteps(?:\\.${escapeRegExp(id)}(?![\\w-])|\\[\\s*(['"])${escapeRegExp(id)}\\1\\s*\\])`,
+    `\\bsteps(?:\\.${escapeRegExp(id)}(?![\\w-])|\\[\\s*(['"])${escapeRegExp(id)}\\1\\s*\\])\\s*\\.\\s*outputs\\b`,
     'u',
   );
 
@@ -1232,13 +1234,17 @@ const collectChangeGatedSteps = (workflow, content) => {
 // GitHub filter pattern syntax (docs: "Filter pattern cheat sheet"): `*` is
 // any run of non-`/` characters, `**` any run of characters (`**/` also zero
 // directories), `?` and `+` quantify the preceding character, `[...]` is a
-// character class. Dots are ordinary characters, so `**` matches `.github`.
-// Node glob differs on all of these, hence a direct translation.
+// character class, `\` escapes the next character. Dots are ordinary
+// characters, so `**` matches `.github`. Node glob differs on all of these,
+// hence a direct translation.
 const pathFilterRegExp = pattern => {
   let source = '';
   for (let index = 0; index < pattern.length; index += 1) {
     const char = pattern[index];
-    if (pattern.startsWith('**/', index)) {
+    if (char === '\\' && index + 1 < pattern.length) {
+      source += escapeRegExp(pattern[index + 1]);
+      index += 1;
+    } else if (pattern.startsWith('**/', index)) {
       source += '(?:.*/)?';
       index += 2;
     } else if (char === '*') {
