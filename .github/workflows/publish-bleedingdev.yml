@@ -1058,11 +1058,15 @@ jobs:
   # npm trusted-publishing OIDC cannot mutate dist-tags or approve a staged
   # cohort. `latest` is therefore already public here; this job is an immediate
   # same-workflow registry-byte gate, not a pre-exposure gate or rollback.
+  # accept-release already built and ran the exact tarballs npm now serves.
+  # This job builds and runs nothing: it scaffolds ERP-10 from npm, resolves
+  # the lock, and requires the source receipt's closure. A closure drift fails
+  # here and names every package that moved.
   accept-published:
     name: Accept the exact published registry cohort
     # Same runner-label indirection as accept-release; unset => ubuntu-latest.
     runs-on: ${{ fromJSON(vars.BLEEDINGDEV_ACCEPT_RUNNER_LABELS || '"ubuntu-latest"') }}
-    timeout-minutes: 120
+    timeout-minutes: 30
     if: >-
       github.actor == github.repository_owner &&
       github.triggering_actor == github.repository_owner &&
@@ -1123,10 +1127,10 @@ jobs:
 
       # The cohort wait only reads the registry and the downloaded bundle (the
       # publish scripts import node: builtins and the committed vendored semver
-      # only), so it runs in the background while the two installs below fetch
-      # node_modules and chromium. A wait-loop failure therefore surfaces after
-      # those installs instead of before them, in "Await the exact registry
-      # cohort" — deliberate, and the only ordering this trades away.
+      # only), so it runs in the background while the install below fetches
+      # node_modules. A wait-loop failure therefore surfaces after that install
+      # instead of before it, in "Await the exact registry cohort" — deliberate,
+      # and the only ordering this trades away.
       - name: Start the exact registry cohort wait
         env:
           PUBLISH_CONCURRENCY: ${{ env.BLEEDINGDEV_PUBLISH_CONCURRENCY }}
@@ -1157,59 +1161,8 @@ jobs:
           restore-keys: |
             pnpm-store-accept-${{ runner.os }}-
 
-      # Backgrounded so it overlaps the playwright install below; the join
-      # step surfaces its log and status before anything depends on
-      # node_modules. Runs after the store restore so the restored CAS is
-      # present. Same background/pid/status idiom as the cohort wait above.
-      - name: Start published acceptance runner dependency install
-        run: |
-          (
-            status=0
-            mise exec -- pnpm install --frozen-lockfile --ignore-scripts --filter @scripts/ultramodern-production-readiness || status=$?
-            printf '%s\n' "$status" > "$RUNNER_TEMP/deps-install.status"
-            exit "$status"
-          ) > "$RUNNER_TEMP/deps-install.log" 2>&1 &
-          printf '%s\n' "$!" > "$RUNNER_TEMP/deps-install.pid"
-
-      # Runs while the dependency install above is still in flight: the
-      # provisioning module imports node builtins and repo-local helpers only,
-      # so it needs no node_modules. It reports the resolved playwright version
-      # that keys the cache below, replacing a workflow version literal. It also
-      # exports PLAYWRIGHT_BROWSERS_PATH=$RUNNER_TEMP/ms-playwright to the
-      # later steps; cache_path is that same directory.
-      - name: Resolve browser smoke runtime
-        id: browser-runtime
-        run: >-
-          node scripts/ultramodern-production-readiness/provision-acceptance-browsers.mjs
-          --resolve
-
-      # No restore-keys: the resolved playwright version is the invalidation
-      # mechanism.
-      - name: Restore Playwright chromium cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ steps.browser-runtime.outputs.cache_path }}
-          key: ${{ steps.browser-runtime.outputs.cache_key }}
-
-      # --version carries the version resolved before the restore, so the
-      # install fails closed when the runtime present after it is not the one
-      # the restored cache was keyed from.
-      - name: Install browser smoke runtime
-        run: >-
-          node scripts/ultramodern-production-readiness/provision-acceptance-browsers.mjs
-          --install
-          --version ${{ steps.browser-runtime.outputs.version }}
-
-      # Unconditional join before anything that needs node_modules: a failed
-      # install fails the job here, never silently.
-      - name: Join published acceptance runner dependency install
-        run: |
-          pid="$(cat "$RUNNER_TEMP/deps-install.pid")"
-          while kill -0 "$pid" 2>/dev/null; do
-            sleep 2
-          done
-          cat "$RUNNER_TEMP/deps-install.log"
-          exit "$(cat "$RUNNER_TEMP/deps-install.status")"
+      - name: Install published acceptance runner dependencies
+        run: mise exec -- pnpm install --frozen-lockfile --ignore-scripts --filter @scripts/ultramodern-production-readiness
 
       - name: Await the exact registry cohort
         run: |
@@ -1234,6 +1187,7 @@ jobs:
             --expected-version "$PUBLISH_VERSION" \
             --scale-profile erp-10 \
             --registry-url https://registry.npmjs.org/ \
+            --source-receipt "$BLEEDINGDEV_RELEASE_ACCEPTANCE_RECEIPT" \
             --receipt "$BLEEDINGDEV_PUBLISHED_ACCEPTANCE_RECEIPT" \
             --run-identity "$PRODUCER_RUN_IDENTITY"
 

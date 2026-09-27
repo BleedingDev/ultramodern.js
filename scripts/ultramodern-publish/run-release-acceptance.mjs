@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { assertReleaseAcceptanceProfile } from '../ultramodern-production-readiness/published-create-proof/acceptance-contract.mjs';
 import {
+  acceptedResolution,
   assertAcceptanceReceipt,
   readAcceptanceReceipt,
   verifyAcceptanceReceiptOperationalEvidence,
@@ -33,6 +34,7 @@ const valueOptions = new Set([
   '--release-age-policy',
   '--run-identity',
   '--scale-profile',
+  '--source-receipt',
 ]);
 const booleanOptions = new Set(['--verify-receipt']);
 
@@ -100,6 +102,12 @@ function parseArgs(argv) {
   if (!receipt) {
     throw new Error('--receipt is required');
   }
+  const sourceReceipt = values.get('--source-receipt');
+  if ((mode === 'published') !== (sourceReceipt !== undefined)) {
+    throw new Error(
+      '--source-receipt names the passed source receipt whose resolution published acceptance must reproduce; it is required with --mode published and valid only there',
+    );
+  }
   const scaleProfile = values.get('--scale-profile') ?? 'erp-10';
   if (scaleProfile !== 'erp-10') {
     throw new Error('--scale-profile must be erp-10 for release acceptance');
@@ -119,6 +127,8 @@ function parseArgs(argv) {
     releaseDir,
     runIdentity: values.get('--run-identity'),
     scaleProfile,
+    sourceReceiptPath:
+      sourceReceipt === undefined ? undefined : path.resolve(sourceReceipt),
   };
 }
 
@@ -246,8 +256,15 @@ async function runPrepublish({ release, options, runIdentity }) {
 
 async function runPublished({ release, options, runIdentity }) {
   const registryUrl = new URL(options.registryUrl).toString();
+  const sourceReceipt = verifyReceipt({
+    release,
+    options: { ...options, receiptPath: options.sourceReceiptPath },
+    runIdentity,
+    expectedMode: 'source',
+  });
   return executeAcceptanceProfile({
     mode: 'published',
+    acceptedResolution: acceptedResolution(sourceReceipt),
     release,
     registryUrl,
     registryEnv: {

@@ -196,6 +196,7 @@ function readReleaseEvidence({
     // lane; the published receipt contract excludes that result id.
     if (expectedMode !== 'source') {
       return {
+        closureSha256: receipt.binding.supplyChain.closureSha256,
         evidencePath: null,
         receiptPath: path.basename(receiptFile),
       };
@@ -225,6 +226,7 @@ function readReleaseEvidence({
       );
     }
     return {
+      closureSha256: receipt.binding.supplyChain.closureSha256,
       evidencePath: path.basename(operationalFile),
       receiptPath: path.basename(receiptFile),
     };
@@ -239,6 +241,16 @@ function readReleaseEvidence({
     publishedReceiptPath === undefined
       ? null
       : acceptanceEvidence(publishedReceiptPath, undefined, 'published');
+  // The published receipt proves only that npm resolves the closure the
+  // source receipt built and ran; both receipts must name that one closure.
+  if (
+    publishedAcceptance !== null &&
+    publishedAcceptance.closureSha256 !== prepublishAcceptance.closureSha256
+  ) {
+    throw new Error(
+      'Published acceptance resolved a different dependency closure than the source acceptance built and ran',
+    );
+  }
   const tractorAcceptance = readTractorAcceptanceEvidence({
     baselineRevision: tractorBaselineRevision,
     manifest,

@@ -29,6 +29,7 @@ import {
   createOperationalIndependenceResultDetails,
   operationalIndependenceEvidencePath,
   operationalIndependenceResultId,
+  resolutionParityResultId,
   runtimeAcceptanceDimensions,
   runtimeAcceptanceInvocation,
   runtimeAcceptancePlatforms,
@@ -70,6 +71,7 @@ import {
   YAML_NAME,
   YAML_VERSION,
 } from './release-age-audit.mjs';
+import { assertResolutionParity } from './resolution-parity.mjs';
 import { addVertical, createWorkspace } from './workspace.mjs';
 
 const requiredPnpmCommands = Object.freeze({
@@ -1119,8 +1121,228 @@ function receiptFailure(receipt, error) {
   receipt.error = error instanceof Error ? error.message : String(error);
 }
 
+// The source lane builds the scaffolded workspace and runs it on Node and
+// workerd. The published lane never gets here: npm serves the tarballs built
+// and run below, so it proves resolution parity instead.
+async function acceptBuiltWorkspace({
+  audit,
+  browserSmokeImpl,
+  now,
+  options,
+  outPath,
+  ownedWorkDir,
+  packageManagerEnv,
+  projectDir,
+  proveOperationalTargetImpl,
+  receipt,
+  registryUrl,
+  release,
+  runImpl,
+}) {
+  let applicationSourceRevision;
+  let artifacts;
+  let operationalNode;
+  const operationalBaselines = {};
+  const runtimeReports = new Map();
+  const runtimeIdentityDetails = new Map();
+  await recordAcceptanceResult(receipt, 'install', () =>
+    withDuration(() => {
+      const beforeInstall = verifyStrictInstallInputs(projectDir, audit, {
+        now: currentTime(now),
+        phase: 'before-frozen-install',
+      });
+      runImpl('pnpm', requiredPnpmCommands.install, {
+        cwd: projectDir,
+        env: packageManagerEnv,
+      });
+      const afterInstall = verifyStrictInstallInputs(projectDir, audit, {
+        now: currentTime(now),
+        phase: 'after-frozen-install',
+      });
+      return {
+        command: 'pnpm install --frozen-lockfile',
+        beforeInstall,
+        afterInstall,
+        cohort: assertGeneratedCohort(projectDir, release),
+        defaultOffRsc: assertDefaultOffRscInstall(
+          projectDir,
+          audit.closureIdentities,
+        ),
+        cohortResolution: assertCohortResolutionProvenance(
+          projectDir,
+          release,
+          registryUrl,
+        ),
+      };
+    }),
+  );
+
+  await recordAcceptanceResult(receipt, 'pnpm-check', () =>
+    withDuration(() => {
+      runImpl('pnpm', requiredPnpmCommands.check, {
+        cwd: projectDir,
+        env: packageManagerEnv,
+      });
+      // A real first install materializes pinned generated-workspace assets
+      // such as clone-backed agent skills. Snapshot only after lifecycle
+      // scripts and the full workspace check have completed so the exact
+      // committed source built below is clean and promotable.
+      applicationSourceRevision = snapshotAcceptanceWorkspaceSource(
+        projectDir,
+        packageManagerEnv,
+        runImpl,
+      );
+      return {
+        command: 'pnpm check',
+        applicationSourceRevision,
+        ...assertWorkspaceCheckContract(projectDir),
+      };
+    }),
+  );
+
+  const smokeContract = readSmokeContract(projectDir).contract;
+  const reservedSmokePorts = await reserveAcceptanceSmokePorts(smokeContract);
+  const deploymentEnv = createAcceptanceDeploymentEnv(smokeContract, {
+    ...packageManagerEnv,
+    ...reservedSmokePorts.portEnv,
+  });
+  try {
+    await recordAcceptanceResult(receipt, 'build', () =>
+      withDuration(() => {
+        runImpl('pnpm', requiredPnpmCommands.build, {
+          cwd: projectDir,
+          env: createAcceptanceBuildEnv(deploymentEnv),
+        });
+        operationalBaselines.node = captureOperationalBaseline({
+          workspace: projectDir,
+          target: 'node',
+          ids: operationalIndependenceIds,
+          packageManagerEnv: deploymentEnv,
+        });
+        return { command: 'pnpm build' };
+      }),
+    );
+  } finally {
+    await reservedSmokePorts.release();
+  }
+
+  // Cloudflare builds reuse each app's .output directory. Execute and cache
+  // the strict Node report while the final Node deployment roots still
+  // exist; the receipt loop below consumes this exact report in its normal
+  // platform/dimension order.
+  const nodeRuntimeReport = await browserSmokeImpl(projectDir, {
+    ...runtimeAcceptanceInvocation('source', 'node'),
+    packageManagerEnv: deploymentEnv,
+  });
+  if (!nodeRuntimeReport || typeof nodeRuntimeReport !== 'object') {
+    throw new Error('Node runtime acceptance did not produce a report');
+  }
+  runtimeReports.set('node', nodeRuntimeReport);
+
+  await recordAcceptanceResult(receipt, 'topology', () =>
+    withDuration(() => {
+      artifacts = readWorkspaceAcceptanceArtifacts(projectDir);
+      return assertTopologyAcceptance(artifacts, options.verticals);
+    }),
+  );
+  await recordAcceptanceResult(receipt, 'module-federation', () =>
+    withDuration(() =>
+      assertModuleFederationAcceptance(artifacts, options.verticals),
+    ),
+  );
+  await recordAcceptanceResult(receipt, 'api', () =>
+    withDuration(() => assertApiAcceptance(artifacts, options.verticals)),
+  );
+  await recordAcceptanceResult(receipt, 'backend', () =>
+    withDuration(() => assertBackendAcceptance(artifacts, options.verticals)),
+  );
+
+  // The Cloudflare deploy replaces each app's final `.output` directory.
+  // Capture every path-based Node artifact assertion first; the strict Node
+  // browser report above and this backend-envelope assertion must describe
+  // the same executed deployment roots, not the later Cloudflare staging.
+  try {
+    operationalNode = await proveNodeOperationalIndependence({
+      applicationSourceRevision,
+      baseline: operationalBaselines.node,
+      ephemeralWorkDir: ownedWorkDir,
+      outPath,
+      packageManagerEnv: deploymentEnv,
+      projectDir,
+      runImpl,
+      proveOperationalTargetImpl,
+    });
+  } catch (error) {
+    await recordAcceptanceResult(receipt, operationalIndependenceResultId, () =>
+      Promise.reject(error),
+    );
+  }
+  await recordAcceptanceResult(receipt, 'cloudflare-build', () =>
+    withDuration(() => {
+      runImpl('pnpm', requiredPnpmCommands.cloudflareBuild, {
+        cwd: projectDir,
+        env: createAcceptanceBuildEnv(deploymentEnv),
+      });
+      operationalBaselines.cloudflare = captureOperationalBaseline({
+        workspace: projectDir,
+        target: 'cloudflare',
+        ids: operationalIndependenceIds,
+        packageManagerEnv: deploymentEnv,
+      });
+      return { command: 'pnpm cloudflare:build' };
+    }),
+  );
+  for (const platform of runtimeAcceptancePlatforms) {
+    for (const dimension of runtimeAcceptanceDimensions) {
+      const resultId = `${platform}-${dimension}`;
+      const details = await recordAcceptanceResult(receipt, resultId, () =>
+        withDuration(async () => {
+          let report = runtimeReports.get(platform);
+          if (!report) {
+            report = await browserSmokeImpl(projectDir, {
+              ...runtimeAcceptanceInvocation('source', platform),
+              packageManagerEnv: deploymentEnv,
+            });
+            runtimeReports.set(platform, report);
+          }
+          return assertRuntimeAcceptanceDimension(report, {
+            applicationSourceRevision,
+            artifactBinding: receipt.binding.artifacts,
+            dimension,
+            mode: 'source',
+            platform,
+            release,
+            verticals: options.verticals,
+          });
+        }),
+      );
+      if (dimension === 'release-identity') {
+        runtimeIdentityDetails.set(platform, details);
+      }
+    }
+  }
+  bindRuntimeIdentityEvidence(
+    receipt,
+    runtimeIdentityBinding(
+      runtimeIdentityDetails.get('node'),
+      runtimeIdentityDetails.get('workerd'),
+    ),
+  );
+  await recordAcceptanceResult(receipt, operationalIndependenceResultId, () =>
+    completeOperationalIndependence({
+      applicationSourceRevision,
+      baseline: operationalBaselines.cloudflare,
+      mode: 'source',
+      node: operationalNode,
+      packageManagerEnv: deploymentEnv,
+      proveOperationalTargetImpl,
+    }),
+  );
+}
+
 async function runAcceptanceProfile({
   mode,
+  acceptedResolution,
   release,
   registryUrl,
   registryEnv = {},
@@ -1142,6 +1364,11 @@ async function runAcceptanceProfile({
       `Acceptance mode must be source or published, found ${mode}`,
     );
   }
+  if ((mode === 'published') !== (acceptedResolution !== undefined)) {
+    throw new Error(
+      'Published acceptance compares against the resolution a passed source receipt accepted; pass acceptedResolution in published mode and only there.',
+    );
+  }
   assertReleaseAcceptanceProfile(options);
 
   const createPackage = resolveCreatePackage(release, options.createPackage);
@@ -1153,18 +1380,17 @@ async function runAcceptanceProfile({
     suppliedWorkDir ??
     fs.mkdtempSync(path.join(os.tmpdir(), 'ultramodern-release-acceptance-'));
   const ownsWorkDir = suppliedWorkDir === undefined;
-  let reservedSmokePorts;
   if (ownsWorkDir) {
     startOwnedWorkDirGuardian(workDir);
   }
   try {
     const projectDir = path.join(workDir, options.projectName);
     const runtime = runtimeVersions(runImpl, registryTool);
-    // ERP subprocesses take their whole runtime context from the shared owner;
-    // the browsers themselves are provisioned operationally on the runner, so
-    // this profile inherits that path rather than isolating its own.
+    // ERP subprocesses take their whole runtime context from the shared owner.
+    // The source lane inherits the browsers the runner provisioned; the
+    // published lane runs no browser, so it gets an unused isolated path.
     const { env: runtimeEnv } = createAcceptanceRuntimeContext({
-      browsers: 'inherited',
+      browsers: mode === 'source' ? 'inherited' : 'isolated',
       expectedPnpmVersion: release.tools?.pnpm ?? runtime.pnpm,
       registryEnv,
       runImpl,
@@ -1189,16 +1415,6 @@ async function runAcceptanceProfile({
 
     let failure;
     let audit;
-    let artifacts;
-    let applicationSourceRevision;
-    // ACC-1: operational independence is a source-tree property; the
-    // published receipt contract excludes its result id entirely. It reuses
-    // the acceptance C0 builds instead of rebuilding the workspace.
-    const proveOperationalIndependence = mode === 'source';
-    const operationalBaselines = {};
-    let operationalNode;
-    const runtimeReports = new Map();
-    const runtimeIdentityDetails = new Map();
     try {
       await recordAcceptanceResult(receipt, 'registry-cohort-integrity', () =>
         withDuration(() =>
@@ -1301,6 +1517,7 @@ async function runAcceptanceProfile({
             approvals: audit.approvals,
             candidateDiscovery: audit.candidateDiscovery,
             closureCount: audit.closureCount,
+            closureIdentities: audit.closureIdentities,
             digests: audit.digests,
             exactExclusionCount: audit.exactExclusions.length,
             importerCount: audit.importerCount,
@@ -1313,218 +1530,35 @@ async function runAcceptanceProfile({
         }),
       );
 
-      await recordAcceptanceResult(receipt, 'install', () =>
-        withDuration(() => {
-          const beforeInstall = verifyStrictInstallInputs(projectDir, audit, {
-            now: currentTime(now),
-            phase: 'before-frozen-install',
-          });
-          runImpl('pnpm', requiredPnpmCommands.install, {
-            cwd: projectDir,
-            env: packageManagerEnv,
-          });
-          const afterInstall = verifyStrictInstallInputs(projectDir, audit, {
-            now: currentTime(now),
-            phase: 'after-frozen-install',
-          });
-          return {
-            command: 'pnpm install --frozen-lockfile',
-            beforeInstall,
-            afterInstall,
-            cohort: assertGeneratedCohort(projectDir, release),
-            defaultOffRsc: assertDefaultOffRscInstall(
-              projectDir,
-              audit.closureIdentities,
+      if (mode === 'published') {
+        await recordAcceptanceResult(receipt, resolutionParityResultId, () =>
+          withDuration(() =>
+            assertResolutionParity(
+              acceptedResolution,
+              {
+                closureIdentities: audit.closureIdentities,
+                closureSha256: audit.digests.closureSha256,
+              },
+              { lane: 'Published ERP-10' },
             ),
-            // Published mode installs the cohort from the selected public
-            // registry (the default registry, so pnpm records no tarball
-            // URLs); the provenance proof is meaningful only for the scoped
-            // ephemeral-registry install.
-            ...(mode === 'source'
-              ? {
-                  cohortResolution: assertCohortResolutionProvenance(
-                    projectDir,
-                    release,
-                    registryUrl,
-                  ),
-                }
-              : {}),
-          };
-        }),
-      );
-
-      await recordAcceptanceResult(receipt, 'pnpm-check', () =>
-        withDuration(() => {
-          runImpl('pnpm', requiredPnpmCommands.check, {
-            cwd: projectDir,
-            env: packageManagerEnv,
-          });
-          // A real first install materializes pinned generated-workspace assets
-          // such as clone-backed agent skills. Snapshot only after lifecycle
-          // scripts and the full workspace check have completed so the exact
-          // committed source built below is clean and promotable.
-          applicationSourceRevision = snapshotAcceptanceWorkspaceSource(
-            projectDir,
-            packageManagerEnv,
-            runImpl,
-          );
-          return {
-            command: 'pnpm check',
-            applicationSourceRevision,
-            ...assertWorkspaceCheckContract(projectDir),
-          };
-        }),
-      );
-
-      const smokeContract = readSmokeContract(projectDir).contract;
-      reservedSmokePorts = await reserveAcceptanceSmokePorts(smokeContract);
-      const deploymentEnv = createAcceptanceDeploymentEnv(smokeContract, {
-        ...packageManagerEnv,
-        ...reservedSmokePorts.portEnv,
-      });
-      await recordAcceptanceResult(receipt, 'build', () =>
-        withDuration(() => {
-          runImpl('pnpm', requiredPnpmCommands.build, {
-            cwd: projectDir,
-            env: createAcceptanceBuildEnv(deploymentEnv),
-          });
-          if (proveOperationalIndependence) {
-            operationalBaselines.node = captureOperationalBaseline({
-              workspace: projectDir,
-              target: 'node',
-              ids: operationalIndependenceIds,
-              packageManagerEnv: deploymentEnv,
-            });
-          }
-          return { command: 'pnpm build' };
-        }),
-      );
-
-      // Cloudflare builds reuse each app's .output directory. Execute and cache
-      // the strict Node report while the final Node deployment roots still
-      // exist; the receipt loop below consumes this exact report in its normal
-      // platform/dimension order.
-      await reservedSmokePorts.release();
-      const nodeRuntimeReport = await browserSmokeImpl(projectDir, {
-        ...runtimeAcceptanceInvocation(mode, 'node'),
-        packageManagerEnv: deploymentEnv,
-      });
-      if (!nodeRuntimeReport || typeof nodeRuntimeReport !== 'object') {
-        throw new Error('Node runtime acceptance did not produce a report');
-      }
-      runtimeReports.set('node', nodeRuntimeReport);
-
-      await recordAcceptanceResult(receipt, 'topology', () =>
-        withDuration(() => {
-          artifacts = readWorkspaceAcceptanceArtifacts(projectDir);
-          return assertTopologyAcceptance(artifacts, options.verticals);
-        }),
-      );
-      await recordAcceptanceResult(receipt, 'module-federation', () =>
-        withDuration(() =>
-          assertModuleFederationAcceptance(artifacts, options.verticals),
-        ),
-      );
-      await recordAcceptanceResult(receipt, 'api', () =>
-        withDuration(() => assertApiAcceptance(artifacts, options.verticals)),
-      );
-      await recordAcceptanceResult(receipt, 'backend', () =>
-        withDuration(() =>
-          assertBackendAcceptance(artifacts, options.verticals),
-        ),
-      );
-
-      // The Cloudflare deploy replaces each app's final `.output` directory.
-      // Capture every path-based Node artifact assertion first; the strict Node
-      // browser report above and this backend-envelope assertion must describe
-      // the same executed deployment roots, not the later Cloudflare staging.
-      if (proveOperationalIndependence) {
-        try {
-          operationalNode = await proveNodeOperationalIndependence({
-            applicationSourceRevision,
-            baseline: operationalBaselines.node,
-            ephemeralWorkDir: ownsWorkDir ? workDir : undefined,
-            outPath,
-            packageManagerEnv: deploymentEnv,
-            projectDir,
-            runImpl,
-            proveOperationalTargetImpl,
-          });
-        } catch (error) {
-          await recordAcceptanceResult(
-            receipt,
-            operationalIndependenceResultId,
-            () => Promise.reject(error),
-          );
-        }
-      }
-      await recordAcceptanceResult(receipt, 'cloudflare-build', () =>
-        withDuration(() => {
-          runImpl('pnpm', requiredPnpmCommands.cloudflareBuild, {
-            cwd: projectDir,
-            env: createAcceptanceBuildEnv(deploymentEnv),
-          });
-          if (proveOperationalIndependence) {
-            operationalBaselines.cloudflare = captureOperationalBaseline({
-              workspace: projectDir,
-              target: 'cloudflare',
-              ids: operationalIndependenceIds,
-              packageManagerEnv: deploymentEnv,
-            });
-          }
-          return { command: 'pnpm cloudflare:build' };
-        }),
-      );
-      for (const platform of runtimeAcceptancePlatforms) {
-        for (const dimension of runtimeAcceptanceDimensions) {
-          const resultId = `${platform}-${dimension}`;
-          const details = await recordAcceptanceResult(receipt, resultId, () =>
-            withDuration(async () => {
-              let report = runtimeReports.get(platform);
-              if (!report) {
-                report = await browserSmokeImpl(projectDir, {
-                  ...runtimeAcceptanceInvocation(mode, platform),
-                  packageManagerEnv: deploymentEnv,
-                });
-                runtimeReports.set(platform, report);
-              }
-              return assertRuntimeAcceptanceDimension(report, {
-                applicationSourceRevision,
-                artifactBinding: receipt.binding.artifacts,
-                dimension,
-                mode,
-                platform,
-                release,
-                verticals: options.verticals,
-              });
-            }),
-          );
-          if (dimension === 'release-identity') {
-            runtimeIdentityDetails.set(platform, details);
-          }
-        }
-      }
-      bindRuntimeIdentityEvidence(
-        receipt,
-        runtimeIdentityBinding(
-          runtimeIdentityDetails.get('node'),
-          runtimeIdentityDetails.get('workerd'),
-        ),
-      );
-      if (proveOperationalIndependence) {
-        await recordAcceptanceResult(
-          receipt,
-          operationalIndependenceResultId,
-          () =>
-            completeOperationalIndependence({
-              applicationSourceRevision,
-              baseline: operationalBaselines.cloudflare,
-              mode,
-              node: operationalNode,
-              packageManagerEnv: deploymentEnv,
-              proveOperationalTargetImpl,
-            }),
+          ),
         );
+      } else {
+        await acceptBuiltWorkspace({
+          audit,
+          browserSmokeImpl,
+          now,
+          options,
+          outPath,
+          ownedWorkDir: ownsWorkDir ? workDir : undefined,
+          packageManagerEnv,
+          projectDir,
+          proveOperationalTargetImpl,
+          receipt,
+          registryUrl,
+          release,
+          runImpl,
+        });
       }
     } catch (error) {
       failure = error;
@@ -1550,7 +1584,6 @@ async function runAcceptanceProfile({
     }
     return receipt;
   } finally {
-    await reservedSmokePorts?.release();
     if (ownsWorkDir) {
       fs.rmSync(workDir, { recursive: true, force: true });
     }

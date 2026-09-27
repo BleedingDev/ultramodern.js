@@ -3,6 +3,17 @@ const fs = require('node:fs');
 
 const digest = value => crypto.createHash('sha256').update(value).digest('hex');
 
+// The resolved closure every fixture receipt binds. Keys are already in the
+// canonical (sorted) order, so JSON.stringify is its canonical JSON.
+const fixtureClosureIdentities = Object.freeze([
+  Object.freeze({
+    integrity: 'sha512-Zml4dHVyZQ==',
+    name: 'fixture-dependency',
+    version: '1.0.0',
+  }),
+]);
+const fixtureClosureSha256 = digest(JSON.stringify(fixtureClosureIdentities));
+
 // Historical publish-outcome reconstruction needs the archived schema-v4
 // receipt shape. Current fixtures never create or consume this digest.
 function legacyCanonicalSerialize(value) {
@@ -288,21 +299,30 @@ async function createOperationalAcceptanceReceiptFixture({
     await receiptApi.recordAcceptanceResult(receipt, id, async () =>
       id === 'operational-independence'
         ? recordedOperationalDetails
-        : runtime
-          ? {
-              artifactMode: receipt.mode,
-              assertionCount: 1,
-              dimension: runtime.dimension,
-              durationMs: 0,
-              platform: runtime.platform,
-              ...(runtime.dimension === 'release-identity'
-                ? { apps: runtimeIdentity[runtime.platform] }
-                : {}),
-            }
-          : { id },
+        : id === 'dependency-closure-audit'
+          ? { closureIdentities: structuredClone(fixtureClosureIdentities) }
+          : id === 'resolution-parity'
+            ? {
+                closureSha256: fixtureClosureSha256,
+                packageCount: fixtureClosureIdentities.length,
+              }
+            : runtime
+              ? {
+                  artifactMode: receipt.mode,
+                  assertionCount: 1,
+                  dimension: runtime.dimension,
+                  durationMs: 0,
+                  platform: runtime.platform,
+                  ...(runtime.dimension === 'release-identity'
+                    ? { apps: runtimeIdentity[runtime.platform] }
+                    : {}),
+                }
+              : { id },
     );
   }
-  receiptApi.bindRuntimeIdentityEvidence(receipt, runtimeIdentity);
+  if (receipt.mode === 'source') {
+    receiptApi.bindRuntimeIdentityEvidence(receipt, runtimeIdentity);
+  }
   receiptApi.finalizeAcceptanceReceipt(receipt);
 
   const operationalResult = receipt.results.find(
@@ -322,4 +342,7 @@ async function createOperationalAcceptanceReceiptFixture({
   };
 }
 
-module.exports = { createOperationalAcceptanceReceiptFixture };
+module.exports = {
+  createOperationalAcceptanceReceiptFixture,
+  fixtureClosureSha256,
+};
