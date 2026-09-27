@@ -5,8 +5,8 @@
   "pathspec": ["packages"],
   "migrationGoal": "Shrink-only budget of fork edits inside upstream-owned files. Every entry is debt: move it upstream or behind an extension point, then re-run --write-divergence-allowlist.",
   "totalFiles": 840,
-  "totalHunks": 3153,
-  "totalChangedLines": 52021,
+  "totalHunks": 3152,
+  "totalChangedLines": 52119,
   "files": [
     {
       "file": "packages/cli/adapter-rstest/package.json",
@@ -1755,13 +1755,13 @@
     },
     {
       "file": "packages/runtime/plugin-runtime/src/core/server/stream/createReadableStream.ts",
-      "hunks": 21,
-      "changedLines": 466
+      "hunks": 20,
+      "changedLines": 487
     },
     {
       "file": "packages/runtime/plugin-runtime/src/core/server/stream/createReadableStream.worker.ts",
       "hunks": 22,
-      "changedLines": 358
+      "changedLines": 375
     },
     {
       "file": "packages/runtime/plugin-runtime/src/core/server/stream/deferredScript.ts",
@@ -1776,7 +1776,7 @@
     {
       "file": "packages/runtime/plugin-runtime/src/core/server/stream/shared.tsx",
       "hunks": 14,
-      "changedLines": 38
+      "changedLines": 43
     },
     {
       "file": "packages/runtime/plugin-runtime/src/core/server/stream/template.ts",
@@ -2241,7 +2241,7 @@
     {
       "file": "packages/runtime/plugin-runtime/tests/ssr/serverRender/rendererHooks.test.tsx",
       "hunks": 1,
-      "changedLines": 307
+      "changedLines": 362
     },
     {
       "file": "packages/runtime/plugin-runtime/tests/ssr/serverRender/renderToStream/buildTemplate.after.test.ts",
