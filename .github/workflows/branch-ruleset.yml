@@ -1,0 +1,42 @@
+name: Branch Ruleset
+
+# Daily: fail when main-ultramodern stops requiring a pull request, rebase
+# merges, the integration checks, or rejecting force pushes and deletion.
+# The ruleset lives in the repository settings, so nothing in a PR shows it
+# being loosened or deleted.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 5 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  main-ultramodern-ruleset:
+    name: main-ultramodern ruleset
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+
+      - name: Check the active rules on main-ultramodern
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/rules/branches/main-ultramodern" > rules.json
+          jq -e '
+            (map(.type) | index("pull_request") and index("required_status_checks")
+              and index("non_fast_forward") and index("deletion"))
+            and (map(select(.type == "pull_request"))[0].parameters.allowed_merge_methods == ["rebase"])
+            and ([map(select(.type == "required_status_checks"))[0].parameters.required_status_checks[].context
+              | select(startswith("integration-"))] | length > 0)
+          ' rules.json > /dev/null || {
+            echo "::error::main-ultramodern no longer requires PRs, rebase merges, integration checks, and no force push or deletion."
+            jq . rules.json
+            exit 1
+          }
