@@ -47,7 +47,7 @@ test('release source rejects tracked, staged, and untracked changes', async t =>
     },
     {
       label: 'staged deletion',
-      mutate(root, git) {
+      mutate(_root, git) {
         git(['rm', '--quiet', 'tracked.txt']);
       },
       expected: 'tracked.txt',

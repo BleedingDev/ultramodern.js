@@ -1,4 +1,4 @@
-// @ts-ignore
+// @ts-expect-error @aliasTest resolves only through source.alias in modern.config.ts
 import { getAliasMessage } from '@aliasTest';
 import {
   Body,

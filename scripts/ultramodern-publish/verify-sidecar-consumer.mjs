@@ -361,7 +361,7 @@ function assertRegistryConfigValue(key, raw, approvedHref) {
   return normalized;
 }
 
-function assertEffectiveRegistries(cwd, env, registry, label) {
+function assertEffectiveRegistries(cwd, env, registry, _label) {
   for (const key of registryConfigKeys) {
     const raw = run('npm', ['config', 'get', key], {
       cwd,

@@ -716,8 +716,6 @@ async function killApp(instance) {
       return resolve();
     }
 
-    const startedAt = Date.now();
-
     treeKill(instance.pid, err => {
       if (err) {
         if (

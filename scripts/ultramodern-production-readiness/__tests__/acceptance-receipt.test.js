@@ -155,7 +155,6 @@ test('producer receipt passes the shared workflow receipt validator', async () =
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ultramodern-receipt-'));
   try {
     const fixture = await createReceiptFixture(root);
-    const receipt = JSON.parse(fs.readFileSync(fixture.receiptPath, 'utf8'));
     const valid = verifyReceipt(fixture);
     assert.equal(valid.status, 0, valid.stderr || valid.stdout);
     assert.match(valid.stdout, /Verified ERP-10 acceptance receipt/);

@@ -346,7 +346,7 @@ test('registry cohort verification fails closed when downloaded bytes differ', a
         release: { packages: [pkg] },
         registryUrl: 'https://registry.npmjs.org/',
         workDir: root,
-        async runImpl(command, args) {
+        async runImpl(_command, args) {
           const destination = args[args.indexOf('--pack-destination') + 1];
           fs.writeFileSync(path.join(destination, 'stale.tgz'), 'stale');
           return JSON.stringify([{ filename: 'stale.tgz' }]);

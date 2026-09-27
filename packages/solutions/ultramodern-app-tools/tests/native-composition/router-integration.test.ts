@@ -9,7 +9,6 @@ import {
   initAppContext,
   initPluginAPI,
 } from '@modern-js/plugin/cli';
-import { type RuntimePlugin, runtime } from '@modern-js/plugin/runtime';
 import { tanstackRouterPlugin } from '@modern-js/plugin-tanstack';
 import {
   routerPlugin as nativeRouterCliPlugin,

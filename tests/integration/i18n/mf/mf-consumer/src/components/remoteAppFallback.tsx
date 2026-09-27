@@ -1,5 +1,3 @@
-import React from 'react';
-
 type RemoteAppFallbackInfo = {
   error?: {
     message?: string;

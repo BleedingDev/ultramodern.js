@@ -11,7 +11,7 @@ const plugin = (): CliPlugin<AppTools> => {
           dev: {
             setupMiddlewares: [
               (middlewares, _) => {
-                middlewares.push((req, res, next) => {
+                middlewares.push((_req, res, next) => {
                   res.setHeader('x-plugin', 'test-plugin');
                   next();
                 });
@@ -38,17 +38,17 @@ export default applyBaseConfig({
     },
     setupMiddlewares: [
       (middlewares, _) => {
-        middlewares.push((req, res, next) => {
+        middlewares.push((_req, res, next) => {
           res.setHeader('x-config', 'test-config');
           next();
         });
 
-        middlewares.push((req, res, next) => {
+        middlewares.push((_req, res, next) => {
           res.setHeader('x-push-middleware', 'test-middleware');
           return next();
         });
 
-        middlewares.unshift((req, res, next) => {
+        middlewares.unshift((_req, res, next) => {
           res.setHeader('x-unshift-middleware', 'test-middleware');
           return next();
         });

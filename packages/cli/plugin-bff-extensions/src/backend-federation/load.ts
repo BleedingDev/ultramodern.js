@@ -5,7 +5,6 @@ import { createBackendFederationRuntime } from './runtime';
 import type {
   BackendFederatedEffectApiModule,
   BackendFederationIdentityLoadOptions,
-  BackendFederationLoadOptions,
 } from './types';
 import { normalizeExpose } from './utils';
 import { validateLoadedBackendFederatedEffectApi } from './validate-loaded';

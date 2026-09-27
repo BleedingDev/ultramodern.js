@@ -1,9 +1,4 @@
 import { createHash } from 'node:crypto';
-import fs from 'node:fs/promises';
-import http from 'node:http';
-import os from 'node:os';
-import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import {
   BACKEND_FEDERATION_CONTRACT_VERSION,
   BACKEND_FEDERATION_NODE_ADAPTER_VERSION,
@@ -113,21 +108,6 @@ function withDeliveryUnitIdentity(
     },
   });
   return manifest;
-}
-
-async function listen(server: http.Server) {
-  await new Promise<void>((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(0, '127.0.0.1', () => {
-      server.off('error', reject);
-      resolve();
-    });
-  });
-  const address = server.address();
-  if (!address || typeof address === 'string') {
-    throw new Error('Expected backend federation test server TCP address.');
-  }
-  return `http://127.0.0.1:${address.port}`;
 }
 
 function createManifestEffectApiModule(

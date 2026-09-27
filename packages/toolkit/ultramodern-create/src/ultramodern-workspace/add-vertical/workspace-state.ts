@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { UltramodernToolingConfig } from '../../ultramodern-tooling/config';
-import { packageName, toKebabCase } from '../naming';
+import { toKebabCase } from '../naming';
 import { resolvePackageSource } from '../package-source';
 import type { AddUltramodernShellOptions, WorkspaceApp } from '../types';
 import { FIRST_VERTICAL_PORT } from './constants';
@@ -42,7 +42,7 @@ export function assertValidVerticalName(name: string): string {
 
 export function configuredDevelopmentPorts(
   ports: Record<string, unknown>,
-  additionalShells: WorkspaceApp[] = [],
+  _additionalShells: WorkspaceApp[] = [],
 ): number[] {
   return [
     ...new Set(
@@ -56,7 +56,7 @@ export function configuredDevelopmentPorts(
 
 export function assertGlobalPortUniqueness(
   ports: Record<string, unknown>,
-  additionalShells: WorkspaceApp[] = [],
+  _additionalShells: WorkspaceApp[] = [],
 ) {
   const owners = new Map<number, string>();
   for (const [id, value] of Object.entries(ports)) {

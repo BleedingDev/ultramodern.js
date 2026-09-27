@@ -1,5 +1,5 @@
 import glob from 'fast-glob';
-import { copyFileSync, copySync } from 'fs-extra';
+import { copyFileSync } from 'fs-extra';
 import { join } from 'path';
 import { replaceFileContent } from './helper';
 import type { TaskConfig } from './types';

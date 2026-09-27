@@ -1,5 +1,5 @@
 import { fs } from '@modern-js/utils';
-import path, { join } from 'path';
+import path from 'path';
 import { modernBuild } from '../../../../utils/modernTestUtils';
 import { acquireTestLock } from '../../test-utils';
 

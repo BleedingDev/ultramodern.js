@@ -1,4 +1,3 @@
-import * as React from 'react';
 import { lazyRemoteComponent } from '../routes/mf/remoteLoader';
 
 export function ModuleFederationTypeTests() {

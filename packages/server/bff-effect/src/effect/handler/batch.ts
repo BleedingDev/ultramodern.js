@@ -6,11 +6,9 @@ import {
   type DataBatchResponseItem,
   DEFAULT_DATA_BATCH_ENDPOINT,
   isPlainObject,
-  measureTextBytes,
   normalizeMethod as normalizeItemMethod,
 } from '../../data-platform';
 import { encodeBatchText } from '../../data-platform/batch/protocol';
-import { toHeaderRecord } from '../../headers';
 
 export { toHeaderRecord } from '../../headers';
 

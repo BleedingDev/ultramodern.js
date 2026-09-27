@@ -45,7 +45,7 @@ export function updateRootWorkspaceScripts(
   bridge?: UltramodernBridgeConfig,
   additionalShells: WorkspaceApp[] = [],
   previousRemotes: WorkspaceApp[] = remotes,
-  primaryShell: WorkspaceApp = shellApp,
+  _primaryShell: WorkspaceApp = shellApp,
   previousAdditionalShells: WorkspaceApp[] = additionalShells,
 ) {
   const packagePath = path.join(workspaceRoot, 'package.json');

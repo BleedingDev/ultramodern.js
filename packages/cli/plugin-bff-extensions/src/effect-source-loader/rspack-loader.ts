@@ -1,5 +1,4 @@
 import { realpathSync } from 'node:fs';
-import path from 'node:path';
 import type { Rspack } from '@rsbuild/core';
 import {
   bundleEffectWorkerRuntimeSource,

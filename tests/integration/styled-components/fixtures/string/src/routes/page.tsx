@@ -1,5 +1,4 @@
 import styled from '@modern-js/plugin-styled-components/styled';
-import React from 'react';
 
 const RedDiv = styled.div`
   color: red;

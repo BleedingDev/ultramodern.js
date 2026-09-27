@@ -72,8 +72,8 @@ test('default & hmr (default true)', async ({ page }) => {
   }
 });
 
-test('output.distPath', async ({ page }) => {
-  const builder = await build({
+test('output.distPath', async () => {
+  await build({
     cwd: join(fixtures, 'basic'),
     entry: {
       main: join(fixtures, 'basic', 'src/index.ts'),
