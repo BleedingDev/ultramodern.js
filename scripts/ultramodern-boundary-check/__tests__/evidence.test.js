@@ -167,6 +167,28 @@ test('historical migration does not launder old rows; only one changed semantic 
   );
 });
 
+test('every sidecar is fork-owned, so deleting one (even an empty file) is no Rule 5 change', t => {
+  const { root, write, commit } = fixture(t);
+  write(entry.path, 'export const value = "native";\n');
+  const base = commit();
+  write('packages/sidecar/vendored/package.json', '{}\n');
+  write('packages/sidecar/vendored/dist/empty.mjs', '');
+  const before = commit();
+  fs.rmSync(path.join(root, 'packages/sidecar'), { recursive: true });
+  const head = commit();
+  assert.deepEqual(
+    measureRule5Changes({
+      rootDir: root,
+      auditedBaseRef: base,
+      upstreamRef: base,
+      mergeBaseRef: before,
+      headRef: head,
+      pathspec: ['packages'],
+    }),
+    [],
+  );
+});
+
 test('import and Rule 5 ownership survive renames; equal metrics do not count as shrink', t => {
   const { root, write, commit } = fixture(t);
   const stable =
