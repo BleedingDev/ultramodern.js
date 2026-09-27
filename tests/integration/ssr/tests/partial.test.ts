@@ -24,9 +24,12 @@ describe('test partial ssr', () => {
     app = await launchApp(appDir, appPort);
 
     browser = await puppeteer.launch(launchOptions as any);
-    page = await browser.newPage();
+    // Open the interactive page last: it is the visible tab, and Chromium
+    // does not run animation frames in a hidden one, so clicks there never
+    // complete a client navigation.
     ssrPage = await browser.newPage();
     await ssrPage.setJavaScriptEnabled(false);
+    page = await browser.newPage();
   });
 
   afterAll(async () => {
