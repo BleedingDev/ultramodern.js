@@ -4,9 +4,9 @@
   "upstreamRef": "2f4d9c4559e26209a0d77f02c6757f29fe3699a2",
   "pathspec": ["packages"],
   "migrationGoal": "Shrink-only budget of fork edits inside upstream-owned files. Every entry is debt: move it upstream or behind an extension point, then re-run --write-divergence-allowlist.",
-  "totalFiles": 840,
-  "totalHunks": 3158,
-  "totalChangedLines": 52125,
+  "totalFiles": 841,
+  "totalHunks": 3157,
+  "totalChangedLines": 52157,
   "files": [
     {
       "file": "packages/cli/adapter-rstest/package.json",
@@ -71,7 +71,7 @@
     {
       "file": "packages/cli/builder/src/plugins/rscConfig.ts",
       "hunks": 8,
-      "changedLines": 59
+      "changedLines": 53
     },
     {
       "file": "packages/cli/builder/src/shared/devServer.ts",
@@ -1531,7 +1531,7 @@
     {
       "file": "packages/runtime/plugin-runtime/rstest.config.mts",
       "hunks": 5,
-      "changedLines": 62
+      "changedLines": 58
     },
     {
       "file": "packages/runtime/plugin-runtime/scripts/gen-static.ts",
@@ -2039,11 +2039,6 @@
       "changedLines": 1
     },
     {
-      "file": "packages/runtime/plugin-runtime/src/rsc/server.worker.ts",
-      "hunks": 1,
-      "changedLines": 1
-    },
-    {
       "file": "packages/runtime/plugin-runtime/static/modern-inline.js",
       "hunks": 1,
       "changedLines": 2
@@ -2315,8 +2310,8 @@
     },
     {
       "file": "packages/runtime/render/package.json",
-      "hunks": 13,
-      "changedLines": 49
+      "hunks": 12,
+      "changedLines": 45
     },
     {
       "file": "packages/runtime/render/react-server-dom-rspack.d.ts",
@@ -2326,12 +2321,12 @@
     {
       "file": "packages/runtime/render/rslib.config.mts",
       "hunks": 1,
-      "changedLines": 65
+      "changedLines": 54
     },
     {
       "file": "packages/runtime/render/rstest.config.mts",
       "hunks": 2,
-      "changedLines": 46
+      "changedLines": 42
     },
     {
       "file": "packages/runtime/render/src/client.ts",
@@ -2349,12 +2344,12 @@
       "changedLines": 233
     },
     {
-      "file": "packages/runtime/render/src/rsc.ts",
+      "file": "packages/runtime/render/src/rsc.edge.ts",
       "hunks": 1,
       "changedLines": 1
     },
     {
-      "file": "packages/runtime/render/src/rsc.worker.ts",
+      "file": "packages/runtime/render/src/rsc.ts",
       "hunks": 1,
       "changedLines": 1
     },
@@ -2379,14 +2374,19 @@
       "changedLines": 2
     },
     {
+      "file": "packages/runtime/render/src/server/rsc/rsc.edge.tsx",
+      "hunks": 1,
+      "changedLines": 29
+    },
+    {
       "file": "packages/runtime/render/src/server/rsc/rsc.tsx",
       "hunks": 5,
       "changedLines": 75
     },
     {
       "file": "packages/runtime/render/src/server/ssr/ssr.tsx",
-      "hunks": 10,
-      "changedLines": 52
+      "hunks": 9,
+      "changedLines": 48
     },
     {
       "file": "packages/runtime/render/src/ssr.ts",
@@ -2409,6 +2409,11 @@
       "changedLines": 265
     },
     {
+      "file": "packages/runtime/render/tests/rsc/exports.test.ts",
+      "hunks": 1,
+      "changedLines": 45
+    },
+    {
       "file": "packages/runtime/render/tests/rsc/handle-action.test.ts",
       "hunks": 1,
       "changedLines": 280
@@ -2416,7 +2421,7 @@
     {
       "file": "packages/runtime/render/tests/ssr/htmlRoot.test.tsx",
       "hunks": 1,
-      "changedLines": 40
+      "changedLines": 33
     },
     {
       "file": "packages/runtime/render/tests/tsconfig.json",
@@ -2426,7 +2431,7 @@
     {
       "file": "packages/runtime/render/tsconfig.json",
       "hunks": 2,
-      "changedLines": 11
+      "changedLines": 10
     },
     {
       "file": "packages/server/bff-core/CHANGELOG.md",
