@@ -161,3 +161,25 @@ test.skipIf(process.platform === 'win32' || process.getuid?.() === 0)(
     }
   },
 );
+
+test.skipIf(process.platform === 'win32' || process.getuid?.() === 0)(
+  'modern-i18n-check reports an unreadable locale resource as a tool failure',
+  () => {
+    const root = workspace({
+      'package.json': JSON.stringify({
+        modernjs: { i18nCheck: { sourceRoots: ['apps'], locales: ['en'] } },
+      }),
+      'apps/shell/locales/en/common.json': '{}',
+    });
+    const locale = path.join(root, 'apps/shell/locales/en/common.json');
+    fs.chmodSync(locale, 0o000);
+    try {
+      const result = run(root);
+
+      expect(result.status, result.stderr).toBe(2);
+      expect(result.stderr).toContain('EACCES');
+    } finally {
+      fs.chmodSync(locale, 0o600);
+    }
+  },
+);
