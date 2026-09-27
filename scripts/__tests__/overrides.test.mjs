@@ -125,3 +125,18 @@ test('a parent snapshot that ignores its override fails', () => {
       'Run pnpm install so the lockfile picks up the override.',
   ]);
 });
+
+test('a parent that no longer depends on the target fails', () => {
+  const lockfile = preFixLockfile
+    .replace(
+      /overrides:[\s\S]*?importers:/,
+      'overrides:\n  minimatch@3>brace-expansion: 1.1.18\nimporters:',
+    )
+    .replace(
+      'minimatch@3.1.5:\n    dependencies:\n      brace-expansion: 1.1.18',
+      'minimatch@3.1.5: {}',
+    );
+  assert.deepEqual(findOverrideViolations(lockfile, importerNames), [
+    "'minimatch@3>brace-expansion': no minimatch@3 in the lockfile depends on brace-expansion. Delete the override.",
+  ]);
+});

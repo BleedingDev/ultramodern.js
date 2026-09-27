@@ -126,6 +126,7 @@ export function findOverrideViolations(lockfileText, importerNames) {
         );
         continue;
       }
+      let edges = 0;
       for (const entry of parents) {
         const deps = {
           ...entry.snapshot.dependencies,
@@ -133,6 +134,7 @@ export function findOverrideViolations(lockfileText, importerNames) {
         };
         const child = deps[target.name];
         if (child === undefined) continue;
+        edges += 1;
         const { version } = parsePackageKey(`${target.name}@${child}`);
         if (inRange(version, target.range) && !honours(version, value)) {
           violations.push(
@@ -140,6 +142,11 @@ export function findOverrideViolations(lockfileText, importerNames) {
               'Run pnpm install so the lockfile picks up the override.',
           );
         }
+      }
+      if (edges === 0) {
+        violations.push(
+          `'${key}': no ${parent.name}${parent.range ? `@${parent.range}` : ''} in the lockfile depends on ${target.name}. Delete the override.`,
+        );
       }
       continue;
     }
