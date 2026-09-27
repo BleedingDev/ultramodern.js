@@ -56,6 +56,7 @@
     "@types/recursive-readdir": "^2.2.4",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "recursive-readdir": "^2.2.3",
+    "ts-node": "^10.9.2",
     "typescript": "^7.0.2"
   },
   "sideEffects": false,
