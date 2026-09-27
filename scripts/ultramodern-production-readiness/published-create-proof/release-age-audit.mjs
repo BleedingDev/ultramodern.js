@@ -1147,10 +1147,6 @@ function readNativeWorkspacePolicy(workspacePath, { parseYamlImpl } = {}) {
       policy.trustPolicyIgnoreAfter === minimumReleaseAgeMinutes,
     'Generated pnpm workspace policy must natively enforce no-downgrade trust for 1440 minutes',
   );
-  assertCondition(
-    policy.minimumReleaseAgeExclude === undefined,
-    'Generated pnpm workspace must not persist release-age exclusions',
-  );
   return {
     bytes,
     policy,
@@ -1211,6 +1207,21 @@ async function auditReleaseAgePolicy({
   const workspace = readNativeWorkspacePolicy(workspacePath, {
     parseYamlImpl,
   });
+  // ultramodern-create exempts exactly the cohort its catalog pins, so a
+  // workspace created on publish day installs. Anything wider or narrower is a
+  // generator regression.
+  const cohortSelectors = release.packages
+    .map(item => `${item.targetName}@${item.version}`)
+    .sort(compareCodeUnits);
+  const persistedExclusions = workspace.policy.minimumReleaseAgeExclude;
+  assertCondition(
+    JSON.stringify(persistedExclusions) === JSON.stringify(cohortSelectors),
+    [
+      'Generated pnpm workspace minimumReleaseAgeExclude must list exactly the release cohort.',
+      `Expected: ${cohortSelectors.join(', ')}`,
+      `Found: ${Array.isArray(persistedExclusions) ? persistedExclusions.join(', ') || '(empty)' : String(persistedExclusions)}`,
+    ].join('\n'),
+  );
   const lockPath = path.join(projectDir, 'pnpm-lock.yaml');
   const nativeLock = readNativeLock(lockPath, { parseYamlImpl });
   const closureResult = buildDependencyClosure(nativeLock.lock);
@@ -1275,8 +1286,9 @@ async function auditReleaseAgePolicy({
       release,
       now,
     });
-  // The generated workspace keeps its ordinary age policy. This exact command
-  // set is transient and is checked again before the frozen install.
+  // The command set (cohort, sidecars and reviewed exceptions) replaces the
+  // workspace's cohort-only list for the acceptance install; it is transient
+  // and is checked again before the frozen install.
   const declaredExclusions = new Set(commandExclusions);
   const missingExclusions = requiredExclusions.filter(
     key => !declaredExclusions.has(key),
@@ -1344,10 +1356,6 @@ function verifyStrictInstallInputs(
   assertCondition(
     workspace.sha256 === audit.workspacePolicySha256,
     `${phase} input pnpm workspace policy differs from the audited native policy`,
-  );
-  assertCondition(
-    !Object.hasOwn(workspace.policy, 'minimumReleaseAgeExclude'),
-    `${phase} workspace persists release-age exclusions`,
   );
   for (const approval of audit.approvals) {
     assertExternalApprovalUnexpired(approval, now);

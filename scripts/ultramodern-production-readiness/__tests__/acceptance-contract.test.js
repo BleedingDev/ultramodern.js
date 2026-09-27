@@ -476,6 +476,7 @@ test('release-age audit rejects a fresh dependency whose approval has expired', 
     fs.writeFileSync(path.join(root, name), JSON.stringify(value));
   writeJson('pnpm-workspace.yaml', {
     minimumReleaseAge: 1440,
+    minimumReleaseAgeExclude: [locator(firstParty)],
     minimumReleaseAgeIgnoreMissingTime: false,
     minimumReleaseAgeStrict: true,
     trustPolicy: 'no-downgrade',
@@ -609,6 +610,7 @@ for (const { mode, registryUrl } of [
       path.join(root, 'pnpm-workspace.yaml'),
       JSON.stringify({
         minimumReleaseAge: 1440,
+        minimumReleaseAgeExclude: [`${firstParty.targetName}@${version}`],
         minimumReleaseAgeIgnoreMissingTime: false,
         minimumReleaseAgeStrict: true,
         trustPolicy: 'no-downgrade',
@@ -735,6 +737,7 @@ test('a lane that drops the fresh .13 sidecars fails the audit before install, n
     path.join(root, 'pnpm-workspace.yaml'),
     JSON.stringify({
       minimumReleaseAge: 1440,
+      minimumReleaseAgeExclude: [`@bleedingdev/modern-js-runtime@${version}`],
       minimumReleaseAgeIgnoreMissingTime: false,
       minimumReleaseAgeStrict: true,
       trustPolicy: 'no-downgrade',
@@ -805,4 +808,62 @@ test('a lane that drops the fresh .13 sidecars fails the audit before install, n
       error.message.includes('every lane must pass that exact set') &&
       sidecars.every(item => error.message.includes(key(item))),
   );
+});
+
+// A workspace created on the day its cohort is published can only install if
+// ultramodern-create exempts exactly that cohort; a missing list is the
+// pre-fix generator and a wider list would silently weaken the 24h gate.
+test('release-age audit requires the generated workspace to exempt exactly its cohort', async t => {
+  const { auditReleaseAgePolicy } = await import(
+    '../published-create-proof/release-age-audit.mjs'
+  );
+  const root = tempRoot('release-age-cohort-exclude-');
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const version = '3.9.0-ultramodern.17';
+  const release = {
+    packages: ['runtime', 'app-tools'].map(name => ({
+      sourceName: `@modern-js/${name}`,
+      targetName: `@bleedingdev/modern-js-${name}`,
+      version,
+    })),
+    release: { version },
+    targetScope: 'bleedingdev',
+  };
+  const audit = minimumReleaseAgeExclude => {
+    fs.writeFileSync(
+      path.join(root, 'pnpm-workspace.yaml'),
+      JSON.stringify({
+        minimumReleaseAge: 1440,
+        minimumReleaseAgeExclude,
+        minimumReleaseAgeIgnoreMissingTime: false,
+        minimumReleaseAgeStrict: true,
+        trustPolicy: 'no-downgrade',
+        trustPolicyIgnoreAfter: 1440,
+      }),
+    );
+    return auditReleaseAgePolicy({
+      commandExclusions: [],
+      parseYamlImpl: JSON.parse,
+      projectDir: root,
+      registryUrl: 'https://registry.npmjs.org/',
+      release,
+      verifyYamlTool: false,
+    });
+  };
+  const cohort = [
+    `@bleedingdev/modern-js-app-tools@${version}`,
+    `@bleedingdev/modern-js-runtime@${version}`,
+  ];
+  for (const persisted of [
+    undefined,
+    cohort.slice(1),
+    [...cohort, '@bleedingdev/mf-runtime@2.9.1'],
+  ]) {
+    await assert.rejects(
+      audit(persisted),
+      /minimumReleaseAgeExclude must list exactly the release cohort/u,
+    );
+  }
+  // The exact cohort passes the workspace check and reaches the lockfile.
+  await assert.rejects(audit(cohort), /Generated pnpm lockfile/u);
 });
