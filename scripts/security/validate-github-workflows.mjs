@@ -1142,6 +1142,17 @@ function collectIntegrationGateErrors(workflow, relativePath) {
       );
     }
   }
+  // A suite without its step would be a green job that tests nothing.
+  for (const [jobId, job] of Object.entries(workflow.jobs ?? {})) {
+    const matrixSuites = isObject(job) ? job.strategy?.matrix?.suite : [];
+    for (const suite of Array.isArray(matrixSuites) ? matrixSuites : []) {
+      if (!(suitesByJob.get(jobId) ?? []).includes(suite)) {
+        errors.push(
+          `${relativePath} job ${jobId} matrix suite ${suite} has no step gated by if: matrix.suite == '${suite}', so that job would pass without testing anything`,
+        );
+      }
+    }
+  }
   return errors;
 }
 
