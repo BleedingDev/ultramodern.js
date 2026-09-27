@@ -195,9 +195,15 @@ for local monorepo development. After installation, run `pnpm contract:check`,
 which invokes the installed CLI directly. The installed generator owns its
 release-integrity metadata.
 
-Normal installs retain the generated release-age and trust policy. Release
-acceptance uses exact, temporary exceptions for the artifacts being tested;
-it does not add permanent exception lists to the application.
+Normal installs retain the generated strict 24-hour release-age and trust
+policy. The one exception is `minimumReleaseAgeExclude`: it lists the exact
+`package@version` of every package in the cohort the create package ships, so a
+workspace created on the day that cohort is published can install it. Every
+other dependency still waits 24 hours, including a cohort selected with
+`--ultramodern-package-version` that differs from the create package's own; to
+install a fresh cohort on publish day, run that release's create package.
+Release acceptance adds exact, temporary exceptions for the sidecars under test
+on the command line.
 
 ## CodeSmith Adapter And Overlays
 
