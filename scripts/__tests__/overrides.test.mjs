@@ -202,3 +202,27 @@ test('a prerelease left under a range override fails', () => {
       'Run pnpm install, or fix the selector if pnpm does not match it.',
   ]);
 });
+
+test('a global removal override still fails while a workspace project keeps the edge', () => {
+  const lockfile = preFixLockfile.replace(
+    /overrides:[\s\S]*?importers:/,
+    "overrides:\n  react-router: '-'\nimporters:",
+  );
+  assert.deepEqual(findOverrideViolations(lockfile, importerNames), [
+    "'react-router': packages/toolkit/runtime-utils still depends on react-router, which this override removes. " +
+      'Run pnpm install so the lockfile picks up the override.',
+  ]);
+});
+
+test('an npm: alias override is live through its edge name', () => {
+  const lockfile = preFixLockfile
+    .replace(
+      /overrides:[\s\S]*?importers:/,
+      'overrides:\n  left-pad: npm:pad-left@1.0.0\nimporters:',
+    )
+    .replace(
+      'nx@23.2.1:\n    dependencies:',
+      'nx@23.2.1:\n    dependencies:\n      left-pad: pad-left@1.0.0',
+    );
+  assert.deepEqual(findOverrideViolations(lockfile, importerNames), []);
+});
