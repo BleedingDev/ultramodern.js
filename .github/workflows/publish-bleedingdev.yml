@@ -570,8 +570,6 @@ jobs:
     # bigger runners without touching the publish trust chain.
     runs-on: ${{ fromJSON(vars.BLEEDINGDEV_ACCEPT_RUNNER_LABELS || '"ubuntu-latest"') }}
     timeout-minutes: 120
-    env:
-      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/../ms-playwright
     if: >-
       github.actor == github.repository_owner &&
       github.triggering_actor == github.repository_owner &&
@@ -635,7 +633,9 @@ jobs:
 
       # Resolves the same browser-smoke runtime the acceptance profile uses and
       # reports its playwright version, so the cache key below comes from a
-      # resolved runtime output instead of a workflow version literal.
+      # resolved runtime output instead of a workflow version literal. It also
+      # exports PLAYWRIGHT_BROWSERS_PATH=$RUNNER_TEMP/ms-playwright to the
+      # later steps; cache_path is that same directory.
       - name: Resolve browser smoke runtime
         id: browser-runtime
         run: >-
@@ -1010,8 +1010,6 @@ jobs:
     # Same runner-label indirection as accept-release; unset => ubuntu-latest.
     runs-on: ${{ fromJSON(vars.BLEEDINGDEV_ACCEPT_RUNNER_LABELS || '"ubuntu-latest"') }}
     timeout-minutes: 120
-    env:
-      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/../ms-playwright
     if: >-
       github.actor == github.repository_owner &&
       github.triggering_actor == github.repository_owner &&
@@ -1123,7 +1121,9 @@ jobs:
       # Runs while the dependency install above is still in flight: the
       # provisioning module imports node builtins and repo-local helpers only,
       # so it needs no node_modules. It reports the resolved playwright version
-      # that keys the cache below, replacing a workflow version literal.
+      # that keys the cache below, replacing a workflow version literal. It also
+      # exports PLAYWRIGHT_BROWSERS_PATH=$RUNNER_TEMP/ms-playwright to the
+      # later steps; cache_path is that same directory.
       - name: Resolve browser smoke runtime
         id: browser-runtime
         run: >-

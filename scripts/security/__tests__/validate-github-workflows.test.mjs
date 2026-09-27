@@ -366,3 +366,74 @@ test('release jobs and steps reject continue-on-error', () => {
     1,
   );
 });
+
+test('cache paths must be normalized', () => {
+  const cacheWorkflow = cachePath => `name: Cache
+on:
+  push:
+permissions:
+  contents: read
+jobs:
+  example:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Restore browsers
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${cachePath}
+          key: browsers
+`;
+  const flagged = cachePath =>
+    validateWorkflowContent(
+      '.github/workflows/cache.yml',
+      cacheWorkflow(cachePath),
+    ).filter(error => error.includes('/.. or /./ segment'));
+
+  assert.deepEqual(flagged('/home/runner/ms-playwright'), []);
+  assert.deepEqual(flagged(githubExpression('steps.b.outputs.cache_path')), []);
+  assert.equal(
+    flagged(`${githubExpression('github.workspace')}/../ms-playwright`).length,
+    1,
+  );
+  assert.equal(flagged('/home/runner/./ms-playwright').length, 1);
+  assert.equal(flagged('/home/runner/..').length, 1);
+});
+
+test('workflow and job env reject the runner context', () => {
+  const envWorkflow = ({ workflowEnv = '', jobEnv = '' }) => `name: Env
+on:
+  push:
+permissions:
+  contents: read
+${workflowEnv}jobs:
+  example:
+    runs-on: ubuntu-latest
+${jobEnv}    steps:
+      - name: Run
+        run: echo ok
+`;
+  const flagged = options =>
+    validateWorkflowContent(
+      '.github/workflows/env.yml',
+      envWorkflow(options),
+    ).filter(error => error.includes('reads the runner context'));
+
+  assert.deepEqual(
+    flagged({
+      jobEnv: `    env:\n      BROWSERS: ${githubExpression('github.workspace')}/ms-playwright\n`,
+    }),
+    [],
+  );
+  assert.equal(
+    flagged({
+      jobEnv: `    env:\n      BROWSERS: ${githubExpression('runner.temp')}/ms-playwright\n`,
+    }).length,
+    1,
+  );
+  assert.equal(
+    flagged({
+      workflowEnv: `env:\n  BROWSERS: ${githubExpression('runner.temp')}\n`,
+    }).length,
+    1,
+  );
+});

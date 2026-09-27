@@ -102,6 +102,24 @@ function browserCachePath({
   );
 }
 
+// The browsers directory for a job whose runtime reads an explicit
+// PLAYWRIGHT_BROWSERS_PATH. RUNNER_TEMP is the runner's own absolute per-job
+// directory. A job-level `env:` cannot name it (the `runner` context is not
+// available there), so the resolving step exports it through GITHUB_ENV.
+function runnerTempBrowsersPath(environment = process.env) {
+  const runnerTemp = environment.RUNNER_TEMP;
+  if (
+    typeof runnerTemp !== 'string' ||
+    !path.isAbsolute(runnerTemp) ||
+    path.normalize(runnerTemp) !== runnerTemp
+  ) {
+    throw new Error(
+      `RUNNER_TEMP must be an absolute, normalized directory, found ${String(runnerTemp)}. Run on a GitHub Actions runner, or set RUNNER_TEMP to such a directory.`,
+    );
+  }
+  return path.join(runnerTemp, 'ms-playwright');
+}
+
 function browserInstallArgs(platform = process.platform) {
   return platform === 'linux'
     ? ['install', '--with-deps', ...installedBrowsers]
@@ -170,6 +188,23 @@ function writeGithubOutputs(outputs, environment = process.env) {
   }
   for (const [name, value] of Object.entries(outputs)) {
     fs.appendFileSync(environment.GITHUB_OUTPUT, `${name}=${value}\n`);
+  }
+}
+
+// Exports variables to every later step of the job. A missing GITHUB_ENV is an
+// error, not a no-op: the install step would silently fill another directory
+// than the one the cache restores and saves.
+function writeGithubEnv(variables, environment = process.env) {
+  if (!environment.GITHUB_ENV) {
+    throw new Error(
+      `GITHUB_ENV is not set, so ${Object.keys(variables).join(', ')} cannot reach the later steps. Run this inside a GitHub Actions job.`,
+    );
+  }
+  for (const [name, value] of Object.entries(variables)) {
+    if (/[\r\n]/u.test(value)) {
+      throw new Error(`${name} must be a single line, found ${JSON.stringify(value)}`);
+    }
+    fs.appendFileSync(environment.GITHUB_ENV, `${name}=${value}\n`);
   }
 }
 
@@ -258,5 +293,7 @@ module.exports = {
   resolveBrowserOutputs,
   resolvePlaywrightVersion,
   resolveSharedPlaywrightVersion,
+  runnerTempBrowsersPath,
+  writeGithubEnv,
   writeGithubOutputs,
 };

@@ -1029,6 +1029,60 @@ function collectBleedingdevPublishStructureErrors(workflow, relativePath) {
   return errors;
 }
 
+// actions/cache versions an entry by the literal path strings, so a `/..` or
+// `/./` spelling of a directory never shares an entry with its normalized
+// spelling and hides which directory is cached. Pass a normalized path.
+const cacheActionPattern = /^actions\/cache(?:\/(?:restore|save))?@/iu;
+const relativePathSegmentPattern = /[\\/]\.{1,2}(?=[\\/]|$)/u;
+
+function collectCachePathErrors(workflow, relativePath) {
+  const errors = [];
+  for (const { jobId, step } of workflowSteps(workflow)) {
+    const cachePath = step.with?.path;
+    if (
+      typeof step.uses !== 'string' ||
+      !cacheActionPattern.test(step.uses) ||
+      typeof cachePath !== 'string'
+    ) {
+      continue;
+    }
+    for (const line of cachePath.split('\n')) {
+      if (relativePathSegmentPattern.test(line)) {
+        errors.push(
+          `${relativePath} job ${jobId} step ${step.name ?? step.id ?? '<unnamed>'} caches ${line.trim()}, which contains a /.. or /./ segment; pass the normalized path (e.g. from the step that provisions it)`,
+        );
+      }
+    }
+  }
+  return errors;
+}
+
+// The `runner` context is unavailable in workflow- and job-level env, so a
+// `runner.*` expression there fails the run before any step starts. Export
+// runner paths from a step through GITHUB_ENV instead.
+const runnerContextPattern = /\$\{\{[^}]*\brunner\./u;
+
+function collectEnvRunnerContextErrors(workflow, relativePath) {
+  const scopes = [['workflow', workflow.env]];
+  if (isObject(workflow.jobs)) {
+    for (const [jobId, job] of Object.entries(workflow.jobs)) {
+      scopes.push([`job ${jobId}`, isObject(job) ? job.env : undefined]);
+    }
+  }
+  const errors = [];
+  for (const [scope, env] of scopes) {
+    if (!isObject(env)) continue;
+    for (const [name, value] of Object.entries(env)) {
+      if (typeof value === 'string' && runnerContextPattern.test(value)) {
+        errors.push(
+          `${relativePath} ${scope} env ${name} reads the runner context, which workflow- and job-level env cannot access; export it from a step through GITHUB_ENV`,
+        );
+      }
+    }
+  }
+  return errors;
+}
+
 /**
  * Release gates must run whole suites. A node:test filter flag (argv or
  * NODE_OPTIONS) silently drops cases, so a qualify step can go green on a
@@ -1504,6 +1558,12 @@ export function validateWorkflowContent(relativePath, content, options = {}) {
     )) {
       push('bare-job-import-closure', message);
     }
+  }
+  for (const message of collectCachePathErrors(workflow, relativePath)) {
+    push('normalized-cache-path', message);
+  }
+  for (const message of collectEnvRunnerContextErrors(workflow, relativePath)) {
+    push('env-runner-context', message);
   }
   for (const message of collectPublishOutcomeErrors(workflow, relativePath)) {
     push('publish-outcome-contract', message);
