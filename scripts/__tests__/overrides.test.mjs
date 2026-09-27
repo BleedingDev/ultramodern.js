@@ -226,3 +226,26 @@ test('an npm: alias override is live through its edge name', () => {
     );
   assert.deepEqual(findOverrideViolations(lockfile, importerNames), []);
 });
+
+test('an npm: alias override fails while the edge keeps another version', () => {
+  const lockfile = preFixLockfile
+    .replace(
+      /overrides:[\s\S]*?importers:/,
+      'overrides:\n  nx>left-pad: npm:pad-left@1.2.3\nimporters:',
+    )
+    .replace(
+      'nx@23.2.1:\n    dependencies:',
+      'nx@23.2.1:\n    dependencies:\n      left-pad: pad-left@1.0.0',
+    );
+  assert.deepEqual(findOverrideViolations(lockfile, importerNames), [
+    "'nx>left-pad': nx@23.2.1 still resolves left-pad@pad-left@1.0.0, not npm:pad-left@1.2.3. " +
+      'Run pnpm install so the lockfile picks up the override.',
+  ]);
+  assert.deepEqual(
+    findOverrideViolations(
+      lockfile.replace('left-pad: pad-left@1.0.0', 'left-pad: pad-left@1.2.3'),
+      importerNames,
+    ),
+    [],
+  );
+});

@@ -55,8 +55,18 @@ function inRange(version, range) {
 }
 
 // Whether `version` is what the override value asks for: the exact version,
-// or inside the value's range. Other values (`npm:`, `$ref`) pass.
+// or inside the value's range. An `npm:bar@x` value needs the edge version
+// `bar@<x>`. Other values (`$ref`, `link:`) pass.
 function honours(version, value) {
+  if (value.startsWith('npm:')) {
+    const wanted = parseSpec(value.slice(4));
+    const actual = parseSpec(version);
+    return (
+      actual.name === wanted.name &&
+      actual.range !== undefined &&
+      (wanted.range === undefined || honours(actual.range, wanted.range))
+    );
+  }
   if (semver.valid(value)) return version === value;
   if (semver.validRange(value)) {
     return semver.satisfies(version, value);
@@ -136,12 +146,16 @@ export function findOverrideViolations(lockfileText, importerNames) {
   );
   // Names used as dependency edges; an `npm:` alias override keeps its target
   // only as an edge name, resolved under the aliased package's key.
-  const edgeNames = new Set(
-    [...importers, ...snapshots].flatMap(({ snapshot }) => [
-      ...Object.keys(snapshot.dependencies ?? {}),
-      ...Object.keys(snapshot.optionalDependencies ?? {}),
-    ]),
-  );
+  const edgeVersions = new Map();
+  for (const { snapshot } of [...importers, ...snapshots]) {
+    for (const [name, version] of Object.entries({
+      ...snapshot.dependencies,
+      ...snapshot.optionalDependencies,
+    })) {
+      if (!edgeVersions.has(name)) edgeVersions.set(name, new Set());
+      edgeVersions.get(name).add(String(version).replace(/\(.*$/, ''));
+    }
+  }
 
   const violations = [];
   for (const [key, rawValue] of Object.entries(lockfile.overrides ?? {})) {
@@ -174,7 +188,7 @@ export function findOverrideViolations(lockfileText, importerNames) {
     }
 
     const targetVersions = resolved.get(target.name) ?? new Set();
-    if (targetVersions.size === 0 && !edgeNames.has(target.name)) {
+    if (targetVersions.size === 0 && !edgeVersions.has(target.name)) {
       violations.push(
         `'${key}': nothing in the lockfile resolves ${target.name}. Delete the override.`,
       );
@@ -217,8 +231,16 @@ export function findOverrideViolations(lockfileText, importerNames) {
       continue;
     }
 
-    for (const version of targetVersions) {
-      if (inRange(version, target.range) && !honours(version, value)) {
+    const aliasEdges = value.startsWith('npm:')
+      ? [...(edgeVersions.get(target.name) ?? [])].filter(
+          version => !/^\d/.test(version),
+        )
+      : [];
+    for (const version of [...targetVersions, ...aliasEdges]) {
+      if (
+        (aliasEdges.includes(version) || inRange(version, target.range)) &&
+        !honours(version, value)
+      ) {
         violations.push(
           `'${key}': the lockfile still resolves ${target.name}@${version}, which this override should replace with ${value}. ` +
             'Run pnpm install, or fix the selector if pnpm does not match it.',
