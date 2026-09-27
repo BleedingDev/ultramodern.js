@@ -2,7 +2,7 @@
   {
     "id": "GHSA-7q85-xj36-vmfc",
     "package": "adm-zip",
-    "parents": ["@module-federation/dts-plugin"],
+    "parents": ["@module-federation/dts-plugin", "@bleedingdev/mf-dts-plugin"],
     "reason": "@module-federation/dts-plugin 2.9.1 (and its @bleedingdev/mf-dts-plugin sidecar) pins adm-zip 0.6.0 exactly. 2.9.2 moves to ^0.6.1 but was published 2026-09-26, inside the 24h release-age window. Delete this entry with the Module Federation 2.9.2 bump.",
     "expires": "2026-10-11"
   }
