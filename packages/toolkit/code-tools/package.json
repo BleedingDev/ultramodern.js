@@ -128,6 +128,7 @@
   "modern:source": "./src/index.ts",
   "bin": {
     "modern-api-check": "./bin/modern-api-check.mjs",
-    "modern-api-check-files": "./bin/modern-api-check-files.mjs"
+    "modern-api-check-files": "./bin/modern-api-check-files.mjs",
+    "modern-i18n-check": "./bin/modern-i18n-check.mjs"
   }
 }
