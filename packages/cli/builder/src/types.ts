@@ -186,6 +186,9 @@ export type BuilderExtraConfig = {
      * The transform is enabled by default through Rsbuild's SWC integration.
      * Set this to `false` to disable it.
      *
+     * Only browser environments (`output.target: 'web'`) are compiled;
+     * `node` and `web-worker` (SSR, BFF) environments never are.
+     *
      * For React 17 or 18, install `react-compiler-runtime` and set the
      * matching target version, for example `{ target: '18' }`.
      */

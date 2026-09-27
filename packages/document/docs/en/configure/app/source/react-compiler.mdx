@@ -11,6 +11,8 @@ Whether to enable [React Compiler](https://react.dev/learn/react-compiler). Reac
 
 Modern.js implements this capability based on the Rust-based React Compiler built into Rspack's `builtin:swc-loader` (equivalent to setting SWC's `jsc.transform.reactCompiler`), reusing Rspack's built-in SWC transform chain without introducing Babel.
 
+The compiler only runs for browser environments (`output.target: 'web'`). Server environments (`node`, the `web-worker` SSR worker and BFF code) render once per request and gain nothing from memoization, so they are never compiled.
+
 :::tip
 This option is disabled by default. It must be enabled explicitly for any React version, including React 19.
 :::
