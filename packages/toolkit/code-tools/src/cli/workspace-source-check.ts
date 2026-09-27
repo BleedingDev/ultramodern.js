@@ -104,6 +104,9 @@ const localeImportPattern = (locale: string): RegExp =>
     'u',
   );
 
+/** A source or locale-resource violation; every other throw is a tool failure. */
+class SourceViolation extends Error {}
+
 const checkRuntimeResources = (
   root: string,
   filePath: string,
@@ -126,7 +129,7 @@ const checkRuntimeResources = (
       missingLocales.length > 0
         ? `missing locale JSON imports for: ${missingLocales.join(', ')}`
         : 'initOptions does not register a `resources` entry';
-    throw new Error(
+    throw new SourceViolation(
       `${relative} must register locale JSON resources in modern.runtime.ts so Worker SSR and hydration use the same first-render translations (${detail}).`,
     );
   }
@@ -165,7 +168,7 @@ const checkPluralResources = (
 
     const suffixMatch = key.match(pluralSuffixPattern);
     if (!suffixMatch) {
-      throw new Error(
+      throw new SourceViolation(
         `${relative} key ${pathParts.join('.')} contains {{count}} but is not plural-suffixed.`,
       );
     }
@@ -181,7 +184,7 @@ const checkPluralResources = (
   for (const [group, suffixes] of groups) {
     for (const suffix of requiredSuffixes) {
       if (!suffixes.has(suffix)) {
-        throw new Error(
+        throw new SourceViolation(
           `${relative} plural group ${group} is missing _${suffix}.`,
         );
       }
@@ -281,12 +284,8 @@ export const runWorkspaceSourceCheck = ({
       pluralCategories,
     );
   } catch (error) {
-    console.error(
-      error instanceof Error
-        ? error.message
-        : 'UltraModern workspace source checks failed.',
-    );
-    return 1;
+    console.error(error instanceof Error ? error.message : String(error));
+    return error instanceof SourceViolation ? 1 : 2;
   }
 
   console.log(WORKSPACE_SOURCE_SUCCESS);
@@ -422,8 +421,8 @@ export const runWorkspaceSourceCheckCli = (
     index += 1;
   }
 
-  // runWorkspaceSourceCheck reports source violations as 1 itself; anything
-  // thrown past it is a configuration or tool failure.
+  // runWorkspaceSourceCheck returns 1 for violations and 2 for check-time
+  // tool failures; anything thrown here is a configuration failure.
   try {
     return runWorkspaceSourceCheck(
       readWorkspaceCheckOptions(path.resolve(workspaceRoot)),
