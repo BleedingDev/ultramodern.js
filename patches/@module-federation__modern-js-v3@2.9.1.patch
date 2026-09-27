@@ -192,6 +192,33 @@ diff --git a/dist/esm/react/index.mjs b/dist/esm/react/index.mjs
 +        injectLink: false,
 +        ...options,
 +    });
+diff --git a/dist/esm/ssr-runtime/SSRLiveReload.mjs b/dist/esm/ssr-runtime/SSRLiveReload.mjs
+--- a/dist/esm/ssr-runtime/SSRLiveReload.mjs
++++ b/dist/esm/ssr-runtime/SSRLiveReload.mjs
+@@ -1,6 +1,6 @@
+ import { _ } from "@swc/helpers/_/_tagged_template_literal";
+ import { jsx } from "react/jsx-runtime";
+-import "react";
++import { useSyncExternalStore } from "react";
+ function SSRLiveReload_templateObject() {
+     var data = _([
+         "\n      if(",
+@@ -11,8 +11,14 @@
+     };
+     return data;
+ }
++// Interim until https://github.com/module-federation/core/pull/5158 deletes this component:
++// emit the reload script only in server HTML and while hydrating it. A client render
++// (a federated remote mounted with createRoot) must not create a <script>; React 19.3
++// reports that as a console error.
++const subscribeNever = ()=>()=>{};
+ function SSRLiveReload() {
+-    if ('development' !== process.env.NODE_ENV) return null;
++    const fromServerHtml = useSyncExternalStore(subscribeNever, ()=>false, ()=>true);
++    if ('development' !== process.env.NODE_ENV || !fromServerHtml) return null;
+     return /*#__PURE__*/ jsx("script", {
+         suppressHydrationWarning: true,
+         dangerouslySetInnerHTML: {
 diff --git a/dist/esm-node/cli/configPlugin.mjs b/dist/esm-node/cli/configPlugin.mjs
 --- a/dist/esm-node/cli/configPlugin.mjs
 +++ b/dist/esm-node/cli/configPlugin.mjs
