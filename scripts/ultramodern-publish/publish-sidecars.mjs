@@ -9,9 +9,11 @@
 // publishing OIDC exchange. There is no token path.
 //
 // Modes:
+//   --check-registry bundle-free: every recipe's package name exists on npm
 //   --check-staging  offline validation of the staged sidecar lane (no network)
 //   --dry-run        plan against the live registry without publishing
 //   (default)        publish, then re-verify the exact registry state
+import fs from 'node:fs';
 import path from 'node:path';
 import cliKit from '../lib/cli-kit.js';
 import validationKit from '../lib/validation-kit.js';
@@ -71,7 +73,16 @@ const resumableInitialStates = new Set([
 ]);
 
 const cliValueOptions = new Set(['--out', '--tag']);
-const cliBooleanOptions = new Set(['--dry-run', '--check-staging']);
+const cliBooleanOptions = new Set([
+  '--check-registry',
+  '--check-staging',
+  '--dry-run',
+]);
+
+const sidecarRecipesUrl = new URL(
+  '../ultramodern-supply/sidecars.json',
+  import.meta.url,
+);
 
 function parseArgs(argv) {
   rejectInlineOptionSyntax(argv, {
@@ -81,6 +92,7 @@ function parseArgs(argv) {
 
   const options = parseCliArgs(argv, {
     defaults: {
+      checkRegistry: false,
       checkStaging: false,
       dryRun: false,
       out: path.join(repoRoot, '.modern', 'bleedingdev-publish'),
@@ -88,6 +100,7 @@ function parseArgs(argv) {
     },
     ignoreTerminator: true,
     options: {
+      'check-registry': { key: 'checkRegistry', type: 'boolean' },
       'check-staging': { key: 'checkStaging', type: 'boolean' },
       'dry-run': { key: 'dryRun', type: 'boolean' },
       out: {},
@@ -95,8 +108,14 @@ function parseArgs(argv) {
     },
   });
 
-  if (options.checkStaging && options.dryRun) {
-    throw new Error('--check-staging and --dry-run are mutually exclusive');
+  if (
+    [options.checkRegistry, options.checkStaging, options.dryRun].filter(
+      Boolean,
+    ).length > 1
+  ) {
+    throw new Error(
+      '--check-registry, --check-staging and --dry-run are mutually exclusive',
+    );
   }
   if (options.tag !== sidecarPublishTag) {
     throw new Error(
@@ -170,6 +189,64 @@ async function readSidecarPackument(name, fetchImpl = globalThis.fetch) {
     }
     throw error;
   }
+}
+
+// npm trusted publishing publishes to an EXISTING package with a configured
+// trusted publisher; the OIDC exchange cannot create a package name, so a first
+// publish is a deliberate, authorized, interactive act.
+function sidecarBootstrapError(sidecars, observation) {
+  return new Error(
+    [
+      ...sidecars.map(
+        sidecar =>
+          `${sidecar.name} ${observation}, so the trusted-publishing lane cannot create it.`,
+      ),
+      'npm trusted publishing publishes to an existing package with a configured trusted publisher; the OIDC token cannot bootstrap a new package name.',
+      ...sidecars.map(
+        sidecar =>
+          `Bootstrap ${sidecar.name}@${sidecar.version} interactively once, with explicit authorization, then configure this workflow as its trusted publisher on npm and re-run this lane.`,
+      ),
+      'This lane fails closed in both dry-run and publication modes rather than claiming a publish it cannot perform.',
+    ].join('\n'),
+  );
+}
+
+function readRecipeSidecars(recipesUrl = sidecarRecipesUrl) {
+  return JSON.parse(fs.readFileSync(recipesUrl, 'utf8')).map(recipe => ({
+    name: recipe.fork.name,
+    version: recipe.fork.version,
+  }));
+}
+
+/**
+ * Bundle-free registry gate for the start of the release. Reads the sidecar
+ * recipes and fails on the first registry read when any fork name does not
+ * exist on npm, instead of after the bundle build and clean-room acceptance.
+ * No propagation wait: a name that does not exist yet is never going to
+ * appear without an interactive bootstrap.
+ *
+ * Trusted-publisher configuration is not checked here: npm serves it only to
+ * an authenticated maintainer (GET /-/package/<name>/trust answers 401), and
+ * this workflow holds no stored token. A missing trusted publisher still fails
+ * at the OIDC exchange in publish-sidecars.
+ */
+async function checkSidecarRegistry(dependencies = {}) {
+  const sidecars = (dependencies.readRecipes ?? readRecipeSidecars)();
+  const readPackument = dependencies.readPackument ?? readSidecarPackument;
+  const packuments = await Promise.all(
+    sidecars.map(sidecar => readPackument(sidecar.name)),
+  );
+  const missing = sidecars.filter(
+    (_, index) => packuments[index] === null || packuments[index] === undefined,
+  );
+  if (missing.length > 0) {
+    throw sidecarBootstrapError(missing, 'does not exist on the registry');
+  }
+  const checked = sidecars.map(sidecar => sidecar.name);
+  console.log(
+    `Registry check: all ${checked.length} sidecar name(s) exist on npm.`,
+  );
+  return { checked };
 }
 
 async function publishSidecarBuffer(
@@ -399,18 +476,10 @@ async function publishSidecars(options, dependencies = {}) {
       continue;
     }
 
-    // npm trusted publishing can only publish to a package that ALREADY exists
-    // and already has a trusted publisher configured; the OIDC exchange has no
-    // way to create the package. A first publish is therefore a deliberate,
-    // authorized, interactive act - never something this unattended lane does.
     if (packument === null || packument === undefined) {
-      throw new Error(
-        [
-          `${sidecar.name} does not exist on the registry after the bounded propagation wait, so the trusted-publishing lane cannot create it.`,
-          'npm trusted publishing publishes to an existing package with a configured trusted publisher; the OIDC token cannot bootstrap a new package name.',
-          `Bootstrap ${sidecar.name}@${sidecar.version} interactively once, with explicit authorization, then configure this workflow as its trusted publisher on npm and re-run this lane.`,
-          'This lane fails closed in both dry-run and publication modes rather than claiming a publish it cannot perform.',
-        ].join('\n'),
+      throw sidecarBootstrapError(
+        [sidecar],
+        'does not exist on the registry after the bounded propagation wait',
       );
     }
     if (options.dryRun) {
@@ -454,7 +523,10 @@ async function publishSidecars(options, dependencies = {}) {
 }
 
 async function main() {
-  await publishSidecars(parseArgs(process.argv.slice(2)));
+  const options = parseArgs(process.argv.slice(2));
+  await (options.checkRegistry
+    ? checkSidecarRegistry()
+    : publishSidecars(options));
 }
 
 if (isDirectRun(import.meta.url)) {
@@ -469,6 +541,7 @@ if (isDirectRun(import.meta.url)) {
 export {
   awaitInitialSidecarPackument,
   awaitPublishedSidecar,
+  checkSidecarRegistry,
   classifySidecarPropagation,
   initialPackumentDelaysMs,
   parseArgs,
