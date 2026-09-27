@@ -407,6 +407,34 @@ test('accepts Effect combinators that add no endpoints, and applies prefix', () 
   ).toBeUndefined();
 });
 
+test('accepts a root API annotated with parse options', () => {
+  const rootApi = `export const catalogApi = HttpApi.make('CatalogApi').addHttpApi(catalogFoundationApi);`;
+  expect(
+    validate(
+      contract.replace(
+        rootApi,
+        `export const catalogApi = HttpApi.make('CatalogApi').addHttpApi(catalogFoundationApi).annotate(HttpApi.ParseOptions, { onExcessProperty: 'error' });`,
+      ),
+    ),
+  ).toBeUndefined();
+  expect(
+    validate(
+      contract.replace(
+        rootApi,
+        `export const catalogApi = HttpApi.make('CatalogApi').annotate(HttpApi.ParseOptions, { onExcessProperty: 'error' }).addHttpApi(catalogFoundationApi);`,
+      ),
+    ),
+  ).toContain('explicitly compose its readiness foundation API');
+  expect(
+    validate(
+      contract.replace(
+        rootApi,
+        `export const catalogApi = HttpApi.make('CatalogApi').addHttpApi(catalogFoundationApi).annotate(HttpApi.ParseOptions);`,
+      ),
+    ),
+  ).toContain('explicitly compose its readiness foundation API');
+});
+
 test('still rejects a chain combinator Effect does not define', () => {
   write(
     path.join(root, 'verticals/catalog/shared/apis/catalog-search.ts'),

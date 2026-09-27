@@ -341,16 +341,22 @@ const rootComposesFoundation = (
     chain.base.arguments.length === 1 &&
     stringLiteral(chain.base.arguments[0]) === `${pascalCaseStem(stem)}Api` &&
     chain.methods.length > 0 &&
-    chain.methods.every(
-      (method, index) =>
+    chain.methods.every((method, index) => {
+      // The root may be annotated like any composed API, e.g. with HttpApi.ParseOptions.
+      const combinatorArity = nonEndpointCombinators.api[method.name];
+      if (combinatorArity !== undefined) {
+        return method.arguments.length === combinatorArity;
+      }
+      return (
         method.arguments.length === 1 &&
         (method.name === 'add' ||
           method.name === 'addHttpApi' ||
           (index === chain.methods.length - 1 &&
             method.name === 'pipe' &&
             identifierName(method.arguments[0]) === 'identity' &&
-            importsExactBindings(sourceFile, 'effect', ['identity']))),
-    ) &&
+            importsExactBindings(sourceFile, 'effect', ['identity'])))
+      );
+    }) &&
     first?.name === 'addHttpApi' &&
     identifierName(first.arguments[0]) === foundationName
   );
