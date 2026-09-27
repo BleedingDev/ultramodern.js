@@ -149,7 +149,7 @@ const createElementFactory = <Element>(react: ElementFactory<Element>) =>
 
 export const renderHeadMarker = <Element>(
   react: ElementFactory<Element>,
-  marker: MarkerProps | null | undefined,
+  marker: MarkerProps | undefined,
 ): Element | null =>
   marker ? createElementFactory(react)('template', marker) : null;
 
