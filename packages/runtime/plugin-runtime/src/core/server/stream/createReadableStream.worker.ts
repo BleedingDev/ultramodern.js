@@ -126,7 +126,10 @@ export const createReadableStreamFromElement: CreateReadableStreamFromElement =
       const decoder = new TextDecoder();
       const encoder = new TextEncoder();
       const pendingScripts: string[] = [];
-      let buffered = '';
+      const buffered: string[] = [];
+      let bufferedLength = 0;
+      // Characters that may hold the start of a marker split across chunks.
+      let markerTail = '';
       let shellChunkStatus = ShellChunkStatus.START;
       let bodyController: TransformStreamDefaultController<Uint8Array>;
       const emit = (
@@ -137,21 +140,35 @@ export const createReadableStreamFromElement: CreateReadableStreamFromElement =
           if (chunk.length > 0) controller.enqueue(encoder.encode(chunk));
           return;
         }
-        buffered += chunk;
-        const markerIndex = buffered.indexOf(ESCAPED_SHELL_STREAM_END_MARK);
-        if (markerIndex === -1) return;
+        // Scan only the new characters: rescanning the whole buffer made
+        // shell buffering quadratic in the shell size.
+        const window = markerTail + chunk;
+        const windowIndex = window.indexOf(ESCAPED_SHELL_STREAM_END_MARK);
+        const markerIndex = bufferedLength - markerTail.length + windowIndex;
+        buffered.push(chunk);
+        bufferedLength += chunk.length;
+        if (windowIndex === -1) {
+          markerTail = window.slice(
+            Math.max(
+              0,
+              window.length - ESCAPED_SHELL_STREAM_END_MARK.length + 1,
+            ),
+          );
+          return;
+        }
+        const shell = buffered.join('');
         const beforeMark = lifecycle.completedBody(
-          buffered.slice(0, markerIndex),
+          shell.slice(0, markerIndex),
           'shell',
         );
-        const afterMark = buffered.slice(
+        const afterMark = shell.slice(
           markerIndex + ESCAPED_SHELL_STREAM_END_MARK.length,
         );
         const completedShellBefore = createReplaceHelemt(
           getHelmetData(extenders),
         )(shellBefore);
         shellChunkStatus = ShellChunkStatus.FINISH;
-        buffered = '';
+        buffered.length = 0;
         controller.enqueue(
           encoder.encode(`${completedShellBefore}${beforeMark}${shellAfter}`),
         );

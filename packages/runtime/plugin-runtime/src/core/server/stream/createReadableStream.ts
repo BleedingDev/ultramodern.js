@@ -169,7 +169,10 @@ export const createReadableStreamFromElement: CreateReadableStreamFromElement =
         });
         if (failed) return;
         const chunks: Buffer[] = [];
+        let bufferedLength = 0;
         const marker = Buffer.from(ESCAPED_SHELL_STREAM_END_MARK);
+        // Bytes that may hold the start of a marker split across chunks.
+        let markerTail = Buffer.alloc(0);
         const pendingScripts: string[] = [];
         let shellChunkStatus = ShellChunkStatus.START;
         const emitShell = (
@@ -186,6 +189,7 @@ export const createReadableStreamFromElement: CreateReadableStreamFromElement =
           )(shellBefore);
           shellChunkStatus = ShellChunkStatus.FINISH;
           chunks.length = 0;
+          bufferedLength = 0;
           destination.push(`${completedShellBefore}${beforeMark}${shellAfter}`);
           const afterMark = buffered.subarray(markerIndex + marker.length);
           if (afterMark.length > 0) destination.push(afterMark);
@@ -198,12 +202,27 @@ export const createReadableStreamFromElement: CreateReadableStreamFromElement =
               if (shellChunkStatus === ShellChunkStatus.FINISH) {
                 this.push(chunk);
               } else {
-                chunks.push(
-                  Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk),
-                );
-                const buffered = Buffer.concat(chunks);
-                const markerIndex = buffered.indexOf(marker);
-                if (markerIndex !== -1) emitShell(this, buffered, markerIndex);
+                // Scan only the new bytes: rescanning the whole buffer made
+                // shell buffering quadratic in the shell size.
+                const bytes = Buffer.isBuffer(chunk)
+                  ? chunk
+                  : Buffer.from(chunk);
+                const window = Buffer.concat([markerTail, bytes]);
+                const windowIndex = window.indexOf(marker);
+                const windowStart = bufferedLength - markerTail.length;
+                chunks.push(bytes);
+                bufferedLength += bytes.length;
+                if (windowIndex === -1) {
+                  markerTail = window.subarray(
+                    Math.max(0, window.length - marker.length + 1),
+                  );
+                } else {
+                  emitShell(
+                    this,
+                    Buffer.concat(chunks, bufferedLength),
+                    windowStart + windowIndex,
+                  );
+                }
               }
               callback();
             } catch (error) {
