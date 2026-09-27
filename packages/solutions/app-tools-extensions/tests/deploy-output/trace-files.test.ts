@@ -4,7 +4,7 @@ import path from 'node:path';
 import {
   createBuildHostIgnore,
   traceDeployFiles,
-} from '../../src/plugins/deploy/utils/traceFiles';
+} from '../../src/deploy-output/trace-files';
 
 const ENTRY = `
 const fs = require('node:fs');

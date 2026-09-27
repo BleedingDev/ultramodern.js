@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fs } from '@modern-js/utils';
 import { resolveESMDependency } from '../../../solutions/app-tools/src/plugins/deploy/utils';
-import { traceDeployFiles } from '../../../solutions/app-tools/src/plugins/deploy/utils/traceFiles';
+import { traceDeployFiles } from '../../../solutions/app-tools-extensions/src/deploy-output/trace-files';
 
 test('the real Hono binder remains available through Node import and require', async () => {
   const imported = await import('@modern-js/plugin-bff-extensions/hono/node');

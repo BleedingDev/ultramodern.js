@@ -133,6 +133,12 @@
       "modern:source": "./src/deploy-output/target.ts",
       "import": "./dist/esm-node/deploy-output/target.mjs",
       "require": "./dist/cjs/deploy-output/target.js"
+    },
+    "./deploy-output/trace-files": {
+      "types": "./dist/types/deploy-output/trace-files.d.ts",
+      "modern:source": "./src/deploy-output/trace-files.ts",
+      "import": "./dist/esm-node/deploy-output/trace-files.mjs",
+      "require": "./dist/cjs/deploy-output/trace-files.js"
     }
   },
   "typesVersions": {
@@ -152,6 +158,9 @@
       ],
       "deploy-output/target": [
         "./dist/types/deploy-output/target.d.ts"
+      ],
+      "deploy-output/trace-files": [
+        "./dist/types/deploy-output/trace-files.d.ts"
       ]
     }
   },
@@ -181,6 +190,7 @@
     "@modern-js/types": "workspace:*",
     "@modern-js/utils": "workspace:*",
     "@swc/helpers": "^0.5.23",
+    "@vercel/nft": "^1.11.0",
     "compression-webpack-plugin": "^12.0.0",
     "esbuild": "^0.28.2",
     "std-env": "4.2.0"
