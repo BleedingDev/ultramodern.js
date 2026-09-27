@@ -52,24 +52,26 @@ export type BackendFederationLoadEntryPluginOptions =
 
 export type EdgeBackendFederationLoadOptions = Omit<
   BackendFederationLoadOptions,
-  'entryPolicy' | 'plugins' | 'remote' | 'remotes' | 'runtime'
+  'entryPolicy' | 'plugins' | 'remote' | 'remotes' | 'runtime' | 'shared'
 > & {
   entryPolicy?: never;
   plugins?: BackendFederationEdgeLoadEntryPlugin[];
   remote?: BackendFederationEdgeRemote;
   remotes?: BackendFederationEdgeRemote[];
   runtime?: never;
+  shared?: never;
 };
 
 export type EdgeBackendFederationIdentityLoadOptions = Omit<
   UniversalBackendFederationIdentityLoadOptions,
-  'entryPolicy' | 'plugins' | 'remote' | 'remotes' | 'runtime'
+  'entryPolicy' | 'plugins' | 'remote' | 'remotes' | 'runtime' | 'shared'
 > & {
   entryPolicy?: never;
   plugins?: BackendFederationEdgeLoadEntryPlugin[];
   remote?: BackendFederationEdgeRemote;
   remotes?: BackendFederationEdgeRemote[];
   runtime?: never;
+  shared?: never;
 };
 
 export type BackendFederationIdentityLoadOptions =
@@ -80,11 +82,12 @@ export function loadBackendFederatedEffectApi(
 ): Promise<BackendFederatedEffectApiModule> {
   if (
     (options as BackendFederationLoadOptions).runtime !== undefined ||
-    (options as BackendFederationLoadOptions).entryPolicy !== undefined
+    (options as BackendFederationLoadOptions).entryPolicy !== undefined ||
+    (options as BackendFederationLoadOptions).shared !== undefined
   ) {
     return Promise.reject(
       new Error(
-        '[BFF][Effect] Edge backend federation does not execute custom runtimes or entry evaluators. Register a static or service-binding entry provider.',
+        '[BFF][Effect] Edge backend federation does not execute custom runtimes, entry evaluators or host shares. Register a static or service-binding entry provider.',
       ),
     );
   }
