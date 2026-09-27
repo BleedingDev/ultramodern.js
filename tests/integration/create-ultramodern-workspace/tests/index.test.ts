@@ -115,7 +115,7 @@ function runWorkspaceValidator(workspaceDir: string) {
 
 function expectWorkspaceValidatorPass(workspaceDir: string) {
   expect(runWorkspaceValidator(workspaceDir).trim()).toBe(
-    'UltraModern workspace scaffold validated',
+    'UltraModern workspace validated',
   );
 }
 
@@ -236,7 +236,7 @@ describe('create-ultramodern-workspace', () => {
           ? execError.stderr
           : execError.stderr?.toString() || '';
       expect(`${stdout}\n${stderr}`).toMatch(
-        /apps\/shell-super-app\/package\.json dependencies\.@modern-js\/runtime must match package source metadata/u,
+        /apps\/shell-super-app\/package\.json @modern-js\/runtime must use the ultramodern catalog/u,
       );
     } finally {
       writeText(workspaceDir, shellPackagePath, originalShellPackage);
