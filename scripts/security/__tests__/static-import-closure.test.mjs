@@ -184,6 +184,25 @@ test('a preloaded module in a bare step is rejected', t => {
   );
 });
 
+test('an npm install of named packages makes only those packages available', t => {
+  const rootDir = withRepository(t, {
+    'scripts/record.mjs':
+      "import YAML from 'yaml';\nimport { x } from '@scope/kit/sub';\n",
+  });
+  const workflow = workflowWithJob(`      - run: |
+          npm install --prefix "$DIR" --no-save '@scope/kit@1.0.0'
+      - run: node scripts/record.mjs
+`);
+  assert.deepEqual(
+    validateWorkflowContent('.github/workflows/example.yml', workflow, {
+      rootDir,
+    }).map(message => message.split(' via')[0]),
+    [
+      '.github/workflows/example.yml job recorder runs scripts/record.mjs before any dependency install, but it statically loads yaml',
+    ],
+  );
+});
+
 test('a conditional install does not make later steps installed', t => {
   const rootDir = withRepository(t, recorderFiles);
   const workflow = workflowWithJob(`      - if: github.event_name == 'push'
