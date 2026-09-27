@@ -48,11 +48,10 @@ function parsePackageKey(key) {
   return { name, version: range };
 }
 
+// Selector match with pnpm's default semver semantics: a prerelease only
+// matches a range that names a prerelease of the same version.
 function inRange(version, range) {
-  return (
-    range === undefined ||
-    semver.satisfies(version, range, { includePrerelease: true })
-  );
+  return range === undefined || semver.satisfies(version, range);
 }
 
 // Whether `version` is what the override value asks for: the exact version,

@@ -178,3 +178,14 @@ test('a removal override whose parent resolves nowhere fails', () => {
     "'old-parent>brace-expansion': nothing in the lockfile resolves old-parent. Delete the override.",
   ]);
 });
+
+test('a prerelease outside the selector is not flagged', () => {
+  const lockfile = preFixLockfile
+    .replace(
+      /overrides:[\s\S]*?importers:/,
+      'overrides:\n  brace-expansion@>=5.0.0 <5.0.12: 5.0.12\n  minimatch@3>brace-expansion: 1.1.18\nimporters:',
+    )
+    .replaceAll('brace-expansion@5.0.9', 'brace-expansion@5.0.9-beta.1')
+    .replace('brace-expansion: 5.0.9', 'brace-expansion: 5.0.9-beta.1');
+  assert.deepEqual(findOverrideViolations(lockfile, importerNames), []);
+});
