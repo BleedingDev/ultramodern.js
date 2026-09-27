@@ -59,7 +59,7 @@ function inRange(version, range) {
 function honours(version, value) {
   if (semver.valid(value)) return version === value;
   if (semver.validRange(value)) {
-    return semver.satisfies(version, value, { includePrerelease: true });
+    return semver.satisfies(version, value);
   }
   return true;
 }
