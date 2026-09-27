@@ -291,13 +291,25 @@ export async function parseCommonConfig(
     );
   }
 
-  rsbuildPlugins.push(
-    pluginReact(
-      options?.disableReactCompiler || reactCompiler === undefined
-        ? {}
-        : { reactCompiler },
-    ),
-  );
+  rsbuildPlugins.push(pluginReact());
+
+  if (!options?.disableReactCompiler && reactCompiler !== undefined) {
+    // Browser code only: server graphs (node, workerSSR, BFF) render once per
+    // request, and the compiler overflows the stack on long fluent chains.
+    rsbuildPlugins.push({
+      name: 'builder:react-compiler',
+      setup(api) {
+        api.modifyEnvironmentConfig((config, { mergeEnvironmentConfig }) =>
+          config.output.target === 'web'
+            ? mergeEnvironmentConfig(
+                { tools: { swc: { jsc: { transform: { reactCompiler } } } } },
+                config,
+              )
+            : config,
+        );
+      },
+    });
+  }
 
   if (!disableSvgr) {
     const { pluginSvgr } = await import('@rsbuild/plugin-svgr');

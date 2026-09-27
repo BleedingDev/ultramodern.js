@@ -11,6 +11,8 @@ title: reactCompiler
 
 Modern.js 基于 Rspack `builtin:swc-loader` 内置的 Rust 版 React Compiler 实现该能力（等价于设置 SWC 的 `jsc.transform.reactCompiler`），复用 Rspack 内置的 SWC 转换链，无需额外引入 Babel。
 
+该编译仅作用于浏览器环境（`output.target: 'web'`）。服务端环境（`node`、`web-worker` SSR Worker 以及 BFF 代码）每次请求只渲染一次，无法从自动记忆化中获益，因此不会被编译。
+
 :::tip
 该配置默认关闭，任何 React 版本下都需要显式开启，包括 React 19。
 :::

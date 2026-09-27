@@ -218,6 +218,8 @@ export const createPresetUltramodernConfig = (
     plugins: [ultramodernModuleFederationSharedPlugin()],
     server,
     source: {
+      // Client code only: the builder applies React Compiler to `web`
+      // environments and never to node/workerSSR/BFF graphs.
       reactCompiler: true,
       ...(deliveryUnit
         ? {
