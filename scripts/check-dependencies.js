@@ -1,4 +1,4 @@
-const ignoreDeps = ['fs-extra', 'tailwindcss', 'tsconfig-paths'];
+const ignoreDeps = ['fs-extra', 'tailwindcss'];
 
 // Use the workspace-pinned version to avoid unexpected breaking changes from @latest.
 const command = `pnpm exec check-dependency-version-consistency . ${ignoreDeps

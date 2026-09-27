@@ -4,9 +4,9 @@
   "upstreamRef": "2f4d9c4559e26209a0d77f02c6757f29fe3699a2",
   "pathspec": ["packages"],
   "migrationGoal": "Shrink-only budget of fork edits inside upstream-owned files. Every entry is debt: move it upstream or behind an extension point, then re-run --write-divergence-allowlist.",
-  "totalFiles": 829,
-  "totalHunks": 3134,
-  "totalChangedLines": 51615,
+  "totalFiles": 831,
+  "totalHunks": 3133,
+  "totalChangedLines": 51744,
   "files": [
     {
       "file": "packages/cli/adapter-rstest/package.json",
@@ -2395,8 +2395,8 @@
     },
     {
       "file": "packages/server/bff-core/package.json",
-      "hunks": 11,
-      "changedLines": 22
+      "hunks": 9,
+      "changedLines": 24
     },
     {
       "file": "packages/server/bff-core/src/api.ts",
@@ -2411,7 +2411,7 @@
     {
       "file": "packages/server/bff-core/src/index.ts",
       "hunks": 7,
-      "changedLines": 10
+      "changedLines": 12
     },
     {
       "file": "packages/server/bff-core/src/operators/http.ts",
@@ -2430,13 +2430,13 @@
     },
     {
       "file": "packages/server/bff-core/src/utils/alias.ts",
-      "hunks": 2,
-      "changedLines": 2
+      "hunks": 1,
+      "changedLines": 96
     },
     {
       "file": "packages/server/bff-core/src/utils/index.ts",
       "hunks": 2,
-      "changedLines": 2
+      "changedLines": 3
     },
     {
       "file": "packages/server/bff-core/tests/client/__snapshots__/generateClient.test.ts.snap",
@@ -2452,6 +2452,11 @@
       "file": "packages/server/bff-core/tests/client/generateClient.test.ts",
       "hunks": 18,
       "changedLines": 396
+    },
+    {
+      "file": "packages/server/bff-core/tests/exportSurface.test.ts",
+      "hunks": 1,
+      "changedLines": 11
     },
     {
       "file": "packages/server/bff-core/tests/fixtures/upload/lambda/index.ts",
@@ -2477,6 +2482,11 @@
       "file": "packages/server/bff-core/tests/optionalZodPeer.test.ts",
       "hunks": 1,
       "changedLines": 29
+    },
+    {
+      "file": "packages/server/bff-core/tests/utils.test.ts",
+      "hunks": 1,
+      "changedLines": 19
     },
     {
       "file": "packages/server/bff-core/tsconfig.json",
