@@ -1,8 +1,8 @@
 export default [
   {
     packageName: '@module-federation/bridge-react',
-    version: '2.9.1',
-    path: 'patches/@module-federation__bridge-react@2.9.1.patch',
+    version: '2.9.2',
+    path: 'patches/@module-federation__bridge-react@2.9.2.patch',
     sha256: '8c084f41790295af8fd015b897c6298bbc13d927b796c624ac96cb2bdb4bc87c',
     repository: true,
     workspace: null,
@@ -10,8 +10,8 @@ export default [
   },
   {
     packageName: '@module-federation/dts-plugin',
-    version: '2.9.1',
-    path: 'patches/@module-federation__dts-plugin@2.9.1.patch',
+    version: '2.9.2',
+    path: 'patches/@module-federation__dts-plugin@2.9.2.patch',
     sha256: 'c52b86d551da354492cf255cfb8c0e56e51cb6b4452319b47295ac969704819d',
     repository: true,
     workspace: null,
@@ -20,8 +20,8 @@ export default [
   },
   {
     packageName: '@module-federation/manifest',
-    version: '2.9.1',
-    path: 'patches/@module-federation__manifest@2.9.1.patch',
+    version: '2.9.2',
+    path: 'patches/@module-federation__manifest@2.9.2.patch',
     sha256: 'a31d4d30913ffb579faf42be4f1c03a0f330d3f09348e9eedc00059d6e8d123f',
     repository: true,
     workspace: null,
@@ -29,8 +29,8 @@ export default [
   },
   {
     packageName: '@module-federation/modern-js-v3',
-    version: '2.9.1',
-    path: 'patches/@module-federation__modern-js-v3@2.9.1.patch',
+    version: '2.9.2',
+    path: 'patches/@module-federation__modern-js-v3@2.9.2.patch',
     sha256: '3d000f33015d32b14dcf9e46672e7d6867317ad9f43e95b2c392c3d5a7c052ab',
     repository: true,
     workspace: null,
@@ -39,20 +39,11 @@ export default [
   },
   {
     packageName: '@module-federation/rspack',
-    version: '2.9.1',
-    path: 'patches/@module-federation__rspack@2.9.1.patch',
-    sha256: '7beed0f736d66f78abeba9ed9b5537e571eff92f49aa03bd30a6b674f32f4eae',
+    version: '2.9.2',
+    path: 'patches/@module-federation__rspack@2.9.2.patch',
+    sha256: '439c49417f83846c45e31e4448c6487f7b57f0bdc226e120adea88ae1caf74e6',
     repository: true,
     workspace: null,
     reason: 'Defer DTS plugin loading when DTS is disabled.',
-  },
-  {
-    packageName: '@module-federation/runtime-core',
-    version: '2.9.1',
-    path: 'patches/@module-federation__runtime-core@2.9.1.patch',
-    sha256: 'b241be221397f0e07dbe6c515725e12eaf3b418469bb7dd21750e6e4b215dd8d',
-    repository: true,
-    workspace: null,
-    reason: 'Import ResourceLoadContext used by public remote hooks.',
   },
 ];

@@ -47,7 +47,7 @@ const getStatus = url =>
   });
 
 for (const format of ['esm', 'cjs']) {
-  // Unpatched 2.9.1 probes a port with getFreePort(), closes the probe and
+  // Unpatched 2.9.2 probes a port with getFreePort(), closes the probe and
   // then listens on that number with no error listener. When another
   // producer binds the port in between, EADDRINUSE is thrown as an uncaught
   // exception and takes down the forked DTS worker. The stale probe is

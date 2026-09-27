@@ -38,7 +38,7 @@ diff --git a/dist/ModuleFederationPlugin.mjs b/dist/ModuleFederationPlugin.mjs
  
  
  
-@@ -139,6 +140,7 @@ class ModuleFederationPlugin {
+@@ -137,6 +138,7 @@ class ModuleFederationPlugin {
          let disableManifest = options.manifest === false;
          let disableDts = options.dts === false;
          if (!disableDts) {

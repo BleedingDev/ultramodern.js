@@ -5,12 +5,11 @@ Edit `packages/toolkit/ultramodern-create/src/ultramodern-workspace/patch-invent
 
 | Package | Repository | Workspace | Purpose |
 | --- | --- | --- | --- |
-| @module-federation/bridge-react@2.9.1 | yes | none | Portable React declaration specifiers. |
-| @module-federation/dts-plugin@2.9.1 | yes | none | Bind the type server before publishing its port (upstream PR pending); execute absolute compilerInstance paths without a shell ([#5131](https://github.com/module-federation/core/pull/5131)); preserve declaration rootDir ([#4947](https://github.com/module-federation/core/pull/4947)). |
-| @module-federation/manifest@2.9.1 | yes | none | Defer DTS loading when DTS is disabled. |
-| @module-federation/modern-js-v3@2.9.1 | yes | none | Preserve lazy compilation, framework CSS ownership, SSR manifest recovery, valid async splitting and native ESM CLI package resolution; keep the SSR dev reload script out of client renders ([#5158](https://github.com/module-federation/core/pull/5158)). |
-| @module-federation/rspack@2.9.1 | yes | none | Defer DTS plugin loading when DTS is disabled. |
-| @module-federation/runtime-core@2.9.1 | yes | none | Import ResourceLoadContext used by public remote hooks. |
+| @module-federation/bridge-react@2.9.2 | yes | none | Portable React declaration specifiers. |
+| @module-federation/dts-plugin@2.9.2 | yes | none | Bind the type server before publishing its port (upstream PR pending); execute absolute compilerInstance paths without a shell ([#5131](https://github.com/module-federation/core/pull/5131)); preserve declaration rootDir ([#4947](https://github.com/module-federation/core/pull/4947)). |
+| @module-federation/manifest@2.9.2 | yes | none | Defer DTS loading when DTS is disabled. |
+| @module-federation/modern-js-v3@2.9.2 | yes | none | Preserve lazy compilation, framework CSS ownership, SSR manifest recovery, valid async splitting and native ESM CLI package resolution; keep the SSR dev reload script out of client renders ([#5158](https://github.com/module-federation/core/pull/5158)). |
+| @module-federation/rspack@2.9.2 | yes | none | Defer DTS plugin loading when DTS is disabled. |
 
 Run the command without flags to verify integrity and all projections. `--write-assets` updates only packaged assets and this document; `--write` also regenerates the repository configuration. Regenerate the lockfile with pnpm when patch bytes or dependency selectors change. Never hand-edit packaged copies.
 
