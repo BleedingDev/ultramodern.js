@@ -1192,11 +1192,36 @@ const collectSkipGateFindings = (workflow, content) => {
 // A trigger path filter must let an edit of the workflow itself run it, with
 // GitHub's semantics: any `paths-ignore` match skips the file, and in `paths`
 // the last matching pattern wins (`!` negates).
-// GitHub's `*` and `**` also match dot segments (`.github`); matchesGlob has
-// no `dot` option, so both sides drop the leading dot of every segment.
-const undot = value => value.replace(/(^|\/)\./gu, '$1');
+// GitHub filter pattern syntax (docs: "Filter pattern cheat sheet"): `*` is
+// any run of non-`/` characters, `**` any run of characters (`**/` also zero
+// directories), `?` and `+` quantify the preceding character, `[...]` is a
+// character class. Dots are ordinary characters, so `**` matches `.github`.
+// Node glob differs on all of these, hence a direct translation.
+const pathFilterRegExp = pattern => {
+  let source = '';
+  for (let index = 0; index < pattern.length; index += 1) {
+    const char = pattern[index];
+    if (pattern.startsWith('**/', index)) {
+      source += '(?:.*/)?';
+      index += 2;
+    } else if (char === '*') {
+      const double = pattern[index + 1] === '*';
+      source += double ? '.*' : '[^/]*';
+      index += double ? 1 : 0;
+    } else if (char === '?' || char === '+') {
+      source += char;
+    } else if (char === '[') {
+      const close = pattern.indexOf(']', index + 1);
+      source += close === -1 ? '\\[' : `[${pattern.slice(index + 1, close)}]`;
+      index = close === -1 ? index : close;
+    } else {
+      source += escapeRegExp(char);
+    }
+  }
+  return new RegExp(`^${source}$`, 'u');
+};
 const pathFilterMatches = (file, pattern) =>
-  path.posix.matchesGlob(undot(file), undot(pattern));
+  pathFilterRegExp(pattern).test(file);
 
 const filterRunsFile = (filter, patterns, file) => {
   if (filter === 'paths-ignore') {

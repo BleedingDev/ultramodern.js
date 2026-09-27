@@ -529,6 +529,7 @@ test('trigger path filters must run an edit of the workflow itself', () => {
     "    paths:\n      - 'packages/**'\n      - '.github/workflows/example.yml'\n",
     "    paths:\n      - '.github/**'\n",
     "    paths:\n      - '**'\n",
+    "    paths:\n      - '*/workflows/*.yml'\n",
     "    paths:\n      - '!.github/**'\n      - '.github/workflows/example.yml'\n",
   ]) {
     assert.deepEqual(pathErrors(withFilter(filter)), [], filter);
@@ -537,6 +538,8 @@ test('trigger path filters must run an edit of the workflow itself', () => {
     "    paths-ignore:\n      - '.github/**'\n",
     "    paths-ignore:\n      - '**/.github/**'\n",
     "    paths-ignore:\n      - '**/*.yml'\n",
+    "    paths-ignore:\n      - '[.]github/**'\n",
+    "    paths-ignore:\n      - '.githu?b/**'\n",
     "    paths:\n      - 'packages/**'\n",
     "    paths:\n      - '.github/**'\n      - '!.github/**'\n",
   ]) {
