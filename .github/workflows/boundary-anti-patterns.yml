@@ -10,16 +10,8 @@ on:
   # Trusted-base orchestration: fork PRs cannot rewrite runner selection before
   # allocation. The job remains read-only and checks out the exact fork head
   # only after an external PR has been assigned ubuntu-latest.
+  # No path filter: this is a required check, so it must report on every PR.
   pull_request_target:
-    paths:
-      - 'packages/**'
-      - 'scripts/boundary-guards/**'
-      - 'scripts/ultramodern-boundary-check/**'
-      - 'docs/super-app-rfc-adr/contracts/**'
-      - 'package.json'
-      - 'AGENTS.md'
-      - 'FORK-DIVERGENCE.md'
-      - '.github/workflows/boundary-anti-patterns.yml'
   push:
     branches:
       - main
