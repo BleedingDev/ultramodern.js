@@ -6,11 +6,11 @@
 export const TANSTACK_ROUTER_VERSION = '1.170.39';
 export const TANSTACK_ROUTER_CORE_VERSION = '1.171.32';
 export const TANSTACK_HISTORY_VERSION = '1.162.4';
-export const MODULE_FEDERATION_VERSION = '2.9.1';
-// The mf-modern-js-v3 sidecar is upstream 2.9.1 plus the repository patch. Its
-// fork version moves past 2.9.1 whenever the patch bytes change, because a
-// published sidecar version is immutable.
-export const MODULE_FEDERATION_MODERN_JS_V3_FORK_VERSION = '2.9.2';
+export const MODULE_FEDERATION_VERSION = '2.9.2';
+// The mf-modern-js-v3 sidecar is upstream 2.9.2 plus the repository patch. Its
+// fork version moves past 2.9.2 because the 2.9.2 fork name already carries
+// upstream 2.9.1 bytes, and a published sidecar version is immutable.
+export const MODULE_FEDERATION_MODERN_JS_V3_FORK_VERSION = '2.9.3';
 export const ZEPHYR_RSPACK_PLUGIN_VERSION = '1.4.0';
 export const ZEPHYR_AGENT_VERSION = '1.4.0';
 export const WRANGLER_VERSION = '4.137.0';
@@ -34,7 +34,7 @@ export const OXFMT_VERSION = '0.70.0';
 export const ULTRACITE_VERSION = '7.12.0';
 export const LEFTHOOK_VERSION = '^2.1.14';
 export const I18NEXT_VERSION = '26.4.2';
-export const MODULE_FEDERATION_NODE_VERSION = '2.7.51';
+export const MODULE_FEDERATION_NODE_VERSION = '2.7.52';
 export const MINIFLARE_VERSION = '5.20260921.0-alpha';
 export const WORKERD_VERSION = '1.20260921.1';
 export const CLOUDFLARE_WORKERS_TYPES_VERSION = '5.20260923.1';
@@ -60,7 +60,7 @@ export const ULTRAMODERN_PACKAGE_PINS = {
     // `react-router-dom`-importing entry is bundled again.
     '@module-federation/bridge-react': `npm:@bleedingdev/mf-bridge-react@${MODULE_FEDERATION_VERSION}`,
     '@module-federation/modern-js-v3': `npm:@bleedingdev/mf-modern-js-v3@${MODULE_FEDERATION_MODERN_JS_V3_FORK_VERSION}`,
-    '@module-federation/runtime': `npm:@bleedingdev/mf-runtime@${MODULE_FEDERATION_VERSION}`,
+    '@module-federation/runtime': MODULE_FEDERATION_VERSION,
     '@tanstack/react-router': TANSTACK_ROUTER_VERSION,
     i18next: I18NEXT_VERSION,
     'node-fetch': NODE_FETCH_VERSION,

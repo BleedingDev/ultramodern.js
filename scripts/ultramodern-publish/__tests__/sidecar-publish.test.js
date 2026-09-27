@@ -186,11 +186,21 @@ test('recipe-only sidecar closure records exact publication identities and alias
   );
   const sidecars = sidecarsModule.collectSidecarPackages();
   const byName = new Map(sidecars.map(sidecar => [sidecar.name, sidecar]));
-  assert.equal(sidecars.length, 14);
+  assert.equal(sidecars.length, 10);
   assert.equal(byName.has('@bleedingdev/effect'), false);
   assert.equal(byName.has('@bleedingdev/msgpackr'), false);
   assert.equal(byName.has('@bleedingdev/zod'), false);
   assert.equal(byName.has('@bleedingdev/drizzle-orm'), false);
+  // MF 2.9.2 ships the runtime-core declaration fix, so the runtime chain
+  // publishes upstream again.
+  for (const retired of [
+    '@bleedingdev/mf-runtime-core',
+    '@bleedingdev/mf-runtime',
+    '@bleedingdev/mf-runtime-tools',
+    '@bleedingdev/mf-webpack-bundler-runtime',
+  ]) {
+    assert.equal(byName.has(retired), false, retired);
+  }
   assert.equal(byName.get('@bleedingdev/mf-cli').recipeOnly, true);
   assert.equal(byName.get('@bleedingdev/mf-enhanced').recipeOnly, true);
 
@@ -204,15 +214,17 @@ test('recipe-only sidecar closure records exact publication identities and alias
   const consumer = {
     name: '@bleedingdev/modern-js-plugin-bff-extensions',
     dependencies: {
-      '@module-federation/runtime': '2.9.1',
+      '@module-federation/enhanced': '2.9.2',
+      '@module-federation/runtime': '2.9.2',
       effect: '4.0.0-rc.117',
     },
   };
   sidecarsModule.rewriteSidecarConsumerAliases(consumer, sidecars);
   assert.equal(
-    consumer.dependencies['@module-federation/runtime'],
-    'npm:@bleedingdev/mf-runtime@2.9.1',
+    consumer.dependencies['@module-federation/enhanced'],
+    'npm:@bleedingdev/mf-enhanced@2.9.2',
   );
+  assert.equal(consumer.dependencies['@module-federation/runtime'], '2.9.2');
   assert.equal(consumer.dependencies.effect, '4.0.0-rc.117');
 });
 

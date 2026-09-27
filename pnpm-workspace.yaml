@@ -56,12 +56,11 @@ allowBuilds:
   workerd: true
 
 patchedDependencies:
-  '@module-federation/bridge-react@2.9.1': patches/@module-federation__bridge-react@2.9.1.patch
-  '@module-federation/dts-plugin@2.9.1': patches/@module-federation__dts-plugin@2.9.1.patch
-  '@module-federation/manifest@2.9.1': patches/@module-federation__manifest@2.9.1.patch
-  '@module-federation/modern-js-v3@2.9.1': patches/@module-federation__modern-js-v3@2.9.1.patch
-  '@module-federation/rspack@2.9.1': patches/@module-federation__rspack@2.9.1.patch
-  '@module-federation/runtime-core@2.9.1': patches/@module-federation__runtime-core@2.9.1.patch
+  '@module-federation/bridge-react@2.9.2': patches/@module-federation__bridge-react@2.9.2.patch
+  '@module-federation/dts-plugin@2.9.2': patches/@module-federation__dts-plugin@2.9.2.patch
+  '@module-federation/manifest@2.9.2': patches/@module-federation__manifest@2.9.2.patch
+  '@module-federation/modern-js-v3@2.9.2': patches/@module-federation__modern-js-v3@2.9.2.patch
+  '@module-federation/rspack@2.9.2': patches/@module-federation__rspack@2.9.2.patch
 overrides:
   # Each key closes an advisory range inside one major and pins the fix from
   # that major, so no dependent is forced onto a major it never declared.
