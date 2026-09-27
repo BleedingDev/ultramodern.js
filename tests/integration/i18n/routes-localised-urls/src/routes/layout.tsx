@@ -1,8 +1,13 @@
 import { I18nLink, useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { Outlet } from '@modern-js/runtime/router';
+import { useEffect } from 'react';
 
 export default function Layout() {
   const { changeLanguage, language } = useModernI18n();
+  // Tests wait for html[data-hydrated] before interacting with the page.
+  useEffect(() => {
+    document.documentElement.dataset.hydrated = '';
+  }, []);
 
   return (
     <main>

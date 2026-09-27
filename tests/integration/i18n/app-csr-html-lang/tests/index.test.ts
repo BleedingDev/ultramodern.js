@@ -38,20 +38,13 @@ describe('app-csr-html-lang', () => {
     await page.goto(`http://localhost:${appPort}/lang/en`, {
       waitUntil: 'networkidle0',
     });
-    await page.waitForSelector('#root');
-    const langEn = await page.evaluate(() =>
-      document.documentElement.getAttribute('lang'),
-    );
-    expect(langEn).toBe('en');
+    // Helmet writes the attribute in a later animation frame.
+    await page.waitForSelector('html[lang="en"]');
 
     // Change to zh
     await page.goto(`http://localhost:${appPort}/lang/zh`, {
       waitUntil: 'networkidle0',
     });
-    await page.waitForSelector('#root');
-    const langZh = await page.evaluate(() =>
-      document.documentElement.getAttribute('lang'),
-    );
-    expect(langZh).toBe('zh');
+    await page.waitForSelector('html[lang="zh"]');
   });
 });

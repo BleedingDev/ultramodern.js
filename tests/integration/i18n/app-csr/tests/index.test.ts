@@ -6,7 +6,7 @@ import {
   launchApp,
   launchOptions,
 } from '../../../../utils/modernTestUtils';
-import { clearI18nTestState } from '../../test-utils';
+import { clearI18nTestState, waitForText } from '../../test-utils';
 
 const projectDir = path.resolve(__dirname, '..');
 
@@ -51,13 +51,9 @@ describe('app-csr-i18n', () => {
     await page.goto(`http://localhost:${appPort}`, {
       waitUntil: ['networkidle0'],
     });
-    const root = await page.$('#key');
-    const targetText = await page.evaluate(el => el?.textContent, root);
-    expect(targetText?.trim()).toEqual('Hello World');
+    await waitForText(page, '#key', 'Hello World');
     await page.click('#zh-button');
-    await new Promise(resolve => setTimeout(resolve, 5000));
-    const targetTextZh = await page.evaluate(el => el?.textContent, root);
-    expect(targetTextZh?.trim()).toEqual('你好，世界');
+    await waitForText(page, '#key', '你好，世界');
   });
   test('main-about', async () => {
     // Set cookie to en to ensure consistent language detection
@@ -70,19 +66,9 @@ describe('app-csr-i18n', () => {
     await page.goto(`http://localhost:${appPort}/about`, {
       waitUntil: ['networkidle0'],
     });
-    const rootAbout = await page.$('#about');
-    const targetTextAbout = await page.evaluate(
-      el => el?.textContent,
-      rootAbout,
-    );
-    expect(targetTextAbout?.trim()).toEqual('About');
+    await waitForText(page, '#about', 'About');
     await page.click('#zh-button');
-    await new Promise(resolve => setTimeout(resolve, 5000));
-    const targetTextAboutZh = await page.evaluate(
-      el => el?.textContent,
-      rootAbout,
-    );
-    expect(targetTextAboutZh?.trim()).toEqual('关于');
+    await waitForText(page, '#about', '关于');
   });
   test('lang-redirect-to-en', async () => {
     // Set cookie to en to ensure consistent language detection
