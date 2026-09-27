@@ -516,31 +516,29 @@ test('workflows reject runtime skip-CI gates', () => {
   );
 });
 
-test('trigger path filters must not exclude .github', () => {
+test('trigger path filters must run an edit of the workflow itself', () => {
   const pathErrors = source =>
     validateWorkflowContent('.github/workflows/example.yml', source).filter(
-      error => error.includes('must not exclude .github'),
+      error =>
+        error.includes('a workflow edit has to run the checks it changes'),
     );
   const withFilter = filter =>
     compliantWorkflow.replace('  push:\n', `  push:\n${filter}`);
-  assert.deepEqual(
-    pathErrors(
-      withFilter(
-        "    paths-ignore:\n      - 'docs/**'\n      - '**/*.md'\n      - '.changeset/**'\n",
-      ),
-    ),
-    [],
-  );
-  assert.deepEqual(
-    pathErrors(
-      withFilter("    paths:\n      - '.github/workflows/example.yml'\n"),
-    ),
-    [],
-  );
+  for (const filter of [
+    "    paths-ignore:\n      - 'docs/**'\n      - '**/*.md'\n      - '.changeset/**'\n",
+    "    paths:\n      - 'packages/**'\n      - '.github/workflows/example.yml'\n",
+    "    paths:\n      - '.github/**'\n",
+    "    paths:\n      - '**'\n",
+    "    paths:\n      - '!.github/**'\n      - '.github/workflows/example.yml'\n",
+  ]) {
+    assert.deepEqual(pathErrors(withFilter(filter)), [], filter);
+  }
   for (const filter of [
     "    paths-ignore:\n      - '.github/**'\n",
     "    paths-ignore:\n      - '**/.github/**'\n",
-    "    paths:\n      - 'packages/**'\n      - '!.github/**'\n",
+    "    paths-ignore:\n      - '**/*.yml'\n",
+    "    paths:\n      - 'packages/**'\n",
+    "    paths:\n      - '.github/**'\n      - '!.github/**'\n",
   ]) {
     assert.equal(pathErrors(withFilter(filter)).length, 1, filter);
   }
