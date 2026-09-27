@@ -33,17 +33,22 @@ import {
 } from './lib/prepare-bleedingdev-packages/npm-buffer-publisher.mjs';
 import { resolveOwnedPreparationOutput } from './lib/prepare-bleedingdev-packages/options.mjs';
 import { lookupRegistryPackument } from './lib/prepare-bleedingdev-packages/registry.mjs';
-import { pollRegistryPropagation } from './lib/prepare-bleedingdev-packages/registry-propagation.mjs';
+import {
+  pollRegistryPropagation,
+  registryPropagationDelaysMs,
+} from './lib/prepare-bleedingdev-packages/registry-propagation.mjs';
 import { verifyReleaseArtifacts } from './lib/prepare-bleedingdev-packages/release-artifacts.mjs';
 import {
   assertSidecarPublishOrder,
   assertSidecarPublishTarget,
+  assertSidecarReuseProvenance,
   assertSidecarStagingManifest,
   assertSidecarTrustedPublishContext,
   npmRegistryUrl,
   sidecarPublishTag,
   sidecarRegistryDecision,
 } from './lib/prepare-bleedingdev-packages/sidecar-publication.mjs';
+import { sidecarProvenancePolicy } from './lib/prepare-bleedingdev-packages/sidecars.mjs';
 
 const { parseCliArgs } = cliKit;
 const { isPlainObject } = validationKit;
@@ -204,7 +209,7 @@ function sidecarBootstrapError(sidecars, observation) {
       'npm trusted publishing publishes to an existing package with a configured trusted publisher; the OIDC token cannot bootstrap a new package name.',
       ...sidecars.map(
         sidecar =>
-          `Bootstrap ${sidecar.name}@${sidecar.version} interactively once, with explicit authorization, then configure this workflow as its trusted publisher on npm and re-run this lane.`,
+          `Bootstrap ${sidecar.name} interactively once, with explicit authorization, as a deprecated 0.0.0-bootstrap placeholder; record it in its sidecars.json provenance.grandfatheredVersions, configure this workflow as its trusted publisher on npm and re-run this lane.`,
       ),
       'This lane fails closed in both dry-run and publication modes rather than claiming a publish it cannot perform.',
     ].join('\n'),
@@ -384,6 +389,83 @@ async function awaitPublishedSidecar(sidecar, options, dependencies = {}) {
   );
 }
 
+// npm declares a version's `dist.attestations` and serves its attestation
+// bundle only some time after the version itself is readable (the cohort
+// verifier observed 404s a minute after publish).
+const attestationLagMs = registryPropagationDelaysMs.reduce(
+  (total, delay) => total + delay,
+  0,
+);
+
+/**
+ * A non-grandfathered version published within one propagation window, or
+ * undefined. Only such a version can still gain its provenance; an older one
+ * that fails verification never will.
+ */
+function propagatingSidecarVersion(sidecar, packument, now = Date.now()) {
+  const grandfathered = new Set(
+    (sidecarProvenancePolicy(sidecar.name).grandfatheredVersions ?? []).map(
+      entry => entry.version,
+    ),
+  );
+  return Object.keys(packument.versions ?? {}).find(
+    version =>
+      !grandfathered.has(version) &&
+      now - Date.parse(packument.time?.[version]) < attestationLagMs,
+  );
+}
+
+/**
+ * Reuse requires the registry provenance chronology. A null read (a replica
+ * that has not seen the package yet) is pending. While a non-grandfathered
+ * version is younger than the propagation window, a failed verification is
+ * re-read on the shared schedule, as the cohort verifier does after
+ * publishing; otherwise the first failure is terminal. `packument`, when
+ * given, answers the first read.
+ */
+async function awaitSidecarReuseProvenance(
+  sidecar,
+  packument,
+  { source },
+  dependencies = {},
+) {
+  const readPackument = dependencies.readPackument ?? readSidecarPackument;
+  const verify = dependencies.verifyReuse ?? assertSidecarReuseProvenance;
+  let lastSeen;
+  const outcome = await pollRegistryPropagation(
+    async attempt => {
+      const current =
+        attempt === 1 && packument
+          ? packument
+          : await readPackument(sidecar.name);
+      if (current === null || current === undefined) {
+        return {
+          detail: `${sidecar.name} is not readable on the registry`,
+          settled: false,
+        };
+      }
+      lastSeen = current;
+      try {
+        await verify(sidecar, current, { source });
+        return { settled: true };
+      } catch (error) {
+        const propagating = propagatingSidecarVersion(sidecar, lastSeen);
+        if (!propagating) throw error;
+        return {
+          detail: `${sidecar.name}@${propagating} provenance is still propagating: ${error instanceof Error ? error.message : String(error)}`,
+          settled: false,
+        };
+      }
+    },
+    { wait: dependencies.wait },
+  );
+  if (!outcome.settled) {
+    throw new Error(
+      `Reused sidecar ${sidecar.name}@${sidecar.version} provenance did not become verifiable after ${outcome.attempts} registry reads: ${outcome.detail}`,
+    );
+  }
+}
+
 async function awaitInitialSidecarPackument(sidecar, dependencies = {}) {
   const readPackument = dependencies.readPackument ?? readSidecarPackument;
   const wait = dependencies.wait ?? sleep;
@@ -416,6 +498,13 @@ async function publishSidecars(options, dependencies = {}) {
   }
 
   const readPackument = dependencies.readPackument ?? readSidecarPackument;
+  const verifyReuse = (sidecar, packument) =>
+    awaitSidecarReuseProvenance(
+      sidecar,
+      packument,
+      { source: release.manifest.source },
+      { ...dependencies, readPackument },
+    );
   const published = [];
   const reused = [];
   // Sidecars publish in alias order, so an alias target version exists on the
@@ -463,7 +552,16 @@ async function publishSidecars(options, dependencies = {}) {
     // and only its tag is missing. An absent package/version still takes the
     // ordinary publish/bootstrap path instead of sleeping on an assumption.
     if (pending && resumableInitialStates.has(pending.state)) {
-      trackPropagation(sidecar, decision => `Reusing ${decision.reason}`);
+      // Another publisher's version is reused only after it proves the same
+      // provenance chronology as an indexed one, and nothing later publishes
+      // before it has: a later sidecar may alias it.
+      const decision = await awaitPublishedSidecar(
+        sidecar,
+        options,
+        dependencies,
+      );
+      await verifyReuse(sidecar, undefined);
+      console.log(`Reusing ${decision.reason}`);
       reused.push(`${sidecar.name}@${sidecar.version}`);
       continue;
     }
@@ -471,6 +569,7 @@ async function publishSidecars(options, dependencies = {}) {
       tag: options.tag,
     });
     if (decision.action === 'reuse') {
+      await verifyReuse(sidecar, packument);
       console.log(`Reusing ${decision.reason}`);
       reused.push(`${sidecar.name}@${sidecar.version}`);
       continue;
@@ -541,6 +640,7 @@ if (isDirectRun(import.meta.url)) {
 export {
   awaitInitialSidecarPackument,
   awaitPublishedSidecar,
+  awaitSidecarReuseProvenance,
   checkSidecarRegistry,
   classifySidecarPropagation,
   initialPackumentDelaysMs,

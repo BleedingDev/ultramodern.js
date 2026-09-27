@@ -718,7 +718,7 @@ test('the trusted-publishing lane refuses to bootstrap a package npm cannot crea
   // unattended lane must say so rather than fail deep inside npm.
   await assert.rejects(
     publishSidecars(options, unavailable),
-    /does not exist on the registry after the bounded propagation wait[\s\S]*Bootstrap @bleedingdev\/[a-z-]+@[\d.]+ interactively once, with explicit authorization/u,
+    /does not exist on the registry after the bounded propagation wait[\s\S]*Bootstrap @bleedingdev\/[a-z-]+ interactively once, with explicit authorization, as a deprecated 0\.0\.0-bootstrap placeholder/u,
   );
 
   // Dry-run models the same trusted-publishing capability and must not claim a
@@ -757,7 +757,7 @@ test('--check-registry fails on a missing sidecar name before any bundle exists'
       /^@bleedingdev\/new-sidecar does not exist on the registry, so the trusted-publishing lane cannot create it\.$/mu.test(
         error.message,
       ) &&
-      /Bootstrap @bleedingdev\/new-sidecar@1\.0\.0 interactively once, with explicit authorization/u.test(
+      /Bootstrap @bleedingdev\/new-sidecar interactively once, with explicit authorization, as a deprecated 0\.0\.0-bootstrap placeholder/u.test(
         error.message,
       ) &&
       !error.message.includes('@bleedingdev/ipx'),
@@ -800,4 +800,394 @@ test('the packed-consumer proof publishes to loopback registries only', async ()
     () => assertLocalRegistry('https://npm.example.com/'),
     /is not a loopback address/u,
   );
+});
+
+// ---------------------------------------------------------------------------
+// Reuse provenance: matching bytes are not enough to reuse a published version
+// ---------------------------------------------------------------------------
+
+const releaseSource = {
+  commit: 'c'.repeat(40),
+  repository: 'BleedingDev/ultramodern.js',
+};
+const slsaProvenanceV1 = 'https://slsa.dev/provenance/v1';
+
+const chronologyPackument = (sidecar, { attested = false } = {}) => {
+  const packument = packumentFor(sidecar);
+  const publishedAt = '2026-09-25T11:17:45.181Z';
+  if (attested) {
+    packument.versions[sidecar.version].dist.attestations = {
+      provenance: { predicateType: slsaProvenanceV1 },
+      url: 'https://registry.npmjs.org/-/npm/v1/attestations/fixture',
+    };
+  }
+  return {
+    ...packument,
+    time: {
+      created: publishedAt,
+      modified: publishedAt,
+      [sidecar.version]: publishedAt,
+    },
+  };
+};
+
+const grandfatheredPolicy = (sidecar, overrides = {}) => ({
+  grandfatheredVersions: [
+    {
+      version: sidecar.version,
+      publishedAt: '2026-09-25T11:17:45.181Z',
+      integrity: sidecar.integrity,
+      ...overrides,
+    },
+  ],
+});
+
+// A signed statement for `repository`; the bundle signature itself is stubbed.
+const attestationFetch = (sidecar, repository) => async () => ({
+  ok: true,
+  status: 200,
+  json: async () => ({
+    attestations: [
+      {
+        predicateType: slsaProvenanceV1,
+        bundle: {
+          dsseEnvelope: {
+            payloadType: 'application/vnd.in-toto+json',
+            payload: Buffer.from(
+              JSON.stringify({
+                _type: 'https://in-toto.io/Statement/v1',
+                predicateType: slsaProvenanceV1,
+                subject: [
+                  {
+                    name: `pkg:npm/%40bleedingdev/ipx@${sidecar.version}`,
+                    digest: {
+                      sha512: Buffer.from(
+                        sidecar.integrity.slice('sha512-'.length),
+                        'base64',
+                      ).toString('hex'),
+                    },
+                  },
+                ],
+                predicate: {
+                  buildDefinition: {
+                    buildType:
+                      'https://slsa-framework.github.io/github-actions-buildtypes/workflow/v1',
+                    externalParameters: {
+                      workflow: {
+                        path: '.github/workflows/publish-bleedingdev.yml',
+                        ref: 'refs/heads/main-ultramodern',
+                        repository: `https://github.com/${repository}`,
+                      },
+                    },
+                    resolvedDependencies: [
+                      {
+                        uri: `git+https://github.com/${repository}@refs/heads/main-ultramodern`,
+                        digest: { gitCommit: 'd'.repeat(40) },
+                      },
+                    ],
+                  },
+                },
+              }),
+            ).toString('base64'),
+            signatures: [{ keyid: '', sig: 'fixture-signature' }],
+          },
+          verificationMaterial: {},
+        },
+      },
+    ],
+  }),
+});
+
+const acceptingBundleVerifier = async (_bundle, expectation) => ({
+  certificateIdentity: expectation.certificateIdentity,
+  issuer: expectation.issuer,
+  verifierVersion: 'fixture-sigstore',
+});
+
+test('a byte-identical reuse without attestations that is not grandfathered fails closed', async () => {
+  const { assertSidecarReuseProvenance } = await importPublication();
+  const sidecar = stagedIpx();
+  await assert.rejects(
+    assertSidecarReuseProvenance(sidecar, chronologyPackument(sidecar), {
+      env: {},
+      policy: { grandfatheredVersions: [] },
+      source: releaseSource,
+    }),
+    /@bleedingdev\/ipx@3\.2\.0 is missing SLSA v1 provenance and is not a grandfathered version/u,
+  );
+});
+
+test('a reuse grandfathered by exact version and integrity passes; any other integrity fails', async () => {
+  const { assertSidecarReuseProvenance } = await importPublication();
+  const sidecar = stagedIpx();
+  await assertSidecarReuseProvenance(sidecar, chronologyPackument(sidecar), {
+    env: {},
+    policy: grandfatheredPolicy(sidecar),
+    source: releaseSource,
+  });
+  await assert.rejects(
+    assertSidecarReuseProvenance(sidecar, chronologyPackument(sidecar), {
+      env: {},
+      policy: grandfatheredPolicy(sidecar, {
+        integrity: `sha512-${Buffer.from('other').toString('base64')}`,
+      }),
+      source: releaseSource,
+    }),
+    /grandfathered version integrity does not match/u,
+  );
+});
+
+test('reuse accepts this repository publish workflow provenance and rejects another repository', async () => {
+  const { assertSidecarReuseProvenance } = await importPublication();
+  const sidecar = {
+    ...stagedIpx(),
+    integrity: `sha512-${crypto
+      .createHash('sha512')
+      .update('accepted-ipx')
+      .digest('base64')}`,
+  };
+  const reuse = repository =>
+    assertSidecarReuseProvenance(
+      sidecar,
+      chronologyPackument(sidecar, { attested: true }),
+      { env: {}, policy: { grandfatheredVersions: [] }, source: releaseSource },
+      {
+        bundleVerifier: acceptingBundleVerifier,
+        fetchImpl: attestationFetch(sidecar, repository),
+      },
+    );
+  await reuse('BleedingDev/ultramodern.js');
+  await assert.rejects(
+    reuse('attacker/ultramodern.js'),
+    /SLSA provenance must identify the accepted source repository exactly once/u,
+  );
+});
+
+test('the cohort gate and sidecar reuse share one chronology verifier', async () => {
+  const { assertSidecarReuseProvenance } = await importPublication();
+  const { assertRegistrySourceCommitUnpublished } = await import(
+    '../lib/prepare-bleedingdev-packages/registry.mjs'
+  );
+  const cohortName = '@bleedingdev/modern-js-ultramodern-create';
+  const cohort = { ...stagedIpx(), name: cohortName };
+  const packument = chronologyPackument(cohort);
+  packument.versions[cohort.version].name = cohortName;
+  const missing =
+    /3\.2\.0 is missing SLSA v1 provenance; this identity requires provenance from its first published version/u;
+  await assert.rejects(
+    assertRegistrySourceCommitUnpublished(
+      {
+        env: {},
+        packageName: cohortName,
+        requestedVersion: '3.2.1',
+        sourceCommit: releaseSource.commit,
+        sourceRepository: releaseSource.repository,
+      },
+      { fetchImpl: async () => ({ ok: true, json: async () => packument }) },
+    ),
+    missing,
+  );
+  await assert.rejects(
+    assertSidecarReuseProvenance(cohort, packument, {
+      env: {},
+      policy: { provenanceRequiredFromFirstVersion: true },
+      source: releaseSource,
+    }),
+    missing,
+  );
+});
+
+test('publishSidecars verifies provenance before reusing a published version', async t => {
+  const { publishSidecars } = await importCli();
+  withTrustedPublishEnv(t);
+  const sidecar = stagedIpx();
+  const verified = [];
+  const dependencies = sidecarLaneDependencies({
+    sidecars: [sidecar],
+    readPackument: async () => packumentFor(sidecar),
+    onPublish: () => assert.fail('a reusable version must not republish'),
+  });
+  dependencies.readSidecars = () => ({
+    manifest: { publishBefore: '@bleedingdev/modern-js-image' },
+    release: { manifest: { source: releaseSource, tools: {} } },
+    sidecars: [sidecar],
+  });
+  dependencies.verifyReuse = async (candidate, _packument, { source }) => {
+    verified.push([candidate.name, source]);
+  };
+  const result = await publishSidecars(publishOptions, dependencies);
+  assert.deepEqual(result.reused, ['@bleedingdev/ipx@3.2.0']);
+  assert.deepEqual(verified, [['@bleedingdev/ipx', releaseSource]]);
+
+  dependencies.verifyReuse = async () => {
+    throw new Error('not grandfathered');
+  };
+  await assert.rejects(
+    publishSidecars(publishOptions, dependencies),
+    /not grandfathered/u,
+  );
+});
+
+test('a reuse resumed while npm indexes the tag still verifies provenance on the settled read', async t => {
+  const { publishSidecars } = await importCli();
+  withTrustedPublishEnv(t);
+  const sidecar = stagedIpx();
+  const settled = packumentFor(sidecar);
+  const verified = [];
+  const dependencies = sidecarLaneDependencies({
+    sidecars: [sidecar],
+    readPackument: stubReads([untaggedPackument(sidecar), settled]),
+    onPublish: () => assert.fail('a resumable version must not republish'),
+  });
+  dependencies.readSidecars = () => ({
+    manifest: { publishBefore: '@bleedingdev/modern-js-image' },
+    release: { manifest: { source: releaseSource, tools: {} } },
+    sidecars: [sidecar],
+  });
+  dependencies.verifyReuse = async (_candidate, packument) => {
+    verified.push(packument);
+  };
+  const result = await publishSidecars(publishOptions, dependencies);
+  assert.deepEqual(result.reused, ['@bleedingdev/ipx@3.2.0']);
+  assert.deepEqual(verified, [settled]);
+
+  dependencies.readPackument = stubReads([untaggedPackument(sidecar), settled]);
+  dependencies.verifyReuse = async () => {
+    throw new Error('not grandfathered');
+  };
+  await assert.rejects(
+    publishSidecars(publishOptions, dependencies),
+    /not grandfathered/u,
+  );
+});
+
+test('reuse provenance re-reads a fresh version until it verifies, never an old one', async () => {
+  const { awaitSidecarReuseProvenance } = await importCli();
+  const sidecar = { ...stagedIpx(), version: '9.9.9' };
+  const withTime = (packument, publishedAt) => ({
+    ...packument,
+    time: { created: publishedAt, modified: publishedAt, '9.9.9': publishedAt },
+  });
+  const now = new Date().toISOString();
+  const unattested = withTime(packumentFor(sidecar), now);
+  const attested = withTime(packumentFor(sidecar), now);
+  attested.versions['9.9.9'].dist.attestations = {
+    provenance: { predicateType: slsaProvenanceV1 },
+  };
+  const verified = [];
+  const waits = [];
+  await awaitSidecarReuseProvenance(
+    sidecar,
+    unattested,
+    { source: releaseSource },
+    {
+      readPackument: async () => attested,
+      verifyReuse: async (_candidate, packument) => {
+        verified.push(packument);
+        // Missing declaration first, then a bundle endpoint still at 404.
+        if (verified.length === 1) {
+          throw new Error('missing SLSA v1 provenance');
+        }
+        if (verified.length === 2) {
+          throw new Error('registry provenance returned HTTP 404');
+        }
+      },
+      wait: async ms => waits.push(ms),
+    },
+  );
+  assert.deepEqual(verified, [unattested, attested, attested]);
+  assert.equal(waits.length, 2);
+
+  const old = withTime(packumentFor(sidecar), '2026-01-01T00:00:00.000Z');
+  await assert.rejects(
+    awaitSidecarReuseProvenance(
+      sidecar,
+      old,
+      { source: releaseSource },
+      {
+        verifyReuse: async () => {
+          throw new Error('missing SLSA v1 provenance');
+        },
+        wait: async () => assert.fail('an old unattested version never waits'),
+      },
+    ),
+    /missing SLSA v1 provenance/u,
+  );
+});
+
+test('a stale registry read without the reused version never vouches for it', async () => {
+  const { assertSidecarReuseProvenance } = await importPublication();
+  const sidecar = stagedIpx();
+  const grandfatheredOnly = chronologyPackument({
+    ...sidecar,
+    version: '3.1.0',
+  });
+  await assert.rejects(
+    assertSidecarReuseProvenance(sidecar, grandfatheredOnly, {
+      env: {},
+      policy: grandfatheredPolicy({ ...sidecar, version: '3.1.0' }),
+      source: releaseSource,
+    }),
+    /does not contain the reused 3\.2\.0 with the accepted integrity/u,
+  );
+});
+
+test('a reuse provenance read that briefly returns no packument keeps polling', async () => {
+  const { awaitSidecarReuseProvenance } = await importCli();
+  const sidecar = stagedIpx();
+  const settled = packumentFor(sidecar);
+  const verified = [];
+  await awaitSidecarReuseProvenance(
+    sidecar,
+    undefined,
+    { source: releaseSource },
+    {
+      readPackument: stubReads([null, settled]),
+      verifyReuse: async (_candidate, packument) => verified.push(packument),
+      wait: async () => {},
+    },
+  );
+  assert.deepEqual(verified, [settled]);
+});
+
+test('a resumed reuse finishes provenance before any later sidecar publishes', async t => {
+  const { publishSidecars } = await importCli();
+  withTrustedPublishEnv(t);
+  const resumed = stagedIpx();
+  const later = namedSidecar('@bleedingdev/ipx-later');
+  const events = [];
+  const dependencies = sidecarLaneDependencies({
+    sidecars: [resumed, later],
+    readPackument: async name =>
+      name === resumed.name ? packumentFor(resumed) : priorReleaseOnly(later),
+    onPublish: name => events.push(`publish ${name}`),
+  });
+  dependencies.readSidecars = () => ({
+    manifest: { publishBefore: '@bleedingdev/modern-js-image' },
+    release: {
+      manifest: {
+        source: releaseSource,
+        tools: { node: process.version, npm: '11.10.1', pnpm: '11.24.0' },
+      },
+    },
+    sidecars: [resumed, later],
+  });
+  let firstRead = true;
+  const readPackument = dependencies.readPackument;
+  dependencies.readPackument = async name => {
+    if (name === resumed.name && firstRead) {
+      firstRead = false;
+      return untaggedPackument(resumed);
+    }
+    return readPackument(name);
+  };
+  dependencies.verifyReuse = async () => {
+    events.push(`verify ${resumed.name}`);
+    throw new Error('not grandfathered');
+  };
+  await assert.rejects(
+    publishSidecars(publishOptions, dependencies),
+    /not grandfathered/u,
+  );
+  assert.deepEqual(events, [`verify ${resumed.name}`]);
 });
