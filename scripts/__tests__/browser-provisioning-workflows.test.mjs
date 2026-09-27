@@ -97,8 +97,8 @@ test('browser-driving steps run after the shared provisioner installed their run
     'ultramodern-nightly.yml:superapp-certification-nightly:\\btest:build-consumers(?![\\w:-])',
     'ut-Linux.yml:ut-linux:\\btest:build-consumers(?![\\w:-])',
     'ut-Linux.yml:ut-linux:\\btest:ut(?![\\w:-])',
-    'integration-test-Linux.yml:integration-test-linux:\\btest:framework(?![\\w:-])',
-    'integration-test-Windows.yml:integration-test-windows:\\btest:framework(?![\\w:-])',
+    'integration-test.yml:integration:\\btest:framework(?![\\w:-])',
+    'integration-test.yml:integration:\\btest:rstest-adapter(?![\\w:-])',
     'ultramodern-nightly.yml:superapp-certification-nightly:\\bvalidate:superapp-certification(?![\\w-])',
   ]) {
     assert.ok(checked.includes(expected), `expected to check ${expected}`);
