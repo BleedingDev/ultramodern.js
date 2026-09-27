@@ -10,7 +10,6 @@ import {
 } from './constants.mjs';
 import {
   collectSidecarPackages,
-  rewriteSidecarConsumerAliases,
   stageSidecarPackages,
   validateAliasConsistency,
   writeSidecarStagingManifest,
@@ -137,10 +136,7 @@ async function prepareBleedingdevPackages(options) {
     const packageJsonPath = path.join(packageDir, 'package.json');
     const packageJson = readJsonFile(packageJsonPath);
     rewritePackageJson(packageJson, sourceName, options, sourceNames);
-    if (options.includeSidecars) {
-      if (targetName === sidecarAliasConsumerTargetName) sidecarAliasConsumerCount += 1;
-      rewriteSidecarConsumerAliases(packageJson, stagedSidecars);
-    }
+    if (targetName === sidecarAliasConsumerTargetName) sidecarAliasConsumerCount += 1;
     normalizeDeclaredTypePaths(packageDir, packageJson);
     writeJsonFile(packageJsonPath, packageJson);
     validateStagedTypeFiles(packageDir, packageJson);

@@ -210,22 +210,6 @@ test('recipe-only sidecar closure records exact publication identities and alias
   for (const sidecar of ordered) {
     publication.sidecarContentProjection(sidecar.packageJson, sidecar.name);
   }
-
-  const consumer = {
-    name: '@bleedingdev/modern-js-plugin-bff-extensions',
-    dependencies: {
-      '@module-federation/enhanced': '2.9.2',
-      '@module-federation/runtime': '2.9.2',
-      effect: '4.0.0-rc.117',
-    },
-  };
-  sidecarsModule.rewriteSidecarConsumerAliases(consumer, sidecars);
-  assert.equal(
-    consumer.dependencies['@module-federation/enhanced'],
-    'npm:@bleedingdev/mf-enhanced@2.9.2',
-  );
-  assert.equal(consumer.dependencies['@module-federation/runtime'], '2.9.2');
-  assert.equal(consumer.dependencies.effect, '4.0.0-rc.117');
 });
 
 test('prerelease sidecar versions are rejected', async () => {
@@ -320,9 +304,6 @@ test('alias targets must match a staged sidecar exactly', async () => {
 });
 
 test('every repository recipe has a runtime consumer in the published cohort', async () => {
-  const sidecarsModule = await import(
-    '../lib/prepare-bleedingdev-packages/sidecars.mjs'
-  );
   const { collectModernPackages, targetPackageName } = await import(
     '../lib/prepare-bleedingdev-packages/rewrite.mjs'
   );
@@ -330,43 +311,75 @@ test('every repository recipe has a runtime consumer in the published cohort', a
     '../../ultramodern-supply/verify-sidecars.mjs'
   );
   const options = { scope: 'bleedingdev', prefix: 'modern-js-' };
-  const sidecars = sidecarsModule.collectSidecarPackages();
   const published = collectModernPackages(options).packages.map(
-    ({ packageJson }) =>
-      sidecarsModule.rewriteSidecarConsumerAliases(
-        {
-          ...structuredClone(packageJson),
-          name: targetPackageName(packageJson.name, options),
-        },
-        sidecars,
-      ),
+    ({ packageJson }) => ({
+      ...packageJson,
+      name: targetPackageName(packageJson.name, options),
+    }),
   );
   assertRepositoryRecipeConsumers(published);
   assert.throws(
     () => assertRepositoryRecipeConsumers([]),
     /sidecar ipx has no runtime consumer/,
   );
+  // Staging ships source edges unchanged, so an upstream name that has a
+  // recipe must already be the exact fork alias in source.
+  assert.throws(
+    () =>
+      assertRepositoryRecipeConsumers([
+        ...published,
+        {
+          name: '@bleedingdev/modern-js-server',
+          dependencies: { '@module-federation/enhanced': '2.9.2' },
+        },
+      ]),
+    /@bleedingdev\/modern-js-server dependencies\.@module-federation\/enhanced is 2\.9\.2; declare npm:@bleedingdev\/mf-enhanced@2\.9\.2 in source/,
+  );
+});
+
+test('staging changes no third-party dependency edge of a cohort package', async () => {
+  const { collectModernPackages, rewritePackageJson } = await import(
+    '../lib/prepare-bleedingdev-packages/rewrite.mjs'
+  );
+  const options = {
+    dependencyVersion: '3.9.0-ultramodern.99',
+    prefix: 'modern-js-',
+    scope: 'bleedingdev',
+    version: '3.9.0-ultramodern.99',
+  };
+  const { packages, sourceNames } = collectModernPackages(options);
+  for (const { packageJson: source } of packages) {
+    const staged = structuredClone(source);
+    rewritePackageJson(staged, source.name, options, sourceNames);
+    for (const block of [
+      'dependencies',
+      'optionalDependencies',
+      'peerDependencies',
+    ]) {
+      for (const [name, specifier] of Object.entries(source[block] ?? {})) {
+        if (name.startsWith('@modern-js/')) continue;
+        assert.equal(
+          staged[block]?.[name],
+          specifier,
+          `${source.name} ${block}.${name}`,
+        );
+      }
+    }
+  }
 });
 
 test('the published image package depends on upstream @rsbuild-image/core, not a fork alias', async () => {
   const sidecarsModule = await import(
     '../lib/prepare-bleedingdev-packages/sidecars.mjs'
   );
-  const { collectModernPackages, targetPackageName } = await import(
+  const { collectModernPackages } = await import(
     '../lib/prepare-bleedingdev-packages/rewrite.mjs'
   );
   const options = { scope: 'bleedingdev', prefix: 'modern-js-' };
   const sidecars = sidecarsModule.collectSidecarPackages();
-  const source = collectModernPackages(options).packages.find(
+  const published = collectModernPackages(options).packages.find(
     ({ packageJson }) => packageJson.name === '@modern-js/image',
   ).packageJson;
-  const published = sidecarsModule.rewriteSidecarConsumerAliases(
-    {
-      ...structuredClone(source),
-      name: targetPackageName(source.name, options),
-    },
-    sidecars,
-  );
 
   assert.equal(published.dependencies['@rsbuild-image/core'], '0.0.1-next.36');
   assert.equal(

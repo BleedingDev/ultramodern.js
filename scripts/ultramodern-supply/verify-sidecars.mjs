@@ -70,6 +70,24 @@ export function assertRecipeConsumers(
   const reachBlocks = manifest => {
     for (const block of consumerBlocks) reachSpecifiers(manifest[block]);
   };
+  // The publisher ships source edges unchanged, so a cohort package that names
+  // an upstream package with a recipe would ship the uncorrected artifact.
+  const recipeByUpstream = new Map(
+    recipeList.map(item => [item.upstream.name, item]),
+  );
+  for (const manifest of publishedManifests) {
+    for (const block of consumerBlocks) {
+      for (const [name, specifier] of Object.entries(manifest[block] ?? {})) {
+        const recipe = recipeByUpstream.get(name);
+        const expected =
+          recipe && `npm:${recipe.fork.name}@${recipe.fork.version}`;
+        assert.ok(
+          !recipe || specifier === expected,
+          `${manifest.name} ${block}.${name} is ${specifier}; declare ${expected} in source`,
+        );
+      }
+    }
+  }
   for (const pins of generatorPins) reachSpecifiers(pins);
   for (const manifest of publishedManifests) reachBlocks(manifest);
   while (pending.length) reachBlocks(pending.pop().manifestChanges);

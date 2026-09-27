@@ -66,7 +66,6 @@ import { readNpmTarballFile } from './lib/prepare-bleedingdev-packages/release-a
 import { sidecarRegistryDecision } from './lib/prepare-bleedingdev-packages/sidecar-publication.mjs';
 import {
   collectSidecarPackages,
-  rewriteSidecarConsumerAliases,
   sidecarPublishOrder,
   validateAliasConsistency,
 } from './lib/prepare-bleedingdev-packages/sidecars.mjs';
@@ -557,15 +556,12 @@ function proofImageVersion(
 
 /**
  * Stage the cohort image package exactly as the publisher would: the fork
- * name, a per-run proof version, and exact `npm:@bleedingdev/...` aliases
- * projected from the staged sidecars. Nothing is written inside the repository.
+ * name, a per-run proof version, and the `npm:@bleedingdev/...` aliases its
+ * source manifest declares. Nothing is written inside the repository.
  */
 function stageCohortImagePackage(
   stageDir,
-  {
-    sidecars = collectSidecarPackages(repoRoot),
-    version = proofImageVersion(),
-  } = {},
+  { version = proofImageVersion() } = {},
 ) {
   const sourceDir = path.join(repoRoot, cohortImageSourceDir);
   const distDir = path.join(sourceDir, 'dist');
@@ -601,7 +597,6 @@ function stageCohortImagePackage(
   packageJson.name = cohortImageTargetName;
   packageJson.version = version;
   packageJson.publishConfig = { access: 'public' };
-  rewriteSidecarConsumerAliases(packageJson, sidecars);
   for (const [dependencyName, specifier] of Object.entries(
     packageJson.dependencies ?? {},
   )) {
@@ -1048,7 +1043,6 @@ async function verifySidecarConsumer(options) {
     const sidecars = sidecarPublishOrder(collectSidecarPackages(repoRoot));
     const imageVersion = proofImageVersion();
     const stagedImage = stageCohortImagePackage(path.join(workDir, 'image'), {
-      sidecars,
       version: imageVersion,
     });
     validateAliasConsistency(
