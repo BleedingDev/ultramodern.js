@@ -16,7 +16,7 @@ export default [
     repository: true,
     workspace: null,
     reason:
-      'Preserve declaration rootDir and execute native compiler paths without shell parsing.',
+      'Bind the type server before publishing its port (upstream PR pending); execute absolute compilerInstance paths without a shell ([#5131](https://github.com/module-federation/core/pull/5131)); preserve declaration rootDir ([#4947](https://github.com/module-federation/core/pull/4947)).',
   },
   {
     packageName: '@module-federation/manifest',
