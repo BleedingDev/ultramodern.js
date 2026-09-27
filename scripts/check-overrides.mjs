@@ -97,9 +97,14 @@ function findRemovalViolations(key, parent, target, snapshots, importers) {
   }
   const kept = scope.filter(entry => {
     const child = childEdge(entry.snapshot, target.name);
-    return (
-      child !== undefined &&
-      inRange(parsePackageKey(`${target.name}@${child}`).version, target.range)
+    if (child === undefined) {
+      // A peer keeps only its declared range, so only an unranged selector
+      // is known to remove it.
+      return target.range === undefined && target.name in entry.peers;
+    }
+    return inRange(
+      parsePackageKey(`${target.name}@${child}`).version,
+      target.range,
     );
   });
   return kept.map(
@@ -117,11 +122,19 @@ function findRemovalViolations(key, parent, target, snapshots, importers) {
  */
 export function findOverrideViolations(lockfileText, importerNames) {
   const lockfile = parse(lockfileText);
+  // pnpm also rewrites peer ranges. An unresolved or optional peer leaves
+  // no snapshot edge, only the range in the package's peerDependencies.
   const snapshots = Object.entries(lockfile.snapshots ?? {}).map(
-    ([key, snapshot]) => ({
-      ...parsePackageKey(key),
-      snapshot: snapshot ?? {},
-    }),
+    ([key, snapshot]) => {
+      const { name, version } = parsePackageKey(key);
+      return {
+        name,
+        version,
+        snapshot: snapshot ?? {},
+        peers:
+          lockfile.packages?.[`${name}@${version}`]?.peerDependencies ?? {},
+      };
+    },
   );
 
   // Workspace projects as edge holders: `version` is undefined, `name` is the
@@ -138,15 +151,21 @@ export function findOverrideViolations(lockfileText, importerNames) {
           dependencies[name] = String(entry.version);
         }
       }
-      return { name: importer, version: undefined, snapshot: { dependencies } };
+      return {
+        name: importer,
+        version: undefined,
+        snapshot: { dependencies },
+        peers: {},
+      };
     },
   );
   // Every resolved package is reached through a named edge; an `npm:` alias
   // override's target exists only as such an edge name.
   const edgeNames = new Set(
-    [...importers, ...snapshots].flatMap(({ snapshot }) => [
+    [...importers, ...snapshots].flatMap(({ snapshot, peers }) => [
       ...Object.keys(snapshot.dependencies ?? {}),
       ...Object.keys(snapshot.optionalDependencies ?? {}),
+      ...Object.keys(peers),
     ]),
   );
 
@@ -229,12 +248,16 @@ export function findOverrideViolations(lockfileText, importerNames) {
         };
         const child = deps[target.name];
         if (child === undefined) {
-          // pnpm also rewrites peer ranges; an unresolved or optional peer
-          // leaves no snapshot edge, only the package's peerDependencies.
-          const peers =
-            lockfile.packages?.[`${entry.name}@${entry.version}`]
-              ?.peerDependencies ?? {};
-          if (target.name in peers) edges += 1;
+          const peer = entry.peers[target.name];
+          if (peer === undefined) continue;
+          edges += 1;
+          // An unranged selector rewrites the peer range to the value.
+          if (target.range === undefined && String(peer) !== value) {
+            violations.push(
+              `'${key}': ${entry.name}@${entry.version} still declares peer ${target.name}@${peer}, not ${value}. ` +
+                'Run pnpm install so the lockfile picks up the override.',
+            );
+          }
           continue;
         }
         edges += 1;

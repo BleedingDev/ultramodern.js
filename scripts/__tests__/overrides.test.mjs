@@ -329,3 +329,33 @@ test('a parent override of a peer without a snapshot edge is live', () => {
     /no nx in the lockfile depends on react\. Delete/,
   );
 });
+
+test('peer-only targets count for generic, removal and parent overrides', () => {
+  const lockfile = preFixLockfile.replace(
+    '  nx@23.2.1: {}\n',
+    '  nx@23.2.1:\n    peerDependencies:\n      react: ^19\n',
+  );
+  const withOverrides = overrides =>
+    lockfile.replace(
+      /overrides:[\s\S]*?importers:/,
+      `overrides:\n${overrides}\nimporters:`,
+    );
+  assert.deepEqual(
+    findOverrideViolations(withOverrides("  react: '^19'"), importerNames),
+    [],
+  );
+  assert.deepEqual(
+    findOverrideViolations(withOverrides("  nx>react: '^18'"), importerNames),
+    [
+      "'nx>react': nx@23.2.1 still declares peer react@^19, not ^18. " +
+        'Run pnpm install so the lockfile picks up the override.',
+    ],
+  );
+  assert.deepEqual(
+    findOverrideViolations(withOverrides("  nx>react: '-'"), importerNames),
+    [
+      "'nx>react': nx@23.2.1 still depends on react, which this override removes. " +
+        'Run pnpm install so the lockfile picks up the override.',
+    ],
+  );
+});
