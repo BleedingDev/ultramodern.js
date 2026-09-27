@@ -45,7 +45,7 @@ const FORK_OWNED_PACKAGE_ROOTS = Object.freeze([
   'packages/runtime/runtime-extensions',
   'packages/server/bff-effect',
   'packages/server/runtime-extensions',
-  'packages/sidecar/ipx',
+  'packages/sidecar',
   'packages/solutions/app-tools-extensions',
   'packages/solutions/ultramodern-app-tools',
   'packages/toolkit/backend-federation-contracts',
