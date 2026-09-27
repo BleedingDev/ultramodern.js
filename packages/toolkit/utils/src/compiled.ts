@@ -43,31 +43,7 @@ export type { SignaleOptions } from '../compiled/signale';
  * Lazy import some expensive modules that will slow down startup speed.
  * Notice that `csmith-tools build` can not bundle lazy imported modules.
  */
-const getNodeRequire = () => {
-  // Prefer module-scoped require. In Bun, globalThis.require may not be bound
-  // to a file and breaks relative lazy imports (e.g. ../compiled/chokidar).
-  try {
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore - import.meta is only valid in ESM, but this path is transpiled.
-    return /*#__PURE__*/ createRequire(import.meta.url);
-  } catch {
-    if (
-      typeof global === 'object' &&
-      typeof (global as any).require === 'function'
-    ) {
-      return (global as any).require;
-    }
-    if (
-      typeof globalThis === 'object' &&
-      typeof (globalThis as any).require === 'function'
-    ) {
-      return (globalThis as any).require;
-    }
-    throw new Error(
-      'Unable to resolve require function for lazy compiled imports',
-    );
-  }
-};
+const getNodeRequire = () => createRequire(import.meta.url);
 export const mime: typeof import('../compiled/mime-types') = Import.lazy(
   '../compiled/mime-types',
   getNodeRequire,

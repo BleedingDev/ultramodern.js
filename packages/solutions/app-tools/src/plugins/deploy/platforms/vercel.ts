@@ -122,9 +122,6 @@ export const createVercelPreset: CreatePreset = ({
       const entry = isEsmProject
         ? await resolveESMDependency('@modern-js/prod-server')
         : require.resolve('@modern-js/prod-server');
-      if (!entry) {
-        throw new Error('Cannot find @modern-js/prod-server');
-      }
       await handleDependencies({
         appDir: appDirectory,
         sourceDir: funcsDirectory,

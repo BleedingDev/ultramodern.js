@@ -5,7 +5,6 @@ import type { InternalPlugins, ServerPlugin } from '@modern-js/types';
 import {
   compatibleRequire,
   createDebugger,
-  dynamicImport,
   getInternalPlugins,
   tryResolve,
 } from '@modern-js/utils';
@@ -51,13 +50,7 @@ const resolveCliPlugin = async (
   const pkg = typeof p === 'string' ? p : p[0];
   const pluginOptions = typeof p === 'string' ? undefined : p[1];
   const path = tryResolve(pkg, appDirectory);
-  let module;
-  try {
-    module = await compatibleRequire(path);
-  } catch (e) {
-    // load esm module
-    ({ default: module } = await dynamicImport(pathToFileURL(path).href));
-  }
+  const module = await compatibleRequire(path);
 
   // handle string plugin
   if (typeof module === 'function') {
@@ -92,5 +85,3 @@ export const loadInternalPlugins = async (
 
   return loadedPlugins;
 };
-
-import { pathToFileURL } from 'node:url';
