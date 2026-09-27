@@ -2400,6 +2400,9 @@ importers:
       effect:
         specifier: 4.0.0-rc.117
         version: 4.0.0-rc.117(patch_hash=1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5)
+      esbuild:
+        specifier: '>=0.28.2'
+        version: 0.28.2
 
   packages/server/bff-runtime:
     dependencies:
