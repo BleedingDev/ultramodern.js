@@ -12,7 +12,7 @@ type PublishRecords = (records: unknown[]) => void;
 export type ReportLateHead = (message: string) => void;
 
 export const LATE_HEAD_MESSAGE =
-  "<Helmet> rendered in a boundary that completed after the shell; head tags dropped. Move it above the Suspense boundary or set ssr.mode to 'string' for this entry.";
+  "<Helmet> rendered in a boundary that completed after the shell; head tags dropped. Move it above the Suspense boundary or set server.ssrByEntries[entry].mode to 'string'.";
 
 type HeadTransaction = {
   recordsByToken: Map<string, unknown>;
