@@ -55,14 +55,4 @@ export default [
     workspace: null,
     reason: 'Import ResourceLoadContext used by public remote hooks.',
   },
-  {
-    packageName: 'effect',
-    version: '4.0.0-rc.117',
-    path: 'patches/effect@4.0.0-rc.117.patch',
-    sha256: '1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5',
-    repository: true,
-    workspace: null,
-    reason:
-      'Build router params without string code generation in CSP/Worker bundles.',
-  },
 ];

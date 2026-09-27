@@ -29,7 +29,6 @@ import {
   trustedPublishRepository,
 } from './constants.mjs';
 import {
-  isQualifiedSidecarVersion,
   normalizeSidecarBin,
   sidecarAliasEntries,
 } from './sidecars.mjs';
@@ -154,9 +153,6 @@ function registryContentProjection(source, name) {
 }
 
 function assertStableSidecarVersion(name, version) {
-  if (isQualifiedSidecarVersion(name, version)) {
-    return;
-  }
   if (typeof version !== 'string' || !stableVersionPattern.test(version)) {
     throw new Error(
       `Sidecar ${name} version ${String(version)} must be stable semver (X.Y.Z) to publish`,

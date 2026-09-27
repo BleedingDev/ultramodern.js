@@ -4,7 +4,7 @@
 
 `sidecars.json` pins each upstream npm tarball URL and SHA-512, identity, license, artifact set and the only allowed manifest transformations. `ipx.patch` records the Sharp object-form remap and CLI version update.
 
-The corrected dependency lane reconstructs the exact Module Federation and Effect artifacts named in the recipes during release staging. Only the recipes are kept in source control; authenticated upstream bytes, the canonical patches and the recorded dependency aliases produce the package contents and publication manifests. Unmodified Module Federation parents are included only where their published dependencies would otherwise resolve an uncorrected child. Effect 4.0.0-rc.117 is included so worker bundles receive its router without string code generation. Effect is the only qualified prerelease sidecar. Reconstructed third-party bytes are reported separately from authored code.
+The corrected dependency lane reconstructs the exact Module Federation artifacts named in the recipes during release staging. Only the recipes are kept in source control; authenticated upstream bytes, the canonical patches and the recorded dependency aliases produce the package contents and publication manifests. Unmodified Module Federation parents are included only where their published dependencies would otherwise resolve an uncorrected child. Reconstructed third-party bytes are reported separately from authored code.
 
 Run:
 

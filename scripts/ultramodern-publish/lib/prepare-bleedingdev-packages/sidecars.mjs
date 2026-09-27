@@ -21,7 +21,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import fsKit from '../../../lib/fs-kit.js';
 import {
-  isQualifiedSidecarVersion,
   repoRoot as defaultRepoRoot,
   sidecarManifestFile,
   sidecarManifestSchema,
@@ -136,14 +135,11 @@ function assertSidecarName(name, root) {
 }
 
 function assertSidecarVersion(name, version) {
-  if (isQualifiedSidecarVersion(name, version)) {
-    return;
-  }
   if (typeof version !== 'string' || !stableVersionPattern.test(version)) {
     throw new Error(
       [
         `Sidecar ${name} version ${String(version)} must be stable semver (X.Y.Z).`,
-        "Only the exact Effect prerelease is qualified; npm resolves the ipx peer range '>=3.0.3' with a prerelease-excluding check.",
+        "npm resolves the ipx peer range '>=3.0.3' with a prerelease-excluding check.",
       ].join('\n'),
     );
   }
@@ -671,7 +667,6 @@ function writeSidecarStagingManifest(
 export {
   SIDECAR_PACKAGE_ROOTS,
   collectSidecarPackages,
-  isQualifiedSidecarVersion,
   normalizeSidecarBin,
   packStagedSidecar,
   rewriteSidecarConsumerAliases,

@@ -322,24 +322,5 @@
         "@module-federation/runtime": "npm:@bleedingdev/mf-runtime@2.9.1"
       }
     }
-  },
-  {
-    "id": "effect",
-    "upstream": {
-      "name": "effect",
-      "version": "4.0.0-rc.117",
-      "tarball": "https://registry.npmjs.org/effect/-/effect-4.0.0-rc.117.tgz",
-      "integrity": "sha512-UUyi9QiOW4nySFIBM3KnYbNMd9EZliOdKfBcyLD0mPMPheO2fkuXS5y0opjWc9oqzlJxPQICEGm8gGw3kh9j/w=="
-    },
-    "fork": {
-      "name": "@bleedingdev/effect",
-      "version": "4.0.0-rc.117"
-    },
-    "license": "MIT",
-    "artifacts": ["*"],
-    "patch": {
-      "inventory": "effect@4.0.0-rc.117"
-    },
-    "manifestChanges": {}
   }
 ]

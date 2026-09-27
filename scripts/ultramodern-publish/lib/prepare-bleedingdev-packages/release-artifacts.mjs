@@ -6,7 +6,6 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import {
   createTemplateRequiredFiles,
-  isQualifiedSidecarVersion,
   repoRoot,
   sidecarManifestFile,
   sidecarManifestSchema,
@@ -917,8 +916,8 @@ function verifySidecarArtifacts(outDir, descriptor) {
     if (!item.name.startsWith(`${sidecarScope}/`)) {
       throw new Error(`${label}.name must use the ${sidecarScope} scope`);
     }
-    if (!/^\d+\.\d+\.\d+$/u.test(item.version) && !isQualifiedSidecarVersion(item.name, item.version)) {
-      throw new Error(`${label}.version must be stable semver or a qualified sidecar prerelease`);
+    if (!/^\d+\.\d+\.\d+$/u.test(item.version)) {
+      throw new Error(`${label}.version must be stable semver`);
     }
     validateRelativeTarballPath(item.tarballPath, {
       directory: sidecarTarballsDirectory,

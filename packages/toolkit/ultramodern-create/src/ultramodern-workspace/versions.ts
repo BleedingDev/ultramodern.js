@@ -19,13 +19,10 @@ export const TAILWIND_VERSION = '4.3.3';
 export const RSBUILD_PLUGIN_TAILWINDCSS_VERSION = '2.0.3';
 // FORK: upstream Modern.js has no Effect lane at all. `EFFECT_VERSION` is the
 // single source of truth for the fork's lockstep Effect cohort — moving it
-// requires moving, in the same commit: pnpm-workspace.yaml
-// `minimumReleaseAgeExclude`, packages/cli/plugin-bff/package.json
-// (`peerDependencies` and `devDependencies` for BOTH `effect` and
-// `@effect/opentelemetry` — they are exact optional peers, not dependencies,
-// so all four pins move together). Effect 4.0.0-rc.117 incorporates the
-// former SchemaAST.Sentinel declaration repair, so no active Effect patch is
-// carried by generated workspaces.
+// requires moving the exact `effect` and `@effect/opentelemetry` peer and
+// development pins of the canonical BFF packages in the same commit. Upstream
+// rc.117 builds router params by assignment when string code generation is
+// blocked, so the cohort consumes upstream `effect` without a patch or sidecar.
 // See FORK-DIVERGENCE.md, packages/toolkit/ultramodern-create.
 export const EFFECT_VERSION = '4.0.0-rc.117';
 export const EFFECT_TSGO_VERSION = '0.45.0';
@@ -74,7 +71,7 @@ export const ULTRAMODERN_PACKAGE_PINS = {
   // Optional Effect peers are supplied by each Effect app using one exact package identity.
   bffEffectDependencies: {
     '@effect/opentelemetry': EFFECT_VERSION,
-    effect: `npm:@bleedingdev/effect@${EFFECT_VERSION}`,
+    effect: EFFECT_VERSION,
   },
   appDevDependencies: {
     '@effect/tsgo': EFFECT_TSGO_VERSION,
