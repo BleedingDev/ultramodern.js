@@ -165,6 +165,9 @@ describe('create-ultramodern-workspace', () => {
         { cwd: shellDir, env: isolatedEnv, stdio: 'pipe' },
       ),
     ).toThrow();
+    const routeManifestPath =
+      'apps/shell-super-app/src/routes/ultramodern-route-metadata.ts';
+    const scaffoldedRouteManifest = readText(workspaceDir, routeManifestPath);
     execFileSync(
       process.execPath,
       [
@@ -185,6 +188,9 @@ describe('create-ultramodern-workspace', () => {
     expect(
       fs.globSync('src/modern-tanstack/*/router.gen.ts', { cwd: shellDir }),
     ).not.toEqual([]);
+    expect(readText(workspaceDir, routeManifestPath)).toBe(
+      scaffoldedRouteManifest,
+    );
     const buildResult = await modernBuild(
       path.join(workspaceDir, 'apps/shell-super-app'),
       [],

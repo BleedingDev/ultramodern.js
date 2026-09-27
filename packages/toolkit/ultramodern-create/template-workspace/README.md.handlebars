@@ -52,9 +52,10 @@ config merger, so sibling preset fields remain intact.
 ## Private-First Public Surfaces
 
 Generated app routes are private and non-indexable by default. Author route
-metadata in colocated `src/routes/**/route.meta.ts` files; the scaffold
-regenerates `src/routes/ultramodern-route-metadata.ts` as a compatibility
-manifest for config, i18n, public head, and public surface contracts. Private
+metadata in colocated `src/routes/**/route.meta.ts` files that export
+`routeMeta`; `ultramodern-create ultramodern routes-generate` regenerates
+`src/routes/ultramodern-route-metadata.ts` as the route manifest for config,
+i18n, public head, and public surface contracts. Private
 app, auth, tenant, dashboard, and internal routes publish no discovery output
 unless route metadata explicitly marks them `public && indexable`. The default
 scaffold therefore emits only a disallowing `robots.txt`; sitemap, web

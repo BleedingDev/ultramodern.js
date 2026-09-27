@@ -300,10 +300,11 @@ Federation manifests and vertical APIs through generated Effect clients
 exported by the vertical packages.
 
 Route metadata is route-owned and colocated in
-`src/routes/**/route.meta.ts`. The scaffold regenerates
-`src/routes/ultramodern-route-metadata.ts` as a generated route manifest for
-Modern.js config, i18n, public head, and public surface contracts; authors
-should not hand-maintain it. Locale JSON is served from
+`src/routes/**/route.meta.ts`; each file exports `routeMeta`.
+`ultramodern-create ultramodern routes-generate` (run before every app `dev`
+and `build`) regenerates `src/routes/ultramodern-route-metadata.ts` as a
+formatted route manifest for Modern.js config, i18n, public head, and public
+surface contracts; authors should not hand-maintain it. Locale JSON is served from
 `/locales/{{lng}}/{{ns}}.json`; Czech and English routes are generated from the
 route owner, not from shell rewrites.
 

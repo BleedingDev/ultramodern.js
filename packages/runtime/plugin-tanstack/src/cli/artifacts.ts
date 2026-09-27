@@ -6,6 +6,12 @@ import type { NestedRouteForCli, PageRoute } from '@modern-js/types';
 import { fs } from '@modern-js/utils';
 
 import {
+  findRouteMetaFiles,
+  ROUTE_METADATA_MANIFEST_FILE_NAME,
+  ROUTE_METADATA_MANIFEST_HEADER,
+  renderRouteMetadataManifest,
+} from './routeMetadata';
+import {
   collectCanonicalRoutesForEntry,
   generateTanstackRouterTypesSourceForEntry,
 } from './tanstackTypes';
@@ -193,16 +199,52 @@ export async function writeTanstackRouterTypesForEntries(opts: {
 }
 
 /**
- * Headless regeneration of `router.gen.ts` / `register.gen.d.ts` for a generated
- * app, without running a full dev/build. Drives the app-tools analyze `onPrepare`
- * (which fires `generateEntryCode`) and returns before any bundling — the app's
- * own registered plugin-tanstack writes the artifacts via its `generateEntryCode`
- * subscriber. Reuses the exact hook dev/build use, so there is no scanning drift.
+ * Writes `src/routes/ultramodern-route-metadata.ts` from the `route.meta.ts`
+ * files below `src/routes`. Reads only the file system, never the app config.
+ */
+export async function writeRouteMetadataManifest(opts: {
+  appDirectory: string;
+}): Promise<void> {
+  const routesDirectory = path.join(opts.appDirectory, 'src', 'routes');
+  const manifestPath = path.join(
+    routesDirectory,
+    ROUTE_METADATA_MANIFEST_FILE_NAME,
+  );
+  const manifest = renderRouteMetadataManifest(
+    await findRouteMetaFiles(routesDirectory),
+  );
+  if (manifest !== null) {
+    await writeFileIfChanged(manifestPath, manifest);
+    return;
+  }
+  const previous = (await fs.pathExists(manifestPath))
+    ? await fs.readFile(manifestPath, 'utf-8')
+    : null;
+  // No valid manifest exists without routes (its namespace comes from them),
+  // and the app config imports it, so the app cannot load in this state.
+  if (previous?.startsWith(`${ROUTE_METADATA_MANIFEST_HEADER}\n`)) {
+    throw new Error(
+      `[plugin-tanstack] ${manifestPath} is generated from route.meta.ts files, but none remain below ${routesDirectory}. ` +
+        'Restore at least one route.meta.ts that exports routeMeta, or delete the manifest together with its imports.',
+    );
+  }
+}
+
+/**
+ * Headless regeneration of the route metadata manifest and of `router.gen.ts` /
+ * `register.gen.d.ts` for a generated app, without running a full dev/build.
+ * Drives the app-tools analyze `onPrepare` (which fires `generateEntryCode`)
+ * and returns before any bundling — the app's own registered plugin-tanstack
+ * writes the router artifacts via its `generateEntryCode` subscriber. Reuses
+ * the exact hook dev/build use, so there is no scanning drift.
  */
 export async function generateTanstackRouteArtifacts(opts: {
   appDirectory: string;
   version?: string;
 }): Promise<void> {
+  // The app config imports the manifest. Writing it first means a manifest
+  // that still imports a deleted route.meta.ts cannot fail the config load.
+  await writeRouteMetadataManifest(opts);
   const [{ createRunOptions }, { cli }, utils] = await Promise.all([
     import('@modern-js/app-tools/cli/run'),
     import('@modern-js/plugin/cli'),

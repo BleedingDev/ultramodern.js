@@ -251,7 +251,7 @@ export function createPublicWebAppArtifacts(
     },
     routeMetadataFile: {
       path: `${app.directory}/src/routes/ultramodern-route-metadata.ts`,
-      content: createRouteMetadataModule(app),
+      content: createRouteMetadataModule(),
     },
     routeHeadFile: {
       path: `${app.directory}/src/routes/ultramodern-route-head.tsx`,

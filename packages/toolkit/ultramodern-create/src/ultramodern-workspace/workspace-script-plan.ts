@@ -1,4 +1,10 @@
-import { appHasApi, sharedPackages, shellApp } from './descriptors';
+import {
+  appEmitsBrowserUi,
+  appHasApi,
+  sharedPackages,
+  shellApp,
+} from './descriptors';
+import { relativeRootFor } from './naming';
 import { createPublicSurfaceGenerationCommand } from './public-surface';
 import {
   GENERATED_TOOLING_COMMANDS,
@@ -114,11 +120,23 @@ type WorkspaceAppPackageScripts = Record<WorkspaceAppPackageScriptName, string>;
 export const createStrictTsgoTypecheckCommand = (packageDir: string) =>
   `${packageToolingWrapperCommand(packageDir, 'typecheck')} --project tsconfig.json`;
 
+// The app config imports the route metadata manifest, so it is regenerated
+// before Modern.js loads that config. Manifest-only generation never loads the
+// config, so it cannot run the app in another command or NODE_ENV first.
+// Headless apps have no route metadata.
+const createRoutesGenerateCommand = (app: WorkspaceApp) =>
+  appEmitsBrowserUi(app)
+    ? `pnpm --dir ${relativeRootFor(app.directory)} exec ${toolingCommand(
+        'routesGenerate',
+      )} --app ${app.id} --manifest-only`
+    : undefined;
+
 function createWorkspaceAppScriptPlan(
   app: WorkspaceApp,
 ): WorkspaceAppScriptPlan {
+  const routesGenerate = createRoutesGenerateCommand(app);
   const buildSteps = [
-    `${createPublicSurfaceGenerationCommand(app, 'dist')} --sync-route-metadata`,
+    routesGenerate,
     'modern build',
     createPublicSurfaceGenerationCommand(app, 'dist'),
     'cross-env MODERNJS_DEPLOY=node modern deploy --skip-build',
@@ -129,7 +147,7 @@ function createWorkspaceAppScriptPlan(
     // not-yet-emitted archive — so it is intentionally omitted.
   ].filter((step): step is string => Boolean(step));
   const cloudflareBuildSteps = [
-    `${createPublicSurfaceGenerationCommand(app, 'cloudflare-dist')} --sync-route-metadata`,
+    routesGenerate,
     'cross-env MODERNJS_DEPLOY=cloudflare modern build',
     createPublicSurfaceGenerationCommand(app, 'cloudflare-dist'),
     'cross-env MODERNJS_DEPLOY=cloudflare modern deploy --skip-build',
@@ -140,7 +158,9 @@ function createWorkspaceAppScriptPlan(
   ].filter((step): step is string => Boolean(step));
 
   return {
-    dev: `${createPublicSurfaceGenerationCommand(app, 'dist')} --sync-route-metadata && modern dev`,
+    dev: [routesGenerate, 'modern dev']
+      .filter((step): step is string => Boolean(step))
+      .join(' && '),
     build: buildSteps.join(' && '),
     cloudflareBuild: cloudflareBuildSteps.join(' && '),
     cloudflareDeploy:

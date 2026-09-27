@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { addUltramodernVertical } from '../src/ultramodern-workspace';
 import { shellApp } from '../src/ultramodern-workspace/descriptors';
 import { createPublicSurfaceGenerationCommand } from '../src/ultramodern-workspace/public-surface';
@@ -26,21 +26,91 @@ test('public surface generation invokes the installed CLI from the workspace roo
     createPublicSurfaceGenerationCommand(shellApp, 'cloudflare-dist', true),
     'pnpm --dir ../.. exec ultramodern-create ultramodern public-surface --app shell-super-app --target cloudflare-dist --require-public-origin',
   );
+  const routesGenerate =
+    'pnpm --dir ../.. exec ultramodern-create ultramodern routes-generate --app shell-super-app --manifest-only';
   const scripts = createWorkspaceAppPackageScripts(shellApp);
-  assert.match(scripts.dev, /--sync-route-metadata && modern dev$/u);
-  assert.match(
-    scripts.build,
-    /^pnpm --dir \.\.\/\.\. exec ultramodern-create ultramodern public-surface --app shell-super-app --target dist --sync-route-metadata && modern build/u,
+  assert.equal(scripts.dev, `${routesGenerate} && modern dev`);
+  assert(scripts.build.startsWith(`${routesGenerate} && modern build && `));
+  assert(
+    scripts['cloudflare:build'].startsWith(
+      `${routesGenerate} && cross-env MODERNJS_DEPLOY=cloudflare modern build && `,
+    ),
   );
-  assert.match(
-    scripts['cloudflare:build'],
-    /^pnpm --dir \.\.\/\.\. exec ultramodern-create ultramodern public-surface --app shell-super-app --target cloudflare-dist --sync-route-metadata && cross-env MODERNJS_DEPLOY=cloudflare modern build/u,
+  assert.doesNotMatch(
+    Object.values(scripts).join('\n'),
+    /--sync-route-metadata/u,
   );
+  const headlessScripts = createWorkspaceAppPackageScripts({
+    ...shellApp,
+    surfaceProfile: 'api-only',
+  });
+  assert.equal(headlessScripts.dev, 'modern dev');
+  assert.doesNotMatch(headlessScripts.build, /routes-generate/u);
 });
 
-test('fresh route aggregates are unchanged by their first metadata sync', () => {
+test('manifest-only route generation never loads the app for a build', () => {
+  // dev runs this first; the full generator analyzes the app as a production
+  // build, which must not happen before a development server starts.
+  const appDirectory = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'ultramodern-routes-generate-'),
+  );
+  try {
+    const plugin = path.join(
+      appDirectory,
+      'node_modules/@modern-js/plugin-tanstack',
+    );
+    fs.mkdirSync(plugin, { recursive: true });
+    fs.writeFileSync(path.join(appDirectory, 'package.json'), '{}');
+    fs.writeFileSync(
+      path.join(plugin, 'package.json'),
+      JSON.stringify({ name: '@modern-js/plugin-tanstack', main: 'index.mjs' }),
+    );
+    fs.writeFileSync(
+      path.join(plugin, 'index.mjs'),
+      `import fs from 'node:fs';
+export const writeRouteMetadataManifest = async ({ appDirectory }) =>
+  fs.writeFileSync(appDirectory + '/manifest-written', '');
+export const generateTanstackRouteArtifacts = async () => {
+  throw new Error('loaded the app as a build');
+};
+`,
+    );
+    const result = spawnSync(
+      process.execPath,
+      [
+        fileURLToPath(
+          new URL(
+            '../dist/esm-node/ultramodern-tooling/commands/routes-generate-app.js',
+            import.meta.url,
+          ),
+        ),
+        appDirectory,
+        'shell',
+        'manifest',
+      ],
+      { encoding: 'utf8' },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    assert(fs.existsSync(path.join(appDirectory, 'manifest-written')));
+  } finally {
+    fs.rmSync(appDirectory, { recursive: true, force: true });
+  }
+});
+
+test('fresh route manifests are what routes-generate writes for them', async () => {
+  // plugin-tanstack owns the manifest format; the scaffold must write the same
+  // bytes so the first routes-generate run changes nothing.
+  const { findRouteMetaFiles, renderRouteMetadataManifest } = (await import(
+    new URL(
+      '../../../runtime/plugin-tanstack/src/cli/routeMetadata.ts',
+      import.meta.url,
+    ).href
+  )) as {
+    findRouteMetaFiles(routesDirectory: string): Promise<string[]>;
+    renderRouteMetadataManifest(files: readonly string[]): string | null;
+  };
   const { tempRoot, workspaceDir } = createWorkspace(
-    'route-aggregate-stability',
+    'route-manifest-stability',
   );
   try {
     addUltramodernVertical({
@@ -48,33 +118,15 @@ test('fresh route aggregates are unchanged by their first metadata sync', () => 
       name: 'catalog',
       modernVersion: '3.2.1',
     });
-    const script = fileURLToPath(
-      new URL(
-        '../templates/workspace-scripts/generate-public-surface-assets.mjs',
-        import.meta.url,
-      ),
-    );
-    for (const [appId, appPath] of [
-      ['shell-super-app', 'apps/shell-super-app'],
-      ['catalog', 'verticals/catalog'],
-    ]) {
-      const aggregatePath = path.join(
-        workspaceDir,
-        appPath,
-        'src/routes/ultramodern-route-metadata.ts',
+    for (const appPath of ['apps/shell-super-app', 'verticals/catalog']) {
+      const routesDirectory = path.join(workspaceDir, appPath, 'src/routes');
+      assert.equal(
+        fs.readFileSync(
+          path.join(routesDirectory, 'ultramodern-route-metadata.ts'),
+          'utf8',
+        ),
+        renderRouteMetadataManifest(await findRouteMetaFiles(routesDirectory)),
       );
-      const before = fs.readFileSync(aggregatePath, 'utf8');
-      assert.match(before, /import \{ routeMeta as route0 \}/u);
-      const sync = spawnSync(
-        process.execPath,
-        [script, '--app', appId, '--sync-route-metadata'],
-        {
-          env: { ...process.env, ULTRAMODERN_WORKSPACE_ROOT: workspaceDir },
-          encoding: 'utf8',
-        },
-      );
-      assert.equal(sync.status, 0, sync.stderr);
-      assert.equal(fs.readFileSync(aggregatePath, 'utf8'), before);
     }
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
@@ -169,51 +221,12 @@ test('public surface reads authored route metadata and preserves output and cont
       fs.readFileSync(path.join(output, 'robots.txt'), 'utf8'),
       /Allow: \/en\/pricing\$/u,
     );
-    const metadataPath = path.join(
-      root,
-      'apps/shell/src/routes/ultramodern-route-metadata.ts',
-    );
-    const authoredPath = path.join(
-      root,
-      'apps/shell/src/routes/[lang]/pricing/route.meta.ts',
-    );
-    const authoredBefore = fs.readFileSync(authoredPath, 'utf8');
-    const sync = spawnSync(
-      process.execPath,
-      [script, '--app', 'shell', '--sync-route-metadata'],
-      {
-        env: { ...process.env, ULTRAMODERN_WORKSPACE_ROOT: root },
-        encoding: 'utf8',
-      },
-    );
-    assert.equal(sync.status, 0, sync.stderr);
-    assert.equal(fs.readFileSync(authoredPath, 'utf8'), authoredBefore);
-    const aggregateSource = fs.readFileSync(metadataPath, 'utf8');
-    assert.match(
-      aggregateSource,
-      /import \{ routeMeta as route\d+ \} from ['"]\.\/\[lang\]\/pricing\/route\.meta['"]/u,
-    );
-    assert.doesNotMatch(aggregateSource, /schema\.org/u);
-    const { tsImport } = await import('tsx/esm/api');
-    const imported = await tsImport(pathToFileURL(metadataPath).href, {
-      parentURL: import.meta.url,
-      tsconfig: false,
-    });
-    const aggregate =
-      imported.ultramodernRouteMetadata ??
-      imported.default?.ultramodernRouteMetadata;
-    assert.equal(
-      aggregate.find((route: { id: string }) => route.id === 'pricing').jsonLd[
-        '@type'
-      ],
-      'WebPage',
-    );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
 
-test('adding a vertical preserves authored route metadata and its synced aggregate', () => {
+test('adding a vertical preserves authored route metadata and its manifest', () => {
   const { tempRoot, workspaceDir } = createWorkspace('public-route-owner');
   try {
     const routePath = path.join(
@@ -226,21 +239,6 @@ test('adding a vertical preserves authored route metadata and its synced aggrega
       .replace(/(indexable\s*:\s*)false/u, '$1true');
     assert.notEqual(authored, initial);
     fs.writeFileSync(routePath, authored);
-    const script = fileURLToPath(
-      new URL(
-        '../templates/workspace-scripts/generate-public-surface-assets.mjs',
-        import.meta.url,
-      ),
-    );
-    const sync = spawnSync(
-      process.execPath,
-      [script, '--app', 'shell-super-app', '--sync-route-metadata'],
-      {
-        env: { ...process.env, ULTRAMODERN_WORKSPACE_ROOT: workspaceDir },
-        encoding: 'utf8',
-      },
-    );
-    assert.equal(sync.status, 0, sync.stderr);
     const aggregatePath = path.join(
       workspaceDir,
       'apps/shell-super-app/src/routes/ultramodern-route-metadata.ts',

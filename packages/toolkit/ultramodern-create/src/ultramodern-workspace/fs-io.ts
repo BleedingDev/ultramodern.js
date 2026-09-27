@@ -33,6 +33,7 @@ const workspaceOxfmtIgnorePatterns = [
   '.modernjs',
   '**/modern-tanstack/**',
   '**/routeTree.gen.*',
+  '**/src/routes/ultramodern-route-metadata.ts',
 ];
 const formattableExtensions = new Set([
   '.cjs',

@@ -165,6 +165,44 @@ describe('generateTanstackRouteArtifacts (headless routes-generate)', () => {
     }
   });
 
+  it('regenerates the route metadata manifest before loading the config', async () => {
+    const appDirectory = makeAppDir(true);
+    const routesDirectory = path.join(appDirectory, 'src', 'routes');
+    const manifestPath = path.join(
+      routesDirectory,
+      'ultramodern-route-metadata.ts',
+    );
+    fs.mkdirSync(path.join(routesDirectory, '[lang]'), { recursive: true });
+    fs.writeFileSync(
+      path.join(routesDirectory, '[lang]', 'route.meta.ts'),
+      "export const routeMeta = { namespace: 'app' } as const;\n",
+    );
+    // A manifest that still imports a deleted route.meta.ts makes the config
+    // (which imports the manifest) fail to load.
+    fs.writeFileSync(
+      manifestPath,
+      "import { routeMeta as route0 } from './[lang]/deleted/route.meta';\n",
+    );
+    const configLoadFailure = new Error(
+      "Cannot find module './[lang]/deleted/route.meta'",
+    );
+    cliInitMock.mockImplementationOnce(async () => {
+      throw configLoadFailure;
+    });
+    try {
+      await expect(
+        generateTanstackRouteArtifacts({ appDirectory }),
+      ).rejects.toBe(configLoadFailure);
+      const manifest = fs.readFileSync(manifestPath, 'utf8');
+      expect(manifest).toContain(
+        "import { routeMeta as route0 } from './[lang]/route.meta';",
+      );
+      expect(manifest).not.toContain('deleted');
+    } finally {
+      fs.rmSync(appDirectory, { force: true, recursive: true });
+    }
+  });
+
   it('throws a clear error when no config file exists', async () => {
     const appDirectory = makeAppDir(false);
 
