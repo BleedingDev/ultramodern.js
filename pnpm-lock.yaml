@@ -8,11 +8,8 @@ overrides:
   micromatch: ^4.0.8
   js-yaml@>=3.0.0 <3.15.2: 3.15.2
   js-yaml@>=4.0.0 <4.3.2: 4.3.2
-  '@remix-run/router': '>=1.23.4'
   react-router@>=7.0.0 <7.18.2: 7.18.4
   react-router@>=8.0.0 <8.3.1: 8.4.0
-  '@modern-js/runtime-utils>react-router': 7.18.2
-  dev-server>react-router: 8.3.1
   h3: '>=1.15.11'
   tar: '>=7.5.22'
   diff: '>=9.0.0'
@@ -21,10 +18,9 @@ overrides:
   lodash-es: '>=4.18.1'
   esbuild: '>=0.28.2'
   tmp: '>=0.2.7'
-  '@isaacs/brace-expansion': '>=5.0.1'
   minimatch@3>brace-expansion: 1.1.18
   minimatch@9>brace-expansion: 2.1.4
-  brace-expansion@: 5.0.12
+  brace-expansion@>=5.0.0 <5.0.12: 5.0.12
   yaml: '>=2.9.1'
   qs: '>=6.16.0'
   smol-toml: '>=1.9.0'
@@ -127,6 +123,9 @@ importers:
       rimraf:
         specifier: ^6.1.3
         version: 6.1.3
+      semver:
+        specifier: 7.8.5
+        version: 7.8.5
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
@@ -3290,8 +3289,8 @@ importers:
         specifier: ^11.5.3
         version: 11.5.3
       react-router:
-        specifier: 7.18.2
-        version: 7.18.2(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+        specifier: 7.18.4
+        version: 7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
     devDependencies:
       '@modern-js/rslib':
         specifier: workspace:*
@@ -4902,8 +4901,8 @@ importers:
         specifier: ^19.3.0
         version: 19.3.0(react@19.3.0)
       react-router:
-        specifier: 8.3.1
-        version: 8.3.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+        specifier: 7.18.4
+        version: 7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
     devDependencies:
       '@modern-js/app-tools':
         specifier: workspace:*
@@ -13868,10 +13867,6 @@ packages:
     resolution: {integrity: sha512-YovQ3rzhaLMIrDjNDMkNS01tea93qhEhG5xy8f6+R0l+dw3Ki+5sCoIoI942iuLZTHWogWktgwVDhU09iNEimQ==}
     engines: {node: 20 || >=22}
 
-  brace-expansion@5.0.9:
-    resolution: {integrity: sha512-ScQ4IuvIEF1TMlP7Zt+vjJ//9zlPb2SDcxWxM3bk8s6t6GGdJ7KO1dCcTidOPJKePW30LE/2cT7wCyPho9/Wxg==}
-    engines: {node: 20 || >=22}
-
   braces@3.0.3:
     resolution: {integrity: sha512-yQbXgO/OSZVD2IsiLlro+7Hf6Q18EJrKSEsdoMzKePKXct3gvD8oLcOQdIzGupr5Fj+EDe8gO/lxc1BzfMpxvA==}
     engines: {node: '>=8'}
@@ -19089,16 +19084,6 @@ packages:
       react: '>=18'
       react-dom: '>=18'
 
-  react-router@7.18.2:
-    resolution: {integrity: sha512-aUVMjFm3GAPTTZL7oYr5E7ETiqfQCHRLH+B+5afnICvf0r7kkK4eR6SMuwbSTJw/7t+12khT/Kahij49fqOCIg==}
-    engines: {node: '>=20.0.0'}
-    peerDependencies:
-      react: '>=18'
-      react-dom: '>=18'
-    peerDependenciesMeta:
-      react-dom:
-        optional: true
-
   react-router@7.18.3:
     resolution: {integrity: sha512-gyXgtdr5uACJ5b1Q4udzjVV+tb/rlHIMJKuJ0e89R4Kzgz47z/rgP0dIKxktqIEUhDHluGTPJJH/wRha7CyqsA==}
     engines: {node: '>=20.0.0'}
@@ -19115,16 +19100,6 @@ packages:
     peerDependencies:
       react: '>=18'
       react-dom: '>=18'
-    peerDependenciesMeta:
-      react-dom:
-        optional: true
-
-  react-router@8.3.1:
-    resolution: {integrity: sha512-TEOpiO2g0TJHEOJeRVv4amUFun9v1npCKszvcquNvzETUtJ8udV86ah5eFoHT7g26bsBvT6EiIhqulR8eDF++A==}
-    engines: {node: '>=22.22.0'}
-    peerDependencies:
-      react: '>=19.2.7'
-      react-dom: '>=19.2.7'
     peerDependenciesMeta:
       react-dom:
         optional: true
@@ -24150,7 +24125,7 @@ snapshots:
       '@modern-js/utils': 3.9.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@swc/helpers': 0.5.23
       lru-cache: 10.4.3
-      react-router: 7.18.2(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      react-router: 7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       serialize-javascript: 7.1.1
     optionalDependencies:
       react: 19.3.0
@@ -27964,10 +27939,6 @@ snapshots:
       balanced-match: 1.0.2
 
   brace-expansion@5.0.12:
-    dependencies:
-      balanced-match: 4.0.4
-
-  brace-expansion@5.0.9:
     dependencies:
       balanced-match: 4.0.4
 
@@ -32696,7 +32667,7 @@ snapshots:
       balanced-match: 4.0.3
       base64-js: 1.5.1
       bl: 4.1.0
-      brace-expansion: 5.0.9
+      brace-expansion: 5.0.12
       buffer: 5.7.1
       bundle-name: 4.1.0
       call-bind-apply-helpers: 1.0.2
@@ -34305,14 +34276,6 @@ snapshots:
       react-dom: 19.3.0(react@19.3.0)
       react-router: 7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
 
-  react-router@7.18.2(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
-    dependencies:
-      cookie: 1.1.1
-      react: 19.3.0
-      set-cookie-parser: 2.7.2
-    optionalDependencies:
-      react-dom: 19.3.0(react@19.3.0)
-
   react-router@7.18.3(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
     dependencies:
       cookie: 1.1.1
@@ -34326,13 +34289,6 @@ snapshots:
       cookie: 1.1.1
       react: 19.3.0
       set-cookie-parser: 2.7.2
-    optionalDependencies:
-      react-dom: 19.3.0(react@19.3.0)
-
-  react-router@8.3.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
-    dependencies:
-      cookie-es: 3.1.1
-      react: 19.3.0
     optionalDependencies:
       react-dom: 19.3.0(react@19.3.0)
 
