@@ -583,9 +583,9 @@ const bareJobRuns = workflow =>
         jobId,
         runs: bareSteps(
           steps,
-          typeof job?.defaults?.run?.['working-directory'] === 'string'
-            ? job.defaults.run['working-directory']
-            : '.',
+          [job?.defaults, workflow.defaults]
+            .map(defaults => defaults?.run?.['working-directory'])
+            .find(cwd => typeof cwd === 'string') ?? '.',
         ),
       };
     },
