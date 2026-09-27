@@ -48,6 +48,7 @@ function wrapRuntimeContextProvider(
       platform: 'node',
       mode: 'string',
       isRsc: getGlobalEnableRsc() === true,
+      monitors: console,
     },
   });
   for (const collector of collectors) root = collector.collect?.(root) ?? root;

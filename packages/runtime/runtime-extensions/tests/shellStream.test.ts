@@ -62,10 +62,10 @@ describe('conserving web shell stream', () => {
     const publish = (records: string[]) => {
       published = records;
     };
-    beginHeadRender(context);
+    beginHeadRender(context, () => {});
     const previous = collectHeadRecord(context, () => 'previous', publish)!;
     completeHeadRender(context, headMarker(previous));
-    beginHeadRender(context);
+    beginHeadRender(context, () => {});
     collectHeadRecord(context, () => 'incomplete', publish);
     const bytes = encoder.encode(`α${'x'.repeat(9 * 1024)}尾`);
     const stream = createConservingWebShellStream(
