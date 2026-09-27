@@ -13,24 +13,6 @@ const root = fileURLToPath(new URL('../../', import.meta.url));
 const recipes = JSON.parse(
   fs.readFileSync(new URL('./sidecars.json', import.meta.url), 'utf8'),
 );
-const contractFields = [
-  'type',
-  'main',
-  'module',
-  'types',
-  'exports',
-  'typesVersions',
-  'sideEffects',
-  'files',
-  'engines',
-  'bin',
-  'dependencies',
-  'optionalDependencies',
-  'peerDependencies',
-  'peerDependenciesMeta',
-  'license',
-];
-
 const consumerBlocks = [
   'dependencies',
   'optionalDependencies',
@@ -385,35 +367,18 @@ export async function findUpstreamedPatches(
   return upstreamed;
 }
 
-function files(directory, prefix = '') {
-  return fs
-    .readdirSync(directory, { withFileTypes: true })
-    .flatMap(entry => {
-      const relative = path.posix.join(prefix, entry.name);
-      assert.ok(
-        entry.isDirectory() || entry.isFile(),
-        `unexpected artifact type: ${relative}`,
-      );
-      return entry.isDirectory()
-        ? files(path.join(directory, entry.name), relative)
-        : [relative];
-    })
-    .sort();
-}
-
-/** Reconstruct from a pinned tarball in an owned temporary directory, then compare every artifact. */
-export async function verifySidecar(
-  id,
-  { artifactsDir, packageDir, materializeTo } = {},
-) {
+/** Reconstruct a recipe from its pinned tarball in an owned temporary directory. */
+export async function verifySidecar(id, { artifactsDir, materializeTo } = {}) {
   const recipe = recipes.find(item => item.id === id);
   assert.ok(recipe, `unknown sidecar: ${id}`);
+  assert.deepEqual(
+    recipe.artifacts,
+    ['*'],
+    `${id}: reconstruction requires the complete upstream artifact`,
+  );
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'ultramodern-sidecar-'));
   try {
-    const target = packageDir ?? path.join(root, 'packages/sidecar', id);
-    if (!materializeTo && recipe.artifacts.includes('*')) {
-      materializeTo = path.join(temp, 'reconstructed');
-    }
+    const target = materializeTo ?? path.join(temp, 'reconstructed');
     let bytes;
     if (artifactsDir) {
       // Explicit offline input must exist and is held to the same integrity check.
@@ -457,134 +422,37 @@ export async function verifySidecar(
     );
     assert.equal(patched.name, upstream.name);
     assert.equal(patched.version, upstream.version);
-    if (materializeTo) {
-      assert.deepEqual(
-        recipe.artifacts,
-        ['*'],
-        `${id}: reconstruction requires the complete upstream artifact`,
-      );
-      const projected = {
-        ...patched,
-        name: recipe.fork.name,
-        version: recipe.fork.version,
-        publishConfig: {
-          registry: 'https://registry.npmjs.org/',
-          access: 'public',
-        },
-        repository: {
-          type: 'git',
-          url: 'git+https://github.com/BleedingDev/ultramodern.js.git',
-          directory: 'scripts/ultramodern-supply',
-        },
-      };
-      for (const [key, changes] of Object.entries(recipe.manifestChanges)) {
-        for (const dependencyName of Object.keys(changes)) {
-          assert.ok(
-            Object.hasOwn(patched[key] ?? {}, dependencyName),
-            `${id}: recipe changes absent upstream ${key}.${dependencyName}`,
-          );
-        }
-        projected[key] = { ...patched[key], ...changes };
-      }
-      if (packageDir) {
-        const fork = JSON.parse(
-          fs.readFileSync(path.join(target, 'package.json'), 'utf8'),
-        );
-        assert.deepEqual(
-          fork,
-          projected,
-          `${id}: recipe must account for every manifest field`,
+    const projected = {
+      ...patched,
+      name: recipe.fork.name,
+      version: recipe.fork.version,
+      publishConfig: {
+        registry: 'https://registry.npmjs.org/',
+        access: 'public',
+      },
+      repository: {
+        type: 'git',
+        url: 'git+https://github.com/BleedingDev/ultramodern.js.git',
+        directory: 'scripts/ultramodern-supply',
+      },
+    };
+    for (const [key, changes] of Object.entries(recipe.manifestChanges)) {
+      for (const dependencyName of Object.keys(changes)) {
+        assert.ok(
+          Object.hasOwn(patched[key] ?? {}, dependencyName),
+          `${id}: recipe changes absent upstream ${key}.${dependencyName}`,
         );
       }
-      fs.writeFileSync(
-        path.join(upstreamDir, 'package.json'),
-        `${JSON.stringify(projected, null, 2)}\n`,
-      );
-      fs.rmSync(materializeTo, { recursive: true, force: true });
-      fs.cpSync(upstreamDir, materializeTo, { recursive: true });
-      console.log(
-        `Reconstructed ${id}: authenticated ${recipe.upstream.name}@${recipe.upstream.version}, exact patch and publication manifest.`,
-      );
-      return upstream;
+      projected[key] = { ...patched[key], ...changes };
     }
-    const fork = JSON.parse(
-      fs.readFileSync(path.join(target, 'package.json'), 'utf8'),
+    fs.writeFileSync(
+      path.join(upstreamDir, 'package.json'),
+      `${JSON.stringify(projected, null, 2)}\n`,
     );
-    assert.equal(fork.name, recipe.fork.name);
-    assert.equal(fork.version, recipe.fork.version);
-    for (const key of contractFields) {
-      const expected = recipe.manifestChanges[key]
-        ? { ...patched[key], ...recipe.manifestChanges[key] }
-        : patched[key];
-      assert.deepEqual(fork[key], expected, `${id}: manifest ${key}`);
-    }
-    if (recipe.artifacts.includes('*')) {
-      const expectedDevDependencies = recipe.manifestChanges.devDependencies
-        ? {
-            ...patched.devDependencies,
-            ...recipe.manifestChanges.devDependencies,
-          }
-        : patched.devDependencies;
-      assert.deepEqual(
-        fork.devDependencies,
-        expectedDevDependencies,
-        `${id}: manifest devDependencies`,
-      );
-    }
-    for (const artifact of recipe.artifacts) {
-      if (artifact === '*') {
-        const upstreamFiles = files(upstreamDir).filter(
-          file => file !== 'package.json',
-        );
-        const forkFiles = files(target).filter(file => file !== 'package.json');
-        assert.deepEqual(
-          forkFiles,
-          upstreamFiles,
-          `${id}: complete artifact set`,
-        );
-        for (const file of upstreamFiles) {
-          const expectedPath = path.join(upstreamDir, file);
-          const actualPath = path.join(target, file);
-          assert.deepEqual(
-            fs.readFileSync(actualPath),
-            fs.readFileSync(expectedPath),
-            `${id}: ${file}`,
-          );
-          assert.equal(
-            fs.statSync(actualPath).mode & 0o111,
-            fs.statSync(expectedPath).mode & 0o111,
-            `${id}: executable mode ${file}`,
-          );
-        }
-        continue;
-      }
-      const source = path.join(upstreamDir, artifact);
-      const destination = path.join(target, artifact);
-      const directory = fs.statSync(source).isDirectory();
-      const entries = directory ? files(source) : [''];
-      if (directory)
-        assert.deepEqual(
-          files(destination),
-          entries,
-          `${id}: ${artifact} file set`,
-        );
-      for (const file of entries) {
-        const expectedPath = path.join(source, file);
-        const actualPath = path.join(destination, file);
-        assert.deepEqual(
-          fs.readFileSync(actualPath),
-          fs.readFileSync(expectedPath),
-          `${id}: ${artifact}/${file}`,
-        );
-        assert.equal(
-          fs.statSync(actualPath).mode & 0o111,
-          fs.statSync(expectedPath).mode & 0o111,
-          `${id}: executable mode ${artifact}/${file}`,
-        );
-      }
-    }
+    fs.rmSync(target, { recursive: true, force: true });
+    fs.cpSync(upstreamDir, target, { recursive: true });
     console.log(
-      `Verified ${id}: pinned ${recipe.upstream.name}@${recipe.upstream.version}, recipe, manifest, license and all runtime artifacts.`,
+      `Reconstructed ${id}: authenticated ${recipe.upstream.name}@${recipe.upstream.version}, exact patch and publication manifest.`,
     );
     return upstream;
   } finally {

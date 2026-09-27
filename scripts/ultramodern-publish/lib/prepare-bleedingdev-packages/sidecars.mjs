@@ -5,14 +5,13 @@
 // part of the Modern.js cohort:
 //   * their names are never prefixed with the cohort prefix (`modern-js-`) -
 //     npm-normalize-package-bin derives a string-form bin's key from
-//     basename(name), so a prefixed name would silently rename `ipx` to
-//     `modern-js-ipx` and break `npx ipx`;
+//     basename(name), so a prefixed name would silently rename an upstream
+//     CLI such as `mf` and break it;
 //   * their versions are never forced to the cohort's
-//     X.Y.Z-ultramodern.N revision - npm evaluates the non-wildcard peer
-//     `ipx: >=3.0.3` (declared by @rsbuild-image/core and
-//     @rsbuild-image/react) with a loose-only semver check that EXCLUDES
-//     prereleases, so a prerelease sidecar would satisfy pnpm but fail every
-//     strict npm/yarn-classic consumer;
+//     X.Y.Z-ultramodern.N revision - npm evaluates non-wildcard peer ranges
+//     with a loose-only semver check that EXCLUDES prereleases, so a
+//     prerelease sidecar would satisfy pnpm but fail every strict
+//     npm/yarn-classic consumer;
 //   * their dependency keys are retained - recipe-only packages are rebuilt
 //     from authenticated upstream tarballs, canonical patches and exact aliases;
 //   * cohort packages declare the sidecar aliases in source; staging never
@@ -63,7 +62,6 @@ function sidecarProvenancePolicy(name) {
 
 // Upstream CLI contracts that must survive republication verbatim.
 const sidecarBinNames = new Map([
-  ['@bleedingdev/ipx', 'ipx'],
   ['@bleedingdev/mf-cli', 'mf'],
   ['@bleedingdev/mf-enhanced', 'mf'],
 ]);
@@ -148,7 +146,7 @@ function assertSidecarVersion(name, version) {
     throw new Error(
       [
         `Sidecar ${name} version ${String(version)} must be stable semver (X.Y.Z).`,
-        "npm resolves the ipx peer range '>=3.0.3' with a prerelease-excluding check.",
+        'npm resolves non-wildcard peer ranges with a prerelease-excluding check.',
       ].join('\n'),
     );
   }
@@ -367,8 +365,8 @@ function sidecarPublishOrder(sidecars) {
 }
 
 /**
- * Stage the ipx sidecar verbatim or reconstruct a recipe-only sidecar from its
- * authenticated upstream artifact. Neither path applies cohort name/version
+ * Stage a committed sidecar verbatim or reconstruct a recipe-only sidecar from
+ * its authenticated upstream artifact. Neither path applies cohort name/version
  * rewriting or consumer overrides.
  */
 async function stageSidecarPackage(

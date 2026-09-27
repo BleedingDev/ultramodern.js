@@ -1,38 +1,5 @@
 [
   {
-    "id": "ipx",
-    "upstream": {
-      "name": "ipx",
-      "version": "3.1.1",
-      "tarball": "https://registry.npmjs.org/ipx/-/ipx-3.1.1.tgz",
-      "integrity": "sha512-7Xnt54Dco7uYkfdAw0r2vCly3z0rSaVhEXMzPvl3FndsTVm5p26j+PO+gyinkYmcsEUvX2Rh7OGK7KzYWRu6BA=="
-    },
-    "fork": {
-      "name": "@bleedingdev/ipx",
-      "version": "3.2.2"
-    },
-    "license": "MIT",
-    "artifacts": ["dist", "LICENSE", "bin"],
-    "patch": {
-      "path": "scripts/ultramodern-supply/ipx.patch",
-      "sha256": "773490785d226e44f96c80bf6c2ac4533b55487baac31b1f5b467e584a0c512c"
-    },
-    "manifestChanges": {
-      "dependencies": {
-        "sharp": "^0.35.4"
-      }
-    },
-    "provenance": {
-      "grandfatheredVersions": [
-        {
-          "version": "3.2.0",
-          "publishedAt": "2026-09-01T19:46:28.468Z",
-          "integrity": "sha512-DJWRaprjFOBRwTyIF4OwEIXsjBrnDkq4eMil9j7X1KxQitH6dfwGxVWYKfkfTm5I1saaFooX8UCzHfOlUCqsKA=="
-        }
-      ]
-    }
-  },
-  {
     "id": "mf-bridge-react",
     "upstream": {
       "name": "@module-federation/bridge-react",

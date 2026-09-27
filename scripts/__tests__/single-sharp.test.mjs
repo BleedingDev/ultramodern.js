@@ -13,7 +13,7 @@ const repoRoot = path.resolve(
 
 // Two sharp copies in one process load two libvips builds that share GLib
 // type registrations: image decoding logs GLib-GObject-CRITICAL and fails on
-// Windows. The image path (plugin-image, the ipx sidecar, @rsbuild-image/*)
+// Windows. The image path (plugin-image, ipx, @rsbuild-image/*)
 // must resolve the single sharp its published consumers get.
 function sharpVersions(lockfileText) {
   return Object.keys(parse(lockfileText).packages ?? {})
@@ -28,7 +28,7 @@ test('the workspace lockfile resolves exactly one sharp version', () => {
   assert.equal(versions.length, 1, `sharp versions: ${versions.join(', ')}`);
 });
 
-test('a lockfile with the upstream ipx sharp beside the sidecar sharp fails', () => {
+test('a lockfile with ipx 3 sharp beside the hardened sharp fails', () => {
   const versions = sharpVersions(`
 lockfileVersion: '9.0'
 packages:

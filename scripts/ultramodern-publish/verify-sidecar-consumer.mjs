@@ -2,11 +2,11 @@
 // ROOT-ONLY. Packed-consumer proof for the sidecar publication lane.
 //
 // What it proves, end to end, against a LOOPBACK registry only:
-//   * the committed ipx sidecar publishes before the cohort;
+//   * the recipe sidecars publish before the cohort;
 //   * the cohort package @bleedingdev/modern-js-image, packed from this
 //     checkout, installs from that registry with strict npm peer resolution;
-//   * its ipx `npm:@bleedingdev/...` alias resolves to the fork package and
-//     @rsbuild-image/core resolves upstream at its exact source version;
+//   * ipx resolves upstream under its own name and @rsbuild-image/core
+//     resolves upstream at its exact source version;
 //   * sharp resolves on the 0.35 line, image-size resolves upstream at
 //     2.0.3+ through @rsbuild-image/core's own dependency edge;
 //   * ipx and @rsbuild-image/core/shared import through BOTH CJS and ESM;
@@ -25,7 +25,7 @@
 //   * no original sidecar tarball is ever published: each package is staged
 //     into scratch with `publishConfig.registry` removed (access preserved),
 //     and the packed tarball's own manifest is re-read to prove no registry
-//     field survived. `@bleedingdev/ipx` pins publishConfig.registry to public
+//     field survived. Every sidecar pins publishConfig.registry to public
 //     npm, and npm honours a packed publishConfig.registry over `--registry`.
 //
 // It never installs Verdaccio and never touches the repository working tree or
@@ -673,7 +673,7 @@ function publishPacked(packed, { cwd, env, registry, label }) {
  *
  * `require.resolve('<pkg>/package.json')` is NOT usable here: a package that
  * declares `exports` without a `./package.json` subpath blocks it, which is the
- * case for @bleedingdev/modern-js-image, @rsbuild-image/core and the ipx fork. So the proof
+ * case for @bleedingdev/modern-js-image and @rsbuild-image/core. So the proof
  * starts at a public entry and walks ancestors to the first NAMED package.json,
  * which is the package that owns the entry, and checks that name.
  *
@@ -739,7 +739,7 @@ async function consumerProofMain(config, io) {
   );
 
   // 1. Dependency resolution from the image package's own entry: upstream
-  //    @rsbuild-image/core at its exact version, ipx through the fork alias.
+  //    @rsbuild-image/core at its exact version, ipx under its own name.
   const imageRequire = createRequire(imageEntry);
 
   const coreEntry = imageRequire.resolve('@rsbuild-image/core');
@@ -754,12 +754,16 @@ async function consumerProofMain(config, io) {
   );
 
   const ipxEntry = imageRequire.resolve('ipx');
-  const ipx = resolvePackageFromEntry(ipxEntry, config.ipxName, walkIo);
-  assert.equal(
-    image.manifest.dependencies.ipx,
-    `npm:${config.ipxName}@${ipx.manifest.version}`,
+  const ipx = resolvePackageFromEntry(ipxEntry, 'ipx', walkIo);
+  assert.match(
+    ipx.manifest.version,
+    /^4\./u,
+    `ipx must resolve on 4.x, found ${ipx.manifest.version}`,
   );
-  record('ipx alias resolves', `${ipx.manifest.name}@${ipx.manifest.version}`);
+  record(
+    'ipx resolves upstream',
+    `${ipx.manifest.name}@${ipx.manifest.version}`,
+  );
 
   // 2. sharp stays on the 0.35 line (the exact patch floats with the range).
   const sharp = resolvePackageFromEntry(
@@ -1180,7 +1184,6 @@ async function verifySidecarConsumer(options) {
         coreName: '@rsbuild-image/core',
         imageName: cohortImageTargetName,
         imageVersion: packedImage.version,
-        ipxName: '@bleedingdev/ipx',
         sharpVersionPattern: '^0\\.35\\.',
       }),
     );
