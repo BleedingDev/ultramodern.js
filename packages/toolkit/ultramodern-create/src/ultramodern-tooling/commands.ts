@@ -4,7 +4,6 @@ import { GENERATED_TOOLING_COMMANDS } from '../ultramodern-workspace/tooling-com
 import { runCloudflareOutputVerify } from './commands/cloudflare-output-verify';
 import {
   AD_HOC_TOOLING_COMMANDS,
-  type CommandContext,
   printHelp,
   runTemplateBackedToolingCommand,
 } from './commands/context';

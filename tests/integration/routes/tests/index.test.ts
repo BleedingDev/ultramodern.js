@@ -186,7 +186,7 @@ const supportLoader = async (page: Page, errors: string[], appPort: number) => {
 
 const supportThrowError = async (
   page: Page,
-  errors: string[],
+  _errors: string[],
   appPort: number,
   expectedMessage = "can't found the user",
 ) => {
@@ -229,7 +229,7 @@ const supportThrowResponse = async (
 
 const supportReturnResponse = async (
   page: Page,
-  errors: string[],
+  _errors: string[],
   appPort: number,
   code: number,
 ) => {
@@ -390,7 +390,7 @@ const hasHashCorrectly = async (appDir: string) => {
 
 const supportActionInCSR = async (
   page: Page,
-  errors: string[],
+  _errors: string[],
   appPort: number,
 ) => {
   await page.goto(`http://localhost:${appPort}/four/user/profile`, {
@@ -655,7 +655,7 @@ const supportMixedNestedRoutes = async (
 
 const supportConfigWithCompanionFiles = async (
   page: Page,
-  errors: string[],
+  _errors: string[],
   appPort: number,
   expectedErrorMessage = 'Product load error',
 ) => {
@@ -681,24 +681,6 @@ const supportConfigWithCompanionFiles = async (
   const errorText = await page.evaluate(el => el?.textContent, errorElm);
   expect(errorText?.includes('Product Error Boundary')).toBeTruthy();
   expect(errorText?.includes(expectedErrorMessage)).toBeTruthy();
-};
-
-const supportDeepFileRoutesManipulation = async (
-  page: Page,
-  errors: string[],
-  appPort: number,
-) => {
-  // Ensure that 'client-loader' route has been removed
-  const response = await page.goto(
-    `http://localhost:${appPort}/three/client-loader`,
-    {
-      waitUntil: ['domcontentloaded'],
-    },
-  );
-  // After removal, it should be 404 or unmatched.
-  // Since catch-all may exist, ensure no client-loader content is shown.
-  const clientLoaderLayout = await page.$('.client-loader-layout');
-  expect(clientLoaderLayout).toBeNull();
 };
 
 describe('dev with rspack', () => {

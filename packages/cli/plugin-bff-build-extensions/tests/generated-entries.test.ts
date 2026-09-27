@@ -1,5 +1,4 @@
 import fs from 'node:fs';
-import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -7,15 +6,12 @@ import type { BffGeneratedEntries, BffGeneration } from '@modern-js/app-tools';
 import { bffPlugin as nativeBffPlugin } from '../../plugin-bff/src/cli';
 import { createBffGenerator } from '../../plugin-bff/src/cli/generator';
 import type { APILoaderOptions } from '../../plugin-bff/src/utils/clientGenerator';
-import writeRuntime from '../../plugin-bff/src/utils/runtimeGenerator';
 import { createProducerClient } from '../../plugin-bff-extensions/src/cross-project-policy/producer-runtime';
 import {
   type BffGenerationMetadata,
   registerBffClientArtifacts,
 } from '../src/client-artifacts';
 import { registerBffGeneratedEntries } from '../src/generated-entries';
-
-const require = createRequire(import.meta.url);
 
 async function render(
   appDirectory: string,
@@ -81,31 +77,6 @@ async function clientGenerator(
   registerBffClientArtifacts(api as never, metadata);
   registerBffGeneratedEntries(api as never, metadata);
   await createBffGenerator(api as never).generate();
-}
-
-async function runtimeGenerator(options: {
-  runtime: string;
-  appDirectory: string;
-  relativeDistPath: string;
-}) {
-  const entries = await render(
-    options.appDirectory,
-    'commonjs',
-    options.runtime,
-  );
-  await writeRuntime(options, entries.runtime);
-  // Use the actual installed lower package, keeping generated imports intact.
-  const target = path.join(
-    options.appDirectory,
-    options.relativeDistPath,
-    'node_modules/@modern-js/plugin-bff-extensions',
-  );
-  await fs.promises.mkdir(path.dirname(target), { recursive: true });
-  await fs.promises.symlink(
-    path.resolve(__dirname, '../../plugin-bff-extensions'),
-    target,
-    process.platform === 'win32' ? 'junction' : 'dir',
-  );
 }
 
 describe('fork producer generated entries', () => {

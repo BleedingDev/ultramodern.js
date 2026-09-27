@@ -1,4 +1,3 @@
-import { WORKSPACE_PACKAGE_VERSION } from '../ultramodern-package-source';
 import {
   packageName,
   toCamelCase,

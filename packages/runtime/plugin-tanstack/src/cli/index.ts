@@ -3,7 +3,6 @@ import path from 'node:path';
 import type {
   AppNormalizedConfig,
   AppTools,
-  AppToolsContext,
   CliPlugin,
 } from '@modern-js/app-tools';
 import type { CLIPluginAPI } from '@modern-js/plugin';
@@ -15,7 +14,6 @@ import type {
 } from '@modern-js/types';
 import {
   filterRoutesForServer,
-  fs,
   NESTED_ROUTE_SPEC_FILE,
 } from '@modern-js/utils';
 import { writeTanstackRouterTypesForEntries } from './artifacts';

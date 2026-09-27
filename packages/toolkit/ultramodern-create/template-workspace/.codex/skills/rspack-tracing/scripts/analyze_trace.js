@@ -48,7 +48,7 @@ try {
     .map(line => {
       try {
         return JSON.parse(line);
-      } catch (err) {
+      } catch {
         return null;
       }
     })

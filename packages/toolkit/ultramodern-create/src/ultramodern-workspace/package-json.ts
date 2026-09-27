@@ -8,7 +8,6 @@ import {
   remoteDependencyAlias,
   resolveApiProtocol,
   resolveRemoteRefs,
-  sharedPackages,
   shellApp,
   verticalApiApps,
   zephyrRemoteDependency,

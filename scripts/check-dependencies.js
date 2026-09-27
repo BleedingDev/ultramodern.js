@@ -9,7 +9,7 @@ console.log(`> ${command}`);
 
 try {
   require('child_process').execSync(command, { stdio: 'inherit' });
-} catch (e) {
+} catch {
   // eslint-disable-next-line no-process-exit
   process.exit(1);
 }

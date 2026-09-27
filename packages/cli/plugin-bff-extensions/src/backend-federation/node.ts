@@ -3,7 +3,6 @@ import { evaluateEffectBackendFederationCommonJs } from './node-evaluator';
 import type {
   BackendFederatedEffectApiModule,
   BackendFederationIdentityLoadOptions,
-  BackendFederationLoadOptions,
 } from './types';
 
 export function loadBackendFederatedEffectApi(

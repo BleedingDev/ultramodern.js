@@ -10,7 +10,6 @@ import type {
   EffectBffDefinition,
   EffectBffHandlerFactory,
   EffectBffRuntime,
-  EffectDataPlatformValidationOptions,
   EffectRpcBffDefinition,
   EffectRpcBffHandlerFactory,
   EffectRpcRuntimeLayer,

@@ -219,9 +219,6 @@ export function createWorkspaceRootScriptPlan(
   } = {},
 ): WorkspaceRootScriptPlan {
   const hasRemotes = remotes.length > 0;
-  // Backend gates key off API surfaces, not vertical count (ui-only /
-  // horizontal-remote workspaces deploy without a backend proof).
-  const hasBackendSurface = remotes.some(appHasApi);
   // Enumerate configured shells (G28) instead of hard-coding the single
   // ./apps/shell-super-app. The default is the primary shell alone, so a
   // single-shell workspace produces byte-identical default scripts.

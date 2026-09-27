@@ -1207,7 +1207,7 @@ const buildOwnershipMap = ({
   comparisonRef,
   pathspec,
 }) => {
-  const { auditedSet, upstreamSet, ownership } = buildProvenanceOwnership({
+  const { upstreamSet, ownership } = buildProvenanceOwnership({
     rootDir,
     auditedBaseRef,
     upstreamRef,

@@ -3,7 +3,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runAgentsMd } from './agents-md';
 import {
-  CODESMITH_OVERLAY_FLAG,
   collectPositionalArgs,
   DRY_RUN_FLAG,
   detectApiProtocolFlag,

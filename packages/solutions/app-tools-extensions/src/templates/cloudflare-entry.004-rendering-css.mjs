@@ -1138,7 +1138,7 @@ async function withRouteCssLinks(
     seenCssHrefs.add(entry.preloadHref);
     return true;
   });
-  for (const { href, preloadHref } of uniqueCssEntries) {
+  for (const { preloadHref } of uniqueCssEntries) {
     const preloadUrl = new URL(preloadHref);
     const preloadReference =
       preloadUrl.origin === requestOrigin

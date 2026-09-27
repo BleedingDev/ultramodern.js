@@ -8,11 +8,7 @@ import {
   resolveVerticalCliInput,
 } from '../../../src/cli/flags';
 import { shellApp } from '../../../src/ultramodern-workspace/descriptors';
-import {
-  GENERATED_TOOLING_COMMANDS,
-  generatedToolingCommandList,
-  selectGeneratedToolingCommands,
-} from '../../../src/ultramodern-workspace/tooling-command-catalog';
+import { selectGeneratedToolingCommands } from '../../../src/ultramodern-workspace/tooling-command-catalog';
 import {
   createWorkspaceAppPackageScripts,
   createWorkspaceRootPackageScripts,

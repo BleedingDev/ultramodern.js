@@ -1,4 +1,4 @@
-import React, { act, Suspense, startTransition } from 'react';
+import { act, Suspense, startTransition } from 'react';
 import { createRoot } from 'react-dom/client';
 import { useLatestLanguageSync } from '../src/language-sync/react';
 

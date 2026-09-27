@@ -176,20 +176,8 @@ export function formatTsJsonValue(value: JsonValue, indent: number): string {
   );
 }
 
-function formatIntegerCodeLiteral(value: number): string {
-  return String(value).replace(/\B(?=(\d{3})+(?!\d))/gu, '_');
-}
-
 function createPublicWebsiteQualityGateContract(): JsonValue {
   return PUBLIC_WEBSITE_POLICY.qualityGates;
-}
-
-function createPublicWebsiteBudgetFallback(
-  budgetName: keyof (typeof PUBLIC_WEBSITE_POLICY)['qualityGates']['budgets'],
-): string {
-  return formatIntegerCodeLiteral(
-    PUBLIC_WEBSITE_POLICY.qualityGates.budgets[budgetName],
-  );
 }
 
 export function createPublicHeadRobotsPolicy() {

@@ -31,7 +31,6 @@ import {
 } from '../published-create-proof/acceptance-profile.mjs';
 import { writeJsonFile } from '../published-create-proof/constants.mjs';
 import {
-  assertBootstrapReleaseAgePolicy,
   createPnpmDlxArgs,
   resolveCreatePackage,
 } from '../published-create-proof/package-cohort.mjs';

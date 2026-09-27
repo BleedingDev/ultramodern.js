@@ -1,5 +1,4 @@
 import loadable from '@modern-js/runtime/loadable';
-import React from 'react';
 
 const MyComponent = loadable(() => import('../components/MyComponent'), {});
 

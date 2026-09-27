@@ -10,7 +10,6 @@ import {
   createBackendFederationName,
   createCloudflarePublicUrlEnv,
   createCloudflareWorkerName,
-  createShellHost,
   distributedSsrExposes,
   distributedSsrFragmentRoute,
   resolveApiPrefix,

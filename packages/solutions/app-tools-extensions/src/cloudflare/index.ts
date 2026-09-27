@@ -27,9 +27,6 @@ import {
   ROUTE_SPEC_FILE,
   ROUTE_SPEC_OUTPUT,
   WORKER_BUNDLE_DIRECTORY,
-  WORKER_ENTRY,
-  WORKER_MANIFEST,
-  WRANGLER_CONFIG_FILE,
 } from './constants';
 import {
   resolveTopologyDeliveryUnit,

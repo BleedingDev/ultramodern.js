@@ -1,10 +1,7 @@
 import fs from 'node:fs';
-import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { loadEffectSourceModule } from '../src/effect-source-loader/loader';
-
-const require = createRequire(path.resolve(__dirname, '../package.json'));
 
 const writeFile = async (filename: string, source: string) => {
   await fs.promises.mkdir(path.dirname(filename), { recursive: true });
@@ -32,12 +29,6 @@ const symlinkDir = async (target: string, linkPath: string) => {
     process.platform === 'win32' ? 'junction' : 'dir',
   );
 };
-
-const linkFixturePackage = (appDir: string, packageName: string) =>
-  symlinkDir(
-    path.dirname(require.resolve(`${packageName}/package.json`)),
-    path.join(appDir, 'node_modules', packageName),
-  );
 
 const writeEsmPackage = async (dir: string, name: string, index: string) => {
   await writeFile(

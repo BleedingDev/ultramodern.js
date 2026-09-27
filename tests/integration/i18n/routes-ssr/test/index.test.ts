@@ -55,7 +55,7 @@ describe('router-ssr-i18n', () => {
           localStorage.clear();
         }
       });
-    } catch (error) {
+    } catch {
       // Ignore SecurityError if page is not loaded yet
     }
     // Reset header to English to ensure clean state
@@ -147,7 +147,7 @@ describe('router-ssr-i18n', () => {
           localStorage.clear();
         }
       });
-    } catch (error) {
+    } catch {
       // Ignore SecurityError if page is not loaded yet
     }
     const cookies = await page.cookies();

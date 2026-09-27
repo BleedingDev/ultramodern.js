@@ -92,7 +92,7 @@ export const toOrigin = (value?: string) => {
   }
   try {
     return new URL(value).origin;
-  } catch (error) {
+  } catch {
     return undefined;
   }
 };

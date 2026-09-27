@@ -133,7 +133,6 @@ async function createEvidenceFixture() {
   const acceptanceRelease = releaseManifestApi.readReleaseManifest({
     manifestPath,
   });
-  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
   const manifestSha256 = acceptanceRelease.manifestSha256;
   const createReceipt = async (mode, targetPath, evidencePath) => {
     const receipt = receiptApi.createAcceptanceReceipt({

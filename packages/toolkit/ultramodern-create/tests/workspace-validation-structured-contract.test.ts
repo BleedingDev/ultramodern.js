@@ -262,7 +262,7 @@ test('missing build stamp fails before installed dependency checks', () => {
 });
 
 test('missing authored Cloudflare security fails validation', () => {
-  const { root, contract, write, app } = fixture();
+  const { root, contract, write } = fixture();
   try {
     const topologyPath = path.join(root, 'topology/reference-topology.json');
     const topology = JSON.parse(fs.readFileSync(topologyPath, 'utf8'));

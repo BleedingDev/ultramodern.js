@@ -131,7 +131,7 @@ const shouldRetry = (
   if (typeof retryOptions?.shouldRetry === 'function') {
     try {
       return retryOptions.shouldRetry(context);
-    } catch (error) {
+    } catch {
       return false;
     }
   }
@@ -176,7 +176,7 @@ const emitDegradedEvent = (
 
   try {
     transport.onDegraded(event);
-  } catch (error) {
+  } catch {
     // best-effort telemetry only
   }
 };
