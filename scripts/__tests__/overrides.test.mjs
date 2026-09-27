@@ -4,10 +4,15 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import { parse } from 'yaml';
+
 import {
+  findForcedMajors,
   findOverrideViolations,
+  findUnscopedOverrides,
   parseOverrideKey,
   readImporterNames,
+  readInstalledManifest,
 } from '../check-overrides.mjs';
 
 const repoRoot = path.resolve(
@@ -26,6 +31,107 @@ test('workspace lockfile has only live, honoured overrides', () => {
       readImporterNames(lockfileText, repoRoot),
     ),
     [],
+  );
+});
+
+test('workspace overrides stay inside the majors their dependents declare', () => {
+  const lockfileText = readFileSync(
+    path.join(repoRoot, 'pnpm-lock.yaml'),
+    'utf8',
+  );
+  assert.deepEqual(findUnscopedOverrides(parse(lockfileText).overrides), []);
+  assert.deepEqual(
+    findForcedMajors(lockfileText, readInstalledManifest(repoRoot)),
+    [],
+  );
+});
+
+test('unranged and cross-major override selectors fail', () => {
+  assert.deepEqual(
+    findUnscopedOverrides({
+      diff: '>=9.0.0',
+      'uuid@>=13.0.0 <13.0.1': '14.0.2',
+      'picomatch@<3': '2.3.2',
+      'diff@>=4.0.0 <4.0.4': '4.0.4',
+      'minimatch@3>brace-expansion': '1.1.18',
+      'nx>brace-expansion': '-',
+      'left-pad': 'npm:pad-left@1.0.0',
+    }),
+    [
+      "'diff': an unranged selector forces every diff to >=9.0.0, across majors. " +
+        "Write one 'diff@>=<major>.0.0 <<fixed>>' key per affected major.",
+      "'uuid@>=13.0.0 <13.0.1': 14.0.2 is outside ^13.0.0, the major this selector replaces. " +
+        'Pin a fixed release inside that major, or delete the override.',
+      "'picomatch@<3': the selector spans more than one major. Write one key per affected major.",
+    ],
+  );
+});
+
+// Shape of the lockfile when `diff: '>=9.0.0'` forced ts-node's diff@^4.0.1
+// onto diff 9, while ws stayed inside the major of its dependents.
+const crossMajorLockfile = `
+lockfileVersion: '9.0'
+overrides:
+  diff: '>=9.0.0'
+  ws@>=8.0.0 <8.21.3: 8.21.3
+importers:
+  tests:
+    devDependencies:
+      diff:
+        specifier: ^8.0.0
+        version: 9.0.0
+packages:
+  diff@9.0.0: {}
+  fsevents@2.3.3: {}
+  miniflare@5.0.0: {}
+  ts-node@10.9.2: {}
+  ws@8.21.3: {}
+snapshots:
+  diff@9.0.0: {}
+  fsevents@2.3.3:
+    optional: true
+    dependencies:
+      diff: 9.0.0
+  miniflare@5.0.0:
+    dependencies:
+      ws: 8.21.3
+  ts-node@10.9.2(@types/node@26.6.2):
+    dependencies:
+      diff: 9.0.0
+  ws@8.21.3: {}
+`;
+
+const manifests = {
+  'miniflare@5.0.0': { dependencies: { ws: '8.21.0' } },
+  'ts-node@10.9.2': { dependencies: { diff: '^4.0.1' } },
+};
+const readManifest = (name, version) => manifests[`${name}@${version}`];
+
+test('a dependent forced across a major fails; a patch inside its major passes', () => {
+  assert.deepEqual(findForcedMajors(crossMajorLockfile, readManifest), [
+    'tests declares diff@^8.0.0 but resolves diff@9.0.0, another major. ' +
+      'Scope the diff override to the major it fixes, or drop tests.',
+    'ts-node@10.9.2 declares diff@^4.0.1 but resolves diff@9.0.0, another major. ' +
+      'Scope the diff override to the major it fixes, or drop ts-node@10.9.2.',
+  ]);
+  const scoped = crossMajorLockfile
+    .replace("diff: '>=9.0.0'", 'diff@>=4.0.0 <4.0.4: 4.0.4')
+    .replace('specifier: ^8.0.0', 'specifier: ^9.0.0')
+    .replace(
+      'ts-node@10.9.2(@types/node@26.6.2):\n    dependencies:\n      diff: 9.0.0',
+      'ts-node@10.9.2(@types/node@26.6.2):\n    dependencies:\n      diff: 4.0.4',
+    );
+  assert.deepEqual(findForcedMajors(scoped, readManifest), []);
+});
+
+test('a dependent that is not installed fails unless it is optional', () => {
+  assert.deepEqual(
+    findForcedMajors(crossMajorLockfile, (name, version) =>
+      name === 'miniflare' ? undefined : readManifest(name, version),
+    ).filter(line => line.startsWith('miniflare')),
+    [
+      'miniflare@5.0.0 is not installed, so its declared ranges cannot be checked. Run pnpm install.',
+    ],
   );
 });
 

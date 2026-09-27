@@ -10,8 +10,12 @@
 //   - a parent selector naming a workspace importer, which overrides that
 //     package's own package.json instead of a third-party dependent;
 //   - a key whose target (or parent) resolves nowhere in the lockfile;
-//   - a resolution that still sits inside a range the override should close.
-import { readFileSync } from 'node:fs';
+//   - a resolution that still sits inside a range the override should close;
+//   - a version override whose selector is unranged or spans majors, or whose
+//     value leaves the major its selector names;
+//   - a dependent whose installed package.json declares a range in another
+//     major than the version an override forces on it.
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -292,6 +296,159 @@ export function findOverrideViolations(lockfileText, importerNames) {
   return violations;
 }
 
+// `^<floor>`: the versions semver-compatible with the lowest one in `range`.
+function majorOf(range) {
+  const floor = semver.minVersion(range);
+  return floor ? `^${floor.version}` : undefined;
+}
+
+/**
+ * A version override has to stay inside the major it fixes: an unranged or
+ * cross-major selector hands every dependent a release it never declared.
+ *
+ * @param {Record<string, unknown>} overrides pnpm-lock.yaml `overrides`
+ * @returns {string[]} violations, one line each
+ */
+export function findUnscopedOverrides(overrides) {
+  const violations = [];
+  for (const [key, rawValue] of Object.entries(overrides ?? {})) {
+    const value = String(rawValue);
+    // Removals, aliases and references replace the package, not its version.
+    if (!semver.valid(value) && !semver.validRange(value)) continue;
+    const { parent, target } = parseOverrideKey(key);
+    if (target.range === undefined) {
+      if (parent?.range) continue;
+      violations.push(
+        `'${key}': an unranged selector forces every ${target.name} to ${value}, across majors. ` +
+          `Write one '${target.name}@>=<major>.0.0 <<fixed>>' key per affected major.`,
+      );
+      continue;
+    }
+    const major = semver.validRange(target.range) && majorOf(target.range);
+    if (!major || !semver.subset(target.range, major)) {
+      violations.push(
+        `'${key}': the selector spans more than one major. Write one key per affected major.`,
+      );
+      continue;
+    }
+    const stays = semver.valid(value)
+      ? semver.satisfies(value, major)
+      : semver.subset(value, major);
+    if (!stays) {
+      violations.push(
+        `'${key}': ${value} is outside ${major}, the major this selector replaces. ` +
+          'Pin a fixed release inside that major, or delete the override.',
+      );
+    }
+  }
+  return violations;
+}
+
+/**
+ * Checks each override target edge against the range its dependent declares.
+ * The lockfile keeps only resolved versions, so declared ranges come from the
+ * installed package.json.
+ *
+ * @param {string} lockfileText pnpm-lock.yaml contents
+ * @param {(name: string, version: string) => object | undefined} readManifest
+ *   installed package.json of a registry package
+ * @returns {string[]} violations, one line each
+ */
+export function findForcedMajors(lockfileText, readManifest) {
+  const lockfile = parse(lockfileText);
+  const targets = new Set(
+    Object.keys(lockfile.overrides ?? {}).map(
+      key => parseOverrideKey(key).target.name,
+    ),
+  );
+  const violations = [];
+  const judge = (dependent, name, declared, edge) => {
+    const resolved = String(edge).replace(/\(.*$/, '');
+    if (
+      !semver.valid(resolved) ||
+      !semver.validRange(declared) ||
+      semver.satisfies(resolved, declared) ||
+      semver.satisfies(resolved, majorOf(declared))
+    ) {
+      return;
+    }
+    violations.push(
+      `${dependent} declares ${name}@${declared} but resolves ${name}@${resolved}, another major. ` +
+        `Scope the ${name} override to the major it fixes, or drop ${dependent}.`,
+    );
+  };
+
+  for (const [importer, manifest] of Object.entries(lockfile.importers ?? {})) {
+    for (const field of [
+      'dependencies',
+      'devDependencies',
+      'optionalDependencies',
+    ]) {
+      for (const [name, entry] of Object.entries(manifest?.[field] ?? {})) {
+        if (targets.has(name)) {
+          judge(importer, name, String(entry.specifier), entry.version);
+        }
+      }
+    }
+  }
+
+  const seen = new Set();
+  for (const [key, snapshot] of Object.entries(lockfile.snapshots ?? {})) {
+    const edges = {
+      ...snapshot?.dependencies,
+      ...snapshot?.optionalDependencies,
+    };
+    const overridden = Object.keys(edges).filter(name => targets.has(name));
+    if (overridden.length === 0) continue;
+    const { name, version } = parsePackageKey(key);
+    const manifest = readManifest(name, version);
+    if (!manifest) {
+      // Optional snapshots for other platforms are not installed.
+      if (!snapshot.optional) {
+        violations.push(
+          `${name}@${version} is not installed, so its declared ranges cannot be checked. Run pnpm install.`,
+        );
+      }
+      continue;
+    }
+    for (const target of overridden) {
+      const declared =
+        manifest.dependencies?.[target] ??
+        manifest.optionalDependencies?.[target] ??
+        manifest.peerDependencies?.[target];
+      const id = `${name}@${version}>${target}@${edges[target]}`;
+      if (declared === undefined || seen.has(id)) continue;
+      seen.add(id);
+      judge(`${name}@${version}`, target, declared, edges[target]);
+    }
+  }
+  return violations;
+}
+
+// Reads registry packages from pnpm's virtual store, whose directory names
+// are `<name with / as +>@<version>` plus an optional `_<peers>` suffix.
+export function readInstalledManifest(root = repoRoot) {
+  const store = path.join(root, 'node_modules', '.pnpm');
+  const entries = readdirSync(store);
+  return (name, version) => {
+    const prefix = `${name.replace('/', '+')}@${version}`;
+    const entry = entries.find(
+      dir => dir === prefix || dir.startsWith(`${prefix}_`),
+    );
+    if (!entry) return undefined;
+    try {
+      return JSON.parse(
+        readFileSync(
+          path.join(store, entry, 'node_modules', name, 'package.json'),
+          'utf8',
+        ),
+      );
+    } catch {
+      return undefined;
+    }
+  };
+}
+
 export function readImporterNames(lockfileText, root = repoRoot) {
   const names = new Map();
   for (const importer of Object.keys(parse(lockfileText).importers ?? {})) {
@@ -308,10 +465,11 @@ function main() {
     path.join(repoRoot, 'pnpm-lock.yaml'),
     'utf8',
   );
-  const violations = findOverrideViolations(
-    lockfileText,
-    readImporterNames(lockfileText),
-  );
+  const violations = [
+    ...findOverrideViolations(lockfileText, readImporterNames(lockfileText)),
+    ...findUnscopedOverrides(parse(lockfileText).overrides),
+    ...findForcedMajors(lockfileText, readInstalledManifest()),
+  ];
   if (violations.length > 0) {
     console.error(
       `check-overrides: ${violations.length} dead or wrong override(s) in pnpm-workspace.yaml:\n` +
@@ -319,7 +477,9 @@ function main() {
     );
     process.exit(1);
   }
-  console.log('check-overrides: every override is live and honoured.');
+  console.log(
+    'check-overrides: every override is live, honoured and scoped to its major.',
+  );
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
