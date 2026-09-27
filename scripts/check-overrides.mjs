@@ -71,13 +71,13 @@ function childEdge(snapshot, name) {
   );
 }
 
-function findRemovalViolations(key, parent, target, snapshots) {
+function findRemovalViolations(key, parent, target, snapshots, importers) {
   const scope = parent
     ? snapshots.filter(
         entry =>
           entry.name === parent.name && inRange(entry.version, parent.range),
       )
-    : snapshots;
+    : [...importers, ...snapshots];
   if (parent && scope.length === 0) {
     return [
       `'${key}': nothing in the lockfile resolves ${parent.name}${parent.range ? `@${parent.range}` : ''}. Delete the override.`,
@@ -92,7 +92,7 @@ function findRemovalViolations(key, parent, target, snapshots) {
   });
   return kept.map(
     entry =>
-      `'${key}': ${entry.name}@${entry.version} still depends on ${target.name}, which this override removes. ` +
+      `'${key}': ${entry.version ? `${entry.name}@${entry.version}` : entry.name} still depends on ${target.name}, which this override removes. ` +
       'Run pnpm install so the lockfile picks up the override.',
   );
 }
@@ -115,6 +115,32 @@ export function findOverrideViolations(lockfileText, importerNames) {
       ...parsePackageKey(key),
       snapshot: snapshot ?? {},
     }),
+  );
+
+  // Workspace projects as edge holders: `version` is undefined, `name` is the
+  // importer path, and every dependency field counts as an edge.
+  const importers = Object.entries(lockfile.importers ?? {}).map(
+    ([importer, manifest]) => {
+      const dependencies = {};
+      for (const field of [
+        'dependencies',
+        'devDependencies',
+        'optionalDependencies',
+      ]) {
+        for (const [name, entry] of Object.entries(manifest?.[field] ?? {})) {
+          dependencies[name] = String(entry.version);
+        }
+      }
+      return { name: importer, version: undefined, snapshot: { dependencies } };
+    },
+  );
+  // Names used as dependency edges; an `npm:` alias override keeps its target
+  // only as an edge name, resolved under the aliased package's key.
+  const edgeNames = new Set(
+    [...importers, ...snapshots].flatMap(({ snapshot }) => [
+      ...Object.keys(snapshot.dependencies ?? {}),
+      ...Object.keys(snapshot.optionalDependencies ?? {}),
+    ]),
   );
 
   const violations = [];
@@ -141,12 +167,14 @@ export function findOverrideViolations(lockfileText, importerNames) {
 
     // `-` removes the dependency: honoured means the edge is gone.
     if (value === '-') {
-      violations.push(...findRemovalViolations(key, parent, target, snapshots));
+      violations.push(
+        ...findRemovalViolations(key, parent, target, snapshots, importers),
+      );
       continue;
     }
 
-    const targetVersions = resolved.get(target.name);
-    if (!targetVersions) {
+    const targetVersions = resolved.get(target.name) ?? new Set();
+    if (targetVersions.size === 0 && !edgeNames.has(target.name)) {
       violations.push(
         `'${key}': nothing in the lockfile resolves ${target.name}. Delete the override.`,
       );
