@@ -12,10 +12,7 @@ const test = require('node:test');
 
 const repoRoot = path.resolve(__dirname, '../../..');
 const cohortAliasConsumer = '@bleedingdev/modern-js-image';
-const imageSidecarRoots = [
-  'packages/sidecar/ipx',
-  'packages/sidecar/rsbuild-image-core',
-];
+const imageSidecarRoots = ['packages/sidecar/ipx'];
 
 const importPublication = () =>
   import('../lib/prepare-bleedingdev-packages/sidecar-publication.mjs');

@@ -67,8 +67,6 @@ const dependencyBlockNames = [
   'peerDependencies',
 ];
 
-const requiredImageDependencies = ['@rsbuild-image/core', 'ipx'];
-
 // Each recipe redirects its upstream name to its fork in cohort manifests.
 const correctedDependencyTargets = Object.freeze(
   Object.fromEntries(recipes.map(recipe => [recipe.upstream.name, recipe.fork.name])),
@@ -300,15 +298,6 @@ function collectSidecarPackages(
 
 function rewriteSidecarConsumerAliases(packageJson, sidecars) {
   const byName = new Map(sidecars.map(sidecar => [sidecar.name, sidecar]));
-  if (packageJson.name === '@bleedingdev/modern-js-image') {
-    for (const dependencyName of requiredImageDependencies) {
-      if (typeof packageJson.dependencies?.[dependencyName] !== 'string') {
-        throw new Error(
-          `Sidecar consumer ${String(packageJson.name)} must declare dependencies.${dependencyName} before release staging can redirect it`,
-        );
-      }
-    }
-  }
   for (const blockName of ['dependencies', 'devDependencies', 'optionalDependencies']) {
     const block = packageJson[blockName];
     if (!block || typeof block !== 'object' || Array.isArray(block)) {
@@ -399,7 +388,7 @@ function sidecarPublishOrder(sidecars) {
 }
 
 /**
- * Stage an image sidecar verbatim or reconstruct a recipe-only sidecar from its
+ * Stage the ipx sidecar verbatim or reconstruct a recipe-only sidecar from its
  * authenticated upstream artifact. Neither path applies cohort name/version
  * rewriting or consumer overrides.
  */
@@ -580,7 +569,7 @@ function packStagedSidecar(
 /**
  * Every hard-coded `npm:@bleedingdev/<name>@<version>` alias in the staged
  * cohort (notably @modern-js/image) and inside the sidecar manifests
- * themselves (rsbuild-image-core -> image-size) must name a sidecar that this
+ * themselves must name a sidecar that this
  * run actually stages, at exactly that version. The cohort collector forces
  * the cohort version onto package versions but never touches alias TARGETS,
  * so this is the only seam that keeps those literals honest.
