@@ -517,6 +517,15 @@ test('workflows reject runtime skip-CI gates', () => {
     ),
     [],
   );
+  assert.deepEqual(
+    skipErrors(
+      compliantWorkflow.replace(
+        '        run: echo ok',
+        `        id: inspect\n        run: git diff --name-only HEAD^\n      - name: Report\n        if: ${githubExpression("failure() && steps.inspect.outcome == 'failure'")}\n        run: echo ok`,
+      ),
+    ),
+    [],
+  );
 });
 
 test('trigger path filters must run an edit of the workflow itself', () => {
@@ -548,4 +557,13 @@ test('trigger path filters must run an edit of the workflow itself', () => {
   ]) {
     assert.equal(pathErrors(withFilter(filter)).length, 1, filter);
   }
+  assert.deepEqual(
+    validateWorkflowContent(
+      '.github/workflows/build+test.yml',
+      withFilter("    paths:\n      - '.github/workflows/build\\+test.yml'\n"),
+    ).filter(error =>
+      error.includes('a workflow edit has to run the checks it changes'),
+    ),
+    [],
+  );
 });
