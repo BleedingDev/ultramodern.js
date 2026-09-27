@@ -264,10 +264,24 @@ const resourceOf = (module: Rspack.Module | null) =>
 const describeModule = (module: Rspack.Module | null) =>
   module ? (resourceOf(module) ?? module.identifier()) : 'an entry';
 
+// The dependency type of a Module Federation container entry, the same in
+// Rspack and webpack.
+const CONTAINER_ENTRY_DEPENDENCY = 'container entry';
+
+const buildsContainer = (compilation: Rspack.Compilation) =>
+  [...compilation.entries.values()].some(({ dependencies }) =>
+    dependencies.some(({ type }) => type === CONTAINER_ENTRY_DEPENDENCY),
+  );
+
 /**
  * Fails a federation build that exposes modules when a framework context file
  * is imported other than through its shared request. That remote would run
  * with its own contexts and never see the host's request state.
+ *
+ * The check runs only when the compilation really builds a container: an
+ * environment may drop the federation plugin after the chain was configured
+ * (the Cloudflare workerd SSR graph does), and a graph with no container has
+ * no host to share contexts with.
  */
 export class FederationPrivateContextsPlugin {
   constructor(private readonly packages: FrameworkSharedPackage[]) {}
@@ -286,6 +300,7 @@ export class FederationPrivateContextsPlugin {
     };
     compiler.hooks.compilation.tap(name, compilation => {
       compilation.hooks.finishModules.tap(name, modules => {
+        if (!buildsContainer(compilation)) return;
         for (const module of modules) {
           const share = definitionOf(module);
           if (!share) continue;
