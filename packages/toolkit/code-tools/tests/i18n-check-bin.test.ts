@@ -65,6 +65,7 @@ test.each([
   [null, '" must be an object'],
   [{}, '.sourceRoots" must be a non-empty array'],
   [{ sourceRoots: 'apps' }, '.sourceRoots" must be a non-empty array'],
+  [{ sourceRoots: null }, '.sourceRoots" must be a non-empty array'],
   [{ sourceRoots: [] }, '.sourceRoots" must be a non-empty array'],
   [{ sourceRoots: ['missing'] }, '.sourceRoots" must be a non-empty array'],
   [{ sourceRoots: ['package.json'] }, '.sourceRoots" must be a non-empty'],
