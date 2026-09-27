@@ -94,6 +94,10 @@
         "./dist/types/effect/index.d.ts",
         "./src/effect/index.ts"
       ],
+      "context": [
+        "./dist/types/effect/context.d.ts",
+        "./src/effect/context.ts"
+      ],
       "effect-edge": [
         "./dist/types/effect/edge.d.ts",
         "./src/effect/edge.ts"
