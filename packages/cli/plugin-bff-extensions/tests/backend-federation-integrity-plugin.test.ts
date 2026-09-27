@@ -11,7 +11,9 @@ import {
   createBackendFederationLoadEntryPlugin,
   createBackendFederationRuntime,
 } from '../src/backend-federation';
+import { loadBackendFederatedEffectApi } from '../src/backend-federation/node';
 import { effectBffHostShared } from '../src/backend-federation/node-shared';
+import { loadBackendFederatedEffectApiFromManifest } from '../src/backend-federation-manifest/node';
 
 const remoteName = 'verticalIntegrityBackend';
 
@@ -221,5 +223,28 @@ describe('backend federation integrity plugin', () => {
         name: remoteName,
       }).runtime.loadRemote(`${remoteName}/effect-api`),
     ).rejects.toThrow(`${remoteName} uses unsupported entry ftp:`);
+  });
+
+  test('Node loaders reject a caller share that replaces the host registry', async () => {
+    const shared = {
+      [EFFECT_BFF_HANDLER_FACTORY_REGISTRY_SHARE]: {
+        version: '0.0.0',
+        lib: () => ({}),
+      },
+    };
+    const reserved = `Share ${EFFECT_BFF_HANDLER_FACTORY_REGISTRY_SHARE} is reserved`;
+    await expect(
+      loadBackendFederatedEffectApi({
+        shared,
+      } as unknown as Parameters<typeof loadBackendFederatedEffectApi>[0]),
+    ).rejects.toThrow(reserved);
+    await expect(
+      loadBackendFederatedEffectApiFromManifest({
+        hostName: 'integrityHost',
+        shared,
+      } as unknown as Parameters<
+        typeof loadBackendFederatedEffectApiFromManifest
+      >[0]),
+    ).rejects.toThrow(reserved);
   });
 });
