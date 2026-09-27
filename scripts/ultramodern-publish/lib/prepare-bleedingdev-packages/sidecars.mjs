@@ -37,19 +37,16 @@ import {
 import { verifySidecar } from '../../../ultramodern-supply/verify-sidecars.mjs';
 
 const { readJsonFile } = fsKit;
-const recipeSidecars = JSON.parse(
+const recipes = JSON.parse(
   fs.readFileSync(new URL('../../../ultramodern-supply/sidecars.json', import.meta.url), 'utf8'),
-).filter(recipe => recipe.artifacts.length === 1 && recipe.artifacts[0] === '*');
-const recipeByRoot = new Map(recipeSidecars.map(recipe => [
-  `packages/sidecar/${recipe.id}`,
-  recipe,
-]));
+);
+const recipeByRoot = new Map(
+  recipes
+    .filter(recipe => recipe.artifacts.length === 1 && recipe.artifacts[0] === '*')
+    .map(recipe => [`packages/sidecar/${recipe.id}`, recipe]),
+);
 
-const SIDECAR_PACKAGE_ROOTS = [
-  'packages/sidecar/ipx',
-  'packages/sidecar/rsbuild-image-core',
-  ...recipeSidecars.map(recipe => `packages/sidecar/${recipe.id}`),
-];
+const SIDECAR_PACKAGE_ROOTS = recipes.map(recipe => `packages/sidecar/${recipe.id}`);
 
 // Upstream CLI contracts that must survive republication verbatim.
 const sidecarBinNames = new Map([
@@ -70,34 +67,12 @@ const dependencyBlockNames = [
   'peerDependencies',
 ];
 
-const requiredImageDependencyTargets = Object.freeze({
-  '@rsbuild-image/core': '@bleedingdev/rsbuild-image-core',
-  ipx: '@bleedingdev/ipx',
-});
+const requiredImageDependencies = ['@rsbuild-image/core', 'ipx'];
 
-const correctedDependencyTargets = Object.freeze({
-  effect: '@bleedingdev/effect',
-  ...Object.fromEntries(
-    [
-      'bridge-react',
-      'cli',
-      'dts-plugin',
-      'enhanced',
-      'manifest',
-      'modern-js-v3',
-      'node',
-      'rsbuild-plugin',
-      'rspack',
-      'runtime',
-      'runtime-core',
-      'runtime-tools',
-      'webpack-bundler-runtime',
-    ].map(name => [
-      `@module-federation/${name}`,
-      `@bleedingdev/mf-${name}`,
-    ]),
-  ),
-});
+// Each recipe redirects its upstream name to its fork in cohort manifests.
+const correctedDependencyTargets = Object.freeze(
+  Object.fromEntries(recipes.map(recipe => [recipe.upstream.name, recipe.fork.name])),
+);
 
 const stagedDirectoryName = name => name.replaceAll('/', '__');
 
@@ -326,7 +301,7 @@ function collectSidecarPackages(
 function rewriteSidecarConsumerAliases(packageJson, sidecars) {
   const byName = new Map(sidecars.map(sidecar => [sidecar.name, sidecar]));
   if (packageJson.name === '@bleedingdev/modern-js-image') {
-    for (const dependencyName of Object.keys(requiredImageDependencyTargets)) {
+    for (const dependencyName of requiredImageDependencies) {
       if (typeof packageJson.dependencies?.[dependencyName] !== 'string') {
         throw new Error(
           `Sidecar consumer ${String(packageJson.name)} must declare dependencies.${dependencyName} before release staging can redirect it`,
@@ -340,9 +315,7 @@ function rewriteSidecarConsumerAliases(packageJson, sidecars) {
       continue;
     }
     for (const [dependencyName, sourceSpecifier] of Object.entries(block)) {
-      const targetName = packageJson.name === '@bleedingdev/modern-js-image'
-        ? requiredImageDependencyTargets[dependencyName] ?? correctedDependencyTargets[dependencyName]
-        : correctedDependencyTargets[dependencyName];
+      const targetName = correctedDependencyTargets[dependencyName];
       if (!targetName) continue;
       if (typeof sourceSpecifier !== 'string' || sourceSpecifier.length === 0) {
         throw new Error(`Sidecar consumer ${String(packageJson.name)} has invalid ${blockName}.${dependencyName}`);
