@@ -35,18 +35,21 @@
       "types": "./dist/types/index.d.ts",
       "modern:source": "./src/index.ts",
       "node": "./dist/esm-node/index.mjs",
+      "import": "./dist/esm/index.mjs",
       "default": "./dist/cjs/index.js"
     },
     "./effect": {
       "types": "./dist/types/effect/index.d.ts",
       "modern:source": "./src/effect/index.ts",
       "node": "./dist/esm-node/effect/index.mjs",
+      "import": "./dist/esm/effect/index.mjs",
       "default": "./dist/cjs/effect/index.js"
     },
     "./context": {
       "types": "./dist/types/effect/context.d.ts",
       "modern:source": "./src/effect/context.ts",
       "node": "./dist/esm-node/effect/context.mjs",
+      "import": "./dist/esm/effect/context.mjs",
       "default": "./dist/cjs/effect/context.js"
     },
     "./effect-edge": {
