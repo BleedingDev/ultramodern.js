@@ -291,6 +291,75 @@ export const runWorkspaceSourceCheck = ({
   return 0;
 };
 
-export const main = (): void => {
-  process.exitCode = runWorkspaceSourceCheck();
+const USAGE = `modern-i18n-check [--workspace-root <path>]
+Runs the UltraModern i18n and boundary source checks for a workspace.
+Workspace defaults to ULTRAMODERN_WORKSPACE_ROOT then cwd. Options come from
+package.json "modernjs.i18nCheck": { sourceRoots, locales, pluralCategories }.
+Exit codes: 0 valid, 1 source violation, 2 tool/configuration failure.`;
+
+const isStringArray = (value: unknown): value is string[] =>
+  Array.isArray(value) &&
+  value.every(entry => typeof entry === 'string' && entry.length > 0);
+
+/** Reads `modernjs.i18nCheck` from the workspace package.json. */
+const readWorkspaceCheckOptions = (
+  root: string,
+): WorkspaceSourceCheckOptions => {
+  const manifestPath = path.join(root, 'package.json');
+  const config = JSON.parse(readText(manifestPath)).modernjs?.i18nCheck ?? {};
+  const { sourceRoots, locales, pluralCategories } = config;
+  const invalid = (field: string, expected: string) =>
+    new Error(
+      `${manifestPath} "modernjs.i18nCheck${field}" must be ${expected}.`,
+    );
+  if (typeof config !== 'object' || Array.isArray(config)) {
+    throw invalid('', 'an object');
+  }
+  if (sourceRoots !== undefined && !isStringArray(sourceRoots)) {
+    throw invalid('.sourceRoots', 'an array of workspace-relative directories');
+  }
+  if (locales !== undefined && !isStringArray(locales)) {
+    throw invalid('.locales', 'an array of locale codes');
+  }
+  if (
+    pluralCategories !== undefined &&
+    (pluralCategories === null ||
+      typeof pluralCategories !== 'object' ||
+      !Object.values(pluralCategories).every(isStringArray))
+  ) {
+    throw invalid(
+      '.pluralCategories',
+      'an object of locale -> category arrays',
+    );
+  }
+  return { cwd: root, sourceRoots, locales, pluralCategories };
+};
+
+export const runWorkspaceSourceCheckCli = (
+  args: readonly string[] = process.argv.slice(2),
+): number => {
+  let workspaceRoot = process.env.ULTRAMODERN_WORKSPACE_ROOT ?? process.cwd();
+  for (let index = 0; index < args.length; index += 1) {
+    const argument = args[index];
+    if (argument === '--help' || argument === '-h') {
+      console.log(USAGE);
+      return 0;
+    }
+    const value = args[index + 1];
+    if (argument !== '--workspace-root' || !value || value.startsWith('--')) {
+      console.error(`Invalid argument: ${argument ?? ''}. Use --help.`);
+      return 2;
+    }
+    workspaceRoot = value;
+    index += 1;
+  }
+
+  let options: WorkspaceSourceCheckOptions;
+  try {
+    options = readWorkspaceCheckOptions(path.resolve(workspaceRoot));
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    return 2;
+  }
+  return runWorkspaceSourceCheck(options);
 };

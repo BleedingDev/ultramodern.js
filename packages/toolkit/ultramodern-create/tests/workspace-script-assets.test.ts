@@ -14,7 +14,6 @@ import { createWorkspace } from './helpers/workspace-kit';
 test('workspace scripts contain only application-owned behavior', () => {
   const artifacts = createWorkspaceScriptArtifacts();
   assert.deepEqual(artifacts.map(artifact => artifact.relativePath).sort(), [
-    'scripts/check-ultramodern-i18n-boundaries.mts',
     'scripts/setup-agent-reference-repos.mts',
     'scripts/ultramodern-performance-readiness.config.mjs',
   ]);

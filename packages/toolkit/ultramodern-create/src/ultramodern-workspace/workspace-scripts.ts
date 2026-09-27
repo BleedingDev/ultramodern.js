@@ -15,12 +15,6 @@ export interface WorkspaceScriptArtifact {
 export function createWorkspaceScriptArtifacts(): WorkspaceScriptArtifact[] {
   return [
     {
-      relativePath: 'scripts/check-ultramodern-i18n-boundaries.mts',
-      content: readFileTemplate(
-        'workspace-scripts/check-ultramodern-i18n-boundaries.mts',
-      ),
-    },
-    {
       relativePath: 'scripts/ultramodern-performance-readiness.config.mjs',
       content: readFileTemplate(
         'workspace-scripts/ultramodern-performance-readiness.config.mjs',

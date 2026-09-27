@@ -196,7 +196,7 @@ export function createRootPackageJson(
         'node ./scripts/setup-agent-reference-repos.mts --check',
       'api:check': 'modern-api-check',
       'api:check:files': 'modern-api-check-files',
-      'i18n:boundaries': 'node ./scripts/check-ultramodern-i18n-boundaries.mts',
+      'i18n:boundaries': 'modern-i18n-check',
       ...bridgeScripts,
       postinstall: GENERATED_POSTINSTALL_SCRIPT,
     },
