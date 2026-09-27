@@ -128,7 +128,8 @@ describe('@modern-js/bff-effect package surface', () => {
             setup(pluginBuild) {
               pluginBuild.onResolve(
                 { filter: /^[^./]/ },
-                ({ path: request }) =>
+                ({ kind, path: request }) =>
+                  kind === 'entry-point' ||
                   request === '@modern-js/bff-effect' ||
                   request.startsWith('@modern-js/bff-effect/')
                     ? undefined
@@ -147,9 +148,8 @@ describe('@modern-js/bff-effect package surface', () => {
           /[\\/]effect[\\/]context\.[cm]?js$/.test(input),
         ),
       ).toEqual([
-        path.join(
-          'node_modules/@modern-js/bff-effect/dist/esm/effect/context.mjs',
-        ),
+        // esbuild writes metafile paths with forward slashes on every platform.
+        'node_modules/@modern-js/bff-effect/dist/esm/effect/context.mjs',
       ]);
     } finally {
       rmSync(fixtureRoot, { force: true, recursive: true });
