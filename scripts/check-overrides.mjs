@@ -306,9 +306,13 @@ export function findOverrideViolations(lockfileText, importerNames) {
       }
     }
     for (const version of judged) {
-      const matches = semver.valid(version)
-        ? inRange(version, target.range)
-        : value.startsWith('npm:');
+      // An unranged selector matches any specifier, including git, file
+      // and alias edges.
+      const matches =
+        target.range === undefined ||
+        (semver.valid(version)
+          ? inRange(version, target.range)
+          : value.startsWith('npm:'));
       if (matches && !honours(version, value)) {
         violations.push(
           `'${key}': the lockfile still resolves ${target.name}@${version}, which this override should replace with ${value}. ` +

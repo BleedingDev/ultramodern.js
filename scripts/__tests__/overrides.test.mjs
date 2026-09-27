@@ -397,3 +397,19 @@ test('ranged selectors apply to peers whose range they intersect', () => {
     [],
   );
 });
+
+test('an unranged override judges git and file edges too', () => {
+  const lockfile = preFixLockfile
+    .replace(
+      /overrides:[\s\S]*?importers:/,
+      'overrides:\n  left-pad: 2.0.0\nimporters:',
+    )
+    .replace(
+      'nx@23.2.1:\n    dependencies:',
+      'nx@23.2.1:\n    dependencies:\n      left-pad: https://codeload.github.com/a/left-pad/tar.gz/abc',
+    );
+  assert.deepEqual(findOverrideViolations(lockfile, importerNames), [
+    "'left-pad': the lockfile still resolves left-pad@https://codeload.github.com/a/left-pad/tar.gz/abc, which this override should replace with 2.0.0. " +
+      'Run pnpm install, or fix the selector if pnpm does not match it.',
+  ]);
+});
