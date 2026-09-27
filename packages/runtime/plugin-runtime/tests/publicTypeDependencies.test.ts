@@ -6,6 +6,7 @@ const packageRoot = path.resolve(__dirname, '..');
 const manifest = JSON.parse(
   fs.readFileSync(path.join(packageRoot, 'package.json'), 'utf8'),
 ) as {
+  name: string;
   dependencies?: Record<string, string>;
   peerDependencies?: Record<string, string>;
 };
@@ -32,7 +33,9 @@ const collectFiles = (directory: string): string[] => {
   return files;
 };
 
+// The package reaches its own contexts through a self-reference.
 const declaredPackages = new Set([
+  manifest.name,
   ...Object.keys(manifest.dependencies ?? {}),
   ...Object.keys(manifest.peerDependencies ?? {}),
 ]);

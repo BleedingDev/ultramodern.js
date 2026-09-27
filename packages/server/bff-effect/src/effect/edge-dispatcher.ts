@@ -6,11 +6,11 @@ import {
 } from '@modern-js/server-runtime-extensions/bff-policy';
 import * as Effect from 'effect/Effect';
 import { toHeaderRecord } from '../headers';
+import { runWithEffectContext } from './context';
 import {
   type DispatchEffectBffRequestOptions,
   dispatchEffectBffRequestWithContext,
 } from './dispatch';
-import { runWithEffectContext } from './edge-context';
 import type {
   EffectBffOpenApiConfig,
   EffectDataPlatformValidationOptions,
@@ -89,7 +89,7 @@ export {
   runWithEffectContext,
   useEffectContext,
   useOperationContext,
-} from './edge-context';
+} from './context';
 export type {
   EffectApiClientFromApi,
   EffectBffDefinition,

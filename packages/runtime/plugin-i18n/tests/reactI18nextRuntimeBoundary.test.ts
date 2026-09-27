@@ -64,7 +64,7 @@ describe('react-i18next runtime boundary', () => {
     ).resolves.toBeDefined();
   });
 
-  test('shares Modern i18n context across independently bundled runtime copies', async () => {
+  test('independently bundled runtime copies share the contexts subpath', async () => {
     const tempDir = await mkdtemp(
       resolve(__dirname, '.modern-i18n-runtime-boundary-'),
     );
@@ -81,6 +81,9 @@ describe('react-i18next runtime boundary', () => {
             outfile,
             packages: 'external',
             platform: 'node',
+            // Resolve the contexts self-reference like an installed package,
+            // not through this package's tsconfig `paths`.
+            tsconfigRaw: {},
           });
           return import(pathToFileURL(outfile).href);
         }),
@@ -110,6 +113,9 @@ describe('react-i18next runtime boundary', () => {
       );
 
       expect(html).toBe('<span>cs</span>');
+      expect(
+        Object.getOwnPropertySymbols(globalThis).map(String),
+      ).not.toContainEqual(expect.stringContaining('@modern-js/plugin-i18n'));
     } finally {
       await rm(tempDir, { force: true, recursive: true });
     }

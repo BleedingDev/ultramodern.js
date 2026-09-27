@@ -1,10 +1,14 @@
 // @effect-diagnostics asyncFunction:off processEnv:off strictBooleanExpressions:off
+
+import {
+  getGlobalInternalRuntimeContext,
+  getInitialContext,
+  type TRuntimeContext,
+} from '@modern-js/runtime/context';
 import { SSR_HYDRATION_ID_PREFIX } from '@modern-js/utils/universal/constants';
 import { parseCookie } from 'cookie';
 import type React from 'react';
 import { createRoot } from 'react-dom/client';
-import { getGlobalInternalRuntimeContext } from '../context';
-import { getInitialContext, type TRuntimeContext } from '../context/runtime';
 import { wrapRuntimeContextProvider } from '../react/wrapper';
 import type { SSRContainer } from '../types';
 import { hydrateRoot, hydrateWithReact } from './hydrate';

@@ -1,7 +1,8 @@
+import { I18nNavigationContext } from '@modern-js/plugin-i18n/runtime/contexts';
 import { isBrowser, RuntimeContext } from '@modern-js/runtime';
 import { InternalRuntimeContext } from '@modern-js/runtime/context';
 import type React from 'react';
-import { createContext, useContext } from 'react';
+import { useContext } from 'react';
 
 interface I18nRouterLocation {
   pathname: string;
@@ -43,16 +44,6 @@ export interface I18nRouterAdapter {
     [key: string]: unknown;
   };
 }
-
-const navigationContextKey = Symbol.for(
-  '@modern-js/plugin-i18n/runtime/I18nNavigationContext',
-);
-// Only the React context identity is shared. Its values remain provider-owned.
-const contextStore = globalThis as typeof globalThis & {
-  [navigationContextKey]?: React.Context<I18nRouterAdapter | null>;
-};
-const I18nNavigationContext = (contextStore[navigationContextKey] ??=
-  createContext<I18nRouterAdapter | null>(null));
 
 export const I18nNavigationProvider = ({
   children,

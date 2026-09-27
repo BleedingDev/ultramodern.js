@@ -4,4 +4,4 @@ export {
   RuntimeContext,
   type TRuntimeContext,
   useRuntimeContext,
-} from './runtime';
+} from '@modern-js/runtime/context';

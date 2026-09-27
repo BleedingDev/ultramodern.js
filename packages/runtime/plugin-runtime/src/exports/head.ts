@@ -1,5 +1,6 @@
 // @effect-diagnostics strictBooleanExpressions:off
 'use client';
+import { RuntimeComponentResolverContext } from '@modern-js/runtime/context';
 import React from 'react';
 import {
   Helmet as AsyncHelmet,
@@ -12,7 +13,6 @@ import {
   type HelmetServerState,
   type HelmetTags,
 } from 'react-helmet-async';
-import { RuntimeComponentResolverContext } from '../core/context/runtime';
 
 export const Helmet = (props: React.PropsWithChildren<HelmetProps>) => {
   const resolveComponent = React.useContext(RuntimeComponentResolverContext);

@@ -53,6 +53,13 @@
       },
       "default": "./dist/esm/runtime/context.mjs"
     },
+    "./runtime/contexts": {
+      "types": "./dist/types/runtime/contexts.d.ts",
+      "node": {
+        "module": "./dist/esm/runtime/contexts.mjs"
+      },
+      "default": "./dist/esm/runtime/contexts.mjs"
+    },
     "./runtime/no-react-i18next": {
       "types": "./dist/types/runtime/no-react-i18next.d.ts",
       "node": {
@@ -102,6 +109,9 @@
       ],
       "runtime/consumer": [
         "./dist/types/runtime/context.d.ts"
+      ],
+      "runtime/contexts": [
+        "./dist/types/runtime/contexts.d.ts"
       ],
       "runtime/no-react-i18next": [
         "./dist/types/runtime/no-react-i18next.d.ts"

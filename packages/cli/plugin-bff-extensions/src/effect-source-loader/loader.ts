@@ -79,6 +79,9 @@ const nodeBuiltins = new Set([
   ...builtinModules.map(name => `node:${name}`),
 ]);
 const dependencyResolutionMarker = 'modern-js-effect-dependency-resolution';
+// The BFF server runs lambdas inside these packages' Effect context storage.
+// A bundled copy would own a second storage that the server never enters.
+const BFF_RUNTIME_PACKAGE = /^@modern-js\/(?:bff-effect|plugin-bff)(?:\/|$)/;
 
 async function isEsmOnlyFile(filename: string) {
   const extension = path.extname(filename).toLowerCase();
@@ -136,6 +139,9 @@ function externalizeInstalledDependencies(options: {
     name: 'modern-js-effect-installed-dependencies',
     setup(buildApi) {
       buildApi.onResolve({ filter: /.*/ }, async args => {
+        if (BFF_RUNTIME_PACKAGE.test(args.path)) {
+          return { external: true, path: args.path };
+        }
         if (
           !isBareSpecifier(args.path) ||
           nodeBuiltins.has(args.path) ||

@@ -31,20 +31,6 @@ export interface TRuntimeContext {
   [key: string]: unknown;
 }
 
-// Runtime subpaths can be bundled independently. Share Context identities in
-// the realm; React providers, not this registry, own their request values.
-function getRuntimeReactContext<T>(
-  kind: 'public' | 'internal' | 'component-resolver',
-  create: () => T,
-): T {
-  const key = Symbol.for(`@modern-js/runtime:react-context:v1:${kind}`);
-  const contexts = globalThis as typeof globalThis & {
-    [key: symbol]: unknown;
-  };
-  contexts[key] ??= create();
-  return contexts[key] as T;
-}
-
 /**
  * InternalRuntimeContext used internally and by plugins
  */
@@ -59,18 +45,15 @@ export interface TInternalRuntimeContext extends TRuntimeContext {
   _internalRouterBaseName?: any;
 }
 
-export const InternalRuntimeContext = getRuntimeReactContext('internal', () =>
-  createContext<TInternalRuntimeContext>({} as TInternalRuntimeContext),
+export const InternalRuntimeContext = createContext<TInternalRuntimeContext>(
+  {} as TInternalRuntimeContext,
 );
 
-export const RuntimeContext = getRuntimeReactContext('public', () =>
-  createContext<TRuntimeContext>({} as any),
-);
+export const RuntimeContext = createContext<TRuntimeContext>({} as any);
 
-export const RuntimeComponentResolverContext = getRuntimeReactContext(
-  'component-resolver',
-  () => createContext<ResolveComponentFn | undefined>(undefined),
-);
+export const RuntimeComponentResolverContext = createContext<
+  ResolveComponentFn | undefined
+>(undefined);
 
 /**
  * deprecated, use RuntimeContext instead

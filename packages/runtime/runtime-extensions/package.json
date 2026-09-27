@@ -74,15 +74,6 @@
       },
       "default": "./dist/esm/localisedLoaderIdentity.mjs"
     },
-    "./react-context": {
-      "types": "./dist/types/reactContext.d.ts",
-      "modern:source": "./src/reactContext.ts",
-      "node": {
-        "import": "./dist/esm-node/reactContext.mjs",
-        "require": "./dist/cjs/reactContext.js"
-      },
-      "default": "./dist/esm/reactContext.mjs"
-    },
     "./context-extensions": {
       "types": "./dist/types/contextExtensions.d.ts",
       "modern:source": "./src/contextExtensions.ts",
@@ -242,10 +233,6 @@
       "localised-loader-identity": [
         "./dist/types/localisedLoaderIdentity.d.ts",
         "./src/localisedLoaderIdentity.ts"
-      ],
-      "react-context": [
-        "./dist/types/reactContext.d.ts",
-        "./src/reactContext.ts"
       ],
       "context-extensions": [
         "./dist/types/contextExtensions.d.ts",

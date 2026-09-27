@@ -1,14 +1,14 @@
 // @effect-diagnostics asyncFunction:off newPromise:off nodeBuiltinImport:off processEnv:off strictBooleanExpressions:off
 import type { StreamSSRExtender } from '@modern-js/plugin/runtime';
+import {
+  getGlobalEnableRsc,
+  getGlobalInternalRuntimeContext,
+} from '@modern-js/runtime/context';
 import { storage } from '@modern-js/runtime-utils/node';
 import { SSR_HYDRATION_ID_PREFIX } from '@modern-js/utils/universal/constants';
 import { finished, PassThrough, pipeline, Readable, Transform } from 'stream';
 import { ESCAPED_SHELL_STREAM_END_MARK } from '../../../common';
 import { RenderLevel } from '../../constants';
-import {
-  getGlobalEnableRsc,
-  getGlobalInternalRuntimeContext,
-} from '../../context';
 import { getMonitors } from '../../context/monitors';
 import { wrapRuntimeComponentResolver } from '../../react/wrapper';
 import { createReplaceHelemt, getHelmetData } from '../helmet';

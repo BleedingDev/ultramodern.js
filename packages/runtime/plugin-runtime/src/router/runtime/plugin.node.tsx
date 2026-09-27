@@ -1,5 +1,12 @@
 // @effect-diagnostics asyncFunction:off strictBooleanExpressions:off unnecessaryArrowBlock:off
 
+import {
+  getGlobalEnableRsc,
+  getGlobalLayoutApp,
+  getGlobalRoutes,
+  InternalRuntimeContext,
+  type ServerPayload,
+} from '@modern-js/runtime/context';
 import { merge } from '@modern-js/runtime-utils/merge';
 import {
   createRequestContext,
@@ -21,13 +28,6 @@ import { LOADER_REPORTER_NAME } from '@modern-js/utils/universal/constants';
 import type React from 'react';
 import { useContext } from 'react';
 import type { RuntimePlugin } from '../../common';
-import {
-  getGlobalEnableRsc,
-  getGlobalLayoutApp,
-  getGlobalRoutes,
-  InternalRuntimeContext,
-  type ServerPayload,
-} from '../../core/context';
 import type { TInternalRuntimeContext } from '../../core/context/runtime';
 import { setServerPayload } from '../../core/context/serverPayload/index.server';
 import DeferredDataScripts from './DeferredDataScripts.node';
