@@ -1,4 +1,4 @@
-// @effect-diagnostics strictBooleanExpressions:off
+// @effect-diagnostics globalConsole:off strictBooleanExpressions:off
 import {
   getGlobalEnableRsc,
   InternalRuntimeContext,

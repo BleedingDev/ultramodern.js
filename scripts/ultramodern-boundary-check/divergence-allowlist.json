@@ -4,9 +4,9 @@
   "upstreamRef": "2f4d9c4559e26209a0d77f02c6757f29fe3699a2",
   "pathspec": ["packages"],
   "migrationGoal": "Shrink-only budget of fork edits inside upstream-owned files. Every entry is debt: move it upstream or behind an extension point, then re-run --write-divergence-allowlist.",
-  "totalFiles": 828,
-  "totalHunks": 3130,
-  "totalChangedLines": 51538,
+  "totalFiles": 829,
+  "totalHunks": 3133,
+  "totalChangedLines": 51562,
   "files": [
     {
       "file": "packages/cli/adapter-rstest/package.json",
@@ -1561,7 +1561,7 @@
     {
       "file": "packages/runtime/plugin-runtime/src/core/browser/hydrate.tsx",
       "hunks": 10,
-      "changedLines": 68
+      "changedLines": 59
     },
     {
       "file": "packages/runtime/plugin-runtime/src/core/browser/index.tsx",
@@ -1961,7 +1961,7 @@
     {
       "file": "packages/runtime/plugin-runtime/src/router/runtime/PrefetchLink.tsx",
       "hunks": 37,
-      "changedLines": 238
+      "changedLines": 237
     },
     {
       "file": "packages/runtime/plugin-runtime/src/router/runtime/redirect.ts",
@@ -2021,7 +2021,7 @@
     {
       "file": "packages/runtime/plugin-runtime/tests/core/browser/hydrate.test.tsx",
       "hunks": 1,
-      "changedLines": 57
+      "changedLines": 87
     },
     {
       "file": "packages/runtime/plugin-runtime/tests/core/browser/stream-hydration.test.tsx",
@@ -2245,13 +2245,18 @@
     },
     {
       "file": "packages/runtime/plugin-runtime/tsconfig.json",
-      "hunks": 2,
-      "changedLines": 4
+      "hunks": 3,
+      "changedLines": 6
     },
     {
       "file": "packages/runtime/plugin-runtime/tsconfig.tsgo.json",
       "hunks": 1,
       "changedLines": 6
+    },
+    {
+      "file": "packages/runtime/render/bundler-globals.d.ts",
+      "hunks": 1,
+      "changedLines": 7
     },
     {
       "file": "packages/runtime/render/CHANGELOG.md",
@@ -2316,7 +2321,7 @@
     {
       "file": "packages/runtime/render/src/server/rsc/csr.shared.tsx",
       "hunks": 1,
-      "changedLines": 48
+      "changedLines": 41
     },
     {
       "file": "packages/runtime/render/src/server/rsc/csr.tsx",
@@ -2380,8 +2385,8 @@
     },
     {
       "file": "packages/runtime/render/tsconfig.json",
-      "hunks": 1,
-      "changedLines": 9
+      "hunks": 2,
+      "changedLines": 11
     },
     {
       "file": "packages/server/bff-core/CHANGELOG.md",
