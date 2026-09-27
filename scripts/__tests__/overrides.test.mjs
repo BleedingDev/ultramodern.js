@@ -168,3 +168,13 @@ test('a removal override passes once the edge is gone and fails while it stays',
     ],
   );
 });
+
+test('a removal override whose parent resolves nowhere fails', () => {
+  const lockfile = preFixLockfile.replace(
+    /overrides:[\s\S]*?importers:/,
+    "overrides:\n  old-parent>brace-expansion: '-'\nimporters:",
+  );
+  assert.deepEqual(findOverrideViolations(lockfile, importerNames), [
+    "'old-parent>brace-expansion': nothing in the lockfile resolves old-parent. Delete the override.",
+  ]);
+});
