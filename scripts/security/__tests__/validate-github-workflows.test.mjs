@@ -369,7 +369,8 @@ test('integration gates pull requests with one job per suite', () => {
       error =>
         error.includes('must trigger on') ||
         error.includes('must not filter paths') ||
-        error.includes('one suite per job'),
+        error.includes('one suite per job') ||
+        error.includes('has no step gated'),
     );
   assert.deepEqual(gateErrors(content), []);
   for (const trigger of ['pull_request', 'merge_group', 'workflow_call']) {
@@ -389,21 +390,27 @@ test('integration gates pull requests with one job per suite', () => {
     1,
   );
   // A second suite chained in the same job runs only if the first passed.
+  // Each mutation also leaves the rstest-adapter suite without its step.
   const adapterGate = "        if: matrix.suite == 'rstest-adapter'\n";
   assert.ok(content.includes(adapterGate));
-  assert.equal(gateErrors(content.replace(adapterGate, '')).length, 1);
-  assert.equal(
-    gateErrors(
-      content.replace(adapterGate, "        if: matrix.suite == 'framework'\n"),
-    ).length,
-    1,
+  for (const mutated of [
+    '',
+    "        if: matrix.suite == 'framework'\n",
+    "        if: matrix.suite == 'e2e'\n",
+  ]) {
+    const errors = gateErrors(content.replace(adapterGate, mutated));
+    assert.equal(errors.length, 2, mutated);
+    assert.ok(errors[0].includes('step Test - Adapter Rstest must run one'));
+    assert.ok(errors[1].includes('matrix suite rstest-adapter has no step'));
+  }
+  // A suite whose step was deleted would be a green job that tests nothing.
+  const utilsStep = content.slice(
+    content.indexOf('      - name: Test - Published package surfaces'),
   );
-  assert.equal(
-    gateErrors(
-      content.replace(adapterGate, "        if: matrix.suite == 'e2e'\n"),
-    ).length,
-    1,
-  );
+  assert.match(utilsStep, /run: pnpm run test:utils\n$/u);
+  assert.deepEqual(gateErrors(content.replace(utilsStep, '')), [
+    `${workflowPath} job integration matrix suite utils has no step gated by if: matrix.suite == 'utils', so that job would pass without testing anything`,
+  ]);
 });
 
 test('release gates reject node:test filter flags', () => {
