@@ -59,7 +59,7 @@ function createRuntime(
   const runtime = createBackendFederationRuntime({
     hostName: 'integrityHost',
     remote,
-    shared: effectBffHostShared,
+    shared: effectBffHostShared(),
     ...options,
     entryPolicy: {
       evaluateCommonJs: evaluator.evaluateCommonJs,
