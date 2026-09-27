@@ -34,6 +34,11 @@ test('a recipe consumed only through devDependencies or an unaliased edge is rej
   };
   assert.throws(
     () => assertRecipeConsumers([orphan], consumers),
+    /@bleedingdev\/modern-js-fixture dependencies\.orphan is 1\.0\.0; declare npm:@bleedingdev\/orphan@1\.0\.0 in source/,
+  );
+  delete manifest.dependencies;
+  assert.throws(
+    () => assertRecipeConsumers([orphan], consumers),
     /sidecar orphan has no runtime consumer; delete the recipe or wire a consumer/,
   );
   manifest.peerDependencies = { orphan: 'npm:@bleedingdev/orphan@1.0.0' };

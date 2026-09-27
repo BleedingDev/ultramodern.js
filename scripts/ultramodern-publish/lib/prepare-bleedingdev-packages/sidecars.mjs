@@ -14,7 +14,9 @@
 //     prereleases, so a prerelease sidecar would satisfy pnpm but fail every
 //     strict npm/yarn-classic consumer;
 //   * their dependency keys are retained - recipe-only packages are rebuilt
-//     from authenticated upstream tarballs, canonical patches and exact aliases.
+//     from authenticated upstream tarballs, canonical patches and exact aliases;
+//   * cohort packages declare the sidecar aliases in source; staging never
+//     rewrites a third-party dependency edge.
 import { execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -77,11 +79,6 @@ const dependencyBlockNames = [
   'optionalDependencies',
   'peerDependencies',
 ];
-
-// Each recipe redirects its upstream name to its fork in cohort manifests.
-const correctedDependencyTargets = Object.freeze(
-  Object.fromEntries(recipes.map(recipe => [recipe.upstream.name, recipe.fork.name])),
-);
 
 const stagedDirectoryName = name => name.replaceAll('/', '__');
 
@@ -302,32 +299,6 @@ function collectSidecarPackages(
   }
 
   return sidecars;
-}
-
-function rewriteSidecarConsumerAliases(packageJson, sidecars) {
-  const byName = new Map(sidecars.map(sidecar => [sidecar.name, sidecar]));
-  for (const blockName of ['dependencies', 'devDependencies', 'optionalDependencies']) {
-    const block = packageJson[blockName];
-    if (!block || typeof block !== 'object' || Array.isArray(block)) {
-      continue;
-    }
-    for (const [dependencyName, sourceSpecifier] of Object.entries(block)) {
-      const targetName = correctedDependencyTargets[dependencyName];
-      if (!targetName) continue;
-      if (typeof sourceSpecifier !== 'string' || sourceSpecifier.length === 0) {
-        throw new Error(`Sidecar consumer ${String(packageJson.name)} has invalid ${blockName}.${dependencyName}`);
-      }
-      const sidecar = byName.get(targetName);
-      if (!sidecar) {
-        throw new Error(
-          `Sidecar consumer ${String(packageJson.name)} cannot redirect ${blockName}.${dependencyName}; staged sidecar ${targetName} is missing`,
-        );
-      }
-      block[dependencyName] = `npm:${targetName}@${sidecar.version}`;
-    }
-  }
-
-  return packageJson;
 }
 
 function sidecarAliasEntries(packageJson) {
@@ -682,7 +653,6 @@ export {
   collectSidecarPackages,
   normalizeSidecarBin,
   packStagedSidecar,
-  rewriteSidecarConsumerAliases,
   sidecarAliasEntries,
   sidecarManifestSchema,
   sidecarManifestSchemaVersion,
