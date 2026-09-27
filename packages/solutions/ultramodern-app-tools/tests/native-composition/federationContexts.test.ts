@@ -62,6 +62,7 @@ const compile = (
   name: string,
   exposes: Record<string, string>,
   shared: object,
+  { federation = true }: { federation?: boolean } = {},
 ) =>
   new Promise<string[]>((resolve, reject) => {
     rspack({
@@ -69,7 +70,7 @@ const compile = (
       mode: 'development',
       devtool: false,
       target: 'async-node',
-      entry: {},
+      entry: federation ? {} : exposes,
       output: {
         path: path.join(root, 'dist', name),
         chunkLoading: 'async-node',
@@ -94,13 +95,17 @@ const compile = (
         ],
       },
       plugins: [
-        new rspack.container.ModuleFederationPlugin({
-          name,
-          filename: 'remoteEntry.js',
-          library: { type: 'commonjs-module' },
-          exposes,
-          shared: shared as never,
-        }),
+        ...(federation
+          ? [
+              new rspack.container.ModuleFederationPlugin({
+                name,
+                filename: 'remoteEntry.js',
+                library: { type: 'commonjs-module' },
+                exposes,
+                shared: shared as never,
+              }),
+            ]
+          : []),
         new FederationPrivateContextsPlugin(packages),
       ],
     }).run((error, stats) => {
@@ -168,5 +173,24 @@ describe('Module Federation runtime contexts', () => {
       ),
     ]);
     expect(errors[0]).toContain('Share the "@modern-js/runtime/" subpaths');
+  });
+
+  // The Cloudflare workerd SSR environment starts from the remote's chain,
+  // where the guard is registered, and then drops the federation plugin: it
+  // renders distributed fragments instead of loading remote code. That graph
+  // has no container and no host, so importing the contexts directly is
+  // correct there.
+  it('leaves a graph whose federation plugin was dropped alone', async () => {
+    expect(
+      await compile(
+        root,
+        'worker',
+        { './Widget': './Widget.tsx' },
+        {},
+        {
+          federation: false,
+        },
+      ),
+    ).toEqual([]);
   });
 });
