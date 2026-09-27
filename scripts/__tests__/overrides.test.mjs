@@ -196,7 +196,7 @@ test('a prerelease left under a range override fails', () => {
       /overrides:[\s\S]*?importers:/,
       "overrides:\n  react-router: '>=7.18.0'\nimporters:",
     )
-    .replaceAll('react-router@7.18.2', 'react-router@7.19.0-beta.1');
+    .replaceAll('7.18.2', '7.19.0-beta.1');
   assert.deepEqual(findOverrideViolations(lockfile, importerNames), [
     "'react-router': the lockfile still resolves react-router@7.19.0-beta.1, which this override should replace with >=7.18.0. " +
       'Run pnpm install, or fix the selector if pnpm does not match it.',
@@ -268,4 +268,12 @@ test('digit-leading package names parse and validate', () => {
     "'left-pad': the lockfile still resolves left-pad@2-decode@1.0.0, which this override should replace with npm:2-decode@1.2.3. " +
       'Run pnpm install, or fix the selector if pnpm does not match it.',
   ]);
+});
+
+test('a parent override takes precedence over a generic one', () => {
+  const lockfile = preFixLockfile.replace(
+    /overrides:[\s\S]*?importers:/,
+    'overrides:\n  brace-expansion: 5.0.9\n  minimatch@3>brace-expansion: 1.1.18\nimporters:',
+  );
+  assert.deepEqual(findOverrideViolations(lockfile, importerNames), []);
 });
