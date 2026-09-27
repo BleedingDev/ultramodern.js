@@ -301,6 +301,16 @@ const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) &&
   value.every(entry => typeof entry === 'string' && entry.length > 0);
 
+const isLocaleArray = (value: unknown): value is string[] => {
+  if (!isStringArray(value)) return false;
+  try {
+    Intl.getCanonicalLocales(value);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
@@ -321,8 +331,8 @@ const readWorkspaceCheckOptions = (
   if (sourceRoots !== undefined && !isStringArray(sourceRoots)) {
     throw invalid('.sourceRoots', 'an array of workspace-relative directories');
   }
-  if (locales !== undefined && !isStringArray(locales)) {
-    throw invalid('.locales', 'an array of locale codes');
+  if (locales !== undefined && !isLocaleArray(locales)) {
+    throw invalid('.locales', 'an array of BCP 47 locale codes');
   }
   if (
     pluralCategories !== undefined &&
