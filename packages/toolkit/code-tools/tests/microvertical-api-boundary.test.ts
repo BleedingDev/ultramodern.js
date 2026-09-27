@@ -253,7 +253,10 @@ test('contract rules receive the resolved re-export chain across packages', asyn
   );
   const real = fs.realpathSync(root);
   const hops = (chain: readonly ModuleGraphHop[]) =>
-    chain.map(hop => `${path.relative(real, hop.path)}#${hop.name}`);
+    chain.map(
+      hop =>
+        `${path.relative(real, hop.path).split(path.sep).join('/')}#${hop.name}`,
+    );
   const seen: string[][] = [];
   const traceSearchApi: MicroVerticalApiContractRule = ({
     appPath,
