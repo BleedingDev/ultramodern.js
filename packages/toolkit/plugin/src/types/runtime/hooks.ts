@@ -1,5 +1,3 @@
-import type { Monitors } from '@modern-js/types';
-
 export type HandleRequestConfig = Record<string, any>;
 export type ChunkSet = {
   renderLevel: any;
@@ -18,7 +16,10 @@ export type SSRRenderInfo<RuntimeContext = object> = {
   resource?: object;
   config?: object;
   /** Request-scoped monitors for diagnostics an extension detects mid-render. */
-  monitors: Pick<Monitors, 'error' | 'warn'>;
+  monitors: {
+    error(message: string, ...args: unknown[]): void;
+    warn(message: string, ...args: unknown[]): void;
+  };
 };
 
 export type SSRHeadPart = { toString(): string };
