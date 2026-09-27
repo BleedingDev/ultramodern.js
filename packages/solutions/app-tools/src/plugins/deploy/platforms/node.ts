@@ -1,5 +1,6 @@
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import { traceDeployFiles } from '@modern-js/app-tools-extensions/deploy-output/trace-files';
 import {
   chalk,
   fs as fse,
@@ -8,7 +9,6 @@ import {
 import { nodeDepEmit as handleDependencies } from 'ndepe';
 import { readTemplate, resolveESMDependency } from '../utils';
 import { generateHandler } from '../utils/generator';
-import { traceDeployFiles } from '../utils/traceFiles';
 import type { CreatePreset } from './platform';
 
 export const createNodePreset: CreatePreset = ({

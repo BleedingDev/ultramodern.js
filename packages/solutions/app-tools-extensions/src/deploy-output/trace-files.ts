@@ -49,7 +49,7 @@ export const createBuildHostIgnore = (base: string) => {
 
 /**
  * `traceFiles` implementation for ndepe's `nodeDepEmit`, tracing with the
- * `@vercel/nft` release app-tools depends on instead of the one ndepe pins.
+ * `@vercel/nft` release app-tools-extensions depends on instead of the one ndepe pins.
  */
 export const traceDeployFiles = ({
   entryFiles,

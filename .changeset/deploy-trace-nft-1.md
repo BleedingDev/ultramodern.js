@@ -1,5 +1,6 @@
 ---
 '@modern-js/app-tools': patch
+'@modern-js/app-tools-extensions': patch
 ---
 
 Trace Node, Netlify and Vercel deploy output with `@vercel/nft` 1.x instead

@@ -11,12 +11,12 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { nodeDepEmit } from 'ndepe';
-import { traceDeployFiles } from '../../../app-tools/src/plugins/deploy/utils/traceFiles';
 import {
   preserveNpmAliases,
   readPackageIdentity,
 } from '../../src/deploy-output/npmAliases';
 import { createDeployOutputAliasesPlugin } from '../../src/deploy-output/plugin';
+import { traceDeployFiles } from '../../src/deploy-output/trace-files';
 
 const writeJson = async (filePath: string, value: unknown) => {
   await mkdir(path.dirname(filePath), { recursive: true });
