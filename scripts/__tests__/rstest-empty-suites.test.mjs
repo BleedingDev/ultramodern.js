@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -12,7 +13,15 @@ const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   '../..',
 );
-const rstestBin = path.join(repoRoot, 'node_modules/.bin/rstest');
+// Run the bin script with node: the node_modules/.bin shim is not executable
+// by spawnSync on Windows.
+const rstestPackageJson = createRequire(import.meta.url).resolve(
+  '@rstest/core/package.json',
+);
+const rstestBin = path.join(
+  path.dirname(rstestPackageJson),
+  JSON.parse(readFileSync(rstestPackageJson, 'utf8')).bin.rstest,
+);
 
 const trackedFiles = execFileSync('git', ['ls-files'], {
   cwd: repoRoot,
@@ -52,8 +61,8 @@ test('every rstest config matches at least one test file', () => {
   assert.ok(configs.length > 0);
   const empty = configs.filter(config => {
     const result = spawnSync(
-      rstestBin,
-      ['list', '--filesOnly', '-c', path.basename(config)],
+      process.execPath,
+      [rstestBin, 'list', '--filesOnly', '-c', path.basename(config)],
       { cwd: path.join(repoRoot, path.dirname(config)), encoding: 'utf8' },
     );
     assert.equal(result.status, 0, `${config}: ${result.stderr}`);
