@@ -8,15 +8,8 @@ import {
   type EffectContext,
 } from '../src/effect/operation-context';
 
-const kEffectContextStorage = Symbol.for(
-  'modernjs.plugin-bff.effectContextStorage',
-);
-const globalStore = globalThis as typeof globalThis & {
-  [kEffectContextStorage]?: unknown;
-};
-
-type NodeContextHelpers = typeof import('../src/effect/context');
-type EdgeContextHelpers = typeof import('../src/effect/edge-context');
+type NodeContextHelpers = typeof import('../src/effect/index');
+type EdgeContextHelpers = typeof import('../src/effect/edge');
 
 const createContext = (path: string): EffectContext => {
   const request = new Request(`http://localhost${path}`);
@@ -34,10 +27,10 @@ const createContext = (path: string): EffectContext => {
 };
 
 const loadNodeContext = (): Promise<NodeContextHelpers> =>
-  import('../src/effect/context');
+  import('../src/effect/index');
 
 const loadEdgeContext = (): Promise<EdgeContextHelpers> =>
-  import('../src/effect/edge-context');
+  import('../src/effect/edge');
 
 const headerTraceparent =
   '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01';
@@ -73,29 +66,42 @@ describe('Effect operation trace identity', () => {
 
 describe('Effect context storage identity', () => {
   beforeEach(() => {
-    delete globalStore[kEffectContextStorage];
     rstest.resetModules();
   });
 
   afterEach(() => {
-    delete globalStore[kEffectContextStorage];
     rstest.resetModules();
   });
 
-  test('shares context across independently evaluated module copies', async () => {
-    const firstNode = await loadNodeContext();
-    rstest.resetModules();
-    const duplicateEdge = await loadEdgeContext();
-    rstest.resetModules();
-    const duplicateNode = await loadNodeContext();
-    const context = createContext('/duplicate');
+  test('shares one module-scoped storage between the Node and edge entries', async () => {
+    const node = await loadNodeContext();
+    const edge = await loadEdgeContext();
+    const context = createContext('/shared');
 
-    expect(duplicateNode).not.toBe(firstNode);
     expect(
-      firstNode.runWithEffectContext(context, () => ({
-        edge: duplicateEdge.useEffectContext(),
-        node: duplicateNode.useEffectContext(),
-      })),
-    ).toEqual({ edge: context, node: context });
+      node.runWithEffectContext(context, () => edge.useEffectContext()),
+    ).toBe(context);
+    expect(
+      edge.runWithEffectContext(context, () => node.useOperationContext()),
+    ).toBe(context.operationContext);
+    expect(
+      Object.getOwnPropertySymbols(globalThis).map(String),
+    ).not.toContainEqual(expect.stringContaining('effectContextStorage'));
+  });
+
+  test('a re-evaluated module owns a fresh storage', async () => {
+    const before = await loadNodeContext();
+    rstest.resetModules();
+    const after = await loadNodeContext();
+
+    expect(
+      before.runWithEffectContext(createContext('/stale'), () => {
+        try {
+          return after.useEffectContext();
+        } catch (error) {
+          return error;
+        }
+      }),
+    ).toBeInstanceOf(Error);
   });
 });

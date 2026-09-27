@@ -1,5 +1,11 @@
 // @effect-diagnostics asyncFunction:off strictBooleanExpressions:off
 
+import {
+  getGlobalInternalRuntimeContext,
+  getGlobalRSCRoot,
+  getInitialContext,
+  type TInternalRuntimeContext,
+} from '@modern-js/runtime/context';
 import type { DeferredData } from '@modern-js/runtime-utils/browser';
 import { storage } from '@modern-js/runtime-utils/node';
 import {
@@ -13,12 +19,6 @@ import type {
   RequestHandlerOptions,
 } from '@modern-js/server-core';
 import React, { Fragment } from 'react';
-import {
-  getGlobalInternalRuntimeContext,
-  getGlobalRSCRoot,
-  type TInternalRuntimeContext,
-} from '../context';
-import { getInitialContext } from '../context/runtime';
 import { getServerPayload } from '../context/serverPayload';
 import { createRoot } from '../react';
 import type { SSRServerContext } from '../types';

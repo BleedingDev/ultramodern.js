@@ -21,10 +21,6 @@ export type EffectContextStorage = {
   run: <TResult>(value: EffectContext, cb: () => TResult) => TResult;
 };
 
-export const kEffectContextStorage = Symbol.for(
-  'modernjs.plugin-bff.effectContextStorage',
-);
-
 export type CreateEffectOperationContextOptions = Omit<
   EffectContext,
   'operationContext'

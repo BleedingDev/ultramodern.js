@@ -1,11 +1,11 @@
 import type { Plugin } from '@modern-js/plugin';
 import type { InternalRuntimeContext } from '@modern-js/plugin/runtime';
 import { runtime } from '@modern-js/plugin/runtime';
+import { setGlobalInternalRuntimeContext } from '@modern-js/runtime/context';
 import { merge } from '@modern-js/runtime-utils/merge';
 import { compatPlugin } from '../compat';
 import { handleSetupResult } from '../compat/hooks';
 import { requestContextPlugin } from '../compat/requestContext';
-import { setGlobalInternalRuntimeContext } from '../context';
 import type { RuntimeConfig, RuntimeExtends, RuntimePlugin } from './types';
 
 export type { RuntimePlugin };

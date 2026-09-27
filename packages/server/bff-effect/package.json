@@ -34,68 +34,47 @@
     ".": {
       "types": "./dist/types/index.d.ts",
       "modern:source": "./src/index.ts",
-      "node": {
-        "import": "./dist/esm-node/index.mjs",
-        "require": "./dist/cjs/index.js"
-      },
+      "node": "./dist/esm-node/index.mjs",
       "default": "./dist/cjs/index.js"
     },
     "./effect": {
       "types": "./dist/types/effect/index.d.ts",
       "modern:source": "./src/effect/index.ts",
-      "node": {
-        "import": "./dist/esm-node/effect/index.mjs",
-        "require": "./dist/cjs/effect/index.js"
-      },
+      "node": "./dist/esm-node/effect/index.mjs",
       "default": "./dist/cjs/effect/index.js"
     },
     "./effect-edge": {
       "types": "./dist/types/effect/edge.d.ts",
       "modern:source": "./src/effect/edge.ts",
-      "node": {
-        "import": "./dist/esm-node/effect/edge.mjs",
-        "require": "./dist/cjs/effect/edge.js"
-      },
+      "node": "./dist/esm-node/effect/edge.mjs",
       "import": "./dist/esm/effect/edge.mjs",
       "default": "./dist/esm/effect/edge.mjs"
     },
     "./effect-client": {
       "types": "./dist/types/effect-client/index.d.ts",
       "modern:source": "./src/effect-client/index.ts",
-      "node": {
-        "import": "./dist/esm-node/effect-client/index.mjs",
-        "require": "./dist/cjs/effect-client/index.js"
-      },
+      "node": "./dist/esm-node/effect-client/index.mjs",
       "import": "./dist/esm/effect-client/index.mjs",
       "default": "./dist/esm/effect-client/index.mjs"
     },
     "./microvertical-api": {
       "types": "./dist/types/microvertical-api.d.ts",
       "modern:source": "./src/microvertical-api.ts",
-      "node": {
-        "import": "./dist/esm-node/microvertical-api.mjs",
-        "require": "./dist/cjs/microvertical-api.js"
-      },
+      "node": "./dist/esm-node/microvertical-api.mjs",
       "import": "./dist/esm/microvertical-api.mjs",
       "default": "./dist/esm/microvertical-api.mjs"
     },
     "./data-platform": {
       "types": "./dist/types/data-platform/index.d.ts",
       "modern:source": "./src/data-platform/index.ts",
-      "node": {
-        "import": "./dist/esm-node/data-platform/index.mjs",
-        "require": "./dist/cjs/data-platform/index.js"
-      },
+      "node": "./dist/esm-node/data-platform/index.mjs",
       "import": "./dist/esm/data-platform/index.mjs",
       "default": "./dist/esm/data-platform/index.mjs"
     },
     "./assembly": {
       "types": "./dist/types/assembly.d.ts",
       "modern:source": "./src/assembly.ts",
-      "node": {
-        "import": "./dist/esm-node/assembly.mjs",
-        "require": "./dist/cjs/assembly.js"
-      },
+      "node": "./dist/esm-node/assembly.mjs",
       "default": "./dist/esm/assembly.mjs"
     }
   },

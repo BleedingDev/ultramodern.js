@@ -1,14 +1,14 @@
 // @effect-diagnostics asyncFunction:off processEnv:off
 import type { StreamSSRExtender } from '@modern-js/plugin/runtime';
 import { renderSSRStream } from '@modern-js/render/ssr';
+import {
+  getGlobalEnableRsc,
+  getGlobalInternalRuntimeContext,
+} from '@modern-js/runtime/context';
 import { storage } from '@modern-js/runtime-utils/node';
 import React from 'react';
 import { ESCAPED_SHELL_STREAM_END_MARK } from '../../../common';
 import { RenderLevel } from '../../constants';
-import {
-  getGlobalEnableRsc,
-  getGlobalInternalRuntimeContext,
-} from '../../context';
 import { getMonitors } from '../../context/monitors';
 import { wrapRuntimeComponentResolver } from '../../react/wrapper';
 import { createReplaceHelemt, getHelmetData } from '../helmet';

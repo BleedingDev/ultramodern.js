@@ -1,8 +1,11 @@
+import {
+  getGlobalApp,
+  getGlobalInternalRuntimeContext,
+} from '@modern-js/runtime/context';
 import { parsedJSONFromElement } from '@modern-js/runtime-utils/parsed';
 import type React from 'react';
 import { isBrowser } from '../../common';
 import { ROUTER_DATA_JSON_ID, SSR_DATA_JSON_ID } from '../constants';
-import { getGlobalApp, getGlobalInternalRuntimeContext } from '../context';
 
 export function createRoot(UserApp?: React.ComponentType | null) {
   const App = UserApp || getGlobalApp();

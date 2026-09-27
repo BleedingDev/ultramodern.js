@@ -6,9 +6,11 @@
     "jsx": "preserve",
     // FORK: `baseUrl` removed. TypeScript 7 / tsgo reject it outright (TS5102),
     // so this package's own tsconfig could not be typechecked at all. `paths`
-    // is empty here, so nothing resolved through baseUrl.
+    // needs no baseUrl.
     "isolatedModules": true,
-    "paths": {},
+    "paths": {
+      "@modern-js/plugin-i18n/runtime/contexts": ["./src/runtime/contexts.ts"]
+    },
     "rootDir": "./src"
   },
   "include": ["src", "types"]

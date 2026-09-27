@@ -1,10 +1,5 @@
 // @effect-diagnostics strictBooleanExpressions:off
-import { AsyncLocalStorage } from 'node:async_hooks';
-import {
-  type EffectContext,
-  type EffectContextStorage,
-  kEffectContextStorage,
-} from './operation-context';
+import type { EffectContext, EffectContextStorage } from './operation-context';
 
 export {
   type CreateEffectOperationContextOptions,
@@ -12,13 +7,28 @@ export {
   type EffectContext,
 } from './operation-context';
 
+type EffectContextStorageConstructor = new () => EffectContextStorage;
+
+// One storage for the Node and edge entries: both import this module, and the
+// BFF bundle keeps `@modern-js/bff-effect` external so the server and the
+// lambdas load the same instance.
 const globalStore = globalThis as typeof globalThis & {
-  [kEffectContextStorage]?: EffectContextStorage;
+  process?: {
+    getBuiltinModule?: (id: string) => unknown;
+  };
 };
 
-const effectContextStorage =
-  globalStore[kEffectContextStorage] ??
-  (globalStore[kEffectContextStorage] = new AsyncLocalStorage<EffectContext>());
+const asyncHooks = globalStore.process?.getBuiltinModule?.(
+  'node:async_hooks',
+) as { AsyncLocalStorage?: EffectContextStorageConstructor } | undefined;
+const AsyncLocalStorage = asyncHooks?.AsyncLocalStorage;
+if (typeof AsyncLocalStorage !== 'function') {
+  throw new Error(
+    '[BFF][Effect] The edge runtime must provide AsyncLocalStorage. Enable Node.js compatibility or the nodejs_als compatibility flag.',
+  );
+}
+
+const effectContextStorage = new AsyncLocalStorage();
 
 export const runWithEffectContext = <T>(
   context: EffectContext,

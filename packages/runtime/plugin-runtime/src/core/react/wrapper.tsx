@@ -1,14 +1,14 @@
 import type { ResolveComponentFn } from '@modern-js/plugin/runtime';
-import type React from 'react';
 import {
   getGlobalEnableRsc,
   getGlobalInternalRuntimeContext,
   InternalRuntimeContext,
+  RuntimeComponentResolverContext,
   RuntimeContext,
   type TInternalRuntimeContext,
   type TRuntimeContext,
-} from '../context';
-import { RuntimeComponentResolverContext } from '../context/runtime';
+} from '@modern-js/runtime/context';
+import type React from 'react';
 
 export function wrapRuntimeComponentResolver(
   root: React.ReactNode,
