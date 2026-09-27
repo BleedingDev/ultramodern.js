@@ -4,6 +4,7 @@ import { nodeDepEmit as handleDependencies } from 'ndepe';
 import { isMainEntry } from '../../../utils/routes';
 import { readTemplate, resolveESMDependency } from '../utils';
 import { generateHandler } from '../utils/generator';
+import { traceDeployFiles } from '../utils/traceFiles';
 import type { CreatePreset } from './platform';
 
 export const createVercelPreset: CreatePreset = ({
@@ -123,6 +124,7 @@ export const createVercelPreset: CreatePreset = ({
         ? await resolveESMDependency('@modern-js/prod-server')
         : require.resolve('@modern-js/prod-server');
       await handleDependencies({
+        traceFiles: traceDeployFiles,
         appDir: appDirectory,
         sourceDir: funcsDirectory,
         includeEntries: [entry],

@@ -137,7 +137,6 @@
     "http-compression",
     "@biomejs/biome",
     "caniuse-lite",
-    "@vercel/nft",
     "vitest",
     "@rsbuild-image/react",
     "@rsbuild/plugin-styled-components",

@@ -4,6 +4,7 @@ import { nodeDepEmit as handleDependencies } from 'ndepe';
 import { isMainEntry } from '../../../utils/routes';
 import { getTemplatePath, readTemplate, resolveESMDependency } from '../utils';
 import { generateHandler, type PluginItem } from '../utils/generator';
+import { traceDeployFiles } from '../utils/traceFiles';
 import type { CreatePreset } from './platform';
 
 async function cleanDistDirectory(dir: string) {
@@ -121,6 +122,7 @@ export const createNetlifyPreset: CreatePreset = ({
         ? await resolveESMDependency('@modern-js/prod-server/netlify')
         : require.resolve('@modern-js/prod-server/netlify');
       await handleDependencies({
+        traceFiles: traceDeployFiles,
         appDir: appDirectory,
         sourceDir: funcsDirectory,
         includeEntries: [entry, netlifyEntry],

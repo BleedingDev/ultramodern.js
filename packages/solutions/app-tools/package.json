@@ -147,6 +147,7 @@
     "@rsbuild/core": "2.2.9",
     "@swc/core": "1.16.2",
     "@swc/helpers": "^0.5.23",
+    "@vercel/nft": "^1.11.0",
     "compression-webpack-plugin": "^12.0.0",
     "es-module-lexer": "^2.3.2",
     "esbuild": "^0.28.2",

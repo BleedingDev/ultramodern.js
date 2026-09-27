@@ -8,6 +8,7 @@ import {
 import { nodeDepEmit as handleDependencies } from 'ndepe';
 import { readTemplate, resolveESMDependency } from '../utils';
 import { generateHandler } from '../utils/generator';
+import { traceDeployFiles } from '../utils/traceFiles';
 import type { CreatePreset } from './platform';
 
 export const createNodePreset: CreatePreset = ({
@@ -77,6 +78,7 @@ export const createNodePreset: CreatePreset = ({
         }
       }
       await handleDependencies({
+        traceFiles: traceDeployFiles,
         appDir: appDirectory,
         sourceDir: outputDirectory,
         includeEntries: [entry, ...pluginEntries],
