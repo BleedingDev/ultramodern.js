@@ -8,6 +8,7 @@ import type { ModuleFederationRuntimePlugin } from '@module-federation/runtime';
 import {
   type BackendFederationRemote,
   type BackendFederationRuntimeOptions,
+  createBackendFederationLoadEntryPlugin,
   createBackendFederationRuntime,
 } from '../src/backend-federation';
 import { effectBffHostShared } from '../src/backend-federation/node-shared';
@@ -189,6 +190,28 @@ describe('backend federation integrity plugin', () => {
       runtime.loadRemote(`${remoteName}/effect-api`),
     ).rejects.toMatchObject({ code: 'integrity_mismatch' });
     expect(evaluator.sources).toHaveLength(0);
+  });
+
+  test('uses the first entry provider that serves a remote', async () => {
+    const provider = (brand: string) =>
+      createBackendFederationLoadEntryPlugin({
+        resolveEntry: rs.fn(() => ({
+          get: () => () => ({ brand }),
+        })),
+      });
+    const specific = provider('specific');
+    const fallback = provider('fallback');
+    const { runtime } = createRuntime(
+      { entry: `service:${remoteName}`, name: remoteName },
+      { plugins: [specific, fallback] },
+    );
+
+    await expect(
+      runtime.loadRemote(`${remoteName}/effect-api`),
+    ).resolves.toEqual({ brand: 'specific' });
+    await expect(
+      runtime.loadRemote(`${remoteName}/effect-api`),
+    ).resolves.toEqual({ brand: 'specific' });
   });
 
   test('names the remote when its entry scheme has no load path', async () => {

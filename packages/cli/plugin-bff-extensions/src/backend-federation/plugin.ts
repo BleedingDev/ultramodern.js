@@ -42,6 +42,15 @@ export function createBackendFederationLoadEntryPlugin(
         return;
       }
       let entries = provided.get(origin);
+      // The first provider that registers a container wins; later ones are
+      // not consulted.
+      if (
+        entries?.has(remoteInfo.name) !== true &&
+        origin.moduleCache.get(remoteInfo.name)?.remoteEntryExports !==
+          undefined
+      ) {
+        return;
+      }
       if (entries === undefined) {
         entries = new Map();
         provided.set(origin, entries);
