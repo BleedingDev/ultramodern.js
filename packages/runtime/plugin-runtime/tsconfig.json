@@ -8,5 +8,5 @@
     "paths": {},
     "rootDir": "./src"
   },
-  "include": ["src", "types"]
+  "include": ["src", "types", "../render/bundler-globals.d.ts"]
 }

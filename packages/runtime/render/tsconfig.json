@@ -11,5 +11,5 @@
     "rootDir": "./src",
     "types": ["node"]
   },
-  "include": ["src", "env.d.ts"]
+  "include": ["src", "env.d.ts", "bundler-globals.d.ts"]
 }

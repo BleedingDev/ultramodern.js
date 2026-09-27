@@ -15,7 +15,8 @@ const tsgoBin = resolveEffectTsgoCompiler({ from: import.meta.url });
 
 // These native framework entrypoints implement Promise-based host APIs and read
 // constants replaced by the package build. Recommending an Effect migration for
-// those contracts is not a correctness check. Consumer configs, and any newly
+// those contracts is not a correctness check, and framework diagnostics go to
+// the host console rather than an Effect logger. Consumer configs, and any newly
 // added config, retain the complete strict Effect profile by default.
 const nativeFrameworkConfigs = new Set([
   'packages/runtime/plugin-tanstack/tsconfig.tsgo.json',
@@ -28,6 +29,7 @@ export function createCriticalCompilerOptions(config) {
   );
   if (nativeFrameworkConfigs.has(config)) {
     diagnosticSeverity.asyncFunction = 'off';
+    diagnosticSeverity.globalConsole = 'off';
     diagnosticSeverity.processEnv = 'off';
   }
 

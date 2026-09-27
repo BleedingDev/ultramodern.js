@@ -1,5 +1,3 @@
-// @effect-diagnostics globalConsole:off
-
 import type { ShouldRevalidateFunction } from '@modern-js/runtime-utils/router';
 import { ROUTE_MODULES } from '@modern-js/utils/universal/constants';
 import type { ElementType } from 'react';

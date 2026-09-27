@@ -1,4 +1,4 @@
-// @effect-diagnostics asyncFunction:off globalConsole:off globalTimers:off strictBooleanExpressions:off unnecessaryArrowBlock:off
+// @effect-diagnostics asyncFunction:off globalTimers:off strictBooleanExpressions:off unnecessaryArrowBlock:off
 'use client';
 import {
   matchRoutes,
@@ -29,7 +29,6 @@ const getWebpackChunkLoader = (): typeof WEBPACK_CHUNK_LOAD =>
   typeof WEBPACK_CHUNK_LOAD === 'function' ? WEBPACK_CHUNK_LOAD : undefined;
 const getWebpackPublicPath = () => {
   try {
-    // @ts-expect-error Webpack supplies this runtime value.
     return __webpack_public_path__ || '';
   } catch {
     return '';

@@ -3,7 +3,11 @@
 import { SSR_HYDRATION_ID_PREFIX } from '@modern-js/utils/universal/constants';
 import { act, useId, useState } from 'react';
 import { renderToString } from 'react-dom/server';
-import { hydrateWithReact } from '../../../src/core/browser/hydrate';
+import {
+  hydrateRoot,
+  hydrateWithReact,
+} from '../../../src/core/browser/hydrate';
+import type { TRuntimeContext } from '../../../src/core/context/runtime';
 
 const App = () => {
   const id = useId();
@@ -53,5 +57,31 @@ describe('React DOM hydration', () => {
     expect(container.querySelector('button')?.textContent).toBe('Submitted');
 
     root!.unmount();
+  });
+});
+
+describe('string SSR hydration with an unknown render level', () => {
+  afterEach(() => {
+    delete (window as { _SSR_DATA?: unknown })._SSR_DATA;
+    rstest.restoreAllMocks();
+  });
+
+  test('warns on the host console and falls back to client render', async () => {
+    (window as { _SSR_DATA?: unknown })._SSR_DATA = {
+      mode: 'string',
+      renderLevel: 1,
+    };
+    const warnSpy = rstest.spyOn(console, 'warn').mockImplementation(() => {});
+    const root = document.createElement('div');
+    const render = rstest.fn(async () => root);
+    const hydrate = rstest.fn(async () => root);
+
+    await hydrateRoot(<div />, {} as TRuntimeContext, render, hydrate);
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      'unknow render level: 1, execute render()',
+    );
+    expect(render).toHaveBeenCalledTimes(1);
+    expect(hydrate).not.toHaveBeenCalled();
   });
 });
