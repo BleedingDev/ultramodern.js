@@ -464,10 +464,54 @@ const backgroundCommandPattern = /(?:^|[^&])&\s*$/mu;
 // A step that waits for a background process: `wait` or a `kill -0` poll.
 const joinCommandPattern = /(?:^|[\s;&|(])(?:wait|kill\s+-0)(?:\s|$)/mu;
 
-// Steps that run before an unconditional dependency install has finished.
+// npm options whose value is a separate word.
+const npmValueOptions = new Set([
+  '--prefix',
+  '--registry',
+  '--cache',
+  '--tag',
+  '-w',
+  '--workspace',
+]);
+
+// `@scope/name@range` or `name@range` -> package name.
+const packageNameOf = spec =>
+  spec.startsWith('@')
+    ? spec.split('@').slice(0, 2).join('@')
+    : spec.split('@')[0];
+
+// `@scope/name/sub` or `name/sub` -> package name.
+const specifierPackage = specifier =>
+  specifier
+    .split('/')
+    .slice(0, specifier.startsWith('@') ? 2 : 1)
+    .join('/');
+
+// Package names of `npm install <pkg>...` in a run block. Naming packages
+// installs only those (e.g. into a --prefix), not the workspace.
+const scopedInstallPackages = run =>
+  shellCommandWords(run).flatMap(words => {
+    const npmAt = words.indexOf('npm');
+    if (npmAt === -1 || !['install', 'i', 'add'].includes(words[npmAt + 1])) {
+      return [];
+    }
+    const names = [];
+    for (let index = npmAt + 2; index < words.length; index += 1) {
+      if (npmValueOptions.has(words[index])) {
+        index += 1;
+      } else if (words[index] !== '' && !words[index].startsWith('-')) {
+        names.push(packageNameOf(words[index]));
+      }
+    }
+    return names;
+  });
+
+// Run text that executes before an unconditional dependency install has
+// finished, with the packages a scoped `npm install <pkg>` made available.
 // A backgrounded install finishes at the first later step that joins it.
 const bareSteps = steps => {
   const result = [];
+  const available = new Set();
   let installInFlight = false;
   for (const step of steps) {
     const run =
@@ -475,7 +519,10 @@ const bareSteps = steps => {
     const join = installInFlight ? joinCommandPattern.exec(run) : null;
     if (join !== null) {
       // Commands before the join still run while the install is in flight.
-      result.push(run.slice(0, join.index));
+      result.push({
+        available: new Set(available),
+        run: run.slice(0, join.index),
+      });
       break;
     }
     const installAt =
@@ -488,11 +535,22 @@ const bareSteps = steps => {
           )
         : Number.POSITIVE_INFINITY;
     if (installAt === Number.POSITIVE_INFINITY) {
-      result.push(run);
+      result.push({ available: new Set(available), run });
       continue;
     }
     // Commands before the install in the same step still run bare.
-    result.push(run.slice(0, installAt));
+    result.push({
+      available: new Set(available),
+      run: run.slice(0, installAt),
+    });
+    const scoped = scopedInstallPackages(run.slice(installAt));
+    if (scoped.length > 0) {
+      for (const name of scoped) {
+        available.add(name);
+      }
+      result.push({ available: new Set(available), run: run.slice(installAt) });
+      continue;
+    }
     if (!backgroundCommandPattern.test(run)) {
       break;
     }
@@ -521,7 +579,13 @@ const bareJobRuns = workflow =>
 function collectBareJobImportErrors(workflow, relativePath, options) {
   const jobs = bareJobRuns(workflow);
   const invocations = jobs.flatMap(({ jobId, runs }) =>
-    runs.flatMap(nodeInvocations).map(invocation => ({ ...invocation, jobId })),
+    runs.flatMap(({ available, run }) =>
+      nodeInvocations(run).map(invocation => ({
+        ...invocation,
+        available,
+        jobId,
+      })),
+    ),
   );
   const preloadErrors = invocations.flatMap(({ jobId, preloads }) =>
     preloads.map(
@@ -533,9 +597,9 @@ function collectBareJobImportErrors(workflow, relativePath, options) {
     ...new Map(
       invocations
         .filter(({ script }) => script !== undefined)
-        .map(({ jobId, script }) => [
+        .map(({ available, jobId, script }) => [
           `${jobId}\0${script}`,
-          { entrypoint: script, jobId },
+          { available, entrypoint: script, jobId },
         ]),
     ).values(),
   ];
@@ -545,13 +609,14 @@ function collectBareJobImportErrors(workflow, relativePath, options) {
   const rootDir = options.rootDir ?? repoRoot;
   const trackedFiles = options.trackedFiles ?? listTrackedFiles(rootDir);
   return preloadErrors.concat(
-    entrypoints.flatMap(({ entrypoint, jobId }) =>
-      findUnloadableImports(rootDir, entrypoint, trackedFiles).map(
-        ({ chain, specifier }) =>
+    entrypoints.flatMap(({ available, entrypoint, jobId }) =>
+      findUnloadableImports(rootDir, entrypoint, trackedFiles)
+        .filter(({ specifier }) => !available.has(specifierPackage(specifier)))
+        .map(({ chain, specifier }) =>
           chain.length === 0
             ? `${relativePath} job ${jobId} runs ${entrypoint}, which is not a tracked file`
             : `${relativePath} job ${jobId} runs ${entrypoint} before any dependency install, but it statically loads ${specifier} via ${chain.join(' -> ')}; add a dependency install step before it or move the import into a function behind a dynamic import()`,
-      ),
+        ),
     ),
   );
 }
