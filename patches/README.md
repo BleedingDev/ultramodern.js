@@ -8,7 +8,7 @@ Edit `packages/toolkit/ultramodern-create/src/ultramodern-workspace/patch-invent
 | @module-federation/bridge-react@2.9.1 | yes | none | Portable React declaration specifiers. |
 | @module-federation/dts-plugin@2.9.1 | yes | none | Bind the type server before publishing its port (upstream PR pending); execute absolute compilerInstance paths without a shell ([#5131](https://github.com/module-federation/core/pull/5131)); preserve declaration rootDir ([#4947](https://github.com/module-federation/core/pull/4947)). |
 | @module-federation/manifest@2.9.1 | yes | none | Defer DTS loading when DTS is disabled. |
-| @module-federation/modern-js-v3@2.9.1 | yes | none | Preserve lazy compilation, framework CSS ownership, SSR manifest recovery, valid async splitting and native ESM CLI package resolution. |
+| @module-federation/modern-js-v3@2.9.1 | yes | none | Preserve lazy compilation, framework CSS ownership, SSR manifest recovery, valid async splitting and native ESM CLI package resolution; drop the SSR dev reload <script> from the React tree until module-federation/core#5158 ships. |
 | @module-federation/rspack@2.9.1 | yes | none | Defer DTS plugin loading when DTS is disabled. |
 | @module-federation/runtime-core@2.9.1 | yes | none | Import ResourceLoadContext used by public remote hooks. |
 | effect@4.0.0-rc.117 | yes | none | Build router params without string code generation in CSP/Worker bundles. |

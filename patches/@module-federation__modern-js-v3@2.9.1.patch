@@ -192,6 +192,69 @@ diff --git a/dist/esm/react/index.mjs b/dist/esm/react/index.mjs
 +        injectLink: false,
 +        ...options,
 +    });
+diff --git a/dist/esm/ssr-runtime/devPlugin.mjs b/dist/esm/ssr-runtime/devPlugin.mjs
+--- a/dist/esm/ssr-runtime/devPlugin.mjs
++++ b/dist/esm/ssr-runtime/devPlugin.mjs
+@@ -1,9 +1,9 @@
+ import { _ } from "@swc/helpers/_/_async_to_generator";
+-import { _ as _object_spread__ } from "@swc/helpers/_/_object_spread";
+ import { _ as _ts_generator__ } from "@swc/helpers/_/_ts_generator";
+-import { Fragment, jsx, jsxs } from "react/jsx-runtime";
+-import { SSRLiveReload } from "./SSRLiveReload.mjs";
+ import { flushDataFetch } from "@module-federation/bridge-react/data-fetch";
++// Interim until https://github.com/module-federation/core/pull/5158 ships: the
++// SSRLiveReload wrapRoot rendered a <script> inside the React tree, which React
++// 19 reports on every client mount. Keep the server-side revalidation only.
+ var devPlugin_mfSSRDevPlugin = function() {
+     return {
+         name: '@module-federation/modern-js-v3',
+@@ -17,7 +17,6 @@ var devPlugin_mfSSRDevPlugin = function() {
+                                 if ("u" > typeof window) return [
+                                     2
+                                 ];
+-                                globalThis.shouldUpdate = false;
+                                 return [
+                                     4,
+                                     import("@module-federation/node/utils")
+@@ -30,12 +29,10 @@ var devPlugin_mfSSRDevPlugin = function() {
+                                 ];
+                             case 2:
+                                 shouldUpdate = _state.sent();
+-                                console.log('shouldUpdate: ', shouldUpdate);
+                                 if (!shouldUpdate) return [
+                                     3,
+                                     4
+                                 ];
+-                                console.log('should RELOAD', shouldUpdate);
+                                 return [
+                                     4,
+                                     nodeUtils.flushChunks()
+@@ -43,7 +40,6 @@ var devPlugin_mfSSRDevPlugin = function() {
+                             case 3:
+                                 _state.sent();
+                                 flushDataFetch();
+-                                globalThis.shouldUpdate = true;
+                                 _state.label = 4;
+                             case 4:
+                                 return [
+@@ -53,17 +49,6 @@ var devPlugin_mfSSRDevPlugin = function() {
+                     });
+                 })();
+             });
+-            api.wrapRoot(function(App) {
+-                var AppWrapper = function(props) {
+-                    return /*#__PURE__*/ jsxs(Fragment, {
+-                        children: [
+-                            /*#__PURE__*/ jsx(SSRLiveReload, {}),
+-                            /*#__PURE__*/ jsx(App, _object_spread__({}, props))
+-                        ]
+-                    });
+-                };
+-                return AppWrapper;
+-            });
+         }
+     };
+ };
 diff --git a/dist/esm-node/cli/configPlugin.mjs b/dist/esm-node/cli/configPlugin.mjs
 --- a/dist/esm-node/cli/configPlugin.mjs
 +++ b/dist/esm-node/cli/configPlugin.mjs

@@ -7,6 +7,9 @@ export const TANSTACK_ROUTER_VERSION = '1.170.39';
 export const TANSTACK_ROUTER_CORE_VERSION = '1.171.32';
 export const TANSTACK_HISTORY_VERSION = '1.162.4';
 export const MODULE_FEDERATION_VERSION = '2.9.1';
+// The modern-js-v3 sidecar carries a changed patch over upstream 2.9.1; npm
+// versions are immutable, so its fork version moves on its own.
+export const MODULE_FEDERATION_MODERN_JS_V3_FORK_VERSION = '2.9.2';
 export const ZEPHYR_RSPACK_PLUGIN_VERSION = '1.4.0';
 export const ZEPHYR_AGENT_VERSION = '1.4.0';
 export const WRANGLER_VERSION = '4.137.0';
@@ -59,7 +62,7 @@ export const ULTRAMODERN_PACKAGE_PINS = {
     // the package in the app's own `package.json`. Drop it and the default,
     // `react-router-dom`-importing entry is bundled again.
     '@module-federation/bridge-react': `npm:@bleedingdev/mf-bridge-react@${MODULE_FEDERATION_VERSION}`,
-    '@module-federation/modern-js-v3': `npm:@bleedingdev/mf-modern-js-v3@${MODULE_FEDERATION_VERSION}`,
+    '@module-federation/modern-js-v3': `npm:@bleedingdev/mf-modern-js-v3@${MODULE_FEDERATION_MODERN_JS_V3_FORK_VERSION}`,
     '@module-federation/runtime': `npm:@bleedingdev/mf-runtime@${MODULE_FEDERATION_VERSION}`,
     '@tanstack/react-router': TANSTACK_ROUTER_VERSION,
     i18next: I18NEXT_VERSION,

@@ -31,11 +31,11 @@ export default [
     packageName: '@module-federation/modern-js-v3',
     version: '2.9.1',
     path: 'patches/@module-federation__modern-js-v3@2.9.1.patch',
-    sha256: '0ab5fa14ed744c31c8221c6f663c9fc5b50a134f641e65277900c88da6cb72d0',
+    sha256: 'ce72a3416ee102e0de8cfc14b4fabff71d617162fe7646fd18bf144aa5eb8376',
     repository: true,
     workspace: null,
     reason:
-      'Preserve lazy compilation, framework CSS ownership, SSR manifest recovery, valid async splitting and native ESM CLI package resolution.',
+      'Preserve lazy compilation, framework CSS ownership, SSR manifest recovery, valid async splitting and native ESM CLI package resolution; drop the SSR dev reload <script> from the React tree until module-federation/core#5158 ships.',
   },
   {
     packageName: '@module-federation/rspack',
