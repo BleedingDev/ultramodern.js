@@ -40,13 +40,14 @@ test('no workspace script passes --passWithNoTests', () => {
 });
 
 test('every rstest config matches at least one test file', () => {
-  // Integration fixture apps load the built @modern-js/adapter-rstest, which
-  // clean script lanes do not build; their suites run inside the adapter
-  // integration tests instead.
+  // The adapter fixture configs, and the tests aggregate that loads them as
+  // projects, import the built @modern-js/adapter-rstest, which clean script
+  // lanes do not build; the adapter integration run executes them instead.
   const configs = trackedFiles.filter(
     file =>
       /(^|\/)rstest(\.[\w-]+)?\.config\.m?[jt]s$/.test(file) &&
-      !file.startsWith('tests/integration/'),
+      !file.startsWith('tests/integration/') &&
+      file !== 'tests/rstest.adapter.config.mts',
   );
   assert.ok(configs.length > 0);
   const empty = configs.filter(config => {
