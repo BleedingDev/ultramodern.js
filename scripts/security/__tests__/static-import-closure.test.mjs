@@ -148,10 +148,30 @@ test('the script after option values and the commands before a join are checked'
   );
 });
 
+test('quoted entrypoints are checked', t => {
+  const rootDir = withRepository(t, recorderFiles);
+  const workflow = workflowWithJob(`      - run: node "scripts/record.mjs" check
+      - run: echo "RESULT=$(node './scripts/contract.mjs')" >> out
+      - run: node --test scripts/*.test.mjs
+`);
+  assert.deepEqual(
+    validateWorkflowContent('.github/workflows/example.yml', workflow, {
+      rootDir,
+    }).map(message => message.split(' before')[0]),
+    [
+      '.github/workflows/example.yml job recorder runs scripts/record.mjs',
+      '.github/workflows/example.yml job recorder runs scripts/contract.mjs',
+    ],
+  );
+});
+
 test('a preloaded module in a bare step is rejected', t => {
   const rootDir = withRepository(t, { 'scripts/ok.mjs': '' });
   const workflow = workflowWithJob(`      - run: node -r yaml scripts/ok.mjs
-      - run: node --import=yaml scripts/ok.mjs
+      - run: |
+          node \\
+            --import=yaml \\
+            scripts/ok.mjs
 `);
   assert.deepEqual(
     validateWorkflowContent('.github/workflows/example.yml', workflow, {

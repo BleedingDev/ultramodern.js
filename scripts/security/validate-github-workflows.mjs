@@ -412,11 +412,50 @@ function collectReceiptRunIdentityErrors(workflow, relativePath) {
   });
 }
 
-// `node [options] <script>` inside a run block, including `$(node ...)`
-// and line continuations. The script is the first `.mjs`/`.cjs`/`.js`
-// argument, so option values such as `--conditions development` are skipped.
-const nodeScriptPattern =
-  /(?:^|[\s;&|(`])node(?:(?:[ \t]|\\\n)+[^\s\\]+?)*?(?:[ \t]|\\\n)+(?:\.\/)?([\w./-]+\.(?:mjs|cjs|js))(?=\s|$|[;&|)`])/gu;
+// Node options that load a module before the entrypoint.
+const nodePreloadOptions = new Set([
+  '-r',
+  '--require',
+  '--import',
+  '--loader',
+  '--experimental-loader',
+]);
+
+// `node [options] <script>` invocations in a run block, parsed as shell
+// words (quotes, continuations, `$(node ...)` also inside a quoted word).
+// The script is the first `.mjs`/`.cjs`/`.js` argument that is not a glob,
+// so separate option values are skipped.
+const nodeInvocations = run =>
+  shellCommandWords(run).flatMap(command => {
+    const words = command.filter(word => word !== '');
+    const substituted = words.flatMap(word =>
+      word.startsWith('$(')
+        ? []
+        : [...word.matchAll(/\$\(([^()]*)\)/gu)].flatMap(match =>
+            nodeInvocations(match[1]),
+          ),
+    );
+    const nodeAt = words.findIndex(word => /^(?:\$\(|`)?node$/u.test(word));
+    if (nodeAt === -1) {
+      return substituted;
+    }
+    const args = words
+      .slice(nodeAt + 1)
+      .map(word => word.replace(/[)`]+$/u, ''));
+    const preloads = args
+      .map(arg => arg.split('=')[0])
+      .filter(option => nodePreloadOptions.has(option));
+    const script = args.find(
+      arg =>
+        !arg.startsWith('-') &&
+        !/[*?[]/u.test(arg) &&
+        /\.(?:mjs|cjs|js)$/u.test(arg),
+    );
+    return [
+      ...substituted,
+      { preloads, script: script?.replace(/^\.\//u, '') },
+    ];
+  });
 
 const dependencyInstallCommands = ['pnpm install', 'npm install', 'npm ci'];
 
@@ -462,10 +501,6 @@ const bareSteps = steps => {
   return result;
 };
 
-// Node options that load a module before the entrypoint.
-const nodePreloadPattern =
-  /(?:^|[\s;&|(`])node\s(?:[^\n]*?\s)?(-r|--require|--import|--loader|--experimental-loader)(?=[\s=])/gu;
-
 const bareJobRuns = workflow =>
   Object.entries(isObject(workflow.jobs) ? workflow.jobs : {}).map(
     ([jobId, job]) => ({
@@ -485,23 +520,25 @@ const bareJobRuns = workflow =>
  */
 function collectBareJobImportErrors(workflow, relativePath, options) {
   const jobs = bareJobRuns(workflow);
-  const preloadErrors = jobs.flatMap(({ jobId, runs }) =>
-    runs.flatMap(run =>
-      [...run.matchAll(nodePreloadPattern)].map(
-        match =>
-          `${relativePath} job ${jobId} runs node ${match[1]} before any dependency install; a preloaded module is not checked, so import it from the entrypoint instead`,
-      ),
+  const invocations = jobs.flatMap(({ jobId, runs }) =>
+    runs.flatMap(nodeInvocations).map(invocation => ({ ...invocation, jobId })),
+  );
+  const preloadErrors = invocations.flatMap(({ jobId, preloads }) =>
+    preloads.map(
+      option =>
+        `${relativePath} job ${jobId} runs node ${option} before any dependency install; a preloaded module is not checked, so import it from the entrypoint instead`,
     ),
   );
-  const entrypoints = jobs.flatMap(({ jobId, runs }) =>
-    [
-      ...new Set(
-        runs.flatMap(run =>
-          [...run.matchAll(nodeScriptPattern)].map(match => match[1]),
-        ),
-      ),
-    ].map(entrypoint => ({ entrypoint, jobId })),
-  );
+  const entrypoints = [
+    ...new Map(
+      invocations
+        .filter(({ script }) => script !== undefined)
+        .map(({ jobId, script }) => [
+          `${jobId}\0${script}`,
+          { entrypoint: script, jobId },
+        ]),
+    ).values(),
+  ];
   if (entrypoints.length === 0) {
     return preloadErrors;
   }
