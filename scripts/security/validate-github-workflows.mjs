@@ -1189,9 +1189,45 @@ const collectSkipGateFindings = (workflow, content) => {
   return findings;
 };
 
-// A trigger path filter must let an edit of the workflow itself run it, with
-// GitHub's semantics: any `paths-ignore` match skips the file, and in `paths`
-// the last matching pattern wins (`!` negates).
+// The same gate under any name: a step that lists changed files (git diff,
+// a changed-files action) whose outputs decide whether later steps run.
+const changeDetectionRunPattern =
+  /\bgit\s+(?:diff|log|show|whatchanged)\b[^\n]*--name-(?:only|status)\b|\bgit\s+diff\b/u;
+const changeDetectionActions = [
+  'dorny/paths-filter',
+  'tj-actions/changed-files',
+];
+
+const collectChangeGatedSteps = (workflow, content) => {
+  const findings = [];
+  const detectorIds = new Map();
+  for (const { jobId, step } of workflowSteps(workflow)) {
+    const detects =
+      (typeof step.run === 'string' &&
+        changeDetectionRunPattern.test(stripShellComments(step.run))) ||
+      changeDetectionActions.some(action => actionMatches(step, action));
+    if (detects && typeof step.id === 'string') {
+      detectorIds.set(jobId, [...(detectorIds.get(jobId) ?? []), step.id]);
+    }
+  }
+  for (const { jobId, step } of workflowSteps(workflow)) {
+    const condition = typeof step.if === 'string' ? step.if : '';
+    const gatedBy = (detectorIds.get(jobId) ?? []).find(id =>
+      new RegExp(`\\bsteps\\.${escapeRegExp(id)}\\.`, 'u').test(condition),
+    );
+    if (gatedBy) {
+      findings.push(
+        sourceFinding(
+          content,
+          new RegExp(`steps\\.${escapeRegExp(gatedBy)}\\.`, 'u'),
+          condition,
+        ),
+      );
+    }
+  }
+  return findings;
+};
+
 // GitHub filter pattern syntax (docs: "Filter pattern cheat sheet"): `*` is
 // any run of non-`/` characters, `**` any run of characters (`**/` also zero
 // directories), `?` and `+` quantify the preceding character, `[...]` is a
@@ -1223,6 +1259,9 @@ const pathFilterRegExp = pattern => {
 const pathFilterMatches = (file, pattern) =>
   pathFilterRegExp(pattern).test(file);
 
+// A trigger path filter must let an edit of the workflow itself run it, with
+// GitHub's semantics: any `paths-ignore` match skips the file, and in `paths`
+// the last matching pattern wins (`!` negates).
 const filterRunsFile = (filter, patterns, file) => {
   if (filter === 'paths-ignore') {
     return !patterns.some(pattern => pathFilterMatches(file, pattern));
@@ -1693,7 +1732,10 @@ export function validateWorkflowContent(relativePath, content, options = {}) {
     );
   }
 
-  for (const finding of collectSkipGateFindings(workflow, content)) {
+  for (const finding of [
+    ...collectSkipGateFindings(workflow, content),
+    ...collectChangeGatedSteps(workflow, content),
+  ]) {
     push(
       'skip-ci-gate',
       `${relativePath}:${finding.line} must not gate jobs on a runtime skip-CI diff; skip docs-only changes with a trigger paths-ignore instead: ${finding.text}`,

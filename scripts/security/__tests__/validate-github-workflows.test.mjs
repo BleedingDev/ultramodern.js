@@ -497,6 +497,8 @@ test('workflows reject runtime skip-CI gates', () => {
     '        run: echo "RESULT=$(node ./scripts/skipCI.js)" >> "$GITHUB_OUTPUT"',
     `        if: ${githubExpression("steps.skip-ci.outputs.RESULT != 'true'")}\n        run: echo ok`,
     '        run: git diff origin/main... --name-only',
+    `        id: docs-only\n        run: echo "skip=$(git diff HEAD^ --name-only | grep -qv '^docs/' || echo true)" >> "$GITHUB_OUTPUT"\n      - name: Test\n        if: ${githubExpression("steps.docs-only.outputs.skip != 'true'")}\n        run: echo ok`,
+    `        id: filter\n        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36\n      - name: Test\n        if: ${githubExpression("steps.filter.outputs.src == 'true'")}\n        run: echo ok`,
   ]) {
     assert.equal(
       skipErrors(compliantWorkflow.replace('        run: echo ok', gated))
