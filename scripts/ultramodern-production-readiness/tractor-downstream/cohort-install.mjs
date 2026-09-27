@@ -97,8 +97,50 @@ export function prepareTractorCohortInstallation(workspace, release) {
   for (const [name, target] of Object.entries(cohort.aliases)) {
     catalog[name] = `npm:${target}@${version}`;
   }
+  // Consumers select sidecars directly (`npm:@bleedingdev/mf-modern-js-v3@…`
+  // in manifests, catalogs and overrides). The bundle ships its own sidecar
+  // versions, so adopting it moves those selections too.
+  const sidecars = new Map(
+    (release.sidecars?.packages ?? []).map(item => [item.name, item.version]),
+  );
+  for (const selections of [
+    ...Object.values(policy.catalogs),
+    policy.overrides,
+  ]) {
+    selectBundleSidecars(selections, sidecars);
+  }
+  const manifestUpdates = collectPackageJsonFiles(workspace).flatMap(file => {
+    const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
+    const changed = dependencyBlocks
+      .map(block => selectBundleSidecars(manifest[block], sidecars))
+      .some(Boolean);
+    return changed ? [[file, manifest]] : [];
+  });
   fs.writeFileSync(workspaceFile, dump(policy, { lineWidth: 0 }));
+  for (const [file, manifest] of manifestUpdates) {
+    fs.writeFileSync(file, `${JSON.stringify(manifest, null, 2)}\n`);
+  }
   return { catalogCount: Object.keys(cohort.aliases).length, dependencyCount };
+}
+
+/** Point every `npm:<sidecar>@<version>` selection at the bundle's version. */
+function selectBundleSidecars(selections, sidecars) {
+  let changed = false;
+  for (const [name, specifier] of Object.entries(selections ?? {})) {
+    if (typeof specifier !== 'string' || !specifier.startsWith('npm:')) {
+      continue;
+    }
+    const separator = specifier.lastIndexOf('@');
+    const sidecar = specifier.slice('npm:'.length, separator);
+    const version = sidecars.get(sidecar);
+    if (separator <= 'npm:'.length || version === undefined) continue;
+    const selected = `npm:${sidecar}@${version}`;
+    if (selected !== specifier) {
+      selections[name] = selected;
+      changed = true;
+    }
+  }
+  return changed;
 }
 
 function assert(condition, message) {

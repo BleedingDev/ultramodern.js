@@ -929,12 +929,61 @@ test('cohort installation updates native catalog to exact bundle without changin
       path.join(root, 'package.json'),
       'utf8',
     );
+    // The baseline selects the sidecars of the cohort it adopted last; the
+    // bundle moved one of them.
+    next.sidecars = {
+      packages: [
+        { name: '@bleedingdev/mf-modern-js-v3', version: '2.9.2' },
+        { name: '@bleedingdev/zod', version: '4.6.5' },
+      ],
+    };
+    const shellManifestFile = path.join(
+      root,
+      'apps/shell-super-app/package.json',
+    );
+    fs.writeFileSync(
+      shellManifestFile,
+      `${JSON.stringify(
+        {
+          name: 'shell',
+          dependencies: {
+            '@module-federation/modern-js-v3':
+              'npm:@bleedingdev/mf-modern-js-v3@2.9.1',
+            react: '19.3.0',
+          },
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    fs.appendFileSync(
+      path.join(root, 'pnpm-workspace.yaml'),
+      'overrides:\n  zod: npm:@bleedingdev/zod@4.6.5\n  effect: npm:@bleedingdev/effect@4.0.0-rc.117\n',
+    );
     const result = prepareTractorCohortInstallation(root, next);
     assert.equal(result.dependencyCount, 1);
+    const policyText = fs.readFileSync(
+      path.join(root, 'pnpm-workspace.yaml'),
+      'utf8',
+    );
     assert.match(
-      fs.readFileSync(path.join(root, 'pnpm-workspace.yaml'), 'utf8'),
+      policyText,
       /npm:@bleedingdev\/modern-js-runtime@3\.9\.0-ultramodern\.6/u,
     );
+    assert.match(policyText, /zod: npm:@bleedingdev\/zod@4\.6\.5/u);
+    assert.match(
+      policyText,
+      /effect: npm:@bleedingdev\/effect@4\.0\.0-rc\.117/u,
+    );
+    assert.deepEqual(
+      JSON.parse(fs.readFileSync(shellManifestFile, 'utf8')).dependencies,
+      {
+        '@module-federation/modern-js-v3':
+          'npm:@bleedingdev/mf-modern-js-v3@2.9.2',
+        react: '19.3.0',
+      },
+    );
+    fs.rmSync(shellManifestFile);
     assert.equal(fs.readFileSync(uiFile, 'utf8'), beforeUi);
     assert.equal(
       fs.readFileSync(path.join(root, 'package.json'), 'utf8'),
