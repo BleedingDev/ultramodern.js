@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { yaml } from '@modern-js/utils';
 import {
   assertReleaseCohortPackageSource,
@@ -126,12 +127,17 @@ test('local source generation rejects an explicit install request', () => {
 // workspace exempts exactly those versions.
 test('an installed create package exempts exactly its shipped cohort from the release-age gate', () => {
   const packageRoot = path.resolve(__dirname, '..');
-  const tempRoot = fs.realpathSync(
-    fs.mkdtempSync(path.join(os.tmpdir(), 'um-installed-cohort-')),
+  // The installed copy lives under this package's node_modules so Node
+  // resolves its dependencies by walking up, with no links to create.
+  const installRoot = fs.mkdtempSync(
+    path.join(packageRoot, 'node_modules', '.um-installed-cohort-'),
   );
   const installed = path.join(
-    tempRoot,
-    'node_modules/@bleedingdev/modern-js-ultramodern-create',
+    installRoot,
+    '@bleedingdev/modern-js-ultramodern-create',
+  );
+  const tempRoot = fs.realpathSync(
+    fs.mkdtempSync(path.join(os.tmpdir(), 'um-installed-cohort-')),
   );
   try {
     fs.mkdirSync(installed, { recursive: true });
@@ -146,10 +152,6 @@ test('an installed create package exempts exactly its shipped cohort from the re
         recursive: true,
       });
     }
-    fs.symlinkSync(
-      path.join(packageRoot, 'node_modules'),
-      path.join(installed, 'node_modules'),
-    );
     const version = '3.9.0-ultramodern.17';
     // modern-js-utils is not a catalog entry: it arrives transitively at the
     // same cohort version and must be exempt too.
@@ -185,10 +187,12 @@ test('an installed create package exempts exactly its shipped cohort from the re
           '-e',
           `const { generateUltramodernWorkspace } = await import(process.argv[1]);
 generateUltramodernWorkspace(JSON.parse(process.argv[2]));`,
-          path.join(
-            installed,
-            'dist/esm-node/ultramodern-workspace/public-api.js',
-          ),
+          pathToFileURL(
+            path.join(
+              installed,
+              'dist/esm-node/ultramodern-workspace/public-api.js',
+            ),
+          ).href,
           JSON.stringify({
             targetDir: path.join(tempRoot, workspace),
             packageName: workspace,
@@ -230,5 +234,6 @@ generateUltramodernWorkspace(JSON.parse(process.argv[2]));`,
     assert.equal('minimumReleaseAgeExclude' in otherPolicy, false);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
+    fs.rmSync(installRoot, { recursive: true, force: true });
   }
 });
