@@ -66,8 +66,6 @@ jobs:
 
       - name: Prepare
         if: ${{steps.skip-ci.outputs.RESULT != 'true'}}
-        # The root `prepare` script is a deliberate no-op in CI
-        # (scripts/prepare-root.mjs); run the build gate explicitly.
         run: mise exec -- pnpm run prepare-build
 
       # scripts/lib/browser-provisioning.js is the one browser provisioner: it
