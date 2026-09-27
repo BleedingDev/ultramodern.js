@@ -386,9 +386,9 @@ const readWorkspaceCheckOptions = (
     );
   }
   // Omitted roots mean the conventional ones this workspace actually has.
-  const sourceRoots =
-    config.sourceRoots ??
-    DEFAULT_SOURCE_ROOTS.filter(entry => isWorkspaceDirectory(root, entry));
+  const sourceRoots = Object.hasOwn(config, 'sourceRoots')
+    ? config.sourceRoots
+    : DEFAULT_SOURCE_ROOTS.filter(entry => isWorkspaceDirectory(root, entry));
   if (
     !isStringArray(sourceRoots) ||
     sourceRoots.length === 0 ||
