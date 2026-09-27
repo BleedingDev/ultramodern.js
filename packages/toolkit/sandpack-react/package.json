@@ -35,8 +35,7 @@
   "scripts": {
     "prepublishOnly": "only-allow-pnpm",
     "build": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/template.mts && rslib build",
-    "dev": "rslib build --watch",
-    "test": "rstest --passWithNoTests"
+    "dev": "rslib build --watch"
   },
   "dependencies": {
     "@codesandbox/sandpack-react": "^2.20.0",

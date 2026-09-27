@@ -24,7 +24,7 @@
     "prepublishOnly": "only-allow-pnpm",
     "dev": "rslib build --watch",
     "build": "rslib build",
-    "test": "tsgo --noEmit -p tsconfig.json && rstest --passWithNoTests"
+    "test": "tsgo --noEmit -p tsconfig.json && rstest"
   },
   "dependencies": {
     "@modern-js/types": "workspace:*",

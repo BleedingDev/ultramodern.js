@@ -53,7 +53,7 @@
     "prepublishOnly": "only-allow-pnpm",
     "build": "rslib build",
     "dev": "rslib build --watch",
-    "test": "rstest --passWithNoTests"
+    "test": "rstest"
   },
   "dependencies": {
     "@modern-js/prod-server": "workspace:*",

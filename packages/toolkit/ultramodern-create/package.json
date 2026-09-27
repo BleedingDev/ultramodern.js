@@ -87,7 +87,7 @@
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "dev": "rslib build -c rslib.config.mts -w",
     "start": "node ./dist/esm-node/index.js",
-    "test": "pnpm build && rstest --passWithNoTests",
+    "test": "pnpm build && rstest",
     "type-check": "tsgo --noEmit -p tsconfig.json"
   },
   "dependencies": {

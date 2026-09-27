@@ -62,7 +62,7 @@
     "types": "./index.d.ts"
   },
   "scripts": {
-    "test": "rstest --passWithNoTests",
+    "test": "rstest",
     "prepublishOnly": "only-allow-pnpm"
   }
 }

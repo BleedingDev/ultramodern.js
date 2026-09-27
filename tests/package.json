@@ -10,7 +10,6 @@
     "test:framework": "node utils/runWithPrerequisites.mjs -- cross-env MODERN_SERVER_LOG_LEVEL=info rstest",
     "test:rstest-adapter": "rstest -c rstest.adapter.config.mts",
     "test:builder": "node utils/runWithPrerequisites.mjs -- pnpm --dir e2e/builder test",
-    "test:module-tools": "rstest run -c rstest.module-tools.config.ts --passWithNoTests",
     "test:superapp-contracts": "rstest run -c rstest.superapp-contracts.config.mts",
     "test:ut": "pnpm -w run test:ut",
     "pretest:rstest-adapter": "pnpm --dir integration/rstest/basic-app-rstest-browser exec playwright install chromium",
