@@ -4,9 +4,9 @@
   "upstreamRef": "2f4d9c4559e26209a0d77f02c6757f29fe3699a2",
   "pathspec": ["packages"],
   "migrationGoal": "Shrink-only budget of fork edits inside upstream-owned files. Every entry is debt: move it upstream or behind an extension point, then re-run --write-divergence-allowlist.",
-  "totalFiles": 841,
-  "totalHunks": 3157,
-  "totalChangedLines": 52138,
+  "totalFiles": 840,
+  "totalHunks": 3129,
+  "totalChangedLines": 52245,
   "files": [
     {
       "file": "packages/cli/adapter-rstest/package.json",
@@ -3111,27 +3111,32 @@
     {
       "file": "packages/server/utils/package.json",
       "hunks": 5,
-      "changedLines": 21
+      "changedLines": 20
     },
     {
       "file": "packages/server/utils/src/common/index.ts",
-      "hunks": 5,
-      "changedLines": 15
+      "hunks": 7,
+      "changedLines": 38
     },
     {
-      "file": "packages/server/utils/src/compilers/typescript/importRewriter.ts",
+      "file": "packages/server/utils/src/compilers/rslib.ts",
       "hunks": 1,
-      "changedLines": 245
+      "changedLines": 435
+    },
+    {
+      "file": "packages/server/utils/src/compilers/tsgo.ts",
+      "hunks": 1,
+      "changedLines": 241
     },
     {
       "file": "packages/server/utils/src/compilers/typescript/index.ts",
-      "hunks": 18,
-      "changedLines": 510
+      "hunks": 1,
+      "changedLines": 151
     },
     {
       "file": "packages/server/utils/src/compilers/typescript/tsconfigPathsPlugin.ts",
-      "hunks": 22,
-      "changedLines": 343
+      "hunks": 1,
+      "changedLines": 440
     },
     {
       "file": "packages/server/utils/src/compilers/typescript/typescriptLoader.ts",
@@ -3194,29 +3199,19 @@
       "changedLines": 24
     },
     {
-      "file": "packages/server/utils/tests/importRewriter.test.ts",
-      "hunks": 1,
-      "changedLines": 219
-    },
-    {
-      "file": "packages/server/utils/tests/rewriteOutput.test.ts",
-      "hunks": 1,
-      "changedLines": 143
-    },
-    {
       "file": "packages/server/utils/tests/ts.test.ts",
-      "hunks": 22,
-      "changedLines": 347
+      "hunks": 29,
+      "changedLines": 624
     },
     {
       "file": "packages/server/utils/tests/tsgo.test.ts",
       "hunks": 1,
-      "changedLines": 235
+      "changedLines": 229
     },
     {
       "file": "packages/server/utils/tests/tsgoCleanup.test.ts",
       "hunks": 1,
-      "changedLines": 125
+      "changedLines": 126
     },
     {
       "file": "packages/server/utils/tsconfig.json",
@@ -3450,8 +3445,8 @@
     },
     {
       "file": "packages/solutions/app-tools/src/plugins/serverBuild.ts",
-      "hunks": 5,
-      "changedLines": 9
+      "hunks": 7,
+      "changedLines": 15
     },
     {
       "file": "packages/solutions/app-tools/src/rsbuild.ts",

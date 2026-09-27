@@ -58,16 +58,12 @@ export default (): CliPlugin<AppTools> => ({
         }
       }
 
-      const { server } = modernConfig;
       const { alias } = modernConfig.source;
 
       if (sourceDirs.length > 0) {
         await compile(
           appDirectory,
-          {
-            server,
-            alias,
-          },
+          { alias },
           {
             sourceDirs,
             distDir,

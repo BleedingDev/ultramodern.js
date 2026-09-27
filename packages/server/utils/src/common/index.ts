@@ -2,7 +2,7 @@ import type {
   SourceNormalizedConfig,
   ToolsNormalizedConfig,
 } from '@modern-js/server-core';
-import { fs } from '@modern-js/utils';
+import { fs, logger } from '@modern-js/utils';
 import * as path from 'path';
 
 export interface Pattern {
@@ -13,9 +13,6 @@ export interface Pattern {
 
 export interface IConfig {
   alias?: SourceNormalizedConfig['alias'];
-  server?: {
-    compiler?: 'typescript';
-  };
 }
 
 export interface CompileOptions {
@@ -72,6 +69,20 @@ export const compile: CompileFunc = async (
     file => `excluded file ${file} is not an absolute path.`,
   );
 
-  const { compileByTs } = await import('../compilers/typescript');
-  await compileByTs(appDirectory, modernConfig, compileOptions);
+  if (!tsconfigPath) {
+    return;
+  }
+  const { compileServerSources } = await import('../compilers/rslib');
+  try {
+    await compileServerSources(appDirectory, modernConfig, {
+      ...compileOptions,
+      tsconfigPath,
+    });
+  } catch (error) {
+    if (compileOptions.throwErrorInsteadOfExit) {
+      throw error;
+    }
+    logger.error(error);
+    process.exit(1);
+  }
 };

@@ -2,11 +2,11 @@ import { createRequire } from 'node:module';
 import { fs } from '@modern-js/utils';
 import os from 'os';
 import path from 'path';
+import { compile } from '../src/common';
 import {
-  compileByTs,
   createResolvedTsgoConfig,
   getTsgoBinPath,
-} from '../src/compilers/typescript';
+} from '../src/compilers/tsgo';
 import { createIsolatedTsExample } from './helpers';
 
 const require = createRequire(import.meta.url);
@@ -83,9 +83,7 @@ describe('createResolvedTsgoConfig', () => {
     const { config, resolvedConfigPath } = await createResolvedTsgoConfig(
       example,
       tsconfigPath,
-      path.join(example, 'dist-nested'),
       sourceDirs,
-      undefined,
       getTsgoBinPath(example),
     );
 
@@ -123,9 +121,7 @@ describe('createResolvedTsgoConfig', () => {
       const { config } = await createResolvedTsgoConfig(
         example,
         tsconfigPath,
-        path.join(example, 'dist-server'),
         [path.join(example, 'api')],
-        undefined,
         getTsgoBinPath(example),
         excludeFiles,
       );
@@ -157,9 +153,7 @@ describe('createResolvedTsgoConfig', () => {
       const { config } = await createResolvedTsgoConfig(
         example,
         path.join(tsconfigDir, 'tsconfig.json'),
-        path.join(example, 'dist-server'),
         [path.join(example, 'api'), path.join(example, 'shared')],
-        undefined,
         getTsgoBinPath(example),
         [excluded],
       );
@@ -208,8 +202,8 @@ describe('createResolvedTsgoConfig', () => {
       include: ['consumer'],
     });
 
-    const compile = (distName: string) =>
-      compileByTs(example, { alias: {} } as any, {
+    const build = (distName: string) =>
+      compile(example, { alias: {} } as any, {
         sourceDirs: [consumerDir],
         distDir: path.join(example, distName),
         moduleType: 'commonjs',
@@ -218,7 +212,7 @@ describe('createResolvedTsgoConfig', () => {
       });
 
     try {
-      await Promise.all([compile('dist-a'), compile('dist-b')]);
+      await Promise.all([build('dist-a'), build('dist-b')]);
 
       for (const distName of ['dist-a', 'dist-b']) {
         const outputPath = path.join(example, distName, 'consumer/entry.js');

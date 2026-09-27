@@ -1,4 +1,4 @@
-import { fs } from '@modern-js/utils';
+import { fs, logger } from '@modern-js/utils';
 import os from 'os';
 import path from 'path';
 import { pathToFileURL } from 'url';
@@ -44,7 +44,7 @@ describe('typescript', () => {
       );
 
       await expect(compile(appDirectory, {}, options)).rejects.toThrow(
-        /TS-Go compilation failed/,
+        /TS-Go type check failed/,
       );
       await compile(
         appDirectory,
@@ -121,7 +121,7 @@ describe('typescript', () => {
       expect(server()).toEqual('shared-server');
 
       const files = await fs.readdir(distServerDir);
-      expect(files.length).toBe(2);
+      expect(files.sort()).toEqual(['foo.md', 'index.js', 'index.js.map']);
 
       const distSrcDir = path.join(distDir, './src');
       expect(await fs.pathExists(distSrcDir)).toBeFalsy();
@@ -136,6 +136,296 @@ describe('typescript', () => {
     }
   });
 
+  it('emits runnable server output with source maps for every import kind', async () => {
+    const { example, tempRoot } = await createIsolatedTsExample(
+      'server-utils-import-kinds-',
+    );
+    const apiDir = path.join(example, 'api');
+    const distDir = path.join(example, 'dist');
+    const workspacePackage = path.join(tempRoot, 'packages/workspace-dep');
+    const sourceMapsEnabled = process.sourceMapsEnabled;
+
+    try {
+      await fs.outputJSON(path.join(workspacePackage, 'package.json'), {
+        name: 'workspace-dep',
+        main: 'index.js',
+      });
+      await fs.outputFile(
+        path.join(workspacePackage, 'index.js'),
+        "exports.value = 'workspace';\n",
+      );
+      await fs.outputFile(
+        path.join(workspacePackage, 'index.d.ts'),
+        'export declare const value: string;\n',
+      );
+      await fs.ensureSymlink(
+        workspacePackage,
+        path.join(example, 'node_modules/workspace-dep'),
+      );
+      const installedPackage = path.join(example, 'node_modules/installed-dep');
+      await fs.outputJSON(path.join(installedPackage, 'package.json'), {
+        name: 'installed-dep',
+        main: 'index.js',
+        types: 'index.d.ts',
+      });
+      await fs.outputFile(
+        path.join(installedPackage, 'index.js'),
+        "exports.value = 'installed';\n",
+      );
+      await fs.outputFile(
+        path.join(installedPackage, 'index.d.ts'),
+        'export declare const value: string;\n',
+      );
+      await fs.outputJSON(path.join(example, 'aliased/data.json'), {
+        value: 'source-alias',
+      });
+      await fs.outputFile(
+        path.join(example, 'aliased/value.ts'),
+        "import data from './data.json';\nexport const value = data.value;\n",
+      );
+      // `source.alias` is invisible to the type checker; apps declare it.
+      await fs.outputFile(
+        path.join(apiDir, 'source-alias.d.ts'),
+        "declare module '@source-alias/value' {\n  export const value: string;\n}\ndeclare module '@replaced/dep' {\n  export const value: string;\n}\n",
+      );
+      await fs.outputFile(
+        path.join(apiDir, 'trace.ts'),
+        [
+          "import { value as aliased } from '@source-alias/value';",
+          "import { shared } from '@shared/index';",
+          "import { value as workspace } from 'workspace-dep';",
+          "import { value as installed } from '@replaced/dep';",
+          'export const values = () => [aliased, shared, workspace, installed];',
+          '',
+          'export const fail = (): never => {',
+          "  throw new Error('trace');",
+          '};',
+          '',
+        ].join('\n'),
+      );
+
+      await compile(
+        example,
+        {
+          alias: {
+            '@source-alias': './aliased',
+            '@replaced/dep$': ['missing-dep', 'installed-dep'],
+          },
+        },
+        {
+          sourceDirs: [apiDir, path.join(example, 'shared')],
+          distDir,
+          tsconfigPath: path.join(example, 'tsconfig.json'),
+          throwErrorInsteadOfExit: true,
+        },
+      );
+
+      const output = path.join(distDir, 'api/trace.js');
+      expect(await fs.pathExists(`${output}.map`)).toBe(true);
+      const emitted = await fs.readFile(output, 'utf8');
+      expect(emitted).toContain('require("workspace-dep")');
+      expect(emitted).toContain('require("installed-dep")');
+      expect(emitted).not.toMatch(/@source-alias|@shared|@replaced/u);
+      expect(
+        await fs.readJSON(path.join(distDir, 'aliased/data.json')),
+      ).toEqual({ value: 'source-alias' });
+
+      process.setSourceMapsEnabled(true);
+      const trace = require(output);
+      expect(trace.values()).toEqual([
+        'source-alias',
+        'shared',
+        'workspace',
+        'installed',
+      ]);
+      let stack = '';
+      try {
+        trace.fail();
+      } catch (error) {
+        stack = (error as Error).stack ?? '';
+      }
+      expect(stack).toContain(`${path.join(apiDir, 'trace.ts')}:8:`);
+    } finally {
+      process.setSourceMapsEnabled(sourceMapsEnabled);
+      await fs.remove(tempRoot);
+    }
+  });
+
+  it('emits only the scripts the tsconfig includes, plus what they import', async () => {
+    const appDirectory = await fs.realpath(
+      await fs.mkdtemp(path.join(os.tmpdir(), 'server-utils-tsconfig-roots-')),
+    );
+    const apiDir = path.join(appDirectory, 'api');
+    const distDir = path.join(appDirectory, 'dist');
+    try {
+      await fs.outputJSON(path.join(appDirectory, 'tsconfig.json'), {
+        compilerOptions: { module: 'commonjs', target: 'ES2022', types: [] },
+        include: ['api'],
+        exclude: ['**/*.test.ts', 'api/helpers'],
+      });
+      await fs.outputFile(
+        path.join(apiDir, 'index.ts'),
+        "export { helper } from './helpers/used';\n",
+      );
+      await fs.outputFile(
+        path.join(apiDir, 'helpers/used.ts'),
+        "export const helper = 'used';\n",
+      );
+      await fs.outputFile(
+        path.join(apiDir, 'helpers/unused.ts'),
+        "export const unused = 'unused';\n",
+      );
+      await fs.outputFile(
+        path.join(apiDir, 'index.test.ts'),
+        "import { missing } from 'test-only';\nexport { missing };\n",
+      );
+
+      await compile(
+        appDirectory,
+        {},
+        {
+          sourceDirs: [apiDir],
+          distDir,
+          tsconfigPath: path.join(appDirectory, 'tsconfig.json'),
+          throwErrorInsteadOfExit: true,
+        },
+      );
+
+      expect(require(path.join(distDir, 'api/index.js')).helper).toBe('used');
+      expect(
+        await fs.pathExists(path.join(distDir, 'api/helpers/unused.js')),
+      ).toBe(false);
+      expect(await fs.pathExists(path.join(distDir, 'api/index.test.js'))).toBe(
+        false,
+      );
+    } finally {
+      await fs.remove(appDirectory);
+    }
+  });
+
+  it('type-checks sources reached only through source.alias', async () => {
+    const appDirectory = await fs.realpath(
+      await fs.mkdtemp(path.join(os.tmpdir(), 'server-utils-alias-check-')),
+    );
+    const apiDir = path.join(appDirectory, 'api');
+    try {
+      await fs.outputJSON(path.join(appDirectory, 'tsconfig.json'), {
+        compilerOptions: { module: 'commonjs', target: 'ES2022', types: [] },
+        include: ['api'],
+      });
+      await fs.outputFile(
+        path.join(apiDir, 'aliases.d.ts'),
+        "declare module '@lib/value' {\n  export const value: string;\n}\n",
+      );
+      await fs.outputFile(
+        path.join(apiDir, 'index.ts'),
+        "export { value } from '@lib/value';\n",
+      );
+      await fs.outputFile(
+        path.join(appDirectory, 'lib/value.ts'),
+        'export const value: string = 1;\n',
+      );
+      await expect(
+        compile(
+          appDirectory,
+          { alias: { '@lib': './lib' } },
+          {
+            sourceDirs: [apiDir],
+            distDir: path.join(appDirectory, 'dist'),
+            tsconfigPath: path.join(appDirectory, 'tsconfig.json'),
+            throwErrorInsteadOfExit: true,
+          },
+        ),
+      ).rejects.toThrow(/lib\/value\.ts.*TS2322/u);
+    } finally {
+      await fs.remove(appDirectory);
+    }
+  });
+
+  it('type-checks server roots that hold only declarations', async () => {
+    const appDirectory = await fs.realpath(
+      await fs.mkdtemp(path.join(os.tmpdir(), 'server-utils-declarations-')),
+    );
+    const sharedDir = path.join(appDirectory, 'shared');
+    try {
+      await fs.outputJSON(path.join(appDirectory, 'tsconfig.json'), {
+        compilerOptions: { module: 'commonjs', target: 'ES2022', types: [] },
+        include: ['shared'],
+      });
+      await fs.outputFile(
+        path.join(sharedDir, 'types.d.ts'),
+        "export type Value = import('missing-types').Missing;\n",
+      );
+      await expect(
+        compile(
+          appDirectory,
+          {},
+          {
+            sourceDirs: [sharedDir],
+            distDir: path.join(appDirectory, 'dist'),
+            tsconfigPath: path.join(appDirectory, 'tsconfig.json'),
+            throwErrorInsteadOfExit: true,
+          },
+        ),
+      ).rejects.toThrow(/missing-types/u);
+    } finally {
+      await fs.remove(appDirectory);
+    }
+  });
+
+  it('emits decorator metadata and reports non-blocking type errors', async () => {
+    const appDirectory = await fs.realpath(
+      await fs.mkdtemp(path.join(os.tmpdir(), 'server-utils-decorators-')),
+    );
+    const apiDir = path.join(appDirectory, 'api');
+    const warn = rstest.spyOn(logger, 'warn').mockImplementation(() => {});
+    try {
+      await fs.outputJSON(path.join(appDirectory, 'tsconfig.json'), {
+        compilerOptions: {
+          module: 'commonjs',
+          target: 'ES2022',
+          types: [],
+          experimentalDecorators: true,
+          emitDecoratorMetadata: true,
+          noEmitOnError: false,
+        },
+        include: ['api'],
+      });
+      await fs.outputFile(
+        path.join(apiDir, 'index.ts'),
+        [
+          'const inject = (..._args: unknown[]) => {};',
+          'export class Service {',
+          '  constructor(@inject readonly name: string) {}',
+          '}',
+          'export const invalid: string = 1;',
+          '',
+        ].join('\n'),
+      );
+
+      await compile(
+        appDirectory,
+        {},
+        {
+          sourceDirs: [apiDir],
+          distDir: path.join(appDirectory, 'dist'),
+          tsconfigPath: path.join(appDirectory, 'tsconfig.json'),
+          throwErrorInsteadOfExit: true,
+        },
+      );
+
+      const emitted = await fs.readFile(
+        path.join(appDirectory, 'dist/api/index.js'),
+        'utf8',
+      );
+      expect(emitted).toContain('design:paramtypes');
+      expect(warn).toHaveBeenCalledWith(expect.stringMatching(/TS2322/u));
+    } finally {
+      warn.mockRestore();
+      await fs.remove(appDirectory);
+    }
+  });
+
   it('rewrites tsconfig path aliases in emitted declarations', async () => {
     const example = path.join(__dirname, './fixtures', './ts-declaration');
     const tsconfigPath = path.join(example, './tsconfig.json');
@@ -144,10 +434,8 @@ describe('typescript', () => {
     const apiDir = path.join(example, './api');
 
     try {
-      // The compiler never resolves `paths` in `.d.ts` output, so the alias
-      // must be rewritten by the post-emit declaration rewrite. Quote style is
-      // matched loosely: TS-Go keeps the source's quotes where tsc normalized
-      // them to double quotes.
+      // TS-Go never resolves `paths` in `.d.ts` output; Rslib's declaration
+      // redirect does. Quote style is matched loosely.
       await compile(example, { alias: {} } as any, {
         sourceDirs: [sharedDir, apiDir],
         distDir,
@@ -287,7 +575,7 @@ describe('typescript', () => {
     }
   });
 
-  it('rewrites emitted server-config aliases before surfacing TS-Go diagnostics', async () => {
+  it('emits runnable aliased output even when the type check fails', async () => {
     const example = await fs.realpath(
       await fs.mkdtemp(path.join(os.tmpdir(), 'server-config-alias-')),
     );
@@ -330,7 +618,7 @@ describe('typescript', () => {
           tsconfigPath: path.join(example, 'tsconfig.json'),
           throwErrorInsteadOfExit: true,
         }),
-      ).rejects.toThrow(/TS-Go compilation failed/);
+      ).rejects.toThrow(/TS-Go type check failed/);
 
       const serverOutput = require(
         path.join(distDir, 'server/modern.server.js'),
@@ -417,8 +705,11 @@ describe('typescript', () => {
           distDir: path.join(example, 'dist-native-collision'),
           tsconfigPath: path.join(example, 'tsconfig.json'),
           moduleType: 'module',
+          throwErrorInsteadOfExit: true,
         }),
-      ).rejects.toThrow(/collision\.mts.*collision\.mjs/u);
+      ).rejects.toThrow(
+        /collision\.m[jt]s" and ".*collision\.m[jt]s" both compile to "server\/collision\.mjs"/u,
+      );
     } finally {
       await fs.remove(tempRoot);
     }

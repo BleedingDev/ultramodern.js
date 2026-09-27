@@ -2,7 +2,7 @@ import { fs } from '@modern-js/utils';
 import { EventEmitter } from 'events';
 import os from 'os';
 import path from 'path';
-import { compileByTs } from '../src/compilers/typescript';
+import { compile } from '../src/common';
 
 type SpawnBehavior = (child: {
   stdout: EventEmitter;
@@ -28,7 +28,7 @@ rstest.mock('child_process', () => ({
   },
 }));
 
-describe('compileByTs temp config cleanup', () => {
+describe('compile temp config cleanup', () => {
   afterEach(async () => {
     spawnBehaviors.length = 0;
     rstest.restoreAllMocks();
@@ -68,13 +68,14 @@ describe('compileByTs temp config cleanup', () => {
     });
 
     await expect(
-      compileByTs(
+      compile(
         example,
         { alias: {} },
         {
           sourceDirs: [path.join(example, 'api')],
           distDir: path.join(example, 'dist-cleanup'),
           tsconfigPath: path.join(example, 'tsconfig.json'),
+          throwErrorInsteadOfExit: true,
         },
       ),
     ).rejects.toThrow('spawn ENOENT');
@@ -110,7 +111,7 @@ describe('compileByTs temp config cleanup', () => {
     });
 
     await expect(
-      compileByTs(
+      compile(
         example,
         { alias: {} },
         {
