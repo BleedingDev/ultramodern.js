@@ -48,7 +48,8 @@ test('no workspace script passes --passWithNoTests', () => {
   );
 });
 
-test('every rstest config matches at least one test file', () => {
+test('every rstest config and project matches at least one test file', async () => {
+  const { loadConfig } = await import('@rstest/core');
   // The adapter fixture configs, and the tests aggregate that loads them as
   // projects, import the built @modern-js/adapter-rstest, which clean script
   // lanes do not build; the adapter integration run executes them instead.
@@ -59,18 +60,43 @@ test('every rstest config matches at least one test file', () => {
       file !== 'tests/rstest.adapter.config.mts',
   );
   assert.ok(configs.length > 0);
-  const empty = configs.filter(config => {
+  const empty = [];
+  for (const config of configs) {
+    const cwd = path.join(repoRoot, path.dirname(config));
     const result = spawnSync(
       process.execPath,
-      [rstestBin, 'list', '--filesOnly', '-c', path.basename(config)],
-      { cwd: path.join(repoRoot, path.dirname(config)), encoding: 'utf8' },
+      [rstestBin, 'list', '--filesOnly', '--json', '-c', path.basename(config)],
+      { cwd, encoding: 'utf8' },
     );
     assert.equal(result.status, 0, `${config}: ${result.stderr}`);
-    return result.stdout.trim() === '';
-  });
+    const listed = JSON.parse(result.stdout);
+    if (listed.length === 0) {
+      empty.push(config);
+      continue;
+    }
+    // With several inline projects, each must contribute a file, or one
+    // project's broken include glob hides behind a sibling's tests. Project
+    // globs point at other configs, which this loop checks on their own; a
+    // lone project is covered by the whole-config check above (rstest lists
+    // its files without a project name).
+    const { content } = await loadConfig({ cwd, path: path.basename(config) });
+    const inlineProjects = (content.projects ?? []).filter(
+      project => typeof project !== 'string',
+    );
+    if (inlineProjects.length < 2) {
+      continue;
+    }
+    const listedProjects = new Set(listed.map(entry => entry.project));
+    for (const project of inlineProjects) {
+      assert.ok(project.name, `${config}: name every inline rstest project.`);
+      if (!listedProjects.has(project.name)) {
+        empty.push(`${config} project ${project.name}`);
+      }
+    }
+  }
   assert.deepEqual(
     empty,
     [],
-    'These rstest configs match no test files. Fix the include glob, or delete the config and the package test script.',
+    'These rstest configs or projects match no test files. Fix the include glob, or delete the config or project and the package test script.',
   );
 });
