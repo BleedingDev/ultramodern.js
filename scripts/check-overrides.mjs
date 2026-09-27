@@ -111,7 +111,8 @@ function findRemovalViolations(key, parent, target, snapshots, importers) {
 
 /**
  * @param {string} lockfileText pnpm-lock.yaml contents
- * @param {Map<string, string>} importerNames workspace package name -> importer path
+ * @param {Map<string, {path: string, version?: string}>} importerNames
+ *   workspace package name -> importer path and manifest version
  * @returns {string[]} violations, one line each
  */
 export function findOverrideViolations(lockfileText, importerNames) {
@@ -178,10 +179,18 @@ export function findOverrideViolations(lockfileText, importerNames) {
       continue;
     }
 
-    if (parent && importerNames.has(parent.name)) {
+    // pnpm matches a parent by name and version, so a versioned selector
+    // that excludes the workspace package only targets registry copies.
+    const workspaceParent = parent && importerNames.get(parent.name);
+    if (
+      workspaceParent &&
+      (parent.range === undefined ||
+        (workspaceParent.version !== undefined &&
+          inRange(workspaceParent.version, parent.range)))
+    ) {
       violations.push(
         `'${key}': '${parent.name}' is a workspace package, so this overrides its own declared ${target.name}. ` +
-          `Delete the override and set ${target.name} in ${importerNames.get(parent.name)}/package.json.`,
+          `Delete the override and set ${target.name} in ${workspaceParent.path}/package.json.`,
       );
       continue;
     }
@@ -219,7 +228,15 @@ export function findOverrideViolations(lockfileText, importerNames) {
           ...entry.snapshot.optionalDependencies,
         };
         const child = deps[target.name];
-        if (child === undefined) continue;
+        if (child === undefined) {
+          // pnpm also rewrites peer ranges; an unresolved or optional peer
+          // leaves no snapshot edge, only the package's peerDependencies.
+          const peers =
+            lockfile.packages?.[`${entry.name}@${entry.version}`]
+              ?.peerDependencies ?? {};
+          if (target.name in peers) edges += 1;
+          continue;
+        }
         edges += 1;
         const { version } = parsePackageKey(`${target.name}@${child}`);
         if (inRange(version, target.range) && !honours(version, value)) {
@@ -263,10 +280,10 @@ export function findOverrideViolations(lockfileText, importerNames) {
 export function readImporterNames(lockfileText, root = repoRoot) {
   const names = new Map();
   for (const importer of Object.keys(parse(lockfileText).importers ?? {})) {
-    const { name } = JSON.parse(
+    const { name, version } = JSON.parse(
       readFileSync(path.join(root, importer, 'package.json'), 'utf8'),
     );
-    if (name) names.set(name, importer);
+    if (name) names.set(name, { path: importer, version });
   }
   return names;
 }

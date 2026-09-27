@@ -78,7 +78,10 @@ snapshots:
 `;
 
 const importerNames = new Map([
-  ['@modern-js/runtime-utils', 'packages/toolkit/runtime-utils'],
+  [
+    '@modern-js/runtime-utils',
+    { path: 'packages/toolkit/runtime-utils', version: '3.0.0' },
+  ],
 ]);
 
 test('dead, inverted and unmatched overrides each name their fix', () => {
@@ -276,4 +279,53 @@ test('a parent override takes precedence over a generic one', () => {
     'overrides:\n  brace-expansion: 5.0.9\n  minimatch@3>brace-expansion: 1.1.18\nimporters:',
   );
   assert.deepEqual(findOverrideViolations(lockfile, importerNames), []);
+});
+
+test('a parent selector that excludes the workspace version targets registry copies', () => {
+  const lockfile = preFixLockfile.replace(
+    /overrides:[\s\S]*?importers:/,
+    'overrides:\n  minimatch@3>brace-expansion: 1.1.18\nimporters:',
+  );
+  const workspaceMinimatch = new Map([
+    ['minimatch', { path: 'packages/minimatch', version: '10.0.0' }],
+  ]);
+  assert.deepEqual(findOverrideViolations(lockfile, workspaceMinimatch), []);
+  assert.match(
+    findOverrideViolations(
+      lockfile,
+      new Map([
+        ['minimatch', { path: 'packages/minimatch', version: '3.0.0' }],
+      ]),
+    )[0],
+    /workspace package.*set brace-expansion in packages\/minimatch\/package\.json/,
+  );
+});
+
+test('a parent override of a peer without a snapshot edge is live', () => {
+  const lockfile = preFixLockfile
+    .replace(
+      /overrides:[\s\S]*?importers:/,
+      "overrides:\n  nx>react: '19.3.0'\nimporters:",
+    )
+    .replace(
+      '  nx@23.2.1: {}\n',
+      "  nx@23.2.1:\n    peerDependencies:\n      react: '19.3.0'\n",
+    )
+    .replace(
+      'nx@23.2.1:\n    dependencies:',
+      'nx@23.2.1:\n    dependencies:\n      react-dom: 19.3.0',
+    );
+  // react resolves only through another package's edge name.
+  const withEdge = lockfile.replace(
+    'minimatch@3.1.5:\n    dependencies:',
+    'minimatch@3.1.5:\n    dependencies:\n      react: 19.3.0',
+  );
+  assert.deepEqual(findOverrideViolations(withEdge, importerNames), []);
+  assert.match(
+    findOverrideViolations(
+      withEdge.replace("    peerDependencies:\n      react: '19.3.0'\n", ''),
+      importerNames,
+    )[0],
+    /no nx in the lockfile depends on react\. Delete/,
+  );
 });
