@@ -12,7 +12,7 @@ const test = require('node:test');
 
 const repoRoot = path.resolve(__dirname, '../../..');
 const cohortAliasConsumer = '@bleedingdev/modern-js-image';
-const imageSidecarRoots = ['packages/sidecar/ipx'];
+const stagedSidecarRoots = ['packages/sidecar/mf-cli'];
 
 const importPublication = () =>
   import('../lib/prepare-bleedingdev-packages/sidecar-publication.mjs');
@@ -23,7 +23,37 @@ const importSidecars = () =>
 const makeTempDir = () =>
   fs.mkdtempSync(path.join(os.tmpdir(), 'modern-sidecar-lane-'));
 
-// Stage the repository sidecars into a release-bundle shape the CLI reads.
+// A committed sidecar package, so staging never fetches a recipe's upstream
+// tarball from the registry.
+const sidecarFixtureRoot = () => {
+  const root = makeTempDir();
+  const dir = path.join(root, stagedSidecarRoots[0]);
+  fs.mkdirSync(path.join(dir, 'bin'), { recursive: true });
+  fs.mkdirSync(path.join(dir, 'dist'), { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, 'package.json'),
+    `${JSON.stringify(
+      {
+        name: '@bleedingdev/mf-cli',
+        version: '2.9.2',
+        license: 'MIT',
+        bin: { mf: './bin/mf.js' },
+        files: ['bin', 'dist'],
+        publishConfig: {
+          registry: 'https://registry.npmjs.org/',
+          access: 'public',
+        },
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  fs.writeFileSync(path.join(dir, 'bin/mf.js'), '#!/usr/bin/env node\n');
+  fs.writeFileSync(path.join(dir, 'dist/index.js'), 'module.exports = {};\n');
+  return root;
+};
+
+// Stage a sidecar into a release-bundle shape the CLI reads.
 const stageRelease = async () => {
   const {
     collectSidecarPackages,
@@ -34,9 +64,10 @@ const stageRelease = async () => {
   const stageDir = path.join(releaseDir, 'sidecars');
   fs.mkdirSync(stageDir, { recursive: true });
   const staged = await Promise.all(
-    collectSidecarPackages(repoRoot, { roots: imageSidecarRoots }).map(
-      sidecar =>
-        stageSidecarPackage(sidecar, stageDir, { repoRoot: releaseDir }),
+    collectSidecarPackages(sidecarFixtureRoot(), {
+      roots: stagedSidecarRoots,
+    }).map(sidecar =>
+      stageSidecarPackage(sidecar, stageDir, { repoRoot: releaseDir }),
     ),
   );
   const { descriptor } = writeSidecarStagingManifest(releaseDir, staged, {
@@ -70,13 +101,13 @@ const acceptedSidecarRelease = async releaseDir => {
   };
 };
 
-const stagedIpx = () => ({
-  name: '@bleedingdev/ipx',
+const stagedMfCli = () => ({
+  name: '@bleedingdev/mf-cli',
   version: '3.2.0',
   integrity: `sha512-${Buffer.from('accepted-ipx').toString('base64')}`,
   shasum: 'a'.repeat(40),
   packageJson: {
-    name: '@bleedingdev/ipx',
+    name: '@bleedingdev/mf-cli',
     version: '3.2.0',
     description: 'sidecar fork',
     license: 'MIT',
@@ -88,7 +119,7 @@ const stagedIpx = () => ({
     main: './dist/index.cjs',
     module: './dist/index.mjs',
     types: './dist/index.d.ts',
-    bin: './bin/ipx.mjs',
+    bin: { mf: './bin/mf.js' },
     files: ['dist', 'bin'],
     scripts: { verify: 'node ./scripts/verify.mjs' },
     dependencies: { sharp: '^0.35.3' },
@@ -103,7 +134,7 @@ const packumentFor = (sidecar, { tag = '3.2.0', overrides = {} } = {}) => ({
       name: sidecar.name,
       version: sidecar.version,
       // npm normalizes a string bin to object form and rewrites repository.
-      bin: { ipx: 'bin/ipx.mjs' },
+      bin: { mf: 'bin/mf.js' },
       main: './dist/index.cjs',
       module: './dist/index.mjs',
       types: './dist/index.d.ts',
@@ -123,7 +154,7 @@ const packumentFor = (sidecar, { tag = '3.2.0', overrides = {} } = {}) => ({
 
 test('an unpublished sidecar version is published; a byte-identical one is reused', async () => {
   const { sidecarRegistryDecision } = await importPublication();
-  const sidecar = stagedIpx();
+  const sidecar = stagedMfCli();
 
   assert.deepEqual(
     sidecarRegistryDecision(sidecar, null).action,
@@ -140,7 +171,7 @@ test('an unpublished sidecar version is published; a byte-identical one is reuse
 
 test('registry content, version, and dist-tag mismatches fail closed', async () => {
   const { sidecarRegistryDecision } = await importPublication();
-  const sidecar = stagedIpx();
+  const sidecar = stagedMfCli();
 
   // Matching manifest fields are insufficient: registry reuse must bind the
   // exact accepted tarball bytes.
@@ -291,7 +322,7 @@ test('the CLI reads the staged lane from the release bundle and fails closed on 
     sidecars: {
       ...accepted.sidecars,
       packages: accepted.sidecars.packages.map(item =>
-        item.name === '@bleedingdev/ipx'
+        item.name === '@bleedingdev/mf-cli'
           ? {
               ...item,
               packageJson: { ...item.packageJson, version: '999.0.0' },
@@ -305,7 +336,7 @@ test('the CLI reads the staged lane from the release bundle and fails closed on 
       readStagedSidecars(releaseDir, {
         verifyRelease: () => tampered,
       }),
-    /Accepted sidecar @bleedingdev\/ipx@[\d.]+ contains @bleedingdev\/ipx@999\.0\.0/u,
+    /Accepted sidecar @bleedingdev\/mf-cli@[\d.]+ contains @bleedingdev\/mf-cli@999\.0\.0/u,
   );
 
   assert.throws(
@@ -337,7 +368,7 @@ test('a missing dist-tag and an unindexed version are retried until they settle'
     classifySidecarPropagation,
     propagationPendingStates,
   } = await importCli();
-  const sidecar = stagedIpx();
+  const sidecar = stagedMfCli();
   const waits = [];
 
   // Exactly the sequence a fresh publish walks through: the packument is not
@@ -404,7 +435,7 @@ test('a published version absent for minutes is still verified by exact integrit
   const { registryPropagationDelaysMs } = await import(
     '../lib/prepare-bleedingdev-packages/registry-propagation.mjs'
   );
-  const sidecar = stagedIpx();
+  const sidecar = stagedMfCli();
   const waits = [];
   let waitedMs = 0;
   // The version stays absent until more than five minutes of waiting have
@@ -453,7 +484,7 @@ test('a sidecar that never propagates fails after the whole shared schedule', as
   const { registryPropagationDelaysMs } = await import(
     '../lib/prepare-bleedingdev-packages/registry-propagation.mjs'
   );
-  const sidecar = stagedIpx();
+  const sidecar = stagedMfCli();
   const waits = [];
   await assert.rejects(
     awaitPublishedSidecar(
@@ -467,7 +498,7 @@ test('a sidecar that never propagates fails after the whole shared schedule', as
       },
     ),
     new RegExp(
-      `did not become verifiable after ${registryPropagationDelaysMs.length + 1} registry reads: @bleedingdev/ipx@3\\.2\\.0 is still absent from the registry`,
+      `did not become verifiable after ${registryPropagationDelaysMs.length + 1} registry reads: @bleedingdev/mf-cli@3\\.2\\.0 is still absent from the registry`,
       'u',
     ),
   );
@@ -493,7 +524,7 @@ const withTrustedPublishEnv = t => {
 };
 
 const namedSidecar = (name, dependencies = { sharp: '^0.35.3' }) => {
-  const base = stagedIpx();
+  const base = stagedMfCli();
   return {
     ...base,
     name,
@@ -504,8 +535,7 @@ const namedSidecar = (name, dependencies = { sharp: '^0.35.3' }) => {
 const publishedPackumentFor = (sidecar, overrides = {}) =>
   packumentFor(sidecar, {
     overrides: {
-      // npm normalizes a string bin under the unscoped package name.
-      bin: { [sidecar.name.split('/')[1]]: 'bin/ipx.mjs' },
+      bin: sidecar.packageJson.bin,
       dependencies: sidecar.packageJson.dependencies,
       ...overrides,
     },
@@ -649,7 +679,7 @@ for (const settlesDuring of ['registry read', 'token exchange']) {
 test('a dist-tag on a different real version is terminal, never retried', async () => {
   const { awaitPublishedSidecar, classifySidecarPropagation } =
     await importCli();
-  const sidecar = stagedIpx();
+  const sidecar = stagedMfCli();
   const waits = [];
   const wait = async ms => {
     waits.push(ms);
@@ -739,7 +769,7 @@ test('--check-registry fails on a missing sidecar name before any bundle exists'
 
   const reads = [];
   const recipes = () => [
-    { name: '@bleedingdev/ipx', version: '3.2.2' },
+    { name: '@bleedingdev/mf-cli', version: '3.2.2' },
     { name: '@bleedingdev/new-sidecar', version: '1.0.0' },
   ];
   const started = performance.now();
@@ -749,7 +779,7 @@ test('--check-registry fails on a missing sidecar name before any bundle exists'
     checkSidecarRegistry({
       readPackument: async name => {
         reads.push(name);
-        return name === '@bleedingdev/ipx' ? { name } : null;
+        return name === '@bleedingdev/mf-cli' ? { name } : null;
       },
       readRecipes: recipes,
     }),
@@ -760,10 +790,10 @@ test('--check-registry fails on a missing sidecar name before any bundle exists'
       /Bootstrap @bleedingdev\/new-sidecar interactively once, with explicit authorization, as a deprecated 0\.0\.0-bootstrap placeholder/u.test(
         error.message,
       ) &&
-      !error.message.includes('@bleedingdev/ipx'),
+      !error.message.includes('@bleedingdev/mf-cli'),
   );
   assert.ok(performance.now() - started < 1000);
-  assert.deepEqual(reads, ['@bleedingdev/ipx', '@bleedingdev/new-sidecar']);
+  assert.deepEqual(reads, ['@bleedingdev/mf-cli', '@bleedingdev/new-sidecar']);
 
   // The default recipe source is the committed sidecars.json.
   const checked = [];
@@ -859,7 +889,7 @@ const attestationFetch = (sidecar, repository) => async () => ({
                 predicateType: slsaProvenanceV1,
                 subject: [
                   {
-                    name: `pkg:npm/%40bleedingdev/ipx@${sidecar.version}`,
+                    name: `pkg:npm/%40bleedingdev/mf-cli@${sidecar.version}`,
                     digest: {
                       sha512: Buffer.from(
                         sidecar.integrity.slice('sha512-'.length),
@@ -906,20 +936,20 @@ const acceptingBundleVerifier = async (_bundle, expectation) => ({
 
 test('a byte-identical reuse without attestations that is not grandfathered fails closed', async () => {
   const { assertSidecarReuseProvenance } = await importPublication();
-  const sidecar = stagedIpx();
+  const sidecar = stagedMfCli();
   await assert.rejects(
     assertSidecarReuseProvenance(sidecar, chronologyPackument(sidecar), {
       env: {},
       policy: { grandfatheredVersions: [] },
       source: releaseSource,
     }),
-    /@bleedingdev\/ipx@3\.2\.0 is missing SLSA v1 provenance and is not a grandfathered version/u,
+    /@bleedingdev\/mf-cli@3\.2\.0 is missing SLSA v1 provenance and is not a grandfathered version/u,
   );
 });
 
 test('a reuse grandfathered by exact version and integrity passes; any other integrity fails', async () => {
   const { assertSidecarReuseProvenance } = await importPublication();
-  const sidecar = stagedIpx();
+  const sidecar = stagedMfCli();
   await assertSidecarReuseProvenance(sidecar, chronologyPackument(sidecar), {
     env: {},
     policy: grandfatheredPolicy(sidecar),
@@ -940,7 +970,7 @@ test('a reuse grandfathered by exact version and integrity passes; any other int
 test('reuse accepts this repository publish workflow provenance and rejects another repository', async () => {
   const { assertSidecarReuseProvenance } = await importPublication();
   const sidecar = {
-    ...stagedIpx(),
+    ...stagedMfCli(),
     integrity: `sha512-${crypto
       .createHash('sha512')
       .update('accepted-ipx')
@@ -969,7 +999,7 @@ test('the cohort gate and sidecar reuse share one chronology verifier', async ()
     '../lib/prepare-bleedingdev-packages/registry.mjs'
   );
   const cohortName = '@bleedingdev/modern-js-ultramodern-create';
-  const cohort = { ...stagedIpx(), name: cohortName };
+  const cohort = { ...stagedMfCli(), name: cohortName };
   const packument = chronologyPackument(cohort);
   packument.versions[cohort.version].name = cohortName;
   const missing =
@@ -1000,7 +1030,7 @@ test('the cohort gate and sidecar reuse share one chronology verifier', async ()
 test('publishSidecars verifies provenance before reusing a published version', async t => {
   const { publishSidecars } = await importCli();
   withTrustedPublishEnv(t);
-  const sidecar = stagedIpx();
+  const sidecar = stagedMfCli();
   const verified = [];
   const dependencies = sidecarLaneDependencies({
     sidecars: [sidecar],
@@ -1016,8 +1046,8 @@ test('publishSidecars verifies provenance before reusing a published version', a
     verified.push([candidate.name, source]);
   };
   const result = await publishSidecars(publishOptions, dependencies);
-  assert.deepEqual(result.reused, ['@bleedingdev/ipx@3.2.0']);
-  assert.deepEqual(verified, [['@bleedingdev/ipx', releaseSource]]);
+  assert.deepEqual(result.reused, ['@bleedingdev/mf-cli@3.2.0']);
+  assert.deepEqual(verified, [['@bleedingdev/mf-cli', releaseSource]]);
 
   dependencies.verifyReuse = async () => {
     throw new Error('not grandfathered');
@@ -1031,7 +1061,7 @@ test('publishSidecars verifies provenance before reusing a published version', a
 test('a reuse resumed while npm indexes the tag still verifies provenance on the settled read', async t => {
   const { publishSidecars } = await importCli();
   withTrustedPublishEnv(t);
-  const sidecar = stagedIpx();
+  const sidecar = stagedMfCli();
   const settled = packumentFor(sidecar);
   const verified = [];
   const dependencies = sidecarLaneDependencies({
@@ -1048,7 +1078,7 @@ test('a reuse resumed while npm indexes the tag still verifies provenance on the
     verified.push(packument);
   };
   const result = await publishSidecars(publishOptions, dependencies);
-  assert.deepEqual(result.reused, ['@bleedingdev/ipx@3.2.0']);
+  assert.deepEqual(result.reused, ['@bleedingdev/mf-cli@3.2.0']);
   assert.deepEqual(verified, [settled]);
 
   dependencies.readPackument = stubReads([untaggedPackument(sidecar), settled]);
@@ -1063,7 +1093,7 @@ test('a reuse resumed while npm indexes the tag still verifies provenance on the
 
 test('reuse provenance re-reads a fresh version until it verifies, never an old one', async () => {
   const { awaitSidecarReuseProvenance } = await importCli();
-  const sidecar = { ...stagedIpx(), version: '9.9.9' };
+  const sidecar = { ...stagedMfCli(), version: '9.9.9' };
   const withTime = (packument, publishedAt) => ({
     ...packument,
     time: { created: publishedAt, modified: publishedAt, '9.9.9': publishedAt },
@@ -1117,7 +1147,7 @@ test('reuse provenance re-reads a fresh version until it verifies, never an old 
 
 test('a stale registry read without the reused version never vouches for it', async () => {
   const { assertSidecarReuseProvenance } = await importPublication();
-  const sidecar = stagedIpx();
+  const sidecar = stagedMfCli();
   const grandfatheredOnly = chronologyPackument({
     ...sidecar,
     version: '3.1.0',
@@ -1134,7 +1164,7 @@ test('a stale registry read without the reused version never vouches for it', as
 
 test('a reuse provenance read that briefly returns no packument keeps polling', async () => {
   const { awaitSidecarReuseProvenance } = await importCli();
-  const sidecar = stagedIpx();
+  const sidecar = stagedMfCli();
   const settled = packumentFor(sidecar);
   const verified = [];
   await awaitSidecarReuseProvenance(
@@ -1153,7 +1183,7 @@ test('a reuse provenance read that briefly returns no packument keeps polling', 
 test('a resumed reuse finishes provenance before any later sidecar publishes', async t => {
   const { publishSidecars } = await importCli();
   withTrustedPublishEnv(t);
-  const resumed = stagedIpx();
+  const resumed = stagedMfCli();
   const later = namedSidecar('@bleedingdev/ipx-later');
   const events = [];
   const dependencies = sidecarLaneDependencies({

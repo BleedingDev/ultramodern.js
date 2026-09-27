@@ -186,7 +186,8 @@ test('recipe-only sidecar closure records exact publication identities and alias
   );
   const sidecars = sidecarsModule.collectSidecarPackages();
   const byName = new Map(sidecars.map(sidecar => [sidecar.name, sidecar]));
-  assert.equal(sidecars.length, 14);
+  assert.equal(sidecars.length, 13);
+  assert.equal(byName.has('@bleedingdev/ipx'), false);
   assert.equal(byName.has('@bleedingdev/effect'), false);
   assert.equal(byName.has('@bleedingdev/msgpackr'), false);
   assert.equal(byName.has('@bleedingdev/zod'), false);
@@ -319,10 +320,6 @@ test('every repository recipe has a runtime consumer in the published cohort', a
     }),
   );
   assertRepositoryRecipeConsumers(published);
-  assert.throws(
-    () => assertRepositoryRecipeConsumers([]),
-    /sidecar ipx has no runtime consumer/,
-  );
   // Staging ships source edges unchanged, so an upstream name that has a
   // recipe must already be the exact fork alias in source.
   assert.throws(
@@ -387,11 +384,10 @@ test('the published image package depends on upstream @rsbuild-image/core, not a
     sidecars.some(sidecar => sidecar.name.includes('rsbuild-image')),
     false,
   );
+  assert.match(published.dependencies.ipx, /^\^4\./u);
   assert.equal(
-    published.dependencies.ipx,
-    `npm:@bleedingdev/ipx@${
-      sidecars.find(sidecar => sidecar.name === '@bleedingdev/ipx').version
-    }`,
+    sidecars.some(sidecar => sidecar.name === '@bleedingdev/ipx'),
+    false,
   );
 });
 
@@ -459,7 +455,10 @@ test('object-form sidecar bins must still expose the upstream CLI name', async (
   assert.doesNotThrow(() =>
     collectSidecarPackages(
       makeSidecarFixture({
-        ipx: ipxManifest({ bin: { ipx: './bin/ipx.mjs' } }),
+        ipx: ipxManifest({
+          name: '@bleedingdev/mf-cli',
+          bin: { mf: './bin/ipx.mjs' },
+        }),
       }),
     ),
   );
@@ -467,17 +466,22 @@ test('object-form sidecar bins must still expose the upstream CLI name', async (
     () =>
       collectSidecarPackages(
         makeSidecarFixture({
-          ipx: ipxManifest({ bin: { 'ipx-cli': './bin/ipx.mjs' } }),
+          ipx: ipxManifest({
+            name: '@bleedingdev/mf-cli',
+            bin: { 'mf-cli': './bin/ipx.mjs' },
+          }),
         }),
       ),
-    /must expose the 'ipx' bin/u,
+    /must expose the 'mf' bin/u,
   );
   assert.throws(
     () =>
       collectSidecarPackages(
-        makeSidecarFixture({ ipx: ipxManifest({ bin: undefined }) }),
+        makeSidecarFixture({
+          ipx: ipxManifest({ name: '@bleedingdev/mf-cli', bin: undefined }),
+        }),
       ),
-    /must keep the upstream 'ipx' bin/u,
+    /must keep the upstream 'mf' bin/u,
   );
 });
 

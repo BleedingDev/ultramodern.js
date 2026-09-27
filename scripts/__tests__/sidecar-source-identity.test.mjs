@@ -58,30 +58,30 @@ test('no framework runtime edge resolves an upstream package that has a recipe',
   );
 });
 
-test('a framework package resolving upstream ipx or another sidecar version fails', () => {
+test('a framework package resolving an upstream MF package or another sidecar version fails', () => {
   assert.deepEqual(
     upstreamRecipeEdges(`
 lockfileVersion: '9.0'
 importers:
-  packages/runtime/plugin-image:
+  packages/server/server:
     dependencies:
-      ipx:
-        specifier: ^3.1.1
-        version: 3.1.1
-  packages/runtime/image:
+      '@module-federation/enhanced':
+        specifier: 2.9.2
+        version: 2.9.2
+  packages/runtime/federation-runtime:
     dependencies:
-      ipx:
-        specifier: npm:@bleedingdev/ipx@3.2.20
-        version: '@bleedingdev/ipx@3.2.20(@types/node@26.6.2)'
-  tests/integration/image-component:
+      '@module-federation/enhanced':
+        specifier: npm:@bleedingdev/mf-enhanced@2.9.20
+        version: '@bleedingdev/mf-enhanced@2.9.20(@types/node@26.6.2)'
+  tests/integration/mf:
     dependencies:
-      ipx:
-        specifier: ^3.1.1
-        version: 3.1.1
+      '@module-federation/enhanced':
+        specifier: 2.9.2
+        version: 2.9.2
 `),
     [
-      'packages/runtime/plugin-image dependencies.ipx -> 3.1.1',
-      'packages/runtime/image dependencies.ipx -> @bleedingdev/ipx@3.2.20(@types/node@26.6.2)',
+      'packages/server/server dependencies.@module-federation/enhanced -> 2.9.2',
+      'packages/runtime/federation-runtime dependencies.@module-federation/enhanced -> @bleedingdev/mf-enhanced@2.9.20(@types/node@26.6.2)',
     ],
   );
 });

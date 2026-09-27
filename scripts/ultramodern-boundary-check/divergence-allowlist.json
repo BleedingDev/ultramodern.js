@@ -4,9 +4,9 @@
   "upstreamRef": "2f4d9c4559e26209a0d77f02c6757f29fe3699a2",
   "pathspec": ["packages"],
   "migrationGoal": "Shrink-only budget of fork edits inside upstream-owned files. Every entry is debt: move it upstream or behind an extension point, then re-run --write-divergence-allowlist.",
-  "totalFiles": 843,
-  "totalHunks": 3134,
-  "totalChangedLines": 52248,
+  "totalFiles": 844,
+  "totalHunks": 3143,
+  "totalChangedLines": 52402,
   "files": [
     {
       "file": "packages/cli/adapter-rstest/package.json",
@@ -1510,8 +1510,8 @@
     },
     {
       "file": "packages/runtime/plugin-image/src/cli.ts",
-      "hunks": 1,
-      "changedLines": 2
+      "hunks": 6,
+      "changedLines": 98
     },
     {
       "file": "packages/runtime/plugin-image/src/index.ts",
@@ -2610,8 +2610,8 @@
     },
     {
       "file": "packages/server/core/src/adapters/node/hono.ts",
-      "hunks": 7,
-      "changedLines": 23
+      "hunks": 10,
+      "changedLines": 35
     },
     {
       "file": "packages/server/core/src/adapters/node/index.ts",
@@ -2777,6 +2777,11 @@
       "file": "packages/server/core/src/utils/storage.ts",
       "hunks": 5,
       "changedLines": 44
+    },
+    {
+      "file": "packages/server/core/tests/adapters/connectMiddleware.test.ts",
+      "hunks": 1,
+      "changedLines": 46
     },
     {
       "file": "packages/server/core/tests/adapters/node.test.ts",

@@ -16,7 +16,7 @@ export default defineConfig({
     buildCache: false,
   },
   tools: {
-    devServer: {},
+    devServer: { headers: { 'x-image-dev-header': 'kept' } },
   },
   plugins: [appTools(), imagePlugin({ loader: './src/image-loader' })],
 });

@@ -168,7 +168,7 @@ function assertStableSidecarVersion(name, version) {
 }
 
 /**
- * The registry a sidecar may be published to. `@bleedingdev/ipx` carries an
+ * The registry a sidecar may be published to. Every sidecar carries an
  * explicit `publishConfig.registry`; anything but the pinned npm endpoint, or
  * any attempt to pin a dist-tag from inside the package, fails closed.
  */

@@ -14,8 +14,6 @@ dist/
 dist-ssg/
 doc_build/
 !**/compiled/**/dist
-!packages/sidecar/*/dist/
-!packages/sidecar/*/dist/**
 coverage/
 release/
 
