@@ -793,7 +793,6 @@ async function verifyRegistryProvenance(
 
 export {
   createRegistryProvenanceExpectation,
-  dsseInTotoPayloadType,
   githubActionsBuildType,
   inTotoStatementV1,
   loadNpmSigstoreVerifier,
