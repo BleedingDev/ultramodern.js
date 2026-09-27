@@ -1,0 +1,5 @@
+language js
+
+`$module._resolveFilename = $value` where {
+  register_diagnostic(span=$module, message="Do not reassign Module._resolveFilename: it swaps the resolver for every module in the process. Resolve aliases in the bundler or through Node module.register loader hooks instead.")
+}
