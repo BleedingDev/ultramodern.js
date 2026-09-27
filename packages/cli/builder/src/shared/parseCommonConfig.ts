@@ -18,7 +18,7 @@ import { pluginRuntimeChunk } from '../plugins/runtimeChunk';
 import type { BuilderConfig, CreateBuilderCommonOptions } from '../types';
 import { transformToRsbuildServerOptions } from './devServer';
 import { withTsgoDefaults } from './tsgo';
-import { NODE_MODULES_REGEX } from './utils';
+import { NODE_MODULES_REGEX, SERVICE_WORKER_ENVIRONMENT_NAME } from './utils';
 
 const CSS_MODULES_REGEX = /\.modules?\.\w+$/i;
 const GLOBAL_CSS_REGEX = /\.global\.\w+$/;
@@ -296,16 +296,20 @@ export async function parseCommonConfig(
   if (!options?.disableReactCompiler && reactCompiler !== undefined) {
     // Browser code only: server graphs (node, workerSSR, BFF) render once per
     // request, and the compiler overflows the stack on long fluent chains.
+    // Cloudflare deploys build workerSSR with target 'web', so the target
+    // alone does not identify a browser environment.
     rsbuildPlugins.push({
       name: 'builder:react-compiler',
       setup(api) {
-        api.modifyEnvironmentConfig((config, { mergeEnvironmentConfig }) =>
-          config.output.target === 'web'
-            ? mergeEnvironmentConfig(
-                { tools: { swc: { jsc: { transform: { reactCompiler } } } } },
-                config,
-              )
-            : config,
+        api.modifyEnvironmentConfig(
+          (config, { name, mergeEnvironmentConfig }) =>
+            config.output.target === 'web' &&
+            name !== SERVICE_WORKER_ENVIRONMENT_NAME
+              ? mergeEnvironmentConfig(
+                  { tools: { swc: { jsc: { transform: { reactCompiler } } } } },
+                  config,
+                )
+              : config,
         );
       },
     });
