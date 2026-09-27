@@ -54,7 +54,6 @@ export function createBackendFederationLoadEntryPlugin(
             name: remoteInfo.name,
             entry: remoteInfo.entry,
             type: remoteInfo.type,
-            shareScope: remoteInfo.shareScope,
           }),
         ).then(entry => {
           if (entry !== undefined) {

@@ -75,9 +75,7 @@ type SharedVersions = Record<string, { get?: () => unknown } | undefined>;
  * before any expose evaluates, so factories created by `defineEffectBff`
  * register with the host's registry instead of a bundle-local one.
  */
-export async function adoptEffectBffShareScope(
-  shareScope: unknown,
-): Promise<void> {
+export function adoptEffectBffShareScope(shareScope: unknown): Promise<void> {
   const versions =
     typeof shareScope === 'object' && shareScope !== null
       ? (shareScope as Record<string, SharedVersions | undefined>)[
@@ -87,12 +85,20 @@ export async function adoptEffectBffShareScope(
   const shared =
     versions === undefined ? undefined : Object.values(versions)[0];
   if (typeof shared?.get !== 'function') {
-    return;
+    return Promise.resolve();
   }
-  const factory = await shared.get();
-  const registry = (typeof factory === 'function' ? factory() : undefined) as
-    | ValidatorAwareHandlerFactoryRegistry
-    | undefined;
+  return Promise.resolve(shared.get()).then(factory =>
+    adoptHandlerFactoryRegistry(
+      (typeof factory === 'function' ? factory() : undefined) as
+        | ValidatorAwareHandlerFactoryRegistry
+        | undefined,
+    ),
+  );
+}
+
+function adoptHandlerFactoryRegistry(
+  registry: ValidatorAwareHandlerFactoryRegistry | undefined,
+): void {
   if (
     typeof registry?.register !== 'function' ||
     typeof registry.is !== 'function'
