@@ -27,8 +27,9 @@ const MODULE_FEDERATION_CHAIN_IDS = [
  * copy. Subpaths are listed from the package's `exports` rather than shared by
  * prefix: the app aliases unexported ones such as `@modern-js/runtime/registry`
  * to its own generated modules, which must never be shared.
- * `contexts` matches the files that define the React contexts: only a shared
- * module or another of those files may import them.
+ * `contexts` matches the files that define that state (React contexts, the
+ * Effect request storage): only a shared module or another of those files may
+ * import them.
  */
 const FRAMEWORK_SHARES = [
   {
@@ -43,7 +44,12 @@ const FRAMEWORK_SHARES = [
     contextsRequest: '@modern-js/plugin-i18n/runtime/contexts',
     contexts: /[\\/]runtime[\\/]contexts\.[cm]?[jt]sx?$/,
   },
-  { packageName: '@modern-js/bff-effect', prefix: '@modern-js/bff-effect/' },
+  {
+    packageName: '@modern-js/bff-effect',
+    prefix: '@modern-js/bff-effect/',
+    contextsRequest: '@modern-js/bff-effect/context',
+    contexts: /[\\/]effect[\\/]context\.[cm]?[jt]sx?$/,
+  },
 ] as const;
 
 export type FrameworkSharedPackage = {
@@ -259,9 +265,9 @@ const describeModule = (module: Rspack.Module | null) =>
   module ? (resourceOf(module) ?? module.identifier()) : 'an entry';
 
 /**
- * Fails a federation build that exposes modules when a framework React context
- * file is imported other than through its shared request. That remote would
- * render with its own context objects and never see the host's providers.
+ * Fails a federation build that exposes modules when a framework context file
+ * is imported other than through its shared request. That remote would run
+ * with its own contexts and never see the host's request state.
  */
 export class FederationPrivateContextsPlugin {
   constructor(private readonly packages: FrameworkSharedPackage[]) {}
@@ -294,7 +300,7 @@ export class FederationPrivateContextsPlugin {
           if (importer === undefined) continue;
           compilation.errors.push(
             new compiler.webpack.WebpackError(
-              `[ultramodern] This Module Federation build bundles a private copy of ${share.contextsRequest}: ${describeModule(importer)} imports ${describeModule(module)} directly. Its components would not see the host's providers. Share the "${share.prefix}" subpaths and import the contexts through "${share.contextsRequest}".`,
+              `[ultramodern] This Module Federation build bundles a private copy of ${share.contextsRequest}: ${describeModule(importer)} imports ${describeModule(module)} directly. It would not see the host's request state. Share the "${share.prefix}" subpaths and import the contexts through "${share.contextsRequest}".`,
             ),
           );
         }

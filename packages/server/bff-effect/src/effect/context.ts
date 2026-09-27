@@ -9,9 +9,10 @@ export {
 
 type EffectContextStorageConstructor = new () => EffectContextStorage;
 
-// One storage for the Node and edge entries: both import this module, and the
-// BFF bundle keeps `@modern-js/bff-effect` external so the server and the
-// lambdas load the same instance.
+// One storage for every entry: each imports this module as
+// `@modern-js/bff-effect/context`, the request that Module Federation shares
+// and that BFF and backend federation bundles keep external, so the server,
+// its lambdas and federated remotes all load the same instance.
 const globalStore = globalThis as typeof globalThis & {
   process?: {
     getBuiltinModule?: (id: string) => unknown;

@@ -43,6 +43,12 @@
       "node": "./dist/esm-node/effect/index.mjs",
       "default": "./dist/cjs/effect/index.js"
     },
+    "./context": {
+      "types": "./dist/types/effect/context.d.ts",
+      "modern:source": "./src/effect/context.ts",
+      "node": "./dist/esm-node/effect/context.mjs",
+      "default": "./dist/cjs/effect/context.js"
+    },
     "./effect-edge": {
       "types": "./dist/types/effect/edge.d.ts",
       "modern:source": "./src/effect/edge.ts",
@@ -154,7 +160,8 @@
     "@types/node": "^26.6.2",
     "@types/react": "^19.3.0",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
-    "effect": "4.0.0-rc.117"
+    "effect": "4.0.0-rc.117",
+    "esbuild": "^0.28.2"
   },
   "sideEffects": false,
   "publishConfig": {

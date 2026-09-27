@@ -1,4 +1,6 @@
 // @effect-diagnostics anyUnknownInErrorContext:off asyncFunction:off strictBooleanExpressions:off
+
+import { runWithEffectContext } from '@modern-js/bff-effect/context';
 import {
   evaluateCrossProjectPolicy,
   type NormalizedCrossProjectPolicy,
@@ -6,7 +8,6 @@ import {
 } from '@modern-js/server-runtime-extensions/bff-policy';
 import * as Effect from 'effect/Effect';
 import { toHeaderRecord } from '../headers';
-import { runWithEffectContext } from './context';
 import {
   type DispatchEffectBffRequestOptions,
   dispatchEffectBffRequestWithContext,
@@ -22,6 +23,11 @@ import {
 } from './module';
 import type { EffectContext } from './operation-context';
 
+export {
+  runWithEffectContext,
+  useEffectContext,
+  useOperationContext,
+} from '@modern-js/bff-effect/context';
 export * as Config from 'effect/Config';
 export * as Effect from 'effect/Effect';
 export * as Layer from 'effect/Layer';
@@ -85,11 +91,6 @@ export {
   RpcWorker,
   Utils,
 } from 'effect/unstable/rpc';
-export {
-  runWithEffectContext,
-  useEffectContext,
-  useOperationContext,
-} from './context';
 export type {
   EffectApiClientFromApi,
   EffectBffDefinition,

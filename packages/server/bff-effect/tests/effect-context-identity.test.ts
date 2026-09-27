@@ -1,8 +1,12 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import {
   BFF_OPERATION_CONTEXT_DETAIL_HEADER,
   BFF_TRACEPARENT_HEADER,
 } from '@modern-js/runtime-extensions/request-context';
 import { rstest } from '@rstest/core';
+import { build } from 'esbuild';
 import {
   createEffectOperationContext,
   type EffectContext,
@@ -104,4 +108,47 @@ describe('Effect context storage identity', () => {
       }),
     ).toBeInstanceOf(Error);
   });
+});
+
+// Module Federation selects each shared request separately, so a host may
+// provide `/effect` while a remote provides `/effect-edge` or bundles the root.
+// Every entry must reach the storage through `@modern-js/bff-effect/context`
+// rather than evaluating its own copy.
+test.each([
+  ['the root entry', '../src/index.ts'],
+  ['@modern-js/bff-effect/effect', '../src/effect/index.ts'],
+  ['@modern-js/bff-effect/effect-edge', '../src/effect/edge.ts'],
+])('%s reads the storage through @modern-js/bff-effect/context', async (_, entry) => {
+  const tempDir = await mkdtemp(resolve(__dirname, '.effect-entry-'));
+  const bundle = async (name: string, entryPoint: string) => {
+    const outfile = join(tempDir, `${name}.mjs`);
+    await build({
+      entryPoints: [entryPoint],
+      bundle: true,
+      packages: 'external',
+      platform: 'node',
+      format: 'esm',
+      outfile,
+      // Resolve the self-reference like an installed package, not through the
+      // package's own tsconfig `paths`.
+      tsconfigRaw: {},
+    });
+    return import(pathToFileURL(outfile).href);
+  };
+  try {
+    const providerEntry = join(tempDir, 'provider.ts');
+    await writeFile(
+      providerEntry,
+      "export * from '@modern-js/bff-effect/context';",
+    );
+    const provider = await bundle('provider', providerEntry);
+    const bundled = await bundle('entry', resolve(__dirname, entry));
+    const context = createContext('/entry');
+
+    expect(
+      provider.runWithEffectContext(context, () => bundled.useEffectContext()),
+    ).toBe(context);
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
 });
