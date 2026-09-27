@@ -186,20 +186,21 @@ test('recipe-only sidecar closure records exact publication identities and alias
   );
   const sidecars = sidecarsModule.collectSidecarPackages();
   const byName = new Map(sidecars.map(sidecar => [sidecar.name, sidecar]));
-  assert.equal(sidecars.length, 10);
+  assert.equal(sidecars.length, 14);
   assert.equal(byName.has('@bleedingdev/effect'), false);
   assert.equal(byName.has('@bleedingdev/msgpackr'), false);
   assert.equal(byName.has('@bleedingdev/zod'), false);
   assert.equal(byName.has('@bleedingdev/drizzle-orm'), false);
-  // MF 2.9.2 ships the runtime-core declaration fix, so the runtime chain
-  // publishes upstream again.
-  for (const retired of [
+  // runtime-core carries resetFederationRuntime (module-federation/core#5152),
+  // which the mf-modern-js-v3 server plugin calls, so the runtime chain that
+  // reaches it publishes as sidecars.
+  for (const carried of [
     '@bleedingdev/mf-runtime-core',
     '@bleedingdev/mf-runtime',
     '@bleedingdev/mf-runtime-tools',
     '@bleedingdev/mf-webpack-bundler-runtime',
   ]) {
-    assert.equal(byName.has(retired), false, retired);
+    assert.equal(byName.has(carried), true, carried);
   }
   assert.equal(byName.get('@bleedingdev/mf-cli').recipeOnly, true);
   assert.equal(byName.get('@bleedingdev/mf-enhanced').recipeOnly, true);

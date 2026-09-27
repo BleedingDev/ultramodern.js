@@ -1,7 +1,268 @@
+diff --git a/dist/Broker-C-uWF8l5.js b/dist/Broker-C-uWF8l5.js
+index f088941..f92b918 100644
+--- a/dist/Broker-C-uWF8l5.js
++++ b/dist/Broker-C-uWF8l5.js
+@@ -5,8 +5,6 @@ let url = require("url");
+ let path = require("path");
+ path = require_Action.__toESM(path);
+ let _module_federation_sdk = require("@module-federation/sdk");
+-let net = require("net");
+-net = require_Action.__toESM(net);
+ let os = require("os");
+ os = require_Action.__toESM(os);
+ let isomorphic_ws = require("isomorphic-ws");
+@@ -152,17 +150,23 @@ function fib(n) {
+ 	}
+ 	return res[n];
+ }
+-function getFreePort() {
++/**
++* Binds `server` to `port` and settles once it is listening, rejecting with
++* the bind error (e.g. EADDRINUSE) instead of emitting an unhandled 'error'.
++*/
++function listen(server, port) {
+ 	return new Promise((resolve, reject) => {
+-		const server = net.default.createServer();
+-		server.unref();
+-		server.on("error", reject);
+-		server.listen(0, () => {
+-			const { port } = server.address();
+-			server.close(() => {
+-				resolve(port);
+-			});
+-		});
++		const onError = (err) => {
++			server.off("listening", onListening);
++			reject(err);
++		};
++		const onListening = () => {
++			server.off("error", onError);
++			resolve();
++		};
++		server.once("error", onError);
++		server.once("listening", onListening);
++		server.listen(port);
+ 	});
+ }
+ 
+@@ -313,7 +317,6 @@ var Broker = class Broker {
+ 		this._tmpSubscriberShelter = /* @__PURE__ */ new Map();
+ 		this._scheduleJob = null;
+ 		this._setSchedule();
+-		this._startWsServer();
+ 		this._stopWhenSIGTERMOrSIGINT();
+ 		this._handleUnexpectedExit();
+ 	}
+@@ -350,9 +353,6 @@ var Broker = class Broker {
+ 		this._webSocketServer.on("error", (err) => {
+ 			fileLog(`ws error: \n${err.message}\n ${err.stack}`, "Broker", "error");
+ 		});
+-		this._webSocketServer.on("listening", () => {
+-			fileLog(`WebSocket server is listening on port ${Broker.DEFAULT_WEB_SOCKET_PORT}`, "Broker", "info");
+-		});
+ 		this._webSocketServer.on("connection", wsHandler);
+ 		this._webSocketServer.on("close", (code) => {
+ 			fileLog(`WebSocket Server Close with Code ${code}`, "Broker", "warn");
+@@ -367,7 +367,20 @@ var Broker = class Broker {
+ 				});
+ 			}
+ 		});
+-		server.listen(Broker.DEFAULT_WEB_SOCKET_PORT);
++		try {
++			await listen(server, Broker.DEFAULT_WEB_SOCKET_PORT);
++		} catch (err) {
++			this._webSocketServer.close();
++			this._webSocketServer = void 0;
++			if (err.code === "EADDRINUSE") {
++				fileLog(`Port ${Broker.DEFAULT_WEB_SOCKET_PORT} is already used by another broker, this broker will exit`, "Broker", "warn");
++				return false;
++			}
++			throw err;
++		}
++		this._httpServer = server;
++		fileLog(`WebSocket server is listening on port ${Broker.DEFAULT_WEB_SOCKET_PORT}`, "Broker", "info");
++		return true;
+ 	}
+ 	async _takeAction(action, client) {
+ 		const { kind, payload } = action;
+@@ -717,7 +730,13 @@ var Broker = class Broker {
+ 			process.exit(1);
+ 		});
+ 	}
+-	async start() {}
++	/**
++	* Starts the WebSocket server. Resolves to `false` when another broker
++	* already listens on the port, in which case this broker should exit.
++	*/
++	start() {
++		return this._startWsServer();
++	}
+ 	exit() {
+ 		const brokerExitLog = new BrokerExitLog();
+ 		this.broadcast(JSON.stringify(brokerExitLog));
+@@ -726,6 +745,7 @@ var Broker = class Broker {
+ 		this._clearTmpSubScriberRelations();
+ 		this._webSocketServer && this._webSocketServer.close();
+ 		this._secureWebSocketServer && this._secureWebSocketServer.close();
++		this._httpServer?.close();
+ 		process.exit(0);
+ 	}
+ 	broadcast(message) {
+@@ -776,12 +796,6 @@ Object.defineProperty(exports, 'fileLog', {
+     return fileLog;
+   }
+ });
+-Object.defineProperty(exports, 'getFreePort', {
+-  enumerable: true,
+-  get: function () {
+-    return getFreePort;
+-  }
+-});
+ Object.defineProperty(exports, 'getIPV4', {
+   enumerable: true,
+   get: function () {
+@@ -794,6 +808,12 @@ Object.defineProperty(exports, 'getIdentifier', {
+     return getIdentifier;
+   }
+ });
++Object.defineProperty(exports, 'listen', {
++  enumerable: true,
++  get: function () {
++    return listen;
++  }
++});
+ Object.defineProperty(exports, 'logger', {
+   enumerable: true,
+   get: function () {
+diff --git a/dist/esm/Broker-BfFUcTHm.mjs b/dist/esm/Broker-BfFUcTHm.mjs
+index ea92548..8e8cd42 100644
+--- a/dist/esm/Broker-BfFUcTHm.mjs
++++ b/dist/esm/Broker-BfFUcTHm.mjs
+@@ -3,7 +3,6 @@ import * as fs$1 from "fs";
+ import { parse } from "url";
+ import * as path$1 from "path";
+ import { SEPARATOR, createLogger } from "@module-federation/sdk";
+-import net from "net";
+ import os from "os";
+ import WebSocket from "isomorphic-ws";
+ import { createServer } from "http";
+@@ -147,17 +146,23 @@ function fib(n) {
+ 	}
+ 	return res[n];
+ }
+-function getFreePort() {
++/**
++* Binds `server` to `port` and settles once it is listening, rejecting with
++* the bind error (e.g. EADDRINUSE) instead of emitting an unhandled 'error'.
++*/
++function listen(server, port) {
+ 	return new Promise((resolve, reject) => {
+-		const server = net.createServer();
+-		server.unref();
+-		server.on("error", reject);
+-		server.listen(0, () => {
+-			const { port } = server.address();
+-			server.close(() => {
+-				resolve(port);
+-			});
+-		});
++		const onError = (err) => {
++			server.off("listening", onListening);
++			reject(err);
++		};
++		const onListening = () => {
++			server.off("error", onError);
++			resolve();
++		};
++		server.once("error", onError);
++		server.once("listening", onListening);
++		server.listen(port);
+ 	});
+ }
+ 
+@@ -308,7 +313,6 @@ var Broker = class Broker {
+ 		this._tmpSubscriberShelter = /* @__PURE__ */ new Map();
+ 		this._scheduleJob = null;
+ 		this._setSchedule();
+-		this._startWsServer();
+ 		this._stopWhenSIGTERMOrSIGINT();
+ 		this._handleUnexpectedExit();
+ 	}
+@@ -345,9 +349,6 @@ var Broker = class Broker {
+ 		this._webSocketServer.on("error", (err) => {
+ 			fileLog(`ws error: \n${err.message}\n ${err.stack}`, "Broker", "error");
+ 		});
+-		this._webSocketServer.on("listening", () => {
+-			fileLog(`WebSocket server is listening on port ${Broker.DEFAULT_WEB_SOCKET_PORT}`, "Broker", "info");
+-		});
+ 		this._webSocketServer.on("connection", wsHandler);
+ 		this._webSocketServer.on("close", (code) => {
+ 			fileLog(`WebSocket Server Close with Code ${code}`, "Broker", "warn");
+@@ -362,7 +363,20 @@ var Broker = class Broker {
+ 				});
+ 			}
+ 		});
+-		server.listen(Broker.DEFAULT_WEB_SOCKET_PORT);
++		try {
++			await listen(server, Broker.DEFAULT_WEB_SOCKET_PORT);
++		} catch (err) {
++			this._webSocketServer.close();
++			this._webSocketServer = void 0;
++			if (err.code === "EADDRINUSE") {
++				fileLog(`Port ${Broker.DEFAULT_WEB_SOCKET_PORT} is already used by another broker, this broker will exit`, "Broker", "warn");
++				return false;
++			}
++			throw err;
++		}
++		this._httpServer = server;
++		fileLog(`WebSocket server is listening on port ${Broker.DEFAULT_WEB_SOCKET_PORT}`, "Broker", "info");
++		return true;
+ 	}
+ 	async _takeAction(action, client) {
+ 		const { kind, payload } = action;
+@@ -712,7 +726,13 @@ var Broker = class Broker {
+ 			process.exit(1);
+ 		});
+ 	}
+-	async start() {}
++	/**
++	* Starts the WebSocket server. Resolves to `false` when another broker
++	* already listens on the port, in which case this broker should exit.
++	*/
++	start() {
++		return this._startWsServer();
++	}
+ 	exit() {
+ 		const brokerExitLog = new BrokerExitLog();
+ 		this.broadcast(JSON.stringify(brokerExitLog));
+@@ -721,6 +741,7 @@ var Broker = class Broker {
+ 		this._clearTmpSubScriberRelations();
+ 		this._webSocketServer && this._webSocketServer.close();
+ 		this._secureWebSocketServer && this._secureWebSocketServer.close();
++		this._httpServer?.close();
+ 		process.exit(0);
+ 	}
+ 	broadcast(message) {
+@@ -735,4 +756,4 @@ var Broker = class Broker {
+ };
+ 
+ //#endregion
+-export { getIdentifier as a, logger$1 as c, getFreePort as i, LogKind as l, UpdateKind as n, getIPV4 as o, fib as r, fileLog as s, Broker as t, APIKind as u };
+\ No newline at end of file
++export { listen as a, logger$1 as c, getIdentifier as i, LogKind as l, UpdateKind as n, getIPV4 as o, fib as r, fileLog as s, Broker as t, APIKind as u };
+\ No newline at end of file
 diff --git a/dist/esm/expose-rpc-B0rqtOKP.mjs b/dist/esm/expose-rpc-B0rqtOKP.mjs
+index 1692a3e..6e80b48 100644
 --- a/dist/esm/expose-rpc-B0rqtOKP.mjs
 +++ b/dist/esm/expose-rpc-B0rqtOKP.mjs
-@@ -408,7 +408,6 @@
+@@ -1,5 +1,5 @@
+ import { a as MF_SERVER_IDENTIFIER, n as ActionKind, o as UpdateMode, r as DEFAULT_TAR_NAME, t as Action } from "./Action-DNNg2YDh.mjs";
+-import { a as getIdentifier, c as logger$1, i as getFreePort, l as LogKind, n as UpdateKind, o as getIPV4, r as fib, s as fileLog, t as Broker, u as APIKind } from "./Broker-BfFUcTHm.mjs";
++import { a as listen, c as logger$1, i as getIdentifier, l as LogKind, n as UpdateKind, o as getIPV4, r as fib, s as fileLog, t as Broker, u as APIKind } from "./Broker-BfFUcTHm.mjs";
+ import { createRequire } from "node:module";
+ import fs, { existsSync, mkdirSync, realpathSync, rmSync, writeFileSync } from "fs";
+ import { fileURLToPath } from "url";
+@@ -408,7 +408,6 @@ var ModuleFederationDevServer = class {
  //#region src/server/createHttpServer.ts
  async function createHttpServer(options) {
  	const { typeTarPath } = options;
@@ -9,40 +270,30 @@ diff --git a/dist/esm/expose-rpc-B0rqtOKP.mjs b/dist/esm/expose-rpc-B0rqtOKP.mjs
  	const server = http.createServer((req, res) => {
  		if ((req.url?.split("?")[0] ?? "/") === `/${DEFAULT_TAR_NAME}`) {
  			res.statusCode = 200;
-@@ -431,7 +430,27 @@
+@@ -431,10 +430,11 @@ async function createHttpServer(options) {
  		res.statusCode = 404;
  		res.end();
  	});
 -	server.listen(freeport);
-+	// Bind first, then read the port. `getFreePort()` probed a port,
-+	// closed it and returned the number, so two producers starting at the
-+	// same time were routinely handed the same "free" port; the loser hit
-+	// EADDRINUSE on a listener with no error handler, which took down the
-+	// forked dts worker and left the producer's compilation pending
-+	// forever - its dev server then accepted connections and answered
-+	// none, and any consumer awaiting its federated types stalled with it.
-+	const freeport = await new Promise((resolve, reject) => {
-+		const onError = (error) => {
-+			server.removeListener('listening', onListening);
-+			reject(error);
-+		};
-+		const onListening = () => {
-+			server.removeListener('error', onError);
-+			const address = server.address();
-+			resolve(typeof address === 'object' && address ? address.port : 0);
-+		};
-+		server.once('error', onError);
-+		server.once('listening', onListening);
-+		server.listen(0);
-+	});
++	await listen(server, 0);
++	const { port } = server.address();
  	return {
  		server,
- 		serverAddress: `http://${getIPV4()}:${freeport}`
-@@ -594,6 +613,16 @@
+-		serverAddress: `http://${getIPV4()}:${freeport}`
++		serverAddress: `http://${getIPV4()}:${port}`
+ 	};
+ }
+ 
+@@ -593,7 +593,21 @@ const getTypeScriptContext$1 = (remoteOptions) => {
+ 	const dtsOptions = remoteOptions.moduleFederationConfig.dts;
  	return typeof dtsOptions !== "boolean" && dtsOptions?.cwd ? dtsOptions.cwd : remoteOptions.context;
  };
++const isDirectCompilerExecutable = (compilerInstance) => {
++	if (!isAbsolute(compilerInstance) || !existsSync(compilerInstance)) return false;
++	return !(process.platform === "win32" && /\.(cmd|bat)$/i.test(compilerInstance));
++};
  const resolveCompilerCommand = (remoteOptions, tempTsConfigJsonPath) => {
-+	if (isAbsolute(remoteOptions.compilerInstance) && existsSync(remoteOptions.compilerInstance)) {
++	if (isDirectCompilerExecutable(remoteOptions.compilerInstance)) {
 +		const executable = remoteOptions.compilerInstance;
 +		const args = ["--project", tempTsConfigJsonPath];
 +		return {
@@ -55,19 +306,39 @@ diff --git a/dist/esm/expose-rpc-B0rqtOKP.mjs b/dist/esm/expose-rpc-B0rqtOKP.mjs
  	const compilerArgs = splitCommandArgs(remoteOptions.compilerInstance);
  	const resolvedCompilerArgs = compilerArgs.length > 0 ? compilerArgs : [remoteOptions.compilerInstance];
  	if (resolvedCompilerArgs[0] === "tsc") {
-@@ -1415,7 +1444,7 @@
+@@ -1415,7 +1429,10 @@ const formatCompilerError = (error) => {
  const getDependentFilesWithTsc = (rootFiles, rootDir, resolvedTsConfigPath, compilerOptions, context, typeScriptContext) => {
  	if (!rootFiles.length) return [];
  	const typeScriptPackageInfo = getTypeScriptPackageInfo(typeScriptContext);
 -	const listFilesTsConfigPath = writeListFilesTsConfig(rootFiles, resolvedTsConfigPath, context, compilerOptions);
-+	const listFilesTsConfigPath = writeListFilesTsConfig(rootFiles, resolvedTsConfigPath, context, { ...compilerOptions, rootDir });
++	const listFilesTsConfigPath = writeListFilesTsConfig(rootFiles, resolvedTsConfigPath, context, {
++		...compilerOptions,
++		rootDir
++	});
  	try {
  		const dependentFiles = execFileSync(process.execPath, [
  			typeScriptPackageInfo.tscBinPath,
+diff --git a/dist/esm/start-broker.mjs b/dist/esm/start-broker.mjs
+index baf5b42..ae8e9fc 100644
+--- a/dist/esm/start-broker.mjs
++++ b/dist/esm/start-broker.mjs
+@@ -8,7 +8,10 @@ function getBroker() {
+ async function startBroker() {
+ 	if (getBroker()) return;
+ 	broker = new Broker();
+-	await broker.start();
++	if (!await broker.start()) {
++		broker.exit();
++		return;
++	}
+ 	process.send?.("ready");
+ }
+ process.on("message", (message) => {
 diff --git a/dist/expose-rpc-jaGpsAVL.js b/dist/expose-rpc-jaGpsAVL.js
+index 55f07d8..ce200cf 100644
 --- a/dist/expose-rpc-jaGpsAVL.js
 +++ b/dist/expose-rpc-jaGpsAVL.js
-@@ -397,7 +397,6 @@
+@@ -397,7 +397,6 @@ var ModuleFederationDevServer = class {
  //#region src/server/createHttpServer.ts
  async function createHttpServer(options) {
  	const { typeTarPath } = options;
@@ -75,40 +346,30 @@ diff --git a/dist/expose-rpc-jaGpsAVL.js b/dist/expose-rpc-jaGpsAVL.js
  	const server = http.default.createServer((req, res) => {
  		if ((req.url?.split("?")[0] ?? "/") === `/${require_Action.DEFAULT_TAR_NAME}`) {
  			res.statusCode = 200;
-@@ -420,7 +419,27 @@
+@@ -420,10 +419,11 @@ async function createHttpServer(options) {
  		res.statusCode = 404;
  		res.end();
  	});
 -	server.listen(freeport);
-+	// Bind first, then read the port. `getFreePort()` probed a port,
-+	// closed it and returned the number, so two producers starting at the
-+	// same time were routinely handed the same "free" port; the loser hit
-+	// EADDRINUSE on a listener with no error handler, which took down the
-+	// forked dts worker and left the producer's compilation pending
-+	// forever - its dev server then accepted connections and answered
-+	// none, and any consumer awaiting its federated types stalled with it.
-+	const freeport = await new Promise((resolve, reject) => {
-+		const onError = (error) => {
-+			server.removeListener('listening', onListening);
-+			reject(error);
-+		};
-+		const onListening = () => {
-+			server.removeListener('error', onError);
-+			const address = server.address();
-+			resolve(typeof address === 'object' && address ? address.port : 0);
-+		};
-+		server.once('error', onError);
-+		server.once('listening', onListening);
-+		server.listen(0);
-+	});
++	await require_Broker.listen(server, 0);
++	const { port } = server.address();
  	return {
  		server,
- 		serverAddress: `http://${require_Broker.getIPV4()}:${freeport}`
-@@ -583,6 +602,16 @@
+-		serverAddress: `http://${require_Broker.getIPV4()}:${freeport}`
++		serverAddress: `http://${require_Broker.getIPV4()}:${port}`
+ 	};
+ }
+ 
+@@ -582,7 +582,21 @@ const getTypeScriptContext$1 = (remoteOptions) => {
+ 	const dtsOptions = remoteOptions.moduleFederationConfig.dts;
  	return typeof dtsOptions !== "boolean" && dtsOptions?.cwd ? dtsOptions.cwd : remoteOptions.context;
  };
++const isDirectCompilerExecutable = (compilerInstance) => {
++	if (!(0, path.isAbsolute)(compilerInstance) || !(0, fs.existsSync)(compilerInstance)) return false;
++	return !(process.platform === "win32" && /\.(cmd|bat)$/i.test(compilerInstance));
++};
  const resolveCompilerCommand = (remoteOptions, tempTsConfigJsonPath) => {
-+	if (path.isAbsolute(remoteOptions.compilerInstance) && fs.existsSync(remoteOptions.compilerInstance)) {
++	if (isDirectCompilerExecutable(remoteOptions.compilerInstance)) {
 +		const executable = remoteOptions.compilerInstance;
 +		const args = ["--project", tempTsConfigJsonPath];
 +		return {
@@ -121,12 +382,56 @@ diff --git a/dist/expose-rpc-jaGpsAVL.js b/dist/expose-rpc-jaGpsAVL.js
  	const compilerArgs = splitCommandArgs(remoteOptions.compilerInstance);
  	const resolvedCompilerArgs = compilerArgs.length > 0 ? compilerArgs : [remoteOptions.compilerInstance];
  	if (resolvedCompilerArgs[0] === "tsc") {
-@@ -1404,7 +1433,7 @@
+@@ -1404,7 +1418,10 @@ const formatCompilerError = (error) => {
  const getDependentFilesWithTsc = (rootFiles, rootDir, resolvedTsConfigPath, compilerOptions, context, typeScriptContext) => {
  	if (!rootFiles.length) return [];
  	const typeScriptPackageInfo = getTypeScriptPackageInfo(typeScriptContext);
 -	const listFilesTsConfigPath = writeListFilesTsConfig(rootFiles, resolvedTsConfigPath, context, compilerOptions);
-+	const listFilesTsConfigPath = writeListFilesTsConfig(rootFiles, resolvedTsConfigPath, context, { ...compilerOptions, rootDir });
++	const listFilesTsConfigPath = writeListFilesTsConfig(rootFiles, resolvedTsConfigPath, context, {
++		...compilerOptions,
++		rootDir
++	});
  	try {
  		const dependentFiles = (0, child_process.execFileSync)(process.execPath, [
  			typeScriptPackageInfo.tscBinPath,
+diff --git a/dist/start-broker.d.ts b/dist/start-broker.d.ts
+index 16342cd..f25745f 100644
+--- a/dist/start-broker.d.ts
++++ b/dist/start-broker.d.ts
+@@ -6,6 +6,7 @@ declare class Broker {
+   static readonly DEFAULT_WAITING_TIME: number;
+   private _publisherMap;
+   private _webClientMap;
++  private _httpServer?;
+   private _webSocketServer?;
+   private _secureWebSocketServer?;
+   private _tmpSubscriberShelter;
+@@ -33,7 +34,11 @@ declare class Broker {
+   private _clearSchedule;
+   private _stopWhenSIGTERMOrSIGINT;
+   private _handleUnexpectedExit;
+-  start(): Promise<void>;
++  /**
++   * Starts the WebSocket server. Resolves to `false` when another broker
++   * already listens on the port, in which case this broker should exit.
++   */
++  start(): Promise<boolean>;
+   exit(): void;
+   broadcast(message: unknown): void;
+ }
+diff --git a/dist/start-broker.js b/dist/start-broker.js
+index d8c7ef7..aef02d8 100644
+--- a/dist/start-broker.js
++++ b/dist/start-broker.js
+@@ -9,7 +9,10 @@ function getBroker() {
+ async function startBroker() {
+ 	if (getBroker()) return;
+ 	broker = new require_Broker.Broker();
+-	await broker.start();
++	if (!await broker.start()) {
++		broker.exit();
++		return;
++	}
+ 	process.send?.("ready");
+ }
+ process.on("message", (message) => {

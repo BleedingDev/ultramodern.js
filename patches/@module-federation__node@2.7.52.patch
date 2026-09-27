@@ -1,0 +1,50 @@
+diff --git a/dist/src/utils/hot-reload.js b/dist/src/utils/hot-reload.js
+index 5a67f7b..0e82189 100644
+--- a/dist/src/utils/hot-reload.js
++++ b/dist/src/utils/hot-reload.js
+@@ -84,17 +84,9 @@ const requireCacheRegex = /(remote|server|hot-reload|react-loadable-manifest|run
+ const performReload = async (shouldReload) => {
+ 	if (!shouldReload) return false;
+ 	const req = getRequire();
+-	const gs = new Function("return globalThis")();
+-	const entries = gs.entryChunkCache || /* @__PURE__ */ new Set();
+-	gs.__FEDERATION__.__INSTANCES__.map((i) => {
+-		i.moduleCache.forEach((mc) => {
+-			if (mc.remoteInfo && mc.remoteInfo.entryGlobalName) delete gs[mc.remoteInfo.entryGlobalName];
+-		});
+-		i.moduleCache.clear();
+-		if (gs[i.name]) delete gs[i.name];
+-	});
+-	__webpack_require__?.federation?.instance?.moduleCache?.clear();
+-	_module_federation_runtime_helpers.default.global.resetFederationGlobalInfo();
++	const entries = new Function("return globalThis")().entryChunkCache || /* @__PURE__ */ new Set();
++	if (typeof __webpack_require__ !== "undefined") __webpack_require__.federation?.instance?.moduleCache?.clear();
++	_module_federation_runtime_helpers.default.global.resetFederationRuntime();
+ 	globalThis.moduleGraphDirty = false;
+ 	globalThis.mfHashMap = {};
+ 	if (!entries) Object.keys(req.cache).forEach((key) => {
+diff --git a/dist/src/utils/hot-reload.mjs b/dist/src/utils/hot-reload.mjs
+index 579d60e..f4c656f 100644
+--- a/dist/src/utils/hot-reload.mjs
++++ b/dist/src/utils/hot-reload.mjs
+@@ -80,17 +80,9 @@ const requireCacheRegex = /(remote|server|hot-reload|react-loadable-manifest|run
+ const performReload = async (shouldReload) => {
+ 	if (!shouldReload) return false;
+ 	const req = getRequire();
+-	const gs = new Function("return globalThis")();
+-	const entries = gs.entryChunkCache || /* @__PURE__ */ new Set();
+-	gs.__FEDERATION__.__INSTANCES__.map((i) => {
+-		i.moduleCache.forEach((mc) => {
+-			if (mc.remoteInfo && mc.remoteInfo.entryGlobalName) delete gs[mc.remoteInfo.entryGlobalName];
+-		});
+-		i.moduleCache.clear();
+-		if (gs[i.name]) delete gs[i.name];
+-	});
+-	__webpack_require__?.federation?.instance?.moduleCache?.clear();
+-	helpers.global.resetFederationGlobalInfo();
++	const entries = new Function("return globalThis")().entryChunkCache || /* @__PURE__ */ new Set();
++	if (typeof __webpack_require__ !== "undefined") __webpack_require__.federation?.instance?.moduleCache?.clear();
++	helpers.global.resetFederationRuntime();
+ 	globalThis.moduleGraphDirty = false;
+ 	globalThis.mfHashMap = {};
+ 	if (!entries) Object.keys(req.cache).forEach((key) => {

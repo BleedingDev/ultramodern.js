@@ -42,11 +42,13 @@ overrides:
 pnpmfileChecksum: sha256-e7fv4++EEy5D/4pBzV1yGYuIWnXfQwaMHH7OMxyEZx4=
 
 patchedDependencies:
-  '@module-federation/bridge-react@2.9.2': 8c084f41790295af8fd015b897c6298bbc13d927b796c624ac96cb2bdb4bc87c
-  '@module-federation/dts-plugin@2.9.2': c52b86d551da354492cf255cfb8c0e56e51cb6b4452319b47295ac969704819d
-  '@module-federation/manifest@2.9.2': a31d4d30913ffb579faf42be4f1c03a0f330d3f09348e9eedc00059d6e8d123f
-  '@module-federation/modern-js-v3@2.9.2': 3d000f33015d32b14dcf9e46672e7d6867317ad9f43e95b2c392c3d5a7c052ab
-  '@module-federation/rspack@2.9.2': 439c49417f83846c45e31e4448c6487f7b57f0bdc226e120adea88ae1caf74e6
+  '@module-federation/bridge-react@2.9.2': 2d8a06e2ef045f877d6b0c5f741053dc8183cb6194f42b704357f426f315d0db
+  '@module-federation/dts-plugin@2.9.2': feb8052c1549593cba0c0885b8fd0143e1d8f3f0ff68acbbeb3287063e6808d6
+  '@module-federation/manifest@2.9.2': bbb5b50645aa4f67570bf2a361f92cd24c15a90e471f81057b28e01abbd80f03
+  '@module-federation/modern-js-v3@2.9.2': a2290f00a31ae2890697520df938b2ae812998a502554840e778289057f6599b
+  '@module-federation/node@2.7.52': f54e44940ed53ee3ffd11428734c58a27c96d27374ea00596c746a2ab738a1a5
+  '@module-federation/rspack@2.9.2': 06641dcd38197ccc8831f0dca7f6ff37b05ee2e771686816cc3d3f3c57c0e8af
+  '@module-federation/runtime-core@2.9.2': f7b9f3dcdb48ee9a00b2dfc858f2b403e00355b154142f876ac71648e27a9867
 
 importers:
 
@@ -365,7 +367,7 @@ importers:
         version: link:../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.9.2
-        version: 2.9.2(patch_hash=3d000f33015d32b14dcf9e46672e7d6867317ad9f43e95b2c392c3d5a7c052ab)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
+        version: 2.9.2(patch_hash=a2290f00a31ae2890697520df938b2ae812998a502554840e778289057f6599b)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       react:
         specifier: ^19.3.0
         version: 19.3.0
@@ -414,7 +416,7 @@ importers:
         version: link:../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.9.2
-        version: 2.9.2(patch_hash=3d000f33015d32b14dcf9e46672e7d6867317ad9f43e95b2c392c3d5a7c052ab)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
+        version: 2.9.2(patch_hash=a2290f00a31ae2890697520df938b2ae812998a502554840e778289057f6599b)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       react:
         specifier: ^19.3.0
         version: 19.3.0
@@ -460,7 +462,7 @@ importers:
         version: link:../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.9.2
-        version: 2.9.2(patch_hash=3d000f33015d32b14dcf9e46672e7d6867317ad9f43e95b2c392c3d5a7c052ab)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
+        version: 2.9.2(patch_hash=a2290f00a31ae2890697520df938b2ae812998a502554840e778289057f6599b)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       '@module-federation/runtime':
         specifier: 2.9.2
         version: 2.9.2
@@ -512,7 +514,7 @@ importers:
         version: link:../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.9.2
-        version: 2.9.2(patch_hash=3d000f33015d32b14dcf9e46672e7d6867317ad9f43e95b2c392c3d5a7c052ab)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
+        version: 2.9.2(patch_hash=a2290f00a31ae2890697520df938b2ae812998a502554840e778289057f6599b)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       react:
         specifier: ^19.3.0
         version: 19.3.0
@@ -5210,7 +5212,7 @@ importers:
         version: link:../../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.9.2
-        version: 2.9.2(patch_hash=3d000f33015d32b14dcf9e46672e7d6867317ad9f43e95b2c392c3d5a7c052ab)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
+        version: 2.9.2(patch_hash=a2290f00a31ae2890697520df938b2ae812998a502554840e778289057f6599b)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       i18next:
         specifier: 26.4.2
         version: 26.4.2(typescript@7.0.2)
@@ -5250,7 +5252,7 @@ importers:
         version: link:../../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.9.2
-        version: 2.9.2(patch_hash=3d000f33015d32b14dcf9e46672e7d6867317ad9f43e95b2c392c3d5a7c052ab)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
+        version: 2.9.2(patch_hash=a2290f00a31ae2890697520df938b2ae812998a502554840e778289057f6599b)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       i18next:
         specifier: 26.4.2
         version: 26.4.2(typescript@7.0.2)
@@ -5290,7 +5292,7 @@ importers:
         version: link:../../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.9.2
-        version: 2.9.2(patch_hash=3d000f33015d32b14dcf9e46672e7d6867317ad9f43e95b2c392c3d5a7c052ab)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
+        version: 2.9.2(patch_hash=a2290f00a31ae2890697520df938b2ae812998a502554840e778289057f6599b)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       '@module-federation/runtime':
         specifier: 2.9.2
         version: 2.9.2
@@ -5878,7 +5880,7 @@ importers:
         version: link:../../../../packages/runtime/runtime-extensions
       '@module-federation/modern-js-v3':
         specifier: 2.9.2
-        version: 2.9.2(patch_hash=3d000f33015d32b14dcf9e46672e7d6867317ad9f43e95b2c392c3d5a7c052ab)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
+        version: 2.9.2(patch_hash=a2290f00a31ae2890697520df938b2ae812998a502554840e778289057f6599b)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       '@module-federation/runtime':
         specifier: 2.9.2
         version: 2.9.2
@@ -5942,7 +5944,7 @@ importers:
         version: link:../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.9.2
-        version: 2.9.2(patch_hash=3d000f33015d32b14dcf9e46672e7d6867317ad9f43e95b2c392c3d5a7c052ab)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
+        version: 2.9.2(patch_hash=a2290f00a31ae2890697520df938b2ae812998a502554840e778289057f6599b)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       '@module-federation/runtime':
         specifier: 2.9.2
         version: 2.9.2
@@ -6000,7 +6002,7 @@ importers:
         version: link:../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.9.2
-        version: 2.9.2(patch_hash=3d000f33015d32b14dcf9e46672e7d6867317ad9f43e95b2c392c3d5a7c052ab)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
+        version: 2.9.2(patch_hash=a2290f00a31ae2890697520df938b2ae812998a502554840e778289057f6599b)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       '@module-federation/runtime':
         specifier: 2.9.2
         version: 2.9.2
@@ -23957,7 +23959,7 @@ snapshots:
     dependencies:
       '@module-federation/sdk': 2.9.2
 
-  '@module-federation/bridge-react@2.9.2(patch_hash=8c084f41790295af8fd015b897c6298bbc13d927b796c624ac96cb2bdb4bc87c)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)':
+  '@module-federation/bridge-react@2.9.2(patch_hash=2d8a06e2ef045f877d6b0c5f741053dc8183cb6194f42b704357f426f315d0db)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)':
     dependencies:
       '@module-federation/sdk': 2.9.2
       react: 19.3.0
@@ -23968,7 +23970,7 @@ snapshots:
 
   '@module-federation/cli@2.9.2(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)':
     dependencies:
-      '@module-federation/dts-plugin': 2.9.2(patch_hash=c52b86d551da354492cf255cfb8c0e56e51cb6b4452319b47295ac969704819d)(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
+      '@module-federation/dts-plugin': 2.9.2(patch_hash=feb8052c1549593cba0c0885b8fd0143e1d8f3f0ff68acbbeb3287063e6808d6)(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       '@module-federation/sdk': 2.9.2
       commander: 11.1.0
       jiti: 2.4.2
@@ -23978,7 +23980,7 @@ snapshots:
       - utf-8-validate
       - vue-tsc
 
-  '@module-federation/dts-plugin@2.9.2(patch_hash=c52b86d551da354492cf255cfb8c0e56e51cb6b4452319b47295ac969704819d)(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)':
+  '@module-federation/dts-plugin@2.9.2(patch_hash=feb8052c1549593cba0c0885b8fd0143e1d8f3f0ff68acbbeb3287063e6808d6)(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)':
     dependencies:
       '@module-federation/error-codes': 2.9.2
       '@module-federation/managers': 2.9.2
@@ -23997,12 +23999,12 @@ snapshots:
     dependencies:
       '@module-federation/bridge-react-webpack-plugin': 2.9.2
       '@module-federation/cli': 2.9.2(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
-      '@module-federation/dts-plugin': 2.9.2(patch_hash=c52b86d551da354492cf255cfb8c0e56e51cb6b4452319b47295ac969704819d)(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
+      '@module-federation/dts-plugin': 2.9.2(patch_hash=feb8052c1549593cba0c0885b8fd0143e1d8f3f0ff68acbbeb3287063e6808d6)(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       '@module-federation/error-codes': 2.9.2
       '@module-federation/inject-external-runtime-core-plugin': 2.9.2(@module-federation/runtime-tools@2.9.2)
       '@module-federation/managers': 2.9.2
-      '@module-federation/manifest': 2.9.2(patch_hash=a31d4d30913ffb579faf42be4f1c03a0f330d3f09348e9eedc00059d6e8d123f)(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
-      '@module-federation/rspack': 2.9.2(patch_hash=439c49417f83846c45e31e4448c6487f7b57f0bdc226e120adea88ae1caf74e6)(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
+      '@module-federation/manifest': 2.9.2(patch_hash=bbb5b50645aa4f67570bf2a361f92cd24c15a90e471f81057b28e01abbd80f03)(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
+      '@module-federation/rspack': 2.9.2(patch_hash=06641dcd38197ccc8831f0dca7f6ff37b05ee2e771686816cc3d3f3c57c0e8af)(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       '@module-federation/runtime-tools': 2.9.2
       '@module-federation/sdk': 2.9.2
       '@module-federation/webpack-bundler-runtime': 2.9.2
@@ -24025,9 +24027,9 @@ snapshots:
     dependencies:
       '@module-federation/sdk': 2.9.2
 
-  '@module-federation/manifest@2.9.2(patch_hash=a31d4d30913ffb579faf42be4f1c03a0f330d3f09348e9eedc00059d6e8d123f)(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)':
+  '@module-federation/manifest@2.9.2(patch_hash=bbb5b50645aa4f67570bf2a361f92cd24c15a90e471f81057b28e01abbd80f03)(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)':
     dependencies:
-      '@module-federation/dts-plugin': 2.9.2(patch_hash=c52b86d551da354492cf255cfb8c0e56e51cb6b4452319b47295ac969704819d)(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
+      '@module-federation/dts-plugin': 2.9.2(patch_hash=feb8052c1549593cba0c0885b8fd0143e1d8f3f0ff68acbbeb3287063e6808d6)(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       '@module-federation/managers': 2.9.2
       '@module-federation/sdk': 2.9.2
     transitivePeerDependencies:
@@ -24036,12 +24038,12 @@ snapshots:
       - utf-8-validate
       - vue-tsc
 
-  '@module-federation/modern-js-v3@2.9.2(patch_hash=3d000f33015d32b14dcf9e46672e7d6867317ad9f43e95b2c392c3d5a7c052ab)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)':
+  '@module-federation/modern-js-v3@2.9.2(patch_hash=a2290f00a31ae2890697520df938b2ae812998a502554840e778289057f6599b)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)':
     dependencies:
-      '@module-federation/bridge-react': 2.9.2(patch_hash=8c084f41790295af8fd015b897c6298bbc13d927b796c624ac96cb2bdb4bc87c)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)
+      '@module-federation/bridge-react': 2.9.2(patch_hash=2d8a06e2ef045f877d6b0c5f741053dc8183cb6194f42b704357f426f315d0db)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)
       '@module-federation/cli': 2.9.2(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       '@module-federation/enhanced': 2.9.2(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
-      '@module-federation/node': 2.7.52(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
+      '@module-federation/node': 2.7.52(patch_hash=f54e44940ed53ee3ffd11428734c58a27c96d27374ea00596c746a2ab738a1a5)(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       '@module-federation/rsbuild-plugin': 2.9.2(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       '@module-federation/runtime': 2.9.2
       '@module-federation/sdk': 2.9.2
@@ -24060,7 +24062,7 @@ snapshots:
       - utf-8-validate
       - webpack
 
-  '@module-federation/node@2.7.52(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)':
+  '@module-federation/node@2.7.52(patch_hash=f54e44940ed53ee3ffd11428734c58a27c96d27374ea00596c746a2ab738a1a5)(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)':
     dependencies:
       '@module-federation/enhanced': 2.9.2(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       '@module-federation/runtime': 2.9.2
@@ -24078,7 +24080,7 @@ snapshots:
   '@module-federation/rsbuild-plugin@2.9.2(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)':
     dependencies:
       '@module-federation/enhanced': 2.9.2(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
-      '@module-federation/node': 2.7.52(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
+      '@module-federation/node': 2.7.52(patch_hash=f54e44940ed53ee3ffd11428734c58a27c96d27374ea00596c746a2ab738a1a5)(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       '@module-federation/sdk': 2.9.2
     optionalDependencies:
       '@rsbuild/core': 2.2.9(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
@@ -24090,13 +24092,13 @@ snapshots:
       - vue-tsc
       - webpack
 
-  '@module-federation/rspack@2.9.2(patch_hash=439c49417f83846c45e31e4448c6487f7b57f0bdc226e120adea88ae1caf74e6)(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)':
+  '@module-federation/rspack@2.9.2(patch_hash=06641dcd38197ccc8831f0dca7f6ff37b05ee2e771686816cc3d3f3c57c0e8af)(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)':
     dependencies:
       '@module-federation/bridge-react-webpack-plugin': 2.9.2
-      '@module-federation/dts-plugin': 2.9.2(patch_hash=c52b86d551da354492cf255cfb8c0e56e51cb6b4452319b47295ac969704819d)(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
+      '@module-federation/dts-plugin': 2.9.2(patch_hash=feb8052c1549593cba0c0885b8fd0143e1d8f3f0ff68acbbeb3287063e6808d6)(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       '@module-federation/inject-external-runtime-core-plugin': 2.9.2(@module-federation/runtime-tools@2.9.2)
       '@module-federation/managers': 2.9.2
-      '@module-federation/manifest': 2.9.2(patch_hash=a31d4d30913ffb579faf42be4f1c03a0f330d3f09348e9eedc00059d6e8d123f)(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
+      '@module-federation/manifest': 2.9.2(patch_hash=bbb5b50645aa4f67570bf2a361f92cd24c15a90e471f81057b28e01abbd80f03)(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       '@module-federation/runtime-tools': 2.9.2
       '@module-federation/sdk': 2.9.2
       '@rspack/core': 2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23)
@@ -24106,7 +24108,7 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  '@module-federation/runtime-core@2.9.2':
+  '@module-federation/runtime-core@2.9.2(patch_hash=f7b9f3dcdb48ee9a00b2dfc858f2b403e00355b154142f876ac71648e27a9867)':
     dependencies:
       '@module-federation/error-codes': 2.9.2
       '@module-federation/sdk': 2.9.2
@@ -24119,7 +24121,7 @@ snapshots:
   '@module-federation/runtime@2.9.2':
     dependencies:
       '@module-federation/error-codes': 2.9.2
-      '@module-federation/runtime-core': 2.9.2
+      '@module-federation/runtime-core': 2.9.2(patch_hash=f7b9f3dcdb48ee9a00b2dfc858f2b403e00355b154142f876ac71648e27a9867)
       '@module-federation/sdk': 2.9.2
 
   '@module-federation/sdk@2.9.2': {}
