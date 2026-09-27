@@ -189,3 +189,16 @@ test('a prerelease outside the selector is not flagged', () => {
     .replace('brace-expansion: 5.0.9', 'brace-expansion: 5.0.9-beta.1');
   assert.deepEqual(findOverrideViolations(lockfile, importerNames), []);
 });
+
+test('a prerelease left under a range override fails', () => {
+  const lockfile = preFixLockfile
+    .replace(
+      /overrides:[\s\S]*?importers:/,
+      "overrides:\n  react-router: '>=7.18.0'\nimporters:",
+    )
+    .replaceAll('react-router@7.18.2', 'react-router@7.19.0-beta.1');
+  assert.deepEqual(findOverrideViolations(lockfile, importerNames), [
+    "'react-router': the lockfile still resolves react-router@7.19.0-beta.1, which this override should replace with >=7.18.0. " +
+      'Run pnpm install, or fix the selector if pnpm does not match it.',
+  ]);
+});
