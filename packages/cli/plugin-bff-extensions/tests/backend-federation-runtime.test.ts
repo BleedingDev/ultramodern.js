@@ -413,6 +413,20 @@ module.exports = {
     ).rejects.toThrow(/static or service-binding entries/u);
   });
 
+  test('rejects host shares on the edge loader instead of dropping them', async () => {
+    await expect(
+      loadEdgeBackendFederatedEffectApi({
+        expected: { unitId: 'catalog@21', buildMarker: 'catalog-build-123' },
+        hostName: 'cloudflareSharedBackendHost',
+        remote: {
+          entry: 'service:verticalCheckoutBackend',
+          name: 'verticalCheckoutBackend',
+        },
+        ...({ shared: { registry: { lib: () => ({}) } } } as object),
+      }),
+    ).rejects.toThrow(/host shares/u);
+  });
+
   test('does not let manifestPath disguise a network fetch as a trusted local manifest', async () => {
     const fetchManifest = rs.fn(
       async () => new Response(JSON.stringify(createBackendManifest())),
