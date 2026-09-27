@@ -1142,6 +1142,61 @@ function collectIntegrationGateErrors(workflow, relativePath) {
       );
     }
   }
+  // A sharded suite must run every slice on every platform: shards 1/N
+  // through N/N, once each, in the matrix GitHub actually expands (axes minus
+  // exclude). A dropped or duplicated shard would silently lose tests.
+  for (const [jobId, job] of Object.entries(workflow.jobs ?? {})) {
+    const matrix = isObject(job) ? job.strategy?.matrix : undefined;
+    if (!isObject(matrix) || matrix.shard === undefined) continue;
+    const axes = Object.entries(matrix).filter(
+      ([key, values]) =>
+        !['include', 'exclude'].includes(key) && Array.isArray(values),
+    );
+    const excluded = combination =>
+      (Array.isArray(matrix.exclude) ? matrix.exclude : []).some(
+        rule =>
+          isObject(rule) &&
+          Object.entries(rule).every(
+            ([key, value]) => String(combination[key]) === String(value),
+          ),
+      );
+    const combinations = axes
+      .reduce(
+        (partial, [key, values]) =>
+          partial.flatMap(combination =>
+            values.map(value => ({ ...combination, [key]: value })),
+          ),
+        [{}],
+      )
+      .filter(combination => !excluded(combination));
+    const shards = Array.isArray(matrix.shard) ? matrix.shard.map(String) : [];
+    const expected = shards.map((_, index) => `${index + 1}/${shards.length}`);
+    const shardedSuites = new Set(
+      (Array.isArray(job.steps) ? job.steps : [])
+        .filter(step => isObject(step) && runIncludes(step, 'matrix.shard'))
+        .map(step => suiteConditionPattern.exec(String(step.if).trim())?.[1]),
+    );
+    const groups = new Map();
+    for (const { shard, ...rest } of combinations) {
+      if (!shardedSuites.has(rest.suite)) continue;
+      const key = JSON.stringify(rest);
+      groups.set(key, [...(groups.get(key) ?? []), String(shard)]);
+    }
+    const complete =
+      shards.length > 1 &&
+      shards.every((shard, index) => shard === expected[index]) &&
+      groups.size > 0 &&
+      [...groups.values()].every(
+        scheduled =>
+          scheduled.length === expected.length &&
+          expected.every(shard => scheduled.includes(shard)),
+      );
+    if (!complete) {
+      errors.push(
+        `${relativePath} job ${jobId} must schedule shards 1/N through N/N exactly once for every sharded suite combination, so the shards together run the whole suite`,
+      );
+    }
+  }
   // A suite without its step would be a green job that tests nothing.
   for (const [jobId, job] of Object.entries(workflow.jobs ?? {})) {
     const matrixSuites = isObject(job) ? job.strategy?.matrix?.suite : [];

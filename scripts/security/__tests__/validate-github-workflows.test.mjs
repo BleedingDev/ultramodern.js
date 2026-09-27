@@ -370,7 +370,8 @@ test('integration gates pull requests with one job per suite', () => {
         error.includes('must trigger on') ||
         error.includes('must not filter paths') ||
         error.includes('one suite per job') ||
-        error.includes('has no step gated'),
+        error.includes('has no step gated') ||
+        error.includes('must schedule shards'),
     );
   assert.deepEqual(gateErrors(content), []);
   for (const trigger of ['pull_request', 'merge_group', 'workflow_call']) {
@@ -411,6 +412,38 @@ test('integration gates pull requests with one job per suite', () => {
   assert.deepEqual(gateErrors(content.replace(utilsStep, '')), [
     `${workflowPath} job integration matrix suite utils has no step gated by if: matrix.suite == 'utils', so that job would pass without testing anything`,
   ]);
+  // The framework shards together must run every test file.
+  const shards = '        shard: [1/3, 2/3, 3/3]\n';
+  assert.ok(content.includes(shards));
+  // An exclude can drop a shard from the expanded matrix while the axis
+  // still lists it.
+  const excludes = '        exclude:\n';
+  assert.ok(content.includes(excludes));
+  for (const dropped of [
+    '          - suite: framework\n            shard: 3/3\n',
+    '          - platform: Windows\n            suite: framework\n            shard: 2/3\n',
+  ]) {
+    assert.deepEqual(
+      gateErrors(content.replace(excludes, `${excludes}${dropped}`)),
+      [
+        `${workflowPath} job integration must schedule shards 1/N through N/N exactly once for every sharded suite combination, so the shards together run the whole suite`,
+      ],
+      dropped,
+    );
+  }
+  for (const mutated of [
+    '        shard: [1/3, 2/3]\n',
+    '        shard: [1/3, 1/3, 3/3]\n',
+    '        shard: [1/1]\n',
+  ]) {
+    assert.deepEqual(
+      gateErrors(content.replace(shards, mutated)),
+      [
+        `${workflowPath} job integration must schedule shards 1/N through N/N exactly once for every sharded suite combination, so the shards together run the whole suite`,
+      ],
+      mutated,
+    );
+  }
 });
 
 test('release gates reject node:test filter flags', () => {

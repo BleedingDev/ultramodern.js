@@ -19,24 +19,38 @@ permissions:
 
 jobs:
   integration:
-    name: integration-${{ matrix.platform }} (${{ matrix.suite }})
+    name: integration-${{ matrix.platform }} (${{ matrix.suite == 'framework' && format('framework {0}', matrix.shard) || matrix.suite }})
     runs-on: ${{ matrix.runner }}
 
-    # The GitHub-hosted public runner has 4 vCPU / 16 GB. A healthy run is ~15 min;
+    # The GitHub-hosted public runner has 4 vCPU / 16 GB. A healthy job is ~15 min;
     # this ceiling turns a hung fixture into a clean failure instead of letting
     # the job sit on the GitHub default of 6 hours.
     timeout-minutes: 60
 
     # One job per suite, so a red suite never hides the ones after it behind
     # an implicit success() and each suite is its own required check.
+    #
+    # The framework suite is the long pole (Windows ~24 min of tests alone),
+    # so it runs as three jobs. rstest --shard sorts the test files and gives
+    # each shard a contiguous, disjoint slice; together they run every file.
+    # The other suites run whole on shard 1/3 and ignore it.
     strategy:
       fail-fast: false
       matrix:
         platform: [Linux, Windows]
         suite: [framework, rstest-adapter, utils]
+        shard: [1/3, 2/3, 3/3]
         exclude:
           - platform: Windows
             suite: utils
+          - suite: rstest-adapter
+            shard: 2/3
+          - suite: rstest-adapter
+            shard: 3/3
+          - suite: utils
+            shard: 2/3
+          - suite: utils
+            shard: 3/3
         include:
           - platform: Linux
             runner: ubuntu-24.04
@@ -112,7 +126,7 @@ jobs:
 
       - name: Test - Framework
         if: matrix.suite == 'framework'
-        run: pnpm run test:framework
+        run: pnpm run test:framework --shard ${{ matrix.shard }}
 
       - name: Test - Adapter Rstest
         if: matrix.suite == 'rstest-adapter'
