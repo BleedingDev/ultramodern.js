@@ -116,12 +116,6 @@ function findRemovalViolations(key, parent, target, snapshots, importers) {
  */
 export function findOverrideViolations(lockfileText, importerNames) {
   const lockfile = parse(lockfileText);
-  const resolved = new Map();
-  for (const key of Object.keys(lockfile.packages ?? {})) {
-    const { name, version } = parsePackageKey(key);
-    if (!resolved.has(name)) resolved.set(name, new Set());
-    resolved.get(name).add(version);
-  }
   const snapshots = Object.entries(lockfile.snapshots ?? {}).map(
     ([key, snapshot]) => ({
       ...parsePackageKey(key),
@@ -146,18 +140,29 @@ export function findOverrideViolations(lockfileText, importerNames) {
       return { name: importer, version: undefined, snapshot: { dependencies } };
     },
   );
-  // Names used as dependency edges; an `npm:` alias override keeps its target
-  // only as an edge name, resolved under the aliased package's key.
-  const edgeVersions = new Map();
-  for (const { snapshot } of [...importers, ...snapshots]) {
-    for (const [name, version] of Object.entries({
-      ...snapshot.dependencies,
-      ...snapshot.optionalDependencies,
-    })) {
-      if (!edgeVersions.has(name)) edgeVersions.set(name, new Set());
-      edgeVersions.get(name).add(String(version).replace(/\(.*$/, ''));
-    }
-  }
+  // Every resolved package is reached through a named edge; an `npm:` alias
+  // override's target exists only as such an edge name.
+  const edgeNames = new Set(
+    [...importers, ...snapshots].flatMap(({ snapshot }) => [
+      ...Object.keys(snapshot.dependencies ?? {}),
+      ...Object.keys(snapshot.optionalDependencies ?? {}),
+    ]),
+  );
+
+  // pnpm picks a matching parent override before a generic one, so a generic
+  // override does not judge edges that a parent override for the same target
+  // already owns.
+  const parentOverrides = Object.keys(lockfile.overrides ?? {})
+    .map(parseOverrideKey)
+    .filter(({ parent }) => parent);
+  const ownedByParentOverride = (entry, targetName) =>
+    parentOverrides.some(
+      ({ parent, target }) =>
+        target.name === targetName &&
+        entry.name === parent.name &&
+        entry.version !== undefined &&
+        inRange(entry.version, parent.range),
+    );
 
   const violations = [];
   for (const [key, rawValue] of Object.entries(lockfile.overrides ?? {})) {
@@ -189,8 +194,7 @@ export function findOverrideViolations(lockfileText, importerNames) {
       continue;
     }
 
-    const targetVersions = resolved.get(target.name) ?? new Set();
-    if (targetVersions.size === 0 && !edgeVersions.has(target.name)) {
+    if (!edgeNames.has(target.name)) {
       violations.push(
         `'${key}': nothing in the lockfile resolves ${target.name}. Delete the override.`,
       );
@@ -233,16 +237,19 @@ export function findOverrideViolations(lockfileText, importerNames) {
       continue;
     }
 
-    const aliasEdges = value.startsWith('npm:')
-      ? [...(edgeVersions.get(target.name) ?? [])].filter(
-          version => !semver.valid(version),
-        )
-      : [];
-    for (const version of [...targetVersions, ...aliasEdges]) {
-      if (
-        (aliasEdges.includes(version) || inRange(version, target.range)) &&
-        !honours(version, value)
-      ) {
+    const judged = new Set();
+    for (const entry of [...importers, ...snapshots]) {
+      const edge = childEdge(entry.snapshot, target.name);
+      if (edge === undefined || ownedByParentOverride(entry, target.name)) {
+        continue;
+      }
+      judged.add(String(edge).replace(/\(.*$/, ''));
+    }
+    for (const version of judged) {
+      const matches = semver.valid(version)
+        ? inRange(version, target.range)
+        : value.startsWith('npm:');
+      if (matches && !honours(version, value)) {
         violations.push(
           `'${key}': the lockfile still resolves ${target.name}@${version}, which this override should replace with ${value}. ` +
             'Run pnpm install, or fix the selector if pnpm does not match it.',
