@@ -301,6 +301,9 @@ const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) &&
   value.every(entry => typeof entry === 'string' && entry.length > 0);
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
 /** Reads `modernjs.i18nCheck` from the workspace package.json. */
 const readWorkspaceCheckOptions = (
   root: string,
@@ -312,7 +315,7 @@ const readWorkspaceCheckOptions = (
     new Error(
       `${manifestPath} "modernjs.i18nCheck${field}" must be ${expected}.`,
     );
-  if (typeof config !== 'object' || Array.isArray(config)) {
+  if (!isRecord(config)) {
     throw invalid('', 'an object');
   }
   if (sourceRoots !== undefined && !isStringArray(sourceRoots)) {
@@ -323,8 +326,7 @@ const readWorkspaceCheckOptions = (
   }
   if (
     pluralCategories !== undefined &&
-    (pluralCategories === null ||
-      typeof pluralCategories !== 'object' ||
+    (!isRecord(pluralCategories) ||
       !Object.values(pluralCategories).every(isStringArray))
   ) {
     throw invalid(

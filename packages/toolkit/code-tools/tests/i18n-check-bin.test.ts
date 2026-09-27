@@ -61,17 +61,19 @@ test('modern-i18n-check reads sourceRoots from package.json and fails on a viola
   expect(output).not.toContain('apps/ignored');
 });
 
-test('modern-i18n-check names the invalid package.json field', () => {
+test.each([
+  [{ sourceRoots: 'apps' }, '.sourceRoots" must be an array'],
+  [
+    { pluralCategories: [['one', 'other']] },
+    '.pluralCategories" must be an object',
+  ],
+])('modern-i18n-check names the invalid package.json field %#', (i18nCheck, message) => {
   const root = workspace({
-    'package.json': JSON.stringify({
-      modernjs: { i18nCheck: { sourceRoots: 'apps' } },
-    }),
+    'package.json': JSON.stringify({ modernjs: { i18nCheck } }),
   });
 
   const result = run(root);
 
   expect(result.status).toBe(2);
-  expect(result.stderr).toContain(
-    '"modernjs.i18nCheck.sourceRoots" must be an array',
-  );
+  expect(result.stderr).toContain(`"modernjs.i18nCheck${message}`);
 });
