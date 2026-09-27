@@ -58,9 +58,7 @@ for (const format of ['esm', 'cjs']) {
     const start = source.indexOf('//#region src/server/createHttpServer.ts');
     assert.notEqual(start, -1);
     const end = source.indexOf('//#endregion', start);
-    const competitor = net.createServer();
-    await new Promise(resolve => competitor.listen(0, resolve));
-    const takenPort = competitor.address().port;
+    let takenPort;
     const getFreePort = async () => takenPort;
     const getIPV4 = () => '127.0.0.1';
     const DEFAULT_TAR_NAME = '@mf-types.zip';
@@ -76,6 +74,11 @@ for (const format of ['esm', 'cjs']) {
         require_Action: { DEFAULT_TAR_NAME },
       },
     );
+    // Bind the competitor only once the chunk evaluated, so a setup failure
+    // cannot leave a listener keeping the test process alive.
+    const competitor = net.createServer();
+    await new Promise(resolve => competitor.listen(0, resolve));
+    takenPort = competitor.address().port;
 
     const uncaught = [];
     const onUncaught = error => uncaught.push(error);
