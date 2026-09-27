@@ -1,5 +1,8 @@
 import { createHash } from 'node:crypto';
-import { EFFECT_BFF_HANDLER_FACTORY_REGISTRY_SHARE } from '@modern-js/bff-effect/effect-edge';
+import {
+  EFFECT_BFF_CONTEXT_STORAGE_SHARE,
+  EFFECT_BFF_HANDLER_FACTORY_REGISTRY_SHARE,
+} from '@modern-js/bff-effect/effect-edge';
 import {
   type BackendFederationCommonJsEvaluator,
   evaluateNodeBackendFederationCommonJs,
@@ -225,14 +228,12 @@ describe('backend federation integrity plugin', () => {
     ).rejects.toThrow(`${remoteName} uses unsupported entry ftp:`);
   });
 
-  test('Node loaders reject a caller share that replaces the host registry', async () => {
-    const shared = {
-      [EFFECT_BFF_HANDLER_FACTORY_REGISTRY_SHARE]: {
-        version: '0.0.0',
-        lib: () => ({}),
-      },
-    };
-    const reserved = `Share ${EFFECT_BFF_HANDLER_FACTORY_REGISTRY_SHARE} is reserved`;
+  test.each([
+    EFFECT_BFF_HANDLER_FACTORY_REGISTRY_SHARE,
+    EFFECT_BFF_CONTEXT_STORAGE_SHARE,
+  ])('Node loaders reject a caller share that replaces the host %s', async name => {
+    const shared = { [name]: { version: '0.0.0', lib: () => ({}) } };
+    const reserved = `Share ${name} is reserved`;
     await expect(
       loadBackendFederatedEffectApi({
         shared,

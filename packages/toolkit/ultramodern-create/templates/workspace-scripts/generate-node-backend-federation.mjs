@@ -16,7 +16,7 @@ const { build } = createRequire(import.meta.url)('esbuild');
 // @modern-js/backend-federation-contracts backend-federation-contract. Generated workspace
 // scripts do not currently import @modern-js/utils directly.
 const contractVersion = 'microvertical-server-effect-v1';
-const nodeAdapterVersion = 'backend-mf-effect-v1';
+const nodeAdapterVersion = 'backend-mf-effect-v2';
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
