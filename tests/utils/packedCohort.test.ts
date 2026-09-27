@@ -63,18 +63,20 @@ test('npm aliases onto @bleedingdev resolve to packed tarballs by alias key', ()
 
 test('an unpacked @bleedingdev dependency names the supply manifest to fix', () => {
   const edges = bleedingdevEdges({
-    dependencies: { effect: 'npm:@bleedingdev/effect@4.0.0-rc.117' },
+    dependencies: {
+      '@module-federation/node': 'npm:@bleedingdev/mf-node@2.7.51',
+    },
   });
   expect(() => bleedingdevOverrides(edges, {})).toThrow(
     'Add it to scripts/ultramodern-supply/sidecars.json / staged cohort',
   );
   expect(() =>
     bleedingdevOverrides(edges, {
-      '@bleedingdev/effect': {
-        tarball: '/packed/effect.tgz',
-        version: '4.0.0-rc.116',
+      '@bleedingdev/mf-node': {
+        tarball: '/packed/mf-node.tgz',
+        version: '2.7.50',
         integrity: '',
       },
     }),
-  ).toThrow('packed @bleedingdev/effect: 4.0.0-rc.116');
+  ).toThrow('packed @bleedingdev/mf-node: 2.7.50');
 });

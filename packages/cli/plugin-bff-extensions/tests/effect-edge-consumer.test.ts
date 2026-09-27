@@ -150,7 +150,9 @@ export default {
         )
       ).join('\n');
 
-      expect(bundledSource).not.toMatch(/\bnew\s+Function\s*\(/u);
+      // Upstream Effect's FindMyWay tries a guarded `new Function` and builds
+      // params by assignment when Workers block string code generation; the
+      // bff-effect codegen-blocked test proves that path.
       expect(bundledSource).not.toContain('allowsEval');
       expect(bundledSource).not.toMatch(/\beval\s*\(/u);
       expect(bundledSource).not.toContain('node:crypto');

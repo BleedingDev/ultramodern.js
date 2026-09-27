@@ -464,7 +464,7 @@ it covers root and infrastructure files outside `packages/`.
 | ROOT-02 | Effect cohort pinned lockstep across generator and BFF surfaces (`4.0.0-rc.117`) | bleedingdev | Upstream has no Effect lane; a partial revert leaves generated workspaces and plugin-bff on incompatible Effect identities | keep-[F] — see note N1 | — |
 | ROOT-03 | Generated dependency/toolchain cohort pins (tsgo 0.45.0, TanStack Router 1.170.39/core 1.171.32/history 1.162.4, MF 2.9.1, `@module-federation/node@2.7.51`, Node 26.7.0, pnpm 11.27.1) | bleedingdev | Generator, templates, validation and docs must agree or generated workspaces break | keep-[F] | — |
 | ROOT-04 | 15 `examples/**` members use `workspace:*`; upstream uses `latest` | bleedingdev | Upstream's spelling installs real Modern.js 3.7.0 beside the fork and pnpm non-deterministically hoists one | keep-[F] — see note N2 | — |
-| ROOT-05 | `patchedDependencies` for MF 2.9.1 (`manifest`, `rspack`, `bridge-react`, `modern-js-v3`, `runtime-core`) and Effect router CSP hardening | bleedingdev | MF lazy-DTS/SSR/topology and CSP/Worker-safe runtime lanes; the TanStack router-core declaration patch retired at 1.171.32 and the zod evaluator-probe patch retired at 4.6.5 (upstream skips the probe under `jitless` and on Cloudflare Workers) | keep-[F] | — |
+| ROOT-05 | `patchedDependencies` for MF 2.9.1 (`manifest`, `rspack`, `bridge-react`, `modern-js-v3`, `runtime-core`) | bleedingdev | MF lazy-DTS/SSR/topology lanes; the TanStack router-core declaration patch retired at 1.171.32, the zod evaluator-probe patch retired at 4.6.5 (upstream skips the probe under `jitless` and on Cloudflare Workers) and the Effect router patch retired at 4.0.0-rc.117 (upstream falls back to assignment when string code generation is blocked) | keep-[F] | — |
 | ROOT-07 | `pnpm-workspace.yaml` negative globs `!tests/integration/**/{dist,node_modules}/**` | bleedingdev | Gitignored build output emits `package.json` files that match the positive globs and add phantom importers to the lockfile | keep-[F] | — |
 | ROOT-08 | 8 fork-owned workflows added | bleedingdev | Fork gates (boundary, publish, certification, nightly, readiness, security), docs publishing (`docs-pages`), and Tractor downstream acceptance (`ultramodern-tractor-downstream`). The contract-gate and bun-smoke workflows were retired 2026-09-11. | keep-[F] | — |
 | ROOT-09 | Modified upstream workflows (dependency check, diff, integration, lint, type-check, unit, builder e2e, issue labels) | bleedingdev | Fork toolchain + gate wiring | inline-patch — reconcile upstream infra fixes by hand | — |
@@ -620,13 +620,14 @@ Only for entries where a **clean merge silently produces a broken or reverted
 result**. Referenced by ID from the tables above.
 
 **N1 — ROOT-02 Effect cohort (lockstep, no active patch).**
-`EFFECT_VERSION`/`EFFECT_VITEST_VERSION` in
+`EFFECT_VERSION` in
 `packages/toolkit/ultramodern-create/src/ultramodern-workspace/versions.ts`;
-the canonical `bff-effect` and BFF extension package manifests (see N5); the generated
-`pnpm.overrides`/`trustPolicyExclude` emitted by
-`ultramodern-workspace/policy.ts`. Effect 4.0.0-rc.117 includes the former
-`SchemaAST.Sentinel` declaration repair, so generated workspaces carry no
-active Effect patch. `stalePatchPolicies` retains the reviewed beta.107 digest
+the canonical `bff-effect` and BFF extension package manifests (see N5); the
+generated exact `effect` dependency and `@effect/vitest>effect` peer rule.
+Effect 4.0.0-rc.117 includes the former `SchemaAST.Sentinel` declaration
+repair and falls back to assignment when Worker or CSP runtimes block string
+code generation, so neither the repository nor generated workspaces carry an
+Effect patch or an `@bleedingdev/effect` sidecar. `stalePatchPolicies` retains the reviewed beta.107 digest
 (`ed9f636…`) and the beta.94/beta.97/beta.102 legacy digests only so migration
 can recognize and remove the former template patch without deleting
 consumer-owned files. These entries are migration history, not authorization
@@ -634,8 +635,7 @@ to restore or regenerate the patch.
 Guards: `packages/toolkit/ultramodern-create/tests/version-pins.test.ts`,
 `tests/migrate-release-age-policy.test.ts`.
 Release-age exclusions are temporary, exact-version, evidence-backed and removed
-after the 24-hour window; they are **distinct** from generated
-`trustPolicyExclude` entries (limited to `effect` and `@effect/opentelemetry`).
+after the 24-hour window.
 
 **N2 — ROOT-04 examples must consume the workspace.**
 Under upstream's `latest` spelling, `pnpm install` downloads real Modern.js

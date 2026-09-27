@@ -229,10 +229,6 @@ through `pnpm-workspace.yaml` overrides. For the current UltraModern cohort,
 generated apps use:
 
 ```yaml
-trustPolicyExclude:
-  - 'effect@4.0.0-rc.117'
-  - '@effect/opentelemetry@4.0.0-rc.117'
-
 overrides:
   '@effect/opentelemetry': 4.0.0-rc.117
   '@effect/vitest': 4.0.0-rc.117
@@ -244,10 +240,7 @@ Effect prerelease can fail while building layers or HTTP middleware because runt
 services come from different package instances. The strict 24-hour release-age
 gate applies to installed packages; the current cohort has no Effect age
 exemption, and override-only `@effect/vitest` is not an installed approval
-target. `trustPolicyExclude` is a separate policy:
-its exact `effect` and `@effect/opentelemetry` exceptions cover their
-trusted-publisher to provenance metadata transition and are not release-age
-approvals.
+target.
 
 ## Contract tests
 

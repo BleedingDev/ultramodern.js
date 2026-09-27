@@ -48,7 +48,6 @@ patchedDependencies:
   '@module-federation/modern-js-v3@2.9.1': 3d000f33015d32b14dcf9e46672e7d6867317ad9f43e95b2c392c3d5a7c052ab
   '@module-federation/rspack@2.9.1': 7beed0f736d66f78abeba9ed9b5537e571eff92f49aa03bd30a6b674f32f4eae
   '@module-federation/runtime-core@2.9.1': b241be221397f0e07dbe6c515725e12eaf3b418469bb7dd21750e6e4b215dd8d
-  effect@4.0.0-rc.117: 1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5
 
 importers:
 
@@ -1228,7 +1227,7 @@ importers:
     devDependencies:
       '@effect/opentelemetry':
         specifier: 4.0.0-rc.117
-        version: 4.0.0-rc.117(@opentelemetry/api-logs@0.222.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.222.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-web@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.117(patch_hash=1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5))
+        version: 4.0.0-rc.117(@opentelemetry/api-logs@0.222.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.222.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-web@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.117)
       '@modern-js/app-tools':
         specifier: workspace:*
         version: link:../../solutions/app-tools
@@ -1267,7 +1266,7 @@ importers:
         version: 7.0.0-dev.20260707.2
       effect:
         specifier: 4.0.0-rc.117
-        version: 4.0.0-rc.117(patch_hash=1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5)
+        version: 4.0.0-rc.117
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
@@ -1313,7 +1312,7 @@ importers:
     devDependencies:
       '@effect/opentelemetry':
         specifier: 4.0.0-rc.117
-        version: 4.0.0-rc.117(@opentelemetry/api-logs@0.222.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.222.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-web@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.117(patch_hash=1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5))
+        version: 4.0.0-rc.117(@opentelemetry/api-logs@0.222.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.222.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-web@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.117)
       '@modern-js/plugin':
         specifier: workspace:*
         version: link:../../toolkit/plugin
@@ -1340,7 +1339,7 @@ importers:
         version: 7.0.0-dev.20260707.2
       effect:
         specifier: 4.0.0-rc.117
-        version: 4.0.0-rc.117(patch_hash=1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5)
+        version: 4.0.0-rc.117
 
   packages/cli/plugin-data-loader:
     dependencies:
@@ -2372,7 +2371,7 @@ importers:
     devDependencies:
       '@effect/opentelemetry':
         specifier: 4.0.0-rc.117
-        version: 4.0.0-rc.117(@opentelemetry/api-logs@0.222.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.222.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-web@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.117(patch_hash=1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5))
+        version: 4.0.0-rc.117(@opentelemetry/api-logs@0.222.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.222.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-web@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.117)
       '@modern-js/rslib':
         specifier: workspace:*
         version: link:../../../scripts/rslib
@@ -2393,7 +2392,7 @@ importers:
         version: 7.0.0-dev.20260707.2
       effect:
         specifier: 4.0.0-rc.117
-        version: 4.0.0-rc.117(patch_hash=1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5)
+        version: 4.0.0-rc.117
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
@@ -3031,7 +3030,7 @@ importers:
         version: 3.50.0
       effect:
         specifier: 4.0.0-rc.117
-        version: 4.0.0-rc.117(patch_hash=1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5)
+        version: 4.0.0-rc.117
       miniflare:
         specifier: 5.20260921.0-alpha
         version: 5.20260921.0-alpha(@types/node@26.6.2)(bufferutil@4.1.0)(utf-8-validate@5.0.10)
@@ -4236,7 +4235,7 @@ importers:
     dependencies:
       '@effect/opentelemetry':
         specifier: 4.0.0-rc.117
-        version: 4.0.0-rc.117(@opentelemetry/api-logs@0.222.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.222.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-web@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.117(patch_hash=1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5))
+        version: 4.0.0-rc.117(@opentelemetry/api-logs@0.222.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.222.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-web@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.117)
       '@modern-js/bff-effect':
         specifier: workspace:*
         version: link:../../../../packages/server/bff-effect
@@ -4257,7 +4256,7 @@ importers:
         version: link:../../../../packages/server/server-runtime
       effect:
         specifier: 4.0.0-rc.117
-        version: 4.0.0-rc.117(patch_hash=1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5)
+        version: 4.0.0-rc.117
       express:
         specifier: ^5.2.1
         version: 5.2.1(supports-color@10.2.2)
@@ -4321,7 +4320,7 @@ importers:
         version: link:../bff-api-app
       effect:
         specifier: 4.0.0-rc.117
-        version: 4.0.0-rc.117(patch_hash=1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5)
+        version: 4.0.0-rc.117
       express:
         specifier: ^5.2.1
         version: 5.2.1(supports-color@10.2.2)
@@ -4388,7 +4387,7 @@ importers:
         version: link:../bff-api-app
       effect:
         specifier: 4.0.0-rc.117
-        version: 4.0.0-rc.117(patch_hash=1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5)
+        version: 4.0.0-rc.117
       express:
         specifier: ^5.2.1
         version: 5.2.1(supports-color@10.2.2)
@@ -4437,7 +4436,7 @@ importers:
     dependencies:
       '@effect/opentelemetry':
         specifier: 4.0.0-rc.117
-        version: 4.0.0-rc.117(@opentelemetry/api-logs@0.222.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.222.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-web@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.117(patch_hash=1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5))
+        version: 4.0.0-rc.117(@opentelemetry/api-logs@0.222.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.222.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-web@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.117)
       '@modern-js/bff-effect':
         specifier: workspace:*
         version: link:../../../packages/server/bff-effect
@@ -4458,7 +4457,7 @@ importers:
         version: link:../../../packages/server/server-runtime
       effect:
         specifier: 4.0.0-rc.117
-        version: 4.0.0-rc.117(patch_hash=1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5)
+        version: 4.0.0-rc.117
       react:
         specifier: ^19.3.0
         version: 19.3.0
@@ -5360,7 +5359,7 @@ importers:
     dependencies:
       '@effect/opentelemetry':
         specifier: 4.0.0-rc.117
-        version: 4.0.0-rc.117(@opentelemetry/api-logs@0.222.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.222.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-web@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.117(patch_hash=1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5))
+        version: 4.0.0-rc.117(@opentelemetry/api-logs@0.222.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.222.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-web@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.117)
       '@modern-js/bff-effect':
         specifier: workspace:*
         version: link:../../../../packages/server/bff-effect
@@ -5378,7 +5377,7 @@ importers:
         version: link:../../../../packages/runtime/plugin-runtime
       effect:
         specifier: 4.0.0-rc.117
-        version: 4.0.0-rc.117(patch_hash=1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5)
+        version: 4.0.0-rc.117
       i18next:
         specifier: 26.4.2
         version: 26.4.2(typescript@7.0.2)
@@ -5865,7 +5864,7 @@ importers:
     dependencies:
       '@effect/opentelemetry':
         specifier: 4.0.0-rc.117
-        version: 4.0.0-rc.117(@opentelemetry/api-logs@0.222.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.222.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-web@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.117(patch_hash=1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5))
+        version: 4.0.0-rc.117(@opentelemetry/api-logs@0.222.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.222.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-web@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.117)
       '@modern-js/bff-effect':
         specifier: workspace:*
         version: link:../../../../packages/server/bff-effect
@@ -5895,7 +5894,7 @@ importers:
         version: 1.170.39(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       effect:
         specifier: 4.0.0-rc.117
-        version: 4.0.0-rc.117(patch_hash=1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5)
+        version: 4.0.0-rc.117
       react:
         specifier: ^19.3.0
         version: 19.3.0
@@ -5929,13 +5928,13 @@ importers:
         version: link:../../../../../../packages/server/bff-effect
       effect:
         specifier: 4.0.0-rc.117
-        version: 4.0.0-rc.117(patch_hash=1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5)
+        version: 4.0.0-rc.117
 
   tests/integration/routes-tanstack-mf/mf-remote:
     dependencies:
       '@effect/opentelemetry':
         specifier: 4.0.0-rc.117
-        version: 4.0.0-rc.117(@opentelemetry/api-logs@0.222.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.222.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-web@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.117(patch_hash=1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5))
+        version: 4.0.0-rc.117(@opentelemetry/api-logs@0.222.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.222.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-web@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.117)
       '@modern-js/bff-effect':
         specifier: workspace:*
         version: link:../../../../packages/server/bff-effect
@@ -5959,7 +5958,7 @@ importers:
         version: 1.170.39(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       effect:
         specifier: 4.0.0-rc.117
-        version: 4.0.0-rc.117(patch_hash=1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5)
+        version: 4.0.0-rc.117
       react:
         specifier: ^19.3.0
         version: 19.3.0
@@ -5993,7 +5992,7 @@ importers:
     dependencies:
       '@effect/opentelemetry':
         specifier: 4.0.0-rc.117
-        version: 4.0.0-rc.117(@opentelemetry/api-logs@0.222.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.222.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-web@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.117(patch_hash=1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5))
+        version: 4.0.0-rc.117(@opentelemetry/api-logs@0.222.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.222.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-web@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.117)
       '@modern-js/bff-effect':
         specifier: workspace:*
         version: link:../../../../packages/server/bff-effect
@@ -6017,7 +6016,7 @@ importers:
         version: 1.170.39(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       effect:
         specifier: 4.0.0-rc.117
-        version: 4.0.0-rc.117(patch_hash=1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5)
+        version: 4.0.0-rc.117
       react:
         specifier: ^19.3.0
         version: 19.3.0
@@ -6051,7 +6050,7 @@ importers:
         version: link:../../../../../../packages/server/bff-effect
       effect:
         specifier: 4.0.0-rc.117
-        version: 4.0.0-rc.117(patch_hash=1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5)
+        version: 4.0.0-rc.117
 
   tests/integration/routes-tanstack-mf/mf-remote/shared/effect:
     dependencies:
@@ -6060,7 +6059,7 @@ importers:
         version: link:../../../../../../packages/server/bff-effect
       effect:
         specifier: 4.0.0-rc.117
-        version: 4.0.0-rc.117(patch_hash=1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5)
+        version: 4.0.0-rc.117
 
   tests/integration/routes-tanstack-rsc:
     dependencies:
@@ -7310,7 +7309,7 @@ importers:
     dependencies:
       '@effect/opentelemetry':
         specifier: 4.0.0-rc.117
-        version: 4.0.0-rc.117(@opentelemetry/api-logs@0.222.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.222.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-web@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.117(patch_hash=1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5))
+        version: 4.0.0-rc.117(@opentelemetry/api-logs@0.222.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.222.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-web@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.117)
       '@modern-js/bff-effect':
         specifier: workspace:*
         version: link:../../../packages/server/bff-effect
@@ -7331,7 +7330,7 @@ importers:
         version: link:../../../packages/server/server-runtime
       effect:
         specifier: 4.0.0-rc.117
-        version: 4.0.0-rc.117(patch_hash=1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5)
+        version: 4.0.0-rc.117
       react:
         specifier: ^19.3.0
         version: 19.3.0
@@ -7590,7 +7589,7 @@ importers:
         version: 19.3.0(@types/react@19.3.0)
       effect:
         specifier: 4.0.0-rc.117
-        version: 4.0.0-rc.117(patch_hash=1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5)
+        version: 4.0.0-rc.117
       i18next:
         specifier: 26.4.2
         version: 26.4.2(typescript@7.0.2)
@@ -22824,10 +22823,10 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@effect/opentelemetry@4.0.0-rc.117(@opentelemetry/api-logs@0.222.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.222.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-web@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.117(patch_hash=1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5))':
+  '@effect/opentelemetry@4.0.0-rc.117(@opentelemetry/api-logs@0.222.0)(@opentelemetry/api@1.9.1)(@opentelemetry/resources@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-logs@0.222.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-metrics@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-node@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-web@2.11.0(@opentelemetry/api@1.9.1))(@opentelemetry/semantic-conventions@1.43.0)(effect@4.0.0-rc.117)':
     dependencies:
       '@opentelemetry/semantic-conventions': 1.43.0
-      effect: 4.0.0-rc.117(patch_hash=1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5)
+      effect: 4.0.0-rc.117
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/api-logs': 0.222.0
@@ -29064,7 +29063,7 @@ snapshots:
 
   ee-first@1.1.1: {}
 
-  effect@4.0.0-rc.117(patch_hash=1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5): {}
+  effect@4.0.0-rc.117: {}
 
   ejs@5.0.1: {}
 

@@ -186,8 +186,8 @@ test('recipe-only sidecar closure records exact publication identities and alias
   );
   const sidecars = sidecarsModule.collectSidecarPackages();
   const byName = new Map(sidecars.map(sidecar => [sidecar.name, sidecar]));
-  assert.equal(sidecars.length, 15);
-  assert.equal(byName.get('@bleedingdev/effect').version, '4.0.0-rc.117');
+  assert.equal(sidecars.length, 14);
+  assert.equal(byName.has('@bleedingdev/effect'), false);
   assert.equal(byName.has('@bleedingdev/msgpackr'), false);
   assert.equal(byName.has('@bleedingdev/zod'), false);
   assert.equal(byName.has('@bleedingdev/drizzle-orm'), false);
@@ -213,10 +213,7 @@ test('recipe-only sidecar closure records exact publication identities and alias
     consumer.dependencies['@module-federation/runtime'],
     'npm:@bleedingdev/mf-runtime@2.9.1',
   );
-  assert.equal(
-    consumer.dependencies.effect,
-    'npm:@bleedingdev/effect@4.0.0-rc.117',
-  );
+  assert.equal(consumer.dependencies.effect, '4.0.0-rc.117');
 });
 
 test('prerelease sidecar versions are rejected', async () => {
