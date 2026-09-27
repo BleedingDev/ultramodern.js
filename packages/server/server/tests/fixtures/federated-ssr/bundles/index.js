@@ -1,6 +1,6 @@
 // A dev SSR bundle as Module Federation emits it: every evaluation is a new
-// bundle generation that initialises the `host` container and provides
-// `react` from its own module graph.
+// bundle generation that initialises the `host` container on globalThis and
+// provides `react` from its own module graph.
 const { init } = require('@module-federation/runtime');
 
 const react = { generation: Symbol('react') };
@@ -16,9 +16,11 @@ const federation = init({
     },
   },
 });
+globalThis.host = { generation: react.generation };
 
 module.exports = {
   react,
+  federation,
   // Consumers get a module factory from the share scope, as bundles do.
   loadReact: () => federation.loadShareSync('react')(),
 };
