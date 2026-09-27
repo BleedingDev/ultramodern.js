@@ -29,7 +29,6 @@ export function createBackendFederationEntryIntegrity(
 export const evaluateNodeBackendFederationCommonJs = (
   source: Parameters<BackendFederationCommonJsEvaluator>[0],
   { remote }: Parameters<BackendFederationCommonJsEvaluator>[1],
-  privateRuntimeCapability?: unknown,
 ) => {
   const module = { exports: {} as Record<string, unknown> };
   const exports = module.exports;
@@ -47,15 +46,8 @@ export const evaluateNodeBackendFederationCommonJs = (
     'exports',
     'globalThis',
     'require',
-    '__modernjs_backend_private_capability__',
     source,
   );
-  evaluate(
-    module,
-    exports,
-    globalThis,
-    requireBuiltin,
-    privateRuntimeCapability,
-  );
+  evaluate(module, exports, globalThis, requireBuiltin);
   return module.exports;
 };
