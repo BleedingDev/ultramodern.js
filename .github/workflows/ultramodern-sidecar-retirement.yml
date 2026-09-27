@@ -1,0 +1,39 @@
+name: Ultramodern Sidecar Retirement
+
+# Weekly: fail when the newest upstream release of a sidecar's major.minor
+# already ships its patch, naming every recipe and alias that can be retired.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '41 4 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  retirable-sidecars:
+    name: Retirable sidecar recipes
+    runs-on: ${{ fromJSON(vars.SELF_LINUX_LABELS || '"ubuntu-latest"') }}
+    timeout-minutes: 15
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '26.7.0'
+
+      - name: Test the recipe graph checker
+        run: node --test scripts/ultramodern-supply/verify-sidecars.test.mjs
+
+      - name: Check sidecar patches against the newest upstream releases
+        run: node scripts/ultramodern-supply/verify-sidecars.mjs --upstream-latest

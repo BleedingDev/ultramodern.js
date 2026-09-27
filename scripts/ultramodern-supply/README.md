@@ -11,11 +11,16 @@ Run:
 ```sh
 node scripts/ultramodern-supply/sync-patches.mjs
 node scripts/ultramodern-supply/verify-sidecars.mjs
+node scripts/ultramodern-supply/verify-sidecars.mjs --upstream-latest
 node packages/sidecar/ipx/scripts/verify-sharpen.mjs
 node packages/sidecar/rsbuild-image-core/scripts/verify-manifest.mjs
 ```
 
-Verification downloads the exact pinned tarball, authenticates its bytes before extraction, and applies the integrity-checked patch with zero fuzz in an owned temporary directory. For the two image sidecars it compares committed runtime artifacts byte for byte; for recipe-only sidecars it reconstructs the complete upstream artifact set and projects only the declared identity, repository and dependency changes. Temporary staging is always removed, including on failure. There is no pnpm-store discovery and no skip-on-missing path. Offline verification accepts an explicit directory containing one `<recipe-id>.tgz` per recipe through `--artifacts <directory>`; the same pinned integrity checks apply. It does not need installed runtime dependencies. Behavioral scripts additionally require their normal dependencies.
+Verification downloads the exact pinned tarball, authenticates its bytes before extraction, and applies the integrity-checked patch with zero fuzz in an owned temporary directory. For the two image sidecars it compares committed runtime artifacts byte for byte; for recipe-only sidecars it reconstructs the complete upstream artifact set and projects only the declared identity, repository and dependency changes. Temporary staging is always removed, including on failure. There is no pnpm-store discovery and no skip-on-missing path. Before verifying, the script resolves the recipe graph. Every `npm:@bleedingdev/<fork>@<version>` alias in a recipe or generator pin must name a recipe at that exact version. A recipe must carry a patch or non-alias manifest change, or reach one through its runtime, optional or peer aliases; otherwise it fails with `sidecar <id> has no patched descendant; delete recipe`. `sidecars.json` is also the only source of the publisher's consumer aliases (`<upstream name>` to `<fork name>`) and sidecar package roots; release-age exemptions follow from the staged sidecar manifest built from those roots.
+
+`--upstream-latest` fetches the newest registry release of each patched recipe's major.minor (prereleases only for a prerelease pin), authenticates it against the packument integrity and dry-runs the patch in reverse with zero fuzz. It fails when a patch is already present upstream and lists the retirable recipes, including parents that no longer reach a correction, and the aliases the remaining recipes must drop. `.github/workflows/ultramodern-sidecar-retirement.yml` runs it weekly.
+
+Offline verification accepts an explicit directory containing one `<recipe-id>.tgz` per recipe through `--artifacts <directory>`; the same pinned integrity checks apply. It does not need installed runtime dependencies. Behavioral scripts additionally require their normal dependencies.
 
 ## Release age
 

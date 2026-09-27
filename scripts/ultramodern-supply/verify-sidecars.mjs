@@ -82,12 +82,253 @@ export function assertRecipeConsumers(
 
 /** Check the repository recipes against the generator's runtime pins and the published cohort manifests. */
 export function assertRepositoryRecipeConsumers(publishedManifests) {
+  assertRecipeGraph(recipes, {
+    generatorPins: Object.values(ULTRAMODERN_PACKAGE_PINS),
+  });
   assertRecipeConsumers(recipes, {
     generatorPins: Object.entries(ULTRAMODERN_PACKAGE_PINS)
       .filter(([block]) => !block.endsWith('DevDependencies'))
       .map(([, pins]) => pins),
     publishedManifests,
   });
+}
+
+/**
+ * Resolve the recipe graph. Every `npm:@bleedingdev/<fork>@<version>` alias in
+ * a recipe or a generator pin must name a recipe at exactly that version, so
+ * deleting a recipe fails here instead of publishing a dangling alias. A
+ * runtime, optional or peer alias is a graph edge; any other manifest change
+ * is a correction the recipe carries itself, like a patch.
+ */
+function recipeGraph(recipeList, generatorPins) {
+  const byFork = new Map(
+    recipeList.map(item => [`${item.fork.name}@${item.fork.version}`, item]),
+  );
+  const resolve = (owner, specifier) => {
+    const [, fork, version] = forkSpecifier.exec(String(specifier)) ?? [];
+    if (!fork) return undefined;
+    const target = byFork.get(`${fork}@${version}`);
+    assert.ok(
+      target,
+      `${owner} aliases ${specifier}, which no sidecar recipe publishes; restore the recipe or drop the alias`,
+    );
+    return target;
+  };
+  for (const pins of generatorPins)
+    for (const [name, specifier] of Object.entries(pins))
+      resolve(`generator pin ${name}`, specifier);
+  const edges = new Map();
+  const corrections = new Set();
+  for (const recipe of recipeList) {
+    const aliases = [];
+    for (const [block, changes] of Object.entries(recipe.manifestChanges)) {
+      for (const [name, specifier] of Object.entries(changes)) {
+        const target = resolve(
+          `sidecar ${recipe.id} ${block}.${name}`,
+          specifier,
+        );
+        if (!target) corrections.add(recipe);
+        else if (consumerBlocks.includes(block))
+          aliases.push({ block, name, specifier, target });
+      }
+    }
+    edges.set(recipe, aliases);
+  }
+  return { corrections, edges };
+}
+
+/**
+ * Split the recipes into those that still carry or reach a correction and the
+ * retirable rest, treating the `upstreamed` recipes' patches as already
+ * shipped by upstream.
+ */
+function partitionRecipes(recipeList, { generatorPins, upstreamed }) {
+  const { corrections, edges } = recipeGraph(recipeList, generatorPins);
+  const parents = new Map(recipeList.map(item => [item, []]));
+  for (const [recipe, aliases] of edges)
+    for (const { target } of aliases) parents.get(target).push(recipe);
+  const required = new Set(
+    recipeList.filter(
+      item => corrections.has(item) || (item.patch && !upstreamed.has(item)),
+    ),
+  );
+  const pending = [...required];
+  while (pending.length) {
+    for (const parent of parents.get(pending.pop())) {
+      if (!required.has(parent)) {
+        required.add(parent);
+        pending.push(parent);
+      }
+    }
+  }
+  return {
+    edges,
+    required,
+    retirable: recipeList.filter(item => !required.has(item)),
+  };
+}
+
+/**
+ * A recipe without a patch exists only to rewire a runtime dependency onto a
+ * corrected recipe. Reject any recipe that neither carries a correction nor
+ * reaches one through its runtime aliases, and any alias whose recipe is gone.
+ */
+export function assertRecipeGraph(recipeList, { generatorPins = [] } = {}) {
+  const [orphan] = partitionRecipes(recipeList, {
+    generatorPins,
+    upstreamed: new Set(),
+  }).retirable;
+  assert.ok(
+    !orphan,
+    `sidecar ${orphan?.id} has no patched descendant; delete recipe`,
+  );
+}
+
+/**
+ * Report what upstream releases make retirable: each upstreamed patch, every
+ * recipe that no longer reaches a correction, and every alias a remaining
+ * recipe must drop.
+ */
+export function assertNoUpstreamedPatches(
+  recipeList,
+  upstreamed,
+  { generatorPins = [] } = {},
+) {
+  const { edges, required, retirable } = partitionRecipes(recipeList, {
+    generatorPins,
+    upstreamed: new Set(upstreamed.keys()),
+  });
+  const lines = [...upstreamed].map(
+    ([recipe, version]) =>
+      `sidecar ${recipe.id} patch is already present in ${recipe.upstream.name}@${version}${required.has(recipe) ? '; drop the patch, the recipe still rewires to a patched recipe' : ''}`,
+  );
+  if (retirable.length)
+    lines.push(
+      `retirable sidecars: ${retirable.map(item => item.id).join(', ')}; delete these recipes and move their consumers to the upstream release`,
+    );
+  for (const recipe of required)
+    for (const { block, name, specifier, target } of edges.get(recipe))
+      if (!required.has(target))
+        lines.push(
+          `sidecar ${recipe.id} must drop ${block}.${name} ${specifier} when ${target.id} is retired`,
+        );
+  assert.ok(!lines.length, lines.join('\n'));
+}
+
+function recipePatch(recipe) {
+  let patch = recipe.patch;
+  if (patch.inventory) {
+    patch = inventory.find(
+      item => `${item.packageName}@${item.version}` === patch.inventory,
+    );
+    assert.ok(patch, `${recipe.id}: missing canonical patch`);
+  }
+  const patchBytes = fs.readFileSync(path.resolve(root, patch.path));
+  assert.equal(
+    createHash('sha256').update(patchBytes).digest('hex'),
+    patch.sha256,
+    `${recipe.id}: recipe patch integrity`,
+  );
+  return patchBytes;
+}
+
+function compareVersions(left, right) {
+  const parse = version => {
+    const [core, pre] = version.split('+')[0].split(/-(.*)/su);
+    return { core: core.split('.').map(Number), pre: pre?.split('.') };
+  };
+  const a = parse(left);
+  const b = parse(right);
+  for (let index = 0; index < 3; index++)
+    if (a.core[index] !== b.core[index]) return a.core[index] - b.core[index];
+  if (!a.pre || !b.pre) return (a.pre ? -1 : 0) + (b.pre ? 1 : 0);
+  for (let index = 0; index < Math.max(a.pre.length, b.pre.length); index++) {
+    const [x, y] = [a.pre[index], b.pre[index]];
+    if (x === undefined || y === undefined) return x === undefined ? -1 : 1;
+    if (x === y) continue;
+    const numeric = /^\d+$/u;
+    if (numeric.test(x) && numeric.test(y)) return Number(x) - Number(y);
+    if (numeric.test(x) !== numeric.test(y)) return numeric.test(x) ? -1 : 1;
+    return x < y ? -1 : 1;
+  }
+  return 0;
+}
+
+/**
+ * Fetch the newest registry release of the recipe's upstream major.minor
+ * (prereleases only when the pin is one), authenticated by its packument
+ * integrity. Returns undefined when the pin is already that release.
+ */
+async function fetchLatestTarball(recipe) {
+  const { name, version } = recipe.upstream;
+  const response = await fetch(
+    `https://registry.npmjs.org/${name.replace('/', '%2f')}`,
+    { signal: AbortSignal.timeout(30_000) },
+  );
+  assert.ok(response.ok, `${name}: packument fetch failed: ${response.status}`);
+  const packument = await response.json();
+  const line = version.split('.').slice(0, 2).join('.');
+  const [latest] = Object.keys(packument.versions)
+    .filter(
+      candidate =>
+        candidate.split('.').slice(0, 2).join('.') === line &&
+        (version.includes('-') || !candidate.includes('-')),
+    )
+    .sort((left, right) => compareVersions(right, left));
+  if (!latest || compareVersions(latest, version) <= 0) return undefined;
+  const { tarball, integrity } = packument.versions[latest].dist;
+  const tarballResponse = await fetch(tarball, {
+    signal: AbortSignal.timeout(30_000),
+  });
+  assert.ok(
+    tarballResponse.ok,
+    `${name}@${latest}: tarball fetch failed: ${tarballResponse.status}`,
+  );
+  const bytes = Buffer.from(await tarballResponse.arrayBuffer());
+  assert.equal(
+    `sha512-${createHash('sha512').update(bytes).digest('base64')}`,
+    integrity,
+    `${name}@${latest}: tarball integrity`,
+  );
+  return { bytes, version: latest };
+}
+
+/**
+ * Map each patched recipe whose patch reverse-applies with zero fuzz to the
+ * newest upstream release of its major.minor, i.e. upstream already ships it.
+ */
+export async function findUpstreamedPatches(
+  recipeList,
+  { latestTarball = fetchLatestTarball } = {},
+) {
+  const upstreamed = new Map();
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'ultramodern-upstream-'));
+  try {
+    for (const recipe of recipeList.filter(item => item.patch)) {
+      const latest = await latestTarball(recipe);
+      if (!latest) continue;
+      const directory = path.join(temp, recipe.id);
+      fs.mkdirSync(directory);
+      const tarball = path.join(directory, 'upstream.tgz');
+      fs.writeFileSync(tarball, latest.bytes);
+      execFileSync('tar', ['-xzf', tarball, '-C', directory], {
+        stdio: 'pipe',
+      });
+      try {
+        execFileSync('patch', ['-p1', '-R', '-f', '--dry-run', '--fuzz=0'], {
+          cwd: path.join(directory, 'package'),
+          input: recipePatch(recipe),
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+        upstreamed.set(recipe, latest.version);
+      } catch (error) {
+        if (error.status === undefined) throw error;
+      }
+    }
+  } finally {
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+  return upstreamed;
 }
 
 function files(directory, prefix = '') {
@@ -147,22 +388,9 @@ export async function verifySidecar(
     assert.equal(upstream.version, recipe.upstream.version);
     assert.equal(upstream.license, recipe.license);
     if (recipe.patch) {
-      let patch = recipe.patch;
-      if (patch.inventory) {
-        patch = inventory.find(
-          item => `${item.packageName}@${item.version}` === patch.inventory,
-        );
-        assert.ok(patch, `${id}: missing canonical patch`);
-      }
-      const patchBytes = fs.readFileSync(path.join(root, patch.path));
-      assert.equal(
-        createHash('sha256').update(patchBytes).digest('hex'),
-        patch.sha256,
-        `${id}: recipe patch integrity`,
-      );
       execFileSync('patch', ['-p1', '--fuzz=0', '--batch'], {
         cwd: upstreamDir,
-        input: patchBytes,
+        input: recipePatch(recipe),
         stdio: ['pipe', 'pipe', 'pipe'],
       });
     }
@@ -306,9 +534,19 @@ if (
   import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href
 ) {
   const args = process.argv.slice(2);
-  const offline = args.indexOf('--artifacts');
-  const artifactsDir = offline < 0 ? undefined : args.splice(offline, 2)[1];
-  assert.ok(offline < 0 || artifactsDir, '--artifacts requires a directory');
-  for (const id of args.length ? args : recipes.map(item => item.id))
-    await verifySidecar(id, { artifactsDir });
+  const generatorPins = Object.values(ULTRAMODERN_PACKAGE_PINS);
+  if (args.includes('--upstream-latest')) {
+    assert.equal(args.length, 1, '--upstream-latest takes no other argument');
+    assertNoUpstreamedPatches(recipes, await findUpstreamedPatches(recipes), {
+      generatorPins,
+    });
+    console.log('No sidecar patch is present in its newest upstream release.');
+  } else {
+    assertRecipeGraph(recipes, { generatorPins });
+    const offline = args.indexOf('--artifacts');
+    const artifactsDir = offline < 0 ? undefined : args.splice(offline, 2)[1];
+    assert.ok(offline < 0 || artifactsDir, '--artifacts requires a directory');
+    for (const id of args.length ? args : recipes.map(item => item.id))
+      await verifySidecar(id, { artifactsDir });
+  }
 }
