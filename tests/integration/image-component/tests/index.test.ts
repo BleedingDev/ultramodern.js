@@ -75,10 +75,15 @@ describe('dev', () => {
   test(`should render page correctly`, async () => {
     if (!isVersionAtLeast18()) return;
     const appPort = await getPort();
+    let devStderr = '';
     const app = await launchApp(
       appDir,
       appPort,
-      {},
+      {
+        onStderr: (message: string) => {
+          devStderr += message;
+        },
+      },
       {
         // FIXME: disable the fast refresh plugin to avoid the `require` not found issue.
         FAST_REFRESH: 'false',
@@ -118,6 +123,9 @@ describe('dev', () => {
       /\/_(?:modern|rsbuild)\/ipx\/f_auto,w_1000,q_75\/static\/assets\/crab\.png/,
     );
     expect(errors.length).toEqual(0);
+    // Two sharp copies in one process share libvips type registrations and
+    // log GLib criticals while the page still renders.
+    expect(devStderr).not.toContain('GLib-GObject-CRITICAL');
 
     await browser.close();
     await killApp(app);
