@@ -334,6 +334,30 @@ test('release gates keep their fail-fast needs edges', () => {
   );
 });
 
+test('release qualification needs integration on its own commit', () => {
+  const workflowPath = '.github/workflows/publish-bleedingdev.yml';
+  const content = fs.readFileSync(
+    new URL(`../../../${workflowPath}`, import.meta.url),
+    'utf8',
+  );
+  const integrationErrors = source =>
+    validateWorkflowContent(workflowPath, source).filter(error =>
+      error.includes('must need an integration job'),
+    );
+  assert.deepEqual(integrationErrors(content), []);
+  const edge = '    needs:\n      - integration\n';
+  assert.equal(content.split(edge).length, 2);
+  assert.equal(integrationErrors(content.replace(edge, '')).length, 1);
+  const uses = 'uses: ./.github/workflows/integration-test.yml';
+  assert.equal(content.split(uses).length, 2);
+  assert.equal(
+    integrationErrors(
+      content.replace(uses, 'uses: ./.github/workflows/ut-Linux.yml'),
+    ).length,
+    1,
+  );
+});
+
 test('integration gates pull requests with one job per suite', () => {
   const workflowPath = '.github/workflows/integration-test.yml';
   const content = fs.readFileSync(

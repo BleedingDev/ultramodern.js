@@ -136,6 +136,18 @@ jobs:
         if: inputs.recovery_run_id == ''
         run: node scripts/ultramodern-publish/publish-sidecars.mjs --check-registry
 
+  # The integration suites on the exact release commit: a called workflow
+  # shares this run's github.sha, so no other run's check is polled. A
+  # recovery dispatch runs them on HEAD too, because HEAD's tooling drives the
+  # registry.
+  integration:
+    name: Integration suites on the release commit
+    if: >-
+      github.actor == github.repository_owner &&
+      github.triggering_actor == github.repository_owner &&
+      github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern')
+    uses: ./.github/workflows/integration-test.yml
+
   # Source qualification gates publication but produces nothing this run's
   # release bundle consumes, so it runs beside prepare-release instead of ahead
   # of it. validate-release and publish both need it, so nothing reaches the
@@ -151,10 +163,16 @@ jobs:
   #     when this dispatch builds them. A recovery dispatch publishes the
   #     recovered run's bytes, so its source qualification is the recovered
   #     run's own receipt, verified below and again in prepare-release.
+  #
+  # It needs the integration suites on this exact commit, so its receipt — the
+  # only thing a recovery dispatch accepts — never names a commit whose
+  # integration is red.
   qualify-source:
     name: Qualify the release source
     runs-on: ubuntu-24.04
     timeout-minutes: 90
+    needs:
+      - integration
     if: >-
       github.actor == github.repository_owner &&
       github.triggering_actor == github.repository_owner &&
