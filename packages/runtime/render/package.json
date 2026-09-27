@@ -63,11 +63,10 @@
     },
     "./rsc": {
       "types": "./dist/types/server/rsc/index.d.ts",
+      "workerd": "./dist/esm/rsc.edge.mjs",
+      "worker": "./dist/esm/rsc.edge.mjs",
+      "edge-light": "./dist/esm/rsc.edge.mjs",
       "default": "./dist/esm/rsc.mjs"
-    },
-    "./rsc-worker": {
-      "types": "./dist/types/rsc.worker.d.ts",
-      "default": "./dist/esm/rscWorker.mjs"
     },
     "./client": {
       "types": "./dist/types/client/index.d.ts",
@@ -81,9 +80,6 @@
       ],
       "rsc": [
         "./dist/types/server/rsc/index.d.ts"
-      ],
-      "rsc-worker": [
-        "./dist/types/rsc.worker.d.ts"
       ],
       "client": [
         "./dist/types/client/index.d.ts"

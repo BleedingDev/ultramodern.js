@@ -24,8 +24,6 @@ export default defineConfig({
         externals: [
           {
             '@modern-js/render/rsc': 'module-import @modern-js/render/rsc',
-            '@modern-js/render/rsc-worker':
-              'module-import @modern-js/render/rsc-worker',
           },
         ],
       },
@@ -46,18 +44,9 @@ export default defineConfig({
     },
     {
       ...sharedConfig,
-      output: {
-        ...sharedConfig.output,
-        externals: {
-          'react-server-dom-rspack/server.node':
-            'module-import react-server-dom-rspack/server.edge',
-          'react-server-dom-rspack/client.node':
-            'module-import react-server-dom-rspack/client.edge',
-        },
-      },
       source: {
         entry: {
-          rscWorker: './src/rsc.worker.ts',
+          'rsc.edge': './src/rsc.edge.ts',
         },
       },
     },

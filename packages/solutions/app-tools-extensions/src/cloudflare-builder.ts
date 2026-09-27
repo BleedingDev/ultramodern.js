@@ -850,21 +850,6 @@ const createCloudflareBundlerChain = (
   workerEntryNames: Iterable<string>,
 ): ModifyBundlerChainFn => {
   const resolvePaths = [appContext.appDirectory, process.cwd()];
-  const tanstackRouterSsrServerFile = resolvePackageFile(
-    '@tanstack/router-core',
-    'dist/esm/ssr/ssr-server.js',
-    resolvePaths,
-  );
-  const runtimeRscWorkerFile = resolvePackageFile(
-    '@modern-js/runtime',
-    'dist/esm/rsc/server.worker.mjs',
-    resolvePaths,
-  );
-  const renderRscWorkerFile = resolvePackageFile(
-    '@modern-js/render',
-    'dist/esm/rscWorker.mjs',
-    resolvePaths,
-  );
   const reactFile = resolvePackageFile('react', 'index.js', resolvePaths);
   const reactJsxRuntimeFile = resolvePackageFile(
     'react',
@@ -928,34 +913,6 @@ const createCloudflareBundlerChain = (
       .use(AbsentOptionalDependencyPlugin);
 
     applyCloudflareWorkerMfRuntimeBoundary(chain);
-    if (tanstackRouterSsrServerFile) {
-      chain.resolve.alias.set(
-        '@tanstack/router-core/ssr/server$',
-        tanstackRouterSsrServerFile,
-      );
-      chain.resolve.alias.set(
-        '@tanstack/router-core/ssr/server',
-        tanstackRouterSsrServerFile,
-      );
-    }
-    if (runtimeRscWorkerFile) {
-      chain.resolve.alias.set(
-        '@modern-js/runtime/rsc/server$',
-        runtimeRscWorkerFile,
-      );
-      chain.resolve.alias.set(
-        '@modern-js/runtime/rsc/server',
-        runtimeRscWorkerFile,
-      );
-    }
-    if (renderRscWorkerFile) {
-      chain.resolve.alias.set('@modern-js/render/rsc$', renderRscWorkerFile);
-      chain.resolve.alias.set('@modern-js/render/rsc', renderRscWorkerFile);
-      chain.resolve.alias.set(
-        '@modern-js/render/rsc-worker$',
-        renderRscWorkerFile,
-      );
-    }
     setAliasIfPresent(chain.resolve.alias, 'react$', reactFile);
     setAliasIfPresent(
       chain.resolve.alias,
@@ -977,22 +934,6 @@ const createCloudflareBundlerChain = (
       chain.resolve.alias,
       '@loadable/component$',
       loadableComponentFile,
-    );
-    chain.resolve.alias.set(
-      'react-server-dom-rspack/server.node$',
-      'react-server-dom-rspack/server.edge',
-    );
-    chain.resolve.alias.set(
-      'react-server-dom-rspack/server.node',
-      'react-server-dom-rspack/server.edge',
-    );
-    chain.resolve.alias.set(
-      'react-server-dom-rspack/client.node$',
-      'react-server-dom-rspack/client.edge',
-    );
-    chain.resolve.alias.set(
-      'react-server-dom-rspack/client.node',
-      'react-server-dom-rspack/client.edge',
     );
   };
 };

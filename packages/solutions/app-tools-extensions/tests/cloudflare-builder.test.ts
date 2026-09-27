@@ -179,6 +179,17 @@ describe('Cloudflare builder environments', () => {
         [],
       );
       expect(aliasKeys).not.toContain('@loadable/server');
+      // RSC and TanStack SSR entries resolve through package export
+      // conditions (`workerd`), never through pinned dist files.
+      expect(aliasKeys.filter(key => key.endsWith('.node'))).toEqual([]);
+      expect(
+        aliasKeys.filter(key =>
+          /^(?:@modern-js\/render|@modern-js\/runtime\/rsc|@tanstack\/router-core)/u.test(
+            key,
+          ),
+        ),
+      ).toEqual([]);
+      expect(config.resolve?.conditionNames).toContain('workerd');
       expect(
         Object.values(aliases).filter(
           target =>
