@@ -9,6 +9,7 @@ import {
   getGlobalEnableRsc,
   getGlobalInternalRuntimeContext,
 } from '../../context';
+import { getMonitors } from '../../context/monitors';
 import { wrapRuntimeComponentResolver } from '../../react/wrapper';
 import { createReplaceHelemt, getHelmetData } from '../helmet';
 import {
@@ -49,6 +50,7 @@ export const createReadableStreamFromElement: CreateReadableStreamFromElement =
         config,
         platform: 'web',
         mode: 'stream',
+        monitors: getMonitors(),
         isRsc,
         terminalMarker: ESCAPED_SHELL_STREAM_END_MARK,
       }) || [];

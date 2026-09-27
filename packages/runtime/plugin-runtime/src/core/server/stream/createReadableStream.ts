@@ -49,6 +49,7 @@ export const createReadableStreamFromElement: CreateReadableStreamFromElement =
         config,
         platform: 'node',
         mode: 'stream',
+        monitors: getMonitors(),
         isRsc,
         terminalMarker: ESCAPED_SHELL_STREAM_END_MARK,
       }) || [];

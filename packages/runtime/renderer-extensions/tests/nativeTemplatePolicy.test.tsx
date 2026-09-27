@@ -21,6 +21,7 @@ const lifecycleFor = (options: any, mode: 'string' | 'stream' = 'stream') => {
     platform: 'node' as const,
     mode,
     isRsc: false,
+    monitors: console,
   };
   return createSSRRenderLifecycle(
     mode === 'string'

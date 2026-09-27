@@ -10,6 +10,7 @@ import {
   getGlobalEnableRsc,
   getGlobalInternalRuntimeContext,
 } from '../../context';
+import { getMonitors } from '../../context/monitors';
 import {
   wrapRuntimeComponentResolver,
   wrapRuntimeContextProvider,
@@ -100,6 +101,7 @@ export const renderString: RenderString = async (
       config,
       platform: 'node',
       mode: 'string',
+      monitors: getMonitors(),
       isRsc: getGlobalEnableRsc() === true,
     },
   });

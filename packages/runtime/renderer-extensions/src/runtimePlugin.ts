@@ -1,6 +1,7 @@
 import type {
   Collector,
   RuntimePlugin,
+  SSRRenderInfo,
   SSRRenderLifecycle,
   StreamSSRExtender,
 } from '@modern-js/plugin/runtime';
@@ -51,11 +52,15 @@ export function createRendererHeadPlugin(
         return HeadRoot;
       });
 
-      const createState = (runtimeContext: object) => {
+      const createState = ({ runtimeContext, monitors }: SSRRenderInfo) => {
         const helmetContext = ensureHelmetContext(runtimeContext);
+        const reportLateHead =
+          process.env.NODE_ENV === 'production'
+            ? (message: string) => monitors.warn(message)
+            : (message: string) => monitors.error(message);
         const lifecycle: SSRRenderLifecycle = {
           beforeReact() {
-            beginHeadRender(runtimeContext);
+            beginHeadRender(runtimeContext, reportLateHead);
           },
           completedBody(html, { phase }) {
             if (phase === 'complete') {
@@ -80,7 +85,7 @@ export function createRendererHeadPlugin(
       };
 
       api.extendStringSSRCollectors(({ render }): Collector => {
-        const state = createState(render.runtimeContext);
+        const state = createState(render);
         return {
           ...state.lifecycle,
           ...createAssetPolicy(render),
@@ -97,7 +102,7 @@ export function createRendererHeadPlugin(
             'Node head rendering requires the Node runtime-renderer-extensions entry',
           );
         }
-        const state = createState(runtimeContext);
+        const state = createState(info);
         return {
           ...state.lifecycle,
           ...createAssetPolicy(info),

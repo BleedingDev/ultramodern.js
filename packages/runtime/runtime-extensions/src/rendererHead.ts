@@ -9,6 +9,10 @@ export type RendererHeadMarkerProps = Record<typeof MARKER_ATTRIBUTE, string>;
 export * from './helmetCompat';
 
 type PublishRecords = (records: unknown[]) => void;
+export type ReportLateHead = (message: string) => void;
+
+export const LATE_HEAD_MESSAGE =
+  "<Helmet> rendered in a boundary that completed after the shell; head tags dropped. Move it above the Suspense boundary or set ssr.mode to 'string' for this entry.";
 
 type HeadTransaction = {
   recordsByToken: Map<string, unknown>;
@@ -18,6 +22,8 @@ type HeadTransaction = {
   nonce: string;
   previousRecords: unknown[];
   sealed: boolean;
+  reportLateHead: ReportLateHead;
+  lateHeadReported: boolean;
 };
 
 type HeadState = {
@@ -48,7 +54,16 @@ const createToken = (transaction: HeadTransaction): string => {
   return token;
 };
 
-export const beginHeadRender = (context: object): void => {
+const dropLateHead = (transaction: HeadTransaction): void => {
+  if (transaction.lateHeadReported) return;
+  transaction.lateHeadReported = true;
+  transaction.reportLateHead(LATE_HEAD_MESSAGE);
+};
+
+export const beginHeadRender = (
+  context: object,
+  reportLateHead: ReportLateHead,
+): void => {
   const state = getState(context);
   state.transaction = {
     recordsByToken: new Map(),
@@ -58,6 +73,8 @@ export const beginHeadRender = (context: object): void => {
     nonce: globalThis.crypto.randomUUID(),
     previousRecords: state.publishedRecords,
     sealed: false,
+    reportLateHead,
+    lateHeadReported: false,
   };
   state.publish?.([]);
 };
@@ -79,6 +96,7 @@ export const collectHeadRecord = <RecordType>(
     state.publish([]);
   }
   if (transaction.sealed) {
+    dropLateHead(transaction);
     return null;
   }
 
@@ -123,7 +141,9 @@ const consumeMarkers = (context: object, html: string): string => {
       stripped += html.slice(cursor, end + MARKER_SUFFIX.length);
     } else {
       stripped += html.slice(cursor, start);
-      if (!transaction.sealed && !transaction.committedTokens.has(token)) {
+      if (transaction.sealed) {
+        if (!transaction.committedTokens.has(token)) dropLateHead(transaction);
+      } else if (!transaction.committedTokens.has(token)) {
         transaction.committedTokens.add(token);
         transaction.committedRecords.push(
           transaction.recordsByToken.get(token),

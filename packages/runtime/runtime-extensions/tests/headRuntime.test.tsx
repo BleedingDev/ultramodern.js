@@ -10,7 +10,7 @@ const getHelmetData = (context: object) => getHelmetContext(context)?.helmet;
 const createServerContext = () => ({ isBrowser: false }) as any;
 
 const renderWithContext = (context: any, node: React.ReactNode) => {
-  rendererHead.beginHeadRender(context);
+  rendererHead.beginHeadRender(context, () => {});
   try {
     const html = renderToString(
       wrapServerRoot(node, {
