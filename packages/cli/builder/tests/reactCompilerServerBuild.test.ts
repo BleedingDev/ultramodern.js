@@ -59,4 +59,36 @@ describe('source.reactCompiler server builds', () => {
     expect(result.stats?.hasErrors()).toBe(false);
     await result.close();
   });
+
+  test('builds a long addHttpApi chain for the Cloudflare web-target worker', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'modern-builder-react-compiler-'));
+    cwds.push(cwd);
+    const entry = join(cwd, 'api.ts');
+    await writeFile(entry, createChainModule());
+
+    // Cloudflare deploys rewrite workerSSR to output.target 'web'.
+    const builder = await createBuilder({
+      bundlerType: 'rspack',
+      cwd,
+      config: {
+        source: { reactCompiler: true },
+        output: { disableTsChecker: true },
+        environments: {
+          workerSSR: {
+            source: { entry: { api: entry } },
+            output: {
+              target: 'web',
+              module: true,
+              distPath: { root: 'dist/worker' },
+            },
+          },
+        },
+      },
+    });
+
+    const result = await builder.build();
+
+    expect(result.stats?.hasErrors()).toBe(false);
+    await result.close();
+  });
 });
