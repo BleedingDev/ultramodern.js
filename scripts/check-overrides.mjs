@@ -73,12 +73,18 @@ function childEdge(snapshot, name) {
 }
 
 function findRemovalViolations(key, parent, target, snapshots) {
-  const kept = snapshots.filter(entry => {
-    if (parent) {
-      if (entry.name !== parent.name || !inRange(entry.version, parent.range)) {
-        return false;
-      }
-    }
+  const scope = parent
+    ? snapshots.filter(
+        entry =>
+          entry.name === parent.name && inRange(entry.version, parent.range),
+      )
+    : snapshots;
+  if (parent && scope.length === 0) {
+    return [
+      `'${key}': nothing in the lockfile resolves ${parent.name}${parent.range ? `@${parent.range}` : ''}. Delete the override.`,
+    ];
+  }
+  const kept = scope.filter(entry => {
     const child = childEdge(entry.snapshot, target.name);
     return (
       child !== undefined &&
