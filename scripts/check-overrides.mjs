@@ -56,13 +56,40 @@ function inRange(version, range) {
 }
 
 // Whether `version` is what the override value asks for: the exact version,
-// or inside the value's range. Non-semver values (`-`, `npm:`, `$ref`) pass.
+// or inside the value's range. Other values (`npm:`, `$ref`) pass.
 function honours(version, value) {
   if (semver.valid(value)) return version === value;
   if (semver.validRange(value)) {
     return semver.satisfies(version, value, { includePrerelease: true });
   }
   return true;
+}
+
+function childEdge(snapshot, name) {
+  return (
+    (snapshot.dependencies ?? {})[name] ??
+    (snapshot.optionalDependencies ?? {})[name]
+  );
+}
+
+function findRemovalViolations(key, parent, target, snapshots) {
+  const kept = snapshots.filter(entry => {
+    if (parent) {
+      if (entry.name !== parent.name || !inRange(entry.version, parent.range)) {
+        return false;
+      }
+    }
+    const child = childEdge(entry.snapshot, target.name);
+    return (
+      child !== undefined &&
+      inRange(parsePackageKey(`${target.name}@${child}`).version, target.range)
+    );
+  });
+  return kept.map(
+    entry =>
+      `'${key}': ${entry.name}@${entry.version} still depends on ${target.name}, which this override removes. ` +
+      'Run pnpm install so the lockfile picks up the override.',
+  );
 }
 
 /**
@@ -104,6 +131,12 @@ export function findOverrideViolations(lockfileText, importerNames) {
         `'${key}': '${parent.name}' is a workspace package, so this overrides its own declared ${target.name}. ` +
           `Delete the override and set ${target.name} in ${importerNames.get(parent.name)}/package.json.`,
       );
+      continue;
+    }
+
+    // `-` removes the dependency: honoured means the edge is gone.
+    if (value === '-') {
+      violations.push(...findRemovalViolations(key, parent, target, snapshots));
       continue;
     }
 
