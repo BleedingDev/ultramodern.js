@@ -291,108 +291,83 @@ function historicalProvenanceExpectation(expectation) {
   };
 }
 
-async function assertRegistrySourceCommitUnpublished(
-  request,
+/**
+ * Authenticates a package's whole registry chronology against a code-reviewed
+ * policy: the pinned grandfathered prefix (exact version, publication time and
+ * integrity), the optional provenance cutover anchor, then SLSA v1 provenance
+ * from the trusted repository and workflow for every later version. Shared by
+ * the cohort source-commit gate and sidecar reuse; returns the per-version
+ * evidence so each caller applies its own identity rule.
+ */
+async function verifyRegistryProvenanceChronology(
+  { expectation, metadata, packageName, policy },
   dependencies = {},
 ) {
-  assertPlainObject(request, 'Registry source-cohort request');
-  const {
-    env = process.env,
-    packageName,
-    requestedVersion,
-    sourceCommit,
-    sourceRepository,
-  } = request;
-  assertNonEmptyString(packageName, 'Registry source-cohort package name');
-  assertNonEmptyString(
-    requestedVersion,
-    'Registry source-cohort requested version',
-  );
-  const chronologyPolicy = registrySourceChronologyPolicy(packageName);
-  const expectation = createRegistryProvenanceExpectation(
-    {
-      source: { commit: sourceCommit, repository: sourceRepository },
-    },
-    env,
-  );
   const fetchImpl = dependencies.fetchImpl ?? globalThis.fetch;
   const provenanceVerifier =
     dependencies.verifyRegistryProvenance ?? verifyRegistryProvenance;
   const provenanceRequiredFromFirstVersion =
-    chronologyPolicy.provenanceRequiredFromFirstVersion === true;
-  let metadata;
-  try {
-    metadata = await fetchRegistryPackageMetadata(packageName, fetchImpl);
-  } catch (error) {
-    if (
-      provenanceRequiredFromFirstVersion &&
-      isRegistryMetadataNotFoundError(error)
-    ) {
-      return {
-        cutover: null,
-        exactVersionAuthenticated: false,
-        grandfatheredCount: 0,
-        inspectedCount: 0,
-        packageName,
-        requestedVersion,
-        sourceCommit: expectation.source.commit,
-        versionCount: 0,
-      };
-    }
-    throw error;
+    policy.provenanceRequiredFromFirstVersion === true;
+  const { cutoverAnchor, grandfatheredVersions = [] } = policy;
+  if (
+    provenanceRequiredFromFirstVersion &&
+    (cutoverAnchor || grandfatheredVersions.length > 0)
+  ) {
+    throw new Error(
+      `${packageName} provenance policy cannot both require provenance from the first version and grandfather earlier versions`,
+    );
   }
   const chronology = registryVersionChronology(metadata, packageName);
-  const { cutoverAnchor, grandfatheredVersions = [] } = chronologyPolicy;
-  let cutoverIndex = 0;
-  if (!provenanceRequiredFromFirstVersion) {
-    cutoverIndex = chronology.findIndex(
+  const cutoverIndex = grandfatheredVersions.length;
+  if (cutoverAnchor) {
+    const anchorIndex = chronology.findIndex(
       entry => entry.version === cutoverAnchor.version,
     );
-    if (cutoverIndex === -1) {
+    if (anchorIndex === -1) {
       throw new Error(
         `${packageName} registry chronology is missing independently maintained provenance cutover anchor ${cutoverAnchor.version}`,
       );
     }
-    if (cutoverIndex !== grandfatheredVersions.length) {
+    if (anchorIndex !== cutoverIndex) {
       throw new Error(
         `${packageName} registry chronology before ${cutoverAnchor.version} is not independently authorized`,
       );
     }
-    for (const [
-      index,
-      grandfatheredVersion,
-    ] of grandfatheredVersions.entries()) {
-      assertPinnedRegistryChronologyEntry(
-        chronology[index],
-        grandfatheredVersion,
-        packageName,
-        'grandfathered version',
-      );
-    }
+  } else if (chronology.length < cutoverIndex) {
+    throw new Error(
+      `${packageName} registry chronology is missing grandfathered version ${grandfatheredVersions[chronology.length].version}`,
+    );
   }
-  const cutoverEntry = chronology[cutoverIndex];
+  for (const [index, grandfatheredVersion] of grandfatheredVersions.entries()) {
+    assertPinnedRegistryChronologyEntry(
+      chronology[index],
+      grandfatheredVersion,
+      packageName,
+      'grandfathered version',
+    );
+  }
   if (cutoverAnchor) {
     assertPinnedRegistryChronologyEntry(
-      cutoverEntry,
+      chronology[cutoverIndex],
       cutoverAnchor,
       packageName,
       'provenance cutover anchor',
     );
+    if (!declaresSlsaV1Provenance(chronology[cutoverIndex].published)) {
+      throw new Error(
+        `${packageName}@${cutoverAnchor.version} authenticated provenance cutover anchor is missing its SLSA v1 declaration`,
+      );
+    }
   }
-  if (!declaresSlsaV1Provenance(cutoverEntry.published)) {
-    throw new Error(
-      provenanceRequiredFromFirstVersion
-        ? `${packageName}@${cutoverEntry.version} is missing SLSA v1 provenance; this identity requires provenance from its first published version`
-        : `${packageName}@${cutoverAnchor.version} authenticated provenance cutover anchor is missing its SLSA v1 declaration`,
-    );
-  }
-  const requestedIndex = chronology.findIndex(
-    entry => entry.version === requestedVersion,
-  );
-  if (requestedIndex !== -1 && requestedIndex < cutoverIndex) {
-    throw new Error(
-      `${packageName}@${requestedVersion} predates authenticated registry provenance and cannot be safely reused`,
-    );
+  const missingProvenance = entry =>
+    cutoverAnchor
+      ? `${packageName}@${entry.version} is missing SLSA v1 provenance after the ${cutoverAnchor.version} cutover`
+      : provenanceRequiredFromFirstVersion
+        ? `${packageName}@${entry.version} is missing SLSA v1 provenance; this identity requires provenance from its first published version`
+        : `${packageName}@${entry.version} is missing SLSA v1 provenance and is not a grandfathered version`;
+  const firstVerified = chronology[cutoverIndex];
+  if (firstVerified && !declaresSlsaV1Provenance(firstVerified.published)) {
+    throw new Error(missingProvenance(firstVerified));
   }
 
   const discoveryExpectation = historicalProvenanceExpectation(expectation);
@@ -411,11 +386,7 @@ async function assertRegistrySourceCommitUnpublished(
     async entry => {
       try {
         if (!declaresSlsaV1Provenance(entry.published)) {
-          throw new Error(
-            provenanceRequiredFromFirstVersion
-              ? `${packageName}@${entry.version} is missing SLSA v1 provenance; this identity requires provenance from its first published version`
-              : `${packageName}@${entry.version} is missing SLSA v1 provenance after the ${cutoverAnchor.version} cutover`,
-          );
+          throw new Error(missingProvenance(entry));
         }
         assertPlainObject(
           entry.published.dist,
@@ -468,6 +439,76 @@ async function assertRegistrySourceCommitUnpublished(
         `${packageName}@${cutoverAnchor.version} provenance cutover anchor authenticated unexpected source commit ${String(evidence.sourceCommit)}`,
       );
     }
+  }
+  return { chronology, cutoverIndex, results };
+}
+
+async function assertRegistrySourceCommitUnpublished(
+  request,
+  dependencies = {},
+) {
+  assertPlainObject(request, 'Registry source-cohort request');
+  const {
+    env = process.env,
+    packageName,
+    requestedVersion,
+    sourceCommit,
+    sourceRepository,
+  } = request;
+  assertNonEmptyString(packageName, 'Registry source-cohort package name');
+  assertNonEmptyString(
+    requestedVersion,
+    'Registry source-cohort requested version',
+  );
+  const chronologyPolicy = registrySourceChronologyPolicy(packageName);
+  const expectation = createRegistryProvenanceExpectation(
+    {
+      source: { commit: sourceCommit, repository: sourceRepository },
+    },
+    env,
+  );
+  const fetchImpl = dependencies.fetchImpl ?? globalThis.fetch;
+  let metadata;
+  try {
+    metadata = await fetchRegistryPackageMetadata(packageName, fetchImpl);
+  } catch (error) {
+    if (
+      chronologyPolicy.provenanceRequiredFromFirstVersion === true &&
+      isRegistryMetadataNotFoundError(error)
+    ) {
+      return {
+        cutover: null,
+        exactVersionAuthenticated: false,
+        grandfatheredCount: 0,
+        inspectedCount: 0,
+        packageName,
+        requestedVersion,
+        sourceCommit: expectation.source.commit,
+        versionCount: 0,
+      };
+    }
+    throw error;
+  }
+  const { chronology, cutoverIndex, results } =
+    await verifyRegistryProvenanceChronology(
+      {
+        expectation,
+        metadata,
+        packageName,
+        policy: chronologyPolicy,
+      },
+      dependencies,
+    );
+  const cutoverEntry = chronology[cutoverIndex];
+  const requestedIndex = chronology.findIndex(
+    entry => entry.version === requestedVersion,
+  );
+  if (requestedIndex !== -1 && requestedIndex < cutoverIndex) {
+    throw new Error(
+      `${packageName}@${requestedVersion} predates authenticated registry provenance and cannot be safely reused`,
+    );
+  }
+  for (const { entry, evidence } of results) {
     if (
       entry.version !== requestedVersion &&
       evidence.sourceCommit === expectation.source.commit
@@ -1171,5 +1212,6 @@ export {
   verifyRegistryPackage,
   verifyRegistryPackageDist,
   verifyRegistryProvenance,
+  verifyRegistryProvenanceChronology,
   verifyRegistryTarball,
 };

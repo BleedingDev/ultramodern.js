@@ -47,6 +47,18 @@ const recipeByRoot = new Map(
 
 const SIDECAR_PACKAGE_ROOTS = recipes.map(recipe => `packages/sidecar/${recipe.id}`);
 
+// The code-reviewed registry chronology each sidecar name must satisfy before a
+// published version is reused: the same schema as the cohort's policies.
+function sidecarProvenancePolicy(name) {
+  const recipe = recipes.find(candidate => candidate.fork.name === name);
+  if (!recipe?.provenance) {
+    throw new Error(
+      `${name} has no provenance policy in scripts/ultramodern-supply/sidecars.json`,
+    );
+  }
+  return recipe.provenance;
+}
+
 // Upstream CLI contracts that must survive republication verbatim.
 const sidecarBinNames = new Map([
   ['@bleedingdev/ipx', 'ipx'],
@@ -665,6 +677,7 @@ function writeSidecarStagingManifest(
 }
 
 export {
+  sidecarProvenancePolicy,
   SIDECAR_PACKAGE_ROOTS,
   collectSidecarPackages,
   normalizeSidecarBin,

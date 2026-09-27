@@ -21,6 +21,15 @@
       "dependencies": {
         "sharp": "^0.35.4"
       }
+    },
+    "provenance": {
+      "grandfatheredVersions": [
+        {
+          "version": "3.2.0",
+          "publishedAt": "2026-09-01T19:46:28.468Z",
+          "integrity": "sha512-DJWRaprjFOBRwTyIF4OwEIXsjBrnDkq4eMil9j7X1KxQitH6dfwGxVWYKfkfTm5I1saaFooX8UCzHfOlUCqsKA=="
+        }
+      ]
     }
   },
   {
@@ -45,6 +54,15 @@
         "@module-federation/runtime": "npm:@bleedingdev/mf-runtime@2.9.1",
         "@module-federation/runtime-core": "npm:@bleedingdev/mf-runtime-core@2.9.1"
       }
+    },
+    "provenance": {
+      "grandfatheredVersions": [
+        {
+          "version": "2.9.1",
+          "publishedAt": "2026-09-25T11:28:45.731Z",
+          "integrity": "sha512-wyswUS/uQ7O2ucEcWfrMpSlR795VrQ1k8aCd1bwuajVG0y+cpSk2PR3NuCiBpPgyXGq0asbqL9aPvtZLXRFe+Q=="
+        }
+      ]
     }
   },
   {
@@ -66,6 +84,15 @@
       "dependencies": {
         "@module-federation/dts-plugin": "npm:@bleedingdev/mf-dts-plugin@2.9.1"
       }
+    },
+    "provenance": {
+      "grandfatheredVersions": [
+        {
+          "version": "2.9.1",
+          "publishedAt": "2026-09-25T11:39:58.220Z",
+          "integrity": "sha512-OXLaNENxfvztrmTXEkoCbdmXzSpvgF2gMDZtubTCmsd93au2YxNlrs115qJYLC4GV8Q/4Nb+QmuXgUN9fMRbsw=="
+        }
+      ]
     }
   },
   {
@@ -89,6 +116,15 @@
       "devDependencies": {
         "@module-federation/runtime": "npm:@bleedingdev/mf-runtime@2.9.1"
       }
+    },
+    "provenance": {
+      "grandfatheredVersions": [
+        {
+          "version": "2.9.1",
+          "publishedAt": "2026-09-25T11:34:10.861Z",
+          "integrity": "sha512-6+H1IpiFlAgV2k2zTRMhJXCFdmGhy9H16EN3t99MReJ5/PJMS2iZBDscqeOd61dlC+/KqZakjPS2kCh8ZUwZjA=="
+        }
+      ]
     }
   },
   {
@@ -115,6 +151,15 @@
         "@module-federation/runtime-tools": "npm:@bleedingdev/mf-runtime-tools@2.9.1",
         "@module-federation/cli": "npm:@bleedingdev/mf-cli@2.9.1"
       }
+    },
+    "provenance": {
+      "grandfatheredVersions": [
+        {
+          "version": "2.9.1",
+          "publishedAt": "2026-09-25T12:19:54.880Z",
+          "integrity": "sha512-+giFaQdPVzIutQ8C0a2tGJOpPhWk+roKfrfKypV6jy96mk4TgEttfNUMrRpj1ZyoBpeCA1xmHPcrAw+UY9aBJA=="
+        }
+      ]
     }
   },
   {
@@ -138,6 +183,15 @@
       "dependencies": {
         "@module-federation/dts-plugin": "npm:@bleedingdev/mf-dts-plugin@2.9.1"
       }
+    },
+    "provenance": {
+      "grandfatheredVersions": [
+        {
+          "version": "2.9.1",
+          "publishedAt": "2026-09-25T11:51:54.673Z",
+          "integrity": "sha512-TU9eyG6EHi4NjE06E1BIEpXEf0pChvWuCXkWm5PFp30z0B9fXasfpah/9/jVlLc24ppt4xa47CSTBX5pj/VcPw=="
+        }
+      ]
     }
   },
   {
@@ -169,6 +223,15 @@
       "devDependencies": {
         "@module-federation/manifest": "npm:@bleedingdev/mf-manifest@2.9.1"
       }
+    },
+    "provenance": {
+      "grandfatheredVersions": [
+        {
+          "version": "2.9.1",
+          "publishedAt": "2026-09-25T12:37:57.875Z",
+          "integrity": "sha512-/wTnhdTNp+5ARhaHuVAMUe4d8JX6jYzdAf1G1BxBHfS024ZAkFM5xXoeeIC5gxBncv4rj+eyEv/KeNUrGTvVNA=="
+        }
+      ]
     }
   },
   {
@@ -191,6 +254,15 @@
         "@module-federation/enhanced": "npm:@bleedingdev/mf-enhanced@2.9.1",
         "@module-federation/runtime": "npm:@bleedingdev/mf-runtime@2.9.1"
       }
+    },
+    "provenance": {
+      "grandfatheredVersions": [
+        {
+          "version": "2.7.51",
+          "publishedAt": "2026-09-25T12:27:16.233Z",
+          "integrity": "sha512-Z2t17pkLP11CUkIVYYRvERh8Jt9elv+WJk0kqw2G432JUYqsd1ElO+IwUt/N1ZOer+EOjylWWY/6Ng7BZNoY/Q=="
+        }
+      ]
     }
   },
   {
@@ -213,6 +285,15 @@
         "@module-federation/enhanced": "npm:@bleedingdev/mf-enhanced@2.9.1",
         "@module-federation/node": "npm:@bleedingdev/mf-node@2.7.51"
       }
+    },
+    "provenance": {
+      "grandfatheredVersions": [
+        {
+          "version": "2.9.1",
+          "publishedAt": "2026-09-25T12:32:35.118Z",
+          "integrity": "sha512-N15QLGC6h6djAhMWOwt3Xh3qkVGITI+DO+2bYX9UTIrlD+GxPYJjfuFoSBqjzqFO+DqHI+KsU/OABq5KFDQ6Pw=="
+        }
+      ]
     }
   },
   {
@@ -238,6 +319,15 @@
         "@module-federation/manifest": "npm:@bleedingdev/mf-manifest@2.9.1",
         "@module-federation/runtime-tools": "npm:@bleedingdev/mf-runtime-tools@2.9.1"
       }
+    },
+    "provenance": {
+      "grandfatheredVersions": [
+        {
+          "version": "2.9.1",
+          "publishedAt": "2026-09-25T12:17:56.591Z",
+          "integrity": "sha512-GvbYNOWEmFLePII75LiN3lLJxNnhNfDGThAYtJYZ+kpz7J2SCDRQI6AHTMuIANiZHAEiSv4Db9pg96VqrMx3+Q=="
+        }
+      ]
     }
   },
   {
@@ -259,6 +349,15 @@
       "dependencies": {
         "@module-federation/runtime-core": "npm:@bleedingdev/mf-runtime-core@2.9.1"
       }
+    },
+    "provenance": {
+      "grandfatheredVersions": [
+        {
+          "version": "2.9.1",
+          "publishedAt": "2026-09-25T11:23:18.335Z",
+          "integrity": "sha512-Uu0bb76a7E7gyJjPSQUYzyYtAkYU3I7WVpxBxrED5BklYg8y/BJBWAjmTGAKKxjDe2Unx40KP2RUsOqDBg+VAA=="
+        }
+      ]
     }
   },
   {
@@ -278,7 +377,16 @@
     "patch": {
       "inventory": "@module-federation/runtime-core@2.9.1"
     },
-    "manifestChanges": {}
+    "manifestChanges": {},
+    "provenance": {
+      "grandfatheredVersions": [
+        {
+          "version": "2.9.1",
+          "publishedAt": "2026-09-25T11:17:45.181Z",
+          "integrity": "sha512-fA167mov5mjrhwMlQx0xWFW0SrLsAp5010XgFX3hmbIlWgI9LiAE9NCwlyx19fUMaVHkiA5TdyFfNGyV6+v0AA=="
+        }
+      ]
+    }
   },
   {
     "id": "mf-runtime-tools",
@@ -300,6 +408,15 @@
         "@module-federation/webpack-bundler-runtime": "npm:@bleedingdev/mf-webpack-bundler-runtime@2.9.1",
         "@module-federation/runtime": "npm:@bleedingdev/mf-runtime@2.9.1"
       }
+    },
+    "provenance": {
+      "grandfatheredVersions": [
+        {
+          "version": "2.9.1",
+          "publishedAt": "2026-09-25T11:57:19.891Z",
+          "integrity": "sha512-RScNeF2z3PtzYlbTR7+rgqvohz18tFAKbDMPOvbLPYWqmXbX6upxymQH3ZI7QdYsRNKRrO2dA8rc3wmX465WCA=="
+        }
+      ]
     }
   },
   {
@@ -321,6 +438,15 @@
       "dependencies": {
         "@module-federation/runtime": "npm:@bleedingdev/mf-runtime@2.9.1"
       }
+    },
+    "provenance": {
+      "grandfatheredVersions": [
+        {
+          "version": "2.9.1",
+          "publishedAt": "2026-09-25T11:46:02.927Z",
+          "integrity": "sha512-S7kPsK4XcYD7xjbf4pE0imBZx+aWu8X0GcvZqZESoQr22AGHOWlufVDZGw69uaePAAQ8fI74eA/fcyq16IP1PA=="
+        }
+      ]
     }
   }
 ]

@@ -6,6 +6,8 @@
 
 The corrected dependency lane reconstructs the exact Module Federation artifacts named in the recipes during release staging. Only the recipes are kept in source control; authenticated upstream bytes, the canonical patches and the recorded dependency aliases produce the package contents and publication manifests. Unmodified Module Federation parents are included only where their published dependencies would otherwise resolve an uncorrected child. Reconstructed third-party bytes are reported separately from authored code.
 
+Each recipe's `provenance` is the registry chronology policy the publish lane enforces before it reuses an already-published version, with the same schema and verifier as the cohort's own packages: `grandfatheredVersions` pins the exact version, publication time and integrity of every version published without SLSA v1 provenance from `publish-bleedingdev.yml` on this repository, and every later version must carry that provenance. A new sidecar name is bootstrapped once, interactively, as a deprecated `0.0.0-bootstrap` placeholder recorded as its only grandfathered version; trusted publishing publishes every real version.
+
 Run:
 
 ```sh

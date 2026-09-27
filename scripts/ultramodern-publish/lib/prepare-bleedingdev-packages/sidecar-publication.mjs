@@ -13,6 +13,10 @@
 //     (content drift, an absent version the dist-tag claims, a dist-tag that
 //     points elsewhere, a backwards republish) fails closed.
 //
+//   * a reused version passes the cohort's registry provenance chronology:
+//     it is a pinned grandfathered version or carries SLSA v1 provenance from
+//     this repository's publish workflow.
+//
 // Nothing here publishes, packs, or mutates state; the CLI wires these
 // decisions to the npm buffer publisher.
 import path from 'node:path';
@@ -28,9 +32,12 @@ import {
   trustedPublishRef,
   trustedPublishRepository,
 } from './constants.mjs';
+import { createRegistryProvenanceExpectation } from './provenance.mjs';
+import { verifyRegistryProvenanceChronology } from './registry.mjs';
 import {
   normalizeSidecarBin,
   sidecarAliasEntries,
+  sidecarProvenancePolicy,
 } from './sidecars.mjs';
 
 const { assertNonEmptyString, assertPlainObject, isPlainObject } = validationKit;
@@ -526,6 +533,39 @@ function sidecarRegistryDecision(
 }
 
 /**
+ * Matching bytes alone do not make a reused version trustworthy: whoever
+ * published it first chose those bytes. Reuse requires the package's whole
+ * registry chronology to pass the cohort verifier against the sidecar's
+ * code-reviewed policy in scripts/ultramodern-supply/sidecars.json.
+ */
+async function assertSidecarReuseProvenance(
+  sidecar,
+  packument,
+  { env = process.env, policy = sidecarProvenancePolicy(sidecar.name), source },
+  dependencies = {},
+) {
+  // The chronology authenticates only the versions this read contains; a
+  // stale replica without the reused version must not vouch for it.
+  if (
+    packument?.versions?.[sidecar.version]?.dist?.integrity !==
+    sidecar.integrity
+  ) {
+    throw new Error(
+      `${sidecar.name} registry read does not contain the reused ${sidecar.version} with the accepted integrity`,
+    );
+  }
+  await verifyRegistryProvenanceChronology(
+    {
+      expectation: createRegistryProvenanceExpectation({ source }, env),
+      metadata: packument,
+      packageName: sidecar.name,
+      policy,
+    },
+    dependencies,
+  );
+}
+
+/**
  * Publishing is only ever reachable from the trusted-publishing workflow on the
  * publish branch of the fork; there is no token path.
  */
@@ -547,6 +587,7 @@ function assertSidecarTrustedPublishContext(env = process.env) {
 
 export {
   assertSidecarPublishOrder,
+  assertSidecarReuseProvenance,
   assertSidecarPublishTarget,
   assertSidecarStagingManifest,
   assertSidecarTrustedPublishContext,
