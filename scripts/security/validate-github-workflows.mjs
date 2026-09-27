@@ -13,7 +13,8 @@
  *   - no `${{ inputs.* }}` / `${{ github.event.inputs.* }}` interpolation
  *     inside `run:` blocks (shell-injection vector; route through `env:`)
  *   - no runtime skip-CI gate (`skipCI`, `steps.skip-ci`, `git diff
- *     origin/main`) and no trigger path filter that excludes `.github`
+ *     origin/main`) and no trigger path filter that skips an edit of the
+ *     workflow itself
  *   - in `.github/workflows/`, every `node <script>` run before the job's
  *     dependency install loads only Node builtins and tracked files through
  *     its eager import closure (the template workflow runs scripts of the
@@ -1188,17 +1189,30 @@ const collectSkipGateFindings = (workflow, content) => {
   return findings;
 };
 
-// `paths-ignore: [.github/**]` and a negated `paths: ['!.github/**']` both
-// stop a workflow edit from running the workflow it edits.
-const hidesWorkflowDir = (filter, pattern) => {
-  const excluded =
-    filter === 'paths-ignore' ? pattern : /^!(.*)$/su.exec(pattern)?.[1];
-  return (
-    excluded !== undefined && /^(?:\*\*\/)?\.github(?:\/|$)/u.test(excluded)
-  );
+// A trigger path filter must let an edit of the workflow itself run it, with
+// GitHub's semantics: any `paths-ignore` match skips the file, and in `paths`
+// the last matching pattern wins (`!` negates).
+// GitHub's `*` and `**` also match dot segments (`.github`); matchesGlob has
+// no `dot` option, so both sides drop the leading dot of every segment.
+const undot = value => value.replace(/(^|\/)\./gu, '$1');
+const pathFilterMatches = (file, pattern) =>
+  path.posix.matchesGlob(undot(file), undot(pattern));
+
+const filterRunsFile = (filter, patterns, file) => {
+  if (filter === 'paths-ignore') {
+    return !patterns.some(pattern => pathFilterMatches(file, pattern));
+  }
+  let included = false;
+  for (const pattern of patterns) {
+    const negated = pattern.startsWith('!');
+    if (pathFilterMatches(file, negated ? pattern.slice(1) : pattern)) {
+      included = !negated;
+    }
+  }
+  return included;
 };
 
-const collectWorkflowPathIgnores = workflow => {
+const collectSelfHidingPathFilters = (workflow, relativePath) => {
   const findings = [];
   if (!isObject(workflow.on)) {
     return findings;
@@ -1208,10 +1222,16 @@ const collectWorkflowPathIgnores = workflow => {
       continue;
     }
     for (const filter of ['paths', 'paths-ignore']) {
-      for (const pattern of config[filter] ?? []) {
-        if (typeof pattern === 'string' && hidesWorkflowDir(filter, pattern)) {
-          findings.push({ event, filter, pattern });
-        }
+      const patterns = config[filter];
+      if (
+        Array.isArray(patterns) &&
+        !filterRunsFile(
+          filter,
+          patterns.filter(pattern => typeof pattern === 'string'),
+          relativePath,
+        )
+      ) {
+        findings.push({ event, filter });
       }
     }
   }
@@ -1654,13 +1674,16 @@ export function validateWorkflowContent(relativePath, content, options = {}) {
       `${relativePath}:${finding.line} must not gate jobs on a runtime skip-CI diff; skip docs-only changes with a trigger paths-ignore instead: ${finding.text}`,
     );
   }
-  for (const { event, filter, pattern } of collectWorkflowPathIgnores(
-    workflow,
-  )) {
-    push(
-      'workflow-path-ignore',
-      `${relativePath} must not exclude .github from on.${event}.${filter} (${pattern}); workflow edits have to run the checks they change`,
-    );
+  if (relativePath.startsWith('.github/workflows/')) {
+    for (const { event, filter } of collectSelfHidingPathFilters(
+      workflow,
+      relativePath,
+    )) {
+      push(
+        'workflow-path-filter',
+        `${relativePath} on.${event}.${filter} must match ${relativePath} itself; a workflow edit has to run the checks it changes`,
+      );
+    }
   }
 
   for (const message of collectReceiptRunIdentityErrors(
