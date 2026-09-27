@@ -13,6 +13,10 @@ const fixtureClosureIdentities = Object.freeze([
   }),
 ]);
 const fixtureClosureSha256 = digest(JSON.stringify(fixtureClosureIdentities));
+const fixtureWorkspaceFiles = Object.freeze([
+  Object.freeze({ path: 'package.json', sha256: digest('package.json') }),
+]);
+const fixtureWorkspaceSha256 = digest(JSON.stringify(fixtureWorkspaceFiles));
 
 // Historical publish-outcome reconstruction needs the archived schema-v4
 // receipt shape. Current fixtures never create or consume this digest.
@@ -299,25 +303,31 @@ async function createOperationalAcceptanceReceiptFixture({
     await receiptApi.recordAcceptanceResult(receipt, id, async () =>
       id === 'operational-independence'
         ? recordedOperationalDetails
-        : id === 'dependency-closure-audit'
-          ? { closureIdentities: structuredClone(fixtureClosureIdentities) }
-          : id === 'resolution-parity'
-            ? {
-                closureSha256: fixtureClosureSha256,
-                packageCount: fixtureClosureIdentities.length,
-              }
-            : runtime
+        : id === 'vertical-additions'
+          ? {
+              workspaceFiles: structuredClone(fixtureWorkspaceFiles),
+              workspaceSha256: fixtureWorkspaceSha256,
+            }
+          : id === 'dependency-closure-audit'
+            ? { closureIdentities: structuredClone(fixtureClosureIdentities) }
+            : id === 'resolution-parity'
               ? {
-                  artifactMode: receipt.mode,
-                  assertionCount: 1,
-                  dimension: runtime.dimension,
-                  durationMs: 0,
-                  platform: runtime.platform,
-                  ...(runtime.dimension === 'release-identity'
-                    ? { apps: runtimeIdentity[runtime.platform] }
-                    : {}),
+                  closureSha256: fixtureClosureSha256,
+                  packageCount: fixtureClosureIdentities.length,
+                  workspaceSha256: fixtureWorkspaceSha256,
                 }
-              : { id },
+              : runtime
+                ? {
+                    artifactMode: receipt.mode,
+                    assertionCount: 1,
+                    dimension: runtime.dimension,
+                    durationMs: 0,
+                    platform: runtime.platform,
+                    ...(runtime.dimension === 'release-identity'
+                      ? { apps: runtimeIdentity[runtime.platform] }
+                      : {}),
+                  }
+                : { id },
     );
   }
   if (receipt.mode === 'source') {

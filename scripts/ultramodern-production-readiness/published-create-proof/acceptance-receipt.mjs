@@ -693,11 +693,23 @@ function assertAcceptanceReceipt(
           'Acceptance receipt closure identities do not match the bound closureSha256',
         );
       }
+      if (result.id === 'vertical-additions') {
+        const files = result.details.workspaceFiles;
+        assertCondition(
+          Array.isArray(files) &&
+            files.length > 0 &&
+            sha256(canonicalJson(files)) === result.details.workspaceSha256,
+          'Acceptance receipt scaffold files do not match its workspaceSha256',
+        );
+      }
       if (result.id === resolutionParityResultId) {
         assertCondition(
           result.details.closureSha256 ===
-            receipt.binding.supplyChain.closureSha256,
-          'Acceptance receipt resolution parity is not bound to its own closure',
+            receipt.binding.supplyChain.closureSha256 &&
+            result.details.workspaceSha256 ===
+              receipt.results.find(item => item.id === 'vertical-additions')
+                ?.details?.workspaceSha256,
+          'Acceptance receipt resolution parity is not bound to its own closure and scaffold',
         );
       }
       if (result.id === operationalIndependenceResultId) {
@@ -759,19 +771,22 @@ function assertAcceptanceReceipt(
   return receipt;
 }
 
-// The closure a source receipt accepted, as the published lane and the publish
-// outcome compare against it. Only meaningful on a receipt assertAcceptanceReceipt
+// The scaffold and closure a source receipt accepted, as the published lane
+// compares against them. Only meaningful on a receipt assertAcceptanceReceipt
 // verified as a passed source receipt.
 function acceptedResolution(receipt) {
   assertCondition(
     receipt.mode === 'source' && receipt.passed === true,
     'Only a passed source acceptance receipt carries an accepted resolution',
   );
+  const details = id =>
+    receipt.results.find(result => result.id === id).details;
+  const { workspaceFiles, workspaceSha256 } = details('vertical-additions');
   return {
-    closureIdentities: receipt.results.find(
-      result => result.id === 'dependency-closure-audit',
-    ).details.closureIdentities,
+    closureIdentities: details('dependency-closure-audit').closureIdentities,
     closureSha256: receipt.binding.supplyChain.closureSha256,
+    workspaceFiles,
+    workspaceSha256,
   };
 }
 

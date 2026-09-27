@@ -1,4 +1,6 @@
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 
@@ -176,5 +178,68 @@ test('published acceptance cannot run without the source receipt it must reprodu
       release: {},
     }),
     /pass acceptedResolution in published mode and only there/u,
+  );
+});
+
+// The create CLI runs under `pnpm dlx` with its own, unlocked dependencies. If
+// one of them moves between the lanes and changes the generated source, the
+// workspace lock can still match while the scaffold is one the source lane
+// never built.
+test('a scaffold the generator wrote differently fails and names the files', async t => {
+  const { assertScaffoldParity, scaffoldFiles } = await api();
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'scaffold-parity-'));
+  t.after(() => fs.rmSync(root, { force: true, recursive: true }));
+  const write = (lane, file, contents) => {
+    fs.mkdirSync(path.dirname(path.join(root, lane, file)), {
+      recursive: true,
+    });
+    fs.writeFileSync(path.join(root, lane, file), contents);
+  };
+  for (const lane of ['source', 'published']) {
+    write(lane, 'package.json', '{"name":"acc"}\n');
+    write(lane, 'verticals/inventory/src/index.ts', 'export {};\n');
+    write(lane, '.git/HEAD', `${lane}\n`);
+    write(lane, 'node_modules/x/index.js', `${lane}\n`);
+  }
+  const accepted = scaffoldFiles(path.join(root, 'source'));
+  assert.deepEqual(
+    accepted.workspaceFiles.map(file => file.path),
+    ['package.json', 'verticals/inventory/src/index.ts'],
+  );
+  assert.deepEqual(
+    assertScaffoldParity(
+      accepted,
+      scaffoldFiles(path.join(root, 'published')),
+      {
+        lane: 'Published ERP-10',
+      },
+    ),
+    { fileCount: 2, workspaceSha256: accepted.workspaceSha256 },
+  );
+
+  write('published', 'verticals/inventory/src/index.ts', 'export {};;\n');
+  write('published', 'verticals/inventory/src/extra.ts', 'export {};\n');
+  assert.throws(
+    () =>
+      assertScaffoldParity(
+        accepted,
+        scaffoldFiles(path.join(root, 'published')),
+        { lane: 'Published ERP-10' },
+      ),
+    error =>
+      error.message.includes('(2 file(s))') &&
+      error.message.includes(
+        'verticals/inventory/src/extra.ts: not in the accepted scaffold, now generated',
+      ) &&
+      error.message.includes(
+        'verticals/inventory/src/index.ts: content differs',
+      ) &&
+      /resolves its own dependencies through pnpm dlx/u.test(error.message),
+  );
+
+  accepted.workspaceFiles[0].sha256 = '0'.repeat(64);
+  assert.throws(
+    () => assertScaffoldParity(accepted, accepted, { lane: 'Published' }),
+    /Accepted source scaffold files do not match its workspaceSha256/u,
   );
 });

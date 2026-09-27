@@ -71,7 +71,11 @@ import {
   YAML_NAME,
   YAML_VERSION,
 } from './release-age-audit.mjs';
-import { assertResolutionParity } from './resolution-parity.mjs';
+import {
+  assertResolutionParity,
+  assertScaffoldParity,
+  scaffoldFiles,
+} from './resolution-parity.mjs';
 import { addVertical, createWorkspace } from './workspace.mjs';
 
 const requiredPnpmCommands = Object.freeze({
@@ -1478,6 +1482,7 @@ async function runAcceptanceProfile({
             count: options.verticals.length,
             verticals: options.verticals,
             frameworkVersion: createPackage.frameworkVersion,
+            ...scaffoldFiles(projectDir),
           };
         }),
       );
@@ -1531,9 +1536,15 @@ async function runAcceptanceProfile({
       );
 
       if (mode === 'published') {
+        const scaffold = receipt.results.find(
+          result => result.id === 'vertical-additions',
+        ).details;
         await recordAcceptanceResult(receipt, resolutionParityResultId, () =>
-          withDuration(() =>
-            assertResolutionParity(
+          withDuration(() => ({
+            ...assertScaffoldParity(acceptedResolution, scaffold, {
+              lane: 'Published ERP-10',
+            }),
+            ...assertResolutionParity(
               acceptedResolution,
               {
                 closureIdentities: audit.closureIdentities,
@@ -1541,7 +1552,7 @@ async function runAcceptanceProfile({
               },
               { lane: 'Published ERP-10' },
             ),
-          ),
+          })),
         );
       } else {
         await acceptBuiltWorkspace({
