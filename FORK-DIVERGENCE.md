@@ -39,7 +39,7 @@ The fork-owned streaming head drops a `<Helmet>` whose Suspense boundary commits
 
 ### 2026-09-27 bundler globals without suppressions
 
-`hydrate.tsx` warns about an unknown render level with upstream's plain `console.warn` again; the Effect `globalConsole` rule is off for the native framework tsgo configs, as `asyncFunction` and `processEnv` already were. `render/bundler-globals.d.ts` declares the Rspack free variables `__webpack_public_path__` and `__rspack_rsc_manifest__` for the render and runtime programs, replacing the `csr.shared.tsx` `@ts-ignore` and the `PrefetchLink` `@ts-expect-error`.
+`hydrate.tsx` warns about an unknown render level with upstream's plain `console.warn` again, allowed by a file-level `globalConsole:off` directive like the other runtime files that report to the host console. `render/bundler-globals.d.ts` declares the Rspack free variables `__webpack_public_path__` and `__rspack_rsc_manifest__` for the render and runtime programs, replacing the `csr.shared.tsx` `@ts-ignore` and the `PrefetchLink` `@ts-expect-error`.
 
 ### 2026-09-26 dev repack awaits onReset handlers
 
