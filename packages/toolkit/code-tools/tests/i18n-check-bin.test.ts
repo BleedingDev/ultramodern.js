@@ -63,8 +63,11 @@ test('modern-i18n-check reads sourceRoots from package.json and fails on a viola
 
 test.each([
   [null, '" must be an object'],
-  [{ sourceRoots: 'apps' }, '.sourceRoots" must be an array'],
-  [{ sourceRoots: ['../other-project'] }, '.sourceRoots" must be an array'],
+  [{ sourceRoots: 'apps' }, '.sourceRoots" must be a non-empty array'],
+  [{ sourceRoots: [] }, '.sourceRoots" must be a non-empty array'],
+  [{ sourceRoots: ['missing'] }, '.sourceRoots" must be a non-empty array'],
+  [{ sourceRoots: ['package.json'] }, '.sourceRoots" must be a non-empty'],
+  [{ sourceRoots: ['../other-project'] }, '.sourceRoots" must be a non-empty'],
   [{ locales: ['en_US'] }, '.locales" must be an array of BCP 47'],
   [
     { pluralCategories: [['one', 'other']] },
@@ -79,4 +82,19 @@ test.each([
 
   expect(result.status).toBe(2);
   expect(result.stderr).toContain(`"modernjs.i18nCheck${message}`);
+});
+
+test('modern-i18n-check rejects a source root that symlinks outside the workspace', () => {
+  const outside = workspace({ 'shell/src/App.tsx': violation });
+  const root = workspace({
+    'package.json': JSON.stringify({
+      modernjs: { i18nCheck: { sourceRoots: ['linked-apps'] } },
+    }),
+  });
+  fs.symlinkSync(outside, path.join(root, 'linked-apps'), 'junction');
+
+  const result = run(root);
+
+  expect(result.status).toBe(2);
+  expect(result.stderr).toContain('"modernjs.i18nCheck.sourceRoots" must be');
 });

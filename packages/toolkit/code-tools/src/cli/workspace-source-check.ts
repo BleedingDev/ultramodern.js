@@ -314,8 +314,16 @@ const isLocaleArray = (value: unknown): value is string[] => {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
-const isInsideWorkspace = (root: string, entry: string): boolean => {
-  const relative = path.relative(root, path.resolve(root, entry));
+/** Compares canonical paths so a symlink cannot point a root outside. */
+const isWorkspaceDirectory = (root: string, entry: string): boolean => {
+  const target = path.resolve(root, entry);
+  if (!fs.existsSync(target) || !fs.statSync(target).isDirectory()) {
+    return false;
+  }
+  const relative = path.relative(
+    fs.realpathSync(root),
+    fs.realpathSync(target),
+  );
   return (
     relative !== '' &&
     relative !== '..' &&
@@ -350,11 +358,12 @@ const readWorkspaceCheckOptions = (
   if (
     sourceRoots !== undefined &&
     (!isStringArray(sourceRoots) ||
-      !sourceRoots.every(entry => isInsideWorkspace(root, entry)))
+      sourceRoots.length === 0 ||
+      !sourceRoots.every(entry => isWorkspaceDirectory(root, entry)))
   ) {
     throw invalid(
       '.sourceRoots',
-      'an array of directories inside the workspace',
+      'a non-empty array of existing directories inside the workspace',
     );
   }
   if (locales !== undefined && !isLocaleArray(locales)) {
