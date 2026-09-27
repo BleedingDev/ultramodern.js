@@ -37,15 +37,18 @@ function readAdvisoryExceptions(exceptionsPath = defaultExceptionsPath) {
       .sort()
       .join(',');
     if (
-      keys !== 'expires,id,package,reason' ||
+      keys !== 'expires,id,package,parents,reason' ||
       !ghsaPattern.test(entry.id) ||
       typeof entry.package !== 'string' ||
+      !Array.isArray(entry.parents) ||
+      entry.parents.length === 0 ||
+      !entry.parents.every(parent => typeof parent === 'string') ||
       typeof entry.reason !== 'string' ||
       entry.reason.trim().length === 0 ||
       !datePattern.test(entry.expires)
     ) {
       throw new Error(
-        `${exceptionsPath}: every exception needs exactly { id: GHSA-…, package, reason, expires: YYYY-MM-DD }; found ${JSON.stringify(entry)}`,
+        `${exceptionsPath}: every exception needs exactly { id: GHSA-…, package, parents: [name, …], reason, expires: YYYY-MM-DD }; found ${JSON.stringify(entry)}`,
       );
     }
     if (byId.has(entry.id)) {
@@ -81,11 +84,26 @@ function parseAuditReport(result) {
   );
 }
 
-function formatAdvisory(advisory) {
+function findingPaths(advisory) {
+  return (advisory.findings ?? []).flatMap(finding => finding.paths ?? []);
+}
+
+// An exception covers an advisory only in its package and only where one of
+// its recorded parents pulls it in; any other path still blocks.
+function uncoveredPaths(advisory, exception) {
+  if (!exception || exception.package !== advisory.module_name) {
+    return findingPaths(advisory);
+  }
+  return findingPaths(advisory).filter(
+    dependencyPath =>
+      !exception.parents.includes(dependencyPath.split('>').at(-2)),
+  );
+}
+
+function formatAdvisory(advisory, via) {
   const versions = [
     ...new Set((advisory.findings ?? []).map(finding => finding.version)),
   ].join(', ');
-  const via = advisory.findings?.[0]?.paths?.[0];
   return [
     `${advisory.severity} ${advisory.github_advisory_id} ${advisory.module_name}@${versions}: ${advisory.title}`,
     `  vulnerable ${advisory.vulnerable_versions}, patched ${advisory.patched_versions}; ${advisory.url}`,
@@ -124,17 +142,20 @@ function assertNoHighAdvisories({
   const advisories = parseAuditReport(
     runCommandImpl('pnpm', [...auditArgs], { cwd, env, stdio: 'pipe' }),
   );
-  const acknowledged = advisories.filter(advisory =>
-    exceptions.has(advisory.github_advisory_id),
-  );
-  const blocking = advisories.filter(
-    advisory => !exceptions.has(advisory.github_advisory_id),
-  );
+  const acknowledged = [];
+  const blocking = [];
+  for (const advisory of advisories) {
+    const exception = exceptions.get(advisory.github_advisory_id);
+    const uncovered = uncoveredPaths(advisory, exception);
+    if (exception?.package === advisory.module_name && uncovered.length === 0) {
+      acknowledged.push(advisory);
+    } else {
+      blocking.push(formatAdvisory(advisory, uncovered[0]));
+    }
+  }
   if (blocking.length > 0) {
     throw new Error(
-      `pnpm audit --prod found ${blocking.length} high or critical advisor${blocking.length === 1 ? 'y' : 'ies'}:\n${blocking
-        .map(formatAdvisory)
-        .join('\n')}`,
+      `pnpm audit --prod found ${blocking.length} high or critical advisor${blocking.length === 1 ? 'y' : 'ies'}:\n${blocking.join('\n')}`,
     );
   }
   return {

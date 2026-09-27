@@ -65,9 +65,10 @@ test('a lockfile pinning image-size 2.0.2 fails with the advisory and the fix', 
 
 test('an unexpired exception acknowledges exactly its advisory', () => {
   const { runCommandImpl } = auditReturning(imageSizeReport);
-  const exception = id => ({
+  const exception = (id, parents = ['.']) => ({
     id,
     package: 'image-size',
+    parents,
     reason: 'test',
     expires: '2026-10-01',
   });
@@ -100,6 +101,25 @@ test('an unexpired exception acknowledges exactly its advisory', () => {
       /found 1 high or critical advisory:\nhigh GHSA-w3rx-r6r6-pgpr/u,
     );
   });
+  // Same advisory, but pulled in by a parent the exception does not name.
+  withExceptions(
+    [
+      exception('GHSA-5p2g-fcmc-qvqq', ['some-parent']),
+      exception('GHSA-w3rx-r6r6-pgpr'),
+    ],
+    exceptionsPath => {
+      assert.throws(
+        () =>
+          assertNoHighAdvisories({
+            cwd: '/scratch',
+            exceptionsPath,
+            now,
+            runCommandImpl,
+          }),
+        /found 1 high or critical advisory:\nhigh GHSA-5p2g-fcmc-qvqq[\s\S]*via \.>image-size/u,
+      );
+    },
+  );
 });
 
 test('an expired exception fails before auditing', () => {
@@ -109,6 +129,7 @@ test('an expired exception fails before auditing', () => {
       {
         id: 'GHSA-5p2g-fcmc-qvqq',
         package: 'image-size',
+        parents: ['.'],
         reason: 'test',
         expires: '2026-09-26',
       },
