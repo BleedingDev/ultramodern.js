@@ -2581,9 +2581,6 @@ importers:
       '@rslib/core':
         specifier: 1.0.2
         version: 1.0.2(@module-federation/runtime-tools@2.9.1)(core-js@3.50.0)(typescript@7.0.2)
-      '@scripts/rstest-config':
-        specifier: workspace:*
-        version: link:../../../scripts/rstest-config
       '@types/node':
         specifier: ^26.6.2
         version: 26.6.2
@@ -2786,9 +2783,6 @@ importers:
       '@rslib/core':
         specifier: 1.0.2
         version: 1.0.2(@module-federation/runtime-tools@2.9.1)(core-js@3.50.0)(typescript@7.0.2)
-      '@scripts/rstest-config':
-        specifier: workspace:*
-        version: link:../../../scripts/rstest-config
       '@types/node':
         specifier: ^26.6.2
         version: 26.6.2
@@ -3955,6 +3949,12 @@ importers:
       '@modern-js/utils':
         specifier: workspace:*
         version: link:../packages/toolkit/utils
+      '@rstest/core':
+        specifier: 0.11.12
+        version: 0.11.12(@module-federation/runtime-tools@2.9.1)(core-js@3.50.0)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@5.0.10))(jsdom@25.0.1(bufferutil@4.1.0)(supports-color@10.2.2)(utf-8-validate@5.0.10))
+      '@scripts/rstest-config':
+        specifier: workspace:*
+        version: link:../scripts/rstest-config
       '@swc/core':
         specifier: 1.16.2
         version: 1.16.2(@swc/helpers@0.5.23)
