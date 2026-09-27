@@ -39,23 +39,29 @@ const resolveRoutesGenerateTargets = (
 export function runRoutesGenerate(args: string[], context: CommandContext) {
   if (args.includes('--help') || args.includes('-h')) {
     process.stdout.write(`Usage:
-  ultramodern-create ultramodern routes-generate [--app <id>]
+  ultramodern-create ultramodern routes-generate [--app <id>] [--manifest-only]
 
-Regenerates TanStack route artifacts (router.gen.ts, register.gen.d.ts) for
-generated UltraModern apps without running dev or build. Without --app, every
-generated workspace app is regenerated.
+Regenerates src/routes/ultramodern-route-metadata.ts from the app's
+route.meta.ts files and the TanStack route artifacts (router.gen.ts,
+register.gen.d.ts) for generated UltraModern apps without running dev or build.
+Without --app, every generated workspace app is regenerated.
+
+--manifest-only writes only the route metadata manifest. It never loads the
+app config, so app dev and build scripts run it before \`modern dev\` and
+\`modern build\`, which regenerate the router artifacts themselves.
 `);
     return 0;
   }
 
   const targets = resolveRoutesGenerateTargets(args, context);
+  const mode = args.includes('--manifest-only') ? 'manifest' : 'all';
   let failed = false;
   // app-tools and its plugins keep process-global state, including import-time
   // cwd. Each app gets a fresh module graph rooted at its own directory.
   for (const target of targets) {
     const status = spawnNodeScript(
       'dist/esm-node/ultramodern-tooling/commands/routes-generate-app.js',
-      [target.appDirectory, target.label],
+      [target.appDirectory, target.label, mode],
       context,
       { cwd: target.appDirectory },
     );

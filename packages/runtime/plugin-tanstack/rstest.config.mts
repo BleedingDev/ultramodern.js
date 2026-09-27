@@ -29,6 +29,7 @@ export default {
         'tests/router/loaderBridge.test.ts',
         'tests/router/localisedIdentity.test.tsx',
         'tests/router/routeHooks.test.ts',
+        'tests/router/routeMetadata.test.ts',
         'tests/router/serverPlugin.test.ts',
         'tests/router/rsc.test.tsx',
         'tests/router/slotUsageSanitizer.test.ts',

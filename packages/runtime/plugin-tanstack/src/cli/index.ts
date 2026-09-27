@@ -24,6 +24,7 @@ import {
 
 export {
   generateTanstackRouteArtifacts,
+  writeRouteMetadataManifest,
   writeTanstackRegisterFile,
   writeTanstackRouterTypesForEntries,
 } from './artifacts';
