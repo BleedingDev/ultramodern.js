@@ -240,6 +240,21 @@ test('each invocation keeps its own dependency state and working directory', t =
   assert.deepEqual(loads(bareTail), [['scripts/record.mjs', 'yaml']]);
 });
 
+test('the workflow-level working-directory default applies to jobs', t => {
+  const rootDir = withRepository(t, {
+    'tools/check.mjs': "import YAML from 'yaml';\n",
+    'check.mjs': '',
+  });
+  const workflow = workflowWithJob(`      - run: node check.mjs
+`).replace('jobs:', 'defaults:\n  run:\n    working-directory: tools\njobs:');
+  assert.equal(
+    validateWorkflowContent('.github/workflows/example.yml', workflow, {
+      rootDir,
+    }).length,
+    1,
+  );
+});
+
 test('a conditional install does not make later steps installed', t => {
   const rootDir = withRepository(t, recorderFiles);
   const workflow = workflowWithJob(`      - if: github.event_name == 'push'
