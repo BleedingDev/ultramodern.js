@@ -22,7 +22,9 @@ upstream Modern.js project.
   runtime. `http(s):` entries must be SHA-256 and length verified, `data:` and
   `file:` entries are evaluated or imported, and `binding:`, `service:` and
   `static:` entries come from `createBackendFederationLoadEntryPlugin()`. Any
-  other entry fails with an error that names the remote.
+  other entry fails with an error that names the remote. CommonJS containers are
+  evaluated per runtime; ES module containers are cached by Node per URL and
+  therefore shared between runtimes.
 - `/backend-federation/node` enables the hardened Node entry evaluator and
   shares the Effect handler factory registry with remote containers through
   their `init()` share scope.
