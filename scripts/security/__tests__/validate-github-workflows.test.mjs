@@ -387,7 +387,7 @@ jobs:
     validateWorkflowContent(
       '.github/workflows/cache.yml',
       cacheWorkflow(cachePath),
-    ).filter(error => error.includes('/.. or /./ segment'));
+    ).filter(error => error.includes('contains a .. or . segment'));
 
   assert.deepEqual(flagged('/home/runner/ms-playwright'), []);
   assert.deepEqual(flagged(githubExpression('steps.b.outputs.cache_path')), []);
@@ -397,6 +397,11 @@ jobs:
   );
   assert.equal(flagged('/home/runner/./ms-playwright').length, 1);
   assert.equal(flagged('/home/runner/..').length, 1);
+  for (const leading of ['../ms-playwright', './cache', '..', '.']) {
+    assert.equal(flagged(leading).length, 1, leading);
+  }
+  assert.deepEqual(flagged('.cache/ms-playwright'), []);
+  assert.deepEqual(flagged('~/.cache/ms-playwright'), []);
 });
 
 test('workflow and job env reject the runner context', () => {

@@ -1029,11 +1029,11 @@ function collectBleedingdevPublishStructureErrors(workflow, relativePath) {
   return errors;
 }
 
-// actions/cache versions an entry by the literal path strings, so a `/..` or
-// `/./` spelling of a directory never shares an entry with its normalized
+// actions/cache versions an entry by the literal path strings, so a `..` or
+// `.` segment spelling of a directory never shares an entry with its normalized
 // spelling and hides which directory is cached. Pass a normalized path.
 const cacheActionPattern = /^actions\/cache(?:\/(?:restore|save))?@/iu;
-const relativePathSegmentPattern = /[\\/]\.{1,2}(?=[\\/]|$)/u;
+const relativePathSegmentPattern = /(?:^|[\\/])\.{1,2}(?=[\\/]|$)/u;
 
 function collectCachePathErrors(workflow, relativePath) {
   const errors = [];
@@ -1047,9 +1047,9 @@ function collectCachePathErrors(workflow, relativePath) {
       continue;
     }
     for (const line of cachePath.split('\n')) {
-      if (relativePathSegmentPattern.test(line)) {
+      if (relativePathSegmentPattern.test(line.trim())) {
         errors.push(
-          `${relativePath} job ${jobId} step ${step.name ?? step.id ?? '<unnamed>'} caches ${line.trim()}, which contains a /.. or /./ segment; pass the normalized path (e.g. from the step that provisions it)`,
+          `${relativePath} job ${jobId} step ${step.name ?? step.id ?? '<unnamed>'} caches ${line.trim()}, which contains a .. or . segment; pass the normalized path (e.g. from the step that provisions it)`,
         );
       }
     }
