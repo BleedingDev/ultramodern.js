@@ -45,7 +45,7 @@ patchedDependencies:
   '@module-federation/bridge-react@2.9.1': 8c084f41790295af8fd015b897c6298bbc13d927b796c624ac96cb2bdb4bc87c
   '@module-federation/dts-plugin@2.9.1': c52b86d551da354492cf255cfb8c0e56e51cb6b4452319b47295ac969704819d
   '@module-federation/manifest@2.9.1': a31d4d30913ffb579faf42be4f1c03a0f330d3f09348e9eedc00059d6e8d123f
-  '@module-federation/modern-js-v3@2.9.1': 0ab5fa14ed744c31c8221c6f663c9fc5b50a134f641e65277900c88da6cb72d0
+  '@module-federation/modern-js-v3@2.9.1': 3d000f33015d32b14dcf9e46672e7d6867317ad9f43e95b2c392c3d5a7c052ab
   '@module-federation/rspack@2.9.1': 7beed0f736d66f78abeba9ed9b5537e571eff92f49aa03bd30a6b674f32f4eae
   '@module-federation/runtime-core@2.9.1': b241be221397f0e07dbe6c515725e12eaf3b418469bb7dd21750e6e4b215dd8d
   effect@4.0.0-rc.117: 1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5
@@ -370,7 +370,7 @@ importers:
         version: link:../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.9.1
-        version: 2.9.1(patch_hash=0ab5fa14ed744c31c8221c6f663c9fc5b50a134f641e65277900c88da6cb72d0)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.1)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.1)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
+        version: 2.9.1(patch_hash=3d000f33015d32b14dcf9e46672e7d6867317ad9f43e95b2c392c3d5a7c052ab)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.1)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.1)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       react:
         specifier: ^19.3.0
         version: 19.3.0
@@ -419,7 +419,7 @@ importers:
         version: link:../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.9.1
-        version: 2.9.1(patch_hash=0ab5fa14ed744c31c8221c6f663c9fc5b50a134f641e65277900c88da6cb72d0)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.1)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.1)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
+        version: 2.9.1(patch_hash=3d000f33015d32b14dcf9e46672e7d6867317ad9f43e95b2c392c3d5a7c052ab)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.1)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.1)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       react:
         specifier: ^19.3.0
         version: 19.3.0
@@ -465,7 +465,7 @@ importers:
         version: link:../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.9.1
-        version: 2.9.1(patch_hash=0ab5fa14ed744c31c8221c6f663c9fc5b50a134f641e65277900c88da6cb72d0)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.1)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.1)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
+        version: 2.9.1(patch_hash=3d000f33015d32b14dcf9e46672e7d6867317ad9f43e95b2c392c3d5a7c052ab)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.1)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.1)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       '@module-federation/runtime':
         specifier: 2.9.1
         version: 2.9.1
@@ -517,7 +517,7 @@ importers:
         version: link:../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.9.1
-        version: 2.9.1(patch_hash=0ab5fa14ed744c31c8221c6f663c9fc5b50a134f641e65277900c88da6cb72d0)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.1)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.1)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
+        version: 2.9.1(patch_hash=3d000f33015d32b14dcf9e46672e7d6867317ad9f43e95b2c392c3d5a7c052ab)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.1)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.1)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       react:
         specifier: ^19.3.0
         version: 19.3.0
@@ -5242,7 +5242,7 @@ importers:
         version: link:../../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.9.1
-        version: 2.9.1(patch_hash=0ab5fa14ed744c31c8221c6f663c9fc5b50a134f641e65277900c88da6cb72d0)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.1)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.1)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
+        version: 2.9.1(patch_hash=3d000f33015d32b14dcf9e46672e7d6867317ad9f43e95b2c392c3d5a7c052ab)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.1)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.1)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       i18next:
         specifier: 26.4.2
         version: 26.4.2(typescript@7.0.2)
@@ -5282,7 +5282,7 @@ importers:
         version: link:../../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.9.1
-        version: 2.9.1(patch_hash=0ab5fa14ed744c31c8221c6f663c9fc5b50a134f641e65277900c88da6cb72d0)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.1)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.1)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
+        version: 2.9.1(patch_hash=3d000f33015d32b14dcf9e46672e7d6867317ad9f43e95b2c392c3d5a7c052ab)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.1)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.1)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       i18next:
         specifier: 26.4.2
         version: 26.4.2(typescript@7.0.2)
@@ -5322,7 +5322,7 @@ importers:
         version: link:../../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.9.1
-        version: 2.9.1(patch_hash=0ab5fa14ed744c31c8221c6f663c9fc5b50a134f641e65277900c88da6cb72d0)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.1)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.1)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
+        version: 2.9.1(patch_hash=3d000f33015d32b14dcf9e46672e7d6867317ad9f43e95b2c392c3d5a7c052ab)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.1)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.1)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       '@module-federation/runtime':
         specifier: 2.9.1
         version: 2.9.1
@@ -5913,7 +5913,7 @@ importers:
         version: link:../../../../packages/runtime/runtime-extensions
       '@module-federation/modern-js-v3':
         specifier: 2.9.1
-        version: 2.9.1(patch_hash=0ab5fa14ed744c31c8221c6f663c9fc5b50a134f641e65277900c88da6cb72d0)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.1)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.1)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
+        version: 2.9.1(patch_hash=3d000f33015d32b14dcf9e46672e7d6867317ad9f43e95b2c392c3d5a7c052ab)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.1)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.1)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       '@module-federation/runtime':
         specifier: 2.9.1
         version: 2.9.1
@@ -5977,7 +5977,7 @@ importers:
         version: link:../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.9.1
-        version: 2.9.1(patch_hash=0ab5fa14ed744c31c8221c6f663c9fc5b50a134f641e65277900c88da6cb72d0)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.1)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.1)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
+        version: 2.9.1(patch_hash=3d000f33015d32b14dcf9e46672e7d6867317ad9f43e95b2c392c3d5a7c052ab)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.1)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.1)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       '@module-federation/runtime':
         specifier: 2.9.1
         version: 2.9.1
@@ -6035,7 +6035,7 @@ importers:
         version: link:../../../../packages/runtime/plugin-runtime
       '@module-federation/modern-js-v3':
         specifier: 2.9.1
-        version: 2.9.1(patch_hash=0ab5fa14ed744c31c8221c6f663c9fc5b50a134f641e65277900c88da6cb72d0)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.1)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.1)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
+        version: 2.9.1(patch_hash=3d000f33015d32b14dcf9e46672e7d6867317ad9f43e95b2c392c3d5a7c052ab)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.1)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.1)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       '@module-federation/runtime':
         specifier: 2.9.1
         version: 2.9.1
@@ -24234,7 +24234,7 @@ snapshots:
       - utf-8-validate
       - vue-tsc
 
-  '@module-federation/modern-js-v3@2.9.1(patch_hash=0ab5fa14ed744c31c8221c6f663c9fc5b50a134f641e65277900c88da6cb72d0)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.1)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.1)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)':
+  '@module-federation/modern-js-v3@2.9.1(patch_hash=3d000f33015d32b14dcf9e46672e7d6867317ad9f43e95b2c392c3d5a7c052ab)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.1)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.1)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)':
     dependencies:
       '@module-federation/bridge-react': 2.9.1(patch_hash=8c084f41790295af8fd015b897c6298bbc13d927b796c624ac96cb2bdb4bc87c)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)
       '@module-federation/cli': 2.9.1(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
