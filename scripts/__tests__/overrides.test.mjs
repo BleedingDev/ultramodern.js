@@ -140,3 +140,31 @@ test('a parent that no longer depends on the target fails', () => {
     "'minimatch@3>brace-expansion': no minimatch@3 in the lockfile depends on brace-expansion. Delete the override.",
   ]);
 });
+
+test('a removal override passes once the edge is gone and fails while it stays', () => {
+  const withOverride = override =>
+    preFixLockfile.replace(
+      /overrides:[\s\S]*?importers:/,
+      `overrides:\n  ${override}\nimporters:`,
+    );
+  assert.deepEqual(
+    findOverrideViolations(
+      withOverride("nx>brace-expansion: '-'").replace(
+        'nx@23.2.1:\n    dependencies:\n      brace-expansion: 5.0.9',
+        'nx@23.2.1: {}',
+      ),
+      importerNames,
+    ),
+    [],
+  );
+  assert.deepEqual(
+    findOverrideViolations(
+      withOverride("nx>brace-expansion: '-'"),
+      importerNames,
+    ),
+    [
+      "'nx>brace-expansion': nx@23.2.1 still depends on brace-expansion, which this override removes. " +
+        'Run pnpm install so the lockfile picks up the override.',
+    ],
+  );
+});
