@@ -314,13 +314,31 @@ const isLocaleArray = (value: unknown): value is string[] => {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
+const isInsideWorkspace = (root: string, entry: string): boolean => {
+  const relative = path.relative(root, path.resolve(root, entry));
+  return (
+    relative !== '' &&
+    relative !== '..' &&
+    !relative.startsWith(`..${path.sep}`) &&
+    !path.isAbsolute(relative)
+  );
+};
+
+const isPluralCategories = (
+  value: unknown,
+): value is Record<string, string[]> =>
+  isRecord(value) && Object.values(value).every(isStringArray);
+
 /** Reads `modernjs.i18nCheck` from the workspace package.json. */
 const readWorkspaceCheckOptions = (
   root: string,
 ): WorkspaceSourceCheckOptions => {
   const manifestPath = path.join(root, 'package.json');
-  const config = JSON.parse(readText(manifestPath)).modernjs?.i18nCheck ?? {};
-  const { sourceRoots, locales, pluralCategories } = config;
+  const modernjs = JSON.parse(readText(manifestPath)).modernjs;
+  const config =
+    isRecord(modernjs) && Object.hasOwn(modernjs, 'i18nCheck')
+      ? modernjs.i18nCheck
+      : {};
   const invalid = (field: string, expected: string) =>
     new Error(
       `${manifestPath} "modernjs.i18nCheck${field}" must be ${expected}.`,
@@ -328,17 +346,21 @@ const readWorkspaceCheckOptions = (
   if (!isRecord(config)) {
     throw invalid('', 'an object');
   }
-  if (sourceRoots !== undefined && !isStringArray(sourceRoots)) {
-    throw invalid('.sourceRoots', 'an array of workspace-relative directories');
+  const { sourceRoots, locales, pluralCategories } = config;
+  if (
+    sourceRoots !== undefined &&
+    (!isStringArray(sourceRoots) ||
+      !sourceRoots.every(entry => isInsideWorkspace(root, entry)))
+  ) {
+    throw invalid(
+      '.sourceRoots',
+      'an array of directories inside the workspace',
+    );
   }
   if (locales !== undefined && !isLocaleArray(locales)) {
     throw invalid('.locales', 'an array of BCP 47 locale codes');
   }
-  if (
-    pluralCategories !== undefined &&
-    (!isRecord(pluralCategories) ||
-      !Object.values(pluralCategories).every(isStringArray))
-  ) {
+  if (pluralCategories !== undefined && !isPluralCategories(pluralCategories)) {
     throw invalid(
       '.pluralCategories',
       'an object of locale -> category arrays',
