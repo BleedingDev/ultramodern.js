@@ -7,35 +7,28 @@ import {
   normalizeDeclaredPublicAssets,
   stageDeclaredPublicAssets,
 } from './public-assets';
-import {
-  type DeployOutputConfig,
-  resolveDeployTarget as defaultResolveDeployTarget,
-} from './target';
+import { getDeployingTarget, type ResolvedDeployTarget } from './target';
+
+export interface DeployOutputAppContext {
+  appDirectory: string;
+  metaName: string;
+  deployTarget?: ResolvedDeployTarget;
+}
 
 export interface DeployOutputPluginApi {
-  getAppContext(): { appDirectory: string; metaName: string };
-  getNormalizedConfig(): DeployOutputConfig;
+  getAppContext(): DeployOutputAppContext;
   onAfterDeploy(handler: () => Promise<void>): void;
 }
 
-export const createDeployOutputAliasesPlugin = ({
-  resolveDeployTarget = defaultResolveDeployTarget,
-}: {
-  resolveDeployTarget?: (config: DeployOutputConfig) => string;
-} = {}) => ({
+export const createDeployOutputAliasesPlugin = () => ({
   name: '@modern-js/deploy-output-aliases',
   setup(api: DeployOutputPluginApi) {
     api.onAfterDeploy(async () => {
-      const { appDirectory, metaName } = api.getAppContext();
-      const config = api.getNormalizedConfig();
-      if (
-        (metaName !== 'modern-js' &&
-          !config.deploy?.target &&
-          !process.env.MODERNJS_DEPLOY) ||
-        resolveDeployTarget(config) !== 'node'
-      ) {
+      const appContext = api.getAppContext();
+      if (getDeployingTarget(appContext) !== 'node') {
         return;
       }
+      const { appDirectory } = appContext;
 
       const entry = createRequire(__filename).resolve('@modern-js/prod-server');
       const identity = await readPackageIdentity(entry);
@@ -54,14 +47,12 @@ export const createDeployOutputAliasesPlugin = ({
   },
 });
 
-export interface DeployOutputPublicAssetsConfig extends DeployOutputConfig {
-  deploy?: DeployOutputConfig['deploy'] & {
-    node?: { publicAssets?: NodePublicAssetConfig[] };
-  };
+export interface DeployOutputPublicAssetsConfig {
+  deploy?: { node?: { publicAssets?: NodePublicAssetConfig[] } };
 }
 
 export interface DeployOutputPublicAssetsPluginApi {
-  getAppContext(): { appDirectory: string; metaName: string };
+  getAppContext(): DeployOutputAppContext;
   getNormalizedConfig(): DeployOutputPublicAssetsConfig;
   onAfterDeploy(handler: () => Promise<void>): void;
 }
@@ -70,24 +61,16 @@ export interface DeployOutputPublicAssetsPluginApi {
  * Stage `deploy.node.publicAssets` into the Node deploy output. Cloudflare
  * stages `deploy.worker.publicAssets` inside its deploy preset.
  */
-export const createDeployOutputPublicAssetsPlugin = ({
-  resolveDeployTarget = defaultResolveDeployTarget,
-}: {
-  resolveDeployTarget?: (config: DeployOutputConfig) => string;
-} = {}) => ({
+export const createDeployOutputPublicAssetsPlugin = () => ({
   name: '@modern-js/deploy-output-public-assets',
   setup(api: DeployOutputPublicAssetsPluginApi) {
     api.onAfterDeploy(async () => {
-      const { appDirectory, metaName } = api.getAppContext();
-      const config = api.getNormalizedConfig();
-      if (
-        (metaName !== 'modern-js' &&
-          !config.deploy?.target &&
-          !process.env.MODERNJS_DEPLOY) ||
-        resolveDeployTarget(config) !== 'node'
-      ) {
+      const appContext = api.getAppContext();
+      if (getDeployingTarget(appContext) !== 'node') {
         return;
       }
+      const { appDirectory } = appContext;
+      const config = api.getNormalizedConfig();
 
       await stageDeclaredPublicAssets({
         appDirectory,

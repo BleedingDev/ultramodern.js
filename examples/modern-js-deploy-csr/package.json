@@ -10,7 +10,7 @@
     "serve": "modern serve",
     "lint": "biome check",
     "deploy": "modern deploy",
-    "deploy:gh-pages": "MODERNJS_DEPLOY=ghPages modern deploy && gh-pages -d .output"
+    "deploy:gh-pages": "modern deploy --deploy-target ghPages && gh-pages -d .output"
   },
   "engines": {
     "node": ">=26.7.0"

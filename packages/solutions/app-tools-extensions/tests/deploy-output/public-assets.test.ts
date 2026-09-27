@@ -195,10 +195,13 @@ describe('declared deploy public assets', () => {
     });
     const handlers: (() => Promise<void>)[] = [];
     createDeployOutputPublicAssetsPlugin().setup({
-      getAppContext: () => ({ appDirectory, metaName: 'modern-js' }),
+      getAppContext: () => ({
+        appDirectory,
+        metaName: 'modern-js',
+        deployTarget: { target: 'node', explicit: true },
+      }),
       getNormalizedConfig: () => ({
         deploy: {
-          target: 'node',
           node: { publicAssets: [{ from: 'staging', to: 'decks' }] },
         },
       }),
@@ -221,10 +224,13 @@ describe('declared deploy public assets', () => {
     });
     const handlers: (() => Promise<void>)[] = [];
     createDeployOutputPublicAssetsPlugin().setup({
-      getAppContext: () => ({ appDirectory, metaName: 'modern-js' }),
+      getAppContext: () => ({
+        appDirectory,
+        metaName: 'modern-js',
+        deployTarget: { target: 'cloudflare', explicit: true },
+      }),
       getNormalizedConfig: () => ({
         deploy: {
-          target: 'cloudflare',
           node: { publicAssets: [{ from: 'staging', to: 'decks' }] },
         },
       }),

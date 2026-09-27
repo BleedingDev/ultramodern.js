@@ -623,9 +623,6 @@ async function generatePublicSurfaceAssets(app, target, requirePublicOrigin) {
   const publicSurface = await resolvePublicSurface(app);
   const languages = publicSurface.languages ?? ['en', 'cs'];
   const outputDir = ensureOutputDir(app, target);
-  const shouldRequirePublicOrigin =
-    requirePublicOrigin ||
-    process.env.ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS === 'true';
   const routeEntries = publicSurface.routeEntries;
   const urlPaths = publicSurface.concreteUrlPaths;
 
@@ -636,7 +633,7 @@ async function generatePublicSurfaceAssets(app, target, requirePublicOrigin) {
     return;
   }
 
-  const origin = resolveOrigin(app, shouldRequirePublicOrigin);
+  const origin = resolveOrigin(app, requirePublicOrigin);
   if (!origin) {
     writeText(outputDir, 'robots.txt', renderRobotsTxt([], undefined));
     removeIfExists(outputDir, 'sitemap.xml');

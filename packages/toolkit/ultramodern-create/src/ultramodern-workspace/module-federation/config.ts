@@ -51,12 +51,15 @@ export function createAppModernConfig(
   // A headless (api-only) unit has no browser MF surface, no Zephyr build and
   // no generated route metadata — its config must not import or register them.
   const uiImports = emitsUi
-    ? `import { getBuildConfigEnvironment } from '@modern-js/app-tools-extensions/config';
+    ? `import {
+  getBuildConfigEnvironment,
+  resolveDeployTarget,
+} from '@modern-js/app-tools-extensions/config';
 import { moduleFederationPlugin } from '@module-federation/modern-js-v3';
 import { withZephyr as withZephyrRspack } from 'zephyr-rspack-plugin';
 import { ultramodernLocalisedUrls } from './src/routes/ultramodern-route-metadata';
 `
-    : "import { getBuildConfigEnvironment } from '@modern-js/app-tools-extensions/config';\n";
+    : "import {\n  getBuildConfigEnvironment,\n  resolveDeployTarget,\n} from '@modern-js/app-tools-extensions/config';\n";
   const zephyrPluginSource = emitsUi
     ? `const zephyrRspackPlugin = () => ({
   name: 'ultramodern-zephyr-rspack-plugin',
@@ -197,7 +200,6 @@ const defaultAssetPrefix = defaultRemoteAssetPrefix;`;
     value5: createCloudflarePublicUrlEnv(app),
     value6: String(shellApp.port),
     value7: defaultAssetPrefixSource,
-    value8: createCloudflarePublicUrlEnv(app),
     value9: bffConfig,
     value10: CLOUDFLARE_COMPATIBILITY_DATE,
     value11: formatTsJsonValue(

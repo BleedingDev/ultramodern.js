@@ -135,36 +135,48 @@ function createWorkspaceAppScriptPlan(
   app: WorkspaceApp,
 ): WorkspaceAppScriptPlan {
   const routesGenerate = createRoutesGenerateCommand(app);
+  // Deploy targets are CLI flags, not env wrappers: cross-env reports a build
+  // that died from a signal (a native stack overflow) as a plain exit 1.
   const buildSteps = [
     routesGenerate,
-    'modern build',
+    'modern build --deploy-target node',
     createPublicSurfaceGenerationCommand(app, 'dist'),
-    'cross-env MODERNJS_DEPLOY=node modern deploy --skip-build',
+    'modern deploy --skip-build --deploy-target node',
     // NOTE: the Module Federation DTS archive is emitted by `modern build`
     // above; verifying it (assert-mf-types) is done ONCE at the workspace root
     // (`pnpm mf:types`) AFTER every app has built. A per-app verify here races
     // under parallel `pnpm -r build` — an early app would assert a sibling's
     // not-yet-emitted archive — so it is intentionally omitted.
   ].filter((step): step is string => Boolean(step));
-  const cloudflareBuildSteps = [
-    routesGenerate,
-    'cross-env MODERNJS_DEPLOY=cloudflare modern build',
-    createPublicSurfaceGenerationCommand(app, 'cloudflare-dist'),
-    'cross-env MODERNJS_DEPLOY=cloudflare modern deploy --skip-build',
-    `${packageToolingWrapperCommand(
-      app.directory,
-      'cloudflareOutputVerify',
-    )} --app ${app.id}`,
-  ].filter((step): step is string => Boolean(step));
+  const cloudflareOutputVerify = `${packageToolingWrapperCommand(
+    app.directory,
+    'cloudflareOutputVerify',
+  )} --app ${app.id}`;
+  const cloudflareBuildSteps = (requirePublicUrls: boolean) =>
+    [
+      routesGenerate,
+      'modern build --deploy-target cloudflare',
+      createPublicSurfaceGenerationCommand(
+        app,
+        'cloudflare-dist',
+        requirePublicUrls,
+      ),
+      'modern deploy --skip-build --deploy-target cloudflare',
+      requirePublicUrls
+        ? `${cloudflareOutputVerify} --require-public-urls`
+        : cloudflareOutputVerify,
+    ].filter((step): step is string => Boolean(step));
 
   return {
     dev: [routesGenerate, 'modern dev']
       .filter((step): step is string => Boolean(step))
       .join(' && '),
     build: buildSteps.join(' && '),
-    cloudflareBuild: cloudflareBuildSteps.join(' && '),
-    cloudflareDeploy:
-      'cross-env ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true ZE_FAIL_BUILD=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json',
+    cloudflareBuild: cloudflareBuildSteps(false).join(' && '),
+    cloudflareDeploy: [
+      ...cloudflareBuildSteps(true),
+      'wrangler deploy --config .output/wrangler.json',
+    ].join(' && '),
     cloudflarePreview:
       'pnpm run cloudflare:build && wrangler dev --config .output/wrangler.json',
     cloudflareProof: `${packageToolingWrapperCommand(

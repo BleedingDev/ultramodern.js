@@ -104,9 +104,6 @@ importers:
       check-dependency-version-consistency:
         specifier: 6.0.0
         version: 6.0.0
-      cross-env:
-        specifier: ^10.1.0
-        version: 10.1.0
       husky:
         specifier: ^9.1.7
         version: 9.1.7
@@ -6155,9 +6152,6 @@ importers:
       '@typescript/native-preview':
         specifier: 7.0.0-dev.20260707.2
         version: 7.0.0-dev.20260707.2
-      cross-env:
-        specifier: ^10.1.0
-        version: 10.1.0
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
@@ -6201,9 +6195,6 @@ importers:
       '@typescript/native-preview':
         specifier: 7.0.0-dev.20260707.2
         version: 7.0.0-dev.20260707.2
-      cross-env:
-        specifier: ^10.1.0
-        version: 10.1.0
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
@@ -6253,9 +6244,6 @@ importers:
       '@typescript/native-preview':
         specifier: 7.0.0-dev.20260707.2
         version: 7.0.0-dev.20260707.2
-      cross-env:
-        specifier: ^10.1.0
-        version: 10.1.0
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
@@ -6299,9 +6287,6 @@ importers:
       '@typescript/native-preview':
         specifier: 7.0.0-dev.20260707.2
         version: 7.0.0-dev.20260707.2
-      cross-env:
-        specifier: ^10.1.0
-        version: 10.1.0
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
@@ -9159,9 +9144,6 @@ packages:
 
   '@emotion/unitless@0.7.5':
     resolution: {integrity: sha512-OWORNpfjMsSSUBVrRBVGECkhWcULOAJz9ZW8uK9qgxD+87M7jHRcvh/A96XXNhXTLmKcoYSQtBEX7lHMO7YRwg==}
-
-  '@epic-web/invariant@1.0.0':
-    resolution: {integrity: sha512-lrTPqgvfFQtR/eY/qkIzp98OGdNJu0m5ji3q/nJI8v3SXkRKEnWiOxMmbvcSoAIzv/cGiuvRy57k4suKQSAdwA==}
 
   '@esbuild/aix-ppc64@0.28.2':
     resolution: {integrity: sha512-XExcO+dvLKvVtNTibSTBej1NCAbaGhWn9Ww1ZPx80qsahhPFe/8jgWP0IchNe0F3HwkU7n8ejhH8bjonqht8mQ==}
@@ -14316,11 +14298,6 @@ packages:
 
   crelt@1.0.7:
     resolution: {integrity: sha512-aK6BbWfhf4U/wCcLHKPJl/xa6VkVstRaPywWtMKGwuOLc/wZTyQYuoxgvZnNsBvv7Kg3YTBQYYBCggcviQczuA==}
-
-  cross-env@10.1.0:
-    resolution: {integrity: sha512-GsYosgnACZTADcmEyJctkJIoqAhHjttw7RsFrVoJNXbsWWqaq6Ym+7kZjq6mS45O0jij6vtiReppKQEtqWy6Dw==}
-    engines: {node: '>=20'}
-    hasBin: true
 
   cross-spawn@7.0.6:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
@@ -22933,8 +22910,6 @@ snapshots:
 
   '@emotion/unitless@0.7.5': {}
 
-  '@epic-web/invariant@1.0.0': {}
-
   '@esbuild/aix-ppc64@0.28.2':
     optional: true
 
@@ -28315,11 +28290,6 @@ snapshots:
   create-require@1.1.1: {}
 
   crelt@1.0.7: {}
-
-  cross-env@10.1.0:
-    dependencies:
-      '@epic-web/invariant': 1.0.0
-      cross-spawn: 7.0.6
 
   cross-spawn@7.0.6:
     dependencies:

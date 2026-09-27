@@ -4,8 +4,8 @@
   "upstreamRef": "2f4d9c4559e26209a0d77f02c6757f29fe3699a2",
   "pathspec": ["packages"],
   "migrationGoal": "Shrink-only budget of fork edits inside upstream-owned files. Every entry is debt: move it upstream or behind an extension point, then re-run --write-divergence-allowlist.",
-  "totalFiles": 840,
-  "totalHunks": 3129,
+  "totalFiles": 843,
+  "totalHunks": 3134,
   "totalChangedLines": 52245,
   "files": [
     {
@@ -504,6 +504,11 @@
       "changedLines": 9
     },
     {
+      "file": "packages/document/docs/en/components/deploy-command.mdx",
+      "hunks": 1,
+      "changedLines": 1
+    },
+    {
       "file": "packages/document/docs/en/components/hono.mdx",
       "hunks": 1,
       "changedLines": 2
@@ -792,6 +797,11 @@
       "file": "packages/document/docs/zh/community/showcase.mdx",
       "hunks": 4,
       "changedLines": 9
+    },
+    {
+      "file": "packages/document/docs/zh/components/deploy-command.mdx",
+      "hunks": 1,
+      "changedLines": 1
     },
     {
       "file": "packages/document/docs/zh/components/hono.mdx",
@@ -3324,6 +3334,11 @@
       "changedLines": 6
     },
     {
+      "file": "packages/solutions/app-tools/src/commands/index.ts",
+      "hunks": 3,
+      "changedLines": 8
+    },
+    {
       "file": "packages/solutions/app-tools/src/commands/serve.ts",
       "hunks": 4,
       "changedLines": 4
@@ -3360,8 +3375,8 @@
     },
     {
       "file": "packages/solutions/app-tools/src/index.ts",
-      "hunks": 11,
-      "changedLines": 26
+      "hunks": 12,
+      "changedLines": 32
     },
     {
       "file": "packages/solutions/app-tools/src/plugins/analyze/getBundleEntry.ts",
@@ -3400,8 +3415,8 @@
     },
     {
       "file": "packages/solutions/app-tools/src/plugins/deploy/index.ts",
-      "hunks": 14,
-      "changedLines": 62
+      "hunks": 11,
+      "changedLines": 44
     },
     {
       "file": "packages/solutions/app-tools/src/plugins/deploy/platforms/gh-pages.ts",
@@ -3490,8 +3505,8 @@
     },
     {
       "file": "packages/solutions/app-tools/src/types/plugin.ts",
-      "hunks": 8,
-      "changedLines": 71
+      "hunks": 10,
+      "changedLines": 73
     },
     {
       "file": "packages/solutions/app-tools/src/utils/config.ts",

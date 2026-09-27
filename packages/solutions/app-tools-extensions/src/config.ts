@@ -4,13 +4,8 @@ export {
   resolveEffectTsgoCompiler,
 } from './build-config/public';
 export { createRemoteManifestUrl } from './build-config/remote-address';
-
-export type DeployTarget =
-  | 'node'
-  | 'vercel'
-  | 'netlify'
-  | 'ghPages'
-  | 'cloudflare';
+export type { DeployTarget } from './deploy-output/target';
+export { resolveDeployTarget } from './deploy-output/target';
 
 export type CloudflareWorkerSecurityCspMode = 'enforce' | 'report-only' | 'off';
 

@@ -12,13 +12,13 @@ import type {
   RsbuildEntryDescription,
   Rspack,
 } from '@rsbuild/core';
-import { provider } from 'std-env';
 import {
   CLOUDFLARE_ROUTE_DATA_HANDLER_EXPORT,
   CLOUDFLARE_WORKER_NODE_BUILTINS,
   CLOUDFLARE_WORKER_PLATFORM_MODULES,
   getCloudflareWorkerRouteDataEntryName,
 } from './cloudflare-output-contract';
+import type { ResolvedDeployTarget } from './deploy-output/target';
 import { getTemplatePath } from './read-template';
 
 const moduleRequire = createRequire(import.meta.url);
@@ -67,11 +67,11 @@ const JS_OR_TS_EXTENSIONS = new Set([
 
 export interface CloudflareBuilderNormalizedConfig {
   bff?: BffUserConfig;
-  deploy?: { target?: string };
 }
 
 export interface CloudflareBuilderAppContext {
   apiOnly?: boolean;
+  deployTarget?: ResolvedDeployTarget;
   apiDirectory: string;
   appDirectory: string;
   entrypoints?: ReadonlyArray<{ entryName: string }>;
@@ -82,10 +82,7 @@ export interface CloudflareBuilderEnvironmentsOptions {
   appContext: CloudflareBuilderAppContext;
   environments: Record<string, EnvironmentConfig>;
   normalizedConfig: CloudflareBuilderNormalizedConfig;
-  resolveDeployProvider?: ResolveCloudflareDeployProvider;
 }
-
-export type ResolveCloudflareDeployProvider = () => string | undefined;
 
 export interface CloudflareWorkerRspackConfig {
   externals: Record<string, string>;
@@ -690,31 +687,6 @@ const getEffectBffEntry = (
   return resolveJsOrTsEntry(path.resolve(appContext.apiDirectory, 'index'));
 };
 
-const CLOUDFLARE_DEPLOY_PROVIDERS = new Set([
-  'cloudflare',
-  'cloudflare_pages',
-  'cloudflare_workers',
-]);
-
-const resolveStdEnvDeployProvider: ResolveCloudflareDeployProvider = () =>
-  provider;
-
-const isCloudflareWorkerDeploy = (
-  normalizedConfig: CloudflareBuilderNormalizedConfig,
-  resolveDeployProvider: ResolveCloudflareDeployProvider,
-) => {
-  const explicitTarget =
-    normalizedConfig.deploy?.target || process.env.MODERNJS_DEPLOY;
-  if (explicitTarget) {
-    return explicitTarget === 'cloudflare';
-  }
-
-  const detectedProvider = resolveDeployProvider();
-  return detectedProvider
-    ? CLOUDFLARE_DEPLOY_PROVIDERS.has(detectedProvider)
-    : false;
-};
-
 const rewriteWorkerEntryPath = (entry: string) =>
   entry
     .replace('index.jsx', 'index.server.jsx')
@@ -942,9 +914,8 @@ export function getCloudflareBuilderEnvironments({
   appContext,
   environments,
   normalizedConfig,
-  resolveDeployProvider = resolveStdEnvDeployProvider,
 }: CloudflareBuilderEnvironmentsOptions): Record<string, EnvironmentConfig> {
-  if (!isCloudflareWorkerDeploy(normalizedConfig, resolveDeployProvider)) {
+  if (appContext.deployTarget?.target !== 'cloudflare') {
     return environments;
   }
 
@@ -1001,9 +972,7 @@ export function applyCloudflareBuilderEnvironments(
   return { environments: getCloudflareBuilderEnvironments(options) };
 }
 
-export const createCloudflareBuilderPlugin = (
-  resolveDeployProvider = resolveStdEnvDeployProvider,
-): CloudflareBuilderPlugin => ({
+export const createCloudflareBuilderPlugin = (): CloudflareBuilderPlugin => ({
   name: '@modern-js/cloudflare-builder',
   setup(api) {
     api.modifyBuilderEnvironments(({ environments }) =>
@@ -1011,7 +980,6 @@ export const createCloudflareBuilderPlugin = (
         appContext: api.getAppContext(),
         environments,
         normalizedConfig: api.getNormalizedConfig(),
-        resolveDeployProvider,
       }),
     );
   },

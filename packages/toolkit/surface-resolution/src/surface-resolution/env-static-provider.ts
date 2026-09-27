@@ -192,7 +192,6 @@ type EnvContext = {
   env: EnvRecord;
   cloudflareDeployEnabled: boolean;
   workersDevSubdomain: string | undefined;
-  requireCloudflarePublicUrls: boolean;
   /**
    * Whether localhost dev fallbacks may be used. True only in designated
    * local environments; everywhere else missing config fails closed.
@@ -212,8 +211,6 @@ function createEnvContext(
       env,
       'ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN',
     ),
-    requireCloudflarePublicUrls:
-      env.ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS === 'true',
   };
 }
 
@@ -239,14 +236,6 @@ function resolveBaseUrl(
     return {
       ok: true,
       baseUrl: `https://${unit.workerName}.${context.workersDevSubdomain}.workers.dev`,
-    };
-  }
-
-  if (context.cloudflareDeployEnabled && context.requireCloudflarePublicUrls) {
-    return {
-      ok: false,
-      reason: `Cloudflare deploy requires ${publicUrlEnv} (or a configured manifest env / ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN with a worker name)`,
-      details: { publicUrlEnv },
     };
   }
 

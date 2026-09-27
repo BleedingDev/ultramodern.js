@@ -60,8 +60,11 @@ describe('headless Cloudflare worker build', () => {
 
     const onAfterBuild = createAsyncHook<() => Promise<void>>();
     const api = {
-      getAppContext: () => ({ apiOnly: true }),
-      getNormalizedConfig: () => ({ deploy: { target: 'cloudflare' } }),
+      getAppContext: () => ({
+        apiOnly: true,
+        deployTarget: { target: 'cloudflare', explicit: true },
+      }),
+      getNormalizedConfig: () => ({}),
       onAfterBuild: onAfterBuild.tap,
     } as unknown as CLIPluginAPI<AppTools>;
     for (const plugin of plugins) {
@@ -81,8 +84,12 @@ describe('headless Cloudflare worker build', () => {
       .mockResolvedValue(
         createBuilder as Awaited<ReturnType<typeof createBuilderGenerator>>,
       );
-    const appContext = { apiOnly: true, appDirectory: '/app' };
-    const normalizedConfig = { deploy: { target: 'cloudflare' } };
+    const appContext = {
+      apiOnly: true,
+      appDirectory: '/app',
+      deployTarget: { target: 'cloudflare', explicit: true },
+    };
+    const normalizedConfig = {};
     let onAfterBuild: (() => Promise<void>) | undefined;
     const plugin = getPlugin();
     expect(plugin.post).toContain('@modern-js/ultramodern-release-envelope');
@@ -117,8 +124,11 @@ describe('headless Cloudflare worker build', () => {
     rstest.mocked(createBuilderGenerator).mockClear();
     let onAfterBuild: (() => Promise<void>) | undefined;
     await getPlugin().setup?.({
-      getAppContext: () => ({ apiOnly }),
-      getNormalizedConfig: () => ({ deploy: { target } }),
+      getAppContext: () => ({
+        apiOnly,
+        deployTarget: { target, explicit: true },
+      }),
+      getNormalizedConfig: () => ({}),
       onAfterBuild: handler => {
         onAfterBuild = handler;
       },

@@ -168,9 +168,15 @@ the shell URL; added verticals use the same `ULTRAMODERN_PUBLIC_URL_<APP_ID>`
 pattern with hyphens converted to underscores and uppercased.
 
 ```bash
+export ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP=https://shell-super-app.example.workers.dev
 pnpm cloudflare:deploy
-pnpm exec cross-env ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP=https://shell-super-app.example.workers.dev pnpm cloudflare:proof --require-public-urls
+pnpm cloudflare:proof --require-public-urls
 ```
+
+`cloudflare:deploy` refuses to deploy an app without a public URL
+(`ULTRAMODERN_PUBLIC_URL_<APP_ID>`, `MODERN_PUBLIC_SITE_URL` or
+`ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN`). A Zephyr upload also needs
+`ZE_FAIL_BUILD=true` next to `ZE_CI_TOKEN` in the deploy environment.
 
 ## Strict Effect API
 

@@ -10,6 +10,12 @@ import type {
   InspectOptions,
 } from '../utils/types';
 
+// `onPrepare` resolves the target from argv before commander parses it.
+const deployTargetOption = [
+  '--deploy-target <target>',
+  'deploy target; overrides deploy.target and MODERNJS_DEPLOY',
+] as const;
+
 export const devCommand = async (
   program: Command,
   api: CLIPluginAPI<AppTools>,
@@ -41,6 +47,7 @@ export const buildCommand = async (
     .option('-c --config <config>', i18n.t(localeKeys.command.shared.config))
     .option('--analyze', i18n.t(localeKeys.command.shared.analyze))
     .option('-w --watch', i18n.t(localeKeys.command.build.watch))
+    .option(...deployTargetOption)
     .action(async (options: BuildOptions) => {
       const { build } = await import('./build.js');
       await build(api, options);
@@ -72,6 +79,7 @@ export const deployCommand = (
     .usage('[options]')
     .option('-c --config <config>', i18n.t(localeKeys.command.shared.config))
     .option('-s --skip-build', i18n.t(localeKeys.command.shared.skipBuild))
+    .option(...deployTargetOption)
     .description(i18n.t(localeKeys.command.deploy.describe))
     .action(async (options: DeployOptions) => {
       const { deploy } = await import('./deploy.js');

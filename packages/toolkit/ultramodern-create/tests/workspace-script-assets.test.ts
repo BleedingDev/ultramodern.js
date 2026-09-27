@@ -29,10 +29,14 @@ test('public surface generation invokes the installed CLI from the workspace roo
     'pnpm --dir ../.. exec ultramodern-create ultramodern routes-generate --app shell-super-app --manifest-only';
   const scripts = createWorkspaceAppPackageScripts(shellApp);
   assert.equal(scripts.dev, `${routesGenerate} && modern dev`);
-  assert(scripts.build.startsWith(`${routesGenerate} && modern build && `));
+  assert(
+    scripts.build.startsWith(
+      `${routesGenerate} && modern build --deploy-target node && `,
+    ),
+  );
   assert(
     scripts['cloudflare:build'].startsWith(
-      `${routesGenerate} && cross-env MODERNJS_DEPLOY=cloudflare modern build && `,
+      `${routesGenerate} && modern build --deploy-target cloudflare && `,
     ),
   );
   assert.doesNotMatch(
