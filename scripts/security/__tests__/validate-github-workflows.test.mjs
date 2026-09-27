@@ -290,6 +290,50 @@ test('release jobs reject inline programs and different Tractor acceptance revis
   }
 });
 
+test('release gates keep their fail-fast needs edges', () => {
+  const workflowPath = '.github/workflows/publish-bleedingdev.yml';
+  const content = fs.readFileSync(
+    new URL(`../../../${workflowPath}`, import.meta.url),
+    'utf8',
+  );
+  const edgeErrors = source =>
+    validateWorkflowContent(workflowPath, source).filter(
+      error =>
+        error.includes('must need') || error.includes('--check-registry'),
+    );
+  assert.deepEqual(edgeErrors(content), []);
+  for (const [edge, job, need] of [
+    [
+      '      - reconcile-sidecars\n    outputs:',
+      'accept-release',
+      'reconcile-sidecars',
+    ],
+    [
+      '      - prepare-release\n    steps:',
+      'reconcile-sidecars',
+      'prepare-release',
+    ],
+    [
+      '      - accept-release\n      # A dry run is green only when the Tractor rehearsal is.\n      - rehearse-tractor\n',
+      'validate-release',
+      'rehearse-tractor',
+    ],
+  ]) {
+    assert.equal(content.split(edge).length, 2, edge);
+    const kept = edge.replace(`      - ${need}\n`, '');
+    assert.deepEqual(edgeErrors(content.replace(edge, kept)), [
+      `${workflowPath} job ${job} must need ${need} so a registry or rehearsal failure stops the release before the expensive jobs finish`,
+    ]);
+  }
+  const check =
+    'run: node scripts/ultramodern-publish/publish-sidecars.mjs --check-registry';
+  assert.ok(content.includes(check));
+  assert.equal(
+    edgeErrors(content.replace(check, 'run: echo skipped')).length,
+    1,
+  );
+});
+
 test('release gates reject node:test filter flags', () => {
   const workflowPath = '.github/workflows/publish-bleedingdev.yml';
   const content = fs.readFileSync(

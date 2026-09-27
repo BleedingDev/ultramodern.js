@@ -905,11 +905,21 @@ const bleedingdevPublishJobs = Object.freeze([
   'publish-sidecars',
   'publish-security',
   'qualify-source',
+  'reconcile-sidecars',
   'record-publish-outcome',
   'rehearse-tractor',
   'tractor-downstream',
   'validate-release',
 ]);
+
+// Consumer: publish-bleedingdev.yml — fail-fast edges. The seconds-long
+// registry gates must finish before the clean-room acceptance starts, and a
+// dry run is green only when the Tractor rehearsal is.
+const bleedingdevRequiredNeeds = Object.freeze({
+  'accept-release': ['reconcile-sidecars'],
+  'reconcile-sidecars': ['prepare-release', 'publish-security'],
+  'validate-release': ['rehearse-tractor'],
+});
 
 // Consumer: publish-bleedingdev.yml — @bleedingdev/* publishes latest-only.
 const bleedingdevPublishTag = 'latest';
@@ -967,6 +977,33 @@ function collectBleedingdevPublishStructureErrors(workflow, relativePath) {
         `${relativePath} job ${jobId} step ${step.name ?? step.id ?? '<unnamed>'} must not set continue-on-error; let the run fail so the job can be rerun with gh run rerun --failed`,
       );
     }
+  }
+
+  for (const [jobId, required] of Object.entries(bleedingdevRequiredNeeds)) {
+    const needs = new Set(normalizeNeeds(jobs[jobId]));
+    for (const requiredJob of required) {
+      if (!needs.has(requiredJob)) {
+        errors.push(
+          `${relativePath} job ${jobId} must need ${requiredJob} so a registry or rehearsal failure stops the release before the expensive jobs finish`,
+        );
+      }
+    }
+  }
+  const securitySteps = Array.isArray(jobs['publish-security']?.steps)
+    ? jobs['publish-security'].steps
+    : [];
+  if (
+    !securitySteps.some(
+      step =>
+        typeof step?.run === 'string' &&
+        /^node scripts\/ultramodern-publish\/publish-sidecars\.mjs --check-registry$/mu.test(
+          stripShellComments(step.run),
+        ),
+    )
+  ) {
+    errors.push(
+      `${relativePath} job publish-security must run publish-sidecars.mjs --check-registry so a never-bootstrapped sidecar fails the release at t=0`,
+    );
   }
 
   const tractorRef = jobs['rehearse-tractor']?.with?.tractor_ref;

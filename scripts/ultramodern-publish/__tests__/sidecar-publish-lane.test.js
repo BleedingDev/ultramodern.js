@@ -732,6 +732,60 @@ test('the trusted-publishing lane refuses to bootstrap a package npm cannot crea
   );
 });
 
+test('--check-registry fails on a missing sidecar name before any bundle exists', async () => {
+  const { checkSidecarRegistry, parseArgs } = await importCli();
+  assert.equal(parseArgs(['--check-registry']).checkRegistry, true);
+  assert.throws(
+    () => parseArgs(['--check-registry', '--dry-run']),
+    /mutually exclusive/u,
+  );
+
+  const reads = [];
+  const recipes = () => [
+    { name: '@bleedingdev/ipx', version: '3.2.2' },
+    { name: '@bleedingdev/new-sidecar', version: '1.0.0' },
+  ];
+  const started = performance.now();
+  // A null packument is the registry's 404: the name was never bootstrapped.
+  // No propagation wait applies, so the gate answers on the first read.
+  await assert.rejects(
+    checkSidecarRegistry({
+      readPackument: async name => {
+        reads.push(name);
+        return name === '@bleedingdev/ipx' ? { name } : null;
+      },
+      readRecipes: recipes,
+    }),
+    error =>
+      /^@bleedingdev\/new-sidecar does not exist on the registry, so the trusted-publishing lane cannot create it\.$/mu.test(
+        error.message,
+      ) &&
+      /Bootstrap @bleedingdev\/new-sidecar@1\.0\.0 interactively once, with explicit authorization/u.test(
+        error.message,
+      ) &&
+      !error.message.includes('@bleedingdev/ipx'),
+  );
+  assert.ok(performance.now() - started < 1000);
+  assert.deepEqual(reads, ['@bleedingdev/ipx', '@bleedingdev/new-sidecar']);
+
+  // The default recipe source is the committed sidecars.json.
+  const checked = [];
+  const result = await checkSidecarRegistry({
+    readPackument: async name => {
+      checked.push(name);
+      return { name };
+    },
+  });
+  const committed = JSON.parse(
+    fs.readFileSync(
+      path.join(repoRoot, 'scripts/ultramodern-supply/sidecars.json'),
+      'utf8',
+    ),
+  ).map(recipe => recipe.fork.name);
+  assert.deepEqual(result.checked, committed);
+  assert.deepEqual(checked, committed);
+});
+
 test('the packed-consumer proof publishes to loopback registries only', async () => {
   const { assertLocalRegistry } = await import(
     '../verify-sidecar-consumer.mjs'
