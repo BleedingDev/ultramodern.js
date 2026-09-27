@@ -1198,12 +1198,13 @@ const changeDetectionActions = [
   'tj-actions/changed-files',
 ];
 
-// `steps.<id>.outputs` or `steps['<id>'].outputs` / `steps["<id>"].outputs`
-// in an expression. Only outputs carry a skip decision; `outcome` and
-// `conclusion` references are failure reporting and cleanup.
+// `steps.<id>.outputs` in an expression, with either segment also in
+// bracket form (`steps['<id>']['outputs']`). Only outputs carry a skip
+// decision; `outcome` and `conclusion` references are failure reporting and
+// cleanup.
 const stepReferencePattern = id =>
   new RegExp(
-    `\\bsteps(?:\\.${escapeRegExp(id)}(?![\\w-])|\\[\\s*(['"])${escapeRegExp(id)}\\1\\s*\\])\\s*\\.\\s*outputs\\b`,
+    `\\bsteps(?:\\.${escapeRegExp(id)}(?![\\w-])|\\[\\s*(['"])${escapeRegExp(id)}\\1\\s*\\])\\s*(?:\\.\\s*outputs\\b|\\[\\s*(['"])outputs\\2\\s*\\])`,
     'u',
   );
 
