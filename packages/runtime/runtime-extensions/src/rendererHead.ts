@@ -83,7 +83,7 @@ export const collectHeadRecord = <RecordType>(
   context: object,
   createRecord: () => RecordType,
   publish: (records: RecordType[]) => void,
-): RendererHeadMarkerProps | null | undefined => {
+): RendererHeadMarkerProps | undefined => {
   const state = getState(context);
   const transaction = state.transaction;
   if (transaction === undefined) {
@@ -95,11 +95,8 @@ export const collectHeadRecord = <RecordType>(
   if (!hadPublisher) {
     state.publish([]);
   }
-  if (transaction.sealed) {
-    dropLateHead(transaction);
-    return null;
-  }
-
+  // A Helmet rendered after the seal still gets a marker: it is dropped, and
+  // reported, only if its boundary actually commits to the output.
   const token = createToken(transaction);
   transaction.recordsByToken.set(token, createRecord());
   return { [MARKER_ATTRIBUTE]: token };
@@ -110,7 +107,7 @@ export const collectHeadState = <RecordType, StateType>(
   createRecord: () => RecordType,
   derive: (records: RecordType[]) => StateType,
   target: { helmet?: StateType },
-): RendererHeadMarkerProps | null | undefined =>
+): RendererHeadMarkerProps | undefined =>
   collectHeadRecord(context, createRecord, records => {
     target.helmet = derive(records);
   });

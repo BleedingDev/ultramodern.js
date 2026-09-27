@@ -37,7 +37,7 @@ describe('renderer head transactions', () => {
     expect(published).toEqual(['committed']);
   });
 
-  it('reports head records dropped after the shell is sealed', () => {
+  it('reports head records whose markers commit after the seal', () => {
     const context = {};
     const reports: string[] = [];
     let published: string[] = [];
@@ -46,39 +46,36 @@ describe('renderer head transactions', () => {
     };
     beginHeadRender(context, message => reports.push(message));
     const shell = collectHeadRecord(context, () => 'shell', publish)!;
-    const lateMarker = collectHeadRecord(
-      context,
-      () => 'late-marker',
-      publish,
-    )!;
+    // A boundary rendered before the seal but flushed after it.
+    const flushedLate = collectHeadRecord(context, () => 'flushed', publish)!;
     const processor = createHeadChunkProcessor(context);
     expect(processor.push(`a${marker(shell)}`)).toBe('a');
     publishHeadRender(context);
+    // A boundary rendered after the seal.
+    const renderedLate = collectHeadRecord(context, () => 'rendered', publish)!;
+    // A retry that renders a Helmet and then suspends again never commits.
+    collectHeadRecord(context, () => 'discarded', publish);
     expect(reports).toEqual([]);
 
-    // A boundary rendered before the seal but flushed after it.
-    expect(processor.push(`b${marker(lateMarker)}${marker(shell)}`)).toBe('b');
-    // A Helmet rendered after the seal gets no marker at all.
-    expect(collectHeadRecord(context, () => 'late-render', publish)).toBeNull();
-    processor.finish();
+    expect(processor.push(`b${marker(flushedLate)}${marker(shell)}`)).toBe('b');
+    expect(processor.finish(`c${marker(renderedLate)}`)).toBe('c');
 
     expect(published).toEqual(['shell']);
     expect(reports).toEqual([LATE_HEAD_MESSAGE]);
   });
 
-  it('reports a Helmet rendered after the seal', () => {
+  it('does not report a late Helmet whose boundary never commits', () => {
     const context = {};
     const reports: string[] = [];
     beginHeadRender(context, message => reports.push(message));
     publishHeadRender(context);
-    expect(
-      collectHeadRecord(
-        context,
-        () => 'late',
-        () => {},
-      ),
-    ).toBeNull();
-    expect(reports).toEqual([LATE_HEAD_MESSAGE]);
+    collectHeadRecord(
+      context,
+      () => 'discarded',
+      () => {},
+    );
+    expect(completeHeadRender(context, 'done')).toBe('done');
+    expect(reports).toEqual([]);
   });
 
   it('preserves user templates that are not current transaction markers', () => {
