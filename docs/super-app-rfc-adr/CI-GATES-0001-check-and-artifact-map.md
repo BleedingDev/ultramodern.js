@@ -15,7 +15,7 @@ Map ticket gates (A-D) to CI jobs, required artifacts, and blocker semantics so 
 | --- | --- | --- | --- |
 | Gate A: Architecture scope review | PR description + ticket docs checks (manual today) | Scope/out-of-scope, ADR links, compatibility impact, risk/rollback note | Ticket cannot move to implementation if architecture evidence missing |
 | Gate B: Implementation validation | `type-check.yml`, targeted build workflow (`build-main-website.yml`, `build-builder-website.yml`, `build-module-website.yml`, or relevant lane workflow) | Reproducible validation command list and pass output excerpt | Missing validation evidence blocks ticket close |
-| Gate C: Testing proof | `ut-macOS.yml`, `ut-Windows.yml`, `integration-test-Linux.yml`, `integration-test-Windows.yml`, targeted E2E (`test-builder-e2e.yml`) | Test inventory + command list + pass/fail summary + follow-up ticket for known gaps | Any failed required test blocks ticket close |
+| Gate C: Testing proof | `ut-macOS.yml`, `ut-Windows.yml`, `integration-test.yml` (Linux and Windows matrix), targeted E2E (`test-builder-e2e.yml`) | Test inventory + command list + pass/fail summary + follow-up ticket for known gaps | Any failed required test blocks ticket close |
 | Gate D: Final review (>=2 subagents) | Manual evidence gate (automatable in follow-up) | Two reviewer records, finding status, residual-risk resolution | Missing dual-review evidence blocks ticket close and release promotion |
 
 ## 3. Required Artifact Contract
@@ -42,7 +42,7 @@ Current workflow set referenced by this mapping:
 1. Lint and policy: `.github/workflows/lint-Linux.yml`
 2. Type check: `.github/workflows/type-check.yml`
 3. Unit tests: `.github/workflows/ut-macOS.yml`, `.github/workflows/ut-Windows.yml`
-4. Integration tests: `.github/workflows/integration-test-Linux.yml`, `.github/workflows/integration-test-Windows.yml`
+4. Integration tests: `.github/workflows/integration-test.yml`
 5. E2E: `.github/workflows/test-builder-e2e.yml`
 6. Boundary anti-pattern checks: `.github/workflows/boundary-anti-patterns.yml`
 

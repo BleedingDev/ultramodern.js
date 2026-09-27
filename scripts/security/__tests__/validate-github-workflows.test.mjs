@@ -334,6 +334,54 @@ test('release gates keep their fail-fast needs edges', () => {
   );
 });
 
+test('integration gates pull requests with one job per suite', () => {
+  const workflowPath = '.github/workflows/integration-test.yml';
+  const content = fs.readFileSync(
+    new URL(`../../../${workflowPath}`, import.meta.url),
+    'utf8',
+  );
+  const gateErrors = source =>
+    validateWorkflowContent(workflowPath, source).filter(
+      error =>
+        error.includes('must trigger on') ||
+        error.includes('must not filter paths') ||
+        error.includes('one suite per job'),
+    );
+  assert.deepEqual(gateErrors(content), []);
+  for (const trigger of ['pull_request', 'merge_group', 'workflow_call']) {
+    const line = new RegExp(`^  ${trigger}:.*\n(?:    .*\n)*`, 'mu');
+    assert.match(content, line, trigger);
+    assert.deepEqual(gateErrors(content.replace(line, '')), [
+      `${workflowPath} must trigger on ${trigger}: integration gates pull requests, the merge queue and the release`,
+    ]);
+  }
+  assert.equal(
+    gateErrors(
+      content.replace(
+        '  merge_group:\n',
+        "  merge_group:\n  push:\n    paths-ignore: ['docs/**']\n",
+      ),
+    ).length,
+    1,
+  );
+  // A second suite chained in the same job runs only if the first passed.
+  const adapterGate = "        if: matrix.suite == 'rstest-adapter'\n";
+  assert.ok(content.includes(adapterGate));
+  assert.equal(gateErrors(content.replace(adapterGate, '')).length, 1);
+  assert.equal(
+    gateErrors(
+      content.replace(adapterGate, "        if: matrix.suite == 'framework'\n"),
+    ).length,
+    1,
+  );
+  assert.equal(
+    gateErrors(
+      content.replace(adapterGate, "        if: matrix.suite == 'e2e'\n"),
+    ).length,
+    1,
+  );
+});
+
 test('release gates reject node:test filter flags', () => {
   const workflowPath = '.github/workflows/publish-bleedingdev.yml';
   const content = fs.readFileSync(

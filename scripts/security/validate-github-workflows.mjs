@@ -1069,6 +1069,71 @@ function collectBleedingdevPublishStructureErrors(workflow, relativePath) {
   return errors;
 }
 
+// Consumer: .github/workflows/integration-test.yml — the integration gate
+// runs on every pull request and merge-queue entry and is called by the
+// release on the exact commit it publishes. Each suite is its own matrix job:
+// a second suite step in one job would run only on the implicit success() of
+// the first, so a red suite would hide the rest.
+const integrationWorkflowPath = '.github/workflows/integration-test.yml';
+const integrationTriggers = Object.freeze([
+  'pull_request',
+  'merge_group',
+  'workflow_call',
+]);
+const testScriptPattern = /\btest:[\w:-]+/u;
+const suiteConditionPattern = /^matrix\.suite\s*==\s*'([\w-]+)'$/u;
+
+function collectIntegrationGateErrors(workflow, relativePath) {
+  if (relativePath !== integrationWorkflowPath) {
+    return [];
+  }
+  const triggers = getTriggers(workflow);
+  const errors = integrationTriggers
+    .filter(trigger => !triggers.includes(trigger))
+    .map(
+      trigger =>
+        `${relativePath} must trigger on ${trigger}: integration gates pull requests, the merge queue and the release`,
+    );
+  if (isObject(workflow.on)) {
+    for (const [event, config] of Object.entries(workflow.on)) {
+      if (
+        isObject(config) &&
+        ['paths', 'paths-ignore'].some(filter => filter in config)
+      ) {
+        errors.push(
+          `${relativePath} on.${event} must not filter paths: a required check has to report on every change`,
+        );
+      }
+    }
+  }
+  const suitesByJob = new Map();
+  for (const { jobId, job, step } of workflowSteps(workflow)) {
+    if (
+      typeof step.run !== 'string' ||
+      !testScriptPattern.test(stripShellComments(step.run))
+    ) {
+      continue;
+    }
+    const matrixSuites = job.strategy?.matrix?.suite;
+    const suite = suiteConditionPattern.exec(
+      typeof step.if === 'string' ? step.if.trim() : '',
+    )?.[1];
+    const seen = suitesByJob.get(jobId) ?? [];
+    suitesByJob.set(jobId, [...seen, suite]);
+    if (
+      suite === undefined ||
+      seen.includes(suite) ||
+      !Array.isArray(matrixSuites) ||
+      !matrixSuites.includes(suite)
+    ) {
+      errors.push(
+        `${relativePath} job ${jobId} step ${step.name ?? '<unnamed>'} must run one suite per job, selected by if: matrix.suite == '<suite>' from the job's matrix.suite`,
+      );
+    }
+  }
+  return errors;
+}
+
 // actions/cache versions an entry by the literal path strings, so a `..` or
 // `.` segment spelling of a directory never shares an entry with its normalized
 // spelling and hides which directory is cached. Pass a normalized path.
@@ -1784,6 +1849,9 @@ export function validateWorkflowContent(relativePath, content, options = {}) {
   }
   for (const message of collectPublishOutcomeErrors(workflow, relativePath)) {
     push('publish-outcome-contract', message);
+  }
+  for (const message of collectIntegrationGateErrors(workflow, relativePath)) {
+    push('integration-gate', message);
   }
   for (const message of collectBleedingdevPublishStructureErrors(
     workflow,

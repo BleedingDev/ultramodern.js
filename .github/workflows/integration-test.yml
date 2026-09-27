@@ -1,28 +1,48 @@
-name: Integration Test(Windows)
+name: Integration Test
 
-# Controls when the action will run.
 on:
-  # Triggers the workflow on pull request events but only for the main branch
-  push:
-    branches: [main, main-ultramodern, renovate/main-rsbuild]
-    paths-ignore:
-      - 'docs/**'
-      - '**/*.md'
-      - '.changeset/**'
+  # No path filter: a required check must report on every pull request and
+  # merge-queue entry, and merge_group does not support path filters.
+  pull_request:
+    branches: [main, main-ultramodern]
 
-  # Allows you to run this workflow manually from the Actions tab
+  merge_group:
+
+  # publish-bleedingdev.yml calls this on the exact commit it releases; a
+  # called workflow shares the caller's github.sha.
+  workflow_call:
+
   workflow_dispatch:
 
 permissions:
   contents: read
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  integration-test-windows:
-    # The type of runner that the job will run on
-    runs-on: windows-latest
+  integration:
+    name: integration-${{ matrix.platform }} (${{ matrix.suite }})
+    runs-on: ${{ matrix.runner }}
 
-    # Steps represent a sequence of tasks that will be executed as part of the job
+    # The GitHub-hosted public runner has 4 vCPU / 16 GB. A healthy run is ~15 min;
+    # this ceiling turns a hung fixture into a clean failure instead of letting
+    # the job sit on the GitHub default of 6 hours.
+    timeout-minutes: 60
+
+    # One job per suite, so a red suite never hides the ones after it behind
+    # an implicit success() and each suite is its own required check.
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [Linux, Windows]
+        suite: [framework, rstest-adapter, utils]
+        exclude:
+          - platform: Windows
+            suite: utils
+        include:
+          - platform: Linux
+            runner: ubuntu-24.04
+          - platform: Windows
+            runner: windows-latest
+
     steps:
       - name: Print runner context
         env:
@@ -30,9 +50,9 @@ jobs:
         run: echo "$RUNNER_CONTEXT"
 
       - name: Git config
+        if: runner.os == 'Windows'
         shell: bash
-        run: |
-          git config --system core.longpaths true
+        run: git config --system core.longpaths true
 
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -90,8 +110,16 @@ jobs:
           node scripts/lib/browser-provisioning.js --install --runtime tests --runtime tests/integration/rstest/basic-app-rstest-browser
           --version ${{ steps.browser-runtime.outputs.version }}
 
-      - name: Test
+      - name: Test - Framework
+        if: matrix.suite == 'framework'
         run: pnpm run test:framework
 
       - name: Test - Adapter Rstest
-        run: cd ./tests && pnpm run test:rstest-adapter
+        if: matrix.suite == 'rstest-adapter'
+        working-directory: tests
+        run: pnpm run test:rstest-adapter
+
+      - name: Test - Published package surfaces
+        if: matrix.suite == 'utils'
+        working-directory: tests
+        run: pnpm run test:utils
