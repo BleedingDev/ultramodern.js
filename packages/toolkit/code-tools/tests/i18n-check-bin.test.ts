@@ -110,6 +110,21 @@ test('modern-i18n-check defaults sourceRoots to the conventional directories tha
   );
 });
 
+test('modern-i18n-check rejects an absolute source root inside the workspace', () => {
+  const root = workspace({ 'apps/shell/src/App.tsx': violation });
+  fs.writeFileSync(
+    path.join(root, 'package.json'),
+    JSON.stringify({
+      modernjs: { i18nCheck: { sourceRoots: [path.join(root, 'apps')] } },
+    }),
+  );
+
+  const result = run(root);
+
+  expect(result.status).toBe(2);
+  expect(result.stderr).toContain('"modernjs.i18nCheck.sourceRoots" must be');
+});
+
 test('modern-i18n-check rejects a source root that symlinks outside the workspace', () => {
   const outside = workspace({ 'shell/src/App.tsx': violation });
   const root = workspace({
