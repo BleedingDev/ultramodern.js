@@ -306,6 +306,16 @@ test('contract rules receive the resolved re-export chain across packages', asyn
     }).diagnostics,
   ).toContain('verticals/catalog/shared/api.ts: catalogSearchApi unresolved');
 
+  // A rule that does not return an array of messages is a tool failure, not a pass.
+  const stringRule = (() => '') as unknown as MicroVerticalApiContractRule;
+  expect(
+    checkMicroVerticalApiConsumerFiles({
+      workspaceRoot: root,
+      baselinePackageDirectory: owner,
+      contractRules: [stringRule],
+    }).toolErrors.join('\n'),
+  ).toContain('contract rule must return an array of violation messages');
+
   // The CLI loads rules from a module; their messages are consumer violations.
   write(file, publicContract);
   const cli = (rules: string) =>
