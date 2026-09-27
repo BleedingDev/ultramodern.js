@@ -76,16 +76,6 @@ function honours(version, value) {
   return true;
 }
 
-// pnpm applies an override to a peer when the selector's range intersects
-// the declared peer range, then rewrites (or deletes) that range.
-function peerMatches(peer, range) {
-  if (range === undefined) return true;
-  const declared = String(peer);
-  return (
-    semver.validRange(declared) !== null && semver.intersects(declared, range)
-  );
-}
-
 function childEdge(snapshot, name) {
   return (
     (snapshot.dependencies ?? {})[name] ??
@@ -107,10 +97,7 @@ function findRemovalViolations(key, parent, target, snapshots, importers) {
   }
   const kept = scope.filter(entry => {
     const child = childEdge(entry.snapshot, target.name);
-    if (child === undefined) {
-      const peer = entry.peers[target.name];
-      return peer !== undefined && peerMatches(peer, target.range);
-    }
+    if (child === undefined) return false;
     return inRange(
       parsePackageKey(`${target.name}@${child}`).version,
       target.range,
@@ -131,8 +118,11 @@ function findRemovalViolations(key, parent, target, snapshots, importers) {
  */
 export function findOverrideViolations(lockfileText, importerNames) {
   const lockfile = parse(lockfileText);
-  // pnpm also rewrites peer ranges. An unresolved or optional peer leaves
-  // no snapshot edge, only the range in the package's peerDependencies.
+  // An unresolved or optional peer leaves no snapshot edge, only the name in
+  // the package's peerDependencies. It proves an override target is live,
+  // but its range is the manifest's: the lockfile keeps a peer range as
+  // published even after an override applies (follow-redirects keeps peer
+  // `debug: '*'` under `debug: '>=4.4.3'`), so peer ranges are not judged.
   const snapshots = Object.entries(lockfile.snapshots ?? {}).map(
     ([key, snapshot]) => {
       const { name, version } = parsePackageKey(key);
@@ -257,15 +247,7 @@ export function findOverrideViolations(lockfileText, importerNames) {
         };
         const child = deps[target.name];
         if (child === undefined) {
-          const peer = entry.peers[target.name];
-          if (peer === undefined) continue;
-          edges += 1;
-          if (peerMatches(peer, target.range) && String(peer) !== value) {
-            violations.push(
-              `'${key}': ${entry.name}@${entry.version} still declares peer ${target.name}@${peer}, not ${value}. ` +
-                'Run pnpm install so the lockfile picks up the override.',
-            );
-          }
+          if (target.name in entry.peers) edges += 1;
           continue;
         }
         edges += 1;
@@ -289,21 +271,7 @@ export function findOverrideViolations(lockfileText, importerNames) {
     for (const entry of [...importers, ...snapshots]) {
       if (ownedByParentOverride(entry, target.name)) continue;
       const edge = childEdge(entry.snapshot, target.name);
-      if (edge !== undefined) {
-        judged.add(String(edge).replace(/\(.*$/, ''));
-        continue;
-      }
-      const peer = entry.peers[target.name];
-      if (
-        peer !== undefined &&
-        peerMatches(peer, target.range) &&
-        String(peer) !== value
-      ) {
-        violations.push(
-          `'${key}': ${entry.name}@${entry.version} still declares peer ${target.name}@${peer}, not ${value}. ` +
-            'Run pnpm install so the lockfile picks up the override.',
-        );
-      }
+      if (edge !== undefined) judged.add(String(edge).replace(/\(.*$/, ''));
     }
     for (const version of judged) {
       // An unranged selector matches any specifier, including git, file

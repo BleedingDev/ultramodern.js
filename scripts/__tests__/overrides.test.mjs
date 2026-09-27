@@ -330,74 +330,6 @@ test('a parent override of a peer without a snapshot edge is live', () => {
   );
 });
 
-test('peer-only targets count for generic, removal and parent overrides', () => {
-  const lockfile = preFixLockfile.replace(
-    '  nx@23.2.1: {}\n',
-    '  nx@23.2.1:\n    peerDependencies:\n      react: ^19\n',
-  );
-  const withOverrides = overrides =>
-    lockfile.replace(
-      /overrides:[\s\S]*?importers:/,
-      `overrides:\n${overrides}\nimporters:`,
-    );
-  assert.deepEqual(
-    findOverrideViolations(withOverrides("  react: '^19'"), importerNames),
-    [],
-  );
-  assert.deepEqual(
-    findOverrideViolations(withOverrides("  nx>react: '^18'"), importerNames),
-    [
-      "'nx>react': nx@23.2.1 still declares peer react@^19, not ^18. " +
-        'Run pnpm install so the lockfile picks up the override.',
-    ],
-  );
-  assert.deepEqual(
-    findOverrideViolations(withOverrides("  nx>react: '-'"), importerNames),
-    [
-      "'nx>react': nx@23.2.1 still depends on react, which this override removes. " +
-        'Run pnpm install so the lockfile picks up the override.',
-    ],
-  );
-});
-
-test('ranged selectors apply to peers whose range they intersect', () => {
-  const lockfile = preFixLockfile.replace(
-    '  nx@23.2.1: {}\n',
-    '  nx@23.2.1:\n    peerDependencies:\n      react: ^18\n',
-  );
-  const withOverrides = overrides =>
-    lockfile.replace(
-      /overrides:[\s\S]*?importers:/,
-      `overrides:\n${overrides}\nimporters:`,
-    );
-  const stale =
-    'nx@23.2.1 still declares peer react@^18, not ^19. Run pnpm install so the lockfile picks up the override.';
-  assert.deepEqual(
-    findOverrideViolations(withOverrides("  react: '^19'"), importerNames),
-    [`'react': ${stale}`],
-  );
-  assert.deepEqual(
-    findOverrideViolations(
-      withOverrides("  nx>react@^18: '^19'"),
-      importerNames,
-    ),
-    [`'nx>react@^18': ${stale}`],
-  );
-  assert.equal(
-    findOverrideViolations(withOverrides("  react@^18: '-'"), importerNames)
-      .length,
-    1,
-  );
-  // A selector outside the declared peer range leaves it alone.
-  assert.deepEqual(
-    findOverrideViolations(
-      withOverrides("  nx>react@^17: '^19'"),
-      importerNames,
-    ),
-    [],
-  );
-});
-
 test('an unranged override judges git and file edges too', () => {
   const lockfile = preFixLockfile
     .replace(
@@ -412,4 +344,30 @@ test('an unranged override judges git and file edges too', () => {
     "'left-pad': the lockfile still resolves left-pad@https://codeload.github.com/a/left-pad/tar.gz/abc, which this override should replace with 2.0.0. " +
       'Run pnpm install, or fix the selector if pnpm does not match it.',
   ]);
+});
+
+test('peer ranges prove liveness but are not judged', () => {
+  // The lockfile keeps a peer range as published even after an override
+  // applies: follow-redirects keeps peer `debug: '*'` under
+  // `debug: '>=4.4.3'`.
+  const lockfile = preFixLockfile.replace(
+    '  nx@23.2.1: {}\n',
+    '  nx@23.2.1:\n    peerDependencies:\n      react: ^18\n',
+  );
+  for (const override of [
+    "  react: '^19'",
+    "  nx>react: '^19'",
+    "  nx>react@^18: '^19'",
+  ]) {
+    assert.deepEqual(
+      findOverrideViolations(
+        lockfile.replace(
+          /overrides:[\s\S]*?importers:/,
+          `overrides:\n${override}\nimporters:`,
+        ),
+        importerNames,
+      ),
+      [],
+    );
+  }
 });
