@@ -509,20 +509,23 @@ const scopedInstallPackages = run =>
 // Run text that executes before an unconditional dependency install has
 // finished, with the packages a scoped `npm install <pkg>` made available.
 // A backgrounded install finishes at the first later step that joins it.
-const bareSteps = steps => {
+const bareSteps = (steps, defaultCwd) => {
   const result = [];
   const available = new Set();
   let installInFlight = false;
   for (const step of steps) {
     const run =
       typeof step.run === 'string' ? stripShellComments(step.run) : '';
+    const cwd =
+      typeof step['working-directory'] === 'string'
+        ? step['working-directory']
+        : defaultCwd;
+    const push = text =>
+      result.push({ available: new Set(available), cwd, run: text });
     const join = installInFlight ? joinCommandPattern.exec(run) : null;
     if (join !== null) {
       // Commands before the join still run while the install is in flight.
-      result.push({
-        available: new Set(available),
-        run: run.slice(0, join.index),
-      });
+      push(run.slice(0, join.index));
       break;
     }
     const installAt =
@@ -535,39 +538,73 @@ const bareSteps = steps => {
           )
         : Number.POSITIVE_INFINITY;
     if (installAt === Number.POSITIVE_INFINITY) {
-      result.push({ available: new Set(available), run });
+      push(run);
       continue;
     }
     // Commands before the install in the same step still run bare.
-    result.push({
-      available: new Set(available),
-      run: run.slice(0, installAt),
-    });
+    push(run.slice(0, installAt));
     const scoped = scopedInstallPackages(run.slice(installAt));
     if (scoped.length > 0) {
       for (const name of scoped) {
         available.add(name);
       }
-      result.push({ available: new Set(available), run: run.slice(installAt) });
+      push(run.slice(installAt));
       continue;
     }
     if (!backgroundCommandPattern.test(run)) {
       break;
     }
+    // Commands after a backgrounded install run while it is in flight.
+    push(run.slice(installAt));
     installInFlight = true;
   }
   return result;
 };
 
+// Workspace path of this repository's checkout: the first actions/checkout
+// of this repository, at its `with.path` (default: the workspace root).
+const repositoryCheckoutPath = steps => {
+  const checkout = steps.find(
+    step =>
+      typeof step.uses === 'string' &&
+      step.uses.startsWith('actions/checkout@') &&
+      (step.with?.repository === undefined ||
+        String(step.with.repository).includes('github.repository')),
+  );
+  return typeof checkout?.with?.path === 'string' ? checkout.with.path : '.';
+};
+
 const bareJobRuns = workflow =>
   Object.entries(isObject(workflow.jobs) ? workflow.jobs : {}).map(
-    ([jobId, job]) => ({
-      jobId,
-      runs: bareSteps(
-        Array.isArray(job?.steps) ? job.steps.filter(isObject) : [],
-      ),
-    }),
+    ([jobId, job]) => {
+      const steps = Array.isArray(job?.steps) ? job.steps.filter(isObject) : [];
+      return {
+        checkoutPath: repositoryCheckoutPath(steps),
+        jobId,
+        runs: bareSteps(
+          steps,
+          typeof job?.defaults?.run?.['working-directory'] === 'string'
+            ? job.defaults.run['working-directory']
+            : '.',
+        ),
+      };
+    },
   );
+
+// Repository-relative path of a script run from a workspace-relative
+// working directory, or undefined when it lies outside this checkout.
+const repositoryScriptPath = (checkoutPath, cwd, script) => {
+  const workspaceCwd =
+    cwd.replace(/^\$\{\{\s*github\.workspace\s*\}\}\/?/u, '') || '.';
+  if (workspaceCwd.includes('${{') || path.posix.isAbsolute(workspaceCwd)) {
+    return undefined;
+  }
+  const relative = path.posix.relative(
+    checkoutPath,
+    path.posix.join(workspaceCwd, script),
+  );
+  return relative.startsWith('..') ? undefined : relative;
+};
 
 /**
  * A step that runs before an unconditional dependency install (`pnpm
@@ -578,12 +615,16 @@ const bareJobRuns = workflow =>
  */
 function collectBareJobImportErrors(workflow, relativePath, options) {
   const jobs = bareJobRuns(workflow);
-  const invocations = jobs.flatMap(({ jobId, runs }) =>
-    runs.flatMap(({ available, run }) =>
+  const invocations = jobs.flatMap(({ checkoutPath, jobId, runs }) =>
+    runs.flatMap(({ available, cwd, run }) =>
       nodeInvocations(run).map(invocation => ({
         ...invocation,
         available,
         jobId,
+        script:
+          invocation.script === undefined
+            ? undefined
+            : repositoryScriptPath(checkoutPath, cwd, invocation.script),
       })),
     ),
   );
@@ -593,16 +634,16 @@ function collectBareJobImportErrors(workflow, relativePath, options) {
         `${relativePath} job ${jobId} runs node ${option} before any dependency install; a preloaded module is not checked, so import it from the entrypoint instead`,
     ),
   );
-  const entrypoints = [
-    ...new Map(
-      invocations
-        .filter(({ script }) => script !== undefined)
-        .map(({ available, jobId, script }) => [
-          `${jobId}\0${script}`,
-          { available, entrypoint: script, jobId },
-        ]),
-    ).values(),
-  ];
+  // Available packages only grow within a job, so the first invocation of a
+  // script is its strictest state.
+  const entrypoints = [];
+  const seen = new Set();
+  for (const { available, jobId, script } of invocations) {
+    if (script !== undefined && !seen.has(`${jobId}\0${script}`)) {
+      seen.add(`${jobId}\0${script}`);
+      entrypoints.push({ available, entrypoint: script, jobId });
+    }
+  }
   if (entrypoints.length === 0) {
     return preloadErrors;
   }

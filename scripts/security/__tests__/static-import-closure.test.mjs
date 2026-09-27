@@ -203,6 +203,43 @@ test('an npm install of named packages makes only those packages available', t =
   );
 });
 
+test('each invocation keeps its own dependency state and working directory', t => {
+  const rootDir = withRepository(t, {
+    ...recorderFiles,
+    'tools/check.mjs': "import { z } from 'zod';\n",
+    'check.mjs': '',
+  });
+  const workflow =
+    workflowWithJob(`      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: repo
+      - working-directory: repo
+        run: node scripts/record.mjs
+      - run: npm install --no-save yaml
+      - working-directory: repo
+        run: node scripts/record.mjs
+      - working-directory: repo/tools
+        run: node check.mjs
+      - working-directory: \${{ github.workspace }}/repo
+        run: node check.mjs
+      - working-directory: other
+        run: node scripts/record.mjs
+`);
+  const bareTail = workflowWithJob(`      - run: |
+          mise exec -- pnpm install --frozen-lockfile > install.log 2>&1 &
+          node scripts/record.mjs
+`);
+  const loads = content =>
+    validateWorkflowContent('.github/workflows/example.yml', content, {
+      rootDir,
+    }).map(message => message.match(/runs (\S+) .* loads (\S+)/u).slice(1));
+  assert.deepEqual(loads(workflow), [
+    ['scripts/record.mjs', 'yaml'],
+    ['tools/check.mjs', 'zod'],
+  ]);
+  assert.deepEqual(loads(bareTail), [['scripts/record.mjs', 'yaml']]);
+});
+
 test('a conditional install does not make later steps installed', t => {
   const rootDir = withRepository(t, recorderFiles);
   const workflow = workflowWithJob(`      - if: github.event_name == 'push'
