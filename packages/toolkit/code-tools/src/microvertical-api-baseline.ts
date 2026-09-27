@@ -1,15 +1,14 @@
-import fs from 'node:fs';
-import { createRequire } from 'node:module';
-import path from 'node:path';
 import * as t from '@babel/types';
-import { type Exports, exports as resolvePackageExport } from 'resolve.exports';
 import { baselinePublicIdentityIsExact } from './microvertical-api-owner.ts';
 import {
-  parseSource,
-  SourceSyntaxError,
-  traverseSource,
-  unwrapExpression,
-} from './source-analysis.ts';
+  createModuleGraph,
+  exportedConst,
+  localConst,
+  type ModuleGraph,
+  propertyName,
+  type SourceModule,
+} from './module-graph.ts';
+import { SourceSyntaxError, unwrapExpression } from './source-analysis.ts';
 
 type Node = t.Node;
 type Expression = t.Node;
@@ -23,32 +22,6 @@ type ObjectLiteralElementLike =
   | t.SpreadElement;
 type CallExpression = t.CallExpression;
 
-function parseConsumer(filePath: string): t.File {
-  if (fs.statSync(filePath).size > 1_000_000)
-    throw new Error(
-      `${filePath}: consumer source exceeds 1 MB analysis budget`,
-    );
-  const file = parseSource(fs.readFileSync(filePath, 'utf8'), filePath);
-  traverseSource(file, {
-    AssignmentExpression(p) {
-      throw new SourceSyntaxError(
-        `contract bindings must be immutable at ${p.node.start}`,
-      );
-    },
-    UpdateExpression(p) {
-      throw new SourceSyntaxError(
-        `contract bindings must be immutable at ${p.node.start}`,
-      );
-    },
-    TSModuleDeclaration() {
-      throw new SourceSyntaxError(
-        'contract bindings must not be merged with namespaces',
-      );
-    },
-  });
-  return file;
-}
-
 const camelCaseStem = (stem: string): string =>
   stem.replaceAll(/-([a-z0-9])/gu, (_match, letter: string) =>
     letter.toUpperCase(),
@@ -61,18 +34,6 @@ const pascalCaseStem = (stem: string): string => {
 
 const identifierName = (node: Node | undefined): string | undefined =>
   node !== undefined && t.isIdentifier(node) ? node.name : undefined;
-
-const propertyName = (node: Node | undefined): string | undefined => {
-  if (
-    node !== undefined &&
-    (t.isIdentifier(node) ||
-      t.isStringLiteral(node) ||
-      t.isNumericLiteral(node))
-  ) {
-    return t.isIdentifier(node) ? node.name : String(node.value);
-  }
-  return undefined;
-};
 
 const accessPath = (node: Expression): readonly string[] | undefined => {
   if (t.isIdentifier(node)) {
@@ -123,349 +84,6 @@ const callExpression = (
   return t.isCallExpression(unwrapped) && isAccessPath(unwrapped.callee, callee)
     ? unwrapped
     : undefined;
-};
-
-const localConst = (
-  sourceFile: SourceFile,
-  name: string,
-): VariableDeclaration | undefined => {
-  for (const item of sourceFile.program.body) {
-    const statement = t.isExportNamedDeclaration(item)
-      ? item.declaration
-      : item;
-    if (!t.isVariableDeclaration(statement) || statement.kind !== 'const')
-      continue;
-    const matches = statement.declarations.filter(declaration =>
-      t.isIdentifier(declaration.id, { name }),
-    );
-    if (matches.length === 1) return matches[0];
-  }
-  return undefined;
-};
-const exportedConst = (
-  sourceFile: SourceFile,
-  name: string,
-): VariableDeclaration | undefined => {
-  for (const statement of sourceFile.program.body) {
-    if (
-      !t.isExportNamedDeclaration(statement) ||
-      statement.exportKind === 'type'
-    )
-      continue;
-    if (
-      t.isVariableDeclaration(statement.declaration) &&
-      statement.declaration.kind === 'const'
-    ) {
-      const declaration = statement.declaration.declarations.find(value =>
-        t.isIdentifier(value.id, { name }),
-      );
-      if (declaration) return declaration;
-    }
-    if (
-      !statement.source &&
-      statement.specifiers.some(
-        value =>
-          t.isExportSpecifier(value) &&
-          value.exportKind !== 'type' &&
-          t.isIdentifier(value.local, { name }) &&
-          t.isIdentifier(value.exported, { name }),
-      )
-    )
-      return localConst(sourceFile, name);
-  }
-  return undefined;
-};
-
-interface ConsumerModule {
-  readonly file: SourceFile;
-  readonly path: string;
-  readonly boundary: string;
-}
-
-interface ResolvedBinding {
-  readonly expression: Expression;
-  readonly module: ConsumerModule;
-}
-
-const inside = (file: string, boundary: string): boolean =>
-  file === boundary || file.startsWith(`${boundary}${path.sep}`);
-
-const containingWorkspace = (file: string): string | undefined => {
-  for (
-    let directory = path.dirname(file);
-    ;
-    directory = path.dirname(directory)
-  ) {
-    if (fs.existsSync(path.join(directory, 'pnpm-workspace.yaml')))
-      return fs.realpathSync(directory);
-    if (directory === path.dirname(directory)) return undefined;
-  }
-};
-
-const sourceBoundary = (file: string, workspace?: string): string => {
-  for (
-    let directory = path.dirname(file);
-    ;
-    directory = path.dirname(directory)
-  ) {
-    if (
-      fs.existsSync(path.join(directory, 'package.json')) &&
-      directory !== workspace
-    )
-      return fs.realpathSync(directory);
-    if (directory === workspace || directory === path.dirname(directory))
-      return fs.realpathSync(path.dirname(file));
-  }
-};
-
-/** Resolve TypeScript source substitutions without interpreting tsconfig paths as public exports. */
-const sourceFileAt = (target: string, boundary: string): string | undefined => {
-  const stem = target.replace(/\.(?:[cm]?[jt]sx?)$/u, '');
-  for (const candidate of [
-    `${stem}.ts`,
-    `${stem}.tsx`,
-    `${stem}.mts`,
-    `${stem}.cts`,
-    target,
-    path.join(target, 'index.ts'),
-    path.join(target, 'index.tsx'),
-  ]) {
-    try {
-      const real = fs.realpathSync(candidate);
-      if (inside(real, boundary) && fs.statSync(real).isFile()) return real;
-    } catch {
-      // A missing candidate cannot establish a public contract binding.
-    }
-  }
-  return undefined;
-};
-
-const packageEntry = (
-  specifier: string,
-): { name: string; exportKey: string } | undefined => {
-  if (
-    specifier.startsWith('.') ||
-    specifier.startsWith('/') ||
-    specifier.startsWith('#')
-  )
-    return undefined;
-  const parts = specifier.split('/');
-  const count = specifier.startsWith('@') ? 2 : 1;
-  if (parts.length < count || parts.slice(0, count).some(part => !part))
-    return undefined;
-  return {
-    name: parts.slice(0, count).join('/'),
-    exportKey:
-      parts.length === count ? '.' : `./${parts.slice(count).join('/')}`,
-  };
-};
-
-/** Public package exports are the only cross-package source traversal edge. */
-const resolveModulePath = (
-  module: ConsumerModule,
-  specifier: string,
-  workspace?: string,
-): { path: string; boundary: string } | undefined => {
-  if (/^\.\.?\//u.test(specifier)) {
-    const file = sourceFileAt(
-      path.resolve(path.dirname(module.path), specifier),
-      module.boundary,
-    );
-    return file === undefined
-      ? undefined
-      : { path: file, boundary: module.boundary };
-  }
-  const entry = packageEntry(specifier);
-  if (!entry || !workspace) return undefined;
-  const paths = createRequire(module.path).resolve.paths(entry.name) ?? [];
-  for (const lookup of paths) {
-    const directory = path.join(lookup, entry.name);
-    const manifest = path.join(directory, 'package.json');
-    if (!fs.existsSync(manifest)) continue;
-    const boundary = fs.realpathSync(directory);
-    // Installed third-party dependencies and a sibling's private paths cannot
-    // become declarations in this workspace's composed API.
-    if (
-      !inside(boundary, workspace) ||
-      boundary.split(path.sep).includes('node_modules')
-    )
-      return undefined;
-    const pkg = JSON.parse(fs.readFileSync(manifest, 'utf8')) as {
-      name: string;
-      exports?: Exports;
-    };
-    if (pkg.name !== entry.name || pkg.exports === undefined) return undefined;
-    let target: string | undefined;
-    try {
-      const targets = resolvePackageExport(pkg, entry.exportKey, {
-        conditions: ['modern:source'],
-      });
-      target = Array.isArray(targets) ? targets[0] : undefined;
-    } catch {
-      return undefined;
-    }
-    if (!target || !target.startsWith('./')) return undefined;
-    const file = sourceFileAt(path.resolve(boundary, target), boundary);
-    return file === undefined ? undefined : { path: file, boundary };
-  }
-  return undefined;
-};
-
-/** Parse each composed module once; an unreadable module stays unresolved instead of assumed valid. */
-const createModuleReader = (root: ConsumerModule) => {
-  const modules = new Map<string, ConsumerModule | undefined>([
-    [root.path, root],
-  ]);
-  return (filePath: string, boundary: string): ConsumerModule | undefined => {
-    if (modules.has(filePath)) return modules.get(filePath);
-    if (modules.size >= 256) return undefined;
-    let module: ConsumerModule | undefined;
-    try {
-      module = { file: parseConsumer(filePath), path: filePath, boundary };
-    } catch {
-      module = undefined;
-    }
-    modules.set(filePath, module);
-    return module;
-  };
-};
-
-const importedBinding = (
-  module: ConsumerModule,
-  name: string,
-): { readonly imported: string; readonly specifier: string } | undefined => {
-  for (const statement of module.file.program.body) {
-    if (!t.isImportDeclaration(statement) || statement.importKind === 'type')
-      continue;
-    for (const specifier of statement.specifiers) {
-      if (!t.isIdentifier(specifier.local, { name })) continue;
-      if (t.isImportSpecifier(specifier) && specifier.importKind !== 'type')
-        return {
-          imported: propertyName(specifier.imported) ?? name,
-          specifier: statement.source.value,
-        };
-      if (t.isImportDefaultSpecifier(specifier))
-        return { imported: 'default', specifier: statement.source.value };
-    }
-  }
-  return undefined;
-};
-
-const reexportedBinding = (
-  module: ConsumerModule,
-  name: string,
-): { readonly local: string; readonly specifier?: string } | undefined => {
-  for (const statement of module.file.program.body) {
-    if (
-      !t.isExportNamedDeclaration(statement) ||
-      statement.exportKind === 'type'
-    )
-      continue;
-    const specifier = statement.specifiers.find(
-      value =>
-        t.isExportSpecifier(value) &&
-        value.exportKind !== 'type' &&
-        propertyName(value.exported) === name,
-    );
-    if (specifier !== undefined && t.isExportSpecifier(specifier))
-      return {
-        local: t.isIdentifier(specifier.local)
-          ? specifier.local.name
-          : specifier.local.value,
-        ...(statement.source ? { specifier: statement.source.value } : {}),
-      };
-  }
-  return undefined;
-};
-
-/** A default export is either an inline expression or an alias for a local binding. */
-const defaultExport = (
-  module: ConsumerModule,
-): Expression | string | undefined => {
-  for (const statement of module.file.program.body) {
-    if (!t.isExportDefaultDeclaration(statement)) continue;
-    const declaration = statement.declaration;
-    if (t.isIdentifier(declaration)) return declaration.name;
-    return t.isExpression(declaration) ? declaration : undefined;
-  }
-  return undefined;
-};
-
-/**
- * Resolve a contract identifier to its declaration, following relative imports
- * and re-exports so a root API may compose sub-APIs declared in sibling modules.
- * Every bounded-endpoint check still runs against the resolved declaration, and
- * an identifier this cannot resolve stays unresolved so the rule still fails.
- */
-const resolveBinding = (
-  module: ConsumerModule,
-  name: string,
-  scope: 'export' | 'local',
-  readModule: (
-    filePath: string,
-    boundary: string,
-  ) => ConsumerModule | undefined,
-  workspace: string | undefined,
-  seen: Set<string>,
-): ResolvedBinding | undefined => {
-  const key = `${scope}:${module.path}#${name}`;
-  if (seen.has(key) || seen.size >= 512) return undefined;
-  seen.add(key);
-  const declaration =
-    scope === 'export'
-      ? exportedConst(module.file, name)
-      : localConst(module.file, name);
-  if (declaration?.init) return { expression: declaration.init, module };
-  const throughModule = (
-    specifier: string,
-    imported: string,
-  ): ResolvedBinding | undefined => {
-    const resolved = resolveModulePath(module, specifier, workspace);
-    const target = resolved && readModule(resolved.path, resolved.boundary);
-    return target === undefined
-      ? undefined
-      : resolveBinding(target, imported, 'export', readModule, workspace, seen);
-  };
-  if (scope === 'local') {
-    const imported = importedBinding(module, name);
-    return imported === undefined
-      ? undefined
-      : throughModule(imported.specifier, imported.imported);
-  }
-  if (name === 'default') {
-    const exported = defaultExport(module);
-    if (typeof exported === 'string')
-      return resolveBinding(
-        module,
-        exported,
-        'local',
-        readModule,
-        workspace,
-        seen,
-      );
-    return exported === undefined
-      ? undefined
-      : { expression: exported, module };
-  }
-  const reexported = reexportedBinding(module, name);
-  if (reexported !== undefined)
-    return reexported.specifier === undefined
-      ? resolveBinding(
-          module,
-          reexported.local,
-          'local',
-          readModule,
-          workspace,
-          seen,
-        )
-      : throughModule(reexported.specifier, reexported.local);
-  for (const statement of module.file.program.body) {
-    if (!t.isExportAllDeclaration(statement) || statement.exportKind === 'type')
-      continue;
-    const resolved = throughModule(statement.source.value, name);
-    if (resolved !== undefined) return resolved;
-  }
-  return undefined;
 };
 
 const objectLiteral = (
@@ -766,11 +384,9 @@ interface ReachableEndpoint {
 
 /** Read only endpoint declarations connected to the exported API, never decoy calls elsewhere. */
 const reachableEndpoints = (
-  rootModule: ConsumerModule,
+  graph: ModuleGraph,
   declaration: VariableDeclaration | undefined,
 ): readonly ReachableEndpoint[] | undefined => {
-  const readModule = createModuleReader(rootModule);
-  const workspace = containingWorkspace(rootModule.path);
   const active = new Set<Node>();
   const endpoints: ReachableEndpoint[] = [];
   const identities = new Set<string>();
@@ -787,7 +403,7 @@ const reachableEndpoints = (
   let visits = 0;
   const visit = (
     expression: Expression | null | undefined,
-    module: ConsumerModule,
+    module: SourceModule,
     kind: 'api' | 'group' | 'endpoint',
     group = '',
   ): boolean => {
@@ -797,16 +413,9 @@ const reachableEndpoints = (
     active.add(node);
     try {
       if (t.isIdentifier(node)) {
-        const resolved = resolveBinding(
-          module,
-          node.name,
-          'local',
-          readModule,
-          workspace,
-          new Set(),
-        );
+        const resolved = graph.resolve(module, node.name, 'local');
         return (
-          resolved !== undefined &&
+          resolved?.kind === 'declaration' &&
           visit(resolved.expression, resolved.module, kind, group)
         );
       }
@@ -887,7 +496,7 @@ const reachableEndpoints = (
       active.delete(node);
     }
   };
-  return visit(declaration?.init, rootModule, 'api') ? endpoints : undefined;
+  return visit(declaration?.init, graph.root, 'api') ? endpoints : undefined;
 };
 
 const operationContextFields = (property: PropertyAssignment) => {
@@ -1120,11 +729,11 @@ const declarationIsIdentifier = (
   identifierName(unwrapExpression(declaration.init)) === identifier;
 
 const validateParsedContract = (
-  module: ConsumerModule,
+  graph: ModuleGraph,
   stem: string,
   expectation: MicroVerticalApiBaselineExpectation,
 ): string | undefined => {
-  const sourceFile = module.file;
+  const sourceFile = graph.root.file;
   const exportStem = camelCaseStem(stem);
   const foundationName = `${exportStem}FoundationApi`;
   const markerSchemaName = `${exportStem}MarkerSchema`;
@@ -1180,7 +789,7 @@ const validateParsedContract = (
     return 'MicroVertical root API must explicitly compose its readiness foundation API';
   }
   const endpoints = reachableEndpoints(
-    module,
+    graph,
     exportedConst(sourceFile, `${exportStem}Api`),
   );
   if (!endpoints)
@@ -1243,19 +852,10 @@ export const microVerticalApiBaselineViolation = (
   expectation: MicroVerticalApiBaselineExpectation,
 ): string | undefined => {
   try {
-    const realPath = fs.realpathSync(filePath);
-    const sourceFile = parseConsumer(realPath);
+    const graph = createModuleGraph(filePath);
     if (!baselinePublicIdentityIsExact(filePath, expectation))
       return 'MicroVertical baseline imports must resolve the exact framework owner public export and schema identity';
-    return validateParsedContract(
-      {
-        file: sourceFile,
-        path: realPath,
-        boundary: sourceBoundary(realPath, containingWorkspace(realPath)),
-      },
-      stem,
-      expectation,
-    );
+    return validateParsedContract(graph, stem, expectation);
   } catch (error) {
     if (error instanceof SourceSyntaxError)
       return `MicroVertical root contract must be valid TypeScript syntax (${error.message})`;
