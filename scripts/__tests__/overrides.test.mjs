@@ -359,3 +359,41 @@ test('peer-only targets count for generic, removal and parent overrides', () => 
     ],
   );
 });
+
+test('ranged selectors apply to peers whose range they intersect', () => {
+  const lockfile = preFixLockfile.replace(
+    '  nx@23.2.1: {}\n',
+    '  nx@23.2.1:\n    peerDependencies:\n      react: ^18\n',
+  );
+  const withOverrides = overrides =>
+    lockfile.replace(
+      /overrides:[\s\S]*?importers:/,
+      `overrides:\n${overrides}\nimporters:`,
+    );
+  const stale =
+    'nx@23.2.1 still declares peer react@^18, not ^19. Run pnpm install so the lockfile picks up the override.';
+  assert.deepEqual(
+    findOverrideViolations(withOverrides("  react: '^19'"), importerNames),
+    [`'react': ${stale}`],
+  );
+  assert.deepEqual(
+    findOverrideViolations(
+      withOverrides("  nx>react@^18: '^19'"),
+      importerNames,
+    ),
+    [`'nx>react@^18': ${stale}`],
+  );
+  assert.equal(
+    findOverrideViolations(withOverrides("  react@^18: '-'"), importerNames)
+      .length,
+    1,
+  );
+  // A selector outside the declared peer range leaves it alone.
+  assert.deepEqual(
+    findOverrideViolations(
+      withOverrides("  nx>react@^17: '^19'"),
+      importerNames,
+    ),
+    [],
+  );
+});
