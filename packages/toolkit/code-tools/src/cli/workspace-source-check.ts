@@ -316,8 +316,12 @@ const isLocaleArray = (value: unknown): value is string[] => {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
-/** Compares canonical paths so a symlink cannot point a root outside. */
+/**
+ * Accepts a workspace-relative directory only: both check phases join the
+ * entry onto the root, and canonical paths stop a symlink pointing outside.
+ */
 const isWorkspaceDirectory = (root: string, entry: string): boolean => {
+  if (path.isAbsolute(entry)) return false;
   const target = path.resolve(root, entry);
   if (!fs.existsSync(target) || !fs.statSync(target).isDirectory()) {
     return false;
@@ -393,7 +397,7 @@ const readWorkspaceCheckOptions = (
   ) {
     throw invalid(
       '.sourceRoots',
-      `a non-empty array of existing directories inside the workspace (default: whichever of ${DEFAULT_SOURCE_ROOTS.join(', ')} exist)`,
+      `a non-empty array of existing workspace-relative directories (default: whichever of ${DEFAULT_SOURCE_ROOTS.join(', ')} exist)`,
     );
   }
   return { cwd: root, sourceRoots, locales, pluralCategories };
