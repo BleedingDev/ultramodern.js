@@ -1,3 +1,7 @@
+import {
+  adoptEffectContextStorage,
+  EFFECT_BFF_CONTEXT_STORAGE_SHARE,
+} from '@modern-js/bff-effect/context';
 import type { EffectRpcBffDefinition } from './handler/types';
 
 type ValidatorAwareHandlerFactoryRegistry = {
@@ -70,17 +74,14 @@ function handlerFactoryRegistry(): ValidatorAwareHandlerFactoryRegistry {
 
 type SharedVersions = Record<string, { get?: () => unknown } | undefined>;
 
-/**
- * @internal Called by generated backend federation containers from `init()`,
- * before any expose evaluates, so factories created by `defineEffectBff`
- * register with the host's registry instead of a bundle-local one.
- */
-export function adoptEffectBffShareScope(shareScope: unknown): Promise<void> {
+const adoptShared = (
+  shareScope: unknown,
+  name: string,
+  adopt: (value: unknown) => void,
+): Promise<void> => {
   const versions =
     typeof shareScope === 'object' && shareScope !== null
-      ? (shareScope as Record<string, SharedVersions | undefined>)[
-          EFFECT_BFF_HANDLER_FACTORY_REGISTRY_SHARE
-        ]
+      ? (shareScope as Record<string, SharedVersions | undefined>)[name]
       : undefined;
   const shared =
     versions === undefined ? undefined : Object.values(versions)[0];
@@ -88,12 +89,32 @@ export function adoptEffectBffShareScope(shareScope: unknown): Promise<void> {
     return Promise.resolve();
   }
   return Promise.resolve(shared.get()).then(factory =>
-    adoptHandlerFactoryRegistry(
-      (typeof factory === 'function' ? factory() : undefined) as
-        | ValidatorAwareHandlerFactoryRegistry
-        | undefined,
-    ),
+    adopt(typeof factory === 'function' ? factory() : undefined),
   );
+};
+
+/**
+ * @internal Called by generated backend federation containers from `init()`,
+ * before any expose evaluates, so factories created by `defineEffectBff`
+ * register with the host's registry and endpoints read the host's request
+ * storage instead of bundle-local ones.
+ */
+export function adoptEffectBffShareScope(shareScope: unknown): Promise<void> {
+  return Promise.all([
+    adoptShared(
+      shareScope,
+      EFFECT_BFF_HANDLER_FACTORY_REGISTRY_SHARE,
+      registry =>
+        adoptHandlerFactoryRegistry(
+          registry as ValidatorAwareHandlerFactoryRegistry | undefined,
+        ),
+    ),
+    adoptShared(
+      shareScope,
+      EFFECT_BFF_CONTEXT_STORAGE_SHARE,
+      adoptEffectContextStorage,
+    ),
+  ]).then(() => undefined);
 }
 
 function adoptHandlerFactoryRegistry(

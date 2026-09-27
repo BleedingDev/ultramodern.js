@@ -1,3 +1,4 @@
+export { EFFECT_BFF_CONTEXT_STORAGE_SHARE } from '@modern-js/bff-effect/context';
 export * from './edge-dispatcher';
 export {
   adoptEffectBffShareScope,

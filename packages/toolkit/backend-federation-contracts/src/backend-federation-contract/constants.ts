@@ -7,7 +7,9 @@ export const BACKEND_FEDERATION_REMOTE_ENTRY_FILE = 'backendRemoteEntry.cjs';
 export const BACKEND_FEDERATION_CONTRACT_VERSION =
   'microvertical-server-effect-v1';
 
-export const BACKEND_FEDERATION_NODE_ADAPTER_VERSION = 'backend-mf-effect-v1';
+// v2: containers adopt the host's Effect request storage from the share scope
+// in init(); a v1 host shares none, and a v1 container ignores it.
+export const BACKEND_FEDERATION_NODE_ADAPTER_VERSION = 'backend-mf-effect-v2';
 
 export const DELIVERY_UNIT_SCHEMA_VERSION = 1;
 
