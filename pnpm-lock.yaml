@@ -2791,9 +2791,9 @@ importers:
       '@modern-js/utils':
         specifier: workspace:*
         version: link:../../toolkit/utils
-      '@swc/core':
-        specifier: 1.16.2
-        version: 1.16.2(@swc/helpers@0.5.23)
+      '@rslib/core':
+        specifier: 1.0.2
+        version: 1.0.2(@module-federation/runtime-tools@2.9.1)(core-js@3.50.0)(typescript@7.0.2)
       '@swc/helpers':
         specifier: ^0.5.23
         version: 0.5.23
@@ -2804,9 +2804,6 @@ importers:
       '@modern-js/server-core':
         specifier: workspace:*
         version: link:../core
-      '@rslib/core':
-        specifier: 1.0.2
-        version: 1.0.2(@module-federation/runtime-tools@2.9.1)(core-js@3.50.0)(typescript@7.0.2)
       '@scripts/rstest-config':
         specifier: workspace:*
         version: link:../../../scripts/rstest-config
