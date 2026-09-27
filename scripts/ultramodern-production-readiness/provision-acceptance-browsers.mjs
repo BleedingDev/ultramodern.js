@@ -7,6 +7,10 @@
 // the cache key, the cache path and the install, exactly as for workspace
 // runtimes.
 //
+// The browsers live in $RUNNER_TEMP/ms-playwright. --resolve exports that as
+// PLAYWRIGHT_BROWSERS_PATH through GITHUB_ENV, so the install step, the cache
+// restore/save and the acceptance profile all read one directory.
+//
 //   --resolve                  pure for an exact specifier: installs nothing
 //   --install --version <v>    materializes the runtime, then installs browsers
 import { parseArgs } from 'node:util';
@@ -39,13 +43,24 @@ try {
     if (values.version !== undefined) {
       throw new Error('--version applies only to --install');
     }
+    const browsersPath = provisioning.runnerTempBrowsersPath();
+    provisioning.writeGithubEnv({ PLAYWRIGHT_BROWSERS_PATH: browsersPath });
     provisioning.writeGithubOutputs(
-      provisioning.resolveBrowserOutputs(resolveSmokeVersion()),
+      provisioning.resolveBrowserOutputs(resolveSmokeVersion(), {
+        ...process.env,
+        PLAYWRIGHT_BROWSERS_PATH: browsersPath,
+      }),
     );
   } else {
     if (values.version === undefined) {
       throw new Error(
         '--install requires --version <playwright version> from the matching --resolve step',
+      );
+    }
+    const browsersPath = provisioning.runnerTempBrowsersPath();
+    if (process.env.PLAYWRIGHT_BROWSERS_PATH !== browsersPath) {
+      throw new Error(
+        `PLAYWRIGHT_BROWSERS_PATH is ${String(process.env.PLAYWRIGHT_BROWSERS_PATH)}, not the ${browsersPath} the browser cache restores. Run --resolve earlier in the same job; it exports the path through GITHUB_ENV.`,
       );
     }
     provisioning.installBrowsers({
