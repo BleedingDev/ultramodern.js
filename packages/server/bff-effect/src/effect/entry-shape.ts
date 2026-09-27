@@ -5,9 +5,12 @@ type ValidatorAwareHandlerFactoryRegistry = {
   is(factory: unknown): boolean;
 };
 
-declare const __modernjs_backend_private_capability__:
-  | ValidatorAwareHandlerFactoryRegistry
-  | undefined;
+/**
+ * Module Federation share through which a backend federation host hands its
+ * package-private handler factory registry to the containers it initializes.
+ */
+export const EFFECT_BFF_HANDLER_FACTORY_REGISTRY_SHARE =
+  '@modern-js/bff-effect/handler-factory-registry';
 
 function createLocalValidatorAwareHandlerFactoryRegistry(): ValidatorAwareHandlerFactoryRegistry {
   const factories = new WeakSet<Function>();
@@ -25,11 +28,8 @@ function createLocalValidatorAwareHandlerFactoryRegistry(): ValidatorAwareHandle
 function loadNodeValidatorAwareHandlerFactoryRegistry(): ValidatorAwareHandlerFactoryRegistry {
   const moduleUrl = import.meta.url;
   if (typeof moduleUrl !== 'string' || !moduleUrl.startsWith('file:')) {
-    // A verified CommonJS backend bundle has no import.meta.url. Its Node
-    // evaluator supplies the package-private registry directly.
-    if (typeof __modernjs_backend_private_capability__ !== 'undefined') {
-      return __modernjs_backend_private_capability__;
-    }
+    // A bundled backend federation container has no file URL; its host share
+    // arrives through adoptEffectBffShareScope() during container init.
     return createLocalValidatorAwareHandlerFactoryRegistry();
   }
 
@@ -55,11 +55,62 @@ function loadNodeValidatorAwareHandlerFactoryRegistry(): ValidatorAwareHandlerFa
 
 declare const __MODERN_EFFECT_NODE_RUNTIME__: boolean;
 
-const validatorAwareHandlerFactoryRegistry =
-  typeof __MODERN_EFFECT_NODE_RUNTIME__ !== 'undefined' &&
-  __MODERN_EFFECT_NODE_RUNTIME__
-    ? loadNodeValidatorAwareHandlerFactoryRegistry()
-    : createLocalValidatorAwareHandlerFactoryRegistry();
+let validatorAwareHandlerFactoryRegistry:
+  | ValidatorAwareHandlerFactoryRegistry
+  | undefined;
+
+function handlerFactoryRegistry(): ValidatorAwareHandlerFactoryRegistry {
+  validatorAwareHandlerFactoryRegistry ??=
+    typeof __MODERN_EFFECT_NODE_RUNTIME__ !== 'undefined' &&
+    __MODERN_EFFECT_NODE_RUNTIME__
+      ? loadNodeValidatorAwareHandlerFactoryRegistry()
+      : createLocalValidatorAwareHandlerFactoryRegistry();
+  return validatorAwareHandlerFactoryRegistry;
+}
+
+type SharedVersions = Record<string, { get?: () => unknown } | undefined>;
+
+/**
+ * @internal Called by generated backend federation containers from `init()`,
+ * before any expose evaluates, so factories created by `defineEffectBff`
+ * register with the host's registry instead of a bundle-local one.
+ */
+export async function adoptEffectBffShareScope(
+  shareScope: unknown,
+): Promise<void> {
+  const versions =
+    typeof shareScope === 'object' && shareScope !== null
+      ? (shareScope as Record<string, SharedVersions | undefined>)[
+          EFFECT_BFF_HANDLER_FACTORY_REGISTRY_SHARE
+        ]
+      : undefined;
+  const shared =
+    versions === undefined ? undefined : Object.values(versions)[0];
+  if (typeof shared?.get !== 'function') {
+    return;
+  }
+  const factory = await shared.get();
+  const registry = (typeof factory === 'function' ? factory() : undefined) as
+    | ValidatorAwareHandlerFactoryRegistry
+    | undefined;
+  if (
+    typeof registry?.register !== 'function' ||
+    typeof registry.is !== 'function'
+  ) {
+    throw new Error(
+      `[BFF][Effect] Share ${EFFECT_BFF_HANDLER_FACTORY_REGISTRY_SHARE} must provide a handler factory registry.`,
+    );
+  }
+  if (
+    validatorAwareHandlerFactoryRegistry !== undefined &&
+    validatorAwareHandlerFactoryRegistry !== registry
+  ) {
+    throw new Error(
+      '[BFF][Effect] A backend federation container received the host handler factory registry after an Effect API already used its own. Evaluate exposes only after container init().',
+    );
+  }
+  validatorAwareHandlerFactoryRegistry = registry;
+}
 
 type EffectBffEntryModule = {
   api?: unknown;
@@ -94,7 +145,7 @@ type EffectBffEntryShapePredicates = {
 export function registerValidatorAwareHandlerFactory<TFactory extends Function>(
   factory: TFactory,
 ): TFactory {
-  return validatorAwareHandlerFactoryRegistry.register(factory);
+  return handlerFactoryRegistry().register(factory);
 }
 
 /**
@@ -102,7 +153,7 @@ export function registerValidatorAwareHandlerFactory<TFactory extends Function>(
  * therefore forwards strict cross-project validation into createHttpApiHandler.
  */
 export function isValidatorAwareHandlerFactory(factory: unknown): boolean {
-  return validatorAwareHandlerFactoryRegistry.is(factory);
+  return handlerFactoryRegistry().is(factory);
 }
 
 export const strictEffectApproachMessage =

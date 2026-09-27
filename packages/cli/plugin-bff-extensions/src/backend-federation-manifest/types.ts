@@ -12,6 +12,7 @@ import type {
 import type {
   BackendFederatedEffectApiModule,
   BackendFederationRemote,
+  BackendFederationRuntimeOptions,
 } from '../backend-federation';
 import type { BackendFederationManifestAdapterError } from './errors';
 
@@ -68,6 +69,7 @@ export type BackendFederationManifestAdapterOptions = {
   plugins?: ModuleFederationRuntimePlugin[];
   remote?: Partial<BackendFederationRemote>;
   runtime?: ModuleFederation;
+  shared?: BackendFederationRuntimeOptions['shared'];
   signal?: AbortSignal;
   timeoutMs?: number;
 };

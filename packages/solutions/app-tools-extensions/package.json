@@ -195,6 +195,7 @@
     }
   },
   "devDependencies": {
+    "@modern-js/bff-effect": "workspace:*",
     "@modern-js/plugin": "workspace:*",
     "@modern-js/plugin-bff-extensions": "workspace:*",
     "@modern-js/plugin-data-loader": "workspace:*",
