@@ -24,9 +24,13 @@ test('root prepare installs git hooks without starting an nx build', t => {
     path.join(tmp, 'package.json'),
     JSON.stringify({ name: 'root-prepare-fixture', private: true, scripts }),
   );
+  // Copy only the tracked hooks: the generated `.husky/_` must come from
+  // `prepare`, not from the repo's own install.
   fs.cpSync(path.join(repoRoot, '.husky'), path.join(tmp, '.husky'), {
     recursive: true,
+    filter: source => source !== path.join(repoRoot, '.husky/_'),
   });
+  assert.equal(fs.existsSync(path.join(tmp, '.husky/_')), false);
   assert.equal(
     spawnSync('git', ['init', '-q'], { cwd: tmp }).status,
     0,
