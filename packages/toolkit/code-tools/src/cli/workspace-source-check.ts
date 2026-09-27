@@ -30,6 +30,8 @@ const WORKSPACE_SOURCE_SUCCESS =
 
 const DEFAULT_LOCALES = ['en', 'cs'] as const;
 
+const DEFAULT_SOURCE_ROOTS = ['apps', 'verticals', 'packages'] as const;
+
 const ignoredDirectories = new Set([
   '.modern',
   '.modernjs',
@@ -236,7 +238,7 @@ const runRuntimeAndLocaleResourceChecks = (
 
 export const runWorkspaceSourceCheck = ({
   cwd = process.cwd(),
-  sourceRoots = ['apps', 'verticals', 'packages'],
+  sourceRoots = DEFAULT_SOURCE_ROOTS,
   locales = DEFAULT_LOCALES,
   pluralCategories,
 }: WorkspaceSourceCheckOptions = {}): number => {
@@ -370,18 +372,7 @@ const readWorkspaceCheckOptions = (
   if (!isRecord(config)) {
     throw invalid('', 'an object');
   }
-  const { sourceRoots, locales, pluralCategories } = config;
-  if (
-    sourceRoots !== undefined &&
-    (!isStringArray(sourceRoots) ||
-      sourceRoots.length === 0 ||
-      !sourceRoots.every(entry => isWorkspaceDirectory(root, entry)))
-  ) {
-    throw invalid(
-      '.sourceRoots',
-      'a non-empty array of existing directories inside the workspace',
-    );
-  }
+  const { locales, pluralCategories } = config;
   if (locales !== undefined && !isLocaleArray(locales)) {
     throw invalid('.locales', 'an array of BCP 47 locale codes');
   }
@@ -389,6 +380,20 @@ const readWorkspaceCheckOptions = (
     throw invalid(
       '.pluralCategories',
       'an object of locale -> CLDR plural categories including "other"',
+    );
+  }
+  // Omitted roots mean the conventional ones this workspace actually has.
+  const sourceRoots =
+    config.sourceRoots ??
+    DEFAULT_SOURCE_ROOTS.filter(entry => isWorkspaceDirectory(root, entry));
+  if (
+    !isStringArray(sourceRoots) ||
+    sourceRoots.length === 0 ||
+    !sourceRoots.every(entry => isWorkspaceDirectory(root, entry))
+  ) {
+    throw invalid(
+      '.sourceRoots',
+      `a non-empty array of existing directories inside the workspace (default: whichever of ${DEFAULT_SOURCE_ROOTS.join(', ')} exist)`,
     );
   }
   return { cwd: root, sourceRoots, locales, pluralCategories };

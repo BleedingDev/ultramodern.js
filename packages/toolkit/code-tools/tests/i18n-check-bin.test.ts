@@ -63,6 +63,7 @@ test('modern-i18n-check reads sourceRoots from package.json and fails on a viola
 
 test.each([
   [null, '" must be an object'],
+  [{}, '.sourceRoots" must be a non-empty array'],
   [{ sourceRoots: 'apps' }, '.sourceRoots" must be a non-empty array'],
   [{ sourceRoots: [] }, '.sourceRoots" must be a non-empty array'],
   [{ sourceRoots: ['missing'] }, '.sourceRoots" must be a non-empty array'],
@@ -91,6 +92,22 @@ test.each([
 
   expect(result.status).toBe(2);
   expect(result.stderr).toContain(`"modernjs.i18nCheck${message}`);
+});
+
+test('modern-i18n-check defaults sourceRoots to the conventional directories that exist', () => {
+  const root = workspace({
+    'package.json': JSON.stringify({
+      modernjs: { i18nCheck: { locales: [] } },
+    }),
+    'apps/shell/src/App.tsx': violation,
+  });
+
+  const result = run(root);
+
+  expect(result.status, result.stderr).toBe(1);
+  expect(`${result.stdout}${result.stderr}`).toContain(
+    'apps/shell/src/App.tsx',
+  );
 });
 
 test('modern-i18n-check rejects a source root that symlinks outside the workspace', () => {
