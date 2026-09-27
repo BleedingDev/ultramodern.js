@@ -19,6 +19,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { npmPublishAttempts, npmPublishRetryDelayMs } from './constants.mjs';
 import { run, sleep } from './commands.mjs';
+import { publishLevels } from './manifest.mjs';
 import { pollRegistryPropagation } from './registry-propagation.mjs';
 import {
   preflightTrustedPublishingPackages,
@@ -66,15 +67,15 @@ const registrySourceChronologyPolicies = Object.freeze({
   }),
 });
 
-const maxVerificationConcurrency = 8;
+const maxRegistryConcurrency = 8;
 const chronologyVerificationConcurrency = 8;
 
-function resolveVerificationConcurrency(options) {
+function resolveRegistryConcurrency(options) {
   const requested = Number(options?.publishConcurrency);
   if (!Number.isInteger(requested) || requested < 1) {
     return 1;
   }
-  return Math.min(requested, maxVerificationConcurrency);
+  return Math.min(requested, maxRegistryConcurrency);
 }
 
 function packSourcePackage(packageName, packDir) {
@@ -691,7 +692,7 @@ async function preflightRegistryPackages(
   const failures = [];
   const states = new Map();
   const currentTags = new Map();
-  const concurrency = resolveVerificationConcurrency(options);
+  const concurrency = resolveRegistryConcurrency(options);
   const describeFailure = (item, error) =>
     `${item.targetName}@${item.version}: ${
       error instanceof Error ? error.message : String(error)
@@ -965,7 +966,7 @@ async function validateRegistryCohort(
   let failureCount = 0;
   const outcomes = await mapWithConcurrency(
     manifest.packages,
-    resolveVerificationConcurrency(options),
+    resolveRegistryConcurrency(options),
     async item => {
       // Every member keeps its full propagation window, but once this many have
       // definitively failed the cohort cannot become coherent, so the remaining
@@ -1099,15 +1100,13 @@ async function publishManifestPackages(
     );
   }
 
-  console.log(
-    `Publishing ${publishItems.length} immutable package artifact(s) in dependency order`,
+  const levels = publishLevels(manifest).map(level =>
+    level.map(targetName => artifactsByTarget.get(targetName)),
   );
-  if (options.publishConcurrency !== 1) {
-    console.log(
-      `Publish concurrency ${options.publishConcurrency} applies to registry verification only; full-cohort packages publish sequentially so dependency tarballs are fetchable before consumers.`,
-    );
-  }
-  for (const artifact of publishItems) {
+  console.log(
+    `Publishing ${publishItems.length} immutable package artifact(s) in ${levels.length} dependency level(s)`,
+  );
+  const publishOne = async artifact => {
     const state = preflight.get(artifact.targetName);
     if (!state) {
       throw new Error(
@@ -1118,7 +1117,7 @@ async function publishManifestPackages(
       console.log(
         `Reusing byte-identical ${artifact.targetName}@${artifact.version} for full-cohort publish`,
       );
-      continue;
+      return;
     }
 
     const publishedName = await registry.publishPackage(artifact, {
@@ -1132,6 +1131,15 @@ async function publishManifestPackages(
         : `Published ${publishedName}@${artifact.version}`,
     );
     registry.verifyPackageArtifact(artifact, artifact.artifactPath);
+  };
+  // A level starts only after every publish of the previous level has
+  // returned, so consumers never reach npm before their cohort dependencies.
+  for (const level of levels) {
+    await mapWithConcurrency(
+      level,
+      resolveRegistryConcurrency(options),
+      publishOne,
+    );
   }
 
   if (!options.dryRun) {
