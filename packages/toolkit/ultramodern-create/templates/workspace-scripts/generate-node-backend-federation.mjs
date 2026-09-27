@@ -149,39 +149,40 @@ async function createRemoteEntrySource(app, outputDir) {
   const exposes = backendFederationExposes(app);
   const buildIdentity = readBuildIdentity(app);
   const effectApiPath = path.join(workspaceRoot, app.path, 'api/effect-api.ts');
-  const source = `import * as exposedNamespace from ${JSON.stringify(
-    effectApiPath,
-  )};
+  const source = `import { adoptEffectBffShareScope } from '@modern-js/bff-effect/effect-edge';
 
-const exposedModule = {
-  ...exposedNamespace,
-  backendFederationContract: {
-    ...(exposedNamespace.backendFederationContract ?? {}),
-    compatibility: {
-      ...(exposedNamespace.backendFederationContract?.compatibility ?? {}),
-      build: ${JSON.stringify(buildIdentity.buildVersion)},
-      contractVersion: ${JSON.stringify(backend.contractVersion)},
-      nodeAdapterVersion: ${JSON.stringify(backend.nodeAdapterVersion)},
-      packageName: ${JSON.stringify(buildIdentity.packageName)},
-      sourceRevision: ${JSON.stringify(buildIdentity.sourceRevision)},
-      unitId: ${JSON.stringify(buildIdentity.unitId)},
+// The expose evaluates lazily so defineEffectBff registers its handler
+// factories with the registry the host shares through init().
+let exposedModule;
+const loadExposedModule = () =>
+  (exposedModule ??= import(${JSON.stringify(effectApiPath)}).then(exposedNamespace => ({
+    ...exposedNamespace,
+    backendFederationContract: {
+      ...(exposedNamespace.backendFederationContract ?? {}),
+      compatibility: {
+        ...(exposedNamespace.backendFederationContract?.compatibility ?? {}),
+        build: ${JSON.stringify(buildIdentity.buildVersion)},
+        contractVersion: ${JSON.stringify(backend.contractVersion)},
+        nodeAdapterVersion: ${JSON.stringify(backend.nodeAdapterVersion)},
+        packageName: ${JSON.stringify(buildIdentity.packageName)},
+        sourceRevision: ${JSON.stringify(buildIdentity.sourceRevision)},
+        unitId: ${JSON.stringify(buildIdentity.unitId)},
+      },
+      name: ${JSON.stringify(backend.name)},
+      role: 'microvertical-server',
+      runtimeFramework: 'effect',
+      strictEffectApproach: true,
     },
-    name: ${JSON.stringify(backend.name)},
-    role: 'microvertical-server',
-    runtimeFramework: 'effect',
-    strictEffectApproach: true,
-  },
-};
+  })));
 const factories = {
 ${exposes
-  .map(
-    expose =>
-      `${JSON.stringify(expose)}: () => Promise.resolve(exposedModule),`,
-  )
+  .map(expose => `${JSON.stringify(expose)}: loadExposedModule,`)
   .join('\n')}
 };
 
-function init() {}
+function init(shareScope) {
+  return adoptEffectBffShareScope(shareScope);
+}
 
 function get(id) {
   const factory = factories[id];
