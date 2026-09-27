@@ -902,6 +902,7 @@ const bleedingdevGuardedPermissionScopes = Object.freeze([
 const bleedingdevPublishJobs = Object.freeze([
   'accept-published',
   'accept-release',
+  'integration',
   'prepare-release',
   'publish',
   'publish-change-record',
@@ -991,6 +992,16 @@ function collectBleedingdevPublishStructureErrors(workflow, relativePath) {
         );
       }
     }
+  }
+  // The release reaches integration through needs on its own commit, never
+  // by polling another run's check.
+  if (
+    jobs.integration?.uses !== `./${integrationWorkflowPath}` ||
+    !normalizeNeeds(jobs['qualify-source']).includes('integration')
+  ) {
+    errors.push(
+      `${relativePath} job qualify-source must need an integration job that uses ./${integrationWorkflowPath}, so a commit with red integration is never qualified`,
+    );
   }
   const securitySteps = Array.isArray(jobs['publish-security']?.steps)
     ? jobs['publish-security'].steps
