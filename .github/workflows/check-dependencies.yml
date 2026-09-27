@@ -41,6 +41,9 @@ jobs:
       - name: Check dependency version consistency
         run: mise exec -- pnpm run check-dependencies
 
+      - name: Check pnpm overrides are live
+        run: mise exec -- pnpm run check-overrides
+
   advisories:
     runs-on: namespace-profile-testing
 

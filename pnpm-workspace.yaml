@@ -67,13 +67,10 @@ overrides:
   micromatch: ^4.0.8
   'js-yaml@>=3.0.0 <3.15.2': 3.15.2
   'js-yaml@>=4.0.0 <4.3.2': 4.3.2
-  '@remix-run/router': '>=1.23.4'
-  # Preserve each consumer's declared router major while closing the affected
-  # ranges. The Module Federation bridge still requires the v7 layout.
+  # Close the affected router ranges within each major. Workspace packages pin
+  # their own router version in package.json, never through a parent selector.
   'react-router@>=7.0.0 <7.18.2': 7.18.4
   'react-router@>=8.0.0 <8.3.1': 8.4.0
-  '@modern-js/runtime-utils>react-router': 7.18.2
-  'dev-server>react-router': 8.3.1
   h3: '>=1.15.11'
   tar: '>=7.5.22'
   diff: '>=9.0.0'
@@ -82,10 +79,9 @@ overrides:
   lodash-es: '>=4.18.1'
   esbuild: '>=0.28.2'
   tmp: '>=0.2.7'
-  '@isaacs/brace-expansion': '>=5.0.1'
   'minimatch@3>brace-expansion': 1.1.18
   'minimatch@9>brace-expansion': 2.1.4
-  'brace-expansion@': 5.0.12
+  'brace-expansion@>=5.0.0 <5.0.12': 5.0.12
   yaml: '>=2.9.1'
   qs: '>=6.16.0'
   smol-toml: '>=1.9.0'
