@@ -31,19 +31,27 @@ const PROBE_RULES = [
   'lint/suspicious/noTsIgnore',
 ];
 
+// biome.json resolves GritQL plugins relative to itself, so the probe root
+// needs every plugin file the config (or any override) references.
+const biomePluginPaths = [
+  ...(biomeConfig.plugins ?? []),
+  ...biomeConfig.overrides.flatMap(override => override.plugins ?? []),
+];
+
 // Lints probe files laid out at repository-relative paths so biome.json
 // overrides resolve exactly as they do for `pnpm lint`.
-const lintProbes = relativePaths => {
+const lintProbes = (relativePaths, source = PROBE_SOURCE) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'biome-rules-'));
   try {
-    fs.copyFileSync(
-      path.join(repoRoot, 'biome.json'),
-      path.join(root, 'biome.json'),
-    );
+    for (const relativePath of ['biome.json', ...biomePluginPaths]) {
+      const target = path.join(root, relativePath);
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.copyFileSync(path.join(repoRoot, relativePath), target);
+    }
     for (const relativePath of relativePaths) {
       const file = path.join(root, relativePath);
       fs.mkdirSync(path.dirname(file), { recursive: true });
-      fs.writeFileSync(file, PROBE_SOURCE);
+      fs.writeFileSync(file, source);
     }
     const result = spawnSync(
       biomeBin,
@@ -88,6 +96,17 @@ test('upstream-owned packages keep upstream lint rules to stay shrink-only', () 
     [...rulesByFile.get('packages/runtime/plugin-runtime/src/probe.ts')],
     [],
   );
+});
+
+test('reassigning Module._resolveFilename fails lint in package sources', () => {
+  const probe = 'packages/server/bff-core/src/probe.ts';
+  const rulesByFile = lintProbes(
+    [probe],
+    `import Module from 'node:module';
+(Module as any)._resolveFilename = () => '';
+`,
+  );
+  assert.deepEqual([...rulesByFile.get(probe)], ['plugin']);
 });
 
 test('the upstream-owned override excludes exactly the fork-owned package roots', () => {
