@@ -26,3 +26,19 @@ export const effectBffHostShared: NonNullable<
     shareConfig: { singleton: true, requiredVersion: false },
   },
 };
+
+/**
+ * Adds the host registry share to caller shares. The share name is reserved:
+ * a caller replacement would make containers register their factories in a
+ * registry this host never consults.
+ */
+export function withEffectBffHostShared(
+  shared: BackendFederationRuntimeOptions['shared'],
+): NonNullable<BackendFederationRuntimeOptions['shared']> {
+  if (shared && EFFECT_BFF_HANDLER_FACTORY_REGISTRY_SHARE in shared) {
+    throw new Error(
+      `[BFF][Effect] Share ${EFFECT_BFF_HANDLER_FACTORY_REGISTRY_SHARE} is reserved for the Node host handler factory registry. Remove it from options.shared.`,
+    );
+  }
+  return { ...shared, ...effectBffHostShared };
+}
