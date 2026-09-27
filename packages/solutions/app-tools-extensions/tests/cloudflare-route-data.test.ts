@@ -46,6 +46,7 @@ const createTempApp = () => {
         { entryName: 'rsc' },
       ],
       internalDirectory,
+      deployTarget: { target: 'cloudflare', explicit: true } as const,
     },
     dispose: () => fs.rmSync(appDirectory, { force: true, recursive: true }),
     internalDirectory,
@@ -64,7 +65,7 @@ const getCloudflareEnvironments = (
         source: { entry: { index: ['./src/bootstrap.jsx'] } },
       },
     } satisfies Record<string, EnvironmentConfig>,
-    normalizedConfig: { deploy: { target: 'cloudflare' } },
+    normalizedConfig: {},
   });
 
 describe('Cloudflare worker route data', () => {

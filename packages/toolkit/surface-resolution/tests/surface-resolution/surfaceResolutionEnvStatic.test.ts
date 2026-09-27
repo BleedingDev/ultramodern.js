@@ -408,11 +408,10 @@ describe('createEnvStaticSurfaceResolutionProvider', () => {
     });
   });
 
-  it('fails when Cloudflare deploy requires public URLs and none are configured', async () => {
+  it('fails a production Cloudflare deploy without public URLs', async () => {
     const result = await createProvider(
       {
         MODERNJS_DEPLOY: 'cloudflare',
-        ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS: 'true',
         VERTICAL_CHECKOUT_BACKEND_MF_MANIFEST:
           'https://checkout.example.test/backend-mf-manifest.json',
       },

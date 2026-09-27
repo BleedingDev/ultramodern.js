@@ -7,7 +7,7 @@
   "scripts": {
     "test": "node utils/runWithPrerequisites.mjs -- pnpm run test:prepared",
     "test:rstest": "pnpm test:framework && pnpm test:rstest-adapter",
-    "test:framework": "node utils/runWithPrerequisites.mjs -- cross-env MODERN_SERVER_LOG_LEVEL=info rstest",
+    "test:framework": "node utils/runWithPrerequisites.mjs -- rstest",
     "test:rstest-adapter": "rstest -c rstest.adapter.config.mts",
     "test:builder": "node utils/runWithPrerequisites.mjs -- pnpm --dir e2e/builder test",
     "test:superapp-contracts": "rstest run -c rstest.superapp-contracts.config.mts",

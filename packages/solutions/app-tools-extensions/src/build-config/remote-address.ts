@@ -2,21 +2,23 @@ import {
   type BrowserManifestAddressOptions,
   resolveBrowserManifestAddress,
 } from '@modern-js/surface-resolution';
+import { resolveDeployTarget } from '../deploy-output/target';
 import { getBuildConfigEnvironment } from './build-environment';
 
 /** Adapt build environment leases and MF's name@URL syntax to discovery policy. */
 export function createRemoteManifestUrl(
   options: BrowserManifestAddressOptions,
 ): string {
-  const env = Object.fromEntries(
-    [
-      options.manifestEnv,
-      options.publicUrlEnv,
-      'MODERNJS_DEPLOY',
-      'ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN',
-      'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS',
-    ].map(name => [name, getBuildConfigEnvironment(name)]),
-  );
+  const env: Record<string, string | undefined> = {
+    ...Object.fromEntries(
+      [
+        options.manifestEnv,
+        options.publicUrlEnv,
+        'ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN',
+      ].map(name => [name, getBuildConfigEnvironment(name)]),
+    ),
+    MODERNJS_DEPLOY: resolveDeployTarget().target,
+  };
   const address = resolveBrowserManifestAddress(
     env,
     options,

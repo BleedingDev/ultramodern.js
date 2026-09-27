@@ -428,6 +428,7 @@ export default {
           appContext: {
             apiDirectory: path.join(root, 'api'),
             appDirectory: root,
+            deployTarget: { target: 'cloudflare', explicit: true },
           },
           environments: {
             [SERVICE_WORKER_ENVIRONMENT_NAME]: {
@@ -435,7 +436,7 @@ export default {
               source: { entry: { worker: path.join(root, 'worker.ts') } },
             },
           },
-          normalizedConfig: { deploy: { target: 'cloudflare' } },
+          normalizedConfig: {},
         });
         const rsbuild = await createRsbuild({
           cwd: root,

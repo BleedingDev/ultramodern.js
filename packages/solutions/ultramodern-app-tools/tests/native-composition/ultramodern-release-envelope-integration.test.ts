@@ -265,9 +265,7 @@ describe('framework target-specific MicroVertical release-envelope integration',
     const afterBuild: Array<() => Promise<void>> = [];
     const beforeDeploy: Array<() => Promise<void>> = [];
     const afterDeploy: Array<() => Promise<void>> = [];
-    const plugin = createUltramodernReleaseEnvelopePlugin({
-      resolveDeployTarget: () => 'node',
-    });
+    const plugin = createUltramodernReleaseEnvelopePlugin();
 
     plugin.setup({
       getAppContext: () => ({
@@ -275,8 +273,9 @@ describe('framework target-specific MicroVertical release-envelope integration',
         appDirectory: fixture.root,
         distDirectory: fixture.distDirectory,
         metaName: 'modern-js',
+        deployTarget: { target: 'node', explicit: true },
       }),
-      getNormalizedConfig: () => ({ deploy: { target: 'node' } }),
+      getNormalizedConfig: () => ({}),
       onAfterBuild: handler => afterBuild.push(handler),
       onBeforeDeploy: handler => beforeDeploy.push(handler),
       onAfterDeploy: handler => afterDeploy.push(handler),
@@ -400,7 +399,6 @@ describe('framework target-specific MicroVertical release-envelope integration',
     const afterDeploy: Array<() => Promise<void>> = [];
     const config = {
       deploy: {
-        target: 'node',
         node: {
           publicAssets: [{ from: 'protected', to: 'presentations' }],
         },
@@ -411,7 +409,8 @@ describe('framework target-specific MicroVertical release-envelope integration',
       appDirectory: fixture.root,
       distDirectory: fixture.distDirectory,
       metaName: 'modern-js',
-    };
+      deployTarget: { target: 'node', explicit: true },
+    } as const;
     // Registered in plugin order: the release envelope runs after the
     // public asset staging it lists in `pre`.
     createDeployOutputPublicAssetsPlugin().setup({
@@ -419,9 +418,7 @@ describe('framework target-specific MicroVertical release-envelope integration',
       getNormalizedConfig: () => config,
       onAfterDeploy: handler => afterDeploy.push(handler),
     });
-    createUltramodernReleaseEnvelopePlugin({
-      resolveDeployTarget: () => 'node',
-    }).setup({
+    createUltramodernReleaseEnvelopePlugin().setup({
       getAppContext: () => appContext,
       getNormalizedConfig: () => config,
       onAfterBuild: handler => afterBuild.push(handler),

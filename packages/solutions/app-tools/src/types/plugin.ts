@@ -1,3 +1,4 @@
+import type { ResolvedDeployTarget } from '@modern-js/app-tools-extensions/deploy-output/target';
 import type {
   AppContext,
   AsyncHook,
@@ -186,6 +187,7 @@ export interface AppToolsExtendContext {
   serverRoutes: ServerRoute[];
   /** Whether to use api only mode */
   apiOnly: boolean;
+  deployTarget: ResolvedDeployTarget;
   _internalContext: InternalContext<AppTools>;
   /**
    * Information for HTML templates by entry

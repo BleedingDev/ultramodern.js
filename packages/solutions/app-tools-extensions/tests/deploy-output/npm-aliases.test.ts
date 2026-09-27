@@ -61,8 +61,11 @@ describe('Node deployment npm aliases', () => {
 
       const plugin = createDeployOutputAliasesPlugin();
       plugin.setup({
-        getAppContext: () => ({ appDirectory, metaName: 'modern-js' }),
-        getNormalizedConfig: () => ({ deploy: { target: 'node' } }),
+        getAppContext: () => ({
+          appDirectory,
+          metaName: 'modern-js',
+          deployTarget: { target: 'node', explicit: true },
+        }),
         onAfterDeploy: handler => callbacks.push(handler),
       });
       expect(callbacks).toHaveLength(1);
@@ -80,27 +83,26 @@ describe('Node deployment npm aliases', () => {
   });
 
   it('does not touch output for other targets or deployments that did not opt in', async () => {
-    const originalTarget = process.env.MODERNJS_DEPLOY;
-    delete process.env.MODERNJS_DEPLOY;
-    try {
-      for (const { metaName, config } of [
-        { metaName: 'modern-js', config: { deploy: { target: 'cloudflare' } } },
-        { metaName: 'custom-framework', config: {} },
-      ]) {
-        const callbacks: (() => Promise<void>)[] = [];
-        createDeployOutputAliasesPlugin().setup({
-          getAppContext: () => ({
-            appDirectory: '/missing-deployment-output',
-            metaName,
-          }),
-          getNormalizedConfig: () => config,
-          onAfterDeploy: handler => callbacks.push(handler),
-        });
-        await expect(callbacks[0]()).resolves.toBeUndefined();
-      }
-    } finally {
-      if (originalTarget === undefined) delete process.env.MODERNJS_DEPLOY;
-      else process.env.MODERNJS_DEPLOY = originalTarget;
+    for (const { metaName, deployTarget } of [
+      {
+        metaName: 'modern-js',
+        deployTarget: { target: 'cloudflare', explicit: true },
+      },
+      {
+        metaName: 'custom-framework',
+        deployTarget: { target: 'node', explicit: false },
+      },
+    ] as const) {
+      const callbacks: (() => Promise<void>)[] = [];
+      createDeployOutputAliasesPlugin().setup({
+        getAppContext: () => ({
+          appDirectory: '/missing-deployment-output',
+          metaName,
+          deployTarget,
+        }),
+        onAfterDeploy: handler => callbacks.push(handler),
+      });
+      await expect(callbacks[0]()).resolves.toBeUndefined();
     }
   });
 

@@ -6,6 +6,11 @@ import { getCloudflareBuilderEnvironments } from '../src/cloudflare-builder';
 import { CLOUDFLARE_WORKER_NODE_BUILTINS } from '../src/cloudflare-output-contract';
 import { getTemplatePath } from '../src/read-template';
 
+const cloudflareDeployTarget = {
+  target: 'cloudflare',
+  explicit: true,
+} as const;
+
 const createWorkerEnvironments = (
   entry = './src/bootstrap.jsx',
 ): Record<string, EnvironmentConfig> => ({
@@ -18,69 +23,38 @@ const createWorkerEnvironments = (
 
 describe('Cloudflare builder environments', () => {
   it.each([
-    {
-      deployTarget: 'cloudflare',
-      environmentTarget: 'node',
-      detectedProvider: 'netlify',
-      enabled: true,
-    },
-    {
-      deployTarget: 'node',
-      environmentTarget: 'cloudflare',
-      detectedProvider: 'cloudflare',
-      enabled: false,
-    },
-    {
-      deployTarget: undefined,
-      environmentTarget: undefined,
-      detectedProvider: 'cloudflare',
-      enabled: true,
-    },
-  ])('selects Cloudflare worker output from explicit target or provider', ({
+    { deployTarget: { target: 'cloudflare', explicit: true }, enabled: true },
+    { deployTarget: { target: 'cloudflare', explicit: false }, enabled: true },
+    { deployTarget: { target: 'node', explicit: true }, enabled: false },
+    { deployTarget: undefined, enabled: false },
+  ] as const)('selects Cloudflare worker output from the resolved deploy target', ({
     deployTarget,
-    environmentTarget,
-    detectedProvider,
     enabled,
   }) => {
-    const previousDeployTarget = process.env.MODERNJS_DEPLOY;
-    if (environmentTarget === undefined) {
-      delete process.env.MODERNJS_DEPLOY;
-    } else {
-      process.env.MODERNJS_DEPLOY = environmentTarget;
-    }
     const environments = createWorkerEnvironments('./src/bootstrap.server.jsx');
+    const result = getCloudflareBuilderEnvironments({
+      appContext: {
+        apiDirectory: '/app/api',
+        appDirectory: '/app',
+        deployTarget,
+      },
+      environments,
+      normalizedConfig: {},
+    });
 
-    try {
-      const normalizedConfig = deployTarget
-        ? { deploy: { target: deployTarget } }
-        : {};
-      const result = getCloudflareBuilderEnvironments({
-        appContext: { apiDirectory: '/app/api', appDirectory: '/app' },
-        environments,
-        normalizedConfig,
-        resolveDeployProvider: () => detectedProvider,
-      });
-
-      if (!enabled) {
-        expect(result).toBe(environments);
-        return;
-      }
-
-      expect(result).not.toBe(environments);
-      expect(result.workerSSR?.output).toMatchObject({
-        module: true,
-        target: 'web',
-      });
-      expect(result.workerSSR?.source?.entry).toEqual({
-        main: ['./src/index.server.jsx'],
-      });
-    } finally {
-      if (previousDeployTarget === undefined) {
-        delete process.env.MODERNJS_DEPLOY;
-      } else {
-        process.env.MODERNJS_DEPLOY = previousDeployTarget;
-      }
+    if (!enabled) {
+      expect(result).toBe(environments);
+      return;
     }
+
+    expect(result).not.toBe(environments);
+    expect(result.workerSSR?.output).toMatchObject({
+      module: true,
+      target: 'web',
+    });
+    expect(result.workerSSR?.source?.entry).toEqual({
+      main: ['./src/index.server.jsx'],
+    });
   });
 
   it('rewrites worker entries and adds an Effect BFF entry before user handlers', () => {
@@ -93,11 +67,14 @@ describe('Cloudflare builder environments', () => {
       fs.mkdirSync(apiDirectory, { recursive: true });
       fs.writeFileSync(path.join(apiDirectory, 'index.ts'), '');
       const result = getCloudflareBuilderEnvironments({
-        appContext: { apiDirectory, appDirectory },
+        appContext: {
+          apiDirectory,
+          appDirectory,
+          deployTarget: cloudflareDeployTarget,
+        },
         environments: createWorkerEnvironments(),
         normalizedConfig: {
           bff: { runtimeFramework: 'effect' },
-          deploy: { target: 'cloudflare' },
         },
       });
 
@@ -123,14 +100,18 @@ describe('Cloudflare builder environments', () => {
       fs.mkdirSync(apiDirectory, { recursive: true });
       fs.writeFileSync(path.join(apiDirectory, 'index.ts'), '');
       const result = getCloudflareBuilderEnvironments({
-        appContext: { apiOnly: true, apiDirectory, appDirectory },
+        appContext: {
+          apiOnly: true,
+          apiDirectory,
+          appDirectory,
+          deployTarget: cloudflareDeployTarget,
+        },
         environments: {
           client: { output: { target: 'web' }, source: { entry: {} } },
           server: { output: { target: 'node' }, source: { entry: {} } },
         },
         normalizedConfig: {
           bff: { runtimeFramework: 'effect' },
-          deploy: { target: 'cloudflare' },
         },
       });
 
@@ -158,9 +139,13 @@ describe('Cloudflare builder environments', () => {
       fs.mkdirSync(path.join(appDirectory, 'src'));
       fs.writeFileSync(path.join(appDirectory, 'src/index.server.jsx'), '');
       const environments = getCloudflareBuilderEnvironments({
-        appContext: { apiDirectory: '/app/api', appDirectory },
+        appContext: {
+          apiDirectory: '/app/api',
+          appDirectory,
+          deployTarget: cloudflareDeployTarget,
+        },
         environments: createWorkerEnvironments(),
-        normalizedConfig: { deploy: { target: 'cloudflare' } },
+        normalizedConfig: {},
       });
       const rsbuild = await createRsbuild({
         cwd: appDirectory,

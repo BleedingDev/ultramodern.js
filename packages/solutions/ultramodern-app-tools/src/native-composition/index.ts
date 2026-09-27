@@ -6,7 +6,6 @@ import {
   createDeployOutputAliasesPlugin,
   createDeployOutputPublicAssetsPlugin,
 } from '@modern-js/app-tools-extensions/deploy-output/plugin';
-import { resolveDeployTarget } from '@modern-js/app-tools-extensions/deploy-output/target';
 import {
   RENDERER_EXTENSIONS_PACKAGE,
   SERVER_EXTENSIONS_PLUGIN_NAME,
@@ -35,13 +34,13 @@ const headlessCloudflareWorkerPlugin = (): CliPlugin<AppTools> => ({
   setup(api) {
     api.onAfterBuild(async () => {
       const appContext = api.getAppContext();
-      const normalizedConfig = api.getNormalizedConfig();
       if (
         !appContext.apiOnly ||
-        resolveDeployTarget(normalizedConfig) !== 'cloudflare'
+        appContext.deployTarget.target !== 'cloudflare'
       ) {
         return;
       }
+      const normalizedConfig = api.getNormalizedConfig();
 
       // Native API-only builds intentionally skip their UI builder. Reuse the
       // same builder generator with the Cloudflare plugin's worker-only entry.

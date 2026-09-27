@@ -1,5 +1,5 @@
 import { createCloudflarePreset } from '@modern-js/app-tools-extensions/cloudflare';
-import { provider } from 'std-env';
+import { getDeployingTarget } from '@modern-js/app-tools-extensions/deploy-output/target';
 import type {
   AppTools,
   AppToolsNormalizedConfig,
@@ -23,37 +23,10 @@ const deployPresets = {
   cloudflare: createCloudflarePreset,
 } satisfies Record<DeployTarget, CreatePreset>;
 
-export const getSupportedDeployTargets = () =>
-  Object.keys(deployPresets) as DeployTarget[];
-
-const isDeployTarget = (target: string): target is DeployTarget =>
-  Object.prototype.hasOwnProperty.call(deployPresets, target);
-
-const providerDeployTargets: Partial<Record<string, DeployTarget>> = {
-  vercel: 'vercel',
-  netlify: 'netlify',
-  cloudflare: 'cloudflare',
-  cloudflare_pages: 'cloudflare',
-  cloudflare_workers: 'cloudflare',
-};
-
-const normalizeDetectedProvider = (value?: string) =>
-  value ? providerDeployTargets[value] : undefined;
-
-export const resolveDeployTarget = (
-  modernConfig: AppToolsNormalizedConfig,
-  envDeployTarget = process.env.MODERNJS_DEPLOY,
-  detectedProvider = provider,
-) =>
-  modernConfig.deploy?.target ||
-  envDeployTarget ||
-  normalizeDetectedProvider(detectedProvider) ||
-  'node';
-
 async function getDeployPreset(
   appContext: AppToolsContext,
   modernConfig: AppToolsNormalizedConfig,
-  deployTarget: string,
+  deployTarget: DeployTarget,
   api: PluginAPI,
 ) {
   const { appDirectory, distDirectory, metaName } = appContext;
@@ -64,15 +37,12 @@ async function getDeployPreset(
   );
   const needModernServer = useSSR || useAPI || useWebServer;
 
-  if (!isDeployTarget(deployTarget)) {
-    throw new Error(
-      `Unknown deploy target: '${deployTarget}'. deploy.target or MODERNJS_DEPLOY should be one of: ${getSupportedDeployTargets().join(', ')}.`,
-    );
-  }
-
-  const createPreset = deployPresets[deployTarget];
-
-  return createPreset({ appContext, modernConfig, needModernServer, api });
+  return deployPresets[deployTarget]({
+    appContext,
+    modernConfig,
+    needModernServer,
+    api,
+  });
 }
 
 export default (): CliPlugin<AppTools> => ({
@@ -80,20 +50,14 @@ export default (): CliPlugin<AppTools> => ({
   setup: api => {
     api.deploy(async () => {
       const appContext = api.getAppContext();
-      const { metaName } = appContext;
-      const modernConfig = api.getNormalizedConfig();
-      const deployTarget = resolveDeployTarget(modernConfig);
-      if (
-        metaName !== 'modern-js' &&
-        !modernConfig.deploy?.target &&
-        !process.env.MODERNJS_DEPLOY
-      ) {
+      const deployTarget = getDeployingTarget(appContext);
+      if (!deployTarget) {
         return;
       }
       const deployPreset = await getDeployPreset(
         appContext,
-        modernConfig,
-        deployTarget as DeployTarget,
+        api.getNormalizedConfig(),
+        deployTarget,
         api,
       );
 

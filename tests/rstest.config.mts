@@ -24,6 +24,7 @@ export default defineConfig({
   include: ['integration/**/*.(spec|test).[jt]s?(x)'],
   exclude: ['integration/rstest/**'],
   globals: true,
+  env: { MODERN_SERVER_LOG_LEVEL: 'info' },
   // Heavy fixtures keep up to three dev servers and a browser alive (4-5 GB).
   // Two test-file workers fit within the CI runner's 16 GB memory budget.
   pool: {

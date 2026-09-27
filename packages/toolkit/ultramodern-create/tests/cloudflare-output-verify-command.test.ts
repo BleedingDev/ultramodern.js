@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { runCloudflareOutputVerify } from '../src/ultramodern-tooling/commands/cloudflare-output-verify';
+import { createWorkspace } from './helpers/workspace-kit';
 
 const require = createRequire(import.meta.url);
 
@@ -68,4 +69,52 @@ test('Cloudflare command rejects conflicting selectors before loading a provider
       { workspaceRoot: '/nonexistent', invocationCwd: '/nonexistent' },
     ),
   ).rejects.toThrow('Use either --app or --output, not both.');
+});
+
+test('--require-public-urls fails an app without a public origin before verifying output', async () => {
+  const { tempRoot, workspaceDir } = createWorkspace('require-public-urls', {
+    tempPrefix: 'um-cloudflare-public-urls-',
+  });
+  const names = [
+    'ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP',
+    'MODERN_PUBLIC_SITE_URL',
+    'ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN',
+  ];
+  const previous = names.map(name => [name, process.env[name]] as const);
+  const context = { workspaceRoot: workspaceDir, invocationCwd: workspaceDir };
+  try {
+    for (const name of names) delete process.env[name];
+    process.env.ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN = '  ';
+    await expect(
+      runCloudflareOutputVerify(
+        ['--app', 'shell-super-app', '--require-public-urls'],
+        context,
+      ),
+    ).rejects.toThrow(
+      `Cloudflare deploy for shell-super-app needs ${names.join(', ')}.`,
+    );
+
+    process.env.MODERN_PUBLIC_SITE_URL = 'https://shop.example';
+    // The origin check passes; output verification decides the rest.
+    const outcome = await runCloudflareOutputVerify(
+      ['--app', 'shell-super-app', '--require-public-urls'],
+      context,
+    ).then(String, (error: Error) => error.message);
+    expect(outcome).not.toContain('Cloudflare deploy for');
+  } finally {
+    for (const [name, value] of previous) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('--require-public-urls needs --app to know the public URL env', async () => {
+  await expect(
+    runCloudflareOutputVerify(
+      ['--output', 'missing-output', '--require-public-urls'],
+      { workspaceRoot: '/nonexistent', invocationCwd: '/nonexistent' },
+    ),
+  ).rejects.toThrow('--require-public-urls needs --app, not --output');
 });

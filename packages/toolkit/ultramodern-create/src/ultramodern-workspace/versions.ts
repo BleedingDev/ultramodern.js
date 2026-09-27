@@ -32,7 +32,6 @@ export const TYPESCRIPT_NATIVE_PREVIEW_VERSION = '7.0.0-dev.20260707.2';
 export const OXLINT_VERSION = '1.85.0';
 export const OXFMT_VERSION = '0.70.0';
 export const ULTRACITE_VERSION = '7.12.0';
-export const CROSS_ENV_VERSION = '10.1.0';
 export const LEFTHOOK_VERSION = '^2.1.14';
 export const I18NEXT_VERSION = '26.4.2';
 export const MODULE_FEDERATION_NODE_VERSION = '2.7.51';
@@ -80,7 +79,6 @@ export const ULTRAMODERN_PACKAGE_PINS = {
     '@types/node': TYPES_NODE_VERSION,
     '@types/react': TYPES_REACT_VERSION,
     '@types/react-dom': TYPES_REACT_DOM_VERSION,
-    'cross-env': CROSS_ENV_VERSION,
     tailwindcss: `^${TAILWIND_VERSION}`,
     typescript: TYPESCRIPT_VERSION,
     wrangler: WRANGLER_VERSION,
@@ -90,7 +88,6 @@ export const ULTRAMODERN_PACKAGE_PINS = {
     '@effect/tsgo': EFFECT_TSGO_VERSION,
     '@typescript/native': `npm:typescript@${TYPESCRIPT_VERSION}`,
     '@types/node': TYPES_NODE_VERSION,
-    'cross-env': CROSS_ENV_VERSION,
     lefthook: LEFTHOOK_VERSION,
     miniflare: MINIFLARE_VERSION,
     oxlint: OXLINT_VERSION,

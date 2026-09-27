@@ -45,7 +45,6 @@ module.exports = createRemoteManifestUrl({
     'VERTICAL_CATALOG_MF_MANIFEST',
     'VERTICAL_CATALOG_PUBLIC_URL',
     'ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN',
-    'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS',
   ]);
   const previous = new Map([...names].map(name => [name, process.env[name]]));
   try {
@@ -95,10 +94,9 @@ test('module federation remote refs treat blank Cloudflare workers subdomain as 
     () =>
       evaluateGeneratedRemoteManifestUrl(helpers, {
         MODERNJS_DEPLOY: 'cloudflare',
-        ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS: 'true',
         ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN: '   ',
       }),
-    /Remote verticalCatalog:.*Cloudflare deploy requires VERTICAL_CATALOG_PUBLIC_URL/u,
+    /Remote verticalCatalog:.*set VERTICAL_CATALOG_PUBLIC_URL \(localhost fallback is disabled/u,
   );
 });
 
