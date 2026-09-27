@@ -229,16 +229,6 @@ function createOptions(fixture, artifactName, dryRun) {
 const outcomeArtifactName = api =>
   api.publishOutcomeArtifactName({ runAttempt: outcomeRunAttempt, runId });
 
-function artifact(id, name, overrides = {}) {
-  return {
-    created_at: '2026-07-10T10:00:00Z',
-    expired: false,
-    id,
-    name,
-    ...overrides,
-  };
-}
-
 test('a dry run never claims published acceptance evidence', async t => {
   const api = await outcomeApi();
   const name = outcomeArtifactName(api);
@@ -446,64 +436,6 @@ test('publish outcome refuses evidence bound to another release or digest', asyn
       }),
     /Detached release manifest digest is invalid/u,
   );
-});
-
-test('artifact discovery selects the current outcome and otherwise fails closed', async () => {
-  const api = await outcomeApi();
-  const previousName = api.publishOutcomeArtifactName({
-    runAttempt: publicationRunAttempt,
-    runId,
-  });
-  const expectedName = outcomeArtifactName(api);
-  const options = {
-    completedAt: '2026-07-10T10:01:00Z',
-    runAttempt: outcomeRunAttempt,
-    runId,
-  };
-  const selected = api.selectPublishOutcomeArtifact(
-    [
-      { artifacts: [artifact(1, 'unrelated'), artifact(2, previousName)] },
-      { artifacts: [artifact(3, expectedName)] },
-    ],
-    options,
-  );
-  assert.equal(selected.id, 3);
-  assert.equal(selected.name, expectedName);
-
-  const cases = [
-    [[{ artifacts: [] }], /found 0/u],
-    [
-      [
-        { artifacts: [artifact(1, expectedName)] },
-        { artifacts: [artifact(2, expectedName)] },
-      ],
-      /found 2/u,
-    ],
-    [
-      [
-        {
-          artifacts: [
-            artifact(1, expectedName, { created_at: '2026-07-10T10:02:00Z' }),
-          ],
-        },
-      ],
-      /created after the triggering run completed/u,
-    ],
-    [
-      [{ artifacts: [artifact(1, expectedName, { expired: true })] }],
-      /is expired/u,
-    ],
-    [
-      [{ artifacts: [artifact(1, `${expectedName}-renamed`)] }],
-      /artifact name drift/u,
-    ],
-  ];
-  for (const [pages, pattern] of cases) {
-    assert.throws(
-      () => api.selectPublishOutcomeArtifact(pages, options),
-      pattern,
-    );
-  }
 });
 
 test('Tractor evidence binder refuses a rehearsal report and binds the published one', () => {

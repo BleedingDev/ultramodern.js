@@ -333,3 +333,36 @@ test('release gates reject node:test filter flags', () => {
     1,
   );
 });
+
+test('release jobs and steps reject continue-on-error', () => {
+  const workflowPath = '.github/workflows/publish-bleedingdev.yml';
+  const content = fs.readFileSync(
+    new URL(`../../../${workflowPath}`, import.meta.url),
+    'utf8',
+  );
+  const masked = source =>
+    validateWorkflowContent(workflowPath, source).filter(error =>
+      error.includes('must not set continue-on-error'),
+    );
+  const jobHeader = '    name: Publish the cohort change record\n';
+  const stepHeader = '      - name: Create or update the GitHub release\n';
+  assert.ok(content.includes(jobHeader));
+  assert.ok(content.includes(stepHeader));
+
+  assert.deepEqual(masked(content), []);
+  assert.equal(
+    masked(
+      content.replace(jobHeader, `${jobHeader}    continue-on-error: true\n`),
+    ).length,
+    1,
+  );
+  assert.equal(
+    masked(
+      content.replace(
+        stepHeader,
+        `${stepHeader}        continue-on-error: true\n`,
+      ),
+    ).length,
+    1,
+  );
+});

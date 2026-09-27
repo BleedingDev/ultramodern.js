@@ -74,7 +74,7 @@ export function extractSummary(body) {
 // repository (271 inherited tags, v1.x .. v3.4.0), so fork releases MUST NOT
 // use it — `gh release create` reuses a pre-existing tag and ignores --target.
 // Keep in sync with .github/workflows/publish-bleedingdev.yml.
-export const RELEASE_TAG_PREFIX = 'ultramodern-v';
+const RELEASE_TAG_PREFIX = 'ultramodern-v';
 
 // GitHub rejects a release body over 125,000 characters. Fail well before that,
 // and fail in the GENERATOR (which runs before `gh release create`) rather than

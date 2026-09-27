@@ -952,6 +952,23 @@ function collectBleedingdevPublishStructureErrors(workflow, relativePath) {
     }
   }
 
+  // A release job that fails must turn the run red so `gh run rerun --failed`
+  // can finish it; continue-on-error hides the failure behind a green run.
+  for (const [jobId, job] of Object.entries(jobs)) {
+    if (isObject(job) && 'continue-on-error' in job) {
+      errors.push(
+        `${relativePath} job ${jobId} must not set continue-on-error; let the run fail so the job can be rerun with gh run rerun --failed`,
+      );
+    }
+  }
+  for (const { jobId, step } of workflowSteps(workflow)) {
+    if ('continue-on-error' in step) {
+      errors.push(
+        `${relativePath} job ${jobId} step ${step.name ?? step.id ?? '<unnamed>'} must not set continue-on-error; let the run fail so the job can be rerun with gh run rerun --failed`,
+      );
+    }
+  }
+
   const tractorRef = jobs['rehearse-tractor']?.with?.tractor_ref;
   if (
     !shaPattern.test(tractorRef ?? '') ||

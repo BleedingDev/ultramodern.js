@@ -149,10 +149,11 @@ The bundle and its acceptance receipt always stay on `recovery_run_attempt` —
 they are one indivisible pair, and an acceptance receipt must never vouch for
 tarballs it did not cover.
 
-The GitHub release record is the one non-blocking step: `publish-change-record`
-is `continue-on-error`, and a missed record is repaired out of band with
-`scripts/ultramodern-publish/backfill-change-record.mjs`, never by re-driving a
-completed publication.
+`publish-change-record` runs after npm publication, so its failure turns the run
+red while the packages are already live. Repair the release record by rerunning
+only that job with `gh run rerun <run-id> --failed`; it reuses the run's
+authenticated publish outcome and converges on an existing release. Never
+re-dispatch a completed publication.
 
 ## Evidence anchors
 

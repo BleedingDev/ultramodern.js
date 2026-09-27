@@ -415,97 +415,6 @@ function createPublishOutcome({
   return outcome;
 }
 
-function parseTimestamp(value, label) {
-  if (typeof value !== 'string' || !Number.isFinite(Date.parse(value))) {
-    throw new Error(`${label} must be an ISO timestamp`);
-  }
-  return Date.parse(value);
-}
-
-function selectPublishOutcomeArtifact(
-  pages,
-  { completedAt, runAttempt, runId },
-) {
-  if (!Array.isArray(pages) || pages.length === 0) {
-    throw new Error('Artifact API response must contain at least one page');
-  }
-  const normalizedRunId = runIdString(runId);
-  const normalizedRunAttempt = positiveInteger(
-    runAttempt,
-    'Workflow run attempt',
-  );
-  const expectedName = publishOutcomeArtifactName({
-    runId: normalizedRunId,
-    runAttempt: normalizedRunAttempt,
-  });
-  const completedAtMilliseconds = parseTimestamp(
-    completedAt,
-    'Trigger completion time',
-  );
-  const seenIds = new Set();
-  const outcomeArtifacts = [];
-  for (const [pageIndex, page] of pages.entries()) {
-    assertPlainObject(page, `Artifact API page ${pageIndex + 1}`);
-    if (!Array.isArray(page.artifacts)) {
-      throw new Error(
-        `Artifact API page ${pageIndex + 1}.artifacts must be an array`,
-      );
-    }
-    for (const [artifactIndex, artifact] of page.artifacts.entries()) {
-      const label = `Artifact API page ${pageIndex + 1} artifact ${artifactIndex + 1}`;
-      assertPlainObject(artifact, label);
-      positiveInteger(artifact.id, `${label}.id`);
-      assertNonEmptyString(artifact.name, `${label}.name`);
-      if (typeof artifact.expired !== 'boolean') {
-        throw new Error(`${label}.expired must be a boolean`);
-      }
-      parseTimestamp(artifact.created_at, `${label}.created_at`);
-      if (seenIds.has(artifact.id)) {
-        throw new Error(
-          `Artifact API repeated artifact id ${artifact.id} across pages`,
-        );
-      }
-      seenIds.add(artifact.id);
-      if (artifact.name.startsWith(publishOutcomeArtifactPrefix)) {
-        outcomeArtifacts.push(artifact);
-      }
-    }
-  }
-
-  const canonicalPattern = new RegExp(
-    `^${publishOutcomeArtifactPrefix}-run-([1-9]\\d*)-attempt-([1-9]\\d*)$`,
-    'u',
-  );
-  for (const artifact of outcomeArtifacts) {
-    const match = canonicalPattern.exec(artifact.name);
-    if (
-      !match ||
-      match[1] !== normalizedRunId ||
-      Number(match[2]) > normalizedRunAttempt
-    ) {
-      throw new Error(`Publish outcome artifact name drift: ${artifact.name}`);
-    }
-  }
-  const matches = outcomeArtifacts.filter(
-    artifact => artifact.name === expectedName,
-  );
-  if (matches.length !== 1) {
-    throw new Error(
-      `Expected exactly one publish outcome artifact named ${expectedName}, found ${matches.length}`,
-    );
-  }
-  const [artifact] = matches;
-  if (artifact.expired) {
-    throw new Error(`Publish outcome artifact ${expectedName} is expired`);
-  }
-  if (Date.parse(artifact.created_at) > completedAtMilliseconds) {
-    throw new Error(
-      `Publish outcome artifact ${expectedName} was created after the triggering run completed`,
-    );
-  }
-  return artifact;
-}
-
 function parseOptions(argv, allowed) {
   const values = new Map();
   for (let index = 0; index < argv.length; index += 2) {
@@ -684,5 +593,4 @@ export {
   publishOutcomeArtifactPrefix,
   publishOutcomeSchema,
   publishOutcomeSchemaVersion,
-  selectPublishOutcomeArtifact,
 };

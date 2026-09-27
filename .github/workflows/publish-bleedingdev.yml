@@ -1403,7 +1403,6 @@ jobs:
 
   publish-change-record:
     name: Publish the cohort change record
-    continue-on-error: true
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     # The only job that may write to the repository, and it runs strictly after
@@ -1498,6 +1497,11 @@ jobs:
               --title "$TITLE" \
               --notes-file "$NOTES"
           fi
+
+      - name: Explain how to recover the release record
+        if: failure()
+        run: |
+          echo "::error::npm publication succeeded; only the GitHub release record is missing. Run: gh run rerun $GITHUB_RUN_ID --failed --repo $GITHUB_REPOSITORY"
 
       - name: Upload the change record
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
