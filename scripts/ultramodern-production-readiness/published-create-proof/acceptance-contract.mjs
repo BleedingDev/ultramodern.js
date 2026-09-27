@@ -45,14 +45,19 @@ const requiredAcceptanceResultIds = Object.freeze([
   operationalIndependenceResultId,
 ]);
 
-// The published lane consumes byte-identity-verified registry artifacts;
-// operational independence is a source-tree property already proven by the
-// source lane, so published receipts must not carry (or smuggle) that result.
-const publishedRequiredAcceptanceResultIds = Object.freeze(
-  requiredAcceptanceResultIds.filter(
-    id => id !== operationalIndependenceResultId,
-  ),
-);
+// The source lane already built and ran the exact tarballs npm now serves, so
+// the published lane proves resolution only: it scaffolds ERP-10 from the
+// registry, resolves the lock, and requires that closure to equal the one the
+// source lane accepted. Nothing is installed, built, or run a second time.
+const resolutionParityResultId = 'resolution-parity';
+const publishedRequiredAcceptanceResultIds = Object.freeze([
+  'registry-cohort-integrity',
+  'native-create',
+  'vertical-additions',
+  'generate-lockfile',
+  'dependency-closure-audit',
+  resolutionParityResultId,
+]);
 
 function requiredAcceptanceResultIdsForMode(mode) {
   if (mode === 'source') {
@@ -854,6 +859,7 @@ export {
   operationalIndependenceResultId,
   requiredAcceptanceResultIds,
   requiredAcceptanceResultIdsForMode,
+  resolutionParityResultId,
   runtimeAcceptanceDimensions,
   runtimeAcceptanceInvocation,
   runtimeAcceptancePlatforms,

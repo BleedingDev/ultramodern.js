@@ -10,11 +10,13 @@ import {
   operationalIndependenceResultId,
   requiredAcceptanceResultIds,
   requiredAcceptanceResultIdsForMode,
+  resolutionParityResultId,
 } from './acceptance-contract.mjs';
+import { canonicalJson, sha256 } from './release-age-audit.mjs';
 
 const acceptanceReceiptSchema =
   'bleedingdev.ultramodern.release-acceptance-receipt';
-const acceptanceReceiptSchemaVersion = 4;
+const acceptanceReceiptSchemaVersion = 5;
 const acceptanceProfileVersion = 3;
 const finalResultStatuses = new Set(['pass', 'fail', 'not-run']);
 const digestPattern = /^[a-f0-9]{64}$/u;
@@ -335,6 +337,96 @@ function expectedBinding(
   };
 }
 
+// Node and workerd identities exist only where the source lane built and ran
+// the workspace.
+function assertSourceRuntimeIdentity(receipt) {
+  assertExactKeys(
+    receipt.binding.runtimeIdentity,
+    ['node', 'workerd'],
+    'Acceptance receipt binding.runtimeIdentity',
+  );
+  for (const platform of ['node', 'workerd']) {
+    assertCondition(
+      Array.isArray(receipt.binding.runtimeIdentity[platform]) &&
+        receipt.binding.runtimeIdentity[platform].length ===
+          receipt.profile.verticalCount &&
+        !hasSkippedProof(receipt.binding.runtimeIdentity[platform]),
+      `Acceptance receipt runtime identity for ${platform} must cover every ERP-10 MicroVertical without skipped proof`,
+    );
+    const appIds = [];
+    for (const app of receipt.binding.runtimeIdentity[platform]) {
+      assertExactKeys(
+        app,
+        [
+          'appId',
+          'buildMarker',
+          'moduleFederation',
+          'releaseVersion',
+          'sourceRevision',
+        ],
+        `Acceptance receipt ${platform} MicroVertical identity`,
+      );
+      assertCondition(
+        typeof app.appId === 'string' &&
+          app.appId.length > 0 &&
+          typeof app.buildMarker === 'string' &&
+          app.buildMarker.length > 0,
+        `Acceptance receipt ${platform} MicroVertical identity is incomplete`,
+      );
+      assertCondition(
+        typeof app.sourceRevision === 'string' &&
+          app.sourceRevision.length > 0 &&
+          app.sourceRevision !== 'workspace' &&
+          typeof app.releaseVersion === 'string' &&
+          app.releaseVersion.length > 0 &&
+          JSON.stringify(app.moduleFederation) ===
+            JSON.stringify(receipt.binding.artifacts.moduleFederation),
+        `Acceptance receipt ${platform} MicroVertical identity is stale or mixed`,
+      );
+      appIds.push(app.appId);
+    }
+    assertCondition(
+      new Set(appIds).size === appIds.length,
+      `Acceptance receipt ${platform} MicroVertical identity contains duplicate app ids`,
+    );
+  }
+  const nodeByAppId = new Map(
+    receipt.binding.runtimeIdentity.node.map(app => [app.appId, app]),
+  );
+  const workerdByAppId = new Map(
+    receipt.binding.runtimeIdentity.workerd.map(app => [app.appId, app]),
+  );
+  assertCondition(
+    JSON.stringify([...nodeByAppId.keys()].sort()) ===
+      JSON.stringify([...workerdByAppId.keys()].sort()),
+    'Acceptance receipt Node and workerd identities cover different MicroVerticals',
+  );
+  for (const [appId, node] of nodeByAppId) {
+    const workerd = workerdByAppId.get(appId);
+    assertCondition(
+      ['buildMarker', 'sourceRevision', 'releaseVersion'].every(
+        field => node[field] === workerd?.[field],
+      ) &&
+        JSON.stringify(node.moduleFederation) ===
+          JSON.stringify(workerd?.moduleFederation),
+      `Acceptance receipt ${appId} Node and workerd identities differ`,
+    );
+  }
+  const runtimeIdentityResults = Object.fromEntries(
+    ['node', 'workerd'].map(platform => [
+      platform,
+      receipt.results.find(
+        result => result.id === `${platform}-release-identity`,
+      )?.details?.apps,
+    ]),
+  );
+  assertCondition(
+    JSON.stringify(receipt.binding.runtimeIdentity) ===
+      JSON.stringify(runtimeIdentityResults),
+    'Acceptance receipt runtime release identity does not match independently recorded Node/workerd results',
+  );
+}
+
 function assertAcceptanceReceipt(
   receipt,
   {
@@ -520,78 +612,6 @@ function assertAcceptanceReceipt(
       receipt.binding.runIdentity.length > 0,
     'Acceptance receipt run identity is missing',
   );
-  assertExactKeys(
-    receipt.binding.runtimeIdentity,
-    ['node', 'workerd'],
-    'Acceptance receipt binding.runtimeIdentity',
-  );
-  for (const platform of ['node', 'workerd']) {
-    assertCondition(
-      Array.isArray(receipt.binding.runtimeIdentity[platform]) &&
-        receipt.binding.runtimeIdentity[platform].length ===
-          receipt.profile.verticalCount &&
-        !hasSkippedProof(receipt.binding.runtimeIdentity[platform]),
-      `Acceptance receipt runtime identity for ${platform} must cover every ERP-10 MicroVertical without skipped proof`,
-    );
-    const appIds = [];
-    for (const app of receipt.binding.runtimeIdentity[platform]) {
-      assertExactKeys(
-        app,
-        [
-          'appId',
-          'buildMarker',
-          'moduleFederation',
-          'releaseVersion',
-          'sourceRevision',
-        ],
-        `Acceptance receipt ${platform} MicroVertical identity`,
-      );
-      assertCondition(
-        typeof app.appId === 'string' &&
-          app.appId.length > 0 &&
-          typeof app.buildMarker === 'string' &&
-          app.buildMarker.length > 0,
-        `Acceptance receipt ${platform} MicroVertical identity is incomplete`,
-      );
-      assertCondition(
-        typeof app.sourceRevision === 'string' &&
-          app.sourceRevision.length > 0 &&
-          app.sourceRevision !== 'workspace' &&
-          typeof app.releaseVersion === 'string' &&
-          app.releaseVersion.length > 0 &&
-          JSON.stringify(app.moduleFederation) ===
-            JSON.stringify(receipt.binding.artifacts.moduleFederation),
-        `Acceptance receipt ${platform} MicroVertical identity is stale or mixed`,
-      );
-      appIds.push(app.appId);
-    }
-    assertCondition(
-      new Set(appIds).size === appIds.length,
-      `Acceptance receipt ${platform} MicroVertical identity contains duplicate app ids`,
-    );
-  }
-  const nodeByAppId = new Map(
-    receipt.binding.runtimeIdentity.node.map(app => [app.appId, app]),
-  );
-  const workerdByAppId = new Map(
-    receipt.binding.runtimeIdentity.workerd.map(app => [app.appId, app]),
-  );
-  assertCondition(
-    JSON.stringify([...nodeByAppId.keys()].sort()) ===
-      JSON.stringify([...workerdByAppId.keys()].sort()),
-    'Acceptance receipt Node and workerd identities cover different MicroVerticals',
-  );
-  for (const [appId, node] of nodeByAppId) {
-    const workerd = workerdByAppId.get(appId);
-    assertCondition(
-      ['buildMarker', 'sourceRevision', 'releaseVersion'].every(
-        field => node[field] === workerd?.[field],
-      ) &&
-        JSON.stringify(node.moduleFederation) ===
-          JSON.stringify(workerd?.moduleFederation),
-      `Acceptance receipt ${appId} Node and workerd identities differ`,
-    );
-  }
   for (const [name, digest] of Object.entries(receipt.binding.supplyChain)) {
     assertCondition(
       digestPattern.test(digest ?? ''),
@@ -663,6 +683,23 @@ function assertAcceptanceReceipt(
         `Required acceptance result ${result.id} has empty or skipped proof details`,
       );
       assertRuntimeResultDetails(result, receipt.mode);
+      if (result.id === 'dependency-closure-audit') {
+        const identities = result.details.closureIdentities;
+        assertCondition(
+          Array.isArray(identities) &&
+            identities.length > 0 &&
+            sha256(canonicalJson(identities)) ===
+              receipt.binding.supplyChain.closureSha256,
+          'Acceptance receipt closure identities do not match the bound closureSha256',
+        );
+      }
+      if (result.id === resolutionParityResultId) {
+        assertCondition(
+          result.details.closureSha256 ===
+            receipt.binding.supplyChain.closureSha256,
+          'Acceptance receipt resolution parity is not bound to its own closure',
+        );
+      }
       if (result.id === operationalIndependenceResultId) {
         assertOperationalIndependenceResultDetails(
           result.details,
@@ -671,19 +708,15 @@ function assertAcceptanceReceipt(
       }
     }
   }
-  const runtimeIdentityResults = Object.fromEntries(
-    ['node', 'workerd'].map(platform => [
-      platform,
-      receipt.results.find(
-        result => result.id === `${platform}-release-identity`,
-      )?.details?.apps,
-    ]),
-  );
-  assertCondition(
-    JSON.stringify(receipt.binding.runtimeIdentity) ===
-      JSON.stringify(runtimeIdentityResults),
-    'Acceptance receipt runtime release identity does not match independently recorded Node/workerd results',
-  );
+  if (receipt.mode === 'source') {
+    assertSourceRuntimeIdentity(receipt);
+  } else {
+    // The published lane runs nothing, so it has no runtime identity to bind.
+    assertCondition(
+      receipt.binding.runtimeIdentity === null,
+      'Published acceptance receipt must not bind a runtime identity; the published lane proves resolution only',
+    );
+  }
   assertCondition(
     Array.isArray(receipt.optionalResults) &&
       receipt.optionalResults.length === 0,
@@ -724,6 +757,22 @@ function assertAcceptanceReceipt(
     );
   }
   return receipt;
+}
+
+// The closure a source receipt accepted, as the published lane and the publish
+// outcome compare against it. Only meaningful on a receipt assertAcceptanceReceipt
+// verified as a passed source receipt.
+function acceptedResolution(receipt) {
+  assertCondition(
+    receipt.mode === 'source' && receipt.passed === true,
+    'Only a passed source acceptance receipt carries an accepted resolution',
+  );
+  return {
+    closureIdentities: receipt.results.find(
+      result => result.id === 'dependency-closure-audit',
+    ).details.closureIdentities,
+    closureSha256: receipt.binding.supplyChain.closureSha256,
+  };
 }
 
 function readAcceptanceReceipt(receiptPath) {
@@ -947,6 +996,7 @@ if (
 }
 
 export {
+  acceptedResolution,
   assertAcceptanceReceipt,
   bindRuntimeIdentityEvidence,
   bindSupplyChainEvidence,

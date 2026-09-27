@@ -8,6 +8,7 @@ const path = require('node:path');
 const test = require('node:test');
 const {
   createOperationalAcceptanceReceiptFixture,
+  fixtureClosureSha256,
 } = require('../../ultramodern-production-readiness/__tests__/support/operational-acceptance-fixture.js');
 const {
   nodeSsrEvidence,
@@ -163,7 +164,7 @@ async function createEvidenceFixture() {
       },
     });
     receiptApi.bindSupplyChainEvidence(receipt, {
-      closureSha256: digest('closure'),
+      closureSha256: fixtureClosureSha256,
       exceptionPolicySha256: digest('exceptions'),
       lockSha256: digest('lock'),
       registryMetadataSha256: digest('registry'),
@@ -325,6 +326,38 @@ test('non-dry outcome fails closed without passing published acceptance evidence
   assert.throws(
     () => api.createPublishOutcome(createOptions(fixture, name, false)),
     /every required result exactly once/u,
+  );
+});
+
+// The published receipt builds nothing; it only proves npm resolves the
+// closure the source receipt built and ran. A published receipt that is
+// internally consistent but names another closure must not be promoted.
+test('publish outcome refuses a published closure the source lane never accepted', async t => {
+  const api = await outcomeApi();
+  const fixture = await createEvidenceFixture();
+  t.after(() => fs.rmSync(fixture.root, { force: true, recursive: true }));
+  const published = JSON.parse(
+    fs.readFileSync(fixture.publishedReceiptPath, 'utf8'),
+  );
+  const closureIdentities = [
+    { integrity: 'sha512-bWF0dXJlZA==', name: 'effect', version: '3.19.1' },
+  ];
+  const closureSha256 = digest(JSON.stringify(closureIdentities));
+  published.binding.supplyChain.closureSha256 = closureSha256;
+  const result = id => published.results.find(item => item.id === id);
+  result('dependency-closure-audit').details.closureIdentities =
+    closureIdentities;
+  result('resolution-parity').details.closureSha256 = closureSha256;
+  fs.writeFileSync(
+    fixture.publishedReceiptPath,
+    `${JSON.stringify(published)}\n`,
+  );
+  assert.throws(
+    () =>
+      api.createPublishOutcome(
+        createOptions(fixture, outcomeArtifactName(api), false),
+      ),
+    /resolved a different dependency closure than the source acceptance built and ran/u,
   );
 });
 

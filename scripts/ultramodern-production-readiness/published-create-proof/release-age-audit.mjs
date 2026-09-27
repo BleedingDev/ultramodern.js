@@ -563,6 +563,23 @@ function buildDependencyClosure(lock) {
   };
 }
 
+// What a lane resolved, reduced to the identity that pins the bytes it
+// installs. Dependency paths are left out on purpose: two lanes that resolve
+// the same packages yield the same digest however pnpm reached them.
+function closureResolution({ closure, tarballs }) {
+  const closureIdentities = [...closure, ...tarballs]
+    .map(({ name, version, integrity }) => ({ name, version, integrity }))
+    .sort(
+      (left, right) =>
+        compareCodeUnits(identityKey(left), identityKey(right)) ||
+        compareCodeUnits(left.integrity, right.integrity),
+    );
+  return {
+    closureIdentities,
+    closureSha256: sha256(canonicalJson(closureIdentities)),
+  };
+}
+
 function formatUnresolvedCandidates(unresolved) {
   return unresolved
     .slice(0, 20)
@@ -1197,6 +1214,7 @@ async function auditReleaseAgePolicy({
   const lockPath = path.join(projectDir, 'pnpm-lock.yaml');
   const nativeLock = readNativeLock(lockPath, { parseYamlImpl });
   const closureResult = buildDependencyClosure(nativeLock.lock);
+  const resolution = closureResolution(closureResult);
   const cohortNames = new Set([
     ...release.packages.flatMap(item => [item.targetName, item.sourceName]),
     ...(release.sidecars?.packages ?? []).map(item => item.name),
@@ -1279,9 +1297,7 @@ async function auditReleaseAgePolicy({
   }));
   const digests = {
     lockSha256: nativeLock.sha256,
-    closureSha256: sha256(
-      canonicalJson([...closureResult.closure, ...closureResult.tarballs]),
-    ),
+    closureSha256: resolution.closureSha256,
     registryMetadataSha256: sha256(canonicalJson(metadataIdentity)),
     exceptionPolicySha256: sha256(canonicalJson(policy)),
     releaseManifestSha256: release.manifestSha256,
@@ -1291,10 +1307,7 @@ async function auditReleaseAgePolicy({
     approvals,
     tarballs: closureResult.tarballs,
     closureCount: closureResult.closure.length,
-    closureIdentities: closureResult.closure.map(({ name, version }) => ({
-      name,
-      version,
-    })),
+    closureIdentities: resolution.closureIdentities,
     candidateDiscovery: {
       classification: 'quarantined-input-only',
       source: 'native-generated-pnpm-lock',
@@ -1352,6 +1365,7 @@ export {
   auditReleaseAgePolicy,
   buildDependencyClosure,
   canonicalJson,
+  closureResolution,
   fetchRegistryMetadata,
   parsePackageKey,
   parseYaml,

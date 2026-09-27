@@ -148,7 +148,7 @@ function summarizeDelivery(env) {
     `- npm \`${outcome.release.tag}\` cohort converged: ${yesno('accept-published', !outcome.dryRun)}`,
   );
   lines.push(
-    `- Published-registry ERP-10 accepted: ${yesno('accept-published', outcome.evidence.publishedAcceptance !== null)}`,
+    `- npm resolves the accepted ERP-10 closure: ${yesno('accept-published', outcome.evidence.publishedAcceptance !== null)}`,
   );
   lines.push(
     `- Published Tractor Node/workerd/browser accepted: ${yesno('tractor-downstream', outcome.evidence.tractorAcceptance !== null)}`,
