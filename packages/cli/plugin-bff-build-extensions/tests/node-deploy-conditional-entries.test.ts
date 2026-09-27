@@ -3,16 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fs } from '@modern-js/utils';
 import { resolveESMDependency } from '../../../solutions/app-tools/src/plugins/deploy/utils';
-
-const requireFromAppTools = createRequire(
-  path.resolve(__dirname, '../../../solutions/app-tools/package.json'),
-);
-const { nodeFileTrace } = requireFromAppTools('ndepe') as {
-  nodeFileTrace: (
-    entries: string[],
-    options: { base: string },
-  ) => Promise<{ fileList: Set<string> }>;
-};
+import { traceDeployFiles } from '../../../solutions/app-tools/src/plugins/deploy/utils/traceFiles';
 
 test('the real Hono binder remains available through Node import and require', async () => {
   const imported = await import('@modern-js/plugin-bff-extensions/hono/node');
@@ -68,7 +59,9 @@ test('Node deploy traces both runtime conditions for a declared Hono binder', as
     expect(path.normalize(importEntry)).toBe(
       path.join(packageDirectory, 'dist/esm-node/hono/node.mjs'),
     );
-    const trace = await nodeFileTrace([entry, requireEntry, importEntry], {
+    const trace = await traceDeployFiles({
+      entryFiles: [entry, requireEntry, importEntry],
+      sourceDir: appDirectory,
       base: appDirectory,
     });
     expect([...trace.fileList].map(file => file.replace(/\\/g, '/'))).toEqual(

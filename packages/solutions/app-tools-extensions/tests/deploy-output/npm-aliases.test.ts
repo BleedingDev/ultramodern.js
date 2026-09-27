@@ -11,6 +11,7 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { nodeDepEmit } from 'ndepe';
+import { traceDeployFiles } from '../../../app-tools/src/plugins/deploy/utils/traceFiles';
 import {
   preserveNpmAliases,
   readPackageIdentity,
@@ -174,6 +175,7 @@ describe('Node deployment npm aliases', () => {
         "module.exports = require('@modern-js/prod-server');\n",
       );
       await nodeDepEmit({
+        traceFiles: traceDeployFiles,
         appDir: appDirectory,
         sourceDir: outputDirectory,
         includeEntries: [path.join(prodServerDirectory, 'index.js')],
