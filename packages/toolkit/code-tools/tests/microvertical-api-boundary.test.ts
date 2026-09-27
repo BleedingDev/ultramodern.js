@@ -7,6 +7,8 @@ import {
   checkMicroVerticalApiBoundaries,
   checkMicroVerticalApiConsumerFiles,
   type MicroVerticalApiBaselineExpectation,
+  type MicroVerticalApiContractRule,
+  type ModuleGraphHop,
   microVerticalApiBaselineViolation,
 } from '../src/microvertical-api-boundary';
 
@@ -210,6 +212,110 @@ test('resolves a public shared workspace export under an arbitrary scope', () =>
       ),
     ),
   ).toContain('bounded native endpoint declarations');
+});
+
+test('contract rules receive the resolved re-export chain across packages', async () => {
+  write(
+    path.join(root, 'pnpm-workspace.yaml'),
+    'packages:\n  - packages/*\n  - verticals/*\n',
+  );
+  const shared = path.join(root, 'packages/contracts');
+  write(
+    path.join(shared, 'package.json'),
+    JSON.stringify({
+      name: '@domain/shared-contracts',
+      exports: { './catalog': { 'modern:source': './src/catalog.ts' } },
+    }),
+  );
+  write(
+    path.join(shared, 'src/catalog.ts'),
+    `export { catalogSearchApi } from './catalog-search.ts';`,
+  );
+  write(
+    path.join(shared, 'src/catalog-search.ts'),
+    subApi('catalogSearchApi', 'catalogSearch', '/catalog/search'),
+  );
+  fs.mkdirSync(path.join(root, 'node_modules/@domain'), { recursive: true });
+  fs.symlinkSync(
+    shared,
+    path.join(root, 'node_modules/@domain/shared-contracts'),
+  );
+  write(
+    path.join(root, 'verticals/catalog/shared/commands/index.ts'),
+    subApi('catalogCommandsApi', 'catalogCommands', '/catalog/commands'),
+  );
+  write(
+    file,
+    composed.replace(
+      "'./apis/catalog-search.ts'",
+      "'@domain/shared-contracts/catalog'",
+    ),
+  );
+  const real = fs.realpathSync(root);
+  const hops = (chain: readonly ModuleGraphHop[]) =>
+    chain.map(hop => `${path.relative(real, hop.path)}#${hop.name}`);
+  const seen: string[][] = [];
+  const traceSearchApi: MicroVerticalApiContractRule = ({
+    appPath,
+    protocol,
+    graph,
+  }) => {
+    const search = graph.resolve(graph.root, 'catalogSearchApi', 'local');
+    if (search?.kind !== 'declaration') return ['catalogSearchApi unresolved'];
+    const httpApi = graph.resolve(search.module, 'HttpApi', 'local');
+    seen.push([appPath, protocol], hops(search.chain));
+    return httpApi?.kind === 'external'
+      ? [`${httpApi.name} from ${httpApi.specifier} via ${hops(httpApi.chain)}`]
+      : ['HttpApi must end at its package'];
+  };
+  const result = checkMicroVerticalApiConsumerFiles({
+    workspaceRoot: root,
+    baselinePackageDirectory: owner,
+    contractRules: [traceSearchApi],
+  });
+  expect(result.toolErrors).toEqual([]);
+  expect(seen).toEqual([
+    ['verticals/catalog', 'rest'],
+    [
+      'verticals/catalog/shared/api.ts#catalogSearchApi',
+      'packages/contracts/src/catalog.ts#catalogSearchApi',
+      'packages/contracts/src/catalog-search.ts#catalogSearchApi',
+    ],
+  ]);
+  expect(result.diagnostics).toEqual([
+    'verticals/catalog/shared/api.ts: HttpApi from effect/unstable/httpapi via packages/contracts/src/catalog-search.ts#HttpApi',
+  ]);
+
+  // A private subpath the package does not export ends the chain unresolved.
+  const publicContract = fs.readFileSync(file, 'utf8');
+  write(
+    file,
+    publicContract.replace(
+      "'@domain/shared-contracts/catalog'",
+      "'@domain/shared-contracts/src/catalog-search'",
+    ),
+  );
+  expect(
+    checkMicroVerticalApiConsumerFiles({
+      workspaceRoot: root,
+      baselinePackageDirectory: owner,
+      contractRules: [traceSearchApi],
+    }).diagnostics,
+  ).toContain('verticals/catalog/shared/api.ts: catalogSearchApi unresolved');
+
+  // The CLI loads rules from a module; their messages are consumer violations.
+  write(file, publicContract);
+  const cli = (rules: string) =>
+    runMicroVerticalApiCheckCli(['--workspace-root', root, '--rules', rules]);
+  const passing = path.join(root, 'passing-rules.mjs');
+  const failing = path.join(root, 'failing-rules.mjs');
+  const malformed = path.join(root, 'malformed-rules.mjs');
+  write(passing, `export default [() => []];`);
+  write(failing, `export default [() => ['consumer rule ran']];`);
+  write(malformed, `export default () => [];`);
+  expect(await cli(passing)).toBe(0);
+  expect(await cli(failing)).toBe(1);
+  expect(await cli(malformed)).toBe(2);
 });
 
 test('rejects private cross-owner paths and export cycles', () => {
@@ -545,13 +651,13 @@ test('config errors and missing owners fail closed as tool failures', () => {
     }).toolErrors.join('\n'),
   ).toContain('verticals/catalog');
 });
-test('CLI distinguishes success, consumer and infrastructure failures', () => {
-  expect(runMicroVerticalApiCheckCli(['--workspace-root', root])).toBe(0);
+test('CLI distinguishes success, consumer and infrastructure failures', async () => {
+  expect(await runMicroVerticalApiCheckCli(['--workspace-root', root])).toBe(0);
   write(file, contract.replace("ownerId: 'catalog'", "ownerId: 'foreign'"));
-  expect(runMicroVerticalApiCheckCli(['--workspace-root', root])).toBe(1);
+  expect(await runMicroVerticalApiCheckCli(['--workspace-root', root])).toBe(1);
   write(path.join(root, 'topology/reference-topology.json'), '{');
-  expect(runMicroVerticalApiCheckCli(['--workspace-root', root])).toBe(2);
-  expect(runMicroVerticalApiCheckCli(['--workspace-root'])).toBe(2);
+  expect(await runMicroVerticalApiCheckCli(['--workspace-root', root])).toBe(2);
+  expect(await runMicroVerticalApiCheckCli(['--workspace-root'])).toBe(2);
 });
 test('UI-only units reject API surfaces', () => {
   const result = checkMicroVerticalApiConsumerFiles({

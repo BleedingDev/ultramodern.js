@@ -10,7 +10,8 @@ import {
   baselinePackage,
   resolveBaselinePackageDirectory,
 } from './microvertical-api-owner';
-import { consumerParserPlugins } from './source-analysis';
+import { createModuleGraph, type ModuleGraph } from './module-graph';
+import { consumerParserPlugins, SourceSyntaxError } from './source-analysis';
 import {
   createEffectApiImportResolver,
   strictEffectRuntimeTopologyViolation,
@@ -24,6 +25,13 @@ export {
   configuredMicroVerticalApiStem,
   microVerticalApiBaselineViolation,
 } from './microvertical-api-baseline';
+export type {
+  ModuleGraph,
+  ModuleGraphHop,
+  ResolvedBinding,
+  SourceModule,
+} from './module-graph';
+export { createModuleGraph } from './module-graph';
 
 export interface MicroVerticalConfiguredApp {
   readonly path: string;
@@ -40,11 +48,24 @@ export interface MicroVerticalConfiguredApp {
     readonly additionalPaths?: Readonly<Record<string, string>>;
   };
 }
+export interface MicroVerticalApiContractRuleContext {
+  /** Workspace-relative app directory. */
+  readonly appPath: string;
+  readonly protocol: 'rest' | 'rpc';
+  /** Graph rooted at the app's shared contract (`graph.root`). */
+  readonly graph: ModuleGraph;
+}
+/** A consumer-owned contract rule; each returned message is a violation. */
+export type MicroVerticalApiContractRule = (
+  context: MicroVerticalApiContractRuleContext,
+) => readonly string[];
 export interface MicroVerticalApiCheckOptions {
   readonly workspaceRoot: string;
   readonly configuredApps?: readonly MicroVerticalConfiguredApp[];
   /** Explicit expected installed owner, useful for isolated/non-hoisted installations. */
   readonly baselinePackageDirectory?: string;
+  /** Rules run once per API app against its shared contract's module graph. */
+  readonly contractRules?: readonly MicroVerticalApiContractRule[];
 }
 export interface MicroVerticalApiCheckResult {
   readonly diagnostics: readonly string[];
@@ -684,6 +705,29 @@ function check(
             expectation,
           );
           if (violation) diagnostics.push(`${contract}: ${violation}`);
+        }
+        if (options.contractRules?.length && exists(contract)) {
+          let graph: ModuleGraph | undefined;
+          try {
+            graph = createModuleGraph(absolute(contract));
+          } catch (error) {
+            if (!(error instanceof SourceSyntaxError)) throw error;
+            diagnostics.push(
+              `${contract}: contract rules need a parseable contract with immutable bindings (${error.message})`,
+            );
+          }
+          if (graph) {
+            const context: MicroVerticalApiContractRuleContext = {
+              appPath,
+              protocol: rpc ? 'rpc' : 'rest',
+              graph,
+            };
+            for (const rule of options.contractRules)
+              guarded(`${contract} (rule ${rule.name || 'anonymous'})`, () => {
+                for (const message of rule(context))
+                  diagnostics.push(`${contract}: ${message}`);
+              });
+          }
         }
         if (client) {
           const relativeContract = path.posix.relative(
