@@ -98,12 +98,13 @@ export function prepareTractorCohortInstallation(workspace, release) {
     catalog[name] = `npm:${target}@${version}`;
   }
   // Consumers select sidecars directly (`npm:@bleedingdev/mf-modern-js-v3@…`
-  // in manifests, catalogs and overrides). The bundle ships its own sidecar
+  // in manifests, the default and named catalogs, and overrides). The bundle ships its own sidecar
   // versions, so adopting it moves those selections too.
   const sidecars = new Map(
     (release.sidecars?.packages ?? []).map(item => [item.name, item.version]),
   );
   for (const selections of [
+    policy.catalog,
     ...Object.values(policy.catalogs),
     policy.overrides,
   ]) {

@@ -935,6 +935,7 @@ test('cohort installation updates native catalog to exact bundle without changin
       packages: [
         { name: '@bleedingdev/mf-modern-js-v3', version: '2.9.2' },
         { name: '@bleedingdev/zod', version: '4.6.5' },
+        { name: '@bleedingdev/ipx', version: '3.2.2' },
       ],
     };
     const shellManifestFile = path.join(
@@ -958,7 +959,7 @@ test('cohort installation updates native catalog to exact bundle without changin
     );
     fs.appendFileSync(
       path.join(root, 'pnpm-workspace.yaml'),
-      'overrides:\n  zod: npm:@bleedingdev/zod@4.6.5\n  effect: npm:@bleedingdev/effect@4.0.0-rc.117\n',
+      'catalog:\n  ipx: npm:@bleedingdev/ipx@3.2.1\noverrides:\n  zod: npm:@bleedingdev/zod@4.6.5\n  effect: npm:@bleedingdev/effect@4.0.0-rc.117\n',
     );
     const result = prepareTractorCohortInstallation(root, next);
     assert.equal(result.dependencyCount, 1);
@@ -971,6 +972,7 @@ test('cohort installation updates native catalog to exact bundle without changin
       /npm:@bleedingdev\/modern-js-runtime@3\.9\.0-ultramodern\.6/u,
     );
     assert.match(policyText, /zod: npm:@bleedingdev\/zod@4\.6\.5/u);
+    assert.match(policyText, /ipx: npm:@bleedingdev\/ipx@3\.2\.2/u);
     assert.match(
       policyText,
       /effect: npm:@bleedingdev\/effect@4\.0\.0-rc\.117/u,
