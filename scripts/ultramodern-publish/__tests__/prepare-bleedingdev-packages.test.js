@@ -150,7 +150,7 @@ const createTemplateRequiredFiles = [
 
 // Builds a real staged cohort and packs it through the production
 // `createReleaseArtifacts`, so the tests below verify real tarball bytes.
-const createArtifactFixture = async () => {
+const createArtifactFixture = async (extraDefinitions = []) => {
   const { createReleaseArtifacts } = await import(
     '../prepare-bleedingdev-packages.mjs'
   );
@@ -180,7 +180,11 @@ const createArtifactFixture = async () => {
       targetName: aliases['@modern-js/ultramodern-create'],
       dependencies: {},
     },
+    ...extraDefinitions,
   ];
+  for (const definition of extraDefinitions) {
+    aliases[definition.sourceName] = definition.targetName;
+  }
   const packages = definitions.map(definition => {
     const packageDir = path.join(
       root,
@@ -650,6 +654,81 @@ test('trusted publishing rejects the entire absent cohort before the first regis
       ),
     );
     assert.deepEqual(registryMutations, []);
+  } finally {
+    removeDir(fixture.root);
+  }
+});
+
+test('full-cohort publish runs each dependency level concurrently and never starts a consumer before its dependencies return', async () => {
+  const { publishManifestPackages } = await import(
+    '../prepare-bleedingdev-packages.mjs'
+  );
+  // plugin-a depends on runtime -> utils; plugin-b and utils share level 0.
+  const fixture = await createArtifactFixture([
+    {
+      sourceName: '@modern-js/plugin-a',
+      targetName: '@bleedingdev/modern-js-plugin-a',
+      dependencies: {
+        '@modern-js/runtime':
+          'npm:@bleedingdev/modern-js-runtime@3.2.0-ultramodern.1',
+      },
+    },
+    {
+      sourceName: '@modern-js/plugin-b',
+      targetName: '@bleedingdev/modern-js-plugin-b',
+      dependencies: {},
+    },
+  ]);
+  const { manifest } = fixture.releaseArtifacts;
+  const events = [];
+  const inFlight = new Set();
+  let maxInFlight = 0;
+
+  try {
+    await publishManifestPackages(
+      fixture.releaseArtifacts,
+      {
+        dryRun: true,
+        publishConcurrency: 8,
+        tag: 'latest',
+        version: '3.2.0-ultramodern.1',
+      },
+      {
+        lookupRegistryDistTag: async () => '3.1.0-ultramodern.previous',
+        lookupRegistryPackageDist: async () => null,
+        publishPackage: async artifact => {
+          events.push(['start', artifact.targetName]);
+          inFlight.add(artifact.targetName);
+          maxInFlight = Math.max(maxInFlight, inFlight.size);
+          await new Promise(resolve => setTimeout(resolve, 10));
+          inFlight.delete(artifact.targetName);
+          events.push(['end', artifact.targetName]);
+          return artifact.targetName;
+        },
+      },
+    );
+
+    const indexOf = (kind, targetName) =>
+      events.findIndex(
+        ([eventKind, eventTarget]) =>
+          eventKind === kind && eventTarget === targetName,
+      );
+    for (const targetName of manifest.publishOrder) {
+      for (const dependency of manifest.dependencyGraph[targetName]) {
+        assert.ok(
+          indexOf('end', dependency) < indexOf('start', targetName),
+          `${targetName} started before ${dependency} returned`,
+        );
+      }
+    }
+    // utils and plugin-b share the first level and publish together.
+    assert.equal(maxInFlight, 2);
+    // create keeps its publish-last contract as a level of its own.
+    assert.deepEqual(events.slice(-2), [
+      ['start', '@bleedingdev/modern-js-ultramodern-create'],
+      ['end', '@bleedingdev/modern-js-ultramodern-create'],
+    ]);
+    assert.equal(events.length, manifest.publishOrder.length * 2);
   } finally {
     removeDir(fixture.root);
   }
