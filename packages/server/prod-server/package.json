@@ -22,7 +22,7 @@
     "prepublishOnly": "only-allow-pnpm",
     "build": "rslib build",
     "dev": "rslib build --watch",
-    "test": "rstest --passWithNoTests"
+    "test": "rstest"
   },
   "exports": {
     ".": {
