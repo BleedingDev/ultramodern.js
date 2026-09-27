@@ -12,9 +12,6 @@ import {
 
 const key = distributedSsrFragmentKey('inventory', './Widget');
 
-const unreachableLoader = (): Promise<never> =>
-  Promise.reject(new Error('native remote must not load in this test'));
-
 interface CheckoutRemoteProps {
   price: number;
   sku: string;
@@ -161,11 +158,9 @@ describe('createDistributedSsrComponent', () => {
     let resolved = false;
     let pending: Promise<typeof fragment> | undefined;
     const Remote = createDistributedSsrComponent<{ sku: string }>({
-      createLazyComponent: () => () => (
+      createComponent: () => () => (
         <section data-native-mf="checkout">native checkout</section>
       ),
-      getInstance: () => null,
-      loader: unreachableLoader,
       expose: './AddToCart',
       fallback: <p>unavailable</p>,
       remote: 'checkout',
@@ -216,11 +211,9 @@ describe('createDistributedSsrComponent', () => {
       remote: string;
     }> = [];
     const Remote = createDistributedSsrComponent<CheckoutRemoteProps>({
-      createLazyComponent: () => () => (
+      createComponent: () => () => (
         <section data-native-mf="inventory">native inventory</section>
       ),
-      getInstance: () => null,
-      loader: unreachableLoader,
       expose: './AddToCart',
       fallback: <p>unavailable</p>,
       remote: 'checkout',
@@ -283,19 +276,15 @@ describe('createDistributedSsrComponent', () => {
   });
 
   it('constructs and caches the native remote for Node SSR without bridge-injected links', () => {
-    const instance = { name: 'shell' };
-    const loader = unreachableLoader;
     const fallback = <p>unavailable</p>;
     const lazyOptions: unknown[] = [];
     const Remote = createDistributedSsrComponent({
-      createLazyComponent: options => {
+      createComponent: options => {
         lazyOptions.push(options);
         return () => <section data-native-mf="inventory">inventory</section>;
       },
       expose: './Widget',
       fallback,
-      getInstance: () => instance,
-      loader,
       remote: 'inventory',
     });
     const context = {
@@ -317,17 +306,46 @@ describe('createDistributedSsrComponent', () => {
     );
 
     // The bridge renders a remote CSS <link> into SSR HTML unless injectLink
-    // is false; the boundary owns remote CSS, so every build format must pass
-    // it here rather than rely on a patched bridge default.
+    // is false; the boundary owns remote CSS, so it hands the native factory
+    // the options that turn the bridge link off in every build format.
     expect(lazyOptions).toEqual([
       {
         export: 'default',
         fallback,
         injectLink: false,
-        instance,
-        loader,
         loading: null,
       },
     ]);
+  });
+
+  // Shells generated before the factory received options pass a factory that
+  // takes none, with the Props type argument written out.
+  it('accepts a native factory that ignores the boundary options', () => {
+    type WidgetProps = { label: string };
+    const Remote = createDistributedSsrComponent<WidgetProps>({
+      createComponent:
+        () =>
+        ({ label }: WidgetProps) => (
+          <section data-native-mf="inventory">{label}</section>
+        ),
+      expose: './Widget',
+      fallback: null,
+      remote: 'inventory',
+    });
+
+    expect(
+      renderToString(
+        <RuntimeContext.Provider
+          value={
+            {
+              isBrowser: false,
+              requestContext: { request: {}, response: {} },
+            } as never
+          }
+        >
+          <Remote label="tractor" />
+        </RuntimeContext.Provider>,
+      ),
+    ).toContain('>tractor</section>');
   });
 });

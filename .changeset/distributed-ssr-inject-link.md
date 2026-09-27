@@ -3,17 +3,20 @@
 '@modern-js/ultramodern-create': patch
 ---
 
-`createDistributedSsrComponent` now creates the native remote itself and always passes `injectLink: false`, so the Module Federation bridge no longer renders a second remote CSS `<link>` into SSR HTML in any build format. Callers pass `createLazyComponent`, `getInstance` and `loader` instead of a `createComponent` thunk:
+`createDistributedSsrComponent` passes the `createLazyComponent` options it owns (`export: 'default'`, the fallback, `loading: null` and `injectLink: false`) to the `createComponent` factory, so the Module Federation bridge no longer renders a second remote CSS `<link>` into SSR HTML in any build format. Generated shells spread them:
 
 ```tsx
-createDistributedSsrComponent({
-  createLazyComponent,
+createDistributedSsrComponent<AddToCartProps>({
+  createComponent: options =>
+    createLazyComponent<RemoteComponentModule<AddToCartProps>, 'default'>({
+      ...options,
+      instance: getInstance(),
+      loader: () => import('checkout/AddToCart'),
+    }),
   expose: './AddToCart',
   fallback,
-  getInstance,
-  loader: () => import('checkout/AddToCart'),
   remote: 'checkout',
 });
 ```
 
-Generated shells use the new form.
+The signature is unchanged: shells whose factory takes no options still type-check and render.
