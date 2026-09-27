@@ -12,6 +12,8 @@
  *   - no npm token environment variables
  *   - no `${{ inputs.* }}` / `${{ github.event.inputs.* }}` interpolation
  *     inside `run:` blocks (shell-injection vector; route through `env:`)
+ *   - no runtime skip-CI gate (`skipCI`, `steps.skip-ci`, `git diff
+ *     origin/main`) and no trigger path filter that excludes `.github`
  *   - in `.github/workflows/`, every `node <script>` run before the job's
  *     dependency install loads only Node builtins and tracked files through
  *     its eager import closure (the template workflow runs scripts of the
@@ -1151,6 +1153,71 @@ const collectTestFilterFindings = (workflow, content) => {
   return findings;
 };
 
+/**
+ * CI must never decide at runtime to skip itself. A step that diffs against a
+ * guessed base (the old skipCI.js diffed `origin/main`, a branch this fork
+ * does not target) and gates later steps on its output turns required checks
+ * green without running them. Trigger-level `paths-ignore` is the one place to
+ * skip docs-only changes, and it must never hide workflow edits.
+ */
+const skipGatePatterns = [
+  /\bskipCI\b/u,
+  /\bsteps\.skip-ci\b/u,
+  /\bgit\s+diff\b[^\n]*\borigin\/main(?![\w-])/u,
+];
+
+const collectSkipGateFindings = (workflow, content) => {
+  const findings = [];
+  walkValues(workflow, value => {
+    if (typeof value !== 'string') {
+      return;
+    }
+    for (const pattern of skipGatePatterns) {
+      const match = value.match(pattern);
+      if (match) {
+        findings.push(
+          sourceFinding(
+            content,
+            new RegExp(escapeRegExp(match[0]), 'u'),
+            match[0],
+          ),
+        );
+      }
+    }
+  });
+  return findings;
+};
+
+// `paths-ignore: [.github/**]` and a negated `paths: ['!.github/**']` both
+// stop a workflow edit from running the workflow it edits.
+const hidesWorkflowDir = (filter, pattern) => {
+  const excluded =
+    filter === 'paths-ignore' ? pattern : /^!(.*)$/su.exec(pattern)?.[1];
+  return (
+    excluded !== undefined && /^(?:\*\*\/)?\.github(?:\/|$)/u.test(excluded)
+  );
+};
+
+const collectWorkflowPathIgnores = workflow => {
+  const findings = [];
+  if (!isObject(workflow.on)) {
+    return findings;
+  }
+  for (const [event, config] of Object.entries(workflow.on)) {
+    if (!isObject(config)) {
+      continue;
+    }
+    for (const filter of ['paths', 'paths-ignore']) {
+      for (const pattern of config[filter] ?? []) {
+        if (typeof pattern === 'string' && hidesWorkflowDir(filter, pattern)) {
+          findings.push({ event, filter, pattern });
+        }
+      }
+    }
+  }
+  return findings;
+};
+
 const getTriggers = workflow => {
   const triggers = workflow.on;
   if (typeof triggers === 'string') {
@@ -1578,6 +1645,21 @@ export function validateWorkflowContent(relativePath, content, options = {}) {
     push(
       'run-input-interpolation',
       `${relativePath}:${finding.line} must not interpolate workflow inputs into run blocks (route through env): ${finding.text}`,
+    );
+  }
+
+  for (const finding of collectSkipGateFindings(workflow, content)) {
+    push(
+      'skip-ci-gate',
+      `${relativePath}:${finding.line} must not gate jobs on a runtime skip-CI diff; skip docs-only changes with a trigger paths-ignore instead: ${finding.text}`,
+    );
+  }
+  for (const { event, filter, pattern } of collectWorkflowPathIgnores(
+    workflow,
+  )) {
+    push(
+      'workflow-path-ignore',
+      `${relativePath} must not exclude .github from on.${event}.${filter} (${pattern}); workflow edits have to run the checks they change`,
     );
   }
 

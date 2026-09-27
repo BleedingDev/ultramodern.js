@@ -212,7 +212,7 @@ jobs:
         run: |
           echo "$CREATE_PACKAGE_INPUT"
           echo "\${{ matrix.command }}"
-          echo "\${{ steps.skip-ci.outputs.RESULT }}"
+          echo "\${{ steps.pnpm-store.outputs.path }}"
 `;
   assert.deepEqual(
     validateWorkflowContent('.github/workflows/example.yml', content),
@@ -485,4 +485,63 @@ ${jobEnv}    steps:
     }).length,
     1,
   );
+});
+
+test('workflows reject runtime skip-CI gates', () => {
+  const skipErrors = source =>
+    validateWorkflowContent('.github/workflows/example.yml', source).filter(
+      error => error.includes('must not gate jobs on a runtime skip-CI diff'),
+    );
+  assert.deepEqual(skipErrors(compliantWorkflow), []);
+  for (const gated of [
+    '        run: echo "RESULT=$(node ./scripts/skipCI.js)" >> "$GITHUB_OUTPUT"',
+    `        if: ${githubExpression("steps.skip-ci.outputs.RESULT != 'true'")}\n        run: echo ok`,
+    '        run: git diff origin/main... --name-only',
+  ]) {
+    assert.equal(
+      skipErrors(compliantWorkflow.replace('        run: echo ok', gated))
+        .length,
+      1,
+      gated,
+    );
+  }
+  assert.deepEqual(
+    skipErrors(
+      compliantWorkflow.replace(
+        '        run: echo ok',
+        '        run: git diff origin/main-ultramodern... --name-only',
+      ),
+    ),
+    [],
+  );
+});
+
+test('trigger path filters must not exclude .github', () => {
+  const pathErrors = source =>
+    validateWorkflowContent('.github/workflows/example.yml', source).filter(
+      error => error.includes('must not exclude .github'),
+    );
+  const withFilter = filter =>
+    compliantWorkflow.replace('  push:\n', `  push:\n${filter}`);
+  assert.deepEqual(
+    pathErrors(
+      withFilter(
+        "    paths-ignore:\n      - 'docs/**'\n      - '**/*.md'\n      - '.changeset/**'\n",
+      ),
+    ),
+    [],
+  );
+  assert.deepEqual(
+    pathErrors(
+      withFilter("    paths:\n      - '.github/workflows/example.yml'\n"),
+    ),
+    [],
+  );
+  for (const filter of [
+    "    paths-ignore:\n      - '.github/**'\n",
+    "    paths-ignore:\n      - '**/.github/**'\n",
+    "    paths:\n      - 'packages/**'\n      - '!.github/**'\n",
+  ]) {
+    assert.equal(pathErrors(withFilter(filter)).length, 1, filter);
+  }
 });

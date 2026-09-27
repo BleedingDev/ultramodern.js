@@ -44,27 +44,14 @@ jobs:
           version: 2026.8.3
           cache_save: false
 
-      - name: Check skip CI
-        run: echo "RESULT=$(node ./scripts/skipCI.js)" >> "$GITHUB_OUTPUT"
-        id: skip-ci
-
-      - name: Log skip CI result
-        env:
-          SKIP_CI_RESULT: ${{ steps.skip-ci.outputs.RESULT }}
-        run: echo "$SKIP_CI_RESULT"
-
       - name: Install Dependencies
-        if: ${{steps.skip-ci.outputs.RESULT != 'true'}}
         run: mise exec -- pnpm install --frozen-lockfile
 
       - name: Type Check
-        if: ${{steps.skip-ci.outputs.RESULT != 'true'}}
         run: mise exec -- pnpm run prepare-build
 
       - name: Build cross-project type-check dependency
-        if: ${{steps.skip-ci.outputs.RESULT != 'true'}}
         run: mise exec -- pnpm --dir tests/integration/bff-cross-project/bff-api-app build
 
       - name: Validate critical packages with tsgo
-        if: ${{steps.skip-ci.outputs.RESULT != 'true'}}
         run: mise exec -- pnpm run validate:tsgo
