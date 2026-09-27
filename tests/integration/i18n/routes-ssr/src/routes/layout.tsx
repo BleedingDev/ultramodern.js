@@ -1,9 +1,14 @@
 import { useModernI18n } from '@modern-js/plugin-i18n/runtime';
 import { Outlet, useFetcher } from '@modern-js/runtime/router';
+import { useEffect } from 'react';
 
 export default function Layout() {
   const { changeLanguage } = useModernI18n();
   const fetcher = useFetcher();
+  // Tests wait for html[data-hydrated] before interacting with the page.
+  useEffect(() => {
+    document.documentElement.dataset.hydrated = '';
+  }, []);
   const handleChangeLanguage = (language: string) => {
     changeLanguage(language);
     // 使用 data action 来更新 loader 数据

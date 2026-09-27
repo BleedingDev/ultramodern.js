@@ -6,6 +6,7 @@ import {
   launchApp,
   launchOptions,
 } from '../../../../utils/modernTestUtils';
+import { waitForText } from '../../test-utils';
 
 const projectDir = path.resolve(__dirname, '..');
 
@@ -31,42 +32,24 @@ describe('i18n-custom-i18n-wrapper', () => {
     }
   });
 
-  const getText = async (selector: string) => {
-    await page.waitForSelector(selector, { timeout: 5_000 });
-    const el = await page.$(selector);
-    return page.evaluate(elm => elm?.textContent?.trim(), el);
-  };
-
   test('loads HTTP resources first then refresh with SDK', async () => {
     await page.goto(`http://localhost:${appPort}/en`, {
       waitUntil: ['networkidle0'],
     });
 
-    const initialText = await getText('#sdk-text');
-    expect(['Hello World from HTTP', 'Hello World from SDK']).toContain(
-      initialText,
-    );
-
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    expect(await getText('#sdk-text')).toBe('Hello World from SDK');
+    await waitForText(page, '#sdk-text', 'Hello World from SDK');
   });
 
   test('language switch keeps SDK merge', async () => {
     await page.goto(`http://localhost:${appPort}/en`, {
       waitUntil: ['networkidle0'],
     });
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    await waitForText(page, '#sdk-text', 'Hello World from SDK');
 
     await page.click('#switch-zh');
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    const zhText = await getText('#sdk-text');
-    expect(['你好，世界（HTTP）', '你好，世界（SDK）']).toContain(zhText);
+    await waitForText(page, '#sdk-text', '你好，世界（SDK）');
 
     await page.click('#switch-en');
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    const backToEn = await getText('#sdk-text');
-    expect(['Hello World from HTTP', 'Hello World from SDK']).toContain(
-      backToEn,
-    );
+    await waitForText(page, '#sdk-text', 'Hello World from SDK');
   });
 });

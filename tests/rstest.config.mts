@@ -30,7 +30,6 @@ export default defineConfig({
   pool: {
     maxWorkers: resolveMaxWorkers(),
   },
-  retry: 1,
   testTimeout: 60_000,
   hookTimeout: 60_000,
   // Peak heap per test file, so a future OOM is diagnosable from the log rather

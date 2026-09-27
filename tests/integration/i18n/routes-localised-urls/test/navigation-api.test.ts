@@ -7,11 +7,7 @@ import {
   launchApp,
   launchOptions,
 } from '../../../../utils/modernTestUtils';
-import {
-  clearI18nTestState,
-  gotoWithSSRRetry,
-  waitForHydration,
-} from '../../test-utils';
+import { clearI18nTestState } from '../../test-utils';
 
 rstest.setConfig({ testTimeout: 1000 * 60 * 2, hookTimeout: 1000 * 60 * 2 });
 
@@ -76,17 +72,16 @@ describe('router-ssr-i18n-localised-urls navigation and API exclusions', () => {
   });
 
   test('switches a hydrated product page to the localized Czech URL', async () => {
-    await gotoWithSSRRetry(
-      page,
-      `${host}:${appPort}/en/products/${productSlug}`,
-    );
+    await page.goto(`${host}:${appPort}/en/products/${productSlug}`, {
+      waitUntil: ['networkidle0'],
+    });
 
     expect(page.url()).toBe(`${host}:${appPort}/en/products/${productSlug}`);
     await expectText(page, '#product-language', 'en');
     await expectText(page, '#loader-language', 'en');
     await expectText(page, '#product-slug', productSlug);
     await expectText(page, '#product-name', 'Red Shoe');
-    await waitForHydration(page, '#cs-button');
+    await page.waitForSelector('html[data-hydrated]');
 
     await page.click('#cs-button');
 

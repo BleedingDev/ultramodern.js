@@ -35,8 +35,9 @@ describe('app-route', () => {
     await page.goto(`http://localhost:${appPort}/user`, {
       waitUntil: ['networkidle0'],
     });
-    const root = await page.$('#root');
-    const targetText = await page.evaluate(el => el?.textContent, root);
-    expect(targetText?.trim()).toEqual('User');
+    // The route module compiles on first request in dev.
+    await page.waitForFunction(
+      () => document.querySelector('#root')?.textContent?.trim() === 'User',
+    );
   });
 });

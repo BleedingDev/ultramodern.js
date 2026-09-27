@@ -10,6 +10,7 @@ import {
   acquireTestLock,
   clearI18nTestState,
   conditionalTest,
+  waitForText,
 } from '../../test-utils';
 
 rstest.setConfig({ testTimeout: 1000 * 60 * 5, hookTimeout: 1000 * 60 * 5 });
@@ -484,12 +485,7 @@ describe('mf-i18n-tests', () => {
         waitUntil: ['networkidle0'],
         timeout: 60000,
       });
-      const remoteAppTitle = await page.$('h2');
-      const titleText = await page.evaluate(
-        el => el?.textContent,
-        remoteAppTitle,
-      );
-      expect(titleText?.trim()).toEqual('远程应用页面');
+      await waitForText(page, 'h2', '远程应用页面');
       const body = await page.$('body');
       expect(body).toBeTruthy();
     });
@@ -499,12 +495,7 @@ describe('mf-i18n-tests', () => {
         waitUntil: ['networkidle0'],
         timeout: 60000,
       });
-      const remoteAppTitle = await page.$('h2');
-      const titleText = await page.evaluate(
-        el => el?.textContent,
-        remoteAppTitle,
-      );
-      expect(titleText?.trim()).toEqual('远程应用页面');
+      await waitForText(page, 'h2', '远程应用页面');
     });
 
     conditionalTest('should load remote-2 app correctly', async () => {
@@ -512,12 +503,7 @@ describe('mf-i18n-tests', () => {
         waitUntil: ['networkidle0'],
         timeout: 60000,
       });
-      const remoteAppTitle = await page.$('h2');
-      const titleText = await page.evaluate(
-        el => el?.textContent,
-        remoteAppTitle,
-      );
-      expect(titleText?.trim()).toEqual('远程应用页面');
+      await waitForText(page, 'h2', '远程应用页面');
       await page.waitForSelector('#key', { timeout: 30000 });
       const remoteKey = await page.$('#key');
       const remoteText = await page.evaluate(el => el?.textContent, remoteKey);
@@ -529,12 +515,7 @@ describe('mf-i18n-tests', () => {
         waitUntil: ['networkidle0'],
         timeout: 60000,
       });
-      const remoteAppTitle = await page.$('h2');
-      const titleText = await page.evaluate(
-        el => el?.textContent,
-        remoteAppTitle,
-      );
-      expect(titleText?.trim()).toEqual('远程应用页面');
+      await waitForText(page, 'h2', '远程应用页面');
       await page.waitForSelector('#key', { timeout: 30000 });
       const remoteKey = await page.$('#key');
       const remoteText = await page.evaluate(el => el?.textContent, remoteKey);
