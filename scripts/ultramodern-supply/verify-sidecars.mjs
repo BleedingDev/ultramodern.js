@@ -39,6 +39,40 @@ const consumerBlocks = [
 const forkSpecifier = /^npm:(@bleedingdev\/[\w.-]+)@(.+)$/u;
 
 /**
+ * Framework runtime edges that still name an upstream package with a recipe,
+ * because the fork version they must declare is not on npm yet. The monorepo
+ * cannot install an unpublished alias, so such an edge ships the upstream
+ * package at the recipe's exact upstream version until the release that
+ * publishes the fork has matured past the 24h release-age gate; the next change
+ * declares the fork alias and deletes the entry.
+ *
+ * `@bleedingdev/mf-runtime@2.9.2` reaches runtime-core's
+ * resetFederationRuntime (module-federation/core#5152). Backend federation in
+ * plugin-bff-extensions creates its own instance and never calls it.
+ */
+export const unpublishedForkEdges = [
+  {
+    importer: 'packages/cli/plugin-bff-extensions',
+    published: '@bleedingdev/modern-js-plugin-bff-extensions',
+    dependency: '@module-federation/runtime',
+  },
+];
+
+/** Whether `consumer`'s `dependency` edge may still be the upstream `specifier`. */
+export const isUnpublishedForkEdge = (
+  consumer,
+  dependency,
+  specifier,
+  recipe,
+) =>
+  specifier === recipe.upstream.version &&
+  unpublishedForkEdges.some(
+    edge =>
+      edge.dependency === dependency &&
+      (edge.importer === consumer || edge.published === consumer),
+  );
+
+/**
  * Every recipe must be reachable from a generator runtime pin or an alias the
  * publisher emits into a runtime, optional or peer dependency of a published
  * cohort manifest, directly or through the alias edges of another reachable
@@ -82,7 +116,9 @@ export function assertRecipeConsumers(
         const expected =
           recipe && `npm:${recipe.fork.name}@${recipe.fork.version}`;
         assert.ok(
-          !recipe || specifier === expected,
+          !recipe ||
+            specifier === expected ||
+            isUnpublishedForkEdge(manifest.name, name, specifier, recipe),
           `${manifest.name} ${block}.${name} is ${specifier}; declare ${expected} in source`,
         );
       }
@@ -406,12 +442,21 @@ export async function verifySidecar(
     assert.equal(upstream.version, recipe.upstream.version);
     assert.equal(upstream.license, recipe.license);
     if (recipe.patch) {
-      execFileSync('patch', ['-p1', '--fuzz=0', '--batch'], {
+      // -E removes the files an upstream PR deletes; GNU and BSD patch both
+      // otherwise leave them behind empty.
+      execFileSync('patch', ['-p1', '-E', '--fuzz=0', '--batch'], {
         cwd: upstreamDir,
         input: recipePatch(recipe),
         stdio: ['pipe', 'pipe', 'pipe'],
       });
     }
+    // A carried upstream PR can change the manifest too (for example its
+    // `exports`), so the publication manifest projects the patched one.
+    const patched = JSON.parse(
+      fs.readFileSync(path.join(upstreamDir, 'package.json'), 'utf8'),
+    );
+    assert.equal(patched.name, upstream.name);
+    assert.equal(patched.version, upstream.version);
     if (materializeTo) {
       assert.deepEqual(
         recipe.artifacts,
@@ -419,7 +464,7 @@ export async function verifySidecar(
         `${id}: reconstruction requires the complete upstream artifact`,
       );
       const projected = {
-        ...upstream,
+        ...patched,
         name: recipe.fork.name,
         version: recipe.fork.version,
         publishConfig: {
@@ -435,11 +480,11 @@ export async function verifySidecar(
       for (const [key, changes] of Object.entries(recipe.manifestChanges)) {
         for (const dependencyName of Object.keys(changes)) {
           assert.ok(
-            Object.hasOwn(upstream[key] ?? {}, dependencyName),
+            Object.hasOwn(patched[key] ?? {}, dependencyName),
             `${id}: recipe changes absent upstream ${key}.${dependencyName}`,
           );
         }
-        projected[key] = { ...upstream[key], ...changes };
+        projected[key] = { ...patched[key], ...changes };
       }
       if (packageDir) {
         const fork = JSON.parse(
@@ -469,17 +514,17 @@ export async function verifySidecar(
     assert.equal(fork.version, recipe.fork.version);
     for (const key of contractFields) {
       const expected = recipe.manifestChanges[key]
-        ? { ...upstream[key], ...recipe.manifestChanges[key] }
-        : upstream[key];
+        ? { ...patched[key], ...recipe.manifestChanges[key] }
+        : patched[key];
       assert.deepEqual(fork[key], expected, `${id}: manifest ${key}`);
     }
     if (recipe.artifacts.includes('*')) {
       const expectedDevDependencies = recipe.manifestChanges.devDependencies
         ? {
-            ...upstream.devDependencies,
+            ...patched.devDependencies,
             ...recipe.manifestChanges.devDependencies,
           }
-        : upstream.devDependencies;
+        : patched.devDependencies;
       assert.deepEqual(
         fork.devDependencies,
         expectedDevDependencies,

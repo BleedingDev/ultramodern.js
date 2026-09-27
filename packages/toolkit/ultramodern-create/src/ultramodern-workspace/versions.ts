@@ -60,7 +60,7 @@ export const ULTRAMODERN_PACKAGE_PINS = {
     // `react-router-dom`-importing entry is bundled again.
     '@module-federation/bridge-react': `npm:@bleedingdev/mf-bridge-react@${MODULE_FEDERATION_VERSION}`,
     '@module-federation/modern-js-v3': `npm:@bleedingdev/mf-modern-js-v3@${MODULE_FEDERATION_MODERN_JS_V3_FORK_VERSION}`,
-    '@module-federation/runtime': MODULE_FEDERATION_VERSION,
+    '@module-federation/runtime': `npm:@bleedingdev/mf-runtime@${MODULE_FEDERATION_VERSION}`,
     '@tanstack/react-router': TANSTACK_ROUTER_VERSION,
     i18next: I18NEXT_VERSION,
     'node-fetch': NODE_FETCH_VERSION,

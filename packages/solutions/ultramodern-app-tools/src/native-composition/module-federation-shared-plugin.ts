@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import type { AppTools, CliPlugin } from '@modern-js/app-tools';
 import type { Rspack } from '@rsbuild/core';
@@ -14,10 +15,15 @@ const REACT_JSX_RUNTIMES = ['react/jsx-runtime', 'react/jsx-dev-runtime'];
 
 // Chain ids under which `@module-federation/modern-js-v3` registers its
 // browser and server federation plugins.
+const MODULE_FEDERATION_SERVER_CHAIN_ID = 'plugin-module-federation-server';
 const MODULE_FEDERATION_CHAIN_IDS = [
   'plugin-module-federation',
-  'plugin-module-federation-server',
+  MODULE_FEDERATION_SERVER_CHAIN_ID,
 ];
+
+// Retries a server-side remote manifest fetch that failed transiently.
+const MANIFEST_RECOVERY_RUNTIME_PLUGIN =
+  '@modern-js/federation-runtime/manifest-recovery-runtime-plugin';
 
 /**
  * Framework packages whose subpaths share module state: React contexts and
@@ -213,6 +219,34 @@ type FederationPluginOptions = {
   shared?: Shared;
   exposes?: unknown;
   mfConfig?: unknown;
+  runtimePlugins?: unknown[];
+};
+
+/**
+ * The server manifest-recovery runtime plugin of the app's own
+ * `@modern-js/federation-runtime`, or `undefined` when the app does not
+ * install it. Resolved from the app directory, never from `process.cwd()`.
+ */
+export const resolveManifestRecoveryRuntimePlugin = (
+  appDirectory: string,
+): string | undefined => {
+  if (!findInstalledManifest(appDirectory, '@modern-js/federation-runtime'))
+    return undefined;
+  return createRequire(path.join(appDirectory, 'package.json')).resolve(
+    MANIFEST_RECOVERY_RUNTIME_PLUGIN,
+  );
+};
+
+/** Append `runtimePlugin` unless the app already registered it. */
+export const withRuntimePlugin = (
+  runtimePlugins: unknown[] | undefined,
+  runtimePlugin: string,
+): unknown[] => {
+  const plugins = runtimePlugins ?? [];
+  const registered = plugins.some(
+    plugin => (Array.isArray(plugin) ? plugin[0] : plugin) === runtimePlugin,
+  );
+  return registered ? plugins : [...plugins, runtimePlugin];
 };
 
 // `secondarySharedTreeShaking` wraps the federation config in `mfConfig`.
@@ -226,6 +260,7 @@ const federationConfig = (
 const withDefaults = (
   options: FederationPluginOptions,
   packages: FrameworkSharedPackage[],
+  runtimePlugin: string | undefined,
 ): FederationPluginOptions =>
   options.mfConfig && typeof options.mfConfig === 'object'
     ? {
@@ -233,6 +268,7 @@ const withDefaults = (
         mfConfig: withDefaults(
           options.mfConfig as FederationPluginOptions,
           packages,
+          runtimePlugin,
         ),
       }
     : {
@@ -241,6 +277,14 @@ const withDefaults = (
           withReactJsxRuntimeShared(options.shared),
           packages,
         ),
+        ...(runtimePlugin
+          ? {
+              runtimePlugins: withRuntimePlugin(
+                options.runtimePlugins,
+                runtimePlugin,
+              ),
+            }
+          : {}),
       };
 
 const hasExposes = (options: FederationPluginOptions) => {
@@ -325,8 +369,9 @@ export class FederationPrivateContextsPlugin {
 }
 
 /**
- * Apply UltraModern's Module Federation share defaults to the federation
- * plugins that `@module-federation/modern-js-v3` registered on the chain.
+ * Apply UltraModern's Module Federation defaults to the federation plugins
+ * that `@module-federation/modern-js-v3` registered on the chain: the shares,
+ * and on the server the manifest-recovery runtime plugin.
  */
 export const ultramodernModuleFederationSharedPlugin =
   (): CliPlugin<AppTools> => ({
@@ -341,9 +386,10 @@ export const ultramodernModuleFederationSharedPlugin =
           chain.plugins.has(id),
         );
         if (ids.length === 0) return;
-        const packages = resolveFrameworkSharedPackages(
-          api.getAppContext().appDirectory,
-        );
+        const { appDirectory } = api.getAppContext();
+        const packages = resolveFrameworkSharedPackages(appDirectory);
+        const manifestRecovery =
+          resolveManifestRecoveryRuntimePlugin(appDirectory);
         let exposes = false;
         for (const id of ids) {
           const [options] = chain.plugin(id).get('args') as [
@@ -353,7 +399,13 @@ export const ultramodernModuleFederationSharedPlugin =
           chain
             .plugin(id)
             .tap(([options, ...rest]) => [
-              withDefaults(options, packages),
+              withDefaults(
+                options,
+                packages,
+                id === MODULE_FEDERATION_SERVER_CHAIN_ID
+                  ? manifestRecovery
+                  : undefined,
+              ),
               ...rest,
             ]);
         }

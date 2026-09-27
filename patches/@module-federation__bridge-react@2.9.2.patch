@@ -1,13 +1,15 @@
 diff --git a/dist/lazy/wrapNoSSR.d.ts b/dist/lazy/wrapNoSSR.d.ts
+index d78a4fe..bfee5b6 100644
 --- a/dist/lazy/wrapNoSSR.d.ts
 +++ b/dist/lazy/wrapNoSSR.d.ts
-@@ -6,4 +6,4 @@ export declare function wrapNoSSR<T, E extends keyof T>(createLazyComponentFn:
+@@ -6,4 +6,4 @@ export declare function wrapNoSSR<T, E extends keyof T>(createLazyComponentFn: t
      key?: React.Key | null;
  } : {
      key?: React.Key | null;
 -}) => import("node_modules/@types/react").JSX.Element;
 +}) => import("react").JSX.Element;
 diff --git a/dist/provider/versions/v18.d.ts b/dist/provider/versions/v18.d.ts
+index 20c12f9..a84fcea 100644
 --- a/dist/provider/versions/v18.d.ts
 +++ b/dist/provider/versions/v18.d.ts
 @@ -12,7 +12,7 @@ export interface Root {
@@ -20,6 +22,7 @@ diff --git a/dist/provider/versions/v18.d.ts b/dist/provider/versions/v18.d.ts
      render(info: import("../..").RenderParams): Promise<void>;
      destroy(info: import("../..").DestroyParams): void;
 diff --git a/dist/remote/base-component/create.d.ts b/dist/remote/base-component/create.d.ts
+index 4e163e4..0e1ca52 100644
 --- a/dist/remote/base-component/create.d.ts
 +++ b/dist/remote/base-component/create.d.ts
 @@ -1,7 +1,7 @@
@@ -33,6 +36,7 @@ diff --git a/dist/remote/base-component/create.d.ts b/dist/remote/base-component
   * @deprecated createRemoteComponent is deprecated, please use createRemoteAppComponent instead!
   */
 diff --git a/dist/remote/router-component/create.d.ts b/dist/remote/router-component/create.d.ts
+index 4e163e4..0e1ca52 100644
 --- a/dist/remote/router-component/create.d.ts
 +++ b/dist/remote/router-component/create.d.ts
 @@ -1,7 +1,7 @@

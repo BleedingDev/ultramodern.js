@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 
 import { parse } from 'yaml';
 
+import { isUnpublishedForkEdge } from '../ultramodern-supply/verify-sidecars.mjs';
+
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   '../..',
@@ -21,11 +23,8 @@ const recipes = JSON.parse(
 // monorepo tests must already be the corrected sidecar graph: a runtime edge
 // of a framework package may not resolve an upstream name that has a recipe.
 function upstreamRecipeEdges(lockfileText) {
-  const forks = new Map(
-    recipes.map(({ upstream, fork }) => [
-      upstream.name,
-      `${fork.name}@${fork.version}`,
-    ]),
+  const byUpstream = new Map(
+    recipes.map(recipe => [recipe.upstream.name, recipe]),
   );
   const edges = [];
   for (const [importer, blocks] of Object.entries(
@@ -34,8 +33,14 @@ function upstreamRecipeEdges(lockfileText) {
     if (!importer.startsWith('packages/')) continue;
     for (const block of ['dependencies', 'optionalDependencies']) {
       for (const [name, { version }] of Object.entries(blocks[block] ?? {})) {
-        const fork = forks.get(name);
-        if (fork && version !== fork && !version.startsWith(`${fork}(`)) {
+        const recipe = byUpstream.get(name);
+        if (!recipe) continue;
+        const fork = `${recipe.fork.name}@${recipe.fork.version}`;
+        if (
+          version !== fork &&
+          !version.startsWith(`${fork}(`) &&
+          !isUnpublishedForkEdge(importer, name, version, recipe)
+        ) {
           edges.push(`${importer} ${block}.${name} -> ${version}`);
         }
       }

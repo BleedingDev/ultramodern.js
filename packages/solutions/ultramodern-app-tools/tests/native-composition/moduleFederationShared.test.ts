@@ -12,9 +12,11 @@ import { presetUltramodern } from '@modern-js/ultramodern-app-tools';
 import { createRsbuild, type RspackChain, rspack } from '@rsbuild/core';
 import {
   resolveFrameworkSharedPackages,
+  resolveManifestRecoveryRuntimePlugin,
   ultramodernModuleFederationSharedPlugin,
   withFrameworkShared,
   withReactJsxRuntimeShared,
+  withRuntimePlugin,
 } from '../../src/native-composition/module-federation-shared-plugin';
 
 /** An app directory that installs only `@modern-js/runtime` at 9.9.9. */
@@ -43,6 +45,30 @@ const createAppDirectory = () => {
     }),
   );
   return { appDirectory, runtimeDirectory };
+};
+
+/** Install a `@modern-js/federation-runtime` exposing the recovery plugin. */
+const installFederationRuntime = (appDirectory: string) => {
+  const directory = path.join(
+    appDirectory,
+    'node_modules/@modern-js/federation-runtime',
+  );
+  mkdirSync(directory, { recursive: true });
+  writeFileSync(
+    path.join(directory, 'package.json'),
+    JSON.stringify({
+      name: '@modern-js/federation-runtime',
+      version: '9.9.9',
+      exports: {
+        './manifest-recovery-runtime-plugin': {
+          node: { require: './recovery.js' },
+          default: './recovery.mjs',
+        },
+      },
+    }),
+  );
+  writeFileSync(path.join(directory, 'recovery.js'), '');
+  return path.join(directory, 'recovery.js');
 };
 
 const runtimeShare = {
@@ -182,6 +208,68 @@ describe('Module Federation React JSX runtime sharing', () => {
       ...jsxRuntimes('19.2.0'),
       ...runtimeShare,
     });
+  });
+
+  it('registers the manifest-recovery runtime plugin on the server federation plugin only', async () => {
+    const { appDirectory } = createAppDirectory();
+    const cwd = process.cwd();
+    try {
+      expect(resolveManifestRecoveryRuntimePlugin(appDirectory)).toBe(
+        undefined,
+      );
+      const recovery = installFederationRuntime(appDirectory);
+      // Resolution follows the app directory, whatever the working directory.
+      process.chdir(tmpdir());
+      expect(resolveManifestRecoveryRuntimePlugin(appDirectory)).toBe(recovery);
+
+      let modifyBundlerChain: ((chain: RspackChain) => void) | undefined;
+      ultramodernModuleFederationSharedPlugin().setup({
+        getAppContext: () => ({ appDirectory }),
+        modifyBundlerChain: (handler: typeof modifyBundlerChain) => {
+          modifyBundlerChain = handler;
+        },
+      } as any);
+      const rsbuild = await createRsbuild({
+        cwd,
+        rsbuildConfig: {
+          source: { entry: { index: './src/index.js' } },
+          tools: {
+            bundlerChain: chain => {
+              chain
+                .plugin('plugin-module-federation')
+                .use(rspack.container.ModuleFederationPlugin, [
+                  { name: 'host', runtimePlugins: ['./app-plugin.js'] },
+                ]);
+              chain
+                .plugin('plugin-module-federation-server')
+                .use(rspack.container.ModuleFederationPlugin, [
+                  {
+                    name: 'host',
+                    runtimePlugins: ['./app-plugin.js'],
+                  },
+                ]);
+              modifyBundlerChain!(chain);
+            },
+          },
+        },
+      });
+      const [config] = await rsbuild.initConfigs();
+      const [browser, server] = config.plugins!.filter(
+        plugin => plugin instanceof rspack.container.ModuleFederationPlugin,
+      ) as any[];
+      expect(browser._options.runtimePlugins).toEqual(['./app-plugin.js']);
+      expect(server._options.runtimePlugins).toEqual([
+        './app-plugin.js',
+        recovery,
+      ]);
+      // An app that registered it explicitly keeps a single entry.
+      expect(withRuntimePlugin([[recovery, {}]], recovery)).toEqual([
+        [recovery, {}],
+      ]);
+    } finally {
+      process.chdir(cwd);
+      rmSync(appDirectory, { recursive: true, force: true });
+    }
   });
 
   it('is contributed by presetUltramodern ahead of app plugins', () => {

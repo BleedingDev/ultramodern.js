@@ -36,6 +36,28 @@ const exposeRpcChunk = format => {
   return path.join(directory, filename);
 };
 
+// The Broker chunk's `listen(server, port)`: binds and settles once
+// listening, rejecting with the bind error (module-federation/core#5159).
+const brokerListen = format => {
+  const directory = path.join(
+    packageRoot,
+    format === 'esm' ? 'dist/esm' : 'dist',
+  );
+  const filename = fs
+    .readdirSync(directory)
+    .find(
+      name =>
+        name.startsWith('Broker-') &&
+        name.endsWith(format === 'esm' ? '.mjs' : '.js'),
+    );
+  assert.ok(filename);
+  const source = fs.readFileSync(path.join(directory, filename), 'utf8');
+  const start = source.indexOf('function listen(server, port) {');
+  assert.notEqual(start, -1);
+  const end = source.indexOf('\n}\n', start) + 2;
+  return vm.runInNewContext(`(${source.slice(start, end)})`);
+};
+
 const getStatus = url =>
   new Promise((resolve, reject) => {
     http
@@ -52,7 +74,7 @@ for (const format of ['esm', 'cjs']) {
   // producer binds the port in between, EADDRINUSE is thrown as an uncaught
   // exception and takes down the forked DTS worker. The stale probe is
   // simulated deterministically: getFreePort hands out a port that is
-  // already bound.
+  // already bound, and the patched server must not ask for it at all.
   test(`${format} DTS type servers bind before publishing their port`, async () => {
     const source = fs.readFileSync(exposeRpcChunk(format), 'utf8');
     const start = source.indexOf('//#region src/server/createHttpServer.ts');
@@ -62,6 +84,7 @@ for (const format of ['esm', 'cjs']) {
     const getFreePort = async () => takenPort;
     const getIPV4 = () => '127.0.0.1';
     const DEFAULT_TAR_NAME = '@mf-types.zip';
+    const listen = brokerListen(format);
     const createHttpServer = vm.runInNewContext(
       `${source.slice(start, end)}\ncreateHttpServer;`,
       {
@@ -69,8 +92,9 @@ for (const format of ['esm', 'cjs']) {
         fs: { ...fs, default: fs },
         getFreePort,
         getIPV4,
+        listen,
         DEFAULT_TAR_NAME,
-        require_Broker: { getFreePort, getIPV4 },
+        require_Broker: { getFreePort, getIPV4, listen },
         require_Action: { DEFAULT_TAR_NAME },
       },
     );
