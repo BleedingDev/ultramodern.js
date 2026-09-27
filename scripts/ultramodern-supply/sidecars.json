@@ -24,30 +24,6 @@
     }
   },
   {
-    "id": "rsbuild-image-core",
-    "upstream": {
-      "name": "@rsbuild-image/core",
-      "version": "0.0.1-next.36",
-      "tarball": "https://registry.npmjs.org/@rsbuild-image/core/-/core-0.0.1-next.36.tgz",
-      "integrity": "sha512-GfYFL8JyqFZIZUzq7jGz6t+oWAaS3gOd8NqL7SIJCgLqeWJtVx5fE54sxhMfzINCi/Sy/r+BR5XizMBqGPOO9Q=="
-    },
-    "fork": {
-      "name": "@bleedingdev/rsbuild-image-core",
-      "version": "0.1.4"
-    },
-    "license": "MIT",
-    "artifacts": ["dist", "LICENSE"],
-    "patch": null,
-    "manifestChanges": {
-      "dependencies": {
-        "image-size": "^2.0.3"
-      },
-      "peerDependencies": {
-        "sharp": ">=0.35.4"
-      }
-    }
-  },
-  {
     "id": "mf-bridge-react",
     "upstream": {
       "name": "@module-federation/bridge-react",

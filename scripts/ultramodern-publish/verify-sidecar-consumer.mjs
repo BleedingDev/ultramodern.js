@@ -2,12 +2,13 @@
 // ROOT-ONLY. Packed-consumer proof for the sidecar publication lane.
 //
 // What it proves, end to end, against a LOOPBACK registry only:
-//   * the committed image sidecars publish before the cohort;
+//   * the committed ipx sidecar publishes before the cohort;
 //   * the cohort package @bleedingdev/modern-js-image, packed from this
 //     checkout, installs from that registry with strict npm peer resolution;
-//   * its `npm:@bleedingdev/...` aliases resolve to the fork packages;
+//   * its ipx `npm:@bleedingdev/...` alias resolves to the fork package and
+//     @rsbuild-image/core resolves upstream at its exact source version;
 //   * sharp resolves on the 0.35 line, image-size resolves upstream at
-//     2.0.3+ through the core fork's own dependency edge;
+//     2.0.3+ through @rsbuild-image/core's own dependency edge;
 //   * ipx and @rsbuild-image/core/shared import through BOTH CJS and ESM;
 //   * `npm ls` reports no invalid or missing peer edges.
 //
@@ -677,7 +678,7 @@ function publishPacked(packed, { cwd, env, registry, label }) {
  *
  * `require.resolve('<pkg>/package.json')` is NOT usable here: a package that
  * declares `exports` without a `./package.json` subpath blocks it, which is the
- * case for @bleedingdev/modern-js-image and both sidecar forks. So the proof
+ * case for @bleedingdev/modern-js-image, @rsbuild-image/core and the ipx fork. So the proof
  * starts at a public entry and walks ancestors to the first NAMED package.json,
  * which is the package that owns the entry, and checks that name.
  *
@@ -742,18 +743,18 @@ async function consumerProofMain(config, io) {
     `${image.manifest.name}@${image.manifest.version}`,
   );
 
-  // 1. npm: alias resolution - the aliased request names must land on the
-  //    forks, resolved from the image package's own entry.
+  // 1. Dependency resolution from the image package's own entry: upstream
+  //    @rsbuild-image/core at its exact version, ipx through the fork alias.
   const imageRequire = createRequire(imageEntry);
 
   const coreEntry = imageRequire.resolve('@rsbuild-image/core');
   const core = resolvePackageFromEntry(coreEntry, config.coreName, walkIo);
   assert.equal(
     image.manifest.dependencies['@rsbuild-image/core'],
-    `npm:${config.coreName}@${core.manifest.version}`,
+    core.manifest.version,
   );
   record(
-    '@rsbuild-image/core alias resolves',
+    '@rsbuild-image/core resolves upstream',
     `${core.manifest.name}@${core.manifest.version}`,
   );
 
@@ -792,7 +793,7 @@ async function consumerProofMain(config, io) {
   );
   record('image-size resolves', `image-size@${imageSize.manifest.version}`);
 
-  // 4. CJS: ipx and the core fork's shared subpath.
+  // 4. CJS: ipx and the core shared subpath.
   const ipxCjs = imageRequire('ipx');
   assert.equal(
     typeof ipxCjs.createIPX,
@@ -1182,7 +1183,7 @@ async function verifySidecarConsumer(options) {
     fs.writeFileSync(
       proofPath,
       buildConsumerProofSource({
-        coreName: '@bleedingdev/rsbuild-image-core',
+        coreName: '@rsbuild-image/core',
         imageName: cohortImageTargetName,
         imageVersion: packedImage.version,
         ipxName: '@bleedingdev/ipx',
