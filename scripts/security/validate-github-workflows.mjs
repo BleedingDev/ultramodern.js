@@ -1198,6 +1198,13 @@ const changeDetectionActions = [
   'tj-actions/changed-files',
 ];
 
+// `steps.<id>` or `steps['<id>']` / `steps["<id>"]` in an expression.
+const stepReferencePattern = id =>
+  new RegExp(
+    `\\bsteps(?:\\.${escapeRegExp(id)}(?![\\w-])|\\[\\s*(['"])${escapeRegExp(id)}\\1\\s*\\])`,
+    'u',
+  );
+
 const collectChangeGatedSteps = (workflow, content) => {
   const findings = [];
   const detectorIds = new Map();
@@ -1212,17 +1219,11 @@ const collectChangeGatedSteps = (workflow, content) => {
   }
   for (const { jobId, step } of workflowSteps(workflow)) {
     const condition = typeof step.if === 'string' ? step.if : '';
-    const gatedBy = (detectorIds.get(jobId) ?? []).find(id =>
-      new RegExp(`\\bsteps\\.${escapeRegExp(id)}\\.`, 'u').test(condition),
-    );
-    if (gatedBy) {
-      findings.push(
-        sourceFinding(
-          content,
-          new RegExp(`steps\\.${escapeRegExp(gatedBy)}\\.`, 'u'),
-          condition,
-        ),
-      );
+    const reference = (detectorIds.get(jobId) ?? [])
+      .map(stepReferencePattern)
+      .find(pattern => pattern.test(condition));
+    if (reference) {
+      findings.push(sourceFinding(content, reference, condition));
     }
   }
   return findings;
