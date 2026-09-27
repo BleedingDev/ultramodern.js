@@ -32,6 +32,9 @@ function decodeDataUrl(remote: BackendFederationRemote) {
   );
 }
 
+// Node caches ES modules by URL, so every runtime importing the same file: or
+// data: module shares one container. Only evaluated CommonJS containers (the
+// verified network path) are isolated per runtime.
 async function importContainer(remote: BackendFederationRemote) {
   const namespace = await import(/* webpackIgnore: true */ remote.entry);
   return (namespace.default ?? namespace) as BackendFederationEntryExports;
