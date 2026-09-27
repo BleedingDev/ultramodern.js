@@ -73,6 +73,15 @@ test.each([
     { pluralCategories: [['one', 'other']] },
     '.pluralCategories" must be an object',
   ],
+  [{ pluralCategories: { en: [] } }, '.pluralCategories" must be an object'],
+  [
+    { pluralCategories: { en: ['singular', 'other'] } },
+    '.pluralCategories" must be an object',
+  ],
+  [
+    { pluralCategories: { en: ['one'] } },
+    '.pluralCategories" must be an object',
+  ],
 ])('modern-i18n-check names the invalid package.json field %#', (i18nCheck, message) => {
   const root = workspace({
     'package.json': JSON.stringify({ modernjs: { i18nCheck } }),
@@ -98,3 +107,25 @@ test('modern-i18n-check rejects a source root that symlinks outside the workspac
   expect(result.status).toBe(2);
   expect(result.stderr).toContain('"modernjs.i18nCheck.sourceRoots" must be');
 });
+
+test.skipIf(process.platform === 'win32' || process.getuid?.() === 0)(
+  'modern-i18n-check reports an unreadable source directory as a tool failure',
+  () => {
+    const root = workspace({
+      'package.json': JSON.stringify({
+        modernjs: { i18nCheck: { sourceRoots: ['apps'] } },
+      }),
+    });
+    const locked = path.join(root, 'apps/locked');
+    fs.mkdirSync(locked, { recursive: true });
+    fs.chmodSync(locked, 0o000);
+    try {
+      const result = run(root);
+
+      expect(result.status, result.stderr).toBe(2);
+      expect(result.stderr).toContain('EACCES');
+    } finally {
+      fs.chmodSync(locked, 0o700);
+    }
+  },
+);

@@ -332,10 +332,26 @@ const isWorkspaceDirectory = (root: string, entry: string): boolean => {
   );
 };
 
+const CLDR_PLURAL_CATEGORIES = new Set([
+  'zero',
+  'one',
+  'two',
+  'few',
+  'many',
+  'other',
+]);
+
+/** Each override must be a CLDR category list; CLDR always has `other`. */
 const isPluralCategories = (
   value: unknown,
 ): value is Record<string, string[]> =>
-  isRecord(value) && Object.values(value).every(isStringArray);
+  isRecord(value) &&
+  Object.values(value).every(
+    categories =>
+      isStringArray(categories) &&
+      categories.includes('other') &&
+      categories.every(category => CLDR_PLURAL_CATEGORIES.has(category)),
+  );
 
 /** Reads `modernjs.i18nCheck` from the workspace package.json. */
 const readWorkspaceCheckOptions = (
@@ -372,7 +388,7 @@ const readWorkspaceCheckOptions = (
   if (pluralCategories !== undefined && !isPluralCategories(pluralCategories)) {
     throw invalid(
       '.pluralCategories',
-      'an object of locale -> category arrays',
+      'an object of locale -> CLDR plural categories including "other"',
     );
   }
   return { cwd: root, sourceRoots, locales, pluralCategories };
@@ -397,12 +413,14 @@ export const runWorkspaceSourceCheckCli = (
     index += 1;
   }
 
-  let options: WorkspaceSourceCheckOptions;
+  // runWorkspaceSourceCheck reports source violations as 1 itself; anything
+  // thrown past it is a configuration or tool failure.
   try {
-    options = readWorkspaceCheckOptions(path.resolve(workspaceRoot));
+    return runWorkspaceSourceCheck(
+      readWorkspaceCheckOptions(path.resolve(workspaceRoot)),
+    );
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     return 2;
   }
-  return runWorkspaceSourceCheck(options);
 };
