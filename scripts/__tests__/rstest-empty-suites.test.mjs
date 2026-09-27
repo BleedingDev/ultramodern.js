@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import test from 'node:test';
@@ -50,14 +50,16 @@ test('no workspace script passes --passWithNoTests', () => {
 
 test('every rstest config and project matches at least one test file', async () => {
   const { loadConfig } = await import('@rstest/core');
-  // The adapter fixture configs, and the tests aggregate that loads them as
-  // projects, import the built @modern-js/adapter-rstest, which clean script
-  // lanes do not build; the adapter integration run executes them instead.
+  // Configs that import the built @modern-js/adapter-rstest, and the tests
+  // aggregate that loads them as projects, cannot load in clean script lanes;
+  // the adapter integration run executes them instead.
   const configs = trackedFiles.filter(
     file =>
       /(^|\/)rstest(\.[\w-]+)?\.config\.m?[jt]s$/.test(file) &&
-      !file.startsWith('tests/integration/') &&
-      file !== 'tests/rstest.adapter.config.mts',
+      file !== 'tests/rstest.adapter.config.mts' &&
+      !readFileSync(path.join(repoRoot, file), 'utf8').includes(
+        '@modern-js/adapter-rstest',
+      ),
   );
   assert.ok(configs.length > 0);
   const empty = [];
@@ -69,7 +71,10 @@ test('every rstest config and project matches at least one test file', async () 
       { cwd, encoding: 'utf8' },
     );
     assert.equal(result.status, 0, `${config}: ${result.stderr}`);
-    const listed = JSON.parse(result.stdout);
+    // rstest lists a literal include path even when the file is gone.
+    const listed = JSON.parse(result.stdout).filter(entry =>
+      existsSync(entry.file),
+    );
     if (listed.length === 0) {
       empty.push(config);
       continue;
