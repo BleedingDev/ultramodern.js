@@ -32,10 +32,6 @@ export default {
             __dirname,
             'tests/fixtures/rsc-server.ts',
           ),
-          '@modern-js/render/rsc-worker': path.join(
-            __dirname,
-            'tests/fixtures/rsc-server.ts',
-          ),
         },
       },
     }),

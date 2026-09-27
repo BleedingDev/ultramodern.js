@@ -7,9 +7,7 @@ const SERVER_LOADER_ENTRY_PATTERN =
   /[/\\](?:server-loader-combined|route-server-loaders)\.js$/;
 const RENDER_RSC_SOURCE_PATTERN = /render[/\\].*[/\\]server[/\\]rsc/;
 const RENDER_RSC_RSLIB_ENTRY_PATTERN =
-  /render[/\\]dist[/\\]esm[/\\]rsc(?:Worker)?\.mjs$/;
-const RENDER_RSC_RUNTIME = '@modern-js/render/rsc';
-const RENDER_RSC_WORKER_RUNTIME = '@modern-js/render/rsc-worker';
+  /render[/\\]dist[/\\]esm[/\\]rsc(?:\.edge)?\.mjs$/;
 const RSC_COMMON_LAYER = 'rsc-common';
 const ENTRY_NAME_VAR = '__MODERN_JS_ENTRY_NAME';
 const ROUTE_DATA_FILE_PATTERN =
@@ -65,10 +63,6 @@ export function pluginRscConfig(): RsbuildPlugin {
       api.modifyBundlerChain({
         handler: (chain, { isServer }) => {
           if (isServer) {
-            chain.resolve.alias.set(
-              `${RENDER_RSC_RUNTIME}$`,
-              RENDER_RSC_WORKER_RUNTIME,
-            );
             let emptyModulePath: string;
             try {
               emptyModulePath = require.resolve('../shared/rsc/rscEmptyModule');
