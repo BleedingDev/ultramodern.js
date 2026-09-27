@@ -1,7 +1,10 @@
 // Every CI step that reaches a package driving a real browser must run after
 // scripts/lib/browser-provisioning.js installed browsers for that package's
 // playwright. The nightly ran test:build-consumers for 27 days without it and
-// failed at browser launch; this pins the edge for every workflow.
+// failed at browser launch; this pins the edge for every workflow. Puppeteer
+// suites launch the same playwright Chromium: puppeteer's postinstall download
+// was skipped whenever a restored pnpm store replayed its side-effects cache,
+// which left Windows integration without a browser.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -29,6 +32,8 @@ const browserCommands = [
     /\btest:build-consumers(?![\w:-])/u,
     'tests/integration/ultramodern-sandpack-profile-smoke',
   ],
+  // Runs tests/integration suites that launch puppeteer (tests/utils/launchOptions.js).
+  [/\bvalidate:superapp-certification(?![\w-])/u, 'tests'],
 ];
 
 function workflowJobs() {
@@ -93,6 +98,8 @@ test('browser-driving steps run after the shared provisioner installed their run
     'ut-Linux.yml:ut-linux:\\btest:build-consumers(?![\\w:-])',
     'ut-Linux.yml:ut-linux:\\btest:ut(?![\\w:-])',
     'integration-test-Linux.yml:integration-test-linux:\\btest:framework(?![\\w:-])',
+    'integration-test-Windows.yml:integration-test-windows:\\btest:framework(?![\\w:-])',
+    'ultramodern-nightly.yml:superapp-certification-nightly:\\bvalidate:superapp-certification(?![\\w-])',
   ]) {
     assert.ok(checked.includes(expected), `expected to check ${expected}`);
   }
@@ -109,4 +116,26 @@ test('no workflow installs playwright browsers outside the shared provisioner', 
       );
     }
   }
+});
+
+test('no dependency downloads a browser as an install side effect', () => {
+  const workspace = yaml.load(
+    fs.readFileSync(path.join(repoRoot, 'pnpm-workspace.yaml'), 'utf8'),
+  );
+  for (const name of ['cypress', 'puppeteer']) {
+    assert.equal(
+      workspace.allowBuilds?.[name],
+      false,
+      `pnpm-workspace.yaml allowBuilds.${name} must be false: its postinstall downloads a browser outside node_modules, which a restored pnpm side-effects cache silently skips. Provision browsers with node ${provisioner}.`,
+    );
+  }
+  const launchOptions = fs.readFileSync(
+    path.join(repoRoot, 'tests/utils/launchOptions.js'),
+    'utf8',
+  );
+  assert.match(
+    launchOptions,
+    /chromium\.executablePath\(\)/u,
+    'tests/utils/launchOptions.js must launch the playwright Chromium the shared provisioner installs',
+  );
 });

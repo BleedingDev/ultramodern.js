@@ -65,7 +65,7 @@ jobs:
       # and that version keys the browser cache.
       - name: Resolve Playwright runtime
         id: browser-runtime
-        run: node scripts/lib/browser-provisioning.js --resolve --runtime tests/integration/ultramodern-sandpack-profile-smoke
+        run: node scripts/lib/browser-provisioning.js --resolve --runtime tests/integration/ultramodern-sandpack-profile-smoke --runtime tests
 
       - name: Restore Playwright browser cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -75,7 +75,7 @@ jobs:
 
       - name: Install Playwright browsers
         run: >-
-          node scripts/lib/browser-provisioning.js --install --runtime tests/integration/ultramodern-sandpack-profile-smoke
+          node scripts/lib/browser-provisioning.js --install --runtime tests/integration/ultramodern-sandpack-profile-smoke --runtime tests
           --version ${{ steps.browser-runtime.outputs.version }}
 
       - name: Run built consumer acceptance
