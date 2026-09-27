@@ -724,7 +724,15 @@ function check(
             };
             for (const rule of options.contractRules)
               guarded(`${contract} (rule ${rule.name || 'anonymous'})`, () => {
-                for (const message of rule(context))
+                const messages: unknown = rule(context);
+                if (
+                  !Array.isArray(messages) ||
+                  !messages.every(message => typeof message === 'string')
+                )
+                  throw new Error(
+                    'contract rule must return an array of violation messages (return [] when the contract passes)',
+                  );
+                for (const message of messages)
                   diagnostics.push(`${contract}: ${message}`);
               });
           }
