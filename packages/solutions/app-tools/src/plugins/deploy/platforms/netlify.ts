@@ -120,9 +120,6 @@ export const createNetlifyPreset: CreatePreset = ({
       const netlifyEntry = isEsmProject
         ? await resolveESMDependency('@modern-js/prod-server/netlify')
         : require.resolve('@modern-js/prod-server/netlify');
-      if (!entry || !netlifyEntry) {
-        throw new Error('Cannot find @modern-js/prod-server');
-      }
       await handleDependencies({
         appDir: appDirectory,
         sourceDir: funcsDirectory,

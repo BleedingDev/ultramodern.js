@@ -65,7 +65,7 @@ test('Node deploy traces both runtime conditions for a declared Hono binder', as
       path.join(appDirectory, 'package.json'),
     ).resolve(specifier);
     const importEntry = await resolveESMDependency(specifier, appDirectory);
-    expect(path.normalize(importEntry!)).toBe(
+    expect(path.normalize(importEntry)).toBe(
       path.join(packageDirectory, 'dist/esm-node/hono/node.mjs'),
     );
     const trace = await nodeFileTrace([entry, requireEntry, importEntry], {

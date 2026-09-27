@@ -2,12 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import { pathToFileURL } from 'node:url';
 import path from 'path';
-import {
-  cleanRequireCache,
-  compatibleRequire,
-  dynamicImport,
-  tryResolve,
-} from '../src';
+import { cleanRequireCache, compatibleRequire, tryResolve } from '../src';
 
 describe('compat require', () => {
   const fixturePath = path.resolve(__dirname, './fixtures/compat-require');
@@ -48,7 +43,7 @@ describe('compat require', () => {
 
       const resolved = tryResolve('example', directory);
       expect(resolved).toBe(fs.realpathSync(modulePath));
-      expect((await dynamicImport(pathToFileURL(resolved).href)).default).toBe(
+      expect((await import(pathToFileURL(resolved).href)).default).toBe(
         'resolved',
       );
     } finally {

@@ -1,13 +1,12 @@
-import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { ServerRoute } from '@modern-js/types';
 import {
-  dynamicImport,
   fs as fse,
   getMeta,
   ROUTE_SPEC_FILE,
   SERVER_DIR,
 } from '@modern-js/utils';
+import { moduleResolve } from 'import-meta-resolve';
 import path from 'path';
 
 export type ServerAppContext = {
@@ -58,41 +57,25 @@ export const getTemplatePath = (file: string) =>
 export const readTemplate = async (file: string) =>
   (await fse.readFile(getTemplatePath(file))).toString();
 
+const DEPLOY_CONDITIONS = ['node', 'import', 'module', 'default'];
+
 export const resolveESMDependency = async (
   entry: string,
   fromDirectory?: string,
 ) => {
-  const conditions = new Set(['node', 'import', 'module', 'default']);
-
+  const base = fromDirectory
+    ? pathToFileURL(path.join(fromDirectory, 'package.json'))
+    : pathToFileURL(`${__dirname}/`);
   try {
-    // `dynamicImport` keeps the import() expression intact in the CJS dist,
-    // which is required because import-meta-resolve is ESM-only. But the
-    // wrapper is a `new Function(...)` import with no module referrer, so a
-    // bare specifier would resolve from process.cwd() — the user's app dir at
-    // deploy time, where import-meta-resolve is not installed under pnpm's
-    // strict layout. Resolve it from this package first so the import is
-    // cwd-independent.
-    const resolverPath = pathToFileURL(
-      createRequire(__filename).resolve('import-meta-resolve'),
-    ).href;
-    const { moduleResolve } = (await dynamicImport(resolverPath)) as {
-      moduleResolve: (
-        specifier: string,
-        base: URL,
-        conditions?: Set<string>,
-        preserveSymlinks?: boolean,
-      ) => URL;
-    };
-    const resolved = moduleResolve(
-      entry,
-      fromDirectory
-        ? pathToFileURL(path.join(fromDirectory, 'package.json'))
-        : pathToFileURL(`${__dirname}/`),
-      conditions,
-      false,
+    return normalizePath(
+      fileURLToPath(
+        moduleResolve(entry, base, new Set(DEPLOY_CONDITIONS), false),
+      ),
     );
-    return normalizePath(fileURLToPath(resolved));
-  } catch (err) {
-    // ignore
+  } catch (cause) {
+    throw new Error(
+      `Cannot resolve "${entry}" with conditions [${DEPLOY_CONDITIONS.join(', ')}] from ${base.href}: ${(cause as Error).message}`,
+      { cause },
+    );
   }
 };

@@ -66,7 +66,11 @@ async function compatibleRequireCJS(
       ? requiredModule.default
       : requiredModule;
   } catch (err: any) {
-    if (err.code === 'ERR_REQUIRE_ESM') {
+    // Node's require(esm) rejects ESM graphs that use top-level await.
+    if (
+      err.code === 'ERR_REQUIRE_ESM' ||
+      err.code === 'ERR_REQUIRE_ASYNC_MODULE'
+    ) {
       return await compatibleRequireESM(path, interop);
     } else {
       throw err;
@@ -106,12 +110,6 @@ export async function loadFromProject(moduleName: string, appDir: string) {
     throw error;
   }
 }
-
-// Avoid `import` to be tranpiled to `require` by babel/TS-Go/rollup
-export const dynamicImport = new Function(
-  'modulePath',
-  'return import(modulePath)',
-);
 
 export const requireExistModule = async (
   filename: string,

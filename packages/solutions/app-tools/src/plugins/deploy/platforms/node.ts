@@ -60,9 +60,6 @@ export const createNodePreset: CreatePreset = ({
       const entry = isEsmProject
         ? await resolveESMDependency('@modern-js/prod-server')
         : require.resolve('@modern-js/prod-server');
-      if (!entry) {
-        throw new Error('Cannot find @modern-js/prod-server');
-      }
       const requireFromApp = createRequire(
         path.join(appDirectory, 'package.json'),
       );
@@ -74,16 +71,9 @@ export const createNodePreset: CreatePreset = ({
           // The generated ESM server uses Node import conditions when
           // resolving plugin options at runtime. Trace that export as
           // well as the require branch used by the native deploy pass.
-          const importEntry = await resolveESMDependency(
-            specifier,
-            appDirectory,
+          pluginEntries.add(
+            await resolveESMDependency(specifier, appDirectory),
           );
-          if (!importEntry) {
-            throw new Error(
-              `Cannot resolve Node import entry for server plugin ${specifier}`,
-            );
-          }
-          pluginEntries.add(importEntry);
         }
       }
       await handleDependencies({
