@@ -10,11 +10,11 @@ export function createBackendFederationRuntime(
   const remotes = collectRemotes(options);
   return new ModuleFederation({
     name: options.hostName,
-    remotes: remotes.map(({ name, entry, type, shareScope }) => ({
+    // Remotes use the default share scope, where host shares are registered.
+    remotes: remotes.map(({ name, entry, type }) => ({
       name,
       entry,
       ...(type ? { type } : {}),
-      ...(shareScope ? { shareScope } : {}),
     })),
     shared: options.shared ?? {},
     plugins: [

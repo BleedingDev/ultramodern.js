@@ -14,7 +14,6 @@ export type BackendFederationRemote = {
   name: string;
   entry: string;
   type?: 'commonjs-module' | 'module' | string;
-  shareScope?: string | string[];
   expose?: typeof BACKEND_FEDERATION_EFFECT_EXPOSE;
   verification?: BackendFederationRemoteEntryVerification;
 };
