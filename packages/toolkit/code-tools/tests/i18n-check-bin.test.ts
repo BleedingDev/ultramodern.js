@@ -63,6 +63,7 @@ test('modern-i18n-check reads sourceRoots from package.json and fails on a viola
 
 test.each([
   [{ sourceRoots: 'apps' }, '.sourceRoots" must be an array'],
+  [{ locales: ['en_US'] }, '.locales" must be an array of BCP 47'],
   [
     { pluralCategories: [['one', 'other']] },
     '.pluralCategories" must be an object',
