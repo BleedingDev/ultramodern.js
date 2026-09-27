@@ -249,3 +249,23 @@ test('an npm: alias override fails while the edge keeps another version', () => 
     [],
   );
 });
+
+test('digit-leading package names parse and validate', () => {
+  assert.deepEqual(parseOverrideKey('parent>2-decode'), {
+    parent: { name: 'parent', range: undefined },
+    target: { name: '2-decode', range: undefined },
+  });
+  const lockfile = preFixLockfile
+    .replace(
+      /overrides:[\s\S]*?importers:/,
+      'overrides:\n  left-pad: npm:2-decode@1.2.3\nimporters:',
+    )
+    .replace(
+      'nx@23.2.1:\n    dependencies:',
+      'nx@23.2.1:\n    dependencies:\n      left-pad: 2-decode@1.0.0',
+    );
+  assert.deepEqual(findOverrideViolations(lockfile, importerNames), [
+    "'left-pad': the lockfile still resolves left-pad@2-decode@1.0.0, which this override should replace with npm:2-decode@1.2.3. " +
+      'Run pnpm install, or fix the selector if pnpm does not match it.',
+  ]);
+});

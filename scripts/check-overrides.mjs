@@ -23,9 +23,9 @@ const repoRoot = path.resolve(
   '..',
 );
 
-// `parent>child`: the separator `>` directly follows a name or version and
-// directly precedes a package name, unlike the `>`/`>=` of a range.
-const PARENT_SEPARATOR = /(?<=[^\s<>=])>(?=[@a-z])/;
+// `parent>child`: pnpm's parsePkgAndParentSelector treats a `>` as the
+// separator unless a space, `|` or `@` precedes it, as in a range.
+const PARENT_SEPARATOR = /[^ |@]>/;
 
 function parseSpec(spec) {
   const at = spec.indexOf('@', 1);
@@ -35,11 +35,13 @@ function parseSpec(spec) {
 }
 
 export function parseOverrideKey(key) {
-  const parts = key.split(PARENT_SEPARATOR);
-  const target = parseSpec(parts.at(-1));
-  return parts.length === 1
-    ? { target }
-    : { parent: parseSpec(parts[0]), target };
+  const at = key.search(PARENT_SEPARATOR);
+  return at === -1
+    ? { target: parseSpec(key) }
+    : {
+        parent: parseSpec(key.slice(0, at + 1)),
+        target: parseSpec(key.slice(at + 2)),
+      };
 }
 
 // `name@version(peer@x)` -> { name, version } without the peer suffix.
@@ -233,7 +235,7 @@ export function findOverrideViolations(lockfileText, importerNames) {
 
     const aliasEdges = value.startsWith('npm:')
       ? [...(edgeVersions.get(target.name) ?? [])].filter(
-          version => !/^\d/.test(version),
+          version => !semver.valid(version),
         )
       : [];
     for (const version of [...targetVersions, ...aliasEdges]) {
