@@ -91,8 +91,11 @@ export const CLOUDFLARE_WORKER_NODE_BUILTINS = [
 ] as const;
 // Platform imports available with the default 2026-06-02 nodejs_compat target.
 // Import availability does not imply support for every Node API operation.
+// `cloudflare:workers` exposes the Worker `env` at module scope, which is how
+// clients built once per isolate reach Hyperdrive, VPC and service bindings.
 export const CLOUDFLARE_WORKER_PLATFORM_MODULES = [
   'cloudflare:sockets',
+  'cloudflare:workers',
 ] as const;
 export const CLOUDFLARE_REQUIRED_COMPATIBILITY_FLAGS = [
   'nodejs_compat',
