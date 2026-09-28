@@ -847,6 +847,11 @@ export const viaDetachedExports = require('./detached-exports.cjs').get;
 export const viaReattachedExports = require('./reattached-exports.cjs').get;
 export const viaReattachedLater = require('./reattached-later.cjs').get;
 const capture = <T,>(value: T) => () => value;
+const { String: _string, ...restSchema } = Schema;
+export const viaObjectRest = [restSchema.Any, restSchema.String];
+const constantKey = 'Unknown';
+export const viaConstantKey = Schema[constantKey];
+export const viaConcatenatedKey = Schema['A' + \`ny\`];
 export const viaClosure = capture(Schema.Any)();
 const namedCall = { call: Schema.Any };
 export const viaNamedCall = namedCall.call;
@@ -1027,6 +1032,17 @@ export const viaApply = identity.apply(null, [Schema.Any]);`,
   expect(
     externals(graph.evaluate(shapesModule, shape('viaReattachedLater'))),
   ).toContain('effect:Schema.Any');
+  // An object rest reads its source, except the keys the pattern names.
+  expect(
+    new Set(externals(graph.reachable(shapesModule, shape('viaObjectRest')))),
+  ).toEqual(new Set(['effect:Schema.Any', 'unresolved']));
+  // Constant computed keys read the member they spell.
+  expect(
+    externals(graph.evaluate(shapesModule, shape('viaConstantKey'))),
+  ).toEqual(['effect:Schema.Unknown']);
+  expect(
+    externals(graph.evaluate(shapesModule, shape('viaConcatenatedKey'))),
+  ).toEqual(['effect:Schema.Any']);
   // A returned closure keeps the parameters of the call that created it.
   expect(
     externals(graph.evaluate(shapesModule, shape('viaClosure'))),
