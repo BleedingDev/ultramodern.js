@@ -7,6 +7,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
@@ -52,19 +53,59 @@ function withWorkingDirectory<T>(directory: string, action: () => T): T {
   }
 }
 
-function writeEffectTsgoPackage(directory: string, compilerPath: string): void {
-  const packageDirectory = join(directory, 'node_modules/@effect/tsgo');
-  mkdirSync(join(packageDirectory, 'bin'), { recursive: true });
+const PACKAGED_TYPESCRIPT_VERSION = '7.0.2';
+
+function writePackageJson(
+  directory: string,
+  packageName: string,
+  packageJson: Record<string, unknown>,
+): string {
+  const packageDirectory = join(directory, 'node_modules', packageName);
+  mkdirSync(packageDirectory, { recursive: true });
   writeFileSync(
     join(packageDirectory, 'package.json'),
+    JSON.stringify({ name: packageName, ...packageJson }),
+  );
+  return packageDirectory;
+}
+
+/**
+ * Lays out an installed Effect TS-Go with its platform package and a native
+ * TypeScript install, and returns the packaged TypeScript compiler path.
+ */
+function writeEffectTsgoPackage(
+  directory: string,
+  platformTarget = `${process.platform}-${process.arch}`,
+): string {
+  writePackageJson(directory, '@effect/tsgo', {
+    bin: { 'effect-tsgo': './dist/effect-tsgo.cjs' },
+  });
+  const platformDirectory = writePackageJson(
+    directory,
+    `@effect/tsgo-${platformTarget}`,
+    { version: '0.46.1' },
+  );
+  mkdirSync(join(platformDirectory, 'lib'));
+  writeFileSync(
+    join(platformDirectory, 'lib/upstream.json'),
     JSON.stringify({
-      name: '@effect/tsgo',
-      bin: { 'effect-tsgo': './bin/effect-tsgo.js' },
+      schemaVersion: 5,
+      components: {
+        typescript: {
+          [PACKAGED_TYPESCRIPT_VERSION]: { gitHead: 'fixture' },
+        },
+      },
     }),
   );
-  writeFileSync(
-    join(packageDirectory, 'bin/effect-tsgo.js'),
-    `if (process.argv[2] !== 'get-exe-path') process.exit(1);\nconsole.log(${JSON.stringify(compilerPath)});\n`,
+  writePackageJson(directory, 'typescript', { version: '7.0.2' });
+  writePackageJson(directory, `@typescript/typescript-${platformTarget}`, {
+    version: PACKAGED_TYPESCRIPT_VERSION,
+  });
+  return join(
+    platformDirectory,
+    'artifacts/typescript',
+    PACKAGED_TYPESCRIPT_VERSION,
+    platformTarget.startsWith('win32-') ? 'tsc.exe' : 'tsc',
   );
 }
 
@@ -94,13 +135,12 @@ test('reads build config environment without process-global state', async () => 
 
 test('repairs Unix execute bits and preserves Windows package paths without mutation', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'app-tools-effect-tsgo-mode-'));
-  const compilerPath = join(directory, 'native/effect-tsgo');
   const temporaryRoot = join(directory, 'tmp');
 
   try {
     mkdirSync(temporaryRoot);
+    const compilerPath = writeEffectTsgoPackage(directory);
     writeCompiler(compilerPath, 0o600);
-    writeEffectTsgoPackage(directory, compilerPath);
     await withEnvironment('TMPDIR', temporaryRoot, () =>
       withEnvironment('EFFECT_TSGO_BIN', undefined, () => {
         const firstResolution = resolveEffectTsgoCompiler({
@@ -143,15 +183,13 @@ test('deduplicates Unix executable copies while retaining native Windows paths',
   const firstPackage = join(directory, 'first');
   const secondPackage = join(directory, 'second');
   const temporaryRoot = join(directory, 'tmp');
-  const firstCompiler = join(firstPackage, 'native/effect-tsgo');
-  const secondCompiler = join(secondPackage, 'native/effect-tsgo');
 
   try {
     mkdirSync(temporaryRoot);
+    const firstCompiler = writeEffectTsgoPackage(firstPackage);
+    const secondCompiler = writeEffectTsgoPackage(secondPackage);
     writeCompiler(firstCompiler, 0o600);
     writeCompiler(secondCompiler, 0o600);
-    writeEffectTsgoPackage(firstPackage, firstCompiler);
-    writeEffectTsgoPackage(secondPackage, secondCompiler);
 
     await withEnvironment('TMPDIR', temporaryRoot, () =>
       withEnvironment('EFFECT_TSGO_BIN', undefined, () => {
@@ -202,27 +240,116 @@ test('resolves Effect TS-Go from the requesting module origin', async () => {
   const workingDirectory = mkdtempSync(
     join(tmpdir(), 'app-tools-effect-tsgo-cwd-'),
   );
-  const originCompilerPath = join(originDirectory, 'bin/origin-tsgo');
-  const cwdCompilerPath = join(workingDirectory, 'bin/cwd-tsgo');
 
   try {
-    writeEffectTsgoPackage(originDirectory, originCompilerPath);
-    writeEffectTsgoPackage(workingDirectory, cwdCompilerPath);
+    const originCompilerPath = writeEffectTsgoPackage(originDirectory);
+    const cwdCompilerPath = writeEffectTsgoPackage(workingDirectory);
     writeCompiler(originCompilerPath, 0o700);
     writeCompiler(cwdCompilerPath, 0o700);
     await withEnvironment('EFFECT_TSGO_BIN', undefined, () => {
       withWorkingDirectory(workingDirectory, () => {
         assert.equal(
-          resolveEffectTsgoCompiler({
-            from: pathToFileURL(join(originDirectory, 'modern.config.ts')),
-          }),
-          originCompilerPath,
+          realpathSync(
+            resolveEffectTsgoCompiler({
+              from: pathToFileURL(join(originDirectory, 'modern.config.ts')),
+            }),
+          ),
+          realpathSync(originCompilerPath),
         );
       });
     });
   } finally {
     rmSync(originDirectory, { recursive: true, force: true });
     rmSync(workingDirectory, { recursive: true, force: true });
+  }
+});
+
+async function withSimulatedLinuxMusl<T>(action: () => T): Promise<T> {
+  const platform = Object.getOwnPropertyDescriptor(process, 'platform');
+  const arch = Object.getOwnPropertyDescriptor(process, 'arch');
+  const getReport = process.report.getReport;
+  assert.ok(platform && arch);
+
+  try {
+    Object.defineProperty(process, 'platform', { value: 'linux' });
+    Object.defineProperty(process, 'arch', { value: 'x64' });
+    // musl Node reports no glibc runtime, which is what Oxlint discovery checks.
+    process.report.getReport = (...args) => {
+      const report = getReport.apply(process.report, args) as {
+        header: Record<string, unknown>;
+      };
+      delete report.header.glibcVersionRuntime;
+      return report;
+    };
+    return await action();
+  } finally {
+    Object.defineProperty(process, 'platform', platform);
+    Object.defineProperty(process, 'arch', arch);
+    process.report.getReport = getReport;
+  }
+}
+
+test('resolves the packaged TypeScript compiler on Linux musl with Oxlint installed', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'app-tools-effect-tsgo-musl-'));
+
+  try {
+    const compilerPath = writeEffectTsgoPackage(directory, 'linux-x64');
+    writeCompiler(compilerPath, 0o700);
+    // Oxlint without a musl binding is what made `effect-tsgo get-exe-path`
+    // fail with "Linux musl is not supported by the packaged Oxlint integration".
+    writePackageJson(directory, 'oxlint', { version: '1.85.0' });
+    writePackageJson(directory, 'oxlint-tsgolint', { version: '7.0.2003' });
+
+    await withEnvironment('EFFECT_TSGO_BIN', undefined, () =>
+      withSimulatedLinuxMusl(() => {
+        assert.equal(
+          (
+            process.report.getReport() as {
+              header: Record<string, unknown>;
+            }
+          ).header.glibcVersionRuntime,
+          undefined,
+        );
+        assert.equal(
+          realpathSync(
+            resolveEffectTsgoCompiler({
+              from: pathToFileURL(join(directory, 'modern.config.ts')),
+            }),
+          ),
+          realpathSync(compilerPath),
+        );
+      }),
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('rejects a native TypeScript version without a packaged Effect compiler', async () => {
+  const directory = mkdtempSync(
+    join(tmpdir(), 'app-tools-effect-tsgo-unpackaged-'),
+  );
+
+  try {
+    const compilerPath = writeEffectTsgoPackage(directory);
+    writeCompiler(compilerPath, 0o700);
+    writePackageJson(
+      directory,
+      `@typescript/typescript-${process.platform}-${process.arch}`,
+      { version: '7.9.9' },
+    );
+
+    await withEnvironment('EFFECT_TSGO_BIN', undefined, () => {
+      assert.throws(
+        () =>
+          resolveEffectTsgoCompiler({
+            from: pathToFileURL(join(directory, 'modern.config.ts')),
+          }),
+        /Unable to resolve the Effect TS-Go compiler/u,
+      );
+    });
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
   }
 });
 
