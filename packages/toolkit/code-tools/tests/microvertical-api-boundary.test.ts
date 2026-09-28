@@ -857,6 +857,12 @@ class StaticHolder {
 }
 export const viaStaticField = StaticHolder.picked;
 const StaticExpression = class { static picked = Schema.Json; };
+class Redefined { static picked = Schema.Any; static picked = Schema.String; }
+export const viaRedefinedStatic = Redefined.picked;
+const restFirst = (...items: unknown[]) => items[1];
+export const viaRestParameter = restFirst(Schema.String, Schema.Unknown);
+const methodKey = 'picked';
+export const viaConstantPropertyKey = { [methodKey]: Schema.Json }.picked;
 export const viaStaticExpression = StaticExpression.picked;
 export const viaStaticMethod = StaticHolder.pick();
 const heldInContainer = { success: Schema.String };
@@ -893,9 +899,9 @@ export const viaApply = identity.apply(null, [Schema.Any]);`,
   expect(externals(graph.reachable(shapesModule, shape('whole')))).toEqual([
     'effect:Schema.Unknown',
   ]);
+  // A `const` computed key names exactly one member.
   expect(externals(graph.evaluate(shapesModule, shape('computed')))).toEqual([
     'effect:Schema.String',
-    'unresolved',
   ]);
   expect(externals(graph.evaluate(shapesModule, shape('none')))).toEqual([
     'unresolved',
@@ -1076,6 +1082,16 @@ export const viaApply = identity.apply(null, [Schema.Any]);`,
   ).toEqual(['effect:Schema.Unknown']);
   expect(
     externals(graph.evaluate(shapesModule, shape('viaStaticExpression'))),
+  ).toEqual(['effect:Schema.Json']);
+  expect(
+    externals(graph.evaluate(shapesModule, shape('viaRedefinedStatic'))),
+  ).toEqual(['effect:Schema.String']);
+  // A rest parameter is the array of the remaining arguments.
+  expect(
+    externals(graph.evaluate(shapesModule, shape('viaRestParameter'))),
+  ).toEqual(['effect:Schema.Unknown']);
+  expect(
+    externals(graph.evaluate(shapesModule, shape('viaConstantPropertyKey'))),
   ).toEqual(['effect:Schema.Json']);
   // A value extracted through a container method may be written through.
   expect(

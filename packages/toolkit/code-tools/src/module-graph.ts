@@ -2188,7 +2188,11 @@ export function createModuleGraph(): ModuleGraph {
           continue;
         }
         // A dynamic key may name any member, so it is always a possibility.
-        const key = staticKey(property);
+        const key =
+          staticKey(property) ??
+          (property.computed
+            ? constantString(module, property.key)
+            : undefined);
         if (key === undefined) {
           found.push(unresolved(module, property));
           continue;
@@ -2223,7 +2227,9 @@ export function createModuleGraph(): ModuleGraph {
       const [name, ...rest] = members;
       const found: GraphValue[] = [];
       let definite = false;
-      for (const member of declaration.body.body) {
+      // The last definition wins, so read from the end of the class body.
+      for (const member of declaration.body.body.toReversed()) {
+        if (definite) break;
         if (t.isStaticBlock(member)) {
           found.push(...unresolved(module, member));
           continue;
@@ -2233,7 +2239,9 @@ export function createModuleGraph(): ModuleGraph {
           !member.static
         )
           continue;
-        const key = staticKey(member as unknown as t.ObjectProperty);
+        const key =
+          staticKey(member as unknown as t.ObjectProperty) ??
+          (member.computed ? constantString(module, member.key) : undefined);
         if (key === undefined) {
           found.push(...unresolved(module, member));
           continue;
@@ -2325,6 +2333,40 @@ export function createModuleGraph(): ModuleGraph {
         );
         callee.node.params.forEach((param, index) => {
           if (spread !== -1 && index >= spread) return;
+          // `...rest` receives the remaining arguments as an array, when they
+          // all come from one module and frame.
+          const remaining = args.slice(index);
+          const restArray =
+            t.isRestElement(param) &&
+            t.isIdentifier(param.argument) &&
+            remaining.every(
+              ({ module: from, context }) =>
+                from === remaining[0]?.module &&
+                context === remaining[0]?.context,
+            )
+              ? {
+                  ...t.arrayExpression(
+                    remaining.map(({ node }) => node as t.Expression),
+                  ),
+                  start: param.start,
+                  end: param.end,
+                }
+              : undefined;
+          if (restArray && t.isRestElement(param)) {
+            const binding = fnScope?.getOwnBinding(
+              (param.argument as t.Identifier).name,
+            );
+            if (binding)
+              parameters.set(binding, {
+                pattern: param.argument,
+                argument: {
+                  module: remaining[0]?.module ?? module,
+                  node: restArray,
+                },
+                context: remaining[0]?.context ?? outer,
+              });
+            return;
+          }
           const argument = args[index];
           for (const name of Object.keys(t.getBindingIdentifiers(param))) {
             const binding = fnScope?.getOwnBinding(name);
