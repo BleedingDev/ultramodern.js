@@ -832,6 +832,9 @@ export const viaHeldFunction = [heldTarget];
 const assignTarget = { success: Schema.String };
 Object.assign(assignTarget, { success: Schema.Unknown });
 export const viaObjectAssign = assignTarget.success;
+const optionalAssignTarget = { success: Schema.String };
+Object?.assign(optionalAssignTarget, { success: Schema.Json });
+export const viaOptionalObjectAssign = optionalAssignTarget.success;
 const defined = { success: Schema.String };
 Object.defineProperty(defined, 'success', { value: Schema.Unknown });
 export const viaDefineProperty = defined.success;
@@ -1052,6 +1055,9 @@ export const viaApply = identity.apply(null, [Schema.Any]);`,
     externals(graph.evaluate(shapesModule, shape('viaObjectAssign'))),
   ).toEqual(['effect:Schema.String', 'effect:Schema.Unknown']);
   expect(
+    externals(graph.evaluate(shapesModule, shape('viaOptionalObjectAssign'))),
+  ).toEqual(['effect:Schema.String', 'effect:Schema.Json']);
+  expect(
     new Set(
       externals(graph.evaluate(shapesModule, shape('viaDefineProperty'))),
     ),
@@ -1220,6 +1226,13 @@ export const read = target.success;`,
 const target = { success: Schema.String };
 const helper = { set value(next: { success: unknown }) { next.success = Schema.Unknown; } };
 helper.value = target;
+export const read = target.success;`,
+    ],
+    [
+      'global-pipeline-write.ts',
+      `import { Schema } from 'effect';
+const target = { success: Schema.String };
+await Promise.resolve(target).then(value => { value.success = Schema.Unknown; });
 export const read = target.success;`,
     ],
     [
