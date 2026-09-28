@@ -718,9 +718,11 @@ const resolveModulePath = (
     if (pkg.name !== entry.name || pkg.exports === undefined) return undefined;
     let target: string | undefined;
     try {
-      const targets = resolvePackageExport(pkg, entry.exportKey, {
-        conditions: ['modern:source'],
-      });
+      const targets = resolvePackageExport(
+        { ...pkg, exports: selectExportPattern(pkg.exports, entry.exportKey) },
+        entry.exportKey,
+        { conditions: ['modern:source'] },
+      );
       target = Array.isArray(targets) ? targets[0] : undefined;
     } catch {
       return undefined;
@@ -732,6 +734,44 @@ const resolveModulePath = (
       : { kind: 'module', path: file, boundary };
   }
   return { kind: 'external' };
+};
+
+/** Node's PATTERN_KEY_COMPARE: negative when pattern `a` takes precedence. */
+const patternKeyCompare = (a: string, b: string): number => {
+  const aBase = a.indexOf('*') + 1;
+  const bBase = b.indexOf('*') + 1;
+  if (aBase !== bBase) return bBase - aBase;
+  return b.length - a.length;
+};
+
+/**
+ * `exports` narrowed to the one subpath pattern Node selects for `key`: the
+ * match with the longest prefix before `*`, then the longest key.
+ * `resolve.exports` takes the last matching pattern instead.
+ */
+const selectExportPattern = (exports: Exports, key: string): Exports => {
+  if (typeof exports !== 'object' || exports === null || Array.isArray(exports))
+    return exports;
+  const subpaths = exports as Record<string, Exports>;
+  const keys = Object.keys(subpaths);
+  if (!keys.every(candidate => candidate.startsWith('.')) || key in subpaths)
+    return exports;
+  let best: string | undefined;
+  for (const candidate of keys) {
+    const star = candidate.indexOf('*');
+    if (star === -1 || candidate.indexOf('*', star + 1) !== -1) continue;
+    const prefix = candidate.slice(0, star);
+    const suffix = candidate.slice(star + 1);
+    if (
+      key.startsWith(prefix) &&
+      key !== prefix &&
+      key.endsWith(suffix) &&
+      key.length >= candidate.length &&
+      (best === undefined || patternKeyCompare(candidate, best) < 0)
+    )
+      best = candidate;
+  }
+  return best === undefined ? exports : { [best]: subpaths[best] };
 };
 
 /** What a module's export `name` forwards to, one hop at a time. */

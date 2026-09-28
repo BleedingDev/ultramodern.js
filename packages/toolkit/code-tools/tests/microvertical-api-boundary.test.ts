@@ -1047,6 +1047,35 @@ export const viaApply = identity.apply(null, [Schema.Any]);`,
   expect(
     externals(graph.evaluate(shapesModule, shape('viaClosure'))),
   ).toContain('effect:Schema.Any');
+  // Node picks the export pattern with the longest prefix, not the last one.
+  const patterned = path.join(root, 'packages/patterned');
+  write(
+    path.join(patterned, 'package.json'),
+    JSON.stringify({
+      name: '@domain/patterned',
+      exports: { './foo/*': './src/safe.ts', './*/bar': './src/unsafe.ts' },
+    }),
+  );
+  write(
+    path.join(patterned, 'src/safe.ts'),
+    `import { Schema } from 'effect';\nexport const picked = Schema.String;`,
+  );
+  write(
+    path.join(patterned, 'src/unsafe.ts'),
+    `import { Schema } from 'effect';\nexport const picked = Schema.Any;`,
+  );
+  fs.symlinkSync(patterned, path.join(root, 'node_modules/@domain/patterned'));
+  const patternConsumer = path.join(
+    root,
+    'verticals/catalog/src/contracts/pattern-consumer.ts',
+  );
+  write(patternConsumer, `export { picked } from '@domain/patterned/foo/bar';`);
+  const patternModule = graph.module(patternConsumer);
+  const picked = graph.resolve(patternModule, 'picked', 'export');
+  if (picked?.kind !== 'declaration') throw new Error('picked');
+  expect(externals(graph.evaluate(picked.module, picked.expression))).toEqual([
+    'effect:Schema.String',
+  ]);
   // A write through a computed receiver may reach any escaped object.
   const returnedReceiver = path.join(
     root,
