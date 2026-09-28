@@ -293,18 +293,41 @@ const singleAddedArgument = (
   return method.arguments[0];
 };
 
-const foundationIsExact = (
+/**
+ * The `HttpApiGroup` a root-module binding names: the group itself, or the
+ * root-module `const` it is declared in. Only root-module bindings qualify, so
+ * the readiness schema the group names is the root's own.
+ */
+const rootGroupExpression = (
+  graph: ModuleGraph,
+  expression: Expression | undefined,
+): Expression | undefined => {
+  if (expression === undefined) return undefined;
+  const node = unwrapExpression(expression);
+  if (!t.isIdentifier(node)) return node;
+  const resolved = graph.resolve(graph.root, node.name, 'local');
+  return resolved?.kind === 'declaration' && resolved.module === graph.root
+    ? unwrapExpression(resolved.expression)
+    : undefined;
+};
+
+/** The foundation group the exported foundation API composes, when exact. */
+const foundationGroup = (
+  graph: ModuleGraph,
   declaration: VariableDeclaration | undefined,
   stem: string,
   readinessSchemaName: string,
-): boolean => {
-  const group = singleAddedArgument(
-    declaration?.init,
-    ['HttpApi', 'make'],
-    [
-      `${pascalCaseStem(stem)}FoundationApi`,
-      `${pascalCaseStem(stem)}ApiFoundation`,
-    ],
+): Expression | undefined => {
+  const group = rootGroupExpression(
+    graph,
+    singleAddedArgument(
+      declaration?.init,
+      ['HttpApi', 'make'],
+      [
+        `${pascalCaseStem(stem)}FoundationApi`,
+        `${pascalCaseStem(stem)}ApiFoundation`,
+      ],
+    ),
   );
   const endpointExpression = singleAddedArgument(
     group,
@@ -317,24 +340,32 @@ const foundationIsExact = (
     endpointOptions === undefined
       ? undefined
       : propertyAssignments(endpointOptions.properties);
-  return (
-    endpoint !== undefined &&
+  return endpoint !== undefined &&
     stringLiteral(endpoint.arguments[0]) === 'readiness' &&
     stringLiteral(endpoint.arguments[1]) === `/${stem}/readiness` &&
     endpointProperties?.size === 1 &&
     identifierName(endpointProperties.get('success')?.value) ===
       readinessSchemaName
-  );
+    ? group
+    : undefined;
 };
 
+/**
+ * The root API composes the foundation first: either the foundation API via
+ * `addHttpApi`, or its foundation group as the first argument of a flat,
+ * variadic `add(foundationGroup, ...groups)`.
+ */
 const rootComposesFoundation = (
-  sourceFile: SourceFile,
+  graph: ModuleGraph,
   declaration: VariableDeclaration | undefined,
   stem: string,
   foundationName: string,
+  foundation: Expression,
 ): boolean => {
+  const sourceFile = graph.root.file;
   const chain = directCallChain(declaration?.init);
   const first = chain?.methods[0];
+  const firstArgument = first?.arguments[0];
   return (
     chain !== undefined &&
     isAccessPath(chain.base.callee, ['HttpApi', 'make']) &&
@@ -347,18 +378,22 @@ const rootComposesFoundation = (
       if (combinatorArity !== undefined) {
         return method.arguments.length === combinatorArity;
       }
+      if (method.name === 'add') return method.arguments.length > 0;
       return (
         method.arguments.length === 1 &&
-        (method.name === 'add' ||
-          method.name === 'addHttpApi' ||
+        (method.name === 'addHttpApi' ||
           (index === chain.methods.length - 1 &&
             method.name === 'pipe' &&
             identifierName(method.arguments[0]) === 'identity' &&
             importsExactBindings(sourceFile, 'effect', ['identity'])))
       );
     }) &&
-    first?.name === 'addHttpApi' &&
-    identifierName(first.arguments[0]) === foundationName
+    firstArgument !== undefined &&
+    ((first?.name === 'addHttpApi' &&
+      identifierName(firstArgument) === foundationName) ||
+      (first?.name === 'add' &&
+        t.isIdentifier(firstArgument) &&
+        rootGroupExpression(graph, firstArgument) === foundation))
   );
 };
 
@@ -479,18 +514,24 @@ const reachableEndpoints = (
         const combinatorArity = combinators[method.name];
         if (combinatorArity !== undefined)
           return method.arguments.length === combinatorArity;
+        // Effect's `add` is variadic: `add(a, b)` and `add(a, ...more)`.
+        if (method.name === 'add')
+          return (
+            method.arguments.length > 0 &&
+            method.arguments.every(argument =>
+              visitAdded(
+                argument,
+                module,
+                kind === 'api' ? 'group' : 'endpoint',
+                kind === 'group' ? name : '',
+              ),
+            )
+          );
         if (method.arguments.length !== 1) return false;
         if (method.name === 'pipe')
           return (
             identifierName(method.arguments[0]) === 'identity' &&
             importsExactBindings(module.file, 'effect', ['identity'])
-          );
-        if (method.name === 'add')
-          return visit(
-            method.arguments[0],
-            module,
-            kind === 'api' ? 'group' : 'endpoint',
-            kind === 'group' ? name : '',
           );
         return (
           kind === 'api' &&
@@ -498,6 +539,39 @@ const reachableEndpoints = (
           visit(method.arguments[0], module, 'api')
         );
       });
+    } finally {
+      active.delete(node);
+    }
+  };
+  /**
+   * One `add` argument. A spread must name an array literal, inline or as a
+   * `const` reached through the module graph (e.g. a generated
+   * `generatedGroups` list); every element is then an added argument of the
+   * module that declares the array.
+   */
+  const visitAdded = (
+    argument: Node,
+    module: SourceModule,
+    kind: 'group' | 'endpoint',
+    group: string,
+  ): boolean => {
+    if (!t.isSpreadElement(argument))
+      return visit(argument, module, kind, group);
+    let node = unwrapExpression(argument.argument);
+    let owner = module;
+    if (t.isIdentifier(node)) {
+      const resolved = graph.resolve(module, node.name, 'local');
+      if (resolved?.kind !== 'declaration') return false;
+      node = unwrapExpression(resolved.expression);
+      owner = resolved.module;
+    }
+    if (!t.isArrayExpression(node) || active.has(node) || ++visits > 2048)
+      return false;
+    active.add(node);
+    try {
+      return node.elements.every(
+        element => element !== null && visitAdded(element, owner, kind, group),
+      );
     } finally {
       active.delete(node);
     }
@@ -775,21 +849,22 @@ const validateParsedContract = (
   ) {
     return 'MicroVertical readiness schema must consume the shared readiness schema without overriding shared fields';
   }
-  if (
-    !foundationIsExact(
-      exportedConst(sourceFile, foundationName),
-      stem,
-      readinessSchemaName,
-    )
-  ) {
+  const foundation = foundationGroup(
+    graph,
+    exportedConst(sourceFile, foundationName),
+    stem,
+    readinessSchemaName,
+  );
+  if (foundation === undefined) {
     return 'MicroVertical readiness foundation API must directly compose its exact readiness endpoint and foundation identity';
   }
   if (
     !rootComposesFoundation(
-      sourceFile,
+      graph,
       exportedConst(sourceFile, `${exportStem}Api`),
       stem,
       foundationName,
+      foundation,
     )
   ) {
     return 'MicroVertical root API must explicitly compose its readiness foundation API';
