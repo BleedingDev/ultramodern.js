@@ -629,6 +629,10 @@ export const remove = HttpApiEndpoint.del('remove', '/remove', { error: fallback
     path.join(root, 'verticals/catalog/src/contracts/reattached-exports.cjs'),
     `module.exports = exports = {};\nexports.get = require('effect').Schema.Any;`,
   );
+  write(
+    path.join(root, 'verticals/catalog/src/contracts/reattached-later.cjs'),
+    `module.exports = {};\nexports = module.exports;\nexports.get = require('effect').Schema.Any;`,
+  );
   const shapes = path.join(root, 'verticals/catalog/src/contracts/shapes.ts');
   write(
     shapes,
@@ -841,6 +845,9 @@ export const viaTwiceBound = firstOf.bind(null, Schema.String).bind(null)(Schema
 export const viaBoundThenCalled = secondOf.bind(null, Schema.String)(Schema.Unknown);
 export const viaDetachedExports = require('./detached-exports.cjs').get;
 export const viaReattachedExports = require('./reattached-exports.cjs').get;
+export const viaReattachedLater = require('./reattached-later.cjs').get;
+const capture = <T,>(value: T) => () => value;
+export const viaClosure = capture(Schema.Any)();
 const namedCall = { call: Schema.Any };
 export const viaNamedCall = namedCall.call;
 const spreadMethods = { set(value: { success: unknown }) { value.success = Schema.Unknown; } };
@@ -1016,6 +1023,40 @@ export const viaApply = identity.apply(null, [Schema.Any]);`,
   expect(
     externals(graph.evaluate(shapesModule, shape('viaDetachedExports'))),
   ).toEqual(['effect:Schema.String']);
+  // `exports = module.exports` reattaches `exports` after a replacement.
+  expect(
+    externals(graph.evaluate(shapesModule, shape('viaReattachedLater'))),
+  ).toContain('effect:Schema.Any');
+  // A returned closure keeps the parameters of the call that created it.
+  expect(
+    externals(graph.evaluate(shapesModule, shape('viaClosure'))),
+  ).toContain('effect:Schema.Any');
+  // A write through a computed receiver may reach any escaped object.
+  const returnedReceiver = path.join(
+    root,
+    'verticals/catalog/src/contracts/returned-receiver.ts',
+  );
+  write(
+    returnedReceiver,
+    `import { Schema } from 'effect';
+const target = { success: Schema.String };
+const getTarget = () => target;
+getTarget().success = Schema.Unknown;
+export const read = target.success;`,
+  );
+  const receiverModule = graph.module(returnedReceiver);
+  // The module is mutated through an unknown receiver, so nothing resolves.
+  expect(graph.resolve(receiverModule, 'read', 'export')).toBeUndefined();
+  const receiverRead = (
+    receiverModule.file.program.body.at(-1) as t.ExportNamedDeclaration
+  ).declaration as t.VariableDeclaration;
+  expect(
+    new Set(
+      externals(
+        graph.evaluate(receiverModule, receiverRead.declarations[0].init!),
+      ),
+    ),
+  ).toEqual(new Set(['effect:Schema.String', 'unresolved']));
   // `module.exports = exports = {}` keeps later `exports` writes live.
   expect(
     externals(graph.evaluate(shapesModule, shape('viaReattachedExports'))),
