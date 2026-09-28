@@ -158,6 +158,72 @@ describe('Module Federation React JSX runtime sharing', () => {
     }
   });
 
+  // A library that imports the JSX runtime without declaring `react` gives
+  // Module Federation no description file to infer a required version from.
+  // A JSX runtime share without one warns "No required version specified";
+  // the preset's entries carry the shared React version, so none is inferred.
+  it('never leaves a JSX runtime share to infer its required version', async () => {
+    const root = realpathSync(
+      mkdtempSync(path.join(tmpdir(), 'ultramodern-mf-jsx-')),
+    );
+    const library = path.join(root, 'node_modules/jsx-library');
+    mkdirSync(library, { recursive: true });
+    writeFileSync(
+      path.join(library, 'package.json'),
+      JSON.stringify({ name: 'jsx-library', version: '1.0.0' }),
+    );
+    writeFileSync(
+      path.join(library, 'index.js'),
+      `import { jsx } from 'react/jsx-runtime';\nexport const Title = () => jsx('h1', {});\n`,
+    );
+    writeFileSync(
+      path.join(root, 'widget.js'),
+      `export { Title } from 'jsx-library';\n`,
+    );
+    const build = (shared: object) =>
+      new Promise<string[]>((resolve, reject) => {
+        rspack({
+          context: root,
+          mode: 'development',
+          devtool: false,
+          target: 'node',
+          entry: {},
+          output: { path: path.join(root, 'dist') },
+          resolve: {
+            modules: [
+              'node_modules',
+              path.resolve(__dirname, '../../node_modules'),
+            ],
+          },
+          plugins: [
+            new rspack.container.ModuleFederationPlugin({
+              name: 'remote',
+              filename: 'remoteEntry.js',
+              exposes: { './widget': './widget.js' },
+              shared: shared as never,
+            }),
+          ],
+        }).run((error, stats) => {
+          if (error) return reject(error);
+          resolve(
+            stats!
+              .toJson({ all: false, warnings: true })
+              .warnings!.map(warning => warning.message),
+          );
+        });
+      });
+    const react = { requiredVersion: '19.2.0', singleton: true };
+    try {
+      expect(await build(withReactJsxRuntimeShared({ react }))).toEqual([]);
+      // The same share without a version is what warns.
+      expect(
+        await build({ react, 'react/jsx-runtime': { singleton: true } }),
+      ).toEqual([expect.stringContaining('No required version specified')]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it('rewrites the browser and server federation plugin options', async () => {
     const { appDirectory } = createAppDirectory();
     let modifyBundlerChain: ((chain: RspackChain) => void) | undefined;
