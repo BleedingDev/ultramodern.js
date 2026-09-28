@@ -2027,7 +2027,9 @@ export function createModuleGraph(): ModuleGraph {
               ]),
             );
         }
-      } else if (t.isFunctionDeclaration(node) || t.isClassDeclaration(node))
+      } else if (t.isClassDeclaration(node) && members.length > 0)
+        found.push(...staticMemberValues(module, node, members));
+      else if (t.isFunctionDeclaration(node) || t.isClassDeclaration(node))
         found.push(
           ...(members.length === 0
             ? [{ kind: 'node' as const, node, module }]
@@ -2146,6 +2148,25 @@ export function createModuleGraph(): ModuleGraph {
       for (const property of object.properties.toReversed()) {
         if (t.isSpreadElement(property)) {
           found.push(values(module, property.argument, members));
+          // A spread of object literals that all define `name` shadows
+          // every earlier property.
+          const spread = values(module, property.argument, []);
+          if (
+            name !== undefined &&
+            spread.length > 0 &&
+            spread.every(
+              value =>
+                value.kind === 'node' &&
+                t.isObjectExpression(value.node) &&
+                value.node.properties.some(
+                  entry =>
+                    !t.isSpreadElement(entry) &&
+                    staticKey(entry) === name &&
+                    !(t.isObjectMethod(entry) && entry.kind === 'set'),
+                ),
+            )
+          )
+            break;
           continue;
         }
         // A dynamic key may name any member, so it is always a possibility.
@@ -2169,6 +2190,59 @@ export function createModuleGraph(): ModuleGraph {
       }
       const ordered = found.toReversed().flat();
       return ordered.length > 0 ? ordered : unresolved(module, object);
+    };
+
+    /**
+     * A static member of a class declaration: `static get = value`, a static
+     * method, or a static getter. A superclass, a static block or a computed
+     * static key may also supply it, so those keep it unresolved as well.
+     */
+    const staticMemberValues = (
+      module: SourceModule,
+      declaration: t.ClassDeclaration,
+      members: readonly string[],
+    ): GraphValue[] => {
+      const [name, ...rest] = members;
+      const found: GraphValue[] = [];
+      let definite = false;
+      for (const member of declaration.body.body) {
+        if (t.isStaticBlock(member)) {
+          found.push(...unresolved(module, member));
+          continue;
+        }
+        if (
+          !(t.isClassProperty(member) || t.isClassMethod(member)) ||
+          !member.static
+        )
+          continue;
+        const key = staticKey(member as unknown as t.ObjectProperty);
+        if (key === undefined) {
+          found.push(...unresolved(module, member));
+          continue;
+        }
+        if (key !== name) continue;
+        if (t.isClassProperty(member)) {
+          definite = true;
+          found.push(
+            ...(member.value
+              ? values(module, member.value, rest)
+              : unresolved(module, member)),
+          );
+        } else if (member.kind === 'get') {
+          definite = true;
+          found.push(...returnValues(module, member, rest));
+        } else if (member.kind === 'method') {
+          definite = true;
+          found.push(
+            ...(rest.length === 0
+              ? [{ kind: 'node' as const, node: member, module }]
+              : unresolved(module, member)),
+          );
+        }
+      }
+      if (!definite || declaration.superClass)
+        found.push(...unresolved(module, declaration));
+      return found;
     };
 
     /** What calling `fn` returns; a bare `return;` or fall-through is unresolved. */

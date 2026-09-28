@@ -849,6 +849,14 @@ export const viaReattachedLater = require('./reattached-later.cjs').get;
 const capture = <T,>(value: T) => () => value;
 const overridden = { ...{ picked: Schema.Any }, picked: Schema.String };
 export const viaOverriddenSpread = overridden.picked;
+const spreadOverride = { picked: Schema.Any, ...{ picked: Schema.String } };
+export const viaSpreadOverride = spreadOverride.picked;
+class StaticHolder {
+  static picked = Schema.Any;
+  static pick() { return Schema.Unknown; }
+}
+export const viaStaticField = StaticHolder.picked;
+export const viaStaticMethod = StaticHolder.pick();
 const heldInContainer = { success: Schema.String };
 const extractedHolder = [heldInContainer];
 const extractedAlias = extractedHolder.at(0);
@@ -1054,6 +1062,16 @@ export const viaApply = identity.apply(null, [Schema.Any]);`,
   expect(
     externals(graph.evaluate(shapesModule, shape('viaOverriddenSpread'))),
   ).toEqual(['effect:Schema.String']);
+  expect(
+    externals(graph.evaluate(shapesModule, shape('viaSpreadOverride'))),
+  ).toEqual(['effect:Schema.String']);
+  // Static class members are read from the class body.
+  expect(
+    externals(graph.evaluate(shapesModule, shape('viaStaticField'))),
+  ).toEqual(['effect:Schema.Any']);
+  expect(
+    externals(graph.evaluate(shapesModule, shape('viaStaticMethod'))),
+  ).toEqual(['effect:Schema.Unknown']);
   // A value extracted through a container method may be written through.
   expect(
     new Set(
