@@ -200,30 +200,46 @@ const writeTarget = (
  */
 const OPAQUE_RECEIVER = {} as Binding;
 
-/** `get().key` or `(a || b).key`: a member write on a computed receiver. */
-const opaqueReceiver = (target: t.Node): boolean => {
+/**
+ * `get().key`, `(a || b).key` or `this.key`: a member write on a receiver
+ * this analysis does not resolve. `this` in a class constructor is the new
+ * instance, so its writes are not opaque.
+ */
+const opaqueReceiver = (target: t.Node, scope: Scope): boolean => {
   let current = unwrapExpression(target, true);
   if (!t.isMemberExpression(current) && !t.isOptionalMemberExpression(current))
     return false;
   while (t.isMemberExpression(current) || t.isOptionalMemberExpression(current))
     current = unwrapExpression(current.object, true);
-  return !(
-    t.isIdentifier(current) ||
-    t.isThisExpression(current) ||
-    t.isSuper(current)
-  );
+  if (t.isThisExpression(current)) {
+    // Arrow functions see the `this` of their enclosing function.
+    let owner = scope.getFunctionParent();
+    while (owner && t.isArrowFunctionExpression(owner.block))
+      owner = owner.parent?.getFunctionParent() ?? null;
+    return !(
+      t.isClassMethod(owner?.block) && owner.block.kind === 'constructor'
+    );
+  }
+  return !(t.isIdentifier(current) || t.isSuper(current));
 };
 
-/** Array, Map and Set methods that can return a stored element. */
+/**
+ * Array, Map and Set methods that return a stored element or pass it to a
+ * callback.
+ */
 const CONTAINER_EXTRACTORS = new Set([
   'at',
   'concat',
   'entries',
+  'every',
   'filter',
   'find',
+  'findIndex',
   'findLast',
+  'findLastIndex',
   'flat',
   'flatMap',
+  'forEach',
   'get',
   'map',
   'pop',
@@ -231,6 +247,8 @@ const CONTAINER_EXTRACTORS = new Set([
   'reduceRight',
   'shift',
   'slice',
+  'some',
+  'sort',
   'splice',
   'toReversed',
   'toSorted',
@@ -321,7 +339,7 @@ function parseModule(filePath: string, workspace: string | undefined) {
   ) => {
     const member = writeTarget(target);
     if (!member) {
-      if (opaqueReceiver(target))
+      if (opaqueReceiver(target, scopeOf))
         writes.set(OPAQUE_RECEIVER, [
           ...(writes.get(OPAQUE_RECEIVER) ?? []),
           { path: [], dynamic: true, depth: 0, value, from, node },
@@ -2193,13 +2211,13 @@ export function createModuleGraph(): ModuleGraph {
     };
 
     /**
-     * A static member of a class declaration: `static get = value`, a static
+     * A static member of a class: `static get = value`, a static
      * method, or a static getter. A superclass, a static block or a computed
      * static key may also supply it, so those keep it unresolved as well.
      */
     const staticMemberValues = (
       module: SourceModule,
-      declaration: t.ClassDeclaration,
+      declaration: t.Class,
       members: readonly string[],
     ): GraphValue[] => {
       const [name, ...rest] = members;
@@ -2536,6 +2554,8 @@ export function createModuleGraph(): ModuleGraph {
         if (members.length === 0) return [{ kind: 'node', node, module }];
         if (t.isObjectExpression(node))
           return propertyValues(module, node, members);
+        if (t.isClassExpression(node))
+          return staticMemberValues(module, node, members);
         // A static index before any spread names one element.
         const [index, ...rest] = members;
         const element =
