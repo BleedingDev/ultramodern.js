@@ -15,7 +15,7 @@ const PRINT_WIDTH = 120;
 
 const MANIFEST_BODY = `export const ultramodernLocalisedUrls = Object.fromEntries(
   ultramodernRouteMetadata
-    .filter((route) => route.canonicalPath !== '/')
+    .filter((route: { canonicalPath: string }) => route.canonicalPath !== '/')
     .map((route) => [route.canonicalPath, route.localisedPaths]),
 );
 export const ultramodernPublicRoutes = ultramodernRouteMetadata

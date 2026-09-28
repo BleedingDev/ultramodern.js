@@ -5,7 +5,7 @@ export const ultramodernRouteNamespace = route0.namespace;
 export const ultramodernRouteMetadata = [route0] as const;
 export const ultramodernLocalisedUrls = Object.fromEntries(
   ultramodernRouteMetadata
-    .filter((route) => route.canonicalPath !== '/')
+    .filter((route: { canonicalPath: string }) => route.canonicalPath !== '/')
     .map((route) => [route.canonicalPath, route.localisedPaths]),
 );
 export const ultramodernPublicRoutes = ultramodernRouteMetadata
