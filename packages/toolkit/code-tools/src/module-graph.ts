@@ -384,10 +384,13 @@ function parseModule(filePath: string, workspace: string | undefined) {
         : root.root.name === 'exports'
           ? [...root.path, ...through]
           : undefined;
+    // Rebinding `exports` itself never changes the module's exports, and
+    // writes through a detached `exports` reach only the stale object.
     const detached =
       root.root.name === 'exports' &&
-      exportsDetachedAt !== undefined &&
-      (node.start ?? 0) >= exportsDetachedAt;
+      (root.path.length + through.length === 0 ||
+        (exportsDetachedAt !== undefined &&
+          (node.start ?? 0) >= exportsDetachedAt));
     if (exported && !detached && !scopeOf.getBinding(root.root.name))
       commonJs.push({
         path: exported,
@@ -461,11 +464,13 @@ function parseModule(filePath: string, workspace: string | undefined) {
         p.node.operator === '=' &&
         t.isIdentifier(p.node.left, { name: 'exports' }) &&
         !p.scope.getBinding('exports') &&
-        readsModuleExports(p.node.right) &&
         p.parentPath.isExpressionStatement() &&
         p.parentPath.parentPath?.isProgram()
       )
-        exportsDetachedAt = undefined;
+        // Any other value detaches `exports` from the module's exports.
+        exportsDetachedAt = readsModuleExports(p.node.right)
+          ? undefined
+          : (exportsDetachedAt ?? p.node.end ?? undefined);
       // `module.exports = exports = value` keeps `exports` attached.
       else if (
         exportsDetachedAt === undefined &&
@@ -1425,17 +1430,24 @@ const collectAliases = (
             }
             break;
           }
-          // Stored in a literal: the literal holds it one level down.
+          // Iterating it hands its elements to the loop binding, which this
+          // analysis does not follow.
+          if (t.isForOfStatement(parent) && parent.right === reference.node) {
+            escaped = true;
+            break;
+          }
+          // Stored in a literal: the literal holds it one level down. A spread
+          // copies the slots: spreading the value itself puts its members one
+          // level down in the copy, while a value already held inside the
+          // spread source stays at the same depth.
           if (
             (t.isObjectProperty(parent) &&
               parent.value === reference.node &&
               t.isObjectExpression(up.parent)) ||
             (t.isSpreadElement(parent) && t.isObjectExpression(up.parent))
           ) {
-            // A spread copies the slots, so the copy holds the same members
-            // one level down, just like a property.
             reference = up.parentPath!;
-            depth += 1;
+            if (!t.isSpreadElement(parent) || depth === 0) depth += 1;
             continue;
           }
           if (
@@ -1443,7 +1455,7 @@ const collectAliases = (
             (t.isSpreadElement(parent) && t.isArrayExpression(up.parent))
           ) {
             reference = t.isSpreadElement(parent) ? up.parentPath! : up;
-            depth += 1;
+            if (!t.isSpreadElement(parent) || depth === 0) depth += 1;
             continue;
           }
           // Spread into call arguments: which parameter receives what is not
