@@ -8,10 +8,10 @@ import * as t from '@babel/types';
  */
 export const consumerParserPlugins = (
   filePath: string,
-): ('typescript' | 'jsx' | 'decorators')[] =>
+): ('typescript' | 'jsx' | 'decorators' | 'decoratorAutoAccessors')[] =>
   /\.[jt]sx$/u.test(filePath)
-    ? ['typescript', 'decorators', 'jsx']
-    : ['typescript', 'decorators'];
+    ? ['typescript', 'decorators', 'decoratorAutoAccessors', 'jsx']
+    : ['typescript', 'decorators', 'decoratorAutoAccessors'];
 
 /** Only parser/binder diagnostics are policy violations; tool failures escape. */
 export class SourceSyntaxError extends Error {}

@@ -886,6 +886,8 @@ class StaticHolder {
 export const viaStaticField = StaticHolder.picked;
 const StaticExpression = class { static picked = Schema.Json; };
 class Redefined { static picked = Schema.Any; static picked = Schema.String; }
+class StaticAccessor { static accessor picked = Schema.Unknown; }
+export const viaStaticAccessor = StaticAccessor.picked;
 export const viaRedefinedStatic = Redefined.picked;
 const restFirst = (...items: unknown[]) => items[1];
 export const viaRestParameter = restFirst(Schema.String, Schema.Unknown);
@@ -1124,6 +1126,9 @@ export const viaApply = identity.apply(null, [Schema.Any]);`,
   expect(
     externals(graph.evaluate(shapesModule, shape('viaRedefinedStatic'))),
   ).toEqual(['effect:Schema.String']);
+  expect(
+    externals(graph.evaluate(shapesModule, shape('viaStaticAccessor'))),
+  ).toEqual(['effect:Schema.Unknown']);
   // A rest parameter is the array of the remaining arguments.
   expect(
     externals(graph.evaluate(shapesModule, shape('viaRestParameter'))),
@@ -1275,6 +1280,14 @@ export const read = target.success;`,
 const target = { success: Schema.String };
 class Holder { value = target; }
 new Holder().value.success = Schema.Unknown;
+export const read = target.success;`,
+    ],
+    [
+      'jsx-prop-write.tsx',
+      `import { Schema } from 'effect';
+const target = { success: Schema.String };
+const Mutator = ({ value }: { value: { success: unknown } }) => { value.success = Schema.Unknown; return null; };
+export const element = <Mutator value={target} />;
 export const read = target.success;`,
     ],
     [

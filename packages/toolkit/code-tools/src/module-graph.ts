@@ -1507,12 +1507,16 @@ const collectAliases = (
             }
             break;
           }
-          // Iterating it hands its elements to the loop binding, and a tag
-          // function receives template substitutions; neither is followed.
+          // Iterating it hands its elements to the loop binding, a tag
+          // function receives template substitutions, and a JSX component
+          // receives its props and children; none of them is followed.
           if (
             (t.isForOfStatement(parent) && parent.right === reference.node) ||
             (t.isTemplateLiteral(parent) &&
-              t.isTaggedTemplateExpression(up.parent))
+              t.isTaggedTemplateExpression(up.parent)) ||
+            t.isJSXExpressionContainer(parent) ||
+            t.isJSXSpreadAttribute(parent) ||
+            t.isJSXSpreadChild(parent)
           ) {
             escaped = true;
             break;
@@ -2434,7 +2438,11 @@ export function createModuleGraph(): ModuleGraph {
           continue;
         }
         if (
-          !(t.isClassProperty(member) || t.isClassMethod(member)) ||
+          !(
+            t.isClassProperty(member) ||
+            t.isClassAccessorProperty(member) ||
+            t.isClassMethod(member)
+          ) ||
           !member.static
         )
           continue;
@@ -2446,7 +2454,8 @@ export function createModuleGraph(): ModuleGraph {
           continue;
         }
         if (key !== name) continue;
-        if (t.isClassProperty(member)) {
+        // A static auto-accessor reads back its initializer like a field.
+        if (t.isClassProperty(member) || t.isClassAccessorProperty(member)) {
           definite = true;
           found.push(
             ...(member.value
