@@ -35,10 +35,14 @@ jobs:
             e2e-test
             workflow-security
             boundary-anti-pattern-checks
-            integration-Linux (framework)
+            integration-Linux (framework 1/3)
+            integration-Linux (framework 2/3)
+            integration-Linux (framework 3/3)
             integration-Linux (rstest-adapter)
             integration-Linux (utils)
-            integration-Windows (framework)
+            integration-Windows (framework 1/3)
+            integration-Windows (framework 2/3)
+            integration-Windows (framework 3/3)
             integration-Windows (rstest-adapter)
         run: |
           set -euo pipefail
