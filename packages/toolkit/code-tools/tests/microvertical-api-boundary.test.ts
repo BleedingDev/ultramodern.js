@@ -620,6 +620,15 @@ export const remove = HttpApiEndpoint.del('remove', '/remove', { error: fallback
     path.join(root, 'verticals/catalog/src/contracts/explicit-default.cjs'),
     `exports.default = require('effect').Schema.Json;`,
   );
+  // After `module.exports` is replaced, `exports` is a stale object.
+  write(
+    path.join(root, 'verticals/catalog/src/contracts/detached-exports.cjs'),
+    `module.exports = { get: require('effect').Schema.String };\nexports.get = require('effect').Schema.Any;`,
+  );
+  write(
+    path.join(root, 'verticals/catalog/src/contracts/reattached-exports.cjs'),
+    `module.exports = exports = {};\nexports.get = require('effect').Schema.Any;`,
+  );
   const shapes = path.join(root, 'verticals/catalog/src/contracts/shapes.ts');
   write(
     shapes,
@@ -824,6 +833,14 @@ calledAlias.success = Schema.Unknown;
 export const viaReturnedCall = [returnedByCall];
 export const viaCallCallee = identity.call(null, Schema.Any);
 export const viaBound = Schema.Any.bind(null);
+const boundIdentity = identity.bind(null, Schema.Any);
+export const viaBoundArgument = boundIdentity();
+const firstOf = <A, B>(first: A, _second: B) => first;
+const secondOf = <A, B>(_first: A, second: B) => second;
+export const viaTwiceBound = firstOf.bind(null, Schema.String).bind(null)(Schema.Unknown);
+export const viaBoundThenCalled = secondOf.bind(null, Schema.String)(Schema.Unknown);
+export const viaDetachedExports = require('./detached-exports.cjs').get;
+export const viaReattachedExports = require('./reattached-exports.cjs').get;
 const namedCall = { call: Schema.Any };
 export const viaNamedCall = namedCall.call;
 const spreadMethods = { set(value: { success: unknown }) { value.success = Schema.Unknown; } };
@@ -986,6 +1003,23 @@ export const viaApply = identity.apply(null, [Schema.Any]);`,
   expect(externals(graph.evaluate(shapesModule, shape('viaBound')))).toEqual([
     'effect:Schema.Any',
   ]);
+  // Arguments captured by `bind` reach later calls, before their own.
+  expect(
+    externals(graph.evaluate(shapesModule, shape('viaBoundArgument'))),
+  ).toEqual(['effect:Schema.Any']);
+  expect(
+    externals(graph.evaluate(shapesModule, shape('viaTwiceBound'))),
+  ).toEqual(['effect:Schema.String']);
+  expect(
+    externals(graph.evaluate(shapesModule, shape('viaBoundThenCalled'))),
+  ).toEqual(['effect:Schema.Unknown']);
+  expect(
+    externals(graph.evaluate(shapesModule, shape('viaDetachedExports'))),
+  ).toEqual(['effect:Schema.String']);
+  // `module.exports = exports = {}` keeps later `exports` writes live.
+  expect(
+    externals(graph.evaluate(shapesModule, shape('viaReattachedExports'))),
+  ).toContain('effect:Schema.Any');
   expect(
     externals(graph.evaluate(shapesModule, shape('viaNamedCall'))),
   ).toEqual(['effect:Schema.Any']);
