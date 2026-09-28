@@ -1,8 +1,58 @@
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { writeRouteMetadataManifest } from '../../src/cli/artifacts';
 import { renderRouteMetadataManifest } from '../../src/cli/routeMetadata';
+
+const requireCjs = createRequire(import.meta.url);
+
+const typedRouteMeta = (canonicalPath: string) => `export const routeMeta = {
+  canonicalPath: '${canonicalPath}',
+  descriptionKey: 'contacts.description',
+  id: 'contacts',
+  indexable: false,
+  localisedPaths: { cs: '/kontakty', en: '${canonicalPath}' },
+  namespace: 'contacts',
+  ownerAppId: 'contacts',
+  public: false,
+  titleKey: 'contacts.title',
+} as const;
+`;
+
+const typecheck = (directory: string) => {
+  fs.writeFileSync(
+    path.join(directory, 'tsconfig.json'),
+    JSON.stringify({
+      compilerOptions: {
+        lib: ['ESNext'],
+        module: 'ESNext',
+        moduleResolution: 'Bundler',
+        noEmit: true,
+        strict: true,
+        target: 'ES2024',
+        types: [],
+      },
+      include: ['src/routes/ultramodern-route-metadata.ts'],
+    }),
+  );
+  const compilerManifestPath = requireCjs.resolve(
+    '@typescript/native-preview/package.json',
+  );
+  const { bin } = JSON.parse(fs.readFileSync(compilerManifestPath, 'utf8')) as {
+    bin: { tsgo: string };
+  };
+  return spawnSync(
+    process.execPath,
+    [
+      path.resolve(path.dirname(compilerManifestPath), bin.tsgo),
+      '--project',
+      path.join(directory, 'tsconfig.json'),
+    ],
+    { encoding: 'utf8' },
+  );
+};
 
 const routeMeta = (id: string) =>
   `export const routeMeta = { id: '${id}', namespace: 'shop' } as const;\n`;
@@ -16,7 +66,7 @@ export const ultramodernRouteNamespace = route0.namespace;
 export const ultramodernRouteMetadata = [route0, route1, route2] as const;
 export const ultramodernLocalisedUrls = Object.fromEntries(
   ultramodernRouteMetadata
-    .filter((route) => route.canonicalPath !== '/')
+    .filter((route: { canonicalPath: string }) => route.canonicalPath !== '/')
     .map((route) => [route.canonicalPath, route.localisedPaths]),
 );
 export const ultramodernPublicRoutes = ultramodernRouteMetadata
@@ -89,6 +139,18 @@ describe('route metadata manifest', () => {
     await writeRouteMetadataManifest({ appDirectory });
     expect(fs.readFileSync(manifestPath, 'utf8')).toBe(EXPECTED_MANIFEST);
     expect(fs.statSync(manifestPath).mtimeMs).toBe(writtenAt);
+  });
+
+  // Every route literal is narrowed by `as const`. An app whose only route is
+  // not the root must still type-check the root-path filter.
+  it('type-checks a manifest whose only route is not the root', async () => {
+    write('[lang]/contacts/route.meta.ts', typedRouteMeta('/contacts'));
+    await writeRouteMetadataManifest({ appDirectory });
+
+    const result = typecheck(appDirectory);
+
+    expect(result.error).toBeUndefined();
+    expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
   });
 
   it('drops deleted route metadata from an existing manifest', async () => {
