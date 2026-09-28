@@ -34,7 +34,7 @@
   "dependencies": {
     "@jridgewell/trace-mapping": "^0.3.31",
     "@modern-js/utils": "workspace:*",
-    "@rsbuild/core": "2.2.9",
+    "@rsbuild/core": "2.2.10",
     "@rsbuild/plugin-assets-retry": "2.0.2",
     "@rsbuild/plugin-check-syntax": "2.0.1",
     "@rsbuild/plugin-css-minimizer": "2.0.1",
