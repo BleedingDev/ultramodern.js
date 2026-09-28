@@ -38,8 +38,9 @@ file that does not parse is a diagnostic too. `module.file` is the Babel AST and
   `node`, or `unresolved`. Within a module, writes count whether they go through an alias, a
   destructured or returned value, or a literal or call that holds the value.
   A value that reaches an unknown function is `unresolved` if the module
-  writes through any name the analysis does not track. Writes made by
-  importing modules are not tracked.
+  writes through any name the analysis does not track. Writes are tracked
+  per module: writes made by importing modules, or by an imported workspace
+  function through a value passed to it, are not tracked.
 - `graph.reachable(module, expression)` evaluates every reference inside an
   expression and walks each workspace node it reaches, across modules. It
   returns the `external` and `unresolved` values it finds.
