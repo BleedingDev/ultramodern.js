@@ -435,6 +435,94 @@ test('accepts a root API annotated with parse options', () => {
   ).toContain('explicitly compose its readiness foundation API');
 });
 
+test('follows a flat variadic add whose spread names generated groups', () => {
+  // The generator rewrites a groups module whole; the root composes the
+  // foundation group and spreads that list in one `add`.
+  const generated = path.join(
+    root,
+    'verticals/catalog/shared/generated/groups.ts',
+  );
+  write(
+    path.join(root, 'verticals/catalog/shared/groups/search.ts'),
+    `import { HttpApiEndpoint, HttpApiGroup } from 'effect/unstable/httpapi';
+export const searchGroup = HttpApiGroup.make('search').add(HttpApiEndpoint.post('reindex', '/catalog/search/reindex', { success: Schema.String }));`,
+  );
+  write(
+    path.join(root, 'verticals/catalog/shared/groups/commands.ts'),
+    `import { HttpApiEndpoint, HttpApiGroup } from 'effect/unstable/httpapi';
+export const commandsGroup = HttpApiGroup.make('commands').add(HttpApiEndpoint.post('archive', '/catalog/commands/archive', { success: Schema.String }), HttpApiEndpoint.post('restore', '/catalog/commands/restore', { success: Schema.String }));`,
+  );
+  write(
+    generated,
+    `import { commandsGroup } from '../groups/commands.ts';
+import { searchGroup } from '../groups/search.ts';
+export const generatedGroups = [commandsGroup, searchGroup] as const;`,
+  );
+  const flat = contract
+    .replace(
+      `export const catalogFoundationApi = HttpApi.make('CatalogFoundationApi').add(HttpApiGroup.make('foundation').add(`,
+      `import { generatedGroups } from './generated/groups.ts';
+export const catalogFoundationGroup = HttpApiGroup.make('foundation').add(`,
+    )
+    .replace(
+      `{ success: catalogReadinessSchema })));`,
+      `{ success: catalogReadinessSchema }));
+export const catalogFoundationApi = HttpApi.make('CatalogFoundationApi').add(catalogFoundationGroup);`,
+    )
+    .replace(
+      `HttpApi.make('CatalogApi').addHttpApi(catalogFoundationApi);`,
+      `HttpApi.make('CatalogApi').add(catalogFoundationGroup, ...generatedGroups).annotate(HttpApi.ParseOptions, { onExcessProperty: 'error' });`,
+    )
+    .replace(
+      'readiness: createMicroVerticalOperationContext',
+      "reindex: createMicroVerticalOperationContext({method: 'POST', operationId: 'CatalogApi:search:reindex', routePath: '/catalog/search/reindex'}), restore: createMicroVerticalOperationContext({method: 'POST', operationId: 'CatalogApi:commands:restore', routePath: '/catalog/commands/restore'}), readiness: createMicroVerticalOperationContext",
+    );
+  expect(validate(flat)).toBeUndefined();
+
+  // Every group behind the spread is traversed, not only the first.
+  write(
+    generated,
+    `import { commandsGroup } from '../groups/commands.ts';
+export const generatedGroups = [commandsGroup] as const;`,
+  );
+  expect(validate(flat)).toContain('operation map');
+
+  // A spread that is not a resolvable array literal fails closed.
+  for (const groups of [
+    `export const generatedGroups = makeGroups();`,
+    `import { missingGroup } from '../groups/missing.ts';
+export const generatedGroups = [missingGroup];`,
+    `export const generatedGroups = [, ];`,
+  ]) {
+    write(generated, groups);
+    expect(validate(flat)).toContain('bounded native endpoint declarations');
+  }
+
+  // The flat root must still lead with the foundation group itself.
+  write(generated, `export const generatedGroups = [];`);
+  const decoy = flat.replace(
+    'export const catalogApi =',
+    `const decoyGroup = HttpApiGroup.make('foundation').add(HttpApiEndpoint.get('readiness', '/catalog/readiness', { success: catalogReadinessSchema }));
+export const catalogApi =`,
+  );
+  expect(
+    validate(
+      decoy.replace(
+        '.add(catalogFoundationGroup, ...generatedGroups)',
+        '.add(decoyGroup, ...generatedGroups)',
+      ),
+    ),
+  ).toContain('explicitly compose its readiness foundation API');
+  expect(
+    validate(
+      flat.replace(
+        '.add(catalogFoundationGroup, ...generatedGroups)',
+        '.add(...generatedGroups, catalogFoundationGroup)',
+      ),
+    ),
+  ).toContain('explicitly compose its readiness foundation API');
+});
+
 test('still rejects a chain combinator Effect does not define', () => {
   write(
     path.join(root, 'verticals/catalog/shared/apis/catalog-search.ts'),
