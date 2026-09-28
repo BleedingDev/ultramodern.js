@@ -303,8 +303,10 @@ describe('planSSRLazyCompilation', () => {
 });
 
 describe('buildDefaultLazyCompilationTest', () => {
-  const internalDirectory = path.resolve('/app/node_modules/.modern-js');
-  const test = buildDefaultLazyCompilationTest(internalDirectory);
+  const appDirectory = path.resolve('/app');
+  const internalDirectory = path.join(appDirectory, 'node_modules/.modern-js');
+  const test = buildDefaultLazyCompilationTest(appDirectory, internalDirectory);
+  const inApp = (file: string) => path.join(appDirectory, file);
 
   it('keeps the generated entry module (bootstrap.jsx import target) eager', () => {
     expect(
@@ -315,36 +317,44 @@ describe('buildDefaultLazyCompilationTest', () => {
         resource: `${path.join(internalDirectory, 'main', 'index.jsx')}?x=1`,
       }),
     ).toBe(false);
+    // A custom internal directory outside node_modules stays eager too.
+    const custom = buildDefaultLazyCompilationTest(
+      appDirectory,
+      inApp('.modern-js'),
+    );
+    expect(custom({ resource: inApp('.modern-js/main/index.jsx') })).toBe(
+      false,
+    );
+  });
+
+  it('keeps framework and dependency imports eager', () => {
+    expect(
+      test({ resource: inApp('node_modules/react-i18next/dist/index.js') }),
+    ).toBe(false);
     expect(
       test({
-        resource: path.join(
-          internalDirectory,
-          'admin',
-          'dashboard',
-          'index.jsx',
+        resource: path.resolve(
+          '/repo/packages/runtime/plugin-i18n/dist/esm/runtime/i18n/utils.mjs',
         ),
       }),
     ).toBe(false);
   });
 
-  it('keeps other dynamic imports lazy', () => {
-    expect(test({ resource: '/app/src/components/Heavy.tsx' })).toBe(true);
-    expect(test({ resource: '/app/src/main/index.jsx' })).toBe(true);
-    expect(
-      test({ resource: path.join(internalDirectory, 'main', 'routes.js') }),
-    ).toBe(true);
+  it('keeps dynamic imports of app source lazy', () => {
+    expect(test({ resource: inApp('src/components/Heavy.tsx') })).toBe(true);
+    expect(test({ resource: inApp('src/main/index.jsx') })).toBe(true);
     expect(test({})).toBe(true);
   });
 
   it('composes with the stream SSR route-eager test', () => {
     const ssrTest = buildSSRLazyCompilationTest(
-      new Set([normalizeModulePath('/app/src/routes/page.tsx')]),
+      new Set([normalizeModulePath(inApp('src/routes/page.tsx'))]),
       test,
     );
     expect(
       ssrTest({ resource: path.join(internalDirectory, 'main', 'index.jsx') }),
     ).toBe(false);
-    expect(ssrTest({ resource: '/app/src/routes/page.tsx' })).toBe(false);
-    expect(ssrTest({ resource: '/app/src/components/Heavy.tsx' })).toBe(true);
+    expect(ssrTest({ resource: inApp('src/routes/page.tsx') })).toBe(false);
+    expect(ssrTest({ resource: inApp('src/components/Heavy.tsx') })).toBe(true);
   });
 });

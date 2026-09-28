@@ -53,10 +53,10 @@ describe('initialize plugin: default lazyCompilation', () => {
   });
 
   it('keeps the generated async-entry module eager', () => {
-    const internalDirectory = path.resolve('/tmp/app/.modern-js');
+    const internalDirectory = path.resolve('/tmp/app/node_modules/.modern-js');
     const { configCb } = setupPlugin(
       {},
-      { appDirectory: '/tmp/app', internalDirectory },
+      { appDirectory: path.resolve('/tmp/app'), internalDirectory },
     );
     const { test } = configCb!().dev.lazyCompilation;
     expect(
