@@ -214,6 +214,31 @@ const opaqueReceiver = (target: t.Node): boolean => {
   );
 };
 
+/** Array, Map and Set methods that can return a stored element. */
+const CONTAINER_EXTRACTORS = new Set([
+  'at',
+  'concat',
+  'entries',
+  'filter',
+  'find',
+  'findLast',
+  'flat',
+  'flatMap',
+  'get',
+  'map',
+  'pop',
+  'reduce',
+  'reduceRight',
+  'shift',
+  'slice',
+  'splice',
+  'toReversed',
+  'toSorted',
+  'toSpliced',
+  'values',
+  'with',
+]);
+
 /** Member expressions a destructuring assignment pattern writes. */
 /**
  * Member expressions a destructuring assignment pattern writes, each with
@@ -1316,6 +1341,18 @@ const collectAliases = (
               t.isOptionalMemberExpression(parent)) &&
             parent.object === reference.node
           ) {
+            // A built-in container method (`values.at(0)`) may return the
+            // stored value in a way this analysis does not model.
+            if (
+              depth > 0 &&
+              (t.isCallExpression(up.parent) ||
+                t.isOptionalCallExpression(up.parent)) &&
+              up.parent.callee === parent &&
+              CONTAINER_EXTRACTORS.has(staticKey(parent) ?? '')
+            ) {
+              escaped = true;
+              break;
+            }
             // Inside a holder, a member read may extract the stored value.
             if (depth > 0) depth -= 1;
             else {
@@ -2103,30 +2140,35 @@ export function createModuleGraph(): ModuleGraph {
       members: readonly string[],
     ): GraphValue[] => {
       const [name, ...rest] = members;
-      const found: GraphValue[] = [];
-      for (const property of object.properties) {
+      // Later properties override earlier ones, so read from the last one
+      // back and stop at the first that definitely defines `name`.
+      const found: GraphValue[][] = [];
+      for (const property of object.properties.toReversed()) {
         if (t.isSpreadElement(property)) {
-          found.push(...values(module, property.argument, members));
+          found.push(values(module, property.argument, members));
           continue;
         }
         // A dynamic key may name any member, so it is always a possibility.
         const key = staticKey(property);
         if (key === undefined) {
-          found.push(...unresolved(module, property));
+          found.push(unresolved(module, property));
           continue;
         }
         if (key !== name) continue;
         found.push(
-          ...(t.isObjectMethod(property)
+          t.isObjectMethod(property)
             ? property.kind === 'get'
               ? returnValues(module, property, rest)
               : rest.length === 0
                 ? [{ kind: 'node' as const, node: property, module }]
                 : unresolved(module, property)
-            : values(module, property.value, rest)),
+            : values(module, property.value, rest),
         );
+        // A setter alone does not define what a read returns.
+        if (!t.isObjectMethod(property) || property.kind !== 'set') break;
       }
-      return found.length > 0 ? found : unresolved(module, object);
+      const ordered = found.toReversed().flat();
+      return ordered.length > 0 ? ordered : unresolved(module, object);
     };
 
     /** What calling `fn` returns; a bare `return;` or fall-through is unresolved. */

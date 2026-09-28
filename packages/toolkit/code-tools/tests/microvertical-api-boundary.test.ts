@@ -847,6 +847,13 @@ export const viaDetachedExports = require('./detached-exports.cjs').get;
 export const viaReattachedExports = require('./reattached-exports.cjs').get;
 export const viaReattachedLater = require('./reattached-later.cjs').get;
 const capture = <T,>(value: T) => () => value;
+const overridden = { ...{ picked: Schema.Any }, picked: Schema.String };
+export const viaOverriddenSpread = overridden.picked;
+const heldInContainer = { success: Schema.String };
+const extractedHolder = [heldInContainer];
+const extractedAlias = extractedHolder.at(0);
+extractedAlias.success = Schema.Unknown;
+export const viaContainerMethod = heldInContainer.success;
 const { String: _string, ...restSchema } = Schema;
 export const viaObjectRest = [restSchema.Any, restSchema.String];
 const constantKey = 'Unknown';
@@ -1043,6 +1050,16 @@ export const viaApply = identity.apply(null, [Schema.Any]);`,
   expect(
     externals(graph.evaluate(shapesModule, shape('viaConcatenatedKey'))),
   ).toEqual(['effect:Schema.Any']);
+  // A later property overrides the same key from an earlier spread.
+  expect(
+    externals(graph.evaluate(shapesModule, shape('viaOverriddenSpread'))),
+  ).toEqual(['effect:Schema.String']);
+  // A value extracted through a container method may be written through.
+  expect(
+    new Set(
+      externals(graph.evaluate(shapesModule, shape('viaContainerMethod'))),
+    ),
+  ).toEqual(new Set(['effect:Schema.String', 'unresolved']));
   // A returned closure keeps the parameters of the call that created it.
   expect(
     externals(graph.evaluate(shapesModule, shape('viaClosure'))),
