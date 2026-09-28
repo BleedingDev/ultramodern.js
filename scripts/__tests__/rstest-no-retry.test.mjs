@@ -26,7 +26,9 @@ const read = file => readFileSync(path.join(repoRoot, file), 'utf8');
 const mentionsRetry = text => /\bretry\b/.test(text);
 
 // The argument text of every `setConfig(...)` call, up to its balanced `)`.
-function setConfigArguments(source) {
+// Comments are dropped first so a parenthesis inside one cannot end a call.
+function setConfigArguments(text) {
+  const source = text.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, '');
   const calls = [];
   for (const match of source.matchAll(/\bsetConfig\s*\(/g)) {
     let depth = 1;
@@ -43,10 +45,10 @@ function setConfigArguments(source) {
 test('no rstest config, setConfig call or script retries failed tests', () => {
   const offenders = [
     ...trackedFiles
-      .filter(file => /(^|\/)rstest(\.[\w-]+)?\.config\.m?[jt]s$/.test(file))
+      .filter(file => /(^|\/)rstest(\.[\w-]+)?\.config\.[cm]?[jt]s$/.test(file))
       .filter(file => mentionsRetry(read(file))),
     ...trackedFiles
-      .filter(file => /\.(test|spec)\.m?[jt]sx?$/.test(file))
+      .filter(file => /\.(test|spec)\.[cm]?[jt]sx?$/.test(file))
       .filter(file => setConfigArguments(read(file)).some(mentionsRetry)),
     ...trackedFiles
       .filter(file => path.basename(file) === 'package.json')
