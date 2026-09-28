@@ -916,6 +916,40 @@ const patternPath = (
 };
 
 /**
+ * For `const { a, ...rest } = source`, the member path from `source` to the
+ * object `rest` copies, and the keys it leaves out. Undefined when `target`
+ * is not an object rest reached through static keys.
+ */
+const objectRestPath = (
+  pattern: t.Node,
+  target: t.Identifier,
+):
+  | { members: readonly string[]; excluded: ReadonlySet<string> }
+  | undefined => {
+  if (!t.isObjectPattern(pattern)) return undefined;
+  const excluded = new Set<string>();
+  for (const property of pattern.properties) {
+    if (t.isRestElement(property)) {
+      if (property.argument === target) return { members: [], excluded };
+      continue;
+    }
+    const key = staticKey(property);
+    // A computed key may leave out any member.
+    if (key === undefined) return undefined;
+    excluded.add(key);
+    const inner = objectRestPath(
+      t.isAssignmentPattern(property.value)
+        ? property.value.left
+        : property.value,
+      target,
+    );
+    if (inner)
+      return { members: [key, ...inner.members], excluded: inner.excluded };
+  }
+  return undefined;
+};
+
+/**
  * `binding` plus every binding of the same module that aliases its object or
  * one of its members (`const alias = binding`, `alias = binding`,
  * `const { a } = binding`), each with the member path it aliases, so writes
@@ -1886,7 +1920,16 @@ export function createModuleGraph(): ModuleGraph {
         );
       } else if (t.isVariableDeclarator(node)) {
         const route = patternPath(node.id, binding.identifier);
-        if (route === undefined || route === 'dynamic')
+        const rest =
+          route === 'dynamic' && node.init && members.length > 0
+            ? objectRestPath(node.id, binding.identifier)
+            : undefined;
+        // `rest.key` reads `source.key` unless the pattern names `key`.
+        if (rest && !rest.excluded.has(members[0]!))
+          found.push(
+            ...values(module, node.init!, [...rest.members, ...members]),
+          );
+        else if (route === undefined || route === 'dynamic')
           found.push(...unresolved(module, at));
         else {
           if (node.init)
@@ -2210,6 +2253,41 @@ export function createModuleGraph(): ModuleGraph {
       return found;
     };
 
+    /**
+     * A key spelled as a literal, a `+` of literals, or a `const` bound to
+     * one: `Schema[key]` with `const key = 'Unknown'` reads `Unknown`.
+     */
+    const constantString = (
+      module: SourceModule,
+      expression: t.Node,
+      depth = 0,
+    ): string | undefined => {
+      const node = unwrapExpression(expression, true);
+      if (depth > MAX_DEPTH) return undefined;
+      if (t.isStringLiteral(node)) return node.value;
+      if (t.isNumericLiteral(node)) return String(node.value);
+      if (t.isTemplateLiteral(node) && node.expressions.length === 0)
+        return node.quasis[0]?.value.cooked ?? undefined;
+      if (t.isBinaryExpression(node, { operator: '+' })) {
+        const left = constantString(module, node.left, depth + 1);
+        const right = constantString(module, node.right, depth + 1);
+        return left === undefined || right === undefined
+          ? undefined
+          : left + right;
+      }
+      if (!t.isIdentifier(node)) return undefined;
+      const binding =
+        factsOf(module).references.get(node) ??
+        factsOf(module).scope.getBinding(node.name);
+      const declarator = binding?.path.node;
+      return binding?.kind === 'const' &&
+        t.isVariableDeclarator(declarator) &&
+        declarator.id === binding.identifier &&
+        declarator.init
+        ? constantString(module, declarator.init, depth + 1)
+        : undefined;
+    };
+
     const values = (
       module: SourceModule,
       expression: t.Node,
@@ -2234,7 +2312,9 @@ export function createModuleGraph(): ModuleGraph {
         if (t.isJSXMemberExpression(node))
           return values(module, node.object, [node.property.name, ...members]);
         if (t.isMemberExpression(node) || t.isOptionalMemberExpression(node)) {
-          const name = staticKey(node);
+          const name =
+            staticKey(node) ??
+            (node.computed ? constantString(module, node.property) : undefined);
           if (name === undefined) return unresolved(module, node);
           // On a function, `call`, `apply` and `bind` run or return it.
           if (
