@@ -302,6 +302,26 @@ const READ_ONLY_GLOBAL_CALLS = new Set([
   'String',
 ]);
 
+/**
+ * Built-in mutators that store a later argument into their first one, each
+ * mapping how deep the argument holds the value to how deep the target then
+ * holds it. `Object.assign` and the prototype setters expose the members of
+ * a directly passed value one level down, like a spread; a descriptor holds
+ * its `value` one level down, as the target property does; `Reflect.set`
+ * stores the value itself one level down; `Object.defineProperties` nests
+ * descriptors under keys, so its target is assumed to hold them one level
+ * down.
+ */
+const STORING_GLOBAL_CALLS = new Map<string, (depth: number) => number>([
+  ['Object.assign', depth => Math.max(depth, 1)],
+  ['Object.setPrototypeOf', depth => Math.max(depth, 1)],
+  ['Reflect.setPrototypeOf', depth => Math.max(depth, 1)],
+  ['Object.defineProperty', depth => Math.max(depth, 1)],
+  ['Reflect.defineProperty', depth => Math.max(depth, 1)],
+  ['Object.defineProperties', () => 1],
+  ['Reflect.set', depth => depth + 1],
+]);
+
 const DYNAMIC_SETTER = Symbol('dynamic setter');
 const setterCache = new WeakMap<t.Node, Set<string | symbol>>();
 /** The keys of every object or class setter in a module. */
@@ -1668,6 +1688,26 @@ const collectAliases = (
             const index = parent.arguments.indexOf(
               reference.node as (typeof parent.arguments)[number],
             );
+            // `Object.assign(holder, { value })` stores the value into the
+            // first argument.
+            const storing =
+              member &&
+              globalName !== undefined &&
+              !reference.scope.getBinding(globalName)
+                ? STORING_GLOBAL_CALLS.get(
+                    `${globalName}.${staticKey(callee as t.MemberExpression) ?? ''}`,
+                  )
+                : undefined;
+            if (storing && index >= 1) {
+              const stored = parent.arguments[0]
+                ? writeTarget(parent.arguments[0])
+                : undefined;
+              const holder = stored
+                ? reference.scope.getBinding(stored.root.name)
+                : undefined;
+              if (holder) holds(holder, stored!.depth + storing(depth) - depth);
+              else escaped = true;
+            }
             // `fn.call(self, value)` passes `value` as the first parameter;
             // `apply` and `bind` pass it in ways not modeled.
             if (
@@ -1700,6 +1740,33 @@ const collectAliases = (
             }
             reference = up;
             dynamic = true;
+            continue;
+          }
+          // A static field initializer stores the value in the class, one
+          // level down; an instance field stores it in every instance, which
+          // this analysis does not follow.
+          if (
+            (t.isClassProperty(parent) ||
+              t.isClassPrivateProperty(parent) ||
+              t.isClassAccessorProperty(parent)) &&
+            parent.value === reference.node
+          ) {
+            const owner = up.parentPath?.parentPath;
+            if (!parent.static || t.isPrivateName(parent.key) || !owner) {
+              escaped = true;
+              break;
+            }
+            if (owner.isClassDeclaration()) {
+              const id = owner.node.id;
+              const binding = id
+                ? owner.parentPath.scope.getBinding(id.name)
+                : undefined;
+              if (binding) holds(binding, 1);
+              else escaped = true;
+              break;
+            }
+            reference = owner;
+            depth += 1;
             continue;
           }
           // Stored into a member of another binding (`holder.x = value`).
