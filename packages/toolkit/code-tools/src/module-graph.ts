@@ -277,6 +277,24 @@ const readsModuleExports = (node: t.Node): boolean => {
   return false;
 };
 
+const DYNAMIC_SETTER = Symbol('dynamic setter');
+const setterCache = new WeakMap<t.Node, Set<string | symbol>>();
+/** The keys of every object or class setter in a module. */
+const setterNames = (program: NodePath): ReadonlySet<string | symbol> => {
+  const cached = setterCache.get(program.node);
+  if (cached) return cached;
+  const names = new Set<string | symbol>();
+  t.traverseFast(program.node, node => {
+    if (
+      (t.isObjectMethod(node) || t.isClassMethod(node)) &&
+      node.kind === 'set'
+    )
+      names.add(staticKey(node as unknown as t.ObjectMethod) ?? DYNAMIC_SETTER);
+  });
+  setterCache.set(program.node, names);
+  return names;
+};
+
 /** Member expressions a destructuring assignment pattern writes. */
 /**
  * Member expressions a destructuring assignment pattern writes, each with
@@ -1639,6 +1657,23 @@ const collectAliases = (
             !t.isPattern(parent.left)
           ) {
             const stored = writeTarget(parent.left);
+            // A setter of that name receives the value as its parameter,
+            // which this analysis does not follow.
+            const setters = setterNames(
+              reference.scope.getProgramParent().path,
+            );
+            const key =
+              t.isMemberExpression(parent.left) ||
+              t.isOptionalMemberExpression(parent.left)
+                ? staticKey(parent.left)
+                : undefined;
+            if (
+              setters.has(DYNAMIC_SETTER) ||
+              (setters.size > 0 && (key === undefined || setters.has(key)))
+            ) {
+              escaped = true;
+              break;
+            }
             if (stored)
               holds(reference.scope.getBinding(stored.root.name), stored.depth);
             reference = up;
@@ -2451,7 +2486,29 @@ export function createModuleGraph(): ModuleGraph {
         ['call', 'apply', 'bind'].includes(staticKey(via) ?? '')
           ? { name: staticKey(via), object: via.object }
           : undefined;
-      if (!invocation)
+      // `Reflect.apply(fn, self, [args])` runs `fn` with a literal list.
+      const reflected =
+        (t.isMemberExpression(via) || t.isOptionalMemberExpression(via)) &&
+        t.isIdentifier(via.object, { name: 'Reflect' }) &&
+        staticKey(via) === 'apply' &&
+        !(
+          factsOf(module).references.get(via.object) ??
+          factsOf(module).scope.getBinding('Reflect')
+        ) &&
+        call.arguments[0] !== undefined;
+      if (reflected) {
+        const listed = call.arguments[2];
+        const list =
+          t.isArrayExpression(listed) &&
+          listed.elements.every(
+            element => element !== null && !t.isSpreadElement(element),
+          )
+            ? (listed.elements as t.Expression[])
+            : undefined;
+        for (const callee of values(module, call.arguments[0]!, []))
+          if (list) run(callee, argumentsOf(list));
+          else found.push(...unresolved(module, call));
+      } else if (!invocation)
         for (const callee of values(module, call.callee, []))
           run(callee, argumentsOf(call.arguments));
       else {
@@ -2640,7 +2697,7 @@ export function createModuleGraph(): ModuleGraph {
         if (members.length === 0) return [{ kind: 'node', node, module }];
         if (t.isObjectExpression(node))
           return propertyValues(module, node, members);
-        if (t.isClassExpression(node))
+        if (t.isClassExpression(node) || t.isClassDeclaration(node))
           return staticMemberValues(module, node, members);
         // A static index before any spread names one element.
         const [index, ...rest] = members;
