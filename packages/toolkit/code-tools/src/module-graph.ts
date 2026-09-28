@@ -255,6 +255,11 @@ function parseModule(filePath: string, workspace: string | undefined) {
   const merged = new Set<string>();
   const mutations: t.Node[] = [];
   const commonJs: MemberWrite[] = [];
+  /**
+   * Where a top-level `module.exports = value` detaches the `exports` object;
+   * later writes through `exports` no longer reach the module's exports.
+   */
+  let exportsDetachedAt: number | undefined;
   const assertAssignable = (binding: Binding | undefined, at: t.Node) => {
     if (binding?.kind === 'const' || binding?.kind === 'module')
       throw new SourceSyntaxError(
@@ -291,7 +296,11 @@ function parseModule(filePath: string, workspace: string | undefined) {
         : root.root.name === 'exports'
           ? [...root.path, ...through]
           : undefined;
-    if (exported && !scopeOf.getBinding(root.root.name))
+    const detached =
+      root.root.name === 'exports' &&
+      exportsDetachedAt !== undefined &&
+      (node.start ?? 0) >= exportsDetachedAt;
+    if (exported && !detached && !scopeOf.getBinding(root.root.name))
       commonJs.push({
         path: exported,
         dynamic: member.dynamic,
@@ -358,6 +367,22 @@ function parseModule(filePath: string, workspace: string | undefined) {
             from && p.node.operator === '=' ? p.node.right : undefined,
             from,
           );
+      // `module.exports = exports = value` keeps `exports` attached.
+      if (
+        exportsDetachedAt === undefined &&
+        p.node.operator === '=' &&
+        t.isMemberExpression(p.node.left) &&
+        t.isIdentifier(p.node.left.object, { name: 'module' }) &&
+        staticKey(p.node.left) === 'exports' &&
+        !p.scope.getBinding('module') &&
+        !(
+          t.isAssignmentExpression(p.node.right) &&
+          t.isIdentifier(p.node.right.left, { name: 'exports' })
+        ) &&
+        p.parentPath.isExpressionStatement() &&
+        p.parentPath.parentPath?.isProgram()
+      )
+        exportsDetachedAt = p.node.end ?? undefined;
     },
     // `for (target.key of items)` writes each item into a member target.
     ForXStatement(p) {
@@ -1613,6 +1638,14 @@ export function createModuleGraph(): ModuleGraph {
     let frames = 0;
     let frame: Frame = { id: 0, parameters: new Map() };
     let steps = 0;
+    /** One call argument, with the module and frame it is evaluated in. */
+    interface CallArgument {
+      readonly module: SourceModule;
+      readonly node: t.Node;
+      readonly context: Frame;
+    }
+    /** Arguments `fn.bind(self, ...args)` captured for the returned value. */
+    const boundArguments = new WeakMap<GraphValue, readonly CallArgument[]>();
     const unresolved = (module: SourceModule, node: t.Node): GraphValue[] => [
       { kind: 'unresolved', node, module },
     ];
@@ -2003,8 +2036,11 @@ export function createModuleGraph(): ModuleGraph {
     ): GraphValue[] => {
       const found: GraphValue[] = [];
       let terminal = false;
-      /** Run one callee value with `args`. */
-      const run = (callee: GraphValue, args: typeof call.arguments) => {
+      const argumentsOf = (args: readonly t.Node[]): readonly CallArgument[] =>
+        args.map(node => ({ module, node, context: frame }));
+      /** Run one callee value with `args`, after any arguments it bound. */
+      const run = (callee: GraphValue, callArgs: readonly CallArgument[]) => {
+        const args = [...(boundArguments.get(callee) ?? []), ...callArgs];
         // An opaque callee makes the result opaque, not a spelled-out call.
         if (callee.kind === 'unresolved') {
           found.push(...unresolved(module, call));
@@ -2019,8 +2055,8 @@ export function createModuleGraph(): ModuleGraph {
         const fnScope = factsOf(callee.module).functionScopes.get(callee.node);
         // A spread argument shifts every later parameter.
         const spread = args.findIndex(
-          argument =>
-            t.isSpreadElement(argument) || t.isArgumentPlaceholder(argument),
+          ({ node }) =>
+            t.isSpreadElement(node) || t.isArgumentPlaceholder(node),
         );
         callee.node.params.forEach((param, index) => {
           if (spread !== -1 && index >= spread) return;
@@ -2030,8 +2066,10 @@ export function createModuleGraph(): ModuleGraph {
             if (!binding) continue;
             parameters.set(binding, {
               pattern: param,
-              argument: argument ? { module, node: argument } : undefined,
-              context: outer,
+              argument: argument
+                ? { module: argument.module, node: argument.node }
+                : undefined,
+              context: argument?.context ?? outer,
             });
           }
         });
@@ -2050,7 +2088,7 @@ export function createModuleGraph(): ModuleGraph {
           : undefined;
       if (!invocation)
         for (const callee of values(module, call.callee, []))
-          run(callee, call.arguments);
+          run(callee, argumentsOf(call.arguments));
       else {
         const receivers = values(module, invocation.object, []);
         // A property that is merely named `call`, `apply` or `bind`.
@@ -2058,13 +2096,26 @@ export function createModuleGraph(): ModuleGraph {
           for (const callee of values(module, invocation.object, [
             invocation.name!,
           ]))
-            run(callee, call.arguments);
+            run(callee, argumentsOf(call.arguments));
         for (const receiver of receivers.filter(callable)) {
-          // `fn.bind(...)` returns `fn` (bound), not its result.
+          // `fn.bind(self, ...args)` returns `fn` with `args` bound, not its
+          // result; later calls pass `args` before their own.
           if (invocation.name === 'bind') {
-            found.push(
-              ...(members.length === 0 ? [receiver] : unresolved(module, call)),
-            );
+            if (members.length > 0) {
+              found.push(...unresolved(module, call));
+              continue;
+            }
+            const bound = argumentsOf(call.arguments.slice(1));
+            if (bound.length === 0) {
+              found.push(receiver);
+              continue;
+            }
+            const boundReceiver: GraphValue = { ...receiver };
+            boundArguments.set(boundReceiver, [
+              ...(boundArguments.get(receiver) ?? []),
+              ...bound,
+            ]);
+            found.push(boundReceiver);
             continue;
           }
           // `fn.call(self, ...args)` passes `args`; `fn.apply` an array.
@@ -2072,14 +2123,17 @@ export function createModuleGraph(): ModuleGraph {
           const listed = call.arguments[1];
           run(
             receiver,
-            invocation.name === 'call'
-              ? call.arguments.slice(1)
-              : t.isArrayExpression(listed) &&
-                  listed.elements.every(
-                    element => element !== null && !t.isSpreadElement(element),
-                  )
-                ? (listed.elements as typeof call.arguments)
-                : [],
+            argumentsOf(
+              invocation.name === 'call'
+                ? call.arguments.slice(1)
+                : t.isArrayExpression(listed) &&
+                    listed.elements.every(
+                      element =>
+                        element !== null && !t.isSpreadElement(element),
+                    )
+                  ? (listed.elements as t.Expression[])
+                  : [],
+            ),
           );
         }
       }
