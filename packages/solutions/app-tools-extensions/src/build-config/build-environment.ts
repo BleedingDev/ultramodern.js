@@ -1,4 +1,3 @@
-import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
   accessSync,
@@ -14,37 +13,97 @@ import {
 } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
-import { basename, dirname, join, resolve } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import type { URL } from 'node:url';
 
 const EFFECT_TSGO_PACKAGE = '@effect/tsgo';
-const EFFECT_TSGO_BIN = 'effect-tsgo';
+/** Native TypeScript packages, in the order Effect TS-Go discovers them. */
+const NATIVE_TYPESCRIPT_PACKAGES = ['typescript', '@typescript/native'];
 const EFFECT_TSGO_RESOLUTION_ERROR =
   'Unable to resolve the Effect TS-Go compiler. Install "@effect/tsgo" and a native TypeScript backend for this build config, or set EFFECT_TSGO_BIN.';
 const executableEffectTsgoCompilers = new Map<string, string>();
 
 type PackageJson = {
-  bin?: Record<string, string> | string;
+  version?: unknown;
 };
 
-function resolveEffectTsgoCli(from: string | URL): string {
+type EffectTsgoUpstreamManifest = {
+  components?: {
+    typescript?: Record<string, unknown>;
+  };
+};
+
+function readJson<T>(fileName: string): T {
+  return JSON.parse(readFileSync(fileName, 'utf-8')) as T;
+}
+
+function resolvePackageVersion(
+  packageRequire: NodeJS.Require,
+  packageName: string,
+): { packageJsonPath: string; version: string } | undefined {
+  let packageJsonPath: string;
+  try {
+    packageJsonPath = packageRequire.resolve(`${packageName}/package.json`);
+  } catch {
+    return undefined;
+  }
+  const { version } = readJson<PackageJson>(packageJsonPath);
+  return typeof version === 'string' ? { packageJsonPath, version } : undefined;
+}
+
+/**
+ * Resolves only the TypeScript component packaged by Effect TS-Go.
+ *
+ * `effect-tsgo get-exe-path` discovers every integration before selecting the
+ * TypeScript one, so an installed Oxlint makes it fail on Linux musl. The
+ * TypeScript artifact itself is platform-neutral across libc: the
+ * `@effect/tsgo-<platform>-<arch>` package lists it in `lib/upstream.json`
+ * under `components.typescript` and ships it at
+ * `artifacts/typescript/<version>/tsc`, keyed by the installed
+ * `@typescript/typescript-<platform>-<arch>` version.
+ */
+function resolveEffectTsgoTypeScriptArtifact(from: string | URL): string {
   const projectRequire = createRequire(from);
-  const packageJsonPath = projectRequire.resolve(
+  const effectTsgoPackageJsonPath = projectRequire.resolve(
     `${EFFECT_TSGO_PACKAGE}/package.json`,
   );
-  const packageJson = JSON.parse(
-    readFileSync(packageJsonPath, 'utf-8'),
-  ) as PackageJson;
-  const bin =
-    typeof packageJson.bin === 'string'
-      ? packageJson.bin
-      : packageJson.bin?.[EFFECT_TSGO_BIN];
+  const platformTarget = `${process.platform}-${process.arch}`;
+  const effectTsgoPlatformPackageJsonPath = createRequire(
+    effectTsgoPackageJsonPath,
+  ).resolve(`${EFFECT_TSGO_PACKAGE}-${platformTarget}/package.json`);
+  const upstream = readJson<EffectTsgoUpstreamManifest>(
+    join(dirname(effectTsgoPlatformPackageJsonPath), 'lib', 'upstream.json'),
+  );
+  const packagedTypeScriptVersions = upstream.components?.typescript ?? {};
 
-  if (!bin) {
-    throw new Error(EFFECT_TSGO_RESOLUTION_ERROR);
+  for (const packageName of NATIVE_TYPESCRIPT_PACKAGES) {
+    const typescript = resolvePackageVersion(projectRequire, packageName);
+    const major = typescript && /^\s*(\d+)/u.exec(typescript.version);
+    if (!typescript || !major || Number(major[1]) < 7) {
+      continue;
+    }
+
+    const typescriptPlatform = resolvePackageVersion(
+      createRequire(typescript.packageJsonPath),
+      `@typescript/typescript-${platformTarget}`,
+    );
+    if (
+      !typescriptPlatform ||
+      !Object.hasOwn(packagedTypeScriptVersions, typescriptPlatform.version)
+    ) {
+      break;
+    }
+
+    return join(
+      dirname(effectTsgoPlatformPackageJsonPath),
+      'artifacts',
+      'typescript',
+      typescriptPlatform.version,
+      process.platform === 'win32' ? 'tsc.exe' : 'tsc',
+    );
   }
 
-  return resolve(dirname(packageJsonPath), bin);
+  throw new Error(EFFECT_TSGO_RESOLUTION_ERROR);
 }
 
 function resolveExecutableEffectTsgoCompiler(compilerPath: string): string {
@@ -143,17 +202,11 @@ export function resolveEffectTsgoCompiler(
   }
 
   try {
-    const compiler = execFileSync(
-      process.execPath,
-      [resolveEffectTsgoCli(options.from), 'get-exe-path'],
-      { encoding: 'utf-8' },
-    ).trim();
-
-    if (compiler) {
-      return resolveExecutableEffectTsgoCompiler(compiler);
-    }
+    return resolveExecutableEffectTsgoCompiler(
+      resolveEffectTsgoTypeScriptArtifact(options.from),
+    );
   } catch {
-    // Use one stable error for package, platform-binary, and CLI failures.
+    // Use one stable error for package, platform-package, and artifact failures.
   }
 
   throw new Error(EFFECT_TSGO_RESOLUTION_ERROR);
