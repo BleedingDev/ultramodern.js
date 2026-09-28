@@ -1,13 +1,16 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import * as t from '@babel/types';
 import { createSharedApi } from '../../ultramodern-create/src/ultramodern-workspace/api/shared';
 import { runMicroVerticalApiCheckCli } from '../src/cli/microvertical-api-check';
 import {
   checkMicroVerticalApiBoundaries,
   checkMicroVerticalApiConsumerFiles,
+  createModuleGraph,
+  type GraphValue,
   type MicroVerticalApiBaselineExpectation,
-  type MicroVerticalApiContractRule,
+  type MicroVerticalApiSourceRule,
   type ModuleGraphHop,
   microVerticalApiBaselineViolation,
 } from '../src/microvertical-api-boundary';
@@ -214,7 +217,7 @@ test('resolves a public shared workspace export under an arbitrary scope', () =>
   ).toContain('bounded native endpoint declarations');
 });
 
-test('contract rules receive the resolved re-export chain across packages', async () => {
+test('source rules receive the resolved re-export chain across packages', async () => {
   write(
     path.join(root, 'pnpm-workspace.yaml'),
     'packages:\n  - packages/*\n  - verticals/*\n',
@@ -258,15 +261,16 @@ test('contract rules receive the resolved re-export chain across packages', asyn
         `${path.relative(real, hop.path).split(path.sep).join('/')}#${hop.name}`,
     );
   const seen: string[][] = [];
-  const traceSearchApi: MicroVerticalApiContractRule = ({
-    appPath,
-    protocol,
+  const traceSearchApi: MicroVerticalApiSourceRule = ({
+    file: checked,
+    module,
     graph,
   }) => {
-    const search = graph.resolve(graph.root, 'catalogSearchApi', 'local');
+    if (checked !== 'verticals/catalog/shared/api.ts') return [];
+    const search = graph.resolve(module, 'catalogSearchApi', 'local');
     if (search?.kind !== 'declaration') return ['catalogSearchApi unresolved'];
     const httpApi = graph.resolve(search.module, 'HttpApi', 'local');
-    seen.push([appPath, protocol], hops(search.chain));
+    seen.push([checked], hops(search.chain));
     return httpApi?.kind === 'external'
       ? [`${httpApi.name} from ${httpApi.specifier} via ${hops(httpApi.chain)}`]
       : ['HttpApi must end at its package'];
@@ -274,11 +278,11 @@ test('contract rules receive the resolved re-export chain across packages', asyn
   const result = checkMicroVerticalApiConsumerFiles({
     workspaceRoot: root,
     baselinePackageDirectory: owner,
-    contractRules: [traceSearchApi],
+    sourceRules: [traceSearchApi],
   });
   expect(result.toolErrors).toEqual([]);
   expect(seen).toEqual([
-    ['verticals/catalog', 'rest'],
+    ['verticals/catalog/shared/api.ts'],
     [
       'verticals/catalog/shared/api.ts#catalogSearchApi',
       'packages/contracts/src/catalog.ts#catalogSearchApi',
@@ -302,19 +306,19 @@ test('contract rules receive the resolved re-export chain across packages', asyn
     checkMicroVerticalApiConsumerFiles({
       workspaceRoot: root,
       baselinePackageDirectory: owner,
-      contractRules: [traceSearchApi],
+      sourceRules: [traceSearchApi],
     }).diagnostics,
   ).toContain('verticals/catalog/shared/api.ts: catalogSearchApi unresolved');
 
   // A rule that does not return an array of messages is a tool failure, not a pass.
-  const stringRule = (() => '') as unknown as MicroVerticalApiContractRule;
+  const stringRule = (() => '') as unknown as MicroVerticalApiSourceRule;
   expect(
     checkMicroVerticalApiConsumerFiles({
       workspaceRoot: root,
       baselinePackageDirectory: owner,
-      contractRules: [stringRule],
+      sourceRules: [stringRule],
     }).toolErrors.join('\n'),
-  ).toContain('contract rule must return an array of violation messages');
+  ).toContain('must return an array of violation messages');
 
   // The CLI loads rules from a module; their messages are consumer violations.
   write(file, publicContract);
@@ -329,6 +333,744 @@ test('contract rules receive the resolved re-export chain across packages', asyn
   expect(await cli(passing)).toBe(0);
   expect(await cli(failing)).toBe(1);
   expect(await cli(malformed)).toBe(2);
+});
+
+/** An HttpApi schema rule written the way a consumer would, on the graph alone. */
+const unconstrainedSchemas: MicroVerticalApiSourceRule = ({
+  module,
+  graph,
+}) => {
+  const forbidden = ({ kind, ...value }: GraphValue) =>
+    kind === 'external' &&
+    'specifier' in value &&
+    ['Any', 'Unknown'].includes(
+      value.specifier === 'effect/Schema'
+        ? value.name
+        : value.name === 'Schema'
+          ? (value.members[0] ?? '')
+          : '',
+    );
+  const messages: string[] = [];
+  t.traverseFast(module.file, node => {
+    if (
+      t.isCallExpression(node) &&
+      graph
+        .evaluate(module, node.callee)
+        .some(
+          value =>
+            value.kind === 'external' &&
+            value.name === 'HttpApiEndpoint' &&
+            value.members.length === 1,
+        ) &&
+      node.arguments.some(argument =>
+        graph.reachable(module, argument).some(forbidden),
+      )
+    )
+      messages.push(`unconstrained schema at line ${node.loc?.start.line}`);
+  });
+  return messages;
+};
+
+test('source rules follow destructuring, returns and member writes in every source file', () => {
+  write(
+    path.join(root, 'pnpm-workspace.yaml'),
+    'packages:\n  - packages/*\n  - verticals/*\n',
+  );
+  const shared = path.join(root, 'packages/contracts');
+  write(
+    path.join(shared, 'package.json'),
+    JSON.stringify({
+      name: '@domain/shared-contracts',
+      exports: { './schemas': { 'modern:source': './src/schemas.ts' } },
+    }),
+  );
+  // A namespace import, a function return and an export alias across packages.
+  write(
+    path.join(shared, 'src/schemas.ts'),
+    `import * as S from 'effect/Schema';
+const unknown = () => { return S.Unknown; };
+export { unknown as loose };
+export const strict = S.String;`,
+  );
+  // Every source file is checked, not only API contracts.
+  write(
+    path.join(shared, 'src/endpoints.ts'),
+    `import { HttpApiEndpoint } from 'effect/unstable/httpapi';
+import { Schema } from 'effect';
+export const probe = HttpApiEndpoint.get('probe', '/probe', { success: Schema.Any });`,
+  );
+  fs.mkdirSync(path.join(root, 'node_modules/@domain'), { recursive: true });
+  fs.symlinkSync(
+    shared,
+    path.join(root, 'node_modules/@domain/shared-contracts'),
+  );
+  const endpoints = path.join(
+    root,
+    'verticals/catalog/src/contracts/endpoints.ts',
+  );
+  write(
+    endpoints,
+    `import { HttpApiEndpoint } from 'effect/unstable/httpapi';
+import { Schema } from 'effect';
+import { loose, strict } from '@domain/shared-contracts/schemas';
+const { get } = HttpApiEndpoint;
+const bodies = { search: Schema.String };
+bodies.search = Schema.Struct({ q: loose() });
+export const search = get('search', '/search', { success: bodies.search });
+function endpointFactory() { return HttpApiEndpoint.post; }
+export const create = endpointFactory()('create', '/create', { payload: Schema.Struct({ ...{ name: strict } }) });
+let fallback = Schema.String;
+fallback = Schema.Unknown;
+export const remove = HttpApiEndpoint.del('remove', '/remove', { error: fallback });`,
+  );
+  const result = checkMicroVerticalApiConsumerFiles({
+    workspaceRoot: root,
+    baselinePackageDirectory: owner,
+    sourceRules: [unconstrainedSchemas],
+  });
+  expect(result.toolErrors).toEqual([]);
+  expect(result.diagnostics).toEqual([
+    'verticals/catalog/src/contracts/endpoints.ts: unconstrained schema at line 7',
+    'verticals/catalog/src/contracts/endpoints.ts: unconstrained schema at line 12',
+    'packages/contracts/src/endpoints.ts: unconstrained schema at line 3',
+  ]);
+
+  // Evaluation reports each value path; the destructured factory is external.
+  const graph = createModuleGraph();
+  const module = graph.module(endpoints);
+  const exported = (name: string) => {
+    const resolved = graph.resolve(module, name, 'export');
+    if (resolved?.kind !== 'declaration') throw new Error(name);
+    return resolved.expression as t.CallExpression;
+  };
+  const externals = (values: readonly GraphValue[]) =>
+    values.map(value =>
+      value.kind === 'external'
+        ? `${value.specifier}:${[value.name, ...value.members].join('.')}`
+        : value.kind,
+    );
+  expect(externals(graph.evaluate(module, exported('search').callee))).toEqual([
+    'effect/unstable/httpapi:HttpApiEndpoint.get',
+  ]);
+  expect(externals(graph.evaluate(module, exported('create').callee))).toEqual([
+    'effect/unstable/httpapi:HttpApiEndpoint.post',
+  ]);
+  // The initializer and the later member write are both possible values.
+  const success = (exported('search').arguments[2] as t.ObjectExpression)
+    .properties[0] as t.ObjectProperty;
+  expect(externals(graph.evaluate(module, success.value))).toEqual([
+    'effect:Schema.String',
+    'node',
+  ]);
+  // A mutated binding is never a resolved `const` declaration.
+  expect(graph.resolve(module, 'bodies', 'local')).toBeUndefined();
+
+  // Alias chains deeper than the nesting budget end unresolved, not in a stack overflow.
+  const deep = path.join(root, 'verticals/catalog/src/contracts/deep.ts');
+  write(
+    deep,
+    `import { Schema } from 'effect';\nexport const a0 = Schema.Unknown;\n${Array.from(
+      { length: 5000 },
+      (_, index) => `const a${index + 1} = a${index};`,
+    ).join('\n')}\nexport const last = [a5000];`,
+  );
+  const deepModule = graph.module(deep);
+  const last = graph.resolve(deepModule, 'last', 'export');
+  if (last?.kind !== 'declaration') throw new Error('last');
+  expect(externals(graph.evaluate(deepModule, last.expression))).toEqual([
+    'node',
+  ]);
+  expect(
+    new Set(externals(graph.reachable(deepModule, last.expression))),
+  ).toEqual(new Set(['unresolved']));
+
+  // Star-export and re-export cycles fall through to the module that exports the name.
+  const barrels = path.join(root, 'verticals/catalog/src/barrels');
+  write(
+    path.join(barrels, 'a.ts'),
+    `export * from './b.ts';\nexport * from './c.ts';`,
+  );
+  write(
+    path.join(barrels, 'b.ts'),
+    `export * from './a.ts';\nexport { looped } from './d.ts';`,
+  );
+  write(
+    path.join(barrels, 'c.ts'),
+    `import { Schema } from 'effect';\nexport const target = Schema.Unknown;`,
+  );
+  write(path.join(barrels, 'd.ts'), `export { looped } from './b.ts';`);
+  write(
+    path.join(barrels, 'use.ts'),
+    `import { target, looped } from './a.ts';\nexport const both = [target, looped];`,
+  );
+  const use = graph.module(path.join(barrels, 'use.ts'));
+  const both = graph.resolve(use, 'both', 'export');
+  if (both?.kind !== 'declaration') throw new Error('both');
+  expect(externals(graph.reachable(use, both.expression))).toEqual([
+    'unresolved',
+    'effect:Schema.Unknown',
+  ]);
+
+  // Globals and recursive values are opaque: rules see `unresolved`, never nothing.
+  const opaque = path.join(root, 'verticals/catalog/src/contracts/opaque.ts');
+  write(
+    opaque,
+    `const recursive = () => recursive();\nexport const global = { success: GlobalSchema };\nexport const loop = recursive();`,
+  );
+  const opaqueModule = graph.module(opaque);
+  for (const name of ['global', 'loop']) {
+    const declared = graph.resolve(opaqueModule, name, 'export');
+    if (declared?.kind !== 'declaration') throw new Error(name);
+    expect(
+      new Set(externals(graph.reachable(opaqueModule, declared.expression))),
+    ).toEqual(new Set(['unresolved']));
+  }
+
+  // Whole objects reach member writes; dynamic keys and value-less functions stay
+  // possible; bundler-style imports reach JavaScript sources.
+  write(
+    path.join(root, 'verticals/catalog/src/contracts/helper.js'),
+    `import { Schema } from 'effect';\nexport const fromJs = Schema.Unknown;`,
+  );
+  write(
+    path.join(root, 'verticals/catalog/src/contracts/indexed/index.mjs'),
+    `import { Schema } from 'effect';\nexport const fromIndex = Schema.Any;`,
+  );
+  const view = path.join(root, 'verticals/catalog/src/contracts/view.tsx');
+  write(
+    view,
+    `import { Forbidden } from 'forbidden-ui';\nimport * as ui from 'other-ui';\nexport const view = <div><Forbidden /><ui.Card /></div>;`,
+  );
+  const viewModule = graph.module(view);
+  const rendered = graph.resolve(viewModule, 'view', 'export');
+  if (rendered?.kind !== 'declaration') throw new Error('view');
+  expect(externals(graph.reachable(viewModule, rendered.expression))).toEqual([
+    'other-ui:Card',
+    'forbidden-ui:Forbidden',
+  ]);
+  const cjs = path.join(root, 'verticals/catalog/src/contracts/legacy.cjs');
+  write(
+    cjs,
+    `const { HttpApiEndpoint } = require('effect/unstable/httpapi');\nconst Schema = require('effect').Schema;\nexports.probe = [HttpApiEndpoint.get, Schema.Any];`,
+  );
+  write(
+    path.join(root, 'verticals/catalog/src/contracts/endpoint-helper.cjs'),
+    `const { HttpApiEndpoint } = require('effect/unstable/httpapi');\nexports.get = HttpApiEndpoint.get;\nexports.api = {};\nexports.api.post = HttpApiEndpoint.post;\nexports.lazy ??= HttpApiEndpoint.patch;\nObject.assign(module.exports, { assigned: HttpApiEndpoint.trace });\nconst api = module.exports;\napi.viaAlias = HttpApiEndpoint.head;\napi.nested = {};\nconst nested = api.nested;\nnested.deep = HttpApiEndpoint.options;\nmodule.exports.schemas = { loose: require('effect').Schema.Unknown };`,
+  );
+  write(
+    path.join(root, 'verticals/catalog/src/contracts/whole.cjs'),
+    `module.exports = { json: require('effect').Schema.Json };\nmodule.exports.extra = require('effect').Schema.Never;`,
+  );
+  const consumer = path.join(
+    root,
+    'verticals/catalog/src/contracts/consumer.cjs',
+  );
+  write(
+    consumer,
+    `const { get, schemas } = require('./endpoint-helper.cjs');\nmodule.exports = [get, schemas.loose, require('./endpoint-helper.cjs').api.post, require('./whole.cjs'), require('./endpoint-helper.cjs').lazy, require('./endpoint-helper.cjs').viaAlias, require('./endpoint-helper.cjs').nested.deep, require('./endpoint-helper.cjs').assigned];`,
+  );
+  const consumerModule = graph.module(consumer);
+  const consumerExport = consumerModule.file.program.body.at(
+    -1,
+  ) as t.ExpressionStatement;
+  // `exports.api = {}` has no `post` of its own, so that path is also unresolved.
+  expect(
+    new Set(
+      externals(
+        graph.reachable(
+          consumerModule,
+          (consumerExport.expression as t.AssignmentExpression).right,
+        ),
+      ),
+    ),
+  ).toEqual(
+    new Set([
+      'unresolved',
+      'effect/unstable/httpapi:HttpApiEndpoint.post',
+      'effect:Schema.Unknown',
+      'effect/unstable/httpapi:HttpApiEndpoint.get',
+      'effect:Schema.Json',
+      'effect:Schema.Never',
+      'effect/unstable/httpapi:HttpApiEndpoint.patch',
+      'effect/unstable/httpapi:HttpApiEndpoint.head',
+      'effect/unstable/httpapi:HttpApiEndpoint.options',
+      'effect/unstable/httpapi:HttpApiEndpoint.trace',
+    ]),
+  );
+  const cjsModule = graph.module(cjs);
+  const exportsWrite = cjsModule.file.program.body.at(
+    -1,
+  ) as t.ExpressionStatement;
+  expect(
+    externals(
+      graph.reachable(
+        cjsModule,
+        (exportsWrite.expression as t.AssignmentExpression).right,
+      ),
+    ),
+  ).toEqual([
+    'effect:Schema.Any',
+    'effect/unstable/httpapi:HttpApiEndpoint.get',
+  ]);
+  write(
+    path.join(root, 'verticals/catalog/src/contracts/default-export.cjs'),
+    `module.exports = require('effect').Schema.Record;`,
+  );
+  write(
+    path.join(root, 'verticals/catalog/src/contracts/explicit-default.cjs'),
+    `exports.default = require('effect').Schema.Json;`,
+  );
+  const shapes = path.join(root, 'verticals/catalog/src/contracts/shapes.ts');
+  write(
+    shapes,
+    `import { Schema } from 'effect';
+import { fromJs } from './helper';
+import { fromIndex } from './indexed';
+import * as helperNamespace from './helper';
+import cjsDefault from './default-export.cjs';
+const key = 'other';
+const options = {};
+options.success = Schema.Unknown;
+const empty = () => {};
+export const whole = [options];
+export const computed = { success: Schema.String, [key]: Schema.Any }.success;
+export const none = empty();
+export const js = [fromJs, fromIndex];
+const aliased = {};
+const alias = aliased as Record<string, unknown>;
+alias.success = Schema.Unknown;
+export const viaAlias = [aliased];
+const maybe = (flag: boolean) => { if (flag) return Schema.String; };
+export const fallthrough = maybe(true);
+const dynamicKeys = {};
+dynamicKeys[key] = Schema.Any;
+export const dynamicWhole = [dynamicKeys];
+export const dynamicRead = dynamicKeys.success;
+const table = { success: Schema.String };
+export const opaqueRead = [table[key], empty().success];
+export const keyed = table[String(Schema.Unknown)];
+const nested = { success: {} };
+const { success: inner } = nested;
+inner.schema = Schema.Unknown;
+export const viaDestructured = [nested];
+const config = { success: {} };
+const deepAlias = config.success;
+deepAlias.schema = Schema.Unknown;
+export const viaMember = [config];
+const patterned = { success: Schema.String };
+({ success: patterned.success } = { success: Schema.Unknown });
+export const viaPattern = patterned.success;
+const branches = { first: {}, second: {} };
+let branch = branches.first;
+branch = branches.second;
+branch.schema = Schema.Unknown;
+export const viaSecond = [branches.second];
+const tree = { child: { child: {} } };
+let cursor = tree.child;
+cursor = cursor.child;
+export const walked = [tree];
+export const numeric = ({ 0: Schema.String })[0];
+const chosen = { success: Schema.String };
+const either = Math.random() > 0.5 ? chosen : branches;
+either.success = Schema.Unknown;
+export const viaConditional = [chosen];
+const source = {};
+const { api: { get: fallbackGet } = { get: Schema.Any } } = source;
+export const defaulted = fallbackGet;
+const keyedConfig = { success: {} };
+const keyedAlias = keyedConfig[key];
+keyedAlias.schema = Schema.Unknown;
+export const viaKeyedAlias = [keyedConfig];
+const mark = (_value: unknown) => (target: unknown) => target;
+@mark(Schema.Unknown) class Decorated {}
+export const decorated = Decorated;
+export const getter = { get endpoint() { return Schema.Any; } }.endpoint;
+const dotted = { 'a.b': {}, a: { b: {} } };
+let dottedAlias = dotted['a.b'];
+dottedAlias = dotted.a.b;
+dottedAlias.schema = Schema.Unknown;
+export const viaDotted = [dotted.a.b];
+let factory;
+export const assigned = (factory = Schema.Any);
+const logical = { success: {} };
+let logicalAlias: typeof logical | undefined;
+logicalAlias ??= logical;
+logicalAlias.success = Schema.Unknown;
+export const viaLogical = [logical];
+const defaultSource = { success: {} };
+const { value: defaultAlias = defaultSource } = {} as { value?: typeof defaultSource };
+defaultAlias.success = Schema.Unknown;
+export const viaDefault = [defaultSource];
+const hopConfig = { success: {} };
+const hopFirst = hopConfig[key];
+const hopSecond = hopFirst;
+hopSecond.schema = Schema.Unknown;
+export const viaHops = [hopConfig];
+const [arrayGet, ...arrayRest] = [Schema.Any, Schema.String];
+export const fromArray = arrayGet;
+export const fromRest = arrayRest;
+export const viaNamespace = { ...helperNamespace };
+const looped = { success: Schema.String };
+for (looped.success of [Schema.Unknown]) {}
+export const viaLoop = looped.success;
+const asyncFactory = async () => Schema.Any;
+export const awaited = async () => (await asyncFactory());
+const returnedConfig = { success: {} };
+function getConfig() { return returnedConfig; }
+const returnedAlias = getConfig();
+returnedAlias.success = Schema.Unknown;
+export const viaReturn = [returnedConfig];
+const iifeConfig = { success: {} };
+const iifeAlias = (() => iifeConfig)();
+iifeAlias.success = Schema.Unknown;
+export const viaIife = [iifeConfig];
+const methodConfig = { success: {} };
+const holder = { get() { return methodConfig; } };
+const methodAlias = holder.get();
+methodAlias.success = Schema.Unknown;
+export const viaMethod = [methodConfig];
+function shadowed(require: (id: string) => { Schema: unknown }) { return require('effect').Schema; }
+export const lexicalRequire = shadowed;
+const generic = <T,>() => Schema.Any;
+const specialized = generic<void>;
+export const instantiated = specialized();
+const stored = { success: {} };
+const storage = { stored };
+storage.stored.success = Schema.Unknown;
+export const viaStorage = [stored];
+const indirectConfig = { success: {} };
+const getIndirect = () => indirectConfig;
+const indirect = getIndirect;
+const indirectAlias = indirect();
+indirectAlias.success = Schema.Unknown;
+export const viaIndirect = [indirectConfig];
+let lazyEndpoint;
+lazyEndpoint ??= Schema.Any;
+export const viaLogicalInit = lazyEndpoint;
+const identity = <T,>(value: T) => value;
+export const viaIdentity = identity(Schema.Any);
+let patternGet;
+({ patternGet } = { patternGet: Schema.Any });
+export const viaPatternAssign = patternGet;
+const original = { success: Schema.String };
+const copy = { ...original };
+copy.success = Schema.Unknown;
+export const viaCopy = original.success;
+export const viaCjsDefault = cjsDefault;
+const pick = ({ picked } = { picked: Schema.Any }) => picked;
+export const viaPatternParam = pick();
+export const viaPatternArgument = pick({ picked: Schema.String });
+export const viaDynamicImport = async () => (await import('effect')).Schema.Unknown;
+const heldOptions = { success: {} };
+const heldBy = { heldOptions };
+const extracted = heldBy.heldOptions;
+extracted.success = Schema.Unknown;
+export const viaExtracted = [heldOptions];
+const unwrapOptions = { success: {} };
+const unwrap = ({ value }: { value: typeof unwrapOptions }) => value;
+const unwrapped = unwrap({ value: unwrapOptions });
+unwrapped.success = Schema.Unknown;
+export const viaUnwrap = [unwrapOptions];
+const methodTarget = { success: {} };
+const setter = { set(value: typeof methodTarget) { value.success = Schema.Unknown; } };
+setter.set(methodTarget);
+export const viaMethodArgument = [methodTarget];
+const optionalTarget = { success: {} };
+const optionalSet: ((value: typeof optionalTarget) => void) | undefined = value => { value.success = Schema.Unknown; };
+optionalSet?.(optionalTarget);
+export const viaOptionalCall = [optionalTarget];
+const inlineTarget = { success: {} };
+((value: typeof inlineTarget) => { value.success = Schema.Unknown; })(inlineTarget);
+export const viaInlineCall = [inlineTarget];
+const aliasTarget = { success: {} };
+const mutate = (value: typeof aliasTarget) => { value.success = Schema.Unknown; };
+const indirectMutate = mutate;
+indirectMutate(aliasTarget);
+export const viaCalleeAlias = [aliasTarget];
+const spreadTarget = { success: {} };
+mutate(...[spreadTarget]);
+export const viaSpreadArgument = [spreadTarget];
+const literalTarget = { success: {} };
+({ set(value: typeof literalTarget) { value.success = Schema.Unknown; } }).set(literalTarget);
+export const viaLiteralMethod = [literalTarget];
+const select = (factory: unknown, retry: boolean): unknown =>
+  retry ? select(Schema.Any, false) : factory;
+export const viaRecursion = select(Schema.String, true);
+let lazyFactory: unknown;
+export const viaLogicalExpression = (lazyFactory ??= Schema.Any);
+class Setter { set(value: { success: unknown }) { value.success = Schema.Unknown; } }
+const instanceTarget = { success: {} };
+const setterInstance = new Setter();
+setterInstance.set(instanceTarget);
+export const viaInstance = [instanceTarget];
+export const viaExplicitDefault = require('./explicit-default.cjs').default;
+const heldTarget = { success: {} };
+const heldHelper = { mutate };
+heldHelper.mutate(heldTarget);
+export const viaHeldFunction = [heldTarget];
+const assignTarget = { success: Schema.String };
+Object.assign(assignTarget, { success: Schema.Unknown });
+export const viaObjectAssign = assignTarget.success;
+const defined = { success: Schema.String };
+Object.defineProperty(defined, 'success', { value: Schema.Unknown });
+export const viaDefineProperty = defined.success;
+const calledTarget = { success: {} };
+mutate.call(undefined, calledTarget);
+export const viaFunctionCall = [calledTarget];
+const returnedByCall = { success: {} };
+function getReturned() { return returnedByCall; }
+const calledAlias = getReturned.call(null);
+calledAlias.success = Schema.Unknown;
+export const viaReturnedCall = [returnedByCall];
+export const viaCallCallee = identity.call(null, Schema.Any);
+export const viaBound = Schema.Any.bind(null);
+const namedCall = { call: Schema.Any };
+export const viaNamedCall = namedCall.call;
+const spreadMethods = { set(value: { success: unknown }) { value.success = Schema.Unknown; } };
+const spreadHelper = { ...spreadMethods };
+const spreadMethodTarget = { success: {} };
+spreadHelper.set(spreadMethodTarget);
+export const viaSpreadMethod = [spreadMethodTarget];
+const chainedTarget = { success: {} };
+let chainedTemporary;
+const chainedAlias = (chainedTemporary = chainedTarget);
+chainedAlias.success = Schema.Unknown;
+export const viaChainedAssignment = [chainedTarget];
+export const viaApply = identity.apply(null, [Schema.Any]);`,
+  );
+  const shapesModule = graph.module(shapes);
+  const shape = (name: string) => {
+    const declared = graph.resolve(shapesModule, name, 'export');
+    if (declared?.kind !== 'declaration') throw new Error(name);
+    return declared.expression;
+  };
+  expect(externals(graph.reachable(shapesModule, shape('whole')))).toEqual([
+    'effect:Schema.Unknown',
+  ]);
+  expect(externals(graph.evaluate(shapesModule, shape('computed')))).toEqual([
+    'effect:Schema.String',
+    'unresolved',
+  ]);
+  expect(externals(graph.evaluate(shapesModule, shape('none')))).toEqual([
+    'unresolved',
+  ]);
+  expect(externals(graph.reachable(shapesModule, shape('viaAlias')))).toEqual([
+    'effect:Schema.Unknown',
+  ]);
+  expect(externals(graph.evaluate(shapesModule, shape('fallthrough')))).toEqual(
+    ['unresolved', 'effect:Schema.String'],
+  );
+  expect(
+    externals(graph.reachable(shapesModule, shape('dynamicWhole'))),
+  ).toEqual(['effect:Schema.Any']);
+  expect(externals(graph.evaluate(shapesModule, shape('dynamicRead')))).toEqual(
+    ['unresolved', 'unresolved', 'effect:Schema.Any'],
+  );
+  expect(
+    new Set(externals(graph.reachable(shapesModule, shape('opaqueRead')))),
+  ).toEqual(new Set(['unresolved', 'effect:Schema.String']));
+  expect(
+    externals(graph.reachable(shapesModule, shape('viaDestructured'))),
+  ).toEqual(['effect:Schema.Unknown']);
+  expect(externals(graph.reachable(shapesModule, shape('viaMember')))).toEqual([
+    'effect:Schema.Unknown',
+  ]);
+  expect(externals(graph.evaluate(shapesModule, shape('viaPattern')))).toEqual([
+    'effect:Schema.String',
+    'effect:Schema.Unknown',
+  ]);
+  expect(externals(graph.reachable(shapesModule, shape('viaSecond')))).toEqual([
+    'effect:Schema.Unknown',
+  ]);
+  // A self-referential alias is cut off by the alias budget, never a hang.
+  expect(
+    new Set(externals(graph.reachable(shapesModule, shape('walked')))),
+  ).toEqual(new Set(['unresolved']));
+  expect(externals(graph.evaluate(shapesModule, shape('numeric')))).toEqual([
+    'effect:Schema.String',
+  ]);
+  expect(
+    externals(graph.reachable(shapesModule, shape('viaConditional'))),
+  ).toEqual(['effect:Schema.Unknown', 'effect:Schema.String']);
+  expect(externals(graph.evaluate(shapesModule, shape('defaulted')))).toContain(
+    'effect:Schema.Any',
+  );
+  expect(
+    externals(graph.reachable(shapesModule, shape('viaKeyedAlias'))),
+  ).toContain('unresolved');
+  expect(
+    externals(graph.reachable(shapesModule, shape('decorated'))),
+  ).toContain('effect:Schema.Unknown');
+  for (const name of ['viaLogical', 'viaDefault'])
+    expect(externals(graph.reachable(shapesModule, shape(name)))).toContain(
+      'effect:Schema.Unknown',
+    );
+  expect(externals(graph.reachable(shapesModule, shape('viaHops')))).toContain(
+    'unresolved',
+  );
+  expect(externals(graph.reachable(shapesModule, shape('viaReturn')))).toEqual([
+    'effect:Schema.Unknown',
+  ]);
+  expect(
+    graph.resolve(shapesModule, 'returnedConfig', 'local'),
+  ).toBeUndefined();
+  expect(
+    externals(graph.evaluate(shapesModule, shape('viaLogicalInit'))),
+  ).toEqual(['effect:Schema.Any']);
+  expect(externals(graph.evaluate(shapesModule, shape('viaIdentity')))).toEqual(
+    ['effect:Schema.Any'],
+  );
+  expect(
+    externals(graph.evaluate(shapesModule, shape('viaPatternAssign'))),
+  ).toEqual(['effect:Schema.Any']);
+  expect(
+    externals(graph.evaluate(shapesModule, shape('viaCjsDefault'))),
+  ).toEqual(['effect:Schema.Record']);
+  expect(
+    externals(graph.evaluate(shapesModule, shape('viaPatternParam'))),
+  ).toEqual(['effect:Schema.Any']);
+  expect(
+    externals(graph.evaluate(shapesModule, shape('viaPatternArgument'))),
+  ).toEqual(['effect:Schema.String', 'effect:Schema.Any']);
+  const dynamicImport = shape('viaDynamicImport') as t.ArrowFunctionExpression;
+  expect(externals(graph.evaluate(shapesModule, dynamicImport.body))).toEqual([
+    'effect:Schema.Unknown',
+  ]);
+  for (const name of [
+    'viaExtracted',
+    'viaUnwrap',
+    'viaMethodArgument',
+    'viaOptionalCall',
+    'viaInlineCall',
+    'viaCalleeAlias',
+    'viaLiteralMethod',
+    'viaHeldFunction',
+    'viaFunctionCall',
+    'viaReturnedCall',
+    'viaSpreadMethod',
+    'viaChainedAssignment',
+  ])
+    expect(externals(graph.reachable(shapesModule, shape(name)))).toEqual([
+      'effect:Schema.Unknown',
+    ]);
+  // A spread copy is a new object: replacing its slot leaves the original.
+  expect(externals(graph.evaluate(shapesModule, shape('viaCopy')))).toEqual([
+    'effect:Schema.String',
+  ]);
+  expect(
+    externals(graph.reachable(shapesModule, shape('viaSpreadArgument'))),
+  ).toContain('unresolved');
+  expect(
+    new Set(
+      externals(graph.evaluate(shapesModule, shape('viaLogicalExpression'))),
+    ),
+  ).toEqual(new Set(['effect:Schema.Any']));
+  expect(
+    externals(graph.reachable(shapesModule, shape('viaInstance'))),
+  ).toContain('unresolved');
+  expect(
+    externals(graph.evaluate(shapesModule, shape('viaExplicitDefault'))),
+  ).toEqual(['effect:Schema.Json']);
+  expect(
+    externals(graph.evaluate(shapesModule, shape('viaObjectAssign'))),
+  ).toEqual(['effect:Schema.String', 'effect:Schema.Unknown']);
+  expect(
+    new Set(
+      externals(graph.evaluate(shapesModule, shape('viaDefineProperty'))),
+    ),
+  ).toEqual(new Set(['effect:Schema.String', 'unresolved']));
+  // `call`/`bind` evaluate as the function they invoke.
+  expect(
+    externals(graph.evaluate(shapesModule, shape('viaCallCallee'))),
+  ).toEqual(['effect:Schema.Any']);
+  expect(externals(graph.evaluate(shapesModule, shape('viaBound')))).toEqual([
+    'effect:Schema.Any',
+  ]);
+  expect(
+    externals(graph.evaluate(shapesModule, shape('viaNamedCall'))),
+  ).toEqual(['effect:Schema.Any']);
+  expect(externals(graph.evaluate(shapesModule, shape('viaApply')))).toEqual([
+    'effect:Schema.Any',
+  ]);
+  // Each recursive call binds its own arguments.
+  expect(
+    new Set(externals(graph.evaluate(shapesModule, shape('viaRecursion')))),
+  ).toEqual(
+    new Set(['unresolved', 'effect:Schema.Any', 'effect:Schema.String']),
+  );
+  // A holder written below the stored value is opaque.
+  expect(
+    externals(graph.reachable(shapesModule, shape('viaStorage'))),
+  ).toContain('unresolved');
+  // Calls through a `const` alias of the function are followed.
+  expect(
+    externals(graph.reachable(shapesModule, shape('viaIndirect'))),
+  ).toEqual(['effect:Schema.Unknown']);
+  for (const name of ['viaIife', 'viaMethod'])
+    expect(externals(graph.reachable(shapesModule, shape(name)))).toEqual([
+      'effect:Schema.Unknown',
+    ]);
+  const shadowedFn = shapesModule.file.program.body.find(
+    statement =>
+      t.isFunctionDeclaration(statement) && statement.id?.name === 'shadowed',
+  ) as t.FunctionDeclaration;
+  const shadowedReturn = shadowedFn.body.body[0] as t.ReturnStatement;
+  expect(
+    externals(graph.evaluate(shapesModule, shadowedReturn.argument!)),
+  ).toEqual(['unresolved']);
+  expect(
+    externals(graph.evaluate(shapesModule, shape('instantiated'))),
+  ).toEqual(['effect:Schema.Any']);
+  expect(externals(graph.evaluate(shapesModule, shape('viaLoop')))).toEqual([
+    'effect:Schema.String',
+    'unresolved',
+  ]);
+  const awaitedFn = shape('awaited') as t.ArrowFunctionExpression;
+  expect(externals(graph.evaluate(shapesModule, awaitedFn.body))).toEqual([
+    'effect:Schema.Any',
+  ]);
+  expect(externals(graph.evaluate(shapesModule, shape('fromArray')))).toEqual([
+    'effect:Schema.Any',
+  ]);
+  expect(externals(graph.evaluate(shapesModule, shape('fromRest')))).toEqual([
+    'unresolved',
+  ]);
+  expect(
+    externals(graph.reachable(shapesModule, shape('viaNamespace'))),
+  ).toEqual(['unresolved', 'effect:Schema.Unknown']);
+  expect(externals(graph.evaluate(shapesModule, shape('assigned')))).toEqual([
+    'effect:Schema.Any',
+  ]);
+  expect(externals(graph.evaluate(shapesModule, shape('getter')))).toEqual([
+    'effect:Schema.Any',
+  ]);
+  expect(externals(graph.reachable(shapesModule, shape('viaDotted')))).toEqual([
+    'effect:Schema.Unknown',
+  ]);
+  // Writes through any alias make the original a mutated, unresolved const.
+  for (const name of ['config', 'nested', 'aliased', 'chosen', 'keyedConfig'])
+    expect(graph.resolve(shapesModule, name, 'local')).toBeUndefined();
+  expect(externals(graph.reachable(shapesModule, shape('keyed')))).toContain(
+    'effect:Schema.Unknown',
+  );
+  expect(externals(graph.reachable(shapesModule, shape('js')))).toEqual([
+    'effect:Schema.Any',
+    'effect:Schema.Unknown',
+  ]);
+
+  // Unparseable sources are consumer violations for source rules.
+  write(endpoints, 'export const broken = ;');
+  expect(
+    checkMicroVerticalApiConsumerFiles({
+      workspaceRoot: root,
+      baselinePackageDirectory: owner,
+      sourceRules: [unconstrainedSchemas],
+    }).diagnostics,
+  ).toContainEqual(
+    expect.stringMatching(
+      /^verticals\/catalog\/src\/contracts\/endpoints\.ts: source rules need parseable source/u,
+    ),
+  );
 });
 
 test('rejects private cross-owner paths and export cycles', () => {
@@ -706,6 +1448,18 @@ test('consumer syntax and binding errors are violations; owner parser failures t
   expect(validate(`${contract}\ncatalogApi = foreign;`)).toContain(
     'valid TypeScript syntax',
   );
+  // A member write changes a validated export without reassigning it.
+  expect(
+    validate(`${contract}\n(catalogApiContract as any).ownerId = 'other';`),
+  ).toContain('contract bindings must be immutable');
+  expect(
+    validate(
+      `${contract}\nObject.assign(catalogApiContract, { ownerId: 'x' });`,
+    ),
+  ).toContain('contract bindings must be immutable');
+  expect(
+    validate(`${contract}\ndelete (catalogApiContract as any).ownerId;`),
+  ).toContain('contract bindings must be immutable');
   write(path.join(owner, 'index.js'), 'export const = ;');
   expect(() => validate()).toThrow();
 });

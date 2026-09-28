@@ -10,7 +10,11 @@ import {
   baselinePackage,
   resolveBaselinePackageDirectory,
 } from './microvertical-api-owner';
-import { createModuleGraph, type ModuleGraph } from './module-graph';
+import {
+  createModuleGraph,
+  type ModuleGraph,
+  type SourceModule,
+} from './module-graph';
 import { consumerParserPlugins, SourceSyntaxError } from './source-analysis';
 import {
   createEffectApiImportResolver,
@@ -26,6 +30,7 @@ export {
   microVerticalApiBaselineViolation,
 } from './microvertical-api-baseline';
 export type {
+  GraphValue,
   ModuleGraph,
   ModuleGraphHop,
   ResolvedBinding,
@@ -48,24 +53,24 @@ export interface MicroVerticalConfiguredApp {
     readonly additionalPaths?: Readonly<Record<string, string>>;
   };
 }
-export interface MicroVerticalApiContractRuleContext {
-  /** Workspace-relative app directory. */
-  readonly appPath: string;
-  readonly protocol: 'rest' | 'rpc';
-  /** Graph rooted at the app's shared contract (`graph.root`). */
+export interface MicroVerticalApiSourceRuleContext {
+  /** Workspace-relative path of `module`. */
+  readonly file: string;
+  readonly module: SourceModule;
+  /** One graph per check, shared by every rule and source file. */
   readonly graph: ModuleGraph;
 }
-/** A consumer-owned contract rule; each returned message is a violation. */
-export type MicroVerticalApiContractRule = (
-  context: MicroVerticalApiContractRuleContext,
+/** A consumer-owned source rule; each returned message is a violation. */
+export type MicroVerticalApiSourceRule = (
+  context: MicroVerticalApiSourceRuleContext,
 ) => readonly string[];
 export interface MicroVerticalApiCheckOptions {
   readonly workspaceRoot: string;
   readonly configuredApps?: readonly MicroVerticalConfiguredApp[];
   /** Explicit expected installed owner, useful for isolated/non-hoisted installations. */
   readonly baselinePackageDirectory?: string;
-  /** Rules run once per API app against its shared contract's module graph. */
-  readonly contractRules?: readonly MicroVerticalApiContractRule[];
+  /** Rules run once per workspace TypeScript/JavaScript source file. */
+  readonly sourceRules?: readonly MicroVerticalApiSourceRule[];
 }
 export interface MicroVerticalApiCheckResult {
   readonly diagnostics: readonly string[];
@@ -706,37 +711,6 @@ function check(
           );
           if (violation) diagnostics.push(`${contract}: ${violation}`);
         }
-        if (options.contractRules?.length && exists(contract)) {
-          let graph: ModuleGraph | undefined;
-          try {
-            graph = createModuleGraph(absolute(contract));
-          } catch (error) {
-            if (!(error instanceof SourceSyntaxError)) throw error;
-            diagnostics.push(
-              `${contract}: contract rules need a parseable contract with immutable bindings (${error.message})`,
-            );
-          }
-          if (graph) {
-            const context: MicroVerticalApiContractRuleContext = {
-              appPath,
-              protocol: rpc ? 'rpc' : 'rest',
-              graph,
-            };
-            for (const rule of options.contractRules)
-              guarded(`${contract} (rule ${rule.name || 'anonymous'})`, () => {
-                const messages: unknown = rule(context);
-                if (
-                  !Array.isArray(messages) ||
-                  !messages.every(message => typeof message === 'string')
-                )
-                  throw new Error(
-                    'contract rule must return an array of violation messages (return [] when the contract passes)',
-                  );
-                for (const message of messages)
-                  diagnostics.push(`${contract}: ${message}`);
-              });
-          }
-        }
         if (client) {
           const relativeContract = path.posix.relative(
             path.posix.dirname(client),
@@ -813,6 +787,34 @@ function check(
           ],
         );
       });
+    const sourceRules = options.sourceRules ?? [];
+    const graph = createModuleGraph();
+    for (const file of sourceRules.length ? sourceFiles : [])
+      if (/\.[cm]?[jt]sx?$/u.test(file))
+        guarded(file, () => {
+          let module: SourceModule;
+          try {
+            module = graph.module(absolute(file));
+          } catch (error) {
+            if (!(error instanceof SourceSyntaxError)) throw error;
+            diagnostics.push(
+              `${file}: source rules need parseable source (${error.message})`,
+            );
+            return;
+          }
+          for (const rule of sourceRules) {
+            const messages: unknown = rule({ file, module, graph });
+            if (
+              !Array.isArray(messages) ||
+              !messages.every(message => typeof message === 'string')
+            )
+              throw new Error(
+                `rule ${rule.name || 'anonymous'} must return an array of violation messages (return [] when the file passes)`,
+              );
+            for (const message of messages)
+              diagnostics.push(`${file}: ${message}`);
+          }
+        });
     const shell = 'apps/shell-super-app';
     const verticals = apps.filter(
       app => app.path.startsWith('verticals/') && apiApp(app),
