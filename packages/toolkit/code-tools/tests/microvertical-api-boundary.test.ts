@@ -1236,6 +1236,48 @@ await Promise.resolve(target).then(value => { value.success = Schema.Unknown; })
 export const read = target.success;`,
     ],
     [
+      'object-assign-source-write.ts',
+      `import { Schema } from 'effect';
+const target = { success: Schema.String };
+const holder: { value?: { success: unknown } } = {};
+Object.assign(holder, { value: target });
+holder.value!.success = Schema.Unknown;
+export const read = target.success;`,
+    ],
+    [
+      'reflect-set-write.ts',
+      `import { Schema } from 'effect';
+const target = { success: Schema.String };
+const holder: { value?: { success: unknown } } = {};
+Reflect.set(holder, 'value', target);
+holder.value!.success = Schema.Unknown;
+export const read = target.success;`,
+    ],
+    [
+      'static-field-write.ts',
+      `import { Schema } from 'effect';
+const target = { success: Schema.String };
+class Holder { static value = target; }
+Holder.value.success = Schema.Unknown;
+export const read = target.success;`,
+    ],
+    [
+      'static-field-expression-write.ts',
+      `import { Schema } from 'effect';
+const target = { success: Schema.String };
+const Holder = class { static value = target; };
+Holder.value.success = Schema.Unknown;
+export const read = target.success;`,
+    ],
+    [
+      'instance-field-write.ts',
+      `import { Schema } from 'effect';
+const target = { success: Schema.String };
+class Holder { value = target; }
+new Holder().value.success = Schema.Unknown;
+export const read = target.success;`,
+    ],
+    [
       'callback-write.ts',
       `import { Schema } from 'effect';
 const target = { success: Schema.String };
