@@ -302,6 +302,20 @@ g.__MODERN_DOC_RENDERERS__[${JSON.stringify(_entryName)}] = render;
 export default { render: render };`;
 };
 
+// Each compiler writes its own temp entry: two HTML environments
+// compiling the same entry concurrently must not truncate each other's file.
+export const getDocumentTempEntry = (
+  internalDirectory: string,
+  compilerName: string | undefined,
+  entryName: string,
+): string =>
+  path.join(
+    internalDirectory,
+    CONSTANTS.DOCUMENT_OUTPUT_DIR,
+    compilerName ?? '',
+    `${CONSTANTS.TEMP_ENTRY_PREFIX}${entryName}.js`,
+  );
+
 const processChildCompilation = async (
   entryName: string,
   docPath: string,
@@ -329,13 +343,10 @@ const processChildCompilation = async (
     // external react related dependencies
     applyExternalsPlugin(child, compiler);
 
-    const entryDir = path.join(
+    const tempEntry = getDocumentTempEntry(
       internalDirectory,
-      CONSTANTS.DOCUMENT_OUTPUT_DIR,
-    );
-    const tempEntry = path.join(
-      entryDir,
-      `${CONSTANTS.TEMP_ENTRY_PREFIX}${entryName}.js`,
+      compiler.name,
+      entryName,
     );
 
     const finalize = () => {
@@ -440,6 +451,8 @@ export const documentPlugin = (): CliPlugin<AppTools> => ({
     class ModernJsDocumentChildCompilerPlugin {
       name = 'ModernJsDocumentChildCompilerPlugin';
 
+      constructor(private readonly htmlEntryNames: ReadonlySet<string>) {}
+
       apply(compiler: Compiler) {
         compiler.hooks.make.tapPromise(
           this.name,
@@ -451,6 +464,7 @@ export const documentPlugin = (): CliPlugin<AppTools> => ({
 
               for (const ep of entrypoints || []) {
                 const entryName = ep.entryName;
+                if (!this.htmlEntryNames.has(entryName)) continue;
                 const docPath = getDocumentByEntryName(
                   entrypoints!,
                   entryName,
@@ -490,10 +504,13 @@ export const documentPlugin = (): CliPlugin<AppTools> => ({
     api.config(() => {
       return {
         tools: {
-          bundlerChain: (chain: RspackChain) => {
+          // Only environments that emit HTML render the Document.
+          bundlerChain: (chain: RspackChain, { environment }) => {
+            const htmlEntryNames = new Set(Object.keys(environment.htmlPaths));
+            if (htmlEntryNames.size === 0) return;
             chain
               .plugin('modernjs-document-child-compiler')
-              .use(ModernJsDocumentChildCompilerPlugin, []);
+              .use(ModernJsDocumentChildCompilerPlugin, [htmlEntryNames]);
           },
         },
       };
