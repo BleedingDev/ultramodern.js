@@ -36,8 +36,16 @@ const MANIFEST_RECOVERY_RUNTIME_PLUGIN =
  * `contexts` matches the files that define that state (React contexts, the
  * Effect request storage): only a shared module or another of those files may
  * import them.
+ * `peers` are packages whose values cross the federation boundary through
+ * this package's exports, so they are shared with it (see `peerShare`).
  */
-const FRAMEWORK_SHARES = [
+const FRAMEWORK_SHARES: ReadonlyArray<{
+  packageName: string;
+  prefix: string;
+  contextsRequest: string;
+  contexts: RegExp;
+  peers?: readonly string[];
+}> = [
   {
     packageName: '@modern-js/runtime',
     prefix: '@modern-js/runtime/',
@@ -55,13 +63,19 @@ const FRAMEWORK_SHARES = [
     prefix: '@modern-js/bff-effect/',
     contextsRequest: '@modern-js/bff-effect/context',
     contexts: /[\\/]effect[\\/]context\.[cm]?[jt]sx?$/,
+    // Its modules re-export Effect: schemas, tags and layers built by a remote
+    // are decoded and provided by the host, which needs the same Effect.
+    peers: ['effect'],
   },
-] as const;
+];
 
 export type FrameworkSharedPackage = {
   prefix: string;
   version: string;
-  /** Exported subpath requests under `prefix` that load code. */
+  /**
+   * Requests to share: exported subpaths under `prefix` that load code, or for
+   * a peer its bare name and its `prefix` (a Module Federation prefix share).
+   */
   requests: string[];
   /** Real path of the installed package directory. */
   directory: string;
@@ -116,24 +130,56 @@ const findInstalledManifest = (appDirectory: string, packageName: string) => {
   }
 };
 
-/** The framework packages the app installs, with their installed versions. */
+const readManifest = (manifest: string) =>
+  JSON.parse(readFileSync(manifest, 'utf8')) as {
+    version: string;
+    exports?: unknown;
+  };
+
+/**
+ * `packageName` and all of its subpaths, as the framework package that
+ * depends on it resolves them from `directory`: that copy's version is the one
+ * the release cohort pins. The subpaths are shared by the `packageName/`
+ * prefix because packages such as Effect export them through a `./*` pattern
+ * that names no fixed list.
+ */
+const peerShare = (
+  directory: string,
+  packageName: string,
+): FrameworkSharedPackage[] => {
+  const manifest = findInstalledManifest(directory, packageName);
+  if (!manifest) return [];
+  return [
+    {
+      prefix: `${packageName}/`,
+      version: readManifest(manifest).version,
+      requests: [packageName, `${packageName}/`],
+      directory: realpathSync(path.dirname(manifest)),
+    },
+  ];
+};
+
+/**
+ * The framework packages the app installs, with their installed versions,
+ * followed by the peers whose values they carry across the boundary.
+ */
 export const resolveFrameworkSharedPackages = (
   appDirectory: string,
 ): FrameworkSharedPackage[] =>
   FRAMEWORK_SHARES.flatMap(share => {
     const manifest = findInstalledManifest(appDirectory, share.packageName);
     if (!manifest) return [];
-    const { version, exports } = JSON.parse(readFileSync(manifest, 'utf8')) as {
-      version: string;
-      exports?: unknown;
-    };
+    const { version, exports } = readManifest(manifest);
+    const directory = realpathSync(path.dirname(manifest));
+    const { peers = [], ...shareConfig } = share;
     return [
       {
-        ...share,
+        ...shareConfig,
         version,
         requests: exportedRequests(share.packageName, share.prefix, exports),
-        directory: realpathSync(path.dirname(manifest)),
+        directory,
       },
+      ...peers.flatMap(peer => peerShare(directory, peer)),
     ];
   });
 
