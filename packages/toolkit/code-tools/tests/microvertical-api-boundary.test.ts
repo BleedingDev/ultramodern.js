@@ -871,6 +871,9 @@ const overridden = { ...{ picked: Schema.Any }, picked: Schema.String };
 export const viaOverriddenSpread = overridden.picked;
 const spreadOverride = { picked: Schema.Any, ...{ picked: Schema.String } };
 export const viaSpreadOverride = spreadOverride.picked;
+const spreadKey = 'picked';
+const computedSpreadOverride = { picked: Schema.Any, ...{ [spreadKey]: Schema.String } };
+export const viaComputedSpreadOverride = computedSpreadOverride.picked;
 class StaticHolder {
   static picked = Schema.Any;
   static pick() { return Schema.Unknown; }
@@ -1093,6 +1096,9 @@ export const viaApply = identity.apply(null, [Schema.Any]);`,
   expect(
     externals(graph.evaluate(shapesModule, shape('viaSpreadOverride'))),
   ).toEqual(['effect:Schema.String']);
+  expect(
+    externals(graph.evaluate(shapesModule, shape('viaComputedSpreadOverride'))),
+  ).toEqual(['effect:Schema.String']);
   // Static class members are read from the class body.
   expect(
     externals(graph.evaluate(shapesModule, shape('viaStaticField'))),
@@ -1183,6 +1189,23 @@ export const read = target.success;`,
       `import { Schema } from 'effect';
 const target = { success: Schema.String };
 for (const value of [target]) value.success = Schema.Unknown;
+export const read = target.success;`,
+    ],
+    [
+      'reverse-write.ts',
+      `import { Schema } from 'effect';
+const target = { success: Schema.String };
+const holder = [target];
+const alias = holder.reverse()[0];
+alias.success = Schema.Unknown;
+export const read = target.success;`,
+    ],
+    [
+      'tagged-template-write.ts',
+      `import { Schema } from 'effect';
+const target = { success: Schema.String };
+function mutate(_strings: TemplateStringsArray, value: { success: unknown }) { value.success = Schema.Unknown; }
+mutate\`\${target}\`;
 export const read = target.success;`,
     ],
     [
