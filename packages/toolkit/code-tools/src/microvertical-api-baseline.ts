@@ -21,6 +21,8 @@ type ObjectLiteralElementLike =
   | t.ObjectProperty
   | t.SpreadElement;
 type CallExpression = t.CallExpression;
+/** The graph a contract validation reads, rooted at the contract module. */
+type ContractGraph = ModuleGraph & { readonly root: SourceModule };
 
 const camelCaseStem = (stem: string): string =>
   stem.replaceAll(/-([a-z0-9])/gu, (_match, letter: string) =>
@@ -299,7 +301,7 @@ const singleAddedArgument = (
  * the readiness schema the group names is the root's own.
  */
 const rootGroupExpression = (
-  graph: ModuleGraph,
+  graph: ContractGraph,
   expression: Expression | undefined,
 ): Expression | undefined => {
   if (expression === undefined) return undefined;
@@ -313,7 +315,7 @@ const rootGroupExpression = (
 
 /** The foundation group the exported foundation API composes, when exact. */
 const foundationGroup = (
-  graph: ModuleGraph,
+  graph: ContractGraph,
   declaration: VariableDeclaration | undefined,
   stem: string,
   readinessSchemaName: string,
@@ -356,7 +358,7 @@ const foundationGroup = (
  * variadic `add(foundationGroup, ...groups)`.
  */
 const rootComposesFoundation = (
-  graph: ModuleGraph,
+  graph: ContractGraph,
   declaration: VariableDeclaration | undefined,
   stem: string,
   foundationName: string,
@@ -425,7 +427,7 @@ interface ReachableEndpoint {
 
 /** Read only endpoint declarations connected to the exported API, never decoy calls elsewhere. */
 const reachableEndpoints = (
-  graph: ModuleGraph,
+  graph: ContractGraph,
   declaration: VariableDeclaration | undefined,
 ): readonly ReachableEndpoint[] | undefined => {
   const active = new Set<Node>();
@@ -809,7 +811,7 @@ const declarationIsIdentifier = (
   identifierName(unwrapExpression(declaration.init)) === identifier;
 
 const validateParsedContract = (
-  graph: ModuleGraph,
+  graph: ContractGraph,
   stem: string,
   expectation: MicroVerticalApiBaselineExpectation,
 ): string | undefined => {
@@ -933,7 +935,12 @@ export const microVerticalApiBaselineViolation = (
   expectation: MicroVerticalApiBaselineExpectation,
 ): string | undefined => {
   try {
-    const graph = createModuleGraph(filePath);
+    const modules = createModuleGraph();
+    const graph: ContractGraph = { ...modules, root: modules.module(filePath) };
+    // The contract's exports are validated from their initializers.
+    const [mutation] = graph.root.mutations;
+    if (mutation)
+      return `MicroVertical root contract must be valid TypeScript syntax (contract bindings must be immutable at ${mutation.start})`;
     if (!baselinePublicIdentityIsExact(filePath, expectation))
       return 'MicroVertical baseline imports must resolve the exact framework owner public export and schema identity';
     return validateParsedContract(graph, stem, expectation);
