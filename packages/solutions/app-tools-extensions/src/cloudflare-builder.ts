@@ -39,10 +39,6 @@ const WORKER_ROUTE_DATA_TEMPLATE = 'cloudflare-worker-route-data.mjs';
 // the workspace package and the published `@bleedingdev/modern-js-*` name.
 const DATA_LOADER_CLIENT_TRANSFORM =
   /plugin-data-loader[\\/](?:.+[\\/])?loader\.[cm]?js$/u;
-const MF_SSR_DATA_FETCH_RUNTIME_PLUGIN =
-  '@module-federation/modern-js-v3/ssr-inject-data-fetch-function-plugin';
-const MF_SSR_DEV_RUNTIME_PLUGIN =
-  '@module-federation/modern-js-v3/ssr-dev-plugin';
 // Rspack's default dependency-type conditions (`resolve.byDependency`).
 const WORKER_DEPENDENCY_CONDITIONS = [
   ['esm', 'import'],
@@ -651,20 +647,6 @@ function removeCloudflareWorkerDataLoaderClientTransform(
   }
 }
 
-export function applyCloudflareWorkerMfRuntimeBoundary(
-  chain: Parameters<ModifyBundlerChainFn>[0],
-) {
-  const runtimePlugin = getTemplatePath(
-    'cloudflare-worker-mf-ssr-runtime-plugin.mjs',
-  );
-  chain.plugins.delete('plugin-module-federation');
-  chain.resolve.alias.set(
-    `${MF_SSR_DATA_FETCH_RUNTIME_PLUGIN}$`,
-    runtimePlugin,
-  );
-  chain.resolve.alias.set(`${MF_SSR_DEV_RUNTIME_PLUGIN}$`, runtimePlugin);
-}
-
 const getEffectBffEntry = (
   normalizedConfig: CloudflareBuilderNormalizedConfig,
   appContext: CloudflareBuilderAppContext,
@@ -884,7 +866,13 @@ const createCloudflareBundlerChain = (
       .plugin('cloudflare-worker-absent-optional-dependencies')
       .use(AbsentOptionalDependencyPlugin);
 
-    applyCloudflareWorkerMfRuntimeBoundary(chain);
+    // The worker environment still uses the web target, so
+    // @module-federation/modern-js-v3 registers its browser federation plugin
+    // on it; Cloudflare workers load no native remotes. The `worker` export
+    // condition keeps MF's SSR runtime plugins out of the bundle
+    // (module-federation/core#5155). This deletion goes with the web-worker
+    // target, which needs @rsbuild/core 2.2.10 (web-infra-dev/rsbuild#8557).
+    chain.plugins.delete('plugin-module-federation');
     setAliasIfPresent(chain.resolve.alias, 'react$', reactFile);
     setAliasIfPresent(
       chain.resolve.alias,
