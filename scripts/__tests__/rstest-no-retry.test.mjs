@@ -26,7 +26,7 @@ test('no rstest config, setConfig call or script retries failed tests', () => {
   const offenders = [
     ...trackedFiles
       .filter(file => /(^|\/)rstest(\.[\w-]+)?\.config\.m?[jt]s$/.test(file))
-      .filter(file => /^\s*retry\s*:/m.test(read(file))),
+      .filter(file => /[{,]\s*retry\s*:/.test(read(file))),
     ...trackedFiles
       .filter(file => /\.(test|spec)\.m?[jt]sx?$/.test(file))
       .filter(file => /setConfig\(\{[^}]*\bretry\s*:/s.test(read(file))),
