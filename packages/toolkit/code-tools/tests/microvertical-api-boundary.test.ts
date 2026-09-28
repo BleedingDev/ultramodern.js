@@ -630,6 +630,10 @@ export const remove = HttpApiEndpoint.del('remove', '/remove', { error: fallback
     `module.exports = exports = {};\nexports.get = require('effect').Schema.Any;`,
   );
   write(
+    path.join(root, 'verticals/catalog/src/contracts/reattached-chain.cjs'),
+    `module.exports = {};\nexports = module.exports = {};\nexports.get = require('effect').Schema.Any;`,
+  );
+  write(
     path.join(root, 'verticals/catalog/src/contracts/reattached-later.cjs'),
     `module.exports = {};\nexports = module.exports;\nexports.get = require('effect').Schema.Any;`,
   );
@@ -846,6 +850,12 @@ export const viaBoundThenCalled = secondOf.bind(null, Schema.String)(Schema.Unkn
 export const viaDetachedExports = require('./detached-exports.cjs').get;
 export const viaReattachedExports = require('./reattached-exports.cjs').get;
 export const viaReattachedLater = require('./reattached-later.cjs').get;
+export const viaReattachedChain = require('./reattached-chain.cjs').get;
+const computedSetterKey = 'set';
+const computedSetter = { [computedSetterKey](value: { success: unknown }) { value.success = Schema.Unknown; } };
+const computedSetterTarget = { success: {} };
+computedSetter.set(computedSetterTarget);
+export const viaComputedMethod = [computedSetterTarget];
 const capture = <T,>(value: T) => () => value;
 const overridden = { ...{ picked: Schema.Any }, picked: Schema.String };
 export const viaOverriddenSpread = overridden.picked;
@@ -1099,6 +1109,13 @@ export const viaApply = identity.apply(null, [Schema.Any]);`,
       externals(graph.evaluate(shapesModule, shape('viaContainerMethod'))),
     ),
   ).toEqual(new Set(['effect:Schema.String', 'unresolved']));
+  expect(
+    externals(graph.evaluate(shapesModule, shape('viaReattachedChain'))),
+  ).toContain('effect:Schema.Any');
+  // A method with a constant computed key runs like a named one.
+  expect(
+    externals(graph.reachable(shapesModule, shape('viaComputedMethod'))),
+  ).toContain('effect:Schema.Unknown');
   // A returned closure keeps the parameters of the call that created it.
   expect(
     externals(graph.evaluate(shapesModule, shape('viaClosure'))),

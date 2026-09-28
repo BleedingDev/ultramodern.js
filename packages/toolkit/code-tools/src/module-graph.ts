@@ -257,6 +257,23 @@ const CONTAINER_EXTRACTORS = new Set([
   'with',
 ]);
 
+const isModuleExports = (node: t.Node) =>
+  t.isMemberExpression(node) &&
+  t.isIdentifier(node.object, { name: 'module' }) &&
+  staticKey(node) === 'exports';
+
+/** `module.exports`, or a chain of `=` assignments that stores into it. */
+const readsModuleExports = (node: t.Node): boolean => {
+  let current = unwrapExpression(node, true);
+  for (let hop = 0; hop < MAX_DEPTH; hop += 1) {
+    if (isModuleExports(current)) return true;
+    if (!t.isAssignmentExpression(current, { operator: '=' })) return false;
+    if (isModuleExports(current.left)) return true;
+    current = unwrapExpression(current.right, true);
+  }
+  return false;
+};
+
 /** Member expressions a destructuring assignment pattern writes. */
 /**
  * Member expressions a destructuring assignment pattern writes, each with
@@ -438,14 +455,13 @@ function parseModule(filePath: string, workspace: string | undefined) {
             from && p.node.operator === '=' ? p.node.right : undefined,
             from,
           );
-      // `exports = module.exports` reattaches `exports` to the live object.
+      // `exports = module.exports` (or `exports = module.exports = value`)
+      // reattaches `exports` to the live object.
       if (
         p.node.operator === '=' &&
         t.isIdentifier(p.node.left, { name: 'exports' }) &&
         !p.scope.getBinding('exports') &&
-        t.isMemberExpression(p.node.right) &&
-        t.isIdentifier(p.node.right.object, { name: 'module' }) &&
-        staticKey(p.node.right) === 'exports' &&
+        readsModuleExports(p.node.right) &&
         p.parentPath.isExpressionStatement() &&
         p.parentPath.parentPath?.isProgram()
       )
@@ -1161,11 +1177,17 @@ const methodOf = (
   depth = 0,
 ): NodePath | 'unknown' | undefined => {
   for (const entry of literal.get('properties').toReversed()) {
-    if (
-      (entry.isObjectMethod() || entry.isObjectProperty()) &&
-      staticKey(entry.node) === key
-    )
-      return entry;
+    if (entry.isObjectMethod() || entry.isObjectProperty()) {
+      let name = staticKey(entry.node);
+      // A computed key is found if it folds to a constant, else unknown.
+      if (name === undefined) {
+        const folded = (entry.get('key') as NodePath).evaluate();
+        if (!folded.confident || typeof folded.value !== 'string')
+          return 'unknown';
+        name = folded.value;
+      }
+      if (name === key) return entry;
+    }
     if (!entry.isSpreadElement()) continue;
     const argument = unwrapExpression(entry.node.argument, true);
     const binding = t.isIdentifier(argument)
