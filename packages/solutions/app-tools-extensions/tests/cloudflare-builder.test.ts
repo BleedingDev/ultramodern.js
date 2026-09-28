@@ -179,10 +179,16 @@ describe('Cloudflare builder environments', () => {
         Object.values(aliases).filter(
           target =>
             typeof target === 'string' &&
-            target.startsWith(getTemplatePath('')) &&
-            !target.endsWith('cloudflare-worker-mf-ssr-runtime-plugin.mjs'),
+            target.startsWith(getTemplatePath('')),
         ),
       ).toEqual([]);
+      // Module Federation's SSR runtime plugins resolve to its no-op worker
+      // entries through the `worker` condition (module-federation/core#5155),
+      // not through aliases to a local stub.
+      expect(
+        aliasKeys.filter(key => key.startsWith('@module-federation/')),
+      ).toEqual([]);
+      expect(config.resolve?.conditionNames).toContain('worker');
       expect(config.resolve?.fallback ?? {}).not.toHaveProperty('fs');
       expect(config.externals).toMatchObject({
         fs: 'module-import node:fs',

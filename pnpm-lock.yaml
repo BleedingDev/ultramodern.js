@@ -2999,6 +2999,9 @@ importers:
       '@modern-js/rslib':
         specifier: workspace:*
         version: link:../../../scripts/rslib
+      '@module-federation/modern-js-v3':
+        specifier: 2.9.2
+        version: 2.9.2(patch_hash=a2290f00a31ae2890697520df938b2ae812998a502554840e778289057f6599b)(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       '@module-federation/runtime-tools':
         specifier: 2.9.2
         version: 2.9.2

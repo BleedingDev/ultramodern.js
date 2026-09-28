@@ -210,6 +210,7 @@
     "@modern-js/plugin-bff-extensions": "workspace:*",
     "@modern-js/plugin-data-loader": "workspace:*",
     "@modern-js/rslib": "workspace:*",
+    "@module-federation/modern-js-v3": "2.9.2",
     "@module-federation/runtime-tools": "2.9.2",
     "@rsbuild/core": "2.2.9",
     "@rslib/core": "1.0.2",
