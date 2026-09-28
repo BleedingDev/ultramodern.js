@@ -630,6 +630,10 @@ export const remove = HttpApiEndpoint.del('remove', '/remove', { error: fallback
     `module.exports = exports = {};\nexports.get = require('effect').Schema.Any;`,
   );
   write(
+    path.join(root, 'verticals/catalog/src/contracts/rebound-exports.cjs'),
+    `exports.get = require('effect').Schema.String;\nexports = {};\nexports.get = require('effect').Schema.Any;`,
+  );
+  write(
     path.join(root, 'verticals/catalog/src/contracts/reattached-chain.cjs'),
     `module.exports = {};\nexports = module.exports = {};\nexports.get = require('effect').Schema.Any;`,
   );
@@ -851,6 +855,12 @@ export const viaDetachedExports = require('./detached-exports.cjs').get;
 export const viaReattachedExports = require('./reattached-exports.cjs').get;
 export const viaReattachedLater = require('./reattached-later.cjs').get;
 export const viaReattachedChain = require('./reattached-chain.cjs').get;
+export const viaReboundExports = require('./rebound-exports.cjs').get;
+const spreadCopyTarget = { success: {} };
+const spreadCopySource = { inner: spreadCopyTarget };
+const spreadCopy = { ...spreadCopySource };
+spreadCopy.inner.success = Schema.Unknown;
+export const viaSpreadCopy = [spreadCopyTarget];
 const computedSetterKey = 'set';
 const computedSetter = { [computedSetterKey](value: { success: unknown }) { value.success = Schema.Unknown; } };
 const computedSetterTarget = { success: {} };
@@ -1112,6 +1122,14 @@ export const viaApply = identity.apply(null, [Schema.Any]);`,
   expect(
     externals(graph.evaluate(shapesModule, shape('viaReattachedChain'))),
   ).toContain('effect:Schema.Any');
+  // A spread copy holds a nested value at the depth its source held it.
+  expect(
+    externals(graph.reachable(shapesModule, shape('viaSpreadCopy'))),
+  ).not.toEqual([]);
+  // Rebinding `exports` detaches it; the module still exports the first write.
+  expect(
+    externals(graph.evaluate(shapesModule, shape('viaReboundExports'))),
+  ).toEqual(['effect:Schema.String']);
   // A method with a constant computed key runs like a named one.
   expect(
     externals(graph.reachable(shapesModule, shape('viaComputedMethod'))),
@@ -1158,6 +1176,13 @@ export const viaApply = identity.apply(null, [Schema.Any]);`,
 const target = { success: Schema.String };
 function mutate(this: { success: unknown }) { this.success = Schema.Unknown; }
 mutate.call(target);
+export const read = target.success;`,
+    ],
+    [
+      'for-of-write.ts',
+      `import { Schema } from 'effect';
+const target = { success: Schema.String };
+for (const value of [target]) value.success = Schema.Unknown;
 export const read = target.success;`,
     ],
     [
