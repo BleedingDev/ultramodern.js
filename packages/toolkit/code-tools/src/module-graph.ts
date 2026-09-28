@@ -193,6 +193,27 @@ const writeTarget = (
     : undefined;
 };
 
+/**
+ * The owner of member writes whose receiver is computed (`get().key = v`).
+ * Which object they reach is not modeled, so every binding read in a module
+ * with such a write is also unresolved.
+ */
+const OPAQUE_RECEIVER = {} as Binding;
+
+/** `get().key` or `(a || b).key`: a member write on a computed receiver. */
+const opaqueReceiver = (target: t.Node): boolean => {
+  let current = unwrapExpression(target, true);
+  if (!t.isMemberExpression(current) && !t.isOptionalMemberExpression(current))
+    return false;
+  while (t.isMemberExpression(current) || t.isOptionalMemberExpression(current))
+    current = unwrapExpression(current.object, true);
+  return !(
+    t.isIdentifier(current) ||
+    t.isThisExpression(current) ||
+    t.isSuper(current)
+  );
+};
+
 /** Member expressions a destructuring assignment pattern writes. */
 /**
  * Member expressions a destructuring assignment pattern writes, each with
@@ -274,7 +295,14 @@ function parseModule(filePath: string, workspace: string | undefined) {
     from?: readonly string[],
   ) => {
     const member = writeTarget(target);
-    if (!member) return;
+    if (!member) {
+      if (opaqueReceiver(target))
+        writes.set(OPAQUE_RECEIVER, [
+          ...(writes.get(OPAQUE_RECEIVER) ?? []),
+          { path: [], dynamic: true, depth: 0, value, from, node },
+        ]);
+      return;
+    }
     // `module.exports.a`, `exports.a`, or `api.a` for a chain of `const`
     // aliases (`const api = module.exports.api`) also writes an export.
     let root = member;
@@ -367,8 +395,20 @@ function parseModule(filePath: string, workspace: string | undefined) {
             from && p.node.operator === '=' ? p.node.right : undefined,
             from,
           );
-      // `module.exports = exports = value` keeps `exports` attached.
+      // `exports = module.exports` reattaches `exports` to the live object.
       if (
+        p.node.operator === '=' &&
+        t.isIdentifier(p.node.left, { name: 'exports' }) &&
+        !p.scope.getBinding('exports') &&
+        t.isMemberExpression(p.node.right) &&
+        t.isIdentifier(p.node.right.object, { name: 'module' }) &&
+        staticKey(p.node.right) === 'exports' &&
+        p.parentPath.isExpressionStatement() &&
+        p.parentPath.parentPath?.isProgram()
+      )
+        exportsDetachedAt = undefined;
+      // `module.exports = exports = value` keeps `exports` attached.
+      else if (
         exportsDetachedAt === undefined &&
         p.node.operator === '=' &&
         t.isMemberExpression(p.node.left) &&
@@ -1086,6 +1126,8 @@ const aliasesOf = (
 ): { binding: Binding; prefix: readonly string[] }[] | undefined => {
   // Without member writes in the module, nothing reaches through an alias.
   if (writes.size === 0) return [{ binding, prefix: [] }];
+  // A write through a computed receiver may land on any object.
+  if (writes.has(OPAQUE_RECEIVER)) return undefined;
   if (aliasCache.has(binding)) return aliasCache.get(binding);
   const result = collectAliases(binding, writes);
   aliasCache.set(binding, result);
@@ -1646,6 +1688,8 @@ export function createModuleGraph(): ModuleGraph {
     }
     /** Arguments `fn.bind(self, ...args)` captured for the returned value. */
     const boundArguments = new WeakMap<GraphValue, readonly CallArgument[]>();
+    /** The frame a returned closure was created in, for its captured parameters. */
+    const closureFrames = new WeakMap<GraphValue, Frame>();
     const unresolved = (module: SourceModule, node: t.Node): GraphValue[] => [
       { kind: 'unresolved', node, module },
     ];
@@ -2051,7 +2095,11 @@ export function createModuleGraph(): ModuleGraph {
           return;
         }
         const outer = frame;
-        const parameters = new Map(outer.parameters);
+        // A closure also sees the parameters of the call that created it.
+        const parameters = new Map([
+          ...outer.parameters,
+          ...(closureFrames.get(callee)?.parameters ?? []),
+        ]);
         const fnScope = factsOf(callee.module).functionScopes.get(callee.node);
         // A spread argument shifts every later parameter.
         const spread = args.findIndex(
@@ -2073,9 +2121,23 @@ export function createModuleGraph(): ModuleGraph {
             });
           }
         });
-        frame = { id: (frames += 1), parameters };
+        const inner: Frame = { id: (frames += 1), parameters };
+        frame = inner;
         try {
-          found.push(...returnValues(callee.module, callee.node, members));
+          for (const value of returnValues(
+            callee.module,
+            callee.node,
+            members,
+          )) {
+            // A returned function keeps this call's parameters for later calls.
+            if (value.kind === 'node' && t.isFunction(value.node)) {
+              const closure: GraphValue = { ...value };
+              closureFrames.set(closure, inner);
+              const bound = boundArguments.get(value);
+              if (bound) boundArguments.set(closure, bound);
+              found.push(closure);
+            } else found.push(value);
+          }
         } finally {
           frame = outer;
         }
@@ -2111,6 +2173,8 @@ export function createModuleGraph(): ModuleGraph {
               continue;
             }
             const boundReceiver: GraphValue = { ...receiver };
+            const closure = closureFrames.get(receiver);
+            if (closure) closureFrames.set(boundReceiver, closure);
             boundArguments.set(boundReceiver, [
               ...(boundArguments.get(receiver) ?? []),
               ...bound,
