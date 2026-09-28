@@ -224,14 +224,16 @@ const opaqueReceiver = (target: t.Node, scope: Scope): boolean => {
 };
 
 /**
- * Array, Map and Set methods that return a stored element or pass it to a
- * callback.
+ * Array, Map and Set methods that return a stored element, the container
+ * itself, or pass an element to a callback.
  */
 const CONTAINER_EXTRACTORS = new Set([
   'at',
   'concat',
+  'copyWithin',
   'entries',
   'every',
+  'fill',
   'filter',
   'find',
   'findIndex',
@@ -245,6 +247,7 @@ const CONTAINER_EXTRACTORS = new Set([
   'pop',
   'reduce',
   'reduceRight',
+  'reverse',
   'shift',
   'slice',
   'some',
@@ -1430,9 +1433,13 @@ const collectAliases = (
             }
             break;
           }
-          // Iterating it hands its elements to the loop binding, which this
-          // analysis does not follow.
-          if (t.isForOfStatement(parent) && parent.right === reference.node) {
+          // Iterating it hands its elements to the loop binding, and a tag
+          // function receives template substitutions; neither is followed.
+          if (
+            (t.isForOfStatement(parent) && parent.right === reference.node) ||
+            (t.isTemplateLiteral(parent) &&
+              t.isTaggedTemplateExpression(up.parent))
+          ) {
             escaped = true;
             break;
           }
@@ -2213,7 +2220,10 @@ export function createModuleGraph(): ModuleGraph {
                 value.node.properties.some(
                   entry =>
                     !t.isSpreadElement(entry) &&
-                    staticKey(entry) === name &&
+                    (staticKey(entry) ??
+                      (entry.computed
+                        ? constantString(value.module, entry.key)
+                        : undefined)) === name &&
                     !(t.isObjectMethod(entry) && entry.kind === 'set'),
                 ),
             )
