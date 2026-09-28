@@ -26,17 +26,31 @@ jobs:
       - name: Check the active rules on main-ultramodern
         env:
           GH_TOKEN: ${{ github.token }}
+          # One context per line for every required job; a renamed or new
+          # matrix job belongs here and in the ruleset.
+          REQUIRED_CHECKS: |
+            ut-linux
+            type-check
+            lint-linux
+            e2e-test
+            workflow-security
+            boundary-anti-pattern-checks
+            integration-Linux (framework)
+            integration-Linux (rstest-adapter)
+            integration-Linux (utils)
+            integration-Windows (framework)
+            integration-Windows (rstest-adapter)
         run: |
           set -euo pipefail
           gh api "repos/$GITHUB_REPOSITORY/rules/branches/main-ultramodern" > rules.json
-          jq -e '
-            (map(.type) | index("pull_request") and index("required_status_checks")
+          jq -e --arg required "$REQUIRED_CHECKS" '
+            ($required | split("\n") | map(select(. != ""))) as $expected
+            | (map(.type) | index("pull_request") and index("required_status_checks")
               and index("non_fast_forward") and index("deletion"))
             and (map(select(.type == "pull_request"))[0].parameters.allowed_merge_methods == ["rebase"])
-            and ([map(select(.type == "required_status_checks"))[0].parameters.required_status_checks[].context
-              | select(startswith("integration-"))] | length > 0)
+            and ($expected - [map(select(.type == "required_status_checks"))[].parameters.required_status_checks[].context] == [])
           ' rules.json > /dev/null || {
-            echo "::error::main-ultramodern no longer requires PRs, rebase merges, integration checks, and no force push or deletion."
+            echo "::error::main-ultramodern no longer requires PRs, rebase merges, every required check, and no force push or deletion."
             jq . rules.json
             exit 1
           }
