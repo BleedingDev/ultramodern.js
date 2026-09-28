@@ -842,6 +842,9 @@ const createCloudflareBundlerChain = (
       .chunkFormat('module')
       .chunkLoading('import')
       .workerChunkLoading('import');
+    // workerd has no `__dirname` / `__filename`, so CommonJS dependencies get
+    // Rspack's compile-time mock instead of runtime identifiers.
+    chain.node.set('__dirname', 'mock').set('__filename', 'mock');
 
     for (const condition of [
       'workerd',

@@ -24,9 +24,6 @@ const ASSET_CORS_HEADERS = {
   'access-control-allow-origin': '*',
 };
 
-globalThis.__dirname ??= '/';
-globalThis.__filename ??= '/index.js';
-
 function getAllowedAppCorsOrigin(request) {
   if (APP_CORS_ALLOWED_ORIGINS.length === 0) {
     return null;

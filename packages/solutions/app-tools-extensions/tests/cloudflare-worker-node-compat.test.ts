@@ -384,6 +384,14 @@ describe('Cloudflare worker Node.js compatibility', () => {
             );`,
         );
         writeFile(root, 'aliased-peer.js', "export const value = 'aliased';\n");
+        // A CommonJS dependency that reads its own location, as `pg`'s
+        // connection-string parser and many CLI-shaped packages do.
+        writePackage(
+          root,
+          'cjs-dirname-consumer',
+          { type: 'commonjs' },
+          "module.exports = __dirname + '|' + __filename;\n",
+        );
         writeFile(
           root,
           'worker.ts',
@@ -391,6 +399,7 @@ describe('Cloudflare worker Node.js compatibility', () => {
 import diagnosticsChannel from 'node:diagnostics_channel';
 import { performance } from 'perf_hooks';
 import querystring from 'node:querystring';
+import cjsLocation from 'cjs-dirname-consumer';
 import pg from 'pg';
 import {
   loadAliasedPeer,
@@ -412,6 +421,7 @@ export default {
     return Response.json({
       channel: typeof diagnosticsChannel.channel('probe').publish,
       client: typeof pg.Client,
+      cjsLocation,
       console: typeof Console,
       now: typeof performance.now(),
       aliasedPeer: await loadAliasedPeer(),
@@ -498,6 +508,9 @@ export default {
         expect(bundle).toContain('from "node:perf_hooks"');
         expect(bundle).toContain('"cloudflare:sockets"');
         expect(bundle).not.toContain('pg-cloudflare/dist/empty.js');
+        // Rspack replaces `__dirname` / `__filename` at compile time, so the
+        // worker needs no runtime globals for them.
+        expect(bundle).not.toMatch(/\b__(?:dirname|filename)\b/u);
         writeFile(
           outputDirectory,
           'main.mjs',
@@ -515,6 +528,7 @@ export default {
         const result = (await response.json()) as Record<string, string>;
         expect(result).toMatchObject({
           channel: 'function',
+          cjsLocation: '/|/index.js',
           client: 'function',
           console: 'function',
           now: 'number',
