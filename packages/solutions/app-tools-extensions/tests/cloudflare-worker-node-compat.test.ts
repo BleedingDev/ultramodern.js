@@ -20,6 +20,7 @@ import {
 import {
   CLOUDFLARE_REQUIRED_COMPATIBILITY_FLAGS,
   CLOUDFLARE_WORKER_NODE_BUILTINS,
+  CLOUDFLARE_WORKER_PLATFORM_MODULES,
 } from '../src/cloudflare-output-contract';
 
 const require = createRequire(import.meta.url);
@@ -87,6 +88,34 @@ describe('Cloudflare worker Node.js compatibility', () => {
         expect([...available].sort()).toEqual(
           [...CLOUDFLARE_WORKER_NODE_BUILTINS].sort(),
         );
+      } finally {
+        await worker.dispose();
+      }
+    },
+    WORKER_TIMEOUT,
+  );
+
+  it(
+    'lists only platform modules that workerd provides',
+    async () => {
+      const worker = createMiniflare({
+        modules: true,
+        script: `export default { async fetch(request) {
+          const available = [];
+          for (const name of await request.json()) {
+            try { await import(name); available.push(name); } catch {}
+          }
+          return Response.json(available);
+        } };`,
+      });
+      try {
+        const response = await worker.dispatchFetch('http://worker/', {
+          body: JSON.stringify(CLOUDFLARE_WORKER_PLATFORM_MODULES),
+          method: 'POST',
+        });
+        expect(await response.json()).toEqual([
+          ...CLOUDFLARE_WORKER_PLATFORM_MODULES,
+        ]);
       } finally {
         await worker.dispose();
       }
@@ -174,6 +203,9 @@ describe('Cloudflare worker Node.js compatibility', () => {
     expect(externals).not.toHaveProperty('test');
     expect(externals['cloudflare:sockets']).toBe(
       'module-import cloudflare:sockets',
+    );
+    expect(externals['cloudflare:workers']).toBe(
+      'module-import cloudflare:workers',
     );
   });
 
@@ -395,7 +427,8 @@ describe('Cloudflare worker Node.js compatibility', () => {
         writeFile(
           root,
           'worker.ts',
-          `import { Console } from 'console';
+          `import { env } from 'cloudflare:workers';
+import { Console } from 'console';
 import diagnosticsChannel from 'node:diagnostics_channel';
 import { performance } from 'perf_hooks';
 import querystring from 'node:querystring';
@@ -425,6 +458,9 @@ export default {
       console: typeof Console,
       now: typeof performance.now(),
       aliasedPeer: await loadAliasedPeer(),
+      // Module-scope binding access, as a Hyperdrive or VPC client needs
+      // outside the request handler's arguments.
+      binding: env.PLATFORM_PROBE,
       functionExternalPeer: await loadFunctionExternalPeer(),
       optionalPeer: await loadOptionalPeer(),
       query,
@@ -507,6 +543,7 @@ export default {
           .join('\n');
         expect(bundle).toContain('from "node:perf_hooks"');
         expect(bundle).toContain('"cloudflare:sockets"');
+        expect(bundle).toContain('"cloudflare:workers"');
         expect(bundle).not.toContain('pg-cloudflare/dist/empty.js');
         // Rspack replaces `__dirname` / `__filename` at compile time, so the
         // worker needs no runtime globals for them.
@@ -522,6 +559,7 @@ export default {
             type: 'ESModule' as const,
           })),
           modulesRoot: outputDirectory,
+          bindings: { PLATFORM_PROBE: 'bound' },
         });
         const response = await worker.dispatchFetch('http://worker/');
         expect(response.status).toBe(200);
@@ -533,6 +571,7 @@ export default {
           console: 'function',
           now: 'number',
           aliasedPeer: 'aliased',
+          binding: 'bound',
           functionExternalPeer: 'function',
           optionalPeer: 'MODULE_NOT_FOUND',
           search: 'worker=workerd',
