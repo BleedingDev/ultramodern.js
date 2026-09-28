@@ -6,7 +6,7 @@
   "migrationGoal": "Shrink-only budget of fork edits inside upstream-owned files. Every entry is debt: move it upstream or behind an extension point, then re-run --write-divergence-allowlist.",
   "totalFiles": 843,
   "totalHunks": 3134,
-  "totalChangedLines": 52227,
+  "totalChangedLines": 52248,
   "files": [
     {
       "file": "packages/cli/adapter-rstest/package.json",
@@ -3311,7 +3311,7 @@
     {
       "file": "packages/solutions/app-tools/src/builder/shared/lazyCompilation.ts",
       "hunks": 7,
-      "changedLines": 37
+      "changedLines": 45
     },
     {
       "file": "packages/solutions/app-tools/src/builder/shared/types.ts",
@@ -3456,7 +3456,7 @@
     {
       "file": "packages/solutions/app-tools/src/plugins/initialize/index.ts",
       "hunks": 2,
-      "changedLines": 7
+      "changedLines": 10
     },
     {
       "file": "packages/solutions/app-tools/src/plugins/serverBuild.ts",
@@ -3571,7 +3571,7 @@
     {
       "file": "packages/solutions/app-tools/tests/builder/lazyCompilation.test.ts",
       "hunks": 4,
-      "changedLines": 60
+      "changedLines": 70
     },
     {
       "file": "packages/solutions/app-tools/tests/builder/routerPlugin.test.ts",

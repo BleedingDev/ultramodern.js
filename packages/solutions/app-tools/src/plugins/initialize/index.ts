@@ -44,7 +44,10 @@ export default (): CliPlugin<AppTools> => ({
           lazyCompilation: {
             imports: true,
             entries: false,
-            test: buildDefaultLazyCompilationTest(appContext.internalDirectory),
+            test: buildDefaultLazyCompilationTest(
+              appContext.appDirectory,
+              appContext.internalDirectory,
+            ),
           },
         };
       }

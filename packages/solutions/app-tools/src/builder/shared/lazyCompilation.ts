@@ -91,31 +91,39 @@ export function buildSSRLazyCompilationTest(
 }
 
 /**
- * Build the default dev `lazyCompilation.test`: every dynamically imported
- * module is lazy except the generated entry module
- * `<internalDirectory>/<entry>/index.jsx` (`<entry>` may be nested). With
- * `source.enableAsyncEntry` the build entry is `bootstrap.jsx`, whose only
- * statement is `import('./index')`; that import is the async entry boundary
- * Module Federation needs to initialize shared scopes, not a code-split point.
- * A lazy boundary rebuilds the whole entry on the first page load
- * (`building .modern-js/<entry>/index.jsx`) and starts an extra HMR cycle.
+ * Build the default dev `lazyCompilation.test`: a dynamic import is lazy only
+ * when it targets the app's own source. Everything else compiles eagerly:
+ * - the generated `<internalDirectory>/<entry>/index.jsx`, which
+ *   `bootstrap.jsx` imports as the async entry boundary Module Federation
+ *   needs to initialize shared scopes, not a code-split point;
+ * - framework and dependency modules (outside `appDirectory` or under
+ *   `node_modules`), such as plugin-i18n's backend, utils and react-i18next.
+ * Each lazy module costs one on-demand compile and HMR cycle on the first page
+ * load. Back-to-back cycles for framework imports raced on loaded CI runners
+ * ("Cannot read properties of undefined (reading 'call')"), and the app never
+ * rendered.
  * Typed `object` so it is assignable to Rspack's `(module: Module) => boolean`.
  */
 export function buildDefaultLazyCompilationTest(
+  appDirectory: string,
   internalDirectory: string,
 ): (m: object) => boolean {
-  // Resolved on first call: the directory does not exist yet at config time,
-  // and Rspack reports real paths.
-  let internalDir: string | undefined;
+  // Resolved on first call: the internal directory does not exist yet at
+  // config time, and Rspack reports real paths.
+  let dirs: { app: string; internal: string } | undefined;
   return (m: object) => {
     if (!('resource' in m) || typeof m.resource !== 'string') {
       return true;
     }
-    internalDir ??= normalizeModulePath(internalDirectory);
+    dirs ??= {
+      app: normalizeModulePath(appDirectory),
+      internal: normalizeModulePath(internalDirectory),
+    };
     const file = m.resource.split('?')[0].split(path.sep).join('/');
-    return !(
-      path.posix.basename(file) === 'index.jsx' &&
-      file.startsWith(`${internalDir}/`)
+    return (
+      file.startsWith(`${dirs.app}/`) &&
+      !file.startsWith(`${dirs.internal}/`) &&
+      !file.slice(dirs.app.length).includes('/node_modules/')
     );
   };
 }
