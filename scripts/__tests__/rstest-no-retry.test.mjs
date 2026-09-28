@@ -1,6 +1,7 @@
 // A retried test that passes on its second attempt reports green, so a
 // flaky fixture or a race in the framework hides behind the retry. Fix the
-// wait or the race instead.
+// wait or the race instead. The word alone is rejected in rstest configs and
+// setConfig objects, so no key, shorthand or comment layout slips through.
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -26,10 +27,10 @@ test('no rstest config, setConfig call or script retries failed tests', () => {
   const offenders = [
     ...trackedFiles
       .filter(file => /(^|\/)rstest(\.[\w-]+)?\.config\.m?[jt]s$/.test(file))
-      .filter(file => /[{,]\s*retry\s*:/.test(read(file))),
+      .filter(file => /\bretry\b/.test(read(file))),
     ...trackedFiles
       .filter(file => /\.(test|spec)\.m?[jt]sx?$/.test(file))
-      .filter(file => /setConfig\(\{[^}]*\bretry\s*:/s.test(read(file))),
+      .filter(file => /setConfig\(\{[^}]*\bretry\b/s.test(read(file))),
     ...trackedFiles
       .filter(file => path.basename(file) === 'package.json')
       .flatMap(file =>
