@@ -23,14 +23,31 @@ const trackedFiles = execFileSync('git', ['ls-files', '-z'], {
 
 const read = file => readFileSync(path.join(repoRoot, file), 'utf8');
 
+const mentionsRetry = text => /\bretry\b/.test(text);
+
+// The argument text of every `setConfig(...)` call, up to its balanced `)`.
+function setConfigArguments(source) {
+  const calls = [];
+  for (const match of source.matchAll(/\bsetConfig\s*\(/g)) {
+    let depth = 1;
+    let end = match.index + match[0].length;
+    while (depth > 0 && end < source.length) {
+      const char = source[end++];
+      depth += char === '(' ? 1 : char === ')' ? -1 : 0;
+    }
+    calls.push(source.slice(match.index + match[0].length, end));
+  }
+  return calls;
+}
+
 test('no rstest config, setConfig call or script retries failed tests', () => {
   const offenders = [
     ...trackedFiles
       .filter(file => /(^|\/)rstest(\.[\w-]+)?\.config\.m?[jt]s$/.test(file))
-      .filter(file => /\bretry\b/.test(read(file))),
+      .filter(file => mentionsRetry(read(file))),
     ...trackedFiles
       .filter(file => /\.(test|spec)\.m?[jt]sx?$/.test(file))
-      .filter(file => /setConfig\(\{[^}]*\bretry\b/s.test(read(file))),
+      .filter(file => setConfigArguments(read(file)).some(mentionsRetry)),
     ...trackedFiles
       .filter(file => path.basename(file) === 'package.json')
       .flatMap(file =>
