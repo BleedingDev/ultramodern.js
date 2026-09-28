@@ -260,6 +260,15 @@ const CONTAINER_EXTRACTORS = new Set([
   'with',
 ]);
 
+/** Built-in methods whose result is their receiver. */
+const RECEIVER_RETURNING_METHODS = new Set([
+  'copyWithin',
+  'fill',
+  'reverse',
+  'sort',
+  'valueOf',
+]);
+
 const isModuleExports = (node: t.Node) =>
   t.isMemberExpression(node) &&
   t.isIdentifier(node.object, { name: 'module' }) &&
@@ -1475,6 +1484,18 @@ const collectAliases = (
               escaped = true;
               break;
             }
+            // A built-in method that returns its receiver
+            // (`options.valueOf()`, `list.sort()`) yields the value itself.
+            if (
+              depth === 0 &&
+              (t.isCallExpression(up.parent) ||
+                t.isOptionalCallExpression(up.parent)) &&
+              up.parent.callee === parent &&
+              RECEIVER_RETURNING_METHODS.has(staticKey(parent) ?? '')
+            ) {
+              reference = up.parentPath!;
+              continue;
+            }
             // Inside a holder, a member read may extract the stored value.
             if (depth > 0) depth -= 1;
             else {
@@ -1508,15 +1529,17 @@ const collectAliases = (
             break;
           }
           // Iterating it hands its elements to the loop binding, a tag
-          // function receives template substitutions, and a JSX component
-          // receives its props and children; none of them is followed.
+          // function receives template substitutions, a JSX component
+          // receives its props and children, and a generator's consumer
+          // receives what it yields; none of them is followed.
           if (
             (t.isForOfStatement(parent) && parent.right === reference.node) ||
             (t.isTemplateLiteral(parent) &&
               t.isTaggedTemplateExpression(up.parent)) ||
             t.isJSXExpressionContainer(parent) ||
             t.isJSXSpreadAttribute(parent) ||
-            t.isJSXSpreadChild(parent)
+            t.isJSXSpreadChild(parent) ||
+            t.isYieldExpression(parent)
           ) {
             escaped = true;
             break;

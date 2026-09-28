@@ -1291,6 +1291,15 @@ export const element = <Mutator value={target} />;
 export const read = target.success;`,
     ],
     [
+      'yield-write.ts',
+      `import { Schema } from 'effect';
+const target = { success: Schema.String };
+function* values() { yield target; }
+const [alias] = values();
+alias!.success = Schema.Unknown;
+export const read = target.success;`,
+    ],
+    [
       'callback-write.ts',
       `import { Schema } from 'effect';
 const target = { success: Schema.String };
@@ -1308,6 +1317,30 @@ export const read = target.success;`,
       name,
     ).toContain('unresolved');
   }
+  // A built-in method returning its receiver hands back the value itself.
+  const valueOfWrite = path.join(
+    root,
+    'verticals/catalog/src/contracts/value-of-write.ts',
+  );
+  write(
+    valueOfWrite,
+    `import { Schema } from 'effect';
+const target = { success: Schema.String };
+const alias = target.valueOf();
+alias.success = Schema.Unknown;
+export const read = target.success;`,
+  );
+  const valueOfModule = graph.module(valueOfWrite);
+  const valueOfRead = (
+    valueOfModule.file.program.body.at(-1) as t.ExportNamedDeclaration
+  ).declaration as t.VariableDeclaration;
+  expect(
+    new Set(
+      externals(
+        graph.evaluate(valueOfModule, valueOfRead.declarations[0].init!),
+      ),
+    ),
+  ).toEqual(new Set(['effect:Schema.String', 'effect:Schema.Unknown']));
   // Static members of an anonymous default class are read through imports.
   const defaultClass = path.join(
     root,
