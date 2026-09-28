@@ -871,6 +871,8 @@ const overridden = { ...{ picked: Schema.Any }, picked: Schema.String };
 export const viaOverriddenSpread = overridden.picked;
 const spreadOverride = { picked: Schema.Any, ...{ picked: Schema.String } };
 export const viaSpreadOverride = spreadOverride.picked;
+const reflected = <T,>(value: T) => value;
+export const viaReflectApply = Reflect.apply(reflected, null, [Schema.Json]);
 const spreadKey = 'picked';
 const computedSpreadOverride = { picked: Schema.Any, ...{ [spreadKey]: Schema.String } };
 export const viaComputedSpreadOverride = computedSpreadOverride.picked;
@@ -1099,6 +1101,10 @@ export const viaApply = identity.apply(null, [Schema.Any]);`,
   expect(
     externals(graph.evaluate(shapesModule, shape('viaComputedSpreadOverride'))),
   ).toEqual(['effect:Schema.String']);
+  // `Reflect.apply` runs the function with its literal argument list.
+  expect(
+    externals(graph.evaluate(shapesModule, shape('viaReflectApply'))),
+  ).toContain('effect:Schema.Json');
   // Static class members are read from the class body.
   expect(
     externals(graph.evaluate(shapesModule, shape('viaStaticField'))),
@@ -1209,6 +1215,14 @@ mutate\`\${target}\`;
 export const read = target.success;`,
     ],
     [
+      'setter-write.ts',
+      `import { Schema } from 'effect';
+const target = { success: Schema.String };
+const helper = { set value(next: { success: unknown }) { next.success = Schema.Unknown; } };
+helper.value = target;
+export const read = target.success;`,
+    ],
+    [
       'callback-write.ts',
       `import { Schema } from 'effect';
 const target = { success: Schema.String };
@@ -1226,6 +1240,29 @@ export const read = target.success;`,
       name,
     ).toContain('unresolved');
   }
+  // Static members of an anonymous default class are read through imports.
+  const defaultClass = path.join(
+    root,
+    'verticals/catalog/src/contracts/default-class.ts',
+  );
+  write(
+    defaultClass,
+    `import { Schema } from 'effect';\nexport default class { static picked = Schema.Unknown; }`,
+  );
+  const defaultClassConsumer = path.join(
+    root,
+    'verticals/catalog/src/contracts/default-class-consumer.ts',
+  );
+  write(
+    defaultClassConsumer,
+    `import Picked from './default-class';\nexport const picked = Picked.picked;`,
+  );
+  const defaultClassModule = graph.module(defaultClassConsumer);
+  const pickedFromClass = graph.resolve(defaultClassModule, 'picked', 'export');
+  if (pickedFromClass?.kind !== 'declaration') throw new Error('picked');
+  expect(
+    externals(graph.evaluate(defaultClassModule, pickedFromClass.expression)),
+  ).toEqual(['effect:Schema.Unknown']);
   // A write through a computed receiver may reach any escaped object.
   const returnedReceiver = path.join(
     root,
