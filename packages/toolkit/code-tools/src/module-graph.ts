@@ -277,6 +277,31 @@ const readsModuleExports = (node: t.Node): boolean => {
   return false;
 };
 
+/**
+ * Global functions and methods that only read their arguments, plus the
+ * built-in mutators whose writes are indexed as member writes.
+ */
+const READ_ONLY_GLOBAL_CALLS = new Set([
+  'Object.assign',
+  'Object.defineProperties',
+  'Object.defineProperty',
+  'Object.setPrototypeOf',
+  'Reflect.defineProperty',
+  'Reflect.deleteProperty',
+  'Reflect.set',
+  'Reflect.setPrototypeOf',
+  'Array.isArray',
+  'Boolean',
+  'JSON.stringify',
+  'Number',
+  'Object.is',
+  'Object.isExtensible',
+  'Object.isFrozen',
+  'Object.isSealed',
+  'Object.keys',
+  'String',
+]);
+
 const DYNAMIC_SETTER = Symbol('dynamic setter');
 const setterCache = new WeakMap<t.Node, Set<string | symbol>>();
 /** The keys of every object or class setter in a module. */
@@ -438,6 +463,71 @@ function parseModule(filePath: string, workspace: string | undefined) {
       },
     ]);
   };
+  // Built-in mutators write into their first argument:
+  // `Object.assign(target, { key: value })` is `target.key = value`, also
+  // when called optionally (`Object?.assign(...)`).
+  const indexBuiltInMutation = (
+    p: NodePath<t.CallExpression | t.OptionalCallExpression>,
+  ) => {
+    const callee = unwrapExpression(p.node.callee, true);
+    const memberCallee =
+      t.isMemberExpression(callee) || t.isOptionalMemberExpression(callee)
+        ? callee
+        : undefined;
+    const owner =
+      memberCallee && t.isIdentifier(memberCallee.object)
+        ? memberCallee.object.name
+        : undefined;
+    const method = memberCallee ? staticKey(memberCallee) : undefined;
+    const [target, ...rest] = p.node.arguments;
+    if (
+      !owner ||
+      !method ||
+      !target ||
+      !t.isExpression(target) ||
+      p.scope.getBinding(owner) ||
+      !(
+        (owner === 'Object' &&
+          [
+            'assign',
+            'defineProperty',
+            'defineProperties',
+            'setPrototypeOf',
+          ].includes(method)) ||
+        (owner === 'Reflect' &&
+          [
+            'set',
+            'defineProperty',
+            'deleteProperty',
+            'setPrototypeOf',
+          ].includes(method))
+      )
+    )
+      return;
+    mutations.push(p.node);
+    const anyMember = t.memberExpression(target, t.identifier('key'), true);
+    const sources = method === 'assign' ? rest : [undefined];
+    for (const source of sources) {
+      if (!t.isObjectExpression(source)) {
+        recordWrite(p.scope, anyMember, p.node);
+        continue;
+      }
+      for (const property of source.properties) {
+        const key = t.isObjectProperty(property)
+          ? staticKey(property)
+          : undefined;
+        if (key === undefined || !t.isObjectProperty(property))
+          recordWrite(p.scope, anyMember, p.node);
+        else
+          recordWrite(
+            p.scope,
+            t.memberExpression(target, t.stringLiteral(key), true),
+            p.node,
+            property.value as t.Expression,
+          );
+      }
+    }
+  };
   traverseSource(file, {
     Program(p) {
       scope = p.scope;
@@ -517,65 +607,11 @@ function parseModule(filePath: string, workspace: string | undefined) {
       for (const { target } of patternMembers(left))
         recordWrite(p.scope, target, p.node);
     },
-    // Built-in mutators write into their first argument:
-    // `Object.assign(target, { key: value })` is `target.key = value`.
     CallExpression(p) {
-      const callee = unwrapExpression(p.node.callee, true);
-      const owner =
-        t.isMemberExpression(callee) && t.isIdentifier(callee.object)
-          ? callee.object.name
-          : undefined;
-      const method = t.isMemberExpression(callee)
-        ? staticKey(callee)
-        : undefined;
-      const [target, ...rest] = p.node.arguments;
-      if (
-        !owner ||
-        !method ||
-        !target ||
-        !t.isExpression(target) ||
-        p.scope.getBinding(owner) ||
-        !(
-          (owner === 'Object' &&
-            [
-              'assign',
-              'defineProperty',
-              'defineProperties',
-              'setPrototypeOf',
-            ].includes(method)) ||
-          (owner === 'Reflect' &&
-            [
-              'set',
-              'defineProperty',
-              'deleteProperty',
-              'setPrototypeOf',
-            ].includes(method))
-        )
-      )
-        return;
-      mutations.push(p.node);
-      const anyMember = t.memberExpression(target, t.identifier('key'), true);
-      const sources = method === 'assign' ? rest : [undefined];
-      for (const source of sources) {
-        if (!t.isObjectExpression(source)) {
-          recordWrite(p.scope, anyMember, p.node);
-          continue;
-        }
-        for (const property of source.properties) {
-          const key = t.isObjectProperty(property)
-            ? staticKey(property)
-            : undefined;
-          if (key === undefined || !t.isObjectProperty(property))
-            recordWrite(p.scope, anyMember, p.node);
-          else
-            recordWrite(
-              p.scope,
-              t.memberExpression(target, t.stringLiteral(key), true),
-              p.node,
-              property.value as t.Expression,
-            );
-        }
-      }
+      indexBuiltInMutation(p);
+    },
+    OptionalCallExpression(p) {
+      indexBuiltInMutation(p);
     },
     UnaryExpression(p) {
       if (p.node.operator !== 'delete') return;
@@ -1611,7 +1647,24 @@ const collectAliases = (
                   initValue !== undefined &&
                   !t.isMemberExpression(initValue) &&
                   !t.isIdentifier(initValue)));
-            if (unseen) escaped = true;
+            // A global function or a method on a global object
+            // (`Promise.resolve(value).then(...)`) is outside the graph unless
+            // it only reads its arguments.
+            const globalName = t.isIdentifier(callee)
+              ? callee.name
+              : member && t.isIdentifier(receiverObject)
+                ? receiverObject.name
+                : undefined;
+            const unboundGlobal =
+              globalName !== undefined &&
+              !reference.scope.getBinding(globalName) &&
+              !READ_ONLY_GLOBAL_CALLS.has(
+                t.isIdentifier(callee)
+                  ? globalName
+                  : `${globalName}.${staticKey(callee as t.MemberExpression) ?? ''}`,
+              ) &&
+              globalName !== 'console';
+            if (unseen || unboundGlobal) escaped = true;
             const index = parent.arguments.indexOf(
               reference.node as (typeof parent.arguments)[number],
             );
