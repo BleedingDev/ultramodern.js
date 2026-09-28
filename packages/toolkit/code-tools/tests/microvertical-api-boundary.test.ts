@@ -856,6 +856,8 @@ class StaticHolder {
   static pick() { return Schema.Unknown; }
 }
 export const viaStaticField = StaticHolder.picked;
+const StaticExpression = class { static picked = Schema.Json; };
+export const viaStaticExpression = StaticExpression.picked;
 export const viaStaticMethod = StaticHolder.pick();
 const heldInContainer = { success: Schema.String };
 const extractedHolder = [heldInContainer];
@@ -1072,6 +1074,9 @@ export const viaApply = identity.apply(null, [Schema.Any]);`,
   expect(
     externals(graph.evaluate(shapesModule, shape('viaStaticMethod'))),
   ).toEqual(['effect:Schema.Unknown']);
+  expect(
+    externals(graph.evaluate(shapesModule, shape('viaStaticExpression'))),
+  ).toEqual(['effect:Schema.Json']);
   // A value extracted through a container method may be written through.
   expect(
     new Set(
@@ -1111,6 +1116,35 @@ export const viaApply = identity.apply(null, [Schema.Any]);`,
   expect(externals(graph.evaluate(picked.module, picked.expression))).toEqual([
     'effect:Schema.String',
   ]);
+  // `this` writes outside a constructor and container callbacks may mutate
+  // a value in ways the graph does not follow.
+  for (const [name, source] of [
+    [
+      'this-write.ts',
+      `import { Schema } from 'effect';
+const target = { success: Schema.String };
+function mutate(this: { success: unknown }) { this.success = Schema.Unknown; }
+mutate.call(target);
+export const read = target.success;`,
+    ],
+    [
+      'callback-write.ts',
+      `import { Schema } from 'effect';
+const target = { success: Schema.String };
+[target].forEach(value => { value.success = Schema.Unknown; });
+export const read = target.success;`,
+    ],
+  ] as const) {
+    const file = path.join(root, 'verticals/catalog/src/contracts', name);
+    write(file, source);
+    const opaque = graph.module(file);
+    const read = (opaque.file.program.body.at(-1) as t.ExportNamedDeclaration)
+      .declaration as t.VariableDeclaration;
+    expect(
+      new Set(externals(graph.evaluate(opaque, read.declarations[0].init!))),
+      name,
+    ).toContain('unresolved');
+  }
   // A write through a computed receiver may reach any escaped object.
   const returnedReceiver = path.join(
     root,
