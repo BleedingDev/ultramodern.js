@@ -99,6 +99,19 @@ export interface CloudflareWorkerServiceBindingConfig {
   fragments?: CloudflareWorkerServiceBindingFragmentConfig[];
 }
 
+export interface CloudflareWorkerVpcServiceConfig {
+  /** Worker binding name exposed on the module worker `env` object. */
+  binding: string;
+  /** Workers VPC service id (`wrangler vpc service create`). */
+  serviceId: string;
+  /**
+   * Optional application path prefix that Modern.js should dispatch to this
+   * private origin with `env[binding].fetch(request)`, exactly like a
+   * prefixed Worker service binding.
+   */
+  prefix?: string;
+}
+
 export interface CloudflareWorkerServiceBindingFragmentConfig {
   /** Stable remote id used by the shell's composition contract. */
   remote: string;
@@ -234,6 +247,13 @@ export interface CloudflareWorkerDeployConfig {
    * `env[binding].fetch(request)`.
    */
   services?: CloudflareWorkerServiceBindingConfig[];
+  /**
+   * First-class Workers VPC service bindings to private origins reached
+   * through a Cloudflare Tunnel. Modern.js writes these to `wrangler.json`
+   * as `vpc_services`; a binding with `prefix` joins the prefix dispatch of
+   * `services`.
+   */
+  vpcServices?: CloudflareWorkerVpcServiceConfig[];
   /**
    * Dist output paths that must not be copied into Cloudflare public assets.
    * Entries are slash-normalized path prefixes relative to the app dist root.

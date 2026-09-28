@@ -2,6 +2,7 @@ import path from 'node:path';
 import type {
   CloudflareWorkerD1DatabaseConfig,
   CloudflareWorkerServiceBindingConfig,
+  CloudflareWorkerVpcServiceConfig,
   JsonValue,
 } from '../config';
 import {
@@ -108,7 +109,9 @@ const createWranglerCompatibilityFlags = (
 // `wrangler deploy --env <name>` uses an environment's own compatibility_date
 // and compatibility_flags instead of the top-level values, so each override
 // is held to the same verified date floor and required flags.
-const createWranglerEnvironments = (wranglerEnv: JsonValue | undefined) => {
+const createWranglerEnvironments = (
+  wranglerEnv: JsonValue | undefined,
+): Record<string, Record<string, JsonValue>> | undefined => {
   if (wranglerEnv === undefined) {
     return undefined;
   }
@@ -313,6 +316,232 @@ export const createWorkerServiceBindings = (
   return services.map(normalizeServiceBinding);
 };
 
+const normalizeVpcService = (
+  vpcService: CloudflareWorkerVpcServiceConfig,
+  index: number,
+) => {
+  const binding = assertNonEmptyString(
+    vpcService.binding,
+    `deploy.worker.vpcServices[${index}].binding`,
+  );
+  const serviceId = assertNonEmptyString(
+    vpcService.serviceId,
+    `deploy.worker.vpcServices[${index}].serviceId`,
+  );
+  const prefix =
+    vpcService.prefix === undefined
+      ? undefined
+      : assertNonEmptyString(
+          vpcService.prefix,
+          `deploy.worker.vpcServices[${index}].prefix`,
+        );
+
+  return { binding, serviceId, ...(prefix === undefined ? {} : { prefix }) };
+};
+
+// The worker dispatcher percent-decodes a request path (up to four rounds, as
+// `resolvePrefixPathname` does), matches a prefix on path-segment boundaries
+// and takes the first matching binding, so overlapping prefixes, including
+// encoded aliases of one another, route ambiguously.
+const decodeRoutePrefix = (prefix: string) => {
+  let decoded = prefix;
+  for (let round = 0; round < 4; round += 1) {
+    let next: string;
+    try {
+      next = decodeURIComponent(decoded);
+    } catch {
+      return decoded;
+    }
+    if (next === decoded) {
+      return decoded;
+    }
+    decoded = next;
+  }
+  return decoded;
+};
+
+const normalizeRoutePrefix = (prefix: string) => {
+  const decoded = decodeRoutePrefix(prefix);
+  return decoded === '/' ? decoded : decoded.replace(/\/+$/u, '');
+};
+
+// The dispatcher matches `new URL(request.url).pathname`, so a prefix is
+// routable only if URL parsing keeps it unchanged: no query or fragment, no
+// `.`/`..` segments, nothing URL parsing would re-encode, and no percent-encoding
+// (the dispatcher decodes request paths before matching).
+const isCanonicalRoutePrefix = (prefix: string) =>
+  prefix.startsWith('/') &&
+  !prefix.includes('\\') &&
+  decodeRoutePrefix(prefix) === prefix &&
+  new URL(prefix, 'https://route.invalid').pathname === prefix;
+
+/**
+ * Names the generated Worker may already expose on `env`, collected
+ * conservatively so no Wrangler binding shape is missed: every `binding` field
+ * at any depth (assets, D1, KV, Hyperdrive, queue producers, …), the `name` of
+ * every array entry (Durable Objects, `send_email`, `ratelimits`, `unsafe` and
+ * `logfwdr` bindings, …), and `vars` keys. A non-binding array `name` can only
+ * make a VPC name collide, never let a real collision through. Service and VPC
+ * bindings are checked separately; per-environment overrides live under `env`.
+ */
+const collectWorkerBindingNames = (config: Record<string, JsonValue>) => {
+  const names = new Set<string>();
+  const visit = (value: JsonValue, inArray: boolean) => {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        visit(item, true);
+      }
+      return;
+    }
+    if (!isJsonRecord(value)) {
+      return;
+    }
+    for (const field of inArray ? ['binding', 'name'] : ['binding']) {
+      const name = value[field];
+      if (typeof name === 'string') {
+        names.add(name.trim());
+      }
+    }
+    for (const child of Object.values(value)) {
+      visit(child, false);
+    }
+  };
+  for (const [key, value] of Object.entries(config)) {
+    if (key === 'env' || key === 'services' || key === 'vpc_services') {
+      continue;
+    }
+    if (key === 'vars' && isJsonRecord(value)) {
+      for (const name of Object.keys(value)) {
+        names.add(name);
+      }
+      continue;
+    }
+    visit(value, false);
+  }
+  return names;
+};
+
+const prefixesOverlap = (left: string, right: string) => {
+  const [first, second] = [
+    normalizeRoutePrefix(left),
+    normalizeRoutePrefix(right),
+  ];
+  return (
+    first === '/' ||
+    second === '/' ||
+    first === second ||
+    first.startsWith(`${second}/`) ||
+    second.startsWith(`${first}/`)
+  );
+};
+
+/**
+ * The prefix the worker's Effect BFF dispatcher owns. It runs before any
+ * service binding, so it takes part in route-overlap checks.
+ */
+export const getWorkerEffectBffPrefix = (
+  modernConfig: CloudflareModernConfig,
+) => {
+  const bffPrefix = modernConfig.bff?.prefix;
+  const primaryBffPrefix = Array.isArray(bffPrefix) ? bffPrefix[0] : bffPrefix;
+  const isEffectApi =
+    Boolean(modernConfig.bff) && modernConfig.bff?.runtimeFramework !== 'hono';
+  return isEffectApi && primaryBffPrefix ? primaryBffPrefix : undefined;
+};
+
+const effectiveServiceBindings = (
+  serviceBindings: ReturnType<typeof createWorkerServiceBindings>,
+) => {
+  const bindings: unknown[] = Array.isArray(serviceBindings)
+    ? serviceBindings
+    : [];
+  return bindings.flatMap(service =>
+    isJsonRecord(service) && typeof service.binding === 'string'
+      ? [
+          {
+            binding: service.binding.trim(),
+            prefix:
+              typeof service.prefix === 'string' ? service.prefix : undefined,
+          },
+        ]
+      : [],
+  );
+};
+
+export const createWorkerVpcServiceBindings = (
+  modernConfig: CloudflareModernConfig,
+  configuredWranglerVpcServices: JsonValue | undefined,
+  serviceBindings: ReturnType<typeof createWorkerServiceBindings>,
+  workerBindingNames: ReadonlySet<string>,
+) => {
+  const vpcServices = modernConfig.deploy?.worker?.vpcServices;
+
+  if (vpcServices === undefined) {
+    return undefined;
+  }
+
+  if (configuredWranglerVpcServices !== undefined) {
+    throw new Error(
+      'Use deploy.worker.vpcServices or deploy.worker.wrangler.vpc_services, not both.',
+    );
+  }
+
+  if (!Array.isArray(vpcServices)) {
+    throw new Error('deploy.worker.vpcServices must be an array.');
+  }
+
+  const services = effectiveServiceBindings(serviceBindings);
+  const serviceBindingNames = new Set(services.map(({ binding }) => binding));
+  const effectBffPrefix = getWorkerEffectBffPrefix(modernConfig);
+  const routes = [
+    ...(effectBffPrefix === undefined
+      ? []
+      : [{ owner: 'the Effect BFF', prefix: effectBffPrefix }]),
+    ...services.flatMap(({ binding, prefix }) =>
+      prefix === undefined ? [] : [{ owner: `binding "${binding}"`, prefix }],
+    ),
+  ];
+  const vpcBindingNames = new Set<string>();
+
+  return vpcServices.map((vpcService, index) => {
+    const normalized = normalizeVpcService(vpcService, index);
+    if (serviceBindingNames.has(normalized.binding)) {
+      throw new Error(
+        `deploy.worker.vpcServices[${index}].binding "${normalized.binding}" is already declared by deploy.worker.services.`,
+      );
+    }
+    if (workerBindingNames.has(normalized.binding)) {
+      throw new Error(
+        `deploy.worker.vpcServices[${index}].binding "${normalized.binding}" is already a binding of this Worker.`,
+      );
+    }
+    if (vpcBindingNames.has(normalized.binding)) {
+      throw new Error(
+        `deploy.worker.vpcServices[${index}].binding "${normalized.binding}" is declared more than once.`,
+      );
+    }
+    vpcBindingNames.add(normalized.binding);
+    if (normalized.prefix !== undefined) {
+      const { prefix } = normalized;
+      if (!isCanonicalRoutePrefix(prefix)) {
+        throw new Error(
+          `deploy.worker.vpcServices[${index}].prefix "${prefix}" must be a decoded URL path that starts with "/" (no query, fragment, "." or ".." segments).`,
+        );
+      }
+      const shadow = routes.find(route =>
+        prefixesOverlap(route.prefix, prefix),
+      );
+      if (shadow !== undefined) {
+        throw new Error(
+          `deploy.worker.vpcServices[${index}].prefix "${prefix}" overlaps the prefix "${shadow.prefix}" of ${shadow.owner}; the worker dispatcher would route one of them ambiguously.`,
+        );
+      }
+      routes.push({ owner: `binding "${normalized.binding}"`, prefix });
+    }
+    return normalized;
+  });
+};
+
 const createWranglerServices = (
   serviceBindings: ReturnType<typeof createWorkerServiceBindings>,
 ) => {
@@ -338,9 +567,24 @@ const createWranglerServices = (
 
 export const createWorkerManifestServiceBindings = (
   serviceBindings: ReturnType<typeof createWorkerServiceBindings>,
+  vpcServiceBindings: ReturnType<typeof createWorkerVpcServiceBindings>,
 ) => {
+  const vpcManifestBindings = (vpcServiceBindings ?? []).flatMap(
+    ({ binding, prefix, serviceId }) =>
+      prefix === undefined
+        ? []
+        : [
+            {
+              binding,
+              interface: 'fetch',
+              prefix,
+              vpcServiceId: serviceId,
+            },
+          ],
+  );
+
   if (!Array.isArray(serviceBindings)) {
-    return undefined;
+    return vpcManifestBindings.length > 0 ? vpcManifestBindings : undefined;
   }
 
   const bindings: unknown[] = serviceBindings;
@@ -375,7 +619,9 @@ export const createWorkerManifestServiceBindings = (
         : { fragments: service.fragments }),
     }));
 
-  return manifestBindings.length > 0 ? manifestBindings : undefined;
+  const allBindings = [...manifestBindings, ...vpcManifestBindings];
+
+  return allBindings.length > 0 ? allBindings : undefined;
 };
 
 export const createWranglerConfig = (
@@ -393,8 +639,7 @@ export const createWranglerConfig = (
     wrangler.services,
   );
   const wranglerServices = createWranglerServices(serviceBindings);
-
-  return {
+  const workerConfig = {
     $schema: 'node_modules/wrangler/config-schema.json',
     name: getConfiguredWorkerName(appDirectory, modernConfig),
     ...wrangler,
@@ -410,5 +655,60 @@ export const createWranglerConfig = (
     ...(environments === undefined ? {} : { env: environments }),
     ...(d1Databases === undefined ? {} : { d1_databases: d1Databases }),
     ...(wranglerServices === undefined ? {} : { services: wranglerServices }),
+  };
+  const vpcServiceBindings = createWorkerVpcServiceBindings(
+    modernConfig,
+    wrangler.vpc_services,
+    serviceBindings,
+    collectWorkerBindingNames(workerConfig),
+  );
+
+  if (vpcServiceBindings === undefined) {
+    return workerConfig;
+  }
+  const vpcServicesConfig = vpcServiceBindings.map(
+    ({ binding, serviceId }) => ({
+      binding,
+      service_id: serviceId,
+    }),
+  );
+
+  return {
+    ...workerConfig,
+    // Wrangler bindings are not inherited by named environments, so every
+    // configured environment receives the typed VPC bindings as well.
+    ...(environments === undefined
+      ? {}
+      : {
+          env: Object.fromEntries(
+            Object.entries(environments).map(([name, environment]) => {
+              if (environment.vpc_services !== undefined) {
+                throw new Error(
+                  `Use deploy.worker.vpcServices or deploy.worker.wrangler.env.${name}.vpc_services, not both.`,
+                );
+              }
+              // A named environment declares its own (non-inherited) bindings.
+              const environmentBindingNames = new Set([
+                ...collectWorkerBindingNames(environment),
+                ...effectiveServiceBindings(environment.services).map(
+                  ({ binding }) => binding,
+                ),
+              ]);
+              const collision = vpcServiceBindings.find(({ binding }) =>
+                environmentBindingNames.has(binding),
+              );
+              if (collision !== undefined) {
+                throw new Error(
+                  `deploy.worker.vpcServices binding "${collision.binding}" is already a binding of deploy.worker.wrangler.env.${name}.`,
+                );
+              }
+              return [
+                name,
+                { ...environment, vpc_services: vpcServicesConfig },
+              ];
+            }),
+          ),
+        }),
+    vpc_services: vpcServicesConfig,
   };
 };
