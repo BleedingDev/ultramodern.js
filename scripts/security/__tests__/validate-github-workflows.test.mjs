@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 import {
   validateRepository,
+  validateTractorBaselinePin,
   validateWorkflowContent,
 } from '../validate-github-workflows.mjs';
 
@@ -249,11 +252,35 @@ test('allowlist entries suppress only the matching error', () => {
   );
 });
 
+test('the Tractor baseline pin file must hold one immutable commit SHA', () => {
+  const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tractor-pin-'));
+  try {
+    const pinPath = path.join(
+      rootDir,
+      'scripts/ultramodern-publish/tractor-baseline-revision',
+    );
+    assert.equal(validateTractorBaselinePin(rootDir).length, 1);
+    fs.mkdirSync(path.dirname(pinPath), { recursive: true });
+    for (const invalid of [
+      'main\n',
+      `${'a'.repeat(40)}`,
+      `${'A'.repeat(40)}\n`,
+    ]) {
+      fs.writeFileSync(pinPath, invalid);
+      assert.equal(validateTractorBaselinePin(rootDir).length, 1, invalid);
+    }
+    fs.writeFileSync(pinPath, `${'a'.repeat(40)}\n`);
+    assert.deepEqual(validateTractorBaselinePin(rootDir), []);
+  } finally {
+    fs.rmSync(rootDir, { recursive: true, force: true });
+  }
+});
+
 test('the real repository tree passes the validator end to end', () => {
   assert.deepEqual(validateRepository(), []);
 });
 
-test('release jobs reject inline programs and different Tractor acceptance revisions', () => {
+test('release jobs reject inline programs and a Tractor baseline pinned in workflow YAML', () => {
   const workflowPath = '.github/workflows/publish-bleedingdev.yml';
   const content = fs.readFileSync(
     new URL(
@@ -262,14 +289,20 @@ test('release jobs reject inline programs and different Tractor acceptance revis
     ),
     'utf8',
   );
-  const pin = /tractor_ref: ([a-f0-9]{40})/u.exec(content)[1];
-  const changedPin = content.replace(
-    `tractor_ref: ${pin}`,
-    `tractor_ref: ${'0'.repeat(40)}`,
+  // Regression: 3.9.0-ultramodern.24 lost its release record because the
+  // post-publish Tractor pin advance edited this workflow mid-run, and GitHub
+  // refuses GITHUB_TOKEN a tag whose commit's workflows differ from the
+  // default branch.
+  const workflowPinned = content.replace(
+    '      wait_for_registry_cohort: true\n',
+    `      wait_for_registry_cohort: true\n      tractor_ref: ${'0'.repeat(40)}\n`,
   );
+  assert.notEqual(workflowPinned, content);
   assert.ok(
-    validateWorkflowContent(workflowPath, changedPin).some(error =>
-      error.includes('same immutable tractor_ref'),
+    validateWorkflowContent(workflowPath, workflowPinned).some(error =>
+      error.includes(
+        'job tractor-downstream must call ultramodern-tractor-downstream.yml without a tractor_ref',
+      ),
     ),
   );
   for (const inline of [

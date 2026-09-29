@@ -17,10 +17,6 @@ on:
         description: Exact UltraModern release-bundle artifact name from this run
         required: true
         type: string
-      tractor_ref:
-        description: Immutable Tractor Store baseline commit
-        required: true
-        type: string
       wait_for_registry_cohort:
         description: >-
           Block on the exact published cohort becoming verifiable in the
@@ -89,12 +85,28 @@ jobs:
           path: modernjs
           persist-credentials: false
 
+      # The baseline pin is reviewed source, not workflow YAML. It advances
+      # after every accepted Tractor adoption, and a workflow edit landing
+      # while a publish run is in flight makes GitHub refuse that run's
+      # GITHUB_TOKEN the release tag (publish-change-record), because the
+      # tagged commit's .github/workflows then differs from the default branch.
+      - name: Resolve the pinned Tractor baseline
+        id: baseline
+        working-directory: modernjs
+        run: |
+          read -r revision < scripts/ultramodern-publish/tractor-baseline-revision
+          if [[ ! "$revision" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::scripts/ultramodern-publish/tractor-baseline-revision must hold an immutable commit SHA" >&2
+            exit 1
+          fi
+          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+
       - name: Checkout immutable Tractor baseline
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
           repository: BleedingDev/tractor-store-vertical-demo
-          ref: ${{ inputs.tractor_ref }}
+          ref: ${{ steps.baseline.outputs.revision }}
           path: tractor
           persist-credentials: false
 
@@ -188,7 +200,7 @@ jobs:
         if: always() && inputs.mode == 'published'
         working-directory: modernjs
         env:
-          TRACTOR_REF: ${{ inputs.tractor_ref }}
+          TRACTOR_REF: ${{ steps.baseline.outputs.revision }}
         run: node scripts/ultramodern-publish/bind-tractor-acceptance-evidence.mjs
 
       - name: Upload Tractor acceptance evidence

@@ -84,6 +84,8 @@ export const ALLOWLIST = [
 ];
 
 const shaPattern = /^[a-f0-9]{40}$/;
+const tractorBaselinePinPath =
+  'scripts/ultramodern-publish/tractor-baseline-revision';
 
 function isAllowed(allowlist, relativePath, rule, message) {
   return allowlist.some(
@@ -1020,14 +1022,20 @@ function collectBleedingdevPublishStructureErrors(workflow, relativePath) {
     );
   }
 
-  const tractorRef = jobs['rehearse-tractor']?.with?.tractor_ref;
-  if (
-    !shaPattern.test(tractorRef ?? '') ||
-    tractorRef !== jobs['tractor-downstream']?.with?.tractor_ref
-  ) {
-    errors.push(
-      `${relativePath} Tractor rehearsal and published acceptance must use the same immutable tractor_ref`,
-    );
+  // The Tractor baseline advances after every accepted adoption. Pinning it in
+  // workflow YAML turns each advance into a workflow edit, and a workflow edit
+  // landing during a publish run makes GitHub refuse that run's GITHUB_TOKEN
+  // the release tag. Both lanes read the one reviewed pin file instead.
+  for (const jobId of ['rehearse-tractor', 'tractor-downstream']) {
+    if (
+      jobs[jobId]?.uses !==
+        './.github/workflows/ultramodern-tractor-downstream.yml' ||
+      (isObject(jobs[jobId]?.with) && 'tractor_ref' in jobs[jobId].with)
+    ) {
+      errors.push(
+        `${relativePath} job ${jobId} must call ultramodern-tractor-downstream.yml without a tractor_ref; the baseline lives in ${tractorBaselinePinPath}`,
+      );
+    }
   }
   for (const { jobId, step } of workflowSteps(workflow)) {
     if (typeof step.run !== 'string') continue;
@@ -2061,7 +2069,23 @@ export function validateRepository(rootDir = repoRoot) {
       { requirePinLatticeCarveOuts: false },
     ),
   ];
-  return [...workflowErrors, ...renovateErrors];
+  return [
+    ...workflowErrors,
+    ...renovateErrors,
+    ...validateTractorBaselinePin(rootDir),
+  ];
+}
+
+export function validateTractorBaselinePin(rootDir = repoRoot) {
+  const absolutePath = path.join(rootDir, tractorBaselinePinPath);
+  const content = fs.existsSync(absolutePath)
+    ? fs.readFileSync(absolutePath, 'utf-8')
+    : '';
+  return /^[a-f0-9]{40}\n$/u.test(content)
+    ? []
+    : [
+        `${tractorBaselinePinPath} must hold exactly one immutable Tractor commit SHA and a trailing newline`,
+      ];
 }
 
 function main() {
