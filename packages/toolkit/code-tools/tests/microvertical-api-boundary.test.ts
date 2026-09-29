@@ -1300,6 +1300,17 @@ alias!.success = Schema.Unknown;
 export const read = target.success;`,
     ],
     [
+      'constructor-receiver-write.ts',
+      `import { Schema } from 'effect';
+const target = { success: Schema.String };
+class Mutator {
+  value: { success: unknown };
+  constructor(value: { success: unknown }) { this.value = value; this.value.success = Schema.Unknown; }
+}
+new Mutator(target);
+export const read = target.success;`,
+    ],
+    [
       'callback-write.ts',
       `import { Schema } from 'effect';
 const target = { success: Schema.String };
