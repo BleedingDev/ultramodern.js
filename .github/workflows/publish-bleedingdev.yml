@@ -1532,7 +1532,7 @@ jobs:
             WORKFLOW_DRIFT="$(gh api "repos/$GITHUB_REPOSITORY/compare/$SOURCE_COMMIT...$DEFAULT_BRANCH" \
               --jq '[.files[].filename | select(startswith(".github/workflows/"))] | join(" ")')"
             if [ -n "$WORKFLOW_DRIFT" ]; then
-              echo "::error::$DEFAULT_BRANCH changed $WORKFLOW_DRIFT after $SOURCE_COMMIT, so GITHUB_TOKEN cannot create tag $TAG. An owner pushes it first: git push origin $SOURCE_COMMIT:refs/tags/$TAG" >&2
+              echo "::error::$DEFAULT_BRANCH changed $WORKFLOW_DRIFT after $SOURCE_COMMIT, so GITHUB_TOKEN cannot create tag $TAG. An owner creates it first: gh api repos/$GITHUB_REPOSITORY/git/refs -f ref=refs/tags/$TAG -f sha=$SOURCE_COMMIT" >&2
               exit 1
             fi
             gh release create "$TAG" \
