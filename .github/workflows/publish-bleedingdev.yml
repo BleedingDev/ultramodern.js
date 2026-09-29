@@ -867,9 +867,6 @@ jobs:
     with:
       mode: source
       release_bundle_artifact: bleedingdev-release-bundle-${{ needs.prepare-release.outputs.producer_artifact_identity }}
-      # Must stay identical to the published tractor-downstream pin below.
-      # The workflow validator enforces equality with the published pin.
-      tractor_ref: de8e98714abeece5cd5b04a52c6edc05c4ca2d41
 
   # Sidecars are NOT cohort members: they keep their own stable versions and
   # their own scope, and they are published from this dedicated job strictly
@@ -1241,8 +1238,6 @@ jobs:
       mode: published
       release_bundle_artifact: bleedingdev-release-bundle-${{ needs.prepare-release.outputs.producer_artifact_identity }}
       wait_for_registry_cohort: true
-      # Advance this reviewed immutable baseline after every accepted Tractor update.
-      tractor_ref: de8e98714abeece5cd5b04a52c6edc05c4ca2d41
 
   record-publish-outcome:
     name: Record the authenticated publish outcome
@@ -1488,6 +1483,7 @@ jobs:
       - name: Create or update the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           PUBLISH_VERSION: ${{ steps.change-record.outputs.version }}
           SOURCE_COMMIT: ${{ steps.change-record.outputs.source_commit }}
         run: |
@@ -1516,6 +1512,21 @@ jobs:
               --title "$TITLE" \
               --notes-file "$NOTES"
           else
+            # Without an existing tag the release creates it. GitHub refuses
+            # that to GITHUB_TOKEN (HTTP 403 "Resource not accessible by
+            # integration") whenever the tagged commit's .github/workflows
+            # differs from the default branch: it counts as a workflow change,
+            # and GITHUB_TOKEN can never hold the `workflows` permission. Name
+            # that cause and its recovery instead of the opaque 403; once an
+            # owner has pushed the tag, a rerun creates the release on it.
+            if [ -z "$EXISTING_TAG_SHA" ]; then
+              WORKFLOW_DRIFT="$(gh api "repos/$GITHUB_REPOSITORY/compare/$SOURCE_COMMIT...$DEFAULT_BRANCH" \
+                --jq '[.files[].filename | select(startswith(".github/workflows/"))] | join(" ")')"
+              if [ -n "$WORKFLOW_DRIFT" ]; then
+                echo "::error::$DEFAULT_BRANCH changed $WORKFLOW_DRIFT after $SOURCE_COMMIT, so GITHUB_TOKEN cannot create tag $TAG. An owner pushes it first: git push origin $SOURCE_COMMIT:refs/tags/$TAG" >&2
+                exit 1
+              fi
+            fi
             gh release create "$TAG" \
               --repo "$GITHUB_REPOSITORY" \
               --target "$SOURCE_COMMIT" \
@@ -1526,7 +1537,7 @@ jobs:
       - name: Explain how to recover the release record
         if: failure()
         run: |
-          echo "::error::npm publication succeeded; only the GitHub release record is missing. Run: gh run rerun $GITHUB_RUN_ID --failed --repo $GITHUB_REPOSITORY"
+          echo "::error::npm publication succeeded; only the GitHub release record is missing. Resolve the error above, then run: gh run rerun $GITHUB_RUN_ID --failed --repo $GITHUB_REPOSITORY"
 
       - name: Upload the change record
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

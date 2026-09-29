@@ -270,7 +270,10 @@ test('a dry run never claims published acceptance evidence', async t => {
     summary,
     /push the passing report's `applicationSourceRevision` to main/u,
   );
-  assert.match(summary, /update both `tractor_ref` pins/u);
+  assert.match(
+    summary,
+    /advance `scripts\/ultramodern-publish\/tractor-baseline-revision` to it/u,
+  );
   assert.doesNotMatch(summary, /promotable Tractor revision|merge `/u);
 });
 
