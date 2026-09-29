@@ -203,15 +203,23 @@ const OPAQUE_RECEIVER = {} as Binding;
 /**
  * `get().key`, `(a || b).key` or `this.key`: a member write on a receiver
  * this analysis does not resolve. `this` in a class constructor is the new
- * instance, so its writes are not opaque.
+ * instance, so writes of its own slots (`this.key = v`) are not opaque; a
+ * deeper write (`this.key.nested = v`) mutates whatever the slot holds.
  */
 const opaqueReceiver = (target: t.Node, scope: Scope): boolean => {
   let current = unwrapExpression(target, true);
   if (!t.isMemberExpression(current) && !t.isOptionalMemberExpression(current))
     return false;
-  while (t.isMemberExpression(current) || t.isOptionalMemberExpression(current))
+  let depth = 0;
+  while (
+    t.isMemberExpression(current) ||
+    t.isOptionalMemberExpression(current)
+  ) {
+    depth += 1;
     current = unwrapExpression(current.object, true);
+  }
   if (t.isThisExpression(current)) {
+    if (depth > 1) return true;
     // Arrow functions see the `this` of their enclosing function.
     let owner = scope.getFunctionParent();
     while (owner && t.isArrowFunctionExpression(owner.block))
