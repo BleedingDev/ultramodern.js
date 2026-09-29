@@ -285,6 +285,27 @@ const workerName = (app) => {
   return app.wrangler.name;
 };
 
+// Wrangler's local Hyperdrive convention: a binding's local PostgreSQL comes from
+// CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_<BINDING>, else its `localConnectionString`.
+const createLocalHyperdrives = (app) => {
+  const hyperdrive = Array.isArray(app.wrangler.hyperdrive) ? app.wrangler.hyperdrive : [];
+  return Object.fromEntries(
+    hyperdrive.map((entry) => {
+      assert(
+        typeof entry?.binding === "string" && entry.binding.length > 0,
+        `${app.id} has an invalid Hyperdrive binding`,
+      );
+      const variable = `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_${entry.binding}`;
+      const connectionString = process.env[variable] || entry.localConnectionString;
+      assert(
+        typeof connectionString === "string" && connectionString.length > 0,
+        `${app.id} Hyperdrive binding ${entry.binding} needs a local PostgreSQL connection string; set ${variable}`,
+      );
+      return [entry.binding, connectionString];
+    }),
+  );
+};
+
 const createWorkerOptions = (app, workspaceRoot, extra = {}) => {
   const main = typeof app.wrangler.main === "string" ? app.wrangler.main : "server/index.mjs";
   const assets =
@@ -356,6 +377,7 @@ const createWorkerOptions = (app, workspaceRoot, extra = {}) => {
     compatibilityDate: app.wrangler.compatibility_date,
     compatibilityFlags: app.wrangler.compatibility_flags,
     bindings: { ...app.wrangler.vars, ...app.devVars },
+    hyperdrives: createLocalHyperdrives(app),
     assets: {
       binding: typeof assets.binding === "string" ? assets.binding : "ASSETS",
       directory: path.resolve(app.outputRoot, directory),

@@ -9,7 +9,7 @@ export default {
       return finalizeResponseForRequest(corsPreflightResponse, request);
     }
 
-    const bffResponse = await dispatchBffRequest(request, env);
+    const bffResponse = await dispatchBffRequest(request, env, ctx);
 
     if (bffResponse) {
       return finalizeResponseForRequest(
