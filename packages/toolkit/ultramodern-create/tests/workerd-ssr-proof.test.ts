@@ -238,7 +238,7 @@ const contactsWorker = `export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === '/contacts-api/readiness') {
-      return Response.json({ status: 'ready', secretConfigured: env.PROOF_SECRET === 'local', marker: { appId: 'contacts', build: 'b1', version: '1.0.0' } });
+      return Response.json({ status: 'ready', secretConfigured: env.PROOF_SECRET === 'local', hyperdriveConnectionString: env.HYPERDRIVE?.connectionString === undefined ? null : typeof env.HYPERDRIVE.connectionString, marker: { appId: 'contacts', build: 'b1', version: '1.0.0' } });
     }
     if (url.pathname === '/en/_mf/fragment/widget') {
       return new Response('<div>widget</div>', { headers: { 'content-type': 'text/html' } });
@@ -254,6 +254,7 @@ const contactsWorker = `export default {
 function createFixtureWorkspace(options: {
   renderBoundary: boolean;
   shellCloudflare?: Record<string, unknown>;
+  contactsWrangler?: Record<string, unknown>;
 }) {
   const root = fs.realpathSync(
     fs.mkdtempSync(path.join(os.tmpdir(), 'um-workerd-ssr-proof-')),
@@ -320,7 +321,7 @@ function createFixtureWorkspace(options: {
   writeFile(path.join(shellOutput, 'public/.keep'), '');
   writeFile(
     path.join(contactsOutput, 'wrangler.json'),
-    wrangler('app-contacts'),
+    wrangler('app-contacts', options.contactsWrangler),
   );
   writeFile(path.join(contactsOutput, 'server/index.mjs'), contactsWorker);
   writeFile(path.join(contactsOutput, 'public/.keep'), '');
@@ -357,10 +358,10 @@ function createFixtureWorkspace(options: {
   return root;
 }
 
-function runProof(root: string) {
+function runProof(root: string, env: Record<string, string> = {}) {
   const result = spawnSync(process.execPath, [templatePath], {
     cwd: root,
-    env: { ...process.env, ULTRAMODERN_WORKSPACE_ROOT: root },
+    env: { ...process.env, ...env, ULTRAMODERN_WORKSPACE_ROOT: root },
     encoding: 'utf8',
   });
   if (result.error) throw result.error;
@@ -410,6 +411,52 @@ describe('workerd SSR proof fixture execution', () => {
         ),
       );
       assert.equal(body.secretConfigured, true);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  test('binds a Worker Hyperdrive to its local PostgreSQL as Wrangler does', () => {
+    const root = createFixtureWorkspace({
+      renderBoundary: true,
+      contactsWrangler: {
+        hyperdrive: [{ binding: 'HYPERDRIVE', id: '0'.repeat(32) }],
+      },
+    });
+    try {
+      const { status, output } = runProof(root, {
+        CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE:
+          'postgresql://proof:proof@127.0.0.1:5432/proof',
+      });
+      assert.equal(status, 0, output);
+      const body = JSON.parse(
+        Buffer.from(
+          readReport(root).apiProofs[0].direct.bodyBase64,
+          'base64',
+        ).toString('utf8'),
+      );
+      assert.equal(body.hyperdriveConnectionString, 'string');
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  test('names the missing local connection string of a Hyperdrive binding', () => {
+    const root = createFixtureWorkspace({
+      renderBoundary: true,
+      contactsWrangler: {
+        hyperdrive: [{ binding: 'HYPERDRIVE', id: '0'.repeat(32) }],
+      },
+    });
+    try {
+      const { status, output } = runProof(root, {
+        CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE: '',
+      });
+      assert.equal(status, 1, output);
+      assert.match(
+        output,
+        /contacts Hyperdrive binding HYPERDRIVE needs a local PostgreSQL connection string; set CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE/u,
+      );
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }

@@ -237,109 +237,112 @@ function createEffectBffDispatcherErrorResponse(bff, error) {
   );
 }
 
-function getEffectBffDispatcher(bff, runtime) {
-  let effectDispatcherPromise = effectBffDispatcherPromises.get(bff.worker);
-
-  if (effectDispatcherPromise) {
-    return effectDispatcherPromise;
+// workerd binds every I/O object (sockets, timers, pending promises) to the request that
+// created it, so an Effect runtime built while serving one request cannot serve the next: a
+// pooled PostgreSQL connection or a cached in-flight effect from an earlier request never
+// completes. Each BFF request therefore builds its own dispatcher and disposes it once the
+// response body has been delivered; platform pools such as Hyperdrive keep connections warm.
+async function createEffectBffDispatcher(bff, runtime) {
+  if (
+    typeof bff.dispatcherExport !== 'string' ||
+    bff.dispatcherExport.length === 0
+  ) {
+    throw new Error('manifest does not declare dispatcherExport');
   }
 
-  effectDispatcherPromise = Promise.resolve().then(async () => {
-    if (
-      typeof bff.dispatcherExport !== 'string' ||
-      bff.dispatcherExport.length === 0
-    ) {
-      throw new Error('manifest does not declare dispatcherExport');
-    }
+  const effectDispatcherFactory = runtime[bff.dispatcherExport];
 
-    const effectDispatcherFactory = runtime[bff.dispatcherExport];
+  if (typeof effectDispatcherFactory !== 'function') {
+    throw new Error(`worker bundle does not export ${bff.dispatcherExport}`);
+  }
 
-    if (typeof effectDispatcherFactory !== 'function') {
-      throw new Error(`worker bundle does not export ${bff.dispatcherExport}`);
-    }
-
-    const effectConfig = bff.effect;
-    if (
-      !effectConfig ||
-      typeof effectConfig !== 'object' ||
-      Array.isArray(effectConfig)
-    ) {
-      throw new Error('manifest declares invalid Effect BFF runtime config');
-    }
-    const crossProjectPolicy = effectConfig.crossProjectPolicy;
-    if (
-      !crossProjectPolicy ||
-      typeof crossProjectPolicy !== 'object' ||
-      Array.isArray(crossProjectPolicy)
-    ) {
+  const effectConfig = bff.effect;
+  if (
+    !effectConfig ||
+    typeof effectConfig !== 'object' ||
+    Array.isArray(effectConfig)
+  ) {
+    throw new Error('manifest declares invalid Effect BFF runtime config');
+  }
+  const crossProjectPolicy = effectConfig.crossProjectPolicy;
+  if (
+    !crossProjectPolicy ||
+    typeof crossProjectPolicy !== 'object' ||
+    Array.isArray(crossProjectPolicy)
+  ) {
+    throw new Error(
+      'manifest declares invalid Effect BFF cross-project policy',
+    );
+  }
+  for (const field of [
+    'enabled',
+    'requireEnvelope',
+    'requireOperationContext',
+    'requireOperationContextDetails',
+    'requireOperationSchemaHash',
+    'requireOperationVersion',
+    'allowUnknownOperations',
+  ]) {
+    if (typeof crossProjectPolicy[field] !== 'boolean') {
       throw new Error(
-        'manifest declares invalid Effect BFF cross-project policy',
+        `manifest Effect BFF cross-project policy requires boolean ${field}`,
       );
     }
-    for (const field of [
-      'enabled',
-      'requireEnvelope',
-      'requireOperationContext',
-      'requireOperationContextDetails',
-      'requireOperationSchemaHash',
-      'requireOperationVersion',
-      'allowUnknownOperations',
-    ]) {
-      if (typeof crossProjectPolicy[field] !== 'boolean') {
-        throw new Error(
-          `manifest Effect BFF cross-project policy requires boolean ${field}`,
-        );
-      }
-    }
-    if (
-      !crossProjectPolicy.expectedOperationContracts ||
-      typeof crossProjectPolicy.expectedOperationContracts !== 'object' ||
-      Array.isArray(crossProjectPolicy.expectedOperationContracts)
-    ) {
-      throw new Error(
-        'manifest Effect BFF cross-project policy requires expectedOperationContracts object',
-      );
-    }
+  }
+  if (
+    !crossProjectPolicy.expectedOperationContracts ||
+    typeof crossProjectPolicy.expectedOperationContracts !== 'object' ||
+    Array.isArray(crossProjectPolicy.expectedOperationContracts)
+  ) {
+    throw new Error(
+      'manifest Effect BFF cross-project policy requires expectedOperationContracts object',
+    );
+  }
 
-    const effectDispatcher = await effectDispatcherFactory({
-      prefix: bff.prefix,
-      ...(effectConfig?.openapi === undefined
-        ? {}
-        : { openapi: effectConfig.openapi }),
-      ...(effectConfig?.dataPlatform === undefined
-        ? {}
-        : { dataPlatform: effectConfig.dataPlatform }),
-      ...(effectConfig?.crossProjectPolicy === undefined
-        ? {}
-        : { crossProjectPolicy }),
-    });
-
-    if (!effectDispatcher || typeof effectDispatcher.dispatch !== 'function') {
-      try {
-        await effectDispatcher?.dispose?.();
-      } catch {}
-
-      throw new Error(
-        `worker export ${bff.dispatcherExport} did not return a dispatcher with a dispatch function`,
-      );
-    }
-
-    return effectDispatcher;
+  const effectDispatcher = await effectDispatcherFactory({
+    prefix: bff.prefix,
+    ...(effectConfig?.openapi === undefined
+      ? {}
+      : { openapi: effectConfig.openapi }),
+    ...(effectConfig?.dataPlatform === undefined
+      ? {}
+      : { dataPlatform: effectConfig.dataPlatform }),
+    ...(effectConfig?.crossProjectPolicy === undefined
+      ? {}
+      : { crossProjectPolicy }),
   });
 
-  effectBffDispatcherPromises.set(bff.worker, effectDispatcherPromise);
-  effectDispatcherPromise.catch(() => {
-    if (
-      effectBffDispatcherPromises.get(bff.worker) === effectDispatcherPromise
-    ) {
-      effectBffDispatcherPromises.delete(bff.worker);
-    }
-  });
+  if (!effectDispatcher || typeof effectDispatcher.dispatch !== 'function') {
+    try {
+      await effectDispatcher?.dispose?.();
+    } catch {}
 
-  return effectDispatcherPromise;
+    throw new Error(
+      `worker export ${bff.dispatcherExport} did not return a dispatcher with a dispatch function`,
+    );
+  }
+
+  return effectDispatcher;
 }
 
-async function dispatchBffRequest(request, env) {
+function disposeEffectBffDispatcherAfterResponse(response, dispatcher, ctx) {
+  if (response.body === null) {
+    ctx.waitUntil(dispatcher.dispose());
+    return response;
+  }
+  const { readable, writable } = new TransformStream();
+  // The body pipe settles when the client has the whole body or the stream failed; a failure
+  // already reached the client through `readable`, so it only has to release the runtime here.
+  ctx.waitUntil(
+    response.body
+      .pipeTo(writable)
+      .catch(() => undefined)
+      .then(() => dispatcher.dispose()),
+  );
+  return new Response(readable, response);
+}
+
+async function dispatchBffRequest(request, env, ctx) {
   const bff = MODERN_WORKER_MANIFEST.bff;
 
   const requestUrl = new URL(request.url);
@@ -384,12 +387,23 @@ async function dispatchBffRequest(request, env) {
     let effectDispatcher;
 
     try {
-      effectDispatcher = await getEffectBffDispatcher(bff, runtime);
+      effectDispatcher = await createEffectBffDispatcher(bff, runtime);
     } catch (error) {
       return createEffectBffDispatcherErrorResponse(bff, error);
     }
 
-    return effectDispatcher.dispatch(canonicalRequest, { env });
+    let response;
+    try {
+      response = await effectDispatcher.dispatch(canonicalRequest, { env });
+    } catch (error) {
+      ctx.waitUntil(effectDispatcher.dispose());
+      throw error;
+    }
+    return disposeEffectBffDispatcherAfterResponse(
+      response,
+      effectDispatcher,
+      ctx,
+    );
   }
 
   const directHandler =
