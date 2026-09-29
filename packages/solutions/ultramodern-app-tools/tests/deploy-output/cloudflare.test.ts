@@ -311,6 +311,19 @@ async function createFixture({
   };
 }
 
+// workerd hands every fetch an ExecutionContext; the generated Worker disposes each request's
+// Effect BFF runtime through `ctx.waitUntil`.
+const createExecutionContext = () => {
+  const pending: Promise<unknown>[] = [];
+  return {
+    pending,
+    passThroughOnException: () => undefined,
+    waitUntil: (promise: Promise<unknown>) => {
+      pending.push(promise);
+    },
+  };
+};
+
 const loadWorker = async (outputDirectory: string) =>
   (
     await import(
@@ -1138,12 +1151,18 @@ describe('cloudflare deploy preset', () => {
       },
     };
     const dispatch = async (pathname: string) => {
+      const executionContext = createExecutionContext();
       const response = await worker.fetch(
         new Request(`https://example.com${pathname}`),
         env,
+        executionContext,
       );
       expect(response.status).toBe(200);
-      return ((await response.json()) as { pathname: string }).pathname;
+      const { pathname: dispatchedPathname } = (await response.json()) as {
+        pathname: string;
+      };
+      await Promise.all(executionContext.pending);
+      return dispatchedPathname;
     };
 
     for (const pathname of [
