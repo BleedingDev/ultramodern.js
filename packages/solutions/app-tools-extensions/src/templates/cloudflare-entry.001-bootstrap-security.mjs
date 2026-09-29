@@ -238,6 +238,9 @@ function finalizeResponseForRequest(response, request) {
 
   const headers = new Headers(securedResponse.headers);
   headers.delete('content-length');
+  // A HEAD response sends no body, so release the producer's stream instead of abandoning it:
+  // a stream nobody reads never finishes, and whatever waits for its end never runs.
+  securedResponse.body?.cancel().catch(() => undefined);
 
   return new Response(null, {
     headers,

@@ -255,6 +255,7 @@ function createFixtureWorkspace(options: {
   renderBoundary: boolean;
   shellCloudflare?: Record<string, unknown>;
   contactsWrangler?: Record<string, unknown>;
+  contactsDevVars?: string;
 }) {
   const root = fs.realpathSync(
     fs.mkdtempSync(path.join(os.tmpdir(), 'um-workerd-ssr-proof-')),
@@ -325,7 +326,10 @@ function createFixtureWorkspace(options: {
   );
   writeFile(path.join(contactsOutput, 'server/index.mjs'), contactsWorker);
   writeFile(path.join(contactsOutput, 'public/.keep'), '');
-  writeFile(path.join(contactsOutput, '.dev.vars'), 'PROOF_SECRET=local\n');
+  writeFile(
+    path.join(contactsOutput, '.dev.vars'),
+    `PROOF_SECRET=local\n${options.contactsDevVars ?? ''}`,
+  );
   const workerBytes = fs.readFileSync(
     path.join(contactsOutput, 'server/index.mjs'),
   );
@@ -436,6 +440,25 @@ describe('workerd SSR proof fixture execution', () => {
         ).toString('utf8'),
       );
       assert.equal(body.hyperdriveConnectionString, 'string');
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  test("reads a Hyperdrive local connection string from the app's .dev.vars", () => {
+    const root = createFixtureWorkspace({
+      renderBoundary: true,
+      contactsWrangler: {
+        hyperdrive: [{ binding: 'HYPERDRIVE', id: '0'.repeat(32) }],
+      },
+      contactsDevVars:
+        'CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE=postgresql://proof:proof@127.0.0.1:5432/proof\n',
+    });
+    try {
+      const { status, output } = runProof(root, {
+        CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE: '',
+      });
+      assert.equal(status, 0, output);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }

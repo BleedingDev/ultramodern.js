@@ -48,14 +48,20 @@ export const __modern_create_effect_bff_dispatcher = async () => {
     dispatch: async () => {
       const disposedWhenDispatched = disposed;
       const encoder = new TextEncoder();
+      // Several chunks, so a body nobody reads applies backpressure instead of fitting a buffer.
+      const chunks = ['{"id":' + id, ',"disposedWhenDispatched":' + disposedWhenDispatched, ',"disposedBeforeBodyEnd":' + disposedBeforeBodyEnd + '}'];
       const body = new ReadableStream({
         async pull(controller) {
           await scheduler.wait(1);
-          controller.enqueue(encoder.encode(JSON.stringify({ id, disposedWhenDispatched, disposedBeforeBodyEnd })));
-          bodyDone = true;
-          controller.close();
+          const chunk = chunks.shift();
+          if (chunk === undefined) {
+            bodyDone = true;
+            controller.close();
+            return;
+          }
+          controller.enqueue(encoder.encode(chunk));
         },
-      });
+      }, { highWaterMark: 0 });
       return new Response(body, { headers: { 'content-type': 'application/json' } });
     },
     dispose: async () => {
@@ -77,27 +83,30 @@ const entrySource = () =>
       `{ ${JSON.stringify(manifest.bff.worker)}: () => import(${JSON.stringify(`../${manifest.bff.worker}`)}) }`,
     );
 
+const createWorker = () =>
+  new Miniflare(
+    convertV4MiniflareOptions({
+      compatibilityDate: DEFAULT_COMPATIBILITY_DATE,
+      compatibilityFlags: [...REQUIRED_COMPATIBILITY_FLAGS],
+      modules: [
+        {
+          type: 'ESModule',
+          path: '/output/server/index.mjs',
+          contents: entrySource(),
+        },
+        {
+          type: 'ESModule',
+          path: '/output/worker/__modern_bff_effect.js',
+          contents: bffWorker,
+        },
+      ],
+      modulesRoot: '/output',
+    }),
+  );
+
 describe('Cloudflare Effect BFF request scope', () => {
   it('builds a dispatcher per request and disposes it after the response body', async () => {
-    const worker = new Miniflare(
-      convertV4MiniflareOptions({
-        compatibilityDate: DEFAULT_COMPATIBILITY_DATE,
-        compatibilityFlags: [...REQUIRED_COMPATIBILITY_FLAGS],
-        modules: [
-          {
-            type: 'ESModule',
-            path: '/output/server/index.mjs',
-            contents: entrySource(),
-          },
-          {
-            type: 'ESModule',
-            path: '/output/worker/__modern_bff_effect.js',
-            contents: bffWorker,
-          },
-        ],
-        modulesRoot: '/output',
-      }),
-    );
+    const worker = createWorker();
     try {
       const first = await (
         await worker.dispatchFetch('https://app.invalid/api/ping')
@@ -117,6 +126,28 @@ describe('Cloudflare Effect BFF request scope', () => {
         disposedWhenDispatched: 1,
         disposedBeforeBodyEnd: false,
       });
+    } finally {
+      await worker.dispose();
+    }
+  }, 120_000);
+
+  it('releases the dispatcher of a HEAD request whose body is never sent', async () => {
+    const worker = createWorker();
+    try {
+      const head = await worker.dispatchFetch('https://app.invalid/api/ping', {
+        method: 'HEAD',
+      });
+      expect(await head.text()).toBe('');
+      // Disposal runs through waitUntil after the discarded body is cancelled.
+      let next: { id: number; disposedWhenDispatched: number } | undefined;
+      for (let attempt = 0; attempt < 50; attempt += 1) {
+        next = await (
+          await worker.dispatchFetch('https://app.invalid/api/ping')
+        ).json();
+        if (next.disposedWhenDispatched >= 1) break;
+        await new Promise(resolve => setTimeout(resolve, 20));
+      }
+      expect(next?.disposedWhenDispatched).toBeGreaterThanOrEqual(1);
     } finally {
       await worker.dispose();
     }
