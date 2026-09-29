@@ -286,7 +286,8 @@ const workerName = (app) => {
 };
 
 // Wrangler's local Hyperdrive convention: a binding's local PostgreSQL comes from
-// CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_<BINDING>, else its `localConnectionString`.
+// CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_<BINDING> (the app's .dev.vars, then the proof's
+// environment), else its `localConnectionString`.
 const createLocalHyperdrives = (app) => {
   const hyperdrive = Array.isArray(app.wrangler.hyperdrive) ? app.wrangler.hyperdrive : [];
   return Object.fromEntries(
@@ -296,7 +297,8 @@ const createLocalHyperdrives = (app) => {
         `${app.id} has an invalid Hyperdrive binding`,
       );
       const variable = `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_${entry.binding}`;
-      const connectionString = process.env[variable] || entry.localConnectionString;
+      const connectionString =
+        app.devVars[variable] || process.env[variable] || entry.localConnectionString;
       assert(
         typeof connectionString === "string" && connectionString.length > 0,
         `${app.id} Hyperdrive binding ${entry.binding} needs a local PostgreSQL connection string; set ${variable}`,
