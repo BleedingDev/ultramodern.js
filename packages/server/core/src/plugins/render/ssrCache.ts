@@ -79,42 +79,69 @@ async function processCache({
     const writer = stream.writable.getWriter();
 
     let html = '';
-    const push = (): Promise<void> =>
-      reader.read().then(async ({ done, value }) => {
-        if (done) {
-          html += decoder.decode();
-          const match = ZERO_RENDER_LEVEL.test(html) || NO_SSR_CACHE.test(html);
-          // case 1: We should not cache the html, if we can match the html is downgrading.
-          // case 2: We should not cache the html, if the user's code contains <NoSSRCache>.
-          if (match) {
-            await deleteCache();
-            return writer.close();
-          }
-          const current = Date.now();
-          const cache: CacheStruct = {
-            val: html,
-            cursor: current,
-            headers,
-          };
+    let cancelled = false;
+    const cancel = async (reason: unknown) => {
+      cancelled = true;
+      await reader.cancel(reason);
+    };
+    // A disconnected consumer may leave the producer waiting in reader.read().
+    void writer.closed.catch(cancel).catch(() => {});
+    const onAbort = () => {
+      void Promise.allSettled([
+        cancel(request.signal.reason),
+        writer.abort(request.signal.reason),
+      ]);
+    };
+    request.signal.addEventListener('abort', onAbort, { once: true });
+    if (request.signal.aborted) onAbort();
 
-          container.set(key, JSON.stringify(cache), { ttl }).catch(() => {
-            (onError || console.error)('[render-cache] set cache failed');
-          });
-
-          return writer.close();
+    const pumping = (async () => {
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (cancelled) return;
+          if (done) break;
+          html += decoder.decode(value, { stream: true });
+          await writer.write(value);
         }
-
-        const content = decoder.decode(value, { stream: true });
-        html += content;
-
-        await writer.write(value);
-        return push();
-      });
-
-    push().catch(async error => {
-      await Promise.allSettled([writer.abort(error), reader.cancel(error)]);
-      (onError || console.error)('[render-cache] response stream failed');
-    });
+        html += decoder.decode();
+        // Finish the response without waiting for the cache backend.
+        await writer.close();
+        if (cancelled) return;
+        if (ZERO_RENDER_LEVEL.test(html) || NO_SSR_CACHE.test(html)) {
+          await deleteCache();
+          return;
+        }
+        const cache: CacheStruct = {
+          val: html,
+          cursor: Date.now(),
+          headers,
+        };
+        try {
+          await container.set(key, JSON.stringify(cache), { ttl });
+        } catch (error) {
+          if (onError) onError(error, 'render-cache');
+          else
+            console.error(
+              `[render-cache] set cache failed, key: ${key}`,
+              error,
+            );
+        }
+      } catch (error) {
+        await Promise.allSettled([cancel(error), writer.abort(error)]);
+        if (cacheStatus) {
+          try {
+            if (onError) onError(error, 'render-cache');
+            else console.error('[render-cache] response stream failed', error);
+          } catch {
+            // Error reporting must not reject an unawaited background task.
+          }
+        }
+      } finally {
+        request.signal.removeEventListener('abort', onAbort);
+      }
+    })();
+    void pumping.catch(() => {});
 
     cacheStatus && response.headers.set(X_RENDER_CACHE, cacheStatus);
 
@@ -273,7 +300,7 @@ export async function getCacheResult(
       // the cache is stale while revalidate
 
       // we shouldn't await this promise.
-      processCache({
+      void processCache({
         key,
         request,
         requestHandler,
@@ -282,10 +309,16 @@ export async function getCacheResult(
         container,
       })
         .then(async response => {
+          // Consume the response so the cache can finish writing the stream.
           await response.text();
         })
-        .catch(() => {
-          (onError || console.error)('[render-cache] revalidation failed');
+        .catch(error => {
+          try {
+            if (onError) onError(error, 'render-cache');
+            else console.error('[render-cache] revalidation failed', error);
+          } catch {
+            // Error reporting must not reject an unawaited background task.
+          }
         });
 
       const cacheStatus: CacheStatus = 'stale';

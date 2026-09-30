@@ -11,6 +11,8 @@ const cacheControl: CacheControl = {
   staleWhileRevalidate: 1000,
 };
 
+const cacheKeyFor = (url: string): string => `__ssr__cache:v2:${url}`;
+
 function createContainer(): Container {
   const values = new Map<string, string>();
   return {
@@ -57,6 +59,7 @@ describe('SSR cache privacy', () => {
 
   it('partitions public responses by origin and query and preserves cache headers', async () => {
     let renders = 0;
+    const container = createContainer();
     const render = renderWith(async request => {
       renders++;
       return new Response(request.url, {
@@ -65,13 +68,14 @@ describe('SSR cache privacy', () => {
           'content-language': 'en',
         },
       });
-    });
+    }, container);
     for (const url of [
       'http://one.example/page?a=1',
       'http://one.example/page?a=2',
       'http://two.example/page?a=1',
     ]) {
       expect(await (await render(new Request(url))).text()).toBe(url);
+      await expect.poll(() => container.has(cacheKeyFor(url))).toBe(true);
       const hit = await render(new Request(url));
       expect(await hit.text()).toBe(url);
       expect(hit.headers.get('cache-control')).toBe('public, max-age=1');
@@ -130,6 +134,9 @@ describe('SSR cache privacy', () => {
       if (state === 'expired') {
         const warm = renderWith(async () => new Response('public'), container);
         expect(await (await warm(request)).text()).toBe('public');
+        await expect
+          .poll(() => container.has(cacheKeyFor(request.url)))
+          .toBe(true);
         now += cacheControl.maxAge + cacheControl.staleWhileRevalidate + 1;
       }
       container.delete = rs.fn(async () => {
@@ -151,7 +158,7 @@ describe('SSR cache privacy', () => {
         expect(await response.text()).toBe(body);
       }
       expect(set).not.toHaveBeenCalled();
-      expect(container.delete).toHaveBeenCalledTimes(3);
+      await expect.poll(() => container.delete).toHaveBeenCalledTimes(3);
       expect(onError.mock.calls).toEqual([
         ['[render-cache] delete cache failed'],
         ['[render-cache] delete cache failed'],
@@ -183,6 +190,9 @@ describe('SSR cache privacy', () => {
     const request = new Request('http://localhost/transition');
     try {
       expect(await (await render(request)).text()).toBe('public');
+      await expect
+        .poll(() => container.has(cacheKeyFor(request.url)))
+        .toBe(true);
       now += 1001;
       expect(await (await render(request)).text()).toBe('public');
       await deleted.promise;

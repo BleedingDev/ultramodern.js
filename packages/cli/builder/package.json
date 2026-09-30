@@ -1,6 +1,6 @@
 {
   "name": "@modern-js/builder",
-  "version": "3.9.0",
+  "version": "3.9.3",
   "description": "A builder for Modern.js",
   "repository": {
     "type": "git",
@@ -32,7 +32,6 @@
     "test:watch": "rstest watch"
   },
   "dependencies": {
-    "@jridgewell/trace-mapping": "^0.3.31",
     "@modern-js/utils": "workspace:*",
     "@rsbuild/core": "2.2.10",
     "@rsbuild/plugin-assets-retry": "2.0.2",
@@ -49,7 +48,7 @@
     "@swc/core": "1.16.2",
     "@swc/helpers": "^0.5.23",
     "autoprefixer": "10.6.1",
-    "browserslist": "4.29.0",
+    "browserslist": "4.29.1",
     "core-js": "^3.50.0",
     "cssnano": "9.0.5",
     "html-minifier-terser": "^7.2.0",
@@ -63,22 +62,27 @@
     "postcss-nesting": "14.0.1",
     "postcss-page-break": "3.0.4",
     "rspack-manifest-plugin": "5.2.2",
-    "sass-embedded": "1.105.0",
-    "ts-deepmerge": "8.0.0"
+    "ts-deepmerge": "8.0.0",
+    "@jridgewell/trace-mapping": "^0.3.31",
+    "sass-embedded": "1.105.0"
   },
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
     "@modern-js/types": "workspace:*",
-    "@rsdoctor/rspack-plugin": "^1.6.4",
     "@rslib/core": "1.0.2",
     "@scripts/rstest-config": "workspace:*",
     "@types/html-minifier-terser": "^7.0.2",
     "@types/lodash": "^4.17.25",
     "react": "^19.3.0",
-    "react-server-dom-rspack": "0.1.0",
-    "rsbuild-plugin-rsc": "0.1.1",
     "terser": "^5.51.2",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "@rsdoctor/rspack-plugin": "^1.6.4",
+    "react-server-dom-rspack": "0.1.0",
+    "rsbuild-plugin-rsc": "0.1.1"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   },
   "peerDependencies": {
     "react-server-dom-rspack": "0.1.0",
@@ -91,9 +95,5 @@
     "rsbuild-plugin-rsc": {
       "optional": true
     }
-  },
-  "publishConfig": {
-    "access": "public",
-    "registry": "https://registry.npmjs.org/"
   }
 }

@@ -17,6 +17,11 @@ import { pluginHtmlMinifierTerser } from '../plugins/htmlMinify';
 import { pluginRuntimeChunk } from '../plugins/runtimeChunk';
 import type { BuilderConfig, CreateBuilderCommonOptions } from '../types';
 import { transformToRsbuildServerOptions } from './devServer';
+import {
+  normalizeLessOptions,
+  normalizeSassOptions,
+  resolveSvgrOptions,
+} from './pluginOptions';
 import { withTsgoDefaults } from './tsgo';
 import { NODE_MODULES_REGEX, SERVICE_WORKER_ENVIRONMENT_NAME } from './utils';
 
@@ -98,6 +103,7 @@ export async function parseCommonConfig(
       minifyCss,
       less,
       sass,
+      svgr,
       htmlPlugin,
       autoprefixer,
       ...toolsConfig
@@ -236,12 +242,8 @@ export async function parseCommonConfig(
       sourceMap,
     }),
     pluginEmitRouteFile(),
-    pluginSass({
-      sassLoaderOptions: sass,
-    }),
-    pluginLess({
-      lessLoaderOptions: less,
-    }),
+    pluginSass(normalizeSassOptions(sass)),
+    pluginLess(normalizeLessOptions(less)),
     pluginEnvironmentDefaults(distPath),
     pluginHtmlMinifierTerser(),
   ];
@@ -315,17 +317,14 @@ export async function parseCommonConfig(
     });
   }
 
-  if (!disableSvgr) {
+  const svgrOptions = resolveSvgrOptions({
+    svgr,
+    disableSvgr,
+    svgDefaultExport,
+  });
+  if (svgrOptions !== false) {
     const { pluginSvgr } = await import('@rsbuild/plugin-svgr');
-    rsbuildPlugins.push(
-      pluginSvgr({
-        mixedImport: true,
-        parallel: true,
-        svgrOptions: {
-          exportType: svgDefaultExport === 'component' ? 'default' : 'named',
-        },
-      }),
-    );
+    rsbuildPlugins.push(pluginSvgr(svgrOptions));
   }
 
   // assetsRetry inject should be later

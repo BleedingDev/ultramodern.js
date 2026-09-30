@@ -89,6 +89,30 @@ export async function clearI18nTestState(page: Page): Promise<void> {
   });
 }
 
+/** Wait for React to attach its hydration state to a server-rendered element. */
+export async function waitForHydration(
+  page: Page,
+  selector: string,
+  timeout = 15_000,
+): Promise<void> {
+  await page.waitForFunction(
+    (target: string) => {
+      const element = document.querySelector(target);
+      if (!element) {
+        return false;
+      }
+      return Object.keys(element).some(
+        key =>
+          key.startsWith('__reactFiber$') ||
+          key.startsWith('__reactProps$') ||
+          key.startsWith('__reactInternalInstance$'),
+      );
+    },
+    { timeout },
+    selector,
+  );
+}
+
 /**
  * Wait until `selector`'s trimmed text equals `text`. Polls every frame:
  * React rewrites text nodes in place, which `waitForSelector` does not observe.

@@ -74,7 +74,7 @@ export const getServerCombinedModuleFile = (
   return path.join(internalDirectory, entryName, 'server-loader-combined.js');
 };
 
-export const checkIsBuildCommands = (contextCommand?: string) => {
+export const checkIsBuildCommands = () => {
   const buildCommands = [
     'dev',
     'start',
@@ -85,16 +85,7 @@ export const checkIsBuildCommands = (contextCommand?: string) => {
   ];
   const command = getCommand();
 
-  if (buildCommands.includes(command)) {
-    return true;
-  }
-
-  return (
-    contextCommand === 'dev' ||
-    contextCommand === 'start' ||
-    contextCommand === 'build' ||
-    contextCommand === 'deploy'
-  );
+  return buildCommands.includes(command);
 };
 
 export const checkIsServeCommand = () => {

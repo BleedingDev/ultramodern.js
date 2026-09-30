@@ -15,7 +15,7 @@
     "modern",
     "modern.js"
   ],
-  "version": "3.9.0",
+  "version": "3.9.3",
   "engines": {
     "node": ">=20"
   },
@@ -137,7 +137,6 @@
     "test": "rstest"
   },
   "dependencies": {
-    "@modern-js/i18n-runtime-extensions": "workspace:*",
     "@modern-js/plugin": "workspace:*",
     "@modern-js/runtime-utils": "workspace:*",
     "@modern-js/server-core": "workspace:*",
@@ -149,14 +148,15 @@
     "i18next-chained-backend": "^5.0.6",
     "i18next-fs-backend": "^2.6.8",
     "i18next-http-backend": "^4.0.2",
-    "i18next-http-middleware": "^3.9.9"
+    "i18next-http-middleware": "^3.9.9",
+    "@modern-js/i18n-runtime-extensions": "workspace:*"
   },
   "peerDependencies": {
-    "@modern-js/runtime": "workspace:^3.9.0",
-    "i18next": ">=25.7.4",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "react-i18next": ">=15.7.4"
+    "i18next": ">=25.10.10",
+    "react-i18next": ">=15.7.4",
+    "@modern-js/runtime": "workspace:^3.9.3"
   },
   "peerDependenciesMeta": {
     "i18next": {
@@ -170,18 +170,18 @@
     "@modern-js/app-tools": "workspace:*",
     "@modern-js/rslib": "workspace:*",
     "@modern-js/runtime": "workspace:*",
-    "@modern-js/runtime-extensions": "workspace:*",
     "@rslib/core": "1.0.2",
-    "@scripts/rstest-config": "workspace:*",
     "@types/node": "^26.6.2",
-    "@typescript/native-preview": "7.0.0-dev.20260707.2",
-    "esbuild": "^0.28.2",
     "i18next": "26.4.2",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-i18next": "17.0.15",
     "ts-node": "^10.9.2",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "@modern-js/runtime-extensions": "workspace:*",
+    "@scripts/rstest-config": "workspace:*",
+    "@typescript/native-preview": "7.0.0-dev.20260707.2",
+    "esbuild": "^0.28.2"
   },
   "sideEffects": false,
   "publishConfig": {

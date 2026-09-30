@@ -232,6 +232,7 @@ export const createRequestHandler: CreateRequestHandler = async (
       status: -1,
     };
     const activeDeferreds = new Map<string, DeferredData>();
+    const deferredScriptKeys = new Map<string, string[]>();
     return storage.run(
       {
         headers: headersData,
@@ -239,6 +240,7 @@ export const createRequestHandler: CreateRequestHandler = async (
         monitors: options.monitors,
         responseProxy,
         activeDeferreds,
+        deferredScriptKeys,
         serverPayload: undefined,
       },
       async () => {
