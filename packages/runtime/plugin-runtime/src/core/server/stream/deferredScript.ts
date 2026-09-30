@@ -78,9 +78,10 @@ export function enqueueFromEntries(
 
   entries.forEach(([routeId, value]) => {
     if (!isDeferredDataLike(value)) return;
-    const serializedKeys = deferredScriptKeys
-      ? (deferredScriptKeys.get(routeId) ?? [])
-      : (value.pendingKeys ?? []);
+    const serializedKeys =
+      deferredScriptKeys !== undefined
+        ? (deferredScriptKeys.get(routeId) ?? [])
+        : (value.pendingKeys ?? []);
     serializedKeys.forEach((key: string) => {
       const tracked = value.data?.[key];
       if (isPromiseLike(tracked)) {

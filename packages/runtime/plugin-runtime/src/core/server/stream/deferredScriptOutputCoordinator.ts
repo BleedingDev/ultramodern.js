@@ -172,7 +172,7 @@ export class DeferredScriptOutputCoordinator {
   }
 
   public writeReact(chunk: string): void {
-    if (this.closed || !chunk) {
+    if (this.closed || chunk === '') {
       return;
     }
 
@@ -183,7 +183,11 @@ export class DeferredScriptOutputCoordinator {
       const wasSafe = this.isSafeBoundary();
       this.consume(chunk[index]);
 
-      if (!wasSafe && this.isSafeBoundary() && this.pendingResolvers.length) {
+      if (
+        !wasSafe &&
+        this.isSafeBoundary() &&
+        this.pendingResolvers.length > 0
+      ) {
         this.emit(chunk.slice(emittedUntil, index + 1));
         emittedUntil = index + 1;
         this.flushResolvers();
@@ -231,7 +235,7 @@ export class DeferredScriptOutputCoordinator {
 
     while (this.pendingResolvers.length > 0) {
       const resolver = this.pendingResolvers.shift();
-      if (resolver) {
+      if (resolver !== undefined) {
         this.emit(resolver);
       }
     }
@@ -438,7 +442,7 @@ export class DeferredScriptOutputCoordinator {
   }
 
   private completeAttribute(): void {
-    if (!this.currentAttributeName) {
+    if (this.currentAttributeName === '') {
       return;
     }
 
@@ -510,7 +514,7 @@ export class DeferredScriptOutputCoordinator {
 
   private consumeRawText(char: string): void {
     const rawTextElement = this.rawTextElement;
-    if (!rawTextElement) {
+    if (rawTextElement === undefined) {
       this.state = 'data';
       return;
     }
@@ -534,7 +538,7 @@ export class DeferredScriptOutputCoordinator {
 
   private completeRawTextEndTag(): void {
     const rawTextElement = this.rawTextElement;
-    if (rawTextElement) {
+    if (rawTextElement !== undefined) {
       this.closeOpenElement(rawTextElement);
     }
     if (
