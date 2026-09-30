@@ -735,22 +735,21 @@ function validateUiMarkerEvidence(evidence, app, ssr) {
   assert(uiMarker === app.marker?.build, `${app.id} UI marker mismatch`);
 
   if (app.deliveryUnit) {
+    const expectedUiMarker =
+      app.deliveryUnit.surfaces?.ui?.buildMarker ?? app.deliveryUnit.buildMarker;
     evidence.assertions.push({
       type: 'delivery-unit-ui-marker',
       unitId: app.deliveryUnit.unitId,
-      expected: app.deliveryUnit.surfaces?.ui?.buildMarker ?? app.deliveryUnit.buildMarker,
+      expected: expectedUiMarker,
       actual: uiMarker,
-      status:
-        uiMarker === (app.deliveryUnit.surfaces?.ui?.buildMarker ?? app.deliveryUnit.buildMarker)
-          ? 'pass'
-          : 'fail',
+      status: uiMarker === expectedUiMarker ? 'pass' : 'fail',
     });
     assert(
       uiMarker !== undefined,
       `${app.id} delivery unit ${app.deliveryUnit.unitId} is declared but SSR response is missing its build marker`,
     );
     assert(
-      uiMarker === (app.deliveryUnit.surfaces?.ui?.buildMarker ?? app.deliveryUnit.buildMarker),
+      uiMarker === expectedUiMarker,
       `${app.id} delivery unit ${app.deliveryUnit.unitId} UI surface build marker mismatch`,
     );
   }
@@ -926,20 +925,23 @@ async function validateReadinessEvidence(evidence, app, publicUrl, routes) {
     assert(apiMarker === app.marker?.build, `${app.id} API marker mismatch`);
 
     if (app.deliveryUnit) {
+      const expectedApiMarker =
+        app.deliveryUnit.surfaces?.api?.buildMarker ??
+        app.deliveryUnit.buildMarker;
       evidence.assertions.push({
         type: 'delivery-unit-api-marker',
         route: routes.apiReadiness,
         unitId: app.deliveryUnit.unitId,
-        expected: app.deliveryUnit.buildMarker,
+        expected: expectedApiMarker,
         actual: apiMarker,
-        status: apiMarker === app.deliveryUnit.buildMarker ? 'pass' : 'fail',
+        status: apiMarker === expectedApiMarker ? 'pass' : 'fail',
       });
       assert(
         apiMarker !== undefined,
         `${app.id} delivery unit ${app.deliveryUnit.unitId} is declared but readiness response is missing its build marker`,
       );
       assert(
-        apiMarker === app.deliveryUnit.buildMarker,
+        apiMarker === expectedApiMarker,
         `${app.id} delivery unit ${app.deliveryUnit.unitId} API surface build marker mismatch`,
       );
     }
