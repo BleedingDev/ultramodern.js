@@ -15,7 +15,7 @@
     "modern",
     "modern.js"
   ],
-  "version": "3.9.0",
+  "version": "3.9.3",
   "types": "./src/index.ts",
   "main": "./dist/cjs/index.js",
   "exports": {
@@ -58,16 +58,16 @@
   "devDependencies": {
     "@modern-js/builder": "workspace:*",
     "@modern-js/rslib": "workspace:*",
-    "@module-federation/runtime": "2.9.2",
     "@rslib/core": "1.0.2",
     "@scripts/rstest-config": "workspace:*",
     "@types/connect-history-api-fallback": "^1.5.4",
     "@types/node": "^26.6.2",
     "@types/ws": "^8.18.1",
-    "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "node-mocks-http": "^1.18.1",
     "tsconfig-paths": "4.2.0",
-    "websocket": "^1.0.35"
+    "websocket": "^1.0.35",
+    "@module-federation/runtime": "2.9.2",
+    "@typescript/native-preview": "7.0.0-dev.20260707.2"
   },
   "peerDependencies": {
     "devcert": "^1.2.3",

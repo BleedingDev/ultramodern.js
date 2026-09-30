@@ -30,6 +30,8 @@ export const useI18nextLanguageDetector = (i18nInstance: I18nInstance) => {
  */
 export const readLanguageFromStorage = (
   detectionOptions?: LanguageDetectorOptions,
+  _request?: unknown,
+  _languages?: string[],
 ): string | undefined => {
   try {
     const options = detectionOptions || {};

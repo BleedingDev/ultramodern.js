@@ -3,7 +3,7 @@ import { getRouterRuntimeState } from '@modern-js/runtime-extensions/router-stat
 import { createRouterStatePlugin } from '@modern-js/runtime-extensions/router-state-plugin';
 import { useLocation } from '@modern-js/runtime-utils/router';
 import type React from 'react';
-import { act, Fragment, StrictMode, useEffect } from 'react';
+import { act, Fragment, StrictMode, Suspense, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   InternalRuntimeContext,
@@ -130,6 +130,94 @@ describe('router runtime root', () => {
     expect(unmounts).toBe(mountCounts.unmounts + 1);
     container.remove();
   });
+
+  it('reuses the router when hydration recovery restarts an initial render', async () => {
+    (
+      globalThis as typeof globalThis & {
+        __webpack_require__?: { u: (chunkId: unknown) => string };
+      }
+    ).__webpack_require__ = {
+      u: chunkId => String(chunkId),
+    };
+
+    const { routerPlugin } = await import('../../src/router/runtime/plugin');
+    let ready = false;
+    let resume!: () => void;
+    const pending = new Promise<void>(resolve => {
+      resume = resolve;
+    });
+    const Shell = ({ children }: React.PropsWithChildren) => {
+      if (!ready) {
+        throw pending;
+      }
+      return <>{children}</>;
+    };
+    let RouterRoot: React.ComponentType<any> | undefined;
+    const passThrough = { call: <T,>(value: T) => value };
+    const notify = { call: () => undefined };
+    const created = rstest.fn();
+
+    routerPlugin({
+      createRoutes: () => [
+        {
+          path: '/',
+          element: <main>route content</main>,
+        },
+      ],
+    }).setup?.({
+      getHooks: () => ({
+        modifyRoutes: passThrough,
+        onAfterCreateRouter: { call: created },
+        onAfterHydrateRouter: notify,
+        onBeforeCreateRouter: notify,
+        onBeforeHydrateRouter: notify,
+      }),
+      getRuntimeConfig: () => ({}),
+      onBeforeRender: () => undefined,
+      wrapRoot: (
+        wrap: (App: React.ComponentType<any>) => React.ComponentType<any>,
+      ) => {
+        RouterRoot = wrap(Shell);
+      },
+    } as any);
+
+    if (!RouterRoot) {
+      throw new Error('Expected router plugin to register a root wrapper');
+    }
+
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const runtimeContext = {
+      isBrowser: true,
+      requestContext: { request: {}, response: {} },
+      context: { request: {}, response: {} },
+    } as any;
+
+    await act(async () => {
+      root.render(
+        <Suspense fallback={<main>loading</main>}>
+          <InternalRuntimeContext.Provider value={runtimeContext}>
+            <RouterRoot />
+          </InternalRuntimeContext.Provider>
+        </Suspense>,
+      );
+    });
+    expect(container.textContent).toBe('loading');
+    expect(created).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      ready = true;
+      resume();
+      await pending;
+    });
+    expect(container.textContent).toBe('route content');
+    expect(created).toHaveBeenCalledTimes(1);
+
+    await act(async () => root.unmount());
+    container.remove();
+  });
+
   it('delivers the native hash router and hydration events after fork state capture', async () => {
     (globalThis as any).__webpack_require__ = {
       u: (id: unknown) => String(id),

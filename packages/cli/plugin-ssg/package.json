@@ -15,7 +15,7 @@
     "modern",
     "modern.js"
   ],
-  "version": "3.9.0",
+  "version": "3.9.3",
   "types": "./src/index.ts",
   "main": "./dist/cjs/index.js",
   "typesVersions": {
@@ -62,6 +62,7 @@
     "node-mocks-http": "^1.18.1",
     "normalize-path": "3.0.0"
   },
+  "peerDependencies": {},
   "devDependencies": {
     "@modern-js/app-tools": "workspace:*",
     "@modern-js/rslib": "workspace:*",
@@ -69,10 +70,10 @@
     "@rslib/core": "1.0.2",
     "@scripts/rstest-config": "workspace:*",
     "@types/node": "^26.6.2",
-    "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "@typescript/native-preview": "7.0.0-dev.20260707.2"
   },
   "sideEffects": false,
   "publishConfig": {

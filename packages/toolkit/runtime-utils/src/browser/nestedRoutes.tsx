@@ -57,6 +57,7 @@ export const renderNestedRoute = (
     id: nestedRoute.id,
     loader: createLoader(nestedRoute),
     action: nestedRoute.action,
+    hasErrorBoundary: nestedRoute.hasErrorBoundary,
     shouldRevalidate: nestedRoute.shouldRevalidate,
     handle: {
       ...handle,
@@ -110,6 +111,10 @@ export const renderNestedRoute = (
 
   if (element) {
     routeProps.element = element;
+  }
+
+  if (nestedRoute.loading) {
+    routeProps.hydrateFallbackElement = <nestedRoute.loading />;
   }
 
   const childElements = children?.map(childRoute => {

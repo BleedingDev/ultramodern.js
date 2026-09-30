@@ -14,8 +14,15 @@ packages:
   - 'packages/toolkit/compiler/*'
   - 'scripts/*'
   - 'tests'
-  - 'tests/integration/**/*'
-  - 'tests/e2e/**/*'
+  # Keep fixture discovery depth-bounded. Recursive `**/*` walks workspace
+  # node_modules symlink graphs before downstream tools apply exclusions.
+  - 'tests/integration/*'
+  - 'tests/integration/*/*'
+  - 'tests/integration/*/*/*'
+  - 'tests/integration/*/*/*/*'
+  - 'tests/e2e/*'
+  - 'tests/e2e/*/*'
+  - 'tests/e2e/*/*/*'
   - 'website/*'
   - 'benchmark/*'
   - 'examples/*'
@@ -26,8 +33,11 @@ packages:
   # bff-cross-project/bff-api-app/dist-1/client)
   # that match the globs above, so a local `pnpm install` on a dirty tree adds
   # phantom importers to pnpm-lock.yaml. Upstream has no such emitted manifests.
+  - '!tests/integration/**/dist'
   - '!tests/integration/**/dist/**'
+  - '!tests/integration/**/dist-*'
   - '!tests/integration/**/dist-*/**'
+  - '!tests/integration/**/node_modules'
   - '!tests/integration/**/node_modules/**'
 
 autoInstallPeers: false
@@ -77,12 +87,14 @@ overrides:
   'tar@>=7.0.0 <7.5.22': 7.5.22
   'diff@>=4.0.0 <4.0.4': 4.0.4
   'debug@>=4.0.0 <4.4.3': 4.4.3
+  'dts-packer>resolve@>=1.0.0 <1.22.12': 1.22.12
   'cross-spawn@>=7.0.0 <7.0.6': 7.0.6
   'lodash-es@>=4.0.0 <4.18.1': 4.18.1
   'tmp@>=0.2.0 <0.2.7': 0.2.7
-  'minimatch@3>brace-expansion': 1.1.18
-  'minimatch@9>brace-expansion': 2.1.4
+  'minimatch@3>brace-expansion': 1.1.20
+  'minimatch@9>brace-expansion': 2.1.6
   'brace-expansion@>=5.0.0 <5.0.12': 5.0.12
+  'undici@>=7.0.0 <7.29.1': 7.29.1
   'yaml@>=1.0.0 <1.10.3': 1.10.3
   'yaml@>=2.0.0 <2.9.1': 2.9.1
   'qs@>=6.0.0 <6.16.0': 6.16.0

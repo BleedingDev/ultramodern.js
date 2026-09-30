@@ -66,11 +66,17 @@ type RouterPluginAPI = RuntimePluginAPI<{
 
 interface UseRouterCreationOptions {
   api: RouterPluginAPI;
+  cache: WeakMap<TInternalRuntimeContext, RouterCreationResult>;
   createRoutes?: RouterConfig['createRoutes'];
   supportHtml5History: boolean;
   selectBasePath: (pathname: string) => string;
   basename: string;
 }
+
+type RouterCreationResult = {
+  router: RouterProviderProps['router'];
+  routes: RouteObject[];
+};
 
 export const routerPlugin = (
   userConfig: Partial<RouterConfig> = {},
@@ -153,6 +159,14 @@ export const routerPlugin = (
           return match || '/';
         };
 
+        // A recoverable hydration mismatch can restart this component before
+        // its first commit. Keep the in-flight router scoped to the runtime
+        // provider so the retry observes the same loader requests and state.
+        const routerCache = new WeakMap<
+          TInternalRuntimeContext,
+          RouterCreationResult
+        >();
+
         const RouterWrapper = (props: any) => {
           const routerResult = useRouterCreation(
             (
@@ -167,6 +181,7 @@ export const routerPlugin = (
               : props,
             {
               api: api as any,
+              cache: routerCache,
               createRoutes,
               supportHtml5History,
               selectBasePath,
@@ -223,8 +238,14 @@ function isSegmentPrefix(pathname: string, base: string) {
 }
 
 function useRouterCreation(props: any, options: UseRouterCreationOptions) {
-  const { api, createRoutes, supportHtml5History, selectBasePath, basename } =
-    options;
+  const {
+    api,
+    cache,
+    createRoutes,
+    supportHtml5History,
+    selectBasePath,
+    basename,
+  } = options;
   const runtimeContext = useContext(InternalRuntimeContext);
 
   const baseUrl = selectBasePath(location.pathname).replace(/^\/*/, '/');
@@ -256,11 +277,10 @@ function useRouterCreation(props: any, options: UseRouterCreationOptions) {
         ? window._ROUTER_DATA || rscPayload
         : window._ROUTER_DATA;
 
-  // Creation and publication share the mounted provider's lifetime.
-  const result = useRef<{
-    router: RouterProviderProps['router'];
-    routes: RouteObject[];
-  } | null>(null);
+  // Creation and publication share the runtime provider's lifetime.
+  const result = useRef<RouterCreationResult | null>(
+    cache.get(runtimeContext) ?? null,
+  );
   if (result.current === null) {
     if (hydrationData?.errors) {
       hydrationData = {
@@ -315,6 +335,7 @@ function useRouterCreation(props: any, options: UseRouterCreationOptions) {
           router,
           routes: router.routes || [],
         };
+        cache.set(runtimeContext, result.current);
         return result.current;
       } catch (e) {
         console.error('Failed to create router from RSC payload:', e);
@@ -378,6 +399,7 @@ function useRouterCreation(props: any, options: UseRouterCreationOptions) {
       router,
       routes: modifiedRoutes,
     };
+    cache.set(runtimeContext, result.current);
   }
   return result.current;
 }
