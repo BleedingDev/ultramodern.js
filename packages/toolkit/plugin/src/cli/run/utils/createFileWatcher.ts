@@ -1,3 +1,4 @@
+import type { FSWatcher } from '@modern-js/utils';
 import { chokidar, createDebugger, isDevCommand } from '@modern-js/utils';
 import crypto from 'crypto';
 import * as fs from 'fs';
@@ -32,7 +33,7 @@ export const safeReadFileSync = (filePath: string): string | undefined => {
 
 export const createFileWatcher = async <Extends extends CLIPluginExtends>(
   appContext: InternalContext<Extends>,
-) => {
+): Promise<FSWatcher | undefined> => {
   // only add fs watcher on dev mode.
   if (isDevCommand()) {
     const { appDirectory } = appContext;
