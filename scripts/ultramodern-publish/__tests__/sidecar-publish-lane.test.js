@@ -157,13 +157,13 @@ test('an unpublished sidecar version is published; a byte-identical one is reuse
   const sidecar = stagedMfCli();
 
   assert.deepEqual(
-    sidecarRegistryDecision(sidecar, null).action,
+    (await sidecarRegistryDecision(sidecar, null)).action,
     'publish',
     'a package that has never been published must publish',
   );
 
   // The re-run case: the exact version exists and resolves identically.
-  const reuse = sidecarRegistryDecision(sidecar, packumentFor(sidecar));
+  const reuse = await sidecarRegistryDecision(sidecar, packumentFor(sidecar));
   assert.equal(reuse.action, 'reuse');
   assert.equal(reuse.currentTag, '3.2.0');
   assert.match(reuse.reason, /accepted tarball bytes/u);
@@ -175,7 +175,7 @@ test('registry content, version, and dist-tag mismatches fail closed', async () 
 
   // Matching manifest fields are insufficient: registry reuse must bind the
   // exact accepted tarball bytes.
-  assert.throws(
+  await assert.rejects(
     () =>
       sidecarRegistryDecision(
         sidecar,
@@ -193,7 +193,7 @@ test('registry content, version, and dist-tag mismatches fail closed', async () 
 
   // Content drift on an immutable version: the published package is not the
   // one this run staged, and no re-run can fix it.
-  assert.throws(
+  await assert.rejects(
     () =>
       sidecarRegistryDecision(
         sidecar,
@@ -205,14 +205,14 @@ test('registry content, version, and dist-tag mismatches fail closed', async () 
   );
 
   // The dist-tag must land on the version the cohort aliases.
-  assert.throws(
+  await assert.rejects(
     () =>
       sidecarRegistryDecision(sidecar, packumentFor(sidecar, { tag: '3.3.0' })),
     /dist-tag latest points at 3\.3\.0, expected the already-published 3\.2\.0/u,
   );
 
   // A backwards republish would make the cohort alias resolve to older bytes.
-  assert.throws(
+  await assert.rejects(
     () =>
       sidecarRegistryDecision(sidecar, {
         name: sidecar.name,
@@ -223,7 +223,7 @@ test('registry content, version, and dist-tag mismatches fail closed', async () 
   );
 
   // Uncertain registry shapes are never read as "not published yet".
-  assert.throws(
+  await assert.rejects(
     () =>
       sidecarRegistryDecision(sidecar, { name: sidecar.name, versions: {} }),
     /invalid registry dist-tags/u,
@@ -392,15 +392,17 @@ test('a missing dist-tag and an unindexed version are retried until they settle'
   assert.ok(waits.length > 0, 'each pending read must wait');
 
   assert.equal(
-    classifySidecarPropagation(sidecar, untaggedPackument(sidecar), {
-      tag: 'latest',
-    }).state,
+    (
+      await classifySidecarPropagation(sidecar, untaggedPackument(sidecar), {
+        tag: 'latest',
+      })
+    ).state,
     propagationPendingStates.tagAbsent,
   );
   // Settled: both the version and the tag are readable, so the decision is
   // final and there is nothing left to wait for.
   assert.equal(
-    classifySidecarPropagation(sidecar, packumentFor(sidecar), {
+    await classifySidecarPropagation(sidecar, packumentFor(sidecar), {
       tag: 'latest',
     }),
     null,
@@ -690,7 +692,7 @@ test('a dist-tag on a different real version is terminal, never retried', async 
   // version - waiting cannot move it, so it must fail immediately.
   const elsewhere = packumentFor(sidecar, { tag: '3.3.0' });
   assert.equal(
-    classifySidecarPropagation(sidecar, elsewhere, { tag: 'latest' }),
+    await classifySidecarPropagation(sidecar, elsewhere, { tag: 'latest' }),
     null,
     'a tag pointing at another version is settled, not pending',
   );

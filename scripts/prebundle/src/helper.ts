@@ -1,6 +1,6 @@
 import fs from 'fs-extra';
 import { dirname, join } from 'path';
-import { pathToFileURL } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import { DIST_DIR, PACKAGES_DIR, TASKS } from './constant';
 import type { ParsedTask } from './types';
 
@@ -22,12 +22,9 @@ const resolveESMDependency = async (entry: string) => {
   const { moduleResolve } = await import('import-meta-resolve');
   const conditions = new Set(['import', 'module', 'default']);
   try {
-    return moduleResolve(
-      entry,
-      pathToFileURL(`${__dirname}/`),
-      conditions,
-      false,
-    ).pathname.replace(/^\/(\w):/, '$1:');
+    return fileURLToPath(
+      moduleResolve(entry, pathToFileURL(`${__dirname}/`), conditions, false),
+    );
   } catch {
     // ignore
   }

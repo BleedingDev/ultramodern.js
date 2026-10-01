@@ -1081,7 +1081,7 @@ async function verifySidecarConsumer(options) {
       // the published copy resolves identically to what this run staged; every
       // other state (content drift, a tag pointing elsewhere, a backwards
       // latest) throws instead of hitting E403 halfway through.
-      const decision = sidecarRegistryDecision(
+      const decision = await sidecarRegistryDecision(
         {
           integrity: packed.integrity,
           name: sidecar.name,

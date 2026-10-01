@@ -27,8 +27,8 @@
  *
  * Intentional exceptions go into ALLOWLIST below with a written reason.
  *
- * It uses the repository's bundled js-yaml copy, so it remains runnable
- * without a root-level dependency install.
+ * Generate its js-yaml input with `pnpm --filter @scripts/prebundle start js-yaml`
+ * before running it without a package build.
  */
 import fs from 'node:fs';
 import path from 'node:path';

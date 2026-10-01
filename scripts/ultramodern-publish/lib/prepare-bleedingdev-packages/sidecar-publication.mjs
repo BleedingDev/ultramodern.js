@@ -20,7 +20,6 @@
 // Nothing here publishes, packs, or mutates state; the CLI wires these
 // decisions to the npm buffer publisher.
 import path from 'node:path';
-import semver from '../../../../packages/toolkit/utils/compiled/semver/index.js';
 import validationKit from '../../../lib/validation-kit.js';
 import {
   npmRegistryOrigin,
@@ -387,7 +386,7 @@ function assertSidecarPublishOrder(sidecars) {
  *              re-run converges instead of failing on an immutable version.
  * throws     - any other registry state.
  */
-function sidecarRegistryDecision(
+async function sidecarRegistryDecision(
   sidecar,
   packument,
   { tag = sidecarPublishTag } = {},
@@ -437,6 +436,7 @@ function sidecarRegistryDecision(
       );
     }
     if (currentTag !== undefined) {
+      const { default: semver } = await import('semver');
       if (!semver.valid(currentTag) || !semver.valid(version)) {
         throw new Error(
           `${name} cannot compare candidate ${version} with current ${tag} ${currentTag} as strict semantic versions`,
