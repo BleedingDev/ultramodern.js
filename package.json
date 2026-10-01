@@ -18,8 +18,8 @@
     "reset": "npx rimraf --glob ./**/node_modules",
     "test:framework": "cd tests && pnpm run test:framework",
     "test:builder": "cd tests && pnpm run test:builder",
-    "test:ut": "rstest",
-    "test:ut:update": "rstest -u",
+    "test:ut": "nx run @scripts/prebundle:bundle && rstest",
+    "test:ut:update": "nx run @scripts/prebundle:bundle && rstest -u",
     "lint:package-json": "cd ./scripts/lint-package-json && pnpm start",
     "prepare-build": "nx run-many -t build -p @modern-js/* --exclude=@modern-js/main-doc,@modern-js/module-tools-docs --maxParallel=4",
     "prepare-build:local": "nx run-many -t build -p @modern-js/* --exclude=@modern-js/main-doc,@modern-js/module-tools-docs --maxParallel=8",
@@ -84,6 +84,9 @@
       "pnpm check-dependencies"
     ]
   },
+  "dependencies": {
+    "semver": "7.8.5"
+  },
   "devDependencies": {
     "@babel/core": "^8.0.6",
     "@babel/plugin-transform-modules-commonjs": "^8.0.1",
@@ -107,7 +110,6 @@
     "nx": "^23.2.1",
     "oxfmt": "0.71.0",
     "rimraf": "^6.1.3",
-    "semver": "7.8.5",
     "typescript": "^7.0.2",
     "yaml": "2.9.1"
   },
