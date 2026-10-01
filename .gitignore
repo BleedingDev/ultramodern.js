@@ -13,7 +13,7 @@ node_modules/
 dist/
 dist-ssg/
 doc_build/
-!**/compiled/**/dist
+packages/toolkit/utils/compiled/
 coverage/
 release/
 

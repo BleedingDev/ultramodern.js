@@ -188,9 +188,25 @@
   },
   "scripts": {
     "prepublishOnly": "only-allow-pnpm",
-    "dev": "rslib build --watch",
-    "build": "rslib build",
+    "dev": "nx run @modern-js/utils:build && rslib build --watch",
+    "build": "nx run @modern-js/utils:build",
     "test": "rstest"
+  },
+  "nx": {
+    "targets": {
+      "build": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "pnpm exec rslib build",
+          "cwd": "packages/toolkit/utils"
+        },
+        "dependsOn": [
+          "^build",
+          { "projects": ["@scripts/prebundle"], "target": "bundle" }
+        ],
+        "outputs": ["{projectRoot}/dist"]
+      }
+    }
   },
   "dependencies": {
     "@swc/helpers": "^0.5.23",

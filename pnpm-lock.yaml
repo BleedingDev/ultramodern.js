@@ -3934,6 +3934,9 @@ importers:
       less:
         specifier: 4.9.1
         version: 4.9.1(supports-color@10.2.2)
+      lodash:
+        specifier: ^4.18.1
+        version: 4.18.1
       mime-types:
         specifier: 3.0.2
         version: 3.0.2
@@ -3952,6 +3955,9 @@ importers:
       p-map:
         specifier: 7.0.8
         version: 7.0.8
+      pkg-up:
+        specifier: link:ultramodern/vendor/pkg-up
+        version: link:ultramodern/vendor/pkg-up
       postcss-custom-properties:
         specifier: 15.0.3
         version: 15.0.3(postcss@8.5.28)

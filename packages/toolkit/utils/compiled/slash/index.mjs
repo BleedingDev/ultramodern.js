@@ -1,3 +1,0 @@
-import { createRequire } from 'node:module';
-const require = createRequire(import.meta.url);
-var r={};(()=>{r.d=(e,t)=>{for(var a in t){if(r.o(t,a)&&!r.o(e,a)){Object.defineProperty(e,a,{enumerable:true,get:t[a]})}}}})();(()=>{r.o=(r,e)=>Object.prototype.hasOwnProperty.call(r,e)})();var e={};r.d(e,{A:()=>slash});function slash(r){const e=r.startsWith("\\\\?\\");if(e){return r}return r.replace(/\\/g,"/")}var t=e.A;export{t as default};
