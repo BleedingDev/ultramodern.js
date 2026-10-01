@@ -11,29 +11,30 @@ import {
   modernTanstackRouterFastDefaults,
 } from '@modern-js/plugin-tanstack/runtime';
 
-import loader_0 from "../../routes/layout.loader";
 import component_0 from "../../routes/page";
-import { loader as loader_1, action as action_1 } from "../../routes/mf/page.data";
+import { loader as loader_0, action as action_0 } from "../../routes/mf/page.data";
 import component_1 from "../../routes/mf/page";
-import { loader as loader_2 } from "../../routes/mf-not-found/page.data";
+import { loader as loader_1 } from "../../routes/mf-not-found/page.data";
 import component_2 from "../../routes/mf-not-found/page";
-import { loader as loader_3 } from "../../routes/mf-redirect/page.data";
+import { loader as loader_2 } from "../../routes/mf-redirect/page.data";
 import component_3 from "../../routes/mf-redirect/page";
+import loader_3 from "../../routes/layout.loader";
 import component_4 from "../../routes/layout";
 
 export const rootRoute = createRootRouteWithContext<ModernRouterContext>()({
   component: component_4,
-  loader: modernLoaderToTanstack({ hasSplat: false }, loader_0),
+  loader: modernLoaderToTanstack({ hasSplat: false }, loader_3),
   staticData: createRouteStaticData({
     modernRouteId: "layout",
-    modernRouteLoader: loader_0,
+    modernRouteLoader: loader_3,
   }),
+
 });
 
 const route_page = createRoute({
   getParentRoute: () => rootRoute,
-  component: component_0,
   path: "/",
+  component: component_0,
   staticData: createRouteStaticData({
     modernRouteId: "page",
   }),
@@ -41,35 +42,35 @@ const route_page = createRoute({
 
 const route_mf_page = createRoute({
   getParentRoute: () => rootRoute,
-  component: component_1,
   path: "mf",
-  loader: modernLoaderToTanstack({ hasSplat: false }, loader_1),
+  component: component_1,
+  loader: modernLoaderToTanstack({ hasSplat: false }, loader_0),
   staticData: createRouteStaticData({
     modernRouteId: "mf/page",
-    modernRouteLoader: loader_1,
-    modernRouteAction: action_1,
+    modernRouteLoader: loader_0,
+    modernRouteAction: action_0,
   }),
 });
 
 const route_mfNotFound_page = createRoute({
   getParentRoute: () => rootRoute,
-  component: component_2,
   path: "mf-not-found",
-  loader: modernLoaderToTanstack({ hasSplat: false }, loader_2),
+  component: component_2,
+  loader: modernLoaderToTanstack({ hasSplat: false }, loader_1),
   staticData: createRouteStaticData({
     modernRouteId: "mf-not-found/page",
-    modernRouteLoader: loader_2,
+    modernRouteLoader: loader_1,
   }),
 });
 
 const route_mfRedirect_page = createRoute({
   getParentRoute: () => rootRoute,
-  component: component_3,
   path: "mf-redirect",
-  loader: modernLoaderToTanstack({ hasSplat: false }, loader_3),
+  component: component_3,
+  loader: modernLoaderToTanstack({ hasSplat: false }, loader_2),
   staticData: createRouteStaticData({
     modernRouteId: "mf-redirect/page",
-    modernRouteLoader: loader_3,
+    modernRouteLoader: loader_2,
   }),
 });
 

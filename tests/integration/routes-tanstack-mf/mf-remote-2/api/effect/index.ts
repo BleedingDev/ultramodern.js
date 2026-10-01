@@ -1,7 +1,7 @@
 import { defineEffectBff } from '@modern-js/bff-effect/effect';
 import * as Effect from 'effect/Effect';
+import { HttpApiBuilder } from 'effect/http-api';
 import * as Layer from 'effect/Layer';
-import { HttpApiBuilder } from 'effect/unstable/httpapi';
 import { remoteTwoEffectApi } from '../../shared/effect/api';
 
 const greetingsLayer = HttpApiBuilder.group(

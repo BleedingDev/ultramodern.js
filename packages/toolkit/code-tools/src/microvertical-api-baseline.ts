@@ -401,7 +401,7 @@ const rootComposesFoundation = (
 
 /**
  * Effect combinators that return the same api/group without adding endpoints,
- * from `effect/unstable/httpapi`. `prefix` is the one exception that rewrites
+ * from `effect/http-api`. `prefix` is the one exception that rewrites
  * the routes already collected, so the traversal applies it rather than
  * ignoring it. Anything outside this set is still rejected.
  */

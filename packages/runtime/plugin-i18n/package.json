@@ -171,9 +171,9 @@
     "@modern-js/rslib": "workspace:*",
     "@modern-js/runtime": "workspace:*",
     "@modern-js/runtime-extensions": "workspace:*",
-    "@rslib/core": "1.0.2",
+    "@rslib/core": "1.0.3",
     "@scripts/rstest-config": "workspace:*",
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.3",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "esbuild": "^0.28.2",
     "i18next": "26.4.2",
@@ -188,5 +188,9 @@
     "registry": "https://registry.npmjs.org/",
     "access": "public",
     "types": "./dist/types/cli/index.d.ts"
-  }
+  },
+  "files": [
+    "dist",
+    "src"
+  ]
 }

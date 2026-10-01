@@ -1003,23 +1003,26 @@ describe('caller-pinned backend federation regressions', () => {
     { unitId: 'catalog@21' },
     { unitId: 'catalog@21', build: '' },
     { unitId: 'catalog@21', build: 'another-build' },
-  ])('rejects missing or drifting executed identity independently of pinned remote identity: %j', async compatibility => {
-    const module = strictEffectApiModule();
-    const { remote, runtime } = createPinnedBackendRuntime({
-      module: {
-        ...module,
-        backendFederationContract: {
-          ...module.backendFederationContract,
-          compatibility,
+  ])(
+    'rejects missing or drifting executed identity independently of pinned remote identity: %j',
+    async compatibility => {
+      const module = strictEffectApiModule();
+      const { remote, runtime } = createPinnedBackendRuntime({
+        module: {
+          ...module,
+          backendFederationContract: {
+            ...module.backendFederationContract,
+            compatibility,
+          },
         },
-      },
-    });
-    await expect(
-      loadBackendFederatedEffectApi({
-        expected: { unitId: 'catalog@21', buildMarker: 'catalog-build-123' },
-        runtime,
-        remote,
-      }),
-    ).rejects.toThrow('delivery-unit identity mismatch');
-  });
+      });
+      await expect(
+        loadBackendFederatedEffectApi({
+          expected: { unitId: 'catalog@21', buildMarker: 'catalog-build-123' },
+          runtime,
+          remote,
+        }),
+      ).rejects.toThrow('delivery-unit identity mismatch');
+    },
+  );
 });

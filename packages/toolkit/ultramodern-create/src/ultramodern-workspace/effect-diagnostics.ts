@@ -12,6 +12,12 @@ export const effectDiagnostics = [
   'missingStarInYieldEffectGen',
   'nonObjectEffectServiceType',
   'outdatedApi',
+  'experimentalApiUsage',
+  'obsoleteMatchImport',
+  'obsoleteSchemaImport',
+  'promiseInEffectSuccess',
+  'schemaLiteralNonFinite',
+  'schemaOpaqueInstanceMember',
   'overriddenSchemaConstructor',
   'catchUnfailableEffect',
   'effectFnIife',
@@ -73,3 +79,9 @@ export const effectDiagnostics = [
   'unnecessaryPipe',
   'unnecessaryPipeChain',
 ];
+
+// HTTP/RPC are supported framework APIs but still carry Effect's unstable annotation.
+export const effectDiagnosticSeverity = {
+  ...Object.fromEntries(effectDiagnostics.map(name => [name, 'error'])),
+  unstableApiUsage: 'message',
+};

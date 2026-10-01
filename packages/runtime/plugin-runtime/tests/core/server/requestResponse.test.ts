@@ -42,105 +42,116 @@ const createResponseProxy = (status: number): ResponseProxy => ({
 });
 
 describe('createLoaderRedirectResponse', () => {
-  it.each([
-    304,
-  ])('does not classify status %s as a navigation redirect', async status => {
-    const { createLoaderRedirectResponse } = await import(
-      '../../../src/core/server/requestResponse'
-    );
+  it.each([304])(
+    'does not classify status %s as a navigation redirect',
+    async status => {
+      const { createLoaderRedirectResponse } = await import(
+        '../../../src/core/server/requestResponse'
+      );
 
-    expect(
-      createLoaderRedirectResponse(
-        new Response(null, {
-          status,
-          headers: { Location: '/not-a-navigation-redirect' },
-        }),
-        redirectCtx,
-      ),
-    ).toBeUndefined();
-  });
+      expect(
+        createLoaderRedirectResponse(
+          new Response(null, {
+            status,
+            headers: { Location: '/not-a-navigation-redirect' },
+          }),
+          redirectCtx,
+        ),
+      ).toBeUndefined();
+    },
+  );
 
   it.each([
     ['missing', {}],
     ['empty', { Location: '' }],
     ['malformed', { Location: 'http://[::1' }],
-  ])('does not invent a target for a %s Location header', async (_, headers) => {
-    const { createLoaderRedirectResponse } = await import(
-      '../../../src/core/server/requestResponse'
-    );
+  ])(
+    'does not invent a target for a %s Location header',
+    async (_, headers) => {
+      const { createLoaderRedirectResponse } = await import(
+        '../../../src/core/server/requestResponse'
+      );
 
-    expect(
-      createLoaderRedirectResponse(
-        new Response(null, { status: 302, headers }),
+      expect(
+        createLoaderRedirectResponse(
+          new Response(null, { status: 302, headers }),
+          redirectCtx,
+        ),
+      ).toBeUndefined();
+    },
+  );
+
+  it.each([302])(
+    'preserves canonical redirect status %s and its localized target',
+    async status => {
+      const { createLoaderRedirectResponse } = await import(
+        '../../../src/core/server/requestResponse'
+      );
+      const response = createLoaderRedirectResponse(
+        new Response(null, {
+          status,
+          headers: {
+            lOcAtIoN: '/cs/objednavky?from=prehled',
+            'x-redirect-metadata': 'preserved',
+          },
+        }),
         redirectCtx,
-      ),
-    ).toBeUndefined();
-  });
+      );
 
-  it.each([
-    302,
-  ])('preserves canonical redirect status %s and its localized target', async status => {
-    const { createLoaderRedirectResponse } = await import(
-      '../../../src/core/server/requestResponse'
-    );
-    const response = createLoaderRedirectResponse(
-      new Response(null, {
-        status,
-        headers: {
-          lOcAtIoN: '/cs/objednavky?from=prehled',
-          'x-redirect-metadata': 'preserved',
-        },
-      }),
-      redirectCtx,
-    );
+      expect(response?.status).toBe(status);
+      expect(response?.headers.get('location')).toBe(
+        '/cs/objednavky?from=prehled',
+      );
+      expect(response?.headers.get('x-redirect-metadata')).toBe('preserved');
+    },
+  );
 
-    expect(response?.status).toBe(status);
-    expect(response?.headers.get('location')).toBe(
-      '/cs/objednavky?from=prehled',
-    );
-    expect(response?.headers.get('x-redirect-metadata')).toBe('preserved');
-  });
+  it.each([308])(
+    'preserves method-retaining status %s through the RSC redirect transform',
+    async status => {
+      const { createLoaderRedirectResponse } = await import(
+        '../../../src/core/server/requestResponse'
+      );
+      const response = createLoaderRedirectResponse(
+        new Response(null, {
+          status,
+          headers: {
+            Location: '/app/cs/objednavky',
+            'x-redirect-metadata': 'preserved',
+          },
+        }),
+        { enableRsc: true, isRSCNavigation: true, basename: '/app' },
+      );
 
-  it.each([
-    308,
-  ])('preserves method-retaining status %s through the RSC redirect transform', async status => {
-    const { createLoaderRedirectResponse } = await import(
-      '../../../src/core/server/requestResponse'
-    );
-    const response = createLoaderRedirectResponse(
-      new Response(null, {
-        status,
-        headers: {
-          Location: '/app/cs/objednavky',
-          'x-redirect-metadata': 'preserved',
-        },
-      }),
-      { enableRsc: true, isRSCNavigation: true, basename: '/app' },
-    );
-
-    expect(response?.status).toBe(status);
-    expect(response?.headers.get('x-modernjs-redirect')).toBe('/cs/objednavky');
-    expect(response?.headers.get('x-redirect-metadata')).toBe('preserved');
-    expect(response?.headers.get('location')).toBeNull();
-  });
+      expect(response?.status).toBe(status);
+      expect(response?.headers.get('x-modernjs-redirect')).toBe(
+        '/cs/objednavky',
+      );
+      expect(response?.headers.get('x-redirect-metadata')).toBe('preserved');
+      expect(response?.headers.get('location')).toBeNull();
+    },
+  );
 
   it.each([
     ['304 response', 304, { Location: '/cached' }],
     ['missing target', 302, {}],
     ['malformed target', 302, { Location: 'http://[::1' }],
-  ])('does not let the RSC transform manufacture navigation for a %s', async (_, status, headers) => {
-    const [{ createLoaderRedirectResponse }, { handleRSCRedirect }] =
-      await Promise.all([
-        import('../../../src/core/server/requestResponse'),
-        import('../../../src/router/runtime/redirect'),
-      ]);
-    const transformed = handleRSCRedirect(new Headers(headers), '/', status);
+  ])(
+    'does not let the RSC transform manufacture navigation for a %s',
+    async (_, status, headers) => {
+      const [{ createLoaderRedirectResponse }, { handleRSCRedirect }] =
+        await Promise.all([
+          import('../../../src/core/server/requestResponse'),
+          import('../../../src/router/runtime/redirect'),
+        ]);
+      const transformed = handleRSCRedirect(new Headers(headers), '/', status);
 
-    expect(transformed.headers.get('x-modernjs-redirect')).toBeNull();
-    expect(
-      createLoaderRedirectResponse(transformed, redirectCtx),
-    ).toBeUndefined();
-  });
+      expect(transformed.headers.get('x-modernjs-redirect')).toBeNull();
+      expect(
+        createLoaderRedirectResponse(transformed, redirectCtx),
+      ).toBeUndefined();
+    },
+  );
 });
 
 describe('finalizeRenderResponse', () => {
@@ -181,78 +192,76 @@ describe('finalizeRenderResponse', () => {
     await expect(finalized.text()).resolves.toBe('<html>kept</html>');
   });
 
-  it.each([
-    { status: 204, headers: {} },
-  ])('cancels the discarded source before router cleanup for status $status', async ({
-    status,
-    headers,
-  }) => {
-    const { finalizeRenderResponse } = await import(
-      '../../../src/core/server/requestResponse'
-    );
-    const events: string[] = [];
-    let releaseCancel = () => {};
-    let reportCancelStarted = () => {};
-    const cancelReleased = new Promise<void>(resolve => {
-      releaseCancel = resolve;
-    });
-    const cancelStarted = new Promise<void>(resolve => {
-      reportCancelStarted = resolve;
-    });
-    const body = new ReadableStream<Uint8Array>({
-      async cancel() {
-        events.push('cancel:start');
-        reportCancelStarted();
-        await cancelReleased;
-        events.push('cancel:end');
-      },
-    });
-    const context = {} as any;
-    applyRouterRuntimeState(context, {
-      framework: 'custom-router',
-      cleanup: () => {
-        events.push('cleanup');
-      },
-    } as any);
-    const routerCleanup = createRouterCleanup(context, () => {});
-    const response = new Response(body, {
-      status: 200,
-      headers: {
-        'content-length': '123',
-        'transfer-encoding': 'chunked',
-      },
-    });
-
-    const finalizing = finishWithRouterCleanup(routerCleanup, () =>
-      finalizeRenderResponse(
-        response,
-        {
-          status,
-          headers: {
-            ...headers,
-            'content-length': '999',
-            'transfer-encoding': 'chunked',
-          },
+  it.each([{ status: 204, headers: {} }])(
+    'cancels the discarded source before router cleanup for status $status',
+    async ({ status, headers }) => {
+      const { finalizeRenderResponse } = await import(
+        '../../../src/core/server/requestResponse'
+      );
+      const events: string[] = [];
+      let releaseCancel = () => {};
+      let reportCancelStarted = () => {};
+      const cancelReleased = new Promise<void>(resolve => {
+        releaseCancel = resolve;
+      });
+      const cancelStarted = new Promise<void>(resolve => {
+        reportCancelStarted = resolve;
+      });
+      const body = new ReadableStream<Uint8Array>({
+        async cancel() {
+          events.push('cancel:start');
+          reportCancelStarted();
+          await cancelReleased;
+          events.push('cancel:end');
         },
-        redirectCtx,
-        routerCleanup,
-      ),
-    );
+      });
+      const context = {} as any;
+      applyRouterRuntimeState(context, {
+        framework: 'custom-router',
+        cleanup: () => {
+          events.push('cleanup');
+        },
+      } as any);
+      const routerCleanup = createRouterCleanup(context, () => {});
+      const response = new Response(body, {
+        status: 200,
+        headers: {
+          'content-length': '123',
+          'transfer-encoding': 'chunked',
+        },
+      });
 
-    const firstLifecycleEvent = await Promise.race([
-      cancelStarted.then(() => 'cancel:start'),
-      finalizing.then(() => 'finalized'),
-    ]);
-    releaseCancel();
+      const finalizing = finishWithRouterCleanup(routerCleanup, () =>
+        finalizeRenderResponse(
+          response,
+          {
+            status,
+            headers: {
+              ...headers,
+              'content-length': '999',
+              'transfer-encoding': 'chunked',
+            },
+          },
+          redirectCtx,
+          routerCleanup,
+        ),
+      );
 
-    expect(firstLifecycleEvent).toBe('cancel:start');
-    const finalized = await finalizing;
-    expect(events).toEqual(['cancel:start', 'cancel:end', 'cleanup']);
-    expect(finalized.status).toBe(status);
-    expect(finalized.body).toBeNull();
-    expect(finalized.headers.has('content-length')).toBe(false);
-    expect(finalized.headers.has('transfer-encoding')).toBe(false);
-  });
+      const firstLifecycleEvent = await Promise.race([
+        cancelStarted.then(() => 'cancel:start'),
+        finalizing.then(() => 'finalized'),
+      ]);
+      releaseCancel();
+
+      expect(firstLifecycleEvent).toBe('cancel:start');
+      const finalized = await finalizing;
+      expect(events).toEqual(['cancel:start', 'cancel:end', 'cleanup']);
+      expect(finalized.status).toBe(status);
+      expect(finalized.body).toBeNull();
+      expect(finalized.headers.has('content-length')).toBe(false);
+      expect(finalized.headers.has('transfer-encoding')).toBe(false);
+    },
+  );
 
   it('fails closed without router cleanup when a discarded body has another owner', async () => {
     const { finalizeRenderResponse } = await import(

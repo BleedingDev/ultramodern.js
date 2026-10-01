@@ -223,7 +223,7 @@ export const ULTRAMODERN_WORKSPACE_POLICY = {
     packageManager: {
       name: 'pnpm',
       version: PNPM_VERSION,
-      engineRange: '>=11',
+      engineRange: '>=12',
     },
   },
   pnpm: {

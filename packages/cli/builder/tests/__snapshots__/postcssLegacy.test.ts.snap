@@ -1989,8 +1989,8 @@ exports[`plugin-postcssLegacy > should register postcss plugin correctly when in
                         "postcssPlugin": "postcss-normalize-charset",
                       },
                       {
+                        "OnceExit": [Function],
                         "postcssPlugin": "postcss-discard-overridden",
-                        "prepare": [Function],
                       },
                       {
                         "OnceExit": [Function],
@@ -2170,8 +2170,8 @@ exports[`plugin-postcssLegacy > should register postcss plugin correctly when in
                         "postcssPlugin": "postcss-normalize-charset",
                       },
                       {
+                        "OnceExit": [Function],
                         "postcssPlugin": "postcss-discard-overridden",
-                        "prepare": [Function],
                       },
                       {
                         "OnceExit": [Function],
@@ -2362,8 +2362,8 @@ exports[`plugin-postcssLegacy > should register postcss plugin correctly when in
                         "postcssPlugin": "postcss-normalize-charset",
                       },
                       {
+                        "OnceExit": [Function],
                         "postcssPlugin": "postcss-discard-overridden",
-                        "prepare": [Function],
                       },
                       {
                         "OnceExit": [Function],

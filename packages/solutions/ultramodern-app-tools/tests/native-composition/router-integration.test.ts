@@ -177,42 +177,46 @@ describe('canonical router composition', () => {
       metadata: {},
       router: { framework: 'react-router' },
     },
-  ])('replaces the actual native descriptor for each $label entry', async ({
-    metadata,
-    router,
-  }) => {
-    const { api, appDirectory } = await initializeRouterCli({
-      router,
-    });
-    for (const entryName of ['main', 'admin']) {
-      const entrypoint = {
-        entryName,
-        entry: path.join(appDirectory, 'src', entryName, 'App.tsx'),
-        ...metadata,
-      };
-      const consumer = {
-        name: 'consumer',
-        path: './consumer-runtime',
-        config: { untouched: true },
-      };
-      const result = await api
-        .getHooks()
-        ._internalRuntimePlugins.call({ entrypoint, plugins: [consumer] });
-      const routers = result.plugins.filter(plugin => plugin.name === 'router');
-      expect(routers).toEqual([
-        {
-          name: 'router',
-          path: integrationPath,
-          config: { serverBase: [entryName === 'main' ? '/store' : '/admin'] },
-        },
-      ]);
-      expect(result.entrypoint).toBe(entrypoint);
-      expect(result.plugins[0]).toBe(consumer);
-      expect(
-        result.plugins.filter(plugin => plugin.name === 'rendererHead'),
-      ).toHaveLength(1);
-    }
-  });
+  ])(
+    'replaces the actual native descriptor for each $label entry',
+    async ({ metadata, router }) => {
+      const { api, appDirectory } = await initializeRouterCli({
+        router,
+      });
+      for (const entryName of ['main', 'admin']) {
+        const entrypoint = {
+          entryName,
+          entry: path.join(appDirectory, 'src', entryName, 'App.tsx'),
+          ...metadata,
+        };
+        const consumer = {
+          name: 'consumer',
+          path: './consumer-runtime',
+          config: { untouched: true },
+        };
+        const result = await api
+          .getHooks()
+          ._internalRuntimePlugins.call({ entrypoint, plugins: [consumer] });
+        const routers = result.plugins.filter(
+          plugin => plugin.name === 'router',
+        );
+        expect(routers).toEqual([
+          {
+            name: 'router',
+            path: integrationPath,
+            config: {
+              serverBase: [entryName === 'main' ? '/store' : '/admin'],
+            },
+          },
+        ]);
+        expect(result.entrypoint).toBe(entrypoint);
+        expect(result.plugins[0]).toBe(consumer);
+        expect(
+          result.plugins.filter(plugin => plugin.name === 'rendererHead'),
+        ).toHaveLength(1);
+      }
+    },
+  );
 
   test.each([
     {
@@ -236,35 +240,34 @@ describe('canonical router composition', () => {
       name: 'router',
       runtimePath: integrationPath,
     },
-  ])('preserves selected routing for $label when TanStack is installed', async ({
-    metadata,
-    name,
-    runtimePath,
-  }) => {
-    const { api, appDirectory } = await initializeRouterCli({
-      tanstack: true,
-      router: { framework: 'tanstack' },
-    });
-    const result = await api.getHooks()._internalRuntimePlugins.call({
-      entrypoint: {
-        entryName: 'main',
-        entry: path.join(appDirectory, 'src/App.tsx'),
-        ...metadata,
-      },
-      plugins: [],
-    });
-    expect(
-      result.plugins.filter(plugin =>
-        ['router', 'tanstackRouter'].includes(plugin.name),
-      ),
-    ).toEqual([
-      {
-        name,
-        path: runtimePath,
-        config: { serverBase: ['/store'] },
-      },
-    ]);
-  });
+  ])(
+    'preserves selected routing for $label when TanStack is installed',
+    async ({ metadata, name, runtimePath }) => {
+      const { api, appDirectory } = await initializeRouterCli({
+        tanstack: true,
+        router: { framework: 'tanstack' },
+      });
+      const result = await api.getHooks()._internalRuntimePlugins.call({
+        entrypoint: {
+          entryName: 'main',
+          entry: path.join(appDirectory, 'src/App.tsx'),
+          ...metadata,
+        },
+        plugins: [],
+      });
+      expect(
+        result.plugins.filter(plugin =>
+          ['router', 'tanstackRouter'].includes(plugin.name),
+        ),
+      ).toEqual([
+        {
+          name,
+          path: runtimePath,
+          config: { serverBase: ['/store'] },
+        },
+      ]);
+    },
+  );
 
   test('preserves explicit custom descriptors and does not install a router in plain entries', async () => {
     const { api, appDirectory } = await initializeRouterCli();

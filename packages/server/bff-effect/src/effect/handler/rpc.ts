@@ -1,7 +1,8 @@
 // @effect-diagnostics anyUnknownInErrorContext:off asyncFunction:off globalDate:off globalTimers:off newPromise:off strictBooleanExpressions:off
+
+import { HttpRouter } from 'effect/http';
 import * as Layer from 'effect/Layer';
-import { HttpRouter } from 'effect/unstable/http';
-import { type Rpc, RpcServer } from 'effect/unstable/rpc';
+import { type Rpc, RpcServer } from 'effect/rpc';
 
 import { getRpcSerializationLayer } from '../rpcSerialization';
 import type { EffectRpcBffDefinition } from './types';

@@ -98,17 +98,18 @@ describe('backend federation contract validation matrix', () => {
     ).toEqual({ ok: true, errors: [] });
   });
 
-  it.each(
-    identityFields,
-  )('rejects a missing delivery-unit identity field %s', field => {
-    const candidate = createDeliveryUnit() as unknown as MutableRecord;
-    delete candidate[field];
+  it.each(identityFields)(
+    'rejects a missing delivery-unit identity field %s',
+    field => {
+      const candidate = createDeliveryUnit() as unknown as MutableRecord;
+      delete candidate[field];
 
-    const result = validateDeliveryUnitIdentity(candidate);
+      const result = validateDeliveryUnitIdentity(candidate);
 
-    expect(result.ok).toBe(false);
-    expect(errorPaths(result.errors)).toEqual([`deliveryUnit.${field}`]);
-  });
+      expect(result.ok).toBe(false);
+      expect(errorPaths(result.errors)).toEqual([`deliveryUnit.${field}`]);
+    },
+  );
 
   it('rejects a non-string delivery-unit identity value', () => {
     const candidate = createDeliveryUnit() as unknown as MutableRecord;
@@ -161,24 +162,25 @@ describe('backend federation contract validation matrix', () => {
     ]);
   });
 
-  it.each(
-    identityFields,
-  )('rejects version-boundary identity mismatch for %s', field => {
-    const manifest = createValidManifest();
-    manifestVersionBoundaryDeliveryUnit(manifest)[field] = `${String(
-      deliveryUnit[field],
-    )}-mismatch`;
+  it.each(identityFields)(
+    'rejects version-boundary identity mismatch for %s',
+    field => {
+      const manifest = createValidManifest();
+      manifestVersionBoundaryDeliveryUnit(manifest)[field] = `${String(
+        deliveryUnit[field],
+      )}-mismatch`;
 
-    const result = validateBackendFederationManifest(
-      manifest,
-      manifestValidationOptions,
-    );
+      const result = validateBackendFederationManifest(
+        manifest,
+        manifestValidationOptions,
+      );
 
-    expect(result.ok).toBe(false);
-    expect(errorPaths(result.errors)).toEqual([
-      `manifest.backendFederation.versionBoundary.deliveryUnit.${field}`,
-    ]);
-  });
+      expect(result.ok).toBe(false);
+      expect(errorPaths(result.errors)).toEqual([
+        `manifest.backendFederation.versionBoundary.deliveryUnit.${field}`,
+      ]);
+    },
+  );
 
   it('merges metadata expose and compatibility fields during manifest validation', () => {
     const manifest = createValidManifest();

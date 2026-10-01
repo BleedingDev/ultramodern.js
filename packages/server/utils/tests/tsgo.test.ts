@@ -109,34 +109,35 @@ describe('createResolvedTsgoConfig', () => {
   it.each([
     { name: 'missing', excludeFiles: undefined },
     { name: 'empty', excludeFiles: [] },
-  ])('retains declaration roots with $name exclusions', async ({
-    excludeFiles,
-  }) => {
-    const { example, tempRoot } = await createIsolatedTsExample();
-    const tsconfigPath = path.join(example, 'tsconfig.json');
-    const declaration = path.join(example, 'src/client/register.gen.d.ts');
+  ])(
+    'retains declaration roots with $name exclusions',
+    async ({ excludeFiles }) => {
+      const { example, tempRoot } = await createIsolatedTsExample();
+      const tsconfigPath = path.join(example, 'tsconfig.json');
+      const declaration = path.join(example, 'src/client/register.gen.d.ts');
 
-    try {
-      await fs.outputFile(declaration, 'export interface Client {}\n');
-      const { config } = await createResolvedTsgoConfig(
-        example,
-        tsconfigPath,
-        [path.join(example, 'api')],
-        getTsgoBinPath(example),
-        excludeFiles,
-      );
-      const resolvedFiles = (config.files ?? []).map(file =>
-        path.resolve(example, file),
-      );
-      expect(resolvedFiles).toContain(declaration);
-      expect(resolvedFiles).toContain(
-        path.join(example, 'modern-app-env.d.ts'),
-      );
-      expect(resolvedFiles).toContain(path.join(example, 'api/index.ts'));
-    } finally {
-      await fs.remove(tempRoot);
-    }
-  });
+      try {
+        await fs.outputFile(declaration, 'export interface Client {}\n');
+        const { config } = await createResolvedTsgoConfig(
+          example,
+          tsconfigPath,
+          [path.join(example, 'api')],
+          getTsgoBinPath(example),
+          excludeFiles,
+        );
+        const resolvedFiles = (config.files ?? []).map(file =>
+          path.resolve(example, file),
+        );
+        expect(resolvedFiles).toContain(declaration);
+        expect(resolvedFiles).toContain(
+          path.join(example, 'modern-app-env.d.ts'),
+        );
+        expect(resolvedFiles).toContain(path.join(example, 'api/index.ts'));
+      } finally {
+        await fs.remove(tempRoot);
+      }
+    },
+  );
 
   it('excludes only exact root paths when the tsconfig is nested', async () => {
     const { example, tempRoot } = await createIsolatedTsExample();

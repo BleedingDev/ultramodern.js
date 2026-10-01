@@ -1,6 +1,6 @@
 import * as Effect from 'effect/Effect';
 import * as Layer from 'effect/Layer';
-import { Rpc, RpcGroup, RpcMiddleware } from 'effect/unstable/rpc';
+import { Rpc, RpcGroup, RpcMiddleware } from 'effect/rpc';
 
 import { makeEffectRpcClient } from '../src/effect-client';
 

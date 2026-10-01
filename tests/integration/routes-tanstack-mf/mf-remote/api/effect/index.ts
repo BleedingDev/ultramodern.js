@@ -1,10 +1,10 @@
 // @effect-diagnostics asyncFunction:off strictBooleanExpressions:off
 import { defineEffectBff, OpenTelemetry } from '@modern-js/bff-effect/effect';
 import * as Effect from 'effect/Effect';
+import { Headers, HttpTraceContext } from 'effect/http';
+import { HttpApiBuilder } from 'effect/http-api';
 import * as Layer from 'effect/Layer';
 import * as Option from 'effect/Option';
-import { Headers, HttpTraceContext } from 'effect/unstable/http';
-import { HttpApiBuilder } from 'effect/unstable/httpapi';
 import { remoteEffectApi } from '../../shared/effect/api';
 
 type TraceSpanProcessor = Exclude<

@@ -1,6 +1,6 @@
 // @effect-diagnostics asyncFunction:off
 import { defineEffectBff } from '@modern-js/bff-effect/effect';
-import { HttpApi, HttpApiBuilder } from 'effect/unstable/httpapi';
+import { HttpApi, HttpApiBuilder } from 'effect/http-api';
 
 const api = HttpApi.make('LocalisedUrlsHealthApi');
 const layer = HttpApiBuilder.layer(api);

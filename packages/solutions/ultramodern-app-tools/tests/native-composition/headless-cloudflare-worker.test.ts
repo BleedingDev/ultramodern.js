@@ -117,25 +117,25 @@ describe('headless Cloudflare worker build', () => {
   it.each([
     { apiOnly: false, target: 'cloudflare' },
     { apiOnly: true, target: 'node' },
-  ])('does not build a worker for $target with apiOnly=$apiOnly', async ({
-    apiOnly,
-    target,
-  }) => {
-    rstest.mocked(createBuilderGenerator).mockClear();
-    let onAfterBuild: (() => Promise<void>) | undefined;
-    await getPlugin().setup?.({
-      getAppContext: () => ({
-        apiOnly,
-        deployTarget: { target, explicit: true },
-      }),
-      getNormalizedConfig: () => ({}),
-      onAfterBuild: handler => {
-        onAfterBuild = handler;
-      },
-    } as unknown as CLIPluginAPI<AppTools>);
+  ])(
+    'does not build a worker for $target with apiOnly=$apiOnly',
+    async ({ apiOnly, target }) => {
+      rstest.mocked(createBuilderGenerator).mockClear();
+      let onAfterBuild: (() => Promise<void>) | undefined;
+      await getPlugin().setup?.({
+        getAppContext: () => ({
+          apiOnly,
+          deployTarget: { target, explicit: true },
+        }),
+        getNormalizedConfig: () => ({}),
+        onAfterBuild: handler => {
+          onAfterBuild = handler;
+        },
+      } as unknown as CLIPluginAPI<AppTools>);
 
-    await onAfterBuild?.();
+      await onAfterBuild?.();
 
-    expect(createBuilderGenerator).not.toHaveBeenCalled();
-  });
+      expect(createBuilderGenerator).not.toHaveBeenCalled();
+    },
+  );
 });

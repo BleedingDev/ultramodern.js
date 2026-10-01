@@ -6,15 +6,15 @@ const packageJson = `${JSON.stringify(
     version: '0.1.0',
     private: true,
     type: 'module',
-    packageManager: 'pnpm@11.27.1',
+    packageManager: 'pnpm@12.8.1',
     scripts: {
       dev: 'modern dev',
       start: 'modern dev --host 0.0.0.0',
       build: 'modern build',
     },
     engines: {
-      node: '>=26.7.0',
-      pnpm: '>=11.27.1',
+      node: '>=26.10.0',
+      pnpm: '>=12.8.1',
     },
     dependencies: {
       '@modern-js/i18n-integration':
@@ -25,10 +25,10 @@ const packageJson = `${JSON.stringify(
       '@modern-js/plugin-tanstack':
         'npm:@bleedingdev/modern-js-plugin-tanstack@latest',
       '@modern-js/runtime': 'npm:@bleedingdev/modern-js-runtime@latest',
-      effect: '4.0.0-rc.117',
-      i18next: '26.3.6',
-      react: '19.2.8',
-      'react-dom': '19.2.8',
+      effect: '4.0.0',
+      i18next: '26.4.2',
+      react: '19.3.0',
+      'react-dom': '19.3.0',
     },
     devDependencies: {
       '@modern-js/ultramodern-app-tools':
@@ -36,9 +36,9 @@ const packageJson = `${JSON.stringify(
       '@modern-js/app-tools': 'npm:@bleedingdev/modern-js-app-tools@latest',
       '@modern-js/tsconfig': 'npm:@bleedingdev/modern-js-tsconfig@latest',
       '@rsbuild/plugin-tailwindcss': '2.0.3',
-      '@types/node': '^26.2.0',
-      '@types/react': '^19.2.18',
-      '@types/react-dom': '^19.2.4',
+      '@types/node': '^26.6.3',
+      '@types/react': '^19.3.0',
+      '@types/react-dom': '^19.3.0',
       tailwindcss: '4.3.3',
       typescript: '7.0.2',
     },

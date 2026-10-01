@@ -44,14 +44,14 @@
   },
   "dependencies": {
     "@modern-js/utils": "workspace:*",
-    "@rslib/core": "1.0.2",
+    "@rslib/core": "1.0.3",
     "@swc/helpers": "^0.5.23"
   },
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
     "@modern-js/server-core": "workspace:*",
     "@scripts/rstest-config": "workspace:*",
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.3",
     "@typescript/native-preview": "7.0.0-dev.20260707.2"
   },
   "peerDependencies": {

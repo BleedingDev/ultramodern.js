@@ -67,7 +67,7 @@
     }
   },
   "engines": {
-    "node": ">=26.7.0"
+    "node": ">=26.10.0"
   },
   "typesVersions": {
     "*": {
@@ -144,25 +144,25 @@
     "@modern-js/server-utils": "workspace:*",
     "@modern-js/types": "workspace:*",
     "@modern-js/utils": "workspace:*",
-    "@rsbuild/core": "2.2.10",
-    "@swc/core": "1.16.2",
+    "@rsbuild/core": "2.2.11",
+    "@swc/core": "1.16.13",
     "@swc/helpers": "^0.5.23",
     "compression-webpack-plugin": "^12.0.0",
-    "es-module-lexer": "^2.3.2",
+    "es-module-lexer": "^3.0.2",
     "esbuild": "^0.28.2",
     "flatted": "^3.4.4",
     "import-meta-resolve": "^4.2.0",
     "mlly": "^1.8.2",
     "ndepe": "^0.1.13",
     "pkg-types": "^2.3.3",
-    "std-env": "4.2.0"
+    "std-env": "4.3.0"
   },
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
-    "@rslib/core": "1.0.2",
+    "@rslib/core": "1.0.3",
     "@scripts/rstest-config": "workspace:*",
     "@types/babel__traverse": "7.28.0",
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.3",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",

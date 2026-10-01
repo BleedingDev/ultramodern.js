@@ -171,72 +171,74 @@ describe('native Rsbuild SSR composition', () => {
       outputModule: true,
       expectedModule: false,
     },
-  ] as const)('runs native SSR before fork policy for $name module=$outputModule', async ({
-    name,
-    target,
-    outputModule,
-    expectedModule,
-  }) => {
-    const normalizedConfig = {
-      deploy: { target: 'cloudflare' },
-      server: {
-        ssr: { mode: 'stream', moduleFederationAppSSR: true },
-        rsc: true,
-      },
-    };
-    const [native, fork] = createBuilderPlugins(outputModule, normalizedConfig);
-    const observed: Array<Record<string, any>> = [];
-    const observedNative: RsbuildPlugin = {
-      ...native,
-      setup(api) {
-        native.setup({
-          ...api,
-          modifyEnvironmentConfig(handler: any) {
-            api.modifyEnvironmentConfig(async (config, utils) => {
-              const result = await handler(config, utils);
-              observed.push({
-                module: result.output.module,
-                marker: result.source.define?.['process.env.MODERN_MF_APP_SSR'],
-                rsc: result.source.define?.__MODERN_ENABLE_RSC__,
+  ] as const)(
+    'runs native SSR before fork policy for $name module=$outputModule',
+    async ({ name, target, outputModule, expectedModule }) => {
+      const normalizedConfig = {
+        deploy: { target: 'cloudflare' },
+        server: {
+          ssr: { mode: 'stream', moduleFederationAppSSR: true },
+          rsc: true,
+        },
+      };
+      const [native, fork] = createBuilderPlugins(
+        outputModule,
+        normalizedConfig,
+      );
+      const observed: Array<Record<string, any>> = [];
+      const observedNative: RsbuildPlugin = {
+        ...native,
+        setup(api) {
+          native.setup({
+            ...api,
+            modifyEnvironmentConfig(handler: any) {
+              api.modifyEnvironmentConfig(async (config, utils) => {
+                const result = await handler(config, utils);
+                observed.push({
+                  module: result.output.module,
+                  marker:
+                    result.source.define?.['process.env.MODERN_MF_APP_SSR'],
+                  rsc: result.source.define?.__MODERN_ENABLE_RSC__,
+                });
+                return result;
               });
-              return result;
-            });
-          },
-        });
-      },
-    };
-    const rsbuild = await createRsbuild({
-      rsbuildConfig: {
-        mode: 'production',
-        plugins: [fork, observedNative],
-        environments: {
-          [name]: {
-            source: { entry: { main: './src/index.ts' } },
-            output: { target },
+            },
+          });
+        },
+      };
+      const rsbuild = await createRsbuild({
+        rsbuildConfig: {
+          mode: 'production',
+          plugins: [fork, observedNative],
+          environments: {
+            [name]: {
+              source: { entry: { main: './src/index.ts' } },
+              output: { target },
+            },
           },
         },
-      },
-    });
-    await rsbuild.initConfigs();
-    const result = rsbuild.getNormalizedConfig().environments[name];
-    expect(observed).toEqual([
-      {
-        module: name !== 'client' && outputModule,
-        marker: undefined,
-        rsc: 'true',
-      },
-    ]);
-    expect(result.output.module).toBe(expectedModule);
-    expect(result.output.target).toBe(target);
-    expect(result.source.define).toMatchObject({
-      __MODERN_ENABLE_RSC__: 'true',
-      'process.env.MODERN_ENABLE_RSC': 'true',
-      'process.env.MODERN_MF_APP_SSR': JSON.stringify('true'),
-      'process.env.MODERN_TARGET': JSON.stringify(
-        name === 'client' ? 'browser' : 'node',
-      ),
-    });
-    // Module Federation, not this policy, turns server splitChunks off.
-    expect(result.splitChunks).not.toBe(false);
-  });
+      });
+      await rsbuild.initConfigs();
+      const result = rsbuild.getNormalizedConfig().environments[name];
+      expect(observed).toEqual([
+        {
+          module: name !== 'client' && outputModule,
+          marker: undefined,
+          rsc: 'true',
+        },
+      ]);
+      expect(result.output.module).toBe(expectedModule);
+      expect(result.output.target).toBe(target);
+      expect(result.source.define).toMatchObject({
+        __MODERN_ENABLE_RSC__: 'true',
+        'process.env.MODERN_ENABLE_RSC': 'true',
+        'process.env.MODERN_MF_APP_SSR': JSON.stringify('true'),
+        'process.env.MODERN_TARGET': JSON.stringify(
+          name === 'client' ? 'browser' : 'node',
+        ),
+      });
+      // Module Federation, not this policy, turns server splitChunks off.
+      expect(result.splitChunks).not.toBe(false);
+    },
+  );
 });

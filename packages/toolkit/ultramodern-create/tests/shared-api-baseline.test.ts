@@ -59,7 +59,10 @@ test.each([
     'readiness: fake(',
   ],
   ['replaced readiness', '= MicroVerticalReadinessSchema', '= Schema.String'],
-])('package checker rejects %s in generated source', (_label, before, after) => {
-  expect(source).toContain(before);
-  expect(validate(source.replace(before, after))).toBeDefined();
-});
+])(
+  'package checker rejects %s in generated source',
+  (_label, before, after) => {
+    expect(source).toContain(before);
+    expect(validate(source.replace(before, after))).toBeDefined();
+  },
+);

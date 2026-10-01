@@ -1,4 +1,4 @@
-import { compatibleRequire, globby } from '@modern-js/utils';
+import { compatibleRequire, globbySync } from '@modern-js/utils';
 import path from 'path';
 import { INDEX_SUFFIX } from './constants';
 import type { APIHandlerInfo } from './types';
@@ -11,12 +11,11 @@ export const getFiles = (
   lambdaDir: string,
   rules: string | string[],
 ): string[] =>
-  globby
-    .sync(rules, {
-      cwd: lambdaDir,
-      gitignore: true,
-    } as any)
-    .map(file => path.resolve(lambdaDir, file as any));
+  globbySync(rules, {
+    cwd: lambdaDir,
+    // Built API handlers must remain discoverable inside gitignored dist directories.
+    ignoreFiles: '**/.gitignore',
+  }).map(file => path.resolve(lambdaDir, file));
 
 export const getPathFromFilename = (
   baseDir: string,

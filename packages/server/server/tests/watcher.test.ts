@@ -140,7 +140,7 @@ describe('watcher', () => {
     const changed = new Promise<void>(resolve => {
       sourceChanged = resolve;
     });
-    watcher.listen([`${shared}/**/*`], mergeWatchOptions({}), file => {
+    watcher.listen([shared], mergeWatchOptions({}), file => {
       events.push(file);
       if (file === path.join(shared, 'effect/index.ts')) sourceChanged();
     });
@@ -189,7 +189,7 @@ describe('watcher', () => {
     });
 
     watcher.listen(
-      [`${apiDir}/**/*`],
+      [apiDir],
       {
         ignoreInitial: true,
         ignored: /api\/typings\/.*/,
@@ -211,7 +211,7 @@ describe('watcher', () => {
 describe('test watcher', () => {
   let watcher: any;
   const baseDir = path.join(__dirname, 'fixtures');
-  const watchDir = path.join(baseDir, 'watch/**');
+  const watchDir = path.join(baseDir, 'watch');
   const filepath = path.join(baseDir, 'watch', 'index.ts');
   const filepatha = path.join(baseDir, 'watch', 'a.ts');
   const txt = path.join(baseDir, 'watch', 'stats.txt');

@@ -22,114 +22,114 @@ describe('router runtime root', () => {
     window._ROUTER_DATA = undefined;
   });
 
-  it.each([
-    false,
-    true,
-  ])('keeps router publication and the mounted tree stable (StrictMode: %s)', async strict => {
-    const Wrapper = strict ? StrictMode : Fragment;
-    const mountCounts = strict
-      ? { mounts: 2, unmounts: 1 }
-      : { mounts: 1, unmounts: 0 };
-    (
-      globalThis as typeof globalThis & {
-        __webpack_require__?: { u: (chunkId: unknown) => string };
-      }
-    ).__webpack_require__ = {
-      u: chunkId => String(chunkId),
-    };
+  it.each([false, true])(
+    'keeps router publication and the mounted tree stable (StrictMode: %s)',
+    async strict => {
+      const Wrapper = strict ? StrictMode : Fragment;
+      const mountCounts = strict
+        ? { mounts: 2, unmounts: 1 }
+        : { mounts: 1, unmounts: 0 };
+      (
+        globalThis as typeof globalThis & {
+          __webpack_require__?: { u: (chunkId: unknown) => string };
+        }
+      ).__webpack_require__ = {
+        u: chunkId => String(chunkId),
+      };
 
-    const { routerPlugin } = await import('../../src/router/runtime/plugin');
-    let mounts = 0;
-    let unmounts = 0;
-    const RouteProbe = () => {
-      const location = useLocation();
-      useEffect(() => {
-        mounts += 1;
-        return () => {
-          unmounts += 1;
-        };
-      }, []);
-      return <main>route content{location.search}</main>;
-    };
-    const Shell = ({ children }: React.PropsWithChildren) => <>{children}</>;
-    let RouterRoot: React.ComponentType<any> | undefined;
-    const passThrough = { call: <T,>(value: T) => value };
-    const notify = { call: () => undefined };
-    const created = rstest.fn();
+      const { routerPlugin } = await import('../../src/router/runtime/plugin');
+      let mounts = 0;
+      let unmounts = 0;
+      const RouteProbe = () => {
+        const location = useLocation();
+        useEffect(() => {
+          mounts += 1;
+          return () => {
+            unmounts += 1;
+          };
+        }, []);
+        return <main>route content{location.search}</main>;
+      };
+      const Shell = ({ children }: React.PropsWithChildren) => <>{children}</>;
+      let RouterRoot: React.ComponentType<any> | undefined;
+      const passThrough = { call: <T,>(value: T) => value };
+      const notify = { call: () => undefined };
+      const created = rstest.fn();
 
-    routerPlugin({
-      createRoutes: () => [
-        {
-          path: '/',
-          element: <RouteProbe />,
+      routerPlugin({
+        createRoutes: () => [
+          {
+            path: '/',
+            element: <RouteProbe />,
+          },
+        ],
+      }).setup?.({
+        getHooks: () => ({
+          modifyRoutes: passThrough,
+          onAfterCreateRouter: { call: created },
+          onAfterHydrateRouter: notify,
+          onBeforeCreateRouter: notify,
+          onBeforeHydrateRouter: notify,
+        }),
+        getRuntimeConfig: () => ({}),
+        onBeforeRender: () => undefined,
+        wrapRoot: (
+          wrap: (App: React.ComponentType<any>) => React.ComponentType<any>,
+        ) => {
+          RouterRoot = wrap(Shell);
         },
-      ],
-    }).setup?.({
-      getHooks: () => ({
-        modifyRoutes: passThrough,
-        onAfterCreateRouter: { call: created },
-        onAfterHydrateRouter: notify,
-        onBeforeCreateRouter: notify,
-        onBeforeHydrateRouter: notify,
-      }),
-      getRuntimeConfig: () => ({}),
-      onBeforeRender: () => undefined,
-      wrapRoot: (
-        wrap: (App: React.ComponentType<any>) => React.ComponentType<any>,
-      ) => {
-        RouterRoot = wrap(Shell);
-      },
-    } as any);
+      } as any);
 
-    if (!RouterRoot) {
-      throw new Error('Expected router plugin to register a root wrapper');
-    }
+      if (!RouterRoot) {
+        throw new Error('Expected router plugin to register a root wrapper');
+      }
 
-    const container = document.createElement('div');
-    document.body.appendChild(container);
-    const root = createRoot(container);
-    const runtimeContext = {
-      isBrowser: true,
-      requestContext: { request: {}, response: {} },
-      context: { request: {}, response: {} },
-    } as any;
+      const container = document.createElement('div');
+      document.body.appendChild(container);
+      const root = createRoot(container);
+      const runtimeContext = {
+        isBrowser: true,
+        requestContext: { request: {}, response: {} },
+        context: { request: {}, response: {} },
+      } as any;
 
-    await act(async () => {
-      root.render(
-        <Wrapper>
-          <InternalRuntimeContext.Provider value={runtimeContext}>
-            <RouterRoot renderVersion={0} />
-          </InternalRuntimeContext.Provider>
-        </Wrapper>,
-      );
-    });
-    expect(container.textContent).toBe('route content');
-    expect({ mounts, unmounts }).toEqual(mountCounts);
+      await act(async () => {
+        root.render(
+          <Wrapper>
+            <InternalRuntimeContext.Provider value={runtimeContext}>
+              <RouterRoot renderVersion={0} />
+            </InternalRuntimeContext.Provider>
+          </Wrapper>,
+        );
+      });
+      expect(container.textContent).toBe('route content');
+      expect({ mounts, unmounts }).toEqual(mountCounts);
 
-    await act(async () => {
-      root.render(
-        <Wrapper>
-          <InternalRuntimeContext.Provider value={runtimeContext}>
-            <RouterRoot renderVersion={1} />
-          </InternalRuntimeContext.Provider>
-        </Wrapper>,
-      );
-    });
-    expect(container.textContent).toBe('route content');
-    expect({ mounts, unmounts }).toEqual(mountCounts);
-    expect(created).toHaveBeenCalledTimes(1);
-    await act(async () => {
-      await created.mock.calls[0][0].router.navigate('/?next');
-    });
-    expect(container.textContent).toBe('route content?next');
-    expect({ mounts, unmounts }).toEqual(mountCounts);
+      await act(async () => {
+        root.render(
+          <Wrapper>
+            <InternalRuntimeContext.Provider value={runtimeContext}>
+              <RouterRoot renderVersion={1} />
+            </InternalRuntimeContext.Provider>
+          </Wrapper>,
+        );
+      });
+      expect(container.textContent).toBe('route content');
+      expect({ mounts, unmounts }).toEqual(mountCounts);
+      expect(created).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        await created.mock.calls[0][0].router.navigate('/?next');
+      });
+      expect(container.textContent).toBe('route content?next');
+      expect({ mounts, unmounts }).toEqual(mountCounts);
 
-    await act(async () => {
-      root.unmount();
-    });
-    expect(unmounts).toBe(mountCounts.unmounts + 1);
-    container.remove();
-  });
+      await act(async () => {
+        root.unmount();
+      });
+      expect(unmounts).toBe(mountCounts.unmounts + 1);
+      container.remove();
+    },
+  );
   it('delivers the native hash router and hydration events after fork state capture', async () => {
     (globalThis as any).__webpack_require__ = {
       u: (id: unknown) => String(id),

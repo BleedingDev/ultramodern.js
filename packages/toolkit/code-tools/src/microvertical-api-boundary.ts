@@ -682,7 +682,7 @@ function check(
           moduleShape(
             contract,
             [
-              ['effect/unstable/rpc', ['Rpc', 'RpcGroup']],
+              ['effect/rpc', ['Rpc', 'RpcGroup']],
               [effect, ['Schema']],
             ],
             ['RpcGroup.make', 'Rpc.make', 'Schema.Struct'],

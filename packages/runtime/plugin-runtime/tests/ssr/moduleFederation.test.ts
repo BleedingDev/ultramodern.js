@@ -121,18 +121,16 @@ describe('native SSR output defaults', () => {
       name: 'workerSSR',
       expected: false,
     },
-  ])('preserves $name output module=$outputModule', ({
-    outputModule,
-    target,
-    name,
-    expected,
-  }) => {
-    const transform = createEnvironmentConfigTransformer({ outputModule });
-    const result = transform({ output: { target } }, name);
-    expect(result.output).toMatchObject({ target, module: expected });
-    expect(
-      result.source.define['process.env.MODERN_MF_APP_SSR'],
-    ).toBeUndefined();
-    expect(result.splitChunks).toBeUndefined();
-  });
+  ])(
+    'preserves $name output module=$outputModule',
+    ({ outputModule, target, name, expected }) => {
+      const transform = createEnvironmentConfigTransformer({ outputModule });
+      const result = transform({ output: { target } }, name);
+      expect(result.output).toMatchObject({ target, module: expected });
+      expect(
+        result.source.define['process.env.MODERN_MF_APP_SSR'],
+      ).toBeUndefined();
+      expect(result.splitChunks).toBeUndefined();
+    },
+  );
 });

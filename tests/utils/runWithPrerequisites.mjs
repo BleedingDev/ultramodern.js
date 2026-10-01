@@ -81,7 +81,9 @@ export async function packTestPackages(outputDir) {
   ).filter(
     project =>
       !project.private &&
-      project.path.startsWith(path.join(repoRoot, 'packages') + path.sep),
+      path
+        .normalize(project.path)
+        .startsWith(path.join(repoRoot, 'packages') + path.sep),
   );
   const packages = {};
   for (const project of projects) {
@@ -106,12 +108,12 @@ export async function packTestPackages(outputDir) {
     ),
   );
   const manifest = path.join(outputDir, 'packages.json');
-  const { allowBuilds } = yaml.load(
+  const { allowBuilds, minimumReleaseAgeExclude = [] } = yaml.load(
     fs.readFileSync(path.join(repoRoot, 'pnpm-workspace.yaml'), 'utf8'),
   );
   fs.writeFileSync(
     manifest,
-    `${JSON.stringify({ packages, sidecars, edges, allowBuilds }, null, 2)}\n`,
+    `${JSON.stringify({ packages, sidecars, edges, allowBuilds, minimumReleaseAgeExclude: minimumReleaseAgeExclude.filter(selector => !selector.includes('*')) }, null, 2)}\n`,
   );
   return manifest;
 }

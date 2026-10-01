@@ -12,7 +12,7 @@ const requireFromPackage = createRequire(
 const effectHttp = pathToFileURL(
   path.join(
     path.dirname(requireFromPackage.resolve('effect/package.json')),
-    'dist/unstable/http/index.js',
+    'dist/http/index.js',
   ),
 ).href;
 

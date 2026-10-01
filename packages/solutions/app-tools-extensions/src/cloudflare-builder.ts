@@ -518,11 +518,20 @@ class AbsentOptionalDependencyPlugin {
           },
           getResolve: options => {
             const resolver = factory.getResolver('normal', options ?? {});
-            return (
+            function resolveRequest(
+              context: string,
+              request: string,
+              callback: Parameters<typeof resolver.resolve>[4],
+            ): void;
+            function resolveRequest(
+              context: string,
+              request: string,
+            ): Promise<string | undefined>;
+            function resolveRequest(
               context: string,
               request: string,
               callback?: Parameters<typeof resolver.resolve>[4],
-            ) => {
+            ) {
               if (callback) {
                 resolver.resolve({}, context, request, {}, callback);
                 return undefined;
@@ -532,7 +541,8 @@ class AbsentOptionalDependencyPlugin {
                   error ? reject(error) : resolve(result || undefined),
                 );
               });
-            };
+            }
+            return resolveRequest;
           },
           request: data.request,
         });

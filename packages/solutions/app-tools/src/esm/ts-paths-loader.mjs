@@ -7,6 +7,15 @@ import { fileURLToPath, pathToFileURL } from 'url';
 let matchPath;
 let appDir;
 
+const resolveSourcePath = (sourcePath, context, defaultResolve) =>
+  defaultResolve(
+    context.conditions.includes('require')
+      ? sourcePath
+      : pathToFileURL(sourcePath).href,
+    context,
+    defaultResolve,
+  );
+
 // Node's ESM loader does not guarantee that `context.parentURL` is always a
 // `file://` URL. Some packages, such as Tailwind v4, can trigger resolutions
 // from synthetic modules like `data:` URLs. Guarding the conversion here keeps
@@ -33,7 +42,9 @@ const getParentPath = parentURL => {
 };
 
 export async function initialize({ appDir: currentAppDir, baseUrl, paths }) {
-  appDir = path.resolve(currentAppDir);
+  appDir = fs.existsSync(currentAppDir)
+    ? fs.realpathSync(currentAppDir)
+    : path.resolve(currentAppDir);
   matchPath = oCreateMatchPath(baseUrl || './', paths || {});
 }
 
@@ -59,15 +70,11 @@ export function resolve(specifier, context, defaultResolve) {
     const resolvedPath = findSourceEntry(matchedPath) || matchedPath;
 
     if (resolvedPath && fs.existsSync(resolvedPath)) {
-      return defaultResolve(
-        pathToFileURL(resolvedPath).href,
-        context,
-        defaultResolve,
-      );
+      return resolveSourcePath(resolvedPath, context, defaultResolve);
     }
   }
 
-  if (!matchPath) {
+  if (!matchPath || !isAppFile) {
     return defaultResolve(specifier, context, defaultResolve);
   }
 
@@ -80,9 +87,5 @@ export function resolve(specifier, context, defaultResolve) {
   }
 
   const resolvedPath = findSourceEntry(match) || match;
-  return defaultResolve(
-    pathToFileURL(resolvedPath).href,
-    context,
-    defaultResolve,
-  );
+  return resolveSourcePath(resolvedPath, context, defaultResolve);
 }

@@ -3,121 +3,59 @@ import { defineConfig, type RslibConfig, type Rspack } from '@rslib/core';
 import { publicDeclarationsPlugin } from '../../../scripts/prebundle/ultramodern/public-declarations.mjs';
 
 const dependencies = [
-  // zero dependency
   'address',
   'filesize',
   'minimist',
-  {
-    name: 'commander',
-    esm: true,
-  },
+  'commander',
   'import-lazy',
-  'dotenv',
   'dotenv-expand',
   'url-join',
   'slash',
-  {
-    name: 'nanoid',
-    esm: true,
-  },
+  'nanoid',
   'lodash',
-  {
-    name: 'upath',
-  },
-  // a few dependencies
+  'upath',
   'debug',
   'semver',
-  {
-    name: 'js-yaml',
-    esm: true,
-  },
+  'js-yaml',
   'mime-types',
   'strip-ansi',
   'gzip-size',
-  {
-    name: 'json5',
-    externals: {
-      minimist: '../minimist',
-    },
-  },
-  // some dependencies
+  'json5',
   'glob',
   'chalk',
   'webpack-chain',
-  {
-    name: 'signale',
-    externals: {
-      chalk: '../chalk',
-    },
-    packageJsonField: ['options'],
-  },
+  'signale',
   'execa',
   'fs-extra',
   'browserslist',
   'chokidar',
-  'fast-glob',
-  {
-    name: 'globby',
-    externals: {
-      'fast-glob': '../fast-glob',
-    },
-  },
-  {
-    name: 'ora',
-    externals: {
-      chalk: '../chalk',
-      'strip-ansi': '../strip-ansi',
-    },
-  },
-  {
-    name: 'inquirer',
-    externals: {
-      ora: '../ora',
-      chalk: '../chalk',
-      'strip-ansi': '../strip-ansi',
-    },
-  },
-  {
-    name: 'tsconfig-paths',
-    esm: true,
-    externals: {
-      json5: '../json5',
-      minimist: '../minimist',
-    },
-  },
+  'globby',
+  'ora',
+  'inquirer',
+  'tsconfig-paths',
 ];
 
-const externalsMap: Record<string, { esm: boolean; regex: RegExp }> = {};
-
-for (const item of dependencies) {
-  const depName = typeof item === 'string' ? item : item.name;
-
-  // Skip dtsOnly dependencies
-  if (typeof item !== 'string' && 'dtsOnly' in item) {
-    continue;
-  }
-
-  externalsMap[depName] = {
-    esm: Boolean(typeof item === 'object' && item.esm),
-    regex: new RegExp(`compiled[\\/]${depName}(?:[\\/]|$)`),
-  };
-}
+const externalsMap = dependencies.map(name => ({
+  name,
+  regex: new RegExp(`compiled[\\/]${name}(?:[\\/]|$)`),
+}));
 
 // externalize pre-bundled dependencies
 const createExternals =
   (type?: string, noESM = false): Rspack.ExternalItem =>
   ({ request }, callback) => {
-    const entries = Object.entries(externalsMap);
     if (request) {
-      for (const [name, { regex, esm }] of entries) {
+      for (const { name, regex } of externalsMap) {
         if (request === name) {
           throw new Error(
             `"${name}" is not allowed to be imported, use "../compiled/${name}/index.js" instead.`,
           );
         }
         if (regex.test(request)) {
-          const index = esm && !noESM ? 'index.mjs' : 'index.js';
-          const external = `${request}/${index}`;
+          const index =
+            !noESM && request.endsWith('.mjs') ? 'index.mjs' : 'index.js';
+          const base = request.replace(/[/\\]index\.[cm]?js$/, '');
+          const external = `${base}/${index}`;
           return callback(undefined, type ? `${type} ${external}` : external);
         }
       }

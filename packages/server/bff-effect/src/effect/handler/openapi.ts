@@ -1,6 +1,6 @@
 // @effect-diagnostics anyUnknownInErrorContext:off asyncFunction:off globalDate:off globalTimers:off newPromise:off strictBooleanExpressions:off
-import { HttpRouter, HttpServerResponse } from 'effect/unstable/http';
-import { type HttpApi, OpenApi } from 'effect/unstable/httpapi';
+import { HttpRouter, HttpServerResponse } from 'effect/http';
+import { type HttpApi, OpenApi } from 'effect/http-api';
 
 import type { EffectBffOpenApiConfig } from './types';
 
