@@ -149,18 +149,13 @@ try {
   console.log(
     'BUILT Utils/AppTools/fork composition: strict TS7 + Node-only consumer passed',
   );
-  // Start from clean producer input: overlaying raw declarations would leave
-  // restored Inquirer modules from the build and conceal the original defect.
+  // Check the generated dependency declarations without package-build repairs.
   rmSync(utils, { recursive: true });
   cpSync(join(root, 'packages/toolkit/utils/compiled'), utils, {
     recursive: true,
   });
   const baseline = compile(file);
-  assert.notEqual(
-    baseline.status,
-    0,
-    'raw compiled input unexpectedly typechecked',
-  );
+  assert.equal(baseline.status, 0, baseline.output);
   const runtimeBefore = readdirSync(utils, { recursive: true })
     .filter(name => /\.[cm]?js$/.test(name))
     .sort();
@@ -171,7 +166,7 @@ try {
     'rxjs',
     realpathSync(join(root, 'packages/toolkit/utils/node_modules/rxjs')),
   );
-  for (const kind of ['utils', 'builder', 'app-tools-extensions']) {
+  for (const kind of ['builder', 'app-tools-extensions']) {
     let emit;
     publicDeclarationsPlugin(kind).setup({
       context: { rootPath: join(modules, `@modern-js/${kind}`) },

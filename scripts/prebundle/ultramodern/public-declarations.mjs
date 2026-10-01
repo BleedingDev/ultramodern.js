@@ -85,18 +85,6 @@ function emitOptionDeclarations(
   cpSync(join(packageRoot, 'LICENSE'), join(target, 'LICENSE'));
 }
 
-/** Repair declaration production without replacing any bundled runtime implementation. */
-export function emitUtilsDeclarations(compiled) {
-  // These empty ES5 compatibility augmentations conflict with modern WeakKey.
-  // Node 26 supplies all four collection interfaces, including symbol weak keys.
-  rewrite(join(compiled, 'lodash/index.d.ts'), text =>
-    text.replace(
-      /\/\/ Backward compatibility with --target es5\s+declare global \{[\s\S]*?\n\}/,
-      '',
-    ),
-  );
-}
-
 /** Keep Builder's optional Sass configuration graph on the actual Rspack/Sass implementation. */
 export function emitBuilderDeclarations(types, resolvePackage) {
   const css = join(types, 'css-minimizer');
@@ -203,9 +191,7 @@ export function publicDeclarationsPlugin(kind) {
       api.onAfterBuild(() => {
         const root = api.context.rootPath;
         const resolver = packageResolver(root);
-        if (kind === 'utils')
-          emitUtilsDeclarations(resolve(root, 'dist/compiled'));
-        else if (kind === 'builder')
+        if (kind === 'builder')
           emitBuilderDeclarations(resolve(root, 'dist/types'), resolver);
         else if (kind === 'app-tools-extensions')
           emitAppToolsExtensionsDeclarations(
