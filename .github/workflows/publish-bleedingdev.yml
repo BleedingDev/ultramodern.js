@@ -591,7 +591,7 @@ jobs:
   # The same registry reconciliation publish-sidecars performs, without
   # publishing and without OIDC: a dry run of the staged sidecar lane reports
   # what it would do and fails closed on a missing package or any registry
-  # content/version mismatch. It needs only the bundle, so it runs as soon as
+  # content/version mismatch. It needs only the bundle and the publication CLI dependency, so it runs as soon as
   # prepare-release uploads it and gates the expensive clean-room acceptance.
   reconcile-sidecars:
     name: Reconcile the staged sidecars with the registry
@@ -615,6 +615,15 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
+
+      - name: Setup mise
+        uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
+        with:
+          version: 2026.9.18
+          cache: false
+
+      - name: Install publication CLI dependencies
+        run: mise exec -- pnpm install --frozen-lockfile --ignore-scripts --prod --filter modern-js-monorepo --package-import-method=clone-or-copy
 
       - name: Setup Node.js 26.10.0
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -911,6 +920,15 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Setup mise
+        uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
+        with:
+          version: 2026.9.18
+          cache: false
+
+      - name: Install publication CLI dependencies
+        run: mise exec -- pnpm install --frozen-lockfile --ignore-scripts --prod --filter modern-js-monorepo --package-import-method=clone-or-copy
+
       - name: Setup Node.js 26.10.0
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -995,6 +1013,15 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
+
+      - name: Setup mise
+        uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
+        with:
+          version: 2026.9.18
+          cache: false
+
+      - name: Install publication CLI dependencies
+        run: mise exec -- pnpm install --frozen-lockfile --ignore-scripts --prod --filter modern-js-monorepo --package-import-method=clone-or-copy
 
       - name: Setup Node.js 26.10.0
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
