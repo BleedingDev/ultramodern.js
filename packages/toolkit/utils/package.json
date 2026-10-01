@@ -191,7 +191,7 @@
     "prepack": "pnpm run build",
     "dev": "nx run @modern-js/utils:build && rslib build --watch",
     "build": "nx run @modern-js/utils:build",
-    "test": "rstest"
+    "test": "nx run @scripts/prebundle:bundle && rstest"
   },
   "nx": {
     "targets": {
