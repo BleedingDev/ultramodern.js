@@ -4,7 +4,7 @@ overview: Update active runtime libraries and prebundled utilities, resolve secu
 todos:
   - id: update-active-runtime-libraries
     content: Upgrade frozen runtime router i18n Hono data and documentation targets and repair the owning framework contracts with regression coverage.
-    status: in_progress
+    status: pending
   - id: refresh-prebundled-utilities
     content: Update utility producer inputs, resolve dotenv-expand execution policy, replace deprecated packages, and regenerate vendor outputs through the existing producer.
     status: pending

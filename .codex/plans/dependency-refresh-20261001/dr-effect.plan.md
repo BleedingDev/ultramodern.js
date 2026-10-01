@@ -4,13 +4,13 @@ overview: Move the existing Effect v4 release-candidate integration to 4.0.0 and
 todos:
   - id: move-effect-import-contract
     content: Update Effect runtime pins and every old unstable import, re-export and generated source contract to the verified 4.0.0 exports.
-    status: completed
+    status: pending
   - id: verify-effect-runtime-semantics
     content: Repair RC-to-stable schema, HTTP, RPC, cancellation and cleanup differences and verify Node and Worker behavior with focused regressions.
-    status: completed
+    status: pending
   - id: retire-effect-correction
     content: Prove upstream Worker code-generation safety and deliver exact patch and sidecar removal proposals to the supply and generator owners.
-    status: completed
+    status: pending
 isProject: false
 ---
 

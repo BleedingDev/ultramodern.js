@@ -4,7 +4,7 @@ overview: Join all accepted dependency cohorts into consistent root manifests ge
 todos:
   - id: synchronize-producer-pins
     content: Apply the frozen targets to versions policy templates aliases peers and publication projections and remove obsolete correction references.
-    status: in_progress
+    status: pending
   - id: resolve-final-lockfile
     content: Regenerate the full dependency graph with the selected pnpm, inspect deduplication and peer/patch integrity, and prove a frozen reinstall.
     status: pending

@@ -4,13 +4,13 @@ overview: Establish current Node, pnpm, release tooling and test runners without
 todos:
   - id: update-node-pnpm-contract
     content: Update Node and pnpm pins across root policy and CI and prove install, filter, pack and policy parity on the selected versions.
-    status: completed
+    status: pending
   - id: update-release-tooling
     content: Upgrade Changesets CLI and declared libraries together and prove the existing fixed-group release and publication preparation in a dry run.
-    status: completed
+    status: pending
   - id: update-lint-test-tools
     content: Upgrade lint and test tool cohorts and repair their owning configs and active examples with passing behavioral checks.
-    status: completed
+    status: pending
 isProject: false
 ---
 

@@ -1,6 +1,6 @@
 # Dependency refresh for one UltraModern release
 
-Researched on 2026-10-01 against `4d606d0203fe4c67585cbff5d3f72a0e80de402f`. Research task `modernjs-s2xwc`; implementation epic `modernjs-h8xqq`. This section records the original research baseline; implementation uses current main at `27d3bcea8b` and refreshed registry metadata.
+Researched on 2026-10-01 against `4d606d0203fe4c67585cbff5d3f72a0e80de402f`. Research task `modernjs-s2xwc`; implementation epic `modernjs-h8xqq`. Dependency files have not been changed.
 
 ## Recommendation
 
@@ -10,9 +10,9 @@ Use the newest supported stable version for active dependencies. Explicitly reco
 
 ## Coverage and evidence
 
-The tracked inventory contains 269 manifests and 2,507 dependency/dev/peer/optional declarations. Adding workspace overrides, generator constants, resolved generator policy aliases and sidecar recipes gives 2,677 declarations across 437 dependency identities. Registry checks covered every identity and its consumers, declared ranges, engines and peers. Raw results remain outside the repository in `~/.codex/research/modernjs-dependency-refresh-20261001/`.
+The tracked inventory contains 269 manifests and 2,507 dependency/dev/peer/optional declarations. Adding workspace overrides, generator constants, resolved generator policy aliases and sidecar recipes gives 2,677 declarations across 437 dependency identities. Every identity has an entry with its consumers, declared ranges, registry tags, engines and peers in [dependency-inventory.json](dependency-inventory.json), with a readable index in [dependency-inventory.md](dependency-inventory.md).
 
-The lockfile contains 196 importers, 2,982 package records and 2,421 distinct package names. 431 names resolve to multiple versions. The external research cache contains the complete resolved package/version inventory. All lockfile records were included in `pnpm audit --json`; registry latest-version lookups cover declared dependencies, policy/recipe dependencies and additional affected security packages, rather than making unsupported claims that every transitive dependency can be independently upgraded.
+The lockfile contains 196 importers, 2,982 package records and 2,421 distinct package names. 431 names resolve to multiple versions. [lockfile-inventory.json](lockfile-inventory.json) records the complete resolved package/version inventory. All lockfile records were included in `pnpm audit --json`; registry latest-version lookups cover declared dependencies, policy/recipe dependencies and additional affected security packages, rather than making unsupported claims that every transitive dependency can be independently upgraded.
 
 Registry data came directly from `https://registry.npmjs.org/<encoded-name>`. For packages where `latest` differs from the highest non-prerelease version, metadata for the exact `latest` version was fetched separately. `highestNonPrereleaseMetadata` retains the other version's metadata. Missing registry entries are local workspace names, alias labels or synthetic fixture names; they are not failed external dependency checks. Internal `@modern-js/*` references stay local. Updating to npm's upstream Modern.js 3.9.3 is a separate upstream rebase, outside this refresh.
 
@@ -83,7 +83,7 @@ Keep the supported package tags for `nock`, `koa-compose` and `react-server-dom-
 
 ## Security repair scope
 
-The audit returned 44 advisories: 22 high, 16 moderate and 6 low, no critical. These are registry findings, not proof that each affected code path is exploitable. The external research cache retains advisory IDs, fix ranges and representative consumer paths. Re-run the audit before implementation.
+The audit returned 44 advisories: 22 high, 16 moderate and 6 low, no critical. These are registry findings, not proof that each affected code path is exploitable. [security-audit.json](security-audit.json) retains metadata, advisory IDs, fix ranges and representative consumer paths; long path lists are capped at five and retain their returned path count.
 
 | Dependency | Resolved affected version | Minimum fixes observed | Owning path |
 | --- | --- | --- | --- |

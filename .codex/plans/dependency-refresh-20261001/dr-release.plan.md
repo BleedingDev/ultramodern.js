@@ -4,7 +4,7 @@ overview: Qualify the integrated graph through repository packed-consumer and do
 todos:
   - id: pass-integrated-quality-gates
     content: Pass all required build lint type framework builder supply boundary and security gates on the final frozen dependency graph.
-    status: in_progress
+    status: pending
   - id: qualify-packed-release
     content: Validate one release cohort with independent packed installs and mandatory Tractor acceptance when the downstream demo exists.
     status: pending
