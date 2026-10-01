@@ -130,15 +130,15 @@ describe('cross-project request observation', () => {
     });
   });
 
-  test.each([
-    '/files/a%2Fb',
-    '/files/%ZZ',
-  ])('fails closed for ambiguous or malformed percent encoding in %s', pathname => {
-    expect(resolve(pathname, { 'GET:/api/files/:id': {} })).toEqual({
-      method: 'GET',
-      routePath: pathname,
-    });
-  });
+  test.each(['/files/a%2Fb', '/files/%ZZ'])(
+    'fails closed for ambiguous or malformed percent encoding in %s',
+    pathname => {
+      expect(resolve(pathname, { 'GET:/api/files/:id': {} })).toEqual({
+        method: 'GET',
+        routePath: pathname,
+      });
+    },
+  );
 
   test('preserves trailing-slash distinctions while accepting an exact trailing template', () => {
     expect(resolve('/products/42/', { 'GET:/api/products/:id': {} })).toEqual({

@@ -5,7 +5,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { loadBackendFederatedEffectApiFromManifest } from '@modern-js/plugin-bff-extensions/backend-federation-manifest/node';
 import { Effect, ManagedRuntime } from 'effect';
-import { HttpApi } from 'effect/unstable/httpapi';
+import { HttpApi } from 'effect/http-api';
 import { emitBackendFederationArtifacts } from '../../src/backend-federation-build';
 import { findBackendFederationApp } from '../../src/backend-federation-build/config';
 
@@ -622,7 +622,7 @@ export const backendFederationContract = {
   strictEffectApproach: true,
 };
 import { Layer, ManagedRuntime, Schema } from 'effect';
-import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/unstable/httpapi';
+import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/http-api';
 export const api = HttpApi.make('ExploreApi').add(
   HttpApiGroup.make('explore').add(
     HttpApiEndpoint.get('ping', '/ping', { success: Schema.String }),

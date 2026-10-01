@@ -27,35 +27,37 @@ describe('Cloudflare builder environments', () => {
     { deployTarget: { target: 'cloudflare', explicit: false }, enabled: true },
     { deployTarget: { target: 'node', explicit: true }, enabled: false },
     { deployTarget: undefined, enabled: false },
-  ] as const)('selects Cloudflare worker output from the resolved deploy target', ({
-    deployTarget,
-    enabled,
-  }) => {
-    const environments = createWorkerEnvironments('./src/bootstrap.server.jsx');
-    const result = getCloudflareBuilderEnvironments({
-      appContext: {
-        apiDirectory: '/app/api',
-        appDirectory: '/app',
-        deployTarget,
-      },
-      environments,
-      normalizedConfig: {},
-    });
+  ] as const)(
+    'selects Cloudflare worker output from the resolved deploy target',
+    ({ deployTarget, enabled }) => {
+      const environments = createWorkerEnvironments(
+        './src/bootstrap.server.jsx',
+      );
+      const result = getCloudflareBuilderEnvironments({
+        appContext: {
+          apiDirectory: '/app/api',
+          appDirectory: '/app',
+          deployTarget,
+        },
+        environments,
+        normalizedConfig: {},
+      });
 
-    if (!enabled) {
-      expect(result).toBe(environments);
-      return;
-    }
+      if (!enabled) {
+        expect(result).toBe(environments);
+        return;
+      }
 
-    expect(result).not.toBe(environments);
-    expect(result.workerSSR?.output).toMatchObject({
-      module: true,
-      target: 'web',
-    });
-    expect(result.workerSSR?.source?.entry).toEqual({
-      main: ['./src/index.server.jsx'],
-    });
-  });
+      expect(result).not.toBe(environments);
+      expect(result.workerSSR?.output).toMatchObject({
+        module: true,
+        target: 'web',
+      });
+      expect(result.workerSSR?.source?.entry).toEqual({
+        main: ['./src/index.server.jsx'],
+      });
+    },
+  );
 
   it('rewrites worker entries and adds an Effect BFF entry before user handlers', () => {
     const appDirectory = fs.mkdtempSync(

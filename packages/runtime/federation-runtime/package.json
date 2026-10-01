@@ -9,7 +9,7 @@
     "directory": "packages/runtime/federation-runtime"
   },
   "engines": {
-    "node": ">=26.7.0"
+    "node": ">=26.10.0"
   },
   "types": "./dist/types/module-federation/index.d.ts",
   "main": "./dist/cjs/module-federation/index.js",
@@ -81,10 +81,10 @@
     "@modern-js/rslib": "workspace:*",
     "@modern-js/runtime": "workspace:*",
     "@modern-js/tsconfig": "workspace:*",
-    "@rsbuild/core": "2.2.10",
-    "@rslib/core": "1.0.2",
+    "@rsbuild/core": "2.2.11",
+    "@rslib/core": "1.0.3",
     "@scripts/rstest-config": "workspace:*",
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.3",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",

@@ -9,46 +9,47 @@ const readBody = async (response: Response) =>
   (await response.json()) as Record<string, unknown>;
 
 describe('safe failure responses', () => {
-  it.each([
-    [500, 'INTERNAL_SERVER_ERROR', 'Internal Server Error'],
-  ])('redacts a %i failure through every response surface', async (status, code, message) => {
-    const error = Object.assign(new Error('database-password'), {
-      status,
-      code: 'SECRET_CODE',
-      cause: 'root-cause',
-      details: 'internal-details',
-      stack: 'hidden-stack',
-    });
-    const expectedBody = {
-      success: false,
-      error: { code, message, status },
-    };
+  it.each([[500, 'INTERNAL_SERVER_ERROR', 'Internal Server Error']])(
+    'redacts a %i failure through every response surface',
+    async (status, code, message) => {
+      const error = Object.assign(new Error('database-password'), {
+        status,
+        code: 'SECRET_CODE',
+        cause: 'root-cause',
+        details: 'internal-details',
+        stack: 'hidden-stack',
+      });
+      const expectedBody = {
+        success: false,
+        error: { code, message, status },
+      };
 
-    expect(createSafeFailureHttpResult(error)).toMatchObject({
-      status,
-      body: expectedBody,
-    });
-    for (const createResponse of [
-      createSafeFailureResponse,
-      createSafeJsonFailureResponse,
-    ]) {
-      const response = createResponse(error);
-      expect(response.status).toBe(status);
-      expect(response.headers.get('content-type')).toBe(
-        'application/json; charset=utf-8',
-      );
-      const body = await readBody(response);
-      expect(body).toEqual(expectedBody);
-      expect(JSON.stringify(body)).not.toMatch(
-        /database-password|SECRET_CODE|root-cause|internal-details|hidden-stack/u,
-      );
-    }
+      expect(createSafeFailureHttpResult(error)).toMatchObject({
+        status,
+        body: expectedBody,
+      });
+      for (const createResponse of [
+        createSafeFailureResponse,
+        createSafeJsonFailureResponse,
+      ]) {
+        const response = createResponse(error);
+        expect(response.status).toBe(status);
+        expect(response.headers.get('content-type')).toBe(
+          'application/json; charset=utf-8',
+        );
+        const body = await readBody(response);
+        expect(body).toEqual(expectedBody);
+        expect(JSON.stringify(body)).not.toMatch(
+          /database-password|SECRET_CODE|root-cause|internal-details|hidden-stack/u,
+        );
+      }
 
-    // Response construction must not destroy the raw error retained for
-    // internal structured diagnostics.
-    expect(error.cause).toBe('root-cause');
-    expect(error.details).toBe('internal-details');
-  });
+      // Response construction must not destroy the raw error retained for
+      // internal structured diagnostics.
+      expect(error.cause).toBe('root-cause');
+      expect(error.details).toBe('internal-details');
+    },
+  );
 
   it.each([
     ['delay seconds text', ' 120 ', '120'],

@@ -1,18 +1,72 @@
-// Type definitions for debug 4.1
-// Project: https://github.com/visionmedia/debug
-// Definitions by: Seon-Wook Park <https://github.com/swook>
-//                 Gal Talmor <https://github.com/galtalmor>
-//                 John McLaughlin <https://github.com/zamb3zi>
-//                 Brasten Sager <https://github.com/brasten>
-//                 Nicolas Penin <https://github.com/npenin>
-//                 Kristian Brünn <https://github.com/kristianmitk>
-//                 Caleb Gregory <https://github.com/calebgregory>
-// Definitions: https://github.com/DefinitelyTyped/DefinitelyTyped
+/**
+ * Short/Long format for `value`.
+ *
+ * @param {Number} value
+ * @param {{long: boolean}} options
+ * @return {String}
+ */
+declare function ms(value: number, options?: { long: boolean }): string;
+
+/**
+ * Parse the given `value` and return milliseconds.
+ *
+ * @param {ms.StringValue} value
+ * @return {Number}
+ */
+declare function ms(value: ms.StringValue): number;
+
+declare namespace ms {
+    // Unit, UnitAnyCase, and StringValue are backported from ms@3
+    // https://github.com/vercel/ms/blob/8b5923d1d86c84a9f6aba8022d416dcf2361aa8d/src/index.ts
+
+    type Unit =
+        | "Years"
+        | "Year"
+        | "Yrs"
+        | "Yr"
+        | "Y"
+        | "Weeks"
+        | "Week"
+        | "W"
+        | "Days"
+        | "Day"
+        | "D"
+        | "Hours"
+        | "Hour"
+        | "Hrs"
+        | "Hr"
+        | "H"
+        | "Minutes"
+        | "Minute"
+        | "Mins"
+        | "Min"
+        | "M"
+        | "Seconds"
+        | "Second"
+        | "Secs"
+        | "Sec"
+        | "s"
+        | "Milliseconds"
+        | "Millisecond"
+        | "Msecs"
+        | "Msec"
+        | "Ms";
+
+    type UnitAnyCase = Unit | Uppercase<Unit> | Lowercase<Unit>;
+
+    type StringValue =
+        | `${number}`
+        | `${number}${UnitAnyCase}`
+        | `${number} ${UnitAnyCase}`;
+}
+
+declare namespace ms$1 {
+  export {
+    ms as default,
+  };
+}
 
 declare var debug: debug.Debug & { debug: debug.Debug; default: debug.Debug };
-
-export = debug;
-export as namespace debug;
 
 declare namespace debug {
     interface Debug {
@@ -24,12 +78,19 @@ declare namespace debug {
         formatArgs: (this: Debugger, args: any[]) => void;
         log: (...args: any[]) => any;
         selectColor: (namespace: string) => string | number;
-        humanize: typeof import('./ms');
+        humanize: typeof ms$1;
 
-        names: RegExp[];
-        skips: RegExp[];
+        names: string[];
+        skips: string[];
 
         formatters: Formatters;
+
+        inspectOpts?: {
+            hideDate?: boolean | number | null;
+            colors?: boolean | number | null;
+            depth?: boolean | number | null;
+            showHidden?: boolean | number | null;
+        };
     }
 
     type IDebug = Debug;
@@ -52,3 +113,5 @@ declare namespace debug {
         extend: (namespace: string, delimiter?: string) => Debugger;
     }
 }
+
+export { debug as default };

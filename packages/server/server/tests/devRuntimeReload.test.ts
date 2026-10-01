@@ -399,9 +399,7 @@ describe('setupDevInfra (process-level singletons)', () => {
 
     const watcher = getWatchers()[getWatchers().length - 1];
     const resolvedMockDir = path.resolve(pwd, mockDir);
-    expect(watcher.paths).toContain(
-      path.normalize(path.join(resolvedMockDir, '**/*')),
-    );
+    expect(watcher.paths).toContain(path.normalize(resolvedMockDir));
 
     const mockFile = path.join(resolvedMockDir, 'index.ts');
     watcher.listenCb(mockFile, 'change');

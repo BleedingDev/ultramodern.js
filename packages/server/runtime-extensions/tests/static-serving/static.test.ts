@@ -168,61 +168,63 @@ describe('static plugin precompressed assets', () => {
       expectedEncoding: null,
       expectedBody: 'wildcard identity',
     },
-  ])('selects $expectedRepresentation for $acceptEncoding', async ({
-    acceptEncoding,
-    expectedEncoding,
-    expectedBody,
-  }) => {
-    const pwd = await createTempDir();
-    const originBody = Buffer.from('wildcard identity');
-    const staticFile = path.join(pwd, 'static', 'wildcard.js');
+  ])(
+    'selects $expectedRepresentation for $acceptEncoding',
+    async ({ acceptEncoding, expectedEncoding, expectedBody }) => {
+      const pwd = await createTempDir();
+      const originBody = Buffer.from('wildcard identity');
+      const staticFile = path.join(pwd, 'static', 'wildcard.js');
 
-    await mkdir(path.dirname(staticFile), { recursive: true });
-    await writeFile(staticFile, originBody);
-    await writeFile(`${staticFile}.br`, Buffer.from('br'));
-    await writeFile(`${staticFile}.gz`, Buffer.from('gzip'));
+      await mkdir(path.dirname(staticFile), { recursive: true });
+      await writeFile(staticFile, originBody);
+      await writeFile(`${staticFile}.br`, Buffer.from('br'));
+      await writeFile(`${staticFile}.gz`, Buffer.from('gzip'));
 
-    const server = await createStaticServer(pwd);
-    const response = await server.request('/static/wildcard.js', {
-      headers: new Headers({
-        'accept-encoding': acceptEncoding,
-      }),
-    });
+      const server = await createStaticServer(pwd);
+      const response = await server.request('/static/wildcard.js', {
+        headers: new Headers({
+          'accept-encoding': acceptEncoding,
+        }),
+      });
 
-    expect(response.status).toBe(200);
-    expect(response.headers.get('content-encoding')).toBe(expectedEncoding);
-    expect(await response.text()).toBe(expectedBody);
-  });
+      expect(response.status).toBe(200);
+      expect(response.headers.get('content-encoding')).toBe(expectedEncoding);
+      expect(await response.text()).toBe(expectedBody);
+    },
+  );
 
   it.each([
     // Explicit br;q=0 must beat the wildcard, leaving gzip as the only pick.
     ['br;q=0, *;q=0.8, identity;q=0', 'gzip'],
     // Implicit identity (q=1) outranks an explicitly down-weighted coding.
     ['br;q=0.8', null],
-  ])('selects the highest ranked representation for %s', async (acceptEncoding, expectedEncoding) => {
-    const pwd = await createTempDir();
-    const originBody = Buffer.from('ranked representation');
-    const brBody = brotliCompressSync(originBody);
-    const gzipBody = gzipSync(originBody);
-    const staticFile = path.join(pwd, 'static', 'ranked.js');
+  ])(
+    'selects the highest ranked representation for %s',
+    async (acceptEncoding, expectedEncoding) => {
+      const pwd = await createTempDir();
+      const originBody = Buffer.from('ranked representation');
+      const brBody = brotliCompressSync(originBody);
+      const gzipBody = gzipSync(originBody);
+      const staticFile = path.join(pwd, 'static', 'ranked.js');
 
-    await mkdir(path.dirname(staticFile), { recursive: true });
-    await writeFile(staticFile, originBody);
-    await writeFile(`${staticFile}.br`, brBody);
-    await writeFile(`${staticFile}.gz`, gzipBody);
+      await mkdir(path.dirname(staticFile), { recursive: true });
+      await writeFile(staticFile, originBody);
+      await writeFile(`${staticFile}.br`, brBody);
+      await writeFile(`${staticFile}.gz`, gzipBody);
 
-    const server = await createStaticServer(pwd);
-    const response = await server.request('/static/ranked.js', {
-      headers: new Headers({ 'accept-encoding': acceptEncoding }),
-    });
+      const server = await createStaticServer(pwd);
+      const response = await server.request('/static/ranked.js', {
+        headers: new Headers({ 'accept-encoding': acceptEncoding }),
+      });
 
-    expect(response.status).toBe(200);
-    expect(response.headers.get('content-encoding')).toBe(expectedEncoding);
-    const expected = expectedEncoding === 'gzip' ? gzipBody : originBody;
-    expect(Buffer.from(await response.arrayBuffer()).equals(expected)).toBe(
-      true,
-    );
-  });
+      expect(response.status).toBe(200);
+      expect(response.headers.get('content-encoding')).toBe(expectedEncoding);
+      const expected = expectedEncoding === 'gzip' ? gzipBody : originBody;
+      expect(Buffer.from(await response.arrayBuffer()).equals(expected)).toBe(
+        true,
+      );
+    },
+  );
 
   it('falls back to origin asset when no variant is accepted', async () => {
     const pwd = await createTempDir();

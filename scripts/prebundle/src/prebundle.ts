@@ -1,10 +1,12 @@
+import { builtinModules } from 'node:module';
 import ncc from '@vercel/ncc';
-import { Package as DtsPacker } from 'dts-packer';
 import fastGlob from 'fast-glob';
 import fs from 'fs-extra';
-import { join } from 'path';
+import { dirname, join } from 'path';
+import { rollup } from 'rollup';
+import { dts } from 'rollup-plugin-dts';
 import { DEFAULT_EXTERNALS } from './constant';
-import { pick, replaceFileContent } from './helper';
+import { pick } from './helper';
 import type { ParsedTask } from './types';
 
 function emitAssets(
@@ -24,56 +26,46 @@ function emitIndex(code: string, distPath: string) {
 
 function emitESMIndex(code: string, distPath: string) {
   const distIndex = join(distPath, 'index.mjs');
-  fs.outputFileSync(distIndex, code);
+  fs.outputFileSync(
+    distIndex,
+    `import { createRequire } from 'node:module';\nconst require = createRequire(import.meta.url);\n${code}`,
+  );
 }
 
-function fixTypeExternalPath(
-  file: string,
-  task: ParsedTask,
-  externals: Record<string, string>,
-) {
-  const filepath = join(task.distPath, file);
-
-  replaceFileContent(filepath, content => {
-    let newContent = content;
-    Object.keys(externals).forEach(name => {
-      newContent = newContent.replace(
-        new RegExp(`../../${name}`, 'g'),
-        externals[name],
+async function emitDts(task: ParsedTask) {
+  if (!task.emitDts) return;
+  const manifest = fs.readJSONSync(join(task.depPath, 'package.json'));
+  const types =
+    manifest.types ??
+    manifest.typings ??
+    manifest.exports?.types ??
+    manifest.exports?.['.']?.types ??
+    (fs.existsSync(join(task.depPath, 'index.d.ts'))
+      ? 'index.d.ts'
+      : undefined);
+  const input = types
+    ? join(task.depPath, types)
+    : join(
+        dirname(require.resolve(`@types/${task.depName}/package.json`)),
+        'index.d.ts',
       );
-    });
-    return newContent;
+  const externals = { ...DEFAULT_EXTERNALS, ...task.externals };
+  const bundle = await rollup({
+    input,
+    external: name =>
+      name.startsWith('node:') ||
+      builtinModules.includes(name) ||
+      name in externals,
+    plugins: [dts({ respectExternal: true })],
   });
-}
-
-function emitDts(task: ParsedTask) {
-  if (!task.emitDts) {
-    return;
-  }
-
-  if (task.ignoreDts) {
-    fs.writeFileSync(join(task.distPath, 'index.d.ts'), 'export = any;\n');
-    return;
-  }
-
   try {
-    const externals = {
-      ...DEFAULT_EXTERNALS,
-      ...task.externals,
-    };
-    const { files } = new DtsPacker({
-      cwd: process.cwd(),
-      name: task.depName,
-      typesRoot: task.distPath,
-      externals: Object.keys(externals),
+    await bundle.write({
+      file: join(task.distPath, 'index.d.ts'),
+      format: 'es',
+      paths: externals,
     });
-
-    Object.keys(files).forEach(file => {
-      fixTypeExternalPath(file, task, externals);
-    });
-  } catch (error) {
-    console.error(`DtsPacker failed: ${task.depName}`);
-    console.error(error);
+  } finally {
+    await bundle.close();
   }
 }
 
@@ -93,6 +85,8 @@ function emitPackageJson(task: ParsedTask) {
     'typings',
     ...task.packageJsonField,
   ]);
+
+  pickedPackageJson.types = 'index.d.ts';
 
   if (task.depName !== pickedPackageJson.name) {
     pickedPackageJson.name = task.depName;
@@ -127,25 +121,6 @@ function removeSourceMap(task: ParsedTask) {
   maps.forEach(mapPath => {
     fs.removeSync(mapPath);
   });
-}
-
-function renameDistFolder(task: ParsedTask) {
-  const pkgPath = join(task.distPath, 'package.json');
-  const pkgJson = fs.readJsonSync(pkgPath, 'utf-8');
-
-  ['types', 'typing', 'typings'].forEach(key => {
-    if (pkgJson[key]?.startsWith('dist/')) {
-      pkgJson[key] = pkgJson[key].replace('dist/', 'types/');
-
-      const distFolder = join(task.distPath, 'dist');
-      const typesFolder = join(task.distPath, 'types');
-      if (fs.existsSync(distFolder)) {
-        fs.renameSync(distFolder, typesFolder);
-      }
-    }
-  });
-
-  fs.writeJSONSync(pkgPath, pkgJson);
 }
 
 const pkgName = process.argv[2];
@@ -190,11 +165,20 @@ export async function prebundle(task: ParsedTask) {
 
   emitIndex(code, task.distPath);
   emitAssets(assets, task.distPath);
-  emitDts(task);
+  await emitDts(task);
+  if (
+    (task.depEsmEntry ||
+      task.emitFiles.some(file => file.path === 'index.mjs')) &&
+    task.emitDts
+  ) {
+    fs.copySync(
+      join(task.distPath, 'index.d.ts'),
+      join(task.distPath, 'index.d.mts'),
+    );
+  }
   emitLicense(task);
   emitPackageJson(task);
   removeSourceMap(task);
-  renameDistFolder(task);
   emitExtraFiles(task);
 
   if (task.afterBundle) {

@@ -58,41 +58,41 @@ describe('tanstack server plugin router results', () => {
     rstest.restoreAllMocks();
   });
 
-  test.each([
-    '/cs/login',
-    '/en/login',
-  ])('renders native link active attributes during SSR at %s', async pathname => {
-    const { context } = createServerContext(pathname);
-    const beforeRender = collectBeforeRender(() => [
-      {
-        id: 'login',
-        path: '/:lang/login',
-        Component: () => {
-          const Link = context.router?.Link;
-          if (!Link) {
-            throw new Error('SSR router did not provide its native Link');
-          }
-          return createElement(Link, { to: '/cs' }, 'Home');
+  test.each(['/cs/login', '/en/login'])(
+    'renders native link active attributes during SSR at %s',
+    async pathname => {
+      const { context } = createServerContext(pathname);
+      const beforeRender = collectBeforeRender(() => [
+        {
+          id: 'login',
+          path: '/:lang/login',
+          Component: () => {
+            const Link = context.router?.Link;
+            if (!Link) {
+              throw new Error('SSR router did not provide its native Link');
+            }
+            return createElement(Link, { to: '/cs' }, 'Home');
+          },
         },
-      },
-    ]);
-    await beforeRender(context, value => value);
+      ]);
+      await beforeRender(context, value => value);
 
-    expect(context.router?.Link).toBeTypeOf('function');
-    const html = renderToString(
-      createElement(RouterProvider, {
-        router: getRouterRuntimeState(context)?.instance as AnyRouter,
-      }),
-    );
-    expect(html).toContain('href="/cs"');
-    if (pathname === '/cs/login') {
-      expect(html).toContain('data-status="active"');
-      expect(html).toContain('aria-current="page"');
-    } else {
-      expect(html).not.toContain('data-status="active"');
-      expect(html).not.toContain('aria-current="page"');
-    }
-  });
+      expect(context.router?.Link).toBeTypeOf('function');
+      const html = renderToString(
+        createElement(RouterProvider, {
+          router: getRouterRuntimeState(context)?.instance as AnyRouter,
+        }),
+      );
+      expect(html).toContain('href="/cs"');
+      if (pathname === '/cs/login') {
+        expect(html).toContain('data-status="active"');
+        expect(html).toContain('aria-current="page"');
+      } else {
+        expect(html).not.toContain('data-status="active"');
+        expect(html).not.toContain('aria-current="page"');
+      }
+    },
+  );
 
   test('uses the router render result as the HTTP and hydration status', async () => {
     const beforeRender = collectBeforeRender(() => [
@@ -225,47 +225,51 @@ describe('TanStack preparation resource lifetime', () => {
     expect(cleanup).toHaveBeenCalledTimes(1);
   });
 
-  test.each([
-    'string',
-    'stream',
-  ] as const)('retains %s router resources for response termination', async mode => {
-    const { context } = createServerContext('/products/shoe?q=1#detail');
-    context.ssrContext!.mode = mode;
-    const beforeRender = collectBeforeRender(() => [
-      { id: 'product', path: '/products/:id', Component: () => null },
-    ]);
-    await beforeRender(context, value => value);
-    const state = getRouterRuntimeState(context)!;
-    const router = state.instance as AnyRouter;
-    const cleanup = rstest.spyOn(router.serverSsr!, 'cleanup');
-    const navigation = state.navigation!;
-    expect(navigation.getSnapshot()).toMatchObject({
-      location: { pathname: '/products/shoe', search: '?q=1', hash: '#detail' },
-      params: { id: 'shoe' },
-    });
-    expect(navigation.getSnapshot()).toBe(navigation.getSnapshot());
-    expect(navigation.Link).toBe(context.router?.Link);
-    expect(
-      navigation.createLinkProps!({
-        pathname: '/products/shoe',
-        href: '/products/shoe?q=2#detail',
+  test.each(['string', 'stream'] as const)(
+    'retains %s router resources for response termination',
+    async mode => {
+      const { context } = createServerContext('/products/shoe?q=1#detail');
+      context.ssrContext!.mode = mode;
+      const beforeRender = collectBeforeRender(() => [
+        { id: 'product', path: '/products/:id', Component: () => null },
+      ]);
+      await beforeRender(context, value => value);
+      const state = getRouterRuntimeState(context)!;
+      const router = state.instance as AnyRouter;
+      const cleanup = rstest.spyOn(router.serverSsr!, 'cleanup');
+      const navigation = state.navigation!;
+      expect(navigation.getSnapshot()).toMatchObject({
+        location: {
+          pathname: '/products/shoe',
+          search: '?q=1',
+          hash: '#detail',
+        },
+        params: { id: 'shoe' },
+      });
+      expect(navigation.getSnapshot()).toBe(navigation.getSnapshot());
+      expect(navigation.Link).toBe(context.router?.Link);
+      expect(
+        navigation.createLinkProps!({
+          pathname: '/products/shoe',
+          href: '/products/shoe?q=2#detail',
+          search: { q: '2' },
+          hash: 'detail',
+          hashScrollIntoView: false,
+          prefetch: 'none',
+        }),
+      ).toEqual({
+        to: '/products/shoe',
         search: { q: '2' },
         hash: 'detail',
         hashScrollIntoView: false,
-        prefetch: 'none',
-      }),
-    ).toEqual({
-      to: '/products/shoe',
-      search: { q: '2' },
-      hash: 'detail',
-      hashScrollIntoView: false,
-      preload: false,
-    });
-    expect(cleanup).not.toHaveBeenCalled();
-    await state.cleanup?.();
-    await state.cleanup?.();
-    expect(cleanup).toHaveBeenCalledTimes(1);
-  });
+        preload: false,
+      });
+      expect(cleanup).not.toHaveBeenCalled();
+      await state.cleanup?.();
+      await state.cleanup?.();
+      expect(cleanup).toHaveBeenCalledTimes(1);
+    },
+  );
 });
 
 test('incoming abort reaches an active Modern loader and disposes its router', async () => {

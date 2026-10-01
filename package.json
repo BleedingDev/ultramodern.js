@@ -27,7 +27,7 @@
     "build:required": "nx run-many -t build -p @modern-js/* --exclude=@modern-js/main-doc,@modern-js/module-tools-docs --maxParallel=4",
     "lint": "biome check",
     "change": "changeset add",
-    "bump": "changeset version",
+    "bump": "changeset version && pnpm install && oxfmt --write --no-error-on-unmatched-pattern \"packages/**/CHANGELOG.md\"",
     "pre:enter": "changeset pre enter",
     "pre:exit": "changeset pre exit",
     "change-status": "changeset status",
@@ -72,10 +72,10 @@
     "validate:supply": "node scripts/ultramodern-supply/sync-patches.mjs && node scripts/ultramodern-supply/verify-sidecars.mjs"
   },
   "engines": {
-    "node": ">=26.7.0",
-    "pnpm": ">=11"
+    "node": ">=26.10.0",
+    "pnpm": ">=12"
   },
-  "packageManager": "pnpm@11.27.1",
+  "packageManager": "pnpm@12.8.1",
   "lint-staged": {
     "!(*.gen).{js,ts,cjs,mjs,d.cts,d.mts,jsx,tsx,json,jsonc}": [
       "biome check --files-ignore-unknown=true --no-errors-on-unmatched"
@@ -87,25 +87,25 @@
   "devDependencies": {
     "@babel/core": "^8.0.6",
     "@babel/plugin-transform-modules-commonjs": "^8.0.1",
-    "@biomejs/biome": "2.5.3",
-    "@changesets/cli": "^2.31.1",
+    "@biomejs/biome": "2.5.15",
+    "@changesets/cli": "^3.0.3",
     "@commitlint/cli": "^21.2.3",
     "@commitlint/config-conventional": "^21.2.3",
-    "@effect/tsgo": "0.45.0",
+    "@effect/tsgo": "0.47.2",
     "@modern-js/app-tools": "workspace:*",
     "@modern-js/app-tools-extensions": "workspace:*",
     "@modern-js/tsconfig": "workspace:*",
     "@modern-js/ultramodern-create": "workspace:*",
-    "@rstest/core": "0.11.12",
+    "@rstest/core": "0.12.3",
     "@scripts/build": "workspace:*",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "check-dependency-version-consistency": "6.0.0",
     "husky": "^9.1.7",
-    "lint-staged": "~17.5.1",
+    "lint-staged": "~17.6.0",
     "nx": "^23.2.1",
-    "oxfmt": "0.66.0",
+    "oxfmt": "0.71.0",
     "rimraf": "^6.1.3",
     "semver": "7.8.5",
     "typescript": "^7.0.2",

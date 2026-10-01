@@ -15,6 +15,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { parse, stringify } from 'yaml';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
@@ -224,7 +225,6 @@ test('packed runtime registry and TanStack runtime declarations resolve for a Ty
           type: 'module',
           dependencies,
           devDependencies,
-          pnpm: { overrides },
         },
         null,
         2,
@@ -232,7 +232,13 @@ test('packed runtime registry and TanStack runtime declarations resolve for a Ty
     );
     writeFileSync(
       join(consumerDirectory, 'pnpm-workspace.yaml'),
-      'packages:\n  - .\n',
+      stringify({
+        packages: ['.'],
+        overrides,
+        minimumReleaseAgeExclude: parse(
+          readFileSync(join(root, 'pnpm-workspace.yaml'), 'utf8'),
+        ).minimumReleaseAgeExclude.filter(selector => !selector.includes('*')),
+      }),
     );
 
     const install = spawnSync(

@@ -80,6 +80,8 @@ export async function parseTasks() {
       if (typeof dep === 'string') {
         result.push({
           minify: true,
+          emitDts: true,
+          clear: true,
           externals: {},
           emitFiles: [],
           packageJsonField: [],
@@ -115,16 +117,4 @@ export function pick<T, U extends keyof T>(obj: T, keys: ReadonlyArray<U>) {
     },
     {} as Pick<T, U>,
   );
-}
-
-export function replaceFileContent(
-  filePath: string,
-  replaceFn: (content: string) => string,
-) {
-  const content = fs.readFileSync(filePath, 'utf-8');
-  const newContent = replaceFn(content);
-
-  if (newContent !== content) {
-    fs.writeFileSync(filePath, newContent);
-  }
 }

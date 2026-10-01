@@ -3,10 +3,10 @@ const nodeVersion = /^(\d+)\.(\d+)\.(\d+)$/.exec(process.versions.node);
 if (
   !nodeVersion ||
   +nodeVersion[1] < 26 ||
-  (+nodeVersion[1] === 26 && +nodeVersion[2] < 7)
+  (+nodeVersion[1] === 26 && +nodeVersion[2] < 10)
 ) {
   console.error(
-    `UltraModern.js requires Node.js >=26.7.0; detected v${process.versions.node}. Legacy Node runtimes and transpiler fallbacks are unsupported.`,
+    `UltraModern.js requires Node.js >=26.10.0; detected v${process.versions.node}. Legacy Node runtimes and transpiler fallbacks are unsupported.`,
   );
   process.exit(1);
 }

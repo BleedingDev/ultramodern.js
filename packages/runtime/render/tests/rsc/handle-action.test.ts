@@ -206,11 +206,17 @@ describe('createHandleAction', () => {
     const formData = new FormData();
     formData.append('0', 'x'.repeat(1024 * 1024 + 1));
 
+    const encoded = new Response(formData);
+    const body = await encoded.arrayBuffer();
+
     const res = await handleAction(
       new Request('http://localhost/rsc-action', {
         method: 'POST',
-        headers: { 'x-rsc-action': 'mod#myAction' },
-        body: formData,
+        headers: {
+          'x-rsc-action': 'mod#myAction',
+          'content-type': encoded.headers.get('content-type')!,
+        },
+        body,
       }),
     );
 

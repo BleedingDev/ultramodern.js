@@ -36,13 +36,13 @@ describe('getRscPlugins', () => {
       internalDir: String.raw`C:\repo\node_modules\.modern-js`,
       route: String.raw`C:\repo\node_modules\.modern-js\loader\routes.server.js`,
     },
-  ])('classifies generated conventional routes as RSC modules', ({
-    internalDir,
-    route,
-  }) => {
-    const matchers = createRscLayerMatchers(internalDir);
-    expect(matchers.some(matcher => matcher.test(route))).toBe(true);
-  });
+  ])(
+    'classifies generated conventional routes as RSC modules',
+    ({ internalDir, route }) => {
+      const matchers = createRscLayerMatchers(internalDir);
+      expect(matchers.some(matcher => matcher.test(route))).toBe(true);
+    },
+  );
 
   it('keeps the TanStack render tree in SSR while isolating its data modules in RSC', () => {
     const matchers = createRscLayerMatchers('/repo/node_modules/.modern-js');

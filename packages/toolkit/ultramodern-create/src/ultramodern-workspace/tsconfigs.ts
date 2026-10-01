@@ -5,7 +5,7 @@ import {
   resolveRemoteRefs,
   sharedPackages,
 } from './descriptors';
-import { effectDiagnostics } from './effect-diagnostics';
+import { effectDiagnosticSeverity } from './effect-diagnostics';
 import { relativeRootFor } from './naming';
 import type { JsonValue, WorkspaceApp } from './types';
 export function createTsConfigBase(): JsonValue {
@@ -37,13 +37,11 @@ export function createTsConfigBase(): JsonValue {
           name: '@effect/language-service',
           diagnostics: true,
           includeSuggestionsInTsc: true,
-          ignoreEffectSuggestionsInTscExitCode: false,
+          ignoreEffectSuggestionsInTscExitCode: true,
           ignoreEffectWarningsInTscExitCode: false,
           ignoreEffectErrorsInTscExitCode: false,
           skipDisabledOptimization: true,
-          diagnosticSeverity: Object.fromEntries(
-            effectDiagnostics.map(name => [name, 'error']),
-          ),
+          diagnosticSeverity: effectDiagnosticSeverity,
         },
       ],
     },

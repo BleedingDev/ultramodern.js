@@ -3,17 +3,17 @@
  * UltraModern workspaces lives here. Values must stay in lockstep with the
  * checked-in templates under templates/ and template-workspace/.
  */
-export const TANSTACK_ROUTER_VERSION = '1.170.39';
-export const TANSTACK_ROUTER_CORE_VERSION = '1.171.32';
+export const TANSTACK_ROUTER_VERSION = '1.170.41';
+export const TANSTACK_ROUTER_CORE_VERSION = '1.171.34';
 export const TANSTACK_HISTORY_VERSION = '1.162.4';
 export const MODULE_FEDERATION_VERSION = '2.9.2';
 // The mf-modern-js-v3 sidecar is upstream 2.9.2 plus the repository patch. Its
 // fork version moves past 2.9.2 because the 2.9.2 fork name already carries
 // upstream 2.9.1 bytes, and a published sidecar version is immutable.
 export const MODULE_FEDERATION_MODERN_JS_V3_FORK_VERSION = '2.9.3';
-export const ZEPHYR_RSPACK_PLUGIN_VERSION = '1.4.0';
-export const ZEPHYR_AGENT_VERSION = '1.4.0';
-export const WRANGLER_VERSION = '4.137.0';
+export const ZEPHYR_RSPACK_PLUGIN_VERSION = '1.4.2';
+export const ZEPHYR_AGENT_VERSION = '1.4.2';
+export const WRANGLER_VERSION = '4.145.0';
 export const CLOUDFLARE_COMPATIBILITY_DATE = '2026-06-02';
 export const TAILWIND_VERSION = '4.3.3';
 export const RSBUILD_PLUGIN_TAILWINDCSS_VERSION = '2.0.3';
@@ -21,34 +21,34 @@ export const RSBUILD_PLUGIN_TAILWINDCSS_VERSION = '2.0.3';
 // single source of truth for the fork's lockstep Effect cohort — moving it
 // requires moving the exact `effect` and `@effect/opentelemetry` peer and
 // development pins of the canonical BFF packages in the same commit. Upstream
-// rc.117 builds router params by assignment when string code generation is
-// blocked, so the cohort consumes upstream `effect` without a patch or sidecar.
+// Effect 4 builds router params by assignment without string code generation.
+// The cohort consumes upstream Effect without a patch or sidecar.
 // See FORK-DIVERGENCE.md, packages/toolkit/ultramodern-create.
-export const EFFECT_VERSION = '4.0.0-rc.117';
-export const EFFECT_TSGO_VERSION = '0.45.0';
+export const EFFECT_VERSION = '4.0.0';
+export const EFFECT_TSGO_VERSION = '0.47.2';
 export const TYPESCRIPT_STABLE_VERSION = '7.0.2';
 export const TYPESCRIPT_VERSION = TYPESCRIPT_STABLE_VERSION;
 export const TYPESCRIPT_NATIVE_PREVIEW_VERSION = '7.0.0-dev.20260707.2';
-export const OXLINT_VERSION = '1.85.0';
-export const OXFMT_VERSION = '0.70.0';
-export const ULTRACITE_VERSION = '7.12.0';
-export const LEFTHOOK_VERSION = '^2.1.14';
+export const OXLINT_VERSION = '1.86.0';
+export const OXFMT_VERSION = '0.71.0';
+export const ULTRACITE_VERSION = '7.12.2';
+export const LEFTHOOK_VERSION = '^2.1.15';
 export const I18NEXT_VERSION = '26.4.2';
 export const MODULE_FEDERATION_NODE_VERSION = '2.7.52';
-export const MINIFLARE_VERSION = '5.20260926.1-alpha';
-export const WORKERD_VERSION = '1.20260926.1';
-export const CLOUDFLARE_WORKERS_TYPES_VERSION = '5.20260923.1';
+export const MINIFLARE_VERSION = '5.20260930.0-alpha';
+export const WORKERD_VERSION = '1.20260930.2';
+export const CLOUDFLARE_WORKERS_TYPES_VERSION = '5.20261001.1';
 export const NODE_FETCH_VERSION = '^3.3.2';
 // Platform Baseline producer pins are exact (CONTEXT.md: "pinned platform-wide";
 // baseline reclassification MV-G16-R). Composition-time singletons like React
 // never float; the cohort advances centrally as an exact bump.
 export const REACT_VERSION = '19.3.0';
 export const REACT_DOM_VERSION = '19.3.0';
-export const TYPES_NODE_VERSION = '^26.6.2';
+export const TYPES_NODE_VERSION = '^26.6.3';
 export const TYPES_REACT_VERSION = '^19.3.0';
 export const TYPES_REACT_DOM_VERSION = '^19.3.0';
-export const NODE_VERSION = '26.7.0';
-export const PNPM_VERSION = '11.27.1';
+export const NODE_VERSION = '26.10.0';
+export const PNPM_VERSION = '12.8.1';
 
 export const ULTRAMODERN_PACKAGE_PINS = {
   appDependencies: {

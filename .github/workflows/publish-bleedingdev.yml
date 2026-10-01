@@ -91,7 +91,7 @@ jobs:
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern')
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: audit
 
@@ -101,10 +101,10 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Setup Node.js 26.7.0
+      - name: Setup Node.js 26.10.0
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: '26.7.0'
+          node-version: '26.10.0'
 
       # Consumer: prepare-release passes this exact version to rewrite.mjs.
       - name: Validate publish inputs
@@ -179,7 +179,7 @@ jobs:
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern')
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: audit
 
@@ -196,17 +196,17 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Setup Node.js 26.7.0
+      - name: Setup Node.js 26.10.0
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: '26.7.0'
+          node-version: '26.10.0'
 
       # Unconditional: the tooling qualification below needs a workspace, and
       # the recovery lane runs it too.
       - name: Setup mise
-        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
+        uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
         with:
-          version: 2026.8.3
+          version: 2026.9.18
 
       - name: Resolve pnpm store path
         id: pnpm-store
@@ -407,7 +407,7 @@ jobs:
       release_source_commit: ${{ steps.verify-bundle.outputs.source_commit }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: audit
 
@@ -420,15 +420,15 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Setup Node.js 26.7.0
+      - name: Setup Node.js 26.10.0
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: '26.7.0'
+          node-version: '26.10.0'
 
       - name: Setup mise
-        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
+        uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
         with:
-          version: 2026.8.3
+          version: 2026.9.18
 
       - name: Resolve pnpm store path
         id: pnpm-store
@@ -606,7 +606,7 @@ jobs:
       - prepare-release
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: audit
 
@@ -616,10 +616,10 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Setup Node.js 26.7.0
+      - name: Setup Node.js 26.10.0
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: '26.7.0'
+          node-version: '26.10.0'
 
       - name: Download immutable release bundle
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -662,7 +662,7 @@ jobs:
       release_source_commit: ${{ needs.prepare-release.outputs.release_source_commit }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: audit
 
@@ -672,15 +672,15 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Setup Node.js 26.7.0
+      - name: Setup Node.js 26.10.0
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: '26.7.0'
+          node-version: '26.10.0'
 
       - name: Setup mise
-        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
+        uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
         with:
-          version: 2026.8.3
+          version: 2026.9.18
 
       - name: Resolve pnpm store path
         id: pnpm-store
@@ -777,7 +777,7 @@ jobs:
       - rehearse-tractor
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: audit
 
@@ -787,10 +787,10 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Setup Node.js 26.7.0
+      - name: Setup Node.js 26.10.0
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: '26.7.0'
+          node-version: '26.10.0'
 
       - name: Download accepted release bundle
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -901,7 +901,7 @@ jobs:
       - rehearse-tractor
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: audit
 
@@ -911,10 +911,10 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Setup Node.js 26.7.0
+      - name: Setup Node.js 26.10.0
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: '26.7.0'
+          node-version: '26.10.0'
 
       - name: Download accepted release bundle
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -986,7 +986,7 @@ jobs:
       - publish-sidecars
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: audit
 
@@ -996,10 +996,10 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Setup Node.js 26.7.0
+      - name: Setup Node.js 26.10.0
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: '26.7.0'
+          node-version: '26.10.0'
 
       - name: Download accepted release bundle
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -1092,7 +1092,7 @@ jobs:
       - accept-release
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: audit
 
@@ -1102,15 +1102,15 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Setup Node.js 26.7.0
+      - name: Setup Node.js 26.10.0
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: '26.7.0'
+          node-version: '26.10.0'
 
       - name: Setup mise
-        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
+        uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
         with:
-          version: 2026.8.3
+          version: 2026.9.18
 
       - name: Download exact published release identity
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -1275,7 +1275,7 @@ jobs:
       PUBLISH_VERSION: ${{ inputs.version }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: audit
 
@@ -1285,10 +1285,10 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Setup Node.js 26.7.0
+      - name: Setup Node.js 26.10.0
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: '26.7.0'
+          node-version: '26.10.0'
 
       - name: Download accepted release bundle
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -1441,7 +1441,7 @@ jobs:
       inputs.dry_run == false
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ab7a9404c0f3da075243ca237b5fac12c98deaa5 # v2
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: audit
 
@@ -1451,10 +1451,10 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Setup Node.js 26.7.0
+      - name: Setup Node.js 26.10.0
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: '26.7.0'
+          node-version: '26.10.0'
 
       - name: Download authenticated publish outcome
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1

@@ -1,13 +1,9 @@
 import * as OpenTelemetry from '@effect/opentelemetry';
 import * as Effect from 'effect/Effect';
+import { HttpClient, HttpClientRequest } from 'effect/http';
+import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/http-api';
 import * as Layer from 'effect/Layer';
 import * as Schema from 'effect/Schema';
-import { HttpClient, HttpClientRequest } from 'effect/unstable/http';
-import {
-  HttpApi,
-  HttpApiEndpoint,
-  HttpApiGroup,
-} from 'effect/unstable/httpapi';
 import { makeEffectHttpApiClient } from '../src/effect-client';
 
 type TraceSpanProcessor = Exclude<

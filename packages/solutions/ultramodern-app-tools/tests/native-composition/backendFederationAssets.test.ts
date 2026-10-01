@@ -135,40 +135,40 @@ describe('production backend Module Federation assets', () => {
     }
   });
 
-  test.each([
-    'HEAD',
-    'OPTIONS',
-  ])('keeps %s requests on the infrastructure asset path', async method => {
-    const { pwd, server } = await createBackendFederationServer();
+  test.each(['HEAD', 'OPTIONS'])(
+    'keeps %s requests on the infrastructure asset path',
+    async method => {
+      const { pwd, server } = await createBackendFederationServer();
 
-    try {
-      for (const [assetPath, contentType, cacheControl] of [
-        [
-          '/backend-mf-manifest.json',
-          'application/json',
-          'no-cache, no-store, must-revalidate',
-        ],
-        [
-          '/backendRemoteEntry.cjs',
-          'text/javascript',
-          'public, max-age=0, must-revalidate',
-        ],
-      ] as const) {
-        const response = await server.request(assetPath, { method }, {});
-        expect(response.status).toBe(200);
-        expect(response.headers.get('location')).toBeNull();
-        expect(response.headers.get('content-type')).toContain(contentType);
-        expect(response.headers.get('access-control-allow-origin')).toBe('*');
-        expect(response.headers.get('access-control-allow-methods')).toBe(
-          'GET,HEAD,OPTIONS',
-        );
-        expect(response.headers.get('cache-control')).toBe(cacheControl);
+      try {
+        for (const [assetPath, contentType, cacheControl] of [
+          [
+            '/backend-mf-manifest.json',
+            'application/json',
+            'no-cache, no-store, must-revalidate',
+          ],
+          [
+            '/backendRemoteEntry.cjs',
+            'text/javascript',
+            'public, max-age=0, must-revalidate',
+          ],
+        ] as const) {
+          const response = await server.request(assetPath, { method }, {});
+          expect(response.status).toBe(200);
+          expect(response.headers.get('location')).toBeNull();
+          expect(response.headers.get('content-type')).toContain(contentType);
+          expect(response.headers.get('access-control-allow-origin')).toBe('*');
+          expect(response.headers.get('access-control-allow-methods')).toBe(
+            'GET,HEAD,OPTIONS',
+          );
+          expect(response.headers.get('cache-control')).toBe(cacheControl);
+        }
+      } finally {
+        await server.dispose();
+        await rm(pwd, { recursive: true, force: true });
       }
-    } finally {
-      await server.dispose();
-      await rm(pwd, { recursive: true, force: true });
-    }
-  });
+    },
+  );
 
   test('does not expose localized aliases or traversal-shaped asset paths', async () => {
     const { pwd, server } = await createBackendFederationServer();

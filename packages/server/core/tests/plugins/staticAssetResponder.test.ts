@@ -82,28 +82,31 @@ describe('native selected asset responder', () => {
   it.each([
     ['/static/asset.txt', 'static'],
     ['/document', 'public'],
-  ] as const)('serves a selected representation for %s through the native continuation', async (url, kind) => {
-    const pwd = await fixture();
-    const seen: unknown[] = [];
-    const server = await createServer(pwd, async (context, asset, serve) => {
-      seen.push({ filename: asset.filename, kind: asset.kind });
-      context.header('x-representation', 'alternate');
-      return serve({ filename: `${asset.filename}.alternate` });
-    });
-    const response = await server.request(url);
-    expect(response.status).toBe(200);
-    expect(await response.text()).toBe('alternate');
-    expect(response.headers.get('content-type')).toContain('text/plain');
-    expect(response.headers.get('x-representation')).toBe('alternate');
-    expect(seen).toEqual([
-      { filename: path.join(pwd, kind, 'asset.txt'), kind },
-    ]);
-    if (kind === 'public') {
-      expect(response.headers.get('x-public-route')).toBe('native');
-    } else {
-      expect(response.headers.get('content-length')).toBe('9');
-    }
-  });
+  ] as const)(
+    'serves a selected representation for %s through the native continuation',
+    async (url, kind) => {
+      const pwd = await fixture();
+      const seen: unknown[] = [];
+      const server = await createServer(pwd, async (context, asset, serve) => {
+        seen.push({ filename: asset.filename, kind: asset.kind });
+        context.header('x-representation', 'alternate');
+        return serve({ filename: `${asset.filename}.alternate` });
+      });
+      const response = await server.request(url);
+      expect(response.status).toBe(200);
+      expect(await response.text()).toBe('alternate');
+      expect(response.headers.get('content-type')).toContain('text/plain');
+      expect(response.headers.get('x-representation')).toBe('alternate');
+      expect(seen).toEqual([
+        { filename: path.join(pwd, kind, 'asset.txt'), kind },
+      ]);
+      if (kind === 'public') {
+        expect(response.headers.get('x-public-route')).toBe('native');
+      } else {
+        expect(response.headers.get('content-length')).toBe('9');
+      }
+    },
+  );
 
   it('uses native prefix resolution before calling the responder', async () => {
     const pwd = await fixture();
@@ -121,19 +124,19 @@ describe('native selected asset responder', () => {
     expect(filenames).toEqual([path.join(pwd, 'static/asset.txt')]);
   });
 
-  it.each([
-    '/static/asset.txt',
-    '/document',
-  ])('lets a responder decline %s without changing native fallback', async url => {
-    let calls = 0;
-    const server = await createServer(await fixture(), () => {
-      calls += 1;
-      return undefined;
-    });
-    const response = await server.request(url);
-    expect(await response.text()).toBe('original body');
-    expect(calls).toBe(1);
-  });
+  it.each(['/static/asset.txt', '/document'])(
+    'lets a responder decline %s without changing native fallback',
+    async url => {
+      let calls = 0;
+      const server = await createServer(await fixture(), () => {
+        calls += 1;
+        return undefined;
+      });
+      const response = await server.request(url);
+      expect(await response.text()).toBe('original body');
+      expect(calls).toBe(1);
+    },
+  );
 
   it('continues downstream when the chosen representation is missing', async () => {
     const server = await createServer(
@@ -249,23 +252,23 @@ it('keeps extensionless matched pages out of asset and fallback responders', asy
   expect(calls).toBe(0);
 });
 
-it.each([
-  false,
-  true,
-])('native file responder contains files at root (symlink=%s)', async realpath => {
-  const pwd = await fixture();
-  const outside = path.join(pwd, 'private.txt');
-  const link = path.join(pwd, 'public/escape.txt');
-  await writeFile(outside, 'private');
-  await symlink(outside, link);
-  const server = await createServer(pwd, context =>
-    serveStaticAsset(context, {
-      filename: realpath ? link : outside,
-      kind: 'static',
-      root: path.join(pwd, 'public'),
-      realpath,
-    }),
-  );
-  const response = await server.request('/static/asset.txt');
-  expect(response.status).toBe(404);
-});
+it.each([false, true])(
+  'native file responder contains files at root (symlink=%s)',
+  async realpath => {
+    const pwd = await fixture();
+    const outside = path.join(pwd, 'private.txt');
+    const link = path.join(pwd, 'public/escape.txt');
+    await writeFile(outside, 'private');
+    await symlink(outside, link);
+    const server = await createServer(pwd, context =>
+      serveStaticAsset(context, {
+        filename: realpath ? link : outside,
+        kind: 'static',
+        root: path.join(pwd, 'public'),
+        realpath,
+      }),
+    );
+    const response = await server.request('/static/asset.txt');
+    expect(response.status).toBe(404);
+  },
+);

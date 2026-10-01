@@ -13,7 +13,7 @@ import {
   transform,
 } from 'esbuild';
 
-const NODE_TARGET = 'node26.7';
+const NODE_TARGET = 'node26.10';
 const SOURCE_LOADERS = new Map<string, Loader>([
   ['.js', 'js'],
   ['.jsx', 'jsx'],

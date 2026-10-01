@@ -7,6 +7,7 @@ import type { Config } from 'jest';
 
 const config: Config = {
   coverageProvider: 'babel',
+  extensionsToTreatAsEsm: ['.ts', '.tsx'],
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
   testEnvironment: 'jsdom',
   transform: {

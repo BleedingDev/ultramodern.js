@@ -4,7 +4,7 @@ Import a module lazily.
 @example
 ```
 // Pass in `require` or a custom import function
-import importLazy = require('./import-lazy');
+import importLazy = require('import-lazy');
 const _ = importLazy(require)('lodash');
 
 // Instead of referring to its exported properties directly…
@@ -23,4 +23,4 @@ declare function importLazy<T = unknown>(
 	importFn: (moduleId: string) => T
 ): (moduleId: string) => T;
 
-export = importLazy;
+export { importLazy as default };

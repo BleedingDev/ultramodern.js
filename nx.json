@@ -4,6 +4,7 @@
     "default": ["{projectRoot}/src/**/*"],
     "build": [
       "default",
+      "{projectRoot}/compiled/**/*",
       "{projectRoot}/tsconfig.json",
       "{projectRoot}/package.json",
       "{projectRoot}/modern.config.*",

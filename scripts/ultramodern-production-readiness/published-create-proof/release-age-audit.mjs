@@ -2,13 +2,14 @@ import { spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { mergePnpmLockfileDocuments } from '../../lib/pnpm-lockfile-documents.mjs';
 import { run } from './process.mjs';
 
 const YAML_NAME = 'js-yaml';
-const YAML_VERSION = '5.2.2';
+const YAML_VERSION = '5.4.2';
 const YAML_SPECIFIER = `${YAML_NAME}@${YAML_VERSION}`;
 const YAML_INTEGRITY =
-  'sha512-dayzUzKkJ1MkuUtZglSebU43utNXH0OWQByK9rKOOuYIO8M5TV1y+n8ALMdG0rdzBnfNkOmZEqrURepb0ejqBw==';
+  'sha512-m+aqu+LwO1O6sIopafj8HUVl5aawITwZQe/yHpMCKjaWBaA/d07B/QdMb3529REftiU+RMMHL3Vlsw3hON7vWg==';
 const NPM_REGISTRY = 'https://registry.npmjs.org/';
 const releaseAgePolicySchema = 'bleedingdev.ultramodern.release-age-exceptions';
 const releaseAgePolicySchemaVersion = 2;
@@ -17,6 +18,8 @@ const dependencyBlocks = Object.freeze([
   'dependencies',
   'devDependencies',
   'optionalDependencies',
+  'packageManagerDependencies',
+  'configDependencies',
 ]);
 const exactVersionPattern =
   /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u;
@@ -129,7 +132,7 @@ function runYamlCli(args, { input, spawnImpl = spawnSync } = {}) {
 function parseYaml(source, spawnImpl = spawnSync) {
   const output = runYamlCli([], { input: source, spawnImpl });
   try {
-    return JSON.parse(output);
+    return mergePnpmLockfileDocuments(JSON.parse(output));
   } catch (error) {
     throw new Error(
       `Pinned YAML parser returned invalid JSON: ${
@@ -142,7 +145,7 @@ function parseYaml(source, spawnImpl = spawnSync) {
 function parseYamlFile(filePath, spawnImpl = spawnSync) {
   const output = runYamlCli([filePath], { spawnImpl });
   try {
-    return JSON.parse(output);
+    return mergePnpmLockfileDocuments(JSON.parse(output));
   } catch (error) {
     throw new Error(
       `Pinned YAML parser returned invalid JSON: ${

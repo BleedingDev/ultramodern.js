@@ -20,7 +20,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import semver from 'semver';
-import { parse } from 'yaml';
+import { parsePnpmLockfile as parse } from './lib/parse-pnpm-lockfile.mjs';
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),

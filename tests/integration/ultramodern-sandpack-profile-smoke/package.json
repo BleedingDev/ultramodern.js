@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "engines": {
-    "node": ">=26.7.0"
+    "node": ">=26.10.0"
   },
   "scripts": {
     "test": "node --experimental-strip-types --test profile-build.smoke.ts"
@@ -20,10 +20,10 @@
     "@modern-js/ultramodern-app-tools": "workspace:*",
     "@modern-js/ultramodern-sandpack-profile": "workspace:*",
     "@rsbuild/plugin-tailwindcss": "2.0.3",
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.3",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "effect": "4.0.0-rc.117",
+    "effect": "4.0.0",
     "i18next": "26.4.2",
     "playwright": "^1.63.0",
     "react": "^19.3.0",

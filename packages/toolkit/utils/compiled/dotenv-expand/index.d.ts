@@ -1,15 +1,53 @@
-export = dotenv_expand;
+/// <reference types="node" />
+// TypeScript Version: 3.0
 
-interface DotenvResult {
-    error?: Error;
-    parsed?: {
-        [name: string]: string;
-    };
+interface DotenvPopulateInput {
+  [name: string]: string;
 }
 
-declare function dotenv_expand(config: DotenvResult): DotenvResult;
-
-declare namespace dotenv_expand {
-    const prototype: {
-    };
+interface DotenvParseInput {
+  [name: string]: string;
 }
+
+interface DotenvParseOutput {
+  [name: string]: string;
+}
+
+interface DotenvExpandOptions {
+  error?: Error;
+
+  /**
+   * Default: `process.env`
+   *
+   * Specify an object to write your secrets to. Defaults to process.env environment variables.
+   *
+   * example: `const processEnv = {}; require('dotenv').config({ processEnv: processEnv })`
+   */
+  processEnv?: DotenvPopulateInput;
+
+  /**
+   * Default: `object`
+   *
+   * Object coming from dotenv's parsed result.
+   */
+  parsed?: DotenvParseInput;
+}
+
+interface DotenvExpandOutput {
+  error?: Error;
+  parsed?: DotenvParseOutput;
+}
+
+/**
+ * Adds variable expansion on top of dotenv.
+ *
+ * See https://docs.dotenv.org
+ *
+ * @param options - additional options. example: `{ processEnv: {}, error: null, parsed: { { KEY: 'value' } }`
+ * @returns an object with a `parsed` key if successful or `error` key if an error occurred. example: { parsed: { KEY: 'value' } }
+ *
+ */
+declare function expand(options?: DotenvExpandOptions): DotenvExpandOutput
+
+export { expand };
+export type { DotenvExpandOptions, DotenvExpandOutput, DotenvParseInput, DotenvParseOutput, DotenvPopulateInput };

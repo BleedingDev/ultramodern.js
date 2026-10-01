@@ -396,30 +396,31 @@ describe('Effect batch fallback behavior', () => {
     );
   });
 
-  test.each([
-    'POST',
-  ] as const)('bypasses batching for %s by default', async method => {
-    const path = method.toLowerCase();
-    const calls: Array<{ method: string; url: string }> = [];
-    const transport = createDataBatchTransport({
-      fetch: async (input, init) => {
-        const call = {
-          method: init?.method || 'GET',
-          url: String(input),
-        };
-        calls.push(call);
-        return jsonResponse(call);
-      },
-    });
+  test.each(['POST'] as const)(
+    'bypasses batching for %s by default',
+    async method => {
+      const path = method.toLowerCase();
+      const calls: Array<{ method: string; url: string }> = [];
+      const transport = createDataBatchTransport({
+        fetch: async (input, init) => {
+          const call = {
+            method: init?.method || 'GET',
+            url: String(input),
+          };
+          calls.push(call);
+          return jsonResponse(call);
+        },
+      });
 
-    await expect(
-      transport(`http://localhost/api/default-${path}`, { method }),
-    ).resolves.toEqual({
-      method,
-      url: `http://localhost/api/default-${path}`,
-    });
-    expect(calls).toEqual([
-      { method, url: `http://localhost/api/default-${path}` },
-    ]);
-  });
+      await expect(
+        transport(`http://localhost/api/default-${path}`, { method }),
+      ).resolves.toEqual({
+        method,
+        url: `http://localhost/api/default-${path}`,
+      });
+      expect(calls).toEqual([
+        { method, url: `http://localhost/api/default-${path}` },
+      ]);
+    },
+  );
 });

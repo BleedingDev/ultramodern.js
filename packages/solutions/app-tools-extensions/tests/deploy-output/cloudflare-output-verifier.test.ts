@@ -498,31 +498,30 @@ describe('Cloudflare output verifier', () => {
         "// require('node:child_process')\nconst text = \"import('node:child_process')\";",
       expectedOk: true,
     },
-  ])('enforces worker import grammar: $name', async ({
-    source,
-    dependencies,
-    expectedOk,
-  }) => {
-    const { outputDirectory } = await createOutputFixture({
-      bffWorkerSource: withDispatcher(source),
-    });
-    await writeJson(path.join(outputDirectory, 'worker/package.json'), {
-      dependencies,
-      type: 'commonjs',
-    });
+  ])(
+    'enforces worker import grammar: $name',
+    async ({ source, dependencies, expectedOk }) => {
+      const { outputDirectory } = await createOutputFixture({
+        bffWorkerSource: withDispatcher(source),
+      });
+      await writeJson(path.join(outputDirectory, 'worker/package.json'), {
+        dependencies,
+        type: 'commonjs',
+      });
 
-    const result = await verifyCloudflareOutput({
-      outputDirectory,
-      importWorker: false,
-    });
+      const result = await verifyCloudflareOutput({
+        outputDirectory,
+        importWorker: false,
+      });
 
-    expect(result.ok).toBe(expectedOk);
-    if (!expectedOk) {
-      expect(result.issues).toContainEqual(
-        expect.objectContaining({ code: 'invalid-worker-bundle' }),
-      );
-    }
-  });
+      expect(result.ok).toBe(expectedOk);
+      if (!expectedOk) {
+        expect(result.issues).toContainEqual(
+          expect.objectContaining({ code: 'invalid-worker-bundle' }),
+        );
+      }
+    },
+  );
 
   it('eagerly lowers local imports across real Rspack worker entries', async () => {
     const { directory, outputDirectory } = await createOutputFixture({

@@ -173,7 +173,7 @@
     "verify:public-surface": "node ./tests/build-config/verify-public-surface.mjs"
   },
   "engines": {
-    "node": ">=26.7.0"
+    "node": ">=26.10.0"
   },
   "dependencies": {
     "@babel/parser": "^8.0.6",
@@ -193,10 +193,10 @@
     "@vercel/nft": "^1.11.0",
     "compression-webpack-plugin": "^12.0.0",
     "esbuild": "^0.28.2",
-    "std-env": "4.2.0"
+    "std-env": "4.3.0"
   },
   "peerDependencies": {
-    "@rsbuild/core": "2.2.10",
+    "@rsbuild/core": "2.2.11",
     "react": "^19.2.8"
   },
   "peerDependenciesMeta": {
@@ -212,17 +212,17 @@
     "@modern-js/rslib": "workspace:*",
     "@module-federation/modern-js-v3": "2.9.2",
     "@module-federation/runtime-tools": "2.9.2",
-    "@rsbuild/core": "2.2.10",
-    "@rslib/core": "1.0.2",
+    "@rsbuild/core": "2.2.11",
+    "@rslib/core": "1.0.3",
     "@scripts/rstest-config": "workspace:*",
     "@types/babel__traverse": "7.28.0",
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.3",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "core-js": "^3.50.0",
-    "effect": "4.0.0-rc.117",
-    "miniflare": "5.20260926.1-alpha",
+    "effect": "4.0.0",
+    "miniflare": "5.20260930.0-alpha",
     "ndepe": "^0.1.13",
-    "pg": "8.23.0",
+    "pg": "8.23.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },

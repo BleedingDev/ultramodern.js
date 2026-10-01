@@ -259,25 +259,28 @@ describe('Effect HttpApi schema and error handling', () => {
           method: 'POST',
         }),
     },
-  ])('$name', async ({
-    expectedBody,
-    expectedCalls,
-    expectedStatus,
-    readBody,
-    request,
-  }) => {
-    const { handledCalls, handler } = createRecommendationsHandler();
+  ])(
+    '$name',
+    async ({
+      expectedBody,
+      expectedCalls,
+      expectedStatus,
+      readBody,
+      request,
+    }) => {
+      const { handledCalls, handler } = createRecommendationsHandler();
 
-    try {
-      const response = await handler.handler(request());
+      try {
+        const response = await handler.handler(request());
 
-      expect(response.status).toBe(expectedStatus);
-      await expect(readBody(response)).resolves.toEqual(expectedBody);
-      expect(handledCalls).toEqual(expectedCalls);
-    } finally {
-      await handler.dispose();
-    }
-  });
+        expect(response.status).toBe(expectedStatus);
+        await expect(readBody(response)).resolves.toEqual(expectedBody);
+        expect(handledCalls).toEqual(expectedCalls);
+      } finally {
+        await handler.dispose();
+      }
+    },
+  );
 
   test.each([
     {
@@ -292,22 +295,22 @@ describe('Effect HttpApi schema and error handling', () => {
       request: () =>
         new Request('http://localhost/recommendations/invalid-error'),
     },
-  ])('returns an opaque failure for invalid $name response schema encoding', async ({
-    expectedStatus,
-    request,
-  }) => {
-    const { handledCalls, handler } = createRecommendationsHandler();
+  ])(
+    'returns an opaque failure for invalid $name response schema encoding',
+    async ({ expectedStatus, request }) => {
+      const { handledCalls, handler } = createRecommendationsHandler();
 
-    try {
-      const response = await handler.handler(request());
+      try {
+        const response = await handler.handler(request());
 
-      expect(response.status).toBe(expectedStatus);
-      await expect(response.text()).resolves.toBe('');
-      expect(handledCalls).toEqual(['get']);
-    } finally {
-      await handler.dispose();
-    }
-  });
+        expect(response.status).toBe(expectedStatus);
+        await expect(response.text()).resolves.toBe('');
+        expect(handledCalls).toEqual(['get']);
+      } finally {
+        await handler.dispose();
+      }
+    },
+  );
 
   test('preserves Effect request context for HttpApi requests when RPC is enabled', async () => {
     const handler = createRequestScopedContextHandler();

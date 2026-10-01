@@ -66,7 +66,7 @@
     "verify:deploy-output": "node ./tests/deploy-output/verify-public-surface.mjs"
   },
   "engines": {
-    "node": ">=26.7.0"
+    "node": ">=26.10.0"
   },
   "dependencies": {
     "@modern-js/app-tools": "workspace:*",
@@ -78,7 +78,7 @@
     "@modern-js/runtime-renderer-extensions": "workspace:*",
     "@modern-js/server-core": "workspace:*",
     "@modern-js/server-runtime-extensions": "workspace:*",
-    "@rsbuild/core": "2.2.10"
+    "@rsbuild/core": "2.2.11"
   },
   "devDependencies": {
     "@modern-js/backend-federation-contracts": "workspace:*",
@@ -90,9 +90,9 @@
     "@modern-js/server": "workspace:*",
     "@modern-js/tsconfig": "workspace:*",
     "@modern-js/utils": "workspace:*",
-    "@rslib/core": "1.0.2",
+    "@rslib/core": "1.0.3",
     "@scripts/rstest-config": "workspace:*",
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.3",
     "@typescript/native-preview": "7.0.0-dev.20260707.2"
   },
   "sideEffects": false,

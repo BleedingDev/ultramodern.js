@@ -51,7 +51,7 @@ pnpm check
 pnpm build
 ```
 
-The generated toolchain pins Node `26.7.0`, pnpm `11.27.1`, and
+The generated toolchain pins Node `26.10.0`, pnpm `12.8.1`, and
 `@types/node@^26.6.2`; its engine baseline remains Node `>=26` with pnpm `11+`.
 `packageManager`, `.mise.toml`, generated validation, and CI should all agree
 on those values; do not reintroduce Corepack or older pnpm aliases.

@@ -41,12 +41,12 @@
     "@rsbuild-image/core": "0.0.1-next.36",
     "@rsbuild-image/react": "0.0.1-next.36",
     "ipx": "^4.0.0-beta.1",
-    "sharp": "^0.35.4"
+    "sharp": "^0.35.5"
   },
   "devDependencies": {
     "@modern-js/app-tools": "workspace:*",
-    "@rslib/core": "1.0.2",
-    "@types/node": "^26.6.2",
+    "@rslib/core": "1.0.3",
+    "@types/node": "^26.6.3",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",

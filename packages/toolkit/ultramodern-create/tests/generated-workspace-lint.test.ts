@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import execa from '@modern-js/utils/execa';
+import { execaSync } from '@modern-js/utils/execa';
 
 import { addUltramodernVertical } from '../src/ultramodern-workspace';
 import { formatGeneratedWorkspaceFiles } from '../src/ultramodern-workspace/fs-io';
@@ -138,12 +138,12 @@ function assertGeneratedWorkspaceLintClean(
   if (process.platform === 'win32') {
     env.Path = externalPath;
   }
-  const result = execa.sync(
+  const result = execaSync(
     'pnpm',
     ['--config.verify-deps-before-run=false', 'lint', '--format', 'json'],
     {
       cwd: workspaceDir,
-      encoding: 'utf-8',
+      encoding: 'utf8',
       env,
       reject: false,
     },
