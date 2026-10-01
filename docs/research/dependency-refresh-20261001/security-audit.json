@@ -1,0 +1,1158 @@
+{
+  "capturedAt": "2026-10-01T10:32:01.051Z",
+  "command": "pnpm audit --json",
+  "exitCode": 1,
+  "metadata": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 6,
+      "moderate": 16,
+      "high": 22,
+      "critical": 0
+    },
+    "dependencies": 1564,
+    "devDependencies": 1132,
+    "optionalDependencies": 421,
+    "totalDependencies": 2982
+  },
+  "advisories": [
+    {
+      "findings": [
+        {
+          "version": "6.6.1",
+          "paths": [
+            "examples__storybook>@rsbuild/plugin-node-polyfill>crypto-browserify>browserify-sign>elliptic",
+            "examples__storybook>@rsbuild/plugin-node-polyfill>crypto-browserify>create-ecdh>elliptic"
+          ],
+          "dev": true,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 2
+        }
+      ],
+      "id": 1112030,
+      "title": "Elliptic Uses a Cryptographic Primitive with a Risky Implementation",
+      "module_name": "elliptic",
+      "vulnerable_versions": "<=6.6.1",
+      "patched_versions": null,
+      "severity": "low",
+      "cwe": "CWE-1240",
+      "github_advisory_id": "GHSA-848j-6mx2-7j84",
+      "url": "https://github.com/advisories/GHSA-848j-6mx2-7j84",
+      "patched_versions_unpublished": true
+    },
+    {
+      "findings": [
+        {
+          "version": "0.34.5",
+          "paths": [
+            "packages__runtime__plugin-image>@rsbuild-image/core>ipx>sharp",
+            "packages__runtime__plugin-image>@rsbuild-image/react>@rsbuild-image/core>ipx>sharp",
+            "packages__runtime__plugin-image>@rsbuild-image/react>ipx>sharp",
+            "packages__runtime__plugin-image>ipx>sharp"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 4
+        }
+      ],
+      "id": 1124066,
+      "title": "sharp inherited vulnerabilities in libvips: CVE-2026-33327, CVE-2026-33328, CVE-2026-35590, CVE-2026-35591",
+      "module_name": "sharp",
+      "vulnerable_versions": "<0.35.0",
+      "patched_versions": ">=0.35.0",
+      "severity": "high",
+      "cwe": "CWE-1395",
+      "github_advisory_id": "GHSA-f88m-g3jw-g9cj",
+      "url": "https://github.com/advisories/GHSA-f88m-g3jw-g9cj"
+    },
+    {
+      "findings": [
+        {
+          "version": "0.34.5",
+          "paths": [
+            "packages__runtime__plugin-image>@rsbuild-image/core>ipx>sharp",
+            "packages__runtime__plugin-image>@rsbuild-image/react>@rsbuild-image/core>ipx>sharp",
+            "packages__runtime__plugin-image>@rsbuild-image/react>ipx>sharp",
+            "packages__runtime__plugin-image>ipx>sharp"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 4
+        }
+      ],
+      "id": 1193725,
+      "title": "sharp: Vulnerabilities in libheif: GHSA-g89c-p67h-r497 and GHSA-2jg2-4ch7-h545",
+      "module_name": "sharp",
+      "vulnerable_versions": "<0.35.4",
+      "patched_versions": ">=0.35.4",
+      "severity": "high",
+      "cwe": "CWE-122",
+      "github_advisory_id": "GHSA-rgj7-g3m4-5g8c",
+      "url": "https://github.com/advisories/GHSA-rgj7-g3m4-5g8c"
+    },
+    {
+      "findings": [
+        {
+          "version": "0.6.0",
+          "paths": [
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/cli>@module-federation/dts-plugin>adm-zip",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/cli>@module-federation/dts-plugin>adm-zip",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/dts-plugin>adm-zip",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/manifest>@module-federation/dts-plugin>adm-zip",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/rspack>@module-federation/dts-plugin>adm-zip"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 100
+        }
+      ],
+      "id": 1193734,
+      "title": "adm-zip extraction follows destination symlinks, allowing arbitrary file overwrite",
+      "module_name": "adm-zip",
+      "vulnerable_versions": ">=0.5.9 <=0.6.0",
+      "patched_versions": ">=0.6.1",
+      "severity": "moderate",
+      "cwe": "CWE-59",
+      "github_advisory_id": "GHSA-vwc7-r8mq-g2x9",
+      "url": "https://github.com/advisories/GHSA-vwc7-r8mq-g2x9"
+    },
+    {
+      "findings": [
+        {
+          "version": "0.6.0",
+          "paths": [
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/cli>@module-federation/dts-plugin>adm-zip",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/cli>@module-federation/dts-plugin>adm-zip",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/dts-plugin>adm-zip",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/manifest>@module-federation/dts-plugin>adm-zip",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/rspack>@module-federation/dts-plugin>adm-zip"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 100
+        }
+      ],
+      "id": 1239030,
+      "title": "adm-zip: Uncontrolled memory allocation via the declared uncompressed size (DoS)",
+      "module_name": "adm-zip",
+      "vulnerable_versions": "<0.6.1",
+      "patched_versions": ">=0.6.1",
+      "severity": "high",
+      "cwe": "CWE-789",
+      "github_advisory_id": "GHSA-7q85-xj36-vmfc",
+      "url": "https://github.com/advisories/GHSA-7q85-xj36-vmfc"
+    },
+    {
+      "findings": [
+        {
+          "version": "7.29.0",
+          "paths": [
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/cli>@module-federation/dts-plugin>undici",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/cli>@module-federation/dts-plugin>undici",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/dts-plugin>undici",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/manifest>@module-federation/dts-plugin>undici",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/rspack>@module-federation/dts-plugin>undici"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 100
+        }
+      ],
+      "id": 1239933,
+      "title": "undici vulnerable to Denial of Service via unhandled error in WebSocket permessage-deflate decompression",
+      "module_name": "undici",
+      "vulnerable_versions": ">=7.28.0 <7.29.1",
+      "patched_versions": ">=7.29.1",
+      "severity": "moderate",
+      "cwe": "CWE-248",
+      "github_advisory_id": "GHSA-3wwx-pv8p-q78v",
+      "url": "https://github.com/advisories/GHSA-3wwx-pv8p-q78v"
+    },
+    {
+      "findings": [
+        {
+          "version": "0.6.0",
+          "paths": [
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/cli>@module-federation/dts-plugin>adm-zip",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/cli>@module-federation/dts-plugin>adm-zip",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/dts-plugin>adm-zip",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/manifest>@module-federation/dts-plugin>adm-zip",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/rspack>@module-federation/dts-plugin>adm-zip"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 100
+        }
+      ],
+      "id": 1240032,
+      "title": "adm-zip: Decompression-bomb protection (fix for CVE-2026-39244) can be bypassed by declaring uncompressed size as 0",
+      "module_name": "adm-zip",
+      "vulnerable_versions": "<=0.6.0",
+      "patched_versions": ">=0.6.1",
+      "severity": "high",
+      "cwe": "CWE-409",
+      "github_advisory_id": "GHSA-rcw4-f5rp-g42v",
+      "url": "https://github.com/advisories/GHSA-rcw4-f5rp-g42v"
+    },
+    {
+      "findings": [
+        {
+          "version": "0.6.0",
+          "paths": [
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/cli>@module-federation/dts-plugin>adm-zip",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/cli>@module-federation/dts-plugin>adm-zip",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/dts-plugin>adm-zip",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/manifest>@module-federation/dts-plugin>adm-zip",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/rspack>@module-federation/dts-plugin>adm-zip"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 100
+        }
+      ],
+      "id": 1240034,
+      "title": "adm-zip extraction preserves SUID/SGID bits from untrusted ZIPs -> local privilege escalation",
+      "module_name": "adm-zip",
+      "vulnerable_versions": "<=0.6.0",
+      "patched_versions": ">=0.6.1",
+      "severity": "high",
+      "cwe": "CWE-732",
+      "github_advisory_id": "GHSA-j5f4-cc29-5x44",
+      "url": "https://github.com/advisories/GHSA-j5f4-cc29-5x44"
+    },
+    {
+      "findings": [
+        {
+          "version": "7.29.0",
+          "paths": [
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/cli>@module-federation/dts-plugin>undici",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/cli>@module-federation/dts-plugin>undici",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/dts-plugin>undici",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/manifest>@module-federation/dts-plugin>undici",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/rspack>@module-federation/dts-plugin>undici"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 100
+        }
+      ],
+      "id": 1240036,
+      "title": "undici vulnerable to Denial of Service via orphaned RetryHandler response body",
+      "module_name": "undici",
+      "vulnerable_versions": ">=7.11.0 <7.29.1",
+      "patched_versions": ">=7.29.1",
+      "severity": "moderate",
+      "cwe": "CWE-772",
+      "github_advisory_id": "GHSA-pmjh-fq2x-6v4x",
+      "url": "https://github.com/advisories/GHSA-pmjh-fq2x-6v4x"
+    },
+    {
+      "findings": [
+        {
+          "version": "7.29.0",
+          "paths": [
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/cli>@module-federation/dts-plugin>undici",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/cli>@module-federation/dts-plugin>undici",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/dts-plugin>undici",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/manifest>@module-federation/dts-plugin>undici",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/rspack>@module-federation/dts-plugin>undici"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 100
+        }
+      ],
+      "id": 1240038,
+      "title": "undici vulnerable to downstream response splitting via retry interceptor",
+      "module_name": "undici",
+      "vulnerable_versions": ">=7.0.0 <7.29.1",
+      "patched_versions": ">=7.29.1",
+      "severity": "low",
+      "cwe": "CWE-444",
+      "github_advisory_id": "GHSA-r53p-7pc4-xj5r",
+      "url": "https://github.com/advisories/GHSA-r53p-7pc4-xj5r"
+    },
+    {
+      "findings": [
+        {
+          "version": "7.29.0",
+          "paths": [
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/cli>@module-federation/dts-plugin>undici",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/cli>@module-federation/dts-plugin>undici",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/dts-plugin>undici",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/manifest>@module-federation/dts-plugin>undici",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/rspack>@module-federation/dts-plugin>undici"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 100
+        }
+      ],
+      "id": 1240041,
+      "title": "undici vulnerable to Denial of Service via unrequested WebSocket subprotocol",
+      "module_name": "undici",
+      "vulnerable_versions": ">=7.0.0 <7.29.1",
+      "patched_versions": ">=7.29.1",
+      "severity": "high",
+      "cwe": "CWE-248, CWE-252",
+      "github_advisory_id": "GHSA-rfgv-xxqx-mfg5",
+      "url": "https://github.com/advisories/GHSA-rfgv-xxqx-mfg5"
+    },
+    {
+      "findings": [
+        {
+          "version": "7.29.0",
+          "paths": [
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/cli>@module-federation/dts-plugin>undici",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/cli>@module-federation/dts-plugin>undici",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/dts-plugin>undici",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/manifest>@module-federation/dts-plugin>undici",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/rspack>@module-federation/dts-plugin>undici"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 100
+        }
+      ],
+      "id": 1240044,
+      "title": "undici vulnerable to Denial of Service via unbounded decompression of compressed responses",
+      "module_name": "undici",
+      "vulnerable_versions": ">=7.15.0 <7.29.1",
+      "patched_versions": ">=7.29.1",
+      "severity": "moderate",
+      "cwe": "CWE-770",
+      "github_advisory_id": "GHSA-3xpg-4rpp-hhhm",
+      "url": "https://github.com/advisories/GHSA-3xpg-4rpp-hhhm"
+    },
+    {
+      "findings": [
+        {
+          "version": "7.29.0",
+          "paths": [
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/cli>@module-federation/dts-plugin>undici",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/cli>@module-federation/dts-plugin>undici",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/dts-plugin>undici",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/manifest>@module-federation/dts-plugin>undici",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/rspack>@module-federation/dts-plugin>undici"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 100
+        }
+      ],
+      "id": 1240046,
+      "title": "undici vulnerable to cross-user cookie disclosure via Set-Cookie caching in shared caches",
+      "module_name": "undici",
+      "vulnerable_versions": ">=7.0.0 <7.29.1",
+      "patched_versions": ">=7.29.1",
+      "severity": "moderate",
+      "cwe": "CWE-200, CWE-524",
+      "github_advisory_id": "GHSA-2jfj-6hjv-fm6j",
+      "url": "https://github.com/advisories/GHSA-2jfj-6hjv-fm6j"
+    },
+    {
+      "findings": [
+        {
+          "version": "7.29.0",
+          "paths": [
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/cli>@module-federation/dts-plugin>undici",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/cli>@module-federation/dts-plugin>undici",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/dts-plugin>undici",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/manifest>@module-federation/dts-plugin>undici",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/rspack>@module-federation/dts-plugin>undici"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 100
+        }
+      ],
+      "id": 1240048,
+      "title": "undici vulnerable to response truncation via oversized chunked responses in the dump interceptor",
+      "module_name": "undici",
+      "vulnerable_versions": ">=7.1.0 <7.29.1",
+      "patched_versions": ">=7.29.1",
+      "severity": "low",
+      "cwe": "CWE-20, CWE-248",
+      "github_advisory_id": "GHSA-2gqq-gqf2-x968",
+      "url": "https://github.com/advisories/GHSA-2gqq-gqf2-x968"
+    },
+    {
+      "findings": [
+        {
+          "version": "7.29.0",
+          "paths": [
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/cli>@module-federation/dts-plugin>undici",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/cli>@module-federation/dts-plugin>undici",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/dts-plugin>undici",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/manifest>@module-federation/dts-plugin>undici",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/rspack>@module-federation/dts-plugin>undici"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 100
+        }
+      ],
+      "id": 1240050,
+      "title": "undici vulnerable to TLS certificate validation bypass via dropped connect options in BalancedPool",
+      "module_name": "undici",
+      "vulnerable_versions": ">=7.24.1 <7.29.1",
+      "patched_versions": ">=7.29.1",
+      "severity": "high",
+      "cwe": "CWE-295",
+      "github_advisory_id": "GHSA-w293-vg96-wgc3",
+      "url": "https://github.com/advisories/GHSA-w293-vg96-wgc3"
+    },
+    {
+      "findings": [
+        {
+          "version": "7.29.0",
+          "paths": [
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/cli>@module-federation/dts-plugin>undici",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/cli>@module-federation/dts-plugin>undici",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/dts-plugin>undici",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/manifest>@module-federation/dts-plugin>undici",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/rspack>@module-federation/dts-plugin>undici"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 100
+        }
+      ],
+      "id": 1240052,
+      "title": "undici vulnerable to caching and replay of unsafe HTTP method responses",
+      "module_name": "undici",
+      "vulnerable_versions": ">=7.0.0 <7.29.1",
+      "patched_versions": ">=7.29.1",
+      "severity": "low",
+      "cwe": "CWE-345",
+      "github_advisory_id": "GHSA-8436-99hf-9mmv",
+      "url": "https://github.com/advisories/GHSA-8436-99hf-9mmv"
+    },
+    {
+      "findings": [
+        {
+          "version": "7.29.0",
+          "paths": [
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/cli>@module-federation/dts-plugin>undici",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/cli>@module-federation/dts-plugin>undici",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/dts-plugin>undici",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/manifest>@module-federation/dts-plugin>undici",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/rspack>@module-federation/dts-plugin>undici"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 100
+        }
+      ],
+      "id": 1240055,
+      "title": "undici vulnerable to Denial of Service via WebSocketStream unclean close",
+      "module_name": "undici",
+      "vulnerable_versions": ">=7.0.0 <7.29.1",
+      "patched_versions": ">=7.29.1",
+      "severity": "moderate",
+      "cwe": "CWE-248, CWE-754",
+      "github_advisory_id": "GHSA-rx4f-c7p8-82vq",
+      "url": "https://github.com/advisories/GHSA-rx4f-c7p8-82vq"
+    },
+    {
+      "findings": [
+        {
+          "version": "0.6.0",
+          "paths": [
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/cli>@module-federation/dts-plugin>adm-zip",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/cli>@module-federation/dts-plugin>adm-zip",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/dts-plugin>adm-zip",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/manifest>@module-federation/dts-plugin>adm-zip",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/rspack>@module-federation/dts-plugin>adm-zip"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 100
+        }
+      ],
+      "id": 1240064,
+      "title": "adm-zip: Duplicate ZIP entry names: getEntry() and extractAllTo() resolve to different content",
+      "module_name": "adm-zip",
+      "vulnerable_versions": "<=0.6.0",
+      "patched_versions": ">=0.6.1",
+      "severity": "moderate",
+      "cwe": "CWE-436, CWE-696",
+      "github_advisory_id": "GHSA-p634-w6r4-rjp2",
+      "url": "https://github.com/advisories/GHSA-p634-w6r4-rjp2"
+    },
+    {
+      "findings": [
+        {
+          "version": "0.6.0",
+          "paths": [
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/cli>@module-federation/dts-plugin>adm-zip",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/cli>@module-federation/dts-plugin>adm-zip",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/dts-plugin>adm-zip",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/manifest>@module-federation/dts-plugin>adm-zip",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/rspack>@module-federation/dts-plugin>adm-zip"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 100
+        }
+      ],
+      "id": 1240065,
+      "title": "adm-zip: getDataAsync() bypasses the maxOutputLength size guard enforced by the synchronous getData() path",
+      "module_name": "adm-zip",
+      "vulnerable_versions": "<=0.6.0",
+      "patched_versions": ">=0.6.1",
+      "severity": "moderate",
+      "cwe": "CWE-400, CWE-770",
+      "github_advisory_id": "GHSA-c6fg-446q-cg94",
+      "url": "https://github.com/advisories/GHSA-c6fg-446q-cg94"
+    },
+    {
+      "findings": [
+        {
+          "version": "0.6.0",
+          "paths": [
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/cli>@module-federation/dts-plugin>adm-zip",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/cli>@module-federation/dts-plugin>adm-zip",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/dts-plugin>adm-zip",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/manifest>@module-federation/dts-plugin>adm-zip",
+            "examples__module-federation__app-export__host>@module-federation/modern-js-v3>@module-federation/enhanced>@module-federation/rspack>@module-federation/dts-plugin>adm-zip"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 100
+        }
+      ],
+      "id": 1240066,
+      "title": "adm-zip: Unhandled error event in async DEFLATE decompression crashes Node.js process (DoS)",
+      "module_name": "adm-zip",
+      "vulnerable_versions": "<=0.6.0",
+      "patched_versions": ">=0.6.1",
+      "severity": "high",
+      "cwe": "CWE-248, CWE-400",
+      "github_advisory_id": "GHSA-8238-w5pm-2374",
+      "url": "https://github.com/advisories/GHSA-8238-w5pm-2374"
+    },
+    {
+      "findings": [
+        {
+          "version": "1.1.18",
+          "paths": [
+            "examples__storybook>storybook-react-rsbuild>@storybook/react-docgen-typescript-plugin>flat-cache>rimraf>glob>minimatch>brace-expansion",
+            "examples__test-cypress>rimraf>glob>minimatch>brace-expansion",
+            "examples__test-jest>babel-jest>@jest/transform>babel-plugin-istanbul>test-exclude>glob>minimatch>brace-expansion",
+            "examples__test-jest>babel-jest>@jest/transform>babel-plugin-istanbul>test-exclude>minimatch>brace-expansion",
+            "examples__test-jest>babel-jest>babel-plugin-istanbul>test-exclude>glob>minimatch>brace-expansion"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 100
+        }
+      ],
+      "id": 1240100,
+      "title": "brace-expansion: Quadratic-time expansion of the `{a},b}` rewrite causes CPU denial of service",
+      "module_name": "brace-expansion",
+      "vulnerable_versions": "<1.1.21",
+      "patched_versions": ">=1.1.21",
+      "severity": "moderate",
+      "cwe": "CWE-400, CWE-407",
+      "github_advisory_id": "GHSA-q2hr-2g5m-vwhr",
+      "url": "https://github.com/advisories/GHSA-q2hr-2g5m-vwhr"
+    },
+    {
+      "findings": [
+        {
+          "version": "2.1.4",
+          "paths": [
+            "packages__solutions__app-tools>ndepe>@vercel/nft>glob>minimatch>brace-expansion",
+            "packages__solutions__app-tools-extensions>ndepe>@vercel/nft>glob>minimatch>brace-expansion"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 2
+        }
+      ],
+      "id": 1240101,
+      "title": "brace-expansion: Quadratic-time expansion of the `{a},b}` rewrite causes CPU denial of service",
+      "module_name": "brace-expansion",
+      "vulnerable_versions": ">=2.0.0 <2.1.7",
+      "patched_versions": ">=2.1.7",
+      "severity": "moderate",
+      "cwe": "CWE-400, CWE-407",
+      "github_advisory_id": "GHSA-q2hr-2g5m-vwhr",
+      "url": "https://github.com/advisories/GHSA-q2hr-2g5m-vwhr"
+    },
+    {
+      "findings": [
+        {
+          "version": "5.0.9",
+          "paths": [".>nx>brace-expansion"],
+          "dev": true,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 1
+        }
+      ],
+      "id": 1240103,
+      "title": "brace-expansion: Quadratic-time expansion of the `{a},b}` rewrite causes CPU denial of service",
+      "module_name": "brace-expansion",
+      "vulnerable_versions": ">=4.0.0 <5.0.12",
+      "patched_versions": ">=5.0.12",
+      "severity": "moderate",
+      "cwe": "CWE-400, CWE-407",
+      "github_advisory_id": "GHSA-q2hr-2g5m-vwhr",
+      "url": "https://github.com/advisories/GHSA-q2hr-2g5m-vwhr"
+    },
+    {
+      "findings": [
+        {
+          "version": "1.1.18",
+          "paths": [
+            "examples__storybook>storybook-react-rsbuild>@storybook/react-docgen-typescript-plugin>flat-cache>rimraf>glob>minimatch>brace-expansion",
+            "examples__test-cypress>rimraf>glob>minimatch>brace-expansion",
+            "examples__test-jest>babel-jest>@jest/transform>babel-plugin-istanbul>test-exclude>glob>minimatch>brace-expansion",
+            "examples__test-jest>babel-jest>@jest/transform>babel-plugin-istanbul>test-exclude>minimatch>brace-expansion",
+            "examples__test-jest>babel-jest>babel-plugin-istanbul>test-exclude>glob>minimatch>brace-expansion"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 100
+        }
+      ],
+      "id": 1240104,
+      "title": "brace-expansion: DoS via uncontrolled recursion on nested brace groups causing stack exhaustion",
+      "module_name": "brace-expansion",
+      "vulnerable_versions": "<1.1.20",
+      "patched_versions": ">=1.1.20",
+      "severity": "high",
+      "cwe": "CWE-400, CWE-674",
+      "github_advisory_id": "GHSA-qhr7-859c-m2p7",
+      "url": "https://github.com/advisories/GHSA-qhr7-859c-m2p7"
+    },
+    {
+      "findings": [
+        {
+          "version": "2.1.4",
+          "paths": [
+            "packages__solutions__app-tools>ndepe>@vercel/nft>glob>minimatch>brace-expansion",
+            "packages__solutions__app-tools-extensions>ndepe>@vercel/nft>glob>minimatch>brace-expansion"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 2
+        }
+      ],
+      "id": 1240105,
+      "title": "brace-expansion: DoS via uncontrolled recursion on nested brace groups causing stack exhaustion",
+      "module_name": "brace-expansion",
+      "vulnerable_versions": ">=2.0.0 <2.1.6",
+      "patched_versions": ">=2.1.6",
+      "severity": "high",
+      "cwe": "CWE-400, CWE-674",
+      "github_advisory_id": "GHSA-qhr7-859c-m2p7",
+      "url": "https://github.com/advisories/GHSA-qhr7-859c-m2p7"
+    },
+    {
+      "findings": [
+        {
+          "version": "5.0.9",
+          "paths": [".>nx>brace-expansion"],
+          "dev": true,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 1
+        }
+      ],
+      "id": 1240107,
+      "title": "brace-expansion: DoS via uncontrolled recursion on nested brace groups causing stack exhaustion",
+      "module_name": "brace-expansion",
+      "vulnerable_versions": ">=4.0.0 <5.0.11",
+      "patched_versions": ">=5.0.11",
+      "severity": "high",
+      "cwe": "CWE-400, CWE-674",
+      "github_advisory_id": "GHSA-qhr7-859c-m2p7",
+      "url": "https://github.com/advisories/GHSA-qhr7-859c-m2p7"
+    },
+    {
+      "findings": [
+        {
+          "version": "1.1.18",
+          "paths": [
+            "examples__storybook>storybook-react-rsbuild>@storybook/react-docgen-typescript-plugin>flat-cache>rimraf>glob>minimatch>brace-expansion",
+            "examples__test-cypress>rimraf>glob>minimatch>brace-expansion",
+            "examples__test-jest>babel-jest>@jest/transform>babel-plugin-istanbul>test-exclude>glob>minimatch>brace-expansion",
+            "examples__test-jest>babel-jest>@jest/transform>babel-plugin-istanbul>test-exclude>minimatch>brace-expansion",
+            "examples__test-jest>babel-jest>babel-plugin-istanbul>test-exclude>glob>minimatch>brace-expansion"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 100
+        }
+      ],
+      "id": 1240108,
+      "title": "brace-expansion: DoS via uncontrolled recursion in parseCommaParts causing stack exhaustion",
+      "module_name": "brace-expansion",
+      "vulnerable_versions": "<1.1.19",
+      "patched_versions": ">=1.1.19",
+      "severity": "high",
+      "cwe": "CWE-400, CWE-674",
+      "github_advisory_id": "GHSA-6j4f-fj2g-mc7p",
+      "url": "https://github.com/advisories/GHSA-6j4f-fj2g-mc7p"
+    },
+    {
+      "findings": [
+        {
+          "version": "2.1.4",
+          "paths": [
+            "packages__solutions__app-tools>ndepe>@vercel/nft>glob>minimatch>brace-expansion",
+            "packages__solutions__app-tools-extensions>ndepe>@vercel/nft>glob>minimatch>brace-expansion"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 2
+        }
+      ],
+      "id": 1240109,
+      "title": "brace-expansion: DoS via uncontrolled recursion in parseCommaParts causing stack exhaustion",
+      "module_name": "brace-expansion",
+      "vulnerable_versions": ">=2.0.0 <2.1.5",
+      "patched_versions": ">=2.1.5",
+      "severity": "high",
+      "cwe": "CWE-400, CWE-674",
+      "github_advisory_id": "GHSA-6j4f-fj2g-mc7p",
+      "url": "https://github.com/advisories/GHSA-6j4f-fj2g-mc7p"
+    },
+    {
+      "findings": [
+        {
+          "version": "5.0.9",
+          "paths": [".>nx>brace-expansion"],
+          "dev": true,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 1
+        }
+      ],
+      "id": 1240111,
+      "title": "brace-expansion: DoS via uncontrolled recursion in parseCommaParts causing stack exhaustion",
+      "module_name": "brace-expansion",
+      "vulnerable_versions": ">=4.0.0 <5.0.10",
+      "patched_versions": ">=5.0.10",
+      "severity": "high",
+      "cwe": "CWE-400, CWE-674",
+      "github_advisory_id": "GHSA-6j4f-fj2g-mc7p",
+      "url": "https://github.com/advisories/GHSA-6j4f-fj2g-mc7p"
+    },
+    {
+      "findings": [
+        {
+          "version": "6.6.9",
+          "paths": [
+            "benchmark__bundle-diff>@rsdoctor/rspack-plugin>@rsdoctor/core>@rsdoctor/sdk>socket.io>engine.io",
+            "benchmark__bundle-diff>@rsdoctor/rspack-plugin>@rsdoctor/sdk>socket.io>engine.io",
+            "packages__cli__builder>@rsdoctor/rspack-plugin>@rsdoctor/core>@rsdoctor/sdk>socket.io>engine.io",
+            "packages__cli__builder>@rsdoctor/rspack-plugin>@rsdoctor/sdk>socket.io>engine.io",
+            "tests__integration__image-component>@rsdoctor/rspack-plugin>@rsdoctor/core>@rsdoctor/sdk>socket.io>engine.io"
+          ],
+          "dev": true,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 6
+        }
+      ],
+      "id": 1240112,
+      "title": "Socket.IO: Engine.IO Protocol Revision Mismatch DoS",
+      "module_name": "engine.io",
+      "vulnerable_versions": ">=6.6.0 <6.6.10",
+      "patched_versions": ">=6.6.10",
+      "severity": "high",
+      "cwe": "CWE-248",
+      "github_advisory_id": "GHSA-2gc4-cqfq-p2gv",
+      "url": "https://github.com/advisories/GHSA-2gc4-cqfq-p2gv"
+    },
+    {
+      "findings": [
+        {
+          "version": "1.18.1",
+          "paths": [
+            ".>nx>axios",
+            "packages__toolkit__sandpack-react>@modern-js/codesmith>axios",
+            "packages__toolkit__sandpack-react>@modern-js/codesmith-api-handlebars>@modern-js/codesmith>axios",
+            "packages__toolkit__ultramodern-create>@modern-js/codesmith>axios"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 4
+        }
+      ],
+      "id": 1240600,
+      "title": "Axios: Prototype pollution gadget in fetch adapter can alter outbound requests",
+      "module_name": "axios",
+      "vulnerable_versions": ">=1.7.0 <1.20.0",
+      "patched_versions": ">=1.20.0",
+      "severity": "moderate",
+      "cwe": "CWE-1321",
+      "github_advisory_id": "GHSA-vh66-26gq-q6x8",
+      "url": "https://github.com/advisories/GHSA-vh66-26gq-q6x8"
+    },
+    {
+      "findings": [
+        {
+          "version": "1.18.1",
+          "paths": [
+            ".>nx>axios",
+            "packages__toolkit__sandpack-react>@modern-js/codesmith>axios",
+            "packages__toolkit__sandpack-react>@modern-js/codesmith-api-handlebars>@modern-js/codesmith>axios",
+            "packages__toolkit__ultramodern-create>@modern-js/codesmith>axios"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 4
+        }
+      ],
+      "id": 1240601,
+      "title": "Axios: Prototype-Pollution Gadget in the Default Instance Allows Inherited Object.prototype.method to Override HTTP Method",
+      "module_name": "axios",
+      "vulnerable_versions": ">=1.0.0 <1.20.0",
+      "patched_versions": ">=1.20.0",
+      "severity": "moderate",
+      "cwe": "CWE-1321",
+      "github_advisory_id": "GHSA-9fr6-4gfg-395g",
+      "url": "https://github.com/advisories/GHSA-9fr6-4gfg-395g"
+    },
+    {
+      "findings": [
+        {
+          "version": "1.18.1",
+          "paths": [
+            ".>nx>axios",
+            "packages__toolkit__sandpack-react>@modern-js/codesmith>axios",
+            "packages__toolkit__sandpack-react>@modern-js/codesmith-api-handlebars>@modern-js/codesmith>axios",
+            "packages__toolkit__ultramodern-create>@modern-js/codesmith>axios"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 4
+        }
+      ],
+      "id": 1240603,
+      "title": "Axios: ReDoS in fromDataURI data: URL parser freezes the Node event loop (DoS)",
+      "module_name": "axios",
+      "vulnerable_versions": ">=1.16.1 <1.20.0",
+      "patched_versions": ">=1.20.0",
+      "severity": "high",
+      "cwe": "CWE-1333",
+      "github_advisory_id": "GHSA-c29m-xwm3-cm6r",
+      "url": "https://github.com/advisories/GHSA-c29m-xwm3-cm6r"
+    },
+    {
+      "findings": [
+        {
+          "version": "1.18.1",
+          "paths": [
+            ".>nx>axios",
+            "packages__toolkit__sandpack-react>@modern-js/codesmith>axios",
+            "packages__toolkit__sandpack-react>@modern-js/codesmith-api-handlebars>@modern-js/codesmith>axios",
+            "packages__toolkit__ultramodern-create>@modern-js/codesmith>axios"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 4
+        }
+      ],
+      "id": 1240604,
+      "title": "Axios: ReDoS (O(N²)) in shouldBypassProxy host normalization, reachable via untrusted redirect Location",
+      "module_name": "axios",
+      "vulnerable_versions": ">=1.15.0 <1.20.0",
+      "patched_versions": ">=1.20.0",
+      "severity": "high",
+      "cwe": "CWE-400, CWE-1333",
+      "github_advisory_id": "GHSA-mghh-pgcx-3jjj",
+      "url": "https://github.com/advisories/GHSA-mghh-pgcx-3jjj"
+    },
+    {
+      "findings": [
+        {
+          "version": "1.18.1",
+          "paths": [
+            ".>nx>axios",
+            "packages__toolkit__sandpack-react>@modern-js/codesmith>axios",
+            "packages__toolkit__sandpack-react>@modern-js/codesmith-api-handlebars>@modern-js/codesmith>axios",
+            "packages__toolkit__ultramodern-create>@modern-js/codesmith>axios"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 4
+        }
+      ],
+      "id": 1240605,
+      "title": "Axios: Prototype Pollution Gadget in axios toFormData Options",
+      "module_name": "axios",
+      "vulnerable_versions": ">=1.15.1 <1.20.0",
+      "patched_versions": ">=1.20.0",
+      "severity": "high",
+      "cwe": "CWE-1321",
+      "github_advisory_id": "GHSA-x97p-jq2g-jp4f",
+      "url": "https://github.com/advisories/GHSA-x97p-jq2g-jp4f"
+    },
+    {
+      "findings": [
+        {
+          "version": "1.18.1",
+          "paths": [
+            ".>nx>axios",
+            "packages__toolkit__sandpack-react>@modern-js/codesmith>axios",
+            "packages__toolkit__sandpack-react>@modern-js/codesmith-api-handlebars>@modern-js/codesmith>axios",
+            "packages__toolkit__ultramodern-create>@modern-js/codesmith>axios"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 4
+        }
+      ],
+      "id": 1240607,
+      "title": "Axios: HTTP/2 adapter bypasses configured DNS lookup and proxy controls",
+      "module_name": "axios",
+      "vulnerable_versions": ">=1.13.0 <1.20.0",
+      "patched_versions": ">=1.20.0",
+      "severity": "high",
+      "cwe": "CWE-918",
+      "github_advisory_id": "GHSA-3pq3-5fj3-cg6v",
+      "url": "https://github.com/advisories/GHSA-3pq3-5fj3-cg6v"
+    },
+    {
+      "findings": [
+        {
+          "version": "1.18.1",
+          "paths": [
+            ".>nx>axios",
+            "packages__toolkit__sandpack-react>@modern-js/codesmith>axios",
+            "packages__toolkit__sandpack-react>@modern-js/codesmith-api-handlebars>@modern-js/codesmith>axios",
+            "packages__toolkit__ultramodern-create>@modern-js/codesmith>axios"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 4
+        }
+      ],
+      "id": 1240608,
+      "title": "Axios: Denial of Service via Unhandled 'error' Event in HTTP/2 ClientHttp2Session Initialization",
+      "module_name": "axios",
+      "vulnerable_versions": ">=1.13.0 <1.20.0",
+      "patched_versions": ">=1.20.0",
+      "severity": "high",
+      "cwe": "CWE-400",
+      "github_advisory_id": "GHSA-542g-h47m-68v8",
+      "url": "https://github.com/advisories/GHSA-542g-h47m-68v8"
+    },
+    {
+      "findings": [
+        {
+          "version": "7.1.1",
+          "paths": [
+            "examples__storybook>storybook-addon-modernjs>@modern-js/plugin>@modern-js/runtime-utils>serialize-javascript",
+            "packages__cli__builder>@rsbuild/plugin-css-minimizer>css-minimizer-webpack-plugin>serialize-javascript",
+            "packages__solutions__app-tools>compression-webpack-plugin>serialize-javascript",
+            "packages__solutions__app-tools-extensions>compression-webpack-plugin>serialize-javascript"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 4
+        }
+      ],
+      "id": 1240620,
+      "title": "Serialize JavaScript: Cross-site scripting (XSS) via unescaped </script> in serialized function bodies",
+      "module_name": "serialize-javascript",
+      "vulnerable_versions": ">=7.1.1 <7.1.2",
+      "patched_versions": ">=7.1.2",
+      "severity": "low",
+      "cwe": "CWE-79, CWE-80",
+      "github_advisory_id": "GHSA-gfhx-hw2g-v5hg",
+      "url": "https://github.com/advisories/GHSA-gfhx-hw2g-v5hg"
+    },
+    {
+      "findings": [
+        {
+          "version": "3.4.15",
+          "paths": ["packages__document>mermaid>dompurify"],
+          "dev": false,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 1
+        }
+      ],
+      "id": 1240621,
+      "title": "DOMPurify: IN_PLACE: node-removing afterSanitize hook leaves detached subtree event handlers armed, causing DOM XSS",
+      "module_name": "dompurify",
+      "vulnerable_versions": ">=3.4.13 <=3.4.15",
+      "patched_versions": ">=3.4.16",
+      "severity": "low",
+      "cwe": "CWE-79",
+      "github_advisory_id": "GHSA-p98j-92pf-mc4p",
+      "url": "https://github.com/advisories/GHSA-p98j-92pf-mc4p"
+    },
+    {
+      "findings": [
+        {
+          "version": "1.18.1",
+          "paths": [
+            ".>nx>axios",
+            "packages__toolkit__sandpack-react>@modern-js/codesmith>axios",
+            "packages__toolkit__sandpack-react>@modern-js/codesmith-api-handlebars>@modern-js/codesmith>axios",
+            "packages__toolkit__ultramodern-create>@modern-js/codesmith>axios"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 4
+        }
+      ],
+      "id": 1240626,
+      "title": "Axios: Header Injection via Inherited headers After Minimal Interceptor",
+      "module_name": "axios",
+      "vulnerable_versions": ">=1.0.0 <1.20.0",
+      "patched_versions": ">=1.20.0",
+      "severity": "moderate",
+      "cwe": "CWE-74, CWE-1321",
+      "github_advisory_id": "GHSA-j8rh-479h-cp32",
+      "url": "https://github.com/advisories/GHSA-j8rh-479h-cp32"
+    },
+    {
+      "findings": [
+        {
+          "version": "1.18.1",
+          "paths": [
+            ".>nx>axios",
+            "packages__toolkit__sandpack-react>@modern-js/codesmith>axios",
+            "packages__toolkit__sandpack-react>@modern-js/codesmith-api-handlebars>@modern-js/codesmith>axios",
+            "packages__toolkit__ultramodern-create>@modern-js/codesmith>axios"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 4
+        }
+      ],
+      "id": 1240627,
+      "title": "Axios: Fetch Adapter Header Injection via Inherited FormData getHeaders",
+      "module_name": "axios",
+      "vulnerable_versions": ">=1.12.0 <1.20.0",
+      "patched_versions": ">=1.20.0",
+      "severity": "moderate",
+      "cwe": "CWE-74, CWE-693, CWE-1321",
+      "github_advisory_id": "GHSA-4hqw-qxg8-jxx2",
+      "url": "https://github.com/advisories/GHSA-4hqw-qxg8-jxx2"
+    },
+    {
+      "findings": [
+        {
+          "version": "1.18.1",
+          "paths": [
+            ".>nx>axios",
+            "packages__toolkit__sandpack-react>@modern-js/codesmith>axios",
+            "packages__toolkit__sandpack-react>@modern-js/codesmith-api-handlebars>@modern-js/codesmith>axios",
+            "packages__toolkit__ultramodern-create>@modern-js/codesmith>axios"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 4
+        }
+      ],
+      "id": 1240628,
+      "title": "Axios: Node HTTP adapter prototype-pollution gadget allows request socket hijack via inherited createConnection",
+      "module_name": "axios",
+      "vulnerable_versions": ">=1.15.2 <1.20.0",
+      "patched_versions": ">=1.20.0",
+      "severity": "high",
+      "cwe": "CWE-441, CWE-1321",
+      "github_advisory_id": "GHSA-m8m8-qj5v-23w3",
+      "url": "https://github.com/advisories/GHSA-m8m8-qj5v-23w3"
+    },
+    {
+      "findings": [
+        {
+          "version": "1.18.1",
+          "paths": [
+            ".>nx>axios",
+            "packages__toolkit__sandpack-react>@modern-js/codesmith>axios",
+            "packages__toolkit__sandpack-react>@modern-js/codesmith-api-handlebars>@modern-js/codesmith>axios",
+            "packages__toolkit__ultramodern-create>@modern-js/codesmith>axios"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 4
+        }
+      ],
+      "id": 1240629,
+      "title": "Axios: CIDR-form NO_PROXY entries are ignored, causing proxy exclusion bypass for internal IP ranges",
+      "module_name": "axios",
+      "vulnerable_versions": ">=1.15.0 <1.20.0",
+      "patched_versions": ">=1.20.0",
+      "severity": "moderate",
+      "cwe": "CWE-693",
+      "github_advisory_id": "GHSA-44g4-m2mj-wpvx",
+      "url": "https://github.com/advisories/GHSA-44g4-m2mj-wpvx"
+    },
+    {
+      "findings": [
+        {
+          "version": "1.18.1",
+          "paths": [
+            ".>nx>axios",
+            "packages__toolkit__sandpack-react>@modern-js/codesmith>axios",
+            "packages__toolkit__sandpack-react>@modern-js/codesmith-api-handlebars>@modern-js/codesmith>axios",
+            "packages__toolkit__ultramodern-create>@modern-js/codesmith>axios"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false,
+          "pathCount": 4
+        }
+      ],
+      "id": 1240634,
+      "title": "Axios: maxRedirects: 0 is not enforced by the fetch adapter, allowing redirect-based SSRF",
+      "module_name": "axios",
+      "vulnerable_versions": ">=1.17.0 <1.20.0",
+      "patched_versions": ">=1.20.0",
+      "severity": "high",
+      "cwe": "CWE-441, CWE-601",
+      "github_advisory_id": "GHSA-r4gj-5m52-g5wh",
+      "url": "https://github.com/advisories/GHSA-r4gj-5m52-g5wh"
+    }
+  ]
+}
