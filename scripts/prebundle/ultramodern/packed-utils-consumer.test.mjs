@@ -97,6 +97,11 @@ test('packed utils contains generated bundles and works without workspace source
     assert.equal(existsSync(join(installed, 'src')), false);
     assert.equal(existsSync(join(installed, 'compiled')), false);
     const compiled = join(installed, 'dist/compiled');
+    assert.equal(
+      JSON.parse(readFileSync(join(compiled, 'lodash/package.json'), 'utf8'))
+        .name,
+      'lodash-compiled',
+    );
     const lockfileSha256 = JSON.parse(
       readFileSync(join(compiled, 'execa/provenance.json'), 'utf8'),
     ).lockfileSha256;
@@ -146,6 +151,9 @@ test('packed utils contains generated bundles and works without workspace source
           const lodash = await load('@modern-js/utils/lodash');
           assert.deepEqual(lodash.map([{ value: 1 }], item => item.value), [1]);
           const utils = await load('@modern-js/utils');
+          assert.deepEqual(utils.lodash.merge({ nested: { a: 1 } }, { nested: { b: 2 } }), { nested: { a: 1, b: 2 } });
+          assert.equal(utils.fs.existsSync('package.json'), true);
+          assert.equal(typeof utils.debug('packed'), 'function');
           assert.equal(await utils.pkgUp({ cwd: process.cwd() }), require('node:path').join(process.cwd(), 'package.json'));
           assert.equal(utils.pkgUp.sync({ cwd: process.cwd() }), require('node:path').join(process.cwd(), 'package.json'));
         })().catch(error => { console.error(error); process.exitCode = 1; });

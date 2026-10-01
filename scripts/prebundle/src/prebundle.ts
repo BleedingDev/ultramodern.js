@@ -92,9 +92,10 @@ function emitPackageJson(task: ParsedTask) {
 
   pickedPackageJson.types = 'index.d.ts';
 
-  if (task.depName !== pickedPackageJson.name) {
-    pickedPackageJson.name = task.depName;
-  }
+  // The lodash forwarding package must not collide with the external package
+  // when deployment tools group traced files by package name and version.
+  pickedPackageJson.name =
+    task.depName === 'lodash' ? 'lodash-compiled' : task.depName;
 
   if (task.ignoreDts) {
     delete pickedPackageJson.typing;
