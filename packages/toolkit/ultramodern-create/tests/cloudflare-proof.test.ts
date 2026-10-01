@@ -257,3 +257,45 @@ test('a half-set Cloudflare Access service token fails before any probe', async 
     assert.deepEqual(requested, []);
   });
 });
+
+test('the Cloudflare Access service token never follows a redirect to another origin', async () => {
+  const { validateApp } = await loadCloudflareProofModule();
+  const originalFetch = globalThis.fetch;
+  const sent: { url: string; secret: string | null }[] = [];
+  globalThis.fetch = async (input, init) => {
+    const url = new URL(String(input));
+    sent.push({
+      url: url.href,
+      secret: new Headers(init?.headers).get('cf-access-client-secret'),
+    });
+    if (url.pathname === '/readiness') {
+      return new Response(null, {
+        status: 302,
+        headers: { location: '/ready' },
+      });
+    }
+    if (url.origin === publicUrl && url.pathname === '/api') {
+      return new Response(null, {
+        status: 302,
+        headers: { location: 'https://elsewhere.example.test/api' },
+      });
+    }
+    return Response.json(
+      url.pathname === '/mf-manifest.json'
+        ? { metaData: { publicPath: `${publicUrl}/` } }
+        : { marker: { build: 'party-build' }, status: 'ready' },
+      { headers: { 'access-control-allow-origin': '*' } },
+    );
+  };
+  try {
+    await withAccessToken({ id: 'ci.access', secret: 'ci-secret' }, () =>
+      validateApp(apiOnlyApp(), publicUrl).then(() => undefined),
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  const secretFor = (url: string) =>
+    sent.find(request => request.url === url)?.secret;
+  assert.equal(secretFor(`${publicUrl}/ready`), 'ci-secret');
+  assert.equal(secretFor('https://elsewhere.example.test/api'), null);
+});

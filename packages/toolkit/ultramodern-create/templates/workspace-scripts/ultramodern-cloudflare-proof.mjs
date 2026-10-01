@@ -39,11 +39,51 @@ function cloudflareAccessHeaders() {
   };
 }
 
-async function fetchText(url, init = {}) {
-  const response = await fetch(url, {
-    ...init,
-    headers: { ...init.headers, ...cloudflareAccessHeaders() },
-  });
+const MAX_REDIRECTS = 20;
+
+// The same rewrite fetch applies: 303 turns anything but HEAD into GET, 301 and 302 turn POST into GET.
+function redirectBecomesGet(status, method = 'GET') {
+  const upper = String(method).toUpperCase();
+  if (status === 303) {
+    return upper !== 'HEAD';
+  }
+  return (status === 301 || status === 302) && upper === 'POST';
+}
+
+// The service token only ever goes to the origin of the deployment under proof. fetch would carry
+// custom headers across a cross-origin redirect, so redirects are followed here, dropping the token
+// on any other origin, the way fetch drops Authorization.
+async function fetchWithAccessToken(publicUrl, url, init, accessHeaders) {
+  const trustedOrigin = new URL(publicUrl).origin;
+  let current = new URL(url);
+  let request = init;
+  for (let redirects = 0; redirects <= MAX_REDIRECTS; redirects += 1) {
+    const credentials = current.origin === trustedOrigin ? accessHeaders : {};
+    const response = await fetch(current, {
+      ...request,
+      headers: { ...request.headers, ...credentials },
+      redirect: 'manual',
+    });
+    const location = response.headers.get('location');
+    if (response.status < 300 || response.status > 399 || !location) {
+      return response;
+    }
+    current = new URL(location, current);
+    if (redirectBecomesGet(response.status, request.method)) {
+      const { body: _body, ...rest } = request;
+      const { 'content-type': _contentType, ...headers } = request.headers ?? {};
+      request = { ...rest, method: 'GET', headers };
+    }
+  }
+  throw new Error(`${url} redirected more than ${MAX_REDIRECTS} times`);
+}
+
+async function fetchText(publicUrl, url, init = {}) {
+  const accessHeaders = cloudflareAccessHeaders();
+  const response =
+    Object.keys(accessHeaders).length === 0
+      ? await fetch(url, init)
+      : await fetchWithAccessToken(publicUrl, url, init, accessHeaders);
   return {
     ok: response.ok,
     status: response.status,
@@ -458,7 +498,7 @@ async function validateSsrHead(evidence, app, publicUrl, ssrRoute, ssr) {
   const publicRoute = routeEntry.localeUrlPaths?.en ?? publicSurface.concreteUrlPaths?.[0];
   const headRoute = publicRoute || ssrRoute;
   const headResponse =
-    headRoute === ssrRoute ? ssr : await fetchText(joinUrl(publicUrl, headRoute));
+    headRoute === ssrRoute ? ssr : await fetchText(publicUrl, joinUrl(publicUrl, headRoute));
   if (headRoute !== ssrRoute) {
     evidence.assertions.push({
       type: 'ssr-head-route',
@@ -549,7 +589,7 @@ async function validateNotFound(evidence, app, publicUrl) {
     qualityGates.statusCodes?.notFoundRoute ??
     '/__ultramodern-smoke-missing/nope';
   const expectedStatus = qualityGates.statusCodes?.unknownRouteStatus ?? 404;
-  const response = await fetchText(joinUrl(publicUrl, notFoundRoute));
+  const response = await fetchText(publicUrl, joinUrl(publicUrl, notFoundRoute));
   evidence.assertions.push({
     type: 'status-code',
     route: notFoundRoute,
@@ -579,7 +619,7 @@ async function validateCssAsset(evidence, app, publicUrl, ssr) {
 
   const styleUrl = styleUrls[0];
   const route = new URL(styleUrl).pathname;
-  const css = await fetchText(styleUrl);
+  const css = await fetchText(publicUrl, styleUrl);
   evidence.assertions.push({
     type: 'css-asset',
     route,
@@ -613,7 +653,7 @@ async function validatePublicSurface(evidence, app, publicUrl) {
     (publicSurface.contentSources ?? []).length > 0;
 
   const robotsRoute = '/robots.txt';
-  const robots = await fetchText(joinUrl(publicUrl, robotsRoute));
+  const robots = await fetchText(publicUrl, joinUrl(publicUrl, robotsRoute));
   evidence.assertions.push({
     type: 'public-surface-robots',
     route: robotsRoute,
@@ -643,7 +683,7 @@ async function validatePublicSurface(evidence, app, publicUrl) {
   }
 
   const sitemapRoute = '/sitemap.xml';
-  const sitemap = await fetchText(joinUrl(publicUrl, sitemapRoute));
+  const sitemap = await fetchText(publicUrl, joinUrl(publicUrl, sitemapRoute));
   evidence.assertions.push({
     type: 'public-surface-sitemap',
     route: sitemapRoute,
@@ -685,7 +725,7 @@ async function validatePublicSurface(evidence, app, publicUrl) {
   }
 
   const manifestRoute = '/site.webmanifest';
-  const webManifest = await fetchText(joinUrl(publicUrl, manifestRoute));
+  const webManifest = await fetchText(publicUrl, joinUrl(publicUrl, manifestRoute));
   const webManifestJson = parseMaybeJson(webManifest.body);
   evidence.assertions.push({
     type: 'public-surface-webmanifest',
@@ -719,7 +759,7 @@ async function validateSsrEvidence(evidence, app, publicUrl, routes) {
   const budgets = qualityGates.budgets ?? {};
 
   const ssrRoute = routes.ssr ?? '/en';
-  const ssr = await fetchText(joinUrl(publicUrl, ssrRoute));
+  const ssr = await fetchText(publicUrl, joinUrl(publicUrl, ssrRoute));
   evidence.assertions.push({
     type: 'ssr',
     route: ssrRoute,
@@ -825,7 +865,7 @@ async function validateModuleFederationManifestEvidence(evidence, app, publicUrl
 
   const manifestRoute = routes.mfManifest ?? '/mf-manifest.json';
   const manifestUrl = joinUrl(publicUrl, manifestRoute);
-  const manifest = await fetchText(manifestUrl);
+  const manifest = await fetchText(publicUrl, manifestUrl);
   const manifestJson = parseMaybeJson(manifest.body);
   evidence.assertions.push({
     type: 'mf-manifest',
@@ -886,7 +926,7 @@ async function validateI18nEvidence(evidence, app, publicUrl, routes) {
   const budgets = qualityGates.budgets ?? {};
 
   const localeRoute = routes.locale ?? `/locales/en/${app.i18n?.namespace}.json`;
-  const locale = await fetchText(joinUrl(publicUrl, localeRoute));
+  const locale = await fetchText(publicUrl, joinUrl(publicUrl, localeRoute));
   const localeJson = parseMaybeJson(locale.body);
   evidence.assertions.push({
     type: 'i18n-marker',
@@ -929,7 +969,7 @@ async function validateI18nEvidence(evidence, app, publicUrl, routes) {
 
 async function validateReadinessEvidence(evidence, app, publicUrl, routes) {
   if (routes.apiReadiness) {
-    const readiness = await fetchText(joinUrl(publicUrl, routes.apiReadiness));
+    const readiness = await fetchText(publicUrl, joinUrl(publicUrl, routes.apiReadiness));
     const readinessJson = parseMaybeJson(readiness.body);
     const apiMarker = markerFromJson(readinessJson);
     evidence.assertions.push({
@@ -975,7 +1015,7 @@ async function validateServiceBindingEvidence(evidence, app, publicUrl) {
 
   for (const binding of serviceBindings) {
     const method = String(binding.method ?? 'GET').toUpperCase();
-    const response = await fetchText(joinUrl(publicUrl, binding.route), {
+    const response = await fetchText(publicUrl, joinUrl(publicUrl, binding.route), {
       method,
       headers: {
         accept: 'application/json',
@@ -1037,7 +1077,7 @@ async function validateJsonSmokeEvidence(evidence, app, publicUrl) {
     const method = String(check.method ?? 'GET').toUpperCase();
     const requestBody =
       check.body ?? check.payload ?? check.requestBody ?? undefined;
-    const response = await fetchText(joinUrl(publicUrl, route), {
+    const response = await fetchText(publicUrl, joinUrl(publicUrl, route), {
       method,
       headers: {
         accept: 'application/json',
