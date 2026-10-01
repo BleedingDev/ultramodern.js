@@ -10,6 +10,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { test } from 'node:test';
@@ -32,6 +33,20 @@ function run(command, args, cwd) {
   );
   return result.stdout;
 }
+
+test('prebundle distinguishes native CommonJS paths from separate ESM entries', async () => {
+  const require = createRequire(import.meta.url);
+  const { parseTasks } = require('../dist/helper.js');
+  for (const name of ['debug', 'minimist', 'json5', 'fs-extra', 'lodash']) {
+    const [task] = await parseTasks(name);
+    assert.equal(task.depEsmEntry, '', name);
+  }
+  const [dual] = await parseTasks('glob');
+  assert.notEqual(dual.depEsmEntry, dual.depEntry);
+  assert.ok(existsSync(dual.depEsmEntry));
+  const [esm] = await parseTasks('execa');
+  assert.equal(esm.depEsmEntry, esm.depEntry);
+});
 
 test('prebundle selects one dependency and rejects unsupported CLI arguments', () => {
   const producer = join(root, 'scripts/prebundle/dist/index.js');

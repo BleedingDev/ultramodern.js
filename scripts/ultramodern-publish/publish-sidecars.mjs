@@ -299,7 +299,7 @@ async function publishSidecarBuffer(
  * state this re-runs `sidecarRegistryDecision`, so a terminal condition hiding
  * behind a missing tag (content drift, a backwards `latest`) still throws.
  */
-function classifySidecarPropagation(sidecar, packument, { tag }) {
+async function classifySidecarPropagation(sidecar, packument, { tag }) {
   if (packument === null || packument === undefined) {
     return {
       detail: `${sidecar.name} is not readable on the registry yet`,
@@ -331,7 +331,7 @@ function classifySidecarPropagation(sidecar, packument, { tag }) {
       };
     }
     // Throws on a backwards `latest`; returns `publish` while genuinely absent.
-    sidecarRegistryDecision(sidecar, packument, { tag });
+    await sidecarRegistryDecision(sidecar, packument, { tag });
     return {
       detail: `${sidecar.name}@${sidecar.version} is still absent from the registry`,
       state: propagationPendingStates.versionAbsent,
@@ -345,7 +345,7 @@ function classifySidecarPropagation(sidecar, packument, { tag }) {
 
   // The version is readable but untagged. Confirm the published bytes are the
   // staged bytes before waiting - content drift can never resolve itself.
-  sidecarRegistryDecision(
+  await sidecarRegistryDecision(
     sidecar,
     { ...packument, 'dist-tags': { ...distTags, [tag]: sidecar.version } },
     { tag },
@@ -368,11 +368,11 @@ async function awaitPublishedSidecar(sidecar, options, dependencies = {}) {
       const packument = await readPackument(sidecar.name);
       // A throw from either call is terminal by construction: the classifier
       // only ever returns a pending state it has already proved is transient.
-      const pending = classify(sidecar, packument, { tag: options.tag });
+      const pending = await classify(sidecar, packument, { tag: options.tag });
       if (pending === null) {
         return {
           settled: true,
-          value: sidecarRegistryDecision(sidecar, packument, {
+          value: await sidecarRegistryDecision(sidecar, packument, {
             tag: options.tag,
           }),
         };
@@ -543,7 +543,7 @@ async function publishSidecars(options, dependencies = {}) {
         readPackument,
       });
     }
-    const pending = classifySidecarPropagation(sidecar, packument, {
+    const pending = await classifySidecarPropagation(sidecar, packument, {
       tag: options.tag,
     });
     // A previous run may have published this exact version and stopped while npm
@@ -565,7 +565,7 @@ async function publishSidecars(options, dependencies = {}) {
       reused.push(`${sidecar.name}@${sidecar.version}`);
       continue;
     }
-    const decision = sidecarRegistryDecision(sidecar, packument, {
+    const decision = await sidecarRegistryDecision(sidecar, packument, {
       tag: options.tag,
     });
     if (decision.action === 'reuse') {

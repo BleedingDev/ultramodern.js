@@ -51,7 +51,7 @@
     "validate:boundary-guards": "node scripts/boundary-guards/check-boundary-violations.js --profile scripts/boundary-guards/profile.json",
     "validate:boundary-divergence": "node scripts/ultramodern-boundary-check/check-fork-import-boundary.js",
     "validate:boundary-check": "node scripts/boundary-guards/check-boundary-violations.js --profile scripts/boundary-guards/profile.json; boundary_status=$?; node scripts/ultramodern-boundary-check/check-fork-import-boundary.js; divergence_status=$?; exit $((boundary_status || divergence_status))",
-    "validate:security-workflows": "node scripts/security/validate-github-workflows.mjs",
+    "validate:security-workflows": "pnpm --filter @scripts/prebundle start js-yaml && node scripts/security/validate-github-workflows.mjs",
     "validate:mf-contracts": "pnpm --dir tests run test:superapp-contracts",
     "validate:superapp-certification": "node scripts/superapp-certification/run-superapp-certification.js",
     "validate:superapp-certification:smoke": "node scripts/superapp-certification/run-superapp-certification.js --profile smoke",
