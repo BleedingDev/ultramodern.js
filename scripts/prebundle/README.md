@@ -4,6 +4,7 @@ This package generates utils dependency bundles with ncc and rollup-plugin-dts.
 Generated `packages/toolkit/utils/compiled/` files are not tracked in Git.
 Nx runs the cacheable `@scripts/prebundle:bundle` target before compiling utils;
 standalone `pnpm --filter @modern-js/utils build` and `dev` run the same producer.
+Packing utils runs this build through `prepack` as well.
 The utils build copies code, declarations, licenses and lockfile provenance into
 `dist/compiled/`, which is included in packed releases.
 
