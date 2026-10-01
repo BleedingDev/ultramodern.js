@@ -4,9 +4,9 @@
   "upstreamRef": "2f4d9c4559e26209a0d77f02c6757f29fe3699a2",
   "pathspec": ["packages"],
   "migrationGoal": "Shrink-only budget of fork edits inside upstream-owned files. Every entry is debt: move it upstream or behind an extension point, then re-run --write-divergence-allowlist.",
-  "totalFiles": 1074,
-  "totalHunks": 3788,
-  "totalChangedLines": 83342,
+  "totalFiles": 1072,
+  "totalHunks": 3430,
+  "totalChangedLines": 75251,
   "files": [
     {
       "file": "packages/cli/adapter-rstest/package.json",
@@ -4099,24 +4099,9 @@
       "changedLines": 2
     },
     {
-      "file": "packages/toolkit/utils/compiled/address/index.d.mts",
-      "hunks": 1,
-      "changedLines": 50
-    },
-    {
-      "file": "packages/toolkit/utils/compiled/address/index.d.ts",
-      "hunks": 1,
-      "changedLines": 50
-    },
-    {
       "file": "packages/toolkit/utils/compiled/address/index.js",
       "hunks": 1,
-      "changedLines": 2
-    },
-    {
-      "file": "packages/toolkit/utils/compiled/address/index.mjs",
-      "hunks": 1,
-      "changedLines": 3
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/compiled/address/lib/address.d.ts",
@@ -4126,57 +4111,47 @@
     {
       "file": "packages/toolkit/utils/compiled/address/package.json",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/compiled/browserslist/index.d.ts",
-      "hunks": 12,
-      "changedLines": 56
+      "hunks": 1,
+      "changedLines": 178
     },
     {
       "file": "packages/toolkit/utils/compiled/browserslist/index.js",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/compiled/browserslist/license",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 20
     },
     {
       "file": "packages/toolkit/utils/compiled/browserslist/package.json",
       "hunks": 1,
-      "changedLines": 2
-    },
-    {
-      "file": "packages/toolkit/utils/compiled/chalk/index.d.mts",
-      "hunks": 1,
-      "changedLines": 677
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/compiled/chalk/index.d.ts",
-      "hunks": 75,
-      "changedLines": 924
+      "hunks": 1,
+      "changedLines": 415
     },
     {
       "file": "packages/toolkit/utils/compiled/chalk/index.js",
       "hunks": 1,
-      "changedLines": 2
-    },
-    {
-      "file": "packages/toolkit/utils/compiled/chalk/index.mjs",
-      "hunks": 1,
-      "changedLines": 3
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/compiled/chalk/license",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 9
     },
     {
       "file": "packages/toolkit/utils/compiled/chalk/package.json",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/compiled/chokidar/anymatch/index.d.ts",
@@ -4189,34 +4164,19 @@
       "changedLines": 1
     },
     {
-      "file": "packages/toolkit/utils/compiled/chokidar/index.d.mts",
-      "hunks": 1,
-      "changedLines": 385
-    },
-    {
-      "file": "packages/toolkit/utils/compiled/chokidar/index.d.ts",
-      "hunks": 1,
-      "changedLines": 385
-    },
-    {
       "file": "packages/toolkit/utils/compiled/chokidar/index.js",
       "hunks": 1,
-      "changedLines": 43
-    },
-    {
-      "file": "packages/toolkit/utils/compiled/chokidar/index.mjs",
-      "hunks": 1,
-      "changedLines": 5
+      "changedLines": 40
     },
     {
       "file": "packages/toolkit/utils/compiled/chokidar/license",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 21
     },
     {
       "file": "packages/toolkit/utils/compiled/chokidar/package.json",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/compiled/chokidar/types/index.d.ts",
@@ -4224,39 +4184,44 @@
       "changedLines": 188
     },
     {
-      "file": "packages/toolkit/utils/compiled/commander/index.d.mts",
-      "hunks": 1,
-      "changedLines": 1116
-    },
-    {
       "file": "packages/toolkit/utils/compiled/commander/index.js",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/compiled/commander/index.mjs",
       "hunks": 1,
-      "changedLines": 5
+      "changedLines": 2
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/commander/license",
+      "hunks": 1,
+      "changedLines": 22
     },
     {
       "file": "packages/toolkit/utils/compiled/commander/package.json",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/compiled/commander/typings/index.d.ts",
-      "hunks": 76,
-      "changedLines": 456
+      "hunks": 1,
+      "changedLines": 890
     },
     {
       "file": "packages/toolkit/utils/compiled/debug/index.d.ts",
-      "hunks": 6,
-      "changedLines": 95
+      "hunks": 1,
+      "changedLines": 54
     },
     {
       "file": "packages/toolkit/utils/compiled/debug/index.js",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 1
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/debug/license",
+      "hunks": 1,
+      "changedLines": 20
     },
     {
       "file": "packages/toolkit/utils/compiled/debug/ms/index.d.ts",
@@ -4266,22 +4231,27 @@
     {
       "file": "packages/toolkit/utils/compiled/debug/package.json",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/compiled/dotenv-expand/index.d.ts",
-      "hunks": 4,
-      "changedLines": 60
+      "hunks": 1,
+      "changedLines": 15
     },
     {
       "file": "packages/toolkit/utils/compiled/dotenv-expand/index.js",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 1
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/dotenv-expand/license",
+      "hunks": 1,
+      "changedLines": 24
     },
     {
       "file": "packages/toolkit/utils/compiled/dotenv-expand/package.json",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/compiled/dotenv/index.js",
@@ -4304,29 +4274,24 @@
       "changedLines": 59
     },
     {
-      "file": "packages/toolkit/utils/compiled/execa/index.d.mts",
-      "hunks": 1,
-      "changedLines": 2451
-    },
-    {
       "file": "packages/toolkit/utils/compiled/execa/index.d.ts",
-      "hunks": 4,
-      "changedLines": 3007
+      "hunks": 1,
+      "changedLines": 564
     },
     {
       "file": "packages/toolkit/utils/compiled/execa/index.js",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 1
     },
     {
-      "file": "packages/toolkit/utils/compiled/execa/index.mjs",
+      "file": "packages/toolkit/utils/compiled/execa/license",
       "hunks": 1,
-      "changedLines": 3
+      "changedLines": 9
     },
     {
       "file": "packages/toolkit/utils/compiled/execa/package.json",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/compiled/fast-glob/@nodelib/fs.scandir/out/adapters/fs.d.ts",
@@ -4449,74 +4414,49 @@
       "changedLines": 131
     },
     {
-      "file": "packages/toolkit/utils/compiled/filesize/index.d.mts",
-      "hunks": 1,
-      "changedLines": 98
-    },
-    {
-      "file": "packages/toolkit/utils/compiled/filesize/index.d.ts",
-      "hunks": 1,
-      "changedLines": 98
-    },
-    {
       "file": "packages/toolkit/utils/compiled/filesize/index.js",
-      "hunks": 3,
-      "changedLines": 9
-    },
-    {
-      "file": "packages/toolkit/utils/compiled/filesize/index.mjs",
       "hunks": 1,
-      "changedLines": 10
+      "changedLines": 9
     },
     {
       "file": "packages/toolkit/utils/compiled/filesize/license",
       "hunks": 1,
-      "changedLines": 56
+      "changedLines": 28
     },
     {
       "file": "packages/toolkit/utils/compiled/filesize/package.json",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/compiled/fs-extra/index.d.ts",
-      "hunks": 37,
-      "changedLines": 1533
+      "hunks": 1,
+      "changedLines": 563
     },
     {
       "file": "packages/toolkit/utils/compiled/fs-extra/index.js",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/compiled/fs-extra/license",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 15
     },
     {
       "file": "packages/toolkit/utils/compiled/fs-extra/package.json",
       "hunks": 1,
-      "changedLines": 2
-    },
-    {
-      "file": "packages/toolkit/utils/compiled/glob/index.d.mts",
-      "hunks": 1,
-      "changedLines": 3823
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/compiled/glob/index.d.ts",
-      "hunks": 5,
-      "changedLines": 3904
+      "hunks": 1,
+      "changedLines": 91
     },
     {
       "file": "packages/toolkit/utils/compiled/glob/index.js",
       "hunks": 1,
-      "changedLines": 2
-    },
-    {
-      "file": "packages/toolkit/utils/compiled/glob/index.mjs",
-      "hunks": 1,
-      "changedLines": 3
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/compiled/glob/license",
@@ -4531,97 +4471,77 @@
     {
       "file": "packages/toolkit/utils/compiled/glob/package.json",
       "hunks": 1,
-      "changedLines": 2
-    },
-    {
-      "file": "packages/toolkit/utils/compiled/globby/index.d.mts",
-      "hunks": 1,
-      "changedLines": 422
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/compiled/globby/index.d.ts",
-      "hunks": 4,
-      "changedLines": 600
+      "hunks": 1,
+      "changedLines": 186
     },
     {
       "file": "packages/toolkit/utils/compiled/globby/index.js",
       "hunks": 1,
-      "changedLines": 20
-    },
-    {
-      "file": "packages/toolkit/utils/compiled/globby/index.mjs",
-      "hunks": 1,
-      "changedLines": 24
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/compiled/globby/license",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 9
     },
     {
       "file": "packages/toolkit/utils/compiled/globby/package.json",
       "hunks": 1,
-      "changedLines": 2
-    },
-    {
-      "file": "packages/toolkit/utils/compiled/gzip-size/index.d.mts",
-      "hunks": 1,
-      "changedLines": 106
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/compiled/gzip-size/index.d.ts",
-      "hunks": 18,
-      "changedLines": 166
+      "hunks": 1,
+      "changedLines": 96
     },
     {
       "file": "packages/toolkit/utils/compiled/gzip-size/index.js",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 1
     },
     {
-      "file": "packages/toolkit/utils/compiled/gzip-size/index.mjs",
+      "file": "packages/toolkit/utils/compiled/gzip-size/license",
       "hunks": 1,
-      "changedLines": 3
+      "changedLines": 9
     },
     {
       "file": "packages/toolkit/utils/compiled/gzip-size/package.json",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/compiled/import-lazy/index.d.ts",
-      "hunks": 2,
-      "changedLines": 4
+      "hunks": 1,
+      "changedLines": 26
     },
     {
       "file": "packages/toolkit/utils/compiled/import-lazy/index.js",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 1
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/import-lazy/license",
+      "hunks": 1,
+      "changedLines": 9
     },
     {
       "file": "packages/toolkit/utils/compiled/import-lazy/package.json",
       "hunks": 1,
-      "changedLines": 2
-    },
-    {
-      "file": "packages/toolkit/utils/compiled/inquirer/index.d.mts",
-      "hunks": 1,
-      "changedLines": 790
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/compiled/inquirer/index.d.ts",
-      "hunks": 15,
-      "changedLines": 1749
+      "hunks": 1,
+      "changedLines": 997
     },
     {
       "file": "packages/toolkit/utils/compiled/inquirer/index.js",
       "hunks": 1,
-      "changedLines": 10
-    },
-    {
-      "file": "packages/toolkit/utils/compiled/inquirer/index.mjs",
-      "hunks": 1,
-      "changedLines": 3
+      "changedLines": 9
     },
     {
       "file": "packages/toolkit/utils/compiled/inquirer/lib/objects/choice.d.ts",
@@ -4655,13 +4575,13 @@
     },
     {
       "file": "packages/toolkit/utils/compiled/inquirer/license",
-      "hunks": 2,
-      "changedLines": 4
+      "hunks": 1,
+      "changedLines": 22
     },
     {
       "file": "packages/toolkit/utils/compiled/inquirer/package.json",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/compiled/inquirer/through/index.d.ts",
@@ -4669,34 +4589,34 @@
       "changedLines": 25
     },
     {
-      "file": "packages/toolkit/utils/compiled/js-yaml/index.d.mts",
-      "hunks": 1,
-      "changedLines": 1126
-    },
-    {
       "file": "packages/toolkit/utils/compiled/js-yaml/index.d.ts",
-      "hunks": 14,
-      "changedLines": 1250
+      "hunks": 1,
+      "changedLines": 154
     },
     {
       "file": "packages/toolkit/utils/compiled/js-yaml/index.js",
       "hunks": 1,
-      "changedLines": 4
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/compiled/js-yaml/index.mjs",
       "hunks": 1,
-      "changedLines": 6
+      "changedLines": 2
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/js-yaml/license",
+      "hunks": 4,
+      "changedLines": 12
     },
     {
       "file": "packages/toolkit/utils/compiled/js-yaml/package.json",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/compiled/json5/index.js",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/compiled/json5/lib/index.d.ts",
@@ -4710,73 +4630,163 @@
     },
     {
       "file": "packages/toolkit/utils/compiled/json5/lib/stringify.d.ts",
-      "hunks": 2,
-      "changedLines": 16
+      "hunks": 1,
+      "changedLines": 89
     },
     {
       "file": "packages/toolkit/utils/compiled/json5/package.json",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 1
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/lodash/common/array.d.ts",
+      "hunks": 1,
+      "changedLines": 2126
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/lodash/common/collection.d.ts",
+      "hunks": 1,
+      "changedLines": 1930
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/lodash/common/common.d.ts",
+      "hunks": 1,
+      "changedLines": 280
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/lodash/common/date.d.ts",
+      "hunks": 1,
+      "changedLines": 23
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/lodash/common/function.d.ts",
+      "hunks": 1,
+      "changedLines": 1446
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/lodash/common/lang.d.ts",
+      "hunks": 1,
+      "changedLines": 1693
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/lodash/common/math.d.ts",
+      "hunks": 1,
+      "changedLines": 405
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/lodash/common/number.d.ts",
+      "hunks": 1,
+      "changedLines": 131
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/lodash/common/object.d.ts",
+      "hunks": 1,
+      "changedLines": 2519
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/lodash/common/seq.d.ts",
+      "hunks": 1,
+      "changedLines": 210
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/lodash/common/string.d.ts",
+      "hunks": 1,
+      "changedLines": 788
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/lodash/common/util.d.ts",
+      "hunks": 1,
+      "changedLines": 1220
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/lodash/index.d.ts",
+      "hunks": 1,
+      "changedLines": 46
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/lodash/index.js",
+      "hunks": 1,
+      "changedLines": 5
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/lodash/index.mjs",
+      "hunks": 1,
+      "changedLines": 5
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/lodash/license",
+      "hunks": 1,
+      "changedLines": 47
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/lodash/package.json",
+      "hunks": 1,
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/compiled/mime-types/index.d.ts",
-      "hunks": 3,
-      "changedLines": 25
+      "hunks": 1,
+      "changedLines": 14
     },
     {
       "file": "packages/toolkit/utils/compiled/mime-types/index.js",
-      "hunks": 3,
-      "changedLines": 6
+      "hunks": 1,
+      "changedLines": 14
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/mime-types/license",
+      "hunks": 1,
+      "changedLines": 23
     },
     {
       "file": "packages/toolkit/utils/compiled/mime-types/package.json",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/compiled/minimist/index.d.ts",
-      "hunks": 4,
-      "changedLines": 14
+      "hunks": 1,
+      "changedLines": 95
     },
     {
       "file": "packages/toolkit/utils/compiled/minimist/index.js",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 1
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/minimist/license",
+      "hunks": 1,
+      "changedLines": 18
     },
     {
       "file": "packages/toolkit/utils/compiled/minimist/package.json",
       "hunks": 1,
-      "changedLines": 2
-    },
-    {
-      "file": "packages/toolkit/utils/compiled/nanoid/index.d.mts",
-      "hunks": 1,
-      "changedLines": 108
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/compiled/nanoid/index.d.ts",
-      "hunks": 18,
-      "changedLines": 45
+      "hunks": 1,
+      "changedLines": 91
     },
     {
       "file": "packages/toolkit/utils/compiled/nanoid/index.js",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/compiled/nanoid/index.mjs",
       "hunks": 1,
-      "changedLines": 4
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/compiled/nanoid/license",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 20
     },
     {
       "file": "packages/toolkit/utils/compiled/nanoid/package.json",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/compiled/ora/cli-spinners/index.d.ts",
@@ -4784,349 +4794,324 @@
       "changedLines": 125
     },
     {
-      "file": "packages/toolkit/utils/compiled/ora/index.d.mts",
-      "hunks": 1,
-      "changedLines": 501
-    },
-    {
       "file": "packages/toolkit/utils/compiled/ora/index.d.ts",
-      "hunks": 10,
-      "changedLines": 750
+      "hunks": 1,
+      "changedLines": 277
     },
     {
       "file": "packages/toolkit/utils/compiled/ora/index.js",
       "hunks": 1,
-      "changedLines": 4
+      "changedLines": 3
     },
     {
-      "file": "packages/toolkit/utils/compiled/ora/index.mjs",
+      "file": "packages/toolkit/utils/compiled/ora/license",
       "hunks": 1,
-      "changedLines": 3
+      "changedLines": 9
     },
     {
       "file": "packages/toolkit/utils/compiled/ora/package.json",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 1
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/pkg-up/index.d.ts",
+      "hunks": 1,
+      "changedLines": 48
     },
     {
       "file": "packages/toolkit/utils/compiled/pkg-up/index.js",
       "hunks": 1,
-      "changedLines": 25
+      "changedLines": 1
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/pkg-up/license",
+      "hunks": 1,
+      "changedLines": 9
     },
     {
       "file": "packages/toolkit/utils/compiled/pkg-up/package.json",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/compiled/semver/classes/comparator.d.ts",
-      "hunks": 2,
-      "changedLines": 6
+      "hunks": 1,
+      "changedLines": 17
     },
     {
       "file": "packages/toolkit/utils/compiled/semver/classes/range.d.ts",
-      "hunks": 3,
-      "changedLines": 12
+      "hunks": 1,
+      "changedLines": 21
     },
     {
       "file": "packages/toolkit/utils/compiled/semver/classes/semver.d.ts",
-      "hunks": 4,
-      "changedLines": 15
+      "hunks": 1,
+      "changedLines": 62
     },
     {
       "file": "packages/toolkit/utils/compiled/semver/functions/clean.d.ts",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 8
     },
     {
       "file": "packages/toolkit/utils/compiled/semver/functions/cmp.d.ts",
       "hunks": 1,
-      "changedLines": 4
+      "changedLines": 16
     },
     {
       "file": "packages/toolkit/utils/compiled/semver/functions/coerce.d.ts",
       "hunks": 1,
-      "changedLines": 4
+      "changedLines": 12
     },
     {
       "file": "packages/toolkit/utils/compiled/semver/functions/compare-build.d.ts",
-      "hunks": 2,
-      "changedLines": 9
+      "hunks": 1,
+      "changedLines": 16
     },
     {
       "file": "packages/toolkit/utils/compiled/semver/functions/compare-loose.d.ts",
-      "hunks": 2,
+      "hunks": 1,
       "changedLines": 5
     },
     {
       "file": "packages/toolkit/utils/compiled/semver/functions/compare.d.ts",
       "hunks": 1,
-      "changedLines": 4
+      "changedLines": 20
     },
     {
       "file": "packages/toolkit/utils/compiled/semver/functions/diff.d.ts",
-      "hunks": 2,
-      "changedLines": 10
+      "hunks": 1,
+      "changedLines": 13
     },
     {
       "file": "packages/toolkit/utils/compiled/semver/functions/eq.d.ts",
       "hunks": 1,
-      "changedLines": 4
+      "changedLines": 9
     },
     {
       "file": "packages/toolkit/utils/compiled/semver/functions/gt.d.ts",
       "hunks": 1,
-      "changedLines": 4
+      "changedLines": 9
     },
     {
       "file": "packages/toolkit/utils/compiled/semver/functions/gte.d.ts",
       "hunks": 1,
-      "changedLines": 4
+      "changedLines": 9
     },
     {
       "file": "packages/toolkit/utils/compiled/semver/functions/inc.d.ts",
-      "hunks": 4,
-      "changedLines": 19
+      "hunks": 1,
+      "changedLines": 15
     },
     {
       "file": "packages/toolkit/utils/compiled/semver/functions/lt.d.ts",
       "hunks": 1,
-      "changedLines": 4
+      "changedLines": 9
     },
     {
       "file": "packages/toolkit/utils/compiled/semver/functions/lte.d.ts",
       "hunks": 1,
-      "changedLines": 4
+      "changedLines": 8
     },
     {
       "file": "packages/toolkit/utils/compiled/semver/functions/major.d.ts",
       "hunks": 1,
-      "changedLines": 4
+      "changedLines": 9
     },
     {
       "file": "packages/toolkit/utils/compiled/semver/functions/minor.d.ts",
       "hunks": 1,
-      "changedLines": 4
+      "changedLines": 9
     },
     {
       "file": "packages/toolkit/utils/compiled/semver/functions/neq.d.ts",
       "hunks": 1,
-      "changedLines": 4
+      "changedLines": 9
     },
     {
       "file": "packages/toolkit/utils/compiled/semver/functions/parse.d.ts",
-      "hunks": 4,
-      "changedLines": 19
+      "hunks": 1,
+      "changedLines": 12
     },
     {
       "file": "packages/toolkit/utils/compiled/semver/functions/patch.d.ts",
       "hunks": 1,
-      "changedLines": 4
+      "changedLines": 9
     },
     {
       "file": "packages/toolkit/utils/compiled/semver/functions/prerelease.d.ts",
       "hunks": 1,
-      "changedLines": 4
+      "changedLines": 12
     },
     {
       "file": "packages/toolkit/utils/compiled/semver/functions/rcompare.d.ts",
       "hunks": 1,
-      "changedLines": 4
+      "changedLines": 15
     },
     {
       "file": "packages/toolkit/utils/compiled/semver/functions/rsort.d.ts",
       "hunks": 1,
-      "changedLines": 4
+      "changedLines": 9
     },
     {
       "file": "packages/toolkit/utils/compiled/semver/functions/satisfies.d.ts",
-      "hunks": 2,
-      "changedLines": 8
+      "hunks": 1,
+      "changedLines": 14
     },
     {
       "file": "packages/toolkit/utils/compiled/semver/functions/sort.d.ts",
       "hunks": 1,
-      "changedLines": 4
-    },
-    {
-      "file": "packages/toolkit/utils/compiled/semver/functions/truncate.d.ts",
-      "hunks": 1,
-      "changedLines": 10
+      "changedLines": 9
     },
     {
       "file": "packages/toolkit/utils/compiled/semver/functions/valid.d.ts",
       "hunks": 1,
-      "changedLines": 4
+      "changedLines": 11
     },
     {
       "file": "packages/toolkit/utils/compiled/semver/index.d.ts",
-      "hunks": 28,
-      "changedLines": 161
+      "hunks": 1,
+      "changedLines": 133
     },
     {
       "file": "packages/toolkit/utils/compiled/semver/index.js",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 1
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/semver/internals/identifiers.d.ts",
+      "hunks": 1,
+      "changedLines": 13
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/semver/license",
+      "hunks": 1,
+      "changedLines": 15
     },
     {
       "file": "packages/toolkit/utils/compiled/semver/package.json",
       "hunks": 1,
-      "changedLines": 2
-    },
-    {
-      "file": "packages/toolkit/utils/compiled/semver/preload.d.ts",
-      "hunks": 1,
-      "changedLines": 2
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/compiled/semver/ranges/gtr.d.ts",
-      "hunks": 2,
-      "changedLines": 8
+      "hunks": 1,
+      "changedLines": 14
     },
     {
       "file": "packages/toolkit/utils/compiled/semver/ranges/intersects.d.ts",
-      "hunks": 2,
-      "changedLines": 6
+      "hunks": 1,
+      "changedLines": 13
     },
     {
       "file": "packages/toolkit/utils/compiled/semver/ranges/ltr.d.ts",
-      "hunks": 2,
-      "changedLines": 8
+      "hunks": 1,
+      "changedLines": 14
     },
     {
       "file": "packages/toolkit/utils/compiled/semver/ranges/max-satisfying.d.ts",
-      "hunks": 3,
-      "changedLines": 10
+      "hunks": 1,
+      "changedLines": 14
     },
     {
       "file": "packages/toolkit/utils/compiled/semver/ranges/min-satisfying.d.ts",
-      "hunks": 3,
-      "changedLines": 10
+      "hunks": 1,
+      "changedLines": 14
     },
     {
       "file": "packages/toolkit/utils/compiled/semver/ranges/min-version.d.ts",
       "hunks": 1,
-      "changedLines": 6
+      "changedLines": 10
     },
     {
       "file": "packages/toolkit/utils/compiled/semver/ranges/outside.d.ts",
-      "hunks": 2,
-      "changedLines": 10
+      "hunks": 1,
+      "changedLines": 15
     },
     {
       "file": "packages/toolkit/utils/compiled/semver/ranges/simplify.d.ts",
       "hunks": 1,
-      "changedLines": 4
+      "changedLines": 14
     },
     {
       "file": "packages/toolkit/utils/compiled/semver/ranges/subset.d.ts",
-      "hunks": 2,
-      "changedLines": 10
+      "hunks": 1,
+      "changedLines": 13
     },
     {
       "file": "packages/toolkit/utils/compiled/semver/ranges/to-comparators.d.ts",
       "hunks": 1,
-      "changedLines": 4
+      "changedLines": 9
     },
     {
       "file": "packages/toolkit/utils/compiled/semver/ranges/valid.d.ts",
-      "hunks": 2,
-      "changedLines": 6
+      "hunks": 1,
+      "changedLines": 12
     },
     {
       "file": "packages/toolkit/utils/compiled/signale/index.d.ts",
-      "hunks": 6,
-      "changedLines": 51
+      "hunks": 1,
+      "changedLines": 162
     },
     {
       "file": "packages/toolkit/utils/compiled/signale/index.js",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/compiled/signale/package.json",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 1
     },
     {
-      "file": "packages/toolkit/utils/compiled/slash/index.d.mts",
+      "file": "packages/toolkit/utils/compiled/slash/index.d.ts",
       "hunks": 1,
       "changedLines": 25
     },
     {
-      "file": "packages/toolkit/utils/compiled/slash/index.d.ts",
-      "hunks": 3,
-      "changedLines": 8
-    },
-    {
       "file": "packages/toolkit/utils/compiled/slash/index.js",
       "hunks": 1,
-      "changedLines": 2
-    },
-    {
-      "file": "packages/toolkit/utils/compiled/slash/index.mjs",
-      "hunks": 1,
-      "changedLines": 3
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/compiled/slash/license",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 9
     },
     {
       "file": "packages/toolkit/utils/compiled/slash/package.json",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 1
     },
     {
-      "file": "packages/toolkit/utils/compiled/strip-ansi/index.d.mts",
+      "file": "packages/toolkit/utils/compiled/strip-ansi/index.d.ts",
       "hunks": 1,
       "changedLines": 17
     },
     {
-      "file": "packages/toolkit/utils/compiled/strip-ansi/index.d.ts",
-      "hunks": 2,
-      "changedLines": 4
-    },
-    {
       "file": "packages/toolkit/utils/compiled/strip-ansi/index.js",
       "hunks": 1,
-      "changedLines": 2
-    },
-    {
-      "file": "packages/toolkit/utils/compiled/strip-ansi/index.mjs",
-      "hunks": 1,
-      "changedLines": 3
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/compiled/strip-ansi/license",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 9
     },
     {
       "file": "packages/toolkit/utils/compiled/strip-ansi/package.json",
       "hunks": 1,
-      "changedLines": 2
-    },
-    {
-      "file": "packages/toolkit/utils/compiled/tsconfig-paths/index.d.mts",
-      "hunks": 1,
-      "changedLines": 115
-    },
-    {
-      "file": "packages/toolkit/utils/compiled/tsconfig-paths/index.d.ts",
-      "hunks": 1,
-      "changedLines": 115
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/compiled/tsconfig-paths/index.js",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/compiled/tsconfig-paths/index.mjs",
       "hunks": 1,
-      "changedLines": 4
+      "changedLines": 2
     },
     {
       "file": "packages/toolkit/utils/compiled/tsconfig-paths/lib/config-loader.d.ts",
@@ -5174,39 +5159,29 @@
       "changedLines": 28
     },
     {
+      "file": "packages/toolkit/utils/compiled/tsconfig-paths/license",
+      "hunks": 2,
+      "changedLines": 4
+    },
+    {
       "file": "packages/toolkit/utils/compiled/tsconfig-paths/package.json",
       "hunks": 1,
-      "changedLines": 2
-    },
-    {
-      "file": "packages/toolkit/utils/compiled/upath/index.d.mts",
-      "hunks": 1,
-      "changedLines": 84
-    },
-    {
-      "file": "packages/toolkit/utils/compiled/upath/index.d.ts",
-      "hunks": 1,
-      "changedLines": 84
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/compiled/upath/index.js",
       "hunks": 1,
-      "changedLines": 2
-    },
-    {
-      "file": "packages/toolkit/utils/compiled/upath/index.mjs",
-      "hunks": 1,
-      "changedLines": 3
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/compiled/upath/license",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 22
     },
     {
       "file": "packages/toolkit/utils/compiled/upath/package.json",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/compiled/upath/upath.d.ts",
@@ -5214,38 +5189,53 @@
       "changedLines": 241
     },
     {
-      "file": "packages/toolkit/utils/compiled/url-join/index.d.mts",
-      "hunks": 1,
-      "changedLines": 9
-    },
-    {
       "file": "packages/toolkit/utils/compiled/url-join/index.d.ts",
-      "hunks": 3,
-      "changedLines": 14
+      "hunks": 1,
+      "changedLines": 17
     },
     {
       "file": "packages/toolkit/utils/compiled/url-join/index.js",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 1
     },
     {
-      "file": "packages/toolkit/utils/compiled/url-join/index.mjs",
+      "file": "packages/toolkit/utils/compiled/url-join/license",
       "hunks": 1,
-      "changedLines": 3
+      "changedLines": 2
     },
     {
       "file": "packages/toolkit/utils/compiled/url-join/package.json",
       "hunks": 1,
-      "changedLines": 2
+      "changedLines": 1
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/webpack-chain/index.js",
+      "hunks": 1,
+      "changedLines": 1
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/webpack-chain/license",
+      "hunks": 1,
+      "changedLines": 373
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/webpack-chain/package.json",
+      "hunks": 1,
+      "changedLines": 1
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/webpack-chain/types/index.d.ts",
+      "hunks": 1,
+      "changedLines": 599
     },
     {
       "file": "packages/toolkit/utils/package.json",
       "hunks": 23,
-      "changedLines": 119
+      "changedLines": 140
     },
     {
       "file": "packages/toolkit/utils/rslib.config.mts",
-      "hunks": 18,
+      "hunks": 17,
       "changedLines": 112
     },
     {
