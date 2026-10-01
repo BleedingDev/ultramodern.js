@@ -82,5 +82,8 @@ jobs:
           node scripts/lib/browser-provisioning.js --install --runtime tests/integration/rstest/basic-app-rstest-browser
           --version ${{ steps.browser-runtime.outputs.version }}
 
+      - name: Verify dependency bundle module classification
+        run: node --test --test-name-pattern="prebundle distinguishes" scripts/prebundle/ultramodern/packed-utils-consumer.test.mjs
+
       - name: Test
         run: pnpm run test:ut
