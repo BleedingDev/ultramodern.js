@@ -188,6 +188,7 @@
   },
   "scripts": {
     "prepublishOnly": "only-allow-pnpm",
+    "prepack": "pnpm run build",
     "dev": "nx run @modern-js/utils:build && rslib build --watch",
     "build": "nx run @modern-js/utils:build",
     "test": "rstest"
