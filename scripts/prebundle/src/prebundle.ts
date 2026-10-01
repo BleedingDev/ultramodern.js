@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { builtinModules } from 'node:module';
 import ncc from '@vercel/ncc';
 import fastGlob from 'fast-glob';
@@ -5,8 +6,8 @@ import fs from 'fs-extra';
 import { dirname, join } from 'path';
 import { rollup } from 'rollup';
 import { dts } from 'rollup-plugin-dts';
-import { DEFAULT_EXTERNALS } from './constant';
-import { pick } from './helper';
+import { DEFAULT_EXTERNALS, ROOT_DIR } from './constant';
+import { findDepPath, pick } from './helper';
 import type { ParsedTask } from './types';
 
 function emitAssets(
@@ -33,7 +34,9 @@ function emitESMIndex(code: string, distPath: string) {
 }
 
 async function emitDts(task: ParsedTask) {
-  if (!task.emitDts) return;
+  if (!task.emitDts) {
+    return [require.resolve(`@types/${task.depName}/package.json`)];
+  }
   const manifest = fs.readJSONSync(join(task.depPath, 'package.json'));
   const types =
     manifest.types ??
@@ -67,6 +70,7 @@ async function emitDts(task: ParsedTask) {
   } finally {
     await bundle.close();
   }
+  return bundle.watchFiles;
 }
 
 function emitPackageJson(task: ParsedTask) {
@@ -101,11 +105,75 @@ function emitPackageJson(task: ParsedTask) {
   fs.writeJSONSync(outputPath, pickedPackageJson);
 }
 
-function emitLicense(task: ParsedTask) {
-  const licensePath = join(task.depPath, 'LICENSE');
-  if (fs.existsSync(licensePath)) {
-    fs.copySync(licensePath, join(task.distPath, 'license'));
+function emitLicense(task: ParsedTask, declarationInputs: string[]) {
+  const licenses = fastGlob.sync('{license,licence,copying,notice}{,.*}', {
+    cwd: task.depPath,
+    caseSensitiveMatch: false,
+  });
+  if (licenses.length === 0) {
+    throw new Error(`Missing license for ${task.depName}`);
   }
+  for (const license of licenses) {
+    fs.copySync(join(task.depPath, license), join(task.distPath, license));
+  }
+  const dependency = fs.readJSONSync(join(task.depPath, 'package.json'));
+  const producer = fs.readJSONSync(
+    join(ROOT_DIR, 'scripts/prebundle/package.json'),
+  );
+  const declarationPackages = new Map<
+    string,
+    { name: string; version: string; license: string }
+  >();
+  for (const input of declarationInputs) {
+    const directory = findDepPath(task.depName, input);
+    const source = fs.readJSONSync(join(directory, 'package.json'));
+    if (!declarationPackages.has(source.name)) {
+      declarationPackages.set(
+        source.name,
+        pick(source, ['name', 'version', 'license']),
+      );
+      for (const file of fastGlob.sync(
+        '{license,licence,copying,notice}{,.*}',
+        {
+          cwd: directory,
+          caseSensitiveMatch: false,
+        },
+      )) {
+        fs.copySync(
+          join(directory, file),
+          join(
+            task.distPath,
+            'declaration-licenses',
+            source.name.replaceAll('/', '_'),
+            file,
+          ),
+        );
+      }
+    }
+  }
+  fs.writeJSONSync(
+    join(task.distPath, 'provenance.json'),
+    {
+      name: task.depName,
+      sourceName: dependency.name,
+      version: dependency.version,
+      entrySha256: createHash('sha256')
+        .update(fs.readFileSync(task.depEntry))
+        .digest('hex'),
+      license: dependency.license,
+      repository: dependency.repository,
+      producer: 'scripts/prebundle',
+      ncc: producer.dependencies['@vercel/ncc'],
+      declarations: producer.dependencies['rollup-plugin-dts'],
+      declarationSources: [...declarationPackages.values()].sort((a, b) =>
+        a.name.localeCompare(b.name),
+      ),
+      lockfileSha256: createHash('sha256')
+        .update(fs.readFileSync(join(ROOT_DIR, 'pnpm-lock.yaml')))
+        .digest('hex'),
+    },
+    { spaces: 2 },
+  );
 }
 
 function emitExtraFiles(task: ParsedTask) {
@@ -123,13 +191,7 @@ function removeSourceMap(task: ParsedTask) {
   });
 }
 
-const pkgName = process.argv[2];
-
 export async function prebundle(task: ParsedTask) {
-  if (pkgName && task.depName !== pkgName) {
-    return;
-  }
-
   console.log(`==== Start prebundle "${task.depName}" ====`);
 
   if (task.clear) {
@@ -148,10 +210,11 @@ export async function prebundle(task: ParsedTask) {
     assetBuilds: false,
     minify: task.minify,
     esm: false,
+    license: 'licenses-cjs.txt',
   });
 
   if (task.depEsmEntry) {
-    const { code: esmCode } = await ncc(task.depEsmEntry, {
+    const { code: esmCode, assets: esmAssets } = await ncc(task.depEsmEntry, {
       externals: {
         ...DEFAULT_EXTERNALS,
         ...task.externals,
@@ -159,13 +222,15 @@ export async function prebundle(task: ParsedTask) {
       assetBuilds: false,
       minify: task.minify,
       esm: true,
+      license: 'licenses-esm.txt',
     });
     emitESMIndex(esmCode, task.distPath);
+    emitAssets(esmAssets, task.distPath);
   }
 
   emitIndex(code, task.distPath);
   emitAssets(assets, task.distPath);
-  await emitDts(task);
+  const declarationInputs = await emitDts(task);
   if (
     (task.depEsmEntry ||
       task.emitFiles.some(file => file.path === 'index.mjs')) &&
@@ -176,7 +241,7 @@ export async function prebundle(task: ParsedTask) {
       join(task.distPath, 'index.d.mts'),
     );
   }
-  emitLicense(task);
+  emitLicense(task, declarationInputs);
   emitPackageJson(task);
   removeSourceMap(task);
   emitExtraFiles(task);

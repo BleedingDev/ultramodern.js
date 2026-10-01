@@ -4,18 +4,18 @@ import { pathToFileURL } from 'url';
 import { DIST_DIR, PACKAGES_DIR, TASKS } from './constant';
 import type { ParsedTask } from './types';
 
-export function findDepPath(name: string) {
-  let entry = dirname(require.resolve(join(name)));
-
-  while (!dirname(entry).endsWith('node_modules')) {
-    entry = dirname(entry);
+export function findDepPath(
+  name: string,
+  resolvedEntry = require.resolve(name),
+) {
+  let entry = dirname(resolvedEntry);
+  while (true) {
+    const manifest = join(entry, 'package.json');
+    if (fs.existsSync(manifest) && fs.readJSONSync(manifest).name) return entry;
+    const parent = dirname(entry);
+    if (parent === entry) throw new Error(`Cannot locate package ${name}`);
+    entry = parent;
   }
-
-  if (name.includes('/')) {
-    return join(dirname(entry), name);
-  }
-
-  return entry;
 }
 
 const resolveESMDependency = async (entry: string) => {
@@ -33,13 +33,14 @@ const resolveESMDependency = async (entry: string) => {
   }
 };
 
-export async function parseTasks() {
+export async function parseTasks(dependency?: string) {
   const { findUp } = await import('find-up');
   const result: ParsedTask[] = [];
 
   for (const { packageName, packageDir, dependencies } of TASKS) {
     for (const dep of dependencies) {
       const depName = typeof dep === 'string' ? dep : dep.name;
+      if (dependency && depName !== dependency) continue;
       const importPath = join(packageName, DIST_DIR, depName);
       const packagePath = join(PACKAGES_DIR, packageDir);
       const distPath = join(packagePath, DIST_DIR, depName);
@@ -104,6 +105,9 @@ export async function parseTasks() {
     }
   }
 
+  if (dependency && result.length === 0) {
+    throw new Error(`Unknown prebundle dependency: ${dependency}`);
+  }
   return result;
 }
 

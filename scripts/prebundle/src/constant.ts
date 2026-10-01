@@ -37,6 +37,7 @@ export const TASKS: TaskConfig[] = [
       'address',
       'filesize',
       'minimist',
+      'pkg-up',
       'commander',
       'import-lazy',
       'dotenv-expand',
@@ -46,6 +47,28 @@ export const TASKS: TaskConfig[] = [
       'upath',
       // a few dependencies
       'debug',
+      {
+        name: 'lodash',
+        emitDts: false,
+        externals: { lodash: 'lodash' },
+        emitFiles: [
+          {
+            path: 'index.js',
+            content: "module.exports = require('lodash');\n",
+          },
+          { path: 'index.mjs', content: "export * from 'lodash-es';\n" },
+        ],
+        afterBundle(task) {
+          copySync(
+            dirname(require.resolve('@types/lodash/package.json')),
+            task.distPath,
+            {
+              filter: file =>
+                statSync(file).isDirectory() || file.endsWith('.d.ts'),
+            },
+          );
+        },
+      },
       {
         name: 'semver',
         emitDts: false,
