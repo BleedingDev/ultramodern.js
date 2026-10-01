@@ -20,8 +20,30 @@ function resolveModuleFederationPublicPath(publicPath, manifestUrl) {
   }
 }
 
-async function fetchText(url, init) {
-  const response = await fetch(url, init);
+// A deployment behind Cloudflare Access admits the proof through an Access service token. Cloudflare
+// reads its id and secret from these request headers on every probe, so set both or neither.
+function cloudflareAccessHeaders() {
+  const clientId = process.env.CF_ACCESS_CLIENT_ID?.trim() ?? '';
+  const clientSecret = process.env.CF_ACCESS_CLIENT_SECRET?.trim() ?? '';
+  if (!clientId && !clientSecret) {
+    return {};
+  }
+  if (!clientId || !clientSecret) {
+    throw new Error(
+      'Set both CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET to prove a deployment behind Cloudflare Access, or neither',
+    );
+  }
+  return {
+    'cf-access-client-id': clientId,
+    'cf-access-client-secret': clientSecret,
+  };
+}
+
+async function fetchText(url, init = {}) {
+  const response = await fetch(url, {
+    ...init,
+    headers: { ...init.headers, ...cloudflareAccessHeaders() },
+  });
   return {
     ok: response.ok,
     status: response.status,
