@@ -357,7 +357,10 @@ export function createNativeConsumer(target, { tempDir = os.tmpdir() } = {}) {
           },
           // Native v3.8.2 BFF production compilation loads TypeScript from
           // the application, independently of the browser type-checker.
-          devDependencies: { typescript: '5.9.3' },
+          devDependencies: {
+            typescript: '5.9.3',
+            '@typescript/native-preview': '7.0.0-dev.20260707.2',
+          },
         },
         null,
         2,
