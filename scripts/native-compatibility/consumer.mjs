@@ -239,22 +239,49 @@ export function assertInstalledConsumer(appDir, target, dependencies) {
 
 function guardian(args) {
   if (process.platform !== 'darwin') return;
-  try {
-    execFileSync(
-      process.env.DISK_GUARDIAN_ARTIFACTS ?? 'disk-guardian-artifacts',
-      args,
-      { stdio: 'pipe' },
-    );
-  } catch (error) {
-    const output = [
-      error.stdout?.toString().trim(),
-      error.stderr?.toString().trim(),
-    ]
-      .filter(Boolean)
-      .join('\n');
-    throw new Error(`${error.message}${output ? `\n${output}` : ''}`, {
-      cause: error,
-    });
+  // Guardian inspection can hold the shared lock for up to 120 seconds.
+  const deadline = Date.now() + 150_000;
+  while (true) {
+    try {
+      execFileSync(
+        process.env.DISK_GUARDIAN_ARTIFACTS ?? 'disk-guardian-artifacts',
+        args,
+        { stdio: 'pipe' },
+      );
+      return;
+    } catch (error) {
+      const messages = [
+        error.stdout?.toString().trim(),
+        error.stderr?.toString().trim(),
+      ].filter(Boolean);
+      const lockContention =
+        error.status === 1 &&
+        messages.some(message => {
+          try {
+            const record = JSON.parse(message);
+            return (
+              record.status === 'failed' &&
+              record.reason === 'another maintenance operation holds the lock'
+            );
+          } catch {
+            return false;
+          }
+        });
+      const remaining = deadline - Date.now();
+      if (lockContention && remaining > 0) {
+        Atomics.wait(
+          new Int32Array(new SharedArrayBuffer(4)),
+          0,
+          0,
+          Math.min(remaining, 100 + Math.floor(Math.random() * 100)),
+        );
+        continue;
+      }
+      const output = messages.join('\n');
+      throw new Error(`${error.message}${output ? `\n${output}` : ''}`, {
+        cause: error,
+      });
+    }
   }
 }
 
@@ -532,27 +559,44 @@ export function createNativeConsumer(target, { tempDir = os.tmpdir() } = {}) {
           NATIVE_SSR_MODE: mode,
         });
         const timer = setTimeout(() => terminate(child, 'SIGKILL'), 300_000);
+        let buildError;
+        let cleanupError;
         try {
           await exited;
+        } catch (error) {
+          buildError = error;
         } finally {
           clearTimeout(timer);
-          children.delete(child);
-          const artifact = path.join(appDir, 'dist');
-          if (fs.existsSync(artifact)) {
-            guardian([
-              'register',
-              artifact,
-              '--owner',
-              owner,
-              '--owner-pid',
-              String(process.pid),
-              '--grace-hours',
-              '24',
-              '--kind',
-              'build',
-            ]);
+          try {
+            await stopChild(child);
+            children.delete(child);
+            const artifact = path.join(appDir, 'dist');
+            if (fs.existsSync(artifact)) {
+              guardian([
+                'register',
+                artifact,
+                '--owner',
+                owner,
+                '--owner-pid',
+                String(process.pid),
+                '--grace-hours',
+                '24',
+                '--kind',
+                'build',
+              ]);
+            }
+          } catch (error) {
+            cleanupError = error;
           }
         }
+        if (buildError && cleanupError) {
+          throw new AggregateError(
+            [buildError, cleanupError],
+            'Native build and cleanup failed',
+          );
+        }
+        if (buildError) throw buildError;
+        if (cleanupError) throw cleanupError;
       },
       async start(phase, mode, port) {
         const { child, exited, output } = startCommand([phase], {

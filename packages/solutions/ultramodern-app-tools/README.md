@@ -51,6 +51,9 @@ Zephyr registers only for browser applications. It loads the application's
 declared `zephyr-rspack-plugin` only when `ZE_CI_TOKEN` is present, and requires
 `ZE_FAIL_BUILD=true` in that deploy environment. Ordinary builds require no
 Zephyr account. The preset does not mutate environment variables.
+The Zephyr SDK reads credentials and its fail-build flag from `process.env`.
+When supplying `environment` explicitly, enabled Zephyr inputs must match those
+process values; a mismatch fails during plugin setup before registration.
 
 Authored config merges after native policy. Scalars and `false` override defaults;
 nested records are preserved; arrays and hooks compose in preset-first order.

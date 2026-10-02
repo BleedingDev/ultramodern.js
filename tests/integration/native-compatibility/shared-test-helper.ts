@@ -6,12 +6,9 @@ import {
 } from '../../../scripts/native-compatibility/consumer.mjs';
 import { getPort } from '../../utils/modernTestUtils';
 
-const target = process.env.NATIVE_COMPATIBILITY_TARGET ?? 'all';
-const targets = target === 'all' ? ['upstream', 'fork'] : [target];
-
 // Both targets execute the same application source and observable assertions.
 // Tests use the installed native CLI; the upstream target never sees fork code.
-for (const target of targets) {
+export function registerNativeCompatibilityCases(target: 'upstream' | 'fork') {
   for (const mode of ['string', 'stream']) {
     test(`${target}: native ${mode} SSR, redirects, BFF and client navigation in dev and production`, async () => {
       const consumer = createNativeConsumer(target);

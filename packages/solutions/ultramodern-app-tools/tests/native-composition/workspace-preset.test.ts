@@ -492,6 +492,85 @@ export default async ({ env, command }) => {
     }
   });
 
+  it('retains consumer config-hook service bindings before static defaults when a remote config loads dynamically', async () => {
+    const workspace = fixture();
+    try {
+      workspace.topology.verticals.push({
+        ...workspace.topology.verticals[0],
+        id: 'static',
+        path: 'verticals/static',
+        package: '@acme/static',
+        portEnv: 'STATIC_PORT',
+        moduleFederation: { name: 'verticalStatic', exposes: ['./StaticCard'] },
+        api: undefined,
+        cloudflare: {
+          ...workspace.topology.verticals[0].cloudflare,
+          workerName: 'acme-static',
+        },
+      });
+      workspace.topology.shell.verticalRefs = ['catalog', 'static'];
+      Object.assign(workspace.overlay.ports, { static: 3040 });
+      workspace.save();
+      fs.writeFileSync(
+        path.join(
+          workspace.root,
+          'verticals/catalog/module-federation.config.ts',
+        ),
+        `const exposes = { './DynamicCard': './src/dynamic-card.tsx' };
+export default { exposes };`,
+      );
+      const customService = { binding: 'PLUGIN', service: 'plugin-worker' };
+      const authoredService = {
+        binding: 'AUTHORED',
+        service: 'authored-worker',
+      };
+      const config = presetUltramodernWorkspace(
+        {
+          plugins: [
+            ultramodernAppTools({
+              rendererExtensions: false,
+              serverExtensions: false,
+            }),
+            {
+              name: 'consumer-service-policy',
+              setup(api) {
+                api.config(() => ({
+                  deploy: { worker: { services: [customService] } },
+                }));
+              },
+            },
+          ],
+          deploy: { worker: { services: [authoredService] } },
+        },
+        { ...workspace.options(), deployTarget: 'cloudflare' },
+      );
+      expect(
+        config.deploy?.worker?.services?.map(service => service.binding),
+      ).toEqual(['VERTICAL_STATIC_WORKER', 'AUTHORED']);
+      const resolved = await createConfigOptions<AppTools>({
+        command: 'build',
+        configFile: false,
+        cwd: path.join(workspace.root, 'apps/shell'),
+        config,
+      });
+      expect(
+        resolved.config.deploy.worker?.services?.map(
+          service => service.binding,
+        ),
+      ).toEqual([
+        'VERTICAL_CATALOG_WORKER',
+        'VERTICAL_STATIC_WORKER',
+        'PLUGIN',
+        'AUTHORED',
+      ]);
+      expect(
+        resolved.config.deploy.worker?.services?.[0].fragments?.[0].expose,
+      ).toBe('./DynamicCard');
+    } finally {
+      workspace.cleanup();
+    }
+  });
+
   it('derives release identity from the selected workspace and retains typed feature opt outs', () => {
     const workspace = fixture();
     try {
@@ -522,6 +601,8 @@ export default async ({ env, command }) => {
 
   it('keeps Zephyr optional, requires fail-build deploy policy, and resolves only the app uploader', async () => {
     const workspace = fixture();
+    const previousToken = process.env.ZE_CI_TOKEN;
+    const previousFailBuild = process.env.ZE_FAIL_BUILD;
     try {
       const registrations: unknown[] = [];
       const setup = async (environment: Record<string, string>) => {
@@ -550,17 +631,39 @@ export default async ({ env, command }) => {
           workspace.root,
           'verticals/catalog/node_modules/zephyr-rspack-plugin/index.cjs',
         ),
-        'exports.withZephyr = () => config => ({ ...config, uploaded: true });',
+        `exports.withZephyr = () => {
+  const token = process.env.ZE_CI_TOKEN;
+  const failBuild = process.env.ZE_FAIL_BUILD;
+  return config => ({ ...config, uploaded: true, token, failBuild });
+};`,
       );
-      const previousFailBuild = process.env.ZE_FAIL_BUILD;
+      process.env.ZE_CI_TOKEN = 'other-fixture-token';
+      process.env.ZE_FAIL_BUILD = 'true';
+      await expect(
+        setup({ ZE_CI_TOKEN: 'fixture-token', ZE_FAIL_BUILD: 'true' }),
+      ).rejects.toThrow('must match');
+      process.env.ZE_CI_TOKEN = 'fixture-token';
+      process.env.ZE_FAIL_BUILD = 'false';
+      await expect(
+        setup({ ZE_CI_TOKEN: 'fixture-token', ZE_FAIL_BUILD: 'true' }),
+      ).rejects.toThrow('must match');
+      expect(registrations).toEqual([]);
+      process.env.ZE_FAIL_BUILD = 'true';
       await setup({ ZE_CI_TOKEN: 'fixture-token', ZE_FAIL_BUILD: 'true' });
       expect(registrations).toHaveLength(1);
       expect((registrations[0] as Function)({ original: true })).toEqual({
         original: true,
         uploaded: true,
+        token: 'fixture-token',
+        failBuild: 'true',
       });
-      expect(process.env.ZE_FAIL_BUILD).toBe(previousFailBuild);
+      expect(process.env.ZE_CI_TOKEN).toBe('fixture-token');
+      expect(process.env.ZE_FAIL_BUILD).toBe('true');
     } finally {
+      if (previousToken === undefined) delete process.env.ZE_CI_TOKEN;
+      else process.env.ZE_CI_TOKEN = previousToken;
+      if (previousFailBuild === undefined) delete process.env.ZE_FAIL_BUILD;
+      else process.env.ZE_FAIL_BUILD = previousFailBuild;
       workspace.cleanup();
     }
   });
