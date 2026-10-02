@@ -497,7 +497,13 @@ const supportPrefetchInIntentMode = async (
   await page.waitForSelector('.user-profile-btn');
 
   await page.hover('.user-profile-btn');
-  await new Promise(resolve => setTimeout(resolve, 400));
+  const prefetchDeadline = Date.now() + 400;
+  while (
+    !(isRequestJS && isRequestProfileLayoutData && isRequestProfilePageData) &&
+    Date.now() < prefetchDeadline
+  ) {
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
   expect(isRequestJS).toBe(true);
   expect(isRequestProfileLayoutData).toBe(true);
   expect(isRequestProfilePageData).toBe(true);
@@ -512,10 +518,9 @@ const supportPrefetchWithShouldRevalidate = async (
   await page.goto(`http://localhost:${appPort}/three/user/222`, {
     waitUntil: ['networkidle0'],
   });
-  // make sure assets have been loaded
-  await new Promise(resolve => setTimeout(resolve, 800));
+  await page.waitForSelector('.root-btn');
   await page.click('.root-btn');
-  await new Promise(resolve => setTimeout(resolve, 400));
+  await page.waitForSelector('.item-page', { hidden: true, timeout: 400 });
 
   let isRequestLayoutData = false;
   let isRequestPageData = false;

@@ -1,7 +1,7 @@
 name: Unit Test (Linux)
 
 concurrency:
-  group: linux-unit-test-${{ github.head_ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 # Controls when the action will run.
@@ -61,7 +61,12 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Restore prepared build outputs
+        id: build-cache
+        uses: ./.github/actions/restore-build-cache
+
       - name: Build Required Pkg
+        if: steps.build-cache.outputs.cache-hit != 'true'
         run: pnpm run build:required
 
       # scripts/lib/browser-provisioning.js is the one browser provisioner: it

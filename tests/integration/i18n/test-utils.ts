@@ -97,11 +97,12 @@ export async function waitForText(
   page: Page,
   selector: string,
   text: string,
+  timeoutMs?: number,
 ): Promise<void> {
   await page.waitForFunction(
     (sel: string, expected: string) =>
       document.querySelector(sel)?.textContent?.trim() === expected,
-    {},
+    { timeout: timeoutMs },
     selector,
     text,
   );

@@ -55,7 +55,12 @@ jobs:
       - name: Install Dependencies
         run: pnpm install
 
+      - name: Restore prepared build outputs
+        id: build-cache
+        uses: ./.github/actions/restore-build-cache
+
       - name: Build Required Pkg
+        if: steps.build-cache.outputs.cache-hit != 'true'
         run: pnpm run build:required
       - name: Test
-        run: pnpm run test:builder
+        run: pnpm --filter tests run test:builder:prepared

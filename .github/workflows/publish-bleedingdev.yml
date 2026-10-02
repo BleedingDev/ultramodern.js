@@ -148,31 +148,15 @@ jobs:
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern')
     uses: ./.github/workflows/integration-test.yml
 
-  # Source qualification gates publication but produces nothing this run's
-  # release bundle consumes, so it runs beside prepare-release instead of ahead
-  # of it. validate-release and publish both need it, so nothing reaches the
-  # registry on an unqualified source. It does emit one artifact — a receipt
-  # naming the exact commit it qualified — which a later recovery dispatch must
-  # present for the bundle it recovers.
-  #
-  # Two lanes, and both qualify something:
-  #   * the publication tooling — the workflow file, the OIDC publish CLIs and
-  #     the receipt verifiers — always comes from *this* dispatch's HEAD, even
-  #     in recovery, so it is qualified on every dispatch;
-  #   * the release source — the bytes that become tarballs — is qualified only
-  #     when this dispatch builds them. A recovery dispatch publishes the
-  #     recovered run's bytes, so its source qualification is the recovered
-  #     run's own receipt, verified below and again in prepare-release.
-  #
-  # It needs the integration suites on this exact commit, so its receipt — the
-  # only thing a recovery dispatch accepts — never names a commit whose
-  # integration is red.
-  qualify-source:
-    name: Qualify the release source
+  # Run source and tooling qualification beside integration and bundle preparation.
+  # This job has no recovery authority. Only qualify-source below can issue a
+  # receipt, after both the qualification and integration jobs succeed.
+  # Recovery still qualifies this dispatch's publication tooling; its package
+  # source is authorized by the original producer's receipt instead.
+  qualify-source-compute:
+    name: Test the release source and publication tooling
     runs-on: ubuntu-24.04
     timeout-minutes: 90
-    needs:
-      - integration
     if: >-
       github.actor == github.repository_owner &&
       github.triggering_actor == github.repository_owner &&
@@ -249,11 +233,11 @@ jobs:
           # Built-package image staging runs in the disjoint after-build suite.
           mise exec -- pnpm run test:publish-tooling
 
-      # Every step below through "Upload the source qualification receipt" is
+      # The source suites below are
       # skipped in the recovery lane: that dispatch publishes the recovered
       # run's bytes, never this run's HEAD, so qualifying HEAD's *source* would
       # qualify a commit nothing publishes. The recovered run's own
-      # qualification receipt is verified instead, at the end of this job and
+      # qualification receipt is verified instead, in qualify-source and
       # again against the recovered manifest in prepare-release.
       #
       # plugin-runtime's boundary-debugger suite drives a real chromium through
@@ -334,9 +318,42 @@ jobs:
             --project @modern-js/plugin-bff \
             --project @modern-js/bff-core
 
+  # The only job that can issue a source qualification receipt. Its two needs
+  # run concurrently on this dispatch's exact commit. A failed, cancelled or
+  # skipped check cannot authorize a recovery or reach either publish job.
+  qualify-source:
+    name: Confirm qualified source and integration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    needs:
+      - integration
+      - qualify-source-compute
+    if: >-
+      github.actor == github.repository_owner &&
+      github.triggering_actor == github.repository_owner &&
+      github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern') &&
+      needs.integration.result == 'success' &&
+      needs.qualify-source-compute.result == 'success'
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node.js 26.10.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '26.10.0'
+
       # The proof a later recovery dispatch needs: the exact commit this job
-      # qualified, bound to this run and attempt. Written only after the suites
-      # above pass, so a failed qualification uploads nothing and its bundle
+      # qualified, bound to this run and attempt. Written only after both
+      # prerequisite jobs pass, so a failed check uploads nothing and its bundle
       # stays unrecoverable.
       - name: Record the qualified source commit
         if: inputs.recovery_run_id == ''

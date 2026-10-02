@@ -15,15 +15,18 @@ import {
 
 rstest.setConfig({ testTimeout: 1000 * 60 * 5, hookTimeout: 1000 * 60 * 5 });
 
-async function waitForAppReady(port: number, maxRetries = 30) {
+async function waitForAppReady(
+  port: number,
+  pathname = '/en',
+  maxRetries = 30,
+) {
   for (let i = 0; i < maxRetries; i++) {
     try {
-      const response = await fetch(`http://localhost:${port}`, {
+      const response = await fetch(`http://localhost:${port}${pathname}`, {
         method: 'HEAD',
         signal: AbortSignal.timeout(2000),
       });
-      if (response.ok || response.status < 500) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
+      if (response.ok) {
         return;
       }
     } catch {}
@@ -90,7 +93,7 @@ describe('mf-i18n-tests', () => {
         onStderr: (message: string) => componentProviderOutput.push(message),
       },
     );
-    await waitForAppReady(COMPONENT_PROVIDER_PORT);
+    await waitForAppReady(COMPONENT_PROVIDER_PORT, '/mf-manifest.json');
 
     appProviderApp = await launchApp(
       appProviderDir,
@@ -101,7 +104,7 @@ describe('mf-i18n-tests', () => {
       },
       APP_MF_SSR_ENV,
     );
-    await waitForAppReady(APP_PROVIDER_PORT);
+    await waitForAppReady(APP_PROVIDER_PORT, '/mf-manifest.json');
 
     componentProviderBrowser = await puppeteer.launch(launchOptions as any);
     componentProviderPage = await componentProviderBrowser.newPage();
