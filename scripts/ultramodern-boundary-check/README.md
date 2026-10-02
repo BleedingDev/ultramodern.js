@@ -13,11 +13,13 @@ either fails. Use `--mode imports` or `--mode divergence` to run one gate.
 
 ## 1. Import boundary (`checker.js`)
 
-This gate rejects every current governed import of UltraModern-only code in
-upstream-owned source files. Its ownership base is the exact commit
-`8a744c1b3178d1e85d4113f29e8837ff94079fb3`. The independent `allowlist.json`
-records migration history: matching an allowance does not permit an edge or
-make verification pass. The default `--mode all` applies this same strict rule.
+This gate rejects imports from upstream source identities into fork-owned
+packages, except exact reviewed compatibility bridges. It shares the immutable
+audited base (`eded841256a7cffdaa622e3889fc83407debd3e4`) and reviewed upstream
+provenance (`2f4d9c4559e26209a0d77f02c6757f29fe3699a2`) with divergence mode.
+The independent schema-v2 `allowlist.json` records both pins, migration history
+and explicit bridges. Matching a migration violation never permits an edge.
+The default `--mode all` applies the same rule.
 
 `--head <commit>` scans source paths and bytes from that resolved commit, even
 when the worktree differs. Without `--head`, the gate scans the worktree.
@@ -26,12 +28,41 @@ of the target. Import verification rejects `--root`, `--base-ref`, `--allowlist`
 `--base`, `--pathspec`, and `--divergence-allowlist`; inherited Git repository
 context variables are removed before Git runs.
 
-The classifier uses the existing literal import-specifier marker scan over
-`packages/**/src` identities present at the import ownership base. It shares the
-divergence gate's rename projection, so a detected rename retains ownership in
-committed and worktree scans. Literal dynamic imports, requires, type imports
-and direct re-exports are covered. This check does not prove arbitrary alias or
-transitive barrel resolution, or imports in later upstream-added source.
+Package ownership comes from actual manifest identity in the audited/reviewed
+upstream trees, not package-name substrings or a second package registry.
+Source identity follows observed renames, including changes made before a
+rename. The gate scans `packages/**/src` identities present in reviewed upstream,
+including identities subsequently renamed outside `src`, plus source files
+added inside upstream-owned packages. Fixture sources remain in that scope.
+Measured `pnpm-workspace.yaml` patterns select package manifests, so fixture
+manifests cannot replace real package identity and nested workspaces are retained.
+
+Babel inspects literal static imports, dynamic imports, requires, type imports,
+import-equals and re-exports. Resolution uses measured source exports, private
+deep subpaths, relative paths, npm/workspace/file/link aliases, package `#imports`
+and TypeScript paths/baseUrl, including configuration inheritance and exact/
+wildcard precedence. Static template literals are references too. Alias cycles
+fail closed. Source exports
+take precedence over conventional compiled-output mapping. Committed checks
+read their source, manifests, alias configuration, bridge policy and ledger
+from the committed tree. Malformed governed source/metadata, duplicate package
+identities and unresolved declared local aliases fail closed. Unresolved legacy
+edges retain exact marker checks; substring matches are no longer ownership.
+
+New neutral helper files inside an upstream-owned package retain that package's
+owner. This dependency gate does not prove semantic ownership of new code inside
+a vanilla package, nonliteral imports, arbitrary bundler aliases or external
+configuration unavailable in the measured tree. The divergence gate and Bucket
+A review still prohibit additive fork subsystems inside vanilla packages.
+Relative/deep imports into an actual fork-owned package remain governed; moving
+an existing upstream source identity into one does not erase its native owner.
+
+Each compatibility bridge names one exact source file, literal specifier and
+resolved source target, with an owner and reason. Wildcards are rejected, and
+the source must have matching inline-patch ownership in `FORK-DIVERGENCE.md`.
+The fifteen recorded app-tools and i18n edges preserve existing defaults,
+deployment adapters and public types; they grant no package-wide permission. The snapshot
+writer preserves existing bridges and never creates them from observed debt.
 
 One exact native dependency has a target-aware exception: named imports or
 re-exports of `configure`, `createRequest` and `createUploader` from the bare
@@ -48,8 +79,8 @@ source or metadata, and source symlinks revoke eligibility. Committed targets
 read their own tree; worktree checks include untracked package source files.
 The source inventory records six audited files and the reviewed native factory
 and header extraction. It is structural classification evidence, not a semantic
-proof against arbitrarily rewritten policy. No other marker, allowance,
-ownership base or divergence budget changes when the native edge qualifies.
+proof against arbitrarily rewritten policy. No other edge or divergence budget
+changes when the native edge qualifies.
 
 ```bash
 node scripts/ultramodern-boundary-check/check-fork-import-boundary.js --mode imports

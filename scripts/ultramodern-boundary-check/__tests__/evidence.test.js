@@ -253,6 +253,7 @@ test('native request ownership preserves policy, alias, unknown-file and symlink
   ).split('\n');
   for (const file of files)
     write(file, git(repository, 'show', `${DEFAULT_BASE_REF}:${file}`));
+  write(entry.path, 'export const native = true;');
   const baseRef = commit();
   for (const file of fs.readdirSync(
     path.join(repository, packageRoot, 'src'),
@@ -269,6 +270,25 @@ test('native request ownership preserves policy, alias, unknown-file and symlink
   write(`${packageRoot}/package.json`, manifest);
   const check = () => isNativeCreateRequestPackage({ rootDir: root, baseRef });
   assert.equal(check(), true);
+  const imports = () =>
+    scanUpstreamOwnedForkImports({
+      rootDir: root,
+      baseRef,
+      files: [entry.path],
+    });
+  write(
+    entry.path,
+    "export { createRequest } from '@modern-js/create-request';",
+  );
+  assert.equal(imports().violations.length, 0);
+  for (const reference of [
+    "import * as request from '@modern-js/create-request';",
+    "import('@modern-js/create-request');",
+    "import { createRequest } from '@modern-js/create-request/src/node';",
+  ]) {
+    write(entry.path, reference);
+    assert.equal(imports().violations.length, 1);
+  }
   const source = `${packageRoot}/src/node.ts`;
   const original = fs.readFileSync(path.join(root, source), 'utf8');
   write(source, original + '\nconst policy = { ["identityBinding"]: true };');

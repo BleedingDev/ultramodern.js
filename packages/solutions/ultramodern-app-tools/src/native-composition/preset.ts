@@ -15,6 +15,8 @@ const DEFAULT_VICTORIA_METRICS_ENDPOINT =
   'http://127.0.0.1:8428/api/v1/import/prometheus';
 
 export interface PresetUltramodernOptions {
+  /** Build environment; defaults to the current process environment. */
+  environment?: Readonly<NodeJS.ProcessEnv>;
   /**
    * Stable producer identity used by BFF cross-project clients.
    * @default "app"
@@ -29,6 +31,9 @@ export interface PresetUltramodernOptions {
     buildMarker: string;
     unitId: string;
     version: string;
+    /** Workspace containing the delivery unit, independent of process cwd. */
+    workspaceRoot?: string;
+    sourceRevision?: string;
   };
   /**
    * Enable BFF requestId contract by default.
@@ -146,13 +151,14 @@ export const createPresetUltramodernConfig = (
   options: PresetUltramodernOptions = {},
 ): AppUserConfig => {
   const {
+    environment = process.env,
     appId = 'app',
     deliveryUnit,
     enableBffRequestId = true,
     enableTelemetry = true,
     enableTelemetryExporters,
-    otlpEndpoint = process.env.MODERN_TELEMETRY_OTLP_ENDPOINT,
-    victoriaMetricsEndpoint = process.env.MODERN_TELEMETRY_VICTORIA_ENDPOINT,
+    otlpEndpoint = environment.MODERN_TELEMETRY_OTLP_ENDPOINT,
+    victoriaMetricsEndpoint = environment.MODERN_TELEMETRY_VICTORIA_ENDPOINT,
     telemetryFailLoudStartup = false,
     enableModuleFederationSSR = true,
   } = options;
@@ -162,6 +168,9 @@ export const createPresetUltramodernConfig = (
     ? resolveUltramodernReleaseIdentity({
         generationBuildMarker: deliveryUnit.buildMarker,
         unitId: deliveryUnit.unitId,
+        workspaceRoot: deliveryUnit.workspaceRoot,
+        sourceRevision: deliveryUnit.sourceRevision,
+        environment,
       })
     : undefined;
   const bundledReleaseIdentity = releaseIdentity

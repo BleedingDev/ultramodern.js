@@ -1,3 +1,7 @@
+import type {
+  OnRenderPreparedFn,
+  OnRequestEndFn,
+} from '@modern-js/plugin/runtime';
 import {
   getGlobalLayoutApp,
   getGlobalRoutes,
@@ -6,6 +10,7 @@ import {
 import { merge } from '@modern-js/runtime-utils/merge';
 import type { RouteObject } from '@modern-js/runtime-utils/router';
 import type { RouterExtendsHooks } from './hooks';
+import type { RouterLifecycleContext } from './lifecycle';
 import type { RouterConfig } from './types';
 import { createTanstackRouteObjectsFromConfig } from './utils';
 
@@ -25,6 +30,13 @@ export type TanstackRouterPluginAPI = {
       context: TInternalRuntimeContext,
       interrupt: RuntimeInterrupt,
     ) => unknown,
+  ) => void;
+  onRenderPrepared: (
+    listener: OnRenderPreparedFn<TInternalRuntimeContext>,
+  ) => void;
+  onRequestEnd: (listener: OnRequestEndFn<TInternalRuntimeContext>) => void;
+  onAfterCreateRouter: (
+    listener: (event: RouterLifecycleContext) => void,
   ) => void;
   wrapRoot: (listener: (App: any) => any) => void;
   [key: string]: any;

@@ -37,7 +37,7 @@ import {
   resolveApiProtocol,
   resolveRemoteRefs,
 } from './descriptors';
-import { writeFile, writeFileReplacing, writeJson } from './fs-io';
+import { writeFile, writeJson } from './fs-io';
 import { createAppPublicLocaleMessages } from './locales';
 import {
   createAppModernConfig,
@@ -68,7 +68,6 @@ type WriteAppContext = {
   /** Complete caller inventory for backend dependencies and API clients. */
   availableRemotes: WorkspaceApp[];
   bridge: UltramodernBridgeConfig | undefined;
-  devPorts: number[] | undefined;
   publicWeb: ReturnType<typeof createPublicWebAppArtifacts>;
   writeAppFile: (relativePath: string, content: string) => void;
 };
@@ -80,7 +79,6 @@ export function writeApp(
   enableTailwind: boolean,
   remotes: WorkspaceApp[] = [],
   bridge?: UltramodernBridgeConfig,
-  devPorts?: number[],
 ) {
   // The primary shell derives its host identity (and merged verticalRefs) from
   // createShellHost. Additional shells (G28) keep their own descriptor identity
@@ -113,7 +111,6 @@ export function writeApp(
     remotes: resolvedRemotes,
     availableRemotes: remotes,
     bridge,
-    devPorts,
     publicWeb,
     writeAppFile,
   };
@@ -125,20 +122,6 @@ export function writeApp(
   writeAppApiAndRemoteExposeFiles(context);
 }
 
-export function rewriteAppModernConfig(
-  targetDir: string,
-  scope: string,
-  app: WorkspaceApp,
-  remotes: WorkspaceApp[],
-  enableTailwind: boolean,
-  devPorts?: number[],
-) {
-  writeFileReplacing(
-    targetDir,
-    `${app.directory}/modern.config.ts`,
-    createAppModernConfig(scope, app, remotes, enableTailwind, devPorts),
-  );
-}
 function writeAppConfigFiles({
   targetDir,
   scope,
@@ -149,7 +132,6 @@ function writeAppConfigFiles({
   remotes,
   availableRemotes,
   bridge,
-  devPorts,
   publicWeb,
 }: WriteAppContext) {
   writeJson(
@@ -218,13 +200,7 @@ function writeAppConfigFiles({
   writeFile(
     targetDir,
     `${resolvedApp.directory}/modern.config.ts`,
-    createAppModernConfig(
-      scope,
-      resolvedApp,
-      remotes,
-      enableTailwind,
-      devPorts,
-    ),
+    createAppModernConfig(resolvedApp, enableTailwind),
   );
   if (emitsUi) {
     writeFile(

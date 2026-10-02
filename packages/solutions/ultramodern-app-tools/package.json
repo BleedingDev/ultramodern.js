@@ -43,6 +43,21 @@
       },
       "types": "./dist/types/native-composition/server-plugin.d.ts"
     },
+    "./router-state-runtime": {
+      "modern:source": "./src/native-composition/router-state-runtime.ts",
+      "node": {
+        "import": {
+          "types": "./dist/types-esm/native-composition/router-state-runtime.d.mts",
+          "default": "./dist/esm-node/native-composition/router-state-runtime.mjs"
+        },
+        "require": {
+          "types": "./dist/types/native-composition/router-state-runtime.d.ts",
+          "default": "./dist/cjs/native-composition/router-state-runtime.js"
+        }
+      },
+      "default": "./dist/esm/native-composition/router-state-runtime.mjs",
+      "types": "./dist/types-esm/native-composition/router-state-runtime.d.mts"
+    },
     "./router-runtime": {
       "modern:source": "./src/native-composition/router-runtime.ts",
       "node": {
@@ -106,6 +121,10 @@
       "server-plugin": [
         "./dist/types/native-composition/server-plugin.d.ts",
         "./src/native-composition/server-plugin.ts"
+      ],
+      "router-state-runtime": [
+        "./dist/types/native-composition/router-state-runtime.d.ts",
+        "./src/native-composition/router-state-runtime.ts"
       ],
       "router-runtime": [
         "./dist/types/native-composition/router-runtime.d.ts",

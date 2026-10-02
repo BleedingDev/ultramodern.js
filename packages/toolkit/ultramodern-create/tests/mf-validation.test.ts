@@ -2,12 +2,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { inspectModuleFederationConfigSource } from '@modern-js/app-tools-extensions/module-federation-config';
 import { format } from 'oxfmt';
 import {
   discoverModuleFederationConfigs,
   validateModuleFederationTypes,
 } from '../src/ultramodern-workspace/mf-validation';
-import { inspectModuleFederationConfigSource } from '../src/ultramodern-workspace/mf-validation/inspect';
 
 type WorkspaceFiles = Record<string, string | Buffer>;
 
