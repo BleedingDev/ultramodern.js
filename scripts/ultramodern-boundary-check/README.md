@@ -36,6 +36,15 @@ including identities subsequently renamed outside `src`, plus source files
 added inside upstream-owned packages. Fixture sources remain in that scope.
 Measured `pnpm-workspace.yaml` patterns select package manifests, so fixture
 manifests cannot replace real package identity and nested workspaces are retained.
+Workspace metadata uses a dependency-free bounded YAML reader: indented block
+mappings/sequences, single-line quoted strings (JSON escapes in double quotes),
+plain scalar values and comments. It validates the entire document and requires
+one top-level nonempty `packages` string sequence. Duplicate decoded keys,
+ambiguous indentation/quotes, aliases, anchors, tags, flow collections, complex
+keys, directives, document markers and block scalar strings fail closed. Import
+mode needs the CI-provided Babel parser; divergence/governance and module loading
+need no parser installation. Generated bundles and network fallback are never
+inputs to workspace parsing.
 
 Babel inspects literal static imports, dynamic imports, requires, type imports,
 import-equals and re-exports. Resolution uses measured source exports, private

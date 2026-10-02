@@ -1,6 +1,5 @@
 const fs = require('fs');
 const path = require('path');
-const { parseSync, types: babelTypes } = require('@babel/core');
 
 const { createRepositoryGitEnv, runCommand } = require('../lib/process-kit');
 const {
@@ -204,6 +203,7 @@ const RETIRED_REQUEST_POLICY_NAMES = new Set([
 ]);
 
 const parseSourceAst = (content, file) => {
+  const { parseSync } = require('@babel/core');
   try {
     return parseSync(content, {
       filename: file,
@@ -227,6 +227,7 @@ const astName = node =>
       : null;
 
 const collectModuleReferences = ast => {
+  const { types: babelTypes } = require('@babel/core');
   const references = [];
   babelTypes.traverseFast(ast, node => {
     let source;
@@ -302,6 +303,7 @@ const hasOnlyNativeRequestBindings = (content, file = 'index.ts') => {
 };
 
 const publicBindings = ast => {
+  const { types: babelTypes } = require('@babel/core');
   const bindings = [];
   const wildcardSources = [];
   for (const node of ast.program.body) {
@@ -338,6 +340,7 @@ const publicBindings = ast => {
 };
 
 const containsRetiredRequestPolicy = ast => {
+  const { types: babelTypes } = require('@babel/core');
   let found = false;
   babelTypes.traverseFast(ast, node => {
     if (

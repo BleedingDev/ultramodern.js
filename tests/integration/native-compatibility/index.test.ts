@@ -29,8 +29,12 @@ for (const target of targets) {
             /<p\b[^>]*\bid="home"[^>]*>Native home<\/p>/,
           );
           const greeting = await fetch(`${origin}/greeting`);
-          expect(greeting.status).toBe(200);
-          expect(await greeting.text()).toMatch(
+          const greetingHtml = await greeting.text();
+          expect(
+            greeting.status,
+            `${target}/${mode}/${phase} GET /greeting\n${greetingHtml}`,
+          ).toBe(200);
+          expect(greetingHtml).toMatch(
             /<p\b[^>]*\bid="greeting"[^>]*>Hello from native loader<\/p>/,
           );
           const redirect = await fetch(`${origin}/redirect`, {
@@ -116,6 +120,11 @@ for (const target of targets) {
           await consumer.stop(app);
           app = undefined;
         }
+      } catch (error) {
+        console.error(
+          `[native-compatibility] ${target}/${mode} failed\n${consumer.diagnostics()}`,
+        );
+        throw error;
       } finally {
         try {
           if (app) await consumer.stop(app);
