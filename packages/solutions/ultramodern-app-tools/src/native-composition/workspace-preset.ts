@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isDeepStrictEqual } from 'node:util';
 import type { AppTools, CliPlugin } from '@modern-js/app-tools';
 import type {
   CloudflareWorkerServiceBindingConfig,
@@ -162,6 +163,14 @@ const zephyrBuildPlugin = (
         'ZE_CI_TOKEN is set but ZE_FAIL_BUILD is not "true", so a failed Zephyr upload would not fail the deploy. Set ZE_FAIL_BUILD=true in the deploy environment next to ZE_CI_TOKEN.',
       );
     }
+    if (
+      environment.ZE_CI_TOKEN !== process.env.ZE_CI_TOKEN ||
+      environment.ZE_FAIL_BUILD !== process.env.ZE_FAIL_BUILD
+    ) {
+      throw new Error(
+        'Zephyr reads credentials and fail-build policy from process.env. ZE_CI_TOKEN and ZE_FAIL_BUILD must match the supplied build environment before its uploader can register.',
+      );
+    }
     // Resolve the app's declared uploader only for an authoritative deploy.
     // Ordinary builds never load Zephyr, contact it, or require an account.
     const require = createRequire(from);
@@ -177,7 +186,7 @@ const dynamicCloudflareServicesPlugin = (
   dynamicRemotes: Set<TopologyApp>,
   workspaceRoot: string,
   environment: Readonly<NodeJS.ProcessEnv>,
-  initialServiceCount: number,
+  initialServices: readonly CloudflareWorkerServiceBindingConfig[],
 ): CliPlugin<AppTools> => ({
   name: '@modern-js/ultramodern-workspace-services',
   setup(api) {
@@ -216,12 +225,19 @@ const dynamicCloudflareServicesPlugin = (
         const binding = serviceBinding(remote, environment, exposes);
         if (binding) services.push(binding);
       }
-      // Preset-first array merging puts the known native services before
-      // authored entries. Replace that native prefix after dynamic configs
-      // load, retaining every authored service and the rest of worker config.
+      // Native config-hook contributions can precede preset services. Replace
+      // only the original native bindings, wherever merge placed them, so
+      // authored config and plugin contributions retain their services.
+      const remainingInitialServices = [...initialServices];
       const authoredServices =
-        normalizedConfig.deploy.worker?.services?.slice(initialServiceCount) ??
-        [];
+        normalizedConfig.deploy.worker?.services?.filter(service => {
+          const index = remainingInitialServices.findIndex(initial =>
+            isDeepStrictEqual(service, initial),
+          );
+          if (index < 0) return true;
+          remainingInitialServices.splice(index, 1);
+          return false;
+        }) ?? [];
       return {
         ...normalizedConfig,
         deploy: {
@@ -495,7 +511,7 @@ const resolveWorkspaceConfig = (
               dynamicRemotes,
               workspaceRoot,
               environment,
-              services.length,
+              services,
             ),
           ]
         : []),

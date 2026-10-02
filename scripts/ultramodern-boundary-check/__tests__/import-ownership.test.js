@@ -90,6 +90,31 @@ test('ownership catches innocuous fork package names and deep source exports, wh
   ]);
 });
 
+test('package export patterns select the longest static prefix before a longer suffix in normal and modern source targets', t => {
+  const { root, source, write, manifest, commit, scan } = fixture(t);
+  const nativeTarget = 'packages/toolkit/innocent/src/native.ts';
+  git(root, 'mv', 'packages/runtime/native/src/stable.ts', nativeTarget);
+  write(
+    'packages/toolkit/innocent/src/fork.js.ts',
+    'export const forkPolicy = true;',
+  );
+  write(source, "import '@modern-js/ordinary/policy.js';");
+  for (const modernSource of [false, true]) {
+    const target = value => (modernSource ? { 'modern:source': value } : value);
+    manifest('packages/toolkit/innocent', '@modern-js/ordinary', {
+      exports: {
+        './policy*': target('./src/fork*.ts'),
+        './p*licy.js': target('./src/native.ts'),
+      },
+    });
+    const violations = scan(commit()).violations;
+    assert.equal(violations.length, 1);
+    assert.deepEqual(violations[0].targets, [
+      'packages/toolkit/innocent/src/fork.js.ts',
+    ]);
+  }
+});
+
 test('measured workspace patterns distinguish nested packages from fixture manifests without exempting fixture sources', t => {
   const { source, write, manifest, scan } = fixture(t);
   write(
@@ -120,6 +145,94 @@ test('measured workspace patterns distinguish nested packages from fixture manif
   assert.ok(
     violations.some(record => record.file.endsWith('/fixtures/input.ts')),
   );
+});
+
+test('pnpm directory glob normalization includes ./ prefixes and trailing slashes with exclusions', t => {
+  const { source, write, manifest, scan } = fixture(t);
+  manifest('packages/runtime/native', '@modern-js/native', {
+    dependencies: { '@modern-js/ordinary': 'workspace:*' },
+  });
+  // This duplicate name must remain excluded under each normalized negation.
+  manifest('packages/toolkit/excluded', '@modern-js/ordinary');
+  write(source, "import '@modern-js/ordinary';");
+  for (const [prefix, suffix] of [
+    ['./', ''],
+    ['', '/'],
+    ['./', '/'],
+  ]) {
+    write(
+      'pnpm-workspace.yaml',
+      `packages:\n  - '${prefix}packages/runtime/*${suffix}'\n  - '${prefix}packages/toolkit/*${suffix}'\n  - '!${prefix}packages/toolkit/excluded${suffix}'\n`,
+    );
+    const violations = scan().violations;
+    assert.equal(violations.length, 1);
+    assert.deepEqual(violations[0].targets, [
+      'packages/toolkit/innocent/src/index.ts',
+    ]);
+  }
+});
+
+test('versionless scoped and unscoped npm aliases retain measured fork package ownership', t => {
+  const { source, write, manifest, scan } = fixture(t);
+  write(source, "import 'friendly';");
+  for (const name of ['@modern-js/ordinary', 'fork-policy']) {
+    manifest('packages/toolkit/innocent', name);
+    for (const version of ['', '@*', '@1.0.0']) {
+      manifest('packages/runtime/native', '@modern-js/native', {
+        dependencies: { friendly: `npm:${name}${version}` },
+      });
+      const violations = scan().violations;
+      assert.equal(violations.length, 1);
+      assert.deepEqual(violations[0].targets, [
+        'packages/toolkit/innocent/src/index.ts',
+      ]);
+    }
+  }
+});
+
+test('runtime package imports branches cannot hide fork ownership behind a native modern source condition', t => {
+  const { root, source, write, manifest, scan } = fixture(t);
+  write('packages/runtime/native/src/stable.js', 'module.exports = "native";');
+  write(
+    'packages/toolkit/innocent/src/runtime.cjs',
+    'module.exports = "fork";',
+  );
+  manifest('packages/toolkit/innocent', '@modern-js/ordinary', {
+    exports: { '.': './src/runtime.cjs' },
+  });
+  manifest('packages/runtime/native', '@modern-js/native', {
+    imports: {
+      '#policy': {
+        'modern:source': './src/stable.js',
+        default: '@modern-js/ordinary',
+      },
+    },
+  });
+  write(source, "const policy = require('#policy');");
+  fs.mkdirSync(path.join(root, 'packages/runtime/native/node_modules'), {
+    recursive: true,
+  });
+  // Use a scoped package link while keeping installation output out of Git.
+  fs.mkdirSync(
+    path.join(root, 'packages/runtime/native/node_modules/@modern-js'),
+  );
+  fs.symlinkSync(
+    path.join(root, 'packages/toolkit/innocent'),
+    path.join(root, 'packages/runtime/native/node_modules/@modern-js/ordinary'),
+  );
+  write('.gitignore', 'node_modules/\n');
+  const value = execFileSync(
+    process.execPath,
+    ['-e', "process.stdout.write(require('#policy'));"],
+    { cwd: path.join(root, 'packages/runtime/native'), encoding: 'utf8' },
+  );
+  assert.equal(value, 'fork');
+  const violations = scan().violations;
+  assert.equal(violations.length, 1);
+  assert.deepEqual(violations[0].targets, [
+    'packages/toolkit/innocent/src/runtime.cjs',
+    'packages/toolkit/innocent/src/index.ts',
+  ]);
 });
 
 test('actual ownership scanning uses only the CI-provided Babel dependency, without YAML packages or generated bundles', t => {
@@ -267,7 +380,7 @@ test('package imports aliases resolve conditional and wildcard source targets, w
   });
   write(source, "import '#fork'; import '#detail/policy'; import '#source';");
   const head = commit();
-  assert.equal(scan().violations.length, 2);
+  assert.equal(scan().violations.length, 3);
   manifest(root, '@modern-js/native', {
     imports: {
       '#fork': './src/stable.ts',
@@ -276,7 +389,7 @@ test('package imports aliases resolve conditional and wildcard source targets, w
     },
   });
   assert.equal(scan().violations.length, 0);
-  assert.equal(scan(head).violations.length, 2);
+  assert.equal(scan(head).violations.length, 3);
   manifest(root, '@modern-js/native', {
     imports: { '#cycle-one': '#cycle-two', '#cycle-two': '#cycle-one' },
   });

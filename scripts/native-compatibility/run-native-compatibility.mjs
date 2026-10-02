@@ -20,7 +20,10 @@ export function compatibilityCommand(argv = []) {
   if (!['all', 'upstream', 'fork'].includes(target)) {
     throw new Error('--target must be all, upstream, or fork');
   }
-  const suites = ['integration/native-compatibility/index.test.ts'];
+  const targets = target === 'all' ? ['upstream', 'fork'] : [target];
+  const suites = targets.map(
+    target => `integration/native-compatibility/${target}.test.ts`,
+  );
   if (!nativeOnly && target !== 'upstream') {
     suites.push(
       'integration/routes-tanstack/tests/index.test.ts',

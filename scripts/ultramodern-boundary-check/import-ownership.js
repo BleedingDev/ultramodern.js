@@ -124,7 +124,17 @@ const createImportOwnership = ({
   );
   const workspaceText = read('pnpm-workspace.yaml');
   const workspacePatterns =
-    workspaceText === null ? null : parseWorkspacePatterns(workspaceText);
+    workspaceText === null
+      ? null
+      : parseWorkspacePatterns(workspaceText).map(pattern => {
+          const negative = pattern.startsWith('!');
+          const value = negative ? pattern.slice(1) : pattern;
+          // pnpm accepts directory globs with ./ prefixes and trailing slashes;
+          // matchesGlob compares the normalized directory without those parts.
+          return `${negative ? '!' : ''}${value
+            .replace(/^(?:\.\/)+/, '')
+            .replace(/\/+$/, '')}`;
+        });
   for (const file of files) {
     if (!manifestFiles.includes(file)) continue;
     // Nested manifests belong to fixture/application data, not the workspace
@@ -165,7 +175,10 @@ const createImportOwnership = ({
   manifests.sort((left, right) => right.root.length - left.root.length);
   const packageForFile = file =>
     manifests.find(record => inDirectory(file, record.root));
-  const resolveFile = value => {
+  const resolveFile = (
+    value,
+    { typescript = false, seen = new Set() } = {},
+  ) => {
     const normalized = path.posix.normalize(value);
     if (normalized.startsWith('../') || path.posix.isAbsolute(normalized))
       return null;
@@ -178,10 +191,29 @@ const createImportOwnership = ({
     candidates.push(
       ...sourceExtensions.map(extension => normalized + extension),
     );
-    candidates.push(
-      ...sourceExtensions.map(extension => `${normalized}/index${extension}`),
-    );
-    const resolved = candidates.find(candidate => files.has(candidate)) ?? null;
+    let resolved = candidates.find(candidate => files.has(candidate)) ?? null;
+    if (!resolved && typescript && files.has(`${normalized}/package.json`)) {
+      if (seen.has(normalized))
+        throw new Error(`Cyclic TypeScript directory target: ${normalized}`);
+      seen.add(normalized);
+      const metadata = JSON.parse(read(`${normalized}/package.json`));
+      for (const field of ['types', 'typings', 'main']) {
+        if (!Object.hasOwn(metadata, field)) continue;
+        if (typeof metadata[field] !== 'string')
+          throw new Error(
+            `Malformed TypeScript directory ${field}: ${normalized}`,
+          );
+        resolved = resolveFile(path.posix.join(normalized, metadata[field]), {
+          typescript: true,
+          seen: new Set(seen),
+        });
+        if (resolved) break;
+      }
+    }
+    resolved ??=
+      sourceExtensions
+        .map(extension => `${normalized}/index${extension}`)
+        .find(candidate => files.has(candidate)) ?? null;
     if (resolved) assertOrdinary(resolved);
     return resolved;
   };
@@ -199,11 +231,58 @@ const createImportOwnership = ({
     if (typeof value === 'string') return [value];
     if (Array.isArray(value)) return value.flatMap(sourceTargets);
     if (!value || typeof value !== 'object') return [];
-    if (Object.hasOwn(value, 'modern:source'))
-      return sourceTargets(value['modern:source']);
-    return Object.values(value).flatMap(sourceTargets);
+    return Object.entries(value)
+      .filter(
+        ([condition]) =>
+          condition !== 'types' || !Object.hasOwn(value, 'modern:source'),
+      )
+      .flatMap(([, target]) => sourceTargets(target));
   };
-  const resolvePackage = (specifier, importer, seen = new Set()) => {
+  const configTargets = value => {
+    if (typeof value === 'string') return [value];
+    if (Array.isArray(value)) return value.flatMap(configTargets);
+    if (!value || typeof value !== 'object') return [];
+    for (const [condition, target] of Object.entries(value)) {
+      if (['types', 'node', 'require', 'default'].includes(condition)) {
+        const targets = configTargets(target);
+        if (targets.length) return targets;
+      }
+    }
+    return [];
+  };
+  const exportTargets = (exports, key, collect = sourceTargets) => {
+    if (
+      exports &&
+      typeof exports === 'object' &&
+      !Array.isArray(exports) &&
+      Object.keys(exports).some(key => key.startsWith('.'))
+    ) {
+      if (Object.hasOwn(exports, key)) return collect(exports[key]);
+      const wildcard = Object.keys(exports)
+        .filter(candidate => candidate.includes('*'))
+        .sort(
+          (left, right) =>
+            right.split('*')[0].length - left.split('*')[0].length ||
+            right.length - left.length,
+        )
+        .find(
+          candidate =>
+            key.startsWith(candidate.split('*')[0]) &&
+            key.endsWith(candidate.split('*')[1]),
+        );
+      if (!wildcard) return [];
+      const [before, after] = wildcard.split('*');
+      const replacement = key.slice(
+        before.length,
+        key.length - after.length || undefined,
+      );
+      return collect(exports[wildcard]).map(target =>
+        target.replaceAll('*', replacement),
+      );
+    }
+    return key === '.' ? collect(exports) : [];
+  };
+  const resolvePackageRecord = (specifier, importer, seen = new Set()) => {
     const name = packageName(specifier);
     if (seen.has(name)) throw new Error(`Cyclic package alias: ${specifier}`);
     seen.add(name);
@@ -218,10 +297,15 @@ const createImportOwnership = ({
     const subpath = specifier.slice(name.length);
     let record = packages.get(name);
     if (typeof range === 'string') {
-      const alias = /^(?:npm:|workspace:)((?:@[^/]+\/)?[^@/*~^<>=]+)@/.exec(
-        range,
-      );
-      if (alias) return resolvePackage(alias[1] + subpath, importer, seen);
+      const alias =
+        /^npm:((?:@[a-z\d][a-z\d._~-]*\/)?[a-z\d][a-z\d._~-]*)(?:@[^@\s]*)?$/i.exec(
+          range,
+        ) ??
+        /^workspace:((?:@[a-z\d][a-z\d._~-]*\/)?[a-z\d][a-z\d._~-]*)@[^@\s]*$/i.exec(
+          range,
+        );
+      if (alias)
+        return resolvePackageRecord(alias[1] + subpath, importer, seen);
       if (/^(?:file:|link:|workspace:\.)/.test(range)) {
         const directory = path.posix.normalize(
           path.posix.join(
@@ -243,42 +327,20 @@ const createImportOwnership = ({
         );
       return null;
     }
-    const key = subpath ? `.${subpath}` : '.';
-    const exports = record.manifest.exports;
-    let targets;
-    if (
-      exports &&
-      typeof exports === 'object' &&
-      !Array.isArray(exports) &&
-      Object.keys(exports).some(key => key.startsWith('.'))
-    ) {
-      targets = sourceTargets(exports[key]);
-      if (targets.length === 0) {
-        const wildcard = Object.keys(exports)
-          .filter(candidate => candidate.includes('*'))
-          .sort((left, right) => right.length - left.length)
-          .find(
-            candidate =>
-              key.startsWith(candidate.split('*')[0]) &&
-              key.endsWith(candidate.split('*')[1]),
-          );
-        if (wildcard) {
-          const [before, after] = wildcard.split('*');
-          const replacement = key.slice(
-            before.length,
-            key.length - after.length || undefined,
-          );
-          targets = sourceTargets(exports[wildcard]).map(target =>
-            target.replaceAll('*', replacement),
-          );
-        }
-      }
-    } else {
-      targets = subpath
-        ? []
-        : sourceTargets(
-            record.manifest['modern:source'] ?? exports ?? record.manifest.main,
-          );
+    return { record, subpath };
+  };
+  const resolvePackage = (specifier, importer) => {
+    const selected = resolvePackageRecord(specifier, importer);
+    if (!selected) return null;
+    const { record, subpath } = selected;
+    const targets = exportTargets(
+      record.manifest.exports,
+      subpath ? `.${subpath}` : '.',
+    );
+    if (!subpath) {
+      targets.push(...sourceTargets(record.manifest['modern:source']));
+      if (record.manifest.exports === undefined)
+        targets.push(...sourceTargets(record.manifest.main));
     }
     // Published dist paths map back to their source identities. An explicit
     // source export takes precedence over a conventional src/subpath fallback.
@@ -359,14 +421,54 @@ const createImportOwnership = ({
         : []) {
       let target;
       if (!parent.startsWith('.')) {
-        const resolved = resolvePackage(parent, file);
-        target = resolved?.find(
-          record =>
-            record.target.endsWith('.json') &&
-            !record.target.endsWith('/package.json'),
-        )?.target;
-        // External configuration is outside the measured workspace tree.
-        if (!target) continue;
+        const selected = resolvePackageRecord(parent, file);
+        if (!selected)
+          throw new Error(
+            `Unsupported external TypeScript configuration: ${parent} in ${file}`,
+          );
+        const { record, subpath } = selected;
+        if (record.manifest.exports !== undefined) {
+          const exported = exportTargets(
+            record.manifest.exports,
+            subpath ? `.${subpath}` : '.',
+            configTargets,
+          );
+          for (const candidate of exported) {
+            if (!candidate.startsWith('./'))
+              throw new Error(
+                `Malformed TypeScript config exports: ${record.file}`,
+              );
+            const measured = path.posix.normalize(
+              path.posix.join(record.root, candidate),
+            );
+            if (files.has(measured) && measured.endsWith('.json')) {
+              target = measured;
+              break;
+            }
+          }
+          if (!target)
+            throw new Error(
+              `Unsupported or ambiguous TypeScript config exports: ${parent} in ${file}`,
+            );
+          inherited = { ...inherited, ...pathsFor(target, new Set(seen)) };
+          continue;
+        }
+        const configured = record.manifest.tsconfig;
+        if (
+          !subpath &&
+          configured !== undefined &&
+          typeof configured !== 'string'
+        )
+          throw new Error(
+            `Malformed TypeScript package configuration: ${record.file}`,
+          );
+        target = path.posix.normalize(
+          path.posix.join(
+            record.root,
+            subpath ? subpath.slice(1) : (configured ?? 'tsconfig.json'),
+          ),
+        );
+        if (!files.has(target)) target += '.json';
       } else {
         target = path.posix.normalize(
           path.posix.join(path.posix.dirname(file), parent),
@@ -428,6 +530,7 @@ const createImportOwnership = ({
     if (specifier.startsWith('.')) {
       const target = resolveFile(
         path.posix.join(path.posix.dirname(importer), specifier),
+        { typescript: /\.(?:ts|tsx|mts|cts)$/.test(importer) },
       );
       return target ? [classify(target, packageForFile(target))] : [];
     }
@@ -457,6 +560,7 @@ const createImportOwnership = ({
       for (const target of targets) {
         const resolved = resolveFile(
           path.posix.join(directory, target.replaceAll('*', replacement)),
+          { typescript: true },
         );
         if (resolved) return [classify(resolved, packageForFile(resolved))];
       }
@@ -465,7 +569,9 @@ const createImportOwnership = ({
       );
     }
     if (config.baseUrl !== undefined) {
-      const target = resolveFile(path.posix.join(config.baseUrl, specifier));
+      const target = resolveFile(path.posix.join(config.baseUrl, specifier), {
+        typescript: true,
+      });
       if (target) return [classify(target, packageForFile(target))];
     }
     if (specifier.startsWith('#')) {

@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { compileFunction } from 'node:vm';
+import { parseSync, types } from '@babel/core';
 import {
   assertConsumerLockfile,
   assertInstalledConsumer,
@@ -27,6 +29,292 @@ const ownedDirectory = callback => {
     fs.rmSync(root, { recursive: true, force: true });
   }
 };
+
+// Exercise the production method and its private shutdown functions without
+// installing a framework or adding a test-only public process API.
+const consumerSource = fs.readFileSync(
+  new URL('./consumer.mjs', import.meta.url),
+  'utf8',
+);
+const consumerAst = parseSync(consumerSource, {
+  babelrc: false,
+  configFile: false,
+  sourceType: 'module',
+});
+const buildMethods = [];
+const shutdownFunctions = [];
+const guardianFunctions = [];
+types.traverseFast(consumerAst, node => {
+  if (types.isObjectMethod(node) && node.key.name === 'build')
+    buildMethods.push(node);
+  if (
+    types.isFunctionDeclaration(node) &&
+    ['terminate', 'stopChild'].includes(node.id?.name)
+  )
+    shutdownFunctions.push(node);
+  if (types.isFunctionDeclaration(node) && node.id?.name === 'guardian')
+    guardianFunctions.push(node);
+});
+assert.equal(
+  buildMethods.length,
+  1,
+  'Expected one native consumer build method',
+);
+assert.equal(shutdownFunctions.length, 2, 'Expected native shutdown functions');
+assert.equal(guardianFunctions.length, 1, 'Expected one artifact guardian');
+const nativeGuardian = compileFunction(
+  `${consumerSource.slice(
+    guardianFunctions[0].start,
+    guardianFunctions[0].end,
+  )}\nreturn guardian;`,
+  ['process', 'execFileSync', 'Date', 'Math', 'Atomics'],
+);
+const nativeBuild = compileFunction(
+  `${shutdownFunctions
+    .map(node => consumerSource.slice(node.start, node.end))
+    .join('\n')}\nreturn {${consumerSource.slice(
+    buildMethods[0].start,
+    buildMethods[0].end,
+  )}}.build;`,
+  [
+    'startCommand',
+    'children',
+    'appDir',
+    'fs',
+    'path',
+    'guardian',
+    'owner',
+    'process',
+    'execFileSync',
+  ],
+);
+
+test('artifact registration retries exact guardian lock contention and preserves arguments', () => {
+  const args = ['register', '/owned/node_modules', '--owner', 'test-owner'];
+  const lock = Object.assign(new Error('guardian failed'), {
+    status: 1,
+    stdout: Buffer.from(
+      JSON.stringify({
+        status: 'failed',
+        reason: 'another maintenance operation holds the lock',
+      }),
+    ),
+  });
+  let calls = 0;
+  const waits = [];
+  const guardian = nativeGuardian(
+    { platform: 'darwin', env: {} },
+    (command, actualArgs) => {
+      assert.equal(command, 'disk-guardian-artifacts');
+      assert.equal(actualArgs, args);
+      if (++calls === 1) throw lock;
+    },
+    Date,
+    Math,
+    { wait: (_array, _index, _expected, delay) => waits.push(delay) },
+  );
+  guardian(args);
+  assert.equal(calls, 2);
+  assert.equal(waits.length, 1);
+  assert.ok(waits[0] >= 100 && waits[0] <= 200);
+});
+
+test('artifact guardian fails immediately for non-lock or unstructured errors', () => {
+  for (const [status, stdout] of [
+    [
+      1,
+      JSON.stringify({
+        status: 'failed',
+        reason: 'owner or identity mismatch',
+      }),
+    ],
+    [1, 'another maintenance operation holds the lock'],
+    [
+      2,
+      JSON.stringify({
+        status: 'failed',
+        reason: 'another maintenance operation holds the lock',
+      }),
+    ],
+  ]) {
+    const failure = Object.assign(new Error('guardian failed'), {
+      status,
+      stdout: Buffer.from(stdout),
+    });
+    let calls = 0;
+    const guardian = nativeGuardian(
+      { platform: 'darwin', env: {} },
+      () => {
+        calls++;
+        throw failure;
+      },
+      Date,
+      Math,
+      { wait: () => assert.fail('Unexpected artifact retry') },
+    );
+    assert.throws(
+      () => guardian(['register', '/owned/node_modules']),
+      error => {
+        assert.equal(error.cause, failure);
+        assert.ok(error.message.includes(stdout));
+        return true;
+      },
+    );
+    assert.equal(calls, 1);
+  }
+});
+
+test('artifact guardian stops retrying after 150 seconds of lock contention', () => {
+  let now = 0;
+  let calls = 0;
+  const failure = Object.assign(new Error('guardian failed'), {
+    status: 1,
+    stdout: Buffer.from(
+      JSON.stringify({
+        status: 'failed',
+        reason: 'another maintenance operation holds the lock',
+      }),
+    ),
+  });
+  const guardian = nativeGuardian(
+    { platform: 'darwin', env: {} },
+    () => {
+      calls++;
+      throw failure;
+    },
+    { now: () => now },
+    { ...Math, random: () => 0, floor: Math.floor, min: Math.min },
+    {
+      wait: (_array, _index, _expected, delay) => {
+        now += delay;
+      },
+    },
+  );
+  assert.throws(
+    () => guardian(['register', '/owned/node_modules']),
+    error => {
+      assert.equal(error.cause, failure);
+      return true;
+    },
+  );
+  assert.equal(now, 150_000);
+  assert.equal(calls, 1501);
+});
+
+test('native builds stop descendants after the CLI exits on success and failure', {
+  skip: process.platform === 'win32',
+  timeout: 10_000,
+}, async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'native-build-process-'));
+  const groups = new Set();
+  try {
+    for (const exitCode of [0, 19]) {
+      let child;
+      let output = '';
+      const children = new Set();
+      const failure = new Error('Native build failed');
+      const startCommand = () => {
+        child = spawn(
+          process.execPath,
+          [
+            '-e',
+            `const { spawn } = require('node:child_process');
+const descendant = spawn(process.execPath, ['-e', 'process.on("SIGTERM", () => {}); console.log("ready"); setInterval(() => {}, 1000)'], { stdio: ['ignore', 'pipe', 'ignore'] });
+descendant.stdout.once('data', () => {
+  console.log(descendant.pid);
+  descendant.stdout.destroy();
+  descendant.unref();
+  process.exit(${exitCode});
+});`,
+          ],
+          { detached: true, stdio: ['ignore', 'pipe', 'pipe'] },
+        );
+        groups.add(child.pid);
+        children.add(child);
+        child.stdout.on('data', chunk => {
+          output += chunk;
+        });
+        const exited = new Promise((resolve, reject) => {
+          child.once('error', reject);
+          child.once('close', code => {
+            if (code === 0) resolve();
+            else reject(failure);
+          });
+        });
+        return { child, exited };
+      };
+      const build = nativeBuild(
+        startCommand,
+        children,
+        root,
+        fs,
+        path,
+        () => {},
+        'test-owner',
+        process,
+        execFileSync,
+      );
+      if (exitCode === 0) await build('string');
+      else await assert.rejects(build('string'), error => error === failure);
+      assert.equal(child.exitCode, exitCode);
+      assert.equal(children.size, 0);
+      const descendantPid = Number(output.trim());
+      assert.ok(descendantPid > 0, 'Expected the native CLI descendant PID');
+      const deadline = Date.now() + 1000;
+      let state;
+      do {
+        state = spawnSync('ps', ['-o', 'stat=', '-p', String(descendantPid)], {
+          encoding: 'utf8',
+        }).stdout.trim();
+        if (!state || state.startsWith('Z')) break;
+        await new Promise(resolve => setTimeout(resolve, 10));
+      } while (Date.now() < deadline);
+      assert.ok(
+        !state || state.startsWith('Z'),
+        'Native build descendant is alive',
+      );
+      groups.delete(child.pid);
+    }
+  } finally {
+    for (const pid of groups) {
+      try {
+        process.kill(-pid, 'SIGKILL');
+      } catch (error) {
+        assert.equal(error.code, 'ESRCH');
+      }
+    }
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('native build cleanup preserves the original failure and keeps the child tracked', async () => {
+  const failure = new Error('Native build failed');
+  const cleanupFailure = new Error('Cannot stop native child');
+  const child = { pid: 123, exitCode: 19, signalCode: null };
+  const children = new Set([child]);
+  const build = nativeBuild(
+    () => ({ child, exited: Promise.reject(failure) }),
+    children,
+    '/unused',
+    fs,
+    path,
+    () => {},
+    'test-owner',
+    {
+      platform: 'linux',
+      kill() {
+        throw cleanupFailure;
+      },
+    },
+    execFileSync,
+  );
+  await assert.rejects(build('string'), error => {
+    assert.ok(error instanceof AggregateError);
+    assert.deepEqual(error.errors, [failure, cleanupFailure]);
+    return true;
+  });
+  assert.equal(children.has(child), true);
+});
 
 test('non-ending HTTP error diagnostics return partial text even if cancellation stalls', {
   timeout: 1000,
@@ -299,7 +587,10 @@ test('default acceptance runs native baseline, plain TanStack, RSC and federatio
   const command = compatibilityCommand(['--prepared']);
   assert.ok(command.args.includes('--prepared'));
   assert.ok(
-    command.args.includes('integration/native-compatibility/index.test.ts'),
+    command.args.includes('integration/native-compatibility/upstream.test.ts'),
+  );
+  assert.ok(
+    command.args.includes('integration/native-compatibility/fork.test.ts'),
   );
   assert.ok(
     command.args.includes('integration/routes-tanstack-mf/test/index.test.ts'),
@@ -313,6 +604,19 @@ test('default acceptance runs native baseline, plain TanStack, RSC and federatio
     ),
   );
   assert.equal(command.env.NATIVE_COMPATIBILITY_TARGET, 'all');
+  for (const target of ['upstream', 'fork']) {
+    const selected = compatibilityCommand([
+      '--prepared',
+      '--native-only',
+      '--target',
+      target,
+    ]);
+    assert.deepEqual(
+      selected.args.filter(argument => argument.endsWith('.test.ts')),
+      [`integration/native-compatibility/${target}.test.ts`],
+    );
+    assert.equal(selected.env.NATIVE_COMPATIBILITY_TARGET, target);
+  }
   assert.throws(() => compatibilityCommand(['--target', 'latest']), /--target/);
 });
 

@@ -607,7 +607,8 @@ export const createRequestHandler: CreateRequestHandler = async (
           () => runBeforeRender(context),
         );
 
-        await runWithRequestLifecycleOnError(lifecycle, async () => {
+        let redirectResponse: Response | undefined;
+        try {
           const prepared: SSRRequestPreparedInfo<TInternalRuntimeContext> = {
             runtimeContext: context,
             routerResult: context.routerContext,
@@ -615,24 +616,38 @@ export const createRequestHandler: CreateRequestHandler = async (
           const result =
             (await hooks.onRenderPrepared?.call(prepared)) ?? prepared;
           applyRouterResult(context, result.routerResult, options.onError);
-        });
 
-        if (typeof Response !== 'undefined') {
-          const redirectResponse = await runWithRequestLifecycleOnError(
-            lifecycle,
-            () => createLoaderRedirectResponse(beforeRenderResult, redirectCtx),
-          );
-          if (redirectResponse) {
-            if (
-              beforeRenderResult?.body &&
-              redirectResponse !== beforeRenderResult
-            ) {
-              await lifecycle.discardBody(beforeRenderResult);
-            }
-            return finishWithRequestLifecycle(lifecycle, () =>
-              lifecycle.deferUntilBodyDone(redirectResponse),
+          if (typeof Response !== 'undefined') {
+            redirectResponse = createLoaderRedirectResponse(
+              beforeRenderResult,
+              redirectCtx,
             );
           }
+        } catch (error) {
+          if (beforeRenderResult) {
+            try {
+              await lifecycle.discardBody(beforeRenderResult, {
+                status: 'error',
+                error,
+              });
+            } catch {
+              // Keep the original failure; cancellation diagnostics are
+              // reported by the lifecycle, and locked bodies retain ownership.
+            }
+          } else {
+            await lifecycle.run({ status: 'error', error });
+          }
+          throw error;
+        }
+
+        if (redirectResponse) {
+          const response = redirectResponse;
+          if (beforeRenderResult?.body && response !== beforeRenderResult) {
+            await lifecycle.discardBody(beforeRenderResult);
+          }
+          return finishWithRequestLifecycle(lifecycle, () =>
+            lifecycle.deferUntilBodyDone(response),
+          );
         }
 
         await runWithRequestLifecycleOnError(lifecycle, () => {

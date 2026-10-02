@@ -36,6 +36,8 @@ including identities subsequently renamed outside `src`, plus source files
 added inside upstream-owned packages. Fixture sources remain in that scope.
 Measured `pnpm-workspace.yaml` patterns select package manifests, so fixture
 manifests cannot replace real package identity and nested workspaces are retained.
+Directory patterns normalize pnpm's `./` prefixes and trailing `/`, including
+negated exclusions.
 Workspace metadata uses a dependency-free bounded YAML reader: indented block
 mappings/sequences, single-line quoted strings (JSON escapes in double quotes),
 plain scalar values and comments. It validates the entire document and requires
@@ -57,6 +59,12 @@ read their source, manifests, alias configuration, bridge policy and ledger
 from the committed tree. Malformed governed source/metadata, duplicate package
 identities and unresolved declared local aliases fail closed. Unresolved legacy
 edges retain exact marker checks; substring matches are no longer ownership.
+Declared runtime conditions are checked alongside `modern:source`; a native
+source branch cannot hide a fork-owned Node/default target. Package exports
+choose the longest static pattern prefix. TypeScript package inheritance uses
+its active config export conditions before the measured `tsconfig` field or
+default `tsconfig.json`; directory aliases inspect measured types/main entries
+before index files. Unmeasurable inherited configuration fails closed.
 
 New neutral helper files inside an upstream-owned package retain that package's
 owner. This dependency gate does not prove semantic ownership of new code inside

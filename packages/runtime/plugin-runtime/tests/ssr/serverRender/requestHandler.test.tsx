@@ -326,6 +326,170 @@ describe('createRequestHandler native request hooks', () => {
     ]);
   });
 
+  it.each([
+    { failureStage: 'preparation', cancellationRejects: false },
+    { failureStage: 'preparation', cancellationRejects: true },
+    { failureStage: 'redirect normalization', cancellationRejects: false },
+    { failureStage: 'redirect normalization', cancellationRejects: true },
+  ])(
+    'cancels an acquired loader response before $failureStage failure cleanup (cancellation rejects=$cancellationRejects)',
+    async ({ failureStage, cancellationRejects }) => {
+      const failure = new Error('request preparation failed');
+      const cancellationFailure = new Error('source cancellation failed');
+      const events: unknown[] = [];
+      const errors: unknown[][] = [];
+      let renders = 0;
+      let cleanupCalls = 0;
+      let releaseCancel = () => {};
+      let reportCancelStarted = () => {};
+      const cancelStarted = new Promise<void>(resolve => {
+        reportCancelStarted = resolve;
+      });
+      const cancelReleased = new Promise<void>(resolve => {
+        releaseCancel = resolve;
+      });
+      const source = new ReadableStream<Uint8Array>({
+        async cancel() {
+          events.push('cancel:start');
+          reportCancelStarted();
+          await cancelReleased;
+          events.push(cancellationRejects ? 'cancel:reject' : 'cancel:done');
+          if (cancellationRejects) throw cancellationFailure;
+        },
+      });
+      installRuntime(hooks => {
+        hooks.onBeforeRender.tap((_, interrupt) => {
+          interrupt(
+            new Response(source, {
+              status: 302,
+              headers: { Location: '/orders' },
+            }),
+          );
+        });
+        if (failureStage === 'preparation') {
+          hooks.onRenderPrepared.tap(() => {
+            throw failure;
+          });
+        }
+        hooks.onRequestEnd.tap(info => {
+          cleanupCalls += 1;
+          events.push(info.terminal);
+        });
+      });
+      const { createRequestHandler, RESPONSE_BODY_CANCEL_ERROR } = await import(
+        '../../../src/core/server/requestHandler'
+      );
+      const enableRsc = failureStage === 'redirect normalization';
+      const handler = await createRequestHandler(
+        async () => {
+          renders += 1;
+          return new Response('unexpected');
+        },
+        { enableRsc },
+      );
+      const options = requestOptions((...args: unknown[]) => {
+        errors.push(args);
+      });
+      if (enableRsc) {
+        options.resource.route.urlPath = '/商店';
+      }
+      const settled = handler(
+        new Request('http://localhost/', {
+          headers: enableRsc ? { 'x-rsc-tree': 'true' } : {},
+        }),
+        options,
+      ).then(
+        () => ({ kind: 'fulfilled' as const }),
+        error => ({ kind: 'rejected' as const, error }),
+      );
+
+      try {
+        const firstEvent = await Promise.race([
+          cancelStarted.then(() => 'cancel:start'),
+          settled.then(() => 'request:settled'),
+        ]);
+        expect(firstEvent).toBe('cancel:start');
+        expect(events).toEqual(['cancel:start']);
+        expect(cleanupCalls).toBe(0);
+        expect(errors).toEqual([]);
+        expect(renders).toBe(0);
+      } finally {
+        releaseCancel();
+      }
+
+      const result = await settled;
+      expect(result.kind).toBe('rejected');
+      if (result.kind !== 'rejected') {
+        throw new Error('Expected request failure');
+      }
+      if (enableRsc) {
+        expect(result.error).toBeInstanceOf(TypeError);
+      } else {
+        expect(result.error).toBe(failure);
+      }
+      expect(events).toEqual([
+        'cancel:start',
+        cancellationRejects ? 'cancel:reject' : 'cancel:done',
+        { status: 'error', error: result.error },
+      ]);
+      expect(cleanupCalls).toBe(1);
+      expect(errors).toEqual(
+        cancellationRejects
+          ? [[cancellationFailure, RESPONSE_BODY_CANCEL_ERROR]]
+          : [],
+      );
+      expect(renders).toBe(0);
+    },
+  );
+
+  it('preserves preparation failure without ending resources owned by a locked loader body', async () => {
+    const failure = new Error('request preparation failed');
+    const terminals: SSRRequestTerminal[] = [];
+    let cancellationCalls = 0;
+    let renders = 0;
+    const source = new ReadableStream<Uint8Array>({
+      cancel() {
+        cancellationCalls += 1;
+      },
+    });
+    const response = new Response(source, {
+      status: 302,
+      headers: { Location: '/orders' },
+    });
+    const reader = source.getReader();
+    installRuntime(hooks => {
+      hooks.onBeforeRender.tap((_, interrupt) => {
+        interrupt(response);
+      });
+      hooks.onRenderPrepared.tap(() => {
+        throw failure;
+      });
+      hooks.onRequestEnd.tap(info => {
+        terminals.push(info.terminal);
+      });
+    });
+    const { createRequestHandler } = await import(
+      '../../../src/core/server/requestHandler'
+    );
+    const handler = await createRequestHandler(async () => {
+      renders += 1;
+      return new Response('unexpected');
+    });
+
+    try {
+      await expect(
+        handler(new Request('http://localhost/'), requestOptions()),
+      ).rejects.toBe(failure);
+      expect(terminals).toEqual([]);
+      expect(cancellationCalls).toBe(0);
+      expect(source.locked).toBe(true);
+      expect(renders).toBe(0);
+    } finally {
+      await reader.cancel();
+      reader.releaseLock();
+    }
+  });
+
   it.each([false, true])(
     'cancels a loader redirect body before ending the request (RSC=%s)',
     async enableRsc => {
