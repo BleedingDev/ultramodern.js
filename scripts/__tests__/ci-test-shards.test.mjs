@@ -1,19 +1,24 @@
 import assert from 'node:assert/strict';
-import { execFile } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 
 import yaml from '../../packages/toolkit/utils/compiled/js-yaml/index.js';
+import {
+  upstreamCommit,
+  upstreamDependencies,
+} from '../native-compatibility/consumer.mjs';
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   '../..',
 );
+const tempRoot = process.env.OWNED_TEMP_DIR ?? os.tmpdir();
 const workflow = yaml.load(
   readFileSync(
     path.join(repoRoot, '.github/workflows/integration-test.yml'),
@@ -130,6 +135,140 @@ test('existing required framework checks reject failure, cancellation, and skips
 });
 
 const run = promisify(execFile);
+
+test('core integration jobs fetch the immutable native baseline before running tests', () => {
+  const checkoutIndex = integration.steps.findIndex(
+    step => step.name === 'Checkout',
+  );
+  const baselineIndex = integration.steps.findIndex(
+    step => step.name === 'Fetch native compatibility baseline',
+  );
+  assert.ok(checkoutIndex >= 0);
+  assert.equal(integration.steps[checkoutIndex].with['fetch-depth'], 1);
+  assert.ok(baselineIndex > checkoutIndex);
+  const baseline = integration.steps[baselineIndex];
+  assert.equal(
+    baseline.if,
+    "matrix.suite == 'framework' && matrix.framework_suite == 'core'",
+  );
+  assert.equal(baseline.shell, 'bash');
+  assert.equal(baseline['continue-on-error'], undefined);
+  assert.equal(
+    baseline.run.trim(),
+    `git fetch --no-tags --depth=1 origin ${upstreamCommit}\ngit cat-file -e '${upstreamCommit}^{commit}'`,
+  );
+  for (const [index, step] of integration.steps.entries()) {
+    if (step.run?.includes('test:framework:prepared')) {
+      assert.ok(
+        index > baselineIndex,
+        'Baseline must precede framework tests.',
+      );
+    }
+  }
+});
+
+test('an isolated shallow checkout can read every native baseline manifest after an exact depth-one fetch', async () => {
+  const directory = mkdtempSync(
+    path.join(tempRoot, 'modernjs-native-history-'),
+  );
+  const source = path.join(directory, 'source.git');
+  const checkout = path.join(directory, 'checkout');
+  const gitOptions = { encoding: 'utf8', timeout: 60_000 };
+  try {
+    await run('git', ['init', '--bare', source], gitOptions);
+    const writeGit = (args, input) =>
+      execFileSync('git', args, { ...gitOptions, cwd: source, input }).trim();
+    const emptyTree = writeGit(['mktree'], '');
+    const identity = [
+      '-c',
+      'user.name=CI history regression',
+      '-c',
+      'user.email=ci@example.invalid',
+    ];
+    const parent = writeGit(
+      [...identity, 'commit-tree', emptyTree],
+      'parent\n',
+    );
+    const head = writeGit(
+      [...identity, 'commit-tree', emptyTree, '-p', parent],
+      'checkout\n',
+    );
+    writeGit(['update-ref', 'refs/heads/main', head]);
+    await run(
+      'git',
+      [
+        'clone',
+        '--depth=1',
+        '--no-checkout',
+        '--branch',
+        'main',
+        pathToFileURL(source).href,
+        checkout,
+      ],
+      gitOptions,
+    );
+    const readGit = args =>
+      execFileSync('git', args, {
+        ...gitOptions,
+        cwd: checkout,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+    assert.equal(
+      readGit(['rev-parse', '--is-shallow-repository']).trim(),
+      'true',
+    );
+    assert.throws(() => upstreamDependencies(readGit));
+    await run(
+      'git',
+      ['remote', 'set-url', 'origin', pathToFileURL(repoRoot).href],
+      {
+        ...gitOptions,
+        cwd: checkout,
+      },
+    );
+    await run(
+      'git',
+      ['fetch', '--no-tags', '--depth=1', 'origin', upstreamCommit],
+      {
+        ...gitOptions,
+        cwd: checkout,
+        maxBuffer: 4 * 1024 * 1024,
+      },
+    );
+    assert.deepEqual(upstreamDependencies(readGit), upstreamDependencies());
+    const manifests = readGit([
+      'ls-tree',
+      '-r',
+      '--name-only',
+      upstreamCommit,
+      '--',
+      'packages',
+    ])
+      .trim()
+      .split('\n')
+      .filter(file => file.endsWith('/package.json'));
+    assert.ok(manifests.length > 0);
+    for (const manifest of manifests) {
+      assert.equal(
+        typeof JSON.parse(readGit(['show', `${upstreamCommit}:${manifest}`])),
+        'object',
+      );
+    }
+    assert.equal(readGit(['rev-parse', 'HEAD']).trim(), head);
+    assert.equal(
+      readGit(['rev-parse', '--is-shallow-repository']).trim(),
+      'true',
+    );
+    assert.equal(readGit(['rev-list', '--count', upstreamCommit]).trim(), '1');
+    assert.throws(
+      () => readGit(['rev-parse', '--verify', `${upstreamCommit}^`]),
+      'No baseline ancestry was fetched.',
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 const rstestPackage = createRequire(import.meta.url).resolve(
   '@rstest/core/package.json',
 );
@@ -139,7 +278,7 @@ const rstestBin = path.join(
 );
 
 async function listFiles(shard, suite) {
-  const directory = mkdtempSync(path.join(os.tmpdir(), 'modernjs-shard-list-'));
+  const directory = mkdtempSync(path.join(tempRoot, 'modernjs-shard-list-'));
   const output = path.join(directory, 'files.json');
   const args = [rstestBin, 'list', '--filesOnly', '--json', output];
   if (shard) args.push('--shard', shard);
@@ -190,6 +329,16 @@ test('native core shards and generator runners run every discovered file exactly
     ['create-bff-runtime/tests/index.test.ts'],
   );
   assert.equal(core.length, all.length - workspace.length - bff.length);
+  assert.deepEqual(
+    core
+      .map(file => file.replaceAll('\\', '/').split('/integration/')[1])
+      .filter(file => file?.startsWith('native-compatibility/')),
+    [
+      'native-compatibility/fork.test.ts',
+      'native-compatibility/upstream.test.ts',
+    ],
+    'Both native compatibility targets must run inside the core shards.',
+  );
   assert.deepEqual(shards.flat().sort(), core, 'Core shards must cover core.');
   const combined = [...shards.flat(), ...workspace, ...bff];
   assert.equal(new Set(combined).size, combined.length, 'Shards overlap.');

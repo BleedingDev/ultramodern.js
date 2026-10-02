@@ -8,6 +8,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { compileFunction } from 'node:vm';
 import { parseSync, types } from '@babel/core';
+import { generatorTestTempParent } from '../../tests/utils/generatorTestTemp.mjs';
 import {
   assertConsumerLockfile,
   assertInstalledConsumer,
@@ -44,6 +45,7 @@ const consumerAst = parseSync(consumerSource, {
 const buildMethods = [];
 const shutdownFunctions = [];
 const guardianFunctions = [];
+const consumerFunctions = [];
 types.traverseFast(consumerAst, node => {
   if (types.isObjectMethod(node) && node.key.name === 'build')
     buildMethods.push(node);
@@ -54,6 +56,11 @@ types.traverseFast(consumerAst, node => {
     shutdownFunctions.push(node);
   if (types.isFunctionDeclaration(node) && node.id?.name === 'guardian')
     guardianFunctions.push(node);
+  if (
+    types.isFunctionDeclaration(node) &&
+    node.id?.name === 'createNativeConsumer'
+  )
+    consumerFunctions.push(node);
 });
 assert.equal(
   buildMethods.length,
@@ -62,6 +69,155 @@ assert.equal(
 );
 assert.equal(shutdownFunctions.length, 2, 'Expected native shutdown functions');
 assert.equal(guardianFunctions.length, 1, 'Expected one artifact guardian');
+assert.equal(consumerFunctions.length, 1, 'Expected one consumer constructor');
+const nativeConsumer = compileFunction(
+  `${consumerSource.slice(
+    consumerFunctions[0].start,
+    consumerFunctions[0].end,
+  )}\nreturn createNativeConsumer;`,
+  [
+    'assert',
+    'fs',
+    'path',
+    'process',
+    'repoRoot',
+    'fixtureRoot',
+    'generatorTestTempParent',
+    'upstreamDependencies',
+  ],
+);
+
+function withRunnerTemp(candidate, callback) {
+  const previous = process.env.RUNNER_TEMP;
+  if (candidate === undefined) delete process.env.RUNNER_TEMP;
+  else process.env.RUNNER_TEMP = candidate;
+  try {
+    return callback();
+  } finally {
+    if (previous === undefined) delete process.env.RUNNER_TEMP;
+    else process.env.RUNNER_TEMP = previous;
+  }
+}
+
+function assertConsumerScratch(repoRoot, tempParent, options) {
+  const failure = new Error('Stop before installing packages');
+  const existing = new Set(fs.readdirSync(tempParent));
+  let allocated;
+  const listeners = Object.fromEntries(
+    ['exit', 'SIGINT', 'SIGTERM'].map(signal => [
+      signal,
+      process.listenerCount(signal),
+    ]),
+  );
+  const createConsumer = nativeConsumer(
+    assert,
+    fs,
+    path,
+    process,
+    repoRoot,
+    fileURLToPath(
+      new URL(
+        '../../tests/integration/native-compatibility/fixture',
+        import.meta.url,
+      ),
+    ),
+    generatorTestTempParent,
+    () => {
+      const entries = fs
+        .readdirSync(tempParent)
+        .filter(
+          entry =>
+            entry.startsWith('modern-native-fork-') && !existing.has(entry),
+        );
+      assert.equal(entries.length, 1, 'Expected one owned consumer root');
+      allocated = fs.realpathSync.native(path.join(tempParent, entries[0]));
+      assert.equal(path.dirname(allocated), fs.realpathSync.native(tempParent));
+      assert.ok(fs.existsSync(path.join(allocated, 'app/modern.config.ts')));
+      throw failure;
+    },
+  );
+  assert.throws(
+    () => createConsumer('fork', options),
+    error => error === failure,
+  );
+  assert.ok(allocated, 'Expected actual consumer allocation');
+  assert.equal(
+    fs.existsSync(allocated),
+    false,
+    'Consumer setup must clean its root',
+  );
+  for (const [signal, count] of Object.entries(listeners))
+    assert.equal(process.listenerCount(signal), count);
+}
+
+test('native consumers allocate and clean their own root under validated runner scratch', () =>
+  ownedDirectory(root => {
+    const checkout = path.join(root, 'checkout');
+    const runnerTemp = path.join(root, 'runner-temp');
+    fs.mkdirSync(checkout);
+    fs.mkdirSync(runnerTemp);
+    const sentinel = path.join(runnerTemp, 'unrelated');
+    fs.writeFileSync(sentinel, 'preserve');
+    withRunnerTemp(runnerTemp, () =>
+      assertConsumerScratch(checkout, runnerTemp),
+    );
+    assert.deepEqual(fs.readdirSync(runnerTemp), ['unrelated']);
+    assert.equal(fs.readFileSync(sentinel, 'utf8'), 'preserve');
+  }));
+
+test('native consumers use the validated OS temporary directory when RUNNER_TEMP is absent', () =>
+  ownedDirectory(root => {
+    withRunnerTemp(undefined, () => assertConsumerScratch(root, os.tmpdir()));
+  }));
+
+test('invalid runner scratch and links into the checkout fail before allocation', () =>
+  ownedDirectory(root => {
+    const checkout = path.join(root, 'checkout');
+    const inside = path.join(checkout, 'scratch');
+    const link = path.join(root, 'checkout-link');
+    const file = path.join(root, 'file');
+    fs.mkdirSync(inside, { recursive: true });
+    fs.symlinkSync(
+      inside,
+      link,
+      process.platform === 'win32' ? 'junction' : 'dir',
+    );
+    fs.writeFileSync(file, 'not a directory');
+    const createConsumer = nativeConsumer(
+      assert,
+      fs,
+      path,
+      process,
+      checkout,
+      '/unused-fixture',
+      generatorTestTempParent,
+      () => assert.fail('Invalid scratch reached consumer setup'),
+    );
+    for (const [candidate, message] of [
+      ['', /absolute directory path/],
+      ['relative', /absolute directory path/],
+      [path.join(root, 'missing'), /existing writable directory/],
+      [file, /existing writable directory/],
+      [checkout, /outside the source repository/],
+      [inside, /outside the source repository/],
+      [link, /outside the source repository/],
+    ]) {
+      withRunnerTemp(candidate, () => {
+        assert.throws(() => createConsumer('fork'), message);
+      });
+    }
+    assert.deepEqual(fs.readdirSync(inside), []);
+  }));
+
+test('explicit native consumer tempDir overrides retain their contract with invalid RUNNER_TEMP', () =>
+  ownedDirectory(root => {
+    const inside = path.join(root, 'explicit-scratch');
+    fs.mkdirSync(inside);
+    withRunnerTemp('invalid', () => {
+      assertConsumerScratch(root, inside, { tempDir: inside });
+    });
+    assert.deepEqual(fs.readdirSync(inside), []);
+  }));
 const nativeGuardian = compileFunction(
   `${consumerSource.slice(
     guardianFunctions[0].start,
