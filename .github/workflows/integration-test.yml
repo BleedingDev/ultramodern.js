@@ -163,6 +163,15 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      # Native compatibility consumers read manifests at the audited upstream
+      # commit. Fetch its tree without downloading the rest of Git history.
+      - name: Fetch native compatibility baseline
+        if: matrix.suite == 'framework' && matrix.framework_suite == 'core'
+        shell: bash
+        run: |
+          git fetch --no-tags --depth=1 origin eded841256a7cffdaa622e3889fc83407debd3e4
+          git cat-file -e 'eded841256a7cffdaa622e3889fc83407debd3e4^{commit}'
+
       - name: Setup mise
         uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
         with:

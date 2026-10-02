@@ -3,9 +3,9 @@ import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import net from 'node:net';
-import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { generatorTestTempParent } from '../../tests/utils/generatorTestTemp.mjs';
 import { parsePnpmLockfile } from '../lib/parse-pnpm-lockfile.mjs';
 
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
@@ -347,7 +347,10 @@ async function waitForPort(child, port, output) {
 
 /** This operation owns every byte below its unique root; ambient fixtures and
  * the external pnpm content store are never removed by this cleanup. */
-export function createNativeConsumer(target, { tempDir = os.tmpdir() } = {}) {
+export function createNativeConsumer(
+  target,
+  { tempDir = generatorTestTempParent(repoRoot) } = {},
+) {
   assert.ok(['upstream', 'fork'].includes(target));
   const createdRoot = fs.mkdtempSync(
     path.join(tempDir, `modern-native-${target}-`),
