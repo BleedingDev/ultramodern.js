@@ -38,7 +38,6 @@ async function waitForAppReady(url: string, maxRetries = 60) {
       // with no output at all and the hook dies on the suite timeout with
       // nothing to read. Ready means this URL is actually serving.
       if (res.ok || (res.status >= 300 && res.status < 400)) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
         return;
       }
     } catch {

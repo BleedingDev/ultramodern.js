@@ -3,6 +3,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import yaml from '../../../packages/toolkit/utils/compiled/js-yaml/index.js';
+import { evaluateJobSchedule } from '../github-job-condition.mjs';
 import {
   validateRepository,
   validateTractorBaselinePin,
@@ -378,7 +380,8 @@ test('release qualification needs integration on its own commit', () => {
       error.includes('must need an integration job'),
     );
   assert.deepEqual(integrationErrors(content), []);
-  const edge = '    needs:\n      - integration\n';
+  const edge =
+    '    needs:\n      - integration\n      - qualify-source-compute\n';
   assert.equal(content.split(edge).length, 2);
   assert.equal(integrationErrors(content.replace(edge, '')).length, 1);
   const uses = 'uses: ./.github/workflows/integration-test.yml';
@@ -389,6 +392,169 @@ test('release qualification needs integration on its own commit', () => {
     ).length,
     1,
   );
+});
+
+test('release qualification overlaps integration and issues no receipt before both pass', () => {
+  const workflowPath = '.github/workflows/publish-bleedingdev.yml';
+  const content = fs.readFileSync(
+    new URL(`../../../${workflowPath}`, import.meta.url),
+    'utf8',
+  );
+  const workflow = yaml.load(content);
+  const results = Object.fromEntries(
+    Object.keys(workflow.jobs).map(jobId => [jobId, 'success']),
+  );
+  const context = {
+    github: {
+      actor: 'BleedingDev',
+      triggering_actor: 'BleedingDev',
+      repository_owner: 'BleedingDev',
+      ref: 'refs/heads/main-ultramodern',
+    },
+    inputs: { dry_run: false, recovery_run_id: '' },
+    vars: {},
+  };
+  const schedules = (jobId, overrides = {}, inputs = context.inputs) =>
+    evaluateJobSchedule({
+      workflow,
+      jobId,
+      results: { ...results, ...overrides },
+      context: { ...context, inputs },
+    });
+  assert.equal(workflow.jobs['qualify-source-compute'].needs, undefined);
+  assert.deepEqual(workflow.jobs['qualify-source'].needs, [
+    'integration',
+    'qualify-source-compute',
+  ]);
+  for (const jobId of ['qualify-source', 'publish', 'publish-sidecars']) {
+    assert.equal(schedules(jobId), true, jobId);
+  }
+  for (const prerequisite of ['integration', 'qualify-source-compute']) {
+    for (const result of ['failure', 'cancelled', 'skipped']) {
+      assert.equal(
+        schedules('qualify-source-compute', { [prerequisite]: result }),
+        true,
+        `compute remains independent of ${prerequisite} ${result}`,
+      );
+      for (const jobId of ['qualify-source', 'publish', 'publish-sidecars']) {
+        assert.equal(
+          schedules(jobId, { [prerequisite]: result }),
+          false,
+          `${jobId} rejects ${prerequisite} ${result}`,
+        );
+      }
+    }
+  }
+  for (const result of ['failure', 'cancelled', 'skipped']) {
+    for (const jobId of ['publish', 'publish-sidecars']) {
+      assert.equal(schedules(jobId, { 'qualify-source': result }), false);
+    }
+  }
+  assert.equal(
+    schedules(
+      'qualify-source',
+      {},
+      {
+        dry_run: true,
+        recovery_run_id: '',
+      },
+    ),
+    true,
+    'dry runs still qualify',
+  );
+  assert.equal(
+    schedules(
+      'qualify-source',
+      {},
+      {
+        dry_run: false,
+        recovery_run_id: '77',
+      },
+    ),
+    true,
+    'recovery still qualifies its current publication tooling',
+  );
+});
+
+test('release validator rejects unsafe qualification splits and receipt shortcuts', () => {
+  const workflowPath = '.github/workflows/publish-bleedingdev.yml';
+  const content = fs.readFileSync(
+    new URL(`../../../${workflowPath}`, import.meta.url),
+    'utf8',
+  );
+  const errors = source => validateWorkflowContent(workflowPath, source);
+  const joinStart = content.indexOf('  qualify-source:\n');
+  const joinEnd = content.indexOf('  prepare-release:\n', joinStart);
+  const join = content.slice(joinStart, joinEnd);
+  const mutateJoin = replacement =>
+    content.slice(0, joinStart) + replacement + content.slice(joinEnd);
+  assert.ok(joinStart > 0 && joinEnd > joinStart);
+  for (const need of ['integration', 'qualify-source-compute']) {
+    assert.ok(
+      errors(mutateJoin(join.replace(`      - ${need}\n`, ''))).some(error =>
+        error.includes('must join integration'),
+      ),
+    );
+  }
+  const conditionStart = join.indexOf('    if: >-\n');
+  const conditionEnd = join.indexOf('    steps:\n', conditionStart);
+  const unsafeCondition = mutateJoin(
+    join.slice(0, conditionStart) +
+      '    if: always()\n' +
+      join.slice(conditionEnd),
+  );
+  assert.ok(
+    errors(unsafeCondition).some(error =>
+      error.includes('failure, cancellation or skip'),
+    ),
+  );
+  const movedCreate = content.replace(
+    '  qualify-source-compute:\n',
+    '  qualify-source-compute:\n    # No receipt authority in this job.\n',
+  );
+  const movedReceipt = movedCreate.replace(
+    '      - name: Qualify the release publication tooling\n',
+    `      - name: Unsafe early receipt
+        if: inputs.recovery_run_id == ''
+        run: node scripts/ultramodern-publish/source-qualification.mjs create
+      - name: Qualify the release publication tooling
+`,
+  );
+  assert.ok(
+    errors(movedReceipt).some(error =>
+      error.includes('receipts must be created and uploaded only'),
+    ),
+  );
+  const receiptStep =
+    "      - name: Record the qualified source commit\n        if: inputs.recovery_run_id == ''\n";
+  assert.ok(content.includes(receiptStep));
+  assert.ok(
+    errors(
+      content.replace(
+        receiptStep,
+        '      - name: Record the qualified source commit\n        if: always()\n',
+      ),
+    ).some(error =>
+      error.includes('receipts must be created and uploaded only'),
+    ),
+  );
+  for (const jobId of ['validate-release', 'publish', 'publish-sidecars']) {
+    const begin = content.indexOf(`  ${jobId}:\n`);
+    const next = content.slice(begin + 3).search(/\n {2}[\w-]+:\n/u);
+    const end = next === -1 ? -1 : begin + 3 + next;
+    const section = content.slice(begin, end === -1 ? undefined : end);
+    assert.ok(section.includes('      - qualify-source\n'), jobId);
+    const mutated = content.replace(
+      section,
+      section.replace('      - qualify-source\n', ''),
+    );
+    assert.ok(
+      errors(mutated).some(error =>
+        error.includes(`job ${jobId} must need qualify-source`),
+      ),
+      jobId,
+    );
+  }
 });
 
 test('integration gates pull requests with one job per suite', () => {
@@ -438,45 +604,46 @@ test('integration gates pull requests with one job per suite', () => {
     assert.ok(errors[1].includes('matrix suite rstest-adapter has no step'));
   }
   // A suite whose step was deleted would be a green job that tests nothing.
+  const utilsStart = content.indexOf(
+    '      - name: Test - Published package surfaces',
+  );
+  const utilsCommand = '        run: pnpm run test:utils\n';
   const utilsStep = content.slice(
-    content.indexOf('      - name: Test - Published package surfaces'),
+    utilsStart,
+    content.indexOf(utilsCommand, utilsStart) + utilsCommand.length,
   );
   assert.match(utilsStep, /run: pnpm run test:utils\n$/u);
   assert.deepEqual(gateErrors(content.replace(utilsStep, '')), [
     `${workflowPath} job integration matrix suite utils has no step gated by if: matrix.suite == 'utils', so that job would pass without testing anything`,
   ]);
   // The framework shards together must run every test file.
-  const shards = '        shard: [1/3, 2/3, 3/3]\n';
+  const shards = '        shard: [1/6, 2/6, 3/6, 4/6, 5/6, 6/6]\n';
   assert.ok(content.includes(shards));
-  // An exclude can drop a shard from the expanded matrix while the axis
-  // still lists it.
-  const excludes = '        exclude:\n';
-  assert.ok(content.includes(excludes));
+  // Excluding any slice or adding a duplicate must fail the completeness gate.
+  const includes = '        include:\n';
+  assert.ok(content.includes(includes));
   for (const dropped of [
-    '          - suite: framework\n            shard: 3/3\n',
-    '          - platform: Windows\n            suite: framework\n            shard: 2/3\n',
+    '          - suite: framework\n            shard: 6/6\n',
+    '          - platform: Windows\n            suite: framework\n            shard: 2/6\n',
+    '          - platform: Windows\n            suite: framework\n',
   ]) {
     assert.deepEqual(
-      gateErrors(content.replace(excludes, `${excludes}${dropped}`)),
+      gateErrors(
+        content.replace(includes, `        exclude:\n${dropped}${includes}`),
+      ),
       [
         `${workflowPath} job integration must schedule shards 1/N through N/N exactly once for every sharded suite combination, so the shards together run the whole suite`,
       ],
       dropped,
     );
   }
-  for (const mutated of [
-    '        shard: [1/3, 2/3]\n',
-    '        shard: [1/3, 1/3, 3/3]\n',
-    '        shard: [1/1]\n',
-  ]) {
-    assert.deepEqual(
-      gateErrors(content.replace(shards, mutated)),
-      [
-        `${workflowPath} job integration must schedule shards 1/N through N/N exactly once for every sharded suite combination, so the shards together run the whole suite`,
-      ],
-      mutated,
-    );
-  }
+  const duplicate = content.replace(
+    shards,
+    '        shard: [1/6, 2/6, 3/6, 4/6, 5/6, 6/6, 6/6]\n',
+  );
+  assert.ok(
+    gateErrors(duplicate).some(error => error.includes('must schedule shards')),
+  );
 });
 
 test('release gates reject node:test filter flags', () => {

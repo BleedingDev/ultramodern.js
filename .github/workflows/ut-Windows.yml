@@ -1,7 +1,7 @@
 name: Unit Test (Windows)
 
 concurrency:
-  group: windows-unit-test-${{ github.head_ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 # Controls when the action will run.
@@ -20,9 +20,13 @@ permissions:
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  ut-windows:
+  ut-windows-shards:
     # The type of runner that the job will run on
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -61,7 +65,12 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Restore prepared build outputs
+        id: build-cache
+        uses: ./.github/actions/restore-build-cache
+
       - name: Build Required Pkg
+        if: steps.build-cache.outputs.cache-hit != 'true'
         run: pnpm run build:required
 
       # scripts/lib/browser-provisioning.js is the one browser provisioner: it
@@ -86,4 +95,21 @@ jobs:
         run: node --test --test-name-pattern="prebundle distinguishes" scripts/prebundle/ultramodern/packed-utils-consumer.test.mjs
 
       - name: Test
-        run: pnpm run test:ut
+        run: pnpm run test:ut --shard=${{ matrix.shard }}/4
+
+  # Keep the original check name and fail it if any shard fails or is cancelled.
+  ut-windows:
+    if: ${{ always() }}
+    needs: ut-windows-shards
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Verify all unit test shards passed
+        shell: bash
+        env:
+          SHARD_RESULT: ${{ needs.ut-windows-shards.result }}
+        run: |
+          if [[ "$SHARD_RESULT" != "success" ]]; then
+            echo "::error::Windows unit test shards finished with $SHARD_RESULT"
+            exit 1
+          fi

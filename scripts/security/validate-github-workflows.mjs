@@ -911,6 +911,7 @@ const bleedingdevPublishJobs = Object.freeze([
   'publish-sidecars',
   'publish-security',
   'qualify-source',
+  'qualify-source-compute',
   'reconcile-sidecars',
   'record-publish-outcome',
   'rehearse-tractor',
@@ -923,8 +924,10 @@ const bleedingdevPublishJobs = Object.freeze([
 // dry run is green only when the Tractor rehearsal is.
 const bleedingdevRequiredNeeds = Object.freeze({
   'accept-release': ['reconcile-sidecars'],
+  publish: ['qualify-source'],
+  'publish-sidecars': ['qualify-source'],
   'reconcile-sidecars': ['prepare-release', 'publish-security'],
-  'validate-release': ['rehearse-tractor'],
+  'validate-release': ['qualify-source', 'rehearse-tractor'],
 });
 
 // Consumer: publish-bleedingdev.yml — @bleedingdev/* publishes latest-only.
@@ -1003,6 +1006,75 @@ function collectBleedingdevPublishStructureErrors(workflow, relativePath) {
   ) {
     errors.push(
       `${relativePath} job qualify-source must need an integration job that uses ./${integrationWorkflowPath}, so a commit with red integration is never qualified`,
+    );
+  }
+  const qualificationNeeds = normalizeNeeds(jobs['qualify-source']);
+  if (
+    qualificationNeeds.length !== 2 ||
+    !qualificationNeeds.includes('qualify-source-compute') ||
+    normalizeNeeds(jobs['qualify-source-compute']).length !== 0
+  ) {
+    errors.push(
+      `${relativePath} qualify-source must join integration and independent qualify-source-compute before issuing a receipt`,
+    );
+  }
+  const qualificationContext = {
+    github: {
+      actor: 'BleedingDev',
+      ref: 'refs/heads/main-ultramodern',
+      repository_owner: 'BleedingDev',
+      triggering_actor: 'BleedingDev',
+    },
+    inputs: { dry_run: false, recovery_run_id: '' },
+    vars: {},
+  };
+  const qualificationResults = {
+    integration: 'success',
+    'qualify-source-compute': 'success',
+  };
+  const schedulesQualification = (results, context = qualificationContext) =>
+    evaluateJobSchedule({
+      workflow,
+      jobId: 'qualify-source',
+      results,
+      context,
+    });
+  if (
+    !schedulesQualification(qualificationResults) ||
+    ['integration', 'qualify-source-compute'].some(jobId =>
+      ['failure', 'cancelled', 'skipped'].some(result =>
+        schedulesQualification({ ...qualificationResults, [jobId]: result }),
+      ),
+    ) ||
+    ['actor', 'triggering_actor'].some(field =>
+      schedulesQualification(qualificationResults, {
+        ...qualificationContext,
+        github: { ...qualificationContext.github, [field]: 'someone-else' },
+      }),
+    )
+  ) {
+    errors.push(
+      `${relativePath} qualify-source must require successful integration and qualification; failure, cancellation or skip must never authorize a source receipt`,
+    );
+  }
+  const receiptSteps = workflowSteps(workflow).filter(
+    ({ step }) =>
+      runIncludes(step, 'source-qualification.mjs create') ||
+      (actionMatches(step, 'actions/upload-artifact') &&
+        String(step.with?.name).includes(
+          'BLEEDINGDEV_SOURCE_QUALIFICATION_ARTIFACT',
+        )),
+  );
+  if (
+    receiptSteps.length !== 2 ||
+    receiptSteps.some(
+      ({ jobId, step }) =>
+        jobId !== 'qualify-source' ||
+        step.if !== "inputs.recovery_run_id == ''",
+    )
+  ) {
+    errors.push(
+      `${relativePath} source qualification receipts must be created and uploaded only by the successful qualify-source join in the source lane`,
     );
   }
   const securitySteps = Array.isArray(jobs['publish-security']?.steps)
@@ -1102,6 +1174,51 @@ const integrationTriggers = Object.freeze([
 const testScriptPattern = /\btest:[\w:-]+/u;
 const suiteConditionPattern = /^matrix\.suite\s*==\s*'([\w-]+)'$/u;
 
+// Include entries can decorate an axis combination or add a standalone job.
+// Only original combinations can be decorated by later include entries.
+function expandIntegrationMatrix(matrix) {
+  if (!isObject(matrix)) return [];
+  const axes = Object.entries(matrix).filter(
+    ([key, values]) =>
+      !['include', 'exclude'].includes(key) && Array.isArray(values),
+  );
+  const excluded = combination =>
+    (Array.isArray(matrix.exclude) ? matrix.exclude : []).some(
+      rule =>
+        isObject(rule) &&
+        Object.entries(rule).every(
+          ([key, value]) => String(combination[key]) === String(value),
+        ),
+    );
+  const originals = axes
+    .reduce(
+      (partial, [key, values]) =>
+        partial.flatMap(combination =>
+          values.map(value => ({ ...combination, [key]: value })),
+        ),
+      [{}],
+    )
+    .filter(combination => !excluded(combination));
+  const combinations = originals.map(combination => ({ ...combination }));
+  for (const include of Array.isArray(matrix.include) ? matrix.include : []) {
+    if (!isObject(include)) continue;
+    let decorated = false;
+    for (const [index, original] of originals.entries()) {
+      if (
+        Object.entries(include).every(
+          ([key, value]) =>
+            !(key in original) || String(original[key]) === String(value),
+        )
+      ) {
+        combinations[index] = { ...combinations[index], ...include };
+        decorated = true;
+      }
+    }
+    if (!decorated) combinations.push({ ...include });
+  }
+  return combinations;
+}
+
 function collectIntegrationGateErrors(workflow, relativePath) {
   if (relativePath !== integrationWorkflowPath) {
     return [];
@@ -1133,7 +1250,9 @@ function collectIntegrationGateErrors(workflow, relativePath) {
     ) {
       continue;
     }
-    const matrixSuites = job.strategy?.matrix?.suite;
+    const matrixSuites = expandIntegrationMatrix(job.strategy?.matrix).map(
+      combination => combination.suite,
+    );
     const suite = suiteConditionPattern.exec(
       typeof step.if === 'string' ? step.if.trim() : '',
     )?.[1];
@@ -1160,23 +1279,7 @@ function collectIntegrationGateErrors(workflow, relativePath) {
       ([key, values]) =>
         !['include', 'exclude'].includes(key) && Array.isArray(values),
     );
-    const excluded = combination =>
-      (Array.isArray(matrix.exclude) ? matrix.exclude : []).some(
-        rule =>
-          isObject(rule) &&
-          Object.entries(rule).every(
-            ([key, value]) => String(combination[key]) === String(value),
-          ),
-      );
-    const combinations = axes
-      .reduce(
-        (partial, [key, values]) =>
-          partial.flatMap(combination =>
-            values.map(value => ({ ...combination, [key]: value })),
-          ),
-        [{}],
-      )
-      .filter(combination => !excluded(combination));
+    const combinations = expandIntegrationMatrix(matrix);
     const shards = Array.isArray(matrix.shard) ? matrix.shard.map(String) : [];
     const expected = shards.map((_, index) => `${index + 1}/${shards.length}`);
     const shardedSuites = new Set(
@@ -1187,13 +1290,31 @@ function collectIntegrationGateErrors(workflow, relativePath) {
     const groups = new Map();
     for (const { shard, ...rest } of combinations) {
       if (!shardedSuites.has(rest.suite)) continue;
-      const key = JSON.stringify(rest);
+      const key = JSON.stringify(
+        Object.fromEntries(
+          axes
+            .filter(([key]) => key !== 'shard')
+            .map(([key]) => [key, rest[key]]),
+        ),
+      );
       groups.set(key, [...(groups.get(key) ?? []), String(shard)]);
     }
+    const expectedGroups = axes
+      .filter(([key]) => key !== 'shard')
+      .reduce(
+        (partial, [key, values]) =>
+          partial.flatMap(combination =>
+            values.map(value => ({ ...combination, [key]: value })),
+          ),
+        [{}],
+      )
+      .filter(combination => shardedSuites.has(combination.suite))
+      .map(JSON.stringify);
     const complete =
       shards.length > 1 &&
       shards.every((shard, index) => shard === expected[index]) &&
       groups.size > 0 &&
+      expectedGroups.every(key => groups.has(key)) &&
       [...groups.values()].every(
         scheduled =>
           scheduled.length === expected.length &&
@@ -1207,8 +1328,18 @@ function collectIntegrationGateErrors(workflow, relativePath) {
   }
   // A suite without its step would be a green job that tests nothing.
   for (const [jobId, job] of Object.entries(workflow.jobs ?? {})) {
-    const matrixSuites = isObject(job) ? job.strategy?.matrix?.suite : [];
-    for (const suite of Array.isArray(matrixSuites) ? matrixSuites : []) {
+    const matrixSuites = isObject(job)
+      ? [
+          ...new Set(
+            expandIntegrationMatrix(job.strategy?.matrix).map(
+              combination => combination.suite,
+            ),
+          ),
+        ]
+      : [];
+    for (const suite of matrixSuites.filter(
+      suite => typeof suite === 'string',
+    )) {
       if (!(suitesByJob.get(jobId) ?? []).includes(suite)) {
         errors.push(
           `${relativePath} job ${jobId} matrix suite ${suite} has no step gated by if: matrix.suite == '${suite}', so that job would pass without testing anything`,

@@ -8,11 +8,6 @@ name: CI Cache
 on:
   push:
     branches: [main-ultramodern]
-    paths:
-      - 'pnpm-lock.yaml'
-      - '.mise.toml'
-      - 'scripts/lib/browser-provisioning.js'
-      - '.github/workflows/ci-cache.yml'
 
   # GitHub evicts entries nobody read for 7 days. A weekly refresh lands on
   # that boundary, so refresh twice a week to stay well inside it.
@@ -112,3 +107,35 @@ jobs:
         with:
           path: ${{ steps.browser-runtime.outputs.cache_path }}
           key: ${{ steps.browser-runtime.outputs.cache_key }}
+
+      # Nx 23's local database is machine-specific. Transfer validated build
+      # outputs with exact source/toolchain identity instead of its local DB.
+      - name: Identify prepared build inputs
+        id: build-cache-key
+        run: node scripts/ci/prepared-build-cache.mjs key
+
+      - name: Restore prepared build outputs
+        id: build-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .ci-build-cache/snapshot
+          key: ${{ steps.build-cache-key.outputs.key }}
+
+      - name: Validate prepared build outputs
+        id: build-cache-validate
+        run: node scripts/ci/prepared-build-cache.mjs restore
+
+      - name: Build required packages
+        if: steps.build-cache-validate.outputs.cache-hit != 'true'
+        run: pnpm run prepare-build
+
+      - name: Snapshot prepared build outputs
+        if: steps.build-cache-validate.outputs.cache-hit != 'true'
+        run: node scripts/ci/prepared-build-cache.mjs snapshot
+
+      - name: Save prepared build outputs
+        if: steps.build-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .ci-build-cache/snapshot
+          key: ${{ steps.build-cache-key.outputs.key }}
