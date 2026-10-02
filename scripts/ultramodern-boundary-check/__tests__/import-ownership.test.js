@@ -122,6 +122,67 @@ test('measured workspace patterns distinguish nested packages from fixture manif
   );
 });
 
+test('actual ownership scanning uses only the CI-provided Babel dependency, without YAML packages or generated bundles', t => {
+  const { root, baseRef, source, write } = fixture(t);
+  write(
+    'pnpm-workspace.yaml',
+    "packages:\n  - 'packages/runtime/*' # native\n  - 'packages/toolkit/*' # fork\nmetadata:\n  enabled: false\n",
+  );
+  write(
+    'packages/runtime/native/tsconfig.json',
+    JSON.stringify({
+      compilerOptions: {
+        baseUrl: '.',
+        paths: { policy: ['../../toolkit/innocent/src/index.ts'] },
+      },
+    }),
+  );
+  write(source, "export * from 'policy';\n");
+  const output = execFileSync(
+    process.execPath,
+    [
+      '-e',
+      `
+        const Module = require('node:module');
+        const path = require('node:path');
+        const parser = require.resolve('@babel/core');
+        const resolve = Module._resolveFilename;
+        Module._resolveFilename = function (specifier, parent, ...args) {
+          if (specifier === '@babel/core') return parser;
+          if (!Module.isBuiltin(specifier) &&
+              !specifier.startsWith('.') && !path.isAbsolute(specifier) &&
+              !parent?.filename.includes('/node_modules/')) {
+            throw new Error('CI does not provide dependency: ' + specifier);
+          }
+          const result = resolve.call(this, specifier, parent, ...args);
+          if (result.includes('/packages/toolkit/utils/compiled/')) {
+            throw new Error('Generated bundles are absent from CI');
+          }
+          return result;
+        };
+        const report = require(process.argv[1]).scanUpstreamOwnedForkImports({
+          rootDir: process.argv[2], baseRef: process.argv[3],
+        });
+        process.stdout.write(JSON.stringify(report.violations));
+      `,
+      path.join(__dirname, '../checker.js'),
+      root,
+      baseRef,
+    ],
+    {
+      cwd: path.join(__dirname, '../../..'),
+      encoding: 'utf8',
+      env: { ...process.env, NODE_PATH: '' },
+    },
+  );
+  const violations = JSON.parse(output);
+  assert.equal(violations.length, 1);
+  assert.equal(violations[0].specifier, 'policy');
+  assert.deepEqual(violations[0].targets, [
+    'packages/toolkit/innocent/src/index.ts',
+  ]);
+});
+
 test('AST references include literal dynamic imports, require, import types and import-equals without matching comments', t => {
   const { source, write, scan } = fixture(t);
   write(

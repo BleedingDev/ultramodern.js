@@ -1,8 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
-const { parseSync } = require('@babel/core');
-const { parse: parseYaml } = require('yaml');
 const { buildProvenanceOwnership, parseNameStatus } = require('./divergence');
+const { parseWorkspacePatterns } = require('./workspace-patterns');
 
 const packageName = specifier =>
   specifier.startsWith('@')
@@ -125,16 +124,7 @@ const createImportOwnership = ({
   );
   const workspaceText = read('pnpm-workspace.yaml');
   const workspacePatterns =
-    workspaceText === null ? null : parseYaml(workspaceText)?.packages;
-  if (
-    workspaceText !== null &&
-    (!Array.isArray(workspacePatterns) ||
-      workspacePatterns.some(pattern => typeof pattern !== 'string'))
-  ) {
-    throw new Error(
-      'Import ownership requires valid measured workspace package patterns.',
-    );
-  }
+    workspaceText === null ? null : parseWorkspacePatterns(workspaceText);
   for (const file of files) {
     if (!manifestFiles.includes(file)) continue;
     // Nested manifests belong to fixture/application data, not the workspace
@@ -321,6 +311,7 @@ const createImportOwnership = ({
     if (configs.has(file)) return configs.get(file);
     const content = read(file);
     if (content === null) return null;
+    const { parseSync } = require('@babel/core');
     const ast = parseSync(`const config = ${content}`, {
       babelrc: false,
       configFile: false,

@@ -280,6 +280,7 @@ export function createNativeConsumer(target, { tempDir = os.tmpdir() } = {}) {
   const owner = `native-compatibility-${process.pid}-${path.basename(root)}`;
   const artifacts = [];
   const children = new Set();
+  const commandOutputs = [];
   let cleaned = false;
   const remove = () => {
     if (cleaned) return;
@@ -441,6 +442,7 @@ export function createNativeConsumer(target, { tempDir = os.tmpdir() } = {}) {
       );
       children.add(child);
       let output = '';
+      commandOutputs.push(() => `[modern ${args.join(' ')}]\n${output}`);
       child.stdout.on('data', chunk => {
         output += chunk;
       });
@@ -468,6 +470,7 @@ export function createNativeConsumer(target, { tempDir = os.tmpdir() } = {}) {
       root,
       appDir,
       cleanup,
+      diagnostics: () => commandOutputs.map(output => output()).join('\n'),
       async build(mode) {
         const { child, exited } = startCommand(['build'], {
           NODE_ENV: 'production',
