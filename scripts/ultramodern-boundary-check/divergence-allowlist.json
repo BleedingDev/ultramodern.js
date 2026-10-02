@@ -6,7 +6,7 @@
   "migrationGoal": "Shrink-only budget of fork edits inside upstream-owned files. Every entry is debt: move it upstream or behind an extension point, then re-run --write-divergence-allowlist.",
   "totalFiles": 1070,
   "totalHunks": 3440,
-  "totalChangedLines": 76465,
+  "totalChangedLines": 76642,
   "files": [
     {
       "file": "packages/cli/adapter-rstest/package.json",
@@ -1726,7 +1726,7 @@
     {
       "file": "packages/runtime/plugin-runtime/src/core/server/requestHandler.tsx",
       "hunks": 17,
-      "changedLines": 539
+      "changedLines": 552
     },
     {
       "file": "packages/runtime/plugin-runtime/src/core/server/server.ts",
@@ -2261,7 +2261,7 @@
     {
       "file": "packages/runtime/plugin-runtime/tests/ssr/serverRender/requestHandler.test.tsx",
       "hunks": 1,
-      "changedLines": 651
+      "changedLines": 815
     },
     {
       "file": "packages/runtime/plugin-runtime/tests/ssr/serverRender/workerLifecycle.test.tsx",
