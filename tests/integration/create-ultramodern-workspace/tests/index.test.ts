@@ -1,12 +1,12 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import {
   generatedModernBin,
   installPackedGenerator,
   materializeGeneratedWorkspaceDependencies,
 } from '../../../utils/generatedWorkspaceDependencies';
+import { generatorTestTempParent } from '../../../utils/generatorTestTemp.mjs';
 import { modernBuild } from '../../../utils/modernTestUtils';
 import { setSuiteTimeout } from '../../../utils/setSuiteTimeout';
 
@@ -128,8 +128,12 @@ describe('create-ultramodern-workspace', () => {
 
   beforeAll(() => {
     tempRoot = fs.mkdtempSync(
-      path.join(os.tmpdir(), 'modern-create-ultramodern-workspace-'),
+      path.join(
+        generatorTestTempParent(repoRoot),
+        'modern-create-ultramodern-workspace-',
+      ),
     );
+    console.log(`create-ultramodern-workspace scratch directory: ${tempRoot}`);
     createBin = installPackedGenerator(tempRoot);
   });
 

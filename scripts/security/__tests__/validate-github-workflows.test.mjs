@@ -646,6 +646,191 @@ test('integration gates pull requests with one job per suite', () => {
   );
 });
 
+const integrationPartitionErrors = mutate => {
+  const workflowPath = '.github/workflows/integration-test.yml';
+  const content = fs.readFileSync(
+    new URL(`../../../${workflowPath}`, import.meta.url),
+    'utf8',
+  );
+  const workflow = yaml.load(content);
+  mutate?.(workflow);
+  return validateWorkflowContent(workflowPath, yaml.dump(workflow)).filter(
+    error =>
+      error.includes('integration must schedule six core shards') ||
+      error.includes('integration must select each framework partition') ||
+      error.includes('required-framework must preserve all six'),
+  );
+};
+
+test('integration schedules each generator exactly once beside all six core shards per platform', () => {
+  assert.deepEqual(integrationPartitionErrors(), []);
+  const isGenerator = entry =>
+    entry.suite === 'framework-generator-workspace' ||
+    entry.suite === 'framework-generator-bff';
+  const workflowPath = '.github/workflows/integration-test.yml';
+  const workflow = yaml.load(
+    fs.readFileSync(
+      new URL(`../../../${workflowPath}`, import.meta.url),
+      'utf8',
+    ),
+  );
+  const generators =
+    workflow.jobs.integration.strategy.matrix.include.filter(isGenerator);
+  assert.equal(generators.length, 4);
+  for (const generator of generators) {
+    const matches = entry =>
+      entry.suite === generator.suite && entry.platform === generator.platform;
+    for (const mutate of [
+      matrix => {
+        matrix.include = matrix.include.filter(entry => !matches(entry));
+      },
+      matrix => {
+        matrix.include.push({ ...generator });
+      },
+      matrix => {
+        matrix.include.find(matches).framework_suite = 'core';
+      },
+      matrix => {
+        matrix.include.find(matches).shard = '1/1';
+      },
+    ]) {
+      assert.ok(
+        integrationPartitionErrors(workflow =>
+          mutate(workflow.jobs.integration.strategy.matrix),
+        ).some(error => error.includes('must schedule six core shards')),
+        `${generator.platform} ${generator.suite}`,
+      );
+    }
+  }
+  for (const mutate of [
+    matrix => {
+      matrix.shard = ['1/5', '2/5', '3/5', '4/5', '5/5'];
+    },
+    matrix => {
+      matrix.platform = ['Linux'];
+    },
+  ]) {
+    assert.ok(
+      integrationPartitionErrors(workflow =>
+        mutate(workflow.jobs.integration.strategy.matrix),
+      ).some(error => error.includes('must schedule six core shards')),
+    );
+  }
+});
+
+test('integration generator commands cannot override their partition or shard a fixture', () => {
+  const commandErrors = mutate =>
+    integrationPartitionErrors(mutate).filter(error =>
+      error.includes('must select each framework partition'),
+    );
+  assert.deepEqual(commandErrors(), []);
+  assert.equal(
+    commandErrors(workflow => {
+      delete workflow.jobs.integration.env.MODERN_TEST_FRAMEWORK_SUITE;
+    }).length,
+    1,
+  );
+  assert.equal(
+    commandErrors(workflow => {
+      workflow.jobs.integration['continue-on-error'] = true;
+    }).length,
+    1,
+  );
+  assert.equal(
+    commandErrors(workflow => {
+      workflow.jobs.integration.steps.find(
+        step => step.if === "matrix.suite == 'framework'",
+      )['continue-on-error'] = true;
+    }).length,
+    1,
+  );
+  for (const suite of ['generator-workspace', 'generator-bff']) {
+    const mutateStep = mutate => workflow => {
+      const step = workflow.jobs.integration.steps.find(
+        step => step.if === `matrix.suite == 'framework-${suite}'`,
+      );
+      assert.ok(step, suite);
+      mutate(step);
+    };
+    for (const mutate of [
+      step => {
+        step.env = { MODERN_TEST_FRAMEWORK_SUITE: 'full' };
+      },
+      step => {
+        step.run += ' --shard 1/2';
+      },
+      step => {
+        step.run += ' --shard=1/2';
+      },
+      step => {
+        step.run = `MODERN_TEST_FRAMEWORK_SUITE=core ${step.run}`;
+      },
+      step => {
+        step['continue-on-error'] = true;
+      },
+      step => {
+        step['continue-on-error'] = githubExpression('true');
+      },
+    ]) {
+      assert.equal(commandErrors(mutateStep(mutate)).length, 1, suite);
+    }
+  }
+});
+
+test('protected integration checks fail closed over every generator and core matrix job', () => {
+  const aggregateErrors = mutate =>
+    integrationPartitionErrors(mutate).filter(error =>
+      error.includes('required-framework must preserve all six'),
+    );
+  assert.deepEqual(aggregateErrors(), []);
+  for (const mutate of [
+    workflow => {
+      delete workflow.jobs['required-framework'];
+    },
+    workflow => {
+      workflow.jobs['required-framework'].strategy.matrix.platform = ['Linux'];
+    },
+    workflow => {
+      workflow.jobs['required-framework'].strategy.matrix.required_shard = [
+        1, 2,
+      ];
+    },
+    workflow => {
+      workflow.jobs['required-framework'].strategy.matrix.required_shard = [
+        1, 2, 3, 3,
+      ];
+    },
+    workflow => {
+      workflow.jobs['required-framework'].name = 'Integration passed';
+    },
+    workflow => {
+      workflow.jobs['required-framework'].needs = [];
+    },
+    workflow => {
+      workflow.jobs['required-framework'].if = 'success()';
+    },
+    workflow => {
+      workflow.jobs['required-framework']['continue-on-error'] = true;
+    },
+    workflow => {
+      workflow.jobs['required-framework'].steps[0].if =
+        "needs.integration.result == 'success'";
+    },
+    workflow => {
+      workflow.jobs['required-framework'].steps[0].run = 'echo success';
+    },
+    workflow => {
+      workflow.jobs['required-framework'].steps[0].env.INTEGRATION_RESULT =
+        'success';
+    },
+    workflow => {
+      workflow.jobs['required-framework'].steps[0]['continue-on-error'] = true;
+    },
+  ]) {
+    assert.equal(aggregateErrors(mutate).length, 1);
+  }
+});
+
 test('release gates reject node:test filter flags', () => {
   const workflowPath = '.github/workflows/publish-bleedingdev.yml';
   const content = fs.readFileSync(

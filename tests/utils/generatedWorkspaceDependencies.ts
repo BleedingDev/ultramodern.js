@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { yaml } from '@modern-js/utils';
 import { parsePnpmLockfile } from '../../scripts/lib/parse-pnpm-lockfile.mjs';
+import { stripPackedFrameworkSources } from './packedConsumerSources.mjs';
 import { bleedingdevEdges, runPnpm } from './runWithPrerequisites.mjs';
 
 const { dump, load } = yaml;
@@ -97,7 +98,6 @@ function prepareSourceUnavailableConsumer(
   consumer: string,
   requireFramework = false,
 ) {
-  const root = fs.realpathSync(consumer);
   const required = new Set(
     requireFramework
       ? [
@@ -108,41 +108,31 @@ function prepareSourceUnavailableConsumer(
         ]
       : ['@modern-js/ultramodern-create'],
   );
-  for (const name of packedPrerequisites().framework) {
-    for (const manifest of fs.globSync(
-      `node_modules/.pnpm/*/node_modules/${name}/package.json`,
-      { cwd: consumer },
-    )) {
-      const packageDir = fs.realpathSync(
-        path.dirname(path.join(consumer, manifest)),
-      );
-      if (!packageDir.startsWith(`${root}${path.sep}`)) {
+  const { root, packages } = stripPackedFrameworkSources(
+    consumer,
+    packedPrerequisites().framework,
+  );
+  for (const { name, packageDir } of packages) {
+    if (required.has(name)) {
+      const entry = execFileSync(
+        process.execPath,
+        ['-e', 'console.log(require.resolve(process.argv[1]))', name],
+        {
+          cwd: packageDir,
+          encoding: 'utf8',
+          env: { ...process.env, NODE_PATH: '' },
+        },
+      ).trim();
+      const resolved = fs.realpathSync(entry);
+      if (
+        !resolved.startsWith(`${root}${path.sep}`) ||
+        resolved.split(path.sep).includes('src')
+      ) {
         throw new Error(
-          `Packed package escaped its consumer: ${name}: ${packageDir}`,
+          `Packed entry selected framework source or an external tree: ${name}: ${resolved}`,
         );
       }
-      fs.rmSync(path.join(packageDir, 'src'), { recursive: true, force: true });
-      if (required.has(name)) {
-        const entry = execFileSync(
-          process.execPath,
-          ['-e', 'console.log(require.resolve(process.argv[1]))', name],
-          {
-            cwd: packageDir,
-            encoding: 'utf8',
-            env: { ...process.env, NODE_PATH: '' },
-          },
-        ).trim();
-        const resolved = fs.realpathSync(entry);
-        if (
-          !resolved.startsWith(`${root}${path.sep}`) ||
-          resolved.split(path.sep).includes('src')
-        ) {
-          throw new Error(
-            `Packed entry selected framework source or an external tree: ${name}: ${resolved}`,
-          );
-        }
-        required.delete(name);
-      }
+      required.delete(name);
     }
   }
   if (required.size)

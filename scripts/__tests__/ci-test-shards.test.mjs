@@ -57,7 +57,7 @@ function scheduledJobs() {
   );
 }
 
-test('integration schedules six complete shards on both supported platforms', () => {
+test('integration schedules six core shards and isolated generators on both platforms', () => {
   const jobs = scheduledJobs();
   for (const platform of ['Linux', 'Windows']) {
     const framework = jobs.filter(
@@ -72,8 +72,22 @@ test('integration schedules six complete shards on both supported platforms', ()
       '6/6',
     ]);
     assert.ok(framework.every(job => job.runner));
+    assert.ok(framework.every(job => job.framework_suite === 'core'));
+    const generators = jobs.filter(
+      job =>
+        job.platform === platform &&
+        job.suite.startsWith('framework-generator-'),
+    );
+    assert.deepEqual(
+      generators.map(job => `${job.suite}:${job.framework_suite}`).sort(),
+      [
+        'framework-generator-bff:generator-bff',
+        'framework-generator-workspace:generator-workspace',
+      ],
+    );
+    assert.ok(generators.every(job => job.runner && job.shard === undefined));
   }
-  assert.equal(jobs.length, 15);
+  assert.equal(jobs.length, 19);
   assert.equal(integration.strategy['fail-fast'], false);
   assert.equal(integration.strategy['max-parallel'], undefined);
 });
@@ -81,7 +95,7 @@ test('integration schedules six complete shards on both supported platforms', ()
 test('adapter and package utility coverage still runs once per supported platform', () => {
   assert.deepEqual(
     scheduledJobs()
-      .filter(job => job.suite !== 'framework')
+      .filter(job => !job.suite.startsWith('framework'))
       .map(job => `${job.platform}:${job.suite}`)
       .sort(),
     ['Linux:rstest-adapter', 'Linux:utils', 'Windows:rstest-adapter'],
@@ -119,14 +133,20 @@ const rstestBin = path.join(
   JSON.parse(readFileSync(rstestPackage, 'utf8')).bin.rstest,
 );
 
-async function listFiles(shard) {
+async function listFiles(shard, suite) {
   const directory = mkdtempSync(path.join(os.tmpdir(), 'modernjs-shard-list-'));
   const output = path.join(directory, 'files.json');
   const args = [rstestBin, 'list', '--filesOnly', '--json', output];
   if (shard) args.push('--shard', shard);
+  const env = { ...process.env };
+  // Default discovery must remain the complete suite even if this regression
+  // runs inside a matrix job that selected a framework subset.
+  delete env.MODERN_TEST_FRAMEWORK_SUITE;
+  if (suite !== undefined) env.MODERN_TEST_FRAMEWORK_SUITE = suite;
   try {
     await run(process.execPath, args, {
       cwd: path.join(repoRoot, 'tests'),
+      env,
       timeout: 60_000,
       maxBuffer: 4 * 1024 * 1024,
     });
@@ -139,17 +159,30 @@ async function listFiles(shard) {
   }
 }
 
-test('native framework shards run every discovered file exactly once', async () => {
-  const [all, ...shards] = await Promise.all([
+test('native core shards and generator runners run every discovered file exactly once', async () => {
+  const [all, core, workspace, bff, ...shards] = await Promise.all([
     listFiles(),
-    ...matrix.shard.map(shard => listFiles(shard)),
+    listFiles(undefined, 'core'),
+    listFiles(undefined, 'generator-workspace'),
+    listFiles(undefined, 'generator-bff'),
+    ...matrix.shard.map(shard => listFiles(shard, 'core')),
   ]);
   assert.ok(
     all.length >= matrix.shard.length,
     'Every CI shard must have tests.',
   );
   assert.ok(shards.every(files => files.length > 0));
-  const combined = shards.flat();
+  assert.deepEqual(
+    workspace.map(file => file.replaceAll('\\', '/').split('/integration/')[1]),
+    ['create-ultramodern-workspace/tests/index.test.ts'],
+  );
+  assert.deepEqual(
+    bff.map(file => file.replaceAll('\\', '/').split('/integration/')[1]),
+    ['create-bff-runtime/tests/index.test.ts'],
+  );
+  assert.equal(core.length, all.length - workspace.length - bff.length);
+  assert.deepEqual(shards.flat().sort(), core, 'Core shards must cover core.');
+  const combined = [...shards.flat(), ...workspace, ...bff];
   assert.equal(new Set(combined).size, combined.length, 'Shards overlap.');
   assert.deepEqual(
     combined.sort(),
@@ -161,8 +194,48 @@ test('native framework shards run every discovered file exactly once', async () 
 });
 
 test('native shard discovery is deterministic and rejects invalid shard inputs', async () => {
-  assert.deepEqual(await listFiles('1/6'), await listFiles('1/6'));
+  assert.deepEqual(
+    await listFiles('1/6', 'core'),
+    await listFiles('1/6', 'core'),
+  );
   for (const shard of ['0/6', '7/6', '1/0', 'invalid']) {
-    await assert.rejects(listFiles(shard), undefined, shard);
+    await assert.rejects(listFiles(shard, 'core'), undefined, shard);
   }
+});
+
+test('framework suite defaults to full and rejects unknown selectors', async () => {
+  assert.deepEqual(await listFiles(), await listFiles(undefined, 'full'));
+  for (const suite of ['', 'unknown', 'generator', 'Core']) {
+    await assert.rejects(listFiles(undefined, suite), undefined, suite);
+  }
+});
+
+test('all framework matrix jobs keep prepared commands, browsers, and timing reports', () => {
+  const browserIndex = integration.steps.findIndex(
+    step => step.name === 'Install Playwright browsers',
+  );
+  assert.ok(browserIndex >= 0);
+  for (const suite of [
+    'framework',
+    'framework-generator-workspace',
+    'framework-generator-bff',
+  ]) {
+    const stepIndex = integration.steps.findIndex(
+      step => step.if === `matrix.suite == '${suite}'`,
+    );
+    assert.ok(stepIndex > browserIndex, `${suite} needs browser provisioning`);
+    const step = integration.steps[stepIndex];
+    assert.match(step.run, /test:framework:prepared/u);
+    assert.match(step.run, /--reporters default --reporters blob/u);
+    if (suite === 'framework') assert.match(step.run, /--shard/u);
+    else assert.doesNotMatch(step.run, /--shard/u);
+  }
+  const timing = integration.steps.find(
+    step => step.name === 'Upload framework test timings',
+  );
+  assert.match(timing.if, /always\(\)/u);
+  assert.match(timing.if, /matrix\.suite == 'framework'/u);
+  assert.match(timing.if, /matrix\.suite == 'framework-generator-workspace'/u);
+  assert.match(timing.if, /matrix\.suite == 'framework-generator-bff'/u);
+  assert.equal(timing.with.path, 'tests/.rstest-reports/');
 });

@@ -1219,6 +1219,142 @@ function expandIntegrationMatrix(matrix) {
   return combinations;
 }
 
+function collectFrameworkPartitionErrors(workflow, relativePath) {
+  const job = workflow.jobs?.integration;
+  const combinations = expandIntegrationMatrix(job?.strategy?.matrix);
+  const platforms = ['Linux', 'Windows'];
+  const expected = platforms.flatMap(platform => [
+    ...Array.from({ length: 6 }, (_, index) => ({
+      platform,
+      suite: 'framework',
+      framework_suite: 'core',
+      shard: `${index + 1}/6`,
+    })),
+    ...['generator-workspace', 'generator-bff'].map(frameworkSuite => ({
+      platform,
+      suite: `framework-${frameworkSuite}`,
+      framework_suite: frameworkSuite,
+    })),
+  ]);
+  const frameworkCombinations = combinations.filter(combination =>
+    String(combination.suite).startsWith('framework'),
+  );
+  const key = ({ platform, suite, framework_suite, shard }) =>
+    JSON.stringify([platform, suite, framework_suite, shard]);
+  const complete =
+    frameworkCombinations.length === expected.length &&
+    expected.every(
+      combination =>
+        frameworkCombinations.filter(actual => key(actual) === key(combination))
+          .length === 1,
+    );
+  const errors = [];
+  if (!complete) {
+    errors.push(
+      `${relativePath} integration must schedule six core shards and exactly one unsharded generator-workspace and generator-bff job on Linux and Windows`,
+    );
+  }
+  const selector = job?.env?.MODERN_TEST_FRAMEWORK_SUITE;
+  const selectorPattern =
+    /^\s*\$\{\{\s*matrix\.framework_suite\s*\|\|\s*'full'\s*\}\}\s*$/u;
+  const steps = Array.isArray(job?.steps) ? job.steps : [];
+  const selectorOverride = steps.some(
+    step =>
+      isObject(step) &&
+      (step.env?.MODERN_TEST_FRAMEWORK_SUITE !== undefined ||
+        /\bMODERN_TEST_FRAMEWORK_SUITE\s*=/u.test(String(step.run ?? '')) ||
+        (testScriptPattern.test(stripShellComments(String(step.run ?? ''))) &&
+          Boolean(step['continue-on-error']))),
+  );
+  const generatorCommands = ['generator-workspace', 'generator-bff'].every(
+    suite => {
+      const suiteSteps = steps.filter(
+        step =>
+          isObject(step) &&
+          suiteConditionPattern.exec(String(step.if).trim())?.[1] ===
+            `framework-${suite}` &&
+          runIncludes(step, 'test:framework:prepared'),
+      );
+      return (
+        suiteSteps.length === 1 &&
+        !/--shard(?:\s|=|$)/u.test(stripShellComments(suiteSteps[0].run)) &&
+        !runIncludes(suiteSteps[0], 'matrix.shard') &&
+        !suiteSteps[0]['continue-on-error']
+      );
+    },
+  );
+  if (
+    typeof selector !== 'string' ||
+    !selectorPattern.test(selector) ||
+    selectorOverride ||
+    job?.['continue-on-error'] ||
+    !generatorCommands
+  ) {
+    errors.push(
+      `${relativePath} integration must select each framework partition from matrix.framework_suite and run both generator jobs without sharding, selector overrides or continue-on-error`,
+    );
+  }
+  const aggregate = workflow.jobs?.['required-framework'];
+  const aggregateCombinations = expandIntegrationMatrix(
+    aggregate?.strategy?.matrix,
+  );
+  const aggregateMatrixComplete =
+    aggregateCombinations.length === 6 &&
+    platforms.every(platform =>
+      [1, 2, 3].every(
+        shard =>
+          aggregateCombinations.filter(
+            combination =>
+              combination.platform === platform &&
+              String(combination.required_shard) === String(shard),
+          ).length === 1,
+      ),
+    );
+  const aggregateSteps = Array.isArray(aggregate?.steps) ? aggregate.steps : [];
+  const resultSteps = aggregateSteps.filter(
+    step =>
+      isObject(step) &&
+      /^\s*test\s+"\$INTEGRATION_RESULT"\s*=\s*success\s*$/u.test(
+        String(step.run ?? ''),
+      ) &&
+      /^\s*\$\{\{\s*needs\.integration\.result\s*\}\}\s*$/u.test(
+        String(step.env?.INTEGRATION_RESULT ?? ''),
+      ) &&
+      step.if === undefined &&
+      !step['continue-on-error'],
+  );
+  const schedulesAggregate = [
+    'success',
+    'failure',
+    'cancelled',
+    'skipped',
+  ].every(result =>
+    evaluateJobSchedule({
+      workflow,
+      jobId: 'required-framework',
+      results: { integration: result },
+      context: {},
+    }),
+  );
+  const aggregateName =
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: literal GitHub Actions check name.
+    'integration-${{ matrix.platform }} (framework ${{ matrix.required_shard }}/3)';
+  if (
+    !aggregateMatrixComplete ||
+    aggregate?.name !== aggregateName ||
+    JSON.stringify(normalizeNeeds(aggregate)) !==
+      JSON.stringify(['integration']) ||
+    aggregate?.['continue-on-error'] ||
+    !schedulesAggregate ||
+    resultSteps.length !== 1
+  ) {
+    errors.push(
+      `${relativePath} required-framework must preserve all six protected check names and fail unless the entire integration matrix succeeds, including failed, cancelled or skipped generator jobs`,
+    );
+  }
+  return errors;
+}
+
 function collectIntegrationGateErrors(workflow, relativePath) {
   if (relativePath !== integrationWorkflowPath) {
     return [];
@@ -1347,6 +1483,7 @@ function collectIntegrationGateErrors(workflow, relativePath) {
       }
     }
   }
+  errors.push(...collectFrameworkPartitionErrors(workflow, relativePath));
   return errors;
 }
 
