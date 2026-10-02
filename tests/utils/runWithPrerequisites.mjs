@@ -125,7 +125,8 @@ async function main() {
       'Usage: runWithPrerequisites.mjs [--prepared] -- <command> [args]',
     );
   }
-  const inheritedManifest = process.env.MODERN_TEST_PACKAGE_MANIFEST;
+  const inheritedManifest =
+    process.env.MODERN_TEST_PACKAGE_MANIFEST || undefined;
   if (!prepared && !inheritedManifest) {
     runPnpm(['run', 'prepare-build'], {
       cwd: repoRoot,
