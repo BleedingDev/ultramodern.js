@@ -171,6 +171,14 @@ ref, narrower/broader/reordered scope, or alternate allowlist therefore fails
 before comparison. An incomplete measurement can never classify absent entries
 as cleared.
 
+One synchronous CLI or API operation reuses successful ancestry checks and
+completed exact-file history queries keyed by canonical repository root and
+resolved full commit OIDs. Refs resolve freshly for each validation; scope,
+budgets, measurements and ledger checks remain uncached. Evidence is discarded
+on return or throw, and asynchronous operation callbacks are rejected. As with
+each measurement, shallow boundaries, replacement refs and grafts must remain
+stable during the operation.
+
 ### Cumulative shrink-only budgets
 
 The cumulative gate fails on:

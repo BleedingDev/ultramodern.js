@@ -48,6 +48,250 @@ const fixture = t => {
   return { root, write, commit };
 };
 
+const observedDivergence = () => {
+  const child = require('node:child_process');
+  const filename = require.resolve('../divergence');
+  const savedModule = require.cache[filename];
+  const savedSpawn = child.spawnSync;
+  const calls = [];
+  let fault;
+  delete require.cache[filename];
+  child.spawnSync = (command, args, options) => {
+    const call = { command, args, root: options.cwd };
+    if (command === 'git') {
+      calls.push(call);
+      const failure = fault?.(call);
+      if (failure) return failure;
+    }
+    return savedSpawn(command, args, options);
+  };
+  let api;
+  try {
+    api = require(filename);
+  } finally {
+    child.spawnSync = savedSpawn;
+    delete require.cache[filename];
+    if (savedModule) require.cache[filename] = savedModule;
+  }
+  return {
+    ...api,
+    calls,
+    setFault: value => {
+      fault = value;
+    },
+  };
+};
+
+const historyFixture = t => {
+  const repo = fixture(t);
+  repo.write('packages/native/src/index.ts', 'export const native = true;\n');
+  const base = repo.commit();
+  const files = ['packages/native/src/gone.ts', 'packages/native/src/old.ts'];
+  for (const file of files) repo.write(file, 'export const value = 1;\n');
+  repo.commit();
+  fs.rmSync(path.join(repo.root, files[0]));
+  git(repo.root, 'mv', files[1], 'packages/native/src/renamed.ts');
+  const head = repo.commit();
+  return { ...repo, base, head, files };
+};
+const snapshotFor = (api, repo) =>
+  api.createDivergenceSnapshot({
+    baseRef: repo.base,
+    upstreamRef: repo.base,
+    pathspec: ['packages'],
+    files: repo.files.map(file => ({ file, hunks: 1, changedLines: 1 })),
+  });
+const ancestryCalls = (api, ancestor, descendant, root) =>
+  api.calls.filter(
+    call =>
+      call.args[1] === 'merge-base' &&
+      call.args[2] === '--is-ancestor' &&
+      call.args[3] === ancestor &&
+      call.args[4] === descendant &&
+      (!root || call.root === fs.realpathSync.native(root)),
+  );
+const historyCalls = (api, file, root) =>
+  api.calls.filter(
+    call =>
+      call.args[1] === 'log' &&
+      call.args.at(-1) === file &&
+      (!root || call.root === fs.realpathSync.native(root)),
+  );
+
+test('one divergence operation reuses exact Git evidence, retaining deleted and renamed identities', t => {
+  const repo = historyFixture(t);
+  const api = observedDivergence();
+  const snapshot = snapshotFor(api, repo);
+  const validate = (input = snapshot, root = repo.root) =>
+    api.validateDivergenceAllowlist(input, {
+      rootDir: root,
+      identityRef: repo.head,
+    });
+  api.runDivergenceOperation(() => {
+    assert.deepEqual(validate(), validate());
+    assert.equal(ancestryCalls(api, repo.base, repo.head, repo.root).length, 1);
+    for (const file of repo.files) {
+      const [call] = historyCalls(api, file, repo.root);
+      assert.equal(historyCalls(api, file, repo.root).length, 1);
+      assert.deepEqual(call.args, [
+        '--literal-pathspecs',
+        'log',
+        '--format=',
+        '--name-only',
+        '-z',
+        '-m',
+        '--no-renames',
+        repo.base + '..' + repo.head,
+        '--',
+        file,
+      ]);
+    }
+    assert.throws(
+      () => validate({ ...snapshot, totalChangedLines: 99 }),
+      /mismatch/,
+    );
+    for (const file of [
+      'packages/native/src/Old.ts',
+      'packages/native/src/old.ts/nested',
+      'packages/native/src',
+    ]) {
+      const invalid = api.createDivergenceSnapshot({
+        baseRef: repo.base,
+        upstreamRef: repo.base,
+        pathspec: ['packages'],
+        files: [{ file, hunks: 1, changedLines: 1 }],
+      });
+      assert.throws(() => validate(invalid), /neither a canonical/);
+      assert.equal(historyCalls(api, file, repo.root).length, 1);
+    }
+    const other = fixture(t);
+    git(other.root, 'fetch', repo.root, repo.head);
+    git(other.root, 'reset', '--hard', 'FETCH_HEAD');
+    assert.deepEqual(validate(snapshot, other.root), snapshot);
+    assert.equal(
+      ancestryCalls(api, repo.base, repo.head, other.root).length,
+      1,
+    );
+    for (const file of repo.files)
+      assert.equal(historyCalls(api, file, other.root).length, 1);
+  });
+});
+
+test('divergence operations resolve moved refs freshly and discard evidence on every exit', t => {
+  const repo = historyFixture(t);
+  const api = observedDivergence();
+  const snapshot = snapshotFor(api, repo);
+  const validate = () =>
+    api.validateDivergenceAllowlist(snapshot, {
+      rootDir: repo.root,
+      identityRef: 'HEAD',
+    });
+  validate();
+  validate();
+  assert.equal(
+    historyCalls(api, repo.files[0]).length,
+    2,
+    'direct API invocations are independent',
+  );
+  api.calls.length = 0;
+  assert.throws(
+    () =>
+      api.runDivergenceOperation(() => {
+        validate();
+        throw new Error('callback failed');
+      }),
+    /callback failed/,
+  );
+  validate();
+  assert.equal(historyCalls(api, repo.files[0]).length, 2);
+  api.calls.length = 0;
+  assert.throws(
+    () =>
+      api.runDivergenceOperation(() => {
+        validate();
+        return Promise.resolve();
+      }),
+    /must be synchronous/,
+  );
+  validate();
+  assert.equal(historyCalls(api, repo.files[0]).length, 2);
+  api.calls.length = 0;
+  api.runDivergenceOperation(() => {
+    validate();
+    git(repo.root, 'commit', '--allow-empty', '-m', 'move HEAD');
+    const moved = git(repo.root, 'rev-parse', 'HEAD');
+    validate();
+    assert.notEqual(moved, repo.head);
+    assert.equal(ancestryCalls(api, repo.base, repo.head).length, 1);
+    assert.equal(ancestryCalls(api, repo.base, moved).length, 1);
+    assert.equal(historyCalls(api, repo.files[0]).length, 2);
+    assert.equal(
+      api.calls.filter(
+        call =>
+          call.args[1] === 'rev-parse' && call.args.at(-1) === 'HEAD^{commit}',
+      ).length,
+      2,
+    );
+  });
+  validate();
+  assert.equal(
+    historyCalls(api, repo.files[0]).length,
+    3,
+    'a fresh operation cannot retain previous evidence',
+  );
+});
+
+test('failed ancestry and Git history queries never populate operation evidence', t => {
+  const repo = historyFixture(t);
+  const api = observedDivergence();
+  const snapshot = snapshotFor(api, repo);
+  const validate = () =>
+    api.validateDivergenceAllowlist(snapshot, {
+      rootDir: repo.root,
+      identityRef: repo.head,
+    });
+  for (const kind of ['ancestry', 'history', 'spawn']) {
+    api.calls.length = 0;
+    let failures = 1;
+    api.setFault(call => {
+      const matches =
+        kind === 'ancestry'
+          ? call.args[1] === 'merge-base' &&
+            call.args[3] === repo.base &&
+            call.args[4] === repo.head
+          : call.args[1] === 'log' && call.args.at(-1) === repo.files[0];
+      if (!matches || failures === 0) return undefined;
+      failures -= 1;
+      return kind === 'spawn'
+        ? { error: new Error('simulated Git spawn failure') }
+        : { status: 1, stdout: '', stderr: 'simulated Git query failure' };
+    });
+    api.runDivergenceOperation(() => {
+      assert.throws(
+        validate,
+        kind === 'ancestry'
+          ? /identity target does not incorporate/
+          : /simulated Git/,
+      );
+      assert.deepEqual(validate(), validate());
+      assert.equal(
+        ancestryCalls(api, repo.base, repo.head).length,
+        kind === 'ancestry' ? 2 : 1,
+      );
+      assert.equal(
+        historyCalls(api, repo.files[0]).length,
+        kind === 'ancestry' ? 1 : 2,
+      );
+    });
+    api.setFault(undefined);
+    validate();
+    assert.equal(
+      historyCalls(api, repo.files[0]).length,
+      kind === 'ancestry' ? 2 : 3,
+    );
+  }
+});
+
 test('strict current data rejects Markdown-only, malformed schema and policy smuggling', () => {
   assert.throws(() => parseLedgerEvidenceRows(legacy), /exactly one/);
   for (const update of [
