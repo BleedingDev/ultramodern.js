@@ -24,6 +24,53 @@ const upstreamPackages = {
   '@modern-js/server-runtime': 'packages/server/server-runtime/package.json',
 };
 
+export async function readNativeErrorBody(
+  response,
+  controller,
+  { timeoutMs = 5000, maxBytes = 65_536 } = {},
+) {
+  if (!response.body) {
+    controller.abort();
+    return '';
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let body = '';
+  let bytes = 0;
+  let note = '';
+  let timer;
+  const deadline = new Promise(resolve => {
+    timer = setTimeout(() => {
+      note = `Diagnostic body timed out after ${timeoutMs}ms`;
+      controller.abort();
+      resolve(undefined);
+    }, timeoutMs);
+  });
+  try {
+    while (true) {
+      const chunk = await Promise.race([reader.read(), deadline]);
+      if (!chunk || chunk.done) break;
+      const value = chunk.value.subarray(0, maxBytes - bytes);
+      bytes += value.byteLength;
+      body += decoder.decode(value, { stream: true });
+      if (bytes >= maxBytes) {
+        note = `Diagnostic body truncated at ${maxBytes} bytes`;
+        break;
+      }
+    }
+  } catch (error) {
+    note ||= `Diagnostic body read failed: ${error.message}`;
+  } finally {
+    clearTimeout(timer);
+    controller.abort();
+    // Cancellation must not hold up the original HTTP status assertion.
+    void reader.cancel().catch(() => {});
+    reader.releaseLock();
+  }
+  body += decoder.decode();
+  return note ? `${body}\n[${note}]` : body;
+}
+
 export function upstreamDependencies(
   readGit = args =>
     execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8' }),
@@ -145,9 +192,11 @@ export function assertConsumerLockfile(source, target) {
 }
 
 export function assertInstalledConsumer(appDir, target, dependencies) {
-  const consumer = fs.realpathSync(appDir);
+  const consumer = fs.realpathSync.native(appDir);
   for (const [name, version] of Object.entries(dependencies)) {
-    const packageDir = fs.realpathSync(path.join(appDir, 'node_modules', name));
+    const packageDir = fs.realpathSync.native(
+      path.join(appDir, 'node_modules', name),
+    );
     assert.ok(
       packageDir.startsWith(`${consumer}${path.sep}`),
       `${name} resolved outside the isolated consumer`,
@@ -176,7 +225,7 @@ export function assertInstalledConsumer(appDir, target, dependencies) {
       ['-e', 'console.log(require.resolve(process.argv[1]))', name],
       { cwd: appDir, env: { ...process.env, NODE_PATH: '' }, encoding: 'utf8' },
     ).trim();
-    const resolved = fs.realpathSync(entry);
+    const resolved = fs.realpathSync.native(entry);
     assert.ok(
       resolved.startsWith(`${consumer}${path.sep}`),
       `${name} entry escaped the consumer`,
@@ -273,9 +322,12 @@ async function waitForPort(child, port, output) {
  * the external pnpm content store are never removed by this cleanup. */
 export function createNativeConsumer(target, { tempDir = os.tmpdir() } = {}) {
   assert.ok(['upstream', 'fork'].includes(target));
-  const root = fs.realpathSync(
-    fs.mkdtempSync(path.join(tempDir, `modern-native-${target}-`)),
+  const createdRoot = fs.mkdtempSync(
+    path.join(tempDir, `modern-native-${target}-`),
   );
+  // Windows TEMP can use a DOS short name. One native canonical root prevents
+  // module resolvers from treating short and long spellings as distinct files.
+  const root = fs.realpathSync.native(createdRoot);
   const appDir = path.join(root, 'app');
   const owner = `native-compatibility-${process.pid}-${path.basename(root)}`;
   const artifacts = [];
@@ -353,8 +405,8 @@ export function createNativeConsumer(target, { tempDir = os.tmpdir() } = {}) {
           private: true,
           dependencies: {
             ...dependencies,
-            react: '19.2.7',
-            'react-dom': '19.2.7',
+            react: '19.2.8',
+            'react-dom': '19.2.8',
           },
           // Native v3.8.2 BFF production compilation loads TypeScript from
           // the application, independently of the browser type-checker.
@@ -470,7 +522,10 @@ export function createNativeConsumer(target, { tempDir = os.tmpdir() } = {}) {
       root,
       appDir,
       cleanup,
-      diagnostics: () => commandOutputs.map(output => output()).join('\n'),
+      diagnostics: () =>
+        `Consumer root: ${createdRoot}\nNative root: ${root}\n${commandOutputs
+          .map(output => output())
+          .join('\n')}`,
       async build(mode) {
         const { child, exited } = startCommand(['build'], {
           NODE_ENV: 'production',

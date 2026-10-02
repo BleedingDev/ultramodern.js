@@ -11,6 +11,7 @@ import {
   assertInstalledConsumer,
   createNativeConsumer,
   packedOverrides,
+  readNativeErrorBody,
   upstreamCommit,
   upstreamDependencies,
 } from './consumer.mjs';
@@ -26,6 +27,81 @@ const ownedDirectory = callback => {
     fs.rmSync(root, { recursive: true, force: true });
   }
 };
+
+test('non-ending HTTP error diagnostics return partial text even if cancellation stalls', {
+  timeout: 1000,
+}, async () => {
+  let cancelled = false;
+  const response = new Response(
+    new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('Native loader failed'));
+      },
+      cancel() {
+        cancelled = true;
+        return new Promise(() => {});
+      },
+    }),
+    { status: 500 },
+  );
+  const controller = new AbortController();
+  const body = await readNativeErrorBody(response, controller, {
+    timeoutMs: 20,
+  });
+  assert.equal(response.status, 500);
+  assert.match(body, /^Native loader failed\n\[Diagnostic body timed out/);
+  assert.equal(controller.signal.aborted, true);
+  assert.equal(response.body.locked, false);
+  assert.equal(cancelled, true);
+});
+
+test('oversized HTTP error diagnostics cancel the remaining body at the byte cap', {
+  timeout: 1000,
+}, async () => {
+  let cancelled = false;
+  const response = new Response(
+    new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('Native loader failed'));
+      },
+      cancel() {
+        cancelled = true;
+      },
+    }),
+    { status: 500 },
+  );
+  const controller = new AbortController();
+  assert.equal(
+    await readNativeErrorBody(response, controller, { maxBytes: 6 }),
+    'Native\n[Diagnostic body truncated at 6 bytes]',
+  );
+  assert.equal(response.status, 500);
+  assert.equal(controller.signal.aborted, true);
+  assert.equal(response.body.locked, false);
+  assert.equal(cancelled, true);
+});
+
+test('HTTP error diagnostics retain text when a later body read fails', async () => {
+  let reads = 0;
+  const response = new Response(
+    new ReadableStream({
+      pull(controller) {
+        if (reads++ === 0)
+          controller.enqueue(new TextEncoder().encode('Native loader failed'));
+        else controller.error(new Error('socket closed'));
+      },
+    }),
+    { status: 500 },
+  );
+  const controller = new AbortController();
+  assert.equal(
+    await readNativeErrorBody(response, controller),
+    'Native loader failed\n[Diagnostic body read failed: socket closed]',
+  );
+  assert.equal(response.status, 500);
+  assert.equal(controller.signal.aborted, true);
+  assert.equal(response.body.locked, false);
+});
 
 test('upstream baseline pins every native package to the fixed audited commit', () => {
   const calls = [];

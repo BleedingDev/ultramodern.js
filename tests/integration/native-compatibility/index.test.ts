@@ -1,6 +1,9 @@
 import type { ChildProcess } from 'node:child_process';
 import { chromium } from 'playwright';
-import { createNativeConsumer } from '../../../scripts/native-compatibility/consumer.mjs';
+import {
+  createNativeConsumer,
+  readNativeErrorBody,
+} from '../../../scripts/native-compatibility/consumer.mjs';
 import { getPort } from '../../utils/modernTestUtils';
 
 const target = process.env.NATIVE_COMPATIBILITY_TARGET ?? 'all';
@@ -28,8 +31,14 @@ for (const target of targets) {
           expect(await home.text()).toMatch(
             /<p\b[^>]*\bid="home"[^>]*>Native home<\/p>/,
           );
-          const greeting = await fetch(`${origin}/greeting`);
-          const greetingHtml = await greeting.text();
+          const greetingController = new AbortController();
+          const greeting = await fetch(`${origin}/greeting`, {
+            signal: greetingController.signal,
+          });
+          const greetingHtml =
+            greeting.status === 200
+              ? await greeting.text()
+              : await readNativeErrorBody(greeting, greetingController);
           expect(
             greeting.status,
             `${target}/${mode}/${phase} GET /greeting\n${greetingHtml}`,
