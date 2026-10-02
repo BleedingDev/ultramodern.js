@@ -54,10 +54,11 @@ export const createUltramodernReleaseBuildMarker = ({
 export const resolveUltramodernSourceRevision = (
   workspaceRoot = process.cwd(),
   configuredSourceRevision?: string,
+  environment: Readonly<NodeJS.ProcessEnv> = process.env,
 ): string => {
   const configuredArgumentValue = configuredSourceRevision?.trim();
   const configuredEnvironmentValue =
-    process.env.ULTRAMODERN_SOURCE_REVISION?.trim();
+    environment.ULTRAMODERN_SOURCE_REVISION?.trim();
   const configuredArgument =
     configuredArgumentValue && configuredArgumentValue !== 'workspace'
       ? configuredArgumentValue
@@ -120,16 +121,19 @@ export const resolveUltramodernReleaseIdentity = ({
   sourceRevision: configuredSourceRevision,
   unitId,
   workspaceRoot,
+  environment,
 }: {
   generationBuildMarker: string;
   sourceRevision?: string;
   unitId: string;
   workspaceRoot?: string;
+  environment?: Readonly<NodeJS.ProcessEnv>;
 }): UltramodernReleaseIdentity => {
   const explicitSourceRevision = configuredSourceRevision?.trim();
   const sourceRevision = resolveUltramodernSourceRevision(
     workspaceRoot,
     explicitSourceRevision,
+    environment,
   );
   return {
     buildMarker:

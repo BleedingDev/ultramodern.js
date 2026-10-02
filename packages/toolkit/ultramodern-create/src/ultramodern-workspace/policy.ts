@@ -169,13 +169,6 @@ const PUBLIC_WEBSITE_POLICY = {
   },
 };
 
-export function formatTsJsonValue(value: JsonValue, indent: number): string {
-  return JSON.stringify(value, null, 2).replaceAll(
-    '\n',
-    `\n${' '.repeat(indent)}`,
-  );
-}
-
 function createPublicWebsiteQualityGateContract(): JsonValue {
   return PUBLIC_WEBSITE_POLICY.qualityGates;
 }

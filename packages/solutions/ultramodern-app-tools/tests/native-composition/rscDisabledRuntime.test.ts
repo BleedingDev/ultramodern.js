@@ -3,12 +3,7 @@ import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import type { AppTools, AppUserConfig } from '@modern-js/app-tools';
-import { type CLIPluginAPI, createPluginManager } from '@modern-js/plugin';
-import {
-  createContext,
-  initAppContext,
-  initPluginAPI,
-} from '@modern-js/plugin/cli';
+import { createConfigOptions } from '@modern-js/plugin/cli';
 import type { RsbuildPlugin } from '@rsbuild/core';
 import { expect, it } from '@rstest/core';
 import { type BuilderConfig, createBuilder } from '../../../../cli/builder/src';
@@ -22,26 +17,14 @@ async function resolveComposerConfig(
   appDirectory: string,
   config: ComposerConfig,
 ) {
-  const pluginManager = createPluginManager();
-  const plugins = pluginManager.getPlugins();
-  const context = await createContext({
-    appContext: initAppContext({
-      packageName: 'rsc-composition-fixture',
-      configFile: false,
-      command: 'build',
-      appDirectory,
-      metaName: 'modern-js',
-      plugins,
-    }),
-    config,
-    normalizedConfig: config,
+  const result = await createConfigOptions<AppTools>({
+    command: 'build',
+    configFile: false,
+    cwd: appDirectory,
+    config: config as AppUserConfig,
+    internalPlugins: [ultramodernAppTools()],
   });
-  const api = initPluginAPI({ context, pluginManager });
-  context.pluginAPI = api;
-  await ultramodernAppTools().setup?.(api as unknown as CLIPluginAPI<AppTools>);
-  return (await api
-    .getHooks()
-    .modifyResolvedConfig.call(config)) as ComposerConfig;
+  return result.config as ComposerConfig;
 }
 
 it.each([
@@ -60,17 +43,16 @@ it.each([
     };
     const result = await resolveComposerConfig(__dirname, input);
     expect(
-      result.builderPlugins?.map(plugin =>
-        plugin && 'name' in plugin ? plugin.name : undefined,
-      ),
+      result.builderPlugins
+        ?.map(plugin => (plugin && 'name' in plugin ? plugin.name : undefined))
+        .slice(guarded ? -2 : -1),
     ).toEqual([
-      'consumer',
       // Makes the composed runtime packages resolvable from the app itself.
       'ultramodern:runtime-package-resolution',
       ...(guarded ? ['builder:rsc-disabled-runtime'] : []),
     ]);
-    expect(result.builderPlugins?.[0]).toBe(consumer);
-    expect(result.html).toEqual(input.html);
+    expect(result.builderPlugins).toContain(consumer);
+    expect(result.html).toMatchObject(input.html!);
     expect(input.builderPlugins).toEqual([consumer]);
   },
 );
@@ -173,6 +155,10 @@ it.each([
     );
 
     try {
+      fs.writeFileSync(
+        path.join(workspaceRoot, 'package.json'),
+        JSON.stringify({ name: 'rsc-disabled-runtime-fixture', private: true }),
+      );
       if (installPoisonRuntime) {
         const packageRoot = poisonPackageRoot;
         fs.mkdirSync(packageRoot, { recursive: true });

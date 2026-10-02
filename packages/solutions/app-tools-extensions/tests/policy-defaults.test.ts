@@ -1,15 +1,22 @@
 import { describe, expect, test } from '@rstest/core';
 import {
   applyPolicyDefaults,
+  createPolicyDefaultsPlugin,
+  POLICY_DEFAULTS_PLUGIN_NAME,
+  type PolicyDefaultsComposition,
   type PolicyDefaultsOptions,
   RENDERER_EXTENSIONS_PACKAGE,
   SERVER_EXTENSIONS_PLUGIN_NAME,
+  ULTRAMODERN_SERVER_EXTENSIONS_PLUGIN_NAME,
 } from '../src/policy-defaults';
 
 type RuntimeDescriptor = { name?: string; path: string; config?: unknown };
 type ServerDescriptor = { name: string };
 
-const collect = (options?: PolicyDefaultsOptions) => {
+const collect = (
+  options?: PolicyDefaultsOptions,
+  composition?: PolicyDefaultsComposition,
+) => {
   const runtimeHooks: Array<
     (input: { entrypoint: unknown; plugins: RuntimeDescriptor[] }) => {
       plugins: RuntimeDescriptor[];
@@ -27,6 +34,7 @@ const collect = (options?: PolicyDefaultsOptions) => {
       modifyResolvedConfig: (fn: any) => configHooks.push(fn),
     } as any,
     options,
+    composition,
   );
 
   const runRuntime = (plugins: RuntimeDescriptor[] = []) =>
@@ -79,6 +87,46 @@ describe('fork policy defaults', () => {
     expect(collect().runRuntime([consumer])[0]).toBe(consumer);
   });
 
+  test('explicit composition selects its own CLI and server plugin identities', () => {
+    const composition = {
+      pluginName: '@modern-js/ultramodern-app-tools/policy-defaults',
+      serverPluginName: ULTRAMODERN_SERVER_EXTENSIONS_PLUGIN_NAME,
+    };
+    expect(createPolicyDefaultsPlugin().name).toBe(POLICY_DEFAULTS_PLUGIN_NAME);
+    expect(createPolicyDefaultsPlugin({}, composition).name).toBe(
+      composition.pluginName,
+    );
+    expect(collect({}, composition).runServer()).toEqual([
+      { name: composition.serverPluginName },
+    ]);
+  });
+
+  test.each([
+    SERVER_EXTENSIONS_PLUGIN_NAME,
+    ULTRAMODERN_SERVER_EXTENSIONS_PLUGIN_NAME,
+  ])('explicit composition preserves an existing server policy at %s', name => {
+    const descriptor = { name, options: { consumer: true } };
+    const plugins = collect(
+      {},
+      {
+        serverPluginName: ULTRAMODERN_SERVER_EXTENSIONS_PLUGIN_NAME,
+      },
+    ).runServer([descriptor]);
+    expect(plugins).toEqual([descriptor]);
+    expect(plugins[0]).toBe(descriptor);
+    expect(descriptor).toEqual({ name, options: { consumer: true } });
+  });
+
+  test('plain appTools preserves an explicitly composed UltraModern server policy', () => {
+    const descriptor = {
+      name: ULTRAMODERN_SERVER_EXTENSIONS_PLUGIN_NAME,
+      options: { consumer: true },
+    };
+    const plugins = collect().runServer([descriptor]);
+    expect(plugins).toEqual([descriptor]);
+    expect(plugins[0]).toBe(descriptor);
+  });
+
   test('each policy can be opted out of explicitly', () => {
     expect(collect({ rendererExtensions: false }).runRuntime()).toEqual([]);
     expect(collect({ serverExtensions: false }).runServer()).toEqual([]);
@@ -100,5 +148,15 @@ describe('fork policy defaults', () => {
 
   test('opting out of the renderer also drops the resolution fallback', () => {
     expect(collect({ rendererExtensions: false }).configHooks).toHaveLength(0);
+  });
+
+  test('additional resolution packages cannot override the renderer opt out', () => {
+    const composition = { runtimePackages: [RENDERER_EXTENSIONS_PACKAGE] };
+    const { runRuntime, configHooks } = collect(
+      { rendererExtensions: false },
+      composition,
+    );
+    expect(runRuntime()).toEqual([]);
+    expect(configHooks).toHaveLength(0);
   });
 });

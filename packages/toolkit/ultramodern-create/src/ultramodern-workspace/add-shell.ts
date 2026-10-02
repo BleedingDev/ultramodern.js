@@ -23,7 +23,6 @@ import {
   createGenerationResult,
   diffFileSnapshots,
 } from './generation-result';
-import { createAppModernConfig } from './module-federation';
 import {
   assertUniqueTailwindPrefixes,
   packageName,
@@ -48,7 +47,6 @@ import type {
 import {
   preserveConsumerWorkspaceArtifacts,
   workspaceArtifactCandidates,
-  workspaceDevelopmentPorts,
 } from './workspace-artifact-ownership';
 import { writeGeneratedWorkspaceScripts } from './workspace-scripts';
 import { writeApp } from './write-app';
@@ -225,11 +223,6 @@ function executeAddUltramodernShell(
   } = preflight;
 
   const allAdditionalShells = [...existingAdditionalShells, shell];
-  const configuredDevPorts = workspaceDevelopmentPorts(
-    [primaryShell, ...existingVerticals, ...allAdditionalShells],
-    preflight.overlay.ports,
-  );
-
   const previousApps = [
     primaryShell,
     ...existingVerticals,
@@ -237,12 +230,7 @@ function executeAddUltramodernShell(
   ];
   const { io: ownedIo } = preserveConsumerWorkspaceArtifacts(
     options.workspaceRoot,
-    workspaceArtifactCandidates(
-      scope,
-      previousApps,
-      enableTailwind,
-      previousApps,
-    ),
+    workspaceArtifactCandidates(scope, previousApps),
   );
 
   writeApp(
@@ -253,7 +241,6 @@ function executeAddUltramodernShell(
     enableTailwind,
     existingVerticals,
     bridge,
-    configuredDevPorts,
   );
 
   topology.shells ??= [];
@@ -299,20 +286,6 @@ function executeAddUltramodernShell(
   };
   writeJsonFile(newPackagePath, newPackage as JsonValue);
 
-  for (const app of previousApps) {
-    ownedIo.write(
-      path.join(options.workspaceRoot, app.directory, 'modern.config.ts'),
-      createAppModernConfig(
-        scope,
-        app,
-        app.kind === 'shell'
-          ? resolveRemoteRefs(app, existingVerticals)
-          : existingVerticals,
-        enableTailwind,
-        configuredDevPorts,
-      ),
-    );
-  }
   updateRootWorkspaceScripts(
     options.workspaceRoot,
     scope,

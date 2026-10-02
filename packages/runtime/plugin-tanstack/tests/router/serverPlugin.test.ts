@@ -1,8 +1,15 @@
+import { runtime } from '@modern-js/plugin/runtime';
 import type { TInternalRuntimeContext } from '@modern-js/runtime/context';
-import { routerProviderRegistryHooks } from '@modern-js/runtime/context';
+import {
+  routerProviderRegistryHooks,
+  setGlobalContext,
+  setGlobalInternalRuntimeContext,
+} from '@modern-js/runtime/context';
 import { type AnyRouter, RouterProvider } from '@tanstack/react-router';
 import { createElement } from 'react';
 import { renderToString } from 'react-dom/server';
+import { routerStatePlugin } from '../../../../solutions/ultramodern-app-tools/src/native-composition/router-state-runtime';
+import { SSRErrors } from '../../../plugin-runtime/src/core/server/tracer';
 import {
   getRouterRuntimeState,
   getRouterServerSnapshot,
@@ -17,23 +24,28 @@ type BeforeRenderListener = Parameters<
   TanstackRouterPluginAPI['onBeforeRender']
 >[0];
 
+(
+  globalThis as typeof globalThis & {
+    __webpack_require__?: { u: (chunkId: unknown) => string };
+  }
+).__webpack_require__ = {
+  u: chunkId => String(chunkId),
+};
+
 function collectBeforeRender(
   createRoutes: NonNullable<RouterConfig['createRoutes']>,
-) {
-  let listener: BeforeRenderListener | undefined;
-  tanstackRouterPlugin({ createRoutes }).setup?.({
-    getRuntimeConfig: () => ({}),
-    getHooks: () => routerProviderRegistryHooks,
-    onBeforeRender: nextListener => {
-      listener = nextListener;
-    },
-    wrapRoot: () => {},
+): BeforeRenderListener {
+  const { runtimeContext } = runtime.run({
+    config: {},
+    plugins: [tanstackRouterPlugin({ createRoutes })],
   });
-
-  if (!listener) {
-    throw new Error('Expected the TanStack server plugin to register a hook');
-  }
-  return listener;
+  return async (context, interrupt) => {
+    const result = await runtimeContext.hooks.onBeforeRender.call(context);
+    if (result instanceof Response) {
+      interrupt(result);
+      return result;
+    }
+  };
 }
 
 function createServerContext(pathname: string) {
@@ -53,11 +65,11 @@ function createServerContext(pathname: string) {
   return { context, status };
 }
 
-describe('tanstack server plugin router results', () => {
-  afterEach(() => {
-    rstest.restoreAllMocks();
-  });
+afterEach(() => {
+  rstest.restoreAllMocks();
+});
 
+describe('tanstack server plugin router results', () => {
   test.each(['/cs/login', '/en/login'])(
     'renders native link active attributes during SSR at %s',
     async pathname => {
@@ -308,4 +320,173 @@ test('incoming abort reaches an active Modern loader and disposes its router', a
   expect(cleanup).toHaveBeenCalledTimes(1);
   await getRouterRuntimeState(context)?.cleanup?.();
   expect(cleanup).toHaveBeenCalledTimes(1);
+});
+
+describe('TanStack provider with the native request handler', () => {
+  test.each([
+    {
+      label: 'plain provider completion',
+      ultraPolicy: false,
+      terminal: 'complete',
+    },
+    {
+      label: 'plain provider cancellation',
+      ultraPolicy: false,
+      terminal: 'cancelled',
+    },
+    {
+      label: 'Ultra observer completion',
+      ultraPolicy: true,
+      terminal: 'complete',
+    },
+    {
+      label: 'Ultra observer cancellation',
+      ultraPolicy: true,
+      terminal: 'cancelled',
+    },
+  ] as const)(
+    'preserves loader reporting and disposes once for $label',
+    async ({ ultraPolicy, terminal }) => {
+      const failure = new Error('TanStack loader failed');
+      let loaderRequest: Request | undefined;
+      const provider = tanstackRouterPlugin({
+        createRoutes: () => [
+          {
+            id: 'root',
+            path: '/',
+            Component: () => null,
+            children: [
+              {
+                id: 'error',
+                path: 'error',
+                Component: () => null,
+                loader: ({ request }: { request: Request }) => {
+                  loaderRequest = request;
+                  throw failure;
+                },
+              },
+            ],
+          },
+        ],
+      });
+      const { runtimeContext } = runtime.run({
+        config: { router: { framework: 'tanstack' } },
+        plugins: ultraPolicy ? [routerStatePlugin(), provider] : [provider],
+      });
+      setGlobalContext({
+        entryName: 'main',
+        App: () => null,
+        enableRsc: false,
+      });
+      setGlobalInternalRuntimeContext(runtimeContext as any);
+      const request = new Request('http://localhost/error');
+      const removeAbortListener = rstest.spyOn(
+        request.signal,
+        'removeEventListener',
+      );
+      const onError = rstest.fn();
+      const observer = rstest.fn();
+      runtimeContext.hooks.onRequestEnd.tap(observer);
+      let state: ReturnType<typeof getRouterRuntimeState>;
+      let cleanup: ReturnType<typeof rstest.fn> | undefined;
+      let serverCleanup: ReturnType<typeof rstest.spyOn> | undefined;
+      let releaseTail = () => {};
+      const tailReleased = new Promise<void>(resolve => {
+        releaseTail = resolve;
+      });
+      const encoder = new TextEncoder();
+      const { createRequestHandler } = await import(
+        '../../../plugin-runtime/src/core/server/requestHandler'
+      );
+      const handler = await createRequestHandler(
+        async (_request, _Root, options) => {
+          state = getRouterRuntimeState(options.runtimeContext);
+          if (!state?.cleanup)
+            throw new Error('TanStack did not register request resources');
+          cleanup = rstest.fn(state.cleanup);
+          state.cleanup = cleanup;
+          const router = state.instance as AnyRouter;
+          serverCleanup = rstest.spyOn(router.serverSsr!, 'cleanup');
+          const snapshot = getRouterServerSnapshot(options.runtimeContext);
+          expect(snapshot).toMatchObject({
+            framework: 'tanstack',
+            statusCode: 500,
+          });
+          expect(Object.values(snapshot?.errors ?? {})).toContain(failure);
+          return new Response(
+            new ReadableStream<Uint8Array>({
+              start(controller) {
+                controller.enqueue(encoder.encode('<shell>'));
+              },
+              async pull(controller) {
+                if (terminal === 'cancelled') return;
+                await tailReleased;
+                controller.enqueue(encoder.encode('<tail>'));
+                controller.close();
+              },
+            }),
+          );
+        },
+      );
+
+      const response = await handler(request, {
+        resource: {
+          entryName: 'main',
+          route: { urlPath: '/' },
+          htmlTemplate: '<html><head></head><body></body></html>',
+        },
+        config: { ssr: { mode: 'stream' } },
+        params: {},
+        locals: {},
+        loaderContext: {},
+        onTiming: () => {},
+        onError,
+      } as any);
+
+      expect(response.status).toBe(500);
+      expect(onError).toHaveBeenCalledTimes(1);
+      expect(onError).toHaveBeenCalledWith(failure, SSRErrors.LOADER_ERROR);
+      expect(state?.framework).toBe('tanstack');
+      expect(cleanup).not.toHaveBeenCalled();
+      expect(serverCleanup).not.toHaveBeenCalled();
+      expect(observer).not.toHaveBeenCalled();
+      expect(removeAbortListener).not.toHaveBeenCalled();
+      expect(loaderRequest?.signal.aborted).toBe(false);
+
+      const reader = response.body!.getReader();
+      expect(new TextDecoder().decode((await reader.read()).value)).toBe(
+        '<shell>',
+      );
+      if (terminal === 'cancelled') {
+        await reader.cancel('client disconnected');
+      } else {
+        releaseTail();
+        expect(new TextDecoder().decode((await reader.read()).value)).toBe(
+          '<tail>',
+        );
+        expect((await reader.read()).done).toBe(true);
+      }
+      reader.releaseLock();
+
+      expect(cleanup).toHaveBeenCalledTimes(1);
+      expect(serverCleanup).toHaveBeenCalledTimes(1);
+      expect(removeAbortListener).toHaveBeenCalledTimes(1);
+      expect(removeAbortListener).toHaveBeenCalledWith(
+        'abort',
+        expect.any(Function),
+      );
+      expect(loaderRequest?.signal.aborted).toBe(true);
+      expect(observer).toHaveBeenCalledTimes(1);
+      expect(observer.mock.calls[0]?.[0]).toMatchObject({
+        terminal:
+          terminal === 'complete'
+            ? { status: 'complete' }
+            : { status: 'cancelled', reason: 'client disconnected' },
+      });
+      expect(onError).toHaveBeenCalledTimes(1);
+      await state?.cleanup?.();
+      expect(serverCleanup).toHaveBeenCalledTimes(1);
+      expect(removeAbortListener).toHaveBeenCalledTimes(1);
+    },
+  );
 });

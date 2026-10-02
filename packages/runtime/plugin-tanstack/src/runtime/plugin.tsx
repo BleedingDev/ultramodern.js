@@ -4,6 +4,7 @@ import {
   InternalRuntimeContext,
   type TInternalRuntimeContext,
 } from '@modern-js/runtime/context';
+import { createRouterStatePlugin } from '@modern-js/runtime-extensions/router-state-plugin';
 import type { RouteObject } from '@modern-js/runtime-utils/router';
 import { normalizePathname } from '@modern-js/runtime-utils/url';
 import {
@@ -57,6 +58,9 @@ export const tanstackRouterPlugin = (
     name: '@modern-js/plugin-router-tanstack',
     registryHooks: routerProviderRegistryHooks,
     setup: (api: TanstackRouterPluginAPI) => {
+      createRouterStatePlugin({
+        registryHooks: routerProviderRegistryHooks,
+      }).setup(api);
       const hooks = api.getHooks();
       let cachedRouteObjects: RouteObject[] | undefined;
       let cachedRouteTree: ReturnType<

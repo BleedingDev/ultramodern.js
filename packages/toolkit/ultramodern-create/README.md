@@ -298,7 +298,22 @@ Use this decision table before adding a vertical:
 
 ## SuperApp Architecture Contracts
 
-The generated shell owns route assembly and policy. Each vertical added with
+Generated `modern.config.ts` files declare their app identity through
+`presetUltramodernWorkspace(config, { appId, from: import.meta.url })` and keep
+ordinary Modern.js plugins and authored configuration. The preset resolves
+`topology/reference-topology.json` and the development overlay when the config
+loads. Fork-owned packages apply deployment targets, ports, asset origins,
+CORS, Cloudflare bindings, build/cache directories, release identity, and
+Zephyr deployment policy. Authored values override preset defaults; native
+builder hooks and plugins compose normally.
+
+Adding a shell or vertical updates topology, overlays, and generated workspace
+metadata without rewriting any existing `modern.config.ts`. Application
+configs belong to their authors from the moment they are created. New apps
+receive a config scaffold with their own stable `appId`; changing a port or
+shell composition takes effect through the canonical workspace inputs.
+
+The generated shell owns route assembly. Each vertical added with
 `--vertical` owns its route subtree, Module Federation exposes, Effect BFF
 contract, generated client, `localisedUrls`, locale JSON, CSS layer, and
 Cloudflare Worker output. The shell consumes vertical UI through Module
@@ -385,7 +400,9 @@ Each generated workspace app has:
   `cloudflare:proof` scripts.
 - Cloudflare Worker deploy config emitted from native Modern config.
 - `zephyr:dependencies` for any consumed verticals.
-- `zephyr-rspack-plugin` wired through the generated Modern.js Rspack bridge.
+- `zephyr-rspack-plugin` composed by the fork-owned workspace preset for UI
+  apps. It activates only when `ZE_CI_TOKEN` is present; the deploy environment
+  must also set `ZE_FAIL_BUILD=true`. Ordinary builds require no Zephyr token.
 
 Deploy first, then pass each deployed app's generated public URL env key into
 the proof step. The installed proof command reads topology and deployment contracts and checks the

@@ -20,10 +20,7 @@ import {
 } from '../descriptors';
 import { readJsonFile, writeJsonFile } from '../fs-io';
 import { createAppPublicLocaleMessages } from '../locales';
-import {
-  createAppModernConfig,
-  createShellModuleFederationConfig,
-} from '../module-federation';
+import { createShellModuleFederationConfig } from '../module-federation';
 import {
   createAppMfTypesTsConfig,
   createAppPackage,
@@ -87,7 +84,6 @@ function shellAppArtifacts(
   remotes: WorkspaceApp[],
   bridge: UltramodernBridgeConfig | undefined,
   shell: WorkspaceApp,
-  devPorts?: number[],
 ) {
   const shellHost = {
     ...shell,
@@ -110,13 +106,6 @@ function shellAppArtifacts(
       shellHost,
       shellRemotes,
       scope,
-    ),
-    [`${shellHost.directory}/modern.config.ts`]: createAppModernConfig(
-      scope,
-      shellHost,
-      shellRemotes,
-      enableTailwind,
-      devPorts,
     ),
     [publicWeb.jsonLdHelperFile.path]: publicWeb.jsonLdHelperFile.content,
     [publicWeb.routeMetadataFile.path]: publicWeb.routeMetadataFile.content,
@@ -179,13 +168,11 @@ export function rewriteShellAppFiles(
   remotes: WorkspaceApp[],
   bridge?: UltramodernBridgeConfig,
   shell: WorkspaceApp = shellApp,
-  devPorts?: number[],
   previous: {
     shell: WorkspaceApp;
     remotes: WorkspaceApp[];
-    devPorts?: number[];
     enableTailwind?: boolean;
-  } = { shell, remotes, devPorts },
+  } = { shell, remotes },
 ) {
   const before = shellAppArtifacts(
     scope,
@@ -194,7 +181,6 @@ export function rewriteShellAppFiles(
     previous.remotes,
     bridge,
     previous.shell,
-    previous.devPorts,
   );
   const next = shellAppArtifacts(
     scope,
@@ -203,7 +189,6 @@ export function rewriteShellAppFiles(
     remotes,
     bridge,
     shell,
-    devPorts,
   );
   const { io } = preserveConsumerWorkspaceArtifacts(
     workspaceRoot,

@@ -139,6 +139,18 @@
       "modern:source": "./src/deploy-output/trace-files.ts",
       "import": "./dist/esm-node/deploy-output/trace-files.mjs",
       "require": "./dist/cjs/deploy-output/trace-files.js"
+    },
+    "./workspace-topology": {
+      "types": "./dist/types/workspace-topology.d.ts",
+      "modern:source": "./src/workspace-topology.ts",
+      "import": "./dist/esm-node/workspace-topology.mjs",
+      "require": "./dist/cjs/workspace-topology.js"
+    },
+    "./module-federation-config": {
+      "types": "./dist/types/module-federation-config/index.d.ts",
+      "modern:source": "./src/module-federation-config/index.ts",
+      "import": "./dist/esm-node/module-federation-config/index.mjs",
+      "require": "./dist/cjs/module-federation-config/index.js"
     }
   },
   "typesVersions": {

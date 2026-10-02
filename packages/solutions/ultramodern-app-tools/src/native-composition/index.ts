@@ -7,13 +7,10 @@ import {
   createDeployOutputPublicAssetsPlugin,
 } from '@modern-js/app-tools-extensions/deploy-output/plugin';
 import {
-  RENDERER_EXTENSIONS_PACKAGE,
-  SERVER_EXTENSIONS_PLUGIN_NAME,
+  createPolicyDefaultsPlugin,
+  type PolicyDefaultsOptions,
+  ULTRAMODERN_SERVER_EXTENSIONS_PLUGIN_NAME,
 } from '@modern-js/app-tools-extensions/policy-defaults';
-import {
-  collectRuntimePackageModuleDirectories,
-  createRuntimePackageResolutionPlugin,
-} from '@modern-js/app-tools-extensions/runtime-package-resolution';
 import { ultramodernI18nIntegrationPlugin } from '@modern-js/i18n-integration';
 import { ultramodernReleaseEnvelopePlugin } from './release-envelope-plugin';
 import { ultramodernRouterIntegrationPlugin } from './router-integration-plugin';
@@ -27,6 +24,12 @@ export {
 } from './preset';
 export { ultramodernReleaseEnvelopePlugin } from './release-envelope-plugin';
 export type { AppUserConfig, UltramodernAppUserConfig } from './types';
+export {
+  createPresetUltramodernWorkspaceConfig,
+  type PresetUltramodernWorkspaceOptions,
+  presetUltramodernWorkspace,
+} from './workspace-preset';
+export type { PolicyDefaultsOptions };
 
 const headlessCloudflareWorkerPlugin = (): CliPlugin<AppTools> => ({
   name: '@modern-js/headless-cloudflare-worker',
@@ -59,10 +62,22 @@ const headlessCloudflareWorkerPlugin = (): CliPlugin<AppTools> => ({
 });
 
 /** Compose the fork's build and release features through native CLI plugins. */
-export const ultramodernAppTools = (): CliPlugin<AppTools> => ({
+export const ultramodernAppTools = (
+  options: PolicyDefaultsOptions = {},
+): CliPlugin<AppTools> => ({
   name: '@modern-js/ultramodern-app-tools',
   usePlugins: [
-    appTools(),
+    appTools({
+      ...options,
+      rendererExtensions: false,
+      serverExtensions: false,
+    }),
+    createPolicyDefaultsPlugin(options, {
+      pluginName: '@modern-js/ultramodern-app-tools/policy-defaults',
+      serverPluginName: ULTRAMODERN_SERVER_EXTENSIONS_PLUGIN_NAME,
+      runtimePackages: ['@modern-js/i18n-integration'],
+      registrarUrl: import.meta.url,
+    }) as CliPlugin<AppTools>,
     ultramodernI18nIntegrationPlugin(),
     ultramodernRouterIntegrationPlugin(),
     ultramodernSSRIntegrationPlugin(),
@@ -74,55 +89,12 @@ export const ultramodernAppTools = (): CliPlugin<AppTools> => ({
     ultramodernReleaseEnvelopePlugin(),
   ],
   setup(api) {
-    // The composed runtime packages are dependencies of this package, not of
-    // the app that composes it. Contribute the directories that host them so
-    // the generated `runtime-register.js` resolves them under an isolated
-    // (pnpm) linker without the app having to declare them itself.
-    const runtimeModuleDirectories = collectRuntimePackageModuleDirectories(
-      [RENDERER_EXTENSIONS_PACKAGE, '@modern-js/i18n-integration'],
-      import.meta.url,
-    );
-
     api.modifyResolvedConfig(config => {
       const builderPlugins = [
         ...(config.builderPlugins ?? []),
-        ...(runtimeModuleDirectories.length > 0
-          ? [createRuntimePackageResolutionPlugin(runtimeModuleDirectories)]
-          : []),
         ...(config.server?.rsc ? [] : [rscDisabledRuntimePlugin()]),
       ];
       return { ...config, builderPlugins };
-    });
-    api._internalServerPlugins(({ plugins }) => {
-      // `appTools()` already registered the fork's server policy under its own
-      // specifier. An app that composes this package declares *this* package,
-      // so the descriptor is renamed rather than duplicated: both specifiers
-      // export the same server plugin, and this one is the one such an app can
-      // always resolve.
-      const name = '@modern-js/ultramodern-app-tools/server-plugin';
-      const renamed = plugins.map(plugin =>
-        plugin.name === SERVER_EXTENSIONS_PLUGIN_NAME
-          ? { ...plugin, name }
-          : plugin,
-      );
-      if (!renamed.some(plugin => plugin.name === name)) {
-        renamed.push({ name });
-      }
-      return { plugins: renamed };
-    });
-    api._internalRuntimePlugins(({ entrypoint, plugins }) => {
-      // Same story for the renderer descriptor: `appTools()` already appended
-      // it unless the app opted out.
-      if (
-        !plugins.some(plugin => plugin.path === RENDERER_EXTENSIONS_PACKAGE)
-      ) {
-        plugins.push({
-          name: 'rendererHead',
-          path: RENDERER_EXTENSIONS_PACKAGE,
-          config: {},
-        });
-      }
-      return { entrypoint, plugins };
     });
   },
 });

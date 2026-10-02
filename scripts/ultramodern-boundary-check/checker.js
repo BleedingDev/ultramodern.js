@@ -2,20 +2,21 @@ const fs = require('fs');
 const path = require('path');
 const { parseSync, types: babelTypes } = require('@babel/core');
 
-const { extractImportSpecifiers } = require('../boundary-guards/validator');
 const { createRepositoryGitEnv, runCommand } = require('../lib/process-kit');
 const {
-  buildProvenanceOwnership,
-  parseNameStatus,
+  DEFAULT_DIVERGENCE_BASE_REF,
+  DEFAULT_UPSTREAM_PROVENANCE_REF,
+  parseLedgerEvidenceRows,
   resolveCommitSha,
   resolveRepositoryTopLevel,
 } = require('./divergence');
+const { createImportOwnership, packageName } = require('./import-ownership');
 
-const DEFAULT_BASE_REF = '8a744c1b3178d1e85d4113f29e8837ff94079fb3';
+const DEFAULT_BASE_REF = DEFAULT_DIVERGENCE_BASE_REF;
 const DEFAULT_ALLOWLIST_PATH = path.join(__dirname, 'allowlist.json');
 const SOURCE_FILE_PATTERN =
   /^packages\/.+\/src\/.+\.(?:cjs|cts|js|jsx|mjs|mts|ts|tsx)$/;
-const ALLOWLIST_SCHEMA_VERSION = 1;
+const ALLOWLIST_SCHEMA_VERSION = 2;
 
 const DEFAULT_DENYLIST = Object.freeze([
   '@modern-js/plugin-tanstack',
@@ -91,6 +92,9 @@ const listPackageSourceFiles = (rootDir, headRef) => {
 const listUpstreamOwnedPackageSourceFiles = ({
   rootDir,
   baseRef = DEFAULT_BASE_REF,
+  upstreamRef = baseRef === DEFAULT_BASE_REF
+    ? DEFAULT_UPSTREAM_PROVENANCE_REF
+    : baseRef,
   files,
   headRef,
 }) => {
@@ -100,35 +104,31 @@ const listUpstreamOwnedPackageSourceFiles = ({
       `Import ownership base ${String(baseRef)} does not resolve to a commit.`,
     );
   }
-  const candidateFiles = files ?? listPackageSourceFiles(rootDir, headRef);
-  // Reuse divergence's immutable identity projection. A rename cannot turn an
-  // existing native source into a fork-owned source by changing its filename.
-  const { ownership } = buildProvenanceOwnership({
+  const inventory = createImportOwnership({
     rootDir,
-    auditedBaseRef: resolvedBase,
-    upstreamRef: headRef ?? 'HEAD',
-    pathspec: ['packages'],
+    baseRef: resolvedBase,
+    upstreamRef,
+    headRef,
+    runGit,
   });
-  const ownedFiles = new Set(listPackageSourceFiles(rootDir, resolvedBase));
-  if (!headRef) {
-    const changes = runGit({
-      rootDir,
-      args: ['diff', '--name-status', '-z', '-M', 'HEAD', '--', 'packages'],
-    }).stdout;
-    for (const { status, oldPath, newPath } of parseNameStatus(changes)) {
-      if (status.startsWith('R') && ownership.has(oldPath)) {
-        ownership.set(newPath, ownership.get(oldPath));
-      }
-    }
-  }
-  return candidateFiles.filter(file => ownedFiles.has(ownership.get(file)));
+  return [...inventory.files]
+    .filter(
+      file =>
+        SOURCE_FILE_PATTERN.test(inventory.ownership.get(file) ?? file) &&
+        (inventory.ownership.has(file) ||
+          inventory.packageForFile(file)?.upstream) &&
+        (!files || files.includes(file)),
+    )
+    .sort();
 };
 
 const findDenylistMatches = ({ specifier, denylist = DEFAULT_DENYLIST }) => {
-  const normalizedSpecifier = specifier.toLowerCase();
-
+  // Legacy unresolved edges retain exact markers; a name substring is never
+  // package ownership. Resolved edges use the measured package/source identity.
   return denylist.filter(marker =>
-    normalizedSpecifier.includes(marker.toLowerCase()),
+    marker.startsWith('@')
+      ? specifier === marker || specifier.startsWith(`${marker}/`)
+      : specifier.split('/').includes(marker),
   );
 };
 
@@ -240,7 +240,7 @@ const collectModuleReferences = ast => {
     } else if (node.type === 'ImportExpression') {
       source = node.source;
     } else if (node.type === 'TSImportType') {
-      source = node.argument;
+      source = node.source ?? node.argument;
     } else if (
       node.type === 'TSImportEqualsDeclaration' &&
       node.moduleReference.type === 'TSExternalModuleReference'
@@ -257,7 +257,13 @@ const collectModuleReferences = ast => {
     }
     references.push({
       node,
-      specifier: source?.type === 'StringLiteral' ? source.value : null,
+      specifier:
+        source?.type === 'StringLiteral'
+          ? source.value
+          : source?.type === 'TemplateLiteral' &&
+              source.expressions.length === 0
+            ? (source.quasis[0].value.cooked ?? source.quasis[0].value.raw)
+            : null,
     });
   });
   return references;
@@ -441,9 +447,7 @@ const isNativeCreateRequestSurface = ({ manifest, sources }, native) => {
           return false;
         }
       } else {
-        const dependency = specifier.startsWith('@')
-          ? specifier.split('/').slice(0, 2).join('/')
-          : specifier.split('/')[0];
+        const dependency = packageName(specifier);
         if (
           !native.dependencies.has(dependency) &&
           specifier !== 'http' &&
@@ -545,9 +549,7 @@ const isNativeCreateRequestPackage = ({ rootDir, baseRef, headRef }) => {
       if (!ast) return false;
       for (const { specifier } of collectModuleReferences(ast)) {
         if (specifier && !specifier.startsWith('.')) {
-          const dependency = specifier.startsWith('@')
-            ? specifier.split('/').slice(0, 2).join('/')
-            : specifier.split('/')[0];
+          const dependency = packageName(specifier);
           if (Object.hasOwn(base.manifest.devDependencies ?? {}, dependency))
             dependencies.add(dependency);
         }
@@ -579,6 +581,9 @@ const isNativeCreateRequestPackage = ({ rootDir, baseRef, headRef }) => {
 const scanUpstreamOwnedForkImports = ({
   rootDir = process.cwd(),
   baseRef = DEFAULT_BASE_REF,
+  upstreamRef = baseRef === DEFAULT_BASE_REF
+    ? DEFAULT_UPSTREAM_PROVENANCE_REF
+    : baseRef,
   denylist = DEFAULT_DENYLIST,
   files,
   headRef,
@@ -601,24 +606,68 @@ const scanUpstreamOwnedForkImports = ({
     rootDir,
     args: ['merge-base', '--is-ancestor', resolvedBase, resolvedHead],
   });
-  const upstreamOwnedFiles = listUpstreamOwnedPackageSourceFiles({
+  const resolvedUpstream = resolveCommitSha({ rootDir, ref: upstreamRef });
+  if (!resolvedUpstream)
+    throw new Error(
+      'Import reviewed upstream provenance does not resolve to a commit.',
+    );
+  runGit({
+    rootDir,
+    args: ['merge-base', '--is-ancestor', resolvedBase, resolvedUpstream],
+  });
+  runGit({
+    rootDir,
+    args: ['merge-base', '--is-ancestor', resolvedUpstream, resolvedHead],
+  });
+  const inventory = createImportOwnership({
     rootDir,
     baseRef: resolvedBase,
-    files,
+    upstreamRef: resolvedUpstream,
     headRef: headRef === undefined ? undefined : resolvedHead,
+    runGit,
   });
+  const upstreamOwnedFiles = [...inventory.files].filter(
+    file =>
+      SOURCE_FILE_PATTERN.test(inventory.ownership.get(file) ?? file) &&
+      (inventory.ownership.has(file) ||
+        inventory.packageForFile(file)?.upstream) &&
+      (!files || files.includes(file)),
+  );
   const violations = [];
   let nativeRequestPackage;
 
   upstreamOwnedFiles.forEach(file => {
-    const content =
-      headRef === undefined
-        ? fs.readFileSync(path.join(rootDir, file), 'utf8')
-        : runGit({ rootDir, args: ['show', `${resolvedHead}:${file}`] }).stdout;
-    const specifiers = [...new Set(extractImportSpecifiers(content))];
+    const content = inventory.read(file);
+    const ast = parseSourceAst(content, file);
+    if (!ast) throw new Error(`Cannot parse governed import source: ${file}`);
+    const specifiers = [
+      ...new Set(
+        collectModuleReferences(ast)
+          .map(reference => reference.specifier)
+          .filter(specifier => specifier !== null),
+      ),
+    ];
 
     specifiers.forEach(specifier => {
-      let markers = findDenylistMatches({ specifier, denylist });
+      const targets = inventory.resolve(specifier, file);
+      const forkTargets = targets.filter(target => target.forkOwned);
+      let markers =
+        targets.length === 0
+          ? findDenylistMatches({ specifier, denylist })
+          : [...new Set(forkTargets.map(target => target.marker))];
+      if (
+        specifier === NATIVE_REQUEST_SPECIFIER ||
+        (targets.some(target => target.package === NATIVE_REQUEST_SPECIFIER) &&
+          inventory.packageForFile(file)?.manifest.name !==
+            NATIVE_REQUEST_SPECIFIER)
+      ) {
+        nativeRequestPackage ??= isNativeCreateRequestPackage({
+          rootDir,
+          baseRef: resolvedBase,
+          headRef: headRef === undefined ? undefined : resolvedHead,
+        });
+        markers.push('create-request');
+      }
       if (
         specifier === NATIVE_REQUEST_SPECIFIER &&
         markers.includes('create-request') &&
@@ -641,12 +690,16 @@ const scanUpstreamOwnedForkImports = ({
         file,
         specifier,
         markers,
+        ...(forkTargets.length > 0
+          ? { targets: forkTargets.map(target => target.target) }
+          : {}),
       });
     });
   });
 
   return {
     baseRef: resolvedBase,
+    upstreamRef: resolvedUpstream,
     headRef: headRef === undefined ? null : resolvedHead,
     scannedFiles: upstreamOwnedFiles.length,
     violations: sortViolationRecords(violations),
@@ -655,23 +708,39 @@ const scanUpstreamOwnedForkImports = ({
 
 const createAllowlistSnapshot = ({
   baseRef = DEFAULT_BASE_REF,
+  upstreamRef = baseRef === DEFAULT_BASE_REF
+    ? DEFAULT_UPSTREAM_PROVENANCE_REF
+    : baseRef,
   denylist = DEFAULT_DENYLIST,
   violations,
+  bridges = [],
 }) => ({
   schemaVersion: ALLOWLIST_SCHEMA_VERSION,
   baseRef,
+  upstreamRef,
   migrationGoal:
     'Shrink this list as UltraModern-only imports move out of upstream-owned files.',
   denylist: [...denylist],
+  bridges,
   violations: sortViolationRecords(violations).map(normalizeViolation),
 });
 
-const readAllowlist = allowlistPath => {
-  if (!fs.existsSync(allowlistPath)) {
+const readAllowlist = (allowlistPath, { rootDir, headRef } = {}) => {
+  if (!headRef && !fs.existsSync(allowlistPath)) {
     throw new Error(`Allowlist does not exist: ${allowlistPath}`);
   }
 
-  const allowlist = JSON.parse(fs.readFileSync(allowlistPath, 'utf8'));
+  const allowlist = JSON.parse(
+    headRef
+      ? runGit({
+          rootDir,
+          args: [
+            'show',
+            `${headRef}:${toPosixPath(path.relative(rootDir, allowlistPath))}`,
+          ],
+        }).stdout
+      : fs.readFileSync(allowlistPath, 'utf8'),
+  );
 
   if (allowlist.schemaVersion !== ALLOWLIST_SCHEMA_VERSION) {
     throw new Error(
@@ -683,6 +752,32 @@ const readAllowlist = allowlistPath => {
 
   if (!Array.isArray(allowlist.violations)) {
     throw new Error('Allowlist violations must be an array');
+  }
+  if (!Array.isArray(allowlist.bridges))
+    throw new Error('Import bridges must be an array.');
+  const bridgeKeys = new Set();
+  for (const bridge of allowlist.bridges) {
+    if (
+      !hasKeys(bridge, ['file', 'specifier', 'target', 'owner', 'reason']) ||
+      Object.values(bridge).some(
+        value => typeof value !== 'string' || value.trim().length === 0,
+      ) ||
+      [bridge.file, bridge.specifier, bridge.target].some(value =>
+        /[*?\\]/.test(value),
+      ) ||
+      !SOURCE_FILE_PATTERN.test(bridge.file) ||
+      !bridge.target.startsWith('packages/') ||
+      [bridge.file, bridge.target].some(
+        value => path.posix.normalize(value) !== value,
+      )
+    ) {
+      throw new Error(
+        'Import bridges require exact source, specifier, target, owner and reason.',
+      );
+    }
+    const key = `${bridge.file}\0${bridge.specifier}\0${bridge.target}`;
+    if (bridgeKeys.has(key)) throw new Error('Duplicate import bridge.');
+    bridgeKeys.add(key);
   }
 
   return {
@@ -710,6 +805,11 @@ const writeAllowlist = ({
     baseRef,
     denylist,
     violations: report.violations,
+    // Snapshotting migration debt must never authorize new edges. Keep only
+    // explicitly reviewed bridges already recorded in the checked-in policy.
+    bridges: fs.existsSync(allowlistPath)
+      ? readAllowlist(allowlistPath).bridges
+      : [],
   });
 
   fs.mkdirSync(path.dirname(allowlistPath), { recursive: true });
@@ -755,6 +855,7 @@ const checkForkImportBoundary = ({
   files,
   headRef,
 } = {}) => {
+  const allowlist = readAllowlist(allowlistPath, { rootDir, headRef });
   const current = scanUpstreamOwnedForkImports({
     rootDir,
     baseRef,
@@ -762,13 +863,64 @@ const checkForkImportBoundary = ({
     files,
     headRef,
   });
-  const allowlist = readAllowlist(allowlistPath);
   const recordedBase = resolveCommitSha({ rootDir, ref: allowlist.baseRef });
   if (!recordedBase || recordedBase !== current.baseRef) {
     throw new Error(
       'Import allowlist ownership base does not match the measured base.',
     );
   }
+  const recordedUpstream = resolveCommitSha({
+    rootDir,
+    ref: allowlist.upstreamRef,
+  });
+  if (!recordedUpstream || recordedUpstream !== current.upstreamRef)
+    throw new Error(
+      'Import allowlist reviewed upstream provenance does not match the measured source.',
+    );
+  const bridges = allowlist.bridges;
+  if (bridges.length > 0) {
+    const ledger = headRef
+      ? runGit({ rootDir, args: ['show', `${headRef}:FORK-DIVERGENCE.md`] })
+          .stdout
+      : fs.readFileSync(path.join(rootDir, 'FORK-DIVERGENCE.md'), 'utf8');
+    const evidence = parseLedgerEvidenceRows(ledger);
+    for (const bridge of bridges) {
+      if (
+        !evidence.some(
+          row =>
+            row.path === bridge.file &&
+            row.owner === bridge.owner &&
+            row.disposition
+              .split('+')
+              .map(value => value.trim())
+              .includes('inline-patch') &&
+            row.problems.length === 0,
+        )
+      ) {
+        throw new Error(
+          `Import bridge requires inline-patch ledger ownership: ${bridge.file}`,
+        );
+      }
+    }
+  }
+  const accepted = [];
+  current.violations = current.violations.filter(violation => {
+    if (!violation.targets?.length) return true;
+    const matching = bridges.filter(
+      bridge =>
+        bridge.file === violation.file &&
+        bridge.specifier === violation.specifier &&
+        violation.targets.includes(bridge.target),
+    );
+    if (
+      !violation.targets.every(target =>
+        matching.some(bridge => bridge.target === target),
+      )
+    )
+      return true;
+    accepted.push(...matching);
+    return false;
+  });
   const diff = diffViolations({
     currentViolations: current.violations,
     allowlistViolations: allowlist.violations,
@@ -776,6 +928,7 @@ const checkForkImportBoundary = ({
 
   return {
     baseRef: current.baseRef,
+    upstreamRef: current.upstreamRef,
     headRef: current.headRef,
     allowlistPath,
     scannedFiles: current.scannedFiles,
@@ -783,6 +936,7 @@ const checkForkImportBoundary = ({
     allowlistViolations: allowlist.violations,
     added: diff.added,
     removed: diff.removed,
+    reviewedBridges: accepted,
     ok: current.violations.length === 0,
   };
 };
@@ -814,6 +968,11 @@ const formatBoundaryReport = report => {
       ...report.currentViolations.map(formatViolation),
     );
   }
+  if (report.reviewedBridges?.length > 0)
+    lines.push(
+      '',
+      `Reviewed compatibility bridges: ${report.reviewedBridges.length} exact edges.`,
+    );
 
   if (report.removed.length > 0) {
     lines.push(

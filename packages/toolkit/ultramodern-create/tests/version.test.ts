@@ -5,6 +5,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createGitFixture } from '../../../../scripts/lib/git-fixture.js';
+import {
+  addUltramodernShell,
+  addUltramodernVertical,
+  generateUltramodernWorkspace,
+} from '../src/ultramodern-workspace';
 
 const packageRoot = path.resolve(__dirname, '..');
 const builtCliPath = path.join(packageRoot, 'dist/esm-node/index.js');
@@ -25,14 +30,15 @@ function linkGeneratedConfigRuntime(
   workspacePath: string,
   appDirectory: string,
 ) {
-  fs.symlinkSync(
-    path.resolve(packageRoot, '../../../node_modules/.pnpm/node_modules'),
-    path.join(workspacePath, 'node_modules'),
-    'dir',
-  );
+  if (!fs.existsSync(path.join(workspacePath, 'node_modules'))) {
+    fs.symlinkSync(
+      path.resolve(packageRoot, '../../../node_modules/.pnpm/node_modules'),
+      path.join(workspacePath, 'node_modules'),
+      'dir',
+    );
+  }
   const modernScope = path.join(
     workspacePath,
-    'apps',
     appDirectory,
     'node_modules/@modern-js',
   );
@@ -53,18 +59,13 @@ function linkGeneratedConfigRuntime(
 }
 
 // Evaluates the generated modern.config.ts the way the app build does, so the
-// assertion is the asset prefix a browser would receive, not config text.
-function loadGeneratedAssetPrefix(
+// assertions inspect the native policy a browser and build would receive.
+function loadGeneratedConfig(
   workspacePath: string,
   appDirectory: string,
   env: Record<string, string | undefined>,
 ) {
-  const configPath = path.join(
-    workspacePath,
-    'apps',
-    appDirectory,
-    'modern.config.ts',
-  );
+  const configPath = path.join(workspacePath, appDirectory, 'modern.config.ts');
   const tsxLoader = pathToFileURL(
     fs.realpathSync(path.join(packageRoot, 'node_modules/tsx/dist/loader.mjs')),
   ).href;
@@ -100,7 +101,15 @@ function loadGeneratedAssetPrefix(
         } finally {
           await new Promise((resolve, reject) => compiler.close(error => error ? reject(error) : resolve()));
         }
-        process.stdout.write(JSON.stringify(config.output.assetPrefix));
+        process.stdout.write(JSON.stringify({
+          deploy: config.deploy,
+          dev: config.dev,
+          output: config.output,
+          performance: config.performance,
+          server: config.server,
+          source: config.source,
+          pluginNames: config.plugins.map(plugin => plugin.name),
+        }));
       `,
     ],
     {
@@ -110,7 +119,7 @@ function loadGeneratedAssetPrefix(
     },
   );
   assert.equal(result.status, 0, result.stderr);
-  return JSON.parse(result.stdout) as string;
+  return JSON.parse(result.stdout);
 }
 
 test('built public UltraModern subpath imports from an ESM consumer and generates a vertical', () => {
@@ -200,7 +209,7 @@ test('built CLI scaffolds a workspace whose asset prefix resolves by precedence'
       ),
     );
 
-    linkGeneratedConfigRuntime(workspacePath, 'shell-super-app');
+    linkGeneratedConfigRuntime(workspacePath, 'apps/shell-super-app');
     const precedence: [string | undefined, string | undefined, string][] = [
       [
         'https://modern.example/assets/',
@@ -216,16 +225,121 @@ test('built CLI scaffolds a workspace whose asset prefix resolves by precedence'
     ];
     for (const [modern, ultramodern, expected] of precedence) {
       assert.equal(
-        loadGeneratedAssetPrefix(workspacePath, 'shell-super-app', {
+        loadGeneratedConfig(workspacePath, 'apps/shell-super-app', {
           MODERN_ASSET_PREFIX: modern,
           MODERN_PUBLIC_SITE_URL: 'https://site.example/',
           ULTRAMODERN_ASSET_PREFIX: ultramodern,
-        }),
+        }).output.assetPrefix,
         expected,
       );
     }
   } finally {
     fixture.cleanup();
+  }
+});
+
+test('generated configs resolve current topology and ports without being rewritten', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-native-config-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  const appDirectory = 'apps/shell-super-app';
+  const configPath = path.join(workspacePath, appDirectory, 'modern.config.ts');
+  const environment = {
+    MODERN_ASSET_PREFIX: undefined,
+    ULTRAMODERN_ASSET_PREFIX: undefined,
+    MODERNJS_DEPLOY: undefined,
+    MODERN_PUBLIC_SITE_URL: undefined,
+    SHELL_SUPER_APP_PORT: undefined,
+    ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP: undefined,
+    ZE_CI_TOKEN: undefined,
+    ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN: undefined,
+  };
+  try {
+    generateUltramodernWorkspace({
+      targetDir: workspacePath,
+      packageName: 'native-config-workspace',
+      modernVersion: '3.2.1',
+      enableTailwind: false,
+      packageSource: { strategy: 'workspace' },
+    });
+    const original = fs.readFileSync(configPath);
+    linkGeneratedConfigRuntime(workspacePath, appDirectory);
+    const initial = loadGeneratedConfig(
+      workspacePath,
+      appDirectory,
+      environment,
+    );
+    assert.equal(initial.server.port, 3020);
+    assert.equal(
+      initial.source.globalVars.ULTRAMODERN_SITE_URL,
+      'http://localhost:3020',
+    );
+    assert.deepEqual(initial.dev.server.cors.origin, ['http://localhost:3020']);
+    assert.equal(initial.output.assetPrefix, '/');
+
+    addUltramodernVertical({
+      workspaceRoot: workspacePath,
+      name: 'catalog',
+      preset: 'ui-only',
+      modernVersion: '3.2.1',
+    });
+    addUltramodernShell({
+      workspaceRoot: workspacePath,
+      name: 'admin',
+      modernVersion: '3.2.1',
+    });
+    const overlayPath = path.join(
+      workspacePath,
+      'topology/local-overlays/development.json',
+    );
+    const overlay = JSON.parse(fs.readFileSync(overlayPath, 'utf8'));
+    overlay.ports['shell-super-app'] = 4200;
+    overlay.ports.catalog = 4201;
+    overlay.ports['shell-admin'] = 4202;
+    fs.writeFileSync(overlayPath, JSON.stringify(overlay));
+    assert.deepEqual(fs.readFileSync(configPath), original);
+
+    const current = loadGeneratedConfig(
+      workspacePath,
+      appDirectory,
+      environment,
+    );
+    assert.equal(current.server.port, 4200);
+    assert.equal(
+      current.source.globalVars.ULTRAMODERN_SITE_URL,
+      'http://localhost:4200',
+    );
+    assert.deepEqual([...current.dev.server.cors.origin].sort(), [
+      'http://localhost:4200',
+      'http://localhost:4201',
+      'http://localhost:4202',
+    ]);
+    assert.deepEqual(current.performance.buildCache.cacheDigest, [
+      'shell-super-app',
+      'web',
+    ]);
+    assert.equal(current.output.distPath.root, 'dist');
+
+    const deployed = loadGeneratedConfig(workspacePath, appDirectory, {
+      ...environment,
+      MODERNJS_DEPLOY: 'cloudflare',
+    });
+    assert.equal(deployed.output.distPath.root, 'dist-cloudflare');
+    assert.deepEqual(deployed.performance.buildCache.cacheDigest, [
+      'shell-super-app',
+      'cloudflare',
+    ]);
+    assert.equal(
+      deployed.deploy.worker.services[0].binding,
+      'VERTICAL_CATALOG_WORKER',
+    );
+    assert.ok(deployed.deploy.worker.services[0].fragments.length > 0);
+    assert.equal(
+      deployed.deploy.worker.services[0].fragments[0].remote,
+      'catalog',
+    );
+    assert.deepEqual(fs.readFileSync(configPath), original);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
   }
 });
 

@@ -2,8 +2,8 @@
 
 Generated UltraModern SuperApp workspace.
 
-This workspace keeps `presetUltramodern(...)` as the single public
-UltraModern.js 3.0 SuperApp surface and starts with an explicit shell:
+This workspace uses `presetUltramodernWorkspace(...)` to compose native
+UltraModern.js configuration and starts with an explicit shell:
 
 - `apps/shell-super-app` owns shell route assembly, Module Federation host
   wiring, shared SSR/i18n runtime setup, and the boundary debugger.
@@ -26,19 +26,26 @@ handlers and Effect client/contract modules stay out of browser exposes.
 ## Generated config policy
 
 Each generated `modern.config.ts` calls
-`presetUltramodern(appConfig, presetOptions)`. A bare config materialized by
-`createPresetUltramodernConfig()` uses `appId: 'app'` and has no
-`deliveryUnit`. Generated apps instead keep their app-specific `appId` and
-stamped `deliveryUnit` in `presetOptions`. Other strict defaults come from the
-preset, so do not copy an expanded defaults object or spread one config over
-another.
+`presetUltramodernWorkspace(appConfig, { appId, from: import.meta.url })`.
+The preset resolves app membership and release identity from
+`topology/reference-topology.json`, and development ports from
+`topology/local-overlays/development.json` whenever the config loads. Native
+fork packages own deployment targets, output/cache directories, asset origins,
+CORS, Cloudflare service bindings, and Zephyr upload policy.
+
+App configs stay native and belong to their authors. Adding a shell or vertical
+updates canonical topology and generated metadata without rewriting existing
+`modern.config.ts` files. Keep the stable app identity and module location;
+use `appConfig` for business settings, Modern.js plugins, builder hooks, and
+other overrides. Authored scalars take precedence, nested records merge, and
+hooks compose through the Modern.js config merger.
 
 Telemetry stays enabled, but exporters have no endpoint by default. Set
 `MODERN_TELEMETRY_OTLP_ENDPOINT` to enable only OTLP, or
 `MODERN_TELEMETRY_VICTORIA_ENDPOINT` to enable only VictoriaMetrics. Set both
 to enable both exporters. Leaving both unset configures neither exporter.
 
-Keep the generated identity options and use typed preset options for opt-outs:
+Keep `appId` and `from` and use typed preset options for opt-outs:
 
 - `enableTelemetryExporters: false` disables all exporters.
 - `enableTelemetry: false` disables the telemetry contract.
@@ -46,8 +53,7 @@ Keep the generated identity options and use typed preset options for opt-outs:
   their matching preset contracts.
 
 Use the first `appConfig` argument for app-owned overrides such as
-`server.telemetry.failLoudStartup`. Nested records merge through the Modern.js
-config merger, so sibling preset fields remain intact.
+`server.telemetry.failLoudStartup`. Sibling preset fields remain intact.
 
 ## Private-First Public Surfaces
 

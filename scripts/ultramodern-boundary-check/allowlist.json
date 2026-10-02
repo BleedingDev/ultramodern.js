@@ -1,6 +1,7 @@
 {
-  "schemaVersion": 1,
-  "baseRef": "8a744c1b3178d1e85d4113f29e8837ff94079fb3",
+  "schemaVersion": 2,
+  "baseRef": "eded841256a7cffdaa622e3889fc83407debd3e4",
+  "upstreamRef": "2f4d9c4559e26209a0d77f02c6757f29fe3699a2",
   "migrationGoal": "Shrink this list as UltraModern-only imports move out of upstream-owned files.",
   "denylist": [
     "@modern-js/plugin-tanstack",
@@ -13,6 +14,113 @@
     "micro-vertical",
     "superapp",
     "delivery-unit"
+  ],
+  "bridges": [
+    {
+      "file": "packages/runtime/plugin-i18n/src/cli/localisedRoutes.ts",
+      "specifier": "@modern-js/i18n-runtime-extensions",
+      "target": "packages/runtime/i18n-extensions/src/index.ts",
+      "reason": "Preserve the existing native localized-route validation adapter.",
+      "owner": "bleedingdev"
+    },
+    {
+      "file": "packages/runtime/plugin-i18n/src/runtime/navigation.tsx",
+      "specifier": "@modern-js/i18n-runtime-extensions/router-navigation",
+      "target": "packages/runtime/i18n-extensions/src/router-navigation/index.ts",
+      "reason": "Preserve the existing native navigation-provider default seam.",
+      "owner": "bleedingdev"
+    },
+    {
+      "file": "packages/runtime/plugin-i18n/src/server/defaultUrlStrategy.ts",
+      "specifier": "@modern-js/i18n-runtime-extensions",
+      "target": "packages/runtime/i18n-extensions/src/index.ts",
+      "reason": "Preserve the existing native localized URL-strategy default.",
+      "owner": "bleedingdev"
+    },
+    {
+      "file": "packages/runtime/plugin-i18n/src/shared/mappedUrlStrategy.ts",
+      "specifier": "@modern-js/i18n-runtime-extensions",
+      "target": "packages/runtime/i18n-extensions/src/index.ts",
+      "reason": "Preserve the mapped URL-strategy adapter used by native defaults.",
+      "owner": "bleedingdev"
+    },
+    {
+      "file": "packages/solutions/app-tools/src/builder/shared/builderPlugins/adapterSSR.ts",
+      "specifier": "@modern-js/app-tools-extensions",
+      "target": "packages/solutions/app-tools-extensions/src/index.ts",
+      "owner": "bleedingdev",
+      "reason": "Keep existing SSR build adaptation through the fork-owned adapter."
+    },
+    {
+      "file": "packages/solutions/app-tools/src/index.ts",
+      "specifier": "@modern-js/app-tools-extensions/deploy-output/target",
+      "target": "packages/solutions/app-tools-extensions/src/deploy-output/target.ts",
+      "owner": "bleedingdev",
+      "reason": "Preserve appTools deployment target registration."
+    },
+    {
+      "file": "packages/solutions/app-tools/src/index.ts",
+      "specifier": "@modern-js/app-tools-extensions/policy-defaults",
+      "target": "packages/solutions/app-tools-extensions/src/policy-defaults.ts",
+      "owner": "bleedingdev",
+      "reason": "Preserve plain appTools renderer and server defaults through the fork-owned composition seam."
+    },
+    {
+      "file": "packages/solutions/app-tools/src/plugins/deploy/index.ts",
+      "specifier": "@modern-js/app-tools-extensions/cloudflare",
+      "target": "packages/solutions/app-tools-extensions/src/cloudflare/index.ts",
+      "owner": "bleedingdev",
+      "reason": "Preserve the existing Cloudflare deploy plugin adapter."
+    },
+    {
+      "file": "packages/solutions/app-tools/src/plugins/deploy/index.ts",
+      "specifier": "@modern-js/app-tools-extensions/deploy-output/target",
+      "target": "packages/solutions/app-tools-extensions/src/deploy-output/target.ts",
+      "owner": "bleedingdev",
+      "reason": "Preserve deployment target selection in the native deploy plugin."
+    },
+    {
+      "file": "packages/solutions/app-tools/src/plugins/deploy/platforms/netlify.ts",
+      "specifier": "@modern-js/app-tools-extensions/deploy-output/trace-files",
+      "target": "packages/solutions/app-tools-extensions/src/deploy-output/trace-files.ts",
+      "owner": "bleedingdev",
+      "reason": "Preserve existing Netlify deploy output dependency tracing."
+    },
+    {
+      "file": "packages/solutions/app-tools/src/plugins/deploy/platforms/node.ts",
+      "specifier": "@modern-js/app-tools-extensions/deploy-output/trace-files",
+      "target": "packages/solutions/app-tools-extensions/src/deploy-output/trace-files.ts",
+      "owner": "bleedingdev",
+      "reason": "Preserve existing Node deploy output dependency tracing."
+    },
+    {
+      "file": "packages/solutions/app-tools/src/plugins/deploy/platforms/vercel.ts",
+      "specifier": "@modern-js/app-tools-extensions/deploy-output/trace-files",
+      "target": "packages/solutions/app-tools-extensions/src/deploy-output/trace-files.ts",
+      "owner": "bleedingdev",
+      "reason": "Preserve existing Vercel deploy output dependency tracing."
+    },
+    {
+      "file": "packages/solutions/app-tools/src/server-plugin.ts",
+      "specifier": "@modern-js/server-runtime-extensions/server-plugin",
+      "target": "packages/server/runtime-extensions/src/serverPlugin.ts",
+      "reason": "Preserve the existing public app-tools server-plugin entrypoint export.",
+      "owner": "bleedingdev"
+    },
+    {
+      "file": "packages/solutions/app-tools/src/types/config/deploy.ts",
+      "specifier": "@modern-js/app-tools-extensions/config",
+      "target": "packages/solutions/app-tools-extensions/src/config.ts",
+      "owner": "bleedingdev",
+      "reason": "Preserve existing public deployment configuration types."
+    },
+    {
+      "file": "packages/solutions/app-tools/src/types/plugin.ts",
+      "specifier": "@modern-js/app-tools-extensions/deploy-output/target",
+      "target": "packages/solutions/app-tools-extensions/src/deploy-output/target.ts",
+      "owner": "bleedingdev",
+      "reason": "Preserve existing plugin deployment target types."
+    }
   ],
   "violations": []
 }
