@@ -21,6 +21,7 @@ const {
   readDivergenceAllowlistAtRef,
   resolveCommitSha,
   resolveRepositoryTopLevel,
+  runDivergenceOperation,
   runSelfTest,
   validateLedgerDocument,
   writeDivergenceAllowlist,
@@ -340,7 +341,7 @@ const main = () => {
 };
 
 try {
-  main();
+  runDivergenceOperation(main);
 } catch (error) {
   console.error(`[ultramodern-boundary] ${error.message}`);
   process.exit(1);

@@ -91,6 +91,36 @@ const arraysEqual = (left, right) =>
 const pathIsInScope = (file, scope) =>
   file === scope || file.startsWith(`${scope}/`);
 
+// Reuse completed immutable Git evidence only during one synchronous operation.
+// Refs, allowlist validation, measurements and ledger decisions remain fresh.
+// As with a measurement itself, the repository's graph interpretation (shallow
+// boundaries, replacements and grafts) must remain stable during the operation.
+let activeDivergenceOperation = null;
+const runDivergenceOperation = operation => {
+  const previous = activeDivergenceOperation;
+  activeDivergenceOperation ??= {
+    ancestry: new Set(),
+    postProvenanceHistory: new Map(),
+  };
+  try {
+    const result = operation();
+    if (
+      result !== null &&
+      (typeof result === 'object' || typeof result === 'function') &&
+      typeof result.then === 'function'
+    ) {
+      throw new Error('Divergence operations must be synchronous.');
+    }
+    return result;
+  } finally {
+    activeDivergenceOperation = previous;
+  }
+};
+const operationEntry =
+  operation =>
+  (...args) =>
+    runDivergenceOperation(() => operation(...args));
+
 const sanitizedGitEnv = () => {
   const env = {};
   for (const [key, value] of Object.entries(process.env)) {
@@ -200,6 +230,14 @@ const resolveRequiredCommitSha = ({ rootDir, ref, label }) => {
 };
 
 const assertAncestor = ({ rootDir, ancestorRef, descendantRef, label }) => {
+  const evidence = activeDivergenceOperation;
+  const key =
+    evidence &&
+    /^[0-9a-f]{40}$/.test(ancestorRef) &&
+    /^[0-9a-f]{40}$/.test(descendantRef)
+      ? JSON.stringify([canonicalFsPath(rootDir), ancestorRef, descendantRef])
+      : null;
+  if (key !== null && evidence.ancestry.has(key)) return;
   const result = runGit({
     rootDir,
     args: ['merge-base', '--is-ancestor', ancestorRef, descendantRef],
@@ -210,6 +248,7 @@ const assertAncestor = ({ rootDir, ancestorRef, descendantRef, label }) => {
       `${label}: ${ancestorRef} is not an ancestor of ${descendantRef}.`,
     );
   }
+  if (key !== null) evidence.ancestry.add(key);
 };
 
 const getCanonicalDivergenceAllowlistPath = rootDir =>
@@ -445,7 +484,16 @@ const validateDivergenceAllowlist = (
     });
     // Even literal Git paths can select a directory: require the exact file,
     // retaining historical identities after deletion or rename.
-    return runGit({
+    const evidence = activeDivergenceOperation;
+    const key = JSON.stringify([
+      repositoryRoot,
+      resolvedUpstream,
+      resolvedIdentityRef,
+      file,
+    ]);
+    if (evidence?.postProvenanceHistory.has(key))
+      return evidence.postProvenanceHistory.get(key);
+    const hasHistory = runGit({
       rootDir: repositoryRoot,
       args: [
         'log',
@@ -461,6 +509,8 @@ const validateDivergenceAllowlist = (
     })
       .split('\0')
       .includes(file);
+    evidence?.postProvenanceHistory.set(key, hasHistory);
+    return hasHistory;
   };
   for (const scope of pathspec) {
     if (!baseTreePaths.some(file => pathIsInScope(file, scope))) {
@@ -2480,33 +2530,34 @@ module.exports = {
   assertPathspecMatches,
   buildDiffArgs,
   checkAllowlistGovernance,
-  checkForkDivergence,
+  checkForkDivergence: operationEntry(checkForkDivergence),
   checkLedgerChanged,
-  buildProvenanceOwnership,
+  buildProvenanceOwnership: operationEntry(buildProvenanceOwnership),
   parseNameStatus,
-  buildOwnershipMap,
+  buildOwnershipMap: operationEntry(buildOwnershipMap),
   collectLedgerEvidence,
   compareDivergence,
   createDivergenceSnapshot,
-  evaluateDivergenceGovernance,
+  evaluateDivergenceGovernance: operationEntry(evaluateDivergenceGovernance),
   formatDivergenceGrowth,
   formatDivergenceReport,
   formatDivergenceViolation,
   getCanonicalDivergenceAllowlistPath,
-  measureDivergence,
-  measureRule5Changes,
+  measureDivergence: operationEntry(measureDivergence),
+  measureRule5Changes: operationEntry(measureRule5Changes),
   parseDivergenceDiff,
   parseLedgerEvidenceRows,
   renderLedgerEvidence,
   validateLedgerEvidenceForFile,
   validateLedgerDocument,
-  readDivergenceAllowlist,
-  readDivergenceAllowlistAtRef,
+  readDivergenceAllowlist: operationEntry(readDivergenceAllowlist),
+  readDivergenceAllowlistAtRef: operationEntry(readDivergenceAllowlistAtRef),
   resolveCommitSha,
   resolveRepositoryTopLevel,
+  runDivergenceOperation,
   runSelfTest,
   serializeDivergenceSnapshot,
-  validateDivergenceAllowlist,
+  validateDivergenceAllowlist: operationEntry(validateDivergenceAllowlist),
   validatePathspec,
-  writeDivergenceAllowlist,
+  writeDivergenceAllowlist: operationEntry(writeDivergenceAllowlist),
 };
