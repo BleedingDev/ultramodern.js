@@ -1,5 +1,26 @@
 import { defineConfig } from '@rstest/core';
 
+const generatorFiles = {
+  'generator-workspace':
+    'integration/create-ultramodern-workspace/tests/index.test.ts',
+  'generator-bff': 'integration/create-bff-runtime/tests/index.test.ts',
+} as const;
+
+function resolveFrameworkFiles() {
+  const suite = process.env.MODERN_TEST_FRAMEWORK_SUITE ?? 'full';
+  const include = ['integration/**/*.(spec|test).[jt]s?(x)'];
+  const exclude = ['integration/rstest/**'];
+
+  if (suite === 'full') return { include, exclude };
+  if (suite === 'core') {
+    return { include, exclude: [...exclude, ...Object.values(generatorFiles)] };
+  }
+  if (suite === 'generator-workspace' || suite === 'generator-bff') {
+    return { include: [generatorFiles[suite]], exclude };
+  }
+  throw new Error(`Unknown MODERN_TEST_FRAMEWORK_SUITE: ${suite}`);
+}
+
 /**
  * Integration worker count.
  *
@@ -21,8 +42,7 @@ function resolveMaxWorkers(): number | string {
 
 export default defineConfig({
   root: __dirname,
-  include: ['integration/**/*.(spec|test).[jt]s?(x)'],
-  exclude: ['integration/rstest/**'],
+  ...resolveFrameworkFiles(),
   globals: true,
   env: { MODERN_SERVER_LOG_LEVEL: 'info' },
   // Heavy fixtures keep up to three dev servers and a browser alive (4-5 GB).

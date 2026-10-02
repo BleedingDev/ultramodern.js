@@ -21,6 +21,8 @@ jobs:
   integration:
     name: integration-${{ matrix.platform }} (${{ matrix.suite == 'framework' && format('framework {0}', matrix.shard) || matrix.suite }})
     runs-on: ${{ matrix.runner }}
+    env:
+      MODERN_TEST_FRAMEWORK_SUITE: ${{ matrix.framework_suite || 'full' }}
 
     # The GitHub-hosted public runner has 4 vCPU / 16 GB. A healthy job is ~15 min;
     # this ceiling turns a hung fixture into a clean failure instead of letting
@@ -33,7 +35,9 @@ jobs:
     # Framework shards are separate runners, each retaining two test workers
     # within its memory budget. rstest --shard orders normalized paths by hash
     # and gives each shard a disjoint slice; together they run every file.
-    # Six slices split the old Windows long pole without raising per-job memory.
+    # The two generator fixtures each get a dedicated runner; their package
+    # installs otherwise compete for disk I/O on the same framework shard.
+    # Six core slices plus both fixtures cover the complete framework suite.
     # Adapter and utility suites have exactly one job per supported platform.
     strategy:
       fail-fast: false
@@ -44,8 +48,26 @@ jobs:
         include:
           - platform: Linux
             runner: ubuntu-24.04
+            suite: framework-generator-workspace
+            framework_suite: generator-workspace
           - platform: Windows
             runner: windows-latest
+            suite: framework-generator-workspace
+            framework_suite: generator-workspace
+          - platform: Linux
+            runner: ubuntu-24.04
+            suite: framework-generator-bff
+            framework_suite: generator-bff
+          - platform: Windows
+            runner: windows-latest
+            suite: framework-generator-bff
+            framework_suite: generator-bff
+          - platform: Linux
+            runner: ubuntu-24.04
+            framework_suite: core
+          - platform: Windows
+            runner: windows-latest
+            framework_suite: core
           - platform: Linux
             runner: ubuntu-24.04
             suite: rstest-adapter
@@ -134,10 +156,22 @@ jobs:
           pnpm --filter tests run test:framework:prepared --shard ${{ matrix.shard }}
           --reporters default --reporters blob
 
+      - name: Test - Framework workspace generator
+        if: matrix.suite == 'framework-generator-workspace'
+        run: >-
+          pnpm --filter tests run test:framework:prepared
+          --reporters default --reporters blob
+
+      - name: Test - Framework BFF generator
+        if: matrix.suite == 'framework-generator-bff'
+        run: >-
+          pnpm --filter tests run test:framework:prepared
+          --reporters default --reporters blob
+
       # Keep exact per-file timings for the next balancing pass, including red
       # runs. Each shard writes its own blob on its isolated runner.
       - name: Upload framework test timings
-        if: always() && matrix.suite == 'framework'
+        if: always() && (matrix.suite == 'framework' || matrix.suite == 'framework-generator-workspace' || matrix.suite == 'framework-generator-bff')
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: integration-${{ matrix.platform }}-${{ strategy.job-index }}
@@ -157,8 +191,8 @@ jobs:
         run: pnpm run test:utils
 
   # Repository protection requires the original three framework check names.
-  # Each check now waits for all six shards on both platforms and the side
-  # suites. A failure, cancellation, or skipped matrix cannot pass these gates.
+  # Each check waits for all six core shards, both generator fixtures on each
+  # platform, and the side suites. Failed, cancelled, or skipped jobs cannot pass.
   required-framework:
     name: integration-${{ matrix.platform }} (framework ${{ matrix.required_shard }}/3)
     if: always()
