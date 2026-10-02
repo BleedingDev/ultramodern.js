@@ -8,6 +8,7 @@ import {
   buildInputs,
   restoreBuild,
   snapshotBuild,
+  verifyCurrentPreparedBuild,
 } from '../ci/prepared-build-cache.mjs';
 
 function fixture(t) {
@@ -170,4 +171,30 @@ test('snapshot refuses an input deleted by the build', t => {
   write('packages/example/dist/index.js', 'compiled');
   fs.unlinkSync(path.join(root, 'packages/example/src/index.ts'));
   assert.throws(() => snapshotBuild(root, baseline), /deleted/u);
+});
+
+test('task tracking records do not change prepared source identity', t => {
+  const { root, write, inputs } = fixture(t);
+  write('.beads/issues.jsonl', '{"status":"open"}');
+  execFileSync('git', ['add', '.beads/issues.jsonl'], { cwd: root });
+  const before = inputs().key;
+  write('.beads/issues.jsonl', '{"status":"closed"}');
+  assert.equal(inputs().key, before);
+});
+
+test('prepared verification rejects new untracked source while accepting covered generated outputs', t => {
+  const { root, write, inputs } = fixture(t);
+  const baseline = inputs();
+  write('.ci-build-cache/inputs.json', JSON.stringify(baseline));
+  write('packages/example/dist/index.js', 'compiled');
+  snapshotBuild(root, baseline);
+  assert.equal(
+    verifyCurrentPreparedBuild(root, { CI: 'true' }, { pnpm: '12.8.1' }),
+    1,
+  );
+  write('packages/example/src/new.ts', 'new source');
+  assert.throws(
+    () => verifyCurrentPreparedBuild(root, { CI: 'true' }, { pnpm: '12.8.1' }),
+    /Untracked/u,
+  );
 });

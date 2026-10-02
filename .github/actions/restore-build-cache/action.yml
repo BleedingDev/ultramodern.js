@@ -7,6 +7,9 @@ outputs:
   key:
     description: Exact source and toolchain identity
     value: ${{ steps.identity.outputs.key }}
+  package-manifest:
+    description: Verified packed prerequisites with paths relocated to this runner
+    value: ${{ steps.validate.outputs.package-manifest }}
 runs:
   using: composite
   steps:

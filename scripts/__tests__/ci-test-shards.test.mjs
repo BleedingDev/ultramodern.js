@@ -28,11 +28,16 @@ function scheduledJobs() {
   const axes = Object.entries(matrix).filter(
     ([key]) => key !== 'include' && key !== 'exclude',
   );
-  const original = axes.reduce(
-    (jobs, [key, values]) =>
-      jobs.flatMap(job => values.map(value => ({ ...job, [key]: value }))),
-    [{}],
-  );
+  const original =
+    axes.length === 0
+      ? []
+      : axes.reduce(
+          (jobs, [key, values]) =>
+            jobs.flatMap(job =>
+              values.map(value => ({ ...job, [key]: value })),
+            ),
+          [{}],
+        );
   const jobs = original.map(job => ({ ...job }));
   for (const entry of matrix.include ?? []) {
     let matched = false;
@@ -160,17 +165,21 @@ async function listFiles(shard, suite) {
 }
 
 test('native core shards and generator runners run every discovered file exactly once', async () => {
+  const coreShards = [
+    ...new Set(
+      scheduledJobs()
+        .filter(job => job.suite === 'framework')
+        .map(job => job.shard),
+    ),
+  ];
   const [all, core, workspace, bff, ...shards] = await Promise.all([
     listFiles(),
     listFiles(undefined, 'core'),
     listFiles(undefined, 'generator-workspace'),
     listFiles(undefined, 'generator-bff'),
-    ...matrix.shard.map(shard => listFiles(shard, 'core')),
+    ...coreShards.map(shard => listFiles(shard, 'core')),
   ]);
-  assert.ok(
-    all.length >= matrix.shard.length,
-    'Every CI shard must have tests.',
-  );
+  assert.ok(all.length >= coreShards.length, 'Every CI shard must have tests.');
   assert.ok(shards.every(files => files.length > 0));
   assert.deepEqual(
     workspace.map(file => file.replaceAll('\\', '/').split('/integration/')[1]),

@@ -1190,15 +1190,18 @@ function expandIntegrationMatrix(matrix) {
           ([key, value]) => String(combination[key]) === String(value),
         ),
     );
-  const originals = axes
-    .reduce(
-      (partial, [key, values]) =>
-        partial.flatMap(combination =>
-          values.map(value => ({ ...combination, [key]: value })),
-        ),
-      [{}],
-    )
-    .filter(combination => !excluded(combination));
+  const originals =
+    axes.length === 0
+      ? []
+      : axes
+          .reduce(
+            (partial, [key, values]) =>
+              partial.flatMap(combination =>
+                values.map(value => ({ ...combination, [key]: value })),
+              ),
+            [{}],
+          )
+          .filter(combination => !excluded(combination));
   const combinations = originals.map(combination => ({ ...combination }));
   for (const include of Array.isArray(matrix.include) ? matrix.include : []) {
     if (!isObject(include)) continue;
@@ -1226,12 +1229,14 @@ function collectFrameworkPartitionErrors(workflow, relativePath) {
   const expected = platforms.flatMap(platform => [
     ...Array.from({ length: 6 }, (_, index) => ({
       platform,
+      runner: platform === 'Linux' ? 'ubuntu-24.04' : 'windows-latest',
       suite: 'framework',
       framework_suite: 'core',
       shard: `${index + 1}/6`,
     })),
     ...['generator-workspace', 'generator-bff'].map(frameworkSuite => ({
       platform,
+      runner: platform === 'Linux' ? 'ubuntu-24.04' : 'windows-latest',
       suite: `framework-${frameworkSuite}`,
       framework_suite: frameworkSuite,
     })),
@@ -1239,8 +1244,8 @@ function collectFrameworkPartitionErrors(workflow, relativePath) {
   const frameworkCombinations = combinations.filter(combination =>
     String(combination.suite).startsWith('framework'),
   );
-  const key = ({ platform, suite, framework_suite, shard }) =>
-    JSON.stringify([platform, suite, framework_suite, shard]);
+  const key = ({ platform, runner, suite, framework_suite, shard }) =>
+    JSON.stringify([platform, runner, suite, framework_suite, shard]);
   const complete =
     frameworkCombinations.length === expected.length &&
     expected.every(
@@ -1252,6 +1257,24 @@ function collectFrameworkPartitionErrors(workflow, relativePath) {
   if (!complete) {
     errors.push(
       `${relativePath} integration must schedule six core shards and exactly one unsharded generator-workspace and generator-bff job on Linux and Windows`,
+    );
+  }
+  const expectedJobs = [
+    ...expected,
+    { platform: 'Linux', runner: 'ubuntu-24.04', suite: 'rstest-adapter' },
+    { platform: 'Windows', runner: 'windows-latest', suite: 'rstest-adapter' },
+    { platform: 'Linux', runner: 'ubuntu-24.04', suite: 'utils' },
+  ];
+  if (
+    combinations.length !== expectedJobs.length ||
+    !expectedJobs.every(
+      combination =>
+        combinations.filter(actual => key(actual) === key(combination))
+          .length === 1,
+    )
+  ) {
+    errors.push(
+      `${relativePath} integration must schedule exactly 19 jobs on their required runners: all core shards, generators, Linux and Windows adapters, and Linux package utilities`,
     );
   }
   const selector = job?.env?.MODERN_TEST_FRAMEWORK_SUITE;
@@ -1353,6 +1376,99 @@ function collectFrameworkPartitionErrors(workflow, relativePath) {
     );
   }
   return errors;
+}
+
+function collectIntegrationConcurrencyErrors(workflow, relativePath) {
+  const concurrency = workflow.concurrency;
+  const group =
+    typeof concurrency?.group === 'string'
+      ? /^\s*\$\{\{([\s\S]+)\}\}\s*$/u.exec(concurrency.group)?.[1]
+      : undefined;
+  const directRef = 'refs/pull/209/merge';
+  const directGithub = {
+    event_name: 'pull_request',
+    repository: 'BleedingDev/ultramodern.js',
+    repository_id: '42',
+    ref: directRef,
+    workflow: 'Integration Test',
+    workflow_ref: `BleedingDev/ultramodern.js/${integrationWorkflowPath}@${directRef}`,
+    head_ref: 'main',
+    event: { pull_request: { number: 209 } },
+    run_id: '1001',
+    run_attempt: '1',
+  };
+  const cases = [
+    { github: directGithub, key: 'pr-209', cancel: true },
+    {
+      github: { ...directGithub, run_id: '1002' },
+      key: 'pr-209',
+      cancel: true,
+    },
+    {
+      github: { ...directGithub, workflow: 'Renamed integration check' },
+      key: 'pr-209',
+      cancel: true,
+    },
+    {
+      github: {
+        ...directGithub,
+        ref: 'refs/pull/210/merge',
+        workflow_ref:
+          'BleedingDev/ultramodern.js/.github/workflows/integration-test.yml@refs/pull/210/merge',
+        event: { pull_request: { number: 210 } },
+      },
+      key: 'pr-210',
+      cancel: true,
+    },
+    {
+      github: {
+        ...directGithub,
+        workflow_ref:
+          'BleedingDev/ultramodern.js/.github/workflows/publish-bleedingdev.yml@refs/pull/209/merge',
+      },
+      key: 'run-1001-attempt-1',
+      cancel: false,
+    },
+    ...['push', 'merge_group', 'workflow_dispatch', 'workflow_call'].flatMap(
+      eventName =>
+        [
+          ['1001', '1'],
+          ['1002', '1'],
+          ['1001', '2'],
+        ].map(([runId, runAttempt]) => ({
+          github: {
+            ...directGithub,
+            event_name: eventName,
+            ref: 'refs/heads/main-ultramodern',
+            workflow_ref:
+              'BleedingDev/ultramodern.js/.github/workflows/integration-test.yml@refs/heads/main-ultramodern',
+            run_id: runId,
+            run_attempt: runAttempt,
+          },
+          key: `run-${runId}-attempt-${runAttempt}`,
+          cancel: false,
+        })),
+    ),
+  ];
+  const evaluates = (condition, github) =>
+    evaluateJobSchedule({
+      workflow: { jobs: { probe: { if: condition } } },
+      jobId: 'probe',
+      context: { github },
+    });
+  if (
+    group === undefined ||
+    cases.some(
+      ({ github, key, cancel }) =>
+        evaluates(concurrency?.['cancel-in-progress'], github) !== cancel ||
+        !evaluates(`(${group}) == 'integration-test-42-${key}'`, github),
+    )
+  ) {
+    return [
+      `${relativePath} integration concurrency must cancel only direct pull requests, isolate different PRs, and preserve every reusable, release, merge-queue and manual run attempt`,
+    ];
+  }
+  return [];
 }
 
 function collectIntegrationGateErrors(workflow, relativePath) {
@@ -1484,6 +1600,7 @@ function collectIntegrationGateErrors(workflow, relativePath) {
     }
   }
   errors.push(...collectFrameworkPartitionErrors(workflow, relativePath));
+  errors.push(...collectIntegrationConcurrencyErrors(workflow, relativePath));
   return errors;
 }
 
