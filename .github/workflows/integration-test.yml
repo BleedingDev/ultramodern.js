@@ -17,6 +17,20 @@ on:
 permissions:
   contents: read
 
+# Reusable workflows inherit the caller's event and workflow identity. Only
+# direct PR runs share a cancellation group; release, merge-queue and manual
+# runs each retain their own run attempt, including pending runs.
+concurrency:
+  group: >-
+    ${{ format('integration-test-{0}-{1}', github.repository_id,
+      github.event_name == 'pull_request' &&
+      github.workflow_ref == format('{0}/.github/workflows/integration-test.yml@{1}', github.repository, github.ref) &&
+      format('pr-{0}', github.event.pull_request.number) ||
+      format('run-{0}-attempt-{1}', github.run_id, github.run_attempt)) }}
+  cancel-in-progress: >-
+    ${{ github.event_name == 'pull_request' &&
+      github.workflow_ref == format('{0}/.github/workflows/integration-test.yml@{1}', github.repository, github.ref) }}
+
 jobs:
   integration:
     name: integration-${{ matrix.platform }} (${{ matrix.suite == 'framework' && format('framework {0}', matrix.shard) || matrix.suite }})
@@ -42,10 +56,70 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [Linux, Windows]
-        suite: [framework]
-        shard: [1/6, 2/6, 3/6, 4/6, 5/6, 6/6]
+        # The measured Windows core long poles enter the queue first. Explicit
+        # entries preserve all suites while avoiding Cartesian jobs ahead of
+        # these shards; dispatch still depends on runner availability.
         include:
+          - platform: Windows
+            runner: windows-latest
+            suite: framework
+            framework_suite: core
+            shard: 4/6
+          - platform: Windows
+            runner: windows-latest
+            suite: framework
+            framework_suite: core
+            shard: 3/6
+          - platform: Windows
+            runner: windows-latest
+            suite: framework
+            framework_suite: core
+            shard: 2/6
+          - platform: Windows
+            runner: windows-latest
+            suite: framework
+            framework_suite: core
+            shard: 1/6
+          - platform: Windows
+            runner: windows-latest
+            suite: framework
+            framework_suite: core
+            shard: 6/6
+          - platform: Windows
+            runner: windows-latest
+            suite: framework
+            framework_suite: core
+            shard: 5/6
+          - platform: Linux
+            runner: ubuntu-24.04
+            suite: framework
+            framework_suite: core
+            shard: 1/6
+          - platform: Linux
+            runner: ubuntu-24.04
+            suite: framework
+            framework_suite: core
+            shard: 2/6
+          - platform: Linux
+            runner: ubuntu-24.04
+            suite: framework
+            framework_suite: core
+            shard: 3/6
+          - platform: Linux
+            runner: ubuntu-24.04
+            suite: framework
+            framework_suite: core
+            shard: 4/6
+          - platform: Linux
+            runner: ubuntu-24.04
+            suite: framework
+            framework_suite: core
+            shard: 5/6
+          - platform: Linux
+            runner: ubuntu-24.04
+            suite: framework
+            framework_suite: core
+            shard: 6/6
           - platform: Linux
             runner: ubuntu-24.04
             suite: framework-generator-workspace
@@ -62,12 +136,6 @@ jobs:
             runner: windows-latest
             suite: framework-generator-bff
             framework_suite: generator-bff
-          - platform: Linux
-            runner: ubuntu-24.04
-            framework_suite: core
-          - platform: Windows
-            runner: windows-latest
-            framework_suite: core
           - platform: Linux
             runner: ubuntu-24.04
             suite: rstest-adapter
@@ -92,7 +160,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
+          fetch-depth: 1
           persist-credentials: false
 
       - name: Setup mise
@@ -102,10 +170,11 @@ jobs:
           cache_save: false
           install: true
 
-      - name: Setup Node.js 26.10.0
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: '26.10.0'
+      - name: Verify pinned test toolchain
+        shell: bash
+        run: |
+          pnpm_version="$(pnpm --version)"
+          node scripts/ci/check-test-toolchain.mjs "$pnpm_version"
 
       - name: Resolve pnpm store path
         id: pnpm-store
@@ -152,18 +221,24 @@ jobs:
 
       - name: Test - Framework
         if: matrix.suite == 'framework'
+        env:
+          MODERN_TEST_PACKAGE_MANIFEST: ${{ steps.build-cache.outputs.package-manifest }}
         run: >-
           pnpm --filter tests run test:framework:prepared --shard ${{ matrix.shard }}
           --reporters default --reporters blob
 
       - name: Test - Framework workspace generator
         if: matrix.suite == 'framework-generator-workspace'
+        env:
+          MODERN_TEST_PACKAGE_MANIFEST: ${{ steps.build-cache.outputs.package-manifest }}
         run: >-
           pnpm --filter tests run test:framework:prepared
           --reporters default --reporters blob
 
       - name: Test - Framework BFF generator
         if: matrix.suite == 'framework-generator-bff'
+        env:
+          MODERN_TEST_PACKAGE_MANIFEST: ${{ steps.build-cache.outputs.package-manifest }}
         run: >-
           pnpm --filter tests run test:framework:prepared
           --reporters default --reporters blob

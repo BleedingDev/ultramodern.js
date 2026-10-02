@@ -5,7 +5,9 @@ import path from 'node:path';
 import test from 'node:test';
 import yaml from '../../../packages/toolkit/utils/compiled/js-yaml/index.js';
 import { evaluateJobSchedule } from '../github-job-condition.mjs';
+import { listTrackedFiles } from '../static-import-closure.mjs';
 import {
+  repoRoot,
   validateRepository,
   validateTractorBaselinePin,
   validateWorkflowContent,
@@ -616,35 +618,35 @@ test('integration gates pull requests with one job per suite', () => {
   assert.deepEqual(gateErrors(content.replace(utilsStep, '')), [
     `${workflowPath} job integration matrix suite utils has no step gated by if: matrix.suite == 'utils', so that job would pass without testing anything`,
   ]);
-  // The framework shards together must run every test file.
-  const shards = '        shard: [1/6, 2/6, 3/6, 4/6, 5/6, 6/6]\n';
-  assert.ok(content.includes(shards));
-  // Excluding any slice or adding a duplicate must fail the completeness gate.
-  const includes = '        include:\n';
-  assert.ok(content.includes(includes));
-  for (const dropped of [
-    '          - suite: framework\n            shard: 6/6\n',
-    '          - platform: Windows\n            suite: framework\n            shard: 2/6\n',
-    '          - platform: Windows\n            suite: framework\n',
-  ]) {
-    assert.deepEqual(
-      gateErrors(
-        content.replace(includes, `        exclude:\n${dropped}${includes}`),
-      ),
-      [
-        `${workflowPath} job integration must schedule shards 1/N through N/N exactly once for every sharded suite combination, so the shards together run the whole suite`,
-      ],
-      dropped,
-    );
-  }
-  const duplicate = content.replace(
-    shards,
-    '        shard: [1/6, 2/6, 3/6, 4/6, 5/6, 6/6, 6/6]\n',
+  // Removing any native shard must fail the completeness gate.
+  const workflow = yaml.load(content);
+  const matrix = workflow.jobs.integration.strategy.matrix;
+  matrix.include = matrix.include.filter(
+    entry => !(entry.platform === 'Windows' && entry.shard === '2/6'),
+  );
+  const coverageErrors = validateWorkflowContent(
+    workflowPath,
+    yaml.dump(workflow),
   );
   assert.ok(
-    gateErrors(duplicate).some(error => error.includes('must schedule shards')),
+    coverageErrors.some(error =>
+      error.includes('must schedule six core shards'),
+    ),
+    'Dropping a Windows shard must fail framework partition completeness.',
+  );
+  assert.ok(
+    coverageErrors.some(error =>
+      error.includes('must schedule exactly 19 jobs'),
+    ),
+    'Dropping a Windows shard must fail the complete integration job inventory.',
   );
 });
+
+// These cases mutate YAML, not repository membership. Reuse the tracked-file
+// snapshot while checking the eager import closure on every mutated workflow.
+const integrationValidationOptions = {
+  trackedFiles: listTrackedFiles(repoRoot),
+};
 
 const integrationPartitionErrors = mutate => {
   const workflowPath = '.github/workflows/integration-test.yml';
@@ -654,19 +656,24 @@ const integrationPartitionErrors = mutate => {
   );
   const workflow = yaml.load(content);
   mutate?.(workflow);
-  return validateWorkflowContent(workflowPath, yaml.dump(workflow)).filter(
+  return validateWorkflowContent(
+    workflowPath,
+    yaml.dump(workflow),
+    integrationValidationOptions,
+  ).filter(
     error =>
       error.includes('integration must schedule six core shards') ||
+      error.includes('integration must schedule exactly 19 jobs') ||
       error.includes('integration must select each framework partition') ||
+      error.includes(
+        'integration concurrency must cancel only direct pull requests',
+      ) ||
       error.includes('required-framework must preserve all six'),
   );
 };
 
-test('integration schedules each generator exactly once beside all six core shards per platform', () => {
+test('integration include-only matrix runs every core, generator and side suite exactly once', () => {
   assert.deepEqual(integrationPartitionErrors(), []);
-  const isGenerator = entry =>
-    entry.suite === 'framework-generator-workspace' ||
-    entry.suite === 'framework-generator-bff';
   const workflowPath = '.github/workflows/integration-test.yml';
   const workflow = yaml.load(
     fs.readFileSync(
@@ -674,47 +681,284 @@ test('integration schedules each generator exactly once beside all six core shar
       'utf8',
     ),
   );
-  const generators =
-    workflow.jobs.integration.strategy.matrix.include.filter(isGenerator);
-  assert.equal(generators.length, 4);
-  for (const generator of generators) {
-    const matches = entry =>
-      entry.suite === generator.suite && entry.platform === generator.platform;
-    for (const mutate of [
-      matrix => {
-        matrix.include = matrix.include.filter(entry => !matches(entry));
-      },
-      matrix => {
-        matrix.include.push({ ...generator });
-      },
-      matrix => {
-        matrix.include.find(matches).framework_suite = 'core';
-      },
-      matrix => {
-        matrix.include.find(matches).shard = '1/1';
-      },
+  const matrix = workflow.jobs.integration.strategy.matrix;
+  assert.deepEqual(Object.keys(matrix), ['include']);
+  const identity = entry =>
+    JSON.stringify([
+      entry.platform,
+      entry.suite,
+      entry.runner,
+      entry.framework_suite ?? null,
+      entry.shard ?? null,
+    ]);
+  const expected = [];
+  for (const [platform, runner] of [
+    ['Linux', 'ubuntu-24.04'],
+    ['Windows', 'windows-latest'],
+  ]) {
+    for (let shard = 1; shard <= 6; shard++) {
+      expected.push({
+        platform,
+        runner,
+        suite: 'framework',
+        framework_suite: 'core',
+        shard: `${shard}/6`,
+      });
+    }
+    for (const fixture of ['workspace', 'bff']) {
+      expected.push({
+        platform,
+        runner,
+        suite: `framework-generator-${fixture}`,
+        framework_suite: `generator-${fixture}`,
+      });
+    }
+    expected.push({ platform, runner, suite: 'rstest-adapter' });
+  }
+  expected.push({ platform: 'Linux', runner: 'ubuntu-24.04', suite: 'utils' });
+  assert.equal(matrix.include.length, 19);
+  assert.deepEqual(
+    matrix.include.map(identity).sort(),
+    expected.map(identity).sort(),
+  );
+  assert.deepEqual(
+    matrix.include.slice(0, 6).map(entry => [entry.platform, entry.shard]),
+    ['4/6', '3/6', '2/6', '1/6', '6/6', '5/6'].map(shard => ['Windows', shard]),
+  );
+
+  const matrixErrors = mutate =>
+    integrationPartitionErrors(workflow =>
+      mutate(workflow.jobs.integration.strategy.matrix),
+    ).filter(
+      error =>
+        error.includes('must schedule six core shards') ||
+        error.includes('must schedule exactly 19 jobs'),
+    );
+  for (const [index, entry] of matrix.include.entries()) {
+    const label = `${entry.platform} ${entry.suite} ${entry.shard ?? ''}`;
+    assert.ok(
+      matrixErrors(matrix => {
+        matrix.include.splice(index, 1);
+      }).length > 0,
+      `${label} missing`,
+    );
+    assert.ok(
+      matrixErrors(matrix => {
+        matrix.include.push({ ...matrix.include[index] });
+      }).length > 0,
+      `${label} duplicate`,
+    );
+    for (const [field, value] of [
+      [
+        'runner',
+        entry.platform === 'Linux' ? 'windows-latest' : 'ubuntu-24.04',
+      ],
+      ['platform', 'macOS'],
+      ['framework_suite', 'full'],
+      ['shard', entry.shard ? '1/5' : '1/1'],
     ]) {
       assert.ok(
-        integrationPartitionErrors(workflow =>
-          mutate(workflow.jobs.integration.strategy.matrix),
-        ).some(error => error.includes('must schedule six core shards')),
-        `${generator.platform} ${generator.suite}`,
+        matrixErrors(matrix => {
+          matrix.include[index][field] = value;
+        }).length > 0,
+        `${label} invalid ${field}`,
       );
     }
   }
-  for (const mutate of [
-    matrix => {
-      matrix.shard = ['1/5', '2/5', '3/5', '4/5', '5/5'];
-    },
-    matrix => {
-      matrix.platform = ['Linux'];
+  for (const extra of [
+    { platform: 'Linux', runner: 'ubuntu-24.04', suite: 'unrecognized' },
+    { platform: 'Windows', runner: 'windows-latest', suite: 'utils' },
+    {
+      platform: 'Linux',
+      runner: 'ubuntu-24.04',
+      suite: 'framework',
+      framework_suite: 'core',
+      shard: '7/6',
     },
   ]) {
     assert.ok(
-      integrationPartitionErrors(workflow =>
-        mutate(workflow.jobs.integration.strategy.matrix),
-      ).some(error => error.includes('must schedule six core shards')),
+      matrixErrors(matrix => matrix.include.push(extra)).length > 0,
+      `extra ${identity(extra)}`,
     );
+  }
+});
+
+test('integration cancels earlier direct PR commits without cancelling callers or trusted runs', () => {
+  const workflow = yaml.load(
+    fs.readFileSync(
+      new URL(
+        '../../../.github/workflows/integration-test.yml',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+  );
+  assert.equal(typeof workflow.concurrency.group, 'string');
+  assert.equal(typeof workflow.concurrency['cancel-in-progress'], 'string');
+  const group = workflow.concurrency.group.replace(
+    /^\s*\$\{\{\s*|\s*\}\}\s*$/gu,
+    '',
+  );
+  const github = {
+    repository: 'BleedingDev/ultramodern.js',
+    repository_id: '123',
+    workflow: 'Integration Test',
+    event_name: 'pull_request',
+    ref: 'refs/pull/17/merge',
+    workflow_ref:
+      'BleedingDev/ultramodern.js/.github/workflows/integration-test.yml@refs/pull/17/merge',
+    head_ref: 'speed-ci',
+    sha: 'first-commit',
+    run_id: '100',
+    run_attempt: '1',
+    event: {
+      pull_request: {
+        number: 17,
+        head: { ref: 'speed-ci', repo: { full_name: 'first/ultramodern.js' } },
+      },
+    },
+  };
+  const assertConcurrency = (context, expectedGroup, cancel, label) => {
+    const probe = {
+      jobs: {
+        cancel: { if: workflow.concurrency['cancel-in-progress'] },
+        group: { if: githubExpression(`${group} == '${expectedGroup}'`) },
+      },
+    };
+    assert.equal(
+      evaluateJobSchedule({ workflow: probe, jobId: 'cancel', context }),
+      cancel,
+      `${label} cancellation`,
+    );
+    assert.equal(
+      evaluateJobSchedule({ workflow: probe, jobId: 'group', context }),
+      true,
+      `${label} group`,
+    );
+  };
+  assertConcurrency(
+    { github },
+    'integration-test-123-pr-17',
+    true,
+    'direct PR',
+  );
+  assertConcurrency(
+    {
+      github: {
+        ...github,
+        sha: 'second-commit',
+        run_id: '101',
+        run_attempt: '2',
+      },
+    },
+    'integration-test-123-pr-17',
+    true,
+    'another commit on the same PR',
+  );
+  assertConcurrency(
+    {
+      github: {
+        ...github,
+        ref: 'refs/pull/18/merge',
+        workflow_ref:
+          'BleedingDev/ultramodern.js/.github/workflows/integration-test.yml@refs/pull/18/merge',
+        event: {
+          pull_request: {
+            number: 18,
+            head: {
+              ref: 'speed-ci',
+              repo: { full_name: 'second/ultramodern.js' },
+            },
+          },
+        },
+      },
+    },
+    'integration-test-123-pr-18',
+    true,
+    'different fork PR with the same branch name',
+  );
+  for (const eventName of ['workflow_dispatch', 'merge_group', 'push']) {
+    for (const [runId, attempt] of [
+      ['100', '1'],
+      ['101', '1'],
+      ['100', '2'],
+    ]) {
+      assertConcurrency(
+        {
+          github: {
+            ...github,
+            event_name: eventName,
+            event: {},
+            ref: 'refs/heads/main-ultramodern',
+            workflow_ref:
+              'BleedingDev/ultramodern.js/.github/workflows/integration-test.yml@refs/heads/main-ultramodern',
+            run_id: runId,
+            run_attempt: attempt,
+          },
+        },
+        `integration-test-123-run-${runId}-attempt-${attempt}`,
+        false,
+        `${eventName} run ${runId} attempt ${attempt}`,
+      );
+    }
+  }
+  assertConcurrency(
+    {
+      github: {
+        ...github,
+        workflow_ref:
+          'BleedingDev/ultramodern.js/.github/workflows/publish-bleedingdev.yml@refs/pull/17/merge',
+      },
+    },
+    'integration-test-123-run-100-attempt-1',
+    false,
+    'PR-triggered release caller with the same workflow display name',
+  );
+});
+
+test('integration validator rejects unsafe cancellation and shared trusted-run groups', () => {
+  const concurrencyErrors = mutate =>
+    integrationPartitionErrors(mutate).filter(error =>
+      error.includes(
+        'integration concurrency must cancel only direct pull requests',
+      ),
+    );
+  assert.deepEqual(concurrencyErrors(), []);
+  for (const [label, mutate] of [
+    ['missing policy', workflow => delete workflow.concurrency],
+    [
+      'unconditional cancellation',
+      workflow => {
+        workflow.concurrency['cancel-in-progress'] = true;
+      },
+    ],
+    [
+      'PR event without caller guard',
+      workflow => {
+        workflow.concurrency['cancel-in-progress'] = githubExpression(
+          "github.event_name == 'pull_request'",
+        );
+      },
+    ],
+    [
+      'shared fork branch names',
+      workflow => {
+        workflow.concurrency.group = githubExpression(
+          "format('integration-test-{0}-{1}', github.repository_id, github.head_ref)",
+        );
+      },
+    ],
+    [
+      'trusted reruns share a group',
+      workflow => {
+        workflow.concurrency.group = workflow.concurrency.group.replace(
+          "format('run-{0}-attempt-{1}', github.run_id, github.run_attempt)",
+          "format('run-{0}', github.run_id)",
+        );
+      },
+    ],
+  ]) {
+    assert.ok(concurrencyErrors(mutate).length > 0, label);
   }
 });
 

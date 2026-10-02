@@ -129,9 +129,15 @@ jobs:
         if: steps.build-cache-validate.outputs.cache-hit != 'true'
         run: pnpm run prepare-build
 
+      # Genuine package lifecycle hooks run here once on the trusted source.
+      # Consumers reuse these exact tarballs rather than repacking restored dist.
+      - name: Pack prepared test prerequisites
+        if: steps.build-cache-validate.outputs.cache-hit != 'true'
+        run: node tests/utils/runWithPrerequisites.mjs --pack-only .ci-build-cache/packed
+
       - name: Snapshot prepared build outputs
         if: steps.build-cache-validate.outputs.cache-hit != 'true'
-        run: node scripts/ci/prepared-build-cache.mjs snapshot
+        run: node scripts/ci/prepared-build-cache.mjs snapshot .ci-build-cache/packed/packages.json
 
       - name: Save prepared build outputs
         if: steps.build-cache.outputs.cache-hit != 'true'

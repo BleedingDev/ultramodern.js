@@ -175,7 +175,10 @@ test('aborting a pack terminates its lifecycle child and grandchild', {
   const source = `
     const { spawn } = require('node:child_process');
     const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'inherit' });
-    require('node:fs').writeFileSync(process.argv[1], JSON.stringify([process.pid, child.pid]));
+    const fs = require('node:fs');
+    const temporaryFile = process.argv[1] + '.tmp';
+    fs.writeFileSync(temporaryFile, JSON.stringify([process.pid, child.pid]));
+    fs.renameSync(temporaryFile, process.argv[1]);
     setInterval(() => {}, 1000);
   `;
   const command = runPackingCommand(

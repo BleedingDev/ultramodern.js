@@ -39,10 +39,11 @@ jobs:
           cache_save: false
           install: true
 
-      - name: Setup Node.js 26.10.0
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: '26.10.0'
+      - name: Verify pinned test toolchain
+        shell: bash
+        run: |
+          pnpm_version="$(pnpm --version)"
+          node scripts/ci/check-test-toolchain.mjs "$pnpm_version"
 
       - name: Resolve pnpm store path
         id: pnpm-store
@@ -88,7 +89,7 @@ jobs:
           --version ${{ steps.browser-runtime.outputs.version }}
 
       - name: Test
-        run: pnpm run test:ut
+        run: pnpm run test:ut:prepared
 
       - name: Test build consumers
         run: pnpm run test:build-consumers

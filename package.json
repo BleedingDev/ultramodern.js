@@ -19,6 +19,7 @@
     "test:framework": "cd tests && pnpm run test:framework",
     "test:builder": "cd tests && pnpm run test:builder",
     "test:ut": "nx run @scripts/prebundle:bundle && rstest",
+    "test:ut:prepared": "node scripts/ci/run-prepared-unit-tests.mjs",
     "test:ut:update": "nx run @scripts/prebundle:bundle && rstest -u",
     "lint:package-json": "cd ./scripts/lint-package-json && pnpm start",
     "prepare-build": "nx run-many -t build -p @modern-js/* --exclude=@modern-js/main-doc,@modern-js/module-tools-docs --maxParallel=4",
