@@ -228,6 +228,7 @@ export function createRootPackageJson(
       },
       devDependencies: {
         ...rootDevDependencies,
+        typescript: ULTRAMODERN_PACKAGE_PINS.appDevDependencies.typescript,
         [ULTRAMODERN_CREATE_PACKAGE]: frameworkRequest(packageSource),
         '@modern-js/ultramodern-app-tools': frameworkRequest(packageSource),
       },
@@ -319,7 +320,11 @@ export function createRootPackageJson(
     },
     devDependencies: {
       ...ULTRAMODERN_PACKAGE_PINS.rootDevDependencies,
+      typescript: ULTRAMODERN_PACKAGE_PINS.appDevDependencies.typescript,
+      react: ULTRAMODERN_PACKAGE_PINS.appDependencies.react,
+      'react-dom': ULTRAMODERN_PACKAGE_PINS.appDependencies['react-dom'],
       '@modern-js/app-tools': frameworkRequest(packageSource),
+      '@modern-js/runtime': frameworkRequest(packageSource),
       '@modern-js/plugin-bff-extensions': frameworkRequest(packageSource),
       '@modern-js/plugin-bff-build-extensions': frameworkRequest(packageSource),
       '@modern-js/runtime-renderer-extensions': frameworkRequest(packageSource),

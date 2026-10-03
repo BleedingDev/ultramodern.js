@@ -166,7 +166,7 @@ test('root package json pins workspace package versions and bridge workspace glo
   );
 });
 
-test('generated roots provide the native app-tools peer required by their BFF build plugin', () => {
+test('generated React roots provide canonical framework peers and their pinned runtime providers', () => {
   const buildPlugin = JSON.parse(
     fs.readFileSync(
       path.resolve(
@@ -181,6 +181,38 @@ test('generated roots provide the native app-tools peer required by their BFF bu
     buildPlugin.peerDependenciesMeta?.['@modern-js/app-tools']?.optional,
     true,
   );
+  const runtime = JSON.parse(
+    fs.readFileSync(
+      path.resolve(__dirname, '../../../runtime/plugin-runtime/package.json'),
+      'utf8',
+    ),
+  );
+  const integration = JSON.parse(
+    fs.readFileSync(
+      path.resolve(__dirname, '../../../runtime/i18n-integration/package.json'),
+      'utf8',
+    ),
+  );
+  assert.ok(integration.peerDependencies['@modern-js/runtime']);
+  assert.notEqual(
+    integration.peerDependenciesMeta?.['@modern-js/runtime']?.optional,
+    true,
+  );
+  const tools = JSON.parse(
+    fs.readFileSync(
+      path.resolve(
+        __dirname,
+        '../../../solutions/ultramodern-app-tools/package.json',
+      ),
+      'utf8',
+    ),
+  );
+  assert.equal(tools.peerDependencies.typescript, '7.0.2');
+  assert.notEqual(tools.peerDependenciesMeta?.typescript?.optional, true);
+  for (const name of ['react', 'react-dom']) {
+    assert.ok(runtime.peerDependencies[name]);
+    assert.notEqual(runtime.peerDependenciesMeta?.[name]?.optional, true);
+  }
   for (const [packageSource, expected] of [
     [workspacePackageSource, 'workspace:*'],
     [installPackageSource, 'catalog:ultramodern'],
@@ -197,9 +229,39 @@ test('generated roots provide the native app-tools peer required by their BFF bu
       createRootPackageJson(scope, packageSource, [createCatalogVertical()]),
     );
     const dependencies = packageRecord(root.devDependencies);
+    const app = packageRecord(
+      createAppPackage(scope, shellApp, packageSource, false),
+    );
+    const appDependencies = packageRecord(app.dependencies);
+    const appDevDependencies = packageRecord(app.devDependencies);
     assert.ok(dependencies['@modern-js/plugin-bff-build-extensions']);
     assert.equal(dependencies['@modern-js/app-tools'], expected);
+    assert.equal(dependencies['@modern-js/runtime'], expected);
+    assert.equal(
+      dependencies['@modern-js/runtime'],
+      appDependencies['@modern-js/runtime'],
+    );
+    assert.equal(dependencies.react, appDependencies.react);
+    assert.equal(dependencies['react-dom'], appDependencies['react-dom']);
+    assert.equal(dependencies.typescript, tools.peerDependencies.typescript);
+    assert.equal(dependencies.typescript, appDevDependencies.typescript);
     assert.equal(root.pnpm, undefined);
+    for (const renderer of ['solid', 'octane'] as const) {
+      const nativeRoot = packageRecord(
+        createRootPackageJson(scope, packageSource, [], undefined, [], {
+          ...shellApp,
+          renderer,
+        }),
+      );
+      const nativeDependencies = packageRecord(nativeRoot.devDependencies);
+      assert.equal(
+        nativeDependencies.typescript,
+        tools.peerDependencies.typescript,
+      );
+      assert.equal(nativeDependencies['@modern-js/runtime'], undefined);
+      assert.equal(nativeDependencies.react, undefined);
+      assert.equal(nativeDependencies['react-dom'], undefined);
+    }
   }
 });
 
