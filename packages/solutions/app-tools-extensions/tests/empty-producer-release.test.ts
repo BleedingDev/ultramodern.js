@@ -7,6 +7,12 @@ import {
   DELIVERY_UNIT_KIND,
   DELIVERY_UNIT_SCHEMA_VERSION,
 } from '@modern-js/backend-federation-contracts';
+import {
+  createMicroVerticalReleaseEnvelope,
+  MICROVERTICAL_RELEASE_ENVELOPE_KIND,
+  SHELL_RELEASE_ENVELOPE_KIND,
+  verifyMicroVerticalReleaseEnvelope,
+} from '../src/release-envelope';
 import * as sourceFramework from '../src/release-envelope/framework-output';
 
 const roots: string[] = [];
@@ -26,48 +32,98 @@ const deliveryUnit = {
   version: '1.0.0',
 };
 
-async function fixture(framework: typeof sourceFramework) {
+async function fixture(
+  framework: typeof sourceFramework,
+  role: 'microvertical' | 'shell' = 'microvertical',
+  target: 'node' | 'cloudflare' = 'node',
+) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'empty-mf-release-'));
   roots.push(root);
+  const distDirectory = role === 'shell' ? path.join(root, 'dist') : root;
+  const unit =
+    role === 'shell'
+      ? {
+          ...deliveryUnit,
+          appId: 'shell',
+          packageName: '@test/shell',
+          unitId: 'test/shell',
+        }
+      : deliveryUnit;
   const put = async (name: string, contents: string) => {
-    await fs.mkdir(path.dirname(path.join(root, name)), { recursive: true });
-    await fs.writeFile(path.join(root, name), contents);
+    await fs.mkdir(path.dirname(path.join(distDirectory, name)), {
+      recursive: true,
+    });
+    await fs.writeFile(path.join(distDirectory, name), contents);
   };
   const json = (name: string, value: unknown) =>
     put(name, JSON.stringify(value));
   const manifest = {
     exposes: [],
-    remotes: [],
+    remotes:
+      role === 'shell'
+        ? [
+            {
+              federationContainerName: 'catalog',
+              moduleName: 'catalog',
+              alias: 'catalog',
+              entry: 'https://assets.example.test/catalog/mf-manifest.json',
+            },
+          ]
+        : [],
     metaData: {
       publicPath,
       remoteEntry: { name: '', path: '', type: 'global' },
     },
   };
-  await json(
-    'ultramodern-build.json',
-    createUltramodernBuildArtifact(deliveryUnit),
-  );
-  await json('backend-mf-manifest.json', {
-    backendFederation: { deliveryUnit, versionBoundary: { deliveryUnit } },
-  });
+  if (role === 'shell') {
+    await fs.mkdir(path.join(root, 'shared'), { recursive: true });
+    await fs.writeFile(
+      path.join(root, 'shared/ultramodern-build.json'),
+      JSON.stringify(createUltramodernBuildArtifact(unit)),
+    );
+  } else {
+    await json('ultramodern-build.json', createUltramodernBuildArtifact(unit));
+    await json('backend-mf-manifest.json', {
+      backendFederation: {
+        deliveryUnit: unit,
+        versionBoundary: { deliveryUnit: unit },
+      },
+    });
+    await put('backendRemoteEntry.cjs', 'console.log("compiled fixture");');
+  }
   await json('mf-manifest.json', manifest);
   const routes = (assets: unknown[]) =>
     json('routes-manifest.json', {
       routeAssets: { index: { assets } },
     });
   await routes([`${publicPath}${client}`]);
-  await json('route.json', { routes: [{ bundle: ssr }] });
+  await json('route.json', {
+    routes: [
+      target === 'node' ? { bundle: ssr } : { worker: 'worker/main.js' },
+    ],
+  });
   await json('package.json', { type: 'module' });
-  for (const name of [client, ssr, api, 'index.js', 'backendRemoteEntry.cjs']) {
+  const modules =
+    target === 'node'
+      ? [client, ssr, api, 'index.js']
+      : [
+          client,
+          'worker/main.js',
+          'worker/__modern_bff_effect.js',
+          'worker/__modern_worker_runtime.js',
+          'worker/__modern_worker_shared.js',
+        ];
+  for (const name of modules) {
     await put(name, 'console.log("compiled fixture");');
   }
   const emit = () =>
     framework.emitFrameworkMicroVerticalReleaseEnvelope({
       apiOnly: false,
-      distDirectory: root,
-      target: 'node',
+      ...(role === 'shell' ? { appDirectory: root, role } : {}),
+      distDirectory,
+      target,
     });
-  return { root, put, json, manifest, routes, emit };
+  return { root, distDirectory, put, json, manifest, routes, emit };
 }
 
 afterEach(async () => {
@@ -121,6 +177,228 @@ describe('workspace source revision', () => {
         target: 'node',
       }),
     ).rejects.toThrow(/cannot produce a promotable envelope/);
+  });
+});
+
+describe('Shell consumer release', () => {
+  const framework = sourceFramework;
+
+  test('binds complete Node build and staged output without a backend producer', async () => {
+    const f = await fixture(framework, 'shell');
+    const envelope = await f.emit();
+    if (envelope?.kind !== SHELL_RELEASE_ENVELOPE_KIND) {
+      throw new Error('Expected the native Shell release envelope.');
+    }
+    expect(envelope.identity).toMatchObject({
+      unitId: 'test/shell',
+      sourceRevision: deliveryUnit.sourceRevision,
+    });
+    expect(envelope.surfaces).toEqual({
+      uiClient: ['mf-manifest.json', 'routes-manifest.json', client],
+      ssr: [ssr],
+      apiBackend: [api],
+    });
+    const boundPaths = [
+      api,
+      ssr,
+      client,
+      'index.js',
+      'mf-manifest.json',
+      'package.json',
+      'route.json',
+      'routes-manifest.json',
+      'ultramodern-build.json',
+      framework.MICROVERTICAL_RELEASE_IDENTITY_CARRIERS_PATH,
+    ].sort((left, right) => left.localeCompare(right));
+    expect(envelope.artifacts.map(artifact => artifact.logicalPath)).toEqual(
+      boundPaths,
+    );
+    const created = await createMicroVerticalReleaseEnvelope({
+      artifactRoot: f.distDirectory,
+      kind: SHELL_RELEASE_ENVELOPE_KIND,
+      target: 'node',
+      identity: envelope.identity,
+      artifacts: envelope.artifacts.map(({ logicalPath, runtime }) => ({
+        logicalPath,
+        runtime,
+      })),
+      surfaces: envelope.surfaces,
+    });
+    await verifyMicroVerticalReleaseEnvelope(created, {
+      artifactRoot: f.distDirectory,
+      expectedKind: SHELL_RELEASE_ENVELOPE_KIND,
+      expectedTarget: 'node',
+    });
+    await expect(
+      verifyMicroVerticalReleaseEnvelope(created, {
+        artifactRoot: f.distDirectory,
+        expectedKind: MICROVERTICAL_RELEASE_ENVELOPE_KIND,
+      }),
+    ).rejects.toThrow(/kind/u);
+    await framework.verifyBuildOutputReleaseEnvelope(f.distDirectory, 'node');
+    const outputDirectory = path.join(f.root, '.output');
+    await fs.cp(f.distDirectory, outputDirectory, { recursive: true });
+    const staged = await framework.emitNodeStagedReleaseEnvelope({
+      distDirectory: f.distDirectory,
+      outputDirectory,
+    });
+    expect(staged?.kind).toBe(SHELL_RELEASE_ENVELOPE_KIND);
+    expect(staged?.surfaces).toEqual({
+      uiClient: envelope.surfaces.uiClient,
+      ssr: [ssr, 'index.js'],
+      apiBackend: [api],
+    });
+    expect(staged?.artifacts.map(artifact => artifact.logicalPath)).toEqual(
+      boundPaths,
+    );
+    await framework.verifyNodeReleaseEnvelopeStaging({ outputDirectory });
+    await fs.writeFile(path.join(outputDirectory, api), 'tampered staged API');
+    await expect(
+      framework.verifyNodeReleaseEnvelopeStaging({ outputDirectory }),
+    ).rejects.toThrow(/digest/u);
+    await f.put(client, 'tampered build client');
+    await expect(
+      framework.verifyBuildOutputReleaseEnvelope(f.distDirectory, 'node'),
+    ).rejects.toThrow(/digest/u);
+  });
+
+  test('binds complete Cloudflare build and staged output without a backend producer', async () => {
+    const f = await fixture(framework, 'shell', 'cloudflare');
+    const apiPaths = [
+      'worker/__modern_bff_effect.js',
+      'worker/__modern_worker_runtime.js',
+      'worker/__modern_worker_shared.js',
+    ];
+    const source = await f.emit();
+    expect(source?.kind).toBe(SHELL_RELEASE_ENVELOPE_KIND);
+    expect(source?.surfaces).toEqual({
+      uiClient: ['mf-manifest.json', 'routes-manifest.json', client],
+      ssr: ['worker/main.js'],
+      apiBackend: apiPaths,
+    });
+    expect(source?.artifacts.map(artifact => artifact.logicalPath)).toEqual(
+      [
+        client,
+        'mf-manifest.json',
+        'package.json',
+        'route.json',
+        'routes-manifest.json',
+        'ultramodern-build.json',
+        framework.MICROVERTICAL_RELEASE_IDENTITY_CARRIERS_PATH,
+        ...apiPaths,
+        'worker/main.js',
+      ].sort((left, right) => left.localeCompare(right)),
+    );
+    await framework.verifyBuildOutputReleaseEnvelope(
+      f.distDirectory,
+      'cloudflare',
+    );
+    const outputDirectory = path.join(f.root, '.output');
+    for (const [from, to] of [
+      ['static', 'public/static'],
+      ['mf-manifest.json', 'public/mf-manifest.json'],
+      ['routes-manifest.json', 'public/routes-manifest.json'],
+      ['ultramodern-build.json', 'public/ultramodern-build.json'],
+      ['worker', 'worker'],
+      ['route.json', 'server/route.json'],
+    ]) {
+      await fs.mkdir(path.dirname(path.join(outputDirectory, to)), {
+        recursive: true,
+      });
+      await fs.cp(
+        path.join(f.distDirectory, from),
+        path.join(outputDirectory, to),
+        { recursive: true },
+      );
+    }
+    for (const name of [
+      'server/modern-worker-manifest.json',
+      'wrangler.json',
+      'package.json',
+      'worker/package.json',
+    ]) {
+      await fs.writeFile(path.join(outputDirectory, name), '{}');
+    }
+    await fs.writeFile(
+      path.join(outputDirectory, 'server/index.mjs'),
+      'export default {};',
+    );
+    await framework.stageCloudflareReleaseEnvelope({
+      distDirectory: f.distDirectory,
+      outputDirectory,
+    });
+    const staged = await framework.emitCloudflareStagedReleaseEnvelope({
+      distDirectory: f.distDirectory,
+      outputDirectory,
+    });
+    expect(staged?.kind).toBe(SHELL_RELEASE_ENVELOPE_KIND);
+    expect(staged?.surfaces).toEqual({
+      uiClient: [
+        'public/mf-manifest.json',
+        'public/routes-manifest.json',
+        `public/${client}`,
+      ],
+      ssr: ['server/index.mjs', 'worker/main.js'],
+      apiBackend: apiPaths,
+    });
+    expect(staged?.artifacts.map(artifact => artifact.logicalPath)).toEqual(
+      [
+        'package.json',
+        'public/mf-manifest.json',
+        'public/routes-manifest.json',
+        `public/${client}`,
+        'public/ultramodern-build.json',
+        framework.MICROVERTICAL_RELEASE_IDENTITY_CARRIERS_PATH,
+        'server/index.mjs',
+        'server/modern-worker-manifest.json',
+        'server/route.json',
+        ...apiPaths,
+        'worker/main.js',
+        'worker/package.json',
+        'wrangler.json',
+      ].sort((left, right) => left.localeCompare(right)),
+    );
+    await framework.verifyCloudflareReleaseEnvelopeStaging(outputDirectory);
+    await fs.writeFile(
+      path.join(outputDirectory, 'public', client),
+      'tampered staged client',
+    );
+    await expect(
+      framework.verifyCloudflareReleaseEnvelopeStaging(outputDirectory),
+    ).rejects.toThrow(/digest/u);
+    await f.put('worker/main.js', 'tampered build SSR');
+    await expect(
+      framework.verifyBuildOutputReleaseEnvelope(f.distDirectory, 'cloudflare'),
+    ).rejects.toThrow(/digest/u);
+  });
+
+  test('rejects a producer pair, API-only Shell and missing actual API code', async () => {
+    const producer = await fixture(framework, 'shell');
+    await producer.json('backend-mf-manifest.json', {
+      backendFederation: { deliveryUnit },
+    });
+    await producer.put(
+      'backendRemoteEntry.cjs',
+      'exports.handler = () => null;',
+    );
+    await expect(producer.emit()).rejects.toThrow(/Shell.*backend federation/u);
+
+    const apiOnly = await fixture(framework, 'shell');
+    await expect(
+      framework.emitFrameworkMicroVerticalReleaseEnvelope({
+        apiOnly: true,
+        appDirectory: apiOnly.root,
+        distDirectory: apiOnly.distDirectory,
+        role: 'shell',
+        target: 'node',
+      }),
+    ).rejects.toThrow(/Shell requires a full-stack application/u);
+
+    const missingApi = await fixture(framework, 'shell');
+    await fs.rm(path.join(missingApi.distDirectory, api));
+    await expect(missingApi.emit()).rejects.toThrow(
+      /no actual compiled Node Effect API artifact/u,
+    );
   });
 });
 

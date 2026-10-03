@@ -3,6 +3,13 @@ export const MICROVERTICAL_RELEASE_ENVELOPE_SCHEMA_VERSION = 3 as const;
 export const MICROVERTICAL_RELEASE_ENVELOPE_KIND =
   'ultramodern-target-microvertical-release-envelope' as const;
 
+export const SHELL_RELEASE_ENVELOPE_KIND =
+  'ultramodern-target-shell-release-envelope' as const;
+
+export type ReleaseEnvelopeKind =
+  | typeof MICROVERTICAL_RELEASE_ENVELOPE_KIND
+  | typeof SHELL_RELEASE_ENVELOPE_KIND;
+
 export const MICROVERTICAL_RELEASE_TARGETS = ['node', 'cloudflare'] as const;
 
 export type MicroVerticalReleaseTarget =
@@ -54,6 +61,16 @@ export type MicroVerticalReleaseSurfaces = {
   };
 };
 
+export type ShellReleaseSurfaces = {
+  uiClient: string[];
+  ssr: string[];
+  apiBackend: string[];
+};
+
+export type ReleaseSurfaces =
+  | MicroVerticalReleaseSurfaces
+  | ShellReleaseSurfaces;
+
 export type MicroVerticalReleaseEnvelopePayload = {
   schemaVersion: typeof MICROVERTICAL_RELEASE_ENVELOPE_SCHEMA_VERSION;
   kind: typeof MICROVERTICAL_RELEASE_ENVELOPE_KIND;
@@ -68,16 +85,46 @@ export type MicroVerticalReleaseEnvelope =
     envelopeDigest: string;
   };
 
+export type ShellReleaseEnvelopePayload = {
+  schemaVersion: typeof MICROVERTICAL_RELEASE_ENVELOPE_SCHEMA_VERSION;
+  kind: typeof SHELL_RELEASE_ENVELOPE_KIND;
+  target: MicroVerticalReleaseTarget;
+  identity: MicroVerticalReleaseIdentity;
+  artifacts: MicroVerticalReleaseArtifact[];
+  surfaces: ShellReleaseSurfaces;
+};
+
+export type ShellReleaseEnvelope = ShellReleaseEnvelopePayload & {
+  envelopeDigest: string;
+};
+
+export type ReleaseEnvelopePayload =
+  | MicroVerticalReleaseEnvelopePayload
+  | ShellReleaseEnvelopePayload;
+
+export type ReleaseEnvelope =
+  | MicroVerticalReleaseEnvelope
+  | ShellReleaseEnvelope;
+
 export type CreateMicroVerticalReleaseEnvelopeInput = {
   artifactRoot: string;
   target: MicroVerticalReleaseTarget;
   identity: MicroVerticalReleaseIdentity;
   artifacts: MicroVerticalReleaseArtifactInput[];
-  surfaces: MicroVerticalReleaseSurfaces;
-};
+} & (
+  | {
+      kind?: typeof MICROVERTICAL_RELEASE_ENVELOPE_KIND;
+      surfaces: MicroVerticalReleaseSurfaces;
+    }
+  | {
+      kind: typeof SHELL_RELEASE_ENVELOPE_KIND;
+      surfaces: ShellReleaseSurfaces;
+    }
+);
 
 export type VerifyMicroVerticalReleaseEnvelopeOptions = {
   artifactRoot: string;
   logicalPathForArtifact?: (artifact: MicroVerticalReleaseArtifact) => string;
   expectedTarget?: MicroVerticalReleaseTarget;
+  expectedKind?: ReleaseEnvelopeKind;
 };

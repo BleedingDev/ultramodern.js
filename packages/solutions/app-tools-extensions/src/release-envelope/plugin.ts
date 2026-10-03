@@ -17,7 +17,10 @@ import {
 } from './framework-output';
 
 export interface ReleaseEnvelopeConfig {
-  deploy?: { node?: { publicAssets?: NodePublicAssetConfig[] } };
+  deploy?: {
+    releaseEnvelopeRole?: 'microvertical' | 'shell';
+    node?: { publicAssets?: NodePublicAssetConfig[] };
+  };
 }
 
 export interface ReleaseEnvelopeAppContext {
@@ -64,10 +67,12 @@ export const createUltramodernReleaseEnvelopePlugin = <
         target: 'node' | 'cloudflare',
         requirePromotable = true,
       ) => {
-        const { apiOnly, distDirectory } = api.getAppContext();
+        const { apiOnly, appDirectory, distDirectory } = api.getAppContext();
         await emitFrameworkMicroVerticalReleaseEnvelope({
           apiOnly,
+          appDirectory,
           distDirectory,
+          role: api.getNormalizedConfig().deploy?.releaseEnvelopeRole,
           requirePromotable,
           target,
         });

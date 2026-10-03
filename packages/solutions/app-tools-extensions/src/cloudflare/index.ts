@@ -99,7 +99,9 @@ export const createCloudflarePreset: CreateCloudflarePreset = ({
       if (releaseEnvelopeEnabled) {
         await emitFrameworkMicroVerticalReleaseEnvelope({
           apiOnly,
+          appDirectory,
           distDirectory,
+          role: modernConfig.deploy?.releaseEnvelopeRole,
           target: 'cloudflare',
         });
       }
