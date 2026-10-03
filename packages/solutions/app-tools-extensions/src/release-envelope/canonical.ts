@@ -33,19 +33,16 @@ const serializeCanonicalValue = (value: CanonicalValue): string => {
 };
 
 export const releaseEnvelopePayload = (
-  envelope: ReleaseEnvelope,
-): ReleaseEnvelopePayload => {
-  const payload = {
-    schemaVersion: envelope.schemaVersion,
-    target: envelope.target,
-    identity: envelope.identity,
-    artifacts: envelope.artifacts,
-  };
-  if (envelope.kind === SHELL_RELEASE_ENVELOPE_KIND) {
-    return { ...payload, kind: envelope.kind, surfaces: envelope.surfaces };
-  }
-  return { ...payload, kind: envelope.kind, surfaces: envelope.surfaces };
-};
+  envelope: MicroVerticalReleaseEnvelope,
+): MicroVerticalReleaseEnvelopePayload => ({
+  schemaVersion: envelope.schemaVersion,
+  kind: envelope.kind,
+  target: envelope.target,
+  identity: envelope.identity,
+  ...(envelope.ui ? { ui: envelope.ui } : {}),
+  artifacts: envelope.artifacts,
+  surfaces: envelope.surfaces,
+});
 
 export const canonicalSerializeMicroVerticalReleaseEnvelopePayload = (
   payload: ReleaseEnvelopePayload,

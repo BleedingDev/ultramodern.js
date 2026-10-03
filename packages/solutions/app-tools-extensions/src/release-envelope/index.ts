@@ -2,6 +2,14 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {
+  formatBackendFederationValidationErrors,
+  immutableRendererRouterBindings,
+  validateRendererIdentity,
+  validateRendererProfile,
+  validateRendererProfileCompatibility,
+  validateRendererRouterBindings,
+} from '@modern-js/backend-federation-contracts';
+import {
   canonicalSerializeMicroVerticalReleaseEnvelope,
   digestMicroVerticalReleaseEnvelopePayload,
   releaseEnvelopePayload,
@@ -17,13 +25,7 @@ import {
   type MicroVerticalReleaseEnvelopePayload,
   type MicroVerticalReleaseIdentity,
   type MicroVerticalReleaseTarget,
-  type ReleaseEnvelope,
-  type ReleaseEnvelopeKind,
-  type ReleaseEnvelopePayload,
-  type ReleaseSurfaces,
-  SHELL_RELEASE_ENVELOPE_KIND,
-  type ShellReleaseEnvelope,
-  type ShellReleaseEnvelopePayload,
+  type MicroVerticalReleaseUi,
   type VerifyMicroVerticalReleaseEnvelopeOptions,
 } from './types';
 
@@ -39,13 +41,7 @@ export type {
   MicroVerticalReleaseSurfaces,
   MicroVerticalReleaseSymbolicLinkArtifact,
   MicroVerticalReleaseTarget,
-  ReleaseEnvelope,
-  ReleaseEnvelopeKind,
-  ReleaseEnvelopePayload,
-  ReleaseSurfaces,
-  ShellReleaseEnvelope,
-  ShellReleaseEnvelopePayload,
-  ShellReleaseSurfaces,
+  MicroVerticalReleaseUi,
   VerifyMicroVerticalReleaseEnvelopeOptions,
 } from './types';
 export {
@@ -582,7 +578,86 @@ const deepFreeze = <T>(value: T): T => {
   return value;
 };
 
-const assertEnvelope = (value: unknown): ReleaseEnvelope => {
+const assertReleaseUi = (
+  value: unknown,
+  identity: MicroVerticalReleaseIdentity,
+  surfaces: MicroVerticalReleaseSurfaces,
+): MicroVerticalReleaseUi | undefined => {
+  if (surfaces.uiClient.length === 0) {
+    if (value !== undefined) {
+      throw new Error('envelope.ui is forbidden for an API-only release.');
+    }
+    return undefined;
+  }
+  const ui = assertRecord(value, 'envelope.ui');
+  assertExactKeys(
+    ui,
+    ['rendererIdentity', 'rendererProfile', 'routerBindings'],
+    'envelope.ui',
+  );
+  const routerBindings = assertRecord(
+    ui.routerBindings,
+    'envelope.ui.routerBindings',
+  );
+  const errors = [
+    ...validateRendererIdentity(
+      ui.rendererIdentity,
+      'envelope.ui.rendererIdentity',
+    ).errors,
+    ...validateRendererProfile(
+      ui.rendererProfile,
+      'envelope.ui.rendererProfile',
+    ).errors,
+    ...validateRendererRouterBindings(
+      routerBindings,
+      Object.keys(routerBindings),
+      'envelope.ui.routerBindings',
+      (
+        ui.rendererIdentity as
+          | MicroVerticalReleaseUi['rendererIdentity']
+          | undefined
+      )?.renderer,
+    ).errors,
+  ];
+  if (errors.length > 0) {
+    throw new Error(formatBackendFederationValidationErrors(errors));
+  }
+  const rendererIdentity =
+    ui.rendererIdentity as MicroVerticalReleaseUi['rendererIdentity'];
+  const rendererProfile =
+    ui.rendererProfile as MicroVerticalReleaseUi['rendererProfile'];
+  if (!Object.hasOwn(routerBindings, rendererIdentity.entryName)) {
+    throw new Error(
+      'envelope.ui.routerBindings must include the primary rendererIdentity.entryName.',
+    );
+  }
+  if (rendererIdentity.buildId !== identity.buildMarker) {
+    throw new Error(
+      'envelope.ui.rendererIdentity.buildId must match identity.buildMarker.',
+    );
+  }
+  for (const field of ['renderer', 'protocolVersion'] as const) {
+    if (rendererIdentity[field] !== rendererProfile[field]) {
+      throw new Error(
+        `envelope.ui.rendererProfile.${field} must match rendererIdentity.${field}.`,
+      );
+    }
+  }
+  return {
+    rendererIdentity: { ...rendererIdentity },
+    rendererProfile: {
+      ...rendererProfile,
+      compiler: { ...rendererProfile.compiler },
+      hydration: { ...rendererProfile.hydration },
+      router: { ...rendererProfile.router },
+    },
+    routerBindings: immutableRendererRouterBindings(
+      routerBindings as MicroVerticalReleaseUi['routerBindings'],
+    ),
+  };
+};
+
+const assertEnvelope = (value: unknown): MicroVerticalReleaseEnvelope => {
   const envelope = assertRecord(value, 'envelope');
   assertExactKeys(
     envelope,
@@ -591,6 +666,7 @@ const assertEnvelope = (value: unknown): ReleaseEnvelope => {
       'kind',
       'target',
       'identity',
+      ...(Object.hasOwn(envelope, 'ui') ? ['ui'] : []),
       'artifacts',
       'surfaces',
       'envelopeDigest',
@@ -613,15 +689,22 @@ const assertEnvelope = (value: unknown): ReleaseEnvelope => {
   );
   assertUniqueSortedArtifacts(artifacts, 'envelope.artifacts');
   const target = assertTarget(envelope.target, 'envelope.target');
-  const releaseSurfaces = assertSurfaces(envelope.surfaces, kind);
-  const { surfaces } = releaseSurfaces;
+  const surfaces = assertSurfaces(envelope.surfaces);
+  if (surfaces.uiClient.length === 0 && Object.hasOwn(envelope, 'ui')) {
+    throw new Error('envelope.ui is forbidden for an API-only release.');
+  }
   assertSurfaceReferences(artifacts, surfaces);
   assertTargetSurfaceContract(target, artifacts, surfaces);
-  const parsed: ReleaseEnvelope = {
-    ...releaseSurfaces,
+  const identity = assertReleaseIdentity(
+    envelope.identity,
+    'envelope.identity',
+  );
+  const ui = assertReleaseUi(envelope.ui, identity, surfaces);
+  const parsed: MicroVerticalReleaseEnvelope = {
     schemaVersion: MICROVERTICAL_RELEASE_ENVELOPE_SCHEMA_VERSION,
     target,
-    identity: assertReleaseIdentity(envelope.identity, 'envelope.identity'),
+    identity,
+    ...(ui ? { ui } : {}),
     artifacts,
     envelopeDigest: assertNonEmptyString(
       envelope.envelopeDigest,
@@ -676,10 +759,13 @@ export async function createMicroVerticalReleaseEnvelope(
     left.logicalPath.localeCompare(right.logicalPath),
   );
   assertUniqueSortedArtifacts(sortedInputs, 'artifacts');
-  const releaseSurfaces = assertSurfaces(input.surfaces, kind);
-  const { surfaces } = releaseSurfaces;
+  const surfaces = assertSurfaces(input.surfaces);
+  if (surfaces.uiClient.length === 0 && Object.hasOwn(input, 'ui')) {
+    throw new Error('envelope.ui is forbidden for an API-only release.');
+  }
   assertSurfaceReferences(sortedInputs, surfaces);
   assertTargetSurfaceContract(target, sortedInputs, surfaces);
+  const ui = assertReleaseUi(input.ui, identity, surfaces);
   const artifacts = await Promise.all(
     sortedInputs.map(artifact => readFinalArtifact(artifactRoot, artifact)),
   );
@@ -689,6 +775,7 @@ export async function createMicroVerticalReleaseEnvelope(
     schemaVersion: MICROVERTICAL_RELEASE_ENVELOPE_SCHEMA_VERSION,
     target,
     identity,
+    ...(ui ? { ui } : {}),
     artifacts,
   };
   return deepFreeze({
@@ -718,6 +805,39 @@ export async function verifyMicroVerticalReleaseEnvelope(
   options: VerifyMicroVerticalReleaseEnvelopeOptions,
 ): Promise<ReleaseEnvelope> {
   const envelope = assertEnvelope(value);
+  if (options.expectedRendererProfile !== undefined) {
+    const result = validateRendererProfileCompatibility(
+      options.expectedRendererProfile,
+      envelope.ui?.rendererProfile,
+      'envelope.ui.rendererProfile',
+    );
+    if (!result.ok) {
+      throw new Error(formatBackendFederationValidationErrors(result.errors));
+    }
+  }
+  if (options.expectedRendererIdentity !== undefined) {
+    const expected = options.expectedRendererIdentity;
+    const result = validateRendererIdentity(
+      expected,
+      'expectedRendererIdentity',
+    );
+    if (!result.ok) {
+      throw new Error(formatBackendFederationValidationErrors(result.errors));
+    }
+    for (const field of [
+      'renderer',
+      'protocolVersion',
+      'appId',
+      'entryName',
+      'buildId',
+    ] as const) {
+      if (envelope.ui?.rendererIdentity[field] !== expected[field]) {
+        throw new Error(
+          `envelope.ui.rendererIdentity.${field} must match the consuming renderer identity.`,
+        );
+      }
+    }
+  }
   if (
     options.expectedKind !== undefined &&
     envelope.kind !== options.expectedKind

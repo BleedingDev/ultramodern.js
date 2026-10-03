@@ -1,28 +1,103 @@
 import {
   DELIVERY_UNIT_IDENTITY_FIELDS,
-  DELIVERY_UNIT_SCHEMA_VERSION,
+  ULTRAMODERN_BUILD_ARTIFACT_SCHEMA_VERSION,
 } from './constants';
 import {
   deliveryUnitIdentityFieldValue,
   validateDeliveryUnitRecord,
 } from './delivery-unit';
+import {
+  RENDERERS,
+  type RendererName,
+  type RendererProfile,
+  validateRendererIdentity,
+  validateRendererProfile,
+} from './renderer-profile';
+import {
+  immutableRendererRouterBindings,
+  validateRendererRouterBindings,
+} from './renderer-router-bindings';
 import type {
   BackendFederationContractValidationError,
   BackendFederationContractValidationResult,
+  CreateUltramodernBuildArtifactOptions,
   DeliveryUnitRecord,
   UltramodernBuildArtifact,
 } from './types';
 import {
   addError,
+  formatBackendFederationValidationErrors,
   isRecord,
   nonEmptyString,
   recordField,
   validationResult,
 } from './validation-core';
 
+const immutableRendererProfile = (profile: RendererProfile): RendererProfile =>
+  Object.freeze({
+    ...profile,
+    compiler: Object.freeze({ ...profile.compiler }),
+    hydration: Object.freeze({ ...profile.hydration }),
+    router: Object.freeze({ ...profile.router }),
+  });
+
+const validateUiRouterBindings = (
+  ui: { routerBindings?: unknown },
+  primaryEntryName: unknown,
+  path: string,
+  renderer?: RendererName,
+): BackendFederationContractValidationResult => {
+  const errors: BackendFederationContractValidationError[] = [];
+  if (!Object.hasOwn(ui, 'routerBindings')) {
+    addError(errors, path, 'is required on the UI surface.');
+    return validationResult(errors);
+  }
+  const bindings = ui.routerBindings;
+  errors.push(
+    ...validateRendererRouterBindings(
+      bindings,
+      isRecord(bindings) ? Object.keys(bindings) : [],
+      path,
+      renderer,
+    ).errors,
+  );
+  if (
+    typeof primaryEntryName === 'string' &&
+    (!isRecord(bindings) || !Object.hasOwn(bindings, primaryEntryName))
+  ) {
+    addError(errors, path, 'must include the primary renderer entry.');
+  }
+  return validationResult(errors);
+};
+
 export const createUltramodernBuildArtifact = (
   record: DeliveryUnitRecord,
+  options: CreateUltramodernBuildArtifactOptions = {},
 ): UltramodernBuildArtifact => {
+  if (Object.hasOwn(options, 'ui')) {
+    if (!options.ui) {
+      throw new Error(
+        'artifact.ui must contain an explicit identity and profile.',
+      );
+    }
+    const errors = [
+      ...validateRendererIdentity(options.ui.identity, 'artifact.ui.identity')
+        .errors,
+      ...validateRendererProfile(options.ui.profile, 'artifact.ui.profile')
+        .errors,
+      ...validateUiRouterBindings(
+        options.ui,
+        isRecord(options.ui.identity)
+          ? options.ui.identity.entryName
+          : undefined,
+        'artifact.ui.routerBindings',
+        options.ui.profile?.renderer,
+      ).errors,
+    ];
+    if (errors.length) {
+      throw new Error(formatBackendFederationValidationErrors(errors));
+    }
+  }
   const deliveryUnit = {
     appId: record.appId,
     build: record.buildMarker,
@@ -36,15 +111,29 @@ export const createUltramodernBuildArtifact = (
     version: record.version,
   };
 
-  return {
+  const artifact: UltramodernBuildArtifact = {
     deliveryUnit,
     kind: 'ultramodern-build-artifact',
-    schemaVersion: DELIVERY_UNIT_SCHEMA_VERSION,
+    schemaVersion: ULTRAMODERN_BUILD_ARTIFACT_SCHEMA_VERSION,
     surfaces: {
       api: { ...deliveryUnit, surface: 'api' },
-      ui: { ...deliveryUnit, surface: 'ui' },
+      ...(options.ui
+        ? {
+            ui: {
+              ...deliveryUnit,
+              surface: 'ui' as const,
+              rendererIdentity: Object.freeze({ ...options.ui.identity }),
+              rendererProfile: immutableRendererProfile(options.ui.profile),
+              routerBindings: immutableRendererRouterBindings(
+                options.ui.routerBindings,
+              ),
+            },
+          }
+        : {}),
     },
   };
+  assertUltramodernBuildArtifact(artifact);
+  return artifact;
 };
 
 export const validateUltramodernBuildArtifact = (
@@ -58,11 +147,19 @@ export const validateUltramodernBuildArtifact = (
     return validationResult(errors);
   }
 
-  if (value.schemaVersion !== DELIVERY_UNIT_SCHEMA_VERSION) {
+  for (const field of Object.keys(value)) {
+    if (
+      !['schemaVersion', 'kind', 'deliveryUnit', 'surfaces'].includes(field)
+    ) {
+      addError(errors, `${path}.${field}`, 'is not a supported field.');
+    }
+  }
+
+  if (value.schemaVersion !== ULTRAMODERN_BUILD_ARTIFACT_SCHEMA_VERSION) {
     addError(
       errors,
       `${path}.schemaVersion`,
-      `must be ${DELIVERY_UNIT_SCHEMA_VERSION}.`,
+      `must be ${ULTRAMODERN_BUILD_ARTIFACT_SCHEMA_VERSION}.`,
     );
   }
   if (value.kind !== 'ultramodern-build-artifact') {
@@ -73,11 +170,23 @@ export const validateUltramodernBuildArtifact = (
   errors.push(
     ...validateDeliveryUnitRecord(deliveryUnit, {
       path: `${path}.deliveryUnit`,
-      allowBuildAlias: true,
     }).errors,
   );
 
   if (isRecord(deliveryUnit)) {
+    for (const field of [
+      'rendererIdentity',
+      'rendererProfile',
+      'routerBindings',
+    ]) {
+      if (Object.hasOwn(deliveryUnit, field)) {
+        addError(
+          errors,
+          `${path}.deliveryUnit.${field}`,
+          'is only allowed on the UI surface.',
+        );
+      }
+    }
     const build = nonEmptyString(deliveryUnit.build);
     const buildMarker = nonEmptyString(deliveryUnit.buildMarker);
     if (!build) {
@@ -101,13 +210,25 @@ export const validateUltramodernBuildArtifact = (
     return validationResult(errors);
   }
 
+  for (const surface of Object.keys(surfaces)) {
+    if (surface !== 'api' && surface !== 'ui') {
+      addError(
+        errors,
+        `${path}.surfaces.${surface}`,
+        'is not a supported surface.',
+      );
+    }
+  }
+
   for (const surface of ['ui', 'api'] as const) {
+    if (surface === 'ui' && !Object.hasOwn(surfaces, 'ui')) {
+      continue;
+    }
     const marker = surfaces[surface];
     const markerPath = `${path}.surfaces.${surface}`;
     errors.push(
       ...validateDeliveryUnitRecord(marker, {
         path: markerPath,
-        allowBuildAlias: true,
       }).errors,
     );
 
@@ -127,15 +248,76 @@ export const validateUltramodernBuildArtifact = (
       addError(errors, `${markerPath}.surface`, `must be "${surface}".`);
     }
 
+    if (surface === 'api') {
+      for (const field of [
+        'rendererIdentity',
+        'rendererProfile',
+        'routerBindings',
+      ]) {
+        if (Object.hasOwn(marker, field)) {
+          addError(
+            errors,
+            `${markerPath}.${field}`,
+            'is forbidden on the API surface.',
+          );
+        }
+      }
+    } else {
+      errors.push(
+        ...validateRendererIdentity(
+          marker.rendererIdentity,
+          `${markerPath}.rendererIdentity`,
+        ).errors,
+        ...validateRendererProfile(
+          marker.rendererProfile,
+          `${markerPath}.rendererProfile`,
+        ).errors,
+      );
+      const rendererIdentity = recordField(marker, 'rendererIdentity');
+      const rendererProfile = recordField(marker, 'rendererProfile');
+      errors.push(
+        ...validateUiRouterBindings(
+          marker,
+          rendererIdentity?.entryName,
+          `${markerPath}.routerBindings`,
+          RENDERERS.find(renderer => renderer === rendererProfile?.renderer),
+        ).errors,
+      );
+      if (rendererIdentity) {
+        if (rendererIdentity.appId !== marker.appId) {
+          addError(
+            errors,
+            `${markerPath}.rendererIdentity.appId`,
+            'must match the UI delivery-unit appId.',
+          );
+        }
+        if (rendererIdentity.buildId !== marker.buildMarker) {
+          addError(
+            errors,
+            `${markerPath}.rendererIdentity.buildId`,
+            'must match the UI delivery-unit buildMarker.',
+          );
+        }
+      }
+      if (rendererIdentity && rendererProfile) {
+        for (const field of ['renderer', 'protocolVersion']) {
+          if (rendererIdentity[field] !== rendererProfile[field]) {
+            addError(
+              errors,
+              `${markerPath}.rendererProfile.${field}`,
+              'must match the renderer identity.',
+            );
+          }
+        }
+      }
+    }
+
     for (const field of DELIVERY_UNIT_IDENTITY_FIELDS) {
       const deliveryUnitValue = deliveryUnitIdentityFieldValue(
         deliveryUnit,
         field,
-        { allowBuildAlias: true },
       );
-      const markerValue = deliveryUnitIdentityFieldValue(marker, field, {
-        allowBuildAlias: true,
-      });
+      const markerValue = deliveryUnitIdentityFieldValue(marker, field);
       if (
         deliveryUnitValue !== undefined &&
         markerValue !== undefined &&
@@ -148,6 +330,24 @@ export const validateUltramodernBuildArtifact = (
         );
       }
     }
+    if (isRecord(deliveryUnit)) {
+      for (const field of [
+        'appId',
+        'packageName',
+        'version',
+        'deployProfile',
+        'schemaVersion',
+        'kind',
+      ]) {
+        if (marker[field] !== deliveryUnit[field]) {
+          addError(
+            errors,
+            `${markerPath}.${field}`,
+            `must match ${path}.deliveryUnit.${field}.`,
+          );
+        }
+      }
+    }
   }
 
   return validationResult(errors);
@@ -158,6 +358,16 @@ export const isUltramodernBuildArtifact = (
 ): value is UltramodernBuildArtifact =>
   validateUltramodernBuildArtifact(value).ok;
 
+export function assertUltramodernBuildArtifact(
+  value: unknown,
+  path = 'artifact',
+): asserts value is UltramodernBuildArtifact {
+  const result = validateUltramodernBuildArtifact(value, path);
+  if (!result.ok) {
+    throw new Error(formatBackendFederationValidationErrors(result.errors));
+  }
+}
+
 export const stampUltramodernBuildArtifactIdentity = (
   artifact: UltramodernBuildArtifact,
   identity: {
@@ -165,20 +375,39 @@ export const stampUltramodernBuildArtifactIdentity = (
     sourceRevision: string;
   },
 ): UltramodernBuildArtifact => {
+  assertUltramodernBuildArtifact(artifact);
   const stamped = {
     build: identity.buildMarker,
     buildMarker: identity.buildMarker,
     sourceRevision: identity.sourceRevision,
   };
   const stamp = <T>(value: T) => ({ ...value, ...stamped });
-  return {
+  const result: UltramodernBuildArtifact = {
     ...artifact,
     deliveryUnit: stamp(artifact.deliveryUnit),
     surfaces: {
-      ui: stamp(artifact.surfaces.ui),
       api: stamp(artifact.surfaces.api),
+      ...(artifact.surfaces.ui
+        ? {
+            ui: {
+              ...stamp(artifact.surfaces.ui),
+              rendererIdentity: Object.freeze({
+                ...artifact.surfaces.ui.rendererIdentity,
+                buildId: identity.buildMarker,
+              }),
+              rendererProfile: immutableRendererProfile(
+                artifact.surfaces.ui.rendererProfile,
+              ),
+              routerBindings: immutableRendererRouterBindings(
+                artifact.surfaces.ui.routerBindings,
+              ),
+            },
+          }
+        : {}),
     },
   };
+  assertUltramodernBuildArtifact(result);
+  return result;
 };
 
 export const stampUltramodernBuildArtifactSourceRevision = (

@@ -28,7 +28,7 @@ function writeOverlayGenerator(tempRoot: string, name: string, body: string) {
 }
 
 function generateWithOverlay(targetDir: string, generatorDir: string) {
-  generateUltramodernWorkspace({
+  return generateUltramodernWorkspace({
     targetDir,
     packageName: path.basename(targetDir),
     modernVersion: '3.2.1',
@@ -38,7 +38,7 @@ function generateWithOverlay(targetDir: string, generatorDir: string) {
   });
 }
 
-function assertRelaxationOverlay(
+async function assertRelaxationOverlay(
   tempRoot: string,
   name: string,
   mutation: string,
@@ -60,8 +60,8 @@ module.exports = async context => {
 };
 `,
   );
-  assert.throws(
-    () => generateWithOverlay(path.join(tempRoot, name), generatorDir),
+  await assert.rejects(
+    generateWithOverlay(path.join(tempRoot, name), generatorDir),
     (error: unknown) => {
       assert.ok(error instanceof OverlayBaselineRelaxationError, String(error));
       assert.ok(
@@ -77,14 +77,14 @@ module.exports = async context => {
   );
 }
 
-test('overlay baseline guard keeps one rejection matrix and a neutral extension', () => {
+test('overlay baseline guard keeps one rejection matrix and a neutral extension', async () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-overlay-guard-'));
   try {
     for (const [name, mutation] of [
       ['downgrade', "shellPkg.dependencies.react = '18.0.0';"],
       ['overrides', "shellPkg.overrides = { tooling: { react: '18.0.0' } };"],
     ] as const) {
-      assertRelaxationOverlay(tempRoot, name, mutation);
+      await assertRelaxationOverlay(tempRoot, name, mutation);
     }
 
     const neutralGenerator = writeOverlayGenerator(
@@ -101,7 +101,7 @@ module.exports = async context => {
 `,
     );
     const targetDir = path.join(tempRoot, 'neutral');
-    generateWithOverlay(targetDir, neutralGenerator);
+    await generateWithOverlay(targetDir, neutralGenerator);
     assert.equal(
       fs.existsSync(path.join(targetDir, 'overlay-output/ok.json')),
       true,
@@ -143,6 +143,85 @@ test('workspace catalog baseline changes fail with a typed violation', () => {
         );
         return true;
       },
+    );
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('Octane pins TypeScript 7 while keeping its named AST tool separate', async () => {
+  const tempRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'um-octane-ast-tool-'),
+  );
+  const workspaceRoot = path.join(tempRoot, 'workspace');
+  try {
+    await generateUltramodernWorkspace({
+      targetDir: workspaceRoot,
+      packageName: 'octane-ast-tool',
+      modernVersion: '3.8.3',
+      renderer: 'octane',
+      enableTailwind: false,
+      generateAgentFiles: false,
+      packageSource: { strategy: 'workspace' },
+    });
+    const snapshot = captureOverlayBaselineSnapshot(workspaceRoot, [
+      'apps/shell-super-app',
+    ]);
+    const options = {
+      workspaceRoot,
+      generator: 'native-ast-tool-overlay',
+      snapshot,
+    };
+    assertOverlayPreservedBaseline(options);
+    const manifestPath = path.join(workspaceRoot, 'package.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    assert.equal(
+      manifest.devDependencies['@typescript/native'],
+      'npm:typescript@7.0.2',
+    );
+    const appManifest = JSON.parse(
+      fs.readFileSync(
+        path.join(workspaceRoot, 'apps/shell-super-app/package.json'),
+        'utf8',
+      ),
+    );
+    assert.equal(appManifest.devDependencies.typescript, '7.0.2');
+    assert.equal(
+      appManifest.scripts.typecheck,
+      'octane-tsc --noEmit --project tsconfig.json',
+    );
+    assert.equal(
+      appManifest.dependencies['@modern-js/renderer-octane'],
+      'workspace:*',
+    );
+    for (const group of ['dependencies', 'devDependencies']) {
+      assert.equal(appManifest[group]?.['tsrx-tsc'], undefined);
+      assert.equal(manifest[group]?.['tsrx-tsc'], undefined);
+    }
+    manifest.dependencies = {
+      '@typescript/native': 'npm:typescript@7.0.2',
+    };
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest));
+    assertOverlayPreservedBaseline(options);
+    manifest.dependencies['@typescript/native'] = 'npm:typescript@7.0.1';
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest));
+    assert.throws(
+      () => assertOverlayPreservedBaseline(options),
+      /alias "@typescript\/native".*typescript.*7\.0\.2/u,
+    );
+    delete manifest.dependencies;
+    manifest.devDependencies.arbitraryCompiler = 'npm:typescript@7.0.1';
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest));
+    assert.throws(
+      () => assertOverlayPreservedBaseline(options),
+      /alias "arbitraryCompiler".*typescript.*7\.0\.2/u,
+    );
+    delete manifest.devDependencies.arbitraryCompiler;
+    manifest.devDependencies['@typescript/native'] = 'npm:typescript@7.0.1';
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest));
+    assert.throws(
+      () => assertOverlayPreservedBaseline(options),
+      /@typescript\/native.*7\.0\.2/u,
     );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });

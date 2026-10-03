@@ -186,10 +186,10 @@ test('recipe-only sidecar closure records exact publication identities and alias
   );
   const sidecars = sidecarsModule.collectSidecarPackages();
   const byName = new Map(sidecars.map(sidecar => [sidecar.name, sidecar]));
-  assert.equal(sidecars.length, 23);
-  assert.equal(byName.get('@bleedingdev/mf-sdk').version, '2.9.2');
-  assert.equal(byName.has('@bleedingdev/ipx'), false);
-  assert.equal(byName.has('@bleedingdev/effect'), false);
+  assert.equal(sidecars.length, 19);
+  assert.equal(byName.get('@bleedingdev/jiti').version, '2.7.0');
+  assert.equal(byName.get('@bleedingdev/jiti').installedPatched, true);
+  assert.equal(byName.get('@bleedingdev/effect').version, '4.0.0-rc.117');
   assert.equal(byName.has('@bleedingdev/msgpackr'), false);
   assert.equal(byName.has('@bleedingdev/zod'), false);
   assert.equal(byName.has('@bleedingdev/drizzle-orm'), false);

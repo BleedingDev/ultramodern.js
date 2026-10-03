@@ -307,9 +307,30 @@ function createAcceptancePackageManagerEnv(
   registryEnv = {},
   pnpmExecutable,
   environment = process.env,
+  { storeDir } = {},
 ) {
+  const packageManagerEnv = createCleanPnpmDlxEnv(
+    acceptancePackageManagerRoot(workDir),
+    { storeDir },
+  );
+  if (storeDir !== undefined) {
+    const relative = path.relative(
+      workDir,
+      packageManagerEnv.pnpm_config_store_dir,
+    );
+    if (
+      relative === '' ||
+      (relative !== '..' &&
+        !relative.startsWith(`..${path.sep}`) &&
+        !path.isAbsolute(relative))
+    ) {
+      throw new Error(
+        'Acceptance external store must be outside its work directory',
+      );
+    }
+  }
   const env = {
-    ...createCleanPnpmDlxEnv(acceptancePackageManagerRoot(workDir)),
+    ...packageManagerEnv,
     ...registryEnv,
     CI: 'true',
     npm_config_fetch_retries: '5',
@@ -321,6 +342,21 @@ function createAcceptancePackageManagerEnv(
     ULTRAMODERN_CREATE_BIN: undefined,
     ZE_CI_TOKEN: undefined,
   };
+  if (storeDir !== undefined) {
+    for (const name of [
+      'npm_config_store_dir',
+      'pnpm_config_store_dir',
+      'npm_config_package_import_method',
+      'pnpm_config_package_import_method',
+    ]) {
+      for (const inheritedName of Object.keys(env)) {
+        if (inheritedName.toLowerCase() === name) {
+          delete env[inheritedName];
+        }
+      }
+      env[name] = packageManagerEnv[name];
+    }
+  }
   if (pnpmExecutable !== undefined) {
     if (!path.isAbsolute(pnpmExecutable)) {
       throw new Error(
@@ -588,6 +624,7 @@ function createAcceptanceRuntimeContext({
   environment = process.env,
   expectedPnpmVersion,
   registryEnv = {},
+  storeDir,
   resolveExactPnpmExecutableImpl = resolveExactPnpmExecutable,
   runImpl = run,
   verificationCwd,
@@ -623,6 +660,7 @@ function createAcceptanceRuntimeContext({
     registryEnv,
     pnpmExecutable,
     environment,
+    { storeDir },
   );
   env.PLAYWRIGHT_BROWSERS_PATH = playwrightBrowsersPath;
   // Only what a clean room actually consumes: the child environment and the
@@ -1362,6 +1400,7 @@ async function runAcceptanceProfile({
   proveOperationalTargetImpl = proveOperationalTarget,
   now = Date,
   workDir: suppliedWorkDir,
+  storeDir,
 }) {
   if (!['source', 'published'].includes(mode)) {
     throw new Error(
@@ -1397,6 +1436,7 @@ async function runAcceptanceProfile({
       browsers: mode === 'source' ? 'inherited' : 'isolated',
       expectedPnpmVersion: release.tools?.pnpm ?? runtime.pnpm,
       registryEnv,
+      storeDir,
       runImpl,
       workDir,
     });

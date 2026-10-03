@@ -14,6 +14,7 @@ import {
 } from '../demo-components';
 import {
   appEmitsBrowserUi,
+  appHasApi,
   appI18nNamespace,
   resolveRemoteRefs,
   shellApp,
@@ -31,6 +32,7 @@ import {
   createPublicWebAppArtifacts,
   rewriteWorkspaceAssetsForApp,
 } from '../public-surface';
+import { resolveWorkspaceRenderer } from '../renderer-profile';
 import type { JsonValue, ResolvedPackageSource, WorkspaceApp } from '../types';
 import { preserveConsumerWorkspaceArtifacts } from '../workspace-artifact-ownership';
 
@@ -44,6 +46,7 @@ export function updateRootWorkspaceScripts(
   previousRemotes: WorkspaceApp[] = remotes,
   _primaryShell: WorkspaceApp = shellApp,
   previousAdditionalShells: WorkspaceApp[] = additionalShells,
+  previousPrimaryShell: WorkspaceApp = primaryShell,
 ) {
   const packagePath = path.join(workspaceRoot, 'package.json');
   const rootPackage = readJsonFile(packagePath);
@@ -53,6 +56,7 @@ export function updateRootWorkspaceScripts(
     remotes,
     bridge,
     additionalShells,
+    primaryShell,
   ) as Record<string, any>;
   const previousRootPackage = createRootPackageJson(
     scope,
@@ -60,6 +64,7 @@ export function updateRootWorkspaceScripts(
     previousRemotes,
     bridge,
     previousAdditionalShells,
+    previousPrimaryShell,
   ) as Record<string, any>;
   const existingScripts = rootPackage.scripts ?? {};
   rootPackage.scripts = { ...generatedRootPackage.scripts, ...existingScripts };
@@ -74,10 +79,18 @@ export function updateRootWorkspaceScripts(
       rootPackage.scripts[name] = command;
     }
   }
+  for (const [name, command] of Object.entries(previousRootPackage.scripts)) {
+    if (
+      generatedRootPackage.scripts[name] === undefined &&
+      existingScripts[name] === command
+    ) {
+      delete rootPackage.scripts[name];
+    }
+  }
   writeJsonFile(packagePath, rootPackage as JsonValue);
 }
 
-function shellAppArtifacts(
+export function shellAppArtifacts(
   scope: string,
   packageSource: ResolvedPackageSource,
   enableTailwind: boolean,
@@ -92,6 +105,43 @@ function shellAppArtifacts(
       remotes.filter(appEmitsBrowserUi).map(remote => remote.id),
   };
   const shellRemotes = resolveRemoteRefs(shellHost, remotes);
+  if (resolveWorkspaceRenderer(shellHost) !== 'react') {
+    const files = {
+      [`${shellHost.directory}/modern.config.ts`]: createAppModernConfig(
+        scope,
+        shellHost,
+        shellRemotes,
+        enableTailwind,
+        devPorts,
+      ),
+      [`${shellHost.directory}/tsconfig.json`]: `${JSON.stringify(
+        createAppTsConfig(shellHost, shellRemotes),
+        null,
+        2,
+      )}\n`,
+      ...(remotes.some(appHasApi)
+        ? {
+            [`${shellHost.directory}/src/api/vertical-clients.ts`]:
+              createShellApiClient(scope, remotes),
+          }
+        : {}),
+    };
+    return {
+      shellHost,
+      packageJson: createAppPackage(
+        scope,
+        shellHost,
+        packageSource,
+        enableTailwind,
+        remotes,
+        bridge,
+      ) as Record<string, any>,
+      artifacts: Object.entries(files).map(([relativePath, content]) => ({
+        relativePath,
+        content,
+      })),
+    };
+  }
   const uiRemotes = shellRemotes.filter(appEmitsBrowserUi);
   const publicWeb = createPublicWebAppArtifacts(shellHost);
   const json = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
@@ -202,15 +252,19 @@ export function rewriteShellAppFiles(
   const packageJson = {
     ...next.packageJson,
     ...existing,
-    'zephyr:dependencies': {
-      ...next.packageJson['zephyr:dependencies'],
-      ...Object.fromEntries(
-        Object.entries(existing['zephyr:dependencies'] ?? {}).filter(
-          ([key, value]) =>
-            before.packageJson['zephyr:dependencies']?.[key] !== value,
-        ),
-      ),
-    },
+    ...(resolveWorkspaceRenderer(next.shellHost) === 'react'
+      ? {
+          'zephyr:dependencies': {
+            ...next.packageJson['zephyr:dependencies'],
+            ...Object.fromEntries(
+              Object.entries(existing['zephyr:dependencies'] ?? {}).filter(
+                ([key, value]) =>
+                  before.packageJson['zephyr:dependencies']?.[key] !== value,
+              ),
+            ),
+          },
+        }
+      : {}),
     dependencies: {
       ...next.packageJson.dependencies,
       ...existing.dependencies,
@@ -230,5 +284,7 @@ export function rewriteShellAppFiles(
     }
   }
   writeJsonFile(packagePath, packageJson as JsonValue);
-  rewriteWorkspaceAssetsForApp(workspaceRoot, next.shellHost);
+  if (resolveWorkspaceRenderer(next.shellHost) === 'react') {
+    rewriteWorkspaceAssetsForApp(workspaceRoot, next.shellHost);
+  }
 }

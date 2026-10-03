@@ -1,5 +1,4 @@
-import { type Command, program } from '@modern-js/utils';
-import type { CliProgram } from '../../../types/cli/hooks';
+import { type Command, program } from '@modern-js/utils/commander';
 
 export const setProgramVersion = (version = 'unknown') => {
   const name = process.argv[1];

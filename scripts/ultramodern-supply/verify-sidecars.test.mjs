@@ -369,15 +369,17 @@ test('explicit offline provenance fails closed on missing or tampered tarballs',
     path.join(os.tmpdir(), 'sidecar-integrity-'),
   );
   try {
-    await assert.rejects(
-      verifySidecar('mf-cli', { artifactsDir: directory }),
-      /ENOENT/,
-    );
-    fs.writeFileSync(path.join(directory, 'mf-cli.tgz'), 'untrusted bytes');
-    await assert.rejects(
-      verifySidecar('mf-cli', { artifactsDir: directory }),
-      /upstream tarball integrity/,
-    );
+    for (const id of ['ipx', 'jiti']) {
+      await assert.rejects(
+        verifySidecar(id, { artifactsDir: directory }),
+        /ENOENT/,
+      );
+      fs.writeFileSync(path.join(directory, `${id}.tgz`), 'untrusted bytes');
+      await assert.rejects(
+        verifySidecar(id, { artifactsDir: directory }),
+        /upstream tarball integrity/,
+      );
+    }
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }

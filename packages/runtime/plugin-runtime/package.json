@@ -243,7 +243,11 @@
     "isbot": "5.2.2",
     "react-helmet": "^6.1.0",
     "react-helmet-async": "3.0.0",
-    "react-is": "^19.3.0"
+    "react-is": "^19.3.0",
+    "react-router": "7.18.4",
+    "@rsbuild/plugin-react": "2.1.0",
+    "@rsbuild/plugin-svgr": "2.0.5",
+    "@modern-js/runtime-renderer-extensions": "workspace:*"
   },
   "peerDependencies": {
     "react": "^19.2.8",
@@ -266,7 +270,7 @@
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "ts-node": "^10.9.2",
-    "typescript": "^7.0.2"
+    "typescript": "7.0.2"
   },
   "sideEffects": false,
   "publishConfig": {

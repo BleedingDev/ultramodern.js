@@ -1,0 +1,552 @@
+import type { RendererIdentity } from '@modern-js/renderer-core/identity';
+import {
+  createRequestSession,
+  type ResponsePolicy,
+} from '@modern-js/renderer-core/session';
+import {
+  createElement,
+  earlySignalBootstrapScript,
+  lazy,
+  Suspense,
+  ssrHeadEl,
+  ssrHtml,
+} from 'octane/server';
+import {
+  renderOctaneApplication,
+  renderOctaneCSRDocument,
+} from '../src/server';
+
+const identity: RendererIdentity = {
+  renderer: 'octane',
+  appId: 'store',
+  entryName: 'main',
+  protocolVersion: 1,
+  buildId: 'build-a',
+};
+const policy = (overrides: Partial<ResponsePolicy> = {}): ResponsePolicy => ({
+  kind: 'document',
+  status: 200,
+  headers: [['content-type', 'text/html; charset=utf-8']],
+  cache: { mode: 'public', maxAgeSeconds: 30 },
+  ...overrides,
+});
+const createSession = (request = new Request('https://store.test/')) =>
+  createRequestSession({
+    request,
+    identity,
+    platform: { kind: 'node', bindings: {} },
+  });
+const document = {
+  documentId: 'document-a',
+  nativeHydrationBuildId: 'native-client-build-b',
+};
+const decode = (value: Uint8Array | undefined) =>
+  new TextDecoder().decode(value);
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+function streamedApp() {
+  const pending = deferred<{ default: () => string }>();
+  const Late = lazy(() => pending.promise);
+  const App = () =>
+    createElement(
+      'main',
+      null,
+      createElement('p', null, 'EARLY'),
+      createElement(
+        Suspense,
+        { fallback: createElement('i', null, 'WAIT') },
+        createElement(Late),
+      ),
+    );
+  return { App, pending };
+}
+
+describe('native Octane server application', () => {
+  test('delivers an empty CSR root with explicit mount identity and nonce-safe assets', async () => {
+    const session = createSession();
+    const cleanup = rstest.fn();
+    session.registerCleanup(cleanup);
+    const response = await renderOctaneCSRDocument({
+      session,
+      document: {
+        ...document,
+        documentId: 'csr-document',
+        rootId: 'application',
+        lang: 'cs',
+        nonce: 'csr-nonce',
+        assets: [
+          { kind: 'stylesheet', href: '/main.css' },
+          { kind: 'script', href: '/app.js' },
+        ],
+      },
+    });
+    expect(session.state).toBe('committed');
+    expect(cleanup).not.toHaveBeenCalled();
+    const html = await response.text();
+    expect(html).toContain('<html lang="cs">');
+    expect(html).toContain('<div id="application"></div>');
+    expect(html).toContain('"documentId":"csr-document"');
+    expect(html).toContain('"hydrating":false');
+    expect(html).toContain('"nativeHydrationBuildId":"native-client-build-b"');
+    expect(html).toContain('"buildId":"build-a"');
+    expect(html).not.toContain('__octaneStreamedRenderer');
+    expect(html.indexOf('__ULTRAMODERN_RENDERER__')).toBeLessThan(
+      html.indexOf('type="module" src="/app.js"'),
+    );
+    expect(html).toContain('nonce="csr-nonce"');
+    expect(response.headers.get('content-type')).toBe(
+      'text/html; charset=utf-8',
+    );
+    expect((await session.completion).state).toBe('completed');
+    expect(cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  test('places native head, deduplicated assets and nonce-safe bootstrap in document order', async () => {
+    const session = createSession();
+    const nonce = 'nonce"<safe>';
+    const response = await renderOctaneApplication({
+      session,
+      App: () =>
+        ssrHtml(
+          ssrHeadEl('title', 'title', null, 'Native store') +
+            '<main>native</main>',
+        ),
+      responsePolicy: policy(),
+      document: {
+        ...document,
+        documentId: '</script><script>evil</script>',
+        nonce,
+        assets: [
+          { kind: 'stylesheet', href: '/main.css' },
+          { kind: 'stylesheet', href: '/main.css' },
+          { kind: 'modulepreload', href: '/app.js' },
+          { kind: 'script', href: '/app.js' },
+        ],
+      },
+    });
+    const html = await response.text();
+    expect(response.headers.get('content-type')).toBe(
+      'text/html; charset=utf-8',
+    );
+    const head = html.slice(html.indexOf('<head>'), html.indexOf('</head>'));
+    expect(head).toContain('<title>Native store</title>');
+    expect(head).toContain('href="/main.css"');
+    expect(html.split('rel="stylesheet"')).toHaveLength(2);
+    const early = earlySignalBootstrapScript({ nonce });
+    expect(html.split(early)).toHaveLength(2);
+    expect(html.indexOf(early)).toBeLessThan(
+      html.indexOf('<main>native</main>'),
+    );
+    expect(html.indexOf('__ULTRAMODERN_RENDERER__')).toBeLessThan(
+      html.indexOf('type="module" async src="/app.js"'),
+    );
+    expect(html).toContain('nonce="nonce&quot;&lt;safe&gt;"');
+    expect(html).toContain('type="module" async src="/app.js"');
+    expect(html).not.toContain('</script><script>evil</script>');
+    expect(html).toContain('\\u003C/script\\u003E');
+    expect(html).toContain('"hydrating":true');
+    expect(html).toContain('"buildId":"build-a"');
+    expect(html).toContain('"nativeHydrationBuildId":"native-client-build-b"');
+    expect((await session.completion).state).toBe('completed');
+    expect((await session.completion).cacheEligible).toBe(true);
+  });
+
+  test('resolves terminal HTTP outcomes before invoking the native renderer', async () => {
+    const session = createSession();
+    const App = rstest.fn(() => ssrHtml('<main>must not render</main>'));
+    const cleanup = rstest.fn();
+    session.registerCleanup(cleanup);
+    const blocking = deferred<ResponsePolicy>();
+    const responsePromise = renderOctaneApplication({
+      session,
+      App,
+      document,
+      resolveResponse: () => blocking.promise,
+    });
+    expect(App).not.toHaveBeenCalled();
+    expect(session.state).toBe('matching');
+    blocking.resolve(
+      policy({
+        kind: 'terminal',
+        status: 303,
+        headers: [
+          ['location', '/sign-in'],
+          ['set-cookie', 'a=1'],
+          ['set-cookie', 'b=2'],
+        ],
+        cache: { mode: 'no-store' },
+      }),
+    );
+    const response = await responsePromise;
+    expect(App).not.toHaveBeenCalled();
+    expect(response.status).toBe(303);
+    expect(response.body).toBeNull();
+    expect(response.headers.get('location')).toBe('/sign-in');
+    expect(response.headers.getSetCookie()).toEqual(['a=1', 'b=2']);
+    expect(response.headers.has('content-type')).toBe(false);
+    expect((await session.completion).cacheEligible).toBe(false);
+    expect(cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  test('delivers the early shell while suspense is pending and consumes concurrently with allReady', async () => {
+    const session = createSession();
+    const cleanup = rstest.fn();
+    session.registerCleanup(cleanup);
+    const { App, pending } = streamedApp();
+    const response = await renderOctaneApplication({ session, App, document });
+    const reader = response.body!.getReader();
+    expect(decode((await reader.read()).value)).toContain('<!doctype html>');
+    const shell = decode((await reader.read()).value);
+    expect(shell).toContain('EARLY');
+    expect(shell).toContain('WAIT');
+    expect(shell).not.toContain('LATE');
+    expect(session.state).toBe('committed');
+    expect(cleanup).not.toHaveBeenCalled();
+    pending.resolve({ default: () => ssrHtml('<b>LATE</b>') });
+    let tail = '';
+    for (;;) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      tail += decode(chunk.value);
+    }
+    expect(tail).toContain('LATE');
+    expect(tail).toContain('</body></html>');
+    expect((await session.completion).state).toBe('completed');
+    expect(cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  test('keeps native router serialization inside the document and waits for its completion', async () => {
+    const session = createSession();
+    const serialization = deferred<void>();
+    const unsubscribe = rstest.fn();
+    const renderComplete = rstest.fn();
+    let notify = () => {};
+    let queued = '';
+    const response = await renderOctaneApplication({
+      session,
+      App: () => ssrHtml('<main>router shell</main>'),
+      document,
+      injection: {
+        take() {
+          const html = queued;
+          queued = '';
+          return html;
+        },
+        subscribe(callback) {
+          notify = callback;
+          return unsubscribe;
+        },
+        done: serialization.promise,
+        renderComplete,
+      },
+    });
+    const reader = response.body!.getReader();
+    await reader.read();
+    expect(decode((await reader.read()).value)).toContain('router shell');
+    expect(session.state).toBe('committed');
+    queued =
+      '<script type="application/json" id="native-route-data">{"loader":"native"}</script>';
+    notify();
+    serialization.resolve();
+    let tail = '';
+    for (;;) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      tail += decode(chunk.value);
+    }
+    expect(tail).toContain('native-route-data');
+    expect(tail.indexOf('native-route-data')).toBeLessThan(
+      tail.indexOf('</body>'),
+    );
+    expect(renderComplete).toHaveBeenCalledTimes(1);
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+    expect((await session.completion).state).toBe('completed');
+  });
+
+  test('publishes bootstrap and executable entry after the complete shell while deferred HTML is pending', async () => {
+    const session = createSession();
+    const { App, pending } = streamedApp();
+    const response = await renderOctaneApplication({
+      session,
+      App,
+      document: {
+        ...document,
+        nonce: 'early-nonce',
+        assets: [{ kind: 'script', href: '/entry.js' }],
+      },
+    });
+    const reader = response.body!.getReader();
+    const prefix = decode((await reader.read()).value);
+    expect(prefix).toContain('__octaneStreamedRenderer');
+    expect(prefix).toContain('<div id="root">');
+    const nativeShell = decode((await reader.read()).value);
+    expect(nativeShell).toContain('EARLY');
+    expect(nativeShell).toContain('WAIT');
+    expect(nativeShell).toContain('</main>');
+    // This read must resolve before settling the deferred component. Waiting for
+    // EOF here would prevent the browser's signal receiver and hydration import.
+    const bootstrap = decode((await reader.read()).value);
+    expect(bootstrap).toMatch(/^<\/div><script type="application\/json"/);
+    expect(bootstrap).toContain('"buildId":"build-a"');
+    expect(bootstrap).toContain(
+      '"nativeHydrationBuildId":"native-client-build-b"',
+    );
+    expect(bootstrap).toContain(
+      'type="module" async src="/entry.js" nonce="early-nonce"',
+    );
+    expect(bootstrap).not.toContain('</body>');
+    expect(session.state).toBe('committed');
+    pending.resolve({ default: () => ssrHtml('<b>LATE</b>') });
+    let remaining = '';
+    for (;;) {
+      const next = await reader.read();
+      if (next.done) break;
+      remaining += decode(next.value);
+    }
+    expect(remaining).toContain('LATE');
+    expect(remaining).not.toContain('__ULTRAMODERN_RENDERER__');
+    expect(remaining).toMatch(/<\/body><\/html>$/);
+    expect((await session.completion).state).toBe('completed');
+  });
+
+  test('retains ordered classic runtime and application scripts after the native shell', async () => {
+    const session = createSession();
+    const response = await renderOctaneApplication({
+      session,
+      App: () => ssrHtml('<main>classic shell</main>'),
+      document: {
+        ...document,
+        assets: [
+          { kind: 'script', href: '/runtime.js', scriptType: 'classic' },
+          { kind: 'script', href: '/entry.js', scriptType: 'classic' },
+        ],
+      },
+    });
+    const html = await response.text();
+    expect(html).toContain('<script src="/runtime.js"></script>');
+    expect(html).toContain('<script src="/entry.js"></script>');
+    expect(html).not.toContain('<script async');
+    expect(html.indexOf('/runtime.js')).toBeLessThan(html.indexOf('/entry.js'));
+    expect(html.indexOf('</main>')).toBeLessThan(html.indexOf('/runtime.js'));
+  });
+
+  test('fails a recovered late native error even when native allReady would resolve', async () => {
+    const session = createSession();
+    const cleanup = rstest.fn();
+    session.registerCleanup(cleanup);
+    const { App, pending } = streamedApp();
+    const response = await renderOctaneApplication({
+      session,
+      App,
+      document,
+      responsePolicy: policy(),
+    });
+    const reader = response.body!.getReader();
+    await reader.read();
+    expect(decode((await reader.read()).value)).toContain('WAIT');
+    const error = new Error('late native failure');
+    pending.reject(error);
+    const remaining = async () => {
+      while (!(await reader.read()).done) {
+        /* drain native recovery chunks */
+      }
+    };
+    await expect(remaining()).rejects.toBe(error);
+    const completion = await session.completion;
+    expect(completion.state).toBe('failed');
+    expect(completion.error).toBe(error);
+    expect(completion.cacheEligible).toBe(false);
+    expect(response.status).toBe(200);
+    expect(cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  test('fails and cancels a recovered native error before another deferred producer settles', async () => {
+    const session = createSession();
+    const cleanup = rstest.fn();
+    session.registerCleanup(cleanup);
+    const failing = deferred<{ default: () => string }>();
+    const unfinished = deferred<{ default: () => string }>();
+    const Failed = lazy(() => failing.promise);
+    const Unfinished = lazy(() => unfinished.promise);
+    const response = await renderOctaneApplication({
+      session,
+      App: () =>
+        createElement(
+          'main',
+          null,
+          createElement(
+            Suspense,
+            { fallback: createElement('i', null, 'WAIT-FAILURE') },
+            createElement(Failed),
+          ),
+          createElement(
+            Suspense,
+            { fallback: createElement('i', null, 'WAIT-UNFINISHED') },
+            createElement(Unfinished),
+          ),
+        ),
+      document,
+      responsePolicy: policy(),
+    });
+    const reader = response.body!.getReader();
+    await reader.read();
+    const shell = decode((await reader.read()).value);
+    expect(shell).toContain('WAIT-FAILURE');
+    expect(shell).toContain('WAIT-UNFINISHED');
+    expect(decode((await reader.read()).value)).not.toContain('</body>');
+    const error = new Error('recovered error with another producer pending');
+    failing.reject(error);
+
+    // The other native lazy producer never settles, and no further body demand
+    // can drive EOF. Failure must abort and dispose the request independently.
+    const completion = await session.completion;
+    expect(completion.state).toBe('failed');
+    expect(completion.error).toBe(error);
+    expect(completion.cacheEligible).toBe(false);
+    expect(session.signal.aborted).toBe(true);
+    expect(session.signal.reason).toBe(error);
+    expect(cleanup).toHaveBeenCalledTimes(1);
+    await expect(reader.read()).rejects.toBe(error);
+    await session.fail(error);
+    expect(cleanup).toHaveBeenCalledTimes(1);
+    expect(response.status).toBe(200);
+  });
+
+  test('cancels native rendering and request cleanup exactly once on consumer cancellation', async () => {
+    const session = createSession();
+    const cleanup = rstest.fn();
+    session.registerCleanup(cleanup);
+    const { App } = streamedApp();
+    const response = await renderOctaneApplication({ session, App, document });
+    const reader = response.body!.getReader();
+    await reader.read();
+    await reader.read();
+    await reader.cancel('client disconnected');
+    await session.abort('again');
+    expect(session.signal.aborted).toBe(true);
+    expect((await session.completion).state).toBe('aborted');
+    expect((await session.completion).cacheEligible).toBe(false);
+    expect(cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  test('propagates request abort after shell delivery without changing committed headers', async () => {
+    const abortController = new AbortController();
+    const session = createSession(
+      new Request('https://store.test/', {
+        signal: abortController.signal,
+      }),
+    );
+    const { App } = streamedApp();
+    const response = await renderOctaneApplication({
+      session,
+      App,
+      document,
+      responsePolicy: policy(),
+    });
+    const reading = response.text();
+    const error = new Error('connection closed');
+    abortController.abort(error);
+    await expect(reading).rejects.toBe(error);
+    expect((await session.completion).state).toBe('aborted');
+    expect((await session.completion).cacheEligible).toBe(false);
+    expect(response.status).toBe(200);
+  });
+
+  test('isolates native head and signal identity across concurrent requests', async () => {
+    const render = async (value: string) => {
+      const session = createSession();
+      const response = await renderOctaneApplication({
+        session,
+        App: () =>
+          ssrHtml(
+            ssrHeadEl('title', 'title', null, value) + `<main>${value}</main>`,
+          ),
+        document: { ...document, documentId: value },
+      });
+      return response.text();
+    };
+    const [first, second] = await Promise.all([
+      render('FIRST'),
+      render('SECOND'),
+    ]);
+    expect(first).toContain('<title>FIRST</title>');
+    expect(first).not.toContain('SECOND');
+    expect(second).toContain('<title>SECOND</title>');
+    expect(second).not.toContain('FIRST');
+    expect(first).toContain('"documentId":"FIRST"');
+    expect(second).toContain('"documentId":"SECOND"');
+  });
+
+  test('fails before shell and disposes request resources on native render failure', async () => {
+    const session = createSession();
+    const cleanup = rstest.fn();
+    session.registerCleanup(cleanup);
+    const error = new Error('initial render failed');
+    await expect(
+      renderOctaneApplication({
+        session,
+        App: () => {
+          throw error;
+        },
+        document,
+      }),
+    ).rejects.toBe(error);
+    expect((await session.completion).state).toBe('failed');
+    expect((await session.completion).cacheEligible).toBe(false);
+    expect(cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  test('rejects conflicting renderer and unadmitted worker identity before native render', async () => {
+    const App = rstest.fn(() => ssrHtml('<main>unused</main>'));
+    for (const [renderer, kind, message] of [
+      ['solid', 'node', 'Octane renderer identity'],
+      ['octane', 'worker', 'worker rendering has not been admitted'],
+    ] as const) {
+      const session = createRequestSession({
+        request: new Request('https://store.test/'),
+        identity: { ...identity, renderer },
+        platform: { kind, bindings: {} },
+      });
+      await expect(
+        renderOctaneApplication({ session, App, document }),
+      ).rejects.toThrow(message);
+      expect((await session.completion).state).toBe('failed');
+    }
+    expect(App).not.toHaveBeenCalled();
+  });
+
+  test('rejects missing or empty native compilation identity before invoking Octane', async () => {
+    const App = rstest.fn(() => ssrHtml('<main>must not render</main>'));
+    for (const nativeHydrationBuildId of [undefined, '', '   ']) {
+      const session = createSession();
+      await expect(
+        renderOctaneApplication({
+          session,
+          App,
+          // @ts-expect-error Exercise the runtime boundary with malformed identity.
+          document: { ...document, nativeHydrationBuildId },
+        }),
+      ).rejects.toThrow('native client compilation identity');
+      expect((await session.completion).state).toBe('failed');
+    }
+    const csrSession = createSession();
+    await expect(
+      renderOctaneCSRDocument({
+        session: csrSession,
+        // @ts-expect-error A source/profile build identity cannot substitute for it.
+        document: { documentId: 'missing-native-build' },
+      }),
+    ).rejects.toThrow('native client compilation identity');
+    expect((await csrSession.completion).state).toBe('failed');
+    expect(App).not.toHaveBeenCalled();
+  });
+});

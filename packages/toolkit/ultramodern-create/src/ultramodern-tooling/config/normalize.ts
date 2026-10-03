@@ -7,6 +7,8 @@ import {
 } from '../../ultramodern-workspace/descriptors';
 import { readModuleFederationExposePaths } from '../../ultramodern-workspace/mf-validation';
 import { toEnvSegment } from '../../ultramodern-workspace/naming';
+import type { WorkspaceSourceReadObserver } from '../../ultramodern-workspace/publication-inputs';
+import { appSupportsFederation } from '../../ultramodern-workspace/renderer-profile';
 import type { WorkspaceApp } from '../../ultramodern-workspace/types';
 import { readJsonObject } from './json';
 import { packageScopeFromRoot, readWorkspacePackageSource } from './metadata';
@@ -21,6 +23,7 @@ export type UltramodernWorkspaceInputs = {
 export function normalizeWorkspaceInputs(
   workspaceRoot: string,
   inputs: UltramodernWorkspaceInputs,
+  observeInput?: WorkspaceSourceReadObserver,
 ) {
   const { topology, overlay } = inputs;
   if (
@@ -62,7 +65,18 @@ export function normalizeWorkspaceInputs(
       path.isAbsolute(entry.path)
     )
       throw new Error(`Topology ${entry.id} requires a relative path.`);
-    const appRoot = fs.realpathSync(path.resolve(root, entry.path));
+    const appPath = path.resolve(root, entry.path);
+    const lexicalRelative = path.relative(root, appPath);
+    if (
+      !lexicalRelative ||
+      lexicalRelative === '..' ||
+      lexicalRelative.startsWith(`..${path.sep}`) ||
+      path.isAbsolute(lexicalRelative)
+    )
+      throw new Error(
+        `Topology ${entry.id} has an unsafe or duplicate path: ${entry.path}.`,
+      );
+    const appRoot = fs.realpathSync(appPath);
     const relative = path.relative(root, appRoot);
     if (
       !relative ||
@@ -76,7 +90,9 @@ export function normalizeWorkspaceInputs(
       );
     }
     paths.add(appRoot);
-    const manifest = readJsonObject(path.join(appRoot, 'package.json'));
+    observeInput?.(appPath, 'entry-kind', true);
+    const manifestPath = path.join(appRoot, 'package.json');
+    const manifest = readJsonObject(manifestPath, observeInput);
     if (
       typeof manifest.name !== 'string' ||
       !manifest.name ||
@@ -114,6 +130,13 @@ export function normalizeWorkspaceInputs(
         verticalRefs:
           entry.verticalRefs ?? entry.moduleFederation?.verticalRefs ?? [],
         ...(entry.deliveryUnit ? { deliveryUnit: entry.deliveryUnit } : {}),
+        renderer: entry.renderer,
+        rendererIdentity: entry.rendererIdentity,
+        rendererIdentities: entry.rendererIdentities,
+        rendererProfile: entry.rendererProfile,
+        routerBindings: entry.routerBindings,
+        rendererCapabilities: entry.rendererCapabilities,
+        rendererGenerationProfile: undefined,
         ownership:
           entry.ownership ?? createNeutralOwnership(entry.id, 'tier-0-shell'),
       };
@@ -122,6 +145,7 @@ export function normalizeWorkspaceInputs(
     const actualExposes = readModuleFederationExposePaths(
       workspaceRoot,
       entry.path,
+      observeInput,
     );
     return {
       ...app,
@@ -146,8 +170,10 @@ export function normalizeWorkspaceInputs(
     ),
   ) as Record<string, string>;
   const config: UltramodernToolingConfig = {
-    workspace: { packageScope: packageScopeFromRoot(workspaceRoot) },
-    packageSource: readWorkspacePackageSource(workspaceRoot),
+    workspace: {
+      packageScope: packageScopeFromRoot(workspaceRoot, observeInput),
+    },
+    packageSource: readWorkspacePackageSource(workspaceRoot, observeInput),
     features: {
       tailwind: Boolean(
         primaryManifest.devDependencies?.tailwindcss ??
@@ -169,13 +195,24 @@ export function normalizeWorkspaceInputs(
         surfaceProfile: app.surfaceProfile,
         deliveryUnitKind: app.deliveryUnitKind,
         deliveryUnit: app.deliveryUnit,
-        moduleFederation: {
-          role: app.kind === 'shell' ? 'host' : 'remote',
-          name: app.mfName,
-          exposes: Object.keys(app.exposes ?? {}),
-          exposePaths: app.exposes,
-          verticalRefs: app.verticalRefs,
-        },
+        renderer: app.renderer,
+        rendererIdentity: app.rendererIdentity,
+        rendererIdentities: app.rendererIdentities,
+        rendererProfile: app.rendererProfile,
+        routerBindings: app.routerBindings,
+        rendererCapabilities: app.rendererCapabilities,
+        ...(app.surfaceProfile === 'api-only' ||
+        (app.renderer !== undefined && !appSupportsFederation(app))
+          ? {}
+          : {
+              moduleFederation: {
+                role: app.kind === 'shell' ? 'host' : 'remote',
+                name: app.mfName,
+                exposes: Object.keys(app.exposes ?? {}),
+                exposePaths: app.exposes,
+                verticalRefs: app.verticalRefs,
+              },
+            }),
         api: app.api,
       })),
     },
@@ -209,6 +246,12 @@ export function workspaceAppsFromToolingConfig(
     surfaceProfile: app.surfaceProfile,
     deliveryUnitKind: app.deliveryUnitKind,
     deliveryUnit: app.deliveryUnit,
+    renderer: app.renderer,
+    rendererIdentity: app.rendererIdentity,
+    rendererIdentities: app.rendererIdentities,
+    rendererProfile: app.rendererProfile,
+    routerBindings: app.routerBindings,
+    rendererCapabilities: app.rendererCapabilities,
     exposes: app.moduleFederation?.exposePaths,
     verticalRefs: app.moduleFederation?.verticalRefs,
     api: app.api,

@@ -1,0 +1,493 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import {
+  validateRendererIdentity,
+  validateRendererProfile,
+  validateRendererRouterBindings,
+} from '@modern-js/backend-federation-contracts';
+import {
+  getRendererGenerationProfile,
+  isApplicationRenderer,
+} from '../renderer-profile';
+import type { RendererGenerationProfile, WorkspaceRenderer } from '../types';
+import { assert, sameJson } from './assertions';
+import { readRendererFrameworkPackageEvidence } from './renderer-framework-evidence';
+import type { JsonRecord, WorkspaceValidationContract } from './types';
+
+type ExpectedApp = WorkspaceValidationContract['apps'][number];
+
+type RendererDependencyCatalogs = {
+  catalog?: Readonly<Record<string, string>>;
+  catalogs?: Readonly<Record<string, Readonly<Record<string, string>>>>;
+};
+
+function resolveDependencyRequest(
+  name: string,
+  request: string,
+  options: RendererDependencyCatalogs,
+): string {
+  if (!request.startsWith('catalog:')) return request;
+  const catalogName = request.slice('catalog:'.length);
+  const resolved =
+    (catalogName === ''
+      ? options.catalog?.[name]
+      : options.catalogs?.[catalogName]?.[name]) ?? request;
+  assert(
+    typeof resolved === 'string',
+    `${name} catalog dependency must be a string request`,
+  );
+  return resolved;
+}
+
+export function parseNpmAlias(
+  value: string,
+): { name: string; range: string | undefined } | undefined {
+  if (!value.startsWith('npm:')) return undefined;
+  const target = value.slice('npm:'.length);
+  const separator = target.startsWith('@')
+    ? target.indexOf('@', 1)
+    : target.indexOf('@');
+  if (separator === -1) return { name: target, range: undefined };
+  return {
+    name: target.slice(0, separator),
+    range: target.slice(separator + 1),
+  };
+}
+
+/** Runtime imports and direct dependencies must agree with the selected adapter. */
+export function isForeignRendererPackage(
+  name: string,
+  renderer: WorkspaceRenderer,
+): boolean {
+  const react =
+    name === 'react' ||
+    name.startsWith('react/') ||
+    name === 'react-dom' ||
+    name.startsWith('react-dom/') ||
+    name === 'react-router' ||
+    name.startsWith('react-router/') ||
+    name === 'react-router-dom' ||
+    name.startsWith('react-router-dom/') ||
+    (name === '@types/react' && renderer !== 'octane') ||
+    name === '@types/react-dom' ||
+    name === '@tanstack/react-router' ||
+    name.startsWith('@tanstack/react-router/') ||
+    name === '@modern-js/renderer-react' ||
+    name.startsWith('@modern-js/renderer-react/') ||
+    name === 'react-server-dom-webpack' ||
+    name.startsWith('react-server-dom-webpack/') ||
+    name === 'react-server-dom-rspack' ||
+    name.startsWith('react-server-dom-rspack/') ||
+    name === 'react-server-dom-turbopack' ||
+    name.startsWith('react-server-dom-turbopack/') ||
+    name === 'react-refresh' ||
+    name.startsWith('react-refresh/') ||
+    name === '@rsbuild/plugin-react' ||
+    name.startsWith('@rsbuild/plugin-react/') ||
+    name === '@rspack/plugin-react-refresh' ||
+    name.startsWith('@rspack/plugin-react-refresh/') ||
+    name === '@babel/preset-react' ||
+    name.startsWith('@babel/plugin-transform-react-jsx') ||
+    name === '@modern-js/runtime' ||
+    name.startsWith('@modern-js/runtime/') ||
+    name === '@modern-js/runtime-renderer-extensions' ||
+    name.startsWith('@modern-js/runtime-renderer-extensions/') ||
+    name === '@modern-js/plugin-tanstack' ||
+    name.startsWith('@modern-js/plugin-tanstack/') ||
+    name === '@modern-js/plugin-i18n' ||
+    name.startsWith('@modern-js/plugin-i18n/') ||
+    name === '@modern-js/i18n-integration' ||
+    name.startsWith('@modern-js/i18n-integration/') ||
+    name === '@modern-js/i18n-runtime-extensions' ||
+    name.startsWith('@modern-js/i18n-runtime-extensions/') ||
+    name === '@modern-js/plugin-runtime' ||
+    name.startsWith('@modern-js/plugin-runtime/');
+  const solid =
+    name === 'solid-js' ||
+    name.startsWith('solid-js/') ||
+    name.startsWith('@solidjs/') ||
+    name === '@tanstack/solid-router' ||
+    name.startsWith('@tanstack/solid-router/') ||
+    name === '@modern-js/renderer-solid' ||
+    name.startsWith('@modern-js/renderer-solid/');
+  const octane =
+    name === 'octane' ||
+    name.startsWith('octane/') ||
+    name.startsWith('@octanejs/') ||
+    name === '@modern-js/renderer-octane' ||
+    name.startsWith('@modern-js/renderer-octane/');
+  return (
+    (react && renderer !== 'react') ||
+    (solid && renderer !== 'solid') ||
+    (octane && renderer !== 'octane')
+  );
+}
+
+/** Validate a projection against the selected tuple, never derive selection from it. */
+export function assertRendererProjection(
+  app: JsonRecord,
+  expected?: ExpectedApp,
+  pendingUiArtifact = false,
+): RendererGenerationProfile | undefined {
+  const label = String(app.id ?? 'application');
+  const renderer = expected?.renderer ?? app.renderer;
+  if (renderer === 'none') {
+    assert(app.renderer === 'none', `${label} headless renderer must be none`);
+    for (const field of [
+      'rendererIdentity',
+      'rendererIdentities',
+      'rendererProfile',
+      'routerBindings',
+      'rendererCapabilities',
+    ]) {
+      assert(
+        !Object.hasOwn(app, field),
+        `${label} headless unit must omit ${field}`,
+      );
+    }
+    assert(!expected?.emitsUi, `${label} headless unit cannot emit UI`);
+    assert(
+      !app.moduleFederation &&
+        !app.moduleFederationName &&
+        !app.mfName &&
+        Object.keys(app.exposes ?? {}).length === 0 &&
+        (app.verticalRefs?.length ?? 0) === 0 &&
+        !Object.hasOwn(app.backendFederation?.versionBoundary ?? {}, 'ui'),
+      `${label} headless unit must omit UI federation declarations`,
+    );
+    return undefined;
+  }
+  assert(isApplicationRenderer(renderer), `${label} has an invalid renderer`);
+  assert(
+    app.renderer === renderer,
+    `${label} renderer disagrees with modern.config`,
+  );
+  assert(
+    expected?.emitsUi !== false,
+    `${label} headless unit cannot carry a UI renderer`,
+  );
+  const generation = getRendererGenerationProfile(renderer);
+  assert(
+    validateRendererProfile(app.rendererProfile).ok &&
+      sameJson(app.rendererProfile, generation.profile),
+    `${label} renderer profile disagrees with the selected compiler/runtime/router tuple`,
+  );
+  if (expected?.rendererProfile) {
+    assert(
+      sameJson(app.rendererProfile, expected.rendererProfile),
+      `${label} renderer profile disagrees with modern.config`,
+    );
+  }
+  const identity = app.rendererIdentity;
+  assert(
+    validateRendererIdentity(identity).ok &&
+      identity.renderer === renderer &&
+      identity.appId === app.id &&
+      identity.protocolVersion === generation.profile.protocolVersion &&
+      identity.buildId === app.deliveryUnit?.buildMarker,
+    `${label} renderer identity disagrees with its delivery build`,
+  );
+  if (expected?.rendererIdentity) {
+    assert(
+      sameJson(identity, expected.rendererIdentity),
+      `${label} renderer identity disagrees with modern.config`,
+    );
+  }
+  const identities = app.rendererIdentities;
+  assert(
+    identities !== null &&
+      typeof identities === 'object' &&
+      !Array.isArray(identities) &&
+      Object.keys(identities).length > 0,
+    `${label} requires renderer identities for every configured entry`,
+  );
+  assert(
+    Object.hasOwn(identities, identity.entryName),
+    `${label} renderer entry identity is missing`,
+  );
+  for (const [entryName, value] of Object.entries(identities)) {
+    const entry = value as JsonRecord;
+    assert(
+      validateRendererIdentity(entry).ok &&
+        entry.entryName === entryName &&
+        entry.renderer === renderer &&
+        entry.appId === app.id &&
+        entry.protocolVersion === generation.profile.protocolVersion,
+      `${label} renderer identity for entry ${entryName} is invalid`,
+    );
+  }
+  if (expected?.rendererIdentities) {
+    assert(
+      sameJson(identities, expected.rendererIdentities),
+      `${label} renderer entry identities disagree with modern.config`,
+    );
+  }
+  assert(
+    pendingUiArtifact || app.routerBindings !== undefined,
+    `${label} requires router bindings captured from modern.config`,
+  );
+  if (app.routerBindings !== undefined) {
+    assert(
+      validateRendererRouterBindings(
+        app.routerBindings,
+        Object.keys(identities),
+        'routerBindings',
+        app.renderer,
+      ).ok,
+      `${label} router bindings disagree with its configured entries`,
+    );
+  }
+  if (expected) {
+    assert(
+      sameJson(app.routerBindings, expected.routerBindings),
+      `${label} router bindings disagree with modern.config`,
+    );
+  }
+  assert(
+    sameJson(app.rendererCapabilities, generation.capabilities),
+    `${label} renderer capabilities disagree with the admitted profile`,
+  );
+  if (!generation.capabilities.federation) {
+    assert(
+      !app.moduleFederation &&
+        !app.moduleFederationName &&
+        !app.mfName &&
+        (app.verticalRefs?.length ?? 0) === 0 &&
+        Object.keys(app.exposes ?? {}).length === 0,
+      `${label} renderer does not support Module Federation`,
+    );
+  }
+  if (!generation.capabilities.workers) {
+    assert(!app.cloudflare, `${label} renderer does not support workers`);
+  }
+  return generation;
+}
+
+export function assertRendererDependencies(
+  manifest: JsonRecord,
+  renderer: WorkspaceRenderer,
+  generation?: RendererGenerationProfile,
+  options: RendererDependencyCatalogs = {},
+): void {
+  const groups = [
+    'dependencies',
+    'devDependencies',
+    'optionalDependencies',
+    'peerDependencies',
+  ];
+  for (const group of groups) {
+    for (const [name, request] of Object.entries(manifest[group] ?? {})) {
+      const alias =
+        typeof request === 'string'
+          ? parseNpmAlias(resolveDependencyRequest(name, request, options))
+          : undefined;
+      assert(
+        !isForeignRendererPackage(name, renderer) &&
+          (!alias || !isForeignRendererPackage(alias.name, renderer)),
+        `${manifest.name} ${group} contains foreign renderer package ${name}`,
+      );
+      if (renderer !== 'react' && renderer !== 'none') {
+        assert(
+          !name.startsWith('@module-federation/') &&
+            name !== 'wrangler' &&
+            (!alias ||
+              (!alias.name.startsWith('@module-federation/') &&
+                alias.name !== 'wrangler')),
+          `${manifest.name} ${group} claims an unsupported ${renderer} capability: ${name}`,
+        );
+      }
+    }
+  }
+  if (!generation) return;
+  assertAuthoredRendererDependencyPins(manifest, generation, options);
+  if (renderer === 'react') return;
+  for (const [group, pins] of [
+    ['dependencies', generation.dependencies],
+    ['devDependencies', generation.devDependencies],
+  ] as const) {
+    for (const [name, version] of Object.entries(pins)) {
+      assert(
+        manifest[group]?.[name] === version,
+        `${manifest.name} ${group}.${name} must use the selected renderer pin ${version}`,
+      );
+    }
+  }
+  for (const name of [
+    '@modern-js/renderer-core',
+    `@modern-js/renderer-${renderer}`,
+  ]) {
+    assert(
+      typeof manifest.dependencies?.[name] === 'string',
+      `${manifest.name} requires the selected renderer adapter ${name}`,
+    );
+  }
+}
+
+/** Check authored ABI declarations before config-derived metadata is staged. */
+export function assertAuthoredRendererDependencyPins(
+  manifest: JsonRecord,
+  generation: RendererGenerationProfile,
+  options: RendererDependencyCatalogs = {},
+): void {
+  const profile = generation.profile;
+  const pins: Record<string, string> = {
+    [profile.compiler.name]: profile.compiler.version,
+    [profile.hydration.name]: profile.hydration.version,
+    [profile.router.name]: profile.router.version,
+    [profile.router.coreName]: profile.router.coreVersion,
+  };
+  for (const [name, version] of Object.entries({
+    ...generation.dependencies,
+    ...generation.devDependencies,
+  })) {
+    if (isForeignRendererPackage(name, 'none')) pins[name] = version;
+  }
+  for (const group of [
+    'dependencies',
+    'devDependencies',
+    'optionalDependencies',
+    'peerDependencies',
+  ]) {
+    for (const [name, request] of Object.entries(manifest[group] ?? {})) {
+      assert(
+        typeof request === 'string',
+        `${manifest.name} ${group}.${name} must be a dependency request`,
+      );
+      const resolved = resolveDependencyRequest(name, request, options);
+      const alias = parseNpmAlias(resolved);
+      assert(
+        !isForeignRendererPackage(name, generation.renderer) &&
+          (!alias ||
+            !isForeignRendererPackage(alias.name, generation.renderer)),
+        `${manifest.name} ${group}.${name} conflicts with the selected ${generation.renderer} renderer`,
+      );
+      if (generation.renderer !== 'react') {
+        assert(
+          !name.startsWith('@module-federation/') &&
+            name !== 'wrangler' &&
+            (!alias ||
+              (!alias.name.startsWith('@module-federation/') &&
+                alias.name !== 'wrangler')),
+          `${manifest.name} ${group}.${name} claims an unsupported ${generation.renderer} capability`,
+        );
+      }
+      const expected = pins[name] ?? (alias ? pins[alias.name] : undefined);
+      if (expected === undefined) continue;
+      if (name.startsWith('@modern-js/')) {
+        const evidence = readRendererFrameworkPackageEvidence(name);
+        assert(
+          evidence.version === expected,
+          `${manifest.name} ${group}.${name} renderer profile version ${expected} disagrees with producer cohort evidence ${evidence.version}`,
+        );
+        assert(
+          (resolved === 'workspace:*' && evidence.kind === 'source-checkout') ||
+            (resolved === expected && evidence.targetName === name) ||
+            (alias?.name === evidence.targetName && alias.range === expected),
+          `${manifest.name} ${group}.${name} declared renderer ABI ${request} disagrees with the authenticated producer package ${evidence.targetName}@${expected}`,
+        );
+        continue;
+      }
+      assert(
+        resolved === expected ||
+          (alias?.range === expected && alias.name === name),
+        `${manifest.name} ${group}.${name} declared renderer ABI ${request} disagrees with the selected pin ${expected}`,
+      );
+    }
+  }
+}
+
+export function assertNativeRendererSourceSurface(
+  root: string,
+  app: JsonRecord,
+  generation: RendererGenerationProfile,
+  manifest: JsonRecord,
+): void {
+  const appRoot = path.join(root, app.path);
+  for (const relative of [
+    'src/routes/layout.tsx',
+    'src/routes/page.tsx',
+    'src/routes/about/page.tsx',
+    'tsconfig.json',
+  ]) {
+    assert(
+      fs.existsSync(path.join(appRoot, relative)),
+      `${app.id} native renderer source is missing: ${relative}`,
+    );
+  }
+  for (const relative of [
+    'module-federation.config.ts',
+    'module-federation.config.tsx',
+    'src/modern.runtime.ts',
+    'src/federation-entry.tsx',
+    'src/routes/ultramodern-route-head.tsx',
+    'src/routes/ultramodern-route-metadata.ts',
+    'src/routes/[lang]',
+    'wrangler.toml',
+    'wrangler.json',
+    'wrangler.jsonc',
+  ]) {
+    assert(
+      !fs.existsSync(path.join(appRoot, relative)),
+      `${app.id} native renderer contains unsupported artifact ${relative}`,
+    );
+  }
+  const tsconfig = JSON.parse(
+    fs.readFileSync(path.join(appRoot, 'tsconfig.json'), 'utf8'),
+  );
+  assert(
+    tsconfig.compilerOptions?.jsxImportSource === generation.jsxImportSource &&
+      tsconfig.compilerOptions?.jsx === 'preserve',
+    `${app.id} JSX compiler configuration disagrees with the selected renderer`,
+  );
+  for (const script of Object.values(manifest.scripts ?? {})) {
+    assert(
+      typeof script === 'string' &&
+        !/wrangler|module-federation|i18n/iu.test(script),
+      `${app.id} native renderer scripts claim an unsupported capability`,
+    );
+  }
+}
+
+export function validateApiOnlySourceSurface(
+  root: string,
+  app: JsonRecord,
+): void {
+  assert(
+    !Object.hasOwn(app.backendFederation?.versionBoundary ?? {}, 'ui'),
+    `topology/reference-topology.json verticals.${app.id}.backendFederation must omit the UI boundary for an api-only unit`,
+  );
+  for (const relative of [
+    'module-federation.config.ts',
+    'module-federation.config.tsx',
+    'src/federation-entry.tsx',
+    `src/components/${app.id}-widget.tsx`,
+    'src/routes/layout.tsx',
+    'src/routes/page.tsx',
+    'src/routes/about/page.tsx',
+    'src/routes/[lang]/page.tsx',
+    'src/routes/[lang]/route.meta.ts',
+    'src/routes/ultramodern-route-metadata.ts',
+    'src/routes/ultramodern-route-head.tsx',
+    'src/routes/index.css',
+    ...(app.renderer === 'none' ? ['src/routes', 'src/modern.runtime.ts'] : []),
+  ]) {
+    assert(
+      !fs.existsSync(path.join(root, app.path, relative)),
+      `Unexpected ${app.path}/${relative} for a api-only unit`,
+    );
+  }
+  const mfTypesPath = path.join(root, app.path, 'tsconfig.mf-types.json');
+  if (fs.existsSync(mfTypesPath)) {
+    const mfTypes: unknown = JSON.parse(fs.readFileSync(mfTypesPath, 'utf8'));
+    assert(
+      mfTypes !== null &&
+        typeof mfTypes === 'object' &&
+        !Array.isArray(mfTypes),
+      `${app.id} tsconfig.mf-types.json must be an object`,
+    );
+    assert(
+      !(mfTypes as JsonRecord).include?.includes('src/federation-entry.tsx'),
+      `${app.id}: restore the generated MicroVertical Module Federation DTS boundary`,
+    );
+  }
+}

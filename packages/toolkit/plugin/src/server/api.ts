@@ -1,4 +1,4 @@
-import { createDebugger } from '@modern-js/utils';
+import { createDebugger } from '@modern-js/utils/cli-common';
 import { assign } from '@modern-js/utils/lodash';
 import type { PluginHook } from '../types';
 import type { PluginManager } from '../types/plugin';

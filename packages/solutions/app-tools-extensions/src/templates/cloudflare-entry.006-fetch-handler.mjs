@@ -1,5 +1,12 @@
 export default {
   async fetch(request, env, ctx) {
+    const rendererRejection = createWorkerRendererGuardResponse(request);
+    if (rendererRejection) {
+      return finalizeResponseForRequest(
+        withAppCorsHeaders(rendererRejection, request),
+        request,
+      );
+    }
     const corsPreflightResponse = await createCorsPreflightResponse(
       request,
       env,

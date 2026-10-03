@@ -1,67 +1,65 @@
-# UltraModern native app tools
+# UltraModern.js application tools
 
-`ultramodernAppTools()` composes UltraModern features through Modern.js CLI,
-runtime and server plugins. Modern.js configuration fields, plugin APIs, route
-objects and lifecycle hooks remain available to applications.
-
-Generated workspace applications declare their identity and authored options:
+Select the application renderer in `modern.config.ts`. `defineConfig` registers
+the selected compiler, runtime, router integration and server lifecycle.
 
 ```ts
-import { defineConfig } from '@modern-js/app-tools';
-import {
-  presetUltramodernWorkspace,
-  ultramodernAppTools,
-} from '@modern-js/ultramodern-app-tools';
+import { defineConfig } from '@modern-js/ultramodern-app-tools';
 
-export default defineConfig(
-  presetUltramodernWorkspace(
-    {
-      html: { title: 'Catalog' },
-      plugins: [ultramodernAppTools()],
-    },
-    { appId: 'catalog', from: import.meta.url },
-  ),
-);
+export default defineConfig({
+  renderer: 'solid', // 'react' or 'octane'; omitted means 'react'
+  server: { ssr: true },
+});
 ```
 
-The workspace preset reads `topology/reference-topology.json` and
-`topology/local-overlays/development.json` relative to that config. Those records
-provide app identity, development ports, composed remote references and delivery
-unit identity. Adding a shell or vertical changes the records; existing
-application configs keep their authored contents.
+Use Node **26.7.0 or newer**. Run the installed application's public CLI:
 
-The native package resolves build output and cache directories, remote asset
-origins, canonical site origins, local CORS and Cloudflare service bindings and
-fragment routes. Deploy target selection uses Modern.js's native resolver.
-`deployTarget` and `environment` options allow explicit programmatic build inputs.
-`createPresetUltramodernWorkspaceConfig(options)` exposes the resolved config for
-inspection.
+```sh
+pnpm exec ultramodern dev
+pnpm exec ultramodern build
+pnpm exec ultramodern serve
+```
 
-Cloudflare fragment bindings use the expose names from each remote's authored
-Module Federation config. The shared config inspector accepts literal objects
-and string arrays. Dynamic declarations use Modern.js's native config loader
-during config resolution, including async functions, environment and command
-arguments. Authored worker settings and services remain part of the merged
-config; dynamic bindings use the loaded exposes.
+The selector belongs to this config import. Do not add another `appTools()` or
+`ultramodernAppTools()` base plugin. Changing the renderer requires matching
+native application source and dependencies, then a dev-server restart and a
+document reload. The generated entries own mounting and hydration.
 
-The old generated `performance.rsdoctor` setting was not part of Modern.js's
-supported config and had no effect. The native preset omits it.
+## Native application imports
 
-Zephyr registers only for browser applications. It loads the application's
-declared `zephyr-rspack-plugin` only when `ZE_CI_TOKEN` is present, and requires
-`ZE_FAIL_BUILD=true` in that deploy environment. Ordinary builds require no
-Zephyr account. The preset does not mutate environment variables.
-The Zephyr SDK reads credentials and its fail-build flag from `process.env`.
-When supplying `environment` explicitly, enabled Zephyr inputs must match those
-process values; a mismatch fails during plugin setup before registration.
+| Renderer | Component authoring | Application router |
+| --- | --- | --- |
+| React | `react` | `react-router`, or the configured TanStack integration |
+| Solid 2 | `solid-js`, `@solidjs/web` | `@modern-js/renderer-solid/router` |
+| Octane | `octane` | `@modern-js/renderer-octane/router` |
 
-Authored config merges after native policy. Scalars and `false` override defaults;
-nested records are preserved; arrays and hooks compose in preset-first order.
-The existing typed preset options, including `enableTelemetry`,
-`enableTelemetryExporters`, `enableBffRequestId` and
-`enableModuleFederationSSR`, also apply to workspace presets.
+Solid and Octane use their native component syntax and managed filesystem
+routes. Their SDKs expose `/client`, `/router`, `/server` and `/manifest`
+entrypoints. Generated applications select these automatically.
 
-Standalone applications can continue using `presetUltramodern(config, options)`.
-Both `appTools()` and `ultramodernAppTools()` keep the fork's default renderer and
-server behavior. Pass `rendererExtensions: false` or `serverExtensions: false`
-to the plugin factory to opt out of either policy.
+## Supported preview profile
+
+Solid **2.0.0-rc.13** and Octane are Node previews with CSR, native streaming SSR,
+hydration, route loading and actions. Their exact compiler, runtime and router
+pins come from `resolveRendererProfile` exported by this package. Octane uses
+the maintained [BleedingDev release artifacts](https://github.com/bleedingdev/octane/releases)
+selected by that profile.
+
+Native previews reject workers, Module Federation, React Server Components,
+static site generation, React i18n integration, SVG component imports and CSS
+declaration emission beside authored source. SVG URL imports remain available.
+These limits are checked before output generation; there is no preview bypass.
+
+Solid's native public route snapshots accept immutable plain records, arrays,
+scalars and checked top-level deferred Promise slots. Rich HTTP data transport
+is a separate `@modern-js/renderer-core/data` surface. Request objects, headers,
+bindings and session state remain private to the request.
+Authored deferred Promises use the standard prototype without custom own
+properties. Symbol-bearing source Promises from async-hooks instrumentation and
+Node's `--no-async-context-frame` mode are outside this preview profile.
+
+Generate a workspace with the selected dependencies through
+[`@modern-js/ultramodern-create`](../../toolkit/ultramodern-create/README.md).
+Build and document identities bind the application source and installed
+compiler/runtime cohort; stale manifests or hydration identities fail before
+application startup.

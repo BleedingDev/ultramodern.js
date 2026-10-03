@@ -29,7 +29,11 @@ export function runValidation(workspaceDir: string) {
     {
       cwd: workspaceDir,
       encoding: 'utf-8',
-      env: { ...process.env, ULTRAMODERN_WORKSPACE_ROOT: workspaceDir },
+      env: {
+        ...process.env,
+        NODE_ENV: 'development',
+        ULTRAMODERN_WORKSPACE_ROOT: workspaceDir,
+      },
     },
   );
 }
@@ -62,7 +66,7 @@ type CreateWorkspaceOptions = {
   workspaceDir?: string;
 };
 
-export function createWorkspace(
+export async function createWorkspace(
   packageNameOrWorkspaceDir: string,
   options: CreateWorkspaceOptions = {},
 ) {
@@ -83,7 +87,7 @@ export function createWorkspace(
         ));
   const tempRoot = path.dirname(workspaceDir);
 
-  generateUltramodernWorkspace({
+  await generateUltramodernWorkspace({
     targetDir: workspaceDir,
     packageName,
     modernVersion: '3.2.1',

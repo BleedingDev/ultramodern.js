@@ -183,8 +183,8 @@ function assertGeneratedWorkspaceContractClean(
   );
 }
 
-test('generated shell, checkout, and generic verticals are lint-clean', () => {
-  const { tempRoot, workspaceDir } = createWorkspace('generated-lint', {
+test('generated shell, checkout, and generic verticals are lint-clean', async () => {
+  const { tempRoot, workspaceDir } = await createWorkspace('generated-lint', {
     tempPrefix: 'um-generated-lint-',
   });
 
@@ -193,7 +193,7 @@ test('generated shell, checkout, and generic verticals are lint-clean', () => {
     assertGeneratedWorkspaceLintClean(workspaceDir, 'shell-only workspace');
     assertGeneratedWorkspaceContractClean(workspaceDir, 'shell-only workspace');
 
-    addUltramodernVertical({
+    await addUltramodernVertical({
       workspaceRoot: workspaceDir,
       name: 'checkout',
       modernVersion: '3.2.1',
@@ -204,14 +204,14 @@ test('generated shell, checkout, and generic verticals are lint-clean', () => {
       'workspace with checkout',
     );
 
-    addUltramodernVertical({
+    await addUltramodernVertical({
       workspaceRoot: workspaceDir,
       name: 'catalog',
       modernVersion: '3.2.1',
     });
     // One named and one generic vertical exercise the distinct generated
     // branches; the complete template does not need five more lint passes.
-    addUltramodernVertical({
+    await addUltramodernVertical({
       workspaceRoot: workspaceDir,
       name: 'records',
       modernVersion: '3.2.1',
@@ -229,14 +229,14 @@ test('generated shell, checkout, and generic verticals are lint-clean', () => {
   }
 });
 
-test('generated APIs pass real Oxlint after Oxfmt with the current preset and native boundaries', () => {
-  const { tempRoot, workspaceDir } = createWorkspace('erp-api-lint');
+test('generated APIs pass real Oxlint after Oxfmt with the current preset and native boundaries', async () => {
+  const { tempRoot, workspaceDir } = await createWorkspace('erp-api-lint');
   try {
     provisionGeneratedLintDependencies(workspaceDir);
     provisionApiDependencies(workspaceDir, 'erp-api-lint');
     const names = ['inventory', 'orders'];
     for (const name of names) {
-      addUltramodernVertical({
+      await addUltramodernVertical({
         workspaceRoot: workspaceDir,
         name,
         modernVersion: '3.9.0',

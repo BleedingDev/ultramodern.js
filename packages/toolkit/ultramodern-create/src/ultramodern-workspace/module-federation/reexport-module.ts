@@ -1,6 +1,7 @@
 import { createUltramodernBuildArtifact } from '@modern-js/backend-federation-contracts';
 import { createDeliveryUnitRecord } from '../delivery-unit';
 import { appEmitsBrowserUi, appHasApi } from '../descriptors';
+import { rendererMetadataProjection } from '../renderer-identity';
 import type { WorkspaceApp } from '../types';
 
 export function createUltramodernBuildArtifactJson(
@@ -8,14 +9,36 @@ export function createUltramodernBuildArtifactJson(
   app: WorkspaceApp,
 ): string {
   const record = createDeliveryUnitRecord(scope, app);
-  const artifact = createUltramodernBuildArtifact(record);
+  const projection = rendererMetadataProjection({
+    ...app,
+    deliveryUnit: record,
+  });
+  if (projection.renderer !== 'none' && !projection.routerBindings) {
+    throw new Error(
+      `Application ${app.id} requires router bindings captured from modern.config before its UI artifact is written.`,
+    );
+  }
+  const artifact = createUltramodernBuildArtifact(
+    record,
+    projection.renderer === 'none'
+      ? {}
+      : {
+          ui: {
+            identity: projection.rendererIdentity!,
+            profile: projection.rendererProfile!,
+            routerBindings: projection.routerBindings!,
+          },
+        },
+  );
   return `${JSON.stringify(
     {
       ...artifact,
       deliveryUnit: { ...record, ...artifact.deliveryUnit },
       surfaces: {
         api: { ...record, ...artifact.surfaces.api },
-        ui: { ...record, ...artifact.surfaces.ui },
+        ...(artifact.surfaces.ui
+          ? { ui: { ...record, ...artifact.surfaces.ui } }
+          : {}),
       },
     },
     null,
@@ -29,7 +52,7 @@ export function createUltramodernBuildModule(
   includeUiMarker = appEmitsBrowserUi(app),
 ): string {
   return `import buildArtifact = require('./ultramodern-build.json');
-import { resolveUltramodernBuildArtifact } from '@modern-js/runtime-extensions/build-identity';
+import { resolveUltramodernBuildArtifact } from '@modern-js/backend-federation-contracts';
 
 declare const ULTRAMODERN_BUILD_MARKER: string;
 declare const ULTRAMODERN_SOURCE_REVISION: string;
@@ -40,7 +63,16 @@ const ultramodernBuildArtifact = resolveUltramodernBuildArtifact(buildArtifact, 
 });
 
 export const ultramodernDeliveryUnit = ultramodernBuildArtifact.deliveryUnit;
-${includeUiMarker ? 'export const ultramodernUiMarker = ultramodernBuildArtifact.surfaces.ui;\n' : ''}${app.kind !== 'shell' && appHasApi(app) ? 'export const ultramodernApiMarker = ultramodernBuildArtifact.surfaces.api;\n' : ''}`;
+${
+  includeUiMarker
+    ? `const ultramodernUiSurface = ultramodernBuildArtifact.surfaces.ui;
+if (!ultramodernUiSurface) {
+  throw new Error(${JSON.stringify(`Application ${app.id} requires a UI build identity.`)});
+}
+export const ultramodernUiMarker = ultramodernUiSurface;
+`
+    : ''
+}${app.kind !== 'shell' && appHasApi(app) ? 'export const ultramodernApiMarker = ultramodernBuildArtifact.surfaces.api;\n' : ''}`;
 }
 
 export function createUltramodernBuildReexportModule(

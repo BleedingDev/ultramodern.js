@@ -17,7 +17,7 @@ export function initPluginAPI<Extends extends CLIPluginExtends>({
   pluginManager,
 }: {
   context: InternalContext<Extends>;
-  pluginManager: PluginManager;
+  pluginManager: Pick<PluginManager, 'isPluginExists'>;
 }): CLIPluginAPI<Extends> {
   const { hooks, extendsHooks, plugins } = context;
   function getAppContext() {

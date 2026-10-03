@@ -28,20 +28,20 @@ function assertReferencedScriptsExist(workspaceDir: string) {
   }
 }
 
-test('generated command plans reference emitted deployment capabilities', () => {
+test('generated command plans reference emitted deployment capabilities', async () => {
   const tempRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), 'um-profile-coherence-'),
   );
   const workspaceDir = path.join(tempRoot, 'profile-workspace');
   try {
-    generateUltramodernWorkspace({
+    await generateUltramodernWorkspace({
       targetDir: workspaceDir,
       packageName: 'profile-workspace',
       modernVersion: '3.2.1',
       enableTailwind: true,
       packageSource: { strategy: 'workspace' },
     });
-    addUltramodernVertical({
+    await addUltramodernVertical({
       workspaceRoot: workspaceDir,
       name: 'catalog',
       modernVersion: '3.2.1',
@@ -65,13 +65,13 @@ test('generated command plans reference emitted deployment capabilities', () => 
   }
 });
 
-test('workspace validation accepts explicitly disabled agent instruction files', () => {
+test('workspace validation accepts explicitly disabled agent instruction files', async () => {
   const tempRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), 'um-no-agent-instructions-'),
   );
   const workspaceDir = path.join(tempRoot, 'no-agent-workspace');
   try {
-    generateUltramodernWorkspace({
+    await generateUltramodernWorkspace({
       targetDir: workspaceDir,
       packageName: 'no-agent-workspace',
       modernVersion: '3.2.1',

@@ -1,23 +1,19 @@
-<p align="center">
-  <a href="https://modernjs.dev" target="blank"><img src="https://lf3-static.bytednsdoc.com/obj/eden-cn/ylaelkeh7nuhfnuhf/modernjs-cover.png" width="300" alt="Modern.js Logo" /></a>
-</p>
+# UltraModern.js Create
 
-<h1 align="center">Modern.js</h1>
+Create an UltraModern.js workspace with React, Solid 2, or Octane. React is the
+default SuperApp profile; Solid and Octane provide standalone Node SSR and CSR
+preview profiles with their native authoring and router APIs.
 
-<p align="center">
-  A Progressive React Framework for modern web development.
-</p>
-
-## UltraModern.js Create
-
-The BleedingDev create package has one supported generated product: an UltraModern SuperApp workspace. New scaffolds use TanStack Router.
+Replace `<V>` with the exact published UltraModern package cohort version:
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-ultramodern-create my-workspace
+pnpm dlx @bleedingdev/modern-js-ultramodern-create@<V> my-workspace
+pnpm dlx @bleedingdev/modern-js-ultramodern-create@<V> my-solid-workspace --renderer solid
+pnpm dlx @bleedingdev/modern-js-ultramodern-create@<V> my-octane-workspace --renderer octane
 ```
 
 The supported pnpm command contract is the scoped package specifier above:
-`pnpm dlx @bleedingdev/modern-js-ultramodern-create <target>`. Do not shorten it
+`pnpm dlx @bleedingdev/modern-js-ultramodern-create@<V> <target>`. Do not shorten it
 to `pnpm dlx modern-js-ultramodern-create`; there is no unscoped
 `modern-js-ultramodern-create` npm package. Release proof runs this scoped form
 from a temporary pnpm store/cache so it cannot pass because of a local link
@@ -26,13 +22,46 @@ cache.
 To initialize the empty directory you are already in, pass `.` explicitly:
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-ultramodern-create .
+pnpm dlx @bleedingdev/modern-js-ultramodern-create@<V> .
 ```
+
+## Renderer Selection
+
+`--renderer react|solid|octane` selects the initial scaffold only. Existing
+workspace additions read the renderer from the owning `modern.config.ts` and
+reject `--renderer`. That config is the single selector for the compiler,
+runtime, router, and generated entries:
+
+```ts
+import { defineConfig } from '@modern-js/ultramodern-app-tools';
+
+export default defineConfig({
+  renderer: 'solid',
+  server: { ssr: true },
+});
+```
+
+Restart the dev server after changing `renderer`, and author app sources for
+the selected renderer. `defineConfig` selects the native compiler; do not add
+a second compiler or base app-tools plugin.
+
+| Renderer | Application authoring | Router imports |
+| --- | --- | --- |
+| Solid 2 RC | `solid-js`, `@solidjs/web` | `@modern-js/renderer-solid/router` |
+| Octane | `octane` | `@modern-js/renderer-octane/router` |
+
+Solid and Octane previews support plain Node SSR with hydration and CSR. They
+require the admitted package cohort and reject unsupported capabilities:
+Module Federation, Worker deployment, RSC, SSG, framework i18n, SVG component
+imports, and CSS declaration emission beside authored source. There is no CLI
+preview override. The SuperApp federation and
+Cloudflare guidance below applies to the React profile.
 
 The workspace starts shell-only so the first commit has no fake business
 domains to delete. It generates:
 
-- `apps/shell-super-app` as the Module Federation host and topology owner.
+- `apps/shell-super-app` as the initial app and topology owner; React also
+  makes it the Module Federation host.
 - `verticals/*` empty until a real domain is added with `--vertical`.
 - `packages/shared-*` placeholders for shared contracts, tokens, and Effect
 API support.
@@ -51,12 +80,22 @@ pnpm check
 pnpm build
 ```
 
-The generated toolchain pins Node `26.10.0`, pnpm `12.8.1`, and
-`@types/node@^26.6.2`; its engine baseline remains Node `>=26` with pnpm `11+`.
+Start the shell during development, or serve its production build:
+
+```bash
+pnpm dev:shell
+pnpm --filter "./apps/shell-super-app" serve
+```
+
+Run these as separate commands. Use the matching app directory in the filter
+to serve an added app.
+
+The generated toolchain pins Node `26.7.0`, pnpm `11.27.1`, and
+`@types/node@^26.6.2`; the generator requires Node `>=26.7.0` with pnpm `11+`.
 `packageManager`, `.mise.toml`, generated validation, and CI should all agree
 on those values; do not reintroduce Corepack or older pnpm aliases.
 
-The current generated dependency cohort also pins `@effect/tsgo@0.45.0`,
+The current React dependency cohort also pins `@effect/tsgo@0.45.0`,
 `@tanstack/react-router@1.170.39`, `@tanstack/router-core@1.171.32`,
 `@tanstack/history@1.162.4`, and the Module Federation integration `2.9.2`
 cohort, `@module-federation/node@2.7.52`. Move these only through the
@@ -86,12 +125,14 @@ stays active during `rslib build --watch`. Run
 includes a boundary test that scans generator sources, templates, and generated
 workspace output for compiler API imports.
 
-Generated app packages keep stable `typescript` on TS7 so Modern/Rspack and
-`@effect/tsgo` use TS-Go by default. Generated app/package source must not
+React app packages keep stable `typescript` on TS7 so Modern/Rspack and
+`@effect/tsgo` use TS-Go by default. Solid apps also use the generated TS-Go
+check; Octane apps use `tsrx-tsc` with their native TypeScript 5.9.3 toolchain.
+Generated app/package source must not
 depend on compiler API internals. If a future AST utility is needed, keep it
 behind a dedicated TypeScript adapter and test it against stable `typescript`.
 
-Generated CI does not call the local aggregate. It runs format, lint,
+Generated React CI does not call the local aggregate. It runs format, lint,
 typecheck, skills, i18n boundary validation, contract validation, and build as
 separate matrix jobs so failures are isolated and parallelizable. Generated
 lefthook config runs separate format and lint-fix commands on pre-commit, then
@@ -100,7 +141,7 @@ runs the read-only primitive gates in parallel on pre-push.
 For local monorepo dependency testing, add `--workspace`:
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-ultramodern-create my-workspace --workspace
+pnpm dlx @bleedingdev/modern-js-ultramodern-create@<V> my-workspace --workspace
 ```
 
 For package-source validation outside the monorepo, pass explicit
@@ -119,26 +160,26 @@ import {
   planUltramodernVertical,
 } from '@modern-js/ultramodern-create/ultramodern-workspace';
 
-const workspace = generateUltramodernWorkspace({
+const workspace = await generateUltramodernWorkspace({
   targetDir: '/tmp/my-workspace',
   packageName: 'my-workspace',
-  modernVersion: '3.4.0',
+  modernVersion: '<V>',
   packageSource: {
     strategy: 'install',
-    modernPackageVersion: '3.4.0',
+    modernPackageVersion: '<V>',
   },
 });
 
-const plan = planUltramodernVertical({
+const plan = await planUltramodernVertical({
   workspaceRoot: workspace.workspaceRoot,
   name: 'new-vertical',
-  modernVersion: '3.4.0',
+  modernVersion: '<V>',
 });
 
-const vertical = addUltramodernVertical({
+const vertical = await addUltramodernVertical({
   workspaceRoot: workspace.workspaceRoot,
   name: 'new-vertical',
-  modernVersion: '3.4.0',
+  modernVersion: '<V>',
 });
 ```
 
@@ -148,13 +189,13 @@ Workspace generation returns `operation`, `workspaceRoot`, `packageScope`,
 `generatedContractPath`, and `warnings`. MicroVertical addition returns the
 same shape for the new vertical and all rewritten integration surfaces.
 
-Dry-run is available for MicroVertical addition only. The CLI prints the plan as
+MicroVertical addition supports dry-run. The CLI prints the plan as
 JSON and writes no files:
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-ultramodern-create new-vertical --vertical --dry-run
-pnpm dlx @bleedingdev/modern-js-ultramodern-create --vertical=new-vertical --dry-run
-pnpm dlx @bleedingdev/modern-js-ultramodern-create --vertical-name new-vertical --dry-run
+pnpm dlx @bleedingdev/modern-js-ultramodern-create@<V> new-vertical --vertical --dry-run
+pnpm dlx @bleedingdev/modern-js-ultramodern-create@<V> --vertical=new-vertical --dry-run
+pnpm dlx @bleedingdev/modern-js-ultramodern-create@<V> --vertical-name new-vertical --dry-run
 ```
 
 The dry-run object adds `dryRun: true`, `selectedPort`,
@@ -162,7 +203,8 @@ The dry-run object adds `dryRun: true`, `selectedPort`,
 `shellDependencyChanges`, and `generatedContractChanges`. It still validates
 the workspace before returning a plan.
 
-Validation runs before the first filesystem write. Failures name the owning
+Validation runs before publishing generated output to the target workspace.
+Failures name the owning
 contract so automation can stop safely:
 
 | Failure area | Typical cause | Fix |
@@ -221,9 +263,9 @@ await ultramodernCodeSmith({
     mode: 'workspace',
     name: 'my-workspace',
     targetDir: '/tmp/my-workspace',
-    modernVersion: '3.4.0',
+    modernVersion: '<V>',
     packageSourceStrategy: 'install',
-    modernPackageVersion: '3.4.0',
+    modernPackageVersion: '<V>',
   },
 });
 
@@ -246,15 +288,15 @@ Overlays are explicit CodeSmith generators that run after base workspace or
 MicroVertical generation:
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-ultramodern-create new-vertical --vertical \
+pnpm dlx @bleedingdev/modern-js-ultramodern-create@<V> new-vertical --vertical \
   --codesmith-overlay ./generators/vertical-overlay
 ```
 
 ```ts
-addUltramodernVertical({
+await addUltramodernVertical({
   workspaceRoot: '/tmp/my-workspace',
   name: 'new-vertical',
-  modernVersion: '3.4.0',
+  modernVersion: '<V>',
   overlays: [
     {
       generator: './generators/vertical-overlay',
@@ -281,9 +323,9 @@ overlay, ownership entry, strict Effect HttpApi surface, and root `dev:*` script
 requested vertical name.
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-ultramodern-create catalog --vertical
-pnpm dlx @bleedingdev/modern-js-ultramodern-create --vertical=catalog
-pnpm dlx @bleedingdev/modern-js-ultramodern-create --vertical-name catalog
+pnpm dlx @bleedingdev/modern-js-ultramodern-create@<V> catalog --vertical
+pnpm dlx @bleedingdev/modern-js-ultramodern-create@<V> --vertical=catalog
+pnpm dlx @bleedingdev/modern-js-ultramodern-create@<V> --vertical-name catalog
 ```
 
 Use this decision table before adding a vertical:
@@ -298,22 +340,7 @@ Use this decision table before adding a vertical:
 
 ## SuperApp Architecture Contracts
 
-Generated `modern.config.ts` files declare their app identity through
-`presetUltramodernWorkspace(config, { appId, from: import.meta.url })` and keep
-ordinary Modern.js plugins and authored configuration. The preset resolves
-`topology/reference-topology.json` and the development overlay when the config
-loads. Fork-owned packages apply deployment targets, ports, asset origins,
-CORS, Cloudflare bindings, build/cache directories, release identity, and
-Zephyr deployment policy. Authored values override preset defaults; native
-builder hooks and plugins compose normally.
-
-Adding a shell or vertical updates topology, overlays, and generated workspace
-metadata without rewriting any existing `modern.config.ts`. Application
-configs belong to their authors from the moment they are created. New apps
-receive a config scaffold with their own stable `appId`; changing a port or
-shell composition takes effect through the canonical workspace inputs.
-
-The generated shell owns route assembly. Each vertical added with
+The React SuperApp shell owns route assembly and policy. Each React vertical added with
 `--vertical` owns its route subtree, Module Federation exposes, Effect BFF
 contract, generated client, `localisedUrls`, locale JSON, CSS layer, and
 Cloudflare Worker output. The shell consumes vertical UI through Module
@@ -394,7 +421,7 @@ where assets load from.
 
 ## Cloudflare And Zephyr Proof
 
-Each generated workspace app has:
+Each generated React workspace app has:
 
 - `cloudflare:build`, `cloudflare:deploy`, `cloudflare:preview`, and
   `cloudflare:proof` scripts.

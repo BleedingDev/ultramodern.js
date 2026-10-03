@@ -1,10 +1,21 @@
 import path from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import {
+  assertRendererProfileCompatibility,
+  assertUltramodernBuildArtifact,
   type DeliveryUnitIdentity,
-  isUltramodernBuildArtifact,
+  formatBackendFederationValidationErrors,
+  immutableRendererRouterBindings,
   nonEmptyString,
+  type RendererIdentity,
+  type RendererProfile,
+  type RendererRouterBindings,
   toDeliveryUnitIdentity,
+  ULTRAMODERN_BUILD_ARTIFACT_FILE,
   ULTRAMODERN_BUILD_ARTIFACT_PATH,
+  validateRendererIdentity,
+  validateRendererProfile,
+  validateRendererRouterBindings,
 } from '@modern-js/backend-federation-contracts';
 import { fs as fse } from '@modern-js/utils';
 import { resolveUltramodernReleaseIdentity } from '../release-identity';
@@ -14,7 +25,12 @@ const TOPOLOGY_PATH = 'topology/reference-topology.json';
 
 export type DeliveryUnitStamp = DeliveryUnitIdentity & {
   surfaces: {
-    ui?: DeliveryUnitIdentity & { surface: 'ui' };
+    ui?: DeliveryUnitIdentity & {
+      surface: 'ui';
+      rendererIdentity: RendererIdentity;
+      rendererProfile: RendererProfile;
+      routerBindings: RendererRouterBindings;
+    };
     api?: DeliveryUnitIdentity & { surface: 'api' };
   };
 };
@@ -110,18 +126,81 @@ const resolveTopologyApp = async (
   };
 };
 
-const createDeliveryUnitStamp = (
+const createTopologyDeliveryUnitStamp = (
   identity: DeliveryUnitIdentity,
-  app?: Record<string, unknown>,
+  app: Record<string, unknown>,
 ): DeliveryUnitStamp => {
-  const surfaceProfile = nonEmptyString(app?.surfaceProfile);
+  const surfaceProfile = nonEmptyString(app.surfaceProfile);
+  if (
+    surfaceProfile !== undefined &&
+    !['api-only', 'ui-only', 'full-stack'].includes(surfaceProfile)
+  ) {
+    throw new Error(
+      '[cloudflare-delivery-unit] Declared app has an invalid surface profile.',
+    );
+  }
   const emitsUi = surfaceProfile !== 'api-only';
   const emitsApi = surfaceProfile !== 'ui-only';
+  let ui: DeliveryUnitStamp['surfaces']['ui'];
+  if (emitsUi) {
+    const routerBindings = isRecord(app.routerBindings)
+      ? app.routerBindings
+      : {};
+    const errors = [
+      ...validateRendererIdentity(app.rendererIdentity).errors,
+      ...validateRendererProfile(app.rendererProfile).errors,
+      ...validateRendererRouterBindings(
+        app.routerBindings,
+        Object.keys(routerBindings),
+        'routerBindings',
+        (app.rendererIdentity as RendererIdentity | undefined)?.renderer,
+      ).errors,
+    ];
+    if (errors.length) {
+      throw new Error(
+        `[cloudflare-delivery-unit] ${formatBackendFederationValidationErrors(errors)}`,
+      );
+    }
+    const rendererIdentity = app.rendererIdentity as RendererIdentity;
+    const rendererProfile = app.rendererProfile as RendererProfile;
+    if (!Object.hasOwn(routerBindings, rendererIdentity.entryName))
+      throw new Error(
+        '[cloudflare-delivery-unit] Topology routerBindings must include the primary renderer identity entry.',
+      );
+    const declaredIdentity = toDeliveryUnitIdentity(app.deliveryUnit);
+    if (
+      rendererIdentity.renderer !== app.renderer ||
+      rendererIdentity.renderer !== rendererProfile.renderer ||
+      rendererIdentity.appId !== app.id ||
+      rendererIdentity.buildId !== declaredIdentity?.buildMarker
+    ) {
+      throw new Error(
+        '[cloudflare-delivery-unit] Topology UI renderer metadata must match its app and delivery-unit identity.',
+      );
+    }
+    ui = {
+      ...identity,
+      surface: 'ui',
+      rendererIdentity: { ...rendererIdentity, buildId: identity.buildMarker },
+      rendererProfile,
+      routerBindings: immutableRendererRouterBindings(
+        routerBindings as RendererRouterBindings,
+      ),
+    };
+  } else if (
+    app.rendererIdentity !== undefined ||
+    app.rendererProfile !== undefined ||
+    app.routerBindings !== undefined
+  ) {
+    throw new Error(
+      '[cloudflare-delivery-unit] API-only topology must not declare a UI renderer identity or profile.',
+    );
+  }
 
   return {
     ...identity,
     surfaces: {
-      ...(emitsUi ? { ui: { ...identity, surface: 'ui' as const } } : {}),
+      ...(ui ? { ui } : {}),
       ...(emitsApi ? { api: { ...identity, surface: 'api' as const } } : {}),
     },
   };
@@ -145,40 +224,111 @@ export const resolveTopologyDeliveryUnit = async (
       '[cloudflare-delivery-unit] Declared app is missing a valid delivery-unit identity.',
     );
   }
-  return createDeliveryUnitStamp(
+  return createTopologyDeliveryUnitStamp(
     stampReleaseIdentity(identity, resolved.workspaceRoot),
     resolved.app,
   );
 };
 
 /**
- * Resolve the delivery-unit identity actually bundled into the worker by
- * reading the generated `shared/ultramodern-build.json` artifact. This is the
- * worker snapshot / declared surface source that gets stamped into the manifest.
+ * Preserve the finalized build artifact already stamped from renderer-build.json.
+ * The generation artifact cannot attest the compiled application.
  */
 export const resolveWorkerDeliveryUnitStamp = async (
   appDirectory: string,
+  distDirectory: string,
 ): Promise<DeliveryUnitStamp | undefined> => {
   const buildArtifactPath = path.join(
-    appDirectory,
-    ULTRAMODERN_BUILD_ARTIFACT_PATH,
+    distDirectory,
+    ULTRAMODERN_BUILD_ARTIFACT_FILE,
   );
-  let identity: DeliveryUnitIdentity | undefined;
-
-  if (await fse.pathExists(buildArtifactPath)) {
-    const artifact = await fse.readJSON(buildArtifactPath);
-    if (!isUltramodernBuildArtifact(artifact)) {
-      return undefined;
-    }
-    identity = toDeliveryUnitIdentity(artifact.deliveryUnit);
-  }
-
-  if (!identity) {
+  if (!(await fse.pathExists(buildArtifactPath))) {
+    if (
+      await fse.pathExists(
+        path.join(appDirectory, ULTRAMODERN_BUILD_ARTIFACT_PATH),
+      )
+    )
+      throw new Error(
+        '[cloudflare-delivery-unit] Finalized build artifact is required before worker output stamping.',
+      );
     return undefined;
   }
+  const artifact: unknown = await fse.readJSON(buildArtifactPath);
+  assertUltramodernBuildArtifact(artifact);
+  const identity: DeliveryUnitIdentity = {
+    unitId: artifact.deliveryUnit.unitId,
+    buildMarker: artifact.deliveryUnit.buildMarker,
+    sourceRevision: artifact.deliveryUnit.sourceRevision,
+  };
   const resolved = await resolveTopologyApp(appDirectory);
-  if (resolved) {
-    identity = stampReleaseIdentity(identity, resolved.workspaceRoot);
+  const stampedArtifact = artifact;
+  let emitsApi = true;
+  if (resolved?.app) {
+    if (stampedArtifact.deliveryUnit.appId !== resolved.app.id) {
+      throw new Error(
+        '[cloudflare-delivery-unit] Build artifact appId must match the declared topology app.',
+      );
+    }
+    const declaredIdentity = toDeliveryUnitIdentity(resolved.app.deliveryUnit);
+    if (!declaredIdentity) {
+      throw new Error(
+        '[cloudflare-delivery-unit] Declared app is missing a valid delivery-unit identity.',
+      );
+    }
+    const expected = createTopologyDeliveryUnitStamp(identity, resolved.app);
+    for (const field of ['unitId'] as const) {
+      if (declaredIdentity[field] !== identity[field]) {
+        throw new Error(
+          `[cloudflare-delivery-unit] Build artifact ${field} must match the declared topology delivery-unit identity.`,
+        );
+      }
+    }
+    const ui = stampedArtifact.surfaces.ui;
+    if (Boolean(expected.surfaces.ui) !== Boolean(ui)) {
+      throw new Error(
+        '[cloudflare-delivery-unit] Build artifact UI surface must match the declared topology surface profile.',
+      );
+    }
+    if (expected.surfaces.ui && ui) {
+      if (
+        !isDeepStrictEqual(
+          expected.surfaces.ui.routerBindings,
+          ui.routerBindings,
+        )
+      )
+        throw new Error(
+          '[cloudflare-delivery-unit] Finalized build routerBindings must match the declared topology router bindings.',
+        );
+      for (const field of [
+        'renderer',
+        'appId',
+        'entryName',
+        'protocolVersion',
+        'buildId',
+      ] as const) {
+        if (
+          expected.surfaces.ui.rendererIdentity[field] !==
+          ui.rendererIdentity[field]
+        ) {
+          throw new Error(
+            `[cloudflare-delivery-unit] Build artifact UI rendererIdentity.${field} must match the declared topology renderer identity.`,
+          );
+        }
+      }
+      assertRendererProfileCompatibility(
+        expected.surfaces.ui.rendererProfile,
+        ui.rendererProfile,
+      );
+    }
+    emitsApi = expected.surfaces.api !== undefined;
   }
-  return createDeliveryUnitStamp(identity, resolved?.app);
+  return {
+    ...stampedArtifact.deliveryUnit,
+    surfaces: {
+      ...(emitsApi ? { api: stampedArtifact.surfaces.api } : {}),
+      ...(stampedArtifact.surfaces.ui
+        ? { ui: stampedArtifact.surfaces.ui }
+        : {}),
+    },
+  };
 };

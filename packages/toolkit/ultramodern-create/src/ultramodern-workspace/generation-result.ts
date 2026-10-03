@@ -10,6 +10,15 @@ import type {
 } from './delivery-unit-schema/types';
 import { appHasApi, resolveApiProtocol } from './descriptors';
 import { normalizePath, packageName } from './naming';
+import {
+  type RendererMetadataPhase,
+  rendererMetadataProjection,
+} from './renderer-identity';
+import {
+  appSupportsFederation,
+  resolveAppGenerationProfile,
+  resolveWorkspaceRenderer,
+} from './renderer-profile';
 import type {
   ResolvedPackageSource,
   UltramodernGeneratedAppDescriptor,
@@ -19,15 +28,10 @@ import type {
   WorkspaceApp,
 } from './types';
 import { resolveOwnerAttribution } from './types';
-import {
-  EFFECT_VERSION,
-  REACT_VERSION,
-  TAILWIND_VERSION,
-  TANSTACK_ROUTER_VERSION,
-} from './versions';
+import { EFFECT_VERSION, TAILWIND_VERSION } from './versions';
 
 /** Opaque, stable id for the current platform baseline cohort (G1d). */
-const BASELINE_COHORT_ID = 'ultramodern-platform-baseline-v1';
+const BASELINE_COHORT_ID = 'ultramodern-platform-baseline-v2';
 
 export const ignoredSnapshotDirectories = new Set([
   '.git',
@@ -100,9 +104,10 @@ export function createGenerationResult(options: {
   createdPaths: string[];
   rewrittenPaths: string[];
   warnings?: UltramodernGenerationWarning[];
+  phase?: RendererMetadataPhase;
 }): UltramodernGenerationResult {
   const createdApps = options.createdApps.map(app =>
-    createGeneratedAppDescriptor(options.packageScope, app),
+    createGeneratedAppDescriptor(options.packageScope, app, options.phase),
   );
 
   return {
@@ -117,7 +122,9 @@ export function createGenerationResult(options: {
       createdApps.map(app => [app.id, app.port]),
     ),
     moduleFederationNames: Object.fromEntries(
-      createdApps.map(app => [app.id, app.moduleFederationName]),
+      createdApps
+        .filter(app => app.moduleFederationName)
+        .map(app => [app.id, app.moduleFederationName!]),
     ),
     apiPrefixes: Object.fromEntries(
       createdApps
@@ -162,6 +169,7 @@ function createGeneratedDeliveryUnitDescriptor(
 
   const canonicalKind: DeliveryUnitDescriptor['kind'] =
     app.kind === 'shell' ? 'shell' : (app.deliveryUnitKind ?? 'microvertical');
+  const generation = resolveAppGenerationProfile(app);
 
   return {
     unitId: record.unitId,
@@ -172,8 +180,15 @@ function createGeneratedDeliveryUnitDescriptor(
     baselineCohort: {
       cohortId: BASELINE_COHORT_ID,
       resolved: {
-        react: REACT_VERSION,
-        tanstackRouter: TANSTACK_ROUTER_VERSION,
+        renderer: resolveWorkspaceRenderer(app),
+        ...(generation
+          ? {
+              rendererVersion: generation.profile.hydration.version,
+              compiler: generation.profile.compiler,
+              router: generation.profile.router,
+              protocolVersion: generation.profile.protocolVersion,
+            }
+          : {}),
         effect: EFFECT_VERSION,
         tailwind: TAILWIND_VERSION,
       },
@@ -185,6 +200,7 @@ function createGeneratedDeliveryUnitDescriptor(
 function createGeneratedAppDescriptor(
   scope: string,
   app: WorkspaceApp,
+  phase: RendererMetadataPhase = 'resolved',
 ): UltramodernGeneratedAppDescriptor {
   return {
     id: app.id,
@@ -195,8 +211,13 @@ function createGeneratedAppDescriptor(
     kind: app.kind,
     portEnv: app.portEnv,
     port: app.port,
-    moduleFederationName: app.mfName,
-    ...(app.exposes ? { exposes: { ...app.exposes } } : {}),
+    ...rendererMetadataProjection(app, phase),
+    ...(appSupportsFederation(app)
+      ? {
+          moduleFederationName: app.mfName,
+          ...(app.exposes ? { exposes: { ...app.exposes } } : {}),
+        }
+      : {}),
     ...(appHasApi(app) ? { apiPrefix: app.api.prefix } : {}),
   };
 }

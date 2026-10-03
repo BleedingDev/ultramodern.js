@@ -64,6 +64,10 @@
     "./bundle-docs": {
       "types": "./dist/types/bundleDocs.d.ts",
       "default": "./dist/esm-node/bundleDocs.mjs"
+    },
+    "./cli-config": {
+      "types": "./dist/types/types/config/base.d.ts",
+      "modern:source": "./src/types/config/base.ts"
     }
   },
   "engines": {
@@ -88,6 +92,9 @@
       ],
       "bundle-docs": [
         "./dist/types/bundleDocs.d.ts"
+      ],
+      "cli-config": [
+        "./dist/types/types/config/base.d.ts"
       ]
     }
   },
@@ -131,7 +138,6 @@
     "@babel/parser": "^8.0.6",
     "@babel/traverse": "^8.0.6",
     "@babel/types": "^8.0.6",
-    "@loadable/component": "5.16.7",
     "@modern-js/app-tools-extensions": "workspace:*",
     "@modern-js/builder": "workspace:*",
     "@modern-js/i18n-utils": "workspace:*",
@@ -164,9 +170,8 @@
     "@types/babel__traverse": "7.28.0",
     "@types/node": "^26.6.3",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0",
-    "typescript": "^7.0.2"
+    "typescript": "7.0.2",
+    "@loadable/component": "5.16.7"
   },
   "peerDependencies": {
     "react": "^19.2.8"
@@ -181,5 +186,13 @@
     "registry": "https://registry.npmjs.org/",
     "access": "public",
     "types": "./dist/types/index.d.ts"
+  },
+  "peerDependencies": {
+    "@loadable/component": "5.16.7"
+  },
+  "peerDependenciesMeta": {
+    "@loadable/component": {
+      "optional": true
+    }
   }
 }

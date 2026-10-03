@@ -17,7 +17,7 @@ import {
   verifyMicroVerticalReleaseEnvelope,
 } from '../src/release-envelope';
 import * as sourceFramework from '../src/release-envelope/framework-output';
-import { resolveUltramodernReleaseIdentity } from '../src/release-identity';
+import { uiBuildArtifactOptions } from './renderer-release-fixture';
 
 const roots: string[] = [];
 const client = 'static/js/index.js';
@@ -79,22 +79,16 @@ async function fixture(
       remoteEntry: { name: '', path: '', type: 'global' },
     },
   };
-  if (role === 'shell') {
-    await fs.mkdir(path.join(root, 'shared'), { recursive: true });
-    await fs.writeFile(
-      path.join(root, 'shared/ultramodern-build.json'),
-      JSON.stringify(createUltramodernBuildArtifact(unit)),
-    );
-  } else {
-    await json('ultramodern-build.json', createUltramodernBuildArtifact(unit));
-    await json('backend-mf-manifest.json', {
-      backendFederation: {
-        deliveryUnit: unit,
-        versionBoundary: { deliveryUnit: unit },
-      },
-    });
-    await put('backendRemoteEntry.cjs', 'console.log("compiled fixture");');
-  }
+  await json(
+    'ultramodern-build.json',
+    createUltramodernBuildArtifact(
+      deliveryUnit,
+      uiBuildArtifactOptions(deliveryUnit.buildMarker, deliveryUnit.appId),
+    ),
+  );
+  await json('backend-mf-manifest.json', {
+    backendFederation: { deliveryUnit, versionBoundary: { deliveryUnit } },
+  });
   await json('mf-manifest.json', manifest);
   const routes = (assets: unknown[]) =>
     json('routes-manifest.json', {
@@ -144,7 +138,10 @@ describe('workspace source revision', () => {
     const workspaceUnit = { ...deliveryUnit, sourceRevision: 'workspace' };
     await f.json(
       'ultramodern-build.json',
-      createUltramodernBuildArtifact(workspaceUnit),
+      createUltramodernBuildArtifact(
+        workspaceUnit,
+        uiBuildArtifactOptions(workspaceUnit.buildMarker, workspaceUnit.appId),
+      ),
     );
     await f.json('backend-mf-manifest.json', {
       backendFederation: {
@@ -579,6 +576,7 @@ describe('empty MF producer', () => {
       ['routes-manifest.json', 'public/routes-manifest.json'],
       ['backend-mf-manifest.json', 'public/backend-mf-manifest.json'],
       ['backendRemoteEntry.cjs', 'public/backendRemoteEntry.cjs'],
+      ['ultramodern-build.json', 'public/ultramodern-build.json'],
       ['worker', 'worker'],
       ['route.json', 'server/route.json'],
     ]) {
@@ -694,6 +692,10 @@ describe('API-only release', () => {
 
   async function apiOnlyFixture(target: 'node' | 'cloudflare') {
     const f = await fixture(framework);
+    await f.json(
+      'ultramodern-build.json',
+      createUltramodernBuildArtifact(deliveryUnit),
+    );
     for (const name of [
       'static',
       'bundles',
@@ -956,7 +958,7 @@ describe('API-only release', () => {
         }),
         expect.objectContaining({
           logicalPath: 'public/ultramodern-build.json',
-          runtime: 'cloudflare-deployment',
+          runtime: 'release-identity-metadata',
         }),
         expect.objectContaining({
           logicalPath: 'worker/__modern_worker_shared.js',

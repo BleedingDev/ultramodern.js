@@ -1,0 +1,691 @@
+/**
+ * Octane's JSX type surface (`jsxImportSource: "octane"`).
+ *
+ * React-shaped by design — the `Octane` namespace MIRRORS `@types/react`'s
+ * structure (`Octane.DetailedHTMLProps<Octane.HTMLAttributes<T>, T>`, one
+ * specialized attribute interface per element family, a literal per-tag
+ * `IntrinsicElements` interface) so editor hovers and errors read exactly like
+ * React's with the `Octane` name, and so consumers can augment the attribute
+ * interfaces the same way they augment React's. The per-tag table and the
+ * attribute-interface list are derived mechanically from `@types/react`'s
+ * `JSX.IntrinsicElements`.
+ *
+ * Octane's documented divergences are applied by the attribute transform and
+ * final per-element prop composition:
+ *
+ *  - `class` / `className` compose clsx-style (strings, numbers, arrays,
+ *    objects, nesting; falsy drops out) — both accept `ClassValue`.
+ *  - Events are NATIVE, delegated DOM events. React's handler NAMES are kept
+ *    (`onClick`, `onMouseDown`, `onDoubleClick`, every `…Capture` variant —
+ *    the compiler lowercases the name, special-casing `onDoubleClick` →
+ *    `dblclick`), but each handler receives the NATIVE event (the synthetic
+ *    type's `nativeEvent`): `onInput` gets a real `InputEvent` per keystroke,
+ *    `onChange` is the native change event — no synthetic normalization.
+ *  - `ref` accepts a callback (with optional React-19 cleanup return), a ref
+ *    object, or an ARRAY of refs — nested arrays flatten (no `forwardRef`).
+ *  - `for` is the native attribute (React's `htmlFor` alias also works).
+ *  - HTML accepts both React property names and their native lowercase
+ *    spellings (`tabIndex` / `tabindex`, `readOnly` / `readonly`); native
+ *    numeric attributes also accept numeric strings. Framework-only props and
+ *    aliases whose native name is not their lowercase form are excluded.
+ *  - SVG remains case-sensitive, with explicit support for `hidden` and the
+ *    native `tabindex` attribute.
+ *  - `children` are octane renderables (`unknown`), not `ReactNode`.
+ *  - `style` accepts a plain string as well as the object form (boolean
+ *    property values clear the property, React-style).
+ *  - `<Fragment>` accepts a `ref` (fragment-refs parity).
+ *
+ * Types only: compiled `.tsrx`/`.tsx` never imports this module at runtime —
+ * the octane compiler lowers JSX to templates before any jsx() call could be
+ * emitted. It exists so TypeScript (editors, tsrx-tsc, plain tsc over octane
+ * `.tsx` sources) can type-check JSX against octane's real contract.
+ */
+import type * as React from 'react';
+import type * as CSS from 'csstype';
+import type { ElementDescriptor, FragmentInstance } from './index.js';
+import type { SignalHandle } from './signals/types.js';
+
+/**
+ * Octane's element type — the analog of React's `ReactElement`, and what a
+ * JSX expression types as (`Octane.JSX.Element extends OctaneElement`). Backed
+ * by the runtime's real `ElementDescriptor`, whose `$$kind` brand keeps it
+ * nominal: arbitrary `{ type, props, key }` objects don't pass for elements.
+ * Like React's, the props parameter defaults to `any` — elements are opaque
+ * values to carry, not structures to inspect.
+ */
+export interface OctaneElement<P = any> extends ElementDescriptor<P> {}
+
+/** Inline styles use Octane's numeric length coercion for both property spellings. */
+export interface CSSProperties extends React.CSSProperties, CSS.PropertiesHyphen<string | number> {
+	cssFloat?: React.CSSProperties['float'];
+	/** Element-scoped View Transition isolation, including authored `!important` values. */
+	viewTransitionScope?: 'none' | 'all' | (string & {});
+}
+
+/** Native DOM style values; plain CSSProperties remains usable by CSS-consuming libraries. */
+export type SignalCSSProperties = {
+	[K in keyof CSSProperties]: CSSProperties[K] | SignalHandle<CSSProperties[K] | null>;
+} & {
+	[customProperty: `--${string}`]:
+		string | number | SignalHandle<string | number | null | undefined> | undefined;
+};
+
+export type ClassValue =
+	| string
+	| number
+	| boolean
+	| null
+	| undefined
+	| readonly ClassValue[]
+	| { readonly [name: string]: unknown };
+
+// React's types restrict dialog lifecycle handlers to <dialog>, but Octane
+// delegates these events through logical ancestors in both phases.
+type DialogLifecycleProps = 'onCancel' | 'onCancelCapture' | 'onClose' | 'onCloseCapture';
+
+/** Handler names whose parameters are native rather than React synthetic events. */
+type ReactSyntheticProps =
+	| Exclude<keyof React.DOMAttributes<Element>, 'children' | 'dangerouslySetInnerHTML'>
+	| DialogLifecycleProps;
+
+/**
+ * Convert one React synthetic handler type to its native form: the parameter
+ * becomes the synthetic type's `nativeEvent`, with octane's delegated
+ * `currentTarget` (the handler's own element).
+ */
+type NativeHandler<H, T> =
+	NonNullable<H> extends (event: infer SE) => unknown
+		? SE extends { nativeEvent: infer NE }
+			? (event: NE & { currentTarget: T }) => void
+			: (event: Event & { currentTarget: T }) => void
+		: never;
+
+type NativeEventHandlers<P, T> = {
+	[K in Extract<keyof P, ReactSyntheticProps>]?: NativeHandler<P[K], T>;
+} & {
+	[K in DialogLifecycleProps]?: (event: Event & { currentTarget: T }) => void;
+};
+
+/** Props whose lowercase spelling is not a native attribute with equivalent behavior. */
+type NonNativeLowercaseProps =
+	| ReactSyntheticProps
+	| 'autoFocus'
+	| 'defaultValue'
+	| 'defaultChecked'
+	| 'dangerouslySetInnerHTML'
+	| 'className'
+	| 'suppressContentEditableWarning'
+	| 'suppressHydrationWarning'
+	| 'suppressNativeChangeWarning'
+	| '__octaneNativeChangeDiagnostic'
+	| 'acceptCharset'
+	| 'htmlFor'
+	| 'httpEquiv';
+
+/** Native HTML content attributes may express numeric property values as text. */
+type NativeAttributeValue<T> =
+	T | (Extract<T, number> extends never ? never : `${Extract<T, number>}`);
+
+/** Add actual lowercase HTML spellings without weakening the original prop types. */
+type NativeLowercaseAttributes<P> = {
+	[
+		K in Exclude<Extract<keyof P, string>, NonNativeLowercaseProps> as K extends
+			Lowercase<K> | `on${Capitalize<string>}`
+			? never
+			: Lowercase<K> extends keyof P
+				? never
+				: Lowercase<K>
+	]?: NativeAttributeValue<P[K]>;
+};
+
+/** Preserve a consumer's React button augmentation when the installed React types expose it. */
+type ExistingButtonAttribute<
+	T,
+	K extends PropertyKey,
+	Fallback,
+> = K extends keyof React.ButtonHTMLAttributes<T> ? React.ButtonHTMLAttributes<T>[K] : Fallback;
+
+/** Uncontrolled initialization and framework instructions are not live bindings. */
+type UnboundProps =
+	| 'defaultValue'
+	| 'defaultChecked'
+	| 'dangerouslySetInnerHTML'
+	| 'suppressContentEditableWarning'
+	| 'suppressHydrationWarning'
+	| 'suppressNativeChangeWarning'
+	| '__octaneNativeChangeDiagnostic'
+	| 'ref'
+	| 'key'
+	| 'children';
+
+/** Octane's attribute transform over one React attribute interface. */
+type Transformed<P, T> = Omit<P, ReactSyntheticProps | 'className' | 'style' | 'children'> &
+	NativeEventHandlers<P, T & EventTarget> & {
+		class?: ClassValue;
+		className?: ClassValue;
+		for?: string;
+		xmlns?: string;
+		style?: string | CSSProperties;
+		children?: unknown;
+	};
+
+type BoundStyle<S> = S | SignalCSSProperties | null | SignalHandle<S | SignalCSSProperties | null>;
+
+/** Provider-owned compiler attributes. Augment without widening component props or signal types. */
+export interface NativeAttributeExtensions {}
+
+/**
+ * Only a host JSX site installs direct bindings. Keep reusable attribute and
+ * component-prop types scalar: their consumers may read values imperatively.
+ * A component can explicitly opt in with SignalHandle or this JSX namespace.
+ */
+type BoundIntrinsicProps<P> = {
+	[K in keyof P]: K extends UnboundProps | ReactSyntheticProps
+		? P[K]
+		: K extends 'style'
+			? BoundStyle<P[K]>
+			: P[K] | SignalHandle<P[K]>;
+} & NativeAttributeExtensions;
+
+type BoundIntrinsicElements = {
+	[K in keyof Octane.JSX.IntrinsicElements]: BoundIntrinsicProps<Octane.JSX.IntrinsicElements[K]>;
+};
+
+declare namespace Octane {
+	type Key = string | number | bigint;
+
+	/** Ref forms: callback (optional cleanup), object, or nested arrays with optional entries. */
+	type Ref<T> = React.Ref<T> | readonly (Ref<T> | undefined)[];
+
+	interface Attributes {
+		key?: Key | null | undefined;
+	}
+	interface RefAttributes<T> extends Attributes {
+		ref?: Ref<T> | undefined;
+	}
+
+	type DetailedHTMLProps<E, T> = RefAttributes<T> & E & NativeLowercaseAttributes<E>;
+
+	interface AnchorHTMLAttributes<T> extends Transformed<React.AnchorHTMLAttributes<T>, T> {}
+	interface AreaHTMLAttributes<T> extends Transformed<React.AreaHTMLAttributes<T>, T> {}
+	interface AudioHTMLAttributes<T> extends Transformed<React.AudioHTMLAttributes<T>, T> {}
+	interface BaseHTMLAttributes<T> extends Transformed<React.BaseHTMLAttributes<T>, T> {}
+	interface BlockquoteHTMLAttributes<T> extends Transformed<React.BlockquoteHTMLAttributes<T>, T> {}
+	interface ButtonHTMLAttributes<T> extends Omit<
+		Transformed<React.ButtonHTMLAttributes<T>, T>,
+		'command' | 'commandfor'
+	> {
+		command?: ExistingButtonAttribute<T, 'command', string> | undefined;
+		commandfor?: ExistingButtonAttribute<T, 'commandfor', string> | undefined;
+	}
+	interface CanvasHTMLAttributes<T> extends Transformed<React.CanvasHTMLAttributes<T>, T> {}
+	interface ColHTMLAttributes<T> extends Transformed<React.ColHTMLAttributes<T>, T> {}
+	interface ColgroupHTMLAttributes<T> extends Transformed<React.ColgroupHTMLAttributes<T>, T> {}
+	interface DataHTMLAttributes<T> extends Transformed<React.DataHTMLAttributes<T>, T> {}
+	interface DelHTMLAttributes<T> extends Transformed<React.DelHTMLAttributes<T>, T> {}
+	interface DetailsHTMLAttributes<T> extends Transformed<React.DetailsHTMLAttributes<T>, T> {}
+	interface DialogHTMLAttributes<T> extends Transformed<React.DialogHTMLAttributes<T>, T> {}
+	interface EmbedHTMLAttributes<T> extends Transformed<React.EmbedHTMLAttributes<T>, T> {}
+	interface FieldsetHTMLAttributes<T> extends Transformed<React.FieldsetHTMLAttributes<T>, T> {}
+	interface FormHTMLAttributes<T> extends Transformed<React.FormHTMLAttributes<T>, T> {}
+	interface HTMLAttributes<T> extends Transformed<React.HTMLAttributes<T>, T> {}
+	interface AllHTMLAttributes<T> extends Transformed<React.AllHTMLAttributes<T>, T> {}
+	interface HtmlHTMLAttributes<T> extends Transformed<React.HtmlHTMLAttributes<T>, T> {}
+	interface IframeHTMLAttributes<T> extends Transformed<React.IframeHTMLAttributes<T>, T> {}
+	interface ImgHTMLAttributes<T> extends Transformed<React.ImgHTMLAttributes<T>, T> {}
+	interface InputHTMLAttributes<T> extends Transformed<React.InputHTMLAttributes<T>, T> {}
+	interface InsHTMLAttributes<T> extends Transformed<React.InsHTMLAttributes<T>, T> {}
+	interface KeygenHTMLAttributes<T> extends Transformed<React.KeygenHTMLAttributes<T>, T> {}
+	interface LabelHTMLAttributes<T> extends Transformed<React.LabelHTMLAttributes<T>, T> {}
+	interface LiHTMLAttributes<T> extends Transformed<React.LiHTMLAttributes<T>, T> {}
+	interface LinkHTMLAttributes<T> extends Transformed<React.LinkHTMLAttributes<T>, T> {}
+	interface MapHTMLAttributes<T> extends Transformed<React.MapHTMLAttributes<T>, T> {}
+	interface MenuHTMLAttributes<T> extends Transformed<React.MenuHTMLAttributes<T>, T> {}
+	interface MetaHTMLAttributes<T> extends Transformed<React.MetaHTMLAttributes<T>, T> {}
+	interface MeterHTMLAttributes<T> extends Transformed<React.MeterHTMLAttributes<T>, T> {}
+	interface ObjectHTMLAttributes<T> extends Transformed<React.ObjectHTMLAttributes<T>, T> {}
+	interface OlHTMLAttributes<T> extends Transformed<React.OlHTMLAttributes<T>, T> {}
+	interface OptgroupHTMLAttributes<T> extends Transformed<React.OptgroupHTMLAttributes<T>, T> {}
+	interface OptionHTMLAttributes<T> extends Transformed<React.OptionHTMLAttributes<T>, T> {}
+	interface OutputHTMLAttributes<T> extends Transformed<React.OutputHTMLAttributes<T>, T> {}
+	interface ParamHTMLAttributes<T> extends Transformed<React.ParamHTMLAttributes<T>, T> {}
+	interface ProgressHTMLAttributes<T> extends Transformed<React.ProgressHTMLAttributes<T>, T> {}
+	interface QuoteHTMLAttributes<T> extends Transformed<React.QuoteHTMLAttributes<T>, T> {}
+	interface SVGAttributes<T> extends Transformed<React.SVGAttributes<T>, T> {
+		hidden?: React.HTMLAttributes<T>['hidden'];
+		tabindex?: NativeAttributeValue<React.SVGAttributes<T>['tabIndex']>;
+	}
+	interface ScriptHTMLAttributes<T> extends Transformed<React.ScriptHTMLAttributes<T>, T> {}
+	interface SelectHTMLAttributes<T> extends Transformed<React.SelectHTMLAttributes<T>, T> {}
+	interface SlotHTMLAttributes<T> extends Transformed<React.SlotHTMLAttributes<T>, T> {}
+	interface SourceHTMLAttributes<T> extends Transformed<React.SourceHTMLAttributes<T>, T> {}
+	interface StyleHTMLAttributes<T> extends Transformed<React.StyleHTMLAttributes<T>, T> {}
+	interface TableHTMLAttributes<T> extends Transformed<React.TableHTMLAttributes<T>, T> {}
+	interface TdHTMLAttributes<T> extends Transformed<React.TdHTMLAttributes<T>, T> {}
+	interface TextareaHTMLAttributes<T> extends Transformed<React.TextareaHTMLAttributes<T>, T> {}
+	interface ThHTMLAttributes<T> extends Transformed<React.ThHTMLAttributes<T>, T> {}
+	interface TimeHTMLAttributes<T> extends Transformed<React.TimeHTMLAttributes<T>, T> {}
+	interface TrackHTMLAttributes<T> extends Transformed<React.TrackHTMLAttributes<T>, T> {}
+	interface VideoHTMLAttributes<T> extends Transformed<React.VideoHTMLAttributes<T>, T> {}
+	interface WebViewHTMLAttributes<T> extends Transformed<React.WebViewHTMLAttributes<T>, T> {}
+
+	interface SVGProps<T> extends SVGAttributes<T>, RefAttributes<T> {}
+	type SVGLineElementAttributes<T> = SVGProps<T>;
+	type SVGTextElementAttributes<T> = SVGProps<T>;
+
+	namespace JSX {
+		// Mirrors React's `JSX.Element extends ReactElement<any, any>`: a JSX
+		// expression is an opaque-but-real element value.
+		//
+		// The extra `Promise<React.ReactNode>` parent is TYPE-LEVEL ONLY — an
+		// octane element is a plain descriptor at runtime, never a thenable. It
+		// exists for React-hosted islands (`octane/react`): React 19's
+		// `JSX.ElementType` admits `(props: P) => ReactNode | Promise<ReactNode>`,
+		// and `Promise<ReactNode>` is the ONE member of that return union that is
+		// not itself assignable to `ReactNode` (whose promise arm is
+		// `Promise<AwaitedReactNode>`, and `ReactNode ≰ AwaitedReactNode`). So a
+		// compiled octane component — `(props) => Octane.JSX.Element`, exactly
+		// how tsrx-tsc types a `.tsrx` export — IS a valid React JSX element
+		// type: `<Island …/>` typechecks zero-cast inside `<OctaneCompat>` with
+		// exact prop checking, while an octane ELEMENT value remains a type
+		// error in arbitrary React `ReactNode` slots (`<div>{octaneEl}</div>`).
+		//
+		// The promise PROTOCOL below is deliberately poisoned so the parent
+		// buys ONLY that tag-gate assignability — consuming an element as a
+		// promise is a hard type error, not a runtime surprise:
+		//
+		//  - `await element` is TS1320 ("not a valid promise"): neither `then`
+		//    overload's first parameter has a call signature (the checker takes
+		//    the union of first parameters across overloads, strips `undefined`,
+		//    and is left with the non-callable message literal). The same
+		//    poisoning makes an async function returning an element — or
+		//    awaiting a `Promise<Element>` — TS1058/TS1320.
+		//  - `.then(cb)` / `.catch(cb)` / `.finally(cb)` fail overload
+		//    resolution, and the message-literal overload puts the explanation
+		//    in the error text itself. `use(element)` is rejected by the
+		//    runtime's `use()` signature (the `$$kind` exclusion in runtime.ts).
+		//  - `Awaited<Element>` is `never` (conditional-type inference reads the
+		//    LAST overload's parameter — the non-callable message literal), so
+		//    `Promise.resolve(element)` is `Promise<never>`: not a call-site
+		//    error (`resolve` accepts anything), but unusable downstream.
+		//
+		// Assignability is unaffected by the poisoning: the undefined-parameter
+		// overloads stay compatible with `Promise<ReactNode>`'s methods (method
+		// parameters relate bivariantly, and `undefined` is assignable to the
+		// optional-callback parameters), which keeps the React tag gate open,
+		// while `finally`'s `Promise<React.ReactNode>` RETURN keeps `Element`
+		// un-assignable to `Promise<AwaitedReactNode>` — the `ReactNode` fence.
+		// Do not replace that return with `never`: it is the one covariant
+		// `ReactNode` mention holding the fence.
+		// Pinned by typetests/react-hosted-jsx.test-d.tsx §7 and
+		// examples/harbor/src/island-boundary.test-d.tsx.
+		interface Element extends OctaneElement, Promise<React.ReactNode> {
+			/** @deprecated Octane elements are not promises — render them through OctaneCompat. */
+			then(onfulfilled?: undefined, onrejected?: undefined): never;
+			/** @deprecated Octane elements are not promises — render them through OctaneCompat. */
+			then(
+				onfulfilled: 'Octane elements are not promises — render them through OctaneCompat',
+			): never;
+			/** @deprecated Octane elements are not promises — render them through OctaneCompat. */
+			catch(onrejected?: undefined): never;
+			/** @deprecated Octane elements are not promises — render them through OctaneCompat. */
+			catch(
+				onrejected: 'Octane elements are not promises — render them through OctaneCompat',
+			): never;
+			/** @deprecated Octane elements are not promises — render them through OctaneCompat. */
+			finally(onfinally?: undefined): Promise<React.ReactNode>;
+			/** @deprecated Octane elements are not promises — render them through OctaneCompat. */
+			finally(
+				onfinally: 'Octane elements are not promises — render them through OctaneCompat',
+			): Promise<React.ReactNode>;
+		}
+		// `any` disables tag/return-type validation: an octane component is ANY
+		// function used at a `<F/>` site, and may return renderables TS cannot
+		// know about (primitives, null, arrays) — the compiler owns that check.
+		type ElementType = any;
+		interface ElementChildrenAttribute {
+			children: {};
+		}
+		interface IntrinsicAttributes extends Octane.Attributes {}
+		// Foreign React class elements may be transported through ReactCompat.
+		// React owns these refs; Octane still does not execute class components.
+		interface IntrinsicClassAttributes<T> extends React.ClassAttributes<T> {}
+		interface IntrinsicElements {
+			a: Octane.DetailedHTMLProps<
+				Octane.AnchorHTMLAttributes<HTMLAnchorElement>,
+				HTMLAnchorElement
+			>;
+			abbr: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			address: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			area: Octane.DetailedHTMLProps<Octane.AreaHTMLAttributes<HTMLAreaElement>, HTMLAreaElement>;
+			article: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			aside: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			audio: Octane.DetailedHTMLProps<
+				Octane.AudioHTMLAttributes<HTMLAudioElement>,
+				HTMLAudioElement
+			>;
+			b: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			base: Octane.DetailedHTMLProps<Octane.BaseHTMLAttributes<HTMLBaseElement>, HTMLBaseElement>;
+			bdi: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			bdo: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			big: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			blockquote: Octane.DetailedHTMLProps<
+				Octane.BlockquoteHTMLAttributes<HTMLQuoteElement>,
+				HTMLQuoteElement
+			>;
+			body: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLBodyElement>, HTMLBodyElement>;
+			br: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLBRElement>, HTMLBRElement>;
+			button: Octane.DetailedHTMLProps<
+				Octane.ButtonHTMLAttributes<HTMLButtonElement>,
+				HTMLButtonElement
+			>;
+			canvas: Octane.DetailedHTMLProps<
+				Octane.CanvasHTMLAttributes<HTMLCanvasElement>,
+				HTMLCanvasElement
+			>;
+			caption: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			center: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			cite: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			code: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			col: Octane.DetailedHTMLProps<
+				Octane.ColHTMLAttributes<HTMLTableColElement>,
+				HTMLTableColElement
+			>;
+			colgroup: Octane.DetailedHTMLProps<
+				Octane.ColgroupHTMLAttributes<HTMLTableColElement>,
+				HTMLTableColElement
+			>;
+			data: Octane.DetailedHTMLProps<Octane.DataHTMLAttributes<HTMLDataElement>, HTMLDataElement>;
+			datalist: Octane.DetailedHTMLProps<
+				Octane.HTMLAttributes<HTMLDataListElement>,
+				HTMLDataListElement
+			>;
+			dd: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			del: Octane.DetailedHTMLProps<Octane.DelHTMLAttributes<HTMLModElement>, HTMLModElement>;
+			details: Octane.DetailedHTMLProps<
+				Octane.DetailsHTMLAttributes<HTMLDetailsElement>,
+				HTMLDetailsElement
+			>;
+			dfn: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			dialog: Octane.DetailedHTMLProps<
+				Octane.DialogHTMLAttributes<HTMLDialogElement>,
+				HTMLDialogElement
+			>;
+			div: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLDivElement>, HTMLDivElement>;
+			dl: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLDListElement>, HTMLDListElement>;
+			dt: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			em: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			embed: Octane.DetailedHTMLProps<
+				Octane.EmbedHTMLAttributes<HTMLEmbedElement>,
+				HTMLEmbedElement
+			>;
+			fieldset: Octane.DetailedHTMLProps<
+				Octane.FieldsetHTMLAttributes<HTMLFieldSetElement>,
+				HTMLFieldSetElement
+			>;
+			figcaption: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			figure: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			footer: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			form: Octane.DetailedHTMLProps<Octane.FormHTMLAttributes<HTMLFormElement>, HTMLFormElement>;
+			h1: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLHeadingElement>, HTMLHeadingElement>;
+			h2: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLHeadingElement>, HTMLHeadingElement>;
+			h3: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLHeadingElement>, HTMLHeadingElement>;
+			h4: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLHeadingElement>, HTMLHeadingElement>;
+			h5: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLHeadingElement>, HTMLHeadingElement>;
+			h6: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLHeadingElement>, HTMLHeadingElement>;
+			head: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLHeadElement>, HTMLHeadElement>;
+			header: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			hgroup: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			hr: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLHRElement>, HTMLHRElement>;
+			html: Octane.DetailedHTMLProps<Octane.HtmlHTMLAttributes<HTMLHtmlElement>, HTMLHtmlElement>;
+			i: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			iframe: Octane.DetailedHTMLProps<
+				Octane.IframeHTMLAttributes<HTMLIFrameElement>,
+				HTMLIFrameElement
+			>;
+			img: Octane.DetailedHTMLProps<Octane.ImgHTMLAttributes<HTMLImageElement>, HTMLImageElement>;
+			input: Octane.DetailedHTMLProps<
+				Octane.InputHTMLAttributes<HTMLInputElement>,
+				HTMLInputElement
+			>;
+			ins: Octane.DetailedHTMLProps<Octane.InsHTMLAttributes<HTMLModElement>, HTMLModElement>;
+			kbd: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			keygen: Octane.DetailedHTMLProps<Octane.KeygenHTMLAttributes<HTMLElement>, HTMLElement>;
+			label: Octane.DetailedHTMLProps<
+				Octane.LabelHTMLAttributes<HTMLLabelElement>,
+				HTMLLabelElement
+			>;
+			legend: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLLegendElement>, HTMLLegendElement>;
+			li: Octane.DetailedHTMLProps<Octane.LiHTMLAttributes<HTMLLIElement>, HTMLLIElement>;
+			link: Octane.DetailedHTMLProps<Octane.LinkHTMLAttributes<HTMLLinkElement>, HTMLLinkElement>;
+			main: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			map: Octane.DetailedHTMLProps<Octane.MapHTMLAttributes<HTMLMapElement>, HTMLMapElement>;
+			mark: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			menu: Octane.DetailedHTMLProps<Octane.MenuHTMLAttributes<HTMLElement>, HTMLElement>;
+			menuitem: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			meta: Octane.DetailedHTMLProps<Octane.MetaHTMLAttributes<HTMLMetaElement>, HTMLMetaElement>;
+			meter: Octane.DetailedHTMLProps<
+				Octane.MeterHTMLAttributes<HTMLMeterElement>,
+				HTMLMeterElement
+			>;
+			nav: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			noindex: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			noscript: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			object: Octane.DetailedHTMLProps<
+				Octane.ObjectHTMLAttributes<HTMLObjectElement>,
+				HTMLObjectElement
+			>;
+			ol: Octane.DetailedHTMLProps<Octane.OlHTMLAttributes<HTMLOListElement>, HTMLOListElement>;
+			optgroup: Octane.DetailedHTMLProps<
+				Octane.OptgroupHTMLAttributes<HTMLOptGroupElement>,
+				HTMLOptGroupElement
+			>;
+			option: Octane.DetailedHTMLProps<
+				Octane.OptionHTMLAttributes<HTMLOptionElement>,
+				HTMLOptionElement
+			>;
+			output: Octane.DetailedHTMLProps<
+				Octane.OutputHTMLAttributes<HTMLOutputElement>,
+				HTMLOutputElement
+			>;
+			p: Octane.DetailedHTMLProps<
+				Octane.HTMLAttributes<HTMLParagraphElement>,
+				HTMLParagraphElement
+			>;
+			param: Octane.DetailedHTMLProps<
+				Octane.ParamHTMLAttributes<HTMLParamElement>,
+				HTMLParamElement
+			>;
+			picture: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			pre: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLPreElement>, HTMLPreElement>;
+			progress: Octane.DetailedHTMLProps<
+				Octane.ProgressHTMLAttributes<HTMLProgressElement>,
+				HTMLProgressElement
+			>;
+			q: Octane.DetailedHTMLProps<Octane.QuoteHTMLAttributes<HTMLQuoteElement>, HTMLQuoteElement>;
+			rp: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			rt: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			ruby: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			s: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			samp: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			search: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			slot: Octane.DetailedHTMLProps<Octane.SlotHTMLAttributes<HTMLSlotElement>, HTMLSlotElement>;
+			script: Octane.DetailedHTMLProps<
+				Octane.ScriptHTMLAttributes<HTMLScriptElement>,
+				HTMLScriptElement
+			>;
+			section: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			select: Octane.DetailedHTMLProps<
+				Octane.SelectHTMLAttributes<HTMLSelectElement>,
+				HTMLSelectElement
+			>;
+			small: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			source: Octane.DetailedHTMLProps<
+				Octane.SourceHTMLAttributes<HTMLSourceElement>,
+				HTMLSourceElement
+			>;
+			span: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLSpanElement>, HTMLSpanElement>;
+			strong: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			style: Octane.DetailedHTMLProps<
+				Octane.StyleHTMLAttributes<HTMLStyleElement>,
+				HTMLStyleElement
+			>;
+			sub: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			summary: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			sup: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			table: Octane.DetailedHTMLProps<
+				Octane.TableHTMLAttributes<HTMLTableElement>,
+				HTMLTableElement
+			>;
+			template: Octane.DetailedHTMLProps<
+				Octane.HTMLAttributes<HTMLTemplateElement>,
+				HTMLTemplateElement
+			>;
+			tbody: Octane.DetailedHTMLProps<
+				Octane.HTMLAttributes<HTMLTableSectionElement>,
+				HTMLTableSectionElement
+			>;
+			td: Octane.DetailedHTMLProps<
+				Octane.TdHTMLAttributes<HTMLTableDataCellElement>,
+				HTMLTableDataCellElement
+			>;
+			textarea: Octane.DetailedHTMLProps<
+				Octane.TextareaHTMLAttributes<HTMLTextAreaElement>,
+				HTMLTextAreaElement
+			>;
+			tfoot: Octane.DetailedHTMLProps<
+				Octane.HTMLAttributes<HTMLTableSectionElement>,
+				HTMLTableSectionElement
+			>;
+			th: Octane.DetailedHTMLProps<
+				Octane.ThHTMLAttributes<HTMLTableHeaderCellElement>,
+				HTMLTableHeaderCellElement
+			>;
+			thead: Octane.DetailedHTMLProps<
+				Octane.HTMLAttributes<HTMLTableSectionElement>,
+				HTMLTableSectionElement
+			>;
+			time: Octane.DetailedHTMLProps<Octane.TimeHTMLAttributes<HTMLTimeElement>, HTMLTimeElement>;
+			title: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLTitleElement>, HTMLTitleElement>;
+			tr: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLTableRowElement>, HTMLTableRowElement>;
+			track: Octane.DetailedHTMLProps<
+				Octane.TrackHTMLAttributes<HTMLTrackElement>,
+				HTMLTrackElement
+			>;
+			u: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			ul: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLUListElement>, HTMLUListElement>;
+			var: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			video: Octane.DetailedHTMLProps<
+				Octane.VideoHTMLAttributes<HTMLVideoElement>,
+				HTMLVideoElement
+			>;
+			wbr: Octane.DetailedHTMLProps<Octane.HTMLAttributes<HTMLElement>, HTMLElement>;
+			webview: Octane.DetailedHTMLProps<
+				Octane.WebViewHTMLAttributes<HTMLWebViewElement>,
+				HTMLWebViewElement
+			>;
+			svg: Octane.SVGProps<SVGSVGElement>;
+			animate: Octane.SVGProps<SVGElement>;
+			animateMotion: Octane.SVGProps<SVGElement>;
+			animateTransform: Octane.SVGProps<SVGElement>;
+			circle: Octane.SVGProps<SVGCircleElement>;
+			clipPath: Octane.SVGProps<SVGClipPathElement>;
+			defs: Octane.SVGProps<SVGDefsElement>;
+			desc: Octane.SVGProps<SVGDescElement>;
+			ellipse: Octane.SVGProps<SVGEllipseElement>;
+			feBlend: Octane.SVGProps<SVGFEBlendElement>;
+			feColorMatrix: Octane.SVGProps<SVGFEColorMatrixElement>;
+			feComponentTransfer: Octane.SVGProps<SVGFEComponentTransferElement>;
+			feComposite: Octane.SVGProps<SVGFECompositeElement>;
+			feConvolveMatrix: Octane.SVGProps<SVGFEConvolveMatrixElement>;
+			feDiffuseLighting: Octane.SVGProps<SVGFEDiffuseLightingElement>;
+			feDisplacementMap: Octane.SVGProps<SVGFEDisplacementMapElement>;
+			feDistantLight: Octane.SVGProps<SVGFEDistantLightElement>;
+			feDropShadow: Octane.SVGProps<SVGFEDropShadowElement>;
+			feFlood: Octane.SVGProps<SVGFEFloodElement>;
+			feFuncA: Octane.SVGProps<SVGFEFuncAElement>;
+			feFuncB: Octane.SVGProps<SVGFEFuncBElement>;
+			feFuncG: Octane.SVGProps<SVGFEFuncGElement>;
+			feFuncR: Octane.SVGProps<SVGFEFuncRElement>;
+			feGaussianBlur: Octane.SVGProps<SVGFEGaussianBlurElement>;
+			feImage: Octane.SVGProps<SVGFEImageElement>;
+			feMerge: Octane.SVGProps<SVGFEMergeElement>;
+			feMergeNode: Octane.SVGProps<SVGFEMergeNodeElement>;
+			feMorphology: Octane.SVGProps<SVGFEMorphologyElement>;
+			feOffset: Octane.SVGProps<SVGFEOffsetElement>;
+			fePointLight: Octane.SVGProps<SVGFEPointLightElement>;
+			feSpecularLighting: Octane.SVGProps<SVGFESpecularLightingElement>;
+			feSpotLight: Octane.SVGProps<SVGFESpotLightElement>;
+			feTile: Octane.SVGProps<SVGFETileElement>;
+			feTurbulence: Octane.SVGProps<SVGFETurbulenceElement>;
+			filter: Octane.SVGProps<SVGFilterElement>;
+			foreignObject: Octane.SVGProps<SVGForeignObjectElement>;
+			g: Octane.SVGProps<SVGGElement>;
+			image: Octane.SVGProps<SVGImageElement>;
+			line: Octane.SVGLineElementAttributes<SVGLineElement>;
+			linearGradient: Octane.SVGProps<SVGLinearGradientElement>;
+			marker: Octane.SVGProps<SVGMarkerElement>;
+			mask: Octane.SVGProps<SVGMaskElement>;
+			metadata: Octane.SVGProps<SVGMetadataElement>;
+			mpath: Octane.SVGProps<SVGElement>;
+			path: Octane.SVGProps<SVGPathElement>;
+			pattern: Octane.SVGProps<SVGPatternElement>;
+			polygon: Octane.SVGProps<SVGPolygonElement>;
+			polyline: Octane.SVGProps<SVGPolylineElement>;
+			radialGradient: Octane.SVGProps<SVGRadialGradientElement>;
+			rect: Octane.SVGProps<SVGRectElement>;
+			set: Octane.SVGProps<SVGSetElement>;
+			stop: Octane.SVGProps<SVGStopElement>;
+			switch: Octane.SVGProps<SVGSwitchElement>;
+			symbol: Octane.SVGProps<SVGSymbolElement>;
+			text: Octane.SVGTextElementAttributes<SVGTextElement>;
+			textPath: Octane.SVGProps<SVGTextPathElement>;
+			tspan: Octane.SVGProps<SVGTSpanElement>;
+			use: Octane.SVGProps<SVGUseElement>;
+			view: Octane.SVGProps<SVGViewElement>;
+		}
+	}
+}
+
+/** Automatic JSX runtime types include the host's direct signal bindings. */
+export namespace JSX {
+	type ElementType = Octane.JSX.ElementType;
+	interface Element extends Octane.JSX.Element {}
+	interface ElementChildrenAttribute extends Octane.JSX.ElementChildrenAttribute {}
+	interface IntrinsicAttributes extends Octane.JSX.IntrinsicAttributes {}
+	interface IntrinsicClassAttributes<T> extends Octane.JSX.IntrinsicClassAttributes<T> {}
+	interface IntrinsicElements extends BoundIntrinsicElements {}
+}
+export { Octane };
+
+// The automatic-runtime entry points, for type resolution only — octane's
+// compiler consumes JSX before any of these could be emitted. Signatures
+// mirror @types/react's jsx-runtime (`jsx(type: ElementType, props, key?):
+// ReactElement`), with the octane analogs in each position.
+export declare function jsx(
+	type: Octane.JSX.ElementType,
+	props: unknown,
+	key?: Octane.Key,
+): OctaneElement;
+export declare function jsxs(
+	type: Octane.JSX.ElementType,
+	props: unknown,
+	key?: Octane.Key,
+): OctaneElement;
+// From React's jsx-DEV-runtime (octane serves both entries from this file).
+export declare function jsxDEV(
+	type: Octane.JSX.ElementType,
+	props: unknown,
+	key?: Octane.Key,
+	isStaticChildren?: boolean,
+	source?: unknown,
+	self?: unknown,
+): OctaneElement;
+// Runtime-wise the compiler intercepts `Fragment` by name; type-wise it is a
+// component accepting children, a key, and — octane extension (React canary
+// `enableFragmentRefs` parity) — a fragment ref.
+export declare function Fragment(props: {
+	children?: unknown;
+	key?: Octane.Key | null | undefined;
+	ref?: Octane.Ref<FragmentInstance>;
+}): OctaneElement;

@@ -25,15 +25,12 @@ export { nanoid } from '../compiled/nanoid/index.mjs';
 export { default as ora } from '../compiled/ora/index.mjs';
 export { default as pkgUp } from '../compiled/pkg-up/index.js';
 export { default as semver } from '../compiled/semver';
-export { default as signale } from '../compiled/signale';
-export { default as slash } from '../compiled/slash/index.mjs';
-export { default as stripAnsi } from '../compiled/strip-ansi/index.mjs';
-export { default as upath } from '../compiled/upath/index.mjs';
-export { default as urlJoin } from '../compiled/url-join/index.mjs';
+export { default as slash } from '../compiled/slash';
+export { default as stripAnsi } from '../compiled/strip-ansi';
+export { default as upath } from '../compiled/upath';
+export { default as urlJoin } from '../compiled/url-join';
 
-import * as _chokidar from '../compiled/chokidar/index.mjs';
-import _signale from '../compiled/signale';
-export const { Signale } = _signale;
+type SignaleModule = typeof import('../compiled/signale');
 
 export type {
   ChokidarOptions as WatchOptions,
@@ -53,10 +50,19 @@ export const mime: typeof import('../compiled/mime-types') = Import.lazy(
   '../compiled/mime-types',
   getNodeRequire,
 );
-export const chokidar: typeof import('../compiled/chokidar/index.mjs') =
-  _chokidar;
-export const inquirer: typeof import('../compiled/inquirer').default =
-  Import.lazy(
-    '../compiled/inquirer',
-    () => name => getNodeRequire()(name).default,
-  );
+export const chokidar: typeof import('../compiled/chokidar') = Import.lazy(
+  '../compiled/chokidar',
+  getNodeRequire,
+);
+export const signale: SignaleModule = Import.lazy(
+  '../compiled/signale',
+  getNodeRequire,
+);
+export const Signale: SignaleModule['Signale'] = Import.lazy(
+  '../compiled/signale',
+  () => moduleName => getNodeRequire()(moduleName).Signale,
+);
+export const inquirer: typeof import('../compiled/inquirer') = Import.lazy(
+  '../compiled/inquirer',
+  getNodeRequire,
+);

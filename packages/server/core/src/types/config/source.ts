@@ -1,4 +1,4 @@
-import type { Alias } from '@modern-js/utils';
+import type { Alias } from '@modern-js/utils/alias';
 import type { ConfigChain } from './share';
 
 export interface SourceUserConfig {

@@ -21,14 +21,14 @@ function writeJson(workspaceDir: string, relativePath: string, value: unknown) {
   );
 }
 
-function expectAddVerticalFailureLeavesWorkspaceUnchanged(
+async function expectAddVerticalFailureLeavesWorkspaceUnchanged(
   workspaceDir: string,
   expectedError: RegExp,
 ) {
   const before = snapshotWorkspace(workspaceDir);
-  assert.throws(
-    () =>
-      addUltramodernVertical({
+  await assert.rejects(
+    async () =>
+      await addUltramodernVertical({
         workspaceRoot: workspaceDir,
         name: 'checkout',
         modernVersion: '3.2.1',
@@ -91,10 +91,13 @@ function addExistingTopologyVertical(
   writeJson(workspaceDir, overlayPath, overlay);
 }
 
-test('add-vertical normalizes stale shell refs for the new vertical', () => {
-  const { tempRoot, workspaceDir } = createWorkspace('preflight-workspace', {
-    tempPrefix: 'um-vertical-preflight-',
-  });
+test('add-vertical normalizes stale shell refs for the new vertical', async () => {
+  const { tempRoot, workspaceDir } = await createWorkspace(
+    'preflight-workspace',
+    {
+      tempPrefix: 'um-vertical-preflight-',
+    },
+  );
   try {
     const topology = readJson(workspaceDir, topologyPath);
     topology.shell.verticalRefs.push('catalog');
@@ -104,7 +107,7 @@ test('add-vertical normalizes stale shell refs for the new vertical', () => {
       manifestUrl: 'http://localhost:4101/mf-manifest.json',
     });
     writeJson(workspaceDir, topologyPath, topology);
-    addUltramodernVertical({
+    await addUltramodernVertical({
       workspaceRoot: workspaceDir,
       name: 'catalog',
       modernVersion: '3.2.1',
@@ -123,15 +126,18 @@ test('add-vertical normalizes stale shell refs for the new vertical', () => {
   }
 });
 
-test('preflight rejects invalid fresh vertical input before writes', () => {
-  const { tempRoot, workspaceDir } = createWorkspace('preflight-workspace', {
-    tempPrefix: 'um-vertical-preflight-',
-  });
+test('preflight rejects invalid fresh vertical input before writes', async () => {
+  const { tempRoot, workspaceDir } = await createWorkspace(
+    'preflight-workspace',
+    {
+      tempPrefix: 'um-vertical-preflight-',
+    },
+  );
   try {
     const before = snapshotWorkspace(workspaceDir);
-    assert.throws(
-      () =>
-        addUltramodernVertical({
+    await assert.rejects(
+      async () =>
+        await addUltramodernVertical({
           workspaceRoot: workspaceDir,
           name: 'Catalog',
           modernVersion: '3.2.1',
@@ -172,18 +178,18 @@ test.each([
     },
     error: /unsafe or duplicate path: \.\.\/outside/,
   },
-])('preflight rejects invalid existing state: $label', entry => {
-  const workspace = createWorkspace('preflight-workspace', {
+])('preflight rejects invalid existing state: $label', async entry => {
+  const workspace = await createWorkspace('preflight-workspace', {
     tempPrefix: 'um-vertical-preflight-',
   });
   try {
-    addUltramodernVertical({
+    await addUltramodernVertical({
       workspaceRoot: workspace.workspaceDir,
       name: 'catalog',
       modernVersion: '3.2.1',
     });
     entry.mutate(workspace.workspaceDir);
-    expectAddVerticalFailureLeavesWorkspaceUnchanged(
+    await expectAddVerticalFailureLeavesWorkspaceUnchanged(
       workspace.workspaceDir,
       entry.error,
     );
@@ -192,23 +198,23 @@ test.each([
   }
 });
 
-test('preflight rejects malformed contract collections before writes', () => {
-  const topologyWorkspace = createWorkspace('preflight-workspace', {
+test('preflight rejects malformed contract collections before writes', async () => {
+  const topologyWorkspace = await createWorkspace('preflight-workspace', {
     tempPrefix: 'um-vertical-preflight-',
   });
-  const overlayWorkspace = createWorkspace('preflight-workspace', {
+  const overlayWorkspace = await createWorkspace('preflight-workspace', {
     tempPrefix: 'um-vertical-preflight-',
   });
   try {
     writeJson(topologyWorkspace.workspaceDir, topologyPath, []);
-    expectAddVerticalFailureLeavesWorkspaceUnchanged(
+    await expectAddVerticalFailureLeavesWorkspaceUnchanged(
       topologyWorkspace.workspaceDir,
       /UltraModern workspace file must contain a JSON object: .*reference-topology\.json/,
     );
     const overlay = readJson(overlayWorkspace.workspaceDir, overlayPath);
     overlay.ports = [];
     writeJson(overlayWorkspace.workspaceDir, overlayPath, overlay);
-    expectAddVerticalFailureLeavesWorkspaceUnchanged(
+    await expectAddVerticalFailureLeavesWorkspaceUnchanged(
       overlayWorkspace.workspaceDir,
       /overlay\.ports in .*development\.json must be a JSON object/,
     );

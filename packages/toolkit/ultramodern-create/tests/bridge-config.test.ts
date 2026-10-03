@@ -216,14 +216,14 @@ test('bridge CLI parser rejects partial or invalid bridge mode', () => {
   );
 });
 
-test('bridge mode rejects parent packages that collide with generated app dependencies', () => {
+test('bridge mode rejects parent packages that collide with generated app dependencies', async () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-bridge-'));
   const workspaceDir = path.join(tempRoot, 'bridge-app');
 
   try {
-    assert.throws(
-      () =>
-        generateUltramodernWorkspace({
+    await assert.rejects(
+      async () =>
+        await generateUltramodernWorkspace({
           targetDir: workspaceDir,
           packageName: 'bridge-app',
           modernVersion: '3.2.1',
@@ -255,7 +255,7 @@ test('bridge mode rejects parent packages that collide with generated app depend
   }
 });
 
-test('bridge mode materializes delegated gates and preserves external parent participants', () => {
+test('bridge mode materializes delegated gates and preserves external parent participants', async () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-bridge-'));
   const workspaceDir = path.join(tempRoot, 'apps/bridge-app');
 
@@ -268,7 +268,7 @@ test('bridge mode materializes delegated gates and preserves external parent par
         JSON.stringify({ name: `@acme/${name}`, private: true }),
       );
     }
-    generateUltramodernWorkspace({
+    await generateUltramodernWorkspace({
       targetDir: workspaceDir,
       packageName: 'bridge-app',
       modernVersion: '3.2.1',

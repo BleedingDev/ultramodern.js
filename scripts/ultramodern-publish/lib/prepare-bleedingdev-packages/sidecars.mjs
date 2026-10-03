@@ -35,6 +35,10 @@ import {
   inspectNpmTarball,
 } from './release-artifacts.mjs';
 import { verifySidecar } from '../../../ultramodern-supply/verify-sidecars.mjs';
+import {
+  assertPackedJitiPayload,
+  stageInstalledJiti,
+} from './jiti-sidecar.mjs';
 
 const { readJsonFile } = fsKit;
 const recipes = JSON.parse(
@@ -64,6 +68,7 @@ function sidecarProvenancePolicy(name) {
 const sidecarBinNames = new Map([
   ['@bleedingdev/mf-cli', 'mf'],
   ['@bleedingdev/mf-enhanced', 'mf'],
+  ['@bleedingdev/jiti', 'jiti'],
 ]);
 
 const stableVersionPattern = /^\d+\.\d+\.\d+$/u;
@@ -77,6 +82,38 @@ const dependencyBlockNames = [
   'optionalDependencies',
   'peerDependencies',
 ];
+
+const requiredImageDependencyTargets = Object.freeze({
+  '@rsbuild-image/core': '@bleedingdev/rsbuild-image-core',
+  ipx: '@bleedingdev/ipx',
+});
+
+const correctedDependencyTargets = Object.freeze({
+  jiti: '@bleedingdev/jiti',
+  effect: '@bleedingdev/effect',
+  'drizzle-orm': '@bleedingdev/drizzle-orm',
+  zod: '@bleedingdev/zod',
+  ...Object.fromEntries(
+    [
+      'bridge-react',
+      'cli',
+      'dts-plugin',
+      'enhanced',
+      'manifest',
+      'modern-js-v3',
+      'node',
+      'rsbuild-plugin',
+      'rspack',
+      'runtime',
+      'runtime-core',
+      'runtime-tools',
+      'webpack-bundler-runtime',
+    ].map(name => [
+      `@module-federation/${name}`,
+      `@bleedingdev/mf-${name}`,
+    ]),
+  ),
+});
 
 const stagedDirectoryName = name => name.replaceAll('/', '__');
 
@@ -250,7 +287,9 @@ function collectSidecarPackages(
         name: packageJson.name,
         packageJson,
         packageJsonPath: undefined,
-        recipeOnly: true,
+        ...(recipe.id === 'jiti'
+          ? { installedPatched: true, recipe }
+          : { recipeOnly: true }),
         root,
         version: packageJson.version,
       };
@@ -365,9 +404,8 @@ function sidecarPublishOrder(sidecars) {
 }
 
 /**
- * Stage a committed sidecar verbatim or reconstruct a recipe-only sidecar from
- * its authenticated upstream artifact. Neither path applies cohort name/version
- * rewriting or consumer overrides.
+ * Stage an image sidecar verbatim, reconstruct an authenticated recipe, or copy
+ * the maintained installed Jiti payload. Sidecars retain their own versions.
  */
 async function stageSidecarPackage(
   sidecar,
@@ -376,7 +414,9 @@ async function stageSidecarPackage(
 ) {
   const packageDir = path.join(stageDir, stagedDirectoryName(sidecar.name));
   fs.rmSync(packageDir, { force: true, recursive: true });
-  if (sidecar.recipeOnly) {
+  if (sidecar.installedPatched) {
+    await stageInstalledJiti(sidecar, packageDir, repoRoot);
+  } else if (sidecar.recipeOnly) {
     await verifySidecar(path.basename(sidecar.root), {
       materializeTo: packageDir,
     });
@@ -394,7 +434,7 @@ async function stageSidecarPackage(
   const stagedPackageJsonPath = path.join(packageDir, 'package.json');
   const stagedBytes = fs.readFileSync(stagedPackageJsonPath);
   const stagedPackageJson = JSON.parse(stagedBytes);
-  if (sidecar.recipeOnly) {
+  if (sidecar.recipeOnly || sidecar.installedPatched) {
     assertSidecarName(stagedPackageJson.name, sidecar.root);
     assertSidecarVersion(stagedPackageJson.name, stagedPackageJson.version);
     assertSidecarBin(stagedPackageJson, sidecar.root);
@@ -506,6 +546,7 @@ function packStagedSidecar(
       `Packed sidecar ${sidecar.name} manifest differs from its staged package.json`,
     );
   }
+  assertPackedJitiPayload(sidecar, inspection);
   const digests = sidecarArtifactDigests(bytes);
   const computed = {
     ...digests,

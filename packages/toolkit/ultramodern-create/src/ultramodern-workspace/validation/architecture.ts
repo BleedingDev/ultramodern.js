@@ -1,9 +1,10 @@
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import type * as ts from 'typescript/unstable/ast';
-import type { API, Snapshot } from 'typescript/unstable/sync';
+import type * as ts from '@typescript/native/unstable/ast';
+import type { API, Snapshot } from '@typescript/native/unstable/sync';
 import { assert, sameJson, selfCheckFailure } from './assertions';
+import { isForeignRendererPackage } from './renderer';
 import type { JsonRecord, ValidationContract } from './types';
 
 export function assertCompilerArchitecture(
@@ -21,8 +22,10 @@ export function assertCompilerArchitecture(
   // from its package root; npm invocation environment and repository paths cannot
   // silently substitute another compiler.
   const workspaceRequire = createRequire(path.join(root, 'package.json'));
-  let typescript!: typeof import('typescript/unstable/ast');
-  let typescriptApi: typeof import('typescript/unstable/sync') | undefined;
+  let typescript!: typeof import('@typescript/native/unstable/ast');
+  let typescriptApi:
+    | typeof import('@typescript/native/unstable/sync')
+    | undefined;
   try {
     typescript = workspaceRequire('@typescript/native/unstable/ast');
     typescriptApi = workspaceRequire('@typescript/native/unstable/sync');
@@ -400,6 +403,32 @@ export function assertCompilerArchitecture(
         ),
       ]);
       initializeCompilerSnapshot(compilerInputs);
+      if (compilerSnapshot !== undefined) {
+        for (const absolutePath of compilerInputs) {
+          const selectedApp = workspaceValidationContract.apps.find(app =>
+            absolutePath.startsWith(path.join(root, app.path) + path.sep),
+          );
+          if (!selectedApp?.renderer || selectedApp.renderer === 'react')
+            continue;
+          const sourceFile = parseCompilerInput(absolutePath);
+          for (const reference of runtimeModuleReferences(sourceFile)) {
+            if (
+              isForeignRendererPackage(
+                reference.specifier,
+                selectedApp.renderer,
+              )
+            ) {
+              compilerFailure(
+                sourceFile,
+                reference.node,
+                'renderer source profile',
+                `Application ${selectedApp.id} imports foreign renderer module ${reference.specifier}.`,
+                'use the selected renderer native runtime and router',
+              );
+            }
+          }
+        }
+      }
       for (const shell of structuralPolicy.shells ?? []) {
         for (const forbidden of structuralPolicy.forbiddenPathClasses ?? []) {
           // The platform shell can host its own authentication and BFF routes.

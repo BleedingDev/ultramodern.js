@@ -1,0 +1,21 @@
+{
+  "name": "ultramodern-solid-admission",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "solid-js": "2.0.0-rc.13",
+    "@solidjs/web": "2.0.0-rc.13",
+    "@solidjs/signals": "2.0.0-rc.13",
+    "@solidjs/compiler": "2.0.0-rc.13",
+    "@modern-js/renderer-core": "3.8.3",
+    "@modern-js/renderer-solid": "3.8.3"
+  },
+  "devDependencies": {
+    "@rsbuild/core": "2.2.9",
+    "@babel/core": "7.29.7",
+    "playwright": "1.63.0",
+    "typescript": "7.0.2"
+  },
+  "packageManager": "pnpm@11.27.1"
+}

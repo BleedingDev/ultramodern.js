@@ -67,7 +67,7 @@
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "supertest": "^7.3.0",
-    "typescript": "^7.0.2"
+    "typescript": "7.0.2"
   },
   "peerDependencies": {
     "react": "^19.2.8"
@@ -77,5 +77,10 @@
     "registry": "https://registry.npmjs.org/",
     "access": "public",
     "types": "./dist/types/runtime/index.d.ts"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
   }
 }

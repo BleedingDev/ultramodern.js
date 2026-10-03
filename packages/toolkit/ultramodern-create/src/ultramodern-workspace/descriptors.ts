@@ -6,6 +6,7 @@ import {
   toPascalCase,
 } from './naming';
 import type {
+  ApplicationRenderer,
   Ownership,
   VerticalApiProtocol,
   VerticalPreset,
@@ -25,6 +26,7 @@ export {
 } from '@modern-js/app-tools-extensions/workspace-topology';
 
 export const shellApp: WorkspaceApp = {
+  renderer: 'react',
   id: 'shell-super-app',
   directory: 'apps/shell-super-app',
   packageSuffix: 'shell-super-app',
@@ -94,6 +96,7 @@ export function createNeutralOwnership(
 }
 
 export type CreateVerticalDescriptorOptions = {
+  renderer?: ApplicationRenderer;
   /** Generation preset (G2a). Defaults to `full-stack`. */
   preset?: VerticalPreset;
   /** API protocol (G7a). Defaults to `rest`. */
@@ -125,6 +128,7 @@ export function createVerticalDescriptor(
   );
   return {
     id,
+    renderer: emitsUi ? (options.renderer ?? 'react') : 'none',
     directory: `verticals/${domain}`,
     packageSuffix: domain,
     displayName: `${displayPrefix} Vertical`,

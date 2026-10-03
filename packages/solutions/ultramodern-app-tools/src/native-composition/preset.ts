@@ -6,6 +6,7 @@ import { configureUltramodernTypeChecker } from '@modern-js/app-tools-extensions
 import { resolveUltramodernReleaseIdentity } from '@modern-js/app-tools-extensions/release-identity';
 import { findHostingModuleDirectory } from '@modern-js/app-tools-extensions/runtime-package-resolution';
 import { mergeConfig } from '@modern-js/plugin/cli';
+import { type Renderer, resolveRenderer } from '@modern-js/renderer-core';
 import { type RspackChain, rspack } from '@rsbuild/core';
 import { ultramodernModuleFederationSharedPlugin } from './module-federation-shared-plugin';
 import type { AppUserConfig } from './types';
@@ -147,8 +148,9 @@ const setReactRouterBridgeSafeAliases = (
  * an application config so nested records, arrays, and hooks keep the normal
  * Modern.js merge behavior.
  */
-export const createPresetUltramodernConfig = (
+const createRendererPreset = (
   options: PresetUltramodernOptions = {},
+  renderer: Renderer = 'react',
 ): AppUserConfig => {
   const {
     environment = process.env,
@@ -160,8 +162,14 @@ export const createPresetUltramodernConfig = (
     otlpEndpoint = environment.MODERN_TELEMETRY_OTLP_ENDPOINT,
     victoriaMetricsEndpoint = environment.MODERN_TELEMETRY_VICTORIA_ENDPOINT,
     telemetryFailLoudStartup = false,
-    enableModuleFederationSSR = true,
+    enableModuleFederationSSR = renderer === 'react',
   } = options;
+
+  if (renderer !== 'react' && enableModuleFederationSSR) {
+    throw new Error(
+      `unsupported-renderer-capability: renderer ${renderer} does not support Module Federation SSR`,
+    );
+  }
 
   const server: NonNullable<AppUserConfig['server']> = {};
   const releaseIdentity = deliveryUnit
@@ -227,9 +235,7 @@ export const createPresetUltramodernConfig = (
     plugins: [ultramodernModuleFederationSharedPlugin()],
     server,
     source: {
-      // Client code only: the builder applies React Compiler to `web`
-      // environments and never to node/workerSSR/BFF graphs.
-      reactCompiler: true,
+      ...(renderer === 'react' ? { reactCompiler: true } : {}),
       ...(deliveryUnit
         ? {
             globalVars: {
@@ -242,7 +248,7 @@ export const createPresetUltramodernConfig = (
     },
     tools: {
       bundlerChain: (chain, utils) => {
-        setReactRouterBridgeSafeAliases(chain, utils);
+        if (renderer === 'react') setReactRouterBridgeSafeAliases(chain, utils);
         configureUltramodernTypeChecker(
           chain,
           utils.CHAIN_ID.PLUGIN.TS_CHECKER,
@@ -285,6 +291,10 @@ export const createPresetUltramodernConfig = (
   return presetConfig;
 };
 
+export const createPresetUltramodernConfig = (
+  options: PresetUltramodernOptions = {},
+): AppUserConfig => createRendererPreset(options);
+
 /**
  * Compose an application config over the UltraModern preset.
  *
@@ -299,7 +309,7 @@ export const presetUltramodern = (
   options: PresetUltramodernOptions = {},
 ): AppUserConfig => {
   const merged = mergeConfig<AppUserConfig, AppUserConfig>([
-    createPresetUltramodernConfig(options),
+    createRendererPreset(options, resolveRenderer(config.renderer)),
     config,
   ]);
   merged.builderPlugins = [

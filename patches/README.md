@@ -5,16 +5,16 @@ Edit `packages/toolkit/ultramodern-create/src/ultramodern-workspace/patch-invent
 
 | Package | Repository | Workspace | Purpose |
 | --- | --- | --- | --- |
-| ultracite@7.12.2 | no | none | Include the upstream MIT notice omitted from the npm artifact, preserving the exact license.md bytes at registry source commit e948def3e0b1bdba2c4264c183d960f6a05ed61f. |
-| braces@3.0.3 | yes | none | Bound parser and AST walker nesting in every repository consumer ([braces#78](https://github.com/micromatch/braces/pull/78), commit 97308a01d091b211cf015314a2d0696da28a5392); authenticated installed bytes and depth regressions guard the registry correction. Generated workspaces remain patch-free, and a mature signed dependency will replace this repository correction. |
-| @module-federation/bridge-react@2.9.2 | yes | none | Portable React declaration specifiers ([#5130](https://github.com/module-federation/core/pull/5130)). |
-| @module-federation/dts-plugin@2.9.2 | yes | none | Bind the type server to port 0 and yield a busy broker port ([#5159](https://github.com/module-federation/core/pull/5159)); execute absolute compilerInstance paths without a shell ([#5131](https://github.com/module-federation/core/pull/5131)); pass the inferred rootDir to the list-files config (the rootDir hunk of [#4947](https://github.com/module-federation/core/pull/4947)). |
-| @module-federation/manifest@2.9.2 | yes | none | Load dts-plugin lazily when DTS is disabled ([#5132](https://github.com/module-federation/core/pull/5132)). |
-| @module-federation/modern-js-v3@2.9.2 | yes | none | Resolve CLI runtime plugins through createRequire in the ESM builds ([#5133](https://github.com/module-federation/core/pull/5133)); constrain stream SSR splitChunks filters ([#4851](https://github.com/module-federation/core/pull/4851)); reset the federation runtime on server repack ([#5152](https://github.com/module-federation/core/pull/5152)); keep SSR runtime plugins out of web-worker builds ([#5155](https://github.com/module-federation/core/pull/5155)); disable server splitChunks for SSR builds ([#5156](https://github.com/module-federation/core/pull/5156)); reload SSR dev pages through the dev-server socket instead of SSRLiveReload ([#5158](https://github.com/module-federation/core/pull/5158)). |
-| @module-federation/node@2.7.52 | yes | none | Reset the federation runtime in performReload ([#5152](https://github.com/module-federation/core/pull/5152)) and guard the bundle-only module cache when called from plain Node ([#5158](https://github.com/module-federation/core/pull/5158)). |
-| @module-federation/rspack@2.9.2 | yes | none | Load dts-plugin lazily when DTS is disabled ([#5132](https://github.com/module-federation/core/pull/5132)). |
-| @module-federation/runtime-core@2.9.2 | yes | none | Add helpers.global.resetFederationRuntime() for rebuilt server bundles ([#5152](https://github.com/module-federation/core/pull/5152)). |
-| @module-federation/sdk@2.9.2 | no | none | Call the documented Node fetch hook with its URL/options tuple and declare it on loadScriptNode; preserve native response and fallback behavior. Retire only failed ESM modules so imported fetch, link and evaluation failures can retry while healthy shared modules remain cached. |
+| jiti@2.7.0 | yes | none | Observe original package resolver name/type reads and consumed main/exports/imports without replacing cached values. |
+| @module-federation/bridge-react@2.9.1 | yes | none | Portable React declaration specifiers. |
+| @module-federation/dts-plugin@2.9.1 | yes | none | Preserve declaration rootDir, native compiler execution, atomic DTS server binding, completed remote type consumption, unchanged native type materialization and exact native worker closure during compiler shutdown. |
+| @module-federation/manifest@2.9.1 | yes | none | Defer DTS loading when DTS is disabled. |
+| @module-federation/modern-js-v3@2.9.1 | yes | none | Preserve lazy compilation, framework CSS ownership, valid async splitting and native ESM CLI resolution. Ultra React composition owns SSR manifest recovery through its declared federation runtime dependency. Keep the development SSR reload script server-only and remove it before hydration. |
+| @module-federation/rspack@2.9.1 | yes | none | Defer DTS plugin loading when DTS is disabled. |
+| @module-federation/runtime-core@2.9.1 | yes | none | Import ResourceLoadContext used by public remote hooks. |
+| drizzle-orm@1.0.0-rc.4 | no | none | Strict TypeScript declarations for generated database applications. |
+| effect@4.0.0-rc.117 | yes | none | Build router params without string code generation in CSP/Worker bundles. |
+| zod@4.6.5 | yes | none | Disable code-generation capability probing in CSP/Worker bundles. |
 
 Run the command without flags to verify integrity and all projections. `--write-assets` updates only packaged assets and this document; `--write` also regenerates the repository configuration. Regenerate the lockfile with pnpm when patch bytes or dependency selectors change. Never hand-edit packaged copies.
 

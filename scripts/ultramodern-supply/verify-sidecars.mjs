@@ -429,7 +429,10 @@ export async function verifySidecar(id, { artifactsDir, materializeTo } = {}) {
   );
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'ultramodern-sidecar-'));
   try {
-    const target = materializeTo ?? path.join(temp, 'reconstructed');
+    const target = packageDir ?? path.join(root, 'packages/sidecar', id);
+    if (!materializeTo && !packageDir && recipe.artifacts.includes('*')) {
+      materializeTo = path.join(temp, 'reconstructed');
+    }
     let bytes;
     if (artifactsDir) {
       // Explicit offline input must exist and is held to the same integrity check.
@@ -466,32 +469,139 @@ export async function verifySidecar(id, { artifactsDir, materializeTo } = {}) {
         stdio: ['pipe', 'pipe', 'pipe'],
       });
     }
-    // A carried upstream PR can change the manifest too (for example its
-    // `exports`), so the publication manifest projects the patched one.
-    const patched = JSON.parse(
-      fs.readFileSync(path.join(upstreamDir, 'package.json'), 'utf8'),
+    let projected;
+    if (recipe.artifacts.includes('*')) {
+      projected = {
+        ...upstream,
+        name: recipe.fork.name,
+        version: recipe.fork.version,
+        publishConfig: {
+          registry: 'https://registry.npmjs.org/',
+          access: 'public',
+        },
+        repository: {
+          type: 'git',
+          url: 'git+https://github.com/BleedingDev/ultramodern.js.git',
+          directory: 'scripts/ultramodern-supply',
+        },
+      };
+      for (const [key, changes] of Object.entries(recipe.manifestChanges)) {
+        for (const dependencyName of Object.keys(changes)) {
+          assert.ok(
+            Object.hasOwn(upstream[key] ?? {}, dependencyName),
+            `${id}: recipe changes absent upstream ${key}.${dependencyName}`,
+          );
+        }
+        projected[key] = { ...upstream[key], ...changes };
+      }
+    }
+    if (materializeTo) {
+      assert.deepEqual(
+        recipe.artifacts,
+        ['*'],
+        `${id}: reconstruction requires the complete upstream artifact`,
+      );
+      if (packageDir) {
+        const fork = JSON.parse(
+          fs.readFileSync(path.join(target, 'package.json'), 'utf8'),
+        );
+        assert.deepEqual(
+          fork,
+          projected,
+          `${id}: recipe must account for every manifest field`,
+        );
+      }
+      fs.writeFileSync(
+        path.join(upstreamDir, 'package.json'),
+        `${JSON.stringify(projected, null, 2)}\n`,
+      );
+      fs.rmSync(materializeTo, { recursive: true, force: true });
+      fs.cpSync(upstreamDir, materializeTo, { recursive: true });
+      console.log(
+        `Reconstructed ${id}: authenticated ${recipe.upstream.name}@${recipe.upstream.version}, exact patch and publication manifest.`,
+      );
+      return upstream;
+    }
+    const fork = JSON.parse(
+      fs.readFileSync(path.join(target, 'package.json'), 'utf8'),
     );
-    assert.equal(patched.name, upstream.name);
-    assert.equal(patched.version, upstream.version);
-    const projected = {
-      ...patched,
-      name: recipe.fork.name,
-      version: recipe.fork.version,
-      publishConfig: {
-        registry: 'https://registry.npmjs.org/',
-        access: 'public',
-      },
-      repository: {
-        type: 'git',
-        url: 'git+https://github.com/BleedingDev/ultramodern.js.git',
-        directory: 'scripts/ultramodern-supply',
-      },
-    };
-    for (const [key, changes] of Object.entries(recipe.manifestChanges)) {
-      for (const dependencyName of Object.keys(changes)) {
-        assert.ok(
-          Object.hasOwn(patched[key] ?? {}, dependencyName),
-          `${id}: recipe changes absent upstream ${key}.${dependencyName}`,
+    if (projected) {
+      assert.deepEqual(
+        fork,
+        projected,
+        `${id}: recipe must account for every manifest field`,
+      );
+    }
+    assert.equal(fork.name, recipe.fork.name);
+    assert.equal(fork.version, recipe.fork.version);
+    for (const key of contractFields) {
+      const expected = recipe.manifestChanges[key]
+        ? { ...upstream[key], ...recipe.manifestChanges[key] }
+        : upstream[key];
+      assert.deepEqual(fork[key], expected, `${id}: manifest ${key}`);
+    }
+    if (recipe.artifacts.includes('*')) {
+      const expectedDevDependencies = recipe.manifestChanges.devDependencies
+        ? {
+            ...upstream.devDependencies,
+            ...recipe.manifestChanges.devDependencies,
+          }
+        : upstream.devDependencies;
+      assert.deepEqual(
+        fork.devDependencies,
+        expectedDevDependencies,
+        `${id}: manifest devDependencies`,
+      );
+    }
+    for (const artifact of recipe.artifacts) {
+      if (artifact === '*') {
+        const upstreamFiles = files(upstreamDir).filter(
+          file => file !== 'package.json',
+        );
+        const forkFiles = files(target).filter(file => file !== 'package.json');
+        assert.deepEqual(
+          forkFiles,
+          upstreamFiles,
+          `${id}: complete artifact set`,
+        );
+        for (const file of upstreamFiles) {
+          const expectedPath = path.join(upstreamDir, file);
+          const actualPath = path.join(target, file);
+          assert.deepEqual(
+            fs.readFileSync(actualPath),
+            fs.readFileSync(expectedPath),
+            `${id}: ${file}`,
+          );
+          assert.equal(
+            fs.statSync(actualPath).mode & 0o111,
+            fs.statSync(expectedPath).mode & 0o111,
+            `${id}: executable mode ${file}`,
+          );
+        }
+        continue;
+      }
+      const source = path.join(upstreamDir, artifact);
+      const destination = path.join(target, artifact);
+      const directory = fs.statSync(source).isDirectory();
+      const entries = directory ? files(source) : [''];
+      if (directory)
+        assert.deepEqual(
+          files(destination),
+          entries,
+          `${id}: ${artifact} file set`,
+        );
+      for (const file of entries) {
+        const expectedPath = path.join(source, file);
+        const actualPath = path.join(destination, file);
+        assert.deepEqual(
+          fs.readFileSync(actualPath),
+          fs.readFileSync(expectedPath),
+          `${id}: ${artifact}/${file}`,
+        );
+        assert.equal(
+          fs.statSync(actualPath).mode & 0o111,
+          fs.statSync(expectedPath).mode & 0o111,
+          `${id}: executable mode ${artifact}/${file}`,
         );
       }
       projected[key] = { ...patched[key], ...changes };

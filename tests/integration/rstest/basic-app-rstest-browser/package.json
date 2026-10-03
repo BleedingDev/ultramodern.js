@@ -26,6 +26,6 @@
     "@types/react-dom": "^19.3.0",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "playwright": "^1.63.0",
-    "typescript": "^7.0.2"
+    "typescript": "7.0.2"
   }
 }

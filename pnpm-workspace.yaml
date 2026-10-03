@@ -56,14 +56,15 @@ allowBuilds:
   workerd: true
 
 patchedDependencies:
-  'braces@3.0.3': patches/braces@3.0.3.patch
-  '@module-federation/bridge-react@2.9.2': patches/@module-federation__bridge-react@2.9.2.patch
-  '@module-federation/dts-plugin@2.9.2': patches/@module-federation__dts-plugin@2.9.2.patch
-  '@module-federation/manifest@2.9.2': patches/@module-federation__manifest@2.9.2.patch
-  '@module-federation/modern-js-v3@2.9.2': patches/@module-federation__modern-js-v3@2.9.2.patch
-  '@module-federation/node@2.7.52': patches/@module-federation__node@2.7.52.patch
-  '@module-federation/rspack@2.9.2': patches/@module-federation__rspack@2.9.2.patch
-  '@module-federation/runtime-core@2.9.2': patches/@module-federation__runtime-core@2.9.2.patch
+  'jiti@2.7.0': patches/jiti@2.7.0.patch
+  '@module-federation/bridge-react@2.9.1': patches/@module-federation__bridge-react@2.9.1.patch
+  '@module-federation/dts-plugin@2.9.1': patches/@module-federation__dts-plugin@2.9.1.patch
+  '@module-federation/manifest@2.9.1': patches/@module-federation__manifest@2.9.1.patch
+  '@module-federation/modern-js-v3@2.9.1': patches/@module-federation__modern-js-v3@2.9.1.patch
+  '@module-federation/rspack@2.9.1': patches/@module-federation__rspack@2.9.1.patch
+  '@module-federation/runtime-core@2.9.1': patches/@module-federation__runtime-core@2.9.1.patch
+  'effect@4.0.0-rc.117': patches/effect@4.0.0-rc.117.patch
+  'zod@4.6.5': patches/zod@4.6.5.patch
 overrides:
   # Minimum versions that contain the October 2026 advisory fixes.
   'source-map-js@>=1.0.0 <1.2.2': 1.2.2
@@ -82,23 +83,26 @@ overrides:
   # their own router version in package.json, never through a parent selector.
   'react-router@>=7.0.0 <7.18.2': 7.18.4
   'react-router@>=8.0.0 <8.3.1': 8.4.0
-  'tar@>=7.0.0 <7.5.22': 7.5.22
-  'diff@>=4.0.0 <4.0.4': 4.0.4
-  'debug@>=4.0.0 <4.4.3': 4.4.3
-  'cross-spawn@>=7.0.0 <7.0.6': 7.0.6
-  'lodash-es@>=4.0.0 <4.18.1': 4.18.1
-  'tmp@>=0.2.0 <0.2.7': 0.2.7
-  'minimatch@3>brace-expansion': 1.1.21
-  'minimatch@9>brace-expansion': 2.1.7
-  'brace-expansion@>=5.0.0 <5.0.12': 5.0.12
-  'yaml@>=1.0.0 <1.10.3': 1.10.3
-  'yaml@>=2.0.0 <2.9.1': 2.9.1
-  'qs@>=6.0.0 <6.16.0': 6.16.0
-  'smol-toml@>=1.0.0 <1.9.0': 1.9.0
-  'dompurify@>=3.0.0 <3.4.16': 3.4.16
-  'serialize-javascript@>=7.0.0 <7.1.2': 7.1.2
-  'ws@>=7.0.0 <7.5.11': 7.5.11
-  'ws@>=8.0.0 <8.21.3': 8.21.3
+  '@modern-js/runtime-utils>react-router': 7.18.4
+  'dev-server>react-router': 8.3.1
+  h3: '>=1.15.11'
+  tar: '>=7.5.22'
+  diff: '>=9.0.0'
+  debug: '>=4.4.3'
+  cross-spawn: '>=7.0.6'
+  lodash-es: '>=4.18.1'
+  esbuild: '>=0.28.2'
+  tmp: '>=0.2.7'
+  '@isaacs/brace-expansion': '>=5.0.1'
+  'minimatch@3>brace-expansion': 1.1.18
+  'minimatch@9>brace-expansion': 2.1.4
+  'brace-expansion@': 5.0.12
+  yaml: '>=2.9.1'
+  qs: '>=6.16.0'
+  smol-toml: '>=1.9.0'
+  dompurify: '>=3.4.15'
+  serialize-javascript: '>=7.1.1'
+  ws: '>=8.21.3'
   'fast-uri@>=3.0.0 <3.1.6': 3.1.8
   'follow-redirects@>=1.0.0 <1.16.0': 1.16.0
   'handlebars@>=4.0.0 <4.7.9': 4.7.9

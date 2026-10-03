@@ -119,7 +119,7 @@ export const generateCode = async (
             entryName,
             customEntry,
             mountId,
-            enableRsc: config.server.rsc,
+            enableRsc: Boolean(config.server.rsc),
             isNestedRouter: !!entrypoint.nestedRoutesEntry,
           });
         }
@@ -192,7 +192,7 @@ requestHandler.catch(() => {});`,
             mode: ssrMode,
             customServerEntry,
             srcDirectory,
-            enableRsc: config.server.rsc,
+            enableRsc: Boolean(config.server.rsc),
           });
           const indexServerFile = path.resolve(
             internalDirectory,

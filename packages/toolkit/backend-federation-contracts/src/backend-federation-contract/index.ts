@@ -1,4 +1,5 @@
 export {
+  assertUltramodernBuildArtifact,
   createUltramodernBuildArtifact,
   isUltramodernBuildArtifact,
   stampUltramodernBuildArtifactIdentity,
@@ -18,6 +19,7 @@ export {
   DELIVERY_UNIT_SCHEMA_VERSION,
   ULTRAMODERN_BUILD_ARTIFACT_FILE,
   ULTRAMODERN_BUILD_ARTIFACT_PATH,
+  ULTRAMODERN_BUILD_ARTIFACT_SCHEMA_VERSION,
   ULTRAMODERN_BUILD_MODULE_FILE,
   ULTRAMODERN_BUILD_MODULE_PATH,
 } from './constants';
@@ -38,14 +40,41 @@ export {
   validateBackendFederationMetadata,
 } from './metadata';
 export type {
+  RendererIdentity,
+  RendererName,
+  RendererPackageIdentity,
+  RendererProfile,
+} from './renderer-profile';
+export {
+  assertRendererProfileCompatibility,
+  RENDERER_PROTOCOL_VERSION,
+  RENDERERS,
+  validateRendererIdentity,
+  validateRendererProfile,
+  validateRendererProfileCompatibility,
+  validateRendererRouterPackageIdentity,
+} from './renderer-profile';
+export {
+  immutableRendererRouterBindings,
+  type RendererRouterBinding,
+  type RendererRouterBindings,
+  type RouterFramework,
+  type RouterPackageBinding,
+  validateRendererRouterBindings,
+} from './renderer-router-bindings';
+export { resolveUltramodernBuildArtifact } from './runtime-build-artifact';
+export type {
   BackendFederationContractValidationError,
   BackendFederationContractValidationResult,
+  CreateUltramodernBuildArtifactOptions,
   DeliveryUnitContractBlock,
   DeliveryUnitIdentity,
   DeliveryUnitRecord,
+  UltramodernBuildApiSurface,
   UltramodernBuildArtifact,
   UltramodernBuildDeliveryUnit,
   UltramodernBuildSurface,
+  UltramodernBuildUiSurface,
   ValidateBackendFederationManifestOptions,
   ValidateBackendFederationMetadataOptions,
   ValidateDeliveryUnitIdentityOptions,

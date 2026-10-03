@@ -12,6 +12,106 @@ async function loadWorkerModule(workerPath) {
   return workerModulePromises.get(workerPath);
 }
 
+function createWorkerRendererGuardResponse(request) {
+  const deliveryUnit = MODERN_WORKER_MANIFEST.deliveryUnit;
+  const surfaces = deliveryUnit?.surfaces;
+  // API identity is universal. Only an explicit UI surface selects a renderer.
+  if (!surfaces || !Object.hasOwn(surfaces, 'ui')) {
+    return undefined;
+  }
+
+  const ui = surfaces.ui;
+  const identity = ui?.rendererIdentity;
+  const profile = ui?.rendererProfile;
+  const isNative = [identity?.renderer, profile?.renderer].some(
+    renderer => renderer === 'solid' || renderer === 'octane',
+  );
+  if (
+    isNative &&
+    (request.headers.has('x-rsc-tree') || request.headers.has('x-rsc-action'))
+  ) {
+    return Response.json(
+      { code: 'unsupported-renderer-capability', capability: 'rsc' },
+      { status: 400, headers: { 'cache-control': 'no-store' } },
+    );
+  }
+
+  const isRecord = value =>
+    value !== null && typeof value === 'object' && !Array.isArray(value);
+  const isCanonicalString = value =>
+    typeof value === 'string' && value.length > 0 && value.trim() === value;
+  const hasExactFields = (value, fields) =>
+    isRecord(value) &&
+    Object.keys(value).every(field => fields.includes(field)) &&
+    fields.every(field => Object.hasOwn(value, field));
+  const exactVersion =
+    /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/u;
+  const isPackageIdentity = (value, router = false, hydration = false) => {
+    const fields = router
+      ? ['name', 'version', 'coreVersion']
+      : ['name', 'version'];
+    return (
+      hasExactFields(value, fields) &&
+      isCanonicalString(value.name) &&
+      (router ? ['version', 'coreVersion'] : ['version']).every(
+        field =>
+          isCanonicalString(value[field]) &&
+          (exactVersion.test(value[field]) ||
+            (hydration && /^[1-9]\d*$/u.test(value[field]))),
+      )
+    );
+  };
+  const validMetadata =
+    isRecord(ui) &&
+    ui.surface === 'ui' &&
+    hasExactFields(identity, [
+      'renderer',
+      'appId',
+      'entryName',
+      'protocolVersion',
+      'buildId',
+    ]) &&
+    ['react', 'solid', 'octane'].includes(identity.renderer) &&
+    identity.protocolVersion === 1 &&
+    ['appId', 'entryName', 'buildId'].every(field =>
+      isCanonicalString(identity[field]),
+    ) &&
+    identity.appId === ui.appId &&
+    ui.appId === deliveryUnit.appId &&
+    identity.buildId === ui.buildMarker &&
+    ui.buildMarker === deliveryUnit.buildMarker &&
+    hasExactFields(profile, [
+      'renderer',
+      'protocolVersion',
+      'compiler',
+      'hydration',
+      'router',
+    ]) &&
+    profile.renderer === identity.renderer &&
+    profile.protocolVersion === identity.protocolVersion &&
+    isPackageIdentity(profile.compiler) &&
+    isPackageIdentity(profile.hydration, false, true) &&
+    isPackageIdentity(profile.router, true);
+
+  if (!validMetadata) {
+    return Response.json(
+      { code: 'invalid-renderer-metadata' },
+      { status: 500, headers: { 'cache-control': 'no-store' } },
+    );
+  }
+  if (isNative) {
+    return Response.json(
+      {
+        code: 'unsupported-renderer-capability',
+        capability: 'cloudflare-worker',
+        renderer: identity.renderer,
+      },
+      { status: 501, headers: { 'cache-control': 'no-store' } },
+    );
+  }
+  return undefined;
+}
+
 function getRuntimeModule(workerModule) {
   const defaultExport = workerModule.default;
   const nestedDefaultExport =
@@ -99,6 +199,8 @@ async function dispatchRouteDataRequest(route, request) {
 }
 
 async function dispatchRouteWorker(route, request, env, ctx) {
+  const rendererRejection = createWorkerRendererGuardResponse(request);
+  if (rendererRejection) return rendererRejection;
   const workerPath = route.worker;
   if (!workerPath) {
     return new Response('Worker bundle not configured for SSR route', {
@@ -125,6 +227,30 @@ async function dispatchRouteWorker(route, request, env, ctx) {
 
   if (fetchHandler) {
     return fetchHandler(request, env, ctx);
+  }
+
+  const runtime = getRuntimeModule(workerModule);
+  // Match the native server dispatcher: actions precede Flight trees, and
+  // neither path may fall back to HTML rendering or rewrite the Request body.
+  if (request.headers.get('x-rsc-action')) {
+    const handleAction = await runtime.handleAction;
+    if (typeof handleAction !== 'function') {
+      return new Response('Cannot find server action handler', { status: 500 });
+    }
+    return handleAction(request);
+  }
+
+  if (request.headers.get('x-rsc-tree')) {
+    const rscPayloadHandler = await runtime.rscPayloadHandler;
+    if (typeof rscPayloadHandler !== 'function') {
+      return new Response('Cannot find request handler for RSC', {
+        status: 500,
+      });
+    }
+    return rscPayloadHandler(
+      request,
+      await getRequestHandlerOptions(route, request, env, false),
+    );
   }
 
   const requestHandler = await getRequestHandler(workerModule);
@@ -325,24 +451,9 @@ async function createEffectBffDispatcher(bff, runtime) {
   return effectDispatcher;
 }
 
-function disposeEffectBffDispatcherAfterResponse(response, dispatcher, ctx) {
-  if (response.body === null) {
-    ctx.waitUntil(dispatcher.dispose());
-    return response;
-  }
-  const { readable, writable } = new TransformStream();
-  // The body pipe settles when the client has the whole body or the stream failed; a failure
-  // already reached the client through `readable`, so it only has to release the runtime here.
-  ctx.waitUntil(
-    response.body
-      .pipeTo(writable)
-      .catch(() => undefined)
-      .then(() => dispatcher.dispose()),
-  );
-  return new Response(readable, response);
-}
-
-async function dispatchBffRequest(request, env, ctx) {
+async function dispatchBffRequest(request, env) {
+  const rendererRejection = createWorkerRendererGuardResponse(request);
+  if (rendererRejection) return rendererRejection;
   const bff = MODERN_WORKER_MANIFEST.bff;
 
   const requestUrl = new URL(request.url);

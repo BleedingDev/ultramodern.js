@@ -14,7 +14,7 @@ export function workspaceArtifactCandidates(
   alternateApps: WorkspaceApp[] = [],
 ): ArtifactCandidate[] {
   return [
-    ...createWorkspaceScriptArtifacts(),
+    ...createWorkspaceScriptArtifacts(apps[0]?.renderer),
     {
       relativePath: 'tsconfig.json',
       content: `${JSON.stringify(createRootTsConfig(apps), null, 2)}\n`,
@@ -178,14 +178,29 @@ export function preserveConsumerWorkspaceArtifacts(
   };
   return {
     preservedPaths,
+    canonicalGeneratedPaths: new Set(
+      [...recognizedPaths].flatMap(([relativePath, recognized]) =>
+        recognized ? [relativePath] : [],
+      ),
+    ),
     io: {
       write: (filePath: string, content: string) => {
         if (isPreserved(filePath)) return false;
-        writeFileReplacing(
-          workspaceRoot,
-          path.relative(workspaceRoot, filePath),
-          content,
-        );
+        const relativePath = path
+          .relative(workspaceRoot, filePath)
+          .split(path.sep)
+          .join('/');
+        if (recognizedPaths.get(relativePath) && fs.existsSync(filePath)) {
+          const current = fs.readFileSync(filePath, 'utf8');
+          if (current === content) return false;
+          const [canonicalCurrent, canonicalNext] =
+            formatGeneratedSourceCandidates([
+              [`canonical/current/${relativePath}`, current],
+              [`canonical/next/${relativePath}`, content],
+            ]);
+          if (canonicalCurrent === canonicalNext) return false;
+        }
+        writeFileReplacing(workspaceRoot, relativePath, content);
         return true;
       },
     },

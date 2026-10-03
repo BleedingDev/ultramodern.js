@@ -12,7 +12,8 @@ import type {
   ServerRoute,
 } from '@modern-js/types';
 import { getModifyHtmlPartials } from '../plugins/analyze/getHtmlTemplate';
-import type { AppTools, AppToolsNormalizedConfig } from '../types';
+import type { AppTools, AppToolsNormalizedConfig } from '../types/config';
+import type { AppToolsHookRunners } from '../types/plugin-base';
 import {
   transformHookParams,
   transformHookResult,
@@ -24,7 +25,7 @@ import {
  */
 export function getHookRunners(
   context: InternalContext<AppTools>,
-): Record<string, any> {
+): AppToolsHookRunners {
   const { hooks } = context;
   return {
     /**

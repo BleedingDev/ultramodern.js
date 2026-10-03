@@ -10,13 +10,13 @@ import {
 import { linkBuiltRuntimeExtensions } from './helpers/build-module';
 import { runStableTypeScript } from './helpers/stable-typescript';
 
-function scaffoldSharedContractsWorkspace() {
+async function scaffoldSharedContractsWorkspace() {
   const tempRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), 'um-shared-contracts-'),
   );
   const workspaceDir = path.join(tempRoot, 'shared-contracts-workspace');
 
-  generateUltramodernWorkspace({
+  await generateUltramodernWorkspace({
     targetDir: workspaceDir,
     packageName: 'shared-contracts-workspace',
     modernVersion: '3.2.1',
@@ -25,12 +25,12 @@ function scaffoldSharedContractsWorkspace() {
       strategy: 'workspace',
     },
   });
-  addUltramodernVertical({
+  await addUltramodernVertical({
     workspaceRoot: workspaceDir,
     name: 'checkout',
     modernVersion: '3.2.1',
   });
-  addUltramodernVertical({
+  await addUltramodernVertical({
     workspaceRoot: workspaceDir,
     name: 'explore',
     modernVersion: '3.2.1',
@@ -89,8 +89,8 @@ function loadGeneratedSharedContracts(workspaceDir: string) {
   return contracts;
 }
 
-test('generated shared contracts expose neutral workspace event helpers', () => {
-  const { tempRoot, workspaceDir } = scaffoldSharedContractsWorkspace();
+test('generated shared contracts expose neutral workspace event helpers', async () => {
+  const { tempRoot, workspaceDir } = await scaffoldSharedContractsWorkspace();
 
   try {
     const contracts = loadGeneratedSharedContracts(workspaceDir);

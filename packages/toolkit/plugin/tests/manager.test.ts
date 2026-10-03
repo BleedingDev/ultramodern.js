@@ -1,7 +1,7 @@
 import { createPluginManager } from '../src/manager';
-import type { CLIPlugin } from '../src/types/plugin';
+import type { Plugin } from '../src/types/plugin';
 
-const pluginModern = (): CLIPlugin<{}, {}> => {
+const pluginModern = (): Plugin<{}, {}> => {
   return {
     name: 'pluginModern',
     setup() {
@@ -10,7 +10,7 @@ const pluginModern = (): CLIPlugin<{}, {}> => {
   };
 };
 
-const pluginInner = (): CLIPlugin<{}, {}> => {
+const pluginInner = (): Plugin<{}, {}> => {
   return {
     name: 'pluginInner',
     usePlugins: [pluginModern()],
@@ -21,7 +21,7 @@ const pluginInner = (): CLIPlugin<{}, {}> => {
   };
 };
 
-const pluginPost = (): CLIPlugin<{}, {}> => {
+const pluginPost = (): Plugin<{}, {}> => {
   return {
     name: 'pluginPost',
     usePlugins: [pluginModern()],
@@ -32,7 +32,7 @@ const pluginPost = (): CLIPlugin<{}, {}> => {
   };
 };
 
-const pluginCustom = (): CLIPlugin<{}, {}> => {
+const pluginCustom = (): Plugin<{}, {}> => {
   return {
     name: 'pluginCustom',
     post: ['pluginInner', 'pluginPost'],
@@ -86,7 +86,7 @@ describe('plugin order', () => {
   });
 
   it('detects circular dependencies', () => {
-    const pluginCircular = (): CLIPlugin<{}, {}> => {
+    const pluginCircular = (): Plugin<{}, {}> => {
       return {
         name: 'pluginCircular',
         pre: ['pluginInner'],
@@ -102,5 +102,30 @@ describe('plugin order', () => {
     expect(() => manager.getPlugins()).toThrow(
       'Circular dependency detected: pluginInner',
     );
+  });
+
+  it('retains a typed setup API and the original nested plugin instances', async () => {
+    type API = { record(value: number): void };
+    type Context = { application: string };
+    const manager = createPluginManager<API, Context>();
+    const child: Plugin<API, Context> = {
+      name: 'typed-child',
+      setup(api) {
+        api.record(42);
+      },
+    };
+    const parent: Plugin<API, Context> = {
+      name: 'typed-parent',
+      usePlugins: [child],
+    };
+    manager.addPlugins([parent, false]);
+    const plugins: Plugin<API, Context>[] = manager.getPlugins();
+    expect(plugins).toEqual([child, parent]);
+    expect(plugins[0]).toBe(child);
+    const values: number[] = [];
+    await plugins[0].setup?.({ record: value => values.push(value) });
+    expect(values).toEqual([42]);
+    manager.clear();
+    expect(manager.getPlugins()).toEqual([]);
   });
 });

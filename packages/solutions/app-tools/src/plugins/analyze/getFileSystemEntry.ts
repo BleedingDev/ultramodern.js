@@ -1,4 +1,5 @@
-import type { Entrypoint } from '@modern-js/types';
+import type { AppContext, CLIPluginExtends } from '@modern-js/plugin/cli';
+import type { Entrypoint } from '@modern-js/types/cli/base';
 import {
   ensureAbsolutePath,
   findExists,
@@ -6,8 +7,8 @@ import {
 } from '@modern-js/utils';
 import fs from 'fs';
 import path from 'path';
-import type { AppNormalizedConfig } from '../../types';
-import type { AppToolsContext, AppToolsHooks } from '../../types/plugin';
+import type { AppToolsNormalizedConfig } from '../../types/config/base';
+import type { AppToolsExtendHooksBase } from '../../types/plugin-base';
 import { ENTRY_FILE_NAME } from './constants';
 
 export type { Entrypoint };
@@ -24,7 +25,10 @@ export const hasServerEntry = (dir: string) =>
     ),
   );
 
-const isBundleEntry = async (hooks: AppToolsHooks, dir: string) => {
+const isBundleEntry = async (
+  hooks: Pick<AppToolsExtendHooksBase<never>, 'checkEntryPoint'>,
+  dir: string,
+) => {
   const { entry } = await hooks.checkEntryPoint.call({
     path: dir,
     entry: false,
@@ -40,7 +44,7 @@ const isBundleEntry = async (hooks: AppToolsHooks, dir: string) => {
 };
 
 const scanDir = async (
-  hooks: AppToolsHooks,
+  hooks: Pick<AppToolsExtendHooksBase<never>, 'checkEntryPoint'>,
   dirs: string[],
 ): Promise<Entrypoint[]> => {
   const entries = await Promise.all(
@@ -90,11 +94,14 @@ const scanDir = async (
 };
 
 export const getFileSystemEntry = async (
-  hooks: AppToolsHooks,
-  appContext: AppToolsContext,
-  config: AppNormalizedConfig,
+  hooks: Pick<AppToolsExtendHooksBase<never>, 'checkEntryPoint'>,
+  appContext: Pick<
+    AppContext<CLIPluginExtends>,
+    'appDirectory' | 'packageMetadataRead'
+  >,
+  config: Pick<AppToolsNormalizedConfig, 'source'>,
 ): Promise<Entrypoint[]> => {
-  const { appDirectory } = appContext;
+  const { appDirectory, packageMetadataRead } = appContext;
 
   const {
     source: { entriesDir },
@@ -102,8 +109,18 @@ export const getFileSystemEntry = async (
 
   const src = ensureAbsolutePath(appDirectory, entriesDir || '');
 
-  if (fs.existsSync(src)) {
-    if (fs.statSync(src).isDirectory()) {
+  const exists = () => fs.existsSync(src);
+  if (
+    packageMetadataRead?.entryPathRead
+      ? packageMetadataRead.entryPathRead(exists)
+      : exists()
+  ) {
+    const isDirectory = () => fs.statSync(src).isDirectory();
+    if (
+      packageMetadataRead?.entryPathRead
+        ? packageMetadataRead.entryPathRead(isDirectory)
+        : isDirectory()
+    ) {
       if (await isBundleEntry(hooks, src)) {
         return scanDir(hooks, [src]);
       }

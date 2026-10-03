@@ -68,6 +68,12 @@
       "import": "./dist/esm-node/cloudflare-output-verifier/*.mjs",
       "require": "./dist/cjs/cloudflare-output-verifier/*.js"
     },
+    "./internal-effect-discovery": {
+      "types": "./dist/types/build-config/internal-effect-discovery.d.ts",
+      "modern:source": "./src/build-config/internal-effect-discovery.ts",
+      "import": "./dist/cjs/build-config/internal-effect-discovery.js",
+      "require": "./dist/cjs/build-config/internal-effect-discovery.js"
+    },
     "./config": {
       "types": "./dist/types/config.d.ts",
       "modern:source": "./src/config.ts",
@@ -86,11 +92,29 @@
       "import": "./dist/esm-node/release-envelope/*.mjs",
       "require": "./dist/cjs/release-envelope/*.js"
     },
+    "./renderer-build-identity": {
+      "types": "./dist/types/renderer-build-identity.d.ts",
+      "modern:source": "./src/renderer-build-identity.ts",
+      "import": "./dist/esm-node/renderer-build-identity.mjs",
+      "require": "./dist/cjs/renderer-build-identity.js"
+    },
+    "./renderer-generated-outputs": {
+      "types": "./dist/types/renderer-generated-outputs.d.ts",
+      "modern:source": "./src/renderer-generated-outputs.ts",
+      "import": "./dist/esm-node/renderer-generated-outputs.mjs",
+      "require": "./dist/cjs/renderer-generated-outputs.js"
+    },
     "./release-identity": {
       "types": "./dist/types/release-identity.d.ts",
       "modern:source": "./src/release-identity.ts",
       "import": "./dist/esm-node/release-identity.mjs",
       "require": "./dist/cjs/release-identity.js"
+    },
+    "./native-config-load-provider": {
+      "types": "./dist/types/native-config-load-provider.d.ts",
+      "modern:source": "./src/native-config-load-provider.ts",
+      "import": "./dist/esm-node/native-config-load-provider.mjs",
+      "require": "./dist/cjs/native-config-load-provider.js"
     },
     "./native-type-checker": {
       "types": "./dist/types/native-type-checker.d.ts",
@@ -190,12 +214,10 @@
   "dependencies": {
     "@babel/parser": "^8.0.6",
     "@babel/traverse": "^8.0.6",
-    "@loadable/component": "5.16.7",
     "@modern-js/backend-federation-contracts": "workspace:*",
     "@modern-js/builder": "workspace:*",
+    "@modern-js/plugin": "workspace:*",
     "@modern-js/prod-server": "workspace:*",
-    "@modern-js/runtime-renderer-extensions": "workspace:*",
-    "@modern-js/runtime-utils": "workspace:*",
     "@modern-js/server-core": "workspace:*",
     "@modern-js/server-runtime-extensions": "workspace:*",
     "@modern-js/surface-resolution": "workspace:*",
@@ -208,11 +230,11 @@
     "std-env": "4.3.0"
   },
   "peerDependencies": {
-    "@rsbuild/core": "2.2.9"
+    "@rsbuild/core": "2.2.9",
+    "@loadable/component": "5.16.7",
+    "@modern-js/runtime-renderer-extensions": "workspace:*"
   },
   "devDependencies": {
-    "@modern-js/bff-effect": "workspace:*",
-    "@modern-js/plugin": "workspace:*",
     "@modern-js/plugin-bff-extensions": "workspace:*",
     "@modern-js/plugin-data-loader": "workspace:*",
     "@modern-js/rslib": "workspace:*",
@@ -222,20 +244,25 @@
     "@rslib/core": "1.0.3",
     "@scripts/rstest-config": "workspace:*",
     "@types/babel__traverse": "7.28.0",
-    "@types/node": "^26.6.3",
-    "@typescript/native-preview": "7.0.0-dev.20260707.2",
+    "@types/node": "^26.6.2",
     "core-js": "^3.50.0",
-    "effect": "4.0.0",
-    "miniflare": "5.20260930.0-alpha",
+    "effect": "4.0.0-rc.117",
     "ndepe": "^0.1.13",
-    "pg": "8.23.1",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "@loadable/component": "5.16.7",
+    "@modern-js/runtime-renderer-extensions": "workspace:*"
   },
   "sideEffects": false,
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",
     "access": "public",
     "types": "./dist/types/index.d.ts"
+  },
+  "peerDependenciesMeta": {
+    "@loadable/component": {
+      "optional": true
+    },
+    "@modern-js/runtime-renderer-extensions": {
+      "optional": true
+    }
   }
 }

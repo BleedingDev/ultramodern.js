@@ -16,10 +16,10 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { parse, stringify } from 'yaml';
+import tsgoInvocation from '../../lib/tsgo-invocation.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
-const tsgo = join(root, 'node_modules/.bin/tsgo');
 
 function readManifest(file) {
   return JSON.parse(readFileSync(file, 'utf8'));
@@ -120,15 +120,16 @@ function installedVersion(name, fromDirectory) {
 }
 
 function compile(consumerDirectory, configName) {
-  const result = spawnSync(
-    tsgo,
-    ['--project', join(consumerDirectory, configName)],
-    {
-      cwd: consumerDirectory,
-      encoding: 'utf8',
-      timeout: 120_000,
-    },
-  );
+  const invocation = tsgoInvocation.createTsgoInvocation({
+    requireFrom: createRequire(import.meta.url),
+    args: ['--project', join(consumerDirectory, configName)],
+  });
+  const result = spawnSync(invocation.command, invocation.argv, {
+    cwd: consumerDirectory,
+    encoding: 'utf8',
+    timeout: 120_000,
+    shell: invocation.shell,
+  });
   return {
     ...result,
     output: `${result.stdout ?? ''}${result.stderr ?? ''}`,
@@ -232,13 +233,7 @@ test('packed runtime registry and TanStack runtime declarations resolve for a Ty
     );
     writeFileSync(
       join(consumerDirectory, 'pnpm-workspace.yaml'),
-      stringify({
-        packages: ['.'],
-        overrides,
-        minimumReleaseAgeExclude: parse(
-          readFileSync(join(root, 'pnpm-workspace.yaml'), 'utf8'),
-        ).minimumReleaseAgeExclude.filter(selector => !selector.includes('*')),
-      }),
+      stringify({ packages: ['.'], overrides }),
     );
 
     const install = spawnSync(
@@ -261,6 +256,15 @@ test('packed runtime registry and TanStack runtime declarations resolve for a Ty
       0,
       `packed consumer install failed\n${install.stdout}\n${install.stderr}`,
     );
+    const lockfile = parse(
+      readFileSync(join(consumerDirectory, 'pnpm-lock.yaml'), 'utf8'),
+    );
+    assert.deepEqual(
+      lockfile.overrides,
+      overrides,
+      'pnpm must apply every packed workspace package override',
+    );
+    assert.equal(lockfile.settings.autoInstallPeers, false);
 
     writeFileSync(
       join(consumerDirectory, 'positive.ts'),

@@ -41,7 +41,7 @@ function assertGeneratedVertical(workspaceDir: string, name: string) {
   );
 }
 
-test('CLI MicroVertical flow supports positional and explicit vertical names', () => {
+test('CLI MicroVertical flow supports positional and explicit vertical names', async () => {
   const cases = [
     {
       workspace: 'vertical-cli-positional',
@@ -66,9 +66,12 @@ test('CLI MicroVertical flow supports positional and explicit vertical names', (
   ];
 
   for (const testCase of cases) {
-    const { tempRoot, workspaceDir } = createWorkspace(testCase.workspace, {
-      tempPrefix: 'um-vertical-cli-',
-    });
+    const { tempRoot, workspaceDir } = await createWorkspace(
+      testCase.workspace,
+      {
+        tempPrefix: 'um-vertical-cli-',
+      },
+    );
 
     try {
       const result = runCli(workspaceDir, testCase.args);
@@ -80,8 +83,10 @@ test('CLI MicroVertical flow supports positional and explicit vertical names', (
   }
 });
 
-test('CLI MicroVertical flow rejects ambiguous vertical names without writes', () => {
-  const { tempRoot, workspaceDir } = createWorkspace('vertical-cli-ambiguous');
+test('CLI MicroVertical flow rejects ambiguous vertical names without writes', async () => {
+  const { tempRoot, workspaceDir } = await createWorkspace(
+    'vertical-cli-ambiguous',
+  );
 
   try {
     const before = snapshotWorkspace(workspaceDir);
@@ -97,8 +102,10 @@ test('CLI MicroVertical flow rejects ambiguous vertical names without writes', (
   }
 });
 
-test('CLI MicroVertical flow rejects missing vertical names without writes', () => {
-  const { tempRoot, workspaceDir } = createWorkspace('vertical-cli-missing');
+test('CLI MicroVertical flow rejects missing vertical names without writes', async () => {
+  const { tempRoot, workspaceDir } = await createWorkspace(
+    'vertical-cli-missing',
+  );
 
   try {
     const before = snapshotWorkspace(workspaceDir);
@@ -115,8 +122,10 @@ test('CLI MicroVertical flow rejects missing vertical names without writes', () 
   }
 });
 
-test('CLI MicroVertical flow rejects bridge options without writes', () => {
-  const { tempRoot, workspaceDir } = createWorkspace('vertical-cli-bridge');
+test('CLI MicroVertical flow rejects bridge options without writes', async () => {
+  const { tempRoot, workspaceDir } = await createWorkspace(
+    'vertical-cli-bridge',
+  );
 
   try {
     const before = snapshotWorkspace(workspaceDir);
@@ -136,10 +145,13 @@ test('CLI MicroVertical flow rejects bridge options without writes', () => {
   }
 });
 
-test('CLI --preset=api-only generates a headless MicroVertical', () => {
-  const { tempRoot, workspaceDir } = createWorkspace('vertical-cli-api-only', {
-    tempPrefix: 'um-vertical-cli-',
-  });
+test('CLI --preset=api-only generates a headless MicroVertical', async () => {
+  const { tempRoot, workspaceDir } = await createWorkspace(
+    'vertical-cli-api-only',
+    {
+      tempPrefix: 'um-vertical-cli-',
+    },
+  );
 
   try {
     const result = runCli(workspaceDir, [
@@ -163,8 +175,8 @@ test('CLI --preset=api-only generates a headless MicroVertical', () => {
   }
 });
 
-test('CLI --horizontal-remote generates a components-only unit', () => {
-  const { tempRoot, workspaceDir } = createWorkspace(
+test('CLI --horizontal-remote generates a components-only unit', async () => {
+  const { tempRoot, workspaceDir } = await createWorkspace(
     'vertical-cli-horizontal',
     {
       tempPrefix: 'um-vertical-cli-',
@@ -203,8 +215,8 @@ test('CLI --horizontal-remote generates a components-only unit', () => {
   }
 });
 
-test('CLI rejects an unsupported --preset without writing files', () => {
-  const { tempRoot, workspaceDir } = createWorkspace(
+test('CLI rejects an unsupported --preset without writing files', async () => {
+  const { tempRoot, workspaceDir } = await createWorkspace(
     'vertical-cli-bad-preset',
     {
       tempPrefix: 'um-vertical-cli-',

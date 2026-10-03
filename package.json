@@ -64,8 +64,8 @@
     "ultramodern:prepare-bleedingdev-publish": "node scripts/ultramodern-publish/prepare-bleedingdev-packages.mjs",
     "ultramodern:build-bleedingdev-publish": "node scripts/ultramodern-publish/build-bleedingdev-packages.mjs",
     "ultramodern:source-create-proof": "node scripts/ultramodern-publish/validate-source-create-proof.mjs",
-    "validate:tsgo": "node scripts/tsgo-critical.mjs",
-    "test:scripts:after-build": "node --test scripts/__tests__/*.test.mjs scripts/ultramodern-supply/dts-plugin.test.mjs scripts/boundary-guards/__tests__/*.test.js scripts/ultramodern-boundary-check/__tests__/*.test.js scripts/superapp-certification/__tests__/*.test.js scripts/native-compatibility/*.test.mjs",
+    "validate:typescript": "node scripts/typescript-critical.mjs",
+    "test:scripts:after-build": "node --test scripts/__tests__/*.test.mjs scripts/boundary-guards/__tests__/*.test.js scripts/ultramodern-boundary-check/__tests__/*.test.js scripts/superapp-certification/__tests__/*.test.js",
     "test:publish-tooling": "node --test scripts/lib/__tests__/*.test.js scripts/ultramodern-publish/__tests__/*.test.js scripts/ultramodern-publish/__tests__/*.test.mjs scripts/ultramodern-production-readiness/__tests__/*.test.js",
     "test:scripts": "pnpm --filter @scripts/prebundle start js-yaml && node --test scripts/__tests__/*.test.mjs scripts/ultramodern-supply/dts-plugin.test.mjs scripts/lib/__tests__/*.test.js scripts/boundary-guards/__tests__/*.test.js scripts/ultramodern-boundary-check/__tests__/*.test.js scripts/superapp-certification/__tests__/*.test.js scripts/ultramodern-publish/__tests__/*.test.js scripts/ultramodern-publish/__tests__/*.test.mjs scripts/ultramodern-production-readiness/__tests__/*.test.js scripts/native-compatibility/*.test.mjs",
     "check-doc-bundle": "cd ./scripts/check-doc-bundle && pnpm start",
@@ -91,7 +91,7 @@
     "yaml": "2.9.1"
   },
   "devDependencies": {
-    "@babel/core": "^8.0.6",
+    "@babel/core": "7.29.7",
     "@babel/plugin-transform-modules-commonjs": "^8.0.1",
     "@biomejs/biome": "2.5.15",
     "@changesets/cli": "^3.0.3",
@@ -106,14 +106,14 @@
     "@scripts/build": "workspace:*",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "check-dependency-version-consistency": "6.0.0",
     "husky": "^9.1.7",
     "lint-staged": "~17.6.0",
     "nx": "^23.2.1",
     "oxfmt": "0.71.0",
     "rimraf": "^6.1.3",
-    "typescript": "^7.0.2"
+    "typescript": "7.0.2",
+    "yaml": "2.9.1"
   },
   "commitlint": {
     "extends": [

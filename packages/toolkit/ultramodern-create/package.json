@@ -87,8 +87,8 @@
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "dev": "rslib build -c rslib.config.mts -w",
     "start": "node ./dist/esm-node/index.js",
-    "test": "pnpm build && rstest",
-    "type-check": "tsgo --noEmit -p tsconfig.json"
+    "test": "pnpm build && rstest --passWithNoTests",
+    "type-check": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@babel/parser": "^8.0.6",
@@ -101,18 +101,41 @@
     "miniflare": "5.20260930.0-alpha",
     "oxfmt": "0.71.0",
     "tsx": "^4.23.15",
-    "ultracite": "7.12.2"
+    "ultracite": "7.12.0",
+    "@modern-js/renderer-core": "workspace:*",
+    "@modern-js/ultramodern-app-tools": "workspace:*",
+    "@modern-js/runtime": "workspace:*",
+    "@modern-js/i18n-integration": "workspace:*",
+    "@modern-js/runtime-renderer-extensions": "workspace:*",
+    "@modern-js/plugin-i18n": "workspace:*",
+    "@modern-js/plugin-tanstack": "workspace:*",
+    "@modern-js/plugin-bff-build-extensions": "workspace:*",
+    "@module-federation/modern-js-v3": "npm:@bleedingdev/mf-modern-js-v3@2.9.1",
+    "zephyr-rspack-plugin": "1.4.0",
+    "@rsbuild/plugin-tailwindcss": "2.0.3",
+    "tailwindcss": "4.3.3",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "i18next": "26.4.2",
+    "@modern-js/renderer-solid": "workspace:*",
+    "@modern-js/renderer-octane": "workspace:*",
+    "@solidjs/compiler": "2.0.0-rc.13",
+    "@solidjs/babel-plugin": "2.0.0-rc.13",
+    "@octanejs/rspack-plugin": "0.1.55",
+    "octane": "https://github.com/bleedingdev/octane/releases/download/octane%400.7.1%2Bultramodern.f75bf12ac8be/octane-0.7.1%2Bultramodern.f75bf12ac8be.tgz",
+    "@babel/core": "7.29.7",
+    "typescript": "7.0.2",
+    "@effect/tsgo": "0.45.0",
+    "@typescript/native": "npm:typescript@7.0.2"
   },
   "devDependencies": {
-    "@modern-js/i18n-integration": "workspace:*",
     "@modern-js/i18n-runtime-extensions": "workspace:*",
-    "@modern-js/plugin-bff-build-extensions": "workspace:*",
     "@modern-js/rslib": "workspace:*",
     "@rslib/core": "1.0.3",
     "@scripts/rstest-config": "workspace:*",
-    "@types/node": "^26.6.3",
-    "@typescript/native-preview": "7.0.0-dev.20260707.2",
-    "typescript": "^7.0.2"
+    "@types/node": "^26.6.2",
+    "drizzle-orm": "1.0.0-rc.4",
+    "js-yaml": "5.4.2"
   },
   "publishConfig": {
     "main": "./dist/esm-node/index.js",

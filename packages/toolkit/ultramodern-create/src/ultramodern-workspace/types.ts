@@ -1,4 +1,8 @@
 import type {
+  DeliveryUnitRecord,
+  RendererRouterBindings,
+} from '@modern-js/backend-federation-contracts';
+import type {
   ResolvedUltramodernPackageSource,
   UltramodernPackageSourceStrategy,
 } from '../ultramodern-package-source';
@@ -10,11 +14,57 @@ export type JsonValue =
   | number
   | boolean
   | null
-  | JsonValue[]
+  | readonly JsonValue[]
   | { [key: string]: JsonValue };
 
 export type JsonObject = { [key: string]: JsonValue };
 export type RouteJsonLd = JsonObject | JsonObject[];
+
+export type ApplicationRenderer = 'react' | 'solid' | 'octane';
+export type WorkspaceRenderer = ApplicationRenderer | 'none';
+
+/** The resolved application identity. Local copies are generated projections. */
+export type WorkspaceRendererIdentity = {
+  renderer: ApplicationRenderer;
+  appId: string;
+  entryName: string;
+  protocolVersion: 1;
+  buildId: string;
+};
+
+/** Compiler and router compatibility is independent of a particular build. */
+export type WorkspaceRendererProfile = {
+  renderer: ApplicationRenderer;
+  compiler: { name: string; version: string };
+  hydration: { name: string; version: string };
+  router: {
+    name: string;
+    version: string;
+    coreName: string;
+    coreVersion: string;
+  };
+  protocolVersion: 1;
+};
+
+export type RendererGenerationCapabilities = {
+  ssr: boolean;
+  streaming: boolean;
+  workers: boolean;
+  federation: boolean;
+  rsc: boolean;
+};
+
+/** Generator inputs derived from the selected renderer profile. */
+export type RendererGenerationProfile = {
+  renderer: ApplicationRenderer;
+  profile: WorkspaceRendererProfile;
+  sourceExtension: '.tsx' | '.tsrx';
+  jsxImportSource: string;
+  nodeVersion: string;
+  dependencies: Record<string, string>;
+  devDependencies: Record<string, string>;
+  capabilities: RendererGenerationCapabilities;
+};
 
 export function sortJsonValue(value: JsonValue): JsonValue {
   if (Array.isArray(value)) {
@@ -90,6 +140,14 @@ export type WorkspaceApp = {
   api?: WorkspaceApi;
   verticalRefs?: string[];
   ownership: Ownership;
+  renderer?: WorkspaceRenderer;
+  rendererIdentity?: WorkspaceRendererIdentity;
+  rendererIdentities?: Record<string, WorkspaceRendererIdentity>;
+  rendererProfile?: WorkspaceRendererProfile;
+  routerBindings?: RendererRouterBindings;
+  rendererCapabilities?: RendererGenerationCapabilities;
+  /** Resolved tooling input. It is not a second authoring configuration. */
+  rendererGenerationProfile?: RendererGenerationProfile;
   /**
    * Generation preset (G2a). Omitted for the default `full-stack` default so
    * default descriptors and their serialized output stay byte-identical; only
@@ -108,7 +166,7 @@ export type WorkspaceApp = {
    * add-vertical operation from minting a new build marker for an already
    * generated shell.
    */
-  deliveryUnit?: JsonObject;
+  deliveryUnit?: JsonObject & Partial<DeliveryUnitRecord>;
 };
 
 export type WorkspaceApi = {
@@ -223,6 +281,7 @@ export type UltramodernWorkspaceOptions = {
   targetDir: string;
   packageName: string;
   modernVersion: string;
+  renderer?: ApplicationRenderer;
   enableTailwind?: boolean;
   generateAgentFiles?: boolean;
   overlays?: UltramodernCodeSmithOverlay[];
@@ -283,6 +342,7 @@ export type AddUltramodernShellOptions = {
    */
   verticals?: string[];
   enableTailwind?: boolean;
+  overlays?: UltramodernCodeSmithOverlay[];
   packageSource?: UltramodernWorkspaceOptions['packageSource'];
 };
 
@@ -302,7 +362,12 @@ export type UltramodernGeneratedAppDescriptor = {
   kind: WorkspaceApp['kind'];
   portEnv: string;
   port: number;
-  moduleFederationName: string;
+  moduleFederationName?: string;
+  renderer: WorkspaceRenderer;
+  rendererIdentity?: WorkspaceRendererIdentity;
+  rendererIdentities?: Record<string, WorkspaceRendererIdentity>;
+  rendererProfile?: WorkspaceRendererProfile;
+  routerBindings?: RendererRouterBindings;
   exposes?: Record<string, string>;
   apiPrefix?: string;
 };
@@ -398,7 +463,7 @@ export type UltramodernGeneratedContractChange = {
 export type UltramodernVerticalPlan = UltramodernGenerationResult & {
   dryRun: true;
   selectedPort: number;
-  moduleFederationRemote: {
+  moduleFederationRemote?: {
     id: string;
     name: string;
     manifestUrl: string;

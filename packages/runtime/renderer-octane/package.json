@@ -1,0 +1,84 @@
+{
+  "name": "@modern-js/renderer-octane",
+  "version": "3.8.3",
+  "description": "UltraModern native Octane application adapter.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/BleedingDev/ultramodern.js",
+    "directory": "packages/runtime/renderer-octane"
+  },
+  "files": ["dist", "src", "bin"],
+  "main": "./dist/cjs/index.js",
+  "types": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "modern:source": "./src/index.ts",
+      "import": { "types": "./dist/types/index.d.ts", "default": "./dist/esm/index.mjs" },
+      "require": { "types": "./dist/types/index.d.ts", "default": "./dist/cjs/index.js" }
+    },
+    "./client": {
+      "modern:source": "./src/client.ts",
+      "import": { "types": "./dist/types/client.d.ts", "default": "./dist/esm/client.mjs" },
+      "require": { "types": "./dist/types/client.d.ts", "default": "./dist/cjs/client.js" }
+    },
+    "./server": {
+      "modern:source": "./src/server.ts",
+      "import": { "types": "./dist/types/server.d.ts", "default": "./dist/esm/server.mjs" },
+      "require": { "types": "./dist/types/server.d.ts", "default": "./dist/cjs/server.js" }
+    },
+    "./router": {
+      "modern:source": "./src/router.ts",
+      "import": { "types": "./dist/types/router.d.ts", "default": "./dist/esm/router.mjs" },
+      "require": { "types": "./dist/types/router.d.ts", "default": "./dist/cjs/router.js" }
+    },
+    "./router-client": {
+      "modern:source": "./src/router-client.ts",
+      "import": { "types": "./dist/types/router-client.d.ts", "default": "./dist/esm/router-client.mjs" },
+      "require": { "types": "./dist/types/router-client.d.ts", "default": "./dist/cjs/router-client.js" }
+    },
+    "./router-server": {
+      "modern:source": "./src/router-server.ts",
+      "import": { "types": "./dist/types/router-server.d.ts", "default": "./dist/esm/router-server.mjs" },
+      "require": { "types": "./dist/types/router-server.d.ts", "default": "./dist/cjs/router-server.js" }
+    },
+    "./manifest": {
+      "modern:source": "./src/manifest.ts",
+      "import": { "types": "./dist/types/manifest.d.ts", "default": "./dist/esm/manifest.mjs" },
+      "require": { "types": "./dist/types/manifest.d.ts", "default": "./dist/cjs/manifest.js" }
+    },
+    "./typecheck": {
+      "types": "./dist/types/typecheck.d.ts",
+      "node": {
+        "modern:source": "./src/typecheck.ts",
+        "import": "./dist/esm-node/typecheck.mjs",
+        "require": "./dist/cjs/typecheck.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "bin": { "octane-tsc": "./bin/octane-tsc.mjs" },
+  "scripts": { "build": "rslib build && tsc -p tsconfig.types.json", "test": "rstest" },
+  "engines": { "node": ">=26.7.0" },
+  "dependencies": {
+    "@modern-js/renderer-core": "workspace:*",
+    "@octanejs/tanstack-router": "https://github.com/bleedingdev/octane/releases/download/%40octanejs%2Ftanstack-router%400.1.60%2Bultramodern.6c31d4be4768/octanejs-tanstack-router-0.1.60%2Bultramodern.6c31d4be4768.tgz",
+    "octane": "https://github.com/bleedingdev/octane/releases/download/octane%400.7.1%2Bultramodern.f75bf12ac8be/octane-0.7.1%2Bultramodern.f75bf12ac8be.tgz",
+    "typescript": "7.0.2",
+    "@volar/language-core": "2.4.28",
+    "jsonc-parser": "3.3.1",
+    "seroval": "1.6.8",
+    "seroval-plugins": "1.6.8"
+  },
+  "devDependencies": {
+    "@octanejs/rspack-plugin": "0.1.55",
+    "@modern-js/tsconfig": "workspace:*",
+    "@rslib/core": "1.0.2",
+    "@scripts/rstest-config": "workspace:*",
+    "@types/node": "^26.6.2",
+    "happy-dom": "^20.14.5",
+    "typescript": "7.0.2"
+  },
+  "sideEffects": false,
+  "publishConfig": { "registry": "https://registry.npmjs.org/", "access": "public" }
+}

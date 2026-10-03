@@ -1,2 +1,5 @@
-export type { BackendFederationArtifactResult } from './emit';
+export type {
+  BackendFederationArtifactResult,
+  BackendFederationBuildOptions,
+} from './emit';
 export { default, emitBackendFederationArtifacts } from './emit';

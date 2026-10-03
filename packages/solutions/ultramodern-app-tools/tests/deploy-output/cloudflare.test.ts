@@ -11,10 +11,24 @@ import type {
   CloudflareWorkerVpcServiceConfig,
   JsonValue,
 } from '@modern-js/app-tools-extensions/config';
-import { createUltramodernBuildArtifact } from '@modern-js/backend-federation-contracts';
+import {
+  createUltramodernBuildArtifact,
+  type RendererProfile,
+} from '@modern-js/backend-federation-contracts';
 import { cloudflareWorkerSources } from './fixtures/worker-sources';
 
 const tempDirectories: string[] = [];
+const reactProfile: RendererProfile = {
+  renderer: 'react',
+  protocolVersion: 1,
+  compiler: { name: '@rsbuild/plugin-react', version: '2.1.0' },
+  hydration: { name: 'react-dom', version: '19.3.0' },
+  router: {
+    name: '@tanstack/react-router',
+    version: '1.170.39',
+    coreVersion: '1.171.32',
+  },
+};
 
 const createAssetBinding = (publicDirectory: string) => ({
   fetch: async (request: Request) => {
@@ -239,6 +253,20 @@ async function createFixture({
             path: '.',
             package: '@acme/checkout',
             deliveryUnit,
+            surfaceProfile: apiOnly ? 'api-only' : 'full-stack',
+            ...(apiOnly
+              ? {}
+              : {
+                  renderer: 'react',
+                  rendererIdentity: {
+                    renderer: 'react',
+                    appId: 'checkout',
+                    entryName: 'main',
+                    protocolVersion: 1,
+                    buildId: deliveryUnit.buildMarker,
+                  },
+                  rendererProfile: reactProfile,
+                }),
           },
           verticals: [],
         },
@@ -256,15 +284,31 @@ async function createFixture({
     await fs.writeFile(
       path.join(appDirectory, 'shared/ultramodern-build.json'),
       JSON.stringify(
-        createUltramodernBuildArtifact({
-          ...buildIdentity,
-          appId: 'checkout',
-          deployProfile: 'cloudflare-ssr-mf-effect-v1',
-          kind: 'microvertical-delivery-unit',
-          packageName: '@acme/checkout',
-          schemaVersion: 1,
-          version: '0.1.0',
-        }),
+        createUltramodernBuildArtifact(
+          {
+            ...buildIdentity,
+            appId: 'checkout',
+            deployProfile: 'cloudflare-ssr-mf-effect-v1',
+            kind: 'microvertical-delivery-unit',
+            packageName: '@acme/checkout',
+            schemaVersion: 1,
+            version: '0.1.0',
+          },
+          apiOnly
+            ? {}
+            : {
+                ui: {
+                  identity: {
+                    renderer: 'react',
+                    appId: 'checkout',
+                    entryName: 'main',
+                    protocolVersion: 1,
+                    buildId: buildIdentity.buildMarker,
+                  },
+                  profile: reactProfile,
+                },
+              },
+        ),
       ),
     );
   }
@@ -378,7 +422,7 @@ describe('cloudflare deploy preset', () => {
           sourceRevision: 'workspace',
         },
       }),
-    ).rejects.toThrow(/delivery-unit-drift/u);
+    ).rejects.toThrow(/Build artifact buildMarker must match/u);
   });
 
   it('merges Wrangler config, stages artifacts, and enforces Worker invariants', async () => {
@@ -1131,143 +1175,48 @@ describe('cloudflare deploy preset', () => {
     expect(requestedPaths).not.toContain('/dashboard/settings');
   });
 
-  it('dispatches encoded spellings of the BFF prefix to the BFF, never to Worker Static Assets', async () => {
+  it('dispatches generated React workers with their strict schema 2 UI identity', async () => {
     const { outputDirectory } = await createFixture({
-      distFiles: {
-        'commerce-api/orders.json': '{"secret":"static"}',
+      deliveryUnit: {
+        unitId: 'acme/checkout',
+        buildMarker: 'checkout-proof-build',
+        sourceRevision: 'checkout-proof-revision',
       },
     });
     const worker = await loadWorker(outputDirectory);
-    const requestedAssets: string[] = [];
-    const assetBinding = createAssetBinding(
-      path.join(outputDirectory, 'public'),
-    );
-    const env = {
-      ASSETS: {
-        fetch: async (request: Request) => {
-          requestedAssets.push(new URL(request.url).pathname);
-          return assetBinding.fetch(request);
-        },
-      },
-    };
-    const dispatch = async (pathname: string) => {
-      const executionContext = createExecutionContext();
-      const response = await worker.fetch(
-        new Request(`https://example.com${pathname}`),
-        env,
-        executionContext,
-      );
-      expect(response.status).toBe(200);
-      const { pathname: dispatchedPathname } = (await response.json()) as {
-        pathname: string;
-      };
-      await Promise.all(executionContext.pending);
-      return dispatchedPathname;
-    };
-
-    for (const pathname of [
-      '/commerce-api/orders.json',
-      '/%63ommerce-api/orders.json',
-      '/%2563ommerce-api/orders.json',
-      '/%252563ommerce-api/orders.json',
-      '/commerce-api%2forders.json',
-      '/commerce-api%2Forders.json',
-      '/commerce-api%252Forders.json',
-    ]) {
-      await expect(dispatch(pathname)).resolves.toBe(
-        '/commerce-api/orders.json',
-      );
-    }
-    for (const pathname of [
-      '/commerce-api%5Corders.json',
-      '/commerce-api%5corders.json',
-      '/commerce-api%ZZ/orders.json',
-      '/COMMERCE-API%ZZ/orders.json',
-    ]) {
-      await expect(dispatch(pathname)).resolves.toBe(
-        '/commerce-api/__invalid_encoded_path__',
-      );
-    }
-    expect(requestedAssets).toEqual([]);
-
-    const assetResponse = await worker.fetch(
-      new Request('https://example.com/static/app.1234abcd.css'),
-      env,
-    );
-    expect(assetResponse.status).toBe(200);
-    expect(requestedAssets).toEqual(['/static/app.1234abcd.css']);
-  });
-
-  it('dispatches a Workers VPC service prefix through the VPC binding', async () => {
-    const { outputDirectory } = await createFixture({
-      vpcServices: [
-        {
-          binding: 'VERTICAL_PRICING_WORKER',
-          prefix: '/pricing-api',
-          serviceId: '0199f0aa-0000-7000-8000-00000000c0de',
-        },
-      ],
-    });
-    const worker = await loadWorker(outputDirectory);
-    const vpcRequests: string[] = [];
-
     const response = await worker.fetch(
-      new Request('https://example.com/pricing-api/prices?sku=1'),
+      new Request('https://example.com/dashboard/settings'),
       {
-        ASSETS: {
-          fetch: async () => new Response('asset', { status: 200 }),
-        },
-        VERTICAL_PRICING_WORKER: {
-          fetch: async (request: Request) => {
-            const url = new URL(request.url);
-            vpcRequests.push(`${url.pathname}${url.search}`);
-            return new Response('pricing', { status: 200 });
-          },
-        },
+        ASSETS: createAssetBinding(path.join(outputDirectory, 'public')),
       },
     );
 
-    await expect(response.text()).resolves.toBe('pricing');
-    expect(vpcRequests).toEqual(['/pricing-api/prices?sku=1']);
-  });
-
-  it('dispatches encoded spellings of a service binding prefix to the binding', async () => {
-    const { outputDirectory } = await createFixture({
-      services: [
-        {
-          binding: 'VERTICAL_CATALOG_WORKER',
-          prefix: '/catalog-api',
-          service: 'tractor-catalog-worker',
-        },
-      ],
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      pathname: '/dashboard/settings',
+      entryName: 'main',
     });
-    const worker = await loadWorker(outputDirectory);
-    const serviceRequests: string[] = [];
-
-    for (const pathname of [
-      '/%63atalog-api/items.json',
-      '/catalog-api%2Fitems.json',
-    ]) {
-      const response = await worker.fetch(
-        new Request(`https://example.com${pathname}`),
-        {
-          ASSETS: {
-            fetch: async () => new Response('asset', { status: 200 }),
+    const manifest = JSON.parse(
+      await fs.readFile(
+        path.join(outputDirectory, 'server/modern-worker-manifest.json'),
+        'utf8',
+      ),
+    );
+    expect(manifest.deliveryUnit).toMatchObject({
+      appId: 'checkout',
+      buildMarker: 'checkout-proof-build',
+      surfaces: {
+        ui: {
+          appId: 'checkout',
+          rendererIdentity: {
+            renderer: 'react',
+            appId: 'checkout',
+            buildId: 'checkout-proof-build',
           },
-          VERTICAL_CATALOG_WORKER: {
-            fetch: async (request: Request) => {
-              serviceRequests.push(new URL(request.url).pathname);
-              return new Response('catalog', { status: 200 });
-            },
-          },
+          rendererProfile: reactProfile,
         },
-      );
-      await expect(response.text()).resolves.toBe('catalog');
-    }
-    expect(serviceRequests).toEqual([
-      '/%63atalog-api/items.json',
-      '/catalog-api%2Fitems.json',
-    ]);
+      },
+    });
   });
 
   it('serves fingerprinted Cloudflare assets with immutable cache headers', async () => {

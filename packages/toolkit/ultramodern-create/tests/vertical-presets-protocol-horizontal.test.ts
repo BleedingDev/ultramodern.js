@@ -13,6 +13,7 @@ import {
   createWorkspace,
   linkWorkspaceFormatterDependencies,
   runValidation,
+  snapshotWorkspace,
 } from './helpers/workspace-kit';
 
 const MODERN_VERSION = '3.2.1';
@@ -22,26 +23,26 @@ const oxlintEntry = require.resolve('oxlint', {
 });
 const oxlintBin = path.resolve(path.dirname(oxlintEntry), '../bin/oxlint');
 
-function withWorkspace(
-  fn: (workspaceDir: string) => void,
+async function withWorkspace(
+  fn: (workspaceDir: string) => Promise<void>,
   prefix = 'um-preset-',
 ) {
-  const { tempRoot, workspaceDir } = createWorkspace('preset-workspace', {
+  const { tempRoot, workspaceDir } = await createWorkspace('preset-workspace', {
     tempPrefix: prefix,
   });
   try {
-    fn(workspaceDir);
+    await fn(workspaceDir);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
 }
 
-function add(
+async function add(
   workspaceDir: string,
   name: string,
   extra: Partial<AddUltramodernVerticalOptions> = {},
-): UltramodernGenerationResult {
-  return addUltramodernVertical({
+): Promise<UltramodernGenerationResult> {
+  return await addUltramodernVertical({
     workspaceRoot: workspaceDir,
     name,
     modernVersion: MODERN_VERSION,
@@ -63,9 +64,9 @@ function assertWorkspaceValid(workspaceDir: string) {
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
 }
 
-test('api-only and ui-only presets keep their distinct generated surfaces', () => {
-  withWorkspace(dir => {
-    const apiResult = add(dir, 'headless', { preset: 'api-only' });
+test('api-only and ui-only presets keep their distinct generated surfaces', async () => {
+  await withWorkspace(async dir => {
+    const apiResult = await add(dir, 'headless', { preset: 'api-only' });
     const apiFiles = verticalPaths(apiResult, 'headless');
     assert.ok(apiFiles.has('api/index.ts'));
     assert.ok(apiFiles.has('shared/api.ts'));
@@ -87,7 +88,7 @@ test('api-only and ui-only presets keep their distinct generated surfaces', () =
       ['api'],
     );
 
-    const uiResult = add(dir, 'presentational', { preset: 'ui-only' });
+    const uiResult = await add(dir, 'presentational', { preset: 'ui-only' });
     const uiFiles = verticalPaths(uiResult, 'presentational');
     assert.ok(uiFiles.has('src/routes/layout.tsx'));
     assert.ok(uiFiles.has('src/federation-entry.tsx'));
@@ -101,10 +102,10 @@ test('api-only and ui-only presets keep their distinct generated surfaces', () =
   });
 });
 
-test('topology rehydration preserves protocol, profile and delivery-unit identity', () => {
-  withWorkspace(dir => {
-    add(dir, 'catalog', { apiProtocol: 'rpc' });
-    add(dir, 'design-system', { horizontalRemote: true });
+test('topology rehydration preserves protocol, profile and delivery-unit identity', async () => {
+  await withWorkspace(async dir => {
+    await add(dir, 'catalog', { apiProtocol: 'rpc' });
+    await add(dir, 'design-system', { horizontalRemote: true });
 
     const topologyPath = path.join(dir, 'topology/reference-topology.json');
     const topology = JSON.parse(fs.readFileSync(topologyPath, 'utf-8'));
@@ -118,9 +119,13 @@ test('topology rehydration preserves protocol, profile and delivery-unit identit
     );
     assert.ok(topologyEntry('catalog').deliveryUnit);
 
-    topologyEntry('catalog').api.protocol = 'rest';
-    fs.writeFileSync(topologyPath, `${JSON.stringify(topology, null, 2)}\n`);
-    add(dir, 'rest-preserved');
+    const catalogIdentity = structuredClone(
+      topologyEntry('catalog').deliveryUnit,
+    );
+    const catalogProfile = structuredClone(
+      topologyEntry('catalog').rendererProfile,
+    );
+    await add(dir, 'identity-preserved');
 
     const rehydratedTopology = JSON.parse(
       fs.readFileSync(topologyPath, 'utf-8'),
@@ -128,20 +133,52 @@ test('topology rehydration preserves protocol, profile and delivery-unit identit
     assert.equal(
       rehydratedTopology.verticals.find((entry: any) => entry.id === 'catalog')
         .api.protocol,
-      'rest',
+      'rpc',
+    );
+    const rehydratedCatalog = rehydratedTopology.verticals.find(
+      (entry: any) => entry.id === 'catalog',
+    );
+    assert.deepEqual(rehydratedCatalog.deliveryUnit, catalogIdentity);
+    assert.deepEqual(rehydratedCatalog.rendererProfile, catalogProfile);
+    assert.equal(
+      rehydratedTopology.verticals.find(
+        (entry: any) => entry.id === 'design-system',
+      ).deliveryUnitKind,
+      'horizontal-remote',
     );
   });
 });
 
-test('rpc protocol emits its contract and routes metadata without a REST surface', () => {
-  withWorkspace(dir => {
-    const result = add(dir, 'catalog', { apiProtocol: 'rpc' });
+test('topology-only protocol drift rejects projection and preserves original workspace bytes', async () => {
+  await withWorkspace(async dir => {
+    await add(dir, 'catalog', { apiProtocol: 'rpc' });
+    const topologyPath = path.join(dir, 'topology/reference-topology.json');
+    const topology = JSON.parse(fs.readFileSync(topologyPath, 'utf8'));
+    topology.verticals.find(
+      (entry: any) => entry.id === 'catalog',
+    ).api.protocol = 'rest';
+    fs.writeFileSync(topologyPath, `${JSON.stringify(topology, null, 2)}\n`);
+    const before = snapshotWorkspace(dir);
+    await assert.rejects(add(dir, 'rest-drift'), (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.match(error.message, /source input consumed by modern\.config/u);
+      assert.match(error.message, /development\.json/u);
+      return true;
+    });
+    assert.deepEqual(snapshotWorkspace(dir), before);
+    assert.equal(fs.existsSync(path.join(dir, 'verticals/rest-drift')), false);
+  });
+});
+
+test('rpc protocol emits its contract and routes metadata without a REST surface', async () => {
+  await withWorkspace(async dir => {
+    const result = await add(dir, 'catalog', { apiProtocol: 'rpc' });
     const files = verticalPaths(result, 'catalog');
     assert.ok(files.has('shared/rpc.ts'));
     assert.ok(files.has('src/api/catalog-rpc-client.ts'));
     assert.ok(!files.has('shared/api.ts'));
     assert.ok(!files.has('src/api/catalog-client.ts'));
-    const headless = add(dir, 'headless-rpc', {
+    const headless = await add(dir, 'headless-rpc', {
       preset: 'api-only',
       apiProtocol: 'rpc',
     });
@@ -260,9 +297,9 @@ test('public Cloudflare proof sends the declared RPC request and reports evidenc
   }
 });
 
-test('generated api-only RPC entry serves the JSON-RPC probe', () => {
-  withWorkspace(dir => {
-    add(dir, 'catalog', { preset: 'api-only', apiProtocol: 'rpc' });
+test('generated api-only RPC entry serves the JSON-RPC probe', async () => {
+  await withWorkspace(async dir => {
+    await add(dir, 'catalog', { preset: 'api-only', apiProtocol: 'rpc' });
     fs.symlinkSync(
       path.resolve(__dirname, '../../../../node_modules/.pnpm/node_modules'),
       path.join(dir, 'node_modules'),
@@ -315,9 +352,9 @@ try {
   });
 });
 
-test('horizontal remote is components-only and retains delivery-unit identity', () => {
-  withWorkspace(dir => {
-    const result = add(dir, 'design-system', { horizontalRemote: true });
+test('horizontal remote is components-only and retains delivery-unit identity', async () => {
+  await withWorkspace(async dir => {
+    const result = await add(dir, 'design-system', { horizontalRemote: true });
     const files = verticalPaths(result, 'design-system');
     assert.ok(files.has('src/federation-entry.tsx'));
     assert.ok(files.has('module-federation.config.ts'));
@@ -343,9 +380,9 @@ test('horizontal remote is components-only and retains delivery-unit identity', 
   });
 });
 
-test('generated delivery-unit surfaces are grammar-valid and classified by kind', () => {
-  withWorkspace(dir => {
-    const unit = add(dir, 'checkout').deliveryUnits?.find(item =>
+test('generated delivery-unit surfaces are grammar-valid and classified by kind', async () => {
+  await withWorkspace(async dir => {
+    const unit = (await add(dir, 'checkout')).deliveryUnits?.find(item =>
       item.unitId.endsWith('/checkout'),
     );
     assert.ok(unit, 'expected a delivery unit for the generated vertical');
@@ -373,9 +410,9 @@ test('generated delivery-unit surfaces are grammar-valid and classified by kind'
 // Restored: the RPC probe above proves the RPC protocol boots, but the DEFAULT
 // (REST) MicroVertical API had no surviving proof that it actually serves a
 // request through its generated shared contract.
-test('generated REST vertical serves a request through its shared contract', () => {
-  withWorkspace(dir => {
-    add(dir, 'catalog');
+test('generated REST vertical serves a request through its shared contract', async () => {
+  await withWorkspace(async dir => {
+    await add(dir, 'catalog');
     const installed = path.resolve(
       __dirname,
       '../../../../node_modules/.pnpm/node_modules',

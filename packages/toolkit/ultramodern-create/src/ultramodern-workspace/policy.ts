@@ -17,7 +17,22 @@ import {
   EFFECT_VERSION,
   NODE_VERSION,
   PNPM_VERSION,
-  ULTRAMODERN_PACKAGE_PINS,
+  REACT_DOM_VERSION,
+  REACT_VERSION,
+  RSBUILD_PLUGIN_TAILWINDCSS_VERSION,
+  TAILWIND_VERSION,
+  TANSTACK_HISTORY_VERSION,
+  TANSTACK_ROUTER_CORE_VERSION,
+  TANSTACK_ROUTER_VERSION,
+  TYPES_NODE_VERSION,
+  TYPES_REACT_DOM_VERSION,
+  TYPES_REACT_VERSION,
+  TYPESCRIPT_VERSION,
+  ULTRACITE_VERSION,
+  WORKERD_VERSION,
+  WRANGLER_VERSION,
+  ZEPHYR_AGENT_VERSION,
+  ZEPHYR_RSPACK_PLUGIN_VERSION,
 } from './versions';
 
 function createCloudflareProofRoute(app: WorkspaceApp): JsonValue {
@@ -204,6 +219,64 @@ export function createCloudflareDeployContract(
       : {}),
   };
 }
+
+export const ULTRAMODERN_PACKAGE_PINS = {
+  appDependencies: {
+    // Generated apps never install react-router — TanStack Router is the
+    // frontend router — yet `@module-federation/bridge-react` must stay a
+    // direct dependency: the MF plugin only honours `enableBridgeRouter: false`
+    // by aliasing bridge-react to its router-free `base` entry when it finds
+    // the package in the app's own `package.json`. Drop it and the default,
+    // `react-router-dom`-importing entry is bundled again.
+    '@module-federation/bridge-react': `npm:@bleedingdev/mf-bridge-react@${MODULE_FEDERATION_VERSION}`,
+    '@module-federation/modern-js-v3': `npm:@bleedingdev/mf-modern-js-v3@${MODULE_FEDERATION_VERSION}`,
+    '@module-federation/runtime': `npm:@bleedingdev/mf-runtime@${MODULE_FEDERATION_VERSION}`,
+    '@tanstack/react-router': TANSTACK_ROUTER_VERSION,
+    i18next: I18NEXT_VERSION,
+    'node-fetch': NODE_FETCH_VERSION,
+    react: REACT_VERSION,
+    'react-dom': REACT_DOM_VERSION,
+  },
+  // Optional Effect peers are supplied by each Effect app using one exact package identity.
+  bffEffectDependencies: {
+    '@effect/opentelemetry': EFFECT_VERSION,
+    effect: `npm:@bleedingdev/effect@${EFFECT_VERSION}`,
+  },
+  appDevDependencies: {
+    '@effect/tsgo': EFFECT_TSGO_VERSION,
+    '@rsbuild/plugin-tailwindcss': `^${RSBUILD_PLUGIN_TAILWINDCSS_VERSION}`,
+    '@typescript/native': `npm:typescript@${TYPESCRIPT_VERSION}`,
+    '@types/node': TYPES_NODE_VERSION,
+    '@types/react': TYPES_REACT_VERSION,
+    '@types/react-dom': TYPES_REACT_DOM_VERSION,
+    'cross-env': CROSS_ENV_VERSION,
+    tailwindcss: `^${TAILWIND_VERSION}`,
+    typescript: TYPESCRIPT_VERSION,
+    wrangler: WRANGLER_VERSION,
+    'zephyr-rspack-plugin': ZEPHYR_RSPACK_PLUGIN_VERSION,
+  },
+  rootDevDependencies: {
+    '@effect/tsgo': EFFECT_TSGO_VERSION,
+    '@typescript/native': `npm:typescript@${TYPESCRIPT_VERSION}`,
+    '@types/node': TYPES_NODE_VERSION,
+    'cross-env': CROSS_ENV_VERSION,
+    lefthook: LEFTHOOK_VERSION,
+    miniflare: MINIFLARE_VERSION,
+    oxlint: OXLINT_VERSION,
+    oxfmt: OXFMT_VERSION,
+    ultracite: ULTRACITE_VERSION,
+    wrangler: WRANGLER_VERSION,
+    'zephyr-agent': ZEPHYR_AGENT_VERSION,
+  },
+  transitiveDependencies: {
+    '@cloudflare/workers-types': CLOUDFLARE_WORKERS_TYPES_VERSION,
+    '@module-federation/node': MODULE_FEDERATION_NODE_VERSION,
+    '@tanstack/history': TANSTACK_HISTORY_VERSION,
+    '@tanstack/router-core': TANSTACK_ROUTER_CORE_VERSION,
+    miniflare: MINIFLARE_VERSION,
+    workerd: WORKERD_VERSION,
+  },
+} as const;
 
 export const ULTRAMODERN_WORKSPACE_POLICY = {
   schemaVersion: 1,

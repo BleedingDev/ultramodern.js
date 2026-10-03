@@ -2,6 +2,11 @@ import { execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import {
+  assertReleaseEnvelopeRendererBinding,
+  assertRendererReleaseArtifactBinding,
+  releaseEnvelopePayload,
+} from '../../ultramodern-publish/lib/renderer-release-binding.mjs';
 
 // Must stay in sync with app-tools/ultramodern-release-identity.ts. Node shell
 // output has no full-stack MicroVertical envelope, so strict acceptance derives
@@ -421,25 +426,10 @@ function readAndVerifyEnvelopeArtifact(location, appId, value, index) {
 
 function verifyEnvelope(location, appId, apiOnly = false) {
   const { envelope } = location;
-  assertExactKeys(
-    envelope,
-    [
-      'schemaVersion',
-      'kind',
-      'target',
-      'identity',
-      'artifacts',
-      'surfaces',
-      'envelopeDigest',
-    ],
-    `${appId} release envelope`,
-  );
-  if (
-    envelope.schemaVersion !== 3 ||
-    envelope.kind !== 'ultramodern-target-microvertical-release-envelope'
-  ) {
-    throw new Error(`${appId} has an invalid release envelope schema`);
-  }
+  assertReleaseEnvelopeRendererBinding(envelope, {
+    label: `${appId} release envelope`,
+    expectedAppId: appId,
+  });
   assertExactKeys(
     envelope.identity,
     ['unitId', 'buildMarker', 'sourceRevision', 'releaseVersion'],
@@ -456,13 +446,11 @@ function verifyEnvelope(location, appId, apiOnly = false) {
       `${appId} release identity.${field}`,
     );
   }
-  if (envelope.identity.sourceRevision === 'workspace') {
-    throw new Error(`${appId} release identity is not promotable`);
-  }
   if (!/^[a-f\d]{64}$/u.test(envelope.envelopeDigest)) {
     throw new Error(`${appId} release envelope digest is invalid`);
   }
-  const { envelopeDigest, ...payload } = envelope;
+  const envelopeDigest = envelope.envelopeDigest;
+  const payload = releaseEnvelopePayload(envelope);
   if (sha256(canonical(payload)) !== envelopeDigest) {
     throw new Error(`${appId} release envelope digest mismatch`);
   }
@@ -527,6 +515,33 @@ function verifyEnvelope(location, appId, apiOnly = false) {
   const artifactByPath = new Map(
     artifacts.map(artifact => [artifact.logicalPath, artifact]),
   );
+  const buildCarriers = artifacts.filter(artifact =>
+    ['ultramodern-build.json', 'public/ultramodern-build.json'].includes(
+      artifact.logicalPath,
+    ),
+  );
+  if (buildCarriers.length === 0) {
+    throw new Error(
+      `${appId} release envelope must bind an immutable build artifact`,
+    );
+  }
+  for (const artifact of buildCarriers) {
+    if (
+      artifact.kind !== 'file' ||
+      artifact.runtime !== 'release-identity-metadata'
+    ) {
+      throw new Error(
+        `${appId} immutable build artifact must be release-identity-metadata file evidence`,
+      );
+    }
+    assertRendererReleaseArtifactBinding(
+      envelope,
+      JSON.parse(
+        fs.readFileSync(artifactPath(location, artifact.logicalPath), 'utf8'),
+      ),
+      { label: `${appId} ${artifact.logicalPath}`, expectedAppId: appId },
+    );
+  }
   const expectedRuntimes = {
     uiClient: 'browser',
     ssr: envelope.target === 'node' ? 'nodejs' : 'workerd',
@@ -961,11 +976,13 @@ function releaseIdentity(
   };
   return {
     appId: app.id,
+    schemaVersion: location.envelope.schemaVersion,
     envelopeDigest: location.envelope.envelopeDigest,
     envelopePath: path.relative(
       fs.realpathSync(projectDir),
       location.envelopePath,
     ),
+    ...(location.envelope.ui ? { ui: location.envelope.ui } : {}),
     ...(platform === 'workerd' && verifyRuntime
       ? {
           workerd: verifyWorkerdRuntimeCorrelation(projectDir, app, location),
@@ -1187,9 +1204,11 @@ function readNodeBackendArtifactEvidence(projectDir, app) {
   const identity = releaseIdentity(projectDir, app, 'node');
   return {
     appId: identity.appId,
+    schemaVersion: identity.schemaVersion,
     envelopeDigest: identity.envelopeDigest,
     envelopePath: identity.envelopePath,
     identity: identity.surfaces.backend,
+    ...(identity.ui ? { ui: identity.ui } : {}),
   };
 }
 

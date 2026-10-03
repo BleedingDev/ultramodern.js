@@ -36,10 +36,13 @@ function snapshotAllFiles(root: string): Map<string, Buffer> {
   return files;
 }
 
-function scaffoldWorkspace(): { tempRoot: string; workspaceDir: string } {
+async function scaffoldWorkspace(): Promise<{
+  tempRoot: string;
+  workspaceDir: string;
+}> {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-add-txn-'));
   const workspaceDir = path.join(tempRoot, 'txn-workspace');
-  generateUltramodernWorkspace({
+  await generateUltramodernWorkspace({
     targetDir: workspaceDir,
     packageName: 'txn-workspace',
     modernVersion: '3.2.1',
@@ -92,13 +95,13 @@ function resetTransactionHooks() {
   __transactionTestHooks.beforePublishPath = undefined;
 }
 
-test('add-vertical leaves the workspace byte-identical when a late overlay fails', () => {
-  const { tempRoot, workspaceDir } = scaffoldWorkspace();
+test('add-vertical leaves the workspace byte-identical when a late overlay fails', async () => {
+  const { tempRoot, workspaceDir } = await scaffoldWorkspace();
   try {
     const before = snapshotAllFiles(workspaceDir);
-    assert.throws(
-      () =>
-        addUltramodernVertical({
+    await assert.rejects(
+      async () =>
+        await addUltramodernVertical({
           workspaceRoot: workspaceDir,
           name: 'payments',
           modernVersion: '3.2.1',
@@ -111,7 +114,7 @@ test('add-vertical leaves the workspace byte-identical when a late overlay fails
     assertByteIdentical(before, snapshotAllFiles(workspaceDir));
     assertNoTransactionArtifacts(tempRoot);
 
-    const result = addUltramodernVertical({
+    const result = await addUltramodernVertical({
       workspaceRoot: workspaceDir,
       name: 'payments',
       modernVersion: '3.2.1',
@@ -123,20 +126,21 @@ test('add-vertical leaves the workspace byte-identical when a late overlay fails
   }
 });
 
-test('add-vertical leaves the workspace byte-identical when a staged write fails', () => {
-  const { tempRoot, workspaceDir } = scaffoldWorkspace();
+test('add-vertical leaves the workspace byte-identical when a staged write fails', async () => {
+  const { tempRoot, workspaceDir } = await scaffoldWorkspace();
   try {
     fs.mkdirSync(path.join(workspaceDir, 'verticals/payments/package.json'), {
       recursive: true,
     });
     const before = snapshotAllFiles(workspaceDir);
 
-    assert.throws(() =>
-      addUltramodernVertical({
-        workspaceRoot: workspaceDir,
-        name: 'payments',
-        modernVersion: '3.2.1',
-      }),
+    await assert.rejects(
+      async () =>
+        await addUltramodernVertical({
+          workspaceRoot: workspaceDir,
+          name: 'payments',
+          modernVersion: '3.2.1',
+        }),
     );
 
     assertByteIdentical(before, snapshotAllFiles(workspaceDir));
@@ -146,8 +150,8 @@ test('add-vertical leaves the workspace byte-identical when a staged write fails
   }
 });
 
-test('concurrent unrelated files are conserved while owned changes publish', () => {
-  const { tempRoot, workspaceDir } = scaffoldWorkspace();
+test('concurrent unrelated files are conserved while owned changes publish', async () => {
+  const { tempRoot, workspaceDir } = await scaffoldWorkspace();
   const concurrentPath = path.join(workspaceDir, 'consumer-notes.txt');
   try {
     __transactionTestHooks.beforePublish = ({ changedPaths }) => {
@@ -155,7 +159,7 @@ test('concurrent unrelated files are conserved while owned changes publish', () 
       fs.writeFileSync(concurrentPath, 'consumer work\n');
     };
 
-    const result = addUltramodernVertical({
+    const result = await addUltramodernVertical({
       workspaceRoot: workspaceDir,
       name: 'payments',
       modernVersion: '3.2.1',
@@ -173,8 +177,8 @@ test('concurrent unrelated files are conserved while owned changes publish', () 
   }
 });
 
-test('concurrent owned-target changes fail closed without erasing either edit', () => {
-  const { tempRoot, workspaceDir } = scaffoldWorkspace();
+test('concurrent owned-target changes fail closed without erasing either edit', async () => {
+  const { tempRoot, workspaceDir } = await scaffoldWorkspace();
   const packageJsonPath = path.join(workspaceDir, 'package.json');
   const concurrentPackageJson = '{"consumer":"concurrent"}\n';
   try {
@@ -185,9 +189,9 @@ test('concurrent owned-target changes fail closed without erasing either edit', 
       }
     };
 
-    assert.throws(
-      () =>
-        addUltramodernVertical({
+    await assert.rejects(
+      async () =>
+        await addUltramodernVertical({
           workspaceRoot: workspaceDir,
           name: 'payments',
           modernVersion: '3.2.1',
@@ -238,7 +242,7 @@ test('fresh generation failure leaves no target or partial tree', () => {
   }
 });
 
-test('fresh generation publishes only after success and preserves a competing target', () => {
+test('fresh generation publishes only after success and preserves a competing target', async () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-workspace-txn-'));
   const workspaceDir = path.join(tempRoot, 'fresh-workspace');
   const overlayDir = path.join(tempRoot, 'claim-target-overlay');
@@ -260,9 +264,9 @@ module.exports = async () => {
 `,
     );
 
-    assert.throws(
-      () =>
-        generateUltramodernWorkspace({
+    await assert.rejects(
+      async () =>
+        await generateUltramodernWorkspace({
           targetDir: workspaceDir,
           packageName: 'fresh-workspace',
           modernVersion: '3.2.1',
@@ -286,8 +290,8 @@ module.exports = async () => {
   }
 });
 
-test('staged mutation never follows a workspace symlink outside the workspace', () => {
-  const { tempRoot, workspaceDir } = scaffoldWorkspace();
+test('staged mutation never follows a workspace symlink outside the workspace', async () => {
+  const { tempRoot, workspaceDir } = await scaffoldWorkspace();
   const outsideDir = path.join(tempRoot, 'outside');
   const linkedVertical = path.join(workspaceDir, 'verticals/payments');
   try {
@@ -296,14 +300,14 @@ test('staged mutation never follows a workspace symlink outside the workspace', 
     fs.symlinkSync(outsideDir, linkedVertical, 'dir');
     const before = snapshotAllFiles(workspaceDir);
 
-    assert.throws(
-      () =>
-        addUltramodernVertical({
+    await assert.rejects(
+      async () =>
+        await addUltramodernVertical({
           workspaceRoot: workspaceDir,
           name: 'payments',
           modernVersion: '3.2.1',
         }),
-      /parent changed type|transaction conflict/iu,
+      /Config source snapshot symlink escapes captured coverage:/u,
     );
 
     assert.deepEqual(fs.readdirSync(outsideDir), []);

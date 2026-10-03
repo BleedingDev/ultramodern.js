@@ -60,6 +60,7 @@ export function runCodeSmithOverlays(options: {
   workspaceRoot: string;
   overlays?: UltramodernCodeSmithOverlay[];
   result: UltramodernGenerationResult;
+  deferredUiArtifactPaths?: ReadonlySet<string>;
 }) {
   if (!options.overlays?.length) {
     return;
@@ -72,6 +73,7 @@ export function runCodeSmithOverlays(options: {
   const snapshot = captureOverlayBaselineSnapshot(
     options.workspaceRoot,
     resolveShellPackageDirectories(options.workspaceRoot),
+    options.deferredUiArtifactPaths,
   );
 
   for (const overlay of options.overlays) {

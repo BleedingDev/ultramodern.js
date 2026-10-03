@@ -19,19 +19,22 @@ import {
 import { createWorkspace, runValidation } from './helpers/workspace-kit';
 
 const createBinPath = path.resolve(__dirname, '../bin/run.js');
-const nativePreviewRequire = createRequire(
-  createRequire(import.meta.url).resolve(
-    '@typescript/native-preview/package.json',
-  ),
+const typescriptManifest = createRequire(import.meta.url).resolve(
+  'typescript/package.json',
 );
+assert.equal(
+  JSON.parse(fs.readFileSync(typescriptManifest, 'utf8')).version,
+  '7.0.2',
+);
+const nativeCompilerRequire = createRequire(typescriptManifest);
 const nativeCompiler = path.join(
   path.dirname(
-    nativePreviewRequire.resolve(
-      `@typescript/native-preview-${process.platform}-${process.arch}/package.json`,
+    nativeCompilerRequire.resolve(
+      `@typescript/typescript-${process.platform}-${process.arch}/package.json`,
     ),
   ),
   'lib',
-  process.platform === 'win32' ? 'tsgo.exe' : 'tsgo',
+  process.platform === 'win32' ? 'tsc.exe' : 'tsc',
 );
 
 function readJson(workspaceDir: string, relativePath: string): any {
@@ -40,9 +43,9 @@ function readJson(workspaceDir: string, relativePath: string): any {
   );
 }
 
-function createBaseWorkspace(workspaceDir: string) {
-  createWorkspace(workspaceDir);
-  addUltramodernVertical({
+async function createBaseWorkspace(workspaceDir: string) {
+  await createWorkspace(workspaceDir);
+  await addUltramodernVertical({
     workspaceRoot: workspaceDir,
     name: 'catalog',
     modernVersion: '3.2.1',
@@ -322,7 +325,7 @@ if (argv.includes(process.env.ULTRAMODERN_TEST_FAIL_FILTER)) {
   return { invocations, result };
 }
 
-test('root build executes every shell before and after adding a vertical and propagates failures', () => {
+test('root build executes every shell before and after adding a vertical and propagates failures', async () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-add-shell-'));
   const workspaceDir = path.join(tempRoot, 'workspace');
   const expectedInvocations = [
@@ -333,8 +336,8 @@ test('root build executes every shell before and after adding a vertical and pro
     ['performance:readiness'],
   ];
   try {
-    createBaseWorkspace(workspaceDir);
-    addUltramodernShell({
+    await createBaseWorkspace(workspaceDir);
+    await addUltramodernShell({
       workspaceRoot: workspaceDir,
       name: 'admin',
       modernVersion: '3.2.1',
@@ -365,7 +368,7 @@ test('root build executes every shell before and after adding a vertical and pro
       ),
     );
 
-    addUltramodernVertical({
+    await addUltramodernVertical({
       workspaceRoot: workspaceDir,
       name: 'orders',
       modernVersion: '3.2.1',
@@ -399,18 +402,18 @@ test('root build executes every shell before and after adding a vertical and pro
   }
 });
 
-test('add-vertical targets an additional shell and rejects unknown shell ids during preflight', () => {
+test('add-vertical targets an additional shell and rejects unknown shell ids during preflight', async () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-add-shell-'));
   const workspaceDir = path.join(tempRoot, 'workspace');
   try {
-    createBaseWorkspace(workspaceDir);
-    addUltramodernShell({
+    await createBaseWorkspace(workspaceDir);
+    await addUltramodernShell({
       workspaceRoot: workspaceDir,
       name: 'admin',
       modernVersion: '3.2.1',
     });
 
-    addUltramodernVertical({
+    await addUltramodernVertical({
       workspaceRoot: workspaceDir,
       name: 'orders',
       modernVersion: '3.2.1',
@@ -469,9 +472,9 @@ test('add-vertical targets an additional shell and rejects unknown shell ids dur
       `${validation.stdout}\n${validation.stderr}`,
     );
 
-    assert.throws(
-      () =>
-        addUltramodernVertical({
+    await assert.rejects(
+      async () =>
+        await addUltramodernVertical({
           workspaceRoot: workspaceDir,
           name: 'payments',
           modernVersion: '3.2.1',
@@ -498,11 +501,11 @@ test('add-vertical targets an additional shell and rejects unknown shell ids dur
   }
 });
 
-test('workspace-wide port allocation avoids customized shell and overlay ports', () => {
+test('workspace-wide port allocation avoids customized shell and overlay ports', async () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-add-shell-'));
   const workspaceDir = path.join(tempRoot, 'workspace');
   try {
-    createBaseWorkspace(workspaceDir);
+    await createBaseWorkspace(workspaceDir);
 
     const overlayPath = path.join(
       workspaceDir,
@@ -515,12 +518,12 @@ test('workspace-wide port allocation avoids customized shell and overlay ports',
     overlay.ports.catalog = 3120;
     fs.writeFileSync(overlayPath, `${JSON.stringify(overlay, null, 2)}\n`);
 
-    addUltramodernShell({
+    await addUltramodernShell({
       workspaceRoot: workspaceDir,
       name: 'admin',
       modernVersion: '3.2.1',
     });
-    addUltramodernShell({
+    await addUltramodernShell({
       workspaceRoot: workspaceDir,
       name: 'partner',
       modernVersion: '3.2.1',
@@ -565,7 +568,7 @@ test('workspace-wide port allocation avoids customized shell and overlay ports',
       overlayPath,
       `${JSON.stringify(overlayAfterShell, null, 2)}\n`,
     );
-    addUltramodernVertical({
+    await addUltramodernVertical({
       workspaceRoot: workspaceDir,
       name: 'orders',
       modernVersion: '3.2.1',
@@ -590,13 +593,13 @@ test('workspace-wide port allocation avoids customized shell and overlay ports',
   }
 });
 
-test('planUltramodernShell reports the planned shell without mutating the workspace', () => {
+test('planUltramodernShell reports the planned shell without mutating the workspace', async () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-add-shell-'));
   const workspaceDir = path.join(tempRoot, 'workspace');
   try {
-    createBaseWorkspace(workspaceDir);
+    await createBaseWorkspace(workspaceDir);
 
-    const plan = planUltramodernShell({
+    const plan = await planUltramodernShell({
       workspaceRoot: workspaceDir,
       name: 'admin',
       modernVersion: '3.2.1',
@@ -625,29 +628,26 @@ test('planUltramodernShell reports the planned shell without mutating the worksp
   }
 });
 
-test('add-shell keeps consumer-authored root scripts and tsconfig bytes', () => {
+test('add-shell keeps consumer-authored root scripts and tsconfig bytes', async () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-add-shell-'));
   const workspaceDir = path.join(tempRoot, 'workspace');
   try {
-    createBaseWorkspace(workspaceDir);
+    await createBaseWorkspace(workspaceDir);
     const packagePath = path.join(workspaceDir, 'package.json');
     const manifest = readJson(workspaceDir, 'package.json');
     manifest.scripts['consumer:check'] = 'echo authored';
     manifest.scripts.build = 'echo authored-build';
     fs.writeFileSync(packagePath, JSON.stringify(manifest, null, 2));
-    const topologyPath = path.join(
+    const originalVerticalRefs = readJson(
       workspaceDir,
       'topology/reference-topology.json',
-    );
-    const topology = readJson(workspaceDir, 'topology/reference-topology.json');
-    topology.shell.verticalRefs = [];
-    fs.writeFileSync(topologyPath, JSON.stringify(topology, null, 2));
+    ).shell.verticalRefs;
     const tsconfigPath = path.join(workspaceDir, 'tsconfig.json');
     const authoredTsconfig =
       '{"references":[],"compilerOptions":{"strict":true},"extra":"authored"}\n';
     fs.writeFileSync(tsconfigPath, authoredTsconfig);
 
-    addUltramodernShell({
+    await addUltramodernShell({
       workspaceRoot: workspaceDir,
       name: 'admin',
       modernVersion: '3.2.1',
@@ -660,7 +660,7 @@ test('add-shell keeps consumer-authored root scripts and tsconfig bytes', () => 
     assert.deepEqual(
       readJson(workspaceDir, 'topology/reference-topology.json').shell
         .verticalRefs,
-      [],
+      originalVerticalRefs,
     );
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });

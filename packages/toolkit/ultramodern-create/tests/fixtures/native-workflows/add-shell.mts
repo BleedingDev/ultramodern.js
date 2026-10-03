@@ -7,7 +7,7 @@ if (!version || version === '<V>') {
 }
 
 console.log(
-  addUltramodernShell({
+  await addUltramodernShell({
     workspaceRoot: process.cwd(),
     name: 'admin',
     modernVersion: version,

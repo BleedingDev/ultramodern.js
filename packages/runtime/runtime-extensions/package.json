@@ -43,15 +43,6 @@
       },
       "default": "./dist/esm/safeFailure.mjs"
     },
-    "./build-identity": {
-      "types": "./dist/types/buildIdentity.d.ts",
-      "modern:source": "./src/buildIdentity.ts",
-      "node": {
-        "import": "./dist/esm-node/buildIdentity.mjs",
-        "require": "./dist/cjs/buildIdentity.js"
-      },
-      "default": "./dist/esm/buildIdentity.mjs"
-    },
     "./workspace-events": {
       "types": "./dist/types/workspaceEvents.d.ts",
       "modern:source": "./src/workspaceEvents.ts",
@@ -222,10 +213,6 @@
         "./dist/types/safeFailure.d.ts",
         "./src/safeFailure.ts"
       ],
-      "build-identity": [
-        "./dist/types/buildIdentity.d.ts",
-        "./src/buildIdentity.ts"
-      ],
       "workspace-events": [
         "./dist/types/workspaceEvents.d.ts",
         "./src/workspaceEvents.ts"
@@ -315,7 +302,8 @@
     "nock": "^14.0.17",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "typescript": "^7.0.2"
+    "typescript": "7.0.2",
+    "react-helmet-async": "3.0.0"
   },
   "sideEffects": false,
   "publishConfig": {
@@ -324,20 +312,19 @@
     "types": "./dist/types/index.d.ts"
   },
   "peerDependencies": {
-    "react": "^19.2.8"
+    "react": "^19.2.8",
+    "react-helmet-async": "3.0.0"
   },
   "peerDependenciesMeta": {
     "react": {
+      "optional": true
+    },
+    "react-helmet-async": {
       "optional": true
     }
   },
   "dependencies": {
     "@modern-js/create-request": "workspace:*",
-    "@modern-js/runtime-utils": "workspace:*",
-    "react-helmet-async": "3.0.0"
-  },
-  "files": [
-    "dist",
-    "src"
-  ]
+    "@modern-js/runtime-utils": "workspace:*"
+  }
 }

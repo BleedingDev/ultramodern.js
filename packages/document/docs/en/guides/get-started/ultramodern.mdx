@@ -51,12 +51,45 @@ UltraModern.js uses Effect HttpApi, TanStack Router, SSR, and independently depl
 ## Create and Validate a Workspace
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-ultramodern-create@latest catalog --vertical
+pnpm dlx @bleedingdev/modern-js-ultramodern-create@<V> my-workspace --renderer react
+cd my-workspace
 mise install
 mise exec -- pnpm install
 mise exec -- pnpm check
 mise exec -- pnpm build
 ```
+
+Replace `<V>` with the published framework version. Omit `--renderer` to use
+React, or select `solid` or `octane` during initial generation. Add commands
+read the application's `modern.config.ts` instead of accepting `--renderer`.
+
+### Select the application renderer
+
+Use the fork's config entrypoint; it owns the selected plugin composition:
+
+```ts title="modern.config.ts"
+import { defineConfig } from '@modern-js/ultramodern-app-tools';
+
+export default defineConfig({
+  renderer: 'solid', // 'react' or 'octane'; omitted means 'react'
+  server: { ssr: true },
+});
+```
+
+Solid 2.0.0-rc.13 and Octane are Node previews for CSR, native streaming SSR,
+hydration and managed filesystem routes. Use Node 26.7.0 or newer. Author
+components with `solid-js` / `@solidjs/web` or `octane`, and import native router
+primitives from `@modern-js/renderer-solid/router` or
+`@modern-js/renderer-octane/router`. Generated entries own mounting and hydration.
+Changing the selector requires matching native source and dependencies, a
+dev-server restart and a document reload.
+
+Native previews reject workers, Module Federation, RSC, SSG, React i18n
+integration, SVG component imports and CSS declaration emission beside authored
+source. SVG URLs remain supported. The
+[application tools README](https://github.com/BleedingDev/ultramodern.js/tree/main/packages/solutions/ultramodern-app-tools#readme)
+defines the current preview profile and pinned dependencies. The federation,
+i18n and Cloudflare examples below describe the React profile.
 
 Localized Cloudflare SSR workspaces redirect `/` on the server to the negotiated locale. For example, `Accept-Language: cs-CZ` returns `302` with `Location: /cs`, `Cache-Control: private, no-store`, and `Vary` covering locale detection headers. Validate the deployed Worker with:
 
@@ -176,11 +209,11 @@ compilers do not share mutable build state.
 
 ## Configure the public preset
 
-Use `presetUltramodern(appConfig, presetOptions)` inside the normal Modern.js
+Use `presetUltramodern(appConfig, presetOptions)` inside the UltraModern
 `defineConfig` call:
 
 ```ts title="modern.config.ts"
-import { defineConfig, presetUltramodern } from '@modern-js/app-tools';
+import { defineConfig, presetUltramodern } from '@modern-js/ultramodern-app-tools';
 
 export default defineConfig(
   presetUltramodern(

@@ -95,6 +95,7 @@ export const appTools = (
           bffRuntimeFramework: userConfig.bff?.runtimeFramework,
         },
         tempDir: userConfig.output?.tempDir,
+        packageMetadataRead: context.packageMetadataRead,
       }),
     );
 

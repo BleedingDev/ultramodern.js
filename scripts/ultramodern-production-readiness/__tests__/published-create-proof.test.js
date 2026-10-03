@@ -446,6 +446,128 @@ test('acceptance children never inherit a source create bin or framework overrid
   }
 });
 
+test('acceptance defaults retain their existing private package-manager cache and store', async () => {
+  const { createAcceptancePackageManagerEnv } = await import(
+    '../published-create-proof/acceptance-profile.mjs'
+  );
+  const workDir = path.resolve(os.tmpdir(), 'acceptance-default-env');
+  const env = createAcceptancePackageManagerEnv(workDir);
+  assert.equal(
+    env.npm_config_store_dir,
+    path.join(workDir, 'package-manager', 'store'),
+  );
+  assert.equal(env.pnpm_config_store_dir, env.npm_config_store_dir);
+  assert.equal(
+    env.npm_config_cache,
+    path.join(workDir, 'package-manager', 'npm-cache'),
+  );
+  assert.equal(env.pnpm_config_package_import_method, undefined);
+  assert.equal(env.npm_config_package_import_method, undefined);
+  assert.equal(env.npm_config_ignore_scripts, undefined);
+  assert.equal(env.pnpm_config_ignore_scripts, undefined);
+});
+
+test('runtime context carries the explicit external store and clone-or-copy through child environments', async () => {
+  const { createAcceptanceRuntimeContext } = await import(
+    '../published-create-proof/acceptance-profile.mjs'
+  );
+  const workDir = path.resolve(os.tmpdir(), 'acceptance-store-env', 'work');
+  const storeDir = path.resolve(workDir, '..', 'external-store');
+  const environment = {
+    PATH: '/injected/bin',
+    PLAYWRIGHT_BROWSERS_PATH: path.resolve(workDir, '..', 'browsers'),
+  };
+  const pnpmExecutable = path.resolve(workDir, '..', 'tools', 'pnpm');
+  const runImpl = () => {
+    throw new Error('no package-manager command is needed');
+  };
+  const { env, pnpmExecutable: actualExecutable } =
+    createAcceptanceRuntimeContext({
+      workDir,
+      environment,
+      expectedPnpmVersion: '11.27.1',
+      registryEnv: {
+        npm_config_userconfig: path.join(workDir, 'registry.npmrc'),
+        PNPM_CONFIG_STORE_DIR: '/registry/store-must-not-win',
+        npm_config_store_dir: '/registry/store-must-not-win',
+        PNPM_CONFIG_PACKAGE_IMPORT_METHOD: 'hardlink',
+      },
+      storeDir,
+      runImpl,
+      resolveExactPnpmExecutableImpl: (...args) => {
+        assert.deepEqual(args, [runImpl, '11.27.1', environment, workDir]);
+        return pnpmExecutable;
+      },
+    });
+  assert.equal(actualExecutable, pnpmExecutable);
+  assert.equal(
+    env.PATH,
+    [path.dirname(pnpmExecutable), environment.PATH].join(path.delimiter),
+  );
+  assert.equal(
+    env.PLAYWRIGHT_BROWSERS_PATH,
+    environment.PLAYWRIGHT_BROWSERS_PATH,
+  );
+  assert.equal(env.npm_config_userconfig, path.join(workDir, 'registry.npmrc'));
+  const child = spawnSync(
+    process.execPath,
+    [
+      '-e',
+      'process.stdout.write(JSON.stringify(Object.fromEntries(Object.entries(process.env).filter(([key]) => /^(?:npm|pnpm)_config_(?:store_dir|package_import_method)$/i.test(key)))))',
+    ],
+    {
+      encoding: 'utf8',
+      env: createProcessEnv(env),
+    },
+  );
+  assert.equal(child.status, 0, child.stderr);
+  assert.deepEqual(JSON.parse(child.stdout), {
+    npm_config_store_dir: storeDir,
+    pnpm_config_store_dir: storeDir,
+    npm_config_package_import_method: 'clone-or-copy',
+    pnpm_config_package_import_method: 'clone-or-copy',
+  });
+  assert.equal(env.npm_config_ignore_scripts, undefined);
+  assert.equal(env.pnpm_config_ignore_scripts, undefined);
+});
+
+test('explicit acceptance stores reject relative paths and disposable workspace descendants', async () => {
+  const { createAcceptancePackageManagerEnv } = await import(
+    '../published-create-proof/acceptance-profile.mjs'
+  );
+  const workDir = path.resolve(os.tmpdir(), 'acceptance-store-validation');
+  for (const storeDir of ['store', '', ' ', `${workDir}\0bad`]) {
+    assert.throws(
+      () =>
+        createAcceptancePackageManagerEnv(
+          workDir,
+          {},
+          undefined,
+          {},
+          { storeDir },
+        ),
+      /must be an absolute path/u,
+    );
+  }
+  for (const storeDir of [
+    workDir,
+    path.join(workDir, 'store'),
+    path.join(workDir, 'nested', '..', 'store'),
+  ]) {
+    assert.throws(
+      () =>
+        createAcceptancePackageManagerEnv(
+          workDir,
+          {},
+          undefined,
+          {},
+          { storeDir },
+        ),
+      /must be outside/u,
+    );
+  }
+});
+
 test('the provisioned pnpm wins over a stale shim and a version mismatch fails closed', async t => {
   const { resolveExactPnpmExecutable } = await import(
     '../published-create-proof/acceptance-profile.mjs'

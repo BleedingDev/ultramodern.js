@@ -108,6 +108,8 @@ type ServerVariables = {
    * The current matched route, now only expose entryName field.
    */
   route: Required<Pick<ServerRoute, 'entryName' | 'urlPath'>>;
+  /** The actual render match, including custom pathname and entry rewrites. */
+  renderRoute?: ServerRoute;
   forceCSR?: string;
 };
 

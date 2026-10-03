@@ -20,6 +20,14 @@ import {
 } from './descriptors';
 import { packageName } from './naming';
 import { createCloudflareDeployContract } from './policy';
+import {
+  type RendererMetadataPhase,
+  rendererMetadataProjection,
+} from './renderer-identity';
+import {
+  appSupportsFederation,
+  resolveAppGenerationProfile,
+} from './renderer-profile';
 import type { JsonValue, WorkspaceApp } from './types';
 
 function isJsonValue(value: JsonValue | undefined): value is JsonValue {
@@ -58,6 +66,7 @@ export function createTopology(
   scope: string,
   remotes: WorkspaceApp[] = [],
   primaryShell?: WorkspaceApp,
+  phase: RendererMetadataPhase = 'resolved',
 ): JsonValue {
   const shellHost = primaryShell ?? createShellHost(remotes);
   return {
@@ -71,22 +80,33 @@ export function createTopology(
       kind: 'shell',
       package: packageName(scope, shellHost.packageSuffix),
       path: shellHost.directory,
+      ...rendererMetadataProjection(shellHost, phase),
+      rendererCapabilities:
+        resolveAppGenerationProfile(shellHost)!.capabilities,
       displayName: shellHost.displayName,
       portEnv: shellHost.portEnv,
-      verticalRefs: shellHost.verticalRefs ?? [],
-      moduleFederation: {
-        role: 'host',
-        name: shellHost.mfName,
-        remotes: createReferenceRemoteContracts(shellHost, remotes),
-        ssr: true,
-        sharedContractVersion: 'mf-ssr-contract-v1',
-      },
+      ...(appSupportsFederation(shellHost)
+        ? { verticalRefs: shellHost.verticalRefs ?? [] }
+        : {}),
+      ...(appSupportsFederation(shellHost)
+        ? {
+            moduleFederation: {
+              role: 'host',
+              name: shellHost.mfName,
+              remotes: createReferenceRemoteContracts(shellHost, remotes),
+              ssr: true,
+              sharedContractVersion: 'mf-ssr-contract-v1',
+            },
+          }
+        : {}),
       // Every unit kind carries a delivery-unit identity (G29): the shell is
       // its own delivery unit even though it has no API surface.
       deliveryUnit: deliveryUnitContractBlock(
         createDeliveryUnitRecord(scope, shellHost),
       ),
-      cloudflare: createCloudflareDeployContract(scope, shellHost),
+      ...(resolveAppGenerationProfile(shellHost)!.capabilities.workers
+        ? { cloudflare: createCloudflareDeployContract(scope, shellHost) }
+        : {}),
       ownership: shellHost.ownership,
     },
     verticals: remotes.map(vertical => ({
@@ -101,22 +121,33 @@ export function createTopology(
       ...(vertical.domain ? { domain: vertical.domain } : {}),
       package: packageName(scope, vertical.packageSuffix),
       path: vertical.directory,
+      ...rendererMetadataProjection(vertical, phase),
+      ...(resolveAppGenerationProfile(vertical)
+        ? {
+            rendererCapabilities:
+              resolveAppGenerationProfile(vertical)!.capabilities,
+          }
+        : {}),
       displayName: vertical.displayName,
       portEnv: vertical.portEnv,
-      moduleFederation: {
-        role: 'remote',
-        name: vertical.mfName,
-        manifestUrl: `http://localhost:${vertical.port}/mf-manifest.json`,
-        exposes: Object.keys(vertical.exposes ?? {}),
-        ...(vertical.verticalRefs?.length
-          ? {
-              verticalRefs: vertical.verticalRefs,
-              remotes: createReferenceRemoteContracts(vertical, remotes),
-            }
-          : {}),
-        ssr: true,
-        sharedContractVersion: 'mf-ssr-contract-v1',
-      },
+      ...(appSupportsFederation(vertical)
+        ? {
+            moduleFederation: {
+              role: 'remote',
+              name: vertical.mfName,
+              manifestUrl: `http://localhost:${vertical.port}/mf-manifest.json`,
+              exposes: Object.keys(vertical.exposes ?? {}),
+              ...(vertical.verticalRefs?.length
+                ? {
+                    verticalRefs: vertical.verticalRefs,
+                    remotes: createReferenceRemoteContracts(vertical, remotes),
+                  }
+                : {}),
+              ssr: true,
+              sharedContractVersion: 'mf-ssr-contract-v1',
+            },
+          }
+        : {}),
       ...optionalJsonEntry(
         'backendFederation',
         createBackendFederationContract(scope, vertical),
@@ -128,7 +159,10 @@ export function createTopology(
         createDeliveryUnitRecord(scope, vertical),
       ),
       ...optionalJsonEntry('api', apiTopologyMetadata(vertical)),
-      cloudflare: createCloudflareDeployContract(scope, vertical),
+      ...(vertical.renderer === 'none' ||
+      resolveAppGenerationProfile(vertical)!.capabilities.workers
+        ? { cloudflare: createCloudflareDeployContract(scope, vertical) }
+        : {}),
       ownership: vertical.ownership,
     })),
     sharedPackages: sharedPackages.map(sharedPackage => ({

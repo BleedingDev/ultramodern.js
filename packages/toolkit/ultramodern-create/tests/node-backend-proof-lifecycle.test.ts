@@ -7,6 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createMicroVerticalReleaseEnvelope } from '@modern-js/app-tools-extensions/release-envelope';
+import { reactReleaseUi } from '../../../solutions/app-tools-extensions/tests/renderer-release-fixture';
 import {
   createRpcClientFile,
   createRpcContractFile,
@@ -183,16 +184,15 @@ test('Node proof consumes the real API-only envelope and rejects changed artifac
       authenticatedApp.manifestUrl,
       'http://user:pass@localhost:3021/backend-mf-manifest.json',
     );
-    assert.deepEqual(
-      proof.readBoundReleaseEnvelope(app, 'dist').envelope.surfaces.uiClient,
-      [],
-    );
+    const binding = await proof.readBoundReleaseEnvelope(app, 'dist');
+    assert.deepEqual(binding.envelope.surfaces.uiClient, []);
+    assert.equal(Object.hasOwn(binding.envelope, 'ui'), false);
 
     fs.writeFileSync(
       path.join(targetDirectory, 'api/index.js'),
       'exports.api = frue;',
     );
-    assert.throws(
+    await assert.rejects(
       () => proof.readBoundReleaseEnvelope(app, 'dist'),
       /envelope SHA-256/u,
     );
@@ -208,9 +208,148 @@ test('Node proof consumes the real API-only envelope and rejects changed artifac
         surfaces: { ...envelope.surfaces, uiClient: ['api/index.js'] },
       }),
     );
-    assert.throws(
+    await assert.rejects(
       () => proof.readBoundReleaseEnvelope(app, 'dist'),
       /empty UI\/client and SSR/u,
+    );
+    fs.writeFileSync(envelopePath, JSON.stringify({ ...envelope, ui: null }));
+    await assert.rejects(
+      () => proof.readBoundReleaseEnvelope(app, 'dist'),
+      /ui is forbidden for an API-only release/u,
+    );
+  } finally {
+    if (priorRoot === undefined) {
+      delete process.env.ULTRAMODERN_WORKSPACE_ROOT;
+    } else {
+      process.env.ULTRAMODERN_WORKSPACE_ROOT = priorRoot;
+    }
+    fs.rmSync(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+test('Node proof verifies UI renderer identity, profile and router bindings with the current envelope owner', async () => {
+  const workspaceRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'node-proof-ui-envelope-'),
+  );
+  const targetDirectory = path.join(workspaceRoot, 'verticals/catalog/dist');
+  const priorRoot = process.env.ULTRAMODERN_WORKSPACE_ROOT;
+  try {
+    const files = {
+      'ui/main.js': 'globalThis.catalog = true;',
+      'ssr/index.js': 'exports.render = () => "catalog";',
+      'api/index.js': 'exports.api = true;',
+      'backend-mf-manifest.json': '{"name":"catalog"}',
+      'backendRemoteEntry.cjs': 'module.exports = {};',
+    };
+    for (const [logicalPath, bytes] of Object.entries(files)) {
+      const artifactPath = path.join(targetDirectory, logicalPath);
+      fs.mkdirSync(path.dirname(artifactPath), { recursive: true });
+      fs.writeFileSync(artifactPath, bytes);
+    }
+    const ui = reactReleaseUi('catalog-build', 'catalog');
+    const envelope = await createMicroVerticalReleaseEnvelope({
+      artifactRoot: targetDirectory,
+      target: 'node',
+      identity: {
+        unitId: 'test/catalog',
+        buildMarker: 'catalog-build',
+        sourceRevision: 'a'.repeat(40),
+        releaseVersion: '1.0.0',
+      },
+      ui,
+      artifacts: Object.keys(files).map(logicalPath => ({
+        logicalPath,
+        runtime: logicalPath.startsWith('ui/')
+          ? 'browser'
+          : logicalPath.endsWith('.json')
+            ? 'module-federation-manifest'
+            : 'nodejs',
+      })),
+      surfaces: {
+        uiClient: ['ui/main.js'],
+        ssr: ['ssr/index.js'],
+        apiBackend: ['api/index.js'],
+        backendFederation: {
+          manifest: 'backend-mf-manifest.json',
+          container: 'backendRemoteEntry.cjs',
+        },
+      },
+    });
+    const envelopePath = path.join(
+      targetDirectory,
+      'release/microvertical-release-envelope.json',
+    );
+    fs.mkdirSync(path.dirname(envelopePath), { recursive: true });
+    fs.writeFileSync(envelopePath, JSON.stringify(envelope));
+    process.env.ULTRAMODERN_WORKSPACE_ROOT = workspaceRoot;
+    const proof = await import(
+      `${pathToFileURL(path.resolve(__dirname, '../templates/workspace-scripts/proof-node-backend-federation.mjs')).href}?ui=${Date.now()}`
+    );
+    const app = {
+      id: 'catalog',
+      directory: 'verticals/catalog',
+      apiOnly: false,
+      rendererProfile: ui.rendererProfile,
+    };
+    const binding = await proof.readBoundReleaseEnvelope(app, 'dist');
+    assert.deepEqual(binding.envelope.ui, ui);
+    assert.equal(
+      binding.manifestArtifact.logicalPath,
+      'backend-mf-manifest.json',
+    );
+    assert.equal(
+      binding.containerArtifact.logicalPath,
+      'backendRemoteEntry.cjs',
+    );
+    assert.deepEqual(
+      binding.apiBackendArtifacts.map(artifact => artifact.logicalPath),
+      ['api/index.js'],
+    );
+    await assert.rejects(
+      () =>
+        proof.readBoundReleaseEnvelope(
+          { ...app, rendererProfile: undefined },
+          'dist',
+        ),
+      /requires its resolved renderer profile/u,
+    );
+    await assert.rejects(
+      () =>
+        proof.readBoundReleaseEnvelope(
+          {
+            ...app,
+            rendererProfile: {
+              ...ui.rendererProfile,
+              hydration: { ...ui.rendererProfile.hydration, version: '19.3.1' },
+            },
+          },
+          'dist',
+        ),
+      /rendererProfile\.hydration\.version/u,
+    );
+    for (const invalidUi of [
+      {
+        ...ui,
+        rendererIdentity: { ...ui.rendererIdentity, buildId: 'wrong-build' },
+      },
+      { ...ui, routerBindings: {} },
+    ]) {
+      fs.writeFileSync(
+        envelopePath,
+        JSON.stringify({ ...envelope, ui: invalidUi }),
+      );
+      await assert.rejects(
+        () => proof.readBoundReleaseEnvelope(app, 'dist'),
+        /buildId must match|must include the primary/u,
+      );
+    }
+    fs.writeFileSync(
+      envelopePath,
+      JSON.stringify({ ...envelope, ui: undefined }),
+    );
+    await assert.rejects(
+      () => proof.readBoundReleaseEnvelope(app, 'dist'),
+      /envelope\.ui must be an object/u,
     );
   } finally {
     if (priorRoot === undefined) {

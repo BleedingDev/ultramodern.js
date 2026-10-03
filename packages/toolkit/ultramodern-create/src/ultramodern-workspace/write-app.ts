@@ -48,12 +48,14 @@ import {
   createUltramodernBuildModule,
   createUltramodernBuildReexportModule,
 } from './module-federation';
+import { writeNativeApp } from './native-app';
 import {
   createAppMfTypesTsConfig,
   createAppPackage,
   createAppTsConfig,
 } from './package-json';
 import { createPublicWebAppArtifacts } from './public-surface';
+import { resolveWorkspaceRenderer } from './renderer-profile';
 import type { ResolvedPackageSource, WorkspaceApp } from './types';
 
 type WriteAppContext = {
@@ -86,8 +88,28 @@ export function writeApp(
   // collapse onto the primary shell's identity.
   const resolvedApp =
     app.kind === 'shell' && app.id === createShellHost(remotes).id
-      ? createShellHost(remotes)
+      ? {
+          ...createShellHost(remotes),
+          ...app,
+          verticalRefs:
+            app.verticalRefs ?? createShellHost(remotes).verticalRefs,
+        }
       : app;
+  const renderer = resolveWorkspaceRenderer(resolvedApp);
+  if (renderer === 'solid' || renderer === 'octane') {
+    if (bridge)
+      throw new Error(
+        `Renderer ${renderer} does not support React bridge configuration.`,
+      );
+    writeNativeApp(
+      targetDir,
+      scope,
+      resolvedApp,
+      packageSource,
+      enableTailwind,
+    );
+    return;
+  }
   const emitsUi = appEmitsBrowserUi(resolvedApp);
   // A headless (api-only) unit never emits Tailwind CSS (G2a).
   const appTailwind = enableTailwind && emitsUi;
@@ -175,11 +197,15 @@ function writeAppConfigFiles({
     `${resolvedApp.directory}/shared/ultramodern-build.ts`,
     createUltramodernBuildModule(scope, resolvedApp),
   );
-  writeFile(
-    targetDir,
-    `${resolvedApp.directory}/shared/ultramodern-build.json`,
-    createUltramodernBuildArtifactJson(scope, resolvedApp),
-  );
+  // New UI source is authored before its sole config evaluation. Its strict
+  // artifact is created only after the owning entry resolver supplies bindings.
+  if (!emitsUi || resolvedApp.routerBindings) {
+    writeFile(
+      targetDir,
+      `${resolvedApp.directory}/shared/ultramodern-build.json`,
+      createUltramodernBuildArtifactJson(scope, resolvedApp),
+    );
+  }
   if (emitsUi) {
     writeFile(
       targetDir,

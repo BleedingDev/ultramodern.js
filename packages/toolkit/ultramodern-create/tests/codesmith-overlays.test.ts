@@ -65,7 +65,11 @@ const path = require('node:path');
 module.exports = async context => {
   const config = context.config;
   const app = config.generatedApp;
-  const outDir = path.join(config.outputWorkspaceRoot, 'overlay-output');
+  const outDir = path.join(
+    config.outputWorkspaceRoot,
+    ...(config.operation === 'vertical' ? [app.directory] : []),
+    'overlay-output',
+  );
   fs.mkdirSync(outDir, { recursive: true });
   fs.writeFileSync(
     path.join(outDir, \`\${config.operation}-\${app.id}.json\`),
@@ -91,13 +95,13 @@ module.exports = async context => {
   return generatorDir;
 }
 
-test('public API runs explicit CodeSmith overlays and leaves base generation unchanged without overlays', () => {
+test('public API runs explicit CodeSmith overlays and leaves base generation unchanged without overlays', async () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-overlay-'));
 
   try {
     const overlayGenerator = createOverlayGenerator(tempRoot);
     const workspaceWithOverlay = path.join(tempRoot, 'workspace-overlay');
-    generateUltramodernWorkspace({
+    await generateUltramodernWorkspace({
       targetDir: workspaceWithOverlay,
       packageName: 'workspace-overlay',
       modernVersion: '3.2.1',
@@ -129,8 +133,8 @@ test('public API runs explicit CodeSmith overlays and leaves base generation unc
     );
 
     const baseWorkspace = path.join(tempRoot, 'base-workspace');
-    createWorkspace(baseWorkspace);
-    addUltramodernVertical({
+    await createWorkspace(baseWorkspace);
+    await addUltramodernVertical({
       workspaceRoot: baseWorkspace,
       name: 'catalog',
       modernVersion: '3.2.1',
@@ -140,7 +144,7 @@ test('public API runs explicit CodeSmith overlays and leaves base generation unc
       false,
     );
 
-    addUltramodernVertical({
+    await addUltramodernVertical({
       workspaceRoot: baseWorkspace,
       name: 'checkout',
       modernVersion: '3.2.1',
@@ -152,7 +156,10 @@ test('public API runs explicit CodeSmith overlays and leaves base generation unc
       ],
     });
     assert.deepEqual(
-      readJson(baseWorkspace, 'overlay-output/vertical-checkout.json'),
+      readJson(
+        baseWorkspace,
+        'verticals/checkout/overlay-output/vertical-checkout.json',
+      ),
       {
         custom: 'vertical-overlay',
         workspaceRoot: baseWorkspace,
@@ -170,13 +177,13 @@ test('public API runs explicit CodeSmith overlays and leaves base generation unc
   }
 });
 
-test('CLI reports CodeSmith overlay failures without the success message', () => {
+test('CLI reports CodeSmith overlay failures without the success message', async () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-overlay-'));
 
   try {
     const overlayGenerator = createOverlayGenerator(tempRoot, { fail: true });
     const workspaceDir = path.join(tempRoot, 'cli-overlay-failure-workspace');
-    createWorkspace(path.basename(workspaceDir), { workspaceDir });
+    await createWorkspace(path.basename(workspaceDir), { workspaceDir });
 
     const result = runCli(workspaceDir, [
       '--vertical=checkout',

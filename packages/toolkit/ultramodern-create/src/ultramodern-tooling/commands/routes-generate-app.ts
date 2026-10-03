@@ -11,23 +11,17 @@ async function main(): Promise<void> {
       throw new Error('Route generation requires an app directory and label.');
     }
     const appRequire = createRequire(path.join(appDirectory, 'package.json'));
-    const pluginUrl = pathToFileURL(
-      appRequire.resolve('@modern-js/plugin-tanstack'),
+    const cliUrl = pathToFileURL(
+      appRequire.resolve('@modern-js/ultramodern-app-tools/cli'),
     ).href;
-    const plugin = (await import(pluginUrl)) as Record<
-      'generateTanstackRouteArtifacts' | 'writeRouteMetadataManifest',
-      (options: { appDirectory: string }) => Promise<void>
-    >;
-    if (mode === 'manifest') {
-      await plugin.writeRouteMetadataManifest({ appDirectory });
-      console.log(`[ultramodern] Route metadata manifest generated: ${label}`);
-    } else {
-      await plugin.generateTanstackRouteArtifacts({ appDirectory });
-      console.log(`[ultramodern] TanStack route artifacts generated: ${label}`);
-    }
+    const { generateRouteArtifacts } = (await import(cliUrl)) as {
+      generateRouteArtifacts(options: { appDirectory: string }): Promise<void>;
+    };
+    await generateRouteArtifacts({ appDirectory });
+    console.log(`[ultramodern] Route artifacts generated: ${label}`);
   } catch (error) {
     process.exitCode = 1;
-    console.error(`[ultramodern] TanStack route generation failed: ${label}`);
+    console.error(`[ultramodern] Route generation failed: ${label}`);
     let current: unknown = error;
     let depth = 0;
     while (current) {

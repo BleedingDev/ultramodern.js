@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import type { WorkspaceSourceReadObserver } from '../publication-inputs';
 
 import { inspectModuleFederationConfigSource } from './inspect';
 import type { ModuleFederationConfigInspection } from './types';
@@ -16,18 +17,23 @@ const moduleFederationConfigFile = 'module-federation.config.ts';
 export function readModuleFederationConfigInspection(
   workspaceRoot: string,
   appDirectory: string,
-): ModuleFederationConfigInspection | undefined {
+  observeInput?: WorkspaceSourceReadObserver,
+): Record<string, string> | undefined {
   const configPath = path.join(
     workspaceRoot,
     appDirectory,
     moduleFederationConfigFile,
   );
-  if (!fs.existsSync(configPath)) {
+  const existed = fs.existsSync(configPath);
+  observeInput?.(configPath, 'entry-kind', existed);
+  if (!existed) {
     return undefined;
   }
   try {
+    const source = fs.readFileSync(configPath, 'utf-8');
+    observeInput?.(configPath, 'content', true);
     return inspectModuleFederationConfigSource(
-      fs.readFileSync(configPath, 'utf-8'),
+      source,
       appDirectory,
       path.join(appDirectory, moduleFederationConfigFile),
     );

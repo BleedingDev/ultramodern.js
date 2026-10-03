@@ -1,0 +1,2724 @@
+/**
+ * octane runtime — template-clone renderer with React-shape state model.
+ *
+ * Architecture overview: see /README.md (project positioning + `.tsrx` syntax) and
+ * the section headers throughout this file — the comments here are the design spec.
+ *
+ * Block = mount/unmount boundary (Root / control-flow / dynamic / portal).
+ * Scope = per-call-site hook bag inside a Block.
+ * Hooks key by compile-time Symbol per call site (conditional-safe).
+ * State: React-shape immutable values + setters that schedule the enclosing Block.
+ * Updates: microtask-flushed queue with automatic batching.
+ * Effects: three-phase pipeline (insertion sync → layout sync → passive post-paint).
+ * Reconciliation: LIS-based keyed list inside forBlock (ported from Ripple's patchKeyedChildrenComplex).
+ */
+import type { BindingHandle } from './dom-bindings.js';
+import { type BindingHandoff } from './dom-binding-handoff.js';
+import { type ControlHandoff, type SignalControlBinding } from './signals/control-handoff.js';
+import { EXTERNAL_HYDRATION_PROMISE, HYDRATION_RANGE_BOUNDARY } from './constants.js';
+import type { HydrateProps } from './hydration/types.js';
+import type { IndependentHydrateActivator } from './hydration/independent-island.js';
+import { snapshotHydrationControl } from './hydration/event-capture.js';
+import { CONTEXT_TAG, ELEMENT_TAG, PORTAL_TAG } from './runtime-tags.js';
+import { validateNativeReadWitness, type NativeReadWitness } from './signals/native-read-collector.js';
+import { type NativeReadRetry } from './signals/native-read-retry.js';
+import type { SignalActionFrame } from './signals/transition-action.js';
+import { setNativeAdoptionResolver } from './signals/read-protocol.js';
+import { type NativeAdoptionState } from './signals/native-read-seeds.js';
+export { documentSignalOwner, installStreamedSignalOwnerActivator, } from './signals/document-owner.js';
+import { type SignalHandle, type SignalOwner, type ScopeSeed, type SignalRendererOwnerIdentity } from './signals/types.js';
+export { EXTERNAL_HYDRATION_PROMISE, HYDRATION_RANGE_BOUNDARY };
+export { validateNativeReadWitness };
+export type ComponentBody<P = any, E = any> = (props: P, scope: Scope, extra: E) => void;
+declare const EFFECT_CLEANUP_VOID_ONLY: unique symbol;
+type EffectCleanup = () => void | {
+    [EFFECT_CLEANUP_VOID_ONLY]: never;
+};
+type EffectFn = () => void | EffectCleanup;
+type Cleanup = () => void;
+type HookSlot = symbol | number;
+/** @internal Cross-renderer parent ownership carried on compiler-created region props. */
+export interface RendererRegionOwnerBridge {
+    readonly active: boolean;
+    readContext<T>(context: Context<T>): T;
+    routeError(error: unknown): boolean;
+    routeSuspense(thenable: PromiseLike<unknown>): boolean;
+    registerDispose(dispose: () => void): () => void;
+    /**
+     * Resolve a foreign (host-renderer) context object to a root-local Octane
+     * mirror context. `use()`/`useContext()` consult this on their cold
+     * unknown-usable path when the reading component lives under an owned root;
+     * the returned mirror then flows through the ordinary Octane context reader
+     * (local-provider-first, memo dependency recording, owner fallback).
+     * Returning null declines the object and restores the normal diagnostic.
+     */
+    resolveForeignContext?(context: object): Context<any> | null;
+}
+interface EffectEventCell {
+    impl: (...args: any[]) => any;
+    active: boolean;
+}
+interface PendingEffectEvent {
+    cell: EffectEventCell;
+    nextImpl: (...args: any[]) => any;
+    block: Block;
+    renderVersion: number;
+}
+export interface Scope {
+    block: Block;
+    parent: Scope | null;
+    /**
+     * Hook slot map. Lazily allocated on the first hook call via `ensureHooks`.
+     * For-of item bodies that never call a hook (the common case in
+     * js-framework-benchmark-shaped lists) keep this as `null` for their
+     * lifetime — saving the Map allocation per Block on mass-mount paths.
+     * Reads use optional chaining (`scope.hooks?.get(slot)`) which returns
+     * `undefined` when null, identical to a Map.get miss.
+     */
+    hooks: Map<HookSlot, any> | null;
+    /**
+     * Teardown callbacks (ref detaches, listener removal, slot cleanup). Lazily allocated by
+     * `pushCleanup` — most scopes never register one, so the array is only paid for on demand,
+     * matching `hooks` / `effectSlots` / `_slots`.
+     */
+    cleanups: Cleanup[] | null;
+    /**
+     * This scope's effect slots in hook DECLARATION order (first-enqueue order —
+     * the order the hooks ran in the scope's first render). unmountScope walks it
+     * to reproduce React's deletion contract (commitDeletionEffectsOnFiber's
+     * forward effect-list walk): insertion + layout destroys fire synchronously in
+     * the declared interleaving, passive destroys are DEFERRED to the passive
+     * flush. A flat array (not the hooks Map) so teardown is an indexed walk with
+     * no iterator allocation and no filtering past state/memo/ref slots. Null on
+     * effect-less scopes — the common case on mass-mount paths.
+     */
+    effectSlots: EffectSlot[] | null;
+    /**
+     * Per-call-site child scopes, stored as `[key, scope]` pairs in a flat array
+     * (NOT a Map): iteration is a plain indexed for-loop, and lookups are linear
+     * scans — faster than `Map.get` for the typical N ≤ 8 case (most components
+     * have a handful of static sub-component calls at most).
+     *
+     * Lazily allocated when the first child scope registers: a leaf component has none.
+     */
+    children: ChildScope[] | null;
+    mounted: boolean;
+    /**
+     * Slot objects owned by this scope (ifBlockSlot, forBlockSlot, etc.).
+     * Lazily allocated by registerSlot at the slot's first creation site;
+     * walked directly by unmountScope so teardown doesn't have to enumerate
+     * the entire hidden-class chain looking for `_xxx$N` slot keys.
+     * Null on scopes with no slots — the common case for leaf components.
+     */
+    _slots: any[] | null;
+    /**
+     * Compiled REF MANIFEST (compiled-output plan, ref-manifest phase): a
+     * module-scope constant the mount path stamps when the body has ref-carrying
+     * bindings — flat triads of [kind, bagField, elBagField]: 'r' = element ref
+     * (`ref={…}`), 's' = spread (its committed object may carry a ref), 'f' =
+     * `<Fragment ref>` (the FragmentInstance field; third slot unused). The
+     * suspense-hide walk (detachSubtreeRefs) reads slots[0] through it — which
+     * is what lets ref-carrying bag fields take 1-char names and ride the
+     * positional arity factories (previously they kept long `_ref$N` names for
+     * a key-prefix scan, forcing the whole bag onto the bagOf spill). Null on
+     * ref-less bodies — the common case.
+     */
+    refFields: string[] | null;
+    /**
+     * Per-scope context Provider map. Pre-initialised to null on both Scope
+     * and Block so the field's hidden-class position is stable across all
+     * instances — Provider stamping was previously a late `??=` add that
+     * fragmented the post-render shape tree of every Block under a Provider
+     * ancestor.
+     */
+    $$ctxValues: Map<Context<any>, any> | null;
+    /** Context dependencies recorded during this scope's render (memo invalidation). */
+    $$ctxReads: Map<Context<any>, any> | null;
+    /**
+     * Resolved-provider cache for `use(ctx)`. Maps a context to the ancestor
+     * scope/block whose `$$ctxValues` satisfies it for THIS consumer (or the
+     * DEFAULT_CTX sentinel when none does). The mapping is invariant across a
+     * consumer's lifetime — parent chains are fixed at creation, a provider scope
+     * never drops a context it stamped, and a closer provider can't appear above a
+     * surviving consumer — so only the provider's VALUE varies, read live from the
+     * cached scope. Collapses useContextInternal's O(depth) walk to an O(1) read.
+     * The first context and its resolved owner live inline; only a second distinct
+     * context allocates a Map. The owner is never the value itself, so Provider
+     * updates remain visible on subsequent reads.
+     */
+    $$ctxCache: Context<any> | Map<Context<any>, Scope | typeof DEFAULT_CTX> | null;
+    $$ctxCacheOwner: Scope | typeof DEFAULT_CTX | null;
+    slots: any[];
+    /** Lazy compiler-owned memo regions, independent of the dense DOM/control slots. */
+    compilerMemo: CompilerMemoRegion | null;
+    /**
+     * Signal-instance key recipe, split across fields so stamping a scope costs
+     * five stores instead of a record allocation plus a WeakMap entry. Last
+     * writer wins: a recipe stamp clears `signalInstanceResolved`, and a direct
+     * resolved-key stamp leaves the recipe fields alone (the resolved check runs
+     * first). A scope is unstamped iff `signalInstanceParent === null` and
+     * `signalInstanceResolved === undefined`.
+     */
+    signalInstanceParent: Scope | null;
+    signalInstanceSite: string | undefined;
+    signalInstanceValue: unknown;
+    signalInstanceHasKey: boolean;
+    signalInstanceResolved: string | undefined;
+    /**
+     * DEV ONLY (set by `dev`-compiled bodies; `undefined` in production): a structured
+     * hydration source-location table — `{ slotIndex: [line, column] }` — plus `locFile`,
+     * the module's source file name. Read by hydration-mismatch warnings (`siteLoc`) to
+     * report `App.tsrx:42:5`, and reusable by a future Chrome-DevTools element→source layer.
+     * Absent (never allocated) in prod, so the Scope shape stays monomorphic there.
+     */
+    locs?: Record<number, [number, number]>;
+    locFile?: string;
+}
+type CompilerMemoRegion = {
+    bodyId: number;
+    auto: any[] | undefined;
+    hooks: any[] | undefined;
+    overflow: Map<number, CompilerMemoRegion> | null;
+};
+interface ChildScope {
+    key: symbol | string | number;
+    scope: Scope;
+}
+interface SignalRetryNode {
+    children?: Map<unknown, SignalRetryNode>;
+    owner?: SignalRendererOwnerIdentity;
+}
+interface SignalRetryOwners {
+    paths: SignalRetryNode;
+    owners: Set<SignalRendererOwnerIdentity>;
+}
+/** @internal Compiler/runtime module-signal capability version 1. */
+export declare function enableSignalBindings(abi?: number, potentialOnly?: boolean): void;
+interface OpaqueSignalKeys {
+    objects: WeakMap<object, number>;
+    symbols: Map<symbol, number>;
+    used: Set<number>;
+    next: number;
+}
+export { readNativeDomStyle, readNativeDomProps } from './signals/read-protocol.js';
+/**
+ * A style binding owns reads in a normal scheduled Block, but owns no DOM range.
+ * The enclosing template owns the host and its children. Reusing the native
+ * read driver keeps speculative subscriptions, errors, and adoption transactional.
+ * @internal
+ */
+export declare function nativeStyleBinding(owner: Scope, slotIndex: number, el: HTMLElement | SVGElement, value: any, literal?: 1): void;
+interface NativeProjectionProps {
+    el: HTMLElement | SVGElement;
+    compute: () => Record<string, unknown> | null | undefined;
+    fields: readonly string[];
+}
+/** One scheduled native read owns every field of a compiler-proven projection. @internal */
+export declare function nativeProjectionBinding(owner: Scope, slotIndex: number, el: HTMLElement | SVGElement, compute: NativeProjectionProps['compute'], fields: readonly string[]): void;
+/** @internal Enable invocation collection before an opted-in module renders. */
+export declare function enableNativeReadCollection(abi?: number): void;
+/** @internal Compiler/runtime native-read capability version 1. */
+export declare function beginNativeReadScope(scope: Scope | undefined, abi?: number): number;
+/** @internal Called from a compiler-generated synchronous finally block. */
+export declare function endNativeReadScope(token: number, _completed: boolean): void;
+/** @internal Automatic caches preserve read evidence without changing useMemo. */
+export declare function beginNativeReadWitness(detached?: boolean): number;
+/** @internal A failed computation cannot become a reusable cache witness. */
+export declare function finishNativeReadWitness(token: number, completed: boolean): NativeReadWitness | null;
+/** @internal A cache hit reattaches its native dependencies to this attempt. */
+export declare function replayNativeReadWitness(witness: NativeReadWitness | null | undefined): void;
+export declare function hookSlots(count: number): number;
+/**
+ * DEV-only STRUCTURAL hydration-mismatch warning (wrong tag / swapped branch / list shape /
+ * component-vs-host). Callers pre-gate on `loc` truthiness so production pays no diagnostic
+ * argument construction (describeHydrationNode etc.) — the internal `!loc` return stays as
+ * defense-in-depth. The recovery at the call site runs in dev AND prod regardless.
+ */
+/** `[loc, expected, actual]` for a root-abandon structural warning (DEV only). */
+type HydrationRootDiagnostic = readonly [loc: string | undefined, expected: string, actual: string];
+type BlockKind = 'root' | 'control-flow' | 'dynamic' | 'portal';
+type OutputHandler = (block: Block, value: unknown, reset?: true) => void;
+interface RootIdState {
+    prefix: string;
+    next: number;
+    /** Shared deterministic namespace for lazily used module-signal instances. */
+    signalState?: {
+        prefix: string;
+        next: number;
+        opaqueKeys?: Map<string, OpaqueSignalKeys>;
+    };
+    /** Shared render ownership; descendants already carry this root-local record. */
+    renderOwner?: RootRenderOwner;
+    /** Exclusive end of an SSR-reserved deferred-boundary range. */
+    limit?: number;
+    /** Root allocator used if a hydration mismatch consumes beyond that range. */
+    overflow?: RootIdState;
+}
+export interface Block extends Scope {
+    kind: BlockKind;
+    parentBlock: Block | null;
+    parentNode: Node;
+    /** Root-owned useId namespace/counter, shared by every descendant block. */
+    idState: RootIdState;
+    startMarker: Node | null;
+    endMarker: Node | null;
+    /**
+     * When true, start/end are BORROWED from an enclosing slot (e.g. an `@if`
+     * branch that reuses the if-slot's permanent markers instead of minting its
+     * own `br`/`/br` pair). DOM teardown then removes the content BETWEEN the
+     * markers but leaves the markers themselves for the owning slot/parent.
+     */
+    exclusiveMarkers: boolean;
+    body: ComponentBody;
+    props: any;
+    extra: any;
+    outputHandler: OutputHandler | null;
+    /**
+     * True when this block OR any ancestor is a `memo()` block. Monotone up the
+     * parentBlock chain (computed once at creation), so `useContextInternal` can
+     * skip its memo-ancestor stamping walk entirely on the common no-memo tree —
+     * the walk only ever stamps memo blocks, so if there are none above us it is
+     * pure overhead (~ancestor-depth iterations per `use()` call).
+     */
+    memoInChain: boolean;
+    pending: boolean;
+    disposed: boolean;
+    /**
+     * RENDER_VALID / RENDER_INVALID / RENDER_RETRYING, separate from mount lifetime.
+     * Kept numeric because nested renders can invalidate an active retry in place.
+     */
+    renderStatus: number;
+    /**
+     * The single pure-host DOM node this Block manages on the de-opt path, REUSED
+     * across re-renders so DOM-resident state survives (no rebuild). Set by
+     * `deoptItemBody` (a `.map()` item that is a host element) and by `hostElementBody`
+     * (the host-element-with-component-children renderer). Null for every other Block.
+     */
+    deoptNode: Node | null;
+    /**
+     * True when a de-opt descriptor carrying a `ref` was stamped anywhere in this
+     * block's subtree. Set at stamp time and propagated up the parentBlock chain
+     * (monotone — never cleared). Gates the teardown ref-detach walk over
+     * `deoptNode`: a region that never stamped a ref has nothing to detach, so
+     * the per-DOM-node descriptor scan is skipped entirely.
+     */
+    deoptRefs: boolean;
+    /** Set on item Blocks: pointer to the enclosing for-block's slot. */
+    forSlot: ForSlot | null;
+    /** Item position within the enclosing for-block. 0 for non-item blocks. */
+    itemIndex: number;
+    /** Root-render transaction that created this block (0 outside a transaction). */
+    createdStamp: number;
+    /**
+     * Doubly-linked-list pointers for for-block item blocks. Maintained by
+     * reconcileKeyed so move/remove are O(1) pointer ops instead of array
+     * splice. The list head/tail live on ForSlot. Always present (null on
+     * non-item blocks) to keep Block monomorphic — V8 transitioning between
+     * hidden classes for the rare "is this an item?" case was measurably worse
+     * than carrying a couple of null pointers everywhere.
+     */
+    prevSibling: Block | null;
+    nextSibling: Block | null;
+    /** Cached key for this item Block. null on non-item blocks. */
+    key: any;
+    /**
+     * Set on a `<ViewTransition>` component's block: the boundary's current
+     * props (docs/view-transitions-plan.md). Null on every other block —
+     * declared everywhere so the shape stays monomorphic; the field gates the
+     * nearest-boundary dirty walk and the unmount unregister.
+     */
+    vt: ViewTransitionProps | null;
+    /**
+     * Render priority for the next scheduled render: 'transition' (queued from
+     * inside startTransition — suspending shouldn't swap to fallback if prior
+     * UI is committed) or 'urgent' (default). Read & cleared when the render
+     * is dispatched.
+     */
+    pendingMode: 'urgent' | 'transition' | null;
+    /** The render mode in effect during the body's *current* execution. */
+    currentRenderMode: 'urgent' | 'transition' | null;
+    /**
+     * "Deferred lane" bit riding alongside pendingMode: true when the next
+     * scheduled render was spawned by useDeferredValue's deferred swap. Read &
+     * cleared with pendingMode when the render is dispatched.
+     */
+    pendingDeferred: boolean;
+    /**
+     * True while the body executes inside a useDeferredValue-spawned deferred
+     * pass (inherited by nested renders, like currentRenderMode). Drives React's
+     * anti-waterfall rule: only the FIRST useDeferredValue level defers — a hook
+     * mounting inside an already-deferred pass adopts its final value directly.
+     */
+    currentRenderDeferred: boolean;
+    /**
+     * Set on a block inside a HIDDEN `<Activity>` subtree. While inactive, the
+     * block still renders (state + DOM are produced/updated) but its effects do
+     * NOT run (enqueueEffect skips when any ancestor is inactive); on reveal the
+     * flag is cleared and a re-render re-fires the effects.
+     */
+    inactive: boolean;
+    /** Direct (own) context reads this render — drives memo invalidation alongside $$ctxReads. */
+    $$ctxDirect: Map<Context<any>, any> | null;
+    /**
+     * The context epoch at which this block's $$ctxReads/$$ctxDirect
+     * entries were last known consistent with live context versions: sampled when
+     * renderBlock clears the maps (this render repopulates them at current
+     * versions) and re-stamped after a bailout verifies every recorded entry.
+     * While it equals the current epoch NO context anywhere has changed since, so
+     * the per-bail version scans are provably redundant. restampCtxDeps poisons it
+     * (-1) when it merges a stale version into this block's map, so a still-pending
+     * consumer refresh can never be masked by the fast path.
+     */
+    $$ctxDepsEpoch: number;
+    /**
+     * Armed for React's IMPLICIT same-element bailout (beginWork's
+     * oldProps === newProps skip). Set at value-position component mounts
+     * (childSlot); makes the block a context-stamping target like `__memo` so
+     * the bail's lazy consumer refresh is sound.
+     */
+    $$implicitBail: boolean;
+    /** Per-render `use(thenable)` call-order counter; reset at the top of renderBlock. */
+    __thenableIdx: number;
+    /**
+     * Render-loop guard: the drainQueue pass this block last rendered in, and how
+     * many times it rendered within that pass. A block that keeps re-queueing
+     * itself from its own render body (an unguarded render-phase setState) is a
+     * non-converging loop — drainQueue throws after RENDER_PHASE_UPDATE_LIMIT,
+     * mirroring React's "Too many re-renders". Negative stamps are transient
+     * scheduler-sort epochs: drainRenders holds depth until the first render
+     * resets it under the positive drain id.
+     */
+    drainStamp: number;
+    drainRenders: number;
+    /** True when the queued render came from a different component's render body. */
+    crossRenderUpdate: boolean;
+    /** Commit-callback loop guard, scoped to one externally-started update chain. */
+    nestedUpdateChain: number;
+    nestedUpdateCount: number;
+    nestedUpdateError: boolean;
+    /**
+     * useEffectEvent updates publish only for the latest render of this block that
+     * completed. Zero means this block has never called useEffectEvent. Keeping the
+     * attempt/completion counters on the block makes aborted-render filtering
+     * allocation-free for components that do not use the hook.
+     */
+    effectEventRenderVersion: number;
+    effectEventCompletedVersion: number;
+}
+interface EffectSlot {
+    deps: any[] | undefined;
+    cleanup: Cleanup | undefined;
+    /** Render token of the latest completed attempt that reached this call site. */
+    renderVersion: number;
+    /** Invalidates queued work superseded by a later render or presence transition. */
+    revision: number;
+    /** Whether the latest completed render reached this registered call site. */
+    active: boolean;
+    /** Stable first-enqueue order within the owning scope. */
+    order: number;
+    /** Hook key retained so a bailed Suspense descendant can reconnect at commit. */
+    slot: HookSlot;
+    /** Last effect body and args that actually reached commit. */
+    connectedFn: EffectFn | null;
+    connectedArgs: any[] | undefined;
+    /** True after Suspense/Activity disconnected this committed effect. */
+    disconnected: boolean;
+    /** Discriminant so deactivateScope can find effect slots among state/memo/ref. */
+    effect: true;
+    /**
+     * The slot's phase (INSERTION/LAYOUT/PASSIVE), fixed at creation (a hook slot
+     * is one call site, and a call site has one phase). deactivateScope uses it to
+     * spare INSERTION effects on hide: React never disconnects insertion effects
+     * for a hidden (<Activity>/suspended) tree — they own injected styles that
+     * must persist — only a real unmount cleans them up.
+     */
+    phase: Phase;
+}
+interface EffectStateSnapshot {
+    deps: any[] | undefined;
+    revision: number;
+    active: boolean;
+}
+type EffectDepsSnapshot = Map<EffectSlot, EffectStateSnapshot>;
+interface PendingEffect {
+    scope: Scope;
+    slot: HookSlot;
+    /** Null for a conditional call site that disappeared and only needs teardown. */
+    fn: EffectFn | null;
+    /** Stable first-enqueue order of the owning slot within its scope. */
+    order: number;
+    /** Slot revision this entry belongs to; stale entries are ignored at drain. */
+    revision: number;
+    /**
+     * The effect's deps array, spread as positional arguments to the body when it
+     * runs (`fn.apply(null, args)`). This is a deliberate superset of React: a
+     * body written as a pure function of its deps — `(a, b) => …` — captures
+     * nothing from the render scope, so the compiler can hoist it to module scope
+     * (one allocation, no stale-closure retention). Zero-arg React-style bodies
+     * still work (extra args are ignored). `undefined` for the no-deps form.
+     */
+    args: any[] | undefined;
+    /**
+     * The effect's phase, copied from its slot. The mutation-phase drain merges
+     * the INSERTION and LAYOUT queues into one per-scope walk (see
+     * drainMutationEffects) and needs the phase per entry without a hooks-map
+     * lookup.
+     */
+    phase: Phase;
+    /**
+     * Monotonic enqueue sequence (DFS pre-order, since rendering is top-down). Used
+     * by the commit drains to reconstruct React's exact commit order: TRUE post-order —
+     * descendant-before-ancestor (via the parentBlock chain), and disjoint subtrees
+     * in enqueue order. A plain depth sort fires deepest-first GLOBALLY, which gets
+     * the parent/child relationship right but mis-orders a shallow node in an earlier
+     * sibling subtree against a deeper node in a later one; React walks the tree, so
+     * sibling order wins over raw depth. Without correct order, a parent layout
+     * effect that reads refs/measurements from child layout effects (react-aria
+     * FocusScope, react-redux subscribers, react-spring measurements …) sees stale
+     * state.
+     */
+    seq: number;
+}
+interface TransitionActionSlot<T> {
+    value: T;
+    renderTransition?: {
+        value: T;
+    };
+    pendingActionBatch?: TransitionActionBatch;
+    pendingActionValue?: T;
+}
+interface TransitionActionUpdate<T = unknown> {
+    /** An urgent replacement can cancel a held value even when its base is equal. */
+    superseded?: boolean;
+    state?: StateSlot<T>;
+    /** Already queued work precedes this batch; later urgent work stays on the cell. */
+    previous?: TransitionActionUpdate<T>;
+    next?: TransitionActionUpdate<T>;
+    stateUpdates?: Array<T | ((previous: T) => T)>;
+    reducerActions?: any[];
+    replayBaseValue?: T;
+    urgentOperations?: number[];
+    batch?: TransitionActionBatch;
+    reducer?: ReducerSlot<T, any>;
+    slot: TransitionActionSlot<T>;
+    block: Block;
+    operations: Array<(value: T) => T>;
+    baseValue: T;
+    value: T;
+    forceRender: boolean;
+    profileType?: 'state' | 'reducer';
+    profileSlot?: HookSlot;
+}
+interface TransitionActionBatch {
+    updates: Map<object, TransitionActionUpdate<any>>;
+    pendingActions: number;
+    closed: boolean;
+    flushed: boolean;
+    /**
+     * Only hook-started actions own pending indicators. Nearly every batch has
+     * exactly one starting hook, so the first is a plain field and only a second
+     * distinct hook (a nested start from another component) allocates the list.
+     */
+    hook: TransitionHookSlot | null;
+    hooks: TransitionHookSlot[] | null;
+    /** True while this batch is counted in its hooks' pending batch counts. */
+    hooksPending: boolean;
+    pendingHolds?: number;
+    workComplete?: boolean;
+    /** Allocated only by a native write inside this Action. */
+    native?: SignalActionFrame;
+    nativeWake?: () => void;
+    nativeBlocks?: Set<Block>;
+    nativeBoundaries?: Map<TrySlot, TrackedThenable<any>>;
+}
+type TransitionMemoSwap = [kind: 0, hooks: Map<HookSlot, unknown>, slot: HookSlot, previous: unknown, next: unknown] | [kind: 1, cells: any[], base: number, previous: any[], next: any[]];
+interface WarmHarvestEntry {
+    slot: HookSlot;
+    deps: any[];
+    value: any;
+    taken: boolean;
+    nativeWitness?: NativeReadWitness | null;
+}
+/** The same single-origin staged cells as P1, owned by a root rather than a TrySlot. */
+interface RootTransitionHold {
+    /** Coalesce retries when an urgent action changes the retained forward value. */
+    replayScheduled?: boolean;
+    origin: Block;
+    entries: Array<TransitionActionUpdate<any>>;
+    memoSwaps: TransitionMemoSwap[] | null;
+    warmHarvest: WarmHarvestEntry[] | null;
+    /** Promotion releases the pending count; a later suspension reacquires it. */
+    promoted: boolean;
+    /** Publish the old-input pending cue only after the aborted queue wave drains. */
+    cue: boolean;
+}
+interface RootRenderOwner {
+    current: Block | null;
+    /** Shared document/account data owner; distinct from this root's presentation owner. */
+    signalOwner?: SignalOwner;
+    /** Immutable initial-response history, borrowed by deferred and streamed adoptions. */
+    initialDocumentSignals?: ScopeSeed;
+    bindingLeases?: Set<BindingHandoff>;
+    controlLeases?: Map<Element, ControlHandoff | undefined>;
+    preservePresentation?: boolean;
+    bindingContainer?: Node;
+    adopt?: (block: Block) => void;
+    retry: () => void;
+    request: ((mode: 'urgent' | 'transition') => void) | null;
+    generation: number;
+    wakeable: PromiseLike<unknown> | null;
+    /** Lazily allocated only by adapters carrying metadata across fresh retry scopes. */
+    retryKey: object | null;
+    /** Actual first-mount signal state retained only for the current retry episode. */
+    retrySignalOwners?: SignalRetryOwners;
+    /** Only native suspended readers allocate a retry lease outside their discarded Scopes. */
+    nativeRetry?: NativeReadRetry;
+    /** Only roots participating in a native candidate retain cancellation ownership. */
+    nativeTransitions?: Set<TransitionActionBatch>;
+    transaction: RootRenderTransaction | null;
+    /** Installed only when a single-origin transition suspends at this root. */
+    transition?: RootTransitionHold;
+    disposed: boolean;
+}
+interface RootRenderTransaction {
+    owner: RootRenderOwner;
+    log: any[];
+    bags: Map<object, number>;
+    capture: OffscreenCapture;
+    created: Block[] | null;
+    createdStamp: number;
+    bagWindow: number;
+    retainedCreated: Set<Block> | null;
+    retired: Set<Block> | null;
+    structures: Map<object, number> | null;
+    commit: Array<() => void> | null;
+    parked: ParkedItem[] | null;
+    aborted: boolean;
+    rootRequest: boolean;
+    hydrating?: boolean;
+    /** Collectively validated before a native candidate published canonical state. */
+    nativeAdmitted?: boolean;
+}
+/** @internal Opaque retry episode, without retaining an abandoned Scope. */
+export declare function getRootRenderRetryKey(scope: Scope, retryOnly?: boolean): object | null;
+/**
+ * Item blocks a keyed list dropped while a hold was still possible.
+ *
+ * The key map and chain can drop a row before the render knows whether it will
+ * suspend. Root transactions keep its DOM connected until commit: detaching a
+ * focused input emits native events that rollback cannot undo. Existing
+ * hold-only callers can park detached ranges, but both forms defer scope and
+ * lifecycle teardown until success and return the original nodes on rollback.
+ */
+interface ParkedItem {
+    block: Block;
+    /** Preserve the exact row range across later journal windows that can detach it. */
+    nodes: Node[];
+}
+/** Animation class value: a class string, 'auto', 'none', or a per-type map. */
+type ViewTransitionClassValue = string | Record<string, string>;
+type ViewTransitionRef = ((instance: ViewTransitionInstance | null) => void | (() => void)) | {
+    current: ViewTransitionInstance | null;
+} | readonly ViewTransitionRef[] | null;
+export interface ViewTransitionProps {
+    name?: string;
+    /** Create an element scope from one persistent host. Omitted boundaries inherit their scope. */
+    scope?: 'element';
+    ref?: ViewTransitionRef;
+    enter?: ViewTransitionClassValue;
+    exit?: ViewTransitionClassValue;
+    update?: ViewTransitionClassValue;
+    share?: ViewTransitionClassValue;
+    /**
+     * Parent enter/exit relays (React's enableViewTransitionParentEnterExit —
+     * experimental-channel behavior): a nested boundary inside a unit that
+     * entered/exited as a whole activates its parentEnter/parentExit when every
+     * strict intermediate boundary also relays (declares parentEnter/parentExit
+     * or the matching handler, not resolving 'none') and the unit's outermost
+     * boundary genuinely enters/exits (not 'none', not consumed by a share).
+     */
+    parentEnter?: ViewTransitionClassValue;
+    parentExit?: ViewTransitionClassValue;
+    default?: ViewTransitionClassValue;
+    onEnter?: (instance: ViewTransitionInstance, types: string[]) => void | (() => void);
+    onExit?: (instance: ViewTransitionInstance, types: string[]) => void | (() => void);
+    onUpdate?: (instance: ViewTransitionInstance, types: string[]) => void | (() => void);
+    onShare?: (instance: ViewTransitionInstance, types: string[]) => void | (() => void);
+    onParentEnter?: (instance: ViewTransitionInstance, types: string[]) => void | (() => void);
+    onParentExit?: (instance: ViewTransitionInstance, types: string[]) => void | (() => void);
+    children?: unknown;
+}
+/**
+ * Animation handle for one of a boundary's view-transition pseudo-elements —
+ * the objects on {@link ViewTransitionInstance}. `animate()`/`getAnimations()`
+ * target the pseudo-element via the Web Animations `pseudoElement` option on
+ * the document element (React's ViewTransitionPseudoElement shape).
+ */
+export declare class ViewTransitionPseudoElement {
+    /** The pseudo-element selector, e.g. `::view-transition-new(hero)`. */
+    readonly selector: string;
+    private readonly scope;
+    constructor(pseudo: string, name: string, scope?: Element);
+    animate(keyframes: Keyframe[] | PropertyIndexedKeyframes | null, options?: number | KeyframeAnimationOptions): Animation;
+    getAnimations(_options?: GetAnimationsOptions): Animation[];
+    getComputedStyle(): CSSStyleDeclaration;
+}
+/**
+ * The instance handed to on* callbacks: the resolved view-transition-name plus
+ * `.animate()`-capable handles for the boundary's four pseudo-elements.
+ */
+export interface ViewTransitionInstance {
+    name: string;
+    group: ViewTransitionPseudoElement;
+    imagePair: ViewTransitionPseudoElement;
+    old: ViewTransitionPseudoElement;
+    new: ViewTransitionPseudoElement;
+}
+/**
+ * React's `addTransitionType` (experimental `unstable_addTransitionType`):
+ * tags the current transition with a type. ViewTransition class props given as
+ * per-type maps resolve against the batch's types, and the types array reaches
+ * every on* callback. Types reset when the batch commits.
+ */
+export declare function addTransitionType(type: string): void;
+/**
+ * Compiler module-load hint: emitted once per client module that imports
+ * ViewTransition from 'octane', so the very first transition flush that MOUNTS
+ * a boundary is already wrapped (the runtime otherwise learns "this app uses
+ * VT" only mid-drain — too late to have snapshotted). Semi-public (tier 2).
+ */
+export declare function __vtSeen(): void;
+type Phase = 0 | 1 | 2;
+type EffectEventCommitAction = () => InlineCaughtErrorReport | void;
+interface StoreInst<T> {
+    /** The last-COMMITTED snapshot. onStoreChange dedups notifies against this. */
+    value: T;
+    /** Latest getSnapshot — updated in RENDER (see the render-phase gate) so the
+     *  subscription handler always compares against the freshest read. */
+    getSnapshot: () => T;
+    /** The snapshot read during the render that queued this entry; committed to
+     *  `value` at drain (React binds it as updateStoreInstance's nextSnapshot arg). */
+    pending: T;
+    /** The subscribe last seen at enqueue — a store swap re-arms the tear check. */
+    subscribe: (onStoreChange: () => void) => () => void;
+    /** Immutable passive-effect deps, replaced only when subscribe changes. */
+    effectDeps: [StoreInst<T>, (onStoreChange: () => void) => () => void] | null;
+    /** Force a re-render of the owning block (same path as a useState setter). */
+    forceUpdate: () => void;
+    /** Stable notify handler handed to subscribe(); re-renders iff the snapshot
+     *  changed (Object.is dedup). Stable across re-subscribes by design. */
+    onStoreChange: () => void;
+    /** Owning block — drainStoreSyncs skips disposed/hidden blocks like the effect drains. */
+    block: Block;
+    /** True while this inst sits in the sync queue — prevents a second push when a
+     *  block renders twice before its single commit (last render's `pending` wins). */
+    queued: boolean;
+}
+interface RefAttach {
+    /** Exact queued ref; initial Fragment mounts use the live-ref trampoline below. */
+    ref: any;
+    el: Element | FragmentInstance;
+    block: Block | null;
+}
+interface SuspenseRefEntry {
+    ref: any;
+    el: Element | FragmentInstance;
+    /** Owning scope preserves child-before-parent commit ordering and error routing. */
+    scope: Scope;
+}
+interface OffscreenCapture {
+    /** Root journals already record render validity without a second subtree set. */
+    rootTransaction: boolean;
+    /** Executed bodies whose output/commit work is reusable only if this capture survives. */
+    renderRoot: Block | null;
+    renderedBlocks: Set<Block> | null;
+    effects: [PendingEffect[], PendingEffect[], PendingEffect[]];
+    events: PendingEffectEvent[];
+    eventActions: EffectEventCommitAction[];
+    refs: RefAttach[];
+    detaches: any[] | undefined;
+    stores: StoreInst<any>[];
+    /** Suspense visibility changes become recent only when this capture commits. */
+    suspenseCommits: Set<TrySlot> | undefined;
+    /** Speculative renderer transactions are released only after commit or discard. */
+    renderCleanups: Array<(discarded: boolean) => void> | undefined;
+    /** Only a structural binding lease records current-tree adoption receipts. */
+    presentations?: PresentationHydrationFrame[];
+}
+/** @internal Preserve the owning renderer's scheduler without racing a staged commit. */
+export declare function scheduleRenderCleanup(schedule: (callback: () => void) => void, receiver: unknown, cleanup: () => void, onDiscard?: () => void): void;
+/** Whether a testing helper is executing within an active act callback. */
+export declare function isInActScope(): boolean;
+/**
+ * Test-environment opt-in. When true, scheduleRender() calls that happen
+ * outside a flushSync or an act() callback emit a console.error mirroring
+ * React's "An update to X was not wrapped in act(...)" message. Default
+ * false so production / non-test code never warns.
+ */
+export declare function setIsOctaneActEnvironment(value: boolean): void;
+/**
+ * Runs `fn` and synchronously drains scheduled renders and insertion/layout work.
+ * Newly queued passive effects retain Octane's post-paint scheduling. Bypasses the microtask-batched flush — used by the benchmark
+ * timing rig to measure operation wall-clock without microtask coalescing. Also the
+ * controlled-restore commit path: maybeFlushDiscrete flushes through here at the
+ * outermost boundary of a discrete event that armed a controlled `value`/`checked`
+ * restore, so the restore compares the DOM against freshly committed state.
+ */
+export declare function flushSync<T>(fn: () => T): T;
+/**
+ * Compiler-emitted on a host element's ref MOUNT. Defers the attach until commit
+ * (drainRefAttaches) so the node is connected when a callback ref fires and
+ * ref.current is set before layout effects run. Each entry records its owning
+ * `block`; drainRefAttaches preserves enqueue order for disjoint subtrees and
+ * only reorders ancestor/descendant pairs for child-before-parent ordering.
+ * Ref identity UPDATES queue here too (paired with a queueRefDetach of the old
+ * ref), so within one commit every detach drains before every attach — a ref
+ * hopping between elements never ends null, whichever binding updates first.
+ */
+export declare function queueRefAttach(scope: Scope, ref: any, el: Element | FragmentInstance): void;
+/**
+ * Queue a teardown ref detach for commit (compiled `ref` binding / spread-ref /
+ * hostComponent / fragment-ref unmount cleanups, and the de-opt teardown walk).
+ * Unmount cleanups run mid-render (unmountScope), and a ref can be a setState
+ * function whose value feeds back into what an owner renders — firing `ref(null)`
+ * synchronously lets that null-update render before the replacement element's
+ * deferred attach, oscillating forever when the teardown was a rebuild. Deferring
+ * to commit puts the null and the new element in the SAME batch (React's
+ * mutation→layout phasing). `el` is the element the ref was attached to, so a
+ * callback ref shared across elements releases ITS element's React-19 cleanup.
+ */
+export declare function queueRefDetach(ref: any, el: Element | FragmentInstance | null): void;
+/** Replace a changed element/fragment ref without disturbing commit-phase ordering. */
+export declare function replaceRef(scope: Scope, previous: any, next: any, target: Element | FragmentInstance): any;
+/** Detach only an own enumerable ref from the latest committed host/spread props. */
+export declare function queueOwnRefDetach(value: any, target: Element): void;
+/**
+ * Test/test-environment helper — synchronously drain any queued passive
+ * (`useEffect`) bodies that would normally fire after paint. Idempotent.
+ * Real apps should not call this; rely on the normal post-paint scheduler.
+ */
+export declare function drainPassiveEffects(): void;
+/**
+ * True if there's a queued render or any uncommitted effect. Used by `act`,
+ * and exported (tier 2, binding infrastructure) so @octanejs/testing-library's
+ * synchronous settle can loop to EXACT quiescence instead of a fixed bound.
+ * Purely promise-driven work (use(promise), async transitions) is not "pending"
+ * by this definition — it needs `waitFor`/async `act`.
+ */
+export declare function hasPendingWork(): boolean;
+/**
+ * Wrap test code that triggers updates so all of
+ * the scheduled work commits before the assertion phase runs.
+ *
+ * Two callback modes:
+ *  - SYNC callback → all scheduled work (renders + INSERTION/LAYOUT/PASSIVE
+ *    effects) is flushed SYNCHRONOUSLY before act returns, so
+ *    `act(() => setState(...)); expect(...)` works WITHOUT awaiting — the
+ *    dominant pattern in ported React test suites. Nested callbacks join the
+ *    outer callback's transaction. The returned promise also drains promise
+ *    work and carries the callback's result. Callback and render errors reject
+ *    it rather than escaping through the scheduler.
+ *  - ASYNC callback (returns a thenable) → awaited, then the scheduler is
+ *    drained across microtask ticks until quiescent (renders, effects, and
+ *    microtask chains from `use(promise)` / transition retries).
+ *
+ * While the act() scope is active, scheduleRender's "update outside act(...)"
+ * dev warning is suppressed (see `IS_OCTANE_ACT_ENVIRONMENT` and
+ * `setIsOctaneActEnvironment`).
+ *
+ * Complete promise checkpoints, bounded by ACT_DRAIN_LIMIT iterations,
+ * drains cascades like `use(promise)` → status flip → retry → renderBlock
+ * that wouldn't settle in a single tick.
+ */
+export declare function act<T>(fn: () => T | Promise<T>): Promise<T>;
+export declare function renderBlock(block: Block): void;
+export declare function componentSlotLite<P>(parentScope: Scope, slotKey: number, host: Node, comp: ComponentBody<P>, props: P, invocationSite?: string, anchor?: Node): void;
+declare const SLOT_FLAG_TEARDOWN: number;
+/** @internal Invoke a provider that owns the trailing hook-slot ABI. */
+export declare function invokeManualHook<T>(fn: (...args: any[]) => T, receiver: unknown, args: IArguments): T;
+/** @internal Adapt an expression provider that owns the trailing hook-slot ABI. */
+export declare function manualHook<F extends (...args: any[]) => any>(fn: F, name?: string): F;
+/** Invoke a cached optional-chain method without consulting its call/bind properties. */
+export declare function callWithReceiver<T>(fn: (...args: any[]) => T, receiver: unknown, ...args: any[]): T;
+export declare function withSlot<T>(sym: symbol, fn: (...a: any[]) => T, ...args: any[]): T;
+/** @internal Optional native hooks use the existing compiler slot and Scope lifetime. */
+export declare function nativeLocalHook<T>(name: string, initialize: () => T, dispose: (value: T) => void, slot?: HookSlot): T;
+interface StateSlot<T> {
+    value: T;
+    setter: (next: T | ((prev: T) => T)) => void;
+    /** Queued functional work is evaluated in the owner's next render. */
+    updates: Array<T | ((previous: T) => T)> | undefined;
+    /** Promoted transition work folds with the inputs of the rendering owner. */
+    renderTransition: TransitionActionUpdate<T> | undefined;
+    /** An urgent ancestor reads queued urgent operations without consuming the transition. */
+    urgentTransition: boolean | undefined;
+    /** Allocated only for compiler-selected third-tuple consumers. */
+    getter: (() => T) | undefined;
+    pendingActionBatch: TransitionActionBatch | undefined;
+    pendingActionValue: T | undefined;
+}
+type StateSetter<T> = (next: T | ((prev: T) => T)) => void;
+type StateTuple<T> = [T, StateSetter<T>, () => T];
+export declare function useState<T = undefined>(): StateTuple<T | undefined>;
+export declare function useState<T>(initial: T | (() => T), slot?: symbol): StateTuple<T>;
+/** Compiler-emitted useState variant for a tuple whose third member is observable. */
+export declare function __useStateWithGetter<T>(initial: T | (() => T), slot?: symbol): StateTuple<T>;
+/** The last successfully published source and its locally editable value. */
+export interface LinkedStatePrevious<Source, Value> {
+    source: Source;
+    value: Value;
+}
+/** Equality customizations for a source-linked local state cell. */
+export interface LinkedStateOptions<Source, Value> {
+    sourceEqual?: (previous: Source, next: Source) => boolean;
+    valueEqual?: (previous: Value, next: Value) => boolean;
+}
+type LinkedStateTuple<Value> = [Value, StateSetter<Value>, () => Value];
+/**
+ * Local editable state linked to an external source. Source changes reconcile in
+ * the same render instead of scheduling a render-phase setter/effect replay.
+ * Publication uses the existing render/WIP transaction so a suspended subtree
+ * cannot leak a speculative source or value into the previously committed tree.
+ */
+export declare function useLinkedState<Source, Value>(source: Source, reconcile: (source: Source, previous: LinkedStatePrevious<Source, Value> | undefined) => Value, options?: LinkedStateOptions<Source, Value>, slot?: symbol): LinkedStateTuple<Value>;
+/** Compiler-selected linked-state variant when the current-value getter is observed. */
+export declare function __useLinkedStateWithGetter<Source, Value>(source: Source, reconcile: (source: Source, previous: LinkedStatePrevious<Source, Value> | undefined) => Value, options?: LinkedStateOptions<Source, Value>, slot?: symbol): LinkedStateTuple<Value>;
+interface ReducerSlot<S, A> {
+    value: S;
+    dispatch: (action: A) => void;
+    reducer: (state: S, action: A) => S;
+    /** Render-phase actions are reduced by the reducer from the replaying render. */
+    renderPhaseActions: A[] | undefined;
+    /** A promoted Action is reduced with this render's reducer before publication. */
+    renderTransition: TransitionActionUpdate<S> | undefined;
+    urgentTransition: boolean | undefined;
+    /** Allocated only for compiler-selected third-tuple consumers. */
+    getter: (() => S) | undefined;
+    pendingActionBatch: TransitionActionBatch | undefined;
+    pendingActionValue: S | undefined;
+}
+type ReducerTuple<S, A> = [S, (action: A) => void, () => S];
+export declare function useReducer<S, A, I = S>(reducer: (s: S, a: A) => S, initialArg: I, initOrSlot?: ((arg: I) => S) | symbol, slot?: symbol): ReducerTuple<S, A>;
+/** Compiler-emitted useReducer variant for a tuple whose third member is observable. */
+export declare function __useReducerWithGetter<S, A, I = S>(reducer: (s: S, a: A) => S, initialArg: I, initOrSlot?: ((arg: I) => S) | symbol, slot?: symbol): ReducerTuple<S, A>;
+export declare function useEffect(fn: EffectFn, deps?: any[] | null, slot?: symbol): void;
+export declare function useLayoutEffect(fn: EffectFn, deps?: any[] | null, slot?: symbol): void;
+export declare function useInsertionEffect(fn: EffectFn, deps?: any[] | null, slot?: symbol): void;
+interface MemoHookEntry<T = any> {
+    deps: any[] | undefined;
+    value: T;
+    warmEpisode: number | undefined;
+    /** A consumed warm occurrence can return only when this scope is discarded. */
+    warmRecord: WarmEntry | undefined;
+    /** Defined only on compiler-owned native-read creation caches. */
+    nativeWitness: NativeReadWitness | null | undefined;
+}
+export declare function useMemo<T>(compute: (...deps: any[]) => T, deps?: any[] | null, slot?: symbol): T;
+export declare function useCallback<F extends (...args: any[]) => any>(fn: F, deps?: any[] | null, slot?: symbol): F;
+/** Compiler-owned intrinsics cannot be shadowed by bindings in an authored body. */
+export declare const hookMemoEqual: (value1: any, value2: any) => boolean;
+/** @internal The usual compiled body takes the first-region fast path. */
+export declare function compilerMemoRegion(scope: Scope, bodyId: number): CompilerMemoRegion;
+export declare function hookMemoCreate(size: number): any[];
+/** Compiler ABI: publish a successful inline memo computation immediately.
+ * History is needed only while an attempt can hold the prior screen; ordinary
+ * suspend/replay continues to see the just-published cells. Fixed arities keep
+ * ordinary cache misses free of a rest-parameter dependency array. */
+export declare function hookMemoPublish0<T>(cells: any[], base: number, value: T): T;
+export declare function hookMemoPublish1<T>(cells: any[], base: number, value: T, d0: any): T;
+export declare function hookMemoPublish2<T>(cells: any[], base: number, value: T, d0: any, d1: any): T;
+export declare function hookMemoPublish3<T>(cells: any[], base: number, value: T, d0: any, d1: any, d2: any): T;
+export declare function hookMemoPublish4<T>(cells: any[], base: number, value: T, d0: any, d1: any, d2: any, d3: any): T;
+/** Larger dependency lists retain the compact variadic publication fallback. */
+export declare function hookMemoPublish<T>(cells: any[], base: number, value: T, ...deps: any[]): T;
+/** One-cell form for compiler-owned lifetime-invariant callback values. */
+export declare function hookMemoPublishInvariant<T>(cells: any[], base: number, value: T): T;
+export declare function useRef<T = undefined>(): {
+    current: T | undefined;
+};
+export declare function useRef<T>(initial: T, slot?: symbol): {
+    current: T;
+};
+/**
+ * React's `useDebugValue(value, format?)` — a devtools-only label for custom
+ * hooks. Octane has no devtools inspector, so it is a no-op; exported so custom
+ * hooks ported from React run unchanged. Accepts (and ignores) the compiler's
+ * trailing compiler slot like every other hook.
+ */
+export declare function useDebugValue(_value?: unknown, _format?: unknown, _slot?: symbol): void;
+type ImperativeRef<T> = {
+    current: T | null;
+} | ((value: T | null) => void) | readonly ImperativeRef<T>[] | null | undefined;
+/**
+ * React's `useImperativeHandle(ref, factory, deps)` — exposes an imperative
+ * API to a parent via the ref. Scheduled as a layout-phase effect so the
+ * `ref.current` is populated before paint and before any layout effects in
+ * ancestors that depend on the API. Cleared to null on unmount. Octane's
+ * nested array refs share one factory result across all non-null owners.
+ */
+export declare function useImperativeHandle<T>(ref: ImperativeRef<T>, factory: () => T, deps?: any[] | null, slot?: symbol): void;
+export declare function useSyncExternalStore<T>(subscribe: (onStoreChange: () => void) => () => void, getSnapshot: () => T, getServerSnapshot?: () => T, slot?: symbol): T;
+/**
+ * React 19 `useEffectEvent` — returns a fresh wrapper each render whose shared
+ * cell invokes the latest COMMITTED `fn`. Effect Events are non-reactive (the
+ * compiler omits them from inferred dependencies), but their wrapper identity
+ * is intentionally not stable. Publishing the cell in commit prevents a
+ * suspended or failed render from leaking an uncommitted closure.
+ */
+export declare function useEffectEvent<F extends (...args: any[]) => any>(fn: F, slot?: symbol): F;
+export interface Context<T> {
+    (props: {
+        value: T;
+        children?: any;
+    }, scope: Scope, extra?: unknown): void;
+    $$kind: typeof CONTEXT_TAG;
+    defaultValue: T;
+    /**
+     * Monotonic version bumped whenever a Provider for this context commits a
+     * changed value. Consumers record the version they read at; the memo bailout
+     * (componentSlot) compares it so a context change forces a re-render through
+     * the push-cascade even when props are shallow-equal. See useContextInternal.
+     * Every bump must move the shared context epoch too — call bumpContextEpoch
+     * adjacent to the write, or (for external bumpers like react-hosted mirrors)
+     * guarantee a root.render commit follows, whose renderResolved entry bumps
+     * it. The $$ctxDepsEpoch bail fast path treats an unmoved epoch as "nothing
+     * changed", so an unpaired bump strands consumers.
+     */
+    $$version: number;
+}
+/**
+ * Create a Context. Providers push the value into a Block-scoped slot; `use(ctx)`
+ * walks the Block parent chain to find the nearest Provider for that context.
+ */
+export declare function createContext<T>(defaultValue: T): Context<T>;
+/** Compiler-owned private Context whose children are always compiled bodies. */
+export declare function __createCompiledContext<T>(defaultValue: T): Context<T>;
+/**
+ * Identify the Context already provided by this deferred child's own scope
+ * without observing userland Provider accessors or Proxy traps.
+ * @internal
+ */
+export declare function compilerOwnsContextProvider(value: unknown): boolean;
+/** Renderer-boundary adapter; ordinary DOM roots never retain this by themselves. */
+export declare function renderClientContextProvider<T>(context: unknown, props: {
+    value: unknown;
+    children?: unknown;
+}, renderScope: object): void;
+/**
+ * Programmatically provide a context value for a scope's descendants — the same
+ * stamping `<Context value={…}>` performs, exposed for plain-TS
+ * (non-template) components that render children and want to provide context to
+ * them without authoring a `.tsrx` Provider wrapper. Call it during the component's
+ * render, before rendering `children` into the same `scope`. (Used by runtime
+ * component bindings — e.g. `@octanejs/motion`'s `MotionConfig` and variant
+ * propagation.)
+ */
+export declare function provideContext<T>(scope: Scope, context: Context<T>, value: T): void;
+/**
+ * Compiler-emitted: attach markerless single-host-root metadata while a fresh
+ * component function is still being initialized. The compiler only calls this
+ * with an otherwise-unobserved function, so unused initializers are removable.
+ * @internal
+ */
+export declare function markSingleRoot<T extends Function>(component: T): T;
+/**
+ * Compiler-emitted: tag a children-block render function so `isChildrenBlock` recognises it.
+ * Returns the function for inline use (`{ children: markChildrenBlock(__children$N) }`).
+ * @internal
+ */
+export declare function markChildrenBlock<T>(fn: T, body?: object, captures?: (() => readonly unknown[]) | null): T;
+/**
+ * Marks a component binding whose authored JSX children must remain inspectable
+ * element descriptors. The compiler consumes the call; runtime identity is unchanged.
+ */
+export declare function descriptorChildren<T>(component: T): T;
+/**
+ * True when `value` is a compiler-generated children-block — a component's element/text children
+ * that `.tsrx` lowered to a render function — as opposed to a user render-prop function or any other
+ * value. Lets a binding with a function-as-child API tell `<C>{(x) => …}</C>` (call it) apart from
+ * `<C><D/></C>` (render it): `typeof children === 'function' && !isChildrenBlock(children)`.
+ */
+export declare function isChildrenBlock(value: unknown): boolean;
+export declare const Hydrate: ComponentBody<HydrateProps>;
+/** Compiler-owned template children with no authored fallback; never a descriptor entry point. */
+export declare const __HydrateCompiled: ComponentBody<HydrateProps>;
+/**
+ * `<Suspense fallback={…}>…</Suspense>` — the JSX component form of
+ * `@try { … } @pending { fallback }`, for authors writing JSX rather than the
+ * template directives (e.g. porting React / react-query code). A thin built-in
+ * over the same `tryBlock` primitive the directives compile to: the children
+ * render as the try body, and `fallback` renders as the pending body whenever a
+ * descendant suspends (via `use(thenable)`).
+ */
+export declare const Suspense: ComponentBody<{
+    fallback?: unknown;
+    children: unknown;
+}>;
+export declare const ViewTransition: ComponentBody<ViewTransitionProps>;
+/**
+ * `<ErrorBoundary fallback={…}>…</ErrorBoundary>` — the JSX component form of
+ * `@try { … } @catch (e) { fallback }`. `fallback` is either a renderable or a
+ * `(error, reset) => renderable` render prop (react-error-boundary style). When a
+ * descendant throws during render/effects, the boundary swaps to the fallback.
+ * Suspensions propagate to an enclosing Suspense boundary instead.
+ */
+export declare const ErrorBoundary: ComponentBody<{
+    fallback?: unknown | ((error: unknown, reset: () => void) => unknown);
+    resetRef?: {
+        current: (() => void) | null;
+    };
+    children: unknown;
+}>;
+/**
+ * The virtual-TSX (IDE / tsrx-tsc) name for `@try { … } @catch (e) { … }`: the
+ * shared tsrx transform's type-only output imports `TsrxErrorBoundary` from
+ * 'octane' and emits the catch clause as `fallback={(error, _reset) => …}`.
+ * Runtime compilation never references this name (`@try` lowers to `tryBlock`),
+ * so this exists for TYPES: the function-typed `fallback` (unlike
+ * `ErrorBoundary`'s renderable-or-render-prop union, which collapses to
+ * `unknown`) gives the emitted arrow contextual parameter types, so authored
+ * `@catch` bindings type-check under `noImplicitAny`. `content` is the
+ * transform's expression-position prop form of children.
+ */
+export declare const TsrxErrorBoundary: (props: {
+    fallback?: (error: unknown, reset: () => void) => unknown;
+    content?: unknown;
+    children?: unknown;
+}) => OctaneNode;
+/**
+ * React 19's `use()` — accepts either a Context<T> or a thenable (Promise<T>).
+ *
+ * - `use(context)`: walks the Block tree from CURRENT_BLOCK upward to find a
+ *   Provider's value (or the default).
+ * - `use(thenable)`: if fulfilled, returns the value; if rejected, rethrows
+ *   the reason (caught by the nearest tryBlock's catch); if pending, throws
+ *   an internal SuspenseException (caught by the nearest tryBlock and routed
+ *   to its `pending` body).
+ *
+ * The thenable mutates in place to gain `.status` / `.value` / `.reason`
+ * fields the second time it's seen — matches React's `trackUsedThenable`.
+ * Per-block `thenableState[]` keyed by call index lets the body replay
+ * synchronously after the promise resolves.
+ */
+/**
+ * Structural view of a foreign host-renderer context (a real `React.Context<T>`
+ * inside an `octane/react` island). Deliberately matches React 19's Consumer
+ * shape WITHOUT importing React types — core stays host-agnostic; only hosted
+ * roots can actually resolve one (§6.2).
+ */
+export interface ForeignHostContext<T> {
+    readonly Consumer: (props: {
+        children: (value: T) => any;
+    }) => any;
+}
+/**
+ * Excludes octane ELEMENT descriptors from `use()`'s thenable arms.
+ * `Octane.JSX.Element` type-level-extends `Promise<ReactNode>` (the React 19
+ * tag gate — see src/jsx-runtime.d.ts), so a bare `PromiseLike<T>` arm would
+ * admit elements bivariantly even though their promise protocol is poisoned.
+ * The optional-`never` `$$kind` keeps every real thenable assignable (they
+ * simply lack the property) while rejecting `$$kind`-branded descriptors,
+ * making `use(<El/>)` the same hard type error `await <El/>` is. Octane
+ * contexts are unaffected: they match the separate `Context<T>` arm.
+ */
+type NotAnElementDescriptor = {
+    $$kind?: never;
+};
+export declare function use<T>(usable: Context<T> | (PromiseLike<T> & NotAnElementDescriptor) | (TrackedThenable<T> & NotAnElementDescriptor) | ForeignHostContext<T>): T;
+/**
+ * Internal renderer-boundary variant of `use(thenable)`. A universal root owns
+ * and memoizes each suspended attempt, so a different thenable on resume is an
+ * authoritative next dependency rather than an uncached user promise. Replace
+ * the stored thenable even during resume replay so a sequential A -> B
+ * suspension keeps the outer host fallback visible until B settles.
+ */
+export declare function useRendererThenable<T>(thenable: PromiseLike<T>): T;
+/**
+ * React's `useContext(Context)` — reads the nearest Provider's value (or the
+ * context default). A thin alias for the context branch of `use()`: context
+ * reads carry no per-call-site state, so there is no hook slot and the compiler
+ * needs no rewrite. Provided for React familiarity; `use(Context)` is the
+ * React-19 idiom and remains the primary form.
+ */
+export declare function useContext<T>(context: Context<T> | ForeignHostContext<T>): T;
+declare const DEFAULT_CTX: unique symbol;
+/**
+ * Compiler ABI for a DOM component materialized from a reverse renderer region.
+ * The bridge is deliberately attached only to the owning DOM root; normal DOM
+ * blocks retain no renderer fields or dispatch branches.
+ */
+export declare function bindRendererRegionOwner(props: unknown): void;
+declare const HOST_CONTEXT_REQUEST_TAG: unique symbol;
+interface HostContextRequestSignal {
+    $$kind: typeof HOST_CONTEXT_REQUEST_TAG;
+    thenable: PromiseLike<unknown>;
+}
+/**
+ * Build the §6.3 control signal for an owner bridge to THROW from
+ * `readContext`. The thenable must settle when the owner has committed the
+ * requested foreign value; the owner then retries the owned root.
+ * @internal owner-bridge ABI (octane/react and future hosts).
+ */
+export declare function createHostContextRequest(thenable: PromiseLike<unknown>): HostContextRequestSignal;
+/** @internal Live context reader rooted at a captured DOM boundary scope. */
+export declare function readContextFromScope<T>(scope: Scope, context: Context<T>): T;
+/** @internal Cold adapter query; native render and hide paths pay no extra work. */
+export declare function getRendererOwnerVisibility(scope: Scope): 'visible' | 'suspense' | 'activity';
+/** @internal Route a deferred foreign-renderer cleanup fault to a surviving owner. */
+export declare function reportRendererOwnerError(scope: Scope, error: unknown): void;
+interface TrackedThenable<T = any> extends PromiseLike<T> {
+    status?: 'pending' | 'fulfilled' | 'rejected';
+    value?: T;
+    reason?: any;
+}
+declare const HYDRATION_REJECTION_EXCEPTION: unique symbol;
+declare class HydrationRejectionException {
+    readonly reason: unknown;
+    readonly [HYDRATION_REJECTION_EXCEPTION] = true;
+    constructor(reason: unknown);
+}
+/** Compiler-owned direct use() creations consult their server-proven site outcome first. */
+export declare function seedOrCreate<T>(site: string, factory: () => T): T;
+/**
+ * Batched unwrap for a stratum of use() promises (compiler-emitted before the
+ * unwrap statements). Tags every thenable, skips non-thenables (Contexts pass
+ * through untouched), and — if any are still pending — throws ONE
+ * SuspenseException whose thenable settles when ALL members fulfil or the
+ * FIRST member rejects. One boundary retry per stratum instead of one per
+ * promise; the unwraps then read settled values from the thenable expandos in
+ * their original (hydration-seed-preserving) order.
+ *
+ * `warm` is the compiler-built fetch-tree thunk. On an empty compiler batch it
+ * registers lazily for the active component frame; on a throwing data batch,
+ * it joins every registered ancestor plan and prefetches provably-independent
+ * descendants via warmChild/warmMemo. A resolved batch costs no warm work.
+ */
+export declare function useBatch(items: any[], warm?: () => void): void;
+/** @internal Compiler-owned registration for a component warm plan. */
+export declare function registerWarmPlan(fn: (props: any) => void, props: any): void;
+interface WarmEntry {
+    deps: any[];
+    value: any;
+    /** Real memo cell represented by an unavailable entry, when applicable. */
+    source?: MemoHookEntry;
+    /** A warmed value may be adopted once; the retained tombstone still prevents
+     * a later dependency stratum from speculatively creating it again. */
+    available: boolean;
+    nativeWitness?: NativeReadWitness | null;
+}
+type WarmMemoEvidence = MemoHookEntry | WarmEntry | WarmHarvestEntry;
+type WarmMemoAccept = (entry: WarmMemoEvidence) => boolean;
+interface NativeWarmMemoMode {
+    accept: WarmMemoAccept;
+    create: (compute: () => any, deps: any[]) => WarmEntry;
+}
+/**
+ * Start (and cache) one prefetched creation. Each warm-plan occurrence claims
+ * one matching (slot, deps) entry, so retries reuse the same concrete work while
+ * repeated equal-dependency component instances still get separate entries.
+ * The value is status-tagged immediately so the real use() unwrap reads it
+ * directly.
+ */
+export declare function warmMemo(compute: () => any, deps: any[], slot: HookSlot, native?: NativeWarmMemoMode): void;
+/** @internal Speculation collects evidence without subscribing its ancestor. */
+export declare function nativeWarmMemo(compute: () => any, deps: any[], slot: HookSlot): void;
+/**
+ * Recurse the warm walk into a child component's compiled fetch plan
+ * (`Comp.__warm`, emitted by the compiler when the child's reachability and
+ * props are provably independent of suspended values). No-ops for components
+ * without a plan. Depth-capped as a backstop for recursion the compiler
+ * cannot prove finite.
+ */
+export declare function warmChild(comp: any, props: any): void;
+/** Compiler-owned plans must not follow static hoisting onto unrelated HOCs. */
+export declare function markWarm<T extends Function>(component: T, plan: unknown): T;
+export declare const puMiss: unique symbol;
+export declare function puTake0(slot: HookSlot): any;
+export declare function puTake1(slot: HookSlot, d0: any): any;
+export declare function puTake2(slot: HookSlot, d0: any, d1: any): any;
+export declare function puTake3(slot: HookSlot, d0: any, d1: any, d2: any): any;
+export declare function puTake4(slot: HookSlot, d0: any, d1: any, d2: any, d3: any): any;
+export declare function puPub(slot: HookSlot, value: any, ...deps: any[]): any;
+/** @internal Native creation caches retain the existing promise and warm ABI. */
+export declare function nativePuMemo<T>(compute: (...deps: any[]) => T, deps: any[] | undefined, slot?: HookSlot): T;
+export declare function nativePuTake0(slot: HookSlot): any;
+export declare function nativePuTake1(slot: HookSlot, d0: any): any;
+export declare function nativePuTake2(slot: HookSlot, d0: any, d1: any): any;
+export declare function nativePuTake3(slot: HookSlot, d0: any, d1: any, d2: any): any;
+export declare function nativePuTake4(slot: HookSlot, d0: any, d1: any, d2: any, d3: any): any;
+/** @internal Publish the result and its evidence together after computation succeeds. */
+export declare function nativePuPub(slot: HookSlot, value: any, witness: NativeReadWitness | null, ...deps: any[]): any;
+export declare function memoSlot(slot: HookSlot | undefined, name: 'useMemo' | 'useCallback'): HookSlot;
+export declare function memoTake0(slot: HookSlot): MemoHookEntry | null;
+export declare function memoTake1(slot: HookSlot, d0: any): MemoHookEntry | null;
+export declare function memoTake2(slot: HookSlot, d0: any, d1: any): MemoHookEntry | null;
+export declare function memoTake3(slot: HookSlot, d0: any, d1: any, d2: any): MemoHookEntry | null;
+export declare function memoTake4(slot: HookSlot, d0: any, d1: any, d2: any, d3: any): MemoHookEntry | null;
+export declare function memoPublish<T>(slot: HookSlot, value: T, ...deps: any[]): T;
+export declare function memoPublishAlways<T>(slot: HookSlot, value: T): T;
+/**
+ * React's `lazy(load)` — code-splitting. Returns a component; the first time it
+ * renders it calls `load()` (once, cached on the payload for every mount of this
+ * lazy component) and SUSPENDS on the returned promise, exactly like a body that
+ * opens with `use(loadPromise)`: the nearest `@try`/`<Suspense>` shows its
+ * pending arm and retries when the module settles. Once fulfilled it tail-calls
+ * the loaded component with the same `(props, scope, extra)`, so hooks, context,
+ * children, and return-based bodies all behave as if the component were imported
+ * statically. A rejected load throws the rejection reason on retry, routing to
+ * the nearest `@catch` (React parity).
+ *
+ * The wrapper's identity is stable, so `componentSlot`'s `comp !==
+ * state.currentComp` check never spuriously remounts, and `memo(lazy(...))`
+ * composes (memoWrapper tail-calls this wrapper). The wrapper carries no
+ * `$$singleRoot` flag — a value-position lazy mounts through childSlot's
+ * marked path, which is correct for any root shape the loaded module may have.
+ */
+export declare function lazy<C extends ComponentBody<any>>(load: () => PromiseLike<{
+    default: C;
+} | C>): C & {
+    displayName?: string;
+};
+export declare function useId(slot?: symbol): string;
+interface LazyTemplateRecord {
+    html: string;
+    ns: 0 | 1 | 2 | 3;
+    frag: number;
+    parsed: Array<Node | null>;
+    /**
+     * Lazily computed adoption-root descriptor for PROD hydration's parse-free
+     * root check (see HydrationCapability.cloneLazy): 0 = not computed yet, a
+     * string = the root element's tag as written in `html`, 3 / 8 = a text /
+     * comment-anchor root (nodeType-only match). Declared in the `template()`
+     * literal so the record's hidden class never transitions.
+     */
+    root: string | 0 | 3 | 8;
+}
+export declare function template(html: string, ns?: number, frag?: number): Element;
+/**
+ * Lite component calls deliberately allocate no CompSlot/Block range owner,
+ * but hydration still adopts their server frame pair. Keep that pair in an
+ * ephemeral map for the one post-hydration compaction pass; the live lite
+ * scope only needs its end marker re-pointed if the pair is borrowed.
+ */
+interface HydratedLiteRange {
+    start: Comment;
+    end: Comment;
+}
+interface PendingHydrationClassWrite {
+    next: string | null;
+    absentIsEmpty: boolean;
+    useAttribute: boolean;
+    remove: boolean;
+}
+/**
+ * Root-local hydration state and the dynamic dispatch boundary for hydration-only
+ * code. The class is constructed only by hydrateRoot, so client-only bundles can
+ * discard its methods together with the marker/mismatch/seed helper graph.
+ */
+declare class HydrationCapability {
+    rootBlock: Block;
+    node: Node | null;
+    seeds: unknown[] | null;
+    /** Parent captures changed before this dormant boundary activated. */
+    staleServerValues: boolean;
+    depth: number;
+    seedCursor: number;
+    hasAdjacentRangePair: boolean;
+    private abandoned;
+    private readonly freshNodes;
+    private readonly unframedRootRanges;
+    /** Pairs discovered while matching an outer range; released with this hydration pass. */
+    private matchingCloses;
+    /** First unclaimed root sibling after a compiled root clone; undefined until known. */
+    private rootRemainder;
+    private rootCleanupBoundary;
+    readonly deferredActivities: Array<() => void>;
+    readonly liteRanges: WeakMap<Scope, HydratedLiteRange>;
+    readonly classWrites: Map<Element, PendingHydrationClassWrite>;
+    private readonly textWarnings;
+    /** Skip component-frame adoption until the declared container owner. */
+    passthroughRanges: boolean;
+    /** A slot lent a server range whose first render has yet to claim it. */
+    lentSlot: ChildSlot | null;
+    nativeAdoption?: NativeAdoptionState;
+    retryPresentation?: () => void;
+    presentation?: boolean;
+    constructor(rootBlock: Block, node: Node | null, seeds: unknown[] | null);
+    isActive(): boolean;
+    owns(block: Block): boolean;
+    suspend<T>(fn: () => T): T;
+    isOpen(node: Node | null): node is Comment;
+    isClose(node: Node | null): node is Comment;
+    close(open: Node): Comment;
+    resolveOpen(anchor: Node | null | undefined, domParent: Node): Comment | null;
+    markerState(node: Node): -1 | 0 | 1;
+    /** DEV-only: every caller is dev-gated, so prod must not retain the describer. */
+    describe(node: Node | null): string;
+    warnStructural(loc: string | undefined, expected: string, actual: string): void;
+    /**
+     * A slot for the range `start`…`end` that a list item or a returning
+     * component adopted, lent to the child slot that renders its value, so that
+     * the value hydrates inside that range rather than claiming a range of its
+     * own. The slot's first render claims the server range as an adopted one.
+     */
+    lendRange(start: Comment, end: Comment): ChildSlot;
+    /**
+     * Before a child slot's first hydrating render of the server range
+     * `start`…`end`, which it adopted or was lent, check that `value` can adopt
+     * what the range holds. A host descriptor serializes as exactly one element
+     * of its tag. A list (`list`, from prepareDeoptList) frames or self-delimits
+     * each of its items, so it neither leaves the range empty nor opens it with
+     * text, unless it has no items, and then the range is empty. A portal does
+     * not open it with text either. Anything else is server content the client
+     * cannot adopt: what the server rendered for another value, or invalid
+     * nesting that the HTML parser repaired (`<p><div></div></p>` arrives as
+     * `<p></p><div></div><p></p>`, all inside the range). Discard it, as
+     * renderBranchSlot's rebuild does. Returns whether it did, in which case the
+     * caller builds the value as a client mount would.
+     */
+    claimRange(scope: Scope, slotKey: number, start: Node, end: Node, value: unknown, list: {
+        items: readonly unknown[];
+    } | null): boolean;
+    /**
+     * A child slot's first hydrating render without a server range of its own,
+     * such as a return slot's when its component's range holds server text. A
+     * list, a fragment, a keyed or lone element, and a portal never serialize as
+     * bare text, so a lone text node before `end` in `parent` is what the server
+     * rendered for a primitive, which the value cannot adopt. Discard it; returns
+     * whether it did. An earlier attempt that did so left its own content there.
+     */
+    discardServerText(scope: Scope, slotKey: number, parent: Node, end: Node | null, value: unknown, list: boolean): boolean;
+    /**
+     * A list item's first hydrating render where the server content at the
+     * cursor cannot be that item: the server rendered fewer items, a bare item
+     * where this one needs a range of its own, or an item of another tag.
+     * Discard the list's server content from the cursor to its `end`, so that
+     * this item and every later one build as a client mount would. The list
+     * reports once, and an earlier attempt that rebuilt it left its own content.
+     */
+    discardItems(end: Node, expected: string): void;
+    /**
+     * STRUCTURAL recovery for a list where the SERVER rendered MORE items than the
+     * client now renders: after its first fill adopts the client's items, the
+     * cursor sits on the first unconsumed server item (or at `end`). Discard
+     * everything between the cursor and `end` so the extra server items don't
+     * linger. Only when the cursor precedes `end`; stops AT `end`.
+     */
+    discardLeftoverItems(end: Node): void;
+    /**
+     * Remove the server content from `from` up to `end` that a child slot's
+     * value cannot adopt, and point the cursor at `end`. Reports the structural
+     * mismatch (`expected`, and the `actual` server node, describe it in
+     * development) unless it is `quiet`, as it is when an earlier attempt already
+     * rebuilt this content, or the captures legitimately changed before a dormant
+     * boundary activated. Remembers `end` for later attempts.
+     */
+    private discard;
+    recordTextMismatch(node: Text, loc: string | undefined, server: string | null): void;
+    flushTextWarnings(): void;
+    removeRange(start: Node, end: Node): void;
+    /**
+     * Runs before the first hydrating render of a text or empty value `str` in a
+     * child slot that adopted the server's `<!--[-->…<!--]-->` range. The value
+     * serializes as at most one text node there, which the slot adopts when it
+     * leads the range. Anything else in the range is server content the client
+     * cannot adopt, such as an element or component the server rendered for a
+     * value the client renders as text or nothing. Discard it and report the
+     * recovery, as claimRange does for a host descriptor.
+     */
+    discardUnadoptedText(scope: Scope, slotKey: number, state: ChildSlot, str: string): void;
+    parseSeeds(raw: string): unknown[] | null;
+    isRejection(error: unknown): error is HydrationRejectionException;
+    rejectionFromSeed(seed: unknown): HydrationRejectionException | null;
+    seedOrCreate<T>(site: string, factory: () => T): T;
+    useSeed<T>(thenable: TrackedThenable<T>, state: TrackedThenable<any>[], index: number, replaceOnResume: boolean): T;
+    /** Mark a client-built hydration replacement (and its descendants) as fresh DOM. */
+    markFresh(node: Node): void;
+    isFresh(node: Node): boolean;
+    /** Keep a client-owned root anchor alive while stale server siblings are swept. */
+    protectRootAnchor(node: Node): void;
+    /** Bound an unframed third-party component root so its returned host can adopt it. */
+    wrapUnframedRoot(cursor: Node): readonly [Comment, Comment];
+    isUnframedRootRange(start: Node, end: Node): boolean;
+    /**
+     * Whether `block`'s server range holds only unclaimed text at the cursor:
+     * what the server rendered for a primitive.
+     */
+    holdsServerText(block: Block): boolean;
+    /** Record the first node outside a root-owned range exactly once. */
+    claimRootRemainder(node: Node | null): void;
+    private freshClone;
+    private fragmentRemainder;
+    /**
+     * If a top-level cursor sits inside a server marker frame, return the first
+     * sibling after that OUTERMOST frame. A clone can execute in a lite/provider
+     * descendant while its DOM is still a direct child of the root container;
+     * `cursor.nextSibling` would then be only the descendant's close marker.
+     */
+    private framedRootRemainder;
+    /**
+     * Give up root adoption after an unframed return/fragment mismatch. Callers pass
+     * the dev warning's inputs as a thunk behind a `NODE_ENV` check, so production
+     * builds neither stringify the root component to find its location nor retain
+     * the node describers.
+     */
+    abandonRoot(diagnostic?: () => HydrationRootDiagnostic): void;
+    clone<T extends Node>(template: T, loc?: string, partialStyles?: string): T;
+    /**
+     * PROD adoption entry for lazy compiler templates: the root check runs off
+     * the template SOURCE (lazyRootMatches), so the happy path never forces the
+     * parse — `adopt` resolves the parsed template on demand only on its cold
+     * paths (mismatch recovery, client-side builds mid-hydration, fragment root
+     * claims).
+     */
+    cloneLazy(lazy: LazyTemplateRecord, loc?: string): Node;
+    /** `template` is null only in prod lazy mode (then `lazy` is set) — every cold path resolves it. */
+    private adopt;
+    /**
+     * The server rendered something other than this nested fragment at the
+     * cursor (a text value, another component's roots). Report it once and build
+     * the fragment on the client. The fragment's block owns the server nodes from
+     * the cursor up to its end marker, where drainFrag inserts the fresh roots, so
+     * discard them. When the end marker does not follow the cursor inside the
+     * block's range, discard only the cursor node or its range, as a single-root
+     * mismatch does.
+     */
+    private rebuildFragment;
+    /** Discard a mismatched server node (or the marker range it opens) and step past it. */
+    private discardCursor;
+    /** Remove server siblings left after the root's complete client shape was adopted. */
+    finishRoot(): void;
+    /**
+     * Whether the server framed `el`'s only child in a `<!--[-->…<!--]-->` range
+     * holding something other than one text node or nothing. htext unwraps a
+     * text-only frame; any other framed content belongs to a child slot.
+     */
+    framesSlotContent(el: Node): boolean;
+    htext(el: Node, text: string, loc?: string): Text;
+    /**
+     * childTextHole's first hydrating render of an element, a component, or a
+     * list. The server frames such a value in a `<!--[-->…<!--]-->` range, which
+     * the hole's child slot adopts from the cursor. Anything else in the host is
+     * the text, or nothing, that the server rendered for a primitive value, which
+     * none of these values can adopt: discard it, report the recovery, and build
+     * the value as a client mount would. A textarea's text is its default value,
+     * which its value props own, so it stays. `render` is the hole's childSlot
+     * call, passed in so that hydration alone never retains the child-slot graph.
+     */
+    hydrateOnlyChild(scope: Scope, slotKey: number, el: Node, render: () => void): void;
+    /**
+     * htext's counterpart for an only-child hole whose first hydrating value
+     * renders nothing (`null`, `undefined`, a boolean, or `''`). The server
+     * serializes that as no children, or as an empty `<!--[--><!--]-->` frame,
+     * which unwraps like htext's text-only frame. Anything else is server content
+     * the client renders no node for, so a later value would land beside it.
+     * Discard it and report the recovery as htext reports extra children.
+     * A textarea's text is its default value, which its value props own.
+     */
+    hempty(el: Node, loc?: string): void;
+    htextSwap(posNode: Node | null, text: string): Text;
+    sibling(node: Node, count: number): Node | null;
+    allowAttribute(el: Element, name: string, next: string | null): boolean;
+    allowClass(el: Element, next: string | null, absentIsEmpty?: boolean): boolean;
+    queueClass(el: Element, next: string | null, absentIsEmpty: boolean, useAttribute: boolean, remove: boolean): void;
+    flushClassWrites(): void;
+    applyStyle(el: HTMLElement | SVGElement, value: any, _prev: any, staticCss?: string, entries?: readonly unknown[]): boolean;
+    coalesce(): void;
+}
+export declare function clone<T extends Node>(node: T, loc?: string, partialStyles?: string): T;
+/**
+ * Compiler-emitted for a multi-root template's mount: drain the cloned
+ * <octane-frag> wrapper's children into the live parent. While hydrating, the
+ * "wrapper" is clone()'s virtual stand-in for server content that is ALREADY
+ * in place — nothing to move.
+ */
+export declare function drainFrag(root: Node, parent: Node, anchor: Node | null): void;
+export declare function bag0(s: Scope, r: Node | null): any;
+export declare function bag1(s: Scope, r: Node | null, a: any): any;
+export declare function bag2(s: Scope, r: Node | null, a: any, b: any): any;
+export declare function bag3(s: Scope, r: Node | null, a: any, b: any, c: any): any;
+export declare function bag4(s: Scope, r: Node | null, a: any, b: any, c: any, d: any): any;
+export declare function bag5(s: Scope, r: Node | null, a: any, b: any, c: any, d: any, e: any): any;
+export declare function bag6(s: Scope, r: Node | null, a: any, b: any, c: any, d: any, e: any, f: any): any;
+export declare function bag7(s: Scope, r: Node | null, a: any, b: any, c: any, d: any, e: any, f: any, g: any): any;
+export declare function bag8(s: Scope, r: Node | null, a: any, b: any, c: any, d: any, e: any, f: any, g: any, h: any): any;
+export declare function bag9(s: Scope, r: Node | null, a: any, b: any, c: any, d: any, e: any, f: any, g: any, h: any, i: any): any;
+export declare function bag10(s: Scope, r: Node | null, a: any, b: any, c: any, d: any, e: any, f: any, g: any, h: any, i: any, j: any): any;
+export declare function bag11(s: Scope, r: Node | null, a: any, b: any, c: any, d: any, e: any, f: any, g: any, h: any, i: any, j: any, k: any): any;
+export declare function bag12(s: Scope, r: Node | null, a: any, b: any, c: any, d: any, e: any, f: any, g: any, h: any, i: any, j: any, k: any, l: any): any;
+export declare function bag13(s: Scope, r: Node | null, a: any, b: any, c: any, d: any, e: any, f: any, g: any, h: any, i: any, j: any, k: any, l: any, m: any): any;
+export declare function bag14(s: Scope, r: Node | null, a: any, b: any, c: any, d: any, e: any, f: any, g: any, h: any, i: any, j: any, k: any, l: any, m: any, n: any): any;
+export declare function bag15(s: Scope, r: Node | null, a: any, b: any, c: any, d: any, e: any, f: any, g: any, h: any, i: any, j: any, k: any, l: any, m: any, n: any, o: any): any;
+export declare function bag16(s: Scope, r: Node | null, a: any, b: any, c: any, d: any, e: any, f: any, g: any, h: any, i: any, j: any, k: any, l: any, m: any, n: any, o: any, p: any): any;
+export declare function bagOf(s: Scope, r: Node | null, bag: any): any;
+/**
+ * Compiler-emitted for a single-text-child binding's mount. Reuses the cloned
+ * template's text placeholder only when the compiler explicitly seeded one,
+ * otherwise preserves baseline create/append semantics; while hydrating, ADOPTS the existing server
+ * text node so the DOM isn't rebuilt. The prev-value the
+ * compiler seeds alongside this makes the first update a no-op when the client
+ * value matches the server text (avoiding a mismatch re-render).
+ */
+export declare function htext(el: Node, value: unknown, seeded?: 1 | undefined): Text;
+/**
+ * Compiler-emitted mount for a `{x as string}` text hole that sits AMONG sibling
+ * nodes (the `<!>` placeholder lives at a resolved position, `posNode`).
+ *
+ * `posNode` is resolved with the hole-aware `child`/`sibling` walk, so during
+ * hydration it is the SERVER's text node at that logical position (the server
+ * rendered the value directly, with no `<!>`), even when earlier siblings are
+ * components / control-flow that expanded into `<!--[-->…<!--]-->` ranges. We
+ * ADOPT it. While NOT hydrating, `posNode` is the cloned template's `<!>`
+ * comment, which we replace 1-for-1 with a text node (position-preserving, so
+ * later sibling walks are unaffected). This is the sibling-position analog of
+ * `htext` (which handles the only-child fast path).
+ */
+export declare function htextSwap(posNode: Node | null, value: unknown): Text;
+/**
+ * @internal A <textarea>'s authored children, folded into the one string its
+ * template binds as the host's only Text node. Textarea content is RCDATA, so
+ * the compiler cannot give its holes `<!>` placeholders or let the server frame
+ * them (the parser would keep either as literal text). `textHoles` marks the
+ * `{x as string}` parts with a 't'. With a signal handle among the parts the
+ * result is one derived handle over them, so the ordinary direct text binding
+ * subscribes to every signal and rewrites the whole text when any changes.
+ */
+export declare function textareaText(parts: unknown[], textHoles?: string): unknown;
+/** @internal Text holes in authored binding views retain an addressable range, including when empty. */
+export declare function bindingText(posNode: Node | null, value: unknown, marker: string): Text;
+interface PresentationHydrationFrame {
+    previous: PresentationHydrationFrame | null;
+    scope: Scope;
+    writes: Map<object, Map<string, () => void>>;
+    native: ReturnType<typeof setNativeAdoptionResolver>;
+    readToken: number;
+    witnessToken: number;
+    witnesses: Map<object, NativeReadWitness | null>;
+    /** Successor native writers only; a host receipt never tears down children. */
+    hostSuccessors?: Map<object, () => void>;
+    controls?: Map<Element, {
+        valid: (retired?: boolean) => boolean;
+        binding: DirectSignalBinding;
+        lease: ControlHandoff | undefined;
+        stop?: () => void;
+    }>;
+    completed: boolean;
+    lease: BindingHandoff;
+    revision?: number;
+    /** Installed only for structural/control/host receipts, not ordinary fixed presentations. */
+    current?: typeof currentPresentation;
+    hydration: HydrationCapability | null;
+}
+/** @internal Preserve the early presentation when an authored preparation throws. */
+export declare function presentationFailure(error: unknown): never;
+declare function currentPresentation(frame: PresentationHydrationFrame): boolean;
+/** @internal Only compiler-proven native views enter this publication boundary. */
+export declare function beginPresentationHydration(scope: Scope, id: string, supported?: boolean, structural?: boolean, conditionalRest?: boolean, host?: boolean): PresentationHydrationFrame | null;
+/** @internal Restore the read frame even when preparation suspends or throws. */
+export declare function endPresentationHydration(frame: PresentationHydrationFrame | null, completed?: boolean): void;
+/** @internal Only authored host spreads retain generic host preparation. */
+export declare function presentationHostWrite<T>(writer: (...args: any[]) => T, ...args: any[]): T;
+/** @internal Compiler-selected writer seam; ordinary renderer setters stay unchanged. */
+export declare function presentationWrite<T>(writer: (...args: any[]) => T, kind: string, ...args: any[]): T;
+/** @internal Authored presentation ranges may not inherit an unrelated caller's boundary. */
+export declare function bindPresentationView<T extends Function>(view: T, id: string): T;
+/** @internal A lexical children body carries its authored invocation site across modules. */
+export declare function markBindingChildren<T extends Function>(body: T, site: string): T;
+/** @internal The existing renderer adopts only the current compiler-owned branch or child range. */
+export declare function presentationStructure(writer: (...args: any[]) => void, kind: 'if' | 'view', marker: string, ...args: any[]): void;
+/** @internal Keep historical class ownership beside the full renderer's composed class. */
+export declare function setBindingClass(element: Element, receipt: string, values: [unknown, unknown[]]): void;
+/** @internal Attribute-binding comparison ABI for the opt-in class receipt writer. */
+export declare function setBindingClassIfChanged(value: [unknown, unknown[]], previous: unknown, element: Element, receipt: string): unknown;
+/** Logical index-0 child: `node.firstChild` for both client and hydration. */
+export declare function child<T extends Node>(node: T): Node | null;
+/**
+ * The n-th logical sibling after `node`. Client: plain `.nextSibling` × n.
+ * Hydrating: a `<!--[-->…<!--]-->` block counts as ONE step (we jump past its
+ * range), so an element/hole after a block resolves to the right server node.
+ */
+export declare function sibling(node: Node, n?: number): Node | null;
+export declare function setText(node: Text, value: any): void;
+declare const DIRECT_SIGNAL_BINDING: unique symbol;
+/** @internal Invalidate scalar-view caches when hydration retained a claimed publication. */
+export declare function hydrateClaimedBindingCaches(scope: Scope, fields: readonly (string | number)[]): void;
+type DirectSignalBindingKind = 'text' | 'textOnlyChild' | 'attribute' | 'value' | 'checked';
+type DirectSignalAttributeWriter = (el: Element, name: string, value: unknown) => void;
+type DirectSignalAttributeKind = 'class' | DirectSignalAttributeWriter;
+interface DirectSignalBindingPolicy {
+    readonly kind: DirectSignalBindingKind;
+    readonly writeBinding: (binding: DirectSignalBinding, value: unknown) => void;
+    readonly write: (target: Node, value: unknown, kind: DirectSignalBindingKind, previous: unknown, name?: string, attributeKind?: DirectSignalAttributeKind) => unknown;
+    readonly control?: {
+        validateNew: (scope: Scope, target: Node, kind: DirectSignalBindingKind) => void;
+        snapshot: (target: Node, site: string) => ReturnType<typeof snapshotHydrationControl>;
+        restored: (target: Node, value: unknown) => boolean;
+        activate: (binding: DirectSignalBinding, revision: number) => void;
+        adopt: (binding: DirectSignalBinding) => void;
+    };
+}
+interface DirectSignalBinding {
+    readonly [DIRECT_SIGNAL_BINDING]: true;
+    readonly scope: Scope;
+    readonly policy: DirectSignalBindingPolicy;
+    readonly target: Node;
+    readonly site: string;
+    readonly name?: string;
+    readonly attributeKind?: DirectSignalAttributeKind;
+    readonly handle: SignalHandle<unknown> | null;
+    text?: Text;
+    value: unknown;
+    unsubscribe?: () => void;
+    input?: EventListener;
+    controlWriterCleanup?: () => void;
+    pendingControl?: boolean;
+    disposed: boolean;
+}
+/**
+ * @internal Compiler target for a direct signal/scalar text binding.
+ *
+ * Updates pass `previousValue` (the bag's raw-value cache) right after
+ * `onlyChild`; `seededText` and `bindingMarker` only matter while `previous` is
+ * still undefined, so compiled updates omit them.
+ */
+export declare function bindSignalText(scope: Scope, previous: unknown, position: Node, value: unknown, site: string, onlyChild?: boolean, previousValue?: unknown, seededText?: 1 | undefined, bindingMarker?: string): unknown;
+/** @internal Compiler target for a direct signal/scalar attribute binding. */
+export declare function bindSignalAttribute(scope: Scope, previous: unknown, element: Element, name: string, value: unknown, site: string, attributeKind: DirectSignalAttributeKind): unknown;
+/** @internal Compiler target for a direct signal/scalar value binding. */
+export declare function bindSignalValue(scope: Scope, previous: unknown, element: Element, value: unknown, site: string): unknown;
+/** @internal Compiler target for a direct signal/scalar checked binding. */
+export declare function bindSignalChecked(scope: Scope, previous: unknown, element: Element, value: unknown, site: string): unknown;
+/**
+ * Compact compiler binding ABI. Evaluate the authored value first, compare its
+ * raw identity, then call the ordinary writer. Returning only after that writer
+ * succeeds keeps the caller's previous-value publication after coercion, errors,
+ * and transition journaling. The binding bag and its direct field reads stay at
+ * the call site; these helpers allocate nothing and never index a bag dynamically.
+ * Controlled form properties deliberately do not use this identity guard.
+ */
+export declare function setAttributeIfChanged(value: unknown, previous: unknown, el: Element, name: string): unknown;
+export declare function setPlainAttributeIfChanged(value: unknown, previous: unknown, el: Element, name: string): unknown;
+export declare function setURLAttributeIfChanged(value: unknown, previous: unknown, el: Element, name: string): unknown;
+export declare function setStringDataIfChanged(value: unknown, previous: unknown, el: Element, name: string): unknown;
+export declare function setBooleanAttributeIfChanged(value: unknown, previous: unknown, el: Element, name: string): unknown;
+export declare function setAriaAttributeIfChanged(value: unknown, previous: unknown, el: Element, name: string): unknown;
+export declare function setClassNameIfChanged(value: unknown, previous: unknown, el: Element): unknown;
+export declare function setClassAttrIfChanged(value: unknown, previous: unknown, el: Element): unknown;
+export declare function updateFreshClassName(value: unknown, previous: unknown, el: Element): string;
+export declare function updateFreshClassAttr(value: unknown, previous: unknown, el: Element): string;
+/**
+ * Set authored inline-script source without asking the HTML parser to interpret it.
+ * This is the client half of the compiler's `<script dangerouslySetInnerHTML>`
+ * specialization: strings containing `</script><script>...` remain one inert script
+ * node instead of becoming sibling markup. Server serialization additionally escapes
+ * closing/opening script tokens because it is concatenated into an HTML response.
+ */
+export declare function setScriptText(el: Element, value: any): void;
+/** React-compatible hydration for `dangerouslySetInnerHTML`. */
+export declare function setHTML(el: Element, value: any): void;
+/** Complete validated write used by direct, spread, and html-only compiler paths. */
+export declare function setDangerouslySetInnerHTML(el: Element, value: any): void;
+/** Resolve source-ordered direct/spread raw-HTML writers and apply only the winner. */
+export declare function setDangerouslySetInnerHTMLSources(el: Element, sources: readonly (readonly [
+    isSpread: boolean,
+    sourceOrName: unknown,
+    value?: unknown,
+    merge?: boolean
+])[], ignoreSourceChildren?: boolean): void;
+/** Stamp a compiler-proven non-nullish child onto a potential raw-HTML host. */
+export declare function markDangerouslySetInnerHTMLChildren(el: Element): void;
+export declare function attachRef(ref: any, el: Element | FragmentInstance | null, prevTarget?: Element | FragmentInstance | null): void;
+/** Fragment ref forms (fragment-refs parity): callback, object, or arrays. */
+type FragmentRefValue = ((instance: FragmentInstance | null) => void | (() => void)) | {
+    current: FragmentInstance | null;
+} | readonly FragmentRefValue[] | null;
+/**
+ * Props accepted by `<Fragment>` (React's `FragmentProps`, plus `key` and
+ * fragment refs). Named so declaration emit can reference it instead of
+ * expanding the recursive ref type inline.
+ */
+export interface FragmentProps {
+    children?: unknown;
+    key?: string | number | bigint | null | undefined;
+    ref?: FragmentRefValue;
+}
+export declare const Fragment: (props: FragmentProps) => unknown;
+/** Activity keeps its runtime sentinel identity while accepting ordinary JSX props. */
+export declare const Activity: (props: {
+    mode?: "visible" | "hidden";
+    children?: unknown;
+    name?: string;
+    key?: string | number | bigint | null | undefined;
+}) => unknown;
+export declare class FragmentInstance {
+    /**
+     * Sentinel that React's test suite asserts is truthy as a sanity-check
+     * that the FragmentInstance is bound to its owning Block. Named
+     * `_ownerBlock` (not React's `_fragmentFiber`) because octane uses
+     * Blocks, not fibers — same role.
+     */
+    _ownerBlock: Block;
+    _startMarker: Comment;
+    _endMarker: Comment;
+    _destroyed: boolean;
+    /**
+     * Committed direct hosts and a reusable scratch set. Swapping the sets at
+     * each commit avoids allocating per render while ensuring registrations are
+     * applied only to genuinely new children.
+     */
+    _children: Set<Element | Text>;
+    _pendingChildren: Set<Element | Text>;
+    /** Following DOM anchor -> logically owned portal ranges; allocated on demand. */
+    _portalAnchors: Map<Node, Set<PortalSlot>> | null;
+    /**
+     * Registry of listeners added via addEventListener, deduped by
+     * (type, listener, capture). `null` until the first addEventListener — zero
+     * listener-registry cost for fragments that never use the listener API.
+     * Stored bindings apply only when a new direct child joins the fragment.
+     */
+    _listeners: Array<{
+        type: string;
+        listener: EventListenerOrEventListenerObject;
+        options: AddEventListenerOptions | boolean | undefined;
+    }> | null;
+    /**
+     * Observers registered via observeUsing. New direct children inherit each
+     * observer; retained children are never redundantly observed on commit.
+     */
+    _observers: Set<{
+        observe(target: Element): void;
+        unobserve(target: Element): void;
+    }> | null;
+    /**
+     * The ref currently pointed at this instance. Held here (not captured in the
+     * mount closure) so the unmount cleanup detaches whatever ref is current AND
+     * the compiler's update path can re-point a changed `<Fragment ref={…}>`.
+     */
+    _currentRef: any;
+    constructor(ownerBlock: Block, startMarker: Comment, endMarker: Comment);
+    _destroy(): void;
+    /** Associate a foreign portal range with its authored following sibling. */
+    _registerPortal(portal: PortalSlot, anchor: Node): void;
+    /** Forget a removed portal before its foreign DOM range is torn down. */
+    _unregisterPortal(portal: PortalSlot, anchor: Node): void;
+    /** Attach inherited bindings and publish this fragment's public DOM handle. */
+    _attachChild(child: Element | Text): void;
+    /** Remove only this fragment's registrations; nested fragment handles stay. */
+    _detachChild(child: Element | Text): void;
+    /**
+     * Diff current hosts after each commit. Reattaching a retained listener would
+     * revive an exhausted `{ once: true }` registration; calling observe again is
+     * also observable, so only newly inserted children inherit those bindings.
+     */
+    _reapply(): void;
+    /**
+     * Focus the first element for which the browser actually accepts focus.
+     * Listening for the focus event handles labels, shadow delegation, disabled
+     * controls, and programmatically focusable tabIndex=-1 elements correctly.
+     */
+    focus(options?: FocusOptions): void;
+    /**
+     * Focus the last programmatically focusable element, trying descendants in
+     * reverse tree order until the browser accepts one.
+     */
+    focusLast(options?: FocusOptions): void;
+    /**
+     * Blur the focused element only when a logical fragment child owns it,
+     * including children rendered into foreign portal containers. Each child is
+     * checked against its own focus root, so shadow-root and iframe portal
+     * children resolve to the owned element rather than their host or frame.
+     */
+    blur(): void;
+    /**
+     * Attaches a listener to every first-level Element or Text child.
+     * The (type, listener, capture) tuple is stored so children inserted into
+     * the fragment later inherit the listener. Deduped by that same tuple,
+     * matching the DOM's listener identity rules.
+     */
+    addEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: AddEventListenerOptions | boolean): void;
+    /**
+     * Removes a listener previously added via this FragmentInstance. The
+     * (type, listener, options.capture) tuple must match the add call — the same
+     * identity rule EventTarget.removeEventListener uses. Detaches from the
+     * current children and stops re-applying it to future ones. Unmatched calls
+     * are a silent no-op (DOM parity).
+     */
+    removeEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: AddEventListenerOptions | boolean): void;
+    /**
+     * Forwards .observe() on the supplied observer (IntersectionObserver,
+     * ResizeObserver, MutationObserver, or any other with an `observe(target)`
+     * signature) to every direct fragment child. Lets a single fragment ref
+     * stand in for "watch this list of siblings" — react-aria's Virtualizer
+     * and dnd-kit's drop-zone primitives are the canonical clients.
+     */
+    observeUsing(observer: {
+        observe(target: Element): void;
+        unobserve(target: Element): void;
+    }): void;
+    /**
+     * Stops observing with the given observer: unobserves the current children
+     * and stops applying it to future ones. An unregistered observer is not
+     * touched and produces React's diagnostic in development.
+     */
+    unobserveUsing(observer: {
+        observe(target: Element): void;
+        unobserve(target: Element): void;
+    }): void;
+    /**
+     * Concatenates direct host-element and text-node rectangles in logical tree
+     * order. Text uses Range because Text does not expose getClientRects itself.
+     */
+    getClientRects(): DOMRect[];
+    /**
+     * Resolve the owning host parent's root, forwarding composed shadow-root
+     * options. A detached FragmentInstance is its own root, matching React.
+     */
+    getRootNode(options?: GetRootNodeOptions): Node | FragmentInstance;
+    /**
+     * Preserve the platform's directional/ancestor bits while returning exact
+     * CONTAINED_BY for logical children. Empty ranges have no DOM position of
+     * their own, so their derived result is IMPLEMENTATION_SPECIFIC.
+     */
+    compareDocumentPosition(other: Node): number;
+    /**
+     * Dispatch bubbling events directly on the parent unless fragment listeners
+     * or a non-bubbling event require React's temporary fragment-local target.
+     */
+    dispatchEvent(event: Event): boolean;
+    /**
+     * Scroll every logical first-level host child so the final scroll position
+     * settles on the first child by default, or the last child for `false`.
+     * Empty fragments use their nearest sibling, then their host parent.
+     */
+    scrollIntoView(alignToTop?: boolean): void;
+}
+/**
+ * Compiler-emitted helper. Creates a FragmentInstance bound to the supplied
+ * marker pair + owning block, attaches the user's ref, and queues both the
+ * detach + the FragmentInstance destruction on the scope's cleanup chain.
+ */
+export declare function mountFragmentRef(scope: Scope, startMarker: Comment, endMarker: Comment, ref: any): FragmentInstance;
+export declare function setAttribute(el: Element, name: string, value: any): void;
+/**
+ * Compiler-admitted native scalar attribute: the name is valid, already aliased,
+ * unnamespaced and has no property/boolean/numeric/URL semantics. Keep the
+ * generic development route even for production-compiled code loaded in dev.
+ */
+export declare function setPlainAttribute(el: Element, name: string, value: unknown): void;
+/** Same scalar contract for a statically proven, unnamespaced native URL sink. */
+export declare function setURLAttribute(el: Element, name: string, value: unknown): void;
+/**
+ * Compiler-only fast path for a statically named `data-*` attribute. Runtime values still
+ * follow the generic data-attribute contract: nullish/function/symbol remove,
+ * while booleans, numbers and objects stringify. This matters when an `as
+ * string` assertion or an external typed value is inaccurate at runtime. The
+ * compiler restricts this helper to lowercase data names, which are applied as
+ * unnamespaced attributes in HTML, SVG, and MathML, so it needs none of the
+ * generic attribute alias/property routing tables. Hydration still goes through
+ * the capability boundary so mismatch recovery and `suppressHydrationWarning`
+ * remain identical to setAttribute.
+ */
+export declare function setStringData(el: Element, name: string, value: unknown): void;
+/**
+ * Compiler-only fast path for a statically named native boolean attribute.
+ * The compiler has already excluded HTML custom elements, aliases the name to
+ * its lowercase DOM spelling, and only selects names in BOOLEAN_ATTR_PROPS.
+ * Function/symbol/falsy values remove; every other truthy value writes the
+ * canonical empty-string presence form.
+ */
+export declare function setBooleanAttribute(el: Element, name: string, value: unknown): void;
+/**
+ * Compiler-only fast path for a valid, statically named lowercase `aria-*`
+ * attribute. Booleans stringify; nullish, function, and symbol values remove.
+ */
+export declare function setAriaAttribute(el: Element, name: string, value: unknown): void;
+import { normalizeClass } from './css.js';
+export { normalizeClass };
+export declare function setClassName(el: Element, value: unknown): void;
+export declare function setClassAttr(el: Element, value: unknown): void;
+/** Whether a grouped style must compare its complete value during hydration. @internal */
+export declare function isHydratingStyle(): boolean;
+/** Intrinsic prototype used to guard completion of fresh style spread snapshots. @internal */
+export declare const styleObjectPrototype: Object;
+/** Whether a spread prefix and its fixed trailing declarations can be diffed separately. @internal */
+export declare function canSplitStyleProperties(): boolean;
+export declare function setStyle(el: HTMLElement | SVGElement, value: any, prev: any): void;
+/**
+ * Update one dynamic declaration after a compiler-baked static style prefix.
+ * Hydration still compares the complete style, while aborted transitions
+ * restore the entire attribute rather than only this declaration.
+ * @internal
+ */
+export declare function setStyleProperty(el: HTMLElement | SVGElement, name: string, value: any, staticCss: string, previous: any): void;
+/**
+ * Apply ordered fixed-key declarations on mount. The compiler writes changed
+ * values with scalar setters on updates; hydration compares the whole value.
+ * @internal
+ */
+export declare function setStyleProperties(el: HTMLElement | SVGElement, entries: readonly unknown[], staticCss: string): void;
+/** Snapshot a JSX spread with own-enumerable Object.assign semantics. */
+export declare function snapshotSpread(value: unknown): Record<string, unknown> | null;
+type HostPropSource = readonly [
+    isSpread: boolean,
+    sourceOrName: unknown,
+    value?: unknown,
+    merge?: boolean
+];
+export declare function setHostPropSources(el: Element, sources: readonly HostPropSource[], prev: Record<string, unknown> | undefined, scope: Scope, hasNestedChildren?: boolean, readStyle?: (value: unknown) => unknown, deferControl?: boolean): Record<string, unknown>;
+/** @internal Compiler target for spread-bearing hosts containing direct signals. */
+export declare function bindSignalHostPropSources(scope: Scope, previous: unknown, element: Element, sources: readonly HostPropSource[], site: string, hasNestedChildren?: boolean, readStyle?: (value: unknown) => unknown): unknown;
+export declare function setSpread(el: Element, value: any, prev: any, mountScope?: Scope, skipDangerouslySetInnerHTML?: boolean, skipFormControls?: boolean): void;
+export declare function headBlock(scope: Scope, slot: number, key: string, tag: string, attrs: Record<string, any> | null, text: unknown): void;
+interface NamespaceHeadProps {
+    headKey: string;
+    tag: string;
+    attrs: Record<string, any> | null;
+    text: unknown;
+}
+/** @internal Compiler-generated. */
+export declare function namespaceHead(props: NamespaceHeadProps, scope: Scope): ElementDescriptor | null;
+/** @internal Compiler-generated descriptor factory for namespaceHead. */
+export declare function namespaceHeadElement(headKey: string, tag: string, attrs: Record<string, any> | null, text: unknown, authoredKey?: unknown): ElementDescriptor;
+export declare function injectStyle(id: string, css: string, nonce?: string): void;
+declare const EVENT_SLOT_KIND: unique symbol;
+declare const HANDLER_BUNDLE_KIND = 1;
+interface HandlerBundle {
+    [EVENT_SLOT_KIND]: typeof HANDLER_BUNDLE_KIND;
+    fn: (...args: any[]) => any;
+    args: any[] | 1 | 2 | -1 | -2;
+    a0?: any;
+    a1?: any;
+    el?: Element;
+}
+/**
+ * Development compiler/runtime boundary for a dynamic `onXxx` prop. React
+ * validates the prop while applying it, then independently fails again when
+ * dispatch tries to read/invoke the invalid listener. Keep the invalid value in
+ * a DEV-only descriptor so falsy values such as `false` still reach dispatch and
+ * the eventual error can retain the authored prop spelling.
+ *
+ * Production-compiled direct bindings never import or call this helper. Runtime
+ * fallback paths guard their calls with NODE_ENV, so optimized bundles remove
+ * the warning strings, descriptor allocation, and branch in full.
+ */
+export declare function devEventListener(name: string, listener: unknown): unknown;
+/** Publish a native handler; compiled bundle updates omit the key to refresh only authority. */
+export declare function setEventHandler(el: Element, key?: string, handler?: any): void;
+export declare function evt0(el: Element, key: string, fn: any): HandlerBundle;
+export declare function evt0u(d: HandlerBundle, fn: any): void;
+export declare function evt1(el: Element, key: string, fn: any, a0: any): HandlerBundle;
+export declare function evt1u(d: HandlerBundle, fn: any, a0: any): void;
+export declare function evt2(el: Element, key: string, fn: any, a0: any, a1: any): HandlerBundle;
+export declare function evt2u(d: HandlerBundle, fn: any, a0: any, a1: any): void;
+export declare function evt1e(el: Element, key: string, fn: any, a0: any): HandlerBundle;
+export declare function evt2e(el: Element, key: string, fn: any, a0: any, a1: any): HandlerBundle;
+export declare function evtN(el: Element, key: string, fn: any, args: any[]): HandlerBundle;
+export declare function evtNu(d: HandlerBundle, fn: any, args: any[]): void;
+export declare function delegateEvents(eventNames: string[]): void;
+export declare function delegateCaptureEvents(eventNames: string[]): void;
+export interface FormStatus {
+    pending: boolean;
+    data: FormData | null;
+    method: string | null;
+    action: ((formData: FormData) => unknown) | string | null;
+}
+/**
+ * React DOM's `requestFormReset(form)` — schedule a reset of the form's
+ * uncontrolled fields, tied to the enclosing transition/action: the reset is
+ * deferred until the action window closes (every in-flight async transition has
+ * settled), matching React's "reset when the action's transition commits". This
+ * is the manual companion to the automatic reset a plain `<form action={fn}>`
+ * gets on success — use it from `onSubmit` + `startTransition` flows or
+ * `useActionState` forms that DO want a reset.
+ *
+ * Called outside any transition or action, React logs an error; octane does the
+ * same and applies the reset immediately (the least surprising fallback).
+ */
+export declare function requestFormReset(form: HTMLFormElement): void;
+/**
+ * Compiler-emitted binding for `<form action={fn}>` / `<button formAction={fn}>`.
+ * A FUNCTION value wires submit interception (stored on the element as
+ * `$$formAction`, with submit delegation installed once);
+ * a string/null value falls back to the native attribute so ordinary form posts
+ * still work. The previous-value argument remains part of the compiler ABI.
+ */
+export declare function setFormAction(el: HTMLFormElement | HTMLButtonElement | HTMLInputElement, name: string, value: unknown, _prev: unknown): void;
+/**
+ * Compiler-emitted binding for `autoFocus` (React parity): client mounts never
+ * write an attribute and focus supported controls once, before layout effects.
+ * Server-rendered controls keep their existing autofocus attribute but are
+ * never refocused during hydration; later updates are likewise ignored.
+ */
+export declare function setAutoFocus(el: Element, value: unknown): void;
+/** Compiler-only DEV marker for form hosts whose authoring is otherwise baked. */
+export declare function queueFormAuthoringDiagnostic(el: Element, kind: string, selected?: boolean | (() => unknown)): void;
+/** @internal Compiler helper for a final-props runtime-check host. */
+export declare function queueNativeChangeDiagnostic(el: Element): void;
+/** @internal Compiler helper for a host whose build warning already fired. */
+export declare function markNativeChangeDiagnosticStatic(el: Element): void;
+/**
+ * Compiler-emitted binding for a controlled `value` on <input>/<textarea>
+ * (spread/de-opt/legacy-compiled writes are routed here by setAttribute).
+ * React semantics: the prop DRIVES the DOM property; a nullish value means
+ * uncontrolled (leave the DOM alone). The value ATTRIBUTE mirrors the prop
+ * (React's attribute-syncing cascade: value, else defaultValue) — an
+ * attribute write never clobbers what the user typed, and it keeps SSR
+ * output, form.reset() baselines, and differential byte-compares aligned.
+ */
+export declare function setValue(el: Element, value: unknown): void;
+export declare function setChecked(el: Element, value: unknown): void;
+/**
+ * Compiler-only checked binding for a statically-known checkbox/radio whose
+ * type cannot be changed by a spread. It keeps the complete controlled record
+ * and event restoration contract, but cannot need text-composition listeners.
+ */
+export declare function setCheckedCheckable(el: Element, value: unknown): void;
+/**
+ * Compiler-emitted binding for a controlled `value` on <select> (single and
+ * `multiple`). The target is stored and projected onto the options both
+ * IMMEDIATELY (idempotent) and at commit — binding mounts run before the same
+ * render's @for/@if constructs, so the commit pass is what sees @for-built
+ * options (React resolves selects post-mount the same way).
+ */
+export declare function setSelectValue(el: Element, value: unknown): void;
+/**
+ * Compiler-emitted binding for `defaultValue` — the uncontrolled escape
+ * hatch. Writes the DEFAULT (the value attribute / textarea text content /
+ * option defaultSelected), never the live value: a dirty control keeps what
+ * the user typed. Re-synced on updates (React parity; attribute-only).
+ */
+export declare function setDefaultValue(el: Element, value: unknown, initial?: boolean): void;
+export declare function setDefaultValueUncontrolled(el: Element, value: unknown): void;
+/** Compiler-emitted binding for `defaultChecked` (uncontrolled checkables). */
+export declare function setDefaultChecked(el: Element, value: unknown): void;
+/**
+ * Apply the final form-control prop set for a compiled host containing JSX
+ * spreads. Each direct source is `[false, name, value]`; each snapshotted
+ * spread is `[true, object]`. Resolving all sources first makes the controlled
+ * cascades independent of object-key order (`multiple` before select `value`,
+ * controlled value before its default fallback) while the compiler-owned
+ * source bindings preserve authored evaluation order and single getter reads.
+ */
+export declare function setFormControlSources(el: Element, sources: ReadonlyArray<readonly [boolean, unknown, unknown?, boolean?]>): void;
+interface PortalSlot {
+    __kind: 'portalSlotSlot';
+    block: Block | null;
+    target: Element | DocumentFragment | null;
+    key: string | null;
+    childType: unknown;
+    host: Node;
+    start: Comment | null;
+    end: Comment | null;
+    fragmentOwners?: FragmentInstance | readonly FragmentInstance[];
+    fragmentAnchor?: Node;
+    sourceAnchor?: Node;
+    interleavedFragment?: FragmentInstance;
+}
+/**
+ * Mount `body` into `target` (a foreign DOM element), as a child of the
+ * current Block in the Block tree. Re-rendering the enclosing Block re-runs
+ * the portal body in place. Unmounting the enclosing Block tears the portal
+ * down and removes its DOM from `target`.
+ */
+export declare function portal(parentScope: Scope, slotKey: number, target: Element | DocumentFragment, body: ComponentBody, props: any, host?: Node, env?: any[], fragmentOwners?: FragmentInstance | readonly FragmentInstance[], fragmentAnchor?: Node): void;
+export interface PortalDescriptor {
+    $$kind: typeof PORTAL_TAG;
+    key: string | null;
+    body: ComponentBody | ElementDescriptor | unknown;
+    target: Element | DocumentFragment;
+    props: any;
+}
+export declare function createPortal(body: ComponentBody | ElementDescriptor | unknown, target: Element | DocumentFragment, props?: any): PortalDescriptor;
+export interface ElementDescriptor<P = any> {
+    $$kind: typeof ELEMENT_TAG;
+    type: ComponentBody<P> | string | typeof Fragment;
+    props: P;
+    key: any;
+    ref: any;
+    children: any;
+    /** @internal Compiler-stable component invocation identity. */
+    __octaneInvocationSite?: string;
+}
+export type OctaneNode = unknown;
+/**
+ * Preserve an inspectable JSX descriptor while deferring its complete record.
+ *
+ * The marker stays eagerly available to public element checks, while inspecting
+ * any actual field resolves type, props, key, ref, and children together in the
+ * current render scope. A shared value is rebuilt when its provider scope or a
+ * context it read changes, just like a scoped element's deferred children.
+ *
+ * @internal
+ */
+export declare function createScopedValue<P>(readElement: () => ElementDescriptor<P>): ElementDescriptor<P>;
+/**
+ * Whether a compiled return-JSX function is running as the component body of
+ * `scope`. Every render path invokes a body as `body(props, scope, extra)` while
+ * that Scope is current, so argument 1 is the current Scope only for that call.
+ * A direct call returns a JSX value instead, which the compiler defers until the
+ * value renders.
+ *
+ * @internal
+ */
+export declare function isRenderCall(scope: unknown): boolean;
+/**
+ * The value a direct call of a compiled return-JSX function returns: its record
+ * builder, applied to the locals it reads, when the value renders or is
+ * inspected.
+ *
+ * @internal
+ */
+export declare function deferRecord<P>(read: (...locals: any[]) => ElementDescriptor<P>, ...locals: any[]): ElementDescriptor<P>;
+/** @internal Native deferred JSX preserves its complete descriptor contract. */
+export declare function nativeCreateScopedValue<P>(readElement: () => ElementDescriptor<P>): ElementDescriptor<P>;
+/**
+ * Compiler-only JSX descriptor whose child tree resolves in its rendered scope.
+ *
+ * Matching accessors preserve the ordinary descriptor type, props, key, ref, and
+ * synchronously inspectable children without introducing component boundaries or
+ * hydration markers. Scope/context-aware memoization prevents one module-level
+ * element from retaining another provider's children or stale context values.
+ *
+ * @internal
+ */
+export declare function createScopedElement<P>(type: ComponentBody<P> | string | typeof Fragment, props: P | null | undefined, readChildren: () => unknown, invocationSite?: string): ElementDescriptor<P>;
+/** @internal Resolve native children in their represented render Scope. */
+export declare function nativeCreateScopedElement<P>(type: ComponentBody<P> | string | typeof Fragment, props: P | null | undefined, readChildren: () => unknown, invocationSite?: string): ElementDescriptor<P>;
+export declare function createElement<P>(type: ComponentBody<P> | string | typeof Fragment, props: null, ...children: any[]): ElementDescriptor<P>;
+export declare function createElement<P>(type: ComponentBody<P> | string | typeof Fragment, props?: P | null, ...children: any[]): ElementDescriptor<P>;
+/** @internal Compiler-authored element descriptor with stable invocation identity. */
+export declare function createElementAt<P>(invocationSite: string, type: ComponentBody<P> | string | typeof Fragment, props?: P | null, ...children: any[]): ElementDescriptor<P>;
+/** @internal Compiler-owned positional children; omitted children allocate no rest array. */
+export declare function createElementFromConfig<P>(invocationSite: string | undefined, type: ComponentBody<P> | string | typeof Fragment, props: P | null | undefined, children?: any[]): ElementDescriptor<P>;
+/**
+ * True for a createElement/JSX descriptor. Known descriptors, including unions,
+ * retain their prop types; supply P to narrow an element-or-props union.
+ */
+export declare function isValidElement<P = any, E extends ElementDescriptor<P> = ElementDescriptor<P>>(v: E | null | undefined): v is E;
+export declare function isValidElement<P = any>(v: unknown): v is ElementDescriptor<P>;
+/**
+ * `cloneElement(element, config?, ...children)` — a new descriptor with `element`'s
+ * props shallow-merged under `config` (config wins), `key` overridden by `config.key`,
+ * and children replaced by any passed positionally (else the original children are kept).
+ * `ref` is a normal prop here (octane is ref-as-prop), so it merges like any other.
+ */
+export declare function cloneElement<P>(element: ElementDescriptor<P>, config?: any, ...children: any[]): ElementDescriptor<P>;
+export declare const Children: {
+    /** Iterate children, flattening collections; empties are visited as `null`. */
+    forEach(children: any, fn: (child: any, index: number) => void, context?: any): void;
+    /** Map children to a flat, React-keyed array; empty results are dropped. */
+    map<T>(children: any, fn: (child: any, index: number) => T, context?: any): T[] | null | undefined;
+    /** Number of children `map`/`forEach` would visit (empties included, like React). */
+    count(children: any): number;
+    /** Flatten children into a React-keyed array, dropping empty entries. */
+    toArray(children: any): any[];
+    /** Assert `children` is a single element and return it (`React.Children.only`). */
+    only<T>(children: T): T;
+};
+/**
+ * Generic component call site: reconcile any JavaScript return value.
+ *
+ * Compiled call sites pass the optional tail in descending frequency — the
+ * invocation identity (every compiled site), anchor, singleRoot, inherit, then
+ * the rare keyed pair — and omit trailing `undefined` arguments, so the common
+ * call is `componentSlot(s, i, parent, Comp, props, site, anchor)`. Keep this
+ * order shared with componentSlotVoid and componentSlotLite: presentation
+ * hydration (presentationStructure) reads the anchor at the same index for all
+ * three writers.
+ */
+export declare function componentSlot(parentScope: Scope, slotKey: number, domParent: Node, comp: ComponentBody | string, props: any, invocationSite?: string, anchor?: Node | null, singleRoot?: boolean | 2, inherit?: boolean, key?: any, hasKey?: boolean): void;
+/** Compiler-proven `@{}` component call site: the body has no value return. */
+export declare function componentSlotVoid(parentScope: Scope, slotKey: number, domParent: Node, comp: ComponentBody | string, props: any, invocationSite?: string, anchor?: Node | null, singleRoot?: boolean | 2, inherit?: boolean, key?: any, hasKey?: boolean): void;
+interface ChildSlot {
+    __kind: 'childSlot';
+    /**
+     * Lower-bound marker. Null on the client text/empty path — a single `Text`
+     * node is tracked directly via `text` and needs no start marker. Lazily
+     * created the first time the slot hosts a (possibly multi-node) component, so
+     * `clearChildContent` can sweep the component's range. Always present after
+     * hydration (adopted from the server's `<!--[-->`).
+     */
+    start: Comment | null;
+    /**
+     * Upper-bound marker / insertion anchor. Null in ANCHORLESS mode: a client
+     * mount whose first value is a LONE PURE-HOST descriptor mints NO markers at
+     * all — the element self-delimits (mirroring componentSlot's singleRoot
+     * regime), so a host descriptor returned at a root / return slot IS
+     * `container.firstChild` (React parity). A later render that flips the
+     * value's mode promotes the slot to the marked regime by minting the pair
+     * on demand around the host node (see childSlot). Non-null in every other
+     * regime (and always after hydration).
+     */
+    end: Comment | null;
+    /**
+     * OWNS-PARENT mode (marker-elision M2): the slot exclusively owns ALL
+     * children of this element (a de-opt host handed its entire content to one
+     * childSlot). No markers are ever minted — inserts append (null anchor) and
+     * clears remove every child of the element. Mutually exclusive with the
+     * marked regime; hydration never enters it (adoption wins at mount).
+     */
+    ownerHost: Element | null;
+    /**
+     * Hydration compaction: this slot's pair is borrowed from its sole-range
+     * parent. Teardown may clear between the comments but must never remove the
+     * comments themselves.
+     */
+    borrowed: boolean;
+    /** Compiler proof that this renderable hole is the body's entire output. */
+    compactable: boolean;
+    block: Block | null;
+    text: Text | null;
+    currentComp: ComponentBody | null;
+    currentIsBodyFn: boolean;
+    forSlot: ForSlot | null;
+    hostNode: Node | null;
+    portal: PortalSlot | null;
+    /** Cold capability path for a signal passed through an otherwise-unmarked prop. */
+    implicitSignal?: unknown;
+}
+export declare function positionalChildren(children: any[]): any[];
+export declare function hostComponent(scope: Scope, slot: number, tag: string, props: Record<string, any> | null, childrenBody?: ComponentBody | OctaneNode, anchor?: Node | null): Element;
+/**
+ * Compiler ABI for a safely reusable value-position array. A plain dense array
+ * of ordinary descriptor snapshots can skip reconciliation while its identity
+ * holds; indexed getters, nested collections, Fragments, and scope-sensitive
+ * descriptors must stay on the ordinary live-render path. A fresh array will
+ * be reconciled regardless, so inspect its entries only when that same identity
+ * can actually skip a later render. Classification is cached by immutable
+ * snapshot identity, just like the existing mapped-array accessor proof, so
+ * subsequent cache hits remain constant-time without penalizing fresh lists.
+ * @internal
+ */
+export declare function compilerCacheArray(value: unknown, previous: unknown): boolean;
+/**
+ * Reuse a native filter projection from a compiler-proven state snapshot.
+ *
+ * Generated code calls this only after its ordinary dependency comparisons
+ * prove a possible cache hit, so fresh snapshots never pay a classification
+ * scan. Intrinsics are rechecked on every hit without invoking user getters;
+ * dense array entries and the predicate's own data property are inspected
+ * once per immutable snapshot and property.
+ * @internal
+ */
+export declare function compilerCacheImmutableArrayFilter(value: unknown, property: string): boolean;
+/**
+ * Reuse only an immutable array snapshot already proven safe by native mapSlot.
+ *
+ * Probe the private WeakMap first: a custom receiver or observable map getter
+ * that never passed the native path must not acquire new proxy traps or getter
+ * reads merely because its parent region is eligible. Recheck the constant-size
+ * intrinsic/override surface without invoking those getters. Decline own or
+ * inherited default props so their public descriptor read stays observable;
+ * indexed stability follows the existing immutable-snapshot contract.
+ * @internal
+ */
+export declare function compilerCacheMappedArray(value: unknown, component: unknown): boolean;
+/** Shared compiler ABI: native-array eligibility query plus stable keyed map dispatch. */
+export declare function mapSlot(scopeOrItems: any, slotOrMethod: any, domParent?: Node, items?: any, method?: any, native?: boolean | ((...args: any[]) => any), callback?: (...args: any[]) => any, getKey?: (item: any, index: number) => any, itemBody?: (item: any, scope: Scope) => void, flags?: number, deps?: any[], anchor?: Node | null, ownEnd?: boolean | 1): boolean | void;
+/** @internal Capability-routed renderable hole with targeted signal text updates. */
+export declare function bindSignalChild(parentScope: Scope, previous: unknown, slotKey: number, domParent: Node, value: unknown, _site: string, anchor?: Node | null, ownEnd?: boolean, ownsHost?: Element, compactable?: boolean, onlyChild?: boolean, bindingMarker?: string): unknown;
+/** @internal Address an ordinary renderable slot without narrowing its value semantics. */
+export declare function bindingChildSlot(parentScope: Scope, slotKey: number, domParent: Node, value: unknown, marker: string, anchor?: Node | null, ownEnd?: boolean): void;
+export declare function childSlot(parentScope: Scope, slotKey: number, domParent: Node, value: unknown, anchor?: Node | null, ownEnd?: boolean, ownsHost?: Element, compactable?: boolean, includeKeyedSingle?: boolean, compiledMapBody?: (item: any, scope: Scope) => void, compiledMapKey?: (item: any, index: number) => any, compiledMapFlags?: number, compiledMapDeps?: any[], mappedFallback?: boolean, bindingMarker?: string): void;
+export declare function textSlot(parentScope: Scope, slotKey: number, domParent: Node, value: unknown, anchor?: Node | null, ownEnd?: boolean, compactable?: boolean): void;
+export declare function textHole(parentScope: Scope, slotKey: number, domParent: Node, value: unknown, anchor?: Node | null, ownEnd?: boolean, compactable?: boolean): Text | null;
+/**
+ * Shared primitive fast paths for compiler-owned renderable bindings. Stable
+ * objects/functions must still reach childSlot: an unchanged descriptor can
+ * contain consumers of a changed context. Null also takes the ordinary mode
+ * switch so existing child content is released. The caller publishes its raw
+ * value only after this returns, preserving the setters' rollback snapshots.
+ */
+export declare function textHoleUpdate(parentScope: Scope, slotKey: number, domParent: Node, value: unknown, cachedNode: Text | null, previous: unknown, anchor?: Node | null, ownEnd?: boolean, compactable?: boolean): Text | null;
+export declare function childTextHoleUpdate(parentScope: Scope, slotKey: number, domParent: Node, value: unknown, cachedNode: Text | null, previous: unknown): Text | null;
+export declare function childTextHole(parentScope: Scope, slotKey: number, domParent: Node, value: unknown, cachedNode: Text | null): Text | null;
+/**
+ * Compiler ABI for a flat output-cache hit. Context consumers are normally
+ * reached while their parent slot reconciles; a cache hit intentionally skips
+ * that reconciliation, so an intervening Provider commit must refresh the
+ * slot's existing Block(s) directly. Activity/Suspense reveals must also
+ * reconnect effects retained by a skipped subtree, in its live source order,
+ * and opted-in renderable-array regions restore their descendants' context
+ * reads onto memoized ancestors. Existing mapped regions keep their original
+ * constant-time hit; only array-region hits inspect precomputed memo ancestry.
+ * `previous === undefined` snapshots the epoch after a cache miss without
+ * revisiting the freshly-rendered subtree.
+ * @internal
+ */
+export declare function compilerCacheContext(scope: Scope, slotKey: number, previous: number | undefined, restampMemoAncestors?: boolean): number;
+/**
+ * `memo(Component)` — React-shape HOC. Returns a wrapper component that
+ * skips its body when the incoming props are shallow-equal to the committed
+ * ones. Children inside the wrapped body still mount/update normally on the
+ * first render and any non-skip render. Pair with `useCallback` /
+ * `useMemo` on the parent so handler + computed prop refs stay stable across
+ * renders that don't conceptually change the child's view.
+ *
+ * An optional `arePropsEqual(prevProps, nextProps)` comparator mirrors
+ * React.memo's second argument: return `true` to skip the render (props are
+ * "equal"), `false` to re-render. When omitted, a shallow Object.is comparison
+ * of own enumerable keys is used.
+ */
+export declare function memo<C extends ComponentBody<any>>(component: C, arePropsEqual?: (prevProps: Readonly<Parameters<C>[0]>, nextProps: Readonly<Parameters<C>[0]>) => boolean): C & {
+    readonly type: C;
+    displayName?: string;
+};
+export declare function memo<P>(component: ComponentBody<P>, arePropsEqual?: (prevProps: Readonly<P>, nextProps: Readonly<P>) => boolean): ComponentBody<P> & {
+    readonly type: ComponentBody<P>;
+    displayName?: string;
+};
+export declare const HMR: unique symbol;
+export declare function hmr<P>(fn: ComponentBody<P>): ComponentBody<P>;
+export declare function setTransitionFallbackTimeout(ms: number): void;
+export declare function getTransitionFallbackTimeout(): number;
+interface SuspenseHiddenDom {
+    displays: Set<HTMLElement>;
+    texts: Set<Text>;
+    active: boolean;
+}
+declare function teardownTrySlot(state: TrySlot, detachDom: boolean): void;
+interface TrySlot {
+    /** Only an initial hydrated primary discarded by suspension needs transfer. */
+    retrySignalOwners?: SignalRetryOwners;
+    __kind: 'trySlotSlot';
+    __flags: typeof SLOT_FLAG_TEARDOWN;
+    __teardown: typeof teardownTrySlot;
+    start: Comment;
+    end: Comment;
+    branch: -1 | 0 | 1 | 2;
+    /**
+     * Currently-visible block (try body, pending fallback, or catch body).
+     * NOT necessarily the same as `tryBlock` — when pending is shown, `block`
+     * is the pending block and `tryBlock` is preserved off-screen.
+     */
+    block: Block | null;
+    /**
+     * Persistent try-body block. Survives suspend/resume cycles so its
+     * `scope.hooks` (useState/useMemo/useRef state) replays just like React's
+     * WIP-fiber-discard-but-keep-memoizedState contract. Cleared by `catch`
+     * and by `reset()` since those are explicit fresh starts.
+     */
+    tryBlock: Block | null;
+    /** Connected host content hidden during suspend; restored on resume. */
+    hiddenDom: SuspenseHiddenDom | null;
+    tryBody: ComponentBody;
+    catchBody: ComponentBody | null;
+    pendingBody: ComponentBody | null;
+    /**
+     * JSX ErrorBoundary catches errors but lets suspensions reach an enclosing
+     * Suspense boundary. Compiler-authored @try blocks keep their existing
+     * no-@pending behavior when this is false.
+     */
+    propagateSuspense: boolean;
+    /**
+     * Hoisted-helper env tuple (compiled-output Phase 2): the construct's
+     * captured parent locals, shared by the try/pending/catch helpers and
+     * refreshed by the compiled call site every parent render. Stamped as
+     * `block.extra` wherever an arm block is created or re-rendered.
+     */
+    env: any[] | undefined;
+    /**
+     * True once the try body has committed at least once. Load-bearing: gates
+     * the transition-hold path in handleSuspense — a boundary with no committed
+     * content must show @pending, not hold prior DOM it never had.
+     */
+    hasResolved: boolean;
+    err: any;
+    /** The thenable we're currently waiting on (so duplicate listeners don't fire). */
+    pendingThenable: TrackedThenable<any> | null;
+    /** Commit work from a successful hidden transition retry, held until its group reveals. */
+    stagedCapture: OffscreenCapture | null;
+    /** Effect deps from before `stagedCapture`, restored if it is superseded. */
+    stagedEffectDeps: EffectDepsSnapshot | null;
+    /**
+     * True if a transition-priority render suspended on this try block AND we
+     * incremented TRANSITION_PENDING_COUNT to keep useTransition's isPending
+     * latched true. Released when the suspended thenable resolves (in retry).
+     */
+    transitionHeld: boolean;
+    /**
+     * Pending setTimeout id for the transition-suspense fallback. When a
+     * transition-priority render suspends on an already-committed try block
+     * we hold the prior DOM. A fallback swap is scheduled only for the explicit
+     * finite-timeout extension — see TRANSITION_FALLBACK_TIMEOUT_MS.
+     *
+     * Cleared (clearTimeout) on retry resolve, on switchToCatch, and on
+     * scope teardown so we don't leak callbacks past the slot's lifetime.
+     */
+    transitionTimeoutId: any | null;
+    /** Native candidates own retry; a finite fallback still uses this boundary's lifetime. */
+    nativeTransition?: TransitionActionBatch;
+    /**
+     * Host refs detached when this boundary suspended (object refs set to null,
+     * callback refs invoked with null). React treats ref attachment like a layout
+     * effect — destroyed on hide, recreated on reveal — even though the DOM node is
+     * preserved. Captured on the FIRST hide (a re-suspend during a partial resolve
+     * doesn't re-detach). The list keeps the detached identities alive as a hide
+     * sentinel; reveal re-enumerates the CURRENT ref manifests so superseded refs
+     * cannot reattach. null = nothing detached.
+     */
+    detachedRefs: SuspenseRefEntry[] | null;
+    domParent: Node;
+    parentBlock: Block;
+    /**
+     * useId state shared by every arm. Streamed boundaries replace the inherited
+     * root state with an opaque boundary namespace during hydration, preserving
+     * the inherited signal namespace independently of the DOM ID prefix.
+     */
+    idState: RootIdState;
+    /** Logical boundary above a selected hydration-container owner. */
+    passthrough: boolean;
+    /** Stable boundary reset dispatcher; remains safe after unmount. */
+    reset: () => void;
+}
+/** Catch-only JSX boundaries never preserve a hidden Suspense primary. */
+interface ErrorSlot {
+    __kind: 'errorSlotSlot';
+    __flags: typeof SLOT_FLAG_TEARDOWN;
+    __teardown: typeof teardownErrorSlot;
+    start: Comment;
+    end: Comment;
+    branch: -1 | 0 | 1 | 2;
+    block: Block | null;
+    tryBody: ComponentBody;
+    catchBody: ComponentBody;
+    env: any[] | undefined;
+    hasResolved: boolean;
+    err: any;
+    detachedRefs: null;
+    domParent: Node;
+    parentBlock: Block;
+    idState: RootIdState;
+    passthrough: boolean;
+    reset: () => void;
+}
+declare function teardownErrorSlot(state: ErrorSlot, detachDom: boolean): void;
+/**
+ * Exact imported JSX ErrorBoundary lowering. Unlike @try, these boundaries
+ * only catch application errors: suspension belongs to an enclosing Suspense.
+ * Keeping their state independent lets catch-only applications discard the
+ * hidden-primary, transition-hold, and off-screen rendering implementations.
+ */
+export declare function errorBlock(parentScope: Scope, slotKey: number, domParent: Node, tryBody: ComponentBody, catchBody: ComponentBody, anchor?: Node | null, env?: any[]): () => void;
+export declare function tryBlock(parentScope: Scope, slotKey: number, domParent: Node, tryBody: ComponentBody, catchBody: ComponentBody | null, pendingBody: ComponentBody | null, anchor?: Node | null, env?: any[], propagateSuspense?: boolean): () => void;
+export declare function startTransition(fn: () => void | Promise<unknown>): void;
+interface TransitionHookSlot {
+    isPending: boolean;
+    block: Block;
+    /**
+     * Action batches this hook started or was re-held into that have not
+     * finished. The batches themselves list their hooks; the hook only needs
+     * the count to publish its falling edge, so no per-hook collection exists.
+     */
+    pendingBatches: number;
+    error?: {
+        value: unknown;
+    };
+    start: (fn: () => void | Promise<unknown>) => void;
+    publish: (pending: boolean) => void;
+}
+export declare function useTransition(slot?: symbol): [boolean, (fn: () => void | Promise<unknown>) => void];
+export declare function useActionState<S>(action: (prevState: S, payload: any) => S | Promise<S>, initialState: S, permalinkOrSlot?: string | symbol, slot?: symbol): [S, (payload?: any) => void, boolean];
+export declare function useFormStatus(slot?: symbol): FormStatus;
+export declare function useOptimistic<S>(passthrough: S): [S, (action: S | ((pendingState: S) => S)) => void];
+export declare function useOptimistic<S, V = S>(passthrough: S, updateFn: (state: S, value: V) => S): [S, (value: V) => void];
+export declare function useOptimistic<S, V = S>(passthrough: S, updateFnOrSlot: ((state: S, value: V) => S) | symbol | undefined, slot?: symbol): [S, (value: V) => void];
+export declare function useDeferredValue<T>(value: T, ...rest: any[]): T;
+export declare function ifBlock(parentScope: Scope, slotKey: number, domParent: Node, cond: boolean, thenBody: ComponentBody | null, elseBody: ComponentBody | null, anchor?: Node | null, env?: any[]): void;
+export declare function activityBlock(parentScope: Scope, slotKey: number, domParent: Node, mode: 'visible' | 'hidden' | string, body: ComponentBody, anchor?: Node | null, env?: any[]): void;
+export declare function switchBlock(parentScope: Scope, slotKey: number, domParent: Node, discriminant: any, cases: ReadonlyArray<readonly [test: any, body: ComponentBody]>, defaultBody: ComponentBody | null, anchor?: Node | null, env?: any[]): void;
+interface ForSlot {
+    __kind: 'forBlockSlot';
+    signalSite: string | undefined;
+    start: Comment;
+    end: Comment;
+    items: Map<any, Block>;
+    head: Block | null;
+    tail: Block | null;
+    size: number;
+    cachedDeps: any[] | null;
+    emptyBlock: Block | null;
+    env: any[] | undefined;
+    adopt: Array<{
+        key: any;
+        node: Node;
+    }> | null;
+    mappedNative: boolean | undefined;
+    plainDeopt: boolean;
+    selectionItems: ArrayLike<any> | undefined;
+}
+export declare function forBlock<T>(parentScope: Scope, slotKey: number, domParent: Node, inputItems: ArrayLike<T> | Iterable<T>, getKey: (item: T, index: number) => any, itemBody: (item: T, scope: Scope) => void, flags?: number, deps?: any[], emptyBody?: ComponentBody | null, anchor?: Node | null, ownEnd?: boolean, signalSite?: string): void;
+/**
+ * Compiler-only keyed-selection entry. Keeping the specialization outside
+ * forBlock lets applications without a proven selection tree-shake its cost.
+ * This entry point identifies the proof; bits 6+ hold its dependency index.
+ */
+export declare function keyedForBlock<T>(parentScope: Scope, slotKey: number, domParent: Node, items: ArrayLike<T>, getKey: (item: T, index: number) => any, itemBody: (item: T, scope: Scope) => void, flags: number, deps: any[], emptyBody?: ComponentBody | null, anchor?: Node | null, ownEnd?: boolean, selectionBody?: ComponentBody<T, any[]>, signalSite?: string): void;
+/** Compiler-only direct host-row entry; ordinary list bundles do not retain it. */
+export declare function fastForBlock<T>(parentScope: Scope, slotKey: number, domParent: Node, items: ArrayLike<T>, getKey: (item: T, index: number) => any, itemBody: (item: T, scope: Scope) => void, flags?: number, deps?: any[], emptyBody?: ComponentBody | null, anchor?: Node | null, ownEnd?: boolean): void;
+/** Direct host-row mounts composed with the independent keyed-selection proof. */
+export declare function fastKeyedForBlock<T>(parentScope: Scope, slotKey: number, domParent: Node, items: ArrayLike<T>, getKey: (item: T, index: number) => any, itemBody: (item: T, scope: Scope) => void, flags: number, deps: any[], emptyBody?: ComponentBody | null, anchor?: Node | null, ownEnd?: boolean, selectionBody?: ComponentBody<T, any[]>): void;
+/** Direct host-row mounts for compiler-proven, guarded native JSX map rows. */
+export declare function fastMapSlot(scopeOrItems: any, slotOrMethod: any, domParent?: Node, items?: any, method?: any, native?: boolean | ((...args: any[]) => any), callback?: (...args: any[]) => any, getKey?: (item: any, index: number) => any, itemBody?: (item: any, scope: Scope) => void, flags?: number, deps?: any[], anchor?: Node | null, ownEnd?: boolean | 1): boolean | void;
+export interface Root {
+    /**
+     * Render into this root. Two forms:
+     *  - React-style:   `root.render(<App foo={x}/>)` — a single element descriptor
+     *    (the compiler lowers the JSX to `createElement(App, {foo: x})`).
+     *  - Body + props:  `root.render(App, { foo: x })` — the original octane
+     *    form, kept for direct (non-JSX) callers and existing test helpers.
+     * Re-rendering with the same component (`type`/body) updates props in place;
+     * a different component tears down and remounts.
+     */
+    render(element: ElementDescriptor | PortalDescriptor | string | number | bigint | boolean | null | undefined | readonly unknown[]): void;
+    render(body: ComponentBody, props?: any): void;
+    unmount(): void;
+}
+export interface RootOptions {
+    /** Adopt fixed native early bindings only when their matching hydration capture commits. */
+    bindingLeases?: readonly BindingHandle[];
+    /** Offer an existing textarea value owner for accepted presentation hydration, never early disposal. */
+    controlLeases?: readonly SignalControlBinding[];
+    /**
+     * Shared document/account owner for module signals. Roots borrow this owner;
+     * unmounting a presentation root never retires shared data state.
+     */
+    signalOwner?: SignalOwner;
+    /**
+     * Hydration only: the initial document seed also supplied to the server renderer.
+     * Snapshotted once; referenced boundary reads adopt it without initializing or
+     * rewinding live state. Deferred/streamed boundaries borrow the root's snapshot.
+     */
+    initialDocumentSignals?: ScopeSeed;
+    /**
+     * Caller-controlled useId prefix. createRoot composes it with an automatic
+     * client-root namespace; hydrateRoot uses it verbatim to match server output.
+     */
+    identifierPrefix?: string;
+    /** @internal Compiler-owned starting useId slot for an independently hydrated range. */
+    identifierSeed?: number;
+    /** @internal Stable instance namespace for an independently hydrated root. */
+    signalInstancePrefix?: string;
+    /**
+     * React 19 parity, reporting only: called after an error boundary
+     * (`@try`/`@catch` or `<ErrorBoundary>`) claims an error from this root's
+     * render, passive-effect, or ref-attach channel. Octane passes only the
+     * error — there is no `errorInfo`/`componentStack` second argument (owner
+     * stacks are not part of Octane's API, matching the SSR `onError` shape).
+     * Deletion-phase teardown errors report here too once their enclosing
+     * boundary claims them (the routing itself is unchanged).
+     * First-mount and parent-driven catches in non-suspending renders report
+     * after their fallback's refs and layout effects commit. Retained hidden
+     * reports wait for reveal; abandoning their catch cancels them.
+     */
+    onCaughtError?: (error: unknown) => void;
+    /**
+     * React 19 parity: called for an error no boundary claims. When provided it
+     * REPLACES the default report for this root (render errors stop rethrowing
+     * out of the flush; effect-channel errors stop reaching console.error).
+     * Recovery semantics are unchanged either way — an uncaught render error
+     * still unmounts the failed root's entire tree.
+     */
+    onUncaughtError?: (error: unknown) => void;
+    /**
+     * React 19 parity, hydration only: called (dev AND prod) after hydration
+     * recovered from a structural server/client mismatch — a rebuilt subtree or
+     * a discarded stale server range — coalesced to one report per root per
+     * microtask burst. Attribute-level value patches do not report: production
+     * React hydration does not detect those at all, so Octane's finer-grained
+     * recovery stays quiet to keep the report channel comparable.
+     */
+    onRecoverableError?: (error: unknown) => void;
+}
+interface InlineCaughtErrorReport {
+    state: TrySlot | ErrorSlot;
+    block: Block;
+    error: unknown;
+    handler: (error: unknown) => void;
+    resume: EffectEventCommitAction;
+}
+export type RootContainer = Element | Document | DocumentFragment;
+/** Compiler ABI: validate an authored candidate and publish only from a DEV render. */
+export declare function devHtmlNesting(childTag: string, ancestors: string[], childLocation?: string, ancestorLocation?: string): void;
+export declare function createRoot(container: RootContainer, options?: RootOptions): Root;
+/** Compiler-only root for a statically proven void `@{}` entry component. */
+export declare function __createVoidRoot(container: RootContainer, options?: RootOptions): Root;
+/**
+ * Compiler-only props for a proven void root's keyless, childless
+ * `<Component ... />` target. `root.render(Component, props)` then matches the
+ * descriptor the element would build, including live `defaultProps`, without
+ * the general element constructor's renderer-context graph.
+ */
+export declare function __voidRootProps(type: ComponentBody, props: any): any;
+/**
+ * Hydrate a server-rendered container and return a live {@link Root} — the
+ * React-18 `hydrateRoot(container, element)` shape (container FIRST). Instead of
+ * clearing the container and cloning fresh DOM, the compiled mount ADOPTS the
+ * existing server DOM: `clone()` returns the server root, `htext()` adopts
+ * server text nodes, and event handlers / update bindings are stamped on the
+ * adopted nodes (active hydration capability, see clone/htext). The seeded prev-values make
+ * the first update a no-op when the client matches the server (no mismatch
+ * re-render).
+ *
+ * Hydration runs ONCE, here on creation. The returned root's `.render(...)` is a
+ * normal (non-hydrating) client render against the block mounted here: the same
+ * component updates props in place on the adopted DOM, a different component
+ * tears down and remounts.
+ */
+export declare function hydrateRoot(container: RootContainer, element: ElementDescriptor, options?: RootOptions): Root;
+export declare function hydrateRoot(container: RootContainer, body: ComponentBody, props?: any, options?: RootOptions): Root;
+/** Compiler-only hydration for a statically proven void `@{}` entry component. */
+export declare function __hydrateVoidRoot(container: RootContainer, body: ComponentBody, props?: any, options?: RootOptions): Root;
+/** @internal Adapt a compiler-extracted body to the parent-free island loader contract. */
+export declare function createIndependentHydrateActivator(body: ComponentBody): IndependentHydrateActivator;
+/** React DOM `preload(href, {as, …})` — `<link rel="preload">`. */
+export declare function preload(href: string, options: {
+    as: string;
+} & Record<string, unknown>): void;
+/**
+ * React DOM `preinit(href, {as: 'style'|'script', …})` — executes/applies the
+ * resource. Routes through the Float resource inserts so preinit and the
+ * rendered resource forms share ONE identity: a preinit'd stylesheet joins the
+ * precedence groups (`precedence` option honored, default `'default'`) and
+ * dedupes against `<link rel="stylesheet" precedence>`; a preinit'd script
+ * dedupes against `<script async src>`.
+ */
+export declare function preinit(href: string, options: {
+    as: string;
+} & Record<string, unknown>): void;
+/** React DOM `preconnect(href, {crossOrigin?})` — `<link rel="preconnect">`. */
+export declare function preconnect(href: string, options?: {
+    crossOrigin?: string;
+}): void;
+/** React DOM `prefetchDNS(href)` — `<link rel="dns-prefetch">`. */
+export declare function prefetchDNS(href: string): void;
+/**
+ * React DOM `preloadModule(href, options?)` — `<link rel="modulepreload">`.
+ * Module preloads dedupe by href alone (React's resource identity for modules);
+ * options apply as attributes through the shared lenient pass-through.
+ */
+export declare function preloadModule(href: string, options?: Record<string, unknown>): void;
+/**
+ * React DOM `preinitModule(href, options?)` — `<script type="module" async src>`.
+ * Only the `script` destination exists for module preinit (React's contract);
+ * any other `as` fails closed as a no-op rather than executing the module.
+ */
+export declare function preinitModule(href: string, options?: {
+    as?: string;
+} & Record<string, unknown>): void;
+/** Compiler target for `<link rel="stylesheet" href precedence>` (React Float). */
+export declare function stylesheetResource(attrs: Record<string, unknown> | null, invalidReason?: string): void;
+/**
+ * Compiler target for `<style href precedence>` (React Float style resource).
+ * Plain CSS keyed by href identity — shares the stylesheet dedupe namespace and
+ * precedence-group ordering with link resources; the CSS ships as the tag's
+ * text content and is NOT scoped (scoped CSS owns every other `<style>`).
+ */
+export declare function styleResource(attrs: Record<string, unknown> | null, css: string, development?: boolean): void;
+/**
+ * TEST-ONLY: forget all Float resource identity (this repo's test isolation).
+ * Resources are page-global by contract — a real page never resets them.
+ */
+export declare function resetFloatResourceState(): void;
+/** Compiler target for `<script async src>` resources (React Float). */
+export declare function scriptResource(attrs: Record<string, unknown> | null): void;

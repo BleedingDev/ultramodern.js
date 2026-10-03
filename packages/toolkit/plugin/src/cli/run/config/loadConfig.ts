@@ -3,6 +3,20 @@ import type { Stats } from 'fs';
 import { createJiti } from 'jiti';
 import path from 'path';
 
+export interface ConfigPackageMetadataRead {
+  <T>(manifestFile: string, field: 'name' | 'type', read: () => T): T;
+  /** Original native package-directory discovery, retaining every candidate. */
+  readonly packageDiscoveryRead?: <T>(read: () => T) => T;
+  /** Original native entry existence and directory-kind checks. */
+  readonly entryPathRead?: <T>(read: () => T) => T;
+  /** Original Jiti cache reads and the resolver branches consuming that cache. */
+  readonly resolutionRead?: <T>(
+    manifestFile: string,
+    operation: 'cache' | 'name' | 'type' | 'content',
+    read: () => T,
+  ) => T;
+}
+
 export const getConfigFilePath = (
   appDirectory: string,
   configFilePath: string | false,
@@ -49,7 +63,10 @@ export const clearFilesOverTime = async (
  * @param {string} configFile - Path to the configuration file (absolute or relative)
  * @returns {any} - The loaded configuration object
  */
-async function loadConfigContent<T>(configFile: string): Promise<T> {
+async function loadConfigContent<T>(
+  configFile: string,
+  packageMetadataRead?: ConfigPackageMetadataRead,
+): Promise<T> {
   const jitiFrom =
     // @ts-ignore
     process.env.MODERN_LIB_FORMAT === 'esm' ? import.meta.url : __filename;
@@ -58,6 +75,7 @@ async function loadConfigContent<T>(configFile: string): Promise<T> {
     // disable require cache to support restart CLI and read the new config
     requireCache: false,
     interopDefault: true,
+    packageMetadataRead: packageMetadataRead?.resolutionRead,
   });
   // Check if the file exists
   if (!fs.existsSync(configFile)) {
@@ -122,21 +140,24 @@ export const loadTypeScriptFile = (filePath: string): any => {
 export const loadConfig = async <T>(
   appDirectory: string,
   configFile: string | false,
+  packageMetadataRead?: ConfigPackageMetadataRead,
 ): Promise<{
   packageName: string;
   configFile: string | false;
   config?: T;
   pkgConfig?: T;
 }> => {
-  const pkg = await compatibleRequire(
-    path.resolve(appDirectory, './package.json'),
-  );
+  const manifestFile = path.resolve(appDirectory, './package.json');
+  const read = () => compatibleRequire(manifestFile);
+  const pkg = await (packageMetadataRead
+    ? packageMetadataRead(manifestFile, 'name', read)
+    : read());
   const packageName = pkg.name;
 
   let config: T | undefined;
 
   if (configFile) {
-    config = await loadConfigContent<T>(configFile);
+    config = await loadConfigContent<T>(configFile, packageMetadataRead);
   }
 
   return {

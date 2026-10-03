@@ -1,4 +1,4 @@
-import type { ServerRoute } from '@modern-js/types';
+import type { ServerRoute } from '@modern-js/types/server';
 import type { BffRuntimeFramework } from '../../server/run/types';
 import type { ServerPluginAPI } from './api';
 import type { Hooks } from './hooks';

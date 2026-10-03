@@ -6,9 +6,12 @@ import {
   createUltramodernBuildModule,
 } from '../src/ultramodern-workspace/module-federation/reexport-module';
 import type { WorkspaceApp } from '../src/ultramodern-workspace/types';
-import { evaluateBuildModule } from './helpers/build-module';
+import {
+  createReactBuildFixtureApp,
+  evaluateBuildModule,
+} from './helpers/build-module';
 
-const app: WorkspaceApp = {
+const app: WorkspaceApp = createReactBuildFixtureApp('acme', {
   api: {
     consumedBy: ['shell-super-app', 'catalog'],
     prefix: '/catalog-api',
@@ -27,7 +30,7 @@ const app: WorkspaceApp = {
   packageSuffix: 'catalog',
   port: 3021,
   portEnv: 'VERTICAL_CATALOG_PORT',
-};
+});
 
 test('generated build module applies one compiled identity to UI, API, and delivery-unit records', () => {
   const source = createUltramodernBuildModule('acme', app);
@@ -95,4 +98,60 @@ test('shell build modules expose the delivery and UI identity consumed by their 
   assert.match(source, /export const ultramodernUiMarker/u);
   assert.doesNotMatch(source, /export const ultramodernApiMarker/u);
   assert.doesNotMatch(source, /typeof|surfaces: \{[\s\S]*surfaces:/u);
+});
+
+test('build artifacts reject unresolved or drifted renderer entry identities and router bindings', () => {
+  const primaryIdentity = app.rendererIdentity!;
+  const binding = app.routerBindings!.index!;
+  const foreignProvider = {
+    ...binding.defaultProvider,
+    framework: 'solid' as const,
+  };
+  const scenarios: { app: WorkspaceApp; error: RegExp }[] = [
+    {
+      app: { ...app, renderer: undefined },
+      error: /requires a resolved renderer profile/u,
+    },
+    {
+      app: { ...app, rendererIdentities: undefined },
+      error: /requires renderer identity reconciled from modern.config/u,
+    },
+    {
+      app: {
+        ...app,
+        rendererIdentities: {
+          index: { ...primaryIdentity, appId: 'different-app' },
+        },
+      },
+      error: /invalid renderer identity for entry index/u,
+    },
+    {
+      app: {
+        ...app,
+        rendererIdentities: {
+          index: { ...primaryIdentity, buildId: 'different-build' },
+        },
+      },
+      error: /primary renderer identity disagrees with its entry map/u,
+    },
+    {
+      app: {
+        ...app,
+        routerBindings: {
+          index: {
+            ...binding,
+            defaultProvider: foreignProvider,
+            providers: [foreignProvider],
+          },
+        },
+      },
+      error: /invalid router bindings/u,
+    },
+  ];
+  for (const scenario of scenarios) {
+    assert.throws(
+      () => createUltramodernBuildArtifactJson('acme', scenario.app),
+      scenario.error,
+    );
+  }
 });

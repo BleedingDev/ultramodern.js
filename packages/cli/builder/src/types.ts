@@ -1,4 +1,4 @@
-import type { AliasOption } from '@modern-js/utils';
+import type { AliasOption } from '@modern-js/utils/alias';
 import type {
   ConfigChain,
   ConfigChainWithContext,
@@ -22,11 +22,9 @@ import type { PluginAssetsRetryOptions } from '@rsbuild/plugin-assets-retry';
 import type { PluginCheckSyntaxOptions } from '@rsbuild/plugin-check-syntax';
 import type { PluginCssMinimizerOptions } from '@rsbuild/plugin-css-minimizer';
 import type { PluginLessOptions } from '@rsbuild/plugin-less';
-import type { PluginReactOptions } from '@rsbuild/plugin-react';
 import type { PluginRemOptions } from '@rsbuild/plugin-rem';
 import type { PluginSassOptions } from '@rsbuild/plugin-sass';
 import type { PluginSourceBuildOptions } from '@rsbuild/plugin-source-build';
-import type { SvgDefaultExport } from '@rsbuild/plugin-svgr';
 import type { PluginTypeCheckerOptions } from '@rsbuild/plugin-type-check';
 import type { Options as AutoprefixerOptions } from 'autoprefixer';
 export type CacheGroup = Rspack.OptimizationSplitChunksCacheGroup;
@@ -192,7 +190,7 @@ export type BuilderExtraConfig = {
      * For React 17 or 18, install `react-compiler-runtime` and set the
      * matching target version, for example `{ target: '18' }`.
      */
-    reactCompiler?: PluginReactOptions['reactCompiler'];
+    reactCompiler?: Rspack.SwcLoaderTransformConfig['reactCompiler'];
   };
   output?: {
     /**
@@ -226,7 +224,7 @@ export type BuilderExtraConfig = {
     /**
      * Configure the default export type of SVG files.
      */
-    svgDefaultExport?: SvgDefaultExport;
+    svgDefaultExport?: 'component' | 'url';
     /**
      * Whether to transform SVGs into React components. If true, will treat all .svg files as assets.
      */

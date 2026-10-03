@@ -1,7 +1,7 @@
-import { defineConfig } from '@modern-js/app-tools';
+import developmentOverlay from '{{value29}}/topology/local-overlays/development.json';
 import {
-  presetUltramodernWorkspace,
-  ultramodernAppTools,
+  defineConfig,
+  presetUltramodern,
 } from '@modern-js/ultramodern-app-tools';
 import { i18nPlugin } from '@modern-js/plugin-i18n';
 import { tanstackRouterPlugin } from '@modern-js/plugin-tanstack';
@@ -9,8 +9,47 @@ import { tanstackRouterPlugin } from '@modern-js/plugin-tanstack';
 export default defineConfig(
   presetUltramodernWorkspace(
     {
-{{bffConfig}}{{builderPlugins}}      plugins: [
-        ultramodernAppTools(),
+{{value9}}{{value18}}      ...(cloudflareDeployEnabled
+        ? {
+            deploy: {
+              worker: {
+              compatibilityDate: '{{value10}}',
+              name: cloudflareWorkerName,
+              security: {{value11}},
+{{value12}}              ssr: true,
+            },
+          },
+          }
+        : {}),
+      dev: {
+{{value13}}
+{{value20}}
+      },
+      html: {
+        outputStructure: 'flat',
+      },
+      output: {
+        assetPrefix,
+        disableTsChecker: false,
+        distPath: {
+          html: './',
+          root: buildOutputRoot,
+        },
+        polyfill: 'off',
+        splitRouteChunks: true,
+        tempDir: buildTempDirectory,
+      },
+      performance: {
+        buildCache: {
+          cacheDigest: [appId, buildTarget],
+          cacheDirectory: buildCacheDirectory,
+        },
+        rsdoctor: {
+          disableClientServer: true,
+          enabled: getBuildConfigEnvironment('ULTRAMODERN_RSDOCTOR') === 'true',
+        },
+      },
+      plugins: [
         tanstackRouterPlugin(),
         i18nPlugin({
           backend: {
@@ -39,7 +78,45 @@ export default defineConfig(
 {{localisedUrls}}          },
           reactI18next: false,
         }),
-{{bffPlugin}}{{uiPlugins}}      ],
+{{value15}}{{value25}}      ],
+      renderer: 'react',
+      server: {
+        port,
+        publicDir: ['./locales', './assets'],
+      },
+      source: {
+        alias: {
+          '@modern-js/plugin-i18n/runtime$':
+            '@modern-js/plugin-i18n/runtime/no-react-i18next',
+        },
+        globalVars: {
+          ULTRAMODERN_SITE_URL: siteUrl,
+        },
+        mainEntryName: 'index',
+      },
+      tools: {
+        autoprefixer: {
+          overrideBrowserslist: ['defaults'],
+        },
+        bundlerChain: chain => {
+          chain.output
+            .uniqueName('{{value16}}')
+            .chunkLoadingGlobal('{{value17}}');
+        },
+        devServer: {
+          headers: {
+            'Access-Control-Allow-Headers':
+              'Accept, Authorization, Content-Type, X-Requested-With',
+            'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+            {{value21}}
+          },
+        },
+        tsChecker: {
+          typescript: {
+            build: false,
+          },
+        },
+      },
     },
     {
       appId: '{{appId}}',

@@ -49,12 +49,43 @@ CLI 按当前契约创建、扩展和验证 workspace。
 ## 创建并验证 Workspace
 
 ```bash
-pnpm dlx @bleedingdev/modern-js-ultramodern-create@latest catalog --vertical
+pnpm dlx @bleedingdev/modern-js-ultramodern-create@<V> my-workspace --renderer react
+cd my-workspace
 mise install
 mise exec -- pnpm install
 mise exec -- pnpm check
 mise exec -- pnpm build
 ```
+
+将 `<V>` 替换为已发布的框架版本。省略 `--renderer` 时使用 React；首次生成时
+也可选择 `solid` 或 `octane`。添加应用的命令从 `modern.config.ts` 读取选择，
+不接受 `--renderer`。
+
+### 选择应用渲染器
+
+使用 fork 的配置入口，由它注册所选渲染器的插件组合：
+
+```ts title="modern.config.ts"
+import { defineConfig } from '@modern-js/ultramodern-app-tools';
+
+export default defineConfig({
+  renderer: 'solid', // 也可选 'react' 或 'octane'；省略时使用 'react'
+  server: { ssr: true },
+});
+```
+
+Solid 2.0.0-rc.13 和 Octane 是 Node 预览配置，支持 CSR、原生流式 SSR、
+hydration 和框架管理的文件路由。使用 Node 26.7.0 或更新版本。组件使用
+`solid-js` / `@solidjs/web` 或 `octane` 的原生语法；路由原语从
+`@modern-js/renderer-solid/router` 或 `@modern-js/renderer-octane/router`
+导入。生成的入口负责挂载和 hydration。更改渲染器后，需要匹配的原生源码和
+依赖，并重启开发服务器、重新加载页面。
+
+原生预览配置不支持 workers、Module Federation、RSC、SSG、React i18n
+集成、SVG 组件导入，以及在业务源码旁生成 CSS 类型声明；SVG URL 导入仍可使用。
+[应用工具 README](https://github.com/BleedingDev/ultramodern.js/tree/main/packages/solutions/ultramodern-app-tools#readme)
+列出当前预览配置及固定依赖版本。下文的 federation、i18n 和 Cloudflare 示例
+适用于 React 配置。
 
 本地化 Cloudflare SSR workspace 在服务端将 `/` 重定向到协商的语言路径。
 `Accept-Language: cs-CZ` 返回 `302`、`Location: /cs`、
@@ -157,11 +188,11 @@ migration 时不要再用 app 本地 postprocess。Cloudflare public output 默�
 
 ## 配置公开预设
 
-在标准 Modern.js `defineConfig` 调用中使用
+在 UltraModern `defineConfig` 调用中使用
 `presetUltramodern(appConfig, presetOptions)`：
 
 ```ts title="modern.config.ts"
-import { defineConfig, presetUltramodern } from '@modern-js/app-tools';
+import { defineConfig, presetUltramodern } from '@modern-js/ultramodern-app-tools';
 
 export default defineConfig(
   presetUltramodern(

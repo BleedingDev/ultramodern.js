@@ -1,9 +1,10 @@
 import type { FSWatcher } from '@modern-js/utils';
 import { chokidar, createDebugger, isDevCommand } from '@modern-js/utils';
+import type { FSWatcher } from '@modern-js/utils/watch-options';
 import crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
-import type { InternalContext } from '../../../types';
+import type { InternalContext } from '../../../types/cli/context';
 import type { CLIPluginExtends } from '../../../types/cli/plugin';
 
 const debug = createDebugger('watch-files');

@@ -7,7 +7,6 @@ import {
 } from '@rsbuild/core';
 import { pluginCssMinimizer } from '@rsbuild/plugin-css-minimizer';
 import { pluginLess } from '@rsbuild/plugin-less';
-import { pluginReact } from '@rsbuild/plugin-react';
 import { pluginSass } from '@rsbuild/plugin-sass';
 import { pluginDevtool } from '../plugins/devtools';
 import { pluginEmitRouteFile } from '../plugins/emitRouteFile';
@@ -291,41 +290,33 @@ export async function parseCommonConfig(
     );
   }
 
-  rsbuildPlugins.push(pluginReact());
-
-  if (!options?.disableReactCompiler && reactCompiler !== undefined) {
-    // Browser code only: server graphs (node, workerSSR, BFF) render once per
-    // request, and the compiler overflows the stack on long fluent chains.
-    // Cloudflare deploys build workerSSR with target 'web', so the target
-    // alone does not identify a browser environment.
-    rsbuildPlugins.push({
-      name: 'builder:react-compiler',
-      setup(api) {
-        api.modifyEnvironmentConfig(
-          (config, { name, mergeEnvironmentConfig }) =>
-            config.output.target === 'web' &&
-            name !== SERVICE_WORKER_ENVIRONMENT_NAME
-              ? mergeEnvironmentConfig(
-                  { tools: { swc: { jsc: { transform: { reactCompiler } } } } },
-                  config,
-                )
-              : config,
-        );
-      },
-    });
-  }
+  const reactOptions =
+    options?.disableReactCompiler || reactCompiler === undefined
+      ? {}
+      : { reactCompiler };
+  rsbuildPlugins.push({
+    name: 'rsbuild:react',
+    async setup(api) {
+      const { pluginReact } = await import('@rsbuild/plugin-react');
+      return pluginReact(reactOptions).setup(api);
+    },
+  });
 
   if (!disableSvgr) {
-    const { pluginSvgr } = await import('@rsbuild/plugin-svgr');
-    rsbuildPlugins.push(
-      pluginSvgr({
-        mixedImport: true,
-        parallel: true,
-        svgrOptions: {
-          exportType: svgDefaultExport === 'component' ? 'default' : 'named',
-        },
-      }),
-    );
+    rsbuildPlugins.push({
+      name: 'rsbuild:svgr',
+      pre: ['rsbuild:react'],
+      async setup(api) {
+        const { pluginSvgr } = await import('@rsbuild/plugin-svgr');
+        return pluginSvgr({
+          mixedImport: true,
+          parallel: true,
+          svgrOptions: {
+            exportType: svgDefaultExport === 'component' ? 'default' : 'named',
+          },
+        }).setup(api);
+      },
+    });
   }
 
   // assetsRetry inject should be later

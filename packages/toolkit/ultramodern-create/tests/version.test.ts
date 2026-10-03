@@ -150,14 +150,14 @@ test('built public UltraModern subpath imports from an ESM consumer and generate
           } from '@modern-js/ultramodern-create/ultramodern-workspace';
 
           const workspaceRoot = path.join(process.cwd(), 'public-api-workspace');
-          generateUltramodernWorkspace({
+          await generateUltramodernWorkspace({
             targetDir: workspaceRoot,
             packageName: 'public-api-workspace',
             modernVersion: '3.2.1',
             enableTailwind: true,
             packageSource: { strategy: 'workspace' },
           });
-          addUltramodernVertical({
+          await addUltramodernVertical({
             workspaceRoot,
             name: 'catalog',
             modernVersion: '3.2.1',

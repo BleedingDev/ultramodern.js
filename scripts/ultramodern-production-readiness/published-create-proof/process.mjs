@@ -41,12 +41,29 @@ function runAsync(command, args, options = {}) {
   });
 }
 
-function createCleanPnpmDlxEnv(root) {
+function createCleanPnpmDlxEnv(root, { storeDir } = {}) {
+  if (
+    storeDir !== undefined &&
+    (typeof storeDir !== 'string' ||
+      storeDir.trim() !== storeDir ||
+      storeDir.includes('\0') ||
+      !path.isAbsolute(storeDir))
+  ) {
+    throw new Error('Acceptance store directory must be an absolute path');
+  }
+  const selectedStore =
+    storeDir === undefined ? path.join(root, 'store') : path.resolve(storeDir);
   return {
     XDG_CACHE_HOME: path.join(root, 'xdg'),
     npm_config_cache: path.join(root, 'npm-cache'),
-    npm_config_store_dir: path.join(root, 'store'),
-    pnpm_config_store_dir: path.join(root, 'store'),
+    npm_config_store_dir: selectedStore,
+    pnpm_config_store_dir: selectedStore,
+    ...(storeDir === undefined
+      ? {}
+      : {
+          npm_config_package_import_method: 'clone-or-copy',
+          pnpm_config_package_import_method: 'clone-or-copy',
+        }),
   };
 }
 

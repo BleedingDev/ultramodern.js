@@ -661,7 +661,7 @@ function createRequestHandlerOptions({
       entryName: route.entryName,
     },
     params: {},
-    loaderContext: {},
+    loaderContext: new Map(),
     config: {},
     locals: {
       ...(distributedSsrFragments === undefined
@@ -1174,9 +1174,16 @@ async function withRouteCssLinks(
   });
 }
 
-async function getRequestHandlerOptions(route, request, env) {
+async function getRequestHandlerOptions(
+  route,
+  request,
+  env,
+  includeHtmlTemplate = true,
+) {
   const [htmlTemplate, routeManifest, loadableStats] = await Promise.all([
-    readAssetText(route.entryPath, request, env),
+    includeHtmlTemplate
+      ? readAssetText(route.entryPath, request, env)
+      : undefined,
     readAssetJson(MODERN_WORKER_MANIFEST.resources.routeManifest, request, env),
     readAssetJson(MODERN_WORKER_MANIFEST.resources.loadableStats, request, env),
   ]);
@@ -1187,7 +1194,7 @@ async function getRequestHandlerOptions(route, request, env) {
   const distributedSsrFragmentRequest =
     readDistributedSsrFragmentRequest(request);
 
-  return createRequestHandlerOptions({
+  const options = createRequestHandlerOptions({
     route,
     htmlTemplate: htmlTemplate || '',
     routeManifest,
@@ -1195,4 +1202,8 @@ async function getRequestHandlerOptions(route, request, env) {
     distributedSsrFragments,
     distributedSsrFragmentRequest,
   });
+  if (!includeHtmlTemplate) {
+    delete options.resource.htmlTemplate;
+  }
+  return options;
 }

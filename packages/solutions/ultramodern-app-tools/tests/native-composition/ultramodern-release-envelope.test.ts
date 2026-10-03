@@ -8,6 +8,7 @@ import {
   type MicroVerticalReleaseArtifactInput,
   verifyMicroVerticalReleaseEnvelope,
 } from '@modern-js/app-tools-extensions/release-envelope';
+import { reactReleaseUi } from '../../../app-tools-extensions/tests/renderer-release-fixture';
 
 const tempDirectories: string[] = [];
 
@@ -45,6 +46,7 @@ const createArtifactRoot = async () => {
 const createInput = (artifactRoot: string) => ({
   artifactRoot,
   target: 'node' as const,
+  ui: reactReleaseUi('catalog-build-a', 'catalog'),
   identity: {
     buildMarker: 'catalog-build-a',
     releaseVersion: '1.0.0',

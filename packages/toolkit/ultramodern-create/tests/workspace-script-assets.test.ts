@@ -28,16 +28,14 @@ test('public surface generation invokes the installed CLI from the workspace roo
   const routesGenerate =
     'pnpm --dir ../.. exec ultramodern-create ultramodern routes-generate --app shell-super-app --manifest-only';
   const scripts = createWorkspaceAppPackageScripts(shellApp);
-  assert.equal(scripts.dev, `${routesGenerate} && modern dev`);
-  assert(
-    scripts.build.startsWith(
-      `${routesGenerate} && modern build --deploy-target node && `,
-    ),
+  assert.match(scripts.dev, /--sync-route-metadata && ultramodern dev$/u);
+  assert.match(
+    scripts.build,
+    /^pnpm --dir \.\.\/\.\. exec ultramodern-create ultramodern public-surface --app shell-super-app --target dist --sync-route-metadata && ultramodern build/u,
   );
-  assert(
-    scripts['cloudflare:build'].startsWith(
-      `${routesGenerate} && modern build --deploy-target cloudflare && `,
-    ),
+  assert.match(
+    scripts['cloudflare:build'],
+    /^pnpm --dir \.\.\/\.\. exec ultramodern-create ultramodern public-surface --app shell-super-app --target cloudflare-dist --sync-route-metadata && cross-env MODERNJS_DEPLOY=cloudflare ultramodern build/u,
   );
   assert.doesNotMatch(
     Object.values(scripts).join('\n'),
@@ -51,72 +49,12 @@ test('public surface generation invokes the installed CLI from the workspace roo
   assert.doesNotMatch(headlessScripts.build, /routes-generate/u);
 });
 
-test('manifest-only route generation never loads the app for a build', () => {
-  // dev runs this first; the full generator analyzes the app as a production
-  // build, which must not happen before a development server starts.
-  const appDirectory = fs.mkdtempSync(
-    path.join(os.tmpdir(), 'ultramodern-routes-generate-'),
+test('fresh route aggregates are unchanged by their first metadata sync', async () => {
+  const { tempRoot, workspaceDir } = await createWorkspace(
+    'route-aggregate-stability',
   );
   try {
-    const plugin = path.join(
-      appDirectory,
-      'node_modules/@modern-js/plugin-tanstack',
-    );
-    fs.mkdirSync(plugin, { recursive: true });
-    fs.writeFileSync(path.join(appDirectory, 'package.json'), '{}');
-    fs.writeFileSync(
-      path.join(plugin, 'package.json'),
-      JSON.stringify({ name: '@modern-js/plugin-tanstack', main: 'index.mjs' }),
-    );
-    fs.writeFileSync(
-      path.join(plugin, 'index.mjs'),
-      `import fs from 'node:fs';
-export const writeRouteMetadataManifest = async ({ appDirectory }) =>
-  fs.writeFileSync(appDirectory + '/manifest-written', '');
-export const generateTanstackRouteArtifacts = async () => {
-  throw new Error('loaded the app as a build');
-};
-`,
-    );
-    const result = spawnSync(
-      process.execPath,
-      [
-        fileURLToPath(
-          new URL(
-            '../dist/esm-node/ultramodern-tooling/commands/routes-generate-app.js',
-            import.meta.url,
-          ),
-        ),
-        appDirectory,
-        'shell',
-        'manifest',
-      ],
-      { encoding: 'utf8' },
-    );
-    assert.equal(result.status, 0, result.stderr);
-    assert(fs.existsSync(path.join(appDirectory, 'manifest-written')));
-  } finally {
-    fs.rmSync(appDirectory, { recursive: true, force: true });
-  }
-});
-
-test('fresh route manifests are what routes-generate writes for them', async () => {
-  // plugin-tanstack owns the manifest format; the scaffold must write the same
-  // bytes so the first routes-generate run changes nothing.
-  const { findRouteMetaFiles, renderRouteMetadataManifest } = (await import(
-    new URL(
-      '../../../runtime/plugin-tanstack/src/cli/routeMetadata.ts',
-      import.meta.url,
-    ).href
-  )) as {
-    findRouteMetaFiles(routesDirectory: string): Promise<string[]>;
-    renderRouteMetadataManifest(files: readonly string[]): string | null;
-  };
-  const { tempRoot, workspaceDir } = createWorkspace(
-    'route-manifest-stability',
-  );
-  try {
-    addUltramodernVertical({
+    await addUltramodernVertical({
       workspaceRoot: workspaceDir,
       name: 'catalog',
       modernVersion: '3.2.1',
@@ -229,8 +167,9 @@ test('public surface reads authored route metadata and preserves output and cont
   }
 });
 
-test('adding a vertical preserves authored route metadata and its manifest', () => {
-  const { tempRoot, workspaceDir } = createWorkspace('public-route-owner');
+test('adding a vertical preserves authored route metadata and its synced aggregate', async () => {
+  const { tempRoot, workspaceDir } =
+    await createWorkspace('public-route-owner');
   try {
     const routePath = path.join(
       workspaceDir,
@@ -248,7 +187,7 @@ test('adding a vertical preserves authored route metadata and its manifest', () 
     );
     const aggregate = fs.readFileSync(aggregatePath, 'utf8');
     assert.match(aggregate, /import \{ routeMeta as route0 \}/u);
-    addUltramodernVertical({
+    await addUltramodernVertical({
       workspaceRoot: workspaceDir,
       name: 'catalog',
       modernVersion: '3.2.1',

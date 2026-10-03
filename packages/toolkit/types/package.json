@@ -29,6 +29,14 @@
     "./cli": {
       "types": "./cli/index.d.ts",
       "default": "./cli/index.d.ts"
+    },
+    "./cli/base": {
+      "types": "./cli/base.d.ts",
+      "default": "./cli/base.d.ts"
+    },
+    "./common": {
+      "types": "./common/index.d.ts",
+      "default": "./common/index.d.ts"
     }
   },
   "typesVersions": {
@@ -41,18 +49,24 @@
       ],
       "cli": [
         "./cli/index.d.ts"
+      ],
+      "cli/base": [
+        "./cli/base.d.ts"
+      ],
+      "common": [
+        "./common/index.d.ts"
       ]
     }
   },
   "dependencies": {
     "@jest/types": "^30.5.1",
-    "@types/react": "^19.3.0",
     "type-fest": "5.10.0"
   },
   "devDependencies": {
     "@types/babel__core": "^7.20.5",
-    "@types/node": "^26.6.3",
-    "http-proxy-middleware": "^4.2.0"
+    "@types/node": "^26.6.2",
+    "http-proxy-middleware": "^4.2.0",
+    "@types/react": "^19.3.0"
   },
   "sideEffects": false,
   "publishConfig": {
@@ -64,5 +78,13 @@
   "scripts": {
     "test": "rstest",
     "prepublishOnly": "only-allow-pnpm"
+  },
+  "peerDependencies": {
+    "@types/react": "^19.3.0"
+  },
+  "peerDependenciesMeta": {
+    "@types/react": {
+      "optional": true
+    }
   }
 }

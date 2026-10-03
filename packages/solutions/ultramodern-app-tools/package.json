@@ -12,7 +12,8 @@
   "version": "3.8.3",
   "files": [
     "dist",
-    "src"
+    "src",
+    "bin"
   ],
   "types": "./dist/types/native-composition/index.d.ts",
   "main": "./dist/cjs/native-composition/index.js",
@@ -72,7 +73,98 @@
       },
       "default": "./dist/esm/native-composition/router-runtime.mjs",
       "types": "./dist/types-esm/native-composition/router-runtime.d.mts"
-    }
+    },
+    "./cli": {
+      "modern:source": "./src/native-composition/cli.ts",
+      "import": {
+        "types": "./dist/types-esm/native-composition/cli.d.mts",
+        "default": "./dist/esm-node/native-composition/cli.mjs"
+      },
+      "require": {
+        "types": "./dist/types/native-composition/cli.d.ts",
+        "default": "./dist/cjs/native-composition/cli.js"
+      }
+    },
+    "./rsbuild": {
+      "modern:source": "./src/native-composition/rsbuild.ts",
+      "import": {
+        "types": "./dist/types-esm/native-composition/rsbuild.d.mts",
+        "default": "./dist/esm-node/native-composition/rsbuild.mjs"
+      },
+      "require": {
+        "types": "./dist/types/native-composition/rsbuild.d.ts",
+        "default": "./dist/cjs/native-composition/rsbuild.js"
+      }
+    },
+    "./native-config-load": {
+      "node": {
+        "modern:source": "./src/native-composition/native-config-load.ts",
+        "import": {
+          "types": "./dist/types-esm/native-composition/native-config-load.d.mts",
+          "default": "./dist/esm-node/native-composition/native-config-load.mjs"
+        },
+        "require": {
+          "types": "./dist/types/native-composition/native-config-load.d.ts",
+          "default": "./dist/cjs/native-composition/native-config-load.js"
+        }
+      },
+      "types": "./dist/types/native-composition/native-config-load.d.ts"
+    },
+    "./native-server-plugin": {
+      "node": {
+        "modern:source": "./src/native-composition/native-server-plugin.ts",
+        "import": {
+          "types": "./dist/types-esm/native-composition/native-server-plugin.d.mts",
+          "default": "./dist/esm-node/native-composition/native-server-plugin.mjs"
+        },
+        "require": {
+          "types": "./dist/types/native-composition/native-server-plugin.d.ts",
+          "default": "./dist/cjs/native-composition/native-server-plugin.js"
+        }
+      },
+      "types": "./dist/types/native-composition/native-server-plugin.d.ts"
+    },
+    "./config-evaluator": {
+      "node": {
+        "modern:source": "./src/native-composition/config-evaluator.ts",
+        "import": {
+          "types": "./dist/types-esm/native-composition/config-evaluator.d.mts",
+          "default": "./dist/esm-node/native-composition/config-evaluator.mjs"
+        },
+        "require": {
+          "types": "./dist/types/native-composition/config-evaluator.d.ts",
+          "default": "./dist/cjs/native-composition/config-evaluator.js"
+        }
+      },
+      "types": "./dist/types/native-composition/config-evaluator.d.ts"
+    },
+    "./config-evaluator-worker": {
+      "node": {
+        "import": "./dist/esm-node/native-composition/config-evaluator/worker.mjs",
+        "require": "./dist/cjs/native-composition/config-evaluator/worker.js"
+      }
+    },
+    "./react-composition": {
+      "node": {
+        "require": "./dist/cjs/native-composition/react-composition.js"
+      },
+      "types": "./dist/types/native-composition/react-composition.d.ts"
+    },
+    "./react-build-metadata-server": {
+      "node": {
+        "modern:source": "./src/native-composition/react-build-metadata-server.ts",
+        "import": {
+          "types": "./dist/types-esm/native-composition/react-build-metadata-server.d.mts",
+          "default": "./dist/esm-node/native-composition/react-build-metadata-server.mjs"
+        },
+        "require": {
+          "types": "./dist/types/native-composition/react-build-metadata-server.d.ts",
+          "default": "./dist/cjs/native-composition/react-build-metadata-server.js"
+        }
+      },
+      "types": "./dist/types/native-composition/react-build-metadata-server.d.ts"
+    },
+    "./react-mf-dts-implementation": "./dist/cjs/native-composition/react-mf-dts-implementation.cjs"
   },
   "scripts": {
     "prepublishOnly": "only-allow-pnpm",
@@ -84,31 +176,43 @@
     "node": ">=26.10.0"
   },
   "dependencies": {
+    "@babel/core": "7.29.7",
+    "@jridgewell/remapping": "2.3.5",
     "@modern-js/app-tools": "workspace:*",
     "@modern-js/app-tools-extensions": "workspace:*",
-    "@modern-js/i18n-integration": "workspace:*",
-    "@modern-js/plugin": "workspace:*",
-    "@modern-js/runtime": "workspace:*",
-    "@modern-js/runtime-extensions": "workspace:*",
-    "@modern-js/runtime-renderer-extensions": "workspace:*",
-    "@modern-js/server-core": "workspace:*",
-    "@modern-js/server-runtime-extensions": "workspace:*",
-    "@rsbuild/core": "2.2.11"
-  },
-  "devDependencies": {
     "@modern-js/backend-federation-contracts": "workspace:*",
     "@modern-js/builder": "workspace:*",
+    "@modern-js/federation-runtime": "workspace:*",
+    "@modern-js/plugin": "workspace:*",
+    "@modern-js/renderer-core": "workspace:*",
+    "@modern-js/runtime-extensions": "workspace:*",
+    "@modern-js/runtime-utils": "workspace:*",
+    "@modern-js/server-core": "workspace:*",
+    "@modern-js/server-runtime-extensions": "workspace:*",
+    "@modern-js/types": "workspace:*",
+    "@modern-js/utils": "workspace:*",
+    "@module-federation/dts-plugin": "2.9.1",
+    "@rsbuild/core": "2.2.9"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2",
     "@modern-js/plugin-bff": "workspace:*",
     "@modern-js/plugin-tanstack": "workspace:*",
     "@modern-js/prod-server": "workspace:*",
     "@modern-js/rslib": "workspace:*",
     "@modern-js/server": "workspace:*",
     "@modern-js/tsconfig": "workspace:*",
-    "@modern-js/utils": "workspace:*",
-    "@rslib/core": "1.0.3",
+    "@rslib/core": "1.0.2",
     "@scripts/rstest-config": "workspace:*",
-    "@types/node": "^26.6.3",
-    "@typescript/native-preview": "7.0.0-dev.20260707.2"
+    "@types/node": "^26.6.2",
+    "@modern-js/runtime": "workspace:*",
+    "@modern-js/i18n-integration": "workspace:*",
+    "@modern-js/runtime-renderer-extensions": "workspace:*",
+    "@solidjs/compiler": "2.0.0-rc.13",
+    "@octanejs/rspack-plugin": "0.1.55",
+    "octane": "https://github.com/bleedingdev/octane/releases/download/octane%400.7.1%2Bultramodern.f75bf12ac8be/octane-0.7.1%2Bultramodern.f75bf12ac8be.tgz",
+    "@modern-js/renderer-solid": "workspace:*",
+    "@modern-js/renderer-octane": "workspace:*"
   },
   "sideEffects": false,
   "publishConfig": {
@@ -129,7 +233,68 @@
       "router-runtime": [
         "./dist/types/native-composition/router-runtime.d.ts",
         "./src/native-composition/router-runtime.ts"
+      ],
+      "cli": [
+        "./dist/types/native-composition/cli.d.ts"
+      ],
+      "rsbuild": [
+        "./dist/types/native-composition/rsbuild.d.ts"
+      ],
+      "native-config-load": [
+        "./dist/types/native-composition/native-config-load.d.ts"
+      ],
+      "native-server-plugin": [
+        "./dist/types/native-composition/native-server-plugin.d.ts"
+      ],
+      "config-evaluator": [
+        "./dist/types/native-composition/config-evaluator.d.ts"
+      ],
+      "react-composition": [
+        "./dist/types/native-composition/react-composition.d.ts"
+      ],
+      "react-build-metadata-server": [
+        "./dist/types/native-composition/react-build-metadata-server.d.ts"
       ]
+    }
+  },
+  "bin": {
+    "ultramodern": "./bin/ultramodern.mjs"
+  },
+  "peerDependencies": {
+    "typescript": "7.0.2",
+    "@modern-js/runtime": "workspace:*",
+    "@modern-js/i18n-integration": "workspace:*",
+    "@modern-js/runtime-renderer-extensions": "workspace:*",
+    "@solidjs/compiler": "2.0.0-rc.13",
+    "@octanejs/rspack-plugin": "0.1.55",
+    "octane": "0.7.1+ultramodern.f75bf12ac8be",
+    "@modern-js/renderer-solid": "workspace:*",
+    "@modern-js/renderer-octane": "workspace:*"
+  },
+  "peerDependenciesMeta": {
+    "@modern-js/runtime": {
+      "optional": true
+    },
+    "@modern-js/i18n-integration": {
+      "optional": true
+    },
+    "@modern-js/runtime-renderer-extensions": {
+      "optional": true
+    },
+    "@solidjs/compiler": {
+      "optional": true
+    },
+    "@octanejs/rspack-plugin": {
+      "optional": true
+    },
+    "octane": {
+      "optional": true
+    },
+    "@modern-js/renderer-solid": {
+      "optional": true
+    },
+    "@modern-js/renderer-octane": {
+      "optional": true
     }
   }
 }

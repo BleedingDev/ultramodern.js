@@ -5,6 +5,7 @@ import {
   workspaceTemplateDir,
   writeFileReplacing,
 } from './fs-io';
+import type { WorkspaceRenderer } from './types';
 
 export interface WorkspaceScriptArtifact {
   relativePath: string;
@@ -12,14 +13,27 @@ export interface WorkspaceScriptArtifact {
 }
 
 /** Copy only scripts that implement workspace-specific behavior. */
-export function createWorkspaceScriptArtifacts(): WorkspaceScriptArtifact[] {
+export function createWorkspaceScriptArtifacts(
+  renderer: WorkspaceRenderer = 'react',
+): WorkspaceScriptArtifact[] {
   return [
-    {
-      relativePath: 'scripts/ultramodern-performance-readiness.config.mjs',
-      content: readFileTemplate(
-        'workspace-scripts/ultramodern-performance-readiness.config.mjs',
-      ),
-    },
+    ...(renderer === 'react'
+      ? [
+          {
+            relativePath: 'scripts/check-ultramodern-i18n-boundaries.mts',
+            content: readFileTemplate(
+              'workspace-scripts/check-ultramodern-i18n-boundaries.mts',
+            ),
+          },
+          {
+            relativePath:
+              'scripts/ultramodern-performance-readiness.config.mjs',
+            content: readFileTemplate(
+              'workspace-scripts/ultramodern-performance-readiness.config.mjs',
+            ),
+          },
+        ]
+      : []),
     {
       relativePath: 'scripts/setup-agent-reference-repos.mts',
       content: fs.readFileSync(
@@ -37,9 +51,10 @@ export function writeGeneratedWorkspaceScripts(
   targetDir: string,
   options: {
     io?: { writeGenerated: (filePath: string, content: string) => unknown };
+    renderer?: WorkspaceRenderer;
   } = {},
 ) {
-  for (const artifact of createWorkspaceScriptArtifacts()) {
+  for (const artifact of createWorkspaceScriptArtifacts(options.renderer)) {
     if (options.io) {
       options.io.writeGenerated(
         path.join(targetDir, artifact.relativePath),

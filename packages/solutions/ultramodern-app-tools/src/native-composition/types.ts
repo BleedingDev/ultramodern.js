@@ -1,9 +1,10 @@
-import type { AppUserConfig as NativeAppUserConfig } from '@modern-js/app-tools';
-import type { PrecompressConfig } from '@modern-js/app-tools-extensions/build-config/precompress/plugin';
 import type {
-  CloudflareDeployConfig,
-  NodeDeployConfig,
-} from '@modern-js/app-tools-extensions/config';
+  AppTools,
+  AppUserConfig as NativeAppUserConfig,
+} from '@modern-js/app-tools/cli-config';
+import type { PrecompressConfig } from '@modern-js/app-tools-extensions/build-config/precompress/plugin';
+import type { CloudflareDeployConfig } from '@modern-js/app-tools-extensions/config';
+import type { Renderer } from '@modern-js/renderer-core';
 import type {
   BffRuntimeUserConfig,
   ServerTelemetryUserConfig,
@@ -17,6 +18,8 @@ export type UltramodernAppUserConfig = Omit<
   NativeAppUserConfig,
   'output' | 'server' | 'bff' | 'deploy'
 > & {
+  /** Select the native application renderer before plugins are registered. */
+  renderer?: Renderer;
   output?: Omit<NonNullable<NativeAppUserConfig['output']>, 'precompress'> & {
     precompress?: boolean | PrecompressConfig;
   };
@@ -35,3 +38,8 @@ export type UltramodernAppUserConfig = Omit<
 };
 
 export type AppUserConfig = UltramodernAppUserConfig;
+
+/** The owning loader accepts fork config while retaining upstream entry hooks. */
+export type UltramodernConfigLoader = Omit<AppTools, 'config'> & {
+  config: UltramodernAppUserConfig;
+};

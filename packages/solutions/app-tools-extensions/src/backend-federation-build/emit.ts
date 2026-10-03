@@ -10,6 +10,13 @@ import {
 } from '@modern-js/backend-federation-contracts';
 import { createBackendFederationEntryIntegrity } from '@modern-js/server-runtime-extensions/backend-federation-security/node';
 import {
+  type FinalizedRendererBuildOutput,
+  type RendererBuildOutputContext,
+  type RendererBuildOutputOptions,
+  stampFinalizedRendererBuildArtifact,
+  validateFinalizedRendererBuild,
+} from '../release-envelope/renderer-output-stamp';
+import {
   createBackendManifest,
   createBackendRemoteEntrySource,
 } from './codegen';
@@ -35,9 +42,16 @@ export type BackendFederationArtifactResult = {
   remoteType: string;
 };
 
+export type BackendFederationBuildOptions = {
+  resolveRendererBuild?: RendererBuildOutputOptions['resolveRendererBuild'];
+  rendererBuildPlugin?: RendererBuildOutputOptions['rendererBuildPlugin'];
+  entrypoints?: RendererBuildOutputContext['entrypoints'];
+};
+
 export const emitBackendFederationArtifacts = async (
   appDirectory: string,
   distDirectory: string,
+  options: BackendFederationBuildOptions = {},
 ): Promise<BackendFederationArtifactResult | undefined> => {
   const workspaceRoot = findWorkspaceRoot(appDirectory);
   if (!workspaceRoot) {
@@ -128,15 +142,32 @@ export const emitBackendFederationArtifacts = async (
   const unitId = topologyDeliveryUnit?.unitId ?? buildIdentity.unitId;
   const generationBuildMarker =
     topologyDeliveryUnit?.buildMarker ?? buildIdentity.buildVersion;
-  const sourceRevision = await resolveWorkspaceSourceRevision(workspaceRoot);
+  let finalizedRendererBuild: FinalizedRendererBuildOutput | undefined;
+  if (options.resolveRendererBuild && buildIdentity.artifact?.surfaces.ui) {
+    if (!options.entrypoints?.length)
+      throw new Error(
+        '[backend-federation-build] Renderer output stamping requires the actual finalized application entries.',
+      );
+    const context = {
+      appDirectory,
+      distDirectory,
+      entrypoints: options.entrypoints,
+    };
+    finalizedRendererBuild = await options.resolveRendererBuild(context);
+    validateFinalizedRendererBuild(finalizedRendererBuild, context, app.id);
+  }
+  const sourceRevision =
+    finalizedRendererBuild?.sourceRevision ??
+    (await resolveWorkspaceSourceRevision(workspaceRoot));
   const buildVersion =
-    generationBuildMarker && unitId
+    finalizedRendererBuild?.buildMarker ??
+    (generationBuildMarker && unitId
       ? resolveUltramodernReleaseIdentity({
           generationBuildMarker,
           unitId,
           workspaceRoot,
         }).buildMarker
-      : undefined;
+      : undefined);
   const packageName = app.packageName;
   const version = app.version;
   const deliveryUnit = createStampedDeliveryUnit({
@@ -147,13 +178,20 @@ export const emitBackendFederationArtifacts = async (
     version,
     sourceRevision,
   });
-  const stampedBuildArtifact = buildIdentity.artifact
+  let stampedBuildArtifact = buildIdentity.artifact
     ? stampUltramodernBuildArtifactIdentity(buildIdentity.artifact, {
         buildMarker:
           buildVersion ?? buildIdentity.artifact.deliveryUnit.buildMarker,
         sourceRevision,
       })
     : undefined;
+  if (finalizedRendererBuild && stampedBuildArtifact?.surfaces.ui) {
+    stampedBuildArtifact = stampFinalizedRendererBuildArtifact(
+      stampedBuildArtifact,
+      finalizedRendererBuild,
+      { appDirectory, distDirectory, entrypoints: options.entrypoints! },
+    );
+  }
 
   const resolvedApp: BackendFederationApp = {
     ...app,
@@ -199,15 +237,36 @@ export const emitBackendFederationArtifacts = async (
   };
 };
 
-export default () => ({
-  name: '@modern-js/backend-federation-build',
-  setup(api: {
-    getAppContext(): { appDirectory: string; distDirectory: string };
-    onAfterBuild(handler: () => Promise<void>): void;
-  }) {
-    api.onAfterBuild(async () => {
-      const { appDirectory, distDirectory } = api.getAppContext();
-      await emitBackendFederationArtifacts(appDirectory, distDirectory);
-    });
-  },
-});
+export default (
+  options: Omit<BackendFederationBuildOptions, 'entrypoints'> = {},
+) => {
+  if (options.resolveRendererBuild && !options.rendererBuildPlugin) {
+    throw new Error(
+      '[backend-federation-build] A finalized renderer resolver requires its owning metadata producer plugin.',
+    );
+  }
+  return {
+    name: '@modern-js/backend-federation-build',
+    pre: options.resolveRendererBuild ? [options.rendererBuildPlugin!] : [],
+    required: options.resolveRendererBuild
+      ? [options.rendererBuildPlugin!]
+      : [],
+    setup(api: {
+      getAppContext(): {
+        appDirectory: string;
+        distDirectory: string;
+        entrypoints?: RendererBuildOutputContext['entrypoints'];
+      };
+      onAfterBuild(handler: () => Promise<void>): void;
+    }) {
+      api.onAfterBuild(async () => {
+        const { appDirectory, distDirectory, entrypoints } =
+          api.getAppContext();
+        await emitBackendFederationArtifacts(appDirectory, distDirectory, {
+          ...options,
+          entrypoints,
+        });
+      });
+    },
+  };
+};
