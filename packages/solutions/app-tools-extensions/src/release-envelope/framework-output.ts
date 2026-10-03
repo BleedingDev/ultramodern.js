@@ -5,6 +5,7 @@ import {
   BACKEND_FEDERATION_MANIFEST_FILE,
   BACKEND_FEDERATION_REMOTE_ENTRY_FILE,
   isUltramodernBuildArtifact,
+  stampUltramodernBuildArtifactIdentity,
   ULTRAMODERN_BUILD_ARTIFACT_FILE,
   type UltramodernBuildArtifact,
 } from '@modern-js/backend-federation-contracts';
@@ -881,15 +882,9 @@ export const emitFrameworkMicroVerticalReleaseEnvelope = async ({
     }
     await fs.writeFile(
       path.join(distDirectory, ULTRAMODERN_BUILD_ARTIFACT_FILE),
-      JSON.stringify({
-        ...source.artifact,
-        deliveryUnit: {
-          ...source.artifact.deliveryUnit,
-          unitId: stamp.unitId,
-          buildMarker: stamp.buildMarker,
-          sourceRevision: stamp.sourceRevision,
-        },
-      }),
+      JSON.stringify(
+        stampUltramodernBuildArtifactIdentity(source.artifact, stamp),
+      ),
     );
   } else if (!hasBackendManifest || !hasBackendContainer) {
     throw new Error(
