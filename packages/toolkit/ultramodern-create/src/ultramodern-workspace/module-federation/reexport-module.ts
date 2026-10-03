@@ -66,7 +66,7 @@ export const ultramodernDeliveryUnit = ultramodernBuildArtifact.deliveryUnit;
 ${
   includeUiMarker
     ? `const ultramodernUiSurface = ultramodernBuildArtifact.surfaces.ui;
-if (!ultramodernUiSurface) {
+if (ultramodernUiSurface === undefined) {
   throw new Error(${JSON.stringify(`Application ${app.id} requires a UI build identity.`)});
 }
 export const ultramodernUiMarker = ultramodernUiSurface;
