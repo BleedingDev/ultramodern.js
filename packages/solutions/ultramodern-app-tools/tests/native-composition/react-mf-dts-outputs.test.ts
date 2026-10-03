@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
@@ -22,6 +22,8 @@ import {
 import { program } from '@modern-js/utils/commander';
 import {
   createRsbuild,
+  type OnCloseBuildFn,
+  type RsbuildInstance,
   type RsbuildPlugin,
   type Rspack,
   type RspackChain,
@@ -391,11 +393,13 @@ type AfterCompiler = Parameters<
   CLIPluginAPI<AppTools>['onAfterCreateCompiler']
 >[0];
 type BeforeExit = Parameters<CLIPluginAPI<AppTools>['onBeforeExit']>[0];
+type BeforeBuild = Parameters<CLIPluginAPI<AppTools>['onBeforeBuild']>[0];
 const AUTHORITY_KEY = 'ultramodernReceiverDts';
 
 async function integration(
   app: ReturnType<typeof fixture>,
   options: {
+    command?: 'dev' | 'build';
     capturedConfiguration?: NativeConfigurationCapture;
     producerGate?: Promise<void> | (() => Promise<void> | undefined);
     configurationInput?: string;
@@ -452,6 +456,15 @@ async function integration(
   const beforeCompiler: BeforeCompiler[] = [];
   const afterCompiler: AfterCompiler[] = [];
   const beforeExit: BeforeExit[] = [];
+  const beforeBuild: BeforeBuild[] = [];
+  const closeBuild: OnCloseBuildFn[] = [];
+  let builder: Pick<RsbuildInstance, 'onCloseBuild'> = {
+    onCloseBuild(callback) {
+      if (typeof callback !== 'function')
+        throw new Error('This test requires a native close callback');
+      closeBuild.push(callback);
+    },
+  };
   const config = {
     renderer: 'react' as const,
     source: {
@@ -464,7 +477,11 @@ async function integration(
   };
   const api = {
     getHooks: () => hooks,
-    getAppContext: () => ({ appDirectory: app.appDirectory, command: 'dev' }),
+    getAppContext: () => ({
+      appDirectory: app.appDirectory,
+      command: options.command ?? 'dev',
+      builder,
+    }),
     getNormalizedConfig: () => config,
     modifyBundlerChain(callback: ChainModifier) {
       chainModifiers.push(callback);
@@ -477,6 +494,9 @@ async function integration(
     },
     onBeforeExit(callback: BeforeExit) {
       beforeExit.push(callback);
+    },
+    onBeforeBuild(callback: BeforeBuild) {
+      beforeBuild.push(callback);
     },
   };
   await createConfigurationReadContextPlugin(() => observed).setup?.(api);
@@ -583,6 +603,11 @@ async function integration(
     context,
     chainModifiers,
     beforeCompiler,
+    beforeBuild,
+    closeBuild,
+    setBuilder(value: RsbuildInstance) {
+      builder = value;
+    },
     afterCompiler,
     compilerOwnerPlugins,
     testCompilers,
@@ -635,6 +660,7 @@ async function configureChain(
       await callback({ bundlerConfigs: [{ name: 'client' }] } as never);
     const compiler = {
       options: { name: 'client' },
+      hooks: { shutdown: { tapPromise() {} } },
       close(callback: (error?: Error) => void) {
         callback();
       },
@@ -825,6 +851,138 @@ function bindTestPhase(
   return phase;
 }
 
+async function nativeOneShotBuild(
+  app: ReturnType<typeof fixture>,
+  options: {
+    publicationError?: Error;
+    compilationError?: boolean;
+    worker?: Readonly<{ pid: number; closed: Promise<void> }>;
+  } = {},
+) {
+  const result = await integration(app, { command: 'build' });
+  const nativeOptions: Record<string, unknown> = { dts: true };
+  await configureChain(result, nativeOptions, true, true);
+  const events: string[] = [];
+  let frameCompleted = false;
+  const phase = new ReactTypedCssPhase({
+    appDirectory: app.appDirectory,
+    internalDirectory: result.context.internalDirectory,
+    distDirectory: result.context.distDirectory,
+    produceTypedCss: false,
+    generatedOutputs: result.controller,
+    async finalize(_stats, lease) {
+      expect(frameCompleted).toBe(true);
+      expect(lease?.receipts).toHaveLength(1);
+      await lease?.assertCurrent();
+      events.push('identity');
+      return identities();
+    },
+    async publishMetadata(_stats, _identities, assertCurrent) {
+      assertCurrent();
+      events.push('metadata');
+      if (options.publicationError) throw options.publicationError;
+    },
+  });
+  result.controller.bindPhase(phase, result.context);
+  let closeCalls = 0;
+  const lifecycle: RsbuildPlugin = {
+    name: 'test-one-shot-receiver-lifecycle',
+    setup(api) {
+      phase.install(api);
+      api.modifyBundlerChain((chain, { environment }) => {
+        const Owner = result.compilerOwnerPlugins.get(environment.name);
+        if (Owner)
+          chain.plugin('ultramodern-react-mf-receiver-owner').use(Owner, []);
+      });
+      api.onBeforeBuild(async params => {
+        for (const callback of result.beforeBuild)
+          await callback(params as never);
+      });
+      api.onBeforeCreateCompiler(async params => {
+        for (const callback of result.beforeCompiler)
+          await callback(params as never);
+      });
+      api.onAfterCreateCompiler(async params => {
+        for (const callback of result.afterCompiler)
+          await callback(params as never);
+        if (options.worker) workerCreated(nativeOptions)(options.worker);
+        const compilers =
+          'compilers' in params.compiler
+            ? params.compiler.compilers
+            : [params.compiler];
+        for (const compiler of compilers) {
+          const nativeClose = compiler.close.bind(compiler);
+          compiler.close = callback => {
+            closeCalls++;
+            nativeClose(error => {
+              events.push(`closed:${compiler.options.name}`);
+              callback(error);
+            });
+          };
+          if (compiler.options.name !== 'client') continue;
+          compiler.hooks.thisCompilation.tap(
+            'test-production-receiver',
+            compilation => {
+              compilation.hooks.processAssets.tapPromise(
+                {
+                  name: 'test-production-receiver',
+                  stage: rspack.Compilation.PROCESS_ASSETS_STAGE_ADDITIONAL,
+                },
+                async () => {
+                  const receiver = await result
+                    .registry()
+                    .begin(seed(nativeOptions), receiverDetails());
+                  await completeReceiver(
+                    receiver,
+                    writeReceiver(receiver, app.declaration),
+                  );
+                  frameCompleted = true;
+                  events.push('frame');
+                  if (options.compilationError)
+                    compilation.errors.push(
+                      new Error('Controlled native compilation failure'),
+                    );
+                },
+              );
+            },
+          );
+        }
+      });
+    },
+  };
+  const builder = await createRsbuild({
+    cwd: app.appDirectory,
+    rsbuildConfig: {
+      mode: 'production',
+      plugins: [lifecycle],
+      environments: {
+        client: {
+          source: { entry: { main: './src/main.js' } },
+          output: { target: 'web' },
+        },
+        server: {
+          source: { entry: { main: './src/main.js' } },
+          output: { target: 'node' },
+        },
+      },
+      output: {
+        cleanDistPath: false,
+        distPath: { root: result.context.distDirectory },
+      },
+      performance: { printFileSize: false },
+    },
+  });
+  result.setBuilder(builder);
+  return {
+    result,
+    phase,
+    events,
+    builder,
+    closeCalls: () => closeCalls,
+    frameCompleted: () => frameCompleted,
+  };
+}
+
 async function publicPhaseHooks(
   app: ReturnType<typeof fixture>,
   result: Awaited<ReturnType<typeof integration>>,
@@ -959,6 +1117,299 @@ async function settleClosedReceiver(receiver: ReceiverContext) {
 }
 
 describe('React native receiver output controller', () => {
+  it.each([
+    'success',
+    'metadata-error',
+    'compiler-error',
+  ])('lets a plain one-shot compiler process exit naturally: %s', async outcome => {
+    const app = fixture();
+    const owningRequire = createRequire(import.meta.url);
+    const sourceDirectory = path.resolve(
+      __dirname,
+      '../../src/native-composition',
+    );
+    const childEntry = path.join(app.root, 'one-shot-entry.mjs');
+    const childBundle = path.join(app.root, 'one-shot-bundle.cjs');
+    const phaseModule = path.resolve(
+      sourceDirectory,
+      '../../dist/cjs/native-composition/react-typed-css-phase.js',
+    );
+    fs.writeFileSync(
+      childEntry,
+      `
+      import assert from 'node:assert/strict';
+      import fs from 'node:fs';
+      import path from 'node:path';
+      import http from 'node:http';
+      import { createRequire } from 'node:module';
+      import { createRsbuild } from '@rsbuild/core';
+      import { ReactTypedCssPhase } from ${JSON.stringify(phaseModule)};
+      import { createReactReceiverOutputIntegration } from ${JSON.stringify(path.join(sourceDirectory, 'react-mf-dts-outputs.ts'))};
+      import { captureConfigSourceSnapshot } from ${JSON.stringify(path.join(sourceDirectory, 'config-evaluator/source-snapshot.ts'))};
+      import { createConfigurationReadContextPlugin, retainConfigurationSourceSnapshot } from ${JSON.stringify(path.join(sourceDirectory, 'configuration-read-context.ts'))};
+      const app = ${JSON.stringify(app)};
+      const { observeReceiverNodes } = createRequire(import.meta.url)(${JSON.stringify(path.join(sourceDirectory, 'react-mf-dts-implementation.cjs'))});
+      const outcome = ${JSON.stringify(outcome)};
+      const observed = Object.freeze({kind:'observed-config-source-inputs',version:1,packageMetadata:Object.freeze([]),observations:Object.freeze([])});
+      const snapshot = captureConfigSourceSnapshot({sourceRoots:[app.appDirectory]});
+      const sourceNodes = Object.freeze([]);
+      retainConfigurationSourceSnapshot(observed, snapshot, sourceNodes);
+      const hooks = {}, modifiers = [], beforeCompiler = [], afterCompiler = [], beforeBuild = [];
+      let builder, registry, restored = 0;
+      const config = {renderer:'react', source:{mainEntryName:'main',entriesDir:'./src'},server:{ssr:false},output:{enableCssModuleTSDeclaration:false}};
+      const api = {
+        getHooks:()=>hooks,
+        getAppContext:()=>({appDirectory:app.appDirectory,command:'build',builder}),
+        getNormalizedConfig:()=>config,
+        modifyBundlerChain:fn=>modifiers.push(fn),
+        onBeforeCreateCompiler:fn=>beforeCompiler.push(fn),
+        onAfterCreateCompiler:fn=>afterCompiler.push(fn),
+        onBeforeBuild:fn=>beforeBuild.push(fn),
+        onBeforeExit:()=>{}
+      };
+      await createConfigurationReadContextPlugin(()=>observed).setup(api);
+      const integration = createReactReceiverOutputIntegration({
+        resolveImplementation:()=>app.producerPath,
+        loadImplementation:()=>({EXTRA_OPTIONS_KEY:'ultramodernReceiverDts',installReceiverRegistry(value){registry=value;return()=>{restored++}},observeReceiverNodes}),
+        resolveProducer:async()=>({packageName:'@fixture/native-dts-owner',version:'1.2.3',packageDirectory:app.producerDirectory,modulePath:app.producerPath,moduleDigest:${JSON.stringify(digest(fs.readFileSync(app.producerPath)))} }),
+        resolveDestinations:async details=>({effectiveOptions:details.nativeOptions,context:{operation:details.operation},destinations:[{path:{lexical:app.declaration,canonical:fs.realpathSync(app.declaration)},kind:'file',scope:'exact'}]}),
+        sourceNodes:()=>sourceNodes,trackedInputs:async()=>[]
+      });
+      await integration.plugin.setup(api);
+      const nativeOptions = {dts:true};
+      let receiptComplete = false, metadataComplete = false;
+      const context = {appDirectory:app.appDirectory,internalDirectory:path.join(app.appDirectory,'.modern-js'),distDirectory:path.join(app.appDirectory,'dist'),configFile:false,config,consumedSourceInputs:observed,configurationSourceSnapshot:snapshot,configurationSourceNodes:sourceNodes,packageName:'native-receiver-controller',mode:'production',entrypoints:[{entryName:'main',isMainEntry:true,entry:path.join(app.appDirectory,'src/main.js')}]};
+      const phase = new ReactTypedCssPhase({appDirectory:context.appDirectory,internalDirectory:context.internalDirectory,distDirectory:context.distDirectory,configurationSourceSnapshot:snapshot,produceTypedCss:false,generatedOutputs:integration.controller,
+        async finalize(_stats,lease){assert.ok(receiptComplete);assert.equal(lease.receipts.length,1);await lease.assertCurrent();return ${JSON.stringify(identities())}},
+        async publishMetadata(_stats,_identities,assertCurrent){assertCurrent();if(outcome==='metadata-error')throw new Error('Original child metadata error');metadataComplete=true;}
+      });
+      integration.controller.bindPhase(phase,context);
+      class NativeMFConfiguration {apply(){}}
+      builder = await createRsbuild({cwd:app.appDirectory,rsbuildConfig:{
+        mode:'production',output:{cleanDistPath:false,distPath:{root:path.join(app.appDirectory,'dist')}},performance:{printFileSize:false},
+        environments:{client:{source:{entry:{main:'./src/main.js'}},output:{target:'web'}}},
+        plugins:[{name:'test-natural-receiver-process',setup(native){
+          phase.install(native);
+          native.modifyBundlerChain(async(chain,utils)=>{chain.plugin('plugin-module-federation').use(NativeMFConfiguration,[nativeOptions]);for(const fn of modifiers)await fn(chain,utils)});
+          native.onBeforeBuild(async params=>{for(const fn of beforeBuild)await fn(params)});
+          native.onBeforeCreateCompiler(async params=>{for(const fn of beforeCompiler)await fn(params)});
+          native.onAfterCreateCompiler(async params=>{
+            for(const fn of afterCompiler)await fn(params);
+            const compiler=params.compiler.compilers?.[0]??params.compiler;
+            compiler.hooks.thisCompilation.tap('child-receiver',compilation=>compilation.hooks.processAssets.tapPromise('child-receiver',async()=>{
+              const receiver=await registry.begin(nativeOptions.dts.extraOptions.ultramodernReceiverDts,{operation:'consumeTypes',nativeOptions:{host:{consumeAPITypes:true},consumeTypes:true}});
+              await receiver.terminal({status:'complete',frame:receiver.frame,operations:[],nodes:[],stages:[{stage:'api',alias:'remote',requested:true,outcome:'complete',result:false}],failures:[]});
+              receiptComplete=true;
+              if(outcome==='compiler-error')compilation.errors.push(new Error('Original child compilation error'));
+            }));
+          });
+        }}]
+      }});
+      let built, failure;
+      try {built=await builder.build()} catch(error){failure=error}
+      if(!receiptComplete && failure) throw failure;
+      assert.ok(receiptComplete);
+      const bridge = nativeOptions.dts.extraOptions.ultramodernReceiverDts.receiverBridge;
+      assert.ok(bridge.url.startsWith('http://127.0.0.1:'));
+      if(outcome==='success') {assert.equal(failure,undefined);assert.ok(metadataComplete);assert.equal(restored,0);await built.close()}
+      else {assert.ok(failure);assert.equal(metadataComplete,false);if(outcome==='metadata-error')assert.equal(failure.message,'Original child metadata error')}
+      assert.equal(restored,1);
+      await new Promise((resolve,reject)=>{
+        const request=http.get(bridge.url,{agent:false},()=>reject(new Error('Receiver bridge remained reachable')));
+        request.on('error',error=>error.code==='ECONNREFUSED'?resolve():reject(error));
+      });
+      process.stdout.write('NATURAL_RECEIVER_BUILD_EXIT:${outcome}\\n');
+      // No explicit controller cleanup, process.exit(), signals or unref.
+    `,
+    );
+    const childCompiler = rspack({
+      mode: 'development',
+      target: 'node',
+      entry: childEntry,
+      devtool: false,
+      output: { path: app.root, filename: path.basename(childBundle) },
+      resolve: { extensions: ['.ts', '.js', '.mjs', '.cjs'] },
+      module: {
+        rules: [
+          {
+            test: /\.ts$/u,
+            use: {
+              loader: 'builtin:swc-loader',
+              options: { jsc: { parser: { syntax: 'typescript' } } },
+            },
+          },
+        ],
+      },
+      externals: ({ request }, callback) => {
+        if (request === phaseModule)
+          return callback(undefined, `commonjs ${phaseModule}`);
+        if (!request || request.startsWith('.') || path.isAbsolute(request))
+          return callback();
+        if (request.startsWith('node:'))
+          return callback(undefined, `commonjs ${request}`);
+        return callback(
+          undefined,
+          `commonjs ${owningRequire.resolve(request)}`,
+        );
+      },
+    });
+    await new Promise<void>((resolve, reject) => {
+      childCompiler.run((error, stats) => {
+        childCompiler.close(closeError => {
+          if (error || closeError) reject(error ?? closeError);
+          else if (stats?.hasErrors())
+            reject(new Error(stats.toString({ all: false, errors: true })));
+          else resolve();
+        });
+      });
+    });
+    const output = await new Promise<string>((resolve, reject) => {
+      execFile(
+        process.execPath,
+        [childBundle],
+        { cwd: app.appDirectory, timeout: 20_000 },
+        (error, stdout, stderr) => {
+          if (error)
+            reject(
+              new Error(`Natural build process failed: ${stderr}`, {
+                cause: error,
+              }),
+            );
+          else resolve(stdout);
+        },
+      );
+    });
+    expect(output).toContain(`NATURAL_RECEIVER_BUILD_EXIT:${outcome}`);
+  });
+
+  it.each([
+    { command: 'build' as const, isWatch: true },
+    { command: 'dev' as const, isWatch: false },
+  ])('retains the receiver bridge across the close hook for %o', async ({
+    command,
+    isWatch,
+  }) => {
+    const app = fixture();
+    const result = await integration(app, { command });
+    await configureChain(result, { dts: true });
+    for (const callback of result.beforeBuild)
+      await callback({ isWatch } as never);
+    const bridge = await result.registry().openBridge();
+    for (const callback of result.closeBuild) await callback();
+    expect(result.restoreCalls()).toBe(0);
+    expect((await postBridge(bridge, { action: 'unknown' })).status).not.toBe(
+      0,
+    );
+    await result.close();
+    expect(result.restoreCalls()).toBe(1);
+  });
+  it('closes a one-shot bridge after actual native compiler close, metadata and worker drain', async () => {
+    const app = fixture();
+    const worker = execFile(process.execPath, [
+      '-e',
+      'process.stdin.resume(); process.stdout.write("ready");',
+    ]);
+    const ready = new Promise<void>(resolve =>
+      worker.stdout!.once('data', () => resolve()),
+    );
+    const closed = new Promise<void>((resolve, reject) => {
+      worker.once('error', reject);
+      worker.once('close', (code, signal) => {
+        if (code === 0 && signal === null) resolve();
+        else
+          reject(
+            new Error(`Native lifecycle worker failed: ${code}/${signal}`),
+          );
+      });
+    });
+    await ready;
+    if (!worker.pid) throw new Error('The real worker has no process identity');
+    const build = await nativeOneShotBuild(app, {
+      worker: { pid: worker.pid, closed },
+    });
+    closes.push(async () => {
+      worker.stdin!.end();
+      await closed;
+    });
+    const compiled = await build.builder.build();
+    expect(build.frameCompleted()).toBe(true);
+    expect(build.events.slice(0, 3)).toEqual(['frame', 'identity', 'metadata']);
+    expect(build.events.slice(3).sort()).toEqual([
+      'closed:client',
+      'closed:server',
+    ]);
+    expect(build.closeCalls()).toBe(2);
+    expect(build.result.restoreCalls()).toBe(0);
+    const bridge = await build.result.registry().openBridge();
+    let finished = false;
+    const finishing = compiled.close().then(() => {
+      finished = true;
+    });
+    await new Promise<void>(resolve => setImmediate(resolve));
+    expect(finished).toBe(false);
+    expect(build.result.restoreCalls()).toBe(0);
+    const concurrentSignalCleanup = build.result.close();
+    worker.stdin!.end();
+    await closed;
+    await Promise.all([finishing, concurrentSignalCleanup]);
+    expect(finished).toBe(true);
+    expect(build.closeCalls()).toBe(2);
+    expect(build.result.restoreCalls()).toBe(1);
+    await expect(postBridge(bridge, { action: 'begin' })).rejects.toThrow();
+    await compiled.close();
+    expect(build.result.restoreCalls()).toBe(1);
+  });
+
+  it('drains the bridge on a genuine one-shot metadata rejection and preserves its error', async () => {
+    const app = fixture();
+    const failure = new Error('Controlled production metadata rejection');
+    const build = await nativeOneShotBuild(app, { publicationError: failure });
+    await expect(build.builder.build()).rejects.toBe(failure);
+    expect(build.frameCompleted()).toBe(true);
+    expect(build.events).toContain('metadata');
+    expect(build.closeCalls()).toBe(2);
+    expect(build.result.restoreCalls()).toBe(1);
+    await expect(build.result.registry().openBridge()).rejects.toThrow(
+      'disposed',
+    );
+  });
+
+  it('does not await its own public shutdown hook during one-shot signal cleanup', async () => {
+    const app = fixture();
+    const result = await integration(app, { command: 'build' });
+    await configureChain(result, { dts: true }, true, true);
+    const phase = bindTestPhase(app, result);
+    const compiler = await publicPhaseHooks(app, result, phase);
+    for (const callback of result.beforeBuild)
+      await callback({ isWatch: false } as never);
+    const bridge = await result.registry().openBridge();
+    let closeCalls = 0;
+    const nativeClose = compiler.close.bind(compiler);
+    compiler.close = callback => {
+      closeCalls++;
+      nativeClose(callback);
+    };
+    await Promise.all([result.close(), result.close()]);
+    await expect(phase.resolveIdentities()).rejects.toThrow(
+      'closed before identity finalization',
+    );
+    expect(closeCalls).toBe(1);
+    expect(result.restoreCalls()).toBe(1);
+    await expect(postBridge(bridge, { action: 'begin' })).rejects.toThrow();
+  });
+
+  it('drains the bridge when the real one-shot compiler reports errors before publication', async () => {
+    const app = fixture();
+    const build = await nativeOneShotBuild(app, { compilationError: true });
+    await expect(build.builder.build()).rejects.toThrow();
+    expect(build.frameCompleted()).toBe(true);
+    expect(build.events).not.toContain('metadata');
+    expect(build.closeCalls()).toBe(2);
+    expect(build.result.restoreCalls()).toBe(1);
+    await expect(build.result.registry().openBridge()).rejects.toThrow(
+      'disposed',
+    );
+  });
   it.each([
     { input: 'unrelated', reject: false },
     { input: 'consumed', reject: true },
