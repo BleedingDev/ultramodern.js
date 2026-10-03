@@ -79,6 +79,37 @@ function observations(inputs: ObservedConfigSourceInputs, root: string) {
 const snapshot = (root: string) =>
   captureConfigSourceSnapshot({ sourceRoots: [root] });
 
+async function coldDeploymentDependencies(
+  run: (require: NodeJS.Require, fsRequire: NodeJS.Require) => Promise<void>,
+) {
+  const require = createRequire(
+    path.resolve(__dirname, '../../../app-tools/package.json'),
+  );
+  const ndepeEntry = require.resolve('ndepe');
+  const ndepeRequire = createRequire(ndepeEntry);
+  const fsExtraEntry = ndepeRequire.resolve('fs-extra');
+  const fsRequire = createRequire(fsExtraEntry);
+  const gracefulEntry = fsRequire.resolve('graceful-fs');
+  const roots = [
+    path.dirname(path.dirname(ndepeEntry)),
+    path.dirname(path.dirname(fsExtraEntry)),
+    path.dirname(gracefulEntry),
+  ];
+  const owned = (file: string) =>
+    roots.some(root => file.startsWith(`${root}${path.sep}`));
+  const previous = new Map(
+    Object.entries(require.cache).filter(([file]) => owned(file)),
+  );
+  for (const file of previous.keys()) delete require.cache[file];
+  try {
+    await run(require, fsRequire);
+  } finally {
+    for (const file of Object.keys(require.cache))
+      if (owned(file)) delete require.cache[file];
+    for (const [file, cached] of previous) require.cache[file] = cached;
+  }
+}
+
 describe('native entry path-kind provenance', () => {
   it('preserves real filesystem entries and records only the root kind checks', async () =>
     fixture(async root => {
@@ -634,6 +665,321 @@ describe('native package discovery provenance', () => {
 });
 
 describe('actual config authority source observations', () => {
+  it('resumes the real graceful-fs/fs-extra/ndepe deployment copy after observation', async () =>
+    fixture(async root => {
+      const dependency = path.join(root, 'node_modules', 'copied-dependency');
+      const output = path.join(root, 'dist');
+      fs.mkdirSync(dependency, { recursive: true });
+      fs.mkdirSync(output);
+      fs.writeFileSync(
+        path.join(root, 'package.json'),
+        JSON.stringify({
+          name: 'deployment-copy-proof',
+          private: true,
+          dependencies: { 'copied-dependency': '1.0.0' },
+        }),
+      );
+      fs.writeFileSync(
+        path.join(dependency, 'package.json'),
+        JSON.stringify({
+          name: 'copied-dependency',
+          version: '1.0.0',
+          main: './index.js',
+        }),
+      );
+      fs.writeFileSync(
+        path.join(dependency, 'index.js'),
+        'module.exports = 42;\n',
+      );
+      fs.writeFileSync(
+        path.join(output, 'server.js'),
+        'module.exports = require("copied-dependency");\n',
+      );
+      await coldDeploymentDependencies(async (require, fsRequire) => {
+        const captured = await observeConfigSourceInputs(
+          snapshot(root),
+          async () => {
+            const ndepeRequire = createRequire(require.resolve('ndepe'));
+            return {
+              graceful: fsRequire('graceful-fs'),
+              fsExtra: ndepeRequire('fs-extra'),
+              nodeDepEmit: require('ndepe').nodeDepEmit,
+              realpath: fs.realpathSync.native,
+            };
+          },
+        );
+        await captured.value.nodeDepEmit({ appDir: root, sourceDir: output });
+        const copied = path.join(output, 'node_modules', 'copied-dependency');
+        expect(fs.readFileSync(path.join(copied, 'index.js'), 'utf8')).toBe(
+          'module.exports = 42;\n',
+        );
+        expect(
+          JSON.parse(
+            fs.readFileSync(path.join(copied, 'package.json'), 'utf8'),
+          ),
+        ).toMatchObject({ name: 'copied-dependency', version: '1.0.0' });
+        const later = await observeConfigSourceInputs(
+          snapshot(root),
+          async () => {
+            expect(captured.value.realpath(path.join(root, 'input.json'))).toBe(
+              path.join(root, 'input.json'),
+            );
+            expect(
+              captured.value.graceful.readFileSync(
+                path.join(root, 'input.json'),
+                'utf8',
+              ),
+            ).toContain('solid');
+          },
+        );
+        expect(observations(later.consumedSourceInputs, root)).toEqual(
+          expect.arrayContaining([
+            {
+              path: 'input.json',
+              canonicalPath: 'input.json',
+              operation: 'metadata',
+              existed: true,
+            },
+            {
+              path: 'input.json',
+              canonicalPath: 'input.json',
+              operation: 'content',
+              existed: true,
+            },
+          ]),
+        );
+        const forbiddenCopy = path.join(root, 'forbidden-copy.json');
+        await expect(
+          observeConfigSourceInputs(snapshot(root), async () => {
+            try {
+              await captured.value.fsExtra.copyFile(
+                path.join(root, 'input.json'),
+                forbiddenCopy,
+              );
+            } catch {
+              /* A retained wrapper cannot bypass the later observer. */
+            }
+          }),
+        ).rejects.toThrow('fs.copyFile');
+        expect(fs.existsSync(forbiddenCopy)).toBe(false);
+      });
+    }));
+
+  it('expires captured deployment callbacks after failure without changing callback errors', async () =>
+    fixture(async root => {
+      await coldDeploymentDependencies(async (_require, fsRequire) => {
+        let graceful: typeof fs | undefined;
+        const originalError = new Error('original configuration failure');
+        await expect(
+          observeConfigSourceInputs(snapshot(root), async () => {
+            graceful = fsRequire('graceful-fs');
+            throw originalError;
+          }),
+        ).rejects.toBe(originalError);
+        if (!graceful) throw new Error('Cold graceful-fs was not captured');
+        let callbacks = 0;
+        const copied = path.join(root, 'copied.json');
+        await new Promise<void>((resolve, reject) =>
+          graceful!.copyFile(path.join(root, 'input.json'), copied, error => {
+            callbacks++;
+            if (error) reject(error);
+            else resolve();
+          }),
+        );
+        expect(callbacks).toBe(1);
+        expect(fs.readFileSync(copied, 'utf8')).toContain('solid');
+        const missing = path.join(root, 'missing.json');
+        await expect(
+          promisify(graceful.copyFile)(missing, copied),
+        ).rejects.toMatchObject({
+          code: 'ENOENT',
+          syscall: 'copyfile',
+          path: missing,
+        });
+      });
+    }));
+
+  it('ignores arbitrary later builtin wrappers when expired calls resume', async () =>
+    fixture(async root => {
+      const original = fs.copyFile;
+      const captured = await observeConfigSourceInputs(
+        snapshot(root),
+        async () => fs.copyFile,
+      );
+      let externalCalls = 0;
+      fs.copyFile = (...args) => {
+        externalCalls++;
+        return captured.value(...args);
+      };
+      try {
+        await promisify(captured.value)(
+          path.join(root, 'input.json'),
+          path.join(root, 'copied.json'),
+        );
+        expect(externalCalls).toBe(0);
+        expect(
+          fs.readFileSync(path.join(root, 'copied.json'), 'utf8'),
+        ).toContain('solid');
+      } finally {
+        fs.copyFile = original;
+      }
+    }));
+
+  it('observes later external read wrappers without recursion or forbidden-operation bypass', async () =>
+    fixture(async root => {
+      const input = path.join(root, 'input.json');
+      const inner = path.join(root, 'inner.json');
+      const copy = path.join(root, 'forbidden-nested-copy.json');
+      fs.writeFileSync(inner, '{"renderer":"octane"}');
+      const baseline = snapshot(root);
+      const original = fs.readFileSync;
+      const captured = await observeConfigSourceInputs(baseline, async () => ({
+        readFileSync: fs.readFileSync,
+        copyFile: fsPromises.copyFile,
+      }));
+      let nestedCopy = false;
+      fs.readFileSync = function (...args) {
+        if (args[0] !== input)
+          return captured.value.readFileSync.apply(this, args);
+        if (nestedCopy) {
+          try {
+            void captured.value.copyFile(input, copy);
+          } catch {
+            /* A supported native read does not authorize copyFile. */
+          }
+        }
+        return captured.value.readFileSync.call(this, inner, 'utf8');
+      };
+      try {
+        const later = await observeConfigSourceInputs(baseline, async () =>
+          fs.readFileSync(input, 'utf8'),
+        );
+        expect(later.value).toContain('octane');
+        expect(observations(later.consumedSourceInputs, root)).toEqual([
+          {
+            path: 'inner.json',
+            canonicalPath: 'inner.json',
+            operation: 'content',
+            existed: true,
+          },
+          {
+            path: 'input.json',
+            canonicalPath: 'input.json',
+            operation: 'content',
+            existed: true,
+          },
+        ]);
+        await expect(
+          observeConfigSourceInputs(baseline, async () => {
+            nestedCopy = true;
+            return fs.readFileSync(input, 'utf8');
+          }),
+        ).rejects.toThrow('fs.promises.copyFile');
+        expect(fs.existsSync(copy)).toBe(false);
+      } finally {
+        fs.readFileSync = original;
+      }
+    }));
+
+  it.each([
+    'require',
+    'import',
+  ] as const)('routes retained source wrappers through the genuine public %s config-load phase', async format =>
+    fixture(async root => {
+      fs.writeFileSync(
+        path.join(root, 'package.json'),
+        JSON.stringify({ name: 'public-observation', private: true }),
+      );
+      const manifestFile = path.resolve(__dirname, '../../package.json');
+      const ownerRequire = createRequire(manifestFile);
+      const manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
+      const nativeImportFile = path.join(root, 'native-import.cjs');
+      fs.writeFileSync(
+        nativeImportFile,
+        'module.exports = url => import(url);\n',
+      );
+      const nativeImport = createRequire(path.join(root, 'config.cjs'))(
+        nativeImportFile,
+      );
+      // Read the actual published target, so this control uses the refreshed
+      // package formats rather than a second source-loader instance.
+      const namespace =
+        format === 'require'
+          ? ownerRequire('@modern-js/ultramodern-app-tools/native-config-load')
+          : await nativeImport(
+              pathToFileURL(
+                path.resolve(
+                  path.dirname(manifestFile),
+                  manifest.exports['./native-config-load'].node.import.default,
+                ),
+              ).href,
+            );
+      const captured = await observeConfigSourceInputs(
+        snapshot(root),
+        async () => ({
+          copyFile: fs.copyFile,
+          readFileSync: fs.readFileSync,
+          realpath: fs.realpathSync.native,
+        }),
+      );
+      const integration = namespace.createNativeConfigLoad();
+      const input = path.join(root, 'input.json');
+      const read = await integration.wrapConfigLoad(
+        async () => {
+          expect(captured.value.realpath(input)).toBe(input);
+          expect(captured.value.readFileSync(input, 'utf8')).toContain('solid');
+          return {
+            packageName: 'public-observation',
+            configFile: false,
+            config: {},
+          };
+        },
+        { appDirectory: root, configFile: false },
+      );
+      expect(read.packageName).toBe('public-observation');
+      const copy = path.join(root, 'forbidden-public-copy.json');
+      await expect(
+        integration.wrapConfigLoad(
+          async () => {
+            try {
+              await promisify(captured.value.copyFile)(input, copy);
+            } catch {
+              /* The public owner must retain sticky active denial. */
+            }
+            return {
+              packageName: 'public-observation',
+              configFile: false,
+              config: {},
+            };
+          },
+          { appDirectory: root, configFile: false },
+        ),
+      ).rejects.toThrow('fs.copyFile');
+      expect(fs.existsSync(copy)).toBe(false);
+    }));
+
+  it('preserves expired Worker construction and denies it during later observation', async () =>
+    fixture(async root => {
+      const captured = await observeConfigSourceInputs(
+        snapshot(root),
+        async () => workerThreads.Worker,
+      );
+      const worker = new captured.value(
+        'require("node:worker_threads").parentPort.postMessage(42)',
+        { eval: true },
+      );
+      const message = new Promise(resolve => worker.once('message', resolve));
+      const exit = new Promise(resolve => worker.once('exit', resolve));
+      expect(worker).toBeInstanceOf(workerThreads.Worker);
+      expect(await message).toBe(42);
+      expect(await exit).toBe(0);
+      await expect(
+        observeConfigSourceInputs(snapshot(root), async () => {
+          new captured.value('0', { eval: true });
+        }),
+      ).rejects.toThrow('worker_threads.Worker');
+    }));
+
   it('records the original native automatic package name without changing its cached value', async () =>
     fixture(async root => {
       const manifest = path.join(root, 'package.json');

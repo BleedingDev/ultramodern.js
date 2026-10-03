@@ -64,6 +64,21 @@ const apply = Reflect.apply;
 type RuntimeFunction = (this: unknown, ...args: unknown[]) => unknown;
 const supportedOperations = new AsyncLocalStorage<boolean>();
 let observing = false;
+let activeReplacements: Map<RuntimeFunction, RuntimeFunction> | undefined;
+// Both published module formats share builtins. The marker retains no original
+// functions and only reapplies this slot's policy during its native invocation.
+const observationLifetime = Symbol.for(
+  'ultramodern.config-observation.lifetime',
+);
+
+function hasActiveObservation(value: unknown): value is RuntimeFunction {
+  if (typeof value !== 'function') return false;
+  const lifetime = Object.getOwnPropertyDescriptor(
+    value,
+    observationLifetime,
+  )?.value;
+  return lifetime?.isActive() === true;
+}
 
 function inside(boundary: string, filename: string): boolean {
   const relative = path.relative(boundary, filename);
@@ -140,7 +155,11 @@ export async function observeConfigSourceInputs<T>(
 ): Promise<{ value: T; consumedSourceInputs: ObservedConfigSourceInputs }> {
   if (observing)
     throw new Error('Config source observation already has an owner');
+  if (hasActiveObservation(fs.readFileSync))
+    throw new Error('Config source observation already has an owner');
   observing = true;
+  const replacements = new Map<RuntimeFunction, RuntimeFunction>();
+  activeReplacements = replacements;
   const observations = new Map<string, ObservedConfigSourceInput>();
   const packageMetadata = new Map<string, ObservedPackageMetadataInput>();
   const packageDiscoveryReads = new AsyncLocalStorage<boolean>();
@@ -225,7 +244,7 @@ export async function observeConfigSourceInputs<T>(
     operation: ObservedConfigSourceOperation,
     existed: boolean,
   ) => {
-    if (supportedOperations.getStore()) return;
+    if (!metadataReadActive || supportedOperations.getStore()) return;
     const lexical = filename(input);
     if (!lexical)
       return unsupported(
@@ -456,13 +475,46 @@ export async function observeConfigSourceInputs<T>(
     target: object,
     name: string,
     replacement: (original: RuntimeFunction) => RuntimeFunction,
+    currentTarget: () => object = () => target,
   ) => {
     const descriptor = Object.getOwnPropertyDescriptor(target, name);
     if (!descriptor || typeof descriptor.value !== 'function') return;
-    const wrapped = replacement(descriptor.value);
+    const original: RuntimeFunction = descriptor.value;
+    const nativeInvocation = new AsyncLocalStorage<boolean>();
+    const observed = replacement(function (this: unknown, ...args: unknown[]) {
+      return nativeInvocation.run(true, () => apply(original, this, args));
+    });
+    // Libraries such as graceful-fs retain copies of these functions. Their
+    // lifetime may exceed this capture, but a later capture still owns policy.
+    const wrapped = function (this: unknown, ...args: unknown[]) {
+      let current = metadataReadActive
+        ? observed
+        : activeReplacements?.get(original);
+      if (!current) {
+        const live = Object.getOwnPropertyDescriptor(
+          currentTarget(),
+          name,
+        )?.value;
+        const lifetime =
+          live !== wrapped && hasActiveObservation(live)
+            ? Object.getOwnPropertyDescriptor(live, observationLifetime)?.value
+            : undefined;
+        // Re-entering the external wrapper would recurse. The current owner
+        // must still validate and observe the retained call's actual arguments.
+        if (lifetime?.isNativeInvocation())
+          return lifetime.applyNativePolicy(original, this, args);
+        current = lifetime ? live : original;
+      }
+      if (current === undefined) current = original;
+      return new.target
+        ? Reflect.construct(current, args, new.target)
+        : apply(current, this, args);
+    };
+    replacements.set(original, wrapped);
     const functionDescriptors = Object.getOwnPropertyDescriptors(
       descriptor.value,
     );
+    Reflect.deleteProperty(functionDescriptors, observationLifetime);
     if (target === fs && name === 'exists') {
       const custom = Object.getOwnPropertyDescriptor(
         descriptor.value,
@@ -477,6 +529,29 @@ export async function observeConfigSourceInputs<T>(
       }
     }
     Object.defineProperties(wrapped, functionDescriptors);
+    Object.defineProperty(wrapped, observationLifetime, {
+      value: Object.freeze({
+        isActive: () => metadataReadActive,
+        isNativeInvocation: () =>
+          nativeInvocation.getStore() === true &&
+          supportedOperations.getStore() === true,
+        applyNativePolicy: (
+          native: RuntimeFunction,
+          receiver: unknown,
+          args: unknown[],
+        ) => {
+          if (
+            !metadataReadActive ||
+            nativeInvocation.getStore() !== true ||
+            supportedOperations.getStore() !== true
+          )
+            return unsupported('unrelated native observation policy');
+          return supportedOperations.run(false, () =>
+            apply(replacement(native), receiver, args),
+          );
+        },
+      }),
+    });
     Object.defineProperty(target, name, { ...descriptor, value: wrapped });
     restores.push(() => {
       if (Object.getOwnPropertyDescriptor(target, name)?.value !== wrapped) {
@@ -724,6 +799,7 @@ export async function observeConfigSourceInputs<T>(
               original.apply(this, args),
             );
           },
+        () => fs[name],
       );
     }
     replace(
@@ -1084,6 +1160,8 @@ export async function observeConfigSourceInputs<T>(
     evaluationError = error;
   } finally {
     metadataReadActive = false;
+    replacements.clear();
+    activeReplacements = undefined;
     for (const restore of restores.reverse()) {
       try {
         restore();
