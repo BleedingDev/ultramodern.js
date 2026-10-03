@@ -1,4 +1,3 @@
-import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import cliKit from '../../lib/cli-kit.js';
@@ -201,23 +200,6 @@ export function appNamespace(app) {
   return app.kind === 'shell' ? 'shell' : (app.domain ?? app.id);
 }
 
-// Must stay in sync with packages/toolkit/ultramodern-create delivery-unit.ts
-// createBuildMarker, which seeds the hash with the delivery-unit generation
-// seed. Without this prefix the expected marker drifts from what generated apps
-// actually emit (data-build-marker), failing the browser-smoke SSR marker check.
-const DELIVERY_UNIT_GENERATION_SEED =
-  'ultramodern-delivery-unit-build-marker:v1';
-
-export function createBuildMarker(scope, app) {
-  return crypto
-    .createHash('sha256')
-    .update(
-      `${DELIVERY_UNIT_GENERATION_SEED}:${scope}:${app.packageSuffix}:${app.id}:0.1.0`,
-    )
-    .digest('hex')
-    .slice(0, 16);
-}
-
 export function createCloudflareRoutes(app) {
   return {
     ssr: '/en',
@@ -237,6 +219,26 @@ function createSmokeContractApp(config, app) {
     typeof config.workspace?.packageScope === 'string'
       ? config.workspace.packageScope
       : path.basename(process.cwd());
+  const deliveryUnit = app.deliveryUnit;
+  if (
+    !deliveryUnit ||
+    typeof deliveryUnit !== 'object' ||
+    Array.isArray(deliveryUnit) ||
+    typeof deliveryUnit.buildMarker !== 'string' ||
+    !deliveryUnit.buildMarker.trim()
+  )
+    throw new BrowserSmokeError(
+      `${app.id} requires a stamped deliveryUnit.buildMarker.`,
+    );
+  if (
+    (Object.hasOwn(deliveryUnit, 'appId') && deliveryUnit.appId !== app.id) ||
+    deliveryUnit.packageName !== app.package ||
+    deliveryUnit.version !== app.version ||
+    deliveryUnit.unitId !== `${packageScope}/${app.domain ?? app.id}`
+  )
+    throw new BrowserSmokeError(
+      `${app.id} stamped delivery-unit identity must match its topology and app manifest.`,
+    );
 
   return {
     id: app.id,
@@ -278,17 +280,13 @@ function createSmokeContractApp(config, app) {
         routes: app.deploy?.cloudflare?.routes ?? createCloudflareRoutes(app),
       },
     },
-    ...(app.deliveryUnit &&
-    typeof app.deliveryUnit === 'object' &&
-    !Array.isArray(app.deliveryUnit)
-      ? { deliveryUnit: { ...app.deliveryUnit } }
-      : {}),
+    deliveryUnit: { ...deliveryUnit },
     i18n: {
       namespace: appNamespace(app),
     },
     marker: {
       appId: app.id,
-      build: createBuildMarker(packageScope, app),
+      build: deliveryUnit.buildMarker,
     },
     moduleFederation: {
       ...app.moduleFederation,
