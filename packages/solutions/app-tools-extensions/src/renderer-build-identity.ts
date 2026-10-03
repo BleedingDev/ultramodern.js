@@ -256,6 +256,7 @@ async function readPackage(
   name: string;
   version: string;
   dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
   optionalDependencies?: Record<string, string>;
   peerDependencies?: Record<string, string>;
   peerDependenciesMeta?: Record<string, { optional?: boolean }>;
@@ -534,6 +535,66 @@ async function compilerClosure(
     nativeRoots.add(real);
   }
   const validatedPins = new Set<string>();
+  const peerAliasRequests = new Map<
+    string,
+    { owner: string; specification: string }[]
+  >();
+  for (const owner of new Set([
+    options.projectRoot,
+    ...frameworkDirectories.values(),
+    ...[...frameworkModuleDirectories.values()].flat(),
+    ...nativeDirectories.values(),
+  ])) {
+    const manifest = await guardedRead(lease, () => readPackage(owner, lease));
+    for (const [name, specification] of Object.entries({
+      ...(owner === options.projectRoot ? manifest.devDependencies : {}),
+      ...manifest.dependencies,
+      ...manifest.optionalDependencies,
+    })) {
+      if (!/^npm:/iu.test(specification)) continue;
+      const requests = peerAliasRequests.get(name) ?? [];
+      requests.push({ owner, specification });
+      peerAliasRequests.set(name, requests);
+    }
+  }
+  const peerIdentity = async (
+    name: string,
+    specification: string,
+    resolved: string,
+  ) => {
+    const actual = await guardedRead(lease, () => readPackage(resolved, lease));
+    if (actual.name === name) return dependencyIdentity(name, specification);
+    // Published peers retain their canonical import key. Only an exact alias
+    // declared by this selected cohort can certify its renamed physical owner.
+    const requests = peerAliasRequests.get(name) ?? [];
+    const identities = requests.map(request =>
+      dependencyIdentity(name, request.specification),
+    );
+    if (
+      identities.length === 0 ||
+      identities.some(identity => !identity.exactVersion) ||
+      new Set(
+        identities.map(identity => `${identity.name}@${identity.exactVersion}`),
+      ).size !== 1
+    )
+      throw new Error(
+        `Renderer compiler/profile mismatch: renamed peer ${name} requires one exact declared npm alias target.`,
+      );
+    const identity = identities[0];
+    if (semver.valid(specification) !== identity.exactVersion)
+      throw new Error(
+        `Renderer compiler/profile mismatch: peer ${name}@${specification} conflicts with declared ${identity.name}@${identity.exactVersion}.`,
+      );
+    const physical = await fs.realpath(resolved);
+    for (const request of requests) {
+      const provider = packageDirectory(name, [request.owner]);
+      if (provider && (await fs.realpath(provider)) === physical)
+        return identity;
+    }
+    throw new Error(
+      `Renderer compiler/profile mismatch: peer ${name} resolves a different physical owner from its declared npm alias.`,
+    );
+  };
   const visit = async (
     directory: string,
     expectedName?: string,
@@ -596,12 +657,11 @@ async function compilerClosure(
         ...Object.keys(manifest.peerDependencies ?? {}),
       ]);
       for (const name of [...dependencies].sort()) {
-        const dependency = dependencyIdentity(
-          name,
+        const specification =
           manifest.optionalDependencies?.[name] ??
-            manifest.dependencies?.[name] ??
-            manifest.peerDependencies![name],
-        );
+          manifest.dependencies?.[name] ??
+          manifest.peerDependencies![name];
+        let dependency = dependencyIdentity(name, specification);
         const resolved = packageDirectory(name, [real]);
         const optional =
           Object.hasOwn(manifest.optionalDependencies ?? {}, name) ||
@@ -612,6 +672,12 @@ async function compilerClosure(
             `Renderer compiler dependency ${name} cannot be resolved from ${manifest.name}. Install the admitted compiler tuple.`,
           );
         }
+        if (
+          !Object.hasOwn(manifest.optionalDependencies ?? {}, name) &&
+          !Object.hasOwn(manifest.dependencies ?? {}, name) &&
+          !/^npm:/iu.test(specification)
+        )
+          dependency = await peerIdentity(name, specification, resolved);
         const nativeClosure =
           nativeBranch || nativeAnchorNames.has(dependency.name);
         const pinnedVersion = nativeClosure ? pins[dependency.name] : undefined;
