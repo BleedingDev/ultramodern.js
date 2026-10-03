@@ -50,6 +50,7 @@ export {
 export { ultramodernReleaseEnvelopePlugin } from './release-envelope-plugin';
 export {
   type RendererBuildProfile,
+  resolveCandidateRendererProfile,
   resolveRendererProfile,
 } from './renderer-profile';
 export type { AppUserConfig, UltramodernAppUserConfig } from './types';

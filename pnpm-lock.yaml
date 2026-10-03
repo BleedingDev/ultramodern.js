@@ -3604,12 +3604,6 @@ importers:
       '@modern-js/renderer-core':
         specifier: workspace:*
         version: link:../../runtime/renderer-core
-      '@modern-js/renderer-octane':
-        specifier: workspace:*
-        version: link:../../runtime/renderer-octane
-      '@modern-js/renderer-solid':
-        specifier: workspace:*
-        version: link:../../runtime/renderer-solid
       '@modern-js/runtime':
         specifier: workspace:*
         version: link:../../runtime/plugin-runtime
@@ -3625,18 +3619,9 @@ importers:
       '@module-federation/modern-js-v3':
         specifier: npm:@bleedingdev/mf-modern-js-v3@2.9.1
         version: '@bleedingdev/mf-modern-js-v3@2.9.1(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.1)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.1)(@swc/helpers@0.5.23))(bufferutil@4.1.0)(react-dom@19.3.0(react@19.3.0))(react-router-dom@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-router@7.18.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(utf-8-validate@5.0.10)(webpack@5.111.1(@swc/core@1.16.2(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.0.5(postcss@8.5.28))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.28)(sharp@0.35.4(@types/node@26.6.2))(svgo@4.1.0)(uglify-js@3.19.3))'
-      '@octanejs/rspack-plugin':
-        specifier: 0.1.55
-        version: 0.1.55(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.1)(@swc/helpers@0.5.23))(octane@https://github.com/bleedingdev/octane/releases/download/octane%400.7.1%2Bultramodern.f75bf12ac8be/octane-0.7.1%2Bultramodern.f75bf12ac8be.tgz(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(vite@8.3.0(@types/node@26.6.2)(esbuild@0.28.2)(jiti@2.7.0(patch_hash=12a1f0bd5856038e6cb75913671dcf76a994dcb13ec6302fad507c35708afbe0))(less@4.9.1(supports-color@10.2.2))(sass-embedded@1.105.0)(sass@1.105.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)))
       '@rsbuild/plugin-tailwindcss':
         specifier: 2.0.3
         version: 2.0.3(@rsbuild/core@2.2.9(@module-federation/runtime-tools@2.9.1)(core-js@3.50.0))(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.1)(@swc/helpers@0.5.23))(webpack@5.111.1(@swc/core@1.16.2(@swc/helpers@0.5.23))(clean-css@5.3.3)(cssnano@9.0.5(postcss@8.5.28))(csso@5.0.5)(esbuild@0.28.2)(html-minifier-terser@7.2.0)(lightningcss@1.33.0)(postcss@8.5.28)(sharp@0.35.4(@types/node@26.6.2))(svgo@4.1.0)(uglify-js@3.19.3))
-      '@solidjs/babel-plugin':
-        specifier: 2.0.0-rc.13
-        version: 2.0.0-rc.13(@babel/core@7.29.7(supports-color@10.2.2))
-      '@solidjs/compiler':
-        specifier: 2.0.0-rc.13
-        version: 2.0.0-rc.13
       '@typescript/native':
         specifier: npm:typescript@7.0.2
         version: typescript@7.0.2
@@ -3649,9 +3634,6 @@ importers:
       miniflare:
         specifier: 5.20260921.0-alpha
         version: 5.20260921.0-alpha(@types/node@26.6.2)(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-      octane:
-        specifier: https://github.com/bleedingdev/octane/releases/download/octane%400.7.1%2Bultramodern.f75bf12ac8be/octane-0.7.1%2Bultramodern.f75bf12ac8be.tgz
-        version: https://github.com/bleedingdev/octane/releases/download/octane%400.7.1%2Bultramodern.f75bf12ac8be/octane-0.7.1%2Bultramodern.f75bf12ac8be.tgz(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(vite@8.3.0(@types/node@26.6.2)(esbuild@0.28.2)(jiti@2.7.0(patch_hash=12a1f0bd5856038e6cb75913671dcf76a994dcb13ec6302fad507c35708afbe0))(less@4.9.1(supports-color@10.2.2))(sass-embedded@1.105.0)(sass@1.105.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       oxfmt:
         specifier: 0.66.0
         version: 0.66.0
@@ -3680,15 +3662,30 @@ importers:
       '@modern-js/i18n-runtime-extensions':
         specifier: workspace:*
         version: link:../../runtime/i18n-extensions
+      '@modern-js/renderer-octane':
+        specifier: workspace:*
+        version: link:../../runtime/renderer-octane
+      '@modern-js/renderer-solid':
+        specifier: workspace:*
+        version: link:../../runtime/renderer-solid
       '@modern-js/rslib':
         specifier: workspace:*
         version: link:../../../scripts/rslib
+      '@octanejs/rspack-plugin':
+        specifier: 0.1.55
+        version: 0.1.55(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.1)(@swc/helpers@0.5.23))(octane@https://github.com/bleedingdev/octane/releases/download/octane%400.7.1%2Bultramodern.f75bf12ac8be/octane-0.7.1%2Bultramodern.f75bf12ac8be.tgz(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(vite@8.3.0(@types/node@26.6.2)(esbuild@0.28.2)(jiti@2.7.0(patch_hash=12a1f0bd5856038e6cb75913671dcf76a994dcb13ec6302fad507c35708afbe0))(less@4.9.1(supports-color@10.2.2))(sass-embedded@1.105.0)(sass@1.105.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)))
       '@rslib/core':
         specifier: 1.0.2
         version: 1.0.2(@module-federation/runtime-tools@2.9.1)(core-js@3.50.0)(typescript@7.0.2)
       '@scripts/rstest-config':
         specifier: workspace:*
         version: link:../../../scripts/rstest-config
+      '@solidjs/babel-plugin':
+        specifier: 2.0.0-rc.13
+        version: 2.0.0-rc.13(@babel/core@7.29.7(supports-color@10.2.2))
+      '@solidjs/compiler':
+        specifier: 2.0.0-rc.13
+        version: 2.0.0-rc.13
       '@types/node':
         specifier: ^26.6.2
         version: 26.6.2
@@ -3698,6 +3695,9 @@ importers:
       js-yaml:
         specifier: 5.4.2
         version: 5.4.2
+      octane:
+        specifier: https://github.com/bleedingdev/octane/releases/download/octane%400.7.1%2Bultramodern.f75bf12ac8be/octane-0.7.1%2Bultramodern.f75bf12ac8be.tgz
+        version: https://github.com/bleedingdev/octane/releases/download/octane%400.7.1%2Bultramodern.f75bf12ac8be/octane-0.7.1%2Bultramodern.f75bf12ac8be.tgz(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(vite@8.3.0(@types/node@26.6.2)(esbuild@0.28.2)(jiti@2.7.0(patch_hash=12a1f0bd5856038e6cb75913671dcf76a994dcb13ec6302fad507c35708afbe0))(less@4.9.1(supports-color@10.2.2))(sass-embedded@1.105.0)(sass@1.105.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/toolkit/ultramodern-sandpack-profile:
     devDependencies:
