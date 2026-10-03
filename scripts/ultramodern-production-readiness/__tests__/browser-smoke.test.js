@@ -6,17 +6,20 @@ const net = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
-const {
-  DELIVERY_UNIT_DEPLOY_PROFILE,
-  DELIVERY_UNIT_KIND,
-  DELIVERY_UNIT_SCHEMA_VERSION,
-  deliveryUnitContractBlock,
-} = createRequire(
+const generatorRequire = createRequire(
   path.resolve(
     __dirname,
     '../../../packages/toolkit/ultramodern-create/package.json',
   ),
-)('@modern-js/backend-federation-contracts');
+);
+const {
+  createUltramodernBuildArtifact,
+  DELIVERY_UNIT_DEPLOY_PROFILE,
+  DELIVERY_UNIT_KIND,
+  DELIVERY_UNIT_SCHEMA_VERSION,
+  deliveryUnitContractBlock,
+  stampUltramodernBuildArtifactIdentity,
+} = generatorRequire('@modern-js/backend-federation-contracts');
 
 async function loadSmoke() {
   return import('../run-browser-smoke.mjs');
@@ -30,8 +33,8 @@ function tempRoot() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'ultramodern-browser-smoke-'));
 }
 
-function stampedBlock(appId, version, buildMarker) {
-  return deliveryUnitContractBlock({
+function deliveryRecord(appId, version, buildMarker) {
+  return {
     appId,
     deployProfile: DELIVERY_UNIT_DEPLOY_PROFILE,
     kind: DELIVERY_UNIT_KIND,
@@ -41,7 +44,133 @@ function stampedBlock(appId, version, buildMarker) {
     sourceRevision: 'workspace',
     version,
     buildMarker,
+  };
+}
+
+function stampedBlock(appId, version, buildMarker) {
+  return deliveryUnitContractBlock(deliveryRecord(appId, version, buildMarker));
+}
+
+function writeJson(root, relative, value) {
+  const filename = path.join(root, relative);
+  fs.mkdirSync(path.dirname(filename), { recursive: true });
+  fs.writeFileSync(filename, JSON.stringify(value));
+}
+
+function writeBuiltApp(root, app, sourceRevision, buildMarker) {
+  const appRoot = path.join(root, app.path);
+  const sdkDirectory = path.resolve(
+    __dirname,
+    '../../../packages/solutions/ultramodern-app-tools',
+  );
+  const dependency = path.join(
+    appRoot,
+    'node_modules/@modern-js/ultramodern-app-tools',
+  );
+  fs.mkdirSync(path.dirname(dependency), { recursive: true });
+  if (!fs.existsSync(dependency))
+    fs.symlinkSync(sdkDirectory, dependency, 'dir');
+  const sdkEntry = createRequire(path.join(appRoot, 'package.json')).resolve(
+    '@modern-js/ultramodern-app-tools',
+  );
+  const ownerRequire = createRequire(sdkEntry);
+  const sdk = ownerRequire(sdkEntry);
+  const record = deliveryRecord(
+    app.id,
+    app.deliveryUnit.version,
+    app.deliveryUnit.buildMarker,
+  );
+  if (app.surfaceProfile === 'api-only') {
+    const source = createUltramodernBuildArtifact(record);
+    const { createUltramodernReleaseBuildMarker } = ownerRequire(
+      '@modern-js/app-tools-extensions/release-identity',
+    );
+    const finalized = stampUltramodernBuildArtifactIdentity(source, {
+      buildMarker: createUltramodernReleaseBuildMarker({
+        generationBuildMarker: record.buildMarker,
+        sourceRevision,
+        unitId: record.unitId,
+      }),
+      sourceRevision,
+    });
+    writeJson(appRoot, 'shared/ultramodern-build.json', source);
+    writeJson(appRoot, '.output/ultramodern-build.json', finalized);
+    return { appRoot, source, finalized, ownerRequire };
+  }
+  const profile = sdk.resolveRendererProfile(app.renderer);
+  const { renderer, protocolVersion, compiler, hydration, router } = profile;
+  const provider = {
+    framework: renderer === 'react' ? 'react-router' : renderer,
+    ...router,
+  };
+  const routerBindings = {
+    main: {
+      owner: `@fixture/${renderer}-router-owner`,
+      evidence: 'owned-default',
+      defaultProvider: provider,
+      providers: [provider],
+    },
+  };
+  const rendererIdentity = {
+    renderer,
+    protocolVersion,
+    appId: app.id,
+    entryName: 'main',
+    buildId: buildMarker,
+  };
+  const rendererProfile = {
+    renderer,
+    protocolVersion,
+    compiler,
+    hydration,
+    router,
+  };
+  const source = createUltramodernBuildArtifact(record, {
+    ui: {
+      identity: { ...rendererIdentity, buildId: record.buildMarker },
+      profile: rendererProfile,
+      routerBindings,
+    },
   });
+  // Finalized manifest fixture, not a claim that this unit test ran a compiler.
+  const manifest = sdk.validateRendererBuildManifest(
+    {
+      schema: 'ultramodern-renderer-build',
+      version: 1,
+      profile,
+      routerBindings,
+      buildMarker,
+      sourceRevision,
+      inputDigest: 'b'.repeat(64),
+      profileDigest: 'c'.repeat(64),
+      compilerDigest: 'd'.repeat(64),
+      frameworkCohortDigest: 'e'.repeat(64),
+      cacheAllowed: true,
+      promotable: true,
+      identities: { main: rendererIdentity },
+    },
+    profile,
+  );
+  const { stampFinalizedRendererBuildArtifact } = ownerRequire(
+    '@modern-js/app-tools-extensions/release-envelope/renderer-output-stamp',
+  );
+  const finalized = stampFinalizedRendererBuildArtifact(
+    source,
+    {
+      buildMarker,
+      sourceRevision,
+      ui: { rendererIdentity, rendererProfile, routerBindings },
+    },
+    {
+      appDirectory: appRoot,
+      distDirectory: path.join(appRoot, '.output'),
+      entrypoints: [{ entryName: 'main', isMainEntry: true }],
+    },
+  );
+  writeJson(appRoot, 'shared/ultramodern-build.json', source);
+  writeJson(appRoot, '.output/renderer-build.json', manifest);
+  writeJson(appRoot, '.output/ultramodern-build.json', finalized);
+  return { appRoot, source, finalized, manifest, ownerRequire };
 }
 
 function writeStampedShell(root, renderer, version, buildMarker) {
@@ -58,7 +187,14 @@ function writeStampedShell(root, renderer, version, buildMarker) {
   };
   for (const [relative, value] of [
     ['package.json', { name: '@fixture/root' }],
-    ['apps/shell/package.json', { name: '@fixture/shell', version }],
+    [
+      'apps/shell/package.json',
+      {
+        name: '@fixture/shell',
+        version,
+        devDependencies: { '@modern-js/ultramodern-app-tools': 'workspace:*' },
+      },
+    ],
     ['topology/reference-topology.json', topology],
     ['topology/local-overlays/development.json', { ports: { shell: 4100 } }],
   ]) {
@@ -81,12 +217,19 @@ for (const [renderer, stamps] of [
     );
     const root = tempRoot();
     t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-    const sourceRevision = 'a'.repeat(40);
     for (const [index, version] of ['0.2.0', '1.4.0'].entries()) {
+      const sourceRevision = (index === 0 ? 'a' : 'b').repeat(40);
       // This adapter consumes stamps; renderer/version hashing belongs to the
       // generator and must not be reconstructed by the smoke tool.
       const stamp = stamps[index];
-      writeStampedShell(root, renderer, version, stamp);
+      const topology = writeStampedShell(root, renderer, version, stamp);
+      const compiledMarker = (index === 0 ? 'f' : '1').repeat(64);
+      const { finalized } = writeBuiltApp(
+        root,
+        topology.shell,
+        sourceRevision,
+        compiledMarker,
+      );
       const { contract } = readSmokeContract(root);
       assert.equal(
         Object.hasOwn(contract.apps[0].deliveryUnit, 'appId'),
@@ -105,6 +248,11 @@ for (const [renderer, stamps] of [
       assert.equal(released.apps[0].deliveryUnit.buildMarker, stamp);
       assert.equal(released.apps[0].marker.releaseVersion, version);
       assert.equal(released.apps[0].marker.sourceRevision, sourceRevision);
+      assert.equal(
+        released.apps[0].marker.build,
+        finalized.deliveryUnit.buildMarker,
+      );
+      assert.equal(released.apps[0].marker.build, compiledMarker);
       assert.notEqual(released.apps[0].marker.build, stamp);
       assert.equal(contract.apps[0].marker.build, stamp);
       assert.throws(
@@ -125,6 +273,298 @@ for (const [renderer, stamps] of [
     }
   });
 }
+
+for (const [label, change, expected] of [
+  [
+    'foreign build marker',
+    built => {
+      built.manifest.buildMarker = '0'.repeat(64);
+      built.manifest.identities.main.buildId = built.manifest.buildMarker;
+    },
+    /executed build artifact conflicts/u,
+  ],
+  [
+    'foreign source revision',
+    built => {
+      built.manifest.sourceRevision = 'b'.repeat(40);
+    },
+    /finalized renderer provenance conflicts/u,
+  ],
+  [
+    'foreign installed profile',
+    built => {
+      built.manifest.profile.compiler.version = '999.0.0';
+    },
+    /manifest profile conflicts/u,
+  ],
+  [
+    'foreign router ownership',
+    built => {
+      built.manifest.routerBindings.main.owner = '@foreign/router-owner';
+    },
+    /captured application profile or router bindings/u,
+  ],
+  [
+    'foreign primary entry',
+    built => {
+      built.manifest.identities = {
+        other: { ...built.manifest.identities.main, entryName: 'other' },
+      };
+      built.manifest.routerBindings = {
+        other: built.manifest.routerBindings.main,
+      };
+    },
+    /no configured primary entry/u,
+  ],
+  [
+    'foreign app identity',
+    built => {
+      built.manifest.identities.main.appId = 'another-app';
+    },
+    /finalized renderer provenance conflicts/u,
+  ],
+  [
+    'extra entry',
+    built => {
+      built.manifest.identities.other = {
+        ...built.manifest.identities.main,
+        entryName: 'other',
+      };
+      built.manifest.routerBindings.other = structuredClone(
+        built.manifest.routerBindings.main,
+      );
+    },
+    /captured application profile or router bindings/u,
+  ],
+]) {
+  test(`browser smoke rejects finalized shell ${label}`, async t => {
+    const { readSmokeContract } = await import('../browser-smoke/contract.mjs');
+    const { bindContractToExpectedReleaseIdentities } = await import(
+      '../browser-smoke/runtime-evidence.mjs'
+    );
+    const root = tempRoot();
+    t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+    const topology = writeStampedShell(
+      root,
+      'react',
+      '0.2.0',
+      'shell-generation',
+    );
+    const built = writeBuiltApp(
+      root,
+      topology.shell,
+      'a'.repeat(40),
+      'f'.repeat(64),
+    );
+    built.manifest = structuredClone(built.manifest);
+    change(built);
+    writeJson(built.appRoot, '.output/renderer-build.json', built.manifest);
+    assert.throws(
+      () =>
+        bindContractToExpectedReleaseIdentities({
+          contract: readSmokeContract(root).contract,
+          expectedSourceRevisions: { shell: 'a'.repeat(40) },
+          platform: 'node',
+          projectDir: root,
+        }),
+      expected,
+    );
+  });
+}
+
+async function writeVerticalRelease(
+  root,
+  { apiOnly = false, marker, sourceRevision = 'a'.repeat(40) } = {},
+) {
+  const app = {
+    id: 'inventory',
+    kind: 'vertical',
+    path: 'verticals/inventory',
+    renderer: 'react',
+    ...(apiOnly ? { surfaceProfile: 'api-only' } : {}),
+    deliveryUnit: stampedBlock('inventory', '0.3.0', 'inventory-generation'),
+    marker: { appId: 'inventory', build: 'inventory-generation' },
+  };
+  writeJson(root, 'package.json', { name: '@fixture/root' });
+  writeJson(root, `${app.path}/package.json`, {
+    name: '@fixture/inventory',
+    version: '0.3.0',
+    dependencies: { '@module-federation/runtime': '2.9.1' },
+    devDependencies: { '@modern-js/ultramodern-app-tools': 'workspace:*' },
+  });
+  const built = writeBuiltApp(root, app, sourceRevision, 'f'.repeat(64));
+  const finalized = marker
+    ? stampUltramodernBuildArtifactIdentity(built.finalized, {
+        buildMarker: marker,
+        sourceRevision,
+      })
+    : built.finalized;
+  const outputRoot = path.join(built.appRoot, '.output');
+  writeJson(outputRoot, 'ultramodern-build.json', finalized);
+  writeJson(outputRoot, 'backend/mf-manifest.json', { pluginVersion: '2.9.1' });
+  for (const filename of [
+    'api.js',
+    'backend/remoteEntry.js',
+    ...(apiOnly ? [] : ['client.js', 'server.js']),
+  ]) {
+    fs.writeFileSync(path.join(outputRoot, filename), 'module.exports = {};');
+  }
+  if (!apiOnly)
+    writeJson(outputRoot, 'mf-manifest.json', { pluginVersion: '2.9.1' });
+  const { createMicroVerticalReleaseEnvelope } = built.ownerRequire(
+    '@modern-js/app-tools-extensions/release-envelope',
+  );
+  const ui = finalized.surfaces.ui;
+  const envelope = await createMicroVerticalReleaseEnvelope({
+    artifactRoot: outputRoot,
+    target: 'node',
+    identity: {
+      unitId: finalized.deliveryUnit.unitId,
+      buildMarker: finalized.deliveryUnit.buildMarker,
+      releaseVersion: finalized.deliveryUnit.version,
+      sourceRevision,
+    },
+    ...(ui
+      ? {
+          ui: {
+            rendererIdentity: ui.rendererIdentity,
+            rendererProfile: ui.rendererProfile,
+            routerBindings: ui.routerBindings,
+          },
+        }
+      : {}),
+    artifacts: [
+      {
+        logicalPath: 'ultramodern-build.json',
+        runtime: 'release-identity-metadata',
+      },
+      {
+        logicalPath: 'backend/mf-manifest.json',
+        runtime: 'module-federation-manifest',
+      },
+      { logicalPath: 'backend/remoteEntry.js', runtime: 'nodejs' },
+      { logicalPath: 'api.js', runtime: 'nodejs' },
+      ...(apiOnly
+        ? []
+        : [
+            { logicalPath: 'mf-manifest.json', runtime: 'browser' },
+            { logicalPath: 'client.js', runtime: 'browser' },
+            { logicalPath: 'server.js', runtime: 'nodejs' },
+          ]),
+    ],
+    surfaces: {
+      uiClient: apiOnly ? [] : ['client.js', 'mf-manifest.json'],
+      ssr: apiOnly ? [] : ['server.js'],
+      apiBackend: ['api.js'],
+      backendFederation: {
+        manifest: 'backend/mf-manifest.json',
+        container: 'backend/remoteEntry.js',
+      },
+    },
+  });
+  writeJson(
+    outputRoot,
+    'release/microvertical-release-envelope.json',
+    envelope,
+  );
+  return {
+    ...built,
+    app,
+    envelope,
+    outputRoot,
+    contract: { workspace: { packageScope: '@fixture/root' }, apps: [app] },
+  };
+}
+
+test('browser smoke requires the ordinary finalized renderer manifest instead of deriving a UI marker', async t => {
+  const { readSmokeContract } = await import('../browser-smoke/contract.mjs');
+  const { bindContractToExpectedReleaseIdentities } = await import(
+    '../browser-smoke/runtime-evidence.mjs'
+  );
+  const root = tempRoot();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const topology = writeStampedShell(
+    root,
+    'react',
+    '0.2.0',
+    'shell-generation',
+  );
+  const built = writeBuiltApp(
+    root,
+    topology.shell,
+    'a'.repeat(40),
+    'f'.repeat(64),
+  );
+  const manifest = path.join(built.appRoot, '.output/renderer-build.json');
+  const backup = path.join(built.appRoot, '.output/foreign.json');
+  fs.renameSync(manifest, backup);
+  const bind = () =>
+    bindContractToExpectedReleaseIdentities({
+      contract: readSmokeContract(root).contract,
+      expectedSourceRevisions: { shell: 'a'.repeat(40) },
+      platform: 'node',
+      projectDir: root,
+    });
+  assert.throws(bind, { code: 'ENOENT' });
+  fs.symlinkSync('foreign.json', manifest);
+  assert.throws(bind, /ordinary file and directory path/u);
+});
+
+for (const apiOnly of [false, true]) {
+  test(`browser smoke validates public ${apiOnly ? 'API-only' : 'renderer-bound'} release envelopes and their finalized marker`, async t => {
+    const { bindContractToExpectedReleaseIdentities } = await import(
+      '../browser-smoke/runtime-evidence.mjs'
+    );
+    const root = tempRoot();
+    t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+    const built = await writeVerticalRelease(root, { apiOnly });
+    const bind = () =>
+      bindContractToExpectedReleaseIdentities({
+        contract: built.contract,
+        expectedSourceRevisions: { inventory: 'a'.repeat(40) },
+        platform: 'node',
+        projectDir: root,
+      });
+    assert.equal(
+      bind().apps[0].marker.build,
+      built.finalized.deliveryUnit.buildMarker,
+    );
+    assert.equal(
+      built.finalized.deliveryUnit.buildMarker.length,
+      apiOnly ? 16 : 64,
+    );
+    // Public envelope factory recalculates digest and actual file SHA; the
+    // marker must still match the original source's finalized producer contract.
+    await writeVerticalRelease(root, { apiOnly, marker: '0'.repeat(64) });
+    assert.throws(
+      bind,
+      /release envelope build marker differs from its finalized build identity/u,
+    );
+  });
+}
+
+test('browser smoke still rejects deployed artifact bytes changed after envelope stamping', async t => {
+  const { bindContractToExpectedReleaseIdentities } = await import(
+    '../browser-smoke/runtime-evidence.mjs'
+  );
+  const root = tempRoot();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const built = await writeVerticalRelease(root);
+  fs.appendFileSync(
+    path.join(built.outputRoot, 'ultramodern-build.json'),
+    '\n',
+  );
+  assert.throws(
+    () =>
+      bindContractToExpectedReleaseIdentities({
+        contract: built.contract,
+        expectedSourceRevisions: { inventory: 'a'.repeat(40) },
+        platform: 'node',
+        projectDir: root,
+      }),
+    /release envelope artifact mismatch for ultramodern-build\.json/u,
+  );
+});
 
 test('browser smoke rejects absent stamps and inconsistent stamped app identities', async t => {
   const { readSmokeContract } = await import('../browser-smoke/contract.mjs');
