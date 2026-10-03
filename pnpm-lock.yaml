@@ -2254,18 +2254,12 @@ importers:
       '@modern-js/renderer-core':
         specifier: workspace:*
         version: link:../renderer-core
-      '@octanejs/tanstack-router':
-        specifier: https://github.com/bleedingdev/octane/releases/download/%40octanejs%2Ftanstack-router%400.1.60%2Bultramodern.6c31d4be4768/octanejs-tanstack-router-0.1.60%2Bultramodern.6c31d4be4768.tgz
-        version: https://github.com/bleedingdev/octane/releases/download/%40octanejs%2Ftanstack-router%400.1.60%2Bultramodern.6c31d4be4768/octanejs-tanstack-router-0.1.60%2Bultramodern.6c31d4be4768.tgz(octane@https://github.com/bleedingdev/octane/releases/download/octane%400.7.1%2Bultramodern.f75bf12ac8be/octane-0.7.1%2Bultramodern.f75bf12ac8be.tgz(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(vite@8.3.0(@types/node@26.6.2)(esbuild@0.28.2)(jiti@2.7.0(patch_hash=12a1f0bd5856038e6cb75913671dcf76a994dcb13ec6302fad507c35708afbe0))(less@4.9.1(supports-color@10.2.2))(sass-embedded@1.105.0)(sass@1.105.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)))
       '@volar/language-core':
         specifier: 2.4.28
         version: 2.4.28
       jsonc-parser:
         specifier: 3.3.1
         version: 3.3.1
-      octane:
-        specifier: https://github.com/bleedingdev/octane/releases/download/octane%400.7.1%2Bultramodern.f75bf12ac8be/octane-0.7.1%2Bultramodern.f75bf12ac8be.tgz
-        version: https://github.com/bleedingdev/octane/releases/download/octane%400.7.1%2Bultramodern.f75bf12ac8be/octane-0.7.1%2Bultramodern.f75bf12ac8be.tgz(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(vite@8.3.0(@types/node@26.6.2)(esbuild@0.28.2)(jiti@2.7.0(patch_hash=12a1f0bd5856038e6cb75913671dcf76a994dcb13ec6302fad507c35708afbe0))(less@4.9.1(supports-color@10.2.2))(sass-embedded@1.105.0)(sass@1.105.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       seroval:
         specifier: 1.6.8
         version: 1.6.8
@@ -2282,6 +2276,9 @@ importers:
       '@octanejs/rspack-plugin':
         specifier: 0.1.55
         version: 0.1.55(@rspack/core@2.2.7(@module-federation/runtime-tools@2.9.1)(@swc/helpers@0.5.23))(octane@https://github.com/bleedingdev/octane/releases/download/octane%400.7.1%2Bultramodern.f75bf12ac8be/octane-0.7.1%2Bultramodern.f75bf12ac8be.tgz(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(vite@8.3.0(@types/node@26.6.2)(esbuild@0.28.2)(jiti@2.7.0(patch_hash=12a1f0bd5856038e6cb75913671dcf76a994dcb13ec6302fad507c35708afbe0))(less@4.9.1(supports-color@10.2.2))(sass-embedded@1.105.0)(sass@1.105.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)))
+      '@octanejs/tanstack-router':
+        specifier: https://github.com/bleedingdev/octane/releases/download/%40octanejs%2Ftanstack-router%400.1.60%2Bultramodern.6c31d4be4768/octanejs-tanstack-router-0.1.60%2Bultramodern.6c31d4be4768.tgz
+        version: https://github.com/bleedingdev/octane/releases/download/%40octanejs%2Ftanstack-router%400.1.60%2Bultramodern.6c31d4be4768/octanejs-tanstack-router-0.1.60%2Bultramodern.6c31d4be4768.tgz(octane@https://github.com/bleedingdev/octane/releases/download/octane%400.7.1%2Bultramodern.f75bf12ac8be/octane-0.7.1%2Bultramodern.f75bf12ac8be.tgz(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(vite@8.3.0(@types/node@26.6.2)(esbuild@0.28.2)(jiti@2.7.0(patch_hash=12a1f0bd5856038e6cb75913671dcf76a994dcb13ec6302fad507c35708afbe0))(less@4.9.1(supports-color@10.2.2))(sass-embedded@1.105.0)(sass@1.105.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)))
       '@rslib/core':
         specifier: 1.0.2
         version: 1.0.2(@module-federation/runtime-tools@2.9.1)(core-js@3.50.0)(typescript@7.0.2)
@@ -2294,6 +2291,9 @@ importers:
       happy-dom:
         specifier: ^20.14.5
         version: 20.14.5(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      octane:
+        specifier: https://github.com/bleedingdev/octane/releases/download/octane%400.7.1%2Bultramodern.f75bf12ac8be/octane-0.7.1%2Bultramodern.f75bf12ac8be.tgz
+        version: https://github.com/bleedingdev/octane/releases/download/octane%400.7.1%2Bultramodern.f75bf12ac8be/octane-0.7.1%2Bultramodern.f75bf12ac8be.tgz(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(vite@8.3.0(@types/node@26.6.2)(esbuild@0.28.2)(jiti@2.7.0(patch_hash=12a1f0bd5856038e6cb75913671dcf76a994dcb13ec6302fad507c35708afbe0))(less@4.9.1(supports-color@10.2.2))(sass-embedded@1.105.0)(sass@1.105.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/runtime/renderer-solid:
     dependencies:
