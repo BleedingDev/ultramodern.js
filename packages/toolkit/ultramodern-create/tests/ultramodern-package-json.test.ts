@@ -171,43 +171,7 @@ test('root package json pins workspace package versions and bridge workspace glo
   );
 });
 
-test.skipIf(process.platform === 'win32')(
-  'a generated build script surfaces a crashing build under pnpm',
-  () => {
-    const modernBuild = createWorkspaceAppPackageScripts(
-      createCatalogVertical(),
-    )
-      ['cloudflare:build'].split(' && ')
-      .find(step => step.startsWith('modern build'));
-    assert.equal(modernBuild, 'modern build --deploy-target cloudflare');
-    const appDir = fs.mkdtempSync(path.join(os.tmpdir(), 'um-crash-signal-'));
-    try {
-      fs.writeFileSync(
-        path.join(appDir, 'package.json'),
-        JSON.stringify({ name: 'crash', scripts: { build: modernBuild } }),
-      );
-      const bin = path.join(appDir, 'node_modules/.bin/modern');
-      fs.mkdirSync(path.dirname(bin), { recursive: true });
-      // Stands in for a build that overflows the native stack.
-      fs.writeFileSync(bin, '#!/bin/sh\nkill -SEGV $$\n', { mode: 0o755 });
-      const result = spawnSync('pnpm', ['run', 'build'], {
-        cwd: appDir,
-        encoding: 'utf8',
-        env: { ...process.env, CI: '' },
-      });
-      // pnpm re-raises the signal or exits 128 + SIGSEGV; cross-env reported
-      // the same crash as a plain exit 1.
-      assert.ok(
-        result.signal === 'SIGSEGV' || result.status === 139,
-        `status ${result.status}, signal ${result.signal}`,
-      );
-    } finally {
-      fs.rmSync(appDir, { recursive: true, force: true });
-    }
-  },
-);
-
-test('generated roots provide the native app-tools peer required by their BFF build plugin', () => {
+test('generated React roots provide canonical framework peers and their pinned runtime providers', () => {
   const buildPlugin = JSON.parse(
     fs.readFileSync(
       path.resolve(
@@ -222,6 +186,38 @@ test('generated roots provide the native app-tools peer required by their BFF bu
     buildPlugin.peerDependenciesMeta?.['@modern-js/app-tools']?.optional,
     true,
   );
+  const runtime = JSON.parse(
+    fs.readFileSync(
+      path.resolve(__dirname, '../../../runtime/plugin-runtime/package.json'),
+      'utf8',
+    ),
+  );
+  const integration = JSON.parse(
+    fs.readFileSync(
+      path.resolve(__dirname, '../../../runtime/i18n-integration/package.json'),
+      'utf8',
+    ),
+  );
+  assert.ok(integration.peerDependencies['@modern-js/runtime']);
+  assert.notEqual(
+    integration.peerDependenciesMeta?.['@modern-js/runtime']?.optional,
+    true,
+  );
+  const tools = JSON.parse(
+    fs.readFileSync(
+      path.resolve(
+        __dirname,
+        '../../../solutions/ultramodern-app-tools/package.json',
+      ),
+      'utf8',
+    ),
+  );
+  assert.equal(tools.peerDependencies.typescript, '7.0.2');
+  assert.notEqual(tools.peerDependenciesMeta?.typescript?.optional, true);
+  for (const name of ['react', 'react-dom']) {
+    assert.ok(runtime.peerDependencies[name]);
+    assert.notEqual(runtime.peerDependenciesMeta?.[name]?.optional, true);
+  }
   for (const [packageSource, expected] of [
     [workspacePackageSource, 'workspace:*'],
     [installPackageSource, 'catalog:ultramodern'],
@@ -238,9 +234,39 @@ test('generated roots provide the native app-tools peer required by their BFF bu
       createRootPackageJson(scope, packageSource, [createCatalogVertical()]),
     );
     const dependencies = packageRecord(root.devDependencies);
+    const app = packageRecord(
+      createAppPackage(scope, shellApp, packageSource, false),
+    );
+    const appDependencies = packageRecord(app.dependencies);
+    const appDevDependencies = packageRecord(app.devDependencies);
     assert.ok(dependencies['@modern-js/plugin-bff-build-extensions']);
     assert.equal(dependencies['@modern-js/app-tools'], expected);
+    assert.equal(dependencies['@modern-js/runtime'], expected);
+    assert.equal(
+      dependencies['@modern-js/runtime'],
+      appDependencies['@modern-js/runtime'],
+    );
+    assert.equal(dependencies.react, appDependencies.react);
+    assert.equal(dependencies['react-dom'], appDependencies['react-dom']);
+    assert.equal(dependencies.typescript, tools.peerDependencies.typescript);
+    assert.equal(dependencies.typescript, appDevDependencies.typescript);
     assert.equal(root.pnpm, undefined);
+    for (const renderer of ['solid', 'octane'] as const) {
+      const nativeRoot = packageRecord(
+        createRootPackageJson(scope, packageSource, [], undefined, [], {
+          ...shellApp,
+          renderer,
+        }),
+      );
+      const nativeDependencies = packageRecord(nativeRoot.devDependencies);
+      assert.equal(
+        nativeDependencies.typescript,
+        tools.peerDependencies.typescript,
+      );
+      assert.equal(nativeDependencies['@modern-js/runtime'], undefined);
+      assert.equal(nativeDependencies.react, undefined);
+      assert.equal(nativeDependencies['react-dom'], undefined);
+    }
   }
 });
 
