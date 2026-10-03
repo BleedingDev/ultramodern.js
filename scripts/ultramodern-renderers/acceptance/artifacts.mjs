@@ -16,7 +16,7 @@ import { nativeDevelopmentLoaderImport } from './native-development-loader.mjs';
 const octaneTypeEvidencePath =
   'scripts/ultramodern-renderers/acceptance/evidence/octane-native-runtime-type-interop.json.txt';
 const octaneTypeEvidenceSha256 =
-  '2ba3502bc1d09a03d40af31bc6c09eedf6984781cb29c2df9788248bacb99cae';
+  '79e2eaa567552bffb96f656be0bf4c4eef7bd64d1b48316881e6967539495277';
 
 function readOctaneTypeEvidence() {
   const file = path.join(repoRoot, octaneTypeEvidencePath);

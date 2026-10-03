@@ -1745,7 +1745,7 @@ export interface FragmentProps {
 export declare const Fragment: (props: FragmentProps) => unknown;
 /** Activity keeps its runtime sentinel identity while accepting ordinary JSX props. */
 export declare const Activity: (props: {
-    mode?: "visible" | "hidden";
+    mode?: 'visible' | 'hidden';
     children?: unknown;
     name?: string;
     key?: string | number | bigint | null | undefined;

@@ -1,0 +1,49 @@
+import type { SignalRendererOwnerIdentity } from './types.js';
+export interface ServerSignalQueryAttempt {
+    readonly ownerKey: string;
+    readonly instanceKey: string;
+    readonly nodeKey: string;
+    readonly selectionKey: string;
+    readonly attempt: number;
+    readonly kind: 'promise' | 'stream';
+    readonly result: unknown;
+    readonly signal: AbortSignal;
+    readonly isCurrent: () => boolean;
+    /** Stop retaining and backpressuring this renderer observation. */
+    readonly release: () => void;
+}
+export type ServerSignalQueryAttemptObserver = (attempt: ServerSignalQueryAttempt) => void;
+export interface ServerSignalQueryAttemptObserverContext {
+    readonly owner: SignalRendererOwnerIdentity;
+    readonly observe: ServerSignalQueryAttemptObserver;
+    readonly createObservations: () => ServerSignalQueryAttemptObservations;
+}
+export interface ServerSignalQueryAttemptSource {
+    readonly nodeKey: string;
+    readonly selectionKey: string;
+    readonly attempt: number;
+    readonly kind: 'promise' | 'stream';
+    readonly result: unknown;
+    readonly isCurrent: () => boolean;
+}
+/** The shared request engine owns a lease, not the server's transport mirrors. */
+export interface ServerSignalQueryAttemptObservations {
+    observe(context: ServerSignalQueryAttemptObserverContext, source: ServerSignalQueryAttemptSource): void;
+    publish(value: unknown): Promise<void> | undefined;
+    complete(): void;
+    fail(error: unknown): void;
+    retire(): void;
+}
+/**
+ * Install a synchronous renderer observation context around authored server
+ * signal work. The context is restored before a returned promise can suspend,
+ * so concurrent requests cannot inherit one another's observer.
+ *
+ * @internal
+ */
+export declare function runWithServerSignalQueryAttemptObserver<T>(owner: SignalRendererOwnerIdentity, observe: ServerSignalQueryAttemptObserver, createObservations: () => ServerSignalQueryAttemptObservations, callback: () => T): T;
+/** @internal Keep the browser/query fast path allocation-free when no server observer matches. */
+export declare function serverSignalQueryAttemptObserver(scopeKey: string): ServerSignalQueryAttemptObserverContext | undefined;
+export declare function hasServerSignalQueryAttemptObserver(scopeKey: string): boolean;
+/** @internal Preserve observation across a pending query description, not an async context. */
+export declare function captureCurrentServerSignalQueryAttemptObserver(scopeKey: string): (<T>(callback: () => T) => T) | undefined;

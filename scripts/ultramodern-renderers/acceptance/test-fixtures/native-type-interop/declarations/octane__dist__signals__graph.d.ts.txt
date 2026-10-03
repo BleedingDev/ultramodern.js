@@ -115,7 +115,7 @@ export declare class ScopedNode<T = any> implements SignalHandle<T>, ReactiveNod
     [SIGNAL_BINDING_READ](): T;
     [SIGNAL_BINDING_SUBSCRIBE](notify: () => void, onRetire?: () => void): () => void;
     [SIGNAL_BINDING_IDENTITY](): {
-        scope: "instance";
+        scope: 'instance';
         nodeKey: string;
     };
     [NATIVE_DOM_VALUE](): T;
