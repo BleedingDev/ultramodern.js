@@ -4,7 +4,7 @@ export declare const BINDING_HANDOFF: unique symbol;
 /** Explicit, renderer-independent ownership of one standalone native control. */
 export declare const CONTROL_HANDOFF: unique symbol;
 /** @internal One claim registry for writable and readonly native control leases. */
-export declare const CONTROL_BINDINGS: WeakMap<Element, Set<"value" | "checked">>;
+export declare const CONTROL_BINDINGS: WeakMap<Element, Set<"checked" | "value">>;
 /** @internal Readonly projections also own the property, even without an input writer. */
 export declare function hasSignalControlBinding(control: Element, channel: 'value' | 'checked'): boolean;
 /** @internal A root may consume this capability only with its accepted presentation. */

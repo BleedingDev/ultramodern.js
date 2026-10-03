@@ -38,12 +38,12 @@ function frozenTypeInteropDeclarations() {
   if (!frozenDeclarations) {
     assert.equal(
       fileSha256(typeInteropEvidencePath),
-      '2ba3502bc1d09a03d40af31bc6c09eedf6984781cb29c2df9788248bacb99cae',
+      '79e2eaa567552bffb96f656be0bf4c4eef7bd64d1b48316881e6967539495277',
     );
     const corpusPath = path.join(declarationFixtureRoot, 'corpus.json');
     assert.equal(
       fileSha256(corpusPath),
-      'ba421e5caf0fdc99caa8290aee5fb91bd7ccabc6ad425c9876e4cfd6afc3d63b',
+      'a644834409832dec28cadfaf925193dab0a1de0d0896e945e162f4c1e877b6e9',
     );
     const corpus = JSON.parse(fs.readFileSync(corpusPath, 'utf8'));
     assert.equal(corpus.authoritySha256, fileSha256(typeInteropEvidencePath));
@@ -53,7 +53,7 @@ function frozenTypeInteropDeclarations() {
       corpus.nativeSource.archiveSha256,
       typeInteropEvidence.nativeSourcePackage.sha256,
     );
-    assert.equal(corpus.files.length, 55);
+    assert.equal(corpus.files.length, 91);
     // These exact published declarations exercise the scanner's type graph.
     // The corpus does not contain or qualify a native runtime implementation.
     frozenDeclarations = new Map();
@@ -263,7 +263,7 @@ test('Octane records exact native-authored JSX type interop without installing R
   );
   assert.equal(report.nativeTypeInterop.providerVersion, octaneVersion);
   assert.equal(report.nativeTypeInterop.incomingEdges.length, 4);
-  assert.equal(report.nativeTypeInterop.files.length, 6);
+  assert.equal(report.nativeTypeInterop.files.length, 5);
   assert.deepEqual(
     report.nativeTypeInterop.files
       .filter(file => file.owner === '@types/react')

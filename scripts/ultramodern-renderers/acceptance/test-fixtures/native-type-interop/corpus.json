@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
-  "purpose": "Exact published declaration bytes for scanner unit tests; not native runtime or compiler qualification.",
-  "authoritySha256": "2ba3502bc1d09a03d40af31bc6c09eedf6984781cb29c2df9788248bacb99cae",
+  "purpose": "Actual native TypeScript-tested declaration bytes for scanner unit tests; the corpus does not qualify a runtime.",
+  "authoritySha256": "79e2eaa567552bffb96f656be0bf4c4eef7bd64d1b48316881e6967539495277",
   "nativeSource": {
     "name": "octane",
-    "version": "0.7.1+ultramodern.aab0f1410f79",
-    "archiveSha256": "60f2e76673be5f1e4cbe6f0fa8b85bc12cac41475c17acd22e377f8fca2e8a7e",
-    "url": "https://github.com/bleedingdev/octane/releases/download/octane%400.7.1%2Bultramodern.aab0f1410f79/octane-0.7.1%2Bultramodern.aab0f1410f79.tgz"
+    "version": "0.7.1+ultramodern.f75bf12ac8be",
+    "archiveSha256": "485b62884e9e85621ad9d58347fed22dc66a628a9a7ec5f1c4cd5c7a86643137",
+    "url": "https://github.com/bleedingdev/octane/releases/download/octane%400.7.1%2Bultramodern.f75bf12ac8be/octane-0.7.1%2Bultramodern.f75bf12ac8be.tgz"
   },
   "reactTypes": {
     "name": "@types/react",
@@ -60,6 +60,12 @@
       "file": "declarations/octane__dist__css.d.ts.txt",
       "size": 1271,
       "sha256": "9b1573fcf9c069ae3cab81ac1715888472fa60a54897f4b1dc016d71e783db24"
+    },
+    {
+      "packagePath": "octane/dist/data-encoding.d.ts",
+      "file": "declarations/octane__dist__data-encoding.d.ts.txt",
+      "size": 593,
+      "sha256": "d4b407dbe3209da30172f9b8ea857f51455898da9dd33ff81e6b33cba7f524e9"
     },
     {
       "packagePath": "octane/dist/dom-binding-classes.d.ts",
@@ -128,10 +134,22 @@
       "sha256": "4f6212302c82ca161500f7d0d4707f8a20fc65a73a1e10f08b04ee8540e6a44d"
     },
     {
+      "packagePath": "octane/dist/hydration/condition.d.ts",
+      "file": "declarations/octane__dist__hydration__condition.d.ts.txt",
+      "size": 286,
+      "sha256": "99434ea8c3cd79f48eb86e0fe8f007b0edfbd9b86617b259e01c952ad321b739"
+    },
+    {
       "packagePath": "octane/dist/hydration/control-capture.d.ts",
       "file": "declarations/octane__dist__hydration__control-capture.d.ts.txt",
       "size": 3236,
       "sha256": "0e18e2edb06d345d5cdd19d2edb5afdb9abee2957ad57a6b64a98dd1bf902e0c"
+    },
+    {
+      "packagePath": "octane/dist/hydration/document-lifecycle.d.ts",
+      "file": "declarations/octane__dist__hydration__document-lifecycle.d.ts.txt",
+      "size": 1063,
+      "sha256": "9ea47317789892856652fd92b7a198d9d1994e2cb186d8dd66fa67a7acb953d0"
     },
     {
       "packagePath": "octane/dist/hydration/event-capture.d.ts",
@@ -140,22 +158,88 @@
       "sha256": "6db0de72050a426c26109f251e1b9bf3d242ac45de071e8067a8c0d7db0a00c5"
     },
     {
+      "packagePath": "octane/dist/hydration/idle.d.ts",
+      "file": "declarations/octane__dist__hydration__idle.d.ts.txt",
+      "size": 273,
+      "sha256": "81ee2c18a4e5197b611b2f4480e2fea0cc1e55447e985e74b10ae25c9d162b4f"
+    },
+    {
       "packagePath": "octane/dist/hydration/independent-island.d.ts",
       "file": "declarations/octane__dist__hydration__independent-island.d.ts.txt",
       "size": 2561,
       "sha256": "6d1ef89c9fa3a6e03ae08a53d54dc2b11ddc28efa7f36dd31abddb3bf14434b8"
     },
     {
+      "packagePath": "octane/dist/hydration/index.d.ts",
+      "file": "declarations/octane__dist__hydration__index.d.ts.txt",
+      "size": 2853,
+      "sha256": "8a661e927c238c67bb2ca11167f18adb5da51fb9c4cf6e161bd52b1a6be2d96a"
+    },
+    {
       "packagePath": "octane/dist/hydration/interaction-config.d.ts",
       "file": "declarations/octane__dist__hydration__interaction-config.d.ts.txt",
       "size": 997,
-      "sha256": "738e2ceb9ddcfb1ac2dd6f5c76df2937b9504e013c7408299c8c5f14a42b9140"
+      "sha256": "6b2ae9a41271badaa534463473d96545bbf64733685b8cf8366aee76700dfa00"
+    },
+    {
+      "packagePath": "octane/dist/hydration/interaction.d.ts",
+      "file": "declarations/octane__dist__hydration__interaction.d.ts.txt",
+      "size": 362,
+      "sha256": "70b81d81f7eb1c9f41af6befa504599df77a25fa99f918f0e80b1f3bf5393265"
+    },
+    {
+      "packagePath": "octane/dist/hydration/load.d.ts",
+      "file": "declarations/octane__dist__hydration__load.d.ts.txt",
+      "size": 181,
+      "sha256": "2a0e478742f1a6f5487ad0d53729422de09db0b06ea7df9c8552edc667b51edf"
+    },
+    {
+      "packagePath": "octane/dist/hydration/media.d.ts",
+      "file": "declarations/octane__dist__hydration__media.d.ts.txt",
+      "size": 198,
+      "sha256": "efcfb9dbf042b5b6d740379953d3a1bce133600a5f173059364dc3529145101e"
+    },
+    {
+      "packagePath": "octane/dist/hydration/never.d.ts",
+      "file": "declarations/octane__dist__hydration__never.d.ts.txt",
+      "size": 176,
+      "sha256": "335d4a37e37fc0a65b06aeda924d6ccf68929e6f9f3777e4a6fbbcfdb7ee0447"
+    },
+    {
+      "packagePath": "octane/dist/hydration/stream-delivery.d.ts",
+      "file": "declarations/octane__dist__hydration__stream-delivery.d.ts.txt",
+      "size": 1766,
+      "sha256": "effd1ec3d48aca3ed2698be7dba8726e906bfd7b3eb46ae9eac372fb0626404a"
+    },
+    {
+      "packagePath": "octane/dist/hydration/stream-receiver.d.ts",
+      "file": "declarations/octane__dist__hydration__stream-receiver.d.ts.txt",
+      "size": 1742,
+      "sha256": "80308158ff7f020f94888b14fe5faec132bbe3a3ac909f300ae5edf379e1f65f"
+    },
+    {
+      "packagePath": "octane/dist/hydration/stream-result-receiver.d.ts",
+      "file": "declarations/octane__dist__hydration__stream-result-receiver.d.ts.txt",
+      "size": 3658,
+      "sha256": "cd5119cfba1998e976d94f12323a74b97240db6f297510936391bfdea59f29d1"
+    },
+    {
+      "packagePath": "octane/dist/hydration/streamed-signals.d.ts",
+      "file": "declarations/octane__dist__hydration__streamed-signals.d.ts.txt",
+      "size": 2522,
+      "sha256": "e9c643ad033bc20cc92548df5a001d6b5f56bd83dbb4c8db5a441b6382cd1522"
     },
     {
       "packagePath": "octane/dist/hydration/types.d.ts",
       "file": "declarations/octane__dist__hydration__types.d.ts.txt",
       "size": 3924,
       "sha256": "59ee7942013a30ba036d5e0ef41d86b2c88075bfdc0226e64701a62a341b1ad6"
+    },
+    {
+      "packagePath": "octane/dist/hydration/visible.d.ts",
+      "file": "declarations/octane__dist__hydration__visible.d.ts.txt",
+      "size": 334,
+      "sha256": "99b9c8ff927c1ad968e3ecb15a6c533d66691cfaf979012369b534051dc981e2"
     },
     {
       "packagePath": "octane/dist/independent-hydration-protocol.d.ts",
@@ -170,10 +254,10 @@
       "sha256": "a98629106809e3b2e5e136dd60b2021fda124e7085b1b025027575681d29f78c"
     },
     {
-      "packagePath": "octane/dist/jsx-runtime-strong.d.ts",
-      "file": "declarations/octane__dist__jsx-runtime-strong.d.ts.txt",
-      "size": 1180,
-      "sha256": "4f78bcf211275640e3c6c3f10ebac3fbb9830e9ab546291561da3f36a960e98d"
+      "packagePath": "octane/dist/internal/signal-read.d.ts",
+      "file": "declarations/octane__dist__internal__signal-read.d.ts.txt",
+      "size": 66,
+      "sha256": "4bd30e6ebbeafedf1c242af30ae0575254572fb0fa965f4d12e41658d9b8c81b"
     },
     {
       "packagePath": "octane/dist/jsx-runtime.d.ts",
@@ -209,7 +293,13 @@
       "packagePath": "octane/dist/runtime.d.ts",
       "file": "declarations/octane__dist__runtime.d.ts.txt",
       "size": 154457,
-      "sha256": "ae57d7fcf8ca618555715c2894b1934549ae48b5fefe2d83ba9a6630a21bc684"
+      "sha256": "613bfe42d4fecb13887187fb0a96c7b3d9e8dfd8016ab0193e2f4ffad70fe9fc"
+    },
+    {
+      "packagePath": "octane/dist/runtime.server.d.ts",
+      "file": "declarations/octane__dist__runtime.server.d.ts.txt",
+      "size": 63423,
+      "sha256": "b9948c822e80d690e378dc634c0f49096a3549bf52c3eddfab5e6e14774e825f"
     },
     {
       "packagePath": "octane/dist/server-call.d.ts",
@@ -236,6 +326,48 @@
       "sha256": "7bb058f4ca95fd7c81a14d6c2e6157d1fdda0641c09711d30e93497a459c95e4"
     },
     {
+      "packagePath": "octane/dist/server/early-signals.d.ts",
+      "file": "declarations/octane__dist__server__early-signals.d.ts.txt",
+      "size": 967,
+      "sha256": "cf1d81c4dc1ff20d4659c866d45c2ca95d5f073028a66cce19ea7c1d8dfe3e31"
+    },
+    {
+      "packagePath": "octane/dist/server/index.d.ts",
+      "file": "declarations/octane__dist__server__index.d.ts.txt",
+      "size": 5362,
+      "sha256": "77b77f59b2952e5ad5fedb7f32e42b527e7bca0c6c816a517e72f739f64e17c9"
+    },
+    {
+      "packagePath": "octane/dist/server/rpc-batch.d.ts",
+      "file": "declarations/octane__dist__server__rpc-batch.d.ts.txt",
+      "size": 939,
+      "sha256": "c17645bb90c4e47b083478963d6d9233046efba0645c7a7fb4db20823c7c3fdc"
+    },
+    {
+      "packagePath": "octane/dist/server/rpc.d.ts",
+      "file": "declarations/octane__dist__server__rpc.d.ts.txt",
+      "size": 1009,
+      "sha256": "efd0d47b22facaff7fbc4d72af2d28457a487797ff828bb0a80440965c421816"
+    },
+    {
+      "packagePath": "octane/dist/server/streamed-region.d.ts",
+      "file": "declarations/octane__dist__server__streamed-region.d.ts.txt",
+      "size": 1104,
+      "sha256": "9df5a15b471fa64732569a736954a4dd210df399f73563ce96bd4bffc0080f1b"
+    },
+    {
+      "packagePath": "octane/dist/server/streamed-signals.d.ts",
+      "file": "declarations/octane__dist__server__streamed-signals.d.ts.txt",
+      "size": 2775,
+      "sha256": "e058bc3b0e5e4477be2bf09c06ffbd052783478cca4da1765e8276ffe7f1e70b"
+    },
+    {
+      "packagePath": "octane/dist/signals/actions.d.ts",
+      "file": "declarations/octane__dist__signals__actions.d.ts.txt",
+      "size": 869,
+      "sha256": "3de568b94bdd25cba8cfc7be43a5f40c0013b0d0cc158a9ad26ee37c037e8a7f"
+    },
+    {
       "packagePath": "octane/dist/signals/control-binding.d.ts",
       "file": "declarations/octane__dist__signals__control-binding.d.ts.txt",
       "size": 1794,
@@ -245,7 +377,13 @@
       "packagePath": "octane/dist/signals/control-handoff.d.ts",
       "file": "declarations/octane__dist__signals__control-handoff.d.ts.txt",
       "size": 1394,
-      "sha256": "61e0865cf4031ec6c0f86e735caf370b6efe55ce205fb697831587de5bf63b77"
+      "sha256": "4617b3c8abfb3e45eab2c6b9b8fc30686a162be3a167ea588801a90d66335ec3"
+    },
+    {
+      "packagePath": "octane/dist/signals/derived-facade.d.ts",
+      "file": "declarations/octane__dist__signals__derived-facade.d.ts.txt",
+      "size": 375,
+      "sha256": "2938c3004dd0161e121a6dd908aba777e72b3e54524dd170eb1dfedaf6eb9b5d"
     },
     {
       "packagePath": "octane/dist/signals/document-owner.d.ts",
@@ -254,10 +392,40 @@
       "sha256": "504ec746edcc5c13141cccd70abe28a0334f98fa0f3333f2a04233cf1f8dc8e9"
     },
     {
+      "packagePath": "octane/dist/signals/engine.d.ts",
+      "file": "declarations/octane__dist__signals__engine.d.ts.txt",
+      "size": 6584,
+      "sha256": "01fba4e60462c2083d28fd5835b44a4fa49a93ca946091c56d8b54b10a25e9ca"
+    },
+    {
+      "packagePath": "octane/dist/signals/errors.d.ts",
+      "file": "declarations/octane__dist__signals__errors.d.ts.txt",
+      "size": 642,
+      "sha256": "a4fe068845ee5bb5e4dee433eb3afb7ea202ad4bd0626de0bf5a3a19e686202c"
+    },
+    {
+      "packagePath": "octane/dist/signals/facade.d.ts",
+      "file": "declarations/octane__dist__signals__facade.d.ts.txt",
+      "size": 5075,
+      "sha256": "d591cd6114bf7b7cb8066e2772d5fa2c6a90bebfc6dabfee6b18672e426ac745"
+    },
+    {
       "packagePath": "octane/dist/signals/graph.d.ts",
       "file": "declarations/octane__dist__signals__graph.d.ts.txt",
       "size": 7928,
-      "sha256": "f54cd544ba471c58d6bc180231014ca54d045407a4e433a56b54d67f90171b6d"
+      "sha256": "dac3e2e1c9032c83f854febc3111a57f10a0055363d5093adfb9bf59ccc52d40"
+    },
+    {
+      "packagePath": "octane/dist/signals/handle-protocol.d.ts",
+      "file": "declarations/octane__dist__signals__handle-protocol.d.ts.txt",
+      "size": 334,
+      "sha256": "9828a9e4f6eda6ab7f5822c8af6c2d815f76ba5e964d359d14a036c5a3829c27"
+    },
+    {
+      "packagePath": "octane/dist/signals/index.d.ts",
+      "file": "declarations/octane__dist__signals__index.d.ts.txt",
+      "size": 1921,
+      "sha256": "e5bf0c0f9d6d047d4bd61b22a25bc9ddf9d8c1edfc3255c8f69c8da00b880fbf"
     },
     {
       "packagePath": "octane/dist/signals/native-read-collector.d.ts",
@@ -284,10 +452,40 @@
       "sha256": "cda7390097117f5a72880386bc9ad0db4165fa0baa8aed377d76fd22a02e9531"
     },
     {
+      "packagePath": "octane/dist/signals/owner-context.d.ts",
+      "file": "declarations/octane__dist__signals__owner-context.d.ts.txt",
+      "size": 1891,
+      "sha256": "f4118f84ab65b4a5386872dba82e1991acc2545f1061dc3e6a15241be858f21d"
+    },
+    {
+      "packagePath": "octane/dist/signals/query-attempt-observer.d.ts",
+      "file": "declarations/octane__dist__signals__query-attempt-observer.d.ts.txt",
+      "size": 2514,
+      "sha256": "6f687799a9ca25cc4b3ecfd6cc5c872e49b9f4166578777022b4e0fa68be1482"
+    },
+    {
+      "packagePath": "octane/dist/signals/query-facade.d.ts",
+      "file": "declarations/octane__dist__signals__query-facade.d.ts.txt",
+      "size": 552,
+      "sha256": "0c5719cab34b04d1957af62cfbe8aac696a4bc3f47ddfec07252eb90d73afad2"
+    },
+    {
       "packagePath": "octane/dist/signals/read-protocol.d.ts",
       "file": "declarations/octane__dist__signals__read-protocol.d.ts.txt",
       "size": 6599,
       "sha256": "3c23d90f6198da49354fd4da7383855b129d3cb05b6d3280ac24d95d5233407c"
+    },
+    {
+      "packagePath": "octane/dist/signals/requests.d.ts",
+      "file": "declarations/octane__dist__signals__requests.d.ts.txt",
+      "size": 5078,
+      "sha256": "3d963c1ab075a0872cd3244c9b6cb5ef4da91782b3f0a373b0f91c10a563b6be"
+    },
+    {
+      "packagePath": "octane/dist/signals/scope-streams.d.ts",
+      "file": "declarations/octane__dist__signals__scope-streams.d.ts.txt",
+      "size": 1966,
+      "sha256": "38719fe4bde1ee78349543534e13e758efeccff04dd7f3ca8ef43f2882bb7131"
     },
     {
       "packagePath": "octane/dist/signals/transition-action.d.ts",
@@ -320,10 +518,22 @@
       "sha256": "5b047cdf1a2c4b14512a81230ce9dc66c9be15c9d21cb168da23a3e1f92be61e"
     },
     {
+      "packagePath": "octane/dist/static/index.d.ts",
+      "file": "declarations/octane__dist__static__index.d.ts.txt",
+      "size": 1284,
+      "sha256": "b0b52ab0e87cf0d7c5690e8650eef75ab497c5a75286677d4887c7fc3450c966"
+    },
+    {
       "packagePath": "octane/dist/stream-protocol.d.ts",
       "file": "declarations/octane__dist__stream-protocol.d.ts.txt",
       "size": 1770,
       "sha256": "230c7e2b9912ae3803c854857e8c9d0a081fe10e768fb66076ba56cb2c79da34"
+    },
+    {
+      "packagePath": "octane/dist/streamed-signals-protocol.d.ts",
+      "file": "declarations/octane__dist__streamed-signals-protocol.d.ts.txt",
+      "size": 2812,
+      "sha256": "33c5a8fe334b93623b68de1bad7501ec130ee43733c428de8c537573974347c0"
     },
     {
       "packagePath": "octane/dist/sub-slot.d.ts",
@@ -336,6 +546,12 @@
       "file": "declarations/octane__dist__trusted-html.d.ts.txt",
       "size": 696,
       "sha256": "462006d9d8a5e0fe6108478bc33bfd3d01288ec4e6aa2cf8dba1a2533f402a2d"
+    },
+    {
+      "packagePath": "octane/dist/tsrx-spread.d.ts",
+      "file": "declarations/octane__dist__tsrx-spread.d.ts.txt",
+      "size": 974,
+      "sha256": "cfd70dda4337d65f06d813912df8c9b27d3d32316638aa2d87c0f657e18a8c23"
     },
     {
       "packagePath": "octane/dist/version.d.ts",
