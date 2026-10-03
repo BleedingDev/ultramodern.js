@@ -50,6 +50,18 @@ function contains(directory: string, file: string): boolean {
   );
 }
 
+/** Commands whose native builder hooks require the original config capture. */
+export function isNativeConfigLoadCommand(
+  command: string | undefined,
+): boolean {
+  return (
+    command !== undefined &&
+    ['dev', 'start', 'build', 'inspect', 'deploy', 'dev-worker'].includes(
+      command,
+    )
+  );
+}
+
 /** Opt in before config evaluation through the application's declared provider. */
 export async function resolveNativeConfigLoadProvider({
   appDirectory,
@@ -58,7 +70,7 @@ export async function resolveNativeConfigLoadProvider({
   appDirectory: string;
   command: string;
 }): Promise<NativeConfigLoadIntegration | undefined> {
-  if (command !== 'dev' && command !== 'build') return undefined;
+  if (!isNativeConfigLoadCommand(command)) return undefined;
   if (!path.isAbsolute(appDirectory)) {
     throw new Error(
       'Native config provider requires the resolved app directory',

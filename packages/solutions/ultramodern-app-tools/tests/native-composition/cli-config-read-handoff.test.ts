@@ -25,6 +25,7 @@ import {
   type ObservedConfigSourceInputs,
 } from '../../src/native-composition/configuration-read-context';
 import { createNativeConfigLoad } from '../../src/native-composition/native-config-load';
+import { reactWorkspaceCatalogInputs } from '../../src/native-composition/react-authored-inputs';
 
 describe('native CLI configuration read handoff', () => {
   it('captures the original native monorepo load and guards shared inputs during user setup', async () => {
@@ -459,6 +460,33 @@ module.exports = async context => {
       callbackCommand: 'inspect',
       local: false,
     },
+    { command: 'start', env: undefined, callbackCommand: 'start', local: true },
+    {
+      command: 'dev-worker',
+      env: undefined,
+      callbackCommand: 'dev-worker',
+      local: false,
+    },
+    {
+      command: 'deploy',
+      env: undefined,
+      callbackCommand: 'deploy',
+      local: false,
+      skipBuild: false,
+    },
+    {
+      command: 'deploy',
+      env: undefined,
+      callbackCommand: 'deploy',
+      local: false,
+      skipBuild: true,
+    },
+    {
+      command: 'serve',
+      env: undefined,
+      callbackCommand: 'serve',
+      local: false,
+    },
   ] as const)('evaluates $command once with callback command $callbackCommand and env $env', async scenario => {
     const root = fs.realpathSync(
       fs.mkdtempSync(
@@ -470,6 +498,7 @@ module.exports = async context => {
     const configFile = path.join(root, 'selected.config.js');
     const localFile = path.join(root, 'selected.config.local.js');
     const inputFile = path.join(root, 'config-data.json');
+    const workspaceFile = path.join(root, 'pnpm-workspace.yaml');
     const linkedFile = path.join(root, 'linked-config-data.json');
     const missingFile = path.join(root, 'missing-config-data.json');
     const helperFile = path.join(root, 'config-helper.cjs');
@@ -500,15 +529,19 @@ module.exports = async context => {
     const lifecycle: string[] = [];
     const hookBuses: object[] = [];
     const handedInputs: (ObservedConfigSourceInputs | undefined)[] = [];
+    const handedSnapshots: ReturnType<typeof getConfigurationSourceSnapshot>[] =
+      [];
     let dispose: (() => Promise<unknown>) | undefined;
     let actions = 0;
     let moduleLoads = 0;
     const expectedEnv =
       scenario.env ??
-      (scenario.command === 'build' ? 'production' : 'development');
+      (['build', 'deploy', 'serve'].includes(scenario.command)
+        ? 'production'
+        : 'development');
     const mutateContext = 'mutateContext' in scenario && scenario.mutateContext;
-    const hasCapture =
-      scenario.command === 'dev' || scenario.command === 'build';
+    const hasCapture = scenario.command !== 'serve';
+    const skipBuild = 'skipBuild' in scenario && scenario.skipBuild;
     const observe = (
       api: Parameters<NonNullable<CliPlugin<AppTools>['setup']>>[0],
     ) => {
@@ -516,6 +549,16 @@ module.exports = async context => {
       expect(api.getAppContext().command).toBe(scenario.command);
       hookBuses.push(api.getHooks());
       handedInputs.push(getConfigurationSourceInputs(api));
+      const snapshot = getConfigurationSourceSnapshot(api);
+      handedSnapshots.push(snapshot);
+      if (hasCapture) {
+        expect(snapshot).toBeDefined();
+        // Deploy prepares its builder before parsing --skip-build. Catalog
+        // authority must come from the original load, including that path.
+        expect(reactWorkspaceCatalogInputs(root, snapshot)).toContain(
+          workspaceFile,
+        );
+      } else expect(snapshot).toBeUndefined();
     };
     const consumer: CliPlugin<AppTools> = {
       name: 'native-cli-config-read-consumer',
@@ -535,10 +578,12 @@ module.exports = async context => {
           commandProgram
             .command(scenario.command)
             .option('-c, --config <file>')
-            .action(() => {
+            .option('-s, --skip-build')
+            .action(options => {
               lifecycle.push('action');
               actions++;
               observe(api);
+              expect(Boolean(options.skipBuild)).toBe(skipBuild);
             });
         });
       },
@@ -593,6 +638,7 @@ module.exports = async context => {
       `${envKey}=loaded-before-callback\n`,
     );
     fs.writeFileSync(inputFile, '{"value":42}');
+    fs.writeFileSync(workspaceFile, 'packages:\n  - apps/*\n');
     fs.symlinkSync('config-data.json', linkedFile);
     fs.writeFileSync(
       helperFile,
@@ -619,8 +665,10 @@ module.exports = async context => {
         process.execPath,
         'ultramodern',
         scenario.command,
-        '-c',
-        configFile,
+        // The internal dev-worker command selects config through RunOptions,
+        // whereas the public commands also support the -c CLI flag.
+        ...(scenario.command === 'dev-worker' ? [] : ['-c', configFile]),
+        ...(skipBuild ? ['--skip-build'] : []),
       ];
       if (scenario.env === undefined) delete process.env.NODE_ENV;
       else process.env.NODE_ENV = scenario.env;
@@ -628,7 +676,11 @@ module.exports = async context => {
         delete process.env.MODERN_ARGV;
       else process.env.MODERN_ARGV = `node host ${scenario.callbackCommand}`;
       delete process.env[envKey];
-      await run({ cwd: root, version: '0.0.0-native-cli-read-proof' });
+      await run({
+        cwd: root,
+        version: '0.0.0-native-cli-read-proof',
+        ...(scenario.command === 'dev-worker' ? { configFile } : {}),
+      });
       expect(process.env.NODE_ENV).toBe(
         mutateContext ? 'development' : expectedEnv,
       );
@@ -659,6 +711,8 @@ module.exports = async context => {
       expect(hookBuses).toHaveLength(4);
       expect(hookBuses.every(hooks => hooks === hookBuses[0])).toBe(true);
       if (hasCapture) {
+        const snapshot = handedSnapshots[0]!;
+        expect(handedSnapshots.every(value => value === snapshot)).toBe(true);
         const inputs = handedInputs[0]!;
         expect(inputs).toBeDefined();
         expect(handedInputs.every(value => value === inputs)).toBe(true);
@@ -704,6 +758,10 @@ module.exports = async context => {
             input => input.path === localFile && input.operation === 'module',
           ),
         ).toBe(scenario.local);
+        fs.writeFileSync(workspaceFile, 'packages:\n  - verticals/*\n');
+        expect(() => reactWorkspaceCatalogInputs(root, snapshot)).toThrow(
+          /workspace catalog.*(changed|snapshot)/i,
+        );
       } else
         expect(handedInputs).toEqual([
           undefined,
