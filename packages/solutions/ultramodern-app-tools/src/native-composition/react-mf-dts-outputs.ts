@@ -1003,6 +1003,11 @@ export function createReactReceiverOutputIntegration(
           ),
         });
       });
+      let oneShot = false;
+      let closeBuildRegistered = false;
+      api.onBeforeBuild(({ isWatch }) => {
+        oneShot = api.getAppContext().command === 'build' && !isWatch;
+      });
       api.onAfterCreateCompiler(({ compiler }) => {
         const compilers =
           'compilers' in compiler ? compiler.compilers : [compiler];
@@ -1019,69 +1024,135 @@ export function createReactReceiverOutputIntegration(
               'React receiver compiler differs from its public apply owner',
             );
           owner.compiler = matches[0];
+          owner.compiler.hooks.shutdown.tapPromise(
+            { name: COMPILER_OWNER_PLUGIN, stage: Number.POSITIVE_INFINITY },
+            async () => {
+              if (!oneShot || shutdown || disposed) return;
+              try {
+                await phase?.resolveIdentities();
+              } catch {
+                // A signal may have started public close while readiness was
+                // pending. That close owns this hook; awaiting it here cycles.
+                if (shutdown || disposed) return;
+                // Failed builds never return a BuildResult, so onCloseBuild
+                // cannot run. Native shutdown already owns compiler closure;
+                // drain its worker witnesses without recursively closing it.
+                await stop(true);
+              }
+            },
+          );
         }
-      });
-      api.onBeforeExit(async () => {
-        if (disposed) return;
-        exiting = true;
-        // Reject only this controller's compiler-phase waiters. Their native
-        // watch/done hooks can now finish and public close can reach shutdown;
-        // actual receiver IO remains accounted for until child termination.
-        rejectExit(new Error('React receiver compiler is exiting'));
-        if (wave)
-          for (const owner of owners.values())
-            registry.closeGeneration(
-              generation(owner),
-              'owning native compiler is exiting',
-            );
-        const failures: unknown[] = [];
-        for (const owner of owners.values()) {
-          if (!owner.compiler) {
-            if (
-              registry
-                .quarantinedFrames()
-                .some(frame => frame.compilerId === owner.seed.compilerId)
-            )
-              failures.push(
-                new Error(
-                  'React receiver has no public compiler shutdown owner',
-                ),
-              );
-            continue;
-          }
-          try {
-            await new Promise<void>((resolve, reject) => {
-              owner.compiler!.close(error => {
-                if (error) reject(error);
-                else resolve();
-              });
-            });
-            for (const witness of owner.workers.values()) await witness.closed;
-            for (const frame of registry.quarantinedFrames('bridge')) {
-              if (frame.compilerId !== owner.seed.compilerId) continue;
-              const receiverProcessId = registry.receiverProcessId(frame);
-              if (
-                receiverProcessId !== undefined &&
-                owner.workers.has(receiverProcessId)
-              )
-                registry.confirmReceiverTerminated(frame);
+        if (!closeBuildRegistered) {
+          const builder = api.getAppContext().builder;
+          if (!builder)
+            throw new Error('React receiver has no owning native builder');
+          builder.onCloseBuild(async () => {
+            if (!oneShot || disposed) return;
+            let completionError: unknown;
+            try {
+              await Promise.race([phase?.resolveIdentities(), exit]);
+              await Promise.race([registry.waitForSettled(), exit]);
+            } catch (error) {
+              completionError = error;
             }
-            // Unmatched bridge and same-process IO retain their real lifetime.
-          } catch (error) {
-            failures.push(error);
-          }
+            try {
+              await stop(true);
+            } catch (error) {
+              if (completionError !== undefined)
+                throw new AggregateError(
+                  [completionError, error],
+                  'React receiver completion and shutdown failed',
+                  { cause: completionError },
+                );
+              throw error;
+            }
+            if (completionError !== undefined) throw completionError;
+          });
+          closeBuildRegistered = true;
         }
-        if (failures.length)
-          throw new AggregateError(failures, 'React receiver shutdown failed');
-        // Exit rejects the phase-facing awaiter so native close can proceed.
-        // An output filesystem write already in flight still owns its lifetime.
-        await Promise.allSettled([...publications]);
-        await registry.waitForSettled();
-        disposed = true;
-        await registry.dispose();
-        restoreImplementation?.();
-        restoreImplementation = undefined;
       });
+      let shutdown: Promise<void> | undefined;
+      const stop = (nativeCloseOwned = false) => {
+        if (disposed) return Promise.resolve();
+        if (shutdown) return shutdown;
+        const pending = (async () => {
+          if (disposed) return;
+          exiting = true;
+          // Reject only this controller's compiler-phase waiters. Their native
+          // watch/done hooks can now finish and public close can reach shutdown;
+          // actual receiver IO remains accounted for until child termination.
+          rejectExit(new Error('React receiver compiler is exiting'));
+          if (wave)
+            for (const owner of owners.values())
+              registry.closeGeneration(
+                generation(owner),
+                'owning native compiler is exiting',
+              );
+          const failures: unknown[] = [];
+          for (const owner of owners.values()) {
+            if (!owner.compiler) {
+              if (
+                registry
+                  .quarantinedFrames()
+                  .some(frame => frame.compilerId === owner.seed.compilerId)
+              )
+                failures.push(
+                  new Error(
+                    'React receiver has no public compiler shutdown owner',
+                  ),
+                );
+              continue;
+            }
+            try {
+              if (!nativeCloseOwned)
+                await new Promise<void>((resolve, reject) => {
+                  owner.compiler!.close(error => {
+                    if (error) reject(error);
+                    else resolve();
+                  });
+                });
+              for (const witness of owner.workers.values())
+                await witness.closed;
+              for (const frame of registry.quarantinedFrames('bridge')) {
+                if (frame.compilerId !== owner.seed.compilerId) continue;
+                const receiverProcessId = registry.receiverProcessId(frame);
+                if (
+                  receiverProcessId !== undefined &&
+                  owner.workers.has(receiverProcessId)
+                )
+                  registry.confirmReceiverTerminated(frame);
+              }
+              // Unmatched bridge and same-process IO retain their real lifetime.
+            } catch (error) {
+              failures.push(error);
+            }
+          }
+          if (failures.length)
+            throw new AggregateError(
+              failures,
+              'React receiver shutdown failed',
+            );
+          // Exit rejects the phase-facing awaiter so native close can proceed.
+          // An output filesystem write already in flight still owns its lifetime.
+          await Promise.allSettled([...publications]);
+          await registry.waitForSettled();
+          await registry.dispose();
+          restoreImplementation?.();
+          restoreImplementation = undefined;
+          disposed = true;
+        })();
+        shutdown = pending;
+        void pending.then(
+          () => {
+            if (shutdown === pending) shutdown = undefined;
+          },
+          () => {
+            if (shutdown === pending) shutdown = undefined;
+          },
+        );
+        return pending;
+      };
+      api.onBeforeExit(() => stop());
     },
   };
   return { plugin, controller };
