@@ -40,8 +40,8 @@ export interface RendererBuildProfile {
   };
 }
 
-/** Pinned candidate metadata; native support remains gated by admission tests. */
-function resolveCandidateRendererProfile(
+/** Generation metadata without installed SDK resolution; builds require installed admission. */
+export function resolveCandidateRendererProfile(
   renderer: Renderer,
 ): RendererBuildProfile {
   switch (renderer) {

@@ -1,4 +1,4 @@
-import { resolveRendererProfile } from '@modern-js/ultramodern-app-tools';
+import { resolveCandidateRendererProfile } from '@modern-js/ultramodern-app-tools';
 import { ULTRAMODERN_PACKAGE_PINS } from './policy';
 import type {
   ApplicationRenderer,
@@ -47,7 +47,7 @@ export function getRendererGenerationProfile(
       `Unsupported renderer ${String(renderer)}. Expected react, solid or octane.`,
     );
   }
-  const selected = resolveRendererProfile(renderer);
+  const selected = resolveCandidateRendererProfile(renderer);
   const profile = {
     renderer: selected.renderer,
     protocolVersion: selected.protocolVersion,
