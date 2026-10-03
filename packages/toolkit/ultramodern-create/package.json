@@ -92,6 +92,7 @@
   },
   "dependencies": {
     "@babel/parser": "^8.0.6",
+    "@modern-js/app-tools": "workspace:*",
     "@modern-js/app-tools-extensions": "workspace:*",
     "@modern-js/backend-federation-contracts": "workspace:*",
     "@modern-js/codesmith": "2.6.9",
