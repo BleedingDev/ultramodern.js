@@ -222,6 +222,74 @@ async function rendererFixture(renderer: 'react' | 'octane') {
   return options;
 }
 
+async function publishedPeerFixture(authority: 'sdk' | 'app' = 'sdk') {
+  const options = await rendererFixture('react');
+  const version = '3.9.0-ultramodern.2026100301';
+  const canonicalSDK = '@modern-js/ultramodern-app-tools';
+  const sdkName = '@bleedingdev/modern-js-ultramodern-app-tools';
+  const providerName = '@bleedingdev/modern-js-app-tools';
+  const providerSpecifier = '@modern-js/app-tools';
+  const pluginSpecifier = '@modern-js/plugin-bff';
+  const pluginName = '@bleedingdev/modern-js-plugin-bff';
+  const sdk = path.join(options.projectRoot, 'node_modules', canonicalSDK);
+  const provider = path.join(sdk, 'node_modules', providerSpecifier);
+  const plugin = path.join(sdk, 'node_modules', pluginSpecifier);
+  const providerRequest = `npm:${providerName}@${version}`;
+  await writeFixturePackage(sdk, {
+    name: sdkName,
+    version,
+    dependencies: {
+      [pluginSpecifier]: `npm:${pluginName}@${version}`,
+      ...(authority === 'sdk' ? { [providerSpecifier]: providerRequest } : {}),
+    },
+  });
+  await writeFixturePackage(provider, {
+    name: providerName,
+    version,
+    dependencies: { [pluginSpecifier]: `npm:${pluginName}@${version}` },
+  });
+  await write(
+    path.join(plugin, 'package.json'),
+    JSON.stringify({
+      name: pluginName,
+      version,
+      peerDependencies: { [providerSpecifier]: version },
+    }),
+  );
+  await write(path.join(plugin, 'index.js'), 'export const plugin = true;\n');
+  if (authority === 'app') {
+    await write(
+      path.join(options.projectRoot, 'package.json'),
+      JSON.stringify({
+        name: '@demo/shop',
+        version: '1.0.0',
+        devDependencies: { [providerSpecifier]: providerRequest },
+      }),
+    );
+    const slot = path.join(
+      options.projectRoot,
+      'node_modules',
+      providerSpecifier,
+    );
+    await fs.mkdir(path.dirname(slot), { recursive: true });
+    await fs.symlink(provider, slot, 'dir');
+  }
+  options.frameworkPackages = [sdkName];
+  options.frameworkPackageBindings = [
+    { specifier: canonicalSDK, name: sdkName, version, directory: sdk },
+  ];
+  return {
+    ...options,
+    sdk,
+    provider,
+    plugin,
+    version,
+    providerName,
+    providerSpecifier,
+    providerRequest,
+  };
+}
+
 async function unselectedNativeAdapterFixture(renderer: 'solid' | 'octane') {
   const options =
     renderer === 'solid' ? await fixture() : await rendererFixture('octane');
@@ -872,6 +940,139 @@ describe('renderer source and compiler build identity', () => {
     );
     await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
       'Invalid renderer compiler npm alias',
+    );
+  });
+
+  test.each([
+    'sdk',
+    'app',
+  ] as const)('certifies a published canonical peer through its %s exact physical npm alias', async authority => {
+    const options = await publishedPeerFixture(authority);
+    const before = await resolveRendererBuildIdentities(options);
+    await fs.appendFile(
+      path.join(options.provider, 'index.js'),
+      'export const changedCompiler = true;\n',
+    );
+    const after = await resolveRendererBuildIdentities(options);
+    expect(after.inputDigest).toBe(before.inputDigest);
+    expect(after.compilerDigest).not.toBe(before.compilerDigest);
+    expect(after.frameworkCohortDigest).not.toBe(before.frameworkCohortDigest);
+    expect(after.buildMarker).not.toBe(before.buildMarker);
+  });
+
+  test('uses the effective optional alias instead of its shadowed dependency declaration', async () => {
+    const options = await publishedPeerFixture();
+    const file = path.join(options.sdk, 'package.json');
+    const manifest = JSON.parse(await fs.readFile(file, 'utf8'));
+    manifest.dependencies[options.providerSpecifier] =
+      'npm:@fixture/shadowed-owner@1.0.0';
+    manifest.optionalDependencies = {
+      [options.providerSpecifier]: options.providerRequest,
+    };
+    await write(file, JSON.stringify(manifest));
+    await expect(
+      resolveRendererBuildIdentities(options),
+    ).resolves.toMatchObject({
+      cacheAllowed: false,
+    });
+  });
+
+  test('certifies peer aliases declared by an additional selected physical framework owner', async () => {
+    const options = await publishedPeerFixture();
+    const file = path.join(options.sdk, 'package.json');
+    const manifest = JSON.parse(await fs.readFile(file, 'utf8'));
+    delete manifest.dependencies[options.providerSpecifier];
+    await write(file, JSON.stringify(manifest));
+    const observedOwner = path.join(options.workspace, 'selected-sdk-copy');
+    await writeFixturePackage(observedOwner, {
+      name: manifest.name,
+      version: manifest.version,
+      dependencies: { [options.providerSpecifier]: options.providerRequest },
+    });
+    const slot = path.join(
+      observedOwner,
+      'node_modules',
+      options.providerSpecifier,
+    );
+    await fs.mkdir(path.dirname(slot), { recursive: true });
+    await fs.symlink(options.provider, slot, 'dir');
+    options.frameworkPackageBindings = [
+      { ...options.frameworkPackageBindings![0], directory: observedOwner },
+    ];
+    await expect(
+      resolveRendererBuildIdentities(options),
+    ).resolves.toMatchObject({
+      cacheAllowed: false,
+    });
+  });
+
+  test.each([
+    'undeclared',
+    'wrong-name',
+    'wrong-version',
+    'wrong-peer-version',
+    'alias-range',
+    'peer-range',
+    'ambiguous',
+    'different-physical-owner',
+    'sdk-dev-only',
+  ])('rejects %s authority for a renamed published canonical peer', async scenario => {
+    const options = await publishedPeerFixture();
+    const sdkManifestFile = path.join(options.sdk, 'package.json');
+    const sdkManifest = JSON.parse(await fs.readFile(sdkManifestFile, 'utf8'));
+    const pluginManifestFile = path.join(options.plugin, 'package.json');
+    const pluginManifest = JSON.parse(
+      await fs.readFile(pluginManifestFile, 'utf8'),
+    );
+    if (scenario === 'undeclared' || scenario === 'sdk-dev-only') {
+      delete sdkManifest.dependencies[options.providerSpecifier];
+      if (scenario === 'sdk-dev-only')
+        sdkManifest.devDependencies = {
+          [options.providerSpecifier]: options.providerRequest,
+        };
+    } else if (scenario === 'wrong-name' || scenario === 'wrong-version') {
+      await writeFixturePackage(options.provider, {
+        name:
+          scenario === 'wrong-name'
+            ? '@fixture/undeclared-provider'
+            : options.providerName,
+        version: scenario === 'wrong-version' ? '3.9.1' : options.version,
+      });
+    } else if (scenario === 'wrong-peer-version' || scenario === 'peer-range') {
+      pluginManifest.peerDependencies[options.providerSpecifier] =
+        scenario === 'wrong-peer-version' ? '3.9.1' : `^${options.version}`;
+    } else if (scenario === 'alias-range') {
+      sdkManifest.dependencies[options.providerSpecifier] =
+        `npm:${options.providerName}@^${options.version}`;
+    } else if (scenario === 'ambiguous') {
+      await write(
+        path.join(options.projectRoot, 'package.json'),
+        JSON.stringify({
+          name: '@demo/shop',
+          version: '1.0.0',
+          devDependencies: {
+            [options.providerSpecifier]: `npm:@fixture/competing-provider@${options.version}`,
+          },
+        }),
+      );
+      await writeFixturePackage(
+        path.join(
+          options.projectRoot,
+          'node_modules',
+          options.providerSpecifier,
+        ),
+        { name: '@fixture/competing-provider', version: options.version },
+      );
+    } else {
+      await writeFixturePackage(
+        path.join(options.plugin, 'node_modules', options.providerSpecifier),
+        { name: options.providerName, version: options.version },
+      );
+    }
+    await write(sdkManifestFile, JSON.stringify(sdkManifest));
+    await write(pluginManifestFile, JSON.stringify(pluginManifest));
+    await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+      'compiler/profile mismatch',
     );
   });
 
