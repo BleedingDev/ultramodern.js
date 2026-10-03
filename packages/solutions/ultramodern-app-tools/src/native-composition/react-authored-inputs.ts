@@ -1,11 +1,120 @@
+import fs from 'node:fs';
 import path from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import { resolvePublicDirPaths } from '@modern-js/server-core';
-import { resolveConfigSourcePhysicalPath } from './config-evaluator/source-snapshot';
+import {
+  type ConfigSourceSnapshot,
+  captureConfigSourceSnapshot,
+  resolveConfigSourcePhysicalPath,
+} from './config-evaluator/source-snapshot';
 import type { NativeInfrastructureOptions } from './native-infrastructure';
 
 type BuildContext = Parameters<
   NonNullable<NativeInfrastructureOptions['resolveBuildIdentities']>
 >[0];
+
+/** Catalog lookup is authority even when the config itself never read YAML. */
+export function reactWorkspaceCatalogInputs(
+  appDirectory: string,
+  snapshot: ConfigSourceSnapshot | undefined,
+): readonly string[] {
+  if (!snapshot) {
+    for (let directory = path.resolve(appDirectory); ; ) {
+      if (fs.existsSync(path.join(directory, 'pnpm-workspace.yaml')))
+        throw new Error(
+          'React workspace catalog requires the original configuration source snapshot',
+        );
+      const parent = path.dirname(directory);
+      if (parent === directory) break;
+      directory = parent;
+    }
+    return [];
+  }
+  const original = new Map(snapshot.states.map(state => [state.path, state]));
+  const app = path.resolve(appDirectory);
+  const capturedPhysicalPath = (filename: string): string => {
+    const direct = original.get(filename)?.resolvedPath;
+    if (direct) return direct;
+    const ancestor = snapshot.states
+      .filter(
+        state =>
+          state.kind === 'symlink' &&
+          state.resolvedPath &&
+          filename.startsWith(`${state.path}${path.sep}`),
+      )
+      .sort((a, b) => b.path.length - a.path.length)[0];
+    return ancestor?.resolvedPath
+      ? path.join(ancestor.resolvedPath, path.relative(ancestor.path, filename))
+      : filename;
+  };
+  const originalState = (filename: string) =>
+    original.get(filename) ?? original.get(capturedPhysicalPath(filename));
+  const candidates = new Set<string>();
+  if (!originalState(app))
+    throw new Error(
+      `React workspace catalog has no original app capture: ${app}`,
+    );
+  for (const start of new Set([app, capturedPhysicalPath(app)])) {
+    let directory = start;
+    for (;;) {
+      const parentState = originalState(directory);
+      if (!parentState || !['directory', 'symlink'].includes(parentState.kind))
+        break;
+      const file = path.join(directory, 'pnpm-workspace.yaml');
+      candidates.add(file);
+      const state = originalState(file);
+      if (state && state.kind !== 'missing') {
+        if (state.kind !== 'file' && state.kind !== 'symlink')
+          throw new Error(
+            `Invalid captured React workspace declaration: ${file}`,
+          );
+        break;
+      }
+      const parent = path.dirname(directory);
+      if (parent === directory) break;
+      directory = parent;
+    }
+  }
+  const paths = [...candidates].sort();
+  // Do not bless an existing declaration outside the original captured ancestry.
+  for (let directory = app; ; ) {
+    const file = path.join(directory, 'pnpm-workspace.yaml');
+    if (fs.existsSync(file)) {
+      if (!candidates.has(file))
+        throw new Error(`React workspace catalog was not captured: ${file}`);
+      break;
+    }
+    const parent = path.dirname(directory);
+    if (parent === directory) break;
+    directory = parent;
+  }
+  const current = captureConfigSourceSnapshot({
+    sourceRoots: [],
+    extraInputs: paths,
+  });
+  for (const state of current.states) {
+    const captured = originalState(state.path);
+    const previous = captured ? { ...captured, path: state.path } : undefined;
+    const parent = originalState(path.dirname(state.path));
+    const absent =
+      !previous &&
+      candidates.has(state.path) &&
+      parent &&
+      (parent.kind === 'directory' || parent.kind === 'symlink')
+        ? {
+            path: state.path,
+            kind: 'missing',
+            resolvedPath: path.join(
+              parent.resolvedPath ?? parent.path,
+              path.basename(state.path),
+            ),
+          }
+        : undefined;
+    if (!isDeepStrictEqual(state, previous ?? absent))
+      throw new Error(`React workspace catalog inputs changed: ${state.path}`);
+  }
+  return paths;
+}
 
 /** Actual configuration reads whose original capture proves a regular file. */
 export function reactObservedInputFiles(
@@ -116,6 +225,10 @@ export function reactAuthoredInputPaths(
         ...entries,
         ...directories,
         ...reactObservedInputFiles(context),
+        ...reactWorkspaceCatalogInputs(
+          context.appDirectory,
+          context.configurationSourceSnapshot,
+        ),
         ...(context.inputFiles ?? []).filter(
           filename => !filename.split(path.sep).includes('node_modules'),
         ),

@@ -20,7 +20,10 @@ import {
   captureConfigSourceSnapshot,
   resolveConfigSourcePhysicalPath,
 } from './config-evaluator/source-snapshot';
-import { reactInputGitPathspecs } from './react-authored-inputs';
+import {
+  reactInputGitPathspecs,
+  reactWorkspaceCatalogInputs,
+} from './react-authored-inputs';
 
 const RECORD_KEY = 'ultramodernReactTypedCss';
 const PRODUCER_VERSION = '1.2.4';
@@ -117,6 +120,7 @@ export interface ReactTypedCssPhaseOptions {
   internalDirectory: string;
   distDirectory: string;
   inputPaths?: readonly string[];
+  configurationSourceSnapshot?: ConfigSourceSnapshot;
   produceTypedCss?: boolean;
   generatedOutputs?: ReactGeneratedOutputPhaseController;
   finalize(
@@ -255,7 +259,13 @@ export class ReactTypedCssPhase {
   }
 
   private capture(): ConfigSourceSnapshot {
-    let extraInputs = [...(this.options.inputPaths ?? [])];
+    let extraInputs = [
+      ...(this.options.inputPaths ?? []),
+      ...reactWorkspaceCatalogInputs(
+        this.options.appDirectory,
+        this.options.configurationSourceSnapshot,
+      ),
+    ];
     try {
       const gitRoot = execFileSync('git', ['rev-parse', '--show-toplevel'], {
         cwd: this.options.appDirectory,
