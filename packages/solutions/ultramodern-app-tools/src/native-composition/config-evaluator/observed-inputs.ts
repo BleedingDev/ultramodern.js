@@ -4,6 +4,7 @@ import { tracingChannel } from 'node:diagnostics_channel';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import moduleBuiltin, {
+  createRequire,
   registerHooks,
   syncBuiltinESMExports,
 } from 'node:module';
@@ -50,6 +51,9 @@ export interface ObservedConfigSourceInputs {
 }
 
 const originalLstat = fs.lstatSync;
+const requireExtensions = createRequire(
+  path.join(process.cwd(), 'package.json'),
+).extensions;
 const mapPrototype = Map.prototype;
 const mapEntries = Map.prototype.entries;
 const mapIteratorNext = new Map().entries().next;
@@ -285,6 +289,99 @@ export async function observeConfigSourceInputs<T>(
         Object.freeze({ path: lexical, canonicalPath, operation, existed }),
       );
     });
+  };
+  // Observe Node's finite CJS search in precedence order; native nextResolve
+  // still decides the result. Stop at its first current file candidate so
+  // unrelated lower-priority files are not claimed as consumed inputs.
+  const cjsFileCandidate = (
+    requested: string,
+    trailingSlash: boolean,
+  ): string | undefined => {
+    const extensions = Object.keys(requireExtensions);
+    const probe = (candidate: string): fs.Stats | undefined => {
+      supportedOperations.run(true, () => {
+        const physical = resolveConfigSourcePhysicalPath(candidate);
+        const lexicalCovered = snapshot.coverage.some(
+          boundary =>
+            candidate === boundary.path ||
+            (boundary.recursive && inside(boundary.path, candidate)),
+        );
+        const installedCandidate =
+          candidate.split(path.sep).includes('node_modules') &&
+          isInstalledDependency(candidate) &&
+          isInstalledDependency(physical);
+        if (lexicalCovered && !installedCandidate) {
+          try {
+            assertConfigSourceSymlinkTraversal(snapshot, candidate);
+          } catch (error) {
+            unsupported(error instanceof Error ? error.message : String(error));
+          }
+        }
+        if (
+          !sourcePath(snapshot, candidate) &&
+          !isInstalledDependency(physical)
+        )
+          unsupported(`uncovered CJS source candidate ${candidate}`);
+      });
+      const stat = supportedOperations.run(true, () =>
+        fs.statSync(candidate, { throwIfNoEntry: false }),
+      );
+      remember(candidate, 'metadata', stat !== undefined);
+      return stat;
+    };
+    const file = (candidate: string): string | undefined => {
+      if (!probe(candidate)?.isFile()) return undefined;
+      return supportedOperations.run(true, () =>
+        resolveConfigSourcePhysicalPath(candidate),
+      );
+    };
+    const withExtensions = (candidate: string): string | undefined => {
+      for (const extension of extensions) {
+        const selected = file(`${candidate}${extension}`);
+        if (selected) return selected;
+      }
+      return undefined;
+    };
+    const stat = probe(requested);
+    if (!trailingSlash) {
+      if (stat?.isFile())
+        return supportedOperations.run(true, () =>
+          resolveConfigSourcePhysicalPath(requested),
+        );
+      const selected = withExtensions(requested);
+      if (selected) return selected;
+    }
+    if (!stat?.isDirectory()) return undefined;
+    const manifest = path.join(requested, 'package.json');
+    const manifestStat = probe(manifest);
+    remember(manifest, 'content', manifestStat !== undefined);
+    if (manifestStat?.isFile()) {
+      const source = supportedOperations.run(true, () =>
+        fs.readFileSync(manifest, 'utf8'),
+      );
+      let metadata: unknown;
+      try {
+        metadata = JSON.parse(source.replace(/^\uFEFF/u, ''));
+      } catch {
+        // Preserve the native resolver's original malformed-manifest error.
+        return undefined;
+      }
+      if (
+        metadata &&
+        typeof metadata === 'object' &&
+        'main' in metadata &&
+        typeof metadata.main === 'string' &&
+        metadata.main
+      ) {
+        const main = path.resolve(requested, metadata.main);
+        const selected =
+          file(main) ||
+          withExtensions(main) ||
+          withExtensions(path.join(main, 'index'));
+        if (selected) return selected;
+      }
+    }
+    return withExtensions(path.join(requested, 'index'));
   };
   function resolutionRead<T>(
     manifestFile: string,
@@ -812,7 +909,7 @@ export async function observeConfigSourceInputs<T>(
         const nativeImport =
           context.conditions.includes('import') &&
           !context.conditions.includes('require');
-        const requested = !explicit
+        const rawRequested = !explicit
           ? undefined
           : nativeImport && context.parentURL?.startsWith('file:')
             ? fileURLToPath(new URL(specifier, context.parentURL))
@@ -823,7 +920,29 @@ export async function observeConfigSourceInputs<T>(
                 : context.parentURL?.startsWith('file:')
                   ? `${path.dirname(fileURLToPath(context.parentURL))}${path.sep}${specifier}`
                   : undefined;
+        // CJS _findPath applies path.resolve before any filesystem candidate
+        // search. ESM URL resolution and raw filesystem reads retain their
+        // distinct symlink/.. semantics.
+        const requested =
+          rawRequested && !nativeImport
+            ? path.resolve(rawRequested)
+            : rawRequested;
+        const trailingSlash =
+          specifier.endsWith(path.sep) ||
+          specifier.endsWith(`${path.sep}.`) ||
+          specifier.endsWith(`${path.sep}..`) ||
+          specifier === '.' ||
+          specifier === '..';
         try {
+          const authoredCjsRequest =
+            requested &&
+            !nativeImport &&
+            supportedOperations.run(true, () =>
+              sourcePath(snapshot, requested),
+            );
+          const cjsCandidate = authoredCjsRequest
+            ? cjsFileCandidate(requested, trailingSlash)
+            : undefined;
           const result = supportedOperations.run(true, () =>
             nextResolve(specifier, context),
           );
@@ -851,8 +970,19 @@ export async function observeConfigSourceInputs<T>(
             );
             const installedRequest =
               requested.split(path.sep).includes('node_modules') &&
-              !requested.split(path.sep).includes('..') &&
-              isInstalledDependency(requested);
+              isInstalledDependency(requested) &&
+              isInstalledDependency(resolved);
+            if (authoredCjsRequest) {
+              const currentCandidate = cjsFileCandidate(
+                requested,
+                trailingSlash,
+              );
+              if (cjsCandidate !== resolved || currentCandidate !== resolved)
+                return unsupported(
+                  `CJS source candidates changed during resolution: ${requested}`,
+                );
+              remember(resolved, 'module', true);
+            }
             if (covered && !installedRequest) {
               try {
                 supportedOperations.run(true, () =>

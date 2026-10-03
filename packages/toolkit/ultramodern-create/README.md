@@ -125,9 +125,9 @@ stays active during `rslib build --watch`. Run
 includes a boundary test that scans generator sources, templates, and generated
 workspace output for compiler API imports.
 
-React app packages keep stable `typescript` on TS7 so Modern/Rspack and
-`@effect/tsgo` use TS-Go by default. Solid apps also use the generated TS-Go
-check; Octane apps use `tsrx-tsc` with their native TypeScript 5.9.3 toolchain.
+All renderer profiles use exact stable `typescript@7.0.2`. React and Solid apps
+use the generated TS-Go check; Octane apps use `octane-tsc` with their native
+TS7 checker. Modern/Rspack and `@effect/tsgo` also use TS-Go by default.
 Generated app/package source must not
 depend on compiler API internals. If a future AST utility is needed, keep it
 behind a dedicated TypeScript adapter and test it against stable `typescript`.
