@@ -1,7 +1,7 @@
 import childProcess from 'node:child_process';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
-import { createRequire } from 'node:module';
+import { createRequire, registerHooks } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -1211,9 +1211,9 @@ describe('actual config authority source observations', () => {
         );
         expect(observed.consumedSourceInputs.observations).toEqual([
           {
-            path: `${root}/./helper.cjs`,
+            path: helper,
             canonicalPath: helper,
-            operation: 'module',
+            operation: 'metadata',
             existed: true,
           },
           {
@@ -1795,6 +1795,222 @@ describe('actual config authority source observations', () => {
         async () => owningRequire('./helper'),
       );
       expect(observed.value).toBe('solid');
+    }));
+
+  it('resolves the real installed caniuse-lite extensionless CJS path after Node normalizes dot segments', async () => {
+    const owningRequire = createRequire(
+      path.resolve(__dirname, '../../package.json'),
+    );
+    const babelRequire = createRequire(owningRequire.resolve('@babel/core'));
+    const targetsRequire = createRequire(
+      babelRequire.resolve('@babel/helper-compilation-targets'),
+    );
+    const browserslistRequire = createRequire(
+      targetsRequire.resolve('browserslist'),
+    );
+    const caniuseRoot = path.dirname(
+      browserslistRequire.resolve('caniuse-lite/package.json'),
+    );
+    const unpackerRequire = createRequire(
+      path.join(caniuseRoot, 'dist/unpacker/browsers.js'),
+    );
+    const expected = unpackerRequire.resolve('../../data/browsers');
+    const captured = captureConfigSourceSnapshot({
+      sourceRoots: [caniuseRoot],
+    });
+    const observed = await observeConfigSourceInputs(
+      captured,
+      async () => {
+        const selected = unpackerRequire.resolve('../../data/browsers');
+        return { selected, browsers: unpackerRequire('../../data/browsers') };
+      },
+      isConfigInstalledDependencyPath,
+    );
+    expect(observed.value.selected).toBe(expected);
+    expect(observed.value.browsers).toHaveProperty('A');
+    expect(observed.consumedSourceInputs.observations).toEqual([]);
+  });
+
+  it('observes the preceding CJS file candidates without claiming lower-priority alternatives', async () =>
+    fixture(async root => {
+      fs.writeFileSync(
+        path.join(root, 'helper.js'),
+        "module.exports = 'solid';",
+      );
+      fs.writeFileSync(path.join(root, 'helper.json'), '"octane"');
+      const owningRequire = createRequire(path.join(root, 'config.cjs'));
+      const observed = await observeConfigSourceInputs(
+        snapshot(root),
+        async () => owningRequire('./helper'),
+      );
+      expect(observed.value).toBe('solid');
+      const inputs = observations(observed.consumedSourceInputs, root);
+      expect(inputs).toContainEqual({
+        path: 'helper',
+        canonicalPath: 'helper',
+        operation: 'metadata',
+        existed: false,
+      });
+      expect(inputs).toContainEqual({
+        path: 'helper.js',
+        canonicalPath: 'helper.js',
+        operation: 'module',
+        existed: true,
+      });
+      expect(inputs.some(input => input.path === 'helper.json')).toBe(false);
+    }));
+
+  it('observes the actual CJS directory main search and stops before the unused index fallback', async () =>
+    fixture(async root => {
+      const directory = path.join(root, 'helper');
+      fs.mkdirSync(directory);
+      fs.writeFileSync(
+        path.join(directory, 'package.json'),
+        '{"main":"./entry"}',
+      );
+      fs.writeFileSync(path.join(directory, 'entry.json'), '"solid"');
+      fs.writeFileSync(
+        path.join(directory, 'index.js'),
+        "module.exports = 'octane';",
+      );
+      const owningRequire = createRequire(path.join(root, 'config.cjs'));
+      const observed = await observeConfigSourceInputs(
+        snapshot(root),
+        async () => owningRequire('./helper/'),
+      );
+      expect(observed.value).toBe('solid');
+      const inputs = observations(observed.consumedSourceInputs, root);
+      expect(inputs).toContainEqual({
+        path: 'helper/package.json',
+        canonicalPath: 'helper/package.json',
+        operation: 'content',
+        existed: true,
+      });
+      expect(inputs).toContainEqual({
+        path: 'helper/entry.js',
+        canonicalPath: 'helper/entry.js',
+        operation: 'metadata',
+        existed: false,
+      });
+      expect(inputs).toContainEqual({
+        path: 'helper/entry.json',
+        canonicalPath: 'helper/entry.json',
+        operation: 'module',
+        existed: true,
+      });
+      expect(inputs.some(input => input.path === 'helper/index.js')).toBe(
+        false,
+      );
+    }));
+
+  it.each([
+    './helper/',
+    './helper/.',
+    './helper/child/..',
+  ])('preserves native CJS directory intent for %s despite a sibling file', async specifier =>
+    fixture(async root => {
+      const directory = path.join(root, 'helper');
+      fs.mkdirSync(path.join(directory, 'child'), { recursive: true });
+      fs.writeFileSync(
+        path.join(root, 'helper.js'),
+        "module.exports = 'octane';",
+      );
+      fs.writeFileSync(
+        path.join(directory, 'index.js'),
+        "module.exports = 'solid';",
+      );
+      const owningRequire = createRequire(path.join(root, 'config.cjs'));
+      const observed = await observeConfigSourceInputs(
+        snapshot(root),
+        async () => owningRequire(specifier),
+      );
+      expect(observed.value).toBe('solid');
+      const inputs = observations(observed.consumedSourceInputs, root);
+      expect(inputs).toContainEqual({
+        path: 'helper/package.json',
+        canonicalPath: 'helper/package.json',
+        operation: 'content',
+        existed: false,
+      });
+      expect(inputs.some(input => input.path === 'helper.js')).toBe(false);
+    }));
+
+  it('rejects a new higher-priority candidate despite the native CJS resolution cache', async () =>
+    fixture(async root => {
+      fs.writeFileSync(
+        path.join(root, 'helper.js'),
+        "module.exports = 'solid';",
+      );
+      const owningRequire = createRequire(path.join(root, 'config.cjs'));
+      await expect(
+        observeConfigSourceInputs(snapshot(root), async () => {
+          expect(owningRequire.resolve('./helper')).toBe(
+            path.join(root, 'helper.js'),
+          );
+          fs.writeFileSync(
+            path.join(root, 'helper'),
+            "module.exports = 'octane';",
+          );
+          try {
+            owningRequire.resolve('./helper');
+          } catch {
+            /* A caught mutation still invalidates the evaluation. */
+          }
+        }),
+      ).rejects.toThrow(/changed during (resolution|observation)/u);
+    }));
+
+  it('rejects a candidate created and removed inside the actual native resolver', async () =>
+    fixture(async root => {
+      fs.writeFileSync(
+        path.join(root, 'helper.js'),
+        "module.exports = 'solid';",
+      );
+      const higherPriority = path.join(root, 'helper');
+      const owningRequire = createRequire(path.join(root, 'config.cjs'));
+      const hooks = registerHooks({
+        resolve(specifier, context, nextResolve) {
+          if (specifier !== './helper') return nextResolve(specifier, context);
+          fs.writeFileSync(higherPriority, "module.exports = 'octane';");
+          try {
+            return nextResolve(specifier, context);
+          } finally {
+            fs.rmSync(higherPriority);
+          }
+        },
+      });
+      try {
+        await expect(
+          observeConfigSourceInputs(snapshot(root), async () =>
+            owningRequire.resolve('./helper'),
+          ),
+        ).rejects.toThrow('CJS source candidates changed during resolution');
+        expect(fs.existsSync(higherPriority)).toBe(false);
+      } finally {
+        hooks.deregister();
+      }
+    }));
+
+  it('rejects an authored candidate link created after capture even when its target is an installed dependency', async () =>
+    fixture(async root => {
+      const app = path.join(root, 'app');
+      const installed = path.join(root, 'foreign/node_modules/plugin');
+      fs.mkdirSync(path.join(app, 'helper'), { recursive: true });
+      fs.mkdirSync(installed, { recursive: true });
+      const target = path.join(installed, 'index.js');
+      fs.writeFileSync(target, "module.exports = 'solid';");
+      const captured = snapshot(app);
+      const owningRequire = createRequire(path.join(app, 'config.cjs'));
+      await expect(
+        observeConfigSourceInputs(
+          captured,
+          async () => {
+            fs.symlinkSync(target, path.join(app, 'helper.js'));
+            return owningRequire('./helper');
+          },
+          isConfigInstalledDependencyPath,
+        ),
+      ).rejects.toThrow('uncaptured symlink intermediate');
     }));
 
   it('rejects a fake foreign installed provider through the actual owning compiler API', async () =>
