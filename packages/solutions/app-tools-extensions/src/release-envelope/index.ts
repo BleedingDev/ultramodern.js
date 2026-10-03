@@ -16,8 +16,14 @@ import {
   type MicroVerticalReleaseEnvelope,
   type MicroVerticalReleaseEnvelopePayload,
   type MicroVerticalReleaseIdentity,
-  type MicroVerticalReleaseSurfaces,
   type MicroVerticalReleaseTarget,
+  type ReleaseEnvelope,
+  type ReleaseEnvelopeKind,
+  type ReleaseEnvelopePayload,
+  type ReleaseSurfaces,
+  SHELL_RELEASE_ENVELOPE_KIND,
+  type ShellReleaseEnvelope,
+  type ShellReleaseEnvelopePayload,
   type VerifyMicroVerticalReleaseEnvelopeOptions,
 } from './types';
 
@@ -33,6 +39,13 @@ export type {
   MicroVerticalReleaseSurfaces,
   MicroVerticalReleaseSymbolicLinkArtifact,
   MicroVerticalReleaseTarget,
+  ReleaseEnvelope,
+  ReleaseEnvelopeKind,
+  ReleaseEnvelopePayload,
+  ReleaseSurfaces,
+  ShellReleaseEnvelope,
+  ShellReleaseEnvelopePayload,
+  ShellReleaseSurfaces,
   VerifyMicroVerticalReleaseEnvelopeOptions,
 } from './types';
 export {
@@ -40,6 +53,7 @@ export {
   MICROVERTICAL_RELEASE_ENVELOPE_KIND,
   MICROVERTICAL_RELEASE_ENVELOPE_SCHEMA_VERSION,
   MICROVERTICAL_RELEASE_TARGETS,
+  SHELL_RELEASE_ENVELOPE_KIND,
 };
 
 const SHA256_PATTERN = /^[a-f0-9]{64}$/u;
@@ -98,6 +112,18 @@ const assertTarget = (
     );
   }
   return target as MicroVerticalReleaseTarget;
+};
+
+const assertEnvelopeKind = (value: unknown): ReleaseEnvelopeKind => {
+  if (
+    value !== MICROVERTICAL_RELEASE_ENVELOPE_KIND &&
+    value !== SHELL_RELEASE_ENVELOPE_KIND
+  ) {
+    throw new Error(
+      `envelope.kind must be "${MICROVERTICAL_RELEASE_ENVELOPE_KIND}" or "${SHELL_RELEASE_ENVELOPE_KIND}".`,
+    );
+  }
+  return value;
 };
 
 const assertReleaseIdentity = (
@@ -397,21 +423,19 @@ const assertSurfacePaths = (value: unknown, location: string): string[] => {
   return paths;
 };
 
-const assertSurfaces = (value: unknown): MicroVerticalReleaseSurfaces => {
+const assertSurfaces = (
+  value: unknown,
+  kind: ReleaseEnvelopeKind,
+):
+  | Pick<MicroVerticalReleaseEnvelopePayload, 'kind' | 'surfaces'>
+  | Pick<ShellReleaseEnvelopePayload, 'kind' | 'surfaces'> => {
   const surfaces = assertRecord(value, 'surfaces');
   assertExactKeys(
     surfaces,
-    ['uiClient', 'ssr', 'apiBackend', 'backendFederation'],
+    kind === SHELL_RELEASE_ENVELOPE_KIND
+      ? ['uiClient', 'ssr', 'apiBackend']
+      : ['uiClient', 'ssr', 'apiBackend', 'backendFederation'],
     'surfaces',
-  );
-  const backendFederation = assertRecord(
-    surfaces.backendFederation,
-    'surfaces.backendFederation',
-  );
-  assertExactKeys(
-    backendFederation,
-    ['manifest', 'container'],
-    'surfaces.backendFederation',
   );
   const uiClient = assertSurfacePaths(surfaces.uiClient, 'surfaces.uiClient');
   const ssr = assertSurfacePaths(surfaces.ssr, 'surfaces.ssr');
@@ -434,26 +458,46 @@ const assertSurfaces = (value: unknown): MicroVerticalReleaseSurfaces => {
       'surfaces.apiBackend must contain at least one artifact path.',
     );
   }
+  if (kind === SHELL_RELEASE_ENVELOPE_KIND) {
+    if (uiClient.length === 0 || ssr.length === 0) {
+      throw new Error(
+        'Shell surfaces.uiClient and surfaces.ssr must each contain at least one artifact path.',
+      );
+    }
+    return { kind, surfaces: { uiClient, ssr, apiBackend } };
+  }
+  const backendFederation = assertRecord(
+    surfaces.backendFederation,
+    'surfaces.backendFederation',
+  );
+  assertExactKeys(
+    backendFederation,
+    ['manifest', 'container'],
+    'surfaces.backendFederation',
+  );
   return {
-    uiClient,
-    ssr,
-    apiBackend,
-    backendFederation: {
-      manifest: assertNormalizedLogicalPath(
-        backendFederation.manifest,
-        'surfaces.backendFederation.manifest',
-      ),
-      container: assertNormalizedLogicalPath(
-        backendFederation.container,
-        'surfaces.backendFederation.container',
-      ),
+    kind,
+    surfaces: {
+      uiClient,
+      ssr,
+      apiBackend,
+      backendFederation: {
+        manifest: assertNormalizedLogicalPath(
+          backendFederation.manifest,
+          'surfaces.backendFederation.manifest',
+        ),
+        container: assertNormalizedLogicalPath(
+          backendFederation.container,
+          'surfaces.backendFederation.container',
+        ),
+      },
     },
   };
 };
 
 const assertSurfaceReferences = (
   artifacts: readonly MicroVerticalReleaseArtifactInput[],
-  surfaces: MicroVerticalReleaseSurfaces,
+  surfaces: ReleaseSurfaces,
 ) => {
   const artifactPaths = new Set(
     artifacts.map(artifact => artifact.logicalPath),
@@ -462,8 +506,12 @@ const assertSurfaceReferences = (
     uiClient: surfaces.uiClient,
     ssr: surfaces.ssr,
     apiBackend: surfaces.apiBackend,
-    'backendFederation.manifest': [surfaces.backendFederation.manifest],
-    'backendFederation.container': [surfaces.backendFederation.container],
+    ...('backendFederation' in surfaces
+      ? {
+          'backendFederation.manifest': [surfaces.backendFederation.manifest],
+          'backendFederation.container': [surfaces.backendFederation.container],
+        }
+      : {}),
   })) {
     for (const logicalPath of paths) {
       if (!artifactPaths.has(logicalPath)) {
@@ -478,7 +526,7 @@ const assertSurfaceReferences = (
 const assertTargetSurfaceContract = (
   target: MicroVerticalReleaseTarget,
   artifacts: readonly MicroVerticalReleaseArtifactInput[],
-  surfaces: MicroVerticalReleaseSurfaces,
+  surfaces: ReleaseSurfaces,
 ) => {
   const byPath = new Map(
     artifacts.map(artifact => [artifact.logicalPath, artifact]),
@@ -510,16 +558,18 @@ const assertTargetSurfaceContract = (
     target === 'node' ? 'nodejs' : 'workerd-effect',
     'API/backend',
   );
-  assertRuntime(
-    [surfaces.backendFederation.manifest],
-    'module-federation-manifest',
-    'backend federation manifest',
-  );
-  assertRuntime(
-    [surfaces.backendFederation.container],
-    target === 'node' ? 'nodejs' : 'commonjs-module',
-    'backend federation container',
-  );
+  if ('backendFederation' in surfaces) {
+    assertRuntime(
+      [surfaces.backendFederation.manifest],
+      'module-federation-manifest',
+      'backend federation manifest',
+    );
+    assertRuntime(
+      [surfaces.backendFederation.container],
+      target === 'node' ? 'nodejs' : 'commonjs-module',
+      'backend federation container',
+    );
+  }
 };
 
 const deepFreeze = <T>(value: T): T => {
@@ -532,7 +582,7 @@ const deepFreeze = <T>(value: T): T => {
   return value;
 };
 
-const assertEnvelope = (value: unknown): MicroVerticalReleaseEnvelope => {
+const assertEnvelope = (value: unknown): ReleaseEnvelope => {
   const envelope = assertRecord(value, 'envelope');
   assertExactKeys(
     envelope,
@@ -554,11 +604,7 @@ const assertEnvelope = (value: unknown): MicroVerticalReleaseEnvelope => {
       `envelope.schemaVersion must be ${MICROVERTICAL_RELEASE_ENVELOPE_SCHEMA_VERSION}.`,
     );
   }
-  if (envelope.kind !== MICROVERTICAL_RELEASE_ENVELOPE_KIND) {
-    throw new Error(
-      `envelope.kind must be "${MICROVERTICAL_RELEASE_ENVELOPE_KIND}".`,
-    );
-  }
+  const kind = assertEnvelopeKind(envelope.kind);
   if (!Array.isArray(envelope.artifacts) || envelope.artifacts.length === 0) {
     throw new Error('envelope.artifacts must contain at least one artifact.');
   }
@@ -567,16 +613,16 @@ const assertEnvelope = (value: unknown): MicroVerticalReleaseEnvelope => {
   );
   assertUniqueSortedArtifacts(artifacts, 'envelope.artifacts');
   const target = assertTarget(envelope.target, 'envelope.target');
-  const surfaces = assertSurfaces(envelope.surfaces);
+  const releaseSurfaces = assertSurfaces(envelope.surfaces, kind);
+  const { surfaces } = releaseSurfaces;
   assertSurfaceReferences(artifacts, surfaces);
   assertTargetSurfaceContract(target, artifacts, surfaces);
-  const parsed: MicroVerticalReleaseEnvelope = {
+  const parsed: ReleaseEnvelope = {
+    ...releaseSurfaces,
     schemaVersion: MICROVERTICAL_RELEASE_ENVELOPE_SCHEMA_VERSION,
-    kind: MICROVERTICAL_RELEASE_ENVELOPE_KIND,
     target,
     identity: assertReleaseIdentity(envelope.identity, 'envelope.identity'),
     artifacts,
-    surfaces,
     envelopeDigest: assertNonEmptyString(
       envelope.envelopeDigest,
       'envelope.envelopeDigest',
@@ -598,12 +644,28 @@ const assertEnvelope = (value: unknown): MicroVerticalReleaseEnvelope => {
   return parsed;
 };
 
-export const createMicroVerticalReleaseEnvelope = async (
+export function createMicroVerticalReleaseEnvelope(
+  input: CreateMicroVerticalReleaseEnvelopeInput & {
+    kind: typeof SHELL_RELEASE_ENVELOPE_KIND;
+  },
+): Promise<ShellReleaseEnvelope>;
+export function createMicroVerticalReleaseEnvelope(
+  input: CreateMicroVerticalReleaseEnvelopeInput & {
+    kind?: typeof MICROVERTICAL_RELEASE_ENVELOPE_KIND;
+  },
+): Promise<MicroVerticalReleaseEnvelope>;
+export function createMicroVerticalReleaseEnvelope(
   input: CreateMicroVerticalReleaseEnvelopeInput,
-): Promise<MicroVerticalReleaseEnvelope> => {
+): Promise<ReleaseEnvelope>;
+export async function createMicroVerticalReleaseEnvelope(
+  input: CreateMicroVerticalReleaseEnvelopeInput,
+): Promise<ReleaseEnvelope> {
   const artifactRoot = await fs.realpath(path.resolve(input.artifactRoot));
   const target = assertTarget(input.target);
   const identity = assertReleaseIdentity(input.identity);
+  const kind = assertEnvelopeKind(
+    input.kind === undefined ? MICROVERTICAL_RELEASE_ENVELOPE_KIND : input.kind,
+  );
   if (!Array.isArray(input.artifacts) || input.artifacts.length === 0) {
     throw new Error('artifacts must contain at least one artifact.');
   }
@@ -614,32 +676,56 @@ export const createMicroVerticalReleaseEnvelope = async (
     left.logicalPath.localeCompare(right.logicalPath),
   );
   assertUniqueSortedArtifacts(sortedInputs, 'artifacts');
-  const surfaces = assertSurfaces(input.surfaces);
+  const releaseSurfaces = assertSurfaces(input.surfaces, kind);
+  const { surfaces } = releaseSurfaces;
   assertSurfaceReferences(sortedInputs, surfaces);
   assertTargetSurfaceContract(target, sortedInputs, surfaces);
   const artifacts = await Promise.all(
     sortedInputs.map(artifact => readFinalArtifact(artifactRoot, artifact)),
   );
   assertTargetSurfaceContract(target, artifacts, surfaces);
-  const payload: MicroVerticalReleaseEnvelopePayload = {
+  const payload: ReleaseEnvelopePayload = {
+    ...releaseSurfaces,
     schemaVersion: MICROVERTICAL_RELEASE_ENVELOPE_SCHEMA_VERSION,
-    kind: MICROVERTICAL_RELEASE_ENVELOPE_KIND,
     target,
     identity,
     artifacts,
-    surfaces,
   };
   return deepFreeze({
     ...payload,
     envelopeDigest: digestMicroVerticalReleaseEnvelopePayload(payload),
   });
-};
+}
 
-export const verifyMicroVerticalReleaseEnvelope = async (
+export function verifyMicroVerticalReleaseEnvelope(
+  value: unknown,
+  options: VerifyMicroVerticalReleaseEnvelopeOptions & {
+    expectedKind: typeof SHELL_RELEASE_ENVELOPE_KIND;
+  },
+): Promise<ShellReleaseEnvelope>;
+export function verifyMicroVerticalReleaseEnvelope(
+  value: unknown,
+  options: VerifyMicroVerticalReleaseEnvelopeOptions & {
+    expectedKind: typeof MICROVERTICAL_RELEASE_ENVELOPE_KIND;
+  },
+): Promise<MicroVerticalReleaseEnvelope>;
+export function verifyMicroVerticalReleaseEnvelope(
   value: unknown,
   options: VerifyMicroVerticalReleaseEnvelopeOptions,
-): Promise<MicroVerticalReleaseEnvelope> => {
+): Promise<ReleaseEnvelope>;
+export async function verifyMicroVerticalReleaseEnvelope(
+  value: unknown,
+  options: VerifyMicroVerticalReleaseEnvelopeOptions,
+): Promise<ReleaseEnvelope> {
   const envelope = assertEnvelope(value);
+  if (
+    options.expectedKind !== undefined &&
+    envelope.kind !== options.expectedKind
+  ) {
+    throw new Error(
+      `envelope.kind must be "${options.expectedKind}" for this release owner; received "${envelope.kind}".`,
+    );
+  }
   if (
     options.expectedTarget !== undefined &&
     envelope.target !== options.expectedTarget
@@ -674,4 +760,4 @@ export const verifyMicroVerticalReleaseEnvelope = async (
     }
   }
   return deepFreeze(envelope);
-};
+}

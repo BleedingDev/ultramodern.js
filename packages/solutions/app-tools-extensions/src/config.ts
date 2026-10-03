@@ -265,6 +265,8 @@ export interface CloudflareWorkerDeployConfig {
 }
 
 export interface CloudflareDeployConfig {
+  /** Release surface owned by this application, independent of federation production. */
+  releaseEnvelopeRole?: 'microvertical' | 'shell';
   worker?: CloudflareWorkerDeployConfig;
 }
 
