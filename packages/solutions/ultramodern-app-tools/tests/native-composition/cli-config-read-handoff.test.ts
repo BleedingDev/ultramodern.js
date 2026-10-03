@@ -17,6 +17,7 @@ import { program } from '@modern-js/utils/commander';
 import { describe, expect, it } from '@rstest/core';
 import { createRunOptions, run } from '../../src/native-composition/cli';
 import { createDefineConfig } from '../../src/native-composition/config';
+import { assertConfigSourceSnapshotUnchanged } from '../../src/native-composition/config-evaluator/source-snapshot';
 import {
   getConfigurationSourceInputs,
   getConfigurationSourceNodes,
@@ -26,18 +27,29 @@ import {
 import { createNativeConfigLoad } from '../../src/native-composition/native-config-load';
 
 describe('native CLI configuration read handoff', () => {
-  it('captures the original native load and exposes its baseline during user setup', async () => {
-    const root = fs.realpathSync(
+  it('captures the original native monorepo load and guards shared inputs during user setup', async () => {
+    const workspace = fs.realpathSync(
       fs.mkdtempSync(
         path.join(process.env.OWNED_TEMP_DIR ?? os.tmpdir(), 'um-native-load-'),
       ),
+    );
+    const root = path.join(workspace, 'verticals/billing');
+    fs.mkdirSync(root, { recursive: true });
+    fs.mkdirSync(path.join(workspace, 'shared'));
+    fs.writeFileSync(
+      path.join(workspace, 'pnpm-workspace.yaml'),
+      'packages:\n  - verticals/*\n',
+    );
+    fs.writeFileSync(
+      path.join(workspace, 'package.json'),
+      JSON.stringify({ name: 'native-config-workspace', private: true }),
     );
     const token = `__um_native_load_${path.basename(root)}`;
     const registry = globalThis as unknown as Record<string, unknown>;
     const manifestFile = path.join(root, 'package.json');
     const configFile = path.join(root, 'modern.config.js');
     const localFile = path.join(root, 'modern.config.local.js');
-    const inputFile = path.join(root, 'native-input.json');
+    const inputFile = path.join(workspace, 'shared/selection.json');
     const previousArgv = process.argv;
     const envKeys = [
       'NODE_ENV',
@@ -65,6 +77,7 @@ describe('native CLI configuration read handoff', () => {
     let nativeLoads = 0;
     let dispose: (() => Promise<unknown>) | undefined;
     let boundInputs: ObservedConfigSourceInputs | undefined;
+    let boundSnapshot: ReturnType<typeof getConfigurationSourceSnapshot>;
     const consumer: CLIPlugin<CLIPluginExtends> = {
       name: 'original-native-config-load-consumer',
       setup(api) {
@@ -74,10 +87,12 @@ describe('native CLI configuration read handoff', () => {
         expect(process.env.MODERN_FACTORY_LOAD).toBe('before-native-load');
         boundInputs = getConfigurationSourceInputs(api);
         const baseline = getConfigurationSourceSnapshot(api);
+        boundSnapshot = baseline;
         const nodes = getConfigurationSourceNodes(api);
         expect(boundInputs).toBeDefined();
         expect(baseline).toBeDefined();
         expect(Object.isFrozen(baseline)).toBe(true);
+        expect(baseline?.sourceRoots).toContain(workspace);
         expect(Object.isFrozen(nodes)).toBe(true);
         expect(nodes).toEqual(
           expect.arrayContaining([
@@ -141,8 +156,10 @@ describe('native CLI configuration read handoff', () => {
     fs.writeFileSync(
       configFile,
       `const fs = require('node:fs');
+const path = require('node:path');
+const selection = require('../../shared/selection.json');
 module.exports = async context => {
-  if (!JSON.parse(fs.readFileSync(${JSON.stringify(inputFile)}, 'utf8')).original) throw new Error('native input changed');
+  if (!selection.original || !JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../shared/selection.json'), 'utf8')).original) throw new Error('native input changed');
   return globalThis[${JSON.stringify(token)}].primary(context);
 };\n`,
     );
@@ -187,6 +204,21 @@ module.exports = async context => {
         local: true,
         selected: 'local',
       });
+      expect(boundInputs?.observations).toContainEqual({
+        path: inputFile,
+        canonicalPath: inputFile,
+        operation: 'module',
+        existed: true,
+      });
+      if (!boundSnapshot)
+        throw new Error('Native workspace baseline was not retained');
+      expect(() =>
+        assertConfigSourceSnapshotUnchanged(boundSnapshot),
+      ).not.toThrow();
+      fs.writeFileSync(inputFile, '{"original":false}');
+      expect(() => assertConfigSourceSnapshotUnchanged(boundSnapshot)).toThrow(
+        'Config source snapshot changed',
+      );
     } finally {
       try {
         await dispose?.();
@@ -215,7 +247,7 @@ module.exports = async context => {
           else process.env[key] = previousEnv[index];
         }
         delete registry[token];
-        fs.rmSync(root, { recursive: true, force: true });
+        fs.rmSync(workspace, { recursive: true, force: true });
       }
     }
   });

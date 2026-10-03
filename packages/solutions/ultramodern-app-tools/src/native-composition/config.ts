@@ -25,7 +25,7 @@ import {
   type LoadedConfig,
 } from '@modern-js/plugin/cli';
 import { type Renderer, resolveRenderer } from '@modern-js/renderer-core';
-import { CONFIG_FILE_EXTENSIONS } from '@modern-js/utils';
+import { CONFIG_FILE_EXTENSIONS, isMonorepo } from '@modern-js/utils';
 import {
   isConfigInstalledDependencyPath,
   withConfigDependencyResolution,
@@ -556,6 +556,18 @@ async function withImmediateDirectoryReads<T>(
   return completion.value;
 }
 
+function findConfigurationWorkspaceRoot(
+  appDirectory: string,
+): string | undefined {
+  let current = fs.realpathSync(appDirectory);
+  while (true) {
+    if (isMonorepo(current)) return current;
+    const parent = path.dirname(current);
+    if (parent === current) return undefined;
+    current = parent;
+  }
+}
+
 /** Observe the supplied owning load once without replacing its result. */
 export async function observeUltramodernConfigLoad<T>(
   {
@@ -573,9 +585,11 @@ export async function observeUltramodernConfigLoad<T>(
   const owningManifest = findPackageJSON(owningModule, owningModule);
   if (!owningManifest)
     throw new Error('Cannot find the owning UltraModern configuration package');
+  const workspaceRoot = findConfigurationWorkspaceRoot(appDirectory);
   const authoredRoots = [
     ...new Set([
       path.resolve(appDirectory),
+      ...(workspaceRoot ? [workspaceRoot] : []),
       ...sourceRoots.map(root => path.resolve(root)),
       ...(configFile
         ? [path.dirname(path.resolve(appDirectory, configFile))]
