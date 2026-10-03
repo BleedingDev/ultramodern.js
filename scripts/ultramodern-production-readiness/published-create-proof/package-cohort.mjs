@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { canonicalJson } from '../../ultramodern-publish/lib/prepare-bleedingdev-packages/release-artifacts.mjs';
+import { assertStableSidecarVersion } from '../../ultramodern-publish/lib/prepare-bleedingdev-packages/sidecar-publication.mjs';
 import { readJsonFile } from './constants.mjs';
 
 const releaseCohortPath = 'release-cohort.json';
@@ -24,6 +25,7 @@ const bootstrapDependencyBlocks = Object.freeze([
 ]);
 const minimumReleaseAgeMinutes = 1440;
 const ultramodernCreateSourceName = '@modern-js/ultramodern-create';
+const authenticatedBootstrapSidecars = new WeakMap();
 
 function assertCondition(condition, message) {
   if (!condition) {
@@ -316,16 +318,87 @@ function resolveBootstrapReleaseAgePolicy(release, cohort, createPackage) {
   };
   visit(createPackage.targetName);
 
-  return Object.freeze({
+  // readReleaseManifest supplies these identities and packed manifests only
+  // after verifying sidecars.json and every corresponding tarball's bytes.
+  const sidecarRecords = release.sidecars?.packages ?? [];
+  assertCondition(
+    Array.isArray(sidecarRecords),
+    'Strict release manifest sidecar observations must be an array',
+  );
+  const sidecarsByName = new Map();
+  for (const item of sidecarRecords) {
+    assertCondition(
+      isPlainObject(item) &&
+        typeof item.name === 'string' &&
+        /^@bleedingdev\/[a-z0-9][a-z0-9._~-]*$/u.test(item.name) &&
+        !item.name.startsWith('@bleedingdev/modern-js-') &&
+        isPlainObject(item.packageJson) &&
+        item.packageJson.name === item.name &&
+        item.packageJson.version === item.version &&
+        !sidecarsByName.has(item.name),
+      `Strict release manifest contains an invalid packed sidecar observation for ${String(item?.name)}`,
+    );
+    assertStableSidecarVersion(item.name, item.version);
+    sidecarsByName.set(item.name, item);
+  }
+  const reachableSidecars = new Set();
+  const visitSidecars = packageJson => {
+    for (const blockName of bootstrapDependencyBlocks) {
+      for (const [dependencyName, specifier] of Object.entries(
+        packageJson[blockName] ?? {},
+      )) {
+        const npmAlias =
+          typeof specifier === 'string'
+            ? /^npm:(?<target>@[^/]+\/[^@]+|[^@]+)@(?<version>.+)$/u.exec(
+                specifier,
+              )?.groups
+            : undefined;
+        const targetName = npmAlias?.target ?? dependencyName;
+        const sidecar = sidecarsByName.get(targetName);
+        if (!sidecar) {
+          assertCondition(
+            !release.sidecars ||
+              !targetName.startsWith('@bleedingdev/') ||
+              packagesByTarget.has(targetName),
+            `${blockName}.${dependencyName} targets omitted bootstrap sidecar ${targetName}`,
+          );
+          continue;
+        }
+        const expectedSpecifier = npmAlias
+          ? `npm:${sidecar.name}@${sidecar.version}`
+          : sidecar.version;
+        assertCondition(
+          specifier === expectedSpecifier,
+          `${blockName}.${dependencyName} must resolve to exact bootstrap sidecar ${expectedSpecifier}, found ${String(specifier)}`,
+        );
+        if (reachableSidecars.has(sidecar.name)) continue;
+        reachableSidecars.add(sidecar.name);
+        visitSidecars(sidecar.packageJson);
+      }
+    }
+  };
+  for (const targetName of reachableTargets) {
+    visitSidecars(packagesByTarget.get(targetName).packageJson);
+  }
+  const sidecarSelectors = [...reachableSidecars].map(name => {
+    const item = sidecarsByName.get(name);
+    return `${item.name}@${item.version}`;
+  });
+  const policy = Object.freeze({
     minimumReleaseAge: minimumReleaseAgeMinutes,
     minimumReleaseAgeExclude: Object.freeze(
-      [...reachableTargets]
-        .map(targetName => `${targetName}@${release.release.version}`)
-        .sort((left, right) => left.localeCompare(right)),
+      [
+        ...[...reachableTargets].map(
+          targetName => `${targetName}@${release.release.version}`,
+        ),
+        ...sidecarSelectors,
+      ].sort((left, right) => left.localeCompare(right)),
     ),
     minimumReleaseAgeIgnoreMissingTime: false,
     minimumReleaseAgeStrict: true,
   });
+  authenticatedBootstrapSidecars.set(policy, new Set(sidecarSelectors));
+  return policy;
 }
 
 function resolveCreatePackage(release, requestedSpecifier) {
@@ -395,16 +468,17 @@ function assertBootstrapReleaseAgePolicy(createPackage) {
       exactExcludes.every(
         specifier =>
           typeof specifier === 'string' &&
-          /^@[^/]+\/[^@/]+@[1-9]\d*\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$/u.test(
+          /^@[^/]+\/[^@/]+@(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?$/u.test(
             specifier,
           ) &&
-          specifier.endsWith(`@${createIdentity.version}`) &&
-          specifier.startsWith(
-            `${createIdentity.packageName.slice(
-              0,
-              createIdentity.packageName.indexOf('/') + 1,
-            )}`,
-          ),
+          ((specifier.endsWith(`@${createIdentity.version}`) &&
+            specifier.startsWith(
+              `${createIdentity.packageName.slice(
+                0,
+                createIdentity.packageName.indexOf('/') + 1,
+              )}`,
+            )) ||
+            authenticatedBootstrapSidecars.get(policy)?.has(specifier)),
       ) &&
       new Set(exactExcludes).size === exactExcludes.length &&
       JSON.stringify(exactExcludes) ===
