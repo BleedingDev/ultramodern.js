@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -6,7 +7,9 @@ import {
   DELIVERY_UNIT_DEPLOY_PROFILE,
   DELIVERY_UNIT_KIND,
   DELIVERY_UNIT_SCHEMA_VERSION,
+  isUltramodernBuildArtifact,
 } from '@modern-js/backend-federation-contracts';
+import { resolveWorkerDeliveryUnitStamp } from '../src/cloudflare/delivery-unit';
 import {
   createMicroVerticalReleaseEnvelope,
   MICROVERTICAL_RELEASE_ENVELOPE_KIND,
@@ -14,6 +17,7 @@ import {
   verifyMicroVerticalReleaseEnvelope,
 } from '../src/release-envelope';
 import * as sourceFramework from '../src/release-envelope/framework-output';
+import { resolveUltramodernReleaseIdentity } from '../src/release-identity';
 
 const roots: string[] = [];
 const client = 'static/js/index.js';
@@ -182,6 +186,132 @@ describe('workspace source revision', () => {
 
 describe('Shell consumer release', () => {
   const framework = sourceFramework;
+
+  test('restamps every generated Shell build identity from workspace to clean Git', async () => {
+    const configuredSourceRevision = process.env.ULTRAMODERN_SOURCE_REVISION;
+    delete process.env.ULTRAMODERN_SOURCE_REVISION;
+    try {
+      const f = await fixture(framework, 'shell');
+      const gitEnv = Object.fromEntries(
+        Object.entries(process.env).filter(
+          ([name]) => !name.toUpperCase().startsWith('GIT_'),
+        ),
+      );
+      execFileSync('git', ['init', '--quiet'], {
+        cwd: f.root,
+        env: gitEnv,
+      });
+      await fs.writeFile(path.join(f.root, '.gitignore'), 'dist/\n.output/\n');
+      const generatedIdentity = resolveUltramodernReleaseIdentity({
+        generationBuildMarker: deliveryUnit.buildMarker,
+        unitId: 'test/shell',
+        workspaceRoot: f.root,
+      });
+      expect(generatedIdentity.sourceRevision).toBe('workspace');
+      const generatedUnit = {
+        ...deliveryUnit,
+        ...generatedIdentity,
+        appId: 'shell',
+        packageName: '@test/shell',
+        unitId: 'test/shell',
+      };
+      await fs.writeFile(
+        path.join(f.root, 'shared/ultramodern-build.json'),
+        JSON.stringify(createUltramodernBuildArtifact(generatedUnit)),
+      );
+      await fs.mkdir(path.join(f.root, 'topology'), { recursive: true });
+      await fs.writeFile(
+        path.join(f.root, 'topology/reference-topology.json'),
+        JSON.stringify({
+          shell: {
+            id: 'shell',
+            kind: 'shell',
+            path: '.',
+            surfaceProfile: 'full-stack',
+            deliveryUnit: generatedUnit,
+          },
+          verticals: [],
+        }),
+      );
+      execFileSync('git', ['add', '.'], { cwd: f.root, env: gitEnv });
+      execFileSync(
+        'git',
+        [
+          '-c',
+          'user.name=Shell fixture',
+          '-c',
+          'user.email=shell-fixture@example.test',
+          '-c',
+          'commit.gpgsign=false',
+          '-c',
+          'core.hooksPath=/dev/null',
+          'commit',
+          '--quiet',
+          '-m',
+          'Commit the generated Shell fixture',
+        ],
+        { cwd: f.root, env: gitEnv },
+      );
+      const cleanRevision = execFileSync('git', ['rev-parse', 'HEAD'], {
+        cwd: f.root,
+        env: gitEnv,
+        encoding: 'utf8',
+      }).trim();
+      expect(
+        execFileSync(
+          'git',
+          ['status', '--porcelain', '--untracked-files=all'],
+          {
+            cwd: f.root,
+            env: gitEnv,
+            encoding: 'utf8',
+          },
+        ).trim(),
+      ).toBe('');
+      const stamp = await resolveWorkerDeliveryUnitStamp(f.root);
+      if (!stamp) {
+        throw new Error('Expected the native clean Shell delivery-unit stamp.');
+      }
+      expect(stamp.sourceRevision).toBe(cleanRevision);
+      expect(stamp.buildMarker).not.toBe(generatedIdentity.buildMarker);
+      const envelope = await f.emit();
+      expect(envelope?.identity).toMatchObject({
+        buildMarker: stamp.buildMarker,
+        sourceRevision: cleanRevision,
+      });
+      const emitted: unknown = JSON.parse(
+        await fs.readFile(
+          path.join(f.distDirectory, 'ultramodern-build.json'),
+          'utf8',
+        ),
+      );
+      expect(isUltramodernBuildArtifact(emitted)).toBe(true);
+      if (!isUltramodernBuildArtifact(emitted)) {
+        throw new Error(
+          'Expected a valid native restamped Shell build artifact.',
+        );
+      }
+      for (const identity of [
+        emitted.deliveryUnit,
+        emitted.surfaces.ui,
+        emitted.surfaces.api,
+      ]) {
+        expect(identity).toMatchObject({
+          unitId: stamp.unitId,
+          build: stamp.buildMarker,
+          buildMarker: stamp.buildMarker,
+          sourceRevision: cleanRevision,
+        });
+      }
+      await framework.verifyBuildOutputReleaseEnvelope(f.distDirectory, 'node');
+    } finally {
+      if (configuredSourceRevision === undefined) {
+        delete process.env.ULTRAMODERN_SOURCE_REVISION;
+      } else {
+        process.env.ULTRAMODERN_SOURCE_REVISION = configuredSourceRevision;
+      }
+    }
+  });
 
   test('binds complete Node build and staged output without a backend producer', async () => {
     const f = await fixture(framework, 'shell');
