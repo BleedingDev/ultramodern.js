@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { rs } from '@rstest/core';
 import {
   type RendererBuildIdentityOptions,
   type RendererFrameworkPackageBinding,
@@ -363,6 +364,82 @@ async function transitiveFederationPeerFixture(
     toolsSpecifier,
     toolsRequest,
   };
+}
+
+async function applicationFederationPeerFixture() {
+  const options = await publishedPeerFixture();
+  const version = '2.9.1';
+  const modernSpecifier = '@module-federation/modern-js-v3';
+  const pluginSpecifier = '@module-federation/rsbuild-plugin';
+  const enhancedSpecifier = '@module-federation/enhanced';
+  const toolsSpecifier = '@module-federation/runtime-tools';
+  const modern = path.join(
+    options.projectRoot,
+    'node_modules',
+    modernSpecifier,
+  );
+  const plugin = path.join(modern, 'node_modules', pluginSpecifier);
+  const enhanced = path.join(plugin, 'node_modules', enhancedSpecifier);
+  const tools = path.join(enhanced, 'node_modules', toolsSpecifier);
+  const compiler = path.join(
+    options.projectRoot,
+    'node_modules',
+    options.profile.compiler.name,
+  );
+  const rspack = path.join(compiler, 'node_modules', '@rspack/core');
+  await write(
+    path.join(options.projectRoot, 'package.json'),
+    JSON.stringify({
+      name: '@demo/shop',
+      version: '1.0.0',
+      dependencies: {
+        [modernSpecifier]: `npm:@bleedingdev/mf-modern-js-v3@${version}`,
+      },
+    }),
+  );
+  await writeFixturePackage(modern, {
+    name: '@bleedingdev/mf-modern-js-v3',
+    version,
+    dependencies: {
+      [pluginSpecifier]: `npm:@bleedingdev/mf-rsbuild-plugin@${version}`,
+    },
+  });
+  await writeFixturePackage(plugin, {
+    name: '@bleedingdev/mf-rsbuild-plugin',
+    version,
+    dependencies: {
+      [enhancedSpecifier]: `npm:@bleedingdev/mf-enhanced@${version}`,
+    },
+  });
+  await writeFixturePackage(enhanced, {
+    name: '@bleedingdev/mf-enhanced',
+    version,
+    dependencies: {
+      [toolsSpecifier]: `npm:@bleedingdev/mf-runtime-tools@${version}`,
+      [modernSpecifier]: `npm:@bleedingdev/mf-modern-js-v3@${version}`,
+    },
+  });
+  await writeFixturePackage(tools, {
+    name: '@bleedingdev/mf-runtime-tools',
+    version,
+  });
+  const file = path.join(compiler, 'package.json');
+  const manifest = JSON.parse(await fs.readFile(file, 'utf8'));
+  manifest.dependencies = { '@rspack/core': '2.2.8' };
+  await write(file, JSON.stringify(manifest));
+  await write(
+    path.join(rspack, 'package.json'),
+    JSON.stringify({
+      name: '@rspack/core',
+      version: '2.2.8',
+      peerDependencies: { [toolsSpecifier]: '^0.24.1 || ^2.0.0' },
+    }),
+  );
+  await write(path.join(rspack, 'index.js'), 'export const rspack = true;\n');
+  const slot = path.join(rspack, 'node_modules', toolsSpecifier);
+  await fs.mkdir(path.dirname(slot), { recursive: true });
+  await fs.symlink(tools, slot, 'dir');
+  return { ...options, modern, enhanced, tools, rspack, toolsSpecifier };
 }
 
 async function unselectedNativeAdapterFixture(renderer: 'solid' | 'octane') {
@@ -1052,6 +1129,147 @@ describe('renderer source and compiler build identity', () => {
     });
   });
 
+  test.each([
+    'catalog:ultramodern',
+    'catalog:',
+  ])('certifies an exact published peer through its declared %s and binds the YAML bytes', async catalog => {
+    const options = await publishedPeerFixture('app');
+    const manifest = path.join(options.projectRoot, 'package.json');
+    const app = JSON.parse(await fs.readFile(manifest, 'utf8'));
+    app.dependencies = { [options.providerSpecifier]: catalog };
+    delete app.devDependencies;
+    await write(manifest, JSON.stringify(app));
+    const file = path.join(options.workspace, 'pnpm-workspace.yaml');
+    const text = `${catalog === 'catalog:' ? 'catalog:' : 'catalogs:\n  ultramodern:'}\n${catalog === 'catalog:' ? '  ' : '    '}'${options.providerSpecifier}': '${options.providerRequest}'\n`;
+    await write(file, text);
+    const before = await resolveRendererBuildIdentities(options);
+    await fs.appendFile(file, '# catalog authority bytes\n');
+    const after = await resolveRendererBuildIdentities(options);
+    expect(after.compilerDigest).not.toBe(before.compilerDigest);
+  });
+
+  test.each([
+    'missing-workspace',
+    'missing-catalog',
+    'missing-key',
+    'range',
+    'wrong-name',
+    'wrong-version',
+    'different-physical-owner',
+    'malformed',
+    'nearer-workspace',
+  ])('rejects %s catalog authority for a renamed peer', async scenario => {
+    const options = await publishedPeerFixture('app');
+    const manifest = path.join(options.projectRoot, 'package.json');
+    const app = JSON.parse(await fs.readFile(manifest, 'utf8'));
+    app.dependencies = { [options.providerSpecifier]: 'catalog:ultramodern' };
+    delete app.devDependencies;
+    await write(manifest, JSON.stringify(app));
+    let request = options.providerRequest;
+    if (scenario === 'range') request = `npm:${options.providerName}@^3.9.0`;
+    if (scenario === 'wrong-name')
+      request = `npm:@fixture/wrong@${options.version}`;
+    if (scenario === 'wrong-version')
+      request = `npm:${options.providerName}@3.9.1`;
+    const file = path.join(options.workspace, 'pnpm-workspace.yaml');
+    if (scenario !== 'missing-workspace')
+      await write(
+        file,
+        scenario === 'malformed'
+          ? 'catalogs: ['
+          : `catalogs:\n  ${scenario === 'missing-catalog' ? 'other' : 'ultramodern'}:\n    '${scenario === 'missing-key' ? 'unrelated' : options.providerSpecifier}': '${request}'\n`,
+      );
+    if (scenario === 'nearer-workspace')
+      await write(
+        path.join(options.projectRoot, 'pnpm-workspace.yaml'),
+        'packages: []\n',
+      );
+    if (scenario === 'different-physical-owner') {
+      const alternate = path.join(
+        options.workspace,
+        'alternate-catalog-provider',
+      );
+      await writeFixturePackage(alternate, {
+        name: options.providerName,
+        version: options.version,
+      });
+      const slot = path.join(
+        options.projectRoot,
+        'node_modules',
+        options.providerSpecifier,
+      );
+      await fs.unlink(slot);
+      await fs.symlink(alternate, slot, 'dir');
+    }
+    await expect(resolveRendererBuildIdentities(options)).rejects.toThrow();
+  });
+
+  test('rejects an application-only MF authority manifest changed during implementation hashing', async () => {
+    const options = await applicationFederationPeerFixture();
+    const file = path.join(options.enhanced, 'package.json');
+    const original = await fs.readFile(file, 'utf8');
+    const read = fs.readFile.bind(fs);
+    let changed = false;
+    const spy = rs.spyOn(fs, 'readFile').mockImplementation(async (...args) => {
+      if (
+        !changed &&
+        String(args[0]) === path.join(options.enhanced, 'index.js')
+      ) {
+        changed = true;
+        await fs.writeFile(file, `${original}\n`);
+      }
+      return Reflect.apply(read, fs, args);
+    });
+    try {
+      await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+        'authority manifest changed',
+      );
+      expect(changed).toBe(true);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  test.each([
+    'change',
+    'closer-creation',
+  ])('rejects catalog %s during an awaited compiler package read', async scenario => {
+    const options = await publishedPeerFixture('app');
+    const manifest = path.join(options.projectRoot, 'package.json');
+    const app = JSON.parse(await fs.readFile(manifest, 'utf8'));
+    app.dependencies = { [options.providerSpecifier]: 'catalog:ultramodern' };
+    delete app.devDependencies;
+    await write(manifest, JSON.stringify(app));
+    const file = path.join(options.workspace, 'pnpm-workspace.yaml');
+    const text = `catalogs:\n  ultramodern:\n    '${options.providerSpecifier}': '${options.providerRequest}'\n`;
+    await write(file, text);
+    const read = fs.readFile.bind(fs);
+    let changed = false;
+    const spy = rs.spyOn(fs, 'readFile').mockImplementation(async (...args) => {
+      if (
+        !changed &&
+        String(args[0]) === path.join(options.provider, 'index.js')
+      ) {
+        changed = true;
+        await write(
+          scenario === 'change'
+            ? file
+            : path.join(options.projectRoot, 'pnpm-workspace.yaml'),
+          `${text}# changed during compiler read\n`,
+        );
+      }
+      return Reflect.apply(read, fs, args);
+    });
+    try {
+      await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+        'catalog changed',
+      );
+      expect(changed).toBe(true);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   test('certifies peer aliases declared by an additional selected physical framework owner', async () => {
     const options = await publishedPeerFixture();
     const file = path.join(options.sdk, 'package.json');
@@ -1115,7 +1333,7 @@ describe('renderer source and compiler build identity', () => {
       });
     } else if (scenario === 'wrong-peer-version' || scenario === 'peer-range') {
       pluginManifest.peerDependencies[options.providerSpecifier] =
-        scenario === 'wrong-peer-version' ? '3.9.1' : `^${options.version}`;
+        scenario === 'wrong-peer-version' ? '3.9.1' : '^3.9.1';
     } else if (scenario === 'alias-range') {
       sdkManifest.dependencies[options.providerSpecifier] =
         `npm:${options.providerName}@^${options.version}`;
@@ -1173,6 +1391,64 @@ describe('renderer source and compiler build identity', () => {
     expect(after.compilerDigest).not.toBe(before.compilerDigest);
     expect(after.frameworkCohortDigest).not.toBe(before.frameworkCohortDigest);
     expect(after.buildMarker).not.toBe(before.buildMarker);
+  });
+
+  test('certifies the selected Rspack peer range through the application MF dependency graph', async () => {
+    const options = await applicationFederationPeerFixture();
+    const before = await resolveRendererBuildIdentities(options);
+    const file = path.join(options.enhanced, 'package.json');
+    const manifest = JSON.parse(await fs.readFile(file, 'utf8'));
+    manifest.description = 'Changed application compiler authority';
+    await write(file, JSON.stringify(manifest));
+    const after = await resolveRendererBuildIdentities(options);
+    expect(after.inputDigest).toBe(before.inputDigest);
+    expect(after.compilerDigest).not.toBe(before.compilerDigest);
+    expect(after.buildMarker).not.toBe(before.buildMarker);
+    await fs.appendFile(
+      path.join(options.enhanced, 'index.js'),
+      'export const changedApplicationCompiler = true;\n',
+    );
+    const compilerChanged = await resolveRendererBuildIdentities(options);
+    expect(compilerChanged.compilerDigest).not.toBe(after.compilerDigest);
+    await fs.appendFile(
+      path.join(options.tools, 'index.js'),
+      'export const changed = true;\n',
+    );
+    const providerChanged = await resolveRendererBuildIdentities(options);
+    expect(providerChanged.compilerDigest).not.toBe(
+      compilerChanged.compilerDigest,
+    );
+  });
+
+  test.each([
+    '^3.0.0',
+    'latest',
+    'catalog:mf',
+  ])('rejects the incompatible or non-semver renamed Rspack peer %s', async specification => {
+    const options = await applicationFederationPeerFixture();
+    const file = path.join(options.rspack, 'package.json');
+    const manifest = JSON.parse(await fs.readFile(file, 'utf8'));
+    manifest.peerDependencies[options.toolsSpecifier] = specification;
+    await write(file, JSON.stringify(manifest));
+    await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+      'compiler/profile mismatch',
+    );
+  });
+
+  test.each([
+    'dev-only',
+    'unreachable',
+  ])('rejects %s application graph authority for a renamed Rspack peer', async scenario => {
+    const options = await applicationFederationPeerFixture();
+    const file = path.join(options.projectRoot, 'package.json');
+    const manifest = JSON.parse(await fs.readFile(file, 'utf8'));
+    if (scenario === 'dev-only')
+      manifest.devDependencies = manifest.dependencies;
+    delete manifest.dependencies;
+    await write(file, JSON.stringify(manifest));
+    await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+      'requires one exact declared npm alias target',
+    );
   });
 
   test.each([

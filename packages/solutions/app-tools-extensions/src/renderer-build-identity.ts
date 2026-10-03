@@ -12,6 +12,7 @@ import {
   validateRendererProfile,
   validateRendererRouterBindings,
 } from '@modern-js/backend-federation-contracts';
+import { yaml } from '@modern-js/utils';
 import semver from '@modern-js/utils/semver';
 import { resolveUltramodernReleaseIdentity } from './release-identity';
 import {
@@ -557,27 +558,134 @@ async function compilerClosure(
     { owner: string; specification: string }[]
   >();
   const selectedAliasOwners = new Set<string>();
+  const aliasAuthority = new Map<
+    string,
+    { name: string; version: string; digest: string }
+  >();
+  const catalogCandidates = new Map<string, string>();
+  const catalogAuthority = new Map<string, string>();
+  const manifestAuthority = new Map<
+    string,
+    { state: string; digest: string }
+  >();
+  let appCatalog: Record<string, unknown> | undefined;
+  const authorityFileState = async (file: string): Promise<string> => {
+    const stat = await fs.lstat(file, { bigint: true }).catch(error => {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+      throw error;
+    });
+    if (!stat) return 'missing';
+    const target = await fs.stat(file, { bigint: true });
+    return canonical({
+      mode: stat.mode.toString(),
+      dev: stat.dev.toString(),
+      ino: stat.ino.toString(),
+      ctimeNs: stat.ctimeNs.toString(),
+      real: await fs.realpath(file),
+      target: {
+        dev: target.dev.toString(),
+        ino: target.ino.toString(),
+        ctimeNs: target.ctimeNs.toString(),
+        mode: target.mode.toString(),
+      },
+    });
+  };
+  const appCatalogRequest = async (name: string, specification: string) => {
+    if (!appCatalog) {
+      let directory = path.resolve(options.projectRoot);
+      for (;;) {
+        const file = path.join(directory, 'pnpm-workspace.yaml');
+        const before = await authorityFileState(file);
+        catalogCandidates.set(file, before);
+        if (before !== 'missing') {
+          const bytes = await fs.readFile(file, 'utf8');
+          catalogAuthority.set(
+            file,
+            await hashFiles([{ file, key: 'pnpm-workspace.yaml' }], lease),
+          );
+          if (
+            (await authorityFileState(file)) !== before ||
+            (await fs.readFile(file, 'utf8')) !== bytes
+          )
+            throw new Error(`Renderer compiler catalog changed: ${file}.`);
+          const parsed: unknown = yaml.load(bytes);
+          if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+            throw new Error(
+              `Invalid renderer compiler workspace catalog: ${file}.`,
+            );
+          appCatalog = parsed as Record<string, unknown>;
+          break;
+        }
+        const parent = path.dirname(directory);
+        if (parent === directory)
+          throw new Error(
+            `Renderer compiler catalog ${specification} has no declaring pnpm workspace.`,
+          );
+        directory = parent;
+      }
+    }
+    const catalogName = specification.slice('catalog:'.length);
+    const catalogs = appCatalog.catalogs;
+    const catalog = catalogName
+      ? catalogs && typeof catalogs === 'object' && !Array.isArray(catalogs)
+        ? (catalogs as Record<string, unknown>)[catalogName]
+        : undefined
+      : appCatalog.catalog;
+    const request =
+      catalog &&
+      typeof catalog === 'object' &&
+      !Array.isArray(catalog) &&
+      Object.hasOwn(catalog, name)
+        ? (catalog as Record<string, unknown>)[name]
+        : undefined;
+    if (
+      typeof request !== 'string' ||
+      !(semver.valid(request) || dependencyIdentity(name, request).exactVersion)
+    )
+      throw new Error(
+        `Renderer compiler catalog ${specification} must declare an exact request for ${name}.`,
+      );
+    return request;
+  };
   const collectPeerAliases = async (
     directory: string,
     app = false,
   ): Promise<void> => {
     const owner = await fs.realpath(directory);
-    if (!app) {
-      if (selectedAliasOwners.has(owner)) return;
-      selectedAliasOwners.add(owner);
-    }
-    const manifest = await guardedRead(lease, () => readPackage(owner, lease));
-    for (const [name, specification] of Object.entries({
+    if (selectedAliasOwners.has(owner)) return;
+    selectedAliasOwners.add(owner);
+    const file = path.join(owner, 'package.json');
+    const state = await authorityFileState(file);
+    const bytes = await fs.readFile(file, 'utf8');
+    const manifest: Awaited<ReturnType<typeof readPackage>> = JSON.parse(bytes);
+    const manifestDigest = await hashFiles(
+      [{ file, key: 'package.json' }],
+      lease,
+    );
+    if ((await authorityFileState(file)) !== state)
+      throw new Error(`Renderer compiler authority manifest changed: ${file}.`);
+    manifestAuthority.set(file, { state, digest: manifestDigest });
+    // Application plugin owners can sit outside the selected SDK graph. Their
+    // actual declarations still require byte binding before certifying a peer.
+    aliasAuthority.set(owner, {
+      name: manifest.name,
+      version: manifest.version,
+      digest: manifestDigest,
+    });
+    for (const [name, declared] of Object.entries({
       ...(app ? manifest.devDependencies : {}),
       ...manifest.dependencies,
       ...manifest.optionalDependencies,
     })) {
+      const specification =
+        app && declared.startsWith('catalog:')
+          ? await appCatalogRequest(name, declared)
+          : declared;
       if (!/^npm:/iu.test(specification)) continue;
       const requests = peerAliasRequests.get(name) ?? [];
       requests.push({ owner, specification });
       peerAliasRequests.set(name, requests);
     }
-    if (app) return;
     for (const name of new Set([
       ...Object.keys(manifest.dependencies ?? {}),
       ...Object.keys(manifest.optionalDependencies ?? {}),
@@ -622,7 +730,11 @@ async function compilerClosure(
         `Renderer compiler/profile mismatch: renamed peer ${name} requires one exact declared npm alias target.`,
       );
     const identity = identities[0];
-    if (semver.valid(specification) !== identity.exactVersion)
+    if (
+      identity.exactVersion === undefined ||
+      !semver.validRange(specification, { loose: true }) ||
+      !semver.satisfies(identity.exactVersion, specification, { loose: true })
+    )
       throw new Error(
         `Renderer compiler/profile mismatch: peer ${name}@${specification} conflicts with declared ${identity.name}@${identity.exactVersion}.`,
       );
@@ -773,6 +885,19 @@ async function compilerClosure(
       });
     }
   }
+  const appOwner = await fs.realpath(options.projectRoot);
+  for (const [owner, authority] of aliasAuthority) {
+    if (owner === appOwner || seen.has(owner)) continue;
+    // Bind application-only compiler implementations too; selected packages
+    // already carry their complete bytes in the validating closure above.
+    const files = await guardedRead(lease, () =>
+      filesIn(owner, [], new Set(), lease),
+    );
+    authority.digest = await hashFiles(
+      files.map(file => ({ file, key: slash(path.relative(owner, file)) })),
+      lease,
+    );
+  }
   for (const name of Object.keys(pins).sort()) {
     if (!validatedPins.has(name))
       throw new Error(
@@ -804,12 +929,27 @@ async function compilerClosure(
     ...binding,
     package: projectCohort(binding.package),
   }));
+  for (const [file, before] of catalogCandidates)
+    if ((await authorityFileState(file)) !== before)
+      throw new Error(`Renderer compiler catalog changed: ${file}.`);
+  for (const [file, before] of manifestAuthority)
+    if (
+      (await authorityFileState(file)) !== before.state ||
+      (await hashFiles([{ file, key: 'package.json' }], lease)) !==
+        before.digest ||
+      (await authorityFileState(file)) !== before.state
+    )
+      throw new Error(`Renderer compiler authority manifest changed: ${file}.`);
   return {
     frameworkCohortDigest: digest({
       bindings: projectedBindings,
       packages: cohortPackages,
     }),
     compilerDigest: digest({
+      catalogs: [...catalogAuthority.values()].sort(),
+      aliasAuthority: [...aliasAuthority.values()].sort((a, b) =>
+        canonical(a) < canonical(b) ? -1 : canonical(a) > canonical(b) ? 1 : 0,
+      ),
       bindings: [...bindings, ...frameworkBindings],
       packages: packages.sort((a, b) =>
         canonical(a) < canonical(b) ? -1 : canonical(a) > canonical(b) ? 1 : 0,

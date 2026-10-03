@@ -474,6 +474,7 @@ export function reactRendererBuildMetadataPlugin(
             internalDirectory: captured.internalDirectory,
             distDirectory: captured.distDirectory,
             inputPaths: reactAuthoredInputPaths(captured),
+            configurationSourceSnapshot: captured.configurationSourceSnapshot,
             produceTypedCss:
               captured.config.output.enableCssModuleTSDeclaration === true,
             generatedOutputs: generatedOutputsController,
