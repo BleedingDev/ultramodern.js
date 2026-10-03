@@ -9,18 +9,27 @@ import { readReleaseManifest } from '../../ultramodern-publish/lib/source-create
 const sdkName = '@modern-js/renderer-octane';
 const compilerVersion = '7.0.2';
 
-function packageFile(archive, target, label) {
+function packageFile(archive, target, label, { bin = false } = {}) {
   assert.equal(typeof target, 'string', `${label} must name a package file`);
+  // npm bins are package-relative; export targets require their ./ prefix.
+  const relative = target.startsWith('./') ? target.slice(2) : target;
   assert.ok(
-    target.startsWith('./') &&
+    (bin || target.startsWith('./')) &&
+      relative.length > 0 &&
+      relative !== '.' &&
+      relative !== '..' &&
+      !path.posix.isAbsolute(relative) &&
+      !path.win32.isAbsolute(relative) &&
+      !/^[a-z]:/iu.test(relative) &&
       !target.includes('\\') &&
-      !target.includes('*') &&
-      path.posix.normalize(target.slice(2)) === target.slice(2) &&
-      !target.slice(2).startsWith('../'),
+      !target.includes('\0') &&
+      !/[*?[\]]/u.test(target) &&
+      path.posix.normalize(relative) === relative &&
+      !relative.startsWith('../'),
     `${label} must name an exact file inside the SDK`,
   );
   assert.ok(
-    archive.fileContents.has(target.slice(2)),
+    archive.fileContents.has(relative),
     `The packed SDK is missing ${label}: ${target}`,
   );
   return target;
@@ -126,6 +135,7 @@ export function prepareOctaneAdmission({
     archive,
     sdk.bin?.['octane-tsc'],
     'octane-tsc bin',
+    { bin: true },
   );
   const typecheck = sdk.exports?.['./typecheck'];
   assert.ok(
