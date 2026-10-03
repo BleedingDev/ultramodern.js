@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import { createDeliveryUnitRecord } from '../src/ultramodern-workspace/delivery-unit';
-import { createNeutralOwnership } from '../src/ultramodern-workspace/descriptors';
+import {
+  createNeutralOwnership,
+  createVerticalDescriptor,
+} from '../src/ultramodern-workspace/descriptors';
 import {
   createUltramodernBuildArtifactJson,
   createUltramodernBuildModule,
@@ -98,6 +101,20 @@ test('shell build modules expose the delivery and UI identity consumed by their 
   assert.match(source, /export const ultramodernUiMarker/u);
   assert.doesNotMatch(source, /export const ultramodernApiMarker/u);
   assert.doesNotMatch(source, /typeof|surfaces: \{[\s\S]*surfaces:/u);
+});
+
+test('a compiled build module rejects an absent UI surface when a UI marker is required', () => {
+  const headless = createReactBuildFixtureApp(
+    'acme',
+    createVerticalDescriptor('catalog-api', 4101, { preset: 'api-only' }),
+  );
+  const artifactJson = createUltramodernBuildArtifactJson('acme', headless);
+  assert.equal(JSON.parse(artifactJson).surfaces.ui, undefined);
+  const source = createUltramodernBuildModule('acme', headless, true);
+  assert.throws(
+    () => evaluateBuildModule(source, artifactJson),
+    /Application catalog-api requires a UI build identity\./u,
+  );
 });
 
 test('build artifacts reject unresolved or drifted renderer entry identities and router bindings', () => {
