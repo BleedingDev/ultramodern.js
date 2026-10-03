@@ -290,6 +290,81 @@ async function publishedPeerFixture(authority: 'sdk' | 'app' = 'sdk') {
   };
 }
 
+async function transitiveFederationPeerFixture(
+  edge: 'dependency' | 'optional' | 'peer' = 'dependency',
+  order: 'alias-first' | 'consumer-first' = 'consumer-first',
+) {
+  const options = await publishedPeerFixture();
+  const version = '2.9.1';
+  const enhancedSpecifier = '@module-federation/enhanced';
+  const toolsSpecifier = '@module-federation/runtime-tools';
+  const consumerSpecifier =
+    '@module-federation/inject-external-runtime-core-plugin';
+  const enhancedRequest = `npm:@bleedingdev/mf-enhanced@${version}`;
+  const toolsRequest = `npm:@bleedingdev/mf-runtime-tools@${version}`;
+  const enhanced = path.join(options.sdk, 'node_modules', enhancedSpecifier);
+  const tools = path.join(enhanced, 'node_modules', toolsSpecifier);
+  const consumer = path.join(enhanced, 'node_modules', consumerSpecifier);
+  const sdkFile = path.join(options.sdk, 'package.json');
+  const sdk = JSON.parse(await fs.readFile(sdkFile, 'utf8'));
+  if (edge === 'peer') {
+    const ownerName = '@fixture/federation-owner';
+    sdk.peerDependencies = { [ownerName]: '1.0.0' };
+    await writeFixturePackage(
+      path.join(options.sdk, 'node_modules', ownerName),
+      {
+        name: ownerName,
+        version: '1.0.0',
+        dependencies: { [enhancedSpecifier]: enhancedRequest },
+      },
+    );
+  } else {
+    const declarations =
+      edge === 'optional'
+        ? (sdk.optionalDependencies ??= {})
+        : sdk.dependencies;
+    declarations[enhancedSpecifier] = enhancedRequest;
+  }
+  sdk.optionalDependencies = {
+    ...sdk.optionalDependencies,
+    '@fixture/absent-optional': '1.0.0',
+  };
+  await write(sdkFile, JSON.stringify(sdk));
+  const edges = [
+    [toolsSpecifier, toolsRequest],
+    [consumerSpecifier, version],
+  ];
+  await writeFixturePackage(enhanced, {
+    name: '@bleedingdev/mf-enhanced',
+    version,
+    dependencies: Object.fromEntries(
+      order === 'alias-first' ? edges : edges.reverse(),
+    ),
+  });
+  await writeFixturePackage(tools, {
+    name: '@bleedingdev/mf-runtime-tools',
+    version,
+    dependencies: { [enhancedSpecifier]: enhancedRequest },
+  });
+  await write(
+    path.join(consumer, 'package.json'),
+    JSON.stringify({
+      name: consumerSpecifier,
+      version,
+      peerDependencies: { [toolsSpecifier]: version },
+    }),
+  );
+  await write(path.join(consumer, 'index.js'), 'export const inject = true;\n');
+  return {
+    ...options,
+    enhanced,
+    tools,
+    consumer,
+    toolsSpecifier,
+    toolsRequest,
+  };
+}
+
 async function unselectedNativeAdapterFixture(renderer: 'solid' | 'octane') {
   const options =
     renderer === 'solid' ? await fixture() : await rendererFixture('octane');
@@ -1071,6 +1146,91 @@ describe('renderer source and compiler build identity', () => {
     }
     await write(sdkManifestFile, JSON.stringify(sdkManifest));
     await write(pluginManifestFile, JSON.stringify(pluginManifest));
+    await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+      'compiler/profile mismatch',
+    );
+  });
+
+  test.each(
+    (['dependency', 'optional', 'peer'] as const).flatMap(edge =>
+      (['alias-first', 'consumer-first'] as const).map(order => ({
+        edge,
+        order,
+      })),
+    ),
+  )('certifies a transitive MF peer cycle through $edge edges with $order declarations', async ({
+    edge,
+    order,
+  }) => {
+    const options = await transitiveFederationPeerFixture(edge, order);
+    const before = await resolveRendererBuildIdentities(options);
+    await fs.appendFile(
+      path.join(options.tools, 'index.js'),
+      'export const modifiedRuntimeTools = true;\n',
+    );
+    const after = await resolveRendererBuildIdentities(options);
+    expect(after.inputDigest).toBe(before.inputDigest);
+    expect(after.compilerDigest).not.toBe(before.compilerDigest);
+    expect(after.frameworkCohortDigest).not.toBe(before.frameworkCohortDigest);
+    expect(after.buildMarker).not.toBe(before.buildMarker);
+  });
+
+  test.each([
+    'dev-only',
+    'unreachable',
+    'conflicting',
+    'split-owner',
+  ])('rejects %s transitive authority for a renamed MF peer', async scenario => {
+    const options = await transitiveFederationPeerFixture();
+    const file = path.join(options.enhanced, 'package.json');
+    const manifest = JSON.parse(await fs.readFile(file, 'utf8'));
+    if (scenario === 'dev-only' || scenario === 'unreachable') {
+      delete manifest.dependencies[options.toolsSpecifier];
+      if (scenario === 'dev-only')
+        manifest.devDependencies = {
+          [options.toolsSpecifier]: options.toolsRequest,
+        };
+      else {
+        const unrelated = path.join(
+          options.projectRoot,
+          'node_modules/@fixture/unreachable',
+        );
+        await writeFixturePackage(unrelated, {
+          name: '@fixture/unreachable',
+          version: '1.0.0',
+          dependencies: { [options.toolsSpecifier]: options.toolsRequest },
+        });
+        const slot = path.join(
+          unrelated,
+          'node_modules',
+          options.toolsSpecifier,
+        );
+        await fs.mkdir(path.dirname(slot), { recursive: true });
+        await fs.symlink(options.tools, slot, 'dir');
+      }
+      await write(file, JSON.stringify(manifest));
+    } else if (scenario === 'conflicting') {
+      const otherOwner = '@fixture/other-owner';
+      manifest.dependencies[otherOwner] = '1.0.0';
+      await write(file, JSON.stringify(manifest));
+      const owner = path.join(options.enhanced, 'node_modules', otherOwner);
+      await writeFixturePackage(owner, {
+        name: otherOwner,
+        version: '1.0.0',
+        dependencies: {
+          [options.toolsSpecifier]: 'npm:@fixture/other-runtime-tools@2.9.1',
+        },
+      });
+      await writeFixturePackage(
+        path.join(owner, 'node_modules', options.toolsSpecifier),
+        { name: '@fixture/other-runtime-tools', version: '2.9.1' },
+      );
+    } else {
+      await writeFixturePackage(
+        path.join(options.consumer, 'node_modules', options.toolsSpecifier),
+        { name: '@bleedingdev/mf-runtime-tools', version: '2.9.1' },
+      );
+    }
     await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
       'compiler/profile mismatch',
     );

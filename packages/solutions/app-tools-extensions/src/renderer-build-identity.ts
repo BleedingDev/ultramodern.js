@@ -534,20 +534,41 @@ async function compilerClosure(
     nativeDirectories.set(name, real);
     nativeRoots.add(real);
   }
+  const routerCoreDirectories: {
+    router: (typeof routers)[number];
+    directory: string;
+  }[] = [];
+  for (const router of routers) {
+    const routerRoot = nativeDirectories.get(router.name)!;
+    const directory =
+      router.coreName === router.name
+        ? routerRoot
+        : packageDirectory(router.coreName, [routerRoot]);
+    if (!directory)
+      throw new Error(
+        `The selected router must resolve its own exact ${router.coreName} core package.`,
+      );
+    nativeRoots.add(await fs.realpath(directory));
+    routerCoreDirectories.push({ router, directory });
+  }
   const validatedPins = new Set<string>();
   const peerAliasRequests = new Map<
     string,
     { owner: string; specification: string }[]
   >();
-  for (const owner of new Set([
-    options.projectRoot,
-    ...frameworkDirectories.values(),
-    ...[...frameworkModuleDirectories.values()].flat(),
-    ...nativeDirectories.values(),
-  ])) {
+  const selectedAliasOwners = new Set<string>();
+  const collectPeerAliases = async (
+    directory: string,
+    app = false,
+  ): Promise<void> => {
+    const owner = await fs.realpath(directory);
+    if (!app) {
+      if (selectedAliasOwners.has(owner)) return;
+      selectedAliasOwners.add(owner);
+    }
     const manifest = await guardedRead(lease, () => readPackage(owner, lease));
     for (const [name, specification] of Object.entries({
-      ...(owner === options.projectRoot ? manifest.devDependencies : {}),
+      ...(app ? manifest.devDependencies : {}),
       ...manifest.dependencies,
       ...manifest.optionalDependencies,
     })) {
@@ -556,6 +577,26 @@ async function compilerClosure(
       requests.push({ owner, specification });
       peerAliasRequests.set(name, requests);
     }
+    if (app) return;
+    for (const name of new Set([
+      ...Object.keys(manifest.dependencies ?? {}),
+      ...Object.keys(manifest.optionalDependencies ?? {}),
+      ...Object.keys(manifest.peerDependencies ?? {}),
+    ])) {
+      const resolved = packageDirectory(name, [owner]);
+      // The original validating traversal still rejects missing required edges.
+      if (resolved) await collectPeerAliases(resolved);
+    }
+  };
+  await collectPeerAliases(options.projectRoot, true);
+  // Complete the same selected physical closure before validating its peers;
+  // an alias-owning sibling may sort after the package that consumes that peer.
+  for (const owner of new Set([
+    ...frameworkDirectories.values(),
+    ...[...frameworkModuleDirectories.values()].flat(),
+    ...nativeRoots,
+  ])) {
+    await collectPeerAliases(owner);
   }
   const peerIdentity = async (
     name: string,
@@ -704,18 +745,8 @@ async function compilerClosure(
       record.dependencies = resolvedDependencies;
       return record.id;
     });
-  for (const router of routers) {
-    const routerRoot = nativeDirectories.get(router.name)!;
-    const routerCoreDirectory =
-      router.coreName === router.name
-        ? routerRoot
-        : packageDirectory(router.coreName, [routerRoot]);
-    if (!routerCoreDirectory)
-      throw new Error(
-        `The selected router must resolve its own exact ${router.coreName} core package.`,
-      );
-    nativeRoots.add(await fs.realpath(routerCoreDirectory));
-    await visit(routerCoreDirectory, router.coreName, router.coreVersion);
+  for (const { router, directory } of routerCoreDirectories) {
+    await visit(directory, router.coreName, router.coreVersion);
   }
   for (const [name, directory] of nativeDirectories) {
     bindings.push({ name, package: await visit(directory, name, pins[name]) });
