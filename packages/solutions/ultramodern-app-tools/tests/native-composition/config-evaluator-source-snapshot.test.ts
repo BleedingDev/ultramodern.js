@@ -615,6 +615,34 @@ describe('bounded config source snapshots', () => {
       expect(() => assertConfigSourceSnapshotUnchanged(snapshot)).toThrow(file);
     }));
 
+  it('excludes operational temporary trees while retaining explicitly declared temporary source inputs', () =>
+    fixture(directory => {
+      const temporarySource = path.join(directory, '.tmp/selection.ts');
+      const installed = path.join(directory, 'node_modules/provider/index.js');
+      fs.mkdirSync(path.dirname(temporarySource), { recursive: true });
+      fs.mkdirSync(path.dirname(installed), { recursive: true });
+      fs.writeFileSync(temporarySource, 'before');
+      fs.writeFileSync(installed, 'provider');
+      fs.symlinkSync(installed, path.join(directory, '.tmp/native-provider'));
+      const ordinary = captureConfigSourceSnapshot({
+        sourceRoots: [directory],
+      });
+      const explicit = captureConfigSourceSnapshot({
+        sourceRoots: [directory],
+        extraInputs: [temporarySource],
+      });
+      expect(
+        ordinary.states.some(state =>
+          state.path.startsWith(`${directory}/.tmp/`),
+        ),
+      ).toBe(false);
+      fs.writeFileSync(temporarySource, 'after');
+      expect(() => assertConfigSourceSnapshotUnchanged(ordinary)).not.toThrow();
+      expect(() => assertConfigSourceSnapshotUnchanged(explicit)).toThrow(
+        temporarySource,
+      );
+    }));
+
   it.each([
     'apps/dist',
     'verticals/dist',

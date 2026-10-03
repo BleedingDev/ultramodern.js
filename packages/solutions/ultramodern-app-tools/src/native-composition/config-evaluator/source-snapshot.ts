@@ -6,6 +6,7 @@ export const CONFIG_SOURCE_SNAPSHOT_EXCLUSIONS = Object.freeze([
   '.git',
   '.nx',
   '.output',
+  '.tmp',
   'coverage',
   'dist',
   'node_modules',
