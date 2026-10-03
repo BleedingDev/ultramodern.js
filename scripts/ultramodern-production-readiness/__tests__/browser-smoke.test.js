@@ -1,10 +1,22 @@
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
+const { createRequire } = require('node:module');
 const net = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
+const {
+  DELIVERY_UNIT_DEPLOY_PROFILE,
+  DELIVERY_UNIT_KIND,
+  DELIVERY_UNIT_SCHEMA_VERSION,
+  deliveryUnitContractBlock,
+} = createRequire(
+  path.resolve(
+    __dirname,
+    '../../../packages/toolkit/ultramodern-create/package.json',
+  ),
+)('@modern-js/backend-federation-contracts');
 
 async function loadSmoke() {
   return import('../run-browser-smoke.mjs');
@@ -17,6 +29,144 @@ async function loadAcceptanceAssertions() {
 function tempRoot() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'ultramodern-browser-smoke-'));
 }
+
+function stampedBlock(appId, version, buildMarker) {
+  return deliveryUnitContractBlock({
+    appId,
+    deployProfile: DELIVERY_UNIT_DEPLOY_PROFILE,
+    kind: DELIVERY_UNIT_KIND,
+    schemaVersion: DELIVERY_UNIT_SCHEMA_VERSION,
+    packageName: `@fixture/${appId}`,
+    unitId: `@fixture/root/${appId}`,
+    sourceRevision: 'workspace',
+    version,
+    buildMarker,
+  });
+}
+
+function writeStampedShell(root, renderer, version, buildMarker) {
+  const topology = {
+    shell: {
+      id: 'shell',
+      kind: 'shell',
+      path: 'apps/shell',
+      package: '@fixture/shell',
+      renderer,
+      deliveryUnit: stampedBlock('shell', version, buildMarker),
+    },
+    verticals: [],
+  };
+  for (const [relative, value] of [
+    ['package.json', { name: '@fixture/root' }],
+    ['apps/shell/package.json', { name: '@fixture/shell', version }],
+    ['topology/reference-topology.json', topology],
+    ['topology/local-overlays/development.json', { ports: { shell: 4100 } }],
+  ]) {
+    const filename = path.join(root, relative);
+    fs.mkdirSync(path.dirname(filename), { recursive: true });
+    fs.writeFileSync(filename, JSON.stringify(value));
+  }
+  return topology;
+}
+
+for (const [renderer, stamps] of [
+  ['react', ['d4fd0d4b2cf41285', '3147bf6cfd2d1e34']],
+  ['solid', ['0aafabca82637866', '81cf44c0986972c5']],
+  ['octane', ['e100cf585da1e1ac', 'fbc7c05363280d9e']],
+]) {
+  test(`browser smoke retains stamped ${renderer} identity across source and release versions`, async t => {
+    const { readSmokeContract } = await import('../browser-smoke/contract.mjs');
+    const { bindContractToExpectedReleaseIdentities } = await import(
+      '../browser-smoke/runtime-evidence.mjs'
+    );
+    const root = tempRoot();
+    t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+    const sourceRevision = 'a'.repeat(40);
+    for (const [index, version] of ['0.2.0', '1.4.0'].entries()) {
+      // This adapter consumes stamps; renderer/version hashing belongs to the
+      // generator and must not be reconstructed by the smoke tool.
+      const stamp = stamps[index];
+      writeStampedShell(root, renderer, version, stamp);
+      const { contract } = readSmokeContract(root);
+      assert.equal(
+        Object.hasOwn(contract.apps[0].deliveryUnit, 'appId'),
+        false,
+      );
+      assert.equal(contract.apps[0].marker.appId, 'shell');
+      assert.equal(contract.apps[0].marker.build, stamp);
+      assert.equal(contract.apps[0].deliveryUnit.buildMarker, stamp);
+      assert.equal(contract.apps[0].deliveryUnit.version, version);
+      const released = bindContractToExpectedReleaseIdentities({
+        contract,
+        expectedSourceRevisions: { shell: sourceRevision },
+        platform: 'node',
+        projectDir: root,
+      });
+      assert.equal(released.apps[0].deliveryUnit.buildMarker, stamp);
+      assert.equal(released.apps[0].marker.releaseVersion, version);
+      assert.equal(released.apps[0].marker.sourceRevision, sourceRevision);
+      assert.notEqual(released.apps[0].marker.build, stamp);
+      assert.equal(contract.apps[0].marker.build, stamp);
+      assert.throws(
+        () =>
+          bindContractToExpectedReleaseIdentities({
+            contract: {
+              ...contract,
+              apps: [
+                { ...contract.apps[0], marker: { build: 'stale-marker' } },
+              ],
+            },
+            expectedSourceRevisions: { shell: sourceRevision },
+            platform: 'node',
+            projectDir: root,
+          }),
+        /generated smoke marker differs from its delivery-unit build marker/u,
+      );
+    }
+  });
+}
+
+test('browser smoke rejects absent stamps and inconsistent stamped app identities', async t => {
+  const { readSmokeContract } = await import('../browser-smoke/contract.mjs');
+  const root = tempRoot();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const topology = writeStampedShell(
+    root,
+    'react',
+    '0.2.0',
+    'd4fd0d4b2cf41285',
+  );
+  const stamp = topology.shell.deliveryUnit;
+  assert.equal(Object.hasOwn(stamp, 'appId'), false);
+  const save = deliveryUnit => {
+    topology.shell.deliveryUnit = deliveryUnit;
+    fs.writeFileSync(
+      path.join(root, 'topology/reference-topology.json'),
+      JSON.stringify(topology),
+    );
+  };
+  for (const invalid of [undefined, [], {}, { ...stamp, buildMarker: ' \t' }]) {
+    save(invalid);
+    assert.throws(
+      () => readSmokeContract(root),
+      /stamped deliveryUnit.buildMarker/u,
+    );
+  }
+  for (const replacement of [
+    { appId: 'another-app' },
+    { packageName: '@fixture/another' },
+    { unitId: '@another/root/shell' },
+    { version: '0.1.0' },
+  ]) {
+    save({ ...stamp, ...replacement });
+    assert.throws(
+      () => readSmokeContract(root),
+      /stamped delivery-unit identity must match/u,
+    );
+  }
+  save({ ...stamp, appId: 'shell' });
+  assert.equal(readSmokeContract(root).contract.apps[0].marker.appId, 'shell');
+});
 
 test('browser smoke reads canonical topology, overlay and app security choices', async t => {
   const { readSmokeContract } = await import('../browser-smoke/contract.mjs');
@@ -42,6 +192,7 @@ test('browser smoke reads canonical topology, overlay and app security choices',
       kind: 'shell',
       path: 'apps/shell',
       package: '@fixture/shell',
+      deliveryUnit: stampedBlock('shell', '0.2.0', 'ad122266dd999c17'),
       verticalRefs: ['inventory'],
       moduleFederation: { role: 'host' },
       cloudflare: {
@@ -57,6 +208,7 @@ test('browser smoke reads canonical topology, overlay and app security choices',
         kind: 'vertical',
         path: 'verticals/inventory',
         package: '@fixture/inventory',
+        deliveryUnit: stampedBlock('inventory', '0.3.0', 'ee874228738fecc2'),
         api: {
           runtime: 'effect',
           basePath: '/inventory-api/inventory',
@@ -117,6 +269,17 @@ test('browser smoke reads canonical topology, overlay and app security choices',
     '/inventory-api/inventory/readiness',
   );
   assert.equal(contract.apps[1].api.protocol, 'rest');
+  assert.deepEqual(
+    contract.apps.map(app => [
+      app.marker.build,
+      app.deliveryUnit.buildMarker,
+      app.deliveryUnit.version,
+    ]),
+    [
+      ['ad122266dd999c17', 'ad122266dd999c17', '0.2.0'],
+      ['ee874228738fecc2', 'ee874228738fecc2', '0.3.0'],
+    ],
+  );
   const rpcTopology = JSON.parse(
     fs.readFileSync(path.join(root, 'topology/reference-topology.json')),
   );
