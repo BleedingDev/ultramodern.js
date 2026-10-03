@@ -218,8 +218,175 @@ test('fails closed when the authenticated create closure is omitted or version-s
   );
 });
 
-test('fresh-release installs use one exact cohort and sidecar selector set', async t => {
-  const { releaseAgeExemptions } = await import(
+function makeBootstrapSidecar(name, version, packageJson = {}) {
+  return { name, version, packageJson: { name, version, ...packageJson } };
+}
+
+test('bootstrap admits only the exact reachable sidecar runtime and optional closure', async () => {
+  const { createPnpmDlxArgs, resolveCreatePackage } = await import(
+    '../published-create-proof/package-cohort.mjs'
+  );
+  const release = makeBootstrapRelease();
+  const jiti = makeBootstrapSidecar('@bleedingdev/jiti', '2.7.0');
+  const runtime = makeBootstrapSidecar('@bleedingdev/mf-runtime', '2.9.1');
+  const node = makeBootstrapSidecar('@bleedingdev/mf-node', '2.7.51');
+  const image = makeBootstrapSidecar(
+    '@bleedingdev/rsbuild-image-core',
+    '0.1.4',
+  );
+  const modern = makeBootstrapSidecar('@bleedingdev/mf-modern-js-v3', '2.9.1', {
+    dependencies: {
+      '@module-federation/runtime': `npm:${runtime.name}@${runtime.version}`,
+    },
+    optionalDependencies: { [node.name]: node.version },
+    devDependencies: { '@bleedingdev/dev-only': '1.0.0' },
+  });
+  const unused = makeBootstrapSidecar('@bleedingdev/unused', '1.0.0');
+  const devOnly = makeBootstrapSidecar('@bleedingdev/dev-only', '1.0.0');
+  const unreachable = makeBootstrapSidecar('@bleedingdev/unreachable', '1.0.0');
+  Object.assign(release.createPackage.packageJson.dependencies, {
+    jiti: `npm:${jiti.name}@${jiti.version}`,
+    '@module-federation/modern-js-v3': `npm:${modern.name}@${modern.version}`,
+  });
+  const utils = release.packages.find(
+    item => item.sourceName === '@modern-js/utils',
+  );
+  utils.packageJson.optionalDependencies = { [image.name]: image.version };
+  utils.packageJson.devDependencies = { [unused.name]: unused.version };
+  release.packages.find(
+    item => item.sourceName === '@modern-js/runtime',
+  ).packageJson.dependencies = { [unreachable.name]: unreachable.version };
+  release.sidecars = {
+    packages: [
+      jiti,
+      modern,
+      runtime,
+      node,
+      image,
+      unused,
+      devOnly,
+      unreachable,
+    ],
+  };
+  const createPackage = resolveCreatePackage(release);
+  const expected = [
+    ...resolveCreatePackage(makeBootstrapRelease()).bootstrapReleaseAgePolicy
+      .minimumReleaseAgeExclude,
+    ...[jiti, modern, runtime, node, image].map(
+      item => `${item.name}@${item.version}`,
+    ),
+  ].sort((left, right) => left.localeCompare(right));
+  assert.deepEqual(
+    createPackage.bootstrapReleaseAgePolicy.minimumReleaseAgeExclude,
+    expected,
+  );
+  const args = createPnpmDlxArgs(createPackage, ['my-app']);
+  assert.deepEqual(
+    args.filter(value =>
+      value.startsWith('--config.minimum-release-age-exclude='),
+    ),
+    expected.map(value => `--config.minimum-release-age-exclude=${value}`),
+  );
+  for (const flag of [
+    '--config.minimum-release-age=1440',
+    '--config.minimum-release-age-strict=true',
+    '--config.minimum-release-age-ignore-missing-time=false',
+  ])
+    assert(args.includes(flag));
+  assert(args.includes('dlx'));
+  assert(args.includes(createPackage.exactSpecifier));
+});
+
+test('bootstrap rejects mismatched or inexact sidecar dependency identities', async () => {
+  const { resolveCreatePackage } = await import(
+    '../published-create-proof/package-cohort.mjs'
+  );
+  for (const specifier of [
+    'npm:@bleedingdev/jiti@2.6.0',
+    'npm:@bleedingdev/jiti@^2.7.0',
+    'npm:@bleedingdev/jiti@*',
+  ]) {
+    const release = makeBootstrapRelease();
+    release.createPackage.packageJson.dependencies.jiti = specifier;
+    release.sidecars = {
+      packages: [makeBootstrapSidecar('@bleedingdev/jiti', '2.7.0')],
+    };
+    assert.throws(
+      () => resolveCreatePackage(release),
+      /must resolve to exact bootstrap sidecar/u,
+    );
+  }
+  const release = makeBootstrapRelease();
+  const parent = makeBootstrapSidecar('@bleedingdev/parent', '1.0.0', {
+    dependencies: { '@bleedingdev/jiti': '^2.7.0' },
+  });
+  release.createPackage.packageJson.dependencies[parent.name] = parent.version;
+  release.sidecars = {
+    packages: [parent, makeBootstrapSidecar('@bleedingdev/jiti', '2.7.0')],
+  };
+  assert.throws(
+    () => resolveCreatePackage(release),
+    /must resolve to exact bootstrap sidecar/u,
+  );
+});
+
+test('bootstrap rejects invalid sidecar observations and cannot forge sidecar exemptions', async () => {
+  const { createPnpmDlxArgs, resolveCreatePackage } = await import(
+    '../published-create-proof/package-cohort.mjs'
+  );
+  const sidecar = makeBootstrapSidecar('@bleedingdev/jiti', '2.7.0');
+  for (const packages of [
+    [makeBootstrapSidecar('@foreign/jiti', '2.7.0')],
+    [makeBootstrapSidecar('@bleedingdev/*', '2.7.0')],
+    [makeBootstrapSidecar('@bleedingdev/modern-js-forged', '2.7.0')],
+    [makeBootstrapSidecar(sidecar.name, '^2.7.0')],
+    [{ ...sidecar, packageJson: { name: '@foreign/jiti', version: '2.7.0' } }],
+    [{ ...sidecar, packageJson: { name: sidecar.name, version: '2.6.0' } }],
+    [{ name: sidecar.name, version: sidecar.version }],
+    [sidecar, sidecar],
+  ]) {
+    const release = makeBootstrapRelease();
+    release.sidecars = { packages };
+    assert.throws(
+      () => resolveCreatePackage(release),
+      /invalid packed sidecar observation|must be stable semver/u,
+    );
+  }
+  const release = makeBootstrapRelease();
+  release.createPackage.packageJson.dependencies.jiti =
+    'npm:@bleedingdev/jiti@2.7.0';
+  // An unobserved published dependency gets no candidate-sidecar exemption.
+  assert.deepEqual(
+    resolveCreatePackage(release).bootstrapReleaseAgePolicy
+      .minimumReleaseAgeExclude,
+    resolveCreatePackage(makeBootstrapRelease()).bootstrapReleaseAgePolicy
+      .minimumReleaseAgeExclude,
+  );
+  release.sidecars = {
+    packages: [makeBootstrapSidecar('@bleedingdev/unrelated', '1.0.0')],
+  };
+  assert.throws(
+    () => resolveCreatePackage(release),
+    /targets omitted bootstrap sidecar @bleedingdev\/jiti/u,
+  );
+  release.sidecars = { packages: [sidecar] };
+  const actual = resolveCreatePackage(release);
+  assert.doesNotThrow(() => createPnpmDlxArgs(actual, []));
+  assert.throws(
+    () =>
+      createPnpmDlxArgs(
+        {
+          ...actual,
+          bootstrapReleaseAgePolicy: { ...actual.bootstrapReleaseAgePolicy },
+        },
+        [],
+      ),
+    /exact authenticated bootstrap release-age policy/u,
+  );
+});
+
+test('fresh-release installs use exact command-scoped cohort and source sidecar selectors', async () => {
+  const { resolveAcceptanceReleaseAgeExclusions } = await import(
     '../published-create-proof/release-age-audit.mjs'
   );
   const { createAcceptanceReleaseAgeEnv } = await import(
@@ -238,7 +405,7 @@ test('fresh-release installs use one exact cohort and sidecar selector set', asy
   });
   const release = makeBootstrapRelease();
   release.sidecars = {
-    packages: [{ name: '@bleedingdev/mf-bridge-react', version: '1.0.0' }],
+    packages: [makeBootstrapSidecar('@bleedingdev/mf-bridge-react', '1.0.0')],
   };
   const exemptions = releaseAgeExemptions(release, { policyPath });
   assert.equal(exemptions.length, release.packages.length + 1);
