@@ -1,4 +1,3 @@
-import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
   accessSync,
@@ -12,17 +11,53 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { createRequire } from 'node:module';
+import { createRequire, findPackageJSON } from 'node:module';
 import { tmpdir } from 'node:os';
-import { basename, dirname, join, resolve } from 'node:path';
-import type { URL } from 'node:url';
+import { basename, join } from 'node:path';
+import { fileURLToPath, type URL } from 'node:url';
 import type { Rspack } from '@rsbuild/core';
 
-const EFFECT_TSGO_PACKAGE = '@effect/tsgo';
-const EFFECT_TSGO_BIN = 'effect-tsgo';
+// Resolve the canonical private CJS bridge through the installed owner's actual
+// public name, including the publisher's renamed standalone package.
+const owningModuleFile =
+  process.env.MODERN_LIB_FORMAT === 'esm'
+    ? fileURLToPath(import.meta.url)
+    : __filename;
+const owningManifest = findPackageJSON(owningModuleFile, owningModuleFile);
+if (!owningManifest)
+  throw new Error('Cannot find owning build-config package manifest');
+const owningName: unknown = JSON.parse(
+  readFileSync(owningManifest, 'utf8'),
+).name;
+if (typeof owningName !== 'string' || owningName.length === 0) {
+  throw new Error(
+    `Invalid owning build-config package name: ${owningManifest}`,
+  );
+}
+const {
+  effectCompilerDiscoveryFailureStage,
+  resolveInstalledEffectCompiler,
+}: typeof import('./internal-effect-discovery') = createRequire(
+  owningModuleFile,
+)(`${owningName}/internal-effect-discovery`);
+
 const EFFECT_TSGO_RESOLUTION_ERROR =
   'Unable to resolve the Effect TS-Go compiler. Install "@effect/tsgo" and a native TypeScript backend for this build config, or set EFFECT_TSGO_BIN.';
 const executableEffectTsgoCompilers = new Map<string, string>();
+
+function effectTsgoResolutionError(
+  cause: unknown,
+  stage: string,
+  from: string | URL,
+): Error {
+  const detail =
+    cause instanceof Error ? `${cause.name}: ${cause.message}` : String(cause);
+  return new Error(
+    `${EFFECT_TSGO_RESOLUTION_ERROR}\n${stage} failed for ${String(from)}: ${detail}`,
+    { cause },
+  );
+}
+
 const BUILD_CONFIG_ENVIRONMENT_PLUGIN =
   'ModernJsBuildConfigEnvironmentLeasePlugin';
 const ENVIRONMENT_LEASE_REGISTRY_KEY = Symbol.for(
@@ -39,10 +74,6 @@ const LIFECYCLE_HOOK_NAMES = [
   'shutdown',
   'watchClose',
 ] as const;
-
-type PackageJson = {
-  bin?: Record<string, string> | string;
-};
 
 type EnvironmentLease = {
   originalValue: string | undefined;
@@ -240,26 +271,6 @@ class BuildConfigEnvironmentLeasePlugin {
   }
 }
 
-function resolveEffectTsgoCli(from: string | URL): string {
-  const projectRequire = createRequire(from);
-  const packageJsonPath = projectRequire.resolve(
-    `${EFFECT_TSGO_PACKAGE}/package.json`,
-  );
-  const packageJson = JSON.parse(
-    readFileSync(packageJsonPath, 'utf-8'),
-  ) as PackageJson;
-  const bin =
-    typeof packageJson.bin === 'string'
-      ? packageJson.bin
-      : packageJson.bin?.[EFFECT_TSGO_BIN];
-
-  if (!bin) {
-    throw new Error(EFFECT_TSGO_RESOLUTION_ERROR);
-  }
-
-  return resolve(dirname(packageJsonPath), bin);
-}
-
 function resolveExecutableEffectTsgoCompiler(compilerPath: string): string {
   if (process.platform === 'win32') {
     return compilerPath;
@@ -268,7 +279,9 @@ function resolveExecutableEffectTsgoCompiler(compilerPath: string): string {
   const sourcePath = realpathSync(compilerPath);
   const source = lstatSync(sourcePath);
   if (!source.isFile()) {
-    throw new Error(EFFECT_TSGO_RESOLUTION_ERROR);
+    throw new Error(
+      `Effect TS-Go compiler path is not a regular file: ${sourcePath}`,
+    );
   }
 
   try {
@@ -381,24 +394,30 @@ export function resolveEffectTsgoCompiler(
   if (configuredCompiler) {
     try {
       return resolveExecutableEffectTsgoCompiler(configuredCompiler);
-    } catch {
-      throw new Error(EFFECT_TSGO_RESOLUTION_ERROR);
+    } catch (cause) {
+      throw effectTsgoResolutionError(
+        cause,
+        'Configured compiler validation',
+        options.from,
+      );
     }
   }
 
+  let stage = 'Package CLI resolution';
   try {
-    const compiler = execFileSync(
-      process.execPath,
-      [resolveEffectTsgoCli(options.from), 'get-exe-path'],
-      { encoding: 'utf-8' },
-    ).trim();
+    const compiler = resolveInstalledEffectCompiler(options.from).trim();
+    stage = 'Compiler backend lookup';
 
-    if (compiler) {
-      return resolveExecutableEffectTsgoCompiler(compiler);
+    if (!compiler) {
+      throw new Error('Effect TS-Go CLI returned an empty compiler path');
     }
-  } catch {
-    // Use one stable error for package, platform-binary, and CLI failures.
+    stage = 'Compiler executable validation';
+    return resolveExecutableEffectTsgoCompiler(compiler);
+  } catch (cause) {
+    throw effectTsgoResolutionError(
+      cause,
+      effectCompilerDiscoveryFailureStage(cause) ?? stage,
+      options.from,
+    );
   }
-
-  throw new Error(EFFECT_TSGO_RESOLUTION_ERROR);
 }

@@ -41,10 +41,13 @@ function snapshotAllFiles(root: string): Map<string, string> {
   return files;
 }
 
-function scaffoldWorkspace(): { tempRoot: string; workspaceDir: string } {
+async function scaffoldWorkspace(): Promise<{
+  tempRoot: string;
+  workspaceDir: string;
+}> {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-du-sync-'));
   const workspaceDir = path.join(tempRoot, 'du-sync-workspace');
-  generateUltramodernWorkspace({
+  await generateUltramodernWorkspace({
     targetDir: workspaceDir,
     packageName: 'du-sync-workspace',
     modernVersion: '3.2.1',
@@ -53,7 +56,7 @@ function scaffoldWorkspace(): { tempRoot: string; workspaceDir: string } {
       strategy: 'workspace',
     },
   });
-  addUltramodernVertical({
+  await addUltramodernVertical({
     workspaceRoot: workspaceDir,
     name: 'catalog',
     modernVersion: '3.2.1',
@@ -95,8 +98,8 @@ function stripDeliveryUnitIdentity(workspaceDir: string) {
   );
 }
 
-test('sync-delivery-unit backfills identity blocks matching the generator', () => {
-  const { tempRoot, workspaceDir } = scaffoldWorkspace();
+test('sync-delivery-unit backfills identity blocks matching the generator', async () => {
+  const { tempRoot, workspaceDir } = await scaffoldWorkspace();
   try {
     stripDeliveryUnitIdentity(workspaceDir);
     const stripped = JSON.parse(
@@ -107,7 +110,7 @@ test('sync-delivery-unit backfills identity blocks matching the generator', () =
       stripped.verticals.every((app: any) => app.deliveryUnit === undefined),
     );
 
-    const status = runSyncDeliveryUnit([], {
+    const status = await runSyncDeliveryUnit([], {
       workspaceRoot: workspaceDir,
       invocationCwd: workspaceDir,
     });
@@ -158,19 +161,19 @@ test('sync-delivery-unit backfills identity blocks matching the generator', () =
   }
 });
 
-test('sync-delivery-unit is idempotent and only touches topology and build records', () => {
-  const { tempRoot, workspaceDir } = scaffoldWorkspace();
+test('sync-delivery-unit is idempotent and only touches topology and build records', async () => {
+  const { tempRoot, workspaceDir } = await scaffoldWorkspace();
   try {
     stripDeliveryUnitIdentity(workspaceDir);
 
-    runSyncDeliveryUnit([], {
+    await runSyncDeliveryUnit([], {
       workspaceRoot: workspaceDir,
       invocationCwd: workspaceDir,
     });
     const afterFirst = snapshotAllFiles(workspaceDir);
 
     // Second run: no writes at all.
-    const status = runSyncDeliveryUnit([], {
+    const status = await runSyncDeliveryUnit([], {
       workspaceRoot: workspaceDir,
       invocationCwd: workspaceDir,
     });
@@ -181,8 +184,8 @@ test('sync-delivery-unit is idempotent and only touches topology and build recor
   }
 });
 
-test('sync-delivery-unit follows an authored app package version and remains idempotent', () => {
-  const { tempRoot, workspaceDir } = scaffoldWorkspace();
+test('sync-delivery-unit follows an authored app package version and remains idempotent', async () => {
+  const { tempRoot, workspaceDir } = await scaffoldWorkspace();
   try {
     const manifestPath = 'verticals/catalog/package.json';
     const manifest = JSON.parse(read(workspaceDir, manifestPath));
@@ -195,7 +198,7 @@ test('sync-delivery-unit follows an authored app package version and remains ide
     writeJson(workspaceDir, manifestPath, manifest);
 
     assert.equal(
-      runSyncDeliveryUnit([], {
+      await runSyncDeliveryUnit([], {
         workspaceRoot: workspaceDir,
         invocationCwd: workspaceDir,
       }),
@@ -220,7 +223,7 @@ test('sync-delivery-unit follows an authored app package version and remains ide
 
     const afterFirst = snapshotAllFiles(workspaceDir);
     assert.equal(
-      runSyncDeliveryUnit([], {
+      await runSyncDeliveryUnit([], {
         workspaceRoot: workspaceDir,
         invocationCwd: workspaceDir,
       }),

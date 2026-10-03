@@ -1,5 +1,5 @@
 import type { BffRuntimeFramework } from '@modern-js/plugin/server';
-import type { HttpMethodDecider } from '@modern-js/types';
+import type { HttpMethodDecider } from '@modern-js/types/server';
 
 export interface BffUserConfig {
   prefix?: string | string[];

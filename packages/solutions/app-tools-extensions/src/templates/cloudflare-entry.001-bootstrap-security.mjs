@@ -226,7 +226,11 @@ function withCloudflareSecurityHeaders(response, request) {
 }
 
 function createRenderableRequest(request) {
-  if (request.method !== 'HEAD') {
+  if (
+    request.method !== 'HEAD' ||
+    request.headers.get('x-rsc-action') ||
+    request.headers.get('x-rsc-tree')
+  ) {
     return request;
   }
 

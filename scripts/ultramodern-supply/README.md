@@ -6,6 +6,8 @@
 
 The corrected dependency lane reconstructs the exact Module Federation, Effect, Zod and Drizzle artifacts named in the recipes during release staging. Only the recipes are kept in source control; authenticated upstream bytes, the canonical patches and the recorded dependency aliases produce the package contents and publication manifests. Unmodified Module Federation parents are included only where their published dependencies would otherwise resolve an uncorrected child. Effect 4.0.0-rc.117 is included so worker bundles receive its router without string code generation. Effect and Drizzle are the only qualified prerelease sidecars. Reconstructed third-party bytes are reported separately from authored code.
 
+The Jiti 2.7.0 recipe publishes `@bleedingdev/jiti@2.7.0` with the optional native package-metadata read callback. Release staging copies the toolkit plugin's installed, patched Jiti package and compares its complete payload against the authenticated recipe before packing it. Framework dependencies retain the `jiti` key and resolve that exact sidecar through an npm alias; peer contracts remain unchanged.
+
 Run:
 
 ```sh

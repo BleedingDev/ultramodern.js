@@ -1,0 +1,97 @@
+{
+  "renderer": "solid",
+  "status": "preview",
+  "auditedAt": "2026-10-03",
+  "registryObservedAt": "2026-10-03T00:33:09Z",
+  "runtime": "2.0.0-rc.13",
+  "compiler": "2.0.0-rc.13",
+  "router": "@modern-js/renderer-solid@3.8.3",
+  "routerApi": "@modern-js/renderer-solid/router",
+  "routerBindingSource": {
+    "repository": "https://github.com/TanStack/router",
+    "commit": "4fbd65c5c3b40be87a6248867c22021c1c19bba8",
+    "sourcePath": "packages/solid-router/src"
+  },
+  "routerCore": "1.171.32",
+  "history": "1.162.4",
+  "nativeSerializer": "1.6.8",
+  "nativeSerializerPlugins": "1.6.8",
+  "rsbuild": "2.2.9",
+  "rspack": "2.2.8",
+  "nodeMinimum": "26.7.0",
+  "jsxImportSource": "@solidjs/web",
+  "exportConditions": {
+    "client": ["solid", "browser", "import", "default"],
+    "server": ["solid", "node", "import", "default"],
+    "development": "development"
+  },
+  "refresh": {
+    "bundler": "standard",
+    "importSource": "solid-js/refresh",
+    "editedComponentState": "reset",
+    "unaffectedComponentState": "preserved"
+  },
+  "lazyModules": {
+    "format": "native-esm",
+    "sharedRuntime": true,
+    "manifestOption": "manifest",
+    "literalAuthoredImports": "bundled",
+    "runtimeUrlImports": "native"
+  },
+  "publicViewData": {
+    "supported": "Deep-frozen canonical scalars, plain or null-prototype records and arrays, with checked owned deferred Promises.",
+    "deferredPromiseAdmission": "Owned deferred Promises expose controlled native s/v metadata accessors. Assignments preserve native async memo, await and writer behavior while checking and freezing values before publication. Arbitrary metadata, descriptor replacement and async iterable state are rejected.",
+    "unsupportedContainers": ["Date", "RegExp", "Map", "Set"],
+    "authoredValues": "Preserved unchanged; native hooks receive the checked public projection.",
+    "httpDataTransport": "The shared rich codec and action HTTP transport retain their full value contract.",
+    "reason": "Solid 2 RC.13 has no public projection hook before native border serialization reads properties; freezing rich mutable internal slots does not enforce snapshot safety."
+  },
+  "limitations": {
+    "worker": "Not certified. Native request scoping uses @solidjs/web/storage and requires node:async_hooks AsyncLocalStorage support.",
+    "moduleFederation": "Not certified. Cross-renderer remotes are rejected.",
+    "rawHydrationProtocolInjection": "Unsupported. The owned producer writes only settled synchronous match records. Direct native writer injection of rejected whole-match Promises causes parser-time unhandled Promise errors; the native protocol defect is not fixed.",
+    "rawHydrationProtocolDiagnostic": "ULTRAMODERN_SOLID_RAW_PROTOCOL_DIAGNOSTIC=1 node tests/ultramodern-renderers/solid-admission/run.mjs runs an optional raw native writer protocol diagnostic outside managed qualification."
+  },
+  "admission": "pending",
+  "internalNativeAdmission": {
+    "status": "passed",
+    "observedAt": "2026-10-03T01:25:16Z",
+    "scope": "Independently packed native API, compiler, maintained router, HMR, streaming and browser hydration mechanics",
+    "finalMappedFrameworkCohort": false,
+    "publicConfigurationPipeline": "pending separate generated public CLI host gate",
+    "receipt": ".codex/plan-graphs/renderer-agnostic-20261002/internal-solid-native-admission-20261003-0125-result.json",
+    "receiptSha256": "497be67249e3a332765e3ea40b4b3781c56d9194c3d31483f253a26781a11501",
+    "rendererCoreSha256": "3b69536e7cf3cf61e4cba5cb43e09021f902a9b1f5e76fc7b6d7d0f29e080181",
+    "rendererSolidSha256": "a22da50b240f5cdae0deb5c56c70433732d93a749fefc5c7b66b158ef77b1762",
+    "bindingBrowserTests": 7,
+    "managedDeferredBrowserCases": 3,
+    "zeroAllServerDiagnosticsClaim": false,
+    "ownedResourcesCleaned": true
+  },
+  "blockers": {
+    "maintainedBindingQualification": "Strict owning source, current packed declarations and native matching/navigation/SSR/hydration mechanics pass. Fresh final framework cohort and the public configuration pipeline remain required.",
+    "publicRouteProjection": "The owning managed pipeline and current packed native API pass immutable public snapshot, authored-original preservation, native Promise metadata, composed-context and raw-router rejection tests. Fresh final framework artifacts must requalify the generated public route pipeline.",
+    "supportedDeferredHydration": "Managed native ESM SSR-to-browser fulfilled, held early rejection and real pending-stream late rejection pass, including native boundary reset, native router retry, cleanup and zero unhandled browser events. Fresh final-cohort and public generated-entry qualification remain required.",
+    "owningTransferControl": "The owning managed pipeline proves critical failures before commit, deferred reader failure with zero getter/private bytes and settled-only whole-match records. Fresh packed artifacts must requalify the producer contract; raw writer injection remains unsupported."
+  },
+  "nativePromiseSerialization": {
+    "owner": "@modern-js/renderer-solid@3.8.3",
+    "seam": "Public @solidjs/web renderToStream plugins with native Seroval parse/serialize APIs",
+    "clientPromise": "Same minted native Promise, observed before settlement; native s/v, alias identity and truncation resolver protocol preserved",
+    "applicationCodec": "unchanged"
+  },
+  "managedDeferredHydration": {
+    "status": "passed",
+    "scope": "Packed managed filesystem data, native SSR, native ESM browser hydration",
+    "fullNativeAdmission": false,
+    "cases": [
+      "fulfilled same DOM with no initial loader repeat",
+      "safe rejection before held module bootstrap with native boundary reset and router retry",
+      "safe rejection after bootstrap during the pending native stream with cleanup and rejected success caching"
+    ],
+    "zeroBrowserErrors": true,
+    "baselineSolidSha256": "07f9bb515904da02c5710e8882c3ad025f8153682144c1a414378e843f2bcfc7",
+    "candidateSolidSha256": "f56cd2d5733067bfebae73ca9ed7ded84d8b8f0f8c052cb2dca2aaf69302268e",
+    "rendererCoreSha256": "28bf317e3790abd9a047faa4c935b1382fea7fa66c2106a43d9190933aa2da3b"
+  }
+}

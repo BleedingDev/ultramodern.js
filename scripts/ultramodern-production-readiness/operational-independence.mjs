@@ -6,6 +6,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
+  assertReleaseEnvelopeRendererBinding,
+  assertRendererReleaseArtifactBinding,
+} from '../ultramodern-publish/lib/renderer-release-binding.mjs';
+import {
   assertLocalPortsAvailable,
   startServer,
   startWorkerdProof,
@@ -27,7 +31,6 @@ import { canonicalSerialize, digestCanonical } from './canonical-digest.mjs';
 
 const EVIDENCE_SCHEMA_VERSION = 1;
 const ENVELOPE_RELATIVE_PATH = 'release/microvertical-release-envelope.json';
-const ENVELOPE_KIND = 'ultramodern-target-microvertical-release-envelope';
 const IDENTITY_CARRIERS_RELATIVE_PATH =
   'release/microvertical-release-identity-carriers.json';
 const IDENTITY_CARRIERS_KIND = 'ultramodern-release-identity-carriers';
@@ -370,8 +373,8 @@ function assertIdentity(value, label = 'envelope.identity') {
   };
 }
 
-function assertSortedUniquePaths(paths, label) {
-  if (!Array.isArray(paths) || paths.length === 0) {
+function assertSortedUniquePaths(paths, label, allowEmpty = false) {
+  if (!Array.isArray(paths) || (!allowEmpty && paths.length === 0)) {
     throw new Error(`${label} must contain at least one artifact path.`);
   }
   const normalized = paths.map((item, index) =>
@@ -575,22 +578,12 @@ function readAndVerifyEnvelope(outputRoot, expectedTarget, options = {}) {
     JSON.parse(envelopeBytes.toString('utf8')),
     'envelope',
   );
-  assertExactKeys(
-    envelope,
-    [
-      'schemaVersion',
-      'kind',
-      'target',
-      'identity',
-      'artifacts',
-      'surfaces',
-      'envelopeDigest',
-    ],
-    'envelope',
-  );
-  if (envelope.schemaVersion !== 3 || envelope.kind !== ENVELOPE_KIND) {
-    throw new Error('Final output has an unsupported release envelope.');
-  }
+  const ui = assertReleaseEnvelopeRendererBinding(envelope, {
+    label: 'envelope',
+    expectedAppId: options.expectedAppId,
+    expectedRendererIdentity: options.expectedRendererIdentity,
+    expectedRendererProfile: options.expectedRendererProfile,
+  });
   if (envelope.target !== expectedTarget) {
     throw new Error(
       `Expected ${expectedTarget} release envelope; received ${String(envelope.target)}.`,
@@ -636,8 +629,9 @@ function readAndVerifyEnvelope(outputRoot, expectedTarget, options = {}) {
     uiClient: assertSortedUniquePaths(
       surfaces.uiClient,
       'envelope.surfaces.uiClient',
+      true,
     ),
-    ssr: assertSortedUniquePaths(surfaces.ssr, 'envelope.surfaces.ssr'),
+    ssr: assertSortedUniquePaths(surfaces.ssr, 'envelope.surfaces.ssr', true),
     apiBackend: assertSortedUniquePaths(
       surfaces.apiBackend,
       'envelope.surfaces.apiBackend',
@@ -709,6 +703,7 @@ function readAndVerifyEnvelope(outputRoot, expectedTarget, options = {}) {
     kind: envelope.kind,
     target: envelope.target,
     identity,
+    ...(ui ? { ui } : {}),
     artifacts,
     surfaces: normalizedSurfaces,
   };
@@ -724,6 +719,38 @@ function readAndVerifyEnvelope(outputRoot, expectedTarget, options = {}) {
       'envelope.envelopeDigest does not match the canonical payload.',
     );
   }
+  const buildCarriers = artifacts.filter(artifact =>
+    ['ultramodern-build.json', 'public/ultramodern-build.json'].includes(
+      artifact.logicalPath,
+    ),
+  );
+  if (buildCarriers.length === 0) {
+    throw new Error('envelope must bind an immutable build artifact.');
+  }
+  for (const artifact of buildCarriers) {
+    if (
+      artifact.kind !== 'file' ||
+      artifact.runtime !== 'release-identity-metadata'
+    ) {
+      throw new Error(
+        `Immutable build artifact "${artifact.logicalPath}" must be release-identity-metadata file evidence.`,
+      );
+    }
+    assertRendererReleaseArtifactBinding(
+      envelope,
+      JSON.parse(
+        fs.readFileSync(
+          resolveContainedPath(
+            outputRoot,
+            artifact.logicalPath,
+            artifact.logicalPath,
+          ),
+          'utf8',
+        ),
+      ),
+      { label: artifact.logicalPath, expectedAppId: options.expectedAppId },
+    );
+  }
   return {
     artifactCount: artifacts.length,
     artifacts,
@@ -733,6 +760,7 @@ function readAndVerifyEnvelope(outputRoot, expectedTarget, options = {}) {
       sha256: sha256(envelopeBytes),
     },
     identity,
+    ...(ui ? { ui } : {}),
     surfaces: surfaceEvidence,
     target: expectedTarget,
   };
@@ -742,6 +770,7 @@ function captureAppOutput(workspace, app, target, forbiddenIdentity) {
   const outputRoot = path.join(workspace, app.path, '.output');
   const tree = createTreeSnapshot(outputRoot);
   const envelope = readAndVerifyEnvelope(outputRoot, target, {
+    expectedAppId: app.id,
     forbiddenIdentity,
   });
   if (app.kind === 'vertical' && !envelope) {

@@ -168,18 +168,21 @@
     "@modern-js/types": "workspace:*",
     "@modern-js/utils": "workspace:*",
     "@swc/helpers": "^0.5.23",
-    "lru-cache": "^11.5.3",
-    "react-router": "7.18.4"
+    "lru-cache": "^11.5.3"
   },
   "peerDependencies": {
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "react-router": "^7.18.4"
   },
   "peerDependenciesMeta": {
     "react": {
       "optional": true
     },
     "react-dom": {
+      "optional": true
+    },
+    "react-router": {
       "optional": true
     }
   },
@@ -195,7 +198,8 @@
     "ioredis-mock": "^8.13.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "typescript": "^7.0.2"
+    "typescript": "7.0.2",
+    "react-router": "7.18.4"
   },
   "sideEffects": false
 }

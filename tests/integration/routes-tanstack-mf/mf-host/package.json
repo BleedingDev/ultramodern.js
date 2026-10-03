@@ -15,7 +15,7 @@
     "@modern-js/plugin-tanstack": "workspace:*",
     "@modern-js/runtime": "workspace:*",
     "@modern-js/runtime-extensions": "workspace:*",
-    "@module-federation/modern-js-v3": "2.9.1",
+    "@module-federation/modern-js-v3": "npm:@bleedingdev/mf-modern-js-v3@2.9.1",
     "@module-federation/runtime": "2.9.1",
     "@tanstack/react-router": "1.170.39",
     "effect": "4.0.0-rc.117",
@@ -28,6 +28,6 @@
     "@modern-js/plugin-bff-build-extensions": "workspace:*",
     "@modern-js/ultramodern-app-tools": "workspace:*",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
-    "typescript": "^7.0.2"
+    "typescript": "7.0.2"
   }
 }

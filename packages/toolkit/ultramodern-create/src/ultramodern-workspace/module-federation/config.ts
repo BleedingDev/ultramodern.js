@@ -25,6 +25,10 @@ import {
   relativeRootFor,
 } from '../naming';
 import { createCloudflareSecurityContract, formatTsJsonValue } from '../policy';
+import {
+  resolveAppGenerationProfile,
+  resolveWorkspaceRenderer,
+} from '../renderer-profile';
 import type { WorkspaceApp } from '../types';
 import { sortJsonValue } from '../types';
 import { CLOUDFLARE_COMPATIBILITY_DATE } from '../versions';
@@ -44,7 +48,28 @@ export function createAppModernConfig(
   enableTailwind = true,
   _configuredDevPorts?: number[],
 ): string {
-  const deliveryUnit = createDeliveryUnitRecord(scope, app);
+  const renderer = resolveWorkspaceRenderer(app);
+  if (renderer === 'solid' || renderer === 'octane') {
+    const generation = resolveAppGenerationProfile(app)!;
+    return `import { defineConfig } from '@modern-js/ultramodern-app-tools';
+${enableTailwind ? "import { pluginTailwindcss } from '@rsbuild/plugin-tailwindcss';\n" : ''}
+export default defineConfig({
+${enableTailwind ? '  builderPlugins: [pluginTailwindcss()],\n' : ''}  renderer: ${JSON.stringify(renderer)},
+  server: { port: ${app.port}, ssr: ${generation.capabilities.ssr} },
+  source: { mainEntryName: 'main' },
+});
+`;
+  }
+  // Source config is authored before entry discovery. Its generation seed must
+  // remain reproducible after the owning router binding has been captured;
+  // finalized delivery/build identities still bind that actual discovered ABI.
+  const deliveryUnit = createDeliveryUnitRecord(scope, {
+    ...app,
+    routerBindings: undefined,
+    rendererIdentity: app.rendererIdentity
+      ? { ...app.rendererIdentity, entryName: 'index' }
+      : undefined,
+  });
   const emitsUi = appEmitsBrowserUi(app);
   const bffImport = appHasApi(app)
     ? "import { bffPlugin } from '@modern-js/plugin-bff-build-extensions';\n"
@@ -54,7 +79,7 @@ export function createAppModernConfig(
   const uiImports = emitsUi
     ? `import { getBuildConfigEnvironment, withBuildConfigEnvironment } from '@modern-js/app-tools-extensions/config';
 import { moduleFederationPlugin } from '@module-federation/modern-js-v3';
-import { withZephyr as withZephyrRspack } from 'zephyr-rspack-plugin';
+import type { withZephyr as withZephyrRspack } from 'zephyr-rspack-plugin';
 import { ultramodernLocalisedUrls } from './src/routes/ultramodern-route-metadata';
 `
     : "import { getBuildConfigEnvironment } from '@modern-js/app-tools-extensions/config';\n";
@@ -82,9 +107,14 @@ import { ultramodernLocalisedUrls } from './src/routes/ultramodern-route-metadat
     if (!zephyrCiDeploy) {
       return;
     }
-    api.modifyRspackConfig(
-      withBuildConfigEnvironment('ZE_FAIL_BUILD', 'true', withZephyrRspack()),
-    );
+    api.modifyRspackConfig(async config => {
+      const { withZephyr: withZephyrRspack } = await import('zephyr-rspack-plugin');
+      return withBuildConfigEnvironment(
+        'ZE_FAIL_BUILD',
+        'true',
+        withZephyrRspack(),
+      )(config);
+    });
   },
 });
 

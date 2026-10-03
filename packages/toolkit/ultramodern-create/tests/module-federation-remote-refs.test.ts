@@ -146,7 +146,7 @@ test('generated remotes use packaged address policy and preserve explicit refs',
   );
 });
 
-test('generated federation modules import i18n specifiers that really resolve', () => {
+test('generated federation modules import i18n specifiers that really resolve', async () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-mf-i18n-'));
   const workspaceDir = path.join(tempRoot, 'workspace');
   // Resolve through plugin-i18n itself so its package export map decides,
@@ -155,14 +155,14 @@ test('generated federation modules import i18n specifiers that really resolve', 
     path.resolve(__dirname, '../../../runtime/plugin-i18n/consumer-probe.cjs'),
   );
   try {
-    generateUltramodernWorkspace({
+    await generateUltramodernWorkspace({
       targetDir: workspaceDir,
       packageName: 'mf-i18n-resolve-workspace',
       modernVersion: '3.2.1',
       enableTailwind: true,
       packageSource: { strategy: 'workspace' },
     });
-    addUltramodernVertical({
+    await addUltramodernVertical({
       workspaceRoot: workspaceDir,
       name: 'catalog',
       modernVersion: '3.2.1',

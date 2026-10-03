@@ -1,10 +1,14 @@
 import path from 'node:path';
 import { SERVICE_WORKER_ENVIRONMENT_NAME } from '@modern-js/builder';
+import type { AppContext, CLIPluginExtends } from '@modern-js/plugin/cli';
 import type { RsbuildPlugin, RspackChain } from '@rsbuild/core';
-import type { BuilderOptions } from '../types';
 
-export const builderPluginAdapterBasic = (
-  options: BuilderOptions,
+export const builderPluginAdapterBasic = <
+  Options extends {
+    appContext: Pick<AppContext<CLIPluginExtends>, 'metaName'>;
+  },
+>(
+  options: Options,
 ): RsbuildPlugin => ({
   name: 'builder-plugin-adapter-modern-basic',
 

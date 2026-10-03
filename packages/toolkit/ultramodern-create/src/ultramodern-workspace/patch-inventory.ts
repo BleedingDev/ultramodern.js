@@ -1,5 +1,15 @@
 export default [
   {
+    packageName: 'jiti',
+    version: '2.7.0',
+    path: 'patches/jiti@2.7.0.patch',
+    sha256: '12a1f0bd5856038e6cb75913671dcf76a994dcb13ec6302fad507c35708afbe0',
+    repository: true,
+    workspace: null,
+    reason:
+      'Observe original package resolver name/type reads and consumed main/exports/imports without replacing cached values.',
+  },
+  {
     packageName: '@module-federation/bridge-react',
     version: '2.9.1',
     path: 'patches/@module-federation__bridge-react@2.9.1.patch',
@@ -12,11 +22,11 @@ export default [
     packageName: '@module-federation/dts-plugin',
     version: '2.9.1',
     path: 'patches/@module-federation__dts-plugin@2.9.1.patch',
-    sha256: 'c52b86d551da354492cf255cfb8c0e56e51cb6b4452319b47295ac969704819d',
+    sha256: '4c32ee8479a7e9e5bfd1d0bf6ee9de285ca7369278b1c471b92b839a50b0f054',
     repository: true,
     workspace: null,
     reason:
-      'Preserve declaration rootDir and execute native compiler paths without shell parsing.',
+      'Preserve declaration rootDir, native compiler execution, atomic DTS server binding, completed remote type consumption, unchanged native type materialization and exact native worker closure during compiler shutdown.',
   },
   {
     packageName: '@module-federation/manifest',
@@ -31,11 +41,11 @@ export default [
     packageName: '@module-federation/modern-js-v3',
     version: '2.9.1',
     path: 'patches/@module-federation__modern-js-v3@2.9.1.patch',
-    sha256: '0ab5fa14ed744c31c8221c6f663c9fc5b50a134f641e65277900c88da6cb72d0',
+    sha256: 'eaffc05a11ddd19df3f68128dad2406a47f4474be4eb90e9476d83e5a3836551',
     repository: true,
     workspace: null,
     reason:
-      'Preserve lazy compilation, framework CSS ownership, SSR manifest recovery, valid async splitting and native ESM CLI package resolution.',
+      'Preserve lazy compilation, framework CSS ownership, valid async splitting and native ESM CLI resolution. Ultra React composition owns SSR manifest recovery through its declared federation runtime dependency. Keep the development SSR reload script server-only and remove it before hydration.',
   },
   {
     packageName: '@module-federation/rspack',

@@ -5,10 +5,11 @@ Edit `packages/toolkit/ultramodern-create/src/ultramodern-workspace/patch-invent
 
 | Package | Repository | Workspace | Purpose |
 | --- | --- | --- | --- |
+| jiti@2.7.0 | yes | none | Observe original package resolver name/type reads and consumed main/exports/imports without replacing cached values. |
 | @module-federation/bridge-react@2.9.1 | yes | none | Portable React declaration specifiers. |
-| @module-federation/dts-plugin@2.9.1 | yes | none | Preserve declaration rootDir and execute native compiler paths without shell parsing. |
+| @module-federation/dts-plugin@2.9.1 | yes | none | Preserve declaration rootDir, native compiler execution, atomic DTS server binding, completed remote type consumption, unchanged native type materialization and exact native worker closure during compiler shutdown. |
 | @module-federation/manifest@2.9.1 | yes | none | Defer DTS loading when DTS is disabled. |
-| @module-federation/modern-js-v3@2.9.1 | yes | none | Preserve lazy compilation, framework CSS ownership, SSR manifest recovery, valid async splitting and native ESM CLI package resolution. |
+| @module-federation/modern-js-v3@2.9.1 | yes | none | Preserve lazy compilation, framework CSS ownership, valid async splitting and native ESM CLI resolution. Ultra React composition owns SSR manifest recovery through its declared federation runtime dependency. Keep the development SSR reload script server-only and remove it before hydration. |
 | @module-federation/rspack@2.9.1 | yes | none | Defer DTS plugin loading when DTS is disabled. |
 | @module-federation/runtime-core@2.9.1 | yes | none | Import ResourceLoadContext used by public remote hooks. |
 | drizzle-orm@1.0.0-rc.4 | no | none | Strict TypeScript declarations for generated database applications. |

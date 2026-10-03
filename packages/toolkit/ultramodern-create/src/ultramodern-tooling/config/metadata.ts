@@ -1,13 +1,16 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { yaml } from '@modern-js/utils';
+import type { WorkspaceSourceReadObserver } from '../../ultramodern-workspace/publication-inputs';
 import type { ResolvedPackageSource } from '../../ultramodern-workspace/types';
 import { readOptionalJsonObject } from './json';
 
-export function packageScopeFromRoot(workspaceRoot: string): string {
-  const rootPackage = readOptionalJsonObject(
-    path.join(workspaceRoot, 'package.json'),
-  );
+export function packageScopeFromRoot(
+  workspaceRoot: string,
+  observeInput?: WorkspaceSourceReadObserver,
+): string {
+  const manifestPath = path.join(workspaceRoot, 'package.json');
+  const rootPackage = readOptionalJsonObject(manifestPath, observeInput);
   return typeof rootPackage.name === 'string' && rootPackage.name.length > 0
     ? rootPackage.name
     : path.basename(workspaceRoot);
@@ -16,19 +19,20 @@ export function packageScopeFromRoot(workspaceRoot: string): string {
 /** Native dependency requests own the source; no application config is loaded. */
 export function readWorkspacePackageSource(
   workspaceRoot: string,
+  observeInput?: WorkspaceSourceReadObserver,
 ): ResolvedPackageSource {
-  const manifest = readOptionalJsonObject(
-    path.join(workspaceRoot, 'package.json'),
-  );
+  const manifestPath = path.join(workspaceRoot, 'package.json');
+  const manifest = readOptionalJsonObject(manifestPath, observeInput);
   const name = '@modern-js/ultramodern-create';
   let request =
     manifest.devDependencies?.[name] ?? manifest.dependencies?.[name];
   if (typeof request !== 'string')
     throw new Error(`Missing ${name} dependency in package.json.`);
   if (request.startsWith('catalog:')) {
-    const config = yaml.load(
-      fs.readFileSync(path.join(workspaceRoot, 'pnpm-workspace.yaml'), 'utf8'),
-    ) as Record<string, any>;
+    const catalogPath = path.join(workspaceRoot, 'pnpm-workspace.yaml');
+    const catalogSource = fs.readFileSync(catalogPath, 'utf8');
+    observeInput?.(catalogPath, 'content', true);
+    const config = yaml.load(catalogSource) as Record<string, any>;
     const catalog = request.slice('catalog:'.length);
     request = (catalog ? config.catalogs?.[catalog] : config.catalog)?.[name];
     if (typeof request !== 'string')

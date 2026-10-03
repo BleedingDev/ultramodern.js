@@ -1,8 +1,19 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { yaml } from '@modern-js/utils';
-import type { JsonValue } from './types';
+import { ULTRAMODERN_PACKAGE_PINS } from './policy';
+import { getRendererGenerationProfile } from './renderer-profile';
+import type { JsonValue, WorkspaceRenderer } from './types';
 import { isRecord } from './types';
+import { sameJson } from './validation/assertions';
+import {
+  assertNativeRendererSourceSurface,
+  assertRendererDependencies,
+  assertRendererProjection,
+  isForeignRendererPackage,
+  parseNpmAlias,
+  validateApiOnlySourceSurface,
+} from './validation/renderer';
 import {
   EFFECT_VERSION,
   REACT_DOM_VERSION,
@@ -61,7 +72,10 @@ const IGNORED_WALK_DIRECTORIES = new Set([
 ]);
 
 export type OverlayBaselineViolation = {
-  kind: 'baseline-version-relaxation' | 'forbidden-shell-artifact';
+  kind:
+    | 'baseline-version-relaxation'
+    | 'forbidden-shell-artifact'
+    | 'renderer-profile-relaxation';
   path: string;
   detail: string;
 };
@@ -173,9 +187,12 @@ function dependencyEntries(
   return entries;
 }
 
-function baselineDependencyFromKey(key: string): string | undefined {
+function baselineDependencyFromKey(
+  key: string,
+  pins: Readonly<Record<string, string>>,
+): string | undefined {
   const candidate = key.trim().split('>').at(-1) ?? '';
-  return Object.keys(BASELINE_DEPENDENCY_PINS).find(
+  return Object.keys(pins).find(
     dependency =>
       candidate === dependency || candidate.startsWith(`${dependency}@`),
   );
@@ -185,16 +202,17 @@ function collectPolicyEntries(
   value: JsonValue,
   prefix: string,
   entries: PolicyEntry[],
+  pins: Readonly<Record<string, string>>,
 ): void {
   if (!isRecord(value)) return;
   for (const [key, child] of Object.entries(value)) {
     const childPath = prefix === '' ? key : `${prefix}.${key}`;
-    const dependency = baselineDependencyFromKey(key);
+    const dependency = baselineDependencyFromKey(key, pins);
     if (dependency !== undefined && typeof child === 'string') {
       entries.push({ path: childPath, dependency, value: child });
     }
     if (isRecord(child)) {
-      collectPolicyEntries(child, childPath, entries);
+      collectPolicyEntries(child, childPath, entries, pins);
     }
   }
 }
@@ -216,11 +234,12 @@ function policyRoots(
 
 function baselinePolicyEntries(
   parsed: Record<string, JsonValue>,
+  pins: Readonly<Record<string, string>>,
 ): PolicyEntry[] {
   const entries: PolicyEntry[] = [];
   for (const [prefix, value] of policyRoots(parsed)) {
     if (value !== undefined) {
-      collectPolicyEntries(value, prefix, entries);
+      collectPolicyEntries(value, prefix, entries, pins);
     }
   }
   return entries;
@@ -271,23 +290,12 @@ function resolveCatalogReference(
   return catalogValues.get(value.slice('catalog:'.length)) ?? value;
 }
 
-function parseNpmAlias(
+function baselineSpecMatches(
   value: string,
-): { name: string; range: string | undefined } | undefined {
-  if (!value.startsWith('npm:')) return undefined;
-  const target = value.slice('npm:'.length);
-  const separator = target.startsWith('@')
-    ? target.indexOf('@', 1)
-    : target.indexOf('@');
-  if (separator === -1) return { name: target, range: undefined };
-  return {
-    name: target.slice(0, separator),
-    range: target.slice(separator + 1),
-  };
-}
-
-function baselineSpecMatches(value: string, dependency: string): boolean {
-  const expected = BASELINE_DEPENDENCY_PINS[dependency];
+  dependency: string,
+  pins: Readonly<Record<string, string>>,
+): boolean {
+  const expected = pins[dependency];
   if (value === expected) return true;
   const alias = parseNpmAlias(value);
   return alias?.name === dependency && alias.range === expected;
@@ -295,6 +303,7 @@ function baselineSpecMatches(value: string, dependency: string): boolean {
 
 function baselinePinsFromParsed(
   parsed: Record<string, JsonValue>,
+  baseline: Readonly<Record<string, string>>,
 ): Record<string, string> {
   const pins: Record<string, string> = {};
 
@@ -303,7 +312,7 @@ function baselinePinsFromParsed(
     if (!isRecord(group)) {
       continue;
     }
-    for (const dependency of Object.keys(BASELINE_DEPENDENCY_PINS)) {
+    for (const dependency of Object.keys(baseline)) {
       const value = group[dependency];
       if (typeof value === 'string') {
         pins[`${section}.${dependency}`] = value;
@@ -317,9 +326,11 @@ function baselinePinsFromParsed(
 function readBaselinePins(
   workspaceRoot: string,
   packageJsonRelativePath: string,
+  pins: Readonly<Record<string, string>>,
 ): Record<string, string> {
   return baselinePinsFromParsed(
     readPackageJson(workspaceRoot, packageJsonRelativePath),
+    pins,
   );
 }
 
@@ -333,12 +344,136 @@ export type OverlayBaselineSnapshot = {
   baselineWorkspacePolicyPins?: Record<string, string>;
   shellPackageDirectories: string[];
   shellFiles: Set<string>;
+  deferredUiArtifactPaths?: ReadonlySet<string>;
+  baselineDependencyPins?: Readonly<Record<string, string>>;
+  baselineDependencyPinsByManifest?: Record<
+    string,
+    Readonly<Record<string, string>>
+  >;
+  rendererProjectionsByManifest?: Record<string, RendererProjection>;
 };
+
+type RendererProjection = {
+  appId: string;
+  renderer: WorkspaceRenderer;
+  rendererIdentity?: JsonValue;
+  rendererIdentities?: JsonValue;
+  rendererProfile?: JsonValue;
+  routerBindings?: JsonValue;
+  rendererCapabilities?: JsonValue;
+};
+
+function rendererProjections(
+  workspaceRoot: string,
+  deferredUiArtifactPaths: ReadonlySet<string> = new Set(),
+): Record<string, RendererProjection> {
+  const file = path.join(workspaceRoot, 'topology/reference-topology.json');
+  if (!fs.existsSync(file)) return {};
+  const topology: unknown = JSON.parse(fs.readFileSync(file, 'utf8'));
+  if (!isRecord(topology))
+    throw new Error('Workspace topology must be an object.');
+  const apps = [
+    topology.shell,
+    ...(Array.isArray(topology.shells) ? topology.shells : []),
+    ...(Array.isArray(topology.verticals) ? topology.verticals : []),
+  ];
+  const projections: Record<string, RendererProjection> = {};
+  for (const app of apps) {
+    if (!isRecord(app) || app.renderer === undefined) continue;
+    assertRendererProjection(
+      app,
+      undefined,
+      typeof app.path === 'string' &&
+        deferredUiArtifactPaths.has(
+          `${app.path}/shared/ultramodern-build.json`,
+        ),
+    );
+    if (
+      typeof app.path !== 'string' ||
+      path.isAbsolute(app.path) ||
+      app.path.split(/[\\/]/u).includes('..')
+    ) {
+      throw new Error(
+        `Application ${String(app.id)} renderer path must stay within the workspace.`,
+      );
+    }
+    const projection: RendererProjection = {
+      appId: String(app.id),
+      renderer: app.renderer as WorkspaceRenderer,
+    };
+    for (const field of [
+      'rendererIdentity',
+      'rendererIdentities',
+      'rendererProfile',
+      'routerBindings',
+      'rendererCapabilities',
+    ] as const) {
+      if (Object.hasOwn(app, field))
+        projection[field] = structuredClone(app[field]);
+    }
+    projections[`${app.path}/package.json`] = projection;
+  }
+  return projections;
+}
+
+function rendererBaselinePins(
+  renderer: WorkspaceRenderer,
+): Readonly<Record<string, string>> {
+  if (renderer === 'react') return BASELINE_DEPENDENCY_PINS;
+  const common = { effect: EFFECT_VERSION, tailwindcss: TAILWIND_VERSION };
+  if (renderer === 'none') return common;
+  const generation = getRendererGenerationProfile(renderer);
+  return {
+    ...common,
+    ...generation.dependencies,
+    ...generation.devDependencies,
+    // The architecture validator uses this named tool's unstable AST API;
+    // native application typechecking retains its selected TypeScript pin.
+    '@typescript/native':
+      ULTRAMODERN_PACKAGE_PINS.rootDevDependencies['@typescript/native'],
+  };
+}
 
 export function captureOverlayBaselineSnapshot(
   workspaceRoot: string,
   shellPackageDirectories: string[],
+  deferredUiArtifactPaths: ReadonlySet<string> = new Set(),
 ): OverlayBaselineSnapshot {
+  const rendererProjectionsByManifest = rendererProjections(
+    workspaceRoot,
+    deferredUiArtifactPaths,
+  );
+  for (const artifactPath of deferredUiArtifactPaths) {
+    const manifestPath = artifactPath.replace(
+      /\/shared\/ultramodern-build\.json$/u,
+      '/package.json',
+    );
+    const projection = rendererProjectionsByManifest[manifestPath];
+    if (
+      manifestPath === artifactPath ||
+      !projection ||
+      projection.renderer === 'none' ||
+      projection.routerBindings !== undefined ||
+      fs.existsSync(path.join(workspaceRoot, artifactPath))
+    ) {
+      throw new Error(`Invalid deferred UI artifact: ${artifactPath}`);
+    }
+  }
+  const renderers = new Set(
+    Object.values(rendererProjectionsByManifest)
+      .map(projection => projection.renderer)
+      .filter(renderer => renderer !== 'none'),
+  );
+  const workspaceRenderer = renderers.size === 1 ? [...renderers][0] : 'react';
+  const baselineDependencyPins = rendererBaselinePins(workspaceRenderer);
+  const baselineDependencyPinsByManifest = Object.fromEntries(
+    Object.entries(rendererProjectionsByManifest).map(
+      ([manifest, projection]) => [
+        manifest,
+        rendererBaselinePins(projection.renderer),
+      ],
+    ),
+  );
   const baselinePinsByManifest: Record<string, Record<string, string>> = {};
   const baselinePolicyPinsByManifest: Record<
     string,
@@ -346,12 +481,18 @@ export function captureOverlayBaselineSnapshot(
   > = {};
   for (const manifest of walkFiles(workspaceRoot, isPackageManifest)) {
     const parsed = readPackageJson(workspaceRoot, manifest);
+    const pins =
+      baselineDependencyPinsByManifest[manifest] ?? baselineDependencyPins;
     baselinePinsByManifest[manifest] = readBaselinePins(
       workspaceRoot,
       manifest,
+      pins,
     );
     baselinePolicyPinsByManifest[manifest] = Object.fromEntries(
-      baselinePolicyEntries(parsed).map(entry => [entry.path, entry.value]),
+      baselinePolicyEntries(parsed, pins).map(entry => [
+        entry.path,
+        entry.value,
+      ]),
     );
   }
 
@@ -370,13 +511,17 @@ export function captureOverlayBaselineSnapshot(
     baselinePinsByManifest,
     baselinePolicyPinsByManifest,
     baselineWorkspacePolicyPins: Object.fromEntries(
-      baselinePolicyEntries(readPnpmWorkspaceYaml(workspaceRoot)).map(entry => [
-        entry.path,
-        entry.value,
-      ]),
+      baselinePolicyEntries(
+        readPnpmWorkspaceYaml(workspaceRoot),
+        baselineDependencyPins,
+      ).map(entry => [entry.path, entry.value]),
     ),
     shellPackageDirectories,
     shellFiles,
+    deferredUiArtifactPaths: new Set(deferredUiArtifactPaths),
+    baselineDependencyPins,
+    baselineDependencyPinsByManifest,
+    rendererProjectionsByManifest,
   };
 }
 
@@ -384,9 +529,10 @@ function collectPolicyViolations(
   parsed: Record<string, JsonValue>,
   beforePolicyPins: Record<string, string>,
   displayPath: string,
+  pins: Readonly<Record<string, string>>,
 ): OverlayBaselineViolation[] {
   const violations: OverlayBaselineViolation[] = [];
-  const currentPolicyEntries = baselinePolicyEntries(parsed);
+  const currentPolicyEntries = baselinePolicyEntries(parsed, pins);
   const currentPolicyPins = Object.fromEntries(
     currentPolicyEntries.map(entry => [entry.path, entry.value]),
   );
@@ -394,10 +540,10 @@ function collectPolicyViolations(
   for (const [policyPath, previous] of Object.entries(beforePolicyPins)) {
     if (Object.hasOwn(currentPolicyPins, policyPath)) continue;
     const dependency =
-      baselineDependencyFromKey(policyPath.split('.').at(-1) ?? '') ??
+      baselineDependencyFromKey(policyPath.split('.').at(-1) ?? '', pins) ??
       policyPath.split('.').at(-1) ??
       policyPath;
-    const expected = BASELINE_DEPENDENCY_PINS[dependency];
+    const expected = pins[dependency];
     if (expected === undefined) continue;
     violations.push({
       kind: 'baseline-version-relaxation',
@@ -409,8 +555,8 @@ function collectPolicyViolations(
   const catalogValues = collectCatalogValues(parsed);
   for (const entry of currentPolicyEntries) {
     const resolvedVersion = resolveCatalogReference(entry.value, catalogValues);
-    const expected = BASELINE_DEPENDENCY_PINS[entry.dependency];
-    if (baselineSpecMatches(resolvedVersion, entry.dependency)) continue;
+    const expected = pins[entry.dependency];
+    if (baselineSpecMatches(resolvedVersion, entry.dependency, pins)) continue;
     violations.push({
       kind: 'baseline-version-relaxation',
       path: `${displayPath}#${entry.path}`,
@@ -439,7 +585,11 @@ function collectVersionViolations(
     } catch {
       parsed = {};
     }
-    const pins = baselinePinsFromParsed(parsed);
+    const baseline =
+      snapshot.baselineDependencyPinsByManifest?.[manifest] ??
+      snapshot.baselineDependencyPins ??
+      BASELINE_DEPENDENCY_PINS;
+    const pins = baselinePinsFromParsed(parsed, baseline);
     const before = snapshot.baselinePinsByManifest[manifest] ?? {};
 
     for (const key of Object.keys(before)) {
@@ -447,7 +597,7 @@ function collectVersionViolations(
       const separator = key.indexOf('.');
       const section = key.slice(0, separator);
       const dependency = key.slice(separator + 1);
-      const expected = BASELINE_DEPENDENCY_PINS[dependency];
+      const expected = baseline[dependency];
       violations.push({
         kind: 'baseline-version-relaxation',
         path: manifest,
@@ -458,10 +608,14 @@ function collectVersionViolations(
     const catalogValues = collectCatalogValues(parsed);
     for (const [key, version] of Object.entries(pins)) {
       const dependency = key.slice(key.indexOf('.') + 1);
-      const expected = BASELINE_DEPENDENCY_PINS[dependency];
+      const expected = baseline[dependency];
       const previous = before[key];
       const resolvedVersion = resolveCatalogReference(version, catalogValues);
-      const matches = baselineSpecMatches(resolvedVersion, dependency);
+      const matches = baselineSpecMatches(
+        resolvedVersion,
+        dependency,
+        baseline,
+      );
       if (previous === undefined && !matches) {
         violations.push({
           kind: 'baseline-version-relaxation',
@@ -480,7 +634,14 @@ function collectVersionViolations(
     for (const entry of dependencyEntries(parsed)) {
       const alias = parseNpmAlias(entry.value);
       if (alias === undefined) continue;
-      const expected = BASELINE_DEPENDENCY_PINS[alias.name];
+      if (
+        entry.section === 'devDependencies' &&
+        entry.name === '@typescript/native' &&
+        entry.value === baseline[entry.name]
+      ) {
+        continue;
+      }
+      const expected = baseline[alias.name];
       if (expected === undefined || alias.range === expected) continue;
       violations.push({
         kind: 'baseline-version-relaxation',
@@ -494,6 +655,7 @@ function collectVersionViolations(
         parsed,
         snapshot.baselinePolicyPinsByManifest?.[manifest] ?? {},
         manifest,
+        baseline,
       ),
     );
   }
@@ -503,6 +665,7 @@ function collectVersionViolations(
       readPnpmWorkspaceYaml(workspaceRoot),
       snapshot.baselineWorkspacePolicyPins ?? {},
       'pnpm-workspace.yaml',
+      snapshot.baselineDependencyPins ?? BASELINE_DEPENDENCY_PINS,
     ),
   );
 
@@ -542,6 +705,193 @@ function collectForbiddenShellArtifactViolations(
   return violations;
 }
 
+function collectRendererViolations(
+  workspaceRoot: string,
+  snapshot: OverlayBaselineSnapshot,
+): OverlayBaselineViolation[] {
+  const before = snapshot.rendererProjectionsByManifest ?? {};
+  if (Object.keys(before).length === 0) return [];
+  const violations: OverlayBaselineViolation[] = [];
+  const workspacePolicy = readPnpmWorkspaceYaml(workspaceRoot);
+  const dependencyCatalogs = {
+    catalog: workspacePolicy.catalog as Record<string, string> | undefined,
+    catalogs: workspacePolicy.catalogs as
+      | Record<string, Record<string, string>>
+      | undefined,
+  };
+  const reject = (displayPath: string, detail: string) => {
+    violations.push({
+      kind: 'renderer-profile-relaxation',
+      path: displayPath,
+      detail,
+    });
+  };
+  let current: Record<string, RendererProjection>;
+  try {
+    current = rendererProjections(
+      workspaceRoot,
+      snapshot.deferredUiArtifactPaths,
+    );
+  } catch (error) {
+    reject(
+      'topology/reference-topology.json',
+      error instanceof Error ? error.message : String(error),
+    );
+    current = {};
+  }
+  if (!sameJson(current, before)) {
+    reject(
+      'topology/reference-topology.json',
+      'overlay changed the selected renderer identity, compiler/runtime/router tuple or admitted capabilities',
+    );
+  }
+  const renderers = new Set(
+    Object.values(before)
+      .map(value => value.renderer)
+      .filter(renderer => renderer !== 'none'),
+  );
+  const workspaceRenderer =
+    renderers.size === 1 ? [...renderers][0] : undefined;
+  const inspectPolicy = (
+    value: JsonValue,
+    prefix: string,
+    renderer: WorkspaceRenderer,
+    displayPath: string,
+  ): void => {
+    if (!isRecord(value)) return;
+    for (const [key, child] of Object.entries(value)) {
+      const candidate = key.trim().split('>').at(-1) ?? '';
+      const versionSeparator = candidate.startsWith('@')
+        ? candidate.indexOf('@', 1)
+        : candidate.indexOf('@');
+      const dependency =
+        versionSeparator === -1
+          ? candidate
+          : candidate.slice(0, versionSeparator);
+      const policyPath = `${prefix}.${key}`;
+      const alias =
+        typeof child === 'string' ? parseNpmAlias(child) : undefined;
+      if (
+        isForeignRendererPackage(dependency, renderer) ||
+        (alias && isForeignRendererPackage(alias.name, renderer))
+      ) {
+        reject(
+          `${displayPath}#${policyPath}`,
+          `overlay policy introduced a foreign renderer package for ${renderer}`,
+        );
+      }
+      if (isRecord(child))
+        inspectPolicy(child, policyPath, renderer, displayPath);
+    }
+  };
+  for (const manifestPath of new Set([
+    ...Object.keys(before),
+    ...walkFiles(workspaceRoot, isPackageManifest),
+  ])) {
+    const selected = before[manifestPath];
+    if (selected && !fs.existsSync(path.join(workspaceRoot, manifestPath))) {
+      reject(manifestPath, 'Overlay removed a selected application manifest.');
+      continue;
+    }
+    const renderer = selected?.renderer ?? workspaceRenderer;
+    if (!renderer) continue;
+    const parsed = readPackageJson(workspaceRoot, manifestPath);
+    for (const entry of dependencyEntries(parsed)) {
+      const alias = parseNpmAlias(entry.value);
+      if (
+        isForeignRendererPackage(entry.name, renderer) ||
+        (alias && isForeignRendererPackage(alias.name, renderer))
+      ) {
+        reject(
+          manifestPath,
+          `overlay introduced foreign renderer package ${entry.name} for ${renderer}`,
+        );
+      }
+    }
+    for (const [prefix, value] of policyRoots(parsed)) {
+      if (value !== undefined)
+        inspectPolicy(value, prefix, renderer, manifestPath);
+    }
+    if (!selected) continue;
+    try {
+      const generation =
+        renderer === 'none'
+          ? undefined
+          : getRendererGenerationProfile(renderer);
+      assertRendererDependencies(
+        parsed,
+        renderer,
+        generation,
+        dependencyCatalogs,
+      );
+      const appPath = path.dirname(manifestPath);
+      if (generation && renderer !== 'react') {
+        assertNativeRendererSourceSurface(
+          workspaceRoot,
+          {
+            id: selected.appId,
+            path: appPath,
+          },
+          generation,
+          parsed,
+        );
+      }
+      const artifactPath = `${appPath}/shared/ultramodern-build.json`;
+      if (snapshot.deferredUiArtifactPaths?.has(artifactPath)) {
+        try {
+          fs.lstatSync(path.join(workspaceRoot, artifactPath));
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
+          throw error;
+        }
+        throw new Error(
+          'New UI artifact must remain absent until modern.config supplies its actual router bindings.',
+        );
+      }
+      const build = JSON.parse(
+        fs.readFileSync(path.join(workspaceRoot, artifactPath), 'utf8'),
+      );
+      if (renderer === 'none') {
+        validateApiOnlySourceSurface(workspaceRoot, {
+          id: selected.appId,
+          path: appPath,
+          renderer: 'none',
+        });
+        if (Object.hasOwn(build.surfaces ?? {}, 'ui'))
+          throw new Error('Headless build must omit its UI renderer surface.');
+      } else if (
+        !sameJson(
+          build.surfaces?.ui?.rendererProfile,
+          selected.rendererProfile,
+        ) ||
+        !sameJson(
+          build.surfaces?.ui?.rendererIdentity,
+          selected.rendererIdentity,
+        ) ||
+        !sameJson(build.surfaces?.ui?.routerBindings, selected.routerBindings)
+      ) {
+        throw new Error(
+          'Build renderer profile/identity disagrees with the selected projection.',
+        );
+      }
+    } catch (error) {
+      reject(
+        manifestPath,
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  }
+  if (workspaceRenderer) {
+    for (const [prefix, value] of policyRoots(
+      readPnpmWorkspaceYaml(workspaceRoot),
+    )) {
+      if (value !== undefined)
+        inspectPolicy(value, prefix, workspaceRenderer, 'pnpm-workspace.yaml');
+    }
+  }
+  return violations;
+}
+
 /**
  * Validate that an applied CodeSmith overlay did not relax the Platform
  * Baseline (G21). Compares the post-overlay workspace against the pre-overlay
@@ -561,6 +911,7 @@ export function assertOverlayPreservedBaseline(options: {
       options.workspaceRoot,
       options.snapshot,
     ),
+    ...collectRendererViolations(options.workspaceRoot, options.snapshot),
   ];
 
   if (violations.length > 0) {

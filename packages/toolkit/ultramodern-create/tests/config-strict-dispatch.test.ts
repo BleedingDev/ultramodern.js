@@ -4,16 +4,16 @@ import path from 'node:path';
 import { runSyncDeliveryUnit } from '../src/ultramodern-workspace/delivery-unit-sync';
 import { createWorkspace, snapshotWorkspace } from './helpers/workspace-kit';
 
-test('sync-delivery-unit rejects missing canonical topology before writing', () => {
-  const { tempRoot, workspaceDir } = createWorkspace('strict-dispatch', {
+test('sync-delivery-unit rejects missing canonical topology before writing', async () => {
+  const { tempRoot, workspaceDir } = await createWorkspace('strict-dispatch', {
     tempPrefix: 'um-strict-dispatch-sync-',
   });
   try {
     fs.rmSync(path.join(workspaceDir, 'topology/reference-topology.json'));
     const before = snapshotWorkspace(workspaceDir);
-    assert.throws(
-      () =>
-        runSyncDeliveryUnit([], {
+    await assert.rejects(
+      async () =>
+        await runSyncDeliveryUnit([], {
           workspaceRoot: workspaceDir,
           invocationCwd: workspaceDir,
         }),

@@ -8,6 +8,7 @@ import {
   DELIVERY_UNIT_SCHEMA_VERSION,
 } from '@modern-js/backend-federation-contracts';
 import * as sourceFramework from '../src/release-envelope/framework-output';
+import { uiBuildArtifactOptions } from './renderer-release-fixture';
 
 const roots: string[] = [];
 const client = 'static/js/index.js';
@@ -45,7 +46,10 @@ async function fixture(framework: typeof sourceFramework) {
   };
   await json(
     'ultramodern-build.json',
-    createUltramodernBuildArtifact(deliveryUnit),
+    createUltramodernBuildArtifact(
+      deliveryUnit,
+      uiBuildArtifactOptions(deliveryUnit.buildMarker, deliveryUnit.appId),
+    ),
   );
   await json('backend-mf-manifest.json', {
     backendFederation: { deliveryUnit, versionBoundary: { deliveryUnit } },
@@ -84,7 +88,10 @@ describe('workspace source revision', () => {
     const workspaceUnit = { ...deliveryUnit, sourceRevision: 'workspace' };
     await f.json(
       'ultramodern-build.json',
-      createUltramodernBuildArtifact(workspaceUnit),
+      createUltramodernBuildArtifact(
+        workspaceUnit,
+        uiBuildArtifactOptions(workspaceUnit.buildMarker, workspaceUnit.appId),
+      ),
     );
     await f.json('backend-mf-manifest.json', {
       backendFederation: {
@@ -171,6 +178,7 @@ describe('empty MF producer', () => {
       ['routes-manifest.json', 'public/routes-manifest.json'],
       ['backend-mf-manifest.json', 'public/backend-mf-manifest.json'],
       ['backendRemoteEntry.cjs', 'public/backendRemoteEntry.cjs'],
+      ['ultramodern-build.json', 'public/ultramodern-build.json'],
       ['worker', 'worker'],
       ['route.json', 'server/route.json'],
     ]) {
@@ -286,6 +294,10 @@ describe('API-only release', () => {
 
   async function apiOnlyFixture(target: 'node' | 'cloudflare') {
     const f = await fixture(framework);
+    await f.json(
+      'ultramodern-build.json',
+      createUltramodernBuildArtifact(deliveryUnit),
+    );
     for (const name of [
       'static',
       'bundles',
@@ -548,7 +560,7 @@ describe('API-only release', () => {
         }),
         expect.objectContaining({
           logicalPath: 'public/ultramodern-build.json',
-          runtime: 'cloudflare-deployment',
+          runtime: 'release-identity-metadata',
         }),
         expect.objectContaining({
           logicalPath: 'worker/__modern_worker_shared.js',

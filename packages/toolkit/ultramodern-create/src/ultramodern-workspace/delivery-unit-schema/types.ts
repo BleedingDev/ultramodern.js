@@ -1,5 +1,5 @@
 /** Canonical MicroVertical delivery contracts, parsing, and serialization. */
-import type { JsonObject, JsonValue } from '../types';
+import type { JsonObject, JsonValue, WorkspaceRendererProfile } from '../types';
 
 /* -------------------------------------------------------------------------- */
 /* Owner                                                                       */
@@ -25,8 +25,11 @@ export type DeliveryUnitOwner = {
  * own version; the cohort is advanced platform-wide.
  */
 export type BaselineCohortResolved = {
-  react: string;
-  tanstackRouter: string;
+  renderer: 'react' | 'solid' | 'octane' | 'none';
+  rendererVersion?: string;
+  compiler?: { name: string; version: string };
+  router?: WorkspaceRendererProfile['router'];
+  protocolVersion?: 1;
   effect: string;
   tailwind: string;
 };

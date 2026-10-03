@@ -78,6 +78,6 @@ jobs:
         if: ${{steps.skip-ci.outputs.RESULT != 'true'}}
         run: mise exec -- pnpm --dir tests/integration/bff-cross-project/bff-api-app build
 
-      - name: Validate critical packages with tsgo
+      - name: Validate critical packages with native TypeScript
         if: ${{steps.skip-ci.outputs.RESULT != 'true'}}
-        run: mise exec -- pnpm run validate:tsgo
+        run: mise exec -- pnpm run validate:typescript

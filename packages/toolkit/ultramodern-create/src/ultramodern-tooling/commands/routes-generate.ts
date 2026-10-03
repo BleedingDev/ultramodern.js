@@ -1,8 +1,6 @@
 import path from 'node:path';
-import {
-  readUltramodernConfig,
-  workspaceAppsFromToolingConfig,
-} from '../config';
+import { appEmitsBrowserUi } from '../../ultramodern-workspace/descriptors';
+import { readUltramodernWorkspaceInputs } from '../config';
 import { type CommandContext, spawnNodeScript } from './context';
 import { readOption } from './options';
 
@@ -17,11 +15,10 @@ const resolveRoutesGenerateTargets = (
 ): RoutesGenerateTarget[] => {
   const appId = readOption(args, '--app');
 
-  const targets = workspaceAppsFromToolingConfig(
-    readUltramodernConfig(context.workspaceRoot),
-    context.workspaceRoot,
-  )
+  const workspace = readUltramodernWorkspaceInputs(context.workspaceRoot);
+  const targets = workspace.apps
     .filter(app => !appId || app.id === appId)
+    .filter(appEmitsBrowserUi)
     .map(app => ({
       label: app.id,
       appDirectory: path.join(context.workspaceRoot, app.directory),
@@ -36,14 +33,16 @@ const resolveRoutesGenerateTargets = (
   return targets;
 };
 
-export function runRoutesGenerate(args: string[], context: CommandContext) {
+export async function runRoutesGenerate(
+  args: string[],
+  context: CommandContext,
+) {
   if (args.includes('--help') || args.includes('-h')) {
     process.stdout.write(`Usage:
   ultramodern-create ultramodern routes-generate [--app <id>]
 
-Regenerates TanStack route artifacts (router.gen.ts, register.gen.d.ts) for
-generated UltraModern apps without running dev or build. Without --app, every
-generated workspace app is regenerated.
+Regenerates routes and entries through each application's configured renderer
+without running dev or build.
 `);
     return 0;
   }

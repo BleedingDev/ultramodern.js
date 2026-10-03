@@ -2,13 +2,16 @@ import { createDebugger, logger } from '@modern-js/utils';
 import { program } from '@modern-js/utils/commander';
 import { loadEnv } from '@rsbuild/core';
 import { createPluginManager } from '../../manager';
-import type { InternalContext } from '../../types/cli/context';
+import type { CLIPluginAPI } from '../../types/cli/api';
+import type { AppContext, InternalContext } from '../../types/cli/context';
 import type { CLIPlugin, CLIPluginExtends } from '../../types/cli/plugin';
-import type { Plugin } from '../../types/plugin';
 import type { DeepPartial } from '../../types/utils';
 import { initPluginAPI } from '../api';
 import { createContext, initAppContext } from '../context';
-import { createLoadedConfig } from './config/createLoadedConfig';
+import {
+  type ConfigPackageMetadataRead,
+  createLoadedConfig,
+} from './config/createLoadedConfig';
 import { createResolveConfig } from './config/createResolvedConfig';
 import type { CLIRunOptions } from './types';
 import { checkIsDuplicationPlugin } from './utils/checkIsDuplicationPlugin';
@@ -20,7 +23,10 @@ const debug = createDebugger('plugin');
 
 export const createCli = <Extends extends CLIPluginExtends>() => {
   let initOptions: CLIRunOptions<Extends>;
-  const pluginManager = createPluginManager();
+  const pluginManager = createPluginManager<
+    CLIPluginAPI<Extends> & Extends['extendApi'],
+    AppContext<Extends> & Extends['extendContext']
+  >();
   const existListenerMap = new Map();
 
   function createExistListener(
@@ -77,21 +83,34 @@ export const createCli = <Extends extends CLIPluginExtends>() => {
       prefixes: [`${envName.toUpperCase()}_`],
     });
 
-    const loaded = await createLoadedConfig<Extends['config']>(
-      appDirectory,
-      configFile,
-      config,
-    );
+    let packageMetadataRead: ConfigPackageMetadataRead | undefined;
+    const load = (reader?: ConfigPackageMetadataRead) => {
+      packageMetadataRead = reader;
+      return createLoadedConfig<Extends['config']>(
+        appDirectory,
+        configFile,
+        config,
+        undefined,
+        reader,
+      );
+    };
+    const loaded = await (options.wrapConfigLoad
+      ? options.wrapConfigLoad(
+          load,
+          Object.freeze({ appDirectory, configFile }),
+        )
+      : load());
 
     const allPlugins = [
       ...(internalPlugins || []),
-      ...((loaded.config as unknown as { plugins: Plugin[] }).plugins || []),
+      ...((loaded.config as unknown as { plugins: CLIPlugin<Extends>[] })
+        .plugins || []),
     ];
     checkIsDuplicationPlugin(allPlugins.map(plugin => plugin.name));
 
     pluginManager.addPlugins(allPlugins);
 
-    const plugins = (await pluginManager.getPlugins()) as CLIPlugin<Extends>[];
+    const plugins = await pluginManager.getPlugins();
 
     debug(
       'CLI Plugins:',
@@ -106,6 +125,7 @@ export const createCli = <Extends extends CLIPluginExtends>() => {
         appDirectory,
         plugins,
         metaName,
+        packageMetadataRead,
       }),
       config: loaded.config,
       normalizedConfig: {},
@@ -170,9 +190,17 @@ export const createCli = <Extends extends CLIPluginExtends>() => {
       );
     }
   }
+  /** Detach this host's process handlers after its lifecycle cleanup. */
+  function dispose() {
+    for (const [event, listener] of existListenerMap) {
+      process.off(event, listener);
+    }
+    existListenerMap.clear();
+  }
   return {
     init,
     run,
+    dispose,
     getPrevInitOptions: () => initOptions,
   };
 };
@@ -184,6 +212,7 @@ type CreateConfigOption<Extends extends CLIPluginExtends> = Omit<
   UselessOptions
 > & {
   command: string;
+  packageMetadataRead?: ConfigPackageMetadataRead;
   modifyModernConfig?: (
     config: Extends['config'],
   ) => Extends['config'] | Promise<Extends['config']>;
@@ -192,16 +221,21 @@ type CreateConfigOption<Extends extends CLIPluginExtends> = Omit<
 export const createConfigOptions = async <Extends extends CLIPluginExtends>(
   options: CreateConfigOption<Extends>,
 ) => {
-  const pluginManager = createPluginManager();
+  const pluginManager = createPluginManager<
+    CLIPluginAPI<Extends> & Extends['extendApi'],
+    AppContext<Extends> & Extends['extendContext']
+  >();
   pluginManager.clear();
 
   const { configFile, cwd, metaName = 'modern-js', command } = options;
-  const appDirectory = await initAppDir(cwd);
+  const appDirectory = await initAppDir(cwd, options.packageMetadataRead);
 
   const loaded = await createLoadedConfig<Extends['config']>(
     appDirectory,
     configFile,
     options.config,
+    undefined,
+    options.packageMetadataRead,
   );
 
   loaded.config = options.modifyModernConfig
@@ -210,11 +244,12 @@ export const createConfigOptions = async <Extends extends CLIPluginExtends>(
 
   const allPlugins = [
     ...(options.internalPlugins || []),
-    ...((loaded.config as unknown as { plugins: Plugin[] }).plugins || []),
+    ...((loaded.config as unknown as { plugins: CLIPlugin<Extends>[] })
+      .plugins || []),
   ];
   checkIsDuplicationPlugin(allPlugins.map(plugin => plugin.name));
   pluginManager.addPlugins(allPlugins);
-  const plugins = (await pluginManager.getPlugins()) as CLIPlugin<Extends>[];
+  const plugins = await pluginManager.getPlugins();
 
   const context = await createContext<Extends>({
     appContext: initAppContext<Extends>({
@@ -224,6 +259,7 @@ export const createConfigOptions = async <Extends extends CLIPluginExtends>(
       command,
       plugins,
       metaName,
+      packageMetadataRead: options.packageMetadataRead,
     }),
     config: loaded.config,
     normalizedConfig: {},

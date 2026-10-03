@@ -31,10 +31,7 @@ import {
   WORKER_MANIFEST,
   WRANGLER_CONFIG_FILE,
 } from './constants';
-import {
-  resolveTopologyDeliveryUnit,
-  resolveWorkerDeliveryUnitStamp,
-} from './delivery-unit';
+import { resolveWorkerDeliveryUnitStamp } from './delivery-unit';
 import type { CreateCloudflarePreset } from './types';
 import {
   createWorkerManifest,
@@ -206,8 +203,10 @@ export const createCloudflarePreset: CreateCloudflarePreset = ({
         },
       );
 
-      const deliveryUnitStamp =
-        await resolveWorkerDeliveryUnitStamp(appDirectory);
+      const deliveryUnitStamp = await resolveWorkerDeliveryUnitStamp(
+        appDirectory,
+        distDirectory,
+      );
       await fse.writeJSON(
         workerManifestPath,
         await createWorkerManifest(
@@ -246,8 +245,10 @@ export const createCloudflarePreset: CreateCloudflarePreset = ({
             createWorkerModuleLoaders(manifest),
           ),
       );
-      const topologyDeliveryUnit =
-        await resolveTopologyDeliveryUnit(appDirectory);
+      const topologyDeliveryUnit = await resolveWorkerDeliveryUnitStamp(
+        appDirectory,
+        distDirectory,
+      );
       await assertCloudflareOutput({
         outputDirectory,
         importWorker: false,

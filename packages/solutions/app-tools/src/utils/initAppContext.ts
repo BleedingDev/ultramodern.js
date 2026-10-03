@@ -1,3 +1,4 @@
+import type { ConfigPackageMetadataRead } from '@modern-js/plugin/cli';
 import type { BffRuntimeFramework } from '@modern-js/plugin/server';
 import { address, fs } from '@modern-js/utils';
 import path from 'path';
@@ -28,6 +29,7 @@ export const initAppContext = ({
   runtimeConfigFile,
   options,
   tempDir,
+  packageMetadataRead,
 }: {
   metaName: string;
   appDirectory: string;
@@ -40,6 +42,7 @@ export const initAppContext = ({
     bffRuntimeFramework?: BffRuntimeFramework;
   };
   tempDir?: string;
+  packageMetadataRead?: ConfigPackageMetadataRead;
 }) => {
   const {
     apiDir = 'api',
@@ -48,9 +51,13 @@ export const initAppContext = ({
   } = options || {};
   const pkgPath = path.resolve(appDirectory, './package.json');
 
-  const moduleType = fs.existsSync(pkgPath)
-    ? fs.readJSONSync(pkgPath).type || 'commonjs'
-    : 'commonjs';
+  const readModuleType = () =>
+    fs.existsSync(pkgPath)
+      ? fs.readJSONSync(pkgPath).type || 'commonjs'
+      : 'commonjs';
+  const moduleType = packageMetadataRead
+    ? packageMetadataRead(pkgPath, 'type', readModuleType)
+    : readModuleType();
 
   return {
     runtimeConfigFile,

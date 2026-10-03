@@ -14,5 +14,24 @@ export default defineConfig({
           }
         : lib.dts,
     source: { ...lib.source, entry: { index: ['./src/**/*.ts'] } },
+    output: {
+      ...lib.output,
+      ...(lib.id === 'cjs-node'
+        ? {
+            copy: [
+              {
+                from: './src/native-composition/react-mf-dts-implementation.cjs',
+                to: './native-composition/react-mf-dts-implementation.cjs',
+                info: { minimized: true },
+              },
+              {
+                from: './src/native-composition/configuration-read-context-state.cjs',
+                to: './native-composition/configuration-read-context-state.cjs',
+                info: { minimized: true },
+              },
+            ],
+          }
+        : {}),
+    },
   })),
 });

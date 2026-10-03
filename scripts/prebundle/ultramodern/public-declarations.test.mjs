@@ -16,6 +16,7 @@ import {
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import tsgoInvocation from '../../lib/tsgo-invocation.js';
 import { publicDeclarationsPlugin } from './public-declarations.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -81,9 +82,9 @@ function stage(name) {
   }
 }
 function compile(file) {
-  const result = spawnSync(
-    join(root, 'node_modules/.bin/tsgo'),
-    [
+  const invocation = tsgoInvocation.createTsgoInvocation({
+    requireFrom: createRequire(import.meta.url),
+    args: [
       '--ignoreConfig',
       '--noEmit',
       '--strict',
@@ -101,8 +102,13 @@ function compile(file) {
       join(modules, '@types'),
       file,
     ],
-    { cwd: temp, encoding: 'utf8', timeout: 120000 },
-  );
+  });
+  const result = spawnSync(invocation.command, invocation.argv, {
+    cwd: temp,
+    encoding: 'utf8',
+    timeout: 120000,
+    shell: invocation.shell,
+  });
   if (result.error) throw result.error;
   return { status: result.status, output: `${result.stdout}${result.stderr}` };
 }

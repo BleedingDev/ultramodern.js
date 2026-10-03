@@ -55,6 +55,7 @@ allowBuilds:
   workerd: true
 
 patchedDependencies:
+  'jiti@2.7.0': patches/jiti@2.7.0.patch
   '@module-federation/bridge-react@2.9.1': patches/@module-federation__bridge-react@2.9.1.patch
   '@module-federation/dts-plugin@2.9.1': patches/@module-federation__dts-plugin@2.9.1.patch
   '@module-federation/manifest@2.9.1': patches/@module-federation__manifest@2.9.1.patch
@@ -72,7 +73,7 @@ overrides:
   # ranges. The Module Federation bridge still requires the v7 layout.
   'react-router@>=7.0.0 <7.18.2': 7.18.4
   'react-router@>=8.0.0 <8.3.1': 8.4.0
-  '@modern-js/runtime-utils>react-router': 7.18.2
+  '@modern-js/runtime-utils>react-router': 7.18.4
   'dev-server>react-router': 8.3.1
   h3: '>=1.15.11'
   tar: '>=7.5.22'

@@ -108,7 +108,7 @@ test('CodeSmith adapter dry-run returns a plan without writing files', async () 
   const workspaceDir = path.join(tempRoot, 'dry-run-workspace');
 
   try {
-    createWorkspace(workspaceDir);
+    await createWorkspace(workspaceDir);
     assert.equal(fs.existsSync(path.join(workspaceDir, 'verticals')), false);
     const result = await ultramodernCodeSmithAdapter(
       {

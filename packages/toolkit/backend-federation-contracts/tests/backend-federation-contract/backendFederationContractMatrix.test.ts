@@ -10,6 +10,7 @@ import {
   type DeliveryUnitRecord,
   deliveryUnitContractBlock,
   isUltramodernBuildArtifact,
+  type RendererProfile,
   validateBackendFederationManifest,
   validateDeliveryUnitIdentity,
   validateUltramodernBuildArtifact,
@@ -38,6 +39,42 @@ const manifestValidationOptions = {
 } as const;
 
 const createDeliveryUnit = (): DeliveryUnitRecord => ({ ...deliveryUnit });
+
+// A controlled tuple for schema tests, not installed-package admission evidence.
+const controlledReactRouter: RendererProfile['router'] = {
+  name: '@tanstack/react-router',
+  version: '1.171.15',
+  coreName: '@tanstack/router-core',
+  coreVersion: '1.171.15',
+};
+
+const createReactArtifact = () =>
+  createUltramodernBuildArtifact(deliveryUnit, {
+    ui: {
+      identity: {
+        renderer: 'react',
+        appId: deliveryUnit.appId,
+        entryName: 'main',
+        protocolVersion: 1,
+        buildId: deliveryUnit.buildMarker,
+      },
+      profile: {
+        renderer: 'react',
+        protocolVersion: 1,
+        compiler: { name: '@rsbuild/plugin-react', version: '2.1.0' },
+        hydration: { name: 'react-dom', version: '19.3.0' },
+        router: controlledReactRouter,
+      },
+      routerBindings: {
+        main: {
+          owner: '@fixture/react-router-owner',
+          evidence: 'file-routes',
+          defaultProvider: { framework: 'tanstack', ...controlledReactRouter },
+          providers: [{ framework: 'tanstack', ...controlledReactRouter }],
+        },
+      },
+    },
+  });
 
 const createIdentityBlock = () => ({
   unitId: deliveryUnit.unitId,
@@ -201,7 +238,7 @@ describe('backend federation contract validation matrix', () => {
   });
 
   it('rejects a build artifact without its delivery-unit build alias', () => {
-    const artifact = createUltramodernBuildArtifact(deliveryUnit);
+    const artifact = createReactArtifact();
     delete (artifact.deliveryUnit as unknown as MutableRecord).build;
 
     const result = validateUltramodernBuildArtifact(artifact);
@@ -211,7 +248,7 @@ describe('backend federation contract validation matrix', () => {
   });
 
   it('rejects a build artifact with a mismatched API build alias', () => {
-    const artifact = createUltramodernBuildArtifact(deliveryUnit);
+    const artifact = createReactArtifact();
     artifact.surfaces.api.build = 'different-build';
 
     const result = validateUltramodernBuildArtifact(artifact);
@@ -221,7 +258,7 @@ describe('backend federation contract validation matrix', () => {
   });
 
   it('rejects ultramodern build artifact surface identity drift', () => {
-    const artifact = createUltramodernBuildArtifact(deliveryUnit);
+    const artifact = createReactArtifact();
     expect(validateUltramodernBuildArtifact(artifact).ok).toBe(true);
     expect(isUltramodernBuildArtifact(artifact)).toBe(true);
 

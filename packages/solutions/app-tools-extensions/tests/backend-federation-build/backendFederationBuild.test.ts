@@ -3,11 +3,21 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import {
+  createUltramodernBuildArtifact,
+  type DeliveryUnitRecord,
+} from '@modern-js/backend-federation-contracts';
 import { loadBackendFederatedEffectApiFromManifest } from '@modern-js/plugin-bff-extensions/backend-federation-manifest/node';
 import { Effect, ManagedRuntime } from 'effect';
 import { HttpApi } from 'effect/unstable/httpapi';
-import { emitBackendFederationArtifacts } from '../../src/backend-federation-build';
+import backendFederationBuildPlugin, {
+  emitBackendFederationArtifacts,
+} from '../../src/backend-federation-build';
 import { findBackendFederationApp } from '../../src/backend-federation-build/config';
+import {
+  reactReleaseUi,
+  uiBuildArtifactOptions,
+} from '../renderer-release-fixture';
 
 const temporaryDirectories: string[] = [];
 
@@ -25,7 +35,7 @@ const writeJson = async (filePath: string, value: unknown) => {
 };
 
 const createBuildArtifact = (overrides: Record<string, unknown> = {}) => {
-  const deliveryUnit = {
+  const deliveryUnit: DeliveryUnitRecord = {
     schemaVersion: 1,
     kind: 'microvertical-delivery-unit',
     appId: 'explore',
@@ -35,19 +45,13 @@ const createBuildArtifact = (overrides: Record<string, unknown> = {}) => {
     sourceRevision: 'workspace',
     buildMarker: 'tractor-explore-build-1234',
     deployProfile: 'cloudflare-ssr-mf-effect-v1',
-    build: 'tractor-explore-build-1234',
     ...overrides,
   };
 
-  return {
-    schemaVersion: 1,
-    kind: 'ultramodern-build-artifact',
+  return createUltramodernBuildArtifact(
     deliveryUnit,
-    surfaces: {
-      ui: { ...deliveryUnit, surface: 'ui' },
-      api: { ...deliveryUnit, surface: 'api' },
-    },
-  };
+    uiBuildArtifactOptions(deliveryUnit.buildMarker, deliveryUnit.appId),
+  );
 };
 
 type WorkspaceOptions = {
@@ -216,6 +220,96 @@ afterEach(async () => {
 });
 
 describe('backend federation build artifacts', () => {
+  it('requires and runs its finalized renderer resolver only after build', () => {
+    const resolveRendererBuild = rstest.fn(async () => ({
+      buildMarker: 'compiled-build',
+      sourceRevision: 'a'.repeat(40),
+      ui: reactReleaseUi('compiled-build', 'explore'),
+    }));
+    expect(() =>
+      backendFederationBuildPlugin({ resolveRendererBuild }),
+    ).toThrow(/owning metadata producer/);
+    const plugin = backendFederationBuildPlugin({
+      resolveRendererBuild,
+      rendererBuildPlugin: '@modern-js/renderer-react-build-metadata',
+    });
+    expect(plugin.pre).toEqual(['@modern-js/renderer-react-build-metadata']);
+    expect(plugin.required).toEqual(plugin.pre);
+    const onAfterBuild = rstest.fn();
+    plugin.setup({
+      getAppContext: () => ({
+        appDirectory: '/app',
+        distDirectory: '/app/dist',
+        entrypoints: [{ entryName: 'main' }],
+      }),
+      onAfterBuild,
+    });
+    expect(resolveRendererBuild).not.toHaveBeenCalled();
+    expect(onAfterBuild).toHaveBeenCalledOnce();
+  });
+
+  it('stamps all actual router bindings and compiled identity into output', async () => {
+    const { appDirectory, distDirectory } = await createWorkspace();
+    const ui = reactReleaseUi('compiled-build', 'explore');
+    const twoEntryUi = {
+      ...ui,
+      routerBindings: {
+        ...ui.routerBindings,
+        csr: { ...ui.routerBindings.main!, owner: 'second-entry-owner' },
+      },
+    };
+    const generation = createBuildArtifact();
+    await writeJson(
+      path.join(appDirectory, 'shared/ultramodern-build.json'),
+      createUltramodernBuildArtifact(generation.deliveryUnit, {
+        ui: {
+          identity: generation.surfaces.ui!.rendererIdentity,
+          profile: generation.surfaces.ui!.rendererProfile,
+          routerBindings: twoEntryUi.routerBindings,
+        },
+      }),
+    );
+    await emitBackendFederationArtifacts(appDirectory, distDirectory, {
+      entrypoints: [
+        { entryName: 'main', isMainEntry: true },
+        { entryName: 'csr' },
+      ],
+      resolveRendererBuild: async () => ({
+        buildMarker: 'compiled-build',
+        sourceRevision: 'b'.repeat(40),
+        ui: twoEntryUi,
+      }),
+    });
+    const actual = JSON.parse(
+      await fs.readFile(
+        path.join(distDirectory, 'ultramodern-build.json'),
+        'utf8',
+      ),
+    );
+    expect(actual.deliveryUnit.buildMarker).toBe('compiled-build');
+    expect(actual.deliveryUnit.sourceRevision).toBe('b'.repeat(40));
+    expect(actual.surfaces.ui.routerBindings).toEqual(
+      twoEntryUi.routerBindings,
+    );
+    expect(actual.surfaces.ui.rendererIdentity).toEqual(ui.rendererIdentity);
+  });
+
+  it('rejects finalized bindings for an unbuilt or missing actual entry before output', async () => {
+    const { appDirectory, distDirectory } = await createWorkspace();
+    await expect(
+      emitBackendFederationArtifacts(appDirectory, distDirectory, {
+        entrypoints: [{ entryName: 'main' }, { entryName: 'csr' }],
+        resolveRendererBuild: async () => ({
+          buildMarker: 'compiled-build',
+          sourceRevision: 'b'.repeat(40),
+          ui: reactReleaseUi('compiled-build', 'explore'),
+        }),
+      }),
+    ).rejects.toThrow(/required for the expected entry/);
+    await expect(
+      fs.access(path.join(distDirectory, 'backendRemoteEntry.cjs')),
+    ).rejects.toThrow();
+  });
   it('serves RPC from a separately bundled Effect runtime through the host handler', async () => {
     let distDirectory = '';
     let dispatchRpc: ((request: Request) => Promise<Response>) | undefined;

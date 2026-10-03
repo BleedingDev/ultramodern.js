@@ -9,7 +9,7 @@ import {
   verifyBuildOutputReleaseEnvelope,
   verifyNodeReleaseEnvelopeStaging,
 } from '@modern-js/app-tools-extensions/release-envelope/framework-output';
-import { createUltramodernReleaseEnvelopePlugin } from '@modern-js/app-tools-extensions/release-envelope/plugin';
+import type { ReleaseEnvelopePluginApi } from '@modern-js/app-tools-extensions/release-envelope/plugin';
 import type { MicroVerticalReleaseTarget } from '@modern-js/app-tools-extensions/release-envelope/types';
 import {
   createUltramodernBuildArtifact,
@@ -18,6 +18,8 @@ import {
   DELIVERY_UNIT_SCHEMA_VERSION,
   type DeliveryUnitRecord,
 } from '@modern-js/backend-federation-contracts';
+import { uiBuildArtifactOptions } from '../../../app-tools-extensions/tests/renderer-release-fixture';
+import { ultramodernReleaseEnvelopePlugin } from '../../src/native-composition/release-envelope-plugin';
 
 const temporaryDirectories: string[] = [];
 
@@ -96,7 +98,10 @@ const createTargetBuildOutput = async (target: MicroVerticalReleaseTarget) => {
   );
   await writeJson(
     path.join(distDirectory, 'ultramodern-build.json'),
-    createUltramodernBuildArtifact(deliveryUnit),
+    createUltramodernBuildArtifact(
+      deliveryUnit,
+      uiBuildArtifactOptions(deliveryUnit.buildMarker, deliveryUnit.appId),
+    ),
   );
   const { buildMarker, sourceRevision, unitId } = identity;
   await writeJson(path.join(distDirectory, 'backend-mf-manifest.json'), {
@@ -138,6 +143,7 @@ const createCloudflareStaging = async (
     ['mf-manifest.json', 'public/mf-manifest.json'],
     ['backend-mf-manifest.json', 'public/backend-mf-manifest.json'],
     ['backendRemoteEntry.cjs', 'public/backendRemoteEntry.cjs'],
+    ['ultramodern-build.json', 'public/ultramodern-build.json'],
     ['worker', 'worker'],
     ['route.json', 'server/route.json'],
   ]) {
@@ -183,11 +189,9 @@ describe('framework target-specific MicroVertical release-envelope integration',
     const afterBuild: Array<() => Promise<void>> = [];
     const beforeDeploy: Array<() => Promise<void>> = [];
     const afterDeploy: Array<() => Promise<void>> = [];
-    const plugin = createUltramodernReleaseEnvelopePlugin({
-      resolveDeployTarget: () => 'node',
-    });
+    const plugin = ultramodernReleaseEnvelopePlugin();
 
-    plugin.setup({
+    const api: ReleaseEnvelopePluginApi = {
       getAppContext: () => ({
         apiOnly: false,
         appDirectory: fixture.root,
@@ -198,7 +202,8 @@ describe('framework target-specific MicroVertical release-envelope integration',
       onAfterBuild: handler => afterBuild.push(handler),
       onBeforeDeploy: handler => beforeDeploy.push(handler),
       onAfterDeploy: handler => afterDeploy.push(handler),
-    });
+    };
+    Reflect.apply(plugin.setup!, plugin, [api]);
 
     await afterBuild[0]!();
     await expect(

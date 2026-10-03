@@ -1,7 +1,5 @@
-import type {
-  ServerPlugin as ServerPluginConfig,
-  ServerRoute,
-} from '@modern-js/types';
+import type { ServerPlugin as ServerPluginConfig } from '@modern-js/types/common';
+import type { ServerRoute } from '@modern-js/types/server';
 import type { Command } from '@modern-js/utils/commander';
 import type {
   ModifyBundlerChainUtils,

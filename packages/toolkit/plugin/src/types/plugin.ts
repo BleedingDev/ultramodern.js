@@ -40,9 +40,9 @@ export type Plugin<PluginAPI = {}, Context = {}> = {
   required?: string[];
 };
 
-export type PluginManager = {
-  getPlugins: () => Plugin[];
-  addPlugins: (plugins: Array<Plugin | Falsy>) => void;
+export type PluginManager<PluginAPI = {}, Context = {}> = {
+  getPlugins: () => Plugin<PluginAPI, Context>[];
+  addPlugins: (plugins: Array<Plugin<PluginAPI, Context> | Falsy>) => void;
   clear: () => void;
   isPluginExists: (name: string) => boolean;
 };

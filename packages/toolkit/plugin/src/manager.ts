@@ -27,9 +27,13 @@ function validatePlugin(plugin: unknown) {
   );
 }
 
-export function createPluginManager(): PluginManager {
+export function createPluginManager<
+  PluginAPI = {},
+  Context = {},
+>(): PluginManager<PluginAPI, Context> {
+  type ManagedPlugin = Plugin<PluginAPI, Context>;
   // Map to store all plugins by name
-  const plugins = new Map<string, Plugin>();
+  const plugins = new Map<string, ManagedPlugin>();
   // Map to store dependencies for each plugin
   // 'pre': plugins that must run before the current plugin
   // 'post': plugins that must run after the current plugin
@@ -72,7 +76,7 @@ export function createPluginManager(): PluginManager {
     }
   };
 
-  const addPlugin = (newPlugin: Plugin | Falsy) => {
+  const addPlugin = (newPlugin: ManagedPlugin | Falsy) => {
     if (!newPlugin) {
       return;
     }
@@ -102,7 +106,7 @@ export function createPluginManager(): PluginManager {
     });
   };
 
-  const addPlugins = (newPlugins: Array<Plugin | Falsy>) => {
+  const addPlugins = (newPlugins: Array<ManagedPlugin | Falsy>) => {
     for (const newPlugin of newPlugins) {
       addPlugin(newPlugin);
     }
@@ -111,7 +115,7 @@ export function createPluginManager(): PluginManager {
   const getPlugins = () => {
     const visited = new Set();
     const temp = new Set();
-    let result: Plugin[] = [];
+    let result: ManagedPlugin[] = [];
     const visit = (name: string) => {
       if (temp.has(name)) {
         throw new Error(`Circular dependency detected: ${name}`);

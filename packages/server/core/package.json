@@ -44,6 +44,9 @@
         "require": "./dist/cjs/hono.js"
       },
       "default": "./dist/cjs/hono.js"
+    },
+    "./config-types": {
+      "types": "./dist/types/types/config/index.d.ts"
     }
   },
   "typesVersions": {
@@ -59,6 +62,9 @@
       "hono": [
         "./dist/types/hono.d.ts",
         "./src/hono.ts"
+      ],
+      "config-types": [
+        "./dist/types/types/config/index.d.ts"
       ]
     }
   },
@@ -94,7 +100,7 @@
     "@types/node": "^26.6.2",
     "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "http-proxy-middleware": "^4.2.0",
-    "typescript": "^7.0.2"
+    "typescript": "7.0.2"
   },
   "sideEffects": false,
   "publishConfig": {

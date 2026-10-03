@@ -1261,12 +1261,14 @@ function publishChangePlan(
   stagingRoot: string,
   changes: WorkspaceChange[],
   emptyTarget?: FreshWorkspaceTarget,
+  assertInputsUnchanged?: () => void,
 ) {
   __transactionTestHooks.beforePublish?.({
     workspaceRoot: root,
     stagingRoot,
     changedPaths: changes.map(change => change.relativePath),
   });
+  assertInputsUnchanged?.();
   if (emptyTarget) assertFreshTarget(root, emptyTarget);
   for (const change of changes) assertPreimage(root, change);
   if (changes.length === 0) return;
@@ -1366,6 +1368,7 @@ export function runWorkspaceTransaction<T>(
     mode?: 'publish' | 'preview';
     commitWhen?: (result: Awaited<T>) => boolean;
     inspectChanges?: (changes: readonly WorkspaceChange[]) => void;
+    assertInputsUnchanged?: () => void;
   } = {},
 ): T {
   const workspaceRoot = fs.realpathSync.native(path.resolve(root));
@@ -1384,15 +1387,27 @@ export function runWorkspaceTransaction<T>(
     copyWorkspaceToStage(workspaceRoot, stagingRoot);
     const before = captureWorkspace(stagingRoot, workspaceRoot);
     const finish = (result: Awaited<T>) => {
-      if (options.commitWhen && !options.commitWhen(result)) return result;
+      if (options.commitWhen && !options.commitWhen(result)) {
+        options.assertInputsUnchanged?.();
+        return result;
+      }
       relocateStagedWorkspaceReferences(stagingRoot, root);
       const changes = buildChangePlan(
         before,
         captureWorkspace(stagingRoot, workspaceRoot),
       );
       options.inspectChanges?.(changes);
-      if (options.mode !== 'preview')
-        publishChangePlan(workspaceRoot, stagingRoot, changes);
+      if (options.mode !== 'preview') {
+        publishChangePlan(
+          workspaceRoot,
+          stagingRoot,
+          changes,
+          undefined,
+          options.assertInputsUnchanged,
+        );
+      } else {
+        options.assertInputsUnchanged?.();
+      }
       return result;
     };
     const result = mutate(stagingRoot);
@@ -1474,6 +1489,7 @@ function publishFreshWorkspace(
   stagingRoot: string,
   workspaceRoot: string,
   target: FreshWorkspaceTarget,
+  assertStagedSourceUnchanged: () => void,
 ): void {
   assertFreshTarget(workspaceRoot, target);
   if (target.kind === 'absent') {
@@ -1492,6 +1508,7 @@ function publishFreshWorkspace(
       stagingRoot,
       buildChangePlan(new Map(), captureWorkspace(stagingRoot, workspaceRoot)),
       target,
+      assertStagedSourceUnchanged,
     );
     return;
   }
@@ -1556,6 +1573,9 @@ function publishFreshWorkspace(
 export function runFreshWorkspaceTransaction<T>(
   targetDir: string,
   generate: (stagingRoot: string) => T,
+  options: {
+    assertInputsUnchanged?: (stagingRoot: string, result: Awaited<T>) => void;
+  } = {},
 ): T {
   const workspaceRoot = path.resolve(targetDir);
   recoverFreshWorkspaceTransactions(workspaceRoot);
@@ -1563,17 +1583,53 @@ export function runFreshWorkspaceTransaction<T>(
   const stagingRoot = createTemporarySibling(workspaceRoot);
   const stagingIdentity = fs.lstatSync(stagingRoot);
   fs.chmodSync(stagingRoot, target.mode);
-  try {
-    const result = generate(stagingRoot);
-    relocateStagedWorkspaceReferences(stagingRoot, targetDir);
-    __transactionTestHooks.beforeFreshPublish?.({
-      workspaceRoot,
-    });
-    publishFreshWorkspace(stagingRoot, workspaceRoot, target);
-    return result;
-  } finally {
+  const cleanup = () => {
     if (!fs.existsSync(`${stagingRoot}${receiptSuffix}`)) {
       cleanOwnedTemporaryDirectory(stagingRoot, stagingIdentity);
     }
+  };
+  const finish = (result: Awaited<T>) => {
+    options.assertInputsUnchanged?.(stagingRoot, result);
+    relocateStagedWorkspaceReferences(stagingRoot, targetDir);
+    const stagedPreimage = captureWorkspace(stagingRoot, workspaceRoot);
+    const assertStagedSourceUnchanged = () => {
+      if (
+        buildChangePlan(
+          stagedPreimage,
+          captureWorkspace(stagingRoot, workspaceRoot),
+        ).length > 0
+      ) {
+        throw new WorkspaceTransactionConflictError(
+          'Staged workspace changed after generation validation.',
+        );
+      }
+    };
+    __transactionTestHooks.beforeFreshPublish?.({
+      workspaceRoot,
+    });
+    assertStagedSourceUnchanged();
+    publishFreshWorkspace(
+      stagingRoot,
+      workspaceRoot,
+      target,
+      assertStagedSourceUnchanged,
+    );
+    return result;
+  };
+  try {
+    const result = generate(stagingRoot);
+    if (
+      result !== null &&
+      (typeof result === 'object' || typeof result === 'function') &&
+      typeof (result as unknown as PromiseLike<unknown>).then === 'function'
+    ) {
+      return Promise.resolve(result).then(finish).finally(cleanup) as T;
+    }
+    const completed = finish(result as Awaited<T>);
+    cleanup();
+    return completed as T;
+  } catch (error) {
+    cleanup();
+    throw error;
   }
 }

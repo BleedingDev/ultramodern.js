@@ -12,6 +12,14 @@ import {
 } from '../descriptors';
 import { packageName, toEnvSegment, toPascalCase } from '../naming';
 import { createCloudflareDeployContract } from '../policy';
+import {
+  type RendererMetadataPhase,
+  rendererMetadataProjection,
+} from '../renderer-identity';
+import {
+  appSupportsFederation,
+  resolveAppGenerationProfile,
+} from '../renderer-profile';
 import type {
   JsonValue,
   Ownership,
@@ -28,12 +36,15 @@ export function verticalTopologyEntry(
   scope: string,
   vertical: WorkspaceApp,
   remotes: WorkspaceApp[] = [],
+  phase: RendererMetadataPhase = 'resolved',
 ): JsonValue {
   const backendFederation = createBackendFederationContract(scope, vertical);
+  const deliveryUnit = createDeliveryUnitRecord(scope, vertical);
 
   return {
     id: vertical.id,
     kind: vertical.kind,
+    ...rendererMetadataProjection({ ...vertical, deliveryUnit }, phase),
     // Additive v1 extensions are emitted only when present on the descriptor.
     // This keeps default output byte-identical while allowing an
     // extended-v1 value to survive a read/mutate/re-emit cycle.
@@ -46,28 +57,36 @@ export function verticalTopologyEntry(
     ...(vertical.domain ? { domain: vertical.domain } : {}),
     package: packageName(scope, vertical.packageSuffix),
     path: vertical.directory,
-    moduleFederation: {
-      role: 'remote',
-      name: vertical.mfName,
-      manifestUrl: `http://localhost:${vertical.port}/mf-manifest.json`,
-      exposes: Object.keys(vertical.exposes ?? {}),
-      ...(vertical.verticalRefs?.length
-        ? {
-            verticalRefs: vertical.verticalRefs,
-            remotes: createModuleFederationRemoteContracts(vertical, remotes),
-          }
-        : {}),
-      ssr: true,
-      sharedContractVersion: 'mf-ssr-contract-v1',
-    },
+    ...(appSupportsFederation(vertical)
+      ? {
+          moduleFederation: {
+            role: 'remote',
+            name: vertical.mfName,
+            manifestUrl: `http://localhost:${vertical.port}/mf-manifest.json`,
+            exposes: Object.keys(vertical.exposes ?? {}),
+            ...(vertical.verticalRefs?.length
+              ? {
+                  verticalRefs: vertical.verticalRefs,
+                  remotes: createModuleFederationRemoteContracts(
+                    vertical,
+                    remotes,
+                  ),
+                }
+              : {}),
+            ssr: true,
+            sharedContractVersion: 'mf-ssr-contract-v1',
+          },
+        }
+      : {}),
     ...(backendFederation ? { backendFederation } : {}),
-    deliveryUnit: deliveryUnitContractBlock(
-      createDeliveryUnitRecord(scope, vertical),
-    ),
+    deliveryUnit: deliveryUnitContractBlock(deliveryUnit),
     ...(apiTopologyMetadata(vertical)
       ? { api: apiTopologyMetadata(vertical) }
       : {}),
-    cloudflare: createCloudflareDeployContract(scope, vertical),
+    ...(vertical.renderer === 'none' ||
+    resolveAppGenerationProfile(vertical)?.capabilities.workers
+      ? { cloudflare: createCloudflareDeployContract(scope, vertical) }
+      : {}),
     ownership: vertical.ownership,
   };
 }
@@ -141,6 +160,24 @@ export function verticalsFromTopology(
       mfName:
         vertical.moduleFederation?.name ?? `vertical${toPascalCase(domain)}`,
       ...(vertical.deliveryUnit ? { deliveryUnit: vertical.deliveryUnit } : {}),
+      ...(vertical.renderer === undefined
+        ? {}
+        : { renderer: vertical.renderer }),
+      ...(vertical.rendererIdentity
+        ? { rendererIdentity: vertical.rendererIdentity }
+        : {}),
+      ...(vertical.rendererIdentities
+        ? { rendererIdentities: vertical.rendererIdentities }
+        : {}),
+      ...(vertical.rendererProfile
+        ? { rendererProfile: vertical.rendererProfile }
+        : {}),
+      ...(vertical.routerBindings !== undefined
+        ? { routerBindings: vertical.routerBindings }
+        : {}),
+      ...(vertical.rendererCapabilities
+        ? { rendererCapabilities: vertical.rendererCapabilities }
+        : {}),
       ...(surfaceProfile === undefined ? {} : { surfaceProfile }),
       ...(deliveryUnitKind === undefined ? {} : { deliveryUnitKind }),
       ...(Array.isArray(vertical.moduleFederation?.exposes)

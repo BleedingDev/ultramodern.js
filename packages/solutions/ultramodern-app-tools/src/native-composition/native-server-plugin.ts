@@ -1,0 +1,568 @@
+import type { ServerResponse } from 'node:http';
+import path from 'node:path';
+import type { RendererIdentity } from '@modern-js/renderer-core/identity';
+import {
+  assertRendererIdentity,
+  identityCacheKey,
+} from '@modern-js/renderer-core/identity';
+import {
+  dispatchNativeNodeRequest,
+  type NativeDocumentCache,
+  type NativeRequestContext,
+  type NativeServerManifest,
+  rejectNativeRscRequest,
+  validateNativeClientAssetManifest,
+} from '@modern-js/renderer-core/server';
+import {
+  collectDocumentAssets,
+  type DocumentAsset,
+} from '@modern-js/renderer-core/session';
+import { fileReader } from '@modern-js/runtime-utils/fileReader';
+import type {
+  Context,
+  Next,
+  Render,
+  RenderOptions,
+  ServerConfig,
+  ServerManifest,
+  ServerPlugin,
+} from '@modern-js/server-core';
+import type { ServerRoute } from '@modern-js/types/server';
+import { getEntryOptions } from '@modern-js/utils';
+import { cutNameByHyphen } from '@modern-js/utils/universal';
+
+export interface NativeNodeBindings {
+  readonly loaderContext: Map<string, unknown>;
+  readonly nodeRequest?: unknown;
+  readonly locals?: Readonly<Record<string, unknown>>;
+}
+
+/** One completed compiler generation, retained for the entire request. */
+export interface NativeDevelopmentSnapshot {
+  readonly manifest: NativeServerManifest<NativeNodeBindings>;
+  readonly assets: readonly DocumentAsset[];
+  readonly nativeManifest: unknown;
+  readonly hydrationBuildId?: string;
+}
+
+export interface NativeServerPluginOptions {
+  readonly renderer: 'solid' | 'octane';
+  readonly entries: Readonly<Record<string, RendererIdentity>>;
+  readonly cache?: NativeDocumentCache;
+  readonly cacheAllowed?: boolean;
+  readonly maxCacheBytes?: number;
+  /** Compiler-produced asset paths relative to the application's output root. */
+  readonly assetManifestFile?: string;
+  readonly nativeManifestFiles?: Readonly<Record<string, string>>;
+  /** Owning dev composition supplies this; production uses emitted files. */
+  readonly resolveDevelopmentSnapshot?: (
+    identity: RendererIdentity,
+    signal: AbortSignal,
+  ) => Promise<NativeDevelopmentSnapshot>;
+  readonly resolveManifest?: (
+    manifest: ServerManifest,
+    identity: RendererIdentity,
+  ) =>
+    | NativeServerManifest<NativeNodeBindings>
+    | Promise<NativeServerManifest<NativeNodeBindings>>;
+  readonly onError?: (
+    error: unknown,
+    request: Request,
+    context: NativeRequestContext<NativeNodeBindings>,
+  ) => Response | Promise<Response>;
+}
+
+function awaitDevelopmentSnapshot(
+  provider: NonNullable<
+    NativeServerPluginOptions['resolveDevelopmentSnapshot']
+  >,
+  identity: RendererIdentity,
+  signal: AbortSignal,
+): Promise<NativeDevelopmentSnapshot> {
+  signal.throwIfAborted();
+  return new Promise((resolve, reject) => {
+    const fail = (error: unknown) => {
+      signal.removeEventListener('abort', aborted);
+      reject(error);
+    };
+    const aborted = () => fail(signal.reason);
+    signal.addEventListener('abort', aborted, { once: true });
+    try {
+      void provider(identity, signal).then(snapshot => {
+        if (signal.aborted) return fail(signal.reason);
+        signal.removeEventListener('abort', aborted);
+        resolve(snapshot);
+      }, fail);
+    } catch (error) {
+      fail(error);
+    }
+  });
+}
+
+function assertFinalCapabilities(config: ServerConfig): void {
+  if (config.server?.rsc) {
+    throw new Error(
+      'unsupported-renderer-capability: RSC requires the React renderer.',
+    );
+  }
+}
+
+function loaderContext(context: Context): Map<string, unknown> {
+  // Preserve the explicit Node binding installed by configured middleware.
+  const requestContext = context as unknown as {
+    get(name: 'loaderContext'): Map<string, unknown> | undefined;
+    set(name: 'loaderContext', value: Map<string, unknown>): void;
+  };
+  let values = requestContext.get('loaderContext');
+  if (!values) {
+    values = new Map<string, unknown>();
+    requestContext.set('loaderContext', values);
+  }
+  return values;
+}
+
+function makeRenderOptions(context: Context): RenderOptions {
+  return {
+    nodeReq: context.env?.node?.req,
+    monitors: context.get('monitors'),
+    templates: context.get('templates') || {},
+    serverManifest: context.get('serverManifest') || {},
+    loaderContext: loaderContext(context),
+    serverContext: context,
+    locals: context.get('locals'),
+    matchPathname: context.get('matchPathname'),
+    matchEntryName: context.get('matchEntryName'),
+    contextForceCSR: context.get('forceCSR'),
+    reporter: context.get('reporter'),
+  };
+}
+
+function bindContextResponse(context: Context, response: Response): Response {
+  // Hono keeps pre-render context.header() fields in a prepared Response.
+  // Merge them through its public context API without reducing cookies to a map.
+  const prepared = context.res.headers;
+  const nativeCookies = response.headers.getSetCookie();
+  const preparedCookies = prepared.getSetCookie();
+  prepared.forEach((value, name) => {
+    if (
+      name !== 'set-cookie' &&
+      (name !== 'content-type' || !response.headers.has(name))
+    ) {
+      // Context middleware retains Hono's precedence over native headers.
+      // Its private/no-store policy must survive a public native response.
+      response.headers.set(name, value);
+    }
+  });
+  response.headers.delete('set-cookie');
+  for (const cookie of [...preparedCookies, ...nativeCookies]) {
+    response.headers.append('set-cookie', cookie);
+  }
+  // The res setter retains existing context fields. Give it the complete
+  // merged headers so it cannot overwrite the native cookie array.
+  const preparedNames: string[] = [];
+  prepared.forEach((_value, name) => preparedNames.push(name));
+  for (const name of preparedNames) prepared.delete(name);
+  response.headers.forEach((value, name) => {
+    if (name !== 'set-cookie') prepared.append(name, value);
+  });
+  for (const cookie of response.headers.getSetCookie()) {
+    prepared.append('set-cookie', cookie);
+  }
+  context.res = response;
+  return context.res;
+}
+
+function confirmNodeDelivery(
+  response: ServerResponse | undefined,
+  signal: AbortSignal,
+  capturedResponse: Response,
+  finalResponse: () => Response | undefined,
+): Promise<Headers | undefined> {
+  if (!response) return Promise.resolve(undefined);
+  return new Promise(resolve => {
+    const clear = () => {
+      response.off('finish', finished);
+      response.off('close', interrupted);
+      response.off('error', interrupted);
+      signal.removeEventListener('abort', interrupted);
+    };
+    const finished = () => {
+      clear();
+      const delivered = finalResponse();
+      if (
+        response.statusCode !== 200 ||
+        delivered?.body !== capturedResponse.body ||
+        delivered.statusText !== capturedResponse.statusText
+      )
+        return resolve(undefined);
+      const headers = new Headers();
+      for (const [name, value] of Object.entries(response.getHeaders())) {
+        if (value === undefined) continue;
+        if (Array.isArray(value)) {
+          for (const field of value) headers.append(name, field);
+        } else headers.append(name, String(value));
+      }
+      resolve(headers);
+    };
+    const interrupted = () => {
+      clear();
+      resolve(undefined);
+    };
+    if (response.writableFinished) return finished();
+    if (response.destroyed || signal.aborted) return interrupted();
+    response.once('finish', finished);
+    response.once('close', interrupted);
+    response.once('error', interrupted);
+    signal.addEventListener('abort', interrupted, { once: true });
+  });
+}
+
+/** The selected native app retains Modern's Node host, static/API and middleware. */
+export function nativeServerPlugin(
+  options: NativeServerPluginOptions,
+): ServerPlugin {
+  if (!options || !['solid', 'octane'].includes(options.renderer)) {
+    throw new Error(
+      'Native server plugin requires a selected Solid or Octane renderer.',
+    );
+  }
+  if (options.resolveDevelopmentSnapshot && options.cacheAllowed === true) {
+    throw new Error(
+      'Native development snapshots cannot enable document cache.',
+    );
+  }
+  const entries = Object.freeze(
+    Object.fromEntries(
+      Object.entries(options.entries).map(([entryName, identity]) => {
+        identityCacheKey(identity);
+        if (
+          identity.renderer !== options.renderer ||
+          identity.entryName !== entryName
+        ) {
+          throw new Error(
+            'Native server entry identity conflicts with its selected renderer.',
+          );
+        }
+        return [entryName, Object.freeze({ ...identity })];
+      }),
+    ),
+  );
+  let finalConfig: ServerConfig;
+  let distDirectory: string;
+  let fallbackHeader = 'x-modern-ssr-fallback';
+  let serverRoutes: readonly ServerRoute[] = [];
+  const readManifest = async (file: string): Promise<unknown> => {
+    if (!file || path.isAbsolute(file) || file.split(/[\\/]/u).includes('..')) {
+      throw new Error(
+        'Native asset manifests must live inside the application output.',
+      );
+    }
+    const source = await fileReader.readFile(path.join(distDirectory, file));
+    if (source === null)
+      throw new Error(
+        `Missing native manifest ${file}. Rebuild the application before serving.`,
+      );
+    try {
+      return JSON.parse(source);
+    } catch (cause) {
+      throw new Error(
+        `Invalid native manifest ${file}. Rebuild the application before serving.`,
+        { cause },
+      );
+    }
+  };
+  const dispatch: Render = async (request, requestOptions) => {
+    const rejection = rejectNativeRscRequest(request);
+    if (rejection) return rejection;
+    const entryName = requestOptions.matchEntryName;
+    const identity = entryName ? entries[entryName] : undefined;
+    if (!identity)
+      throw new Error(
+        `Native server has no immutable identity for entry ${String(entryName)}.`,
+      );
+    const ssr = getEntryOptions(
+      entryName!,
+      false,
+      finalConfig.server?.ssr,
+      finalConfig.server?.ssrByEntries,
+    );
+    const query = new URL(request.url).searchParams;
+    const fallbackAllowed = typeof ssr === 'object' && ssr.forceCSR;
+    const forceCSR = Boolean(
+      fallbackAllowed &&
+        (query.get('csr') ||
+          request.headers.get(fallbackHeader) ||
+          requestOptions.contextForceCSR),
+    );
+    const snapshot = options.resolveDevelopmentSnapshot
+      ? await awaitDevelopmentSnapshot(
+          options.resolveDevelopmentSnapshot,
+          identity,
+          request.signal,
+        )
+      : undefined;
+    let snapshotManifest: NativeServerManifest<NativeNodeBindings> | undefined;
+    if (options.resolveDevelopmentSnapshot) {
+      if (!snapshot?.manifest || !Array.isArray(snapshot.assets)) {
+        throw new Error(
+          'Native development requires a complete compiler snapshot.',
+        );
+      }
+      assertRendererIdentity(snapshot.manifest.rendererIdentity, identity);
+      snapshotManifest = Object.freeze({
+        ...snapshot.manifest,
+        rendererIdentity: Object.freeze({
+          ...snapshot.manifest.rendererIdentity,
+        }),
+      });
+    }
+    const assets = snapshot
+      ? collectDocumentAssets(snapshot.assets)
+      : options.assetManifestFile
+        ? validateNativeClientAssetManifest(
+            await readManifest(options.assetManifestFile),
+            identity,
+          )
+        : undefined;
+    if (snapshot && !assets?.some(asset => asset.kind === 'script')) {
+      throw new Error('Native development snapshot has no application script.');
+    }
+    const nativeManifestFile = options.nativeManifestFiles?.[entryName!];
+    let nativeManifest = snapshot
+      ? snapshot.nativeManifest
+      : nativeManifestFile
+        ? await readManifest(nativeManifestFile)
+        : undefined;
+    let hydrationBuildId = snapshot?.hydrationBuildId;
+    if (snapshot && nativeManifest === undefined) {
+      throw new Error('Native development snapshot has no compiler manifest.');
+    }
+    if (nativeManifest !== undefined) {
+      if (
+        !nativeManifest ||
+        typeof nativeManifest !== 'object' ||
+        Array.isArray(nativeManifest)
+      ) {
+        throw new Error(
+          'Native compiler manifest requires an immutable renderer identity.',
+        );
+      }
+      const nativeIdentity = (
+        nativeManifest as { rendererIdentity?: RendererIdentity }
+      ).rendererIdentity;
+      if (!nativeIdentity) {
+        throw new Error(
+          'Native compiler manifest requires an immutable renderer identity.',
+        );
+      }
+      assertRendererIdentity(nativeIdentity, identity);
+      if (options.renderer === 'solid') {
+        const { validateSolidModuleManifest } = await import(
+          '@modern-js/renderer-solid/manifest'
+        );
+        nativeManifest = validateSolidModuleManifest(nativeManifest, identity);
+      } else {
+        if (
+          snapshot &&
+          (typeof hydrationBuildId !== 'string' || !hydrationBuildId.trim())
+        ) {
+          throw new Error(
+            'Octane development snapshot has no native hydration build.',
+          );
+        }
+        const { validateOctaneModuleManifest } = await import(
+          '@modern-js/renderer-octane/manifest'
+        );
+        const validated = validateOctaneModuleManifest(
+          nativeManifest,
+          identity,
+          hydrationBuildId,
+        );
+        nativeManifest = validated;
+        hydrationBuildId = validated.nativeHydrationBuildId;
+      }
+    }
+    const response = await dispatchNativeNodeRequest(request, {
+      identity,
+      async loadManifest() {
+        const manifest =
+          snapshotManifest ??
+          (options.resolveManifest
+            ? await options.resolveManifest(
+                requestOptions.serverManifest,
+                identity,
+              )
+            : (requestOptions.serverManifest.renderBundles?.[
+                entryName!
+              ] as unknown as NativeServerManifest<NativeNodeBindings>));
+        if (!manifest)
+          throw new Error(
+            `Native server manifest is missing entry ${entryName}.`,
+          );
+        assertRendererIdentity(manifest.rendererIdentity, identity);
+        return manifest;
+      },
+      context: {
+        assets,
+        nativeManifest,
+        bindings: {
+          loaderContext:
+            requestOptions.loaderContext ??
+            (requestOptions.serverContext
+              ? loaderContext(requestOptions.serverContext)
+              : new Map<string, unknown>()),
+          nodeRequest: requestOptions.nodeReq,
+          locals: requestOptions.locals,
+        },
+        serverConfig: {
+          ssr: !ssr
+            ? false
+            : typeof ssr === 'object' && ssr.mode === 'stream'
+              ? 'stream'
+              : true,
+          forceCSR,
+          ssrByRouteIds: finalConfig.server?.ssrByRouteIds,
+        },
+        nonce: finalConfig.security?.nonce,
+      },
+      cache: options.cacheAllowed === true ? options.cache : undefined,
+      maxCacheBytes: options.maxCacheBytes,
+      hydrationBuildId,
+      confirmDelivery: capturedResponse =>
+        confirmNodeDelivery(
+          requestOptions.serverContext?.env?.node?.res,
+          request.signal,
+          capturedResponse,
+          () => requestOptions.serverContext?.res,
+        ),
+      onError: options.onError,
+    });
+    const matchedRoute = requestOptions.serverContext?.get('route');
+    const selectedRoute = serverRoutes.find(
+      route =>
+        route.entryName === entryName &&
+        (!matchedRoute || route.urlPath === matchedRoute.urlPath),
+    );
+    for (const [name, value] of Object.entries(
+      selectedRoute?.responseHeaders ?? {},
+    )) {
+      response.headers.set(name, String(value));
+    }
+    return response;
+  };
+
+  return {
+    name: '@modern-js/native-node-server',
+    usePlugins: [
+      {
+        name: '@modern-js/native-node-capabilities',
+        post: [
+          '@modern-js/plugin-inject-render',
+          '@modern-js/plugin-inject-resource',
+          '@modern-js/plugin-inject-rsc-manifest',
+        ],
+        setup(api) {
+          api.onPrepare(() => {
+            finalConfig = api.getServerConfig();
+            assertFinalCapabilities(finalConfig);
+            const {
+              middlewares,
+              routes,
+              distDirectory: outputDirectory,
+              metaName,
+            } = api.getServerContext();
+            serverRoutes = routes ?? [];
+            distDirectory = outputDirectory ?? '';
+            fallbackHeader = `x-${cutNameByHyphen(metaName || 'modern-js')}-ssr-fallback`;
+            if (
+              !options.resolveDevelopmentSnapshot &&
+              (options.assetManifestFile || options.nativeManifestFiles) &&
+              !distDirectory
+            ) {
+              throw new Error(
+                'Native asset manifests require an application output directory.',
+              );
+            }
+            for (const route of routes ?? []) {
+              // Validate configured headers before any native stream commits.
+              for (const [name, value] of Object.entries(
+                route.responseHeaders ?? {},
+              )) {
+                new Headers([[name, String(value)]]);
+              }
+              if (
+                !route.isApi &&
+                route.entryName &&
+                !entries[route.entryName]
+              ) {
+                throw new Error(
+                  `Native server route has no selected identity: ${route.entryName}.`,
+                );
+              }
+            }
+            middlewares.unshift({
+              name: 'native-node-rsc-guard',
+              order: 'pre',
+              handler: async (context: Context, next: Next) =>
+                rejectNativeRscRequest(context.req.raw) || next(),
+            });
+          });
+        },
+      },
+      {
+        name: '@modern-js/native-node-dispatch',
+        pre: [
+          '@modern-js/plugin-inject-render',
+          '@modern-js/plugin-inject-resource',
+          '@modern-js/plugin-inject-config-middleware',
+          '@modern-js/plugin-server-static',
+          '@modern-js/plugin-favicon',
+        ],
+        post: ['@modern-js/plugin-render'],
+        setup(api) {
+          api.onPrepare(() => {
+            const context = api.getServerContext();
+            if (
+              typeof context.render !== 'function' ||
+              context.middlewares.some(
+                middleware => middleware.name === 'render',
+              )
+            ) {
+              throw new Error(
+                'Native server dispatch was registered outside the admitted render seam.',
+              );
+            }
+            api.updateServerContext({ render: dispatch });
+          });
+        },
+      },
+      {
+        name: '@modern-js/native-node-terminal-responses',
+        pre: ['@modern-js/plugin-render', '@modern-js/native-node-dispatch'],
+        setup(api) {
+          api.onPrepare(() => {
+            const { middlewares } = api.getServerContext();
+            // Replace each page handler in place. Its path and preceding
+            // per-entry render middleware retain their exact original order.
+            for (const middleware of middlewares) {
+              if (middleware.name !== 'render') continue;
+              middleware.handler = async (context: Context, next: Next) => {
+                const route = context.get('route');
+                if (!route?.entryName || !entries[route.entryName])
+                  return next();
+                const renderOptions = makeRenderOptions(context);
+                renderOptions.matchEntryName = route.entryName;
+                return bindContextResponse(
+                  context,
+                  await dispatch(context.req.raw, renderOptions),
+                );
+              };
+            }
+          });
+        },
+      },
+    ],
+  };
+}
+
+export default nativeServerPlugin;

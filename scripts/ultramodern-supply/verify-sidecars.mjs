@@ -56,7 +56,7 @@ export async function verifySidecar(
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'ultramodern-sidecar-'));
   try {
     const target = packageDir ?? path.join(root, 'packages/sidecar', id);
-    if (!materializeTo && recipe.artifacts.includes('*')) {
+    if (!materializeTo && !packageDir && recipe.artifacts.includes('*')) {
       materializeTo = path.join(temp, 'reconstructed');
     }
     let bytes;
@@ -106,13 +106,9 @@ export async function verifySidecar(
         stdio: ['pipe', 'pipe', 'pipe'],
       });
     }
-    if (materializeTo) {
-      assert.deepEqual(
-        recipe.artifacts,
-        ['*'],
-        `${id}: reconstruction requires the complete upstream artifact`,
-      );
-      const projected = {
+    let projected;
+    if (recipe.artifacts.includes('*')) {
+      projected = {
         ...upstream,
         name: recipe.fork.name,
         version: recipe.fork.version,
@@ -135,6 +131,13 @@ export async function verifySidecar(
         }
         projected[key] = { ...upstream[key], ...changes };
       }
+    }
+    if (materializeTo) {
+      assert.deepEqual(
+        recipe.artifacts,
+        ['*'],
+        `${id}: reconstruction requires the complete upstream artifact`,
+      );
       if (packageDir) {
         const fork = JSON.parse(
           fs.readFileSync(path.join(target, 'package.json'), 'utf8'),
@@ -159,6 +162,13 @@ export async function verifySidecar(
     const fork = JSON.parse(
       fs.readFileSync(path.join(target, 'package.json'), 'utf8'),
     );
+    if (projected) {
+      assert.deepEqual(
+        fork,
+        projected,
+        `${id}: recipe must account for every manifest field`,
+      );
+    }
     assert.equal(fork.name, recipe.fork.name);
     assert.equal(fork.version, recipe.fork.version);
     for (const key of contractFields) {

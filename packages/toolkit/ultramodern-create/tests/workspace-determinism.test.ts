@@ -10,8 +10,8 @@ import {
 
 type FileTreeSnapshot = Map<string, Buffer>;
 
-function generateFixedWorkspace(workspaceDir: string) {
-  generateUltramodernWorkspace({
+async function generateFixedWorkspace(workspaceDir: string) {
+  await generateUltramodernWorkspace({
     targetDir: workspaceDir,
     packageName: 'deterministic-workspace',
     modernVersion: '3.2.1',
@@ -21,7 +21,7 @@ function generateFixedWorkspace(workspaceDir: string) {
     },
   });
 
-  addUltramodernVertical({
+  await addUltramodernVertical({
     workspaceRoot: workspaceDir,
     name: 'catalog',
     modernVersion: '3.2.1',
@@ -101,7 +101,7 @@ function firstFileTreeDifference(
   return undefined;
 }
 
-test('generates byte-identical workspaces for a fixed shell and MicroVertical spec', () => {
+test('generates byte-identical workspaces for a fixed shell and MicroVertical spec', async () => {
   const tempRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), 'um-workspace-determinism-'),
   );
@@ -110,8 +110,8 @@ test('generates byte-identical workspaces for a fixed shell and MicroVertical sp
     const firstWorkspaceDir = path.join(tempRoot, 'first');
     const secondWorkspaceDir = path.join(tempRoot, 'second');
 
-    generateFixedWorkspace(firstWorkspaceDir);
-    generateFixedWorkspace(secondWorkspaceDir);
+    await generateFixedWorkspace(firstWorkspaceDir);
+    await generateFixedWorkspace(secondWorkspaceDir);
 
     const difference = firstFileTreeDifference(
       collectFileTreeSnapshot(firstWorkspaceDir),
@@ -127,14 +127,14 @@ test('generates byte-identical workspaces for a fixed shell and MicroVertical sp
 // Restored: delivery-unit build markers were once seeded per process, so a
 // marker stamped by the CLI never matched the one recomputed by a later
 // process (the generated `pnpm check` validator asserts they agree).
-test('the CLI stamps the same delivery-unit build marker as an in-process add', () => {
+test('the CLI stamps the same delivery-unit build marker as an in-process add', async () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-marker-cross-'));
   try {
     const inProcessDir = path.join(tempRoot, 'in-process');
-    generateFixedWorkspace(inProcessDir);
+    await generateFixedWorkspace(inProcessDir);
 
     const cliDir = path.join(tempRoot, 'cli');
-    generateUltramodernWorkspace({
+    await generateUltramodernWorkspace({
       targetDir: cliDir,
       packageName: 'deterministic-workspace',
       modernVersion: '3.2.1',

@@ -1,0 +1,22 @@
+{
+  "name": "ultramodern-octane-admission",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@modern-js/renderer-octane": "workspace:*",
+    "@rsbuild/core": "2.2.9",
+    "@tsrx/oxc": "0.20.0",
+    "@types/node": "26.6.4",
+    "playwright-core": "1.63.0"
+  },
+  "dependencies": {
+    "@octanejs/rspack-plugin": "0.1.55",
+    "@octanejs/tanstack-router": "0.1.60",
+    "@rspack/core": "2.2.8",
+    "@tanstack/router-core": "1.171.15",
+    "octane": "0.7.1",
+    "seroval": "1.6.8",
+    "seroval-plugins": "1.6.8",
+    "typescript": "7.0.2"
+  }
+}

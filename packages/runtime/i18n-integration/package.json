@@ -148,7 +148,7 @@
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-i18next": "17.0.15",
-    "typescript": "^7.0.2"
+    "typescript": "7.0.2"
   },
   "sideEffects": false,
   "publishConfig": {

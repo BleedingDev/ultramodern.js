@@ -103,15 +103,15 @@ test('workspace package source uses workspace versions for generated framework d
   const scripts = packageRecord(packageJson.scripts);
   assert.match(
     scripts.build as string,
-    /(?:^| && )cross-env MODERNJS_DEPLOY=node modern deploy --skip-build(?: && |$)/u,
+    /(?:^| && )cross-env MODERNJS_DEPLOY=node ultramodern deploy --skip-build(?: && |$)/u,
   );
   assert.match(
     scripts['cloudflare:build'] as string,
-    /(?:^| && )cross-env MODERNJS_DEPLOY=cloudflare modern build(?: && |$)/u,
+    /(?:^| && )cross-env MODERNJS_DEPLOY=cloudflare ultramodern build(?: && |$)/u,
   );
   assert.match(
     scripts['cloudflare:build'] as string,
-    /(?:^| && )cross-env MODERNJS_DEPLOY=cloudflare modern deploy --skip-build(?: && |$)/u,
+    /(?:^| && )cross-env MODERNJS_DEPLOY=cloudflare ultramodern deploy --skip-build(?: && |$)/u,
   );
   assert.equal(
     scripts['cloudflare:deploy'],
@@ -288,7 +288,7 @@ test('BFF build dependencies follow app capabilities and retain runtime packages
   }
 });
 
-test('every generated i18n profile directly declares the descriptor provider', () => {
+test('generated UI profiles directly declare i18n providers and headless apps omit them', () => {
   const apps = [
     shellApp,
     ...(['full-stack', 'api-only', 'ui-only'] as const).map(preset =>
@@ -305,14 +305,13 @@ test('every generated i18n profile directly declares the descriptor provider', (
     const manifest = packageRecord(
       createAppPackage(scope, app, packageSource, false),
     );
+    const expected =
+      app.surfaceProfile === 'api-only' ? undefined : 'catalog:ultramodern';
     assert.equal(
       manifest.dependencies['@modern-js/i18n-integration'],
-      'catalog:ultramodern',
+      expected,
     );
-    assert.equal(
-      manifest.dependencies['@modern-js/plugin-i18n'],
-      'catalog:ultramodern',
-    );
+    assert.equal(manifest.dependencies['@modern-js/plugin-i18n'], expected);
     assert.equal(
       manifest.dependencies['@modern-js/i18n-runtime-extensions'],
       undefined,

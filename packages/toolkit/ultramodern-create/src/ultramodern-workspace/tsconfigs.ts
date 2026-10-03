@@ -7,6 +7,7 @@ import {
 } from './descriptors';
 import { effectDiagnostics } from './effect-diagnostics';
 import { relativeRootFor } from './naming';
+import { resolveAppGenerationProfile } from './renderer-profile';
 import type { JsonValue, WorkspaceApp } from './types';
 export function createTsConfigBase(): JsonValue {
   return {
@@ -135,7 +136,7 @@ export function createAppTsConfig(
     // Project references would require declaration output before host builds.
     ...remoteRefs.map(remote => remote.directory),
   ];
-  return createPackageTsConfig(app.directory, {
+  const config = createPackageTsConfig(app.directory, {
     includeApi: appHasApi(app),
     includeServer: true,
     references,
@@ -143,6 +144,21 @@ export function createAppTsConfig(
     // checker traverses framework declaration dependencies outside app source.
     skipLibCheck: remoteRefs.length > 0,
   });
+  const profile = resolveAppGenerationProfile(app);
+  if (profile) {
+    const compilerOptions = (config as Record<string, JsonValue>)
+      .compilerOptions as Record<string, JsonValue>;
+    compilerOptions.jsx = 'preserve';
+    compilerOptions.jsxImportSource = profile.jsxImportSource;
+    if (profile.renderer !== 'react') compilerOptions.types = [];
+    if (profile.renderer === 'octane') {
+      (config as Record<string, JsonValue>).tsrx = {
+        compiler: 'octane/compiler/volar',
+        platform: 'web',
+      };
+    }
+  }
+  return config;
 }
 
 export function createAppMfTypesTsConfig(app: WorkspaceApp): JsonValue {

@@ -26,11 +26,11 @@ function cohort() {
   });
 }
 
-test('local source generation uses native workspace requests without copied release state', () => {
+test('local source generation uses native workspace requests without copied release state', async () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-native-source-'));
   const workspaceDir = path.join(tempRoot, 'workspace');
   try {
-    generateUltramodernWorkspace({
+    await generateUltramodernWorkspace({
       targetDir: workspaceDir,
       packageName: 'workspace',
       modernVersion: '3.2.1',
@@ -99,13 +99,13 @@ test('installed producer cohort rejects wrong release and alias identity', () =>
   );
 });
 
-test('local source generation rejects an explicit install request', () => {
+test('local source generation rejects an explicit install request', async () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-install-source-'));
   const workspaceDir = path.join(tempRoot, 'workspace');
   try {
-    assert.throws(
-      () =>
-        generateUltramodernWorkspace({
+    await assert.rejects(
+      async () =>
+        await generateUltramodernWorkspace({
           targetDir: workspaceDir,
           packageName: 'workspace',
           modernVersion: '3.2.1',

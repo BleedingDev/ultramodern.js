@@ -204,7 +204,9 @@ function validateNodeBackendFederationProofResult(result) {
     ) ||
     // This producer-result validator can only require and correlate the digest
     // reference. runtime-evidence.verifyEnvelope independently recomputes the
-    // canonical envelope digest and every artifact digest from executed bytes.
+    // schema 4 canonical envelope digest and every artifact digest from executed
+    // bytes, and matches its renderer identity/profile to immutable build
+    // artifact evidence before this digest-only proof summary is accepted.
     liveApi.envelopeDigest !== envelope?.envelopeDigest ||
     (liveApi.protocol === 'rpc'
       ? !isValidRpcOperations(liveApi)

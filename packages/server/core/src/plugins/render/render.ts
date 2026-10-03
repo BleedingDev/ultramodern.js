@@ -148,6 +148,7 @@ export async function createRender({
       forMatchpathname,
       matchEntryName,
     );
+    serverContext?.set('renderRoute', routeInfo);
     const framework = cutNameByHyphen(metaName || 'modern-js');
     const fallbackHeader = `x-${framework}-ssr-fallback`;
     let fallbackReason = null;

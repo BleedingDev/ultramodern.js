@@ -41,6 +41,7 @@ function reseal(envelopePath, envelope) {
     kind: envelope.kind,
     target: envelope.target,
     identity: envelope.identity,
+    ...(Object.hasOwn(envelope, 'ui') ? { ui: envelope.ui } : {}),
     artifacts: envelope.artifacts,
     surfaces: envelope.surfaces,
   };
@@ -57,6 +58,38 @@ function makeRoot(t, name) {
 // A real `node` release tree plus envelope/carrier metadata re-derived from bytes.
 function createEnvelopeFixture(root) {
   const identity = createIdentity('a'.repeat(40), '0123456789abcdef');
+  const ui = {
+    rendererIdentity: {
+      renderer: 'react',
+      appId: 'catalog',
+      entryName: 'main',
+      protocolVersion: 1,
+      buildId: identity.buildMarker,
+    },
+    rendererProfile: {
+      renderer: 'react',
+      protocolVersion: 1,
+      compiler: { name: '@rsbuild/plugin-react', version: '2.1.0' },
+      hydration: { name: 'react-dom', version: '19.3.0' },
+      router: {
+        name: '@tanstack/react-router',
+        version: '1.170.39',
+        coreVersion: '1.171.32',
+      },
+    },
+  };
+  const deliveryUnit = {
+    appId: ui.rendererIdentity.appId,
+    build: identity.buildMarker,
+    buildMarker: identity.buildMarker,
+    deployProfile: 'cloudflare-ssr-mf-effect-v1',
+    kind: 'microvertical-delivery-unit',
+    packageName: '@fixture/catalog',
+    schemaVersion: 1,
+    sourceRevision: identity.sourceRevision,
+    unitId: identity.unitId,
+    version: identity.releaseVersion,
+  };
   const runtimes = {
     'public/client.js': 'browser',
     'server/ssr.js': 'nodejs',
@@ -64,6 +97,7 @@ function createEnvelopeFixture(root) {
     'backend-mf-manifest.json': 'module-federation-manifest',
     'backendRemoteEntry.cjs': 'nodejs',
     'node_modules/@bleedingdev/runtime/package.json': 'nodejs-deployment',
+    'ultramodern-build.json': 'release-identity-metadata',
   };
   const files = {
     'public/client.js': `export const identity=${JSON.stringify(identity)};`,
@@ -74,6 +108,15 @@ function createEnvelopeFixture(root) {
     'node_modules/@bleedingdev/runtime/package.json': JSON.stringify({
       name: '@bleedingdev/runtime',
       version: '1.0.0',
+    }),
+    'ultramodern-build.json': JSON.stringify({
+      schemaVersion: 2,
+      kind: 'ultramodern-build-artifact',
+      deliveryUnit,
+      surfaces: {
+        api: { ...deliveryUnit, surface: 'api' },
+        ui: { ...deliveryUnit, surface: 'ui', ...ui },
+      },
     }),
   };
   for (const [logicalPath, source] of Object.entries(files)) {
@@ -145,10 +188,11 @@ function createEnvelopeFixture(root) {
     left.logicalPath.localeCompare(right.logicalPath),
   );
   const envelope = {
-    schemaVersion: 3,
+    schemaVersion: 4,
     kind: 'ultramodern-target-microvertical-release-envelope',
     target: 'node',
     identity,
+    ui,
     artifacts,
     surfaces: {
       uiClient: ['public/client.js'],
@@ -285,6 +329,27 @@ test('final-envelope verification rejects prior identity carrier metadata even w
   fs.writeFileSync(carrierPath, carrierBytes);
   const envelope = JSON.parse(fs.readFileSync(fixture.envelopePath, 'utf8'));
   envelope.identity = priorIdentity;
+  envelope.ui.rendererIdentity.buildId = priorIdentity.buildMarker;
+  const buildArtifactPath = path.join(root, 'ultramodern-build.json');
+  const buildArtifact = JSON.parse(fs.readFileSync(buildArtifactPath, 'utf8'));
+  for (const marker of [
+    buildArtifact.deliveryUnit,
+    buildArtifact.surfaces.api,
+    buildArtifact.surfaces.ui,
+  ]) {
+    marker.build = priorIdentity.buildMarker;
+    marker.buildMarker = priorIdentity.buildMarker;
+    marker.sourceRevision = priorIdentity.sourceRevision;
+  }
+  buildArtifact.surfaces.ui.rendererIdentity.buildId =
+    priorIdentity.buildMarker;
+  const buildArtifactBytes = Buffer.from(JSON.stringify(buildArtifact));
+  fs.writeFileSync(buildArtifactPath, buildArtifactBytes);
+  const boundBuildArtifact = envelope.artifacts.find(
+    artifact => artifact.logicalPath === 'ultramodern-build.json',
+  );
+  boundBuildArtifact.byteLength = buildArtifactBytes.byteLength;
+  boundBuildArtifact.sha256 = digest(buildArtifactBytes);
   const carrierArtifact = envelope.artifacts.find(
     artifact =>
       artifact.logicalPath ===
@@ -300,6 +365,53 @@ test('final-envelope verification rejects prior identity carrier metadata even w
         forbiddenIdentity: priorIdentity,
       }),
     /carrier metadata retains the prior release identity/,
+  );
+});
+
+test('final-envelope verification rejects a different immutable renderer profile even when all hashes are resealed', async t => {
+  const { readAndVerifyEnvelope } = await loadProof();
+  for (const [component, field] of [
+    ['compiler', 'version'],
+    ['hydration', 'version'],
+    ['router', 'version'],
+    ['router', 'coreVersion'],
+  ]) {
+    const root = makeRoot(t, `operational-renderer-${component}-${field}`);
+    const fixture = createEnvelopeFixture(root);
+    const buildArtifactPath = path.join(root, 'ultramodern-build.json');
+    const buildArtifact = JSON.parse(
+      fs.readFileSync(buildArtifactPath, 'utf8'),
+    );
+    buildArtifact.surfaces.ui.rendererProfile[component][field] = '99.0.0';
+    const bytes = Buffer.from(JSON.stringify(buildArtifact));
+    fs.writeFileSync(buildArtifactPath, bytes);
+    const boundArtifact = fixture.envelope.artifacts.find(
+      artifact => artifact.logicalPath === 'ultramodern-build.json',
+    );
+    boundArtifact.byteLength = bytes.byteLength;
+    boundArtifact.sha256 = digest(bytes);
+    reseal(fixture.envelopePath, fixture.envelope);
+
+    assert.throws(
+      () => readAndVerifyEnvelope(root, 'node'),
+      /renderer evidence must match/u,
+      `${component}.${field} must match the promoted renderer profile`,
+    );
+  }
+});
+
+test('final-envelope verification requires the immutable build artifact to be bound in the release envelope', async t => {
+  const { readAndVerifyEnvelope } = await loadProof();
+  const root = makeRoot(t, 'operational-renderer-unbound-artifact');
+  const fixture = createEnvelopeFixture(root);
+  fixture.envelope.artifacts = fixture.envelope.artifacts.filter(
+    artifact => artifact.logicalPath !== 'ultramodern-build.json',
+  );
+  reseal(fixture.envelopePath, fixture.envelope);
+
+  assert.throws(
+    () => readAndVerifyEnvelope(root, 'node'),
+    /must bind an immutable build artifact/u,
   );
 });
 

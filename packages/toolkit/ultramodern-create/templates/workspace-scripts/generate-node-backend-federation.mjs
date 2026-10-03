@@ -29,18 +29,26 @@ function readBuildIdentity(app) {
     'shared/ultramodern-build.json',
   );
   const artifact = readJson(buildArtifactPath);
-  const deliveryUnit = artifact.deliveryUnit ?? {};
+  const appRequire = createRequire(path.join(workspaceRoot, app.path, 'package.json'));
+  const { assertUltramodernBuildArtifact, DELIVERY_UNIT_IDENTITY_FIELDS, deliveryUnitIdentityFieldValue } =
+    appRequire('@modern-js/backend-federation-contracts');
+  assertUltramodernBuildArtifact(artifact, buildArtifactPath);
+  const deliveryUnit = artifact.deliveryUnit;
   const manifest = readJson(path.join(workspaceRoot, app.path, 'package.json'));
   if (
     app.package !== manifest.name ||
-    app.deliveryUnit?.unitId !== deliveryUnit.unitId ||
+    app.id !== deliveryUnit.appId ||
+    DELIVERY_UNIT_IDENTITY_FIELDS.some(field =>
+      deliveryUnitIdentityFieldValue(app.deliveryUnit, field) !==
+      deliveryUnitIdentityFieldValue(deliveryUnit, field)
+    ) ||
     deliveryUnit.packageName !== manifest.name ||
     deliveryUnit.version !== manifest.version
   ) {
     throw new Error(`${app.id} topology, package.json and stamped build identity disagree`);
   }
   return {
-    buildVersion: deliveryUnit.buildMarker ?? deliveryUnit.build,
+    buildVersion: deliveryUnit.buildMarker,
     packageName: deliveryUnit.packageName,
     version: deliveryUnit.version,
     unitId: deliveryUnit.unitId,

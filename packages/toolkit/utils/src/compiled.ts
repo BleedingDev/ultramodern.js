@@ -23,15 +23,12 @@ export { nanoid } from '../compiled/nanoid';
 export { default as ora } from '../compiled/ora';
 export { default as pkgUp } from '../compiled/pkg-up/index.js';
 export { default as semver } from '../compiled/semver';
-export { default as signale } from '../compiled/signale';
 export { default as slash } from '../compiled/slash';
 export { default as stripAnsi } from '../compiled/strip-ansi';
 export { default as upath } from '../compiled/upath';
 export { default as urlJoin } from '../compiled/url-join';
 
-import _chokidar from '../compiled/chokidar';
-import _signale from '../compiled/signale';
-export const { Signale } = _signale;
+type SignaleModule = typeof import('../compiled/signale');
 
 export type { FSWatcher, WatchOptions } from '../compiled/chokidar';
 export type { ExecaError } from '../compiled/execa';
@@ -72,7 +69,18 @@ export const mime: typeof import('../compiled/mime-types') = Import.lazy(
   '../compiled/mime-types',
   getNodeRequire,
 );
-export const chokidar: typeof import('../compiled/chokidar') = _chokidar;
+export const chokidar: typeof import('../compiled/chokidar') = Import.lazy(
+  '../compiled/chokidar',
+  getNodeRequire,
+);
+export const signale: SignaleModule = Import.lazy(
+  '../compiled/signale',
+  getNodeRequire,
+);
+export const Signale: SignaleModule['Signale'] = Import.lazy(
+  '../compiled/signale',
+  () => moduleName => getNodeRequire()(moduleName).Signale,
+);
 export const inquirer: typeof import('../compiled/inquirer') = Import.lazy(
   '../compiled/inquirer',
   getNodeRequire,

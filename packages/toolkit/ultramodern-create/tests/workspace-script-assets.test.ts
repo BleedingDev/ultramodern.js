@@ -27,23 +27,23 @@ test('public surface generation invokes the installed CLI from the workspace roo
     'pnpm --dir ../.. exec ultramodern-create ultramodern public-surface --app shell-super-app --target cloudflare-dist --require-public-origin',
   );
   const scripts = createWorkspaceAppPackageScripts(shellApp);
-  assert.match(scripts.dev, /--sync-route-metadata && modern dev$/u);
+  assert.match(scripts.dev, /--sync-route-metadata && ultramodern dev$/u);
   assert.match(
     scripts.build,
-    /^pnpm --dir \.\.\/\.\. exec ultramodern-create ultramodern public-surface --app shell-super-app --target dist --sync-route-metadata && modern build/u,
+    /^pnpm --dir \.\.\/\.\. exec ultramodern-create ultramodern public-surface --app shell-super-app --target dist --sync-route-metadata && ultramodern build/u,
   );
   assert.match(
     scripts['cloudflare:build'],
-    /^pnpm --dir \.\.\/\.\. exec ultramodern-create ultramodern public-surface --app shell-super-app --target cloudflare-dist --sync-route-metadata && cross-env MODERNJS_DEPLOY=cloudflare modern build/u,
+    /^pnpm --dir \.\.\/\.\. exec ultramodern-create ultramodern public-surface --app shell-super-app --target cloudflare-dist --sync-route-metadata && cross-env MODERNJS_DEPLOY=cloudflare ultramodern build/u,
   );
 });
 
-test('fresh route aggregates are unchanged by their first metadata sync', () => {
-  const { tempRoot, workspaceDir } = createWorkspace(
+test('fresh route aggregates are unchanged by their first metadata sync', async () => {
+  const { tempRoot, workspaceDir } = await createWorkspace(
     'route-aggregate-stability',
   );
   try {
-    addUltramodernVertical({
+    await addUltramodernVertical({
       workspaceRoot: workspaceDir,
       name: 'catalog',
       modernVersion: '3.2.1',
@@ -213,8 +213,9 @@ test('public surface reads authored route metadata and preserves output and cont
   }
 });
 
-test('adding a vertical preserves authored route metadata and its synced aggregate', () => {
-  const { tempRoot, workspaceDir } = createWorkspace('public-route-owner');
+test('adding a vertical preserves authored route metadata and its synced aggregate', async () => {
+  const { tempRoot, workspaceDir } =
+    await createWorkspace('public-route-owner');
   try {
     const routePath = path.join(
       workspaceDir,
@@ -247,7 +248,7 @@ test('adding a vertical preserves authored route metadata and its synced aggrega
     );
     const aggregate = fs.readFileSync(aggregatePath, 'utf8');
     assert.match(aggregate, /import \{ routeMeta as route0 \}/u);
-    addUltramodernVertical({
+    await addUltramodernVertical({
       workspaceRoot: workspaceDir,
       name: 'catalog',
       modernVersion: '3.2.1',

@@ -1,8 +1,7 @@
 import developmentOverlay from '{{value29}}/topology/local-overlays/development.json';
-import { defineConfig } from '@modern-js/app-tools';
 import {
+  defineConfig,
   presetUltramodern,
-  ultramodernAppTools,
 } from '@modern-js/ultramodern-app-tools';
 {{value0}}import { i18nPlugin } from '@modern-js/plugin-i18n';
 import { tanstackRouterPlugin } from '@modern-js/plugin-tanstack';
@@ -106,7 +105,6 @@ export default defineConfig(
         },
       },
       plugins: [
-        ultramodernAppTools(),
         tanstackRouterPlugin(),
         i18nPlugin({
           backend: {
@@ -136,6 +134,7 @@ export default defineConfig(
           reactI18next: false,
         }),
 {{value15}}{{value25}}      ],
+      renderer: 'react',
       server: {
         port,
         publicDir: ['./locales', './assets'],

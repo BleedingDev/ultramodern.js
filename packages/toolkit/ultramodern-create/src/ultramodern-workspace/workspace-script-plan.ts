@@ -1,5 +1,6 @@
 import { appHasApi, sharedPackages, shellApp } from './descriptors';
 import { createPublicSurfaceGenerationCommand } from './public-surface';
+import { resolveWorkspaceRenderer } from './renderer-profile';
 import {
   GENERATED_TOOLING_COMMANDS,
   type GeneratedToolingCommandKey,
@@ -119,9 +120,9 @@ function createWorkspaceAppScriptPlan(
 ): WorkspaceAppScriptPlan {
   const buildSteps = [
     `${createPublicSurfaceGenerationCommand(app, 'dist')} --sync-route-metadata`,
-    'modern build',
+    'ultramodern build',
     createPublicSurfaceGenerationCommand(app, 'dist'),
-    'cross-env MODERNJS_DEPLOY=node modern deploy --skip-build',
+    'cross-env MODERNJS_DEPLOY=node ultramodern deploy --skip-build',
     // NOTE: the Module Federation DTS archive is emitted by `modern build`
     // above; verifying it (assert-mf-types) is done ONCE at the workspace root
     // (`pnpm mf:types`) AFTER every app has built. A per-app verify here races
@@ -130,9 +131,9 @@ function createWorkspaceAppScriptPlan(
   ].filter((step): step is string => Boolean(step));
   const cloudflareBuildSteps = [
     `${createPublicSurfaceGenerationCommand(app, 'cloudflare-dist')} --sync-route-metadata`,
-    'cross-env MODERNJS_DEPLOY=cloudflare modern build',
+    'cross-env MODERNJS_DEPLOY=cloudflare ultramodern build',
     createPublicSurfaceGenerationCommand(app, 'cloudflare-dist'),
-    'cross-env MODERNJS_DEPLOY=cloudflare modern deploy --skip-build',
+    'cross-env MODERNJS_DEPLOY=cloudflare ultramodern deploy --skip-build',
     `${packageToolingWrapperCommand(
       app.directory,
       'cloudflareOutputVerify',
@@ -140,7 +141,7 @@ function createWorkspaceAppScriptPlan(
   ].filter((step): step is string => Boolean(step));
 
   return {
-    dev: `${createPublicSurfaceGenerationCommand(app, 'dist')} --sync-route-metadata && modern dev`,
+    dev: `${createPublicSurfaceGenerationCommand(app, 'dist')} --sync-route-metadata && ultramodern dev`,
     build: buildSteps.join(' && '),
     cloudflareBuild: cloudflareBuildSteps.join(' && '),
     cloudflareDeploy:
@@ -151,14 +152,26 @@ function createWorkspaceAppScriptPlan(
       app.directory,
       'cloudflareProof',
     )} --app ${app.id}`,
-    serve: 'modern serve',
+    serve: 'ultramodern serve',
     typecheck: createStrictTsgoTypecheckCommand(app.directory),
   };
 }
 
 export function createWorkspaceAppPackageScripts(
   app: WorkspaceApp,
-): WorkspaceAppPackageScripts {
+): Partial<WorkspaceAppPackageScripts> {
+  const renderer = resolveWorkspaceRenderer(app);
+  if (renderer === 'solid' || renderer === 'octane') {
+    return {
+      dev: 'ultramodern dev',
+      build: 'ultramodern build',
+      serve: 'ultramodern serve',
+      typecheck:
+        renderer === 'octane'
+          ? 'octane-tsc --noEmit --project tsconfig.json'
+          : createStrictTsgoTypecheckCommand(app.directory),
+    };
+  }
   const plan = createWorkspaceAppScriptPlan(app);
 
   return Object.fromEntries(

@@ -1,7 +1,6 @@
 import type { AppTools } from '@modern-js/app-tools';
 import type { RsbuildTarget } from '@modern-js/builder';
 import { applyOptionsChain, fs, upath as path } from '@modern-js/utils';
-import { transform } from '@swc/core';
 
 type SerializedGlobalVars = Record<string, string>;
 type ServerGlobalVarsOptions = NonNullable<
@@ -103,8 +102,9 @@ export const transformServerGlobalVars = (
                         ? fs.readFile(sourceMapFilename, 'utf8')
                         : Promise.resolve(undefined);
 
-                    return inputSourceMapPromise.then(inputSourceMap =>
-                      transform(`${releaseIdentityBanner}${source}`, {
+                    return inputSourceMapPromise.then(async inputSourceMap => {
+                      const { transform } = await import('@swc/core');
+                      return transform(`${releaseIdentityBanner}${source}`, {
                         filename,
                         inputSourceMap,
                         sourceMaps: sourceMapExists,
@@ -133,8 +133,8 @@ export const transformServerGlobalVars = (
                           }
                           return undefined;
                         }),
-                      ),
-                    );
+                      );
+                    });
                   });
               }),
             ),

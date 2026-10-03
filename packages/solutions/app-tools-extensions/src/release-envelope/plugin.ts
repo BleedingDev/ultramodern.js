@@ -1,4 +1,5 @@
 import path from 'node:path';
+import type { RendererProfile } from '@modern-js/backend-federation-contracts';
 import {
   emitFrameworkMicroVerticalReleaseEnvelope,
   emitNodeStagedReleaseEnvelope,
@@ -62,8 +63,10 @@ export const createUltramodernReleaseEnvelopePlugin = <
   Config extends ReleaseEnvelopeConfig,
 >({
   resolveDeployTarget,
+  resolveRendererProfile,
 }: {
   resolveDeployTarget: ResolveDeployTarget<Config>;
+  resolveRendererProfile?: (config: Config) => RendererProfile;
 }): ReleaseEnvelopePlugin<Config> => {
   return {
     name: '@modern-js/ultramodern-release-envelope',
@@ -84,6 +87,13 @@ export const createUltramodernReleaseEnvelopePlugin = <
           distDirectory,
           requirePromotable,
           target,
+          ...(!apiOnly && resolveRendererProfile
+            ? {
+                expectedRendererProfile: resolveRendererProfile(
+                  api.getNormalizedConfig(),
+                ),
+              }
+            : {}),
         });
       };
 

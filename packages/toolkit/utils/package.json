@@ -113,6 +113,26 @@
       "types": "./dist/compiled/tsconfig-paths/lib/index.d.ts",
       "import": "./dist/compiled/tsconfig-paths/index.mjs",
       "default": "./dist/compiled/tsconfig-paths/index.js"
+    },
+    "./route-component-files": {
+      "types": "./dist/types/cli/routeComponentFiles.d.ts",
+      "modern:source": "./src/cli/routeComponentFiles.ts"
+    },
+    "./alias": {
+      "types": "./dist/types/cli/alias.d.ts",
+      "modern:source": "./src/cli/alias.ts"
+    },
+    "./watch-options": {
+      "types": "./dist/compiled/chokidar/types/index.d.ts"
+    },
+    "./cli-common": {
+      "types": "./dist/types/cli/common.d.ts",
+      "modern:source": "./src/cli/common.ts",
+      "node": {
+        "import": "./dist/esm-node/cli/common.mjs",
+        "require": "./dist/cjs/cli/common.js"
+      },
+      "default": "./dist/cjs/cli/common.js"
     }
   },
   "publishConfig": {
@@ -175,6 +195,18 @@
       ],
       "ora": [
         "./dist/compiled/ora/index.d.ts"
+      ],
+      "route-component-files": [
+        "./dist/types/cli/routeComponentFiles.d.ts"
+      ],
+      "alias": [
+        "./dist/types/cli/alias.d.ts"
+      ],
+      "watch-options": [
+        "./dist/compiled/chokidar/types/index.d.ts"
+      ],
+      "cli-common": [
+        "./dist/types/cli/common.d.ts"
       ]
     }
   },

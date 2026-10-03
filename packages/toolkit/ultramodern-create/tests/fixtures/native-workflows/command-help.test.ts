@@ -36,7 +36,7 @@ test('documented acceptance does not duplicate API and contract checks', () => {
     false,
   );
   const app = createWorkspaceAppPackageScripts(shellApp);
-  assert.equal(app.serve, 'modern serve');
+  assert.equal(app.serve, 'ultramodern serve');
   assert.equal(
     app['cloudflare:preview'],
     'pnpm run cloudflare:build && wrangler dev --config .output/wrangler.json',

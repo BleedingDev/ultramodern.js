@@ -7,7 +7,6 @@ import {
 } from '@rsbuild/core';
 import { pluginCssMinimizer } from '@rsbuild/plugin-css-minimizer';
 import { pluginLess } from '@rsbuild/plugin-less';
-import { pluginReact } from '@rsbuild/plugin-react';
 import { pluginSass } from '@rsbuild/plugin-sass';
 import { pluginDevtool } from '../plugins/devtools';
 import { pluginEmitRouteFile } from '../plugins/emitRouteFile';
@@ -291,25 +290,33 @@ export async function parseCommonConfig(
     );
   }
 
-  rsbuildPlugins.push(
-    pluginReact(
-      options?.disableReactCompiler || reactCompiler === undefined
-        ? {}
-        : { reactCompiler },
-    ),
-  );
+  const reactOptions =
+    options?.disableReactCompiler || reactCompiler === undefined
+      ? {}
+      : { reactCompiler };
+  rsbuildPlugins.push({
+    name: 'rsbuild:react',
+    async setup(api) {
+      const { pluginReact } = await import('@rsbuild/plugin-react');
+      return pluginReact(reactOptions).setup(api);
+    },
+  });
 
   if (!disableSvgr) {
-    const { pluginSvgr } = await import('@rsbuild/plugin-svgr');
-    rsbuildPlugins.push(
-      pluginSvgr({
-        mixedImport: true,
-        parallel: true,
-        svgrOptions: {
-          exportType: svgDefaultExport === 'component' ? 'default' : 'named',
-        },
-      }),
-    );
+    rsbuildPlugins.push({
+      name: 'rsbuild:svgr',
+      pre: ['rsbuild:react'],
+      async setup(api) {
+        const { pluginSvgr } = await import('@rsbuild/plugin-svgr');
+        return pluginSvgr({
+          mixedImport: true,
+          parallel: true,
+          svgrOptions: {
+            exportType: svgDefaultExport === 'component' ? 'default' : 'named',
+          },
+        }).setup(api);
+      },
+    });
   }
 
   // assetsRetry inject should be later

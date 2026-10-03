@@ -14,6 +14,7 @@ import {
   detectHorizontalRemoteFlag,
   detectLanguage,
   detectPresetFlag,
+  detectRendererFlag,
   detectTailwindFlag,
   readBridgeCliOptions,
   resolveVerticalCliInput,
@@ -89,6 +90,12 @@ async function main() {
   detectBffRuntime(args);
   const dryRun = detectDryRunFlag(args);
   const verticalInput = resolveVerticalCliInput(args);
+  const renderer = detectRendererFlag(args);
+  if (verticalInput.addVertical && renderer) {
+    throw new Error(
+      'Add commands resolve the renderer from modern.config. --renderer is only supported for initial generation.',
+    );
+  }
   const overlays = detectCodeSmithOverlays(args);
   const bridgeRequested = hasUltramodernBridgeCliOptions(args);
 
@@ -145,12 +152,12 @@ async function main() {
 
     if (dryRun) {
       console.log(
-        JSON.stringify(planUltramodernVertical(verticalOptions), null, 2),
+        JSON.stringify(await planUltramodernVertical(verticalOptions), null, 2),
       );
       return;
     }
 
-    addUltramodernVertical(verticalOptions);
+    await addUltramodernVertical(verticalOptions);
 
     const dim = '\x1b[2m\x1b[3m';
     const reset = '\x1b[0m';
@@ -192,7 +199,7 @@ async function main() {
     ),
   );
   const generateAgentFiles = !args.includes('--no-agents-md');
-  generateUltramodernWorkspace({
+  await generateUltramodernWorkspace({
     targetDir,
     packageName: generatedPackageName,
     modernVersion: version,
@@ -201,6 +208,7 @@ async function main() {
     overlays,
     packageSource,
     generateAgentFiles,
+    ...(renderer ? { renderer } : {}),
   });
   const initializedGitRepository = initializeGeneratedGitRepository(targetDir);
 

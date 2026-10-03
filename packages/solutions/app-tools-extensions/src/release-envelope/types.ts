@@ -1,4 +1,10 @@
-export const MICROVERTICAL_RELEASE_ENVELOPE_SCHEMA_VERSION = 3 as const;
+import type {
+  RendererIdentity,
+  RendererProfile,
+  RendererRouterBindings,
+} from '@modern-js/backend-federation-contracts';
+
+export const MICROVERTICAL_RELEASE_ENVELOPE_SCHEMA_VERSION = 4 as const;
 
 export const MICROVERTICAL_RELEASE_ENVELOPE_KIND =
   'ultramodern-target-microvertical-release-envelope' as const;
@@ -54,11 +60,18 @@ export type MicroVerticalReleaseSurfaces = {
   };
 };
 
+export type MicroVerticalReleaseUi = {
+  rendererIdentity: RendererIdentity;
+  rendererProfile: RendererProfile;
+  routerBindings: RendererRouterBindings;
+};
+
 export type MicroVerticalReleaseEnvelopePayload = {
   schemaVersion: typeof MICROVERTICAL_RELEASE_ENVELOPE_SCHEMA_VERSION;
   kind: typeof MICROVERTICAL_RELEASE_ENVELOPE_KIND;
   target: MicroVerticalReleaseTarget;
   identity: MicroVerticalReleaseIdentity;
+  ui?: MicroVerticalReleaseUi;
   artifacts: MicroVerticalReleaseArtifact[];
   surfaces: MicroVerticalReleaseSurfaces;
 };
@@ -72,6 +85,7 @@ export type CreateMicroVerticalReleaseEnvelopeInput = {
   artifactRoot: string;
   target: MicroVerticalReleaseTarget;
   identity: MicroVerticalReleaseIdentity;
+  ui?: MicroVerticalReleaseUi;
   artifacts: MicroVerticalReleaseArtifactInput[];
   surfaces: MicroVerticalReleaseSurfaces;
 };
@@ -80,4 +94,6 @@ export type VerifyMicroVerticalReleaseEnvelopeOptions = {
   artifactRoot: string;
   logicalPathForArtifact?: (artifact: MicroVerticalReleaseArtifact) => string;
   expectedTarget?: MicroVerticalReleaseTarget;
+  expectedRendererIdentity?: RendererIdentity;
+  expectedRendererProfile?: RendererProfile;
 };

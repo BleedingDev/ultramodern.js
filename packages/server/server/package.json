@@ -27,12 +27,19 @@
         "require": "./dist/cjs/index.js"
       },
       "default": "./dist/cjs/index.js"
+    },
+    "./config-types": {
+      "types": "./dist/types/types/dev.d.ts",
+      "modern:source": "./src/types/dev.ts"
     }
   },
   "typesVersions": {
     "*": {
       ".": [
         "./dist/types/index.d.ts"
+      ],
+      "config-types": [
+        "./dist/types/types/dev.d.ts"
       ]
     }
   },

@@ -7,13 +7,19 @@ import { rspack } from '@rsbuild/core';
 import { UltramodernNativeTypeChecker } from '../src/native-type-checker';
 
 const require = createRequire(import.meta.url);
+const compilerManifestPath = require.resolve('typescript/package.json');
+const compilerManifest = JSON.parse(
+  fs.readFileSync(compilerManifestPath, 'utf8'),
+) as { version: string };
+if (compilerManifest.version !== '7.0.2') {
+  throw new Error(
+    `Native checker fixtures require TypeScript 7.0.2; resolved ${compilerManifest.version}.`,
+  );
+}
 // The package bin is a Node.js launcher; use its own resolver for the Go executable.
 const { default: getExePath } = await import(
   pathToFileURL(
-    path.join(
-      path.dirname(require.resolve('@typescript/native-preview/package.json')),
-      'lib/getExePath.js',
-    ),
+    path.join(path.dirname(compilerManifestPath), 'lib/getExePath.js'),
   ).href
 );
 const compiler: string = getExePath();

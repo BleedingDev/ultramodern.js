@@ -38,6 +38,7 @@ export const releaseEnvelopePayload = (
   kind: envelope.kind,
   target: envelope.target,
   identity: envelope.identity,
+  ...(envelope.ui ? { ui: envelope.ui } : {}),
   artifacts: envelope.artifacts,
   surfaces: envelope.surfaces,
 });

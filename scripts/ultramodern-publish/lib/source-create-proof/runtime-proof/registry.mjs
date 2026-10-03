@@ -1,10 +1,13 @@
 // Consumer: run-release-acceptance.mjs source-mode exact-tarball registry.
 import { spawn, spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
+import { once } from 'node:events';
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
-import { once } from 'node:events';
+import { createAcceptancePackageManagerEnv } from '../../../../ultramodern-production-readiness/published-create-proof/acceptance-profile.mjs';
+import { createProcessEnv } from '../../../../ultramodern-production-readiness/published-create-proof/constants.mjs';
+import { readStagedSidecars } from '../../../publish-sidecars.mjs';
 import {
   assertAcceptedPublishToolchain,
   loadNpmPublishingRuntime,
@@ -14,7 +17,6 @@ import {
   readVerifiedPackageArtifactBytes,
   verifyPackageArtifactBytes,
 } from '../../prepare-bleedingdev-packages/release-artifacts.mjs';
-import { readStagedSidecars } from '../../../publish-sidecars.mjs';
 
 const VERDACCIO_VERSION = '6.7.4';
 const VERDACCIO_SPECIFIER = `verdaccio@${VERDACCIO_VERSION}`;
@@ -33,11 +35,7 @@ function runChecked(command, args, options = {}) {
   const result = spawnSync(command, args, {
     cwd: options.cwd,
     encoding: 'utf8',
-    env: {
-      ...process.env,
-      FORCE_COLOR: '0',
-      ...(options.env ?? {}),
-    },
+    env: createProcessEnv(options.env ?? {}),
     stdio: options.stdio ?? 'pipe',
   });
   if (result.error) {
@@ -114,7 +112,7 @@ function verdaccioDlxArgs(configPath, port) {
   ];
 }
 
-function assertVerdaccioDistributionIntegrity(runImpl = runChecked) {
+function assertVerdaccioDistributionIntegrity(runImpl = runChecked, env) {
   const output = runImpl(
     'npm',
     [
@@ -125,7 +123,7 @@ function assertVerdaccioDistributionIntegrity(runImpl = runChecked) {
       '--registry',
       VERDACCIO_UPSTREAM,
     ],
-    { stdio: 'pipe' },
+    { stdio: 'pipe', ...(env === undefined ? {} : { env }) },
   );
   let integrity;
   try {
@@ -220,7 +218,11 @@ async function createRegistryUser(registryUrl, fetchImpl = fetch) {
 // instead of proxying through Verdaccio. The acceptance profile hard-asserts
 // the cohort's lockfile tarball provenance after install, so a silently
 // ignored scope override cannot fall through to npmjs unnoticed.
-function createRegistryEnv({ userConfigPath, cacheDir, verifiedPackages = [] }) {
+function createRegistryEnv({
+  userConfigPath,
+  cacheDir,
+  verifiedPackages = [],
+}) {
   return {
     npm_config_cache: cacheDir,
     npm_config_userconfig: userConfigPath,
@@ -302,7 +304,10 @@ async function publishReleaseTarballs(
   // trivially correct; the dist read is transport-only (no fan-out).
   for (const targetName of release.publishOrder) {
     const item = packagesByTarget.get(targetName);
-    assert(item, `Release publish order references missing package ${targetName}`);
+    assert(
+      item,
+      `Release publish order references missing package ${targetName}`,
+    );
     const acceptedBytes = Buffer.from(
       readArtifactBytes(item, item.artifactPath),
     );
@@ -402,12 +407,19 @@ async function startEphemeralRegistry({
   release,
   releaseDir,
   rootDir,
+  storeDir,
   fetchImpl = fetch,
   runImpl = runChecked,
   spawnImpl = spawn,
   reservePortImpl = reservePort,
 }) {
-  assertVerdaccioDistributionIntegrity(runImpl);
+  const packageManagerEnv =
+    storeDir === undefined
+      ? undefined
+      : createAcceptancePackageManagerEnv(rootDir, {}, undefined, process.env, {
+          storeDir,
+        });
+  assertVerdaccioDistributionIntegrity(runImpl, packageManagerEnv);
   const port = await reservePortImpl(registryHost);
   const configPath = path.join(rootDir, 'verdaccio.yaml');
   const storageDir = path.join(rootDir, 'storage');
@@ -429,7 +441,7 @@ async function startEphemeralRegistry({
 
   const child = spawnImpl('pnpm', verdaccioDlxArgs(configPath, port), {
     cwd: rootDir,
-    env: { ...process.env, FORCE_COLOR: '0' },
+    env: createProcessEnv(packageManagerEnv ?? {}),
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   const output = [];
@@ -477,12 +489,7 @@ async function startEphemeralRegistry({
     const seedStartedAt = Date.now();
     console.log('[registry] seed start');
     registry.sidecars = release.sidecars
-      ? await publishStagedSidecars(
-          releaseDir,
-          release.tools,
-          registry,
-          token,
-        )
+      ? await publishStagedSidecars(releaseDir, release.tools, registry, token)
       : [];
     registry.published = await publishReleaseTarballs(
       release,
@@ -504,10 +511,6 @@ async function startEphemeralRegistry({
 }
 
 export {
-  VERDACCIO_INTEGRITY,
-  VERDACCIO_SPECIFIER,
-  VERDACCIO_UPSTREAM,
-  VERDACCIO_VERSION,
   assertVerdaccioDistributionIntegrity,
   createRegistryEnv,
   createVerdaccioConfig,
@@ -517,6 +520,10 @@ export {
   reservePort,
   runChecked,
   startEphemeralRegistry,
+  VERDACCIO_INTEGRITY,
+  VERDACCIO_SPECIFIER,
+  VERDACCIO_UPSTREAM,
+  VERDACCIO_VERSION,
   verdaccioDlxArgs,
   writeRegistryUserConfig,
 };

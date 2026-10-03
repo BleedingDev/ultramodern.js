@@ -86,6 +86,7 @@ const sidecarIgnoredFields = Object.freeze([
   'man',
   'mcpServer',
   'name',
+  'packageManager',
   'private',
   'publishConfig',
   'public',

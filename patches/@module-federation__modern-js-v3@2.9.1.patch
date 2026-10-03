@@ -12,15 +12,7 @@ diff --git a/dist/cjs/cli/configPlugin.js b/dist/cjs/cli/configPlugin.js
          let packageRoot = external_path_default().dirname(packageEntry);
          while(!external_fs_default().existsSync(external_path_default().join(packageRoot, 'package.json'))){
              const parentDir = external_path_default().dirname(packageRoot);
-@@ -86,6 +86,7 @@
-     };
-     const resolveSharedStrategyPlugin = ()=>resolvePackageFile('@module-federation/modern-js-v3', 'dist/esm/cli/mfRuntimePlugins/shared-strategy.mjs', 'dist/cjs/cli/mfRuntimePlugins/shared-strategy.js');
-     const resolveInjectNodeFetchPlugin = ()=>resolvePackageFile('@module-federation/modern-js-v3', 'dist/esm/cli/mfRuntimePlugins/inject-node-fetch.mjs', 'dist/cjs/cli/mfRuntimePlugins/inject-node-fetch.js');
-+    const resolveManifestRecoveryPlugin = ()=>require.resolve('@modern-js/federation-runtime/manifest-recovery-runtime-plugin', { paths: [process.cwd()] });
-     const resolveNodeRuntimePlugin = ()=>resolvePackageFile('@module-federation/node', 'dist/src/runtimePlugin.mjs', 'dist/src/runtimePlugin.js');
-     const resolveNodeRecordRemoteHashPlugin = ()=>resolvePackageFile('@module-federation/node', 'dist/src/recordDynamicRemoteEntryHashPlugin.mjs', 'dist/src/recordDynamicRemoteEntryHashPlugin.js');
-     function setEnv(enableSSR) {
-@@ -137,16 +138,49 @@
+@@ -137,16 +137,48 @@
              }
          }
      };
@@ -66,11 +58,10 @@ diff --git a/dist/cjs/cli/configPlugin.js b/dist/cjs/cli/configPlugin.js
          patchDTSConfig(mfConfig, isServer);
          injectRuntimePlugins(resolveSharedStrategyPlugin(), runtimePlugins);
          if (isServer) {
-+            injectRuntimePlugins(resolveManifestRecoveryPlugin(), runtimePlugins);
              injectRuntimePlugins(resolveNodeRuntimePlugin(), runtimePlugins);
              if ((0, external_utils_js_namespaceObject.isDev)()) injectRuntimePlugins(resolveNodeRecordRemoteHashPlugin(), runtimePlugins);
              injectRuntimePlugins(resolveInjectNodeFetchPlugin(), runtimePlugins);
-@@ -224,7 +258,7 @@
+@@ -224,7 +256,7 @@
          if (!chain.output.get('uniqueName')) chain.output.uniqueName(mfConfig.name);
          const splitChunkConfig = chain.optimization.splitChunks.entries();
          if (!isServer) (0, utils_namespaceObject.autoDeleteSplitChunkCacheGroups)(mfConfig, splitChunkConfig);
@@ -105,17 +96,7 @@ diff --git a/dist/esm/cli/configPlugin.mjs b/dist/esm/cli/configPlugin.mjs
      var packageRoot = path.dirname(packageEntry);
      while(!fs.existsSync(path.join(packageRoot, 'package.json'))){
          var parentDir = path.dirname(packageRoot);
-@@ -34,6 +36,9 @@
- };
- var configPlugin_resolveInjectNodeFetchPlugin = function() {
-     return configPlugin_resolvePackageFile('@module-federation/modern-js-v3', 'dist/esm/cli/mfRuntimePlugins/inject-node-fetch.mjs', 'dist/cjs/cli/mfRuntimePlugins/inject-node-fetch.js');
-+};
-+var configPlugin_resolveManifestRecoveryPlugin = function() {
-+    return require.resolve('@modern-js/federation-runtime/manifest-recovery-runtime-plugin', { paths: [process.cwd()] });
- };
- var configPlugin_resolveNodeRuntimePlugin = function() {
-     return configPlugin_resolvePackageFile('@module-federation/node', 'dist/src/runtimePlugin.mjs', 'dist/src/runtimePlugin.js');
-@@ -109,14 +114,47 @@
+@@ -109,14 +111,46 @@
          }
      }
  };
@@ -159,11 +140,10 @@ diff --git a/dist/esm/cli/configPlugin.mjs b/dist/esm/cli/configPlugin.mjs
      configPlugin_patchDTSConfig(mfConfig, isServer);
      configPlugin_injectRuntimePlugins(configPlugin_resolveSharedStrategyPlugin(), runtimePlugins);
      if (isServer) {
-+        configPlugin_injectRuntimePlugins(configPlugin_resolveManifestRecoveryPlugin(), runtimePlugins);
          configPlugin_injectRuntimePlugins(configPlugin_resolveNodeRuntimePlugin(), runtimePlugins);
          if (isDev()) configPlugin_injectRuntimePlugins(configPlugin_resolveNodeRecordRemoteHashPlugin(), runtimePlugins);
          configPlugin_injectRuntimePlugins(configPlugin_resolveInjectNodeFetchPlugin(), runtimePlugins);
-@@ -193,7 +231,7 @@
+@@ -193,7 +227,7 @@
      if (!chain.output.get('uniqueName')) chain.output.uniqueName(mfConfig.name);
      var splitChunkConfig = chain.optimization.splitChunks.entries();
      if (!isServer) autoDeleteSplitChunkCacheGroups(mfConfig, splitChunkConfig);
@@ -175,7 +155,7 @@ diff --git a/dist/esm/cli/configPlugin.mjs b/dist/esm/cli/configPlugin.mjs
 diff --git a/dist/esm/react/data-fetch.mjs b/dist/esm/react/data-fetch.mjs
 --- a/dist/esm/react/data-fetch.mjs
 +++ b/dist/esm/react/data-fetch.mjs
-@@ -1 +1,6 @@
+@@ -1,1 +1,6 @@
 +import { createLazyComponent as createBridgeLazyComponent } from "@module-federation/bridge-react/data-fetch";
  export * from "@module-federation/bridge-react/data-fetch";
 +export const createLazyComponent = (options)=>createBridgeLazyComponent({
@@ -185,7 +165,7 @@ diff --git a/dist/esm/react/data-fetch.mjs b/dist/esm/react/data-fetch.mjs
 diff --git a/dist/esm/react/index.mjs b/dist/esm/react/index.mjs
 --- a/dist/esm/react/index.mjs
 +++ b/dist/esm/react/index.mjs
-@@ -1 +1,6 @@
+@@ -1,1 +1,6 @@
 +import { createLazyComponent as createBridgeLazyComponent } from "@module-federation/bridge-react";
  export * from "@module-federation/bridge-react";
 +export const createLazyComponent = (options)=>createBridgeLazyComponent({
@@ -218,15 +198,7 @@ diff --git a/dist/esm-node/cli/configPlugin.mjs b/dist/esm-node/cli/configPlugin
      let packageRoot = path.dirname(packageEntry);
      while(!fs.existsSync(path.join(packageRoot, 'package.json'))){
          const parentDir = path.dirname(packageRoot);
-@@ -25,6 +27,7 @@
- };
- const resolveSharedStrategyPlugin = ()=>resolvePackageFile('@module-federation/modern-js-v3', 'dist/esm/cli/mfRuntimePlugins/shared-strategy.mjs', 'dist/cjs/cli/mfRuntimePlugins/shared-strategy.js');
- const resolveInjectNodeFetchPlugin = ()=>resolvePackageFile('@module-federation/modern-js-v3', 'dist/esm/cli/mfRuntimePlugins/inject-node-fetch.mjs', 'dist/cjs/cli/mfRuntimePlugins/inject-node-fetch.js');
-+const resolveManifestRecoveryPlugin = ()=>require.resolve('@modern-js/federation-runtime/manifest-recovery-runtime-plugin', { paths: [process.cwd()] });
- const resolveNodeRuntimePlugin = ()=>resolvePackageFile('@module-federation/node', 'dist/src/runtimePlugin.mjs', 'dist/src/runtimePlugin.js');
- const resolveNodeRecordRemoteHashPlugin = ()=>resolvePackageFile('@module-federation/node', 'dist/src/recordDynamicRemoteEntryHashPlugin.mjs', 'dist/src/recordDynamicRemoteEntryHashPlugin.js');
- function setEnv(enableSSR) {
-@@ -76,16 +79,49 @@
+@@ -76,16 +78,48 @@
          }
      }
  };
@@ -272,11 +244,10 @@ diff --git a/dist/esm-node/cli/configPlugin.mjs b/dist/esm-node/cli/configPlugin
      patchDTSConfig(mfConfig, isServer);
      injectRuntimePlugins(resolveSharedStrategyPlugin(), runtimePlugins);
      if (isServer) {
-+        injectRuntimePlugins(resolveManifestRecoveryPlugin(), runtimePlugins);
          injectRuntimePlugins(resolveNodeRuntimePlugin(), runtimePlugins);
          if (isDev()) injectRuntimePlugins(resolveNodeRecordRemoteHashPlugin(), runtimePlugins);
          injectRuntimePlugins(resolveInjectNodeFetchPlugin(), runtimePlugins);
-@@ -163,7 +199,7 @@
+@@ -163,7 +197,7 @@
      if (!chain.output.get('uniqueName')) chain.output.uniqueName(mfConfig.name);
      const splitChunkConfig = chain.optimization.splitChunks.entries();
      if (!isServer) autoDeleteSplitChunkCacheGroups(mfConfig, splitChunkConfig);
@@ -285,3 +256,64 @@ diff --git a/dist/esm-node/cli/configPlugin.mjs b/dist/esm-node/cli/configPlugin
          const previousChunks = splitChunkConfig.chunks;
          splitChunkConfig.chunks = 'async';
          if (previousChunks && 'async' !== previousChunks) logger.warn(`splitChunks.chunks = "${previousChunks}" is not allowed with stream SSR mode; forcing "async"`);
+diff --git a/dist/cjs/ssr-runtime/SSRLiveReload.js b/dist/cjs/ssr-runtime/SSRLiveReload.js
+--- a/dist/cjs/ssr-runtime/SSRLiveReload.js
++++ b/dist/cjs/ssr-runtime/SSRLiveReload.js
+@@ -33,7 +33,7 @@
+ const jsx_runtime_namespaceObject = require("react/jsx-runtime");
+ require("react");
+ function SSRLiveReload() {
+-    if ('development' !== process.env.NODE_ENV) return null;
++    if ('development' !== process.env.NODE_ENV || typeof window !== 'undefined') return null;
+     return /*#__PURE__*/ (0, jsx_runtime_namespaceObject.jsx)("script", {
+         suppressHydrationWarning: true,
+         dangerouslySetInnerHTML: {
+@@ -41,6 +41,7 @@
+       if(${globalThis.shouldUpdate}){
+         location.reload();
+       }
++      document.currentScript.remove();
+    `
+         }
+     });
+diff --git a/dist/esm/ssr-runtime/SSRLiveReload.mjs b/dist/esm/ssr-runtime/SSRLiveReload.mjs
+--- a/dist/esm/ssr-runtime/SSRLiveReload.mjs
++++ b/dist/esm/ssr-runtime/SSRLiveReload.mjs
+@@ -4,7 +4,7 @@
+ function SSRLiveReload_templateObject() {
+     var data = _([
+         "\n      if(",
+-        "){\n        location.reload();\n      }\n   "
++        "){\n        location.reload();\n      }\n      document.currentScript.remove();\n   "
+     ]);
+     SSRLiveReload_templateObject = function() {
+         return data;
+@@ -12,7 +12,7 @@
+     return data;
+ }
+ function SSRLiveReload() {
+-    if ('development' !== process.env.NODE_ENV) return null;
++    if ('development' !== process.env.NODE_ENV || typeof window !== 'undefined') return null;
+     return /*#__PURE__*/ jsx("script", {
+         suppressHydrationWarning: true,
+         dangerouslySetInnerHTML: {
+diff --git a/dist/esm-node/ssr-runtime/SSRLiveReload.mjs b/dist/esm-node/ssr-runtime/SSRLiveReload.mjs
+--- a/dist/esm-node/ssr-runtime/SSRLiveReload.mjs
++++ b/dist/esm-node/ssr-runtime/SSRLiveReload.mjs
+@@ -1,7 +1,7 @@
+ import { jsx } from "react/jsx-runtime";
+ import "react";
+ function SSRLiveReload() {
+-    if ('development' !== process.env.NODE_ENV) return null;
++    if ('development' !== process.env.NODE_ENV || typeof window !== 'undefined') return null;
+     return /*#__PURE__*/ jsx("script", {
+         suppressHydrationWarning: true,
+         dangerouslySetInnerHTML: {
+@@ -9,6 +9,7 @@
+       if(${globalThis.shouldUpdate}){
+         location.reload();
+       }
++      document.currentScript.remove();
+    `
+         }
+     });

@@ -14,11 +14,17 @@ import {
   createAppTsConfig,
   createTsConfigBase,
 } from '../src/ultramodern-workspace/tsconfigs';
-import { linkBuiltRuntimeExtensions } from './helpers/build-module';
+import {
+  createReactBuildFixtureApp,
+  linkBuiltBackendFederationContracts,
+} from './helpers/build-module';
 
 const require = createRequire(import.meta.url);
-const app = createVerticalDescriptor('catalog', 3101);
 const scope = 'delivery-proof';
+const app = createReactBuildFixtureApp(
+  scope,
+  createVerticalDescriptor('catalog', 3101),
+);
 const markers = [
   'ultramodernDeliveryUnit',
   'ultramodernApiMarker',
@@ -52,10 +58,7 @@ function createFixture() {
       `${app.directory}/shared/ultramodern-build.json`,
       createUltramodernBuildArtifactJson(scope, app),
     );
-    linkBuiltRuntimeExtensions(
-      path.join(root, 'node_modules'),
-      'build-identity',
-    );
+    linkBuiltBackendFederationContracts(path.join(root, 'node_modules'));
     fs.mkdirSync(path.join(root, 'node_modules/@types'), { recursive: true });
     fs.symlinkSync(
       path.dirname(require.resolve('@types/node/package.json')),
@@ -122,13 +125,22 @@ test('native BFF compilation preserves JSON identity in executable CommonJS and 
 
     artifact.deliveryUnit.version = '9.8.7';
     fs.writeFileSync(artifactPath, `${JSON.stringify(artifact, null, 2)}\n`);
+    const driftDist = path.join(root, 'drift-dist');
+    await compileTo(driftDist);
+    assert.throws(
+      () => require(path.join(driftDist, 'api/index.js')),
+      /artifact\.surfaces\.ui\.version: must match artifact\.deliveryUnit\.version\.; artifact\.surfaces\.api\.version: must match artifact\.deliveryUnit\.version\./u,
+    );
+
+    artifact.surfaces.ui.version = '9.8.7';
+    artifact.surfaces.api.version = '9.8.7';
+    fs.writeFileSync(artifactPath, `${JSON.stringify(artifact, null, 2)}\n`);
     const nextDist = path.join(root, 'next-dist');
     await compileTo(nextDist);
-    assert.equal(
-      require(path.join(nextDist, 'api/index.js')).ultramodernDeliveryUnit
-        .version,
-      '9.8.7',
-    );
+    const next = require(path.join(nextDist, 'api/index.js'));
+    for (const marker of markers) {
+      assert.equal(next[marker].version, '9.8.7');
+    }
     assert.equal(
       fs.readdirSync(appRoot).some(file => file.startsWith('.tsgo.')),
       false,

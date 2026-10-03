@@ -1,4 +1,4 @@
-import type { TestConfig } from '@modern-js/types';
+import type { TestConfig } from '@modern-js/types/cli/base';
 
 export interface TestingUserConfig {
   /**

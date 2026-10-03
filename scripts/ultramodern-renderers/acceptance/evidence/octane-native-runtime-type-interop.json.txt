@@ -1,0 +1,253 @@
+{
+  "schemaVersion": 1,
+  "consumerRoot": "/private/var/folders/l5/j97t559s5ljgmjc_ylqn1jmh0000gn/T/octane-native-combined-admission.hlj_x_pq",
+  "declaredScope": {
+    "provider": "octane",
+    "providerVersion": "0.7.1+ultramodern.aab0f1410f79",
+    "upstreamRelease": "octane@0.7.1",
+    "upstreamCommit": "676a4ee6db59854d6b711921f4ac808845dcdbcd",
+    "nativeRouterVersion": "0.1.60+ultramodern.681ca11f6bff",
+    "reactTypesPackage": "@types/react",
+    "reactTypesVersion": "19.2.18",
+    "exactPermittedFiles": [
+      "@types/react/index.d.ts",
+      "@types/react/global.d.ts"
+    ],
+    "permission": "Native-authored JSX type-only interop boundary",
+    "domTaxonomyOnly": false,
+    "blanketReactTypeException": false,
+    "runtimeReactAllowed": false,
+    "foreignRendererRouterAugmentationAllowed": false,
+    "universalCoreABIChanged": false
+  },
+  "nativeSourcePackage": {
+    "name": "octane",
+    "version": "0.7.1+ultramodern.aab0f1410f79",
+    "tarball": "/Users/satan/workspace/bleedingdev/projects/octane/artifacts/dist/octane-0.7.1+ultramodern.aab0f1410f79/octane-0.7.1+ultramodern.aab0f1410f79.tgz",
+    "sha256": "60f2e76673be5f1e4cbe6f0fa8b85bc12cac41475c17acd22e377f8fca2e8a7e",
+    "integrity": "sha512-hTT+j0r6KNJQ7s8mB5OEZhwc4zP626YOZUecCDOZ3yToJnHhXMKIBx0/y6FPHHWELCIChieUw+UbjQeJGnSh1w==",
+    "provenanceSha256": "8f4765726e6665ffee10046b1131b7b583943700cc7c84f7243b7298286cba31",
+    "upstreamCommit": "676a4ee6db59854d6b711921f4ac808845dcdbcd",
+    "implementationCommit": "aab0f1410f799e57d833a4b6fd94b58958f39b46",
+    "producerCommit": "d520fe67966e5b38204952bf88d1253651924c01",
+    "runtimePatchSha256": "2262f080f4d2927477cb17d353761958be25206ee2c9e4fc7e3258891659a952",
+    "authoredSourcePatchSha256": "b16489a3bcd239831e3bd7501d1fd0d00c7f739e98779bcde45c9c40e4f1773e"
+  },
+  "nativeFiles": [
+    {
+      "packagePath": "octane/dist/jsx-runtime.d.ts",
+      "installedPath": "/private/var/folders/l5/j97t559s5ljgmjc_ylqn1jmh0000gn/T/octane-native-combined-admission.hlj_x_pq/node_modules/.pnpm/octane@file+..+..+..+..+..+..+..+Users+satan+workspace+bleedingdev+projects+octane+arti_28b47adfc4ac85eff45861f465df69ad/node_modules/octane/dist/jsx-runtime.d.ts",
+      "sha256": "5bb6d1114f7878d27e33e50c1a5e7c1bb4d5e6cf8ce593101ab5aa3c45ca1a62",
+      "size": 34741,
+      "equalsFrozenTarball": true,
+      "equalsOfficialPublished071": true,
+      "authoredSourcePath": "/Users/satan/workspace/bleedingdev/projects/octane/code/octane-ultramodern-owner-20261003/packages/octane/src/jsx-runtime.d.ts",
+      "upstreamSourceURL": "https://github.com/octanejs/octane/blob/676a4ee6db59854d6b711921f4ac808845dcdbcd/packages/octane/src/jsx-runtime.d.ts",
+      "authoredEqualsOfficialUpstream": true,
+      "packedEqualsAuthoredSource": true
+    },
+    {
+      "packagePath": "octane/dist/jsx-runtime-strong.d.ts",
+      "installedPath": "/private/var/folders/l5/j97t559s5ljgmjc_ylqn1jmh0000gn/T/octane-native-combined-admission.hlj_x_pq/node_modules/.pnpm/octane@file+..+..+..+..+..+..+..+Users+satan+workspace+bleedingdev+projects+octane+arti_28b47adfc4ac85eff45861f465df69ad/node_modules/octane/dist/jsx-runtime-strong.d.ts",
+      "sha256": "4f78bcf211275640e3c6c3f10ebac3fbb9830e9ab546291561da3f36a960e98d",
+      "size": 1180,
+      "equalsFrozenTarball": true,
+      "equalsOfficialPublished071": true,
+      "authoredSourcePath": "/Users/satan/workspace/bleedingdev/projects/octane/code/octane-ultramodern-owner-20261003/packages/octane/src/jsx-runtime-strong.d.ts",
+      "upstreamSourceURL": "https://github.com/octanejs/octane/blob/676a4ee6db59854d6b711921f4ac808845dcdbcd/packages/octane/src/jsx-runtime-strong.d.ts",
+      "authoredEqualsOfficialUpstream": true,
+      "packedEqualsAuthoredSource": true
+    },
+    {
+      "packagePath": "octane/dist/index.d.ts",
+      "installedPath": "/private/var/folders/l5/j97t559s5ljgmjc_ylqn1jmh0000gn/T/octane-native-combined-admission.hlj_x_pq/node_modules/.pnpm/octane@file+..+..+..+..+..+..+..+Users+satan+workspace+bleedingdev+projects+octane+arti_28b47adfc4ac85eff45861f465df69ad/node_modules/octane/dist/index.d.ts",
+      "sha256": "a98629106809e3b2e5e136dd60b2021fda124e7085b1b025027575681d29f78c",
+      "size": 4789,
+      "equalsFrozenTarball": true,
+      "equalsOfficialPublished071": true
+    },
+    {
+      "packagePath": "octane/dist/public-types.d.ts",
+      "installedPath": "/private/var/folders/l5/j97t559s5ljgmjc_ylqn1jmh0000gn/T/octane-native-combined-admission.hlj_x_pq/node_modules/.pnpm/octane@file+..+..+..+..+..+..+..+Users+satan+workspace+bleedingdev+projects+octane+arti_28b47adfc4ac85eff45861f465df69ad/node_modules/octane/dist/public-types.d.ts",
+      "sha256": "977558e8b7efc07b088c1ff2d9c2f7bbe4c796146f063e2d07f919b83cc41486",
+      "size": 12515,
+      "equalsFrozenTarball": true,
+      "equalsOfficialPublished071": true
+    }
+  ],
+  "reactFiles": [
+    {
+      "package": "@types/react",
+      "version": "19.2.18",
+      "packagePath": "@types/react/index.d.ts",
+      "installedPath": "/private/var/folders/l5/j97t559s5ljgmjc_ylqn1jmh0000gn/T/octane-native-combined-admission.hlj_x_pq/node_modules/.pnpm/@types+react@19.2.18/node_modules/@types/react/index.d.ts",
+      "sha256": "814d5c7384f3ca276e9dc4bcfde5545801a3ea0bfae09916b3336774e662fd1b",
+      "size": 177882,
+      "owningNativeRole": "octane-published-jsx-ref-dom-and-hosted-island-type-contract"
+    },
+    {
+      "package": "@types/react",
+      "version": "19.2.18",
+      "packagePath": "@types/react/global.d.ts",
+      "installedPath": "/private/var/folders/l5/j97t559s5ljgmjc_ylqn1jmh0000gn/T/octane-native-combined-admission.hlj_x_pq/node_modules/.pnpm/@types+react@19.2.18/node_modules/@types/react/global.d.ts",
+      "sha256": "7e29f41b158de217f94cb9676bf9cbd0cd9b5a46e1985141ed36e075c52bf6ad",
+      "size": 7520,
+      "owningNativeRole": "transitive-dom-interface-placeholders-referenced-by-native-jsx-type-contract"
+    }
+  ],
+  "incomingEdges": [
+    {
+      "from": "octane/dist/jsx-runtime.d.ts",
+      "line": 43,
+      "to": "@types/react/index.d.ts",
+      "specifier": "react",
+      "kind": "import type namespace",
+      "owningProvider": "octane"
+    },
+    {
+      "from": "octane/dist/index.d.ts",
+      "line": 4,
+      "to": "octane/dist/public-types.d.ts",
+      "specifier": "./public-types.js",
+      "kind": "export type *",
+      "owningProvider": "octane"
+    },
+    {
+      "from": "octane/dist/public-types.d.ts",
+      "line": 2,
+      "to": "@types/react/index.d.ts",
+      "specifier": "react",
+      "kind": "import type namespace",
+      "owningProvider": "octane"
+    },
+    {
+      "from": "@types/react/index.d.ts",
+      "line": 5,
+      "to": "@types/react/global.d.ts",
+      "specifier": "global.d.ts",
+      "kind": "triple-slash reference path",
+      "owningProvider": "@types/react@19.2.18"
+    }
+  ],
+  "referencedTypeContract": {
+    "jsx": {
+      "domAndStyle": [
+        "React.CSSProperties",
+        "React.DOMAttributes",
+        "React.*HTMLAttributes",
+        "React.SVGAttributes"
+      ],
+      "eventTransform": "React synthetic handler parameter nativeEvent becomes a native DOM event with delegated currentTarget",
+      "refs": "React.Ref<T> at jsx-runtime.d.ts:198, extended with native nested ref arrays",
+      "hostedIslandInterop": "Octane.JSX.Element extends OctaneElement and Promise<React.ReactNode> at jsx-runtime.d.ts:322; poisoned promise methods preserve React-hosted tag assignability without promise behavior",
+      "foreignClassRefInterop": "IntrinsicClassAttributes<T> extends React.ClassAttributes<T> at jsx-runtime.d.ts:352"
+    },
+    "publicAliases": [
+      {
+        "type": "React.RefCallback",
+        "line": 35
+      },
+      {
+        "type": "React.AriaAttributes",
+        "line": 96
+      },
+      {
+        "type": "React.AriaRole",
+        "line": 97
+      },
+      {
+        "type": "React.HTMLInputTypeAttribute",
+        "line": 98
+      },
+      {
+        "type": "React.HTMLAttributeReferrerPolicy",
+        "line": 99
+      },
+      {
+        "type": "React.HTMLAttributeAnchorTarget",
+        "line": 100
+      }
+    ],
+    "nativeComponentContract": "FC, ComponentType, ComponentProps, JSXElementConstructor, ReactNode and ReactElement aliases describe OctaneNode/ElementDescriptor/Octane JSX, rather than importing React component props or node types"
+  },
+  "typesEmptyExplanation": "compilerOptions.types:[] disables automatic ambient @types discovery; Octane public type imports explicitly resolve react to @types/react/index.d.ts and its global.d.ts reference, so both remain required.",
+  "boundaryFindings": {
+    "nonNativeRuntime": false,
+    "reactRuntimeInstalled": false,
+    "reactModuleAugmentation": false,
+    "octaneReactBridgeDeclarationsLoaded": false,
+    "foreignRendererRouterDeclarationsLoaded": false,
+    "nativeRuntimeEntryReactModuleImports": false,
+    "nativeComponentImports": [
+      {
+        "file": "@octanejs/tanstack-router/src/route.ts",
+        "lines": [
+          37,
+          38
+        ],
+        "module": "octane",
+        "types": [
+          "createElement",
+          "ComponentBody"
+        ]
+      },
+      {
+        "file": "@octanejs/tanstack-router/src/linkTypes.ts",
+        "lines": [
+          1,
+          2
+        ],
+        "modules": [
+          "octane",
+          "octane/jsx-runtime"
+        ],
+        "types": [
+          "ComponentBody",
+          "ElementDescriptor",
+          "Octane"
+        ]
+      }
+    ],
+    "nativeRouterAugmentations": [
+      {
+        "file": "@octanejs/tanstack-router/src/frameworkTypes.ts",
+        "line": 18,
+        "module": "@tanstack/router-core"
+      },
+      {
+        "file": "@octanejs/tanstack-router/src/route.ts",
+        "line": 85,
+        "module": "@tanstack/router-core"
+      },
+      {
+        "file": "@octanejs/tanstack-router/src/fileRoute.ts",
+        "line": 177,
+        "module": "@tanstack/router-core"
+      },
+      {
+        "file": "src/router.tsx",
+        "line": 62,
+        "module": "@octanejs/tanstack-router",
+        "interface": "Register"
+      }
+    ]
+  },
+  "evidence": {
+    "byteComparison": "Read-only installed bytes, inspector fileContents from exact frozen tarball, official published0.7.1 installed bytes, authored cowtree bytes and git show676a4ee source.",
+    "incomingGraph": "Read-only native tsrx-tsc --noEmit --explainFiles confirms two React imports plus single reference edge; raw config invocation exits2 on five undici-types diagnostics because it bypasses tooling.mjs real Node package adjacency. This is an edge audit, not a qualifying type gate.",
+    "qualifyingToolingReceipt": {
+      "path": "/private/var/folders/l5/j97t559s5ljgmjc_ylqn1jmh0000gn/T/octane-native-combined-admission.hlj_x_pq/tooling-evidence.json",
+      "sha256": "b8c8c96a0b0df13ac4c18b8275680c786a756145fbef1c64ce73b7f2dae26126",
+      "passed": true,
+      "canonicalGeneratedCompilerFlags": true,
+      "strictTypeClosure": true,
+      "types": [],
+      "skipLibCheck": false,
+      "concreteDeclarations": true,
+      "negativeAuthoredDiagnostics": true,
+      "nativeFormatting": true,
+      "owner": "octane_admission_preparation"
+    },
+    "independentReadOnlyReview": "artifact_helper_review confirms exact inbound paths and no native React runtime/foreign router declaration imports."
+  }
+}

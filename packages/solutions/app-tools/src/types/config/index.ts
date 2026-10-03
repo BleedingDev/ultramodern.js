@@ -1,60 +1,28 @@
-import type { CLIPlugin, CLIPluginExtends } from '@modern-js/plugin';
-import type { BffUserConfig, ServerUserConfig } from '@modern-js/server-core';
-import type { RsbuildConfig } from '@rsbuild/core';
+import type { CLIPlugin, CLIPluginExtends } from '@modern-js/plugin/cli';
+import type { NestedRouteForCli, PageRoute } from '@modern-js/types/cli';
 import type {
   AppToolsExtendAPI,
   AppToolsExtendContext,
   AppToolsExtendHooks,
 } from '../plugin';
-import type { DeployUserConfig } from './deploy';
-import type { DevUserConfig } from './dev';
-import type { ExperimentsUserConfig } from './experiments';
-import type { HtmlUserConfig } from './html';
-import type { OutputUserConfig } from './output';
-import type { PerformanceUserConfig } from './performance';
-import type { ResolveUserConfig } from './resolve';
-import type { SecurityUserConfig } from './security';
-import type { SourceUserConfig } from './source';
-import type { TestingUserConfig } from './testing';
-import type { ToolsUserConfig } from './tools';
+import type {
+  AppToolsUserConfigBase,
+  AppToolsNormalizedConfig as BaseNormalizedConfig,
+} from './base';
 
+export type { AppToolsBuilderPlugins } from './base';
 export * from './output';
 
-export type AppToolsBuilderPlugins = NonNullable<RsbuildConfig['plugins']>;
-
-export interface AppToolsUserConfig {
-  resolve?: ResolveUserConfig;
-  server?: ServerUserConfig;
-  source?: SourceUserConfig;
-  output?: OutputUserConfig;
-  experiments?: ExperimentsUserConfig;
-  /**
-   * The configuration of `bff` is provided by `bff` plugin.
-   * Please use `yarn new` or `pnpm new` to enable the corresponding capability.
-   * @requires `bff` plugin
-   */
-  bff?: BffUserConfig;
-  dev?: DevUserConfig;
-  deploy?: DeployUserConfig;
-  html?: HtmlUserConfig;
-  tools?: ToolsUserConfig;
-  security?: SecurityUserConfig;
-  testing?: TestingUserConfig;
-  builderPlugins?: AppToolsBuilderPlugins;
-  performance?: PerformanceUserConfig;
-  environments?: RsbuildConfig['environments'];
-  splitChunks?: RsbuildConfig['splitChunks'];
+export interface AppToolsUserConfig
+  extends Omit<
+    AppToolsUserConfigBase<NestedRouteForCli | PageRoute>,
+    'plugins'
+  > {
   plugins?: CliPlugin<AppTools>[];
 }
 
-interface SharedNormalizedConfig<RawConfig> {
-  cliOptions?: Record<string, any>;
-  _raw: RawConfig;
-}
-
 export type AppToolsNormalizedConfig<Config = AppToolsUserConfig> =
-  Required<Config> & SharedNormalizedConfig<Config>;
-
+  BaseNormalizedConfig<Config>;
 export type AppTools = Required<
   CLIPluginExtends<
     AppToolsUserConfig,
@@ -64,5 +32,4 @@ export type AppTools = Required<
     AppToolsExtendHooks
   >
 >;
-
 export type CliPlugin<Extends extends CLIPluginExtends> = CLIPlugin<Extends>;

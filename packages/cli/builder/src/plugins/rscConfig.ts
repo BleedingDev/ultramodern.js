@@ -18,6 +18,22 @@ const ROUTE_DATA_FILE_PATTERN =
 const createVirtualModule = (content: string) =>
   `data:text/javascript,${encodeURIComponent(content)}`;
 
+const resolveRscEnvironments = (environments?: {
+  server?: string;
+  client?: string;
+}) => {
+  const resolved = {
+    server: environments?.server ?? 'server',
+    client: environments?.client ?? 'client',
+  };
+  for (const [role, name] of Object.entries(resolved)) {
+    if (typeof name !== 'string' || !name.trim()) {
+      throw new TypeError(`RSC ${role} environment must have a nonempty name`);
+    }
+  }
+  return resolved;
+};
+
 const isAsyncStorageExclude = (exclude: unknown) => {
   if (typeof exclude === 'string') {
     return ASYNC_STORAGE_PATTERN.test(exclude);
@@ -41,7 +57,11 @@ const isAsyncStorageExclude = (exclude: unknown) => {
  * 4. Adding entry name virtual module for client-side entries
  * 5. Adding 'use server-entry' directive to route components
  */
-export function pluginRscConfig(): RsbuildPlugin {
+export function pluginRscConfig(environments?: {
+  server?: string;
+  client?: string;
+}): RsbuildPlugin {
+  const serverEnvironment = resolveRscEnvironments(environments).server;
   return {
     name: 'builder:rsc-config',
     setup(api) {
@@ -63,8 +83,8 @@ export function pluginRscConfig(): RsbuildPlugin {
       // 1. layout.[tj]sx, page.[tj]sx, and $.[tj]sx files in routes directory (conventional routing)
       // 2. App.[tj]sx files anywhere (self-controlled routing)
       api.modifyBundlerChain({
-        handler: (chain, { isServer }) => {
-          if (isServer) {
+        handler: (chain, { isServer, environment }) => {
+          if (isServer || environment.name === serverEnvironment) {
             chain.resolve.alias.set(
               `${RENDER_RSC_RUNTIME}$`,
               RENDER_RSC_WORKER_RUNTIME,
@@ -135,7 +155,7 @@ export function pluginRscConfig(): RsbuildPlugin {
         const isServer =
           config.target === 'node' ||
           utils.target === 'node' ||
-          utils.environment?.name === 'server';
+          utils.environment?.name === serverEnvironment;
 
         if (!isServer) {
           return;
@@ -216,18 +236,24 @@ export function pluginRscConfig(): RsbuildPlugin {
       });
 
       // 4. Add entry name virtual module for client-side entries
-      api.modifyBundlerChain((chain, { isServer, isWebWorker }) => {
-        if (!isServer && !isWebWorker) {
-          const entries = chain.entryPoints.entries();
-          if (entries && typeof entries === 'object') {
-            for (const entryName of Object.keys(entries)) {
-              const entryPoint = chain.entry(entryName);
-              const code = `window.${ENTRY_NAME_VAR}="${entryName}";`;
-              entryPoint.add(createVirtualModule(code));
+      api.modifyBundlerChain(
+        (chain, { isServer, isWebWorker, environment }) => {
+          if (
+            !isServer &&
+            !isWebWorker &&
+            environment.name !== serverEnvironment
+          ) {
+            const entries = chain.entryPoints.entries();
+            if (entries && typeof entries === 'object') {
+              for (const entryName of Object.keys(entries)) {
+                const entryPoint = chain.entry(entryName);
+                const code = `window.${ENTRY_NAME_VAR}="${entryName}";`;
+                entryPoint.add(createVirtualModule(code));
+              }
             }
           }
-        }
-      });
+        },
+      );
     },
   };
 }
@@ -250,6 +276,7 @@ export async function getRscPlugins(
   environments?: { server?: string; client?: string },
 ): Promise<RsbuildPlugin[]> {
   if (enableRsc) {
+    const rscEnvironments = resolveRscEnvironments(environments);
     const rscLayerMatchers = createRscLayerMatchers(internalDirectory);
     // Dynamically import pluginRSC to avoid CJS -> ESM require() issue(e2e test cases in CI)
     // rsbuild-plugin-rsc is a pure ESM module (type: "module")
@@ -257,7 +284,7 @@ export async function getRscPlugins(
     const { pluginRSC } = await import('rsbuild-plugin-rsc');
     return [
       pluginRSC({
-        ...(environments ? { environments } : {}),
+        environments: rscEnvironments,
         layers: {
           ssr: SERVER_LOADER_ENTRY_PATTERN,
           rsc: [
@@ -268,7 +295,7 @@ export async function getRscPlugins(
           ],
         },
       }),
-      pluginRscConfig(),
+      pluginRscConfig(rscEnvironments),
     ];
   }
   return [];

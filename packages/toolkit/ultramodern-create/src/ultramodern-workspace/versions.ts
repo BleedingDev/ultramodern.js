@@ -27,7 +27,6 @@ export const EFFECT_VERSION = '4.0.0-rc.117';
 export const EFFECT_TSGO_VERSION = '0.45.0';
 export const TYPESCRIPT_STABLE_VERSION = '7.0.2';
 export const TYPESCRIPT_VERSION = TYPESCRIPT_STABLE_VERSION;
-export const TYPESCRIPT_NATIVE_PREVIEW_VERSION = '7.0.0-dev.20260707.2';
 export const OXLINT_VERSION = '1.85.0';
 export const OXFMT_VERSION = '0.70.0';
 export const ULTRACITE_VERSION = '7.12.0';

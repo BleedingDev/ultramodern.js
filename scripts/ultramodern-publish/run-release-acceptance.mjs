@@ -33,6 +33,7 @@ const valueOptions = new Set([
   '--release-age-policy',
   '--run-identity',
   '--scale-profile',
+  '--store-dir',
 ]);
 const booleanOptions = new Set(['--verify-receipt']);
 
@@ -104,6 +105,13 @@ function parseArgs(argv) {
   if (scaleProfile !== 'erp-10') {
     throw new Error('--scale-profile must be erp-10 for release acceptance');
   }
+  const storeValue = values.get('--store-dir');
+  if (
+    storeValue !== undefined &&
+    (!path.isAbsolute(storeValue) || storeValue.includes('\0'))
+  ) {
+    throw new Error('--store-dir must be an absolute path');
+  }
   return {
     expectedSourceRevision: values.get('--expected-source-revision'),
     expectedMode,
@@ -119,6 +127,7 @@ function parseArgs(argv) {
     releaseDir,
     runIdentity: values.get('--run-identity'),
     scaleProfile,
+    storeDir: storeValue === undefined ? undefined : path.resolve(storeValue),
   };
 }
 
@@ -226,6 +235,7 @@ async function runPrepublish({ release, options, runIdentity }) {
       release,
       releaseDir: options.releaseDir,
       rootDir: registryRoot,
+      storeDir: options.storeDir,
     });
     return await executeAcceptanceProfile({
       mode: 'source',
@@ -237,6 +247,7 @@ async function runPrepublish({ release, options, runIdentity }) {
       outPath: options.receiptPath,
       runIdentity,
       releaseAgePolicyPath: options.releaseAgePolicyPath,
+      storeDir: options.storeDir,
     });
   } finally {
     await registry?.stop();
@@ -259,6 +270,7 @@ async function runPublished({ release, options, runIdentity }) {
     outPath: options.receiptPath,
     runIdentity,
     releaseAgePolicyPath: options.releaseAgePolicyPath,
+    storeDir: options.storeDir,
   });
 }
 
