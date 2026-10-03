@@ -49,6 +49,42 @@ function provider(
 
 describe('declared native config-load provider', () => {
   it.each([
+    'dev',
+    'start',
+    'build',
+    'inspect',
+    'deploy',
+    'dev-worker',
+  ])('captures the original load for builder command %s', async command => {
+    const { app } = fixture({ dependencies: { [original]: '1.0.0' } });
+    provider(app, original);
+    const result = await resolveNativeConfigLoadProvider({
+      appDirectory: app,
+      command,
+    });
+    expect(result?.internalPlugins?.[0]?.name).toBe('provider-context');
+    const loaded = {
+      packageName: 'app',
+      configFile: false as const,
+      config: {},
+    };
+    let loads = 0;
+    expect(
+      await result?.wrapConfigLoad?.(
+        async () => {
+          loads++;
+          return loaded;
+        },
+        {
+          appDirectory: app,
+          configFile: false,
+        },
+      ),
+    ).toBe(loaded);
+    expect(loads).toBe(1);
+  });
+
+  it.each([
     'dependencies',
     'devDependencies',
     'optionalDependencies',
@@ -201,11 +237,15 @@ describe('declared native config-load provider', () => {
     ).rejects.toThrow(/Native config provider/);
   });
 
-  it('does not resolve providers or read a manifest for unsupported commands', async () => {
+  it.each([
+    'serve',
+    'new',
+    'routes-generate',
+  ])('does not resolve providers or read a manifest for %s', async command => {
     expect(
       await resolveNativeConfigLoadProvider({
         appDirectory: 'not-resolved',
-        command: 'inspect',
+        command,
       }),
     ).toBeUndefined();
   });
