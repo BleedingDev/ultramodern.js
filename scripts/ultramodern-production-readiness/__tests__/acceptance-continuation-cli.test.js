@@ -319,12 +319,32 @@ test('source-workerd continuation resolves all supplied evidence paths', async (
   );
 });
 
+test('source-workerd continuation allows omitted shell finalization at parse time', async () => {
+  const { parseArgs } = await import(cliModule);
+  const flagIndex = sourceWorkerdArgs.indexOf('--shell-finalization');
+  const options = parseArgs([
+    ...sourceWorkerdArgs.slice(0, flagIndex),
+    ...sourceWorkerdArgs.slice(flagIndex + 2),
+  ]);
+
+  assert.equal(options.mode, 'prepublish');
+  assert.equal(options.continueFrom, 'source-workerd');
+  assert.equal(
+    options.nodeReportPath,
+    path.resolve('acceptance/work/node/report.json'),
+  );
+  assert.equal(
+    options.cloudflareRunLogPath,
+    path.resolve('acceptance/work/cloudflare/run.json'),
+  );
+  assert.equal(options.shellFinalizationPath, undefined);
+});
+
 for (const flag of [
   '--work-dir',
   '--prior-run-log',
   '--node-report',
   '--cloudflare-run-log',
-  '--shell-finalization',
 ]) {
   test(`source-workerd continuation requires ${flag}`, async () => {
     const { parseArgs } = await import(cliModule);

@@ -30,6 +30,7 @@ async function createAcceptanceContinuationFixture({
   nodeReportProvenance = 'external-report',
   moduleFederationDependencies = { '@module-federation/runtime': '2.8.0' },
   workerdBuildMarkers = {},
+  cloudflareBuildCompleted = false,
 } = {}) {
   const {
     assertRuntimeAcceptanceDimension,
@@ -392,7 +393,13 @@ async function createAcceptanceContinuationFixture({
     }));
     const rootCloudflareBuildScript =
       'pnpm -r --filter "./verticals/*" run cloudflare:build && pnpm --filter "./apps/shell" run cloudflare:build && pnpm mf:types --target cloudflare && pnpm cloudflare-output:verify && pnpm cloudflare:ssr-proof';
-    const cloudflareLines = [`$ ${rootCloudflareBuildScript}`];
+    const cloudflareLines = cloudflareBuildCompleted
+      ? [
+          ...priorLines,
+          '[ultramodern-browser-smoke] pass: source-node-summary.json',
+          `$ ${rootCloudflareBuildScript}`,
+        ]
+      : [`$ ${rootCloudflareBuildScript}`];
     for (const app of cloudflareApps.filter(app => app.kind === 'vertical')) {
       cloudflareLines.push(
         `${app.path} cloudflare:build$ ${app.buildScript}`,
@@ -406,9 +413,25 @@ async function createAcceptanceContinuationFixture({
       'ready built in 0.1s (server)',
       'ready built in 0.2s (workerSSR)',
       'ready built in 0.3s (client)',
-      'error Error: [ultramodern-release-envelope] UI-only application emitted an undeclared API/backend artifact.',
-      'ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL Command failed with exit code 1',
     );
+    if (cloudflareBuildCompleted) {
+      cloudflareLines.push(
+        '[ultramodern] Cloudflare output verified: shell-super-app',
+        '$ ultramodern-create ultramodern mf-types --target cloudflare',
+        '$ ultramodern-create ultramodern cloudflare-output-verify',
+        ...cloudflareApps.map(
+          app => `[ultramodern] Cloudflare output verified: ${app.id}`,
+        ),
+        '$ ultramodern-create ultramodern cloudflare-ssr-proof',
+        `Workerd SSR composition proof passed for 1 shell(s): ${projectDirectory}/.codex/reports/cloudflare-workerd-ssr/composition-proof.json`,
+        '[ultramodern-browser-smoke] fail: source-workerd-summary.json',
+      );
+    } else {
+      cloudflareLines.push(
+        'error Error: [ultramodern-release-envelope] UI-only application emitted an undeclared API/backend artifact.',
+        'ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL Command failed with exit code 1',
+      );
+    }
     const cloudflareLogText = `${cloudflareLines.join('\n')}\n`;
     const cloudflareLog = {
       ...fileDescriptor(
@@ -579,20 +602,27 @@ async function createAcceptanceContinuationFixture({
     };
     record.reusedEvidence.cloudflare = {
       priorRunLog: cloudflareLog,
-      shellFinalization: {
-        ...reportDescriptor(
-          projectDirectory,
-          'shell-finalization',
-          shellFinalization,
-          'external-report',
-        ),
-        path: path.resolve(
-          projectDirectory,
-          '../shell-finalization/result.json',
-        ),
-      },
+      ...(cloudflareBuildCompleted
+        ? {}
+        : {
+            shellFinalization: {
+              ...reportDescriptor(
+                projectDirectory,
+                'shell-finalization',
+                shellFinalization,
+                'external-report',
+              ),
+              path: path.resolve(
+                projectDirectory,
+                '../shell-finalization/result.json',
+              ),
+            },
+          }),
       outputs: workerdOutputs,
     };
+    record.results.find(
+      result => result.id === 'cloudflare-output',
+    ).details.originalAggregateBuildSucceeded = cloudflareBuildCompleted;
   }
   return { record, release, runIdentity };
 }
