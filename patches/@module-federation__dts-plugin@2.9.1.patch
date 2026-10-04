@@ -564,7 +564,7 @@ diff --git a/dist/expose-rpc-jaGpsAVL.js b/dist/expose-rpc-jaGpsAVL.js
  			require_Broker.fileLog(`zip.extractAllTo success destinationPath: ${destinationPath}; url: ${url}`, "downloadTypesArchive", "info");
  			return [destinationFolder, destinationPath];
  		} catch (error) {
-@@ -986,9 +993,15 @@
+@@ -986,9 +993,17 @@
  			return remoteInfo;
  		}
  	}
@@ -574,6 +574,8 @@ diff --git a/dist/expose-rpc-jaGpsAVL.js b/dist/expose-rpc-jaGpsAVL.js
 +	prepareTypeFile(filePath, content) {
 +		return "write";
 +	}
++	reportTypesApiError(error, remoteInfo, destinationPath, hostOptions) {
++	}
  	async consumeTargetRemotes(hostOptions, remoteInfo) {
  		if (!remoteInfo.zipUrl) throw new Error(`Can not get ${remoteInfo.name}'s types archive url!`);
 -		return downloadTypesArchive(hostOptions)([remoteInfo.alias, remoteInfo.zipUrl]);
@@ -581,7 +583,7 @@ diff --git a/dist/expose-rpc-jaGpsAVL.js b/dist/expose-rpc-jaGpsAVL.js
  	}
  	async downloadAPITypes(remoteInfo, destinationPath, hostOptions) {
  		const { apiTypeUrl } = remoteInfo;
-@@ -1000,7 +1013,9 @@
+@@ -1000,7 +1015,9 @@
  			})).data;
  			apiTypeFile = apiTypeFile.replaceAll(REMOTE_ALIAS_IDENTIFIER, remoteInfo.alias);
  			const filePath = path.default.join(destinationPath, REMOTE_API_TYPES_FILE_NAME);
@@ -592,7 +594,15 @@ diff --git a/dist/expose-rpc-jaGpsAVL.js b/dist/expose-rpc-jaGpsAVL.js
  			const existed = this.loadedRemoteAPIAlias.has(remoteInfo.alias);
  			this.loadedRemoteAPIAlias.add(remoteInfo.alias);
  			require_Broker.fileLog(`success`, "downloadAPITypes", "info");
-@@ -1044,7 +1059,9 @@
+@@ -1007,6 +1024,7 @@
+ 			return existed;
+ 		} catch (err) {
++			this.reportTypesApiError(err, remoteInfo, destinationPath, hostOptions);
+ 			require_Broker.fileLog(`Unable to download "${remoteInfo.name}" api types, ${err}`, "downloadAPITypes", "error");
+ 		}
+ 	}
+ 	consumeAPITypes(hostOptions) {
+@@ -1044,7 +1062,9 @@
      }`;
  		}).join("\n")}
      `;
@@ -638,7 +648,7 @@ diff --git a/dist/esm/expose-rpc-B0rqtOKP.mjs b/dist/esm/expose-rpc-B0rqtOKP.mjs
  			fileLog(`zip.extractAllTo success destinationPath: ${destinationPath}; url: ${url}`, "downloadTypesArchive", "info");
  			return [destinationFolder, destinationPath];
  		} catch (error) {
-@@ -997,9 +1004,15 @@
+@@ -997,9 +1004,17 @@
  			return remoteInfo;
  		}
  	}
@@ -648,6 +658,8 @@ diff --git a/dist/esm/expose-rpc-B0rqtOKP.mjs b/dist/esm/expose-rpc-B0rqtOKP.mjs
 +	prepareTypeFile(filePath, content) {
 +		return "write";
 +	}
++	reportTypesApiError(error, remoteInfo, destinationPath, hostOptions) {
++	}
  	async consumeTargetRemotes(hostOptions, remoteInfo) {
  		if (!remoteInfo.zipUrl) throw new Error(`Can not get ${remoteInfo.name}'s types archive url!`);
 -		return downloadTypesArchive(hostOptions)([remoteInfo.alias, remoteInfo.zipUrl]);
@@ -655,7 +667,7 @@ diff --git a/dist/esm/expose-rpc-B0rqtOKP.mjs b/dist/esm/expose-rpc-B0rqtOKP.mjs
  	}
  	async downloadAPITypes(remoteInfo, destinationPath, hostOptions) {
  		const { apiTypeUrl } = remoteInfo;
-@@ -1011,7 +1024,9 @@
+@@ -1011,7 +1026,9 @@
  			})).data;
  			apiTypeFile = apiTypeFile.replaceAll(REMOTE_ALIAS_IDENTIFIER, remoteInfo.alias);
  			const filePath = path.join(destinationPath, REMOTE_API_TYPES_FILE_NAME);
@@ -666,7 +678,15 @@ diff --git a/dist/esm/expose-rpc-B0rqtOKP.mjs b/dist/esm/expose-rpc-B0rqtOKP.mjs
  			const existed = this.loadedRemoteAPIAlias.has(remoteInfo.alias);
  			this.loadedRemoteAPIAlias.add(remoteInfo.alias);
  			fileLog(`success`, "downloadAPITypes", "info");
-@@ -1055,7 +1070,9 @@
+@@ -1018,6 +1035,7 @@
+ 			return existed;
+ 		} catch (err) {
++			this.reportTypesApiError(err, remoteInfo, destinationPath, hostOptions);
+ 			fileLog(`Unable to download "${remoteInfo.name}" api types, ${err}`, "downloadAPITypes", "error");
+ 		}
+ 	}
+ 	consumeAPITypes(hostOptions) {
+@@ -1055,7 +1073,9 @@
      }`;
  		}).join("\n")}
      `;
@@ -680,12 +700,13 @@ diff --git a/dist/esm/expose-rpc-B0rqtOKP.mjs b/dist/esm/expose-rpc-B0rqtOKP.mjs
 diff --git a/dist/DtsWorker-SBLpkK-D.d.ts b/dist/DtsWorker-SBLpkK-D.d.ts
 --- a/dist/DtsWorker-SBLpkK-D.d.ts
 +++ b/dist/DtsWorker-SBLpkK-D.d.ts
-@@ -90,6 +90,8 @@
+@@ -90,6 +90,9 @@
    extractRemoteTypes(options: ReturnType<typeof retrieveRemoteConfig>): Promise<void>;
    generateTypes(): Promise<void>;
    requestRemoteManifest(remoteInfo: RemoteInfo, hostOptions: Required<HostOptions>): Promise<Required<RemoteInfo>>;
 +  prepareTypesArchive(hostOptions: Required<HostOptions>, remoteInfo: Required<RemoteInfo>, destinationPath: string, archiveBuffer: Buffer): "write" | "unchanged" | Promise<"write" | "unchanged">;
 +  prepareTypeFile(filePath: string, content: string): "write" | "unchanged";
++  reportTypesApiError(error: unknown, remoteInfo: Required<RemoteInfo>, destinationPath: string, hostOptions: Required<HostOptions>): void;
    consumeTargetRemotes(hostOptions: Required<HostOptions>, remoteInfo: Required<RemoteInfo>): Promise<[string, string] | undefined>;
    downloadAPITypes(remoteInfo: Required<RemoteInfo>, destinationPath: string, hostOptions: Required<HostOptions>): Promise<boolean | undefined>;
    consumeAPITypes(hostOptions: Required<HostOptions>): void;

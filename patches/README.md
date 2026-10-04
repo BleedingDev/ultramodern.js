@@ -8,7 +8,7 @@ Edit `packages/toolkit/ultramodern-create/src/ultramodern-workspace/patch-invent
 | @rsbuild/core@2.2.9 | yes | none | Await the public final development compiler hook after native HMR and filesystem setup before completion and watch adapters attach. |
 | jiti@2.7.0 | yes | none | Observe original package resolver name/type reads and consumed main/exports/imports without replacing cached values. |
 | @module-federation/bridge-react@2.9.1 | yes | none | Portable React declaration specifiers. |
-| @module-federation/dts-plugin@2.9.1 | yes | none | Preserve declaration rootDir, native compiler execution, atomic DTS server binding, completed remote type consumption, unchanged native type materialization and exact native worker closure during compiler shutdown. |
+| @module-federation/dts-plugin@2.9.1 | yes | none | Report native API type download failures through the public manager callback. Preserve declaration rootDir, native compiler execution, atomic DTS server binding, completed remote type consumption, unchanged native type materialization and exact native worker closure during compiler shutdown. |
 | @module-federation/manifest@2.9.1 | yes | none | Defer DTS loading when DTS is disabled. |
 | @module-federation/modern-js-v3@2.9.1 | yes | none | Use the public React bridge base entry without React Router imports in every module format. Preserve lazy compilation, framework CSS ownership, valid async splitting and native ESM CLI resolution. Ultra React composition owns SSR manifest recovery through its declared federation runtime dependency. Keep the development SSR reload script server-only and remove it before hydration. |
 | @module-federation/rspack@2.9.1 | yes | none | Defer DTS plugin loading when DTS is disabled. |

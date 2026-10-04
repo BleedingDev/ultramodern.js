@@ -14,6 +14,7 @@ import {
   type RendererGeneratedOutputNode,
   type RendererGeneratedOutputReceipt,
   type RendererGeneratedOutputRegistration,
+  type RendererGeneratedOutputRegistrationInput,
   rendererGeneratedOutputPermission,
   validateRendererGeneratedOutputReceipt,
 } from '@modern-js/app-tools-extensions/renderer-generated-outputs';
@@ -23,6 +24,10 @@ import {
   type Rspack,
 } from '@rsbuild/core';
 import { afterEach, describe, expect, it } from '@rstest/core';
+import {
+  createReceiverRegistry,
+  type ReceiverFailure,
+} from '../../src/native-composition/react-mf-dts-registry';
 import {
   type ReactGeneratedOutputGeneration,
   ReactTypedCssPhase,
@@ -95,14 +100,11 @@ function fixture() {
   return root;
 }
 
-function acknowledged(
+function registrationInput(
   root: string,
   generation: number,
-  filename: string,
-  mutate: () => void,
-  kind: 'file' | 'directory' = 'file',
-) {
-  const registration = immutableRendererGeneratedOutputRegistration({
+): RendererGeneratedOutputRegistrationInput {
+  return {
     schemaVersion: 1,
     id: 'phase-test-receiver',
     pathFlavor: 'posix',
@@ -134,7 +136,19 @@ function acknowledged(
     ],
     authoredPaths: [],
     protectedInputs: [],
-  });
+  };
+}
+
+function acknowledged(
+  root: string,
+  generation: number,
+  filename: string,
+  mutate: () => void,
+  kind: 'file' | 'directory' = 'file',
+) {
+  const registration = immutableRendererGeneratedOutputRegistration(
+    registrationInput(root, generation),
+  );
   const operation = {
     operation: 'write' as const,
     kind,
@@ -204,6 +218,7 @@ async function harness(
   root: string,
   options: {
     idle?: Promise<void>;
+    waitForIdle?: () => Promise<void>;
     inputPaths?: readonly string[];
     finalize?: (
       lease: RendererGeneratedOutputIdentityLease | undefined,
@@ -228,7 +243,8 @@ async function harness(
     produceTypedCss: false,
     inputPaths: options.inputPaths,
     generatedOutputs: {
-      waitForIdle: () => options.idle ?? Promise.resolve(),
+      waitForIdle:
+        options.waitForIdle ?? (() => options.idle ?? Promise.resolve()),
       bindGeneration: generation => {
         bindings.push(generation);
       },
@@ -361,6 +377,139 @@ async function harness(
 }
 
 describe('React receiver receipt phase integration', () => {
+  it('publishes captured native API failures through the registry finalization barrier', async () => {
+    const root = fixture();
+    const filename = path.join(root, '@mf-types/remote/apis.d.ts');
+    const captured: { failure?: ReceiverFailure; terminalError?: unknown } = {};
+    let run: Awaited<ReturnType<typeof harness>>;
+    const registry = createReceiverRegistry({
+      async prepareRegistration(seed) {
+        return registrationInput(root, seed.generation);
+      },
+      assertActive(frame) {
+        const generation = run.phase.currentGeneratedOutputGeneration();
+        generation.assertCurrent();
+        if (frame.generation !== generation.generation)
+          throw new Error('Native API failure belongs to another generation.');
+      },
+      async observeCurrent(registration, expected) {
+        return {
+          generation: registration.generation,
+          nodes: expected.map(node => observe(node.path.lexical)),
+        };
+      },
+    });
+    try {
+      run = await harness(root, {
+        waitForIdle: () => registry.waitForIdle(),
+        async processAssets(phase) {
+          const generation = phase.reserveGeneratedOutputGeneration();
+          const context = await registry.begin(
+            {
+              schemaVersion: 1,
+              registrationId: 'phase-test-receiver',
+              compilerId: 'client',
+              generation: generation.generation,
+              operationId: `phase-test-${generation.generation}`,
+              revision: `phase-test-${generation.generation}`,
+            },
+            {
+              operation: 'consumeTypes',
+              nativeOptions: { consumeAPITypes: true },
+            },
+          );
+          // Native API consumption can swallow an IO error and return undefined.
+          const result = await fs.promises.readFile(filename).catch(error => {
+            if (
+              !(error instanceof Error) ||
+              !('code' in error) ||
+              typeof error.code !== 'string' ||
+              !('path' in error) ||
+              typeof error.path !== 'string'
+            )
+              throw error;
+            captured.failure = {
+              operation: 'readFile',
+              reason: error.message,
+              code: error.code,
+              path: error.path,
+            };
+            return undefined;
+          });
+          expect(result).toBeUndefined();
+          if (!captured.failure)
+            throw new Error(
+              'Native API fixture did not capture its IO failure.',
+            );
+          await context
+            .terminal({
+              status: 'failed',
+              frame: context.frame,
+              operations: [],
+              nodes: [],
+              stages: [
+                {
+                  stage: 'api',
+                  requested: true,
+                  outcome: 'failed',
+                  result: 'undefined',
+                },
+              ],
+              failures: [captured.failure],
+            })
+            .catch(error => {
+              captured.terminalError = error;
+            });
+        },
+      });
+      const ready = run.phase.resolveIdentities();
+      const nativeFailure = await run.run().catch(error => error);
+      const readyFailure = await ready.catch(error => error);
+      if (!captured.failure)
+        throw new Error(
+          'Native phase did not consume the API failure fixture.',
+        );
+      for (const error of [nativeFailure, readyFailure]) {
+        expect(error).toBeInstanceOf(Error);
+        if (!(error instanceof Error))
+          throw new Error('Native phase did not publish its failure.');
+        for (const detail of [
+          'operation=readFile',
+          'code=ENOENT',
+          filename,
+          captured.failure.reason,
+        ])
+          expect(error.message).toContain(detail);
+      }
+      expect(captured.terminalError).toBeInstanceOf(AggregateError);
+      if (!(captured.terminalError instanceof AggregateError))
+        throw new Error('Native registry did not retain captured failures.');
+      expect(captured.terminalError.errors).toEqual([
+        expect.objectContaining({
+          message: captured.failure.reason,
+          operation: 'readFile',
+          code: 'ENOENT',
+          path: filename,
+        }),
+      ]);
+      let receiptFailure: unknown;
+      try {
+        registry.completedReceipts();
+      } catch (error) {
+        receiptFailure = error;
+      }
+      expect(receiptFailure).toBe(captured.terminalError);
+      expect(run.counts()).toEqual({
+        released: 1,
+        finalizations: 0,
+        publications: 0,
+      });
+      expect(fs.existsSync(filename)).toBe(false);
+    } finally {
+      await registry.dispose();
+    }
+  });
+
   it.each([
     { input: 'unrelated', reject: false },
     { input: 'consumed', reject: true },

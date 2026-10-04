@@ -1051,6 +1051,25 @@ function receiverUpdateChoice(manager, update) {
 }
 
 class NativeReceiverDTSManager extends DTSManager {
+  reportTypesApiError(error, _remoteInfo, destinationPath, _hostOptions) {
+    const scope = scopes.getStore();
+    if (!scope)
+      throw new Error(
+        'Receiver DTS API failure has no registered operation scope.',
+      );
+    const target = path.join(destinationPath, 'apis.d.ts');
+    failure(scope, 'api', error, target);
+    const seen = new Set([error]);
+    let current = error;
+    for (let depth = 0; depth < 8 && current instanceof Error; depth++) {
+      const cause = Object.getOwnPropertyDescriptor(current, 'cause')?.value;
+      if (!(cause instanceof Error) || seen.has(cause)) break;
+      seen.add(cause);
+      failure(scope, 'api', cause, target);
+      current = cause;
+    }
+  }
+
   prepareTypeFile(filePath, content) {
     const scope = scopes.getStore();
     if (!scope)

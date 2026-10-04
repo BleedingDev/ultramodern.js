@@ -32,11 +32,11 @@ export default [
     packageName: '@module-federation/dts-plugin',
     version: '2.9.1',
     path: 'patches/@module-federation__dts-plugin@2.9.1.patch',
-    sha256: 'e63359a1ffd2ff45b2d939ef9757f56be44e9ebfc4a84058aeb3741492fc417a',
+    sha256: 'fe5384cce95aff815d9f6bce07384f959d2cbba1c84a17cdb4574e2af9dabbee',
     repository: true,
     workspace: null,
     reason:
-      'Preserve declaration rootDir, native compiler execution, atomic DTS server binding, completed remote type consumption, unchanged native type materialization and exact native worker closure during compiler shutdown.',
+      'Report native API type download failures through the public manager callback. Preserve declaration rootDir, native compiler execution, atomic DTS server binding, completed remote type consumption, unchanged native type materialization and exact native worker closure during compiler shutdown.',
   },
   {
     packageName: '@module-federation/manifest',

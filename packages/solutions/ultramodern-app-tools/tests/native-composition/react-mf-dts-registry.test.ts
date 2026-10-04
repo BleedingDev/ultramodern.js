@@ -602,6 +602,303 @@ describe('native receiver DTS registry', () => {
     }
   });
 
+  it('preserves native failure diagnostics in terminal, callback and sticky idle rejection', async () => {
+    const f = fixture();
+    const context = await f.registry.begin(f.seed, details);
+    const failure = Object.freeze({
+      operation: 'consumeAPITypes',
+      reason: 'Native receiver DTS requested API types were not acknowledged.',
+      code: 'ERR_NATIVE_API_UNDEFINED',
+      path: f.destination,
+    });
+    const evidence = Object.freeze({
+      ...terminal(context, []),
+      status: 'failed' as const,
+      stages: Object.freeze([
+        {
+          stage: 'api' as const,
+          alias: 'remote',
+          requested: true,
+          outcome: 'failed' as const,
+          result: 'undefined',
+        },
+      ]),
+      failures: Object.freeze([failure]),
+    });
+    const original = JSON.stringify(evidence);
+    const waiting = f.registry.waitForIdle().catch(error => error);
+    const error: unknown = await context
+      .terminal(evidence)
+      .catch(error => error);
+    if (!(error instanceof AggregateError))
+      throw new Error('Failed native terminal must reject with its aggregate.');
+    expect(error.message).toContain('operation=consumeAPITypes');
+    expect(error.message).toContain('code=ERR_NATIVE_API_UNDEFINED');
+    expect(error.message).toContain(`path=${JSON.stringify(f.destination)}`);
+    expect(error.message).toContain(failure.reason);
+    expect(error.errors).toHaveLength(1);
+    expect(error.errors[0]).toBeInstanceOf(Error);
+    expect(error.errors[0]).toMatchObject({
+      message: failure.reason,
+      operation: failure.operation,
+      code: failure.code,
+      path: failure.path,
+    });
+    expect(f.failures).toHaveLength(1);
+    expect(f.failures[0]).toBe(error);
+    expect(await waiting).toBe(error);
+    await expect(f.registry.waitForIdle()).rejects.toBe(error);
+    expect(f.completed).toEqual([]);
+    expect(() => f.registry.completedReceipts()).toThrow(error);
+    expect(() => f.registry.pinReceipts([])).toThrow(error);
+    expect(fs.existsSync(f.destination)).toBe(false);
+    expect(JSON.stringify(evidence)).toBe(original);
+    expect(Object.isFrozen(failure)).toBe(true);
+    expect(Object.isFrozen(evidence.failures)).toBe(true);
+  });
+
+  it('preserves empty native Error messages as failed registry evidence', async () => {
+    const f = fixture();
+    const context = await f.registry.begin(f.seed, details);
+    const nativeError = Object.assign(new Error(), {
+      code: 'ECONNREFUSED',
+      path: f.destination,
+    });
+    const failure = Object.freeze({
+      operation: 'api',
+      reason: nativeError.message,
+      code: nativeError.code,
+      path: nativeError.path,
+    });
+    expect(failure.reason).toBe('');
+    const waiting = f.registry.waitForIdle().catch(error => error);
+    const error: unknown = await context
+      .terminal({
+        ...terminal(context, []),
+        status: 'failed',
+        stages: [],
+        failures: Object.freeze([failure]),
+      })
+      .catch(error => error);
+    if (!(error instanceof AggregateError))
+      throw new Error('Empty native reason must retain its failed aggregate.');
+    expect(error.message).toContain('operation=api');
+    expect(error.message).toContain('code=ECONNREFUSED');
+    expect(error.message).toContain(`path=${JSON.stringify(f.destination)}`);
+    expect(error.errors).toHaveLength(1);
+    expect(error.errors[0]).toBeInstanceOf(Error);
+    expect(error.errors[0]).toMatchObject({
+      message: '',
+      operation: 'api',
+      code: 'ECONNREFUSED',
+      path: f.destination,
+    });
+    expect(f.failures).toHaveLength(1);
+    expect(f.failures[0]).toBe(error);
+    expect(await waiting).toBe(error);
+    await expect(f.registry.waitForIdle()).rejects.toBe(error);
+    expect(f.completed).toEqual([]);
+    expect(() => f.registry.completedReceipts()).toThrow(error);
+    expect(() => f.registry.pinReceipts([])).toThrow(error);
+    expect(fs.existsSync(f.destination)).toBe(false);
+  });
+
+  it('bounds native failure diagnostics while retaining every complete causal error', async () => {
+    const f = fixture();
+    const context = await f.registry.begin(f.seed, details);
+    const failures = Object.freeze(
+      Array.from({ length: 10 }, (_, index) =>
+        Object.freeze({
+          operation: `native-operation-${index}-${'o'.repeat(600)}`,
+          reason: `native-reason-${index}-${'r'.repeat(600)}`,
+          code: `native-code-${index}-${'c'.repeat(600)}`,
+          path: path.join(f.root, `native-path-${index}-${'p'.repeat(600)}`),
+        }),
+      ),
+    );
+    const evidence = Object.freeze({
+      ...terminal(context, []),
+      status: 'failed' as const,
+      stages: [],
+      failures,
+    });
+    const original = JSON.stringify(evidence);
+    const waiting = f.registry.waitForIdle().catch(error => error);
+    const error: unknown = await context
+      .terminal(evidence)
+      .catch(error => error);
+    if (!(error instanceof AggregateError))
+      throw new Error('Failed native terminal must reject with its aggregate.');
+    expect(error.message).toContain('2 more native failures');
+    expect(error.message.split('\n')).toHaveLength(10);
+    expect(error.message.length).toBeLessThan(17_000);
+    for (const failure of failures.slice(0, 8)) {
+      expect(error.message).toContain(`${failure.operation.slice(0, 512)}…`);
+      expect(error.message).toContain(`${failure.reason.slice(0, 512)}…`);
+      expect(error.message).toContain(`${failure.code.slice(0, 512)}…`);
+      expect(error.message).toContain(
+        JSON.stringify(`${failure.path.slice(0, 512)}…`),
+      );
+      expect(error.message).not.toContain(failure.reason);
+    }
+    expect(error.message).not.toContain('native-operation-8-');
+    expect(error.message).not.toContain('native-operation-9-');
+    expect(error.errors).toHaveLength(failures.length);
+    for (const [index, failure] of failures.entries()) {
+      expect(error.errors[index]).toBeInstanceOf(Error);
+      expect(error.errors[index]).toMatchObject({
+        message: failure.reason,
+        operation: failure.operation,
+        code: failure.code,
+        path: failure.path,
+      });
+    }
+    expect(f.failures).toHaveLength(1);
+    expect(f.failures[0]).toBe(error);
+    expect(await waiting).toBe(error);
+    await expect(f.registry.waitForIdle()).rejects.toBe(error);
+    expect(f.completed).toEqual([]);
+    expect(() => f.registry.pinReceipts([])).toThrow(error);
+    expect(JSON.stringify(evidence)).toBe(original);
+  });
+
+  it('preserves native failure diagnostics in the host callback over real TCP', async () => {
+    const f = fixture();
+    const receiver = createReceiverBridgeRegistry(
+      await f.registry.openBridge(),
+    );
+    closes.push(() => receiver.dispose());
+    const context = await receiver.begin(f.seed, details);
+    const failure = Object.freeze({
+      operation: 'consumeAPITypes',
+      reason: 'Native receiver DTS requested API types were not acknowledged.',
+      code: 'ERR_NATIVE_API_UNDEFINED',
+      path: f.destination,
+    });
+    await expect(
+      context.terminal({
+        ...terminal(context, []),
+        status: 'failed',
+        stages: [],
+        failures: Object.freeze([failure]),
+      }),
+    ).rejects.toThrow('Receiver DTS bridge rejected the operation (400).');
+    const error = f.failures[0];
+    if (!(error instanceof AggregateError))
+      throw new Error(
+        'Host failure callback must retain its native aggregate.',
+      );
+    expect(f.failures).toHaveLength(1);
+    expect(error.message).toContain(failure.reason);
+    expect(error.errors).toHaveLength(1);
+    expect(error.errors[0]).toMatchObject({
+      message: failure.reason,
+      operation: failure.operation,
+      code: failure.code,
+      path: failure.path,
+    });
+    expect(f.completed).toEqual([]);
+    await expect(f.registry.waitForIdle()).rejects.toBe(error);
+    expect(() => f.registry.completedReceipts()).toThrow(error);
+    expect(() => f.registry.pinReceipts([])).toThrow(error);
+  });
+
+  it('revokes a successful retired bridge receipt after same-epoch cancellation', async () => {
+    const f = fixture();
+    const bridge = await f.registry.openBridge();
+    const beginId = 'd'.repeat(32);
+    const send = (body: Record<string, unknown>) =>
+      fetch(bridge.url, {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${bridge.token}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ beginId, ...body }),
+      });
+    const begin = await send({ action: 'begin', seed: f.seed, details });
+    expect(begin.status).toBe(200);
+    const response = (await begin.json()) as {
+      frame: ReceiverFrame;
+      registration: RendererGeneratedOutputRegistrationInput;
+    };
+    const registration = immutableRendererGeneratedOutputRegistration(
+      response.registration,
+    );
+    const operation = {
+      operation: 'write' as const,
+      kind: 'file' as const,
+      before: node(f.destination),
+    };
+    const plan = assertRendererGeneratedOutputOperationsAllowed(registration, [
+      operation,
+    ]);
+    const beforeEvent = {
+      event: 'before',
+      sequence: 0,
+      operations: [operation],
+      planDigest: plan.planDigest,
+    };
+    fs.writeFileSync(f.destination, 'export type Remote = string;\n');
+    const acknowledgement = { ...operation, after: node(f.destination) };
+    const evidence = {
+      status: 'complete',
+      frame: response.frame,
+      operations: [acknowledgement],
+      nodes: [acknowledgement.after],
+      stages: [
+        {
+          stage: 'api',
+          alias: 'remote',
+          requested: true,
+          outcome: 'complete',
+          result: false,
+        },
+      ],
+      failures: [],
+    };
+    const completion = {
+      action: 'terminal',
+      frame: response.frame,
+      evidence,
+      events: [
+        beforeEvent,
+        {
+          event: 'acknowledge',
+          sequence: 1,
+          operations: [acknowledgement],
+        },
+      ],
+    };
+    expect((await send(completion)).status).toBe(200);
+    expect(f.completed).toHaveLength(1);
+    const receipt = f.completed[0]!.receipt;
+    const current = observations(f);
+    const lease = f.registry.pinReceipts(current);
+    lease.assertCurrent(current);
+    expect(lease.permission(f.destination)?.kind).toBe('file');
+    const reason = 'Successful receiver completion cancelled after retirement.';
+    expect((await send({ action: 'abort', reason })).status).toBe(200);
+    const cancellation: unknown = await f.registry
+      .waitForIdle()
+      .catch(error => error);
+    if (!(cancellation instanceof Error))
+      throw new Error('Retired successful cancellation must fail its epoch.');
+    expect(cancellation.message).toBe(reason);
+    expect(() => lease.assertCurrent(current)).toThrow(cancellation);
+    expect(() => lease.permission(f.destination)).toThrow(cancellation);
+    expect(() => f.registry.completedReceipts()).toThrow(cancellation);
+    expect(() => f.registry.pinReceipts(current)).toThrow(cancellation);
+    expect(() =>
+      f.registry.permission(receipt, f.destination, f.current(receipt)),
+    ).toThrow(cancellation);
+    expect((await send({ action: 'abort', reason })).status).toBe(200);
+    expect((await send(completion)).status).toBe(400);
+    await expect(f.registry.waitForIdle()).rejects.toBe(cancellation);
+    expect(node(f.destination)).toEqual(acknowledgement.after);
+    lease.release();
+  });
+
   it('rejects child final snapshots whose physical bytes changed before host observation', async () => {
     const f = fixture();
     const context = await f.registry.begin(f.seed, details);
