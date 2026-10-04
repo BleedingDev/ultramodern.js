@@ -11,6 +11,7 @@ import { nativeRendererInfrastructurePlugin } from './native-infrastructure';
 import { ultramodernReleaseEnvelopePlugin } from './release-envelope-plugin';
 import { createRendererBuildOutputResolver } from './renderer-build-output';
 import { createRendererBuildIdentityResolver } from './renderer-build-resolution';
+import { activateNativeRendererCompiler } from './renderer-compiler-activation';
 import {
   type RendererRegistration,
   resolveRendererRegistration,
@@ -116,7 +117,7 @@ function composeNativeRenderer(
     ],
     setup(api) {
       api.modifyResolvedConfig(async config => {
-        const compiler = await adapter.createCompiler({
+        const compiler = await activateNativeRendererCompiler(renderer, {
           rendererIdentities: () => rendererIdentities,
         });
         const builderPlugins = [

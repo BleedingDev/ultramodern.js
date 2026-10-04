@@ -3,9 +3,7 @@ import {
   defineConfig,
   presetUltramodern,
 } from '@modern-js/ultramodern-app-tools';
-{{value0}}import { i18nPlugin } from '@modern-js/plugin-i18n';
-import { tanstackRouterPlugin } from '@modern-js/plugin-tanstack';
-{{value22}}
+{{value0}}{{value22}}
 const cloudflareDeployEnabled =
   getBuildConfigEnvironment('MODERNJS_DEPLOY') === 'cloudflare';
 
@@ -105,46 +103,14 @@ export default defineConfig(
         },
       },
       plugins: [
-        tanstackRouterPlugin(),
-        i18nPlugin({
-          backend: {
-            enabled: true,
-            loadPath: '/locales/{{lng}}/{{ns}}.json',
-          },
-          localeDetection: {
-            fallbackLanguage: 'en',
-            ignoreRedirectRoutes: [
-              '/@mf-types',
-              '/assets',
-              '/bundles',
-              '{{value14}}',
-              '/locales',
-              '/mf-manifest.json',
-              '/mf-stats.json',
-              '/remoteEntry.js',
-              '/robots.txt',
-              '/site.webmanifest',
-              '/sitemap.xml',
-              '/static',
-              '/zephyr-manifest.json',
-            ],
-            languages: ['en', 'cs'],
-            localePathRedirect: true,
-{{value24}}          },
-          reactI18next: false,
-        }),
-{{value15}}{{value25}}      ],
+{{value30}}{{value15}}{{value25}}      ],
       renderer: 'react',
       server: {
         port,
         publicDir: ['./locales', './assets'],
       },
       source: {
-        alias: {
-          '@modern-js/plugin-i18n/runtime$':
-            '@modern-js/plugin-i18n/runtime/no-react-i18next',
-        },
-        globalVars: {
+{{value31}}        globalVars: {
           ULTRAMODERN_SITE_URL: siteUrl,
         },
         mainEntryName: 'index',

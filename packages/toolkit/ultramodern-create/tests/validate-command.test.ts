@@ -28,8 +28,9 @@ ${generated
     `export default defineConfig(async ({ env, command }) => {
   assert.equal(env, 'development');
   assert.equal(command, 'validate');
-  assert.equal(process.env.NODE_ENV, 'development');
-  fs.appendFileSync(${JSON.stringify(observations)}, JSON.stringify({ env, command, nodeEnv: process.env.NODE_ENV }) + '\\n');
+  const nodeEnv = getBuildConfigEnvironment('NODE_ENV');
+  assert.equal(nodeEnv, 'development');
+  fs.appendFileSync(${JSON.stringify(observations)}, JSON.stringify({ env, command, nodeEnv }) + '\\n');
   await Promise.resolve();
   return (`,
   )

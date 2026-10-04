@@ -79,6 +79,8 @@ ${enableTailwind ? '  builderPlugins: [pluginTailwindcss()],\n' : ''}  renderer:
   // no generated route metadata — its config must not import or register them.
   const uiImports = emitsUi
     ? `import { getBuildConfigEnvironment, withBuildConfigEnvironment } from '@modern-js/app-tools-extensions/config';
+import { i18nPlugin } from '@modern-js/plugin-i18n';
+import { tanstackRouterPlugin } from '@modern-js/plugin-tanstack';
 import { moduleFederationPlugin } from '@module-federation/modern-js-v3';
 import type { withZephyr as withZephyrRspack } from 'zephyr-rspack-plugin';
 import { ultramodernLocalisedUrls } from './src/routes/ultramodern-route-metadata';
@@ -251,6 +253,15 @@ const defaultAssetPrefix = defaultRemoteAssetPrefix;`;
     value27: deliveryUnit.buildMarker,
     value28: deliveryUnit.version,
     value29: relativeRootFor(app.directory),
+    value30: emitsUi
+      ? renderFileTemplate('workspace/apps/modern.config.ui-plugins.ts', {
+          value14: resolveApiPrefix(app),
+          value24: localisedUrlsEntry,
+        })
+      : '',
+    value31: emitsUi
+      ? "        alias: {\n          '@modern-js/plugin-i18n/runtime$':\n            '@modern-js/plugin-i18n/runtime/no-react-i18next',\n        },\n"
+      : '',
   });
 }
 

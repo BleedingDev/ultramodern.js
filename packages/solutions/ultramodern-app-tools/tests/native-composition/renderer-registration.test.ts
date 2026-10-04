@@ -34,6 +34,7 @@ import {
   nativeServerPlugin,
 } from '../../src/native-composition/native-server-plugin';
 import { createRendererBuildIdentityResolver } from '../../src/native-composition/renderer-build-resolution';
+import { activateNativeRendererCompiler } from '../../src/native-composition/renderer-compiler-activation';
 import {
   type RendererBuildProfile,
   resolveCandidateRendererProfile,
@@ -53,6 +54,7 @@ import {
   resolveRendererBuilderPlugins,
 } from '../../src/native-composition/renderer-selection';
 import type { UltramodernAppUserConfig } from '../../src/native-composition/types';
+import { createCompilerActivationFixture } from './compiler-activation-fixture';
 
 // Replace one owner at its existing static registration, without a runtime registry API.
 rstest.mock('node:child_process', { spy: true });
@@ -137,6 +139,19 @@ rstest.mock('../../src/renderers/solid/registration', () => {
         infrastructurePluginName: '@fixture/fourth-native-infrastructure',
         profile,
         compilerArtifacts,
+        compiler: Object.freeze({
+          schema: 'ultramodern-native-compiler-activation',
+          version: 1,
+          renderer: profile.renderer,
+          operation: 'compiler',
+          module: Object.freeze({
+            source: './src/renderers/fourth-native/compiler/index.ts',
+            import:
+              './dist/esm-node/renderers/fourth-native/compiler/index.mjs',
+            require: './dist/cjs/renderers/fourth-native/compiler/index.js',
+          }),
+          export: 'createFixtureCompiler',
+        }),
         createEntryGenerator: () => generator,
         emitRouteModule: (options: {
           mode: string;
@@ -144,24 +159,14 @@ rstest.mock('../../src/renderers/solid/registration', () => {
           routes: unknown[];
         }) =>
           `fourth-route:${options.mode}:${options.basePath}:${options.routes.length}`,
-        async createCompiler() {
-          const { attachRendererCompilerClaim } = await import(
-            '../../src/native-composition/renderer-selection'
-          );
-          return attachRendererCompilerClaim(
-            { name: 'fixture:fourth-compiler', setup() {} },
-            {
-              renderer: profile.renderer,
-              sourceExtensions: profile.sourceExtensions,
-              transform: 'native',
-              refresh: 'native',
-              svg: 'url',
-            },
-          );
-        },
       },
     },
   };
+});
+
+// The spy loads the real dispatcher graph after the replacement owner is installed.
+rstest.mock('../../src/native-composition/renderer-compiler-activation', {
+  spy: true,
 });
 
 const renderer = 'fourth-native' as RegisteredRenderer;
@@ -366,46 +371,65 @@ describe('static renderer owner admission', () => {
     ).toBe('fourth-route:server:/catalog:0');
   });
 
-  it('delegates common composition to exactly one selected compiler callback', async () => {
+  it('delegates the selected owner to the fixed dispatcher and its Node factory', async () => {
     const config = await resolveUltramodernConfig(defineConfig({ renderer }), {
       env: 'test',
       command: 'build',
     });
-    const adapter = resolveNativeRendererAdapter(renderer);
-    const compiler = rstest.spyOn(adapter, 'createCompiler');
-    let transform:
-      | ((
-          config: UltramodernAppUserConfig,
-        ) => Promise<UltramodernAppUserConfig>)
-      | undefined;
-    const base = config.plugins![0];
-    await base.setup?.({
-      modifyResolvedConfig(callback: typeof transform) {
-        transform = callback;
-      },
-      _internalRuntimePlugins() {},
-    } as unknown as Parameters<NonNullable<CliPlugin<AppTools>['setup']>>[0]);
-    const selected = await transform!(config);
-    expect(compiler).toHaveBeenCalledTimes(1);
-    const owned = await resolveRendererBuilderPlugins(
-      selected.builderPlugins ?? [],
-    );
-    expect(assertRendererCompilerOwnership(renderer, owned)).toMatchObject({
-      renderer,
+    const fixture = await createCompilerActivationFixture({
+      renderers: [renderer],
     });
-    expect(owned.map(plugin => plugin.name)).toContain(
-      'fixture:fourth-compiler',
+    const compiler = rstest.mocked(activateNativeRendererCompiler);
+    compiler.mockClear();
+    compiler.mockImplementationOnce((selected, options) =>
+      fixture.activate(selected, options),
     );
-    expect(() => assertRendererCompilerOwnership(renderer, [])).toThrow(
-      'exactly one matching native compiler owner',
-    );
-    expect(() =>
-      assertRendererCompilerOwnership(renderer, [
-        ...owned,
-        owned.find(plugin => plugin.name === 'fixture:fourth-compiler')!,
-      ]),
-    ).toThrow('exactly one matching native compiler owner');
-    compiler.mockRestore();
+    try {
+      let transform:
+        | ((
+            config: UltramodernAppUserConfig,
+          ) => Promise<UltramodernAppUserConfig>)
+        | undefined;
+      const base = config.plugins![0];
+      await base.setup?.({
+        modifyResolvedConfig(callback: typeof transform) {
+          transform = callback;
+        },
+        _internalRuntimePlugins() {},
+      } as unknown as Parameters<NonNullable<CliPlugin<AppTools>['setup']>>[0]);
+      const selected = await transform!(config);
+      expect(compiler).toHaveBeenCalledTimes(1);
+      expect(compiler).toHaveBeenCalledWith(renderer, {
+        rendererIdentities: expect.any(Function),
+      });
+      expect(fixture.calls()).toEqual([
+        { renderer, format: 'import', action: 'loaded' },
+        { renderer, format: 'import', action: 'factory' },
+      ]);
+      const owned = await resolveRendererBuilderPlugins(
+        selected.builderPlugins ?? [],
+      );
+      expect(assertRendererCompilerOwnership(renderer, owned)).toMatchObject({
+        renderer,
+      });
+      expect(owned.map(plugin => plugin.name)).toContain(
+        'fixture:fourth-native:compiler',
+      );
+      expect(() => assertRendererCompilerOwnership(renderer, [])).toThrow(
+        'exactly one matching native compiler owner',
+      );
+      expect(() =>
+        assertRendererCompilerOwnership(renderer, [
+          ...owned,
+          owned.find(
+            plugin => plugin.name === 'fixture:fourth-native:compiler',
+          )!,
+        ]),
+      ).toThrow('exactly one matching native compiler owner');
+    } finally {
+      compiler.mockClear();
+      fixture.cleanup();
+    }
   });
 
   it('consumes the registered fourth artifact owner from a production CLI server descriptor', async () => {

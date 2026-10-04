@@ -236,8 +236,6 @@ export function validateWorkspace(
     // validation supplies the profile reconciled from the authored app config.
     const generation =
       input.validatesRendererProjection ||
-      input.renderer === 'solid' ||
-      input.renderer === 'octane' ||
       input.renderer === 'none' ||
       Object.hasOwn(app, 'rendererProfile')
         ? assertRendererProjection(app, input)

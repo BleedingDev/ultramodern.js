@@ -803,6 +803,7 @@ export async function runPackedConformance(config, dependencies = {}) {
     const builtIdentities = {};
     const csrBuiltIdentities = {};
     const buildProvenance = {};
+    const rendererBuildEvidence = {};
     const nativeCompilerManifests = [];
     for (const environment of ['development', 'production']) {
       const host = consumer.environments[environment];
@@ -862,6 +863,12 @@ export async function runPackedConformance(config, dependencies = {}) {
           'CSR host identity does not match its distinct actual built entry',
         );
       consumer.identityMetadataSha256[environment] = sha256(metadataBytes);
+      rendererBuildEvidence[environment] = {
+        path: metadataRelative,
+        sha256: consumer.identityMetadataSha256[environment],
+        byteLength: metadataBytes.byteLength,
+        value: metadata,
+      };
       builtIdentities[environment] = builtIdentity;
       csrBuiltIdentities[environment] = csrBuiltIdentity;
       buildProvenance[environment] = {
@@ -905,6 +912,7 @@ export async function runPackedConformance(config, dependencies = {}) {
       releaseArtifacts: artifacts,
       ...(consumer.renderer === 'octane' ? { nativeCompilerManifests } : {}),
       rendererBuildManifestPath: consumer.environments.production.metadataFile,
+      rendererBuildEvidence: rendererBuildEvidence.production,
       rendererDevelopmentManifestPath:
         consumer.environments.development.metadataFile,
     });

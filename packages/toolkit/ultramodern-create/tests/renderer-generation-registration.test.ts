@@ -10,13 +10,13 @@ import {
 } from '@modern-js/ultramodern-app-tools';
 import type { RendererRegistration } from '../../../solutions/ultramodern-app-tools/src/native-composition/renderer-registration';
 import { shellApp } from '../src/ultramodern-workspace/descriptors';
-import { writeNativeApp } from '../src/ultramodern-workspace/native-app';
 import type { NativeAppSourceOptions } from '../src/ultramodern-workspace/renderer-generation-profile';
 import {
   getRendererGenerationProfile,
   isApplicationRenderer,
 } from '../src/ultramodern-workspace/renderer-profile';
 import type { WorkspaceApp } from '../src/ultramodern-workspace/types';
+import { writeApp } from '../src/ultramodern-workspace/write-app';
 import { snapshotWorkspace } from './helpers/workspace-kit';
 
 const paper = rstest.hoisted(() => {
@@ -70,7 +70,18 @@ const paper = rstest.hoisted(() => {
     },
     createEntryGenerator: unusedNativeRuntime,
     emitRouteModule: unusedNativeRuntime,
-    createCompiler: async () => unusedNativeRuntime(),
+    compiler: Object.freeze({
+      schema: 'ultramodern-native-compiler-activation',
+      version: 1,
+      renderer: 'paper',
+      operation: 'compiler',
+      module: Object.freeze({
+        source: './src/renderers/paper/compiler/index.ts',
+        import: './dist/esm-node/renderers/paper/compiler/index.mjs',
+        require: './dist/cjs/renderers/paper/compiler/index.js',
+      }),
+      export: 'createPaperCompilerPlugin',
+    }),
   };
   const registration = {
     renderer: 'paper',
@@ -229,7 +240,7 @@ test('a foreign renderer owner uses the public SDK resolver and common writer', 
     rendererCapabilities: profile.capabilities,
   };
   try {
-    writeNativeApp(
+    writeApp(
       targetDir,
       'paper-workspace',
       app,
@@ -331,7 +342,7 @@ test('a misspelled renderer is rejected before the common writer creates output'
     assert.equal(isApplicationRenderer('paepr'), false);
     assert.throws(
       () =>
-        writeNativeApp(
+        writeApp(
           targetDir,
           'paper-workspace',
           app,

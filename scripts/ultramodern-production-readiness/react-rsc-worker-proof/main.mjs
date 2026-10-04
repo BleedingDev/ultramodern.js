@@ -481,6 +481,8 @@ export async function runProof(options) {
         ...optionsForWorker.modules.map(module => module.path),
       ],
       releaseArtifacts: releaseAudit,
+      rendererBuildManifestPath: path.relative(consumer, buildManifestPath),
+      rendererBuildEvidence: receipt.rendererBuild,
     });
     receipt.lockfile = fileEvidence(
       path.join(consumer, 'pnpm-lock.yaml'),
