@@ -223,6 +223,15 @@ describe('React receiver ownership of the native web compiler graph', () => {
     >[0][] = [];
     const beforeExit: Parameters<CLIPluginAPI<AppTools>['onBeforeExit']>[0][] =
       [];
+    const beforeBuild: Parameters<
+      CLIPluginAPI<AppTools>['onBeforeBuild']
+    >[0][] = [];
+    const closeBuild: (() => void | Promise<void>)[] = [];
+    const builder = {
+      onCloseBuild(callback: (typeof closeBuild)[number]) {
+        closeBuild.push(callback);
+      },
+    };
     const config = {
       renderer: 'react' as const,
       source: { mainEntryName: 'main', entriesDir: './src' },
@@ -231,7 +240,7 @@ describe('React receiver ownership of the native web compiler graph', () => {
     };
     const cliAPI = {
       getHooks: () => hooks,
-      getAppContext: () => ({ appDirectory, command: 'dev' }),
+      getAppContext: () => ({ appDirectory, command: 'dev', builder }),
       getNormalizedConfig: () => config,
       modifyBundlerChain(callback: (typeof chainModifiers)[number]) {
         chainModifiers.push(callback);
@@ -245,6 +254,9 @@ describe('React receiver ownership of the native web compiler graph', () => {
       onBeforeExit(callback: (typeof beforeExit)[number]) {
         beforeExit.push(callback);
       },
+      onBeforeBuild(callback: (typeof beforeBuild)[number]) {
+        beforeBuild.push(callback);
+      },
     };
     await createConfigurationReadContextPlugin(() => observed).setup?.(cliAPI);
     let registry!: ReceiverRegistry;
@@ -253,6 +265,8 @@ describe('React receiver ownership of the native web compiler graph', () => {
       resolveImplementation: () => adapterPath,
       loadImplementation: () => ({
         EXTRA_OPTIONS_KEY: adapter.EXTRA_OPTIONS_KEY,
+        createIsolatedReactFederationPlugin:
+          adapter.createIsolatedReactFederationPlugin,
         installReceiverRegistry(value) {
           registry = value;
           const restore = adapter.installReceiverRegistry(value);
@@ -384,6 +398,7 @@ describe('React receiver ownership of the native web compiler graph', () => {
       string,
       InstanceType<typeof ModuleFederationPlugin>
     >();
+    const pluginConstructors = new Map<string, typeof ModuleFederationPlugin>();
     let clientHTMLFilename = '';
     const compilers = new Map<string, Rspack.Compiler>();
     const watchRuns = new Map<string, number>();
@@ -494,6 +509,12 @@ describe('React receiver ownership of the native web compiler graph', () => {
       name: 'test-real-enhanced-receiver-compiler-graph',
       setup(api) {
         phase.install(api);
+        api.onBeforeBuild(async params => {
+          for (const callback of beforeBuild) await callback(params as never);
+        });
+        api.onCloseBuild(async () => {
+          for (const callback of closeBuild) await callback();
+        });
         api.modifyBundlerChain(async (chain, utils) => {
           const name = utils.environment.name;
           const options = {
@@ -509,11 +530,13 @@ describe('React receiver ownership of the native web compiler graph', () => {
           chain
             .plugin('plugin-module-federation')
             .use(ModuleFederationPlugin, [options])
-            .init((_Plugin, args) => {
+            .init((Plugin, args) => {
               const dts = args[0].dts as Record<string, unknown>;
               expect(typeof dts.onDevWorkerCreated).toBe('function');
               configuredWorkerHooks.set(name, dts.onDevWorkerCreated);
-              const plugin = new ModuleFederationPlugin(args[0]);
+              expect(Plugin).not.toBe(ModuleFederationPlugin);
+              const plugin = new Plugin(args[0]);
+              pluginConstructors.set(name, Plugin);
               nativePlugins.set(name, plugin);
               return plugin;
             });
@@ -538,8 +561,8 @@ describe('React receiver ownership of the native web compiler graph', () => {
           for (const callback of beforeCompiler)
             await callback(params as never);
           expect(nativePlugins.size).toBe(2);
-          for (const plugin of nativePlugins.values())
-            expect(plugin).toBeInstanceOf(ModuleFederationPlugin);
+          for (const [name, plugin] of nativePlugins)
+            expect(plugin).toBeInstanceOf(pluginConstructors.get(name)!);
         });
         api.onAfterCreateCompiler(async params => {
           for (const callback of afterCompiler) await callback(params as never);

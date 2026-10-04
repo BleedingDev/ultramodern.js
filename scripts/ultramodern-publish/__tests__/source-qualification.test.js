@@ -287,6 +287,106 @@ test('acceptance rejects relative, empty, duplicate, and invalid store arguments
   );
 });
 
+test('an optional prepublish work directory preserves release, run, scale, and store bindings', async () => {
+  const { parseArgs } = await import(
+    pathToFileURL(path.join(__dirname, '..', 'run-release-acceptance.mjs')).href
+  );
+  const manifest = path.resolve('release', 'manifest.json');
+  const receipt = path.resolve('release', 'acceptance-receipt.json');
+  const store = path.resolve('shared-pnpm-store');
+  const workInput =
+    path.join(path.parse(manifest).root, 'acceptance', 'previous') +
+    `${path.sep}..${path.sep}retained`;
+  const base = [
+    '--manifest',
+    manifest,
+    '--receipt',
+    receipt,
+    '--expected-source-revision',
+    qualifiedCommit,
+    '--expected-version',
+    '3.9.0-ultramodern.2026100301',
+    '--run-identity',
+    'local:renderer-C2-erp10-20261003',
+    '--scale-profile',
+    'erp-10',
+    '--store-dir',
+    store,
+  ];
+  for (const modeArgs of [[], ['--mode', 'prepublish']]) {
+    const argv = [...base, ...modeArgs];
+    const defaults = parseArgs(argv);
+    assert.equal(defaults.workDir, undefined);
+    const withWorkDir = parseArgs([...argv, '--work-dir', workInput]);
+    assert.equal(withWorkDir.workDir, path.resolve(workInput));
+    assert.deepEqual({ ...withWorkDir, workDir: undefined }, defaults);
+    assert.equal(withWorkDir.mode, 'prepublish');
+    assert.equal(withWorkDir.manifestPath, manifest);
+    assert.equal(withWorkDir.receiptPath, receipt);
+    assert.equal(withWorkDir.expectedSourceRevision, qualifiedCommit);
+    assert.equal(withWorkDir.expectedVersion, '3.9.0-ultramodern.2026100301');
+    assert.equal(withWorkDir.runIdentity, 'local:renderer-C2-erp10-20261003');
+    assert.equal(withWorkDir.scaleProfile, 'erp-10');
+    assert.equal(withWorkDir.storeDir, store);
+  }
+});
+
+test('prepublish rejects relative, empty, duplicate, and invalid work directories', async () => {
+  const { parseArgs } = await import(
+    pathToFileURL(path.join(__dirname, '..', 'run-release-acceptance.mjs')).href
+  );
+  const base = [
+    '--manifest',
+    path.resolve('release', 'manifest.json'),
+    '--receipt',
+    path.resolve('release', 'acceptance-receipt.json'),
+  ];
+  for (const workDir of [
+    'retained',
+    '../retained',
+    ' ',
+    `${path.parse(process.cwd()).root}bad\0work-dir`,
+  ]) {
+    assert.throws(
+      () => parseArgs([...base, '--work-dir', workDir]),
+      /must be an absolute path/u,
+    );
+  }
+  for (const suffix of [
+    ['--work-dir'],
+    ['--work-dir', ''],
+    ['--work-dir', '--mode'],
+  ]) {
+    assert.throws(() => parseArgs([...base, ...suffix]), /requires a value/u);
+  }
+  const workDir = path.resolve('retained');
+  assert.throws(
+    () => parseArgs([...base, '--work-dir', workDir, '--work-dir', workDir]),
+    /Duplicate argument/u,
+  );
+});
+
+test('a caller-owned work directory is rejected for published and verify modes', async () => {
+  const { parseArgs } = await import(
+    pathToFileURL(path.join(__dirname, '..', 'run-release-acceptance.mjs')).href
+  );
+  const base = [
+    '--manifest',
+    path.resolve('release', 'manifest.json'),
+    '--receipt',
+    path.resolve('release', 'acceptance-receipt.json'),
+    '--work-dir',
+    path.resolve('retained'),
+  ];
+  for (const modeArgs of [
+    ['--mode', 'published'],
+    ['--mode', 'verify'],
+    ['--verify-receipt'],
+  ]) {
+    assert.throws(() => parseArgs([...base, ...modeArgs]), /prepublish/u);
+  }
+});
+
 test('source-create-proof forwards the optional store without weakening ERP acceptance', async () => {
   const entrypoint = await import(
     pathToFileURL(

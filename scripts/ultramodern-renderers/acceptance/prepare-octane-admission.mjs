@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { inspectNpmTarball } from '../../ultramodern-publish/lib/prepare-bleedingdev-packages/release-artifacts.mjs';
 import { readReleaseManifest } from '../../ultramodern-publish/lib/source-create-proof/release-manifest.mjs';
+import { rsbuildSpecifierFromRelease } from './rsbuild-dependency.mjs';
 
 const sdkName = '@modern-js/renderer-octane';
 const compilerVersion = '7.0.2';
@@ -116,9 +117,12 @@ export function prepareOctaneAdmission({
       );
       if (specifier.startsWith('npm:')) {
         assert.ok(
-          release?.aliases[name] &&
-            specifier ===
-              `npm:${release.aliases[name]}@${release.release.version}`,
+          (name === '@rsbuild/core' &&
+            release &&
+            specifier === rsbuildSpecifierFromRelease(release)) ||
+            (release?.aliases[name] &&
+              specifier ===
+                `npm:${release.aliases[name]}@${release.release.version}`),
           `The SDK alias ${name} must belong to the verified public release`,
         );
       }

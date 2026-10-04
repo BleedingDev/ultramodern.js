@@ -322,6 +322,75 @@ function documentIdentity(html: string) {
 }
 
 describe('React canonical development metadata with native HMR', () => {
+  it('closes the actual prepared dev compiler when startup rejects before native watch', async () => {
+    const root = createFixture();
+    const failure = new Error('owning prepared development graph rejected');
+    let created: Rspack.Compiler | Rspack.MultiCompiler | undefined;
+    const shutDown = new Set<string>();
+    let prepared = 0;
+    let watchRuns = 0;
+    let publicCompletions = 0;
+    const rsbuild = await createRsbuild({
+      cwd: root,
+      rsbuildConfig: {
+        mode: 'development',
+        server: { host: '127.0.0.1', port: 0, printUrls: false },
+        dev: { hmr: true, liveReload: false, writeToDisk: false },
+        plugins: [
+          {
+            name: 'test-real-prepared-dev-startup-failure',
+            setup(api) {
+              api.onAfterCreateCompiler(({ compiler }) => {
+                created = compiler;
+                for (const candidate of 'compilers' in compiler
+                  ? compiler.compilers
+                  : [compiler]) {
+                  candidate.hooks.watchRun.tap(
+                    'test-no-native-watch-on-startup-failure',
+                    () => {
+                      watchRuns++;
+                    },
+                  );
+                  candidate.hooks.shutdown.tapPromise(
+                    'test-awaited-native-startup-shutdown',
+                    async () => {
+                      await Promise.resolve();
+                      shutDown.add(candidate.options.name!);
+                    },
+                  );
+                }
+              });
+              api.onAfterPrepareDevCompiler(({ compiler }) => {
+                prepared++;
+                expect(compiler).toBe(created);
+                throw failure;
+              });
+              api.onDevCompileDone(() => {
+                publicCompletions++;
+              });
+            },
+          },
+        ],
+        environments: {
+          client: {
+            source: { entry: { csr: path.join(root, 'src', 'csr.js') } },
+          },
+          server: {
+            source: { entry: { ssr: path.join(root, 'src', 'ssr.js') } },
+            output: { target: 'node' },
+          },
+        },
+      },
+    });
+    await expect(
+      rsbuild.createDevServer({ getPortSilently: true }),
+    ).rejects.toBe(failure);
+    expect(prepared).toBe(1);
+    expect(watchRuns).toBe(0);
+    expect(publicCompletions).toBe(0);
+    expect([...shutDown].sort()).toEqual(['client', 'server']);
+  });
+
   it('publishes production identity from the completed client and server import graph without typed CSS', async () => {
     const root = createFixture();
     const shared = fs.mkdtempSync(path.join(os.tmpdir(), 'um-react-imported-'));
@@ -408,7 +477,7 @@ describe('React canonical development metadata with native HMR', () => {
       });
       const built = await rsbuild.build();
       try {
-        expect(metadata.observed).toHaveLength(2);
+        expect(metadata.observed).toHaveLength(3);
         for (const observation of metadata.observed) {
           expect(Object.isFrozen(observation.inputFiles)).toBe(true);
           expect(observation.inputFiles).toContain(clientInput);
@@ -568,6 +637,16 @@ describe('React canonical development metadata with native HMR', () => {
     )!;
     const options = descriptor.options as ReactBuildMetadataServerOptions;
     expect(options.resolveEntries).toBeTypeOf('function');
+    expect(development.observed).toHaveLength(0);
+    let readyBeforeCompiler = false;
+    void options.resolveEntries?.().then(
+      () => {
+        readyBeforeCompiler = true;
+      },
+      () => {},
+    );
+    await Promise.resolve();
+    expect(readyBeforeCompiler).toBe(false);
     const serializedOptions: ReactBuildMetadataServerOptions = JSON.parse(
       JSON.stringify(options),
     );
@@ -577,6 +656,9 @@ describe('React canonical development metadata with native HMR', () => {
     });
     const receipts = receiptQueue();
     let htmlPaths: Record<string, string> = {};
+    let privateClientCompiler: Rspack.Compiler | undefined;
+    let privateCompilerInputs: readonly string[] = [];
+    let privateReady = false;
     const devRsbuild = await createRsbuild({
       cwd: root,
       rsbuildConfig: {
@@ -586,6 +668,38 @@ describe('React canonical development metadata with native HMR', () => {
           {
             name: 'test-genuine-dev-completion-receipt',
             setup(api: RsbuildPluginAPI) {
+              api.onAfterPrepareDevCompiler({
+                order: 'post',
+                handler: async ({ compiler }) => {
+                  privateClientCompiler = (
+                    'compilers' in compiler ? compiler.compilers : [compiler]
+                  ).find(candidate => candidate.options.name === 'client');
+                  expect(privateClientCompiler).toBeDefined();
+                  expect(development.observed).toHaveLength(1);
+                  privateCompilerInputs = development.observed[0].inputFiles;
+                  expect(
+                    privateCompilerInputs.some(filename =>
+                      /[\\/]@rsbuild[\\/]core[\\/]dist[\\/]client[\\/]hmr\.js$/u.test(
+                        filename,
+                      ),
+                    ),
+                  ).toBe(true);
+                  void options.resolveEntries!().then(
+                    () => {
+                      privateReady = true;
+                    },
+                    () => {},
+                  );
+                  await Promise.resolve();
+                  expect(privateReady).toBe(false);
+                  expect(fs.existsSync(devDirectory)).toBe(false);
+                  expect(
+                    fs.readFileSync(
+                      path.join(distDirectory, RENDERER_BUILD_MANIFEST_FILE),
+                    ),
+                  ).toEqual(productionManifest);
+                },
+              });
               api.modifyHTMLTags((tags, { environment }) => {
                 if (environment.name === 'client')
                   htmlPaths = environment.htmlPaths;
@@ -738,9 +852,20 @@ describe('React canonical development metadata with native HMR', () => {
       return manifest;
     };
 
-    const firstReceipt = await receipts.next();
+    // A failed owning pre-completion hook cannot reach the receipt callback.
+    // Success still requires that actual native callback, not readiness alone.
+    const [firstReceipt] = await Promise.all([
+      receipts.next(),
+      options.resolveEntries!(),
+    ]);
     expect(firstReceipt.isFirstCompile).toBe(true);
+    expect(firstReceipt.clientCompiler).toBe(privateClientCompiler);
+    expect(development.observed[1].inputFiles).toEqual(privateCompilerInputs);
+    expect(development.observed[1].identities).toEqual(
+      development.observed[0].identities,
+    );
     const first = await checkGeneration(firstReceipt);
+    expect(privateReady).toBe(true);
     expect(first.devCompilation.generation).toBe(1);
     expect(first.devCompilation.sourceInputDigest).toBe(first.inputDigest);
     const nextReceipt = receipts.next();

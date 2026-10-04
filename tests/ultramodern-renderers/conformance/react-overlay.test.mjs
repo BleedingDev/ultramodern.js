@@ -155,7 +155,10 @@ test('React overlay rejects an unrelated compiler provider before config and ent
     devDependencies: { '@rsbuild/core': '9.0.0' },
   });
   await fs.writeFile(path.join(appRoot, 'package.json'), manifest);
-  await assert.rejects(overlay({ config }), /exact public Rsbuild provider/u);
+  await assert.rejects(
+    overlay({ config }),
+    /manifest-bound maintained Rsbuild provider/u,
+  );
   assert.equal(
     await fs.readFile(path.join(appRoot, 'package.json'), 'utf8'),
     manifest,

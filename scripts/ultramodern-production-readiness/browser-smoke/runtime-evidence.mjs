@@ -1276,15 +1276,9 @@ function bindContractToExpectedReleaseIdentities({
           app,
           sourceRevision,
         );
-        const built = readRegularJson(
-          path.join(projectDir, app.path, '.output'),
-          'ultramodern-build.json',
-          `${app.id} executed build artifact`,
-        );
-        if (canonical(built) !== canonical(expectedBuild))
-          throw new Error(
-            `${app.id} executed build artifact conflicts with its finalized compiler identity`,
-          );
+        // Shells embed the stamped identity in compiled UI/SSR modules. Their
+        // executed HTTP and browser markers are checked against this compiler
+        // expectation; they do not publish a standalone release-envelope carrier.
         const identity = {
           buildMarker: expectedBuild.deliveryUnit.buildMarker,
           releaseVersion: deliveryUnit.version,

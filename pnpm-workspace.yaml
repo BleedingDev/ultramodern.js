@@ -62,6 +62,7 @@ patchedDependencies:
   '@module-federation/modern-js-v3@2.9.1': patches/@module-federation__modern-js-v3@2.9.1.patch
   '@module-federation/rspack@2.9.1': patches/@module-federation__rspack@2.9.1.patch
   '@module-federation/runtime-core@2.9.1': patches/@module-federation__runtime-core@2.9.1.patch
+  '@rsbuild/core@2.2.9': patches/@rsbuild__core@2.2.9.patch
   'effect@4.0.0-rc.117': patches/effect@4.0.0-rc.117.patch
   'zod@4.6.5': patches/zod@4.6.5.patch
 overrides:

@@ -429,6 +429,13 @@ export function reactRendererBuildMetadataPlugin(
                 'React development inputs cannot be promoted or cached',
               );
             if (developmentSession) {
+              // The private completed graph seeds the session. Its first live
+              // wave must reproduce that entire graph before any publication.
+              if (developmentGeneration === 0)
+                assertRendererBuildInputsUnchanged(
+                  developmentSession,
+                  completed,
+                );
               for (const key of [
                 'profileDigest',
                 'compilerDigest',
@@ -469,6 +476,15 @@ export function reactRendererBuildMetadataPlugin(
         // Analyze awaits the full native entry-generation bus before its
         // builder lifecycle. Capture producer bytes only at that boundary.
         initializePhase = () => {
+          if (
+            context.command === 'build' &&
+            getArgv().some(
+              argument => argument === '--watch' || argument === '-w',
+            )
+          )
+            throw new Error(
+              'React production build --watch cannot publish a finalized runtime identity; use dev for watched compilation',
+            );
           typedCssPhase = new ReactTypedCssPhase({
             appDirectory: captured.appDirectory,
             internalDirectory: captured.internalDirectory,
@@ -477,6 +493,7 @@ export function reactRendererBuildMetadataPlugin(
             configurationSourceSnapshot: captured.configurationSourceSnapshot,
             produceTypedCss:
               captured.config.output.enableCssModuleTSDeclaration === true,
+            bindRuntimeIdentity: true,
             generatedOutputs: generatedOutputsController,
             finalize,
             ...(context.command !== 'dev'
@@ -557,6 +574,7 @@ export function reactRendererBuildMetadataPlugin(
             ));
         if (reuseBuilt)
           identities = await readRendererBuildManifest(distDirectory, profile);
+        else preparePhase();
         if (!identities && !typedCssPhase)
           throw new Error(
             'React server metadata requires resolved build identities',

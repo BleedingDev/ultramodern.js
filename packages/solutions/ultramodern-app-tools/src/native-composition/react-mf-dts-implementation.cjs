@@ -139,6 +139,77 @@ function configureReceiverRegistration(options, seed) {
   };
 }
 
+/** Native plugins mutate option containers while applying. Keep those mutations
+ * local to one compiler without serializing away native callback identities. */
+function cloneNativeOptionContainers(value, copies = new Map()) {
+  if (!value || typeof value !== 'object') return value;
+  const prototype = Object.getPrototypeOf(value);
+  if (
+    prototype !== Object.prototype &&
+    prototype !== null &&
+    prototype !== Array.prototype
+  )
+    return value;
+  if (copies.has(value)) return copies.get(value);
+  const copy = Array.isArray(value)
+    ? new Array(value.length)
+    : Object.create(prototype);
+  copies.set(value, copy);
+  const properties = Object.getOwnPropertyDescriptors(value);
+  for (const key of Reflect.ownKeys(properties)) {
+    if (Array.isArray(value) && key === 'length') continue;
+    const descriptor = properties[key];
+    Object.defineProperty(
+      copy,
+      key,
+      'value' in descriptor
+        ? {
+            value: cloneNativeOptionContainers(descriptor.value, copies),
+            enumerable: descriptor.enumerable,
+            configurable: true,
+            writable: true,
+          }
+        : descriptor,
+    );
+  }
+  return copy;
+}
+
+/** The chain supplies its actual native constructor. Each application receives
+ * a fresh instance and options; native shutdown continues to own its resources. */
+function createIsolatedReactFederationPlugin(NativeConstructor) {
+  if (typeof NativeConstructor !== 'function')
+    throw new TypeError('Native MF plugin must be a constructor.');
+  const states = new WeakMap();
+  return class IsolatedReactFederationPlugin {
+    constructor(...args) {
+      const nativeArguments = cloneNativeOptionContainers(args);
+      const initial = Reflect.construct(
+        NativeConstructor,
+        cloneNativeOptionContainers(nativeArguments),
+      );
+      if (typeof initial.apply !== 'function')
+        throw new TypeError('Native MF plugin must implement apply.');
+      states.set(this, { nativeArguments, initial });
+      if ('name' in initial) this.name = initial.name;
+    }
+
+    apply(compiler) {
+      const state = states.get(this);
+      if (!state)
+        throw new TypeError('Native MF plugin application has no owner.');
+      const native =
+        state.initial ??
+        Reflect.construct(
+          NativeConstructor,
+          cloneNativeOptionContainers(state.nativeArguments),
+        );
+      state.initial = undefined;
+      return Reflect.apply(native.apply, native, [compiler]);
+    }
+  };
+}
+
 function installReceiverRegistry(registry) {
   if (!registry || typeof registry.begin !== 'function')
     throw new TypeError('Receiver DTS registry must implement begin.');
@@ -1440,6 +1511,8 @@ module.exports = NativeReceiverDTSManager;
 module.exports.EXTRA_OPTIONS_KEY = EXTRA_OPTIONS_KEY;
 module.exports.installReceiverRegistry = installReceiverRegistry;
 module.exports.configureReceiverRegistration = configureReceiverRegistration;
+module.exports.createIsolatedReactFederationPlugin =
+  createIsolatedReactFederationPlugin;
 module.exports.observeReceiverNodes = observeReceiverNodes;
 module.exports.nativeDtsOwner = nativeDtsOwner;
 module.exports.nativeDtsModules = nativeDtsModules;

@@ -169,7 +169,8 @@ function writeBuiltApp(root, app, sourceRevision, buildMarker) {
   );
   writeJson(appRoot, 'shared/ultramodern-build.json', source);
   writeJson(appRoot, '.output/renderer-build.json', manifest);
-  writeJson(appRoot, '.output/ultramodern-build.json', finalized);
+  if (app.kind !== 'shell')
+    writeJson(appRoot, '.output/ultramodern-build.json', finalized);
   return { appRoot, source, finalized, manifest, ownerRequire };
 }
 
@@ -276,14 +277,6 @@ for (const [renderer, stamps] of [
 
 for (const [label, change, expected] of [
   [
-    'foreign build marker',
-    built => {
-      built.manifest.buildMarker = '0'.repeat(64);
-      built.manifest.identities.main.buildId = built.manifest.buildMarker;
-    },
-    /executed build artifact conflicts/u,
-  ],
-  [
     'foreign source revision',
     built => {
       built.manifest.sourceRevision = 'b'.repeat(40);
@@ -371,6 +364,55 @@ for (const [label, change, expected] of [
     );
   });
 }
+
+test('browser smoke compares executed shell SSR with its coherent finalized compiler marker', async t => {
+  const { readSmokeContract } = await import('../browser-smoke/contract.mjs');
+  const { bindContractToExpectedReleaseIdentities } = await import(
+    '../browser-smoke/runtime-evidence.mjs'
+  );
+  const { validateHttpTarget } = await import(
+    '../browser-smoke/http-validate.mjs'
+  );
+  const { createSmokeTargets } = await loadSmoke();
+  const root = tempRoot();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const topology = writeStampedShell(
+    root,
+    'react',
+    '0.2.0',
+    'shell-generation',
+  );
+  const built = writeBuiltApp(
+    root,
+    topology.shell,
+    'a'.repeat(40),
+    'f'.repeat(64),
+  );
+  assert.equal(
+    fs.existsSync(path.join(built.appRoot, '.output/ultramodern-build.json')),
+    false,
+  );
+  const manifest = structuredClone(built.manifest);
+  manifest.buildMarker = '0'.repeat(64);
+  manifest.identities.main.buildId = manifest.buildMarker;
+  writeJson(built.appRoot, '.output/renderer-build.json', manifest);
+  const contract = bindContractToExpectedReleaseIdentities({
+    contract: readSmokeContract(root).contract,
+    expectedSourceRevisions: { shell: 'a'.repeat(40) },
+    platform: 'node',
+    projectDir: root,
+  });
+  assert.equal(contract.apps[0].marker.build, manifest.buildMarker);
+  const [target] = createSmokeTargets(contract).targets;
+  await assert.rejects(
+    () =>
+      validateHttpTarget(target, {
+        fetchImpl: async () =>
+          response(200, html({ marker: built.manifest.buildMarker })),
+      }),
+    /shell SSR UI marker mismatch/u,
+  );
+});
 
 async function writeVerticalRelease(
   root,

@@ -595,10 +595,25 @@ describe('React generated output phase across a native development graph', () =>
       expect(second?.snapshot).toBe(first?.snapshot);
       expect(run.generationBindings).toEqual([first]);
       expect(run.graphChecks).toHaveLength(0);
+      // A dependent child's later watchRun revalidates the completed client's
+      // receipt before starting its own IO. Parallel children share the first
+      // preparation lease; neither preparation lease publishes the graph.
+      const preparationLeases = dependent ? 2 : 1;
+      expect(
+        run.leases.map(lease =>
+          lease.receipts.map(
+            binding => binding.registration.generation.compilerId,
+          ),
+        ),
+      ).toEqual(dependent ? [[], ['client']] : [[]]);
+      for (const lease of run.leases)
+        expect(() => lease.assertEpochCurrent()).toThrow(
+          'Phase test receipt lease is stale.',
+        );
       expect(run.counts()).toEqual({
         finalizations: 0,
         publications: 0,
-        released: 1,
+        released: preparationLeases,
         readyState: 'pending',
       });
 
@@ -618,12 +633,13 @@ describe('React generated output phase across a native development graph', () =>
       for (const stats of run.graphChecks)
         expect(stats.stats).toEqual(aggregate.stats);
       expect(resolved.identities.main?.buildId).toBe('a'.repeat(64));
-      expect(run.finalLease()).toBe(run.leases[1]);
-      expect(run.publicationLeases).toEqual([run.leases[1]]);
+      expect(run.leases).toHaveLength(preparationLeases + 1);
+      expect(run.finalLease()).toBe(run.leases[preparationLeases]);
+      expect(run.publicationLeases).toEqual([run.leases[preparationLeases]]);
       expect(run.counts()).toEqual({
         finalizations: 1,
         publications: 1,
-        released: 2,
+        released: preparationLeases + 1,
         readyState: 'ready',
       });
     } finally {

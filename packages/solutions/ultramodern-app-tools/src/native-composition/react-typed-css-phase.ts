@@ -14,16 +14,28 @@ import {
 } from '@modern-js/app-tools-extensions/renderer-generated-outputs';
 import { escapeInlineDataJSON } from '@modern-js/renderer-core/data';
 import type { RendererIdentity } from '@modern-js/renderer-core/identity';
-import { type RsbuildPluginAPI, type Rspack, rspack } from '@rsbuild/core';
+import {
+  type EnvironmentContext,
+  type RsbuildPluginAPI,
+  type Rspack,
+  rspack,
+} from '@rsbuild/core';
 import {
   type ConfigSourceSnapshot,
   captureConfigSourceSnapshot,
   resolveConfigSourcePhysicalPath,
 } from './config-evaluator/source-snapshot';
+import { assertRendererBuildInputsUnchanged } from './native-build-manifest';
+import { isUltramodernReleaseIdentityBannerPlugin } from './preset';
 import {
   reactInputGitPathspecs,
   reactWorkspaceCatalogInputs,
 } from './react-authored-inputs';
+import {
+  installReactBuildMarkerBinding,
+  REACT_BUILD_MARKER_EXPRESSION,
+  REACT_SOURCE_REVISION_EXPRESSION,
+} from './react-build-marker-binding';
 
 const RECORD_KEY = 'ultramodernReactTypedCss';
 const PRODUCER_VERSION = '1.2.4';
@@ -122,6 +134,8 @@ export interface ReactTypedCssPhaseOptions {
   inputPaths?: readonly string[];
   configurationSourceSnapshot?: ConfigSourceSnapshot;
   produceTypedCss?: boolean;
+  /** The UI metadata owner requires a complete private graph before emission. */
+  bindRuntimeIdentity?: boolean;
   generatedOutputs?: ReactGeneratedOutputPhaseController;
   finalize(
     stats: Rspack.Stats | Rspack.MultiStats,
@@ -154,6 +168,8 @@ export class ReactTypedCssPhase {
   private finalization: Promise<void> = Promise.resolve();
   private epoch = 0;
   private closed = false;
+  private discovering = false;
+  private runtimeIdentities: RendererBuildIdentities | undefined;
   private reservedGeneration: ReactGeneratedOutputGeneration | undefined;
   private receiptLease: RendererGeneratedOutputIdentityLease | undefined;
   private preparation: Promise<void> | undefined;
@@ -251,7 +267,10 @@ export class ReactTypedCssPhase {
       );
     const token = escapeInlineDataJSON(
       JSON.stringify(
-        sessionIdentity ?? { ultramodernPendingReactIdentity: randomUUID() },
+        sessionIdentity ??
+          (!this.discovering
+            ? this.runtimeIdentities?.identities[entryName]
+            : undefined) ?? { ultramodernPendingReactIdentity: randomUUID() },
       ),
     );
     this.htmlOutputs.set(filename, { entryName, token });
@@ -433,6 +452,61 @@ export class ReactTypedCssPhase {
     let completeNative:
       | ((stats: Rspack.Stats | Rspack.MultiStats) => Promise<void>)
       | undefined;
+    let checkpointNative: typeof completeNative;
+    if (this.options.bindRuntimeIdentity) {
+      api.onBeforeBuild(({ isWatch }) => {
+        if (isWatch)
+          throw new Error(
+            'React production build --watch cannot publish a finalized runtime identity; use dev for watched compilation',
+          );
+      });
+      api.modifyBundlerChain({
+        order: 'post',
+        handler: chain => {
+          if (chain.plugins.has('globalVars'))
+            chain.plugin('globalVars').tap(args => {
+              const definitions = { ...args[0] };
+              delete definitions.ULTRAMODERN_BUILD_MARKER;
+              delete definitions.ULTRAMODERN_SOURCE_REVISION;
+              return [definitions, ...args.slice(1)];
+            });
+          chain
+            .plugin('ultramodern-react-runtime-identity')
+            .use(rspack.DefinePlugin, [
+              {
+                ULTRAMODERN_BUILD_MARKER: REACT_BUILD_MARKER_EXPRESSION,
+                ULTRAMODERN_SOURCE_REVISION: REACT_SOURCE_REVISION_EXPRESSION,
+              },
+            ]);
+        },
+      });
+      api.modifyRspackConfig({
+        order: 'post',
+        handler: config => {
+          config.plugins = config.plugins?.filter(
+            plugin => !isUltramodernReleaseIdentityBannerPlugin(plugin),
+          );
+          config.plugins ??= [];
+          config.plugins.push(
+            new rspack.BannerPlugin({
+              banner: () => {
+                if (this.discovering) return '';
+                const identity = this.runtimeIdentities;
+                if (!identity)
+                  throw new Error(
+                    'React emitting asset has no finalized runtime identity',
+                  );
+                return `void ${JSON.stringify(identity.buildMarker)};void ${JSON.stringify(identity.sourceRevision)};`;
+              },
+              raw: true,
+              stage: rspack.Compilation.PROCESS_ASSETS_STAGE_SUMMARIZE,
+              test: /\.(?:c|m)?js$/u,
+            }),
+          );
+          return config;
+        },
+      });
+    }
     if (this.options.publishDevelopment) {
       api.modifyRsbuildConfig(config => {
         if (config.mode !== undefined && config.mode !== 'development')
@@ -446,6 +520,7 @@ export class ReactTypedCssPhase {
       api.onDevCompileDone({
         order: 'pre',
         handler: async ({ stats }) => {
+          if (this.discovering) return;
           if (!completeNative)
             throw new Error(
               'React development metadata has no owning compiler',
@@ -479,6 +554,7 @@ export class ReactTypedCssPhase {
       api.onAfterBuild({
         order: 'pre',
         handler: async ({ stats }) => {
+          if (this.discovering) return;
           if (!completeNative || !stats)
             throw new Error(
               'React build metadata requires a completed native compiler',
@@ -490,6 +566,7 @@ export class ReactTypedCssPhase {
       });
     }
     api.onAfterBuild(async () => {
+      if (this.discovering) return;
       await this.resolveIdentities();
     });
     api.modifyRspackConfig((config, { environment }) => {
@@ -558,13 +635,22 @@ export class ReactTypedCssPhase {
       return config;
     });
 
-    api.onAfterCreateCompiler(({ compiler, environments }) => {
+    const installCompiler = (
+      compiler: Rspack.Compiler | Rspack.MultiCompiler,
+      environments: Record<string, EnvironmentContext>,
+    ) => {
       if (this.options.publishDevelopment && api.context.action !== 'dev')
         throw new Error(
           'React development metadata requires a native dev compiler',
         );
       const compilers =
         'compilers' in compiler ? compiler.compilers : [compiler];
+      if (this.options.bindRuntimeIdentity)
+        for (const candidate of compilers)
+          installReactBuildMarkerBinding(candidate, rspack, {
+            getBinding: () => this.runtimeIdentities,
+            shouldEmit: () => !this.discovering,
+          });
       const web = compilers.filter(
         candidate =>
           environments[candidate.options.name ?? '']?.config.output.target ===
@@ -572,6 +658,12 @@ export class ReactTypedCssPhase {
       );
       const client = web.find(candidate => candidate.options.name === 'client');
       const observed = new Map<string, ProducerRecord[]>();
+      const currentCompilations = new Map<
+        Rspack.Compiler,
+        Rspack.Compilation
+      >();
+      let observedPass: boolean | undefined;
+      let discoveryCompletion: Promise<void> | undefined;
       let failedGeneration: typeof this.compilerGeneration;
       const finishFailedGeneration = () => {
         const generation = failedGeneration;
@@ -603,7 +695,23 @@ export class ReactTypedCssPhase {
         await this.finalization.catch(() => {});
         if (this.closed)
           throw new Error('React compiler closed before metadata preparation');
-        if (this.started) return;
+        if (this.started) {
+          if (!this.discovering) {
+            await this.options.generatedOutputs?.waitForIdle();
+            const lease = await this.options.generatedOutputs?.pinReceipts();
+            this.receiptLease = lease;
+            try {
+              await lease?.assertCurrent();
+              this.assertSelectedReceiptMembers(lease);
+              this.assertAuthoredInputsUnchanged();
+              await lease?.assertCurrent();
+            } finally {
+              lease?.release();
+              if (this.receiptLease === lease) this.receiptLease = undefined;
+            }
+          }
+          return;
+        }
         // Unfinished receiver IO must settle before a native generation may
         // capture a fresh baseline. A BEGIN reservation already owns its
         // pre-write baseline and must never be recaptured here.
@@ -664,6 +772,7 @@ export class ReactTypedCssPhase {
         return this.preparation;
       };
       const finalize = async (inputStats: Rspack.Stats | Rspack.MultiStats) => {
+        const discovery = this.discovering;
         // Native aggregates retain an array that later child completions reuse.
         // Keep this callback bound to the actual member compilations it began.
         const stats =
@@ -735,7 +844,7 @@ export class ReactTypedCssPhase {
                 digest(record.outputPath) !== record.outputDigest
               )
                 throw new Error(
-                  'React typed CSS cached producer output is missing or changed',
+                  `React typed CSS cached producer output is missing or changed (${producer.options.name}, discovery=${discovery}, recorded=${record.outputDigest}, actual=${record.outputPath ? digest(record.outputPath) : 'missing'})`,
                 );
               if (
                 !this.snapshot.states.some(
@@ -758,6 +867,20 @@ export class ReactTypedCssPhase {
           const identities = await this.options.finalize(stats, lease);
           await assertPinned();
           this.assertAuthoredInputsUnchanged();
+          if (discovery) {
+            this.runtimeIdentities = identities;
+            return;
+          }
+          if (this.options.bindRuntimeIdentity) {
+            if (!this.runtimeIdentities)
+              throw new Error(
+                'React emitting compiler has no private discovery identity',
+              );
+            assertRendererBuildInputsUnchanged(
+              this.runtimeIdentities,
+              identities,
+            );
+          }
           const publish = async () => {
             await assertPinned();
             const clientCompilation = results.find(
@@ -833,25 +956,39 @@ export class ReactTypedCssPhase {
           lease?.release();
           if (this.receiptLease === lease) this.receiptLease = undefined;
           if (this.finalizingEpoch === epoch) this.finalizingEpoch = undefined;
-          if (this.compilerGeneration === compilerGeneration)
+          if (!discovery && this.compilerGeneration === compilerGeneration)
             this.compilerGeneration = undefined;
-          if (epoch === this.epoch) {
+          if (!discovery && epoch === this.epoch) {
             this.completed = true;
             this.started = false;
           }
         }
       };
       const complete = (stats: Rspack.Stats | Rspack.MultiStats) => {
+        if (this.discovering && discoveryCompletion) return discoveryCompletion;
         if (!this.compilerGeneration) return this.finalization;
         if (this.finalizingEpoch === this.compilerGeneration.epoch)
           return this.finalization;
         this.finalization = finalize(stats);
+        if (this.discovering) discoveryCompletion = this.finalization;
         void this.finalization.catch(() => {});
         return this.finalization;
       };
       completeNative = complete;
+      checkpointNative = complete;
       if (!this.options.publishDevelopment && 'compilers' in compiler)
         compiler.hooks.done.tap('ultramodern:react:typed-css', stats => {
+          // MultiCompiler retains earlier child stats across public run calls.
+          // A dependent child may not have started this pass when done fires.
+          if (
+            currentCompilations.size !== compilers.length ||
+            stats.stats.some(
+              result =>
+                currentCompilations.get(result.compilation.compiler) !==
+                result.compilation,
+            )
+          )
+            return;
           void complete(stats);
         });
       else if (!this.options.publishDevelopment)
@@ -860,6 +997,11 @@ export class ReactTypedCssPhase {
         let nativeGeneration: typeof this.compilerGeneration;
         const prepareCandidate = async () => {
           nativeGeneration = undefined;
+          if (observedPass !== this.discovering) {
+            observedPass = this.discovering;
+            observed.clear();
+            currentCompilations.clear();
+          }
           try {
             await prepare();
           } finally {
@@ -877,6 +1019,12 @@ export class ReactTypedCssPhase {
         candidate.hooks.watchRun.tapPromise(
           'ultramodern:react:typed-css',
           prepareCandidate,
+        );
+        candidate.hooks.thisCompilation.tap(
+          'ultramodern:react:graph-pass',
+          compilation => {
+            currentCompilations.set(candidate, compilation);
+          },
         );
         if (this.options.produceTypedCss !== false && web.includes(candidate))
           candidate.hooks.thisCompilation.tap(
@@ -1006,7 +1154,70 @@ export class ReactTypedCssPhase {
             );
         });
       }
-    });
+    };
+    api.onAfterCreateCompiler(({ compiler, environments }) =>
+      installCompiler(compiler, environments),
+    );
+    const discover = async (
+      compiler: Rspack.Compiler | Rspack.MultiCompiler,
+    ) => {
+      const stats = await new Promise<Rspack.Stats | Rspack.MultiStats>(
+        (resolve, reject) =>
+          compiler.run((error, result) => {
+            if (error) reject(error);
+            else if (!result)
+              reject(new Error('React discovery compiler returned no graph'));
+            else resolve(result);
+          }),
+      );
+      if (!checkpointNative)
+        throw new Error('React discovery has no owning compiler checkpoint');
+      await checkpointNative(stats);
+      if (!this.runtimeIdentities)
+        throw new Error(
+          'React discovery did not finalize its runtime identity',
+        );
+    };
+    const closeCompiler = (compiler: Rspack.Compiler | Rspack.MultiCompiler) =>
+      new Promise<void>((resolve, reject) =>
+        compiler.close(error => (error ? reject(error) : resolve())),
+      );
+    const discoverPreparedCompiler = async (
+      { compiler }: { compiler: Rspack.Compiler | Rspack.MultiCompiler },
+      closeOnFailure: boolean,
+    ) => {
+      this.discovering = true;
+      try {
+        await discover(compiler);
+      } catch (error) {
+        this.fail(error);
+        if (closeOnFailure)
+          try {
+            await closeCompiler(compiler);
+          } catch (closeError) {
+            throw new AggregateError(
+              [error, closeError],
+              'React discovery failed and its native compiler could not close',
+            );
+          }
+        throw error;
+      } finally {
+        this.discovering = false;
+      }
+    };
+    if (this.options.bindRuntimeIdentity) {
+      if (this.options.publishDevelopment)
+        api.onAfterPrepareDevCompiler({
+          order: 'post',
+          // The native prepared-dev boundary owns compiler cleanup on failure.
+          handler: args => discoverPreparedCompiler(args, false),
+        });
+      else
+        api.onAfterCreateCompiler({
+          order: 'post',
+          handler: args => discoverPreparedCompiler(args, true),
+        });
+    }
   }
 
   private fail(error: unknown): void {

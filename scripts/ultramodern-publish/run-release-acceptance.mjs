@@ -34,6 +34,7 @@ const valueOptions = new Set([
   '--run-identity',
   '--scale-profile',
   '--store-dir',
+  '--work-dir',
 ]);
 const booleanOptions = new Set(['--verify-receipt']);
 
@@ -112,6 +113,16 @@ function parseArgs(argv) {
   ) {
     throw new Error('--store-dir must be an absolute path');
   }
+  const workDirValue = values.get('--work-dir');
+  if (
+    workDirValue !== undefined &&
+    (!path.isAbsolute(workDirValue) || workDirValue.includes('\0'))
+  ) {
+    throw new Error('--work-dir must be an absolute path');
+  }
+  if (workDirValue !== undefined && mode !== 'prepublish') {
+    throw new Error('--work-dir is only valid with prepublish acceptance');
+  }
   return {
     expectedSourceRevision: values.get('--expected-source-revision'),
     expectedMode,
@@ -128,6 +139,8 @@ function parseArgs(argv) {
     runIdentity: values.get('--run-identity'),
     scaleProfile,
     storeDir: storeValue === undefined ? undefined : path.resolve(storeValue),
+    workDir:
+      workDirValue === undefined ? undefined : path.resolve(workDirValue),
   };
 }
 
@@ -226,6 +239,33 @@ async function executeAcceptanceProfile(options) {
 }
 
 async function runPrepublish({ release, options, runIdentity }) {
+  if (options.workDir !== undefined) {
+    const stat = fs.lstatSync(options.workDir);
+    if (
+      !stat.isDirectory() ||
+      stat.isSymbolicLink() ||
+      fs.realpathSync(options.workDir) !== options.workDir ||
+      (typeof process.getuid === 'function' && stat.uid !== process.getuid())
+    ) {
+      throw new Error(
+        '--work-dir must be an existing physical caller-owned directory',
+      );
+    }
+    const entries = fs.readdirSync(options.workDir);
+    if (entries.some(entry => entry !== '.disk-guardian-owner')) {
+      throw new Error(
+        '--work-dir must be fresh; retained workspaces are rechecked with the browser-smoke CLI',
+      );
+    }
+    if (entries.length > 0) {
+      const marker = fs.lstatSync(
+        path.join(options.workDir, '.disk-guardian-owner'),
+      );
+      if (!marker.isFile() || marker.isSymbolicLink()) {
+        throw new Error('--work-dir ownership marker must be an ordinary file');
+      }
+    }
+  }
   const registryRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), 'ultramodern-verdaccio-'),
   );
@@ -248,6 +288,8 @@ async function runPrepublish({ release, options, runIdentity }) {
       runIdentity,
       releaseAgePolicyPath: options.releaseAgePolicyPath,
       storeDir: options.storeDir,
+      // A supplied directory remains owned by the caller on success or failure.
+      workDir: options.workDir,
     });
   } finally {
     await registry?.stop();

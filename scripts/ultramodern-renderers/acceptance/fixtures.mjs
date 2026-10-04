@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { authorEntryVariants } from './entries.mjs';
 import { renderers } from './matrix.mts';
+import { resolveRsbuildDependency } from './rsbuild-dependency.mjs';
 import { nativeTypePrograms } from './type-programs.mjs';
 
 const fixtureRoot = fileURLToPath(
@@ -69,6 +70,7 @@ export async function createHandAuthoredConsumer({
   dependencySpecs,
   scripts,
   minimumNode,
+  releaseManifest,
 }) {
   if (!renderers.includes(renderer) || !path.isAbsolute(consumerRoot ?? '')) {
     throw new Error(
@@ -85,6 +87,19 @@ export async function createHandAuthoredConsumer({
     throw new Error(
       'The actual mapped public app-tools package must be installed',
     );
+  }
+  if (
+    releaseManifest !== undefined ||
+    (typeof dependencySpecs['@rsbuild/core'] === 'string' &&
+      dependencySpecs['@rsbuild/core'].startsWith('npm:'))
+  ) {
+    dependencySpecs = {
+      ...dependencySpecs,
+      '@rsbuild/core': resolveRsbuildDependency({
+        releaseManifest,
+        specifier: dependencySpecs['@rsbuild/core'],
+      }),
+    };
   }
   for (const [name, version] of Object.entries(dependencySpecs)) {
     if (
@@ -108,6 +123,7 @@ export async function createHandAuthoredConsumer({
         );
       continue;
     }
+    if (name === '@rsbuild/core' && releaseManifest !== undefined) continue;
     if (!exactVersion.test(version))
       throw new Error(
         "Fixture dependencies must use exact admitted registry versions or the configured renderer's exact maintained archive tuple",
