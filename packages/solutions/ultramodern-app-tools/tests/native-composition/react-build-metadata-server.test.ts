@@ -1,3 +1,11 @@
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import {
+  type RendererRouterBindings,
+  type RouterPackageBinding,
+  validateRendererRouterBindings,
+} from '@modern-js/backend-federation-contracts';
 import type { RendererIdentity } from '@modern-js/renderer-core/identity';
 import {
   createServerBase,
@@ -7,11 +15,18 @@ import {
 import type { ServerRoute } from '@modern-js/types';
 import { MAIN_ENTRY_NAME } from '@modern-js/utils/universal/constants';
 import { afterEach, describe, expect, it } from '@rstest/core';
-import { RENDERER_BUILD_MANIFEST_FILE } from '../../src/native-composition/native-build-manifest';
+import {
+  RENDERER_BUILD_MANIFEST_FILE,
+  RENDERER_DEVELOPMENT_DIRECTORY,
+} from '../../src/native-composition/native-build-manifest';
 import reactBuildMetadataServerPlugin, {
   REACT_RENDERER_IDENTITY_HEADER,
   type ReactBuildMetadataServerOptions,
 } from '../../src/native-composition/react-build-metadata-server';
+import {
+  resolveCandidateRendererProfile,
+  resolveRendererProfile,
+} from '../../src/native-composition/renderer-profile';
 
 function identity(entryName = 'main'): RendererIdentity {
   return {
@@ -33,12 +48,62 @@ function route(entryName = 'main', urlPath = '/react'): ServerRoute {
 }
 
 const activeServers: ReturnType<typeof createServerBase<ServerEnv>>[] = [];
+const manifestDirectories: string[] = [];
 
 afterEach(async () => {
   await Promise.all(activeServers.splice(0).map(server => server.dispose()));
+  await Promise.all(
+    manifestDirectories
+      .splice(0)
+      .map(directory => fs.rm(directory, { recursive: true, force: true })),
+  );
 });
 
+async function committedManifest(
+  routerBindings: RendererRouterBindings,
+  mode: 'production' | 'development',
+) {
+  const directory = await fs.mkdtemp(
+    path.join(os.tmpdir(), 'react-build-metadata-'),
+  );
+  manifestDirectories.push(directory);
+  const outputDirectory =
+    mode === 'development'
+      ? path.join(directory, RENDERER_DEVELOPMENT_DIRECTORY)
+      : directory;
+  await fs.mkdir(outputDirectory, { recursive: true });
+  await fs.writeFile(
+    path.join(outputDirectory, RENDERER_BUILD_MANIFEST_FILE),
+    JSON.stringify({
+      schema: 'ultramodern-renderer-build',
+      version: 1,
+      profile: resolveRendererProfile('react'),
+      identities: { main: identity(), other: identity('other') },
+      routerBindings,
+      buildMarker: 'a'.repeat(64),
+      sourceRevision: 'workspace',
+      inputDigest: 'b'.repeat(64),
+      profileDigest: 'c'.repeat(64),
+      compilerDigest: 'd'.repeat(64),
+      frameworkCohortDigest: 'e'.repeat(64),
+      cacheAllowed: false,
+      promotable: false,
+      ...(mode === 'development'
+        ? {
+            devCompilation: {
+              compilationHashes: { client: 'a' },
+              generation: 1,
+              sourceInputDigest: 'b'.repeat(64),
+            },
+          }
+        : {}),
+    }),
+  );
+  return directory;
+}
+
 async function metadataServer({
+  pwd = '',
   response = new Response('existing response'),
   renderRoute = route(),
   originalRoute = route(),
@@ -50,6 +115,7 @@ async function metadataServer({
   nativePlugin,
   duplicateMiddleware = false,
 }: {
+  pwd?: string;
   response?: Response;
   renderRoute?: ServerRoute | null;
   originalRoute?: ServerRoute | null;
@@ -62,7 +128,7 @@ async function metadataServer({
   duplicateMiddleware?: boolean;
 } = {}) {
   const server = createServerBase<ServerEnv>({
-    pwd: '',
+    pwd,
     routes,
     appContext: { appDirectory: '', apiDirectory: '', lambdaDirectory: '' },
     config: {
@@ -120,6 +186,89 @@ async function metadataServer({
 }
 
 describe('React server build metadata', () => {
+  it.each([
+    ['solid', 'production'],
+    ['octane', 'production'],
+    ['solid', 'development'],
+    ['octane', 'development'],
+  ] as const)('rejects canonical %s router bindings in late committed %s metadata', async (renderer, mode) => {
+    const provider: RouterPackageBinding = {
+      framework: renderer,
+      ...resolveCandidateRendererProfile(renderer).router,
+    };
+    const binding = {
+      owner: `@modern-js/renderer-${renderer}`,
+      evidence: 'owned-default' as const,
+      defaultProvider: provider,
+      providers: [provider] as const,
+    };
+    const routerBindings = { main: binding, other: binding };
+    expect(
+      validateRendererRouterBindings(routerBindings, ['main', 'other']).ok,
+    ).toBe(true);
+    const pwd = await committedManifest(routerBindings, mode);
+    const preparing = metadataServer({
+      pwd,
+      plugin: reactBuildMetadataServerPlugin({
+        manifestFile: RENDERER_BUILD_MANIFEST_FILE,
+        ...(mode === 'development' ? { manifestMode: 'development' } : {}),
+      }),
+    });
+
+    if (mode === 'production') {
+      await expect(preparing).rejects.toThrow(
+        'must be admitted by the selected router owner.',
+      );
+    } else {
+      const server = await preparing;
+      const response = await server.request('/react/result');
+      expect(response.status).toBe(500);
+      expect(response.headers.has(REACT_RENDERER_IDENTITY_HEADER)).toBe(false);
+    }
+  });
+
+  it.each([
+    'production',
+    'development',
+  ] as const)('admits a mixed React router registry in late committed %s metadata', async mode => {
+    const reactRouter: RouterPackageBinding = {
+      framework: 'react-router',
+      ...resolveRendererProfile('react').router,
+    };
+    const tanstackRouter: RouterPackageBinding = {
+      framework: 'tanstack',
+      name: '@tanstack/react-router',
+      version: '1.171.34',
+      coreName: '@tanstack/router-core',
+      coreVersion: '1.171.15',
+    };
+    const binding = {
+      owner: '@modern-js/renderer-react',
+      evidence: 'provider-registry' as const,
+      defaultProvider: reactRouter,
+      providers: [reactRouter, tanstackRouter],
+    };
+    const routerBindings = { main: binding, other: binding };
+    expect(
+      validateRendererRouterBindings(routerBindings, ['main', 'other']).ok,
+    ).toBe(true);
+    const server = await metadataServer({
+      pwd: await committedManifest(routerBindings, mode),
+      plugin: reactBuildMetadataServerPlugin({
+        manifestFile: RENDERER_BUILD_MANIFEST_FILE,
+        ...(mode === 'development' ? { manifestMode: 'development' } : {}),
+      }),
+    });
+
+    const response = await server.request('/react/result');
+
+    expect(response.status).toBe(200);
+    expect(
+      JSON.parse(response.headers.get(REACT_RENDERER_IDENTITY_HEADER)!),
+    ).toEqual(identity());
+    expect(await response.text()).toBe('existing response');
+  });
+
   it('serves native assets and APIs while document identity is pending', async () => {
     let finish!: (entries: Record<string, RendererIdentity>) => void;
     const ready = new Promise<Record<string, RendererIdentity>>(resolve => {

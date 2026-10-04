@@ -17,6 +17,7 @@ import {
   initPluginAPI,
 } from '@modern-js/plugin/cli';
 import { bffPlugin as nativeBffPlugin } from '@modern-js/plugin-bff';
+import type { RendererIdentity } from '@modern-js/renderer-core/identity';
 import type { Entrypoint } from '@modern-js/types';
 import {
   createRsbuild,
@@ -28,20 +29,28 @@ import {
 import { describe, expect, it, rstest } from '@rstest/core';
 import { createDefaultConfig } from '../../../app-tools/src/config';
 import { getBundleEntry } from '../../../app-tools/src/plugins/analyze/getBundleEntry';
+import { observeUltramodernConfigLoad } from '../../src/native-composition/config';
+import { createConfigurationReadContextPlugin } from '../../src/native-composition/configuration-read-context';
 import {
   defineConfig,
   resolveUltramodernConfig,
 } from '../../src/native-composition/index';
+import { nativeClientAssetsPlugin } from '../../src/native-composition/native-assets';
+import { readRendererBuildManifest } from '../../src/native-composition/native-build-manifest';
 import { NativeDevelopment } from '../../src/native-composition/native-development';
 import {
   type NativeEntryGenerator,
   type NativeInfrastructureOptions,
   nativeRendererInfrastructurePlugin,
 } from '../../src/native-composition/native-infrastructure';
-import { resolveRendererProfile } from '../../src/native-composition/renderer-profile';
+import {
+  resolveCandidateRendererProfile,
+  resolveRendererProfile,
+} from '../../src/native-composition/renderer-profile';
 import { nativeRendererIsolationPlugin } from '../../src/native-composition/renderer-selection';
+import { createReplacementCompilerArtifacts } from './replacement-compiler-artifacts';
 
-type NativeRenderer = 'solid' | 'octane';
+type NativeRenderer = 'solid' | 'octane' | 'replacement';
 
 async function initializeInfrastructure(
   renderer: NativeRenderer,
@@ -52,19 +61,27 @@ async function initializeInfrastructure(
   withBff = false,
   command: 'build' | 'dev' = 'build',
 ) {
-  const manager = createPluginManager();
-  manager.addPlugins([
-    appTools({ rendererExtensions: false, serverExtensions: false }),
-    nativeRendererInfrastructurePlugin(renderer, generator, options),
-    ...(withBff ? [nativeBffPlugin()] : []),
-  ]);
-  const plugins = manager.getPlugins();
   const config = {
     renderer,
     source: { entriesDir: './src', mainEntryName: 'main' },
     server: { ssr },
     output: { cleanDistPath: false },
   };
+  const configFile = path.join(appDirectory, 'infrastructure.config.json');
+  fs.writeFileSync(configFile, JSON.stringify(config));
+  const captured = await observeUltramodernConfigLoad(
+    { appDirectory, configFile },
+    async () =>
+      JSON.parse(fs.readFileSync(configFile, 'utf8')) as typeof config,
+  );
+  const manager = createPluginManager();
+  manager.addPlugins([
+    createConfigurationReadContextPlugin(() => captured.consumedSourceInputs),
+    appTools({ rendererExtensions: false, serverExtensions: false }),
+    nativeRendererInfrastructurePlugin(renderer, generator, options),
+    ...(withBff ? [nativeBffPlugin()] : []),
+  ]);
+  const plugins = manager.getPlugins();
   const context = await createContext<AppTools>({
     appContext: initAppContext({
       packageName: 'native-infrastructure-proof',
@@ -74,8 +91,8 @@ async function initializeInfrastructure(
       metaName: 'modern-js',
       plugins,
     }),
-    config,
-    normalizedConfig: config as AppNormalizedConfig,
+    config: captured.value,
+    normalizedConfig: captured.value as AppNormalizedConfig,
   });
   const api = initPluginAPI({ context, pluginManager: manager });
   context.pluginAPI = api;
@@ -90,9 +107,20 @@ function createFixture() {
     path.join(os.tmpdir(), 'um-native-infrastructure-'),
   );
   fs.mkdirSync(path.join(root, 'src'), { recursive: true });
+  const sdkDirectory = path.resolve(import.meta.dirname, '../..');
+  const sdkManifest = JSON.parse(
+    fs.readFileSync(path.join(sdkDirectory, 'package.json'), 'utf8'),
+  );
+  const sdkSlot = path.join(root, 'node_modules', sdkManifest.name);
+  fs.mkdirSync(path.dirname(sdkSlot), { recursive: true });
+  fs.symlinkSync(sdkDirectory, sdkSlot, 'dir');
   fs.writeFileSync(
     path.join(root, 'package.json'),
-    JSON.stringify({ name: 'native-infrastructure-proof', private: true }),
+    JSON.stringify({
+      name: 'native-infrastructure-proof',
+      private: true,
+      devDependencies: { [sdkManifest.name]: sdkManifest.version },
+    }),
   );
   fs.writeFileSync(
     path.join(root, 'tsconfig.json'),
@@ -450,20 +478,26 @@ describe('native infrastructure in the owning CLI hooks', () => {
   });
 
   it.each([
-    'solid',
-    'octane',
-  ] as const)('discovers %s App source through checkEntryPoint before the ordinary fallback', async renderer => {
+    { renderer: 'solid', source: 'App.tsx' },
+    { renderer: 'solid', source: 'App.jsx' },
+    { renderer: 'octane', source: 'App.tsx' },
+    { renderer: 'octane', source: 'App.tsrx' },
+  ] as const)('discovers $renderer $source through checkEntryPoint before the ordinary fallback', async ({
+    renderer,
+    source,
+  }) => {
     const root = createFixture();
     try {
-      const app = path.join(
-        root,
-        'src',
-        renderer === 'octane' ? 'App.tsrx' : 'App.tsx',
-      );
+      const app = path.join(root, 'src', source);
       fs.writeFileSync(
         app,
         'export default function App() { return "plain-infrastructure"; }\n',
       );
+      if (renderer === 'octane')
+        fs.writeFileSync(
+          path.join(root, 'src', 'App.jsx'),
+          'export default () => <main />;\n',
+        );
       const { api, plugins } = await initializeInfrastructure(renderer, root);
       const observed: Array<string | false> = [];
       api.checkEntryPoint(input => {
@@ -488,6 +522,100 @@ describe('native infrastructure in the owning CLI hooks', () => {
       expect(plugins.map(plugin => plugin.name)).not.toContain(
         '@modern-js/plugin-ssr',
       );
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it.each([
+    'App.jsx',
+    'index.jsx',
+  ])('rejects unsupported Octane %s during automatic entry discovery', async source => {
+    const root = createFixture();
+    try {
+      const filename = path.join(root, 'src', source);
+      fs.writeFileSync(filename, 'export default () => <main />;\n');
+      const { api } = await initializeInfrastructure('octane', root);
+      await expect(
+        getBundleEntry(
+          api.getHooks(),
+          api.getAppContext(),
+          api.getNormalizedConfig(),
+        ),
+      ).rejects.toThrow(
+        `unsupported-renderer-capability: Octane does not support .jsx source: ${filename}`,
+      );
+      expect(resolveRendererProfile('octane').sourceExtensions).toEqual([
+        '.tsx',
+        '.tsrx',
+        '.ts',
+        '.js',
+      ]);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it.each([
+    'explicit',
+    'late',
+    'server',
+  ] as const)('rejects an unsupported Octane %s source before any entry emission', async kind => {
+    const root = createFixture();
+    try {
+      const supported = path.join(root, 'src', 'App.tsx');
+      const unsupported = path.join(
+        root,
+        'src',
+        kind === 'server' ? 'index.server.jsx' : 'Other.jsx',
+      );
+      fs.writeFileSync(supported, 'export default () => <main />;\n');
+      fs.writeFileSync(unsupported, 'export default () => <main />;\n');
+      const generator: NativeEntryGenerator = {
+        client: rstest.fn(() => 'export const client = true;'),
+        server: rstest.fn(() => 'export const server = true;'),
+      };
+      const { api } = await initializeInfrastructure('octane', root, generator);
+      let selected: Entrypoint[];
+      if (kind === 'explicit') {
+        const config = api.getNormalizedConfig();
+        selected = await getBundleEntry(api.getHooks(), api.getAppContext(), {
+          source: {
+            ...config.source,
+            disableDefaultEntries: true,
+            entries: { main: unsupported },
+          },
+        });
+      } else {
+        selected = [
+          { entryName: 'main', entry: supported },
+          {
+            entryName: 'other',
+            entry: supported,
+            ...(kind === 'server' ? { customServerEntry: unsupported } : {}),
+          },
+        ];
+        if (kind === 'late')
+          api.modifyEntrypoints(({ entrypoints }) => ({
+            entrypoints: entrypoints.map(entrypoint =>
+              entrypoint.entryName === 'other'
+                ? { ...entrypoint, entry: unsupported }
+                : entrypoint,
+            ),
+          }));
+      }
+      const { entrypoints } = await api
+        .getHooks()
+        .modifyEntrypoints.call({ entrypoints: selected });
+      await expect(
+        api.getHooks().generateEntryCode.call({ entrypoints }),
+      ).rejects.toThrow(
+        `unsupported-renderer-capability: Octane does not support .jsx source: ${unsupported}`,
+      );
+      expect(generator.client).not.toHaveBeenCalled();
+      expect(generator.server).not.toHaveBeenCalled();
+      for (const { internalEntry } of entrypoints)
+        expect(fs.existsSync(internalEntry!)).toBe(false);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }
@@ -712,6 +840,232 @@ describe('native infrastructure in the owning CLI hooks', () => {
 });
 
 describe('native infrastructure through the real Rsbuild and Rspack pipeline', () => {
+  it('validates a selected replacement compiler artifact through the production build lifecycle', async () => {
+    const root = createFixture();
+    let compiler: Rspack.MultiCompiler | undefined;
+    try {
+      const profile = {
+        ...resolveCandidateRendererProfile('solid'),
+        renderer: 'replacement',
+        compiler: { name: '@fixture/replacement-compiler', version: '1.0.0' },
+        hydration: { name: '@fixture/replacement-runtime', version: '1.0.0' },
+        router: {
+          name: '@fixture/replacement-router',
+          version: '1.0.0',
+          coreName: '@fixture/replacement-router-core',
+          coreVersion: '1.0.0',
+        },
+      };
+      const identity: RendererIdentity = {
+        renderer: 'replacement',
+        appId: 'replacement-compiler-build',
+        entryName: 'main',
+        protocolVersion: 1,
+        buildId: 'a'.repeat(64),
+      };
+      const routerProvider = { framework: 'replacement', ...profile.router };
+      const build = {
+        identities: { main: identity },
+        buildMarker: identity.buildId,
+        sourceRevision: 'workspace',
+        inputDigest: 'b'.repeat(64),
+        profileDigest: 'c'.repeat(64),
+        compilerDigest: 'd'.repeat(64),
+        frameworkCohortDigest: 'e'.repeat(64),
+        cacheAllowed: false,
+        promotable: false,
+        routerBindings: {
+          main: {
+            owner: '@fixture/replacement-router-owner',
+            evidence: 'file-routes' as const,
+            defaultProvider: routerProvider,
+            providers: [routerProvider],
+          },
+        },
+      };
+      const compilerArtifacts = createReplacementCompilerArtifacts();
+      fs.writeFileSync(path.join(root, 'src', 'App.ts'), 'export {};\n');
+      const { api } = await initializeInfrastructure(
+        'replacement',
+        root,
+        {
+          client: () => 'globalThis.replacementBuild = true;\n',
+          server:
+            () => `export const rendererIdentity = ${JSON.stringify(identity)};
+export const nativeRequestHandler = () => new Response('replacement');
+export const nativeCSRRequestHandler = nativeRequestHandler;
+`,
+        },
+        true,
+        {
+          profile,
+          compilerArtifacts,
+          infrastructurePluginName:
+            '@fixture/replacement-native-infrastructure',
+          resolveBuildIdentities: async () => build,
+        },
+      );
+      const { entrypoints } = await api.getHooks().modifyEntrypoints.call({
+        entrypoints: [
+          { entryName: 'main', entry: path.join(root, 'src', 'App.ts') },
+        ],
+      });
+      const distDirectory = path.join(root, 'dist');
+      api.updateAppContext({
+        distDirectory,
+        entrypoints,
+        serverRoutes: [
+          {
+            entryName: 'main',
+            urlPath: '/',
+            entryPath: 'main.html',
+            isSSR: true,
+          },
+        ],
+        checkedEntries: ['main'],
+      });
+      await api.getHooks().generateEntryCode.call({ entrypoints });
+      const { environments } = await api
+        .getHooks()
+        .modifyBuilderEnvironments.call({
+          environments: {
+            client: {
+              source: { entry: { main: entrypoints[0].internalEntry! } },
+              output: {
+                target: 'web',
+                assetPrefix: '/assets/',
+                distPath: { root: distDirectory },
+              },
+              tools: { htmlPlugin: false },
+            },
+          },
+        });
+      const producer: RsbuildPlugin = {
+        name: 'replacement-compiler-artifact',
+        setup(builder) {
+          builder.modifyRspackConfig((config, { environment }) => {
+            if (environment.name !== 'client') return;
+            config.plugins ??= [];
+            config.plugins.push({
+              apply(selectedCompiler: Rspack.Compiler) {
+                selectedCompiler.hooks.thisCompilation.tap(
+                  'ReplacementCompilerArtifact',
+                  compilation => {
+                    compilation.hooks.processAssets.tap(
+                      {
+                        name: 'ReplacementCompilerArtifact',
+                        stage: rspack.Compilation.PROCESS_ASSETS_STAGE_REPORT,
+                      },
+                      () => {
+                        if (!compilation.hash)
+                          throw new Error(
+                            'Replacement compiler requires its actual hash',
+                          );
+                        compilation.emitAsset(
+                          compilerArtifacts.clientManifestFile('main'),
+                          new rspack.sources.RawSource(
+                            JSON.stringify({
+                              abi: 'replacement-compiler/v1',
+                              build: {
+                                identity,
+                                hydrationBuildId: compilation.hash,
+                              },
+                            }),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                );
+              },
+            });
+          });
+        },
+      };
+      const rsbuild = await createRsbuild({
+        cwd: root,
+        rsbuildConfig: {
+          mode: 'production',
+          environments,
+          plugins: [
+            nativeClientAssetsPlugin('replacement', () => build.identities),
+            producer,
+          ],
+          output: { minify: false, sourceMap: false, filenameHash: false },
+          performance: { printFileSize: false },
+        },
+      });
+      const configs = await rsbuild.initConfigs();
+      await api
+        .getHooks()
+        .onBeforeCreateCompiler.call({ bundlerConfigs: configs });
+      compiler = rspack.rspack(configs);
+      const stats = await new Promise<Rspack.MultiStats>((resolve, reject) => {
+        compiler!.run((error, result) => {
+          if (error) reject(error);
+          else if (!result || result.hasErrors())
+            reject(
+              new Error(
+                result?.toString({ all: false, errors: true }) ??
+                  'Missing replacement compilation',
+              ),
+            );
+          else resolve(result);
+        });
+      });
+      await api.getHooks().onAfterBuild.call({ stats });
+      const clientHash = stats.stats.find(
+        result => result.compilation.name === 'client',
+      )!.compilation.hash!;
+      expect(compilerArtifacts.validateClientManifest).toHaveBeenCalledTimes(1);
+      expect(compilerArtifacts.validateClientManifest).toHaveBeenCalledWith(
+        expect.objectContaining({ abi: 'replacement-compiler/v1' }),
+        identity,
+        { compilationHash: clientHash },
+      );
+      expect(
+        (
+          await readRendererBuildManifest(distDirectory, profile, {
+            routerFrameworks: compilerArtifacts.routerFrameworks,
+          })
+        ).identities.main,
+      ).toEqual(identity);
+      const artifactFile = path.join(
+        distDirectory,
+        compilerArtifacts.clientManifestFile('main'),
+      );
+      const original = JSON.parse(fs.readFileSync(artifactFile, 'utf8'));
+      for (const invalid of [
+        {
+          ...original,
+          build: {
+            ...original.build,
+            identity: { ...identity, buildId: 'stale' },
+          },
+        },
+        {
+          ...original,
+          build: { ...original.build, hydrationBuildId: 'other-compilation' },
+        },
+      ]) {
+        fs.writeFileSync(artifactFile, JSON.stringify(invalid));
+        await expect(
+          api.getHooks().onAfterBuild.call({ stats }),
+        ).rejects.toThrow();
+      }
+      expect(compilerArtifacts.validateClientManifest).toHaveBeenCalledTimes(3);
+    } finally {
+      try {
+        if (compiler)
+          await new Promise<void>((resolve, reject) =>
+            compiler!.close(error => (error ? reject(error) : resolve())),
+          );
+      } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+      }
+    }
+  }, 30_000);
+
   it.each([
     'solid',
     'octane',

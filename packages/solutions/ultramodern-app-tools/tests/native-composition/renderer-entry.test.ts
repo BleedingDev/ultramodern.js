@@ -2,10 +2,15 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import type { RendererIdentity } from '@modern-js/renderer-core/identity';
-import { parseSync } from '@swc/core';
-import { createNativeEntryGenerator } from '../../src/native-composition/native-entry';
+import { rspack } from '@rsbuild/core';
+import {
+  createNativeEntryGenerator,
+  emitNativeEntryApplication,
+  type NativeApplicationEmission,
+} from '../../src/native-composition/native-entry';
 import type { NativeEntryGeneration } from '../../src/native-composition/native-infrastructure';
 import { resolveRendererProfile } from '../../src/native-composition/renderer-profile';
+import { createSolidNativeEntryGenerator } from '../../src/renderers/solid/entry';
 
 describe('native owning entry generation', () => {
   const fixtures: string[] = [];
@@ -16,6 +21,16 @@ describe('native owning entry generation', () => {
         .map(directory => fs.rm(directory, { recursive: true, force: true })),
     );
   });
+
+  async function expectValidNativeSource(source: string, tsx = false) {
+    await expect(
+      rspack.experiments.swc.transform(source, {
+        jsc: { parser: { syntax: 'typescript', tsx }, target: 'es2022' },
+        configFile: false,
+        swcrc: false,
+      }),
+    ).resolves.toMatchObject({ code: expect.any(String) });
+  }
 
   async function context(renderer: 'solid' | 'octane', routed = false) {
     const appDirectory = await fs.mkdtemp(
@@ -95,6 +110,106 @@ describe('native owning entry generation', () => {
     });
   });
 
+  it('rejects an unregistered renderer instead of emitting another renderer bootstrap', () => {
+    expect(() =>
+      Reflect.apply(createNativeEntryGenerator, undefined, ['unregistered']),
+    ).toThrow('Unsupported UltraModern native renderer');
+  });
+
+  it('rejects a context owned by another renderer before writing source', async () => {
+    const generation = await context('octane');
+    await expect(
+      createSolidNativeEntryGenerator().client(generation),
+    ).rejects.toThrow('Native generator renderer conflict');
+    await expect(fs.stat(generation.internalDirectory)).rejects.toMatchObject({
+      code: 'ENOENT',
+    });
+  });
+
+  it('passes the hook-modified graph and analyzed base path to the selected source emitter', async () => {
+    const generation = await context('solid', true);
+    generation.basePath = '/catalog';
+    let projections = 0;
+    generation.modifyRoutes = async routes => {
+      projections += 1;
+      return [
+        {
+          ...routes[0],
+          id: 'selected-layout',
+          children: [
+            {
+              id: 'hook-product',
+              path: ':product',
+              file: '/selected/product.tsx',
+              modules: { data: '/selected/product.data.ts' },
+              children: [],
+            },
+          ],
+        },
+      ];
+    };
+    const applications: Parameters<
+      NativeApplicationEmission['applicationSource']
+    >[0][] = [];
+    const routeEmissions: Parameters<
+      NativeApplicationEmission['routeSource']
+    >[0][] = [];
+    const emission: NativeApplicationEmission = {
+      applicationSource(options) {
+        applications.push(options);
+        return `selected application ${options.mode}`;
+      },
+      routeSource(options) {
+        routeEmissions.push(options);
+        return `selected routes ${options.mode}`;
+      },
+    };
+    for (const mode of ['client', 'server'] as const) {
+      const { directory } = await emitNativeEntryApplication(
+        generation,
+        mode,
+        emission,
+      );
+      expect(
+        await fs.readFile(path.join(directory, `routes.${mode}.ts`), 'utf8'),
+      ).toBe(`selected routes ${mode}`);
+      expect(
+        await fs.readFile(
+          path.join(directory, `application.${mode}.tsx`),
+          'utf8',
+        ),
+      ).toBe(`selected application ${mode}`);
+    }
+    expect(projections).toBe(1);
+    expect(applications).toEqual(
+      ['client', 'server'].map(mode => ({
+        source: generation.entrypoint.entry,
+        routed: true,
+        mode,
+      })),
+    );
+    expect(
+      routeEmissions.map(({ mode, basePath }) => ({ mode, basePath })),
+    ).toEqual([
+      { mode: 'client', basePath: '/catalog' },
+      { mode: 'server', basePath: '/catalog' },
+    ]);
+    expect(routeEmissions[0].routes).toBe(routeEmissions[1].routes);
+    expect(routeEmissions[0].routes).toMatchObject([
+      {
+        id: 'selected-layout',
+        children: [
+          {
+            id: 'hook-product',
+            path: ':product',
+            file: '/selected/product.tsx',
+            modules: { data: '/selected/product.data.ts' },
+          },
+        ],
+      },
+    ]);
+  });
+
   it.each([
     'solid',
     'octane',
@@ -104,22 +219,12 @@ describe('native owning entry generation', () => {
     const generator = createNativeEntryGenerator(renderer);
     const client = await generator.client(generation);
     const server = await generator.server(generation);
-    expect(() =>
-      parseSync(client, { syntax: 'typescript', target: 'es2022' }),
-    ).not.toThrow();
-    expect(() =>
-      parseSync(server, { syntax: 'typescript', target: 'es2022' }),
-    ).not.toThrow();
+    await expectValidNativeSource(client);
+    await expectValidNativeSource(server);
     const generated = path.join(generation.internalDirectory, renderer, 'main');
     for (const file of ['application.client.tsx', 'application.server.tsx']) {
       const source = await fs.readFile(path.join(generated, file), 'utf8');
-      expect(() =>
-        parseSync(source, {
-          syntax: 'typescript',
-          tsx: true,
-          target: 'es2022',
-        }),
-      ).not.toThrow();
+      await expectValidNativeSource(source, true);
       expect(source).toContain(JSON.stringify(generation.entrypoint.entry));
     }
     expect(await fs.readFile(generation.entrypoint.entry, 'utf8')).toBe(before);
@@ -151,12 +256,8 @@ describe('native owning entry generation', () => {
     const client = await generator.client(generation);
     const server = await generator.server(generation);
     expect(projections).toBe(1);
-    expect(() =>
-      parseSync(client, { syntax: 'typescript', target: 'es2022' }),
-    ).not.toThrow();
-    expect(() =>
-      parseSync(server, { syntax: 'typescript', target: 'es2022' }),
-    ).not.toThrow();
+    await expectValidNativeSource(client);
+    await expectValidNativeSource(server);
     for (const mode of ['client', 'server']) {
       const source = await fs.readFile(
         path.join(
@@ -168,9 +269,7 @@ describe('native owning entry generation', () => {
         'utf8',
       );
       expect(source).toContain('hook-page');
-      expect(() =>
-        parseSync(source, { syntax: 'typescript', target: 'es2022' }),
-      ).not.toThrow();
+      await expectValidNativeSource(source);
     }
     expect(server).toContain('selectApplicationDataRoute');
     expect(server).toContain('nativeMatchRouteIds');

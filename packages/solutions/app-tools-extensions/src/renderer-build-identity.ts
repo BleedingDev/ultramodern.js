@@ -9,6 +9,7 @@ import {
   type RendererName,
   type RendererProfile,
   type RendererRouterBindings,
+  type RouterFramework,
   validateRendererProfile,
   validateRendererRouterBindings,
 } from '@modern-js/backend-federation-contracts';
@@ -88,6 +89,8 @@ export interface RendererBuildIdentityOptions {
   frameworkPackageBindings?: readonly RendererFrameworkPackageBinding[];
   /** Actual final entry ownership, supplied by the selected renderer composition. */
   routerBindings: RendererRouterBindings;
+  /** Admitted router frameworks, supplied by the selected renderer owner. */
+  routerFrameworks?: readonly RouterFramework[];
 }
 
 export interface RendererBuildIdentities {
@@ -1125,7 +1128,7 @@ export async function resolveRendererBuildIdentities(
     options.routerBindings,
     entries,
     'routerBindings',
-    options.renderer,
+    options.routerFrameworks,
   );
   if (!routerValidation.ok)
     throw new Error(

@@ -1,0 +1,45 @@
+import type { RendererBuildProfile } from '../../native-composition/renderer-profile';
+
+export const reactCandidateProfile: RendererBuildProfile = {
+  renderer: 'react',
+  status: 'stable',
+  protocolVersion: 1,
+  minimumNode: '26.7.0',
+  hmr: {
+    editedBoundary: 'may-reset',
+    unaffectedComponents: 'preserved',
+    document: 'preserved',
+    roots: 'single',
+    cleanup: 'exactly-once',
+  },
+  compiler: { name: '@rsbuild/plugin-react', version: '2.1.0' },
+  hydration: { name: 'react-dom', version: '19.3.0' },
+  router: {
+    name: 'react-router',
+    version: '7.18.4',
+    coreName: 'react-router',
+    coreVersion: '7.18.4',
+  },
+  sourceExtensions: ['.tsx', '.ts', '.jsx', '.js'],
+  jsxImportSource: 'react',
+  dependencies: {
+    react: '19.3.0',
+    'react-dom': '19.3.0',
+    '@modern-js/runtime': '3.9.0',
+    '@modern-js/i18n-integration': '3.8.3',
+    '@modern-js/runtime-renderer-extensions': '3.8.3',
+    '@rsbuild/plugin-react': '2.1.0',
+    '@rsbuild/plugin-svgr': '2.0.5',
+    '@loadable/component': '5.16.7',
+    'react-helmet-async': '3.0.0',
+    'react-router': '7.18.4',
+  },
+  capabilities: {
+    worker: true,
+    moduleFederation: true,
+    rsc: true,
+    ssg: true,
+    i18n: true,
+    svgComponent: true,
+  },
+};

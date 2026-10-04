@@ -125,6 +125,20 @@ describe('native filesystem route source emission', () => {
     ).rejects.toThrow('require a bracketed parameter: product$');
   });
 
+  it('rejects an unknown renderer before emitting another native runtime', () => {
+    const options = {
+      renderer: 'unknown-renderer',
+      routes: [],
+      mode: 'server',
+      basePath: '/',
+    } as const;
+    expect(() => {
+      // Runtime inputs must fail closed even when they bypass the renderer type.
+      // @ts-expect-error Exercise an unsupported runtime renderer.
+      emitNativeRouteModule(options);
+    }).toThrow(/renderer.*unknown-renderer/iu);
+  });
+
   it.each([
     'solid',
     'octane',

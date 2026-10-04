@@ -5,7 +5,10 @@ import type {
 } from '@modern-js/app-tools-extensions/release-envelope/renderer-output-stamp';
 import type { Renderer } from '@modern-js/renderer-core';
 import { readRendererBuildManifest } from './native-build-manifest';
-import { resolveRendererProfile } from './renderer-profile';
+import {
+  resolveRendererProfile,
+  resolveRendererRouterFrameworks,
+} from './renderer-profile';
 
 /** Project only the finalized compiler-owned manifest into release metadata. */
 export const createRendererBuildOutputResolver =
@@ -16,6 +19,7 @@ export const createRendererBuildOutputResolver =
     const manifest = await readRendererBuildManifest(
       context.distDirectory,
       resolveRendererProfile(renderer),
+      { routerFrameworks: resolveRendererRouterFrameworks(renderer) },
     );
     const actualEntries = context.entrypoints.map(entry => entry.entryName);
     if (

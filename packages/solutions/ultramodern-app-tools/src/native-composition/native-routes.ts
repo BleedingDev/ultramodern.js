@@ -1,6 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { FileSystemRouteIR } from '@modern-js/renderer-core/data';
+import type { Renderer } from '@modern-js/renderer-core/identity';
+import { resolveNativeRendererAdapter } from './renderer-registration';
 
 export interface NativeRouteDiscovery {
   routesDirectory: string;
@@ -128,15 +130,38 @@ export async function discoverNativeFileSystemRoutes(
   return discovered ? [discovered] : [];
 }
 
-export interface NativeRouteEmission {
-  renderer: 'solid' | 'octane';
+export interface NativeRouteEmissionOptions {
   routes: readonly FileSystemRouteIR[];
   mode: 'client' | 'server';
   basePath: string;
 }
 
-/** Emit separate native view graphs so server-only data never enters client imports. */
-export function emitNativeRouteModule(options: NativeRouteEmission): string {
+export interface NativeRouteEmission extends NativeRouteEmissionOptions {
+  renderer: Renderer;
+}
+
+export interface NativeRouteModuleBindings {
+  id: string;
+  component?: string;
+  loading?: string;
+  error?: string;
+  notFound?: string;
+  head?: string;
+  search?: string;
+}
+
+export interface NativeRouteEmissionPreparation {
+  imports: readonly { file: string; binding: string }[];
+  routeIR: readonly FileSystemRouteIR[];
+  routeModules: readonly NativeRouteModuleBindings[];
+  dataModules: readonly { id: string; binding: string }[];
+  serverDataRoutes: readonly string[];
+}
+
+/** Project structure and imports without exposing server-only data to the client. */
+export function prepareNativeRouteEmission(
+  options: NativeRouteEmissionOptions,
+): NativeRouteEmissionPreparation {
   if (
     typeof options.basePath !== 'string' ||
     !options.basePath.startsWith('/')
@@ -145,58 +170,38 @@ export function emitNativeRouteModule(options: NativeRouteEmission): string {
       'Native route emission requires its analyzed public base path',
     );
   }
-  const imports: string[] = [];
+  const imports: { file: string; binding: string }[] = [];
   const bindings = new Map<string, string>();
   const moduleImport = (file: string): string => {
     const existing = bindings.get(file);
     if (existing) return existing;
     const binding = `routeModule${bindings.size}`;
     bindings.set(file, binding);
-    imports.push(`import * as ${binding} from ${JSON.stringify(file)};`);
+    imports.push({ file, binding });
     return binding;
   };
-  const configurations: string[] = [];
-  const data: string[] = [];
-  let hasHead = false;
-  let hasSearch = false;
+  const routeModules: NativeRouteModuleBindings[] = [];
+  const dataModules: { id: string; binding: string }[] = [];
+  const serverDataRoutes: string[] = [];
   const visit = (route: FileSystemRouteIR) => {
-    const fields: string[] = [];
-    if (route.file)
-      fields.push(`component: ${moduleImport(route.file)}.default`);
-    if (route.modules?.loading) {
-      fields.push(
-        `pendingComponent: ${moduleImport(route.modules.loading)}.default`,
-      );
-    }
-    if (route.modules?.error) {
-      fields.push(
-        `errorComponent: ${moduleImport(route.modules.error)}.default`,
-      );
-    }
-    if (route.modules?.notFound) {
-      fields.push(
-        `notFoundComponent: ${moduleImport(route.modules.notFound)}.default`,
-      );
-    }
-    if (route.modules?.head) {
-      const head = moduleImport(route.modules.head);
-      hasHead = true;
-      fields.push(`head: resolveNativeHeadModule(${head})`);
-    }
-    if (route.modules?.search) {
-      const search = moduleImport(route.modules.search);
-      hasSearch = true;
-      fields.push(`validateSearch: resolveNativeSearchModule(${search})`);
-    }
-    configurations.push(
-      `${JSON.stringify(route.id)}: { ${fields.join(', ')} }`,
-    );
+    const modules: NativeRouteModuleBindings = { id: route.id };
+    if (route.file) modules.component = moduleImport(route.file);
+    if (route.modules?.loading)
+      modules.loading = moduleImport(route.modules.loading);
+    if (route.modules?.error) modules.error = moduleImport(route.modules.error);
+    if (route.modules?.notFound)
+      modules.notFound = moduleImport(route.modules.notFound);
+    if (route.modules?.head) modules.head = moduleImport(route.modules.head);
+    if (route.modules?.search)
+      modules.search = moduleImport(route.modules.search);
+    routeModules.push(modules);
     const dataFile =
       options.mode === 'server'
         ? route.modules?.data
         : route.modules?.clientData;
     if (dataFile)
-      data.push(`${JSON.stringify(route.id)}: ${moduleImport(dataFile)}`);
+      dataModules.push({ id: route.id, binding: moduleImport(dataFile) });
+    if (route.modules?.data) serverDataRoutes.push(route.id);
     for (const child of route.children) visit(child);
   };
   for (const route of options.routes) visit(route);
@@ -216,60 +221,12 @@ export function emitNativeRouteModule(options: NativeRouteEmission): string {
     }));
   const routeIR =
     options.mode === 'client' ? clientIR(options.routes) : options.routes;
-  const runtime =
-    options.renderer === 'solid'
-      ? '@modern-js/renderer-solid/router'
-      : '@modern-js/renderer-octane/router';
-  const loader =
-    options.mode === 'server'
-      ? `const module = dataModules[route.id];
-      if (!module?.loader) return { kind: 'success', value: undefined, status: 200 };
-      return invokeRouteData(module.loader, input);`
-      : `const module = dataModules[route.id];
-      if (module?.loader) return invokeRouteData(module.loader, input, { production: process.env.NODE_ENV === 'production' });
-      if (!serverDataRoutes.has(route.id)) return { kind: 'success', value: undefined, status: 200 };
-      return createDataClient(route.id, identity).loader({ request: input.request });`;
-  const serverDataRoutes: string[] = [];
-  const collectData = (route: FileSystemRouteIR) => {
-    if (route.modules?.data) serverDataRoutes.push(route.id);
-    route.children.forEach(collectData);
-  };
-  options.routes.forEach(collectData);
-  return `${imports.join('\n')}
-import { createFileSystemRouteTree, createApplicationRouter, createMemoryHistory } from ${JSON.stringify(runtime)};
-import { ${options.mode === 'client' ? 'createDataClient, ' : ''}invokeRouteData } from '@modern-js/renderer-core/data';
-import type { AnyRouter, FileSystemRouteModule } from ${JSON.stringify(runtime)};
-import type { DataHandler, DataOutcome, DecodedDataOutcome, FileSystemRouteIR } from '@modern-js/renderer-core/data';
-import type { RendererIdentity } from '@modern-js/renderer-core/identity';
-${options.renderer === 'solid' ? "import type { RequestSession } from '@modern-js/renderer-core/session';" : ''}
-${options.mode === 'client' ? 'declare const process: { env: { NODE_ENV?: string } };' : ''}
-${hasHead ? `function resolveNativeHeadModule(module: { head?: FileSystemRouteModule['head']; default?: FileSystemRouteModule['head'] }): FileSystemRouteModule['head'] { return module.head ?? module.default; }` : ''}
-${hasSearch ? `function resolveNativeSearchModule(module: { validateSearch?: FileSystemRouteModule['validateSearch']; default?: FileSystemRouteModule['validateSearch'] }): NonNullable<FileSystemRouteModule['validateSearch']> { const validateSearch = module.validateSearch ?? module.default; if (typeof validateSearch !== 'function') throw new Error('A native search module must export validateSearch or a default validator'); return validateSearch; }` : ''}
-export const routeIR: FileSystemRouteIR[] = ${JSON.stringify(routeIR, null, 2)};
-export const routeModules: Record<string, FileSystemRouteModule> = { ${configurations.join(',\n')} };
-export const dataModules: Record<string, { loader?: DataHandler; action?: DataHandler }> = { ${data.join(',\n')} };
-${options.mode === 'client' ? `const serverDataRoutes = new Set<string>(${JSON.stringify(serverDataRoutes)});` : ''}
-export function createNativeRouter(identity: RendererIdentity, request?: Request, context: object = {}, onOutcome?: (routeId: string, outcome: DataOutcome | DecodedDataOutcome) => void${options.renderer === 'solid' ? ', session?: RequestSession' : ''}): AnyRouter {
-  if (Object.hasOwn(context, 'ultramodern')) throw new Error('The native router context reserves ultramodern metadata');
-  const nativeContext = { ultramodern: Object.freeze({ rendererIdentity: Object.freeze({ ...identity }) }) };
-  const routeTree = createFileSystemRouteTree(routeIR, routeModules, {
-    ...(request ? { request } : {}),
-    context,
-    ...(onOutcome ? { onOutcome } : {}),
-    ${options.renderer === 'solid' ? '...(session ? { session } : {}),' : ''}
-    ${options.renderer === 'octane' ? 'getRouter: () => router,' : ''}
-    async loadRoute(route, input) {
-      ${loader}
-    },
-  });
-  const url = request ? new URL(request.url) : undefined;
-  const router: AnyRouter = createApplicationRouter({
-    routeTree,
-    basepath: ${JSON.stringify(options.basePath)},
-    context: nativeContext,
-    ...(url ? { origin: url.origin, history: createMemoryHistory({ initialEntries: [url.pathname + url.search + url.hash] }) } : {}),
-  });
-  return router;
+  return { imports, routeIR, routeModules, dataModules, serverDataRoutes };
 }
-`;
+
+/** Select the renderer that owns the native route source contract. */
+export function emitNativeRouteModule(options: NativeRouteEmission): string {
+  return resolveNativeRendererAdapter(options.renderer).emitRouteModule(
+    options,
+  );
 }

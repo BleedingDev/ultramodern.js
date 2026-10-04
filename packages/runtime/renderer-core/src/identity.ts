@@ -1,4 +1,4 @@
-export type Renderer = 'react' | 'solid' | 'octane';
+export type Renderer = string;
 
 /** Immutable identity for one application entry and its hydration bytes. */
 export interface RendererIdentity {
@@ -10,7 +10,11 @@ export interface RendererIdentity {
 }
 
 export function resolveRenderer(value: unknown = 'react'): Renderer {
-  if (value === 'react' || value === 'solid' || value === 'octane')
+  if (
+    typeof value === 'string' &&
+    value.trim() === value &&
+    /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u.test(value)
+  )
     return value;
   throw new Error(`Unsupported UltraModern renderer: ${String(value)}`);
 }

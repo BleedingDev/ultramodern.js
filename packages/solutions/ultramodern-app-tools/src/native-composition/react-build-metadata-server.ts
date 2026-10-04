@@ -13,7 +13,10 @@ import {
   readRendererBuildManifest,
   readRendererDevelopmentBuildManifest,
 } from './native-build-manifest';
-import { resolveRendererProfile } from './renderer-profile';
+import {
+  resolveRendererProfile,
+  resolveRendererRouterFrameworks,
+} from './renderer-profile';
 
 export const REACT_RENDERER_IDENTITY_HEADER = 'x-ultramodern-renderer-identity';
 
@@ -88,6 +91,9 @@ export default function reactBuildMetadataServerPlugin(
       'React server metadata has conflicting identity lifecycle options',
     );
   let entries = late ? undefined : serializeEntries(options?.entries);
+  const manifestValidation = {
+    routerFrameworks: resolveRendererRouterFrameworks('react'),
+  };
 
   return {
     name: '@modern-js/react-renderer-build-metadata',
@@ -99,6 +105,7 @@ export default function reactBuildMetadataServerPlugin(
           const manifest = await readRendererBuildManifest(
             distDirectory || pwd,
             resolveRendererProfile('react'),
+            manifestValidation,
           );
           entries = serializeEntries(manifest.identities);
         }
@@ -128,6 +135,7 @@ export default function reactBuildMetadataServerPlugin(
                     await readRendererDevelopmentBuildManifest(
                       distDirectory || pwd,
                       resolveRendererProfile('react'),
+                      manifestValidation,
                     )
                   ).identities,
                 )

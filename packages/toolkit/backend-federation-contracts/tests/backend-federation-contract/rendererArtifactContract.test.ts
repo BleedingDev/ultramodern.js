@@ -79,6 +79,31 @@ const artifact = (renderer: RendererName = 'react') =>
     },
   });
 
+const replacementProfile: RendererProfile = {
+  renderer: 'replacement',
+  protocolVersion: 1,
+  compiler: { name: '@fixture/replacement-compiler', version: '1.0.0' },
+  hydration: { name: '@fixture/replacement-hydration', version: '1' },
+  router: {
+    name: '@fixture/replacement-router',
+    version: '1.0.0',
+    coreName: '@fixture/replacement-router-core',
+    coreVersion: '1.0.0',
+  },
+};
+const replacementProvider: RouterPackageBinding = {
+  framework: 'replacement',
+  ...replacementProfile.router,
+};
+const replacementBindings: RendererRouterBindings = {
+  main: {
+    owner: '@fixture/replacement-router-owner',
+    evidence: 'file-routes',
+    defaultProvider: replacementProvider,
+    providers: [replacementProvider],
+  },
+};
+
 const jsonCopy = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 
 describe('persisted renderer artifact contract', () => {
@@ -90,39 +115,32 @@ describe('persisted renderer artifact contract', () => {
   ] satisfies {
     renderer: RendererName;
     foreign: RendererName;
-  }[])('rejects $foreign providers under a valid $renderer identity/profile at producer and reader boundaries', ({
+  }[])('preserves well-formed $foreign owner evidence with a $renderer identity/profile', ({
     renderer,
     foreign,
   }) => {
     const routerBindings = controlledRouterBindings(foreign);
-    expect(() =>
-      createUltramodernBuildArtifact(record, {
-        ui: {
-          identity: identity(renderer),
-          profile: profile(renderer),
-          routerBindings,
-        },
-      }),
-    ).toThrow(
-      `artifact.ui.routerBindings.main.defaultProvider.framework: must be supported by the "${renderer}" renderer.`,
-    );
-    const value = artifact(renderer);
-    expect(
-      validateUltramodernBuildArtifact({
-        ...value,
-        surfaces: {
-          ...value.surfaces,
-          ui: { ...value.surfaces.ui, routerBindings },
-        },
-      }).errors,
-    ).toContainEqual({
-      path: 'artifact.surfaces.ui.routerBindings.main.defaultProvider.framework',
-      message: `must be supported by the "${renderer}" renderer.`,
+    const value = createUltramodernBuildArtifact(record, {
+      ui: {
+        identity: identity(renderer),
+        profile: profile(renderer),
+        routerBindings,
+      },
+    });
+    expect(value.surfaces.ui?.rendererIdentity).toEqual(identity(renderer));
+    expect(value.surfaces.ui?.rendererProfile).toEqual(profile(renderer));
+    expect(value.surfaces.ui?.routerBindings).toEqual(routerBindings);
+    expect(validateUltramodernBuildArtifact(jsonCopy(value))).toEqual({
+      ok: true,
+      errors: [],
     });
   });
 
-  it('accepts a controlled React registry containing React Router and TanStack providers', () => {
-    const defaultProvider =
+  it.each([
+    'react-router',
+    'tanstack',
+  ])('accepts an explicitly selected %s default in a controlled React registry', framework => {
+    const reactProvider =
       controlledRouterBindings('react').main.defaultProvider;
     const tanstackProvider: RouterPackageBinding = {
       framework: 'tanstack',
@@ -131,18 +149,28 @@ describe('persisted renderer artifact contract', () => {
       coreName: '@fixture/router-core',
       coreVersion: '1.0.0',
     };
+    const defaultProvider =
+      framework === 'tanstack' ? tanstackProvider : reactProvider;
     const routerBindings = {
       main: {
         owner: '@fixture/react-provider-registry',
         evidence: 'provider-registry',
         defaultProvider,
-        providers: [defaultProvider, tanstackProvider],
+        providers: [reactProvider, tanstackProvider],
       },
     } satisfies RendererRouterBindings;
     const value = createUltramodernBuildArtifact(record, {
       ui: {
         identity: identity('react'),
-        profile: profile('react'),
+        profile: {
+          ...profile('react'),
+          router: {
+            name: defaultProvider.name,
+            version: defaultProvider.version,
+            coreName: defaultProvider.coreName,
+            coreVersion: defaultProvider.coreVersion,
+          },
+        },
         routerBindings,
       },
     });
@@ -151,6 +179,43 @@ describe('persisted renderer artifact contract', () => {
       errors: [],
     });
     expect(value.surfaces.ui?.routerBindings).toEqual(routerBindings);
+  });
+
+  it('preserves an explicitly selected fourth renderer through creation, JSON roundtrip, and stamping', () => {
+    const selectedIdentity = identity('replacement');
+    const original = createUltramodernBuildArtifact(record, {
+      ui: {
+        identity: selectedIdentity,
+        profile: replacementProfile,
+        routerBindings: replacementBindings,
+      },
+    });
+    const parsed = jsonCopy(original);
+    expect(validateUltramodernBuildArtifact(parsed)).toEqual({
+      ok: true,
+      errors: [],
+    });
+    expect(parsed.surfaces.ui?.rendererIdentity).toEqual(selectedIdentity);
+    expect(parsed.surfaces.ui?.rendererProfile).toEqual(replacementProfile);
+    expect(parsed.surfaces.ui?.routerBindings).toEqual(replacementBindings);
+
+    const stamped = stampUltramodernBuildArtifactIdentity(parsed, {
+      buildMarker: 'replacement-build',
+      sourceRevision: 'replacement-revision',
+    });
+    expect(stamped.surfaces.ui?.rendererIdentity).toEqual({
+      ...selectedIdentity,
+      buildId: 'replacement-build',
+    });
+    expect(stamped.surfaces.ui?.rendererProfile).toEqual(replacementProfile);
+    expect(stamped.surfaces.ui?.routerBindings).toEqual(replacementBindings);
+    expect(validateUltramodernBuildArtifact(stamped).ok).toBe(true);
+    expect(
+      validateRendererProfileCompatibility(
+        replacementProfile,
+        stamped.surfaces.ui?.rendererProfile,
+      ).ok,
+    ).toBe(true);
   });
 
   it.each([
@@ -558,6 +623,54 @@ describe('immutable compiled renderer metadata', () => {
 });
 
 describe('renderer compatibility before remote loading', () => {
+  it.each([
+    '',
+    'Replacement',
+    'replacement_renderer',
+    '-replacement',
+    'replacement-',
+    'replacement--renderer',
+    '0replacement',
+    ' replacement',
+    'replacement ',
+  ])('rejects malformed renderer token %s in profiles and identities', renderer => {
+    expect(
+      validateRendererProfile({ ...replacementProfile, renderer }).errors.some(
+        error => error.path === 'rendererProfile.renderer',
+      ),
+    ).toBe(true);
+    expect(
+      validateRendererIdentity(identity(renderer)).errors.some(
+        error => error.path === 'rendererIdentity.renderer',
+      ),
+    ).toBe(true);
+  });
+
+  it('rejects a valid token typo against the expected renderer profile', () => {
+    const renderer = 'replacment';
+    const candidateProfile = { ...replacementProfile, renderer };
+    const candidateIdentity = identity(renderer);
+    expect(validateRendererProfile(candidateProfile).ok).toBe(true);
+    expect(validateRendererIdentity(candidateIdentity).ok).toBe(true);
+    const candidate = createUltramodernBuildArtifact(record, {
+      ui: {
+        identity: candidateIdentity,
+        profile: candidateProfile,
+        routerBindings: replacementBindings,
+      },
+    });
+    expect(validateUltramodernBuildArtifact(candidate).ok).toBe(true);
+    expect(
+      validateRendererProfileCompatibility(
+        replacementProfile,
+        candidate.surfaces.ui?.rendererProfile,
+      ).errors.some(error => error.path === 'rendererProfile.renderer'),
+    ).toBe(true);
+    expect(() =>
+      assertRendererProfileCompatibility(replacementProfile, candidateProfile),
+    ).toThrow('cross-renderer components are unsupported');
+  });
+
   it('accepts identical profiles independently of app and build identity', () => {
     const local = artifact('solid');
     const remote = createUltramodernBuildArtifact(

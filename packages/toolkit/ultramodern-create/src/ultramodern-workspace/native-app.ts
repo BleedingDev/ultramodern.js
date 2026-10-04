@@ -7,12 +7,11 @@ import {
   createUltramodernBuildReexportModule,
 } from './module-federation';
 import { createAppPackage, createAppTsConfig } from './package-json';
+import { resolveRendererGenerationAdapter } from './renderer-generations';
 import {
   resolveAppGenerationProfile,
   resolveWorkspaceRenderer,
 } from './renderer-profile';
-import { generateOctaneAppSources } from './renderer-templates/octane';
-import { generateSolidAppSources } from './renderer-templates/solid';
 import type { ResolvedPackageSource, WorkspaceApp } from './types';
 
 export function writeNativeApp(
@@ -23,9 +22,15 @@ export function writeNativeApp(
   enableTailwind: boolean,
 ): void {
   const renderer = resolveWorkspaceRenderer(app);
-  if (renderer === 'react' || renderer === 'none') {
+  if (renderer === 'none') {
     throw new Error(
-      `Native app emission requires Solid or Octane, found ${renderer}.`,
+      `Native app emission requires a registered native template, found ${renderer}.`,
+    );
+  }
+  const adapter = resolveRendererGenerationAdapter(renderer);
+  if (adapter.kind !== 'native') {
+    throw new Error(
+      `Native app emission requires a registered native template, found ${renderer}.`,
     );
   }
   const generation = resolveAppGenerationProfile(app)!;
@@ -37,23 +42,17 @@ export function writeNativeApp(
       `Renderer ${renderer} has no admitted federation template for ${app.id}.`,
     );
   }
-  const options = {
+  const sources = adapter.generateAppSources({
     appId: app.id,
     title: app.displayName,
     entryName: app.rendererIdentity?.entryName ?? 'main',
+    sourceExtension: generation.sourceExtension,
+    jsxImportSource: generation.jsxImportSource,
     capabilities: {
       ssr: generation.capabilities.ssr,
       federation: generation.capabilities.federation,
     },
-  };
-  const sources =
-    renderer === 'solid'
-      ? generateSolidAppSources(options)
-      : generateOctaneAppSources({
-          ...options,
-          sourceExtension: generation.sourceExtension,
-          jsxImportSource: generation.jsxImportSource,
-        });
+  });
   if (
     sources.sourceExtension !== generation.sourceExtension ||
     sources.jsxImportSource !== generation.jsxImportSource

@@ -13,6 +13,7 @@ import {
   relativeRootFor,
 } from '../naming';
 import { createCloudflareSecurityContract, formatTsJsonValue } from '../policy';
+import { hasNativeAppGeneration } from '../renderer-generations';
 import {
   resolveAppGenerationProfile,
   resolveWorkspaceRenderer,
@@ -32,7 +33,7 @@ export function createAppModernConfig(
   enableTailwind = true,
 ): string {
   const renderer = resolveWorkspaceRenderer(app);
-  if (renderer === 'solid' || renderer === 'octane') {
+  if (hasNativeAppGeneration(renderer)) {
     const generation = resolveAppGenerationProfile(app)!;
     return `import { defineConfig } from '@modern-js/ultramodern-app-tools';
 ${enableTailwind ? "import { pluginTailwindcss } from '@rsbuild/plugin-tailwindcss';\n" : ''}

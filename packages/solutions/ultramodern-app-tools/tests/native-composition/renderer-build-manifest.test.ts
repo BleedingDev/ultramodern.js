@@ -8,7 +8,10 @@ import {
   readRendererBuildManifest,
   validateRendererBuildManifest,
 } from '../../src/native-composition/native-build-manifest';
-import { resolveRendererProfile } from '../../src/native-composition/renderer-profile';
+import {
+  resolveRendererProfile,
+  resolveRendererRouterFrameworks,
+} from '../../src/native-composition/renderer-profile';
 
 function artifact() {
   return {
@@ -88,7 +91,7 @@ describe('immutable native build evidence', () => {
     );
   });
 
-  it('rejects another renderer provider even when its router package tuple is valid', () => {
+  it('accepts well-formed router evidence and applies an explicit selected owner policy', () => {
     const built = artifact();
     const provider = {
       ...resolveRendererProfile('octane').router,
@@ -105,12 +108,19 @@ describe('immutable native build evidence', () => {
         },
       },
     };
+    const validated = validateRendererBuildManifest(
+      conflicting,
+      resolveRendererProfile('solid'),
+    );
+    expect(validated.identities).toEqual(built.identities);
+    expect(validated.routerBindings).toEqual(conflicting.routerBindings);
     expect(() =>
       validateRendererBuildManifest(
         conflicting,
         resolveRendererProfile('solid'),
+        { routerFrameworks: resolveRendererRouterFrameworks('solid') },
       ),
-    ).toThrow('router bindings');
+    ).toThrow('must be admitted by the selected router owner.');
   });
   it.each([
     'buildMarker',
@@ -200,6 +210,36 @@ describe('immutable native build evidence', () => {
       expect(loaded.sourceRevision).toBe('app-commit-proof');
       expect(Object.isFrozen(loaded.identities.main)).toBe(true);
       expect(Object.isFrozen(loaded.profile.compiler)).toBe(true);
+      const provider = {
+        ...resolveRendererProfile('octane').router,
+        framework: 'octane',
+      };
+      const foreignRouter = {
+        ...built,
+        routerBindings: {
+          main: {
+            owner: '@modern-js/renderer-octane-infrastructure',
+            evidence: 'owned-default',
+            defaultProvider: provider,
+            providers: [provider],
+          },
+        },
+      };
+      fs.writeFileSync(
+        path.join(root, RENDERER_BUILD_MANIFEST_FILE),
+        JSON.stringify(foreignRouter),
+      );
+      const generic = await readRendererBuildManifest(
+        root,
+        resolveRendererProfile('solid'),
+      );
+      expect(generic.identities).toEqual(built.identities);
+      expect(generic.routerBindings).toEqual(foreignRouter.routerBindings);
+      await expect(
+        readRendererBuildManifest(root, resolveRendererProfile('solid'), {
+          routerFrameworks: resolveRendererRouterFrameworks('solid'),
+        }),
+      ).rejects.toThrow('must be admitted by the selected router owner.');
       fs.unlinkSync(path.join(root, RENDERER_BUILD_MANIFEST_FILE));
       await expect(
         readRendererBuildManifest(root, resolveRendererProfile('solid')),

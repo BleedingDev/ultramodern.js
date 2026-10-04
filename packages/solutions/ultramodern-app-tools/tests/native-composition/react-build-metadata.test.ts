@@ -10,6 +10,7 @@ import {
   type CliPlugin,
 } from '@modern-js/app-tools';
 import type { RendererBuildIdentities } from '@modern-js/app-tools-extensions/renderer-build-identity';
+import { validateRendererRouterBindings } from '@modern-js/backend-federation-contracts';
 import { type CLIPluginAPI, createPluginManager } from '@modern-js/plugin';
 import {
   createContext,
@@ -43,7 +44,10 @@ import reactBuildMetadataServerPlugin, {
   type ReactBuildMetadataServerOptions,
 } from '../../src/native-composition/react-build-metadata-server';
 import { composeReactRenderer } from '../../src/native-composition/react-composition';
-import { resolveRendererProfile } from '../../src/native-composition/renderer-profile';
+import {
+  resolveCandidateRendererProfile,
+  resolveRendererProfile,
+} from '../../src/native-composition/renderer-profile';
 
 const fixtureRoots: string[] = [];
 
@@ -1036,6 +1040,8 @@ describe('React metadata in the existing CLI build hooks', () => {
     'missing',
     'profile',
     'identity',
+    'solidRouter',
+    'octaneRouter',
   ] as const)('rejects invalid saved serve evidence before resolving a server plugin: %s', async failure => {
     const root = createFixture();
     const resolveBuildIdentities = rstest.fn(async () => buildIdentities());
@@ -1058,6 +1064,30 @@ describe('React metadata in the existing CLI build hooks', () => {
           ssr: manifest.routerBindings!.ssr,
         };
       }
+      if (failure === 'solidRouter' || failure === 'octaneRouter') {
+        const framework = failure === 'solidRouter' ? 'solid' : 'octane';
+        const provider = {
+          ...resolveCandidateRendererProfile(framework).router,
+          framework,
+        };
+        manifest.routerBindings = Object.fromEntries(
+          Object.keys(manifest.identities).map(entryName => [
+            entryName,
+            {
+              owner: `@modern-js/renderer-${framework}`,
+              evidence: 'owned-default' as const,
+              defaultProvider: provider,
+              providers: [provider] as const,
+            },
+          ]),
+        );
+        expect(
+          validateRendererRouterBindings(
+            manifest.routerBindings,
+            Object.keys(manifest.identities),
+          ).ok,
+        ).toBe(true);
+      }
       fs.mkdirSync(api.getAppContext().distDirectory, { recursive: true });
       fs.writeFileSync(
         path.join(
@@ -1074,8 +1104,58 @@ describe('React metadata in the existing CLI build hooks', () => {
         ? 'ENOENT'
         : failure === 'profile'
           ? 'profile conflicts'
-          : 'identity conflicts',
+          : failure === 'identity'
+            ? 'identity conflicts'
+            : 'must be admitted by the selected router owner',
     );
+    expect(resolveBuildIdentities).not.toHaveBeenCalled();
+  });
+
+  it('accepts saved mixed React router providers before resolving a server plugin', async () => {
+    const root = createFixture();
+    const resolved = buildIdentities();
+    const tanstack = {
+      framework: 'tanstack',
+      name: '@tanstack/react-router',
+      version: '1.171.34',
+      coreName: '@tanstack/router-core',
+      coreVersion: '1.171.15',
+    };
+    const routerBindings = Object.fromEntries(
+      Object.entries(resolved.routerBindings!).map(([entryName, binding]) => [
+        entryName,
+        {
+          owner: '@modern-js/plugin-tanstack',
+          evidence: 'provider-registry' as const,
+          defaultProvider: binding.defaultProvider,
+          providers: [binding.defaultProvider, tanstack],
+        },
+      ]),
+    );
+    const resolveBuildIdentities = rstest.fn(async () => resolved);
+    const { api } = await initializeMetadata(root, { resolveBuildIdentities });
+    api.updateAppContext({ command: 'serve' });
+    fs.mkdirSync(api.getAppContext().distDirectory, { recursive: true });
+    fs.writeFileSync(
+      path.join(
+        api.getAppContext().distDirectory,
+        RENDERER_BUILD_MANIFEST_FILE,
+      ),
+      JSON.stringify({
+        ...resolved,
+        schema: 'ultramodern-renderer-build',
+        version: 1,
+        profile: resolveRendererProfile('react'),
+        routerBindings,
+      }),
+    );
+
+    const { plugins } = await api
+      .getHooks()
+      ._internalServerPlugins.call({ plugins: [] });
+
+    expect(plugins).toHaveLength(1);
+    expect(plugins[0].options).toEqual({ entries: resolved.identities });
     expect(resolveBuildIdentities).not.toHaveBeenCalled();
   });
 

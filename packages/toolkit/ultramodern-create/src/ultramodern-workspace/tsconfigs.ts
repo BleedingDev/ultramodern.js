@@ -8,7 +8,7 @@ import {
 import { effectDiagnosticSeverity } from './effect-diagnostics';
 import { relativeRootFor } from './naming';
 import { resolveAppGenerationProfile } from './renderer-profile';
-import type { JsonValue, WorkspaceApp } from './types';
+import type { JsonObject, JsonValue, WorkspaceApp } from './types';
 export function createTsConfigBase(): JsonValue {
   return {
     compilerOptions: {
@@ -78,10 +78,12 @@ type CreatePackageTsConfigOptions = {
   skipLibCheck?: boolean;
 };
 
+type PackageTsConfig = JsonObject & { compilerOptions: JsonObject };
+
 export function createPackageTsConfig(
   packageDir: string,
   options: CreatePackageTsConfigOptions | boolean = {},
-): JsonValue {
+): PackageTsConfig {
   const resolvedOptions =
     typeof options === 'boolean' ? { includeApi: options } : options;
   const include = resolvedOptions.include ?? [
@@ -101,7 +103,7 @@ export function createPackageTsConfig(
     packageDir,
     resolvedOptions.references ?? [],
   );
-  const tsconfig: Record<string, JsonValue> = {
+  const tsconfig: PackageTsConfig = {
     extends: `${relativeRootFor(packageDir)}/tsconfig.base.json`,
     compilerOptions: {
       composite: true,
@@ -144,17 +146,11 @@ export function createAppTsConfig(
   });
   const profile = resolveAppGenerationProfile(app);
   if (profile) {
-    const compilerOptions = (config as Record<string, JsonValue>)
-      .compilerOptions as Record<string, JsonValue>;
+    const compilerOptions = config.compilerOptions;
     compilerOptions.jsx = 'preserve';
     compilerOptions.jsxImportSource = profile.jsxImportSource;
     if (profile.renderer !== 'react') compilerOptions.types = [];
-    if (profile.renderer === 'octane') {
-      (config as Record<string, JsonValue>).tsrx = {
-        compiler: 'octane/compiler/volar',
-        platform: 'web',
-      };
-    }
+    Object.assign(config, profile.tsconfig);
   }
   return config;
 }

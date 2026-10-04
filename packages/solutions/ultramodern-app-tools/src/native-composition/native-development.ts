@@ -6,11 +6,13 @@ import { isDeepStrictEqual } from 'node:util';
 import type { RendererBuildIdentities } from '@modern-js/app-tools-extensions/renderer-build-identity';
 import {
   assertRendererIdentity,
+  type Renderer,
   type RendererIdentity,
 } from '@modern-js/renderer-core/identity';
 import { validateNativeClientAssetManifest } from '@modern-js/renderer-core/server';
 import { mime } from '@modern-js/utils';
 import type { RsbuildPlugin, Rspack } from '@rsbuild/core';
+import type { NativeCompilerArtifacts } from './compiler-artifacts';
 import {
   assertRendererBuildInputsUnchanged,
   RENDERER_BUILD_MANIFEST_FILE,
@@ -20,10 +22,12 @@ import {
 } from './native-build-manifest';
 import type { NativeDevelopmentSnapshot } from './native-server-plugin';
 import type { RendererBuildProfile } from './renderer-profile';
+import { resolveNativeRendererAdapter } from './renderer-registration';
 
 export interface NativeDevelopmentOptions {
-  readonly renderer: 'solid' | 'octane';
+  readonly renderer: Exclude<Renderer, 'react'>;
   readonly profile: RendererBuildProfile;
+  readonly compilerArtifacts?: NativeCompilerArtifacts;
   readonly distDirectory: string;
   readonly getSessionIdentities: () => RendererBuildIdentities;
   readonly resolveWaveInputs: () => Promise<RendererBuildIdentities>;
@@ -214,10 +218,8 @@ export class NativeDevelopment {
   private failed = false;
   private wave: Wave | undefined;
   private readonly retained = new Map<string, RetainedAsset>();
-  private readonly mutableClientAssets = new Set([
-    'renderer-assets.json',
-    'octane-client-build.json',
-  ]);
+  private readonly mutableClientAssets = new Set(['renderer-assets.json']);
+  private readonly compilerArtifacts: NativeCompilerArtifacts;
   private readonly waiters = new Set<() => void>();
   private invalidation = Promise.resolve();
   private preparation: Promise<void> | undefined;
@@ -225,6 +227,9 @@ export class NativeDevelopment {
   private devServerOrigin: string | undefined;
 
   constructor(private readonly options: NativeDevelopmentOptions) {
+    this.compilerArtifacts =
+      options.compilerArtifacts ??
+      resolveNativeRendererAdapter(options.renderer).compilerArtifacts;
     const session = randomUUID();
     this.lockBytes = Buffer.from(JSON.stringify({ session, pid: process.pid }));
     this.plugin = {
@@ -360,12 +365,6 @@ export class NativeDevelopment {
             environments.client?.htmlPaths ?? {},
           ))
             this.mutableClientAssets.add(filename);
-          for (const entryName of Object.keys(
-            options.getSessionIdentities().identities,
-          ))
-            this.mutableClientAssets.add(
-              `${options.renderer}-module-manifest.${encodeURIComponent(entryName)}.json`,
-            );
           for (const candidate of compilers) {
             if (
               !candidate.options.name ||
@@ -742,6 +741,10 @@ export class NativeDevelopment {
       // JSON/HTML resources just like the rest of the emitted client closure.
       if (
         this.mutableClientAssets.has(asset.name) ||
+        this.compilerArtifacts.isMutableDevelopmentAsset(
+          asset.name,
+          Object.keys(session.identities),
+        ) ||
         asset.info.hotModuleReplacement
       )
         continue;
@@ -766,25 +769,19 @@ export class NativeDevelopment {
     );
     const entries = new Map<string, NativeDevelopmentSnapshot>();
     for (const [entryName, identity] of Object.entries(session.identities)) {
-      const nativeManifest = JSON.parse(
+      const emittedManifest = JSON.parse(
         (
           await emittedBytes(
             client,
-            `${this.options.renderer}-module-manifest.${encodeURIComponent(entryName)}.json`,
+            this.compilerArtifacts.clientManifestFile(entryName),
           )
         ).toString(),
       );
-      if (this.options.renderer === 'solid')
-        (
-          await import('@modern-js/renderer-solid/manifest')
-        ).validateSolidModuleManifest(nativeManifest, identity);
-      else
-        (
-          await import('@modern-js/renderer-octane/manifest')
-        ).validateOctaneModuleManifest(
-          nativeManifest,
+      const { nativeManifest, hydrationBuildId } =
+        await this.compilerArtifacts.validateClientManifest(
+          emittedManifest,
           identity,
-          client.compilation.hash,
+          { compilationHash: client.compilation.hash, development: true },
         );
       const chunk = server.compilation.entrypoints
         .get(entryName)
@@ -821,9 +818,7 @@ export class NativeDevelopment {
           }),
           assets: validateNativeClientAssetManifest(assets, identity),
           nativeManifest: freezeJSON(nativeManifest),
-          ...(this.options.renderer === 'octane'
-            ? { hydrationBuildId: client.compilation.hash }
-            : {}),
+          ...(hydrationBuildId !== undefined ? { hydrationBuildId } : {}),
         }),
       );
     }
@@ -852,6 +847,7 @@ export class NativeDevelopment {
         },
       },
       this.options.profile,
+      { routerFrameworks: this.compilerArtifacts.routerFrameworks },
     );
     // Serialize publication with invalidation/close so a stale in-flight rename
     // cannot resurrect metadata after a newer wave removed it.

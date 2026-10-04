@@ -1,15 +1,20 @@
 import fs from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveTopologyDeliveryUnit } from '@modern-js/app-tools-extensions/cloudflare/delivery-unit';
 import { resolveRendererBuildIdentities } from '@modern-js/app-tools-extensions/renderer-build-identity';
-import { findHostingModuleDirectory } from '@modern-js/app-tools-extensions/runtime-package-resolution';
 import type { Renderer } from '@modern-js/renderer-core';
 import type { NativeInfrastructureOptions } from './native-infrastructure';
 import { reactObservedInputFiles } from './react-authored-inputs';
 import { readRendererFrameworkPackage } from './renderer-installed-profile';
-import { resolveRendererProfileMetadata } from './renderer-profile';
+import {
+  resolveRendererProfileMetadata,
+  resolveRendererRouterFrameworks,
+} from './renderer-profile';
+import {
+  type RendererRegistration,
+  resolveRendererRegistration,
+} from './renderer-registration';
 import { resolveEntrypointRouterBindings } from './renderer-router-resolution';
 
 /** Bind selected renderer metadata to the actual app and framework inputs. */
@@ -36,29 +41,16 @@ export function createRendererBuildIdentityResolver(
       metadata,
     );
     assertEpochCurrent();
-    if (
-      renderer === 'react' &&
-      context.pluginNames?.includes('@modern-js/plugin-tanstack')
-    ) {
-      const modules =
-        findHostingModuleDirectory(
-          '@modern-js/plugin-tanstack',
-          context.appDirectory,
-        ) ??
-        findHostingModuleDirectory('@modern-js/plugin-tanstack', registrar);
-      if (!modules)
-        throw new Error(
-          'The registered TanStack entry owner cannot be resolved from the application or selected framework',
-        );
-      frameworkPackages.push(
-        readRendererFrameworkPackage({
-          specifier: '@modern-js/plugin-tanstack',
-          filename: createRequire(
-            path.join(path.dirname(modules), 'package.json'),
-          ).resolve('@modern-js/plugin-tanstack'),
-        }),
-      );
-    }
+    const registration: RendererRegistration =
+      resolveRendererRegistration(renderer);
+    const buildFrameworkModules = registration.resolveBuildFrameworkModules?.({
+      appDirectory: context.appDirectory,
+      registrarDirectory: registrar,
+      pluginNames: context.pluginNames ?? [],
+    });
+    frameworkPackages.push(
+      ...(buildFrameworkModules ?? []).map(readRendererFrameworkPackage),
+    );
     assertEpochCurrent();
     const delivery = await resolveTopologyDeliveryUnit(context.appDirectory);
     assertEpochCurrent();
@@ -94,6 +86,7 @@ export function createRendererBuildIdentityResolver(
       renderer,
       profile: metadata.profile,
       routerBindings,
+      routerFrameworks: resolveRendererRouterFrameworks(renderer),
       entryNames: context.entrypoints.map(entrypoint => entrypoint.entryName),
       mode:
         context.mode ??

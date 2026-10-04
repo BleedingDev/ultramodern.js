@@ -33,6 +33,14 @@ class OctaneCompilerManifestPlugin {
           );
         }
       });
+      factory.hooks.afterResolve.tap(name, result => {
+        const resource = result.createData?.resource?.split('?')[0];
+        if (resource && path.extname(resource).toLowerCase() === '.jsx') {
+          throw new Error(
+            `unsupported-renderer-capability: Octane does not support .jsx source: ${resource}. Supported source extensions: .tsx, .tsrx, .ts, .js.`,
+          );
+        }
+      });
     });
     if (!this.options.emitClientManifest) return;
     compiler.hooks.thisCompilation.tap(name, compilation => {
@@ -58,22 +66,30 @@ class OctaneCompilerManifestPlugin {
               'The native Octane client manifest does not match the completed compilation.',
             );
           }
-          const sources = [];
-          const visited = new Set();
+          const sourcesByModule = new Map();
+          const moduleAssets = new Map();
           const visit = (module, inheritedAssets = []) => {
-            if (visited.has(module)) return;
-            visited.add(module);
             const chunks = [
               ...compilation.chunkGraph.getModuleChunksIterable(module),
             ];
+            const previousAssets = moduleAssets.get(module);
             const assets = [
               ...new Set([
+                ...(previousAssets ?? []),
                 ...inheritedAssets,
                 ...chunks.flatMap(chunk => [...chunk.files]),
               ]),
             ]
               .filter(file => file.endsWith('.js'))
               .sort();
+            // Rspack also lists concatenated children as standalone modules.
+            // A later parent visit can supply their first emitted chunk.
+            if (
+              previousAssets &&
+              assets.every(file => previousAssets.has(file))
+            )
+              return;
+            moduleAssets.set(module, new Set(assets));
             const info = getOctaneRspackBuildInfo(module);
             if (info && assets.length) {
               const resource = module.resource?.split('?')[0];
@@ -91,7 +107,7 @@ class OctaneCompilerManifestPlugin {
                 );
               }
               const relative = path.relative(this.options.root, resource);
-              sources.push({
+              sourcesByModule.set(module, {
                 resource:
                   relative.split(path.sep).join('/') +
                   (info.resourceQuery ?? ''),
@@ -108,6 +124,7 @@ class OctaneCompilerManifestPlugin {
             for (const nested of module.modules ?? []) visit(nested, assets);
           };
           for (const module of compilation.modules) visit(module);
+          const sources = [...sourcesByModule.values()];
           sources.sort((left, right) =>
             left.resource.localeCompare(right.resource),
           );

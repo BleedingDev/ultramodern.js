@@ -614,11 +614,6 @@ const assertReleaseUi = (
       routerBindings,
       Object.keys(routerBindings),
       'envelope.ui.routerBindings',
-      (
-        ui.rendererIdentity as
-          | MicroVerticalReleaseUi['rendererIdentity']
-          | undefined
-      )?.renderer,
     ).errors,
   ];
   if (errors.length > 0) {

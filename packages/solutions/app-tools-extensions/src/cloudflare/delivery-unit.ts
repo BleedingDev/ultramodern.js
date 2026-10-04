@@ -153,7 +153,6 @@ const createTopologyDeliveryUnitStamp = (
         app.routerBindings,
         Object.keys(routerBindings),
         'routerBindings',
-        (app.rendererIdentity as RendererIdentity | undefined)?.renderer,
       ).errors,
     ];
     if (errors.length) {

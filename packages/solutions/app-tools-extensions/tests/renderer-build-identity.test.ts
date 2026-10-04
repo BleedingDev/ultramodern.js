@@ -2699,6 +2699,83 @@ describe('renderer source and compiler build identity', () => {
     );
   });
 
+  test.each([
+    'octane',
+    'lumen',
+    'soliid',
+  ])('admits canonical router framework %s without an owner policy', async framework => {
+    const options = await rendererFixture('react');
+    for (const binding of Object.values(options.routerBindings)) {
+      binding.defaultProvider.framework = framework;
+      binding.providers[0].framework = framework;
+    }
+    const result = await resolveRendererBuildIdentities(options);
+    expect(result.routerBindings).toEqual(options.routerBindings);
+    expect(result.identities.main.renderer).toBe('react');
+    expect(result.compilerDigest).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  test.each([
+    { role: 'default', framework: 'octane' },
+    { role: 'provider', framework: 'octane' },
+    { role: 'default', framework: 'lumen' },
+    { role: 'provider', framework: 'lumen' },
+    { role: 'default', framework: 'soliid' },
+    { role: 'provider', framework: 'soliid' },
+  ])('rejects foreign $framework $role tokens under the selected owner policy before package reads', async ({
+    role,
+    framework,
+  }) => {
+    const options = await fixture();
+    const foreignProvider = {
+      ...options.routerBindings.main.defaultProvider,
+      framework,
+    };
+    const main =
+      role === 'default'
+        ? {
+            ...options.routerBindings.main,
+            defaultProvider: foreignProvider,
+            providers: [foreignProvider],
+          }
+        : {
+            ...options.routerBindings.main,
+            evidence: 'provider-registry' as const,
+            providers: [
+              options.routerBindings.main.defaultProvider,
+              foreignProvider,
+            ],
+          };
+    const spy = rs.spyOn(fs, 'readFile');
+    try {
+      await expect(
+        resolveRendererBuildIdentities({
+          ...options,
+          routerFrameworks: ['solid'],
+          routerBindings: { ...options.routerBindings, main },
+        }),
+      ).rejects.toThrow('must be admitted by the selected router owner.');
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  test('admits mixed React router providers under their explicit owner policy', async () => {
+    const options = await providerRegistryFixture();
+    const result = await resolveRendererBuildIdentities({
+      ...options,
+      routerFrameworks: ['react-router', 'tanstack'],
+    });
+    expect(result.routerBindings).toEqual(options.routerBindings);
+    expect(result.routerBindings?.main.defaultProvider.framework).toBe(
+      'react-router',
+    );
+    expect(
+      result.routerBindings?.main.providers.map(provider => provider.framework),
+    ).toEqual(['react-router', 'tanstack']);
+  });
+
   test('snapshots and recursively freezes returned router bindings without freezing input', async () => {
     const options = await rendererFixture('react');
     const routerBindings = ownedRouterBindings(options);

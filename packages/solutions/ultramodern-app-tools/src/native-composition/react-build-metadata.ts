@@ -37,7 +37,10 @@ import {
   type ReactGeneratedOutputPhaseController,
   ReactTypedCssPhase,
 } from './react-typed-css-phase';
-import { resolveRendererProfile } from './renderer-profile';
+import {
+  resolveRendererProfile,
+  resolveRendererRouterFrameworks,
+} from './renderer-profile';
 
 export const REACT_RENDERER_IDENTITY_ELEMENT_ID =
   'ultramodern-renderer-identity';
@@ -240,6 +243,9 @@ export function reactRendererBuildMetadataPlugin(
   options: ReactBuildMetadataOptions,
 ): CliPlugin<WithBffRuntimeBuildIdentity<AppTools>> {
   const profile = resolveRendererProfile('react');
+  const manifestValidation = {
+    routerFrameworks: resolveRendererRouterFrameworks('react'),
+  };
   let identities: RendererBuildIdentities | undefined;
   let typedCssPhase: ReactTypedCssPhase | undefined;
   let developmentGeneration = 0;
@@ -471,8 +477,13 @@ export function reactRendererBuildMetadataPlugin(
                 },
               },
               profile,
+              manifestValidation,
             )
-          : validateRendererBuildManifest(buildMetadata, profile);
+          : validateRendererBuildManifest(
+              buildMetadata,
+              profile,
+              manifestValidation,
+            );
         const output = path.join(
           distDirectory,
           ...(development ? [RENDERER_DEVELOPMENT_DIRECTORY] : []),
@@ -581,6 +592,7 @@ export function reactRendererBuildMetadataPlugin(
               profile,
             },
             profile,
+            manifestValidation,
           );
           await generatedOutputs?.assertCurrent();
           if (context.command === 'dev') {
@@ -775,7 +787,11 @@ export function reactRendererBuildMetadataPlugin(
               ['--skip-build', '-s'].includes(argument),
             ));
         if (reuseBuilt)
-          identities = await readRendererBuildManifest(distDirectory, profile);
+          identities = await readRendererBuildManifest(
+            distDirectory,
+            profile,
+            manifestValidation,
+          );
         else preparePhase();
         if (!identities && !typedCssPhase)
           throw new Error(

@@ -8,6 +8,7 @@ import {
   resolveRendererBuildIdentities,
 } from '@modern-js/app-tools-extensions/renderer-build-identity';
 import { findHostingModuleDirectory } from '@modern-js/app-tools-extensions/runtime-package-resolution';
+import type { RendererIdentity } from '@modern-js/renderer-core/identity';
 import { createRequestSession } from '@modern-js/renderer-core/session';
 import type { Entrypoint } from '@modern-js/types/cli/base';
 import {
@@ -33,11 +34,15 @@ import {
 import { createNativeEntryGenerator } from '../../src/native-composition/native-entry';
 import type { NativeEntryGeneration } from '../../src/native-composition/native-infrastructure';
 import type { NativeDevelopmentSnapshot } from '../../src/native-composition/native-server-plugin';
-import { resolveRendererProfileMetadata } from '../../src/native-composition/renderer-profile';
+import {
+  resolveCandidateRendererProfile,
+  resolveRendererProfileMetadata,
+} from '../../src/native-composition/renderer-profile';
 import { resolveEntrypointRouterBindings } from '../../src/native-composition/renderer-router-resolution';
 import { nativeRendererIsolationPlugin } from '../../src/native-composition/renderer-selection';
 import { createOctaneCompilerPlugin } from '../../src/renderers/octane/compiler';
 import { pluginSolidRenderer } from '../../src/renderers/solid/compiler';
+import { createReplacementCompilerArtifacts } from './replacement-compiler-artifacts';
 
 const roots: string[] = [];
 const closes: (() => Promise<void>)[] = [];
@@ -976,7 +981,526 @@ async function retainedAssets(appFixture: Fixture, receipt: Receipt) {
   return assets;
 }
 
+interface ReplacementManifest {
+  readonly abi: 'replacement-compiler/v1';
+  readonly owner: 'replacement-compiler';
+  readonly build: {
+    readonly identity: RendererIdentity;
+    readonly hydrationBuildId: string;
+  };
+  readonly auxiliary: { readonly filename: 'compiled-artifacts/current.json' };
+}
+
+interface ReplacementReceipt {
+  readonly sequence: number;
+  readonly client: Rspack.Stats;
+  readonly server: Rspack.Stats;
+  readonly hashes: Readonly<Record<string, string | undefined>>;
+  readonly emitted: ReplacementManifest;
+  readonly metadata?: RendererDevelopmentBuildManifest;
+  readonly snapshot?: NativeDevelopmentSnapshot;
+  readonly publicationError?: unknown;
+}
+
+/** A fourth compiler owns its manifest ABI without a runtime registry entry. */
+async function replacementFixture() {
+  const root = fs.realpathSync(
+    fs.mkdtempSync(
+      path.join(process.env.OWNED_TEMP_DIR ?? os.tmpdir(), 'replacement-dev-'),
+    ),
+  );
+  roots.push(root);
+  fs.writeFileSync(
+    path.join(root, 'package.json'),
+    JSON.stringify({ name: 'replacement-native-development', private: true }),
+  );
+  const digest = (value: string) =>
+    createHash('sha256').update(value).digest('hex');
+  const candidate = resolveCandidateRendererProfile('solid');
+  const profile = {
+    ...candidate,
+    renderer: 'replacement',
+  };
+  const buildMarker = digest('replacement-development-session');
+  const identity: RendererIdentity = {
+    renderer: 'replacement',
+    appId: 'replacement-native-development',
+    entryName: 'main',
+    protocolVersion: 1,
+    buildId: buildMarker,
+  };
+  const state = path.join(root, 'state.js');
+  const clientEntry = path.join(root, 'client.js');
+  const serverEntry = path.join(root, 'server.js');
+  fs.writeFileSync(state, 'export const marker = "first";\n');
+  fs.writeFileSync(
+    clientEntry,
+    'import { marker } from "./state.js";\nglobalThis.replacementCompilerMarker = marker;\n',
+  );
+  fs.writeFileSync(
+    serverEntry,
+    `import { marker } from "./state.js";
+export const rendererIdentity = ${JSON.stringify(identity)};
+export async function nativeRequestHandler(_request, context) {
+  return new Response(marker + ":" + context.nativeManifest.owner);
+}
+export async function nativeCSRRequestHandler() { return new Response(marker); }
+`,
+  );
+  const inputDigest = () =>
+    digest(
+      [state, clientEntry, serverEntry]
+        .map(filename => fs.readFileSync(filename, 'utf8'))
+        .join('\n'),
+    );
+  const provider = { framework: 'replacement', ...profile.router };
+  const session: RendererBuildIdentities = {
+    identities: { main: identity },
+    buildMarker,
+    sourceRevision: 'workspace',
+    inputDigest: inputDigest(),
+    profileDigest: digest(JSON.stringify(profile)),
+    compilerDigest: digest(JSON.stringify(profile.compiler)),
+    frameworkCohortDigest: digest('replacement-fixture-framework-cohort'),
+    cacheAllowed: false,
+    promotable: false,
+    routerBindings: {
+      main: {
+        owner: '@fixture/replacement-router-owner',
+        evidence: 'file-routes',
+        defaultProvider: provider,
+        providers: [provider],
+      },
+    },
+  };
+  const compilerEvents: string[] = [];
+  const completions = queue<ReplacementReceipt>(
+    'selected replacement compiler publication',
+    () => compilerEvents,
+  );
+  const delivered: NativeDevelopmentSnapshot[] = [];
+  const compilerArtifacts = createReplacementCompilerArtifacts();
+  const distDirectory = path.join(root, 'dist');
+  const authority = new NativeDevelopment({
+    renderer: 'replacement',
+    profile,
+    compilerArtifacts,
+    distDirectory,
+    getSessionIdentities: () => session,
+    resolveWaveInputs: async () => ({ ...session, inputDigest: inputDigest() }),
+  });
+  closes.push(() => authority.close());
+  let poison: 'identity' | 'hydration' | undefined;
+  let sequence = 0;
+  const owner: RsbuildPlugin = {
+    name: 'test-selected-replacement-compiler',
+    setup(api) {
+      api.modifyRspackConfig((config, { environment }) => {
+        if (environment.name !== 'client') return;
+        config.plugins ??= [];
+        config.plugins.push({
+          apply(compiler: Rspack.Compiler) {
+            compiler.hooks.thisCompilation.tap(
+              'ReplacementCompiler',
+              current => {
+                current.hooks.processAssets.tap(
+                  {
+                    name: 'ReplacementCompiler',
+                    stage: rspack.Compilation.PROCESS_ASSETS_STAGE_REPORT,
+                  },
+                  () => {
+                    const clientHash = current.hash;
+                    if (!clientHash)
+                      throw new Error(
+                        'Replacement compiler has no actual client hash',
+                      );
+                    const manifest: ReplacementManifest = {
+                      abi: 'replacement-compiler/v1',
+                      owner: 'replacement-compiler',
+                      build: {
+                        identity:
+                          poison === 'identity'
+                            ? {
+                                ...identity,
+                                buildId: 'foreign-replacement-build',
+                              }
+                            : identity,
+                        hydrationBuildId:
+                          poison === 'hydration' ? '0'.repeat(64) : clientHash,
+                      },
+                      auxiliary: {
+                        filename: 'compiled-artifacts/current.json',
+                      },
+                    };
+                    current.emitAsset(
+                      'compiled-artifacts/main.replacement.json',
+                      new rspack.sources.RawSource(JSON.stringify(manifest)),
+                      { immutable: false },
+                    );
+                    current.emitAsset(
+                      'compiled-artifacts/current.json',
+                      new rspack.sources.RawSource(
+                        JSON.stringify({ clientHash }),
+                      ),
+                      { immutable: false },
+                    );
+                  },
+                );
+              },
+            );
+          },
+        });
+      });
+      api.onAfterCreateCompiler(({ compiler }) => {
+        for (const current of 'compilers' in compiler
+          ? compiler.compilers
+          : [compiler])
+          current.hooks.done.tap('ReplacementCompilerReceipt', stats => {
+            compilerEvents.push(`${current.options.name}:done:${stats.hash}`);
+            if (compilerEvents.length > 16) compilerEvents.shift();
+          });
+      });
+    },
+  };
+  const rsbuild = await createRsbuild({
+    cwd: root,
+    rsbuildConfig: {
+      plugins: [
+        nativeClientAssetsPlugin('replacement', () => session.identities),
+        owner,
+        authority.plugin,
+        {
+          name: 'test-replacement-published-generation',
+          setup(api) {
+            api.onDevCompileDone({
+              order: 'post',
+              handler: async ({ stats }) => {
+                const client = results(stats).find(
+                  item => item.compilation.name === 'client',
+                );
+                const server = results(stats).find(
+                  item => item.compilation.name === 'server',
+                );
+                if (!client || !server)
+                  throw new Error(
+                    'Replacement fixture requires both actual compilers',
+                  );
+                const hashes = Object.freeze(actualHashes(stats));
+                const emitted = JSON.parse(
+                  client.compilation
+                    .getAsset('compiled-artifacts/main.replacement.json')!
+                    .source.source()
+                    .toString(),
+                );
+                let metadata: RendererDevelopmentBuildManifest | undefined;
+                let snapshot: NativeDevelopmentSnapshot | undefined;
+                let publicationError: unknown;
+                try {
+                  metadata = await readRendererDevelopmentBuildManifest(
+                    distDirectory,
+                    profile,
+                    { routerFrameworks: compilerArtifacts.routerFrameworks },
+                  );
+                  snapshot = await authority.resolveSnapshot(
+                    identity,
+                    AbortSignal.timeout(30_000),
+                  );
+                  delivered.push(snapshot);
+                } catch (error) {
+                  publicationError = error;
+                }
+                completions.push(
+                  Object.freeze({
+                    sequence: ++sequence,
+                    client,
+                    server,
+                    hashes,
+                    emitted,
+                    metadata,
+                    snapshot,
+                    publicationError,
+                  }),
+                );
+              },
+            });
+          },
+        },
+      ],
+      server: { host: '127.0.0.1', port: 0, printUrls: false },
+      dev: {
+        assetPrefix: '/replacement-assets/',
+        writeToDisk: false,
+        hmr: true,
+        liveReload: false,
+      },
+      output: { minify: false, sourceMap: false },
+      performance: { printFileSize: false },
+      environments: {
+        client: {
+          source: { entry: { main: clientEntry } },
+          output: { target: 'web', assetPrefix: '/replacement-assets/' },
+          tools: { htmlPlugin: false },
+        },
+        server: {
+          source: { entry: { main: serverEntry } },
+          output: {
+            target: 'node',
+            module: true,
+            filename: { js: '[name].mjs' },
+          },
+          tools: { htmlPlugin: false, rspack: { externals: [] } },
+        },
+      },
+    },
+  });
+  const dev = await rsbuild.createDevServer({ getPortSilently: true });
+  closes.push(() => dev.close());
+  const listening = await dev.listen();
+  const address = new URL(listening.urls[0]);
+  return {
+    root,
+    session,
+    identity,
+    authority,
+    address,
+    completions,
+    delivered,
+    compilerArtifacts,
+    inputDigest,
+    edit(marker: string, attack?: typeof poison) {
+      poison = attack;
+      fs.writeFileSync(
+        state,
+        `export const marker = ${JSON.stringify(marker)};\n`,
+      );
+    },
+    async html(snapshot: NativeDevelopmentSnapshot) {
+      const request = new Request(address);
+      const requestSession = createRequestSession({
+        request,
+        identity,
+        platform: {
+          kind: 'node',
+          bindings: { loaderContext: new Map<string, unknown>() },
+        },
+      });
+      try {
+        const response = await snapshot.manifest.nativeRequestHandler(request, {
+          session: requestSession,
+          entry: identity,
+          assets: snapshot.assets,
+          nativeManifest: snapshot.nativeManifest,
+          serverConfig: { ssr: true },
+        });
+        return await response.text();
+      } finally {
+        requestSession.abort();
+      }
+    },
+  };
+}
+
 describe('native memory development checkpoints', () => {
+  it('uses the selected replacement compiler artifact owner across actual development generations and rejects mismatched artifacts', async () => {
+    const app = await replacementFixture();
+    const assertAccepted = (receipt: ReplacementReceipt) => {
+      expect(receipt.client.hasErrors()).toBe(false);
+      expect(receipt.server.hasErrors()).toBe(false);
+      expect(receipt.publicationError).toBeUndefined();
+      expect(receipt.metadata?.identities).toEqual(app.session.identities);
+      expect(receipt.metadata?.devCompilation.compilationHashes).toEqual(
+        receipt.hashes,
+      );
+      expect(receipt.metadata?.devCompilation.sourceInputDigest).toBe(
+        app.inputDigest(),
+      );
+      expect(receipt.snapshot?.manifest.rendererIdentity).toEqual(app.identity);
+      expect(receipt.snapshot?.nativeManifest).toEqual(receipt.emitted);
+      expect(receipt.snapshot?.hydrationBuildId).toBe(receipt.hashes.client);
+      expect(receipt.emitted.build.hydrationBuildId).toBe(
+        receipt.hashes.client,
+      );
+      expect(app.compilerArtifacts.clientManifestFile).toHaveBeenCalledWith(
+        'main',
+      );
+      expect(app.compilerArtifacts.validateClientManifest).toHaveBeenCalledWith(
+        receipt.emitted,
+        app.identity,
+        {
+          compilationHash: receipt.hashes.client,
+          development: true,
+        },
+      );
+      if (!receipt.snapshot || !receipt.metadata)
+        throw new Error(
+          'Selected replacement compiler did not publish its actual generation',
+        );
+      return { snapshot: receipt.snapshot, metadata: receipt.metadata };
+    };
+    const firstReceipt = await app.completions.until(() => true);
+    const first = assertAccepted(firstReceipt);
+    expect(await app.html(first.snapshot)).toBe('first:replacement-compiler');
+    expect(firstReceipt.client.compilation.outputOptions.publicPath).toBe(
+      '/replacement-assets/',
+    );
+    const firstScript = first.snapshot.assets.find(
+      asset => asset.kind === 'script',
+    );
+    if (!firstScript)
+      throw new Error('Actual replacement client script is missing');
+    const firstScriptResponse = await fetch(
+      new URL(firstScript.href, app.address),
+    );
+    expect(firstScriptResponse.status).toBe(200);
+    const firstBytes = Buffer.from(await firstScriptResponse.arrayBuffer());
+
+    app.edit('second');
+    const secondReceipt = await app.completions.until(
+      receipt =>
+        receipt.hashes.client !== firstReceipt.hashes.client &&
+        receipt.hashes.server !== firstReceipt.hashes.server,
+    );
+    const second = assertAccepted(secondReceipt);
+    expect(second.metadata.devCompilation.generation).toBeGreaterThan(
+      first.metadata.devCompilation.generation,
+    );
+    expect(second.metadata.devCompilation.sourceInputDigest).not.toBe(
+      first.metadata.devCompilation.sourceInputDigest,
+    );
+    expect(secondReceipt.client.compilation.compiler).toBe(
+      firstReceipt.client.compilation.compiler,
+    );
+    expect(secondReceipt.server.compilation.compiler).toBe(
+      firstReceipt.server.compilation.compiler,
+    );
+    expect(await app.html(second.snapshot)).toBe('second:replacement-compiler');
+    expect(await app.html(first.snapshot)).toBe('first:replacement-compiler');
+    expect(app.delivered).toContain(first.snapshot);
+    expect(app.delivered).toContain(second.snapshot);
+    let currentReceipt = secondReceipt;
+    for (const filename of [
+      'compiled-artifacts/main.replacement.json',
+      'compiled-artifacts/current.json',
+    ]) {
+      expect(
+        app.compilerArtifacts.isMutableDevelopmentAsset,
+      ).toHaveBeenCalledWith(filename, ['main']);
+      const response = await fetch(
+        new URL(`/replacement-assets/${filename}`, app.address),
+      );
+      expect(response.status).toBe(200);
+      const served = await response.json();
+      const compilation = currentReceipt.client.compilation;
+      const compiledBytes = await new Promise<Buffer>((resolve, reject) => {
+        compilation.compiler.outputFileSystem!.readFile(
+          path.join(compilation.outputOptions.path!, filename),
+          (error, bytes) => {
+            if (error) reject(error);
+            else if (!bytes) reject(new Error(`Missing emitted ${filename}`));
+            else resolve(Buffer.from(bytes));
+          },
+        );
+      });
+      expect(served).toEqual(JSON.parse(compiledBytes.toString()));
+      const servedHash =
+        filename === 'compiled-artifacts/current.json'
+          ? served.clientHash
+          : served.build.hydrationBuildId;
+      expect(servedHash).not.toBe(firstReceipt.hashes.client);
+      // A further real watch wave can supersede the second receipt before this
+      // mutable request. Observe that exact hash's accepted publication.
+      if (servedHash !== currentReceipt.hashes.client)
+        currentReceipt = await app.completions.until(
+          receipt =>
+            receipt.sequence > currentReceipt.sequence &&
+            receipt.hashes.client === servedHash,
+        );
+      const current = assertAccepted(currentReceipt);
+      expect(current.metadata.devCompilation.generation).toBeGreaterThanOrEqual(
+        second.metadata.devCompilation.generation,
+      );
+      expect(served).toEqual(
+        filename === 'compiled-artifacts/current.json'
+          ? { clientHash: currentReceipt.hashes.client }
+          : current.snapshot.nativeManifest,
+      );
+      expect(await app.html(current.snapshot)).toBe(
+        'second:replacement-compiler',
+      );
+    }
+    const retainedScript = await fetch(new URL(firstScript.href, app.address));
+    expect(retainedScript.status).toBe(200);
+    expect(Buffer.from(await retainedScript.arrayBuffer())).toEqual(firstBytes);
+
+    let last = currentReceipt;
+    for (const attack of ['identity', 'hydration'] as const) {
+      const deliveredBeforeAttack = app.delivered.length;
+      app.edit(`rejected-${attack}`, attack);
+      const rejected = await app.completions.until(
+        receipt =>
+          receipt.sequence > last.sequence &&
+          receipt.hashes.client !== last.hashes.client &&
+          (attack === 'identity'
+            ? receipt.emitted.build.identity.buildId ===
+              'foreign-replacement-build'
+            : receipt.emitted.build.hydrationBuildId === '0'.repeat(64)),
+      );
+      expect(rejected.client.hasErrors()).toBe(false);
+      expect(rejected.server.hasErrors()).toBe(false);
+      expect(rejected.emitted.build.identity.buildId).toBe(
+        attack === 'identity'
+          ? 'foreign-replacement-build'
+          : app.identity.buildId,
+      );
+      expect(rejected.emitted.build.hydrationBuildId).toBe(
+        attack === 'hydration' ? '0'.repeat(64) : rejected.hashes.client,
+      );
+      expect(
+        app.compilerArtifacts.validateClientManifest,
+      ).toHaveBeenLastCalledWith(rejected.emitted, app.identity, {
+        compilationHash: rejected.hashes.client,
+        development: true,
+      });
+      await expect(
+        app.authority.resolveSnapshot(
+          app.identity,
+          AbortSignal.timeout(30_000),
+        ),
+      ).rejects.toThrow(
+        attack === 'identity'
+          ? /identity conflicts/iu
+          : /hydration build differs/iu,
+      );
+      expect(rejected.metadata).toBeUndefined();
+      expect(rejected.snapshot).toBeUndefined();
+      expect(rejected.publicationError).toBeDefined();
+      expect(app.delivered).toHaveLength(deliveredBeforeAttack);
+      expect(
+        fs.existsSync(
+          path.join(
+            app.root,
+            'dist',
+            RENDERER_DEVELOPMENT_DIRECTORY,
+            RENDERER_BUILD_MANIFEST_FILE,
+          ),
+        ),
+      ).toBe(false);
+      last = rejected;
+      if (attack === 'identity') {
+        app.edit('recovered-identity');
+        last = await app.completions.until(
+          receipt =>
+            receipt.sequence > rejected.sequence &&
+            receipt.hashes.client !== rejected.hashes.client,
+        );
+        const recovered = assertAccepted(last);
+        expect(await app.html(recovered.snapshot)).toBe(
+          'recovered-identity:replacement-compiler',
+        );
+      }
+    }
+  }, 300_000);
+
   it.each([
     false,
     true,

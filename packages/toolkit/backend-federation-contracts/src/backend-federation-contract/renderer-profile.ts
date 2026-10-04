@@ -10,8 +10,8 @@ import {
 } from './validation-core';
 
 export const RENDERER_PROTOCOL_VERSION = 1;
-export const RENDERERS = ['react', 'solid', 'octane'] as const;
-export type RendererName = (typeof RENDERERS)[number];
+/** Selected SDK renderer token; supported selections belong to the SDK catalogue. */
+export type RendererName = string;
 
 export type RendererIdentity = Readonly<{
   renderer: RendererName;
@@ -59,11 +59,14 @@ const validateRenderer = (
   path: string,
   errors: BackendFederationContractValidationError[],
 ) => {
-  if (!RENDERERS.some(renderer => renderer === value.renderer)) {
+  if (
+    !canonicalString(value.renderer) ||
+    !/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u.test(value.renderer)
+  ) {
     addError(
       errors,
       `${path}.renderer`,
-      'must be "react", "solid", or "octane".',
+      'must be a lowercase renderer token separated by single hyphens.',
     );
   }
   if (value.protocolVersion !== RENDERER_PROTOCOL_VERSION) {

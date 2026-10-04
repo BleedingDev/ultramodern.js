@@ -222,6 +222,25 @@ describe('finalized native UI output stamping', () => {
     }
   });
 
+  it('preserves the exact selected fourth metadata producer without substituting a built-in owner', () => {
+    const rendererBuildPlugin = '@fixture/fourth-native-infrastructure';
+    const plugin = rendererBuildArtifactStampPlugin({
+      rendererBuildPlugin,
+      resolveRendererBuild: async () => ({}) as FinalizedRendererBuildOutput,
+    });
+    expect(plugin.pre).toEqual([rendererBuildPlugin]);
+    expect(plugin.required).toEqual([rendererBuildPlugin]);
+    for (const invalid of ['', ' ', ' @fixture/fourth-native-infrastructure']) {
+      expect(() =>
+        rendererBuildArtifactStampPlugin({
+          rendererBuildPlugin: invalid,
+          resolveRendererBuild: async () =>
+            ({}) as FinalizedRendererBuildOutput,
+        }),
+      ).toThrow('owning metadata producer');
+    }
+  });
+
   it('rejects an unbound metadata resolver before registering a callback', () => {
     expect(() =>
       rendererBuildArtifactStampPlugin({

@@ -1,17 +1,19 @@
-import { resolveCandidateRendererProfile } from '@modern-js/ultramodern-app-tools';
-import { ULTRAMODERN_PACKAGE_PINS } from './policy';
+import {
+  registeredRenderers,
+  resolveCandidateRendererProfile,
+} from '@modern-js/ultramodern-app-tools';
+import { resolveRendererGenerationAdapter } from './renderer-generations';
 import type {
   ApplicationRenderer,
   RendererGenerationProfile,
   WorkspaceApp,
   WorkspaceRenderer,
 } from './types';
-import { NODE_VERSION, TYPESCRIPT_VERSION } from './versions';
 
 export function isApplicationRenderer(
   value: unknown,
 ): value is ApplicationRenderer {
-  return value === 'react' || value === 'solid' || value === 'octane';
+  return registeredRenderers.some(renderer => renderer === value);
 }
 
 export function resolveWorkspaceRenderer(app: WorkspaceApp): WorkspaceRenderer {
@@ -44,73 +46,22 @@ export function getRendererGenerationProfile(
 ): RendererGenerationProfile {
   if (!isApplicationRenderer(renderer)) {
     throw new Error(
-      `Unsupported renderer ${String(renderer)}. Expected react, solid or octane.`,
+      `Unsupported renderer ${String(renderer)}. Expected ${registeredRenderers.join(', ')}.`,
     );
   }
   const selected = resolveCandidateRendererProfile(renderer);
-  const profile = {
-    renderer: selected.renderer,
-    protocolVersion: selected.protocolVersion,
-    compiler: { ...selected.compiler },
-    hydration: { ...selected.hydration },
-    router: { ...selected.router },
-  };
-  if (renderer === 'react') {
-    return {
-      renderer,
-      profile,
-      sourceExtension: '.tsx',
-      jsxImportSource: 'react',
-      nodeVersion: NODE_VERSION,
-      dependencies: { ...ULTRAMODERN_PACKAGE_PINS.appDependencies },
-      devDependencies: {
-        '@types/react':
-          ULTRAMODERN_PACKAGE_PINS.appDevDependencies['@types/react'],
-        '@types/react-dom':
-          ULTRAMODERN_PACKAGE_PINS.appDevDependencies['@types/react-dom'],
-      },
-      capabilities: {
-        ssr: true,
-        streaming: true,
-        workers: selected.capabilities.worker,
-        federation: selected.capabilities.moduleFederation,
-        rsc: selected.capabilities.rsc,
-      },
-    };
+  const adapter = resolveRendererGenerationAdapter(renderer);
+  const generation = adapter.createProfile(selected);
+  if (
+    selected.renderer !== renderer ||
+    generation.renderer !== renderer ||
+    generation.profile.renderer !== renderer
+  ) {
+    throw new Error(
+      `Renderer ${renderer} generation profile has a different identity.`,
+    );
   }
-  const dependencies: Record<string, string> = {
-    ...Object.fromEntries(
-      Object.entries(selected.dependencies).filter(
-        ([name]) => !name.startsWith('@modern-js/'),
-      ),
-    ),
-    [profile.router.coreName]: profile.router.coreVersion,
-  };
-  if (renderer === 'solid') {
-    dependencies['solid-js'] = profile.hydration.version;
-    dependencies['@solidjs/signals'] = profile.hydration.version;
-  }
-  return {
-    renderer,
-    profile,
-    sourceExtension: '.tsx',
-    jsxImportSource: selected.jsxImportSource,
-    nodeVersion: NODE_VERSION,
-    dependencies,
-    devDependencies: {
-      [profile.compiler.name]: profile.compiler.version,
-      ...(renderer === 'solid'
-        ? { '@solidjs/babel-plugin': profile.compiler.version }
-        : { typescript: TYPESCRIPT_VERSION }),
-    },
-    capabilities: {
-      ssr: true,
-      streaming: true,
-      workers: selected.capabilities.worker,
-      federation: selected.capabilities.moduleFederation,
-      rsc: selected.capabilities.rsc,
-    },
-  };
+  return generation;
 }
 
 export function resolveAppGenerationProfile(

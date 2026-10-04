@@ -4,11 +4,11 @@ import type {
 } from '@modern-js/app-tools/cli-config';
 import type { PrecompressConfig } from '@modern-js/app-tools-extensions/build-config/precompress/plugin';
 import type { CloudflareDeployConfig } from '@modern-js/app-tools-extensions/config';
-import type { Renderer } from '@modern-js/renderer-core';
 import type {
   BffRuntimeUserConfig,
   ServerTelemetryUserConfig,
 } from '@modern-js/runtime-extensions/server-config';
+import type { RegisteredRenderer } from './renderer-registration';
 
 type NativeServerConfig = NonNullable<NativeAppUserConfig['server']>;
 type NativeSSRConfig = Exclude<NativeServerConfig['ssr'], boolean | undefined>;
@@ -19,7 +19,7 @@ export type UltramodernAppUserConfig = Omit<
   'output' | 'server' | 'bff' | 'deploy'
 > & {
   /** Select the native application renderer before plugins are registered. */
-  renderer?: Renderer;
+  renderer?: RegisteredRenderer;
   output?: Omit<NonNullable<NativeAppUserConfig['output']>, 'precompress'> & {
     precompress?: boolean | PrecompressConfig;
   };

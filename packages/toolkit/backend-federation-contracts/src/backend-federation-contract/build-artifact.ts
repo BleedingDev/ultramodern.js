@@ -7,8 +7,6 @@ import {
   validateDeliveryUnitRecord,
 } from './delivery-unit';
 import {
-  RENDERERS,
-  type RendererName,
   type RendererProfile,
   validateRendererIdentity,
   validateRendererProfile,
@@ -45,7 +43,6 @@ const validateUiRouterBindings = (
   ui: { routerBindings?: unknown },
   primaryEntryName: unknown,
   path: string,
-  renderer?: RendererName,
 ): BackendFederationContractValidationResult => {
   const errors: BackendFederationContractValidationError[] = [];
   if (!Object.hasOwn(ui, 'routerBindings')) {
@@ -58,7 +55,6 @@ const validateUiRouterBindings = (
       bindings,
       isRecord(bindings) ? Object.keys(bindings) : [],
       path,
-      renderer,
     ).errors,
   );
   if (
@@ -91,7 +87,6 @@ export const createUltramodernBuildArtifact = (
           ? options.ui.identity.entryName
           : undefined,
         'artifact.ui.routerBindings',
-        options.ui.profile?.renderer,
       ).errors,
     ];
     if (errors.length) {
@@ -280,7 +275,6 @@ export const validateUltramodernBuildArtifact = (
           marker,
           rendererIdentity?.entryName,
           `${markerPath}.routerBindings`,
-          RENDERERS.find(renderer => renderer === rendererProfile?.renderer),
         ).errors,
       );
       if (rendererIdentity) {
