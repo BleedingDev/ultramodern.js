@@ -230,6 +230,8 @@ async function fixture(
     deleteTypesFolder?: boolean;
     api?: boolean;
     seedStale?: boolean;
+    apiResetCount?: number;
+    maxRetries?: number;
   } = {},
 ) {
   delete process.env.FEDERATION_DEBUG;
@@ -242,6 +244,7 @@ async function fixture(
     ['compiled-types/src/page.d.ts', 'export type Page = string;\n'],
   ]);
   let apiStatus = 200;
+  let apiResetsRemaining = options.apiResetCount ?? 0;
   const requests: string[] = [];
   let archiveGate: { entered(): void; released: Promise<void> } | undefined;
   const server = http.createServer((request, response) => {
@@ -261,6 +264,11 @@ async function fixture(
       request.url === '/api.d.ts' ||
       request.url === '/@mf-types.d.ts'
     ) {
+      if (apiResetsRemaining > 0) {
+        apiResetsRemaining--;
+        request.socket.resetAndDestroy();
+        return;
+      }
       response.statusCode = apiStatus;
       response.end(
         'export type Remote = typeof import("REMOTE_ALIAS_IDENTIFIER/App");\n',
@@ -292,7 +300,7 @@ async function fixture(
       typesFolder: '@mf-types',
       remoteTypesFolder: '@mf-types',
       deleteTypesFolder: options.deleteTypesFolder ?? true,
-      maxRetries: 1,
+      maxRetries: options.maxRetries ?? 1,
       timeout: 2000,
       abortOnError: false,
       consumeAPITypes: true,
@@ -1068,7 +1076,7 @@ describe('native receiver DTS IO', () => {
   });
 
   it('rejects a requested API failure that the native manager swallows', async () => {
-    const app = await fixture();
+    const app = await fixture({ maxRetries: 3 });
     app.setAPIStatus(500);
     const sink = policy(app.root);
     const rejection: unknown = await app.manager.consumeTypes().then(
@@ -1105,6 +1113,178 @@ describe('native receiver DTS IO', () => {
           stage.outcome === 'failed',
       ),
     ).toBe(true);
+    expect(app.requests.filter(url => url === '/api.d.ts')).toHaveLength(1);
+    expect(sink.receipts).toHaveLength(0);
+  });
+
+  it('recovers a real API TCP reset before materializing exact declarations once', async () => {
+    const app = await fixture({ apiResetCount: 1, maxRetries: 3 });
+    const sink = policy(app.root);
+    await app.manager.consumeTypes();
+    expect(app.requests.filter(url => url === '/types.zip')).toHaveLength(1);
+    expect(app.requests.filter(url => url === '/api.d.ts')).toHaveLength(2);
+    const apiPath = path.join(app.root, '@mf-types/remote/apis.d.ts');
+    const indexPath = path.join(app.root, '@mf-types/index.d.ts');
+    const declaration = 'export type Remote = typeof import("remote/App");\n';
+    expect(fs.readFileSync(apiPath)).toEqual(Buffer.from(declaration));
+    const index = fs.readFileSync(indexPath);
+    expect(index.toString()).toContain(
+      "import type { PackageType as PackageType_0,RemoteKeys as RemoteKeys_0 } from './remote/apis.d.ts';",
+    );
+    expect(sink.evidence).toHaveLength(1);
+    expect(sink.evidence[0]!.status).toBe('complete');
+    expect(sink.evidence[0]!.failures).toEqual([]);
+    expect(
+      sink.evidence[0]!.stages.find(stage => stage.stage === 'api'),
+    ).toMatchObject({ requested: true, outcome: 'complete', result: false });
+    expect(sink.receipts).toHaveLength(1);
+    expect(
+      rendererGeneratedOutputPermission(sink.receipts[0]!, apiPath),
+    ).toMatchObject({
+      kind: 'file',
+      byteDigest: digest(declaration),
+    });
+    expect(
+      rendererGeneratedOutputPermission(sink.receipts[0]!, indexPath),
+    ).toMatchObject({
+      kind: 'file',
+      byteDigest: digest(index),
+    });
+  });
+
+  it('retains the real API reset after exhausting exactly three fetch attempts', async () => {
+    const app = await fixture({ apiResetCount: 3, maxRetries: 3 });
+    const sink = policy(app.root);
+    const rejection: unknown = await app.manager.consumeTypes().then(
+      () => undefined,
+      error => error,
+    );
+    expect(rejection).toBeInstanceOf(AggregateError);
+    if (!(rejection instanceof AggregateError))
+      throw new Error('Expected the exhausted real native API reset.');
+    const apiPath = path.join(app.root, '@mf-types/remote/apis.d.ts');
+    expect(app.requests.filter(url => url === '/types.zip')).toHaveLength(1);
+    expect(app.requests.filter(url => url === '/api.d.ts')).toHaveLength(3);
+    expect(rejection.message).toContain('fetch failed');
+    expect(rejection.message).toContain('ECONNRESET');
+    expect(rejection.message).toContain(JSON.stringify(apiPath));
+    expect(rejection.errors).toContainEqual(
+      expect.objectContaining({
+        operation: 'api',
+        message: 'read ECONNRESET',
+        code: 'ECONNRESET',
+        path: apiPath,
+      }),
+    );
+    expect(sink.evidence).toHaveLength(1);
+    expect(sink.evidence[0]!.status).toBe('failed');
+    expect(sink.evidence[0]!.failures).toContainEqual({
+      operation: 'api',
+      reason: 'read ECONNRESET',
+      code: 'ECONNRESET',
+      path: apiPath,
+    });
+    expect(
+      sink.evidence[0]!.stages.find(stage => stage.stage === 'api'),
+    ).toMatchObject({
+      requested: true,
+      outcome: 'failed',
+      result: 'undefined',
+    });
+    expect(fs.existsSync(apiPath)).toBe(false);
+    expect(fs.existsSync(path.join(app.root, '@mf-types/index.d.ts'))).toBe(
+      false,
+    );
+    expect(sink.receipts).toHaveLength(0);
+  });
+
+  it('keeps zero-attempt public API lookup inert and rejects the SDK missing acknowledgement', async () => {
+    const app = await fixture({ maxRetries: 0 });
+    const apiPath = path.join(app.root, '@mf-types/remote/apis.d.ts');
+    const destinationPath = path.dirname(apiPath);
+    const before = [
+      app.root,
+      destinationPath,
+      apiPath,
+      path.join(app.root, '@mf-types/index.d.ts'),
+      path.join(app.root, '@mf-types/remote/stale/nested/old.d.ts'),
+    ].map(target => read(app.root, target));
+    const native = sourceRequire('@module-federation/dts-plugin/core') as {
+      DTSManager: new (
+        options: NativeOptions,
+      ) => {
+        downloadAPITypes(
+          remoteInfo: { name: string; alias: string; apiTypeUrl: string },
+          destination: string,
+          host: NativeOptions['host'],
+        ): Promise<boolean | undefined>;
+      };
+    };
+    const nativeManager = new native.DTSManager(app.nativeOptions);
+    expect(
+      await nativeManager.downloadAPITypes(
+        {
+          name: 'private-remote',
+          alias: 'remote',
+          apiTypeUrl: `${app.base}/api.d.ts`,
+        },
+        destinationPath,
+        app.nativeOptions.host,
+      ),
+    ).toBeUndefined();
+    expect(app.requests).toEqual([]);
+    expect(
+      AdapterConstructor.observeReceiverNodes(
+        { consumer: { projectRoot: app.root }, generation: seed },
+        before,
+      ).nodes,
+    ).toEqual(before);
+    const sink = policy(app.root);
+    await expect(app.manager.consumeTypes()).rejects.toThrow(
+      'Native receiver DTS generation failed',
+    );
+    expect(app.requests).toEqual([]);
+    expect(sink.evidence).toHaveLength(1);
+    expect(sink.evidence[0]!.status).toBe('failed');
+    expect(sink.evidence[0]!.failures.length).toBeGreaterThan(0);
+    expect(sink.evidence[0]!.stages.some(stage => stage.stage === 'api')).toBe(
+      false,
+    );
+    expect(sink.receipts).toHaveLength(0);
+    expect(
+      AdapterConstructor.observeReceiverNodes(
+        { consumer: { projectRoot: app.root }, generation: seed },
+        before,
+      ).nodes,
+    ).toEqual(before);
+  });
+
+  it('never retries successful API transport after protected materialization rejects', async () => {
+    const app = await fixture({ deleteTypesFolder: false, maxRetries: 3 });
+    const apiPath = path.join(app.root, '@mf-types/remote/apis.d.ts');
+    fs.writeFileSync(
+      apiPath,
+      'export type Authored = "protected API golden";\n',
+    );
+    const before = read(app.root, apiPath);
+    const sink = policy(app.root, { authored: [apiPath] });
+    await expect(app.manager.consumeTypes()).rejects.toThrow(
+      'Native receiver DTS generation failed',
+    );
+    expect(app.requests.filter(url => url === '/api.d.ts')).toHaveLength(1);
+    expect(read(app.root, apiPath)).toEqual(before);
+    expect(sink.evidence).toHaveLength(1);
+    expect(sink.evidence[0]!.status).toBe('failed');
+    expect(
+      sink.evidence[0]!.failures.some(item =>
+        item.reason.includes('authored or tracked input'),
+      ),
+    ).toBe(true);
+    expect(
+      sink.evidence[0]!.operations.some(
+        operation => operation.after.path.lexical === apiPath,
+      ),
+    ).toBe(false);
     expect(sink.receipts).toHaveLength(0);
   });
 
