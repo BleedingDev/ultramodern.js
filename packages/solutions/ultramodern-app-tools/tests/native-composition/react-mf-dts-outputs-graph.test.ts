@@ -192,6 +192,22 @@ describe('React receiver ownership of the native web compiler graph', () => {
     const entry = path.join(appDirectory, 'src/main.js');
     fs.writeFileSync(entry, 'globalThis.nativeReceiverGraph = true;\n');
     const names = ['client', 'secondaryWeb'] as const;
+    const nativeOptions = new Map<string, Record<string, unknown>>();
+    const originalExtraOptions = Object.freeze({
+      retained: 'native-graph-option',
+    });
+    const originalDts = Object.freeze({
+      generateTypes: false,
+      consumeTypes: { consumeAPITypes: false },
+      extraOptions: originalExtraOptions,
+    });
+    const originalNativeOptions = Object.freeze({
+      name: 'native_graph_shared',
+      remotes: {},
+      dev: false,
+      dts: originalDts,
+    });
+    const originalNativeSnapshot = structuredClone(originalNativeOptions);
     const destinations = new Map<string, string>();
     for (const name of names) {
       const directory = path.join(appDirectory, '@mf-types', name);
@@ -281,14 +297,13 @@ describe('React receiver ownership of the native web compiler graph', () => {
       async resolveDestinations(details) {
         const native = details.nativeOptions as {
           compiler?: string;
-          host?: { moduleFederationConfig?: { name?: string } };
+          extraOptions?: Record<string, ReceiverSeed>;
         };
+        const compilerId =
+          native.extraOptions?.[adapter.EXTRA_OPTIONS_KEY]?.compilerId;
         const name =
           native.compiler ??
-          native.host?.moduleFederationConfig?.name?.replace(
-            'native_graph_',
-            '',
-          );
+          names.find(name => authority(name).compilerId === compilerId);
         if (!name) throw new Error('Receiver has no configured compiler');
         const filename = destinations.get(name);
         if (!filename) throw new Error('Receiver has no enrolled destination');
@@ -359,7 +374,6 @@ describe('React receiver ownership of the native web compiler graph', () => {
       },
     });
     integration.controller.bindPhase(phase, context);
-    const nativeOptions = new Map<string, Record<string, unknown>>();
     const configuredWorkerHooks = new Map<string, unknown>();
     const dtsConstructorWorkerHooks = new Map<string, unknown>();
     const dtsConstructorDescriptor = Object.getOwnPropertyDescriptor(
@@ -373,8 +387,12 @@ describe('React receiver ownership of the native web compiler graph', () => {
       NativeDtsPlugin
     ) {
       constructor(options: Record<string, unknown>) {
-        const name = String(options.name).replace('native_graph_', '');
         const dts = options.dts as Record<string, unknown>;
+        const name = names.find(
+          name => configuredWorkerHooks.get(name) === dts.onDevWorkerCreated,
+        );
+        if (!name)
+          throw new Error('The actual DTS constructor has no configured owner');
         dtsConstructorWorkerHooks.set(name, dts.onDevWorkerCreated);
         // Observe the public call boundary, then delegate unchanged to the
         // real constructor. This does not invoke or manufacture a worker hook.
@@ -517,19 +535,9 @@ describe('React receiver ownership of the native web compiler graph', () => {
         });
         api.modifyBundlerChain(async (chain, utils) => {
           const name = utils.environment.name;
-          const options = {
-            name: `native_graph_${name}`,
-            remotes: {},
-            dev: false,
-            dts: {
-              generateTypes: false,
-              consumeTypes: { consumeAPITypes: false },
-            },
-          };
-          nativeOptions.set(name, options);
           chain
             .plugin('plugin-module-federation')
-            .use(ModuleFederationPlugin, [options])
+            .use(ModuleFederationPlugin, [originalNativeOptions])
             .init((Plugin, args) => {
               const dts = args[0].dts as Record<string, unknown>;
               expect(typeof dts.onDevWorkerCreated).toBe('function');
@@ -542,6 +550,14 @@ describe('React receiver ownership of the native web compiler graph', () => {
             });
           for (const modifier of chainModifiers)
             await modifier(chain, utils as never);
+          nativeOptions.set(
+            name,
+            (
+              chain.plugin('plugin-module-federation').get('args') as [
+                Record<string, unknown>,
+              ]
+            )[0],
+          );
         });
         api.modifyHTMLTags((tags, { filename, environment }) => {
           if (environment.name === 'client') {
@@ -656,11 +672,29 @@ describe('React receiver ownership of the native web compiler graph', () => {
         await server.close();
       }
     });
+    expect(originalNativeOptions).toEqual(originalNativeSnapshot);
+    expect(originalNativeOptions.dts).toBe(originalDts);
+    expect(originalDts.extraOptions).toBe(originalExtraOptions);
+    expect(Object.hasOwn(originalExtraOptions, adapter.EXTRA_OPTIONS_KEY)).toBe(
+      false,
+    );
+    expect(new Set(names.map(name => nativeOptions.get(name))).size).toBe(2);
+    expect(new Set(names.map(name => authority(name).compilerId)).size).toBe(2);
+    expect(
+      new Set(names.map(name => authority(name).registrationId)).size,
+    ).toBe(2);
+    expect(new Set(configuredWorkerHooks.values()).size).toBe(2);
     expect(dtsConstructorWorkerHooks.size).toBe(2);
-    for (const name of names)
+    for (const name of names) {
+      expect(nativeOptions.get(name)).not.toBe(originalNativeOptions);
+      const dts = nativeOptions.get(name)!.dts as Record<string, unknown>;
+      expect(dts).not.toBe(originalDts);
+      expect(dts.extraOptions).not.toBe(originalExtraOptions);
+      expect(dts.extraOptions).toMatchObject(originalExtraOptions);
       expect(dtsConstructorWorkerHooks.get(name)).toBe(
         configuredWorkerHooks.get(name),
       );
+    }
     const listening = server.listen();
     const initialReady = phase.resolveIdentities();
     await Promise.race([firstMemberCompleted.promise, initialReady]);

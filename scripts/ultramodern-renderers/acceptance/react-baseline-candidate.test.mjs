@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
@@ -6,13 +9,121 @@ import {
   readReactBaselineReport,
 } from './react-baseline-candidate.mjs';
 import {
+  assertReactBaselineDataLoaderPackageCurrent,
   createReactBaselineBuildToolDependencies,
+  createReactBaselineRootDeclarationDependencies,
+  materializeReactBaselineDataLoaderPackage,
   REACT_BASELINE_SUITES,
   trackedReactBaselineInputFiles,
 } from './react-baseline-staging.mjs';
 
 const version = '0.11.12';
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
+function prerequisiteFixture(t) {
+  const root = fs.mkdtempSync(
+    path.join(fs.realpathSync(os.tmpdir()), 'react-baseline-public-members-'),
+  );
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const consumerRoot = path.join(root, 'consumer');
+  fs.mkdirSync(consumerRoot);
+  // These bytes exercise transport only; they claim no package/compiler qualification.
+  const fileContents = new Map([
+    ['package.json', Buffer.from('{"name":"@candidate/plugin-data-loader"}\n')],
+    [
+      'dist/esm/runtime/index.mjs',
+      Buffer.from('export const runtime = true;\n'),
+    ],
+    [
+      'dist/types/runtime/index.d.ts',
+      Buffer.from('export declare const runtime: true;\n'),
+    ],
+    ['src/runtime/index.ts', Buffer.from('export const runtime = true;\n')],
+    ['bin/public.js', Buffer.from('#!/usr/bin/env node\n')],
+  ]);
+  const inspection = {
+    fileContents,
+    files: [...fileContents].map(([memberPath, bytes]) => ({
+      path: memberPath,
+      size: bytes.length,
+      mode: memberPath.startsWith('bin/') ? 0o755 : 0o644,
+    })),
+  };
+  return { root, consumerRoot, inspection };
+}
+
+test('materializes every public data-loader member as exact physical files in the original layout', t => {
+  const { consumerRoot, inspection } = prerequisiteFixture(t);
+  const materialization = materializeReactBaselineDataLoaderPackage({
+    consumerRoot,
+    inspection,
+  });
+  assert.equal(
+    materialization.path,
+    path.join(consumerRoot, 'packages/cli/plugin-data-loader'),
+  );
+  for (const directory of [
+    'packages',
+    'packages/cli',
+    materialization.relativeDirectory,
+  ]) {
+    assert.ok(fs.lstatSync(path.join(consumerRoot, directory)).isDirectory());
+  }
+  assert.equal(materialization.files.length, inspection.fileContents.size);
+  for (const [relativePath, bytes] of inspection.fileContents) {
+    const file = path.join(materialization.path, relativePath);
+    assert.ok(fs.lstatSync(file).isFile());
+    assert.equal(fs.realpathSync(file), file);
+    assert.ok(fs.readFileSync(file).equals(bytes));
+  }
+  assertReactBaselineDataLoaderPackageCurrent(materialization);
+  assert.throws(
+    () =>
+      materializeReactBaselineDataLoaderPackage({ consumerRoot, inspection }),
+    /must be fresh/u,
+  );
+});
+
+test('data-loader materialization rejects linked parents and an existing linked destination before outside writes', t => {
+  for (const linkedPath of ['packages', 'packages/cli/plugin-data-loader']) {
+    const { root, consumerRoot, inspection } = prerequisiteFixture(t);
+    const outside = path.join(root, 'outside');
+    fs.mkdirSync(outside);
+    const destination = path.join(consumerRoot, linkedPath);
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    fs.symlinkSync(outside, destination, 'dir');
+    assert.throws(
+      () =>
+        materializeReactBaselineDataLoaderPackage({ consumerRoot, inspection }),
+      /ordinary data-loader directory|must be fresh/u,
+    );
+    assert.deepEqual(fs.readdirSync(outside), []);
+  }
+});
+
+test('data-loader receipt validation rejects changed public bytes and replacement links', t => {
+  const { root, consumerRoot, inspection } = prerequisiteFixture(t);
+  const materialization = materializeReactBaselineDataLoaderPackage({
+    consumerRoot,
+    inspection,
+  });
+  const relativePath = 'dist/esm/runtime/index.mjs';
+  const runtime = path.join(materialization.path, relativePath);
+  fs.writeFileSync(runtime, 'foreign runtime\n');
+  assert.throws(
+    () => assertReactBaselineDataLoaderPackageCurrent(materialization),
+    /Public data-loader bytes changed/u,
+  );
+  fs.writeFileSync(runtime, inspection.fileContents.get(relativePath));
+  const outside = path.join(root, 'foreign-runtime.mjs');
+  fs.writeFileSync(outside, inspection.fileContents.get(relativePath));
+  fs.unlinkSync(runtime);
+  fs.symlinkSync(outside, runtime);
+  assert.throws(
+    () => assertReactBaselineDataLoaderPackageCurrent(materialization),
+    /Expected ordinary data-loader file/u,
+  );
+});
+
 function originalRscAuthority() {
   return {
     release: {
@@ -44,6 +155,45 @@ function originalRscAuthority() {
     },
   };
 }
+
+test('restores only the original monorepo root React declaration context without changing declarations', () => {
+  const rootPackage = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'),
+  );
+  const original = JSON.stringify(rootPackage);
+  assert.deepEqual(
+    createReactBaselineRootDeclarationDependencies(rootPackage),
+    {
+      '@types/react': rootPackage.devDependencies['@types/react'],
+      '@types/react-dom': rootPackage.devDependencies['@types/react-dom'],
+    },
+  );
+  assert.equal(JSON.stringify(rootPackage), original);
+  const testsPackage = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, 'tests/package.json'), 'utf8'),
+  );
+  assert.throws(
+    () => createReactBaselineRootDeclarationDependencies(testsPackage),
+    /original monorepo root/u,
+  );
+});
+
+test('React declaration context rejects absent or aliased original root type declarations', () => {
+  const original = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'),
+  );
+  for (const name of ['@types/react', '@types/react-dom']) {
+    for (const specification of [undefined, 'npm:foreign-types@19.3.0']) {
+      const rootPackage = structuredClone(original);
+      rootPackage.devDependencies[name] = specification;
+      assert.throws(
+        () => createReactBaselineRootDeclarationDependencies(rootPackage),
+        /must declare a direct React type version/u,
+      );
+    }
+  }
+});
+
 function nativeReport() {
   const tests = REACT_BASELINE_SUITES.flatMap((testPath, suite) =>
     Array.from({ length: [9, 2, 1, 5][suite] }, (_, index) => ({
