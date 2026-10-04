@@ -9,10 +9,15 @@ import {
   isUltramodernBuildArtifact,
   type RendererProfile,
   ULTRAMODERN_BUILD_ARTIFACT_FILE,
+  ULTRAMODERN_BUILD_ARTIFACT_PATH,
   type UltramodernBuildArtifact,
 } from '@modern-js/backend-federation-contracts';
 import { readBuildIdentity } from '../backend-federation-build/config';
 import { resolveWorkerDeliveryUnitStamp } from '../cloudflare/delivery-unit';
+import {
+  resolveTopologyDeliveryUnit,
+  resolveWorkerDeliveryUnitStamp,
+} from '../cloudflare/delivery-unit';
 import {
   canonicalSerializeMicroVerticalReleaseEnvelope,
   createMicroVerticalReleaseEnvelope,
@@ -94,8 +99,8 @@ const collectNestedStrings = (value: unknown, key: string): string[] => {
   ]);
 };
 
-// Empty native MF producers emit no remote entry or exposed execution assets.
-// Only their routeAssets declarations may supply the missing browser evidence.
+// Native MF consumers can import remotes without emitting their own remote entry.
+// Only local routeAssets declarations may supply their browser evidence.
 const emptyProducerRouteModules = async (
   distDirectory: string,
   files: string[],
@@ -108,7 +113,14 @@ const emptyProducerRouteModules = async (
     !Array.isArray(manifest.exposes) ||
     manifest.exposes.length !== 0 ||
     !Array.isArray(manifest.remotes) ||
-    (!shellConsumer && manifest.remotes.length !== 0) ||
+    manifest.remotes.some(
+      remote =>
+        !isRecord(remote) ||
+        ['federationContainerName', 'moduleName', 'alias', 'entry'].some(
+          key =>
+            typeof remote[key] !== 'string' || remote[key].trim().length === 0,
+        ),
+    ) ||
     !isRecord(manifest.metaData) ||
     !isRecord(manifest.metaData.remoteEntry) ||
     manifest.metaData.remoteEntry.name !== '' ||
@@ -541,9 +553,8 @@ type ReleaseIdentityCarrierSurface =
   | 'ssr'
   | 'uiClient';
 
-type ReleaseIdentityCarrierPaths = Record<
-  ReleaseIdentityCarrierSurface,
-  string[]
+type ReleaseIdentityCarrierPaths = Partial<
+  Record<ReleaseIdentityCarrierSurface, string[]>
 >;
 
 const writeReleaseIdentityCarrierMetadata = async (
@@ -638,7 +649,7 @@ const createReleaseArtifactInputs = async (
   identity: MicroVerticalReleaseIdentity,
   target: MicroVerticalReleaseTarget,
   apiOnly: boolean,
-  shellConsumer: boolean,
+  uiOnly: boolean,
 ) => {
   const files = await collectFiles(distDirectory);
   if (target === 'node' && files.some(isEffectBffWorkerArtifact)) {
@@ -708,13 +719,18 @@ const createReleaseArtifactInputs = async (
       `[ultramodern-release-envelope] ${target} full-stack MicroVertical has no ${target === 'node' ? 'Node' : 'workerd'} SSR artifacts.`,
     );
   }
+  if (uiOnly && (apiBackendPaths.length > 0 || nodeApiEntryPaths.length > 0))
+    throw new Error(
+      '[ultramodern-release-envelope] UI-only application emitted an undeclared API/backend artifact.',
+    );
   if (
-    (target === 'node' && nodeApiEntryPaths.length === 0) ||
-    (target === 'cloudflare' &&
-      !files.some(logicalPath =>
-        EFFECT_BFF_WORKER_PATTERN.test(logicalPath),
-      )) ||
-    apiBackendPaths.length === 0
+    !uiOnly &&
+    ((target === 'node' && nodeApiEntryPaths.length === 0) ||
+      (target === 'cloudflare' &&
+        !files.some(logicalPath =>
+          EFFECT_BFF_WORKER_PATTERN.test(logicalPath),
+        )) ||
+      apiBackendPaths.length === 0)
   ) {
     throw new Error(
       `[ultramodern-release-envelope] ${target} MicroVertical has no actual ${target === 'node' ? 'compiled Node Effect API artifact' : 'Effect API/BFF worker artifact'}.`,
@@ -768,11 +784,13 @@ const createReleaseArtifactInputs = async (
     files.filter(logicalPath => logicalPath === PUBLIC_BUILD_ARTIFACT_PATH),
     'release-identity-metadata',
   );
-  add([BACKEND_FEDERATION_MANIFEST_FILE], 'module-federation-manifest');
-  add(
-    [BACKEND_FEDERATION_REMOTE_ENTRY_FILE],
-    target === 'node' ? 'nodejs' : 'commonjs-module',
-  );
+  if (!uiOnly) {
+    add([BACKEND_FEDERATION_MANIFEST_FILE], 'module-federation-manifest');
+    add(
+      [BACKEND_FEDERATION_REMOTE_ENTRY_FILE],
+      target === 'node' ? 'nodejs' : 'commonjs-module',
+    );
+  }
 
   const sharedSurfaces = {
     uiClient: [...uiClientPaths].sort((left, right) =>
@@ -782,6 +800,14 @@ const createReleaseArtifactInputs = async (
     apiBackend: [...apiBackendPaths].sort((left, right) =>
       left.localeCompare(right),
     ),
+    ...(!uiOnly
+      ? {
+          backendFederation: {
+            manifest: BACKEND_FEDERATION_MANIFEST_FILE,
+            container: BACKEND_FEDERATION_REMOTE_ENTRY_FILE,
+          },
+        }
+      : {}),
   };
   const surfaces = shellConsumer
     ? sharedSurfaces
@@ -799,13 +825,15 @@ const createReleaseArtifactInputs = async (
     distDirectory,
     identity,
     {
-      apiBackend: apiBackendPaths,
-      backendFederation: shellConsumer
-        ? []
-        : [
-            BACKEND_FEDERATION_MANIFEST_FILE,
-            BACKEND_FEDERATION_REMOTE_ENTRY_FILE,
-          ],
+      ...(!uiOnly
+        ? {
+            apiBackend: apiBackendPaths,
+            backendFederation: [
+              BACKEND_FEDERATION_MANIFEST_FILE,
+              BACKEND_FEDERATION_REMOTE_ENTRY_FILE,
+            ],
+          }
+        : {}),
       ssr: [...new Set([...ssrExecutionPaths, ...ssrPaths])],
       uiClient: uiClientPaths.filter(logicalPath =>
         COMPILED_MODULE_PATTERN.test(logicalPath),
@@ -858,43 +886,56 @@ export const emitFrameworkMicroVerticalReleaseEnvelope = async ({
     pathExists(backendManifestPath),
     pathExists(backendContainerPath),
   ]);
-  if (
-    !shellConsumer &&
-    !hasBackendManifest &&
-    !hasBackendContainer &&
-    !apiOnly
-  ) {
-    return undefined;
-  }
-  if (shellConsumer) {
-    if (apiOnly || hasBackendManifest || hasBackendContainer || !appDirectory) {
-      throw new Error(
-        '[ultramodern-release-envelope] Shell requires a full-stack application source and cannot declare a backend federation producer.',
-      );
-    }
-    const source = await readBuildIdentity(appDirectory);
-    const stamp = await resolveWorkerDeliveryUnitStamp(appDirectory);
-    if (!source.artifact || !stamp || stamp.unitId !== source.unitId) {
-      throw new Error(
-        '[ultramodern-release-envelope] Shell is missing its native compiled delivery-unit identity.',
-      );
-    }
-    await fs.writeFile(
+  if (!apiOnly && !hasBackendManifest && !hasBackendContainer) {
+    const source = appDirectory
+      ? path.join(appDirectory, ULTRAMODERN_BUILD_ARTIFACT_PATH)
+      : undefined;
+    const participationPaths = [
       path.join(distDirectory, ULTRAMODERN_BUILD_ARTIFACT_FILE),
-      JSON.stringify(
-        stampUltramodernBuildArtifactIdentity(source.artifact, stamp),
-      ),
+      backendManifestPath,
+      backendContainerPath,
+      ...(source ? [source, source.replace(/\.json$/u, '.ts')] : []),
+    ];
+    const hasParticipationEntry = (
+      await Promise.all(
+        participationPaths.map(async filePath => {
+          try {
+            await fs.lstat(filePath);
+            return true;
+          } catch (error) {
+            if (isMissingPathError(error)) return false;
+            throw error;
+          }
+        }),
+      )
+    ).some(Boolean);
+    if (
+      !hasParticipationEntry &&
+      (!appDirectory || !(await resolveTopologyDeliveryUnit(appDirectory)))
+    )
+      return undefined;
+  }
+  const buildArtifact = await readBuildArtifact(
+    distDirectory,
+    requirePromotable,
+  );
+  const declared =
+    appDirectory && buildArtifact
+      ? await resolveWorkerDeliveryUnitStamp(appDirectory, distDirectory)
+      : undefined;
+  const uiOnly = Boolean(declared?.surfaces.ui && !declared.surfaces.api);
+  if (uiOnly && (apiOnly || hasBackendManifest || hasBackendContainer))
+    throw new Error(
+      '[ultramodern-release-envelope] UI-only application cannot declare API-only configuration or backend federation output.',
     );
-  } else if (!hasBackendManifest || !hasBackendContainer) {
+  if (!hasBackendManifest && !hasBackendContainer && !apiOnly && !buildArtifact)
+    return undefined;
+  if (!uiOnly && (!hasBackendManifest || !hasBackendContainer)) {
     throw new Error(
       '[ultramodern-release-envelope] MicroVertical backend federation manifest and container must be emitted together.',
     );
   }
 
-  const buildArtifact = await readBuildArtifact(
-    distDirectory,
-    requirePromotable,
-  );
   if (!buildArtifact) {
     return undefined;
   }
@@ -923,15 +964,13 @@ export const emitFrameworkMicroVerticalReleaseEnvelope = async ({
     sourceRevision: buildArtifact.deliveryUnit.sourceRevision,
     releaseVersion: buildArtifact.deliveryUnit.version,
   };
-  if (!shellConsumer) {
-    await readBackendManifest(distDirectory, identity);
-  }
+  if (!uiOnly) await readBackendManifest(distDirectory, identity);
   const { artifacts, surfaces } = await createReleaseArtifactInputs(
     distDirectory,
     identity,
     target,
     apiOnly,
-    shellConsumer,
+    uiOnly,
   );
   const sharedSurfaces = {
     uiClient: surfaces.uiClient,
@@ -1109,8 +1148,7 @@ const createNodeStagedReleaseArtifactInputs = async (
   outputDirectory: string,
   identity: MicroVerticalReleaseIdentity,
   apiOnly: boolean,
-  declaredPublicAssets: readonly string[],
-  shellConsumer: boolean,
+  uiOnly: boolean,
 ) => {
   const files = await collectFiles(outputDirectory);
   const declaredPublicAssetPaths = resolveDeclaredPublicAssets(
@@ -1121,12 +1159,9 @@ const createNodeStagedReleaseArtifactInputs = async (
   for (const requiredPath of [
     'index.js',
     'package.json',
-    ...(shellConsumer
-      ? []
-      : [
-          BACKEND_FEDERATION_MANIFEST_FILE,
-          BACKEND_FEDERATION_REMOTE_ENTRY_FILE,
-        ]),
+    ...(!uiOnly
+      ? [BACKEND_FEDERATION_MANIFEST_FILE, BACKEND_FEDERATION_REMOTE_ENTRY_FILE]
+      : []),
   ]) {
     if (!files.includes(requiredPath)) {
       throw new Error(
@@ -1174,6 +1209,14 @@ const createNodeStagedReleaseArtifactInputs = async (
       COMPILED_MODULE_PATTERN.test(logicalPath),
   );
   if (
+    uiOnly &&
+    (apiBackendPaths.length > 0 ||
+      files.some(logicalPath => backendFederationPaths.has(logicalPath)))
+  )
+    throw new Error(
+      '[ultramodern-release-envelope] final UI-only Node staging contains an undeclared API/backend or backend federation artifact.',
+    );
+  if (
     apiOnly &&
     (uiClientPaths.length > 0 || ssrPaths.some(path => path !== 'index.js'))
   ) {
@@ -1186,7 +1229,10 @@ const createNodeStagedReleaseArtifactInputs = async (
     ['Node SSR', apiOnly ? [] : ssrPaths],
     ['Node API/backend', apiBackendPaths],
   ] as const) {
-    if (paths.length === 0 && (!apiOnly || surface === 'Node API/backend')) {
+    if (
+      paths.length === 0 &&
+      (surface === 'Node API/backend' ? !uiOnly : !apiOnly)
+    ) {
       throw new Error(
         `[ultramodern-release-envelope] final Node staging has no ${surface} artifacts.`,
       );
@@ -1235,11 +1281,13 @@ const createNodeStagedReleaseArtifactInputs = async (
   for (const logicalPath of apiBackendPaths) {
     runtimeByPath.set(logicalPath, 'nodejs');
   }
-  runtimeByPath.set(
-    BACKEND_FEDERATION_MANIFEST_FILE,
-    'module-federation-manifest',
-  );
-  runtimeByPath.set(BACKEND_FEDERATION_REMOTE_ENTRY_FILE, 'nodejs');
+  if (!uiOnly) {
+    runtimeByPath.set(
+      BACKEND_FEDERATION_MANIFEST_FILE,
+      'module-federation-manifest',
+    );
+    runtimeByPath.set(BACKEND_FEDERATION_REMOTE_ENTRY_FILE, 'nodejs');
+  }
   for (const logicalPath of [
     ULTRAMODERN_BUILD_ARTIFACT_FILE,
     PUBLIC_BUILD_ARTIFACT_PATH,
@@ -1252,13 +1300,15 @@ const createNodeStagedReleaseArtifactInputs = async (
     outputDirectory,
     identity,
     {
-      apiBackend: apiBackendPaths,
-      backendFederation: shellConsumer
-        ? []
-        : [
-            BACKEND_FEDERATION_MANIFEST_FILE,
-            BACKEND_FEDERATION_REMOTE_ENTRY_FILE,
-          ],
+      ...(!uiOnly
+        ? {
+            apiBackend: apiBackendPaths,
+            backendFederation: [
+              BACKEND_FEDERATION_MANIFEST_FILE,
+              BACKEND_FEDERATION_REMOTE_ENTRY_FILE,
+            ],
+          }
+        : {}),
       ssr: apiOnly
         ? []
         : [
@@ -1290,14 +1340,14 @@ const createNodeStagedReleaseArtifactInputs = async (
       apiBackend: [...apiBackendPaths].sort((left, right) =>
         left.localeCompare(right),
       ),
-      ...(shellConsumer
-        ? {}
-        : {
+      ...(!uiOnly
+        ? {
             backendFederation: {
               manifest: BACKEND_FEDERATION_MANIFEST_FILE,
               container: BACKEND_FEDERATION_REMOTE_ENTRY_FILE,
             },
-          }),
+          }
+        : {}),
     },
   };
 };
@@ -1320,8 +1370,7 @@ export const emitNodeStagedReleaseEnvelope = async ({
     outputDirectory,
     source.identity,
     source.surfaces.uiClient.length === 0,
-    declaredPublicAssets,
-    source.kind === SHELL_RELEASE_ENVELOPE_KIND,
+    !source.surfaces.backendFederation,
   );
   const sharedSurfaces = {
     uiClient: surfaces.uiClient,
@@ -1378,8 +1427,7 @@ const createCloudflareStagedReleaseArtifactInputs = async (
   outputDirectory: string,
   identity: MicroVerticalReleaseIdentity,
   apiOnly: boolean,
-  declaredPublicAssets: readonly string[],
-  shellConsumer: boolean,
+  uiOnly: boolean,
 ) => {
   const files = await collectFiles(outputDirectory);
   const declaredPublicAssetPaths = resolveDeclaredPublicAssets(
@@ -1414,7 +1462,10 @@ const createCloudflareStagedReleaseArtifactInputs = async (
   const backendManifestPath = `public/${BACKEND_FEDERATION_MANIFEST_FILE}`;
   const backendContainerPath = `public/${BACKEND_FEDERATION_REMOTE_ENTRY_FILE}`;
   const apiBackendPaths = files.filter(isEffectBffWorkerArtifact);
-  if (!files.some(logicalPath => EFFECT_BFF_WORKER_PATTERN.test(logicalPath))) {
+  if (
+    !uiOnly &&
+    !files.some(logicalPath => EFFECT_BFF_WORKER_PATTERN.test(logicalPath))
+  ) {
     throw new Error(
       '[ultramodern-release-envelope] final Cloudflare staging has no actual Effect API/BFF worker artifact.',
     );
@@ -1437,6 +1488,20 @@ const createCloudflareStagedReleaseArtifactInputs = async (
       logicalPath !== backendContainerPath,
   );
   if (
+    uiOnly &&
+    (apiBackendPaths.length > 0 ||
+      files.some(
+        logicalPath =>
+          logicalPath === backendManifestPath ||
+          logicalPath === backendContainerPath ||
+          (logicalPath.startsWith('api/') &&
+            COMPILED_MODULE_PATTERN.test(logicalPath)),
+      ))
+  )
+    throw new Error(
+      '[ultramodern-release-envelope] final UI-only Cloudflare staging contains an undeclared API/backend or backend federation artifact.',
+    );
+  if (
     apiOnly &&
     (uiClientPaths.length > 0 ||
       ssrPaths.some(path => path !== 'server/index.mjs'))
@@ -1452,14 +1517,14 @@ const createCloudflareStagedReleaseArtifactInputs = async (
   ] as const) {
     if (
       paths.length === 0 &&
-      (!apiOnly || surface === 'Cloudflare API/backend')
+      (surface === 'Cloudflare API/backend' ? !uiOnly : !apiOnly)
     ) {
       throw new Error(
         `[ultramodern-release-envelope] final Cloudflare staging has no ${surface} artifacts.`,
       );
     }
   }
-  for (const logicalPath of shellConsumer
+  for (const logicalPath of uiOnly
     ? []
     : [backendManifestPath, backendContainerPath]) {
     if (!files.includes(logicalPath)) {
@@ -1511,8 +1576,10 @@ const createCloudflareStagedReleaseArtifactInputs = async (
   add(files.filter(isPublicMetadataPath), 'public-metadata');
   add(apiOnly ? [] : ssrPaths, 'workerd');
   add(apiBackendPaths, 'workerd-effect');
-  add([backendManifestPath], 'module-federation-manifest');
-  add([backendContainerPath], 'commonjs-module');
+  if (!uiOnly) {
+    add([backendManifestPath], 'module-federation-manifest');
+    add([backendContainerPath], 'commonjs-module');
+  }
   add(
     files.filter(
       logicalPath =>
@@ -1526,10 +1593,12 @@ const createCloudflareStagedReleaseArtifactInputs = async (
     outputDirectory,
     identity,
     {
-      apiBackend: apiBackendPaths,
-      backendFederation: shellConsumer
-        ? []
-        : [backendManifestPath, backendContainerPath],
+      ...(!uiOnly
+        ? {
+            apiBackend: apiBackendPaths,
+            backendFederation: [backendManifestPath, backendContainerPath],
+          }
+        : {}),
       ssr: apiOnly
         ? []
         : [
@@ -1563,14 +1632,14 @@ const createCloudflareStagedReleaseArtifactInputs = async (
       apiBackend: [...apiBackendPaths].sort((left, right) =>
         left.localeCompare(right),
       ),
-      ...(shellConsumer
-        ? {}
-        : {
+      ...(!uiOnly
+        ? {
             backendFederation: {
               manifest: backendManifestPath,
               container: backendContainerPath,
             },
-          }),
+          }
+        : {}),
     },
   };
 };
@@ -1597,8 +1666,7 @@ export const emitCloudflareStagedReleaseEnvelope = async ({
       outputDirectory,
       source.identity,
       source.surfaces.uiClient.length === 0,
-      declaredPublicAssets,
-      source.kind === SHELL_RELEASE_ENVELOPE_KIND,
+      !source.surfaces.backendFederation,
     );
   const sharedSurfaces = {
     uiClient: surfaces.uiClient,

@@ -428,11 +428,25 @@ const assertSurfaces = (
   const surfaces = assertRecord(value, 'surfaces');
   assertExactKeys(
     surfaces,
-    kind === SHELL_RELEASE_ENVELOPE_KIND
-      ? ['uiClient', 'ssr', 'apiBackend']
-      : ['uiClient', 'ssr', 'apiBackend', 'backendFederation'],
+    [
+      'uiClient',
+      'ssr',
+      'apiBackend',
+      ...(Object.hasOwn(surfaces, 'backendFederation')
+        ? ['backendFederation']
+        : []),
+    ],
     'surfaces',
   );
+  const backendFederation = Object.hasOwn(surfaces, 'backendFederation')
+    ? assertRecord(surfaces.backendFederation, 'surfaces.backendFederation')
+    : undefined;
+  if (backendFederation)
+    assertExactKeys(
+      backendFederation,
+      ['manifest', 'container'],
+      'surfaces.backendFederation',
+    );
   const uiClient = assertSurfacePaths(surfaces.uiClient, 'surfaces.uiClient');
   const ssr = assertSurfacePaths(surfaces.ssr, 'surfaces.ssr');
   const apiBackend = assertSurfacePaths(
@@ -449,45 +463,33 @@ const assertSurfaces = (
       'surfaces.uiClient must contain at least one artifact path when SSR is declared.',
     );
   }
-  if (apiBackend.length === 0) {
+  if (apiBackend.length === 0 && (backendFederation || uiClient.length === 0)) {
     throw new Error(
       'surfaces.apiBackend must contain at least one artifact path.',
     );
   }
-  if (kind === SHELL_RELEASE_ENVELOPE_KIND) {
-    if (uiClient.length === 0 || ssr.length === 0) {
-      throw new Error(
-        'Shell surfaces.uiClient and surfaces.ssr must each contain at least one artifact path.',
-      );
-    }
-    return { kind, surfaces: { uiClient, ssr, apiBackend } };
-  }
-  const backendFederation = assertRecord(
-    surfaces.backendFederation,
-    'surfaces.backendFederation',
-  );
-  assertExactKeys(
-    backendFederation,
-    ['manifest', 'container'],
-    'surfaces.backendFederation',
-  );
+  if (apiBackend.length > 0 && !backendFederation)
+    throw new Error(
+      'surfaces.backendFederation is required when API/backend is declared.',
+    );
   return {
-    kind,
-    surfaces: {
-      uiClient,
-      ssr,
-      apiBackend,
-      backendFederation: {
-        manifest: assertNormalizedLogicalPath(
-          backendFederation.manifest,
-          'surfaces.backendFederation.manifest',
-        ),
-        container: assertNormalizedLogicalPath(
-          backendFederation.container,
-          'surfaces.backendFederation.container',
-        ),
-      },
-    },
+    uiClient,
+    ssr,
+    apiBackend,
+    ...(backendFederation
+      ? {
+          backendFederation: {
+            manifest: assertNormalizedLogicalPath(
+              backendFederation.manifest,
+              'surfaces.backendFederation.manifest',
+            ),
+            container: assertNormalizedLogicalPath(
+              backendFederation.container,
+              'surfaces.backendFederation.container',
+            ),
+          },
+        }
+      : {}),
   };
 };
 
@@ -502,7 +504,7 @@ const assertSurfaceReferences = (
     uiClient: surfaces.uiClient,
     ssr: surfaces.ssr,
     apiBackend: surfaces.apiBackend,
-    ...('backendFederation' in surfaces
+    ...(surfaces.backendFederation
       ? {
           'backendFederation.manifest': [surfaces.backendFederation.manifest],
           'backendFederation.container': [surfaces.backendFederation.container],
@@ -554,7 +556,7 @@ const assertTargetSurfaceContract = (
     target === 'node' ? 'nodejs' : 'workerd-effect',
     'API/backend',
   );
-  if ('backendFederation' in surfaces) {
+  if (surfaces.backendFederation) {
     assertRuntime(
       [surfaces.backendFederation.manifest],
       'module-federation-manifest',
