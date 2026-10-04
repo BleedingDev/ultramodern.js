@@ -130,6 +130,8 @@ async function writeFixturePackage(
     name: string;
     version: string;
     dependencies?: Record<string, string>;
+    peerDependencies?: Record<string, string>;
+    peerDependenciesMeta?: Record<string, { optional?: boolean }>;
   },
 ) {
   await write(path.join(directory, 'package.json'), JSON.stringify(manifest));
@@ -409,7 +411,7 @@ async function installedOctaneAdapterFixture(renderer: 'react' | 'octane') {
 }
 
 async function installedLoadableFixture(
-  renderer: 'solid' | 'octane' = 'solid',
+  renderer: 'solid' | 'octane' | 'react' = 'solid',
 ) {
   const options =
     renderer === 'solid' ? await fixture() : await rendererFixture(renderer);
@@ -457,6 +459,74 @@ async function installedLoadableFixture(
   }
   options.frameworkPackages = [ownerManifest.name];
   return { ...options, owner, ownerManifest, loadable, loadableManifest };
+}
+
+async function installedFederationRuntimeFixture(
+  renderer: 'solid' | 'octane' | 'react',
+) {
+  const options = await installedLoadableFixture(renderer);
+  const [sdkManifest, federationManifest, runtimeManifest, surfaceManifest] =
+    await Promise.all(
+      [
+        '../../ultramodern-app-tools',
+        '../../../runtime/federation-runtime',
+        '../../../runtime/plugin-runtime',
+        '../../../toolkit/surface-resolution',
+      ].map(async directory =>
+        JSON.parse(
+          await fs.readFile(
+            path.resolve(__dirname, directory, 'package.json'),
+            'utf8',
+          ),
+        ),
+      ),
+    );
+  const modules = path.join(options.projectRoot, 'node_modules');
+  const sdk = path.join(modules, sdkManifest.name);
+  const federation = path.join(modules, federationManifest.name);
+  const runtime = path.join(modules, runtimeManifest.name);
+  await writeFixturePackage(sdk, {
+    name: sdkManifest.name,
+    version: sdkManifest.version,
+    dependencies: {
+      [federationManifest.name]:
+        sdkManifest.dependencies[federationManifest.name],
+    },
+    peerDependencies: {
+      [runtimeManifest.name]:
+        sdkManifest.peerDependencies[runtimeManifest.name],
+    },
+    peerDependenciesMeta: {
+      [runtimeManifest.name]:
+        sdkManifest.peerDependenciesMeta[runtimeManifest.name],
+    },
+  });
+  await writeFixturePackage(federation, federationManifest);
+  await writeFixturePackage(path.join(modules, surfaceManifest.name), {
+    name: surfaceManifest.name,
+    version: surfaceManifest.version,
+  });
+  await writeFixturePackage(runtime, {
+    name: runtimeManifest.name,
+    version: runtimeManifest.version,
+    dependencies: {
+      [options.loadableManifest.name]:
+        runtimeManifest.dependencies[options.loadableManifest.name],
+    },
+    peerDependencies: runtimeManifest.peerDependencies,
+  });
+  options.frameworkPackages = [sdkManifest.name];
+  if (renderer === 'react') {
+    options.frameworkPackages.push(runtimeManifest.name, 'react');
+    options.profile = {
+      ...options.profile,
+      dependencies: {
+        ...options.profile.dependencies,
+        [runtimeManifest.name]: runtimeManifest.version,
+      },
+    };
+  }
+  return { ...options, federation, runtime, runtimeManifest };
 }
 
 async function transitiveFederationPeerFixture(
@@ -3438,6 +3508,58 @@ describe('renderer source and compiler build identity', () => {
       expect(after.buildMarker).not.toBe(before.buildMarker);
       before = after;
     }
+  });
+
+  test.each([
+    'solid',
+    'octane',
+  ] as const)('binds the installed SDK federation-runtime optional runtime chain without React for %s', async renderer => {
+    const options = await installedFederationRuntimeFixture(renderer);
+    await expect(
+      fs.lstat(path.join(options.projectRoot, 'node_modules', 'react')),
+    ).rejects.toMatchObject({ code: 'ENOENT' });
+    let before = await resolveRendererBuildIdentities(options);
+    for (const directory of [
+      options.federation,
+      options.runtime,
+      options.loadable,
+    ]) {
+      await fs.appendFile(
+        path.join(directory, 'index.js'),
+        'export const changedInactiveFederationChain = true;\n',
+      );
+      const after = await resolveRendererBuildIdentities(options);
+      expect(after.identities.main.renderer).toBe(renderer);
+      expect(after.inputDigest).toBe(before.inputDigest);
+      expect(after.profileDigest).toBe(before.profileDigest);
+      expect(after.compilerDigest).not.toBe(before.compilerDigest);
+      expect(after.frameworkCohortDigest).not.toBe(
+        before.frameworkCohortDigest,
+      );
+      expect(after.buildMarker).not.toBe(before.buildMarker);
+      before = after;
+    }
+    await fs.rm(options.runtime, { recursive: true });
+    await expect(
+      resolveRendererBuildIdentities(options),
+    ).resolves.toMatchObject({
+      identities: { main: { renderer } },
+    });
+  });
+
+  test.each([
+    'runtime',
+    'react',
+  ] as const)('requires the selected React %s root despite federation-runtime optional peer metadata', async role => {
+    const options = await installedFederationRuntimeFixture('react');
+    await resolveRendererBuildIdentities(options);
+    const name = role === 'runtime' ? options.runtimeManifest.name : 'react';
+    await fs.rm(path.join(options.projectRoot, 'node_modules', name), {
+      recursive: true,
+    });
+    await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+      `Selected renderer framework package ${name} cannot be resolved before entry generation`,
+    );
   });
 
   test('binds an installed inactive Octane adapter with its real optional peer contract while both native peers are absent', async () => {
