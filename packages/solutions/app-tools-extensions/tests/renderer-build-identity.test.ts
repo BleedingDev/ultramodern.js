@@ -328,6 +328,86 @@ async function workspaceOverridePeerFixture() {
   };
 }
 
+async function installedOctaneAdapterFixture(renderer: 'react' | 'octane') {
+  const options = await rendererFixture(renderer);
+  const adapterManifest = JSON.parse(
+    await fs.readFile(
+      path.resolve(__dirname, '../../../runtime/renderer-octane/package.json'),
+      'utf8',
+    ),
+  );
+  const sdkManifest = JSON.parse(
+    await fs.readFile(
+      path.resolve(__dirname, '../../ultramodern-app-tools/package.json'),
+      'utf8',
+    ),
+  );
+  const modules = path.join(options.projectRoot, 'node_modules');
+  const sdk = path.join(modules, sdkManifest.name);
+  await write(
+    path.join(sdk, 'package.json'),
+    JSON.stringify({
+      name: sdkManifest.name,
+      version: sdkManifest.version,
+      peerDependencies: {
+        [adapterManifest.name]:
+          sdkManifest.peerDependencies[adapterManifest.name],
+      },
+      peerDependenciesMeta: {
+        [adapterManifest.name]:
+          sdkManifest.peerDependenciesMeta[adapterManifest.name],
+      },
+    }),
+  );
+  await write(path.join(sdk, 'index.js'), 'export const sdk = true;\n');
+  const adapter = path.join(modules, adapterManifest.name);
+  await writeFixturePackage(adapter, adapterManifest);
+  for (const [name, version] of Object.entries(adapterManifest.dependencies)) {
+    await writeFixturePackage(path.join(modules, name), {
+      name,
+      version:
+        name === '@modern-js/renderer-core'
+          ? adapterManifest.version
+          : String(version),
+    });
+  }
+  if (renderer === 'octane') {
+    options.profile = {
+      ...options.profile,
+      hydration: {
+        ...options.profile.hydration,
+        version: adapterManifest.peerDependencies.octane,
+      },
+      router: {
+        ...options.profile.router,
+        version: adapterManifest.peerDependencies[options.profile.router.name],
+      },
+      dependencies: {
+        ...options.profile.dependencies,
+        octane: adapterManifest.peerDependencies.octane,
+        [adapterManifest.name]: adapterManifest.version,
+      },
+    };
+    options.routerBindings = ownedRouterBindings(options);
+    await writeFixturePackage(
+      path.join(modules, options.profile.hydration.name),
+      options.profile.hydration,
+    );
+    await writeFixturePackage(path.join(modules, options.profile.router.name), {
+      name: options.profile.router.name,
+      version: options.profile.router.version,
+      dependencies: {
+        [options.profile.router.coreName]: options.profile.router.coreVersion,
+      },
+    });
+  }
+  options.frameworkPackages = [
+    sdkManifest.name,
+    ...(renderer === 'octane' ? [adapterManifest.name] : []),
+  ];
+  return { ...options, adapter, adapterManifest };
+}
+
 async function transitiveFederationPeerFixture(
   edge: 'dependency' | 'optional' | 'peer' = 'dependency',
   order: 'alias-first' | 'consumer-first' = 'consumer-first',
@@ -3079,6 +3159,112 @@ describe('renderer source and compiler build identity', () => {
     expect(after.compilerDigest).not.toBe(before.compilerDigest);
     expect(after.frameworkCohortDigest).not.toBe(before.frameworkCohortDigest);
     expect(after.buildMarker).not.toBe(before.buildMarker);
+  });
+
+  test('binds an installed inactive Octane adapter with its real optional peer contract while both native peers are absent', async () => {
+    const options = await installedOctaneAdapterFixture('react');
+    for (const name of Object.keys(options.adapterManifest.peerDependencies)) {
+      await expect(
+        fs.lstat(path.join(options.projectRoot, 'node_modules', name)),
+      ).rejects.toMatchObject({ code: 'ENOENT' });
+    }
+    const before = await resolveRendererBuildIdentities(options);
+    await fs.appendFile(
+      path.join(options.adapter, 'index.js'),
+      'export const changedAdapter = true;\n',
+    );
+    const after = await resolveRendererBuildIdentities(options);
+    expect(after.identities.main.renderer).toBe('react');
+    expect(after.inputDigest).toBe(before.inputDigest);
+    expect(after.profileDigest).toBe(before.profileDigest);
+    expect(after.compilerDigest).not.toBe(before.compilerDigest);
+    expect(after.frameworkCohortDigest).not.toBe(before.frameworkCohortDigest);
+    expect(after.buildMarker).not.toBe(before.buildMarker);
+  });
+
+  test.each([
+    'hydration',
+    'router',
+    'core',
+  ] as const)('rejects a missing selected Octane %s despite the adapter optional peer metadata', async role => {
+    const options = await installedOctaneAdapterFixture('octane');
+    const name =
+      role === 'core'
+        ? options.profile.router.coreName
+        : options.profile[role].name;
+    await fs.rm(path.join(options.projectRoot, 'node_modules', name), {
+      recursive: true,
+    });
+    await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+      role === 'core'
+        ? `selected router must resolve its own exact ${name}`
+        : `requires installed ${name}@${options.profile[role].version}`,
+    );
+  });
+
+  test.each(
+    (['hydration', 'router'] as const).flatMap(role =>
+      (['version', 'owner'] as const).map(conflict => ({ role, conflict })),
+    ),
+  )('rejects a selected Octane $role $conflict mismatch despite optional peer metadata', async ({
+    role,
+    conflict,
+  }) => {
+    const options = await installedOctaneAdapterFixture('octane');
+    const selected = options.profile[role];
+    await writeFixturePackage(
+      path.join(options.projectRoot, 'node_modules', selected.name),
+      {
+        name:
+          conflict === 'owner'
+            ? '@fixture/foreign-native-provider'
+            : selected.name,
+        version: conflict === 'version' ? '99.0.0' : selected.version,
+        ...(role === 'router'
+          ? {
+              dependencies: {
+                [options.profile.router.coreName]:
+                  options.profile.router.coreVersion,
+              },
+            }
+          : {}),
+      },
+    );
+    await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+      conflict === 'owner'
+        ? `renamed peer ${selected.name} requires one exact declared npm alias target`
+        : `expected ${selected.name}@${selected.version}`,
+    );
+  });
+
+  test.each([
+    'hydration',
+    'router',
+  ] as const)('rejects selected Octane %s implementation bytes changed during identity hashing', async role => {
+    const options = await installedOctaneAdapterFixture('octane');
+    const file = path.join(
+      options.projectRoot,
+      'node_modules',
+      options.profile[role].name,
+      'index.js',
+    );
+    const read = fs.readFile.bind(fs);
+    let changed = false;
+    const spy = rs.spyOn(fs, 'readFile').mockImplementation(async (...args) => {
+      if (!changed && String(args[0]) === file) {
+        changed = true;
+        await fs.appendFile(file, 'export const changedDuringHash = true;\n');
+      }
+      return Reflect.apply(read, fs, args);
+    });
+    try {
+      await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+        'input changed while being read',
+      );
+      expect(changed).toBe(true);
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   test.each([
