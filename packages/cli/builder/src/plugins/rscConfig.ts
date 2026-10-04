@@ -55,10 +55,13 @@ const isAsyncStorageExclude = (exclude: unknown) => {
  * 4. Adding entry name virtual module for client-side entries
  * 5. Adding 'use server-entry' directive to route components
  */
-export function pluginRscConfig(environments?: {
-  server?: string;
-  client?: string;
-}): RsbuildPlugin {
+export function pluginRscConfig(
+  environments?: {
+    server?: string;
+    client?: string;
+  },
+  rscLayerMatchers: RegExp[] = [],
+): RsbuildPlugin {
   const serverEnvironment = resolveRscEnvironments(environments).server;
   return {
     name: 'builder:rsc-config',
@@ -161,6 +164,23 @@ export function pluginRscConfig(environments?: {
 
         // Dynamically import Layers to avoid CJS -> ESM require() issue
         const Layers = await getLayers();
+
+        // The selected RSC server owns Flight compilation. Additional Node
+        // SSR compilers still import the same isolated server data modules.
+        if (
+          utils.environment?.name !== serverEnvironment &&
+          rscLayerMatchers.length > 0
+        ) {
+          config.module ??= {};
+          config.module.rules ??= [];
+          config.module.rules.push(
+            { test: rscLayerMatchers, layer: Layers.rsc },
+            {
+              issuerLayer: Layers.rsc,
+              resolve: { conditionNames: ['react-server', '...'] },
+            },
+          );
+        }
 
         // 1. Add layer configuration to server-side entries
         if (config.entry) {
@@ -293,7 +313,7 @@ export async function getRscPlugins(
           ],
         },
       }),
-      pluginRscConfig(rscEnvironments),
+      pluginRscConfig(rscEnvironments, rscLayerMatchers),
     ];
   }
   return [];
