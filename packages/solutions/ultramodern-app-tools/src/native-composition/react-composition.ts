@@ -37,6 +37,7 @@ import { rendererSelectionGuard } from './renderer-selection';
 import { ultramodernRouterIntegrationPlugin } from './router-integration-plugin';
 import { rscDisabledRuntimePlugin } from './rsc-disabled-plugin';
 import { ultramodernSSRIntegrationPlugin } from './ssr-integration-plugin';
+import { rendererTypeCheckerPlugin } from './type-checker';
 
 declare module '@modern-js/app-tools/cli-config' {
   interface CLIElementTypes {
@@ -159,6 +160,7 @@ export const composeReactRenderer = (
   const selected = [
     nativeEntryCommandPlugin(),
     appTools(),
+    rendererTypeCheckerPlugin('react'),
     runtimePlugin(),
     receiverOutputs.plugin,
     reactRendererBuildMetadataPlugin({

@@ -1,7 +1,8 @@
 // @effect-diagnostics asyncFunction:off nodeBuiltinImport:off strictBooleanExpressions:off processEnv:off processEnvInEffect:off
 
 import path from 'node:path';
-import type { AppToolsContext } from '@modern-js/app-tools';
+import type { AppTools } from '@modern-js/app-tools/cli-config';
+import type { CLIPluginAPI } from '@modern-js/plugin';
 import type { NestedRouteForCli, PageRoute } from '@modern-js/types';
 import { fs } from '@modern-js/utils';
 
@@ -114,7 +115,10 @@ export async function writeTanstackRegisterFile(opts: {
 }
 
 export async function writeTanstackRouterTypesForEntries(opts: {
-  appContext: AppToolsContext;
+  appContext: Pick<
+    ReturnType<CLIPluginAPI<AppTools>['getAppContext']>,
+    'srcDirectory' | 'internalSrcAlias' | 'entrypoints'
+  >;
   generatedDirName?: string;
   routesByEntry: Record<string, (NestedRouteForCli | PageRoute)[]>;
   /**

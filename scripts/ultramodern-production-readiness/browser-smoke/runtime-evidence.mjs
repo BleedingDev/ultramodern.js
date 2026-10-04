@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import {
   assertReleaseEnvelopeRendererBinding,
   assertRendererReleaseArtifactBinding,
@@ -905,8 +906,7 @@ function verifyWorkerdRuntimeCorrelation(projectDir, app, location) {
   if (
     execution.modulesRoot !== expectedRoot ||
     execution.envelopeDigest !== location.envelope.envelopeDigest ||
-    JSON.stringify(execution.identity) !==
-      JSON.stringify(location.envelope.identity) ||
+    !isDeepStrictEqual(execution.identity, location.envelope.identity) ||
     typeof execution.worker !== 'string' ||
     execution.worker.length === 0 ||
     !Array.isArray(execution.modules) ||

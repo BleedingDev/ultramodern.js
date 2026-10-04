@@ -20,6 +20,7 @@ function checkInstalledDeclarations(
   consumer: (typeof consumers)[number],
   source: string,
   react = false,
+  tanstack = false,
 ) {
   const directory = fs.mkdtempSync(
     path.join(os.tmpdir(), 'um-renderer-public-types-'),
@@ -37,6 +38,13 @@ function checkInstalledDeclarations(
       path.join(scope, 'app-tools'),
       'dir',
     );
+    if (tanstack) {
+      fs.symlinkSync(
+        path.join(packageDirectory, 'node_modules/@modern-js/plugin-tanstack'),
+        path.join(scope, 'plugin-tanstack'),
+        'dir',
+      );
+    }
     const ambientDirectory = path.join(directory, 'node_modules/@types');
     fs.mkdirSync(ambientDirectory, { recursive: true });
     fs.symlinkSync(
@@ -62,6 +70,7 @@ function checkInstalledDeclarations(
         dependencies: {
           '@modern-js/ultramodern-app-tools': 'workspace:*',
           '@modern-js/app-tools': 'workspace:*',
+          ...(tanstack ? { '@modern-js/plugin-tanstack': 'workspace:*' } : {}),
         },
       }),
     );
@@ -262,6 +271,23 @@ const defaultReact: UserConfigExport<AppUserConfig> = defineConfig({
 void defaultReact;
 `;
 
+const tanstackReactConsumer = `${sharedConsumer}
+import { tanstackRouterPlugin } from '@modern-js/plugin-tanstack';
+
+const tanstackReactConfig = defineConfig({
+  renderer: 'react',
+  plugins: [tanstackRouterPlugin()],
+  server: {
+    rsc: true,
+    ssrByEntries: { index: { mode: 'stream' } },
+  },
+  deploy: {
+    worker: { ssr: true, name: 'react-rsc-proof' },
+  },
+});
+void tanstackReactConfig;
+`;
+
 describe('installed renderer-neutral public declarations', () => {
   it.each(
     consumers,
@@ -297,5 +323,26 @@ describe('installed renderer-neutral public declarations', () => {
     expect(
       graph.some(file => file.includes('/node_modules/@types/react/')),
     ).toBe(true);
+  }, 60_000);
+
+  it.each(
+    consumers,
+  )('admits the public TanStack plugin in React config with $name $extension', consumer => {
+    const graph = checkInstalledDeclarations(
+      consumer,
+      tanstackReactConsumer,
+      true,
+      true,
+    );
+    expect(
+      graph.some(file =>
+        file.endsWith('/plugin-tanstack/dist/types/cli/index.d.ts'),
+      ),
+    ).toBe(true);
+    expect(
+      graph.filter(file =>
+        file.includes('/native-composition/react-composition.d.'),
+      ),
+    ).toEqual([]);
   }, 60_000);
 });

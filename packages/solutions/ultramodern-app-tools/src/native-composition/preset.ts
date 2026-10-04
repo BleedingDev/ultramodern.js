@@ -1,14 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { builderPluginAdapterPrecompress } from '@modern-js/app-tools-extensions/build-config/precompress/plugin';
-import { resolveEffectTsgoCompiler } from '@modern-js/app-tools-extensions/config';
-import { configureUltramodernTypeChecker } from '@modern-js/app-tools-extensions/native-type-checker';
 import { resolveUltramodernReleaseIdentity } from '@modern-js/app-tools-extensions/release-identity';
 import { findHostingModuleDirectory } from '@modern-js/app-tools-extensions/runtime-package-resolution';
 import { mergeConfig } from '@modern-js/plugin/cli';
 import { type Renderer, resolveRenderer } from '@modern-js/renderer-core';
 import { type RspackChain, rspack } from '@rsbuild/core';
-import { resolveCandidateRendererProfile } from './renderer-profile';
+import { rendererTypeCheckerOptions } from './type-checker';
 import type { AppUserConfig } from './types';
 
 const DEFAULT_OTLP_ENDPOINT = 'http://127.0.0.1:4318/v1/logs';
@@ -270,23 +268,9 @@ const createRendererPreset = (
         : {}),
     },
     tools: {
-      tsChecker: {
-        typescript: {
-          configOverwrite: {
-            compilerOptions: {
-              jsxImportSource:
-                resolveCandidateRendererProfile(renderer).jsxImportSource,
-            },
-          },
-        },
-      },
+      tsChecker: rendererTypeCheckerOptions(renderer),
       bundlerChain: (chain, utils) => {
         if (renderer === 'react') setReactRouterBridgeSafeAliases(chain, utils);
-        configureUltramodernTypeChecker(
-          chain,
-          utils.CHAIN_ID.PLUGIN.TS_CHECKER,
-          from => resolveEffectTsgoCompiler({ from }),
-        );
       },
       // Keep generated Tailwind apps on Rsbuild's native CSS pipeline.
       lightningcssLoader: true,

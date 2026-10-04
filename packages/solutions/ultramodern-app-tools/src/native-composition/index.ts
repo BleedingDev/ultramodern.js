@@ -21,6 +21,7 @@ import {
   rendererSelectionGuard,
   resolveRendererBuilderPlugins,
 } from './renderer-selection';
+import { rendererTypeCheckerPlugin } from './type-checker';
 
 export {
   type ConfigParams,
@@ -74,6 +75,7 @@ function composeNativeRenderer(
     ));
   const selected = [
     appTools({ rendererExtensions: false, serverExtensions: false }),
+    rendererTypeCheckerPlugin(renderer),
     nativeEntryCommandPlugin(),
     nativeRendererInfrastructurePlugin(
       renderer,
