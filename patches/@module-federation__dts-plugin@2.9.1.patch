@@ -689,3 +689,189 @@ diff --git a/dist/DtsWorker-SBLpkK-D.d.ts b/dist/DtsWorker-SBLpkK-D.d.ts
    consumeTargetRemotes(hostOptions: Required<HostOptions>, remoteInfo: Required<RemoteInfo>): Promise<[string, string] | undefined>;
    downloadAPITypes(remoteInfo: Required<RemoteInfo>, destinationPath: string, hostOptions: Required<HostOptions>): Promise<boolean | undefined>;
    consumeAPITypes(hostOptions: Required<HostOptions>): void;
+diff --git a/dist/index.js b/dist/index.js
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -108,30 +108,45 @@
+ 		fs.default.writeFileSync(filePath, liveReloadEntryWithOptions);
+ 	}
+ 	_stopWhenSIGTERMOrSIGINT() {
+-		process.on("SIGTERM", () => {
++		this._onSIGTERM = () => {
+ 			require_Broker.logger.info(`${this._options.name} Process(${process.pid}) SIGTERM, mf server will exit...`);
+ 			this._exit(PROCESS_EXIT_CODE.SUCCESS);
+-		});
+-		process.on("SIGINT", () => {
++		};
++		process.on("SIGTERM", this._onSIGTERM);
++		this._onSIGINT = () => {
+ 			require_Broker.logger.info(`${this._options.name} Process(${process.pid}) SIGINT, mf server will exit...`);
+ 			this._exit(PROCESS_EXIT_CODE.SUCCESS);
+-		});
++		};
++		process.on("SIGINT", this._onSIGINT);
+ 	}
+ 	_handleUnexpectedExit() {
+-		process.on("unhandledRejection", (error) => {
++		this._onUnhandledRejection = (error) => {
+ 			require_Broker.logger.error(error);
+ 			require_Broker.logger.error(`Process(${process.pid}) unhandledRejection, mf server will exit...`);
+ 			this._exit(PROCESS_EXIT_CODE.FAILURE);
+-		});
+-		process.on("uncaughtException", (error) => {
++		};
++		process.on("unhandledRejection", this._onUnhandledRejection);
++		this._onUncaughtException = (error) => {
+ 			require_Broker.logger.error(error);
+ 			require_Broker.logger.error(`Process(${process.pid}) uncaughtException, mf server will exit...`);
+ 			this._exit(PROCESS_EXIT_CODE.FAILURE);
+-		});
+-	}
+-	_stop() {
++		};
++		process.on("uncaughtException", this._onUncaughtException);
++	}
++	async _stop() {
+ 		this._closed = true;
+-		return this._devWorker?.exit();
++		try {
++			await this._devWorker?.exit();
++		} finally {
++			if (this._onSIGTERM) process.off("SIGTERM", this._onSIGTERM);
++			this._onSIGTERM = void 0;
++			if (this._onSIGINT) process.off("SIGINT", this._onSIGINT);
++			this._onSIGINT = void 0;
++			if (this._onUnhandledRejection) process.off("unhandledRejection", this._onUnhandledRejection);
++			this._onUnhandledRejection = void 0;
++			if (this._onUncaughtException) process.off("uncaughtException", this._onUncaughtException);
++			this._onUncaughtException = void 0;
++		}
+ 	}
+ 	async _exit(exitCode = 0) {
+ 		await this._stop();
+diff --git a/dist/esm/index.mjs b/dist/esm/index.mjs
+--- a/dist/esm/index.mjs
++++ b/dist/esm/index.mjs
+@@ -106,30 +106,45 @@
+ 		fs.writeFileSync(filePath, liveReloadEntryWithOptions);
+ 	}
+ 	_stopWhenSIGTERMOrSIGINT() {
+-		process.on("SIGTERM", () => {
++		this._onSIGTERM = () => {
+ 			logger$1.info(`${this._options.name} Process(${process.pid}) SIGTERM, mf server will exit...`);
+ 			this._exit(PROCESS_EXIT_CODE.SUCCESS);
+-		});
+-		process.on("SIGINT", () => {
++		};
++		process.on("SIGTERM", this._onSIGTERM);
++		this._onSIGINT = () => {
+ 			logger$1.info(`${this._options.name} Process(${process.pid}) SIGINT, mf server will exit...`);
+ 			this._exit(PROCESS_EXIT_CODE.SUCCESS);
+-		});
++		};
++		process.on("SIGINT", this._onSIGINT);
+ 	}
+ 	_handleUnexpectedExit() {
+-		process.on("unhandledRejection", (error) => {
++		this._onUnhandledRejection = (error) => {
+ 			logger$1.error(error);
+ 			logger$1.error(`Process(${process.pid}) unhandledRejection, mf server will exit...`);
+ 			this._exit(PROCESS_EXIT_CODE.FAILURE);
+-		});
+-		process.on("uncaughtException", (error) => {
++		};
++		process.on("unhandledRejection", this._onUnhandledRejection);
++		this._onUncaughtException = (error) => {
+ 			logger$1.error(error);
+ 			logger$1.error(`Process(${process.pid}) uncaughtException, mf server will exit...`);
+ 			this._exit(PROCESS_EXIT_CODE.FAILURE);
+-		});
+-	}
+-	_stop() {
++		};
++		process.on("uncaughtException", this._onUncaughtException);
++	}
++	async _stop() {
+ 		this._closed = true;
+-		return this._devWorker?.exit();
++		try {
++			await this._devWorker?.exit();
++		} finally {
++			if (this._onSIGTERM) process.off("SIGTERM", this._onSIGTERM);
++			this._onSIGTERM = void 0;
++			if (this._onSIGINT) process.off("SIGINT", this._onSIGINT);
++			this._onSIGINT = void 0;
++			if (this._onUnhandledRejection) process.off("unhandledRejection", this._onUnhandledRejection);
++			this._onUnhandledRejection = void 0;
++			if (this._onUncaughtException) process.off("uncaughtException", this._onUncaughtException);
++			this._onUncaughtException = void 0;
++		}
+ 	}
+ 	async _exit(exitCode = 0) {
+ 		await this._stop();
+diff --git a/dist/expose-rpc-jaGpsAVL.js b/dist/expose-rpc-jaGpsAVL.js
+--- a/dist/expose-rpc-jaGpsAVL.js
++++ b/dist/expose-rpc-jaGpsAVL.js
+@@ -325,7 +325,7 @@
+ 	}
+ 	_exit() {
+ 		this._reconnect = false;
+-		if (this._publishWebSocket) {
++		if (this._publishWebSocket?.readyState === isomorphic_ws.default.OPEN) {
+ 			const exitPublisher = new ExitPublisherAction({
+ 				name: this._name,
+ 				ip: this._ip
+diff --git a/dist/esm/expose-rpc-B0rqtOKP.mjs b/dist/esm/expose-rpc-B0rqtOKP.mjs
+--- a/dist/esm/expose-rpc-B0rqtOKP.mjs
++++ b/dist/esm/expose-rpc-B0rqtOKP.mjs
+@@ -91,7 +91,7 @@
+ const __filename = fileURLToPath(import.meta.url);
+ const __dirname = path.dirname(__filename);
+ function createBroker() {
+-	const sub = fork(path.resolve(__dirname, "./start-broker.js"), [], {
++	const sub = fork(path.resolve(__dirname, "./start-broker.mjs"), [], {
+ 		detached: true,
+ 		stdio: "ignore",
+ 		env: process.env
+@@ -336,7 +336,7 @@
+ 	}
+ 	_exit() {
+ 		this._reconnect = false;
+-		if (this._publishWebSocket) {
++		if (this._publishWebSocket?.readyState === WebSocket.OPEN) {
+ 			const exitPublisher = new ExitPublisherAction({
+ 				name: this._name,
+ 				ip: this._ip
+diff --git a/dist/esm/index.mjs b/dist/esm/index.mjs
+--- a/dist/esm/index.mjs
++++ b/dist/esm/index.mjs
+@@ -17,7 +17,7 @@
+ 	constructor(options) {
+ 		this._options = cloneDeepOptions(options);
+ 		this.removeUnSerializationOptions();
+-		this._rpcWorker = createRpcWorker(path.resolve(__dirname$1, "./fork-dev-worker.js"), {}, void 0, false);
++		this._rpcWorker = createRpcWorker(path.resolve(__dirname$1, "./fork-dev-worker.mjs"), {}, void 0, false);
+ 		this._res = this._rpcWorker.connect(this._options);
+ 		this._workerWitness = this._rpcWorker.workerWitness;
+ 	}
+diff --git a/dist/esm/index.mjs b/dist/esm/index.mjs
+--- a/dist/esm/index.mjs
++++ b/dist/esm/index.mjs
+@@ -102,7 +102,7 @@
+ 	}
+ 	static ensureLiveReloadEntry(options, filePath) {
+ 		ensureTempDir(filePath);
+-		const liveReloadEntryWithOptions = fs.readFileSync(path.join(__dirname, "./iife/launch-web-client.iife.js")).toString("utf-8").replace(WEB_CLIENT_OPTIONS_IDENTIFIER, JSON.stringify(options));
++		const liveReloadEntryWithOptions = fs.readFileSync(path.join(__dirname, "../iife/launch-web-client.iife.js")).toString("utf-8").replace(WEB_CLIENT_OPTIONS_IDENTIFIER, JSON.stringify(options));
+ 		fs.writeFileSync(filePath, liveReloadEntryWithOptions);
+ 	}
+ 	_stopWhenSIGTERMOrSIGINT() {
+@@ -166,7 +166,7 @@
+ 		if (!name) throw new Error("name is required if you want to enable dev server!");
+ 		if (!normalizedDev.disableDynamicRemoteTypeHints) {
+ 			if (!this._options.runtimePlugins) this._options.runtimePlugins = [];
+-			this._options.runtimePlugins.push(path.resolve(__dirname, "dynamic-remote-type-hints-plugin.js"));
++			this._options.runtimePlugins.push(path.resolve(__dirname, "dynamic-remote-type-hints-plugin.mjs"));
+ 		}
+ 		if (!normalizedDev.disableLiveReload) {
+ 			const TEMP_DIR$1 = path.join(`${process.cwd()}/node_modules`, TEMP_DIR);

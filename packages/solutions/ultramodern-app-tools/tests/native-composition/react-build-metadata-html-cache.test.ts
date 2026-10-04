@@ -26,6 +26,7 @@ import {
 import { afterEach, describe, expect, it } from '@rstest/core';
 import {
   RENDERER_BUILD_MANIFEST_FILE,
+  RENDERER_DEVELOPMENT_DIRECTORY,
   readRendererDevelopmentBuildManifest,
 } from '../../src/native-composition/native-build-manifest';
 import {
@@ -276,10 +277,40 @@ describe('React metadata with native HTML watch caching', () => {
         await initializeMetadata(root);
       const receipts = receiptQueue();
       const tagTokens: string[] = [];
+      let discoveryTokens: readonly string[] = [];
       let htmlPath = '';
       const observer: RsbuildPlugin = {
         name: 'test-native-html-watch-observer',
         setup(api) {
+          api.onAfterPrepareDevCompiler({
+            order: 'post',
+            async handler() {
+              discoveryTokens = [...tagTokens];
+              expect(discoveryTokens).toHaveLength(1);
+              expect(discoveryTokens[0]).toContain(
+                'ultramodernPendingReactIdentity',
+              );
+              let ready = false;
+              void options.resolveEntries!().then(
+                () => {
+                  ready = true;
+                },
+                () => {},
+              );
+              await Promise.resolve();
+              expect(ready).toBe(false);
+              expect(
+                fs.existsSync(
+                  path.join(
+                    root,
+                    'dist',
+                    RENDERER_DEVELOPMENT_DIRECTORY,
+                    RENDERER_BUILD_MANIFEST_FILE,
+                  ),
+                ),
+              ).toBe(false);
+            },
+          });
           api.modifyHTMLTags({
             order: 'post',
             handler(tags, { filename, environment }) {
@@ -324,8 +355,8 @@ describe('React metadata with native HTML watch caching', () => {
         cwd: root,
         rsbuildConfig: {
           plugins: [
-            observer,
             ...builderPlugins,
+            observer,
             ...(restoreNativeCache ? [counterfactual] : []),
           ],
           environments: {
@@ -383,9 +414,13 @@ describe('React metadata with native HTML watch caching', () => {
       );
       expect(first.devCompilation.generation).toBe(1);
       expect(firstReady.entries).toEqual(first.identities);
-      expect(tagTokens).toHaveLength(1);
-      const firstPendingSeed = tagTokens[0];
-      expect(firstPendingSeed).toContain('ultramodernPendingReactIdentity');
+      const firstPendingSeed = discoveryTokens[0];
+      const firstLiveHookCount = restoreNativeCache ? 0 : 1;
+      expect(tagTokens).toHaveLength(
+        discoveryTokens.length + firstLiveHookCount,
+      );
+      if (!restoreNativeCache)
+        expect(JSON.parse(tagTokens.at(-1)!)).toEqual(first.identities.main);
       const firstHTML = await (await fetch(new URL(htmlPath, address))).text();
       expect(documentIdentity(firstHTML)).toEqual(first.identities.main);
       expect(firstHTML).toContain('<title>preserved native options</title>');
@@ -420,7 +455,7 @@ describe('React metadata with native HTML watch caching', () => {
         template,
       );
       if (restoreNativeCache) {
-        expect(tagTokens).toHaveLength(1);
+        expect(tagTokens).toEqual(discoveryTokens);
         expect(String(secondReady.error)).toContain(
           'React typed CSS HTML output lost its owning metadata token',
         );
@@ -438,7 +473,9 @@ describe('React metadata with native HTML watch caching', () => {
       } else {
         expect(secondReady.error).toBeUndefined();
         expect(secondReceipt.stats.hasErrors()).toBe(false);
-        expect(tagTokens).toHaveLength(2);
+        expect(tagTokens).toHaveLength(
+          discoveryTokens.length + firstLiveHookCount + 1,
+        );
         const second = await readRendererDevelopmentBuildManifest(
           path.join(root, 'dist'),
           metadata.profile,

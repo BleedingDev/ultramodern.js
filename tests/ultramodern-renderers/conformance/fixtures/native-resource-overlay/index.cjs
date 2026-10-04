@@ -158,20 +158,31 @@ module.exports = async context => {
         'Compiler observation requires the authored app manifest',
       );
     const manifest = JSON.parse(await fs.readFile(packageFile, 'utf8'));
-    const declaredCore =
-      manifest.dependencies?.['@rsbuild/core'] ??
-      manifest.devDependencies?.['@rsbuild/core'];
-    if (declaredCore !== undefined && declaredCore !== '2.2.9')
-      throw new Error(
-        'Compiler observation requires the admitted Rsbuild 2.2.9',
-      );
-    if (declaredCore === undefined) {
+    const { resolveRsbuildDependency } = await import(
+      path.resolve(
+        __dirname,
+        '../../../../../scripts/ultramodern-renderers/acceptance/rsbuild-dependency.mjs',
+      )
+    );
+    const admittedCore = resolveRsbuildDependency({
+      releaseManifest: cfg.releaseManifest,
+    });
+    let declaredCore = false;
+    for (const block of [manifest.dependencies, manifest.devDependencies]) {
+      if (block?.['@rsbuild/core'] === undefined) continue;
+      block['@rsbuild/core'] = resolveRsbuildDependency({
+        releaseManifest: cfg.releaseManifest,
+        specifier: block['@rsbuild/core'],
+      });
+      declaredCore = true;
+    }
+    if (!declaredCore) {
       manifest.devDependencies = {
         ...manifest.devDependencies,
-        '@rsbuild/core': '2.2.9',
+        '@rsbuild/core': admittedCore,
       };
-      await fs.writeFile(packageFile, `${JSON.stringify(manifest, null, 2)}\n`);
     }
+    await fs.writeFile(packageFile, `${JSON.stringify(manifest, null, 2)}\n`);
     await fs.copyFile(
       path.resolve(__dirname, '../observe-native-compiler.ts'),
       path.join(appRoot, 'observe-native-compiler.ts'),

@@ -80,21 +80,32 @@ module.exports = async context => {
       'React observer requires an ordinary authored app manifest',
     );
   const packageManifest = JSON.parse(await fs.readFile(packageFile, 'utf8'));
+  const { resolveRsbuildDependency } = await import(
+    path.resolve(
+      __dirname,
+      '../../../../../scripts/ultramodern-renderers/acceptance/rsbuild-dependency.mjs',
+    )
+  );
+  const admittedCore = resolveRsbuildDependency({
+    releaseManifest: cfg.releaseManifest,
+  });
+  let declaredCore = false;
   for (const dependencies of [
     packageManifest.dependencies,
     packageManifest.devDependencies,
   ])
-    if (
-      dependencies?.['@rsbuild/core'] !== undefined &&
-      dependencies['@rsbuild/core'] !== '2.2.9'
-    )
-      throw new Error(
-        'React observer requires its exact public Rsbuild provider',
-      );
-  packageManifest.devDependencies = {
-    ...packageManifest.devDependencies,
-    '@rsbuild/core': '2.2.9',
-  };
+    if (dependencies?.['@rsbuild/core'] !== undefined) {
+      dependencies['@rsbuild/core'] = resolveRsbuildDependency({
+        releaseManifest: cfg.releaseManifest,
+        specifier: dependencies['@rsbuild/core'],
+      });
+      declaredCore = true;
+    }
+  if (!declaredCore)
+    packageManifest.devDependencies = {
+      ...packageManifest.devDependencies,
+      '@rsbuild/core': admittedCore,
+    };
   await fs.writeFile(
     packageFile,
     `${JSON.stringify(packageManifest, null, 2)}\n`,

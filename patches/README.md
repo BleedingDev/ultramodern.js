@@ -5,6 +5,7 @@ Edit `packages/toolkit/ultramodern-create/src/ultramodern-workspace/patch-invent
 
 | Package | Repository | Workspace | Purpose |
 | --- | --- | --- | --- |
+| @rsbuild/core@2.2.9 | yes | none | Await the public final development compiler hook after native HMR and filesystem setup before completion and watch adapters attach. |
 | jiti@2.7.0 | yes | none | Observe original package resolver name/type reads and consumed main/exports/imports without replacing cached values. |
 | @module-federation/bridge-react@2.9.1 | yes | none | Portable React declaration specifiers. |
 | @module-federation/dts-plugin@2.9.1 | yes | none | Preserve declaration rootDir, native compiler execution, atomic DTS server binding, completed remote type consumption, unchanged native type materialization and exact native worker closure during compiler shutdown. |

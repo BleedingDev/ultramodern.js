@@ -186,7 +186,9 @@ test('recipe-only sidecar closure records exact publication identities and alias
   );
   const sidecars = sidecarsModule.collectSidecarPackages();
   const byName = new Map(sidecars.map(sidecar => [sidecar.name, sidecar]));
-  assert.equal(sidecars.length, 19);
+  assert.equal(sidecars.length, 20);
+  assert.equal(byName.get('@bleedingdev/rsbuild-core').version, '2.2.9');
+  assert.equal(byName.get('@bleedingdev/rsbuild-core').recipeOnly, true);
   assert.equal(byName.get('@bleedingdev/jiti').version, '2.7.0');
   assert.equal(byName.get('@bleedingdev/jiti').installedPatched, true);
   assert.equal(byName.get('@bleedingdev/effect').version, '4.0.0-rc.117');
@@ -273,6 +275,40 @@ test('recipe-only sidecar closure records exact publication identities and alias
       ),
     /neither a staged sidecar nor a cohort package/u,
   );
+});
+
+test('Rsbuild aliases preserve canonical keys and peers and require the staged maintained package', async () => {
+  const { collectSidecarPackages, rewriteSidecarConsumerAliases } =
+    await import('../lib/prepare-bleedingdev-packages/sidecars.mjs');
+  const sidecars = collectSidecarPackages();
+  const consumer = {
+    name: '@bleedingdev/modern-js-ultramodern-app-tools',
+    dependencies: { '@rsbuild/core': '2.2.9' },
+    devDependencies: { '@rsbuild/core': '2.2.9', typescript: '7.0.2' },
+    optionalDependencies: { '@rsbuild/core': '2.2.9' },
+    peerDependencies: { '@rsbuild/core': '2.2.9' },
+  };
+  const source = structuredClone(consumer);
+  assert.throws(
+    () =>
+      rewriteSidecarConsumerAliases(
+        structuredClone(source),
+        sidecars.filter(item => item.name !== '@bleedingdev/rsbuild-core'),
+      ),
+    /staged sidecar @bleedingdev\/rsbuild-core is missing/u,
+  );
+  rewriteSidecarConsumerAliases(consumer, sidecars);
+  assert.deepEqual(consumer, {
+    ...source,
+    dependencies: { '@rsbuild/core': 'npm:@bleedingdev/rsbuild-core@2.2.9' },
+    devDependencies: {
+      '@rsbuild/core': 'npm:@bleedingdev/rsbuild-core@2.2.9',
+      typescript: '7.0.2',
+    },
+    optionalDependencies: {
+      '@rsbuild/core': 'npm:@bleedingdev/rsbuild-core@2.2.9',
+    },
+  });
 });
 
 test('prerelease sidecar versions are rejected', async () => {

@@ -121,6 +121,53 @@ test('removes its temporary workspace when runtime discovery fails', async () =>
   }
 });
 
+test('retains a caller-owned workspace and its outputs on failure', async () => {
+  const callerRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'ultramodern-acceptance-caller-owned-'),
+  );
+  const workDir = path.join(callerRoot, 'work');
+  const deployedEntry = path.join(
+    workDir,
+    options.projectName,
+    'apps',
+    'shell',
+    '.output',
+    'index.js',
+  );
+  const deployedBytes = Buffer.from('export const retained = true;\n');
+  fs.mkdirSync(workDir);
+  const identity = fs.statSync(workDir);
+  try {
+    const { runAcceptanceProfile } = await import(
+      pathToFileURL(acceptanceProfilePath)
+    );
+    await assert.rejects(
+      runAcceptanceProfile({
+        mode: 'source',
+        release,
+        registryUrl: 'https://registry.example.test/',
+        options,
+        outPath: path.join(callerRoot, 'receipt.json'),
+        runIdentity: 'test:acceptance-caller-owned-failure',
+        workDir,
+        runImpl() {
+          fs.mkdirSync(path.dirname(deployedEntry), { recursive: true });
+          fs.writeFileSync(deployedEntry, deployedBytes);
+          throw new Error('focused acceptance failed');
+        },
+      }),
+      /focused acceptance failed/,
+    );
+    const retained = fs.statSync(workDir);
+    assert.equal(retained.dev, identity.dev);
+    assert.equal(retained.ino, identity.ino);
+    assert.deepEqual(fs.readFileSync(deployedEntry), deployedBytes);
+    assert.equal(fs.existsSync(path.join(callerRoot, 'receipt.json')), false);
+  } finally {
+    fs.rmSync(callerRoot, { recursive: true, force: true });
+  }
+});
+
 test('removes its temporary workspace when the process receives SIGTERM', {
   skip: process.platform === 'win32',
 }, async () => {

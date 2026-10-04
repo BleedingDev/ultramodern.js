@@ -56,8 +56,20 @@ type SourceNode = Readonly<{
   requiredAncestors?: readonly RendererGeneratedOutputNode[];
 }>;
 
+interface ReactReceiverNativePlugin {
+  readonly name?: string;
+  apply(compiler: Rspack.Compiler): void;
+}
+
+type ReactReceiverNativePluginConstructor = new (
+  ...args: unknown[]
+) => ReactReceiverNativePlugin;
+
 export interface ReactReceiverImplementation {
   readonly EXTRA_OPTIONS_KEY: string;
+  createIsolatedReactFederationPlugin(
+    NativeConstructor: ReactReceiverNativePluginConstructor,
+  ): ReactReceiverNativePluginConstructor;
   installReceiverRegistry(registry: ReceiverRegistry): () => void;
   observeReceiverNodes(
     registration: Pick<
@@ -959,6 +971,13 @@ export function createReactReceiverOutputIntegration(
           };
           return args;
         });
+        const nativePlugin = chain.plugin(NATIVE_CLIENT_PLUGIN);
+        nativePlugin.use(
+          implementation!.createIsolatedReactFederationPlugin(
+            nativePlugin.get('plugin'),
+          ),
+          nativePlugin.get('args'),
+        );
       });
       api.onBeforeCreateCompiler(async ({ bundlerConfigs }) => {
         if (owners.size === 0) return;

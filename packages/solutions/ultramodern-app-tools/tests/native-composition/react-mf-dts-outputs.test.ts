@@ -46,6 +46,7 @@ import { reactAuthoredInputPaths } from '../../src/native-composition/react-auth
 import { REACT_RENDERER_IDENTITY_ELEMENT_ID } from '../../src/native-composition/react-build-metadata';
 import {
   createReactReceiverOutputIntegration,
+  type ReactReceiverImplementation,
   type ReactReceiverOutputIntegrationOptions,
 } from '../../src/native-composition/react-mf-dts-outputs';
 import type {
@@ -512,6 +513,15 @@ async function integration(
       loads++;
       return {
         EXTRA_OPTIONS_KEY: AUTHORITY_KEY,
+        createIsolatedReactFederationPlugin(NativeConstructor) {
+          const adapter = createRequire(import.meta.url)(
+            '../../src/native-composition/react-mf-dts-implementation.cjs',
+          ) as Pick<
+            ReactReceiverImplementation,
+            'createIsolatedReactFederationPlugin'
+          >;
+          return adapter.createIsolatedReactFederationPlugin(NativeConstructor);
+        },
         installReceiverRegistry(value) {
           registry = value;
           return () => {
@@ -633,9 +643,19 @@ async function configureChain(
   nativeLifecycle = false,
 ) {
   let args: unknown[] = [options, 'retained-native-argument'];
+  let nativePlugin: new () => { apply(compiler: Rspack.Compiler): void } =
+    class {
+      apply(_compiler: Rspack.Compiler) {}
+    };
   const chain = {
     plugins: { has: () => enabled },
     plugin: (name: string) => ({
+      get(key: string) {
+        expect(name).toBe('plugin-module-federation');
+        if (key === 'plugin') return nativePlugin;
+        if (key === 'args') return args;
+        throw new Error(`Unexpected native plugin key: ${key}`);
+      },
       tap(callback: (value: unknown[]) => unknown[]) {
         expect(name).toBe('plugin-module-federation');
         args = callback(args);
@@ -645,8 +665,14 @@ async function configureChain(
         expect(nativePlugin).toBe('plugin-module-federation');
         return this;
       },
-      use(Plugin: new () => { apply(compiler: Rspack.Compiler): void }) {
-        result.compilerOwnerPlugins.set('client', Plugin);
+      use(
+        Plugin: new () => { apply(compiler: Rspack.Compiler): void },
+        suppliedArgs?: unknown[],
+      ) {
+        if (name === 'plugin-module-federation') {
+          nativePlugin = Plugin;
+          args = suppliedArgs ?? args;
+        } else result.compilerOwnerPlugins.set('client', Plugin);
       },
     }),
   };
@@ -1148,7 +1174,7 @@ describe('React native receiver output controller', () => {
       import { captureConfigSourceSnapshot } from ${JSON.stringify(path.join(sourceDirectory, 'config-evaluator/source-snapshot.ts'))};
       import { createConfigurationReadContextPlugin, retainConfigurationSourceSnapshot } from ${JSON.stringify(path.join(sourceDirectory, 'configuration-read-context.ts'))};
       const app = ${JSON.stringify(app)};
-      const { observeReceiverNodes } = createRequire(import.meta.url)(${JSON.stringify(path.join(sourceDirectory, 'react-mf-dts-implementation.cjs'))});
+      const { observeReceiverNodes, createIsolatedReactFederationPlugin } = createRequire(import.meta.url)(${JSON.stringify(path.join(sourceDirectory, 'react-mf-dts-implementation.cjs'))});
       const outcome = ${JSON.stringify(outcome)};
       const observed = Object.freeze({kind:'observed-config-source-inputs',version:1,packageMetadata:Object.freeze([]),observations:Object.freeze([])});
       const snapshot = captureConfigSourceSnapshot({sourceRoots:[app.appDirectory]});
@@ -1170,7 +1196,7 @@ describe('React native receiver output controller', () => {
       await createConfigurationReadContextPlugin(()=>observed).setup(api);
       const integration = createReactReceiverOutputIntegration({
         resolveImplementation:()=>app.producerPath,
-        loadImplementation:()=>({EXTRA_OPTIONS_KEY:'ultramodernReceiverDts',installReceiverRegistry(value){registry=value;return()=>{restored++}},observeReceiverNodes}),
+        loadImplementation:()=>({EXTRA_OPTIONS_KEY:'ultramodernReceiverDts',createIsolatedReactFederationPlugin,installReceiverRegistry(value){registry=value;return()=>{restored++}},observeReceiverNodes}),
         resolveProducer:async()=>({packageName:'@fixture/native-dts-owner',version:'1.2.3',packageDirectory:app.producerDirectory,modulePath:app.producerPath,moduleDigest:${JSON.stringify(digest(fs.readFileSync(app.producerPath)))} }),
         resolveDestinations:async details=>({effectiveOptions:details.nativeOptions,context:{operation:details.operation},destinations:[{path:{lexical:app.declaration,canonical:fs.realpathSync(app.declaration)},kind:'file',scope:'exact'}]}),
         sourceNodes:()=>sourceNodes,trackedInputs:async()=>[]

@@ -1,5 +1,15 @@
 export default [
   {
+    packageName: '@rsbuild/core',
+    version: '2.2.9',
+    path: 'patches/@rsbuild__core@2.2.9.patch',
+    sha256: '0cf4660d0fb167485dc102b912be92e56caa8280a4d7932e69277dc8c4db04e1',
+    repository: true,
+    workspace: null,
+    reason:
+      'Await the public final development compiler hook after native HMR and filesystem setup before completion and watch adapters attach.',
+  },
+  {
     packageName: 'jiti',
     version: '2.7.0',
     path: 'patches/jiti@2.7.0.patch',
@@ -22,7 +32,7 @@ export default [
     packageName: '@module-federation/dts-plugin',
     version: '2.9.1',
     path: 'patches/@module-federation__dts-plugin@2.9.1.patch',
-    sha256: '4c32ee8479a7e9e5bfd1d0bf6ee9de285ca7369278b1c471b92b839a50b0f054',
+    sha256: 'e63359a1ffd2ff45b2d939ef9757f56be44e9ebfc4a84058aeb3741492fc417a',
     repository: true,
     workspace: null,
     reason:

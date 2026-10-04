@@ -69,6 +69,7 @@ const sidecarBinNames = new Map([
   ['@bleedingdev/mf-cli', 'mf'],
   ['@bleedingdev/mf-enhanced', 'mf'],
   ['@bleedingdev/jiti', 'jiti'],
+  ['@bleedingdev/rsbuild-core', 'rsbuild'],
 ]);
 
 const stableVersionPattern = /^\d+\.\d+\.\d+$/u;
@@ -89,6 +90,7 @@ const requiredImageDependencyTargets = Object.freeze({
 });
 
 const correctedDependencyTargets = Object.freeze({
+  '@rsbuild/core': '@bleedingdev/rsbuild-core',
   jiti: '@bleedingdev/jiti',
   effect: '@bleedingdev/effect',
   'drizzle-orm': '@bleedingdev/drizzle-orm',

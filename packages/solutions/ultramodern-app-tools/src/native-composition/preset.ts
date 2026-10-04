@@ -15,6 +15,29 @@ const DEFAULT_OTLP_ENDPOINT = 'http://127.0.0.1:4318/v1/logs';
 const DEFAULT_VICTORIA_METRICS_ENDPOINT =
   'http://127.0.0.1:8428/api/v1/import/prometheus';
 
+/** API-only bundles retain their release identity; UI owns a compiler binding. */
+const RELEASE_IDENTITY_BANNER = Symbol.for(
+  '@modern-js/ultramodern-app-tools/release-identity-banner',
+);
+
+export class UltramodernReleaseIdentityBannerPlugin extends rspack.BannerPlugin {
+  constructor(options: ConstructorParameters<typeof rspack.BannerPlugin>[0]) {
+    super(options);
+    Object.defineProperty(this, RELEASE_IDENTITY_BANNER, { value: true });
+  }
+}
+
+export function isUltramodernReleaseIdentityBannerPlugin(
+  plugin: unknown,
+): boolean {
+  return (
+    typeof plugin === 'object' &&
+    plugin !== null &&
+    Object.getOwnPropertyDescriptor(plugin, RELEASE_IDENTITY_BANNER)?.value ===
+      true
+  );
+}
+
 export interface PresetUltramodernOptions {
   /** Build environment; defaults to the current process environment. */
   environment?: Readonly<NodeJS.ProcessEnv>;
@@ -262,7 +285,7 @@ const createRendererPreset = (
             rspack: config => {
               config.plugins ??= [];
               config.plugins.push(
-                new rspack.BannerPlugin({
+                new UltramodernReleaseIdentityBannerPlugin({
                   banner: `void ${JSON.stringify(bundledReleaseIdentity.buildMarker)};void ${JSON.stringify(bundledReleaseIdentity.sourceRevision)};void ${JSON.stringify(bundledReleaseIdentity.releaseVersion)};`,
                   raw: true,
                   // The default additions stage runs before production

@@ -185,7 +185,10 @@ async function compileMetadata(
   options: {
     entryNames?: string[];
     typedCss?: boolean;
-    beforeFinalize?: (stats: Rspack.Stats | Rspack.MultiStats) => void;
+    beforeFinalize?: (
+      stats: Rspack.Stats | Rspack.MultiStats,
+      pass: number,
+    ) => void;
     rsbuildConfig?: NonNullable<
       Parameters<typeof createRsbuild>[0]
     >['rsbuildConfig'];
@@ -216,11 +219,13 @@ async function compileMetadata(
           setup(rsbuildApi) {
             rsbuildApi.onAfterCreateCompiler(({ compiler: created }) => {
               compiler = created;
-              if (options.beforeFinalize)
+              if (options.beforeFinalize) {
+                let pass = 0;
                 created.hooks.done.tap(
                   { name: 'test-completed-evidence', stage: -100 },
-                  options.beforeFinalize,
+                  stats => options.beforeFinalize?.(stats, ++pass),
                 );
+              }
             });
             rsbuildApi.modifyHTMLTags((tags, { environment }) => {
               if (environment.name === 'client')
@@ -428,7 +433,7 @@ describe('React metadata in the existing CLI build hooks', () => {
       expect(resolveBuildIdentities).not.toHaveBeenCalled();
     } else {
       await compileMetadata(api);
-      expect(resolveBuildIdentities).toHaveBeenCalledTimes(2);
+      expect(resolveBuildIdentities).toHaveBeenCalledTimes(3);
       expect(fs.readFileSync(router, 'utf8')).toBe(produced);
     }
   });
@@ -517,7 +522,7 @@ describe('React metadata in the existing CLI build hooks', () => {
           'utf8',
         ),
       );
-      expect(resolveBuildIdentities).toHaveBeenCalledTimes(2);
+      expect(resolveBuildIdentities).toHaveBeenCalledTimes(3);
       for (const entryName of ['ssr', 'csr']) {
         const html = fs.readFileSync(
           path.join(root, 'dist', clientHTMLPaths[entryName]),
@@ -638,8 +643,11 @@ describe('React metadata in the existing CLI build hooks', () => {
       version: 1,
       profile: resolveRendererProfile('react'),
     });
-    expect(resolveBuildIdentities).toHaveBeenCalledTimes(2);
-    expect(resolveBuildIdentities.mock.calls[1][0]).toBe(resolvedContext);
+    expect(resolveBuildIdentities).toHaveBeenCalledTimes(3);
+    const emittedContext = resolveBuildIdentities.mock.calls[1][0];
+    expect(emittedContext).not.toBe(resolvedContext);
+    expect(emittedContext.entrypoints).toEqual(resolvedContext.entrypoints);
+    expect(resolveBuildIdentities.mock.calls[2][0]).toBe(emittedContext);
     expect(
       fs
         .readdirSync(path.dirname(manifestFile))
@@ -1056,7 +1064,10 @@ describe('React metadata in the existing CLI build hooks', () => {
     await expect(
       compileMetadata(api, {
         entryNames: failure === 'entry' ? ['ssr'] : ['ssr', 'csr'],
-        beforeFinalize(stats) {
+        beforeFinalize(stats, pass) {
+          // The private discovery does not emit files. Inject an empty output
+          // only after the native emitting pass creates its genuine asset.
+          if (failure === 'empty' && pass === 1) return;
           const compilation = ('stats' in stats ? stats.stats : [stats]).find(
             result => result.compilation.name === 'client',
           )!.compilation;
