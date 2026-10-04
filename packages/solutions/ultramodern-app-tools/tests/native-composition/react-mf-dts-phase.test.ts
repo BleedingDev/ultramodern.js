@@ -220,6 +220,8 @@ async function harness(
     idle?: Promise<void>;
     waitForIdle?: () => Promise<void>;
     inputPaths?: readonly string[];
+    bindRuntimeIdentity?: boolean;
+    afterPublicationFence?: (phase: ReactTypedCssPhase) => void;
     finalize?: (
       lease: RendererGeneratedOutputIdentityLease | undefined,
     ) => Promise<void>;
@@ -242,6 +244,7 @@ async function harness(
     distDirectory: path.join(root, 'dist'),
     produceTypedCss: false,
     inputPaths: options.inputPaths,
+    bindRuntimeIdentity: options.bindRuntimeIdentity,
     generatedOutputs: {
       waitForIdle:
         options.waitForIdle ?? (() => options.idle ?? Promise.resolve()),
@@ -288,6 +291,7 @@ async function harness(
             await lease.assertCurrent();
             const result = await callback();
             await lease.assertCurrent();
+            options.afterPublicationFence?.(phase);
             return result;
           },
           release() {
@@ -634,6 +638,33 @@ describe('React receiver receipt phase integration', () => {
     await run.phase.resolveIdentities();
     expect(run.bindings[1]).toBe(reserved);
     expect(run.counts().publications).toBe(2);
+  });
+
+  it('keeps a fence-released BEGIN in the private discovery epoch until the first native emission', async () => {
+    const root = fixture();
+    let releasedReservation: ReactGeneratedOutputGeneration | undefined;
+    const run = await harness(root, {
+      bindRuntimeIdentity: true,
+      afterPublicationFence: phase => {
+        releasedReservation ??= phase.reserveGeneratedOutputGeneration();
+      },
+    });
+    const initial = run.bindings[0];
+    expect(releasedReservation).toBe(initial);
+    expect(releasedReservation?.snapshot).toBe(initial.snapshot);
+    expect(initial.generation).toBe(1);
+    expect(run.phase.shouldScheduleGeneratedOutputWatch(initial)).toBe(false);
+    expect(run.counts().finalizations).toBe(1);
+    expect(run.counts().publications).toBe(0);
+    await run.run();
+    await run.phase.resolveIdentities();
+    expect(run.phase.currentGeneratedOutputGeneration()).toBe(initial);
+    expect(run.counts().finalizations).toBe(2);
+    expect(run.counts().publications).toBe(1);
+    const next = run.phase.reserveGeneratedOutputGeneration();
+    expect(next.generation).toBe(2);
+    expect(next.snapshot).not.toBe(initial.snapshot);
+    expect(() => initial.assertCurrent()).toThrow('no longer active');
   });
 
   it('fails an authored edit during pending IO and recovers on the next native hook after settlement', async () => {

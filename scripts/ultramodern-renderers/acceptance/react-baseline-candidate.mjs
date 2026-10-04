@@ -20,6 +20,7 @@ import { startEphemeralRegistry } from '../../ultramodern-publish/lib/source-cre
 import {
   assertReactBaselineDataLoaderPackageCurrent,
   assertReactBaselineInputsUnchanged,
+  auditReactBaselineConsumerOutputs,
   createReactBaselineBuildToolDependencies,
   createReactBaselineRootDeclarationDependencies,
   createReactBaselineTransportOverrides,
@@ -732,7 +733,7 @@ export async function runReactBaselineCandidate(options) {
       : readReactBaselineReport(stdout, rstestVersion);
     const reportPath = path.join(workDir, 'rstest-report.json');
     fs.writeFileSync(reportPath, bytes, { flag: 'wx' });
-    assertReactBaselineInputsUnchanged(stage);
+    const generatedOutputs = auditReactBaselineConsumerOutputs(stage);
     assertReactBaselineInputsUnchanged(stage, repoRoot);
     assertReactBaselineDataLoaderPackageCurrent(prerequisite);
     installedCandidatePackages(stage.workDir, release);
@@ -770,6 +771,7 @@ export async function runReactBaselineCandidate(options) {
       },
       inputs: stage.inputFiles,
       inputDigest: hash(Buffer.from(JSON.stringify(stage.inputFiles))),
+      generatedOutputs,
       suites: selection.suites,
       summary: report.summary,
       report: {
