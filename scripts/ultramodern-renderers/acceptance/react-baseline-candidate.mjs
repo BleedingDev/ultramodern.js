@@ -33,6 +33,30 @@ const suiteCounts = Object.freeze([9, 2, 1, 5]);
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const readJson = file => JSON.parse(fs.readFileSync(file, 'utf8'));
 
+export function selectReactBaselineRun({ diagnostic, receipt }) {
+  assert.ok(
+    diagnostic === undefined || diagnostic === 'mf9',
+    'The only supported diagnostic profile is mf9',
+  );
+  if (diagnostic === 'mf9') {
+    assert.equal(
+      receipt,
+      undefined,
+      'MF9 diagnostics cannot write a baseline receipt; omit --receipt',
+    );
+    return Object.freeze({
+      diagnostic: true,
+      suites: Object.freeze([REACT_BASELINE_SUITES[0]]),
+      commandName: 'mf9',
+    });
+  }
+  return Object.freeze({
+    diagnostic: false,
+    suites: REACT_BASELINE_SUITES,
+    commandName: 'react17',
+  });
+}
+
 function within(root, target) {
   const relative = path.relative(root, target);
   return (
@@ -179,7 +203,7 @@ export function assertReactBaselineReport(report, version) {
 }
 
 /** Extract the real CLI JSON reporter from its otherwise unchanged build/test stdout. */
-export function readReactBaselineReport(stdout, version) {
+function readNativeRstestReport(stdout) {
   const matches = [...stdout.matchAll(/\{\s*"tool"\s*:\s*"rstest"/gu)];
   assert.equal(
     matches.length,
@@ -203,12 +227,90 @@ export function readReactBaselineReport(stdout, version) {
       if (depth === 0) {
         const bytes = stdout.slice(start, index + 1);
         const report = JSON.parse(bytes);
-        assertReactBaselineReport(report, version);
         return { report, bytes: Buffer.from(`${bytes}\n`) };
       }
     }
   }
   throw new Error('Native Rstest JSON report was truncated');
+}
+
+export function readReactBaselineReport(stdout, version) {
+  const parsed = readNativeRstestReport(stdout);
+  assertReactBaselineReport(parsed.report, version);
+  return parsed;
+}
+
+/** Preserve actual MF outcomes for diagnostics without granting baseline qualification. */
+export function readReactMfDiagnosticReport(stdout, version) {
+  const parsed = readNativeRstestReport(stdout);
+  const { report } = parsed;
+  const suite = REACT_BASELINE_SUITES[0];
+  assert.equal(report.tool, 'rstest', 'A native Rstest report is required');
+  assert.equal(
+    report.version,
+    version,
+    'Rstest report version differs from the installed runner',
+  );
+  assert.ok(
+    report.status === 'pass' || report.status === 'fail',
+    'MF9 diagnostic requires a completed native report',
+  );
+  assert.ok(
+    Array.isArray(report.files) && report.files.length === 1,
+    'MF9 diagnostic requires exactly its original test file',
+  );
+  const file = report.files[0];
+  assert.equal(file.testPath, suite, 'MF9 diagnostic contains a foreign file');
+  assert.ok(file.status === 'pass' || file.status === 'fail');
+  assert.ok(
+    Array.isArray(report.tests) && report.tests.length === 9,
+    'MF9 diagnostic requires all nine native test records',
+  );
+  assert.ok(Array.isArray(file.results) && file.results.length === 9);
+  assert.ok(Array.isArray(report.unhandledErrors ?? []));
+  const names = new Set();
+  const counts = { pass: 0, fail: 0, skip: 0, todo: 0 };
+  for (const record of report.tests) {
+    assert.equal(
+      record.testPath,
+      suite,
+      'MF9 diagnostic contains a foreign case',
+    );
+    assert.ok(Object.hasOwn(counts, record.status));
+    assert.ok(
+      typeof record.fullName === 'string' && record.fullName.length > 0,
+    );
+    assert.ok(
+      !names.has(record.fullName),
+      'MF9 diagnostic contains duplicate cases',
+    );
+    names.add(record.fullName);
+    counts[record.status] += 1;
+  }
+  const cases = records =>
+    records
+      .map(record => [record.testPath, record.fullName, record.status])
+      .sort();
+  assert.deepEqual(cases(file.results), cases(report.tests));
+  assert.deepEqual(report.summary, {
+    testFiles: 1,
+    failedFiles: file.status === 'fail' ? 1 : 0,
+    tests: 9,
+    failedTests: counts.fail,
+    passedTests: counts.pass,
+    skippedTests: counts.skip,
+    todoTests: counts.todo,
+  });
+  if (report.status === 'pass') {
+    assert.equal(file.status, 'pass', 'MF9 diagnostic file did not pass');
+    assert.equal(
+      counts.pass,
+      9,
+      'MF9 diagnostic pass requires nine actual passes',
+    );
+    assert.equal(report.unhandledErrors?.length ?? 0, 0);
+  }
+  return parsed;
 }
 
 function installedCandidatePackages(shadow, release) {
@@ -346,6 +448,7 @@ function exposeDataLoaderPrerequisite(shadow, installed, release) {
 
 /** Materialize and execute only in a fresh caller-owned root; outputs remain owned by caller. */
 export async function runReactBaselineCandidate(options) {
+  const selection = selectReactBaselineRun(options);
   const {
     manifest,
     workDir,
@@ -357,7 +460,7 @@ export async function runReactBaselineCandidate(options) {
   for (const [name, value] of Object.entries({
     manifest,
     workDir,
-    receipt,
+    ...(selection.diagnostic ? {} : { receipt }),
     storeDir,
     pnpmExecutable,
     browserExecutable,
@@ -367,10 +470,12 @@ export async function runReactBaselineCandidate(options) {
       `${name} must be absolute`,
     );
   }
-  assert.ok(
-    !fs.existsSync(receipt),
-    'Consumer receipt must be fresh and exclusive',
-  );
+  if (!selection.diagnostic) {
+    assert.ok(
+      !fs.existsSync(receipt),
+      'Consumer receipt must be fresh and exclusive',
+    );
+  }
   assert.ok(
     fs.lstatSync(workDir).isDirectory() && fs.readdirSync(workDir).length === 0,
     'The caller must provide a fresh empty owned work directory',
@@ -472,7 +577,7 @@ export async function runReactBaselineCandidate(options) {
   const onTerm = () => interrupt('SIGTERM');
   process.on('SIGINT', onInt);
   process.on('SIGTERM', onTerm);
-  const run = async (args, cwd, env, name) => {
+  const run = async (args, cwd, env, name, allowFailure = false) => {
     assert.ok(!interrupted, `Consumer interrupted by ${interrupted}`);
     const stdoutPath = path.join(workDir, `${name}.stdout.log`);
     const stderrPath = path.join(workDir, `${name}.stderr.log`);
@@ -512,11 +617,13 @@ export async function runReactBaselineCandidate(options) {
       stdoutPath,
       stderrPath,
     });
-    assert.equal(
-      outcome.exitCode,
-      0,
-      `${name} exited ${outcome.exitCode} (${outcome.signal ?? 'no signal'})`,
-    );
+    if (!allowFailure) {
+      assert.equal(
+        outcome.exitCode,
+        0,
+        `${name} exited ${outcome.exitCode} (${outcome.signal ?? 'no signal'})`,
+      );
+    }
     assert.ok(!interrupted, `Consumer interrupted by ${interrupted}`);
     return fs.readFileSync(stdoutPath, 'utf8');
   };
@@ -614,12 +721,15 @@ export async function runReactBaselineCandidate(options) {
     assertReactBaselineInputsUnchanged(stage, repoRoot);
     assertReactBaselineDataLoaderPackageCurrent(prerequisite);
     const stdout = await run(
-      ['exec', 'rstest', 'run', ...REACT_BASELINE_SUITES, '--reporter', 'json'],
+      ['exec', 'rstest', 'run', ...selection.suites, '--reporter', 'json'],
       stage.testsDir,
       env,
-      'react17',
+      selection.commandName,
+      selection.diagnostic,
     );
-    const { report, bytes } = readReactBaselineReport(stdout, rstestVersion);
+    const { report, bytes } = selection.diagnostic
+      ? readReactMfDiagnosticReport(stdout, rstestVersion)
+      : readReactBaselineReport(stdout, rstestVersion);
     const reportPath = path.join(workDir, 'rstest-report.json');
     fs.writeFileSync(reportPath, bytes, { flag: 'wx' });
     assertReactBaselineInputsUnchanged(stage);
@@ -627,9 +737,15 @@ export async function runReactBaselineCandidate(options) {
     assertReactBaselineDataLoaderPackageCurrent(prerequisite);
     installedCandidatePackages(stage.workDir, release);
     const result = {
-      schema: 'bleedingdev.ultramodern.original-react-baseline',
+      schema: selection.diagnostic
+        ? 'bleedingdev.ultramodern.original-react-mf-diagnostic'
+        : 'bleedingdev.ultramodern.original-react-baseline',
       schemaVersion: 1,
-      status: 'passed',
+      status:
+        report.status === 'pass' && commands.at(-1).exitCode === 0
+          ? 'passed'
+          : 'failed',
+      ...(selection.diagnostic ? { qualification: 'diagnostic-only' } : {}),
       candidate: {
         manifestPath: release.manifestPath,
         manifestSha256: release.manifestSha256,
@@ -654,7 +770,7 @@ export async function runReactBaselineCandidate(options) {
       },
       inputs: stage.inputFiles,
       inputDigest: hash(Buffer.from(JSON.stringify(stage.inputFiles))),
-      suites: REACT_BASELINE_SUITES,
+      suites: selection.suites,
       summary: report.summary,
       report: {
         path: reportPath,
@@ -676,6 +792,21 @@ export async function runReactBaselineCandidate(options) {
     // No success receipt is issued until the owned registry has actually stopped.
     await registry.stop();
     registry = undefined;
+    if (selection.diagnostic) {
+      const diagnosticPath = path.join(workDir, 'mf9-diagnostic.json');
+      fs.writeFileSync(diagnosticPath, `${JSON.stringify(result, null, 2)}\n`, {
+        flag: 'wx',
+      });
+      console.log(
+        `Original MF9 diagnostic (${result.status}): ${diagnosticPath}`,
+      );
+      assert.equal(
+        result.status,
+        'passed',
+        'Original MF9 diagnostic did not pass',
+      );
+      return result;
+    }
     fs.writeFileSync(receipt, `${JSON.stringify(result, null, 2)}\n`, {
       flag: 'wx',
     });
@@ -709,6 +840,7 @@ if (
       manifest: { type: 'string' },
       'work-dir': { type: 'string' },
       receipt: { type: 'string' },
+      diagnostic: { type: 'string' },
       'store-dir': { type: 'string' },
       'pnpm-executable': { type: 'string' },
       'browser-executable': { type: 'string' },
@@ -719,6 +851,7 @@ if (
     manifest: values.manifest,
     workDir: values['work-dir'],
     receipt: values.receipt,
+    diagnostic: values.diagnostic,
     storeDir: values['store-dir'],
     pnpmExecutable: values['pnpm-executable'],
     browserExecutable: values['browser-executable'],

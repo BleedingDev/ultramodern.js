@@ -127,7 +127,7 @@ export function assertRendererBuildInputsUnchanged(
   initial: RendererBuildIdentities,
   completed: RendererBuildIdentities,
 ): void {
-  for (const key of [
+  const fields = [
     'buildMarker',
     'sourceRevision',
     'inputDigest',
@@ -138,12 +138,56 @@ export function assertRendererBuildInputsUnchanged(
     'promotable',
     'identities',
     'routerBindings',
-  ] as const) {
-    if (!isDeepStrictEqual(initial[key], completed[key]))
-      throw new Error(
-        `Native build inputs changed during compilation (${key}); rebuild from one unchanged source and framework cohort`,
-      );
-  }
+  ] as const;
+  const changed = fields.filter(
+    key => !isDeepStrictEqual(initial[key], completed[key]),
+  );
+  if (!changed.length) return;
+  const describe = (
+    value: RendererBuildIdentities,
+    key: (typeof fields)[number],
+  ): string => {
+    const field = value[key];
+    if (key === 'identities')
+      return JSON.stringify(
+        Object.entries(value.identities)
+          .slice(0, 8)
+          .map(([entry, identity]) => ({
+            entry: entry.slice(0, 128),
+            renderer: identity.renderer,
+            appId: identity.appId.slice(0, 128),
+            entryName: identity.entryName.slice(0, 128),
+            protocolVersion: identity.protocolVersion,
+            buildId: identity.buildId,
+          })),
+      ).slice(0, 512);
+    if (key === 'routerBindings')
+      return JSON.stringify(
+        Object.entries(value.routerBindings)
+          .slice(0, 8)
+          .map(([entry, binding]) => ({
+            entry: entry.slice(0, 128),
+            owner: binding.owner.slice(0, 128),
+            evidence: binding.evidence,
+            providers: binding.providers.slice(0, 8).map(provider => ({
+              name: provider.name,
+              version: provider.version,
+            })),
+          })),
+      ).slice(0, 512);
+    return JSON.stringify(
+      typeof field === 'string' ? field.slice(0, 128) : field,
+    );
+  };
+  const differences = changed
+    .map(
+      key =>
+        `${key}: expected=${describe(initial, key)}, actual=${describe(completed, key)}`,
+    )
+    .join('; ');
+  throw new Error(
+    `Native build inputs changed during compilation (${changed[0]}); rebuild from one unchanged source and framework cohort. Changed identity fields: ${differences}`,
+  );
 }
 
 function freezeProfile<T>(value: T): T {
