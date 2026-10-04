@@ -896,3 +896,79 @@ diff --git a/dist/esm/index.mjs b/dist/esm/index.mjs
  		}
  		if (!normalizedDev.disableLiveReload) {
  			const TEMP_DIR$1 = path.join(`${process.cwd()}/node_modules`, TEMP_DIR);
+diff --git a/dist/expose-rpc-jaGpsAVL.js b/dist/expose-rpc-jaGpsAVL.js
+--- a/dist/expose-rpc-jaGpsAVL.js
++++ b/dist/expose-rpc-jaGpsAVL.js
+@@ -1009,8 +1009,30 @@
+ 		const { apiTypeUrl } = remoteInfo;
+ 		if (!apiTypeUrl) return;
++		if (!(hostOptions.maxRetries > 0)) return;
+ 		try {
+-			let apiTypeFile = (await nativeFetch(apiTypeUrl, {
+-				timeout: hostOptions.timeout,
+-				family: hostOptions.family
+-			})).data;
++			let response;
++			for (let attempt = 0; attempt < hostOptions.maxRetries; attempt++) {
++				try {
++					response = await nativeFetch(apiTypeUrl, {
++						timeout: hostOptions.timeout,
++						family: hostOptions.family
++					});
++					break;
++				} catch (error) {
++					let cause = error;
++					let connectionReset = false;
++					for (let depth = 0; depth < 8 && cause && typeof cause === "object"; depth++) {
++						const code = Object.getOwnPropertyDescriptor(cause, "code");
++						if (code && "value" in code && code.value === "ECONNRESET") {
++							connectionReset = true;
++							break;
++						}
++						const nextCause = Object.getOwnPropertyDescriptor(cause, "cause");
++						if (!nextCause || !("value" in nextCause)) break;
++						cause = nextCause.value;
++					}
++					if (!connectionReset || !(attempt + 1 < hostOptions.maxRetries)) throw error;
++				}
++			}
++			let apiTypeFile = response.data;
+ 			apiTypeFile = apiTypeFile.replaceAll(REMOTE_ALIAS_IDENTIFIER, remoteInfo.alias);
+diff --git a/dist/esm/expose-rpc-B0rqtOKP.mjs b/dist/esm/expose-rpc-B0rqtOKP.mjs
+--- a/dist/esm/expose-rpc-B0rqtOKP.mjs
++++ b/dist/esm/expose-rpc-B0rqtOKP.mjs
+@@ -1020,8 +1020,30 @@
+ 		const { apiTypeUrl } = remoteInfo;
+ 		if (!apiTypeUrl) return;
++		if (!(hostOptions.maxRetries > 0)) return;
+ 		try {
+-			let apiTypeFile = (await nativeFetch(apiTypeUrl, {
+-				timeout: hostOptions.timeout,
+-				family: hostOptions.family
+-			})).data;
++			let response;
++			for (let attempt = 0; attempt < hostOptions.maxRetries; attempt++) {
++				try {
++					response = await nativeFetch(apiTypeUrl, {
++						timeout: hostOptions.timeout,
++						family: hostOptions.family
++					});
++					break;
++				} catch (error) {
++					let cause = error;
++					let connectionReset = false;
++					for (let depth = 0; depth < 8 && cause && typeof cause === "object"; depth++) {
++						const code = Object.getOwnPropertyDescriptor(cause, "code");
++						if (code && "value" in code && code.value === "ECONNRESET") {
++							connectionReset = true;
++							break;
++						}
++						const nextCause = Object.getOwnPropertyDescriptor(cause, "cause");
++						if (!nextCause || !("value" in nextCause)) break;
++						cause = nextCause.value;
++					}
++					if (!connectionReset || !(attempt + 1 < hostOptions.maxRetries)) throw error;
++				}
++			}
++			let apiTypeFile = response.data;
+ 			apiTypeFile = apiTypeFile.replaceAll(REMOTE_ALIAS_IDENTIFIER, remoteInfo.alias);
