@@ -2049,15 +2049,12 @@ function dependencyEdges(manifest) {
   );
 }
 
-function exportedEntry(manifest, specifier, conditions) {
-  const name = packageName(specifier);
-  const subpath = specifier === name ? '.' : `.${specifier.slice(name.length)}`;
-  let value = manifest.exports;
+function packageMapEntry(value, subpath, conditions, prefix) {
   if (
     value &&
     typeof value === 'object' &&
     !Array.isArray(value) &&
-    Object.keys(value).some(key => key.startsWith('.'))
+    Object.keys(value).some(key => key.startsWith(prefix))
   ) {
     if (Object.hasOwn(value, subpath)) value = value[subpath];
     else {
@@ -2094,8 +2091,7 @@ function exportedEntry(manifest, specifier, conditions) {
               : item;
       value = substitute(value[match]);
     }
-  } else if (manifest.exports !== undefined && subpath !== '.')
-    return undefined;
+  } else if (subpath !== '.') return undefined;
   const select = item => {
     if (item === null) return null;
     if (typeof item === 'string') return item;
@@ -2111,9 +2107,20 @@ function exportedEntry(manifest, specifier, conditions) {
     }
     return undefined;
   };
-  if (manifest.exports !== undefined) return select(value);
+  return select(value);
+}
+
+function exportedEntry(manifest, specifier, conditions) {
+  const name = packageName(specifier);
+  const subpath = specifier === name ? '.' : `.${specifier.slice(name.length)}`;
+  if (manifest.exports !== undefined)
+    return packageMapEntry(manifest.exports, subpath, conditions, '.');
   if (conditions.has('types') && subpath === '.')
     return manifest.types ?? manifest.typings;
+  if (subpath === './')
+    return conditions.has('require')
+      ? (manifest.main ?? 'index.js')
+      : undefined;
   return subpath === '.'
     ? (manifest.module ?? manifest.main ?? 'index.js')
     : subpath;
@@ -3645,6 +3652,7 @@ export function auditInstalledConsumer({
   };
   const scanned = new Map();
   const moduleFormatScopes = new Map();
+  const packageImportScopes = new Map();
   const declarationFallbacks = [];
   const ownedRequireAnchors = [];
   const promoteSelectedFileOwner = file => {
@@ -4223,9 +4231,101 @@ export function auditInstalledConsumer({
         });
         continue;
       }
-      const specifier = imported.specifier;
+      let specifier = imported.specifier;
+      let packageImport;
+      if (specifier.startsWith('#')) {
+        assert(
+          specifier !== '#' && !specifier.startsWith('#/'),
+          'Invalid package import specifier',
+        );
+        let directory = importDirectory;
+        let manifestFile;
+        while (
+          within(root, directory) &&
+          path.basename(directory) !== 'node_modules'
+        ) {
+          const candidate = path.join(directory, 'package.json');
+          if (fs.existsSync(candidate)) {
+            manifestFile = ordinaryConsumerFile(
+              candidate,
+              'Package imports scope',
+            );
+            break;
+          }
+          if (directory === root) break;
+          directory = path.dirname(directory);
+        }
+        assert(
+          manifestFile,
+          `No owning package imports scope for ${specifier}`,
+        );
+        const scopeBytes = fs.readFileSync(manifestFile);
+        const scopeHash = crypto
+          .createHash('sha256')
+          .update(scopeBytes)
+          .digest('hex');
+        const known =
+          records.get(directory) ??
+          contexts.find(context => context.directory === directory);
+        assert(
+          !known || known.manifestSha256 === scopeHash,
+          'Package imports scope changed from its initial manifest bytes',
+        );
+        assert(
+          !packageImportScopes.has(manifestFile) ||
+            packageImportScopes.get(manifestFile).sha256 === scopeHash,
+          'Package imports scope changed during its selected file audit',
+        );
+        packageImportScopes.set(manifestFile, {
+          path: path.relative(root, manifestFile),
+          sha256: scopeHash,
+        });
+        const scope = JSON.parse(scopeBytes);
+        const conditions = new Set([
+          'node',
+          imported.require ? 'require' : 'import',
+        ]);
+        if (imported.typeOnly || /\.d\.[cm]?ts$/u.test(file))
+          conditions.add('types');
+        const mapped =
+          scope.imports &&
+          typeof scope.imports === 'object' &&
+          !Array.isArray(scope.imports)
+            ? packageMapEntry(scope.imports, specifier, conditions, '#')
+            : undefined;
+        assert(
+          typeof mapped === 'string' && mapped.length > 0,
+          `No selected package import for ${specifier}`,
+        );
+        assert(
+          !mapped.startsWith('#') &&
+            !path.isAbsolute(mapped) &&
+            !mapped.startsWith('../') &&
+            !mapped.startsWith('file:') &&
+            !mapped.includes('\\'),
+          'Invalid package imports target',
+        );
+        if (mapped.startsWith('./')) {
+          assert(
+            !mapped
+              .slice(2)
+              .split('/')
+              .some(segment => ['.', '..', 'node_modules'].includes(segment)) &&
+              !/%2f|%5c/iu.test(mapped),
+            'Package imports target escapes its owning scope',
+          );
+          packageImport = { directory };
+        } else
+          assert(
+            !mapped.startsWith('.') && !mapped.startsWith('node:'),
+            'Invalid package imports target',
+          );
+        specifier = mapped;
+        importDirectory = directory;
+      }
       let unresolvedHostRequire =
         role === 'host-build' &&
+        !packageImport &&
         imported.require &&
         !imported.typeOnly &&
         !imported.reference &&
@@ -4263,20 +4363,44 @@ export function auditInstalledConsumer({
       if (specifier.startsWith('.') || imported.reference === 'path')
         target =
           imported.typeOnly || /\.d\.[cm]?ts$/u.test(file)
-            ? resolveTypeFile(path.resolve(importDirectory, specifier))
-            : resolveFile(
+            ? resolveTypeFile(
                 path.resolve(importDirectory, specifier),
-                requireAnchor
+                packageImport
                   ? {
                       beforeRealpath: selected => {
-                        if (requireAnchor.kind === 'package')
+                        assert(
+                          within(packageImport.directory, selected),
+                          'Package imports target escapes its owning scope',
+                        );
+                        ordinaryConsumerFile(
+                          selected,
+                          'Package imports declaration target',
+                        );
+                      },
+                    }
+                  : undefined,
+              )
+            : resolveFile(
+                path.resolve(importDirectory, specifier),
+                requireAnchor || packageImport
+                  ? {
+                      exact: Boolean(packageImport),
+                      beforeRealpath: selected => {
+                        if (packageImport)
+                          assert(
+                            within(packageImport.directory, selected),
+                            'Package imports target escapes its owning scope',
+                          );
+                        if (requireAnchor?.kind === 'package')
                           assert(
                             within(selectedOwner.directory, selected),
                             'Package createRequire target escapes its owning package',
                           );
                         ordinaryConsumerFile(
                           selected,
-                          'Package createRequire target',
+                          packageImport
+                            ? 'Package imports target'
+                            : 'Package createRequire target',
                         );
                       },
                     }
@@ -4789,6 +4913,16 @@ export function auditInstalledConsumer({
           record.manifest.version === exactPackages[name],
           `Tested tuple ${name} has transitive installed drift: ${record.manifest.version}`,
         );
+  for (const [file, scope] of packageImportScopes) {
+    ordinaryConsumerFile(file, 'Package imports scope');
+    assert(
+      crypto
+        .createHash('sha256')
+        .update(fs.readFileSync(file))
+        .digest('hex') === scope.sha256,
+      'Package imports scope changed during its selected file audit',
+    );
+  }
   for (const [file, scope] of moduleFormatScopes) {
     assert(
       fs.lstatSync(file).isFile() && within(root, fs.realpathSync(file)),
@@ -4918,6 +5052,9 @@ export function auditInstalledConsumer({
       ),
     ),
     testedProfile: testedProfile ?? null,
+    packageImportScopes: [...packageImportScopes.values()].sort((left, right) =>
+      left.path.localeCompare(right.path),
+    ),
     moduleFormatScopes: [...moduleFormatScopes.values()].sort((left, right) =>
       left.path.localeCompare(right.path),
     ),

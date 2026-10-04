@@ -838,6 +838,218 @@ function consumerFixture(t, overrides = {}) {
   };
 }
 
+test('legacy package root directory requires select main while ESM and exports stay strict', t => {
+  for (const mode of [
+    'main',
+    'default-index',
+    'esm-denied',
+    'exports-denied',
+  ]) {
+    const { root, options } = consumerFixture(t);
+    const manifestPath = path.join(root, 'package.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath));
+    manifest.dependencies['legacy-directory'] = version;
+    writeJson(manifestPath, manifest);
+    const owner = installFixture(
+      root,
+      'legacy-directory',
+      {
+        type: 'commonjs',
+        exports:
+          mode === 'exports-denied' ? { '.': './lib/main.cjs' } : undefined,
+        main: mode === 'default-index' ? undefined : './lib/main.cjs',
+        module: './wrong-module.mjs',
+      },
+      'module.exports = { native: true };\n',
+    );
+    write(
+      path.join(owner, 'lib/main.cjs'),
+      'module.exports = { native: true };\n',
+    );
+    write(
+      path.join(owner, 'wrong-module.mjs'),
+      'throw new Error("Wrong legacy main selection");\n',
+    );
+    const entry = `src/directory-entry.${mode === 'esm-denied' ? 'mjs' : 'cjs'}`;
+    write(
+      path.join(root, entry),
+      mode === 'esm-denied'
+        ? "import value from 'legacy-directory/'; if (!value.native) throw new Error('Wrong directory target');\n"
+        : "const value = require('legacy-directory/'); if (!value.native) throw new Error('Wrong directory target');\n",
+    );
+    const input = { ...options, entryFiles: [...options.entryFiles, entry] };
+    if (mode.endsWith('denied')) {
+      assert.throws(
+        () =>
+          execFileSync(process.execPath, [path.join(root, entry)], {
+            cwd: root,
+            stdio: 'pipe',
+          }),
+        mode === 'esm-denied'
+          ? /ERR_UNSUPPORTED_DIR_IMPORT/u
+          : /ERR_PACKAGE_PATH_NOT_EXPORTED/u,
+      );
+      assert.throws(
+        () => auditInstalledConsumer(input),
+        /No selected export for legacy-directory\//u,
+      );
+    } else {
+      const target = path.join(
+        owner,
+        mode === 'main' ? 'lib/main.cjs' : 'index.js',
+      );
+      execFileSync(
+        process.execPath,
+        [
+          '--eval',
+          `const assert = require('node:assert/strict'); assert.equal(require.resolve('legacy-directory/'), ${JSON.stringify(target)}); require(${JSON.stringify(path.join(root, entry))});`,
+        ],
+        { cwd: root, stdio: 'pipe' },
+      );
+      const report = auditInstalledConsumer(input);
+      assert(
+        report.entryClosure.some(
+          item =>
+            item.path === path.relative(root, target) &&
+            item.sha256 === fileSha256(target),
+        ),
+        mode,
+      );
+      assert(
+        !report.entryClosure.some(
+          item =>
+            item.path ===
+            path.relative(root, path.join(owner, 'wrong-module.mjs')),
+        ),
+        mode,
+      );
+    }
+  }
+});
+
+test('package imports maps preserve owning scopes, Node conditions, and strict target closure', t => {
+  for (const mode of [
+    'import',
+    'require',
+    'wildcard',
+    'denied',
+    'missing-map',
+    'missing-key',
+    'missing-target',
+    'escape',
+    'symlink',
+    'forbidden',
+  ]) {
+    const { root, options } = consumerFixture(t);
+    const manifestPath = path.join(root, 'package.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath));
+    manifest.dependencies['imports-owner'] = version;
+    writeJson(manifestPath, manifest);
+    const imports = {
+      '#identifier': {
+        browser: './absent-browser.mjs',
+        import: './esm.mjs',
+        require: './cjs.cjs',
+        default: './esm.mjs',
+      },
+      '#features/*': './features/*.mjs',
+    };
+    if (mode === 'denied')
+      imports['#identifier'] = { import: null, default: './esm.mjs' };
+    if (mode === 'missing-key') delete imports['#identifier'];
+    if (mode === 'missing-target') imports['#identifier'] = './absent.mjs';
+    if (mode === 'escape') imports['#identifier'] = './../outside.mjs';
+    if (mode === 'symlink') imports['#identifier'] = './linked.mjs';
+    if (mode === 'forbidden') imports['#identifier'] = './forbidden.mjs';
+    const owner = installFixture(root, 'imports-owner', {
+      exports: { '.': { import: './entry.mjs', require: './entry.cjs' } },
+      ...(mode === 'missing-map' ? {} : { imports }),
+    });
+    write(
+      path.join(owner, 'entry.mjs'),
+      mode === 'wildcard'
+        ? "export { value } from '#features/first';\n"
+        : "export { value } from '#identifier';\n",
+    );
+    write(
+      path.join(owner, 'entry.cjs'),
+      "module.exports = require('#identifier');\n",
+    );
+    write(path.join(owner, 'esm.mjs'), 'export const value = true;\n');
+    write(path.join(owner, 'cjs.cjs'), 'module.exports = { value: true };\n');
+    write(
+      path.join(owner, 'features/first.mjs'),
+      'export const value = true;\n',
+    );
+    write(
+      path.join(owner, 'forbidden.mjs'),
+      "export { default as value } from 'react';\n",
+    );
+    if (mode === 'symlink')
+      fs.symlinkSync('./esm.mjs', path.join(owner, 'linked.mjs'));
+    const entry = `src/imports-entry.${mode === 'require' ? 'cjs' : 'mjs'}`;
+    write(
+      path.join(root, entry),
+      mode === 'require'
+        ? "const { value } = require('imports-owner'); if (value !== true) throw new Error('Wrong Node require target');\n"
+        : "import { value } from 'imports-owner'; if (value !== true) throw new Error('Wrong Node import target');\n",
+    );
+    const input = { ...options, entryFiles: [...options.entryFiles, entry] };
+    if (['import', 'require', 'wildcard'].includes(mode)) {
+      execFileSync(process.execPath, [path.join(root, entry)], {
+        cwd: root,
+        stdio: 'pipe',
+      });
+      const report = auditInstalledConsumer(input);
+      const selected =
+        mode === 'require'
+          ? 'cjs.cjs'
+          : mode === 'wildcard'
+            ? 'features/first.mjs'
+            : 'esm.mjs';
+      const target = path.join(owner, selected);
+      assert(
+        report.entryClosure.some(
+          item =>
+            item.path === path.relative(root, target) &&
+            item.sha256 === fileSha256(target),
+        ),
+        mode,
+      );
+      assert(
+        !report.entryClosure.some(
+          item =>
+            item.path ===
+            path.relative(
+              root,
+              path.join(owner, mode === 'require' ? 'esm.mjs' : 'cjs.cjs'),
+            ),
+        ),
+        mode,
+      );
+      assert.deepEqual(report.packageImportScopes, [
+        {
+          path: path.relative(root, path.join(owner, 'package.json')),
+          sha256: fileSha256(path.join(owner, 'package.json')),
+        },
+      ]);
+    } else
+      assert.throws(
+        () => auditInstalledConsumer(input),
+        {
+          denied: /No selected package import/u,
+          'missing-map': /No selected package import/u,
+          'missing-key': /No selected package import/u,
+          'missing-target': /Unresolved entry import/u,
+          escape: /Package imports target escapes/u,
+          symlink: /contains a symbolic link/u,
+          forbidden: /forbidden React\/RSC module react/u,
+        }[mode],
+        mode,
+      );
+  }
+});
+
 function declarationConsumerFixture(t, specifier = 'declaration-model') {
   const { root, options } = consumerFixture(t);
   const workspacePath = path.join(root, 'package.json');
