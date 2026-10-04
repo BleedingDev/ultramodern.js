@@ -2451,9 +2451,6 @@ importers:
       esbuild:
         specifier: '>=0.28.2'
         version: 0.28.2
-      tsconfig-paths:
-        specifier: ^4.2.0
-        version: 4.2.0
       zod:
         specifier: ^4.6.5
         version: 4.6.5(patch_hash=7640b49bb7addea5feff95947618c322ddb94b0bc834b4eb3ad349cff6fbf73b)
