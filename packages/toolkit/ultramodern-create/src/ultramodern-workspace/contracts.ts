@@ -78,6 +78,9 @@ export function createTopology(
     shell: {
       id: shellHost.id,
       kind: 'shell',
+      ...(shellHost.surfaceProfile
+        ? { surfaceProfile: shellHost.surfaceProfile }
+        : {}),
       package: packageName(scope, shellHost.packageSuffix),
       path: shellHost.directory,
       ...rendererMetadataProjection(shellHost, phase),

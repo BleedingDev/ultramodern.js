@@ -1144,7 +1144,7 @@ function exportedPaths(value, trail = [], result = []) {
 function auditExportFiles(manifest, files) {
   const targets = exportedPaths(manifest.exports);
   for (const field of ['main', 'module', 'types', 'typings']) {
-    if (typeof manifest[field] === 'string')
+    if (typeof manifest[field] === 'string' && manifest[field] !== '')
       targets.push({
         conditions: [field],
         target: manifest[field],

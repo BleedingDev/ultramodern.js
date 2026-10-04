@@ -1627,9 +1627,9 @@ test('React baseline declaration packages do not inherit the native Octane permi
   assert.equal(report.nativeTypeInterop, null);
 });
 
-test('artifact audit certifies actual mapped tarballs and fails changed bytes or source', async t => {
+test('artifact audit certifies mapped tarballs and empty optional main, and rejects missing targets or changed evidence', async t => {
   const root = ownedDirectory(t);
-  const names = ['renderer-solid', 'i18n-utils', 'ultramodern-create'];
+  const names = ['renderer-solid', 'i18n-utils', 'ultramodern-create', 'types'];
   const aliases = Object.fromEntries(
     names.map(name => [`@modern-js/${name}`, `@bleedingdev/modern-js-${name}`]),
   );
@@ -1641,13 +1641,16 @@ test('artifact audit certifies actual mapped tarballs and fails changed bytes or
       publishConfig: { access: 'public' },
       engines: { node: '>=26.7.0' },
       exports:
-        name === 'ultramodern-create'
-          ? {
-              '.': './index.js',
-              './ultramodern-workspace': './index.js',
-              './ultramodern-workspace/codesmith': './index.js',
-            }
-          : { '.': { types: './index.d.ts', import: './index.js' } },
+        name === 'types'
+          ? { '.': { types: './index.d.ts', default: './index.d.ts' } }
+          : name === 'ultramodern-create'
+            ? {
+                '.': './index.js',
+                './ultramodern-workspace': './index.js',
+                './ultramodern-workspace/codesmith': './index.js',
+              }
+            : { '.': { types: './index.d.ts', import: './index.js' } },
+      ...(name === 'types' ? { main: '', types: './index.d.ts' } : {}),
       ...(name === 'ultramodern-create'
         ? {
             ultramodern: { frameworkVersion: version },
@@ -1657,7 +1660,8 @@ test('artifact audit certifies actual mapped tarballs and fails changed bytes or
           }
         : {}),
     });
-    write(path.join(packageDir, 'index.js'), 'export const native = true;\n');
+    if (name !== 'types')
+      write(path.join(packageDir, 'index.js'), 'export const native = true;\n');
     write(path.join(packageDir, 'data.txt'), 'immutable candidate content\n');
     write(
       path.join(packageDir, 'index.d.ts'),
@@ -1673,10 +1677,9 @@ test('artifact audit certifies actual mapped tarballs and fails changed bytes or
       version,
     };
   });
-  createReleaseArtifacts({
+  const artifactOptions = {
     aliases,
     command: execFileSync,
-    outDir: path.join(root, 'release'),
     packages,
     source: {
       commit: sourceRevision,
@@ -1685,18 +1688,33 @@ test('artifact audit certifies actual mapped tarballs and fails changed bytes or
     tag: 'preview',
     tools: { node: process.version, npm: 'fixture-npm', pnpm: 'fixture-pnpm' },
     version,
+  };
+  createReleaseArtifacts({
+    ...artifactOptions,
+    outDir: path.join(root, 'release'),
   });
   const manifestPath = path.join(root, 'release', 'manifest.json');
   const report = auditReleaseArtifacts({
     manifestPath,
     expectedSourceRevision: sourceRevision,
   });
-  assert.equal(report.artifacts.length, 3);
+  assert.equal(report.artifacts.length, 4);
   assert.equal(report.sourceRevision, sourceRevision);
   assert.deepEqual(report.aliases, aliases);
   assert.equal(report.artifacts[0].engines.node, '>=26.7.0');
   assert.match(report.artifacts[0].integrity, /^sha512-/u);
   assert.match(report.artifacts[0].files[0].sha256, /^[a-f0-9]{64}$/u);
+  const typesArtifact = report.artifacts.find(
+    item => item.sourceName === '@modern-js/types',
+  );
+  assert.equal(
+    typesArtifact.exportTargets.some(item => item.conditions.includes('main')),
+    false,
+  );
+  assert.equal(
+    typesArtifact.files.some(item => /\.[cm]?js$/u.test(item.path)),
+    false,
+  );
   const consumerRoot = path.join(root, 'consumer');
   writeJson(path.join(consumerRoot, 'package.json'), {
     name: 'candidate-installed-consumer',
@@ -1820,4 +1838,25 @@ test('artifact audit certifies actual mapped tarballs and fails changed bytes or
     () => auditReleaseArtifacts({ manifestPath }),
     /tarball SHA-256 mismatch/u,
   );
+  const typesManifestPath = path.join(root, 'staged', 'types', 'package.json');
+  const typesManifest = JSON.parse(fs.readFileSync(typesManifestPath, 'utf8'));
+  for (const [name, invalid, diagnostic] of [
+    [
+      'missing-main',
+      { main: './missing.js' },
+      /export main is missing \.\/missing\.js/u,
+    ],
+    ['empty-export', { exports: { '.': '' } }, /unsafe export target/u],
+  ]) {
+    writeJson(typesManifestPath, { ...typesManifest, ...invalid });
+    const outDir = path.join(root, name);
+    createReleaseArtifacts({ ...artifactOptions, outDir });
+    assert.throws(
+      () =>
+        auditReleaseArtifacts({
+          manifestPath: path.join(outDir, 'manifest.json'),
+        }),
+      diagnostic,
+    );
+  }
 });

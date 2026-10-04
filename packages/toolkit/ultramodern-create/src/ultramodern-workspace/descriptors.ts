@@ -40,6 +40,7 @@ export const shellApp: WorkspaceApp = {
   packageSuffix: 'shell-super-app',
   displayName: 'Shell Super App',
   kind: 'shell',
+  surfaceProfile: 'ui-only',
   portEnv: 'SHELL_SUPER_APP_PORT',
   port: 3020,
   mfName: 'shellSuperApp',

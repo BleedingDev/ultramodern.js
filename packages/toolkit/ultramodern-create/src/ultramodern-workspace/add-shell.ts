@@ -434,6 +434,7 @@ async function executeAddUltramodernShell(
   topology.shells.push({
     id: shell.id,
     kind: 'shell',
+    ...(shell.surfaceProfile ? { surfaceProfile: shell.surfaceProfile } : {}),
     package: packageName(scope, shell.packageSuffix),
     path: shell.directory,
     displayName: shell.displayName,
