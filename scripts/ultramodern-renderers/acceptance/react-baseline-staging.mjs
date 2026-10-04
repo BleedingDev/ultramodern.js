@@ -37,7 +37,7 @@ function relativeInput(value) {
       value.length > 0 &&
       !path.posix.isAbsolute(value) &&
       !value.includes('\\') &&
-      !/[\0*?[\]{}]/u.test(value) &&
+      !/[\0\r\n]/u.test(value) &&
       !value.startsWith(':') &&
       value
         .split('/')
@@ -99,7 +99,7 @@ function sha256(file) {
   return createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 }
 
-function trackedInputs(repoRoot, inputs) {
+export function trackedReactBaselineInputFiles(repoRoot, inputs) {
   assert.ok(
     Array.isArray(inputs) && inputs.length > 0,
     'React baseline inputs must be a nonempty path array',
@@ -107,7 +107,7 @@ function trackedInputs(repoRoot, inputs) {
   const requested = inputs.map(relativeInput);
   const output = execFileSync(
     'git',
-    ['ls-files', '--stage', '-z', '--', ...requested],
+    ['--literal-pathspecs', 'ls-files', '--stage', '-z', '--', ...requested],
     { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
   );
   const files = new Set();
@@ -149,10 +149,12 @@ export function stageReactBaselineInputs({
     'React baseline work directory must be separate from the source repository',
   );
   const directories = new Map();
-  const sources = trackedInputs(sourceRoot, inputs).map(relativePath => ({
-    relativePath,
-    ...ordinaryFile(sourceRoot, relativePath, directories),
-  }));
+  const sources = trackedReactBaselineInputFiles(sourceRoot, inputs).map(
+    relativePath => ({
+      relativePath,
+      ...ordinaryFile(sourceRoot, relativePath, directories),
+    }),
+  );
   if (fs.existsSync(destinationRoot)) {
     assert.ok(
       fs.lstatSync(destinationRoot).isDirectory(),

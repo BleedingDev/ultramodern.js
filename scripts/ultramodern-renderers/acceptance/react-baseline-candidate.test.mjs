@@ -1,12 +1,17 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import {
   assertReactBaselineReport,
   readReactBaselineReport,
 } from './react-baseline-candidate.mjs';
-import { REACT_BASELINE_SUITES } from './react-baseline-staging.mjs';
+import {
+  REACT_BASELINE_SUITES,
+  trackedReactBaselineInputFiles,
+} from './react-baseline-staging.mjs';
 
 const version = '0.11.12';
+const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
 function nativeReport() {
   const tests = REACT_BASELINE_SUITES.flatMap((testPath, suite) =>
     Array.from({ length: [9, 2, 1, 5][suite] }, (_, index) => ({
@@ -36,6 +41,39 @@ function nativeReport() {
     tests,
   };
 }
+
+test('admits the original tracked streaming dynamic route as a literal Git path', () => {
+  const route =
+    'tests/integration/ssr/fixtures/streaming/src/routes/user/[id]/page.loader.ts';
+  assert.deepEqual(trackedReactBaselineInputFiles(repoRoot, [route]), [route]);
+  assert.throws(
+    () =>
+      trackedReactBaselineInputFiles(repoRoot, [route.replace('[id]', '*')]),
+    /has no tracked files/u,
+  );
+});
+
+test('rejects traversal, absolute paths, NUL, newlines and generated input trees', () => {
+  for (const input of [
+    '../fixture.ts',
+    'tests/../fixture.ts',
+    '/tmp/fixture.ts',
+    'tests//fixture.ts',
+    'tests/./fixture.ts',
+    'tests\\fixture.ts',
+    'tests/fixture\0.ts',
+    'tests/fixture\n.ts',
+    'tests/fixture\r.ts',
+    ':(glob)tests/*',
+    'tests/node_modules/fixture.ts',
+    'tests/build/fixture.ts',
+  ]) {
+    assert.throws(
+      () => trackedReactBaselineInputFiles(repoRoot, [input]),
+      /Invalid tracked React baseline input|dependency or build output/u,
+    );
+  }
+});
 
 test('requires all four native files with the original 9+2+1+5 case counts', () => {
   const report = nativeReport();
