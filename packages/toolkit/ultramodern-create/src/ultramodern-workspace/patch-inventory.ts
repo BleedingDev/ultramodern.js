@@ -51,11 +51,11 @@ export default [
     packageName: '@module-federation/modern-js-v3',
     version: '2.9.1',
     path: 'patches/@module-federation__modern-js-v3@2.9.1.patch',
-    sha256: 'eaffc05a11ddd19df3f68128dad2406a47f4474be4eb90e9476d83e5a3836551',
+    sha256: '4b03899144f1e56c993f549480058447b7e64aab07470139a8ad5a2f0042b776',
     repository: true,
     workspace: null,
     reason:
-      'Preserve lazy compilation, framework CSS ownership, valid async splitting and native ESM CLI resolution. Ultra React composition owns SSR manifest recovery through its declared federation runtime dependency. Keep the development SSR reload script server-only and remove it before hydration.',
+      'Use the public React bridge base entry without React Router imports in every module format. Preserve lazy compilation, framework CSS ownership, valid async splitting and native ESM CLI resolution. Ultra React composition owns SSR manifest recovery through its declared federation runtime dependency. Keep the development SSR reload script server-only and remove it before hydration.',
   },
   {
     packageName: '@module-federation/rspack',
