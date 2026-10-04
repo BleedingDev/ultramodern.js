@@ -24,6 +24,7 @@ import {
   compilerDispatcherCaller,
   compilerDispatcherImport,
   observedCompilerBuild,
+  owningSelfExportRequire,
   readCompilerActivationCatalogue,
 } from './compiler-activation-proof.mjs';
 
@@ -72,6 +73,243 @@ function dispatcherAccepted(source, filename) {
     compilerDispatcherImport(imports[0], syntax, primitiveUnchanged)
   );
 }
+
+function selfExportDescriptors(source, filename) {
+  const ast = parseSync(source, {
+    filename,
+    babelrc: false,
+    configFile: false,
+    sourceType: 'unambiguous',
+    parserOpts: { plugins: ['typescript'], createImportExpressions: true },
+  });
+  const { syntax, primitiveUnchanged } = compilerActivationAstAuthority();
+  const found = [];
+  traverse(ast, {
+    CallExpression(item) {
+      const descriptor = owningSelfExportRequire(
+        item,
+        syntax,
+        primitiveUnchanged,
+      );
+      if (descriptor) found.push(descriptor);
+    },
+  });
+  return found;
+}
+
+test('owning self-export proof authenticates the complete real source, ESM, and CJS loader', () => {
+  for (const relative of [
+    'src/renderers/react/registration.ts',
+    'dist/esm-node/renderers/react/registration.mjs',
+    'dist/cjs/renderers/react/registration.js',
+  ]) {
+    const source = fs.readFileSync(
+      path.join(compilerActivationOwner, relative),
+      'utf8',
+    );
+    const descriptors = selfExportDescriptors(source, relative);
+    assert.equal(descriptors.length, 1, relative);
+    assert.deepEqual(descriptors[0], {
+      subpath: './react-composition',
+      factory: 'composeReactRenderer',
+      functionName: 'compose',
+      moduleUrl: relative.endsWith('.js')
+        ? 'rslib-file-url'
+        : 'import-meta-url',
+    });
+    for (const changed of [
+      source.replace('directory = parent;', 'directory = directory;'),
+      source.replace("!manifest.exports?.['./react-composition']", 'false'),
+      source.replace(
+        '`${manifest.name}/react-composition`',
+        '`${process.env.OWNER}/react-composition`',
+      ),
+      source.replace(
+        '`${manifest.name}/react-composition`',
+        '`${manifest.name}/../foreign`',
+      ),
+      source.replace('for (;;)', 'return consumerPlugins; for (;;)'),
+      source.replace('for(;;)', 'return consumerPlugins; for(;;)'),
+    ].filter(changed => changed !== source))
+      assert.equal(
+        selfExportDescriptors(changed, relative).length,
+        0,
+        relative,
+      );
+    for (const statement of [
+      'JSON.parse = () => ({name:"foreign",exports:{"./react-composition":true}});',
+      'const alias = JSON; alias.parse = () => ({});',
+      'const alias = String.prototype; alias.replace = () => "./foreign.cjs";',
+      '__filename = "/foreign";',
+    ])
+      assert.equal(
+        selfExportDescriptors(`${source}\n${statement}`, relative).length,
+        0,
+        statement,
+      );
+  }
+  const source = fs.readFileSync(
+    path.join(compilerActivationOwner, 'src/renderers/react/registration.ts'),
+    'utf8',
+  );
+  assert.equal(
+    compilerDispatcherCaller(
+      fs
+        .readFileSync(
+          path.join(compilerActivationOwner, 'src/native-composition/index.ts'),
+          'utf8',
+        )
+        .replace(
+          'registration.compose(consumers)',
+          'unknownCompose(consumers)',
+        ),
+      'index.ts',
+      compilerActivationAstAuthority().syntax,
+    ),
+    false,
+  );
+  assert.throws(
+    () =>
+      activationCatalogue((relative, value) =>
+        relative === 'src/renderers/react/registration.ts'
+          ? `${value}\nreactRendererRegistration.kind = 'native';`
+          : value,
+      ),
+    /composed registration cannot be mutated/u,
+  );
+  assert(selfExportDescriptors(source, 'registration.ts').length);
+});
+
+test('inline genuine createRequire resolve calls remain metadata while substituted or escaped factories fail', t => {
+  const fixture = consumerFixture(t);
+  const entry = path.join(fixture.root, 'src/entry.tsx');
+  write(
+    entry,
+    "import { createRequire } from 'node:module';\nexport const filename = createRequire(import.meta.url).resolve('node:path');\n",
+  );
+  auditInstalledConsumer(fixture.options);
+  for (const source of [
+    "function createRequire(value) { return { resolve() { return value; } }; }\ncreateRequire(import.meta.url).resolve('react');\n",
+    "import { createRequire } from 'node:module';\nconst resolve = createRequire(import.meta.url).resolve; resolve('react');\n",
+    "import { createRequire } from 'node:module';\ncreateRequire(import.meta.url)['resolve']('react');\n",
+    "import { createRequire } from 'node:module';\ncreateRequire(import.meta.url).resolve = () => 'foreign';\n",
+  ]) {
+    write(entry, source);
+    assert.throws(
+      () => auditInstalledConsumer(fixture.options),
+      /Unverifiable createRequire anchor/u,
+    );
+  }
+});
+
+test('a real packed owning self export resolves its require target and audits the complete helper closure', t => {
+  const fixture = anchoredConsumerFixture(t, 'esm', undefined, true);
+  assert.equal(
+    execFileSync(
+      process.execPath,
+      [path.join(fixture.installed, 'dist/entry.mjs')],
+      { cwd: fixture.root, encoding: 'utf8' },
+    ).trim(),
+    'true',
+  );
+  const report = auditInstalledConsumer(fixture.options);
+  assert.equal(report.ownedSelfExportLoaders.length, 1);
+  const loader = report.ownedSelfExportLoaders[0];
+  assert.equal(loader.active, true);
+  assert.equal(loader.subpath, './react-composition');
+  assert.equal(
+    loader.ownerManifestSha256,
+    fileSha256(path.join(fixture.installed, 'package.json')),
+  );
+  assert.equal(
+    loader.targetSha256,
+    fileSha256(path.join(fixture.installed, 'src/private/helper.cjs')),
+  );
+  assert(
+    report.entryClosure.some(file =>
+      file.path.endsWith('src/private/deep.cjs'),
+    ),
+  );
+  assert.throws(
+    () =>
+      auditInstalledConsumer({
+        ...fixture.options,
+        releaseArtifacts: undefined,
+      }),
+    /authenticated release ownership/u,
+  );
+  for (const relative of [
+    'dist/entry.mjs',
+    'src/private/helper.cjs',
+    'package.json',
+  ]) {
+    const file = path.join(fixture.installed, relative);
+    const bytes = fs.readFileSync(file);
+    fs.appendFileSync(file, '\n');
+    assert.throws(
+      () => auditInstalledConsumer(fixture.options),
+      /differs from candidate artifact bytes|differs from authenticated/u,
+    );
+    write(file, bytes);
+  }
+});
+
+test('self exports require exact require declarations and preserve forbidden or unresolved target dependencies', t => {
+  for (const [mutation, expected] of [
+    ['missing-self-export', /does not declare the exact self export/u],
+    ['wrong-self-condition', /no canonical Node require target/u],
+    ['forbidden-self-dependency', /forbidden React\/RSC module react/u],
+    [
+      'missing-self-dependency',
+      /Unresolved installed entry import undeclared-self-runtime/u,
+    ],
+    ['foreign-root', /foreign or changed package scope/u],
+  ]) {
+    const fixture = anchoredConsumerFixture(t, 'esm', mutation, true);
+    assert.throws(
+      () => auditInstalledConsumer(fixture.options),
+      expected,
+      mutation,
+    );
+  }
+});
+
+test('the complete emitted owning URL shim resolves builtin url and rejects prototype substitution', t => {
+  const fixture = consumerFixture(t);
+  const filename = 'dist/cjs/renderers/react/registration.js';
+  const actual = fs.readFileSync(
+    path.join(compilerActivationOwner, filename),
+    'utf8',
+  );
+  const ast = parseSync(actual, {
+    filename,
+    babelrc: false,
+    configFile: false,
+  });
+  const shim = ast.program.body.find(
+    item =>
+      item.type === 'VariableDeclaration' &&
+      item.declarations[0].id.name === '__rslib_import_meta_url__',
+  );
+  assert(shim);
+  const source = actual.slice(shim.start, shim.end);
+  const entry = path.join(fixture.root, 'src/owning-url.cjs');
+  const options = { ...fixture.options, entryFiles: ['src/owning-url.cjs'] };
+  write(entry, `${source}\nmodule.exports = __rslib_import_meta_url__;\n`);
+  auditInstalledConsumer(options);
+  for (const changed of [
+    `String.prototype.replace = () => './foreign.cjs';\n${source}`,
+    `const alias = String.prototype; alias.replace = () => './foreign.cjs';\n${source}`,
+    source.replace("'url'.replace('', '')", "'foreign'.replace('', '')"),
+    `__filename = '/foreign';\n${source}`,
+  ]) {
+    write(entry, changed);
+    assert.throws(
+      () => auditInstalledConsumer(options),
+      /Unverifiable computed module import/u,
+    );
+  }
+});
 
 test('actual compiler catalogue preserves composed metadata and authenticates every native format', () => {
   const { records, reads } = activationCatalogue();
@@ -629,7 +867,12 @@ function declarationConsumerFixture(t, specifier = 'declaration-model') {
   return { root, options, owner, provider, providerName, source, target };
 }
 
-function anchoredConsumerFixture(t, format = 'esm', mutation) {
+function anchoredConsumerFixture(
+  t,
+  format = 'esm',
+  mutation,
+  selfExport = false,
+) {
   const root = ownedDirectory(t);
   const staged = path.join(root, 'staged');
   const entry = `dist/entry.${format === 'esm' ? 'mjs' : 'cjs'}`;
@@ -681,6 +924,28 @@ function readNative() {
 }
 console.log(readNative().native);
 `;
+  if (selfExport) {
+    const filename = 'dist/esm-node/renderers/react/registration.mjs';
+    const actual = fs.readFileSync(
+      path.join(compilerActivationOwner, filename),
+      'utf8',
+    );
+    const ast = parseSync(actual, {
+      filename,
+      babelrc: false,
+      configFile: false,
+    });
+    const imports = ast.program.body.filter(
+      item =>
+        item.type === 'ImportDeclaration' &&
+        item.source.value.startsWith('node:'),
+    );
+    const compose = ast.program.body.find(
+      item => item.type === 'FunctionDeclaration' && item.id.name === 'compose',
+    );
+    assert(compose);
+    source = `${imports.map(item => actual.slice(item.start, item.end)).join('\n')}\n${actual.slice(compose.start, compose.end)}\ncreateRequire(import.meta.url).resolve('node:path');\nconsole.log(compose([]).native);\n`;
+  }
   if (mutation === 'early-return')
     source = source.replace(
       'while (true) {',
@@ -789,6 +1054,16 @@ console.log(readNative().native);
         import: `./${entry}`,
         require: `./${entry}`,
       },
+      ...(selfExport && mutation !== 'missing-self-export'
+        ? {
+            './react-composition': {
+              node: {
+                [mutation === 'wrong-self-condition' ? 'import' : 'require']:
+                  './src/private/helper.cjs',
+              },
+            },
+          }
+        : {}),
     },
   });
   write(path.join(staged, entry), source);
@@ -802,8 +1077,19 @@ console.log(readNative().native);
       ? "require('react');\nmodule.exports = { native: true };\n"
       : mutation === 'missing-helper-dependency'
         ? "require('undeclared-helper-runtime');\nmodule.exports = { native: true };\n"
-        : 'module.exports = { native: true };\n',
+        : selfExport
+          ? 'exports.composeReactRenderer = () => require("./deep.cjs");\n'
+          : 'module.exports = { native: true };\n',
   );
+  if (selfExport)
+    write(
+      path.join(staged, 'src/private/deep.cjs'),
+      mutation === 'forbidden-self-dependency'
+        ? "require('react');\nmodule.exports = { native: true };\n"
+        : mutation === 'missing-self-dependency'
+          ? "require('undeclared-self-runtime');\nmodule.exports = { native: true };\n"
+          : 'module.exports = { native: true };\n',
+    );
   if (mutation !== 'missing-sentinel')
     write(
       path.join(staged, 'src/private/sentinel.cjs'),
