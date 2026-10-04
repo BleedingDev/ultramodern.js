@@ -472,7 +472,11 @@ async function compilerClosure(
   const packages: PackageRecord[] = [];
   const seen = new Map<
     string,
-    { record: PackageRecord; pinsValidated: boolean }
+    {
+      record: PackageRecord;
+      pinsValidated: boolean;
+      requiredPeersValidated: boolean;
+    }
   >();
   const frameworkNames = [...new Set(options.frameworkPackages ?? [])].sort();
   const profileDependencyNames = new Set(
@@ -805,6 +809,7 @@ async function compilerClosure(
     expectedVersion?: string,
     enforcePins = true,
     versionRange?: string,
+    requirePeers = true,
   ): Promise<string> =>
     guardedRead(lease, async () => {
       const real = await fs.realpath(directory);
@@ -815,6 +820,13 @@ async function compilerClosure(
         nativeRoots.has(real) ||
         nativeAnchorNames.has(manifest.name) ||
         (enforcePins && !neutralRoots.has(real));
+      // Installed optional tooling remains byte-bound without making its
+      // inactive peer contract a requirement of the selected renderer.
+      const requiredPeerBranch =
+        requirePeers ||
+        nativeRoots.has(real) ||
+        neutralRoots.has(real) ||
+        nativeAnchorNames.has(manifest.name);
       const pinnedVersion = nativeBranch ? pins[manifest.name] : undefined;
       if (
         !manifest.name ||
@@ -832,7 +844,11 @@ async function compilerClosure(
       if (pinnedVersion) validatedPins.add(manifest.name);
       // Separate physical copies must not silently share an identity if their bytes differ.
       const existing = seen.get(real);
-      if (existing && (!nativeBranch || existing.pinsValidated))
+      if (
+        existing &&
+        (!nativeBranch || existing.pinsValidated) &&
+        (!requiredPeerBranch || existing.requiredPeersValidated)
+      )
         return existing.record.id;
       let record = existing?.record;
       if (!record) {
@@ -853,7 +869,12 @@ async function compilerClosure(
         };
         packages.push(record);
       }
-      seen.set(real, { record, pinsValidated: nativeBranch });
+      seen.set(real, {
+        record,
+        pinsValidated: nativeBranch || existing?.pinsValidated === true,
+        requiredPeersValidated:
+          requiredPeerBranch || existing?.requiredPeersValidated === true,
+      });
       const resolvedDependencies: { name: string; package: string }[] = [];
       const dependencies = new Set([
         ...Object.keys(manifest.dependencies ?? {}),
@@ -867,20 +888,19 @@ async function compilerClosure(
           manifest.peerDependencies![name];
         let dependency = dependencyIdentity(name, specification);
         const resolved = packageDirectory(name, [real]);
+        const peer =
+          !Object.hasOwn(manifest.optionalDependencies ?? {}, name) &&
+          !Object.hasOwn(manifest.dependencies ?? {}, name);
         const optional =
           Object.hasOwn(manifest.optionalDependencies ?? {}, name) ||
-          manifest.peerDependenciesMeta?.[name]?.optional === true;
+          (peer && manifest.peerDependenciesMeta?.[name]?.optional === true);
         if (!resolved) {
-          if (optional) continue;
+          if (optional || (peer && !requiredPeerBranch)) continue;
           throw new Error(
             `Renderer compiler dependency ${name} cannot be resolved from ${manifest.name}. Install the admitted compiler tuple.`,
           );
         }
-        if (
-          !Object.hasOwn(manifest.optionalDependencies ?? {}, name) &&
-          !Object.hasOwn(manifest.dependencies ?? {}, name) &&
-          !/^npm:/iu.test(specification)
-        )
+        if (peer && !/^npm:/iu.test(specification))
           dependency = await peerIdentity(name, specification, resolved, real);
         const nativeClosure =
           nativeBranch || nativeAnchorNames.has(dependency.name);
@@ -902,6 +922,7 @@ async function compilerClosure(
             pinnedVersion ?? dependency.exactVersion,
             nativeClosure,
             dependency.versionRange,
+            requiredPeerBranch && !optional,
           ),
         });
       }

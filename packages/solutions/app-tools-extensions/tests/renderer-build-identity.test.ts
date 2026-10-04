@@ -408,6 +408,57 @@ async function installedOctaneAdapterFixture(renderer: 'react' | 'octane') {
   return { ...options, adapter, adapterManifest };
 }
 
+async function installedLoadableFixture(
+  renderer: 'solid' | 'octane' = 'solid',
+) {
+  const options =
+    renderer === 'solid' ? await fixture() : await rendererFixture(renderer);
+  const ownerDirectory = path.resolve(__dirname, '../../app-tools');
+  const ownerManifest = JSON.parse(
+    await fs.readFile(path.join(ownerDirectory, 'package.json'), 'utf8'),
+  );
+  const installedLoadable = await fs.realpath(
+    path.join(ownerDirectory, 'node_modules', '@loadable/component'),
+  );
+  const loadableManifest = JSON.parse(
+    await fs.readFile(path.join(installedLoadable, 'package.json'), 'utf8'),
+  );
+  const modules = path.join(options.projectRoot, 'node_modules');
+  const owner = path.join(modules, ownerManifest.name);
+  await write(
+    path.join(owner, 'package.json'),
+    JSON.stringify({
+      name: ownerManifest.name,
+      version: ownerManifest.version,
+      peerDependencies: {
+        [loadableManifest.name]:
+          ownerManifest.peerDependencies[loadableManifest.name],
+      },
+      peerDependenciesMeta: {
+        [loadableManifest.name]:
+          ownerManifest.peerDependenciesMeta[loadableManifest.name],
+      },
+    }),
+  );
+  await write(path.join(owner, 'index.js'), 'export const appTools = true;\n');
+  const loadable = path.join(modules, loadableManifest.name);
+  await writeFixturePackage(loadable, loadableManifest);
+  // These installed normal dependencies include the deeper react-is edge owned
+  // by hoist-non-react-statics; only React's absent peer is inactive here.
+  const installedModules = path.resolve(installedLoadable, '../..');
+  for (const name of Object.keys(loadableManifest.dependencies)) {
+    const manifest = JSON.parse(
+      await fs.readFile(
+        path.join(installedModules, name, 'package.json'),
+        'utf8',
+      ),
+    );
+    await writeFixturePackage(path.join(modules, name), manifest);
+  }
+  options.frameworkPackages = [ownerManifest.name];
+  return { ...options, owner, ownerManifest, loadable, loadableManifest };
+}
+
 async function transitiveFederationPeerFixture(
   edge: 'dependency' | 'optional' | 'peer' = 'dependency',
   order: 'alias-first' | 'consumer-first' = 'consumer-first',
@@ -3159,6 +3210,234 @@ describe('renderer source and compiler build identity', () => {
     expect(after.compilerDigest).not.toBe(before.compilerDigest);
     expect(after.frameworkCohortDigest).not.toBe(before.frameworkCohortDigest);
     expect(after.buildMarker).not.toBe(before.buildMarker);
+  });
+
+  test.each([
+    'solid',
+    'octane',
+  ] as const)('binds installed inactive loadable package and implementation bytes without React in the selected %s application', async renderer => {
+    const options = await installedLoadableFixture(renderer);
+    expect(
+      options.ownerManifest.peerDependencies[options.loadableManifest.name],
+    ).toBe(options.loadableManifest.version);
+    expect(
+      options.ownerManifest.peerDependenciesMeta[options.loadableManifest.name],
+    ).toEqual({ optional: true });
+    expect(options.loadableManifest.peerDependencies.react).toBe(
+      '^16.3.0 || ^17.0.0 || ^18.0.0 || ^19.0.0',
+    );
+    await expect(
+      fs.lstat(path.join(options.projectRoot, 'node_modules', 'react')),
+    ).rejects.toMatchObject({ code: 'ENOENT' });
+    let before = await resolveRendererBuildIdentities(options);
+    for (const file of ['package.json', 'index.js']) {
+      if (file === 'package.json')
+        await write(
+          path.join(options.loadable, file),
+          JSON.stringify({
+            ...options.loadableManifest,
+            description: 'Changed inactive loadable package bytes',
+          }),
+        );
+      else
+        await fs.appendFile(
+          path.join(options.loadable, file),
+          'export const changedInactiveLoadable = true;\n',
+        );
+      const after = await resolveRendererBuildIdentities(options);
+      expect(after.identities.main.renderer).toBe(renderer);
+      expect(after.inputDigest).toBe(before.inputDigest);
+      expect(after.profileDigest).toBe(before.profileDigest);
+      expect(after.compilerDigest).not.toBe(before.compilerDigest);
+      expect(after.frameworkCohortDigest).not.toBe(
+        before.frameworkCohortDigest,
+      );
+      expect(after.buildMarker).not.toBe(before.buildMarker);
+      before = after;
+    }
+  });
+
+  test.each([
+    'normal-dependency',
+    'shadowed-optional-peer',
+  ] as const)('rejects a missing %s in an inactive installed optional branch', async scenario => {
+    const options = await installedLoadableFixture();
+    const name = scenario === 'normal-dependency' ? '@babel/runtime' : 'react';
+    if (scenario === 'normal-dependency')
+      await fs.rm(path.join(options.projectRoot, 'node_modules', name), {
+        recursive: true,
+      });
+    else
+      await write(
+        path.join(options.loadable, 'package.json'),
+        JSON.stringify({
+          ...options.loadableManifest,
+          dependencies: {
+            ...options.loadableManifest.dependencies,
+            react: '19.3.0',
+          },
+          peerDependenciesMeta: { react: { optional: true } },
+        }),
+      );
+    await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+      `dependency ${name} cannot be resolved from ${options.loadableManifest.name}`,
+    );
+  });
+
+  test.each([
+    'owner',
+    'normal-child',
+  ] as const)('revalidates the %s peer contract when an optional-first physical owner is later reached through a required path', async role => {
+    const options = await installedLoadableFixture();
+    const modules = path.join(options.projectRoot, 'node_modules');
+    let missingPeer = 'react';
+    let peerOwner = options.loadableManifest.name;
+    if (role === 'normal-child') {
+      await writeFixturePackage(path.join(modules, 'react'), {
+        name: 'react',
+        version: '19.3.0',
+      });
+      missingPeer = '@fixture/missing-child-peer';
+      peerOwner = '@fixture/required-child';
+      await write(
+        path.join(options.loadable, 'package.json'),
+        JSON.stringify({
+          ...options.loadableManifest,
+          dependencies: {
+            ...options.loadableManifest.dependencies,
+            [peerOwner]: '1.0.0',
+          },
+        }),
+      );
+      const child = path.join(options.loadable, 'node_modules', peerOwner);
+      await write(
+        path.join(child, 'package.json'),
+        JSON.stringify({
+          name: peerOwner,
+          version: '1.0.0',
+          peerDependencies: { [missingPeer]: '1.0.0' },
+        }),
+      );
+      await write(path.join(child, 'index.js'), 'export const child = true;\n');
+    }
+    await resolveRendererBuildIdentities(options);
+    const consumerName = 'zz-required-consumer';
+    const consumer = path.join(modules, consumerName);
+    await writeFixturePackage(consumer, {
+      name: consumerName,
+      version: '1.0.0',
+      dependencies: {
+        [options.loadableManifest.name]: options.loadableManifest.version,
+      },
+    });
+    const link = path.join(
+      consumer,
+      'node_modules',
+      options.loadableManifest.name,
+    );
+    await fs.mkdir(path.dirname(link), { recursive: true });
+    await fs.symlink(options.loadable, link, 'dir');
+    expect(await fs.realpath(link)).toBe(await fs.realpath(options.loadable));
+    const ownerFile = path.join(options.owner, 'package.json');
+    const owner = JSON.parse(await fs.readFile(ownerFile, 'utf8'));
+    owner.dependencies = { [consumerName]: '1.0.0' };
+    await write(ownerFile, JSON.stringify(owner));
+    await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+      `dependency ${missingPeer} cannot be resolved from ${peerOwner}`,
+    );
+  });
+
+  test('requires the absent peer when an inactive optional owner becomes an explicit framework root', async () => {
+    const options = await installedLoadableFixture();
+    await resolveRendererBuildIdentities(options);
+    await expect(
+      resolveRendererBuildIdentities({
+        ...options,
+        frameworkPackages: [
+          ...options.frameworkPackages!,
+          options.loadableManifest.name,
+        ],
+      }),
+    ).rejects.toThrow(
+      `dependency react cannot be resolved from ${options.loadableManifest.name}`,
+    );
+  });
+
+  test.each([
+    'name',
+    'version',
+    'range',
+    'alias-conflict',
+  ] as const)('rejects a present peer %s conflict inside an inactive optional branch', async conflict => {
+    const options = await installedLoadableFixture();
+    const target = '@fixture/renamed-react';
+    const version = '19.3.0';
+    const appFile = path.join(options.projectRoot, 'package.json');
+    const app = JSON.parse(await fs.readFile(appFile, 'utf8'));
+    if (conflict !== 'name') {
+      app.dependencies = { react: `npm:${target}@${version}` };
+      await write(appFile, JSON.stringify(app));
+    }
+    await writeFixturePackage(
+      path.join(options.projectRoot, 'node_modules', 'react'),
+      {
+        name: conflict === 'name' ? '@fixture/foreign-react' : target,
+        version: conflict === 'version' ? '19.3.1' : version,
+      },
+    );
+    if (conflict === 'range')
+      await write(
+        path.join(options.loadable, 'package.json'),
+        JSON.stringify({
+          ...options.loadableManifest,
+          peerDependencies: { react: '^20.0.0' },
+        }),
+      );
+    if (conflict === 'alias-conflict') {
+      const ownerFile = path.join(options.owner, 'package.json');
+      const owner = JSON.parse(await fs.readFile(ownerFile, 'utf8'));
+      owner.dependencies = { react: `npm:@fixture/other-react@${version}` };
+      await write(ownerFile, JSON.stringify(owner));
+    }
+    await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+      conflict === 'version'
+        ? `expected ${target}@${version}`
+        : conflict === 'range'
+          ? `peer react@^20.0.0 conflicts with declared ${target}@${version}`
+          : 'renamed peer react requires one exact declared npm alias target',
+    );
+  });
+
+  test('binds a present peer package and implementation bytes inside an inactive optional branch', async () => {
+    const options = await installedLoadableFixture();
+    const peer = path.join(options.projectRoot, 'node_modules', 'react');
+    const manifest = { name: 'react', version: '19.3.0' };
+    await writeFixturePackage(peer, manifest);
+    let before = await resolveRendererBuildIdentities(options);
+    for (const file of ['package.json', 'index.js']) {
+      if (file === 'package.json')
+        await write(
+          path.join(peer, file),
+          JSON.stringify({
+            ...manifest,
+            description: 'Changed peer package bytes',
+          }),
+        );
+      else
+        await fs.appendFile(
+          path.join(peer, file),
+          'export const changedPresentPeer = true;\n',
+        );
+      const after = await resolveRendererBuildIdentities(options);
+      expect(after.inputDigest).toBe(before.inputDigest);
+      expect(after.profileDigest).toBe(before.profileDigest);
+      expect(after.compilerDigest).not.toBe(before.compilerDigest);
+      expect(after.frameworkCohortDigest).not.toBe(
+        before.frameworkCohortDigest,
+      );
+      expect(after.buildMarker).not.toBe(before.buildMarker);
+      before = after;
+    }
   });
 
   test('binds an installed inactive Octane adapter with its real optional peer contract while both native peers are absent', async () => {
