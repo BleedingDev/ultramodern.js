@@ -13,6 +13,7 @@ import {
   createReleaseArtifacts,
   inspectNpmTarball,
 } from '../../ultramodern-publish/lib/prepare-bleedingdev-packages/release-artifacts.mjs';
+import { writeSidecarStagingManifest } from '../../ultramodern-publish/lib/prepare-bleedingdev-packages/sidecars.mjs';
 import { auditInstalledConsumer, auditReleaseArtifacts } from './artifacts.mjs';
 
 const sourceRevision = 'a'.repeat(40);
@@ -1629,6 +1630,9 @@ test('React baseline declaration packages do not inherit the native Octane permi
 
 test('artifact audit certifies mapped tarballs and empty optional main, and rejects missing targets or changed evidence', async t => {
   const root = ownedDirectory(t);
+  const sidecarName = '@bleedingdev/rsbuild-core';
+  const sidecarVersion = '2.2.9';
+  const sidecarAlias = `npm:${sidecarName}@${sidecarVersion}`;
   const names = ['renderer-solid', 'i18n-utils', 'ultramodern-create', 'types'];
   const aliases = Object.fromEntries(
     names.map(name => [`@modern-js/${name}`, `@bleedingdev/modern-js-${name}`]),
@@ -1651,11 +1655,15 @@ test('artifact audit certifies mapped tarballs and empty optional main, and reje
               }
             : { '.': { types: './index.d.ts', import: './index.js' } },
       ...(name === 'types' ? { main: '', types: './index.d.ts' } : {}),
+      ...(name === 'renderer-solid'
+        ? { peerDependencies: { '@rsbuild/core': '^2.0.0-0' } }
+        : {}),
       ...(name === 'ultramodern-create'
         ? {
             ultramodern: { frameworkVersion: version },
             dependencies: {
               '@modern-js/i18n-utils': `npm:${aliases['@modern-js/i18n-utils']}@${version}`,
+              '@rsbuild/core': sidecarAlias,
             },
           }
         : {}),
@@ -1677,6 +1685,38 @@ test('artifact audit certifies mapped tarballs and empty optional main, and reje
       version,
     };
   });
+  const stagedSidecars = [sidecarName, '@bleedingdev/other-rsbuild-core'].map(
+    name => {
+      const stagedDir = path.join(root, 'staged', name.split('/')[1]);
+      const packageJson = {
+        name,
+        version: sidecarVersion,
+        type: 'module',
+        exports: { '.': './index.js' },
+      };
+      writeJson(path.join(stagedDir, 'package.json'), packageJson);
+      write(
+        path.join(stagedDir, 'index.js'),
+        'export const compiler = true;\n',
+      );
+      return {
+        name,
+        version: sidecarVersion,
+        root: `sidecars/${name.split('/')[1]}`,
+        stagedDir,
+        packageJson,
+      };
+    },
+  );
+  const sidecarReleaseRoot = path.join(root, 'release');
+  fs.mkdirSync(sidecarReleaseRoot, { recursive: true });
+  const sidecarManifest = writeSidecarStagingManifest(
+    sidecarReleaseRoot,
+    stagedSidecars,
+    {
+      publishBefore: rendererPackage,
+    },
+  );
   const artifactOptions = {
     aliases,
     command: execFileSync,
@@ -1688,6 +1728,7 @@ test('artifact audit certifies mapped tarballs and empty optional main, and reje
     tag: 'preview',
     tools: { node: process.version, npm: 'fixture-npm', pnpm: 'fixture-pnpm' },
     version,
+    sidecars: sidecarManifest.descriptor,
   };
   createReleaseArtifacts({
     ...artifactOptions,
@@ -1753,6 +1794,180 @@ test('artifact audit certifies mapped tarballs and empty optional main, and reje
     entryFiles: ['src/entry.ts'],
     releaseArtifacts: report,
   };
+  const sidecar = report.sidecars.find(item => item.name === sidecarName);
+  const sidecarInspection = inspectNpmTarball(fs.readFileSync(sidecar.path));
+  const installedSidecar = path.join(consumerRoot, 'node_modules', sidecarName);
+  for (const [file, bytes] of sidecarInspection.fileContents)
+    write(path.join(installedSidecar, file), bytes);
+  fs.mkdirSync(path.join(consumerRoot, 'node_modules', '@rsbuild'), {
+    recursive: true,
+  });
+  fs.symlinkSync(
+    '../@bleedingdev/rsbuild-core',
+    path.join(consumerRoot, 'node_modules', '@rsbuild', 'core'),
+  );
+  const workspaceFile = path.join(consumerRoot, 'pnpm-workspace.yaml');
+  const workspace = `overrides:\n  '@rsbuild/core': '${sidecarAlias}'\n`;
+  write(workspaceFile, workspace);
+  const installedReport = auditInstalledConsumer(consumerOptions);
+  assert.equal(installedReport.producerArtifactBindings.length, 1);
+  assert.equal(installedReport.producerSidecarBindings.length, 1);
+  assert.equal(
+    installedReport.producerSidecarBindings[0].artifactSha256,
+    sidecar.sha256,
+  );
+  assert.equal(installedReport.workspaceAliasBindings.length, 1);
+  assert.deepEqual(installedReport.workspaceAliasBindings[0], {
+    name: '@rsbuild/core',
+    specifier: sidecarAlias,
+    targetName: sidecarName,
+    version: sidecarVersion,
+    declarations: [
+      {
+        owner: aliases['@modern-js/ultramodern-create'],
+        ownerVersion: version,
+        artifactSha256: report.artifacts.find(
+          item => item.sourceName === '@modern-js/ultramodern-create',
+        ).sha256,
+        block: 'dependencies',
+      },
+    ],
+    workspaceFile: 'pnpm-workspace.yaml',
+    workspaceSha256: fileSha256(workspaceFile),
+  });
+  const peerEdge = installedReport.edges.find(
+    edge => edge.name === '@rsbuild/core',
+  );
+  assert.equal(peerEdge.declaredSpecifier, '^2.0.0-0');
+  assert.equal(peerEdge.resolvedSpecifier, sidecarAlias);
+  assert.equal(peerEdge.installedName, sidecarName);
+  assert.equal(
+    report.artifacts.length,
+    4,
+    'Sidecars do not enter framework cohort inventory',
+  );
+  assert.equal(
+    installedReport.producerArtifactBindings[0].frameworkCohortDigest,
+    report.cohortDigest,
+  );
+  for (const invalidWorkspace of [
+    'overrides: {}\n',
+    `overrides:\n  '@rsbuild/core': 'npm:@bleedingdev/other-rsbuild-core@${sidecarVersion}'\n`,
+    `overrides:\n  '@rsbuild/core': 'npm:${sidecarName}@2.2.8'\n`,
+    `overrides:\n  '@rsbuild/core': 'npm:${sidecarName}@^${sidecarVersion}'\n`,
+    `${workspace}  'ordinary-peer-owner>@rsbuild/core': '${sidecarAlias}'\n`,
+    `${workspace}  '@rsbuild/core': '${sidecarAlias}'\n`,
+  ]) {
+    write(workspaceFile, invalidWorkspace);
+    assert.throws(
+      () => auditInstalledConsumer(consumerOptions),
+      /identity mismatch|Workspace alias|Invalid owning workspace/u,
+    );
+  }
+  write(workspaceFile, workspace);
+  assert.throws(
+    () =>
+      auditInstalledConsumer({
+        ...consumerOptions,
+        releaseArtifacts: undefined,
+      }),
+    /no authenticated archive declaration/u,
+  );
+  for (const changed of [
+    { name: '@bleedingdev/other-rsbuild-core' },
+    { version: '2.2.8' },
+  ]) {
+    writeJson(path.join(installedSidecar, 'package.json'), {
+      ...sidecarInspection.packageJson,
+      ...changed,
+    });
+    assert.throws(
+      () => auditInstalledConsumer(consumerOptions),
+      /identity mismatch|version .* differs/u,
+    );
+  }
+  write(
+    path.join(installedSidecar, 'package.json'),
+    sidecarInspection.fileContents.get('package.json'),
+  );
+  write(
+    path.join(installedSidecar, 'index.js'),
+    'export const compiler = false;\n',
+  );
+  assert.throws(
+    () => auditInstalledConsumer(consumerOptions),
+    /sidecar package .* differs from candidate artifact bytes/u,
+  );
+  write(
+    path.join(installedSidecar, 'index.js'),
+    sidecarInspection.fileContents.get('index.js'),
+  );
+  const sidecarArchive = fs.readFileSync(sidecar.path);
+  fs.appendFileSync(sidecar.path, '\n');
+  assert.throws(
+    () => auditInstalledConsumer(consumerOptions),
+    /sidecar tarball size mismatch/u,
+  );
+  write(sidecar.path, sidecarArchive);
+  const appManifestFile = path.join(consumerRoot, 'package.json');
+  const appManifest = JSON.parse(fs.readFileSync(appManifestFile, 'utf8'));
+  writeJson(appManifestFile, {
+    ...appManifest,
+    dependencies: {
+      ...appManifest.dependencies,
+      'ordinary-peer-owner': '1.0.0',
+    },
+  });
+  const ordinaryOwner = installFixture(consumerRoot, 'ordinary-peer-owner', {
+    version: '1.0.0',
+    peerDependencies: { '@rsbuild/core': '2.2.8' },
+  });
+  assert.throws(
+    () => auditInstalledConsumer(consumerOptions),
+    /differs from declared 2\.2\.8/u,
+  );
+  writeJson(appManifestFile, appManifest);
+  fs.rmSync(ordinaryOwner, { recursive: true });
+
+  const conflictingRoot = path.join(root, 'conflicting-release');
+  fs.mkdirSync(conflictingRoot);
+  const conflictingSidecars = writeSidecarStagingManifest(
+    conflictingRoot,
+    stagedSidecars,
+    { publishBefore: rendererPackage },
+  );
+  const stagedRendererManifest = path.join(
+    root,
+    'staged',
+    'renderer-solid',
+    'package.json',
+  );
+  const rendererManifest = JSON.parse(
+    fs.readFileSync(stagedRendererManifest, 'utf8'),
+  );
+  writeJson(stagedRendererManifest, {
+    ...rendererManifest,
+    optionalDependencies: {
+      '@rsbuild/core': `npm:@bleedingdev/other-rsbuild-core@${sidecarVersion}`,
+    },
+  });
+  createReleaseArtifacts({
+    ...artifactOptions,
+    outDir: conflictingRoot,
+    sidecars: conflictingSidecars.descriptor,
+  });
+  writeJson(stagedRendererManifest, rendererManifest);
+  const conflictingReport = auditReleaseArtifacts({
+    manifestPath: path.join(conflictingRoot, 'manifest.json'),
+  });
+  assert.throws(
+    () =>
+      auditInstalledConsumer({
+        ...consumerOptions,
+        releaseArtifacts: conflictingReport,
+      }),
+    /Conflicting authenticated archive alias @rsbuild\/core/u,
+  );
   const binding =
     auditInstalledConsumer(consumerOptions).producerArtifactBindings[0];
   assert.equal(binding.artifactSha256, candidate.sha256);
@@ -1850,7 +2065,17 @@ test('artifact audit certifies mapped tarballs and empty optional main, and reje
   ]) {
     writeJson(typesManifestPath, { ...typesManifest, ...invalid });
     const outDir = path.join(root, name);
-    createReleaseArtifacts({ ...artifactOptions, outDir });
+    fs.mkdirSync(outDir);
+    const invalidSidecars = writeSidecarStagingManifest(
+      outDir,
+      stagedSidecars,
+      { publishBefore: rendererPackage },
+    );
+    createReleaseArtifacts({
+      ...artifactOptions,
+      outDir,
+      sidecars: invalidSidecars.descriptor,
+    });
     assert.throws(
       () =>
         auditReleaseArtifacts({

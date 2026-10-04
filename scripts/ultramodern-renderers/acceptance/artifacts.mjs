@@ -1234,6 +1234,8 @@ export function auditReleaseArtifacts({
             .digest('hex'),
         })),
         ...manifestFacts(inspection.packageJson),
+        dependencies: inspection.packageJson.dependencies ?? {},
+        optionalDependencies: inspection.packageJson.optionalDependencies ?? {},
         exportTargets,
       };
     })
@@ -1249,12 +1251,25 @@ export function auditReleaseArtifacts({
     dependencyGraph: release.dependencyGraph,
     artifacts,
     sidecars:
-      release.sidecars?.packages.map(item => ({
-        name: item.name,
-        version: item.version,
-        sha256: item.sha256,
-        integrity: item.integrity,
-      })) ?? [],
+      release.sidecars?.packages.map(item => {
+        const inspection = inspectNpmTarball(item.bytes);
+        return {
+          ...manifestFacts(inspection.packageJson),
+          path: item.artifactPath,
+          sha256: item.sha256,
+          integrity: item.integrity,
+          dependencies: inspection.packageJson.dependencies ?? {},
+          optionalDependencies:
+            inspection.packageJson.optionalDependencies ?? {},
+          files: inspection.files.map(file => ({
+            ...file,
+            sha256: crypto
+              .createHash('sha256')
+              .update(inspection.fileContents.get(file.path))
+              .digest('hex'),
+          })),
+        };
+      }) ?? [],
   };
 }
 
@@ -1474,7 +1489,48 @@ export function auditInstalledConsumer({
   const producerPackages = new Map(
     producer?.artifacts.map(artifact => [artifact.name, artifact]) ?? [],
   );
+  const producerSidecars = new Map(
+    producer?.sidecars.map(artifact => [artifact.name, artifact]) ?? [],
+  );
   const producerArtifactBindings = [];
+  const producerSidecarBindings = [];
+  const authenticatedAliases = new Map();
+  for (const artifact of [
+    ...(producer?.artifacts ?? []),
+    ...(producer?.sidecars ?? []),
+  ]) {
+    for (const block of ['dependencies', 'optionalDependencies']) {
+      for (const [name, specifier] of Object.entries(artifact[block] ?? {})) {
+        const alias = /^npm:(@[^/]+\/[^@]+|[^@]+)@(.+)$/u.exec(specifier);
+        const target =
+          producerPackages.get(alias?.[1]) ?? producerSidecars.get(alias?.[1]);
+        if (!target) continue;
+        assert(
+          exactVersion.test(alias[2]) && alias[2] === target.version,
+          `Authenticated archive alias ${name} differs from its target version`,
+        );
+        const previous = authenticatedAliases.get(name);
+        assert(
+          !previous || previous.specifier === specifier,
+          `Conflicting authenticated archive alias ${name}`,
+        );
+        const binding = previous ?? {
+          name,
+          specifier,
+          targetName: target.name,
+          version: target.version,
+          declarations: [],
+        };
+        binding.declarations.push({
+          owner: artifact.name,
+          ownerVersion: artifact.version,
+          artifactSha256: artifact.sha256,
+          block,
+        });
+        authenticatedAliases.set(name, binding);
+      }
+    }
+  }
   // Authenticate before invoking any installed owning validator. The ordinary
   // final inventory below repeats this check after the selected source scan.
   const authenticateProducerPackage = record => {
@@ -1545,8 +1601,31 @@ export function auditInstalledConsumer({
   const authoringMissingOptional = [];
   const authoringRoots = [];
   const catalogBindings = new Map();
+  const workspaceAliasBindings = new Map();
   let workspaceCatalog;
-  const resolveSpecifier = (name, specifier, ownerDirectory) => {
+  const readWorkspace = () => {
+    if (workspaceCatalog) return workspaceCatalog;
+    const file = path.join(root, 'pnpm-workspace.yaml');
+    assert(
+      fs.lstatSync(file).isFile() && within(root, fs.realpathSync(file)),
+      'Dependency aliases require the ordinary owning workspace manifest',
+    );
+    const bytes = fs.readFileSync(file);
+    const document = parseDocument(bytes.toString('utf8'), {
+      uniqueKeys: true,
+    });
+    assert(
+      document.errors.length === 0,
+      'Invalid owning workspace manifest or catalog',
+    );
+    workspaceCatalog = {
+      value: document.toJS({ maxAliasCount: 0 }),
+      path: path.relative(root, file),
+      sha256: crypto.createHash('sha256').update(bytes).digest('hex'),
+    };
+    return workspaceCatalog;
+  };
+  const resolveCatalogSpecifier = (name, specifier, ownerDirectory) => {
     if (!String(specifier).startsWith('catalog:')) return { specifier };
     assert(
       contexts.some(context => context.directory === ownerDirectory),
@@ -1554,23 +1633,7 @@ export function auditInstalledConsumer({
     );
     const catalog = /^catalog:([^:\s]*)$/u.exec(specifier)?.[1];
     assert(catalog !== undefined, `Invalid catalog dependency ${name}`);
-    if (!workspaceCatalog) {
-      const file = path.join(root, 'pnpm-workspace.yaml');
-      assert(
-        fs.lstatSync(file).isFile() && within(root, fs.realpathSync(file)),
-        'Catalog dependencies require the ordinary owning workspace manifest',
-      );
-      const bytes = fs.readFileSync(file);
-      const document = parseDocument(bytes.toString('utf8'), {
-        uniqueKeys: true,
-      });
-      assert(document.errors.length === 0, 'Invalid owning workspace catalog');
-      workspaceCatalog = {
-        value: document.toJS({ maxAliasCount: 0 }),
-        path: path.relative(root, file),
-        sha256: crypto.createHash('sha256').update(bytes).digest('hex'),
-      };
-    }
+    readWorkspace();
     const entries = catalog
       ? workspaceCatalog.value?.catalogs?.[catalog]
       : workspaceCatalog.value?.catalog;
@@ -1596,6 +1659,52 @@ export function auditInstalledConsumer({
     };
     catalogBindings.set(`${catalog}:${name}`, binding);
     return { specifier: resolved, catalogBinding: binding };
+  };
+  const resolveSpecifier = (name, specifier, ownerDirectory) => {
+    const resolved = resolveCatalogSpecifier(name, specifier, ownerDirectory);
+    if (!fs.existsSync(path.join(root, 'pnpm-workspace.yaml'))) return resolved;
+    const workspace = readWorkspace();
+    const overrides = workspace.value?.overrides;
+    if (!overrides || !Object.hasOwn(overrides, name)) return resolved;
+    const override = overrides[name];
+    const authority = authenticatedAliases.get(name);
+    // An identical explicit declaration already carries its alias authority;
+    // only a changed effective identity needs the archive-backed override proof.
+    if (!authority && override === resolved.specifier) return resolved;
+    if (!authority && !String(override).startsWith('npm:')) return resolved;
+    assert(
+      authority,
+      `Workspace alias ${name} has no authenticated archive declaration`,
+    );
+    assert(
+      override === authority.specifier,
+      `Workspace alias ${name} differs from its authenticated archive declaration`,
+    );
+    assert(
+      !Object.keys(overrides).some(
+        key => key.includes('>') || key.startsWith(`${name}@`),
+      ),
+      `Workspace alias ${name} requires an unambiguous exact global override`,
+    );
+    const declaredAlias = /^npm:(@[^/]+\/[^@]+|[^@]+)@(.+)$/u.exec(
+      resolved.specifier,
+    );
+    assert(
+      !declaredAlias || resolved.specifier === authority.specifier,
+      `Declared alias ${name} conflicts with its authenticated workspace alias`,
+    );
+    const binding = {
+      ...authority,
+      workspaceFile: workspace.path,
+      workspaceSha256: workspace.sha256,
+    };
+    workspaceAliasBindings.set(name, binding);
+    return {
+      ...resolved,
+      declaredSpecifier: resolved.specifier,
+      specifier: override,
+      workspaceAliasBinding: binding,
+    };
   };
   const canonicalFrameworkIdentity = name =>
     name.startsWith('@modern-js/')
@@ -1806,6 +1915,15 @@ export function auditInstalledConsumer({
       `Installed identity mismatch for ${edge.name}: ${record.manifest.name}`,
     );
     const version = alias?.[2] ?? resolved.specifier;
+    const declaredVersion =
+      /^npm:(@[^/]+\/[^@]+|[^@]+)@(.+)$/u.exec(
+        resolved.declaredSpecifier,
+      )?.[2] ?? resolved.declaredSpecifier;
+    if (exactVersion.test(declaredVersion ?? ''))
+      assert(
+        record.manifest.version === declaredVersion,
+        `Installed ${edge.name} version ${record.manifest.version} differs from declared ${declaredVersion}`,
+      );
     if (exactVersion.test(version))
       assert(
         record.manifest.version === version,
@@ -1829,6 +1947,13 @@ export function auditInstalledConsumer({
       scope,
       fromPath: path.relative(root, owner.directory),
       installedPath: path.relative(root, record.directory),
+      ...(resolved.workspaceAliasBinding
+        ? {
+            declaredSpecifier: edge.specifier,
+            resolvedSpecifier: resolved.specifier,
+            workspaceAliasBinding: resolved.workspaceAliasBinding,
+          }
+        : {}),
       ...(resolved.catalogBinding
         ? { catalogBinding: resolved.catalogBinding }
         : {}),
@@ -2866,6 +2991,9 @@ export function auditInstalledConsumer({
       const mappedFramework = record.manifest.name.startsWith(
         '@bleedingdev/modern-js-',
       );
+      const sidecar = producerSidecars.has(record.manifest.name);
+      const packedOwner = producer && (mappedFramework || sidecar);
+      const ownerLabel = mappedFramework ? 'framework' : 'sidecar';
       const collect = directory => {
         for (const entry of fs.readdirSync(directory, {
           withFileTypes: true,
@@ -2881,7 +3009,7 @@ export function auditInstalledConsumer({
               .split(path.sep)
               .join('/');
             files.push(relative);
-            if (producer && mappedFramework) {
+            if (packedOwner) {
               const bytes = fs.readFileSync(absolute);
               fileGraph.push({
                 path: relative,
@@ -2889,10 +3017,10 @@ export function auditInstalledConsumer({
                 sha256: crypto.createHash('sha256').update(bytes).digest('hex'),
               });
             }
-          } else if (producer && mappedFramework)
+          } else if (packedOwner)
             assert(
               false,
-              `Installed framework package ${record.manifest.name} contains a non-regular packed file ${path.relative(record.directory, absolute)}`,
+              `Installed ${ownerLabel} package ${record.manifest.name} contains a non-regular packed file ${path.relative(record.directory, absolute)}`,
             );
         }
       };
@@ -2902,11 +3030,13 @@ export function auditInstalledConsumer({
           false,
           `Installed framework package ${record.manifest.name} is outside the mapped producer artifact cohort`,
         );
-      if (producer && mappedFramework) {
-        const artifact = producerPackages.get(record.manifest.name);
+      if (packedOwner) {
+        const artifact =
+          producerPackages.get(record.manifest.name) ??
+          producerSidecars.get(record.manifest.name);
         assert(
           artifact && artifact.version === record.manifest.version,
-          `Installed framework package ${record.manifest.name}@${record.manifest.version} is outside the producer artifact cohort`,
+          `Installed ${ownerLabel} package ${record.manifest.name}@${record.manifest.version} is outside the producer artifact cohort`,
         );
         const expectedFiles = new Map(
           artifact.files.map(file => [file.path, file]),
@@ -2915,22 +3045,22 @@ export function auditInstalledConsumer({
           const expected = expectedFiles.get(file.path);
           assert(
             expected,
-            `Installed framework package ${record.manifest.name} contains an injected file ${file.path}`,
+            `Installed ${ownerLabel} package ${record.manifest.name} contains an injected file ${file.path}`,
           );
           assert(
             file.size === expected.size && file.sha256 === expected.sha256,
-            `Installed framework package ${record.manifest.name} differs from candidate artifact bytes at ${file.path}`,
+            `Installed ${ownerLabel} package ${record.manifest.name} differs from candidate artifact bytes at ${file.path}`,
           );
           expectedFiles.delete(file.path);
         }
         assert(
           expectedFiles.size === 0,
-          `Installed framework package ${record.manifest.name} is missing candidate artifact files: ${[...expectedFiles.keys()].join(', ')}`,
+          `Installed ${ownerLabel} package ${record.manifest.name} is missing candidate artifact files: ${[...expectedFiles.keys()].join(', ')}`,
         );
         fileGraph.sort((left, right) =>
           left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
         );
-        producerArtifactBindings.push({
+        (sidecar ? producerSidecarBindings : producerArtifactBindings).push({
           name: record.manifest.name,
           version: record.manifest.version,
           installedPath: path.relative(root, record.directory),
@@ -2999,6 +3129,9 @@ export function auditInstalledConsumer({
         `${right.catalog}:${right.name}`,
       ),
     ),
+    workspaceAliasBindings: [...workspaceAliasBindings.values()].sort(
+      (left, right) => left.name.localeCompare(right.name),
+    ),
     missingOptional,
     permittedTypeDependencies: [...permittedTypeDependencies.values()].sort(
       (left, right) => left.path.localeCompare(right.path),
@@ -3025,6 +3158,9 @@ export function auditInstalledConsumer({
       .map(([file, sha256]) => ({ path: path.relative(root, file), sha256 }))
       .sort((left, right) => left.path.localeCompare(right.path)),
     producerArtifactBindings: producerArtifactBindings.sort((left, right) =>
+      left.installedPath.localeCompare(right.installedPath),
+    ),
+    producerSidecarBindings: producerSidecarBindings.sort((left, right) =>
       left.installedPath.localeCompare(right.installedPath),
     ),
     nativeCompilerProofs,
