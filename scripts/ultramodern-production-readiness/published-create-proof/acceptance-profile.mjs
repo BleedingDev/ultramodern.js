@@ -22,6 +22,7 @@ import {
   assertReleaseAcceptanceProfile,
   assertRuntimeAcceptanceDimension,
   createOperationalIndependenceResultDetails,
+  createReleaseArtifactBinding,
   operationalIndependenceEvidencePath,
   operationalIndependenceResultId,
   runtimeAcceptanceDimensions,
@@ -84,6 +85,21 @@ const requiredPnpmCommands = Object.freeze({
   build: Object.freeze(['build']),
   cloudflareBuild: Object.freeze(['cloudflare:build']),
 });
+
+function createRuntimeArtifactBinding(release) {
+  const artifactBinding = createReleaseArtifactBinding(release);
+  // The receipt audits every packed SDK dependency. Executed app surfaces
+  // attest the exact runtime package declared by that application.
+  const moduleFederation = artifactBinding.moduleFederation.filter(
+    item => item.packageName === '@module-federation/runtime',
+  );
+  if (moduleFederation.length !== 1) {
+    throw new Error(
+      'Release acceptance requires one exact Module Federation runtime in its verified artifact cohort',
+    );
+  }
+  return { ...artifactBinding, moduleFederation };
+}
 
 function createAcceptanceReleaseAgeEnv(
   runtimeEnv,
@@ -1177,6 +1193,7 @@ async function runAcceptanceProfile({
       runIdentity,
       now,
     });
+    const runtimeArtifactBinding = createRuntimeArtifactBinding(release);
 
     let failure;
     let audit;
@@ -1434,7 +1451,7 @@ async function runAcceptanceProfile({
               }
               return assertRuntimeAcceptanceDimension(report, {
                 applicationSourceRevision,
-                artifactBinding: receipt.binding.artifacts,
+                artifactBinding: runtimeArtifactBinding,
                 dimension,
                 mode,
                 platform,
@@ -1517,6 +1534,7 @@ export {
   createAcceptancePackageManagerEnv,
   createAcceptanceReleaseAgeEnv,
   createAcceptanceRuntimeContext,
+  createRuntimeArtifactBinding,
   inheritedPlaywrightBrowsersPath,
   requiredPnpmCommands,
   reserveAcceptanceSmokePorts,

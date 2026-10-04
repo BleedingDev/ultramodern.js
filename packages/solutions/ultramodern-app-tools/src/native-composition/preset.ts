@@ -8,6 +8,7 @@ import { findHostingModuleDirectory } from '@modern-js/app-tools-extensions/runt
 import { mergeConfig } from '@modern-js/plugin/cli';
 import { type Renderer, resolveRenderer } from '@modern-js/renderer-core';
 import { type RspackChain, rspack } from '@rsbuild/core';
+import { resolveCandidateRendererProfile } from './renderer-profile';
 import type { AppUserConfig } from './types';
 
 const DEFAULT_OTLP_ENDPOINT = 'http://127.0.0.1:4318/v1/logs';
@@ -259,6 +260,16 @@ const createRendererPreset = (
         : {}),
     },
     tools: {
+      tsChecker: {
+        typescript: {
+          configOverwrite: {
+            compilerOptions: {
+              jsxImportSource:
+                resolveCandidateRendererProfile(renderer).jsxImportSource,
+            },
+          },
+        },
+      },
       bundlerChain: (chain, utils) => {
         if (renderer === 'react') setReactRouterBridgeSafeAliases(chain, utils);
         configureUltramodernTypeChecker(

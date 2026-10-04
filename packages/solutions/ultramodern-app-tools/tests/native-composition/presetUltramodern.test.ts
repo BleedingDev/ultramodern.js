@@ -1,10 +1,52 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { createPresetUltramodernConfig } from '@modern-js/ultramodern-app-tools';
+import {
+  createPresetUltramodernConfig,
+  presetUltramodern,
+} from '@modern-js/ultramodern-app-tools';
 import { rspack } from '@rsbuild/core';
 
 describe('presetUltramodern config', () => {
+  it('selects renderer JSX types through the normal checker option chain', () => {
+    for (const [renderer, jsxImportSource] of [
+      ['react', 'react'],
+      ['solid', '@solidjs/web'],
+      ['octane', 'octane'],
+    ] as const) {
+      const selected = presetUltramodern({ renderer });
+      expect(selected.tools?.tsChecker).toEqual({
+        typescript: {
+          configOverwrite: { compilerOptions: { jsxImportSource } },
+        },
+      });
+    }
+    const selected = presetUltramodern({
+      renderer: 'react',
+      tools: {
+        tsChecker: {
+          typescript: {
+            configOverwrite: {
+              compilerOptions: {
+                jsxImportSource: 'custom-jsx',
+                types: ['custom-types'],
+              },
+            },
+          },
+        },
+      },
+    });
+    expect(selected.tools?.tsChecker).toEqual({
+      typescript: {
+        configOverwrite: {
+          compilerOptions: {
+            jsxImportSource: 'custom-jsx',
+            types: ['custom-types'],
+          },
+        },
+      },
+    });
+  });
   it('keeps React Router optional and uses the consumer copy before a nested DOM dependency', () => {
     const root = fs.realpathSync(
       fs.mkdtempSync(path.join(os.tmpdir(), 'modern-optional-router-')),

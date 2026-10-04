@@ -10,6 +10,7 @@ import {
   operationalIndependenceResultId,
   requiredAcceptanceResultIds,
   requiredAcceptanceResultIdsForMode,
+  runtimeIdentityBinding,
 } from './acceptance-contract.mjs';
 
 const acceptanceReceiptSchema =
@@ -490,6 +491,14 @@ function assertAcceptanceReceipt(
       'Acceptance receipt Module Federation package identity is invalid',
     );
   }
+  const runtimeModuleFederation =
+    receipt.binding.artifacts.moduleFederation.filter(
+      item => item.packageName === '@module-federation/runtime',
+    );
+  assertCondition(
+    runtimeModuleFederation.length === 1,
+    'Acceptance receipt requires one exact Module Federation runtime in its artifact cohort',
+  );
   assertCondition(
     receipt.binding.artifacts.sourceRevision === receipt.binding.source.commit,
     'Acceptance receipt artifact sourceRevision is stale or mixed',
@@ -560,7 +569,7 @@ function assertAcceptanceReceipt(
           typeof app.releaseVersion === 'string' &&
           app.releaseVersion.length > 0 &&
           JSON.stringify(app.moduleFederation) ===
-            JSON.stringify(receipt.binding.artifacts.moduleFederation),
+            JSON.stringify(runtimeModuleFederation),
         `Acceptance receipt ${platform} MicroVertical identity is stale or mixed`,
       );
       appIds.push(app.appId);
@@ -570,28 +579,10 @@ function assertAcceptanceReceipt(
       `Acceptance receipt ${platform} MicroVertical identity contains duplicate app ids`,
     );
   }
-  const nodeByAppId = new Map(
-    receipt.binding.runtimeIdentity.node.map(app => [app.appId, app]),
+  runtimeIdentityBinding(
+    { apps: receipt.binding.runtimeIdentity.node },
+    { apps: receipt.binding.runtimeIdentity.workerd },
   );
-  const workerdByAppId = new Map(
-    receipt.binding.runtimeIdentity.workerd.map(app => [app.appId, app]),
-  );
-  assertCondition(
-    JSON.stringify([...nodeByAppId.keys()].sort()) ===
-      JSON.stringify([...workerdByAppId.keys()].sort()),
-    'Acceptance receipt Node and workerd identities cover different MicroVerticals',
-  );
-  for (const [appId, node] of nodeByAppId) {
-    const workerd = workerdByAppId.get(appId);
-    assertCondition(
-      ['buildMarker', 'sourceRevision', 'releaseVersion'].every(
-        field => node[field] === workerd?.[field],
-      ) &&
-        JSON.stringify(node.moduleFederation) ===
-          JSON.stringify(workerd?.moduleFederation),
-      `Acceptance receipt ${appId} Node and workerd identities differ`,
-    );
-  }
   for (const [name, digest] of Object.entries(receipt.binding.supplyChain)) {
     assertCondition(
       digestPattern.test(digest ?? ''),

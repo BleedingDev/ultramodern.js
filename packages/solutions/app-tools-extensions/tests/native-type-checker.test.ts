@@ -3,8 +3,11 @@ import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { rspack } from '@rsbuild/core';
-import { UltramodernNativeTypeChecker } from '../src/native-type-checker';
+import { createRsbuild, rspack } from '@rsbuild/core';
+import {
+  configureUltramodernTypeChecker,
+  UltramodernNativeTypeChecker,
+} from '../src/native-type-checker';
 
 const require = createRequire(import.meta.url);
 const compilerManifestPath = require.resolve('typescript/package.json');
@@ -23,6 +26,276 @@ const { default: getExePath } = await import(
   ).href
 );
 const compiler: string = getExePath();
+
+test('the resolved checker overwrite reaches native JSX and type inputs without changing authored config', async () => {
+  const root = fs.realpathSync.native(
+    fs.mkdtempSync(path.join(os.tmpdir(), 'native-checker-jsx-')),
+  );
+  const configFile = path.join(root, 'tsconfig.json');
+  const config = JSON.stringify({
+    compilerOptions: {
+      target: 'ESNext',
+      module: 'ESNext',
+      moduleResolution: 'Bundler',
+      jsx: 'preserve',
+      allowJs: true,
+      checkJs: true,
+      strict: true,
+      skipLibCheck: false,
+      noEmit: true,
+      types: ['node'],
+    },
+    include: ['src'],
+  });
+  try {
+    fs.mkdirSync(path.join(root, 'src'));
+    fs.mkdirSync(path.join(root, 'node_modules/@types'), {
+      recursive: true,
+    });
+    for (const name of ['node', 'react'])
+      fs.symlinkSync(
+        path.dirname(require.resolve(`@types/${name}/package.json`)),
+        path.join(root, 'node_modules/@types', name),
+        'dir',
+      );
+    const source = path.join(root, 'src/App.jsx');
+    fs.writeFileSync(
+      source,
+      'export default function App() { return <main id="native-jsx"><button type="button">Native React</button></main>; }',
+    );
+    fs.writeFileSync(configFile, config);
+    await expect(
+      new UltramodernNativeTypeChecker({
+        compiler: () => compiler,
+        configFile,
+        build: false,
+      }).check(),
+    ).rejects.toThrow('TS7026');
+    // This error is excluded only by the actual resolved checker option.
+    fs.writeFileSync(
+      path.join(root, 'src/ignored.ts'),
+      'export const ignored: string = 1;',
+    );
+    fs.writeFileSync(
+      path.join(root, 'main.js'),
+      'console.info("native JSX check");',
+    );
+    const builderRequire = createRequire(require.resolve('@modern-js/builder'));
+    const { pluginTypeCheck } = await import(
+      pathToFileURL(builderRequire.resolve('@rsbuild/plugin-type-check')).href
+    );
+    const completed: Array<{ hasErrors: boolean; diagnostics: string }> = [];
+    const host = await createRsbuild({
+      cwd: root,
+      config: {
+        mode: 'production',
+        source: { entry: { main: path.join(root, 'main.js') } },
+        output: { distPath: { root: path.join(root, 'dist') } },
+        plugins: [
+          pluginTypeCheck({
+            tsCheckerOptions: {
+              typescript: {
+                configFile,
+                tsgo: true,
+                configOverwrite: {
+                  exclude: ['src/ignored.ts'],
+                  compilerOptions: {
+                    jsxImportSource: 'react',
+                    types: ['node', 'react'],
+                  },
+                },
+              },
+            },
+          }),
+          {
+            name: 'native-checker-overwrite-regression',
+            setup(api) {
+              api.onAfterBuild(({ stats }) => {
+                completed.push({
+                  hasErrors: stats.hasErrors(),
+                  diagnostics: stats.toString({
+                    all: false,
+                    errors: true,
+                    errorDetails: true,
+                  }),
+                });
+              });
+              api.modifyBundlerChain({
+                order: 'post',
+                handler(chain, { CHAIN_ID }) {
+                  configureUltramodernTypeChecker(
+                    chain,
+                    CHAIN_ID.PLUGIN.TS_CHECKER,
+                    () => compiler,
+                  );
+                },
+              });
+            },
+          },
+        ],
+      },
+    });
+    const result = await host.build();
+    await result.close();
+    expect(completed).toHaveLength(1);
+    expect(completed[0].hasErrors).toBe(false);
+    expect(fs.readFileSync(configFile, 'utf8')).toBe(config);
+    expect(
+      fs
+        .readdirSync(root)
+        .filter(file => file.startsWith('.ultramodern-native-checker.')),
+    ).toEqual([]);
+    fs.writeFileSync(
+      source,
+      'export default function App() { return <main definitelyNotAReactAttribute={true} />; }',
+    );
+    await expect(host.build()).rejects.toThrow('Rspack build failed.');
+    expect(completed).toHaveLength(2);
+    expect(completed[1].hasErrors).toBe(true);
+    expect(completed[1].diagnostics).toContain('TS2322');
+    expect(completed[1].diagnostics).toContain('App.jsx');
+    expect(completed[1].diagnostics).toContain('definitelyNotAReactAttribute');
+    expect(fs.readFileSync(configFile, 'utf8')).toBe(config);
+    expect(
+      fs
+        .readdirSync(root)
+        .filter(file => file.startsWith('.ultramodern-native-checker.')),
+    ).toEqual([]);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}, 30000);
+
+test('the checker overwrite selects inputs before validation and preserves the authored incremental output path', async () => {
+  const root = fs.realpathSync.native(
+    fs.mkdtempSync(path.join(os.tmpdir(), 'native-checker-input-overwrite-')),
+  );
+  const configFile = path.join(root, 'tsconfig.application.json');
+  const buildInfoFile = path.join(root, 'tsconfig.application.tsbuildinfo');
+  const source = path.join(root, 'src/index.ts');
+  const config = `\uFEFF{
+    // The base project has no inputs until the checker overwrite is applied.
+    "compilerOptions": {
+      "target": "ESNext",
+      "module": "ESNext",
+      "moduleResolution": "Bundler",
+      "incremental": true,
+      "strict": true,
+      "types": [],
+    },
+    "include": ["empty-base"],
+  }\n`;
+  try {
+    fs.mkdirSync(path.join(root, 'src'));
+    fs.writeFileSync(source, 'export const value: string = "checked";');
+    fs.writeFileSync(configFile, config);
+    const options = {
+      build: false,
+      compiler: () => compiler,
+      configFile,
+    };
+    await expect(
+      new UltramodernNativeTypeChecker(options).check(),
+    ).rejects.toThrow('TS18003');
+    const checker = new UltramodernNativeTypeChecker({
+      ...options,
+      configOverwrite: { include: ['src'] },
+    });
+    await checker.check();
+    expect(fs.readFileSync(configFile, 'utf8')).toBe(config);
+    expect(fs.existsSync(buildInfoFile)).toBe(true);
+    expect(fs.readdirSync(root).sort()).toEqual(
+      [
+        'src',
+        'tsconfig.application.json',
+        'tsconfig.application.tsbuildinfo',
+      ].sort(),
+    );
+    expect(fs.readdirSync(path.join(root, 'src'))).toEqual(['index.ts']);
+    fs.writeFileSync(source, 'export const value: string = 1;');
+    await expect(checker.check()).rejects.toThrow('TS2322');
+    expect(fs.readFileSync(configFile, 'utf8')).toBe(config);
+    expect(fs.existsSync(buildInfoFile)).toBe(true);
+    expect(fs.readdirSync(root).sort()).toEqual(
+      [
+        'src',
+        'tsconfig.application.json',
+        'tsconfig.application.tsbuildinfo',
+      ].sort(),
+    );
+    expect(fs.readdirSync(path.join(root, 'src'))).toEqual(['index.ts']);
+    fs.writeFileSync(source, 'export const value: string = "checked";');
+    await checker.check();
+    const buildInfo = fs.readFileSync(buildInfoFile);
+    const buildInfoState = fs.statSync(buildInfoFile, { bigint: true });
+    await checker.check();
+    expect(fs.readFileSync(buildInfoFile)).toEqual(buildInfo);
+    const unchangedBuildInfo = fs.statSync(buildInfoFile, { bigint: true });
+    expect(unchangedBuildInfo.ino).toBe(buildInfoState.ino);
+    expect(unchangedBuildInfo.mtimeNs).toBe(buildInfoState.mtimeNs);
+    expect(fs.readFileSync(configFile, 'utf8')).toBe(config);
+    expect(fs.readdirSync(root).sort()).toEqual(
+      [
+        'src',
+        'tsconfig.application.json',
+        'tsconfig.application.tsbuildinfo',
+      ].sort(),
+    );
+    expect(fs.readdirSync(path.join(root, 'src'))).toEqual(['index.ts']);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test.each([
+  {
+    description: 'an unquoted property name',
+    config: `{
+      compilerOptions: { "module": "ESNext", "types": [] },
+      "files": ["index.ts"]
+    }`,
+  },
+  {
+    description: 'a single-quoted option value',
+    config: `{
+      "compilerOptions": { "module": 'ESNext', "types": [] },
+      "files": ["index.ts"]
+    }`,
+  },
+])('rejects authored JSONC with $description before normalizing a checker overwrite', async ({
+  config,
+}) => {
+  const root = fs.realpathSync.native(
+    fs.mkdtempSync(path.join(os.tmpdir(), 'native-checker-invalid-jsonc-')),
+  );
+  const configFile = path.join(root, 'tsconfig.json');
+  try {
+    fs.writeFileSync(
+      path.join(root, 'index.ts'),
+      'export const value = "valid";',
+    );
+    fs.writeFileSync(configFile, config);
+    const options = {
+      build: false,
+      compiler: () => compiler,
+      configFile,
+    };
+    await expect(
+      new UltramodernNativeTypeChecker(options).check(),
+    ).rejects.toThrow(/TS\d+/);
+    expect(fs.readFileSync(configFile, 'utf8')).toBe(config);
+    await expect(
+      new UltramodernNativeTypeChecker({
+        ...options,
+        configOverwrite: { compilerOptions: { strict: true } },
+      }).check(),
+    ).rejects.toThrow(/requires valid JSONC/);
+    expect(fs.readFileSync(configFile, 'utf8')).toBe(config);
+    expect(fs.readdirSync(root).sort()).toEqual(['index.ts', 'tsconfig.json']);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test('checks and rebuilds referenced projects without overriding their emit contracts', async () => {
   const root = fs.mkdtempSync(
@@ -61,9 +334,12 @@ test('checks and rebuilds referenced projects without overriding their emit cont
       build: true,
       compiler: () => compiler,
       configFile: path.join(root, 'tsconfig.json'),
+      configOverwrite: { compilerOptions: { strict: true, noEmit: true } },
     });
     await checker.check();
     expect(fs.existsSync(path.join(root, 'lib/index.d.ts'))).toBe(true);
+    expect(fs.existsSync(path.join(root, 'app/index.d.ts'))).toBe(true);
+    expect(fs.existsSync(path.join(root, 'app/index.js'))).toBe(false);
     write('lib/index.ts', 'export interface Value { name: number }');
     await expect(checker.check()).rejects.toThrow('TS2322');
     write('lib/index.ts', 'export interface Value { name: string }');

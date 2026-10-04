@@ -100,6 +100,191 @@ function makeBootstrapRelease(version = '3.4.0-ultramodern.2') {
   };
 }
 
+function makeNormalAcceptanceRelease() {
+  const release = makeBootstrapRelease();
+  release.source = { commit: 'a'.repeat(40) };
+  for (const item of release.packages) {
+    item.integrity = `sha512-${crypto
+      .createHash('sha512')
+      .update(item.targetName)
+      .digest('base64')}`;
+  }
+  Object.assign(release.createPackage.packageJson.dependencies, {
+    '@module-federation/runtime': 'npm:@bleedingdev/mf-runtime@2.9.1',
+    '@module-federation/dts-plugin': 'npm:@bleedingdev/mf-dts-plugin@2.9.1',
+    '@module-federation/modern-js-v3': 'npm:@bleedingdev/mf-modern-js-v3@2.9.1',
+  });
+  return release;
+}
+
+function makeNormalAcceptanceReport(platform, moduleFederation) {
+  const verticals = Array.from(
+    { length: 10 },
+    (_, index) => `vertical-${index + 1}`,
+  );
+  const applicationSourceRevision = 'c'.repeat(40);
+  return {
+    verticals,
+    applicationSourceRevision,
+    report: {
+      artifactMode: 'source',
+      platform,
+      shellRuntime: platform,
+      targetRuntimes: Object.fromEntries(
+        verticals.map(appId => [appId, platform]),
+      ),
+      status: 'pass',
+      skipped: [],
+      evidence: {
+        'release-identity': {
+          artifactMode: 'source',
+          platform,
+          status: 'pass',
+          verticalIds: verticals,
+          assertions: verticals.map(appId => ({ appId, status: 'pass' })),
+          apps: verticals.map(appId => {
+            const identity = {
+              buildMarker: crypto
+                .createHash('sha256')
+                .update(appId)
+                .digest('hex'),
+              sourceRevision: applicationSourceRevision,
+              releaseVersion: '0.1.0',
+              moduleFederation,
+            };
+            return {
+              appId,
+              surfaces: Object.fromEntries(
+                ['frontend', 'ssr', 'api', 'backend'].map(surface => [
+                  surface,
+                  { ...identity },
+                ]),
+              ),
+            };
+          }),
+        },
+      },
+    },
+  };
+}
+
+test('normal acceptance validates served runtime identities without narrowing the SDK artifact audit', async () => {
+  const { createRuntimeArtifactBinding } = await import(
+    '../published-create-proof/acceptance-profile.mjs'
+  );
+  const { assertRuntimeAcceptanceDimension, createReleaseArtifactBinding } =
+    await import('../published-create-proof/acceptance-contract.mjs');
+  const release = makeNormalAcceptanceRelease();
+  const originalRelease = structuredClone(release);
+  const fullBinding = createReleaseArtifactBinding(release);
+  const originalFullBinding = structuredClone(fullBinding);
+  const servedBinding = createRuntimeArtifactBinding(release);
+  const runtimeCohort = [
+    { packageName: '@module-federation/runtime', version: '2.9.1' },
+  ];
+
+  assert.deepEqual(servedBinding.moduleFederation, runtimeCohort);
+  assert.equal(fullBinding.moduleFederation.length, 3);
+  assert.deepEqual(servedBinding.packages, fullBinding.packages);
+  assert.equal(servedBinding.sourceRevision, release.source.commit);
+  for (const platform of ['node', 'workerd']) {
+    const { report, verticals, applicationSourceRevision } =
+      makeNormalAcceptanceReport(platform, runtimeCohort);
+    const details = assertRuntimeAcceptanceDimension(report, {
+      artifactBinding: servedBinding,
+      applicationSourceRevision,
+      dimension: 'release-identity',
+      mode: 'source',
+      platform,
+      verticals,
+    });
+    assert.equal(details.apps.length, 10);
+    for (const app of details.apps) {
+      assert.deepEqual(app.moduleFederation, runtimeCohort);
+    }
+  }
+  assert.deepEqual(fullBinding, originalFullBinding);
+  assert.deepEqual(release, originalRelease);
+});
+
+test('normal acceptance rejects foreign runtimes and SDK tooling in served identities', async () => {
+  const { createRuntimeArtifactBinding } = await import(
+    '../published-create-proof/acceptance-profile.mjs'
+  );
+  const { assertRuntimeAcceptanceDimension, createReleaseArtifactBinding } =
+    await import('../published-create-proof/acceptance-contract.mjs');
+  const release = makeNormalAcceptanceRelease();
+  const servedBinding = createRuntimeArtifactBinding(release);
+  const invalidCohorts = [
+    [{ packageName: '@module-federation/runtime', version: '2.9.2' }],
+    createReleaseArtifactBinding(release).moduleFederation,
+  ];
+
+  for (const platform of ['node', 'workerd']) {
+    for (const moduleFederation of invalidCohorts) {
+      const { report, verticals, applicationSourceRevision } =
+        makeNormalAcceptanceReport(platform, moduleFederation);
+      assert.throws(
+        () =>
+          assertRuntimeAcceptanceDimension(report, {
+            artifactBinding: servedBinding,
+            applicationSourceRevision,
+            dimension: 'release-identity',
+            mode: 'source',
+            platform,
+            verticals,
+          }),
+        /Module Federation cohort differs from the exact release cohort/u,
+      );
+    }
+  }
+});
+
+test('normal acceptance rejects missing or invalid packed runtime declarations', async () => {
+  const { createRuntimeArtifactBinding } = await import(
+    '../published-create-proof/acceptance-profile.mjs'
+  );
+  const cases = [
+    [
+      release => {
+        delete release.createPackage.packageJson.dependencies[
+          '@module-federation/runtime'
+        ];
+      },
+      /requires one exact Module Federation runtime/u,
+    ],
+    [
+      release => {
+        release.createPackage.packageJson.dependencies[
+          '@module-federation/runtime'
+        ] = 'npm:@bleedingdev/mf-runtime@2.9';
+      },
+      /must use one exact Module Federation version/u,
+    ],
+    [
+      release => {
+        release.createPackage.packageJson.dependencies[
+          '@module-federation/runtime'
+        ] = 'npm:@bleedingdev/mf-runtime@^2.9.1';
+      },
+      /must use one exact Module Federation version/u,
+    ],
+    [
+      release => {
+        release.packages[1].packageJson.optionalDependencies = {
+          '@module-federation/runtime': 'npm:@bleedingdev/mf-runtime@2.9.2',
+        };
+      },
+      /mixes Module Federation.*versions/u,
+    ],
+  ];
+  for (const [mutate, expectedError] of cases) {
+    const release = makeNormalAcceptanceRelease();
+    mutate(release);
+    assert.throws(() => createRuntimeArtifactBinding(release), expectedError);
+  }
+});
+
 test('builds the supported pnpm dlx package command contract from the authenticated create closure', async () => {
   const { createPnpmDlxArgs, resolveCreatePackage } = await import(
     '../published-create-proof/package-cohort.mjs'

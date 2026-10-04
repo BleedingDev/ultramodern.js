@@ -36,6 +36,8 @@ async function createReceiptFixture(root) {
         integrity: 'sha512-create',
         packageJson: {
           dependencies: {
+            '@module-federation/dts-plugin': '2.8.0',
+            '@module-federation/modern-js-v3': '2.8.0',
             '@module-federation/runtime': '2.8.0',
           },
         },
@@ -114,8 +116,22 @@ async function createReceiptFixture(root) {
     receipt,
     receiptApi,
   });
+  const runtimeModuleFederation =
+    receipt.binding.artifacts.moduleFederation.filter(
+      item => item.packageName === '@module-federation/runtime',
+    );
+  for (const platform of ['node', 'workerd']) {
+    for (const app of receipt.binding.runtimeIdentity[platform]) {
+      app.moduleFederation = structuredClone(runtimeModuleFederation);
+      app.buildMarker = digest(`${platform}:${app.appId}`);
+    }
+    receipt.results.find(
+      result => result.id === `${platform}-release-identity`,
+    ).details.apps = structuredClone(receipt.binding.runtimeIdentity[platform]);
+  }
   fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-  receipt.binding.manifest.sha256 = digest(fs.readFileSync(manifestPath));
+  release.manifestSha256 = digest(fs.readFileSync(manifestPath));
+  receipt.binding.manifest.sha256 = release.manifestSha256;
   receipt.binding.supplyChain.releaseManifestSha256 =
     receipt.binding.manifest.sha256;
   fs.writeFileSync(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`);
@@ -125,6 +141,7 @@ async function createReceiptFixture(root) {
     operationalEvidenceSource: operationalEvidence.evidenceSource,
     receiptPath,
     receiptSource: fs.readFileSync(receiptPath, 'utf8'),
+    release,
     runIdentity,
   };
 }
@@ -151,11 +168,21 @@ function replaceOperationalEvidence(fixture, evidence) {
   fs.writeFileSync(fixture.operationalEvidencePath, evidenceSource);
 }
 
-test('producer receipt passes the shared workflow receipt validator', async () => {
+test('producer receipt preserves runtime-only MF identity and distinct native target markers', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ultramodern-receipt-'));
   try {
     const fixture = await createReceiptFixture(root);
     const receipt = JSON.parse(fs.readFileSync(fixture.receiptPath, 'utf8'));
+    assert.equal(receipt.binding.artifacts.moduleFederation.length, 3);
+    for (let index = 0; index < receipt.profile.verticalCount; index++) {
+      const node = receipt.binding.runtimeIdentity.node[index];
+      const workerd = receipt.binding.runtimeIdentity.workerd[index];
+      assert.notEqual(node.buildMarker, workerd.buildMarker);
+      assert.deepEqual(node.moduleFederation, [
+        { packageName: '@module-federation/runtime', version: '2.8.0' },
+      ]);
+      assert.deepEqual(node.moduleFederation, workerd.moduleFederation);
+    }
     const valid = verifyReceipt(fixture);
     assert.equal(valid.status, 0, valid.stderr || valid.stdout);
     assert.match(valid.stdout, /Verified ERP-10 acceptance receipt/);
@@ -188,7 +215,76 @@ test('producer receipt passes the shared workflow receipt validator', async () =
         receipt => {
           receipt.binding.runtimeIdentity.workerd[0].releaseVersion = '0.2.0';
         },
-        /Node and workerd identities differ/,
+        /Node and workerd release identities differ/,
+      ],
+      [
+        'cross-platform application source drift',
+        receipt => {
+          receipt.binding.runtimeIdentity.workerd[0].sourceRevision =
+            '9'.repeat(40);
+        },
+        /Node and workerd release identities differ/,
+      ],
+      [
+        'missing cross-platform application',
+        receipt => {
+          receipt.binding.runtimeIdentity.workerd[0].appId = 'foreign-app';
+        },
+        /same unique MicroVerticals/,
+      ],
+      [
+        'wrong served runtime version',
+        receipt => {
+          receipt.binding.runtimeIdentity.workerd[0].moduleFederation[0].version =
+            '2.9.0';
+        },
+        /MicroVertical identity is stale or mixed/,
+      ],
+      [
+        'build tools claimed as served runtime',
+        receipt => {
+          receipt.binding.runtimeIdentity.node[0].moduleFederation =
+            structuredClone(receipt.binding.artifacts.moduleFederation);
+        },
+        /MicroVertical identity is stale or mixed/,
+      ],
+      [
+        'missing authenticated runtime',
+        receipt => {
+          receipt.binding.artifacts.moduleFederation =
+            receipt.binding.artifacts.moduleFederation.filter(
+              item => item.packageName !== '@module-federation/runtime',
+            );
+        },
+        /requires one exact Module Federation runtime/,
+      ],
+      [
+        'duplicate authenticated runtime',
+        receipt => {
+          receipt.binding.artifacts.moduleFederation.push(
+            structuredClone(
+              receipt.binding.artifacts.moduleFederation.find(
+                item => item.packageName === '@module-federation/runtime',
+              ),
+            ),
+          );
+        },
+        /requires one exact Module Federation runtime/,
+      ],
+      [
+        'blank target marker',
+        receipt => {
+          receipt.binding.runtimeIdentity.workerd[0].buildMarker = ' ';
+        },
+        /build markers must each be present/,
+      ],
+      [
+        'other target marker substituted for its own result',
+        receipt => {
+          receipt.binding.runtimeIdentity.workerd[0].buildMarker =
+            receipt.binding.runtimeIdentity.node[0].buildMarker;
+        },
+        /does not match independently recorded Node\/workerd results/,
       ],
       [
         'missing operational-independence result',
@@ -235,6 +331,54 @@ test('producer receipt passes the shared workflow receipt validator', async () =
       assert.notEqual(result.status, 0, name);
       assert.match(result.stderr, message, name);
       fs.writeFileSync(fixture.receiptPath, fixture.receiptSource);
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('runtime projection retains the complete authenticated artifact cohort', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ultramodern-receipt-'));
+  try {
+    const fixture = await createReceiptFixture(root);
+    const { assertAcceptanceReceipt } = await import(
+      pathToFileURL(receiptCliPath)
+    );
+    const receipt = JSON.parse(fixture.receiptSource);
+    assert.equal(
+      assertAcceptanceReceipt(receipt, {
+        release: fixture.release,
+        runIdentity: fixture.runIdentity,
+      }),
+      receipt,
+    );
+    for (const mutate of [
+      receipt => {
+        receipt.binding.artifacts.moduleFederation =
+          receipt.binding.artifacts.moduleFederation.filter(
+            item => item.packageName !== '@module-federation/dts-plugin',
+          );
+      },
+      receipt => {
+        receipt.binding.artifacts.moduleFederation.find(
+          item => item.packageName === '@module-federation/modern-js-v3',
+        ).version = '2.9.0';
+      },
+      receipt => {
+        receipt.binding.artifacts.packages[0].integrity = 'sha512-foreign';
+        receipt.binding.create.integrity = 'sha512-foreign';
+      },
+    ]) {
+      const forged = structuredClone(receipt);
+      mutate(forged);
+      assert.throws(
+        () =>
+          assertAcceptanceReceipt(forged, {
+            release: fixture.release,
+            runIdentity: fixture.runIdentity,
+          }),
+        /binding does not match the strict release manifest/u,
+      );
     }
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
