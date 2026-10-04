@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import { assertCohortResolutionProvenance } from '../../../../../../scripts/ultramodern-production-readiness/published-create-proof/acceptance-profile.mjs';
 import {
   inspectNpmTarball,
@@ -309,13 +310,29 @@ export async function withBareGeneratorProof(
       path.join(bareRoot, '.npmrc'),
       'engine-strict=true\npackage-import-method=clone-or-copy\nignore-scripts=false\n',
     );
+    const rootWorkspace = parseYaml(
+      fs.readFileSync(path.join(sourceRoot, 'pnpm-workspace.yaml'), 'utf8'),
+    );
+    assert.ok(
+      rootWorkspace?.allowBuilds &&
+        typeof rootWorkspace.allowBuilds === 'object' &&
+        !Array.isArray(rootWorkspace.allowBuilds),
+      'Bare install requires the repository dependency build approval policy',
+    );
+    fs.writeFileSync(
+      path.join(bareRoot, 'pnpm-workspace.yaml'),
+      stringifyYaml({
+        packages: ['.'],
+        allowBuilds: rootWorkspace.allowBuilds,
+      }),
+      { flag: 'wx' },
+    );
     const env = runtimeEnv(options.qualifiedNode, registry.env);
     console.log(
       '[bare-generator] normal install of the sole direct generator dependency',
     );
     const installArgs = [
       'install',
-      '--ignore-workspace',
       '--config.engineStrict=true',
       '--ignore-scripts=false',
     ];
