@@ -4,9 +4,9 @@
   "upstreamRef": "2f4d9c4559e26209a0d77f02c6757f29fe3699a2",
   "pathspec": ["packages"],
   "migrationGoal": "Shrink-only budget of fork edits inside upstream-owned files. Every entry is debt: move it upstream or behind an extension point, then re-run --write-divergence-allowlist.",
-  "totalFiles": 849,
-  "totalHunks": 3249,
-  "totalChangedLines": 55974,
+  "totalFiles": 850,
+  "totalHunks": 3256,
+  "totalChangedLines": 56248,
   "files": [
     {
       "file": "packages/cli/adapter-rstest/package.json",
@@ -326,12 +326,12 @@
     {
       "file": "packages/cli/plugin-data-loader/package.json",
       "hunks": 6,
-      "changedLines": 31
+      "changedLines": 32
     },
     {
       "file": "packages/cli/plugin-data-loader/src/cli/loader.ts",
-      "hunks": 2,
-      "changedLines": 2
+      "hunks": 4,
+      "changedLines": 4
     },
     {
       "file": "packages/cli/plugin-data-loader/src/runtime/errors.ts",
@@ -347,6 +347,11 @@
       "file": "packages/cli/plugin-data-loader/src/runtime/response.ts",
       "hunks": 4,
       "changedLines": 26
+    },
+    {
+      "file": "packages/cli/plugin-data-loader/tests/compiler.test.ts",
+      "hunks": 1,
+      "changedLines": 261
     },
     {
       "file": "packages/cli/plugin-data-loader/tests/fixtures/loader/loader.ts",
@@ -3225,8 +3230,8 @@
     },
     {
       "file": "packages/solutions/app-tools/src/builder/shared/builderPlugins/adapterSSR.ts",
-      "hunks": 11,
-      "changedLines": 18
+      "hunks": 15,
+      "changedLines": 28
     },
     {
       "file": "packages/solutions/app-tools/src/builder/shared/builderPlugins/builderHooks.ts",
