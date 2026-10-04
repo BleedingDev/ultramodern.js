@@ -229,6 +229,77 @@ test('failed Cloudflare shell still requires its separate public finalization', 
   );
 });
 
+test('continuation preserves the full 49-package cohort while observing 18 authored dependencies', async () => {
+  const { assertAcceptanceContinuation } = await import(continuationModule);
+  const { record, release, runIdentity } =
+    await createAcceptanceContinuationFixture({
+      cursor: 'source-workerd',
+      cloudflareBuildCompleted: true,
+      releasePackageCount: 49,
+      observedPackageCount: 18,
+    });
+
+  assert.equal(
+    assertAcceptanceContinuation(record, { release, runIdentity }),
+    record,
+  );
+  assert.equal(record.binding.artifacts.packages.length, 49);
+  assert.equal(record.binding.manifest.packageCount, 49);
+  assert.equal(record.reusedEvidence.installedCohort.expectedPackageCount, 49);
+  assert.equal(record.reusedEvidence.installedCohort.observedPackageCount, 18);
+});
+
+test('continuation rejects incomplete or foreign observed cohort evidence', async t => {
+  const { assertAcceptanceContinuation } = await import(continuationModule);
+  const fixture = await createAcceptanceContinuationFixture({
+    releasePackageCount: 49,
+    observedPackageCount: 18,
+  });
+  const mutations = [
+    [
+      'changed full release size',
+      cohort => {
+        cohort.expectedPackageCount = 48;
+      },
+    ],
+    [
+      'unobserved declared dependency',
+      cohort => {
+        cohort.observedPackageCount += 1;
+      },
+    ],
+    [
+      'duplicate observed dependency',
+      cohort => {
+        cohort.observedSourceNames[1] = cohort.observedSourceNames[0];
+      },
+    ],
+    [
+      'foreign observed dependency',
+      cohort => {
+        cohort.observedSourceNames[0] = '@modern-js/foreign-package';
+      },
+    ],
+    [
+      'empty observed dependency set',
+      cohort => {
+        cohort.observedPackageCount = 0;
+        cohort.observedSourceNames = [];
+      },
+    ],
+  ];
+  for (const [name, mutate] of mutations) {
+    await t.test(name, () => {
+      const record = structuredClone(fixture.record);
+      mutate(record.reusedEvidence.installedCohort);
+      assert.throws(
+        () => assertAcceptanceContinuation(record, fixture),
+        /prior evidence attribution is incomplete/u,
+      );
+    });
+  }
+});
+
 test('source-workerd continuation rejects a Cloudflare manifest bound to the Node producer path', async () => {
   const { assertAcceptanceContinuation } = await import(continuationModule);
   const { record, release, runIdentity } =

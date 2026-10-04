@@ -1,6 +1,8 @@
 import type { AppTools, CliPlugin } from '@modern-js/app-tools';
-import { resolveEffectTsgoCompiler } from '@modern-js/app-tools-extensions/config';
-import { configureUltramodernTypeChecker } from '@modern-js/app-tools-extensions/native-type-checker';
+import {
+  configureUltramodernTypeChecker,
+  resolveNativeTypeCheckerCommand,
+} from '@modern-js/app-tools-extensions/native-type-checker';
 import type { Renderer } from '@modern-js/renderer-core';
 import { resolveCandidateRendererProfile } from './renderer-profile';
 
@@ -34,8 +36,14 @@ export const rendererTypeCheckerPlugin = (
               'unsupported-type-checker: UltraModern requires native TypeScript 7.0.2; typescript.tsgo cannot be false',
             );
           }
-          configureUltramodernTypeChecker(chain, pluginId, from =>
-            resolveEffectTsgoCompiler({ from }),
+          const typescriptPath = options?.typescript?.typescriptPath;
+          if (typeof typescriptPath !== 'string' || !typescriptPath) {
+            throw new Error(
+              'unsupported-type-checker: UltraModern requires the selected native TypeScript 7.0.2 package',
+            );
+          }
+          configureUltramodernTypeChecker(chain, pluginId, () =>
+            resolveNativeTypeCheckerCommand(typescriptPath),
           );
         },
       },
