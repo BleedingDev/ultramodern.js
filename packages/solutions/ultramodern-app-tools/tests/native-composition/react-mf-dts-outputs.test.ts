@@ -30,6 +30,7 @@ import {
   rspack,
 } from '@rsbuild/core';
 import { afterEach, describe, expect, it } from '@rstest/core';
+import { applyCloudflareWorkerMfRuntimeBoundary } from '../../../app-tools-extensions/src/cloudflare-builder';
 import { captureConfigSourceSnapshot } from '../../src/native-composition/config-evaluator/source-snapshot';
 import {
   type ConfigSourceSnapshot,
@@ -396,6 +397,12 @@ type AfterCompiler = Parameters<
 type BeforeExit = Parameters<CLIPluginAPI<AppTools>['onBeforeExit']>[0];
 type BeforeBuild = Parameters<CLIPluginAPI<AppTools>['onBeforeBuild']>[0];
 const AUTHORITY_KEY = 'ultramodernReceiverDts';
+type FixtureNativePlugin = { apply(compiler: Rspack.Compiler): void };
+type FixtureNativeConstructor = new (...args: unknown[]) => FixtureNativePlugin;
+const effectiveNativeOptions = new WeakMap<
+  Record<string, unknown>,
+  Record<string, unknown>
+>();
 
 async function integration(
   app: ReturnType<typeof fixture>,
@@ -450,6 +457,18 @@ async function integration(
   const compilerOwnerPlugins = new Map<
     string,
     new () => { apply(compiler: Rspack.Compiler): void }
+  >();
+  const compilerNativePlugins = new Map<
+    string,
+    {
+      NativeConstructor: FixtureNativeConstructor;
+      originalNativeConstructor: FixtureNativeConstructor;
+      args: unknown[];
+    }
+  >();
+  const compilerPluginInstances = new Map<
+    string,
+    { nativePlugin: FixtureNativePlugin; companionPlugin: FixtureNativePlugin }
   >();
   const testCompilers = new Map<string, Rspack.Compiler>();
   const producerEntered = deferred<void>();
@@ -620,6 +639,8 @@ async function integration(
     },
     afterCompiler,
     compilerOwnerPlugins,
+    compilerNativePlugins,
+    compilerPluginInstances,
     testCompilers,
     producerEntered: producerEntered.promise,
     registry: () => {
@@ -641,12 +662,13 @@ async function configureChain(
   options: Record<string, unknown>,
   enabled = true,
   nativeLifecycle = false,
+  environmentName = 'client',
 ) {
   let args: unknown[] = [options, 'retained-native-argument'];
-  let nativePlugin: new () => { apply(compiler: Rspack.Compiler): void } =
-    class {
-      apply(_compiler: Rspack.Compiler) {}
-    };
+  const originalNativeConstructor: FixtureNativeConstructor = class {
+    apply(_compiler: Rspack.Compiler) {}
+  };
+  let nativePlugin = originalNativeConstructor;
   const chain = {
     plugins: { has: () => enabled },
     plugin: (name: string) => ({
@@ -665,35 +687,51 @@ async function configureChain(
         expect(nativePlugin).toBe('plugin-module-federation');
         return this;
       },
-      use(
-        Plugin: new () => { apply(compiler: Rspack.Compiler): void },
-        suppliedArgs?: unknown[],
-      ) {
+      use(Plugin: FixtureNativeConstructor, suppliedArgs?: unknown[]) {
         if (name === 'plugin-module-federation') {
           nativePlugin = Plugin;
           args = suppliedArgs ?? args;
-        } else result.compilerOwnerPlugins.set('client', Plugin);
+        } else result.compilerOwnerPlugins.set(environmentName, Plugin);
       },
     }),
   };
   for (const modifier of result.chainModifiers)
     await modifier(
       chain as unknown as RspackChain,
-      { environment: { name: 'client' } } as never,
+      { environment: { name: environmentName } } as never,
     );
+  effectiveNativeOptions.set(options, args[0] as Record<string, unknown>);
+  result.compilerNativePlugins.set(environmentName, {
+    NativeConstructor: nativePlugin,
+    originalNativeConstructor,
+    args,
+  });
+  const Owner = result.compilerOwnerPlugins.get(environmentName);
+  const nativeInstance = new nativePlugin(...args);
+  const companionInstance = Owner ? new Owner() : undefined;
+  if (companionInstance)
+    result.compilerPluginInstances.set(environmentName, {
+      nativePlugin: nativeInstance,
+      companionPlugin: companionInstance,
+    });
+  const plugins = [
+    ...(companionInstance ? [companionInstance] : []),
+    ...(enabled ? [nativeInstance] : []),
+  ];
   if (!nativeLifecycle) {
     for (const callback of result.beforeCompiler)
-      await callback({ bundlerConfigs: [{ name: 'client' }] } as never);
+      await callback({
+        bundlerConfigs: [{ name: environmentName, plugins }],
+      } as never);
     const compiler = {
-      options: { name: 'client' },
+      options: { name: environmentName, plugins },
       hooks: { shutdown: { tapPromise() {} } },
       close(callback: (error?: Error) => void) {
         callback();
       },
     } as unknown as Rspack.Compiler;
-    result.testCompilers.set('client', compiler);
-    for (const Plugin of result.compilerOwnerPlugins.values())
-      new Plugin().apply(compiler);
+    result.testCompilers.set(environmentName, compiler);
+    for (const plugin of plugins) plugin.apply(compiler);
     for (const callback of result.afterCompiler)
       await callback({ compiler } as never);
   }
@@ -701,15 +739,35 @@ async function configureChain(
 }
 
 function seed(options: Record<string, unknown>): ReceiverSeed {
-  const dts = options.dts as {
+  const dts = (effectiveNativeOptions.get(options) ?? options).dts as {
     extraOptions: Record<string, ReceiverSeed>;
   };
   return dts.extraOptions[AUTHORITY_KEY];
 }
 
 function workerCreated(options: Record<string, unknown>) {
-  return (options.dts as { onDevWorkerCreated: (witness: unknown) => void })
-    .onDevWorkerCreated;
+  return (
+    (effectiveNativeOptions.get(options) ?? options).dts as {
+      onDevWorkerCreated: (witness: unknown) => void;
+    }
+  ).onDevWorkerCreated;
+}
+
+function installFixtureCompilerPlugins(
+  chain: RspackChain,
+  result: Awaited<ReturnType<typeof integration>>,
+  name: string,
+) {
+  const Native = result.compilerNativePlugins.get(name);
+  const Owner = result.compilerOwnerPlugins.get(name);
+  if (!Native || !Owner) return;
+  const instances = result.compilerPluginInstances.get(name);
+  if (!instances)
+    throw new Error('The configured compiler plugin pair is absent');
+  chain
+    .plugin('ultramodern-react-mf-receiver-owner')
+    .use(instances.companionPlugin);
+  chain.plugin('plugin-module-federation').use(instances.nativePlugin);
 }
 
 function receiverDetails() {
@@ -916,9 +974,7 @@ async function nativeOneShotBuild(
     setup(api) {
       phase.install(api);
       api.modifyBundlerChain((chain, { environment }) => {
-        const Owner = result.compilerOwnerPlugins.get(environment.name);
-        if (Owner)
-          chain.plugin('ultramodern-react-mf-receiver-owner').use(Owner, []);
+        installFixtureCompilerPlugins(chain, result, environment.name);
       });
       api.onBeforeBuild(async params => {
         for (const callback of result.beforeBuild)
@@ -1028,19 +1084,21 @@ async function publicPhaseHooks(
     },
   };
   phase.install(api as unknown as PhaseAPI);
-  for (const callback of result.beforeCompiler)
-    await callback({ bundlerConfigs: [{ name: 'client' }] } as never);
-  const Owner = result.compilerOwnerPlugins.get('client');
-  if (!Owner) throw new Error('The native receiver compiler owner is absent');
-  // Construct genuine public hooks; no compiler run, watch, or build occurs.
-  const compiler = rspack({
+  const instances = result.compilerPluginInstances.get('client');
+  if (!instances)
+    throw new Error('The native receiver compiler plugin pair is absent');
+  const compilerConfig: Rspack.Configuration = {
     name: 'client',
     mode: 'development',
     context: app.appDirectory,
     entry: './src/main.js',
     output: { path: result.context.distDirectory },
-    plugins: [new Owner()],
-  });
+    plugins: [instances.companionPlugin, instances.nativePlugin],
+  };
+  for (const callback of result.beforeCompiler)
+    await callback({ bundlerConfigs: [compilerConfig] } as never);
+  // Construct genuine public hooks; no compiler run, watch, or build occurs.
+  const compiler = rspack(compilerConfig);
   if (!compiler || !install)
     throw new Error('The public phase compiler hooks are absent');
   const params = {
@@ -1202,7 +1260,8 @@ describe('React native receiver output controller', () => {
         sourceNodes:()=>sourceNodes,trackedInputs:async()=>[]
       });
       await integration.plugin.setup(api);
-      const nativeOptions = {dts:true};
+      const borrowedNativeOptions = {dts:true};
+      let nativeOptions;
       let receiptComplete = false, metadataComplete = false;
       const context = {appDirectory:app.appDirectory,internalDirectory:path.join(app.appDirectory,'.modern-js'),distDirectory:path.join(app.appDirectory,'dist'),configFile:false,config,consumedSourceInputs:observed,configurationSourceSnapshot:snapshot,configurationSourceNodes:sourceNodes,packageName:'native-receiver-controller',mode:'production',entrypoints:[{entryName:'main',isMainEntry:true,entry:path.join(app.appDirectory,'src/main.js')}]};
       const phase = new ReactTypedCssPhase({appDirectory:context.appDirectory,internalDirectory:context.internalDirectory,distDirectory:context.distDirectory,configurationSourceSnapshot:snapshot,produceTypedCss:false,generatedOutputs:integration.controller,
@@ -1216,7 +1275,7 @@ describe('React native receiver output controller', () => {
         environments:{client:{source:{entry:{main:'./src/main.js'}},output:{target:'web'}}},
         plugins:[{name:'test-natural-receiver-process',setup(native){
           phase.install(native);
-          native.modifyBundlerChain(async(chain,utils)=>{chain.plugin('plugin-module-federation').use(NativeMFConfiguration,[nativeOptions]);for(const fn of modifiers)await fn(chain,utils)});
+          native.modifyBundlerChain(async(chain,utils)=>{chain.plugin('plugin-module-federation').use(NativeMFConfiguration,[borrowedNativeOptions]);for(const fn of modifiers)await fn(chain,utils);nativeOptions=chain.plugin('plugin-module-federation').get('args')[0];assert.deepEqual(borrowedNativeOptions,{dts:true});});
           native.onBeforeBuild(async params=>{for(const fn of beforeBuild)await fn(params)});
           native.onBeforeCreateCompiler(async params=>{for(const fn of beforeCompiler)await fn(params)});
           native.onAfterCreateCompiler(async params=>{
@@ -2025,9 +2084,7 @@ describe('React native receiver output controller', () => {
       setup(api) {
         phase.install(api);
         api.modifyBundlerChain((chain, { environment }) => {
-          const Plugin = result.compilerOwnerPlugins.get(environment.name);
-          if (Plugin)
-            chain.plugin('ultramodern-react-mf-receiver-owner').use(Plugin, []);
+          installFixtureCompilerPlugins(chain, result, environment.name);
         });
         api.onBeforeCreateCompiler(async params => {
           for (const callback of result.beforeCompiler)
@@ -2321,10 +2378,15 @@ describe('React native receiver output controller', () => {
     const shared = { react: { singleton: true } };
     const options = { name: 'native-host', remotes, shared, dts };
     const args = await configureChain(result, options);
-    expect(args).toEqual([options, 'retained-native-argument']);
+    const effective = args[0] as Record<string, unknown>;
+    expect(args).toEqual([effective, 'retained-native-argument']);
+    expect(effective).not.toBe(options);
+    expect(effective.remotes).toBe(remotes);
+    expect(effective.shared).toBe(shared);
     expect(options.remotes).toBe(remotes);
     expect(options.shared).toBe(shared);
-    expect(options.dts).toMatchObject({ implementation: app.producerPath });
+    expect(options.dts).toBe(dts);
+    expect(effective.dts).toMatchObject({ implementation: app.producerPath });
     expect(seed(options)).toMatchObject({
       schemaVersion: 1,
       generation: 1,
@@ -2348,13 +2410,25 @@ describe('React native receiver output controller', () => {
         extraOptions: { retained },
       },
     };
-    await configureChain(result, options);
-    expect(options.dts).toMatchObject({
+    const originalDts = options.dts;
+    const originalExtraOptions = options.dts.extraOptions;
+    const args = await configureChain(result, options);
+    const effective = args[0] as {
+      dts: Record<string, unknown> & { extraOptions: Record<string, unknown> };
+    };
+    expect(effective.dts).not.toBe(originalDts);
+    expect(effective.dts.extraOptions).not.toBe(originalExtraOptions);
+    expect(effective.dts).toMatchObject({
       generateTypes: { compileInChildProcess: false },
       consumeTypes: { typesFolder: 'native-types', abortOnError: true },
       implementation: app.producerPath,
     });
+    expect(effective.dts.extraOptions.retained).toBe(retained);
+    expect(options.dts).toBe(originalDts);
+    expect(options.dts.extraOptions).toBe(originalExtraOptions);
     expect(options.dts.extraOptions.retained).toBe(retained);
+    expect(Object.hasOwn(options.dts, 'implementation')).toBe(false);
+    expect(Object.hasOwn(options.dts.extraOptions, AUTHORITY_KEY)).toBe(false);
     expect(seed(options).receiverBridge?.url).toMatch(
       /^http:\/\/127\.0\.0\.1:/u,
     );
@@ -3027,9 +3101,7 @@ describe('React native receiver output controller', () => {
       setup(api) {
         phase.install(api);
         api.modifyBundlerChain((chain, { environment }) => {
-          const Plugin = result.compilerOwnerPlugins.get(environment.name);
-          if (Plugin)
-            chain.plugin('ultramodern-react-mf-receiver-owner').use(Plugin, []);
+          installFixtureCompilerPlugins(chain, result, environment.name);
         });
         api.modifyHTMLTags((tags, { filename, environment }) => {
           if (environment.name !== 'client') return tags;
@@ -3359,5 +3431,418 @@ describe('React native receiver output controller', () => {
     expect(result.restoreCalls()).toBe(1);
     expect(exitReadinessPublished).toBe(false);
     expect(published).toEqual([1, 2, 3]);
+  });
+});
+
+describe('native receiver ownership in final bundler configurations', () => {
+  it('isolates shared actual MAIN arguments across web environments and removes the CF receiver after tools.bundlerChain deletes its native plugin', async () => {
+    const app = fixture();
+    const applicationRequire = createRequire(
+      path.resolve(
+        __dirname,
+        '../../../../../tests/integration/routes-tanstack-mf/mf-remote/package.json',
+      ),
+    );
+    const native = applicationRequire('@module-federation/modern-js-v3') as {
+      moduleFederationPlugin(
+        options: Record<string, unknown>,
+      ): CliPlugin<AppTools>;
+    };
+    const modifierOwners: string[] = [];
+    const result = await integration(app, {
+      async setupPlugins(api, receiver) {
+        let currentPlugin = '';
+        const modifyBundlerChain = api.modifyBundlerChain;
+        Object.assign(api, {
+          getConfig: () => api.getNormalizedConfig(),
+          config() {},
+          _internalServerPlugins() {},
+          modifyBundlerChain(callback: ChainModifier) {
+            modifierOwners.push(currentPlugin);
+            modifyBundlerChain(callback);
+          },
+        });
+        const manager = createPluginManager<CLIPluginAPI<AppTools>>();
+        manager.addPlugins([
+          receiver,
+          native.moduleFederationPlugin({
+            config: {
+              name: 'native-final-config-shared-arguments',
+              remotes: {},
+              dts: {
+                generateTypes: false,
+                consumeTypes: { consumeAPITypes: false },
+              },
+              dev: false,
+            },
+            ssr: false,
+          }),
+        ]);
+        for (const plugin of manager.getPlugins()) {
+          currentPlugin = plugin.name;
+          await plugin.setup?.(api);
+        }
+      },
+    });
+    const retainedArgument = { caller: 'retained-native-argument' };
+    const originalWorkerCreated = () => {};
+    const originalExtraOptions = { caller: { retained: true } };
+    let borrowedArgs: unknown[] | undefined;
+    let borrowedConfig: Record<string, unknown> | undefined;
+    let borrowedDts: Record<string, unknown> | undefined;
+    const configured = new Map<
+      string,
+      {
+        NativeConstructor: FixtureNativeConstructor;
+        Owner: FixtureNativeConstructor;
+        args: unknown[];
+      }
+    >();
+    let cfDeletionRuns = 0;
+    const rsbuild = await createRsbuild({
+      cwd: app.appDirectory,
+      rsbuildConfig: {
+        mode: 'development',
+        plugins: [
+          {
+            name: 'test-real-native-main-final-config-ownership',
+            setup(api: Parameters<RsbuildPlugin['setup']>[0]) {
+              api.modifyBundlerChain(async (chain, utils) => {
+                for (const [
+                  index,
+                  modifier,
+                ] of result.chainModifiers.entries()) {
+                  if (modifierOwners[index] === result.plugin.name) {
+                    expect(chain.plugins.has('plugin-module-federation')).toBe(
+                      true,
+                    );
+                    const installedArgs = chain
+                      .plugin('plugin-module-federation')
+                      .get('args') as unknown[];
+                    if (!borrowedArgs) {
+                      borrowedArgs = installedArgs;
+                      borrowedArgs.push(retainedArgument);
+                      borrowedConfig = borrowedArgs[0] as Record<
+                        string,
+                        unknown
+                      >;
+                      borrowedDts = borrowedConfig.dts as Record<
+                        string,
+                        unknown
+                      >;
+                      borrowedDts.onDevWorkerCreated = originalWorkerCreated;
+                      borrowedDts.extraOptions = originalExtraOptions;
+                    }
+                    expect(installedArgs[0]).toBe(borrowedConfig);
+                    chain
+                      .plugin('plugin-module-federation')
+                      .tap(() => borrowedArgs!);
+                  }
+                  await modifier(chain, utils as never);
+                  if (modifierOwners[index] === result.plugin.name) {
+                    const ownedArgs = chain
+                      .plugin('plugin-module-federation')
+                      .get('args') as unknown[];
+                    const ownedConfig = ownedArgs[0] as Record<string, unknown>;
+                    const ownedDts = ownedConfig.dts as Record<string, unknown>;
+                    expect(ownedArgs).not.toBe(borrowedArgs);
+                    expect(ownedArgs[1]).toBe(retainedArgument);
+                    expect(ownedConfig).not.toBe(borrowedConfig);
+                    expect(ownedDts).not.toBe(borrowedDts);
+                    expect(ownedDts.extraOptions).not.toBe(
+                      originalExtraOptions,
+                    );
+                    expect(ownedDts.extraOptions).toMatchObject(
+                      originalExtraOptions,
+                    );
+                    expect(ownedDts.implementation).toBe(app.producerPath);
+                    expect(ownedDts.onDevWorkerCreated).not.toBe(
+                      originalWorkerCreated,
+                    );
+                    expect(borrowedConfig!.dts).toBe(borrowedDts);
+                    expect(borrowedDts!.onDevWorkerCreated).toBe(
+                      originalWorkerCreated,
+                    );
+                    expect(borrowedDts!.extraOptions).toBe(
+                      originalExtraOptions,
+                    );
+                    expect(borrowedDts!.implementation).toBeUndefined();
+                    expect(
+                      Object.hasOwn(originalExtraOptions, AUTHORITY_KEY),
+                    ).toBe(false);
+                    configured.set(utils.environment.name, {
+                      NativeConstructor: chain
+                        .plugin('plugin-module-federation')
+                        .get('plugin') as FixtureNativeConstructor,
+                      Owner: chain
+                        .plugin('ultramodern-react-mf-receiver-owner')
+                        .get('plugin') as FixtureNativeConstructor,
+                      args: ownedArgs,
+                    });
+                  }
+                }
+              });
+            },
+          },
+        ],
+        environments: {
+          client: {
+            source: {
+              entry: { main: path.join(app.appDirectory, 'src/main.js') },
+            },
+            output: { target: 'web' },
+          },
+          preview: {
+            source: {
+              entry: { main: path.join(app.appDirectory, 'src/main.js') },
+            },
+            output: { target: 'web' },
+          },
+          cloudflare: {
+            source: {
+              entry: { main: path.join(app.appDirectory, 'src/main.js') },
+            },
+            output: { target: 'web' },
+            tools: {
+              bundlerChain(chain) {
+                cfDeletionRuns++;
+                expect(configured.has('cloudflare')).toBe(true);
+                expect(chain.plugins.has('plugin-module-federation')).toBe(
+                  true,
+                );
+                expect(
+                  chain.plugins.has('ultramodern-react-mf-receiver-owner'),
+                ).toBe(true);
+                applyCloudflareWorkerMfRuntimeBoundary(chain);
+              },
+            },
+          },
+        },
+        tools: { htmlPlugin: false },
+        output: {
+          cleanDistPath: false,
+          distPath: { root: result.context.distDirectory },
+        },
+      },
+    });
+    const bundlerConfigs = await rsbuild.initConfigs();
+    expect(cfDeletionRuns).toBe(1);
+    expect([...configured.keys()].sort()).toEqual([
+      'client',
+      'cloudflare',
+      'preview',
+    ]);
+    const configuredSeeds = [...configured.values()].map(value =>
+      seed(value.args[0] as Record<string, unknown>),
+    );
+    expect(new Set(configuredSeeds.map(value => value.compilerId)).size).toBe(
+      3,
+    );
+    expect(
+      new Set(configuredSeeds.map(value => value.registrationId)).size,
+    ).toBe(3);
+    expect(result.loads()).toBe(1);
+    expect(result.producerPreflights()).toBe(0);
+    for (const name of ['client', 'preview']) {
+      const configuredPlugin = configured.get(name)!;
+      const finalConfig = bundlerConfigs.find(config => config.name === name)!;
+      expect(
+        finalConfig.plugins?.filter(
+          plugin => plugin instanceof configuredPlugin.NativeConstructor,
+        ),
+      ).toHaveLength(1);
+      expect(
+        finalConfig.plugins?.filter(
+          plugin => plugin instanceof configuredPlugin.Owner,
+        ),
+      ).toHaveLength(1);
+    }
+    const cfConfigured = configured.get('cloudflare')!;
+    const cfConfig = bundlerConfigs.find(
+      config => config.name === 'cloudflare',
+    )!;
+    expect(
+      cfConfig.plugins?.filter(
+        plugin => plugin instanceof cfConfigured.NativeConstructor,
+      ),
+    ).toHaveLength(0);
+    const cfCompanion = cfConfig.plugins?.find(
+      plugin => plugin instanceof cfConfigured.Owner,
+    );
+    expect(cfCompanion).toBeDefined();
+    for (const callback of result.beforeCompiler)
+      await callback({ bundlerConfigs } as never);
+    expect(cfConfig.plugins).not.toContain(cfCompanion);
+    expect(result.producerPreflights()).toBe(1);
+    expect(result.producerReads()).toBe(0);
+    await expect(
+      result
+        .registry()
+        .begin(
+          seed(cfConfigured.args[0] as Record<string, unknown>),
+          receiverDetails(),
+        ),
+    ).rejects.toThrow('receiver is not an enrolled graph member');
+    expect(borrowedDts!.onDevWorkerCreated).toBe(originalWorkerCreated);
+    expect(borrowedDts!.extraOptions).toBe(originalExtraOptions);
+    expect(originalExtraOptions).toEqual({ caller: { retained: true } });
+  });
+
+  it('rejects a foreign preseed without changing the borrowed options or authored worker callback', async () => {
+    const app = fixture();
+    const result = await integration(app);
+    const originalWorkerCreated = () => {};
+    const foreignSeed = Object.freeze({ owner: 'foreign-native-receiver' });
+    const extraOptions = Object.freeze({
+      [AUTHORITY_KEY]: foreignSeed,
+      caller: 'retained',
+    });
+    const dts = Object.freeze({
+      onDevWorkerCreated: originalWorkerCreated,
+      extraOptions,
+    });
+    const options = Object.freeze({ name: 'foreign-seed-host', dts });
+    await expect(configureChain(result, options, true, true)).rejects.toThrow(
+      'React receiver seed already has an owner',
+    );
+    expect(options.dts).toBe(dts);
+    expect(dts.extraOptions).toBe(extraOptions);
+    expect(dts.onDevWorkerCreated).toBe(originalWorkerCreated);
+    expect(extraOptions[AUTHORITY_KEY]).toBe(foreignSeed);
+    expect(options).toEqual({
+      name: 'foreign-seed-host',
+      dts: { onDevWorkerCreated: originalWorkerCreated, extraOptions },
+    });
+    expect(result.producerPreflights()).toBe(0);
+    expect(result.producerReads()).toBe(0);
+  });
+
+  it('accepts the exact native instance and companion together in their named final configuration', async () => {
+    const app = fixture();
+    const result = await integration(app);
+    await configureChain(result, { dts: true }, true, true);
+    const { nativePlugin, companionPlugin } =
+      result.compilerPluginInstances.get('client')!;
+    const unrelatedPlugin = { apply(_compiler: Rspack.Compiler) {} };
+    const plugins = [unrelatedPlugin, companionPlugin, nativePlugin];
+    const bundlerConfigs = [
+      { name: 'client', plugins },
+      { name: 'other', plugins: [unrelatedPlugin] },
+    ];
+    for (const callback of result.beforeCompiler)
+      await callback({ bundlerConfigs } as never);
+    expect(bundlerConfigs[0].plugins).toBe(plugins);
+    expect(bundlerConfigs[0].plugins).toEqual([
+      unrelatedPlugin,
+      companionPlugin,
+      nativePlugin,
+    ]);
+    expect(result.producerPreflights()).toBe(1);
+    expect(result.producerReads()).toBe(0);
+  });
+
+  it('rejects the exact native instance moved into another final configuration', async () => {
+    const app = fixture();
+    const result = await integration(app);
+    await configureChain(result, { dts: true }, true, true);
+    const { nativePlugin, companionPlugin } =
+      result.compilerPluginInstances.get('client')!;
+    const bundlerConfigs = [
+      { name: 'client', plugins: [companionPlugin] },
+      { name: 'other', plugins: [nativePlugin] },
+    ];
+    for (const callback of result.beforeCompiler)
+      await expect(callback({ bundlerConfigs } as never)).rejects.toThrow(
+        'React receiver native compiler plugin ownership changed',
+      );
+    expect(result.producerPreflights()).toBe(0);
+  });
+
+  it('rejects the exact native instance duplicated in the final plugin list', async () => {
+    const app = fixture();
+    const result = await integration(app);
+    await configureChain(result, { dts: true }, true, true);
+    const { nativePlugin, companionPlugin } =
+      result.compilerPluginInstances.get('client')!;
+    const bundlerConfigs = [
+      {
+        name: 'client',
+        plugins: [companionPlugin, nativePlugin, nativePlugin],
+      },
+    ];
+    for (const callback of result.beforeCompiler)
+      await expect(callback({ bundlerConfigs } as never)).rejects.toThrow(
+        'React receiver native compiler plugin ownership changed',
+      );
+    expect(result.producerPreflights()).toBe(0);
+  });
+
+  it('rejects replacement by an instance of the original native constructor in the final configuration', async () => {
+    const app = fixture();
+    const result = await integration(app);
+    await configureChain(result, { dts: true }, true, true);
+    const { nativePlugin, companionPlugin } =
+      result.compilerPluginInstances.get('client')!;
+    const { originalNativeConstructor, args } =
+      result.compilerNativePlugins.get('client')!;
+    const replacement = new originalNativeConstructor(...args);
+    expect(replacement).not.toBe(nativePlugin);
+    const bundlerConfigs = [
+      { name: 'client', plugins: [companionPlugin, replacement] },
+    ];
+    for (const callback of result.beforeCompiler)
+      await expect(callback({ bundlerConfigs } as never)).rejects.toThrow(
+        'React receiver native compiler plugin was replaced',
+      );
+    expect(result.producerPreflights()).toBe(0);
+  });
+
+  it('rejects an enrolled native instance whose exact companion is missing from the final configuration', async () => {
+    const app = fixture();
+    const result = await integration(app);
+    await configureChain(result, { dts: true }, true, true);
+    const { nativePlugin } = result.compilerPluginInstances.get('client')!;
+    const bundlerConfigs = [{ name: 'client', plugins: [nativePlugin] }];
+    for (const callback of result.beforeCompiler)
+      await expect(callback({ bundlerConfigs } as never)).rejects.toThrow(
+        'React receiver native compiler plugin ownership changed',
+      );
+    expect(result.producerPreflights()).toBe(0);
+  });
+
+  it('rejects the exact companion moved into another final configuration', async () => {
+    const app = fixture();
+    const result = await integration(app);
+    await configureChain(result, { dts: true }, true, true);
+    const { nativePlugin, companionPlugin } =
+      result.compilerPluginInstances.get('client')!;
+    const bundlerConfigs = [
+      { name: 'client', plugins: [nativePlugin] },
+      { name: 'other', plugins: [companionPlugin] },
+    ];
+    for (const callback of result.beforeCompiler)
+      await expect(callback({ bundlerConfigs } as never)).rejects.toThrow(
+        'React receiver native compiler plugin ownership changed',
+      );
+    expect(result.producerPreflights()).toBe(0);
+  });
+
+  it('rejects the exact companion duplicated in the final plugin list', async () => {
+    const app = fixture();
+    const result = await integration(app);
+    await configureChain(result, { dts: true }, true, true);
+    const { nativePlugin, companionPlugin } =
+      result.compilerPluginInstances.get('client')!;
+    const bundlerConfigs = [
+      {
+        name: 'client',
+        plugins: [companionPlugin, companionPlugin, nativePlugin],
+      },
+    ];
+    for (const callback of result.beforeCompiler)
+      await expect(callback({ bundlerConfigs } as never)).rejects.toThrow(
+        'React receiver native compiler plugin ownership changed',
+      );
+    expect(result.producerPreflights()).toBe(0);
   });
 });

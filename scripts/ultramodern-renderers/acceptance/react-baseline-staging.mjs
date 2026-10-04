@@ -99,6 +99,153 @@ function sha256(file) {
   return createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 }
 
+function publicPackagePath(value) {
+  assert.ok(
+    typeof value === 'string' &&
+      value.length > 0 &&
+      !path.posix.isAbsolute(value) &&
+      !value.includes('\\') &&
+      !/[\0\r\n]/u.test(value) &&
+      value
+        .split('/')
+        .every(part => part !== '' && part !== '.' && part !== '..'),
+    `Invalid public data-loader member: ${String(value)}`,
+  );
+  return value;
+}
+
+function ordinaryPackageDirectories(root, parts, create = false) {
+  assert.ok(
+    fs.lstatSync(root).isDirectory(),
+    `Expected ordinary data-loader consumer directory: ${root}`,
+  );
+  let directory = root;
+  for (const part of parts) {
+    directory = path.join(directory, part);
+    if (create && !fs.lstatSync(directory, { throwIfNoEntry: false })) {
+      fs.mkdirSync(directory);
+    }
+    assert.ok(
+      fs.lstatSync(directory).isDirectory(),
+      `Expected ordinary data-loader directory: ${directory}`,
+    );
+  }
+  return directory;
+}
+
+/** Restore the original prerequisite layout using authenticated tarball members only. */
+export function materializeReactBaselineDataLoaderPackage({
+  consumerRoot,
+  inspection,
+}) {
+  assert.ok(
+    path.isAbsolute(consumerRoot ?? '') &&
+      inspection?.fileContents instanceof Map &&
+      Array.isArray(inspection.files),
+    'Data-loader materialization requires an absolute consumer and inspected public archive',
+  );
+  assert.equal(
+    fs.realpathSync(consumerRoot),
+    path.resolve(consumerRoot),
+    'Data-loader consumer must use its canonical physical directory',
+  );
+  const files = inspection.files.map(file => {
+    const relativePath = publicPackagePath(file.path);
+    const bytes = inspection.fileContents.get(relativePath);
+    assert.ok(
+      Buffer.isBuffer(bytes) &&
+        bytes.length === file.size &&
+        Number.isInteger(file.mode) &&
+        file.mode >= 0 &&
+        file.mode <= 0o7777,
+      `Invalid inspected public data-loader file: ${relativePath}`,
+    );
+    return { relativePath, bytes, mode: file.mode };
+  });
+  assert.ok(files.length > 0, 'The public data-loader archive is empty');
+  assert.equal(
+    new Set(files.map(file => file.relativePath)).size,
+    inspection.fileContents.size,
+    'Public data-loader member inventory must be exact and unique',
+  );
+  assert.equal(
+    files.length,
+    inspection.fileContents.size,
+    'Public data-loader member inventory must be exact and unique',
+  );
+  const relativeDirectory = 'packages/cli/plugin-data-loader';
+  const destination = path.join(consumerRoot, relativeDirectory);
+  ordinaryPackageDirectories(consumerRoot, ['packages', 'cli'], true);
+  assert.equal(
+    fs.lstatSync(destination, { throwIfNoEntry: false }),
+    undefined,
+    'The data-loader prerequisite directory must be fresh',
+  );
+  fs.mkdirSync(destination);
+  const members = files.map(({ relativePath, bytes, mode }) => {
+    const parts = relativePath.split('/');
+    const directory = ordinaryPackageDirectories(
+      destination,
+      parts.slice(0, -1),
+      true,
+    );
+    const file = path.join(directory, parts.at(-1));
+    fs.writeFileSync(file, bytes, { flag: 'wx', mode });
+    fs.chmodSync(file, mode);
+    return Object.freeze({
+      relativePath,
+      mode,
+      sha256: createHash('sha256').update(bytes).digest('hex'),
+    });
+  });
+  const materialization = Object.freeze({
+    consumerRoot,
+    path: destination,
+    relativeDirectory,
+    files: Object.freeze(members),
+  });
+  assertReactBaselineDataLoaderPackageCurrent(materialization);
+  return materialization;
+}
+
+export function assertReactBaselineDataLoaderPackageCurrent(materialization) {
+  const { consumerRoot, relativeDirectory, files } = materialization;
+  assert.equal(
+    fs.realpathSync(consumerRoot),
+    path.resolve(consumerRoot),
+    'Data-loader consumer must use its canonical physical directory',
+  );
+  const destination = ordinaryPackageDirectories(
+    consumerRoot,
+    relativeDirectory.split('/'),
+  );
+  assert.equal(destination, materialization.path);
+  for (const member of files) {
+    const parts = publicPackagePath(member.relativePath).split('/');
+    const directory = ordinaryPackageDirectories(
+      destination,
+      parts.slice(0, -1),
+    );
+    const file = path.join(directory, parts.at(-1));
+    const stat = fs.lstatSync(file);
+    assert.ok(stat.isFile(), `Expected ordinary data-loader file: ${file}`);
+    assert.ok(
+      isWithin(destination, fs.realpathSync(file)),
+      `Public data-loader member escaped its physical directory: ${file}`,
+    );
+    assert.equal(
+      stat.mode & 0o7777,
+      member.mode,
+      `Public data-loader mode changed: ${member.relativePath}`,
+    );
+    assert.equal(
+      sha256(file),
+      member.sha256,
+      `Public data-loader bytes changed: ${member.relativePath}`,
+    );
+  }
+}
+
 export function trackedReactBaselineInputFiles(repoRoot, inputs) {
   assert.ok(
     Array.isArray(inputs) && inputs.length > 0,
@@ -229,6 +376,27 @@ export function assertReactBaselineInputsUnchanged(
       `React baseline input changed: ${input.relativePath}`,
     );
   }
+}
+
+/** Preserve the declaration packages supplied by the original monorepo root. */
+export function createReactBaselineRootDeclarationDependencies(rootPackage) {
+  assert.equal(
+    rootPackage?.name,
+    'modern-js-monorepo',
+    'React declaration context must come from the original monorepo root',
+  );
+  assert.equal(rootPackage.private, true);
+  const declarations = {};
+  for (const name of ['@types/react', '@types/react-dom']) {
+    const specification = rootPackage.devDependencies?.[name];
+    assert.ok(
+      typeof specification === 'string' &&
+        exactVersion.test(specification.replace(/^[~^]/u, '')),
+      `The original root must declare a direct React type version for ${name}`,
+    );
+    declarations[name] = specification;
+  }
+  return Object.freeze(declarations);
 }
 
 /** Reproduce only the original workspace builder's opted-in RSC test tool. */

@@ -569,6 +569,7 @@ async function compilerClosure(
     { state: string; digest: string }
   >();
   let appCatalog: Record<string, unknown> | undefined;
+  let appCatalogLoaded = false;
   const authorityFileState = async (file: string): Promise<string> => {
     const stat = await fs.lstat(file, { bigint: true }).catch(error => {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
@@ -590,8 +591,8 @@ async function compilerClosure(
       },
     });
   };
-  const appCatalogRequest = async (name: string, specification: string) => {
-    if (!appCatalog) {
+  const loadAppWorkspace = async () => {
+    if (!appCatalogLoaded) {
       let directory = path.resolve(options.projectRoot);
       for (;;) {
         const file = path.join(directory, 'pnpm-workspace.yaml');
@@ -617,20 +618,26 @@ async function compilerClosure(
           break;
         }
         const parent = path.dirname(directory);
-        if (parent === directory)
-          throw new Error(
-            `Renderer compiler catalog ${specification} has no declaring pnpm workspace.`,
-          );
+        if (parent === directory) break;
         directory = parent;
       }
+      appCatalogLoaded = true;
     }
+    return appCatalog;
+  };
+  const appCatalogRequest = async (name: string, specification: string) => {
+    const workspace = await loadAppWorkspace();
+    if (!workspace)
+      throw new Error(
+        `Renderer compiler catalog ${specification} has no declaring pnpm workspace.`,
+      );
     const catalogName = specification.slice('catalog:'.length);
-    const catalogs = appCatalog.catalogs;
+    const catalogs = workspace.catalogs;
     const catalog = catalogName
       ? catalogs && typeof catalogs === 'object' && !Array.isArray(catalogs)
         ? (catalogs as Record<string, unknown>)[catalogName]
         : undefined
-      : appCatalog.catalog;
+      : workspace.catalog;
     const request =
       catalog &&
       typeof catalog === 'object' &&
@@ -710,6 +717,7 @@ async function compilerClosure(
     name: string,
     specification: string,
     resolved: string,
+    owner: string,
   ) => {
     const actual = await guardedRead(lease, () => readPackage(resolved, lease));
     if (actual.name === name) return dependencyIdentity(name, specification);
@@ -719,6 +727,39 @@ async function compilerClosure(
     const identities = requests.map(request =>
       dependencyIdentity(name, request.specification),
     );
+    // pnpm workspace overrides apply to this declared peer edge even when the
+    // application has no direct dependency slot for its provider.
+    const workspace = await loadAppWorkspace();
+    const overrides = workspace?.overrides;
+    let override: ReturnType<typeof dependencyIdentity> | undefined;
+    if (overrides !== undefined) {
+      if (
+        !overrides ||
+        typeof overrides !== 'object' ||
+        Array.isArray(overrides)
+      )
+        throw new Error('Invalid renderer compiler workspace overrides.');
+      const declarations = overrides as Record<string, unknown>;
+      for (const selector of Object.keys(declarations)) {
+        const target = selector.split('>').at(-1)?.trim();
+        if (
+          selector !== name &&
+          (target === name || target?.startsWith(`${name}@`))
+        )
+          throw new Error(
+            `Renderer compiler/profile mismatch: scoped override ${selector} cannot certify one exact peer ${name} declared by ${owner}.`,
+          );
+      }
+      if (Object.hasOwn(declarations, name)) {
+        const request = declarations[name];
+        if (typeof request !== 'string' || !/^npm:/iu.test(request))
+          throw new Error(
+            `Renderer compiler/profile mismatch: override for renamed peer ${name} requires an exact npm alias.`,
+          );
+        override = dependencyIdentity(name, request);
+        identities.push(override);
+      }
+    }
     if (
       identities.length === 0 ||
       identities.some(identity => !identity.exactVersion) ||
@@ -727,7 +768,7 @@ async function compilerClosure(
       ).size !== 1
     )
       throw new Error(
-        `Renderer compiler/profile mismatch: renamed peer ${name} requires one exact declared npm alias target.`,
+        `Renderer compiler/profile mismatch: renamed peer ${name} requires one exact declared npm alias target (declared by ${owner}; ${requests.length} manifest aliases).`,
       );
     const identity = identities[0];
     if (
@@ -739,11 +780,21 @@ async function compilerClosure(
         `Renderer compiler/profile mismatch: peer ${name}@${specification} conflicts with declared ${identity.name}@${identity.exactVersion}.`,
       );
     const physical = await fs.realpath(resolved);
+    let declaredPhysical = false;
     for (const request of requests) {
       const provider = packageDirectory(name, [request.owner]);
       if (provider && (await fs.realpath(provider)) === physical)
-        return identity;
+        declaredPhysical = true;
     }
+    if (requests.length > 0 && !declaredPhysical)
+      throw new Error(
+        `Renderer compiler/profile mismatch: peer ${name} resolves a different physical owner from its declared npm alias.`,
+      );
+    if (override) {
+      const provider = packageDirectory(name, [owner]);
+      if (provider && (await fs.realpath(provider)) === physical)
+        return identity;
+    } else if (declaredPhysical) return identity;
     throw new Error(
       `Renderer compiler/profile mismatch: peer ${name} resolves a different physical owner from its declared npm alias.`,
     );
@@ -830,7 +881,7 @@ async function compilerClosure(
           !Object.hasOwn(manifest.dependencies ?? {}, name) &&
           !/^npm:/iu.test(specification)
         )
-          dependency = await peerIdentity(name, specification, resolved);
+          dependency = await peerIdentity(name, specification, resolved, real);
         const nativeClosure =
           nativeBranch || nativeAnchorNames.has(dependency.name);
         const pinnedVersion = nativeClosure ? pins[dependency.name] : undefined;

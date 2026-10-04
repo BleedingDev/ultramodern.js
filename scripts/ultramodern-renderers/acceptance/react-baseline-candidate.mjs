@@ -18,9 +18,12 @@ import { inspectNpmTarball } from '../../ultramodern-publish/lib/prepare-bleedin
 import { readReleaseManifest } from '../../ultramodern-publish/lib/source-create-proof/release-manifest.mjs';
 import { startEphemeralRegistry } from '../../ultramodern-publish/lib/source-create-proof/runtime-proof/registry.mjs';
 import {
+  assertReactBaselineDataLoaderPackageCurrent,
   assertReactBaselineInputsUnchanged,
   createReactBaselineBuildToolDependencies,
+  createReactBaselineRootDeclarationDependencies,
   createReactBaselineTransportOverrides,
+  materializeReactBaselineDataLoaderPackage,
   REACT_BASELINE_SUITES,
   stageReactBaselineInputs,
 } from './react-baseline-staging.mjs';
@@ -290,24 +293,54 @@ function installedCandidatePackages(shadow, release) {
 
 function exposeDataLoaderPrerequisite(shadow, installed, release) {
   const name = release.aliases['@modern-js/plugin-data-loader'];
+  const accepted = release.packages.filter(
+    item =>
+      item.sourceName === '@modern-js/plugin-data-loader' &&
+      item.targetName === name,
+  );
+  assert.equal(
+    accepted.length,
+    1,
+    'The data-loader prerequisite requires its exact accepted public owner',
+  );
+  const owner = accepted[0];
   const matches = installed.filter(item => item.name === name);
   assert.ok(
     matches.length > 0,
     'The candidate data-loader runtime was not installed',
   );
-  const directory = matches[0].directory;
-  const runtime = path.join(directory, 'dist/esm/runtime/index.mjs');
+  assert.equal(matches[0].tarballSha256, owner.sha256);
+  const bytes =
+    owner.bytes ??
+    fs.readFileSync(path.join(release.artifactRoot, owner.tarballPath));
+  assert.equal(
+    hash(bytes),
+    owner.sha256,
+    'Candidate data-loader tarball changed',
+  );
+  const inspection = inspectNpmTarball(bytes);
+  assert.equal(inspection.packageJson.name, name);
+  assert.equal(inspection.packageJson.version, owner.version);
+  assert.equal(inspection.packageJsonSha256, owner.packageJsonSha256);
+  const runtime = inspection.fileContents.get('dist/esm/runtime/index.mjs');
   assert.ok(
-    fs.lstatSync(runtime).isFile(),
+    Buffer.isBuffer(runtime),
     'The genuine packed data-loader runtime is missing',
   );
-  const destination = path.join(shadow, 'packages/cli/plugin-data-loader');
-  fs.mkdirSync(path.dirname(destination), { recursive: true });
-  fs.symlinkSync(directory, destination, 'dir');
+  const materialization = materializeReactBaselineDataLoaderPackage({
+    consumerRoot: shadow,
+    inspection,
+  });
   return {
-    path: destination,
-    packageDirectory: directory,
-    runtimeSha256: hash(fs.readFileSync(runtime)),
+    ...materialization,
+    kind: 'ordinary-authenticated-public-tarball-members',
+    packageName: name,
+    packageVersion: owner.version,
+    packageDirectory: materialization.path,
+    installedPackageDirectory: matches[0].directory,
+    tarballSha256: owner.sha256,
+    packageJsonSha256: owner.packageJsonSha256,
+    runtimeSha256: hash(runtime),
   };
 }
 
@@ -364,6 +397,14 @@ export async function runReactBaselineCandidate(options) {
   });
   assertOriginalCorpusRevision(stage, release.source.commit);
   const rootPackage = readJson(path.join(repoRoot, 'package.json'));
+  const declarationSource = execFileSync(
+    'git',
+    ['show', `${release.source.commit}:package.json`],
+    { cwd: repoRoot, stdio: ['ignore', 'pipe', 'pipe'] },
+  );
+  const rootDeclarations = createReactBaselineRootDeclarationDependencies(
+    JSON.parse(declarationSource.toString('utf8')),
+  );
   const rootWorkspace = parseYaml(
     fs.readFileSync(path.join(repoRoot, 'pnpm-workspace.yaml'), 'utf8'),
   );
@@ -390,6 +431,7 @@ export async function runReactBaselineCandidate(options) {
           '@rstest/core': rstestVersion,
           '@modern-js/tsconfig':
             rootPackage.devDependencies['@modern-js/tsconfig'],
+          ...rootDeclarations,
           ...testBuildTools,
         },
       },
@@ -570,6 +612,7 @@ export async function runReactBaselineCandidate(options) {
     );
     assertReactBaselineInputsUnchanged(stage);
     assertReactBaselineInputsUnchanged(stage, repoRoot);
+    assertReactBaselineDataLoaderPackageCurrent(prerequisite);
     const stdout = await run(
       ['exec', 'rstest', 'run', ...REACT_BASELINE_SUITES, '--reporter', 'json'],
       stage.testsDir,
@@ -581,6 +624,7 @@ export async function runReactBaselineCandidate(options) {
     fs.writeFileSync(reportPath, bytes, { flag: 'wx' });
     assertReactBaselineInputsUnchanged(stage);
     assertReactBaselineInputsUnchanged(stage, repoRoot);
+    assertReactBaselineDataLoaderPackageCurrent(prerequisite);
     installedCandidatePackages(stage.workDir, release);
     const result = {
       schema: 'bleedingdev.ultramodern.original-react-baseline',
@@ -601,6 +645,12 @@ export async function runReactBaselineCandidate(options) {
         originalCli: cli,
         prerequisite,
         testBuildTools,
+        rootDeclarationContext: {
+          sourceRevision: release.source.commit,
+          sourcePath: 'package.json',
+          sourceSha256: hash(declarationSource),
+          devDependencies: rootDeclarations,
+        },
       },
       inputs: stage.inputFiles,
       inputDigest: hash(Buffer.from(JSON.stringify(stage.inputFiles))),

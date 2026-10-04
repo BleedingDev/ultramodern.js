@@ -291,6 +291,43 @@ async function publishedPeerFixture(authority: 'sdk' | 'app' = 'sdk') {
   };
 }
 
+async function workspaceOverridePeerFixture() {
+  const options = await publishedPeerFixture();
+  await write(
+    path.join(options.workspace, 'package.json'),
+    JSON.stringify({
+      name: '@fixture/workspace',
+      version: '1.0.0',
+      private: true,
+    }),
+  );
+  const peer = 'zod';
+  const target = '@bleedingdev/zod';
+  const version = '4.6.5';
+  const request = `npm:${target}@${version}`;
+  const ownerFile = path.join(options.plugin, 'package.json');
+  const owner = JSON.parse(await fs.readFile(ownerFile, 'utf8'));
+  owner.peerDependencies[peer] = '^4.5.4';
+  owner.peerDependenciesMeta = { [peer]: { optional: true } };
+  // Published BFF owners keep this tooling alias in devDependencies; it cannot
+  // certify the installed optional peer in a consuming application.
+  owner.devDependencies = { [peer]: request };
+  await write(ownerFile, JSON.stringify(owner));
+  const peerProvider = path.join(options.plugin, 'node_modules', peer);
+  await writeFixturePackage(peerProvider, { name: target, version });
+  const declaration = path.join(options.workspace, 'pnpm-workspace.yaml');
+  await write(declaration, `overrides:\n  ${peer}: '${request}'\n`);
+  return {
+    ...options,
+    peer,
+    target,
+    peerVersion: version,
+    request,
+    peerProvider,
+    declaration,
+  };
+}
+
 async function transitiveFederationPeerFixture(
   edge: 'dependency' | 'optional' | 'peer' = 'dependency',
   order: 'alias-first' | 'consumer-first' = 'consumer-first',
@@ -1127,6 +1164,187 @@ describe('renderer source and compiler build identity', () => {
     ).resolves.toMatchObject({
       cacheAllowed: false,
     });
+  });
+
+  test('certifies an installed optional peer through the nearest exact workspace override without an application slot', async () => {
+    const options = await workspaceOverridePeerFixture();
+    for (const root of [options.projectRoot, options.workspace]) {
+      const manifest = JSON.parse(
+        await fs.readFile(path.join(root, 'package.json'), 'utf8'),
+      );
+      expect(manifest.dependencies?.[options.peer]).toBeUndefined();
+      expect(manifest.devDependencies?.[options.peer]).toBeUndefined();
+      await expect(
+        fs.lstat(path.join(root, 'node_modules', options.peer)),
+      ).rejects.toMatchObject({ code: 'ENOENT' });
+    }
+    const before = await resolveRendererBuildIdentities(options);
+    await fs.appendFile(options.declaration, '# actual workspace authority\n');
+    const yamlChanged = await resolveRendererBuildIdentities(options);
+    expect(yamlChanged.compilerDigest).not.toBe(before.compilerDigest);
+    await fs.appendFile(
+      path.join(options.peerProvider, 'index.js'),
+      'export const changedPeer = true;\n',
+    );
+    const providerChanged = await resolveRendererBuildIdentities(options);
+    expect(providerChanged.inputDigest).toBe(yamlChanged.inputDigest);
+    expect(providerChanged.compilerDigest).not.toBe(yamlChanged.compilerDigest);
+    expect(providerChanged.buildMarker).not.toBe(yamlChanged.buildMarker);
+  });
+
+  test('skips an absent optional peer without granting its dev-only alias or unrelated installed payload authority', async () => {
+    const options = await workspaceOverridePeerFixture();
+    await fs.rm(options.peerProvider, { recursive: true });
+    const unrelated = path.join(
+      options.projectRoot,
+      'node_modules',
+      options.peer,
+    );
+    // A package outside the declared resolution path is not a provider.
+    const outside = path.join(
+      options.projectRoot,
+      'node_modules',
+      '@fixture/unrelated-peer',
+    );
+    await writeFixturePackage(outside, {
+      name: options.target,
+      version: options.peerVersion,
+    });
+    const before = await resolveRendererBuildIdentities(options);
+    await fs.appendFile(
+      path.join(outside, 'index.js'),
+      'export const changed = true;\n',
+    );
+    const after = await resolveRendererBuildIdentities(options);
+    expect(after.compilerDigest).toBe(before.compilerDigest);
+    await expect(fs.lstat(unrelated)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  test.each([
+    'missing-rule',
+    'range',
+    'non-alias',
+    'non-string',
+    'wrong-target',
+    'wrong-version',
+    'wrong-provider-name',
+    'wrong-provider-version',
+    'incompatible-peer',
+    'scoped-owner',
+    'scoped-version',
+    'ambiguous-alias',
+    'disconnected-alias-provider',
+    'malformed-yaml',
+    'malformed-overrides',
+    'nearer-workspace',
+  ])('rejects %s workspace override authority for an actually declared renamed peer', async scenario => {
+    const options = await workspaceOverridePeerFixture();
+    const overrides: Record<string, unknown> = {
+      [options.peer]: options.request,
+    };
+    if (scenario === 'missing-rule') delete overrides[options.peer];
+    if (scenario === 'range')
+      overrides[options.peer] = `npm:${options.target}@^4.6.5`;
+    if (scenario === 'non-alias') overrides[options.peer] = options.peerVersion;
+    if (scenario === 'non-string') overrides[options.peer] = 42;
+    if (scenario === 'wrong-target')
+      overrides[options.peer] = `npm:@fixture/foreign@${options.peerVersion}`;
+    if (scenario === 'wrong-version')
+      overrides[options.peer] = `npm:${options.target}@4.6.6`;
+    if (scenario === 'scoped-owner')
+      overrides[`@fixture/consumer>${options.peer}`] = options.request;
+    if (scenario === 'scoped-version')
+      overrides[`${options.peer}@^4.5.4`] = options.request;
+    await write(
+      options.declaration,
+      scenario === 'malformed-yaml'
+        ? 'overrides: ['
+        : JSON.stringify({
+            overrides: scenario === 'malformed-overrides' ? [] : overrides,
+          }),
+    );
+    if (
+      scenario === 'wrong-provider-name' ||
+      scenario === 'wrong-provider-version'
+    )
+      await writeFixturePackage(options.peerProvider, {
+        name:
+          scenario === 'wrong-provider-name'
+            ? '@fixture/foreign'
+            : options.target,
+        version:
+          scenario === 'wrong-provider-version' ? '4.6.6' : options.peerVersion,
+      });
+    if (scenario === 'incompatible-peer') {
+      const file = path.join(options.plugin, 'package.json');
+      const owner = JSON.parse(await fs.readFile(file, 'utf8'));
+      owner.peerDependencies[options.peer] = '^5.0.0';
+      await write(file, JSON.stringify(owner));
+    }
+    if (
+      scenario === 'ambiguous-alias' ||
+      scenario === 'disconnected-alias-provider'
+    ) {
+      const file = path.join(options.sdk, 'package.json');
+      const sdk = JSON.parse(await fs.readFile(file, 'utf8'));
+      sdk.dependencies[options.peer] =
+        scenario === 'ambiguous-alias'
+          ? `npm:@fixture/foreign@${options.peerVersion}`
+          : options.request;
+      await write(file, JSON.stringify(sdk));
+      await writeFixturePackage(
+        path.join(options.sdk, 'node_modules', options.peer),
+        {
+          name:
+            scenario === 'ambiguous-alias'
+              ? '@fixture/foreign'
+              : options.target,
+          version: options.peerVersion,
+        },
+      );
+    }
+    if (scenario === 'nearer-workspace')
+      await write(
+        path.join(options.projectRoot, 'pnpm-workspace.yaml'),
+        'packages: []\n',
+      );
+    await expect(resolveRendererBuildIdentities(options)).rejects.toThrow();
+  });
+
+  test.each([
+    'change',
+    'closer-creation',
+  ])('rejects workspace override %s during an awaited peer implementation read', async scenario => {
+    const options = await workspaceOverridePeerFixture();
+    const original = await fs.readFile(options.declaration, 'utf8');
+    const read = fs.readFile.bind(fs);
+    let changed = false;
+    const spy = rs.spyOn(fs, 'readFile').mockImplementation(async (...args) => {
+      if (
+        !changed &&
+        String(args[0]) === path.join(options.peerProvider, 'index.js')
+      ) {
+        changed = true;
+        await write(
+          scenario === 'change'
+            ? options.declaration
+            : path.join(
+                path.dirname(options.projectRoot),
+                'pnpm-workspace.yaml',
+              ),
+          `${original}# changed during native peer read\n`,
+        );
+      }
+      return Reflect.apply(read, fs, args);
+    });
+    try {
+      await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+        'catalog changed',
+      );
+      expect(changed).toBe(true);
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   test.each([

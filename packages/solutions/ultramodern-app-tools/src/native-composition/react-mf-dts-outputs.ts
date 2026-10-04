@@ -100,11 +100,37 @@ type BuildContext = Parameters<
 interface CompilerOwner {
   readonly name: string;
   readonly seed: ReceiverSeed;
+  readonly originalNativeConstructor: ReactReceiverNativePluginConstructor;
+  readonly nativeConstructor: ReactReceiverNativePluginConstructor;
+  readonly companionPlugins: Set<ReactReceiverNativePlugin>;
   readonly workers: Map<
     number,
     Readonly<{ pid: number; closed: Promise<void> }>
   >;
+  nativePlugin?: ReactReceiverNativePlugin;
+  companionPlugin?: ReactReceiverNativePlugin;
   compiler?: Rspack.Compiler;
+}
+
+function assertCompilerOwnerPlugins(
+  owner: CompilerOwner,
+  plugins: Rspack.Configuration['plugins'],
+): void {
+  if (
+    !owner.nativePlugin ||
+    !owner.companionPlugin ||
+    plugins?.filter(plugin => plugin === owner.nativePlugin).length !== 1 ||
+    plugins?.filter(plugin => plugin === owner.companionPlugin).length !== 1 ||
+    plugins?.filter(
+      plugin =>
+        plugin instanceof owner.nativeConstructor ||
+        plugin instanceof owner.originalNativeConstructor,
+    ).length !== 1 ||
+    plugins?.filter(plugin =>
+      owner.companionPlugins.has(plugin as ReactReceiverNativePlugin),
+    ).length !== 1
+  )
+    throw new Error('React receiver native compiler plugin ownership changed');
 }
 
 interface Wave {
@@ -867,21 +893,31 @@ export function createReactReceiverOutputIntegration(
           options.resolveImplementation ?? resolveReactReceiverImplementation
         )();
         if (!implementation) {
-          const loaded = (
+          const loaded: ReactReceiverImplementation = (
             options.loadImplementation ??
             (filename => createRequire(import.meta.url)(filename))
           )(implementationPath);
           implementation = loaded;
           restoreImplementation = loaded.installReceiverRegistry(registry);
         }
+        const receiverImplementation = implementation;
         const bridge = await registry.openBridge();
         const name = utils.environment.name;
         if (owners.has(name))
           throw new Error(
             `React native receiver compiler already exists: ${name}`,
           );
+        const nativePlugin = chain.plugin(NATIVE_CLIENT_PLUGIN);
+        const originalNativeConstructor = nativePlugin.get('plugin');
+        const nativeConstructor =
+          receiverImplementation.createIsolatedReactFederationPlugin(
+            originalNativeConstructor,
+          );
         const owner: CompilerOwner = {
           name,
+          originalNativeConstructor,
+          nativeConstructor,
+          companionPlugins: new Set(),
           workers: new Map(),
           seed: Object.freeze({
             schemaVersion: 1,
@@ -899,15 +935,22 @@ export function createReactReceiverOutputIntegration(
           .before(NATIVE_CLIENT_PLUGIN)
           .use(
             class ReactReceiverCompilerOwner {
+              constructor() {
+                owner.companionPlugins.add(this);
+              }
+
               apply(compiler: Rspack.Compiler): void {
                 assertOpen();
                 if (
+                  owners.get(owner.name) !== owner ||
+                  this !== owner.companionPlugin ||
                   compiler.options.name !== owner.name ||
                   (owner.compiler && owner.compiler !== compiler)
                 )
                   throw new Error(
                     'React receiver public compiler owner changed',
                   );
+                assertCompilerOwnerPlugins(owner, compiler.options.plugins);
                 owner.compiler = compiler;
               }
             },
@@ -941,7 +984,7 @@ export function createReactReceiverOutputIntegration(
             throw new Error(
               'Native DTS worker lifecycle hook must be a function',
             );
-          config.dts = {
+          const ownedDts = {
             ...dts,
             implementation: implementationPath,
             onDevWorkerCreated(
@@ -969,29 +1012,81 @@ export function createReactReceiverOutputIntegration(
               [implementation!.EXTRA_OPTIONS_KEY]: owner.seed,
             },
           };
-          return args;
+          const ownedConfig = { ...config, dts: ownedDts };
+          return [
+            record(args[0]) && record(args[0].mfConfig)
+              ? { ...args[0], mfConfig: ownedConfig }
+              : ownedConfig,
+            ...args.slice(1),
+          ];
         });
-        const nativePlugin = chain.plugin(NATIVE_CLIENT_PLUGIN);
-        nativePlugin.use(
-          implementation!.createIsolatedReactFederationPlugin(
-            nativePlugin.get('plugin'),
-          ),
-          nativePlugin.get('args'),
-        );
+        nativePlugin.use(nativeConstructor, nativePlugin.get('args'));
       });
       api.onBeforeCreateCompiler(async ({ bundlerConfigs }) => {
         if (owners.size === 0) return;
         assertOpen();
         if (graph)
           throw new Error('React receiver compiler graph was already sealed');
-        for (const owner of owners.values())
-          if (
-            bundlerConfigs.filter(config => config.name === owner.name)
-              .length !== 1
-          )
+        for (const owner of owners.values()) {
+          const namedConfigs = bundlerConfigs.filter(
+            config => config.name === owner.name,
+          );
+          if (namedConfigs.length !== 1)
             throw new Error(
               `React receiver has no named native configuration: ${owner.name}`,
             );
+          const nativeInstances = bundlerConfigs.flatMap(config =>
+            (config.plugins ?? [])
+              .filter(
+                (plugin): plugin is ReactReceiverNativePlugin =>
+                  plugin instanceof owner.nativeConstructor,
+              )
+              .map(plugin => ({ config, plugin })),
+          );
+          const companions = bundlerConfigs.flatMap(config =>
+            (config.plugins ?? [])
+              .filter((plugin): plugin is ReactReceiverNativePlugin =>
+                owner.companionPlugins.has(plugin as ReactReceiverNativePlugin),
+              )
+              .map(plugin => ({ config, plugin })),
+          );
+          if (nativeInstances.length === 0) {
+            if (
+              namedConfigs[0].plugins?.some(
+                plugin => plugin instanceof owner.originalNativeConstructor,
+              )
+            )
+              throw new Error(
+                'React receiver native compiler plugin was replaced',
+              );
+            if (
+              companions.length > 1 ||
+              (companions.length === 1 &&
+                companions[0].config !== namedConfigs[0])
+            )
+              throw new Error(
+                'React receiver compiler companion ownership changed',
+              );
+            if (companions.length === 1)
+              namedConfigs[0].plugins = namedConfigs[0].plugins?.filter(
+                plugin => plugin !== companions[0].plugin,
+              );
+            owners.delete(owner.name);
+            continue;
+          }
+          if (
+            nativeInstances.length !== 1 ||
+            companions.length !== 1 ||
+            nativeInstances[0].config !== namedConfigs[0] ||
+            companions[0].config !== namedConfigs[0]
+          )
+            throw new Error(
+              'React receiver native compiler plugin ownership changed',
+            );
+          owner.nativePlugin = nativeInstances[0].plugin;
+          owner.companionPlugin = companions[0].plugin;
+        }
+        if (owners.size === 0) return;
         const producer = await (
           options.resolveProducer ?? resolveReactReceiverProducer
         )({
@@ -1042,6 +1137,7 @@ export function createReactReceiverOutputIntegration(
             throw new Error(
               'React receiver compiler differs from its public apply owner',
             );
+          assertCompilerOwnerPlugins(owner, matches[0].options.plugins);
           owner.compiler = matches[0];
           owner.compiler.hooks.shutdown.tapPromise(
             { name: COMPILER_OWNER_PLUGIN, stage: Number.POSITIVE_INFINITY },
