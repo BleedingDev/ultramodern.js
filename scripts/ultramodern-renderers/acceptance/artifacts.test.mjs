@@ -867,6 +867,337 @@ function declarationConsumerFixture(t, specifier = 'declaration-model') {
   return { root, options, owner, provider, providerName, source, target };
 }
 
+function hostBuildConsumerFixture(
+  t,
+  { computed = true, unprovenAnchor = false, unresolvedRequire = false } = {},
+) {
+  const fixture = consumerFixture(t);
+  const { root } = fixture;
+  const config = path.join(root, 'modern.config.mjs');
+  write(
+    config,
+    "import config from './src/build-tool.cjs';\nexport default config;\n",
+  );
+  write(
+    path.join(root, 'src/build-tool.cjs'),
+    "module.exports = require('./build-leaf.cjs');\n",
+  );
+  write(
+    path.join(root, 'src/build-leaf.cjs'),
+    unprovenAnchor
+      ? "const nodeModule = require('node:module');\nconst load = nodeModule.createRequire(__filename);\nconst loaders = { cjs: load };\nmodule.exports = load('./host-input.json');\n"
+      : unresolvedRequire
+        ? "try { require('missing-host-adapter'); } catch {}\nmodule.exports = require('./host-input.json');\n"
+        : computed
+          ? "const request = './host-input.json';\nmodule.exports = require(request);\n"
+          : "module.exports = require('./host-input.json');\n",
+  );
+  writeJson(path.join(root, 'src/host-input.json'), { native: true });
+  const value = {
+    schema: 'ultramodern-renderer-build',
+    version: 1,
+    profile: { renderer: 'solid' },
+    sourceRevision,
+    buildMarker: '1'.repeat(64),
+    promotable: true,
+  };
+  // A real small host command executes the fixture config and publishes its
+  // completed fixture metadata; this is a unit control, not compiler acceptance.
+  const args = [
+    '--input-type=module',
+    '--eval',
+    `import config from './modern.config.mjs';
+import fs from 'node:fs';
+if (config.native !== true) throw new Error('Host config was not executed');
+fs.writeFileSync('dist/renderer-build.json', ${JSON.stringify(JSON.stringify(value))});
+`,
+  ];
+  execFileSync(process.execPath, args, { cwd: root, stdio: 'pipe' });
+  const metadata = path.join(root, 'dist/renderer-build.json');
+  const evidence = file => ({
+    path: path.relative(root, file),
+    sha256: fileSha256(file),
+    byteLength: fs.statSync(file).size,
+  });
+  return {
+    ...fixture,
+    config,
+    options: {
+      ...fixture.options,
+      buildEntryFiles: [{ ...evidence(config), purpose: 'configuration' }],
+      buildCommandEvidence: {
+        phase: 'build',
+        command: process.execPath,
+        cwd: root,
+        args,
+        exitCode: 0,
+      },
+      rendererBuildManifestPath: path.relative(root, metadata),
+      rendererBuildEvidence: { ...evidence(metadata), value },
+    },
+  };
+}
+
+test('actual host inputs join a completed command and emission while disclosing dynamic loads', t => {
+  const fixture = hostBuildConsumerFixture(t);
+  const report = auditInstalledConsumer(fixture.options);
+  assert.equal(report.hostBuild.command.exitCode, 0);
+  assert.equal(
+    report.hostBuild.manifest.sha256,
+    fixture.options.rendererBuildEvidence.sha256,
+  );
+  assert.deepEqual(
+    report.buildEntryClosure.map(item => item.path),
+    ['modern.config.mjs', 'src/build-leaf.cjs', 'src/build-tool.cjs'],
+  );
+  assert.equal(report.unverifiedBuildLoads.length, 1);
+  assert.deepEqual(report.unverifiedBuildLoads[0], {
+    source: 'src/build-leaf.cjs',
+    sourceSha256: fileSha256(path.join(fixture.root, 'src/build-leaf.cjs')),
+    line: 2,
+    specifier: null,
+    kind: 'computed-require',
+    admission: 'unverified-host-build-load',
+  });
+  assert(report.entryClosure.some(item => item.path === 'dist/server.mjs'));
+  assert(!report.entryClosure.some(item => item.path === 'src/build-leaf.cjs'));
+});
+
+test('default, overlapping, and directly imported runtime roots cannot use host admission', t => {
+  const fixture = hostBuildConsumerFixture(t);
+  for (const options of [
+    {
+      ...fixture.options,
+      buildEntryFiles: [],
+      entryFiles: ['modern.config.mjs'],
+    },
+    {
+      ...fixture.options,
+      entryFiles: [...fixture.options.entryFiles, 'modern.config.mjs'],
+    },
+    {
+      ...fixture.options,
+      entryFiles: [...fixture.options.entryFiles, 'src/build-leaf.cjs'],
+    },
+  ])
+    assert.throws(
+      () => auditInstalledConsumer(options),
+      /Unverifiable computed module import.*build-leaf.cjs/u,
+    );
+});
+
+test('literal host loads with an unproved require anchor stay unverified and fail after runtime promotion', t => {
+  const fixture = hostBuildConsumerFixture(t, { unprovenAnchor: true });
+  const report = auditInstalledConsumer(fixture.options);
+  assert(
+    report.unverifiedBuildLoads.some(
+      item =>
+        item.source === 'src/build-leaf.cjs' &&
+        item.kind === 'unverifiable-require-anchor' &&
+        item.specifier === './host-input.json',
+    ),
+  );
+  assert(
+    !report.buildEntryClosure.some(item => item.path === 'src/host-input.json'),
+  );
+  assert(
+    !report.entryClosure.some(item => item.path === 'src/host-input.json'),
+  );
+  assert.throws(
+    () =>
+      auditInstalledConsumer({
+        ...fixture.options,
+        entryFiles: [...fixture.options.entryFiles, 'src/build-leaf.cjs'],
+      }),
+    /Unverifiable createRequire anchor.*build-leaf.cjs/u,
+  );
+  write(
+    path.join(fixture.root, 'src/entry.tsx'),
+    "import tool from './build-tool.cjs';\nvoid tool;\n",
+  );
+  assert.throws(
+    () => auditInstalledConsumer(fixture.options),
+    /Unverifiable createRequire anchor.*build-leaf.cjs/u,
+  );
+});
+
+test('runtime promotion rescans an already host-scanned shared dependency and all its outgoing edges', t => {
+  const fixture = hostBuildConsumerFixture(t);
+  write(
+    path.join(fixture.root, 'src/runtime-bridge.mjs'),
+    "import tool from './build-tool.cjs';\nexport default tool;\n",
+  );
+  write(
+    path.join(fixture.root, 'src/entry.tsx'),
+    "import tool from './runtime-bridge.mjs';\nvoid tool;\n",
+  );
+  assert.throws(
+    () => auditInstalledConsumer(fixture.options),
+    /Unverifiable computed module import.*build-leaf.cjs/u,
+  );
+});
+
+test('a promoted static shared closure is reported solely as runtime', t => {
+  const fixture = hostBuildConsumerFixture(t, { computed: false });
+  write(
+    path.join(fixture.root, 'src/entry.tsx'),
+    "import tool from './build-tool.cjs';\nvoid tool;\n",
+  );
+  const report = auditInstalledConsumer(fixture.options);
+  assert.deepEqual(report.unverifiedBuildLoads, []);
+  assert.deepEqual(
+    report.buildEntryClosure.map(item => item.path),
+    ['modern.config.mjs'],
+  );
+  for (const file of [
+    'src/build-tool.cjs',
+    'src/build-leaf.cjs',
+    'src/host-input.json',
+  ])
+    assert(
+      report.entryClosure.some(item => item.path === file),
+      file,
+    );
+});
+
+test('host role retains unresolved static ESM import and physical dependency identity failures', t => {
+  const fixture = hostBuildConsumerFixture(t);
+  const leaf = path.join(fixture.root, 'src/build-leaf.cjs');
+  write(leaf, "module.exports = require('./missing-static-tool.mjs');\n");
+  write(
+    path.join(fixture.root, 'src/missing-static-tool.mjs'),
+    "import 'missing-build-tool';\n",
+  );
+  assert.throws(
+    () => auditInstalledConsumer(fixture.options),
+    /Unresolved installed entry import missing-build-tool/u,
+  );
+  installFixture(fixture.root, 'foreign-build-tool', {
+    name: 'different-owner',
+  });
+  const manifestPath = path.join(fixture.root, 'package.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath));
+  manifest.dependencies['foreign-build-tool'] = version;
+  writeJson(manifestPath, manifest);
+  write(leaf, "module.exports = require('foreign-build-tool');\n");
+  assert.throws(
+    () => auditInstalledConsumer(fixture.options),
+    /Installed identity mismatch for foreign-build-tool/u,
+  );
+});
+
+test('unresolved literal host require requests are disclosed but fail for runtime roots and promotion', t => {
+  const fixture = hostBuildConsumerFixture(t, { unresolvedRequire: true });
+  const report = auditInstalledConsumer(fixture.options);
+  assert.deepEqual(report.unverifiedBuildLoads, [
+    {
+      source: 'src/build-leaf.cjs',
+      sourceSha256: fileSha256(path.join(fixture.root, 'src/build-leaf.cjs')),
+      line: 1,
+      specifier: 'missing-host-adapter',
+      kind: 'unresolved-require',
+      admission: 'unverified-host-build-load',
+    },
+  ]);
+  assert(
+    !report.entryClosure.some(item =>
+      item.path.includes('missing-host-adapter'),
+    ),
+  );
+  assert(
+    !report.buildEntryClosure.some(item =>
+      item.path.includes('missing-host-adapter'),
+    ),
+  );
+  assert.throws(
+    () =>
+      auditInstalledConsumer({
+        ...fixture.options,
+        entryFiles: [...fixture.options.entryFiles, 'src/build-leaf.cjs'],
+      }),
+    /Unresolved installed entry import missing-host-adapter/u,
+  );
+  write(
+    path.join(fixture.root, 'src/entry.tsx'),
+    "import tool from './build-tool.cjs';\nvoid tool;\n",
+  );
+  assert.throws(
+    () => auditInstalledConsumer(fixture.options),
+    /Unresolved installed entry import missing-host-adapter/u,
+  );
+  write(
+    path.join(fixture.root, 'src/entry.tsx'),
+    'export const runtime = true;\n',
+  );
+  installFixture(fixture.root, 'incomplete-build-tool', {
+    exports: { '.': './missing.js' },
+  });
+  write(
+    path.join(fixture.root, 'src/build-leaf.cjs'),
+    "module.exports = require('incomplete-build-tool');\n",
+  );
+  assert.throws(
+    () => auditInstalledConsumer(fixture.options),
+    /Unresolved entry import incomplete-build-tool/u,
+  );
+});
+
+test('host admission requires successful command and unchanged completed build evidence', t => {
+  const fixture = hostBuildConsumerFixture(t);
+  for (const options of [
+    { ...fixture.options, buildCommandEvidence: undefined },
+    {
+      ...fixture.options,
+      buildCommandEvidence: {
+        ...fixture.options.buildCommandEvidence,
+        exitCode: 1,
+      },
+    },
+    { ...fixture.options, rendererBuildEvidence: undefined },
+    {
+      ...fixture.options,
+      rendererBuildEvidence: {
+        ...fixture.options.rendererBuildEvidence,
+        sha256: '0'.repeat(64),
+      },
+    },
+  ])
+    assert.throws(
+      () => auditInstalledConsumer(options),
+      /successful completed build command|observed completed-build evidence/u,
+    );
+});
+
+test('host entry authority rejects changed pre-build bytes and installed-package relabeling', t => {
+  const fixture = hostBuildConsumerFixture(t);
+  const file = path.join(
+    fixture.root,
+    'node_modules',
+    rendererPackage,
+    'index.js',
+  );
+  assert.throws(
+    () =>
+      auditInstalledConsumer({
+        ...fixture.options,
+        buildEntryFiles: [
+          {
+            path: path.relative(fixture.root, file),
+            purpose: 'configuration',
+            sha256: fileSha256(file),
+            byteLength: fs.statSync(file).size,
+          },
+        ],
+      }),
+    /application-owned configuration or metadata file/u,
+  );
+  fs.appendFileSync(fixture.config, '// changed after the build\n');
+  assert.throws(
+    () => auditInstalledConsumer(fixture.options),
+    /differs from the observed pre-build input/u,
+  );
+});
+
 function anchoredConsumerFixture(
   t,
   format = 'esm',
