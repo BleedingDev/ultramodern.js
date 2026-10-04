@@ -31,6 +31,8 @@ async function createAcceptanceContinuationFixture({
   moduleFederationDependencies = { '@module-federation/runtime': '2.8.0' },
   workerdBuildMarkers = {},
   cloudflareBuildCompleted = false,
+  releasePackageCount = 1,
+  observedPackageCount = releasePackageCount,
 } = {}) {
   const {
     assertRuntimeAcceptanceDimension,
@@ -79,6 +81,17 @@ async function createAcceptanceContinuationFixture({
       },
     ],
   };
+  for (let index = 1; index < releasePackageCount; index += 1) {
+    const sourceName = `@modern-js/cohort-fixture-${index}`;
+    const targetName = `@bleedingdev/modern-js-cohort-fixture-${index}`;
+    release.packages.push({
+      sourceName,
+      targetName,
+      version: releaseVersion,
+      integrity: `sha512-${crypto.createHash('sha512').update(sourceName).digest('base64')}`,
+      packageJson: { name: targetName, version: releaseVersion },
+    });
+  }
   const runIdentity = 'github:BleedingDev/ultramodern.js:run:321:attempt:1';
   const verticals = [...readableErpVerticalNames];
   const appIds = ['shell-super-app', ...verticals];
@@ -370,8 +383,10 @@ async function createAcceptanceContinuationFixture({
       },
       installedCohort: {
         expectedPackageCount: release.packages.length,
-        observedPackageCount: release.packages.length,
-        observedSourceNames: release.packages.map(item => item.sourceName),
+        observedPackageCount,
+        observedSourceNames: release.packages
+          .slice(0, observedPackageCount)
+          .map(item => item.sourceName),
       },
       nodeOutputs,
     },

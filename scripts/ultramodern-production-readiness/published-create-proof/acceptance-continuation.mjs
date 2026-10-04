@@ -514,6 +514,11 @@ function assertAcceptanceContinuation(
     'Acceptance continuation run/profile/application binding is invalid',
   );
   const reused = record.reusedEvidence;
+  const installedCohort = reused?.installedCohort;
+  const observedSourceNames = installedCohort?.observedSourceNames;
+  const releaseSourceNames = new Set(
+    release.packages.map(item => item.sourceName),
+  );
   assertCondition(
     reused &&
       path.isAbsolute(reused.projectDirectory) &&
@@ -524,9 +529,18 @@ function assertAcceptanceContinuation(
       reused.priorRunLog?.attribution?.projectDirectory ===
         reused.projectDirectory &&
       reused.priorRunLog?.attribution?.commands?.length === 11 &&
-      reused.installedCohort?.expectedPackageCount > 0 &&
-      reused.installedCohort?.expectedPackageCount ===
-        reused.installedCohort?.observedPackageCount,
+      installedCohort?.expectedPackageCount === release.packages.length &&
+      installedCohort.expectedPackageCount > 0 &&
+      Number.isInteger(installedCohort.observedPackageCount) &&
+      installedCohort.observedPackageCount > 0 &&
+      installedCohort.observedPackageCount <=
+        installedCohort.expectedPackageCount &&
+      Array.isArray(observedSourceNames) &&
+      observedSourceNames.length === installedCohort.observedPackageCount &&
+      new Set(observedSourceNames).size === observedSourceNames.length &&
+      observedSourceNames.every(sourceName =>
+        releaseSourceNames.has(sourceName),
+      ),
     'Acceptance continuation prior evidence attribution is incomplete',
   );
   assertNodeOutputSnapshots(

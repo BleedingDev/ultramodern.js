@@ -6,6 +6,7 @@ import { pathToFileURL } from 'node:url';
 import { createRsbuild, rspack } from '@rsbuild/core';
 import {
   configureUltramodernTypeChecker,
+  resolveNativeTypeCheckerCommand,
   UltramodernNativeTypeChecker,
 } from '../src/native-type-checker';
 
@@ -26,6 +27,54 @@ const { default: getExePath } = await import(
   ).href
 );
 const compiler: string = getExePath();
+
+test('the selected stable native checker uses its real public bin and rejects invalid package owners', () => {
+  const directory = path.dirname(compilerManifestPath);
+  const metadata = JSON.parse(fs.readFileSync(compilerManifestPath, 'utf8'));
+  const selected = resolveNativeTypeCheckerCommand(compilerManifestPath);
+  expect(selected.executable).toBe(process.execPath);
+  expect(selected.args).toEqual([
+    fs.realpathSync(path.resolve(directory, metadata.bin.tsc)),
+  ]);
+  const root = fs.realpathSync(
+    fs.mkdtempSync(path.join(os.tmpdir(), 'native-checker-owner-')),
+  );
+  const owner = path.join(root, 'package');
+  const manifest = path.join(owner, 'package.json');
+  try {
+    fs.mkdirSync(owner);
+    const write = (override: Record<string, unknown>) =>
+      fs.writeFileSync(manifest, JSON.stringify({ ...metadata, ...override }));
+    for (const override of [
+      { name: '@typescript/native-preview' },
+      { version: '6.0.3' },
+      { version: '7.0.2-dev.20261004' },
+    ]) {
+      write(override);
+      expect(() => resolveNativeTypeCheckerCommand(manifest)).toThrow(
+        'requires typescript@7.0.2',
+      );
+    }
+    for (const bin of [undefined, {}, { tsc: path.join(root, 'tsc') }]) {
+      write({ bin });
+      expect(() => resolveNativeTypeCheckerCommand(manifest)).toThrow(
+        "requires the selected package's public tsc bin",
+      );
+    }
+    fs.writeFileSync(path.join(root, 'tsc'), 'throw new Error("foreign bin");');
+    write({ bin: { tsc: '../tsc' } });
+    expect(() => resolveNativeTypeCheckerCommand(manifest)).toThrow(
+      'public tsc bin must belong to its selected package',
+    );
+    fs.symlinkSync(path.join(root, 'tsc'), path.join(owner, 'tsc'));
+    write({ bin: { tsc: 'tsc' } });
+    expect(() => resolveNativeTypeCheckerCommand(manifest)).toThrow(
+      'public tsc bin must belong to its selected package',
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test('the resolved checker overwrite reaches native JSX and type inputs without changing authored config', async () => {
   const root = fs.realpathSync.native(
@@ -126,7 +175,7 @@ test('the resolved checker overwrite reaches native JSX and type inputs without 
                   configureUltramodernTypeChecker(
                     chain,
                     CHAIN_ID.PLUGIN.TS_CHECKER,
-                    () => compiler,
+                    () => resolveNativeTypeCheckerCommand(compilerManifestPath),
                   );
                 },
               });

@@ -4,6 +4,7 @@ import {
   existsSync,
   readFileSync,
   realpathSync,
+  statSync,
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -15,6 +16,47 @@ import { type ParseError, parse, printParseErrorCode } from 'jsonc-parser';
 
 const execute = promisify(execFile);
 const name = 'UltramodernNativeTypeChecker';
+
+export interface NativeTypeCheckerCommand {
+  executable: string;
+  args: readonly string[];
+}
+
+/** Launch the selected stable package through its declared public compiler bin. */
+export function resolveNativeTypeCheckerCommand(
+  packageJsonPath: string,
+): NativeTypeCheckerCommand {
+  const manifestFile = realpathSync(packageJsonPath);
+  const directory = path.dirname(manifestFile);
+  const manifest = JSON.parse(readFileSync(manifestFile, 'utf8')) as {
+    name?: unknown;
+    version?: unknown;
+    bin?: { tsc?: unknown };
+  };
+  if (manifest.name !== 'typescript' || manifest.version !== '7.0.2') {
+    throw new Error(
+      `${name} requires typescript@7.0.2; found ${String(manifest.name)}@${String(manifest.version)} at ${manifestFile}.`,
+    );
+  }
+  const bin = manifest.bin?.tsc;
+  if (typeof bin !== 'string' || !bin || path.isAbsolute(bin)) {
+    throw new Error(`${name} requires the selected package's public tsc bin.`);
+  }
+  const launcher = realpathSync(path.resolve(directory, bin));
+  const relative = path.relative(directory, launcher);
+  if (
+    !relative ||
+    path.isAbsolute(relative) ||
+    relative === '..' ||
+    relative.startsWith(`..${path.sep}`) ||
+    !statSync(launcher).isFile()
+  ) {
+    throw new Error(
+      `${name} public tsc bin must belong to its selected package.`,
+    );
+  }
+  return { executable: process.execPath, args: [launcher] };
+}
 
 interface TypeCheckerConfig {
   compilerOptions?: Record<string, unknown>;
@@ -37,7 +79,7 @@ const watchDependencyPath = (file: string): string => {
 export class UltramodernNativeTypeChecker {
   constructor(
     private readonly options: {
-      compiler: () => string;
+      compiler: () => string | NativeTypeCheckerCommand;
       configFile: string;
       build: boolean;
       configOverwrite?: TypeCheckerConfig;
@@ -174,10 +216,19 @@ export class UltramodernNativeTypeChecker {
 
   private async run(args: string[]): Promise<string> {
     try {
-      const result = await execute(this.options.compiler(), args, {
-        cwd: path.dirname(this.options.configFile),
-        maxBuffer: 16 * 1024 * 1024,
-      });
+      const selected = this.options.compiler();
+      const command =
+        typeof selected === 'string'
+          ? { executable: selected, args: [] }
+          : selected;
+      const result = await execute(
+        command.executable,
+        [...command.args, ...args],
+        {
+          cwd: path.dirname(this.options.configFile),
+          maxBuffer: 16 * 1024 * 1024,
+        },
+      );
       return result.stdout;
     } catch (cause) {
       const output = cause as { stdout?: string; stderr?: string };
@@ -279,11 +330,11 @@ export class UltramodernNativeTypeChecker {
   }
 }
 
-/** Preserve project-reference emit contracts in the native Effect compiler. */
+/** Preserve project-reference emit contracts in the selected native compiler. */
 export function configureUltramodernTypeChecker(
   chain: RspackChain,
   pluginId: string,
-  resolveCompiler: (configFile: string) => string,
+  resolveCompiler: (configFile: string) => string | NativeTypeCheckerCommand,
 ): void {
   if (!chain.plugins.has(pluginId)) return;
   const options = chain.plugin(pluginId).get('args')?.[0] as

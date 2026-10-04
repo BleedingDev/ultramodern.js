@@ -43,9 +43,7 @@ describe('presetUltramodern config', () => {
         '@modern-js/runtime',
         '@modern-js/runtime-renderer-extensions',
         '@modern-js/i18n-integration',
-        '@effect/tsgo',
         'typescript',
-        '@typescript/native',
         'react',
         'react-dom',
       ].map(
@@ -113,6 +111,14 @@ export default defineConfig({ renderer: 'react', server: { ssr: true } });
         fs.mkdirSync(path.dirname(link), { recursive: true });
         fs.symlinkSync(owner, link, 'dir');
       }
+      expect(Object.keys(dependencies)).toHaveLength(12);
+      for (const name of ['@effect/tsgo', '@typescript/native']) {
+        expect(Object.hasOwn(dependencies, name)).toBe(false);
+        expect(owners.has(name)).toBe(false);
+        expect(
+          fs.existsSync(path.join(appDirectory, 'node_modules', name)),
+        ).toBe(false);
+      }
       fs.writeFileSync(
         path.join(appDirectory, 'package.json'),
         JSON.stringify({
@@ -133,12 +139,10 @@ export default defineConfig({ renderer: 'react', server: { ssr: true } });
       const typescriptManifest = JSON.parse(
         fs.readFileSync(path.join(typescriptDirectory, 'package.json'), 'utf8'),
       );
+      expect(typescriptManifest.name).toBe('typescript');
       expect(typescriptManifest.version).toBe('7.0.2');
-      expect(owners.get('@typescript/native')).toBe(typescriptDirectory);
+      expect(dependencies.typescript).toBe('7.0.2');
       expect(fixtureRequire('react/package.json').version).toMatch(/^19\./);
-      expect(fixtureRequire('@effect/tsgo/package.json').version).toBe(
-        '0.45.0',
-      );
       const environment = {
         ...process.env,
         NODE_ENV: 'production',
