@@ -2151,15 +2151,22 @@ function resolveFile(candidate, { exact = false, beforeRealpath } = {}) {
 
 function resolveTypeFile(candidate, { beforeRealpath } = {}) {
   const extension = path.extname(candidate);
+  const explicitTypeScript =
+    /\.[cm]?ts$/u.test(candidate) && !/\.d\.[cm]?ts$/u.test(candidate);
+  if (explicitTypeScript) {
+    const direct = resolveFile(candidate, { exact: true, beforeRealpath });
+    if (direct) return direct;
+  }
   const suffixes =
-    extension === '.mjs'
+    extension === '.mjs' || extension === '.mts'
       ? ['.d.mts', '.mts']
-      : extension === '.cjs'
+      : extension === '.cjs' || extension === '.cts'
         ? ['.d.cts', '.cts']
         : ['.d.ts', '.ts', '.tsx'];
-  const stem = /\.(?:[cm]?js|jsx)$/u.test(candidate)
-    ? candidate.slice(0, -extension.length)
-    : candidate;
+  const stem =
+    /\.(?:[cm]?js|jsx)$/u.test(candidate) || explicitTypeScript
+      ? candidate.slice(0, -extension.length)
+      : candidate;
   for (const suffix of suffixes) {
     const resolved = resolveFile(`${stem}${suffix}`, {
       exact: true,
