@@ -139,6 +139,32 @@ function sameJson(left, right) {
   );
 }
 
+function releaseIdentityCoherence(identity) {
+  assertCondition(
+    isPlainObject(identity),
+    'Release identity coherence requires an identity',
+  );
+  const { buildMarker: _buildMarker, ...coherence } = identity;
+  return structuredClone(coherence);
+}
+
+function rendererReleaseCoherence(ui) {
+  if (ui === undefined) return undefined;
+  assertCondition(
+    isPlainObject(ui) &&
+      isPlainObject(ui.rendererIdentity) &&
+      isPlainObject(ui.rendererProfile) &&
+      isPlainObject(ui.routerBindings),
+    'Renderer release coherence requires completed renderer evidence',
+  );
+  const { buildId: _buildId, ...rendererIdentity } = ui.rendererIdentity;
+  return structuredClone({
+    rendererIdentity,
+    rendererProfile: ui.rendererProfile,
+    routerBindings: ui.routerBindings,
+  });
+}
+
 function operationalIndependenceEvidencePath(receiptPath) {
   const absoluteReceiptPath = path.resolve(receiptPath);
   const extension = path.extname(absoluteReceiptPath);
@@ -512,9 +538,19 @@ function runtimeIdentityBinding(nodeDetails, workerdDetails) {
   for (const [appId, node] of nodeByAppId) {
     const workerd = workerdByAppId.get(appId);
     assertCondition(
-      ['buildMarker', 'sourceRevision', 'releaseVersion'].every(
-        field => node[field] === workerd?.[field],
-      ) && sameJson(node.moduleFederation, workerd?.moduleFederation),
+      [node, workerd].every(
+        identity =>
+          typeof identity.buildMarker === 'string' &&
+          identity.buildMarker.length > 0 &&
+          identity.buildMarker.trim() === identity.buildMarker,
+      ),
+      `${appId} Node and workerd build markers must each be present`,
+    );
+    assertCondition(
+      sameJson(
+        releaseIdentityCoherence(node),
+        releaseIdentityCoherence(workerd),
+      ),
       `${appId} Node and workerd release identities differ`,
     );
   }
@@ -678,6 +714,7 @@ function createOperationalIndependenceResultDetails({
     'Operational-independence evidence selected the wrong shell or MicroVerticals',
   );
   const changedIdentities = [];
+  const changedRenderers = [];
   for (const target of ['node', 'cloudflare']) {
     const targetEvidence = evidence.targets?.[target];
     const comparison = targetEvidence?.comparison;
@@ -729,13 +766,32 @@ function createOperationalIndependenceResultDetails({
       servedBehavior: targetEvidence.servedBehavior,
       target,
     });
+    assertCondition(
+      isPlainObject(comparison.changed.afterUi) &&
+        comparison.changed.afterUi.rendererIdentity?.appId ===
+          evidence.apps.changed.id &&
+        comparison.changed.afterUi.rendererIdentity?.buildId ===
+          comparison.changed.afterIdentity.buildMarker,
+      `Operational-independence ${target} renderer identity does not match its own changed C1 identity`,
+    );
     changedIdentities.push(comparison.changed.afterIdentity);
+    changedRenderers.push(rendererReleaseCoherence(comparison.changed.afterUi));
   }
   assertCondition(
     evidence.crossTarget?.equal === true &&
       evidence.crossTarget.identity?.sourceRevision === changedRevision &&
-      sameJson(changedIdentities[0], changedIdentities[1]) &&
-      sameJson(evidence.crossTarget.identity, changedIdentities[0]),
+      sameJson(
+        releaseIdentityCoherence(changedIdentities[0]),
+        releaseIdentityCoherence(changedIdentities[1]),
+      ) &&
+      sameJson(
+        evidence.crossTarget.identity,
+        releaseIdentityCoherence(changedIdentities[0]),
+      ) &&
+      sameJson(evidence.crossTarget.nodeIdentity, changedIdentities[0]) &&
+      sameJson(evidence.crossTarget.cloudflareIdentity, changedIdentities[1]) &&
+      sameJson(changedRenderers[0], changedRenderers[1]) &&
+      sameJson(evidence.crossTarget.renderer, changedRenderers[0]),
     'Operational-independence Node and Cloudflare changed identities differ',
   );
   assertCondition(
@@ -852,6 +908,8 @@ export {
   createReleaseArtifactBinding,
   operationalIndependenceEvidencePath,
   operationalIndependenceResultId,
+  releaseIdentityCoherence,
+  rendererReleaseCoherence,
   requiredAcceptanceResultIds,
   requiredAcceptanceResultIdsForMode,
   runtimeAcceptanceDimensions,

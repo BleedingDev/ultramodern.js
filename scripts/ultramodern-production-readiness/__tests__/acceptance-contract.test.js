@@ -122,6 +122,52 @@ function operationalEvidence(options) {
     buildMarker: 'changed-marker',
     sourceRevision: options.changedRef,
   };
+  const changedIdentities = {
+    node: { ...changedIdentity, buildMarker: '3'.repeat(64) },
+    cloudflare: { ...changedIdentity, buildMarker: '6'.repeat(64) },
+  };
+  const renderer = {
+    rendererIdentity: {
+      renderer: 'react',
+      appId: options.changedId,
+      entryName: 'main',
+      protocolVersion: 1,
+    },
+    rendererProfile: {
+      renderer: 'react',
+      protocolVersion: 1,
+      compiler: { name: '@rsbuild/plugin-react', version: '2.1.0' },
+      hydration: { name: 'react-dom', version: '19.3.0' },
+      router: {
+        name: '@tanstack/react-router',
+        version: '1.170.39',
+        coreName: '@tanstack/router-core',
+        coreVersion: '1.171.32',
+      },
+    },
+    routerBindings: {
+      main: {
+        owner: '@fixture/router-owner',
+        evidence: 'file-routes',
+        defaultProvider: {
+          framework: 'tanstack',
+          name: '@tanstack/react-router',
+          version: '1.170.39',
+          coreName: '@tanstack/router-core',
+          coreVersion: '1.171.32',
+        },
+        providers: [
+          {
+            framework: 'tanstack',
+            name: '@tanstack/react-router',
+            version: '1.170.39',
+            coreName: '@tanstack/router-core',
+            coreVersion: '1.171.32',
+          },
+        ],
+      },
+    },
+  };
   const unchanged = digest => ({
     byteIdentical: true,
     envelopeIdentical: true,
@@ -131,7 +177,14 @@ function operationalEvidence(options) {
     target,
     changed: {
       changed: true,
-      afterIdentity: changedIdentity,
+      afterIdentity: changedIdentities[target],
+      afterUi: {
+        ...structuredClone(renderer),
+        rendererIdentity: {
+          ...renderer.rendererIdentity,
+          buildId: changedIdentities[target].buildMarker,
+        },
+      },
       afterTreeDigest: `${target}-changed-tree`,
       beforeIdentity: baselineIdentity,
       beforeTreeDigest: `${target}-baseline-tree`,
@@ -149,47 +202,51 @@ function operationalEvidence(options) {
     shell: unchanged(`${target}-shell-tree`),
     sibling: unchanged(`${target}-finance-tree`),
   });
-  const servedBehavior = platform => ({
-    appId: options.changedId,
-    baseUrls: {
-      app: `http://127.0.0.1/${platform}/inventory`,
-      shell: `http://127.0.0.1/${platform}/shell`,
-    },
-    identity: {
-      build: changedIdentity.buildMarker,
-      buildMarker: changedIdentity.buildMarker,
-      sourceRevision: changedIdentity.sourceRevision,
-      unitId: changedIdentity.unitId,
-      version: changedIdentity.releaseVersion,
-    },
-    platform,
-    result: 'pass',
-    routes: { api: '/inventory-api/inventory', ssr: '/en', ui: '/en' },
-    responses: {
-      api: {
-        bodySha256: '1'.repeat(64),
-        contentType: 'application/json',
-        status: 200,
-        value: options.expectedApiValue,
+  const servedBehavior = platform => {
+    const identity =
+      changedIdentities[platform === 'workerd' ? 'cloudflare' : 'node'];
+    return {
+      appId: options.changedId,
+      baseUrls: {
+        app: `http://127.0.0.1/${platform}/inventory`,
+        shell: `http://127.0.0.1/${platform}/shell`,
       },
-      ssr: {
-        bodySha256: '2'.repeat(64),
-        buildMarker: changedIdentity.buildMarker,
-        contentType: 'text/html',
-        status: 200,
+      identity: {
+        build: identity.buildMarker,
+        buildMarker: identity.buildMarker,
+        sourceRevision: identity.sourceRevision,
+        unitId: identity.unitId,
+        version: identity.releaseVersion,
       },
-      // A hardcoded `value` here must not pass as observed UI output.
-      ui: {
-        bodySha256: '3'.repeat(64),
-        boundaryId: 'verticalInventory',
-        contentType: 'text/html',
-        expose: './Widget',
-        status: 200,
-        value: options.expectedUiValue,
-        visiblyRendered: true,
+      platform,
+      result: 'pass',
+      routes: { api: '/inventory-api/inventory', ssr: '/en', ui: '/en' },
+      responses: {
+        api: {
+          bodySha256: '1'.repeat(64),
+          contentType: 'application/json',
+          status: 200,
+          value: options.expectedApiValue,
+        },
+        ssr: {
+          bodySha256: '2'.repeat(64),
+          buildMarker: identity.buildMarker,
+          contentType: 'text/html',
+          status: 200,
+        },
+        // A hardcoded `value` here must not pass as observed UI output.
+        ui: {
+          bodySha256: '3'.repeat(64),
+          boundaryId: 'verticalInventory',
+          contentType: 'text/html',
+          expose: './Widget',
+          status: 200,
+          value: options.expectedUiValue,
+          visiblyRendered: true,
+        },
       },
-    },
-  });
+    };
+  };
   return {
     schemaVersion: 1,
     kind: 'ultramodern-operational-independence-proof',
@@ -218,7 +275,17 @@ function operationalEvidence(options) {
         servedBehavior: servedBehavior('workerd'),
       },
     },
-    crossTarget: { equal: true, identity: changedIdentity },
+    crossTarget: {
+      equal: true,
+      identity: {
+        unitId: changedIdentity.unitId,
+        sourceRevision: changedIdentity.sourceRevision,
+        releaseVersion: changedIdentity.releaseVersion,
+      },
+      renderer,
+      nodeIdentity: structuredClone(changedIdentities.node),
+      cloudflareIdentity: structuredClone(changedIdentities.cloudflare),
+    },
   };
 }
 
@@ -261,6 +328,63 @@ test('operational acceptance rejects missing, forged, and hardcoded served behav
     create(operationalEvidence(options)).changedRevision,
     changedRevision,
   );
+  const distinct = operationalEvidence(options);
+  assert.notEqual(
+    distinct.targets.node.comparison.changed.afterIdentity.buildMarker,
+    distinct.targets.cloudflare.comparison.changed.afterIdentity.buildMarker,
+  );
+  assert.equal(create(distinct).changedRevision, changedRevision);
+
+  for (const field of ['sourceRevision', 'unitId', 'releaseVersion']) {
+    const foreign = operationalEvidence(options);
+    const changed = foreign.targets.cloudflare.comparison.changed.afterIdentity;
+    changed[field] = `foreign-${field}`;
+    foreign.crossTarget.cloudflareIdentity[field] = changed[field];
+    const servedField = field === 'releaseVersion' ? 'version' : field;
+    foreign.targets.cloudflare.servedBehavior.identity[servedField] =
+      changed[field];
+    assert.throws(
+      () => create(foreign),
+      /comparison is incomplete|changed identities differ/u,
+      field,
+    );
+  }
+  for (const mutate of [
+    ui => {
+      ui.rendererProfile.compiler.version = '99.0.0';
+    },
+    ui => {
+      ui.rendererProfile.router.coreVersion = '99.0.0';
+    },
+    ui => {
+      ui.routerBindings.main.owner = '@foreign/router';
+    },
+  ]) {
+    const foreign = operationalEvidence(options);
+    mutate(foreign.targets.cloudflare.comparison.changed.afterUi);
+    assert.throws(() => create(foreign), /changed identities differ/u);
+  }
+  const wrongOwnRenderer = operationalEvidence(options);
+  wrongOwnRenderer.targets.cloudflare.comparison.changed.afterUi.rendererIdentity.buildId =
+    wrongOwnRenderer.targets.node.comparison.changed.afterIdentity.buildMarker;
+  assert.throws(
+    () => create(wrongOwnRenderer),
+    /cloudflare renderer identity does not match its own changed C1 identity/u,
+  );
+  const wrongOwnSsr = operationalEvidence(options);
+  wrongOwnSsr.targets.cloudflare.servedBehavior.responses.ssr.buildMarker =
+    wrongOwnSsr.targets.node.comparison.changed.afterIdentity.buildMarker;
+  assert.throws(
+    () => create(wrongOwnSsr),
+    /cloudflare served behavior response probes are invalid/u,
+  );
+  const wrongOwnApi = operationalEvidence(options);
+  wrongOwnApi.targets.cloudflare.servedBehavior.identity.build =
+    wrongOwnApi.targets.node.comparison.changed.afterIdentity.buildMarker;
+  assert.throws(
+    () => create(wrongOwnApi),
+    /cloudflare served behavior identity does not match/u,
+  );
 
   const missing = operationalEvidence(options);
   delete missing.targets.node.servedBehavior;
@@ -283,6 +407,65 @@ test('operational acceptance rejects missing, forged, and hardcoded served behav
     () => create(hardcoded),
     /node served behavior did not observe the exact C1 API and UI mutations/u,
   );
+});
+
+test('runtime cross-target coherence preserves separate native markers and exact release and MF declarations', async () => {
+  const { runtimeIdentityBinding, releaseIdentityCoherence } = await import(
+    '../published-create-proof/acceptance-contract.mjs'
+  );
+  const node = {
+    apps: [
+      {
+        appId: 'inventory',
+        unitId: 'acceptance/inventory',
+        sourceRevision: 'a'.repeat(40),
+        releaseVersion: '0.1.0',
+        moduleFederation: { runtime: '2.9.1', enhanced: '2.9.1' },
+        buildMarker: '3'.repeat(64),
+      },
+    ],
+  };
+  const workerd = structuredClone(node);
+  workerd.apps[0].buildMarker = '6'.repeat(64);
+  const binding = runtimeIdentityBinding(node, workerd);
+  assert.equal(binding.node[0].buildMarker, '3'.repeat(64));
+  assert.equal(binding.workerd[0].buildMarker, '6'.repeat(64));
+  assert.deepEqual(releaseIdentityCoherence(node.apps[0]), {
+    appId: 'inventory',
+    unitId: 'acceptance/inventory',
+    sourceRevision: 'a'.repeat(40),
+    releaseVersion: '0.1.0',
+    moduleFederation: { runtime: '2.9.1', enhanced: '2.9.1' },
+  });
+  for (const field of ['unitId', 'sourceRevision', 'releaseVersion']) {
+    const foreign = structuredClone(workerd);
+    foreign.apps[0][field] = `foreign-${field}`;
+    assert.throws(
+      () => runtimeIdentityBinding(node, foreign),
+      /release identities differ/u,
+      field,
+    );
+  }
+  const foreignMf = structuredClone(workerd);
+  foreignMf.apps[0].moduleFederation.runtime = '2.9.2';
+  assert.throws(
+    () => runtimeIdentityBinding(node, foreignMf),
+    /release identities differ/u,
+  );
+  const absentUnit = structuredClone(workerd);
+  delete absentUnit.apps[0].unitId;
+  assert.throws(
+    () => runtimeIdentityBinding(node, absentUnit),
+    /release identities differ/u,
+  );
+  for (const marker of ['', undefined, ' padded ']) {
+    const malformed = structuredClone(workerd);
+    malformed.apps[0].buildMarker = marker;
+    assert.throws(
+      () => runtimeIdentityBinding(node, malformed),
+      /build markers must each be present/u,
+    );
+  }
 });
 
 // Guards consumers installing a framework build whose Module Federation

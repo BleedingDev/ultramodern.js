@@ -1,24 +1,32 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { gzipSync } from 'node:zlib';
 import { parse } from 'yaml';
-import { createTemplateRequiredFiles } from '../../ultramodern-publish/lib/prepare-bleedingdev-packages/constants.mjs';
+import {
+  createTemplateRequiredFiles,
+  repoRoot,
+} from '../../ultramodern-publish/lib/prepare-bleedingdev-packages/constants.mjs';
 import {
   canonicalJson,
   inspectNpmTarball,
   readVerifiedPackageArtifactBytes,
+  verifySidecarArtifacts,
 } from '../../ultramodern-publish/lib/prepare-bleedingdev-packages/release-artifacts.mjs';
+import { resolveExactPnpmExecutable } from '../published-create-proof/acceptance-profile.mjs';
 import {
   confinedPath,
   fileEvidence,
+  materializeFixtureSources,
   ordinaryFiles,
   parseArgs,
   releaseConsumerInputs,
   workerOptions,
 } from './contract.mjs';
+import { runCommand } from './main.mjs';
 
 function ownedDirectory(t) {
   const parent = process.env.ULTRAMODERN_RSC_WORKER_PROOF_TEST_ROOT;
@@ -39,6 +47,80 @@ function write(root, relative, contents = 'export default {};\n') {
   fs.writeFileSync(file, contents);
   return file;
 }
+
+for (const exitCode of [7, 0]) {
+  test(`owned command preserves exit ${exitCode} semantics when group cleanup is denied`, async t => {
+    const root = ownedDirectory(t);
+    const log = path.join(root, 'command.log');
+    const cleanupErrors = [];
+    const denied = Object.assign(new Error('Owned group signal denied'), {
+      code: 'EPERM',
+    });
+    const kill = t.mock.method(process, 'kill', (pid, signal) => {
+      const childPid = Number(fs.readFileSync(log, 'utf8').trim());
+      assert(Number.isSafeInteger(childPid) && childPid > 0);
+      assert.equal(pid, -childPid, 'Only the actual owned group is signalled');
+      assert.equal(signal, 'SIGKILL');
+      throw denied;
+    });
+    await assert.rejects(
+      runCommand(
+        process.execPath,
+        [
+          '-e',
+          `require('node:fs').writeSync(1, String(process.pid)); process.exit(${exitCode});`,
+        ],
+        {
+          cwd: root,
+          env: process.env,
+          log,
+          signal: new AbortController().signal,
+          cleanupErrors,
+        },
+      ),
+      error => {
+        assert.notEqual(error, denied);
+        assert.equal(error.name, 'AssertionError');
+        if (exitCode) {
+          assert.equal(error.actual, exitCode);
+          assert.equal(error.expected, 0);
+          assert.match(error.message, /Command failed; see/u);
+        } else assert.match(error.message, /Owned command cleanup failed/u);
+        return true;
+      },
+    );
+    assert.equal(kill.mock.callCount(), 1);
+    assert.deepEqual(cleanupErrors, [
+      {
+        name: denied.name,
+        message: denied.message,
+        code: 'EPERM',
+        signal: 'SIGKILL',
+        pid: Number(fs.readFileSync(log, 'utf8').trim()),
+      },
+    ]);
+  });
+}
+
+test('owned command retains a spawn failure without signalling a nonexistent process', async t => {
+  const root = ownedDirectory(t);
+  const cleanupErrors = [];
+  const kill = t.mock.method(process, 'kill', () => {
+    assert.fail('A failed spawn has no owned process group');
+  });
+  await assert.rejects(
+    runCommand(path.join(root, 'missing-command'), [], {
+      cwd: root,
+      env: process.env,
+      log: path.join(root, 'command.log'),
+      signal: new AbortController().signal,
+      cleanupErrors,
+    }),
+    { code: 'ENOENT' },
+  );
+  assert.equal(kill.mock.callCount(), 0);
+  assert.deepEqual(cleanupErrors, []);
+});
 
 function args(root, overrides = {}) {
   return Object.entries({
@@ -120,6 +202,8 @@ function releaseFixture(
     rscCompiler = '0.1.1',
     reactRouter = '7.18.4',
     renderRsc = '0.1.0',
+    sidecars = [],
+    toolsDependencies = {},
     policy = 'strictDepBuilds: true\nallowBuilds:\n  esbuild: true\n  sharp: false\n  workerd: true\n',
   } = {},
 ) {
@@ -143,7 +227,7 @@ function releaseFixture(
     runtime: { dependencies: { 'react-router': reactRouter } },
     render: { peerDependencies: { 'react-server-dom-rspack': renderRsc } },
     tsconfig: {},
-    'ultramodern-app-tools': {},
+    'ultramodern-app-tools': { dependencies: toolsDependencies },
     'app-tools-extensions': {},
   };
   const packages = Object.entries(definitions).map(([name, definition]) => {
@@ -186,9 +270,57 @@ function releaseFixture(
     readVerifiedPackageArtifactBytes(record, artifactPath);
     return record;
   });
+  let verifiedSidecars;
+  if (sidecars.length > 0) {
+    const records = sidecars.map(packageJson => {
+      const name = packageJson.name.split('/')[1];
+      const bytes = tarBytes({
+        'package.json': canonicalJson(packageJson),
+        'index.js': 'export default {};\n',
+      });
+      const inspection = inspectNpmTarball(bytes);
+      const tarballPath = `sidecar-tarballs/${name}.tgz`;
+      write(root, tarballPath, bytes);
+      const digest = (algorithm, encoding = 'hex') =>
+        crypto.createHash(algorithm).update(bytes).digest(encoding);
+      return {
+        name: packageJson.name,
+        version: packageJson.version,
+        root: `sidecars/${name}`,
+        tarballPath,
+        size: bytes.length,
+        sha256: digest('sha256'),
+        shasum: digest('sha1'),
+        integrity: `sha512-${digest('sha512', 'base64')}`,
+        fileCount: inspection.fileCount,
+        unpackedSize: inspection.unpackedSize,
+        packageJsonSha256: inspection.packageJsonSha256,
+        fileListSha256: inspection.fileListSha256,
+      };
+    });
+    const bytes = Buffer.from(
+      `${canonicalJson(
+        {
+          schema: 'bleedingdev.ultramodern.sidecar-manifest',
+          schemaVersion: 2,
+          publishBefore: '@bleedingdev/modern-js-image',
+          publishOrder: records.map(item => item.name),
+          packages: records,
+        },
+        2,
+      )}\n`,
+    );
+    write(root, 'sidecars.json', bytes);
+    verifiedSidecars = verifySidecarArtifacts(root, {
+      manifestPath: 'sidecars.json',
+      sha256: crypto.createHash('sha256').update(bytes).digest('hex'),
+    });
+  }
   return {
     root,
     release: {
+      artifactRoot: root,
+      sidecars: verifiedSidecars,
       packages,
       createPackage: packages.find(
         item => item.sourceName === '@modern-js/ultramodern-create',
@@ -241,6 +373,157 @@ test('arguments reject unknown, duplicate, missing, and valueless options', t =>
     () => parseArgs(args(root, { '--owner': '--other' })),
     /requires a value/u,
   );
+});
+
+test('fixture continuation requires its explicit cursor and an absolute prior receipt', t => {
+  const root = ownedDirectory(t);
+  const priorReceipt = path.join(root, 'previous/receipt.json');
+  const options = parseArgs(
+    args(root, {
+      '--continue-from': 'materialized-fixture',
+      '--prior-receipt': priorReceipt,
+    }),
+  );
+  assert.equal(options.continueFrom, 'materialized-fixture');
+  assert.equal(options.priorReceipt, priorReceipt);
+  for (const overrides of [
+    { '--continue-from': 'materialized-fixture' },
+    { '--prior-receipt': priorReceipt },
+    { '--continue-from': 'build', '--prior-receipt': priorReceipt },
+    {
+      '--continue-from': 'materialized-fixture',
+      '--prior-receipt': 'relative/receipt.json',
+    },
+  ])
+    assert.throws(() => parseArgs(args(root, overrides)));
+});
+
+function priorFixture(t) {
+  const root = ownedDirectory(t);
+  const fixtureRoot = path.join(root, 'fixture');
+  write(fixtureRoot, 'package.json.template', '{"name":"fixture"}\n');
+  write(fixtureRoot, 'modern.config.ts', 'export default {};\n');
+  write(
+    fixtureRoot,
+    'src/page.tsx',
+    'export default () => <div>retained</div>;\n',
+  );
+  const sourceRoot = path.join(root, 'original/consumer');
+  const { fixture } = materializeFixtureSources({
+    fixtureRoot,
+    consumer: sourceRoot,
+  });
+  const release = {
+    source: { commit: 'a'.repeat(40) },
+    release: { version: '3.9.0-ultramodern.1' },
+    manifestSha256: 'b'.repeat(64),
+    cohortDigest: 'c'.repeat(64),
+  };
+  const receipt = {
+    schema: 'bleedingdev.ultramodern.react-rsc-workerd-proof',
+    schemaVersion: 1,
+    status: 'failed',
+    sourceRevision: release.source.commit,
+    releaseVersion: release.release.version,
+    manifestSha256: release.manifestSha256,
+    frameworkCohortDigest: release.cohortDigest,
+    fixture,
+    commands: [],
+  };
+  const priorReceipt = write(
+    root,
+    'original/receipt.json',
+    `${JSON.stringify(receipt)}\n`,
+  );
+  return {
+    fixtureRoot,
+    sourceRoot,
+    release,
+    receipt,
+    priorReceipt,
+    consumer: path.join(root, 'continued/consumer'),
+  };
+}
+
+test('fixture continuation copies recorded sources and attributes reuse while leaving dependency inputs for rematerialization', t => {
+  const input = priorFixture(t);
+  write(input.sourceRoot, 'package.json', '{"stale":"dependency input"}\n');
+  write(input.sourceRoot, 'pnpm-workspace.yaml', 'overrides: {}\n');
+  const result = materializeFixtureSources(input);
+  assert.deepEqual(result.fixture, input.receipt.fixture);
+  assert.equal(
+    result.reusedFixture.qualification,
+    'verified-prior-materialized-source-only',
+  );
+  assert.equal(result.reusedFixture.sourceRoot, input.sourceRoot);
+  assert.deepEqual(
+    Buffer.from(result.reusedFixture.priorReceipt.text),
+    fs.readFileSync(input.priorReceipt),
+  );
+  for (const item of result.fixture.filter(
+    item => item.path !== 'package.json.template',
+  )) {
+    assert.deepEqual(
+      fileEvidence(path.join(input.consumer, item.path), input.consumer),
+      item,
+    );
+    assert.deepEqual(
+      fileEvidence(path.join(input.sourceRoot, item.path), input.sourceRoot),
+      item,
+    );
+  }
+  assert.equal(fs.existsSync(path.join(input.consumer, 'package.json')), false);
+  assert.equal(
+    fs.existsSync(path.join(input.consumer, 'pnpm-workspace.yaml')),
+    false,
+  );
+});
+
+test('fixture continuation rejects success, completed commands, foreign candidate identity and changed source inventory before copying', t => {
+  for (const mutate of [
+    receipt => {
+      receipt.status = 'passed';
+    },
+    receipt => {
+      receipt.commands.push({ exitCode: 0 });
+    },
+    receipt => {
+      receipt.sourceRevision = 'd'.repeat(40);
+    },
+    receipt => {
+      receipt.releaseVersion = '3.9.0-ultramodern.2';
+    },
+    receipt => {
+      receipt.manifestSha256 = 'd'.repeat(64);
+    },
+    receipt => {
+      receipt.frameworkCohortDigest = 'd'.repeat(64);
+    },
+    receipt => {
+      receipt.fixture.pop();
+    },
+  ]) {
+    const input = priorFixture(t);
+    mutate(input.receipt);
+    fs.writeFileSync(input.priorReceipt, JSON.stringify(input.receipt));
+    assert.throws(() => materializeFixtureSources(input));
+    assert.equal(fs.existsSync(input.consumer), false);
+  }
+});
+
+test('fixture continuation rejects changed, missing and symlinked retained sources before copying', t => {
+  for (const change of ['bytes', 'missing', 'symlink']) {
+    const input = priorFixture(t);
+    const file = path.join(input.sourceRoot, 'src/page.tsx');
+    if (change === 'bytes') fs.appendFileSync(file, '// changed');
+    else {
+      fs.unlinkSync(file);
+      if (change === 'symlink')
+        fs.symlinkSync(path.join(input.fixtureRoot, 'src/page.tsx'), file);
+    }
+    assert.throws(() => materializeFixtureSources(input));
+    assert.equal(fs.existsSync(input.consumer), false);
+  }
 });
 
 test('arguments reject relative tool paths, malformed source identity, and invalid owner pid', t => {
@@ -527,6 +810,196 @@ test('consumer input authentication rejects changed tarball bytes', t => {
     () => releaseConsumerInputs(forged, template),
     /tarball size mismatch/u,
   );
+});
+
+test('consumer inputs resolve exact prepared sidecars and their dependencies from authenticated archives', t => {
+  const { release, template } = releaseFixture(t, {
+    toolsDependencies: {
+      '@rsbuild/core': 'npm:@bleedingdev/rsbuild-core@2.2.9',
+    },
+    sidecars: [
+      { name: '@bleedingdev/rsbuild-core', version: '2.2.9' },
+      {
+        name: '@bleedingdev/rslib-core',
+        version: '0.20.0',
+        dependencies: {
+          '@rsbuild/core': 'npm:@bleedingdev/rsbuild-core@2.2.9',
+        },
+      },
+    ],
+  });
+  const before = structuredClone(template);
+  const inputs = releaseConsumerInputs(release, template);
+  const workspace = parse(inputs.workspaceYaml);
+  for (const item of release.sidecars.packages) {
+    assert.equal(
+      workspace.overrides[`${item.name}@${item.version}`],
+      `file:${item.artifactPath}`,
+    );
+    assert.equal(workspace.overrides[item.name], undefined);
+    assert.equal(inputs.manifest.dependencies[item.name], undefined);
+    assert.equal(inputs.manifest.devDependencies[item.name], undefined);
+  }
+  assert.equal(workspace.overrides['@rsbuild/core'], undefined);
+  assert.equal(workspace.overrides['@rslib/core'], undefined);
+  const core = release.sidecars.packages.find(
+    item => item.name === '@bleedingdev/rsbuild-core',
+  );
+  assert.equal(
+    workspace.overrides[
+      `@bleedingdev/modern-js-ultramodern-app-tools@${release.release.version}>@rsbuild/core@npm:@bleedingdev/rsbuild-core@2.2.9`
+    ],
+    `file:${core.artifactPath}`,
+  );
+  assert.equal(
+    workspace.overrides[
+      '@bleedingdev/rslib-core@0.20.0>@rsbuild/core@npm:@bleedingdev/rsbuild-core@2.2.9'
+    ],
+    `file:${core.artifactPath}`,
+  );
+  assert.deepEqual(template, before);
+});
+
+test('sidecar alias transport rejects an authenticated dependency on a different sidecar version', t => {
+  const { release, template } = releaseFixture(t, {
+    toolsDependencies: {
+      '@rsbuild/core': 'npm:@bleedingdev/rsbuild-core@2.2.10',
+    },
+    sidecars: [{ name: '@bleedingdev/rsbuild-core', version: '2.2.9' }],
+  });
+  assert.throws(
+    () => releaseConsumerInputs(release, template),
+    /Sidecar dependency must match the authenticated version/u,
+  );
+});
+
+test('native pnpm resolves framework and transitive sidecar aliases offline only with their exact declared-slot overrides', {
+  timeout: 60_000,
+}, t => {
+  const { root, release, template } = releaseFixture(t, {
+    toolsDependencies: { '@rslib/core': 'npm:@bleedingdev/rslib-core@0.20.0' },
+    sidecars: [
+      { name: '@bleedingdev/rsbuild-core', version: '2.2.9' },
+      {
+        name: '@bleedingdev/rslib-core',
+        version: '0.20.0',
+        dependencies: {
+          '@rsbuild/core': 'npm:@bleedingdev/rsbuild-core@2.2.9',
+        },
+      },
+    ],
+  });
+  const packageManager = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, 'package.json')),
+  ).packageManager;
+  const version = /^pnpm@([^+]+)(?:\+.*)?$/u.exec(packageManager)?.[1];
+  assert(version);
+  release.tools.pnpm = version;
+  const env = { ...process.env, CI: 'true' };
+  const checked = (command, args, options) =>
+    execFileSync(command, args, {
+      ...options,
+      encoding: 'utf8',
+      timeout: 30_000,
+    }).trim();
+  const pnpm = resolveExactPnpmExecutable(checked, version, env, root);
+  const inputs = releaseConsumerInputs(release, template);
+  const tools = release.packages.find(
+    item => item.sourceName === '@modern-js/ultramodern-app-tools',
+  );
+  const packageJson = {
+    name: 'unit-rsc-sidecar-transport',
+    private: true,
+    packageManager,
+    dependencies: {
+      '@modern-js/ultramodern-app-tools': `file:${tools.artifactPath}`,
+    },
+  };
+  for (const withAliasSlots of [false, true]) {
+    const consumer = path.join(
+      root,
+      withAliasSlots ? 'exact-alias-slots' : 'target-names-only',
+    );
+    write(consumer, 'package.json', JSON.stringify(packageJson));
+    const workspace = parse(inputs.workspaceYaml);
+    if (!withAliasSlots) {
+      for (const key of Object.keys(workspace.overrides))
+        if (key.includes('>')) delete workspace.overrides[key];
+    }
+    // JSON is also valid YAML; exercise the actual pnpm override parser.
+    write(consumer, 'pnpm-workspace.yaml', JSON.stringify(workspace));
+    const lock = () =>
+      execFileSync(
+        pnpm,
+        [
+          'install',
+          '--lockfile-only',
+          '--offline',
+          '--store-dir',
+          path.join(root, 'external-store'),
+        ],
+        {
+          cwd: consumer,
+          env,
+          encoding: 'utf8',
+          stdio: 'pipe',
+          timeout: 30_000,
+        },
+      );
+    if (!withAliasSlots) {
+      assert.throws(lock, error =>
+        [error.stdout, error.stderr]
+          .join('\n')
+          .includes('ERR_PNPM_NO_OFFLINE_META'),
+      );
+      continue;
+    }
+    lock();
+    const lockfile = parse(
+      fs.readFileSync(path.join(consumer, 'pnpm-lock.yaml'), 'utf8'),
+    );
+    const snapshots = Object.values(lockfile.snapshots);
+    for (const dependency of ['@rslib/core', '@rsbuild/core']) {
+      assert(
+        snapshots.some(
+          item =>
+            typeof item.dependencies?.[dependency] === 'string' &&
+            item.dependencies[dependency].includes('file:'),
+        ),
+        `Native lock must use accepted tarballs for ${dependency}`,
+      );
+    }
+    assert(
+      Object.values(lockfile.packages).every(item =>
+        item.resolution?.tarball?.startsWith('file:'),
+      ),
+    );
+    assert.deepEqual(
+      Object.values(lockfile.packages)
+        .map(item => path.basename(item.resolution.tarball))
+        .sort(),
+      [tools, ...release.sidecars.packages]
+        .map(item => path.basename(item.artifactPath))
+        .sort(),
+    );
+  }
+});
+
+test('consumer sidecar transport rejects changed manifests and archive bytes', t => {
+  for (const target of ['manifest', 'archive']) {
+    const { release, template } = releaseFixture(t, {
+      sidecars: [{ name: '@bleedingdev/rsbuild-core', version: '2.2.9' }],
+    });
+    const file =
+      target === 'manifest'
+        ? release.sidecars.manifestPath
+        : release.sidecars.packages[0].artifactPath;
+    fs.appendFileSync(file, 'tampered');
+    assert.throws(
+      () => releaseConsumerInputs(release, template),
+      /Sidecar manifest SHA-256 mismatch|sidecar tarball size mismatch/u,
+    );
+  }
 });
 
 test('consumer pins come from authenticated tar bytes instead of caller packageJson', t => {

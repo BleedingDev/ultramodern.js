@@ -416,14 +416,21 @@ test('browser smoke compares executed shell SSR with its coherent finalized comp
 
 async function writeVerticalRelease(
   root,
-  { apiOnly = false, marker, sourceRevision = 'a'.repeat(40) } = {},
+  {
+    apiOnly = false,
+    uiOnly = false,
+    marker,
+    sourceRevision = 'a'.repeat(40),
+    platform = 'node',
+  } = {},
 ) {
   const app = {
     id: 'inventory',
-    kind: 'vertical',
+    kind: uiOnly ? 'shell' : 'vertical',
     path: 'verticals/inventory',
     renderer: 'react',
     ...(apiOnly ? { surfaceProfile: 'api-only' } : {}),
+    ...(uiOnly ? { surfaceProfile: 'ui-only' } : {}),
     deliveryUnit: stampedBlock('inventory', '0.3.0', 'inventory-generation'),
     marker: { appId: 'inventory', build: 'inventory-generation' },
   };
@@ -442,24 +449,92 @@ async function writeVerticalRelease(
       })
     : built.finalized;
   const outputRoot = path.join(built.appRoot, '.output');
-  writeJson(outputRoot, 'ultramodern-build.json', finalized);
-  writeJson(outputRoot, 'backend/mf-manifest.json', { pluginVersion: '2.9.1' });
+  const workerd = platform === 'workerd';
+  const paths = workerd
+    ? {
+        carrier: 'public/ultramodern-build.json',
+        backendManifest: 'public/backend-mf-manifest.json',
+        backendContainer: 'public/backendRemoteEntry.cjs',
+        api: 'worker/__modern_bff_effect.js',
+        client: 'public/client.js',
+        mfManifest: 'public/mf-manifest.json',
+        server: 'worker/index.js',
+      }
+    : {
+        carrier: 'ultramodern-build.json',
+        backendManifest: 'backend/mf-manifest.json',
+        backendContainer: 'backend/remoteEntry.js',
+        api: 'api.js',
+        client: 'client.js',
+        mfManifest: 'mf-manifest.json',
+        server: 'server.js',
+      };
+  if (workerd && !apiOnly) {
+    writeJson(outputRoot, 'public/renderer-build.json', built.manifest);
+    fs.unlinkSync(path.join(outputRoot, 'renderer-build.json'));
+  }
+  writeJson(outputRoot, paths.carrier, finalized);
+  if (!uiOnly)
+    writeJson(outputRoot, paths.backendManifest, {
+      pluginVersion: '2.9.1',
+    });
   for (const filename of [
-    'api.js',
-    'backend/remoteEntry.js',
-    ...(apiOnly ? [] : ['client.js', 'server.js']),
+    ...(uiOnly ? [] : [paths.api, paths.backendContainer]),
+    ...(apiOnly ? [] : [paths.client, paths.server]),
   ]) {
+    fs.mkdirSync(path.dirname(path.join(outputRoot, filename)), {
+      recursive: true,
+    });
     fs.writeFileSync(path.join(outputRoot, filename), 'module.exports = {};');
   }
   if (!apiOnly)
-    writeJson(outputRoot, 'mf-manifest.json', { pluginVersion: '2.9.1' });
+    writeJson(outputRoot, paths.mfManifest, { pluginVersion: '2.9.1' });
+  let workerManifest;
+  if (workerd && !apiOnly) {
+    writeJson(outputRoot, 'server/route.json', {
+      routes: [
+        { entryName: 'main', urlPath: '/', isSSR: true, worker: paths.server },
+      ],
+    });
+    const modernConfig = uiOnly
+      ? {}
+      : { bff: { prefix: '/api', runtimeFramework: 'effect' } };
+    const { createWorkerManifest } = built.ownerRequire(
+      '@modern-js/app-tools-extensions/cloudflare/worker-manifest',
+    );
+    workerManifest = await createWorkerManifest(
+      outputRoot,
+      modernConfig,
+      {
+        apiOnly: false,
+        appDirectory: built.appRoot,
+        distDirectory: outputRoot,
+        serverPlugins: [],
+      },
+      {
+        ...finalized.deliveryUnit,
+        surfaces: {
+          ui: finalized.surfaces.ui,
+          ...(uiOnly ? {} : { api: finalized.surfaces.api }),
+        },
+      },
+    );
+    writeJson(outputRoot, 'server/modern-worker-manifest.json', workerManifest);
+    // Unit fixture for exact runtime-manifest comparison; no compiler or
+    // Cloudflare execution credit is claimed by these controls.
+    fs.writeFileSync(
+      path.join(outputRoot, 'server/index.mjs'),
+      `export const modernWorkerManifest = ${JSON.stringify(workerManifest)};`,
+    );
+    writeJson(outputRoot, 'wrangler.json', { main: 'server/index.mjs' });
+  }
   const { createMicroVerticalReleaseEnvelope } = built.ownerRequire(
     '@modern-js/app-tools-extensions/release-envelope',
   );
   const ui = finalized.surfaces.ui;
   const envelope = await createMicroVerticalReleaseEnvelope({
     artifactRoot: outputRoot,
-    target: 'node',
+    target: workerd ? 'cloudflare' : 'node',
     identity: {
       unitId: finalized.deliveryUnit.unitId,
       buildMarker: finalized.deliveryUnit.buildMarker,
@@ -477,31 +552,78 @@ async function writeVerticalRelease(
       : {}),
     artifacts: [
       {
-        logicalPath: 'ultramodern-build.json',
+        logicalPath: paths.carrier,
         runtime: 'release-identity-metadata',
       },
-      {
-        logicalPath: 'backend/mf-manifest.json',
-        runtime: 'module-federation-manifest',
-      },
-      { logicalPath: 'backend/remoteEntry.js', runtime: 'nodejs' },
-      { logicalPath: 'api.js', runtime: 'nodejs' },
+      ...(uiOnly
+        ? []
+        : [
+            {
+              logicalPath: paths.backendManifest,
+              runtime: 'module-federation-manifest',
+            },
+            {
+              logicalPath: paths.backendContainer,
+              runtime: workerd ? 'commonjs-module' : 'nodejs',
+            },
+            {
+              logicalPath: paths.api,
+              runtime: workerd ? 'workerd-effect' : 'nodejs',
+            },
+          ]),
       ...(apiOnly
         ? []
         : [
-            { logicalPath: 'mf-manifest.json', runtime: 'browser' },
-            { logicalPath: 'client.js', runtime: 'browser' },
-            { logicalPath: 'server.js', runtime: 'nodejs' },
+            { logicalPath: paths.mfManifest, runtime: 'browser' },
+            { logicalPath: paths.client, runtime: 'browser' },
+            {
+              logicalPath: paths.server,
+              runtime: workerd ? 'workerd' : 'nodejs',
+            },
+            ...(workerd
+              ? [
+                  {
+                    logicalPath: 'public/renderer-build.json',
+                    runtime: 'browser',
+                  },
+                ]
+              : []),
           ]),
+      ...(workerd && !apiOnly
+        ? [
+            { logicalPath: 'server/index.mjs', runtime: 'workerd' },
+            {
+              logicalPath: 'server/modern-worker-manifest.json',
+              runtime: 'cloudflare-deployment',
+            },
+            {
+              logicalPath: 'server/route.json',
+              runtime: 'cloudflare-deployment',
+            },
+            { logicalPath: 'wrangler.json', runtime: 'cloudflare-deployment' },
+          ]
+        : []),
     ],
     surfaces: {
-      uiClient: apiOnly ? [] : ['client.js', 'mf-manifest.json'],
-      ssr: apiOnly ? [] : ['server.js'],
-      apiBackend: ['api.js'],
-      backendFederation: {
-        manifest: 'backend/mf-manifest.json',
-        container: 'backend/remoteEntry.js',
-      },
+      uiClient: apiOnly
+        ? []
+        : [
+            paths.client,
+            paths.mfManifest,
+            ...(workerd ? ['public/renderer-build.json'] : []),
+          ],
+      ssr: apiOnly
+        ? []
+        : [paths.server, ...(workerd ? ['server/index.mjs'] : [])].sort(),
+      apiBackend: uiOnly ? [] : [paths.api],
+      ...(uiOnly
+        ? {}
+        : {
+            backendFederation: {
+              manifest: paths.backendManifest,
+              container: paths.backendContainer,
+            },
+          }),
     },
   });
   writeJson(
@@ -514,8 +636,155 @@ async function writeVerticalRelease(
     app,
     envelope,
     outputRoot,
+    workerManifest,
     contract: { workspace: { packageScope: '@fixture/root' }, apps: [app] },
   };
+}
+
+test('browser smoke preserves and validates the topology declared UI-only surface profile', async t => {
+  const { readSmokeContract } = await import('../browser-smoke/contract.mjs');
+  const root = tempRoot();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const topology = writeStampedShell(
+    root,
+    'react',
+    '0.2.0',
+    'shell-generation',
+  );
+  topology.shell.surfaceProfile = 'ui-only';
+  writeJson(root, 'topology/reference-topology.json', topology);
+  assert.equal(
+    readSmokeContract(root).contract.apps[0].surfaceProfile,
+    'ui-only',
+  );
+  topology.shell.surfaceProfile = 'foreign-profile';
+  writeJson(root, 'topology/reference-topology.json', topology);
+  assert.throws(
+    () => readSmokeContract(root),
+    /invalid declared surface profile/u,
+  );
+});
+
+test('browser smoke reads the canonical public Cloudflare compiler manifest with strict release binding', async t => {
+  const { releaseIdentity } = await import(
+    '../browser-smoke/runtime-evidence.mjs'
+  );
+  const root = tempRoot();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const built = await writeVerticalRelease(root, { platform: 'workerd' });
+  assert.equal(
+    fs.existsSync(path.join(built.outputRoot, 'renderer-build.json')),
+    false,
+  );
+  const identity = releaseIdentity(root, built.app, 'workerd', {
+    verifyRuntime: false,
+  });
+  assert.equal(
+    identity.surfaces.frontend.buildMarker,
+    built.manifest.buildMarker,
+  );
+  assert.equal(identity.surfaces.api.buildMarker, built.manifest.buildMarker);
+  const original = fs.readFileSync(
+    path.join(built.outputRoot, 'public/renderer-build.json'),
+  );
+  fs.appendFileSync(
+    path.join(built.outputRoot, 'public/renderer-build.json'),
+    ' ',
+  );
+  assert.throws(
+    () => releaseIdentity(root, built.app, 'workerd', { verifyRuntime: false }),
+    /artifact mismatch for public\/renderer-build\.json/u,
+  );
+  fs.writeFileSync(
+    path.join(built.outputRoot, 'public/renderer-build.json'),
+    original,
+  );
+});
+
+test('browser smoke rejects wrong-path or symbolic-link Cloudflare compiler manifests without a Node fallback', async t => {
+  const { releaseIdentity } = await import(
+    '../browser-smoke/runtime-evidence.mjs'
+  );
+  const root = tempRoot();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const built = await writeVerticalRelease(root, { platform: 'workerd' });
+  const publicManifest = path.join(
+    built.outputRoot,
+    'public/renderer-build.json',
+  );
+  const wrongManifest = path.join(built.outputRoot, 'renderer-build.json');
+  fs.renameSync(publicManifest, wrongManifest);
+  assert.throws(
+    () => releaseIdentity(root, built.app, 'workerd', { verifyRuntime: false }),
+    /release artifact is missing: public\/renderer-build\.json/u,
+  );
+  fs.symlinkSync('../renderer-build.json', publicManifest);
+  assert.throws(
+    () => releaseIdentity(root, built.app, 'workerd', { verifyRuntime: false }),
+    /non-symlink regular file/u,
+  );
+});
+
+for (const uiOnly of [true, false]) {
+  test(`browser smoke requires the declared ${uiOnly ? 'UI-only' : 'full-stack'} Cloudflare shell surface identities`, async t => {
+    const { bindContractToExpectedReleaseIdentities } = await import(
+      '../browser-smoke/runtime-evidence.mjs'
+    );
+    const root = tempRoot();
+    t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+    const built = await writeVerticalRelease(root, {
+      uiOnly,
+      platform: 'workerd',
+    });
+    built.app.kind = 'shell';
+    built.app.surfaceProfile = uiOnly ? 'ui-only' : 'full-stack';
+    const bind = () =>
+      bindContractToExpectedReleaseIdentities({
+        contract: built.contract,
+        expectedSourceRevisions: { inventory: 'a'.repeat(40) },
+        platform: 'workerd',
+        projectDir: root,
+      });
+    assert.equal(bind().apps[0].marker.buildMarker, built.manifest.buildMarker);
+    assert.deepEqual(
+      Object.keys(built.workerManifest.deliveryUnit.surfaces).sort(),
+      uiOnly ? ['ui'] : ['api', 'ui'],
+    );
+    if (uiOnly)
+      built.workerManifest.deliveryUnit.surfaces.api =
+        built.finalized.surfaces.api;
+    else delete built.workerManifest.deliveryUnit.surfaces.api;
+    writeJson(
+      built.outputRoot,
+      'server/modern-worker-manifest.json',
+      built.workerManifest,
+    );
+    // Bind the deliberate unit-fixture mutation with the genuine public factory
+    // so the rejection must come from declared surfaces, not an obsolete SHA.
+    const { createMicroVerticalReleaseEnvelope } = built.ownerRequire(
+      '@modern-js/app-tools-extensions/release-envelope',
+    );
+    const envelope = await createMicroVerticalReleaseEnvelope({
+      artifactRoot: built.outputRoot,
+      target: 'cloudflare',
+      identity: built.envelope.identity,
+      ui: built.envelope.ui,
+      artifacts: built.envelope.artifacts.map(({ logicalPath, runtime }) => ({
+        logicalPath,
+        runtime,
+      })),
+      surfaces: built.envelope.surfaces,
+    });
+    writeJson(
+      built.outputRoot,
+      'release/microvertical-release-envelope.json',
+      envelope,
+    );
+    assert.throws(
+      bind,
+      /worker manifest surfaces differ from its declared application surface profile/u,
+    );
+  });
 }
 
 test('browser smoke requires the ordinary finalized renderer manifest instead of deriving a UI marker', async t => {
@@ -584,6 +853,83 @@ for (const apiOnly of [false, true]) {
     );
   });
 }
+
+test('browser smoke verifies a public v5 UI-only shell envelope without API/backend evidence', async t => {
+  const { releaseIdentity } = await import(
+    '../browser-smoke/runtime-evidence.mjs'
+  );
+  const root = tempRoot();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const built = await writeVerticalRelease(root, { uiOnly: true });
+  const {
+    MICROVERTICAL_RELEASE_ENVELOPE_SCHEMA_VERSION,
+    verifyMicroVerticalReleaseEnvelope,
+  } = built.ownerRequire('@modern-js/app-tools-extensions/release-envelope');
+  await verifyMicroVerticalReleaseEnvelope(built.envelope, {
+    artifactRoot: built.outputRoot,
+    expectedTarget: 'node',
+  });
+  const identity = releaseIdentity(root, built.app, 'node');
+  assert.equal(
+    identity.schemaVersion,
+    MICROVERTICAL_RELEASE_ENVELOPE_SCHEMA_VERSION,
+  );
+  assert.equal(identity.schemaVersion, 5);
+  assert.deepEqual(Object.keys(identity.surfaces).sort(), ['frontend', 'ssr']);
+  assert.deepEqual(built.envelope.surfaces.apiBackend, []);
+  assert.equal(
+    Object.hasOwn(built.envelope.surfaces, 'backendFederation'),
+    false,
+  );
+});
+
+test('browser smoke rejects schema 4 and incomplete API/backend declarations', async t => {
+  const { releaseIdentity } = await import(
+    '../browser-smoke/runtime-evidence.mjs'
+  );
+  const root = tempRoot();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const built = await writeVerticalRelease(root, { uiOnly: true });
+  const { releaseEnvelopePayload, digestMicroVerticalReleaseEnvelopePayload } =
+    built.ownerRequire(
+      '@modern-js/app-tools-extensions/release-envelope/canonical',
+    );
+  for (const [change, diagnostic] of [
+    [
+      value => {
+        value.schemaVersion = 4;
+      },
+      /unsupported release envelope schema/u,
+    ],
+    [
+      value => {
+        value.surfaces.apiBackend = ['api.js'];
+      },
+      /must be declared together/u,
+    ],
+    [
+      value => {
+        value.surfaces.backendFederation = {
+          manifest: 'backend/mf-manifest.json',
+          container: 'backend/remoteEntry.js',
+        };
+      },
+      /must be declared together/u,
+    ],
+  ]) {
+    const value = structuredClone(built.envelope);
+    change(value);
+    value.envelopeDigest = digestMicroVerticalReleaseEnvelopePayload(
+      releaseEnvelopePayload(value),
+    );
+    writeJson(
+      built.outputRoot,
+      'release/microvertical-release-envelope.json',
+      value,
+    );
+    assert.throws(() => releaseIdentity(root, built.app, 'node'), diagnostic);
+  }
+});
 
 test('browser smoke still rejects deployed artifact bytes changed after envelope stamping', async t => {
   const { bindContractToExpectedReleaseIdentities } = await import(
@@ -1038,6 +1384,240 @@ test('parses browser smoke CLI options with stable validation behavior', async (
       }),
     /artifactMode and platform must be provided together/,
   );
+});
+
+test('Node browser continuation CLI is limited to the source/node cursor', async () => {
+  const { parseArgs } = await loadSmoke();
+  const args = [
+    '--project-dir',
+    '.',
+    '--mode',
+    'local',
+    '--artifact-mode',
+    'source',
+    '--platform',
+    'node',
+    '--continue-from',
+    'prior.json',
+    '--backend-report',
+    'proof.json',
+  ];
+  const parsed = parseArgs(args);
+  assert.equal(parsed.continueFrom, path.resolve('prior.json'));
+  assert.equal(parsed.backendReport, path.resolve('proof.json'));
+  assert.throws(
+    () => parseArgs(['--project-dir', '.', '--backend-report', 'proof.json']),
+    /requires --continue-from/,
+  );
+  assert.throws(
+    () => parseArgs([...args, '--shell-runtime', 'workerd']),
+    /requires local source\/node/,
+  );
+});
+
+test('Node browser continuation restores the accepted strict pnpm settings without disabling verification', async t => {
+  const { createAcceptedNodeProofEnvironment } = await loadSmoke();
+  const root = tempRoot();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const settings = {
+    minimumReleaseAge: 1440,
+    minimumReleaseAgeStrict: true,
+    minimumReleaseAgeIgnoreMissingTime: false,
+    minimumReleaseAgeExclude: ['@fixture/cohort@1.0.0'],
+    trustPolicy: 'no-downgrade',
+    trustPolicyExclude: ['@fixture/cohort@1.0.0'],
+    enableGlobalVirtualStore: false,
+  };
+  writeJson(root, 'node_modules/.pnpm-workspace-state-v1.json', { settings });
+  const env = createAcceptedNodeProofEnvironment(root, {
+    CI: 'false',
+    PNPM_CONFIG_MINIMUM_RELEASE_AGE_EXCLUDE: 'foreign',
+    pnpm_config_verify_deps_before_run: 'error',
+  });
+  assert.equal(env.CI, 'true');
+  assert.equal(env.PNPM_CONFIG_MINIMUM_RELEASE_AGE_EXCLUDE, undefined);
+  assert.deepEqual(
+    JSON.parse(env.pnpm_config_minimum_release_age_exclude),
+    settings.minimumReleaseAgeExclude,
+  );
+  assert.deepEqual(
+    JSON.parse(env.pnpm_config_trust_policy_exclude),
+    settings.trustPolicyExclude,
+  );
+  assert.equal(env.pnpm_config_enable_global_virtual_store, 'false');
+  assert.equal(env.pnpm_config_verify_deps_before_run, 'error');
+  settings.minimumReleaseAgeStrict = false;
+  writeJson(root, 'node_modules/.pnpm-workspace-state-v1.json', { settings });
+  assert.throws(
+    () => createAcceptedNodeProofEnvironment(root),
+    /original strict pnpm install settings/,
+  );
+});
+
+test('Node browser continuation pins prior observations and rejects stale identity or changed output bytes', async t => {
+  const { readNodeBrowserContinuation } = await loadSmoke();
+  const { bindContractToExpectedReleaseIdentities } = await import(
+    '../browser-smoke/runtime-evidence.mjs'
+  );
+  const root = tempRoot();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const built = await writeVerticalRelease(root);
+  const contract = bindContractToExpectedReleaseIdentities({
+    contract: built.contract,
+    expectedSourceRevisions: { inventory: 'a'.repeat(40) },
+    platform: 'node',
+    projectDir: root,
+  });
+  const app = contract.apps[0];
+  const target = { app, baseUrl: 'http://localhost:3021' };
+  const assertions = [
+    ...[
+      'ssr-route',
+      'css-root-marker',
+      'mf-manifest',
+      'mf-manifest-json',
+      'locale-json',
+      'browser-css-root-marker',
+      'stylesheet-evidence',
+      'stylesheet-href-dedupe',
+      'browser-diagnostics',
+      'no-js-ssr-css-root-marker',
+      'no-js-stylesheet-href-dedupe',
+      'no-js-ssr-failed-responses',
+      'effect-readiness',
+      'backend-json-smoke',
+      'localized-router-navigation',
+    ].map(type => ({ type, status: 'pass' })),
+    ...['ui-marker-html', 'browser-ui-marker', 'no-js-ssr-ui-marker'].map(
+      type => ({
+        type,
+        status: 'pass',
+        actual: app.marker.build,
+        expected: app.marker.build,
+      }),
+    ),
+    {
+      type: 'backend-driven-ui',
+      status: 'pass',
+      apiResponse: {
+        body: { items: [{ marker: built.finalized.surfaces.api }] },
+      },
+    },
+  ];
+  const prior = {
+    schemaVersion: 1,
+    status: 'fail',
+    error: 'Node backend federation proof failed',
+    errorDetails: { exitCode: 1, signal: null },
+    mode: 'local',
+    artifactMode: 'source',
+    platform: 'node',
+    shellRuntime: 'node',
+    projectDir: root,
+    contractPath: path.join(root, 'topology/reference-topology.json'),
+    artifactDir: path.join(root, 'prior-artifacts'),
+    skipped: [],
+    targetRuntimes: { inventory: 'node' },
+    results: [
+      {
+        appId: 'inventory',
+        status: 'pass',
+        baseUrl: target.baseUrl,
+        assertions,
+      },
+    ],
+  };
+  const options = {
+    projectDir: root,
+    continueFrom: path.join(root, 'prior.json'),
+    out: path.join(root, 'new.json'),
+    artifactDir: path.join(root, 'new-artifacts'),
+  };
+  const read = () =>
+    readNodeBrowserContinuation({
+      options,
+      contract,
+      contractPath: prior.contractPath,
+      targets: [target],
+    });
+  writeJson(root, 'prior.json', prior);
+  const accepted = read();
+  assert.equal(
+    accepted.priorReport.sha256,
+    crypto
+      .createHash('sha256')
+      .update(fs.readFileSync(options.continueFrom))
+      .digest('hex'),
+  );
+  assert.deepEqual(accepted.results, prior.results);
+  for (const mutate of [
+    value => {
+      value.skipped = [{ appId: 'inventory' }];
+    },
+    value => {
+      value.results.push(value.results[0]);
+    },
+    value => {
+      value.results[0].assertions.find(
+        item => item.type === 'browser-ui-marker',
+      ).actual = '0'.repeat(64);
+    },
+    value => {
+      value.results[0].assertions = value.results[0].assertions.filter(
+        item => item.type !== 'localized-router-navigation',
+      );
+    },
+  ]) {
+    const rejected = structuredClone(prior);
+    mutate(rejected);
+    writeJson(root, 'prior.json', rejected);
+    assert.throws(read, /unchanged passed Node browser stage/);
+  }
+  writeJson(root, 'prior.json', prior);
+  fs.writeFileSync(
+    path.join(built.outputRoot, 'client.js'),
+    'changed after browser observation',
+  );
+  assert.throws(read, /unchanged passed Node browser stage/);
+});
+
+test('Node browser continuation reuses only a backend proof bound to the current artifact set', async t => {
+  const { readNodeBackendFederationProof } = await import(
+    '../browser-smoke/backend-evidence.mjs'
+  );
+  const root = tempRoot();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const item = createNodeBackendProofResult();
+  const expectedArtifacts = [
+    {
+      appId: item.appId,
+      envelopePath: item.releaseEnvelope.path,
+      envelopeDigest: item.releaseEnvelope.envelopeDigest,
+      identity: {
+        buildMarker: item.versionBoundary.buildVersion,
+        releaseVersion: item.versionBoundary.version,
+        sourceRevision: item.versionBoundary.sourceRevision,
+      },
+    },
+  ];
+  const relative = '.codex/reports/node-backend-federation-proof/proof.json';
+  const report = {
+    schemaVersion: 1,
+    status: 'pass',
+    target: '.output',
+    results: [item],
+  };
+  writeJson(root, relative, report);
+  const read = () =>
+    readNodeBackendFederationProof({ projectDir: root, expectedArtifacts });
+  assert.equal(read()[0].status, 'pass');
+  const stale = structuredClone(report);
+  stale.results[0].versionBoundary.sourceRevision = 'e'.repeat(40);
+  stale.results[0].liveApi.marker.sourceRevision = 'e'.repeat(40);
+  writeJson(root, relative, stale);
+  assert.throws(read, /does not match current artifact identity/);
+  writeJson(root, relative, { ...report, results: [item, item] });
+  assert.throws(read, /exactly cover current artifacts/);
 });
 
 test('orders remote consumers after their remote producers are ready', async () => {
