@@ -3025,6 +3025,244 @@ describe('React native receiver output controller', () => {
     );
   });
 
+  it('keeps discovery receipts when an authenticated no-op BEGIN resumes at publication unlock, then revokes them on the next real watch', async () => {
+    const app = fixture();
+    const result = await integration(app);
+    const options: Record<string, unknown> = { name: 'native-host', dts: true };
+    await configureChain(result, options, true, true);
+    const originalGeneration = deferred<ReactGeneratedOutputGeneration>();
+    const noOpCompleted = deferred<void>();
+    void noOpCompleted.promise.catch(() => {});
+    const nextWatchCompleted = deferred<void>();
+    let client: Rspack.Compiler | undefined;
+    let initialReceiver: ReceiverContext | undefined;
+    let initialReceiverCompleted = false;
+    let processAssetsRuns = 0;
+    let finalizations = 0;
+    let queued: Awaited<ReturnType<typeof queuedBridgeBegin>> | undefined;
+    let queuedFrame: ReceiverFrame | undefined;
+    let queuedTerminal: Promise<void> | undefined;
+    let noOpSucceeded = false;
+    let originalReceipt:
+      | ReturnType<ReceiverRegistry['completedReceipts']>[number]
+      | undefined;
+    let originalNode: RendererGeneratedOutputNode | undefined;
+    let originalProjection: string | undefined;
+    let originalIdentity: RendererBuildIdentities | undefined;
+    const generations: number[] = [];
+    const published: RendererBuildIdentities[] = [];
+    const phase = new ReactTypedCssPhase({
+      appDirectory: app.appDirectory,
+      internalDirectory: result.context.internalDirectory,
+      distDirectory: result.context.distDirectory,
+      configurationSourceSnapshot: result.context.configurationSourceSnapshot,
+      produceTypedCss: false,
+      bindRuntimeIdentity: true,
+      generatedOutputs: result.controller,
+      async finalize(_stats, lease) {
+        finalizations++;
+        const generation = phase.currentGeneratedOutputGeneration();
+        generations.push(generation.generation);
+        await lease?.assertCurrent();
+        if (finalizations <= 2) {
+          expect(lease).toBeDefined();
+          expect(lease!.permission(app.declaration)).toEqual(originalNode);
+          const selected = lease!.receipts.filter(
+            pair => pair.receipt === originalReceipt?.receipt,
+          );
+          expect(selected).toHaveLength(1);
+          expect(selected[0].registration).toBe(originalReceipt!.registration);
+          const projection = JSON.stringify({
+            producer: selected[0].registration.producer,
+            effectiveOptions: selected[0].registration.effectiveOptions,
+            destinations: selected[0].registration.destinations,
+            node: lease!.permission(app.declaration),
+          });
+          if (finalizations === 1) {
+            originalProjection = projection;
+            const marker = digest(projection);
+            const identity = identities();
+            originalIdentity = {
+              ...identity,
+              inputDigest: marker,
+              buildMarker: marker,
+              identities: {
+                ...identity.identities,
+                main: { ...identity.identities.main, buildId: marker },
+              },
+            };
+            const bridge = seed(options).receiverBridge!;
+            queued = await queuedBridgeBegin(bridge, seed(options), () => {});
+            queuedTerminal = queued.response.then(async accepted => {
+              expect(accepted.status).toBe(200);
+              queuedFrame = (accepted.value as { frame: ReceiverFrame }).frame;
+              const admittedGeneration =
+                phase.currentGeneratedOutputGeneration();
+              const terminal = await postBridge(
+                bridge,
+                bridgeTerminal(queued!.beginId, queuedFrame),
+              );
+              expect(terminal.status).toBe(200);
+              noOpSucceeded = true;
+              expect(queuedFrame.generation).toBe(generation.generation);
+              expect(admittedGeneration.snapshot).toBe(generation.snapshot);
+              noOpCompleted.resolve();
+            });
+            void queuedTerminal.catch(noOpCompleted.reject);
+          } else {
+            expect(projection).toBe(originalProjection);
+            expect(generation).toBe(await originalGeneration.promise);
+            expect(result.registry().completedReceipts()).toHaveLength(2);
+          }
+        } else {
+          expect(generation.generation).toBe(2);
+          expect(lease!.receipts).toHaveLength(0);
+          expect(lease!.permission(app.declaration)).toBeUndefined();
+          expect(observe(app.declaration)).toEqual(originalNode);
+        }
+        // This fixture's runtime identity binds the demonstrated original
+        // producer/options/path bytes. Permission remains current-wave only.
+        return originalIdentity!;
+      },
+      async publishDevelopment(_stats, identity, assertCurrent) {
+        assertCurrent();
+        published.push(identity);
+        if (published.length === 2) nextWatchCompleted.resolve();
+      },
+    });
+    result.controller.bindPhase(phase, result.context);
+    closes.push(async () => {
+      if (initialReceiver && !initialReceiverCompleted)
+        await initialReceiver
+          .terminal({
+            status: 'failed',
+            frame: initialReceiver.frame,
+            operations: [],
+            nodes: [],
+            stages: [],
+            failures: [
+              {
+                operation: 'test-cleanup',
+                reason: 'Discovery receipt did not complete',
+              },
+            ],
+          })
+          .catch(() => {});
+      if (queued && queuedFrame && !noOpSucceeded)
+        await postBridge(
+          seed(options).receiverBridge!,
+          bridgeTerminal(queued.beginId, queuedFrame, true),
+        ).catch(() => {});
+    });
+    const lifecycle: RsbuildPlugin = {
+      name: 'test-discovery-receiver-publication-continuity',
+      setup(api) {
+        phase.install(api);
+        api.modifyBundlerChain((chain, { environment }) => {
+          installFixtureCompilerPlugins(chain, result, environment.name);
+        });
+        api.onBeforeCreateCompiler(async params => {
+          for (const callback of result.beforeCompiler)
+            await callback(params as never);
+        });
+        api.onAfterCreateCompiler(async params => {
+          for (const callback of result.afterCompiler)
+            await callback(params as never);
+          const compilers =
+            'compilers' in params.compiler
+              ? params.compiler.compilers
+              : [params.compiler];
+          client = compilers.find(
+            compiler => compiler.options.name === 'client',
+          );
+          if (!client)
+            throw new Error('The actual discovery compiler is absent');
+          client.hooks.thisCompilation.tap(
+            'test-discovery-positive-receiver',
+            compilation => {
+              compilation.hooks.processAssets.tapPromise(
+                {
+                  name: 'test-discovery-positive-receiver',
+                  stage: rspack.Compilation.PROCESS_ASSETS_STAGE_ADDITIONAL,
+                },
+                async () => {
+                  if (processAssetsRuns++) return;
+                  const generation = phase.currentGeneratedOutputGeneration();
+                  originalGeneration.resolve(generation);
+                  initialReceiver = await result
+                    .registry()
+                    .begin(seed(options), receiverDetails());
+                  const acknowledgement = writeReceiver(
+                    initialReceiver,
+                    app.declaration,
+                  );
+                  await completeReceiver(initialReceiver, acknowledgement);
+                  initialReceiverCompleted = true;
+                  originalReceipt = result.registry().completedReceipts()[0];
+                  originalNode = observe(app.declaration);
+                  expect(originalReceipt.receipt.nodes).toHaveLength(1);
+                  expect(originalReceipt.receipt.nodes[0]).toEqual(
+                    originalNode,
+                  );
+                },
+              );
+            },
+          );
+        });
+      },
+    };
+    const rsbuild = await createRsbuild({
+      cwd: app.appDirectory,
+      rsbuildConfig: {
+        mode: 'development',
+        plugins: [lifecycle],
+        environments: {
+          client: {
+            source: {
+              entry: { main: path.join(app.appDirectory, 'src/main.js') },
+            },
+            output: { target: 'web' },
+          },
+        },
+        tools: { htmlPlugin: false },
+        output: {
+          cleanDistPath: false,
+          distPath: { root: result.context.distDirectory },
+        },
+        dev: { writeToDisk: false, hmr: false, liveReload: false },
+        server: { host: '127.0.0.1', port: 0, printUrls: false },
+        performance: { printFileSize: false },
+      },
+    });
+    const nativeServer = await rsbuild.createDevServer({
+      getPortSilently: true,
+    });
+    closes.push(() => nativeServer.close());
+    await nativeServer.listen();
+    await noOpCompleted.promise;
+    await queuedTerminal;
+    const liveIdentity = await phase.resolveIdentities();
+    expect(liveIdentity).toBe(originalIdentity);
+    expect(published).toEqual([originalIdentity]);
+    expect(generations).toEqual([1, 1]);
+    expect(client?.watching).toBeDefined();
+    const beforeWatch = await result.controller.pinReceipts();
+    expect(beforeWatch.permission(app.declaration)).toEqual(originalNode);
+    closes.push(async () => beforeWatch.release());
+    client!.watching!.invalidate();
+    await nextWatchCompleted.promise;
+    expect(generations).toEqual([1, 1, 2]);
+    expect(published).toEqual([originalIdentity, originalIdentity]);
+    await expect(beforeWatch.assertCurrent()).rejects.toThrow();
+    const discoveryGeneration = await originalGeneration.promise;
+    expect(() => discoveryGeneration.assertCurrent()).toThrow();
+    beforeWatch.release();
+    const afterWatch = await result.controller.pinReceipts();
+    expect(afterWatch.receipts).toHaveLength(0);
+    expect(afterWatch.permission(app.declaration)).toBeUndefined();
+    afterWatch.release();
+  });
+
   it('schedules the actual native watch and reuses its pre-write reservation after receiver completion', async () => {
     const app = fixture();
     const producerGate = deferred<void>();

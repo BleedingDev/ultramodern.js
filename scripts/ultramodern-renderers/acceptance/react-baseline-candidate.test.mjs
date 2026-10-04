@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -12,6 +13,8 @@ import {
 } from './react-baseline-candidate.mjs';
 import {
   assertReactBaselineDataLoaderPackageCurrent,
+  assertReactBaselineInputsUnchanged,
+  auditReactBaselineConsumerOutputs,
   createReactBaselineBuildToolDependencies,
   createReactBaselineRootDeclarationDependencies,
   materializeReactBaselineDataLoaderPackage,
@@ -21,6 +24,14 @@ import {
 
 const version = '0.11.12';
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
+const routerMirror =
+  'tests/integration/routes-tanstack-mf/mf-host/src/modern-tanstack/index/router.gen.ts';
+const authoredRoute =
+  'tests/integration/routes-tanstack-mf/mf-host/src/routes/page.tsx';
+const undeclaredGenerated =
+  'tests/integration/routes-tanstack-mf/mf-host/src/undeclared.gen.ts';
+const digest = bytes => createHash('sha256').update(bytes).digest('hex');
+
 function prerequisiteFixture(t) {
   const root = fs.mkdtempSync(
     path.join(fs.realpathSync(os.tmpdir()), 'react-baseline-public-members-'),
@@ -52,6 +63,101 @@ function prerequisiteFixture(t) {
   };
   return { root, consumerRoot, inspection };
 }
+
+function consumerAuditFixture(t) {
+  const { root, consumerRoot } = prerequisiteFixture(t);
+  const sourceRoot = path.join(root, 'source');
+  const files = [
+    [routerMirror, fs.readFileSync(path.join(repoRoot, routerMirror))],
+    [authoredRoute, fs.readFileSync(path.join(repoRoot, authoredRoute))],
+    [undeclaredGenerated, Buffer.from('export const authored = true;\n')],
+  ];
+  for (const directory of [sourceRoot, consumerRoot]) {
+    for (const [relativePath, bytes] of files) {
+      const file = path.join(directory, relativePath);
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, bytes);
+    }
+  }
+  return {
+    root,
+    sourceRoot,
+    stage: {
+      workDir: consumerRoot,
+      inputFiles: files.map(([relativePath, bytes]) => ({
+        relativePath,
+        sha256: digest(bytes),
+      })),
+    },
+  };
+}
+
+test('records the exact native TanStack mirror after regeneration while initial and source bytes stay strict', t => {
+  const { sourceRoot, stage } = consumerAuditFixture(t);
+  assertReactBaselineInputsUnchanged(stage);
+  const initial = auditReactBaselineConsumerOutputs(stage);
+  assert.equal(initial.length, 1);
+  assert.equal(initial[0].sha256, initial[0].originalSha256);
+  // Transport control only; actual native generation is exercised by MF acceptance.
+  const generated = Buffer.from('export const nativeRouter = "regenerated";\n');
+  fs.writeFileSync(path.join(stage.workDir, routerMirror), generated);
+  const outputs = auditReactBaselineConsumerOutputs(stage);
+  assert.equal(outputs.length, 1);
+  assert.equal(outputs[0].relativePath, routerMirror);
+  assert.equal(outputs[0].producer, '@modern-js/plugin-tanstack');
+  assert.equal(
+    outputs[0].implementation,
+    'packages/runtime/plugin-tanstack/src/cli/artifacts.ts',
+  );
+  assert.equal(outputs[0].originalSha256, initial[0].sha256);
+  assert.equal(outputs[0].sha256, digest(generated));
+  assert.equal(outputs[0].size, generated.length);
+  assert.throws(
+    () => assertReactBaselineInputsUnchanged(stage),
+    /input changed/u,
+  );
+  assertReactBaselineInputsUnchanged(stage, sourceRoot);
+  fs.writeFileSync(path.join(sourceRoot, routerMirror), generated);
+  assert.throws(
+    () => assertReactBaselineInputsUnchanged(stage, sourceRoot),
+    /input changed/u,
+  );
+});
+
+test('consumer audit rejects authored changes and undeclared generated-looking files', t => {
+  for (const relativePath of [authoredRoute, undeclaredGenerated]) {
+    const { stage } = consumerAuditFixture(t);
+    fs.writeFileSync(path.join(stage.workDir, relativePath), 'changed bytes\n');
+    assert.throws(
+      () => auditReactBaselineConsumerOutputs(stage),
+      /input changed/u,
+    );
+  }
+});
+
+test('native router output rejects linked files, linked parents and empty bytes', t => {
+  for (const replacement of ['file-link', 'parent-link', 'empty']) {
+    const { root, stage } = consumerAuditFixture(t);
+    const file = path.join(stage.workDir, routerMirror);
+    if (replacement === 'empty') {
+      fs.writeFileSync(file, '');
+    } else if (replacement === 'file-link') {
+      const outside = path.join(root, 'outside.ts');
+      fs.writeFileSync(outside, 'export const router = true;\n');
+      fs.unlinkSync(file);
+      fs.symlinkSync(outside, file);
+    } else {
+      const directory = path.dirname(file);
+      const outside = path.join(root, 'outside');
+      fs.renameSync(directory, outside);
+      fs.symlinkSync(outside, directory, 'dir');
+    }
+    assert.throws(
+      () => auditReactBaselineConsumerOutputs(stage),
+      /Expected ordinary input file|Expected ordinary input directory|must be nonempty/u,
+    );
+  }
+});
 
 test('materializes every public data-loader member as exact physical files in the original layout', t => {
   const { consumerRoot, inspection } = prerequisiteFixture(t);

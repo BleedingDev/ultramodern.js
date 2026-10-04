@@ -14,3 +14,5 @@ Hold the receiver publication fence across identity resolution and metadata publ
 Use the router-free React federation bridge entry in every module format, preserving the framework's lazy-loading CSS default and option forwarding.
 
 Report the actual changed compiler inputs when React discovery and its first live build disagree, including bounded dependency and receiver differences. Keep the build identity validation strict.
+
+Keep native receiver records in the same generation through private discovery and the first emitting build. Later public rebuilds continue to revoke prior generation records.

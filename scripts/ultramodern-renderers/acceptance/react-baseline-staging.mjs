@@ -28,6 +28,24 @@ const baselineInputs = Object.freeze([
   'tests/integration/ssr/fixtures/streaming',
 ]);
 
+// The unchanged MF host config selects tanstackRouterPlugin() with its default
+// generatedDirName and index entry. The native generateEntryCode hook in
+// packages/runtime/plugin-tanstack/src/cli/index.ts calls the writer in
+// packages/runtime/plugin-tanstack/src/cli/artifacts.ts, whose destination is
+// <srcDirectory>/<generatedDirName>/<entryName>/router.gen.ts. This exact tracked
+// mirror is copied and checked before execution, then recorded as native output.
+const nativeTanstackRouterMirror = Object.freeze({
+  relativePath:
+    'tests/integration/routes-tanstack-mf/mf-host/src/modern-tanstack/index/router.gen.ts',
+  producer: '@modern-js/plugin-tanstack',
+  implementation: 'packages/runtime/plugin-tanstack/src/cli/artifacts.ts',
+  fixtureConfig:
+    'tests/integration/routes-tanstack-mf/mf-host/modern.config.ts',
+  hook: 'generateEntryCode',
+  generatedDirName: 'modern-tanstack',
+  entryName: 'index',
+});
+
 const exactVersion =
   /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-(?:0|[1-9]\d*|\d*[a-zA-Z-][\da-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][\da-zA-Z-]*))*)?(?:\+[\da-zA-Z-]+(?:\.[\da-zA-Z-]+)*)?$/u;
 
@@ -275,7 +293,7 @@ export function trackedReactBaselineInputFiles(repoRoot, inputs) {
   return [...files].sort();
 }
 
-/** Copy only tracked authored inputs into a fresh consumer, preserving their bytes. */
+/** Copy every tracked baseline file into a fresh consumer, preserving its bytes. */
 export function stageReactBaselineInputs({
   repoRoot,
   workDir,
@@ -376,6 +394,47 @@ export function assertReactBaselineInputsUnchanged(
       `React baseline input changed: ${input.relativePath}`,
     );
   }
+}
+
+/** Audit authored consumer bytes and record only the declared native router mirror. */
+export function auditReactBaselineConsumerOutputs(stage) {
+  assert.ok(
+    path.isAbsolute(stage.workDir ?? '') && Array.isArray(stage.inputFiles),
+    'React baseline consumer audit requires a stage and absolute root',
+  );
+  assert.equal(
+    fs.realpathSync(stage.workDir),
+    stage.workDir,
+    'React baseline consumer root must remain physical',
+  );
+  assertReactBaselineInputsUnchanged({
+    ...stage,
+    inputFiles: stage.inputFiles.filter(
+      input => input.relativePath !== nativeTanstackRouterMirror.relativePath,
+    ),
+  });
+  const outputs = [];
+  for (const input of stage.inputFiles) {
+    if (input.relativePath !== nativeTanstackRouterMirror.relativePath)
+      continue;
+    assert.match(input.sha256, /^[\da-f]{64}$/u, 'Invalid staged input SHA256');
+    const { file, stat } = ordinaryFile(stage.workDir, input.relativePath);
+    assert.equal(
+      fs.realpathSync(file),
+      file,
+      'Native TanStack router output must remain contained and physical',
+    );
+    assert.ok(stat.size > 0, 'Native TanStack router output must be nonempty');
+    outputs.push(
+      Object.freeze({
+        ...nativeTanstackRouterMirror,
+        originalSha256: input.sha256,
+        sha256: sha256(file),
+        size: stat.size,
+      }),
+    );
+  }
+  return Object.freeze(outputs);
 }
 
 /** Preserve the declaration packages supplied by the original monorepo root. */

@@ -212,7 +212,17 @@ export class ReactTypedCssPhase {
         'React compiler closed before receiver generation reservation',
       );
     if (this.reservedGeneration) return this.reservedGeneration;
-    if (this.completed || this.finalizingEpoch === this.epoch) {
+    // Private discovery has proved inputs but has not emitted the first public
+    // wave. BEGIN released by its publication fence still joins that baseline.
+    const initialDiscoveryEmissionPending =
+      this.discovering &&
+      this.runtimeIdentities !== undefined &&
+      !this.finalized &&
+      !this.completed;
+    if (
+      this.completed ||
+      (this.finalizingEpoch === this.epoch && !initialDiscoveryEmissionPending)
+    ) {
       this.epoch++;
       this.currentGeneration = undefined;
       this.snapshot = this.capture();
