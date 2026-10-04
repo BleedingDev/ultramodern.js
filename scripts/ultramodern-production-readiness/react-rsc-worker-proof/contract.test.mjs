@@ -832,7 +832,10 @@ test('consumer inputs resolve exact prepared sidecars and their dependencies fro
     assert.equal(inputs.manifest.dependencies[item.name], undefined);
     assert.equal(inputs.manifest.devDependencies[item.name], undefined);
   }
-  assert.equal(workspace.overrides['@rsbuild/core'], undefined);
+  assert.equal(
+    workspace.overrides['@rsbuild/core'],
+    'npm:@bleedingdev/rsbuild-core@2.2.9',
+  );
   assert.equal(workspace.overrides['@rslib/core'], undefined);
   assert.equal(
     workspace.overrides[
@@ -862,6 +865,28 @@ test('sidecar alias transport rejects an authenticated dependency on a different
   );
 });
 
+test('sidecar alias transport rejects conflicting canonical aliases from two authenticated owners', t => {
+  const { release, template } = releaseFixture(t, {
+    toolsDependencies: {
+      '@rsbuild/core': 'npm:@bleedingdev/rsbuild-core@2.2.9',
+    },
+    sidecars: [
+      {
+        name: '@bleedingdev/rsbuild-core',
+        version: '2.2.9',
+        dependencies: {
+          '@rsbuild/core': 'npm:@bleedingdev/rslib-core@0.20.0',
+        },
+      },
+      { name: '@bleedingdev/rslib-core', version: '0.20.0' },
+    ],
+  });
+  assert.throws(
+    () => releaseConsumerInputs(release, template),
+    /Conflicting authenticated sidecar alias: @rsbuild\/core/u,
+  );
+});
+
 test('consumer registry transport retains bare package selectors without file overrides', t => {
   const { release, template } = releaseFixture(t, {
     toolsDependencies: { '@rslib/core': 'npm:@bleedingdev/rslib-core@0.20.0' },
@@ -881,6 +906,8 @@ test('consumer registry transport retains bare package selectors without file ov
   const names = new Set([
     ...release.packages.flatMap(item => [item.sourceName, item.targetName]),
     ...release.sidecars.packages.map(item => item.name),
+    '@rslib/core',
+    '@rsbuild/core',
   ]);
   assert.deepEqual(Object.keys(workspace.overrides).sort(), [...names].sort());
   for (const [name, specifier] of Object.entries(workspace.overrides)) {
