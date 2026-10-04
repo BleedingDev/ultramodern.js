@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import backendFederationBuildPlugin from '@modern-js/app-tools-extensions/backend-federation-build';
 import {
   resolveTopologyDeliveryUnit,
   resolveWorkerDeliveryUnitStamp,
@@ -241,6 +242,112 @@ it('preserves the compiled build identity without restamping generation inputs',
       ),
     ),
   ).toEqual(initial);
+});
+
+it('persists finalized UI-only output for cold deployment without backend federation', async () => {
+  const { appDirectory, artifact } = await writeWorkspace({
+    surfaceProfile: 'ui-only',
+  });
+  const distDirectory = path.join(appDirectory, 'dist-cloudflare');
+  const ui = uiOptions('catalog');
+  const buildMarker = '9'.repeat(64);
+  const sourceRevision = 'b'.repeat(40);
+  const resolveRendererBuild = rstest.fn(async () => ({
+    buildMarker,
+    sourceRevision,
+    ui: {
+      rendererIdentity: { ...ui.identity, buildId: buildMarker },
+      rendererProfile: ui.profile,
+      routerBindings: ui.routerBindings,
+    },
+  }));
+  await expect(
+    resolveWorkerDeliveryUnitStamp(appDirectory, distDirectory),
+  ).rejects.toThrow(/Finalized build artifact is required/);
+
+  const afterBuild: Array<() => Promise<void>> = [];
+  backendFederationBuildPlugin({
+    resolveRendererBuild,
+    rendererBuildPlugin: '@modern-js/renderer-react-build-metadata',
+  }).setup({
+    getAppContext: () => ({
+      appDirectory,
+      distDirectory,
+      entrypoints: [{ entryName: 'main', isMainEntry: true }],
+    }),
+    onAfterBuild: handler => afterBuild.push(handler),
+  });
+  expect(resolveRendererBuild).not.toHaveBeenCalled();
+  expect(afterBuild).toHaveLength(1);
+  await afterBuild[0]!();
+
+  const persisted = await fs.readFile(
+    path.join(distDirectory, 'ultramodern-build.json'),
+    'utf8',
+  );
+  expect(
+    await fs.readFile(
+      path.join(distDirectory, 'public/ultramodern-build.json'),
+      'utf8',
+    ),
+  ).toBe(persisted);
+  const worker = await resolveWorkerDeliveryUnitStamp(
+    appDirectory,
+    distDirectory,
+  );
+  expect(worker?.buildMarker).toBe(buildMarker);
+  expect(worker?.sourceRevision).toBe(sourceRevision);
+  expect(worker?.surfaces.ui?.rendererIdentity).toEqual({
+    ...ui.identity,
+    buildId: buildMarker,
+  });
+  expect(worker?.surfaces.ui?.rendererProfile).toEqual(ui.profile);
+  expect(worker?.surfaces.ui?.routerBindings).toEqual(ui.routerBindings);
+  expect(Object.hasOwn(worker?.surfaces ?? {}, 'api')).toBe(false);
+  expect(
+    JSON.parse(
+      await fs.readFile(
+        path.join(appDirectory, 'shared/ultramodern-build.json'),
+        'utf8',
+      ),
+    ),
+  ).toEqual(artifact);
+  for (const file of ['backendRemoteEntry.cjs', 'backend-mf-manifest.json'])
+    await expect(fs.access(path.join(distDirectory, file))).rejects.toThrow();
+  expect(resolveRendererBuild).toHaveBeenCalledOnce();
+  expect(resolveRendererBuild).toHaveBeenCalledWith({
+    appDirectory,
+    distDirectory,
+    entrypoints: [{ entryName: 'main', isMainEntry: true }],
+  });
+});
+
+it('does not manufacture a finalized UI-only artifact when its compiler output is missing', async () => {
+  const { appDirectory } = await writeWorkspace({ surfaceProfile: 'ui-only' });
+  const distDirectory = path.join(appDirectory, 'dist-cloudflare');
+  const afterBuild: Array<() => Promise<void>> = [];
+  backendFederationBuildPlugin({
+    resolveRendererBuild: async () => {
+      throw new Error('Finalized renderer output is missing');
+    },
+    rendererBuildPlugin: '@modern-js/renderer-react-build-metadata',
+  }).setup({
+    getAppContext: () => ({
+      appDirectory,
+      distDirectory,
+      entrypoints: [{ entryName: 'main', isMainEntry: true }],
+    }),
+    onAfterBuild: handler => afterBuild.push(handler),
+  });
+  await expect(afterBuild[0]!()).rejects.toThrow(
+    'Finalized renderer output is missing',
+  );
+  await expect(
+    fs.access(path.join(distDirectory, 'ultramodern-build.json')),
+  ).rejects.toThrow();
+  await expect(
+    resolveWorkerDeliveryUnitStamp(appDirectory, distDirectory),
+  ).rejects.toThrow(/Finalized build artifact is required/);
 });
 
 it('rejects a generation-only artifact before worker output and preserves required final bindings', async () => {
