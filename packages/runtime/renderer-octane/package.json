@@ -72,6 +72,10 @@
     "@octanejs/tanstack-router": "0.1.60+ultramodern.6c31d4be4768",
     "octane": "0.7.1+ultramodern.f75bf12ac8be"
   },
+  "peerDependenciesMeta": {
+    "@octanejs/tanstack-router": { "optional": true },
+    "octane": { "optional": true }
+  },
   "devDependencies": {
     "@octanejs/rspack-plugin": "0.1.55",
     "@octanejs/tanstack-router": "https://github.com/bleedingdev/octane/releases/download/%40octanejs%2Ftanstack-router%400.1.60%2Bultramodern.6c31d4be4768/octanejs-tanstack-router-0.1.60%2Bultramodern.6c31d4be4768.tgz",
