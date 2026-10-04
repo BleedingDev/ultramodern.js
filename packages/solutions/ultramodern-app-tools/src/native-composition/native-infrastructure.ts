@@ -128,7 +128,6 @@ export function nativeRendererInfrastructurePlugin(
     | undefined;
   return {
     name: `@modern-js/renderer-${renderer}-infrastructure`,
-    pre: ['@modern-js/plugin-initialize'],
     post: ['@modern-js/plugin-analyze', '@modern-js/plugin-bff'],
     setup(api) {
       const { appDirectory, command } = api.getAppContext();
@@ -161,12 +160,14 @@ export function nativeRendererInfrastructurePlugin(
       }
       if (options.resolveBuildIdentities)
         api.modifyResolvedConfig(config => {
-          const { command, distDirectory, apiOnly } = api.getAppContext();
+          const { command, apiOnly } = api.getAppContext();
           if (command !== 'dev' || apiOnly) return config;
           development ??= new NativeDevelopment({
             renderer,
             profile,
-            distDirectory,
+            get distDirectory() {
+              return api.getAppContext().distDirectory;
+            },
             getSessionIdentities() {
               if (!buildIdentities)
                 throw new Error(

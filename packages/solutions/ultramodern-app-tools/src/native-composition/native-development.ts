@@ -173,10 +173,33 @@ async function writeExclusive(
 /** A session identity survives HMR; the compiler wave and its byte closure do not. */
 export class NativeDevelopment {
   readonly plugin: RsbuildPlugin;
-  private readonly directory: string;
-  private readonly checkpointRoot: string;
-  private readonly manifestFile: string;
-  private readonly lockFile: string;
+  private outputPaths:
+    | {
+        readonly directory: string;
+        readonly checkpointRoot: string;
+        readonly manifestFile: string;
+        readonly lockFile: string;
+      }
+    | undefined;
+  private get paths() {
+    if (!this.outputPaths)
+      throw new Error(
+        'Native development output ownership requires its initialized builder',
+      );
+    return this.outputPaths;
+  }
+  private get directory() {
+    return this.paths.directory;
+  }
+  private get checkpointRoot() {
+    return this.paths.checkpointRoot;
+  }
+  private get manifestFile() {
+    return this.paths.manifestFile;
+  }
+  private get lockFile() {
+    return this.paths.lockFile;
+  }
   private readonly lockBytes: Buffer;
   private lockOwner: OwnedPath | undefined;
   private checkpointOwner: OwnedPath | undefined;
@@ -202,18 +225,26 @@ export class NativeDevelopment {
   private devServerOrigin: string | undefined;
 
   constructor(private readonly options: NativeDevelopmentOptions) {
-    this.directory = path.join(
-      options.distDirectory,
-      RENDERER_DEVELOPMENT_DIRECTORY,
-    );
-    this.manifestFile = path.join(this.directory, RENDERER_BUILD_MANIFEST_FILE);
-    this.lockFile = path.join(this.directory, '.native-development-owner.json');
     const session = randomUUID();
     this.lockBytes = Buffer.from(JSON.stringify({ session, pid: process.pid }));
-    this.checkpointRoot = path.join(this.directory, 'compilations', session);
     this.plugin = {
       name: `ultramodern:${options.renderer}:development-authority`,
       setup: api => {
+        const distDirectory = options.distDirectory;
+        if (!path.isAbsolute(distDirectory))
+          throw new Error(
+            'Native development output ownership requires the resolved absolute application directory',
+          );
+        const directory = path.join(
+          distDirectory,
+          RENDERER_DEVELOPMENT_DIRECTORY,
+        );
+        this.outputPaths = {
+          directory,
+          manifestFile: path.join(directory, RENDERER_BUILD_MANIFEST_FILE),
+          lockFile: path.join(directory, '.native-development-owner.json'),
+          checkpointRoot: path.join(directory, 'compilations', session),
+        };
         api.modifyEnvironmentConfig((config, { name }) => {
           return {
             ...config,
@@ -221,10 +252,7 @@ export class NativeDevelopment {
               ...config.output,
               distPath: {
                 ...config.output.distPath,
-                root: nativeDevelopmentOutputDirectory(
-                  options.distDirectory,
-                  name,
-                ),
+                root: nativeDevelopmentOutputDirectory(distDirectory, name),
               },
               ...(name === 'client'
                 ? {
@@ -343,7 +371,7 @@ export class NativeDevelopment {
               !candidate.options.name ||
               candidate.options.output.path !==
                 nativeDevelopmentOutputDirectory(
-                  options.distDirectory,
+                  distDirectory,
                   candidate.options.name,
                 )
             )
