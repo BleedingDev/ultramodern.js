@@ -128,6 +128,7 @@ export function nativeRendererInfrastructurePlugin(
     | undefined;
   return {
     name: `@modern-js/renderer-${renderer}-infrastructure`,
+    pre: ['@modern-js/plugin-initialize'],
     post: ['@modern-js/plugin-analyze', '@modern-js/plugin-bff'],
     setup(api) {
       const { appDirectory, command } = api.getAppContext();

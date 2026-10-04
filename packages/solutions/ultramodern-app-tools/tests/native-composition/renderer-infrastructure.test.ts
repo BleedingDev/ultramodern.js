@@ -26,6 +26,7 @@ import {
   rspack,
 } from '@rsbuild/core';
 import { describe, expect, it, rstest } from '@rstest/core';
+import { createDefaultConfig } from '../../../app-tools/src/config';
 import { getBundleEntry } from '../../../app-tools/src/plugins/analyze/getBundleEntry';
 import {
   type NativeEntryGenerator,
@@ -43,6 +44,7 @@ async function initializeInfrastructure(
   ssr = true,
   options: NativeInfrastructureOptions = {},
   withBff = false,
+  command: 'build' | 'dev' = 'build',
 ) {
   const manager = createPluginManager();
   manager.addPlugins([
@@ -61,7 +63,7 @@ async function initializeInfrastructure(
     appContext: initAppContext({
       packageName: 'native-infrastructure-proof',
       configFile: false,
-      command: 'build',
+      command,
       appDirectory,
       metaName: 'modern-js',
       plugins,
@@ -704,6 +706,160 @@ describe('native infrastructure in the owning CLI hooks', () => {
 });
 
 describe('native infrastructure through the real Rsbuild and Rspack pipeline', () => {
+  it.each([
+    'solid',
+    'octane',
+  ] as const)('initializes %s dev compiler outputs after the real CLI resolves its application directory', async renderer => {
+    const root = createFixture();
+    try {
+      const { api, context } = await initializeInfrastructure(
+        renderer,
+        root,
+        {
+          client: () => 'export const client = true;\n',
+          server: () =>
+            'export const nativeRequestHandler = () => new Response();\n',
+        },
+        true,
+        {
+          // These identities are synthetic for this config-only regression.
+          // Rsbuild config generation and both CLI hooks are real.
+          async resolveBuildIdentities({ entrypoints, mode }) {
+            expect(mode).toBe('development');
+            return {
+              identities: Object.fromEntries(
+                entrypoints.map(({ entryName }) => [
+                  entryName,
+                  {
+                    renderer,
+                    appId: 'native-dev-output-config-proof',
+                    entryName,
+                    protocolVersion: 1,
+                    buildId: 'a'.repeat(64),
+                  },
+                ]),
+              ),
+              buildMarker: 'a'.repeat(64),
+              sourceRevision: 'workspace',
+              inputDigest: 'b'.repeat(64),
+              profileDigest: 'c'.repeat(64),
+              compilerDigest: 'd'.repeat(64),
+              frameworkCohortDigest: 'e'.repeat(64),
+              cacheAllowed: false,
+              promotable: false,
+            };
+          },
+        },
+        false,
+        'dev',
+      );
+      // NativeDevelopment must capture the directory resolved by the owning
+      // initializer, rather than the CLI context's initial empty directory.
+      expect(api.getAppContext().distDirectory).toBe('');
+      const defaults = createDefaultConfig(api.getAppContext());
+      const config = api.getNormalizedConfig();
+      const resolved = await api.getHooks().modifyResolvedConfig.call({
+        ...defaults,
+        ...config,
+        source: { ...defaults.source, ...config.source },
+        output: { ...defaults.output, ...config.output },
+        server: { ...defaults.server, ...config.server },
+      } as AppNormalizedConfig);
+      context.normalizedConfig = resolved;
+      const distDirectory = path.join(root, 'dist');
+      expect(api.getAppContext().distDirectory).toBe(distDirectory);
+      const builderPlugins = resolved.builderPlugins as RsbuildPlugin[];
+      expect(builderPlugins.map(plugin => plugin.name)).toContain(
+        `ultramodern:${renderer}:development-authority`,
+      );
+
+      const { entrypoints } = await api.getHooks().modifyEntrypoints.call({
+        entrypoints: [
+          {
+            entryName: 'main',
+            entry: path.join(
+              root,
+              'src',
+              renderer === 'octane' ? 'App.tsrx' : 'App.tsx',
+            ),
+          },
+        ],
+      });
+      const { routes } = await api.getHooks().modifyServerRoutes.call({
+        routes: [
+          {
+            entryName: 'main',
+            urlPath: '/',
+            entryPath: 'main.html',
+            isSSR: true,
+          },
+        ],
+      });
+      api.updateAppContext({
+        entrypoints,
+        serverRoutes: routes,
+        checkedEntries: ['main'],
+      });
+      await api.getHooks().generateEntryCode.call({ entrypoints });
+      const { environments } = await api
+        .getHooks()
+        .modifyBuilderEnvironments.call({
+          environments: {
+            client: {
+              source: { entry: { main: entrypoints[0].internalEntry! } },
+              output: { target: 'web' },
+              tools: { htmlPlugin: false },
+            },
+          },
+        });
+      const rsbuild = await createRsbuild({
+        cwd: root,
+        rsbuildConfig: {
+          mode: 'development',
+          plugins: [nativeRendererIsolationPlugin(renderer), ...builderPlugins],
+          environments,
+          performance: { printFileSize: false },
+        },
+      });
+      const configs = await rsbuild.initConfigs({ action: 'dev' });
+      const client = configs.find(config => config.name === 'client');
+      const server = configs.find(config => config.name === 'server');
+      expect(client?.output?.filename).toBe('[name].[contenthash].js');
+      expect(client?.output?.path).toBe(
+        path.join(distDirectory, '.ultramodern-dev', 'client'),
+      );
+      expect(server?.output?.filename).toBe('[name].js');
+      expect(server?.output?.path).toBe(
+        path.join(distDirectory, '.ultramodern-dev', 'bundles'),
+      );
+      await expect(
+        api.getHooks().onBeforeCreateCompiler.call({
+          bundlerConfigs: configs,
+        }),
+      ).resolves.toEqual({ bundlerConfigs: configs });
+
+      for (const output of [
+        { filename: 'renamed.js' },
+        { path: path.join(distDirectory, 'bundles') },
+      ]) {
+        await expect(
+          api.getHooks().onBeforeCreateCompiler.call({
+            bundlerConfigs: configs.map(config =>
+              config.name === 'server'
+                ? {
+                    ...config,
+                    output: { ...config.output, ...output },
+                  }
+                : config,
+            ),
+          }),
+        ).rejects.toThrow('registered bundles/[name].js');
+      }
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it.each([
     'solid',
     'octane',
