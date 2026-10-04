@@ -7,6 +7,10 @@ import type {
   RendererGeneratedOutputIdentityLease,
 } from '@modern-js/app-tools-extensions/renderer-build-identity';
 import { SERVICE_WORKER_ENVIRONMENT_NAME } from '@modern-js/builder';
+import type {
+  BffRuntimeBuildIdentityProvider,
+  WithBffRuntimeBuildIdentity,
+} from '@modern-js/plugin-bff-build-extensions';
 import {
   assertRendererIdentity,
   type Renderer,
@@ -110,10 +114,11 @@ export function nativeRendererInfrastructurePlugin(
   renderer: Exclude<Renderer, 'react'>,
   generator?: NativeEntryGenerator,
   options: NativeInfrastructureOptions = {},
-): CliPlugin<AppTools> {
+): CliPlugin<WithBffRuntimeBuildIdentity<AppTools>> {
   const profile = resolveRendererProfile(renderer);
   const serverEntries = new Map<string, string>();
   let buildIdentities: RendererBuildIdentities | undefined;
+  let completedBuildIdentities: RendererBuildIdentities | undefined;
   let development: NativeDevelopment | undefined;
   let buildIdentityContext:
     | Parameters<
@@ -122,8 +127,36 @@ export function nativeRendererInfrastructurePlugin(
     | undefined;
   return {
     name: `@modern-js/renderer-${renderer}-infrastructure`,
-    post: ['@modern-js/plugin-analyze'],
+    post: ['@modern-js/plugin-analyze', '@modern-js/plugin-bff'],
     setup(api) {
+      const { appDirectory, command } = api.getAppContext();
+      if (
+        options.resolveBuildIdentities &&
+        (command === 'build' || command === 'deploy')
+      ) {
+        const resolveBffRuntimeBuildIdentity: BffRuntimeBuildIdentityProvider =
+          async compilation => {
+            if (
+              compilation.appDirectory !== appDirectory ||
+              api.getAppContext().appDirectory !== appDirectory
+            )
+              throw new Error(
+                'Native BFF runtime identity requires its owning application compilation',
+              );
+            if (!completedBuildIdentities)
+              throw new Error(
+                'Native BFF runtime identity requires a completed renderer build',
+              );
+            return Object.freeze({
+              buildMarker: completedBuildIdentities.buildMarker,
+              sourceRevision: completedBuildIdentities.sourceRevision,
+            });
+          };
+        api.updateAppContext({ resolveBffRuntimeBuildIdentity });
+        api.onBeforeBuild(() => {
+          completedBuildIdentities = undefined;
+        });
+      }
       if (options.resolveBuildIdentities)
         api.modifyResolvedConfig(config => {
           const { command, distDirectory, apiOnly } = api.getAppContext();
@@ -789,6 +822,7 @@ export default nativeRequestHandler;
           } finally {
             await fs.rm(temporary, { force: true });
           }
+          completedBuildIdentities = manifest;
         });
       }
     },

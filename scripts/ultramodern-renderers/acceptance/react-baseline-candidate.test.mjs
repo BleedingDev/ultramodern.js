@@ -6,12 +6,44 @@ import {
   readReactBaselineReport,
 } from './react-baseline-candidate.mjs';
 import {
+  createReactBaselineBuildToolDependencies,
   REACT_BASELINE_SUITES,
   trackedReactBaselineInputFiles,
 } from './react-baseline-staging.mjs';
 
 const version = '0.11.12';
 const repoRoot = fileURLToPath(new URL('../../../', import.meta.url));
+function originalRscAuthority() {
+  return {
+    release: {
+      packages: [
+        {
+          sourceName: '@modern-js/builder',
+          targetName: '@bleedingdev/modern-js-builder',
+          packageJson: {
+            name: '@bleedingdev/modern-js-builder',
+            devDependencies: {
+              'rsbuild-plugin-rsc': '0.1.1',
+              'react-server-dom-rspack': '0.1.0',
+            },
+            peerDependencies: {
+              'rsbuild-plugin-rsc': '0.1.1',
+              'react-server-dom-rspack': '0.1.0',
+            },
+            peerDependenciesMeta: {
+              'rsbuild-plugin-rsc': { optional: true },
+              'react-server-dom-rspack': { optional: true },
+            },
+          },
+        },
+      ],
+    },
+    fixture: {
+      name: '@integration-test/routes-tanstack-rsc',
+      dependencies: { 'react-server-dom-rspack': '0.1.0' },
+    },
+  };
+}
 function nativeReport() {
   const tests = REACT_BASELINE_SUITES.flatMap((testPath, suite) =>
     Array.from({ length: [9, 2, 1, 5][suite] }, (_, index) => ({
@@ -41,6 +73,86 @@ function nativeReport() {
     tests,
   };
 }
+
+test('restores only the original builder RSC test tool while preserving fixture and optional SDK contracts', () => {
+  const { release, fixture } = originalRscAuthority();
+  const original = JSON.stringify({ release, fixture });
+  assert.deepEqual(createReactBaselineBuildToolDependencies(release, fixture), {
+    'rsbuild-plugin-rsc': '0.1.1',
+  });
+  assert.equal(JSON.stringify({ release, fixture }), original);
+});
+
+test('RSC test transport rejects absent, ranged or mismatched builder tool declarations', () => {
+  for (const change of [
+    metadata => {
+      delete metadata.devDependencies['rsbuild-plugin-rsc'];
+    },
+    metadata => {
+      metadata.devDependencies['rsbuild-plugin-rsc'] = '^0.1.1';
+    },
+    metadata => {
+      metadata.peerDependencies['rsbuild-plugin-rsc'] = '0.1.2';
+    },
+  ]) {
+    const { release, fixture } = originalRscAuthority();
+    change(release.packages[0].packageJson);
+    assert.throws(
+      () => createReactBaselineBuildToolDependencies(release, fixture),
+      /exact version|versions must agree/u,
+    );
+  }
+});
+
+test('RSC test transport rejects foreign owners and an incompatible original fixture runtime', () => {
+  const foreign = originalRscAuthority();
+  foreign.release.packages[0].packageJson.name = 'foreign-builder';
+  assert.throws(
+    () =>
+      createReactBaselineBuildToolDependencies(
+        foreign.release,
+        foreign.fixture,
+      ),
+    /accepted builder tarball/u,
+  );
+  const incompatible = originalRscAuthority();
+  incompatible.fixture.dependencies['react-server-dom-rspack'] = '0.2.0';
+  assert.throws(
+    () =>
+      createReactBaselineBuildToolDependencies(
+        incompatible.release,
+        incompatible.fixture,
+      ),
+    /runtime must match/u,
+  );
+});
+
+test('RSC test transport cannot turn optional peers into native runtime dependencies', () => {
+  for (const name of ['rsbuild-plugin-rsc', 'react-server-dom-rspack']) {
+    const required = originalRscAuthority();
+    required.release.packages[0].packageJson.peerDependenciesMeta[
+      name
+    ].optional = false;
+    assert.throws(
+      () =>
+        createReactBaselineBuildToolDependencies(
+          required.release,
+          required.fixture,
+        ),
+      /must remain an optional peer/u,
+    );
+    const implicit = originalRscAuthority();
+    implicit.release.packages[0].packageJson.dependencies = { [name]: '0.1.1' };
+    assert.throws(
+      () =>
+        createReactBaselineBuildToolDependencies(
+          implicit.release,
+          implicit.fixture,
+        ),
+      /must remain opt-in/u,
+    );
+  }
+});
 
 test('admits the original tracked streaming dynamic route as a literal Git path', () => {
   const route =

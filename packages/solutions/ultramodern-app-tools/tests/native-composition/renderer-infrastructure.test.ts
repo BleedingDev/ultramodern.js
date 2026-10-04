@@ -7,6 +7,7 @@ import {
   type AppNormalizedConfig,
   type AppTools,
   appTools,
+  type BffCompilation,
 } from '@modern-js/app-tools';
 import { SERVICE_WORKER_ENVIRONMENT_NAME } from '@modern-js/builder';
 import { type CLIPluginAPI, createPluginManager } from '@modern-js/plugin';
@@ -15,6 +16,7 @@ import {
   initAppContext,
   initPluginAPI,
 } from '@modern-js/plugin/cli';
+import { bffPlugin as nativeBffPlugin } from '@modern-js/plugin-bff';
 import type { Entrypoint } from '@modern-js/types';
 import {
   createRsbuild,
@@ -40,11 +42,13 @@ async function initializeInfrastructure(
   generator?: NativeEntryGenerator,
   ssr = true,
   options: NativeInfrastructureOptions = {},
+  withBff = false,
 ) {
   const manager = createPluginManager();
   manager.addPlugins([
     appTools({ rendererExtensions: false, serverExtensions: false }),
     nativeRendererInfrastructurePlugin(renderer, generator, options),
+    ...(withBff ? [nativeBffPlugin()] : []),
   ]);
   const plugins = manager.getPlugins();
   const config = {
@@ -98,7 +102,7 @@ describe('native infrastructure in the owning CLI hooks', () => {
     try {
       const captured: string[][] = [];
       const emitted: string[] = [];
-      const { api } = await initializeInfrastructure(
+      const { api, plugins: cliPlugins } = await initializeInfrastructure(
         renderer,
         root,
         {
@@ -141,7 +145,32 @@ describe('native infrastructure in the owning CLI hooks', () => {
             };
           },
         },
+        true,
       );
+      const pluginNames = cliPlugins.map(plugin => plugin.name);
+      const metadataIndex = pluginNames.indexOf(
+        `@modern-js/renderer-${renderer}-infrastructure`,
+      );
+      const bffIndex = pluginNames.indexOf('@modern-js/plugin-bff');
+      expect(metadataIndex).toBeGreaterThanOrEqual(0);
+      expect(bffIndex).toBeGreaterThan(metadataIndex);
+      const provider = api.getAppContext().resolveBffRuntimeBuildIdentity;
+      expect(provider).toBeTypeOf('function');
+      if (!provider) throw new Error('Missing native BFF identity provider');
+      const compilation: BffCompilation = {
+        appDirectory: root,
+        apiDirectory: path.join(root, 'api'),
+        sourceDirectories: [path.join(root, 'api')],
+        outputDirectories: [path.join(root, 'dist', 'api')],
+        distDirectory: path.join(root, 'dist'),
+        moduleType: 'commonjs',
+      };
+      await expect(provider(compilation)).rejects.toThrow(
+        'requires a completed renderer build',
+      );
+      await expect(
+        provider({ ...compilation, appDirectory: path.join(root, 'other') }),
+      ).rejects.toThrow('requires its owning application compilation');
       // This is a real later consumer tap in the same pipeline analyze awaits.
       api.modifyEntrypoints(({ entrypoints }) => ({
         entrypoints: [
@@ -167,9 +196,28 @@ describe('native infrastructure in the owning CLI hooks', () => {
           isSSR: false,
         })),
       });
-      expect(routes.map(route => route.bundle)).toEqual([
-        'bundles/renamed.js',
-        'bundles/added.js',
+      expect(routes).toEqual([
+        expect.objectContaining({
+          entryName: 'renamed',
+          entryPath: 'renamed.html',
+          urlPath: '/renamed',
+          isSSR: false,
+          bundle: 'bundles/renamed.js',
+        }),
+        expect.objectContaining({
+          entryName: 'added',
+          entryPath: 'added.html',
+          urlPath: '/added',
+          isSSR: false,
+          bundle: 'bundles/added.js',
+        }),
+        {
+          urlPath: '/api',
+          isApi: true,
+          entryPath: '',
+          isSPA: false,
+          isSSR: false,
+        },
       ]);
       api.updateAppContext({
         entrypoints,
@@ -179,6 +227,10 @@ describe('native infrastructure in the owning CLI hooks', () => {
       await api.getHooks().generateEntryCode.call({ entrypoints });
       expect(captured).toEqual([['renamed', 'added']]);
       expect(emitted).toEqual(['renamed', 'added']);
+      // Prepared entry identities are not a completed, validated native build.
+      await expect(provider(compilation)).rejects.toThrow(
+        'requires a completed renderer build',
+      );
       const internal = api.getAppContext().internalDirectory;
       for (const name of ['main', 'removed'])
         expect(fs.existsSync(path.join(internal, renderer, name))).toBe(false);

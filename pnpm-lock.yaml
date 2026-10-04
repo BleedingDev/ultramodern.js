@@ -978,9 +978,6 @@ importers:
       '@types/node':
         specifier: ^26.6.2
         version: 26.6.2
-      '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260707.2
-        version: 7.0.0-dev.20260707.2
       typescript:
         specifier: 7.0.2
         version: 7.0.2
@@ -1272,15 +1269,15 @@ importers:
       '@types/node':
         specifier: ^26.6.2
         version: 26.6.2
-      '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260707.2
-        version: 7.0.0-dev.20260707.2
       effect:
         specifier: 4.0.0-rc.117
         version: 4.0.0-rc.117(patch_hash=1877f22cce728295e1c8c34c8b462a29aea1cca08acd658510d77884cf63c2c5)
       esbuild:
         specifier: '>=0.28.2'
         version: 0.28.2
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
       zod:
         specifier: ^4.6.5
         version: 4.6.5(patch_hash=7640b49bb7addea5feff95947618c322ddb94b0bc834b4eb3ad349cff6fbf73b)
@@ -3174,6 +3171,9 @@ importers:
       '@modern-js/plugin':
         specifier: workspace:*
         version: link:../../toolkit/plugin
+      '@modern-js/plugin-bff-build-extensions':
+        specifier: workspace:*
+        version: link:../../cli/plugin-bff-build-extensions
       '@modern-js/renderer-core':
         specifier: workspace:*
         version: link:../../runtime/renderer-core
@@ -29450,9 +29450,9 @@ snapshots:
       - debug
       - supports-color
 
-  axios@1.18.1(debug@4.4.3(supports-color@10.2.2))(supports-color@7.2.0):
+  axios@1.18.1(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0):
     dependencies:
-      follow-redirects: 1.16.0(debug@4.4.3(supports-color@10.2.2))
+      follow-redirects: 1.16.0(debug@4.4.3(supports-color@7.2.0))
       form-data: 4.0.6
       https-proxy-agent: 5.0.1(supports-color@7.2.0)
       proxy-from-env: 2.1.0
@@ -31593,6 +31593,10 @@ snapshots:
   follow-redirects@1.16.0(debug@4.4.3(supports-color@10.2.2)):
     optionalDependencies:
       debug: 4.4.3(supports-color@10.2.2)
+
+  follow-redirects@1.16.0(debug@4.4.3(supports-color@7.2.0)):
+    optionalDependencies:
+      debug: 4.4.3(supports-color@7.2.0)
 
   for-each@0.3.5:
     dependencies:
@@ -34463,7 +34467,7 @@ snapshots:
       ansi-styles: 4.3.0
       argparse: 2.0.1
       asynckit: 0.4.0
-      axios: 1.18.1(debug@4.4.3(supports-color@10.2.2))(supports-color@7.2.0)
+      axios: 1.18.1(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)
       balanced-match: 4.0.3
       base64-js: 1.5.1
       bl: 4.1.0
@@ -34502,7 +34506,7 @@ snapshots:
       fast-wrap-ansi: 0.2.0
       figures: 3.2.0
       flat: 5.0.2
-      follow-redirects: 1.16.0(debug@4.4.3(supports-color@10.2.2))
+      follow-redirects: 1.16.0(debug@4.4.3(supports-color@7.2.0))
       form-data: 4.0.6
       fs-constants: 1.0.0
       function-bind: 1.1.2

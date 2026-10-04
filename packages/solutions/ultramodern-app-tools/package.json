@@ -169,6 +169,7 @@
     "@modern-js/builder": "workspace:*",
     "@modern-js/federation-runtime": "workspace:*",
     "@modern-js/plugin": "workspace:*",
+    "@modern-js/plugin-bff-build-extensions": "workspace:*",
     "@modern-js/renderer-core": "workspace:*",
     "@modern-js/runtime-extensions": "workspace:*",
     "@modern-js/runtime-utils": "workspace:*",

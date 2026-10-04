@@ -10,6 +10,10 @@ import type {
   RendererGeneratedOutputIdentityLease,
 } from '@modern-js/app-tools-extensions/renderer-build-identity';
 import { findHostingModuleDirectory } from '@modern-js/app-tools-extensions/runtime-package-resolution';
+import type {
+  BffRuntimeBuildIdentityProvider,
+  WithBffRuntimeBuildIdentity,
+} from '@modern-js/plugin-bff-build-extensions';
 import { escapeInlineDataJSON } from '@modern-js/renderer-core/data';
 import { getArgv } from '@modern-js/utils';
 import type { RsbuildPlugin, Rspack } from '@rsbuild/core';
@@ -106,7 +110,7 @@ export async function resolveReactMetadataServerPlugin(
 /** Bind the existing React output to its actual application and framework inputs. */
 export function reactRendererBuildMetadataPlugin(
   options: ReactBuildMetadataOptions,
-): CliPlugin<AppTools> {
+): CliPlugin<WithBffRuntimeBuildIdentity<AppTools>> {
   const profile = resolveRendererProfile('react');
   let identities: RendererBuildIdentities | undefined;
   let typedCssPhase: ReactTypedCssPhase | undefined;
@@ -198,9 +202,34 @@ export function reactRendererBuildMetadataPlugin(
   };
   return {
     name: '@modern-js/renderer-react-build-metadata',
-    post: ['@modern-js/plugin-analyze'],
+    post: ['@modern-js/plugin-analyze', '@modern-js/plugin-bff'],
     setup(api) {
       if (isEntryMetadataRead()) return;
+      const { appDirectory, command } = api.getAppContext();
+      if (command === 'build' || command === 'deploy') {
+        const resolveBffRuntimeBuildIdentity: BffRuntimeBuildIdentityProvider =
+          async compilation => {
+            if (
+              compilation.appDirectory !== appDirectory ||
+              api.getAppContext().appDirectory !== appDirectory
+            )
+              throw new Error(
+                'React BFF runtime identity requires its owning application compilation',
+              );
+            const resolved = typedCssPhase
+              ? await typedCssPhase.resolveIdentities()
+              : identities;
+            if (!resolved)
+              throw new Error(
+                'React BFF runtime identity requires a completed renderer build',
+              );
+            return Object.freeze({
+              buildMarker: resolved.buildMarker,
+              sourceRevision: resolved.sourceRevision,
+            });
+          };
+        api.updateAppContext({ resolveBffRuntimeBuildIdentity });
+      }
       const publishMetadata = async (
         stats: Rspack.Stats | Rspack.MultiStats | undefined,
         resolved: RendererBuildIdentities,

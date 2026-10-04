@@ -6,6 +6,7 @@ import type {
   CLIPlugin,
   CLIPluginExtends,
 } from '@modern-js/plugin/cli';
+import semver from '@modern-js/utils/semver';
 
 export type NativeConfigLoadIntegration = Pick<
   CLIOptions,
@@ -13,10 +14,9 @@ export type NativeConfigLoadIntegration = Pick<
 >;
 
 // Declaration identities remain stable when publishing rewrites import names.
-const providerNames = new Set([
-  ['@modern-js', 'ultramodern-app-tools'].join('/'),
-  '@bleedingdev/modern-js-ultramodern-app-tools',
-]);
+const canonicalProvider = ['@modern-js', 'ultramodern-app-tools'].join('/');
+const publishedProvider = '@bleedingdev/modern-js-ultramodern-app-tools';
+const providerNames = new Set([canonicalProvider, publishedProvider]);
 
 function record(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -86,7 +86,10 @@ export async function resolveNativeConfigLoadProvider({
   }
   if (!record(manifest))
     throw new Error(`Invalid app manifest: ${manifestFile}`);
-  const declarations = new Map<string, string>();
+  const declarations = new Map<
+    string,
+    { target: string; version: string; publishedSlot: boolean }
+  >();
   for (const field of [
     'dependencies',
     'devDependencies',
@@ -97,33 +100,40 @@ export async function resolveNativeConfigLoadProvider({
     for (const [name, specifier] of Object.entries(dependencies)) {
       const alias =
         typeof specifier === 'string'
-          ? /^npm:(@[^/]+\/[^@]+|[^@/]+)(?:@.+)?$/u.exec(specifier)?.[1]
+          ? /^npm:(@[^/]+\/[^@]+|[^@/]+)(?:@(.+))?$/u.exec(specifier)
           : undefined;
-      const target = alias ?? name;
+      const target = alias?.[1] ?? name;
       if (!providerNames.has(target)) continue;
       if (
         !/^(?:@[a-zA-Z0-9][a-zA-Z0-9._-]*\/)?[a-zA-Z0-9][a-zA-Z0-9._-]*$/u.test(
           name,
         ) ||
         typeof specifier !== 'string' ||
-        !specifier
+        !specifier ||
+        (specifier.startsWith('npm:') && !alias)
       ) {
         throw new Error(`Invalid native config provider declaration: ${name}`);
       }
       const prior = declarations.get(name);
-      if (prior !== undefined && prior !== target) {
+      if (prior !== undefined && prior.target !== target) {
         throw new Error(
           `Conflicting native config provider declaration: ${name}`,
         );
       }
-      declarations.set(name, target);
+      declarations.set(name, {
+        target,
+        version: alias?.[2] ?? specifier.replace(/^workspace:/u, ''),
+        // Native pnpm overrides keep the authored canonical slot while the
+        // maintained publication changes its actual package name.
+        publishedSlot: !alias && name === canonicalProvider,
+      });
     }
   }
   if (declarations.size === 0) return undefined;
 
   const require = createRequire(manifestFile);
   let selected: { root: string; entry: string } | undefined;
-  for (const [name, target] of declarations) {
+  for (const [name, declaration] of declarations) {
     const request = `${name}/native-config-load`;
     const entry = fs.realpathSync(require.resolve(request));
     const lexicalRoot = require.resolve
@@ -137,9 +147,29 @@ export async function resolveNativeConfigLoadProvider({
     const metadata: unknown = JSON.parse(
       fs.readFileSync(path.join(root, 'package.json'), 'utf8'),
     );
+    const versionRange = semver.validRange(
+      ['^', '~'].includes(declaration.version) ? '*' : declaration.version,
+    );
+    const parsedVersion =
+      record(metadata) && typeof metadata.version === 'string'
+        ? semver.parse(metadata.version)
+        : null;
+    const canonicalVersion = parsedVersion
+      ? parsedVersion.version +
+        (parsedVersion.build.length ? `+${parsedVersion.build.join('.')}` : '')
+      : undefined;
     if (
       !record(metadata) ||
-      metadata.name !== target ||
+      !(
+        metadata.name === declaration.target ||
+        (declaration.publishedSlot && metadata.name === publishedProvider)
+      ) ||
+      typeof metadata.version !== 'string' ||
+      canonicalVersion !== metadata.version ||
+      (versionRange !== null &&
+        !semver.satisfies(metadata.version, versionRange, {
+          includePrerelease: true,
+        })) ||
       !contains(root, entry)
     ) {
       throw new Error(`Invalid declared native config provider owner: ${name}`);
