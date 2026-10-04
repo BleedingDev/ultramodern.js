@@ -19,6 +19,7 @@ import { readReleaseManifest } from '../../ultramodern-publish/lib/source-create
 import { startEphemeralRegistry } from '../../ultramodern-publish/lib/source-create-proof/runtime-proof/registry.mjs';
 import {
   assertReactBaselineInputsUnchanged,
+  createReactBaselineBuildToolDependencies,
   createReactBaselineTransportOverrides,
   REACT_BASELINE_SUITES,
   stageReactBaselineInputs,
@@ -372,6 +373,12 @@ export async function runReactBaselineCandidate(options) {
     /^\d+\.\d+\.\d+$/u,
     'The original runner version must be exact',
   );
+  const testBuildTools = createReactBaselineBuildToolDependencies(
+    release,
+    readJson(
+      path.join(stage.testsDir, 'integration/routes-tanstack-rsc/package.json'),
+    ),
+  );
   fs.writeFileSync(
     path.join(stage.workDir, 'package.json'),
     `${JSON.stringify(
@@ -383,6 +390,7 @@ export async function runReactBaselineCandidate(options) {
           '@rstest/core': rstestVersion,
           '@modern-js/tsconfig':
             rootPackage.devDependencies['@modern-js/tsconfig'],
+          ...testBuildTools,
         },
       },
       null,
@@ -402,6 +410,7 @@ export async function runReactBaselineCandidate(options) {
       autoInstallPeers: rootWorkspace.autoInstallPeers,
       linkWorkspacePackages: rootWorkspace.linkWorkspacePackages,
       strictPeerDependencies: rootWorkspace.strictPeerDependencies,
+      verifyDepsBeforeRun: rootWorkspace.verifyDepsBeforeRun,
       allowBuilds: rootWorkspace.allowBuilds,
       packageImportMethod: 'clone-or-copy',
       overrides: createReactBaselineTransportOverrides(release),
@@ -591,6 +600,7 @@ export async function runReactBaselineCandidate(options) {
         installedPackages: installed,
         originalCli: cli,
         prerequisite,
+        testBuildTools,
       },
       inputs: stage.inputFiles,
       inputDigest: hash(Buffer.from(JSON.stringify(stage.inputFiles))),

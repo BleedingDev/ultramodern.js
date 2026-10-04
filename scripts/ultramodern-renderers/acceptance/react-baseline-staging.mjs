@@ -231,6 +231,62 @@ export function assertReactBaselineInputsUnchanged(
   }
 }
 
+/** Reproduce only the original workspace builder's opted-in RSC test tool. */
+export function createReactBaselineBuildToolDependencies(release, rscFixture) {
+  const builders = release.packages.filter(
+    item => item.sourceName === '@modern-js/builder',
+  );
+  assert.equal(
+    builders.length,
+    1,
+    'Original React baseline requires one accepted builder owner',
+  );
+  const builder = builders[0];
+  const metadata = builder.packageJson;
+  assert.equal(
+    metadata?.name,
+    builder.targetName,
+    'RSC test build tool authority must be the accepted builder tarball',
+  );
+  const pluginName = 'rsbuild-plugin-rsc';
+  const runtimeName = 'react-server-dom-rspack';
+  for (const name of [pluginName, runtimeName]) {
+    assert.equal(
+      metadata.peerDependenciesMeta?.[name]?.optional,
+      true,
+      `Original builder ${name} must remain an optional peer`,
+    );
+    assert.ok(
+      metadata.dependencies?.[name] === undefined &&
+        metadata.optionalDependencies?.[name] === undefined,
+      `Original builder ${name} must remain opt-in, not a native runtime dependency`,
+    );
+    assert.match(
+      metadata.devDependencies?.[name],
+      exactVersion,
+      `Original builder ${name} test dependency must have an exact version`,
+    );
+    assert.equal(
+      metadata.peerDependencies?.[name],
+      metadata.devDependencies[name],
+      `Original builder ${name} test and optional-peer versions must agree`,
+    );
+  }
+  assert.equal(
+    rscFixture.name,
+    '@integration-test/routes-tanstack-rsc',
+    'RSC build tool selection is restricted to the original baseline fixture',
+  );
+  assert.equal(
+    rscFixture.dependencies?.[runtimeName],
+    metadata.peerDependencies[runtimeName],
+    'Original RSC fixture runtime must match the accepted builder optional peer',
+  );
+  // The fixture already owns its runtime; only the workspace builder's tool is
+  // restored at the harness root, never in an app or a default-off SDK package.
+  return Object.freeze({ [pluginName]: metadata.devDependencies[pluginName] });
+}
+
 /** Pin canonical slots and maintained names using the verified publication mapping. */
 export function createReactBaselineTransportOverrides(
   release,

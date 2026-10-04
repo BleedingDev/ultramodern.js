@@ -4,14 +4,14 @@
   "upstreamRef": "2f4d9c4559e26209a0d77f02c6757f29fe3699a2",
   "pathspec": ["packages"],
   "migrationGoal": "Shrink-only budget of fork edits inside upstream-owned files. Every entry is debt: move it upstream or behind an extension point, then re-run --write-divergence-allowlist.",
-  "totalFiles": 849,
-  "totalHunks": 3252,
-  "totalChangedLines": 55678,
+  "totalFiles": 848,
+  "totalHunks": 3251,
+  "totalChangedLines": 55676,
   "files": [
     {
       "file": "packages/cli/adapter-rstest/package.json",
-      "hunks": 5,
-      "changedLines": 21
+      "hunks": 4,
+      "changedLines": 14
     },
     {
       "file": "packages/cli/adapter-rstest/src/index.ts",
@@ -22,11 +22,6 @@
       "file": "packages/cli/adapter-rstest/tests/index.test.ts",
       "hunks": 2,
       "changedLines": 2
-    },
-    {
-      "file": "packages/cli/adapter-rstest/tsconfig.json",
-      "hunks": 1,
-      "changedLines": 1
     },
     {
       "file": "packages/cli/builder/CHANGELOG.md",

@@ -16,6 +16,7 @@ import {
   initAppContext,
   initPluginAPI,
 } from '@modern-js/plugin/cli';
+import type { BffRuntimeBuildIdentityProvider } from '@modern-js/plugin-bff-build-extensions';
 import { createServerBase, type ServerEnv } from '@modern-js/server-core';
 import type { Entrypoint } from '@modern-js/types';
 import {
@@ -376,6 +377,9 @@ describe('React metadata in the existing CLI build hooks', () => {
     expect(
       names.indexOf('@modern-js/renderer-react-build-metadata'),
     ).toBeLessThan(names.indexOf('@modern-js/plugin-analyze'));
+    expect(
+      names.indexOf('@modern-js/renderer-react-build-metadata'),
+    ).toBeLessThan(names.indexOf('@modern-js/plugin-bff'));
   });
 
   it.each([
@@ -464,6 +468,23 @@ describe('React metadata in the existing CLI build hooks', () => {
       { resolveBuildIdentities },
       true,
     );
+    const resolveBffRuntimeBuildIdentity =
+      api.getAppContext().resolveBffRuntimeBuildIdentity;
+    if (!resolveBffRuntimeBuildIdentity)
+      throw new Error(
+        'React BFF runtime identity provider was not registered.',
+      );
+    const bffCompilation: Parameters<BffRuntimeBuildIdentityProvider>[0] = {
+      appDirectory: root,
+      apiDirectory: path.join(root, 'api'),
+      sourceDirectories: [path.join(root, 'api')],
+      outputDirectories: [path.join(root, 'dist/api')],
+      distDirectory: api.getAppContext().distDirectory,
+      moduleType: 'module',
+    };
+    await expect(
+      resolveBffRuntimeBuildIdentity(bffCompilation),
+    ).rejects.toThrow('requires a completed renderer build');
     await analyzeFinalEntries(api, authoredEntries(root));
     expect(resolveBuildIdentities).not.toHaveBeenCalled();
     const { builderPlugins } = await api.getHooks().modifyResolvedConfig.call({
@@ -522,6 +543,20 @@ describe('React metadata in the existing CLI build hooks', () => {
           'utf8',
         ),
       );
+      const bffRuntimeIdentity =
+        await resolveBffRuntimeBuildIdentity(bffCompilation);
+      expect(bffRuntimeIdentity).toEqual({
+        buildMarker: manifest.buildMarker,
+        sourceRevision: manifest.sourceRevision,
+      });
+      expect(bffRuntimeIdentity.buildMarker).toMatch(/^[a-f0-9]{64}$/u);
+      expect(Object.isFrozen(bffRuntimeIdentity)).toBe(true);
+      await expect(
+        resolveBffRuntimeBuildIdentity({
+          ...bffCompilation,
+          appDirectory: path.join(root, 'another-app'),
+        }),
+      ).rejects.toThrow('requires its owning application compilation');
       expect(resolveBuildIdentities).toHaveBeenCalledTimes(3);
       for (const entryName of ['ssr', 'csr']) {
         const html = fs.readFileSync(
