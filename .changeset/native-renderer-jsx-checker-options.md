@@ -3,4 +3,4 @@
 '@modern-js/ultramodern-app-tools': patch
 ---
 
-Preserve resolved native TypeScript checker options and select the renderer's JSX declarations without changing authored TypeScript configurations.
+Preserve resolved native TypeScript checker options and select the renderer's JSX declarations in the required SDK composition without changing authored TypeScript configurations.

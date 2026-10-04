@@ -11,6 +11,7 @@ type Context = {
   inline: boolean;
   routeId: string;
   retain: boolean;
+  server?: boolean;
 };
 
 export default async function loader(
@@ -28,6 +29,7 @@ export default async function loader(
   };
 
   if (
+    this.getOptions().server === true ||
     shouldSkip('node') ||
     shouldSkip('webworker') ||
     shouldSkip('async-node')

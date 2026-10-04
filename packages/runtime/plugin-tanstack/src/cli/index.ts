@@ -3,9 +3,8 @@ import path from 'node:path';
 import type {
   AppNormalizedConfig,
   AppTools,
-  AppToolsContext,
   CliPlugin,
-} from '@modern-js/app-tools';
+} from '@modern-js/app-tools/cli-config';
 import type { CLIPluginAPI } from '@modern-js/plugin';
 import type {
   Entrypoint,

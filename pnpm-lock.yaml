@@ -1388,6 +1388,9 @@ importers:
       react-dom:
         specifier: ^19.3.0
         version: 19.3.0(react@19.3.0)
+      server-only:
+        specifier: ^0.0.1
+        version: 0.0.1
       supertest:
         specifier: ^7.3.0
         version: 7.3.0(supports-color@10.2.2)

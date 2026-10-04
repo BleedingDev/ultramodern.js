@@ -98,7 +98,7 @@ export const builderPluginAdapterSSR = (
 
         if (isUseSSRBundle(normalizedConfig) || isUseRsc(normalizedConfig)) {
           await applySSRLoaderEntry(chain, options, isServer);
-          applySSRDataLoader(chain, options);
+          applySSRDataLoader(chain, options, isServer || isServiceWorker);
         }
 
         if (!isHtmlDisabled(builderConfig, target)) {
@@ -365,7 +365,11 @@ async function applySSRLoaderEntry(
   );
 }
 
-function applySSRDataLoader(chain: RspackChain, options: BuilderOptions) {
+function applySSRDataLoader(
+  chain: RspackChain,
+  options: BuilderOptions,
+  server: boolean,
+) {
   const { normalizedConfig, appContext } = options;
   const { appDirectory } = appContext;
 
@@ -385,8 +389,10 @@ function applySSRDataLoader(chain: RspackChain, options: BuilderOptions) {
   chain.module
     .rule('ssr-data-loader')
     .test(reg)
+    .enforce('pre')
     .use('data-loader')
     // TODO: support ESM
     .loader(require.resolve('@modern-js/plugin-data-loader/loader'))
+    .options({ server })
     .end();
 }

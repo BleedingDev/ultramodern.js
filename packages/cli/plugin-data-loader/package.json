@@ -65,6 +65,7 @@
     "memfs": "^4.79.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
+    "server-only": "^0.0.1",
     "supertest": "^7.3.0",
     "typescript": "7.0.2"
   },

@@ -2366,7 +2366,7 @@ test('workerd API proof requires the actual service binding or an unbound headle
   );
 });
 
-test('workerd API evidence correlates each mixed-topology shell with its own binding', async t => {
+test('workerd correlation accepts reordered exact identity and binds each mixed-topology shell', async t => {
   const { verifyWorkerdRuntimeCorrelation } = await import(
     '../browser-smoke/runtime-evidence.mjs'
   );
@@ -2380,9 +2380,10 @@ test('workerd API evidence correlates each mixed-topology shell with its own bin
   const worker = 'fixture-inventory';
   const digest = 'a'.repeat(64);
   const identity = {
-    buildMarker: 'fixture',
+    buildMarker: '4'.repeat(64),
     releaseVersion: '1',
-    sourceRevision: 'abc',
+    sourceRevision: '5'.repeat(40),
+    unitId: 'fixture/inventory',
   };
   const check = {
     id: 'rpc-readiness',
@@ -2447,7 +2448,12 @@ test('workerd API evidence correlates each mixed-topology shell with its own bin
         appId: app.id,
         modulesRoot: 'verticals/inventory/.output',
         envelopeDigest: digest,
-        identity,
+        identity: {
+          unitId: identity.unitId,
+          buildMarker: identity.buildMarker,
+          sourceRevision: identity.sourceRevision,
+          releaseVersion: identity.releaseVersion,
+        },
         worker,
         main: 'server/index.mjs',
         modules,
@@ -2492,10 +2498,36 @@ test('workerd API evidence correlates each mixed-topology shell with its own bin
     },
   };
   write(reportPath, report);
+  assert.notEqual(
+    JSON.stringify(report.executions[0].identity),
+    JSON.stringify(location.envelope.identity),
+  );
+  assert.deepEqual(report.executions[0].identity, location.envelope.identity);
   assert.equal(
     verifyWorkerdRuntimeCorrelation(root, app, location).apiProofCount,
     2,
   );
+  for (const invalidIdentity of [
+    ...Object.keys(identity).map(field => ({
+      ...identity,
+      [field]: `${identity[field]}-changed`,
+    })),
+    { ...identity, extra: 'unbound' },
+    Object.fromEntries(
+      Object.entries(identity).filter(([field]) => field !== 'unitId'),
+    ),
+    { ...identity, releaseVersion: 1 },
+    [identity],
+  ]) {
+    const changed = structuredClone(report);
+    changed.executions[0].identity = invalidIdentity;
+    write(reportPath, changed);
+    assert.throws(
+      () => verifyWorkerdRuntimeCorrelation(root, app, location),
+      /workerd execution identity is invalid/u,
+    );
+  }
+  write(reportPath, report);
   write('apps/shell-api/.output/wrangler.json', { services: [] });
   assert.throws(
     () => verifyWorkerdRuntimeCorrelation(root, app, location),
