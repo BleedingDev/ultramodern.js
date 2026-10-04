@@ -6,7 +6,7 @@
   "migrationGoal": "Shrink-only budget of fork edits inside upstream-owned files. Every entry is debt: move it upstream or behind an extension point, then re-run --write-divergence-allowlist.",
   "totalFiles": 848,
   "totalHunks": 3249,
-  "totalChangedLines": 55696,
+  "totalChangedLines": 55793,
   "files": [
     {
       "file": "packages/cli/adapter-rstest/package.json",
@@ -86,7 +86,7 @@
     {
       "file": "packages/cli/builder/src/shared/tsgo.ts",
       "hunks": 1,
-      "changedLines": 421
+      "changedLines": 378
     },
     {
       "file": "packages/cli/builder/src/types.ts",
@@ -161,7 +161,7 @@
     {
       "file": "packages/cli/builder/tests/tsgo.test.ts",
       "hunks": 1,
-      "changedLines": 330
+      "changedLines": 427
     },
     {
       "file": "packages/cli/plugin-bff/CHANGELOG.md",
@@ -3130,8 +3130,8 @@
     },
     {
       "file": "packages/server/utils/package.json",
-      "hunks": 5,
-      "changedLines": 20
+      "hunks": 4,
+      "changedLines": 11
     },
     {
       "file": "packages/server/utils/src/common/index.ts",
@@ -3150,8 +3150,8 @@
     },
     {
       "file": "packages/server/utils/src/compilers/typescript/index.ts",
-      "hunks": 1,
-      "changedLines": 151
+      "hunks": 18,
+      "changedLines": 504
     },
     {
       "file": "packages/server/utils/src/compilers/typescript/tsconfigPathsPlugin.ts",
@@ -3231,7 +3231,7 @@
     {
       "file": "packages/server/utils/tests/tsgo.test.ts",
       "hunks": 1,
-      "changedLines": 230
+      "changedLines": 292
     },
     {
       "file": "packages/server/utils/tests/tsgoCleanup.test.ts",
