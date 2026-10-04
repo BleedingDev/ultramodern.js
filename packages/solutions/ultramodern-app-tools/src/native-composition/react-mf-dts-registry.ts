@@ -463,8 +463,33 @@ function bridgeInput(input: ReceiverBridge): ReceiverBridge {
 }
 
 function stagesComplete(evidence: ReceiverTerminalEvidence): void {
-  if (evidence.status !== 'complete' || evidence.failures.length)
-    fail('native receiver failed');
+  if (evidence.failures.length) {
+    const bounded = (value: string): string =>
+      value.length > 512 ? `${value.slice(0, 512)}…` : value;
+    const details = evidence.failures.slice(0, 8).map(failure => {
+      const fields = [`operation=${bounded(failure.operation)}`];
+      if (typeof failure.code === 'string')
+        fields.push(`code=${bounded(failure.code)}`);
+      if (typeof failure.path === 'string')
+        fields.push(`path=${JSON.stringify(bounded(failure.path))}`);
+      return `${fields.join('; ')}: ${bounded(failure.reason)}`;
+    });
+    if (evidence.failures.length > details.length)
+      details.push(
+        `${evidence.failures.length - details.length} more native failures`,
+      );
+    throw new AggregateError(
+      evidence.failures.map(failure =>
+        Object.assign(new Error(failure.reason), {
+          operation: failure.operation,
+          ...(failure.code !== undefined ? { code: failure.code } : {}),
+          ...(failure.path !== undefined ? { path: failure.path } : {}),
+        }),
+      ),
+      `Receiver DTS registry: native receiver failed.\n${details.join('\n')}`,
+    );
+  }
+  if (evidence.status !== 'complete') fail('native receiver failed');
   if (!Array.isArray(evidence.stages)) fail('native stage evidence is missing');
   for (const stage of evidence.stages) {
     keys(stage, ['stage', 'outcome'], ['alias', 'requested', 'result']);
@@ -542,8 +567,7 @@ function terminalInput(
     if (
       typeof failure.operation !== 'string' ||
       !failure.operation ||
-      typeof failure.reason !== 'string' ||
-      !failure.reason
+      typeof failure.reason !== 'string'
     )
       fail('invalid native failure evidence');
   }
@@ -683,7 +707,10 @@ export function createReceiverRegistry(
     { frame?: ReceiverFrame; error?: Error; admitted?: boolean }
   >();
   const retiredBridgeBegins = new Set<string>();
-  const retiredBridgeFrames = new Map<string, ReceiverFrame>();
+  const retiredBridgeFrames = new Map<
+    string,
+    { readonly frame: ReceiverFrame; readonly error?: Error }
+  >();
   const failureReports = new Set<Promise<void>>();
   const failureNotifications = new Map<string, Promise<void>>();
   const workers = new Map<string, ReceiverWorkerBinding>();
@@ -1712,15 +1739,17 @@ export function createReceiverRegistry(
       if (retiredBridgeBegins.has(body.beginId)) {
         const retired = retiredBridgeFrames.get(body.beginId);
         if (retired) {
-          const graphOwner = graphFrames.get(retired.frameId)?.epoch;
+          const graphOwner = graphFrames.get(retired.frame.frameId)?.epoch;
           if (
             graphOwner &&
             (!graphCurrent ||
               graphEpochKey(graphOwner) !== graphEpochKey(graphCurrent))
           )
             return { status: 'aborted' };
-          lastFailure = new Error(body.reason);
-          closeGeneration(retired, body.reason);
+          if (!retired.error) {
+            lastFailure = new Error(body.reason);
+            closeGeneration(retired.frame, body.reason);
+          }
           retiredBridgeFrames.delete(body.beginId);
         }
         return { status: 'aborted' };
@@ -1755,6 +1784,7 @@ export function createReceiverRegistry(
       state.status !== 'active'
     )
       fail('bridge frame is unknown, late or terminal');
+    let terminalError: Error | undefined;
     try {
       if (!Array.isArray(body.events))
         fail('bridge pre-write provenance is missing');
@@ -1780,6 +1810,7 @@ export function createReceiverRegistry(
       await state.context.terminal(body.evidence);
       return { status: 'accepted' };
     } catch (error) {
+      terminalError = asError(error);
       if (active.has(state.frame.frameId)) {
         lastFailure = asError(error);
         closeGeneration(state.frame, asError(error).message);
@@ -1796,7 +1827,10 @@ export function createReceiverRegistry(
       if (!quarantined.has(state.frame.frameId)) {
         bridgeBegins.delete(body.beginId);
         retiredBridgeBegins.add(body.beginId);
-        retiredBridgeFrames.set(body.beginId, state.frame);
+        retiredBridgeFrames.set(body.beginId, {
+          frame: state.frame,
+          ...(terminalError ? { error: terminalError } : {}),
+        });
       }
     }
   }

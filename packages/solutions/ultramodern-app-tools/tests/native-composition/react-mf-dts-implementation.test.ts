@@ -1071,9 +1071,32 @@ describe('native receiver DTS IO', () => {
     const app = await fixture();
     app.setAPIStatus(500);
     const sink = policy(app.root);
-    await expect(app.manager.consumeTypes()).rejects.toThrow(
-      'Native receiver DTS generation failed',
+    const rejection: unknown = await app.manager.consumeTypes().then(
+      () => undefined,
+      error => error,
     );
+    expect(rejection).toBeInstanceOf(AggregateError);
+    if (!(rejection instanceof AggregateError))
+      throw new Error('Expected the real native HTTP API failure.');
+    const apiPath = path.join(app.root, '@mf-types/remote/apis.d.ts');
+    const nativeReason = 'Request failed with status 500';
+    expect(rejection.message).toContain(nativeReason);
+    expect(rejection.message).toContain(JSON.stringify(apiPath));
+    expect(
+      rejection.errors.some(
+        error => error instanceof Error && error.message === nativeReason,
+      ),
+    ).toBe(true);
+    expect(sink.evidence).toHaveLength(1);
+    expect(sink.evidence[0]!.status).toBe('failed');
+    expect(sink.evidence[0]!.failures).toContainEqual({
+      operation: 'api',
+      reason: nativeReason,
+      path: apiPath,
+    });
+    expect(
+      sink.evidence[0]!.failures.find(item => item.operation === 'api'),
+    ).not.toHaveProperty('code');
     expect(
       sink.evidence[0]!.stages.some(
         stage =>
@@ -1083,6 +1106,124 @@ describe('native receiver DTS IO', () => {
       ),
     ).toBe(true);
     expect(sink.receipts).toHaveLength(0);
+  });
+
+  it.each([
+    '127.0.0.1',
+    'localhost',
+  ] as const)('retains a genuine native API %s connection-refused error and its target path', async apiHost => {
+    const native = sourceRequire('@module-federation/dts-plugin/core') as {
+      DTSManager: { prototype: { reportTypesApiError?: unknown } };
+    };
+    expect(AdapterConstructor.nativeDtsOwner().modulePath).toBe(
+      fs.realpathSync(
+        sourceRequire.resolve('@module-federation/dts-plugin/core'),
+      ),
+    );
+    expect(Object.getPrototypeOf(AdapterConstructor.prototype)).toBe(
+      native.DTSManager.prototype,
+    );
+    expect(typeof native.DTSManager.prototype.reportTypesApiError).toBe(
+      'function',
+    );
+    const app = await fixture();
+    const closedServer = http.createServer();
+    await new Promise<void>(resolve =>
+      closedServer.listen(0, '127.0.0.1', resolve),
+    );
+    try {
+      const address = closedServer.address();
+      if (!address || typeof address === 'string')
+        throw new Error('The reserved API endpoint has no TCP address.');
+      const apiUrl = `http://${apiHost}:${address.port}/api.d.ts`;
+      await new Promise<void>((resolve, reject) =>
+        closedServer.close(error => (error ? reject(error) : resolve())),
+      );
+      const nativeOptions: NativeOptions = {
+        ...app.nativeOptions,
+        host: {
+          ...app.nativeOptions.host,
+          remoteTypeUrls: {
+            'private-remote': {
+              ...app.nativeOptions.host.remoteTypeUrls['private-remote']!,
+              api: apiUrl,
+            },
+          },
+        },
+      };
+      const manager = new AdapterConstructor(
+        AdapterConstructor.configureReceiverRegistration(nativeOptions, seed),
+      );
+      const sink = policy(app.root);
+      const rejection: unknown = await manager.consumeTypes().then(
+        () => undefined,
+        error => error,
+      );
+      expect(rejection).toBeInstanceOf(AggregateError);
+      if (!(rejection instanceof AggregateError))
+        throw new Error('Expected the real native API connection failure.');
+      const apiPath = path.join(app.root, '@mf-types/remote/apis.d.ts');
+      const networkReason =
+        apiHost === 'localhost'
+          ? ''
+          : `connect ECONNREFUSED 127.0.0.1:${address.port}`;
+      expect(rejection.message).toContain('fetch failed');
+      expect(rejection.message).toContain('ECONNREFUSED');
+      expect(rejection.message).toContain(JSON.stringify(apiPath));
+      expect(
+        rejection.errors.some(
+          error => error instanceof Error && error.message === 'fetch failed',
+        ),
+      ).toBe(true);
+      expect(rejection.errors).toContainEqual(
+        expect.objectContaining({
+          operation: 'api',
+          message: networkReason,
+          code: 'ECONNREFUSED',
+          path: apiPath,
+        }),
+      );
+      expect(sink.evidence).toHaveLength(1);
+      expect(sink.evidence[0]!.status).toBe('failed');
+      expect(sink.evidence[0]!.failures).toContainEqual({
+        operation: 'api',
+        reason: 'fetch failed',
+        path: apiPath,
+      });
+      expect(
+        sink.evidence[0]!.failures.find(
+          item => item.operation === 'api' && item.reason === 'fetch failed',
+        ),
+      ).not.toHaveProperty('code');
+      expect(sink.evidence[0]!.failures).toContainEqual({
+        operation: 'api',
+        reason: networkReason,
+        code: 'ECONNREFUSED',
+        path: apiPath,
+      });
+      expect(
+        sink.evidence[0]!.stages.some(
+          stage =>
+            stage.stage === 'api' &&
+            stage.requested &&
+            stage.outcome === 'failed',
+        ),
+      ).toBe(true);
+      expect(app.requests.filter(url => url === '/types.zip')).toHaveLength(1);
+      expect(
+        fs.readFileSync(
+          path.join(app.root, '@mf-types/remote/App.d.ts'),
+          'utf8',
+        ),
+      ).toContain('export declare const App: string;');
+      expect(fs.existsSync(apiPath)).toBe(false);
+      expect(sink.receipts).toHaveLength(0);
+    } finally {
+      if (closedServer.listening)
+        await new Promise<void>((resolve, reject) =>
+          closedServer.close(error => (error ? reject(error) : resolve())),
+        );
+    }
   });
 
   it('accepts native undefined API result only when no API was requested', async () => {
