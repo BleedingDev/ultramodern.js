@@ -12,6 +12,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify, types as utilTypes } from 'node:util';
 import workerThreads from 'node:worker_threads';
+import type { EffectCompilerSelection } from '@modern-js/app-tools-extensions/internal-effect-discovery';
 import type { ConfigPackageMetadataRead } from '@modern-js/plugin/cli';
 import type { OwningConfigNativeBinding } from './native-bootstrap';
 import {
@@ -138,17 +139,10 @@ export async function observeConfigSourceInputs<T>(
   evaluate: (packageMetadataRead: ConfigPackageMetadataRead) => Promise<T>,
   isInstalledDependency: (filename: string) => boolean = filename =>
     filename.split(path.sep).includes('node_modules'),
-  compilerDiscovery?: {
-    installations: readonly { cliPath: string; backendDirectory: string }[];
+  compilerSelection?: {
+    selections: readonly EffectCompilerSelection[];
     install(
-      observer: (
-        installation: {
-          from: string;
-          cliPath: string;
-          backendDirectory: string;
-        },
-        invoke: () => string,
-      ) => string,
+      validator: (selection: EffectCompilerSelection) => void,
     ): () => void;
   },
   nativeBinding?: OwningConfigNativeBinding,
@@ -947,21 +941,31 @@ export async function observeConfigSourceInputs<T>(
           return unsupported('process.dlopen');
         },
     );
-    if (compilerDiscovery) {
+    if (compilerSelection) {
       restores.push(
-        compilerDiscovery.install((installation, invoke) => {
-          const origin = filename(installation.from);
+        compilerSelection.install(selection => {
+          const origin = filename(selection.from);
           if (
             !origin ||
-            !sourcePath(snapshot, origin) ||
-            !compilerDiscovery.installations.some(
+            !supportedOperations.run(true, () =>
+              sourcePath(snapshot, origin),
+            ) ||
+            !compilerSelection.selections.some(
               allowed =>
-                allowed.cliPath === installation.cliPath &&
-                allowed.backendDirectory === installation.backendDirectory,
+                allowed.cliPath === selection.cliPath &&
+                allowed.backendManifest === selection.backendManifest &&
+                allowed.nativePlatformManifest ===
+                  selection.nativePlatformManifest &&
+                allowed.effectPlatformManifest ===
+                  selection.effectPlatformManifest &&
+                allowed.compilerPath === selection.compilerPath &&
+                allowed.nativeCompilerDigest ===
+                  selection.nativeCompilerDigest &&
+                allowed.compilerDigest === selection.compilerDigest,
             )
           )
             return unsupported(
-              'Effect discovery outside the original authored origin or selected installed cohort',
+              'Effect selection outside the original authored origin or selected installed cohort',
             );
           try {
             supportedOperations.run(true, () =>
@@ -972,7 +976,6 @@ export async function observeConfigSourceInputs<T>(
               error instanceof Error ? error.message : String(error),
             );
           }
-          return supportedOperations.run(true, invoke);
         }),
       );
     }

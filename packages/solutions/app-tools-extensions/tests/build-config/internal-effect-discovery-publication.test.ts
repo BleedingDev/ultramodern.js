@@ -6,19 +6,27 @@ const repositoryRoot = resolve(packageRoot, '../../..');
 
 const consumerSource = `
 import assert from 'node:assert/strict';
+import childProcess from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { accessSync, constants, existsSync, readFileSync, realpathSync } from 'node:fs';
-import { createRequire } from 'node:module';
+import { createRequire, syncBuiltinESMExports } from 'node:module';
 import { dirname, join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import * as esmConfig from '@ultramodern/app-tools-extensions/config';
-import * as esmBridge from '@ultramodern/app-tools-extensions/internal-effect-discovery';
 
 const require = createRequire(import.meta.url);
 const fixtureRoot = dirname(fileURLToPath(import.meta.url));
 const proof = JSON.parse(readFileSync(new URL('./proof.json', import.meta.url), 'utf8'));
+let discoverySpawns = 0;
+childProcess.execFileSync = () => {
+  discoverySpawns += 1;
+  throw new Error('Published Effect discovery must not spawn its provider');
+};
+syncBuiltinESMExports();
+const esmConfig = await import('@ultramodern/app-tools-extensions/config');
 const cjsConfig = require('@ultramodern/app-tools-extensions/config');
-const cjsBridge = require('@ultramodern/app-tools-extensions/internal-effect-discovery');
-const importedBridge = esmBridge.default;
+const esmSelection = await import('@ultramodern/app-tools-extensions/internal-effect-discovery');
+const cjsSelection = require('@ultramodern/app-tools-extensions/internal-effect-discovery');
+assert.equal(esmSelection.default, cjsSelection);
 const packageDirectory = join(fixtureRoot, 'node_modules/@ultramodern/app-tools-extensions');
 const manifest = JSON.parse(readFileSync(join(packageDirectory, 'package.json'), 'utf8'));
 
@@ -30,47 +38,64 @@ assert.equal(fileURLToPath(import.meta.resolve('@ultramodern/app-tools-extension
 assert.notEqual(cjsConfig.resolveEffectTsgoCompiler, esmConfig.resolveEffectTsgoCompiler);
 assert.equal(require.resolve('@ultramodern/app-tools-extensions/internal-effect-discovery'), join(packageDirectory, 'dist/cjs/build-config/internal-effect-discovery.js'));
 assert.equal(fileURLToPath(import.meta.resolve('@ultramodern/app-tools-extensions/internal-effect-discovery')), require.resolve('@ultramodern/app-tools-extensions/internal-effect-discovery'));
-assert.equal(importedBridge, cjsBridge);
-
-const observations = [];
-const release = cjsBridge.installEffectCompilerDiscoveryObserver((installation, invokeValidatedDiscovery) => {
-  assert.equal(installation.from, fileURLToPath(import.meta.url));
-  assert.equal(installation.cliPath, proof.cliPath);
-  assert.equal(installation.backendDirectory, proof.backendDirectory);
-  const compiler = invokeValidatedDiscovery();
-  assert.ok(compiler.trim(), 'The real Effect CLI must return its compiler path');
-  observations.push(realpathSync(compiler.trim()));
-  return compiler;
+const expectedSelection = {
+  from: fileURLToPath(import.meta.url),
+  cliPath: proof.cliPath,
+  backendManifest: proof.backendManifest,
+  nativePlatformManifest: proof.nativePlatformManifest,
+  effectPlatformManifest: proof.effectPlatformManifest,
+  compilerPath: proof.artifactPath,
+  nativeCompilerDigest: proof.nativeCompilerDigest,
+  compilerDigest: proof.artifactDigest,
+};
+const selections = [];
+const release = cjsSelection.installEffectCompilerSelectionValidator(function (selection) {
+  assert.equal(arguments.length, 1);
+  assert.equal(Object.isFrozen(selection), true);
+  assert.deepEqual(selection, expectedSelection);
+  selections.push(selection);
 });
+let cjsCompiler;
+let esmCompiler;
 try {
-  assert.throws(() => importedBridge.installEffectCompilerDiscoveryObserver(() => ''), /already has an observer/u);
-  const cjsCompiler = cjsConfig.resolveEffectTsgoCompiler({ from: import.meta.url });
-  const esmCompiler = esmConfig.resolveEffectTsgoCompiler({ from: import.meta.url });
-  assert.equal(cjsCompiler, esmCompiler);
-  accessSync(cjsCompiler, constants.X_OK);
-  assert.equal(observations.length, 2);
-  assert.equal(observations[0], observations[1]);
-  assert.deepEqual(readFileSync(cjsCompiler), readFileSync(observations[0]));
-  const resolvedCompiler = realpathSync(cjsCompiler);
-  assert.ok(resolvedCompiler === observations[0] || resolvedCompiler.startsWith(join(fixtureRoot, 'native-cache') + sep));
+  assert.throws(() => esmSelection.default.installEffectCompilerSelectionValidator(() => {}), /already has/u);
+  assert.deepEqual(cjsSelection.resolveEffectCompilerSelection(import.meta.url), expectedSelection);
+  assert.equal(selections.length, 0);
+  cjsCompiler = cjsConfig.resolveEffectTsgoCompiler({ from: import.meta.url });
+  esmCompiler = esmConfig.resolveEffectTsgoCompiler({ from: import.meta.url });
+  assert.equal(selections.length, 2);
 } finally {
   release();
+  release();
 }
-const releaseFromEsm = importedBridge.installEffectCompilerDiscoveryObserver(() => {
-  throw new Error('The released observer must be replaceable from ESM');
-});
+const rejection = new Error('The active read-only validator rejected this cohort');
+const releaseRejection = esmSelection.default.installEffectCompilerSelectionValidator(() => { throw rejection; });
 try {
-  assert.throws(() => cjsBridge.installEffectCompilerDiscoveryObserver(() => ''), /already has an observer/u);
+  assert.throws(() => cjsConfig.resolveEffectTsgoCompiler({ from: import.meta.url }), error => error.cause === rejection);
 } finally {
-  releaseFromEsm();
+  releaseRejection();
 }
+assert.equal(cjsConfig.resolveEffectTsgoCompiler({ from: import.meta.url }), cjsCompiler);
+assert.equal(cjsCompiler, esmCompiler);
+accessSync(cjsCompiler, constants.X_OK);
+const digest = filename => createHash('sha256').update(readFileSync(filename)).digest('hex');
+assert.equal(digest(proof.nativeCompilerPath), proof.nativeCompilerDigest);
+assert.equal(digest(proof.artifactPath), proof.artifactDigest);
+assert.notEqual(proof.nativeCompilerDigest, proof.artifactDigest);
+assert.equal(digest(cjsCompiler), proof.artifactDigest);
+assert.deepEqual(readFileSync(cjsCompiler), readFileSync(proof.artifactPath));
+assert.equal(discoverySpawns, 0);
+const resolvedCompiler = realpathSync(cjsCompiler);
+assert.ok(resolvedCompiler === proof.artifactPath || resolvedCompiler.startsWith(join(fixtureRoot, 'native-cache') + sep));
 `;
 
 const fixtureSource = `
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -142,12 +167,26 @@ try {
     compilerCohort[name] = installation;
   }
   const effect = compilerCohort['@effect/tsgo'];
-  const effectBin = typeof effect.sourcePackageJson.bin === 'string'
-    ? effect.sourcePackageJson.bin
-    : effect.sourcePackageJson.bin['effect-tsgo'];
+  const native = compilerCohort.typescript;
+  const effectPlatformManifest = createRequire(join(effect.sourceDirectory, 'package.json')).resolve('@effect/tsgo-' + process.platform + '-' + process.arch + '/package.json');
+  const nativePlatformManifest = createRequire(join(native.sourceDirectory, 'package.json')).resolve('@typescript/typescript-' + process.platform + '-' + process.arch + '/package.json');
+  const upstream = JSON.parse(readFileSync(join(dirname(effectPlatformManifest), 'lib/upstream.json'), 'utf8'));
+  assert.equal(upstream.schemaVersion, 5);
+  assert.equal(upstream.components.typescript[native.sourcePackageJson.version].gitHead, native.sourcePackageJson.gitHead);
+  assert.equal(upstream.components.typescript[native.sourcePackageJson.version].provider, 'typescript-go');
+  const binaryName = process.platform === 'win32' ? 'tsc.exe' : 'tsc';
+  const artifactPath = realpathSync(join(dirname(effectPlatformManifest), 'artifacts/typescript', native.sourcePackageJson.version, binaryName));
+  const nativeCompilerPath = realpathSync(join(dirname(nativePlatformManifest), 'lib', binaryName));
+  const digest = filename => createHash('sha256').update(readFileSync(filename)).digest('hex');
   const proof = {
-    cliPath: realpathSync(resolve(effect.sourceDirectory, effectBin)),
-    backendDirectory: compilerCohort['@typescript/native'].sourceDirectory,
+    cliPath: realpathSync(resolve(effect.sourceDirectory, typeof effect.sourcePackageJson.bin === 'string' ? effect.sourcePackageJson.bin : effect.sourcePackageJson.bin['effect-tsgo'])),
+    backendManifest: realpathSync(join(native.sourceDirectory, 'package.json')),
+    nativePlatformManifest: realpathSync(nativePlatformManifest),
+    effectPlatformManifest: realpathSync(effectPlatformManifest),
+    artifactPath,
+    nativeCompilerPath,
+    artifactDigest: digest(artifactPath),
+    nativeCompilerDigest: digest(nativeCompilerPath),
   };
   writeFileSync(join(fixtureRoot, 'package.json'), JSON.stringify({
     private: true,
@@ -178,7 +217,7 @@ try {
 }
 `;
 
-test('renamed standalone publication shares Effect discovery across public CJS and native ESM config', () => {
+test('renamed standalone publication selects the same native artifact through public CJS and native ESM config', () => {
   const environment = { ...process.env };
   delete environment.NODE_OPTIONS;
   execFileSync(
