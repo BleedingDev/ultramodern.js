@@ -17,8 +17,8 @@ import { basename, join } from 'node:path';
 import { fileURLToPath, type URL } from 'node:url';
 import type { Rspack } from '@rsbuild/core';
 
-// Resolve the canonical private CJS bridge through the installed owner's actual
-// public name, including the publisher's renamed standalone package.
+// CJS and ESM consumers share the selected-cohort validator in one owning
+// module, including packages whose public name changes during publication.
 const owningModuleFile =
   process.env.MODERN_LIB_FORMAT === 'esm'
     ? fileURLToPath(import.meta.url)
@@ -313,7 +313,7 @@ export function resolveEffectTsgoCompiler(
     stage = 'Compiler backend lookup';
 
     if (!compiler) {
-      throw new Error('Effect TS-Go CLI returned an empty compiler path');
+      throw new Error('Effect TS-Go discovery returned an empty compiler path');
     }
     stage = 'Compiler executable validation';
     return resolveExecutableEffectTsgoCompiler(compiler);

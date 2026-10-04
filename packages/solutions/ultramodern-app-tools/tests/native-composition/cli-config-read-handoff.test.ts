@@ -1,7 +1,9 @@
+import { execFile } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { promisify } from 'node:util';
 import type { AppTools, CliPlugin } from '@modern-js/app-tools/cli-config';
 import {
   type CLIOptions,
@@ -28,6 +30,209 @@ import { createNativeConfigLoad } from '../../src/native-composition/native-conf
 import { reactWorkspaceCatalogInputs } from '../../src/native-composition/react-authored-inputs';
 
 describe('native CLI configuration read handoff', () => {
+  it('loads a cold public Effect compiler from the original nested Module Federation config', async () => {
+    const workspace = fs.realpathSync(
+      fs.mkdtempSync(
+        path.join(
+          process.env.OWNED_TEMP_DIR ?? os.tmpdir(),
+          'um-cold-mf-load-',
+        ),
+      ),
+    );
+    const appDirectory = path.join(workspace, 'verticals/inventory');
+    const sdkDirectory = path.resolve(__dirname, '../..');
+    const generatorDirectory = path.resolve(
+      __dirname,
+      '../../../../toolkit/ultramodern-create',
+    );
+    const packages: readonly (readonly [string, string])[] = [
+      ['@modern-js/ultramodern-app-tools', sdkDirectory],
+      [
+        '@modern-js/app-tools-extensions',
+        path.join(sdkDirectory, 'node_modules/@modern-js/app-tools-extensions'),
+      ],
+      [
+        '@modern-js/plugin',
+        path.join(sdkDirectory, 'node_modules/@modern-js/plugin'),
+      ],
+      [
+        '@effect/tsgo',
+        path.join(generatorDirectory, 'node_modules/@effect/tsgo'),
+      ],
+      ['typescript', path.join(generatorDirectory, 'node_modules/typescript')],
+      [
+        '@typescript/native',
+        path.join(generatorDirectory, 'node_modules/@typescript/native'),
+      ],
+    ];
+    const parentCwd = process.cwd();
+    const parentEnvironment = { ...process.env };
+    try {
+      fs.mkdirSync(appDirectory, { recursive: true });
+      const dependencies: Record<string, string> = {};
+      for (const [name, directory] of packages) {
+        const target = fs.realpathSync(directory);
+        const manifest = JSON.parse(
+          fs.readFileSync(path.join(target, 'package.json'), 'utf8'),
+        );
+        dependencies[name] =
+          name === manifest.name
+            ? manifest.version
+            : `npm:${manifest.name}@${manifest.version}`;
+        const link = path.join(workspace, 'node_modules', name);
+        fs.mkdirSync(path.dirname(link), { recursive: true });
+        fs.symlinkSync(target, link, 'dir');
+      }
+      fs.writeFileSync(
+        path.join(workspace, 'package.json'),
+        JSON.stringify({
+          name: 'cold-mf-workspace',
+          private: true,
+          dependencies,
+        }),
+      );
+      fs.writeFileSync(
+        path.join(workspace, 'pnpm-workspace.yaml'),
+        'packages:\n  - verticals/*\n',
+      );
+      fs.writeFileSync(
+        path.join(appDirectory, 'package.json'),
+        JSON.stringify({
+          name: 'cold-mf-inventory',
+          private: true,
+          dependencies,
+        }),
+      );
+      fs.writeFileSync(
+        path.join(appDirectory, 'module-federation.config.ts'),
+        `import { resolveEffectTsgoCompiler } from '@modern-js/app-tools-extensions/config';
+const compilerInstance = resolveEffectTsgoCompiler({ from: import.meta.url });
+export default { dts: { generateTypes: { compilerInstance } } };
+`,
+      );
+      fs.writeFileSync(
+        path.join(appDirectory, 'modern.config.ts'),
+        `import moduleFederationConfig from './module-federation.config';
+export default async context => {
+  globalThis.coldMfOriginalLoads = (globalThis.coldMfOriginalLoads ?? 0) + 1;
+  globalThis.coldMfContext = context;
+  await Promise.resolve();
+  return { moduleFederationConfig };
+};
+`,
+      );
+      const driver = path.join(workspace, 'cold-native-load.cjs');
+      fs.writeFileSync(
+        driver,
+        `const assert = require('node:assert/strict');
+const { execFileSync } = require('node:child_process');
+const { createHash } = require('node:crypto');
+const fs = require('node:fs');
+const path = require('node:path');
+const { createCli } = require('@modern-js/plugin/cli');
+const { createNativeConfigLoad } = require('@modern-js/ultramodern-app-tools/native-config-load');
+const contextEntry = path.join(path.dirname(require.resolve('@modern-js/ultramodern-app-tools/native-config-load')), 'configuration-read-context.js');
+const { getConfigurationSourceInputs, getConfigurationSourceSnapshot, getConfigurationSourceNodes } = require(contextEntry);
+const appDirectory = ${JSON.stringify(appDirectory)};
+const configFile = path.join(appDirectory, 'modern.config.ts');
+const mfFile = path.join(appDirectory, 'module-federation.config.ts');
+const beforeCwd = process.cwd();
+const beforeEnvironment = { ...process.env };
+process.argv = [process.execPath, 'ultramodern', 'build'];
+const cli = createCli();
+const nativeLoad = createNativeConfigLoad();
+let nativeLoads = 0;
+let boundInputs;
+let compiler;
+let dispose;
+(async () => {
+  try {
+    const originalLoad = nativeLoad.wrapConfigLoad;
+    assert.equal(typeof originalLoad, 'function');
+    await cli.init({
+      ...nativeLoad,
+      cwd: appDirectory,
+      command: 'build',
+      configFile,
+      version: '0.0.0-cold-native-load',
+      async wrapConfigLoad(load, context) {
+        return originalLoad(async reader => {
+          nativeLoads++;
+          return load(reader);
+        }, context);
+      },
+      internalPlugins: [...(nativeLoad.internalPlugins ?? []), {
+        name: 'test-cold-native-observation-consumer',
+        setup(api) {
+          boundInputs = getConfigurationSourceInputs(api);
+          compiler = api.getConfig().moduleFederationConfig.dts.generateTypes.compilerInstance;
+          const snapshot = getConfigurationSourceSnapshot(api);
+          const nodes = getConfigurationSourceNodes(api);
+          assert.equal(snapshot.kind, 'bounded-config-source-snapshot');
+          assert.ok(Object.isFrozen(boundInputs));
+          assert.ok(Object.isFrozen(nodes));
+          for (const file of [configFile, mfFile]) {
+            const canonical = fs.realpathSync(file);
+            const observations = boundInputs.observations.filter(input => input.path === file || input.canonicalPath === canonical);
+            // Jiti reads TypeScript bytes; native module resolution may label the same source as a module.
+            const sourceRead = observations.find(input => input.path === file && input.canonicalPath === canonical && input.existed && ['content', 'module'].includes(input.operation));
+            const diagnostic = 'Missing original source bytes for ' + file + ': ' + JSON.stringify(observations);
+            assert.ok(sourceRead, diagnostic);
+            const retained = nodes.find(input => input.observation.path === file && input.observation.canonicalPath === canonical && input.observation.operation === sourceRead.operation && input.node.kind === 'file');
+            assert.ok(retained, diagnostic);
+            assert.deepEqual(retained.node.path, { lexical: file, canonical });
+            const byteDigest = createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+            assert.equal(retained.node.byteDigest, byteDigest);
+            const original = snapshot.states.find(state => state.kind === 'file' && state.path === file && (state.resolvedPath ?? state.path) === canonical);
+            assert.ok(original, diagnostic);
+            assert.equal(original.sha256, byteDigest);
+          }
+          dispose = () => api.getHooks().onBeforeExit.call();
+        },
+      }],
+    });
+    assert.equal(nativeLoads, 1);
+    assert.equal(globalThis.coldMfOriginalLoads, 1);
+    assert.deepEqual(globalThis.coldMfContext, { env: 'production', command: 'build' });
+    assert.ok(boundInputs);
+    fs.accessSync(compiler, fs.constants.X_OK);
+    const projectRequire = require('node:module').createRequire(configFile);
+    const backendManifest = projectRequire.resolve('typescript/package.json');
+    const effectManifest = projectRequire.resolve('@effect/tsgo/package.json');
+    assert.equal(JSON.parse(fs.readFileSync(backendManifest, 'utf8')).version, '7.0.2');
+    assert.equal(JSON.parse(fs.readFileSync(effectManifest, 'utf8')).version, '0.45.0');
+    assert.equal(projectRequire.resolve('@typescript/native/package.json'), backendManifest);
+    // Native execution is deliberately outside the original observed load.
+    assert.equal(execFileSync(compiler, ['--version'], { encoding: 'utf8' }).trim(), 'Version 7.0.2+effect-tsgo.0.45.0');
+    assert.equal(process.cwd(), beforeCwd);
+    for (const name of ['EFFECT_TSGO_BIN', 'JITI_FS_CACHE']) assert.equal(process.env[name], beforeEnvironment[name]);
+    process.stdout.write('cold-native-mf-load: observed original config and native TS7 cohort\\n');
+  } finally {
+    await dispose?.();
+    cli.dispose();
+  }
+})().catch(error => { console.error(error); process.exitCode = 1; });
+`,
+      );
+      const environment = { ...process.env, NODE_ENV: 'production' };
+      delete environment.EFFECT_TSGO_BIN;
+      delete environment.MODERN_ARGV;
+      delete environment.MODERN_ENV;
+      const { stdout } = await promisify(execFile)(process.execPath, [driver], {
+        cwd: workspace,
+        env: environment,
+        timeout: 30_000,
+      });
+      expect(stdout).toContain(
+        'cold-native-mf-load: observed original config and native TS7 cohort',
+      );
+      expect(process.cwd()).toBe(parentCwd);
+      expect(process.env).toEqual(parentEnvironment);
+    } finally {
+      fs.rmSync(workspace, { recursive: true, force: true });
+    }
+  });
+
   it('captures the original native monorepo load and guards shared inputs during user setup', async () => {
     const workspace = fs.realpathSync(
       fs.mkdtempSync(

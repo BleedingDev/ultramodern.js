@@ -40,11 +40,10 @@ import {
 import { captureConfigSourceSnapshot } from '../../src/native-composition/config-evaluator/source-snapshot';
 import { nativeRendererInfrastructurePlugin } from '../../src/native-composition/native-infrastructure';
 
-// Both the owning source API and this observer use the canonical public bridge
-// produced by the package. Never mix a second source instance of its state.
+// The source API delegates to the same installed CJS selection authority.
 const {
-  installEffectCompilerDiscoveryObserver,
-  resolveEffectCompilerInstallation,
+  installEffectCompilerSelectionValidator,
+  resolveEffectCompilerSelection,
 }: typeof import('../../../app-tools-extensions/src/build-config/internal-effect-discovery') =
   createRequire(
     path.resolve(__dirname, '../../../app-tools-extensions/package.json'),
@@ -1770,7 +1769,7 @@ describe('actual config authority source observations', () => {
       ).rejects.toThrow('uncovered source path');
     }));
 
-  it('permits only the owning selected real Effect provider discovery from an empty app', async () =>
+  it('resolves the owning installed Effect compiler through observed filesystem reads from an empty app', async () =>
     fixture(async root => {
       const from = path.join(root, 'modern.config.cjs');
       fs.writeFileSync(from, '{}');
@@ -1782,14 +1781,14 @@ describe('actual config authority source observations', () => {
       const observed = await withConfigDependencyResolution(
         { sourceRoots: [root], dependencyRoots: [generatorDirectory] },
         () => {
-          const installation = resolveEffectCompilerInstallation(from);
+          const selection = resolveEffectCompilerSelection(from);
           return observeConfigSourceInputs(
             snapshot(root),
             async () => resolveEffectTsgoCompiler({ from }),
             isConfigInstalledDependencyPath,
             {
-              installations: [installation],
-              install: installEffectCompilerDiscoveryObserver,
+              selections: [selection],
+              install: installEffectCompilerSelectionValidator,
             },
           );
         },
@@ -1804,7 +1803,7 @@ describe('actual config authority source observations', () => {
       expect(fs.readdirSync(root)).toEqual(['input.json', 'modern.config.cjs']);
     }));
 
-  it('exposes no global discovery callback and denies takeover/foreign executable requests', async () =>
+  it('rejects foreign provider subprocess requests even when authored config catches the error', async () =>
     fixture(async root => {
       const marker = path.join(root, 'foreign-ran');
       const cli = path.join(root, 'foreign.cjs');
@@ -1812,45 +1811,17 @@ describe('actual config authority source observations', () => {
         cli,
         `require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'ran')`,
       );
-      let takeoverCalls = 0;
       await expect(
-        observeConfigSourceInputs(
-          snapshot(root),
-          async () => {
-            expect(
-              Object.getOwnPropertyDescriptor(
-                process,
-                Symbol.for(
-                  '@modern-js/ultramodern-config-observer/effect-discovery/v1',
-                ),
-              ),
-            ).toBeUndefined();
-            expect(() =>
-              installEffectCompilerDiscoveryObserver(
-                (_installation, invoke) => {
-                  takeoverCalls++;
-                  return invoke();
-                },
-              ),
-            ).toThrow('already has an observer');
-            try {
-              childProcess.execFileSync(
-                process.execPath,
-                [cli, 'get-exe-path'],
-                { cwd: root },
-              );
-            } catch {
-              /* Must remain a session failure. */
-            }
-          },
-          undefined,
-          {
-            installations: [],
-            install: installEffectCompilerDiscoveryObserver,
-          },
-        ),
+        observeConfigSourceInputs(snapshot(root), async () => {
+          try {
+            childProcess.execFileSync(process.execPath, [cli, 'get-exe-path'], {
+              cwd: root,
+            });
+          } catch {
+            /* Must remain a session failure. */
+          }
+        }),
       ).rejects.toThrow('child_process.execFileSync');
-      expect(takeoverCalls).toBe(0);
       expect(fs.existsSync(marker)).toBe(false);
     }));
 
@@ -2359,54 +2330,114 @@ describe('actual config authority source observations', () => {
       ).rejects.toThrow('uncaptured symlink intermediate');
     }));
 
-  it('rejects a fake foreign installed provider through the actual owning compiler API', async () =>
+  it('rejects a complete foreign installed provider through the actual owning compiler API without executing it', async () =>
     fixture(async root => {
       const app = path.join(root, 'app');
       const foreign = path.join(root, 'foreign');
+      const shadow = path.join(app, 'shadow');
+      const from = path.join(shadow, 'config.cjs');
       const provider = path.join(foreign, 'node_modules', '@effect', 'tsgo');
       const backend = path.join(foreign, 'node_modules', 'typescript');
+      const effectName = `@effect/tsgo-${process.platform}-${process.arch}`;
+      const nativeName = `@typescript/typescript-${process.platform}-${process.arch}`;
+      const effectPlatform = path.join(foreign, 'node_modules', effectName);
+      const nativePlatform = path.join(foreign, 'node_modules', nativeName);
+      const gitHead = '2bd066d87f5bafd315be9f40889d0a60b9e58e0b';
+      const binaryName = process.platform === 'win32' ? 'tsc.exe' : 'tsc';
+      const artifact = path.join(
+        effectPlatform,
+        'artifacts',
+        'typescript',
+        '7.0.2',
+        binaryName,
+      );
       const marker = path.join(foreign, 'ran');
+      const poison = `require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'ran')`;
       fs.mkdirSync(app);
+      fs.mkdirSync(shadow);
       fs.mkdirSync(provider, { recursive: true });
       fs.mkdirSync(backend, { recursive: true });
-      fs.writeFileSync(path.join(foreign, 'config.cjs'), '{}');
+      fs.mkdirSync(path.join(effectPlatform, 'lib'), { recursive: true });
+      fs.mkdirSync(path.dirname(artifact), { recursive: true });
+      fs.mkdirSync(path.join(nativePlatform, 'lib'), { recursive: true });
+      fs.symlinkSync(
+        path.join(foreign, 'node_modules'),
+        path.join(shadow, 'node_modules'),
+        'dir',
+      );
+      fs.writeFileSync(from, '{}');
+      const authoredFrom = path.join(app, 'modern.config.cjs');
+      fs.writeFileSync(authoredFrom, '{}');
       fs.writeFileSync(
         path.join(provider, 'package.json'),
         JSON.stringify({
           name: '@effect/tsgo',
           version: '0.45.0',
-          bin: { 'effect-tsgo': 'fake.cjs' },
+          bin: { 'effect-tsgo': 'poison.cjs' },
         }),
       );
-      fs.writeFileSync(
-        path.join(provider, 'fake.cjs'),
-        `require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'ran')`,
-      );
+      fs.writeFileSync(path.join(provider, 'poison.cjs'), poison);
       fs.writeFileSync(
         path.join(backend, 'package.json'),
         JSON.stringify({
           name: 'typescript',
           version: '7.0.2',
+          gitHead,
           exports: { './package.json': './package.json' },
         }),
       );
-      const originalInstallation = resolveEffectCompilerInstallation(
-        path.resolve(
-          __dirname,
-          '../../../../toolkit/ultramodern-create/package.json',
-        ),
+      fs.writeFileSync(
+        path.join(nativePlatform, 'package.json'),
+        JSON.stringify({ name: nativeName, version: '7.0.2', gitHead }),
+      );
+      fs.writeFileSync(
+        path.join(nativePlatform, 'lib', binaryName),
+        `#!/usr/bin/env node\n${poison}`,
+        { mode: 0o755 },
+      );
+      fs.writeFileSync(
+        path.join(effectPlatform, 'package.json'),
+        JSON.stringify({ name: effectName, version: '0.45.0' }),
+      );
+      fs.writeFileSync(
+        path.join(effectPlatform, 'lib', 'upstream.json'),
+        JSON.stringify({
+          schemaVersion: 5,
+          components: {
+            typescript: {
+              '7.0.2': { gitHead, provider: 'typescript-go' },
+            },
+          },
+        }),
+      );
+      fs.writeFileSync(artifact, `#!/usr/bin/env node\n${poison}`, {
+        mode: 0o755,
+      });
+      // The captured origin resolves this complete foreign installation
+      // without executing anything. Rejection must come from cohort identity.
+      expect(resolveEffectTsgoCompiler({ from })).toBe(artifact);
+      expect(fs.existsSync(marker)).toBe(false);
+      const generatorDirectory = path.resolve(
+        __dirname,
+        '../../../../toolkit/ultramodern-create',
       );
       await expect(
-        observeConfigSourceInputs(
-          snapshot(root),
-          async () =>
-            resolveEffectTsgoCompiler({
-              from: path.join(foreign, 'config.cjs'),
-            }),
-          undefined,
+        withConfigDependencyResolution(
           {
-            installations: [originalInstallation],
-            install: installEffectCompilerDiscoveryObserver,
+            sourceRoots: [app],
+            dependencyRoots: [generatorDirectory],
+          },
+          () => {
+            const selection = resolveEffectCompilerSelection(authoredFrom);
+            return observeConfigSourceInputs(
+              snapshot(app),
+              async () => resolveEffectTsgoCompiler({ from }),
+              isConfigInstalledDependencyPath,
+              {
+                selections: [selection],
+                install: installEffectCompilerSelectionValidator,
+              },
+            );
           },
         ),
       ).rejects.toThrow(

@@ -11,8 +11,8 @@ import path from 'node:path';
 import { types as utilTypes } from 'node:util';
 import type { AppTools, CliPlugin } from '@modern-js/app-tools/cli-config';
 import {
-  installEffectCompilerDiscoveryObserver,
-  resolveEffectCompilerInstallation,
+  installEffectCompilerSelectionValidator,
+  resolveEffectCompilerSelection,
 } from '@modern-js/app-tools-extensions/internal-effect-discovery';
 import type {
   RendererGeneratedOutputMetadata,
@@ -620,16 +620,16 @@ export async function observeUltramodernConfigLoad<T>(
     // preserves the native loader's missing/present-package resolution.
     { sourceRoots: [], dependencyRoots },
     async () => {
-      const installations = [];
+      const selections = [];
       for (const from of [
         configFile ? path.resolve(appDirectory, configFile) : undefined,
         path.join(appDirectory, 'package.json'),
       ]) {
         if (!from) continue;
         try {
-          installations.push(resolveEffectCompilerInstallation(from));
+          selections.push(resolveEffectCompilerSelection(from));
         } catch {
-          /* Actual compiler use must resolve and match its installed owner. */
+          /* Actual compiler use must match the selected installed owner. */
         }
       }
       const previousCache = process.env.JITI_FS_CACHE;
@@ -640,7 +640,7 @@ export async function observeUltramodernConfigLoad<T>(
           packageMetadataRead =>
             withImmediateDirectoryReads(() => load(packageMetadataRead)),
           isConfigInstalledDependencyPath,
-          { installations, install: installEffectCompilerDiscoveryObserver },
+          { selections, install: installEffectCompilerSelectionValidator },
           nativeBinding,
         );
         assertConfigSourceSnapshotUnchanged(ownershipSnapshot);

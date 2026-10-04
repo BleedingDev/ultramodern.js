@@ -1,45 +1,50 @@
-import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { lstatSync, readFileSync, realpathSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, type URL } from 'node:url';
 
-const invokeProviderCli = execFileSync;
-const owningNodeExecutable = process.execPath;
 const EFFECT_TSGO_PACKAGE = '@effect/tsgo';
 const EFFECT_TSGO_BIN = 'effect-tsgo';
 const NATIVE_TYPESCRIPT_PACKAGES = ['typescript', '@typescript/native'];
-type PackageJson = { bin?: Record<string, string> | string; version?: string };
-export interface EffectCompilerInstallation {
+type PackageJson = {
+  name?: string;
+  bin?: Record<string, string> | string;
+  version?: string;
+  gitHead?: string;
+};
+const failureStages = new WeakMap<object, string>();
+export interface EffectCompilerSelection {
   readonly from: string;
   readonly cliPath: string;
-  readonly backendDirectory: string;
+  readonly backendManifest: string;
+  readonly nativePlatformManifest: string;
+  readonly effectPlatformManifest: string;
+  readonly compilerPath: string;
+  readonly nativeCompilerDigest: string;
+  readonly compilerDigest: string;
 }
-type DiscoveryObserver = (
-  installation: EffectCompilerInstallation,
-  invokeValidatedDiscovery: () => string,
-) => string;
-let discoveryObserver: DiscoveryObserver | undefined;
-const failureStages = new WeakMap<object, string>();
+type SelectionValidator = (selection: EffectCompilerSelection) => void;
+let selectionValidator: SelectionValidator | undefined;
 
-/** Private owning-worker bridge. Existing observers cannot be recovered/replaced. */
-export function installEffectCompilerDiscoveryObserver(
-  observer: DiscoveryObserver,
+/** Binds selection to the original consumer's installed compiler cohort. */
+export function installEffectCompilerSelectionValidator(
+  validator: SelectionValidator,
 ): () => void {
-  if (discoveryObserver)
-    throw new Error('Effect compiler discovery already has an observer');
-  if (typeof observer !== 'function')
+  if (selectionValidator)
+    throw new Error('Effect compiler selection already has a validator');
+  if (typeof validator !== 'function')
     throw new TypeError(
-      'Effect compiler discovery observer must be a function',
+      'Effect compiler selection validator must be a function',
     );
-  discoveryObserver = observer;
+  selectionValidator = validator;
   let active = true;
   return () => {
     if (!active) return;
     active = false;
-    if (discoveryObserver !== observer)
-      throw new Error('Effect compiler discovery observer lost ownership');
-    discoveryObserver = undefined;
+    if (selectionValidator !== validator)
+      throw new Error('Effect compiler selection validator lost ownership');
+    selectionValidator = undefined;
   };
 }
 
@@ -51,7 +56,11 @@ export function effectCompilerDiscoveryFailureStage(
     : undefined;
 }
 
-function resolveEffectTsgoCli(from: string | URL): string {
+function resolveEffectTsgoPackage(from: string | URL): {
+  packageJsonPath: string;
+  packageJson: PackageJson;
+  cliPath: string;
+} {
   const projectRequire = createRequire(from);
   const packageJsonPath = projectRequire.resolve(
     `${EFFECT_TSGO_PACKAGE}/package.json`,
@@ -70,7 +79,10 @@ function resolveEffectTsgoCli(from: string | URL): string {
     );
   }
 
-  return resolve(dirname(packageJsonPath), bin);
+  const cliPath = realpathSync(resolve(dirname(packageJsonPath), bin));
+  if (!lstatSync(cliPath).isFile())
+    throw new Error(`Effect TS-Go CLI is not a regular file: ${cliPath}`);
+  return { packageJsonPath, packageJson, cliPath };
 }
 
 function isAbsentNativeTypeScriptPackage(
@@ -153,11 +165,11 @@ function resolveNativeTypeScriptPackage(from: string | URL): string {
   );
 }
 
-function resolveNativeTypeScriptDirectory(from: string | URL): string {
+function resolveNativeTypeScriptManifest(from: string | URL): string {
   const packageJsonPath = resolveNativeTypeScriptPackage(from);
   const directory = dirname(packageJsonPath);
-  // Effect discovers its backend from cwd, independently of the parent's
-  // module hooks. Bind discovery to the selected backend's own installation.
+  // Keep the selected backend bound to its own installation, including the
+  // canonical-package precedence used by the provider.
   const discoveryPackage = resolveNativeTypeScriptPackage(
     join(directory, '__ultramodern_effect_backend__.cjs'),
   );
@@ -166,65 +178,129 @@ function resolveNativeTypeScriptDirectory(from: string | URL): string {
       `Effect discovery would select a different native TypeScript installation from ${directory}: ${discoveryPackage}`,
     );
   }
-  return directory;
+  return packageJsonPath;
 }
 
-/** Resolves without executing a provider, allowing the worker to bind its cohort first. */
-export function resolveEffectCompilerInstallation(
+function readCompilerArtifact(filename: string): {
+  path: string;
+  digest: string;
+} {
+  const canonicalPath = realpathSync(filename);
+  if (!lstatSync(canonicalPath).isFile())
+    throw new Error(`Compiler artifact is not a regular file: ${filename}`);
+  const bytes = readFileSync(canonicalPath);
+  if (bytes.length === 0)
+    throw new Error(`Compiler artifact is empty: ${filename}`);
+  return {
+    path: canonicalPath,
+    digest: createHash('sha256').update(bytes).digest('hex'),
+  };
+}
+
+/** Selects the exact native replacement without invoking the provider. */
+export function resolveEffectCompilerSelection(
   from: string | URL,
-): EffectCompilerInstallation {
+): EffectCompilerSelection {
   let stage = 'Package CLI resolution';
   try {
-    const cliPath = resolveEffectTsgoCli(from);
+    const effect = resolveEffectTsgoPackage(from);
     stage = 'Native TypeScript package resolution';
-    const backendDirectory = resolveNativeTypeScriptDirectory(from);
+    const typeScriptManifest = resolveNativeTypeScriptManifest(from);
+    const typeScript = JSON.parse(
+      readFileSync(typeScriptManifest, 'utf8'),
+    ) as PackageJson;
+    const nativeName = `@typescript/typescript-${process.platform}-${process.arch}`;
+    const nativeManifest = createRequire(typeScriptManifest).resolve(
+      `${nativeName}/package.json`,
+    );
+    const native = JSON.parse(
+      readFileSync(nativeManifest, 'utf8'),
+    ) as PackageJson;
+    if (
+      native.name !== nativeName ||
+      native.version !== typeScript.version ||
+      typeof native.version !== 'string' ||
+      !/^\d+\.\d+\.\d+(?:[-+][\w.-]+)?$/u.test(native.version) ||
+      typeof native.gitHead !== 'string' ||
+      !/^[a-f\d]{40}$/u.test(native.gitHead) ||
+      native.gitHead !== typeScript.gitHead
+    ) {
+      throw new Error(
+        `Native TypeScript platform does not match its selected package: ${nativeManifest}`,
+      );
+    }
+    const binaryName = process.platform === 'win32' ? 'tsc.exe' : 'tsc';
+    const nativeArtifact = readCompilerArtifact(
+      join(dirname(nativeManifest), 'lib', binaryName),
+    );
+    stage = 'Compiler backend lookup';
+    const effectName = `@effect/tsgo-${process.platform}-${process.arch}`;
+    const effectManifest = createRequire(effect.cliPath).resolve(
+      `${effectName}/package.json`,
+    );
+    const platform = JSON.parse(
+      readFileSync(effectManifest, 'utf8'),
+    ) as PackageJson;
+    if (
+      platform.name !== effectName ||
+      typeof effect.packageJson.version !== 'string' ||
+      platform.version !== effect.packageJson.version
+    ) {
+      throw new Error(
+        `Effect platform does not match its selected provider: ${effectManifest}`,
+      );
+    }
+    const metadataPath = join(dirname(effectManifest), 'lib', 'upstream.json');
+    const metadata = JSON.parse(readFileSync(metadataPath, 'utf8')) as {
+      schemaVersion?: number;
+      components?: {
+        typescript?: Record<string, { gitHead?: string; provider?: string }>;
+      };
+    };
+    const component = metadata.components?.typescript?.[native.version];
+    if (
+      metadata.schemaVersion !== 5 ||
+      component?.provider !== 'typescript-go' ||
+      component.gitHead !== native.gitHead
+    ) {
+      throw new Error(
+        `Effect replacement metadata does not match the selected native TypeScript backend: ${metadataPath}`,
+      );
+    }
+    const replacement = readCompilerArtifact(
+      join(
+        dirname(effectManifest),
+        'artifacts',
+        'typescript',
+        native.version,
+        binaryName,
+      ),
+    );
+    // Artifact reads and digests use actual installed bytes, as in provider
+    // discovery, and remain visible to config authority capture.
     return Object.freeze({
       from:
         typeof from === 'string' && !from.startsWith('file:')
           ? from
           : fileURLToPath(from),
-      cliPath: realpathSync(cliPath),
-      backendDirectory: realpathSync(backendDirectory),
+      cliPath: effect.cliPath,
+      backendManifest: realpathSync(typeScriptManifest),
+      nativePlatformManifest: realpathSync(nativeManifest),
+      effectPlatformManifest: realpathSync(effectManifest),
+      compilerPath: replacement.path,
+      nativeCompilerDigest: nativeArtifact.digest,
+      compilerDigest: replacement.digest,
     });
-  } catch (error) {
-    if (error && typeof error === 'object') failureStages.set(error, stage);
-    throw error;
-  }
-}
-
-/** Owns exactly the installed provider/backend resolution and fixed CLI query. */
-export function resolveInstalledEffectCompiler(from: string | URL): string {
-  let stage = 'Package CLI resolution';
-  try {
-    const installation = resolveEffectCompilerInstallation(from);
-    stage = 'Compiler backend lookup';
-    const environment: NodeJS.ProcessEnv = Object.fromEntries(
-      Object.entries(process.env).map(([name, value]) => [
-        name,
-        value === undefined ? undefined : String(value),
-      ]),
-    );
-    if (discoveryObserver && environment.NODE_OPTIONS) {
-      throw new Error(
-        'Evaluator Effect discovery does not support authored NODE_OPTIONS',
-      );
-    }
-    const invoke = () =>
-      invokeProviderCli(
-        owningNodeExecutable,
-        [installation.cliPath, 'get-exe-path'],
-        {
-          cwd: installation.backendDirectory,
-          encoding: 'utf8',
-          env: environment,
-        },
-      );
-    return discoveryObserver
-      ? discoveryObserver(installation, invoke)
-      : invoke();
   } catch (error) {
     if (error && typeof error === 'object' && !failureStages.has(error))
       failureStages.set(error, stage);
     throw error;
   }
+}
+
+/** Validates the selected cohort while retaining ordinary filesystem observation. */
+export function resolveInstalledEffectCompiler(from: string | URL): string {
+  const selection = resolveEffectCompilerSelection(from);
+  selectionValidator?.(selection);
+  return selection.compilerPath;
 }

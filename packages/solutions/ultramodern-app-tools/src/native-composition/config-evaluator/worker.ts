@@ -1,6 +1,6 @@
 import {
-  installEffectCompilerDiscoveryObserver,
-  resolveEffectCompilerInstallation,
+  installEffectCompilerSelectionValidator,
+  resolveEffectCompilerSelection,
 } from '@modern-js/app-tools-extensions/internal-effect-discovery';
 import {
   isConfigInstalledDependencyPath,
@@ -42,16 +42,16 @@ process.once('message', async (request: ConfigEvaluatorRequest) => {
         dependencyRoots: request.options.dependencyRoots,
       },
       () => {
-        const installations = [];
+        const selections = [];
         for (const from of [
           request.options.configFile,
           `${request.options.appDirectory}/package.json`,
         ]) {
           if (!from) continue;
           try {
-            installations.push(resolveEffectCompilerInstallation(from));
+            selections.push(resolveEffectCompilerSelection(from));
           } catch {
-            /* An unused compiler is optional; actual use must resolve and match. */
+            /* Actual compiler use must match the selected installed owner. */
           }
         }
         return observeConfigSourceInputs(
@@ -84,7 +84,7 @@ process.once('message', async (request: ConfigEvaluatorRequest) => {
             return { renderer: loaded.config.renderer!, ...entryResolution };
           },
           isConfigInstalledDependencyPath,
-          { installations, install: installEffectCompilerDiscoveryObserver },
+          { selections, install: installEffectCompilerSelectionValidator },
           nativeBinding,
         );
       },
