@@ -99,6 +99,7 @@ function moduleSpecifiers(source, file, additionalRequireNames = new Set()) {
     sourceType: 'unambiguous',
     parserOpts: {
       plugins: [['typescript', { dts: /\.d\.[cm]?ts$/u.test(file) }], 'jsx'],
+      allowUndeclaredExports: /\.d\.[cm]?ts$/u.test(file),
       createImportExpressions: true,
     },
   });

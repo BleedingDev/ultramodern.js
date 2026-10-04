@@ -3661,6 +3661,46 @@ test('declaration .js references resolve their native type files and native type
   );
 });
 
+test('ambient declaration exports preserve imported dependency traversal and JavaScript export validation', t => {
+  const fixture = declarationConsumerFixture(t);
+  const source = path.join(fixture.owner, 'timers.d.ts');
+  write(
+    source,
+    'declare module "fixture-timers" {\n  import * as promises from "declaration-model";\n  export { promises };\n}\n',
+  );
+  const report = auditInstalledConsumer({
+    ...fixture.options,
+    entryFiles: [
+      ...fixture.options.entryFiles,
+      path.relative(fixture.root, source),
+    ],
+  });
+  const binding = report.declarationFallbacks.find(
+    item => item.source === path.relative(fixture.root, source),
+  );
+  assert.equal(binding.specifier, 'declaration-model');
+  assert.equal(binding.provider, fixture.providerName);
+  assert.equal(binding.sourceSha256, fileSha256(source));
+  assert.equal(binding.targetSha256, fileSha256(fixture.target));
+  assert(
+    report.entryClosure.some(
+      item =>
+        item.path === path.relative(fixture.root, fixture.target) &&
+        item.sha256 === fileSha256(fixture.target),
+    ),
+  );
+  const runtime = path.join(fixture.root, 'src/invalid-export.js');
+  write(runtime, 'export { missing };\n');
+  assert.throws(
+    () =>
+      auditInstalledConsumer({
+        ...fixture.options,
+        entryFiles: [path.relative(fixture.root, runtime)],
+      }),
+    /Export 'missing' is not defined/u,
+  );
+});
+
 test('declaration imports select an owner-declared physical types provider and retain its bytes', t => {
   for (const extension of ['.d.ts', '.d.mts', '.d.cts']) {
     const fixture = declarationConsumerFixture(t);
