@@ -10,6 +10,7 @@ import {
 } from '@modern-js/backend-federation-contracts';
 import { createBackendFederationEntryIntegrity } from '@modern-js/server-runtime-extensions/backend-federation-security/node';
 import {
+  emitRendererBuildArtifact,
   type FinalizedRendererBuildOutput,
   type RendererBuildOutputContext,
   type RendererBuildOutputOptions,
@@ -256,12 +257,22 @@ export default (
         appDirectory: string;
         distDirectory: string;
         entrypoints?: RendererBuildOutputContext['entrypoints'];
+        apiOnly?: boolean;
       };
       onAfterBuild(handler: () => Promise<void>): void;
     }) {
       api.onAfterBuild(async () => {
-        const { appDirectory, distDirectory, entrypoints } =
+        const { appDirectory, distDirectory, entrypoints, apiOnly } =
           api.getAppContext();
+        if (options.resolveRendererBuild && !apiOnly) {
+          await emitRendererBuildArtifact(
+            { appDirectory, distDirectory, entrypoints: entrypoints ?? [] },
+            {
+              resolveRendererBuild: options.resolveRendererBuild,
+              rendererBuildPlugin: options.rendererBuildPlugin!,
+            },
+          );
+        }
         await emitBackendFederationArtifacts(appDirectory, distDirectory, {
           ...options,
           entrypoints,
