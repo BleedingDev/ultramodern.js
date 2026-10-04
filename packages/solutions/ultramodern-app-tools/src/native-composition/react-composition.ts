@@ -1,3 +1,8 @@
+import fs from 'node:fs';
+import { createRequire } from 'node:module';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { isDeepStrictEqual } from 'node:util';
 import { type AppTools, appTools, type CliPlugin } from '@modern-js/app-tools';
 import { createBuilderGenerator } from '@modern-js/app-tools/builder';
 import backendFederationBuildPlugin from '@modern-js/app-tools-extensions/backend-federation-build';
@@ -15,6 +20,11 @@ import {
 import { ultramodernI18nIntegrationPlugin } from '@modern-js/i18n-integration';
 import { runtimePlugin } from '@modern-js/runtime/cli';
 import type { ReactNode } from 'react';
+import {
+  type ConfigSourceSnapshot,
+  captureConfigSourceSnapshot,
+} from './config-evaluator/source-snapshot';
+import { getConfigurationSourceSnapshot } from './configuration-read-context';
 import { ultramodernModuleFederationRecoveryPlugin } from './module-federation-recovery-plugin';
 import { nativeEntryCommandPlugin } from './native-entry-command';
 import { reactRendererBuildMetadataPlugin } from './react-build-metadata';
@@ -32,6 +42,83 @@ declare module '@modern-js/app-tools/cli-config' {
   interface CLIElementTypes {
     react: ReactNode;
   }
+}
+
+/** A portable application import of this exact SDK owner's public server export. */
+export function resolveReactServerPlugin(
+  appDirectory: string,
+  snapshot: ConfigSourceSnapshot | undefined,
+  registrarUrl = import.meta.url,
+): string {
+  if (!snapshot)
+    throw new Error(
+      'React server plugin requires the original configuration source snapshot',
+    );
+  const original = new Map(snapshot.states.map(state => [state.path, state]));
+  const assertOriginalDeclaration = (filename: string) => {
+    const current = captureConfigSourceSnapshot({
+      sourceRoots: [],
+      extraInputs: [filename],
+    });
+    if (
+      current.states.some(
+        state => !isDeepStrictEqual(state, original.get(state.path)),
+      )
+    )
+      throw new Error(
+        'React server plugin declaration changed after configuration load',
+      );
+  };
+  const appManifestFile = path.join(appDirectory, 'package.json');
+  assertOriginalDeclaration(appManifestFile);
+  const appManifest = JSON.parse(fs.readFileSync(appManifestFile, 'utf8'));
+  assertOriginalDeclaration(appManifestFile);
+  let owner = path.dirname(fileURLToPath(registrarUrl));
+  let ownerName: string;
+  for (;;) {
+    const manifestFile = path.join(owner, 'package.json');
+    if (fs.existsSync(manifestFile)) {
+      const manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
+      if (
+        ![
+          '@modern-js/ultramodern-app-tools',
+          '@bleedingdev/modern-js-ultramodern-app-tools',
+        ].includes(manifest.name) ||
+        !manifest.exports?.['./server-plugin']
+      )
+        throw new Error('React server registrar is not its owning package');
+      ownerName = manifest.name;
+      break;
+    }
+    const parent = path.dirname(owner);
+    if (parent === owner)
+      throw new Error('React server registrar has no owning package');
+    owner = parent;
+  }
+  const ownerRequire = createRequire(path.join(owner, 'package.json'));
+  const ownerExport = fs.realpathSync(
+    ownerRequire.resolve(`${ownerName}/server-plugin`),
+  );
+  const appRequire = createRequire(appManifestFile);
+  const declared = {
+    ...appManifest.dependencies,
+    ...appManifest.devDependencies,
+    ...appManifest.optionalDependencies,
+  };
+  for (const name of new Set(['@modern-js/ultramodern-app-tools', ownerName])) {
+    if (typeof declared[name] !== 'string') continue;
+    const slot = appRequire.resolve
+      .paths(name)
+      ?.map(directory => path.join(directory, name))
+      .find(directory => fs.existsSync(directory));
+    if (slot) assertOriginalDeclaration(path.join(slot, 'package.json'));
+    const specifier = `${name}/server-plugin`;
+    if (fs.realpathSync(appRequire.resolve(specifier)) === ownerExport)
+      return specifier;
+  }
+  throw new Error(
+    'React server plugin has no declared application import of its SDK owner',
+  );
 }
 
 const headlessCloudflareWorkerPlugin = (): CliPlugin<AppTools> => ({
@@ -119,12 +206,12 @@ export const composeReactRenderer = (
         return { ...config, builderPlugins };
       });
       api._internalServerPlugins(({ plugins }) => {
-        // `appTools()` already registered the fork's server policy under its own
-        // specifier. An app that composes this package declares *this* package,
-        // so the descriptor is renamed rather than duplicated: both specifiers
-        // export the same server plugin, and this one is the one such an app can
-        // always resolve.
-        const name = '@modern-js/ultramodern-app-tools/server-plugin';
+        // Preserve a public import for generated deploy handlers, including
+        // applications that declare the mapped SDK without its canonical alias.
+        const name = resolveReactServerPlugin(
+          api.getAppContext().appDirectory,
+          getConfigurationSourceSnapshot(api),
+        );
         const renamed = plugins.map(plugin =>
           plugin.name === SERVER_EXTENSIONS_PLUGIN_NAME
             ? { ...plugin, name }

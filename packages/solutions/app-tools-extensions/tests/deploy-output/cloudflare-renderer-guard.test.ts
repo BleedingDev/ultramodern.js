@@ -448,6 +448,136 @@ it('preserves headless Effect BFF dispatch despite its universal API identity', 
   expect(executions).toBe(1);
 });
 
+it.each([
+  'direct',
+  'redirected',
+] as const)('loads %s rendering assets without changing the native React POST request', async assetMode => {
+  const controller = new AbortController();
+  const request = new Request('https://example.com/?intent=submit', {
+    method: 'POST',
+    headers: {
+      'content-type': 'text/plain',
+      cookie: 'session=native-post',
+      origin: 'https://client.example',
+      'x-native-request': 'preserved',
+    },
+    body: 'native POST body',
+    redirect: 'manual',
+    signal: controller.signal,
+  });
+  const htmlTemplate = '<html><head></head><body>native template</body></html>';
+  const routeManifest = { routeAssets: { main: {} } };
+  const loadableStats = { chunks: ['native-client-slot'] };
+  const assetRequests: Request[] = [];
+  let executions = 0;
+  const runtime = evaluateEntry(createManifest('react'), {
+    [route.worker]: async () => ({
+      requestHandler: async (
+        receivedRequest: Request,
+        options: Record<string, unknown>,
+      ) => {
+        executions += 1;
+        expect(receivedRequest).toBe(request);
+        expect(receivedRequest.method).toBe('POST');
+        expect(receivedRequest.bodyUsed).toBe(false);
+        expect(receivedRequest.headers.get('cookie')).toBe(
+          'session=native-post',
+        );
+        expect(receivedRequest.headers.get('x-native-request')).toBe(
+          'preserved',
+        );
+        expect(receivedRequest.signal).toBe(request.signal);
+        expect(options.resource).toMatchObject({
+          htmlTemplate: expect.stringContaining('<body>native template</body>'),
+          routeManifest,
+          loadableStats,
+        });
+        return new Response(await receivedRequest.text(), { status: 202 });
+      },
+    }),
+  });
+  const response = await runtime.worker.fetch(request, {
+    ASSETS: {
+      fetch: async (assetRequest: Request) => {
+        assetRequests.push(assetRequest);
+        expect(assetRequest.method).toBe('GET');
+        expect(assetRequest.redirect).toBe('manual');
+        expect(assetRequest.body).toBeNull();
+        await expect(assetRequest.text()).resolves.toBe('');
+        expect(assetRequest.headers.get('cookie')).toBe('session=native-post');
+        expect(assetRequest.headers.get('x-native-request')).toBe('preserved');
+        expect(assetRequest.signal.aborted).toBe(false);
+        expect(request.bodyUsed).toBe(false);
+        const url = new URL(assetRequest.url);
+        expect(url.origin).toBe('https://example.com');
+        expect(url.search).toBe('?intent=submit');
+        if (url.pathname === '/html/main/index.html') {
+          return assetMode === 'redirected'
+            ? new Response(null, {
+                status: 302,
+                headers: { location: '/html/main/resolved.html' },
+              })
+            : new Response(htmlTemplate);
+        }
+        if (url.pathname === '/html/main/resolved.html') {
+          return new Response(htmlTemplate);
+        }
+        if (url.pathname === '/routes-manifest.json') {
+          return Response.json(routeManifest);
+        }
+        if (url.pathname === '/loadable-stats.json') {
+          return Response.json(loadableStats);
+        }
+        throw new Error(`Unexpected rendering asset: ${url.pathname}`);
+      },
+    },
+  });
+  expect(response.status).toBe(202);
+  await expect(response.text()).resolves.toBe('native POST body');
+  expect(executions).toBe(1);
+  expect(
+    assetRequests.map(asset => new URL(asset.url).pathname).sort(),
+  ).toEqual(
+    [
+      '/html/main/index.html',
+      ...(assetMode === 'redirected' ? ['/html/main/resolved.html'] : []),
+      '/routes-manifest.json',
+      '/loadable-stats.json',
+    ].sort(),
+  );
+  controller.abort();
+  expect(request.signal.aborted).toBe(true);
+  expect(assetRequests.every(asset => asset.signal.aborted)).toBe(true);
+});
+
+it('keeps rejecting external static asset POST requests without consuming their body', async () => {
+  let assetReads = 0;
+  let workerLoads = 0;
+  const runtime = evaluateEntry(createManifest('react'), {
+    [route.worker]: async () => {
+      workerLoads += 1;
+      throw new Error('Static asset POST reached a route worker');
+    },
+  });
+  const request = new Request('https://example.com/static/main.js', {
+    method: 'POST',
+    body: 'external static POST body',
+  });
+  const response = await runtime.worker.fetch(request, {
+    ASSETS: {
+      fetch: async () => {
+        assetReads += 1;
+        return new Response('static asset');
+      },
+    },
+  });
+  expect(response.status).toBe(404);
+  expect(assetReads).toBe(0);
+  expect(workerLoads).toBe(0);
+  expect(request.bodyUsed).toBe(false);
+  await expect(request.text()).resolves.toBe('external static POST body');
+});
+
 describe('React native RSC worker dispatch', () => {
   it('preserves a self-contained fetch handler with native headers and exports', async () => {
     const request = new Request('https://example.com/', {
