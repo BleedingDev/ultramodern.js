@@ -58,7 +58,8 @@ describe('declared native config-load provider', () => {
     'inspect',
     'deploy',
     'dev-worker',
-  ])('captures the original load for builder command %s', async command => {
+    'serve',
+  ])('captures the original load for framework command %s', async command => {
     const { app } = fixture({ dependencies: { [original]: '1.0.0' } });
     provider(app, original);
     const result = await resolveNativeConfigLoadProvider({
@@ -400,7 +401,6 @@ process.stdout.write('cold published SDK provider resolved\\n');`,
   });
 
   it.each([
-    'serve',
     'new',
     'routes-generate',
   ])('does not resolve providers or read a manifest for %s', async command => {

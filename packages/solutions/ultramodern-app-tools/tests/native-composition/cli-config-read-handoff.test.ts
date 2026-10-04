@@ -745,7 +745,6 @@ module.exports = async context => {
         ? 'production'
         : 'development');
     const mutateContext = 'mutateContext' in scenario && scenario.mutateContext;
-    const hasCapture = scenario.command !== 'serve';
     const skipBuild = 'skipBuild' in scenario && scenario.skipBuild;
     const observe = (
       api: Parameters<NonNullable<CliPlugin<AppTools>['setup']>>[0],
@@ -756,14 +755,12 @@ module.exports = async context => {
       handedInputs.push(getConfigurationSourceInputs(api));
       const snapshot = getConfigurationSourceSnapshot(api);
       handedSnapshots.push(snapshot);
-      if (hasCapture) {
-        expect(snapshot).toBeDefined();
-        // Deploy prepares its builder before parsing --skip-build. Catalog
-        // authority must come from the original load, including that path.
-        expect(reactWorkspaceCatalogInputs(root, snapshot)).toContain(
-          workspaceFile,
-        );
-      } else expect(snapshot).toBeUndefined();
+      expect(snapshot).toBeDefined();
+      // Deploy prepares its builder before parsing --skip-build. Catalog
+      // authority must come from the original load, including that path.
+      expect(reactWorkspaceCatalogInputs(root, snapshot)).toContain(
+        workspaceFile,
+      );
     };
     const consumer: CliPlugin<AppTools> = {
       name: 'native-cli-config-read-consumer',
@@ -799,15 +796,11 @@ module.exports = async context => {
         setupNames.push('base');
         lifecycle.push('base');
         observe(api);
-        expect(api.getAppContext().plugins.map(plugin => plugin.name)).toEqual(
-          hasCapture
-            ? [
-                '@modern-js/ultramodern-configuration-read-context',
-                '@modern-js/ultramodern-app-tools',
-                consumer.name,
-              ]
-            : ['@modern-js/ultramodern-app-tools', consumer.name],
-        );
+        expect(api.getAppContext().plugins.map(plugin => plugin.name)).toEqual([
+          '@modern-js/ultramodern-configuration-read-context',
+          '@modern-js/ultramodern-app-tools',
+          consumer.name,
+        ]);
       },
     }));
     registry[token] = {
@@ -915,7 +908,7 @@ module.exports = async context => {
       expect(actions).toBe(1);
       expect(hookBuses).toHaveLength(4);
       expect(hookBuses.every(hooks => hooks === hookBuses[0])).toBe(true);
-      if (hasCapture) {
+      {
         const snapshot = handedSnapshots[0]!;
         expect(handedSnapshots.every(value => value === snapshot)).toBe(true);
         const inputs = handedInputs[0]!;
@@ -967,13 +960,7 @@ module.exports = async context => {
         expect(() => reactWorkspaceCatalogInputs(root, snapshot)).toThrow(
           /workspace catalog.*(changed|snapshot)/i,
         );
-      } else
-        expect(handedInputs).toEqual([
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-        ]);
+      }
     } finally {
       try {
         await dispose?.();

@@ -50,15 +50,21 @@ function contains(directory: string, file: string): boolean {
   );
 }
 
-/** Commands whose native builder hooks require the original config capture. */
+/** Builder and production server hooks require the original config capture. */
 export function isNativeConfigLoadCommand(
   command: string | undefined,
 ): boolean {
   return (
     command !== undefined &&
-    ['dev', 'start', 'build', 'inspect', 'deploy', 'dev-worker'].includes(
-      command,
-    )
+    [
+      'dev',
+      'start',
+      'build',
+      'inspect',
+      'deploy',
+      'dev-worker',
+      'serve',
+    ].includes(command)
   );
 }
 

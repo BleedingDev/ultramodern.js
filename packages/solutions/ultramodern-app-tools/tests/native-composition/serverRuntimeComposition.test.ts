@@ -6,6 +6,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { AppTools } from '@modern-js/app-tools';
 import { createCloudflarePreset } from '@modern-js/app-tools-extensions/cloudflare';
+import { resolveNativeConfigLoadProvider } from '@modern-js/app-tools-extensions/native-config-load-provider';
 import {
   createCli,
   initAppContext as initCliContext,
@@ -14,8 +15,10 @@ import { applyPlugins, type ProdServerOptions } from '@modern-js/prod-server';
 import { createServerBase } from '@modern-js/server-core';
 import { loadServerPlugins } from '@modern-js/server-core/node';
 import { ultramodernAppTools } from '@modern-js/ultramodern-app-tools';
+import { build as buildApp } from '../../../app-tools/src/commands/build';
 import { generateHandler } from '../../../app-tools/src/plugins/deploy/utils/generator';
 import { initAppContext as initAppToolsContext } from '../../../app-tools/src/utils/initAppContext';
+import { getServerPlugins } from '../../../app-tools/src/utils/loadPlugins';
 import {
   type ConfigSourceSnapshot,
   captureConfigSourceSnapshot,
@@ -48,19 +51,33 @@ function createMappedServerOwner(
     fs.readFileSync(path.join(packageDirectory, 'package.json'), 'utf8'),
   );
   const serverExport = manifest.exports[`./${subpath}`].node;
-  for (const entry of [
-    serverExport.require.default,
-    serverExport.import.default,
-    ...(subpath === 'native-server-plugin'
-      ? [
-          './dist/cjs/native-composition/server-plugin-resolution.js',
-          './dist/cjs/native-composition/config-evaluator/source-snapshot.js',
-        ]
-      : []),
-  ]) {
-    const target = path.join(owner, entry);
-    fs.mkdirSync(path.dirname(target), { recursive: true });
-    fs.copyFileSync(path.join(packageDirectory, entry), target);
+  fs.mkdirSync(owner, { recursive: true });
+  const sourceDist = path.join(packageDirectory, 'dist');
+  const targetDist = path.join(owner, 'dist');
+  // Preserve the actual emitted closure, including private registry imports.
+  if (process.platform === 'darwin') {
+    execFileSync('/bin/cp', ['-cR', sourceDist, targetDist]);
+  } else {
+    fs.cpSync(sourceDist, targetDist, {
+      recursive: true,
+      verbatimSymlinks: true,
+    });
+  }
+  for (const entry of fs.readdirSync(sourceDist, { recursive: true })) {
+    const source = path.join(sourceDist, entry);
+    const target = path.join(targetDist, entry);
+    const sourceState = fs.lstatSync(source);
+    const targetState = fs.lstatSync(target);
+    expect(targetState.isDirectory()).toBe(sourceState.isDirectory());
+    expect(targetState.isFile()).toBe(sourceState.isFile());
+    expect(targetState.isSymbolicLink()).toBe(sourceState.isSymbolicLink());
+    if (sourceState.isFile()) {
+      expect(fs.readFileSync(target).equals(fs.readFileSync(source))).toBe(
+        true,
+      );
+    } else if (sourceState.isSymbolicLink()) {
+      expect(fs.readlinkSync(target)).toBe(fs.readlinkSync(source));
+    }
   }
   fs.writeFileSync(
     path.join(owner, 'package.json'),
@@ -78,24 +95,11 @@ function createMappedServerOwner(
       },
     }),
   );
-  for (const name of [
-    '@modern-js/server-runtime-extensions',
-    ...(subpath === 'native-server-plugin'
-      ? [
-          '@modern-js/renderer-core',
-          '@modern-js/runtime-utils',
-          '@modern-js/utils',
-        ]
-      : []),
-  ]) {
-    const dependency = path.join(owner, 'node_modules', name);
-    fs.mkdirSync(path.dirname(dependency), { recursive: true });
-    fs.symlinkSync(
-      fs.realpathSync(path.join(packageDirectory, 'node_modules', name)),
-      dependency,
-      'dir',
-    );
-  }
+  fs.symlinkSync(
+    fs.realpathSync(path.join(packageDirectory, 'node_modules')),
+    path.join(owner, 'node_modules'),
+    'dir',
+  );
   return {
     owner,
     registrar: path.join(owner, serverExport.require.default),
@@ -205,6 +209,179 @@ const linkComposer = (appDirectory: string) => {
 };
 
 describe('server runtime composition', () => {
+  test('resolves production serve server plugins from the original captured config', async () => {
+    const appDirectory = fs.realpathSync(
+      fs.mkdtempSync(
+        path.join(process.env.OWNED_TEMP_DIR ?? os.tmpdir(), 'um-react-serve-'),
+      ),
+    );
+    const cli = createCli<AppTools>();
+    const previousArgv = process.argv;
+    const previousNodeEnv = process.env.NODE_ENV;
+    const previousModernArgv = process.env.MODERN_ARGV;
+    const token = `__um_serve_${path.basename(appDirectory)}`;
+    const loads: { env: string; command: string }[] = [];
+    const globals = globalThis as unknown as Record<string, unknown>;
+    globals[token] = loads;
+    let dispose: (() => Promise<unknown>) | undefined;
+    try {
+      linkComposer(appDirectory);
+      // Match normal React build fixtures and the composed runtime imports.
+      const requireFromRuntime = createRequire(
+        path.join(
+          packageDirectory,
+          'node_modules/@modern-js/runtime/package.json',
+        ),
+      );
+      const appManifestFile = path.join(appDirectory, 'package.json');
+      const appManifest = JSON.parse(fs.readFileSync(appManifestFile, 'utf8'));
+      for (const name of [
+        'react',
+        'react-dom',
+        '@modern-js/runtime',
+        '@modern-js/runtime-extensions',
+        '@modern-js/runtime-renderer-extensions',
+        '@modern-js/i18n-integration',
+      ]) {
+        const ownerDirectory =
+          name === 'react' || name === 'react-dom'
+            ? path.dirname(requireFromRuntime.resolve(`${name}/package.json`))
+            : fs.realpathSync(
+                path.join(packageDirectory, 'node_modules', name),
+              );
+        const ownerManifest = JSON.parse(
+          fs.readFileSync(path.join(ownerDirectory, 'package.json'), 'utf8'),
+        );
+        expect(ownerManifest.name).toBe(name);
+        const dependency = path.join(appDirectory, 'node_modules', name);
+        fs.mkdirSync(path.dirname(dependency), { recursive: true });
+        fs.symlinkSync(ownerDirectory, dependency, 'dir');
+        appManifest.dependencies[name] = ownerManifest.version;
+      }
+      fs.writeFileSync(appManifestFile, JSON.stringify(appManifest));
+      fs.mkdirSync(path.join(appDirectory, 'src'));
+      fs.writeFileSync(
+        path.join(appDirectory, 'src/App.jsx'),
+        'export default function App() { return <main>production serve</main>; }',
+      );
+      const distDirectory = path.join(appDirectory, 'dist');
+      const configFile = path.join(appDirectory, 'modern.config.js');
+      fs.writeFileSync(
+        configFile,
+        `module.exports = context => { globalThis[${JSON.stringify(token)}].push(context); return {}; };`,
+      );
+      process.env.NODE_ENV = 'production';
+      delete process.env.MODERN_ARGV;
+      process.argv = [process.execPath, 'modern', 'build'];
+      const buildCli = createCli<AppTools>();
+      let disposeBuild: (() => Promise<unknown>) | undefined;
+      try {
+        const buildProvider = await resolveNativeConfigLoadProvider({
+          appDirectory,
+          command: 'build',
+        });
+        expect(buildProvider).toBeDefined();
+        const { appContext: buildContext } = await buildCli.init({
+          ...buildProvider,
+          cwd: appDirectory,
+          configFile,
+          command: 'build',
+          metaName: 'modern-js',
+          config: { plugins: [ultramodernAppTools()] },
+        });
+        const buildApi = buildContext.pluginAPI;
+        disposeBuild = () => buildApi.getHooks().onBeforeExit.call();
+        await buildApp(buildApi);
+        expect(loads).toEqual([{ env: 'production', command: 'build' }]);
+        expect(fs.existsSync(path.join(distDirectory, 'route.json'))).toBe(
+          true,
+        );
+        expect(
+          fs.existsSync(path.join(distDirectory, 'renderer-build.json')),
+        ).toBe(true);
+      } finally {
+        try {
+          await disposeBuild?.();
+        } finally {
+          buildCli.dispose();
+        }
+      }
+      const { routes } = JSON.parse(
+        fs.readFileSync(path.join(distDirectory, 'route.json'), 'utf8'),
+      );
+      expect(routes).toEqual([
+        expect.objectContaining({
+          entryName: 'index',
+          urlPath: '/',
+          isSSR: false,
+        }),
+      ]);
+      const builtEntryFile = path.resolve(distDirectory, routes[0].entryPath);
+      expect(fs.statSync(builtEntryFile).isFile()).toBe(true);
+      loads.length = 0;
+      process.argv = [process.execPath, 'modern', 'serve'];
+      const provider = await resolveNativeConfigLoadProvider({
+        appDirectory,
+        command: 'serve',
+      });
+      expect(provider).toBeDefined();
+      const { appContext } = await cli.init({
+        ...provider,
+        cwd: appDirectory,
+        configFile,
+        command: 'serve',
+        metaName: 'modern-js',
+        config: { plugins: [ultramodernAppTools()] },
+      });
+      const api = appContext.pluginAPI;
+      dispose = () => api.getHooks().onBeforeExit.call();
+      expect(loads).toEqual([{ env: 'production', command: 'serve' }]);
+      expect(api.getAppContext().entrypoints).toEqual([
+        expect.objectContaining({
+          entryName: 'index',
+          entry: builtEntryFile,
+        }),
+      ]);
+      const snapshot = getConfigurationSourceSnapshot(api);
+      expect(snapshot?.states.some(state => state.path === configFile)).toBe(
+        true,
+      );
+      const plugins = await getServerPlugins(api);
+      expect(
+        plugins.filter(plugin => plugin.name === descriptorName),
+      ).toHaveLength(1);
+      expect(getConfigurationSourceSnapshot(api)).toBe(snapshot);
+      const manifestFile = path.join(appDirectory, 'package.json');
+      const manifestBytes = fs.readFileSync(manifestFile);
+      const manifest = JSON.parse(manifestBytes.toString('utf8'));
+      fs.writeFileSync(
+        manifestFile,
+        JSON.stringify({ ...manifest, changed: true }),
+      );
+      try {
+        await expect(getServerPlugins(api)).rejects.toThrow(
+          'React server plugin declaration changed after configuration load',
+        );
+      } finally {
+        fs.writeFileSync(manifestFile, manifestBytes);
+      }
+      expect(loads).toHaveLength(1);
+    } finally {
+      try {
+        await dispose?.();
+      } finally {
+        cli.dispose();
+        process.argv = previousArgv;
+        if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
+        else process.env.NODE_ENV = previousNodeEnv;
+        if (previousModernArgv === undefined) delete process.env.MODERN_ARGV;
+        else process.env.MODERN_ARGV = previousModernArgv;
+        delete globals[token];
+        fs.rmSync(appDirectory, { recursive: true, force: true });
+      }
+    }
+  });
+
   test.each([
     mappedPackageName,
     '@modern-js/ultramodern-app-tools',
