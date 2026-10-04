@@ -318,8 +318,8 @@ export function releaseConsumerInputs(release, template) {
         readVerifiedPackageArtifactBytes(item, item.artifactPath),
       ).packageJson,
     );
-    overrides[item.sourceName] = `file:${item.artifactPath}`;
-    overrides[item.targetName] = `file:${item.artifactPath}`;
+    overrides[item.sourceName] = `npm:${item.targetName}@${item.version}`;
+    overrides[item.targetName] = item.version;
   }
   if (release.sidecars) {
     const sidecars = verifySidecarArtifacts(release.artifactRoot, {
@@ -327,7 +327,7 @@ export function releaseConsumerInputs(release, template) {
       sha256: sha256(release.sidecars.manifestBytes),
     });
     for (const item of sidecars.packages) {
-      overrides[`${item.name}@${item.version}`] = `file:${item.artifactPath}`;
+      overrides[item.name] = item.version;
       consumerManifests.push(item.packageJson);
     }
     const byName = new Map(sidecars.packages.map(item => [item.name, item]));
@@ -345,10 +345,6 @@ export function releaseConsumerInputs(release, template) {
             `npm:${sidecar.name}@${sidecar.version}`,
             `Sidecar dependency must match the authenticated version: ${parent.name} ${name}`,
           );
-          // pnpm matches the declared slot and literal npm specifier, not the
-          // alias target. Confine the transport override to its actual owner.
-          overrides[`${parent.name}@${parent.version}>${name}@${specifier}`] =
-            `file:${sidecar.artifactPath}`;
         }
       }
     }

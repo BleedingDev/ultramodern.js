@@ -1,22 +1,17 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { gzipSync } from 'node:zlib';
 import { parse } from 'yaml';
-import {
-  createTemplateRequiredFiles,
-  repoRoot,
-} from '../../ultramodern-publish/lib/prepare-bleedingdev-packages/constants.mjs';
+import { createTemplateRequiredFiles } from '../../ultramodern-publish/lib/prepare-bleedingdev-packages/constants.mjs';
 import {
   canonicalJson,
   inspectNpmTarball,
   readVerifiedPackageArtifactBytes,
   verifySidecarArtifacts,
 } from '../../ultramodern-publish/lib/prepare-bleedingdev-packages/release-artifacts.mjs';
-import { resolveExactPnpmExecutable } from '../published-create-proof/acceptance-profile.mjs';
 import {
   confinedPath,
   fileEvidence,
@@ -732,12 +727,9 @@ test('consumer inputs authenticate mapped tar bytes and retain their exact pins 
   for (const item of release.packages) {
     assert.equal(
       workspace.overrides[item.sourceName],
-      `file:${item.artifactPath}`,
+      `npm:${item.targetName}@${item.version}`,
     );
-    assert.equal(
-      workspace.overrides[item.targetName],
-      `file:${item.artifactPath}`,
-    );
+    assert.equal(workspace.overrides[item.targetName], item.version);
   }
   for (const block of ['dependencies', 'devDependencies']) {
     for (const [name, specifier] of Object.entries(inputs.manifest[block])) {
@@ -834,28 +826,25 @@ test('consumer inputs resolve exact prepared sidecars and their dependencies fro
   for (const item of release.sidecars.packages) {
     assert.equal(
       workspace.overrides[`${item.name}@${item.version}`],
-      `file:${item.artifactPath}`,
+      undefined,
     );
-    assert.equal(workspace.overrides[item.name], undefined);
+    assert.equal(workspace.overrides[item.name], item.version);
     assert.equal(inputs.manifest.dependencies[item.name], undefined);
     assert.equal(inputs.manifest.devDependencies[item.name], undefined);
   }
   assert.equal(workspace.overrides['@rsbuild/core'], undefined);
   assert.equal(workspace.overrides['@rslib/core'], undefined);
-  const core = release.sidecars.packages.find(
-    item => item.name === '@bleedingdev/rsbuild-core',
-  );
   assert.equal(
     workspace.overrides[
       `@bleedingdev/modern-js-ultramodern-app-tools@${release.release.version}>@rsbuild/core@npm:@bleedingdev/rsbuild-core@2.2.9`
     ],
-    `file:${core.artifactPath}`,
+    undefined,
   );
   assert.equal(
     workspace.overrides[
       '@bleedingdev/rslib-core@0.20.0>@rsbuild/core@npm:@bleedingdev/rsbuild-core@2.2.9'
     ],
-    `file:${core.artifactPath}`,
+    undefined,
   );
   assert.deepEqual(template, before);
 });
@@ -873,10 +862,8 @@ test('sidecar alias transport rejects an authenticated dependency on a different
   );
 });
 
-test('native pnpm resolves framework and transitive sidecar aliases offline only with their exact declared-slot overrides', {
-  timeout: 60_000,
-}, t => {
-  const { root, release, template } = releaseFixture(t, {
+test('consumer registry transport retains bare package selectors without file overrides', t => {
+  const { release, template } = releaseFixture(t, {
     toolsDependencies: { '@rslib/core': 'npm:@bleedingdev/rslib-core@0.20.0' },
     sidecars: [
       { name: '@bleedingdev/rsbuild-core', version: '2.2.9' },
@@ -889,98 +876,23 @@ test('native pnpm resolves framework and transitive sidecar aliases offline only
       },
     ],
   });
-  const packageManager = JSON.parse(
-    fs.readFileSync(path.join(repoRoot, 'package.json')),
-  ).packageManager;
-  const version = /^pnpm@([^+]+)(?:\+.*)?$/u.exec(packageManager)?.[1];
-  assert(version);
-  release.tools.pnpm = version;
-  const env = { ...process.env, CI: 'true' };
-  const checked = (command, args, options) =>
-    execFileSync(command, args, {
-      ...options,
-      encoding: 'utf8',
-      timeout: 30_000,
-    }).trim();
-  const pnpm = resolveExactPnpmExecutable(checked, version, env, root);
   const inputs = releaseConsumerInputs(release, template);
-  const tools = release.packages.find(
-    item => item.sourceName === '@modern-js/ultramodern-app-tools',
-  );
-  const packageJson = {
-    name: 'unit-rsc-sidecar-transport',
-    private: true,
-    packageManager,
-    dependencies: {
-      '@modern-js/ultramodern-app-tools': `file:${tools.artifactPath}`,
-    },
-  };
-  for (const withAliasSlots of [false, true]) {
-    const consumer = path.join(
-      root,
-      withAliasSlots ? 'exact-alias-slots' : 'target-names-only',
+  const workspace = parse(inputs.workspaceYaml);
+  const names = new Set([
+    ...release.packages.flatMap(item => [item.sourceName, item.targetName]),
+    ...release.sidecars.packages.map(item => item.name),
+  ]);
+  assert.deepEqual(Object.keys(workspace.overrides).sort(), [...names].sort());
+  for (const [name, specifier] of Object.entries(workspace.overrides)) {
+    assert.match(
+      name,
+      /^@[^/]+\/[^@>]+$/u,
+      'Only bare package selectors are emitted',
     );
-    write(consumer, 'package.json', JSON.stringify(packageJson));
-    const workspace = parse(inputs.workspaceYaml);
-    if (!withAliasSlots) {
-      for (const key of Object.keys(workspace.overrides))
-        if (key.includes('>')) delete workspace.overrides[key];
-    }
-    // JSON is also valid YAML; exercise the actual pnpm override parser.
-    write(consumer, 'pnpm-workspace.yaml', JSON.stringify(workspace));
-    const lock = () =>
-      execFileSync(
-        pnpm,
-        [
-          'install',
-          '--lockfile-only',
-          '--offline',
-          '--store-dir',
-          path.join(root, 'external-store'),
-        ],
-        {
-          cwd: consumer,
-          env,
-          encoding: 'utf8',
-          stdio: 'pipe',
-          timeout: 30_000,
-        },
-      );
-    if (!withAliasSlots) {
-      assert.throws(lock, error =>
-        [error.stdout, error.stderr]
-          .join('\n')
-          .includes('ERR_PNPM_NO_OFFLINE_META'),
-      );
-      continue;
-    }
-    lock();
-    const lockfile = parse(
-      fs.readFileSync(path.join(consumer, 'pnpm-lock.yaml'), 'utf8'),
-    );
-    const snapshots = Object.values(lockfile.snapshots);
-    for (const dependency of ['@rslib/core', '@rsbuild/core']) {
-      assert(
-        snapshots.some(
-          item =>
-            typeof item.dependencies?.[dependency] === 'string' &&
-            item.dependencies[dependency].includes('file:'),
-        ),
-        `Native lock must use accepted tarballs for ${dependency}`,
-      );
-    }
-    assert(
-      Object.values(lockfile.packages).every(item =>
-        item.resolution?.tarball?.startsWith('file:'),
-      ),
-    );
-    assert.deepEqual(
-      Object.values(lockfile.packages)
-        .map(item => path.basename(item.resolution.tarball))
-        .sort(),
-      [tools, ...release.sidecars.packages]
-        .map(item => path.basename(item.artifactPath))
-        .sort(),
+    assert.equal(
+      specifier.startsWith('file:'),
+      false,
+      `${name} must retain registry resolution`,
     );
   }
 });

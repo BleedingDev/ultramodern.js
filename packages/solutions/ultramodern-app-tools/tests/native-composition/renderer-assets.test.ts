@@ -137,6 +137,162 @@ async function compile(options: {
 }
 
 describe('compiler-owned native document assets', () => {
+  it('keeps genuine HMR deltas out of fresh document scripts while preserving runtime order', async () => {
+    const root = fs.mkdtempSync(
+      path.join(
+        process.env.OWNED_TEMP_DIR ?? os.tmpdir(),
+        'um-native-hmr-assets-',
+      ),
+    );
+    let close: (() => Promise<void>) | undefined;
+    interface CompilationReceipt {
+      readonly hash: string | undefined;
+      readonly hasErrors: boolean;
+      readonly files: readonly {
+        readonly name: string;
+        readonly hotModuleReplacement: boolean;
+      }[];
+      readonly runtime: string | undefined;
+      readonly manifest: unknown;
+    }
+    const completed: CompilationReceipt[] = [];
+    const waiting: ((receipt: CompilationReceipt) => void)[] = [];
+    const nextCompilation = () =>
+      completed.length
+        ? Promise.resolve(completed.shift()!)
+        : new Promise<CompilationReceipt>((resolve, reject) => {
+            const deliver = (receipt: CompilationReceipt) => {
+              clearTimeout(timeout);
+              resolve(receipt);
+            };
+            const timeout = setTimeout(() => {
+              const index = waiting.indexOf(deliver);
+              if (index !== -1) waiting.splice(index, 1);
+              reject(
+                new Error('Actual native HMR compilation did not complete'),
+              );
+            }, 30_000);
+            waiting.push(deliver);
+          });
+    try {
+      fs.writeFileSync(
+        path.join(root, 'package.json'),
+        JSON.stringify({ name: 'asset-proof', private: true }),
+      );
+      const state = path.join(root, 'state.js');
+      fs.writeFileSync(state, 'export const marker = "first";\n');
+      fs.writeFileSync(
+        path.join(root, 'client.js'),
+        'import { marker } from "./state.js"; globalThis.assetProof = marker;\n',
+      );
+      const rsbuild = await createRsbuild({
+        cwd: root,
+        rsbuildConfig: {
+          mode: 'development',
+          plugins: [
+            nativeClientAssetsPlugin('solid', () => ({ main: identity })),
+            {
+              name: 'observe-genuine-native-hmr-assets',
+              setup(api) {
+                api.onDevCompileDone(({ stats }) => {
+                  const client = (
+                    'stats' in stats ? stats.stats : [stats]
+                  ).find(candidate => candidate.compilation.name === 'client');
+                  if (!client)
+                    throw new Error('Actual client compiler is missing');
+                  const compilation = client.compilation;
+                  const entrypoint = compilation.entrypoints.get('main')!;
+                  const receipt: CompilationReceipt = {
+                    hash: compilation.hash,
+                    hasErrors: client.hasErrors(),
+                    files: entrypoint.getFiles().map(name => ({
+                      name,
+                      hotModuleReplacement:
+                        compilation.getAsset(name)!.info
+                          .hotModuleReplacement === true,
+                    })),
+                    runtime: [...entrypoint.getRuntimeChunk()!.files].find(
+                      file =>
+                        /\.[cm]?js$/u.test(file) &&
+                        !compilation.getAsset(file)!.info.hotModuleReplacement,
+                    ),
+                    manifest: JSON.parse(
+                      compilation
+                        .getAsset('renderer-assets.json')!
+                        .source.source()
+                        .toString(),
+                    ),
+                  };
+                  const deliver = waiting.shift();
+                  if (deliver) deliver(receipt);
+                  else completed.push(receipt);
+                });
+              },
+            },
+          ],
+          server: { host: '127.0.0.1', port: 0, printUrls: false },
+          dev: {
+            assetPrefix: '/assets/',
+            hmr: true,
+            liveReload: false,
+            writeToDisk: false,
+          },
+          output: { minify: false, sourceMap: false },
+          performance: { printFileSize: false },
+          environments: {
+            client: {
+              source: { entry: { main: path.join(root, 'client.js') } },
+              output: { target: 'web' },
+              tools: {
+                htmlPlugin: false,
+                rspack: {
+                  optimization: { runtimeChunk: { name: 'builder-runtime' } },
+                },
+              },
+            },
+          },
+        },
+      });
+      const dev = await rsbuild.createDevServer({ getPortSilently: true });
+      close = () => dev.close();
+      await dev.listen();
+      const first = await nextCompilation();
+      expect(first.hasErrors).toBe(false);
+      expect(first.hash).toBeDefined();
+      fs.writeFileSync(state, 'export const marker = "second";\n');
+      let second = await nextCompilation();
+      while (second.hash === first.hash) second = await nextCompilation();
+      expect(second.hasErrors).toBe(false);
+      const files = second.files;
+      const updates = files
+        .filter(file => file.hotModuleReplacement)
+        .map(file => file.name);
+      expect(updates.some(file => /\.[cm]?js$/u.test(file))).toBe(true);
+      const assets = validateNativeClientAssetManifest(
+        second.manifest,
+        identity,
+      );
+      expect(assets.map(asset => asset.href)).toEqual(
+        files
+          .filter(file => !file.hotModuleReplacement)
+          .map(file => file.name)
+          .filter(file => /\.(?:css|[cm]?js)$/u.test(file))
+          .map(file => `/assets/${file}`),
+      );
+      expect(second.runtime).toBeDefined();
+      expect(assets.find(asset => asset.kind === 'script')?.href).toBe(
+        `/assets/${second.runtime}`,
+      );
+      for (const update of updates)
+        expect(assets.some(asset => asset.href === `/assets/${update}`)).toBe(
+          false,
+        );
+    } finally {
+      await close?.();
+      fs.rmSync(root, { force: true, recursive: true });
+    }
+  }, 30_000);
+
   it.each([
     false,
     true,
