@@ -2162,13 +2162,15 @@ function resolveTypeFile(candidate, { beforeRealpath } = {}) {
   return resolveFile(candidate, { beforeRealpath });
 }
 
-/** Audits installed identities and static entry imports; execution is a separate gate. */
+/** Runtime imports are source-strict; host build inputs join their actual build. */
 export function auditInstalledConsumer({
   consumerRoot,
   applicationRoot = '.',
   renderer,
   exactPackages,
   entryFiles,
+  buildEntryFiles = [],
+  buildCommandEvidence,
   testedProfile,
   releaseArtifacts,
   nativeCompilerManifests,
@@ -2192,6 +2194,10 @@ export function auditInstalledConsumer({
   assert(
     Array.isArray(entryFiles) && entryFiles.length > 0,
     'Source and emitted entry files are required',
+  );
+  assert(
+    Array.isArray(buildEntryFiles),
+    'Host build entries must be an explicit observed file list',
   );
   const root = fs.realpathSync(consumerRoot);
   let producer;
@@ -3057,16 +3063,30 @@ export function auditInstalledConsumer({
       });
     }
   }
-  const pendingFiles = entryFiles.map(file => {
-    const resolved = resolveFile(path.resolve(root, file));
-    assert(
-      resolved && within(root, resolved),
-      `Missing or external consumer entry ${file}`,
-    );
-    return resolved;
-  });
-  pendingFiles.push(...nativeEmittedEntries);
-  const directedEntries = new Set(pendingFiles);
+  const entryRoles = new Map();
+  const scannedRoles = new Map();
+  const pendingFiles = [];
+  const enqueueFile = (file, role = 'runtime') => {
+    const previous = entryRoles.get(file);
+    if (previous === 'runtime' || previous === role) return;
+    entryRoles.set(file, role);
+    pendingFiles.push(file);
+  };
+  const directedEntries = new Set(
+    entryFiles.map(file => {
+      const resolved = resolveFile(path.resolve(root, file));
+      assert(
+        resolved && within(root, resolved),
+        `Missing or external consumer entry ${file}`,
+      );
+      enqueueFile(resolved);
+      return resolved;
+    }),
+  );
+  for (const file of nativeEmittedEntries) {
+    enqueueFile(file);
+    directedEntries.add(file);
+  }
   const ownedComputedServerLoaders = [];
   let activeServerBuild;
   let activeDevelopmentBuild;
@@ -3085,6 +3105,109 @@ export function auditInstalledConsumer({
     );
     return file;
   };
+  const unverifiedBuildLoads = [];
+  let hostBuildEvidence;
+  if (buildEntryFiles.length > 0) {
+    assert(
+      buildCommandEvidence?.phase === 'build' &&
+        buildCommandEvidence.exitCode === 0 &&
+        typeof buildCommandEvidence.command === 'string' &&
+        buildCommandEvidence.command.length > 0 &&
+        typeof buildCommandEvidence.cwd === 'string' &&
+        fs.realpathSync(buildCommandEvidence.cwd) === appRoot &&
+        Array.isArray(buildCommandEvidence.args) &&
+        buildCommandEvidence.args.every(
+          argument => typeof argument === 'string',
+        ),
+      'Host build entries require the actual successful completed build command',
+    );
+    assert(
+      typeof rendererBuildManifestPath === 'string' &&
+        !path.isAbsolute(rendererBuildManifestPath),
+      'Host build entries require the actual consumer-relative completed build manifest',
+    );
+    const manifestPath = ordinaryConsumerFile(
+      path.resolve(root, rendererBuildManifestPath),
+      'Host completed build manifest',
+    );
+    const bytes = fs.readFileSync(manifestPath);
+    const value = JSON.parse(bytes);
+    const hash = observedCompilerBuild({
+      bytes,
+      path: path.relative(root, manifestPath),
+      evidence: rendererBuildEvidence,
+      validated: value,
+    });
+    assert(
+      value.schema === 'ultramodern-renderer-build' &&
+        value.version === 1 &&
+        value.profile?.renderer === renderer &&
+        value.promotable === true &&
+        /^[a-f0-9]{40}$/u.test(value.sourceRevision) &&
+        (!producer || value.sourceRevision === producer.sourceRevision),
+      'Host build selection must match the actual completed owning emission',
+    );
+    hostBuildEvidence = {
+      command: structuredClone(buildCommandEvidence),
+      manifest: {
+        path: path.relative(root, manifestPath),
+        sha256: hash,
+        buildMarker: value.buildMarker,
+        sourceRevision: value.sourceRevision,
+      },
+      roots: [],
+      scope:
+        'known resolved static host dependencies; unverified host loads are listed',
+    };
+    for (const evidence of buildEntryFiles) {
+      assert(
+        evidence &&
+          ['configuration', 'metadata'].includes(evidence.purpose) &&
+          typeof evidence.path === 'string' &&
+          !path.isAbsolute(evidence.path) &&
+          /^[a-f0-9]{64}$/u.test(evidence.sha256) &&
+          Number.isSafeInteger(evidence.byteLength) &&
+          evidence.byteLength >= 0,
+        'Host build entries require observed purpose and pre-build file bytes',
+      );
+      const file = path.resolve(root, evidence.path);
+      assert(
+        within(appRoot, file) &&
+          !path.relative(root, file).split(path.sep).includes('node_modules'),
+        'Host build entry must be an application-owned configuration or metadata file',
+      );
+      ordinaryConsumerFile(file, 'Host build entry');
+      const entryBytes = fs.readFileSync(file);
+      assert(
+        entryBytes.length === evidence.byteLength &&
+          crypto.createHash('sha256').update(entryBytes).digest('hex') ===
+            evidence.sha256,
+        'Host build entry differs from the observed pre-build input',
+      );
+      hostBuildEvidence.roots.push({
+        ...evidence,
+        path: path.relative(root, file),
+      });
+      enqueueFile(file, 'host-build');
+    }
+  }
+  const deferBuildLoad = (file, imported, kind) => {
+    unverifiedBuildLoads.push({
+      source: path.relative(root, file),
+      sourceSha256: scanned.get(file),
+      line: imported.line ?? null,
+      specifier: imported.specifier ?? null,
+      kind:
+        kind ??
+        (imported.requirePath
+          ? 'unverifiable-require-anchor'
+          : imported.require
+            ? 'computed-require'
+            : 'computed-import'),
+      admission: 'unverified-host-build-load',
+    });
+  };
+  const hostMetadataValidators = [];
   const installedProducer = sourceName => {
     const artifact = producer?.artifacts.find(
       item => item.sourceName === sourceName,
@@ -3108,7 +3231,17 @@ export function auditInstalledConsumer({
       within(installation.record.directory, entry),
       'Native server loader public validator escapes its owning package',
     );
-    pendingFiles.push(entry);
+    hostMetadataValidators.push({
+      sourceName,
+      targetName: installation.record.manifest.name,
+      path: path.relative(root, entry),
+      sha256: crypto
+        .createHash('sha256')
+        .update(fs.readFileSync(entry))
+        .digest('hex'),
+      artifactSha256: artifact.sha256,
+      purpose: 'executed-owning-metadata-validator',
+    });
     return { ...installation, entry, exports: require(entry) };
   };
   const activationFrames = {
@@ -3368,7 +3501,7 @@ export function auditInstalledConsumer({
           file,
           identity,
         );
-        pendingFiles.push(file);
+        enqueueFile(file);
         return {
           entryName,
           rendererIdentity: identity,
@@ -3600,7 +3733,9 @@ export function auditInstalledConsumer({
   };
   while (pendingFiles.length) {
     const file = pendingFiles.pop();
-    if (scanned.has(file)) continue;
+    const role = entryRoles.get(file);
+    if (scannedRoles.get(file) === 'runtime' || scannedRoles.get(file) === role)
+      continue;
     assert(
       within(root, file),
       `Entry import resolves outside the clean consumer: ${file}`,
@@ -3639,7 +3774,13 @@ export function auditInstalledConsumer({
         authenticateDeclaration(selectedOwner, `octane/${relative}`);
     }
     const bytes = fs.readFileSync(file);
-    scanned.set(file, crypto.createHash('sha256').update(bytes).digest('hex'));
+    const hash = crypto.createHash('sha256').update(bytes).digest('hex');
+    assert(
+      !scanned.has(file) || scanned.get(file) === hash,
+      'Selected source bytes changed during host-to-runtime promotion',
+    );
+    scanned.set(file, hash);
+    scannedRoles.set(file, role);
     if (!/\.(?:[cm]?[jt]sx?|tsrx)$/u.test(file)) continue;
     const source = bytes.toString('utf8');
     if (native)
@@ -3694,13 +3835,14 @@ export function auditInstalledConsumer({
                 authority.selected.module[format],
               )
             : undefined;
-        if (target) pendingFiles.push(target);
+        if (target) enqueueFile(target, role);
         ownedCompilerActivations.push({
           source: path.relative(root, file),
           sourceSha256: scanned.get(file),
           artifactSha256: authority.artifact.sha256,
           selectedRenderer: renderer,
           selectedKind: authority.selected.kind,
+          role,
           format,
           build: authority.manifest,
           catalogue: authority.catalogue,
@@ -3826,7 +3968,7 @@ export function auditInstalledConsumer({
             );
             build = authority.manifest;
           }
-          if (active) pendingFiles.push(target);
+          if (active) enqueueFile(target, role);
           ownedSelfExportLoaders.push({
             ...self,
             source: path.relative(root, file),
@@ -3836,6 +3978,7 @@ export function auditInstalledConsumer({
             artifactSha256: artifact.sha256,
             selectedRenderer: renderer,
             active,
+            role,
             ...(build ? { build } : {}),
             target: path.relative(root, target),
             targetSha256,
@@ -3843,6 +3986,10 @@ export function auditInstalledConsumer({
           continue;
         }
         const anchor = createRequireAnchor(imported.requirePath);
+        if (!anchor && role === 'host-build') {
+          deferBuildLoad(file, imported);
+          continue;
+        }
         assert(
           anchor,
           `Unverifiable createRequire anchor in ${path.relative(root, file)}`,
@@ -3974,6 +4121,7 @@ export function auditInstalledConsumer({
           source: path.relative(root, file),
           sourceSha256: scanned.get(file),
           line: imported.line,
+          role,
           kind: anchor.kind,
           logicalAnchor: path.relative(root, logicalAnchor),
           packageScopes,
@@ -4007,6 +4155,26 @@ export function auditInstalledConsumer({
           'dist/cjs/native-composition/native-development.js',
           'dist/esm-node/native-composition/native-development.mjs',
         ].includes(relative);
+        if (
+          role === 'host-build' &&
+          !(
+            artifact &&
+            selectedOwner?.manifest.name === artifact.targetName &&
+            ((knownProductionModule &&
+              nativeServerLoaderImport(
+                imported.importPath,
+                producer.aliases,
+              )) ||
+              (knownDevelopmentModule &&
+                nativeDevelopmentLoaderImport(
+                  imported.importPath,
+                  producer.aliases,
+                )))
+          )
+        ) {
+          deferBuildLoad(file, imported);
+          continue;
+        }
         assert(
           artifact &&
             selectedOwner?.manifest.name === artifact.targetName &&
@@ -4056,6 +4224,12 @@ export function auditInstalledConsumer({
         continue;
       }
       const specifier = imported.specifier;
+      let unresolvedHostRequire =
+        role === 'host-build' &&
+        imported.require &&
+        !imported.typeOnly &&
+        !imported.reference &&
+        !/\.d\.[cm]?ts$/u.test(file);
       const name = packageName(specifier);
       const octaneTypeOwner =
         renderer === 'octane' &&
@@ -4171,10 +4345,16 @@ export function auditInstalledConsumer({
             );
           }
         }
+        if (!record && unresolvedHostRequire) {
+          deferBuildLoad(file, imported, 'unresolved-require');
+          continue;
+        }
         assert(
           record,
           `Unresolved installed entry import ${specifier} in ${path.relative(root, file)}`,
         );
+        // A physical provider was found: its exports and target stay strict.
+        unresolvedHostRequire = false;
         if (octaneTypeOwner)
           assert(
             record.manifest.name === '@types/react' &&
@@ -4315,7 +4495,7 @@ export function auditInstalledConsumer({
                 targetSha256:
                   authenticatedDeclarationFiles.get(typeFile)?.sha256,
               });
-            pendingFiles.push(typeFile);
+            enqueueFile(typeFile, role);
           } else
             assert(
               !imported.typeOnly && !declarationFallbackOwner,
@@ -4337,6 +4517,10 @@ export function auditInstalledConsumer({
               }
             : {}),
         });
+      }
+      if (!target && unresolvedHostRequire) {
+        deferBuildLoad(file, imported, 'unresolved-require');
+        continue;
       }
       assert(
         target,
@@ -4424,10 +4608,28 @@ export function auditInstalledConsumer({
             .digest('hex'),
         });
       }
-      pendingFiles.push(target);
+      enqueueFile(target, role);
     }
   }
   drain();
+  if (hostBuildEvidence) {
+    for (const evidence of [
+      ...hostBuildEvidence.roots,
+      hostBuildEvidence.manifest,
+    ]) {
+      const file = ordinaryConsumerFile(
+        path.resolve(root, evidence.path),
+        'Host build bound evidence',
+      );
+      assert(
+        crypto
+          .createHash('sha256')
+          .update(fs.readFileSync(file))
+          .digest('hex') === evidence.sha256,
+        'Host build evidence changed during its role audit',
+      );
+    }
+  }
   for (const loader of ownedSelfExportLoaders) {
     for (const [relative, expected] of [
       [loader.source, loader.sourceSha256],
@@ -4448,8 +4650,11 @@ export function auditInstalledConsumer({
     }
     assert(
       !loader.active ||
-        scanned.get(path.resolve(root, loader.target)) === loader.targetSha256,
-      'Active owning self-export target was not completely audited',
+        (scanned.get(path.resolve(root, loader.target)) ===
+          loader.targetSha256 &&
+          (loader.role !== 'runtime' ||
+            scannedRoles.get(path.resolve(root, loader.target)) === 'runtime')),
+      'Active owning self-export target was not audited in its required source role',
     );
   }
   if (compilerActivation) {
@@ -4472,9 +4677,12 @@ export function auditInstalledConsumer({
     for (const activation of ownedCompilerActivations)
       assert(
         !activation.target ||
-          scanned.get(path.resolve(root, activation.target)) ===
-            activation.targetSha256,
-        'Selected compiler activation target was not completely audited',
+          (scanned.get(path.resolve(root, activation.target)) ===
+            activation.targetSha256 &&
+            (activation.role !== 'runtime' ||
+              scannedRoles.get(path.resolve(root, activation.target)) ===
+                'runtime')),
+        'Selected compiler activation target was not audited in its required source role',
       );
   }
   for (const anchor of ownedRequireAnchors) {
@@ -4779,7 +4987,28 @@ export function auditInstalledConsumer({
           incomingEdges: authenticatedTypeEdges,
         }
       : null,
+    hostBuild: hostBuildEvidence,
+    hostMetadataValidators,
+    unverifiedBuildLoads: unverifiedBuildLoads
+      .filter(
+        item =>
+          scannedRoles.get(path.resolve(root, item.source)) === 'host-build',
+      )
+      .filter(
+        (item, index, items) =>
+          items.findIndex(
+            other =>
+              other.source === item.source &&
+              other.line === item.line &&
+              other.kind === item.kind,
+          ) === index,
+      ),
+    buildEntryClosure: [...scanned]
+      .filter(([file]) => scannedRoles.get(file) === 'host-build')
+      .map(([file, sha256]) => ({ path: path.relative(root, file), sha256 }))
+      .sort((left, right) => left.path.localeCompare(right.path)),
     entryClosure: [...scanned]
+      .filter(([file]) => scannedRoles.get(file) === 'runtime')
       .map(([file, sha256]) => ({ path: path.relative(root, file), sha256 }))
       .sort((left, right) => left.path.localeCompare(right.path)),
     producerArtifactBindings: producerArtifactBindings.sort((left, right) =>

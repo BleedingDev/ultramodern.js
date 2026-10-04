@@ -657,6 +657,35 @@ export async function runPackedConformance(config, dependencies = {}) {
       env: commandEnv,
     };
     const commandResults = [];
+    const buildEntryFiles = [];
+    for (const relative of consumer.buildEntryFiles ?? []) {
+      if (typeof relative !== 'string' || path.isAbsolute(relative))
+        throw new Error(
+          'Host build entry declarations must be consumer-relative paths',
+        );
+      const file = path.resolve(consumerRoot, relative);
+      const stat = await fs.lstat(file);
+      if (
+        !stat.isFile() ||
+        (await fs.realpath(file)) !== file ||
+        path.relative(applicationRoot, file).startsWith(`..${path.sep}`) ||
+        path.relative(applicationRoot, file) === '..' ||
+        path
+          .relative(consumerRoot, file)
+          .split(path.sep)
+          .includes('node_modules')
+      )
+        throw new Error(
+          'Host build declaration requires an ordinary application-owned config file',
+        );
+      const bytes = await fs.readFile(file);
+      buildEntryFiles.push({
+        path: path.relative(consumerRoot, file),
+        purpose: 'configuration',
+        sha256: sha256(bytes),
+        byteLength: bytes.length,
+      });
+    }
     const authoredDigest = await authoredInputDigest(applicationRoot);
     const observationDist = path.dirname(
       path.resolve(consumerRoot, consumer.environments.production.metadataFile),
@@ -905,6 +934,10 @@ export async function runPackedConformance(config, dependencies = {}) {
       renderer: consumer.renderer,
       exactPackages: consumer.exactPackages,
       entryFiles: consumer.entryFiles,
+      buildEntryFiles,
+      buildCommandEvidence: commandResults.find(
+        result => result.phase === 'build',
+      ),
       testedProfile: {
         renderer: consumer.renderer,
         packages: consumer.exactPackages,

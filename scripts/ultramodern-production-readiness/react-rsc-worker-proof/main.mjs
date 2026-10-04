@@ -425,19 +425,29 @@ export async function runProof(options) {
     );
     assert.equal(tools.manifest.version, release.release.version);
     const cli = confinedPath(tools.directory, tools.manifest.bin.ultramodern);
+    let buildCommandEvidence;
     for (const [label, args] of [
       ['build', ['build']],
       ['deploy', ['deploy', '--skip-build']],
     ]) {
-      receipt.commands.push(
-        await runCommand(process.execPath, [cli, ...args], {
+      const commandEvidence = await runCommand(
+        process.execPath,
+        [cli, ...args],
+        {
           cwd: consumer,
           env,
           signal: controller.signal,
           cleanupErrors: commandCleanupErrors,
           log: path.join(options.workDir, `${label}.log`),
-        }),
+        },
       );
+      receipt.commands.push(commandEvidence);
+      if (label === 'build')
+        buildCommandEvidence = {
+          ...commandEvidence,
+          cwd: consumer,
+          phase: 'build',
+        };
     }
     const outputRoot = path.join(consumer, '.output');
     const wranglerPath = path.join(outputRoot, 'wrangler.json');
@@ -467,7 +477,6 @@ export async function runProof(options) {
       value: buildManifest,
     };
     const sourceEntries = [
-      path.join(consumer, 'modern.config.ts'),
       ...ordinaryFiles(path.join(consumer, 'src')).filter(file =>
         /\.[cm]?tsx?$/u.test(file),
       ),
@@ -480,6 +489,15 @@ export async function runProof(options) {
         ...sourceEntries,
         ...optionsForWorker.modules.map(module => module.path),
       ],
+      buildEntryFiles: [
+        {
+          ...fixtureSources.fixture.find(
+            file => file.path === 'modern.config.ts',
+          ),
+          purpose: 'configuration',
+        },
+      ],
+      buildCommandEvidence,
       releaseArtifacts: releaseAudit,
       rendererBuildManifestPath: path.relative(consumer, buildManifestPath),
       rendererBuildEvidence: receipt.rendererBuild,
