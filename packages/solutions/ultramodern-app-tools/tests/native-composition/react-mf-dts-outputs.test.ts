@@ -3051,6 +3051,8 @@ describe('React native receiver output controller', () => {
     let gateNextFinalWrite = false;
     let releaseOutputWrite: (() => void) | undefined;
     let outputWriteEntered = deferred<void>();
+    const secondFinalizerEntered = deferred<void>();
+    const secondFinalizerGate = deferred<void>();
     const secondWatchEntered = deferred<void>();
     let watchRuns = 0;
     const observedController = {
@@ -3070,6 +3072,11 @@ describe('React native receiver output controller', () => {
         finalizations++;
         leases.push(lease);
         await lease?.assertCurrent();
+        if (finalizations === 2) {
+          secondFinalizerEntered.resolve();
+          await secondFinalizerGate.promise;
+          await lease?.assertCurrent();
+        }
         return identities();
       },
       async publishDevelopment(_stats, _identities, assertCurrent) {
@@ -3247,6 +3254,8 @@ describe('React native receiver output controller', () => {
       ]);
     }) as typeof nativeWriteFile;
     closes.push(async () => {
+      gateNextFinalWrite = false;
+      secondFinalizerGate.resolve();
       releaseOutputWrite?.();
       outputFileSystem.writeFile = nativeWriteFile;
     });
@@ -3301,13 +3310,6 @@ describe('React native receiver output controller', () => {
     expect(finalizations).toBe(1);
     const secondReady = phase.resolveIdentities();
     gateNextFinalWrite = true;
-    await completeReceiver(receiver, acknowledgement);
-    completed = true;
-    await pendingIdle;
-    await outputWriteEntered.promise;
-    expect(finalizations).toBe(2);
-    expect(published).toEqual([1]);
-    expect(phase.currentGeneratedOutputGeneration().generation).toBe(2);
     const bridge = seed(options).receiverBridge!;
     const pendingTCP: {
       beginId: string;
@@ -3315,6 +3317,8 @@ describe('React native receiver output controller', () => {
     }[] = [];
     const finishedTCP = new Set<string>();
     closes.push(async () => {
+      gateNextFinalWrite = false;
+      secondFinalizerGate.resolve();
       releaseOutputWrite?.();
       for (const queued of pendingTCP) {
         if (finishedTCP.has(queued.beginId)) continue;
@@ -3331,9 +3335,28 @@ describe('React native receiver output controller', () => {
         }
       }
     });
+    await completeReceiver(receiver, acknowledgement);
+    completed = true;
+    await pendingIdle;
+    await secondFinalizerEntered.promise;
+    expect(finalizations).toBe(2);
+    expect(published).toEqual([1]);
+    expect(phase.currentGeneratedOutputGeneration().generation).toBe(2);
+    expect(phase.currentGeneratedOutputGeneration().snapshot).toBe(
+      beforeIO.snapshot,
+    );
     const queued = await queuedBridgeBegin(bridge, seed(options), request => {
       pendingTCP.push(request);
     });
+    let queuedSettled = false;
+    void queued.response.then(
+      () => {
+        queuedSettled = true;
+      },
+      () => {
+        queuedSettled = true;
+      },
+    );
     const canceled = await queuedBridgeBegin(bridge, seed(options), request => {
       pendingTCP.push(request);
     });
@@ -3347,6 +3370,18 @@ describe('React native receiver output controller', () => {
     expect(result.producerReads()).toBe(2);
     expect(published).toEqual([1]);
     expect(fs.readFileSync(app.declaration, 'utf8')).toContain('boolean');
+    expect(queuedSettled).toBe(false);
+    expect(releaseOutputWrite).toBeUndefined();
+    secondFinalizerGate.resolve();
+    await outputWriteEntered.promise;
+    expect(finalizations).toBe(2);
+    expect(phase.currentGeneratedOutputGeneration().generation).toBe(2);
+    expect(phase.currentGeneratedOutputGeneration().snapshot).toBe(
+      beforeIO.snapshot,
+    );
+    expect(result.producerReads()).toBe(2);
+    expect(published).toEqual([1]);
+    expect(queuedSettled).toBe(false);
     expect(releaseOutputWrite).toBeDefined();
     releaseOutputWrite!();
     await secondReady;

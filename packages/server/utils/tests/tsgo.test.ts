@@ -24,11 +24,11 @@ describe('getTsgoBinPath', () => {
     await fs.remove(tmpDir);
   });
 
-  it('prefers the app-local @typescript/native install', async () => {
-    const pkgDir = path.join(tmpDir, 'node_modules/@typescript/native');
+  it('prefers the app-local stable TypeScript 7.0.2 compiler', async () => {
+    const pkgDir = path.join(tmpDir, 'node_modules/typescript');
     await fs.outputJSON(path.join(pkgDir, 'package.json'), {
       name: 'typescript',
-      version: '7.0.0-test',
+      version: '7.0.2',
       exports: { './package.json': './package.json' },
       bin: { tsc: './bin/tsc' },
     });
@@ -37,34 +37,91 @@ describe('getTsgoBinPath', () => {
     expect(getTsgoBinPath(tmpDir)).toBe(path.join(pkgDir, 'bin/tsc'));
   });
 
-  it('supports app-local @typescript/native-preview installs', async () => {
-    const pkgDir = path.join(tmpDir, 'node_modules/@typescript/native-preview');
+  it.each([
+    '@typescript/native-preview',
+    '@typescript/native',
+  ])('does not select %s instead of the canonical stable package', async name => {
+    const pkgDir = path.join(tmpDir, 'node_modules', name);
     await fs.outputJSON(path.join(pkgDir, 'package.json'), {
-      name: '@typescript/native-preview',
-      version: '0.0.0-test',
-      bin: {
-        tsgo: './bin/tsgo',
-      },
+      name: 'typescript',
+      version: '7.0.2',
+      exports: { './package.json': './package.json' },
+      bin: { tsc: './bin/tsc' },
     });
-    await fs.outputFile(path.join(pkgDir, 'bin/tsgo'), '// stub\n');
+    await fs.outputFile(path.join(pkgDir, 'bin/tsc'), '// stub\n');
 
-    const binPath = getTsgoBinPath(tmpDir);
-
-    expect(binPath).toBe(path.join(pkgDir, 'bin/tsgo'));
+    expect(() => getTsgoBinPath(tmpDir, [tmpDir])).toThrow(
+      'Please install "typescript@7.0.2"',
+    );
   });
 
-  it('falls back to the dependency tree of @modern-js/server-utils', () => {
-    // No app-local install: resolution must still succeed via this package's
-    // own module tree (hoisted installs / the workspace devDependency).
+  it('uses the declared stable production compiler when the app has none', () => {
     const binPath = getTsgoBinPath(tmpDir);
+    const pkgPath = require.resolve('typescript/package.json');
+    const pkg = require(pkgPath);
 
-    expect(binPath).toMatch(/tsgo(?:\.js)?$/);
+    expect(pkg.name).toBe('typescript');
+    expect(pkg.version).toBe('7.0.2');
+    expect(binPath).toBe(path.resolve(path.dirname(pkgPath), pkg.bin.tsc));
     expect(fs.existsSync(binPath)).toBe(true);
   });
 
-  it('throws an actionable error when tsgo cannot be resolved anywhere', () => {
+  it.each([
+    '5.9.3',
+    '6.0.2',
+    '7.0.0-dev.20260707.2',
+  ])('rejects an app-local incompatible compiler %s without falling back', async version => {
+    const pkgDir = path.join(tmpDir, 'node_modules/typescript');
+    await fs.outputJSON(path.join(pkgDir, 'package.json'), {
+      name: 'typescript',
+      version,
+      bin: { tsc: './bin/tsc' },
+    });
+    await fs.outputFile(path.join(pkgDir, 'bin/tsc'), '// stub\n');
+
+    expect(() => getTsgoBinPath(tmpDir)).toThrow(
+      `requires typescript@7.0.2; found typescript@${version}`,
+    );
+  });
+
+  it('does not guess an undeclared compiler launcher', async () => {
+    const pkgDir = path.join(tmpDir, 'node_modules/typescript');
+    await fs.outputJSON(path.join(pkgDir, 'package.json'), {
+      name: 'typescript',
+      version: '7.0.2',
+      bin: { tsgo: './bin/tsgo.js' },
+    });
+    await fs.outputFile(path.join(pkgDir, 'bin/tsgo.js'), '// stub\n');
+
+    expect(() => getTsgoBinPath(tmpDir)).toThrow('declares no tsc executable');
+  });
+
+  it('rejects a declared compiler launcher that is not present', async () => {
+    const pkgDir = path.join(tmpDir, 'node_modules/typescript');
+    await fs.outputJSON(path.join(pkgDir, 'package.json'), {
+      name: 'typescript',
+      version: '7.0.2',
+      bin: { tsc: './bin/tsc' },
+    });
+
+    expect(() => getTsgoBinPath(tmpDir)).toThrow('executable is missing');
+  });
+
+  it('rejects a compiler launcher outside its declared package owner', async () => {
+    const pkgDir = path.join(tmpDir, 'node_modules/typescript');
+    await fs.outputJSON(path.join(pkgDir, 'package.json'), {
+      name: 'typescript',
+      version: '7.0.2',
+      bin: { tsc: '../../outside-tsc' },
+    });
+    await fs.outputFile(path.join(tmpDir, 'outside-tsc'), '// stub\n');
+
+    expect(() => getTsgoBinPath(tmpDir)).toThrow('outside its package');
+  });
+
+  it('throws an actionable error when the stable compiler cannot be resolved', () => {
     expect(() => getTsgoBinPath(tmpDir, [tmpDir])).toThrow(
-      /Please install "@typescript\/native"/,
+      'Please install "typescript@7.0.2"',
     );
   });
 });

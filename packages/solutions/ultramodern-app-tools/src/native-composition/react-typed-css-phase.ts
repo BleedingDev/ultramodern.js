@@ -812,76 +812,76 @@ export class ReactTypedCssPhase {
           lease = await this.options.generatedOutputs?.pinReceipts();
           assertCurrent();
           this.receiptLease = lease;
-          await assertPinned();
-          this.assertSelectedReceiptMembers(lease);
-          const results = 'stats' in stats ? stats.stats : [stats];
-          const outputs = new Set<string>();
-          for (const producer of this.options.produceTypedCss === false
-            ? []
-            : web) {
-            const records = observed.get(producer.options.name!);
-            if (!records)
-              throw new Error(
-                'React typed CSS compiler has no completed native producer observation',
-              );
-            for (const record of records) {
-              if (
-                !record ||
-                record.version !== 1 ||
-                record.producerVersion !== PRODUCER_VERSION ||
-                this.producers.get(record.producerPath) !==
-                  record.producerDigest ||
-                typeof record.produced !== 'boolean' ||
-                digest(record.sourcePath) !== record.sourceDigest
-              )
+          const finalizeAndPublish = async () => {
+            await assertPinned();
+            this.assertSelectedReceiptMembers(lease);
+            const results = 'stats' in stats ? stats.stats : [stats];
+            const outputs = new Set<string>();
+            for (const producer of this.options.produceTypedCss === false
+              ? []
+              : web) {
+              const records = observed.get(producer.options.name!);
+              if (!records)
                 throw new Error(
-                  'React typed CSS cached module has no supported native producer acknowledgment',
+                  'React typed CSS compiler has no completed native producer observation',
                 );
-              if (!record.produced) continue;
-              if (
-                record.outputPath !== `${record.sourcePath}.d.ts` ||
-                !record.outputDigest ||
-                digest(record.outputPath) !== record.outputDigest
-              )
-                throw new Error(
-                  `React typed CSS cached producer output is missing or changed (${producer.options.name}, discovery=${discovery}, recorded=${record.outputDigest}, actual=${record.outputPath ? digest(record.outputPath) : 'missing'})`,
-                );
-              if (
-                !this.snapshot.states.some(
-                  state =>
-                    state.kind === 'file' &&
-                    (state.path === record.sourcePath ||
-                      state.resolvedPath === record.sourcePath),
+              for (const record of records) {
+                if (
+                  !record ||
+                  record.version !== 1 ||
+                  record.producerVersion !== PRODUCER_VERSION ||
+                  this.producers.get(record.producerPath) !==
+                    record.producerDigest ||
+                  typeof record.produced !== 'boolean' ||
+                  digest(record.sourcePath) !== record.sourceDigest
                 )
-              )
-                throw new Error(
-                  'React typed CSS producer source is outside the authored input capture',
-                );
-              outputs.add(record.outputPath);
+                  throw new Error(
+                    'React typed CSS cached module has no supported native producer acknowledgment',
+                  );
+                if (!record.produced) continue;
+                if (
+                  record.outputPath !== `${record.sourcePath}.d.ts` ||
+                  !record.outputDigest ||
+                  digest(record.outputPath) !== record.outputDigest
+                )
+                  throw new Error(
+                    `React typed CSS cached producer output is missing or changed (${producer.options.name}, discovery=${discovery}, recorded=${record.outputDigest}, actual=${record.outputPath ? digest(record.outputPath) : 'missing'})`,
+                  );
+                if (
+                  !this.snapshot.states.some(
+                    state =>
+                      state.kind === 'file' &&
+                      (state.path === record.sourcePath ||
+                        state.resolvedPath === record.sourcePath),
+                  )
+                )
+                  throw new Error(
+                    'React typed CSS producer source is outside the authored input capture',
+                  );
+                outputs.add(record.outputPath);
+              }
             }
-          }
-          await assertPinned();
-          this.outputs = outputs;
-          this.assertAuthoredInputsUnchanged();
-          await assertPinned();
-          const identities = await this.options.finalize(stats, lease);
-          await assertPinned();
-          this.assertAuthoredInputsUnchanged();
-          if (discovery) {
-            this.runtimeIdentities = identities;
-            return;
-          }
-          if (this.options.bindRuntimeIdentity) {
-            if (!this.runtimeIdentities)
-              throw new Error(
-                'React emitting compiler has no private discovery identity',
+            await assertPinned();
+            this.outputs = outputs;
+            this.assertAuthoredInputsUnchanged();
+            await assertPinned();
+            const identities = await this.options.finalize(stats, lease);
+            await assertPinned();
+            this.assertAuthoredInputsUnchanged();
+            if (discovery) {
+              this.runtimeIdentities = identities;
+              return identities;
+            }
+            if (this.options.bindRuntimeIdentity) {
+              if (!this.runtimeIdentities)
+                throw new Error(
+                  'React emitting compiler has no private discovery identity',
+                );
+              assertRendererBuildInputsUnchanged(
+                this.runtimeIdentities,
+                identities,
               );
-            assertRendererBuildInputsUnchanged(
-              this.runtimeIdentities,
-              identities,
-            );
-          }
-          const publish = async () => {
+            }
             await assertPinned();
             const clientCompilation = results.find(
               result => result.compilation.name === 'client',
@@ -939,9 +939,12 @@ export class ReactTypedCssPhase {
             await assertPinned();
             this.assertAuthoredInputsUnchanged();
             await assertPinned();
+            return identities;
           };
-          if (lease) await lease.withPublication(publish);
-          else await publish();
+          const identities = lease
+            ? await lease.withPublication(finalizeAndPublish)
+            : await finalizeAndPublish();
+          if (discovery) return;
           // BEGIN admission resumes when the fence releases. A queued next
           // generation may already own current fields; settle this wave's
           // captured readiness without overwriting that new generation.
