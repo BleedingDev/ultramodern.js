@@ -192,17 +192,41 @@ describe('RSC configured environment compiler configuration', () => {
       true,
     );
     const rscRule = configuredRules.find(rule => rule.layer === layers.rsc);
-    if (nativeRscEnvironment) {
-      expect(Array.isArray(rscRule?.exclude)).toBe(true);
-      expect(
-        Array.isArray(rscRule?.exclude) &&
-          rscRule.exclude.some(
-            exclude =>
-              exclude instanceof RegExp &&
-              exclude.test('universal/async_storage'),
-          ),
-      ).toBe(true);
-    }
+    expect(Array.isArray(rscRule?.exclude)).toBe(true);
+    expect(
+      Array.isArray(rscRule?.exclude) &&
+        rscRule.exclude.some(
+          exclude =>
+            exclude instanceof RegExp &&
+            exclude.test('universal/async_storage'),
+        ),
+    ).toBe(true);
+    expect(
+      Array.isArray(rscRule?.test) &&
+        rscRule.test.some(
+          condition =>
+            condition instanceof RegExp &&
+            condition.test('/tmp/internal/main/__rsc_route_data__/loader_0.js'),
+        ),
+    ).toBe(true);
+    expect(
+      configuredRules.some(
+        rule =>
+          (rule.issuerLayer === layers.rsc ||
+            (Array.isArray(rule.issuerLayer) &&
+              rule.issuerLayer.includes(layers.rsc))) &&
+          rule.resolve?.conditionNames?.includes('react-server'),
+      ),
+    ).toBe(true);
+    expect(
+      config.plugins?.some(
+        plugin =>
+          plugin &&
+          typeof plugin === 'object' &&
+          'name' in plugin &&
+          plugin.name === 'RscServerPlugin',
+      ),
+    ).toBe(nativeRscEnvironment);
     expect(injectsBrowserEntry(config)).toBe(false);
   }
 

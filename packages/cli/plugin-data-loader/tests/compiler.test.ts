@@ -3,7 +3,8 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
-import { type Rspack, rspack } from '@rsbuild/core';
+import { createRsbuild, type Rspack, rspack } from '@rsbuild/core';
+import { getRscPlugins } from '../../builder/src/plugins/rscConfig';
 
 const packageRequire = createRequire(
   path.resolve(__dirname, '../package.json'),
@@ -257,5 +258,182 @@ const server = http.createServer(async (request, response) => {
         expect(error).toContain('only works in a Server Component');
       },
     );
+  });
+
+  test('preserves retained inline data behind an SSR registration chain in an additional Node compiler', async () => {
+    const directory = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'modern-data-ssr-compiler-'),
+    );
+    let compiler: Rspack.MultiCompiler | undefined;
+    try {
+      const internalDirectory = path.join(directory, 'node_modules/.modern-js');
+      const dataDirectory = path.join(directory, 'src/loader/routes');
+      const wrapper = path.join(
+        internalDirectory,
+        'main/__rsc_route_data__/loader_0.js',
+      );
+      fs.mkdirSync(path.dirname(wrapper), { recursive: true });
+      fs.mkdirSync(dataDirectory, { recursive: true });
+      const markerEntry = packageRequire.resolve('server-only');
+      fs.symlinkSync(
+        path.dirname(markerEntry),
+        path.join(directory, 'node_modules/server-only'),
+        'dir',
+      );
+      fs.writeFileSync(
+        path.join(dataDirectory, 'page.data.js'),
+        `import 'server-only';
+export async function loader() { return ${JSON.stringify(serverValue)}; }`,
+      );
+      const dataRequest = `${path.relative(path.dirname(wrapper), path.join(dataDirectory, 'page.data.js')).split(path.sep).join('/')}?loaderId=loader_0&inline=true&retain=false&routeId=${routeId}`;
+      fs.writeFileSync(
+        wrapper,
+        `export { loader } from ${JSON.stringify(dataRequest)};`,
+      );
+      fs.writeFileSync(
+        path.join(directory, 'register.js'),
+        `export { loader } from './node_modules/.modern-js/main/__rsc_route_data__/loader_0.js';`,
+      );
+      fs.writeFileSync(
+        path.join(directory, 'index.server.js'),
+        `export { loader } from './register.js';`,
+      );
+      fs.writeFileSync(
+        path.join(directory, 'bootstrap.js'),
+        `export const ready = 'native-rsc-companion';`,
+      );
+      const rsbuild = await createRsbuild({
+        cwd: directory,
+        rsbuildConfig: {
+          mode: 'production',
+          plugins: await getRscPlugins(true, internalDirectory, {
+            server: 'workerSSR',
+            client: 'client',
+          }),
+          output: { polyfill: 'off', sourceMap: false },
+          environments: {
+            server: {
+              source: { entry: { main: './index.server.js' } },
+              output: { target: 'node', distPath: { root: 'dist/server' } },
+            },
+            workerSSR: {
+              source: { entry: { main: './bootstrap.js' } },
+              output: { target: 'node', distPath: { root: 'dist/worker' } },
+            },
+            client: {
+              source: { entry: { main: './bootstrap.js' } },
+              output: { target: 'web', distPath: { root: 'dist/client' } },
+            },
+          },
+          tools: {
+            rspack: {
+              devtool: false,
+              output: {
+                filename: 'bundle.cjs',
+                library: { type: 'commonjs2' },
+                globalObject: 'globalThis',
+              },
+              optimization: { minimize: false, concatenateModules: false },
+              module: {
+                rules: [
+                  {
+                    test: /\.data\.js$/,
+                    enforce: 'pre',
+                    use: [
+                      {
+                        loader: packageRequire.resolve(
+                          '@modern-js/plugin-data-loader/loader',
+                        ),
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+        },
+      });
+      const configurations = await rsbuild.initConfigs();
+      const nodeConfig = configurations.find(
+        config => config.name === 'server',
+      );
+      if (
+        !nodeConfig ||
+        !nodeConfig.entry ||
+        typeof nodeConfig.entry !== 'object' ||
+        Array.isArray(nodeConfig.entry)
+      ) {
+        throw new Error('Missing native Node server entry');
+      }
+      const entry = nodeConfig.entry.main;
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+        throw new Error('Missing native SSR entry description');
+      }
+      expect(entry.layer).toBe(rspack.experiments.rsc.Layers.ssr);
+      // These are the actual owning plugins' three compiler configurations;
+      // no test rule supplies the generated wrapper's RSC layer or conditions.
+      compiler = rspack(configurations);
+      const stats = await new Promise<Rspack.MultiStats>((resolve, reject) => {
+        compiler!.run((error, result) => {
+          if (error) reject(error);
+          else if (!result)
+            reject(new Error('Native compiler returned no stats'));
+          else resolve(result);
+        });
+      });
+      if (stats.hasErrors()) {
+        throw new Error(stats.toString({ all: false, errors: true }));
+      }
+      const nodeStats = stats.stats.find(
+        result => result.compilation.name === 'server',
+      );
+      expect(nodeStats).toBeDefined();
+      const nativeModule = Array.from(
+        nodeStats?.compilation.modules ?? [],
+      ).find(module => module.nameForCondition() === wrapper);
+      expect(nativeModule).toBeDefined();
+      const modules =
+        nodeStats?.toJson({
+          all: false,
+          modules: true,
+          orphanModules: true,
+          nestedModules: true,
+          groupModulesByLayer: false,
+          groupModulesByPath: false,
+        }).modules ?? [];
+      const flattened: typeof modules = [];
+      const visit = (entries: typeof modules) => {
+        for (const module of entries) {
+          flattened.push(module);
+          visit(module.modules ?? []);
+          if (Array.isArray(module.children)) visit(module.children);
+        }
+      };
+      visit(modules);
+      const generatedModule = flattened.find(
+        module => module.nameForCondition === wrapper,
+      );
+      expect(generatedModule).toBeDefined();
+      expect(generatedModule?.layer).toBe(rspack.experiments.rsc.Layers.rsc);
+      if (!nodeConfig.output?.path)
+        throw new Error('Missing native Node output path');
+      const output = executeBundle(
+        path.join(nodeConfig.output.path, 'bundle.cjs'),
+        `const { loader } = require(process.argv[1]);
+(async () => { process.stdout.write(JSON.stringify(await loader())); })()
+  .catch(error => { console.error(error); process.exitCode = 1; });`,
+      );
+      expect(JSON.parse(output)).toBe(serverValue);
+    } finally {
+      try {
+        if (compiler) {
+          await new Promise<void>((resolve, reject) => {
+            compiler!.close(error => (error ? reject(error) : resolve()));
+          });
+        }
+      } finally {
+        fs.rmSync(directory, { recursive: true, force: true });
+      }
+    }
   });
 });
