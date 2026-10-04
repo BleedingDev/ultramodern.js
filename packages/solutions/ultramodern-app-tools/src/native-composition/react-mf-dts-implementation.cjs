@@ -1295,20 +1295,59 @@ class NativeReceiverDTSManager extends DTSManager {
         } finally {
           released = true;
         }
+        const failures = Object.freeze(
+          scope.failures.map(item => Object.freeze({ ...item })),
+        );
         const evidence = {
-          status: scope.failures.length ? 'failed' : 'complete',
+          status: failures.length ? 'failed' : 'complete',
           frame: callbacks.frame,
           operations: scope.operations,
           nodes,
           stages: scope.stages,
-          failures: scope.failures,
+          failures,
         };
-        await callbacks.terminal(evidence);
-        if (scope.failures.length)
+        let terminalRejected = false;
+        let terminalError;
+        try {
+          await callbacks.terminal(evidence);
+        } catch (error) {
+          terminalRejected = true;
+          terminalError = error;
+        }
+        if (failures.length) {
+          const bounded = value =>
+            value.length > 512 ? `${value.slice(0, 512)}…` : value;
+          const details = failures.slice(0, 8).map(item => {
+            const fields = [`operation=${bounded(item.operation)}`];
+            if (item.code) fields.push(`code=${bounded(item.code)}`);
+            if (item.path)
+              fields.push(`path=${JSON.stringify(bounded(item.path))}`);
+            return `${fields.join('; ')}: ${bounded(item.reason)}`;
+          });
+          if (failures.length > details.length)
+            details.push(
+              `${failures.length - details.length} more native failures`,
+            );
+          const terminalReason =
+            terminalRejected && terminalError instanceof Error
+              ? ` ${bounded(terminalError.message)}`
+              : '';
           throw new AggregateError(
-            scope.failures.map(item => new Error(item.reason)),
-            'Native receiver DTS generation failed.',
+            [
+              ...(terminalRejected ? [terminalError] : []),
+              ...failures.map(item =>
+                Object.assign(new Error(item.reason), {
+                  operation: item.operation,
+                  ...(item.code ? { code: item.code } : {}),
+                  ...(item.path ? { path: item.path } : {}),
+                }),
+              ),
+            ],
+            `Native receiver DTS generation failed.${terminalReason}\n${details.join('\n')}`,
+            terminalRejected ? { cause: terminalError } : undefined,
           );
+        }
+        if (terminalRejected) throw terminalError;
         return result;
       } finally {
         if (!released) restoreWrappers();

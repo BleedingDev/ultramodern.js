@@ -166,8 +166,9 @@ diff --git a/dist/esm/react/index.mjs b/dist/esm/react/index.mjs
 --- a/dist/esm/react/index.mjs
 +++ b/dist/esm/react/index.mjs
 @@ -1,1 +1,6 @@
-+import { createLazyComponent as createBridgeLazyComponent } from "@module-federation/bridge-react";
- export * from "@module-federation/bridge-react";
++import { createLazyComponent as createBridgeLazyComponent } from "@module-federation/bridge-react/base";
+-export * from "@module-federation/bridge-react";
++export * from "@module-federation/bridge-react/base";
 +export const createLazyComponent = (options)=>createBridgeLazyComponent({
 +        injectLink: false,
 +        ...options,
@@ -276,6 +277,55 @@ diff --git a/dist/cjs/ssr-runtime/SSRLiveReload.js b/dist/cjs/ssr-runtime/SSRLiv
     `
          }
      });
+diff --git a/dist/esm-node/react/index.mjs b/dist/esm-node/react/index.mjs
+--- a/dist/esm-node/react/index.mjs
++++ b/dist/esm-node/react/index.mjs
+@@ -1,1 +1,6 @@
+-export * from "@module-federation/bridge-react";
++import { createLazyComponent as createBridgeLazyComponent } from "@module-federation/bridge-react/base";
++export * from "@module-federation/bridge-react/base";
++export const createLazyComponent = (options)=>createBridgeLazyComponent({
++        injectLink: false,
++        ...options,
++    });
+diff --git a/dist/cjs/react/index.js b/dist/cjs/react/index.js
+--- a/dist/cjs/react/index.js
++++ b/dist/cjs/react/index.js
+@@ -1,7 +1,7 @@
+ "use strict";
+ var __webpack_modules__ = {
+-    "@module-federation/bridge-react" (module) {
+-        module.exports = require("@module-federation/bridge-react");
++    "@module-federation/bridge-react/base" (module) {
++        module.exports = require("@module-federation/bridge-react/base");
+     }
+ };
+ var __webpack_module_cache__ = {};
+@@ -51,12 +51,17 @@
+ var __webpack_exports__ = {};
+ (()=>{
+     __webpack_require__.r(__webpack_exports__);
+-    var _module_federation_bridge_react__rspack_import_0 = __webpack_require__("@module-federation/bridge-react");
++    var _module_federation_bridge_react__rspack_import_0 = __webpack_require__("@module-federation/bridge-react/base");
+     var __rspack_reexport = {};
+     for(const __rspack_import_key in _module_federation_bridge_react__rspack_import_0)if ("default" !== __rspack_import_key) __rspack_reexport[__rspack_import_key] = ()=>_module_federation_bridge_react__rspack_import_0[__rspack_import_key];
+     __webpack_require__.d(__webpack_exports__, __rspack_reexport);
+ })();
+ for(var __rspack_i in __webpack_exports__)exports[__rspack_i] = __webpack_exports__[__rspack_i];
++const createBridgeLazyComponent = exports.createLazyComponent;
++exports.createLazyComponent = (options)=>createBridgeLazyComponent({
++        injectLink: false,
++        ...options,
++    });
+ Object.defineProperty(exports, '__esModule', {
+     value: true
+ });
+diff --git a/dist/types/react/index.d.ts b/dist/types/react/index.d.ts
+--- a/dist/types/react/index.d.ts
++++ b/dist/types/react/index.d.ts
+@@ -1 +1 @@
+-export * from '@module-federation/bridge-react';
++export * from '@module-federation/bridge-react/base';
 diff --git a/dist/esm/ssr-runtime/SSRLiveReload.mjs b/dist/esm/ssr-runtime/SSRLiveReload.mjs
 --- a/dist/esm/ssr-runtime/SSRLiveReload.mjs
 +++ b/dist/esm/ssr-runtime/SSRLiveReload.mjs

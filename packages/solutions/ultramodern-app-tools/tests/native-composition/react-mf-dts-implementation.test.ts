@@ -44,7 +44,12 @@ interface Evidence {
     requested?: boolean;
     result: unknown;
   }[];
-  failures: { operation: string; reason: string }[];
+  failures: {
+    operation: string;
+    reason: string;
+    path?: string;
+    code?: string;
+  }[];
 }
 interface BeginDetails {
   operation: string;
@@ -1330,43 +1335,96 @@ describe('native receiver DTS IO', () => {
 
   it('sends failed terminal evidence even when native descriptor cleanup fails', async () => {
     const app = await fixture();
-    const sink = policy(app.root);
+    const terminalError = new Error('terminal rejected the failed native IO');
+    const sink = policy(app.root, {
+      terminal: async () => {
+        throw terminalError;
+      },
+    });
     const originalOpen = fs.openSync;
     const originalClose = fs.closeSync;
     let nativeDescriptor: number | undefined;
+    let nativeDescriptorPath: string | undefined;
     let failedCloses = 0;
+    const nativeReason = `injected native close failure ${'x'.repeat(100_000)} end-of-original-native-reason`;
     fs.openSync = (file, flags, mode) => {
       const fd = originalOpen(file, flags, mode);
-      if (flags === 'w') nativeDescriptor = fd;
+      if (flags === 'w') {
+        nativeDescriptor = fd;
+        nativeDescriptorPath = String(file);
+      }
       return fd;
     };
     fs.closeSync = fd => {
       if (fd === nativeDescriptor && failedCloses < 2) {
         failedCloses++;
-        throw Object.assign(new Error('injected native close failure'), {
+        throw Object.assign(new Error(nativeReason), {
           code: 'EIO',
         });
       }
       originalClose(fd);
     };
     try {
-      await expect(app.manager.consumeTypes()).rejects.toThrow(
-        'Native receiver DTS generation failed',
+      const rejection: unknown = await app.manager.consumeTypes().then(
+        () => undefined,
+        error => error,
       );
-      expect(failedCloses).toBe(2);
-      expect(sink.evidence[0]!.status).toBe('failed');
+      expect(rejection).toBeInstanceOf(AggregateError);
+      if (!(rejection instanceof AggregateError))
+        throw new Error('Expected retained native IO and terminal errors.');
+      expect(rejection.errors).toContain(terminalError);
       expect(
-        sink.evidence[0]!.failures.some(
-          item =>
-            item.operation === 'closeSync' &&
-            item.reason.includes('injected native close failure'),
+        rejection.errors.some(
+          error =>
+            error instanceof Error &&
+            error.message.includes('injected native close failure'),
         ),
       ).toBe(true);
+      expect(rejection.message).toContain(
+        'Native receiver DTS generation failed',
+      );
+      expect(rejection.message).toContain('closeSync');
+      expect(rejection.message).toContain('injected native close failure');
+      expect(rejection.message).toContain('EIO');
+      if (nativeDescriptorPath === undefined)
+        throw new Error('Native extraction did not open its descriptor.');
+      expect(rejection.message).toContain(JSON.stringify(nativeDescriptorPath));
+      expect(rejection.message.length).toBeLessThan(nativeReason.length);
+      expect(rejection.message).not.toContain('end-of-original-native-reason');
+      expect(failedCloses).toBe(2);
+      expect(sink.evidence).toHaveLength(1);
+      expect(sink.evidence[0]!.status).toBe('failed');
+      expect(sink.evidence[0]!.failures).toContainEqual({
+        operation: 'closeSync',
+        reason: nativeReason,
+        path: nativeDescriptorPath,
+        code: 'EIO',
+      });
       expect(sink.receipts).toHaveLength(0);
     } finally {
       fs.openSync = originalOpen;
       fs.closeSync = originalClose;
       if (nativeDescriptor !== undefined) originalClose(nativeDescriptor);
     }
+  });
+
+  it('retains terminal rejection identity after successful genuine native IO', async () => {
+    const app = await fixture();
+    const terminalError = new Error('terminal rejected the complete native IO');
+    const sink = policy(app.root, {
+      terminal: async () => {
+        throw terminalError;
+      },
+    });
+    const rejection: unknown = await app.manager.consumeTypes().then(
+      () => undefined,
+      error => error,
+    );
+    expect(rejection).toBe(terminalError);
+    expect(sink.evidence).toHaveLength(1);
+    expect(sink.evidence[0]!.status).toBe('complete');
+    expect(sink.evidence[0]!.failures).toEqual([]);
+    expect(sink.evidence[0]!.operations.length).toBeGreaterThan(0);
+    expect(sink.receipts).toHaveLength(0);
   });
 });
