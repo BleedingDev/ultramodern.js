@@ -630,15 +630,58 @@ export function observeNativeCompiler(): RsbuildPlugin {
           );
         }
         const rootPath = await fs.realpath(api.context.rootPath);
-        const distPath = withinRoot(rootPath, api.context.distPath);
-        if (
-          (await fs.realpath(distPath)) !== distPath ||
-          !(await fs.stat(distPath)).isDirectory()
-        ) {
-          throw new Error(
-            'Compiler observation requires the actual consumer output directory',
+        const contextDistPath = withinRoot(rootPath, api.context.distPath);
+        let distPath = contextDistPath;
+        let nativeDevelopmentLayout = false;
+        if (isDevelopment) {
+          const server = results.filter(
+            result => result.compilation.name === 'server',
           );
+          const client = results.filter(
+            result => result.compilation.name === 'client',
+          );
+          const serverOutput = server[0]?.compilation.outputOptions.path;
+          const clientOutput = client[0]?.compilation.outputOptions.path;
+          if (
+            server.length !== 1 ||
+            client.length !== 1 ||
+            !serverOutput ||
+            !clientOutput ||
+            !path.isAbsolute(serverOutput) ||
+            !path.isAbsolute(clientOutput) ||
+            serverOutput !== environments.server.distPath ||
+            clientOutput !== environments.client.distPath ||
+            path.basename(serverOutput) !== 'bundles' ||
+            path.dirname(serverOutput) !== contextDistPath
+          )
+            throw new Error(
+              'Development observation requires the actual owning compiler output layout',
+            );
+          if (clientOutput === contextDistPath) {
+            // React keeps its compiler output at the application dist root.
+            distPath = contextDistPath;
+          } else if (
+            path.basename(contextDistPath) === developmentDirectory &&
+            clientOutput === path.join(contextDistPath, 'client')
+          ) {
+            // Native compilers share the isolated development root. Rsbuild
+            // exposes that common parent, rather than the application dist.
+            nativeDevelopmentLayout = true;
+            distPath = withinRoot(rootPath, path.dirname(contextDistPath));
+          } else {
+            throw new Error(
+              'Development observation requires the declared React or native output layout',
+            );
+          }
         }
+        for (const directory of new Set([contextDistPath, distPath]))
+          if (
+            (await fs.realpath(directory)) !== directory ||
+            !(await fs.lstat(directory)).isDirectory()
+          )
+            throw new Error(
+              'Compiler observation requires the actual consumer output directory',
+            );
         const observerSource = fileURLToPath(import.meta.url);
         const inventory = new Map<string, Set<string>>();
         const addSource = (input: string, role: string) => {
@@ -811,6 +854,10 @@ export function observeNativeCompiler(): RsbuildPlugin {
         const wave = isDevelopment
           ? await developmentObservation(distPath, observedEnvironments)
           : undefined;
+        if (wave && (wave.renderer !== 'react') !== nativeDevelopmentLayout)
+          throw new Error(
+            'Development observation renderer disagrees with the actual compiler output layout',
+          );
         const development = wave?.development;
         if (wave && wave.renderer !== 'react') {
           const server = observedEnvironments.find(

@@ -242,6 +242,15 @@ async function developmentFixture(t, renderer = 'solid') {
   }
   const developmentDirectory = path.join(input.distPath, '.ultramodern-dev');
   await fs.mkdir(developmentDirectory);
+  const compilerRoot =
+    renderer === 'react' ? input.distPath : developmentDirectory;
+  input.context.distPath = compilerRoot;
+  input.environments.client.distPath =
+    renderer === 'react' ? compilerRoot : path.join(compilerRoot, 'client');
+  input.environments.server.distPath = path.join(compilerRoot, 'bundles');
+  for (const result of input.stats.stats)
+    result.compilation.outputOptions.path =
+      input.environments[result.compilation.name].distPath;
   const metadataFile = path.join(developmentDirectory, 'renderer-build.json');
   const devCompilation = {
     compilationHashes: Object.fromEntries(
@@ -670,6 +679,58 @@ test('observes React development server roots without assuming native route IR f
   assert.equal(
     await fs.readFile(`${input.developmentReceiptPath}.sha256`, 'utf8'),
     `${sha256(bytes)}\n`,
+  );
+});
+
+for (const renderer of ['solid', 'octane'])
+  test(`observes ${renderer} at the actual relocated native development output root`, async t => {
+    const input = await developmentFixture(t, renderer);
+    await input.writeMetadata();
+    assert.equal(input.context.distPath, input.developmentDirectory);
+    await input.developmentRun();
+    const observation = JSON.parse(
+      await fs.readFile(input.developmentReceiptPath, 'utf8'),
+    );
+    assert.equal(observation.distPath, input.distPath);
+    assert.equal(observation.development.metadataFile, input.metadataFile);
+    assert.equal(
+      observation.development.metadataSha256,
+      sha256(await fs.readFile(input.metadataFile)),
+    );
+    assert.equal(
+      await fs
+        .stat(path.join(input.developmentDirectory, '.ultramodern-dev'))
+        .catch(() => null),
+      null,
+    );
+  });
+
+test('rejects a development compiler output disagreement without writing an observation', async t => {
+  const input = await developmentFixture(t);
+  await input.writeMetadata();
+  input.stats.stats.find(
+    result => result.compilation.name === 'server',
+  ).compilation.outputOptions.path = path.join(input.distPath, 'bundles');
+  await assert.rejects(
+    input.developmentRun(),
+    /actual owning compiler output layout/u,
+  );
+  assert.equal(
+    await fs.stat(input.developmentReceiptPath).catch(() => null),
+    null,
+  );
+});
+
+test('rejects a renderer that disagrees with its development compiler output layout', async t => {
+  const input = await developmentFixture(t);
+  await input.writeMetadata({
+    ...input.metadata,
+    profile: { renderer: 'react' },
+  });
+  await assert.rejects(input.developmentRun(), /renderer disagrees/u);
+  assert.equal(
+    await fs.stat(input.developmentReceiptPath).catch(() => null),
+    null,
   );
 });
 

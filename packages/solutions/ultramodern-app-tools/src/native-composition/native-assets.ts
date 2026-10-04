@@ -116,10 +116,14 @@ export function nativeClientAssetsPlugin(
                       const assets = entrypoint
                         .getFiles()
                         .flatMap<DocumentAsset>(file => {
-                          if (!compilation.getAsset(file))
+                          const emitted = compilation.getAsset(file);
+                          if (!emitted)
                             throw new Error(
                               `Native entry references an unemitted asset ${file}`,
                             );
+                          // HMR deltas need the already initialized runtime;
+                          // they are never roots for a fresh server document.
+                          if (emitted.info.hotModuleReplacement) return [];
                           const href = `${publicPath}${publicPath && !publicPath.endsWith('/') ? '/' : ''}${file}`;
                           const common = {
                             href,

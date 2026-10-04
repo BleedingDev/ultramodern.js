@@ -7,10 +7,18 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { readReleaseManifest } from '../../ultramodern-publish/lib/source-create-proof/release-manifest.mjs';
 import {
+  runChecked,
+  startEphemeralRegistry,
+} from '../../ultramodern-publish/lib/source-create-proof/runtime-proof/registry.mjs';
+import {
   auditInstalledConsumer,
   auditReleaseArtifacts,
 } from '../../ultramodern-renderers/acceptance/artifacts.mjs';
-import { resolveExactPnpmExecutable } from '../published-create-proof/acceptance-profile.mjs';
+import {
+  assertCohortResolutionProvenance,
+  createAcceptancePackageManagerEnv,
+  resolveExactPnpmExecutable,
+} from '../published-create-proof/acceptance-profile.mjs';
 import {
   confinedPath,
   fileEvidence,
@@ -226,16 +234,19 @@ export async function runProof(options) {
   let browser;
   let miniflare;
   let bridge;
+  let registry;
   let failure;
   const commandCleanupErrors = [];
   let browserCleanup;
   let bridgeCleanup;
   let workerCleanup;
+  let registryCleanup;
   const cleanup = () =>
     Promise.allSettled([
       browser ? (browserCleanup ??= browser.close()) : undefined,
       bridge ? (bridgeCleanup ??= bridge.close()) : undefined,
       miniflare ? (workerCleanup ??= miniflare.dispose()) : undefined,
+      registry ? (registryCleanup ??= registry.stop()) : undefined,
     ]);
   const interrupt = reason => {
     controller.abort(
@@ -287,11 +298,36 @@ export async function runProof(options) {
       process.env,
       consumer,
     );
+    registry = await startEphemeralRegistry({
+      release,
+      releaseDir: release.artifactRoot,
+      rootDir: path.join(options.workDir, 'registry'),
+      storeDir: options.storeDir,
+      runImpl: (command, args, config) =>
+        runChecked(command === 'pnpm' ? pnpm : command, args, config),
+      spawnImpl: (command, args, config) =>
+        spawn(command === 'pnpm' ? pnpm : command, args, config),
+    });
+    controller.signal.throwIfAborted();
+    receipt.registry = {
+      url: registry.registryUrl,
+      tool: registry.tool,
+      published: registry.published,
+      sidecars: registry.sidecars,
+    };
+    const packageManagerEnv = createAcceptancePackageManagerEnv(
+      options.workDir,
+      registry.env,
+      pnpm,
+      process.env,
+      { storeDir: options.storeDir },
+    );
     const env = {
       ...process.env,
+      ...packageManagerEnv,
       CI: 'true',
       FORCE_COLOR: '0',
-      PATH: [path.dirname(process.execPath), process.env.PATH]
+      PATH: [path.dirname(process.execPath), packageManagerEnv.PATH]
         .filter(Boolean)
         .join(path.delimiter),
       npm_config_store_dir: options.storeDir,
@@ -344,6 +380,11 @@ export async function runProof(options) {
       );
     }
     controller.signal.throwIfAborted();
+    receipt.cohortResolution = assertCohortResolutionProvenance(
+      consumer,
+      release,
+      registry.registryUrl,
+    );
     const require = createRequire(path.join(consumer, 'package.json'));
     const toolsArtifact = release.packages.find(
       item => item.sourceName === '@modern-js/ultramodern-app-tools',
