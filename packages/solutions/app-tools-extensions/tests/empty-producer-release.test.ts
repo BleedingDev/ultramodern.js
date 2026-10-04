@@ -1030,3 +1030,158 @@ describe('API-only release', () => {
     );
   });
 });
+
+describe('UI-only Cloudflare worker support', () => {
+  const framework = sourceFramework;
+  const supportPaths = [
+    'worker/__modern_worker_runtime.js',
+    'worker/__modern_worker_shared.js',
+  ];
+
+  async function uiOnlyFixture() {
+    const f = await fixture(framework);
+    await fs.rm(path.join(f.root, 'api'), { recursive: true });
+    await fs.rm(path.join(f.root, 'backend-mf-manifest.json'));
+    await fs.rm(path.join(f.root, 'backendRemoteEntry.cjs'));
+    const appDirectory = path.join(f.root, 'apps/catalog');
+    const ui = uiBuildArtifactOptions(
+      deliveryUnit.buildMarker,
+      deliveryUnit.appId,
+    ).ui;
+    await f.json('topology/reference-topology.json', {
+      shell: {
+        id: deliveryUnit.appId,
+        kind: 'shell',
+        path: 'apps/catalog',
+        surfaceProfile: 'ui-only',
+        deliveryUnit,
+        renderer: ui.profile.renderer,
+        rendererIdentity: ui.identity,
+        rendererProfile: ui.profile,
+        routerBindings: ui.routerBindings,
+      },
+      verticals: [],
+    });
+    await f.json(
+      'apps/catalog/shared/ultramodern-build.json',
+      createUltramodernBuildArtifact(deliveryUnit, { ui }),
+    );
+    await f.json('route.json', { routes: [{ worker: 'worker/main.js' }] });
+    for (const name of ['worker/main.js', ...supportPaths])
+      await f.put(name, `export const chunk = '${name}';`);
+    const emit = () =>
+      framework.emitFrameworkMicroVerticalReleaseEnvelope({
+        apiOnly: false,
+        appDirectory,
+        distDirectory: f.root,
+        target: 'cloudflare',
+      });
+    const stage = async () => {
+      const outputDirectory = await fs.mkdtemp(
+        path.join(os.tmpdir(), 'ui-only-cloudflare-release-'),
+      );
+      roots.push(outputDirectory);
+      for (const [from, to] of [
+        ['static', 'public/static'],
+        ['mf-manifest.json', 'public/mf-manifest.json'],
+        ['routes-manifest.json', 'public/routes-manifest.json'],
+        ['ultramodern-build.json', 'public/ultramodern-build.json'],
+        ['worker', 'worker'],
+        ['route.json', 'server/route.json'],
+      ]) {
+        await fs.mkdir(path.dirname(path.join(outputDirectory, to)), {
+          recursive: true,
+        });
+        await fs.cp(path.join(f.root, from), path.join(outputDirectory, to), {
+          recursive: true,
+        });
+      }
+      for (const name of [
+        'server/index.mjs',
+        'server/modern-worker-manifest.json',
+        'wrangler.json',
+        'package.json',
+        'worker/package.json',
+      ]) {
+        await fs.mkdir(path.dirname(path.join(outputDirectory, name)), {
+          recursive: true,
+        });
+        await fs.writeFile(path.join(outputDirectory, name), '{}');
+      }
+      return outputDirectory;
+    };
+    return { ...f, emit, stage };
+  }
+
+  test('binds generic runtime/shared chunks to UI SSR through final staging', async () => {
+    const f = await uiOnlyFixture();
+    const source = await f.emit();
+    expect(source?.surfaces.apiBackend).toEqual([]);
+    expect(source?.surfaces.backendFederation).toBeUndefined();
+    expect(source?.surfaces.ssr).toEqual(
+      ['worker/main.js', ...supportPaths].sort(),
+    );
+    for (const logicalPath of supportPaths)
+      expect(source?.artifacts).toContainEqual(
+        expect.objectContaining({ logicalPath, runtime: 'workerd' }),
+      );
+    await framework.verifyBuildOutputReleaseEnvelope(f.root, 'cloudflare');
+    const outputDirectory = await f.stage();
+    const staged = await framework.emitCloudflareStagedReleaseEnvelope({
+      distDirectory: f.root,
+      outputDirectory,
+    });
+    expect(staged?.surfaces.apiBackend).toEqual([]);
+    expect(staged?.surfaces.backendFederation).toBeUndefined();
+    expect(staged?.surfaces.ssr).toEqual(
+      ['server/index.mjs', 'worker/main.js', ...supportPaths].sort(),
+    );
+    for (const logicalPath of supportPaths)
+      expect(staged?.artifacts).toContainEqual(
+        expect.objectContaining({ logicalPath, runtime: 'workerd' }),
+      );
+    await framework.verifyCloudflareReleaseEnvelopeStaging(outputDirectory);
+    await fs.writeFile(
+      path.join(outputDirectory, supportPaths[1]!),
+      'export const chunk = "tampered";',
+    );
+    await expect(
+      framework.verifyCloudflareReleaseEnvelopeStaging(outputDirectory),
+    ).rejects.toThrow(/digest/u);
+  });
+
+  test('rejects actual BFF entries, API code and backend federation output at build and staging', async () => {
+    for (const backendPaths of [
+      ['worker/__modern_bff_effect.js'],
+      ['api/index.js'],
+      ['backend-mf-manifest.json', 'backendRemoteEntry.cjs'],
+    ]) {
+      const f = await uiOnlyFixture();
+      for (const name of backendPaths) await f.put(name, '{}');
+      await expect(f.emit()).rejects.toThrow(/UI-only application/u);
+    }
+    const f = await uiOnlyFixture();
+    await f.emit();
+    for (const backendPaths of [
+      ['worker/__modern_bff_effect.js'],
+      ['api/index.js'],
+      ['public/backend-mf-manifest.json', 'public/backendRemoteEntry.cjs'],
+    ]) {
+      const outputDirectory = await f.stage();
+      for (const name of backendPaths) {
+        await fs.mkdir(path.dirname(path.join(outputDirectory, name)), {
+          recursive: true,
+        });
+        await fs.writeFile(path.join(outputDirectory, name), '{}');
+      }
+      await expect(
+        framework.emitCloudflareStagedReleaseEnvelope({
+          distDirectory: f.root,
+          outputDirectory,
+        }),
+      ).rejects.toThrow(
+        /undeclared API\/backend or backend federation artifact/u,
+      );
+    }
+  });
+});

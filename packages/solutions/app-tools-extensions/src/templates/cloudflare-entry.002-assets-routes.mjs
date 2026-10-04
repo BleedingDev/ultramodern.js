@@ -71,7 +71,15 @@ async function fetchAssetByPath(pathname, request, env) {
   const url = new URL(request.url);
   url.pathname = `/${pathname.replace(/^\/+/u, '')}`;
 
-  return fetchAsset(new Request(url, request), env);
+  return fetchAsset(
+    new Request(url, {
+      method: 'GET',
+      headers: request.headers,
+      redirect: request.redirect,
+      signal: request.signal,
+    }),
+    env,
+  );
 }
 
 async function fetchAssetByPathFollowingRedirects(

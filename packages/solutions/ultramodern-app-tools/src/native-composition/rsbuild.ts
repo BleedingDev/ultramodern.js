@@ -8,6 +8,7 @@ import type { CliPlugin } from '@modern-js/app-tools/cli-config';
 import { createConfigOptions } from '@modern-js/plugin/cli';
 import { getNodeEnv } from '@modern-js/utils';
 import { loadUltramodernConfigFile } from './config';
+import { createConfigurationReadContextPlugin } from './configuration-read-context';
 import type {
   UltramodernAppUserConfig,
   UltramodernConfigLoader,
@@ -34,6 +35,7 @@ export async function resolveUltramodernRsbuildConfig(
     configFile: options.configPath,
     env: getNodeEnv(),
     command: options.command,
+    observeSourceInputs: true,
   });
   const configContextPlugin: CliPlugin<UltramodernConfigLoader> = {
     name: '@modern-js/ultramodern-config-context',
@@ -49,7 +51,10 @@ export async function resolveUltramodernRsbuildConfig(
       configFile: false,
       config: loaded.config,
       // Keep the source config path available to consumer setup and adapters.
-      internalPlugins: [configContextPlugin],
+      internalPlugins: [
+        configContextPlugin,
+        createConfigurationReadContextPlugin(() => loaded.consumedSourceInputs),
+      ],
       modifyModernConfig: options.modifyModernConfig,
     });
 
