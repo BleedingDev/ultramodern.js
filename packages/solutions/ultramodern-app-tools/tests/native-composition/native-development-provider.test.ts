@@ -120,6 +120,111 @@ function requestOptions(entryName = 'main'): RenderOptions {
   };
 }
 
+function bundleRequestOptions(bundle: unknown): RenderOptions {
+  const options = requestOptions();
+  // ServerBase loads JavaScript bundle exports into its React-shaped manifest
+  // type. Preserve the actual native export shape at this owning boundary.
+  Object.defineProperty(options.serverManifest, 'renderBundles', {
+    value: { main: bundle },
+    enumerable: true,
+  });
+  return options;
+}
+
+describe('native production bundle exports', () => {
+  it.each([
+    'direct',
+    'cjs-namespace',
+  ])('dispatches the exported native handler from a %s bundle without inferring identity', async shape => {
+    const handler = rstest.fn(
+      (_request: Request, context: NativeRequestContext<NativeNodeBindings>) =>
+        Response.json({
+          entry: context.entry,
+          requestOwner: context.session.identity,
+        }),
+    );
+    const manifest = {
+      rendererIdentity: identity,
+      nativeRequestHandler: handler,
+    };
+    const bundle =
+      shape === 'direct'
+        ? manifest
+        : { default: manifest, 'module.exports': manifest };
+    const render = await installedRender({
+      renderer: 'solid',
+      entries: { main: identity },
+    });
+    const response = await render(
+      new Request('https://native.invalid/'),
+      bundleRequestOptions(bundle),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      entry: identity,
+      requestOwner: identity,
+    });
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['missing', { nativeRequestHandler: rstest.fn() }],
+    ['wrapped-missing', { default: { nativeRequestHandler: rstest.fn() } }],
+  ])('rejects a %s exported identity before invoking a handler', async (_shape, bundle) => {
+    const render = await installedRender({
+      renderer: 'solid',
+      entries: { main: identity },
+    });
+    await expect(
+      render(
+        new Request('https://native.invalid/'),
+        bundleRequestOptions(bundle),
+      ),
+    ).rejects.toThrow(
+      'Native server bundle requires its exported renderer identity',
+    );
+  });
+
+  it('rejects a wrapped foreign identity before invoking its native handler', async () => {
+    const handler = rstest.fn();
+    const render = await installedRender({
+      renderer: 'solid',
+      entries: { main: identity },
+    });
+    await expect(
+      render(
+        new Request('https://native.invalid/'),
+        bundleRequestOptions({
+          default: {
+            rendererIdentity: { ...identity, buildId: 'foreign-build' },
+            nativeRequestHandler: handler,
+          },
+        }),
+      ),
+    ).rejects.toThrow('Renderer identity conflicts');
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it('rejects an invalid native transport rather than replacing it with a default handler', async () => {
+    const render = await installedRender({
+      renderer: 'solid',
+      entries: { main: identity },
+    });
+    await expect(
+      render(
+        new Request('https://native.invalid/'),
+        bundleRequestOptions({
+          rendererIdentity: identity,
+          nativeRequestHandler: undefined,
+          default: rstest.fn(),
+        }),
+      ),
+    ).rejects.toThrow(
+      'Native server bundle has invalid native transport handlers',
+    );
+  });
+});
+
 function solidSnapshot(
   entryIdentity = identity,
   generation = 'first',

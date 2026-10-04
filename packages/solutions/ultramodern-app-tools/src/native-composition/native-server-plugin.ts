@@ -107,6 +107,55 @@ function assertFinalCapabilities(config: ServerConfig): void {
   }
 }
 
+function nativeManifestFromBundle(
+  value: unknown,
+  expectedIdentity: RendererIdentity,
+): NativeServerManifest<NativeNodeBindings> {
+  // The Node resource loader retains a CJS bundle's ESM namespace. Its
+  // default export is the emitted native manifest, including its own identity.
+  const manifest =
+    value &&
+    typeof value === 'object' &&
+    !('rendererIdentity' in value) &&
+    'default' in value
+      ? value.default
+      : value;
+  if (
+    !manifest ||
+    typeof manifest !== 'object' ||
+    Array.isArray(manifest) ||
+    !('rendererIdentity' in manifest) ||
+    !manifest.rendererIdentity ||
+    typeof manifest.rendererIdentity !== 'object'
+  ) {
+    throw new Error(
+      'Native server bundle requires its exported renderer identity.',
+    );
+  }
+  assertNativeTransport(manifest);
+  assertRendererIdentity(manifest.rendererIdentity, expectedIdentity);
+  return manifest;
+}
+
+function assertNativeTransport(
+  value: object,
+): asserts value is NativeServerManifest<NativeNodeBindings> {
+  if (
+    !('nativeRequestHandler' in value) ||
+    typeof value.nativeRequestHandler !== 'function' ||
+    ('nativeCSRRequestHandler' in value &&
+      value.nativeCSRRequestHandler !== undefined &&
+      typeof value.nativeCSRRequestHandler !== 'function') ||
+    ('nativeMatchRouteIds' in value &&
+      value.nativeMatchRouteIds !== undefined &&
+      typeof value.nativeMatchRouteIds !== 'function')
+  ) {
+    throw new Error(
+      'Native server bundle has invalid native transport handlers.',
+    );
+  }
+}
+
 function loaderContext(context: Context): Map<string, unknown> {
   // Preserve the explicit Node binding installed by configured middleware.
   const requestContext = context as unknown as {
@@ -392,15 +441,12 @@ export function nativeServerPlugin(
                 requestOptions.serverManifest,
                 identity,
               )
-            : (requestOptions.serverManifest.renderBundles?.[
-                entryName!
-              ] as unknown as NativeServerManifest<NativeNodeBindings>));
+            : requestOptions.serverManifest.renderBundles?.[entryName!]);
         if (!manifest)
           throw new Error(
             `Native server manifest is missing entry ${entryName}.`,
           );
-        assertRendererIdentity(manifest.rendererIdentity, identity);
-        return manifest;
+        return nativeManifestFromBundle(manifest, identity);
       },
       context: {
         assets,
