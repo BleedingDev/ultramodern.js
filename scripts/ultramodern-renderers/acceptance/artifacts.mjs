@@ -3656,6 +3656,9 @@ export function auditInstalledConsumer({
   const packageImportScopes = new Map();
   const declarationFallbacks = [];
   const ownedRequireAnchors = [];
+  const ambientTypeModules = new Map();
+  const ambientDeclarationScans = new Map();
+  const ambientTypeImports = [];
   const promoteSelectedFileOwner = file => {
     const containing = [...records.values()]
       .filter(record => within(record.directory, file))
@@ -3740,6 +3743,58 @@ export function auditInstalledConsumer({
       directory = parent;
     }
   };
+  const rememberAmbientDeclarations = (file, owner, hash, imports) => {
+    if (!owner || !/\.d\.[cm]?ts$/u.test(file)) return;
+    assert(
+      !ambientDeclarationScans.has(file) ||
+        ambientDeclarationScans.get(file) === hash,
+      'Ambient declaration bytes changed during their selected audit',
+    );
+    ambientDeclarationScans.set(file, hash);
+    for (const imported of imports.filter(item => item.augmentation)) {
+      const key = `${owner.directory}:${imported.specifier}`;
+      if (!ambientTypeModules.has(key)) ambientTypeModules.set(key, new Map());
+      ambientTypeModules.get(key).set(file, hash);
+    }
+  };
+  const selectedAmbientDeclarations = (file, owner, specifier, imports) => {
+    if (!owner) return;
+    const candidates = new Set(pendingFiles);
+    for (const reference of imports.filter(item => item.reference === 'path')) {
+      const candidate = path.resolve(path.dirname(file), reference.specifier);
+      if (!within(owner.directory, candidate)) continue;
+      const target = resolveTypeFile(candidate, {
+        beforeRealpath: selected =>
+          ordinaryConsumerFile(selected, 'Ambient declaration reference'),
+      });
+      if (target) candidates.add(target);
+    }
+    for (const candidate of candidates) {
+      if (
+        !/\.d\.[cm]?ts$/u.test(candidate) ||
+        !within(owner.directory, candidate) ||
+        promoteSelectedFileOwner(candidate)?.directory !== owner.directory
+      )
+        continue;
+      ordinaryConsumerFile(candidate, 'Selected ambient declaration');
+      const bytes = fs.readFileSync(candidate);
+      const hash = crypto.createHash('sha256').update(bytes).digest('hex');
+      if (ambientDeclarationScans.has(candidate)) {
+        assert(
+          ambientDeclarationScans.get(candidate) === hash,
+          'Ambient declaration bytes changed during their selected audit',
+        );
+        continue;
+      }
+      rememberAmbientDeclarations(
+        candidate,
+        owner,
+        hash,
+        moduleSpecifiers(bytes.toString('utf8'), candidate),
+      );
+    }
+    return ambientTypeModules.get(`${owner.directory}:${specifier}`);
+  };
   while (pendingFiles.length) {
     const file = pendingFiles.pop();
     const role = entryRoles.get(file);
@@ -3801,6 +3856,7 @@ export function auditInstalledConsumer({
     // evidence; its emitted JavaScript is independently scanned above.
     if (file.endsWith('.tsrx') && nativeSourceModules.has(file)) continue;
     const imports = moduleSpecifiers(source, file);
+    rememberAmbientDeclarations(file, selectedOwner, hash, imports);
     const dispatcherFormat =
       selectedOwner &&
       activationDispatcherFormat(
@@ -4422,6 +4478,29 @@ export function auditInstalledConsumer({
           if (imported.reference === 'types')
             record = installedPackage(installedName, importDirectory, root);
           else {
+            const declarations = selectedAmbientDeclarations(
+              file,
+              selectedOwner,
+              specifier,
+              imports,
+            );
+            if (declarations) {
+              for (const [target, targetHash] of declarations) {
+                authenticateTypeEdge(file, target, imported);
+                ambientTypeImports.push({
+                  source: path.relative(root, file),
+                  sourceSha256: scanned.get(file),
+                  specifier,
+                  provider: selectedOwner.manifest.name,
+                  providerManifestSha256: selectedOwner.manifestSha256,
+                  target: path.relative(root, target),
+                  targetSha256: targetHash,
+                  role,
+                });
+                enqueueFile(target, role);
+              }
+              continue;
+            }
             declarationFallbackOwner =
               selectedOwner ??
               contexts
@@ -4834,6 +4913,21 @@ export function auditInstalledConsumer({
       'createRequire target changed or was omitted from its static closure audit',
     );
   }
+  for (const ambient of ambientTypeImports) {
+    const target = ordinaryConsumerFile(
+      path.resolve(root, ambient.target),
+      'Ambient type target',
+    );
+    assert(
+      scanned.get(target) === ambient.targetSha256 &&
+        crypto
+          .createHash('sha256')
+          .update(fs.readFileSync(target))
+          .digest('hex') === ambient.targetSha256 &&
+        (ambient.role !== 'runtime' || scannedRoles.get(target) === 'runtime'),
+      'Ambient declaration target was changed or omitted from its required source role',
+    );
+  }
   for (const fallback of declarationFallbacks) {
     for (const [filePath, expected] of [
       [fallback.source, fallback.sourceSha256],
@@ -5058,6 +5152,11 @@ export function auditInstalledConsumer({
     ),
     moduleFormatScopes: [...moduleFormatScopes.values()].sort((left, right) =>
       left.path.localeCompare(right.path),
+    ),
+    ambientTypeImports: ambientTypeImports.sort((left, right) =>
+      `${left.source}:${left.specifier}:${left.target}`.localeCompare(
+        `${right.source}:${right.specifier}:${right.target}`,
+      ),
     ),
     declarationFallbacks: declarationFallbacks.sort((left, right) =>
       `${left.source}:${left.specifier}`.localeCompare(

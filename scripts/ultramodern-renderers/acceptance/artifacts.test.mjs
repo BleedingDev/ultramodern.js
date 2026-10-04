@@ -3661,6 +3661,75 @@ test('declaration .js references resolve their native type files and native type
   );
 });
 
+test('selected physical ambient declarations resolve exact type names without admitting runtime loads', t => {
+  const fixture = declarationConsumerFixture(t);
+  const source = path.join(fixture.owner, 'future-types.d.ts');
+  const target = path.join(fixture.owner, 'ambient-target.d.ts');
+  write(
+    source,
+    '/// <reference path="./ambient-target.d.ts" />\nexport type Future = typeof import("fixture-stream/iter");\n',
+  );
+  write(
+    target,
+    'declare module "fixture-stream/iter" { export const native: true; }\n',
+  );
+  const input = {
+    ...fixture.options,
+    entryFiles: [
+      ...fixture.options.entryFiles,
+      path.relative(fixture.root, source),
+    ],
+  };
+  const report = auditInstalledConsumer(input);
+  assert.deepEqual(report.ambientTypeImports, [
+    {
+      source: path.relative(fixture.root, source),
+      sourceSha256: fileSha256(source),
+      specifier: 'fixture-stream/iter',
+      provider: 'declaration-owner',
+      providerManifestSha256: fileSha256(
+        path.join(fixture.owner, 'package.json'),
+      ),
+      target: path.relative(fixture.root, target),
+      targetSha256: fileSha256(target),
+      role: 'runtime',
+    },
+  ]);
+  assert(
+    report.entryClosure.some(
+      item =>
+        item.path === path.relative(fixture.root, target) &&
+        item.sha256 === fileSha256(target),
+    ),
+  );
+  assert(
+    !report.declarationFallbacks.some(
+      item => item.specifier === 'fixture-stream/iter',
+    ),
+  );
+  const runtime = path.join(fixture.owner, 'runtime.js');
+  write(
+    runtime,
+    "import { native } from 'fixture-stream/iter'; void native;\n",
+  );
+  assert.throws(
+    () =>
+      auditInstalledConsumer({
+        ...input,
+        entryFiles: [...input.entryFiles, path.relative(fixture.root, runtime)],
+      }),
+    /Unresolved installed entry import fixture-stream\/iter/u,
+  );
+  write(
+    source,
+    '/// <reference path="./ambient-target.d.ts" />\nexport type Foreign = import("undeclared-foreign-type").Model;\n',
+  );
+  assert.throws(
+    () => auditInstalledConsumer(input),
+    /Declaration fallback @types\/undeclared-foreign-type requires its owner's declared production dependency/u,
+  );
+});
+
 test('ambient declaration exports preserve imported dependency traversal and JavaScript export validation', t => {
   const fixture = declarationConsumerFixture(t);
   const source = path.join(fixture.owner, 'timers.d.ts');
