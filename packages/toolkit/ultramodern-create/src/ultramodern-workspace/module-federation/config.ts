@@ -60,6 +60,8 @@ ${enableTailwind ? '  builderPlugins: [pluginTailwindcss()],\n' : ''}  renderer:
     : '';
   const uiImports = emitsUi
     ? `import { getBuildConfigEnvironment, withBuildConfigEnvironment } from '@modern-js/app-tools-extensions/config';
+import { i18nPlugin } from '@modern-js/plugin-i18n';
+import { tanstackRouterPlugin } from '@modern-js/plugin-tanstack';
 import { moduleFederationPlugin } from '@module-federation/modern-js-v3';
 import type { withZephyr as withZephyrRspack } from 'zephyr-rspack-plugin';
 import { ultramodernLocalisedUrls } from './src/routes/ultramodern-route-metadata';
@@ -124,18 +126,48 @@ ${resolveApiProtocol(app) === 'rest' ? "          openapi: {\n            path: 
 `
     : '';
   return renderFileTemplate('workspace/apps/modern.config.ts', {
-    imports: `${bffImport}${tailwindImport}${uiImports}`,
-    appId: app.id,
-    bffConfig,
-    builderPlugins: enableTailwind
-      ? '      builderPlugins: [pluginTailwindcss()],\n'
+    value0: `${bffImport}${tailwindImport}`,
+    value1: app.id,
+    value2: createCloudflareWorkerName(scope, app),
+    value3: app.portEnv,
+    value4: String(app.port),
+    value5: createCloudflarePublicUrlEnv(app),
+    value6: String(shellApp.port),
+    value7: defaultAssetPrefixSource,
+    value8: createCloudflarePublicUrlEnv(app),
+    value9: bffConfig,
+    value10: CLOUDFLARE_COMPATIBILITY_DATE,
+    value11: formatTsJsonValue(
+      sortJsonValue(createCloudflareSecurityContract()),
+      16,
+    ),
+    value12: serviceBindingsConfig,
+    value13: devAssetPrefixSource,
+    value14: resolveApiPrefix(app),
+    value15: bffPluginEntry,
+    value16: createRspackUniqueName(app),
+    value17: createRspackChunkLoadingGlobal(app),
+    value18: tailwindBuilderPluginsConfig,
+    value19: configuredCorsSource,
+    value20: configuredCorsDevServer,
+    value21: configuredCorsHeader,
+    value22: uiImports,
+    value23: zephyrPluginSource,
+    value24: localisedUrlsEntry,
+    value25: uiPluginEntries,
+    value26: deliveryUnit.unitId,
+    value27: deliveryUnit.buildMarker,
+    value28: deliveryUnit.version,
+    value29: relativeRootFor(app.directory),
+    value30: emitsUi
+      ? renderFileTemplate('workspace/apps/modern.config.ui-plugins.ts', {
+          value14: resolveApiPrefix(app),
+          value24: localisedUrlsEntry,
+        })
       : '',
-    apiPrefix: resolveApiPrefix(app),
-    localisedUrls: emitsUi
-      ? '            localisedUrls: ultramodernLocalisedUrls as Record<string, Record<string, string>>,\n'
+    value31: emitsUi
+      ? "        alias: {\n          '@modern-js/plugin-i18n/runtime$':\n            '@modern-js/plugin-i18n/runtime/no-react-i18next',\n        },\n"
       : '',
-    bffPlugin: appHasApi(app) ? '        bffPlugin(),\n' : '',
-    uiPlugins: emitsUi ? '        moduleFederationPlugin(),\n' : '',
   });
 }
 

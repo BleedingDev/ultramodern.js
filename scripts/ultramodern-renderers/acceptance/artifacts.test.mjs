@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { parseSync, traverse } from '@babel/core';
 import {
   createTemplateRequiredFiles,
   repoRoot,
@@ -14,12 +15,436 @@ import {
   inspectNpmTarball,
 } from '../../ultramodern-publish/lib/prepare-bleedingdev-packages/release-artifacts.mjs';
 import { writeSidecarStagingManifest } from '../../ultramodern-publish/lib/prepare-bleedingdev-packages/sidecars.mjs';
-import { auditInstalledConsumer, auditReleaseArtifacts } from './artifacts.mjs';
+import {
+  auditInstalledConsumer,
+  auditReleaseArtifacts,
+  compilerActivationAstAuthority,
+} from './artifacts.mjs';
+import {
+  compilerDispatcherCaller,
+  compilerDispatcherImport,
+  observedCompilerBuild,
+  readCompilerActivationCatalogue,
+} from './compiler-activation-proof.mjs';
 
 const sourceRevision = 'a'.repeat(40);
 const version = '3.8.3-ultramodern.18';
 const rendererPackage = '@bleedingdev/modern-js-renderer-solid';
 const nativeVersion = '2.0.0-rc.13';
+const compilerActivationOwner = path.join(
+  repoRoot,
+  'packages/solutions/ultramodern-app-tools',
+);
+
+function activationCatalogue(mutate = (_relative, source) => source) {
+  const reads = [];
+  const { primitiveUnchanged } = compilerActivationAstAuthority();
+  const records = readCompilerActivationCatalogue({
+    primitiveUnchanged,
+    read(relative) {
+      reads.push(relative);
+      return mutate(
+        relative,
+        fs.readFileSync(path.join(compilerActivationOwner, relative), 'utf8'),
+      );
+    },
+  });
+  return { records, reads };
+}
+
+function dispatcherAccepted(source, filename) {
+  const ast = parseSync(source, {
+    filename,
+    babelrc: false,
+    configFile: false,
+    sourceType: 'unambiguous',
+    parserOpts: { plugins: ['typescript'], createImportExpressions: true },
+  });
+  const { syntax, primitiveUnchanged } = compilerActivationAstAuthority();
+  const imports = [];
+  traverse(ast, {
+    ImportExpression(item) {
+      imports.push(item);
+    },
+  });
+  return (
+    imports.length === 1 &&
+    compilerDispatcherImport(imports[0], syntax, primitiveUnchanged)
+  );
+}
+
+test('actual compiler catalogue preserves composed metadata and authenticates every native format', () => {
+  const { records, reads } = activationCatalogue();
+  assert.deepEqual(
+    records.map(record => [record.renderer, record.kind]),
+    [
+      ['react', 'composed'],
+      ['solid', 'native'],
+      ['octane', 'native'],
+    ],
+  );
+  assert.equal(records[0].module, undefined);
+  for (const record of records.filter(record => record.kind === 'native')) {
+    assert.equal(Object.keys(record.module).length, 3);
+    for (const target of Object.values(record.module))
+      assert(reads.includes(target), target);
+    assert(reads.includes(record.registration));
+  }
+});
+
+test('compiler catalogue rejects mutable selectors, escaped catalogues, conflicting slots, and missing targets', () => {
+  for (const change of [
+    source => `${source}\nregistrations.reverse();`,
+    source => `${source}\nregistrations.splice(0, 1);`,
+    source => `${source}\nconsume(registrations);`,
+    source => source.replace('return selected;', 'return registrations[0];'),
+    source =>
+      source.replace(
+        'registration.renderer === value',
+        'registration.renderer === "solid"',
+      ),
+    source =>
+      source.replace(
+        'solidRendererRegistration,',
+        'solidRendererRegistration, solidRendererRegistration,',
+      ),
+  ]) {
+    assert.throws(
+      () =>
+        activationCatalogue((relative, source) =>
+          relative.endsWith('renderer-registration.ts')
+            ? change(source)
+            : source,
+        ),
+      /Compiler activation/u,
+    );
+  }
+  for (const [before, after] of [
+    ['version: 1', 'version: 2'],
+    ["operation: 'compiler'", "operation: 'runtime'"],
+    ["renderer: 'solid'", "renderer: 'foreign'"],
+    ["'./src/renderers/solid/compiler/index.ts'", "'./src/../foreign.ts'"],
+    [
+      "'./dist/cjs/renderers/solid/compiler/index.js'",
+      "'./dist/cjs/foreign/compiler/index.js'",
+    ],
+    ["export: 'pluginSolidRenderer'", "export: 'missingFactory'"],
+    ['schema:', 'extra: true, schema:'],
+    ['compiler: Object.freeze({', 'compiler: ({'],
+  ]) {
+    assert.throws(
+      () =>
+        activationCatalogue((relative, source) => {
+          if (relative !== 'src/renderers/solid/registration.ts') return source;
+          assert(source.includes(before), before);
+          return source.replace(before, after);
+        }),
+      /Compiler activation/u,
+      before,
+    );
+  }
+  assert.throws(
+    () =>
+      activationCatalogue((relative, source) => {
+        if (relative === 'dist/cjs/renderers/solid/compiler/index.js')
+          throw new Error('Missing actual compiler target');
+        return source;
+      }),
+    /Missing actual compiler target/u,
+  );
+});
+
+test('catalogue reads the actual program exports instead of nested registration or selector decoys', () => {
+  const baseline = activationCatalogue().records;
+  const nested = activationCatalogue((relative, source) =>
+    relative === 'src/renderers/solid/registration.ts'
+      ? `${source}\nfunction decoy() { const solidRendererRegistration = { renderer: 'foreign', kind: 'composed' }; }`
+      : relative.endsWith('renderer-registration.ts')
+        ? `${source}\nfunction decoy() { const registrations = []; function resolveRendererRegistration() { return null; } }`
+        : source,
+  );
+  assert.deepEqual(nested.records, baseline);
+  assert.throws(
+    () =>
+      activationCatalogue((relative, source) =>
+        relative === 'src/renderers/solid/registration.ts'
+          ? source.replace(
+              'export const solidRendererRegistration',
+              'const solidRendererRegistration',
+            )
+          : source,
+      ),
+    /actual program binding/u,
+  );
+  assert.throws(
+    () =>
+      activationCatalogue((relative, source) =>
+        relative === 'src/renderers/solid/compiler/index.ts'
+          ? source.replace(
+              'export function pluginSolidRenderer',
+              'function pluginSolidRenderer',
+            )
+          : source,
+      ),
+    /actual program binding/u,
+  );
+});
+
+test('actual source, ESM, and CJS composition retain selected private compiler dispatch', () => {
+  for (const relative of [
+    'src/native-composition/index.ts',
+    'dist/esm-node/native-composition/index.mjs',
+    'dist/cjs/native-composition/index.js',
+  ]) {
+    const source = fs.readFileSync(
+      path.join(compilerActivationOwner, relative),
+      'utf8',
+    );
+    assert(
+      compilerDispatcherCaller(
+        source,
+        relative,
+        compilerActivationAstAuthority().syntax,
+      ),
+      relative,
+    );
+  }
+  const relative = 'src/native-composition/index.ts';
+  const source = fs.readFileSync(
+    path.join(compilerActivationOwner, relative),
+    'utf8',
+  );
+  for (const [before, after] of [
+    ['const renderer = registration.renderer;', "const renderer = 'foreign';"],
+    ["registration.kind === 'native'", "registration.kind === 'composed'"],
+    [
+      'function composeNativeRenderer(',
+      'export function composeNativeRenderer(',
+    ],
+    [
+      'async function composeNativeRenderer(',
+      'export async function composeNativeRenderer(',
+    ],
+  ].filter(([before]) => source.includes(before))) {
+    assert.equal(
+      compilerDispatcherCaller(
+        source.replace(before, after),
+        relative,
+        compilerActivationAstAuthority().syntax,
+      ),
+      false,
+      before,
+    );
+  }
+  assert.equal(
+    compilerDispatcherCaller(
+      `${source}\nconst escaped = activateNativeRendererCompiler;`,
+      relative,
+      compilerActivationAstAuthority().syntax,
+    ),
+    false,
+  );
+});
+
+test('real emitted dispatcher bodies preserve all guards across source, ESM, and CJS', () => {
+  for (const relative of [
+    'src/native-composition/renderer-compiler-activation.ts',
+    'dist/esm-node/native-composition/renderer-compiler-activation.mjs',
+    'dist/cjs/native-composition/renderer-compiler-activation.js',
+  ]) {
+    const source = fs.readFileSync(
+      path.join(compilerActivationOwner, relative),
+      'utf8',
+    );
+    assert(dispatcherAccepted(source, relative), relative);
+    assert.equal(
+      dispatcherAccepted(
+        source.replace('compilerStem = stem;', 'compilerStem = renderer;'),
+        relative,
+      ),
+      false,
+      `Existing executable assignment remains authenticated in ${relative}`,
+    );
+    if (relative.endsWith('.mjs')) {
+      const initializer = '__rspack_fileURLToPath(import.meta.url)';
+      assert(source.includes(initializer));
+      for (const changed of [
+        source.replace(initializer, '"/foreign"'),
+        source.replace(
+          'fileURLToPath as __rspack_fileURLToPath',
+          'pathToFileURL as __rspack_fileURLToPath',
+        ),
+        `${source}\n__rspack_import_meta_filename__ = "/foreign";`,
+        `${source}\nconsume(__rspack_import_meta_filename__);`,
+        source.replace('__rspack_import_meta_filename__);', '__filename);'),
+      ])
+        assert.equal(
+          dispatcherAccepted(changed, relative),
+          false,
+          'Emitted ESM filename must retain its genuine immutable origin',
+        );
+    }
+    if (relative.endsWith('.js')) {
+      assert(source.includes('realpathSync(__filename)'));
+      assert.equal(
+        dispatcherAccepted(
+          source.replace(
+            'realpathSync(__filename)',
+            'realpathSync("/foreign")',
+          ),
+          relative,
+        ),
+        false,
+      );
+      assert.equal(
+        dispatcherAccepted(`${source}\n__filename = "/foreign";`, relative),
+        false,
+      );
+    }
+  }
+});
+
+test('dispatcher proof rejects weakened identity, executable substitutions, primitive mutation, and escaped selectors', () => {
+  const relative = 'src/native-composition/renderer-compiler-activation.ts';
+  const source = fs.readFileSync(
+    path.join(compilerActivationOwner, relative),
+    'utf8',
+  );
+  for (const [before, after] of [
+    ['activation.version !== 1', 'activation.version !== 2'],
+    ['!Object.isFrozen(activation)', 'false'],
+    ['compilerStem = stem;', 'compilerStem = renderer;'],
+    ['return (factory as', 'return (() => undefined as'],
+    ["typeof factory !== 'function'", "typeof factory === 'function'"],
+  ]) {
+    assert(source.includes(before), before);
+    assert.equal(
+      dispatcherAccepted(source.replace(before, after), relative),
+      false,
+      before,
+    );
+  }
+  for (const statement of [
+    'fs.realpathSync = () => "/foreign";',
+    'const alias = path; alias.join = () => "/foreign";',
+    'const alias = Object; alias.isFrozen = () => true;',
+    '__filename = "/foreign";',
+    'const escaped = resolveRendererRegistration;',
+  ])
+    assert.equal(
+      dispatcherAccepted(`${source}\n${statement}`, relative),
+      false,
+      statement,
+    );
+});
+
+test('compiler selection joins immutable observed build bytes and opaque digests instead of accepting shape alone', () => {
+  const value = {
+    sourceRevision,
+    profile: { renderer: 'react' },
+    buildMarker: 'completed-owning-build',
+    compilerDigest: '1'.repeat(64),
+    inputDigest: '2'.repeat(64),
+    frameworkCohortDigest: '3'.repeat(64),
+    profileDigest: '4'.repeat(64),
+  };
+  const bytes = Buffer.from(JSON.stringify(value));
+  const evidence = {
+    path: 'dist/renderer-build.json',
+    sha256: crypto.createHash('sha256').update(bytes).digest('hex'),
+    byteLength: bytes.length,
+    value: structuredClone(value),
+  };
+  assert.equal(
+    observedCompilerBuild({
+      bytes,
+      path: evidence.path,
+      evidence,
+      validated: structuredClone(value),
+    }),
+    evidence.sha256,
+  );
+  for (const field of [
+    'compilerDigest',
+    'inputDigest',
+    'frameworkCohortDigest',
+    'profileDigest',
+  ]) {
+    const changed = { ...value, [field]: '0'.repeat(64) };
+    assert.throws(
+      () =>
+        observedCompilerBuild({
+          bytes: Buffer.from(JSON.stringify(changed)),
+          path: evidence.path,
+          evidence,
+          validated: changed,
+        }),
+      /observed completed-build evidence/u,
+      field,
+    );
+    assert.throws(
+      () =>
+        observedCompilerBuild({
+          bytes,
+          path: evidence.path,
+          evidence,
+          validated: changed,
+        }),
+      /observed owning emission/u,
+      field,
+    );
+  }
+  for (const change of [
+    { path: 'foreign/renderer-build.json' },
+    { sha256: '0'.repeat(64) },
+    { byteLength: bytes.length + 1 },
+    { value: null },
+  ])
+    assert.throws(
+      () =>
+        observedCompilerBuild({
+          bytes,
+          path: evidence.path,
+          evidence: { ...evidence, ...change },
+          validated: value,
+        }),
+      /observed completed-build evidence/u,
+    );
+});
+
+test('direct private dispatcher entries cannot claim inactive compiler metadata admission', t => {
+  const fixture = consumerFixture(t);
+  const owner = path.join(fixture.root, 'node_modules', rendererPackage);
+  const dispatcher = path.join(
+    owner,
+    'dist/esm-node/native-composition/renderer-compiler-activation.mjs',
+  );
+  write(
+    dispatcher,
+    'export async function activateNativeRendererCompiler(renderer, options) { return import(options.target); }\n',
+  );
+  assert.throws(
+    () =>
+      auditInstalledConsumer({
+        ...fixture.options,
+        entryFiles: [path.relative(fixture.root, dispatcher)],
+      }),
+    /no verified incoming selected composition/u,
+  );
+  // Reading an unselected slot is metadata only; ordinary direct compiler imports
+  // still go through the complete runtime closure and its renderer denials.
+  activationCatalogue();
+  const target = path.join(owner, 'dist/compiler.mjs');
+  write(target, "import 'react';\n");
+  assert.throws(
+    () =>
+      auditInstalledConsumer({
+        ...fixture.options,
+        entryFiles: [path.relative(fixture.root, target)],
+      }),
+    /forbidden React\/RSC module react/u,
+  );
+});
 const typeInteropEvidencePath = path.join(
   repoRoot,
   'scripts/ultramodern-renderers/acceptance/evidence/octane-native-runtime-type-interop.json.txt',
@@ -202,6 +627,314 @@ function declarationConsumerFixture(t, specifier = 'declaration-model') {
     "import { native } from 'declaration-owner';\nvoid native;\n",
   );
   return { root, options, owner, provider, providerName, source, target };
+}
+
+function anchoredConsumerFixture(t, format = 'esm', mutation) {
+  const root = ownedDirectory(t);
+  const staged = path.join(root, 'staged');
+  const entry = `dist/entry.${format === 'esm' ? 'mjs' : 'cjs'}`;
+  const pathObject = format === 'esm' ? 'nodePath' : 'pathDefault()';
+  const fsObject = format === 'esm' ? 'nodeFs' : 'fsDefault()';
+  const factory =
+    format === 'esm' ? 'createRequire' : '(0, nodeModule.createRequire)';
+  const requireName = format === 'esm' ? 'require' : 'require1';
+  const directory = format === 'esm' ? '__moduleDirectory' : '__dirname';
+  let header =
+    format === 'esm'
+      ? `import nodeFs from 'node:fs';\nimport nodePath from 'node:path';\nimport { createRequire } from 'node:module';\nimport { fileURLToPath as moduleFilename } from 'node:url';\nimport { dirname as moduleDirectory } from 'node:path';\nvar __moduleDirectory = moduleDirectory(moduleFilename(import.meta.url));\n`
+      : `var __webpack_require__ = {};\n__webpack_require__.n = value => () => value;\nconst fsNamespace = require('node:fs');\nvar fsDefault = __webpack_require__.n(fsNamespace);\nconst pathNamespace = require('node:path');\nvar pathDefault = __webpack_require__.n(pathNamespace);\nconst nodeModule = require('node:module');\n`;
+  if (format === 'cjs-interop')
+    header = header.replace(
+      '__webpack_require__.n = value => () => value;',
+      `
+__webpack_require__.n = module => {
+  var getter = module && module.__esModule ? () => module['default'] : () => module;
+  __webpack_require__.d(getter, { a: getter });
+  return getter;
+};
+__webpack_require__.d = (exports, getters, values) => {
+  var define = (defs, kind) => {
+    for (var key in defs) if (__webpack_require__.o(defs, key) && !__webpack_require__.o(exports, key)) Object.defineProperty(exports, key, { enumerable: true, [kind]: defs[key] });
+  };
+  define(getters, 'get');
+  define(values, 'value');
+};
+__webpack_require__.o = (obj, prop) => Object.prototype.hasOwnProperty.call(obj, prop);
+`,
+    );
+  let source = `${header}
+function locatePrivateDirectory() {
+  let directory = ${directory};
+  while (true) {
+    ${format === 'esm' ? `const manifest = ${pathObject}.join(directory, 'package.json');` : ''}
+    const privateDirectory = ${pathObject}.join(directory, 'src/private');
+    if (${fsObject}.existsSync(${format === 'esm' ? 'manifest' : `${pathObject}.join(directory, 'package.json')`}) && ${fsObject}.existsSync(${pathObject}.join(privateDirectory, 'sentinel.cjs'))) return privateDirectory;
+    const parent = ${pathObject}.dirname(directory);
+    if (parent === directory) throw new Error('Missing package root');
+    directory = parent;
+  }
+}
+function readNative() {
+  const directory = locatePrivateDirectory();
+  const ${requireName} = ${factory}(${pathObject}.join(directory, 'index.cjs'));
+  return ${requireName}('./helper.cjs');
+}
+console.log(readNative().native);
+`;
+  if (mutation === 'early-return')
+    source = source.replace(
+      'while (true) {',
+      'return directory;\n  while (true) {',
+    );
+  if (mutation === 'side-effect')
+    source = source.replace(
+      'while (true) {',
+      'while (true) {\n    globalThis.anchorSideEffect = true;',
+    );
+  if (mutation === 'computed-path')
+    source = source.replace("'src/private'", "['src', 'private'].join('/')");
+  if (mutation === 'guard') source = source.replace(') && ', ') || ');
+  if (mutation === 'cursor')
+    source = source.replace(
+      'directory = parent;',
+      'directory = privateDirectory;',
+    );
+  if (mutation === 'unknown-anchor')
+    source = source.replace(
+      `${pathObject}.join(directory, 'index.cjs')`,
+      'process.env.UNKNOWN_ANCHOR',
+    );
+  if (mutation === 'mutable-require')
+    source = source
+      .replace(`const ${requireName} =`, `let ${requireName} =`)
+      .replace(
+        `return ${requireName}`,
+        `${requireName} = () => ({ native: false });\n  return ${requireName}`,
+      );
+  if (mutation === 'shadow-factory')
+    source =
+      format === 'esm'
+        ? source.replace(
+            "import { createRequire } from 'node:module';",
+            'function createRequire() { return () => ({ native: false }); }',
+          )
+        : source.replace(
+            "const nodeModule = require('node:module');",
+            'const nodeModule = { createRequire() { return () => ({ native: false }); } };',
+          );
+  if (mutation === 'path-write')
+    source = source.replace(
+      'function locatePrivateDirectory()',
+      `${pathObject}.join = () => '/foreign';\nfunction locatePrivateDirectory()`,
+    );
+  if (mutation === 'module-write')
+    source = source.replace(
+      'function locatePrivateDirectory()',
+      'nodeModule.createRequire = () => () => true;\nfunction locatePrivateDirectory()',
+    );
+  if (mutation === 'module-escape')
+    source = source.replace(
+      'function locatePrivateDirectory()',
+      '((value) => { value.join = () => "/foreign"; })(nodePath);\nfunction locatePrivateDirectory()',
+    );
+  if (mutation === 'secondary-alias-write')
+    source = source.replace(
+      'function locatePrivateDirectory()',
+      "const otherPath = require('node:path');\notherPath.join = () => '/foreign';\nfunction locatePrivateDirectory()",
+    );
+  if (mutation === 'dirname-write')
+    source = source.replace(
+      'function locatePrivateDirectory()',
+      "__dirname = '/foreign';\nfunction locatePrivateDirectory()",
+    );
+  if (mutation === 'interop-substitution')
+    source = source.replace(
+      '__webpack_require__.n = value => () => value;',
+      '__webpack_require__.n = value => () => ({ join: () => "/foreign", existsSync: () => true });',
+    );
+  if (mutation === 'interop-rewrite')
+    source = source.replace(
+      'function locatePrivateDirectory()',
+      '__webpack_require__.n = value => () => value;\nfunction locatePrivateDirectory()',
+    );
+  if (mutation === 'object-alias-write')
+    source = source.replace(
+      'function locatePrivateDirectory()',
+      'const objectAlias = Object;\nobjectAlias.defineProperty = () => true;\nfunction locatePrivateDirectory()',
+    );
+  if (mutation === 'object-prototype-write')
+    source = source.replace(
+      'function locatePrivateDirectory()',
+      'const prototypeAlias = Object.prototype;\nprototypeAlias.hasOwnProperty = () => true;\nfunction locatePrivateDirectory()',
+    );
+  if (mutation === 'object-escape')
+    source = source.replace(
+      'function locatePrivateDirectory()',
+      '((value) => { value.defineProperty = () => true; })(Object);\nfunction locatePrivateDirectory()',
+    );
+  if (mutation === 'interop-expression-substitution')
+    source = source.replace(
+      '__webpack_require__.d(getter, { a: getter });',
+      'getter = () => ({ join: () => "/foreign" });',
+    );
+  writeJson(path.join(staged, 'package.json'), {
+    name: rendererPackage,
+    version,
+    publishConfig: { access: 'public' },
+    type: format === 'esm' ? 'module' : 'commonjs',
+    engines: { node: '>=26.7.0' },
+    exports: {
+      '.': {
+        types: './index.d.ts',
+        import: `./${entry}`,
+        require: `./${entry}`,
+      },
+    },
+  });
+  write(path.join(staged, entry), source);
+  write(
+    path.join(staged, 'index.d.ts'),
+    'export declare const native: boolean;\n',
+  );
+  write(
+    path.join(staged, 'src/private/helper.cjs'),
+    mutation === 'forbidden-helper'
+      ? "require('react');\nmodule.exports = { native: true };\n"
+      : mutation === 'missing-helper-dependency'
+        ? "require('undeclared-helper-runtime');\nmodule.exports = { native: true };\n"
+        : 'module.exports = { native: true };\n',
+  );
+  if (mutation !== 'missing-sentinel')
+    write(
+      path.join(staged, 'src/private/sentinel.cjs'),
+      'module.exports = {};\n',
+    );
+  if (mutation === 'foreign-root') {
+    writeJson(path.join(staged, 'dist/package.json'), {
+      name: 'foreign-root',
+      version,
+      type: format === 'esm' ? 'module' : 'commonjs',
+    });
+    write(
+      path.join(staged, 'dist/src/private/sentinel.cjs'),
+      'module.exports = {};\n',
+    );
+  }
+  const generatorName = '@bleedingdev/modern-js-ultramodern-create';
+  const utilityName = '@bleedingdev/modern-js-i18n-utils';
+  const stagedUtility = path.join(root, 'staged-utility');
+  writeJson(path.join(stagedUtility, 'package.json'), {
+    name: utilityName,
+    version,
+    publishConfig: { access: 'public' },
+    engines: { node: '>=26.7.0' },
+    exports: { '.': { types: './index.d.ts', import: './index.js' } },
+  });
+  write(path.join(stagedUtility, 'index.js'), 'export const fixture = true;\n');
+  write(
+    path.join(stagedUtility, 'index.d.ts'),
+    'export declare const fixture: true;\n',
+  );
+  const stagedGenerator = path.join(root, 'staged-generator');
+  writeJson(path.join(stagedGenerator, 'package.json'), {
+    name: generatorName,
+    version,
+    publishConfig: { access: 'public' },
+    engines: { node: '>=26.7.0' },
+    exports: {
+      '.': './index.js',
+      './ultramodern-workspace': './index.js',
+      './ultramodern-workspace/codesmith': './index.js',
+    },
+    ultramodern: { frameworkVersion: version },
+    dependencies: { '@modern-js/i18n-utils': `npm:${utilityName}@${version}` },
+  });
+  write(
+    path.join(stagedGenerator, 'index.js'),
+    'export const fixture = true;\n',
+  );
+  for (const file of createTemplateRequiredFiles)
+    write(path.join(stagedGenerator, file), 'fixture\n');
+  createReleaseArtifacts({
+    aliases: {
+      '@modern-js/renderer-solid': rendererPackage,
+      '@modern-js/ultramodern-create': generatorName,
+      '@modern-js/i18n-utils': utilityName,
+    },
+    command: execFileSync,
+    packages: [
+      {
+        packageDir: path.relative(repoRoot, staged),
+        sourceName: '@modern-js/renderer-solid',
+        targetName: rendererPackage,
+        version,
+      },
+      {
+        packageDir: path.relative(repoRoot, stagedGenerator),
+        sourceName: '@modern-js/ultramodern-create',
+        targetName: generatorName,
+        version,
+      },
+      {
+        packageDir: path.relative(repoRoot, stagedUtility),
+        sourceName: '@modern-js/i18n-utils',
+        targetName: utilityName,
+        version,
+      },
+    ],
+    source: {
+      commit: sourceRevision,
+      repository: 'BleedingDev/ultramodern.js',
+    },
+    tag: 'preview',
+    tools: { node: process.version, npm: 'fixture-npm', pnpm: 'fixture-pnpm' },
+    version,
+    outDir: path.join(root, 'release'),
+  });
+  const releaseArtifacts = auditReleaseArtifacts({
+    manifestPath: path.join(root, 'release/manifest.json'),
+    expectedSourceRevision: sourceRevision,
+  });
+  const consumer = path.join(root, 'consumer');
+  writeJson(path.join(consumer, 'package.json'), {
+    name: 'anchor-consumer',
+    private: true,
+    type: 'module',
+    dependencies: {
+      '@modern-js/renderer-solid': `npm:${rendererPackage}@${version}`,
+    },
+  });
+  const installed = path.join(consumer, 'node_modules', rendererPackage);
+  const artifact = releaseArtifacts.artifacts.find(
+    item => item.sourceName === '@modern-js/renderer-solid',
+  );
+  const inspection = inspectNpmTarball(fs.readFileSync(artifact.path));
+  for (const [file, bytes] of inspection.fileContents)
+    write(path.join(installed, file), bytes);
+  fs.mkdirSync(path.join(consumer, 'node_modules/@modern-js'), {
+    recursive: true,
+  });
+  fs.symlinkSync(
+    '../@bleedingdev/modern-js-renderer-solid',
+    path.join(consumer, 'node_modules/@modern-js/renderer-solid'),
+  );
+  write(
+    path.join(consumer, 'src/entry.mjs'),
+    "import '@modern-js/renderer-solid';\n",
+  );
+  return {
+    root: consumer,
+    installed,
+    entry: path.join(installed, entry),
+    artifact,
+    options: {
+      consumerRoot: consumer,
+      renderer: 'solid',
+      exactPackages: { [rendererPackage]: version },
+      entryFiles: ['src/entry.mjs'],
+      releaseArtifacts,
+    },
+  };
 }
 
 function octaneConsumerFixture(t) {
@@ -1646,6 +2379,394 @@ test('generator backend stays authoring-only and compiler drift fails after nati
         '7.0.2',
       );
     }
+  }
+});
+
+test('authenticated packed ESM and CJS locators audit the actual helper through a virtual require anchor', t => {
+  for (const format of ['esm', 'cjs', 'cjs-interop']) {
+    const fixture = anchoredConsumerFixture(t, format);
+    assert.equal(
+      execFileSync(process.execPath, [fixture.entry], {
+        cwd: fixture.root,
+        encoding: 'utf8',
+      }).trim(),
+      'true',
+    );
+    let report;
+    assert.doesNotThrow(() => {
+      report = auditInstalledConsumer(fixture.options);
+    }, format);
+    assert.equal(report.ownedRequireAnchors.length, 1);
+    const anchor = report.ownedRequireAnchors[0];
+    const helper = path.join(fixture.installed, 'src/private/helper.cjs');
+    const sentinel = path.join(fixture.installed, 'src/private/sentinel.cjs');
+    assert.equal(anchor.kind, 'package');
+    assert.equal(anchor.artifactSha256, fixture.artifact.sha256);
+    assert.equal(anchor.source, path.relative(fixture.root, fixture.entry));
+    assert.equal(anchor.sourceSha256, fileSha256(fixture.entry));
+    assert.equal(
+      anchor.logicalAnchor,
+      path.relative(
+        fixture.root,
+        path.join(fixture.installed, 'src/private/index.cjs'),
+      ),
+    );
+    assert.equal(
+      fs.existsSync(path.resolve(fixture.root, anchor.logicalAnchor)),
+      false,
+    );
+    assert.deepEqual(anchor.sentinel, {
+      path: path.relative(fixture.root, sentinel),
+      sha256: fileSha256(sentinel),
+    });
+    assert.equal(anchor.target, path.relative(fixture.root, helper));
+    assert.equal(anchor.targetSha256, fileSha256(helper));
+    assert(
+      report.entryClosure.some(
+        file =>
+          file.path === anchor.target && file.sha256 === anchor.targetSha256,
+      ),
+    );
+    assert.deepEqual(anchor.packageScopes, [
+      {
+        path: path.relative(
+          fixture.root,
+          path.join(fixture.installed, 'package.json'),
+        ),
+        sha256: fileSha256(path.join(fixture.installed, 'package.json')),
+        type: format === 'esm' ? 'module' : 'commonjs',
+      },
+    ]);
+  }
+});
+
+test('authenticated locators reject altered control flow, computed paths, and require bindings', t => {
+  for (const mutation of [
+    'early-return',
+    'side-effect',
+    'computed-path',
+    'guard',
+    'cursor',
+    'unknown-anchor',
+    'mutable-require',
+    'shadow-factory',
+  ]) {
+    const fixture = anchoredConsumerFixture(
+      t,
+      mutation === 'shadow-factory' ? 'cjs' : 'esm',
+      mutation,
+    );
+    assert.throws(
+      () => auditInstalledConsumer(fixture.options),
+      /Unverifiable createRequire anchor/u,
+      mutation,
+    );
+  }
+});
+
+test('anchor primitives reject Node property mutation, escapes, ambient writes, and substituted interop', t => {
+  for (const [format, mutation] of [
+    ['esm', 'path-write'],
+    ['cjs', 'module-write'],
+    ['esm', 'module-escape'],
+    ['cjs', 'secondary-alias-write'],
+    ['cjs', 'dirname-write'],
+    ['cjs', 'interop-substitution'],
+    ['cjs', 'interop-rewrite'],
+    ['cjs-interop', 'object-alias-write'],
+    ['cjs-interop', 'object-prototype-write'],
+    ['cjs-interop', 'object-escape'],
+    ['cjs-interop', 'interop-expression-substitution'],
+  ]) {
+    const fixture = anchoredConsumerFixture(t, format, mutation);
+    assert.throws(
+      () => auditInstalledConsumer(fixture.options),
+      /Unverifiable createRequire anchor/u,
+      mutation,
+    );
+  }
+});
+
+test('package require locators require genuine archive authority and the actual guarded owner', t => {
+  const fixture = anchoredConsumerFixture(t);
+  assert.throws(
+    () =>
+      auditInstalledConsumer({
+        ...fixture.options,
+        releaseArtifacts: undefined,
+      }),
+    /requires authenticated release ownership/u,
+  );
+  for (const mutation of ['foreign-root', 'missing-sentinel']) {
+    const changed = anchoredConsumerFixture(t, 'esm', mutation);
+    assert.throws(
+      () => auditInstalledConsumer(changed.options),
+      /foreign package root|no authenticated owning root/u,
+      mutation,
+    );
+  }
+});
+
+test('anchored helpers remain subject to forbidden runtime and unresolved dependency checks', t => {
+  for (const mutation of ['forbidden-helper', 'missing-helper-dependency']) {
+    const fixture = anchoredConsumerFixture(t, 'esm', mutation);
+    assert.throws(
+      () => auditInstalledConsumer(fixture.options),
+      /forbidden React\/RSC module react|Unresolved installed entry import undeclared-helper-runtime/u,
+      mutation,
+    );
+  }
+});
+
+test('package require anchors reject changed module, helper, sentinel, or owner bytes and symlinks', t => {
+  const fixture = anchoredConsumerFixture(t);
+  for (const relative of [
+    'dist/entry.mjs',
+    'src/private/helper.cjs',
+    'src/private/sentinel.cjs',
+    'package.json',
+  ]) {
+    const file = path.join(fixture.installed, relative);
+    const bytes = fs.readFileSync(file);
+    fs.appendFileSync(file, '\n');
+    assert.throws(
+      () => auditInstalledConsumer(fixture.options),
+      /differs from candidate artifact bytes|differs from authenticated/u,
+      relative,
+    );
+    write(file, bytes);
+  }
+  const helper = path.join(fixture.installed, 'src/private/helper.cjs');
+  const bytes = fs.readFileSync(helper);
+  fs.rmSync(helper);
+  fs.symlinkSync('sentinel.cjs', helper);
+  assert.throws(
+    () => auditInstalledConsumer(fixture.options),
+    /non-regular packed file|symbolic link/u,
+  );
+  fs.rmSync(helper);
+  write(helper, bytes);
+});
+
+test('ordinary Node file anchors preserve lexical aliases and require export conditions', t => {
+  const { root, options } = consumerFixture(t);
+  const manifestPath = path.join(root, 'package.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath));
+  manifest.dependencies['condition-provider'] = version;
+  writeJson(manifestPath, manifest);
+  const provider = installFixture(root, 'condition-provider', {
+    exports: { '.': { import: './esm.mjs', require: './cjs.cjs' } },
+  });
+  write(path.join(provider, 'esm.mjs'), "export const value = 'ESM';\n");
+  write(path.join(provider, 'cjs.cjs'), "module.exports = { value: 'CJS' };\n");
+  const entry = path.join(root, 'src/anchor.mjs');
+  write(
+    entry,
+    "import { createRequire as makeRequire } from 'node:module';\nconst load = makeRequire(import.meta.url);\nconst filename = load.resolve('condition-provider');\nconsole.log(load('condition-provider').value);\n",
+  );
+  assert.equal(
+    execFileSync(process.execPath, [entry], {
+      cwd: root,
+      encoding: 'utf8',
+    }).trim(),
+    'CJS',
+  );
+  const report = auditInstalledConsumer({
+    ...options,
+    entryFiles: ['src/anchor.mjs'],
+  });
+  assert.equal(report.ownedRequireAnchors[0].kind, 'file');
+  assert.equal(report.ownedRequireAnchors[0].logicalAnchor, 'src/anchor.mjs');
+  assert(
+    report.entryClosure.some(file =>
+      file.path.endsWith('condition-provider/cjs.cjs'),
+    ),
+  );
+  assert(
+    !report.entryClosure.some(file =>
+      file.path.endsWith('condition-provider/esm.mjs'),
+    ),
+  );
+});
+
+test('createRequire metadata resolution does not load or enqueue resolved module bodies', t => {
+  const { root, options } = consumerFixture(t);
+  const entry = path.join(root, 'src/metadata.mjs');
+  const helper = path.join(root, 'src/helper.cjs');
+  write(helper, "throw new Error('Metadata resolver loaded a module');\n");
+  write(
+    entry,
+    `import { createRequire } from 'node:module';
+function resolveProfile(registration) {
+  const require = createRequire(import.meta.url);
+  return [
+    { specifier: 'helper', filename: require.resolve('./helper.cjs') },
+    ...registration.frameworkModules.map(module => ({
+      specifier: module.specifier,
+      filename: require.resolve(module.request),
+    })),
+  ];
+}
+function resolveFilename(filename, request) {
+  const resolver = createRequire(filename);
+  return resolver.resolve(request);
+}
+console.log(resolveProfile({ frameworkModules: [{ specifier: 'helper', request: './helper.cjs' }] }).length);
+console.log(resolveFilename(new URL(import.meta.url), './helper.cjs'));
+`,
+  );
+  const output = execFileSync(process.execPath, [entry], {
+    cwd: root,
+    encoding: 'utf8',
+  })
+    .trim()
+    .split('\n');
+  assert.deepEqual(output, ['2', helper]);
+  const report = auditInstalledConsumer({
+    ...options,
+    entryFiles: ['src/metadata.mjs'],
+  });
+  assert.equal(report.ownedRequireAnchors.length, 0);
+  assert(!report.entryClosure.some(item => item.path === 'src/helper.cjs'));
+});
+
+test('metadata require references still reject resolution writes and escapes', t => {
+  for (const use of [
+    "load.resolve = () => '/foreign';\nload.resolve('./helper.cjs');",
+    "const lookup = load.resolve;\nlookup('./helper.cjs');",
+    "const alias = load;\nalias.resolve('./helper.cjs');",
+    'consume(load.resolve);',
+    "load['resolve']('./helper.cjs');",
+  ]) {
+    const { root, options } = consumerFixture(t);
+    write(
+      path.join(root, 'src/metadata.mjs'),
+      `import { createRequire } from 'node:module';\nconst load = createRequire(import.meta.url);\n${use}\n`,
+    );
+    write(path.join(root, 'src/helper.cjs'), 'module.exports = {};\n');
+    assert.throws(
+      () =>
+        auditInstalledConsumer({
+          ...options,
+          entryFiles: ['src/metadata.mjs'],
+        }),
+      /Unverifiable createRequire anchor/u,
+      use,
+    );
+  }
+});
+
+test('unknown, mutable, or escaped ordinary require anchors fail instead of using the source directory', t => {
+  for (const source of [
+    "import { createRequire } from 'node:module';\nconst load = createRequire(process.env.UNKNOWN_ANCHOR);\nload('./helper.cjs');\n",
+    "import { createRequire } from 'node:module';\nlet load = createRequire(import.meta.url);\nload = () => true;\nload('./helper.cjs');\n",
+    "import { createRequire } from 'node:module';\nconst load = createRequire(import.meta.url);\nconst escaped = load;\nescaped('./helper.cjs');\n",
+    "function createRequire() { return () => true; }\nconst load = createRequire('index.cjs');\nload('./helper.cjs');\n",
+  ]) {
+    const { root, options } = consumerFixture(t);
+    write(path.join(root, 'src/anchor.mjs'), source);
+    write(path.join(root, 'src/helper.cjs'), 'module.exports = {};\n');
+    assert.throws(
+      () =>
+        auditInstalledConsumer({ ...options, entryFiles: ['src/anchor.mjs'] }),
+      /Unverifiable createRequire anchor/u,
+    );
+  }
+});
+
+test('ordinary require anchors reject a symlinked selected helper before realpath', t => {
+  const { root, options } = consumerFixture(t);
+  write(
+    path.join(root, 'src/anchor.mjs'),
+    "import { createRequire } from 'node:module';\nconst load = createRequire(import.meta.url);\nload('./helper.cjs');\n",
+  );
+  write(path.join(root, 'src/real.cjs'), 'module.exports = {};\n');
+  fs.symlinkSync('real.cjs', path.join(root, 'src/helper.cjs'));
+  assert.throws(
+    () =>
+      auditInstalledConsumer({ ...options, entryFiles: ['src/anchor.mjs'] }),
+    /createRequire target contains a symbolic link/u,
+  );
+});
+
+test('CJS file anchors use genuine ambient filenames and reject their reassignment', t => {
+  for (const [ambient, expression] of [
+    ['__filename', '__filename'],
+    ['__dirname', "nodePath.join(__dirname, 'virtual.cjs')"],
+  ]) {
+    const { root, options } = consumerFixture(t);
+    const entry = path.join(root, 'src/anchor.cjs');
+    const source = `const nodeModule = require('node:module');\nconst nodePath = require('node:path');\nconst load = nodeModule.createRequire(${expression});\nconsole.log(load('./helper.cjs').native);\n`;
+    write(entry, source);
+    write(
+      path.join(root, 'src/helper.cjs'),
+      'module.exports = { native: true };\n',
+    );
+    assert.equal(
+      execFileSync(process.execPath, [entry], {
+        cwd: root,
+        encoding: 'utf8',
+      }).trim(),
+      'true',
+    );
+    assert.equal(
+      auditInstalledConsumer({ ...options, entryFiles: ['src/anchor.cjs'] })
+        .ownedRequireAnchors.length,
+      1,
+    );
+    for (const assignment of [
+      `${ambient} = '/foreign';`,
+      `({ value: ${ambient} } = { value: '/foreign' });`,
+    ]) {
+      write(entry, `${assignment}\n${source}`);
+      assert.throws(
+        () =>
+          auditInstalledConsumer({
+            ...options,
+            entryFiles: ['src/anchor.cjs'],
+          }),
+        /Unverifiable createRequire anchor/u,
+        assignment,
+      );
+    }
+  }
+});
+
+test('ordinary require anchors retain the initial context manifest byte authority', t => {
+  const { root, options } = consumerFixture(t);
+  const manifestPath = path.join(root, 'package.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath));
+  installFixture(root, 'injected-anchor-dependency');
+  write(
+    path.join(root, 'src/anchor.mjs'),
+    "import { createRequire } from 'node:module';\nconst load = createRequire(import.meta.url);\nload('./helper.cjs');\n",
+  );
+  write(path.join(root, 'src/helper.cjs'), 'module.exports = {};\n');
+  const readFile = fs.readFileSync;
+  let mutated = false;
+  const reader = t.mock.method(fs, 'readFileSync', (file, ...args) => {
+    const bytes = readFile(file, ...args);
+    if (file === manifestPath && !mutated) {
+      mutated = true;
+      writeJson(manifestPath, {
+        ...manifest,
+        dependencies: {
+          ...manifest.dependencies,
+          'injected-anchor-dependency': version,
+        },
+      });
+    }
+    return bytes;
+  });
+  try {
+    assert.throws(
+      () =>
+        auditInstalledConsumer({ ...options, entryFiles: ['src/anchor.mjs'] }),
+      /createRequire package scope changed from its initial manifest bytes/u,
+    );
+    assert.equal(mutated, true);
+  } finally {
+    reader.mock.restore();
   }
 });
 

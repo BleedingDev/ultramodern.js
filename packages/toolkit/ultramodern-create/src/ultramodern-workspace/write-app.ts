@@ -55,6 +55,7 @@ import {
   createAppTsConfig,
 } from './package-json';
 import { createPublicWebAppArtifacts } from './public-surface';
+import { hasNativeAppGeneration } from './renderer-generations';
 import { resolveWorkspaceRenderer } from './renderer-profile';
 import type { ResolvedPackageSource, WorkspaceApp } from './types';
 
@@ -96,7 +97,7 @@ export function writeApp(
         }
       : app;
   const renderer = resolveWorkspaceRenderer(resolvedApp);
-  if (renderer === 'solid' || renderer === 'octane') {
+  if (hasNativeAppGeneration(renderer)) {
     if (bridge)
       throw new Error(
         `Renderer ${renderer} does not support React bridge configuration.`,

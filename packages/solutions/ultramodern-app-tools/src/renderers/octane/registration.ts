@@ -8,20 +8,31 @@ import { octaneCandidateProfile } from './profile';
 import { emitOctaneNativeRouteModule } from './routes';
 import { assertOctaneEntrySource } from './source';
 
-export const octaneNativeRendererAdapter: NativeRendererAdapter = {
-  renderer: 'octane',
-  infrastructurePluginName: '@modern-js/renderer-octane-infrastructure',
-  profile: octaneCandidateProfile,
-  compilerArtifacts: octaneCompilerArtifacts,
-  assertSupportedSource: assertOctaneEntrySource,
-  createEntryGenerator: createOctaneNativeEntryGenerator,
-  emitRouteModule: emitOctaneNativeRouteModule,
-  async createCompiler(options) {
-    return (await import('./compiler')).createOctaneCompilerPlugin(options);
+export const octaneNativeRendererAdapter = Object.freeze<NativeRendererAdapter>(
+  {
+    renderer: 'octane',
+    infrastructurePluginName: '@modern-js/renderer-octane-infrastructure',
+    profile: octaneCandidateProfile,
+    compilerArtifacts: octaneCompilerArtifacts,
+    compiler: Object.freeze({
+      schema: 'ultramodern-native-compiler-activation',
+      version: 1,
+      renderer: 'octane',
+      operation: 'compiler',
+      module: Object.freeze({
+        source: './src/renderers/octane/compiler/index.ts',
+        import: './dist/esm-node/renderers/octane/compiler/index.mjs',
+        require: './dist/cjs/renderers/octane/compiler/index.js',
+      }),
+      export: 'createOctaneCompilerPlugin',
+    }),
+    assertSupportedSource: assertOctaneEntrySource,
+    createEntryGenerator: createOctaneNativeEntryGenerator,
+    emitRouteModule: emitOctaneNativeRouteModule,
   },
-};
+);
 
-export const octaneRendererRegistration = {
+export const octaneRendererRegistration = Object.freeze({
   renderer: 'octane',
   kind: 'native',
   candidateProfile: octaneCandidateProfile,
@@ -39,4 +50,4 @@ export const octaneRendererRegistration = {
     cssDeclarations: false,
   },
   nativeAdapter: octaneNativeRendererAdapter,
-} as const satisfies RendererRegistration;
+} as const satisfies RendererRegistration);

@@ -11,6 +11,12 @@ import {
   readVerifiedPackageArtifactBytes,
 } from '../../ultramodern-publish/lib/prepare-bleedingdev-packages/release-artifacts.mjs';
 import { readReleaseManifest } from '../../ultramodern-publish/lib/source-create-proof/release-manifest.mjs';
+import {
+  compilerDispatcherCaller,
+  compilerDispatcherImport,
+  observedCompilerBuild,
+  readCompilerActivationCatalogue,
+} from './compiler-activation-proof.mjs';
 import { nativeDevelopmentLoaderImport } from './native-development-loader.mjs';
 
 const octaneTypeEvidencePath =
@@ -62,6 +68,21 @@ function json(file) {
   return JSON.parse(fs.readFileSync(file, 'utf8'));
 }
 
+function requireReferenceKind(reference) {
+  const parent = reference.parentPath;
+  if (parent.isCallExpression() && parent.get('callee').node === reference.node)
+    return 'load';
+  if (
+    parent.isMemberExpression() &&
+    !parent.node.computed &&
+    parent.get('object').node === reference.node &&
+    parent.get('property').isIdentifier({ name: 'resolve' }) &&
+    parent.parentPath.isCallExpression() &&
+    parent.parentPath.get('callee').node === parent.node
+  )
+    return 'resolve';
+}
+
 // Use the repository's maintained parser without loading its transform config.
 function moduleSpecifiers(source, file, additionalRequireNames = new Set()) {
   assert(
@@ -80,9 +101,50 @@ function moduleSpecifiers(source, file, additionalRequireNames = new Set()) {
   });
   assert(parsed, `Source parser produced no module graph for ${file}`);
   const dynamicImports = new Map();
+  const requireCalls = new Map();
+  const escapedRequireAnchors = [];
+  const { unwrap, property, namedFunction } = nodeModuleAst();
+  const createRequireCall = item => {
+    item = unwrap(item);
+    const imported = item?.isIdentifier()
+      ? item.scope.getBinding(item.node.name)?.path
+      : undefined;
+    return (
+      namedFunction(item, 'createRequire', 'node:module') ||
+      property(item, 'createRequire') ||
+      item?.isIdentifier({ name: 'createRequire' }) ||
+      (imported?.isImportSpecifier() &&
+        imported.node.imported.name === 'createRequire')
+    );
+  };
   traverse(parsed, {
     ImportExpression(importPath) {
       dynamicImports.set(importPath.node.source, importPath);
+    },
+    CallExpression(callPath) {
+      const callee = callPath.get('callee');
+      if (createRequireCall(callee)) {
+        const owner = callPath.parentPath;
+        const binding =
+          owner.isVariableDeclarator() &&
+          owner.get('id').isIdentifier() &&
+          owner.scope.getBinding(owner.node.id.name);
+        if (
+          !binding ||
+          !binding.constant ||
+          binding.referencePaths.some(
+            reference => !requireReferenceKind(reference),
+          )
+        )
+          escapedRequireAnchors.push(callPath);
+      }
+      if (!callee.isIdentifier()) return;
+      const binding = callee.scope.getBinding(callee.node.name);
+      const init = binding?.path.isVariableDeclarator()
+        ? binding.path.get('init')
+        : undefined;
+      if (init?.isCallExpression() && createRequireCall(init.get('callee')))
+        requireCalls.set(callPath.node, callPath);
     },
   });
   const imports = [];
@@ -133,9 +195,13 @@ function moduleSpecifiers(source, file, additionalRequireNames = new Set()) {
       node.type === 'CallExpression' &&
       node.callee?.type === 'Identifier' &&
       (/^(?:__)?require$/u.test(node.callee.name) ||
-        additionalRequireNames.has(node.callee.name))
+        additionalRequireNames.has(node.callee.name) ||
+        requireCalls.has(node))
     )
-      add(node.arguments[0], { require: true });
+      add(node.arguments[0], {
+        require: true,
+        requirePath: requireCalls.get(node),
+      });
     else if (node.type === 'TSImportType')
       add(node.source ?? node.argument, { typeOnly: true });
     else if (
@@ -157,6 +223,13 @@ function moduleSpecifiers(source, file, additionalRequireNames = new Set()) {
     }
   };
   visit(parsed.program);
+  for (const requirePath of escapedRequireAnchors)
+    imports.push({
+      computed: true,
+      require: true,
+      requirePath,
+      line: requirePath.node.loc.start.line,
+    });
   for (const match of source.matchAll(
     /^[\t ]*\/\/\/\s*<reference\s+(types|path)\s*=\s*['"]([^'"]+)['"]/gmu,
   ))
@@ -177,14 +250,361 @@ function moduleSpecifiers(source, file, additionalRequireNames = new Set()) {
   return imports;
 }
 
-// Recognize one compiler-owned Node loader with its dominating path guards.
-// Ownership and bytes are authenticated separately against the release tarball.
-function nativeServerLoaderImport(importPath, aliases) {
+function astFunctionShape(helper, externalBinding) {
+  const roles = new Map([[externalBinding, 'runtime']]);
+  const names = new Map();
+  helper.traverse({
+    Identifier(item) {
+      if (!item.isBindingIdentifier() && !item.isReferencedIdentifier()) return;
+      const binding = item.scope.getBinding(item.node.name);
+      if (binding && !roles.has(binding))
+        roles.set(binding, `local-${roles.size}`);
+      names.set(item.node, roles.get(binding) ?? `global-${item.node.name}`);
+    },
+  });
+  const ignored = new Set([
+    'start',
+    'end',
+    'loc',
+    'extra',
+    'leadingComments',
+    'trailingComments',
+    'innerComments',
+    'id',
+    'generator',
+    'async',
+  ]);
+  const normalize = node => {
+    if (Array.isArray(node)) return node.map(normalize);
+    if (!node || typeof node !== 'object') return node;
+    const entries = Object.entries(node).filter(
+      ([key, value]) =>
+        !ignored.has(key) &&
+        !(key === 'expression' && typeof value === 'boolean'),
+    );
+    if (['ArrowFunctionExpression', 'FunctionExpression'].includes(node.type))
+      entries.push(
+        ['async', Boolean(node.async)],
+        ['generator', Boolean(node.generator)],
+      );
+    return Object.fromEntries(
+      entries
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, value]) => [
+          key,
+          key === 'name' && names.has(node)
+            ? names.get(node)
+            : key === 'type' && node.type === 'ArrowFunctionExpression'
+              ? 'FunctionExpression'
+              : normalize(value),
+        ]),
+    );
+  };
+  return JSON.stringify(normalize(helper.node));
+}
+
+let interopShapes;
+function supportedInteropShapes() {
+  if (interopShapes) return interopShapes;
+  const parsed = parseSync(
+    `
+    var runtime = {};
+    const simple = value => () => value;
+    const compiler = module => {
+      var getter = module && module.__esModule ? () => module['default'] : () => module;
+      runtime.d(getter, { a: getter });
+      return getter;
+    };
+    const define = (exports, getters, values) => {
+      var define = (defs, kind) => {
+        for (var key in defs) if (runtime.o(defs, key) && !runtime.o(exports, key)) Object.defineProperty(exports, key, { enumerable: true, [kind]: defs[key] });
+      };
+      define(getters, 'get');
+      define(values, 'value');
+    };
+    const owns = (obj, prop) => Object.prototype.hasOwnProperty.call(obj, prop);
+  `,
+    { babelrc: false, configFile: false },
+  );
+  interopShapes = new Map();
+  traverse(parsed, {
+    VariableDeclarator(item) {
+      if (
+        item.parentPath.parentPath.isProgram() &&
+        ['simple', 'compiler', 'define', 'owns'].includes(item.node.id.name)
+      )
+        interopShapes.set(
+          item.node.id.name,
+          astFunctionShape(item.get('init'), item.scope.getBinding('runtime')),
+        );
+    },
+  });
+  return interopShapes;
+}
+
+function globalPrimitiveUnchanged(item, name) {
+  let valid = true;
+  const matches = (expression, seen = new Set()) => {
+    while (expression?.isMemberExpression())
+      expression = expression.get('object');
+    if (!expression?.isIdentifier() || seen.has(expression.node)) return false;
+    seen.add(expression.node);
+    const binding = expression.scope.getBinding(expression.node.name);
+    if (!binding) return expression.node.name === name;
+    return (
+      name === 'Object' &&
+      binding.path.isVariableDeclarator() &&
+      matches(binding.path.get('init'), seen)
+    );
+  };
+  const target = expression => {
+    if (expression?.isArrayPattern()) {
+      expression.get('elements').forEach(target);
+      return;
+    }
+    if (expression?.isObjectPattern()) {
+      expression
+        .get('properties')
+        .forEach(property =>
+          target(
+            property.isRestElement()
+              ? property.get('argument')
+              : property.get('value'),
+          ),
+        );
+      return;
+    }
+    if (expression?.isAssignmentPattern()) {
+      target(expression.get('left'));
+      return;
+    }
+    if (expression?.isRestElement()) {
+      target(expression.get('argument'));
+      return;
+    }
+    if (matches(expression)) valid = false;
+  };
+  item.scope.getProgramParent().path.traverse({
+    AssignmentExpression(expression) {
+      target(expression.get('left'));
+    },
+    UpdateExpression(expression) {
+      target(expression.get('argument'));
+    },
+    UnaryExpression(expression) {
+      if (expression.node.operator === 'delete')
+        target(expression.get('argument'));
+    },
+    ForInStatement(expression) {
+      if (!expression.get('left').isVariableDeclaration())
+        target(expression.get('left'));
+    },
+    ForOfStatement(expression) {
+      if (!expression.get('left').isVariableDeclaration())
+        target(expression.get('left'));
+    },
+    ReferencedIdentifier(reference) {
+      if (name !== 'Object' || !matches(reference)) return;
+      let value = reference;
+      let parent = value.parentPath;
+      while (
+        parent.isMemberExpression() &&
+        !parent.node.computed &&
+        parent.get('object').node === value.node
+      ) {
+        value = parent;
+        parent = value.parentPath;
+      }
+      const directCall =
+        (parent.isCallExpression() || parent.isNewExpression()) &&
+        parent.get('callee').node === value.node;
+      const alias =
+        parent.isVariableDeclarator() &&
+        parent.get('init').node === value.node &&
+        parent.get('id').isIdentifier();
+      if (!directCall && !alias) valid = false;
+    },
+  });
+  return valid;
+}
+
+function compilerInteropUnchanged(object) {
+  if (!object?.isIdentifier()) return false;
+  const binding = object.scope.getBinding(object.node.name);
   if (
-    typeof aliases['@modern-js/utils'] !== 'string' ||
-    typeof aliases['@modern-js/renderer-core'] !== 'string'
+    !binding?.constant ||
+    !binding.path.isVariableDeclarator() ||
+    !binding.path.get('init').isObjectExpression() ||
+    binding.path.get('init.properties').length !== 0
   )
     return false;
+  const definitions = new Map();
+  for (const reference of binding.referencePaths) {
+    const member = reference.parentPath;
+    if (
+      !member.isMemberExpression() ||
+      member.node.computed ||
+      member.get('object').node !== reference.node
+    )
+      return false;
+    const name = member.node.property.name;
+    const use = member.parentPath;
+    if (
+      use.isAssignmentExpression({ operator: '=' }) &&
+      use.get('left').node === member.node &&
+      use.get('right').isFunction()
+    ) {
+      const items = definitions.get(name) ?? [];
+      items.push(use.get('right'));
+      definitions.set(name, items);
+    } else if (
+      !use.isCallExpression() ||
+      use.get('callee').node !== member.node
+    )
+      return false;
+  }
+  const getter = definitions.get('n');
+  if (getter?.length !== 1) return false;
+  const shapes = supportedInteropShapes();
+  const shape = astFunctionShape(getter[0], binding);
+  if (shape === shapes.get('simple')) return true;
+  return (
+    shape === shapes.get('compiler') &&
+    globalPrimitiveUnchanged(object, 'Object') &&
+    ['d', 'o'].every(
+      (name, index) =>
+        definitions.get(name)?.length === 1 &&
+        astFunctionShape(definitions.get(name)[0], binding) ===
+          shapes.get(index === 0 ? 'define' : 'owns'),
+    )
+  );
+}
+
+function nodeBuiltinUnchanged(item, module, syntax) {
+  const program = item.scope.getProgramParent().path;
+  const bindings = new Set();
+  const kind = (declaration, seen = new Set()) => {
+    if (!declaration?.node || seen.has(declaration.node)) return;
+    seen.add(declaration.node);
+    if (declaration.isImportSpecifier()) return 'function';
+    if (
+      declaration.isImportDefaultSpecifier() ||
+      declaration.isImportNamespaceSpecifier()
+    )
+      return 'object';
+    if (!declaration.isVariableDeclarator()) return;
+    const init = declaration.get('init');
+    if (init.isIdentifier())
+      return kind(init.scope.getBinding(init.node.name)?.path, seen);
+    if (init.isMemberExpression()) return 'function';
+    if (init.isCallExpression())
+      return syntax.property(syntax.unwrap(init.get('callee')), 'n')
+        ? 'getter'
+        : 'object';
+  };
+  let valid = true;
+  const use = (value, role) => {
+    let parent = value.parentPath;
+    if (role === 'getter') {
+      if (
+        !parent.isCallExpression() ||
+        parent.get('callee').node !== value.node ||
+        parent.get('arguments').length !== 0
+      )
+        return false;
+      value = parent;
+      parent = value.parentPath;
+      role = 'object';
+    }
+    if (role === 'function')
+      return (
+        parent.isCallExpression() && parent.get('callee').node === value.node
+      );
+    if (
+      parent.isVariableDeclarator() &&
+      parent.get('init').node === value.node &&
+      parent.get('id').isIdentifier()
+    )
+      return true;
+    if (
+      parent.isCallExpression() &&
+      parent.get('arguments').some(argument => argument.node === value.node)
+    ) {
+      const callee = syntax.unwrap(parent.get('callee'));
+      return (
+        syntax.property(callee, 'n') &&
+        compilerInteropUnchanged(callee.get('object')) &&
+        parent.get('arguments').length === 1
+      );
+    }
+    if (
+      !parent.isMemberExpression() ||
+      parent.node.computed ||
+      parent.get('object').node !== value.node
+    )
+      return false;
+    const member = parent;
+    parent = member.parentPath;
+    if (
+      parent.isSequenceExpression() &&
+      parent.get('expressions').length === 2 &&
+      parent.get('expressions')[0].isNumericLiteral({ value: 0 }) &&
+      parent.get('expressions')[1].node === member.node
+    )
+      parent = parent.parentPath;
+    if (
+      parent.isCallExpression() &&
+      syntax.unwrap(parent.get('callee')).node === member.node
+    )
+      return true;
+    return (
+      member.node.property.name === 'sep' &&
+      !(
+        parent.isAssignmentExpression() &&
+        parent.get('left').node === member.node
+      ) &&
+      !parent.isUpdateExpression() &&
+      !parent.isUnaryExpression({ operator: 'delete' })
+    );
+  };
+  program.traverse({
+    BindingIdentifier(identifier) {
+      const binding = identifier.scope.getBinding(identifier.node.name);
+      if (!binding || bindings.has(binding)) return;
+      bindings.add(binding);
+      const declaration = binding.path;
+      const origin =
+        declaration.isImportSpecifier() ||
+        declaration.isImportDefaultSpecifier() ||
+        declaration.isImportNamespaceSpecifier()
+          ? declaration.parentPath.node.source.value
+          : declaration.isVariableDeclarator()
+            ? syntax.origin(declaration.get('init'))
+            : undefined;
+      if (
+        origin === module &&
+        (!binding.constant ||
+          binding.referencePaths.some(
+            reference => !use(reference, kind(declaration)),
+          ))
+      )
+        valid = false;
+    },
+    CallExpression(call) {
+      if (
+        syntax.origin(call) === module &&
+        !call.parentPath.isVariableDeclarator() &&
+        !use(call, 'object')
+      )
+        valid = false;
+    },
+  });
+  return valid;
+}
+
+function nodeModuleAst({ strict = false } = {}) {
+  const plain = strict ? nodeModuleAst() : undefined;
+  const checked = new Map();
   const unwrap = item => {
     if (item?.isSequenceExpression()) {
       const expressions = item.get('expressions');
@@ -204,7 +624,7 @@ function nativeServerLoaderImport(importPath, aliases) {
       item.node.property.name === name
     );
   };
-  const origin = (item, seen = new Set()) => {
+  const rawOrigin = (item, seen = new Set()) => {
     item = unwrap(item);
     if (!item?.node || seen.has(item.node)) return undefined;
     seen.add(item.node);
@@ -227,7 +647,7 @@ function nativeServerLoaderImport(importPath, aliases) {
       const callee = unwrap(item.get('callee'));
       const args = item.get('arguments');
       if (
-        callee.isIdentifier({ name: 'require' }) &&
+        callee?.isIdentifier({ name: 'require' }) &&
         !callee.scope.getBinding('require') &&
         args.length === 1 &&
         args[0].isStringLiteral()
@@ -246,6 +666,8 @@ function nativeServerLoaderImport(importPath, aliases) {
         callee.scope
           .getBinding('__webpack_require__')
           .path.get('init.properties').length === 0;
+      if (interop && strict && !compilerInteropUnchanged(callee.get('object')))
+        return undefined;
       if (interop && args.length === 1) return origin(args[0], seen);
       if (args.length === 0 && callee?.isIdentifier()) {
         const declaration = callee.scope.getBinding(callee.node.name)?.path;
@@ -258,6 +680,16 @@ function nativeServerLoaderImport(importPath, aliases) {
       }
     }
     return undefined;
+  };
+  const origin = (item, seen = new Set()) => {
+    const module = rawOrigin(item, seen);
+    if (!strict || !module?.startsWith('node:')) return module;
+    const program = item.scope.getProgramParent().path.node;
+    const byModule = checked.get(program) ?? new Map();
+    checked.set(program, byModule);
+    if (!byModule.has(module))
+      byModule.set(module, nodeBuiltinUnchanged(item, module, plain));
+    return byModule.get(module) ? module : undefined;
   };
   const method = (item, name, module) =>
     property(item, name) && origin(item.get('object')) === module;
@@ -276,6 +708,263 @@ function nativeServerLoaderImport(importPath, aliases) {
     b?.isIdentifier() &&
     a.scope.getBinding(a.node.name) === b.scope.getBinding(b.node.name) &&
     Boolean(a.scope.getBinding(a.node.name));
+  return { unwrap, property, origin, method, namedFunction, sameBinding };
+}
+
+export function compilerActivationAstAuthority() {
+  return {
+    syntax: nodeModuleAst({ strict: true }),
+    primitiveUnchanged: globalPrimitiveUnchanged,
+  };
+}
+
+// Interpret only Node file anchors and a complete, bounded package locator.
+// Package bytes and the actual filesystem guard observations are bound below.
+function createRequireAnchor(callPath) {
+  const { unwrap, method, namedFunction, sameBinding } = nodeModuleAst({
+    strict: true,
+  });
+  const callee = callPath.get('callee');
+  const binding = callee.scope.getBinding(callee.node.name);
+  const declaration = binding?.path;
+  if (!binding?.constant || !declaration?.isVariableDeclarator()) return;
+  const init = declaration.get('init');
+  if (
+    !init.isCallExpression() ||
+    !namedFunction(
+      unwrap(init.get('callee')),
+      'createRequire',
+      'node:module',
+    ) ||
+    init.get('arguments').length !== 1
+  )
+    return;
+  if (
+    binding.referencePaths.some(reference => !requireReferenceKind(reference))
+  )
+    return;
+  const global = (item, name) =>
+    item?.isIdentifier({ name }) &&
+    !item.scope.getBinding(name) &&
+    globalPrimitiveUnchanged(item, name);
+  const metaUrl = item =>
+    item?.isMemberExpression() &&
+    !item.node.computed &&
+    item.get('property').isIdentifier({ name: 'url' }) &&
+    item.get('object').isMetaProperty() &&
+    item.node.object.meta.name === 'import' &&
+    item.node.object.property.name === 'meta';
+  const variable = item => {
+    if (!item?.isIdentifier()) return;
+    const local = item.scope.getBinding(item.node.name);
+    return local?.constant && local.path.isVariableDeclarator()
+      ? local.path.get('init')
+      : undefined;
+  };
+  const currentDirectory = (item, seen = new Set()) => {
+    if (!item?.node || seen.has(item.node)) return false;
+    seen.add(item.node);
+    if (global(item, '__dirname')) return true;
+    const value = variable(item);
+    if (value) return currentDirectory(value, seen);
+    if (
+      !item.isCallExpression() ||
+      !namedFunction(unwrap(item.get('callee')), 'dirname', 'node:path') ||
+      item.get('arguments').length !== 1
+    )
+      return false;
+    const filename = item.get('arguments')[0];
+    return (
+      filename.isCallExpression() &&
+      namedFunction(
+        unwrap(filename.get('callee')),
+        'fileURLToPath',
+        'node:url',
+      ) &&
+      filename.get('arguments').length === 1 &&
+      metaUrl(filename.get('arguments')[0])
+    );
+  };
+  const join = item =>
+    item?.isCallExpression() &&
+    method(unwrap(item.get('callee')), 'join', 'node:path') &&
+    item.get('arguments').length === 2
+      ? item.get('arguments')
+      : undefined;
+  const literalPath = item =>
+    item?.isStringLiteral() &&
+    item.node.value &&
+    !path.posix.isAbsolute(item.node.value) &&
+    !item.node.value.includes('\\') &&
+    path.posix.normalize(item.node.value) === item.node.value &&
+    !item.node.value
+      .split('/')
+      .some(segment => segment === '.' || segment === '..')
+      ? item.node.value
+      : undefined;
+  const argument = init.get('arguments')[0];
+  if (metaUrl(argument) || global(argument, '__filename'))
+    return { kind: 'file' };
+  const anchor = join(argument);
+  const logicalFilename = anchor && literalPath(anchor[1]);
+  if (!anchor || !logicalFilename) return;
+  if (currentDirectory(anchor[0])) return { kind: 'file', logicalFilename };
+  const directoryCall = variable(anchor[0]);
+  if (
+    !directoryCall?.isCallExpression() ||
+    directoryCall.get('arguments').length !== 0 ||
+    !directoryCall.get('callee').isIdentifier()
+  )
+    return;
+  const locatorBinding = directoryCall.scope.getBinding(
+    directoryCall.node.callee.name,
+  );
+  const locator = locatorBinding?.path;
+  if (
+    !locatorBinding?.constant ||
+    !locator?.isFunctionDeclaration() ||
+    locator.node.async ||
+    locator.node.generator ||
+    locator.get('params').length !== 0
+  )
+    return;
+  const body = locator.get('body.body');
+  if (
+    body.length !== 2 ||
+    !body[0].isVariableDeclaration({ kind: 'let' }) ||
+    body[0].get('declarations').length !== 1 ||
+    !body[1].isWhileStatement() ||
+    !body[1].get('test').isBooleanLiteral({ value: true }) ||
+    !body[1].get('body').isBlockStatement()
+  )
+    return;
+  const cursor = body[0].get('declarations')[0];
+  if (!cursor.get('id').isIdentifier() || !currentDirectory(cursor.get('init')))
+    return;
+  const statements = body[1].get('body.body');
+  if (![5, 6].includes(statements.length)) return;
+  const localDeclaration = statement =>
+    statement?.isVariableDeclaration({ kind: 'const' }) &&
+    statement.get('declarations').length === 1 &&
+    statement.get('declarations')[0].get('id').isIdentifier()
+      ? statement.get('declarations')[0]
+      : undefined;
+  const compiler = localDeclaration(statements[statements.length - 5]);
+  const compilerPath = compiler && join(compiler.get('init'));
+  const relativeDirectory = compilerPath && literalPath(compilerPath[1]);
+  if (!relativeDirectory || !sameBinding(compilerPath[0], cursor.get('id')))
+    return;
+  const manifest =
+    statements.length === 6 ? localDeclaration(statements[0]) : undefined;
+  if (statements.length === 6 && !manifest) return;
+  const manifestPath = manifest && join(manifest.get('init'));
+  if (
+    manifest &&
+    (!manifestPath ||
+      !sameBinding(manifestPath[0], cursor.get('id')) ||
+      !manifestPath[1].isStringLiteral({ value: 'package.json' }))
+  )
+    return;
+  const guard = statements[statements.length - 4];
+  const single = item =>
+    item?.isBlockStatement() && item.get('body').length === 1
+      ? item.get('body')[0]
+      : item;
+  if (
+    !guard.isIfStatement() ||
+    guard.node.alternate ||
+    !guard.get('test').isLogicalExpression({ operator: '&&' }) ||
+    !single(guard.get('consequent')).isReturnStatement() ||
+    !sameBinding(
+      single(guard.get('consequent')).get('argument'),
+      compiler.get('id'),
+    )
+  )
+    return;
+  const exists = item =>
+    item?.isCallExpression() &&
+    method(unwrap(item.get('callee')), 'existsSync', 'node:fs') &&
+    item.get('arguments').length === 1
+      ? item.get('arguments')[0]
+      : undefined;
+  const packageGuard = exists(guard.get('test.left'));
+  const inlineManifest = packageGuard && join(packageGuard);
+  if (
+    !(manifest
+      ? sameBinding(packageGuard, manifest.get('id'))
+      : inlineManifest &&
+        sameBinding(inlineManifest[0], cursor.get('id')) &&
+        inlineManifest[1].isStringLiteral({ value: 'package.json' }))
+  )
+    return;
+  const sentinelPath = join(exists(guard.get('test.right')));
+  const sentinel = sentinelPath && literalPath(sentinelPath[1]);
+  if (!sentinel || !sameBinding(sentinelPath[0], compiler.get('id'))) return;
+  const parent = localDeclaration(statements[statements.length - 3]);
+  const parentInit = parent?.get('init');
+  if (
+    !parentInit?.isCallExpression() ||
+    !method(unwrap(parentInit.get('callee')), 'dirname', 'node:path') ||
+    parentInit.get('arguments').length !== 1 ||
+    !sameBinding(parentInit.get('arguments')[0], cursor.get('id'))
+  )
+    return;
+  const stop = statements[statements.length - 2];
+  if (
+    !stop.isIfStatement() ||
+    stop.node.alternate ||
+    !stop.get('test').isBinaryExpression({ operator: '===' }) ||
+    !sameBinding(stop.get('test.left'), parent.get('id')) ||
+    !sameBinding(stop.get('test.right'), cursor.get('id'))
+  )
+    return;
+  const thrown = single(stop.get('consequent'));
+  const error = thrown.isThrowStatement() ? thrown.get('argument') : undefined;
+  if (
+    !error?.isNewExpression() ||
+    !global(error.get('callee'), 'Error') ||
+    error.get('arguments').length !== 1 ||
+    !error.get('arguments')[0].isStringLiteral()
+  )
+    return;
+  const update = statements[statements.length - 1];
+  if (
+    !update.isExpressionStatement() ||
+    !update.get('expression').isAssignmentExpression({ operator: '=' }) ||
+    !sameBinding(update.get('expression.left'), cursor.get('id')) ||
+    !sameBinding(update.get('expression.right'), parent.get('id'))
+  )
+    return;
+  if (
+    [compiler, parent, manifest]
+      .filter(Boolean)
+      .some(item => !item.scope.getBinding(item.node.id.name)?.constant)
+  )
+    return;
+  const cursorBinding = cursor.scope.getBinding(cursor.node.id.name);
+  if (
+    cursorBinding.constantViolations.length !== 1 ||
+    cursorBinding.constantViolations[0].node !== update.get('expression').node
+  )
+    return;
+  return {
+    kind: 'package',
+    relativeDirectory,
+    sentinel,
+    logicalFilename,
+    locatorLine: locator.node.loc.start.line,
+  };
+}
+
+// Recognize one compiler-owned Node loader with its dominating path guards.
+// Ownership and bytes are authenticated separately against the release tarball.
+function nativeServerLoaderImport(importPath, aliases) {
+  if (
+    typeof aliases['@modern-js/utils'] !== 'string' ||
+    typeof aliases['@modern-js/renderer-core'] !== 'string'
+  )
+    return false;
+  const { property, method, namedFunction, sameBinding } = nodeModuleAst();
   const memberChain = (item, names) => {
     for (const name of [...names].reverse()) {
       if (!property(item, name)) return undefined;
@@ -469,8 +1158,9 @@ function nativeServerLoaderImport(importPath, aliases) {
     return false;
   const filesDeclaration =
     files.isIdentifier() && files.scope.getBinding(files.node.name)?.path;
-  const fileInit =
-    filesDeclaration?.isVariableDeclarator() && filesDeclaration.get('init');
+  const fileInit = filesDeclaration?.isVariableDeclarator()
+    ? filesDeclaration.get('init')
+    : undefined;
   if (
     !filesDeclaration?.scope.getBinding(files.node.name)?.constant ||
     !fileInit?.isConditionalExpression() ||
@@ -512,8 +1202,9 @@ function nativeServerLoaderImport(importPath, aliases) {
   )
     return false;
   const chunkDeclaration = chunk.scope.getBinding(chunk.node.name)?.path;
-  const chunkInit =
-    chunkDeclaration?.isVariableDeclarator() && chunkDeclaration.get('init');
+  const chunkInit = chunkDeclaration?.isVariableDeclarator()
+    ? chunkDeclaration.get('init')
+    : undefined;
   const isCall = item =>
     item?.isCallExpression() || item?.isOptionalCallExpression();
   if (
@@ -559,9 +1250,9 @@ function nativeServerLoaderImport(importPath, aliases) {
   )
     return false;
   const assertStatement = statements[index + 2];
-  const identityCall =
-    assertStatement?.isExpressionStatement() &&
-    assertStatement.get('expression');
+  const identityCall = assertStatement?.isExpressionStatement()
+    ? assertStatement.get('expression')
+    : undefined;
   if (
     !identityCall?.isCallExpression() ||
     !namedFunction(
@@ -724,14 +1415,17 @@ function assertNativeServerModuleExports(source, file, identity) {
       'id',
       'generator',
       'async',
-      'expression',
     ]);
     const normalize = node => {
       if (Array.isArray(node)) return node.map(normalize);
       if (!node || typeof node !== 'object') return node;
       if (node.type === 'BlockStatement' && node.body.length === 1)
         return normalize(node.body[0]);
-      const entries = Object.entries(node).filter(([key]) => !ignored.has(key));
+      const entries = Object.entries(node).filter(
+        ([key, value]) =>
+          !ignored.has(key) &&
+          !(key === 'expression' && typeof value === 'boolean'),
+      );
       if (['ArrowFunctionExpression', 'FunctionExpression'].includes(node.type))
         entries.push(
           ['async', Boolean(node.async)],
@@ -1459,6 +2153,7 @@ export function auditInstalledConsumer({
   releaseArtifacts,
   nativeCompilerManifests,
   rendererBuildManifestPath,
+  rendererBuildEvidence,
   rendererDevelopmentManifestPath,
 }) {
   assert(renderers.has(renderer), `Unknown renderer ${String(renderer)}`);
@@ -2396,6 +3091,150 @@ export function auditInstalledConsumer({
     pendingFiles.push(entry);
     return { ...installation, entry, exports: require(entry) };
   };
+  const activationFrames = {
+    source: ['src/native-composition/', '.ts'],
+    import: ['dist/esm-node/native-composition/', '.mjs'],
+    require: ['dist/cjs/native-composition/', '.js'],
+  };
+  const activationDispatcherFormat = relative =>
+    Object.entries(activationFrames).find(
+      ([, [prefix, suffix]]) =>
+        relative === `${prefix}renderer-compiler-activation${suffix}`,
+    )?.[0];
+  let compilerActivation;
+  const ownedCompilerActivations = [];
+  const verifiedCompilerDispatcherOrigins = new Set();
+  const bindCompilerActivation = () => {
+    if (compilerActivation) return compilerActivation;
+    assert(
+      typeof rendererBuildManifestPath === 'string' &&
+        !path.isAbsolute(rendererBuildManifestPath),
+      'Compiler activation requires the actual consumer-relative renderer build manifest',
+    );
+    for (const record of records.values())
+      if (producerPackages.has(record.manifest.name))
+        authenticateProducerPackage(record);
+    const validator = installedProducer('@modern-js/ultramodern-app-tools');
+    const artifact = producer.artifacts.find(
+      item => item.targetName === validator.record.manifest.name,
+    );
+    const files = new Map();
+    const read = relative => {
+      assert(
+        typeof relative === 'string' &&
+          path.posix.normalize(relative) === relative &&
+          !relative.startsWith('../') &&
+          !path.posix.isAbsolute(relative) &&
+          !relative.includes('\\'),
+        'Compiler activation file must be a canonical package-relative path',
+      );
+      const target = ordinaryConsumerFile(
+        path.join(validator.record.directory, relative),
+        'Compiler activation file',
+      );
+      const bytes = fs.readFileSync(target);
+      const hash = crypto.createHash('sha256').update(bytes).digest('hex');
+      const archived = artifact.files.find(item => item.path === relative);
+      assert(
+        archived?.sha256 === hash && archived.size === bytes.length,
+        'Compiler activation file differs from authenticated release bytes',
+      );
+      files.set(target, { path: path.relative(root, target), sha256: hash });
+      return bytes.toString('utf8');
+    };
+    const { syntax, primitiveUnchanged } = compilerActivationAstAuthority();
+    const catalogue = readCompilerActivationCatalogue({
+      read,
+      primitiveUnchanged,
+    });
+    const selected = catalogue.find(item => item.renderer === renderer);
+    assert(selected, 'Compiler activation has no selected finite registration');
+    const manifestFile = ordinaryConsumerFile(
+      path.resolve(root, rendererBuildManifestPath),
+      'Compiler activation build manifest',
+    );
+    assert(
+      path.basename(manifestFile) ===
+        validator.exports.RENDERER_BUILD_MANIFEST_FILE &&
+        typeof validator.exports.resolveRendererProfile === 'function' &&
+        typeof validator.exports.validateRendererBuildManifest === 'function',
+      'Compiler activation requires the actual public profile and build validator',
+    );
+    const manifestBytes = fs.readFileSync(manifestFile);
+    const manifestSha256 = crypto
+      .createHash('sha256')
+      .update(manifestBytes)
+      .digest('hex');
+    const profile = validator.exports.resolveRendererProfile(renderer);
+    const manifest = validator.exports.validateRendererBuildManifest(
+      JSON.parse(manifestBytes),
+      profile,
+    );
+    observedCompilerBuild({
+      bytes: manifestBytes,
+      path: path.relative(root, manifestFile),
+      evidence: rendererBuildEvidence,
+      validated: manifest,
+    });
+    assert(
+      manifest.profile.renderer === renderer &&
+        manifest.sourceRevision === producer.sourceRevision,
+      'Compiler activation build selection conflicts with its source release',
+    );
+    const compositions = new Map();
+    const dispatchers = new Map();
+    for (const [format, [prefix, suffix]] of Object.entries(activationFrames)) {
+      const composition = `${prefix}index${suffix}`;
+      const dispatcher = `${prefix}renderer-compiler-activation${suffix}`;
+      const registry = `${prefix}renderer-registration${suffix}`;
+      const source = read(composition);
+      assert(
+        compilerDispatcherCaller(source, composition, syntax),
+        'Compiler activation dispatcher has no verified selected native caller',
+      );
+      compositions.set(
+        path.join(validator.record.directory, composition),
+        source,
+      );
+      dispatchers.set(
+        path.join(validator.record.directory, dispatcher),
+        format,
+      );
+      read(dispatcher);
+      read(registry);
+    }
+    for (const record of catalogue)
+      for (const [format, [prefix, suffix]] of Object.entries(
+        activationFrames,
+      )) {
+        if (format === 'source') continue;
+        read(
+          `${prefix.replace(/native-composition\/$/u, '')}${record.registration.slice(4, -3)}${suffix}`,
+        );
+      }
+    compilerActivation = {
+      validator,
+      artifact,
+      files,
+      read,
+      catalogue,
+      selected,
+      compositions,
+      dispatchers,
+      manifest: {
+        path: path.relative(root, manifestFile),
+        sha256: manifestSha256,
+        sourceRevision: manifest.sourceRevision,
+        buildMarker: manifest.buildMarker,
+        inputDigest: manifest.inputDigest,
+        profileDigest: manifest.profileDigest,
+        compilerDigest: manifest.compilerDigest,
+        frameworkCohortDigest: manifest.frameworkCohortDigest,
+        profile,
+      },
+    };
+    return compilerActivation;
+  };
   const bindActiveServerBuild = () => {
     if (activeServerBuild) return activeServerBuild;
     assert(
@@ -2634,6 +3473,7 @@ export function auditInstalledConsumer({
   const scanned = new Map();
   const moduleFormatScopes = new Map();
   const declarationFallbacks = [];
+  const ownedRequireAnchors = [];
   const promoteSelectedFileOwner = file => {
     const containing = [...records.values()]
       .filter(record => within(record.directory, file))
@@ -2770,7 +3610,214 @@ export function auditInstalledConsumer({
     // Native syntax is certified by the owning compiler's exact source/asset
     // evidence; its emitted JavaScript is independently scanned above.
     if (file.endsWith('.tsrx') && nativeSourceModules.has(file)) continue;
-    for (const imported of moduleSpecifiers(source, file)) {
+    const imports = moduleSpecifiers(source, file);
+    const dispatcherFormat =
+      selectedOwner &&
+      activationDispatcherFormat(
+        path.relative(selectedOwner.directory, file).split(path.sep).join('/'),
+      );
+    if (
+      dispatcherFormat &&
+      imports.some(imported => imported.computed && imported.importPath)
+    )
+      assert(
+        !directedEntries.has(file) &&
+          verifiedCompilerDispatcherOrigins.has(file),
+        'Private compiler dispatcher has no verified incoming selected composition',
+      );
+    for (const imported of imports) {
+      let importDirectory = path.dirname(file);
+      let requireAnchor;
+      if (imported.computed && dispatcherFormat) {
+        assert(
+          !directedEntries.has(file) &&
+            verifiedCompilerDispatcherOrigins.has(file),
+          'Private compiler dispatcher has no verified incoming selected composition',
+        );
+        const authority = bindCompilerActivation();
+        const { syntax, primitiveUnchanged } = compilerActivationAstAuthority();
+        assert(
+          authority.dispatchers.get(file) === dispatcherFormat &&
+            compilerDispatcherImport(
+              imported.importPath,
+              syntax,
+              primitiveUnchanged,
+            ),
+          'Unverifiable selected compiler activation dispatcher',
+        );
+        const format =
+          dispatcherFormat === 'source' ? 'import' : dispatcherFormat;
+        const target =
+          authority.selected.kind === 'native'
+            ? path.join(
+                authority.validator.record.directory,
+                authority.selected.module[format],
+              )
+            : undefined;
+        if (target) pendingFiles.push(target);
+        ownedCompilerActivations.push({
+          source: path.relative(root, file),
+          sourceSha256: scanned.get(file),
+          artifactSha256: authority.artifact.sha256,
+          selectedRenderer: renderer,
+          selectedKind: authority.selected.kind,
+          format,
+          build: authority.manifest,
+          catalogue: authority.catalogue,
+          declarations: [...authority.files.values()],
+          target: target ? path.relative(root, target) : null,
+          targetSha256: target ? authority.files.get(target).sha256 : null,
+        });
+        continue;
+      }
+      if (imported.requirePath) {
+        const anchor = createRequireAnchor(imported.requirePath);
+        assert(
+          anchor,
+          `Unverifiable createRequire anchor in ${path.relative(root, file)}`,
+        );
+        let directory = path.dirname(file);
+        let sentinel;
+        let artifact;
+        if (anchor.kind === 'package') {
+          artifact = producer?.artifacts.find(
+            item => item.targetName === selectedOwner?.manifest.name,
+          );
+          assert(
+            artifact && selectedOwner,
+            'Package createRequire locator requires authenticated release ownership',
+          );
+          authenticateProducerPackage(selectedOwner);
+          const modulePath = path
+            .relative(selectedOwner.directory, file)
+            .split(path.sep)
+            .join('/');
+          const candidate = artifact.files.find(
+            item => item.path === modulePath,
+          );
+          assert(
+            candidate?.sha256 === scanned.get(file) &&
+              candidate.size === bytes.length,
+            'Package createRequire locator differs from authenticated module bytes',
+          );
+          let found = false;
+          while (within(selectedOwner.directory, directory)) {
+            const manifest = path.join(directory, 'package.json');
+            const privateDirectory = path.join(
+              directory,
+              anchor.relativeDirectory,
+            );
+            const marker = path.join(privateDirectory, anchor.sentinel);
+            if (fs.existsSync(manifest) && fs.existsSync(marker)) {
+              assert(
+                directory === selectedOwner.directory,
+                'Package createRequire locator selected a foreign package root',
+              );
+              ordinaryConsumerFile(
+                manifest,
+                'Package createRequire owner manifest',
+              );
+              ordinaryConsumerFile(marker, 'Package createRequire sentinel');
+              const sentinelPath = path
+                .relative(selectedOwner.directory, marker)
+                .split(path.sep)
+                .join('/');
+              const sentinelHash = crypto
+                .createHash('sha256')
+                .update(fs.readFileSync(marker))
+                .digest('hex');
+              assert(
+                artifact.files.find(item => item.path === sentinelPath)
+                  ?.sha256 === sentinelHash,
+                'Package createRequire sentinel differs from authenticated bytes',
+              );
+              sentinel = {
+                path: path.relative(root, marker),
+                sha256: sentinelHash,
+              };
+              directory = privateDirectory;
+              found = true;
+              break;
+            }
+            if (directory === selectedOwner.directory) break;
+            directory = path.dirname(directory);
+          }
+          assert(
+            found,
+            'Package createRequire locator has no authenticated owning root',
+          );
+        }
+        const logicalAnchor = anchor.logicalFilename
+          ? path.join(directory, anchor.logicalFilename)
+          : file;
+        importDirectory = path.dirname(logicalAnchor);
+        assert(
+          within(root, importDirectory),
+          'createRequire anchor escapes the clean consumer',
+        );
+        let current = root;
+        for (const segment of path
+          .relative(root, importDirectory)
+          .split(path.sep)) {
+          if (!segment) continue;
+          current = path.join(current, segment);
+          assert(
+            fs.lstatSync(current).isDirectory(),
+            'createRequire anchor requires ordinary physical directories',
+          );
+        }
+        assert(
+          fs.realpathSync(importDirectory) === importDirectory,
+          'createRequire anchor must use its canonical physical directory',
+        );
+        const packageScopes = [];
+        for (
+          let scope = importDirectory;
+          within(root, scope);
+          scope = path.dirname(scope)
+        ) {
+          const manifest = path.join(scope, 'package.json');
+          if (fs.existsSync(manifest)) {
+            ordinaryConsumerFile(manifest, 'createRequire package scope');
+            const scopeBytes = fs.readFileSync(manifest);
+            const scopeHash = crypto
+              .createHash('sha256')
+              .update(scopeBytes)
+              .digest('hex');
+            const known =
+              records.get(scope) ??
+              contexts.find(context => context.directory === scope);
+            assert(
+              !known || known.manifestSha256 === scopeHash,
+              'createRequire package scope changed from its initial manifest bytes',
+            );
+            packageScopes.push({
+              path: path.relative(root, manifest),
+              sha256: scopeHash,
+              type: JSON.parse(scopeBytes).type ?? null,
+            });
+          }
+          if (scope === (selectedOwner?.directory ?? root)) break;
+        }
+        requireAnchor = {
+          source: path.relative(root, file),
+          sourceSha256: scanned.get(file),
+          line: imported.line,
+          kind: anchor.kind,
+          logicalAnchor: path.relative(root, logicalAnchor),
+          packageScopes,
+          ...(artifact
+            ? {
+                sourceName: artifact.sourceName,
+                targetName: artifact.targetName,
+                artifactSha256: artifact.sha256,
+                locatorLine: anchor.locatorLine,
+                ownerManifestSha256: selectedOwner.manifestSha256,
+                sentinel,
+              }
+            : {}),
+        };
+      }
       if (imported.computed) {
         const artifact = producer?.artifacts.find(
           item => item.sourceName === '@modern-js/ultramodern-app-tools',
@@ -2871,11 +3918,28 @@ export function auditInstalledConsumer({
       if (specifier.startsWith('.') || imported.reference === 'path')
         target =
           imported.typeOnly || /\.d\.[cm]?ts$/u.test(file)
-            ? resolveTypeFile(path.resolve(path.dirname(file), specifier))
-            : resolveFile(path.resolve(path.dirname(file), specifier));
+            ? resolveTypeFile(path.resolve(importDirectory, specifier))
+            : resolveFile(
+                path.resolve(importDirectory, specifier),
+                requireAnchor
+                  ? {
+                      beforeRealpath: selected => {
+                        if (requireAnchor.kind === 'package')
+                          assert(
+                            within(selectedOwner.directory, selected),
+                            'Package createRequire target escapes its owning package',
+                          );
+                        ordinaryConsumerFile(
+                          selected,
+                          'Package createRequire target',
+                        );
+                      },
+                    }
+                  : undefined,
+              );
       else {
         let installedName = octaneTypeOwner ? '@types/react' : name;
-        let record = installedPackage(installedName, path.dirname(file), root);
+        let record = installedPackage(installedName, importDirectory, root);
         let declarationFallbackOwner;
         if (
           !record &&
@@ -2886,7 +3950,7 @@ export function auditInstalledConsumer({
         ) {
           installedName = `@types/${name.replace(/^@/u, '').replace('/', '__')}`;
           if (imported.reference === 'types')
-            record = installedPackage(installedName, path.dirname(file), root);
+            record = installedPackage(installedName, importDirectory, root);
           else {
             declarationFallbackOwner =
               selectedOwner ??
@@ -2913,7 +3977,7 @@ export function auditInstalledConsumer({
             );
             const sourceProvider = installedPackage(
               installedName,
-              path.dirname(file),
+              importDirectory,
               root,
             );
             assert(
@@ -3095,17 +4159,133 @@ export function auditInstalledConsumer({
         );
         target = resolveFile(path.resolve(record.directory, selected), {
           exact: record.manifest.exports !== undefined,
+          ...(requireAnchor
+            ? {
+                beforeRealpath: selected =>
+                  ordinaryConsumerFile(selected, 'createRequire target'),
+              }
+            : {}),
         });
       }
       assert(
         target,
         `Unresolved entry import ${specifier} in ${path.relative(root, file)}`,
       );
+      if (
+        /^renderer-compiler-activation\.(?:ts|mjs|js)$/u.test(
+          path.basename(target),
+        )
+      ) {
+        const targetOwner = promoteSelectedFileOwner(target);
+        const sdk = producer?.artifacts.find(
+          item => item.sourceName === '@modern-js/ultramodern-app-tools',
+        );
+        if (
+          targetOwner?.manifest.name === sdk?.targetName &&
+          activationDispatcherFormat(
+            path
+              .relative(targetOwner.directory, target)
+              .split(path.sep)
+              .join('/'),
+          )
+        ) {
+          const authority = bindCompilerActivation();
+          assert(
+            authority.dispatchers.has(target) &&
+              authority.compositions.has(file) &&
+              compilerDispatcherCaller(
+                source,
+                file,
+                nodeModuleAst({ strict: true }),
+              ),
+            'Private compiler dispatcher cannot be imported or escaped outside selected native composition',
+          );
+          verifiedCompilerDispatcherOrigins.add(target);
+        }
+      }
       authenticateTypeEdge(file, target, imported);
+      if (requireAnchor) {
+        if (requireAnchor.kind === 'package' && specifier.startsWith('.')) {
+          const artifact = producer.artifacts.find(
+            item => item.targetName === selectedOwner.manifest.name,
+          );
+          const selected = path
+            .relative(selectedOwner.directory, target)
+            .split(path.sep)
+            .join('/');
+          const targetHash = crypto
+            .createHash('sha256')
+            .update(fs.readFileSync(target))
+            .digest('hex');
+          assert(
+            artifact.files.find(item => item.path === selected)?.sha256 ===
+              targetHash,
+            'Package createRequire target differs from authenticated bytes',
+          );
+        }
+        ownedRequireAnchors.push({
+          ...requireAnchor,
+          specifier,
+          target: path.relative(root, target),
+          targetSha256: crypto
+            .createHash('sha256')
+            .update(fs.readFileSync(target))
+            .digest('hex'),
+        });
+      }
       pendingFiles.push(target);
     }
   }
   drain();
+  if (compilerActivation) {
+    for (const evidence of [
+      ...compilerActivation.files.values(),
+      compilerActivation.manifest,
+    ]) {
+      const current = ordinaryConsumerFile(
+        path.resolve(root, evidence.path),
+        'Compiler activation bound evidence',
+      );
+      assert(
+        crypto
+          .createHash('sha256')
+          .update(fs.readFileSync(current))
+          .digest('hex') === evidence.sha256,
+        'Compiler activation bound evidence changed during audit',
+      );
+    }
+    for (const activation of ownedCompilerActivations)
+      assert(
+        !activation.target ||
+          scanned.get(path.resolve(root, activation.target)) ===
+            activation.targetSha256,
+        'Selected compiler activation target was not completely audited',
+      );
+  }
+  for (const anchor of ownedRequireAnchors) {
+    for (const evidence of [
+      { path: anchor.source, sha256: anchor.sourceSha256 },
+      { path: anchor.target, sha256: anchor.targetSha256 },
+      ...anchor.packageScopes,
+      ...(anchor.sentinel ? [anchor.sentinel] : []),
+    ]) {
+      const file = ordinaryConsumerFile(
+        path.resolve(root, evidence.path),
+        'createRequire anchor evidence',
+      );
+      assert(
+        crypto
+          .createHash('sha256')
+          .update(fs.readFileSync(file))
+          .digest('hex') === evidence.sha256,
+        'createRequire anchor evidence changed during its static closure audit',
+      );
+    }
+    assert(
+      scanned.get(path.resolve(root, anchor.target)) === anchor.targetSha256,
+      'createRequire target changed or was omitted from its static closure audit',
+    );
+  }
   for (const fallback of declarationFallbacks) {
     for (const [filePath, expected] of [
       [fallback.source, fallback.sourceSha256],
@@ -3323,6 +4503,11 @@ export function auditInstalledConsumer({
         `${right.source}:${right.specifier}`,
       ),
     ),
+    ownedRequireAnchors: ownedRequireAnchors.sort((left, right) =>
+      `${left.source}:${left.line}`.localeCompare(
+        `${right.source}:${right.line}`,
+      ),
+    ),
     closure: closure.filter(record =>
       reachability.get(path.resolve(root, record.path))?.has('native'),
     ),
@@ -3356,6 +4541,7 @@ export function auditInstalledConsumer({
       (left, right) => left.name.localeCompare(right.name),
     ),
     missingOptional,
+    ownedCompilerActivations,
     permittedTypeDependencies: [...permittedTypeDependencies.values()].sort(
       (left, right) => left.path.localeCompare(right.path),
     ),

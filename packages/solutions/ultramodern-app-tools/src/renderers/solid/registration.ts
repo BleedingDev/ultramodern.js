@@ -7,19 +7,28 @@ import { createSolidNativeEntryGenerator } from './entry';
 import { solidCandidateProfile } from './profile';
 import { emitSolidNativeRouteModule } from './routes';
 
-export const solidNativeRendererAdapter: NativeRendererAdapter = {
+export const solidNativeRendererAdapter = Object.freeze<NativeRendererAdapter>({
   renderer: 'solid',
   infrastructurePluginName: '@modern-js/renderer-solid-infrastructure',
   profile: solidCandidateProfile,
   compilerArtifacts: solidCompilerArtifacts,
+  compiler: Object.freeze({
+    schema: 'ultramodern-native-compiler-activation',
+    version: 1,
+    renderer: 'solid',
+    operation: 'compiler',
+    module: Object.freeze({
+      source: './src/renderers/solid/compiler/index.ts',
+      import: './dist/esm-node/renderers/solid/compiler/index.mjs',
+      require: './dist/cjs/renderers/solid/compiler/index.js',
+    }),
+    export: 'pluginSolidRenderer',
+  }),
   createEntryGenerator: createSolidNativeEntryGenerator,
   emitRouteModule: emitSolidNativeRouteModule,
-  async createCompiler(options) {
-    return (await import('./compiler')).pluginSolidRenderer(options);
-  },
-};
+});
 
-export const solidRendererRegistration = {
+export const solidRendererRegistration = Object.freeze({
   renderer: 'solid',
   kind: 'native',
   candidateProfile: solidCandidateProfile,
@@ -37,4 +46,4 @@ export const solidRendererRegistration = {
     cssDeclarations: false,
   },
   nativeAdapter: solidNativeRendererAdapter,
-} as const satisfies RendererRegistration;
+} as const satisfies RendererRegistration);

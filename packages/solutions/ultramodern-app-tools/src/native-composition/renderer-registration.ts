@@ -1,7 +1,6 @@
 import type { AppTools, CliPlugin } from '@modern-js/app-tools/cli-config';
 import type { RouterFramework } from '@modern-js/backend-federation-contracts';
 import type { Renderer, RendererIdentity } from '@modern-js/renderer-core';
-import type { RsbuildPlugin } from '@rsbuild/core';
 import { octaneRendererRegistration } from '../renderers/octane/registration';
 import { reactRendererRegistration } from '../renderers/react/registration';
 import { solidRendererRegistration } from '../renderers/solid/registration';
@@ -18,17 +17,33 @@ export interface RendererIntegrationCapabilities {
   readonly cssDeclarations: boolean;
 }
 
+export interface NativeRendererCompilerOptions {
+  rendererIdentities(): Readonly<Record<string, RendererIdentity>>;
+}
+
+/** Source is provenance; activation loads the owning emitted Node compiler. */
+export interface NativeRendererCompilerActivation {
+  readonly schema: 'ultramodern-native-compiler-activation';
+  readonly version: 1;
+  readonly renderer: Renderer;
+  readonly operation: 'compiler';
+  readonly module: {
+    readonly source: string;
+    readonly import: string;
+    readonly require: string;
+  };
+  readonly export: string;
+}
+
 export interface NativeRendererAdapter {
   readonly renderer: Renderer;
   readonly infrastructurePluginName: string;
   readonly profile: RendererBuildProfile;
   readonly compilerArtifacts: NativeCompilerArtifacts;
+  readonly compiler: NativeRendererCompilerActivation;
   assertSupportedSource?(source: string | false | undefined): Promise<void>;
   createEntryGenerator(): NativeEntryGenerator;
   emitRouteModule(options: NativeRouteEmissionOptions): string;
-  createCompiler(options: {
-    rendererIdentities(): Readonly<Record<string, RendererIdentity>>;
-  }): Promise<RsbuildPlugin>;
 }
 
 interface RendererRegistrationMetadata {

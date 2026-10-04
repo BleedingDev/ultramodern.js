@@ -163,6 +163,10 @@ function assertHeadlessIdentity(
   ]) {
     assert.equal(fs.existsSync(path.join(directory, relativePath)), false);
   }
+  assert.doesNotMatch(
+    fs.readFileSync(path.join(directory, 'modern.config.ts'), 'utf8'),
+    /@modern-js\/plugin-(?:i18n|tanstack)|\bi18nPlugin\b|\btanstackRouterPlugin\b/u,
+  );
 }
 
 test('adding an API-only unit without overlays rejects inherited renderer dependencies and preserves the live workspace', async () => {

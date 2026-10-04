@@ -289,61 +289,60 @@ if (!existsSync(process.argv[2])) {
   }
 });
 
-test('generated MicroVertical validation rejects missing API and identity drift', async () => {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-self-check-'));
-
-  const scenarios = [
-    {
-      workspaceName: 'vertical-file-missing',
-      mutate: (workspaceDir: string) => {
-        fs.rmSync(path.join(workspaceDir, 'verticals/catalog/shared/api.ts'));
-      },
-      expectedContract:
-        /catalog shared API contract \.\/shared\/api\.ts is missing/,
+const validationDriftScenarios = [
+  {
+    workspaceName: 'vertical-file-missing',
+    mutate: (workspaceDir: string) => {
+      fs.rmSync(path.join(workspaceDir, 'verticals/catalog/shared/api.ts'));
     },
-    {
-      workspaceName: 'delivery-unit-drift',
-      mutate: (workspaceDir: string) => {
-        const topology = readJson(
+    expectedContract:
+      /catalog shared API contract \.\/shared\/api\.ts is missing/,
+  },
+  {
+    workspaceName: 'delivery-unit-drift',
+    mutate: (workspaceDir: string) => {
+      const topology = readJson(
+        workspaceDir,
+        'topology/reference-topology.json',
+      );
+      appById(topology.verticals, 'catalog').deliveryUnit.buildMarker =
+        'deadbeefdeadbeef';
+      writeJson(workspaceDir, 'topology/reference-topology.json', topology);
+    },
+    expectedContract:
+      /catalog renderer identity disagrees with its delivery build/,
+  },
+  {
+    workspaceName: 'missing-build-stamp',
+    mutate: (workspaceDir: string) => {
+      fs.rmSync(
+        path.join(
           workspaceDir,
-          'topology/reference-topology.json',
-        );
-        appById(topology.verticals, 'catalog').deliveryUnit.buildMarker =
-          'deadbeefdeadbeef';
-        writeJson(workspaceDir, 'topology/reference-topology.json', topology);
-      },
-      expectedContract:
-        /catalog renderer identity disagrees with its delivery build/,
+          'verticals/catalog/shared/ultramodern-build.json',
+        ),
+      );
     },
-    {
-      workspaceName: 'missing-build-stamp',
-      mutate: (workspaceDir: string) => {
-        fs.rmSync(
-          path.join(
-            workspaceDir,
-            'verticals/catalog/shared/ultramodern-build.json',
-          ),
-        );
-      },
-      expectedContract: /catalog build stamp is missing/,
+    expectedContract: /catalog build stamp is missing/,
+  },
+  {
+    workspaceName: 'missing-backend-config',
+    mutate: (workspaceDir: string) => {
+      fs.rmSync(
+        path.join(
+          workspaceDir,
+          'verticals/catalog/backend-federation.config.ts',
+        ),
+      );
     },
-    {
-      workspaceName: 'missing-backend-config',
-      mutate: (workspaceDir: string) => {
-        fs.rmSync(
-          path.join(
-            workspaceDir,
-            'verticals/catalog/backend-federation.config.ts',
-          ),
-        );
-      },
-      expectedContract:
-        /catalog API surface is missing: verticals\/catalog\/backend-federation\.config\.ts/,
-    },
-  ] as const;
+    expectedContract:
+      /catalog API surface is missing: verticals\/catalog\/backend-federation\.config\.ts/,
+  },
+] as const;
 
-  try {
-    for (const scenario of scenarios) {
+for (const scenario of validationDriftScenarios) {
+  test(`generated MicroVertical validation rejects missing API and identity drift for ${scenario.workspaceName}`, async () => {
+    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-self-check-'));
+    try {
       const workspaceDir = path.join(tempRoot, scenario.workspaceName);
       await generateUltramodernWorkspace({
         targetDir: workspaceDir,
@@ -366,11 +365,11 @@ test('generated MicroVertical validation rejects missing API and identity drift'
       const output = commandOutput(failingResult);
       assert.notEqual(failingResult.status, 0, output);
       assert.match(output, scenario.expectedContract);
+    } finally {
+      fs.rmSync(tempRoot, { recursive: true, force: true });
     }
-  } finally {
-    fs.rmSync(tempRoot, { recursive: true, force: true });
-  }
-});
+  });
+}
 
 test('generated validator accepts authored remote development URLs', async () => {
   const tempRoot = fs.mkdtempSync(

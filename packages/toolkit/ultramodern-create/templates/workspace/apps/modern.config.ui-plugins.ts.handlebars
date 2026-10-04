@@ -1,0 +1,28 @@
+        tanstackRouterPlugin(),
+        i18nPlugin({
+          backend: {
+            enabled: true,
+            loadPath: '/locales/{{lng}}/{{ns}}.json',
+          },
+          localeDetection: {
+            fallbackLanguage: 'en',
+            ignoreRedirectRoutes: [
+              '/@mf-types',
+              '/assets',
+              '/bundles',
+              '{{value14}}',
+              '/locales',
+              '/mf-manifest.json',
+              '/mf-stats.json',
+              '/remoteEntry.js',
+              '/robots.txt',
+              '/site.webmanifest',
+              '/sitemap.xml',
+              '/static',
+              '/zephyr-manifest.json',
+            ],
+            languages: ['en', 'cs'],
+            localePathRedirect: true,
+{{value24}}          },
+          reactI18next: false,
+        }),
