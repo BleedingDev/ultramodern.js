@@ -3561,6 +3561,96 @@ test('CJS file anchors use genuine ambient filenames and reject their reassignme
   }
 });
 
+test('authenticated framework cohort aliases bind present optional peers to physical package identity and bytes', t => {
+  const fixture = anchoredConsumerFixture(t);
+  const sourceName = '@modern-js/renderer-solid';
+  const alias = `npm:${rendererPackage}@${version}`;
+  const manifestFile = path.join(fixture.root, 'package.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestFile));
+  manifest.dependencies['ordinary-peer-owner'] = '1.0.0';
+  writeJson(manifestFile, manifest);
+  installFixture(fixture.root, 'ordinary-peer-owner', {
+    version: '1.0.0',
+    peerDependencies: { [sourceName]: version },
+    peerDependenciesMeta: { [sourceName]: { optional: true } },
+  });
+  const workspaceFile = path.join(fixture.root, 'pnpm-workspace.yaml');
+  const workspace = `overrides:\n  '${sourceName}': '${alias}'\n`;
+  write(workspaceFile, workspace);
+  const report = auditInstalledConsumer(fixture.options);
+  const edge = report.edges.find(
+    item => item.from === 'ordinary-peer-owner' && item.name === sourceName,
+  );
+  assert.equal(edge.block, 'peerDependencies');
+  assert.equal(edge.declaredSpecifier, version);
+  assert.equal(edge.resolvedSpecifier, alias);
+  assert.equal(edge.installedName, rendererPackage);
+  assert.equal(edge.version, version);
+  assert.deepEqual(edge.workspaceAliasBinding, {
+    name: sourceName,
+    specifier: alias,
+    targetName: rendererPackage,
+    version,
+    declarations: [
+      {
+        owner: rendererPackage,
+        ownerVersion: version,
+        artifactSha256: fixture.artifact.sha256,
+        block: 'release-package-identity',
+      },
+    ],
+    workspaceFile: 'pnpm-workspace.yaml',
+    workspaceSha256: fileSha256(workspaceFile),
+  });
+  assert.equal(
+    report.producerArtifactBindings[0].artifactSha256,
+    fixture.artifact.sha256,
+  );
+  assert.equal(
+    report.producerArtifactBindings[0].frameworkCohortDigest,
+    fixture.options.releaseArtifacts.cohortDigest,
+  );
+  for (const invalid of [
+    `npm:@bleedingdev/modern-js-i18n-utils@${version}`,
+    `npm:${rendererPackage}@1.0.1`,
+  ]) {
+    write(workspaceFile, `overrides:\n  '${sourceName}': '${invalid}'\n`);
+    assert.throws(
+      () => auditInstalledConsumer(fixture.options),
+      /Workspace alias .* differs from its authenticated archive declaration/u,
+    );
+  }
+  write(workspaceFile, workspace);
+  assert.throws(
+    () =>
+      auditInstalledConsumer({
+        ...fixture.options,
+        releaseArtifacts: undefined,
+      }),
+    /no authenticated archive declaration/u,
+  );
+  const packedManifestFile = path.join(fixture.installed, 'package.json');
+  const packedManifestBytes = fs.readFileSync(packedManifestFile);
+  const packedManifest = JSON.parse(packedManifestBytes);
+  for (const change of [
+    { name: '@bleedingdev/modern-js-wrong-target' },
+    { version: '1.0.1' },
+  ]) {
+    writeJson(packedManifestFile, { ...packedManifest, ...change });
+    assert.throws(
+      () => auditInstalledConsumer(fixture.options),
+      /identity mismatch|version .* differs/u,
+    );
+  }
+  write(packedManifestFile, packedManifestBytes);
+  const target = path.join(fixture.installed, 'index.d.ts');
+  fs.appendFileSync(target, '\n');
+  assert.throws(
+    () => auditInstalledConsumer(fixture.options),
+    /differs from candidate artifact bytes/u,
+  );
+});
+
 test('ordinary require anchors retain the initial context manifest byte authority', t => {
   const { root, options } = consumerFixture(t);
   const manifestPath = path.join(root, 'package.json');

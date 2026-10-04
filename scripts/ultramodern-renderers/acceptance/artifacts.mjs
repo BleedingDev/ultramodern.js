@@ -2240,6 +2240,22 @@ export function auditInstalledConsumer({
   const producerArtifactBindings = [];
   const producerSidecarBindings = [];
   const authenticatedAliases = new Map();
+  for (const artifact of producer?.artifacts ?? []) {
+    authenticatedAliases.set(artifact.sourceName, {
+      name: artifact.sourceName,
+      specifier: `npm:${artifact.targetName}@${artifact.version}`,
+      targetName: artifact.targetName,
+      version: artifact.version,
+      declarations: [
+        {
+          owner: artifact.name,
+          ownerVersion: artifact.version,
+          artifactSha256: artifact.sha256,
+          block: 'release-package-identity',
+        },
+      ],
+    });
+  }
   for (const artifact of [
     ...(producer?.artifacts ?? []),
     ...(producer?.sidecars ?? []),
