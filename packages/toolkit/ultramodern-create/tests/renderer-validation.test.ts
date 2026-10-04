@@ -217,7 +217,7 @@ test('native renderer projections reject structurally valid cross-renderer route
         routerBindings,
         ['main'],
         'routerBindings',
-        renderer,
+        getRendererGenerationProfile(renderer).routerFrameworks,
       ).ok,
       false,
     );

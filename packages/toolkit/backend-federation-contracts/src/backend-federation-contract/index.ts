@@ -48,7 +48,6 @@ export type {
 export {
   assertRendererProfileCompatibility,
   RENDERER_PROTOCOL_VERSION,
-  RENDERERS,
   validateRendererIdentity,
   validateRendererProfile,
   validateRendererProfileCompatibility,

@@ -5,6 +5,7 @@ import type { GeneratedConfigProjection } from './config-generated-projections';
 import { appEmitsBrowserUi } from './descriptors';
 import { createPackageRoot } from './fs-io';
 import type { WorkspaceRendererEvaluation } from './renderer-identity';
+import { isApplicationRenderer } from './renderer-profile';
 import type { WorkspaceApp } from './types';
 
 /** Evaluate authored config once in its owning process, retaining only metadata. */
@@ -32,6 +33,11 @@ export async function captureWorkspaceRendererEvaluations(
       sourceRoots: [...(options.sourceRoots ?? [workspaceRoot])],
       extraInputs: [...(options.extraInputs ?? [])],
     });
+    if (!isApplicationRenderer(snapshot.renderer)) {
+      throw new Error(
+        `Application ${app.id} has no registered renderer from modern.config.`,
+      );
+    }
     evaluations.set(app.id, {
       renderer: snapshot.renderer,
       entries: snapshot.entries,

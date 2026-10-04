@@ -1,7 +1,9 @@
 import type {
   DeliveryUnitRecord,
   RendererRouterBindings,
+  RouterFramework,
 } from '@modern-js/backend-federation-contracts';
+import type { RegisteredRenderer } from '@modern-js/ultramodern-app-tools';
 import type {
   ResolvedUltramodernPackageSource,
   UltramodernPackageSourceStrategy,
@@ -20,7 +22,7 @@ export type JsonValue =
 export type JsonObject = { [key: string]: JsonValue };
 export type RouteJsonLd = JsonObject | JsonObject[];
 
-export type ApplicationRenderer = 'react' | 'solid' | 'octane';
+export type ApplicationRenderer = RegisteredRenderer;
 export type WorkspaceRenderer = ApplicationRenderer | 'none';
 
 /** The resolved application identity. Local copies are generated projections. */
@@ -61,6 +63,10 @@ export type RendererGenerationProfile = {
   sourceExtension: '.tsx' | '.tsrx';
   jsxImportSource: string;
   nodeVersion: string;
+  frameworkDependencies: readonly string[];
+  routerFrameworks: readonly RouterFramework[];
+  typecheckCommand?: string;
+  tsconfig?: JsonObject;
   dependencies: Record<string, string>;
   devDependencies: Record<string, string>;
   capabilities: RendererGenerationCapabilities;

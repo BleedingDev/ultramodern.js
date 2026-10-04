@@ -36,6 +36,13 @@ const octane: RouterPackageBinding = {
   coreName: '@tanstack/router-core',
   coreVersion: '1.171.34',
 };
+const replacement: RouterPackageBinding = {
+  framework: 'replacement',
+  name: '@fixture/replacement-router',
+  version: '1.0.0',
+  coreName: '@fixture/replacement-router-core',
+  coreVersion: '1.0.0',
+};
 
 const owned = (provider = reactRouter): RendererRouterBinding => ({
   owner: '@modern-js/plugin-router',
@@ -56,11 +63,11 @@ describe('per-entry renderer router bindings', () => {
     { renderer: 'react', provider: tanstack },
     { renderer: 'solid', provider: solid },
     { renderer: 'octane', provider: octane },
+    { renderer: 'replacement', provider: replacement },
   ] satisfies {
     renderer: RendererName;
     provider: RouterPackageBinding;
-  }[])('accepts $provider.framework providers for the known $renderer renderer', ({
-    renderer,
+  }[])('accepts $provider.framework providers admitted by the $renderer owner', ({
     provider,
   }) => {
     expect(
@@ -68,25 +75,34 @@ describe('per-entry renderer router bindings', () => {
         { main: owned(provider) },
         ['main'],
         'routerBindings',
-        renderer,
+        [provider.framework],
       ),
     ).toEqual({ ok: true, errors: [] });
   });
 
   it.each([
-    { renderer: 'react', provider: solid },
-    { renderer: 'react', provider: octane },
-    { renderer: 'solid', provider: reactRouter },
-    { renderer: 'solid', provider: tanstack },
-    { renderer: 'solid', provider: octane },
-    { renderer: 'octane', provider: reactRouter },
-    { renderer: 'octane', provider: tanstack },
-    { renderer: 'octane', provider: solid },
+    {
+      renderer: 'react',
+      frameworks: ['react-router', 'tanstack'],
+      provider: solid,
+    },
+    {
+      renderer: 'react',
+      frameworks: ['react-router', 'tanstack'],
+      provider: octane,
+    },
+    { renderer: 'solid', frameworks: ['solid'], provider: reactRouter },
+    { renderer: 'solid', frameworks: ['solid'], provider: tanstack },
+    { renderer: 'solid', frameworks: ['solid'], provider: octane },
+    { renderer: 'octane', frameworks: ['octane'], provider: reactRouter },
+    { renderer: 'octane', frameworks: ['octane'], provider: tanstack },
+    { renderer: 'octane', frameworks: ['octane'], provider: solid },
   ] satisfies {
     renderer: RendererName;
+    frameworks: readonly RouterPackageBinding['framework'][];
     provider: RouterPackageBinding;
-  }[])('rejects $provider.framework providers for the known $renderer renderer', ({
-    renderer,
+  }[])('rejects $provider.framework providers outside the $renderer owner admission list', ({
+    frameworks,
     provider,
   }) => {
     const bindings = { main: owned(provider) };
@@ -95,13 +111,13 @@ describe('per-entry renderer router bindings', () => {
       bindings,
       ['main'],
       'routerBindings',
-      renderer,
+      frameworks,
     );
     expect(result.ok).toBe(false);
     for (const providerPath of ['defaultProvider', 'providers[0]']) {
       expect(result.errors).toContainEqual({
         path: `routerBindings.main.${providerPath}.framework`,
-        message: `must be supported by the "${renderer}" renderer.`,
+        message: 'must be admitted by the selected router owner.',
       });
     }
   });
@@ -112,39 +128,91 @@ describe('per-entry renderer router bindings', () => {
         { main: registry(), files: owned(tanstack) },
         ['main', 'files'],
         'routerBindings',
-        'react',
+        ['react-router', 'tanstack'],
       ),
     ).toEqual({ ok: true, errors: [] });
   });
 
-  it('enforces renderer authority on nonprimary entries too', () => {
+  it.each([
+    'main',
+    'secondary',
+  ])('checks the %s entry owner admission even when package tuples match', entryName => {
+    const wrongFramework = { ...replacement, framework: 'replacment' };
     const result = validateRendererRouterBindings(
-      { main: owned(solid), secondary: owned(octane) },
+      {
+        main: owned(replacement),
+        secondary: owned(replacement),
+        [entryName]: owned(wrongFramework),
+      },
       ['main', 'secondary'],
       'routerBindings',
-      'solid',
+      ['replacement'],
     );
     expect(result.errors).toContainEqual({
-      path: 'routerBindings.secondary.defaultProvider.framework',
-      message: 'must be supported by the "solid" renderer.',
+      path: `routerBindings.${entryName}.defaultProvider.framework`,
+      message: 'must be admitted by the selected router owner.',
     });
     expect(
       result.errors.some(error =>
-        error.path.startsWith('routerBindings.main.'),
+        error.path.startsWith(
+          `routerBindings.${entryName === 'main' ? 'secondary' : 'main'}.`,
+        ),
       ),
     ).toBe(false);
   });
 
-  it('rejects foreign available providers in a React registry without changing its default', () => {
+  it('accepts canonical available providers without an owner admission list', () => {
     const result = validateRendererRouterBindings(
       { main: { ...registry(), providers: [reactRouter, tanstack, solid] } },
       ['main'],
       'routerBindings',
-      'react',
     );
-    expect(result.errors).toContainEqual({
-      path: 'routerBindings.main.providers[2].framework',
-      message: 'must be supported by the "react" renderer.',
+    expect(result).toEqual({ ok: true, errors: [] });
+  });
+
+  it('checks owner admission for available providers too', () => {
+    expect(
+      validateRendererRouterBindings(
+        {
+          main: {
+            ...owned(replacement),
+            evidence: 'provider-registry',
+            providers: [
+              replacement,
+              { ...replacement, framework: 'replacment' },
+            ],
+          },
+        },
+        ['main'],
+        'routerBindings',
+        ['replacement'],
+      ).errors,
+    ).toContainEqual({
+      path: 'routerBindings.main.providers[1].framework',
+      message: 'must be admitted by the selected router owner.',
+    });
+  });
+
+  it.each([
+    null,
+    {},
+    'replacement',
+    [],
+    ['replacement', 'replacement'],
+    ['Replacement'],
+    ['replacement', 'bad--framework'],
+  ])('rejects a malformed owner admission list %s', frameworks => {
+    expect(
+      Reflect.apply(validateRendererRouterBindings, undefined, [
+        { main: owned(replacement) },
+        ['main'],
+        'routerBindings',
+        frameworks,
+      ]).errors,
+    ).toContainEqual({
+      path: 'routerBindings',
+      message:
+        'selected router frameworks must be unique lowercase tokens in a non-empty array.',
     });
   });
 
@@ -471,16 +539,18 @@ describe('per-entry renderer router bindings', () => {
     });
   });
 
-  it('keeps the actual React Router default when TanStack is registered', () => {
+  it('accepts the explicitly selected TanStack default in a React provider registry', () => {
     expect(
       validateRendererRouterBindings(
-        { main: { ...registry(), defaultProvider: tanstack } },
-        ['main'],
-      ).errors,
-    ).toContainEqual({
-      path: 'routerBindings.main.defaultProvider.framework',
-      message: 'must be "react-router" for provider-registry evidence.',
-    });
+        {
+          main: { ...registry(), defaultProvider: tanstack },
+          secondary: owned(tanstack),
+        },
+        ['main', 'secondary'],
+        'routerBindings',
+        ['react-router', 'tanstack'],
+      ),
+    ).toEqual({ ok: true, errors: [] });
   });
 
   it.each([
@@ -574,8 +644,8 @@ describe('per-entry renderer router bindings', () => {
     ).toBe(false);
   });
 
-  it('rejects an unsupported framework and unknown package tuple fields', () => {
-    const provider = { ...reactRouter, framework: 'inferred', selected: true };
+  it('rejects a malformed framework and unknown package tuple fields', () => {
+    const provider = { ...reactRouter, framework: ' inferred', selected: true };
     const result = validateRendererRouterBindings(
       {
         main: {
@@ -590,6 +660,27 @@ describe('per-entry renderer router bindings', () => {
     expect(result.errors).toContainEqual({
       path: 'routerBindings.main.defaultProvider.selected',
       message: 'is not a supported field.',
+    });
+  });
+
+  it.each([
+    '',
+    'Replacement',
+    'replacement_router',
+    '-replacement',
+    'replacement-',
+    'replacement--router',
+    ' replacement',
+    'replacement ',
+  ])('rejects malformed framework token %s without an owner policy', framework => {
+    const provider = { ...replacement, framework };
+    expect(
+      validateRendererRouterBindings({ main: owned(provider) }, ['main'])
+        .errors,
+    ).toContainEqual({
+      path: 'routerBindings.main.defaultProvider.framework',
+      message:
+        'must be a lowercase router framework token separated by single hyphens.',
     });
   });
 

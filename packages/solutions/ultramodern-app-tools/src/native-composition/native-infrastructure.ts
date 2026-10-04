@@ -23,6 +23,7 @@ import {
 import { validateNativeClientAssetManifest } from '@modern-js/renderer-core/server';
 import type { Entrypoint } from '@modern-js/types/cli/base';
 import { getArgv, SERVER_BUNDLE_DIRECTORY } from '@modern-js/utils';
+import type { NativeCompilerArtifacts } from './compiler-artifacts';
 import type { ConfigSourceSnapshot } from './config-evaluator/source-snapshot';
 import { isEntryMetadataRead } from './config-read-context';
 import {
@@ -47,6 +48,7 @@ import {
   type RendererBuildProfile,
   resolveRendererProfile,
 } from './renderer-profile';
+import { resolveNativeRendererAdapter } from './renderer-registration';
 import { resolveSdkServerPlugin } from './server-plugin-resolution';
 
 export interface NativeEntryGeneration {
@@ -68,6 +70,12 @@ export interface NativeEntryGenerator {
 }
 
 export interface NativeInfrastructureOptions {
+  readonly infrastructurePluginName?: string;
+  readonly profile?: RendererBuildProfile;
+  readonly compilerArtifacts?: NativeCompilerArtifacts;
+  readonly assertSupportedSource?: (
+    source: string | false | undefined,
+  ) => Promise<void>;
   resolveBuildIdentities?(context: {
     entrypoints: readonly Entrypoint[];
     appDirectory: string;
@@ -116,7 +124,18 @@ export function nativeRendererInfrastructurePlugin(
   generator?: NativeEntryGenerator,
   options: NativeInfrastructureOptions = {},
 ): CliPlugin<WithBffRuntimeBuildIdentity<AppTools>> {
-  const profile = resolveRendererProfile(renderer);
+  const profile = options.profile ?? resolveRendererProfile(renderer);
+  const infrastructurePluginName =
+    options.infrastructurePluginName ??
+    resolveNativeRendererAdapter(renderer).infrastructurePluginName;
+  const compilerArtifacts =
+    options.compilerArtifacts ??
+    resolveNativeRendererAdapter(renderer).compilerArtifacts;
+  const assertSupportedSource =
+    options.assertSupportedSource ??
+    (options.profile && options.compilerArtifacts
+      ? undefined
+      : resolveNativeRendererAdapter(renderer).assertSupportedSource);
   const serverEntries = new Map<string, string>();
   let buildIdentities: RendererBuildIdentities | undefined;
   let completedBuildIdentities: RendererBuildIdentities | undefined;
@@ -127,7 +146,7 @@ export function nativeRendererInfrastructurePlugin(
       >[0]
     | undefined;
   return {
-    name: `@modern-js/renderer-${renderer}-infrastructure`,
+    name: infrastructurePluginName,
     post: ['@modern-js/plugin-analyze', '@modern-js/plugin-bff'],
     setup(api) {
       const { appDirectory, command } = api.getAppContext();
@@ -165,6 +184,7 @@ export function nativeRendererInfrastructurePlugin(
           development ??= new NativeDevelopment({
             renderer,
             profile,
+            compilerArtifacts,
             get distDirectory() {
               return api.getAppContext().distDirectory;
             },
@@ -195,7 +215,10 @@ export function nativeRendererInfrastructurePlugin(
           };
         });
       api.checkEntryPoint(async ({ path: directory, entry }) => {
-        if (entry) return { path: directory, entry };
+        if (entry) {
+          await assertSupportedSource?.(entry);
+          return { path: directory, entry };
+        }
         const app = await findSource(
           directory,
           'App',
@@ -221,6 +244,12 @@ export function nativeRendererInfrastructurePlugin(
           'index',
           profile.sourceExtensions,
         );
+        if (!custom && assertSupportedSource) {
+          for (const name of ['App', 'index'])
+            await assertSupportedSource(
+              await findSource(directory, name, ['.jsx']),
+            );
+        }
         return { path: directory, entry: custom ?? false };
       });
 
@@ -283,6 +312,8 @@ export function nativeRendererInfrastructurePlugin(
             'index.server',
             profile.sourceExtensions,
           );
+          await assertSupportedSource?.(entrypoint.entry);
+          await assertSupportedSource?.(entrypoint.customServerEntry);
           const basePaths = [
             ...new Set(
               (serverRoutes ?? [])
@@ -645,6 +676,7 @@ export default nativeRequestHandler;
             buildIdentities = await readRendererBuildManifest(
               distDirectory,
               profile,
+              { routerFrameworks: compilerArtifacts.routerFrameworks },
             );
           if (!buildIdentities && !apiOnly)
             throw new Error(
@@ -694,7 +726,7 @@ export default nativeRequestHandler;
                           Object.keys(buildIdentities!.identities).map(
                             entryName => [
                               entryName,
-                              `${renderer}-module-manifest.${encodeURIComponent(entryName)}.json`,
+                              compilerArtifacts.clientManifestFile(entryName),
                             ],
                           ),
                         ),
@@ -753,24 +785,16 @@ export default nativeRequestHandler;
               await fs.readFile(
                 path.join(
                   client.compilation.outputOptions.path!,
-                  `${renderer}-module-manifest.${encodeURIComponent(entryName)}.json`,
+                  compilerArtifacts.clientManifestFile(entryName),
                 ),
                 'utf8',
               ),
             );
-            if (renderer === 'solid') {
-              (
-                await import('@modern-js/renderer-solid/manifest')
-              ).validateSolidModuleManifest(nativeManifest, identity);
-            } else {
-              (
-                await import('@modern-js/renderer-octane/manifest')
-              ).validateOctaneModuleManifest(
-                nativeManifest,
-                identity,
-                clientCompilationHash,
-              );
-            }
+            await compilerArtifacts.validateClientManifest(
+              nativeManifest,
+              identity,
+              { compilationHash: clientCompilationHash },
+            );
             const chunk = server.compilation.entrypoints
               .get(entryName)
               ?.getEntrypointChunk();
@@ -822,6 +846,7 @@ export default nativeRequestHandler;
               profile,
             },
             profile,
+            { routerFrameworks: compilerArtifacts.routerFrameworks },
           );
           const output = path.join(
             api.getAppContext().distDirectory,

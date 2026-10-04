@@ -7,6 +7,10 @@ import type { Renderer } from '@modern-js/renderer-core';
 import type { Entrypoint } from '@modern-js/types/cli/base';
 import type { RendererProfileMetadata } from './renderer-installed-profile';
 import { resolveRendererProfile } from './renderer-profile';
+import {
+  resolveNativeRendererAdapter,
+  resolveRendererRegistration,
+} from './renderer-registration';
 
 /** Describe the actual owning entry hooks; runtime provider choice stays native. */
 export async function resolveEntrypointRouterBindings(
@@ -19,12 +23,13 @@ export async function resolveEntrypointRouterBindings(
     return (await import('./react-router-bindings')).resolveReactRouterBindings(
       { entrypoints, pluginNames },
     );
-  const owner = `@modern-js/renderer-${renderer}-infrastructure`;
+  const owner = resolveNativeRendererAdapter(renderer).infrastructurePluginName;
   if (!pluginNames.includes(owner))
     throw new Error(`The ${renderer} entry router owner is not registered`);
+  const registration = resolveRendererRegistration(renderer);
   const provider = {
     ...(metadata?.profile ?? resolveRendererProfile(renderer)).router,
-    framework: renderer,
+    framework: registration.routerFrameworks[0],
   };
   const bindings: RendererRouterBindings = Object.fromEntries(
     entrypoints.map(entry => [
@@ -41,7 +46,7 @@ export async function resolveEntrypointRouterBindings(
     bindings,
     entrypoints.map(entry => entry.entryName),
     'routerBindings',
-    renderer,
+    registration.routerFrameworks,
   );
   if (!validation.ok)
     throw new Error(

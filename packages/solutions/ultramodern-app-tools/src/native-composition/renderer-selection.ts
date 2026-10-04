@@ -2,6 +2,7 @@ import type { AppTools, CliPlugin } from '@modern-js/app-tools/cli-config';
 import { resolveDeployTarget } from '@modern-js/app-tools-extensions/deploy-output/target';
 import { type Renderer, resolveRenderer } from '@modern-js/renderer-core';
 import type { RsbuildPlugin, RsbuildPlugins } from '@rsbuild/core';
+import { resolveRendererRegistration } from './renderer-registration';
 import type { UltramodernAppUserConfig } from './types';
 
 export const ULTRAMODERN_BASE_PLUGIN = '@modern-js/ultramodern-app-tools';
@@ -26,7 +27,7 @@ export function attachRendererCompilerClaim<T extends RsbuildPlugin>(
 ): T {
   resolveRenderer(claim.renderer);
   if (
-    claim.renderer === ('react' as Renderer) ||
+    resolveRendererRegistration(claim.renderer).kind !== 'native' ||
     claim.transform !== 'native' ||
     claim.refresh !== 'native' ||
     claim.svg !== 'url' ||
@@ -56,7 +57,7 @@ export function assertRendererCompilerOwnership(
     const claim = (plugin as ClaimedPlugin)[compilerClaim];
     return claim ? [claim] : [];
   });
-  if (renderer === 'react') {
+  if (resolveRendererRegistration(renderer).kind !== 'native') {
     if (claims.length) {
       throw new Error('React configuration contains a native compiler owner');
     }
@@ -124,41 +125,49 @@ export function assertCapturedRenderer(
   config: UltramodernAppUserConfig,
   renderer: Renderer,
 ): void {
-  const actual = resolveRenderer(config.renderer);
+  const registration = resolveRendererRegistration(config.renderer);
+  const actual = registration.renderer;
   if (actual !== renderer) {
     throw new Error(
       `Renderer changed from ${renderer} to ${actual} after plugin selection. Update the source configuration and restart the dev server.`,
     );
   }
-  if (renderer !== 'react' && config.server?.rsc) {
+  const capabilities = registration.candidateProfile.capabilities;
+  const reject = (capability: string): never => {
     throw new Error(
-      `unsupported-renderer-capability: renderer ${renderer} does not support React Server Components`,
+      `unsupported-renderer-capability: renderer ${renderer} does not support ${capability}`,
     );
-  }
-  if (renderer !== 'react') {
-    const reject = (capability: string): never => {
-      throw new Error(
-        `unsupported-renderer-capability: renderer ${renderer} does not support ${capability}`,
-      );
-    };
-    const native = config as UltramodernAppUserConfig & {
-      runtime?: { i18n?: unknown };
-      i18n?: unknown;
-      moduleFederation?: unknown;
-    };
-    if (native.runtime?.i18n || native.i18n) reject('React i18n integration');
-    if (
-      config.output?.ssg ||
-      Object.values(config.output?.ssgByEntries ?? {}).some(Boolean)
-    )
-      reject('static site generation');
-    if (config.output?.svgDefaultExport === 'component')
-      reject('SVG components; import SVG URLs instead');
-    if (config.output?.enableCssModuleTSDeclaration)
-      reject('CSS declaration generation beside authored source');
-    if (config.source?.reactCompiler) reject('the React compiler');
-    if (
-      native.moduleFederation ||
+  };
+  if (!capabilities.rsc && config.server?.rsc)
+    reject('React Server Components');
+  const selected = config as UltramodernAppUserConfig & {
+    runtime?: { i18n?: unknown };
+    i18n?: unknown;
+    moduleFederation?: unknown;
+  };
+  if (!capabilities.i18n && (selected.runtime?.i18n || selected.i18n))
+    reject('React i18n integration');
+  if (
+    !capabilities.ssg &&
+    (config.output?.ssg ||
+      Object.values(config.output?.ssgByEntries ?? {}).some(Boolean))
+  )
+    reject('static site generation');
+  if (
+    !capabilities.svgComponent &&
+    config.output?.svgDefaultExport === 'component'
+  )
+    reject('SVG components; import SVG URLs instead');
+  if (
+    !registration.supports.cssDeclarations &&
+    config.output?.enableCssModuleTSDeclaration
+  )
+    reject('CSS declaration generation beside authored source');
+  if (!registration.supports.reactCompiler && config.source?.reactCompiler)
+    reject('the React compiler');
+  if (
+    !capabilities.moduleFederation &&
+    (selected.moduleFederation ||
       (typeof config.server?.ssr === 'object' &&
         config.server.ssr.moduleFederationAppSSR) ||
       Object.values(config.server?.ssrByEntries ?? {}).some(
@@ -167,12 +176,14 @@ export function assertCapturedRenderer(
           typeof value === 'object' &&
           'moduleFederationAppSSR' in value &&
           value.moduleFederationAppSSR,
-      )
-    )
-      reject('Module Federation application SSR');
-    if (config.deploy?.worker?.ssr || resolveDeployTarget(config) !== 'node')
-      reject('worker or unadmitted deployment providers');
-  }
+      ))
+  )
+    reject('Module Federation application SSR');
+  if (
+    !capabilities.worker &&
+    (config.deploy?.worker?.ssr || resolveDeployTarget(config) !== 'node')
+  )
+    reject('worker or unadmitted deployment providers');
 }
 
 function flattenPluginNames(plugins: readonly CliPlugin<AppTools>[]): string[] {
@@ -214,7 +225,7 @@ export function rendererSelectionGuard(
         );
       };
       validate(api.getConfig() as UltramodernAppUserConfig);
-      if (renderer !== 'react') {
+      if (!resolveRendererRegistration(renderer).supports.reactCliPlugins) {
         const forbidden = api
           .getAppContext()
           .plugins.filter(plugin =>

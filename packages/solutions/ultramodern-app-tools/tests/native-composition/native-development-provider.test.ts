@@ -24,6 +24,7 @@ import {
   type NativeServerPluginOptions,
   nativeServerPlugin,
 } from '../../src/native-composition/native-server-plugin';
+import { createReplacementCompilerArtifacts as replacementCompilerArtifacts } from './replacement-compiler-artifacts';
 
 const identity: RendererIdentity = {
   renderer: 'solid',
@@ -225,6 +226,233 @@ describe('native production bundle exports', () => {
   });
 });
 
+const replacementIdentity: RendererIdentity = {
+  ...identity,
+  renderer: 'replacement',
+};
+
+function replacementClientManifest(
+  entryIdentity = replacementIdentity,
+  hydrationBuildId = 'replacement-client-first',
+  generation = 'first',
+) {
+  return {
+    abi: 'replacement-compiler/v1',
+    build: { identity: entryIdentity, hydrationBuildId },
+    output: {
+      generation,
+      modules: [
+        {
+          file: `/${generation}/main.replacement.js`,
+          metadata: { compilerOwned: ['nested', generation] },
+        },
+      ],
+    },
+  };
+}
+
+describe('native server compiler artifact ownership', () => {
+  it('serves the selected compiler filename and dispatches its validated opaque production manifest', async () => {
+    rstest.stubEnv('NODE_ENV', 'production');
+    const clientManifest = replacementClientManifest();
+    const nativeManifest = {
+      acceptedBuild: clientManifest.build,
+      compilerOutput: clientManifest.output,
+      compilerState: { accepted: true },
+    };
+    const expectedNativeManifest = structuredClone(nativeManifest);
+    const compilerArtifacts = replacementCompilerArtifacts(nativeManifest);
+    const manifestFile = compilerArtifacts.clientManifestFile('main');
+    const manifestPath = path.join(
+      path.resolve(import.meta.dirname, '../../../../..'),
+      manifestFile,
+    );
+    const files = rstest
+      .spyOn(fileReader, 'readFile')
+      .mockImplementation(async file => {
+        if (file !== manifestPath) {
+          throw new Error(`Unexpected compiler artifact: ${file}`);
+        }
+        return JSON.stringify(clientManifest);
+      });
+    const handler = rstest.fn(
+      (_request: Request, context: NativeRequestContext<NativeNodeBindings>) =>
+        Response.json({
+          entry: context.entry,
+          nativeManifest: context.nativeManifest,
+        }),
+    );
+    const render = await installedRender({
+      renderer: 'replacement',
+      entries: { main: replacementIdentity },
+      compilerArtifacts,
+      nativeManifestFiles: { main: manifestFile },
+    });
+    const response = await render(
+      new Request('https://native.invalid/'),
+      bundleRequestOptions({
+        rendererIdentity: replacementIdentity,
+        nativeRequestHandler: handler,
+      }),
+    );
+    expect(await response.json()).toEqual({
+      entry: replacementIdentity,
+      nativeManifest: expectedNativeManifest,
+    });
+    expect(compilerArtifacts.clientManifestFile).toHaveBeenCalledWith('main');
+    expect(files).toHaveBeenCalledTimes(1);
+    expect(files).toHaveBeenCalledWith(manifestPath);
+    expect(compilerArtifacts.validateClientManifest).toHaveBeenCalledWith(
+      clientManifest,
+      replacementIdentity,
+      expect.objectContaining({ development: false }),
+    );
+    expect(handler.mock.calls[0]?.[1].nativeManifest).toBe(nativeManifest);
+    expect(nativeManifest).toEqual(expectedNativeManifest);
+  });
+
+  it('rejects the selected compiler manifest with a stale nested identity before dispatch', async () => {
+    const compilerArtifacts = replacementCompilerArtifacts();
+    const clientManifest = replacementClientManifest({
+      ...replacementIdentity,
+      buildId: 'stale-replacement-build',
+    });
+    rstest
+      .spyOn(fileReader, 'readFile')
+      .mockResolvedValue(JSON.stringify(clientManifest));
+    const handler = rstest.fn(() => new Response('handler must not execute'));
+    const render = await installedRender({
+      renderer: 'replacement',
+      entries: { main: replacementIdentity },
+      compilerArtifacts,
+      nativeManifestFiles: {
+        main: compilerArtifacts.clientManifestFile('main'),
+      },
+    });
+    await expect(
+      render(
+        new Request('https://native.invalid/'),
+        bundleRequestOptions({
+          rendererIdentity: replacementIdentity,
+          nativeRequestHandler: handler,
+        }),
+      ),
+    ).rejects.toThrow('Renderer identity conflicts');
+    expect(compilerArtifacts.validateClientManifest).toHaveBeenCalledTimes(1);
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it('retains each replacement snapshot hydration ID and nested manifest unchanged for its handler', async () => {
+    const compilerArtifacts = replacementCompilerArtifacts();
+    const files = rstest
+      .spyOn(fileReader, 'readFile')
+      .mockImplementation(async () => {
+        throw new Error('Development snapshot reached the file reader.');
+      });
+    const handler = rstest.fn(
+      (_request: Request, context: NativeRequestContext<NativeNodeBindings>) =>
+        Response.json(context.nativeManifest),
+    );
+    const firstManifest = replacementClientManifest();
+    const secondManifest = replacementClientManifest(
+      replacementIdentity,
+      'replacement-client-second',
+      'second',
+    );
+    const expectedFirstManifest = structuredClone(firstManifest);
+    const expectedSecondManifest = structuredClone(secondManifest);
+    const snapshot = (
+      nativeManifest: ReturnType<typeof replacementClientManifest>,
+    ): NativeDevelopmentSnapshot => ({
+      manifest: {
+        rendererIdentity: replacementIdentity,
+        nativeRequestHandler: handler,
+      },
+      assets: [
+        { kind: 'script', href: nativeManifest.output.modules[0]!.file },
+      ],
+      nativeManifest,
+      hydrationBuildId: nativeManifest.build.hydrationBuildId,
+    });
+    let published = snapshot(firstManifest);
+    const provider = rstest.fn(async () => published);
+    const render = await installedRender({
+      renderer: 'replacement',
+      entries: { main: replacementIdentity },
+      compilerArtifacts,
+      resolveDevelopmentSnapshot: provider,
+    });
+    const firstResponse = await render(
+      new Request('https://native.invalid/'),
+      requestOptions(),
+    );
+    expect(await firstResponse.json()).toEqual(expectedFirstManifest);
+    published = snapshot(secondManifest);
+    const secondResponse = await render(
+      new Request('https://native.invalid/'),
+      requestOptions(),
+    );
+    expect(await secondResponse.json()).toEqual(expectedSecondManifest);
+    expect(handler.mock.calls[0]?.[1].nativeManifest).toBe(firstManifest);
+    expect(handler.mock.calls[1]?.[1].nativeManifest).toBe(secondManifest);
+    expect(firstManifest).toEqual(expectedFirstManifest);
+    expect(secondManifest).toEqual(expectedSecondManifest);
+    expect(compilerArtifacts.validateClientManifest).toHaveBeenNthCalledWith(
+      1,
+      firstManifest,
+      replacementIdentity,
+      expect.objectContaining({
+        development: true,
+        hydrationBuildId: 'replacement-client-first',
+      }),
+    );
+    expect(compilerArtifacts.validateClientManifest).toHaveBeenNthCalledWith(
+      2,
+      secondManifest,
+      replacementIdentity,
+      expect.objectContaining({
+        development: true,
+        hydrationBuildId: 'replacement-client-second',
+      }),
+    );
+    expect(provider).toHaveBeenCalledTimes(2);
+    expect(files).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    'missing',
+    'mismatched',
+  ])('rejects a replacement %s snapshot hydration ID before dispatch', async kind => {
+    const compilerArtifacts = replacementCompilerArtifacts();
+    const clientManifest = replacementClientManifest();
+    const handler = rstest.fn(() => new Response('handler must not execute'));
+    const render = await installedRender({
+      renderer: 'replacement',
+      entries: { main: replacementIdentity },
+      compilerArtifacts,
+      resolveDevelopmentSnapshot: async () => ({
+        manifest: {
+          rendererIdentity: replacementIdentity,
+          nativeRequestHandler: handler,
+        },
+        assets: [{ kind: 'script', href: '/compiled/main.replacement.js' }],
+        nativeManifest: clientManifest,
+        hydrationBuildId:
+          kind === 'missing' ? undefined : 'unrelated-replacement-client',
+      }),
+    });
+    await expect(
+      render(new Request('https://native.invalid/'), requestOptions()),
+    ).rejects.toThrow(
+      kind === 'missing'
+        ? /no hydration build/iu
+        : /differs from its compiler manifest/iu,
+    );
+    expect(compilerArtifacts.validateClientManifest).toHaveBeenCalledTimes(1);
+    expect(handler).not.toHaveBeenCalled();
+  });
+});
+
 function solidSnapshot(
   entryIdentity = identity,
   generation = 'first',
@@ -417,7 +645,7 @@ describe('native development compiler snapshot provider', () => {
         nativeManifest: solidSnapshot({ ...identity, buildId: 'old-build' })
           .nativeManifest,
       }),
-      error: /identity conflicts/iu,
+      error: /Stale Solid module manifest identity/iu,
     },
     {
       name: 'compiler manifest is missing',

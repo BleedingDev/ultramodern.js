@@ -8,8 +8,105 @@ import { captureConfigSourceSnapshot } from '../../src/native-composition/config
 import { resolveReactMetadataServerPlugin } from '../../src/native-composition/react-build-metadata';
 import { createRendererBuildIdentityResolver } from '../../src/native-composition/renderer-build-resolution';
 import { resolveRendererProfileMetadata } from '../../src/native-composition/renderer-profile';
+import { reactRendererRegistration } from '../../src/renderers/react/registration';
 
 describe('React metadata owning public export resolution', () => {
+  it.each([
+    {
+      name: 'no TanStack registration',
+      selected: false,
+      app: true,
+      sdk: true,
+      owner: undefined,
+    },
+    {
+      name: 'the application before the SDK fallback',
+      selected: true,
+      app: true,
+      sdk: true,
+      owner: 'app',
+    },
+    {
+      name: 'the SDK fallback without an application package',
+      selected: true,
+      app: false,
+      sdk: true,
+      owner: 'sdk',
+    },
+    {
+      name: 'neither application nor SDK package',
+      selected: true,
+      app: false,
+      sdk: false,
+      owner: undefined,
+    },
+  ] as const)('resolves the React build cohort with $name', ({
+    selected,
+    app,
+    sdk,
+    owner,
+  }) => {
+    const workspace = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'um-react-cohort-owner-'),
+    );
+    const appDirectory = path.join(workspace, 'app');
+    const sdkDirectory = path.join(workspace, 'sdk');
+    const registrarDirectory = path.join(sdkDirectory, 'src', 'composition');
+    const filenames: Partial<Record<'app' | 'sdk', string>> = {};
+    try {
+      fs.mkdirSync(appDirectory, { recursive: true });
+      fs.mkdirSync(registrarDirectory, { recursive: true });
+      for (const [host, enabled] of [
+        ['app', app],
+        ['sdk', sdk],
+      ] as const) {
+        if (!enabled) continue;
+        const packageDirectory = path.join(
+          workspace,
+          host,
+          'node_modules',
+          '@modern-js/plugin-tanstack',
+        );
+        const filename = path.join(packageDirectory, 'dist', 'cli.cjs');
+        fs.mkdirSync(path.dirname(filename), { recursive: true });
+        fs.writeFileSync(filename, 'module.exports = {};\n');
+        fs.writeFileSync(
+          path.join(packageDirectory, 'package.json'),
+          JSON.stringify({
+            name: '@modern-js/plugin-tanstack',
+            version: '1.0.0',
+            exports: { '.': { node: { require: './dist/cli.cjs' } } },
+          }),
+        );
+        filenames[host] = fs.realpathSync(filename);
+      }
+      const resolve = () =>
+        reactRendererRegistration.resolveBuildFrameworkModules({
+          appDirectory,
+          registrarDirectory,
+          pluginNames: selected
+            ? ['@modern-js/plugin-tanstack']
+            : ['@modern-js/plugin-router'],
+        });
+      if (!selected) expect(resolve()).toEqual([]);
+      else if (owner)
+        expect(resolve()).toEqual([
+          {
+            specifier: '@modern-js/plugin-tanstack',
+            filename: filenames[owner],
+          },
+        ]);
+      else
+        expect(resolve).toThrow(
+          new Error(
+            'The registered TanStack entry owner cannot be resolved from the application or selected framework',
+          ),
+        );
+    } finally {
+      fs.rmSync(workspace, { recursive: true, force: true });
+    }
+  });
+
   it.each([
     { input: 'unrelated', changesIdentity: false },
     { input: 'compiled', changesIdentity: true },

@@ -1,6 +1,10 @@
 import { appHasApi, sharedPackages, shellApp } from './descriptors';
 import { createPublicSurfaceGenerationCommand } from './public-surface';
-import { resolveWorkspaceRenderer } from './renderer-profile';
+import { hasNativeAppGeneration } from './renderer-generations';
+import {
+  resolveAppGenerationProfile,
+  resolveWorkspaceRenderer,
+} from './renderer-profile';
 import {
   GENERATED_TOOLING_COMMANDS,
   type GeneratedToolingCommandKey,
@@ -161,15 +165,14 @@ export function createWorkspaceAppPackageScripts(
   app: WorkspaceApp,
 ): Partial<WorkspaceAppPackageScripts> {
   const renderer = resolveWorkspaceRenderer(app);
-  if (renderer === 'solid' || renderer === 'octane') {
+  if (hasNativeAppGeneration(renderer)) {
     return {
       dev: 'ultramodern dev',
       build: 'ultramodern build',
       serve: 'ultramodern serve',
       typecheck:
-        renderer === 'octane'
-          ? 'octane-tsc --noEmit --project tsconfig.json'
-          : createStrictTsgoTypecheckCommand(app.directory),
+        resolveAppGenerationProfile(app)?.typecheckCommand ??
+        createStrictTsgoTypecheckCommand(app.directory),
     };
   }
   const plan = createWorkspaceAppScriptPlan(app);

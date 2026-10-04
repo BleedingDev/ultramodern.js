@@ -1,4 +1,9 @@
-import { identityCacheKey, type RendererIdentity } from '../../src/identity';
+import {
+  assertRendererIdentity,
+  identityCacheKey,
+  type RendererIdentity,
+  resolveRenderer,
+} from '../../src/identity';
 import {
   type CachedNativeDocument,
   dispatchNativeNodeRequest,
@@ -65,6 +70,29 @@ function store() {
 }
 
 describe('production native Node Fetch dispatch', () => {
+  it('validates generic selected renderer tokens and keeps identity equality exact', () => {
+    const fourth = { ...identity, renderer: 'fourth-native' };
+    expect(resolveRenderer(fourth.renderer)).toBe('fourth-native');
+    expect(() => assertRendererIdentity({ ...fourth }, fourth)).not.toThrow();
+    expect(() =>
+      assertRendererIdentity({ ...fourth, renderer: 'another-native' }, fourth),
+    ).toThrow('conflicts with the application build');
+    for (const renderer of [
+      '',
+      'Fourth-native',
+      'fourth/native',
+      'fourth native',
+      '-fourth',
+      'fourth-',
+      'fourth--native',
+      'fourth\n',
+    ]) {
+      expect(() => identityCacheKey({ ...identity, renderer })).toThrow(
+        'Unsupported UltraModern renderer',
+      );
+    }
+  });
+
   it('rejects RSC before manifest imports, matching or cache lookup', async () => {
     const loadManifest = rstest.fn();
     const cache = store();
@@ -270,6 +298,7 @@ describe('production native Node Fetch dispatch', () => {
       { ...identity, appId: 'other' },
       { ...identity, entryName: 'admin' },
       { ...identity, renderer: 'octane' as const },
+      { ...identity, renderer: 'fourth-native' },
       { ...identity, buildId: 'build-b' },
     ]) {
       const handler = (_request: Request, context: NativeRequestContext) =>
@@ -287,8 +316,8 @@ describe('production native Node Fetch dispatch', () => {
       );
       expect(await response.text()).toBe(identityCacheKey(selectedIdentity));
     }
-    expect(cache.documents.size).toBe(5);
-    expect(new Set(cache.get.mock.calls.map(([key]) => key)).size).toBe(5);
+    expect(cache.documents.size).toBe(6);
+    expect(new Set(cache.get.mock.calls.map(([key]) => key)).size).toBe(6);
   });
 
   it.each([

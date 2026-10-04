@@ -60,6 +60,7 @@ import { initializeGeneratedRendererIdentity } from './renderer-initial-identity
 import {
   getRendererGenerationProfile,
   isApplicationRenderer,
+  resolveAppGenerationProfile,
 } from './renderer-profile';
 import type {
   ResolvedPackageSource,
@@ -160,10 +161,8 @@ function writePnpmWorkspacePackages(
             ...ULTRAMODERN_WORKSPACE_MODERN_PACKAGES,
             '@modern-js/backend-federation-contracts',
             '@modern-js/renderer-core',
-            ...(primaryShell.renderer === 'solid' ||
-            primaryShell.renderer === 'octane'
-              ? [`@modern-js/renderer-${primaryShell.renderer}`]
-              : []),
+            ...(resolveAppGenerationProfile(primaryShell)
+              ?.frameworkDependencies ?? []),
           ]),
         ]
           .map(

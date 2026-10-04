@@ -34,10 +34,8 @@ export type RendererBuildOutputOptions = {
   resolveRendererBuild: (
     context: RendererBuildOutputContext,
   ) => Promise<FinalizedRendererBuildOutput>;
-  rendererBuildPlugin:
-    | '@modern-js/renderer-react-build-metadata'
-    | '@modern-js/renderer-solid-infrastructure'
-    | '@modern-js/renderer-octane-infrastructure';
+  /** Exact metadata producer selected by the owning renderer composition. */
+  rendererBuildPlugin: string;
 };
 
 export const validateFinalizedRendererBuild = (
@@ -56,7 +54,6 @@ export const validateFinalizedRendererBuild = (
       output.ui.routerBindings,
       entryNames,
       'routerBindings',
-      output.ui.rendererIdentity.renderer,
     ).errors,
   ];
   if (errors.length)
@@ -183,7 +180,9 @@ export function rendererBuildArtifactStampPlugin(
   options: RendererBuildOutputOptions,
 ) {
   if (
+    typeof options.rendererBuildPlugin !== 'string' ||
     !options.rendererBuildPlugin ||
+    options.rendererBuildPlugin.trim() !== options.rendererBuildPlugin ||
     typeof options.resolveRendererBuild !== 'function'
   )
     throw new Error(

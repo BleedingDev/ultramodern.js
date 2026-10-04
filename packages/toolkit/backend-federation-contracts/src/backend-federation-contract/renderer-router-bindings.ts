@@ -1,5 +1,4 @@
 import {
-  type RendererName,
   type RendererProfile,
   validateRendererRouterPackageIdentity,
 } from './renderer-profile';
@@ -9,21 +8,8 @@ import type {
 } from './types';
 import { addError, isRecord, validationResult } from './validation-core';
 
-const ROUTER_FRAMEWORKS = [
-  'react-router',
-  'tanstack',
-  'solid',
-  'octane',
-] as const;
-export type RouterFramework = (typeof ROUTER_FRAMEWORKS)[number];
-
-const ROUTER_FRAMEWORKS_BY_RENDERER: Readonly<
-  Record<RendererName, readonly RouterFramework[]>
-> = {
-  react: ['react-router', 'tanstack'],
-  solid: ['solid'],
-  octane: ['octane'],
-};
+/** Selected owner metadata, independent of the SDK's finite renderer catalogue. */
+export type RouterFramework = string;
 
 export type RouterPackageBinding = RendererProfile['router'] &
   Readonly<{ framework: RouterFramework }>;
@@ -131,7 +117,7 @@ const validateProvider = (
   value: unknown,
   path: string,
   errors: BackendFederationContractValidationError[],
-  renderer?: RendererName,
+  routerFrameworks?: readonly RouterFramework[],
 ): value is RouterPackageBinding => {
   const previousErrors = errors.length;
   if (!plainRecord(value)) {
@@ -144,22 +130,23 @@ const validateProvider = (
     path,
     errors,
   );
-  if (!ROUTER_FRAMEWORKS.some(framework => framework === value.framework)) {
-    addError(
-      errors,
-      `${path}.framework`,
-      'must be "react-router", "tanstack", "solid", or "octane".',
-    );
-  } else if (
-    renderer !== undefined &&
-    !ROUTER_FRAMEWORKS_BY_RENDERER[renderer]?.some(
-      framework => framework === value.framework,
-    )
+  if (
+    !canonicalString(value.framework) ||
+    !/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u.test(value.framework)
   ) {
     addError(
       errors,
       `${path}.framework`,
-      `must be supported by the "${renderer}" renderer.`,
+      'must be a lowercase router framework token separated by single hyphens.',
+    );
+  } else if (
+    routerFrameworks !== undefined &&
+    !routerFrameworks.includes(value.framework)
+  ) {
+    addError(
+      errors,
+      `${path}.framework`,
+      'must be admitted by the selected router owner.',
     );
   }
   errors.push(
@@ -180,7 +167,7 @@ const validateBinding = (
   value: unknown,
   path: string,
   errors: BackendFederationContractValidationError[],
-  renderer?: RendererName,
+  routerFrameworks?: readonly RouterFramework[],
 ) => {
   if (!plainRecord(value)) {
     addError(errors, path, 'must be a plain object.');
@@ -211,18 +198,10 @@ const validateBinding = (
     defaultProvider,
     `${path}.defaultProvider`,
     errors,
-    renderer,
+    routerFrameworks,
   );
   if (!Array.isArray(value.providers) || value.providers.length === 0) {
     addError(errors, `${path}.providers`, 'must be a non-empty array.');
-    return;
-  }
-  if (value.providers.length > ROUTER_FRAMEWORKS.length) {
-    addError(
-      errors,
-      `${path}.providers`,
-      'must list each framework at most once.',
-    );
     return;
   }
   const providers: RouterPackageBinding[] = [];
@@ -230,7 +209,8 @@ const validateBinding = (
   for (let index = 0; index < value.providers.length; index++) {
     const provider = value.providers[index];
     const providerPath = `${path}.providers[${index}]`;
-    if (!validateProvider(provider, providerPath, errors, renderer)) continue;
+    if (!validateProvider(provider, providerPath, errors, routerFrameworks))
+      continue;
     if (frameworks.has(provider.framework)) {
       addError(
         errors,
@@ -255,16 +235,6 @@ const validateBinding = (
         'must exactly match a registered provider.',
       );
     }
-    if (
-      value.evidence === 'provider-registry' &&
-      defaultProvider.framework !== 'react-router'
-    ) {
-      addError(
-        errors,
-        `${path}.defaultProvider.framework`,
-        'must be "react-router" for provider-registry evidence.',
-      );
-    }
   }
   if (
     (value.evidence === 'owned-default' || value.evidence === 'file-routes') &&
@@ -283,9 +253,27 @@ export const validateRendererRouterBindings = (
   value: unknown,
   expectedEntryNames: readonly string[],
   path = 'routerBindings',
-  renderer?: RendererName,
+  routerFrameworks?: readonly RouterFramework[],
 ): BackendFederationContractValidationResult => {
   const errors: BackendFederationContractValidationError[] = [];
+  if (
+    routerFrameworks !== undefined &&
+    (!Array.isArray(routerFrameworks) ||
+      !routerFrameworks.length ||
+      new Set(routerFrameworks).size !== routerFrameworks.length ||
+      !routerFrameworks.every(
+        framework =>
+          canonicalString(framework) &&
+          /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u.test(framework),
+      ))
+  ) {
+    addError(
+      errors,
+      path,
+      'selected router frameworks must be unique lowercase tokens in a non-empty array.',
+    );
+    return validationResult(errors);
+  }
   if (!plainRecord(value)) {
     addError(errors, path, 'must be a plain object.');
     return validationResult(errors);
@@ -337,7 +325,12 @@ export const validateRendererRouterBindings = (
       );
       continue;
     }
-    validateBinding(descriptor.value, `${path}.${entryName}`, errors, renderer);
+    validateBinding(
+      descriptor.value,
+      `${path}.${entryName}`,
+      errors,
+      routerFrameworks,
+    );
   }
   return validationResult(errors);
 };

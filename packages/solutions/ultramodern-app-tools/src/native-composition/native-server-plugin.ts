@@ -1,6 +1,9 @@
 import type { ServerResponse } from 'node:http';
 import path from 'node:path';
-import type { RendererIdentity } from '@modern-js/renderer-core/identity';
+import type {
+  Renderer,
+  RendererIdentity,
+} from '@modern-js/renderer-core/identity';
 import {
   assertRendererIdentity,
   identityCacheKey,
@@ -30,6 +33,8 @@ import type {
 import type { ServerRoute } from '@modern-js/types/server';
 import { getEntryOptions } from '@modern-js/utils';
 import { cutNameByHyphen } from '@modern-js/utils/universal';
+import type { NativeCompilerArtifacts } from './compiler-artifacts';
+import { resolveNativeRendererAdapter } from './renderer-registration';
 
 export interface NativeNodeBindings {
   readonly loaderContext: Map<string, unknown>;
@@ -46,7 +51,8 @@ export interface NativeDevelopmentSnapshot {
 }
 
 export interface NativeServerPluginOptions {
-  readonly renderer: 'solid' | 'octane';
+  readonly renderer: Exclude<Renderer, 'react'>;
+  readonly compilerArtifacts?: NativeCompilerArtifacts;
   readonly entries: Readonly<Record<string, RendererIdentity>>;
   readonly cache?: NativeDocumentCache;
   readonly cacheAllowed?: boolean;
@@ -270,11 +276,11 @@ function confirmNodeDelivery(
 export function nativeServerPlugin(
   options: NativeServerPluginOptions,
 ): ServerPlugin {
-  if (!options || !['solid', 'octane'].includes(options.renderer)) {
-    throw new Error(
-      'Native server plugin requires a selected Solid or Octane renderer.',
-    );
-  }
+  if (!options)
+    throw new Error('Native server plugin requires a selected renderer.');
+  const compilerArtifacts =
+    options.compilerArtifacts ??
+    resolveNativeRendererAdapter(options.renderer).compilerArtifacts;
   if (options.resolveDevelopmentSnapshot && options.cacheAllowed === true) {
     throw new Error(
       'Native development snapshots cannot enable document cache.',
@@ -387,49 +393,13 @@ export function nativeServerPlugin(
       throw new Error('Native development snapshot has no compiler manifest.');
     }
     if (nativeManifest !== undefined) {
-      if (
-        !nativeManifest ||
-        typeof nativeManifest !== 'object' ||
-        Array.isArray(nativeManifest)
-      ) {
-        throw new Error(
-          'Native compiler manifest requires an immutable renderer identity.',
-        );
-      }
-      const nativeIdentity = (
-        nativeManifest as { rendererIdentity?: RendererIdentity }
-      ).rendererIdentity;
-      if (!nativeIdentity) {
-        throw new Error(
-          'Native compiler manifest requires an immutable renderer identity.',
-        );
-      }
-      assertRendererIdentity(nativeIdentity, identity);
-      if (options.renderer === 'solid') {
-        const { validateSolidModuleManifest } = await import(
-          '@modern-js/renderer-solid/manifest'
-        );
-        nativeManifest = validateSolidModuleManifest(nativeManifest, identity);
-      } else {
-        if (
-          snapshot &&
-          (typeof hydrationBuildId !== 'string' || !hydrationBuildId.trim())
-        ) {
-          throw new Error(
-            'Octane development snapshot has no native hydration build.',
-          );
-        }
-        const { validateOctaneModuleManifest } = await import(
-          '@modern-js/renderer-octane/manifest'
-        );
-        const validated = validateOctaneModuleManifest(
-          nativeManifest,
-          identity,
-          hydrationBuildId,
-        );
-        nativeManifest = validated;
-        hydrationBuildId = validated.nativeHydrationBuildId;
-      }
+      const validated = await compilerArtifacts.validateClientManifest(
+        nativeManifest,
+        identity,
+        { hydrationBuildId, development: snapshot !== undefined },
+      );
+      nativeManifest = validated.nativeManifest;
+      hydrationBuildId = validated.hydrationBuildId;
     }
     const response = await dispatchNativeNodeRequest(request, {
       identity,

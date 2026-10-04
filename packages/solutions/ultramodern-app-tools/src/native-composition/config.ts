@@ -24,7 +24,7 @@ import {
   createLoadedConfig,
   type LoadedConfig,
 } from '@modern-js/plugin/cli';
-import { type Renderer, resolveRenderer } from '@modern-js/renderer-core';
+import type { Renderer } from '@modern-js/renderer-core';
 import { CONFIG_FILE_EXTENSIONS, isMonorepo } from '@modern-js/utils';
 import {
   isConfigInstalledDependencyPath,
@@ -50,6 +50,7 @@ import {
   type ConfigurationSourceNode,
   retainConfigurationSourceSnapshot,
 } from './configuration-read-context';
+import { resolveRendererRegistration } from './renderer-registration';
 import { resolveEntrypointRouterBindings } from './renderer-router-resolution';
 import {
   assertCapturedRenderer,
@@ -90,7 +91,7 @@ function selectConfig(
   if (!config || typeof config !== 'object' || Array.isArray(config)) {
     throw new Error('UltraModern configuration must be an object');
   }
-  const renderer = resolveRenderer(config.renderer);
+  const renderer = resolveRendererRegistration(config.renderer).renderer;
   const plugins = config.plugins ?? [];
   assertNoAdditionalBasePlugins(plugins);
   const base = factory(renderer, plugins);
@@ -125,7 +126,7 @@ export async function resolveUltramodernConfig(
 ): Promise<UltramodernAppUserConfig> {
   const resolved =
     typeof config === 'function' ? await config(context) : config;
-  const renderer = resolveRenderer(resolved.renderer);
+  const renderer = resolveRendererRegistration(resolved.renderer).renderer;
   return resolved.renderer === undefined ? { ...resolved, renderer } : resolved;
 }
 
@@ -689,7 +690,9 @@ export async function loadUltramodernConfigFile({
       { env, command },
       nativePackageMetadataRead,
     );
-    const renderer = resolveRenderer(loaded.config.renderer);
+    const renderer = resolveRendererRegistration(
+      loaded.config.renderer,
+    ).renderer;
     loaded.config = { ...loaded.config, renderer };
     const bases = (loaded.config.plugins ?? []).filter(
       plugin => plugin.name === ULTRAMODERN_BASE_PLUGIN,
@@ -702,7 +705,10 @@ export async function loadUltramodernConfigFile({
         [selectedRenderer]?: Renderer;
       }
     )[selectedRenderer];
-    if (renderer !== 'react' && captured === undefined)
+    if (
+      resolveRendererRegistration(renderer).kind === 'native' &&
+      captured === undefined
+    )
       throw new Error(
         'Native renderer selection must use UltraModern defineConfig; an unselected legacy base cannot own native compilation',
       );
@@ -774,7 +780,7 @@ export async function resolveUltramodernEntryIdentities({
     const primary = entries.find(entry => entry.isMainEntry) ?? entries[0];
     if (!primary)
       throw new Error('UltraModern configuration has no application entries');
-    const renderer = resolveRenderer(config.renderer);
+    const renderer = resolveRendererRegistration(config.renderer).renderer;
     const routerBindings = await resolveEntrypointRouterBindings(
       renderer,
       entrypoints,

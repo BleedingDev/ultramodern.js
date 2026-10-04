@@ -20,6 +20,7 @@ import {
   ULTRAMODERN_PACKAGE_PINS,
   ULTRAMODERN_WORKSPACE_POLICY,
 } from './policy';
+import { hasNativeAppGeneration } from './renderer-generations';
 import {
   appSupportsFederation,
   resolveAppGenerationProfile,
@@ -62,9 +63,12 @@ export function appDependencies(
       : renderer === 'none'
         ? {}
         : {
-            '@modern-js/renderer-core': frameworkRequest(packageSource),
-            [`@modern-js/renderer-${renderer}`]:
-              frameworkRequest(packageSource),
+            ...Object.fromEntries(
+              generationProfile!.frameworkDependencies.map(name => [
+                name,
+                frameworkRequest(packageSource),
+              ]),
+            ),
             ...generationProfile!.dependencies,
           }),
     '@modern-js/backend-federation-contracts': frameworkRequest(packageSource),
@@ -178,7 +182,7 @@ export function createRootPackageJson(
   primaryShell: WorkspaceApp = shellApp,
 ): JsonValue {
   const renderer = resolveWorkspaceRenderer(primaryShell);
-  if (renderer === 'solid' || renderer === 'octane') {
+  if (hasNativeAppGeneration(renderer)) {
     const apps = [primaryShell, ...additionalShells, ...remotes];
     if (bridge)
       throw new Error(
@@ -464,25 +468,24 @@ export function createSharedPackage(
   };
 
   if (id === 'shared-contracts') {
-    packageJson.dependencies =
-      renderer === 'solid' || renderer === 'octane'
-        ? {
-            '@modern-js/renderer-core': packageSource
-              ? frameworkRequest(packageSource)
-              : WORKSPACE_PACKAGE_VERSION,
-          }
-        : {
-            ...ULTRAMODERN_PACKAGE_PINS.bffEffectDependencies,
-            '@modern-js/bff-effect': packageSource
-              ? frameworkRequest(packageSource)
-              : WORKSPACE_PACKAGE_VERSION,
-            '@modern-js/runtime-extensions': packageSource
-              ? frameworkRequest(packageSource)
-              : WORKSPACE_PACKAGE_VERSION,
-            '@modern-js/plugin-bff': packageSource
-              ? frameworkRequest(packageSource)
-              : WORKSPACE_PACKAGE_VERSION,
-          };
+    packageJson.dependencies = hasNativeAppGeneration(renderer)
+      ? {
+          '@modern-js/renderer-core': packageSource
+            ? frameworkRequest(packageSource)
+            : WORKSPACE_PACKAGE_VERSION,
+        }
+      : {
+          ...ULTRAMODERN_PACKAGE_PINS.bffEffectDependencies,
+          '@modern-js/bff-effect': packageSource
+            ? frameworkRequest(packageSource)
+            : WORKSPACE_PACKAGE_VERSION,
+          '@modern-js/runtime-extensions': packageSource
+            ? frameworkRequest(packageSource)
+            : WORKSPACE_PACKAGE_VERSION,
+          '@modern-js/plugin-bff': packageSource
+            ? frameworkRequest(packageSource)
+            : WORKSPACE_PACKAGE_VERSION,
+        };
   }
 
   if (id === 'shared-design-tokens') {
@@ -498,7 +501,7 @@ export function createSharedPackage(
 export function createSharedContractsIndex(
   renderer: WorkspaceApp['renderer'] = 'react',
 ): string {
-  if (renderer === 'solid' || renderer === 'octane') {
+  if (hasNativeAppGeneration(renderer)) {
     return `export const ultramodernWorkspaceContract = {\n  preset: 'presetUltramodern',\n  topology: 'topology/reference-topology.json',\n  ownership: 'topology/ownership.json',\n} as const;\n`;
   }
   return readFileTemplate('packages/shared-contracts-index.ts');

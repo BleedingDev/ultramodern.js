@@ -502,7 +502,7 @@ export default defineConfig(async ({ env, command }) => {
         app.routerBindings,
         entryNames,
         'routerBindings',
-        renderer,
+        getRendererGenerationProfile(renderer).routerFrameworks,
       );
       assert.equal(
         bindingValidation.ok,

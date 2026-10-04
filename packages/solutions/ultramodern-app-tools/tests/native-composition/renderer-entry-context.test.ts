@@ -1,11 +1,12 @@
 import type { RendererIdentity } from '@modern-js/renderer-core/identity';
-import { transformSync } from '@swc/core';
+import { rspack } from '@rsbuild/core';
 import { emitNativeRouteModule } from '../../src/native-composition/native-routes';
 
 interface FactoryOptions {
   request?: Request;
   context: unknown;
   getRouter?: () => unknown;
+  session?: object;
 }
 
 interface RouterOptions {
@@ -19,7 +20,7 @@ describe('generated native route context boundary', () => {
   it.each([
     'solid',
     'octane',
-  ] as const)('requires a callable named or default %s search validator', renderer => {
+  ] as const)('requires a callable named or default %s search validator', async renderer => {
     const source = emitNativeRouteModule({
       renderer,
       routes: [
@@ -33,10 +34,10 @@ describe('generated native route context boundary', () => {
       mode: 'server',
       basePath: '/',
     });
-    const code = transformSync(source, {
+    const { code } = await rspack.experiments.swc.transform(source, {
       jsc: { parser: { syntax: 'typescript' }, target: 'es2022' },
       module: { type: 'commonjs' },
-    }).code;
+    });
     const evaluate = (searchModule: object) => {
       const exports: {
         routeModules?: Record<string, { validateSearch?: unknown }>;
@@ -64,7 +65,7 @@ describe('generated native route context boundary', () => {
   it.each([
     'solid',
     'octane',
-  ] as const)('keeps %s private request bindings in loader closures and public identity in native state', renderer => {
+  ] as const)('keeps %s private request bindings in loader closures and public identity in native state', async renderer => {
     const source = emitNativeRouteModule({
       renderer,
       routes: [{ id: 'layout', isRoot: true, children: [] }],
@@ -95,12 +96,14 @@ describe('generated native route context boundary', () => {
         identity: RendererIdentity,
         request?: Request,
         context?: object,
+        onOutcome?: unknown,
+        session?: object,
       ) => unknown;
     } = {};
-    const code = transformSync(source, {
+    const { code } = await rspack.experiments.swc.transform(source, {
       jsc: { parser: { syntax: 'typescript' }, target: 'es2022' },
       module: { type: 'commonjs' },
-    }).code;
+    });
     // This executes the emitted infrastructure contract; native UI admission
     // remains the responsibility of the actual compiler and browser hosts.
     new Function('require', 'exports', code)((name: string) => {
@@ -120,10 +123,24 @@ describe('generated native route context boundary', () => {
     };
     const firstRequest = new Request('https://example.test/catalog/one');
     const firstPrivate = { secret: 'first-request', request: firstRequest };
-    const firstRouter = create(identity, firstRequest, firstPrivate);
+    const firstSession = { request: firstRequest };
+    const firstRouter = create(
+      identity,
+      firstRequest,
+      firstPrivate,
+      undefined,
+      firstSession,
+    );
     const secondRequest = new Request('https://example.test/catalog/two');
     const secondPrivate = { secret: 'second-request', request: secondRequest };
-    const secondRouter = create(identity, secondRequest, secondPrivate);
+    const secondSession = { request: secondRequest };
+    const secondRouter = create(
+      identity,
+      secondRequest,
+      secondPrivate,
+      undefined,
+      secondSession,
+    );
 
     expect(factoryOptions.map(options => options.context)).toEqual([
       firstPrivate,
@@ -145,7 +162,17 @@ describe('generated native route context boundary', () => {
       expect(options.basepath).toBe('/catalog');
     }
     expect(routerOptions[0].context).not.toBe(routerOptions[1].context);
-    if (renderer === 'octane') {
+    if (renderer === 'solid') {
+      expect(factoryOptions[0].session).toBe(firstSession);
+      expect(factoryOptions[1].session).toBe(secondSession);
+      for (const options of factoryOptions) {
+        expect(options).not.toHaveProperty('getRouter');
+      }
+    } else {
+      for (const options of factoryOptions) {
+        expect(options).not.toHaveProperty('session');
+      }
+      expect(factoryOptions[0].getRouter).not.toBe(factoryOptions[1].getRouter);
       expect(factoryOptions[0].getRouter?.()).toBe(firstRouter);
       expect(factoryOptions[1].getRouter?.()).toBe(secondRouter);
     }

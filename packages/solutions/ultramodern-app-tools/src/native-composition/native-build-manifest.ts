@@ -5,6 +5,7 @@ import type { RendererBuildIdentities } from '@modern-js/app-tools-extensions/re
 import {
   immutableRendererRouterBindings,
   type RendererRouterBindings,
+  type RouterFramework,
   validateRendererRouterBindings,
 } from '@modern-js/backend-federation-contracts';
 import {
@@ -34,10 +35,15 @@ export interface RendererDevelopmentBuildManifest
   readonly devCompilation: RendererDevelopmentCompilation;
 }
 
+export interface RendererBuildManifestValidationOptions {
+  readonly routerFrameworks?: readonly RouterFramework[];
+}
+
 /** A dev checkpoint certifies an actual completed wave, never a production build. */
 export function validateRendererDevelopmentBuildManifest(
   input: unknown,
   profile: RendererBuildProfile,
+  options: RendererBuildManifestValidationOptions = {},
 ): RendererDevelopmentBuildManifest {
   if (!input || typeof input !== 'object' || Array.isArray(input))
     throw new Error('Invalid development renderer metadata');
@@ -107,7 +113,7 @@ export function validateRendererDevelopmentBuildManifest(
     throw new Error(
       'Invalid development compilation generation or source digest',
     );
-  const base = validateRendererBuildManifest(input, profile);
+  const base = validateRendererBuildManifest(input, profile, options);
   if (base.cacheAllowed || base.promotable)
     throw new Error(
       'Development renderer metadata cannot be cached or promoted',
@@ -202,6 +208,7 @@ function freezeProfile<T>(value: T): T {
 export function validateRendererBuildManifest(
   input: unknown,
   profile: RendererBuildProfile,
+  options: RendererBuildManifestValidationOptions = {},
 ): RendererBuildManifest {
   if (!input || typeof input !== 'object' || Array.isArray(input))
     throw new Error('Invalid native renderer build manifest');
@@ -262,7 +269,7 @@ export function validateRendererBuildManifest(
     value.routerBindings,
     Object.keys(value.identities),
     'routerBindings',
-    profile.renderer,
+    options.routerFrameworks,
   );
   if (!routerValidation.ok)
     throw new Error(
@@ -286,6 +293,7 @@ export function validateRendererBuildManifest(
 export async function readRendererBuildManifest(
   distDirectory: string,
   profile: RendererBuildProfile,
+  options: RendererBuildManifestValidationOptions = {},
 ): Promise<RendererBuildManifest> {
   return validateRendererBuildManifest(
     JSON.parse(
@@ -295,12 +303,14 @@ export async function readRendererBuildManifest(
       ),
     ),
     profile,
+    options,
   );
 }
 
 export async function readRendererDevelopmentBuildManifest(
   distDirectory: string,
   profile: RendererBuildProfile,
+  options: RendererBuildManifestValidationOptions = {},
 ): Promise<RendererDevelopmentBuildManifest> {
   return validateRendererDevelopmentBuildManifest(
     JSON.parse(
@@ -314,5 +324,6 @@ export async function readRendererDevelopmentBuildManifest(
       ),
     ),
     profile,
+    options,
   );
 }

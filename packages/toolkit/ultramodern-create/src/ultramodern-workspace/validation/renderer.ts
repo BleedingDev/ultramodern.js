@@ -232,7 +232,7 @@ export function assertRendererProjection(
         app.routerBindings,
         Object.keys(identities),
         'routerBindings',
-        app.renderer,
+        generation.routerFrameworks,
       ).ok,
       `${label} router bindings disagree with its configured entries`,
     );
@@ -312,10 +312,7 @@ export function assertRendererDependencies(
       );
     }
   }
-  for (const name of [
-    '@modern-js/renderer-core',
-    `@modern-js/renderer-${renderer}`,
-  ]) {
+  for (const name of generation.frameworkDependencies) {
     assert(
       typeof manifest.dependencies?.[name] === 'string',
       `${manifest.name} requires the selected renderer adapter ${name}`,

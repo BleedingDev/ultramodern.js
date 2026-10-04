@@ -130,7 +130,7 @@ export async function reconcileWorkspaceRendererIdentities(
           evaluation.routerBindings,
           entryNames,
           'routerBindings',
-          evaluation.renderer,
+          generation.routerFrameworks,
         ).ok
       ) {
         throw new Error(
@@ -269,7 +269,7 @@ export function rendererMetadataProjection(
       app.routerBindings,
       Object.keys(app.rendererIdentities),
       'routerBindings',
-      app.renderer,
+      getRendererGenerationProfile(app.renderer).routerFrameworks,
     ).ok
   ) {
     throw new Error(`Application ${app.id} has invalid router bindings.`);

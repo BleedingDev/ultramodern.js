@@ -132,8 +132,18 @@ test('the factory binds canonical versions only to its owning manifest plugin', 
     OCTANE_RUNTIME_VERSION,
     OCTANE_COMPILER_VERSION,
   } = await jiti.import(path.join(directory, 'index.ts'));
+  const { assertRendererCompilerOwnership } = await jiti.import(
+    path.join(tools, 'src/native-composition/renderer-selection.ts'),
+  );
+  const compiler = createOctaneCompilerPlugin({
+    rendererIdentities: () => ({}),
+  });
+  assert.deepEqual(
+    assertRendererCompilerOwnership('octane', [compiler]).sourceExtensions,
+    ['.tsrx', '.tsx', '.ts', '.js'],
+  );
   let config;
-  createOctaneCompilerPlugin({ rendererIdentities: () => ({}) }).setup({
+  compiler.setup({
     context: { rootPath: workspace },
     modifyRsbuildConfig() {},
     modifyRspackConfig(callback) {

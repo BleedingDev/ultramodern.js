@@ -1,7 +1,3 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { appTools } from '@modern-js/app-tools';
 import type { AppTools, CliPlugin } from '@modern-js/app-tools/cli-config';
 import { createDeployOutputAliasesPlugin } from '@modern-js/app-tools-extensions/deploy-output/plugin';
@@ -15,6 +11,10 @@ import { nativeRendererInfrastructurePlugin } from './native-infrastructure';
 import { ultramodernReleaseEnvelopePlugin } from './release-envelope-plugin';
 import { createRendererBuildOutputResolver } from './renderer-build-output';
 import { createRendererBuildIdentityResolver } from './renderer-build-resolution';
+import {
+  type RendererRegistration,
+  resolveRendererRegistration,
+} from './renderer-registration';
 import {
   assertRendererCompilerOwnership,
   nativeRendererIsolationPlugin,
@@ -50,23 +50,25 @@ export {
 } from './preset';
 export { ultramodernReleaseEnvelopePlugin } from './release-envelope-plugin';
 export {
+  type RegisteredRenderer,
   type RendererBuildProfile,
+  registeredRenderers,
   resolveCandidateRendererProfile,
   resolveRendererProfile,
+  resolveRendererRouterFrameworks,
 } from './renderer-profile';
 export type { AppUserConfig, UltramodernAppUserConfig } from './types';
 
 function composeNativeRenderer(
-  renderer: Exclude<Renderer, 'react'>,
+  registration: Extract<RendererRegistration, { kind: 'native' }>,
   consumerPlugins: readonly CliPlugin<AppTools>[],
 ): CliPlugin<AppTools> {
+  const adapter = registration.nativeAdapter;
+  const renderer = registration.renderer;
   let rendererIdentities: Readonly<Record<string, RendererIdentity>> = {};
   const resolveBuildIdentities = createRendererBuildIdentityResolver(renderer);
-  let generator: Promise<NativeEntryGenerator> | undefined;
-  const resolveGenerator = () =>
-    (generator ??= import('./native-entry').then(module =>
-      module.createNativeEntryGenerator(renderer),
-    ));
+  let generator: NativeEntryGenerator | undefined;
+  const resolveGenerator = () => (generator ??= adapter.createEntryGenerator());
   const selected = [
     appTools({ rendererExtensions: false, serverExtensions: false }),
     rendererTypeCheckerPlugin(renderer),
@@ -82,6 +84,9 @@ function composeNativeRenderer(
         },
       },
       {
+        infrastructurePluginName: adapter.infrastructurePluginName,
+        compilerArtifacts: adapter.compilerArtifacts,
+        assertSupportedSource: adapter.assertSupportedSource,
         async resolveBuildIdentities(context) {
           const resolved = await resolveBuildIdentities(context);
           if (
@@ -95,7 +100,7 @@ function composeNativeRenderer(
     ),
     {
       ...rendererBuildArtifactStampPlugin({
-        rendererBuildPlugin: `@modern-js/renderer-${renderer}-infrastructure`,
+        rendererBuildPlugin: adapter.infrastructurePluginName,
         resolveRendererBuild: createRendererBuildOutputResolver(renderer),
       }),
       post: ['@modern-js/ultramodern-release-envelope'],
@@ -111,16 +116,9 @@ function composeNativeRenderer(
     ],
     setup(api) {
       api.modifyResolvedConfig(async config => {
-        const compiler =
-          renderer === 'solid'
-            ? (await import('../renderers/solid/compiler')).pluginSolidRenderer(
-                { rendererIdentities: () => rendererIdentities },
-              )
-            : (
-                await import('../renderers/octane/compiler')
-              ).createOctaneCompilerPlugin({
-                rendererIdentities: () => rendererIdentities,
-              });
+        const compiler = await adapter.createCompiler({
+          rendererIdentities: () => rendererIdentities,
+        });
         const builderPlugins = [
           nativeRendererIsolationPlugin(renderer),
           nativeClientAssetsPlugin(renderer, () => rendererIdentities),
@@ -131,7 +129,7 @@ function composeNativeRenderer(
         return { ...config, builderPlugins };
       });
       api._internalRuntimePlugins(({ entrypoint, plugins }) => {
-        if (plugins.length) {
+        if (!registration.supports.reactRuntimeDescriptors && plugins.length) {
           throw new Error(
             `Renderer ${renderer} does not support React runtime descriptors: ${plugins.map(plugin => plugin.path).join(', ')}`,
           );
@@ -149,39 +147,14 @@ const composeUltramodernAppTools = (
     consumerPlugins?: readonly CliPlugin<AppTools>[];
   } = {},
 ): CliPlugin<AppTools> => {
-  if (options.renderer && options.renderer !== 'react') {
-    return composeNativeRenderer(
-      options.renderer,
-      options.consumerPlugins ?? [],
-    );
-  }
-  let directory = path.dirname(fileURLToPath(import.meta.url));
-  for (;;) {
-    const manifestFile = path.join(directory, 'package.json');
-    if (existsSync(manifestFile)) {
-      const manifest = JSON.parse(readFileSync(manifestFile, 'utf8'));
-      if (
-        typeof manifest.name !== 'string' ||
-        !manifest.exports?.['./react-composition']
-      )
-        throw new Error(
-          'The owning UltraModern package must export its selected React composition',
-        );
-      const { composeReactRenderer } = createRequire(import.meta.url)(
-        `${manifest.name}/react-composition`,
-      ) as typeof import('./react-composition');
-      return composeReactRenderer({ consumerPlugins: options.consumerPlugins });
-    }
-    const parent = path.dirname(directory);
-    if (parent === directory)
-      throw new Error(
-        'Cannot find the owning UltraModern package for React composition',
-      );
-    directory = parent;
-  }
+  const registration = resolveRendererRegistration(options.renderer);
+  const consumers = options.consumerPlugins ?? [];
+  return registration.kind === 'native'
+    ? composeNativeRenderer(registration, consumers)
+    : registration.compose(consumers);
 };
 
-/** The explicit legacy base is React; renderer selection belongs to config. */
+/** The explicit default base is React; renderer selection belongs to config. */
 export const ultramodernAppTools = (): CliPlugin<AppTools> =>
   composeUltramodernAppTools({ renderer: 'react' });
 

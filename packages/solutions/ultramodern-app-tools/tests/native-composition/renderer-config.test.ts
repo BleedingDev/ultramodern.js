@@ -120,12 +120,19 @@ describe('renderer configuration materialization', () => {
     expect(factory).not.toHaveBeenCalled();
   });
 
-  it('rejects unknown renderers before constructing a composition', () => {
+  it.each([
+    'vue',
+    'soild',
+    'reactt',
+    'Solid',
+    'solid/framework',
+    '',
+  ])('rejects unknown or malformed renderer %s before constructing a composition', renderer => {
     const factory = createFactory();
     expect(() =>
       // @ts-expect-error Exercise invalid authored JavaScript configuration.
-      createDefineConfig(factory)({ renderer: 'vue' }),
-    ).toThrow('Unsupported UltraModern renderer: vue');
+      createDefineConfig(factory)({ renderer }),
+    ).toThrow(`Unsupported UltraModern renderer: ${renderer}`);
     expect(factory).not.toHaveBeenCalled();
   });
 

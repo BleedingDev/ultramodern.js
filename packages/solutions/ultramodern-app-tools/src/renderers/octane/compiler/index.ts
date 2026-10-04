@@ -106,7 +106,7 @@ export function createOctaneCompilerPlugin(
     },
     {
       renderer: 'octane',
-      sourceExtensions: ['.tsrx', '.tsx', '.jsx', '.ts', '.js'],
+      sourceExtensions: ['.tsrx', '.tsx', '.ts', '.js'],
       transform: 'native',
       refresh: 'native',
       svg: 'url',

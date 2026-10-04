@@ -19,6 +19,10 @@ import type {
   ConfigEvaluatorRequest,
   ConfigEvaluatorResult,
 } from './config-evaluator/types';
+import {
+  registeredRenderers,
+  resolveRendererRegistration,
+} from './renderer-registration';
 
 export type {
   ObservedConfigSourceInput,
@@ -95,7 +99,7 @@ function isResult(value: unknown): value is ConfigEvaluatorResult {
   if (!value || typeof value !== 'object') return false;
   const result = value as ConfigEvaluatorResult;
   return (
-    ['react', 'solid', 'octane'].includes(result.renderer) &&
+    registeredRenderers.some(renderer => renderer === result.renderer) &&
     typeof result.primaryEntryName === 'string' &&
     result.primaryEntryName.length > 0 &&
     Array.isArray(result.entries) &&
@@ -111,13 +115,22 @@ function isResult(value: unknown): value is ConfigEvaluatorResult {
     result.entries.some(entry => entry.entryName === result.primaryEntryName) &&
     isObservedInputs(result.consumedSourceInputs) &&
     result.routerBindings !== undefined &&
-    validateRendererRouterBindings(
+    isSelectedRouterBindings(result)
+  );
+}
+
+function isSelectedRouterBindings(result: ConfigEvaluatorResult): boolean {
+  try {
+    const registration = resolveRendererRegistration(result.renderer);
+    return validateRendererRouterBindings(
       result.routerBindings,
       result.entries.map(entry => entry.entryName),
       'routerBindings',
-      result.renderer,
-    ).ok
-  );
+      registration.routerFrameworks,
+    ).ok;
+  } catch {
+    return false;
+  }
 }
 
 function isObservedInputs(value: unknown): value is ObservedConfigSourceInputs {
