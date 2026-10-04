@@ -22,6 +22,7 @@ import {
   workerOptions,
 } from './contract.mjs';
 import { runCommand } from './main.mjs';
+import { retireOwnedProcessGroup } from './runtime.mjs';
 
 function ownedDirectory(t) {
   const parent = process.env.ULTRAMODERN_RSC_WORKER_PROOF_TEST_ROOT;
@@ -44,7 +45,9 @@ function write(root, relative, contents = 'export default {};\n') {
 }
 
 for (const exitCode of [7, 0]) {
-  test(`owned command preserves exit ${exitCode} semantics when group cleanup is denied`, async t => {
+  test(`owned command preserves exit ${exitCode} semantics when group cleanup is denied`, {
+    timeout: 10_000,
+  }, async t => {
     const root = ownedDirectory(t);
     const log = path.join(root, 'command.log');
     const cleanupErrors = [];
@@ -52,48 +55,84 @@ for (const exitCode of [7, 0]) {
       code: 'EPERM',
     });
     const kill = t.mock.method(process, 'kill', (pid, signal) => {
-      const childPid = Number(fs.readFileSync(log, 'utf8').trim());
-      assert(Number.isSafeInteger(childPid) && childPid > 0);
-      assert.equal(pid, -childPid, 'Only the actual owned group is signalled');
+      const { groupId } = JSON.parse(fs.readFileSync(log, 'utf8'));
+      assert(Number.isSafeInteger(groupId) && groupId > 0);
+      assert.equal(pid, -groupId, 'Only the actual owned group is signalled');
       assert.equal(signal, 'SIGKILL');
       throw denied;
     });
-    await assert.rejects(
-      runCommand(
-        process.execPath,
-        [
-          '-e',
-          `require('node:fs').writeSync(1, String(process.pid)); process.exit(${exitCode});`,
-        ],
-        {
-          cwd: root,
-          env: process.env,
-          log,
-          signal: new AbortController().signal,
-          cleanupErrors,
+    try {
+      await assert.rejects(
+        runCommand(
+          process.execPath,
+          [
+            '-e',
+            `const descendant = require('node:child_process').spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000); require("node:fs").writeSync(3, "ready");'], { stdio: ['ignore', 'ignore', 'ignore', 'pipe'] });
+descendant.once('error', error => { throw error; });
+descendant.stdio[3].once('data', ready => {
+  if (ready.toString() !== 'ready') throw new Error('Invalid descendant readiness');
+  require('node:fs').writeSync(1, JSON.stringify({ groupId: process.pid, descendantPid: descendant.pid }));
+  descendant.unref();
+  process.exit(${exitCode});
+});`,
+          ],
+          {
+            cwd: root,
+            env: process.env,
+            log,
+            signal: t.signal,
+            cleanupErrors,
+          },
+        ),
+        error => {
+          assert.notEqual(error, denied);
+          assert.equal(error.name, 'AssertionError');
+          if (exitCode) {
+            assert.equal(error.actual, exitCode);
+            assert.equal(error.expected, 0);
+            assert.match(error.message, /Command failed; see/u);
+          } else assert.match(error.message, /Owned command cleanup failed/u);
+          return true;
         },
-      ),
-      error => {
-        assert.notEqual(error, denied);
-        assert.equal(error.name, 'AssertionError');
-        if (exitCode) {
-          assert.equal(error.actual, exitCode);
-          assert.equal(error.expected, 0);
-          assert.match(error.message, /Command failed; see/u);
-        } else assert.match(error.message, /Owned command cleanup failed/u);
-        return true;
-      },
-    );
-    assert.equal(kill.mock.callCount(), 1);
-    assert.deepEqual(cleanupErrors, [
-      {
-        name: denied.name,
-        message: denied.message,
-        code: 'EPERM',
-        signal: 'SIGKILL',
-        pid: Number(fs.readFileSync(log, 'utf8').trim()),
-      },
-    ]);
+      );
+      const { groupId, descendantPid } = JSON.parse(
+        fs.readFileSync(log, 'utf8'),
+      );
+      assert.equal(
+        kill.mock.callCount(),
+        1,
+        JSON.stringify({
+          groupId,
+          descendantPid,
+          cleanupErrors,
+        }),
+      );
+      assert.equal(cleanupErrors.length, 1);
+      const [error] = cleanupErrors;
+      assert.equal(error.name, denied.name);
+      assert.equal(error.message, denied.message);
+      assert.equal(error.code, 'EPERM');
+      assert.equal(error.signal, 'SIGKILL');
+      assert.equal(error.pid, groupId);
+      assert.equal(error.exitCode, exitCode);
+      assert.equal(error.terminatedBy, null);
+      assert.equal(error.membership.before.groupId, groupId);
+      assert(error.membership.before.liveMemberCount > 0);
+      assert(
+        error.membership.before.members.some(
+          member =>
+            member.pid === descendantPid &&
+            member.live &&
+            member.uid === process.geteuid(),
+        ),
+      );
+    } finally {
+      kill.mock.restore();
+      if (fs.existsSync(log) && fs.statSync(log).size) {
+        const { groupId } = JSON.parse(fs.readFileSync(log, 'utf8'));
+        await retireOwnedProcessGroup(groupId);
+      }
+    }
   });
 }
 
