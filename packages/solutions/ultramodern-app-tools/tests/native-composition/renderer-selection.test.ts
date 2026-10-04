@@ -16,6 +16,7 @@ import {
   type RsbuildPlugins,
 } from '@rsbuild/core';
 import { describe, expect, it, rstest } from '@rstest/core';
+import { pluginRuntimeChunk } from '../../../../cli/builder/src/plugins/runtimeChunk';
 import {
   createDefineConfig,
   resolveUltramodernConfig,
@@ -188,6 +189,125 @@ describe('native compiler ownership', () => {
     await rsbuild.initConfigs();
     expect(forbiddenSetup).not.toHaveBeenCalled();
     expect(nativeSetup).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('native external script asset policy', () => {
+  it.each([
+    'solid',
+    'octane',
+  ] as const)('keeps the %s runtime external through the owning config and builder hooks', async renderer => {
+    const config = await selectHost(renderer, {
+      name: 'fixture:selected-host',
+    });
+    const { api } = await initializeSelection(config);
+    const resolved = await api.getHooks().modifyResolvedConfig.call(config);
+    expect(resolved.output?.disableInlineRuntimeChunk).toBe(true);
+    const rsbuild = await createRsbuild({
+      cwd: __dirname,
+      rsbuildConfig: {
+        source: { entry: { main: './native-runtime-owning-host.js' } },
+        tools: { htmlPlugin: false },
+        output: { inlineScripts: resolved.output?.inlineScripts },
+        plugins: [
+          pluginRuntimeChunk(resolved.output?.disableInlineRuntimeChunk),
+          nativeRendererIsolationPlugin(renderer),
+        ],
+      },
+    });
+    const [bundler] = await rsbuild.initConfigs();
+    expect(rsbuild.getNormalizedConfig().output.inlineScripts).toBe(false);
+    expect(bundler.optimization?.runtimeChunk).toEqual({
+      name: 'builder-runtime',
+    });
+  });
+
+  it('preserves the upstream inline-runtime default for React', async () => {
+    const config = await selectHost('react', { name: 'fixture:selected-host' });
+    const { api } = await initializeSelection(config);
+    const resolved = await api.getHooks().modifyResolvedConfig.call(config);
+    expect(resolved.output?.disableInlineRuntimeChunk).toBeUndefined();
+    const rsbuild = await createRsbuild({
+      cwd: __dirname,
+      rsbuildConfig: {
+        source: { entry: { main: './react-runtime-owning-host.js' } },
+        tools: { htmlPlugin: false },
+        plugins: [pluginRuntimeChunk()],
+      },
+    });
+    await rsbuild.initConfigs();
+    const inlineScripts = rsbuild.getNormalizedConfig().output.inlineScripts;
+    expect(inlineScripts).toBeInstanceOf(RegExp);
+    expect(
+      inlineScripts instanceof RegExp &&
+        inlineScripts.test('builder-runtime.123.js'),
+    ).toBe(true);
+  });
+
+  it.each([
+    { disableInlineRuntimeChunk: false },
+    { inlineScripts: true },
+    { inlineScripts: /runtime/u },
+    { inlineScripts: () => true },
+    { inlineScripts: { test: /runtime/u } },
+    { disableInlineRuntimeChunk: true, inlineScripts: true },
+  ])('rejects an explicit unsupported native inlining request: %j', async output => {
+    const selectedSetup = rstest.fn();
+    const config = await selectHost('solid', {
+      name: 'fixture:selected-host',
+      setup: selectedSetup,
+    });
+    await expect(initializeSelection({ ...config, output })).rejects.toThrow(
+      'requires external script assets; script inlining is not supported by native documents',
+    );
+    expect(selectedSetup).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { inlineScripts: false },
+    { disableInlineRuntimeChunk: true },
+    { disableInlineRuntimeChunk: false, inlineScripts: false },
+  ] as const)('preserves an explicit supported external-script policy: %j', async output => {
+    const config = await selectHost('solid', { name: 'fixture:selected-host' });
+    const { api } = await initializeSelection({ ...config, output });
+    const resolved = await api
+      .getHooks()
+      .modifyResolvedConfig.call({ ...config, output });
+    expect(resolved.output).toEqual({
+      ...output,
+      disableInlineRuntimeChunk:
+        ('disableInlineRuntimeChunk' in output
+          ? output.disableInlineRuntimeChunk
+          : undefined) ?? true,
+    });
+  });
+
+  it('rejects a later environment inlining request before compiler creation', async () => {
+    const rsbuild = await createRsbuild({
+      cwd: __dirname,
+      rsbuildConfig: {
+        source: { entry: { main: './native-runtime-owning-host.js' } },
+        tools: { htmlPlugin: false },
+        output: { inlineScripts: false },
+        plugins: [
+          nativeRendererIsolationPlugin('solid'),
+          {
+            name: 'fixture:late-environment-inlining',
+            setup(api) {
+              api.modifyEnvironmentConfig({
+                order: 'post',
+                handler(config) {
+                  config.output.inlineScripts = true;
+                },
+              });
+            },
+          },
+        ],
+      },
+    });
+    await expect(rsbuild.initConfigs()).rejects.toThrow(
+      'requires external script assets; script inlining is not supported by native documents',
+    );
   });
 });
 

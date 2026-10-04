@@ -345,6 +345,11 @@ export function releaseConsumerInputs(release, template) {
             `npm:${sidecar.name}@${sidecar.version}`,
             `Sidecar dependency must match the authenticated version: ${parent.name} ${name}`,
           );
+          assert(
+            overrides[name] === undefined || overrides[name] === specifier,
+            `Conflicting authenticated sidecar alias: ${name}`,
+          );
+          overrides[name] = specifier;
         }
       }
     }

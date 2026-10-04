@@ -121,6 +121,22 @@ export function assertNoAdditionalBasePlugins(
   for (const plugin of plugins) visit(plugin);
 }
 
+function assertNativeExternalScripts(
+  renderer: Renderer,
+  output:
+    | { inlineScripts?: unknown; disableInlineRuntimeChunk?: boolean }
+    | undefined,
+): void {
+  if (
+    (output?.inlineScripts !== undefined && output.inlineScripts !== false) ||
+    (output?.disableInlineRuntimeChunk === false &&
+      output.inlineScripts !== false)
+  )
+    throw new Error(
+      `unsupported-renderer-capability: renderer ${renderer} requires external script assets; script inlining is not supported by native documents`,
+    );
+}
+
 export function assertCapturedRenderer(
   config: UltramodernAppUserConfig,
   renderer: Renderer,
@@ -132,6 +148,8 @@ export function assertCapturedRenderer(
       `Renderer changed from ${renderer} to ${actual} after plugin selection. Update the source configuration and restart the dev server.`,
     );
   }
+  if (registration.kind === 'native')
+    assertNativeExternalScripts(renderer, config.output);
   const capabilities = registration.candidateProfile.capabilities;
   const reject = (capability: string): never => {
     throw new Error(
@@ -241,7 +259,17 @@ export function rendererSelectionGuard(
       }
       api.modifyResolvedConfig(config => {
         validate(config as UltramodernAppUserConfig);
-        return config;
+        if (resolveRendererRegistration(renderer).kind !== 'native')
+          return config;
+        return {
+          ...config,
+          output: {
+            ...config.output,
+            // The builder captures this flag before its runtime-inline default.
+            disableInlineRuntimeChunk:
+              config.output?.disableInlineRuntimeChunk ?? true,
+          },
+        };
       });
       // Catch a later consumer transform before app-tools starts output work.
       api.onPrepare(async () => {
@@ -269,6 +297,14 @@ export function nativeRendererIsolationPlugin(
       'rsbuild:svgr',
       'builder-plugin-adapter-modern-ssr',
     ],
-    setup() {},
+    setup(api) {
+      api.modifyBundlerChain({
+        order: 'post',
+        handler(_chain, { environment }) {
+          // Inspect final environment policy, including tools.rsbuild changes.
+          assertNativeExternalScripts(renderer, environment.config.output);
+        },
+      });
+    },
   };
 }
