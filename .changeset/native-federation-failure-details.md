@@ -12,3 +12,5 @@ Retry API type downloads after a connection reset within the existing attempt li
 Hold the receiver publication fence across identity resolution and metadata publication. Queue the next native receiver generation until those reads and writes finish, preserving lease validation and watch recovery.
 
 Use the router-free React federation bridge entry in every module format, preserving the framework's lazy-loading CSS default and option forwarding.
+
+Report the actual changed compiler inputs when React discovery and its first live build disagree, including bounded dependency and receiver differences. Keep the build identity validation strict.

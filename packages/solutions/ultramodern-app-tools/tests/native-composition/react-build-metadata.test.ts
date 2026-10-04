@@ -29,7 +29,10 @@ import { afterEach, describe, expect, it, rstest } from '@rstest/core';
 import { tanstackRouterPlugin } from '../../../../runtime/plugin-tanstack/src/cli';
 import { writeTanstackRouterTypesForEntries } from '../../../../runtime/plugin-tanstack/src/cli/artifacts';
 import { withEntryMetadataRead } from '../../src/native-composition/config-read-context';
-import { RENDERER_BUILD_MANIFEST_FILE } from '../../src/native-composition/native-build-manifest';
+import {
+  RENDERER_BUILD_MANIFEST_FILE,
+  RENDERER_DEVELOPMENT_DIRECTORY,
+} from '../../src/native-composition/native-build-manifest';
 import {
   REACT_RENDERER_IDENTITY_ELEMENT_ID,
   type ReactBuildMetadataOptions,
@@ -37,6 +40,7 @@ import {
 } from '../../src/native-composition/react-build-metadata';
 import reactBuildMetadataServerPlugin, {
   REACT_RENDERER_IDENTITY_HEADER,
+  type ReactBuildMetadataServerOptions,
 } from '../../src/native-composition/react-build-metadata-server';
 import { composeReactRenderer } from '../../src/native-composition/react-composition';
 import { resolveRendererProfile } from '../../src/native-composition/renderer-profile';
@@ -119,6 +123,7 @@ async function initializeMetadata(
   options: ReactBuildMetadataOptions,
   cssDeclarations = false,
   producerPlugins: CliPlugin<AppTools>[] = [],
+  command: 'build' | 'dev' = 'build',
 ) {
   const manager = createPluginManager<CLIPluginAPI<AppTools>>();
   manager.addPlugins([
@@ -140,7 +145,7 @@ async function initializeMetadata(
     appContext: initAppContext({
       packageName: 'react-metadata-proof',
       configFile: false,
-      command: 'build',
+      command,
       appDirectory: root,
       metaName: 'modern-js',
       plugins,
@@ -631,6 +636,151 @@ describe('React metadata in the existing CLI build hooks', () => {
       }
     } finally {
       await result.close();
+    }
+  });
+  it('reports first-live compiler evidence without publishing a mismatched development identity', async () => {
+    const root = createFixture();
+    const dependencies: string[][] = [];
+    const resolveBuildIdentities = rstest.fn<
+      ReactBuildMetadataOptions['resolveBuildIdentities']
+    >(async context => {
+      if (!context.compilerInputs)
+        throw new Error('Native development compiler inputs were not captured');
+      dependencies.push(context.compilerInputs.map(input => input.path));
+      return buildIdentities(
+        ['ssr', 'csr'],
+        dependencies.length === 1
+          ? {}
+          : { buildMarker: 'f'.repeat(64), inputDigest: '9'.repeat(64) },
+      );
+    });
+    const { api } = await initializeMetadata(
+      root,
+      { resolveBuildIdentities },
+      false,
+      [],
+      'dev',
+    );
+    await analyzeFinalEntries(api, authoredEntries(root));
+    const { builderPlugins } = await api.getHooks().modifyResolvedConfig.call({
+      ...api.getNormalizedConfig(),
+      builderPlugins: [],
+    } as AppNormalizedConfig);
+    const { plugins } = await api
+      .getHooks()
+      ._internalServerPlugins.call({ plugins: [] });
+    const metadata = plugins.find(plugin =>
+      plugin.name.endsWith('react-build-metadata-server.js'),
+    );
+    const options = metadata?.options as
+      | ReactBuildMetadataServerOptions
+      | undefined;
+    if (!options?.resolveEntries)
+      throw new Error(
+        'Native development metadata readiness was not registered',
+      );
+    const readiness = options.resolveEntries().then(
+      entries => ({ entries }),
+      (error: unknown) => ({ error }),
+    );
+    const rsbuild = await createRsbuild({
+      cwd: root,
+      rsbuildConfig: {
+        mode: 'development',
+        plugins: builderPlugins as RsbuildPlugin[],
+        server: { host: '127.0.0.1', port: 0, printUrls: false },
+        dev: { writeToDisk: false, hmr: true, liveReload: false },
+        output: {
+          cleanDistPath: false,
+          distPath: { root: path.join(root, 'dist') },
+        },
+        performance: { printFileSize: false },
+        environments: {
+          client: {
+            source: {
+              entry: {
+                ssr: path.join(root, 'src', 'ssr.js'),
+                csr: path.join(root, 'src', 'csr.js'),
+              },
+            },
+          },
+        },
+      },
+    });
+    const devServer = await rsbuild.createDevServer({ getPortSilently: true });
+    try {
+      const listening = await devServer.listen().then(
+        () => ({ error: undefined }),
+        (error: unknown) => ({ error }),
+      );
+      const result = await readiness;
+      if (!('error' in result) || !(result.error instanceof Error))
+        throw new Error(
+          'The first live native identity mismatch did not reject',
+        );
+      const failure = result.error;
+      if (listening.error !== undefined) expect(listening.error).toBe(failure);
+      expect(failure.message).toMatch(
+        /^Native build inputs changed during compilation \(buildMarker\);/u,
+      );
+      expect(failure.cause).toBeInstanceOf(Error);
+      if (!(failure.cause instanceof Error))
+        throw new Error('The original native identity guard error was lost');
+      expect(failure.message.startsWith(`${failure.cause.message}\n`)).toBe(
+        true,
+      );
+      expect(failure.cause.message).toContain('Changed identity fields:');
+      expect(failure.cause.message).toContain('inputDigest: expected=');
+      expect(resolveBuildIdentities).toHaveBeenCalledTimes(2);
+      const packageManifest = path.join(root, 'package.json');
+      expect(dependencies[0]).toContain(packageManifest);
+      expect(dependencies[1]).not.toContain(packageManifest);
+      expect(
+        dependencies[0].filter(filename => filename !== packageManifest),
+      ).toEqual(dependencies[1]);
+      for (const captured of dependencies)
+        expect(captured).toEqual(
+          expect.arrayContaining([
+            path.join(root, 'src', 'ssr.js'),
+            path.join(root, 'src', 'csr.js'),
+          ]),
+        );
+      for (const [context] of resolveBuildIdentities.mock.calls)
+        expect(context.mode).toBe('development');
+      const lines = failure.message.split('\n');
+      const evidence = lines.find(line =>
+        line.startsWith('React first-live compiler evidence: dependencies='),
+      );
+      expect(evidence).toBe(
+        'React first-live compiler evidence: dependencies={"addedCount":0,"removedCount":1,"added":[],"removed":["package.json"]}',
+      );
+      const emptyReceipts = {
+        count: 0,
+        selectedNodeCount: 0,
+        differenceCount: 0,
+        differences: [],
+      };
+      for (const prefix of ['expectedReceipts=', 'actualReceipts=']) {
+        const line = lines.find(candidate => candidate.startsWith(prefix));
+        if (!line)
+          throw new Error(`Missing native compiler diagnostic ${prefix}`);
+        expect(JSON.parse(line.slice(prefix.length))).toEqual(emptyReceipts);
+      }
+      expect(
+        fs.existsSync(
+          path.join(
+            root,
+            'dist',
+            RENDERER_DEVELOPMENT_DIRECTORY,
+            RENDERER_BUILD_MANIFEST_FILE,
+          ),
+        ),
+      ).toBe(false);
+      expect(
+        fs.existsSync(path.join(root, 'dist', RENDERER_BUILD_MANIFEST_FILE)),
+      ).toBe(false);
+    } finally {
+      await devServer.close();
     }
   });
   it('keeps authored entries and existing runtime paths, then writes canonical evidence from emitted assets', async () => {

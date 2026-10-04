@@ -144,6 +144,40 @@ describe('immutable native build evidence', () => {
       assertRendererBuildInputsUnchanged(initial, structuredClone(initial)),
     ).not.toThrow();
   });
+  it('reports every changed fingerprint while retaining the first fatal input field', () => {
+    const initial = validateRendererBuildManifest(
+      artifact(),
+      resolveRendererProfile('solid'),
+    );
+    const current = {
+      ...initial,
+      buildMarker: 'f'.repeat(64),
+      inputDigest: '0'.repeat(64),
+      compilerDigest: '1'.repeat(64),
+    };
+    let failure: unknown;
+    try {
+      assertRendererBuildInputsUnchanged(initial, current);
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure).toBeInstanceOf(Error);
+    if (!(failure instanceof Error))
+      throw new Error('The changed build fingerprints must reject');
+    expect(failure.message).toContain(
+      'changed during compilation (buildMarker)',
+    );
+    expect(failure.message).toContain(
+      `inputDigest: expected="${initial.inputDigest}", actual="${current.inputDigest}"`,
+    );
+    expect(failure.message).toContain(
+      `compilerDigest: expected="${initial.compilerDigest}", actual="${current.compilerDigest}"`,
+    );
+    expect(failure.message).not.toContain('profileDigest:');
+    expect(() =>
+      assertRendererBuildInputsUnchanged(initial, structuredClone(initial)),
+    ).not.toThrow();
+  });
   it('loads the actual built identity without replacing it from current app source', async () => {
     const root = fs.mkdtempSync(
       path.join(os.tmpdir(), 'um-renderer-manifest-'),

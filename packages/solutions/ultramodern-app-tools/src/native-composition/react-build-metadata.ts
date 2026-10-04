@@ -107,6 +107,134 @@ export async function resolveReactMetadataServerPlugin(
   }
 }
 
+const boundedDiagnostic = (value: string, limit: number) =>
+  value.length > limit ? `${value.slice(0, limit - 1)}…` : value;
+
+function compilerIdentityEvidence(
+  dependencies: readonly string[],
+  lease: RendererGeneratedOutputIdentityLease | undefined,
+) {
+  const receipts = Object.freeze(
+    (lease?.receipts ?? []).map(({ registration, receipt }) => {
+      const context = registration.context;
+      const binding = Object.freeze({
+        producer: registration.producer,
+        implementation:
+          context && typeof context === 'object' && 'implementation' in context
+            ? context.implementation
+            : undefined,
+        effectiveOptions: registration.effectiveOptions,
+        destinations: registration.destinations,
+      });
+      return Object.freeze({
+        binding,
+        nodes: Object.freeze(
+          receipt.nodes
+            .filter(node => lease?.permission(node.path.lexical) === node)
+            .map(node =>
+              Object.freeze({
+                path: node.path,
+                kind: node.kind,
+                byteDigest: node.kind === 'file' ? node.byteDigest : undefined,
+                entries: node.kind === 'directory' ? node.entries : undefined,
+                binding,
+              }),
+            ),
+        ),
+      });
+    }),
+  );
+  return Object.freeze({
+    dependencies: Object.freeze([...dependencies]),
+    receipts,
+  });
+}
+
+function receiptEvidenceDifference(
+  appDirectory: string,
+  expected: ReturnType<typeof compilerIdentityEvidence>,
+  actual: ReturnType<typeof compilerIdentityEvidence>,
+) {
+  type Node = (typeof expected.receipts)[number]['nodes'][number];
+  const nodes = (evidence: typeof expected) =>
+    new Map(
+      evidence.receipts.flatMap(receipt =>
+        receipt.nodes.map(node => [node.path.lexical, node] as const),
+      ),
+    );
+  const previous = nodes(expected);
+  const current = nodes(actual);
+  const differences = [...new Set([...previous.keys(), ...current.keys()])]
+    .sort()
+    .flatMap(filename => {
+      const before = previous.get(filename);
+      const after = current.get(filename);
+      const fields =
+        !before || !after
+          ? ['presence']
+          : [
+              ...(['path', 'kind', 'byteDigest', 'entries'] as const).filter(
+                field => !isDeepStrictEqual(before[field], after[field]),
+              ),
+              ...(
+                [
+                  'producer',
+                  'implementation',
+                  'effectiveOptions',
+                  'destinations',
+                ] as const
+              )
+                .filter(
+                  field =>
+                    !isDeepStrictEqual(
+                      before.binding[field],
+                      after.binding[field],
+                    ),
+                )
+                .map(field => `binding.${field}`),
+            ];
+      return fields.length ? [{ filename, fields, before, after }] : [];
+    });
+  const identifier = (filename: string) =>
+    boundedDiagnostic(path.relative(appDirectory, filename) || '.', 128);
+  const describe = (node: Node | undefined) =>
+    node && {
+      kind: node.kind,
+      ...(node.byteDigest ? { byteDigest: node.byteDigest } : {}),
+      producer: {
+        packageName: boundedDiagnostic(node.binding.producer.packageName, 128),
+        version: boundedDiagnostic(node.binding.producer.version, 128),
+        moduleDigest: node.binding.producer.moduleDigest,
+        modulePath: identifier(node.binding.producer.modulePath),
+      },
+      destinations: node.binding.destinations.map(destination =>
+        identifier(destination.path.lexical),
+      ),
+    };
+  const summarize = (
+    evidence: typeof expected,
+    selected: Map<string, Node>,
+    side: 'before' | 'after',
+  ) =>
+    boundedDiagnostic(
+      JSON.stringify({
+        count: evidence.receipts.length,
+        selectedNodeCount: selected.size,
+        differenceCount: differences.length,
+        differences: differences.slice(0, 8).map(difference => ({
+          path: identifier(difference.filename),
+          fields: difference.fields,
+          ...describe(difference[side]),
+        })),
+      }),
+      2048,
+    );
+  return {
+    expected: summarize(expected, previous, 'before'),
+    actual: summarize(actual, current, 'after'),
+  };
+}
+
 /** Bind the existing React output to its actual application and framework inputs. */
 export function reactRendererBuildMetadataPlugin(
   options: ReactBuildMetadataOptions,
@@ -116,6 +244,9 @@ export function reactRendererBuildMetadataPlugin(
   let typedCssPhase: ReactTypedCssPhase | undefined;
   let developmentGeneration = 0;
   let developmentSession: RendererBuildIdentities | undefined;
+  let developmentSessionEvidence:
+    | ReturnType<typeof compilerIdentityEvidence>
+    | undefined;
   let developmentWave: RendererBuildIdentities | undefined;
   let inputContext:
     | Parameters<ReactBuildMetadataOptions['resolveBuildIdentities']>[0]
@@ -461,10 +592,46 @@ export function reactRendererBuildMetadataPlugin(
               // The private completed graph seeds the session. Its first live
               // wave must reproduce that entire graph before any publication.
               if (developmentGeneration === 0)
-                assertRendererBuildInputsUnchanged(
-                  developmentSession,
-                  completed,
-                );
+                try {
+                  assertRendererBuildInputsUnchanged(
+                    developmentSession,
+                    completed,
+                  );
+                } catch (error) {
+                  if (!(error instanceof Error) || !developmentSessionEvidence)
+                    throw error;
+                  const expected = developmentSessionEvidence;
+                  const actual = compilerIdentityEvidence(
+                    dependencies,
+                    generatedOutputs,
+                  );
+                  const receiptDifference = receiptEvidenceDifference(
+                    captured.appDirectory,
+                    expected,
+                    actual,
+                  );
+                  const previous = new Set(expected.dependencies);
+                  const current = new Set(actual.dependencies);
+                  const added = actual.dependencies.filter(
+                    filename => !previous.has(filename),
+                  );
+                  const removed = expected.dependencies.filter(
+                    filename => !current.has(filename),
+                  );
+                  const paths = (filenames: readonly string[]) =>
+                    filenames
+                      .slice(0, 8)
+                      .map(filename =>
+                        boundedDiagnostic(
+                          path.relative(captured.appDirectory, filename) || '.',
+                          128,
+                        ),
+                      );
+                  throw new Error(
+                    `${error.message}\nReact first-live compiler evidence: dependencies=${JSON.stringify({ addedCount: added.length, removedCount: removed.length, added: paths(added), removed: paths(removed) })}\nexpectedReceipts=${receiptDifference.expected}\nactualReceipts=${receiptDifference.actual}`,
+                    { cause: error },
+                  );
+                }
               for (const key of [
                 'profileDigest',
                 'compilerDigest',
@@ -496,7 +663,13 @@ export function reactRendererBuildMetadataPlugin(
                 throw new Error(
                   'React development session application entries changed; restart the CLI with the current entry graph',
                 );
-            } else developmentSession = completed;
+            } else {
+              developmentSessionEvidence = compilerIdentityEvidence(
+                dependencies,
+                generatedOutputs,
+              );
+              developmentSession = completed;
+            }
             developmentWave = completed;
             identities = developmentSession;
           } else identities = completed;

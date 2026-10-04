@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url';
 import {
   assertReactBaselineReport,
   readReactBaselineReport,
+  readReactMfDiagnosticReport,
+  selectReactBaselineRun,
 } from './react-baseline-candidate.mjs';
 import {
   assertReactBaselineDataLoaderPackageCurrent,
@@ -223,6 +225,85 @@ function nativeReport() {
     tests,
   };
 }
+
+function nativeMfReport() {
+  const report = nativeReport();
+  report.files = [report.files[0]];
+  report.tests = report.files[0].results;
+  report.summary.testFiles = 1;
+  report.summary.tests = 9;
+  report.summary.passedTests = 9;
+  return report;
+}
+
+test('MF9 selection preserves default all17 and rejects qualification receipt usage', () => {
+  const baseline = selectReactBaselineRun({ receipt: '/owned/receipt.json' });
+  assert.equal(baseline.diagnostic, false);
+  assert.equal(baseline.commandName, 'react17');
+  assert.equal(baseline.suites, REACT_BASELINE_SUITES);
+  const diagnostic = selectReactBaselineRun({ diagnostic: 'mf9' });
+  assert.equal(diagnostic.diagnostic, true);
+  assert.equal(diagnostic.commandName, 'mf9');
+  assert.deepEqual(diagnostic.suites, [REACT_BASELINE_SUITES[0]]);
+  assert.throws(
+    () =>
+      selectReactBaselineRun({
+        diagnostic: 'mf9',
+        receipt: '/owned/receipt.json',
+      }),
+    /cannot write a baseline receipt/u,
+  );
+  assert.throws(
+    () => selectReactBaselineRun({ diagnostic: 'substitute' }),
+    /only supported diagnostic profile/u,
+  );
+});
+
+test('genuine-shaped MF9 results remain diagnostic and cannot qualify all17', () => {
+  const report = nativeMfReport();
+  const stdout = `native build output\n${JSON.stringify(report)}\n`;
+  assert.deepEqual(readReactMfDiagnosticReport(stdout, version).report, report);
+  assert.throws(
+    () => readReactBaselineReport(stdout, version),
+    /17 actual passes and zero skips/u,
+  );
+  assert.throws(
+    () => readReactMfDiagnosticReport(JSON.stringify(nativeReport()), version),
+    /exactly its original test file/u,
+  );
+  report.files[0].testPath = 'integration/substitute.test.ts';
+  assert.throws(
+    () => readReactMfDiagnosticReport(JSON.stringify(report), version),
+    /foreign file/u,
+  );
+});
+
+test('MF9 diagnostics retain real failed setup and skips without calling them a pass', () => {
+  const report = nativeMfReport();
+  report.status = 'fail';
+  report.files[0].status = 'fail';
+  report.files[0].errors = [
+    { message: 'Native build inputs changed (buildMarker)' },
+  ];
+  report.tests.slice(0, 8).forEach(record => {
+    record.status = 'skip';
+  });
+  Object.assign(report.summary, {
+    failedFiles: 1,
+    passedTests: 1,
+    skippedTests: 8,
+  });
+  report.unhandledErrors = [{ message: 'actual late compiler error' }];
+  const parsed = readReactMfDiagnosticReport(JSON.stringify(report), version);
+  assert.deepEqual(parsed.report, report);
+  assert.equal(parsed.report.summary.skippedTests, 8);
+  assert.equal(parsed.report.unhandledErrors.length, 1);
+  report.status = 'pass';
+  assert.throws(
+    () => readReactMfDiagnosticReport(JSON.stringify(report), version),
+    /file did not pass/u,
+  );
+});
 
 test('restores only the original builder RSC test tool while preserving fixture and optional SDK contracts', () => {
   const { release, fixture } = originalRscAuthority();
