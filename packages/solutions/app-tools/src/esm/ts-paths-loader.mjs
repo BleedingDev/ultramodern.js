@@ -41,6 +41,18 @@ const getParentPath = parentURL => {
   return process.cwd();
 };
 
+// Node places the request's native condition before any user-added conditions.
+const resolveSourcePath = (resolvedPath, context, defaultResolve) =>
+  defaultResolve(
+    context.conditions?.find(
+      condition => condition === 'require' || condition === 'import',
+    ) === 'require'
+      ? resolvedPath
+      : pathToFileURL(resolvedPath).href,
+    context,
+    defaultResolve,
+  );
+
 export async function initialize({ appDir: currentAppDir, baseUrl, paths }) {
   appDir = fs.existsSync(currentAppDir)
     ? fs.realpathSync(currentAppDir)

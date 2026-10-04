@@ -15,7 +15,6 @@
     "react-i18next": "17.0.15"
   },
   "devDependencies": {
-    "@modern-js/app-tools": "workspace:*",
-    "@typescript/native-preview": "7.0.0-dev.20260707.2"
+    "@modern-js/app-tools": "workspace:*"
   }
 }

@@ -74,10 +74,10 @@
     "@modern-js/rslib": "workspace:*",
     "@modern-js/server-core": "workspace:*",
     "@modern-js/types": "workspace:*",
-    "@rslib/core": "1.0.3",
-    "@types/node": "^26.6.3",
-    "@types/ua-parser-js": "^0.7.39",
-    "@typescript/native-preview": "7.0.0-dev.20260707.2"
+    "@rslib/core": "1.0.2",
+    "@scripts/rstest-config": "workspace:*",
+    "@types/node": "^26.6.2",
+    "@types/ua-parser-js": "^0.7.39"
   },
   "sideEffects": false,
   "publishConfig": {

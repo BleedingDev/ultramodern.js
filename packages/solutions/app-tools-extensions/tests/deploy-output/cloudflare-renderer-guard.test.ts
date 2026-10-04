@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { createHandleAction } from '../../../../runtime/render/src/server/rsc/handle-action';
 
@@ -35,6 +36,7 @@ const profiles = {
     router: {
       name: '@tanstack/react-router',
       version: '1.170.39',
+      coreName: '@tanstack/router-core',
       coreVersion: '1.171.32',
     },
   },
@@ -44,6 +46,7 @@ const profiles = {
     router: {
       name: '@tanstack/solid-router',
       version: '2.0.0-rc.8',
+      coreName: '@tanstack/router-core',
       coreVersion: '1.171.22',
     },
   },
@@ -53,6 +56,7 @@ const profiles = {
     router: {
       name: '@octanejs/tanstack-router',
       version: '0.1.60',
+      coreName: '@tanstack/router-core',
       coreVersion: '1.171.15',
     },
   },
@@ -164,6 +168,162 @@ function createPoisonedRuntime(manifest: ReturnType<typeof createManifest>) {
   });
   return { runtime, evaluations: () => evaluations };
 }
+
+function createPublishedReactManifest() {
+  const ownerRequire = createRequire(
+    path.resolve(__dirname, '../../../ultramodern-app-tools/package.json'),
+  );
+  const sdk = ownerRequire('@modern-js/ultramodern-app-tools');
+  const contracts = ownerRequire('@modern-js/backend-federation-contracts');
+  const { stampFinalizedRendererBuildArtifact } = ownerRequire(
+    '@modern-js/app-tools-extensions/release-envelope/renderer-output-stamp',
+  );
+  const manifest = createManifest('react');
+  const profile = sdk.resolveRendererProfile('react');
+  const { renderer, protocolVersion, compiler, hydration, router } = profile;
+  const rendererProfile = {
+    renderer,
+    protocolVersion,
+    compiler,
+    hydration,
+    router,
+  };
+  const buildMarker = 'a'.repeat(64);
+  const sourceRevision = 'b'.repeat(40);
+  const rendererIdentity = {
+    renderer,
+    protocolVersion,
+    appId: manifest.deliveryUnit.appId,
+    entryName: 'main',
+    buildId: buildMarker,
+  };
+  const provider = { framework: 'react-router', ...router };
+  const routerBindings = {
+    main: {
+      owner: '@fixture/react-router-owner',
+      evidence: 'owned-default',
+      defaultProvider: provider,
+      providers: [provider],
+    },
+  };
+  // A current public compiler metadata fixture, not a compiler execution claim.
+  sdk.validateRendererBuildManifest(
+    {
+      schema: 'ultramodern-renderer-build',
+      version: 1,
+      profile,
+      routerBindings,
+      buildMarker,
+      sourceRevision,
+      inputDigest: 'c'.repeat(64),
+      profileDigest: 'd'.repeat(64),
+      compilerDigest: 'e'.repeat(64),
+      frameworkCohortDigest: 'f'.repeat(64),
+      cacheAllowed: true,
+      promotable: true,
+      identities: { main: rendererIdentity },
+    },
+    profile,
+  );
+  const { surfaces: _surfaces, ...deliveryUnit } = manifest.deliveryUnit;
+  const source = contracts.createUltramodernBuildArtifact(
+    { ...deliveryUnit, sourceRevision: 'workspace' },
+    {
+      ui: {
+        identity: {
+          ...rendererIdentity,
+          buildId: deliveryUnit.buildMarker,
+        },
+        profile: rendererProfile,
+        routerBindings,
+      },
+    },
+  );
+  const output = {
+    buildMarker,
+    sourceRevision,
+    ui: { rendererIdentity, rendererProfile, routerBindings },
+  };
+  const context = {
+    appDirectory: path.resolve(__dirname, 'fixtures/worker-renderer-profile'),
+    distDirectory: path.resolve(
+      __dirname,
+      'fixtures/worker-renderer-profile/dist',
+    ),
+    entrypoints: [{ entryName: 'main', isMainEntry: true }],
+  };
+  const stamped = stampFinalizedRendererBuildArtifact(source, output, context);
+  manifest.deliveryUnit = {
+    ...stamped.deliveryUnit,
+    surfaces: stamped.surfaces,
+  };
+  return {
+    manifest,
+    source,
+    output,
+    context,
+    stampFinalizedRendererBuildArtifact,
+  };
+}
+
+it('admits the current public React router core identity from a finalized artifact', async () => {
+  const { manifest, output } = createPublishedReactManifest();
+  expect(output.ui.rendererProfile.router.coreName).toBeTruthy();
+  let evaluations = 0;
+  const runtime = evaluateEntry(manifest, {
+    [route.worker]: async () => {
+      evaluations += 1;
+      return { fetch: () => new Response('public finalized React profile') };
+    },
+  });
+  const response = await runtime.worker.fetch(
+    new Request('https://example.com/'),
+  );
+  expect(response.status).toBe(200);
+  await expect(response.text()).resolves.toBe('public finalized React profile');
+  expect(evaluations).toBe(1);
+});
+
+it.each([
+  ['coreName', '@foreign/router-core'],
+  ['coreVersion', '99.0.0'],
+] as const)('keeps finalized router %s bound to the actual compiler profile', (field, value) => {
+  const { source, output, context, stampFinalizedRendererBuildArtifact } =
+    createPublishedReactManifest();
+  const foreign = structuredClone(output);
+  foreign.ui.rendererProfile.router[field] = value;
+  expect(() =>
+    stampFinalizedRendererBuildArtifact(source, foreign, context),
+  ).toThrow(/captured application profile or router bindings/);
+});
+
+it.each([
+  'missing-core-name',
+  'missing-core-version',
+  'noncanonical-core-name',
+  'ranged-core-version',
+  'extra-core-field',
+] as const)('rejects %s in published router metadata before importing a worker', async invalid => {
+  const { manifest: authoritativeManifest } = createPublishedReactManifest();
+  const manifest = structuredClone(authoritativeManifest);
+  const ui = manifest.deliveryUnit.surfaces.ui as Record<string, unknown>;
+  const profile = ui.rendererProfile as Record<string, unknown>;
+  const router = profile.router as Record<string, unknown>;
+  if (invalid === 'missing-core-name') delete router.coreName;
+  if (invalid === 'missing-core-version') delete router.coreVersion;
+  if (invalid === 'noncanonical-core-name') router.coreName = ' react-router ';
+  if (invalid === 'ranged-core-version') router.coreVersion = '^1.0.0';
+  if (invalid === 'extra-core-field') router.coreAlias = 'react-router';
+  const { runtime, evaluations } = createPoisonedRuntime(manifest);
+  const response = await runtime.worker.fetch(
+    new Request('https://example.com/'),
+  );
+  expect(response.status).toBe(500);
+  await expect(response.json()).resolves.toEqual({
+    code: 'invalid-renderer-metadata',
+  });
+  expect(evaluations()).toBe(0);
+});
 
 const moduleForms = [
   'fetch',

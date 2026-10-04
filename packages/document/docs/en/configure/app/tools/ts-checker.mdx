@@ -80,24 +80,10 @@ export default {
 
 Type checking runs on [TypeScript Go](https://github.com/microsoft/typescript-go) (`tsgo`) by default in this fork. The capability is provided by [`ts-checker-rspack-plugin`](https://github.com/rstackjs/ts-checker-rspack-plugin), which is integrated by [`@rsbuild/plugin-type-check`](https://github.com/rstackjs/rsbuild-plugin-type-check), and reduces type-checking time by about 5-10x.
 
-Modern.js prefers the project's stable `typescript` package when it is TypeScript 7 or newer, and falls back to `@typescript/native-preview` for projects still on the preview lane. To pin stable TypeScript 7, install it in your project:
+Modern.js uses the native Go compiler from stable `typescript@7.0.2`. It resolves the project's package first, then the builder's declared dependency, and rejects incompatible versions. To install the supported compiler in your project:
 
-<PackageManagerTabs command="install typescript -D" />
+<PackageManagerTabs command="install typescript@7.0.2 -D" />
 
-When `tsgo` is enabled, the default `typescript.typescriptPath` resolves to `typescript/package.json` for TypeScript 7 projects. If you manually set `typescript.typescriptPath`, it must be an absolute path to `typescript/package.json` or `@typescript/native-preview/package.json`.
-
-To fall back to the classic TypeScript checker, set `typescript.tsgo` to `false` and make sure `typescript` is installed in your project:
-
-```ts
-export default {
-  tools: {
-    tsChecker: {
-      typescript: {
-        tsgo: false,
-      },
-    },
-  },
-};
-```
+The default `typescript.typescriptPath` resolves to the absolute path of `typescript/package.json` for that stable compiler.
 
 For supported options and limitations, please refer to [ts-checker-rspack-plugin - TypeScript Go support](https://github.com/rstackjs/ts-checker-rspack-plugin#typescript-go-support).

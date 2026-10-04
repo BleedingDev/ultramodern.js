@@ -7,7 +7,6 @@ import { describe, expect, it } from '@rstest/core';
 const requireFromTest = createRequire(import.meta.url);
 const compilers = [
   { name: 'TypeScript', package: 'typescript', binary: 'tsc' },
-  { name: 'TS-Go', package: '@typescript/native-preview', binary: 'tsgo' },
 ];
 
 // These programs import the canonical source backing. They do not certify a
@@ -42,10 +41,14 @@ function checkSourceContract(
     const manifest = requireFromTest.resolve(
       `${compiler.package}/package.json`,
     );
-    const bin = JSON.parse(fs.readFileSync(manifest, 'utf-8')).bin;
+    const compilerManifest = JSON.parse(fs.readFileSync(manifest, 'utf-8'));
+    expect(compilerManifest).toMatchObject({
+      name: 'typescript',
+      version: '7.0.2',
+    });
     const launcher = path.resolve(
       path.dirname(manifest),
-      typeof bin === 'string' ? bin : bin[compiler.binary],
+      compilerManifest.bin[compiler.binary],
     );
     const result = spawnSync(
       process.execPath,

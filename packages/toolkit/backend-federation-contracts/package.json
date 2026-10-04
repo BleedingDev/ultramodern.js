@@ -38,10 +38,9 @@
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
     "@modern-js/tsconfig": "workspace:*",
-    "@rslib/core": "1.0.3",
-    "@rstest/core": "0.12.3",
-    "@scripts/rstest-config": "workspace:*",
-    "@typescript/native-preview": "7.0.0-dev.20260707.2"
+    "@rslib/core": "1.0.2",
+    "@rstest/core": "0.11.12",
+    "@scripts/rstest-config": "workspace:*"
   },
   "sideEffects": false,
   "publishConfig": {

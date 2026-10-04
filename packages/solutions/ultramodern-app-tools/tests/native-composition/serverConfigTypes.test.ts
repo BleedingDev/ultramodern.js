@@ -51,42 +51,48 @@ serverPlugin({ unexpected: true });
 // @ts-expect-error owner factory typing must not become any
 ownerServerPlugin({ unexpected: true });
 `,
-      );
-      fs.writeFileSync(
-        path.join(directory, 'tsconfig.json'),
-        JSON.stringify({
-          compilerOptions: {
-            strict: true,
-            noEmit: true,
-            skipLibCheck: true,
-            types: [],
-            module: 'nodenext',
-            moduleResolution: 'nodenext',
-            target: 'ES2022',
-          },
-          files: [fileName],
-        }),
-      );
-      const compilerRoot = path.dirname(
-        requireFromPackage.resolve('@typescript/native-preview/package.json'),
-      );
-      const result = spawnSync(
-        process.execPath,
-        [
-          path.join(compilerRoot, 'bin/tsgo'),
-          '-p',
-          path.join(directory, 'tsconfig.json'),
-        ],
-        { cwd: directory, encoding: 'utf8' },
-      );
-      if (result.status !== 0)
-        throw new Error(result.stdout + result.stderr, { cause: result.error });
-      expect(result.stdout).toBe('');
-    } finally {
-      fs.rmSync(directory, { recursive: true, force: true });
-    }
-  },
-);
+    );
+    fs.writeFileSync(
+      path.join(directory, 'tsconfig.json'),
+      JSON.stringify({
+        compilerOptions: {
+          strict: true,
+          noEmit: true,
+          skipLibCheck: true,
+          types: [],
+          module: 'nodenext',
+          moduleResolution: 'nodenext',
+          target: 'ES2022',
+        },
+        files: [fileName],
+      }),
+    );
+    const compilerManifestPath = requireFromPackage.resolve(
+      'typescript/package.json',
+    );
+    const compilerManifest = JSON.parse(
+      fs.readFileSync(compilerManifestPath, 'utf8'),
+    );
+    expect(compilerManifest).toMatchObject({
+      name: 'typescript',
+      version: '7.0.2',
+    });
+    const launcher = path.resolve(
+      path.dirname(compilerManifestPath),
+      compilerManifest.bin.tsc,
+    );
+    const result = spawnSync(
+      process.execPath,
+      [launcher, '-p', path.join(directory, 'tsconfig.json')],
+      { cwd: directory, encoding: 'utf8' },
+    );
+    if (result.status !== 0)
+      throw new Error(result.stdout + result.stderr, { cause: result.error });
+    expect(result.stdout).toBe('');
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
 
 // The router entry is bundled by router-integration.test.ts, like the native router.
 test.each(['module', 'commonjs'])(

@@ -11,7 +11,6 @@ const requireFromPackage = createRequire(
 );
 const compilers = [
   { name: 'TypeScript', package: 'typescript', binary: 'tsc' },
-  { name: 'TSGo', package: '@typescript/native-preview', binary: 'tsgo' },
 ];
 const consumers = compilers.flatMap(compiler =>
   ['.mts', '.cts'].map(extension => ({ ...compiler, extension })),
@@ -89,11 +88,13 @@ function checkInstalledDeclarations(
     const compilerManifest = JSON.parse(
       fs.readFileSync(compilerManifestPath, 'utf8'),
     );
+    expect(compilerManifest).toMatchObject({
+      name: 'typescript',
+      version: '7.0.2',
+    });
     const launcher = path.resolve(
       path.dirname(compilerManifestPath),
-      typeof compilerManifest.bin === 'string'
-        ? compilerManifest.bin
-        : compilerManifest.bin[consumer.binary],
+      compilerManifest.bin[consumer.binary],
     );
     const result = spawnSync(
       process.execPath,

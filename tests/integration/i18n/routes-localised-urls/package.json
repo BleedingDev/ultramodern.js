@@ -20,7 +20,6 @@
   },
   "devDependencies": {
     "@modern-js/app-tools": "workspace:*",
-    "@modern-js/plugin-bff-build-extensions": "workspace:*",
-    "@typescript/native-preview": "7.0.0-dev.20260707.2"
+    "@modern-js/plugin-bff-build-extensions": "workspace:*"
   }
 }
