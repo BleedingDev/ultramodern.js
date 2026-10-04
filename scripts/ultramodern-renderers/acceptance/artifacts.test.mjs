@@ -3964,20 +3964,32 @@ test('declaration fallback rejects symlinked manifests and declaration targets',
   }
 });
 
-test('declaration fallback checks selected JavaScript siblings and directory indexes before realpath', t => {
-  for (const variant of ['javascript-sibling', 'directory-index']) {
+test('declaration fallback checks selected source siblings and directory indexes before realpath', t => {
+  for (const variant of [
+    'javascript-sibling',
+    'directory-index',
+    '.ts',
+    '.mts',
+    '.cts',
+  ]) {
     const fixture = declarationConsumerFixture(t);
     const manifestPath = path.join(fixture.provider, 'package.json');
     const target =
       variant === 'javascript-sibling'
         ? fixture.target
-        : path.join(fixture.provider, 'declarations/index.d.ts');
+        : variant === 'directory-index'
+          ? path.join(fixture.provider, 'declarations/index.d.ts')
+          : path.join(fixture.provider, `model.d${variant}`);
     write(target, 'export interface Model {}\n');
     const manifest = JSON.parse(fs.readFileSync(manifestPath));
     manifest.exports = {
       '.': {
         types:
-          variant === 'javascript-sibling' ? './index.js' : './declarations',
+          variant === 'javascript-sibling'
+            ? './index.js'
+            : variant === 'directory-index'
+              ? './declarations'
+              : `./model${variant}`,
       },
     };
     writeJson(manifestPath, manifest);
@@ -3986,6 +3998,66 @@ test('declaration fallback checks selected JavaScript siblings and directory ind
       report.declarationFallbacks[0].target,
       path.relative(fixture.root, target),
     );
+    assert.equal(
+      report.declarationFallbacks[0].targetSha256,
+      fileSha256(target),
+    );
+    if (variant.startsWith('.')) {
+      const direct = path.join(fixture.provider, `model${variant}`);
+      write(direct, 'export interface Model { direct: true }\n');
+      assert.throws(
+        () => auditInstalledConsumer(fixture.options),
+        /must select a contained declaration file/u,
+      );
+      const rootDeclaration = path.join(
+        fixture.provider,
+        'relative-source.d.ts',
+      );
+      write(
+        rootDeclaration,
+        `export type { Model } from './model${variant}';\n`,
+      );
+      writeJson(manifestPath, {
+        ...manifest,
+        exports: { '.': { types: './relative-source.d.ts' } },
+      });
+      const selected = auditInstalledConsumer(fixture.options);
+      assert.equal(
+        selected.declarationFallbacks[0].target,
+        path.relative(fixture.root, rootDeclaration),
+      );
+      assert.equal(
+        selected.declarationFallbacks[0].targetSha256,
+        fileSha256(rootDeclaration),
+      );
+      assert(
+        selected.entryClosure.some(
+          item =>
+            item.path === path.relative(fixture.root, direct) &&
+            item.sha256 === fileSha256(direct),
+        ),
+      );
+      assert(
+        !selected.entryClosure.some(
+          item => item.path === path.relative(fixture.root, target),
+        ),
+      );
+      fs.rmSync(direct);
+      writeJson(manifestPath, manifest);
+      const runtime = path.join(fixture.provider, 'runtime.mjs');
+      write(runtime, `import value from './model${variant}'; void value;\n`);
+      assert.throws(
+        () =>
+          auditInstalledConsumer({
+            ...fixture.options,
+            entryFiles: [
+              ...fixture.options.entryFiles,
+              path.relative(fixture.root, runtime),
+            ],
+          }),
+        /Unresolved entry import/u,
+      );
+    }
     fs.renameSync(target, path.join(path.dirname(target), 'real.d.ts'));
     fs.symlinkSync('real.d.ts', target);
     assert.throws(
