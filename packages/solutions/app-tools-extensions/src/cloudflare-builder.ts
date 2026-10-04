@@ -36,6 +36,7 @@ const JS_OR_TS_EXTENSIONS = new Set([
 export interface CloudflareBuilderNormalizedConfig {
   bff?: BffUserConfig;
   deploy?: { target?: string };
+  server?: { rsc?: unknown };
 }
 
 export interface CloudflareBuilderAppContext {
@@ -382,18 +383,24 @@ const rewriteWorkerEntries = (entries: RsbuildEntry): RsbuildEntry =>
 const prependBundlerChain = (
   environment: EnvironmentConfig,
   handler: ModifyBundlerChainFn,
+  finalHandler?: ModifyBundlerChainFn,
 ): EnvironmentConfig => {
   const bundlerChain = environment.tools?.bundlerChain;
+  const handlers = [
+    handler,
+    ...(bundlerChain
+      ? Array.isArray(bundlerChain)
+        ? bundlerChain
+        : [bundlerChain]
+      : []),
+    ...(finalHandler ? [finalHandler] : []),
+  ];
   return {
     ...environment,
     tools: {
       ...environment.tools,
       htmlPlugin: false,
-      bundlerChain: bundlerChain
-        ? Array.isArray(bundlerChain)
-          ? [handler, ...bundlerChain]
-          : [handler, bundlerChain]
-        : handler,
+      bundlerChain: handlers,
     },
   };
 };
@@ -425,6 +432,7 @@ const getWorkerEntries = (
 const createCloudflareBundlerChain = (
   appContext: CloudflareBuilderAppContext,
   workerEntryNames: Iterable<string>,
+  rscEnabled: boolean,
 ): ModifyBundlerChainFn => {
   const resolvePaths = [appContext.appDirectory, process.cwd()];
   const tanstackRouterSsrServerFile = resolvePackageFile(
@@ -528,23 +536,25 @@ const createCloudflareBundlerChain = (
         renderRscWorkerFile,
       );
     }
-    setAliasIfPresent(chain.resolve.alias, 'react$', reactFile);
-    setAliasIfPresent(
-      chain.resolve.alias,
-      'react/jsx-runtime$',
-      reactJsxRuntimeFile,
-    );
-    setAliasIfPresent(
-      chain.resolve.alias,
-      'react/jsx-dev-runtime$',
-      reactJsxDevRuntimeFile,
-    );
-    setAliasIfPresent(chain.resolve.alias, 'react-dom$', reactDomFile);
-    setAliasIfPresent(
-      chain.resolve.alias,
-      'react-dom/server.edge$',
-      reactDomServerEdgeFile,
-    );
+    if (!rscEnabled) {
+      setAliasIfPresent(chain.resolve.alias, 'react$', reactFile);
+      setAliasIfPresent(
+        chain.resolve.alias,
+        'react/jsx-runtime$',
+        reactJsxRuntimeFile,
+      );
+      setAliasIfPresent(
+        chain.resolve.alias,
+        'react/jsx-dev-runtime$',
+        reactJsxDevRuntimeFile,
+      );
+      setAliasIfPresent(chain.resolve.alias, 'react-dom$', reactDomFile);
+      setAliasIfPresent(
+        chain.resolve.alias,
+        'react-dom/server.edge$',
+        reactDomServerEdgeFile,
+      );
+    }
     setAliasIfPresent(
       chain.resolve.alias,
       '@loadable/component$',
@@ -632,7 +642,32 @@ export function getCloudflareBuilderEnvironments({
         entry: workerEntries,
       },
     },
-    createCloudflareBundlerChain(appContext, Object.keys(workerEntries)),
+    createCloudflareBundlerChain(
+      appContext,
+      Object.keys(workerEntries),
+      Boolean(normalizedConfig.server?.rsc),
+    ),
+    normalizedConfig.server?.rsc
+      ? chain => {
+          // Source builds may inherit consuming-React file pins. Native RSC
+          // issuer conditions must resolve package exports in this worker.
+          for (const [name, packageName, file] of [
+            ['react$', 'react', 'index.js'],
+            ['react/jsx-runtime$', 'react', 'jsx-runtime.js'],
+            ['react/jsx-dev-runtime$', 'react', 'jsx-dev-runtime.js'],
+            ['react-dom$', 'react-dom', 'index.js'],
+            ['react-dom/server.edge$', 'react-dom', 'server.edge.js'],
+          ]) {
+            const target = resolvePackageFile(packageName, file, [
+              appContext.appDirectory,
+              process.cwd(),
+            ]);
+            if (target && chain.resolve.alias.get(name) === target) {
+              chain.resolve.alias.delete(name);
+            }
+          }
+        }
+      : undefined,
   );
 
   if (appContext.apiOnly) {

@@ -1,3 +1,7 @@
+import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
+import { createRequire } from 'node:module';
+import os from 'node:os';
 import path from 'node:path';
 import type {
   AppNormalizedConfig,
@@ -19,6 +23,8 @@ import {
 } from '@rsbuild/core';
 import { describe, expect, it } from '@rstest/core';
 import { getRscPlugins } from '../../../../cli/builder/src/plugins/rscConfig';
+import { AppProxyForRSC } from '../../../../runtime/plugin-runtime/src/cli/template';
+import { getCloudflareBuilderEnvironments } from '../../../app-tools-extensions/src/cloudflare-builder';
 import {
   createReactRscWorkerBuilderPlugin,
   createReactRscWorkerIntegrationPlugin,
@@ -295,3 +301,261 @@ describe('actual native RSC configuration without compilation', () => {
     expect(JSON.stringify(client.entry)).toContain('__MODERN_JS_ENTRY_NAME');
   });
 });
+
+it('compiles and runs Flight and HTML SSR with their own React exports in one worker', async () => {
+  const appDirectory = fs.mkdtempSync(
+    path.join(process.env.OWNED_TEMP_DIR ?? os.tmpdir(), 'worker-rsc-react-'),
+  );
+  let closeBuild: (() => Promise<void>) | undefined;
+  let compiler: Rspack.Compiler | Rspack.MultiCompiler | undefined;
+  try {
+    const renderOwner = fs.realpathSync(
+      path.resolve(__dirname, '../../../../runtime/render'),
+    );
+    const renderRequire = createRequire(path.join(renderOwner, 'package.json'));
+    const owners: Record<string, string> = { '@modern-js/render': renderOwner };
+    const dependencies: Record<string, string> = {};
+    for (const name of [
+      'react',
+      'react-dom',
+      'react-server-dom-rspack',
+      '@modern-js/render',
+    ]) {
+      const owner =
+        name === '@modern-js/render'
+          ? renderOwner
+          : path.dirname(renderRequire.resolve(`${name}/package.json`));
+      const manifest = JSON.parse(
+        fs.readFileSync(path.join(owner, 'package.json'), 'utf8'),
+      );
+      expect(manifest.name).toBe(name);
+      owners[name] = owner;
+      dependencies[name] = manifest.version;
+      const dependency = path.join(appDirectory, 'node_modules', name);
+      fs.mkdirSync(path.dirname(dependency), { recursive: true });
+      fs.symlinkSync(owner, dependency, 'dir');
+    }
+    fs.writeFileSync(
+      path.join(appDirectory, 'package.json'),
+      JSON.stringify({
+        name: 'worker-rsc-react-proof',
+        private: true,
+        type: 'module',
+        dependencies,
+      }),
+    );
+    const sourceDirectory = path.join(appDirectory, 'src');
+    fs.mkdirSync(sourceDirectory);
+    const clientEntry = path.join(sourceDirectory, 'client.js');
+    const workerEntry = path.join(sourceDirectory, 'index.server.js');
+    fs.writeFileSync(
+      clientEntry,
+      `
+      import { useState } from 'react';
+      import { jsx } from 'react/jsx-runtime';
+      export function Client() { const [value] = useState('client'); return jsx('p', { children: value }); }
+    `,
+    );
+    const appComponent = path.join(sourceDirectory, 'App.js');
+    fs.writeFileSync(
+      appComponent,
+      `
+      import { jsx } from 'react/jsx-runtime';
+      export default function App() { return jsx('p', { children: 'Flight server React' }); }
+    `,
+    );
+    // Use the owning native proxy producer and its proxy → component boundary.
+    fs.writeFileSync(
+      path.join(sourceDirectory, 'AppProxy.js'),
+      AppProxyForRSC({
+        srcDirectory: sourceDirectory,
+        internalSrcAlias: '.',
+        entry: appComponent,
+      }),
+    );
+    fs.writeFileSync(
+      workerEntry,
+      `
+      import { createElement, useState } from 'react';
+      import { renderToReadableStream } from 'react-dom/server.edge';
+      import { renderRsc } from '@modern-js/render/rsc-worker';
+      import Root from './AppProxy.js';
+      function HtmlRoot() { const [value] = useState('HTML SSR default React'); return createElement('p', null, value); }
+      export async function html() { return new Response(await renderToReadableStream(createElement(HtmlRoot))); }
+      export function flight() { return new Response(renderRsc({ element: createElement(Root) })); }
+    `,
+    );
+    const options = resolveReactWorkerRscOptions(true);
+    if (!options) throw new Error('Enabled RSC has no environments');
+    // A real compiler must load the owning builder's emitted Node loaders.
+    // Source configuration tests above do not activate those loader files.
+    const builderRequire = createRequire(
+      path.resolve(__dirname, '../../../../cli/builder/package.json'),
+    );
+    const {
+      getRscPlugins: emittedGetRscPlugins,
+    }: typeof import('../../../../cli/builder/src/plugins/rscConfig') =
+      builderRequire('./dist/cjs/plugins/rscConfig.js');
+    const nativePlugins = await emittedGetRscPlugins(
+      true,
+      path.join(appDirectory, '.modern-js'),
+      options.environments,
+    );
+    const workerOutput = path.join(appDirectory, 'dist/worker');
+    const rsbuild = await createRsbuild({
+      cwd: appDirectory,
+      rsbuildConfig: {
+        mode: 'production',
+        output: {
+          minify: false,
+          filename: { js: '[name].mjs' },
+          distPath: { js: '' },
+        },
+        tools: { htmlPlugin: false },
+        environments: getCloudflareBuilderEnvironments({
+          appContext: {
+            appDirectory,
+            apiDirectory: path.join(appDirectory, 'api'),
+          },
+          normalizedConfig: {
+            deploy: { target: 'cloudflare' },
+            server: { rsc: options },
+          },
+          environments: {
+            client: {
+              source: { entry: { main: clientEntry } },
+              output: {
+                target: 'web',
+                distPath: { root: path.join(appDirectory, 'dist/client') },
+              },
+            },
+            [SERVICE_WORKER_ENVIRONMENT_NAME]: {
+              source: { entry: { main: workerEntry } },
+              output: {
+                target: 'web',
+                module: true,
+                distPath: { root: workerOutput },
+              },
+            },
+          },
+        }),
+        plugins: [...nativePlugins, createReactRscWorkerBuilderPlugin()],
+      },
+    });
+    rsbuild.onAfterCreateCompiler(({ compiler: created }) => {
+      compiler = created;
+    });
+    const result = await rsbuild.build();
+    closeBuild = result.close;
+    if (!result.stats)
+      throw new Error('Native RSC build produced no compilation stats');
+    const stats = 'stats' in result.stats ? result.stats.stats : [result.stats];
+    const worker = stats.find(
+      stat => stat.compilation.name === SERVICE_WORKER_ENVIRONMENT_NAME,
+    );
+    const client = stats.find(stat => stat.compilation.name === 'client');
+    if (!worker || !client)
+      throw new Error('Native RSC compiled environments are missing');
+    // Execute emitted ESM with ordinary Node before inspecting optimized graphs.
+    const output = execFileSync(
+      process.execPath,
+      [
+        '--input-type=module',
+        '--eval',
+        `
+      import { pathToFileURL } from 'node:url';
+      const worker = await import(pathToFileURL(process.argv[1]).href);
+      const html = await worker.html();
+      const flight = await worker.flight();
+      console.log(JSON.stringify({ htmlStatus: html.status, html: await html.text(), flightStatus: flight.status, flight: await flight.text() }));
+    `,
+        path.join(workerOutput, 'main.mjs'),
+      ],
+      { encoding: 'utf8' },
+    );
+    const responses = JSON.parse(output.trim());
+    expect(responses.htmlStatus).toBe(200);
+    expect(responses.html).toContain('<p>HTML SSR default React</p>');
+    expect(responses.flightStatus).toBe(200);
+    expect(responses.flight).toContain('Flight server React');
+    expect(responses.flight).not.toMatch(/\d+:E\{/u);
+    const modules = (stat: Rspack.Stats) => {
+      const visited = new Set<Rspack.Module>();
+      const pending = [...stat.compilation.modules];
+      while (pending.length) {
+        const module = pending.pop()!;
+        if (visited.has(module)) continue;
+        visited.add(module);
+        if (module instanceof rspack.ConcatenatedModule) {
+          pending.push(...module.modules);
+        }
+      }
+      return [...visited];
+    };
+    const includes = (stat: Rspack.Stats, resource: string, layer?: string) =>
+      modules(stat).some(
+        module =>
+          module instanceof rspack.NormalModule &&
+          module.resource === resource &&
+          (layer === undefined || module.layer === layer),
+      );
+    expect(
+      includes(worker, appComponent, rspack.experiments.rsc.Layers.rsc),
+    ).toBe(true);
+    for (const [packageName, file, layer] of [
+      ['react', 'react.react-server.js', rspack.experiments.rsc.Layers.rsc],
+      [
+        'react',
+        'jsx-runtime.react-server.js',
+        rspack.experiments.rsc.Layers.rsc,
+      ],
+      [
+        'react-dom',
+        'react-dom.react-server.js',
+        rspack.experiments.rsc.Layers.rsc,
+      ],
+      ['react', 'index.js', rspack.experiments.rsc.Layers.ssr],
+      ['react-dom', 'server.edge.js', rspack.experiments.rsc.Layers.ssr],
+    ]) {
+      const resource = path.join(owners[packageName], file);
+      if (!includes(worker, resource, layer)) {
+        const actual = modules(worker)
+          .filter(module =>
+            /react|AppProxy|rscWorker/u.test(module.nameForCondition() ?? ''),
+          )
+          .map(module => ({
+            resource:
+              module instanceof rspack.NormalModule
+                ? module.resource
+                : module.nameForCondition(),
+            layer: module.layer,
+            type: module.constructor.name,
+            issuer: worker.compilation.moduleGraph
+              .getIssuer(module)
+              ?.nameForCondition(),
+          }));
+        throw new Error(
+          `Missing compiled ${packageName}/${file} in layer ${layer}: ${resource}\nActual React module graph: ${JSON.stringify(actual, null, 2)}\nEmitted responses: ${JSON.stringify(responses)}`,
+        );
+      }
+    }
+    expect(includes(client, path.join(owners.react, 'index.js'))).toBe(true);
+    expect(includes(client, path.join(owners.react, 'jsx-runtime.js'))).toBe(
+      true,
+    );
+    expect(
+      includes(client, path.join(owners.react, 'react.react-server.js')),
+    ).toBe(false);
+  } finally {
+    try {
+      if (closeBuild) await closeBuild();
+      else if (compiler) {
+        await new Promise<void>((resolve, reject) => {
+          compiler!.close(error => (error ? reject(error) : resolve()));
+        });
+      }
+    } finally {
+      fs.rmSync(appDirectory, { force: true, recursive: true });
+    }
+  }
+}, 30_000);
