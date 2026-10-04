@@ -4,7 +4,7 @@ import type {
   RendererRouterBindings,
 } from '@modern-js/backend-federation-contracts';
 
-export const MICROVERTICAL_RELEASE_ENVELOPE_SCHEMA_VERSION = 4 as const;
+export const MICROVERTICAL_RELEASE_ENVELOPE_SCHEMA_VERSION = 5 as const;
 
 export const MICROVERTICAL_RELEASE_ENVELOPE_KIND =
   'ultramodern-target-microvertical-release-envelope' as const;
@@ -54,7 +54,7 @@ export type MicroVerticalReleaseSurfaces = {
   uiClient: string[];
   ssr: string[];
   apiBackend: string[];
-  backendFederation: {
+  backendFederation?: {
     manifest: string;
     container: string;
   };

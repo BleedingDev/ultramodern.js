@@ -81,9 +81,10 @@ export const createUltramodernReleaseEnvelopePlugin = <
         target: 'node' | 'cloudflare',
         requirePromotable = true,
       ) => {
-        const { apiOnly, distDirectory } = api.getAppContext();
+        const { apiOnly, appDirectory, distDirectory } = api.getAppContext();
         await emitFrameworkMicroVerticalReleaseEnvelope({
           apiOnly,
+          appDirectory,
           distDirectory,
           requirePromotable,
           target,

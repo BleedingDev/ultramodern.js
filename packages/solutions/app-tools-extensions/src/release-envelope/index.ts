@@ -411,18 +411,25 @@ const assertSurfaces = (value: unknown): MicroVerticalReleaseSurfaces => {
   const surfaces = assertRecord(value, 'surfaces');
   assertExactKeys(
     surfaces,
-    ['uiClient', 'ssr', 'apiBackend', 'backendFederation'],
+    [
+      'uiClient',
+      'ssr',
+      'apiBackend',
+      ...(Object.hasOwn(surfaces, 'backendFederation')
+        ? ['backendFederation']
+        : []),
+    ],
     'surfaces',
   );
-  const backendFederation = assertRecord(
-    surfaces.backendFederation,
-    'surfaces.backendFederation',
-  );
-  assertExactKeys(
-    backendFederation,
-    ['manifest', 'container'],
-    'surfaces.backendFederation',
-  );
+  const backendFederation = Object.hasOwn(surfaces, 'backendFederation')
+    ? assertRecord(surfaces.backendFederation, 'surfaces.backendFederation')
+    : undefined;
+  if (backendFederation)
+    assertExactKeys(
+      backendFederation,
+      ['manifest', 'container'],
+      'surfaces.backendFederation',
+    );
   const uiClient = assertSurfacePaths(surfaces.uiClient, 'surfaces.uiClient');
   const ssr = assertSurfacePaths(surfaces.ssr, 'surfaces.ssr');
   const apiBackend = assertSurfacePaths(
@@ -439,25 +446,33 @@ const assertSurfaces = (value: unknown): MicroVerticalReleaseSurfaces => {
       'surfaces.uiClient must contain at least one artifact path when SSR is declared.',
     );
   }
-  if (apiBackend.length === 0) {
+  if (apiBackend.length === 0 && (backendFederation || uiClient.length === 0)) {
     throw new Error(
       'surfaces.apiBackend must contain at least one artifact path.',
     );
   }
+  if (apiBackend.length > 0 && !backendFederation)
+    throw new Error(
+      'surfaces.backendFederation is required when API/backend is declared.',
+    );
   return {
     uiClient,
     ssr,
     apiBackend,
-    backendFederation: {
-      manifest: assertNormalizedLogicalPath(
-        backendFederation.manifest,
-        'surfaces.backendFederation.manifest',
-      ),
-      container: assertNormalizedLogicalPath(
-        backendFederation.container,
-        'surfaces.backendFederation.container',
-      ),
-    },
+    ...(backendFederation
+      ? {
+          backendFederation: {
+            manifest: assertNormalizedLogicalPath(
+              backendFederation.manifest,
+              'surfaces.backendFederation.manifest',
+            ),
+            container: assertNormalizedLogicalPath(
+              backendFederation.container,
+              'surfaces.backendFederation.container',
+            ),
+          },
+        }
+      : {}),
   };
 };
 
@@ -472,8 +487,12 @@ const assertSurfaceReferences = (
     uiClient: surfaces.uiClient,
     ssr: surfaces.ssr,
     apiBackend: surfaces.apiBackend,
-    'backendFederation.manifest': [surfaces.backendFederation.manifest],
-    'backendFederation.container': [surfaces.backendFederation.container],
+    ...(surfaces.backendFederation
+      ? {
+          'backendFederation.manifest': [surfaces.backendFederation.manifest],
+          'backendFederation.container': [surfaces.backendFederation.container],
+        }
+      : {}),
   })) {
     for (const logicalPath of paths) {
       if (!artifactPaths.has(logicalPath)) {
@@ -520,16 +539,18 @@ const assertTargetSurfaceContract = (
     target === 'node' ? 'nodejs' : 'workerd-effect',
     'API/backend',
   );
-  assertRuntime(
-    [surfaces.backendFederation.manifest],
-    'module-federation-manifest',
-    'backend federation manifest',
-  );
-  assertRuntime(
-    [surfaces.backendFederation.container],
-    target === 'node' ? 'nodejs' : 'commonjs-module',
-    'backend federation container',
-  );
+  if (surfaces.backendFederation) {
+    assertRuntime(
+      [surfaces.backendFederation.manifest],
+      'module-federation-manifest',
+      'backend federation manifest',
+    );
+    assertRuntime(
+      [surfaces.backendFederation.container],
+      target === 'node' ? 'nodejs' : 'commonjs-module',
+      'backend federation container',
+    );
+  }
 };
 
 const deepFreeze = <T>(value: T): T => {
