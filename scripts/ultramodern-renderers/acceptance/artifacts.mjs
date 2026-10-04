@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import { builtinModules, createRequire } from 'node:module';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parseSync, traverse } from '@babel/core';
 import { parseDocument } from 'yaml';
 import { repoRoot } from '../../ultramodern-publish/lib/prepare-bleedingdev-packages/constants.mjs';
@@ -15,6 +16,8 @@ import {
   compilerDispatcherCaller,
   compilerDispatcherImport,
   observedCompilerBuild,
+  owningModuleUrlBuiltin,
+  owningSelfExportRequire,
   readCompilerActivationCatalogue,
 } from './compiler-activation-proof.mjs';
 import { nativeDevelopmentLoaderImport } from './native-development-loader.mjs';
@@ -103,6 +106,8 @@ function moduleSpecifiers(source, file, additionalRequireNames = new Set()) {
   const dynamicImports = new Map();
   const requireCalls = new Map();
   const escapedRequireAnchors = [];
+  const owningUrlBuiltins = new Set();
+  const strictNode = nodeModuleAst({ strict: true });
   const { unwrap, property, namedFunction } = nodeModuleAst();
   const createRequireCall = item => {
     item = unwrap(item);
@@ -123,7 +128,19 @@ function moduleSpecifiers(source, file, additionalRequireNames = new Set()) {
     },
     CallExpression(callPath) {
       const callee = callPath.get('callee');
+      if (owningModuleUrlBuiltin(callPath, globalPrimitiveUnchanged))
+        owningUrlBuiltins.add(callPath.node);
       if (createRequireCall(callee)) {
+        if (
+          callPath.get('arguments').length === 1 &&
+          requireReferenceKind(callPath) === 'resolve' &&
+          strictNode.namedFunction(
+            strictNode.unwrap(callee),
+            'createRequire',
+            'node:module',
+          )
+        )
+          return;
         const owner = callPath.parentPath;
         const binding =
           owner.isVariableDeclarator() &&
@@ -191,6 +208,8 @@ function moduleSpecifiers(source, file, additionalRequireNames = new Set()) {
       add(node.source, { importPath: dynamicImports.get(node.source) });
     else if (node.type === 'CallExpression' && node.callee?.type === 'Import')
       add(node.arguments[0]);
+    else if (node.type === 'CallExpression' && owningUrlBuiltins.has(node))
+      add({ type: 'StringLiteral', value: 'url' }, { require: true });
     else if (
       node.type === 'CallExpression' &&
       node.callee?.type === 'Identifier' &&
@@ -352,7 +371,7 @@ function globalPrimitiveUnchanged(item, name) {
     const binding = expression.scope.getBinding(expression.node.name);
     if (!binding) return expression.node.name === name;
     return (
-      name === 'Object' &&
+      ['Object', 'JSON', 'String'].includes(name) &&
       binding.path.isVariableDeclarator() &&
       matches(binding.path.get('init'), seen)
     );
@@ -404,7 +423,8 @@ function globalPrimitiveUnchanged(item, name) {
         target(expression.get('left'));
     },
     ReferencedIdentifier(reference) {
-      if (name !== 'Object' || !matches(reference)) return;
+      if (!['Object', 'JSON', 'String'].includes(name) || !matches(reference))
+        return;
       let value = reference;
       let parent = value.parentPath;
       while (
@@ -3104,6 +3124,8 @@ export function auditInstalledConsumer({
   let compilerActivation;
   const ownedCompilerActivations = [];
   const verifiedCompilerDispatcherOrigins = new Set();
+  const ownedSelfExportLoaders = [];
+  const verifiedComposedRegistrationOrigins = new Set();
   const bindCompilerActivation = () => {
     if (compilerActivation) return compilerActivation;
     assert(
@@ -3183,6 +3205,7 @@ export function auditInstalledConsumer({
     );
     const compositions = new Map();
     const dispatchers = new Map();
+    const registries = new Set();
     for (const [format, [prefix, suffix]] of Object.entries(activationFrames)) {
       const composition = `${prefix}index${suffix}`;
       const dispatcher = `${prefix}renderer-compiler-activation${suffix}`;
@@ -3202,6 +3225,7 @@ export function auditInstalledConsumer({
       );
       read(dispatcher);
       read(registry);
+      registries.add(path.join(validator.record.directory, registry));
     }
     for (const record of catalogue)
       for (const [format, [prefix, suffix]] of Object.entries(
@@ -3221,6 +3245,7 @@ export function auditInstalledConsumer({
       selected,
       compositions,
       dispatchers,
+      registries,
       manifest: {
         path: path.relative(root, manifestFile),
         sha256: manifestSha256,
@@ -3235,6 +3260,21 @@ export function auditInstalledConsumer({
     };
     return compilerActivation;
   };
+  const composedRegistrationForFile = (authority, file) =>
+    authority.catalogue.find(
+      record =>
+        record.kind === 'composed' &&
+        Object.entries(activationFrames).some(
+          ([format, [prefix, suffix]]) =>
+            file ===
+            path.join(
+              authority.validator.record.directory,
+              format === 'source'
+                ? record.registration
+                : `${prefix.replace(/native-composition\/$/u, '')}${record.registration.slice(4, -3)}${suffix}`,
+            ),
+        ),
+    );
   const bindActiveServerBuild = () => {
     if (activeServerBuild) return activeServerBuild;
     assert(
@@ -3671,6 +3711,137 @@ export function auditInstalledConsumer({
         continue;
       }
       if (imported.requirePath) {
+        const self = owningSelfExportRequire(
+          imported.requirePath,
+          nodeModuleAst({ strict: true }),
+          globalPrimitiveUnchanged,
+        );
+        if (self) {
+          const artifact = producer?.artifacts.find(
+            item => item.targetName === selectedOwner?.manifest.name,
+          );
+          assert(
+            artifact && selectedOwner,
+            'Owning self export requires authenticated release ownership',
+          );
+          authenticateProducerPackage(selectedOwner);
+          const sourceRelative = path
+            .relative(selectedOwner.directory, file)
+            .split(path.sep)
+            .join('/');
+          assert(
+            artifact.files.find(item => item.path === sourceRelative)
+              ?.sha256 === scanned.get(file),
+            'Owning self-export loader differs from authenticated module bytes',
+          );
+          if (self.moduleUrl === 'rslib-file-url')
+            assert(
+              fileURLToPath(new URL(`file:${file}`)) === file,
+              'Emitted self-export module URL differs from its physical filename',
+            );
+          let directory = path.dirname(file);
+          let manifestFile;
+          while (within(selectedOwner.directory, directory)) {
+            const candidate = path.join(directory, 'package.json');
+            if (fs.existsSync(candidate)) {
+              manifestFile = ordinaryConsumerFile(
+                candidate,
+                'Self-export package scope',
+              );
+              break;
+            }
+            if (directory === selectedOwner.directory) break;
+            directory = path.dirname(directory);
+          }
+          assert(
+            manifestFile ===
+              path.join(selectedOwner.directory, 'package.json') &&
+              crypto
+                .createHash('sha256')
+                .update(fs.readFileSync(manifestFile))
+                .digest('hex') === selectedOwner.manifestSha256,
+            'Self-export locator selected a foreign or changed package scope',
+          );
+          const specifier = `${selectedOwner.manifest.name}${self.subpath.slice(1)}`;
+          assert(
+            Object.hasOwn(selectedOwner.manifest.exports ?? {}, self.subpath),
+            'Owning package does not declare the exact self export',
+          );
+          const entry = exportedEntry(
+            selectedOwner.manifest,
+            specifier,
+            new Set(['node', 'require', 'default']),
+          );
+          assert(
+            typeof entry === 'string' &&
+              entry.startsWith('./') &&
+              path.posix.normalize(entry) === entry.slice(2) &&
+              !entry.includes('\\') &&
+              !entry
+                .slice(2)
+                .split('/')
+                .some(segment => segment === '..'),
+            'Owning self export has no canonical Node require target',
+          );
+          const target = ordinaryConsumerFile(
+            path.join(selectedOwner.directory, entry),
+            'Owning self-export target',
+          );
+          assert(
+            within(selectedOwner.directory, target) &&
+              fs.realpathSync(createRequire(file).resolve(specifier)) ===
+                target,
+            'Self export resolves outside its exact owning declaration',
+          );
+          const targetBytes = fs.readFileSync(target);
+          const targetSha256 = crypto
+            .createHash('sha256')
+            .update(targetBytes)
+            .digest('hex');
+          const archivedTarget = artifact.files.find(
+            item => item.path === entry.slice(2),
+          );
+          assert(
+            archivedTarget?.sha256 === targetSha256 &&
+              archivedTarget.size === targetBytes.length,
+            'Owning self-export target differs from authenticated release bytes',
+          );
+          let active = true;
+          let build;
+          if (artifact.sourceName === '@modern-js/ultramodern-app-tools') {
+            const authority = bindCompilerActivation();
+            const registration = composedRegistrationForFile(authority, file);
+            assert(
+              registration && registration.compose === self.functionName,
+              'Self export is outside its authenticated composed registration',
+            );
+            active =
+              authority.selected.renderer === registration.renderer &&
+              authority.selected.kind === 'composed';
+            assert(
+              active ||
+                (!directedEntries.has(file) &&
+                  verifiedComposedRegistrationOrigins.has(file)),
+              'Inactive composed self export has no verified registry origin',
+            );
+            build = authority.manifest;
+          }
+          if (active) pendingFiles.push(target);
+          ownedSelfExportLoaders.push({
+            ...self,
+            source: path.relative(root, file),
+            sourceSha256: scanned.get(file),
+            ownerManifest: path.relative(root, manifestFile),
+            ownerManifestSha256: selectedOwner.manifestSha256,
+            artifactSha256: artifact.sha256,
+            selectedRenderer: renderer,
+            active,
+            ...(build ? { build } : {}),
+            target: path.relative(root, target),
+            targetSha256,
+          });
+          continue;
+        }
         const anchor = createRequireAnchor(imported.requirePath);
         assert(
           anchor,
@@ -4171,6 +4342,26 @@ export function auditInstalledConsumer({
         target,
         `Unresolved entry import ${specifier} in ${path.relative(root, file)}`,
       );
+      if (/^registration\.(?:ts|mjs|js)$/u.test(path.basename(target))) {
+        const sdk = producer?.artifacts.find(
+          item => item.sourceName === '@modern-js/ultramodern-app-tools',
+        );
+        const targetOwner = promoteSelectedFileOwner(target);
+        if (sdk && targetOwner?.manifest.name === sdk.targetName) {
+          const authority = bindCompilerActivation();
+          const registration = composedRegistrationForFile(authority, target);
+          if (
+            registration &&
+            authority.selected.renderer !== registration.renderer
+          ) {
+            assert(
+              authority.registries.has(file),
+              'Inactive composed registration cannot be imported outside its authenticated registry',
+            );
+            verifiedComposedRegistrationOrigins.add(target);
+          }
+        }
+      }
       if (
         /^renderer-compiler-activation\.(?:ts|mjs|js)$/u.test(
           path.basename(target),
@@ -4237,6 +4428,30 @@ export function auditInstalledConsumer({
     }
   }
   drain();
+  for (const loader of ownedSelfExportLoaders) {
+    for (const [relative, expected] of [
+      [loader.source, loader.sourceSha256],
+      [loader.ownerManifest, loader.ownerManifestSha256],
+      [loader.target, loader.targetSha256],
+    ]) {
+      const file = ordinaryConsumerFile(
+        path.resolve(root, relative),
+        'Owning self-export evidence',
+      );
+      assert(
+        crypto
+          .createHash('sha256')
+          .update(fs.readFileSync(file))
+          .digest('hex') === expected,
+        'Owning self-export evidence changed during its closure audit',
+      );
+    }
+    assert(
+      !loader.active ||
+        scanned.get(path.resolve(root, loader.target)) === loader.targetSha256,
+      'Active owning self-export target was not completely audited',
+    );
+  }
   if (compilerActivation) {
     for (const evidence of [
       ...compilerActivation.files.values(),
@@ -4542,6 +4757,7 @@ export function auditInstalledConsumer({
     ),
     missingOptional,
     ownedCompilerActivations,
+    ownedSelfExportLoaders,
     permittedTypeDependencies: [...permittedTypeDependencies.values()].sort(
       (left, right) => left.path.localeCompare(right.path),
     ),

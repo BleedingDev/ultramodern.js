@@ -25,6 +25,67 @@ function parse(source, filename) {
   return ast;
 }
 
+function plainAstShape(value) {
+  if (Array.isArray(value)) return value.map(plainAstShape);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(
+        ([key]) =>
+          ![
+            'start',
+            'end',
+            'loc',
+            'extra',
+            'leadingComments',
+            'trailingComments',
+            'innerComments',
+          ].includes(key),
+      )
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, item]) => [key, plainAstShape(item)]),
+  );
+}
+
+const owningUrlShimSource = `const value = function() { return "u" < typeof document ? new (require('url'.replace('', ''))).URL('file:' + __filename).href : document.currentScript && document.currentScript.src || new URL('main.js', document.baseURI).href; }();`;
+let owningUrlShimShape;
+function isOwningUrlShim(init) {
+  if (
+    !init?.isCallExpression() ||
+    !['require', 'document', 'URL', '__filename'].every(
+      name => !init.scope.getBinding(name),
+    )
+  )
+    return false;
+  owningUrlShimShape ??= JSON.stringify(
+    plainAstShape(
+      parse(owningUrlShimSource, 'owning-url-shim.cjs').program.body[0]
+        .declarations[0].init,
+    ),
+  );
+  return JSON.stringify(plainAstShape(init.node)) === owningUrlShimShape;
+}
+
+/** The complete emitted URL shim imports Node's builtin URL module only. */
+export function owningModuleUrlBuiltin(call, primitiveUnchanged) {
+  if (
+    !call?.get('callee').isIdentifier({ name: 'require' }) ||
+    call.scope.getBinding('require')
+  )
+    return false;
+  const fn = call.findParent(item => item.isFunctionExpression());
+  const init = fn?.parentPath;
+  return Boolean(
+    init &&
+      init.isCallExpression() &&
+      init.get('callee').node === fn.node &&
+      isOwningUrlShim(init) &&
+      ['require', 'document', 'URL', '__filename', 'String'].every(name =>
+        primitiveUnchanged(init, name),
+      ),
+  );
+}
+
 function unwrap(value) {
   while (
     value?.isTSAsExpression() ||
@@ -335,7 +396,48 @@ export function readCompilerActivationCatalogue({ read, primitiveUnchanged }) {
         !fields.has('nativeAdapter'),
         'composed registration cannot declare a native compiler',
       );
-      records.push({ renderer, kind, registration: ownerPath });
+      const compose = fields.get('compose');
+      assert(
+        compose?.isIdentifier(),
+        'composed registration must retain its private factory',
+      );
+      const factory = compose.scope.getBinding(compose.node.name);
+      assert(
+        factory?.constant &&
+          factory.path.isFunctionDeclaration() &&
+          factory.path.parentPath.isProgram() &&
+          factory.referencePaths.length === 1 &&
+          factory.referencePaths[0].node === compose.node,
+        'composed factory cannot escape its actual registration',
+      );
+      const recordBinding = registration.scope.getBinding(exportedName);
+      assert(
+        recordBinding.referencePaths.every(
+          reference =>
+            (reference.node === registration.parentPath.parentPath.node &&
+              reference.isExportNamedDeclaration()) ||
+            (reference.parentPath.isExportSpecifier() &&
+              reference.parentPath
+                .get('local')
+                .isIdentifier({ name: exportedName }) &&
+              reference.parentPath
+                .get('exported')
+                .isIdentifier({ name: exportedName })),
+        ),
+        'composed registration cannot be mutated or escape its selector',
+      );
+      assert(
+        binding.referencePaths.every(reference =>
+          entries.get('elements').some(item => item.node === reference.node),
+        ),
+        'composed import cannot be mutated or escape its catalogue',
+      );
+      records.push({
+        renderer,
+        kind,
+        registration: ownerPath,
+        compose: compose.node.name,
+      });
       continue;
     }
     assert(
@@ -538,6 +640,22 @@ export function compilerDispatcherCaller(source, filename, syntax) {
     branch.get('consequent').node !== invoke.node
   )
     return false;
+  const alternate = branch.get('alternate');
+  const composed = alternate.isCallExpression() && alternate.get('callee');
+  if (
+    !composed?.isMemberExpression() ||
+    composed.node.computed ||
+    composed.node.property.name !== 'compose' ||
+    !composed.get('object').isIdentifier() ||
+    composed.get('object').scope.getBinding(composed.node.object.name) !==
+      selectedBinding ||
+    alternate.get('arguments').length !== 1 ||
+    !syntax.sameBinding(
+      alternate.get('arguments')[0],
+      invoke.get('arguments')[1],
+    )
+  )
+    return false;
   const test = branch.get('test');
   if (!test.isBinaryExpression({ operator: '===' })) return false;
   const kind = test.get('left').isMemberExpression()
@@ -579,42 +697,12 @@ function functionShape(fn, syntax) {
   const roles = new Map();
   const special = new Map();
   const moduleName = value => value.replace(/\.[cm]?js$/u, '');
-  const plainShape = value => {
-    if (Array.isArray(value)) return value.map(plainShape);
-    if (!value || typeof value !== 'object') return value;
-    return Object.fromEntries(
-      Object.entries(value)
-        .filter(
-          ([key]) =>
-            ![
-              'start',
-              'end',
-              'loc',
-              'extra',
-              'leadingComments',
-              'trailingComments',
-              'innerComments',
-            ].includes(key),
-        )
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([key, item]) => [key, plainShape(item)]),
-    );
-  };
-  const shim = parse(
-    `const value = function() { return "u" < typeof document ? new (require('url'.replace('', ''))).URL('file:' + __filename).href : document.currentScript && document.currentScript.src || new URL('main.js', document.baseURI).href; }();`,
-    'owning-url-shim.cjs',
-  ).program.body[0].declarations[0].init;
-  const shimShape = JSON.stringify(plainShape(shim));
   const owningUrlShim = item => {
     const binding = item.scope.getBinding(item.node.name);
     if (!binding?.constant || !binding.path.isVariableDeclarator())
       return false;
     const init = binding.path.get('init');
-    return (
-      ['require', 'document', 'URL', '__filename'].every(
-        name => !init.scope.getBinding(name),
-      ) && JSON.stringify(plainShape(init.node)) === shimShape
-    );
+    return isOwningUrlShim(init);
   };
   const owningUrl = item =>
     (item.isMemberExpression() &&
@@ -926,4 +1014,121 @@ export function compilerDispatcherImport(
     },
   });
   return functionShape(fn, syntax) === functionShape(expected, syntax);
+}
+
+/** Admit only the complete own-package locator and its declared self export. */
+export function owningSelfExportRequire(call, syntax, primitiveUnchanged) {
+  const load = call?.parentPath;
+  const fn = call?.findParent(item => item.isFunctionDeclaration());
+  if (
+    !load?.isCallExpression() ||
+    load.get('callee').node !== call.node ||
+    load.get('arguments').length !== 1 ||
+    !fn ||
+    !fn.parentPath.isProgram() ||
+    fn.node.async ||
+    fn.node.generator ||
+    fn.get('params').length !== 1 ||
+    ![
+      'Object',
+      'JSON',
+      'String',
+      '__filename',
+      'require',
+      'document',
+      'URL',
+    ].every(name => primitiveUnchanged(fn, name)) ||
+    !syntax.namedFunction(
+      syntax.unwrap(call.get('callee')),
+      'createRequire',
+      'node:module',
+    ) ||
+    call.get('arguments').length !== 1
+  )
+    return;
+  const request = load.get('arguments')[0];
+  if (
+    !request.isTemplateLiteral() ||
+    request.get('expressions').length !== 1 ||
+    request.node.quasis.length !== 2 ||
+    request.node.quasis[0].value.cooked !== ''
+  )
+    return;
+  const suffix = request.node.quasis[1].value.cooked;
+  if (
+    !/^\/[A-Za-z0-9_-][A-Za-z0-9._-]*(?:\/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$/u.test(
+      suffix,
+    )
+  )
+    return;
+  const subpath = `.${suffix}`;
+  let declaration = load.parentPath;
+  while (
+    declaration.isTSAsExpression() ||
+    declaration.isTSSatisfiesExpression()
+  )
+    declaration = declaration.parentPath;
+  if (
+    !declaration.isVariableDeclarator() ||
+    !declaration.get('id').isObjectPattern() ||
+    declaration.get('id.properties').length !== 1
+  )
+    return;
+  const property = declaration.get('id.properties')[0];
+  if (
+    !property.isObjectProperty() ||
+    property.node.computed ||
+    !property.get('key').isIdentifier() ||
+    !property.get('value').isIdentifier()
+  )
+    return;
+  const factory = property.node.key.name;
+  const reference = parse(
+    `
+import { existsSync, readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+function compose(consumerPlugins) {
+  let directory = path.dirname(fileURLToPath(import.meta.url));
+  for (;;) {
+    const manifestFile = path.join(directory, 'package.json');
+    if (existsSync(manifestFile)) {
+      const manifest = JSON.parse(readFileSync(manifestFile, 'utf8'));
+      if (typeof manifest.name !== 'string' || !manifest.exports?.[${JSON.stringify(subpath)}])
+        throw new Error('The owning UltraModern package must export its selected React composition');
+      const { ${factory} } = createRequire(import.meta.url)(\`\${manifest.name}${suffix}\`);
+      return ${factory}({ consumerPlugins });
+    }
+    const parent = path.dirname(directory);
+    if (parent === directory) throw new Error('Cannot find the owning UltraModern package for React composition');
+    directory = parent;
+  }
+}
+`,
+    'owning-self-export-contract.ts',
+  );
+  let expected;
+  traverse(reference, {
+    FunctionDeclaration(item) {
+      expected = item;
+    },
+  });
+  if (functionShape(fn, syntax) !== functionShape(expected, syntax)) return;
+  const anchor = call.get('arguments')[0];
+  const lowered =
+    anchor.isIdentifier() && anchor.scope.getBinding(anchor.node.name);
+  if (
+    lowered &&
+    (!lowered.constant ||
+      !lowered.path.isVariableDeclarator() ||
+      !isOwningUrlShim(lowered.path.get('init')))
+  )
+    return;
+  return {
+    subpath,
+    factory,
+    functionName: fn.node.id.name,
+    moduleUrl: lowered ? 'rslib-file-url' : 'import-meta-url',
+  };
 }
