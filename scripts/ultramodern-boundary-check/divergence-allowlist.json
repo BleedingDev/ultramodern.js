@@ -5,8 +5,8 @@
   "pathspec": ["packages"],
   "migrationGoal": "Shrink-only budget of fork edits inside upstream-owned files. Every entry is debt: move it upstream or behind an extension point, then re-run --write-divergence-allowlist.",
   "totalFiles": 848,
-  "totalHunks": 3251,
-  "totalChangedLines": 55676,
+  "totalHunks": 3249,
+  "totalChangedLines": 55696,
   "files": [
     {
       "file": "packages/cli/adapter-rstest/package.json",
@@ -2445,8 +2445,8 @@
     },
     {
       "file": "packages/server/bff-core/package.json",
-      "hunks": 10,
-      "changedLines": 26
+      "hunks": 9,
+      "changedLines": 24
     },
     {
       "file": "packages/server/bff-core/src/api.ts",
@@ -2531,17 +2531,7 @@
     {
       "file": "packages/server/bff-core/tests/optionalZodPeer.test.ts",
       "hunks": 1,
-      "changedLines": 30
-    },
-    {
-      "file": "packages/server/bff-core/tests/router.test.ts",
-      "hunks": 3,
-      "changedLines": 28
-    },
-    {
-      "file": "packages/server/bff-core/tests/utils.test.ts",
-      "hunks": 1,
-      "changedLines": 19
+      "changedLines": 47
     },
     {
       "file": "packages/server/bff-core/tsconfig.json",
