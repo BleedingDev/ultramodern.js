@@ -149,9 +149,9 @@ export type WorkspaceApp = {
   /** Resolved tooling input. It is not a second authoring configuration. */
   rendererGenerationProfile?: RendererGenerationProfile;
   /**
-   * Generation preset (G2a). Omitted for the default `full-stack` default so
-   * default descriptors and their serialized output stay byte-identical; only
-   * `api-only` / `ui-only` set it, gating the UI/API writers respectively.
+   * Generated surface contract (G2a). Shells declare `ui-only`; verticals
+   * omit the default `full-stack` profile and declare `api-only` / `ui-only`
+   * when their UI/API writers are restricted.
    */
   surfaceProfile?: VerticalPreset;
   /**

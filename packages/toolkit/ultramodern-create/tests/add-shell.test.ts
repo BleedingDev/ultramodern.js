@@ -4,6 +4,13 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
+import { resolveWorkerDeliveryUnitStamp } from '@modern-js/app-tools-extensions/cloudflare/delivery-unit';
+import { emitFrameworkMicroVerticalReleaseEnvelope } from '@modern-js/app-tools-extensions/release-envelope/framework-output';
+import { emitRendererBuildArtifact } from '@modern-js/app-tools-extensions/release-envelope/renderer-output-stamp';
+import {
+  assertUltramodernBuildArtifact,
+  stampUltramodernBuildArtifactIdentity,
+} from '@modern-js/backend-federation-contracts';
 import {
   addUltramodernShell,
   addUltramodernVertical,
@@ -324,6 +331,108 @@ if (argv.includes(process.env.ULTRAMODERN_TEST_FAIL_FILTER)) {
     : [];
   return { invocations, result };
 }
+
+test('generated primary and additional shells declare UI-only finalized Node and Cloudflare surfaces', async () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-shell-surfaces-'));
+  const workspaceDir = path.join(tempRoot, 'workspace');
+  try {
+    await createBaseWorkspace(workspaceDir);
+    await addUltramodernShell({
+      workspaceRoot: workspaceDir,
+      name: 'admin',
+      modernVersion: '3.2.1',
+    });
+    const topology = readJson(workspaceDir, 'topology/reference-topology.json');
+    const shells = [topology.shell, ...topology.shells];
+    assert.equal(shells.length, 2);
+    assert.equal(topology.verticals[0].surfaceProfile, undefined);
+    assert.ok(topology.verticals[0].api);
+
+    for (const shell of shells) {
+      assert.equal(shell.surfaceProfile, 'ui-only');
+      assert.equal(shell.api, undefined);
+      assert.equal(shell.backendFederation, undefined);
+      const appDirectory = path.join(workspaceDir, shell.path);
+      assert.equal(fs.existsSync(path.join(appDirectory, 'api')), false);
+      const artifact: unknown = readJson(
+        workspaceDir,
+        `${shell.path}/shared/ultramodern-build.json`,
+      );
+      assertUltramodernBuildArtifact(artifact);
+      const ui = artifact.surfaces.ui;
+      assert.ok(ui);
+      // The shared carrier reserves API identity metadata; topology owns the
+      // declaration of executable surfaces.
+      assert.ok(artifact.surfaces.api);
+      for (const [distName, target, marker] of [
+        ['dist', 'node', 'f'],
+        ['dist-cloudflare', 'cloudflare', 'e'],
+      ] as const) {
+        const distDirectory = path.join(appDirectory, distName);
+        const buildMarker = marker.repeat(64);
+        const sourceRevision = 'a'.repeat(40);
+        const compiledUi = stampUltramodernBuildArtifactIdentity(artifact, {
+          buildMarker,
+          sourceRevision,
+        }).surfaces.ui;
+        assert.ok(compiledUi);
+        const finalized = await emitRendererBuildArtifact(
+          {
+            appDirectory,
+            distDirectory,
+            entrypoints: [
+              { entryName: ui.rendererIdentity.entryName, isMainEntry: true },
+            ],
+          },
+          {
+            rendererBuildPlugin: '@modern-js/renderer-react-build-metadata',
+            resolveRendererBuild: async () => ({
+              buildMarker,
+              sourceRevision,
+              ui: compiledUi,
+            }),
+          },
+        );
+        assert.ok(finalized);
+        const stamp = await resolveWorkerDeliveryUnitStamp(
+          appDirectory,
+          distDirectory,
+        );
+        assert.equal(stamp?.buildMarker, buildMarker);
+        assert.deepEqual(stamp?.surfaces.ui, finalized.surfaces.ui);
+        assert.equal(Object.hasOwn(stamp?.surfaces ?? {}, 'api'), false);
+
+        shell.surfaceProfile = 'full-stack';
+        fs.writeFileSync(
+          path.join(workspaceDir, 'topology/reference-topology.json'),
+          JSON.stringify(topology),
+        );
+        const fullStack = await resolveWorkerDeliveryUnitStamp(
+          appDirectory,
+          distDirectory,
+        );
+        assert.deepEqual(fullStack?.surfaces.api, finalized.surfaces.api);
+        await assert.rejects(
+          () =>
+            emitFrameworkMicroVerticalReleaseEnvelope({
+              apiOnly: false,
+              appDirectory,
+              distDirectory,
+              target,
+            }),
+          /backend federation manifest and container must be emitted together/u,
+        );
+        shell.surfaceProfile = 'ui-only';
+        fs.writeFileSync(
+          path.join(workspaceDir, 'topology/reference-topology.json'),
+          JSON.stringify(topology),
+        );
+      }
+    }
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
 
 test('root build executes every shell before and after adding a vertical and propagates failures', async () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-add-shell-'));

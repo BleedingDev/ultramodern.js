@@ -66,6 +66,13 @@ for (const renderer of renderers) {
       });
       assert.deepEqual(app.rendererProfile, profile.profile);
       assert.equal(topology.shell.renderer, renderer);
+      assert.equal(topology.shell.surfaceProfile, 'ui-only');
+      assert.equal(app.apiPrefix, undefined);
+      assert.ok(
+        !Object.keys(files).some(relativePath =>
+          relativePath.startsWith(`${appDirectory}/api/`),
+        ),
+      );
       assert.deepEqual(topology.shell.rendererIdentity, app.rendererIdentity);
       assert.deepEqual(
         topology.shell.rendererIdentities,

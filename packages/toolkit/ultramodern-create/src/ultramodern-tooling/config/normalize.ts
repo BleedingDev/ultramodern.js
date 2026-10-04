@@ -116,6 +116,9 @@ export function normalizeWorkspaceInputs(
     if (isShell) {
       return {
         ...shellApp,
+        ...(entry.surfaceProfile !== undefined
+          ? { surfaceProfile: entry.surfaceProfile }
+          : {}),
         id: entry.id,
         directory: entry.path,
         packageSuffix,

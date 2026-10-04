@@ -44,6 +44,7 @@ export function createShellDescriptor(
     packageSuffix: id,
     displayName: `${displayPrefix} Shell`,
     kind: 'shell',
+    surfaceProfile: 'ui-only',
     portEnv: `SHELL_${toEnvSegment(normalized)}_PORT`,
     port,
     mfName: `shell${toPascalCase(normalized)}`,
