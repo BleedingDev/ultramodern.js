@@ -29,7 +29,13 @@ import {
   sha256,
   workerOptions,
 } from './contract.mjs';
-import { browserProof, nativeFailureProof, startBridge } from './runtime.mjs';
+import {
+  browserProof,
+  inspectOwnedProcessGroup,
+  nativeFailureProof,
+  retireOwnedProcessGroup,
+  startBridge,
+} from './runtime.mjs';
 
 const fixtureRoot = fileURLToPath(new URL('./fixture/', import.meta.url));
 const harnessRequire = createRequire(
@@ -120,6 +126,7 @@ export async function runCommand(
       10 * 60_000,
     );
     let code;
+    let processGroupCleanup;
     try {
       code = await completed;
       assert.equal(code, 0, `Command failed; see ${log}`);
@@ -127,9 +134,30 @@ export async function runCommand(
       clearTimeout(deadline);
       clearTimeout(escalation);
       signal.removeEventListener('abort', abort);
-      // This group was created exclusively for this command and its descendants.
-      // The framework build/install is finished before any survivors are stopped.
-      terminate('SIGKILL');
+      if (process.platform === 'win32') terminate('SIGKILL');
+      else if (child.pid) {
+        try {
+          processGroupCleanup = terminationFailed
+            ? {
+                before: inspectOwnedProcessGroup(child.pid),
+                signaled: false,
+                previousTerminationFailure: true,
+              }
+            : await retireOwnedProcessGroup(child.pid);
+        } catch (error) {
+          terminationFailed = true;
+          cleanupErrors.push({
+            name: error.name,
+            message: error.message,
+            code: error.code,
+            signal: error.cleanupSignal,
+            pid: child.pid,
+            exitCode: child.exitCode,
+            terminatedBy: child.signalCode,
+            membership: error.membership,
+          });
+        }
+      }
     }
     assert.equal(
       cleanupErrors.length,
@@ -142,6 +170,7 @@ export async function runCommand(
       exitCode: code,
       durationMs: Date.now() - started,
       pid: child.pid,
+      ...(processGroupCleanup ? { processGroupCleanup } : {}),
     };
   } finally {
     fs.closeSync(descriptor);
