@@ -130,7 +130,3 @@ allowedDeprecatedVersions:
   debug: 4.1.1
   uuid: 3.4.0
   trim: 0.0.1
-
-minimumReleaseAgeExclude:
-  - '@typescript/native-preview'
-  - '@typescript/native-preview-*'

@@ -6,17 +6,23 @@ import { createAppEnvDts } from '../../../toolkit/ultramodern-create/src/ultramo
 import { shellApp } from '../../../toolkit/ultramodern-create/src/ultramodern-workspace/descriptors';
 
 const repoRoot = join(__dirname, '../../../..');
+const compilerManifestPath = createRequire(import.meta.url).resolve(
+  'typescript/package.json',
+);
+const compilerManifest = JSON.parse(
+  readFileSync(compilerManifestPath, 'utf-8'),
+);
 const compilerLauncher = join(
-  dirname(
-    createRequire(import.meta.url).resolve(
-      '@typescript/native-preview/package.json',
-    ),
-  ),
-  'bin/tsgo',
+  dirname(compilerManifestPath),
+  compilerManifest.bin.tsc,
 );
 
 describe('app-tools types', () => {
   it('typechecks generated app environment globals and asset modules under strict settings', () => {
+    expect(compilerManifest).toMatchObject({
+      name: 'typescript',
+      version: '7.0.2',
+    });
     const fixture = mkdtempSync(
       join(__dirname, '.tmp-app-tools-types-contract-'),
     );

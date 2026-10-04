@@ -2,7 +2,6 @@ import { spawnSync } from 'node:child_process';
 import {
   mkdirSync,
   mkdtempSync,
-  readFileSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -13,6 +12,9 @@ import path from 'node:path';
 
 const packageRoot = path.resolve(__dirname, '..');
 const requireCjs = createRequire(import.meta.url);
+const { resolveTsgoBin } = requireCjs(
+  path.resolve(__dirname, '../../../../scripts/lib/tsgo-invocation.js'),
+);
 
 describe('@modern-js/bff-effect public types', () => {
   test('preserves requirement-free clients and exact optional definitions', () => {
@@ -232,16 +234,7 @@ void runtime;
         )}\n`,
       );
 
-      const compilerManifestPath = requireCjs.resolve(
-        '@typescript/native-preview/package.json',
-      );
-      const compilerManifest = JSON.parse(
-        readFileSync(compilerManifestPath, 'utf8'),
-      ) as { bin: { tsgo: string } };
-      const compilerPath = path.resolve(
-        path.dirname(compilerManifestPath),
-        compilerManifest.bin.tsgo,
-      );
+      const compilerPath = resolveTsgoBin({ requireFrom: requireCjs });
       const result = spawnSync(
         process.execPath,
         [compilerPath, '--project', path.join(fixtureRoot, 'tsconfig.json')],

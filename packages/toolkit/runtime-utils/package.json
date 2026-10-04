@@ -192,7 +192,6 @@
     "@scripts/rstest-config": "workspace:*",
     "@types/ioredis-mock": "^8.2.8",
     "@types/node": "^26.6.2",
-    "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "happy-dom": "^20.14.5",
     "ioredis": "^5.11.1",
     "ioredis-mock": "^8.13.1",

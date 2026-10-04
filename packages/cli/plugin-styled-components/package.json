@@ -41,7 +41,6 @@
     "@types/jest": "^30.0.0",
     "@types/node": "^26.6.2",
     "@types/styled-components": "^5.1.36",
-    "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "styled-components": "^6.5.3",
     "typescript": "7.0.2"
   },

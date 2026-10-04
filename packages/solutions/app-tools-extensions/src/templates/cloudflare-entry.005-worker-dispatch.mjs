@@ -48,11 +48,12 @@ function createWorkerRendererGuardResponse(request) {
     /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/u;
   const isPackageIdentity = (value, router = false, hydration = false) => {
     const fields = router
-      ? ['name', 'version', 'coreVersion']
+      ? ['name', 'version', 'coreName', 'coreVersion']
       : ['name', 'version'];
     return (
       hasExactFields(value, fields) &&
       isCanonicalString(value.name) &&
+      (!router || isCanonicalString(value.coreName)) &&
       (router ? ['version', 'coreVersion'] : ['version']).every(
         field =>
           isCanonicalString(value[field]) &&

@@ -2,6 +2,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { convertV4MiniflareOptions, Log, LogLevel, Miniflare } from "miniflare";
 
@@ -19,6 +20,46 @@ const assert = (condition, message) => {
 };
 const readJson = (absolutePath) => JSON.parse(fs.readFileSync(absolutePath, "utf-8"));
 const sha256 = (bytes) => crypto.createHash("sha256").update(bytes).digest("hex");
+const diagnosticText = (text, limit) => {
+  const bytes = Buffer.from(String(text), "utf8");
+  return {
+    byteLength: bytes.byteLength,
+    preview: bytes.subarray(0, limit).toString("utf8"),
+    truncated: bytes.byteLength > limit,
+  };
+};
+
+class ProofLog extends Log {
+  errors = [];
+
+  constructor() {
+    super(LogLevel.ERROR);
+  }
+
+  logWithLevel(level, message) {
+    if (level === LogLevel.ERROR) {
+      this.errors.push(diagnosticText(message, 4096));
+      if (this.errors.length > 8) this.errors.shift();
+    }
+    super.logWithLevel(level, message);
+  }
+}
+
+const assertSuccessfulSsrResponse = (appId, route, response, html, log) => {
+  if (response.status === 200) return;
+  const bytes = Buffer.from(html, "utf8");
+  throw new Error(
+    `${appId} returned HTTP ${response.status} for ${route} in workerd\n` +
+      JSON.stringify({
+        appId,
+        route,
+        status: response.status,
+        contentType: response.headers.get("content-type"),
+        responseBody: { ...diagnosticText(html, 8192), sha256: sha256(bytes) },
+        workerErrors: log.errors,
+      }),
+  );
+};
 const count = (source, value) => source.split(value).length - 1;
 const normalizePath = (value) => String(value).replace(/\\/gu, "/");
 const DISTRIBUTED_SSR_FRAGMENT_REQUEST_HEADER =
@@ -62,29 +103,32 @@ const createWorkerModules = (outputRoot, main) => {
   }));
 };
 
-const readExecutionEnvelope = (appId, outputRoot, expectedUnitId) => {
+const readExecutionEnvelope = async (appId, outputRoot, expectedUnitId) => {
   const envelopePath = path.join(
     outputRoot,
     "release/microvertical-release-envelope.json",
   );
   assert(fs.existsSync(envelopePath), `${appId} executed .output release envelope is missing`);
-  const envelope = readJson(envelopePath);
-  assert(envelope.schemaVersion === 3, `${appId} executed envelope schema must be 3`);
-  assert(envelope.target === "cloudflare", `${appId} executed envelope must target cloudflare`);
+  const appRequire = createRequire(path.join(outputRoot, "../package.json"));
+  const sdkRequire = createRequire(
+    appRequire.resolve("@modern-js/ultramodern-app-tools"),
+  );
+  const {
+    MICROVERTICAL_RELEASE_ENVELOPE_SCHEMA_VERSION: schemaVersion,
+    verifyMicroVerticalReleaseEnvelope,
+  } = sdkRequire(
+    "@modern-js/app-tools-extensions/release-envelope",
+  );
+  assert(schemaVersion === 5, `${appId} executed envelope owner must use schema 5`);
+  const envelope = await verifyMicroVerticalReleaseEnvelope(
+    readJson(envelopePath),
+    { artifactRoot: outputRoot, expectedTarget: "cloudflare" },
+  );
   assert(
     typeof expectedUnitId === "string" &&
       expectedUnitId.length > 0 &&
       envelope.identity?.unitId === expectedUnitId,
     `${appId} executed envelope unit identity is invalid`,
-  );
-  assert(
-    typeof envelope.envelopeDigest === "string" &&
-      /^[a-f\d]{64}$/u.test(envelope.envelopeDigest),
-    `${appId} executed envelope digest is invalid`,
-  );
-  assert(
-    Array.isArray(envelope.artifacts) && envelope.artifacts.length > 0,
-    `${appId} executed envelope has no artifacts`,
   );
   return { envelope, envelopePath };
 };
@@ -123,7 +167,7 @@ const bindExecutedModule = (app, envelope, module) => {
 const topology = readJson(path.join(workspaceRoot, "topology/reference-topology.json"));
 const overlay = readJson(path.join(workspaceRoot, "topology/local-overlays/development.json"));
 assert(topology.schemaVersion === 1 && topology.shell && Array.isArray(topology.verticals), "Invalid topology/reference-topology.json");
-const apps = [topology.shell, ...topology.verticals, ...(topology.shells ?? [])].map((rawApp) => {
+const apps = await Promise.all([topology.shell, ...topology.verticals, ...(topology.shells ?? [])].map(async (rawApp) => {
   const kind = rawApp.kind === "vertical" ? "vertical" : "shell";
   const hasApiSurface = kind === "vertical" && rawApp.surfaceProfile !== "ui-only";
   const appPath = rawApp.path;
@@ -145,14 +189,6 @@ const apps = [topology.shell, ...topology.verticals, ...(topology.shells ?? [])]
     `${rawApp.id} Cloudflare output is missing; run pnpm cloudflare:build first`,
   );
   const wrangler = readJson(wranglerPath);
-  const executedEnvelope =
-    hasApiSurface
-      ? readExecutionEnvelope(
-          String(rawApp.id),
-          outputRoot,
-          rawApp.deliveryUnit?.unitId,
-        )
-      : {};
   const domain = rawApp.domain ?? rawApp.id;
   const portEnv = rawApp.portEnv ??
     (kind === "vertical"
@@ -166,6 +202,18 @@ const apps = [topology.shell, ...topology.verticals, ...(topology.shells ?? [])]
   assert(
     Number.isInteger(port) && port > 0 && port <= 65535,
     `${rawApp.id} has an invalid local proof port from ${portEnv}`,
+  );
+  const executedEnvelope = await readExecutionEnvelope(
+    String(rawApp.id),
+    outputRoot,
+    rawApp.deliveryUnit?.unitId,
+  );
+  const { surfaces } = executedEnvelope.envelope;
+  assert(
+    (surfaces.apiBackend.length > 0) === hasApiSurface &&
+      Boolean(surfaces.backendFederation) === hasApiSurface &&
+      (surfaces.uiClient.length > 0) === (rawApp.surfaceProfile !== "api-only"),
+    `${rawApp.id} executed envelope surfaces differ from its declared application profile`,
   );
 
   return {
@@ -193,7 +241,7 @@ const apps = [topology.shell, ...topology.verticals, ...(topology.shells ?? [])]
     port,
     wrangler,
   };
-});
+}));
 
 const shells = apps.filter((app) => app.kind === "shell");
 assert(shells.length > 0, "Workerd SSR proof requires at least one shell");
@@ -216,19 +264,9 @@ const createWorkerOptions = (app, extra = {}) => {
   const directory = typeof assets.directory === "string" ? assets.directory : "./public";
 
   const modules = createWorkerModules(app.outputRoot, main);
-  const boundModules = modules.map((module) => {
-    if (app.envelope) {
-      return bindExecutedModule(app, app.envelope, module);
-    }
-    const bytes = fs.readFileSync(module.path);
-    return {
-      byteLength: bytes.byteLength,
-      logicalPath: normalizePath(path.relative(app.outputRoot, module.path)),
-      runtime: "workerd",
-      sha256: sha256(bytes),
-      type: module.type,
-    };
-  });
+  const boundModules = modules.map((module) =>
+    bindExecutedModule(app, app.envelope, module),
+  );
   const mainLogicalPath = normalizePath(
     path.relative(app.outputRoot, path.resolve(app.outputRoot, main)),
   );
@@ -236,8 +274,7 @@ const createWorkerOptions = (app, extra = {}) => {
     boundModules.some((module) => module.logicalPath === mainLogicalPath),
     `${app.id} Miniflare main ${mainLogicalPath} is not in the selected module set`,
   );
-  const apiBackend = app.envelope?.surfaces?.apiBackend;
-  const ssr = app.envelope?.surfaces?.ssr;
+  const { apiBackend, ssr } = app.envelope.surfaces;
   assert(
     !app.hasApiSurface ||
       (Array.isArray(apiBackend) &&
@@ -248,15 +285,14 @@ const createWorkerOptions = (app, extra = {}) => {
     `${app.id} BFF worker surface is not selected by Miniflare`,
   );
   assert(
-    !app.hasApiSurface ||
-      (Array.isArray(ssr) &&
-        (app.apiOnly
-          ? ssr.length === 0 && mainLogicalPath === "server/index.mjs"
-          : ssr.includes(mainLogicalPath)) &&
-        boundModules.every((module) =>
-          [...ssr, ...(apiBackend ?? []), ...(app.apiOnly ? [mainLogicalPath] : [])]
-            .includes(module.logicalPath),
-        )),
+    Array.isArray(ssr) &&
+      (app.apiOnly
+        ? ssr.length === 0 && mainLogicalPath === "server/index.mjs"
+        : ssr.includes(mainLogicalPath)) &&
+      boundModules.every((module) =>
+        [...ssr, ...apiBackend, ...(app.apiOnly ? [mainLogicalPath] : [])]
+          .includes(module.logicalPath),
+      ),
     `${app.id} Miniflare main/SSR modules do not match its envelope surfaces`,
   );
 
@@ -776,9 +812,10 @@ for (const shell of shells) {
   const workers = workerConfigurations.map(
     ({ executionEvidence: _executionEvidence, ...configuration }) => configuration,
   );
+  const log = new ProofLog();
   const miniflare = new Miniflare(
     convertV4MiniflareOptions({
-      log: new Log(LogLevel.ERROR),
+      log,
       workers,
     }),
   );
@@ -794,10 +831,7 @@ for (const shell of shells) {
         { headers: { accept: "text/html" } },
       );
       const html = await response.text();
-      assert(
-        response.status === 200,
-        `${shell.id} returned HTTP ${response.status} for ${route} in workerd`,
-      );
+      assertSuccessfulSsrResponse(shell.id, route, response, html, log);
       assert(
         !html.includes('data-modern-distributed-ssr-status="degraded"'),
         `${shell.id} rendered a degraded MicroVertical fallback for ${route} in workerd`,

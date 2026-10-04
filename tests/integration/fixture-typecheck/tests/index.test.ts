@@ -6,21 +6,10 @@ setSuiteTimeout(1000 * 60 * 4);
 
 const testsRoot = path.resolve(__dirname, '../../..');
 
-function resolveTsgoBin() {
-  const pkgPath = require.resolve('@typescript/native-preview/package.json');
-  const pkgDir = path.dirname(pkgPath);
-  const pkg = require(pkgPath) as {
-    bin?:
-      | string
-      | {
-          tsgo?: string;
-        };
-  };
-  const binEntry = typeof pkg.bin === 'string' ? pkg.bin : pkg.bin?.tsgo;
-  return path.resolve(pkgDir, binEntry ?? 'bin/tsgo.js');
-}
-
-const tsgoBin = resolveTsgoBin();
+const {
+  resolveTsgoBin,
+} = require('../../../../scripts/lib/tsgo-invocation.js');
+const tscBin = resolveTsgoBin({ requireFrom: require });
 
 const fixtureTypechecks = [
   {
@@ -59,7 +48,7 @@ function runFixtureTypecheck(fixture: (typeof fixtureTypechecks)[number]) {
   try {
     execFileSync(
       process.execPath,
-      [tsgoBin, '--noEmit', '-p', fixture.tsconfig],
+      [tscBin, '--noEmit', '-p', fixture.tsconfig],
       {
         cwd: path.join(testsRoot, fixture.cwd),
         stdio: 'pipe',
@@ -85,7 +74,7 @@ function runFixtureTypecheck(fixture: (typeof fixtureTypechecks)[number]) {
 
 describe('fork fixture typechecks', () => {
   for (const fixture of fixtureTypechecks) {
-    test(`${fixture.name} passes tsgo`, () => {
+    test(`${fixture.name} passes TypeScript 7`, () => {
       runFixtureTypecheck(fixture);
     });
   }

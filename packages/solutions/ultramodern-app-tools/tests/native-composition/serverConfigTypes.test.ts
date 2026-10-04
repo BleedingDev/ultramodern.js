@@ -68,16 +68,23 @@ ownerServerPlugin({ unexpected: true });
         files: [fileName],
       }),
     );
-    const compilerRoot = path.dirname(
-      requireFromPackage.resolve('@typescript/native-preview/package.json'),
+    const compilerManifestPath = requireFromPackage.resolve(
+      'typescript/package.json',
+    );
+    const compilerManifest = JSON.parse(
+      fs.readFileSync(compilerManifestPath, 'utf8'),
+    );
+    expect(compilerManifest).toMatchObject({
+      name: 'typescript',
+      version: '7.0.2',
+    });
+    const launcher = path.resolve(
+      path.dirname(compilerManifestPath),
+      compilerManifest.bin.tsc,
     );
     const result = spawnSync(
       process.execPath,
-      [
-        path.join(compilerRoot, 'bin/tsgo'),
-        '-p',
-        path.join(directory, 'tsconfig.json'),
-      ],
+      [launcher, '-p', path.join(directory, 'tsconfig.json')],
       { cwd: directory, encoding: 'utf8' },
     );
     if (result.status !== 0)
