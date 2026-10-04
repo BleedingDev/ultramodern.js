@@ -1,5 +1,13 @@
 import { once } from 'node:events';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import {
+  copyFile,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
 import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
@@ -22,9 +30,25 @@ import {
 } from '../../packages/server/prod-server/src';
 import { createDevServer } from '../../packages/server/server/src/createDevServer';
 import {
+  type AppNormalizedConfig,
+  type AppTools,
+  appTools,
+} from '../../packages/solutions/app-tools/src';
+import { getBundleEntry } from '../../packages/solutions/app-tools/src/plugins/analyze/getBundleEntry';
+import { nativeRendererInfrastructurePlugin } from '../../packages/solutions/ultramodern-app-tools/src/native-composition/native-infrastructure';
+import {
   type NativeNodeBindings,
   nativeServerPlugin,
 } from '../../packages/solutions/ultramodern-app-tools/src/native-composition/native-server-plugin';
+import {
+  type CLIPluginAPI,
+  createPluginManager,
+} from '../../packages/toolkit/plugin/src';
+import {
+  createContext,
+  initAppContext,
+  initPluginAPI,
+} from '../../packages/toolkit/plugin/src/cli';
 
 const identity: RendererIdentity = {
   renderer: 'solid',
@@ -259,6 +283,205 @@ async function close(server: Awaited<ReturnType<typeof createNodeServer>>) {
     server.close(error => (error ? reject(error) : resolve())),
   );
 }
+
+async function authoredServerFixture(renderer: 'solid' | 'octane') {
+  const authoredIdentity: RendererIdentity = {
+    ...identity,
+    renderer,
+    appId: 'authored-server-dispatch-proof',
+  };
+  const { root, dist } = await fixture(authoredIdentity);
+  const sourceDirectory = path.join(root, 'src');
+  await mkdir(sourceDirectory);
+  const sourceEntry = path.join(sourceDirectory, 'index.ts');
+  const sourceServerEntry = path.join(sourceDirectory, 'index.server.ts');
+  const fixtureServerEntry = path.join(
+    import.meta.dirname,
+    'fixtures/authored-server-entry/index.server.ts',
+  );
+  await writeFile(sourceEntry, 'export const authoredClient = true;\n');
+  await copyFile(fixtureServerEntry, sourceServerEntry);
+
+  for (const [name, directory] of [
+    ['ultramodern-app-tools', '../../packages/solutions/ultramodern-app-tools'],
+    ['renderer-core', '../../packages/runtime/renderer-core'],
+  ]) {
+    const slot = path.join(root, 'node_modules/@modern-js', name);
+    await mkdir(path.dirname(slot), { recursive: true });
+    await symlink(path.resolve(import.meta.dirname, directory), slot, 'dir');
+  }
+  await writeFile(
+    path.join(root, 'package.json'),
+    JSON.stringify({ name: 'authored-server-dispatch-proof', private: true }),
+  );
+  const config = {
+    renderer,
+    source: { entriesDir: './src', mainEntryName: 'main' },
+    server: { ssr: true },
+    output: { cleanDistPath: false },
+  };
+  const manager = createPluginManager();
+  manager.addPlugins([
+    appTools({ rendererExtensions: false, serverExtensions: false }),
+    nativeRendererInfrastructurePlugin(renderer, undefined, {
+      async resolveBuildIdentities() {
+        return {
+          identities: { main: authoredIdentity },
+          buildMarker: authoredIdentity.buildId,
+          sourceRevision: 'authored-server-dispatch-proof',
+          inputDigest: 'a'.repeat(64),
+          profileDigest: 'b'.repeat(64),
+          compilerDigest: 'c'.repeat(64),
+          frameworkCohortDigest: 'd'.repeat(64),
+          cacheAllowed: false,
+          promotable: false,
+        };
+      },
+    }),
+  ]);
+  const plugins = manager.getPlugins();
+  const context = await createContext<AppTools>({
+    appContext: initAppContext({
+      packageName: 'authored-server-dispatch-proof',
+      configFile: false,
+      command: 'build',
+      appDirectory: root,
+      metaName: 'modern-js',
+      plugins,
+    }),
+    config,
+    normalizedConfig: config as AppNormalizedConfig,
+  });
+  const api = initPluginAPI({ context, pluginManager: manager });
+  context.pluginAPI = api;
+  for (const plugin of plugins) {
+    await plugin.setup?.(api as CLIPluginAPI<AppTools>);
+  }
+  const discovered = await getBundleEntry(
+    api.getHooks(),
+    api.getAppContext(),
+    api.getNormalizedConfig(),
+  );
+  const { entrypoints } = await api
+    .getHooks()
+    .modifyEntrypoints.call({ entrypoints: discovered });
+  expect(entrypoints).toHaveLength(1);
+  expect(entrypoints[0].customEntry).toBe(true);
+  expect(entrypoints[0].customServerEntry).toBe(sourceServerEntry);
+  api.updateAppContext({
+    serverRoutes: [
+      { entryName: 'main', entryPath: 'index.html', urlPath: '/', isSSR: true },
+    ],
+  });
+  await api.getHooks().generateEntryCode.call({ entrypoints });
+  const generatedServerEntry = path.join(
+    path.dirname(entrypoints[0].internalEntry!),
+    'index.server.ts',
+  );
+  const generatedSource = await readFile(generatedServerEntry, 'utf-8');
+  expect(generatedSource).toContain(
+    `await import(${JSON.stringify(sourceServerEntry)})`,
+  );
+  expect(generatedSource).toContain(
+    'handler.nativeRequestHandler ?? handler.default',
+  );
+  expect(generatedSource).not.toMatch(
+    /(?:from|import\()\s*['"](?:react(?:-dom|-server-dom[^/'"]*)?(?:\/|['"])|@modern-js\/runtime(?:\/|['"]))/u,
+  );
+  // Execute the owning generator's exact bytes through the real Node loader.
+  // The .mjs transport does not rewrite its imports or its authored hand-off.
+  const bundle = path.join(dist, 'bundles/main.mjs');
+  await copyFile(generatedServerEntry, bundle);
+  expect(await readFile(bundle, 'utf-8')).toBe(generatedSource);
+  expect(await readFile(sourceServerEntry, 'utf-8')).toBe(
+    await readFile(fixtureServerEntry, 'utf-8'),
+  );
+  return {
+    root,
+    dist,
+    authoredIdentity,
+    sourceServerEntry,
+    fixtureServerEntry,
+  };
+}
+
+it.each([
+  ['solid', 'production'],
+  ['solid', 'development'],
+  ['octane', 'production'],
+  ['octane', 'development'],
+] as const)('rejects RSC before importing an authored %s server entry through the real %s server', async (renderer, mode) => {
+  process.env.NODE_ENV = mode;
+  const {
+    root,
+    dist,
+    authoredIdentity,
+    sourceServerEntry,
+    fixtureServerEntry,
+  } = await authoredServerFixture(renderer);
+  const options = serverOptions(root, dist, authoredIdentity);
+  options.serverConfig.middlewares = [];
+  const server =
+    mode === 'production'
+      ? await createProdServer(options)
+      : (
+          await createDevServer(
+            { ...options, pwd: root, dev: {} },
+            applyPlugins,
+          )
+        ).server;
+  const origin = await listen(server);
+  const imported = path.join(root, 'authored-entry-imported.txt');
+  const dispatched = path.join(root, 'authored-entry-dispatches.txt');
+  const marker = (file: string) => readFile(file, 'utf-8').catch(() => '');
+  try {
+    const rejectRsc = async () => {
+      for (const [header, method] of [
+        ['x-rsc-tree', 'GET'],
+        ['x-rsc-action', 'POST'],
+      ]) {
+        const response = await fetch(`${origin}/authored`, {
+          method,
+          headers: { [header]: '1' },
+        });
+        expect(response.status).toBe(400);
+        expect(response.headers.get('cache-control')).toBe('no-store');
+        expect((await response.json()).code).toBe(
+          'unsupported-renderer-capability',
+        );
+      }
+    };
+    await rejectRsc();
+    expect(await marker(imported)).toBe('');
+    expect(await marker(dispatched)).toBe('');
+
+    const response = await fetch(`${origin}/authored`);
+    expect(response.status).toBe(207);
+    expect(response.statusText).toBe('Authored Native Entry');
+    expect(response.headers.get('x-authored-entry')).toBe('fetch-handler');
+    expect(await response.json()).toEqual({
+      authored: true,
+      renderer,
+      buildId: authoredIdentity.buildId,
+      sessionRenderer: renderer,
+      entryName: 'main',
+      loaderContextIsMap: true,
+      method: 'GET',
+      pathname: '/authored',
+    });
+    expect(await marker(imported)).toBe('authored module imported\n');
+    expect(await marker(dispatched)).toBe('GET /authored\n');
+
+    await rejectRsc();
+    expect(await marker(imported)).toBe('authored module imported\n');
+    expect(await marker(dispatched)).toBe('GET /authored\n');
+    expect(await readFile(sourceServerEntry, 'utf-8')).toBe(
+      await readFile(fixtureServerEntry, 'utf-8'),
+    );
+  } finally {
+    await close(server);
+  }
+});
 
 it.each([
   'production',

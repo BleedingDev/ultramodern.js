@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import type { RendererIdentity } from '@modern-js/renderer-core/identity';
 import {
   createRequestSession,
@@ -222,6 +223,127 @@ describe('native Octane server application', () => {
     expect(tail).toContain('</body></html>');
     expect((await session.completion).state).toBe('completed');
     expect(cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  test('bounds native byte production during a paused document and retires producers on cancellation', async () => {
+    const session = createSession();
+    const cleanup = rstest.fn();
+    const nativeCancel = rstest.fn();
+    const unsubscribe = rstest.fn();
+    const cancelled = deferred<void>();
+    const unsubscribed = deferred<void>();
+    const serialization = deferred<void>();
+    const values = Array.from({ length: 3 }, () =>
+      deferred<{ default: () => string }>(),
+    );
+    const encoded = values.map(() => deferred<void>());
+    const produced = values.map(() => deferred<void>());
+    const production = rstest.fn((index: number) => {
+      produced[index].resolve();
+    });
+    const payloads = values.map(
+      (_, index) => `octane-pressure-${index}:${'x'.repeat(32_768)}`,
+    );
+    const children = values.map((value, index) => {
+      const Late = lazy(() => value.promise);
+      return createElement(
+        Suspense,
+        { fallback: createElement('i', null, `WAIT-${index}`) },
+        createElement(Late),
+      );
+    });
+    session.registerCleanup(cleanup);
+    const originalEncode = TextEncoder.prototype.encode;
+    let payloadBytes = 0;
+    const encode = rstest
+      .spyOn(TextEncoder.prototype, 'encode')
+      .mockImplementation(function (this: TextEncoder, input?: string) {
+        const bytes = originalEncode.call(this, input);
+        payloads.forEach((payload, index) => {
+          if (input?.includes(payload)) encoded[index].resolve();
+        });
+        if (input?.includes('octane-pressure-')) {
+          payloadBytes += bytes.byteLength;
+        }
+        return bytes;
+      });
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+    try {
+      const response = await renderOctaneApplication({
+        session,
+        App: () =>
+          createElement(
+            'main',
+            null,
+            createElement('p', null, 'PRESSURE-SHELL'),
+            ...children,
+          ),
+        document,
+        injection: {
+          take: () => '',
+          subscribe: () => () => {
+            unsubscribe();
+            unsubscribed.resolve();
+          },
+          done: serialization.promise,
+          cancel(reason) {
+            nativeCancel(reason);
+            cancelled.resolve();
+          },
+        },
+      });
+      reader = response.body!.getReader();
+      expect(decode((await reader.read()).value)).toContain('<!doctype html>');
+      const shell = decode((await reader.read()).value);
+      expect(shell).toContain('PRESSURE-SHELL');
+      expect(shell).toContain('WAIT-2');
+      expect(shell).not.toContain('octane-pressure-');
+      expect(decode((await reader.read()).value)).toContain(
+        '__ULTRAMODERN_RENDERER__',
+      );
+
+      const resolve = (index: number) => {
+        values[index].resolve({
+          default: () => {
+            production(index);
+            return ssrHtml(`<b>${payloads[index]}</b>`);
+          },
+        });
+      };
+      resolve(0);
+      await encoded[0].promise;
+      resolve(1);
+      await encoded[1].promise;
+      resolve(2);
+      await values[2].promise;
+      // Let ready native promise continuations run without creating body demand.
+      await new Promise<void>(done => setImmediate(done));
+      expect(production).not.toHaveBeenCalledWith(2);
+      // One queued native write and one blocked write are allowed ahead of demand.
+      // This measures real byte encoding, not arbitrary deferred tree memory.
+      expect(payloadBytes).toBeLessThan(
+        Buffer.byteLength(payloads[0]) * 2 + 16_384,
+      );
+      expect(session.state).toBe('committed');
+      expect(cleanup).not.toHaveBeenCalled();
+
+      const resumed = await reader.read();
+      expect(resumed.done).toBe(false);
+      expect(decode(resumed.value)).toContain(payloads[0]);
+      await produced[2].promise;
+      await reader.cancel('paused consumer disconnected');
+      await session.abort('repeated cancellation');
+      await Promise.all([cancelled.promise, unsubscribed.promise]);
+      expect((await session.completion).state).toBe('aborted');
+      expect((await session.completion).cacheEligible).toBe(false);
+      expect(session.signal.reason).toBe('paused consumer disconnected');
+      expect(nativeCancel).toHaveBeenCalledTimes(1);
+      expect(unsubscribe).toHaveBeenCalledTimes(1);
+      expect(cleanup).toHaveBeenCalledTimes(1);
+    } finally {
+      await reader?.cancel('test cleanup').catch(() => {});
+      encode.mockRestore();
+    }
   });
 
   test('keeps native router serialization inside the document and waits for its completion', async () => {

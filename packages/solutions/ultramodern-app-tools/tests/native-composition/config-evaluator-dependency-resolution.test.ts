@@ -413,6 +413,75 @@ module.exports = () => require('node:fs').readFileSync(require('node:path').join
       ).rejects.toMatchObject({ code: 'MODULE_NOT_FOUND' });
     }));
 
+  it('prefers the installed app package for native imports', async () =>
+    fixture(async ({ app, host }) => {
+      declare(host, 'native-app-first');
+      install(host, 'native-app-first', 'hidden fallback');
+      const dependency = install(app, 'native-app-first', 'app require', {
+        exports: { import: './index.mjs', require: './index.cjs' },
+      });
+      fs.writeFileSync(
+        path.join(dependency, 'index.mjs'),
+        "export default 'app import';",
+      );
+      const config = path.join(app, 'config.mjs');
+      fs.writeFileSync(
+        config,
+        "import value from 'native-app-first'; export default value;",
+      );
+      await withConfigDependencyResolution(
+        { sourceRoots: [app], dependencyRoots: [host] },
+        async () => {
+          const namespace = await import(
+            /* webpackIgnore: true */ pathToFileURL(config).href
+          );
+          expect(namespace.default).toBe('app import');
+        },
+      );
+    }));
+
+  it.each([
+    ['app', 'missing exported target'],
+    ['app', 'broken symlink'],
+    ['first cohort', 'missing exported target'],
+    ['first cohort', 'broken symlink'],
+  ] as const)('preserves native import errors for a %s package with a %s', async (owner, failure) =>
+    fixture(async ({ directory, app, host, secondHost }) => {
+      const name = 'native-present-guard';
+      for (const root of [host, secondHost]) declare(root, name);
+      install(secondHost, name, 'hidden later fallback');
+      const local = owner === 'app' ? app : host;
+      if (owner === 'app') install(host, name, 'hidden first fallback');
+      if (failure === 'missing exported target') {
+        install(local, name, 'valid require target', {
+          exports: { import: './missing.mjs', require: './index.cjs' },
+        });
+      } else {
+        fs.mkdirSync(path.join(local, 'node_modules'), { recursive: true });
+        fs.symlinkSync(
+          path.join(directory, 'absent-native-owner'),
+          path.join(local, 'node_modules', name),
+        );
+      }
+      const config = path.join(app, 'config.mjs');
+      fs.writeFileSync(
+        config,
+        `import value from '${name}'; export default value;`,
+      );
+      const operation = withConfigDependencyResolution(
+        { sourceRoots: [app], dependencyRoots: [host, secondHost] },
+        () => import(/* webpackIgnore: true */ pathToFileURL(config).href),
+      );
+      await expect(operation).rejects.toMatchObject({
+        code: 'ERR_MODULE_NOT_FOUND',
+      });
+      await expect(operation).rejects.toThrow(
+        failure === 'missing exported target'
+          ? path.join(local, 'node_modules', name, 'missing.mjs')
+          : name,
+      );
+    }));
+
   it('does not rescue a missing dependency imported by an installed app package', async () =>
     fixture(async ({ app, host }) => {
       declare(host, 'missing-transitive');

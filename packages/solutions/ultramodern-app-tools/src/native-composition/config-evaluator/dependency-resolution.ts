@@ -351,8 +351,27 @@ function recordInstalledDependency(
 
 // Package presence is separate from entry resolution. A broken main, export,
 // manifest, or symlink must never turn into a dependency fallback.
-function packagePresent(parentURL: string, name: string): boolean {
-  for (const directory of createRequire(parentURL).resolve.paths(name) ?? []) {
+function packagePresent(
+  parentURL: string,
+  name: string,
+  nativeImport: boolean,
+): boolean {
+  const directories = nativeImport
+    ? []
+    : (createRequire(parentURL).resolve.paths(name) ?? []);
+  if (nativeImport) {
+    // Native imports do not search NODE_PATH or CommonJS global folders.
+    // Their absence check must use the same local package namespace.
+    for (
+      let directory = path.dirname(fileURLToPath(parentURL));
+      ;
+      directory = path.dirname(directory)
+    ) {
+      directories.push(path.join(directory, 'node_modules'));
+      if (path.dirname(directory) === directory) break;
+    }
+  }
+  for (const directory of directories) {
     try {
       fs.lstatSync(path.join(directory, name));
       return true;
@@ -465,7 +484,8 @@ export async function withConfigDependencyResolution<T>(
           throw originalError;
         }
         try {
-          if (packagePresent(context.parentURL!, name)) throw originalError;
+          if (packagePresent(context.parentURL!, name, isImport(context)))
+            throw originalError;
         } catch {
           throw originalError;
         }
@@ -534,7 +554,8 @@ export async function withConfigDependencyResolution<T>(
               throw error;
             }
             try {
-              if (packagePresent(root.anchorURL, name)) throw error;
+              if (packagePresent(root.anchorURL, name, isImport(context)))
+                throw error;
             } catch {
               throw error;
             }

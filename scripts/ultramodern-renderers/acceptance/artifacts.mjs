@@ -1275,7 +1275,9 @@ export function auditReleaseArtifacts({
 
 function installedPackage(name, fromDirectory, consumerRoot) {
   const require = createRequire(path.join(fromDirectory, 'package.json'));
-  for (const directory of require.resolve.paths(name) ?? []) {
+  // Declared npm dependencies require a physical package even when Node has a
+  // builtin with the same bare name, whose resolve.paths result would be null.
+  for (const directory of require.resolve.paths(`${name}/package.json`) ?? []) {
     const candidate = path.join(directory, name);
     if (!fs.existsSync(path.join(candidate, 'package.json'))) continue;
     const realDirectory = fs.realpathSync(candidate);
@@ -1403,25 +1405,29 @@ function exportedEntry(manifest, specifier, conditions) {
     : subpath;
 }
 
-function resolveFile(candidate, { exact = false } = {}) {
+function resolveFile(candidate, { exact = false, beforeRealpath } = {}) {
+  const resolved = file => {
+    beforeRealpath?.(file);
+    return fs.realpathSync(file);
+  };
   if (exact)
     return fs.statSync(candidate, { throwIfNoEntry: false })?.isFile()
-      ? fs.realpathSync(candidate)
+      ? resolved(candidate)
       : undefined;
   for (const extension of extensions) {
     const file = `${candidate}${extension}`;
     if (fs.statSync(file, { throwIfNoEntry: false })?.isFile())
-      return fs.realpathSync(file);
+      return resolved(file);
   }
   for (const extension of extensions.slice(1)) {
     const file = path.join(candidate, `index${extension}`);
     if (fs.statSync(file, { throwIfNoEntry: false })?.isFile())
-      return fs.realpathSync(file);
+      return resolved(file);
   }
   return undefined;
 }
 
-function resolveTypeFile(candidate) {
+function resolveTypeFile(candidate, { beforeRealpath } = {}) {
   const extension = path.extname(candidate);
   const suffixes =
     extension === '.mjs'
@@ -1433,10 +1439,13 @@ function resolveTypeFile(candidate) {
     ? candidate.slice(0, -extension.length)
     : candidate;
   for (const suffix of suffixes) {
-    const resolved = resolveFile(`${stem}${suffix}`, { exact: true });
+    const resolved = resolveFile(`${stem}${suffix}`, {
+      exact: true,
+      beforeRealpath,
+    });
     if (resolved) return resolved;
   }
-  return resolveFile(candidate);
+  return resolveFile(candidate, { beforeRealpath });
 }
 
 /** Audits installed identities and static entry imports; execution is a separate gate. */
@@ -1580,12 +1589,26 @@ export function auditInstalledConsumer({
   );
   const appRoot = fs.realpathSync(path.resolve(root, applicationRoot));
   assert(within(root, appRoot), 'applicationRoot escapes the clean consumer');
-  const application = json(path.join(appRoot, 'package.json'));
-  const workspace = json(path.join(root, 'package.json'));
-  const contexts = [
-    { directory: appRoot, manifest: application },
-    ...(appRoot === root ? [] : [{ directory: root, manifest: workspace }]),
-  ];
+  const contexts = [appRoot, ...(appRoot === root ? [] : [root])].map(
+    directory => {
+      const manifestPath = path.join(directory, 'package.json');
+      assert(
+        fs.lstatSync(manifestPath).isFile() &&
+          fs.realpathSync(manifestPath) === manifestPath,
+        'Consumer context requires an ordinary canonical package manifest',
+      );
+      const bytes = fs.readFileSync(manifestPath);
+      return {
+        directory,
+        manifest: JSON.parse(bytes),
+        manifestSha256: crypto.createHash('sha256').update(bytes).digest('hex'),
+      };
+    },
+  );
+  const application = contexts[0].manifest;
+  const workspace = contexts.find(
+    context => context.directory === root,
+  ).manifest;
   const native = renderer !== 'react';
   if (native)
     for (const name of ['react', 'react-dom'])
@@ -2609,6 +2632,8 @@ export function auditInstalledConsumer({
       });
   };
   const scanned = new Map();
+  const moduleFormatScopes = new Map();
+  const declarationFallbacks = [];
   const promoteSelectedFileOwner = file => {
     const containing = [...records.values()]
       .filter(record => within(record.directory, file))
@@ -2628,7 +2653,8 @@ export function auditInstalledConsumer({
     // installation do not establish another installed owner.
     if (
       containing &&
-      (!installedBoundary || containing.directory.length >= directory.length)
+      installedBoundary &&
+      containing.directory.length >= directory.length
     ) {
       add(containing);
       return containing;
@@ -2654,6 +2680,25 @@ export function auditInstalledConsumer({
         );
         const bytes = fs.readFileSync(manifestPath);
         const manifest = JSON.parse(bytes);
+        if (
+          !installedBoundary &&
+          Object.keys(manifest).length === 1 &&
+          ['module', 'commonjs'].includes(manifest.type)
+        ) {
+          const scope = {
+            path: path.relative(root, manifestPath),
+            sha256: crypto.createHash('sha256').update(bytes).digest('hex'),
+            type: manifest.type,
+          };
+          assert(
+            !moduleFormatScopes.has(manifestPath) ||
+              moduleFormatScopes.get(manifestPath).sha256 === scope.sha256,
+            'Module format scope changed during its selected file audit',
+          );
+          moduleFormatScopes.set(manifestPath, scope);
+          directory = path.dirname(directory);
+          continue;
+        }
         assert(
           typeof manifest.name === 'string' &&
             exactVersion.test(manifest.version),
@@ -2831,13 +2876,65 @@ export function auditInstalledConsumer({
       else {
         let installedName = octaneTypeOwner ? '@types/react' : name;
         let record = installedPackage(installedName, path.dirname(file), root);
+        let declarationFallbackOwner;
         if (
           !record &&
-          imported.reference === 'types' &&
+          (imported.reference === 'types' ||
+            imported.typeOnly ||
+            /\.d\.[cm]?ts$/u.test(file)) &&
           !name.startsWith('@types/')
         ) {
           installedName = `@types/${name.replace(/^@/u, '').replace('/', '__')}`;
-          record = installedPackage(installedName, path.dirname(file), root);
+          if (imported.reference === 'types')
+            record = installedPackage(installedName, path.dirname(file), root);
+          else {
+            declarationFallbackOwner =
+              selectedOwner ??
+              contexts
+                .filter(context => within(context.directory, file))
+                .sort(
+                  (left, right) =>
+                    right.directory.length - left.directory.length,
+                )[0];
+            const declared =
+              declarationFallbackOwner?.manifest.dependencies?.[installedName];
+            assert(
+              typeof declared === 'string',
+              `Declaration fallback ${installedName} requires its owner's declared production dependency`,
+            );
+            record = resolveEdge(
+              {
+                name: installedName,
+                specifier: declared,
+                block: 'dependencies',
+                optional: false,
+              },
+              declarationFallbackOwner,
+            );
+            const sourceProvider = installedPackage(
+              installedName,
+              path.dirname(file),
+              root,
+            );
+            assert(
+              sourceProvider?.directory === record?.directory &&
+                sourceProvider?.manifestSha256 === record?.manifestSha256,
+              `Declaration fallback ${installedName} resolves a different provider from its source`,
+            );
+            assert(
+              record?.manifest.name === installedName,
+              `Declaration fallback ${installedName} has an invalid physical package identity`,
+            );
+            assert(
+              record.manifestSha256 ===
+                records.get(record.directory)?.manifestSha256,
+              'Declaration fallback evidence changed during its static closure audit',
+            );
+            ordinaryConsumerFile(
+              path.join(record.directory, 'package.json'),
+              'Declaration fallback package manifest',
+            );
+          }
         }
         assert(
           record,
@@ -2864,20 +2961,100 @@ export function auditInstalledConsumer({
         if (imported.typeOnly || /\.(?:[cm]?tsx?|tsrx)$/u.test(file)) {
           const typeEntry = exportedEntry(
             record.manifest,
-            (octaneTypeOwner || imported.reference === 'types') &&
-              installedName !== name
-              ? installedName
-              : specifier,
+            declarationFallbackOwner
+              ? `${installedName}${specifier.slice(name.length)}`
+              : (octaneTypeOwner || imported.reference === 'types') &&
+                  installedName !== name
+                ? installedName
+                : specifier,
             new Set([...conditions, 'types']),
           );
           if (typeEntry) {
             const typeFile = resolveTypeFile(
               path.resolve(record.directory, typeEntry),
+              declarationFallbackOwner
+                ? {
+                    beforeRealpath: file => {
+                      assert(
+                        within(record.directory, file),
+                        `Declaration fallback ${specifier} must select a contained declaration file`,
+                      );
+                      ordinaryConsumerFile(file, 'Declaration fallback target');
+                    },
+                  }
+                : undefined,
             );
             assert(
               typeFile,
               `Missing selected declaration export ${specifier}`,
             );
+            if (declarationFallbackOwner) {
+              const candidate = path.resolve(record.directory, typeEntry);
+              assert(
+                (record.manifest.exports === undefined ||
+                  typeEntry.startsWith('./')) &&
+                  within(record.directory, candidate) &&
+                  within(record.directory, typeFile) &&
+                  /\.d\.[cm]?ts$/u.test(typeFile),
+                `Declaration fallback ${specifier} must select a contained declaration file`,
+              );
+              let current = record.directory;
+              for (const segment of path
+                .relative(record.directory, candidate)
+                .split(path.sep)) {
+                current = path.join(current, segment);
+                assert(
+                  !fs
+                    .lstatSync(current, { throwIfNoEntry: false })
+                    ?.isSymbolicLink(),
+                  `Declaration fallback ${specifier} contains a symbolic link`,
+                );
+              }
+              ordinaryConsumerFile(typeFile, 'Declaration fallback target');
+              const ownerManifest = ordinaryConsumerFile(
+                path.join(declarationFallbackOwner.directory, 'package.json'),
+                'Declaration fallback owner manifest',
+              );
+              const ownerBytes = fs.readFileSync(ownerManifest);
+              const declaredSpecifier =
+                declarationFallbackOwner.manifest.dependencies[installedName];
+              assert(
+                JSON.parse(ownerBytes).dependencies?.[installedName] ===
+                  declaredSpecifier &&
+                  (!declarationFallbackOwner.manifestSha256 ||
+                    crypto
+                      .createHash('sha256')
+                      .update(ownerBytes)
+                      .digest('hex') ===
+                      declarationFallbackOwner.manifestSha256),
+                'Declaration fallback owner changed during its static closure audit',
+              );
+              declarationFallbacks.push({
+                specifier,
+                source: path.relative(root, file),
+                sourceSha256: scanned.get(file),
+                owner: declarationFallbackOwner.manifest.name,
+                ownerManifest: path.relative(root, ownerManifest),
+                ownerManifestSha256: crypto
+                  .createHash('sha256')
+                  .update(ownerBytes)
+                  .digest('hex'),
+                dependencyBlock: 'dependencies',
+                declaredSpecifier,
+                provider: record.manifest.name,
+                providerVersion: record.manifest.version,
+                providerManifest: path.relative(
+                  root,
+                  path.join(record.directory, 'package.json'),
+                ),
+                providerManifestSha256: record.manifestSha256,
+                target: path.relative(root, typeFile),
+                targetSha256: crypto
+                  .createHash('sha256')
+                  .update(fs.readFileSync(typeFile))
+                  .digest('hex'),
+              });
+            }
             if (octaneTypeOwner)
               assert(
                 typeFile ===
@@ -2906,7 +3083,7 @@ export function auditInstalledConsumer({
             pendingFiles.push(typeFile);
           } else
             assert(
-              !imported.typeOnly,
+              !imported.typeOnly && !declarationFallbackOwner,
               `No selected declaration export ${specifier}`,
             );
         }
@@ -2929,6 +3106,31 @@ export function auditInstalledConsumer({
     }
   }
   drain();
+  for (const fallback of declarationFallbacks) {
+    for (const [filePath, expected] of [
+      [fallback.source, fallback.sourceSha256],
+      [fallback.ownerManifest, fallback.ownerManifestSha256],
+      [fallback.providerManifest, fallback.providerManifestSha256],
+      [fallback.target, fallback.targetSha256],
+    ]) {
+      const file = ordinaryConsumerFile(
+        path.resolve(root, filePath),
+        'Declaration fallback evidence',
+      );
+      assert(
+        crypto
+          .createHash('sha256')
+          .update(fs.readFileSync(file))
+          .digest('hex') === expected,
+        'Declaration fallback evidence changed during its static closure audit',
+      );
+    }
+    assert(
+      scanned.get(path.resolve(root, fallback.target)) ===
+        fallback.targetSha256,
+      'Declaration fallback target changed or was omitted from its static closure audit',
+    );
+  }
   if (activeServerBuild) {
     const file = ordinaryConsumerFile(
       path.resolve(root, activeServerBuild.manifestPath),
@@ -2984,6 +3186,19 @@ export function auditInstalledConsumer({
           record.manifest.version === exactPackages[name],
           `Tested tuple ${name} has transitive installed drift: ${record.manifest.version}`,
         );
+  for (const [file, scope] of moduleFormatScopes) {
+    assert(
+      fs.lstatSync(file).isFile() && within(root, fs.realpathSync(file)),
+      'Module format scope requires an ordinary consumer manifest',
+    );
+    assert(
+      crypto
+        .createHash('sha256')
+        .update(fs.readFileSync(file))
+        .digest('hex') === scope.sha256,
+      'Module format scope changed during its selected file audit',
+    );
+  }
   const closure = [...records.values()]
     .map(record => {
       const files = [];
@@ -3100,6 +3315,14 @@ export function auditInstalledConsumer({
       ),
     ),
     testedProfile: testedProfile ?? null,
+    moduleFormatScopes: [...moduleFormatScopes.values()].sort((left, right) =>
+      left.path.localeCompare(right.path),
+    ),
+    declarationFallbacks: declarationFallbacks.sort((left, right) =>
+      `${left.source}:${left.specifier}`.localeCompare(
+        `${right.source}:${right.specifier}`,
+      ),
+    ),
     closure: closure.filter(record =>
       reachability.get(path.resolve(root, record.path))?.has('native'),
     ),

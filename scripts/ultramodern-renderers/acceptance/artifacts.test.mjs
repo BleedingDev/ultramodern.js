@@ -175,6 +175,35 @@ function consumerFixture(t, overrides = {}) {
   };
 }
 
+function declarationConsumerFixture(t, specifier = 'declaration-model') {
+  const { root, options } = consumerFixture(t);
+  const workspacePath = path.join(root, 'package.json');
+  const workspace = JSON.parse(fs.readFileSync(workspacePath));
+  workspace.dependencies['declaration-owner'] = version;
+  writeJson(workspacePath, workspace);
+  const providerName = `@types/${specifier.replace(/^@/u, '').replace('/', '__')}`;
+  const owner = installFixture(root, 'declaration-owner', {
+    dependencies: { [providerName]: '1.2.3' },
+  });
+  const source = path.join(owner, 'index.d.ts');
+  write(
+    source,
+    `import { Model } from '${specifier}';\nexport declare const native: Model;\n`,
+  );
+  const provider = installFixture(owner, providerName, {
+    version: '1.2.3',
+    types: './index.d.ts',
+    exports: { '.': { types: './index.d.ts' } },
+  });
+  const target = path.join(provider, 'index.d.ts');
+  write(target, 'export interface Model { native: boolean }\n');
+  write(
+    path.join(root, 'src/entry.tsx'),
+    "import { native } from 'declaration-owner';\nvoid native;\n",
+  );
+  return { root, options, owner, provider, providerName, source, target };
+}
+
 function octaneConsumerFixture(t) {
   const root = ownedDirectory(t);
   writeJson(path.join(root, 'package.json'), {
@@ -722,6 +751,59 @@ test('installed audit follows real aliases, peer dependencies and source/server 
   assert.equal(report.entryClosure.length, 4);
   assert.match(report.closure[0].manifestSha256, /^[a-f0-9]{64}$/u);
   assert.equal(report.exportConditionExecution, 'required-separate-probe');
+});
+
+test('declared builtin-named npm dependencies require their real physical package manifests', t => {
+  const { options, root } = consumerFixture(t);
+  const names = ['events', 'buffer', 'process'];
+  const owner = installFixture(root, rendererPackage, {
+    peerDependencies: { 'solid-js': nativeVersion },
+    dependencies: Object.fromEntries(names.map(name => [name, '1.0.0'])),
+  });
+  for (const name of names) installFixture(owner, name, { version: '1.0.0' });
+  const report = auditInstalledConsumer(options);
+  for (const name of names) {
+    const record = report.closure.find(item => item.name === name);
+    assert(
+      record,
+      `Declared ${name} must not disappear behind the Node builtin`,
+    );
+    assert.equal(record.version, '1.0.0');
+    assert.equal(
+      record.manifestSha256,
+      fileSha256(path.join(root, record.path, 'package.json')),
+    );
+    const directory = path.join(owner, 'node_modules', name);
+    const manifest = fs.readFileSync(path.join(directory, 'package.json'));
+    fs.unlinkSync(path.join(directory, 'package.json'));
+    assert.throws(
+      () => auditInstalledConsumer(options),
+      new RegExp(`Missing installed dependencies ${name}`, 'u'),
+    );
+    write(path.join(directory, 'package.json'), manifest);
+    const packageJson = JSON.parse(manifest);
+    writeJson(path.join(directory, 'package.json'), {
+      ...packageJson,
+      name: `wrong-${name}`,
+    });
+    assert.throws(
+      () => auditInstalledConsumer(options),
+      new RegExp(`Installed identity mismatch for ${name}`, 'u'),
+    );
+    writeJson(path.join(directory, 'package.json'), {
+      ...packageJson,
+      version: '1.0.1',
+    });
+    assert.throws(
+      () => auditInstalledConsumer(options),
+      new RegExp(`Installed ${name} version .* differs from 1\\.0\\.0`, 'u'),
+    );
+    write(path.join(directory, 'package.json'), manifest);
+  }
+  assert.equal(
+    auditInstalledConsumer(options).closure.length,
+    report.closure.length,
+  );
 });
 
 test('native audit records absent guarded optional peers without admitting installed React packages', t => {
@@ -1289,6 +1371,127 @@ test('selected nested installations outrank recorded ancestors and enforce canon
   }
 });
 
+test('selected JavaScript module scopes retain their exact format bytes and existing owner', t => {
+  const { root, options } = consumerFixture(t);
+  const output = path.join(root, '.output');
+  writeJson(path.join(output, 'package.json'), { type: 'module' });
+  writeJson(path.join(output, 'worker', 'package.json'), { type: 'commonjs' });
+  write(
+    path.join(output, 'server', 'index.js'),
+    "export { native } from '@modern-js/renderer-solid';\nexport { marker } from '../worker/index.js';\n",
+  );
+  write(
+    path.join(output, 'worker', 'index.js'),
+    'module.exports = { marker: true };\n',
+  );
+  const report = auditInstalledConsumer({
+    ...options,
+    entryFiles: [...options.entryFiles, '.output/server/index.js'],
+  });
+  assert.deepEqual(report.moduleFormatScopes, [
+    {
+      path: '.output/package.json',
+      sha256: fileSha256(path.join(output, 'package.json')),
+      type: 'module',
+    },
+    {
+      path: '.output/worker/package.json',
+      sha256: fileSha256(path.join(output, 'worker', 'package.json')),
+      type: 'commonjs',
+    },
+  ]);
+  assert.deepEqual(
+    report.closure.map(item => item.name),
+    [rendererPackage, 'solid-js'],
+  );
+  assert(
+    report.entryClosure.some(item => item.path === '.output/server/index.js'),
+  );
+  assert(
+    report.entryClosure.some(item => item.path === '.output/worker/index.js'),
+  );
+  const workerScope = path.join(output, 'worker', 'package.json');
+  const readFile = fs.readFileSync;
+  let mutated = false;
+  const reader = t.mock.method(fs, 'readFileSync', (file, ...args) => {
+    const bytes = readFile(file, ...args);
+    if (file === workerScope && !mutated) {
+      mutated = true;
+      writeJson(workerScope, { type: 'module' });
+    }
+    return bytes;
+  });
+  try {
+    assert.throws(
+      () =>
+        auditInstalledConsumer({
+          ...options,
+          entryFiles: [...options.entryFiles, '.output/worker/index.js'],
+        }),
+      /Module format scope changed/u,
+    );
+    assert.equal(mutated, true);
+  } finally {
+    reader.mock.restore();
+  }
+});
+
+test('module scopes cannot hide partial identities, invalid formats, or symlinked manifests', t => {
+  const { root, options } = consumerFixture(t);
+  const scope = path.join(root, 'output', 'package.json');
+  write(path.join(root, 'output', 'entry.js'), 'export const native = true;\n');
+  const scopedOptions = {
+    ...options,
+    entryFiles: [...options.entryFiles, 'output/entry.js'],
+  };
+  for (const manifest of [
+    { type: 'invalid' },
+    { type: 'module', name: 'partial-owner' },
+    { type: 'module', version: '1.0.0' },
+    { type: 'module', private: true },
+    { type: 'module', dependencies: {} },
+  ]) {
+    writeJson(scope, manifest);
+    assert.throws(
+      () => auditInstalledConsumer(scopedOptions),
+      /invalid owning package identity/u,
+    );
+  }
+  write(scope, '{"type":');
+  assert.throws(() => auditInstalledConsumer(scopedOptions), SyntaxError);
+  writeJson(path.join(root, 'other-scope.json'), { type: 'module' });
+  fs.unlinkSync(scope);
+  fs.symlinkSync('../other-scope.json', scope);
+  assert.throws(
+    () => auditInstalledConsumer(scopedOptions),
+    /ordinary consumer package manifest/u,
+  );
+});
+
+test('selected installed roots require complete package identity even when their manifest declares a module format', t => {
+  const { root, options } = consumerFixture(t);
+  const installed = installFixture(root, 'scope-only-installed');
+  const selectedOptions = {
+    ...options,
+    entryFiles: [
+      ...options.entryFiles,
+      'node_modules/scope-only-installed/index.js',
+    ],
+  };
+  for (const type of ['module', 'commonjs']) {
+    writeJson(path.join(installed, 'package.json'), { type });
+    assert.throws(
+      () => auditInstalledConsumer(selectedOptions),
+      /invalid owning package identity/u,
+    );
+  }
+  fs.unlinkSync(path.join(installed, 'package.json'));
+  assert.throws(
+    () => auditInstalledConsumer(selectedOptions),
+    /no actual owning package manifest/u,
+  );
+});
+
 test('exact root-dev native AST alias records validator usage alongside the current native checker', t => {
   const { root, generator, generatorName, options } =
     workspaceAuthoringFixture(t);
@@ -1508,6 +1711,399 @@ test('declaration .js references resolve their native type files and native type
   );
 });
 
+test('declaration imports select an owner-declared physical types provider and retain its bytes', t => {
+  for (const extension of ['.d.ts', '.d.mts', '.d.cts']) {
+    const fixture = declarationConsumerFixture(t);
+    const source = path.join(fixture.owner, `model${extension}`);
+    write(source, fs.readFileSync(fixture.source));
+    const report = auditInstalledConsumer({
+      ...fixture.options,
+      entryFiles: [
+        ...fixture.options.entryFiles,
+        path.relative(fixture.root, source),
+      ],
+    });
+    const binding = report.declarationFallbacks.find(
+      item => item.source === path.relative(fixture.root, source),
+    );
+    assert.equal(binding.specifier, 'declaration-model');
+    assert.equal(binding.owner, 'declaration-owner');
+    assert.equal(binding.dependencyBlock, 'dependencies');
+    assert.equal(binding.declaredSpecifier, '1.2.3');
+    assert.equal(binding.provider, fixture.providerName);
+    assert.equal(binding.providerVersion, '1.2.3');
+    for (const [key, file] of [
+      ['source', source],
+      ['ownerManifest', path.join(fixture.owner, 'package.json')],
+      ['providerManifest', path.join(fixture.provider, 'package.json')],
+      ['target', fixture.target],
+    ]) {
+      assert.equal(binding[key], path.relative(fixture.root, file));
+      assert.equal(binding[`${key}Sha256`], fileSha256(file));
+    }
+    assert(
+      report.edges.some(
+        edge =>
+          edge.from === 'declaration-owner' &&
+          edge.name === fixture.providerName &&
+          edge.block === 'dependencies',
+      ),
+    );
+    assert(
+      report.entryClosure.some(
+        file =>
+          file.path === binding.target && file.sha256 === binding.targetSha256,
+      ),
+    );
+  }
+});
+
+test('explicit TypeScript type imports select only their declared types provider', t => {
+  for (const source of [
+    "import type { Model } from 'declaration-model';\nexport type Value = Model;\n",
+    "import { type Model } from 'declaration-model';\nexport type Value = Model;\n",
+    "export type { Model } from 'declaration-model';\n",
+    "export type Value = import('declaration-model').Model;\n",
+  ]) {
+    const { root, options } = consumerFixture(t);
+    const manifest = JSON.parse(
+      fs.readFileSync(path.join(root, 'package.json')),
+    );
+    manifest.dependencies['@types/declaration-model'] = '1.2.3';
+    writeJson(path.join(root, 'package.json'), manifest);
+    const provider = installFixture(root, '@types/declaration-model', {
+      version: '1.2.3',
+      exports: { '.': { types: './index.d.ts' } },
+    });
+    write(path.join(provider, 'index.d.ts'), 'export interface Model {}\n');
+    write(path.join(root, 'src/entry.tsx'), source);
+    const report = auditInstalledConsumer(options);
+    assert.equal(report.declarationFallbacks.length, 1);
+    assert.equal(report.declarationFallbacks[0].owner, 'native-consumer');
+    assert.equal(
+      report.declarationFallbacks[0].target,
+      path.relative(root, path.join(provider, 'index.d.ts')),
+    );
+    assert(
+      !report.entryClosure.some(
+        file =>
+          file.path === path.relative(root, path.join(provider, 'index.js')),
+      ),
+    );
+  }
+});
+
+test('runtime and mixed value imports cannot be satisfied by a types-only provider', t => {
+  for (const [extension, source] of [
+    ['.ts', "import { Model } from 'declaration-model';\nvoid Model;\n"],
+    [
+      '.ts',
+      "import { type Model, native } from 'declaration-model';\nvoid native;\n",
+    ],
+    ['.mjs', "import 'declaration-model';\n"],
+    ['.cjs', "require('declaration-model');\n"],
+  ]) {
+    const fixture = declarationConsumerFixture(t);
+    const entry = path.join(fixture.owner, `value${extension}`);
+    write(entry, source);
+    assert.throws(
+      () =>
+        auditInstalledConsumer({
+          ...fixture.options,
+          entryFiles: [path.relative(fixture.root, entry)],
+        }),
+      /Unresolved installed entry import declaration-model/u,
+      extension,
+    );
+  }
+});
+
+test('declaration fallback requires its actual owner production dependency', t => {
+  for (const block of [
+    'absent',
+    'devDependencies',
+    'peerDependencies',
+    'optionalDependencies',
+  ]) {
+    const fixture = declarationConsumerFixture(t);
+    const manifestPath = path.join(fixture.owner, 'package.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath));
+    delete manifest.dependencies;
+    if (block !== 'absent')
+      manifest[block] = { [fixture.providerName]: '1.2.3' };
+    writeJson(manifestPath, manifest);
+    assert.throws(
+      () => auditInstalledConsumer(fixture.options),
+      /requires its owner's declared production dependency/u,
+      block,
+    );
+  }
+});
+
+test('declaration fallback rejects missing or wrongly identified production providers', t => {
+  for (const variant of ['missing', 'name', 'version', 'alias']) {
+    const fixture = declarationConsumerFixture(t);
+    const manifestPath = path.join(fixture.provider, 'package.json');
+    if (variant === 'missing') fs.rmSync(fixture.provider, { recursive: true });
+    else {
+      const manifest = JSON.parse(fs.readFileSync(manifestPath));
+      if (variant === 'version') manifest.version = '1.2.4';
+      else manifest.name = 'impostor-declarations';
+      writeJson(manifestPath, manifest);
+      if (variant === 'alias') {
+        const ownerManifestPath = path.join(fixture.owner, 'package.json');
+        const ownerManifest = JSON.parse(fs.readFileSync(ownerManifestPath));
+        ownerManifest.dependencies[fixture.providerName] =
+          'npm:impostor-declarations@1.2.3';
+        writeJson(ownerManifestPath, ownerManifest);
+      }
+    }
+    assert.throws(
+      () => auditInstalledConsumer(fixture.options),
+      /Missing installed dependencies|identity mismatch|version 1\.2\.4 differs|invalid physical package identity/u,
+      variant,
+    );
+  }
+});
+
+test('declaration fallback rejects symlinked manifests and declaration targets', t => {
+  for (const variant of [
+    'manifest',
+    'target',
+    'directory',
+    'outside-package',
+  ]) {
+    const fixture = declarationConsumerFixture(t);
+    if (variant === 'manifest') {
+      const manifest = path.join(fixture.provider, 'package.json');
+      const realManifest = path.join(fixture.provider, 'manifest.json');
+      fs.renameSync(manifest, realManifest);
+      fs.symlinkSync('manifest.json', manifest);
+    } else if (variant === 'directory') {
+      write(
+        path.join(fixture.provider, 'actual/model.d.ts'),
+        'export interface Model {}\n',
+      );
+      fs.symlinkSync('actual', path.join(fixture.provider, 'linked'));
+      const manifest = path.join(fixture.provider, 'package.json');
+      writeJson(manifest, {
+        ...JSON.parse(fs.readFileSync(manifest)),
+        exports: { '.': { types: './linked/model.d.ts' } },
+      });
+    } else if (variant === 'outside-package') {
+      fs.rmSync(fixture.target);
+      fs.symlinkSync(fixture.source, fixture.target);
+    } else {
+      fs.renameSync(fixture.target, path.join(fixture.provider, 'real.d.ts'));
+      fs.symlinkSync('real.d.ts', fixture.target);
+    }
+    assert.throws(
+      () => auditInstalledConsumer(fixture.options),
+      /symbolic link|contained declaration file/u,
+      variant,
+    );
+  }
+});
+
+test('declaration fallback checks selected JavaScript siblings and directory indexes before realpath', t => {
+  for (const variant of ['javascript-sibling', 'directory-index']) {
+    const fixture = declarationConsumerFixture(t);
+    const manifestPath = path.join(fixture.provider, 'package.json');
+    const target =
+      variant === 'javascript-sibling'
+        ? fixture.target
+        : path.join(fixture.provider, 'declarations/index.d.ts');
+    write(target, 'export interface Model {}\n');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath));
+    manifest.exports = {
+      '.': {
+        types:
+          variant === 'javascript-sibling' ? './index.js' : './declarations',
+      },
+    };
+    writeJson(manifestPath, manifest);
+    const report = auditInstalledConsumer(fixture.options);
+    assert.equal(
+      report.declarationFallbacks[0].target,
+      path.relative(fixture.root, target),
+    );
+    fs.renameSync(target, path.join(path.dirname(target), 'real.d.ts'));
+    fs.symlinkSync('real.d.ts', target);
+    assert.throws(
+      () => auditInstalledConsumer(fixture.options),
+      /Declaration fallback target contains a symbolic link/u,
+      variant,
+    );
+  }
+});
+
+test('declaration fallback rejects a nearer source provider that differs from the owner dependency', t => {
+  for (const variant of ['same-version', 'wrong-name', 'wrong-version']) {
+    const fixture = declarationConsumerFixture(t);
+    const sourceDirectory = path.join(fixture.owner, 'nested');
+    installFixture(sourceDirectory, fixture.providerName, {
+      name:
+        variant === 'wrong-name'
+          ? 'impostor-declarations'
+          : fixture.providerName,
+      version: variant === 'wrong-version' ? '1.2.4' : '1.2.3',
+    });
+    const source = path.join(sourceDirectory, 'model.d.ts');
+    write(source, fs.readFileSync(fixture.source));
+    assert.throws(
+      () =>
+        auditInstalledConsumer({
+          ...fixture.options,
+          entryFiles: [
+            ...fixture.options.entryFiles,
+            path.relative(fixture.root, source),
+          ],
+        }),
+      /resolves a different provider from its source/u,
+      variant,
+    );
+  }
+});
+
+test('declaration fallback binds the complete initial consumer context manifest bytes', t => {
+  const { root, options } = consumerFixture(t);
+  const manifestPath = path.join(root, 'package.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath));
+  manifest.dependencies['@types/declaration-model'] = '1.2.3';
+  writeJson(manifestPath, manifest);
+  const provider = installFixture(root, '@types/declaration-model', {
+    version: '1.2.3',
+  });
+  write(path.join(provider, 'index.d.ts'), 'export interface Model {}\n');
+  installFixture(root, 'injected-dependency');
+  write(
+    path.join(root, 'src/entry.tsx'),
+    "import type { Model } from 'declaration-model';\nexport type Value = Model;\n",
+  );
+  const readFile = fs.readFileSync;
+  let mutated = false;
+  const reader = t.mock.method(fs, 'readFileSync', (file, ...args) => {
+    const bytes = readFile(file, ...args);
+    if (file === manifestPath && !mutated) {
+      mutated = true;
+      writeJson(manifestPath, {
+        ...manifest,
+        dependencies: {
+          ...manifest.dependencies,
+          'injected-dependency': version,
+        },
+      });
+    }
+    return bytes;
+  });
+  try {
+    assert.throws(
+      () => auditInstalledConsumer(options),
+      /Declaration fallback owner changed/u,
+    );
+    assert.equal(mutated, true);
+  } finally {
+    reader.mock.restore();
+  }
+});
+
+test('declaration fallback cannot escape its provider or select a JavaScript entry', t => {
+  for (const target of ['../outside.d.ts', './index.js', 'index.d.ts']) {
+    const fixture = declarationConsumerFixture(t);
+    const manifest = path.join(fixture.provider, 'package.json');
+    writeJson(manifest, {
+      ...JSON.parse(fs.readFileSync(manifest)),
+      exports: { '.': { types: target } },
+    });
+    if (target === '../outside.d.ts')
+      write(
+        path.join(fixture.provider, '..', 'outside.d.ts'),
+        'export interface Model {}\n',
+      );
+    if (target === './index.js') fs.rmSync(fixture.target);
+    assert.throws(
+      () => auditInstalledConsumer(fixture.options),
+      /contained declaration file/u,
+      target,
+    );
+  }
+});
+
+test('declaration fallback preserves scoped names, subpaths, and package export denials', t => {
+  const fixture = declarationConsumerFixture(t, '@scope/model');
+  write(
+    fixture.source,
+    "import { Model } from '@scope/model/public';\nexport declare const native: Model;\n",
+  );
+  const manifestPath = path.join(fixture.provider, 'package.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath));
+  manifest.exports['./public'] = { types: './public.d.ts' };
+  writeJson(manifestPath, manifest);
+  write(
+    path.join(fixture.provider, 'public.d.ts'),
+    'export interface Model {}\n',
+  );
+  const report = auditInstalledConsumer(fixture.options);
+  assert.equal(report.declarationFallbacks[0].provider, '@types/scope__model');
+  assert.equal(report.declarationFallbacks[0].specifier, '@scope/model/public');
+  assert.equal(
+    report.declarationFallbacks[0].target,
+    path.relative(fixture.root, path.join(fixture.provider, 'public.d.ts')),
+  );
+  for (const denial of ['unexported', 'null', 'missing']) {
+    manifest.exports = { '.': { types: './index.d.ts' } };
+    if (denial !== 'unexported')
+      manifest.exports['./public'] =
+        denial === 'null' ? null : { types: './missing.d.ts' };
+    writeJson(manifestPath, manifest);
+    assert.throws(
+      () => auditInstalledConsumer(fixture.options),
+      /No selected declaration export|Missing selected declaration export/u,
+      denial,
+    );
+  }
+});
+
+test('declaration fallback rejects source, owner, provider, and target byte changes during audit', t => {
+  for (const variant of [
+    'source',
+    'ownerManifest',
+    'providerManifest',
+    'target',
+  ]) {
+    const fixture = declarationConsumerFixture(t);
+    const mutatedPath =
+      variant === 'source'
+        ? fixture.source
+        : variant === 'target'
+          ? fixture.target
+          : path.join(
+              variant === 'ownerManifest' ? fixture.owner : fixture.provider,
+              'package.json',
+            );
+    const readFile = fs.readFileSync;
+    let mutated = false;
+    const reader = t.mock.method(fs, 'readFileSync', (file, ...args) => {
+      const bytes = readFile(file, ...args);
+      if (file === mutatedPath && !mutated) {
+        mutated = true;
+        fs.appendFileSync(mutatedPath, '\n');
+      }
+      return bytes;
+    });
+    try {
+      assert.throws(
+        () => auditInstalledConsumer(fixture.options),
+        /Declaration fallback (?:owner|evidence|target) changed/u,
+        variant,
+      );
+      assert.equal(mutated, true, variant);
+    } finally {
+      reader.mock.restore();
+    }
+  }
+});
+
 test('root exports cannot admit unexported subpaths or selected null conditions', t => {
   for (const exports of [
     './index.js',
@@ -1656,7 +2252,12 @@ test('artifact audit certifies mapped tarballs and empty optional main, and reje
             : { '.': { types: './index.d.ts', import: './index.js' } },
       ...(name === 'types' ? { main: '', types: './index.d.ts' } : {}),
       ...(name === 'renderer-solid'
-        ? { peerDependencies: { '@rsbuild/core': '^2.0.0-0' } }
+        ? {
+            peerDependencies: {
+              '@rsbuild/core': '^2.0.0-0',
+              events: '^2.0.0-0',
+            },
+          }
         : {}),
       ...(name === 'ultramodern-create'
         ? {
@@ -1664,6 +2265,7 @@ test('artifact audit certifies mapped tarballs and empty optional main, and reje
             dependencies: {
               '@modern-js/i18n-utils': `npm:${aliases['@modern-js/i18n-utils']}@${version}`,
               '@rsbuild/core': sidecarAlias,
+              events: sidecarAlias,
             },
           }
         : {}),
@@ -1806,8 +2408,12 @@ test('artifact audit certifies mapped tarballs and empty optional main, and reje
     '../@bleedingdev/rsbuild-core',
     path.join(consumerRoot, 'node_modules', '@rsbuild', 'core'),
   );
+  fs.symlinkSync(
+    '@bleedingdev/rsbuild-core',
+    path.join(consumerRoot, 'node_modules', 'events'),
+  );
   const workspaceFile = path.join(consumerRoot, 'pnpm-workspace.yaml');
-  const workspace = `overrides:\n  '@rsbuild/core': '${sidecarAlias}'\n`;
+  const workspace = `overrides:\n  '@rsbuild/core': '${sidecarAlias}'\n  events: '${sidecarAlias}'\n`;
   write(workspaceFile, workspace);
   const installedReport = auditInstalledConsumer(consumerOptions);
   assert.equal(installedReport.producerArtifactBindings.length, 1);
@@ -1816,31 +2422,42 @@ test('artifact audit certifies mapped tarballs and empty optional main, and reje
     installedReport.producerSidecarBindings[0].artifactSha256,
     sidecar.sha256,
   );
-  assert.equal(installedReport.workspaceAliasBindings.length, 1);
-  assert.deepEqual(installedReport.workspaceAliasBindings[0], {
-    name: '@rsbuild/core',
-    specifier: sidecarAlias,
-    targetName: sidecarName,
-    version: sidecarVersion,
-    declarations: [
-      {
-        owner: aliases['@modern-js/ultramodern-create'],
-        ownerVersion: version,
-        artifactSha256: report.artifacts.find(
-          item => item.sourceName === '@modern-js/ultramodern-create',
-        ).sha256,
-        block: 'dependencies',
-      },
-    ],
-    workspaceFile: 'pnpm-workspace.yaml',
-    workspaceSha256: fileSha256(workspaceFile),
-  });
+  assert.equal(installedReport.workspaceAliasBindings.length, 2);
+  assert.deepEqual(
+    installedReport.workspaceAliasBindings.find(
+      item => item.name === '@rsbuild/core',
+    ),
+    {
+      name: '@rsbuild/core',
+      specifier: sidecarAlias,
+      targetName: sidecarName,
+      version: sidecarVersion,
+      declarations: [
+        {
+          owner: aliases['@modern-js/ultramodern-create'],
+          ownerVersion: version,
+          artifactSha256: report.artifacts.find(
+            item => item.sourceName === '@modern-js/ultramodern-create',
+          ).sha256,
+          block: 'dependencies',
+        },
+      ],
+      workspaceFile: 'pnpm-workspace.yaml',
+      workspaceSha256: fileSha256(workspaceFile),
+    },
+  );
   const peerEdge = installedReport.edges.find(
     edge => edge.name === '@rsbuild/core',
   );
   assert.equal(peerEdge.declaredSpecifier, '^2.0.0-0');
   assert.equal(peerEdge.resolvedSpecifier, sidecarAlias);
   assert.equal(peerEdge.installedName, sidecarName);
+  const builtinPeerEdge = installedReport.edges.find(
+    edge => edge.name === 'events',
+  );
+  assert.equal(builtinPeerEdge.declaredSpecifier, '^2.0.0-0');
+  assert.equal(builtinPeerEdge.installedName, sidecarName);
+  assert.equal(builtinPeerEdge.installedPath, peerEdge.installedPath);
   assert.equal(
     report.artifacts.length,
     4,

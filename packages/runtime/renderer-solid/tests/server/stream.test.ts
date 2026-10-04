@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import {
   generateHydrationScript,
   getRequestEvent,
@@ -405,6 +406,90 @@ describe('native Solid Node stream', () => {
     expect(cleanup).toHaveBeenCalledTimes(1);
     expect((await session.completion).state).toBe('completed');
     expect((await session.completion).cacheEligible).toBe(true);
+  });
+
+  test('bounds native byte encoding while document demand is paused and cancels queued delivery once', async () => {
+    const session = createSession();
+    const cleanup = rstest.fn();
+    const ownerCleanup = rstest.fn();
+    const nativeDisposed = deferred<void>();
+    const firstEncoded = deferred<void>();
+    const values = Array.from({ length: 8 }, () => deferred<string>());
+    const payloads = values.map(
+      (_, index) => `solid-pressure-${index}:${'x'.repeat(32_768)}`,
+    );
+    session.registerCleanup(cleanup);
+    const originalEncode = TextEncoder.prototype.encode;
+    let payloadWrites = 0;
+    let payloadBytes = 0;
+    const encode = rstest
+      .spyOn(TextEncoder.prototype, 'encode')
+      .mockImplementation(function (this: TextEncoder, input?: string) {
+        const bytes = originalEncode.call(this, input);
+        if (input?.includes('solid-pressure-')) {
+          payloadWrites++;
+          payloadBytes += bytes.byteLength;
+          firstEncoded.resolve();
+        }
+        return bytes;
+      });
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+    try {
+      const response = renderDocumentApplication({
+        session,
+        view: () => {
+          onCleanup(() => {
+            ownerCleanup();
+            nativeDisposed.resolve();
+          });
+          const children = values.map((value, index) => {
+            const data = createMemo(async () => await value.promise);
+            return createComponent(Loading, {
+              fallback: ssr(`<i>WAIT-${index}</i>`),
+              get children() {
+                return ssr(['<p>', '</p>'], () => data());
+              },
+            });
+          });
+          return ssr(['<main>PRESSURE-SHELL', '</main>'], children);
+        },
+      });
+      reader = response.body!.getReader();
+      const shell = new TextDecoder().decode((await reader.read()).value);
+      expect(shell).toContain('PRESSURE-SHELL');
+      expect(shell).toContain('WAIT-7');
+      expect(shell).not.toContain('solid-pressure-');
+
+      values[0].resolve(payloads[0]);
+      await firstEncoded.promise;
+      values
+        .slice(1)
+        .forEach((value, index) => value.resolve(payloads[index + 1]));
+      await nativeDisposed.promise;
+      // Solid may finish computing and queue resolved strings during a pause.
+      // This bounds actual native transport encodings, not those string buffers.
+      expect(payloadWrites).toBe(1);
+      expect(payloadBytes).toBeLessThan(
+        Buffer.byteLength(payloads[0]) * 2 + 8_192,
+      );
+      expect(session.state).toBe('committed');
+      expect(cleanup).not.toHaveBeenCalled();
+      expect(ownerCleanup).toHaveBeenCalledTimes(1);
+
+      const resumed = await reader.read();
+      expect(resumed.done).toBe(false);
+      expect(new TextDecoder().decode(resumed.value)).toContain(payloads[0]);
+      await reader.cancel('paused consumer disconnected');
+      await session.abort('repeated cancellation');
+      expect((await session.completion).state).toBe('aborted');
+      expect((await session.completion).cacheEligible).toBe(false);
+      expect(session.signal.reason).toBe('paused consumer disconnected');
+      expect(cleanup).toHaveBeenCalledTimes(1);
+      expect(ownerCleanup).toHaveBeenCalledTimes(1);
+    } finally {
+      await reader?.cancel('test cleanup').catch(() => {});
+      encode.mockRestore();
+    }
   });
 
   test('isolates request events across reversed async completion without restoring an owner across await', async () => {

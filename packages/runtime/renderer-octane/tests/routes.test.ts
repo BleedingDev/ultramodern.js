@@ -6,7 +6,15 @@ import * as contracts from './fixtures/routes-lifecycle';
 describe('native Octane filesystem routes and serialization', () => {
   for (const [name, contract] of Object.entries(contracts)) {
     // This contract uses native reactive stores and belongs to the browser project.
-    if (name === 'nativeDataCompletionCommitFailure') continue;
+    if (
+      [
+        'nativeDataCompletionCommitFailure',
+        'nativeRouterPreloadAndInvalidationCounts',
+        'nativeRouterReversedPendingNavigation',
+        'nativeRouterRouteChainHydration',
+      ].includes(name)
+    )
+      continue;
     test(name, contract);
   }
 });

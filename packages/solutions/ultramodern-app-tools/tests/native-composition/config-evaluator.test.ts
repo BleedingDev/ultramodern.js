@@ -1,7 +1,7 @@
 import { ChildProcess, spawn } from 'node:child_process';
 import { channel } from 'node:diagnostics_channel';
 import fs from 'node:fs';
-import { createRequire } from 'node:module';
+import { createRequire, findPackageJSON } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -231,6 +231,31 @@ describe('isolated owning configuration evaluator', () => {
 
   it('uses the same private owning Effect bridge for actual native ESM descendants', async () => {
     const app = fixture('react');
+    const owningRequire = createRequire(
+      path.resolve(__dirname, '../../package.json'),
+    );
+    const cjsConfig = owningRequire.resolve(
+      '@modern-js/app-tools-extensions/config',
+    );
+    const owningManifest = findPackageJSON(cjsConfig, cjsConfig);
+    if (!owningManifest)
+      throw new Error('Missing owning Effect config package');
+    const globalPackages = path.join(app.root, 'global-node-path/node_modules');
+    fs.mkdirSync(path.join(globalPackages, '@modern-js'), { recursive: true });
+    fs.symlinkSync(
+      path.dirname(owningManifest),
+      path.join(globalPackages, '@modern-js/app-tools-extensions'),
+      'dir',
+    );
+    const absentCohort = path.join(app.root, 'absent-cohort');
+    fs.mkdirSync(absentCohort);
+    fs.writeFileSync(
+      path.join(absentCohort, 'package.json'),
+      JSON.stringify({
+        name: 'fixture-absent-effect-cohort',
+        dependencies: { '@modern-js/app-tools-extensions': '1.0.0' },
+      }),
+    );
     const helper = path.join(app.appDirectory, 'compiler.mjs');
     fs.writeFileSync(
       helper,
@@ -251,23 +276,41 @@ import { appendFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 const nativeRequire = createRequire(import.meta.url);
 export default defineConfig(async () => {
+  const cjsConfig = nativeRequire.resolve('@modern-js/app-tools-extensions/config');
   const { default: resolveCompiler } = await nativeRequire('./native-import.cjs')();
   const compiler = resolveCompiler();
-  appendFileSync(${JSON.stringify(app.trace)}, JSON.stringify({ kind: 'native-effect', compiler }) + '\\n');
+  appendFileSync(${JSON.stringify(app.trace)}, JSON.stringify({ kind: 'native-effect', compiler, cjsConfig }) + '\\n');
   return { renderer: 'react', source: { disableDefaultEntries: true, entries: { main: './src/main.tsx', admin: './src/admin.tsx' } } };
 });
 `,
     );
-    const result = await loadUltramodernConfigSnapshot({
-      ...app.options,
-      dependencyRoots: [
-        path.resolve(__dirname, '../../../../toolkit/ultramodern-create'),
-      ],
-    });
+    const originalNodePath = process.env.NODE_PATH;
+    process.env.NODE_PATH = [globalPackages, originalNodePath]
+      .filter(Boolean)
+      .join(path.delimiter);
+    let evaluation: ReturnType<typeof loadUltramodernConfigSnapshot>;
+    try {
+      // The fresh child retains inherited global roots. Its native import
+      // must select the declared cohort even when CJS finds this same owner
+      // through NODE_PATH, which ESM does not search.
+      evaluation = loadUltramodernConfigSnapshot({
+        ...app.options,
+        dependencyRoots: [
+          absentCohort,
+          path.resolve(__dirname, '../../../../toolkit/ultramodern-create'),
+        ],
+      });
+    } finally {
+      if (originalNodePath === undefined) delete process.env.NODE_PATH;
+      else process.env.NODE_PATH = originalNodePath;
+    }
+    const result = await evaluation;
     expect(result.renderer).toBe('react');
     expect(app.invocations()).toEqual([
-      { kind: 'native-effect', compiler: expect.any(String) },
+      { kind: 'native-effect', compiler: expect.any(String), cjsConfig },
     ]);
+    expect(fs.realpathSync(app.invocations()[0].cjsConfig)).toBe(cjsConfig);
+    expect(process.env.NODE_PATH).toBe(originalNodePath);
     expect(fs.existsSync(app.invocations()[0].compiler)).toBe(true);
     expect(result.consumedSourceInputs.observations).toEqual(
       expect.arrayContaining([

@@ -12,14 +12,18 @@ import {
   isNotFound,
   isRedirect,
   Outlet,
+  RouterProvider,
 } from '@octanejs/tanstack-router';
+import { hydrate } from '@octanejs/tanstack-router/ssr/client';
 import {
   attachRouterServerSsrUtils,
   createRequestHandler,
   createSsrStreamResponse,
   RouterServer,
 } from '@octanejs/tanstack-router/ssr/server';
+import { flushSync } from 'octane';
 import { ssrHtml } from 'octane/server';
+import { mountOctaneApplication } from '../../src/client';
 import { createOctaneRouteAction } from '../../src/router';
 import { createOctaneRouterInjection } from '../../src/router-injection';
 import {
@@ -67,6 +71,386 @@ function deferred<T>() {
     reject = rej;
   });
   return { promise, resolve, reject };
+}
+
+async function waitForNativeRouter(assertion: () => void) {
+  for (let turn = 0; ; turn++) {
+    flushSync(() => {});
+    try {
+      assertion();
+      return;
+    } catch (error) {
+      if (turn === 1000) throw error;
+    }
+    await new Promise(resolve => setTimeout(resolve, 1));
+  }
+}
+
+async function mountNativeRouter(router: ReturnType<typeof createRouter>) {
+  const container = document.createElement('div');
+  document.body.append(container);
+  try {
+    const handle = await mountOctaneApplication({
+      container,
+      identity,
+      nativeHydrationBuildId: 'native-router-fixture-client',
+      load: async () => ({ default: RouterProvider, props: { router } }),
+    });
+    flushSync(() => {});
+    return { container, handle };
+  } catch (error) {
+    container.remove();
+    throw error;
+  }
+}
+
+export async function nativeRouterPreloadAndInvalidationCounts() {
+  const loads: string[] = [];
+  const tree = createFileSystemRouteTree(
+    [
+      descriptor('home', { index: true, modules: { data: '/home.data.ts' } }),
+      descriptor('item', {
+        path: 'item/:id',
+        modules: { data: '/item.data.ts' },
+      }),
+    ],
+    { home: { component: () => null }, item: { component: () => null } },
+    {
+      loadRoute: async route => {
+        loads.push(route.id);
+        return success({ routeId: route.id, invocation: loads.length });
+      },
+    },
+  );
+  const router = createRouter({
+    routeTree: tree,
+    isServer: false,
+    origin: 'https://native.test',
+    history: createMemoryHistory({ initialEntries: ['/'] }),
+    defaultStaleTime: Infinity,
+    defaultPreloadStaleTime: Infinity,
+  });
+  const { container, handle } = await mountNativeRouter(router);
+  try {
+    await waitForNativeRouter(() => {
+      assert.equal(router.stores.matches.get().at(-1)?.status, 'success');
+      assert.deepEqual(loads, ['home']);
+    });
+
+    await router.preloadRoute({ to: '/item/7' });
+    assert.deepEqual(loads, ['home', 'item']);
+    assert.equal(router.stores.location.get().pathname, '/');
+    const preloaded = router.stores.cachedMatches.get().at(-1)!;
+    assert.deepEqual(preloaded.loaderData, {
+      routeId: 'item',
+      invocation: 2,
+    });
+
+    await router.navigate({ to: '/item/7' });
+    await waitForNativeRouter(() => {
+      const match = router.stores.matches.get().at(-1)!;
+      assert.equal(router.stores.location.get().pathname, '/item/7');
+      assert.equal(match.status, 'success');
+      assert.equal(match.loaderData, preloaded.loaderData);
+      assert.deepEqual(loads, ['home', 'item']);
+    });
+
+    await router.invalidate({ sync: true });
+    await waitForNativeRouter(() => {
+      assert.deepEqual(loads, ['home', 'item', 'item']);
+      assert.equal(
+        router.stores.matches.get().at(-1)?.loaderData.invocation,
+        3,
+      );
+    });
+
+    let outcome = success({ saved: true });
+    let actions = 0;
+    const action = createOctaneRouteAction({
+      router,
+      routeId: 'item',
+      identity,
+      fetch: async () => {
+        actions++;
+        return createDataResponse(outcome, identity, {
+          routeId: 'item',
+          operation: 'action',
+        });
+      },
+    });
+    const form = new FormData();
+    form.set('sku', 'tractor');
+    assert.equal((await action(undefined, form)).kind, 'success');
+    assert.equal(actions, 1);
+    await waitForNativeRouter(() => {
+      assert.deepEqual(loads, ['home', 'item', 'item', 'item']);
+      assert.equal(
+        router.stores.matches.get().at(-1)?.loaderData.invocation,
+        4,
+      );
+    });
+
+    outcome = {
+      kind: 'error',
+      error: { name: 'ValidationError', message: 'Check SKU' },
+      data: { sku: 'unknown' },
+      thrown: false,
+      response: metadata(422),
+    };
+    assert.equal((await action(undefined, form)).kind, 'error');
+    assert.equal(actions, 2);
+    assert.deepEqual(loads, ['home', 'item', 'item', 'item']);
+
+    outcome = {
+      kind: 'error',
+      error: { name: 'Failure', message: 'Failed save' },
+      thrown: true,
+      response: metadata(500),
+    };
+    await assert.rejects(action(undefined, form), /Failed save/);
+    assert.equal(actions, 3);
+    assert.deepEqual(loads, ['home', 'item', 'item', 'item']);
+  } finally {
+    handle.dispose();
+    container.remove();
+    router.history.destroy();
+  }
+}
+
+export async function nativeRouterReversedPendingNavigation() {
+  const pending = new Map([
+    ['first', deferred<DataOutcome>()],
+    ['second', deferred<DataOutcome>()],
+  ]);
+  const calls: { id: string; request: Request }[] = [];
+  const outcomes: string[] = [];
+  const tree = createFileSystemRouteTree(
+    [
+      descriptor('home', { index: true }),
+      descriptor('item', {
+        path: 'item/:id',
+        modules: { data: '/item.data.ts' },
+      }),
+    ],
+    { home: { component: () => null }, item: { component: () => null } },
+    {
+      loadRoute: async (_route, input) => {
+        const id = input.params.id!;
+        calls.push({ id, request: input.request });
+        return pending.get(id)!.promise;
+      },
+      onOutcome: (_routeId, outcome) => {
+        if (outcome.kind === 'success') outcomes.push(String(outcome.value));
+      },
+    },
+  );
+  const router = createRouter({
+    routeTree: tree,
+    isServer: false,
+    history: createMemoryHistory({ initialEntries: ['/'] }),
+    defaultStaleTime: Infinity,
+  });
+  const { container, handle } = await mountNativeRouter(router);
+  try {
+    await waitForNativeRouter(() =>
+      assert.equal(router.stores.matches.get().at(-1)?.status, 'success'),
+    );
+    const first = router.navigate({ to: '/item/first' });
+    await waitForNativeRouter(() => {
+      assert.deepEqual(
+        calls.map(call => call.id),
+        ['first'],
+      );
+      assert.equal(
+        router.stores.pendingMatches.get().at(-1)?.status,
+        'pending',
+      );
+    });
+    const second = router.navigate({ to: '/item/second' });
+    await waitForNativeRouter(() => {
+      assert.deepEqual(
+        calls.map(call => call.id),
+        ['first', 'second'],
+      );
+      assert.equal(calls[0]!.request.signal.aborted, true);
+      assert.equal(calls[1]!.request.signal.aborted, false);
+    });
+
+    pending.get('second')!.resolve(success('second wins'));
+    await second;
+    await waitForNativeRouter(() => {
+      assert.equal(router.stores.location.get().pathname, '/item/second');
+      assert.equal(
+        router.stores.matches.get().at(-1)?.loaderData,
+        'second wins',
+      );
+      assert.deepEqual(outcomes, ['second wins']);
+    });
+    const winner = router.stores.matches.get().at(-1)!;
+    pending.get('first')!.resolve(success('first completes too late'));
+    await first;
+    await waitForNativeRouter(() => {
+      assert.equal(router.stores.location.get().pathname, '/item/second');
+      assert.equal(router.stores.matches.get().at(-1)?.id, winner.id);
+      assert.equal(
+        router.stores.matches.get().at(-1)?.loaderData,
+        'second wins',
+      );
+      assert.deepEqual(
+        calls.map(call => call.id),
+        ['first', 'second'],
+      );
+      assert.deepEqual(outcomes, ['second wins']);
+    });
+  } finally {
+    for (const [id, value] of pending) value.resolve(success(id));
+    handle.dispose();
+    container.remove();
+    router.history.destroy();
+  }
+}
+
+export async function nativeRouterRouteChainHydration() {
+  const routes = [
+    descriptor('application', {
+      isRoot: true,
+      modules: { data: '/application.data.ts' },
+      children: [
+        descriptor('layout', {
+          children: [
+            descriptor('product', {
+              path: 'products/:productId',
+              modules: { data: '/product.data.ts' },
+            }),
+            descriptor('about', {
+              path: 'about',
+              modules: { data: '/about.data.ts' },
+            }),
+          ],
+        }),
+      ],
+    }),
+  ];
+  const serverLoads: string[] = [];
+  const clientLoads: string[] = [];
+  const modules = {
+    product: { component: () => null },
+    about: { component: () => null },
+  };
+  const request = new Request('https://native.test/products/42');
+  const serverRouter = createRouter({
+    routeTree: createFileSystemRouteTree(routes, modules, {
+      request,
+      loadRoute: async route => {
+        serverLoads.push(route.id);
+        return success({ source: 'server', routeId: route.id });
+      },
+    }),
+    isServer: true,
+    history: createMemoryHistory({ initialEntries: ['/products/42'] }),
+    defaultStaleTime: Infinity,
+  });
+  attachRouterServerSsrUtils({ router: serverRouter, manifest: undefined });
+  await serverRouter.load();
+  for (const match of serverRouter.stores.matches.get()) {
+    assert.equal(match.status, 'success', String(match.error));
+  }
+  assert.equal(
+    serverRouter.stores.matches.get().every(match => match.ssr === true),
+    true,
+    'The test resolver must admit native server loading before serialization',
+  );
+  const serverChain = serverRouter.stores.matches
+    .get()
+    .map(match => match.routeId);
+  assert.deepEqual(
+    serverChain.map(
+      id => serverRouter.routesById[id]?.options.staticData?.ultramodernRouteId,
+    ),
+    ['application', 'layout', 'product'],
+  );
+  assert.deepEqual(serverLoads, ['application', 'product']);
+  await serverRouter.serverSsr!.dehydrate();
+  assert.equal(serverRouter.serverSsr!.isSerializationFinished(), true);
+  const serialized = serverRouter.serverSsr!.takeBufferedScripts()!.children;
+  assert.match(serialized, /\$_TSR\.router=/);
+  serverRouter.serverSsr!.cleanup();
+
+  const previousBootstrap = window.$_TSR;
+  const serializationScript = document.createElement('script');
+  document.head.append(serializationScript);
+  const clientRouter = createRouter({
+    routeTree: createFileSystemRouteTree(routes, modules, {
+      loadRoute: async route => {
+        clientLoads.push(route.id);
+        return success({ source: 'client', routeId: route.id });
+      },
+    }),
+    isServer: false,
+    history: createMemoryHistory({ initialEntries: ['/products/42'] }),
+    defaultStaleTime: Infinity,
+  });
+  let mounted: Awaited<ReturnType<typeof mountNativeRouter>> | undefined;
+  try {
+    delete window.$_TSR;
+    // Run the released serializer's actual bootstrap and queued closures. The
+    // browser supplies currentScript only during a script element's evaluation.
+    new Function(
+      'self',
+      'serializationDocument',
+      `with(self) { (function(document) { ${serialized} })(serializationDocument); }`,
+    )(window, { currentScript: serializationScript });
+    await hydrate(clientRouter);
+    flushSync(() => {});
+    assert.deepEqual(
+      clientRouter.stores.matches.get().map(match => match.routeId),
+      serverChain,
+    );
+    assert.deepEqual(clientLoads, []);
+    assert.deepEqual(clientRouter.stores.matches.get().at(-1)?.loaderData, {
+      source: 'server',
+      routeId: 'product',
+    });
+
+    mounted = await mountNativeRouter(clientRouter);
+    window.$_TSR?.h();
+    await clientRouter.navigate({ to: '/about' });
+    await waitForNativeRouter(() => {
+      assert.equal(clientRouter.stores.location.get().pathname, '/about');
+      assert.deepEqual(
+        clientRouter.stores.matches
+          .get()
+          .map(
+            match =>
+              clientRouter.routesById[match.routeId]?.options.staticData
+                ?.ultramodernRouteId,
+          ),
+        ['application', 'layout', 'about'],
+      );
+      assert.deepEqual(clientLoads, ['about']);
+    });
+    await clientRouter.navigate({ to: '/products/42' });
+    await waitForNativeRouter(() => {
+      assert.equal(clientRouter.stores.location.get().pathname, '/products/42');
+      assert.deepEqual(
+        clientRouter.stores.matches.get().map(match => match.routeId),
+        serverChain,
+      );
+      assert.deepEqual(clientRouter.stores.matches.get().at(-1)?.loaderData, {
+        source: 'server',
+        routeId: 'product',
+      });
+      assert.deepEqual(clientLoads, ['about']);
+      assert.deepEqual(serverLoads, ['application', 'product']);
+    });
+  } finally {
+    mounted?.handle.dispose();
+    mounted?.container.remove();
+    serializationScript.remove();
+    clientRouter.history.destroy();
+    serverRouter.history.destroy();
+    window.$_TSR = previousBootstrap;
+  }
 }
 
 async function checkNativeDataCompletionFailure(
