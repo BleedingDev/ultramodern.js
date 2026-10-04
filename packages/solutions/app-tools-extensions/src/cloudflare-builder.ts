@@ -63,6 +63,8 @@ const JS_OR_TS_EXTENSIONS = new Set([
 
 export interface CloudflareBuilderNormalizedConfig {
   bff?: BffUserConfig;
+  deploy?: { target?: string };
+  server?: { rsc?: unknown };
 }
 
 export interface CloudflareBuilderAppContext {
@@ -717,18 +719,24 @@ const rewriteWorkerEntries = (entries: RsbuildEntry): RsbuildEntry =>
 const prependBundlerChain = (
   environment: EnvironmentConfig,
   handler: ModifyBundlerChainFn,
+  finalHandler?: ModifyBundlerChainFn,
 ): EnvironmentConfig => {
   const bundlerChain = environment.tools?.bundlerChain;
+  const handlers = [
+    handler,
+    ...(bundlerChain
+      ? Array.isArray(bundlerChain)
+        ? bundlerChain
+        : [bundlerChain]
+      : []),
+    ...(finalHandler ? [finalHandler] : []),
+  ];
   return {
     ...environment,
     tools: {
       ...environment.tools,
       htmlPlugin: false,
-      bundlerChain: bundlerChain
-        ? Array.isArray(bundlerChain)
-          ? [handler, ...bundlerChain]
-          : [handler, bundlerChain]
-        : handler,
+      bundlerChain: handlers,
     },
   };
 };
@@ -812,6 +820,7 @@ const getWorkerEntries = (
 const createCloudflareBundlerChain = (
   appContext: CloudflareBuilderAppContext,
   workerEntryNames: Iterable<string>,
+  rscEnabled: boolean,
 ): ModifyBundlerChainFn => {
   const resolvePaths = [appContext.appDirectory, process.cwd()];
   const reactFile = resolvePackageFile('react', 'index.js', resolvePaths);
@@ -879,30 +888,54 @@ const createCloudflareBundlerChain = (
       .plugin('cloudflare-worker-absent-optional-dependencies')
       .use(AbsentOptionalDependencyPlugin);
 
-    // The worker environment still uses the web target, so
-    // @module-federation/modern-js-v3 registers its browser federation plugin
-    // on it; Cloudflare workers load no native remotes. The `worker` export
-    // condition keeps MF's SSR runtime plugins out of the bundle
-    // (module-federation/core#5155). This deletion goes with the web-worker
-    // target, which needs @rsbuild/core 2.2.10 (web-infra-dev/rsbuild#8557).
-    chain.plugins.delete('plugin-module-federation');
-    setAliasIfPresent(chain.resolve.alias, 'react$', reactFile);
-    setAliasIfPresent(
-      chain.resolve.alias,
-      'react/jsx-runtime$',
-      reactJsxRuntimeFile,
-    );
-    setAliasIfPresent(
-      chain.resolve.alias,
-      'react/jsx-dev-runtime$',
-      reactJsxDevRuntimeFile,
-    );
-    setAliasIfPresent(chain.resolve.alias, 'react-dom$', reactDomFile);
-    setAliasIfPresent(
-      chain.resolve.alias,
-      'react-dom/server.edge$',
-      reactDomServerEdgeFile,
-    );
+    applyCloudflareWorkerMfRuntimeBoundary(chain);
+    if (tanstackRouterSsrServerFile) {
+      chain.resolve.alias.set(
+        '@tanstack/router-core/ssr/server$',
+        tanstackRouterSsrServerFile,
+      );
+      chain.resolve.alias.set(
+        '@tanstack/router-core/ssr/server',
+        tanstackRouterSsrServerFile,
+      );
+    }
+    if (runtimeRscWorkerFile) {
+      chain.resolve.alias.set(
+        '@modern-js/runtime/rsc/server$',
+        runtimeRscWorkerFile,
+      );
+      chain.resolve.alias.set(
+        '@modern-js/runtime/rsc/server',
+        runtimeRscWorkerFile,
+      );
+    }
+    if (renderRscWorkerFile) {
+      chain.resolve.alias.set('@modern-js/render/rsc$', renderRscWorkerFile);
+      chain.resolve.alias.set('@modern-js/render/rsc', renderRscWorkerFile);
+      chain.resolve.alias.set(
+        '@modern-js/render/rsc-worker$',
+        renderRscWorkerFile,
+      );
+    }
+    if (!rscEnabled) {
+      setAliasIfPresent(chain.resolve.alias, 'react$', reactFile);
+      setAliasIfPresent(
+        chain.resolve.alias,
+        'react/jsx-runtime$',
+        reactJsxRuntimeFile,
+      );
+      setAliasIfPresent(
+        chain.resolve.alias,
+        'react/jsx-dev-runtime$',
+        reactJsxDevRuntimeFile,
+      );
+      setAliasIfPresent(chain.resolve.alias, 'react-dom$', reactDomFile);
+      setAliasIfPresent(
+        chain.resolve.alias,
+        'react-dom/server.edge$',
+        reactDomServerEdgeFile,
+      );
+    }
     setAliasIfPresent(
       chain.resolve.alias,
       '@loadable/component$',
@@ -954,7 +987,32 @@ export function getCloudflareBuilderEnvironments({
         entry: workerEntries,
       },
     },
-    createCloudflareBundlerChain(appContext, Object.keys(workerEntries)),
+    createCloudflareBundlerChain(
+      appContext,
+      Object.keys(workerEntries),
+      Boolean(normalizedConfig.server?.rsc),
+    ),
+    normalizedConfig.server?.rsc
+      ? chain => {
+          // Source builds may inherit consuming-React file pins. Native RSC
+          // issuer conditions must resolve package exports in this worker.
+          for (const [name, packageName, file] of [
+            ['react$', 'react', 'index.js'],
+            ['react/jsx-runtime$', 'react', 'jsx-runtime.js'],
+            ['react/jsx-dev-runtime$', 'react', 'jsx-dev-runtime.js'],
+            ['react-dom$', 'react-dom', 'index.js'],
+            ['react-dom/server.edge$', 'react-dom', 'server.edge.js'],
+          ]) {
+            const target = resolvePackageFile(packageName, file, [
+              appContext.appDirectory,
+              process.cwd(),
+            ]);
+            if (target && chain.resolve.alias.get(name) === target) {
+              chain.resolve.alias.delete(name);
+            }
+          }
+        }
+      : undefined,
   );
 
   if (appContext.apiOnly) {
