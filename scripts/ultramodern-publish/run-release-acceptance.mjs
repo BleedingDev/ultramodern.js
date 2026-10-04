@@ -150,12 +150,10 @@ function parseArgs(argv) {
     }
     if (
       continueFrom === 'source-workerd' &&
-      (!values.has('--node-report') ||
-        !values.has('--cloudflare-run-log') ||
-        !values.has('--shell-finalization'))
+      (!values.has('--node-report') || !values.has('--cloudflare-run-log'))
     ) {
       throw new Error(
-        'source-workerd requires --node-report, --cloudflare-run-log and --shell-finalization',
+        'source-workerd requires --node-report and --cloudflare-run-log',
       );
     }
     if (

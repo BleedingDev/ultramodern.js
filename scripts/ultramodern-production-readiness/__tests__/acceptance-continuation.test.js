@@ -128,6 +128,107 @@ test('source-workerd continuation retains the failed build and separate shell fi
   });
 });
 
+test('source-workerd continuation attributes all completed Cloudflare commands without a fabricated shell stage', async () => {
+  const { assertAcceptanceContinuation } = await import(continuationModule);
+  const { record, release, runIdentity } =
+    await createAcceptanceContinuationFixture({
+      cursor: 'source-workerd',
+      cloudflareBuildCompleted: true,
+      moduleFederationDependencies: sdkModuleFederationDependencies,
+      workerdBuildMarkers: { 'shell-super-app': 'd'.repeat(64) },
+    });
+
+  assert.equal(
+    assertAcceptanceContinuation(record, { release, runIdentity }),
+    record,
+  );
+  const cloudflare = record.reusedEvidence.cloudflare;
+  assert.equal(cloudflare.priorRunLog.attribution.commands.length, 11);
+  assert.equal(cloudflare.shellFinalization, undefined);
+  assert.equal(cloudflare.priorRunLog.attribution.shellAttempt, undefined);
+  assert.equal(
+    cloudflare.priorRunLog.attribution.rootCompletion.verifiedApps.length,
+    11,
+  );
+  assert.equal(
+    record.results.find(result => result.id === 'cloudflare-output').details
+      .originalAggregateBuildSucceeded,
+    true,
+  );
+  assert.equal(record.runtimeReports.workerd.provenance, 'executed-here');
+  assert.equal(record.runtimeReports.node.provenance, 'external-report');
+});
+
+test('completed Cloudflare continuation rejects incomplete or mixed command provenance', async t => {
+  const { assertAcceptanceContinuation } = await import(continuationModule);
+  const fixture = await createAcceptanceContinuationFixture({
+    cursor: 'source-workerd',
+    cloudflareBuildCompleted: true,
+  });
+  const mutations = [
+    [
+      'missing completed command',
+      record => {
+        record.reusedEvidence.cloudflare.priorRunLog.attribution.commands.pop();
+      },
+    ],
+    [
+      'fabricated separate finalization',
+      record => {
+        record.reusedEvidence.cloudflare.shellFinalization = {};
+      },
+    ],
+    [
+      'false aggregate result',
+      record => {
+        record.results.find(
+          result => result.id === 'cloudflare-output',
+        ).details.originalAggregateBuildSucceeded = false;
+      },
+    ],
+    [
+      'missing genuine proof with fresh byte binding',
+      record => {
+        const descriptor = record.reusedEvidence.cloudflare.priorRunLog;
+        descriptor.text = descriptor.text.replace(
+          /^Workerd SSR composition proof passed.*\n/gmu,
+          '',
+        );
+        descriptor.byteLength = Buffer.byteLength(descriptor.text);
+        descriptor.sha256 = crypto
+          .createHash('sha256')
+          .update(descriptor.text)
+          .digest('hex');
+      },
+    ],
+    [
+      'foreign native output placement',
+      record => {
+        record.runtimeOutputs.workerd[0].rendererManifestPath =
+          'renderer-build.json';
+      },
+    ],
+  ];
+  for (const [name, mutate] of mutations) {
+    await t.test(name, () => {
+      const record = structuredClone(fixture.record);
+      mutate(record);
+      assert.throws(() => assertAcceptanceContinuation(record, fixture));
+    });
+  }
+});
+
+test('failed Cloudflare shell still requires its separate public finalization', async () => {
+  const { assertAcceptanceContinuation } = await import(continuationModule);
+  const { record, release, runIdentity } =
+    await createAcceptanceContinuationFixture({ cursor: 'source-workerd' });
+  delete record.reusedEvidence.cloudflare.shellFinalization;
+
+  assert.throws(() =>
+    assertAcceptanceContinuation(record, { release, runIdentity }),
+  );
+});
+
 test('source-workerd continuation rejects a Cloudflare manifest bound to the Node producer path', async () => {
   const { assertAcceptanceContinuation } = await import(continuationModule);
   const { record, release, runIdentity } =
@@ -716,7 +817,7 @@ test('continuation rejects a prior build attributed to another application commi
   );
 });
 
-test('continuation policy environment reuses exactly the installed exclusion arrays', async t => {
+test('continuation policy environment restores the accepted install settings without changing the project', async t => {
   const { readInstalledPolicyEnvironment } = await import(continuationModule);
   const root = fs.mkdtempSync(
     path.join(os.tmpdir(), 'acceptance-continuation-policy-'),
@@ -728,6 +829,11 @@ test('continuation policy environment reuses exactly the installed exclusion arr
   );
   fs.mkdirSync(path.dirname(statePath), { recursive: true });
   const settings = {
+    minimumReleaseAge: 1440,
+    minimumReleaseAgeStrict: true,
+    minimumReleaseAgeIgnoreMissingTime: false,
+    trustPolicy: 'no-downgrade',
+    enableGlobalVirtualStore: false,
     minimumReleaseAgeExclude: [
       '@bleedingdev/modern-js-ultramodern-create@3.4.0-ultramodern.1',
       '@bleedingdev/runtime-sidecar@1.2.3',
@@ -737,14 +843,30 @@ test('continuation policy environment reuses exactly the installed exclusion arr
   const stateText = JSON.stringify({ settings });
   fs.writeFileSync(statePath, stateText);
 
-  assert.deepEqual(readInstalledPolicyEnvironment(root), {
-    pnpm_config_minimum_release_age_exclude: JSON.stringify(
-      settings.minimumReleaseAgeExclude,
-    ),
-    pnpm_config_trust_policy_exclude: JSON.stringify(
-      settings.trustPolicyExclude,
-    ),
-  });
+  assert.deepEqual(
+    readInstalledPolicyEnvironment(root, {
+      PATH: '/accepted/node/bin',
+      PNPM_CONFIG_MINIMUM_RELEASE_AGE_EXCLUDE: '["foreign@1.0.0"]',
+      npm_config_trust_policy_exclude: '["foreign@1.0.0"]',
+      pnpm_config_minimum_release_age_exclude: '["foreign@1.0.0"]',
+    }),
+    {
+      PATH: '/accepted/node/bin',
+      CI: 'true',
+      pnpm_config_pm_on_fail: 'ignore',
+      pnpm_config_minimum_release_age: '1440',
+      pnpm_config_minimum_release_age_strict: 'true',
+      pnpm_config_minimum_release_age_ignore_missing_time: 'false',
+      pnpm_config_minimum_release_age_exclude: JSON.stringify(
+        settings.minimumReleaseAgeExclude,
+      ),
+      pnpm_config_trust_policy_exclude: JSON.stringify(
+        settings.trustPolicyExclude,
+      ),
+      pnpm_config_trust_policy: 'no-downgrade',
+      pnpm_config_enable_global_virtual_store: 'false',
+    },
+  );
   assert.equal(fs.readFileSync(statePath, 'utf8'), stateText);
 });
 
@@ -766,6 +888,6 @@ test('continuation policy environment requires both installed exclusion arrays',
 
   assert.throws(
     () => readInstalledPolicyEnvironment(root),
-    /Installed pnpm policy trustPolicyExclude is unavailable/u,
+    /Continuation requires the original strict pnpm install settings/u,
   );
 });

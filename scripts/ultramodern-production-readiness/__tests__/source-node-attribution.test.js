@@ -401,6 +401,7 @@ test('attributes ten verified Cloudflare remotes and a failed compiled shell wit
     /undeclared API\/backend artifact/u,
   );
   assert.equal(Object.hasOwn(result, 'passed'), false);
+  assert.equal(Object.hasOwn(result, 'rootCompletion'), false);
   assert.equal(Object.hasOwn(result.shellAttempt, 'completedBy'), false);
   for (const command of result.commands) {
     assert.equal(command.completedBy.kind, 'pnpm-done');
@@ -561,5 +562,246 @@ test('Cloudflare reader preserves genuine raw text for durable parser replay', a
   assert.deepEqual(
     result.attribution,
     parsePriorCloudflareBuildAttribution(result.text, options),
+  );
+});
+
+function completedCloudflareFixture() {
+  const node = fixture();
+  const { options, logText: failedCloudflareLog } = cloudflareFixture();
+  options.projectDir = '/retained/work-33/ultramodern-ci-superapp';
+  const nodePrefix = node.logText
+    .slice(0, node.logText.indexOf('[ultramodern-browser-smoke]'))
+    .replaceAll(node.options.projectDir, options.projectDir);
+  const cloudflarePrefix = failedCloudflareLog.slice(
+    0,
+    failedCloudflareLog.indexOf(
+      'error   Error: [ultramodern-release-envelope]',
+    ),
+  );
+  const shell = options.apps.find(app => app.kind === 'shell');
+  const lines = [
+    '$ pnpm format:check && pnpm lint && pnpm typecheck',
+    nodePrefix.trimEnd(),
+    '[ultramodern-browser-smoke] pass: source-node-summary.json',
+    cloudflarePrefix.trimEnd(),
+    `[ultramodern] Cloudflare output verified: ${shell.id}`,
+    '$ ultramodern-create ultramodern mf-types --target cloudflare',
+    '$ ultramodern-create ultramodern cloudflare-output-verify',
+    ...[shell, ...options.apps.filter(app => app.kind === 'vertical')].map(
+      app => `[ultramodern] Cloudflare output verified: ${app.id}`,
+    ),
+    '$ ultramodern-create ultramodern cloudflare-ssr-proof',
+    "[11:28:57.077] INFO (#7) http.span=0ms: Sent HTTP response { 'http.status': 200 }",
+    `Workerd SSR composition proof passed for 1 shell(s): ${options.projectDir}/.codex/reports/cloudflare-workerd-ssr/composition-proof.json`,
+    '[ultramodern-browser-smoke] Strict runtime evidence failed: release-identity',
+    'Strict runtime evidence failed: release-identity',
+  ];
+  return { options, logText: `${lines.join('\n')}\n` };
+}
+
+test('attributes all eleven completed Cloudflare commands inside a normal source run', async () => {
+  const { parsePriorCloudflareBuildAttribution } = await attributionModule;
+  const { options, logText } = completedCloudflareFixture();
+  const result = parsePriorCloudflareBuildAttribution(logText, options);
+  assert.equal(result.commands.length, 11);
+  assert.equal(Object.hasOwn(result, 'shellAttempt'), false);
+  assert.equal(Object.hasOwn(result, 'passed'), false);
+  const shell = result.commands.find(
+    command => command.appId === 'custom-shell',
+  );
+  assert.equal(shell.completedBy.kind, 'subsequent-root-command');
+  assert.equal(
+    shell.completedBy.text,
+    '$ ultramodern-create ultramodern mf-types --target cloudflare',
+  );
+  assert.equal(shell.completedBy.line, result.rootCompletion.mfTypes.line);
+  assert.equal(result.rootCompletion.verifiedApps.length, 11);
+  assert.ok(
+    result.rootBuild.line >
+      logText
+        .split('\n')
+        .findIndex(line =>
+          line.startsWith('[ultramodern-browser-smoke] pass:'),
+        ),
+  );
+  assert.ok(shell.outputLines[0].line < result.rootCompletion.mfTypes.line);
+  assert.ok(
+    result.rootCompletion.outputVerify.line <
+      result.rootCompletion.verifiedApps[0].line,
+  );
+  assert.ok(
+    result.rootCompletion.verifiedApps[10].line <
+      result.rootCompletion.ssrProof.line,
+  );
+  assert.ok(
+    result.rootCompletion.ssrProof.line <
+      result.rootCompletion.proofPassed.line,
+  );
+  assert.deepEqual(Object.keys(result.rootCompletion), [
+    'mfTypes',
+    'outputVerify',
+    'verifiedApps',
+    'ssrProof',
+    'proofPassed',
+  ]);
+  // Later runtime diagnostics belong to another phase, including its failures.
+  assert.deepEqual(
+    parsePriorCloudflareBuildAttribution(
+      `${logText}verticals/foreign cloudflare:build: Done\nError: later browser failure\n`,
+      options,
+    ),
+    result,
+  );
+  assert.deepEqual(
+    parsePriorCloudflareBuildAttribution(
+      logText.replace(
+        '[ultramodern-browser-smoke] Strict runtime evidence failed: release-identity',
+        '[ultramodern-release-acceptance] workerd browser smoke failed: Strict runtime evidence failed: release-identity',
+      ),
+      options,
+    ),
+    result,
+  );
+});
+
+test('completed shell requires its own verification before the subsequent root command', async () => {
+  const { parsePriorCloudflareBuildAttribution } = await attributionModule;
+  const { options, logText } = completedCloudflareFixture();
+  const ownVerified =
+    '[ultramodern] Cloudflare output verified: custom-shell\n';
+  assert.throws(
+    () =>
+      parsePriorCloudflareBuildAttribution(
+        logText.replace(ownVerified, ''),
+        options,
+      ),
+    /own Cloudflare output verification/u,
+  );
+  assert.throws(
+    () =>
+      parsePriorCloudflareBuildAttribution(
+        logText.replace(ownVerified, `${ownVerified}${ownVerified}`),
+        options,
+      ),
+    /own Cloudflare output verification/u,
+  );
+  const classifier =
+    'error   Error: [ultramodern-release-envelope] UI-only application emitted an undeclared API/backend artifact.\n';
+  assert.throws(
+    () =>
+      parsePriorCloudflareBuildAttribution(
+        logText.replace(ownVerified, `${classifier}${ownVerified}`),
+        options,
+      ),
+    /failed Cloudflare shell cannot reach/u,
+  );
+});
+
+test('completed root requires unique verification for every declared app', async () => {
+  const { parsePriorCloudflareBuildAttribution } = await attributionModule;
+  const { options, logText } = completedCloudflareFixture();
+  const verified = '\n[ultramodern] Cloudflare output verified: inventory\n';
+  assert.throws(
+    () =>
+      parsePriorCloudflareBuildAttribution(
+        logText.replace(verified, '\n'),
+        options,
+      ),
+    /cover exactly eleven apps/u,
+  );
+  assert.throws(
+    () =>
+      parsePriorCloudflareBuildAttribution(
+        logText.replace(verified, `${verified}${verified}`),
+        options,
+      ),
+    /cover exactly eleven apps/u,
+  );
+  assert.throws(
+    () =>
+      parsePriorCloudflareBuildAttribution(
+        logText.replace(
+          verified,
+          '\n[ultramodern] Cloudflare output verified: foreign\n',
+        ),
+        options,
+      ),
+    /inventory root Cloudflare verification/u,
+  );
+});
+
+test('completed root rejects wrong command ordering, early errors and wrong proof owner', async () => {
+  const { parsePriorCloudflareBuildAttribution } = await attributionModule;
+  const { options, logText } = completedCloudflareFixture();
+  const mfTypes =
+    '$ ultramodern-create ultramodern mf-types --target cloudflare\n';
+  const outputVerify =
+    '$ ultramodern-create ultramodern cloudflare-output-verify\n';
+  assert.throws(
+    () =>
+      parsePriorCloudflareBuildAttribution(
+        logText.replace(
+          `${mfTypes}${outputVerify}`,
+          `${outputVerify}${mfTypes}`,
+        ),
+        options,
+      ),
+    /missing, duplicated or out of order/u,
+  );
+  assert.throws(
+    () =>
+      parsePriorCloudflareBuildAttribution(
+        logText.replace(mfTypes, `Error: failed shell deploy\n${mfTypes}`),
+        options,
+      ),
+    /completed Cloudflare build failed/u,
+  );
+  assert.throws(
+    () =>
+      parsePriorCloudflareBuildAttribution(
+        logText.replace(
+          `${options.projectDir}/.codex/reports/cloudflare-workerd-ssr/composition-proof.json`,
+          '/foreign-project/proof.json',
+        ),
+        options,
+      ),
+    /SSR proof completion/u,
+  );
+});
+
+test('completed root must finish SSR proof before its later browser boundary', async () => {
+  const { parsePriorCloudflareBuildAttribution } = await attributionModule;
+  const { options, logText } = completedCloudflareFixture();
+  const proof = `Workerd SSR composition proof passed for 1 shell(s): ${options.projectDir}/.codex/reports/cloudflare-workerd-ssr/composition-proof.json\n`;
+  assert.throws(
+    () =>
+      parsePriorCloudflareBuildAttribution(logText.replace(proof, ''), options),
+    /SSR proof completion/u,
+  );
+  assert.throws(
+    () =>
+      parsePriorCloudflareBuildAttribution(
+        logText.replace(proof, `${proof}${proof}`),
+        options,
+      ),
+    /SSR proof completion/u,
+  );
+  const boundary =
+    '[ultramodern-browser-smoke] Strict runtime evidence failed: release-identity\n';
+  assert.throws(
+    () =>
+      parsePriorCloudflareBuildAttribution(
+        logText.replace(proof, `${boundary}${proof}`),
+        options,
+      ),
+    /SSR proof completion/u,
+  );
+  assert.throws(
+    () =>
+      parsePriorCloudflareBuildAttribution(
+        logText.replace(boundary, ''),
+        options,
+      ),
+    /subsequent browser boundary/u,
   );
 });

@@ -337,8 +337,24 @@ function parsePriorCloudflareBuildAttribution(
     item => item.text === `$ ${rootBuildScript}`,
     'root Cloudflare command',
   );
+  const browserBoundary = lines.find(
+    item =>
+      item.line > rootBuild.line &&
+      (item.text.startsWith('[ultramodern-browser-smoke]') ||
+        item.text.startsWith(
+          '[ultramodern-release-acceptance] workerd browser smoke failed:',
+        ) ||
+        /^(?:\$ |Command failed: )node .*run-browser-smoke\.mjs(?:\s|$)/u.test(
+          item.text,
+        )),
+  );
+  const phaseLines = lines.filter(
+    item =>
+      item.line >= rootBuild.line &&
+      (!browserBoundary || item.line < browserBoundary.line),
+  );
   const shellStart = uniqueLine(
-    lines,
+    phaseLines,
     item => item.text === `$ ${shell.buildScript}`,
     `${shell.id} Cloudflare command`,
   );
@@ -346,20 +362,26 @@ function parsePriorCloudflareBuildAttribution(
     rootBuild.line < shellStart.line,
     'shell precedes the root Cloudflare command',
   );
-  const rootCommands = lines.filter(item => item.text.startsWith('$ '));
-  assertCondition(
-    rootCommands.length === 2 &&
-      rootCommands[0].line === rootBuild.line &&
-      rootCommands[1].line === shellStart.line,
-    'failed Cloudflare shell cannot reach a subsequent root command',
-  );
-  const remoteLines = lines.filter(
+  const rootCommands = phaseLines.filter(item => item.text.startsWith('$ '));
+  const remoteLines = phaseLines.filter(
     item => item.line > rootBuild.line && item.line < shellStart.line,
   );
-  const shellLines = lines.filter(item => item.line > shellStart.line);
+  const shellLines = phaseLines.filter(item => item.line > shellStart.line);
+  const classifierPattern =
+    /^error\s+Error: \[ultramodern-release-envelope\] UI-only application emitted an undeclared API\/backend artifact\.$/u;
+  const completed = rootCommands.length > 2;
+  assertCondition(
+    rootCommands[0]?.line === rootBuild.line &&
+      rootCommands[1]?.line === shellStart.line &&
+      (completed || rootCommands.length === 2) &&
+      !(
+        completed && shellLines.some(item => classifierPattern.test(item.text))
+      ),
+    'failed Cloudflare shell cannot reach a subsequent root command',
+  );
   const failurePattern =
     /^(?:error(?:\s|:)|failed(?:\s|:|$)|\[?ERR_PNPM_|ELIFECYCLE|Command failed:|Exit status [1-9]|Process exited with code [1-9])/iu;
-  for (const item of lines) {
+  for (const item of phaseLines) {
     const prefixed = /^([^\s]+) cloudflare:build(?:\$ |: Done$)/u.exec(
       item.text,
     );
@@ -417,12 +439,90 @@ function parsePriorCloudflareBuildAttribution(
         outputLines: [{ kind: 'cloudflare-output-verified', ...verified }],
       };
     });
+  if (completed) {
+    const mfTypes = rootCommands[2];
+    const outputVerify = rootCommands[3];
+    const ssrProof = rootCommands[4];
+    assertCondition(
+      rootCommands.length === 5 &&
+        mfTypes?.text ===
+          '$ ultramodern-create ultramodern mf-types --target cloudflare' &&
+        outputVerify?.text ===
+          '$ ultramodern-create ultramodern cloudflare-output-verify' &&
+        ssrProof?.text ===
+          '$ ultramodern-create ultramodern cloudflare-ssr-proof',
+      'completed Cloudflare root commands are missing, duplicated or out of order',
+    );
+    for (const item of shellLines) {
+      assertCondition(
+        !failurePattern.test(item.text.trimStart()),
+        `completed Cloudflare build failed at line ${item.line}`,
+      );
+    }
+    const shellVerified = uniqueLine(
+      shellLines.filter(item => item.line < mfTypes.line),
+      item =>
+        item.text === `[ultramodern] Cloudflare output verified: ${shell.id}`,
+      `${shell.id} own Cloudflare output verification`,
+    );
+    const verificationLines = phaseLines.filter(
+      item =>
+        item.line > outputVerify.line &&
+        item.line < ssrProof.line &&
+        item.text.startsWith('[ultramodern] Cloudflare output verified:'),
+    );
+    assertCondition(
+      verificationLines.length === apps.length,
+      'root Cloudflare output verification must cover exactly eleven apps',
+    );
+    const verifiedApps = apps
+      .map(app => {
+        const verification = uniqueLine(
+          verificationLines,
+          item =>
+            item.text === `[ultramodern] Cloudflare output verified: ${app.id}`,
+          `${app.id} root Cloudflare verification`,
+        );
+        return { appId: app.id, ...verification };
+      })
+      .sort((left, right) => left.line - right.line);
+    const projectDirectory = path.resolve(projectDir);
+    const proofPassed = uniqueLine(
+      phaseLines.filter(item => item.line > ssrProof.line),
+      item =>
+        item.text ===
+        `Workerd SSR composition proof passed for 1 shell(s): ${projectDirectory}/.codex/reports/cloudflare-workerd-ssr/composition-proof.json`,
+      'root Cloudflare SSR proof completion',
+    );
+    assertCondition(
+      browserBoundary && proofPassed.line < browserBoundary.line,
+      'completed Cloudflare build must reach its subsequent browser boundary',
+    );
+    commands.push({
+      appId: shell.id,
+      command: shell.buildScript,
+      startLine: shellStart.line,
+      completedBy: { kind: 'subsequent-root-command', ...mfTypes },
+      outputLines: [{ kind: 'cloudflare-output-verified', ...shellVerified }],
+    });
+    commands.sort((left, right) => left.startLine - right.startLine);
+    return {
+      applicationSourceRevision,
+      projectDirectory,
+      rootBuild: { command: rootBuildScript, line: rootBuild.line },
+      commands,
+      rootCompletion: {
+        mfTypes,
+        outputVerify,
+        verifiedApps,
+        ssrProof,
+        proofPassed,
+      },
+    };
+  }
   const failure = uniqueLine(
     shellLines,
-    item =>
-      /^error\s+Error: \[ultramodern-release-envelope\] UI-only application emitted an undeclared API\/backend artifact\.$/u.test(
-        item.text,
-      ),
+    item => classifierPattern.test(item.text),
     'shell owning classifier failure',
   );
   for (const item of shellLines.filter(item => item.line < failure.line)) {

@@ -7,6 +7,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { assertCleanCommittedSource } from '../../ultramodern-publish/lib/release-source-state.mjs';
 import { appPortEnv, readSmokeContract } from '../browser-smoke/contract.mjs';
 import { readAndVerifyEnvelope } from '../operational-independence.mjs';
+import { createAcceptedNodeProofEnvironment } from '../run-browser-smoke.mjs';
 import {
   assertApiAcceptance,
   assertBackendAcceptance,
@@ -534,10 +535,15 @@ function assertAcceptanceContinuation(
   );
   if (record.cursor === 'source-workerd') {
     const cloudflare = reused.cloudflare;
+    const attribution = cloudflare?.priorRunLog?.attribution;
+    const completedBuild = attribution?.rootCompletion !== undefined;
     assertCondition(
-      cloudflare?.priorRunLog?.attribution?.commands?.length === 10 &&
-        cloudflare?.priorRunLog?.attribution?.shellAttempt,
-      'Workerd continuation must attribute ten completed remotes and the failed shell attempt',
+      completedBuild
+        ? attribution.commands?.length === 11 &&
+            attribution.shellAttempt === undefined &&
+            cloudflare.shellFinalization === undefined
+        : attribution?.commands?.length === 10 && attribution.shellAttempt,
+      'Workerd continuation must attribute the completed build or ten completed remotes and the failed shell attempt',
     );
     const priorCloudflare = cloudflare.priorRunLog;
     assertCondition(
@@ -556,7 +562,7 @@ function assertAcceptanceContinuation(
               path: output.path,
               kind: output.appId === 'shell-super-app' ? 'shell' : 'vertical',
               buildScript:
-                output.appId === 'shell-super-app'
+                output.appId === 'shell-super-app' && !completedBuild
                   ? priorCloudflare.attribution.shellAttempt.command
                   : priorCloudflare.attribution.commands.find(
                       command => command.appId === output.appId,
@@ -571,7 +577,12 @@ function assertAcceptanceContinuation(
       isDeepStrictEqual(cloudflare.outputs, record.runtimeOutputs?.workerd),
       'Workerd reused Cloudflare outputs differ from verified target outputs',
     );
-    assertShellFinalization(record, release);
+    assertCondition(
+      record.results?.find(result => result.id === 'cloudflare-output')?.details
+        ?.originalAggregateBuildSucceeded === completedBuild,
+      'Workerd continuation aggregate build outcome differs from original command evidence',
+    );
+    if (!completedBuild) assertShellFinalization(record, release);
   }
   const prior = reused.priorRunLog;
   assertCondition(
@@ -706,25 +717,8 @@ function verifyAcceptanceContinuationOperationalEvidence({
   return verifyAcceptanceReceiptOperationalEvidence(receipt, receiptPath);
 }
 
-function readInstalledPolicyEnvironment(projectDir) {
-  const settings = readJson(
-    path.join(projectDir, 'node_modules/.pnpm-workspace-state-v1.json'),
-    'Installed pnpm workspace state',
-  ).settings;
-  const env = {};
-  for (const [key, envName] of [
-    ['minimumReleaseAgeExclude', 'pnpm_config_minimum_release_age_exclude'],
-    ['trustPolicyExclude', 'pnpm_config_trust_policy_exclude'],
-  ]) {
-    const values = settings?.[key];
-    assertCondition(
-      Array.isArray(values) &&
-        values.every(value => typeof value === 'string' && value.length > 0),
-      `Installed pnpm policy ${key} is unavailable`,
-    );
-    env[envName] = JSON.stringify(values);
-  }
-  return env;
+function readInstalledPolicyEnvironment(projectDir, environment = {}) {
+  return createAcceptedNodeProofEnvironment(projectDir, environment);
 }
 
 async function runAcceptanceContinuation({
@@ -878,8 +872,7 @@ async function runAcceptanceContinuation({
       }),
     );
     const deploymentEnv = createAcceptanceDeploymentEnv(contract, {
-      ...runtime.env,
-      ...readInstalledPolicyEnvironment(projectDir),
+      ...readInstalledPolicyEnvironment(projectDir, runtime.env),
       ...portEnv,
     });
     await stage('topology', () =>
@@ -998,28 +991,42 @@ async function runAcceptanceContinuation({
         );
         record.reusedEvidence.cloudflare = {
           priorRunLog: priorCloudflareRunLog,
-          shellFinalization: readRuntimeReport(
-            shellFinalizationPath,
-            'external-report',
-          ),
           outputs: record.runtimeOutputs.workerd,
         };
-        assertShellFinalization(record, release);
-        for (const [key, pin] of Object.entries(
-          JSON.parse(record.reusedEvidence.cloudflare.shellFinalization.text)
-            .descriptors,
-        )) {
-          const actual = readRegularFile(pin.path, `Shell finalization ${key}`);
+        const completedBuild =
+          priorCloudflareRunLog.attribution.rootCompletion !== undefined;
+        if (completedBuild) {
           assertCondition(
-            actual.byteLength === pin.byteLength &&
-              actual.sha256 === pin.sha256,
-            `Shell finalization ${key} bytes changed before continuation`,
+            shellFinalizationPath === undefined,
+            'Completed Cloudflare build evidence must not claim separate shell finalization',
           );
+        } else {
+          assertCondition(
+            typeof shellFinalizationPath === 'string',
+            'Failed Cloudflare shell build requires separate public shell finalization',
+          );
+          record.reusedEvidence.cloudflare.shellFinalization =
+            readRuntimeReport(shellFinalizationPath, 'external-report');
+          assertShellFinalization(record, release);
+          for (const [key, pin] of Object.entries(
+            JSON.parse(record.reusedEvidence.cloudflare.shellFinalization.text)
+              .descriptors,
+          )) {
+            const actual = readRegularFile(
+              pin.path,
+              `Shell finalization ${key}`,
+            );
+            assertCondition(
+              actual.byteLength === pin.byteLength &&
+                actual.sha256 === pin.sha256,
+              `Shell finalization ${key} bytes changed before continuation`,
+            );
+          }
         }
         return {
           target: 'cloudflare',
           appIds: contract.apps.map(app => app.id),
-          originalAggregateBuildSucceeded: false,
+          originalAggregateBuildSucceeded: completedBuild,
         };
       });
     }
