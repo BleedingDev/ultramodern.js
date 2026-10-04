@@ -1,8 +1,5 @@
-import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { isDeepStrictEqual } from 'node:util';
 import { type AppTools, appTools, type CliPlugin } from '@modern-js/app-tools';
 import { createBuilderGenerator } from '@modern-js/app-tools/builder';
 import backendFederationBuildPlugin from '@modern-js/app-tools-extensions/backend-federation-build';
@@ -20,10 +17,7 @@ import {
 import { ultramodernI18nIntegrationPlugin } from '@modern-js/i18n-integration';
 import { runtimePlugin } from '@modern-js/runtime/cli';
 import type { ReactNode } from 'react';
-import {
-  type ConfigSourceSnapshot,
-  captureConfigSourceSnapshot,
-} from './config-evaluator/source-snapshot';
+import type { ConfigSourceSnapshot } from './config-evaluator/source-snapshot';
 import { getConfigurationSourceSnapshot } from './configuration-read-context';
 import { ultramodernModuleFederationRecoveryPlugin } from './module-federation-recovery-plugin';
 import { nativeEntryCommandPlugin } from './native-entry-command';
@@ -36,6 +30,7 @@ import { createRendererBuildIdentityResolver } from './renderer-build-resolution
 import { rendererSelectionGuard } from './renderer-selection';
 import { ultramodernRouterIntegrationPlugin } from './router-integration-plugin';
 import { rscDisabledRuntimePlugin } from './rsc-disabled-plugin';
+import { resolveSdkServerPlugin } from './server-plugin-resolution';
 import { ultramodernSSRIntegrationPlugin } from './ssr-integration-plugin';
 import { rendererTypeCheckerPlugin } from './type-checker';
 
@@ -55,70 +50,11 @@ export function resolveReactServerPlugin(
     throw new Error(
       'React server plugin requires the original configuration source snapshot',
     );
-  const original = new Map(snapshot.states.map(state => [state.path, state]));
-  const assertOriginalDeclaration = (filename: string) => {
-    const current = captureConfigSourceSnapshot({
-      sourceRoots: [],
-      extraInputs: [filename],
-    });
-    if (
-      current.states.some(
-        state => !isDeepStrictEqual(state, original.get(state.path)),
-      )
-    )
-      throw new Error(
-        'React server plugin declaration changed after configuration load',
-      );
-  };
-  const appManifestFile = path.join(appDirectory, 'package.json');
-  assertOriginalDeclaration(appManifestFile);
-  const appManifest = JSON.parse(fs.readFileSync(appManifestFile, 'utf8'));
-  assertOriginalDeclaration(appManifestFile);
-  let owner = path.dirname(fileURLToPath(registrarUrl));
-  let ownerName: string;
-  for (;;) {
-    const manifestFile = path.join(owner, 'package.json');
-    if (fs.existsSync(manifestFile)) {
-      const manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
-      if (
-        ![
-          '@modern-js/ultramodern-app-tools',
-          '@bleedingdev/modern-js-ultramodern-app-tools',
-        ].includes(manifest.name) ||
-        !manifest.exports?.['./server-plugin']
-      )
-        throw new Error('React server registrar is not its owning package');
-      ownerName = manifest.name;
-      break;
-    }
-    const parent = path.dirname(owner);
-    if (parent === owner)
-      throw new Error('React server registrar has no owning package');
-    owner = parent;
-  }
-  const ownerRequire = createRequire(path.join(owner, 'package.json'));
-  const ownerExport = fs.realpathSync(
-    ownerRequire.resolve(`${ownerName}/server-plugin`),
-  );
-  const appRequire = createRequire(appManifestFile);
-  const declared = {
-    ...appManifest.dependencies,
-    ...appManifest.devDependencies,
-    ...appManifest.optionalDependencies,
-  };
-  for (const name of new Set(['@modern-js/ultramodern-app-tools', ownerName])) {
-    if (typeof declared[name] !== 'string') continue;
-    const slot = appRequire.resolve
-      .paths(name)
-      ?.map(directory => path.join(directory, name))
-      .find(directory => fs.existsSync(directory));
-    if (slot) assertOriginalDeclaration(path.join(slot, 'package.json'));
-    const specifier = `${name}/server-plugin`;
-    if (fs.realpathSync(appRequire.resolve(specifier)) === ownerExport)
-      return specifier;
-  }
-  throw new Error(
-    'React server plugin has no declared application import of its SDK owner',
+  return resolveSdkServerPlugin(
+    appDirectory,
+    'server-plugin',
+    registrarUrl,
+    snapshot,
   );
 }
 

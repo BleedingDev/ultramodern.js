@@ -47,6 +47,7 @@ import {
   type RendererBuildProfile,
   resolveRendererProfile,
 } from './renderer-profile';
+import { resolveSdkServerPlugin } from './server-plugin-resolution';
 
 export interface NativeEntryGeneration {
   renderer: Exclude<Renderer, 'react'>;
@@ -647,7 +648,17 @@ export default nativeRequestHandler;
             throw new Error(
               'Native server plugins require resolved build identities',
             );
-          const name = '@modern-js/ultramodern-app-tools/native-server-plugin';
+          const snapshot = getConfigurationSourceSnapshot(api);
+          if (!snapshot && command !== 'serve')
+            throw new Error(
+              'Native server plugin requires the original configuration source snapshot',
+            );
+          const name = resolveSdkServerPlugin(
+            appDirectory,
+            'native-server-plugin',
+            import.meta.url,
+            snapshot,
+          );
           if (plugins.some(plugin => plugin.name === name)) {
             throw new Error('Duplicate native server dispatcher');
           }

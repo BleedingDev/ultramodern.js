@@ -38,15 +38,25 @@ const {
     './dist/cjs/native-composition/configuration-read-context.js',
   );
 
-function createMappedServerOwner(root: string, label = 'mapped-sdk') {
+function createMappedServerOwner(
+  root: string,
+  label = 'mapped-sdk',
+  subpath: 'server-plugin' | 'native-server-plugin' = 'server-plugin',
+) {
   const owner = path.join(root, label);
   const manifest = JSON.parse(
     fs.readFileSync(path.join(packageDirectory, 'package.json'), 'utf8'),
   );
-  const serverExport = manifest.exports['./server-plugin'].node;
+  const serverExport = manifest.exports[`./${subpath}`].node;
   for (const entry of [
     serverExport.require.default,
     serverExport.import.default,
+    ...(subpath === 'native-server-plugin'
+      ? [
+          './dist/cjs/native-composition/server-plugin-resolution.js',
+          './dist/cjs/native-composition/config-evaluator/source-snapshot.js',
+        ]
+      : []),
   ]) {
     const target = path.join(owner, entry);
     fs.mkdirSync(path.dirname(target), { recursive: true });
@@ -59,7 +69,7 @@ function createMappedServerOwner(root: string, label = 'mapped-sdk') {
       version: manifest.version,
       type: 'commonjs',
       exports: {
-        './server-plugin': {
+        [`./${subpath}`]: {
           node: {
             import: serverExport.import,
             require: serverExport.require,
@@ -68,21 +78,24 @@ function createMappedServerOwner(root: string, label = 'mapped-sdk') {
       },
     }),
   );
-  const dependency = path.join(
-    owner,
-    'node_modules/@modern-js/server-runtime-extensions',
-  );
-  fs.mkdirSync(path.dirname(dependency), { recursive: true });
-  fs.symlinkSync(
-    fs.realpathSync(
-      path.join(
-        packageDirectory,
-        'node_modules/@modern-js/server-runtime-extensions',
-      ),
-    ),
-    dependency,
-    'dir',
-  );
+  for (const name of [
+    '@modern-js/server-runtime-extensions',
+    ...(subpath === 'native-server-plugin'
+      ? [
+          '@modern-js/renderer-core',
+          '@modern-js/runtime-utils',
+          '@modern-js/utils',
+        ]
+      : []),
+  ]) {
+    const dependency = path.join(owner, 'node_modules', name);
+    fs.mkdirSync(path.dirname(dependency), { recursive: true });
+    fs.symlinkSync(
+      fs.realpathSync(path.join(packageDirectory, 'node_modules', name)),
+      dependency,
+      'dir',
+    );
+  }
   return {
     owner,
     registrar: path.join(owner, serverExport.require.default),
@@ -192,6 +205,85 @@ const linkComposer = (appDirectory: string) => {
 };
 
 describe('server runtime composition', () => {
+  test.each([
+    mappedPackageName,
+    '@modern-js/ultramodern-app-tools',
+  ])('loads the native server descriptor from its declared %s SDK owner', dependencyKey => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'um-native-server-'));
+    const appDirectory = path.join(root, 'app');
+    try {
+      const owner = createMappedServerOwner(
+        root,
+        'mapped-native-sdk',
+        'native-server-plugin',
+      );
+      linkMappedComposer(appDirectory, owner, dependencyKey);
+      const snapshot = captureConfigSourceSnapshot({
+        sourceRoots: [],
+        extraInputs: [
+          path.join(appDirectory, 'package.json'),
+          path.join(
+            appDirectory,
+            'node_modules',
+            dependencyKey,
+            'package.json',
+          ),
+        ],
+      });
+      const execution = execFileSync(
+        process.execPath,
+        [
+          '-e',
+          `const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const { createRequire } = require('node:module');
+const { pathToFileURL } = require('node:url');
+const ownerRequire = createRequire(path.join(process.argv[1], 'package.json'));
+const requireFromApp = createRequire(path.join(process.cwd(), 'package.json'));
+const { resolveSdkServerPlugin } = ownerRequire('./dist/cjs/native-composition/server-plugin-resolution.js');
+const { loadServerPlugins } = createRequire(path.join(process.argv[2], 'package.json'))('@modern-js/server-core/node');
+const snapshot = JSON.parse(process.argv[3]);
+const dependencyKey = process.argv[4];
+const ownerExport = ownerRequire.resolve(${JSON.stringify(`${mappedPackageName}/native-server-plugin`)});
+if (dependencyKey === ${JSON.stringify(mappedPackageName)}) {
+  assert.throws(() => requireFromApp.resolve('@modern-js/ultramodern-app-tools/native-server-plugin'), { code: 'MODULE_NOT_FOUND' });
+}
+assert.throws(() => requireFromApp.resolve('@modern-js/renderer-core/server'), { code: 'MODULE_NOT_FOUND' });
+(async () => {
+  for (const originalSnapshot of [snapshot, undefined]) {
+    const name = resolveSdkServerPlugin(
+      process.cwd(),
+      'native-server-plugin',
+      pathToFileURL(ownerExport).href,
+      originalSnapshot,
+    );
+    assert.equal(name, dependencyKey + '/native-server-plugin');
+    assert.equal(fs.realpathSync(requireFromApp.resolve(name)), fs.realpathSync(ownerExport));
+    const instances = await loadServerPlugins([
+      { name, options: { renderer: 'solid', entries: {} } },
+    ], process.cwd());
+    assert.deepEqual(instances.map(plugin => plugin.name), ['@modern-js/native-node-server']);
+    assert.ok(instances[0].usePlugins.some(plugin => plugin.name === '@modern-js/native-node-dispatch'));
+  }
+})().catch(error => { console.error(error); process.exitCode = 1; });`,
+          owner.owner,
+          packageDirectory,
+          JSON.stringify(snapshot),
+          dependencyKey,
+        ],
+        {
+          cwd: appDirectory,
+          encoding: 'utf8',
+          env: { ...process.env, NODE_PATH: '' },
+        },
+      );
+      expect(execution).toBe('');
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   test.each([
     mappedPackageName,
     '@modern-js/ultramodern-app-tools',
