@@ -31,6 +31,34 @@ export default withTestPreset({
       },
     },
     {
+      name: 'octane-router-lifecycle',
+      root: __dirname,
+      globals: true,
+      include: ['tests/native-router-lifecycle.test.ts'],
+      testEnvironment: 'happy-dom',
+      resolve: {
+        conditionNames: [
+          'modern:source',
+          'development',
+          'browser',
+          'import',
+          'default',
+        ],
+      },
+      tools: {
+        rspack: {
+          plugins: [
+            new OctaneRspackPlugin({
+              root: __dirname,
+              environment: 'client',
+              transpile: false,
+              parallel: false,
+            }),
+          ],
+        },
+      },
+    },
+    {
       name: 'octane-server',
       root: __dirname,
       globals: true,

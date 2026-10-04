@@ -37,6 +37,7 @@ export default defineConfig({
       name: 'client',
       root: __dirname,
       include: ['tests/client/**/*.test.{ts,tsx}'],
+      exclude: ['tests/client/router-lifecycle.test.tsx'],
       testEnvironment: 'happy-dom',
       setupFiles: ['./tests/client/fetch-platform.ts'],
       globals: true,
@@ -44,6 +45,27 @@ export default defineConfig({
       tools: nativeCompiler(false),
       resolve: {
         conditionNames: ['modern:source', 'browser', 'import', 'default'],
+      },
+    },
+    {
+      name: 'router-lifecycle',
+      root: __dirname,
+      include: ['tests/client/router-lifecycle.test.tsx'],
+      testEnvironment: 'happy-dom',
+      setupFiles: ['./tests/client/fetch-platform.ts'],
+      globals: true,
+      output: { bundleDependencies: true },
+      tools: nativeCompiler(false),
+      resolve: {
+        // The public development export admits both native router lanes;
+        // each router's isServer option owns SSR or client evaluation here.
+        conditionNames: [
+          'modern:source',
+          'development',
+          'browser',
+          'import',
+          'default',
+        ],
       },
     },
     {
