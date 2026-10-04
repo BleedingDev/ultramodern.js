@@ -29,10 +29,16 @@ import { describe, expect, it, rstest } from '@rstest/core';
 import { createDefaultConfig } from '../../../app-tools/src/config';
 import { getBundleEntry } from '../../../app-tools/src/plugins/analyze/getBundleEntry';
 import {
+  defineConfig,
+  resolveUltramodernConfig,
+} from '../../src/native-composition/index';
+import { NativeDevelopment } from '../../src/native-composition/native-development';
+import {
   type NativeEntryGenerator,
   type NativeInfrastructureOptions,
   nativeRendererInfrastructurePlugin,
 } from '../../src/native-composition/native-infrastructure';
+import { resolveRendererProfile } from '../../src/native-composition/renderer-profile';
 import { nativeRendererIsolationPlugin } from '../../src/native-composition/renderer-selection';
 
 type NativeRenderer = 'solid' | 'octane';
@@ -709,6 +715,75 @@ describe('native infrastructure through the real Rsbuild and Rspack pipeline', (
   it.each([
     'solid',
     'octane',
+  ] as const)('pins %s development output ownership only at actual Rsbuild setup', async renderer => {
+    const root = createFixture();
+    let distDirectory = '';
+    let directoryReads = 0;
+    try {
+      const authority = new NativeDevelopment({
+        renderer,
+        profile: resolveRendererProfile(renderer),
+        get distDirectory() {
+          directoryReads++;
+          return distDirectory;
+        },
+        getSessionIdentities() {
+          throw new Error(
+            'Config generation must not resolve build identities',
+          );
+        },
+        async resolveWaveInputs() {
+          throw new Error('Config generation must not resolve compiler waves');
+        },
+      });
+      expect(directoryReads).toBe(0);
+      distDirectory = path.join(root, 'dist');
+      const rsbuild = await createRsbuild({
+        cwd: root,
+        rsbuildConfig: {
+          mode: 'development',
+          plugins: [authority.plugin],
+          environments: {
+            client: { output: { target: 'web' } },
+            server: { output: { target: 'node' } },
+          },
+        },
+      });
+      const configs = await rsbuild.initConfigs({ action: 'dev' });
+      expect(directoryReads).toBe(1);
+      expect(
+        configs.find(config => config.name === 'client')?.output?.path,
+      ).toBe(path.join(distDirectory, '.ultramodern-dev', 'client'));
+      expect(
+        configs.find(config => config.name === 'server')?.output?.path,
+      ).toBe(path.join(distDirectory, '.ultramodern-dev', 'bundles'));
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it.each([
+    'solid',
+    'octane',
+  ] as const)('registers the full public %s SDK plugin graph without a dependency cycle', async renderer => {
+    const config = await resolveUltramodernConfig(defineConfig({ renderer }), {
+      env: 'test',
+      command: 'dev',
+    });
+    const manager = createPluginManager();
+    manager.addPlugins(config.plugins ?? []);
+    // Sorting the complete public composition throws on any ordering cycle.
+    const pluginNames = manager.getPlugins().map(plugin => plugin.name);
+    expect(pluginNames).toContain('@modern-js/ultramodern-app-tools');
+    expect(pluginNames).toContain('@modern-js/plugin-initialize');
+    expect(pluginNames).toContain(
+      `@modern-js/renderer-${renderer}-infrastructure`,
+    );
+  });
+
+  it.each([
+    'solid',
+    'octane',
   ] as const)('initializes %s dev compiler outputs after the real CLI resolves its application directory', async renderer => {
     const root = createFixture();
     try {
@@ -753,8 +828,7 @@ describe('native infrastructure through the real Rsbuild and Rspack pipeline', (
         false,
         'dev',
       );
-      // NativeDevelopment must capture the directory resolved by the owning
-      // initializer, rather than the CLI context's initial empty directory.
+      // Rsbuild setup must use the directory resolved by the real CLI hook.
       expect(api.getAppContext().distDirectory).toBe('');
       const defaults = createDefaultConfig(api.getAppContext());
       const config = api.getNormalizedConfig();
