@@ -14,6 +14,7 @@ import { resolveExactPnpmExecutable } from '../published-create-proof/acceptance
 import {
   confinedPath,
   fileEvidence,
+  materializeFixtureSources,
   ordinaryFiles,
   parseArgs,
   releaseConsumerInputs,
@@ -41,7 +42,11 @@ function packageRoot(entry, expectedName, consumerRoot) {
   throw new Error(`Installed public package root not found: ${expectedName}`);
 }
 
-async function runCommand(command, args, { cwd, env, log, signal }) {
+export async function runCommand(
+  command,
+  args,
+  { cwd, env, log, signal, cleanupErrors = [] },
+) {
   const descriptor = fs.openSync(log, 'wx');
   const started = Date.now();
   try {
@@ -53,18 +58,50 @@ async function runCommand(command, args, { cwd, env, log, signal }) {
     });
     let cancellation;
     let escalation;
+    let terminationFailed = false;
+    const previousCleanupErrorCount = cleanupErrors.length;
     const terminate = signalName => {
+      if (terminationFailed) return false;
       try {
         if (process.platform === 'win32') child.kill(signalName);
         else if (child.pid) process.kill(-child.pid, signalName);
       } catch (error) {
-        if (error.code !== 'ESRCH') throw error;
+        if (error.code !== 'ESRCH') {
+          terminationFailed = true;
+          cleanupErrors.push({
+            name: error.name,
+            message: error.message,
+            code: error.code,
+            signal: signalName,
+            pid: child.pid,
+          });
+          return false;
+        }
       }
+      return true;
     };
+    let rejectCommand;
+    const completed = new Promise((resolve, reject) => {
+      rejectCommand = reject;
+      child.once('error', reject);
+      child.once('close', (status, terminatedBy) => {
+        if (cancellation) reject(cancellation);
+        else if (terminatedBy)
+          reject(
+            new Error(
+              `Owned command terminated by ${terminatedBy}: ${args.join(' ')}`,
+            ),
+          );
+        else resolve(status);
+      });
+    });
     const cancel = reason => {
-      cancellation = reason;
-      terminate('SIGTERM');
-      escalation ??= setTimeout(() => terminate('SIGKILL'), 3000);
+      cancellation ??= reason;
+      if (!terminate('SIGTERM')) rejectCommand(cancellation);
+      else
+        escalation ??= setTimeout(() => {
+          if (!terminate('SIGKILL')) rejectCommand(cancellation);
+        }, 3000);
     };
     const abort = () =>
       cancel(signal.reason ?? new Error('Owned command interrupted'));
@@ -76,19 +113,8 @@ async function runCommand(command, args, { cwd, env, log, signal }) {
     );
     let code;
     try {
-      code = await new Promise((resolve, reject) => {
-        child.once('error', reject);
-        child.once('close', (status, terminatedBy) => {
-          if (cancellation) reject(cancellation);
-          else if (terminatedBy)
-            reject(
-              new Error(
-                `Owned command terminated by ${terminatedBy}: ${args.join(' ')}`,
-              ),
-            );
-          else resolve(status);
-        });
-      });
+      code = await completed;
+      assert.equal(code, 0, `Command failed; see ${log}`);
     } finally {
       clearTimeout(deadline);
       clearTimeout(escalation);
@@ -97,7 +123,11 @@ async function runCommand(command, args, { cwd, env, log, signal }) {
       // The framework build/install is finished before any survivors are stopped.
       terminate('SIGKILL');
     }
-    assert.equal(code, 0, `Command failed; see ${log}`);
+    assert.equal(
+      cleanupErrors.length,
+      previousCleanupErrorCount,
+      `Owned command cleanup failed; see ${log}`,
+    );
     return {
       command,
       args,
@@ -174,12 +204,12 @@ export async function runProof(options) {
     release,
     readJson(path.join(fixtureRoot, 'package.json.template')),
   );
-  for (const file of ordinaryFiles(fixtureRoot)) {
-    if (file.endsWith('package.json.template')) continue;
-    const destination = path.join(consumer, path.relative(fixtureRoot, file));
-    fs.mkdirSync(path.dirname(destination), { recursive: true });
-    fs.copyFileSync(file, destination, fs.constants.COPYFILE_EXCL);
-  }
+  const fixtureSources = materializeFixtureSources({
+    fixtureRoot,
+    consumer,
+    release,
+    priorReceipt: options.priorReceipt,
+  });
   fs.writeFileSync(
     path.join(consumer, 'package.json'),
     `${JSON.stringify(inputs.manifest, null, 2)}\n`,
@@ -197,6 +227,7 @@ export async function runProof(options) {
   let miniflare;
   let bridge;
   let failure;
+  const commandCleanupErrors = [];
   let browserCleanup;
   let bridgeCleanup;
   let workerCleanup;
@@ -238,9 +269,7 @@ export async function runProof(options) {
       pid: options.ownerPid,
       root: options.workDir,
     },
-    fixture: ordinaryFiles(fixtureRoot).map(file =>
-      fileEvidence(file, fixtureRoot),
-    ),
+    ...fixtureSources,
     commands: [],
   };
   try {
@@ -309,6 +338,7 @@ export async function runProof(options) {
           cwd: consumer,
           env,
           signal: controller.signal,
+          cleanupErrors: commandCleanupErrors,
           log: path.join(options.workDir, `${label}.log`),
         }),
       );
@@ -334,6 +364,7 @@ export async function runProof(options) {
           cwd: consumer,
           env,
           signal: controller.signal,
+          cleanupErrors: commandCleanupErrors,
           log: path.join(options.workDir, `${label}.log`),
         }),
       );
@@ -518,6 +549,8 @@ export async function runProof(options) {
   } catch (error) {
     failure = error;
     receipt.failure = { name: error.name, message: error.message };
+    if (commandCleanupErrors.length)
+      receipt.failure.cleanupErrors = commandCleanupErrors;
   } finally {
     clearTimeout(deadline);
     const cleanupResults = await cleanup();

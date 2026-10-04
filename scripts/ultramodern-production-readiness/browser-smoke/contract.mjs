@@ -31,6 +31,8 @@ export function parseArgs(argv) {
     '--public-url',
     '--shell-runtime',
     '--timeout-ms',
+    '--continue-from',
+    '--backend-report',
   ]);
 
   const parsed = parseCliArgs(argv, {
@@ -83,6 +85,14 @@ export function parseArgs(argv) {
         key: 'timeoutMs',
         requiredValue: false,
       },
+      'continue-from': {
+        key: 'continueFrom',
+        requiredValue: true,
+      },
+      'backend-report': {
+        key: 'backendReport',
+        requiredValue: true,
+      },
     },
   });
 
@@ -128,6 +138,18 @@ export function parseArgs(argv) {
   if (!Number.isInteger(parsed.timeoutMs) || parsed.timeoutMs <= 0) {
     throw new Error('--timeout-ms must be a positive integer');
   }
+  if (parsed.backendReport && !parsed.continueFrom) {
+    throw new Error('--backend-report requires --continue-from');
+  }
+  if (
+    parsed.continueFrom &&
+    (parsed.mode !== 'local' ||
+      parsed.artifactMode !== 'source' ||
+      parsed.platform !== 'node' ||
+      parsed.shellRuntime !== 'node')
+  ) {
+    throw new Error('--continue-from requires local source/node release smoke');
+  }
 
   return {
     ...resolvedOptions,
@@ -135,6 +157,12 @@ export function parseArgs(argv) {
     out: path.resolve(repoRoot, parsed.out),
     publicUrls,
     projectDir: path.resolve(parsed.projectDir),
+    ...(parsed.continueFrom
+      ? { continueFrom: path.resolve(parsed.continueFrom) }
+      : {}),
+    ...(parsed.backendReport
+      ? { backendReport: path.resolve(parsed.backendReport) }
+      : {}),
   };
 }
 
@@ -215,6 +243,13 @@ export function createCloudflareRoutes(app) {
 }
 
 function createSmokeContractApp(config, app) {
+  if (
+    app.surfaceProfile !== undefined &&
+    !['api-only', 'ui-only', 'full-stack'].includes(app.surfaceProfile)
+  )
+    throw new BrowserSmokeError(
+      `${app.id} has an invalid declared surface profile.`,
+    );
   const packageScope =
     typeof config.workspace?.packageScope === 'string'
       ? config.workspace.packageScope
@@ -243,6 +278,9 @@ function createSmokeContractApp(config, app) {
   return {
     id: app.id,
     kind: app.kind,
+    ...(app.surfaceProfile === undefined
+      ? {}
+      : { surfaceProfile: app.surfaceProfile }),
     ...(typeof app.domain === 'string' ? { domain: app.domain } : {}),
     api: app.api,
     package: app.package,

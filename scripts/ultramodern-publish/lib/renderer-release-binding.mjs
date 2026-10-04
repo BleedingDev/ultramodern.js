@@ -1,4 +1,15 @@
-const releaseEnvelopeKind = 'ultramodern-target-microvertical-release-envelope';
+import { createRequire } from 'node:module';
+
+const ownerRequire = createRequire(
+  new URL('../../../packages/solutions/ultramodern-app-tools/package.json', import.meta.url),
+);
+const {
+  MICROVERTICAL_RELEASE_ENVELOPE_KIND: releaseEnvelopeKind,
+  MICROVERTICAL_RELEASE_ENVELOPE_SCHEMA_VERSION: releaseEnvelopeSchemaVersion,
+} = ownerRequire('@modern-js/app-tools-extensions/release-envelope');
+const { releaseEnvelopePayload } = ownerRequire(
+  '@modern-js/app-tools-extensions/release-envelope/canonical',
+);
 const renderers = ['react', 'solid', 'octane'];
 const sourceRevisionPattern = /^(?:[a-f\d]{40}|[a-f\d]{64})$/u;
 const exactPackageVersion =
@@ -270,7 +281,10 @@ function assertReleaseEnvelopeRendererBinding(
   } = {},
 ) {
   assertRecord(envelope, label);
-  if (envelope.schemaVersion !== 4 || envelope.kind !== releaseEnvelopeKind) {
+  if (
+    envelope.schemaVersion !== releaseEnvelopeSchemaVersion ||
+    envelope.kind !== releaseEnvelopeKind
+  ) {
     throw new Error(`${label} has an unsupported release envelope schema.`);
   }
   assertExactKeys(
@@ -308,13 +322,28 @@ function assertReleaseEnvelopeRendererBinding(
     `${label}.identity.buildMarker`,
   );
   assertRecord(envelope.surfaces, `${label}.surfaces`);
-  for (const field of ['uiClient', 'ssr']) {
+  const hasBackendFederation = Object.hasOwn(envelope.surfaces, 'backendFederation');
+  assertExactKeys(
+    envelope.surfaces,
+    ['uiClient', 'ssr', 'apiBackend', ...(hasBackendFederation ? ['backendFederation'] : [])],
+    `${label}.surfaces`,
+  );
+  for (const field of ['uiClient', 'ssr', 'apiBackend']) {
     if (!Array.isArray(envelope.surfaces[field])) {
       throw new Error(`${label}.surfaces.${field} must be an array.`);
     }
   }
+  if ((envelope.surfaces.uiClient.length > 0) !== (envelope.surfaces.ssr.length > 0))
+    throw new Error(`${label} UI/client and SSR surfaces must be declared together.`);
+  const hasApi = envelope.surfaces.apiBackend.length > 0;
+  if (hasApi !== hasBackendFederation)
+    throw new Error(`${label} API/backend and backend federation surfaces must be declared together.`);
+  if (hasBackendFederation)
+    assertExactKeys(envelope.surfaces.backendFederation, ['manifest', 'container'], `${label}.surfaces.backendFederation`);
   const hasUi =
     envelope.surfaces.uiClient.length > 0 || envelope.surfaces.ssr.length > 0;
+  if (!hasUi && !hasApi)
+    throw new Error(`${label} must declare a UI or API/backend surface.`);
   if (!hasUi) {
     if (Object.hasOwn(envelope, 'ui')) {
       throw new Error(`${label}.ui is forbidden without a UI or SSR surface.`);
@@ -364,18 +393,6 @@ function assertReleaseEnvelopeRendererBinding(
     );
   }
   return ui;
-}
-
-function releaseEnvelopePayload(envelope) {
-  return {
-    schemaVersion: envelope.schemaVersion,
-    kind: envelope.kind,
-    target: envelope.target,
-    identity: envelope.identity,
-    ...(Object.hasOwn(envelope, 'ui') ? { ui: envelope.ui } : {}),
-    artifacts: envelope.artifacts,
-    surfaces: envelope.surfaces,
-  };
 }
 
 function assertRendererReleaseArtifactBinding(

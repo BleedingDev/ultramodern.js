@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { releaseIdentity } from '../../ultramodern-production-readiness/browser-smoke/runtime-evidence.mjs';
 import { digestCanonical } from '../../ultramodern-production-readiness/canonical-digest.mjs';
 import {
@@ -64,7 +66,7 @@ function envelope({
   buildMarker = 'release-build',
 } = {}) {
   const value = {
-    schemaVersion: 4,
+    schemaVersion: 5,
     kind: 'ultramodern-target-microvertical-release-envelope',
     target: 'node',
     identity: {
@@ -257,6 +259,24 @@ test('headless releases omit renderer metadata and UI releases require it', () =
   assert.throws(
     () => assertReleaseEnvelopeRendererBinding(seal(ui)),
     /must be an object/u,
+  );
+});
+
+test('renderer binding accepts current UI-only envelopes and rejects schema 4', () => {
+  const value = envelope();
+  value.surfaces.apiBackend = [];
+  delete value.surfaces.backendFederation;
+  seal(value);
+  assert.deepEqual(assertReleaseEnvelopeRendererBinding(value), value.ui);
+  assert.deepEqual(
+    assertRendererReleaseArtifactBinding(value, buildArtifact(value)),
+    value.ui,
+  );
+  const legacy = structuredClone(value);
+  legacy.schemaVersion = 4;
+  assert.throws(
+    () => assertReleaseEnvelopeRendererBinding(seal(legacy)),
+    /unsupported release envelope schema/u,
   );
 });
 
@@ -574,9 +594,148 @@ test('immutable delivery records use the supported schema and matching surface m
   );
 });
 
+function writeFinalizedRuntimeAuthority(projectDir, app, renderer) {
+  const appRoot = path.join(projectDir, app.path);
+  const dependency = path.join(
+    appRoot,
+    'node_modules/@modern-js/ultramodern-app-tools',
+  );
+  fs.mkdirSync(path.dirname(dependency), { recursive: true });
+  fs.symlinkSync(
+    fileURLToPath(
+      new URL(
+        '../../../packages/solutions/ultramodern-app-tools/',
+        import.meta.url,
+      ),
+    ),
+    dependency,
+    'dir',
+  );
+  const appRequire = createRequire(path.join(appRoot, 'package.json'));
+  const sdkEntry = appRequire.resolve('@modern-js/ultramodern-app-tools');
+  const ownerRequire = createRequire(sdkEntry);
+  const sdk = ownerRequire(sdkEntry);
+  const contracts = ownerRequire('@modern-js/backend-federation-contracts');
+  const record = {
+    appId: app.id,
+    deployProfile: contracts.DELIVERY_UNIT_DEPLOY_PROFILE,
+    kind: contracts.DELIVERY_UNIT_KIND,
+    schemaVersion: contracts.DELIVERY_UNIT_SCHEMA_VERSION,
+    packageName: '@test/inventory',
+    unitId: app.deliveryUnit.unitId,
+    sourceRevision: 'workspace',
+    version: app.deliveryUnit.version,
+    buildMarker: app.deliveryUnit.buildMarker,
+  };
+  const sourceRevision = 'a'.repeat(40);
+  let source;
+  let finalized;
+  let manifest;
+  let ui;
+  if (app.surfaceProfile === 'api-only') {
+    source = contracts.createUltramodernBuildArtifact(record);
+    const { createUltramodernReleaseBuildMarker } = ownerRequire(
+      '@modern-js/app-tools-extensions/release-identity',
+    );
+    finalized = contracts.stampUltramodernBuildArtifactIdentity(source, {
+      buildMarker: createUltramodernReleaseBuildMarker({
+        generationBuildMarker: record.buildMarker,
+        sourceRevision,
+        unitId: record.unitId,
+      }),
+      sourceRevision,
+    });
+  } else {
+    const profile = sdk.resolveRendererProfile(renderer);
+    const { protocolVersion, compiler, hydration, router } = profile;
+    const buildMarker = 'f'.repeat(64);
+    const provider = {
+      framework: renderer === 'react' ? 'react-router' : renderer,
+      ...router,
+    };
+    const routerBindings = {
+      main: {
+        owner: `@fixture/${renderer}-router-owner`,
+        evidence: 'owned-default',
+        defaultProvider: provider,
+        providers: [provider],
+      },
+    };
+    const rendererIdentity = {
+      renderer,
+      protocolVersion,
+      appId: app.id,
+      entryName: 'main',
+      buildId: buildMarker,
+    };
+    const rendererProfile = {
+      renderer,
+      protocolVersion,
+      compiler,
+      hydration,
+      router,
+    };
+    ui = { rendererIdentity, rendererProfile, routerBindings };
+    source = contracts.createUltramodernBuildArtifact(record, {
+      ui: {
+        identity: { ...rendererIdentity, buildId: record.buildMarker },
+        profile: rendererProfile,
+        routerBindings,
+      },
+    });
+    // A public-validator fixture; this unit test does not run a compiler.
+    manifest = sdk.validateRendererBuildManifest(
+      {
+        schema: 'ultramodern-renderer-build',
+        version: 1,
+        profile,
+        routerBindings,
+        buildMarker,
+        sourceRevision,
+        inputDigest: 'b'.repeat(64),
+        profileDigest: 'c'.repeat(64),
+        compilerDigest: 'd'.repeat(64),
+        frameworkCohortDigest: 'e'.repeat(64),
+        cacheAllowed: true,
+        promotable: true,
+        identities: { main: rendererIdentity },
+      },
+      profile,
+    );
+    const { stampFinalizedRendererBuildArtifact } = ownerRequire(
+      '@modern-js/app-tools-extensions/release-envelope/renderer-output-stamp',
+    );
+    finalized = stampFinalizedRendererBuildArtifact(
+      source,
+      { buildMarker, sourceRevision, ui },
+      {
+        appDirectory: appRoot,
+        distDirectory: path.join(appRoot, '.output'),
+        entrypoints: [{ entryName: 'main', isMainEntry: true }],
+      },
+    );
+  }
+  fs.mkdirSync(path.join(appRoot, 'shared'), { recursive: true });
+  fs.writeFileSync(
+    path.join(appRoot, 'shared/ultramodern-build.json'),
+    JSON.stringify(source),
+  );
+  if (manifest)
+    fs.writeFileSync(
+      path.join(appRoot, '.output/renderer-build.json'),
+      JSON.stringify(manifest),
+    );
+  return { finalized, ui };
+}
+
 function runtimeFixture(
   t,
-  { headless = false, renderer = 'react', publicCarrier = false } = {},
+  {
+    headless = false,
+    renderer = 'react',
+    publicCarrier = false,
+    finalized = false,
+  } = {},
 ) {
   const projectDir = fs.mkdtempSync(
     path.join(process.env.OWNED_TEMP_DIR ?? os.tmpdir(), 'renderer-release-'),
@@ -600,16 +759,28 @@ function runtimeFixture(
     )
     .digest('hex')
     .slice(0, 16);
-  const value = envelope({ headless, renderer, buildMarker });
+  let value = envelope({ headless, renderer, buildMarker });
   const outputRoot = path.join(projectDir, app.path, '.output');
   fs.mkdirSync(outputRoot, { recursive: true });
   fs.writeFileSync(
     path.join(projectDir, app.path, 'package.json'),
     JSON.stringify({
+      ...(finalized ? { name: '@test/inventory' } : {}),
       version: '1.0.0',
       dependencies: { '@module-federation/runtime': '2.4.0' },
     }),
   );
+  const authority = finalized
+    ? writeFinalizedRuntimeAuthority(projectDir, app, renderer)
+    : undefined;
+  if (authority) {
+    value = envelope({
+      headless,
+      renderer,
+      buildMarker: authority.finalized.deliveryUnit.buildMarker,
+    });
+    if (authority.ui) value.ui = authority.ui;
+  }
   const carrier = publicCarrier
     ? 'public/ultramodern-build.json'
     : 'ultramodern-build.json';
@@ -619,7 +790,7 @@ function runtimeFixture(
     'backendRemoteEntry.cjs': ['nodejs', 'exports.backend = true;'],
     [carrier]: [
       'release-identity-metadata',
-      JSON.stringify(buildArtifact(value)),
+      JSON.stringify(authority?.finalized ?? buildArtifact(value)),
     ],
     ...(headless
       ? {}
@@ -661,22 +832,23 @@ function runtimeFixture(
   return { app, carrier, outputRoot, projectDir, reseal, value };
 }
 
-test('the executed artifact reader accepts each renderer and exposes schema 4 renderer evidence', t => {
+test('the executed artifact reader accepts each renderer and exposes schema 5 renderer evidence', t => {
   for (const renderer of ['react', 'solid', 'octane']) {
     const fixture = runtimeFixture(t, {
       renderer,
       publicCarrier: renderer === 'solid',
+      finalized: true,
     });
     const evidence = releaseIdentity(fixture.projectDir, fixture.app, 'node');
-    assert.equal(evidence.schemaVersion, 4);
+    assert.equal(evidence.schemaVersion, 5);
     assert.deepEqual(evidence.ui, fixture.value.ui);
   }
 });
 
-test('the executed artifact reader accepts a headless schema 4 release without renderer evidence', t => {
-  const fixture = runtimeFixture(t, { headless: true });
+test('the executed artifact reader accepts a headless schema 5 release without renderer evidence', t => {
+  const fixture = runtimeFixture(t, { headless: true, finalized: true });
   const evidence = releaseIdentity(fixture.projectDir, fixture.app, 'node');
-  assert.equal(evidence.schemaVersion, 4);
+  assert.equal(evidence.schemaVersion, 5);
   assert.equal(Object.hasOwn(evidence, 'ui'), false);
 });
 

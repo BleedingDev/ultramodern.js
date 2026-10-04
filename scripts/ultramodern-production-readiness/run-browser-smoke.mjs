@@ -1,8 +1,14 @@
 #!/usr/bin/env node
+import { createHash } from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import fsKit from '../lib/fs-kit.js';
 import processKit from '../lib/process-kit.js';
-import { runNodeBackendFederationProof } from './browser-smoke/backend-evidence.mjs';
+import {
+  readNodeBackendFederationProof,
+  runNodeBackendFederationProof,
+} from './browser-smoke/backend-evidence.mjs';
 import {
   assertLocalPortsAvailable,
   launchBrowser,
@@ -25,6 +31,7 @@ import { readCombinedLogTail } from './browser-smoke/log-tail.mjs';
 import {
   bindContractToReleaseIdentity,
   createRuntimeEvidence,
+  readNodeBackendArtifactEvidence,
 } from './browser-smoke/runtime-evidence.mjs';
 import {
   createSmokeTargets,
@@ -72,7 +79,243 @@ export function assertStrictRuntimeEvidence(evidence) {
   }
 }
 
+function pinnedJson(filename) {
+  const resolved = path.resolve(filename);
+  const stat = fs.lstatSync(resolved);
+  if (
+    !stat.isFile() ||
+    stat.isSymbolicLink() ||
+    fs.realpathSync(resolved) !== resolved
+  ) {
+    throw new BrowserSmokeError(
+      'Continuation evidence must be an ordinary physical file',
+      { path: resolved },
+    );
+  }
+  const bytes = fs.readFileSync(resolved);
+  return {
+    value: JSON.parse(bytes.toString('utf8')),
+    pin: {
+      path: resolved,
+      byteLength: bytes.length,
+      sha256: createHash('sha256').update(bytes).digest('hex'),
+    },
+  };
+}
+
+export function createAcceptedNodeProofEnvironment(
+  projectDir,
+  environment = process.env,
+) {
+  const {
+    value: { settings },
+  } = pinnedJson(
+    path.join(projectDir, 'node_modules/.pnpm-workspace-state-v1.json'),
+  );
+  if (
+    settings?.minimumReleaseAge !== 1440 ||
+    settings.minimumReleaseAgeStrict !== true ||
+    settings.minimumReleaseAgeIgnoreMissingTime !== false ||
+    settings.trustPolicy !== 'no-downgrade' ||
+    typeof settings.enableGlobalVirtualStore !== 'boolean' ||
+    !['minimumReleaseAgeExclude', 'trustPolicyExclude'].every(
+      key =>
+        Array.isArray(settings[key]) &&
+        settings[key].length > 0 &&
+        settings[key].every(
+          value => typeof value === 'string' && value.length > 0,
+        ) &&
+        new Set(settings[key]).size === settings[key].length,
+    )
+  )
+    throw new BrowserSmokeError(
+      'Continuation requires the original strict pnpm install settings',
+    );
+  const env = { ...environment };
+  for (const key of [
+    'NPM_CONFIG_MINIMUM_RELEASE_AGE_EXCLUDE',
+    'NPM_CONFIG_TRUST_POLICY_EXCLUDE',
+    'PNPM_CONFIG_MINIMUM_RELEASE_AGE_EXCLUDE',
+    'PNPM_CONFIG_TRUST_POLICY_EXCLUDE',
+    'npm_config_minimum_release_age_exclude',
+    'npm_config_trust_policy_exclude',
+  ])
+    delete env[key];
+  return {
+    ...env,
+    CI: 'true',
+    pnpm_config_pm_on_fail: 'ignore',
+    pnpm_config_minimum_release_age: String(settings.minimumReleaseAge),
+    pnpm_config_minimum_release_age_strict: String(
+      settings.minimumReleaseAgeStrict,
+    ),
+    pnpm_config_minimum_release_age_ignore_missing_time: String(
+      settings.minimumReleaseAgeIgnoreMissingTime,
+    ),
+    pnpm_config_minimum_release_age_exclude: JSON.stringify(
+      settings.minimumReleaseAgeExclude,
+    ),
+    pnpm_config_trust_policy: settings.trustPolicy,
+    pnpm_config_trust_policy_exclude: JSON.stringify(
+      settings.trustPolicyExclude,
+    ),
+    pnpm_config_enable_global_virtual_store: String(
+      settings.enableGlobalVirtualStore,
+    ),
+  };
+}
+
+export function readNodeBrowserContinuation({
+  options,
+  contract,
+  contractPath,
+  targets,
+}) {
+  const { value: prior, pin } = pinnedJson(options.continueFrom);
+  const reject = () => {
+    throw new BrowserSmokeError(
+      'Continuation requires the unchanged passed Node browser stage',
+      { priorReport: pin },
+    );
+  };
+  if (
+    prior.schemaVersion !== 1 ||
+    prior.status !== 'fail' ||
+    prior.error !== 'Node backend federation proof failed' ||
+    prior.errorDetails?.exitCode !== 1 ||
+    prior.errorDetails?.signal !== null ||
+    prior.mode !== 'local' ||
+    prior.artifactMode !== 'source' ||
+    prior.platform !== 'node' ||
+    prior.shellRuntime !== 'node' ||
+    path.resolve(prior.projectDir ?? '') !== path.resolve(options.projectDir) ||
+    prior.contractPath !== contractPath ||
+    !Array.isArray(prior.skipped) ||
+    prior.skipped.length ||
+    !Array.isArray(prior.results) ||
+    prior.results.length !== targets.length ||
+    new Set(prior.results.map(result => result.appId)).size !==
+      targets.length ||
+    Object.keys(prior.targetRuntimes ?? {}).length !== targets.length ||
+    path.resolve(options.out) === pin.path ||
+    path.resolve(prior.artifactDir ?? '') === path.resolve(options.artifactDir)
+  )
+    reject();
+  for (const target of targets) {
+    const result = prior.results.find(item => item.appId === target.app.id);
+    if (
+      !result ||
+      result.status !== 'pass' ||
+      result.baseUrl !== target.baseUrl ||
+      prior.targetRuntimes?.[target.app.id] !== 'node' ||
+      !Array.isArray(result.assertions) ||
+      result.assertions.some(
+        assertion =>
+          assertion.status !== 'pass' ||
+          ['backend-federation-network', 'failure-isolation'].includes(
+            assertion.type,
+          ),
+      )
+    )
+      reject();
+    const requiredTypes = [
+      'ssr-route',
+      'css-root-marker',
+      'mf-manifest',
+      'mf-manifest-json',
+      'locale-json',
+      'browser-css-root-marker',
+      'stylesheet-evidence',
+      'stylesheet-href-dedupe',
+      'browser-diagnostics',
+      'no-js-ssr-css-root-marker',
+      'no-js-stylesheet-href-dedupe',
+      'no-js-ssr-failed-responses',
+      ...(target.app.kind === 'shell'
+        ? [
+            'shell-server-rendered-composition',
+            'shell-hydration-dom-identity',
+            'shell-mf-network-evidence',
+            'shell-composition-boundary',
+            'no-js-shell-composition-boundary',
+          ]
+        : [
+            'effect-readiness',
+            'backend-json-smoke',
+            'backend-driven-ui',
+            'localized-router-navigation',
+          ]),
+    ];
+    if (
+      requiredTypes.some(
+        type => !result.assertions.some(assertion => assertion.type === type),
+      )
+    )
+      reject();
+    for (const type of [
+      'ui-marker-html',
+      'browser-ui-marker',
+      'no-js-ssr-ui-marker',
+    ]) {
+      const assertions = result.assertions.filter(
+        assertion => assertion.type === type,
+      );
+      if (
+        assertions.length !== 1 ||
+        assertions[0].actual !== target.app.marker.build ||
+        assertions[0].expected !== target.app.marker.build
+      )
+        reject();
+    }
+    if (target.app.kind === 'vertical') {
+      const observed = result.assertions.find(
+        assertion => assertion.type === 'backend-driven-ui',
+      );
+      const marker = observed?.apiResponse?.body?.items?.[0]?.marker;
+      if (
+        !marker ||
+        marker.buildMarker !== target.app.marker.build ||
+        marker.sourceRevision !== target.app.marker.sourceRevision ||
+        marker.version !== target.app.deliveryUnit.version ||
+        marker.unitId !== target.app.deliveryUnit.unitId
+      )
+        reject();
+    }
+  }
+  const evidence = createRuntimeEvidence({
+    artifactMode: 'source',
+    contract,
+    platform: 'node',
+    projectDir: options.projectDir,
+    results: prior.results,
+  });
+  for (const dimension of [
+    'ssr',
+    'browser-mf',
+    'api',
+    'backend-driven-ui',
+    'release-identity',
+  ]) {
+    if (evidence[dimension]?.status !== 'pass') reject();
+  }
+  return { priorReport: pin, results: structuredClone(prior.results) };
+}
+
 export async function runUltramodernBrowserSmoke(options) {
+  if (options.backendReport && !options.continueFrom) {
+    throw new BrowserSmokeError('backendReport requires continueFrom');
+  }
+  if (
+    options.continueFrom &&
+    (options.mode !== 'local' ||
+      options.artifactMode !== 'source' ||
+      options.platform !== 'node' ||
+      (options.shellRuntime ?? 'node') !== 'node')
+  ) {
+    throw new BrowserSmokeError(
+      'Continuation requires local source/node release smoke',
+    );
+  }
   if (
     (options.artifactMode === undefined) !==
     (options.platform === undefined)
@@ -122,6 +365,52 @@ export async function runUltramodernBrowserSmoke(options) {
       },
     );
   }
+  const continuation = options.continueFrom
+    ? readNodeBrowserContinuation({ options, contract, contractPath, targets })
+    : undefined;
+  const executionOptions = continuation
+    ? {
+        ...options,
+        processEnv: createAcceptedNodeProofEnvironment(options.projectDir, {
+          ...process.env,
+          ...options.processEnv,
+        }),
+      }
+    : options;
+  const currentBackendArtifacts = () =>
+    contract.apps
+      .filter(app => app.kind === 'vertical')
+      .map(app => {
+        const evidence = readNodeBackendArtifactEvidence(
+          options.projectDir,
+          app,
+        );
+        return {
+          ...evidence,
+          identity: {
+            ...evidence.identity,
+            unitId: app.deliveryUnit.unitId,
+            packageName: app.deliveryUnit.packageName,
+          },
+        };
+      });
+  const expectedBackendArtifacts = continuation
+    ? currentBackendArtifacts()
+    : undefined;
+  const compilerPins = continuation
+    ? contract.apps
+        .filter(app => app.surfaceProfile !== 'api-only')
+        .map(
+          app =>
+            pinnedJson(
+              path.join(
+                options.projectDir,
+                app.path,
+                '.output/renderer-build.json',
+              ),
+            ).pin,
+        )
+    : [];
   const report = {
     schemaVersion: 1,
     artifactMode: options.artifactMode,
@@ -135,7 +424,16 @@ export async function runUltramodernBrowserSmoke(options) {
       options.mode === 'public'
         ? (options.platform ?? 'workerd')
         : (options.shellRuntime ?? 'node'),
-    results: [],
+    results: continuation?.results ?? [],
+    ...(continuation
+      ? {
+          continuation: {
+            priorReport: continuation.priorReport,
+            reusedStages: ['http-browser-no-js'],
+            completedStages: [],
+          },
+        }
+      : {}),
     skipped,
     status: 'running',
     targetRuntimes: {},
@@ -195,7 +493,7 @@ export async function runUltramodernBrowserSmoke(options) {
       } else {
         for (const layer of localStartupOrder.remoteLayers) {
           const layerServers = layer.map(target => {
-            const server = startServerImpl(target, options);
+            const server = startServerImpl(target, executionOptions);
             servers.push(server);
             serversByAppId.set(target.app.id, server);
             report.targetRuntimes[target.app.id] = 'node';
@@ -216,7 +514,7 @@ export async function runUltramodernBrowserSmoke(options) {
           );
         }
         for (const target of localStartupOrder.shells) {
-          const server = startServerImpl(target, options);
+          const server = startServerImpl(target, executionOptions);
           servers.push(server);
           serversByAppId.set(target.app.id, server);
           report.targetRuntimes[target.app.id] = 'node';
@@ -237,62 +535,94 @@ export async function runUltramodernBrowserSmoke(options) {
       return report;
     }
 
-    browser = await launchBrowser(options.browserProvider);
     const validationTargets = localStartupOrder?.validation ?? targets;
-    for (const target of validationTargets) {
-      try {
-        const httpAssertions = await validateHttpTarget(target, {
-          fetchImpl: options.fetchImpl ?? fetch,
-        });
-        const runtime =
-          report.targetRuntimes[target.app.id] ??
-          options.platform ??
-          (options.mode === 'public'
-            ? 'workerd'
-            : (options.shellRuntime ?? 'node'));
-        report.targetRuntimes[target.app.id] ??= runtime;
-        const browserAssertions = await validateBrowserTargetImpl(
-          target,
-          browser,
-          {
-            artifactDir: options.artifactDir,
-            runtime,
-            targets,
-          },
-        );
-        report.results.push({
-          appId: target.app.id,
-          assertions: [...httpAssertions, ...browserAssertions],
-          baseUrl: target.baseUrl,
-          status: 'pass',
-        });
-      } catch (error) {
-        if (error instanceof BrowserSmokeError) {
-          error.details = {
-            ...error.details,
+    if (!continuation) {
+      browser = await launchBrowser(options.browserProvider);
+      for (const target of validationTargets) {
+        try {
+          const httpAssertions = await validateHttpTarget(target, {
+            fetchImpl: options.fetchImpl ?? fetch,
+          });
+          const runtime =
+            report.targetRuntimes[target.app.id] ??
+            options.platform ??
+            (options.mode === 'public'
+              ? 'workerd'
+              : (options.shellRuntime ?? 'node'));
+          report.targetRuntimes[target.app.id] ??= runtime;
+          const browserAssertions = await validateBrowserTargetImpl(
+            target,
+            browser,
+            {
+              artifactDir: options.artifactDir,
+              runtime,
+              targets,
+            },
+          );
+          report.results.push({
             appId: target.app.id,
-          };
+            assertions: [...httpAssertions, ...browserAssertions],
+            baseUrl: target.baseUrl,
+            status: 'pass',
+          });
+        } catch (error) {
+          if (error instanceof BrowserSmokeError) {
+            error.details = {
+              ...error.details,
+              appId: target.app.id,
+            };
+          }
+          throw error;
         }
-        throw error;
       }
     }
 
     if (options.artifactMode && options.platform) {
       if (options.platform === 'node') {
-        const backendAssertions = runNodeBackendFederationProof({
-          artifactDir: options.artifactDir,
-          projectDir: options.projectDir,
-        });
+        const backendReportPin = options.backendReport
+          ? pinnedJson(options.backendReport).pin
+          : undefined;
+        const backendAssertions = options.backendReport
+          ? readNodeBackendFederationProof({
+              projectDir: options.projectDir,
+              reportPath: options.backendReport,
+              expectedArtifacts: expectedBackendArtifacts,
+            })
+          : runNodeBackendFederationProof({
+              artifactDir: options.artifactDir,
+              projectDir: options.projectDir,
+              ...(continuation
+                ? {
+                    processEnv: executionOptions.processEnv,
+                    expectedArtifacts: expectedBackendArtifacts,
+                  }
+                : {}),
+            });
         for (const assertion of backendAssertions) {
           const result = report.results.find(
             candidate => candidate.appId === assertion.appId,
           );
           result?.assertions.push(assertion);
         }
+        if (continuation) {
+          if (backendReportPin) {
+            report.continuation.backendReport = backendReportPin;
+            if (
+              pinnedJson(options.backendReport).pin.sha256 !==
+              backendReportPin.sha256
+            )
+              throw new BrowserSmokeError(
+                'Reused backend report changed during continuation',
+              );
+            report.continuation.reusedStages.push('node-backend-federation');
+          } else {
+            report.continuation.completedStages.push('node-backend-federation');
+          }
+        }
       }
       const failureIsolationAssertions = await validateFailureIsolation({
         fetchImpl: options.fetchImpl ?? fetch,
-        options,
+        options: executionOptions,
         platform: options.platform,
         servers,
         serversByAppId,
@@ -305,6 +635,8 @@ export async function runUltramodernBrowserSmoke(options) {
         );
         result?.assertions.push(assertion);
       }
+      if (continuation)
+        report.continuation.completedStages.push('node-failure-isolation');
       report.evidence = createRuntimeEvidence({
         artifactMode: options.artifactMode,
         contract,
@@ -313,6 +645,23 @@ export async function runUltramodernBrowserSmoke(options) {
         results: report.results,
       });
       assertStrictRuntimeEvidence(report.evidence);
+      if (continuation) {
+        if (
+          pinnedJson(options.continueFrom).pin.sha256 !==
+            continuation.priorReport.sha256 ||
+          compilerPins.some(
+            pin => pinnedJson(pin.path).pin.sha256 !== pin.sha256,
+          ) ||
+          JSON.stringify(expectedBackendArtifacts) !==
+            JSON.stringify(currentBackendArtifacts())
+        ) {
+          throw new BrowserSmokeError(
+            'Pinned Node evidence changed during continuation',
+          );
+        }
+        report.continuation.compilerManifests = compilerPins;
+        report.continuation.completedStages.push('strict-runtime-evidence');
+      }
     }
     report.status = 'pass';
     writeJsonFile(options.out, report, { atomic: false });

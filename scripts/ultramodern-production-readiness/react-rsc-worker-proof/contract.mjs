@@ -6,6 +6,7 @@ import { parse, stringify } from 'yaml';
 import {
   inspectNpmTarball,
   readVerifiedPackageArtifactBytes,
+  verifySidecarArtifacts,
 } from '../../ultramodern-publish/lib/prepare-bleedingdev-packages/release-artifacts.mjs';
 
 export const sha256 = bytes =>
@@ -81,10 +82,14 @@ export function parseArgs(argv) {
     '--owner-pid',
   ];
   const values = new Map();
+  const optional = ['--continue-from', '--prior-receipt'];
   for (let index = 0; index < argv.length; index += 2) {
     const key = argv[index];
     const value = argv[index + 1];
-    assert(required.includes(key), `Unknown argument: ${key}`);
+    assert(
+      required.includes(key) || optional.includes(key),
+      `Unknown argument: ${key}`,
+    );
     assert(!values.has(key), `Duplicate argument: ${key}`);
     assert(value && !value.startsWith('--'), `${key} requires a value`);
     values.set(key, value);
@@ -103,6 +108,16 @@ export function parseArgs(argv) {
   const workDir = absolute('--work-dir');
   const receipt = absolute('--receipt');
   confinedPath(workDir, path.relative(workDir, receipt));
+  const continueFrom = values.get('--continue-from');
+  assert(
+    continueFrom === undefined || continueFrom === 'materialized-fixture',
+    'Only the materialized-fixture continuation cursor is supported',
+  );
+  assert.equal(
+    Boolean(continueFrom),
+    values.has('--prior-receipt'),
+    '--continue-from materialized-fixture requires --prior-receipt, and vice versa',
+  );
   return {
     manifestPath: absolute('--manifest'),
     expectedSourceRevision: values.get('--expected-source-revision'),
@@ -113,7 +128,92 @@ export function parseArgs(argv) {
     browserExecutable: absolute('--browser-executable'),
     owner: values.get('--owner'),
     ownerPid: Number(values.get('--owner-pid')),
+    ...(continueFrom
+      ? {
+          continueFrom,
+          priorReceipt: absolute('--prior-receipt'),
+        }
+      : {}),
   };
+}
+
+export function materializeFixtureSources({
+  fixtureRoot,
+  consumer,
+  release,
+  priorReceipt,
+}) {
+  const fixture = ordinaryFiles(fixtureRoot).map(file =>
+    fileEvidence(file, fixtureRoot),
+  );
+  let sourceRoot = fixtureRoot;
+  let reusedFixture;
+  if (priorReceipt) {
+    const priorRoot = path.dirname(priorReceipt);
+    const receiptEvidence = fileEvidence(priorReceipt, priorRoot);
+    const bytes = fs.readFileSync(priorReceipt);
+    assert.equal(sha256(bytes), receiptEvidence.sha256);
+    const previous = JSON.parse(bytes);
+    assert.equal(
+      previous.schema,
+      'bleedingdev.ultramodern.react-rsc-workerd-proof',
+    );
+    assert.equal(previous.schemaVersion, 1);
+    assert.equal(
+      previous.status,
+      'failed',
+      'Only a failed materialized fixture can be continued',
+    );
+    assert.deepEqual(
+      previous.commands,
+      [],
+      'The fixture cursor cannot replay completed commands',
+    );
+    assert.equal(previous.sourceRevision, release.source.commit);
+    assert.equal(previous.releaseVersion, release.release.version);
+    assert.equal(previous.manifestSha256, release.manifestSha256);
+    assert.equal(previous.frameworkCohortDigest, release.cohortDigest);
+    assert.deepEqual(
+      previous.fixture,
+      fixture,
+      'Recorded fixture sources differ from the owning producer',
+    );
+    sourceRoot = confinedPath(priorRoot, 'consumer');
+    assert.notEqual(path.resolve(sourceRoot), path.resolve(consumer));
+    reusedFixture = {
+      qualification: 'verified-prior-materialized-source-only',
+      sourceRoot,
+      priorReceipt: {
+        ...receiptEvidence,
+        path: priorReceipt,
+        text: bytes.toString('utf8'),
+      },
+    };
+  }
+  const sources = fixture
+    .filter(item => item.path !== 'package.json.template')
+    .map(item => {
+      const source = confinedPath(sourceRoot, item.path);
+      assert.deepEqual(
+        fileEvidence(source, sourceRoot),
+        item,
+        `Retained fixture source differs: ${item.path}`,
+      );
+      const bytes = fs.readFileSync(source);
+      assert.equal(
+        sha256(bytes),
+        item.sha256,
+        `Fixture source changed while reading: ${item.path}`,
+      );
+      return { item, bytes };
+    });
+  // Authenticate every source before creating any part of the new consumer.
+  for (const { item, bytes } of sources) {
+    const destination = confinedPath(consumer, item.path);
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    fs.writeFileSync(destination, bytes, { flag: 'wx' });
+  }
+  return { fixture, ...(reusedFixture ? { reusedFixture } : {}) };
 }
 
 export function releaseConsumerInputs(release, template) {
@@ -211,10 +311,47 @@ export function releaseConsumerInputs(release, template) {
     exactPackages[name] = version;
   }
   const overrides = {};
+  const consumerManifests = [manifest];
   for (const item of release.packages) {
-    readVerifiedPackageArtifactBytes(item, item.artifactPath);
+    consumerManifests.push(
+      inspectNpmTarball(
+        readVerifiedPackageArtifactBytes(item, item.artifactPath),
+      ).packageJson,
+    );
     overrides[item.sourceName] = `file:${item.artifactPath}`;
     overrides[item.targetName] = `file:${item.artifactPath}`;
+  }
+  if (release.sidecars) {
+    const sidecars = verifySidecarArtifacts(release.artifactRoot, {
+      manifestPath: path.basename(release.sidecars.manifestPath),
+      sha256: sha256(release.sidecars.manifestBytes),
+    });
+    for (const item of sidecars.packages) {
+      overrides[`${item.name}@${item.version}`] = `file:${item.artifactPath}`;
+      consumerManifests.push(item.packageJson);
+    }
+    const byName = new Map(sidecars.packages.map(item => [item.name, item]));
+    for (const parent of consumerManifests) {
+      for (const block of ['dependencies', 'optionalDependencies']) {
+        for (const [name, specifier] of Object.entries(parent[block] ?? {})) {
+          const target =
+            typeof specifier === 'string'
+              ? /^npm:(@[^/]+\/[^@]+|[^@]+)@.+$/u.exec(specifier)?.[1]
+              : undefined;
+          const sidecar = byName.get(target);
+          if (!sidecar) continue;
+          assert.equal(
+            specifier,
+            `npm:${sidecar.name}@${sidecar.version}`,
+            `Sidecar dependency must match the authenticated version: ${parent.name} ${name}`,
+          );
+          // pnpm matches the declared slot and literal npm specifier, not the
+          // alias target. Confine the transport override to its actual owner.
+          overrides[`${parent.name}@${parent.version}>${name}@${specifier}`] =
+            `file:${sidecar.artifactPath}`;
+        }
+      }
+    }
   }
   const inspection = inspectNpmTarball(
     readVerifiedPackageArtifactBytes(create, create.artifactPath),

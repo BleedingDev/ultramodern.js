@@ -95,7 +95,10 @@ function operationalDetails(receipt, evidencePath, options) {
   };
 }
 
-function operationalEvidence(details, options) {
+async function operationalEvidence(details, options) {
+  const { releaseIdentityCoherence, rendererReleaseCoherence } = await import(
+    '../../published-create-proof/acceptance-contract.mjs'
+  );
   const { identity, mutations } = options;
   const beforeIdentity = {
     buildMarker: `${options.apps.changed}-before`,
@@ -108,9 +111,46 @@ function operationalEvidence(details, options) {
     buildMarker: `${options.apps.changed}-after`,
     sourceRevision: identity.changedRevision,
   };
+  const afterIdentities = {
+    node: { ...afterIdentity, buildMarker: '3'.repeat(64) },
+    cloudflare: { ...afterIdentity, buildMarker: '6'.repeat(64) },
+  };
+  const rendererProfile = {
+    renderer: 'react',
+    protocolVersion: 1,
+    compiler: { name: '@rsbuild/plugin-react', version: '2.1.0' },
+    hydration: { name: 'react-dom', version: '19.3.0' },
+    router: {
+      name: '@tanstack/react-router',
+      version: '1.170.39',
+      coreName: '@tanstack/router-core',
+      coreVersion: '1.171.32',
+    },
+  };
+  const provider = { framework: 'tanstack', ...rendererProfile.router };
+  const ui = platform => ({
+    rendererIdentity: {
+      renderer: 'react',
+      appId: options.apps.changed,
+      entryName: 'main',
+      protocolVersion: 1,
+      buildId: afterIdentities[platform].buildMarker,
+    },
+    rendererProfile,
+    routerBindings: {
+      main: {
+        owner: '@fixture/router-owner',
+        evidence: 'file-routes',
+        defaultProvider: provider,
+        providers: [provider],
+      },
+    },
+  });
   const target = platform => {
+    const afterIdentity = afterIdentities[platform];
     const changed = {
       afterIdentity,
+      afterUi: ui(platform),
       afterTreeDigest: digest(`${platform}-${options.apps.changed}-after`),
       beforeIdentity,
       beforeTreeDigest: digest(`${platform}-${options.apps.changed}-before`),
@@ -209,7 +249,10 @@ function operationalEvidence(details, options) {
     },
     crossTarget: {
       equal: true,
-      identity: afterIdentity,
+      identity: releaseIdentityCoherence(afterIdentities.node),
+      renderer: rendererReleaseCoherence(ui('node')),
+      nodeIdentity: structuredClone(afterIdentities.node),
+      cloudflareIdentity: structuredClone(afterIdentities.cloudflare),
     },
     result: 'pass',
   };
@@ -264,7 +307,7 @@ async function createOperationalAcceptanceReceiptFixture({
     ? operationalDetails(receipt, evidencePath, options)
     : undefined;
   const evidence = compactOperationalDetails
-    ? operationalEvidence(compactOperationalDetails, options)
+    ? await operationalEvidence(compactOperationalDetails, options)
     : undefined;
   if (evidence && legacyOperationalSummary) {
     evidence.evidenceDigest = digest(legacyCanonicalSerialize(evidence));

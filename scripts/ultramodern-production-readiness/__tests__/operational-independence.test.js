@@ -56,8 +56,16 @@ function makeRoot(t, name) {
 }
 
 // A real `node` release tree plus envelope/carrier metadata re-derived from bytes.
-function createEnvelopeFixture(root) {
-  const identity = createIdentity('a'.repeat(40), '0123456789abcdef');
+function createEnvelopeFixture(
+  root,
+  {
+    uiEnabled = true,
+    apiEnabled = true,
+    target = 'node',
+    buildMarker = '0123456789abcdef',
+  } = {},
+) {
+  const identity = createIdentity('a'.repeat(40), buildMarker);
   const ui = {
     rendererIdentity: {
       renderer: 'react',
@@ -74,8 +82,18 @@ function createEnvelopeFixture(root) {
       router: {
         name: '@tanstack/react-router',
         version: '1.170.39',
+        coreName: '@tanstack/router-core',
         coreVersion: '1.171.32',
       },
+    },
+  };
+  const provider = { framework: 'tanstack', ...ui.rendererProfile.router };
+  ui.routerBindings = {
+    main: {
+      owner: '@fixture/tanstack-router-owner',
+      evidence: 'file-routes',
+      defaultProvider: provider,
+      providers: [provider],
     },
   };
   const deliveryUnit = {
@@ -115,10 +133,19 @@ function createEnvelopeFixture(root) {
       deliveryUnit,
       surfaces: {
         api: { ...deliveryUnit, surface: 'api' },
-        ui: { ...deliveryUnit, surface: 'ui', ...ui },
+        ...(uiEnabled ? { ui: { ...deliveryUnit, surface: 'ui', ...ui } } : {}),
       },
     }),
   };
+  if (!uiEnabled) {
+    delete files['public/client.js'];
+    delete files['server/ssr.js'];
+  }
+  if (!apiEnabled) {
+    delete files['api/index.js'];
+    delete files['backend-mf-manifest.json'];
+    delete files['backendRemoteEntry.cjs'];
+  }
   for (const [logicalPath, source] of Object.entries(files)) {
     const filePath = path.join(root, logicalPath);
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
@@ -159,6 +186,7 @@ function createEnvelopeFixture(root) {
     kind: 'ultramodern-release-identity-carriers',
     identity,
     carriers: Object.entries(carrierSurfaces)
+      .filter(([logicalPath]) => Object.hasOwn(files, logicalPath))
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([logicalPath, surfaces]) => {
         const bytes = fs.readFileSync(path.join(root, logicalPath));
@@ -188,20 +216,24 @@ function createEnvelopeFixture(root) {
     left.logicalPath.localeCompare(right.logicalPath),
   );
   const envelope = {
-    schemaVersion: 4,
+    schemaVersion: 5,
     kind: 'ultramodern-target-microvertical-release-envelope',
-    target: 'node',
+    target,
     identity,
-    ui,
+    ...(uiEnabled ? { ui } : {}),
     artifacts,
     surfaces: {
-      uiClient: ['public/client.js'],
-      ssr: ['server/ssr.js'],
-      apiBackend: ['api/index.js'],
-      backendFederation: {
-        manifest: 'backend-mf-manifest.json',
-        container: 'backendRemoteEntry.cjs',
-      },
+      uiClient: uiEnabled ? ['public/client.js'] : [],
+      ssr: uiEnabled ? ['server/ssr.js'] : [],
+      apiBackend: apiEnabled ? ['api/index.js'] : [],
+      ...(apiEnabled
+        ? {
+            backendFederation: {
+              manifest: 'backend-mf-manifest.json',
+              container: 'backendRemoteEntry.cjs',
+            },
+          }
+        : {}),
     },
   };
   const envelopePath = path.join(
@@ -211,6 +243,79 @@ function createEnvelopeFixture(root) {
   reseal(envelopePath, envelope);
   return { envelope, envelopePath, identity };
 }
+
+test('cross-target coherence accepts distinct markers from separately verified target carriers', async t => {
+  const { assertCrossTargetIdentity, readAndVerifyEnvelope } =
+    await loadProof();
+  const nodeRoot = makeRoot(t, 'operational-node-coherence');
+  const cloudflareRoot = makeRoot(t, 'operational-cloudflare-coherence');
+  const nodeFixture = createEnvelopeFixture(nodeRoot, {
+    buildMarker: '3'.repeat(64),
+  });
+  const cloudflareFixture = createEnvelopeFixture(cloudflareRoot, {
+    target: 'cloudflare',
+    buildMarker: '6'.repeat(64),
+  });
+  const node = { envelope: readAndVerifyEnvelope(nodeRoot, 'node') };
+  const cloudflare = {
+    envelope: readAndVerifyEnvelope(cloudflareRoot, 'cloudflare'),
+  };
+
+  const binding = assertCrossTargetIdentity(node, cloudflare);
+
+  assert.deepEqual(binding.nodeIdentity, nodeFixture.identity);
+  assert.deepEqual(binding.cloudflareIdentity, cloudflareFixture.identity);
+  assert.notEqual(
+    binding.nodeIdentity.buildMarker,
+    binding.cloudflareIdentity.buildMarker,
+  );
+  assert.equal(Object.hasOwn(binding.identity, 'buildMarker'), false);
+  assert.equal(
+    Object.hasOwn(binding.renderer.rendererIdentity, 'buildId'),
+    false,
+  );
+  for (const field of ['sourceRevision', 'unitId', 'releaseVersion']) {
+    const foreign = structuredClone(cloudflare);
+    foreign.envelope.identity[field] = `foreign-${field}`;
+    assert.throws(
+      () => assertCrossTargetIdentity(node, foreign),
+      /identities do not match/u,
+      field,
+    );
+  }
+  for (const mutate of [
+    ui => {
+      ui.rendererIdentity.appId = 'foreign';
+    },
+    ui => {
+      ui.rendererProfile.compiler.version = '99.0.0';
+    },
+    ui => {
+      ui.rendererProfile.hydration.version = '99.0.0';
+    },
+    ui => {
+      ui.rendererProfile.router.coreVersion = '99.0.0';
+    },
+    ui => {
+      ui.routerBindings.main.owner = '@foreign/router-owner';
+    },
+  ]) {
+    const foreign = structuredClone(cloudflare);
+    mutate(foreign.envelope.ui);
+    assert.throws(
+      () => assertCrossTargetIdentity(node, foreign),
+      /identities do not match/u,
+    );
+  }
+  const wrongOwnMarker = structuredClone(cloudflareFixture.envelope);
+  wrongOwnMarker.identity.buildMarker = nodeFixture.identity.buildMarker;
+  wrongOwnMarker.ui.rendererIdentity.buildId = nodeFixture.identity.buildMarker;
+  reseal(cloudflareFixture.envelopePath, wrongOwnMarker);
+  assert.throws(
+    () => readAndVerifyEnvelope(cloudflareRoot, 'cloudflare'),
+    /carrier metadata does not match the release envelope identity/u,
+  );
+});
 
 test('operational process environment preserves exact pnpm and scrubs build identity overrides', async () => {
   const { createOperationalProcessEnv } = await loadProof();
@@ -311,6 +416,128 @@ test('final-envelope verification binds every released surface to real bytes and
   assert.deepEqual(evidence.identity, fixture.identity);
   for (const surface of Object.values(evidence.surfaces)) {
     assert.ok(surface.carrierPaths.length > 0);
+  }
+});
+
+test('final-envelope verification accepts v5 UI-only output with paired UI and SSR carriers', async t => {
+  const { readAndVerifyEnvelope } = await loadProof();
+  const root = makeRoot(t, 'operational-ui-only-envelope');
+  const fixture = createEnvelopeFixture(root, { apiEnabled: false });
+
+  const evidence = readAndVerifyEnvelope(root, 'node');
+
+  assert.deepEqual(evidence.identity, fixture.identity);
+  assert.ok(evidence.ui);
+  assert.deepEqual(evidence.surfaces.uiClient.carrierPaths, [
+    'public/client.js',
+  ]);
+  assert.deepEqual(evidence.surfaces.ssr.carrierPaths, ['server/ssr.js']);
+  for (const surfaceName of ['apiBackend', 'backendFederation']) {
+    assert.equal(evidence.surfaces[surfaceName].artifactCount, 0);
+    assert.deepEqual(evidence.surfaces[surfaceName].carrierPaths, []);
+  }
+  assert.equal(
+    Object.hasOwn(fixture.envelope.surfaces, 'backendFederation'),
+    false,
+  );
+  const artifact = JSON.parse(
+    fs.readFileSync(path.join(root, 'ultramodern-build.json'), 'utf8'),
+  );
+  assert.equal(artifact.surfaces.api.buildMarker, fixture.identity.buildMarker);
+});
+
+test('final-envelope verification accepts v5 API-only output without UI metadata', async t => {
+  const { readAndVerifyEnvelope } = await loadProof();
+  const root = makeRoot(t, 'operational-api-only-envelope');
+  const fixture = createEnvelopeFixture(root, { uiEnabled: false });
+
+  const evidence = readAndVerifyEnvelope(root, 'node');
+
+  assert.deepEqual(evidence.identity, fixture.identity);
+  assert.equal(Object.hasOwn(evidence, 'ui'), false);
+  for (const surfaceName of ['uiClient', 'ssr']) {
+    assert.equal(evidence.surfaces[surfaceName].artifactCount, 0);
+    assert.deepEqual(evidence.surfaces[surfaceName].carrierPaths, []);
+  }
+  assert.deepEqual(evidence.surfaces.apiBackend.carrierPaths, ['api/index.js']);
+  assert.deepEqual(evidence.surfaces.backendFederation.carrierPaths, [
+    'backend-mf-manifest.json',
+    'backendRemoteEntry.cjs',
+  ]);
+});
+
+test('final-envelope verification rejects incomplete or inconsistent v5 surface pairs', async t => {
+  const { readAndVerifyEnvelope } = await loadProof();
+  for (const [failure, message] of [
+    [
+      'missing-ssr',
+      'envelope UI/client and SSR surfaces must be declared together.',
+    ],
+    [
+      'missing-ui',
+      'envelope UI/client and SSR surfaces must be declared together.',
+    ],
+    [
+      'missing-federation',
+      'envelope API/backend and backend federation surfaces must be declared together.',
+    ],
+    [
+      'empty-api',
+      'envelope API/backend and backend federation surfaces must be declared together.',
+    ],
+    ['empty-release', 'envelope must declare a UI or API/backend surface.'],
+  ]) {
+    const root = makeRoot(t, `operational-invalid-surfaces-${failure}`);
+    const fixture = createEnvelopeFixture(root);
+    if (failure === 'missing-ssr') fixture.envelope.surfaces.ssr = [];
+    if (failure === 'missing-ui') fixture.envelope.surfaces.uiClient = [];
+    if (failure === 'missing-federation')
+      delete fixture.envelope.surfaces.backendFederation;
+    if (failure === 'empty-api') fixture.envelope.surfaces.apiBackend = [];
+    if (failure === 'empty-release') {
+      fixture.envelope.surfaces = { uiClient: [], ssr: [], apiBackend: [] };
+      delete fixture.envelope.ui;
+    }
+    reseal(fixture.envelopePath, fixture.envelope);
+
+    assert.throws(
+      () => readAndVerifyEnvelope(root, 'node'),
+      { message },
+      failure,
+    );
+  }
+});
+
+test('final-envelope verification rejects carriers declared for absent executable surfaces', async t => {
+  const { readAndVerifyEnvelope } = await loadProof();
+  for (const surfaceName of ['apiBackend', 'backendFederation']) {
+    const root = makeRoot(t, `operational-undeclared-carrier-${surfaceName}`);
+    const fixture = createEnvelopeFixture(root, { apiEnabled: false });
+    const carrierPath = path.join(
+      root,
+      'release/microvertical-release-identity-carriers.json',
+    );
+    const carriers = JSON.parse(fs.readFileSync(carrierPath, 'utf8'));
+    carriers.carriers.find(
+      carrier => carrier.logicalPath === 'public/client.js',
+    ).surfaces = [surfaceName, 'uiClient'];
+    const bytes = Buffer.from(`${JSON.stringify(carriers, null, 2)}\n`);
+    fs.writeFileSync(carrierPath, bytes);
+    const artifact = fixture.envelope.artifacts.find(
+      item =>
+        item.logicalPath ===
+        'release/microvertical-release-identity-carriers.json',
+    );
+    artifact.byteLength = bytes.byteLength;
+    artifact.sha256 = digest(bytes);
+    reseal(fixture.envelopePath, fixture.envelope);
+
+    assert.throws(
+      () => readAndVerifyEnvelope(root, 'node'),
+      new RegExp(
+        `${surfaceName} carrier metadata does not exactly cover its executable release artifacts`,
+      ),
+    );
   }
 });
 
