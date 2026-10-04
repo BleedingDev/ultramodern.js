@@ -76,6 +76,103 @@ const applyChain = (
 };
 
 describe('withTsgoDefaults', () => {
+  test('uses the owning stable TypeScript 7.0.2 provider when the app has none', () => {
+    const appDirectory = createVerticalApp({ strict: true });
+    const config = applyChain(withTsgoDefaults(undefined, appDirectory));
+    const packageJsonPath = config.typescript?.typescriptPath;
+    expect(config.typescript?.tsgo).toBe(true);
+    expect(typeof packageJsonPath).toBe('string');
+    if (!packageJsonPath) throw new Error('The compiler provider is absent');
+    const provider = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
+    expect(provider.name).toBe('typescript');
+    expect(provider.version).toBe('7.0.2');
+  });
+
+  test('prefers the app canonical stable compiler package', () => {
+    const appDirectory = createVerticalApp({ strict: true });
+    const packageJsonPath = path.join(
+      appDirectory,
+      'node_modules/typescript/package.json',
+    );
+    mkdirSync(path.dirname(packageJsonPath), { recursive: true });
+    writeFileSync(
+      packageJsonPath,
+      JSON.stringify({ name: 'typescript', version: '7.0.2' }),
+    );
+
+    const config = applyChain(withTsgoDefaults(undefined, appDirectory));
+    expect(config.typescript?.typescriptPath).toBe(packageJsonPath);
+  });
+
+  test('does not use an app preview compiler instead of the stable owning provider', () => {
+    const appDirectory = createVerticalApp({ strict: true });
+    const previewPath = path.join(
+      appDirectory,
+      'node_modules/@typescript/native-preview/package.json',
+    );
+    mkdirSync(path.dirname(previewPath), { recursive: true });
+    writeFileSync(
+      previewPath,
+      JSON.stringify({
+        name: '@typescript/native-preview',
+        version: '7.0.0-dev.20260707.2',
+      }),
+    );
+
+    const config = applyChain(withTsgoDefaults(undefined, appDirectory));
+    const packageJsonPath = config.typescript?.typescriptPath;
+    expect(packageJsonPath).not.toBe(previewPath);
+    if (!packageJsonPath) throw new Error('The compiler provider is absent');
+    expect(JSON.parse(readFileSync(packageJsonPath, 'utf8'))).toMatchObject({
+      name: 'typescript',
+      version: '7.0.2',
+    });
+  });
+
+  test.each([
+    '5.9.3',
+    '6.0.2',
+    '7.0.0-dev.20260707.2',
+    '7.0.2-rc.1',
+    '7.1.0',
+    '8.0.0',
+  ])('rejects app compiler %s without replacing it with another provider', version => {
+    const appDirectory = createVerticalApp({ strict: true });
+    const packageJsonPath = path.join(
+      appDirectory,
+      'node_modules/typescript/package.json',
+    );
+    mkdirSync(path.dirname(packageJsonPath), { recursive: true });
+    writeFileSync(
+      packageJsonPath,
+      JSON.stringify({ name: 'typescript', version }),
+    );
+
+    expect(() => withTsgoDefaults(undefined, appDirectory)).toThrow(
+      `requires typescript@7.0.2; found typescript@${version}`,
+    );
+    expect(readFileSync(packageJsonPath, 'utf8')).toBe(
+      JSON.stringify({ name: 'typescript', version }),
+    );
+  });
+
+  test('rejects a different package posing as the canonical compiler', () => {
+    const appDirectory = createVerticalApp({ strict: true });
+    const packageJsonPath = path.join(
+      appDirectory,
+      'node_modules/typescript/package.json',
+    );
+    mkdirSync(path.dirname(packageJsonPath), { recursive: true });
+    writeFileSync(
+      packageJsonPath,
+      JSON.stringify({ name: '@typescript/native-preview', version: '7.0.2' }),
+    );
+
+    expect(() => withTsgoDefaults(undefined, appDirectory)).toThrow(
+      'requires typescript@7.0.2; found @typescript/native-preview@7.0.2',
+    );
+  });
+
   test('neutralises the removed `baseUrl` option for the type checker', () => {
     // TypeScript 7 removed `baseUrl` (TS5102). Every project whose tsconfig
     // still sets it must keep building, so the checker gets an override that
@@ -311,14 +408,14 @@ describe('withTsgoDefaults', () => {
     expect('references' in generated).toBe(false);
   });
 
-  test('opting out of tsgo hands the classic checker the untouched config', () => {
+  test('preserves explicit tsgo opt-out and the selected stable provider', () => {
     const config = applyChain(
       withTsgoDefaults({ typescript: { tsgo: false } }, process.cwd()),
     );
 
     expect(config.typescript?.tsgo).toBe(false);
-    // The classic TypeScript checker still understands `baseUrl`, so the
-    // override is only applied on the tsgo lane.
+    expect(config.typescript?.typescriptPath).toBeDefined();
+    // Native-only configuration overrides do not apply to the explicit opt-out.
     expect(config.typescript?.configOverwrite).toBeUndefined();
   });
 
