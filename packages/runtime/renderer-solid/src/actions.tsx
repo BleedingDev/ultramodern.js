@@ -261,9 +261,6 @@ export function createRouteAction(options: RouteActionOptions): RouteAction {
         ) {
           setError(new RouteActionError(routeId, publicResult));
         } else if (result.kind === 'redirect') {
-          router.resolveRedirect(
-            redirect({ href: result.location, statusCode: result.status }),
-          );
           // HTTP Location is relative to the mutation URL. Native resolution
           // retains protocol policy and chooses document versus route navigation.
           const resolved = router.resolveRedirect(
