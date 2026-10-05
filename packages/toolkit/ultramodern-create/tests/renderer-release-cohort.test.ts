@@ -2,9 +2,15 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import type { RendererRouterBindings } from '@modern-js/backend-federation-contracts';
 import { resolveCandidateRendererProfile } from '@modern-js/ultramodern-app-tools';
+import { createTopology } from '../src/ultramodern-workspace/contracts';
+import { shellApp } from '../src/ultramodern-workspace/descriptors';
+import { createUltramodernBuildArtifactJson } from '../src/ultramodern-workspace/module-federation';
 import { resolveRendererGenerationAdapter } from '../src/ultramodern-workspace/renderer-generations';
+import { reconcileWorkspaceRendererIdentities } from '../src/ultramodern-workspace/renderer-identity';
 import { getRendererGenerationProfile } from '../src/ultramodern-workspace/renderer-profile';
+import type { ApplicationRenderer } from '../src/ultramodern-workspace/types';
 import { assertAuthoredRendererDependencyPins } from '../src/ultramodern-workspace/validation/renderer';
 import { readRendererFrameworkPackageEvidence } from '../src/ultramodern-workspace/validation/renderer-framework-evidence';
 
@@ -24,6 +30,73 @@ rstest.mock('../src/ultramodern-workspace/fs-io', () => {
 
 const releaseVersion = '3.9.0-ultramodern.2026100301';
 let tempRoot: string;
+
+function candidateRouterBindings(
+  renderer: ApplicationRenderer,
+): RendererRouterBindings {
+  const generation = getRendererGenerationProfile(renderer);
+  const provider = {
+    ...resolveCandidateRendererProfile(renderer).router,
+    framework: generation.routerFrameworks[0]!,
+  };
+  return {
+    main: {
+      owner:
+        renderer === 'react'
+          ? '@modern-js/plugin-router'
+          : `@modern-js/renderer-${renderer}-infrastructure`,
+      evidence: 'owned-default',
+      defaultProvider: provider,
+      providers: [provider],
+    },
+  };
+}
+
+async function reconcileCapturedRouterBindings(
+  renderer: ApplicationRenderer,
+  routerBindings: RendererRouterBindings,
+) {
+  const workspaceRoot = path.join(tempRoot, 'consumer');
+  const app = { ...shellApp, renderer };
+  const appRoot = path.join(workspaceRoot, app.directory);
+  fs.mkdirSync(appRoot, { recursive: true });
+  const dependencies: Record<string, string> = {};
+  if (renderer === 'solid' || renderer === 'octane') {
+    const name = `@modern-js/renderer-${renderer}`;
+    const evidence = readRendererFrameworkPackageEvidence(name);
+    dependencies[name] =
+      evidence.kind === 'source-checkout'
+        ? 'workspace:*'
+        : `npm:${evidence.targetName}@${evidence.version}`;
+  }
+  fs.writeFileSync(
+    path.join(appRoot, 'package.json'),
+    JSON.stringify({
+      name: `@fixture/${renderer}`,
+      version: '1.0.0',
+      dependencies,
+    }),
+  );
+  const [resolved] = await reconcileWorkspaceRendererIdentities(
+    workspaceRoot,
+    'fixture',
+    [app],
+    {
+      evaluations: new Map([
+        [
+          app.id,
+          {
+            renderer,
+            entries: [{ entryName: 'main', isMainEntry: true }],
+            primaryEntryName: 'main',
+            routerBindings,
+          },
+        ],
+      ]),
+    },
+  );
+  return resolved!;
+}
 
 beforeEach(() => {
   tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-renderer-cohort-'));
@@ -118,6 +191,113 @@ test('native release profiles use authenticated framework versions before genera
   }
 });
 
+test('native router providers project the authenticated release into topology and build metadata', async () => {
+  const bindings = candidateRouterBindings('solid');
+  const captured = structuredClone(bindings);
+  assert.equal(bindings.main.defaultProvider.version, '3.8.3');
+  const resolved = await reconcileCapturedRouterBindings('solid', bindings);
+  const expected = structuredClone(bindings);
+  Reflect.set(expected.main.defaultProvider, 'version', releaseVersion);
+  Reflect.set(expected.main.providers[0], 'version', releaseVersion);
+  assert.deepEqual(resolved.routerBindings, expected);
+  assert.equal(resolved.rendererProfile!.router.version, releaseVersion);
+  assert.deepEqual(bindings, captured);
+  assert.equal(Object.isFrozen(resolved.routerBindings), true);
+  assert.equal(Object.isFrozen(resolved.routerBindings!.main.providers), true);
+
+  const topology = JSON.parse(
+    JSON.stringify(createTopology('fixture', [], resolved)),
+  );
+  const artifact = JSON.parse(
+    createUltramodernBuildArtifactJson('fixture', resolved),
+  );
+  assert.deepEqual(topology.shell.routerBindings, expected);
+  assert.deepEqual(artifact.surfaces.ui.routerBindings, expected);
+  assert.equal(
+    artifact.surfaces.ui.rendererProfile.router.version,
+    releaseVersion,
+  );
+  const reloaded = await reconcileCapturedRouterBindings('solid', expected);
+  assert.deepEqual(reloaded, resolved);
+});
+
+test('router reconciliation preserves external packages and foreign owners', async () => {
+  for (const renderer of ['react', 'octane'] as const) {
+    const bindings = candidateRouterBindings(renderer);
+    const resolved = await reconcileCapturedRouterBindings(renderer, bindings);
+    assert.deepEqual(resolved.routerBindings, bindings);
+    assert.equal(
+      resolved.routerBindings!.main.defaultProvider.version,
+      resolveCandidateRendererProfile(renderer).router.version,
+    );
+  }
+  const native = candidateRouterBindings('solid');
+  const foreignOwner: RendererRouterBindings = {
+    main: { ...native.main, owner: '@vendor/router-owner' },
+  };
+  const provider = {
+    ...native.main.defaultProvider,
+    name: '@vendor/router',
+    version: '1.2.3',
+    coreName: '@vendor/router-core',
+    coreVersion: '1.2.4',
+  };
+  const foreignPackage: RendererRouterBindings = {
+    main: {
+      ...native.main,
+      defaultProvider: provider,
+      providers: [provider],
+    },
+  };
+  for (const bindings of [foreignOwner, foreignPackage]) {
+    const resolved = await reconcileCapturedRouterBindings('solid', bindings);
+    assert.deepEqual(resolved.routerBindings, bindings);
+  }
+});
+
+test('router release binding retains captured version, schema, owner and entry rejections', async () => {
+  const bindings = candidateRouterBindings('solid');
+  for (const version of ['^3.8.3', 'workspace:*', '', '9.9.9']) {
+    const invalid = structuredClone(bindings);
+    Reflect.set(invalid.main.defaultProvider, 'version', version);
+    Reflect.set(invalid.main.providers[0], 'version', version);
+    await assert.rejects(
+      reconcileCapturedRouterBindings('solid', invalid),
+      /invalid router bindings|captured provider version/u,
+    );
+  }
+  const unexpectedField = structuredClone(bindings);
+  Reflect.set(unexpectedField.main.defaultProvider, 'unexpected', true);
+  const missingField = structuredClone(bindings);
+  Reflect.deleteProperty(missingField.main.defaultProvider, 'coreVersion');
+  const invalidOwner = structuredClone(bindings);
+  Reflect.set(invalidOwner.main, 'owner', ' ');
+  const invalidFramework = structuredClone(bindings);
+  Reflect.set(invalidFramework.main.defaultProvider, 'framework', 'octane');
+  const mismatchedDefault: RendererRouterBindings = {
+    main: {
+      ...bindings.main,
+      defaultProvider: {
+        ...bindings.main.defaultProvider,
+        version: releaseVersion,
+      },
+    },
+  };
+  for (const invalid of [
+    unexpectedField,
+    missingField,
+    invalidOwner,
+    invalidFramework,
+    mismatchedDefault,
+    {},
+  ]) {
+    await assert.rejects(
+      reconcileCapturedRouterBindings('solid', invalid),
+      /invalid router bindings from the owning entry resolver/u,
+    );
+  }
+});
+
 test('release profile selection retains authored version and alias rejections', () => {
   const generation = getRendererGenerationProfile('solid');
   const name = generation.profile.router.name;
@@ -188,7 +368,7 @@ test('native release profiles reject evidence from a different create producer',
   );
 });
 
-test('native source profiles retain source pins and reject source version drift', () => {
+test('native source profiles retain source pins and reject source version drift', async () => {
   fs.rmSync(path.join(producer.root, 'release-cohort.json'));
   fs.mkdirSync(path.join(producer.root, 'src'));
   fs.writeFileSync(
@@ -229,6 +409,9 @@ test('native source profiles retain source pins and reject source version drift'
   assert.doesNotThrow(() =>
     assertAuthoredRendererDependencyPins(manifest, generation),
   );
+  const bindings = candidateRouterBindings('solid');
+  const resolved = await reconcileCapturedRouterBindings('solid', bindings);
+  assert.deepEqual(resolved.routerBindings, bindings);
   fs.writeFileSync(
     path.join(producer.root, 'package.json'),
     JSON.stringify({ ...producerManifest, version: '0.0.0' }),
