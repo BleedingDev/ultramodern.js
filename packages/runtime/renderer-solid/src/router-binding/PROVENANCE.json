@@ -15,14 +15,8 @@
       "upstreamPackage": "@tanstack/solid-router",
       "upstreamVersion": "1.170.36",
       "routerCoreVersion": "1.171.32",
-      "files": [
-        "Scripts.tsx",
-        "link.tsx",
-        "ssr/renderOptions.ts",
-        "ssr/renderRouterToStream.tsx",
-        "ssr/renderRouterToString.tsx"
-      ],
-      "adaptation": "Native body-script composition, positional search equality, server-entry adapter serialization, HTML transforms and stream lifecycle are ported from the matching router-core release. The owned binding retains Solid 2 RC.13 JSX, NoHydration, keyed public match transfer and its module-keyed client-assets resolver."
+      "files": ["Scripts.tsx", "link.tsx"],
+      "adaptation": "Native body-script composition and positional search equality are ported from the matching router-core release. The owned binding retains Solid 2 RC.13 JSX, NoHydration, keyed public match transfer and its module-keyed client-assets resolver."
     }
   ],
   "upstreamFileSha256": {
@@ -57,16 +51,6 @@
     "routerContext.tsx": "42f4c1179d5983224df798d2ca395b6246765cb6ec77eda2b627c8c464b5aa78",
     "routerStores.ts": "46fb1e5d24e3d06ad798ad63b7e1ed9ec5e1f1f42e5ac1f60a9502db72da5f2f",
     "scroll-restoration.tsx": "f029fc78c834c7271827da586b21a719d4ceebecf77f11eda75454c79608e879",
-    "ssr/RouterClient.tsx": "40410386752900f5493b2e32e5044cd24104745c78303f3db4d3c4d477052f39",
-    "ssr/RouterServer.tsx": "4ad94e8c5721fad6ace4f4c0be536464fe385a7f3778250097a1add64bca493c",
-    "ssr/client.ts": "fb35eeebfe4e6a5afb76453fb307ad92d3d6b5258495c14e663327884d74cfab",
-    "ssr/clientAssetsManifest.ts": "2f5788e13474a27076abc39619b8cb36fbe512232e74f1a288daab6ca01662c0",
-    "ssr/defaultRenderHandler.tsx": "3af628d4d86da6477e1518859877c1e0d046658d4f9eced61291d78214434d89",
-    "ssr/defaultStreamHandler.tsx": "41b3d7d79a46ef8ce67e7dc053347afad836230211c3ae2bbd045e6ce3260859",
-    "ssr/loadFlightTarget.ts": "609b3a31b67059f64a62f713825bff12687621299e2387cfe2eaea5e5501992f",
-    "ssr/renderRouterToStream.tsx": "9d99c992f50c4555f607b1f6aa741a4e7fee61ad2537a589d4a6ed87360cea40",
-    "ssr/renderRouterToString.tsx": "0ccdc727ea1a2c1870e4a3783032d6e127d567f1a0b7b9a9149c54caba9f8624",
-    "ssr/server.ts": "bb02f0e7ac9bea10d51d76a6fe37fbe4b810a9b80905d1f7f49981ffa1cfc5a3",
     "typePrimitives.ts": "78d4527fe249ac871bd1696fd71f856a79cf93ccb85cedd57cf44630622d69fb",
     "useBlocker.tsx": "ad5f4865501d628b430d15ea48dc5fabda0235b13075c688a364254183af5c95",
     "useCanGoBack.ts": "d70495b51c4915f33158929b79352044f647d126fc5f44de08f04e219899b95b",
@@ -94,6 +78,7 @@
     "Managed route-tree owners apply the same public projection before native client hydration commits. The owning native store publisher validates the complete offered chain, rewrites composed-context fields to checked public references and freezes the same native context root before publication. Registry claiming consumes the complete matched chain and owns pending rejections before choosing atomic fallback.",
     "Inside UltraModern request-owned SSR, the native provider and match serializer reject unregistered custom native routers before rendering or transfer; managed filesystem/application factories own the immutable public boundary and route-tree owner registration remains internal. Bare native rendering without an UltraModern request remains an ABI probe and does not claim framework privacy qualification.",
     "Match errors use a descriptor-safe public diagnostic projection; exact DataProtocolError diagnostics remain actionable, and the exact fork-owned RouteDataError class has a fixed checked snapshot and native registry restoration.",
+    "The upstream ssr/ server-entry adapters are omitted; @modern-js/renderer-solid/server owns document rendering and the router transfer.",
     "Source formatting follows the owning repository's Biome configuration."
   ],
   "nativeProtocolLimitations": [
