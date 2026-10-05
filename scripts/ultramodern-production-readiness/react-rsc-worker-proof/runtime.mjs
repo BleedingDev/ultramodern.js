@@ -237,6 +237,62 @@ export async function startBridge(runtime, workerName) {
   };
 }
 
+// Qualify this fixture's serialized SSR markup without decoding Flight.
+export function assertNativeSsrHtml(html) {
+  let markup = html.replace(
+    /<(script|style|textarea|title)\b(?:[^"'<>]|"[^"]*"|'[^']*')*>[\s\S]*?<\/\1\s*>/giu,
+    '',
+  );
+  assert(
+    !/<(?:script|style|textarea|title)\b/iu.test(markup),
+    'Real workerd HTML has an unclosed inert element',
+  );
+  markup = markup.replace(/<!--[\s\S]*?-->/gu, comment =>
+    comment === '<!--$!-->' ? comment : '',
+  );
+  let templateDepth = 0;
+  let start = 0;
+  let outsideTemplates = '';
+  for (const match of markup.matchAll(
+    /<\/?template\b(?:[^"'<>]|"[^"]*"|'[^']*')*>/giu,
+  )) {
+    if (match[0].startsWith('</')) {
+      assert(templateDepth > 0, 'Real workerd HTML has an unmatched template');
+      templateDepth -= 1;
+      if (templateDepth === 0) start = match.index + match[0].length;
+    } else {
+      if (templateDepth === 0)
+        outsideTemplates += markup.slice(start, match.index);
+      templateDepth += 1;
+    }
+  }
+  assert.equal(templateDepth, 0, 'Real workerd HTML has an unclosed template');
+  markup = outsideTemplates + markup.slice(start);
+  const body = /<body\b[^>]*>([\s\S]*?)<\/body\s*>/iu.exec(markup)?.[1];
+  assert(body, 'Real workerd HTML lacks an actual body');
+  assert(
+    !body.includes('<!--$!-->'),
+    'Real workerd HTML contains an SSR error boundary',
+  );
+  assert(
+    /<div\b[^>]*\sid=["']root["'][^>]*>[\s\S]*<\/div\s*>/u.test(body),
+    'Real workerd HTML lacks the native root element',
+  );
+  for (const [tag, id, text] of [
+    ['p', 'server-composite-output', 'server-rendered composite output'],
+    ['span', 'client-slot', 'client slot:slot-label-from-server'],
+    ['span', 'client-children', 'client child slot'],
+  ]) {
+    assert(
+      new RegExp(
+        `<${tag}\\b[^>]*\\sid=["']${id}["'][^>]*>\\s*${text}\\s*</${tag}\\s*>`,
+        'u',
+      ).test(body),
+      `Real workerd HTML lacks native SSR markup for ${id}`,
+    );
+  }
+}
+
 export async function browserProof(browser, url) {
   const page = await browser.newPage();
   const errors = [];

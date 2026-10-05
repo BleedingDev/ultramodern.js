@@ -30,6 +30,7 @@ import {
   workerOptions,
 } from './contract.mjs';
 import {
+  assertNativeSsrHtml,
   browserProof,
   inspectOwnedProcessGroup,
   nativeFailureProof,
@@ -570,10 +571,7 @@ export async function runProof(options) {
     });
     assert.equal(ssr.status, 200);
     const ssrBytes = Buffer.from(await ssr.arrayBuffer());
-    assert(
-      ssrBytes.toString().includes('server-rendered composite output'),
-      'Real workerd HTML lacks native server composite output',
-    );
+    assertNativeSsrHtml(ssrBytes.toString());
     const identities = [
       ...ssrBytes
         .toString()
