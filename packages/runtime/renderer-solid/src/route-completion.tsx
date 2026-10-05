@@ -27,7 +27,6 @@ export interface RouteCompletionScope {
   readonly privateRoots: readonly object[];
   attach(router: AnyRouter): void;
   begin(signal: AbortSignal, cancel: () => void): PublicDataGeneration;
-  observe(value: unknown, completion: Promise<void>, cancel: () => void): void;
   component(component: RouteComponent): RouteComponent;
   dispose(): void;
 }
@@ -194,9 +193,6 @@ export function createRouteCompletionScope(
       router = native;
     },
     begin,
-    observe(value, completion, cancel) {
-      begin(new AbortController().signal, cancel).publish(value, completion);
-    },
     component(component) {
       return function RouteCompletionView(): JSX.Element {
         // Select the registry record before native structural sharing can reuse
