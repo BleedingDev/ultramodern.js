@@ -73,7 +73,6 @@ export default defineConfig({
             './src/**/*.{ts,tsx}',
             '!./src/server.ts',
             '!./src/native-promise-serialization.ts',
-            '!./src/router-binding/ssr/**',
           ],
         },
       },
