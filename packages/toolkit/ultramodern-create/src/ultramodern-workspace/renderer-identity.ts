@@ -5,13 +5,16 @@ import {
   assertRendererProfileCompatibility,
   DELIVERY_UNIT_IDENTITY_FIELDS,
   immutableRendererRouterBindings,
+  type RendererRouterBinding,
   type RendererRouterBindings,
+  type RouterPackageBinding,
   type UltramodernBuildArtifact,
   validateRendererIdentity,
   validateRendererProfile,
   validateRendererRouterBindings,
   validateUltramodernBuildArtifact,
 } from '@modern-js/backend-federation-contracts';
+import { resolveCandidateRendererProfile } from '@modern-js/ultramodern-app-tools';
 import { yaml } from '@modern-js/utils';
 import { createBuildMarker, createDeliveryUnitRecord } from './delivery-unit';
 import { appEmitsBrowserUi } from './descriptors';
@@ -22,6 +25,7 @@ import {
 } from './renderer-profile';
 import type {
   ApplicationRenderer,
+  RendererGenerationProfile,
   WorkspaceApp,
   WorkspaceRendererIdentity,
   WorkspaceRendererProfile,
@@ -30,6 +34,7 @@ import {
   assertAuthoredRendererDependencyPins,
   assertRendererDependencies,
 } from './validation/renderer';
+import { readRendererFrameworkPackageEvidence } from './validation/renderer-framework-evidence';
 
 export type WorkspaceRendererEvaluation = {
   renderer: ApplicationRenderer;
@@ -37,6 +42,67 @@ export type WorkspaceRendererEvaluation = {
   primaryEntryName: string;
   routerBindings: RendererRouterBindings;
 };
+
+function bindRouterProviderReleaseVersions(
+  bindings: RendererRouterBindings,
+  generation: RendererGenerationProfile,
+): RendererRouterBindings {
+  const selected = generation.profile.router;
+  if (!/^@modern-js\/renderer-(solid|octane)$/u.test(selected.name))
+    return immutableRendererRouterBindings(bindings);
+  const evidence = readRendererFrameworkPackageEvidence(selected.name);
+  if (evidence.kind !== 'release-cohort')
+    return immutableRendererRouterBindings(bindings);
+  if (selected.version !== evidence.version) {
+    throw new Error(
+      `Router ${selected.name} profile disagrees with its authenticated producer version.`,
+    );
+  }
+  const candidate = resolveCandidateRendererProfile(generation.renderer);
+  if (candidate.router.name !== selected.name) {
+    throw new Error(
+      `Router ${selected.name} profile disagrees with its owning source package.`,
+    );
+  }
+  const bindProvider = (
+    provider: RouterPackageBinding,
+  ): RouterPackageBinding => {
+    if (provider.name !== selected.name) return provider;
+    if (
+      provider.version !== candidate.router.version &&
+      provider.version !== evidence.version
+    ) {
+      throw new Error(
+        `Router ${selected.name} captured provider version ${provider.version} disagrees with its source profile and authenticated producer version.`,
+      );
+    }
+    return { ...provider, version: evidence.version };
+  };
+  const resolved: Record<string, RendererRouterBinding> = {};
+  for (const [entryName, binding] of Object.entries(bindings)) {
+    // Only these authenticated native infrastructure owners author the source
+    // profile tuple. Foreign router owners retain their captured identities.
+    if (binding.owner !== `${selected.name}-infrastructure`) {
+      resolved[entryName] = binding;
+      continue;
+    }
+    const defaultProvider = bindProvider(binding.defaultProvider);
+    if (binding.evidence === 'provider-registry') {
+      resolved[entryName] = {
+        ...binding,
+        defaultProvider,
+        providers: binding.providers.map(bindProvider),
+      };
+    } else {
+      resolved[entryName] = {
+        ...binding,
+        defaultProvider,
+        providers: [bindProvider(binding.providers[0])],
+      };
+    }
+  }
+  return immutableRendererRouterBindings(resolved);
+}
 
 /** Local metadata is a projection; selection is resolved only from app config. */
 export async function reconcileWorkspaceRendererIdentities(
@@ -137,15 +203,29 @@ export async function reconcileWorkspaceRendererIdentities(
           `Application ${app.id} has invalid router bindings from the owning entry resolver.`,
         );
       }
+      const routerBindings = bindRouterProviderReleaseVersions(
+        evaluation.routerBindings,
+        generation,
+      );
+      if (
+        !validateRendererRouterBindings(
+          routerBindings,
+          entryNames,
+          'routerBindings',
+          generation.routerFrameworks,
+        ).ok
+      ) {
+        throw new Error(
+          `Application ${app.id} has invalid router bindings for its authenticated producer.`,
+        );
+      }
       resolved = {
         ...membership,
         renderer: evaluation.renderer,
         rendererProfile: generation.profile,
         rendererGenerationProfile: generation,
         rendererCapabilities: { ...generation.capabilities },
-        routerBindings: immutableRendererRouterBindings(
-          evaluation.routerBindings,
-        ),
+        routerBindings,
         rendererIdentity: {
           renderer: evaluation.renderer,
           appId: app.id,
