@@ -639,6 +639,7 @@ export async function runProof(options) {
   } catch (error) {
     failure = error;
     receipt.failure = { name: error.name, message: error.message };
+    if (error.browserEvidence) receipt.browserFailure = error.browserEvidence;
     if (commandCleanupErrors.length)
       receipt.failure.cleanupErrors = commandCleanupErrors;
   } finally {

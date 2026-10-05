@@ -251,6 +251,12 @@ export const tanstackRouterPlugin = (
                 omitClientLoaderData: isRSCNavigation,
               }),
             );
+            if (isRSCNavigation) {
+              context.ssrContext!.response.setHeader(
+                'Content-Type',
+                'text/x-component',
+              );
+            }
           }
 
           const initialScriptTags =

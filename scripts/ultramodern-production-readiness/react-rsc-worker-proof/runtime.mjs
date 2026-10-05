@@ -242,18 +242,22 @@ export async function browserProof(browser, url) {
   const errors = [];
   const requests = [];
   const responses = [];
+  const requestIndices = new WeakMap();
+  let flightTarget;
+  let beforeNavigation;
   page.on('pageerror', error => errors.push(error.message));
   page.on('console', message => {
     if (message.type() === 'error') errors.push(message.text());
   });
-  page.on('request', request =>
+  page.on('request', request => {
+    requestIndices.set(request, requests.length);
     requests.push({
       url: request.url(),
       method: request.method(),
       navigation: request.isNavigationRequest(),
       headers: request.headers(),
-    }),
-  );
+    });
+  });
   page.on('response', response =>
     responses.push({
       url: response.url(),
@@ -261,12 +265,21 @@ export async function browserProof(browser, url) {
       headers: response.headers(),
       method: response.request().method(),
       requestHeaders: response.request().headers(),
+      requestIndex: requestIndices.get(response.request()),
     }),
   );
   try {
     await page.goto(`${url}/`, { waitUntil: 'networkidle0', timeout: 60_000 });
     await page.waitForSelector('#plain-page');
-    const beforeNavigation = requests.length;
+    flightTarget = new URL(
+      await page.$eval(
+        '[data-testid="link-composite"]',
+        element => element.href,
+      ),
+    );
+    assert.equal(flightTarget.origin, new URL(url).origin);
+    flightTarget.hash = '';
+    beforeNavigation = requests.length;
     await page.click('[data-testid="link-composite"]');
     await page.waitForSelector('#server-composite-output');
     await page.waitForSelector('#client-slot');
@@ -292,17 +305,38 @@ export async function browserProof(browser, url) {
       !navigationRequests.some(request => request.navigation),
       'Native Link navigation performed a document reload',
     );
-    assert(
-      navigationRequests.some(request => request.headers['x-rsc-tree']),
-      'Native Link navigation did not request Flight',
+    // Native viewport preloading may deliver Flight before the click.
+    const flightRequestIndices = requests.flatMap((request, index) =>
+      request.url === flightTarget.href &&
+      request.method === 'GET' &&
+      request.headers['x-rsc-tree'] === 'true' &&
+      !request.navigation
+        ? [index]
+        : [],
     );
-    const treeResponses = responses.filter(
-      response => response.requestHeaders['x-rsc-tree'],
+    assert(
+      flightRequestIndices.length > 0,
+      'Native Link target did not request Flight',
+    );
+    const flightResponseIndices = responses.flatMap((response, index) =>
+      flightRequestIndices.includes(response.requestIndex) ? [index] : [],
     );
     assert(
-      treeResponses.length > 0 &&
-        treeResponses.every(response => response.status === 200),
-      'Native Flight requests did not all succeed',
+      flightRequestIndices.every(requestIndex =>
+        flightResponseIndices.some(
+          index => responses[index].requestIndex === requestIndex,
+        ),
+      ) &&
+        flightResponseIndices.every(index => {
+          const response = responses[index];
+          return (
+            response.url === flightTarget.href &&
+            response.method === 'GET' &&
+            response.requestHeaders['x-rsc-tree'] === 'true' &&
+            response.status === 200
+          );
+        }),
+      'Native Link target Flight requests did not all succeed',
     );
     for (const expected of ['3', '6']) {
       await page.waitForFunction(
@@ -339,10 +373,29 @@ export async function browserProof(browser, url) {
       clientSlots: 2,
       actionValues: [3, 6],
       actionId: actionResponses[0].requestHeaders['x-rsc-action'],
+      flight: {
+        url: flightTarget.href,
+        preload: flightRequestIndices.some(index => index < beforeNavigation),
+        click: flightRequestIndices.some(index => index >= beforeNavigation),
+        requestIndices: flightRequestIndices,
+        responseIndices: flightResponseIndices,
+      },
+      navigationRequests: requests.slice(beforeNavigation),
       requests,
       responses,
       errors,
     };
+  } catch (error) {
+    error.browserEvidence = {
+      requests,
+      responses,
+      errors,
+      ...(flightTarget ? { flightTarget: flightTarget.href } : {}),
+      ...(beforeNavigation === undefined
+        ? {}
+        : { navigationRequests: requests.slice(beforeNavigation) }),
+    };
+    throw error;
   } finally {
     await page.close();
   }

@@ -29,7 +29,6 @@ export default {
         'tests/router/loaderBridge.test.ts',
         'tests/router/localisedIdentity.test.tsx',
         'tests/router/routeHooks.test.ts',
-        'tests/router/serverPlugin.test.ts',
         'tests/router/rsc.test.tsx',
         'tests/router/slotUsageSanitizer.test.ts',
         'tests/router/ssrPreload.test.ts',
@@ -37,6 +36,15 @@ export default {
         'tests/router/routeTree.test.ts',
       ],
       extends: commonConfig,
+    }),
+    withTestPreset({
+      name: 'plugin-tanstack-server-preparation',
+      testEnvironment: 'node',
+      include: ['tests/router/serverPlugin.test.ts'],
+      extends: commonConfig,
+      output: {
+        bundleDependencies: ['react-server-dom-rspack/server.node'],
+      },
     }),
     withTestPreset({
       name: 'plugin-tanstack-client',
