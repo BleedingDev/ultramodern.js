@@ -756,6 +756,11 @@ export default nativeRequestHandler;
             throw new Error(
               'Native build identity requires actual compiler stats',
             );
+          // Rsbuild runs this hook before it rejects a failed build. Native
+          // compilers skip their manifests once a compilation has errors, so
+          // the compiler diagnostics are the build failure; reading the absent
+          // artifacts here would replace them with an unrelated ENOENT.
+          if (stats.hasErrors()) return;
           const results = 'stats' in stats ? stats.stats : [stats];
           const server = results.find(
             result => result.compilation.name === 'server',
