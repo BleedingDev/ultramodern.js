@@ -6,7 +6,7 @@ import path from 'node:path';
 const maintenanceLockReason = 'another maintenance operation holds the lock';
 const markerName = '.disk-guardian-owner';
 
-function maintenanceLockFailure(error) {
+export function maintenanceLockFailure(error) {
   if (error.status !== 1 || error.signal || error.stderr?.toString().trim())
     return false;
   if (typeof error.stdout !== 'string' && !Buffer.isBuffer(error.stdout))
@@ -161,6 +161,13 @@ function enclosingLease(options, ownedTempDir, ownerSnapshotImpl) {
     'Owned temporary lease directory changed',
   );
   return { root: parent, ownerPid: leaseOwnerPid };
+}
+
+export function validateOwnedTempLease(options, ownedTempDir) {
+  assert(Number.isSafeInteger(options.ownerPid) && options.ownerPid > 0);
+  assert(path.isAbsolute(options.workDir));
+  assert.equal(path.resolve(options.workDir), options.workDir);
+  return enclosingLease(options, ownedTempDir, ownerSnapshot);
 }
 
 export function registerOwnedRoot(
