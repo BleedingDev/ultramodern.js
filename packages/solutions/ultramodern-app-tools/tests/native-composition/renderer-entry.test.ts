@@ -296,5 +296,7 @@ describe('native owning entry generation', () => {
     // A raw request pathname keeps the basepath the native router rewrites away.
     expect(server).toContain('router.matchRoutes(router.latestLocation)');
     expect(server).not.toContain('new URL(request.url).pathname');
+    // The document nonce reaches the per-request router's emitted scripts.
+    expect(server).toContain('context.session, context.nonce)');
   });
 });
