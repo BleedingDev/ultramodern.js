@@ -1054,6 +1054,16 @@ export const nativeCSRRequestHandler = nativeRequestHandler;
         ).rejects.toThrow();
       }
       expect(compilerArtifacts.validateClientManifest).toHaveBeenCalledTimes(3);
+      // A failed compilation (e.g. a type-checker error) emits no native
+      // manifest. Its diagnostics must stay the build failure instead of being
+      // replaced by an ENOENT for the manifest the compiler deliberately skipped.
+      fs.rmSync(artifactFile);
+      fs.rmSync(path.join(distDirectory, 'renderer-assets.json'));
+      const failed = Object.assign(Object.create(stats), {
+        hasErrors: () => true,
+      }) as Rspack.MultiStats;
+      await api.getHooks().onAfterBuild.call({ stats: failed });
+      expect(compilerArtifacts.validateClientManifest).toHaveBeenCalledTimes(3);
     } finally {
       try {
         if (compiler)
