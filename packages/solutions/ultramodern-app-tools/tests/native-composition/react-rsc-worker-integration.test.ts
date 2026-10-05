@@ -348,6 +348,25 @@ it('compiles and runs Flight and HTML SSR with their own React exports in one wo
     fs.mkdirSync(sourceDirectory);
     const clientEntry = path.join(sourceDirectory, 'client.js');
     const workerEntry = path.join(sourceDirectory, 'index.server.js');
+    const clientComponent = path.join(sourceDirectory, 'ClientMarker.js');
+    const loaderClientEntry = path.join(sourceDirectory, 'loaders.client.js');
+    const loaderWorkerEntry = path.join(
+      sourceDirectory,
+      'server-loader-combined.js',
+    );
+    fs.writeFileSync(
+      clientComponent,
+      `
+      'use client';
+      import { jsx } from 'react/jsx-runtime';
+      export function ClientMarker() { return jsx('span', { children: 'client marker' }); }
+    `,
+    );
+    fs.writeFileSync(loaderClientEntry, 'export const loaderOnly = true;\n');
+    fs.writeFileSync(
+      loaderWorkerEntry,
+      'export function manifest() { return __rspack_rsc_manifest__; }\n',
+    );
     fs.writeFileSync(
       clientEntry,
       `
@@ -361,7 +380,8 @@ it('compiles and runs Flight and HTML SSR with their own React exports in one wo
       appComponent,
       `
       import { jsx } from 'react/jsx-runtime';
-      export default function App() { return jsx('p', { children: 'Flight server React' }); }
+      import { ClientMarker } from './ClientMarker.js';
+      export default function App() { return jsx('p', { children: ['Flight server React', jsx(ClientMarker, {})] }); }
     `,
     );
     // Use the owning native proxy producer and its proxy → component boundary.
@@ -383,6 +403,7 @@ it('compiles and runs Flight and HTML SSR with their own React exports in one wo
       function HtmlRoot() { const [value] = useState('HTML SSR default React'); return createElement('p', null, value); }
       export async function html() { return new Response(await renderToReadableStream(createElement(HtmlRoot))); }
       export function flight() { return new Response(renderRsc({ element: createElement(Root) })); }
+      export function manifest() { return __rspack_rsc_manifest__; }
     `,
     );
     const options = resolveReactWorkerRscOptions(true);
@@ -423,14 +444,25 @@ it('compiles and runs Flight and HTML SSR with their own React exports in one wo
           },
           environments: {
             client: {
-              source: { entry: { main: clientEntry } },
+              source: {
+                entry: {
+                  main: clientEntry,
+                  'index-server-loaders': loaderClientEntry,
+                },
+              },
               output: {
                 target: 'web',
+                filename: { js: '[name].js' },
                 distPath: { root: path.join(appDirectory, 'dist/client') },
               },
             },
             [SERVICE_WORKER_ENVIRONMENT_NAME]: {
-              source: { entry: { main: workerEntry } },
+              source: {
+                entry: {
+                  main: workerEntry,
+                  'index-server-loaders': loaderWorkerEntry,
+                },
+              },
               output: {
                 target: 'web',
                 module: true,
@@ -465,11 +497,13 @@ it('compiles and runs Flight and HTML SSR with their own React exports in one wo
         `
       import { pathToFileURL } from 'node:url';
       const worker = await import(pathToFileURL(process.argv[1]).href);
+      const loaders = await import(pathToFileURL(process.argv[2]).href);
       const html = await worker.html();
       const flight = await worker.flight();
-      console.log(JSON.stringify({ htmlStatus: html.status, html: await html.text(), flightStatus: flight.status, flight: await flight.text() }));
+      console.log(JSON.stringify({ htmlStatus: html.status, html: await html.text(), flightStatus: flight.status, flight: await flight.text(), mainManifest: worker.manifest(), loaderManifest: loaders.manifest() }));
     `,
         path.join(workerOutput, 'main.mjs'),
+        path.join(workerOutput, 'index-server-loaders.mjs'),
       ],
       { encoding: 'utf8' },
     );
@@ -479,6 +513,20 @@ it('compiles and runs Flight and HTML SSR with their own React exports in one wo
     expect(responses.flightStatus).toBe(200);
     expect(responses.flight).toContain('Flight server React');
     expect(responses.flight).not.toMatch(/\d+:E\{/u);
+    expect(responses.flight).toMatch(/\d+:I\[/u);
+    expect(responses.flight).toContain('ClientMarker');
+    // The native serializer accepts either an export ID or its module ID.
+    expect(
+      responses.mainManifest.clientManifest[
+        `${clientComponent}#ClientMarker`
+      ] ?? responses.mainManifest.clientManifest[clientComponent],
+    ).toMatchObject({ id: expect.any(String), chunks: expect.any(Array) });
+    expect(responses.mainManifest.serverConsumerModuleMap).not.toEqual({});
+    expect(responses.loaderManifest.clientManifest).toEqual({});
+    expect(responses.loaderManifest.serverConsumerModuleMap).toEqual({});
+    expect(responses.mainManifest.entryJsFiles).not.toEqual(
+      responses.loaderManifest.entryJsFiles,
+    );
     const modules = (stat: Rspack.Stats) => {
       const visited = new Set<Rspack.Module>();
       const pending = [...stat.compilation.modules];
