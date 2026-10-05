@@ -106,7 +106,7 @@ export async function nativeMatchRouteIds(request: Request, context: NativeReque
   if (request !== context.session.request) throw new Error('Native request/session ownership mismatch');
   const { createNativeRouter } = await import('./application.server');
   const router = createNativeRouter(rendererIdentity, request, context.session.platform.bindings, undefined, context.session);
-  return router.matchRoutes(new URL(request.url).pathname).map(match => {
+  return router.matchRoutes(router.latestLocation).map(match => {
     const data = router.routesById[match.routeId]?.options.staticData;
     return data && 'ultramodernRouteId' in data && typeof data.ultramodernRouteId === 'string' ? data.ultramodernRouteId : undefined;
   }).filter((id): id is string => typeof id === 'string');

@@ -287,4 +287,14 @@ describe('native owning entry generation', () => {
       expect(server).toContain('}, context.nonce);');
     }
   });
+
+  it('matches Solid SSR route ids from the basepath-rewritten native location', async () => {
+    const generation = await context('solid', true);
+    generation.basePath = '/admin';
+    const server = await createSolidNativeEntryGenerator().server(generation);
+    await expectValidNativeSource(server);
+    // A raw request pathname keeps the basepath the native router rewrites away.
+    expect(server).toContain('router.matchRoutes(router.latestLocation)');
+    expect(server).not.toContain('new URL(request.url).pathname');
+  });
 });

@@ -56,10 +56,12 @@ const metadata = {
 function routerAt(
   path: string,
   options: Parameters<typeof createFileSystemRouteTree>[2] = {},
+  basepath?: string,
 ) {
   return createApplicationRouter({
     routeTree: createFileSystemRouteTree(routes, {}, options),
     history: createMemoryHistory({ initialEntries: [path] }),
+    ...(basepath ? { basepath } : {}),
     isServer: true,
   });
 }
@@ -175,6 +177,27 @@ describe('native Solid filesystem routing and data', () => {
     expect(router.state.matches.at(-1)?.loaderData).toEqual({ itemId: '42' });
   });
 
+  test('a basepath entry gives loaders the public request URL', async () => {
+    const urls: string[] = [];
+    const router = routerAt(
+      '/admin/items/42?color=green',
+      {
+        request: new Request('http://localhost/admin/items/42?color=green'),
+        loadRoute: async (_route, input) => {
+          urls.push(input.request.url);
+          return { kind: 'success', value: input.params, status: 200 };
+        },
+      },
+      '/admin',
+    );
+    await router.load();
+    expect(router.state.matches.at(-1)?.loaderData).toEqual({ itemId: '42' });
+    expect(urls).toEqual([
+      'http://localhost/admin/items/42?color=green',
+      'http://localhost/admin/items/42?color=green',
+    ]);
+  });
+
   test('native search validation consumes an isolated checked public result', async () => {
     const nested = { color: 'green' };
     const authored = { nested };
@@ -232,6 +255,42 @@ describe('native Solid filesystem routing and data', () => {
       ),
     ).toBeUndefined();
     expect(loader).not.toHaveBeenCalled();
+  });
+
+  test('a basepath entry authorizes data routes from the public URL', () => {
+    const router = routerAt('/admin/items/42', {}, '/admin');
+    const loader = rstest.fn();
+    const action = rstest.fn();
+    const handlers = { item: { loader, action }, layout: { loader } };
+    expect(
+      selectApplicationDataRoute(
+        router,
+        new Request('http://localhost/admin/items/42?__loader=item'),
+        'item',
+        'loader',
+        handlers,
+      ),
+    ).toEqual({ routeId: 'item', params: { itemId: '42' }, handler: loader });
+    expect(
+      selectApplicationDataRoute(
+        router,
+        new Request('http://localhost/admin/items/42?__loader=item', {
+          method: 'POST',
+        }),
+        'item',
+        'action',
+        handlers,
+      )?.handler,
+    ).toBe(action);
+    expect(
+      selectApplicationDataRoute(
+        router,
+        new Request('http://localhost/admin/elsewhere?__loader=item'),
+        'item',
+        'loader',
+        handlers,
+      ),
+    ).toBeUndefined();
   });
 
   test('duplicate filesystem ids fail before native matching', () => {

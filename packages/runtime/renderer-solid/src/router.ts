@@ -13,6 +13,7 @@ import {
   toTanstackPath,
 } from '@modern-js/renderer-core/data';
 import type { RequestSession } from '@modern-js/renderer-core/session';
+import { parseHref } from '@tanstack/history';
 import {
   createRouteCompletionScope,
   registerRouteCompletionScope,
@@ -131,7 +132,12 @@ export function selectApplicationDataRoute<Context>(
   operation: DataOperation,
   handlers: Readonly<Record<string, FileSystemDataModule<Context>>>,
 ): SelectedDataRoute<Context> | undefined {
-  for (const match of router.matchRoutes(new URL(request.url).pathname)) {
+  // The native basepath is a location rewrite; match the parsed router path.
+  const url = new URL(request.url);
+  const location = router.parseLocation(
+    parseHref(url.pathname + url.search, undefined),
+  );
+  for (const match of router.matchRoutes(location)) {
     const route = router.routesById[match.routeId];
     const originalId = (
       route?.options.staticData as { ultramodernRouteId?: string } | undefined
@@ -370,7 +376,7 @@ export function createFileSystemRouteTree<Context = unknown>(
         abortController,
       }: {
         params: Record<string, string>;
-        location: { href: string };
+        location: { publicHref: string };
         abortController: AbortController;
       }) => {
         const base =
@@ -382,7 +388,8 @@ export function createFileSystemRouteTree<Context = unknown>(
         const signal = options.request
           ? AbortSignal.any([options.request.signal, abortController.signal])
           : abortController.signal;
-        const request = new Request(new URL(location.href, base), {
+        // The router's href omits its basepath; data URLs use the public path.
+        const request = new Request(new URL(location.publicHref, base), {
           headers: options.request?.headers,
           signal,
         });
