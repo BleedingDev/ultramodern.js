@@ -58,7 +58,7 @@ export const routeIR: FileSystemRouteIR[] = ${JSON.stringify(routeIR, null, 2)};
 export const routeModules: Record<string, FileSystemRouteModule> = { ${configurations.join(',\n')} };
 export const dataModules: Record<string, { loader?: DataHandler; action?: DataHandler }> = { ${data.join(',\n')} };
 ${options.mode === 'client' ? `const serverDataRoutes = new Set<string>(${JSON.stringify(serverDataRoutes)});` : ''}
-export function createNativeRouter(identity: RendererIdentity, request?: Request, context: object = {}, onOutcome?: (routeId: string, outcome: DataOutcome | DecodedDataOutcome) => void): AnyRouter {
+export function createNativeRouter(identity: RendererIdentity, request?: Request, context: object = {}, onOutcome?: (routeId: string, outcome: DataOutcome | DecodedDataOutcome) => void, nonce?: string): AnyRouter {
   if (Object.hasOwn(context, 'ultramodern')) throw new Error('The native router context reserves ultramodern metadata');
   const nativeContext = { ultramodern: Object.freeze({ rendererIdentity: Object.freeze({ ...identity }) }) };
   const routeTree = createFileSystemRouteTree(routeIR, routeModules, {
@@ -76,6 +76,8 @@ export function createNativeRouter(identity: RendererIdentity, request?: Request
     routeTree,
     basepath: ${JSON.stringify(options.basePath)},
     context: nativeContext,
+    // TanStack stamps its $_TSR bootstrap and streamed scripts with this nonce.
+    ...(nonce === undefined ? {} : { ssr: { nonce } }),
     ...(url ? { origin: url.origin, history: createMemoryHistory({ initialEntries: [url.pathname + url.search + url.hash] }) } : {}),
   });
   return router;

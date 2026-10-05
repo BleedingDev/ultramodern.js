@@ -1083,7 +1083,12 @@ export async function nativeRouterDocumentStream() {
   assert.match(html, /\$_TSR\.router=/);
   assert.equal(html.match(/<!doctype html>/gi)?.length, 1);
   assert.equal(html.match(/<html[\s>]/gi)?.length, 1);
-  assert.match(html, /nonce="router-nonce"/);
+  // Under a nonce CSP every executable script, including the $_TSR bootstrap
+  // injected through router.options.ssr.nonce, must carry the request nonce.
+  const scripts = html.match(/<script\b[^>]*>/gi) ?? [];
+  assert.ok(scripts.length > 0);
+  assert.match(html, /<script\b[^>]*nonce="router-nonce"[^>]*>[^<]*\$_TSR/);
+  for (const tag of scripts) assert.match(tag, /nonce="router-nonce"/);
   assert.equal((await session.completion).state, 'completed');
   assert.equal(cleanup, 1);
 }
