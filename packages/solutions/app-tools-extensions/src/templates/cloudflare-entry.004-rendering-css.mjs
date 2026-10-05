@@ -124,6 +124,24 @@ function extractRenderedFragmentHtml(html, boundaryId, expose) {
   return extractRenderedBoundaryElement(html, boundaryId, expose);
 }
 
+function readOpeningTagAttributes(openingTag) {
+  const attributes = {};
+  const opening = /^<\/?[A-Za-z][\w:-]*/u.exec(openingTag);
+  if (!opening) return attributes;
+  let remaining = openingTag.slice(opening[0].length);
+  const attribute =
+    /^\s+([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/u;
+  while (remaining) {
+    const match = attribute.exec(remaining);
+    if (!match) break;
+    const name = match[1].toLowerCase();
+    if (!Object.hasOwn(attributes, name))
+      attributes[name] = match[2] ?? match[3] ?? match[4] ?? '';
+    remaining = remaining.slice(match[0].length);
+  }
+  return attributes;
+}
+
 function readOpeningTagAttribute(openingTag, name) {
   const pattern = new RegExp(
     `\\s${escapeFragmentRegExp(name)}=(?:"([^"]*)"|'([^']*)')`,
@@ -142,7 +160,7 @@ function collectStylesheetHrefs(html) {
     const rel = readOpeningTagAttribute(link, 'rel');
     const href = readOpeningTagAttribute(link, 'href');
 
-    if (href && rel?.split(/\s+/u).includes('stylesheet')) {
+    if (href && rel?.toLowerCase().split(/\s+/u).includes('stylesheet')) {
       hrefs.push(href);
     }
   }
@@ -163,7 +181,7 @@ function dedupeStylesheetLinks(html, seenHrefs = new Set(), requestUrl) {
     const rel = readOpeningTagAttribute(link, 'rel');
     const href = readOpeningTagAttribute(link, 'href');
 
-    if (!href || !rel?.split(/\s+/u).includes('stylesheet')) {
+    if (!href || !rel?.toLowerCase().split(/\s+/u).includes('stylesheet')) {
       return link;
     }
 
@@ -180,7 +198,7 @@ function dedupeStylesheetLinks(html, seenHrefs = new Set(), requestUrl) {
 function stripStylesheetLinks(html) {
   return html.replace(/<link\b[^>]*>/giu, link => {
     const rel = readOpeningTagAttribute(link, 'rel');
-    return rel?.split(/\s+/u).includes('stylesheet') ? '' : link;
+    return rel?.toLowerCase().split(/\s+/u).includes('stylesheet') ? '' : link;
   });
 }
 
@@ -194,61 +212,235 @@ function createStylesheetLinksHtml(stylesheetEntries) {
     .join('');
 }
 
-function createStylesheetLinkStream(body, stylesheetEntries, requestUrl) {
+function createStylesheetLinkStream(
+  body,
+  stylesheetEntries,
+  requestUrl,
+  resolveRemoteCss = async () => [],
+) {
   const decoder = new TextDecoder();
   const encoder = new TextEncoder();
-  let injected = false;
+  const seenHrefs = new Set();
+  const pendingEntries = [...stylesheetEntries];
+  const maxTagLength = 64 * 1024;
+  const maxHeadLength = 256 * 1024;
+  let reader;
+  let cancelled = false;
+  let finished = false;
+  let headParts;
+  let headLength = 0;
+  let headSlot;
+  let rawText;
   let pending = '';
 
-  const flushReadyHtml = (controller, final) => {
-    const sentinelIndex = pending.indexOf(CLOUDFLARE_STYLESHEET_LINKS_SENTINEL);
-    const closingHeadIndex =
-      sentinelIndex >= 0 ? pending.indexOf('</head>', sentinelIndex) : -1;
-    if (!injected && sentinelIndex >= 0 && (closingHeadIndex >= 0 || final)) {
-      const headEnd = closingHeadIndex >= 0 ? closingHeadIndex : pending.length;
-      const existingHrefs = new Set(
-        collectStylesheetHrefs(pending.slice(0, headEnd)).map(href =>
-          normalizeStylesheetHref(href, requestUrl),
-        ),
-      );
-      const links = createStylesheetLinksHtml(
-        stylesheetEntries.filter(
-          ({ preloadHref }) => !existingHrefs.has(preloadHref),
-        ),
-      );
-      const output = pending.replace(
-        CLOUDFLARE_STYLESHEET_LINKS_SENTINEL,
-        links,
-      );
-      injected = true;
-      pending = '';
-      controller.enqueue(encoder.encode(output));
-      return;
+  const linksFor = entries => {
+    const missing = entries.filter(({ preloadHref }) => {
+      if (seenHrefs.has(preloadHref)) return false;
+      seenHrefs.add(preloadHref);
+      return true;
+    });
+    return createStylesheetLinksHtml(missing);
+  };
+  const tagEnd = value => {
+    let quote;
+    for (let index = 1; index < value.length; index += 1) {
+      const character = value[index];
+      if (quote) {
+        if (character === quote) quote = undefined;
+      } else if (character === '"' || character === "'") {
+        quote = character;
+      } else if (character === '>') {
+        return index;
+      }
     }
-
-    if (!final && !injected) {
-      return;
-    }
-    if (pending.length > 0) {
-      controller.enqueue(encoder.encode(pending));
-      pending = '';
-    }
+    return -1;
   };
 
-  return body.pipeThrough(
-    new TransformStream({
-      flush(controller) {
-        pending += decoder.decode();
-        flushReadyHtml(controller, true);
+  const consume = async final => {
+    let output = '';
+    const append = value => {
+      if (headParts === undefined) {
+        output += value;
+      } else {
+        headLength += encoder.encode(value).byteLength;
+        if (headLength > maxHeadLength)
+          throw new RangeError('Cloudflare HTML stream head exceeds 256 KiB');
+        headParts.push(value);
+      }
+    };
+    while (pending && !cancelled) {
+      if (rawText) {
+        const match = rawText.comment
+          ? /-->/u.exec(pending)
+          : new RegExp(`</${rawText.tag}(?=[\\s/>])`, 'iu').exec(pending);
+        if (!match) {
+          const keep = final ? 0 : rawText.comment ? 2 : rawText.tag.length + 2;
+          const available = Math.max(0, pending.length - keep);
+          append(pending.slice(0, available));
+          pending = pending.slice(available);
+          break;
+        }
+        const end = match.index + (rawText.comment ? match[0].length : 0);
+        append(pending.slice(0, end));
+        pending = pending.slice(end);
+        rawText = undefined;
+        continue;
+      }
+      const opening = pending.indexOf('<');
+      if (opening < 0) {
+        append(pending);
+        pending = '';
+        break;
+      }
+      if (opening > 0) {
+        append(pending.slice(0, opening));
+        pending = pending.slice(opening);
+      }
+      if (!final && pending.length < 4 && '<!--'.startsWith(pending)) break;
+      if (pending.startsWith('<!--')) {
+        append('<!--');
+        pending = pending.slice(4);
+        rawText = { comment: true };
+        continue;
+      }
+      const closing = tagEnd(pending);
+      if (closing < 0) {
+        if (encoder.encode(pending).byteLength > maxTagLength)
+          throw new RangeError(
+            'Cloudflare HTML stream has an unterminated tag larger than 64 KiB',
+          );
+        if (final) {
+          append(pending);
+          pending = '';
+        }
+        break;
+      }
+      if (
+        encoder.encode(pending.slice(0, closing + 1)).byteLength > maxTagLength
+      )
+        throw new RangeError('Cloudflare HTML stream tag exceeds 64 KiB');
+      const tag = pending.slice(0, closing + 1);
+      pending = pending.slice(closing + 1);
+      if (/^<head(?:\s|>)/iu.test(tag)) {
+        headParts = [];
+        headLength = 0;
+        headSlot = undefined;
+      }
+      if (tag === CLOUDFLARE_STYLESHEET_LINKS_SENTINEL && headParts) {
+        if (headSlot === undefined) {
+          headSlot = headParts.length;
+          append('');
+        }
+        continue;
+      }
+      const attributes = readOpeningTagAttributes(tag);
+      if (
+        output &&
+        headParts === undefined &&
+        attributes['data-modern-boundary-id'] &&
+        attributes['data-modern-mf-expose']
+      ) {
+        pending = tag + pending;
+        return output;
+      }
+      if (/^<link(?=[\s/>])/iu.test(tag)) {
+        const rel = attributes.rel;
+        const href = attributes.href;
+        if (href && rel?.toLowerCase().split(/\s+/u).includes('stylesheet')) {
+          const normalized = normalizeStylesheetHref(href, requestUrl);
+          if (seenHrefs.has(normalized)) continue;
+          seenHrefs.add(normalized);
+        }
+      }
+      const remoteHrefs = await resolveRemoteCss(attributes);
+      const remoteEntries = remoteHrefs.map(href => ({
+        href,
+        preloadHref: normalizeStylesheetHref(href, requestUrl),
+        reactResource: true,
+      }));
+      if (headParts) pendingEntries.push(...remoteEntries);
+      else append(linksFor(remoteEntries));
+      if (/^<\/head\s*>$/iu.test(tag) && headParts) {
+        const links = linksFor(pendingEntries);
+        if (headSlot === undefined) append(links);
+        else {
+          headLength += encoder.encode(links).byteLength;
+          if (headLength > maxHeadLength)
+            throw new RangeError('Cloudflare HTML stream head exceeds 256 KiB');
+          headParts[headSlot] = links;
+        }
+        append(tag);
+        output += headParts.join('');
+        headParts = undefined;
+      } else {
+        append(tag);
+      }
+      const rawOpening = /^<(script|style|title|textarea)(?=[\s/>])/iu.exec(
+        tag,
+      );
+      if (rawOpening) rawText = { tag: rawOpening[1].toLowerCase() };
+    }
+    if (final && headParts) {
+      if (headSlot !== undefined) {
+        const links = linksFor(pendingEntries);
+        headLength += encoder.encode(links).byteLength;
+        if (headLength > maxHeadLength)
+          throw new RangeError('Cloudflare HTML stream head exceeds 256 KiB');
+        headParts[headSlot] = links;
+      }
+      output += headParts.join('');
+      headParts = undefined;
+    }
+    return output;
+  };
+
+  return new ReadableStream(
+    {
+      async pull(controller) {
+        try {
+          reader ??= body.getReader();
+          while (!cancelled) {
+            const output = await consume(finished);
+            if (cancelled) return;
+            if (output) controller.enqueue(encoder.encode(output));
+            if (finished && pending.length === 0) {
+              reader.releaseLock();
+              controller.close();
+            }
+            if (output || finished) return;
+            const result = await reader.read();
+            finished = result.done;
+            pending += result.done
+              ? decoder.decode()
+              : typeof result.value === 'string'
+                ? result.value
+                : decoder.decode(result.value, { stream: true });
+          }
+        } catch (error) {
+          if (cancelled) return;
+          cancelled = true;
+          try {
+            await reader?.cancel(error);
+          } finally {
+            reader?.releaseLock();
+            controller.error(error);
+          }
+        }
       },
-      transform(chunk, controller) {
-        pending +=
-          typeof chunk === 'string'
-            ? chunk
-            : decoder.decode(chunk, { stream: true });
-        flushReadyHtml(controller, false);
+      async cancel(reason) {
+        cancelled = true;
+        if (reader) {
+          try {
+            await reader.cancel(reason);
+          } finally {
+            reader.releaseLock();
+          }
+        } else {
+          await body.cancel(reason);
+        }
       },
-    }),
+    },
+    { highWaterMark: 0 },
   );
 }
 
@@ -511,21 +703,31 @@ function createDistributedSsrFragmentContext(request, env) {
   const pendingResolutions = new Set();
   const stylesheetHrefsByFragment = configuredFragments.map(() => new Set());
 
+  const getCurrentStylesheetHrefs = (boundaryId, expose) => {
+    const hrefs = new Set();
+    let configured = false;
+    for (const [index, { fragment }] of configuredFragments.entries()) {
+      if (
+        (boundaryId !== undefined && fragment.boundaryId !== boundaryId) ||
+        (expose !== undefined && fragment.expose !== expose)
+      ) {
+        continue;
+      }
+      configured = true;
+      for (const href of stylesheetHrefsByFragment[index]) hrefs.add(href);
+    }
+    if (boundaryId !== undefined && !configured) return undefined;
+    return [...hrefs];
+  };
+
   return {
     required: true,
+    getCurrentStylesheetHrefs,
     async getStylesheetHrefs() {
       while (pendingResolutions.size > 0) {
         await Promise.all([...pendingResolutions]);
       }
-
-      const hrefs = new Set();
-      for (const fragmentHrefs of stylesheetHrefsByFragment) {
-        for (const href of fragmentHrefs) {
-          hrefs.add(href);
-        }
-      }
-
-      return [...hrefs];
+      return getCurrentStylesheetHrefs();
     },
     resolve(remote, expose, props) {
       const configuredIndex = configuredFragments.findIndex(
@@ -643,6 +845,8 @@ function createRequestHandlerOptions({
   htmlTemplate,
   routeManifest,
   loadableStats,
+  env,
+  executionContext,
   distributedSsrFragments,
   distributedSsrFragmentRequest,
 }) {
@@ -659,6 +863,8 @@ function createRequestHandlerOptions({
     params: {},
     loaderContext: new Map(),
     config: {},
+    platform: { kind: 'worker', bindings: env },
+    executionContext,
     locals: {
       ...(distributedSsrFragments === undefined
         ? {}
@@ -917,7 +1123,7 @@ function collectRouteManifestCssAssets(routeManifest) {
   return [...assets];
 }
 
-async function collectRenderedRemoteCssHrefs(html, request, env) {
+async function collectRenderedRemoteCssHrefs(html, request, env, exposes) {
   const bodyStart = html.indexOf('</head>');
   const composedFragmentHrefs = collectStylesheetHrefs(
     bodyStart >= 0 ? html.slice(bodyStart + '</head>'.length) : html,
@@ -927,7 +1133,7 @@ async function collectRenderedRemoteCssHrefs(html, request, env) {
     return [...new Set(composedFragmentHrefs)];
   }
 
-  const renderedExposes = collectRenderedFederatedExposes(html);
+  const renderedExposes = exposes ?? collectRenderedFederatedExposes(html);
 
   if (renderedExposes.length === 0) {
     return [];
@@ -1008,21 +1214,18 @@ async function withRouteCssLinks(
   request,
   env,
   distributedSsrFragmentCssHrefs,
+  distributedSsrFragments,
 ) {
   const contentType = response.headers.get('content-type') || '';
 
-  if (!contentType.includes('text/html')) {
+  if (!contentType.includes('text/html') || response.body === null) {
     return response;
   }
 
-  const resolvedDistributedSsrFragmentCssHrefs = await Promise.resolve(
-    distributedSsrFragmentCssHrefs ?? [],
-  );
-  if (
-    response.body !== null &&
-    resolvedDistributedSsrFragmentCssHrefs.length > 0 &&
-    readDistributedSsrFragmentRequest(request) === undefined
-  ) {
+  if (readDistributedSsrFragmentRequest(request) === undefined) {
+    const resolvedDistributedSsrFragmentCssHrefs =
+      distributedSsrFragments?.getCurrentStylesheetHrefs() ??
+      (await Promise.resolve(distributedSsrFragmentCssHrefs ?? []));
     const headers = new Headers(response.headers);
     const cssEntries = [
       ...collectRouteCssAssets(route, routeManifest).map(asset => {
@@ -1061,8 +1264,30 @@ async function withRouteCssLinks(
     }
     headers.delete('content-length');
 
+    const seenExposes = new Set();
+    const resolveRemoteCss = async attributes => {
+      const boundaryId = attributes['data-modern-boundary-id'];
+      const expose = attributes['data-modern-mf-expose'];
+      if (!boundaryId || !expose) return [];
+      const verifiedHrefs = distributedSsrFragments?.getCurrentStylesheetHrefs(
+        boundaryId,
+        expose,
+      );
+      if (verifiedHrefs !== undefined) return verifiedHrefs;
+      const key = JSON.stringify([boundaryId, expose]);
+      if (seenExposes.has(key)) return [];
+      seenExposes.add(key);
+      return collectRenderedRemoteCssHrefs('', request, env, [
+        { boundaryId, expose },
+      ]);
+    };
     return new Response(
-      createStylesheetLinkStream(response.body, uniqueCssEntries, request.url),
+      createStylesheetLinkStream(
+        response.body,
+        uniqueCssEntries,
+        request.url,
+        resolveRemoteCss,
+      ),
       {
         headers,
         status: response.status,
@@ -1071,12 +1296,18 @@ async function withRouteCssLinks(
     );
   }
 
+  const resolvedDistributedSsrFragmentCssHrefs = await Promise.resolve(
+    distributedSsrFragments?.getStylesheetHrefs() ??
+      distributedSsrFragmentCssHrefs ??
+      [],
+  );
   const html = dedupeStylesheetLinks(
     await response.text(),
     undefined,
     request.url,
   );
   const headers = new Headers(response.headers);
+  headers.delete('content-length');
   const localFragmentCssAssets = collectLocalFragmentCssAssets(html, request);
   const localFragmentProvenance = await createLocalFragmentProvenance(
     html,
@@ -1174,6 +1405,7 @@ async function getRequestHandlerOptions(
   route,
   request,
   env,
+  executionContext,
   includeHtmlTemplate = true,
 ) {
   const [htmlTemplate, routeManifest, loadableStats] = await Promise.all([
@@ -1195,6 +1427,8 @@ async function getRequestHandlerOptions(
     htmlTemplate: htmlTemplate || '',
     routeManifest,
     loadableStats,
+    env,
+    executionContext,
     distributedSsrFragments,
     distributedSsrFragmentRequest,
   });
