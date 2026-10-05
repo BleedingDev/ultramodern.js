@@ -6,11 +6,76 @@ import http from 'node:http';
 import test from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 import {
+  assertNativeSsrHtml,
   browserProof,
   inspectOwnedProcessGroup,
   retireOwnedProcessGroup,
   startBridge,
 } from './runtime.mjs';
+
+const nativeCompositeMarkup = `
+  <section id="rsc-composite">
+    <p id="server-composite-output">server-rendered composite output</p>
+    <span id="client-slot">client slot:<!-- -->slot-label-from-server</span>
+    <span id="client-children">client child slot</span>
+  </section>
+`;
+
+test('SSR qualification requires actual native composite and client slot markup', () => {
+  const html = `<!doctype html><html><head></head><body>
+    <div id="root">${nativeCompositeMarkup}</div>
+    </body></html><script>self.__FLIGHT_DATA=['<!--$!-->'];</script>`;
+  assert.doesNotThrow(() => assertNativeSsrHtml(html));
+  // A resolved Fizz stream can retain pending markers and hidden HTML chunks.
+  assert.doesNotThrow(() =>
+    assertNativeSsrHtml(`
+    <html><body><div id="root"><!--$?--><template id="B:0"></template><!--/$--></div>
+    <div hidden id="S:0">${nativeCompositeMarkup}</div>
+    <script>$RC('B:0','S:0');</script></body></html>
+  `),
+  );
+});
+
+test('SSR qualification rejects the C50 empty error root even with native IDs in appended Flight', () => {
+  // The actual C50 body ended here; these IDs existed only in its Flight tail.
+  const html = String.raw`<!doctype html><html><head></head><body><div id="root"><!--$!--><template></template><!--/$--></div></body></html><script>(self.__FLIGHT_DATA||=[]).push('["$","p",null,{"id":"server-composite-output","children":"server-rendered composite output"}]');</script>`;
+  assert.throws(() => assertNativeSsrHtml(html), /SSR error boundary/u);
+  assert.throws(
+    () => assertNativeSsrHtml(html.replace('<!--$!-->', '<!--$-->')),
+    /native SSR markup for server-composite-output/u,
+  );
+});
+
+test('SSR qualification cannot use inert or escaped Flight markup as native HTML', () => {
+  for (const inert of [
+    `<script>const markup = ${JSON.stringify(nativeCompositeMarkup)};</script>`,
+    `<script>self.__FLIGHT_DATA=['\\u003cp id="server-composite-output"\\u003eserver-rendered composite output'];</script>`,
+    `<!--${nativeCompositeMarkup}-->`,
+    `<template><template>inert</template>${nativeCompositeMarkup}</template>`,
+    `<textarea>${nativeCompositeMarkup}</textarea>`,
+    `<style>${nativeCompositeMarkup}</style>`,
+    `<title>${nativeCompositeMarkup}</title>`,
+  ]) {
+    assert.throws(
+      () =>
+        assertNativeSsrHtml(
+          `<html><body><div id="root">${inert}</div></body></html>`,
+        ),
+      /native SSR markup for server-composite-output/u,
+    );
+  }
+});
+
+test('SSR qualification rejects missing body, root, native slots, and wrong server content', () => {
+  for (const html of [
+    `<div id="root">${nativeCompositeMarkup}</div>`,
+    `<html><body>${nativeCompositeMarkup}</body></html>`,
+    `<html><body><div id="root">${nativeCompositeMarkup.replace('id="client-slot"', 'id="other-slot"')}</div></body></html>`,
+    `<html><body><div id="root">${nativeCompositeMarkup.replace('server-rendered composite output', 'wrong server output')}</div></body></html>`,
+  ]) {
+    assert.throws(() => assertNativeSsrHtml(html));
+  }
+});
 
 function browserTrafficFixture({
   preload = [],
