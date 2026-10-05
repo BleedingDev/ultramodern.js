@@ -125,7 +125,7 @@ export async function nativeRequestHandler(request: Request, context: NativeRequ
       void completion.catch(error => context.session.fail(error));
       context.session.registerCleanup(() => completion);
     }
-  }, context.session);
+  }, context.session, context.nonce);
   const dataResponse = await handleDataRequest({ request: nativeRequest, identity: rendererIdentity, context: context.session.platform.bindings, privateValues: [context, context.session, context.session.platform, context.session.platform.bindings], selectRoute: (request, routeId, operation) => selectApplicationDataRoute(router, request, routeId, operation, dataModules) });
   if (dataResponse) return respondApplicationResponse(context.session, dataResponse);
   await router.load();
