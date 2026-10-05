@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { runInNewContext } from 'node:vm';
 import type { RendererIdentity } from '@modern-js/renderer-core/identity';
 import { flushSync } from 'octane';
-import type { NativeSignalManifest } from 'octane/hydration/streamed-signals';
 import {
   createElement,
   earlySignalBootstrapScript,
@@ -19,7 +18,6 @@ import {
 import {
   ClientApplication,
   HydrationApplication,
-  initialSignal$,
   ThrowingApplication,
 } from './client-app';
 
@@ -979,31 +977,13 @@ export async function assertHydrationIdentityAndBootstrap() {
     ).html;
     const existingNode = element.querySelector('section');
     installServerMailbox();
-    const initialSignals: NativeSignalManifest = {
-      version: 1,
-      scopes: [
-        {
-          version: 1,
-          scopeKey: 'octane:document',
-          entries: [
-            {
-              key: 'renderer-client-seed',
-              kind: 'signal',
-              value: ['number', 41],
-              complete: true,
-            },
-          ],
-        },
-      ],
-    };
     const controller = new AbortController();
-    const reason = new Error('Seeded hydration canceled before its import');
+    const reason = new Error('Hydration canceled before its import');
     let resolveImport!: (application: OctaneApplicationModule) => void;
     let abandonedDisposals = 0;
     const importing = new Promise<OctaneApplicationModule>(resolve => {
       resolveImport = resolve;
     });
-    let signalReadBeforeImport = -1;
     const startup = hydrateOctaneApplication({
       container: element,
       identity,
@@ -1011,20 +991,16 @@ export async function assertHydrationIdentityAndBootstrap() {
       documentIdentity: { ...identity },
       documentNativeHydrationBuildId: nativeHydrationBuildId,
       documentId: 'native-document',
-      initialSignals,
       signal: controller.signal,
       load: () => {
         imports++;
-        signalReadBeforeImport = initialSignal$.get();
         return importing;
       },
     });
     const rejected = assertStartupRejectedBeforeImport(startup, reason);
     controller.abort(reason);
     await rejected;
-    assert.equal(signalReadBeforeImport, 41);
     assert.equal(imports, 1);
-    initialSignal$.set(47);
     handle = await hydrateOctaneApplication({
       container: element,
       identity,
@@ -1032,15 +1008,12 @@ export async function assertHydrationIdentityAndBootstrap() {
       documentIdentity: { ...identity },
       documentNativeHydrationBuildId: nativeHydrationBuildId,
       documentId: 'native-document',
-      initialSignals,
       load: async () => {
         imports++;
-        signalReadBeforeImport = initialSignal$.get();
         return { default: HydrationApplication };
       },
     });
     flush();
-    assert.equal(signalReadBeforeImport, 47);
     assert.equal(imports, 2);
     assert.equal(element.querySelector('section'), existingNode);
     assert.equal(element.textContent, 'Native hydration');
@@ -1078,41 +1051,6 @@ export async function assertHydrationIdentityAndBootstrap() {
     assert.equal(abandonedDisposals, 1);
     assert.equal(element.querySelector('section'), existingNode);
     handle.dispose();
-    const changedSignals: NativeSignalManifest = {
-      version: 1,
-      scopes: [
-        {
-          version: 1,
-          scopeKey: 'octane:document',
-          entries: [
-            {
-              key: 'renderer-client-seed',
-              kind: 'signal',
-              value: ['number', 42],
-              complete: true,
-            },
-          ],
-        },
-      ],
-    };
-    await assert.rejects(
-      hydrateOctaneApplication({
-        container: element,
-        identity,
-        nativeHydrationBuildId,
-        documentIdentity: identity,
-        documentNativeHydrationBuildId: nativeHydrationBuildId,
-        documentId: 'native-document',
-        initialSignals: changedSignals,
-        load: async () => {
-          imports++;
-          return { default: HydrationApplication };
-        },
-      }),
-      /seed|signal|identity/i,
-    );
-    assert.equal(imports, 2);
-    assert.equal(initialSignal$.get(), 47);
   } finally {
     handle?.dispose();
     element.remove();

@@ -56,7 +56,6 @@ export async function clientPublicProgram(
     documentIdentity: bootstrap.identity,
     documentNativeHydrationBuildId: bootstrap.nativeHydrationBuildId,
     documentId: bootstrap.documentId,
-    initialSignals: { version: 1, scopes: [] },
   };
   const handle: OctaneApplicationHandle =
     await hydrateOctaneApplication(hydration);

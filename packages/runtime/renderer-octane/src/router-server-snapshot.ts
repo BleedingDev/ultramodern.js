@@ -10,7 +10,6 @@ import {
 import { cleanupOctaneRouterSSR } from './router-server-cleanup';
 import {
   ADAPTER_KEY,
-  clearStack,
   descriptors,
   invalid,
   MATCH_FIELDS,
