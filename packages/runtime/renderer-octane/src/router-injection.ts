@@ -99,6 +99,10 @@ export function createOctaneRouterInjection(
     take: () => (released ? '' : (serverSsr.takeBufferedHtml() ?? '')),
     subscribe(notify) {
       if (released) return () => {};
+      // Octane subscribes after the shell carrying the barrier anchor is
+      // written. Lift the barrier so deferred $_TSR chunks stream as they
+      // settle instead of waiting for setRenderFinished at document end.
+      serverSsr.liftScriptBarrier();
       const stop = serverSsr.onInjectedHtml(notify);
       let subscribed = true;
       const unsubscribe = () => {

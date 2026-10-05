@@ -996,6 +996,27 @@ export async function nativeRouterInjectionCompletion() {
   assert.equal(injection.take(), '');
 }
 
+export async function nativeRouterInjectionStreamsBeforeRenderComplete() {
+  const late = deferred<string>();
+  const { router, session } = await serializingRouter(late.promise);
+  const injection = createOctaneRouterInjection(router, session);
+  const notified = deferred<void>();
+  // Octane subscribes once the shell carrying the barrier anchor is written.
+  const stop = injection.subscribe(() => notified.resolve());
+  let html = injection.take();
+  late.resolve('streamed before document end');
+  await notified.promise;
+  html += injection.take();
+  // Deferred data must reach the document while the app is still rendering,
+  // not be held until renderComplete lifts the barrier at document end.
+  assert.match(html, /\$_TSR\.router=/);
+  assert.match(html, /streamed before document end/);
+  stop();
+  injection.renderComplete?.();
+  await injection.done;
+  await session.abort('test complete');
+}
+
 export async function nativeRouterInjectionTimeoutAndAbort() {
   for (const disposition of ['timeout', 'abort'] as const) {
     const { router, session } = await serializingRouter(new Promise(() => {}));
@@ -1087,8 +1108,11 @@ export async function nativeRouterDocumentStream() {
   // injected through router.options.ssr.nonce, must carry the request nonce.
   const scripts = html.match(/<script\b[^>]*>/gi) ?? [];
   assert.ok(scripts.length > 0);
-  assert.match(html, /<script\b[^>]*nonce="router-nonce"[^>]*>[^<]*\$_TSR/);
-  for (const tag of scripts) assert.match(tag, /nonce="router-nonce"/);
+  assert.match(
+    html,
+    /<script\b[^>]*nonce=["']router-nonce["'][^>]*>[^<]*\$_TSR/,
+  );
+  for (const tag of scripts) assert.match(tag, /nonce=["']router-nonce["']/);
   assert.equal((await session.completion).state, 'completed');
   assert.equal(cleanup, 1);
 }
