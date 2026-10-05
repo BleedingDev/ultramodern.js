@@ -291,6 +291,53 @@ describe('production native Node Fetch dispatch', () => {
     expect(handler).toHaveBeenCalledTimes(1);
   });
 
+  it('replays a cached document with the Age elapsed since it was stored', async () => {
+    const cache = store();
+    const handler = rstest.fn((_request, context: NativeRequestContext) => {
+      context.session.resolveResponse({
+        kind: 'document',
+        status: 200,
+        headers: [
+          ['content-type', 'text/html; charset=utf-8'],
+          ['cache-control', 'public, max-age=60'],
+        ],
+        cache: { mode: 'public', maxAgeSeconds: 60 },
+      });
+      context.session.startRendering();
+      return context.session.respond(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode('<html>aged</html>'));
+            controller.close();
+          },
+        }),
+      );
+    });
+    const selected = options(handler, { cache });
+    const storedAt = 1_800_000_000_000;
+    const now = rstest.spyOn(Date, 'now').mockReturnValue(storedAt);
+    try {
+      const first = await dispatchNativeNodeRequest(
+        new Request('https://example.test/aged'),
+        selected,
+      );
+      expect(first.headers.has('age')).toBe(false);
+      expect(await first.text()).toBe('<html>aged</html>');
+      expect(cache.set).toHaveBeenCalledTimes(1);
+      now.mockReturnValue(storedAt + 25_900);
+      const replay = await dispatchNativeNodeRequest(
+        new Request('https://example.test/aged'),
+        selected,
+      );
+      expect(replay.headers.get('cache-control')).toBe('public, max-age=60');
+      expect(replay.headers.get('age')).toBe('25');
+      expect(await replay.text()).toBe('<html>aged</html>');
+      expect(handler).toHaveBeenCalledTimes(1);
+    } finally {
+      now.mockRestore();
+    }
+  });
+
   it('partitions identical URLs by app, entry, renderer, protocol and hydration build', async () => {
     const cache = store();
     for (const selectedIdentity of [

@@ -57,6 +57,8 @@ function isReusableDocument(
 ): boolean {
   return (
     document.identityKey === key &&
+    Number.isFinite(document.storedAt) &&
+    document.storedAt <= Date.now() &&
     document.expiresAt > Date.now() &&
     document.status === 200 &&
     document.bytes instanceof Uint8Array &&
@@ -197,9 +199,11 @@ function captureDocument<Bindings extends object>(
               )
                 return;
               try {
+                const storedAt = Date.now();
                 await options.cache?.set(key, {
                   identityKey,
-                  expiresAt: Date.now() + maxAgeSeconds * 1000,
+                  storedAt,
+                  expiresAt: storedAt + maxAgeSeconds * 1000,
                   status: 200,
                   statusText: delivered.statusText,
                   headers: responseHeaders(headers),
@@ -311,11 +315,19 @@ export async function dispatchNativeNodeRequest<Bindings extends object>(
       try {
         const cached = await options.cache.get(cacheKey);
         if (cached && isReusableDocument(cached, identityKey)) {
+          // The replayed cache-control lifetime started when the document was
+          // stored. Age keeps downstream caches from extending its freshness.
+          const age = Math.floor((Date.now() - cached.storedAt) / 1000);
           session.resolveResponse({
             kind: 'terminal',
             status: cached.status,
             statusText: cached.statusText,
-            headers: cached.headers,
+            headers: [
+              ...cached.headers.filter(
+                ([name]) => name.toLowerCase() !== 'age',
+              ),
+              ['age', String(age)],
+            ],
             cache: { mode: 'no-store' },
           });
           return session.respond(

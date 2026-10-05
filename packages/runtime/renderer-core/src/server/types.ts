@@ -36,6 +36,8 @@ export interface NativeServerManifest<Bindings extends object = object> {
 
 export interface CachedNativeDocument {
   readonly identityKey: string;
+  /** Epoch milliseconds when the document was stored; replays derive Age from it. */
+  readonly storedAt: number;
   readonly expiresAt: number;
   readonly status: 200;
   readonly statusText: string;
