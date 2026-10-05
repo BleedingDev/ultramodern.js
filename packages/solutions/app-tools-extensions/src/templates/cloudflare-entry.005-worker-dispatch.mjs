@@ -278,7 +278,7 @@ async function invokeRouteWorker(route, request, env, ctx) {
     }
     return rscPayloadHandler(
       request,
-      await getRequestHandlerOptions(route, request, env, false),
+      await getRequestHandlerOptions(route, request, env, ctx, false),
     );
   }
 
@@ -289,6 +289,7 @@ async function invokeRouteWorker(route, request, env, ctx) {
       route,
       request,
       env,
+      ctx,
     );
 
     return withRouteCssLinks(
@@ -297,9 +298,8 @@ async function invokeRouteWorker(route, request, env, ctx) {
       requestHandlerOptions.resource.routeManifest,
       request,
       env,
-      requestHandlerOptions.locals[
-        DISTRIBUTED_SSR_FRAGMENTS_LOCALS_KEY
-      ]?.getStylesheetHrefs(),
+      undefined,
+      requestHandlerOptions.locals[DISTRIBUTED_SSR_FRAGMENTS_LOCALS_KEY],
     );
   }
 
