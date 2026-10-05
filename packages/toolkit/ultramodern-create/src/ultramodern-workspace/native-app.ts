@@ -76,7 +76,9 @@ export function writeNativeApp(
   write('modern.config.ts', config);
   write(
     'src/modern-app-env.d.ts',
-    `/// <reference types="${generation.jsxImportSource}" />\n`,
+    `/// <reference types="@modern-js/ultramodern-app-tools/types" />
+/// <reference types="${generation.jsxImportSource}" />
+`,
   );
   write('src/routes/index.css', createAppStyles(enableTailwind, scope, app));
   write('shared/ultramodern-build.ts', buildModule);

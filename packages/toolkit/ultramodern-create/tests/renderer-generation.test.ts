@@ -114,6 +114,13 @@ for (const renderer of renderers) {
       }
 
       if (renderer === 'react') {
+        assert.equal(
+          files[`${appDirectory}/src/modern-app-env.d.ts`],
+          `/// <reference types="@modern-js/ultramodern-app-tools/react-types" />
+
+declare const ULTRAMODERN_SITE_URL: string;
+`,
+        );
         assert.equal(manifest.dependencies.react, profile.dependencies.react);
         assert.equal(
           manifest.dependencies['react-dom'],
@@ -135,6 +142,12 @@ for (const renderer of renderers) {
         return;
       }
 
+      assert.equal(
+        files[`${appDirectory}/src/modern-app-env.d.ts`],
+        `/// <reference types="@modern-js/ultramodern-app-tools/types" />
+/// <reference types="${renderer === 'solid' ? '@solidjs/web' : 'octane'}" />
+`,
+      );
       assert.deepEqual(profile.capabilities, {
         ssr: true,
         streaming: true,

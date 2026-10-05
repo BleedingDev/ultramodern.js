@@ -276,7 +276,9 @@ test('a foreign renderer owner uses the public SDK resolver and common writer', 
     });
     assert.equal(
       files[`${directory}/src/modern-app-env.d.ts`],
-      '/// <reference types="paper-runtime" />\n',
+      `/// <reference types="@modern-js/ultramodern-app-tools/types" />
+/// <reference types="paper-runtime" />
+`,
     );
     assert.equal(
       files[`${directory}/src/routes/layout.tsx`],
