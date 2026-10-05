@@ -232,6 +232,12 @@ describe('native owning entry generation', () => {
     expect(server).toContain('nativeCSRRequestHandler');
     expect(server).toContain(JSON.stringify(generation.rendererIdentity));
     expect(client).not.toMatch(/react-router|react-dom|@tanstack\/react/u);
+    if (renderer === 'octane') {
+      // The compiler manifest is validated once per manifest object, not per request.
+      expect(server).toContain('const validatedManifests = new WeakMap');
+      expect(server).toContain('nativeManifest(context.nativeManifest)');
+      expect(server.match(/validateOctaneModuleManifest\(/gu)).toHaveLength(1);
+    }
   });
 
   it.each([
