@@ -8,14 +8,15 @@ import {
   type RendererProfileMetadata,
 } from './renderer-installed-profile';
 import { resolveRendererRegistration } from './renderer-registration';
+import type { RegisteredRenderer } from './renderer-selection-metadata';
 
 export {
   type RegisteredRenderer,
   registeredRenderers,
-} from './renderer-registration';
+} from './renderer-selection-metadata';
 
-export interface RendererBuildProfile {
-  renderer: Renderer;
+export interface RendererBuildProfile<TRenderer extends Renderer = Renderer> {
+  renderer: TRenderer;
   status: 'stable' | 'preview';
   protocolVersion: 1;
   minimumNode: '26.7.0';
@@ -50,18 +51,22 @@ export interface RendererBuildProfile {
 /** Generation metadata does not resolve or evaluate optional framework peers. */
 export function resolveCandidateRendererProfile(
   renderer: Renderer,
-): RendererBuildProfile {
-  return structuredClone(
-    resolveRendererRegistration(renderer).candidateProfile,
-  );
+): RendererBuildProfile<RegisteredRenderer> {
+  const registration = resolveRendererRegistration(renderer);
+  const candidate = structuredClone(registration.candidateProfile);
+  if (candidate.renderer !== registration.renderer)
+    throw new Error(
+      `Renderer profile ${candidate.renderer} conflicts with selected owner ${registration.renderer}`,
+    );
+  return { ...candidate, renderer: registration.renderer };
 }
 
 /** Resolve only the selected SDK owners through their public module specifiers. */
 export function resolveRendererProfileMetadata(
   renderer: Renderer,
-): RendererProfileMetadata {
+): RendererProfileMetadata<RegisteredRenderer> {
   const registration = resolveRendererRegistration(renderer);
-  const candidate = structuredClone(registration.candidateProfile);
+  const candidate = resolveCandidateRendererProfile(registration.renderer);
   const require = createRequire(import.meta.url);
   const modules: FrameworkModule[] = [
     {
@@ -86,7 +91,7 @@ export function resolveRendererProfileMetadata(
 
 export function resolveRendererProfile(
   renderer: Renderer,
-): RendererBuildProfile {
+): RendererBuildProfile<RegisteredRenderer> {
   return resolveRendererProfileMetadata(renderer).profile;
 }
 

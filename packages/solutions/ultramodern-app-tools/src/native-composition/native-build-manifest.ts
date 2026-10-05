@@ -10,9 +10,11 @@ import {
 } from '@modern-js/backend-federation-contracts';
 import {
   identityCacheKey,
+  type Renderer,
   type RendererIdentity,
 } from '@modern-js/renderer-core';
 import type { RendererBuildProfile } from './renderer-profile';
+import type { RegisteredRenderer } from './renderer-selection-metadata';
 
 export const RENDERER_BUILD_MANIFEST_FILE = 'renderer-build.json';
 export const RENDERER_DEVELOPMENT_DIRECTORY = '.ultramodern-dev';
@@ -23,15 +25,18 @@ export interface RendererDevelopmentCompilation {
   readonly sourceInputDigest: string;
 }
 
-export interface RendererBuildManifest extends RendererBuildIdentities {
+export interface RendererBuildManifest<
+  TRenderer extends Renderer = RegisteredRenderer,
+> extends RendererBuildIdentities {
   readonly schema: 'ultramodern-renderer-build';
   readonly version: 1;
-  readonly profile: RendererBuildProfile;
+  readonly profile: RendererBuildProfile<TRenderer>;
   readonly routerBindings: RendererRouterBindings;
 }
 
-export interface RendererDevelopmentBuildManifest
-  extends RendererBuildManifest {
+export interface RendererDevelopmentBuildManifest<
+  TRenderer extends Renderer = RegisteredRenderer,
+> extends RendererBuildManifest<TRenderer> {
   readonly devCompilation: RendererDevelopmentCompilation;
 }
 
@@ -40,11 +45,13 @@ export interface RendererBuildManifestValidationOptions {
 }
 
 /** A dev checkpoint certifies an actual completed wave, never a production build. */
-export function validateRendererDevelopmentBuildManifest(
+export function validateRendererDevelopmentBuildManifest<
+  TRenderer extends Renderer,
+>(
   input: unknown,
-  profile: RendererBuildProfile,
+  profile: RendererBuildProfile<TRenderer>,
   options: RendererBuildManifestValidationOptions = {},
-): RendererDevelopmentBuildManifest {
+): RendererDevelopmentBuildManifest<TRenderer> {
   if (!input || typeof input !== 'object' || Array.isArray(input))
     throw new Error('Invalid development renderer metadata');
   const descriptor = Object.getOwnPropertyDescriptor(input, 'devCompilation');
@@ -205,14 +212,14 @@ function freezeProfile<T>(value: T): T {
 }
 
 /** Built identity is immutable evidence. Missing or conflicting bytes fail closed. */
-export function validateRendererBuildManifest(
+export function validateRendererBuildManifest<TRenderer extends Renderer>(
   input: unknown,
-  profile: RendererBuildProfile,
+  profile: RendererBuildProfile<TRenderer>,
   options: RendererBuildManifestValidationOptions = {},
-): RendererBuildManifest {
+): RendererBuildManifest<TRenderer> {
   if (!input || typeof input !== 'object' || Array.isArray(input))
     throw new Error('Invalid native renderer build manifest');
-  const value = input as RendererBuildManifest;
+  const value = input as RendererBuildManifest<TRenderer>;
   if (
     value.schema !== 'ultramodern-renderer-build' ||
     value.version !== 1 ||
@@ -290,11 +297,11 @@ export function validateRendererBuildManifest(
   });
 }
 
-export async function readRendererBuildManifest(
+export async function readRendererBuildManifest<TRenderer extends Renderer>(
   distDirectory: string,
-  profile: RendererBuildProfile,
+  profile: RendererBuildProfile<TRenderer>,
   options: RendererBuildManifestValidationOptions = {},
-): Promise<RendererBuildManifest> {
+): Promise<RendererBuildManifest<TRenderer>> {
   return validateRendererBuildManifest(
     JSON.parse(
       await fs.readFile(
@@ -307,11 +314,13 @@ export async function readRendererBuildManifest(
   );
 }
 
-export async function readRendererDevelopmentBuildManifest(
+export async function readRendererDevelopmentBuildManifest<
+  TRenderer extends Renderer,
+>(
   distDirectory: string,
-  profile: RendererBuildProfile,
+  profile: RendererBuildProfile<TRenderer>,
   options: RendererBuildManifestValidationOptions = {},
-): Promise<RendererDevelopmentBuildManifest> {
+): Promise<RendererDevelopmentBuildManifest<TRenderer>> {
   return validateRendererDevelopmentBuildManifest(
     JSON.parse(
       await fs.readFile(

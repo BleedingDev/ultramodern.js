@@ -83,8 +83,7 @@ const registrations = [
   octaneRendererRegistration,
 ] as const satisfies readonly RendererRegistration[];
 
-export type RegisteredRenderer = (typeof registrations)[number]['renderer'];
-export const registeredRenderers: readonly RegisteredRenderer[] = Object.freeze(
+export const registeredRenderers = Object.freeze(
   registrations.map(registration => registration.renderer),
 );
 

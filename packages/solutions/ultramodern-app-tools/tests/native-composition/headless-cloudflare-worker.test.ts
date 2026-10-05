@@ -3,14 +3,14 @@ import { createBuilderGenerator } from '@modern-js/app-tools/builder';
 import { createAsyncHook, createPluginManager } from '@modern-js/plugin';
 import type { CLIPluginAPI } from '@modern-js/plugin/cli';
 import { rstest } from '@rstest/core';
-import { ultramodernAppTools } from '../../src/native-composition';
+import { composeReactRenderer } from '../../src/native-composition/react-composition';
 
 rstest.mock('@modern-js/app-tools/builder', () => ({
   createBuilderGenerator: rstest.fn(),
 }));
 
 const getPlugin = () => {
-  const plugin = ultramodernAppTools().usePlugins?.find(
+  const plugin = composeReactRenderer().usePlugins?.find(
     candidate => candidate.name === '@modern-js/headless-cloudflare-worker',
   );
   if (!plugin) {
@@ -48,7 +48,7 @@ describe('headless Cloudflare worker build', () => {
       '@modern-js/ultramodern-release-envelope',
     ]);
     const composedManager = createPluginManager();
-    composedManager.addPlugins([ultramodernAppTools()]);
+    composedManager.addPlugins([composeReactRenderer()]);
     const composedNames = composedManager
       .getPlugins()
       .map(plugin => plugin.name);
@@ -60,11 +60,8 @@ describe('headless Cloudflare worker build', () => {
 
     const onAfterBuild = createAsyncHook<() => Promise<void>>();
     const api = {
-      getAppContext: () => ({
-        apiOnly: true,
-        deployTarget: { target: 'cloudflare', explicit: true },
-      }),
-      getNormalizedConfig: () => ({}),
+      getAppContext: () => ({ apiOnly: true, appDirectory: '/app' }),
+      getNormalizedConfig: () => ({ deploy: { target: 'cloudflare' } }),
       onAfterBuild: onAfterBuild.tap,
     } as unknown as CLIPluginAPI<AppTools>;
     for (const plugin of plugins) {

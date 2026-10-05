@@ -11,27 +11,44 @@ import type { PolicyDefaultsOptions } from '@modern-js/app-tools-extensions/poli
 import type { CLIPluginAPI } from '@modern-js/plugin';
 import { createConfigOptions } from '@modern-js/plugin/cli';
 import {
+  defineConfig,
   presetUltramodern,
+  resolveUltramodernConfig,
   ultramodernAppTools,
 } from '@modern-js/ultramodern-app-tools';
 import { createRsbuild, rspack } from '@rsbuild/core';
 import { runtimeRegister } from '../../../../runtime/plugin-runtime/src/cli/template';
 
-async function initializeCliPlugins(
-  createPlugin: typeof appTools,
-  options?: PolicyDefaultsOptions,
-) {
+async function initializeCliPlugins(createPlugin: typeof appTools) {
   const appDirectory = path.resolve(__dirname, '../..');
-  const userConfig = {
+  const consumerConfig = {
     html: { title: 'Consumer title' },
     output: { assetPrefix: '/consumer-assets/' },
   };
-  const originalConfig = structuredClone(userConfig);
-  let api: CLIPluginAPI<AppTools> | undefined;
-  const result = await createConfigOptions<AppTools>({
-    command: 'build',
-    configFile: false,
-    cwd: appDirectory,
+  const userConfig =
+    createPlugin === ultramodernAppTools
+      ? await resolveUltramodernConfig(defineConfig(consumerConfig), {
+          env: 'production',
+          command: 'build',
+        })
+      : { ...consumerConfig, plugins: [createPlugin()] };
+  const originalConfig = {
+    ...structuredClone(consumerConfig),
+    ...('renderer' in userConfig ? { renderer: userConfig.renderer } : {}),
+    plugins: [...(userConfig.plugins ?? [])],
+  };
+  const pluginManager = createPluginManager();
+  pluginManager.addPlugins(userConfig.plugins ?? []);
+  const plugins = pluginManager.getPlugins();
+  const context = await createContext({
+    appContext: initAppContext({
+      packageName: 'consumer-app',
+      configFile: false,
+      command: 'build',
+      appDirectory,
+      metaName: 'modern-js',
+      plugins,
+    }),
     config: userConfig,
     internalPlugins: [
       createPlugin(options),

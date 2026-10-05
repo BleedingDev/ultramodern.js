@@ -12,7 +12,10 @@ import {
   run,
 } from '../../src/native-composition/cli';
 import { createDefineConfig } from '../../src/native-composition/config';
-import { nativeRendererIsolationPlugin } from '../../src/native-composition/renderer-selection';
+import {
+  nativeRendererIsolationPlugin,
+  rendererSelectionGuard,
+} from '../../src/native-composition/renderer-selection';
 import { resolveUltramodernRsbuildConfig } from '../../src/native-composition/rsbuild';
 
 describe('renderer-owned launcher', () => {
@@ -116,6 +119,7 @@ export default () => { throw new Error('Help must never evaluate config'); };`,
     // native JSX compiler or application renderer has already been admitted.
     const defineConfig = createDefineConfig(selected => ({
       name: '@modern-js/ultramodern-app-tools',
+      usePlugins: [rendererSelectionGuard(selected, [])],
       setup(api) {
         expect(selected).toBe(renderer);
         setupPaths.push(api.getAppContext().configFile);
@@ -240,6 +244,10 @@ export default () => { throw new Error('Help must never evaluate config'); };`,
       const rsbuild = await createRsbuild({ cwd: fixture, rsbuildConfig });
       const [rspackConfig] = await rsbuild.initConfigs();
       expect(builderSetups).toBe(1);
+      expect(rsbuild.getNormalizedConfig().output.inlineScripts).toBe(false);
+      expect(rspackConfig.optimization?.runtimeChunk).toEqual({
+        name: 'builder-runtime',
+      });
       expect(
         rspackConfig.plugins?.map(plugin => plugin?.constructor.name),
       ).not.toContain('ReactRefreshPlugin');

@@ -14,7 +14,10 @@ import {
   routerPlugin as nativeRouterCliPlugin,
   runtimePlugin,
 } from '@modern-js/runtime/cli';
-import { ultramodernAppTools } from '@modern-js/ultramodern-app-tools';
+import {
+  defineConfig,
+  resolveUltramodernConfig,
+} from '@modern-js/ultramodern-app-tools';
 import { rspack } from '@rsbuild/core';
 
 const integrationPath = '@modern-js/ultramodern-app-tools/router-runtime';
@@ -33,17 +36,22 @@ async function initializeRouterCli({
   tanstack?: boolean;
   router?: Record<string, unknown>;
 } = {}) {
+  const config = await resolveUltramodernConfig(
+    defineConfig({
+      router,
+      plugins: [
+        runtimePlugin({ plugins: [nativeRouterCliPlugin()] }),
+        ...(tanstack ? [tanstackRouterPlugin()] : []),
+      ],
+    }),
+    { env: 'production', command: 'build' },
+  );
   const manager = createPluginManager();
   // Deliberately register the compositor first: its declared ordering must
   // still put its descriptor transform after both framework selectors.
-  manager.addPlugins([
-    ultramodernAppTools(),
-    runtimePlugin({ plugins: [nativeRouterCliPlugin()] }),
-    ...(tanstack ? [tanstackRouterPlugin()] : []),
-  ]);
+  manager.addPlugins(config.plugins ?? []);
   const plugins = manager.getPlugins();
   const appDirectory = path.resolve(__dirname, '../..');
-  const config = { router };
   const context = await createContext<AppTools>({
     appContext: initAppContext({
       packageName: 'router-integration-consumer',

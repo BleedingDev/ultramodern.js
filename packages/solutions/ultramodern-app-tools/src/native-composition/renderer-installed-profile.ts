@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { RendererFrameworkPackageBinding } from '@modern-js/app-tools-extensions/renderer-build-identity';
+import type { Renderer } from '@modern-js/renderer-core';
 import semver from '@modern-js/utils/semver';
 import type { RendererBuildProfile } from './renderer-profile';
 
@@ -9,8 +10,10 @@ export interface FrameworkModule {
   readonly filename: string;
 }
 
-export interface RendererProfileMetadata {
-  readonly profile: RendererBuildProfile;
+export interface RendererProfileMetadata<
+  TRenderer extends Renderer = Renderer,
+> {
+  readonly profile: RendererBuildProfile<TRenderer>;
   readonly frameworkPackages: readonly RendererFrameworkPackageBinding[];
 }
 
@@ -62,10 +65,10 @@ export function readRendererFrameworkPackage(
 }
 
 /** Native upstream pins stay fixed; selected framework identities are installed facts. */
-export function projectInstalledRendererProfile(
-  candidate: RendererBuildProfile,
+export function projectInstalledRendererProfile<TRenderer extends Renderer>(
+  candidate: RendererBuildProfile<TRenderer>,
   modules: readonly FrameworkModule[],
-): RendererProfileMetadata {
+): RendererProfileMetadata<TRenderer> {
   const frameworkPackages = modules.map(readRendererFrameworkPackage);
   const dependencies = { ...candidate.dependencies };
   let router = { ...candidate.router };

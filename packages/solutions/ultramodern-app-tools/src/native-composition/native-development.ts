@@ -74,7 +74,7 @@ interface Wave {
 }
 
 interface ReadyGeneration {
-  readonly metadata: RendererDevelopmentBuildManifest;
+  readonly metadata: RendererDevelopmentBuildManifest<Renderer>;
   readonly entries: ReadonlyMap<string, NativeDevelopmentSnapshot>;
 }
 
