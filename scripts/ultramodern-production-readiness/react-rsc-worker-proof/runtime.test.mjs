@@ -36,6 +36,94 @@ test('SSR qualification requires actual native composite and client slot markup'
   );
 });
 
+// C51 closes its shell before streaming both nested native Fizz segments.
+const lateFizzHtml = `<!doctype html><html><head></head><body>
+  <div id="root"><!--$--><div id="root-layout"><nav>Composite</nav>
+    <!--$?--><template id="modern-js-B:0"></template><!--/$-->
+  </div><!--/$--></div></body></html>
+  <script>(self.__FLIGHT_DATA||=[]).push(${JSON.stringify(nativeCompositeMarkup)});</script>
+  <div hidden id="modern-js-S:0"><main id="composite-page">
+    <!--$?--><template id="modern-js-B:1"></template><!--/$-->
+  </main></div>
+  <script>$RC=function(a,b){if(b=document.getElementById(b)){a=document.getElementById(a)}};$RC("modern-js-B:0","modern-js-S:0")</script>
+  <div hidden id="modern-js-S:1">${nativeCompositeMarkup}</div>
+  <script>$RC("modern-js-B:1","modern-js-S:1")</script>
+  <script>(self.__FLIGHT_DATA||=[]).push(${JSON.stringify(nativeCompositeMarkup)});</script>
+  </body></html>`;
+const innerCompletion = '<script>$RC("modern-js-B:1","modern-js-S:1")</script>';
+
+test('SSR qualification follows both C51 Fizz completions after the shell document closes', () => {
+  assert.doesNotThrow(() => assertNativeSsrHtml(lateFizzHtml));
+});
+
+test('SSR qualification rejects unresolved, failed, and orphan late Fizz markup', () => {
+  for (const html of [
+    lateFizzHtml.replace(innerCompletion, ''),
+    lateFizzHtml.replace('$RC("modern-js-B:0","modern-js-S:0")', ''),
+    lateFizzHtml.replace(
+      innerCompletion,
+      '<script>$RX("modern-js-B:1","","server error")</script>',
+    ),
+    `${lateFizzHtml}<script>$RX("modern-js-B:1","","server error")</script>`,
+    lateFizzHtml.replace('id="modern-js-S:1"', 'id="orphan-segment"'),
+    lateFizzHtml.replace('<template id="modern-js-B:1"></template>', ''),
+    `<html><body><div id="root"></div></body></html>${nativeCompositeMarkup}`,
+    `<html><body><div id="root"><div hidden id="S:0">${nativeCompositeMarkup}</div></div></body></html>`,
+    lateFizzHtml.replace('<!--$-->', '<!--$!-->'),
+  ]) {
+    assert.throws(() => assertNativeSsrHtml(html));
+  }
+});
+
+test('SSR qualification requires executable direct Fizz completion calls', () => {
+  const call = '$RC("modern-js-B:1","modern-js-S:1")';
+  for (const inactive of [
+    `<script>const flight = ${JSON.stringify(call)};</script>`,
+    `<script>(self.__FLIGHT_DATA||=[]).push(${JSON.stringify(call)});</script>`,
+    `<script>/*;${call}*/</script>`,
+    `<script>//;${call}</script>`,
+    `<script>function later(){${call}}</script>`,
+    `<script type="application/json">${call}</script>`,
+    `<script src="/unrelated.js">${call}</script>`,
+    `<template><script>${call}</script></template>`,
+    `<!--<script>${call}</script>-->`,
+  ]) {
+    assert.throws(
+      () =>
+        assertNativeSsrHtml(lateFizzHtml.replace(innerCompletion, inactive)),
+      /unresolved Fizz boundary/u,
+    );
+  }
+});
+
+test('SSR qualification rejects ambiguous or consumed Fizz segments', () => {
+  const root =
+    '<html><body><div id="root"><!--$?--><template id="B:0"></template><!--/$--><!--$?--><template id="B:1"></template><!--/$--></div></body></html>';
+  assert.throws(
+    () =>
+      assertNativeSsrHtml(
+        `${root}<div hidden id="S:0">${nativeCompositeMarkup}</div><script>$RC("B:0","S:0")</script><script>$RC("B:1","S:0")</script>`,
+      ),
+    /consumed Fizz segment/u,
+  );
+  for (const html of [
+    `${lateFizzHtml}<div hidden id="modern-js-S:1">${nativeCompositeMarkup}</div>`,
+    `${lateFizzHtml}${innerCompletion}`,
+    lateFizzHtml.replace(
+      '<main id="composite-page">',
+      '<main id="composite-page"><!--$?--><template id="modern-js-B:1"></template><!--/$-->',
+    ),
+    lateFizzHtml
+      .replace(innerCompletion, '')
+      .replace(
+        '<div hidden id="modern-js-S:1">',
+        `${innerCompletion}<div hidden id="modern-js-S:1">`,
+      ),
+  ]) {
+    assert.throws(() => assertNativeSsrHtml(html));
+  }
+});
+
 test('SSR qualification rejects the C50 empty error root even with native IDs in appended Flight', () => {
   // The actual C50 body ended here; these IDs existed only in its Flight tail.
   const html = String.raw`<!doctype html><html><head></head><body><div id="root"><!--$!--><template></template><!--/$--></div></body></html><script>(self.__FLIGHT_DATA||=[]).push('["$","p",null,{"id":"server-composite-output","children":"server-rendered composite output"}]');</script>`;
