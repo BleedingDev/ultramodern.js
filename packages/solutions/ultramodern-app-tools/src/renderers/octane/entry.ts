@@ -130,7 +130,7 @@ export async function nativeRequestHandler(request: Request, context: NativeRequ
       void completion.catch(error => context.session.fail(error));
       context.session.registerCleanup(() => completion);
     }
-  });
+  }, context.nonce);
   const dataResponse = await handleDataRequest({ request: nativeRequest, identity: rendererIdentity, context: context.session.platform.bindings, privateValues: [context, context.session, context.session.platform, context.session.platform.bindings], selectRoute: (request, routeId, operation) => selectApplicationDataRoute(router, request, routeId, operation, dataModules) });
   if (dataResponse) return dataResponse;
   const response = await createOctaneRequestHandler({ request: nativeRequest, session: context.session, createRouter: () => router, serialization: { forbiddenValues: [context, context.session, context.session.platform, context.session.platform.bindings, nativeRequest] } })(async ({ router, responseHeaders }) => {

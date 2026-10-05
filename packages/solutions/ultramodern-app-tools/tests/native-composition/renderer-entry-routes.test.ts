@@ -192,6 +192,11 @@ describe('native filesystem route source emission', () => {
     expect(server).toContain('invokeRouteData(module.loader, input)');
     for (const source of [client, server]) {
       expect(source).toContain('basepath: "/admin"');
+      if (renderer === 'octane') {
+        // TanStack only stamps $_TSR scripts with router.options.ssr.nonce.
+        expect(source).toContain('nonce?: string): AnyRouter');
+        expect(source).toContain('{ ssr: { nonce } }');
+      }
       expect(source).toContain('notFoundComponent:');
       expect(source).toContain('head:');
       expect(source).toContain(`@modern-js/renderer-${renderer}/router`);

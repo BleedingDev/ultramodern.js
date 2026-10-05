@@ -277,6 +277,8 @@ describe('native owning entry generation', () => {
       // Route ids must be matched through the router's basepath rewrite.
       expect(server).toContain('matchApplicationRoutes(router, new URL(');
       expect(server).not.toContain('router.matchRoutes(');
+      // The request CSP nonce reaches the router that emits $_TSR scripts.
+      expect(server).toContain('}, context.nonce);');
     }
   });
 });
