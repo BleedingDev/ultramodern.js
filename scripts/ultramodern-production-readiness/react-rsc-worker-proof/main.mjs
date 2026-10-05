@@ -29,6 +29,7 @@ import {
   sha256,
   workerOptions,
 } from './contract.mjs';
+import { registerOwnedRoot } from './lifecycle.mjs';
 import {
   assertNativeSsrHtml,
   browserProof,
@@ -178,45 +179,6 @@ export async function runCommand(
   }
 }
 
-function registerOwnedRoot(options) {
-  process.kill(options.ownerPid, 0);
-  const rootExisted = fs.existsSync(options.workDir);
-  fs.mkdirSync(options.workDir, { recursive: true });
-  const marker = path.join(options.workDir, '.disk-guardian-owner');
-  const markerExisted = fs.existsSync(marker);
-  const names = fs.readdirSync(options.workDir);
-  assert(
-    names.every(name => name === '.disk-guardian-owner'),
-    'Proof work directory must be new and empty; prior evidence is immutable',
-  );
-  if (fs.existsSync(marker))
-    assert.equal(fs.readFileSync(marker, 'utf8').trim(), options.owner);
-  else fs.writeFileSync(marker, `${options.owner}\n`, { flag: 'wx' });
-  const isTemp =
-    options.workDir.startsWith('/private/tmp/') ||
-    options.workDir.startsWith('/private/var/folders/');
-  try {
-    execFileSync(
-      'disk-guardian-artifacts',
-      [
-        'register',
-        '--owner',
-        options.owner,
-        '--kind',
-        isTemp ? 'temp' : 'build',
-        '--owner-pid',
-        String(options.ownerPid),
-        options.workDir,
-      ],
-      { stdio: 'pipe' },
-    );
-  } catch (error) {
-    if (!markerExisted) fs.unlinkSync(marker);
-    if (!rootExisted) fs.rmdirSync(options.workDir);
-    throw error;
-  }
-}
-
 export async function runProof(options) {
   const version = process.versions.node.split('.').map(Number);
   assert(
@@ -235,7 +197,7 @@ export async function runProof(options) {
     fs.statSync(options.storeDir).isDirectory(),
     'The existing external shared pnpm store is required',
   );
-  registerOwnedRoot(options);
+  const registration = registerOwnedRoot(options);
   const consumer = path.join(options.workDir, 'consumer');
   fs.mkdirSync(consumer);
   const inputs = releaseConsumerInputs(
@@ -309,6 +271,7 @@ export async function runProof(options) {
       name: options.owner,
       pid: options.ownerPid,
       root: options.workDir,
+      registration,
     },
     ...fixtureSources,
     commands: [],
