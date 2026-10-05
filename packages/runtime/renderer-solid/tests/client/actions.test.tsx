@@ -69,7 +69,10 @@ function request() {
   });
 }
 
-function fixture(component?: () => ReturnType<typeof Outlet>) {
+function fixture(
+  component?: () => ReturnType<typeof Outlet>,
+  basepath?: string,
+) {
   let loads = 0;
   const root = createRootRoute({ component: Outlet });
   const item = createRoute({
@@ -90,7 +93,10 @@ function fixture(component?: () => ReturnType<typeof Outlet>) {
   });
   const router = createRouter({
     routeTree: root.addChildren([item, done]),
-    history: createMemoryHistory({ initialEntries: ['/items/42'] }),
+    history: createMemoryHistory({
+      initialEntries: [`${basepath ?? ''}/items/42`],
+    }),
+    ...(basepath ? { basepath } : {}),
     origin: 'http://localhost',
     context: { ultramodern: { rendererIdentity: identity } },
     isServer: false,
@@ -792,6 +798,41 @@ describe('native Solid route actions', () => {
     expect(action.routeId).toBe('item');
     expect(new URL(action.url()).pathname).toBe('/items/42');
     expect(element.querySelector('form')?.method).toBe('post');
+  });
+
+  test('a basepath entry posts actions to the public route URL', async () => {
+    let destination = '';
+    const native = fixture(undefined, '/admin');
+    await native.router.load();
+    expect(native.router.state.location.pathname).toBe('/items/42');
+    const action = createRouteAction({
+      router: native.router,
+      routeId: 'item',
+      rendererIdentity: identity,
+      fetch: async input => {
+        destination = (input as Request).url;
+        return success('saved');
+      },
+    });
+    disposers.push(action.dispose);
+    expect(new URL(action.url()).pathname).toBe('/admin/items/42');
+    const element = document.createElement('div');
+    disposers.push(
+      mountApplication(
+        () => (
+          <ActionForm action={action}>
+            <button type="submit">Save</button>
+          </ActionForm>
+        ),
+        element,
+      ),
+    );
+    const form = element.querySelector('form');
+    if (!form) throw new Error('Missing native form');
+    await action.submitForm(form);
+    flush();
+    expect(action.error()).toBeUndefined();
+    expect(new URL(destination).pathname).toBe('/admin/items/42');
   });
 
   test('the native submitter action override retains its path and query', async () => {

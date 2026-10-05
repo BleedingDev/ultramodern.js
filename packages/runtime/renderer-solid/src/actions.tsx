@@ -171,7 +171,7 @@ export function createRouteAction(options: RouteActionOptions): RouteAction {
   const url = () => {
     const base =
       typeof window === 'undefined' ? requestURL : window.location.href;
-    const location = options.url ?? router.state.location.href;
+    const location = options.url ?? router.state.location.publicHref;
     if (!base && !URL.canParse(String(location))) {
       throw new Error('A server Solid action requires its native request URL');
     }
