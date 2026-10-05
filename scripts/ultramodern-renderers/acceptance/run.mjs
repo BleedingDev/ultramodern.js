@@ -185,8 +185,15 @@ export function loadInstalledDataResponseReader({ applicationRoot, kind }) {
   return owner.readDataResponse;
 }
 
-export function validateConsumerSelection(consumers) {
-  if (!Array.isArray(consumers) || consumers.length !== renderers.length * 2) {
+export function validateConsumerSelection(consumers, selected = renderers) {
+  if (
+    !Array.isArray(selected) ||
+    !selected.length ||
+    selected.some(renderer => !renderers.includes(renderer)) ||
+    new Set(selected).size !== selected.length
+  )
+    throw new Error('Unknown or duplicate selected renderer');
+  if (!Array.isArray(consumers) || consumers.length !== selected.length * 2) {
     throw new Error(
       'Exactly one generated and one hand-authored consumer per renderer are required',
     );
@@ -196,7 +203,7 @@ export function validateConsumerSelection(consumers) {
   for (const consumer of consumers) {
     const key = `${consumer.renderer}:${consumer.kind}`;
     if (
-      !renderers.includes(consumer.renderer) ||
+      !selected.includes(consumer.renderer) ||
       !['generated', 'hand-authored'].includes(consumer.kind) ||
       seen.has(key)
     ) {
@@ -331,7 +338,7 @@ export function validateConsumerSelection(consumers) {
       });
     }
   }
-  for (const renderer of renderers) {
+  for (const renderer of selected) {
     const pair = consumers.filter(consumer => consumer.renderer === renderer);
     const tuple = consumer =>
       Object.fromEntries(Object.entries(consumer.exactPackages).sort());
@@ -481,7 +488,10 @@ function profileDigest(consumers) {
 
 /** Runs builds and HTTP probes against already provisioned, owned isolated consumers. */
 export async function runPackedConformance(config, dependencies = {}) {
-  const consumers = validateConsumerSelection(config.consumers);
+  const consumers = validateConsumerSelection(
+    config.consumers,
+    config.renderers ?? renderers,
+  );
   const auditArtifacts =
     dependencies.auditReleaseArtifacts ?? auditReleaseArtifacts;
   const auditConsumer =
@@ -735,6 +745,11 @@ export async function runPackedConformance(config, dependencies = {}) {
       phase: 'build',
       ...(await run(consumer.commands.build, applicationRoot, commandOptions)),
     });
+    // Callers read the fresh build manifest here to bind host identities.
+    await dependencies.afterBuild?.(consumer, {
+      applicationRoot,
+      consumerRoot,
+    });
     if ((await authoredInputDigest(applicationRoot)) !== authoredDigest)
       throw new Error(
         'Authored source or type program drifted during the build',
@@ -828,6 +843,11 @@ export async function runPackedConformance(config, dependencies = {}) {
         )),
       });
     }
+    // Callers start the installed production/development hosts here.
+    await dependencies.attachHosts?.(consumer, {
+      applicationRoot,
+      consumerRoot,
+    });
     consumer.identityMetadataSha256 = {};
     const builtIdentities = {};
     const csrBuiltIdentities = {};
