@@ -396,14 +396,38 @@ it('compiles and runs Flight and HTML SSR with their own React exports in one wo
     fs.writeFileSync(
       workerEntry,
       `
-      import { createElement, useState } from 'react';
+      import { createElement, Fragment, useState } from 'react';
       import { renderToReadableStream } from 'react-dom/server.edge';
+      import { RSCServerSlot } from '@modern-js/render/client';
       import { renderRsc } from '@modern-js/render/rsc-worker';
+      import { renderSSRStream } from '@modern-js/render/ssr';
       import Root from './AppProxy.js';
-      function HtmlRoot() { const [value] = useState('HTML SSR default React'); return createElement('p', null, value); }
+      function HtmlRoot({ children }) { const [value] = useState('HTML SSR default React'); return createElement(Fragment, null, createElement('p', null, value), children); }
       export async function html() { return new Response(await renderToReadableStream(createElement(HtmlRoot))); }
       export function flight() { return new Response(renderRsc({ element: createElement(Root) })); }
       export function manifest() { return __rspack_rsc_manifest__; }
+      export default {
+        async fetch(request) {
+          const stream = await renderSSRStream(createElement(HtmlRoot, null, createElement(RSCServerSlot)), {
+            request,
+            rscRoot: createElement(Root),
+            rscManifest: __rspack_rsc_manifest__,
+          });
+          const allReady = stream.allReady;
+          const allReadyIsPromise = allReady instanceof Promise;
+          await allReady;
+          const transport = new TransformStream();
+          const [bytes] = await Promise.all([
+            new Response(transport.readable).arrayBuffer(),
+            stream.pipeTo(transport.writable),
+          ]);
+          return new Response(bytes, { headers: {
+            'content-type': 'text/html; charset=utf-8',
+            'x-test-all-ready-promise': String(allReadyIsPromise),
+            'x-test-all-ready-identity': String(stream.allReady === allReady),
+          } });
+        },
+      };
     `,
     );
     const options = resolveReactWorkerRscOptions(true);
@@ -488,6 +512,14 @@ it('compiles and runs Flight and HTML SSR with their own React exports in one wo
     const client = stats.find(stat => stat.compilation.name === 'client');
     if (!worker || !client)
       throw new Error('Native RSC compiled environments are missing');
+    // Use the generator's declared simulator, as the packed worker proof does.
+    const generatorRequire = createRequire(
+      path.resolve(
+        __dirname,
+        '../../../../toolkit/ultramodern-create/package.json',
+      ),
+    );
+    const miniflareEntry = generatorRequire.resolve('miniflare');
     // Execute emitted ESM with ordinary Node before inspecting optimized graphs.
     const output = execFileSync(
       process.execPath,
@@ -496,16 +528,53 @@ it('compiles and runs Flight and HTML SSR with their own React exports in one wo
         '--eval',
         `
       import { pathToFileURL } from 'node:url';
+      import fs from 'node:fs';
+      import path from 'node:path';
       const worker = await import(pathToFileURL(process.argv[1]).href);
       const loaders = await import(pathToFileURL(process.argv[2]).href);
       const html = await worker.html();
       const flight = await worker.flight();
-      console.log(JSON.stringify({ htmlStatus: html.status, html: await html.text(), flightStatus: flight.status, flight: await flight.text(), mainManifest: worker.manifest(), loaderManifest: loaders.manifest() }));
+      const responses = { htmlStatus: html.status, html: await html.text(), flightStatus: flight.status, flight: await flight.text(), mainManifest: worker.manifest(), loaderManifest: loaders.manifest() };
+      const { Miniflare, convertV4MiniflareOptions, Log, LogLevel } = await import(pathToFileURL(process.argv[3]).href);
+      const modulesRoot = path.dirname(process.argv[1]);
+      const modulePaths = [process.argv[1], ...fs.readdirSync(modulesRoot, { recursive: true, withFileTypes: true })
+        .filter(entry => entry.isFile() && /\\.(?:c|m)?js$/u.test(entry.name))
+        .map(entry => path.join(entry.parentPath, entry.name))
+        .filter(file => file !== process.argv[1])
+        .sort()];
+      const miniflare = new Miniflare(convertV4MiniflareOptions({
+        rootPath: process.cwd(),
+        log: new Log(LogLevel.ERROR),
+        workers: [{
+          name: 'native-rsc-ssr-proof',
+          modules: modulePaths.map(file => ({ type: file.endsWith('.cjs') ? 'CommonJS' : 'ESModule', path: file })),
+          modulesRoot,
+          compatibilityDate: '2025-01-01',
+          compatibilityFlags: ['nodejs_compat'],
+        }],
+      }));
+      try {
+        await miniflare.ready;
+        const response = await miniflare.dispatchFetch('https://rsc-ssr-proof.invalid/');
+        responses.workerdHTMLStatus = response.status;
+        responses.workerdHTML = await response.text();
+        responses.workerdReadyPromise = response.headers.get('x-test-all-ready-promise');
+        responses.workerdReadyIdentity = response.headers.get('x-test-all-ready-identity');
+      } finally {
+        await miniflare.dispose();
+      }
+      console.log(JSON.stringify(responses));
     `,
         path.join(workerOutput, 'main.mjs'),
         path.join(workerOutput, 'index-server-loaders.mjs'),
+        miniflareEntry,
       ],
-      { encoding: 'utf8' },
+      {
+        encoding: 'utf8',
+        timeout: 20_000,
+        cwd: appDirectory,
+        env: { ...process.env, TMPDIR: appDirectory },
+      },
     );
     const responses = JSON.parse(output.trim());
     expect(responses.htmlStatus).toBe(200);
@@ -515,6 +584,20 @@ it('compiles and runs Flight and HTML SSR with their own React exports in one wo
     expect(responses.flight).not.toMatch(/\d+:E\{/u);
     expect(responses.flight).toMatch(/\d+:I\[/u);
     expect(responses.flight).toContain('ClientMarker');
+    // Native workerd receivers reject prototype facades that Node accepts.
+    expect({
+      status: responses.workerdHTMLStatus,
+      html: responses.workerdHTML,
+    }).toEqual({
+      status: 200,
+      html: expect.stringContaining('<span>client marker</span>'),
+    });
+    expect(responses.workerdHTML).toContain('<p>HTML SSR default React</p>');
+    expect(responses.workerdHTML).toContain('Flight server React');
+    expect(responses.workerdHTML).toContain('self.__FLIGHT_DATA');
+    expect(responses.workerdHTML).toContain('ClientMarker');
+    expect(responses.workerdReadyPromise).toBe('true');
+    expect(responses.workerdReadyIdentity).toBe('true');
     // The native serializer accepts either an export ID or its module ID.
     expect(
       responses.mainManifest.clientManifest[

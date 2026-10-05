@@ -21,6 +21,7 @@ import {
 } from './constants';
 import type { DeliveryUnitStamp } from './delivery-unit';
 import { createI18nWorkerManifest } from './i18n-worker';
+import { readWorkerRendererIdentities } from './renderer-identity';
 import { createCloudflareWorkerSecurityPolicy } from './security-policies';
 import type { CloudflareAppContext, CloudflareModernConfig } from './types';
 import { isRecord, normalizeRelativePath } from './utils';
@@ -145,6 +146,11 @@ export const createWorkerManifest = async (
       };
     }),
   );
+  const rendererIdentities = await readWorkerRendererIdentities(
+    appContext.distDirectory,
+    routes,
+    deliveryUnitStamp,
+  );
 
   const bffPrefix = modernConfig.bff?.prefix;
   const primaryBffPrefix = Array.isArray(bffPrefix) ? bffPrefix[0] : bffPrefix;
@@ -199,6 +205,7 @@ export const createWorkerManifest = async (
     security: createCloudflareWorkerSecurityPolicy(modernConfig),
     ...(moduleFederation === undefined ? {} : { moduleFederation }),
     ...(deliveryUnitStamp ? { deliveryUnit: deliveryUnitStamp } : {}),
+    ...(rendererIdentities ? { rendererIdentities } : {}),
     i18n: createI18nWorkerManifest(routeSpec, appContext),
     bff:
       isEffectApi && primaryBffPrefix && effectApiWorkerExists
