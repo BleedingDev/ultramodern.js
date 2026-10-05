@@ -239,44 +239,251 @@ export async function startBridge(runtime, workerName) {
 
 // Qualify this fixture's serialized SSR markup without decoding Flight.
 export function assertNativeSsrHtml(html) {
+  const attributes = opening =>
+    new Map(
+      [
+        ...opening.matchAll(
+          /\s([^\s"'<>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'<>`=]+)))?/gu,
+        ),
+      ].map(match => [
+        match[1].toLowerCase(),
+        match[2] ?? match[3] ?? match[4] ?? '',
+      ]),
+    );
+  const instructions = [];
+  const inertRanges = [];
   let markup = html.replace(
     /<(script|style|textarea|title)\b(?:[^"'<>]|"[^"]*"|'[^']*')*>[\s\S]*?<\/\1\s*>/giu,
-    '',
+    (element, tag, offset) => {
+      if (tag.toLowerCase() === 'script') {
+        const opening = /^<script\b(?:[^"'<>]|"[^"]*"|'[^']*')*>/iu.exec(
+          element,
+        )[0];
+        const attrs = attributes(opening);
+        const type = attrs.get('type')?.toLowerCase() ?? '';
+        if (
+          attrs.has('src') ||
+          !['', 'text/javascript', 'application/javascript'].includes(type)
+        ) {
+          return ' '.repeat(element.length);
+        }
+        const script = element
+          .slice(opening.length)
+          .replace(/<\/script\s*>$/iu, '');
+        // Fizz emits a direct call, optionally after defining its completion helper.
+        // Mask literals and comments before checking that the call is top-level.
+        const call = /(?:^|[;}])\s*(\$R[CX]\([\s\S]*\))\s*;?\s*$/u.exec(script);
+        if (call) {
+          const callIndex = script.indexOf(call[1], call.index);
+          const code = script.replace(
+            /"(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*'|`(?:\\[\s\S]|[^`\\])*`|\/\*[\s\S]*?\*\/|\/\/[^\r\n]*/gu,
+            value => ' '.repeat(value.length),
+          );
+          const depth = { '(': 0, '[': 0, '{': 0 };
+          for (const character of code.slice(0, callIndex)) {
+            if (character in depth) depth[character] += 1;
+            else if (character === ')') depth['('] -= 1;
+            else if (character === ']') depth['['] -= 1;
+            else if (character === '}') depth['{'] -= 1;
+          }
+          if (
+            code.slice(callIndex, callIndex + 3) === call[1].slice(0, 3) &&
+            Object.values(depth).every(value => value === 0)
+          ) {
+            const complete =
+              /^\$RC\(\s*(["'])([\w.-]*B:[\da-z]+)\1\s*,\s*(["'])([\w.-]*S:[\da-z]+)\3\s*\)$/iu.exec(
+                call[1],
+              );
+            const failed =
+              /^\$RX\(\s*(["'])([\w.-]*B:[\da-z]+)\1(?:\s*,[\s\S]*)?\)$/iu.exec(
+                call[1],
+              );
+            if (complete) {
+              instructions.push({
+                boundary: complete[2],
+                segment: complete[4],
+                offset,
+              });
+            }
+            if (failed)
+              instructions.push({ boundary: failed[2], failed: true, offset });
+          }
+        }
+      }
+      return ' '.repeat(element.length);
+    },
   );
   assert(
     !/<(?:script|style|textarea|title)\b/iu.test(markup),
     'Real workerd HTML has an unclosed inert element',
   );
-  markup = markup.replace(/<!--[\s\S]*?-->/gu, comment =>
-    comment === '<!--$!-->' ? comment : '',
-  );
+  markup = markup.replace(/<!--[\s\S]*?-->/gu, (comment, offset) => {
+    inertRanges.push([offset, offset + comment.length]);
+    return ['<!--$!-->', '<!--$?-->', '<!--/$-->'].includes(comment)
+      ? comment
+      : `<!--${' '.repeat(comment.length - 7)}-->`;
+  });
+  const boundaries = new Map();
   let templateDepth = 0;
-  let start = 0;
-  let outsideTemplates = '';
+  let templateStart;
+  let templateOpening;
+  const inertTemplates = [];
   for (const match of markup.matchAll(
     /<\/?template\b(?:[^"'<>]|"[^"]*"|'[^']*')*>/giu,
   )) {
     if (match[0].startsWith('</')) {
       assert(templateDepth > 0, 'Real workerd HTML has an unmatched template');
       templateDepth -= 1;
-      if (templateDepth === 0) start = match.index + match[0].length;
+      if (templateDepth === 0) {
+        const id = attributes(templateOpening).get('id');
+        const empty = !html
+          .slice(templateStart + templateOpening.length, match.index)
+          .trim();
+        inertRanges.push([templateStart, match.index + match[0].length]);
+        const pending = /<!--\$\?-->\s*$/u.test(markup.slice(0, templateStart));
+        if (empty && pending && /^[\w.-]*B:[\da-z]+$/iu.test(id ?? '')) {
+          assert(
+            !boundaries.has(id),
+            'Real workerd HTML repeats a Fizz boundary',
+          );
+          boundaries.set(id, { offset: templateStart });
+        } else {
+          inertTemplates.push([templateStart, match.index + match[0].length]);
+        }
+      }
     } else {
-      if (templateDepth === 0)
-        outsideTemplates += markup.slice(start, match.index);
+      if (templateDepth === 0) {
+        templateStart = match.index;
+        templateOpening = match[0];
+      }
       templateDepth += 1;
     }
   }
   assert.equal(templateDepth, 0, 'Real workerd HTML has an unclosed template');
-  markup = outsideTemplates + markup.slice(start);
-  const body = /<body\b[^>]*>([\s\S]*?)<\/body\s*>/iu.exec(markup)?.[1];
-  assert(body, 'Real workerd HTML lacks an actual body');
+  for (const [start, end] of inertTemplates.reverse()) {
+    inertRanges.push([start, end]);
+    markup =
+      markup.slice(0, start) + ' '.repeat(end - start) + markup.slice(end);
+  }
+  const completions = new Map();
+  for (const instruction of instructions) {
+    if (
+      inertRanges.some(
+        ([start, end]) =>
+          instruction.offset >= start && instruction.offset < end,
+      )
+    )
+      continue;
+    assert(
+      !instruction.failed,
+      'Real workerd HTML contains an SSR error boundary',
+    );
+    assert(
+      !completions.has(instruction.boundary),
+      'Real workerd HTML repeats a Fizz completion',
+    );
+    completions.set(instruction.boundary, instruction);
+  }
   assert(
-    !body.includes('<!--$!-->'),
+    !markup.includes('<!--$!-->'),
     'Real workerd HTML contains an SSR error boundary',
   );
-  assert(
-    /<div\b[^>]*\sid=["']root["'][^>]*>[\s\S]*<\/div\s*>/u.test(body),
-    'Real workerd HTML lacks the native root element',
+  const body = /<body\b[^>]*>([\s\S]*?)<\/body\s*>/iu.exec(markup);
+  assert(body, 'Real workerd HTML lacks an actual body');
+  const bodyStart = body.index + body[0].indexOf('>') + 1;
+  const bodyEnd = bodyStart + body[1].length;
+  const divStack = [];
+  const roots = [];
+  const segments = new Map();
+  for (const match of markup.matchAll(
+    /<\/?div\b(?:[^"'<>]|"[^"]*"|'[^']*')*>/giu,
+  )) {
+    if (match[0].startsWith('</')) {
+      const opening = divStack.pop();
+      assert(opening, 'Real workerd HTML has an unmatched div');
+      const div = {
+        ...opening,
+        end: match.index + match[0].length,
+        contentEnd: match.index,
+      };
+      if (div.id === 'root' && div.start >= bodyStart && div.end <= bodyEnd)
+        roots.push(div);
+      if (div.hidden && /^[\w.-]*S:[\da-z]+$/iu.test(div.id ?? '')) {
+        assert(
+          !segments.has(div.id),
+          'Real workerd HTML repeats a Fizz segment',
+        );
+        segments.set(div.id, div);
+      }
+    } else {
+      const attrs = attributes(match[0]);
+      divStack.push({
+        id: attrs.get('id'),
+        hidden: attrs.has('hidden'),
+        start: match.index,
+        contentStart: match.index + match[0].length,
+      });
+    }
+  }
+  assert.equal(divStack.length, 0, 'Real workerd HTML has an unclosed div');
+  assert.equal(
+    roots.length,
+    1,
+    'Real workerd HTML lacks a unique native root element',
+  );
+  const visibleContent = div => {
+    let cursor = div.contentStart;
+    let result = '';
+    const nested = [...segments.values()]
+      .filter(
+        segment =>
+          segment.start >= div.contentStart && segment.end <= div.contentEnd,
+      )
+      .sort((left, right) => left.start - right.start);
+    for (const segment of nested) {
+      if (segment.start < cursor) continue;
+      result += markup.slice(cursor, segment.start);
+      cursor = segment.end;
+    }
+    return result + markup.slice(cursor, div.contentEnd);
+  };
+  const resolving = new Set();
+  const consumedSegments = new Set();
+  const resolve = content =>
+    content.replace(
+      /<template\b(?:[^"'<>]|"[^"]*"|'[^']*')*>\s*<\/template\s*>/giu,
+      opening => {
+        const id = attributes(opening.split('>')[0]).get('id');
+        const boundary = boundaries.get(id);
+        const completion = completions.get(id);
+        const segment = segments.get(completion?.segment);
+        assert(
+          boundary && completion && segment,
+          'Real workerd HTML has an unresolved Fizz boundary',
+        );
+        assert(
+          boundary.offset < completion.offset &&
+            segment.end <= completion.offset,
+          'Real workerd HTML completes a Fizz boundary before its markup',
+        );
+        assert(
+          !resolving.has(id),
+          'Real workerd HTML has cyclic Fizz segments',
+        );
+        assert(
+          !consumedSegments.has(completion.segment),
+          'Real workerd HTML reuses a consumed Fizz segment',
+        );
+        consumedSegments.add(completion.segment);
+        resolving.add(id);
+        const resolved = resolve(visibleContent(segment));
+        resolving.delete(id);
+        return resolved;
+      },
+    );
+  const root = resolve(visibleContent(roots[0])).replace(
+    /<!--[\s\S]*?-->/gu,
+    '',
   );
   for (const [tag, id, text] of [
     ['p', 'server-composite-output', 'server-rendered composite output'],
@@ -287,7 +494,7 @@ export function assertNativeSsrHtml(html) {
       new RegExp(
         `<${tag}\\b[^>]*\\sid=["']${id}["'][^>]*>\\s*${text}\\s*</${tag}\\s*>`,
         'u',
-      ).test(body),
+      ).test(root),
       `Real workerd HTML lacks native SSR markup for ${id}`,
     );
   }

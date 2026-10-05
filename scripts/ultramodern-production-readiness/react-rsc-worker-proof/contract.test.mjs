@@ -435,7 +435,7 @@ test('fixture continuation requires its explicit cursor and an absolute prior re
 test('materializes the proof favicon through the ordinary public asset directory', t => {
   const fixtureRoot = path.join(import.meta.dirname, 'fixture');
   const consumer = path.join(ownedDirectory(t), 'consumer');
-  const source = path.join(fixtureRoot, 'public/favicon.ico');
+  const source = path.join(fixtureRoot, 'config/public/favicon.ico');
   const bytes = fs.readFileSync(source);
   assert.deepEqual(bytes.subarray(0, 4), Buffer.from([0, 0, 1, 0]));
   assert(
@@ -443,10 +443,12 @@ test('materializes the proof favicon through the ordinary public asset directory
     'The fixture must contain a valid ICO image',
   );
   const { fixture } = materializeFixtureSources({ fixtureRoot, consumer });
-  const evidence = fixture.find(item => item.path === 'public/favicon.ico');
+  const evidence = fixture.find(
+    item => item.path === 'config/public/favicon.ico',
+  );
   assert(evidence, 'The published favicon must be recorded as a fixture input');
   assert.deepEqual(fileEvidence(source, fixtureRoot), evidence);
-  const materialized = path.join(consumer, 'public/favicon.ico');
+  const materialized = path.join(consumer, 'config/public/favicon.ico');
   assert.deepEqual(fileEvidence(materialized, consumer), evidence);
   assert.deepEqual(fs.readFileSync(materialized), bytes);
 });

@@ -571,6 +571,12 @@ export async function runProof(options) {
     });
     assert.equal(ssr.status, 200);
     const ssrBytes = Buffer.from(await ssr.arrayBuffer());
+    receipt.ssr = {
+      status: ssr.status,
+      byteLength: ssrBytes.length,
+      sha256: sha256(ssrBytes),
+    };
+    receipt.http = bridge.evidence;
     assertNativeSsrHtml(ssrBytes.toString());
     const identities = [
       ...ssrBytes
@@ -595,11 +601,6 @@ export async function runProof(options) {
       'Real workerd HTML must carry the owning renderer identity header',
     );
     assert.deepEqual(JSON.parse(identityHeader), htmlIdentity);
-    receipt.ssr = {
-      status: ssr.status,
-      byteLength: ssrBytes.length,
-      sha256: sha256(ssrBytes),
-    };
     receipt.ssr.rendererIdentity = htmlIdentity;
     const { launchOptions } = harnessRequire('./utils/launchOptions.js');
     const puppeteer = harnessRequire('puppeteer');
