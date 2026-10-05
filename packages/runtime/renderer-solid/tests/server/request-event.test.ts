@@ -132,7 +132,7 @@ describe('native Solid application request event', () => {
 
     expect(result).toBe(callbackResult);
     resolveDocument(session);
-    const response = renderApplication({
+    const response = await renderApplication({
       session,
       view: () => {
         expect(requestEvent()).toBe(initialEvent);

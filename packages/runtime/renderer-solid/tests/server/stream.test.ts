@@ -104,10 +104,12 @@ describe('native Solid Node stream', () => {
       headers: [['content-type', 'text/html']],
       cache: { mode: 'no-store' },
     });
-    const html = await renderDocumentApplication({
-      session,
-      view: () => ssr(`<button${ssrHydrationKey()}>native button</button>`),
-    }).text();
+    const html = await (
+      await renderDocumentApplication({
+        session,
+        view: () => ssr(`<button${ssrHydrationKey()}>native button</button>`),
+      })
+    ).text();
     expect(html).toMatch(
       /<button _hk=shop%22%20%3C%26%27%20main:main:build-a:[^>]*>native button<\/button>/,
     );
@@ -157,22 +159,24 @@ describe('native Solid Node stream', () => {
       cache: { mode: 'no-store' },
     });
     const view = rstest.fn(() => ssr('<main>SSR application</main>'));
-    const html = await renderDocumentApplication({
-      session,
-      view,
-      document: {
-        rootId: 'app" data-bad="true',
-        renderId: 'app-zone:',
-        lang: 'en" data-bad="true',
-        nonce: { script: 'script-nonce', style: 'style-nonce' },
-        assets: [
-          { kind: 'stylesheet', href: '/app.css' },
-          { kind: 'stylesheet', href: '/app.css' },
-          { kind: 'modulepreload', href: '/lazy.js' },
-          { kind: 'script', href: '/app.js' },
-        ],
-      },
-    }).text();
+    const html = await (
+      await renderDocumentApplication({
+        session,
+        view,
+        document: {
+          rootId: 'app" data-bad="true',
+          renderId: 'app-zone:',
+          lang: 'en" data-bad="true',
+          nonce: { script: 'script-nonce', style: 'style-nonce' },
+          assets: [
+            { kind: 'stylesheet', href: '/app.css' },
+            { kind: 'stylesheet', href: '/app.css' },
+            { kind: 'modulepreload', href: '/lazy.js' },
+            { kind: 'script', href: '/app.js' },
+          ],
+        },
+      })
+    ).text();
     expect(view).toHaveBeenCalledTimes(1);
     expect(html).toContain('<main>SSR application</main>');
     expect(html).toContain('id="app&quot; data-bad=&quot;true"');
@@ -202,7 +206,7 @@ describe('native Solid Node stream', () => {
   test('hydrated streaming documents start ordered classic and native module assets before deferred EOF', async () => {
     const session = createSession();
     const value = deferred<string>();
-    const response = renderDocumentApplication({
+    const response = await renderDocumentApplication({
       session,
       view: deferredView({ promise: value.promise }),
       document: {
@@ -314,13 +318,13 @@ describe('native Solid Node stream', () => {
     const cleanup = rstest.fn();
     const view = rstest.fn(() => null);
     session.registerCleanup(cleanup);
-    expect(() =>
+    await expect(
       renderDocumentApplication({
         session,
         view,
         document: { assets: [{ kind: 'script', href: 'javascript:bad()' }] },
       }),
-    ).toThrow('HTTP URL');
+    ).rejects.toThrow('HTTP URL');
     expect(view).not.toHaveBeenCalled();
     expect((await session.completion).state).toBe('failed');
     expect(cleanup).toHaveBeenCalledTimes(1);
@@ -339,7 +343,7 @@ describe('native Solid Node stream', () => {
         ['set-cookie', 'b=2'],
       ],
     });
-    const response = renderApplication({
+    const response = await renderApplication({
       session,
       document: {
         renderId: 'shop:',
@@ -380,14 +384,16 @@ describe('native Solid Node stream', () => {
     expect(cleanup).toHaveBeenCalledTimes(1);
     expect(ownerCleanup).toHaveBeenCalledTimes(1);
     expect((await session.completion).cacheEligible).toBe(false);
-    expect(() => renderApplication({ session, view: () => null })).toThrow();
+    await expect(
+      renderApplication({ session, view: () => null }),
+    ).rejects.toThrow();
   });
 
   test('returns the shell before an unresolved native Loading boundary', async () => {
     const value = deferred<string>();
     const cleanup = rstest.fn();
     const session = createSession();
-    const response = renderApplication({
+    const response = await renderApplication({
       session,
       view: deferredView({ promise: value.promise, cleanup }),
     });
@@ -435,7 +441,7 @@ describe('native Solid Node stream', () => {
       });
     let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
     try {
-      const response = renderDocumentApplication({
+      const response = await renderDocumentApplication({
         session,
         view: () => {
           onCleanup(() => {
@@ -512,14 +518,18 @@ describe('native Solid Node stream', () => {
           events.push(`${new URL(request!.url).pathname}:${stage}`);
         },
       });
-    const firstBody = renderApplication({
-      session: first,
-      view: observedView(first, firstValue.promise),
-    }).text();
-    const secondBody = renderApplication({
-      session: second,
-      view: observedView(second, secondValue.promise),
-    }).text();
+    const firstBody = (
+      await renderApplication({
+        session: first,
+        view: observedView(first, firstValue.promise),
+      })
+    ).text();
+    const secondBody = (
+      await renderApplication({
+        session: second,
+        view: observedView(second, secondValue.promise),
+      })
+    ).text();
     secondValue.resolve('second request');
     expect(await secondBody).toContain('second request');
     firstValue.resolve('first request');
@@ -538,7 +548,7 @@ describe('native Solid Node stream', () => {
     const cleanup = rstest.fn();
     const session = createSession();
     session.registerCleanup(cleanup);
-    const response = renderApplication({
+    const response = await renderApplication({
       session,
       view: deferredView({ promise: value.promise, cleanup: ownerCleanup }),
     });
@@ -571,14 +581,18 @@ describe('native Solid Node stream', () => {
       });
       return deferredView({ promise })();
     };
-    const firstBody = renderApplication({
-      session: first,
-      view: view(firstValue.promise),
-    }).text();
-    const secondBody = renderApplication({
-      session: second,
-      view: view(secondValue.promise),
-    }).text();
+    const firstBody = (
+      await renderApplication({
+        session: first,
+        view: view(firstValue.promise),
+      })
+    ).text();
+    const secondBody = (
+      await renderApplication({
+        session: second,
+        view: view(secondValue.promise),
+      })
+    ).text();
     secondValue.resolve('second body');
     const secondHTML = await secondBody;
     firstValue.resolve('first body');
@@ -600,21 +614,25 @@ describe('native Solid Node stream', () => {
     const secondValue = deferred<string>();
     const firstCleanup = rstest.fn();
     const secondCleanup = rstest.fn();
-    const firstReader = renderApplication({
-      session: first,
-      view: deferredView({
-        promise: firstValue.promise,
-        cleanup: () => firstCleanup(getRequestEvent()?.request),
-      }),
-    }).body!.getReader();
+    const firstReader = (
+      await renderApplication({
+        session: first,
+        view: deferredView({
+          promise: firstValue.promise,
+          cleanup: () => firstCleanup(getRequestEvent()?.request),
+        }),
+      })
+    ).body!.getReader();
     await firstReader.read();
-    const secondReader = renderApplication({
-      session: second,
-      view: deferredView({
-        promise: secondValue.promise,
-        cleanup: () => secondCleanup(getRequestEvent()?.request),
-      }),
-    }).body!.getReader();
+    const secondReader = (
+      await renderApplication({
+        session: second,
+        view: deferredView({
+          promise: secondValue.promise,
+          cleanup: () => secondCleanup(getRequestEvent()?.request),
+        }),
+      })
+    ).body!.getReader();
     await secondReader.read();
     await firstReader.cancel('first disconnect');
     await secondReader.cancel('second disconnect');
@@ -633,7 +651,7 @@ describe('native Solid Node stream', () => {
     });
     const value = deferred<string>();
     const cleanup = rstest.fn();
-    const response = renderApplication({
+    const response = await renderApplication({
       session,
       view: deferredView({ promise: value.promise, cleanup }),
     });
@@ -651,7 +669,7 @@ describe('native Solid Node stream', () => {
     const session = createSession();
     const error = new Error('contained error');
     const hook = rstest.fn(() => new Error('public message'));
-    const response = renderApplication({
+    const response = await renderApplication({
       session,
       onError: hook,
       view: () =>
@@ -676,7 +694,7 @@ describe('native Solid Node stream', () => {
     const value = deferred<string>();
     const session = createSession();
     const hook = rstest.fn();
-    const response = renderApplication({
+    const response = await renderApplication({
       session,
       onError: hook,
       view: deferredView({ promise: value.promise }),
@@ -703,7 +721,7 @@ describe('native Solid Node stream', () => {
     const ownerCleanup = rstest.fn();
     session.registerCleanup(cleanup);
     const error = new Error('no shell');
-    expect(() =>
+    await expect(
       renderApplication({
         session,
         view: () => {
@@ -711,18 +729,18 @@ describe('native Solid Node stream', () => {
           throw error;
         },
       }),
-    ).toThrow(error);
+    ).rejects.toThrow(error);
     expect((await session.completion).state).toBe('failed');
     expect(cleanup).toHaveBeenCalledTimes(1);
     expect(ownerCleanup).toHaveBeenCalledTimes(1);
   });
 
-  test('uncontained asynchronous native failure errors delivery without changing committed policy', async () => {
+  test('an uncontained shell-time native failure rejects before any HTTP head commits', async () => {
     const session = createSession();
     const value = deferred<string>();
     const cleanup = rstest.fn();
     const hook = rstest.fn();
-    const response = renderApplication({
+    const rendering = renderApplication({
       session,
       onError: hook,
       view: () => {
@@ -731,15 +749,14 @@ describe('native Solid Node stream', () => {
         return ssr(['<main>', '</main>'], () => data());
       },
     });
-    const reading = response.text();
-    const error = new Error('uncontained deferred error');
+    const error = new Error('uncontained shell error');
     value.reject(error);
-    await expect(reading).rejects.toBe(error);
+    await expect(rendering).rejects.toBe(error);
     expect(hook).toHaveBeenCalledWith(
       error,
       expect.objectContaining({ handling: 'failed' }),
     );
-    expect(response.status).toBe(200);
+    expect(session.committedPolicy).toBeUndefined();
     expect((await session.completion).state).toBe('failed');
     expect((await session.completion).cacheEligible).toBe(false);
     expect(cleanup).toHaveBeenCalledTimes(1);
@@ -748,11 +765,11 @@ describe('native Solid Node stream', () => {
   test('rejects unsupported platforms, identities and terminal outcomes before invoking the view', async () => {
     const view = rstest.fn(() => null);
     const worker = createSession({ platform: 'worker' });
-    expect(() => renderApplication({ session: worker, view })).toThrow(
+    await expect(renderApplication({ session: worker, view })).rejects.toThrow(
       'worker rendering has not been admitted',
     );
     const react = createSession({ renderer: 'react' });
-    expect(() => renderApplication({ session: react, view })).toThrow(
+    await expect(renderApplication({ session: react, view })).rejects.toThrow(
       'Solid renderer identity',
     );
     const terminal = createSession();
@@ -762,9 +779,9 @@ describe('native Solid Node stream', () => {
       headers: [['location', '/login']],
       cache: { mode: 'no-store' },
     });
-    expect(() => renderApplication({ session: terminal, view })).toThrow(
-      'terminal responses bypass rendering',
-    );
+    await expect(
+      renderApplication({ session: terminal, view }),
+    ).rejects.toThrow('terminal responses bypass rendering');
     expect(view).not.toHaveBeenCalled();
     await Promise.all([
       worker.completion,

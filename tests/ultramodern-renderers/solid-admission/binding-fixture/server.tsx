@@ -42,24 +42,28 @@ export async function renderCase(mode: string, data?: unknown) {
       cache: { mode: 'no-store' },
     });
     if (mode === 'sync') {
-      const html = await renderApplication({
-        session,
-        view: () => <RouterProvider router={router} />,
-      }).text();
+      const html = await (
+        await renderApplication({
+          session,
+          view: () => <RouterProvider router={router} />,
+        })
+      ).text();
       return { html, loaderCalls: counters.loader };
     }
     if (mode === 'noHydration') {
-      const html = await renderApplication({
-        session,
-        view: () => (
-          <>
-            <NoHydration>
-              <RouterProvider router={router} />
-            </NoHydration>
-            <HydrationScript />
-          </>
-        ),
-      }).text();
+      const html = await (
+        await renderApplication({
+          session,
+          view: () => (
+            <>
+              <NoHydration>
+                <RouterProvider router={router} />
+              </NoHydration>
+              <HydrationScript />
+            </>
+          ),
+        })
+      ).text();
       return { html, loaderCalls: counters.loader };
     }
     if (mode === 'absent') {

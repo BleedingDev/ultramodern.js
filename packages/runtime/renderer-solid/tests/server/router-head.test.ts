@@ -82,11 +82,13 @@ describe('native router document head', () => {
   test('native child metadata overrides its layout inside the full document with one hydration bootstrap', async () => {
     const router = await routerAt('/items/42');
     const session = sessionAt('/items/42');
-    const html = await renderDocumentApplication({
-      session,
-      document: { nonce, renderId: 'native-head:' },
-      view: () => createComponent(ApplicationRouter, { router }),
-    }).text();
+    const html = await (
+      await renderDocumentApplication({
+        session,
+        document: { nonce, renderId: 'native-head:' },
+        view: () => createComponent(ApplicationRouter, { router }),
+      })
+    ).text();
     const head = html.slice(html.indexOf('<head>'), html.indexOf('</head>'));
     expect(html).toContain('<!doctype html>');
     expect(html).toContain('native item view');
@@ -109,11 +111,13 @@ describe('native router document head', () => {
     const router = await routerAt('/items/7');
     const session = sessionAt('/items/7');
     const heads: string[] = [];
-    const html = await renderApplication({
-      session,
-      document: { nonce, onHead: head => heads.push(head) },
-      view: () => createComponent(ApplicationRouter, { router }),
-    }).text();
+    const html = await (
+      await renderApplication({
+        session,
+        document: { nonce, onHead: head => heads.push(head) },
+        view: () => createComponent(ApplicationRouter, { router }),
+      })
+    ).text();
     expect(html).toContain('native item view');
     expect(heads).toHaveLength(1);
     expect(heads[0]).toContain('Item 7');
@@ -129,12 +133,18 @@ describe('native router document head', () => {
       routerAt('/items/first'),
       routerAt('/items/second'),
     ]);
-    const render = (router: typeof first, path: string, renderId: string) =>
-      renderDocumentApplication({
-        session: sessionAt(path),
-        document: { nonce, renderId },
-        view: () => createComponent(ApplicationRouter, { router }),
-      }).text();
+    const render = async (
+      router: typeof first,
+      path: string,
+      renderId: string,
+    ) =>
+      (
+        await renderDocumentApplication({
+          session: sessionAt(path),
+          document: { nonce, renderId },
+          view: () => createComponent(ApplicationRouter, { router }),
+        })
+      ).text();
     const [firstHTML, secondHTML] = await Promise.all([
       render(first, '/items/first', 'head-first:'),
       render(second, '/items/second', 'head-second:'),

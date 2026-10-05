@@ -211,7 +211,7 @@ describe('native public match transfer', () => {
     expect(loaderCalls).toBe(1);
     expect(router.state.matches.at(-1)?.status).toBe('success');
     const session = createSession();
-    expect(() =>
+    await expect(
       renderDocumentApplication({
         session,
         view: () => {
@@ -221,7 +221,9 @@ describe('native public match transfer', () => {
           return ssr('<main>raw native writer</main>');
         },
       }),
-    ).toThrow(/Custom native Solid routers are unsupported by UltraModern SSR/);
+    ).rejects.toThrow(
+      /Custom native Solid routers are unsupported by UltraModern SSR/,
+    );
     expect(componentCalls).toBe(0);
     expect(session.committedPolicy).toBeUndefined();
     expect((await session.completion).state).toBe('failed');
@@ -235,7 +237,7 @@ describe('native public match transfer', () => {
     let error: unknown;
     let emitted = '';
     try {
-      emitted = await renderTransfer(session, router).text();
+      emitted = await (await renderTransfer(session, router)).text();
     } catch (cause) {
       error = cause;
     }
@@ -256,7 +258,7 @@ describe('native public match transfer', () => {
       },
     });
     const router = await loadedRouter(session, payload);
-    expect(() => renderTransfer(session, router)).toThrow();
+    await expect(renderTransfer(session, router)).rejects.toThrow();
     expect(getterCalls).toBe(0);
     expect(session.committedPolicy).toBeUndefined();
     expect((await session.completion).state).toBe('failed');
@@ -278,7 +280,7 @@ describe('native public match transfer', () => {
       headers: [['content-type', 'text/html; charset=utf-8']],
       cache: { mode: 'no-store' },
     });
-    const response = renderTransfer(session, router);
+    const response = await renderTransfer(session, router);
     expect(response.status).toBe(500);
     const html = await response.text();
     expect(html).toContain('stream shell');
@@ -303,7 +305,7 @@ describe('native public match transfer', () => {
       return { greeting: publicMarker };
     });
     await router.load();
-    const html = await renderTransfer(session, router).text();
+    const html = await (await renderTransfer(session, router)).text();
     expect(html).toContain(MATCH_KEY_PREFIX);
     expect(html).toContain(publicMarker);
     expect(html).toContain('native-public-before-load');
@@ -323,7 +325,7 @@ describe('native public match transfer', () => {
       () => ({ payload: createValue() }),
     );
     await router.load();
-    expect(() => renderTransfer(session, router)).toThrow();
+    await expect(renderTransfer(session, router)).rejects.toThrow();
     expect(session.committedPolicy).toBeUndefined();
     expect((await session.completion).state).toBe('failed');
   });
@@ -344,7 +346,7 @@ describe('native public match transfer', () => {
       () => context,
     );
     await router.load();
-    expect(() => renderTransfer(session, router)).toThrow();
+    await expect(renderTransfer(session, router)).rejects.toThrow();
     expect(getterCalls).toBe(0);
     expect(session.committedPolicy).toBeUndefined();
     expect((await session.completion).state).toBe('failed');
@@ -359,7 +361,7 @@ describe('native public match transfer', () => {
       () => ({ bindings }),
     );
     await router.load();
-    expect(() => renderTransfer(session, router)).toThrow();
+    await expect(renderTransfer(session, router)).rejects.toThrow();
     expect(session.committedPolicy).toBeUndefined();
     expect((await session.completion).state).toBe('failed');
   });
@@ -378,7 +380,7 @@ describe('native public match transfer', () => {
         () => ({ payload: createValue() }),
       );
       await router.load();
-      renderTransfer(session, router);
+      await renderTransfer(session, router);
     } catch (cause) {
       error = cause;
     }
@@ -407,7 +409,7 @@ describe('native public match transfer', () => {
         () => authored,
       );
       await router.load();
-      renderTransfer(session, router);
+      await renderTransfer(session, router);
     } catch (cause) {
       error = cause;
     }
@@ -431,7 +433,7 @@ describe('native public match transfer', () => {
         () => ({ bindings }),
       );
       await router.load();
-      renderTransfer(session, router);
+      await renderTransfer(session, router);
     } catch (cause) {
       error = cause;
     }
@@ -506,10 +508,12 @@ describe('native public match transfer', () => {
     );
     await router.load();
     expect(router.state.matches.at(-1)?.error).toBeUndefined();
-    const html = await renderDocumentApplication({
-      session,
-      view: () => createComponent(ApplicationRouter, { router }),
-    }).text();
+    const html = await (
+      await renderDocumentApplication({
+        session,
+        view: () => createComponent(ApplicationRouter, { router }),
+      })
+    ).text();
     expect(contextCalls).toBeGreaterThan(0);
     expect(selected).toBe(router.state.matches.at(-1)?.context);
     expect(html).toContain('public-sync-route-context');
@@ -529,7 +533,7 @@ describe('native public match transfer', () => {
   )('managed native data rejects mutable %s before commit', async (_name, createValue) => {
     const session = createSession();
     const router = await loadedRouter(session, { payload: createValue() });
-    expect(() => renderTransfer(session, router)).toThrow();
+    await expect(renderTransfer(session, router)).rejects.toThrow();
     expect(session.committedPolicy).toBeUndefined();
     expect((await session.completion).state).toBe('failed');
   });
@@ -544,7 +548,7 @@ describe('native public match transfer', () => {
       () => ({ payload: createValue() }),
     );
     await router.load();
-    expect(() => renderTransfer(session, router)).toThrow();
+    await expect(renderTransfer(session, router)).rejects.toThrow();
     expect(session.committedPolicy).toBeUndefined();
     expect((await session.completion).state).toBe('failed');
   });
@@ -559,7 +563,7 @@ describe('native public match transfer', () => {
     const session = createSession();
     const router = await loadedRouter(session, original);
     let prepared: unknown;
-    const response = renderDocumentApplication({
+    const response = await renderDocumentApplication({
       session,
       view: () => {
         prepared = preparePublicLoaderData(original);
@@ -629,7 +633,7 @@ describe('native public match transfer', () => {
     ).toBe(true);
     expect(first).toBe(second);
     expect(first).not.toBe(source.promise);
-    const reader = renderTransfer(session, router).body!.getReader();
+    const reader = (await renderTransfer(session, router)).body!.getReader();
     const prefix = new TextDecoder().decode((await reader.read()).value);
     source.resolve(shared);
     expect(await first).toBe(left);
@@ -708,10 +712,12 @@ describe('native public match transfer', () => {
     await router.load();
     expect(router.state.matches.at(-1)?.error).toBeUndefined();
     expect(Object.isFrozen(router.state.matches.at(-1)?.context)).toBe(true);
-    const html = await renderDocumentApplication({
-      session,
-      view: () => createComponent(ApplicationRouter, { router }),
-    }).text();
+    const html = await (
+      await renderDocumentApplication({
+        session,
+        view: () => createComponent(ApplicationRouter, { router }),
+      })
+    ).text();
     expect(selected).toBe(router.state.matches.at(-1)?.context);
     expect(getterCalls).toBe(0);
     expect(html).not.toContain(privateMarker);
@@ -733,7 +739,7 @@ describe('native public match transfer', () => {
     const bindings = { authorization: privateMarker };
     const session = createSession(bindings);
     const router = await loadedRouter(session, { payload: bindings });
-    expect(() => renderTransfer(session, router)).toThrow();
+    await expect(renderTransfer(session, router)).rejects.toThrow();
     expect(session.committedPolicy).toBeUndefined();
     expect((await session.completion).state).toBe('failed');
   });
@@ -743,7 +749,7 @@ describe('native public match transfer', () => {
     const router = await loadedRouter(session, {
       nested: { later: Promise.resolve('public') },
     });
-    expect(() => renderTransfer(session, router)).toThrow();
+    await expect(renderTransfer(session, router)).rejects.toThrow();
     expect(session.committedPolicy).toBeUndefined();
     expect((await session.completion).state).toBe('failed');
   });
@@ -755,7 +761,7 @@ describe('native public match transfer', () => {
       ready: publicMarker,
       later: source.promise,
     });
-    const reader = renderTransfer(session, router).body!.getReader();
+    const reader = (await renderTransfer(session, router)).body!.getReader();
     const shell = await reader.read();
     const prefix = new TextDecoder().decode(shell.value);
     expect(prefix).toContain('stream shell');
@@ -777,7 +783,7 @@ describe('native public match transfer', () => {
       ready: publicMarker,
       later: source.promise,
     });
-    const reader = renderTransfer(session, router).body!.getReader();
+    const reader = (await renderTransfer(session, router)).body!.getReader();
     const shell = await reader.read();
     const prefix = new TextDecoder().decode(shell.value);
     expect(prefix).toContain('stream shell');
@@ -798,7 +804,7 @@ describe('native public match transfer', () => {
       later: source.promise,
     });
     let getterCalls = 0;
-    const reader = renderTransfer(session, router).body!.getReader();
+    const reader = (await renderTransfer(session, router)).body!.getReader();
     const prefix = new TextDecoder().decode((await reader.read()).value);
     source.resolve(
       Object.defineProperty({}, 'token', {
@@ -826,7 +832,7 @@ describe('native public match transfer', () => {
       ready: publicMarker,
       later: source.promise,
     });
-    const reader = renderTransfer(session, router).body!.getReader();
+    const reader = (await renderTransfer(session, router)).body!.getReader();
     const prefix = new TextDecoder().decode((await reader.read()).value);
     expect(prefix).toContain('stream shell');
     source.resolve(createValue());
@@ -848,7 +854,7 @@ describe('native public match transfer', () => {
     });
     const session = createSession();
     const router = await loadedRouter(session, { array });
-    expect(() => renderTransfer(session, router)).toThrow();
+    await expect(renderTransfer(session, router)).rejects.toThrow();
     expect(getterCalls).toBe(0);
     expect(session.committedPolicy).toBeUndefined();
     expect((await session.completion).state).toBe('failed');
@@ -860,7 +866,7 @@ describe('native public match transfer', () => {
     const session = createSession();
     const router = await loadedRouter(session, original);
     let getterCalls = 0;
-    const response = renderDocumentApplication({
+    const response = await renderDocumentApplication({
       session,
       view: () => {
         preparePublicLoaderData(original);
@@ -909,10 +915,12 @@ describe('native public match transfer', () => {
       },
     );
     await router.load();
-    const reader = renderDocumentApplication({
-      session,
-      view: () => createComponent(ApplicationRouter, { router }),
-    }).body!.getReader();
+    const reader = (
+      await renderDocumentApplication({
+        session,
+        view: () => createComponent(ApplicationRouter, { router }),
+      })
+    ).body!.getReader();
     const prefix = new TextDecoder().decode((await reader.read()).value);
     expect(prefix).toContain('native-state shell');
     if (!handle) throw new Error('Expected a managed native Promise handle.');
@@ -950,10 +958,12 @@ describe('native public match transfer', () => {
       },
     );
     await router.load();
-    const reader = renderDocumentApplication({
-      session,
-      view: () => createComponent(ApplicationRouter, { router }),
-    }).body!.getReader();
+    const reader = (
+      await renderDocumentApplication({
+        session,
+        view: () => createComponent(ApplicationRouter, { router }),
+      })
+    ).body!.getReader();
     const prefix = new TextDecoder().decode((await reader.read()).value);
     if (!handle) throw new Error('Expected a managed native Promise handle.');
     expect(
@@ -1027,10 +1037,12 @@ describe('native public match transfer', () => {
       },
     );
     await router.load();
-    const reader = renderDocumentApplication({
-      session,
-      view: () => createComponent(ApplicationRouter, { router }),
-    }).body!.getReader();
+    const reader = (
+      await renderDocumentApplication({
+        session,
+        view: () => createComponent(ApplicationRouter, { router }),
+      })
+    ).body!.getReader();
     const prefix = new TextDecoder().decode((await reader.read()).value);
     source.resolve({ value: 'native-public-actual-fulfillment' });
     const result = await consume(reader, prefix);
@@ -1055,7 +1067,7 @@ describe('native public match transfer', () => {
     expect(() => Reflect.set(handle, 's', 3)).toThrow(
       /AsyncIterable values are not supported/,
     );
-    expect(() => renderTransfer(session, router)).toThrow();
+    await expect(renderTransfer(session, router)).rejects.toThrow();
     expect(session.committedPolicy).toBeUndefined();
     expect((await session.completion).state).toBe('failed');
     expect(Reflect.ownKeys(source.promise)).toEqual([]);
@@ -1094,10 +1106,12 @@ describe('native public match transfer', () => {
       },
     );
     await router.load();
-    const html = await renderDocumentApplication({
-      session,
-      view: () => createComponent(ApplicationRouter, { router }),
-    }).text();
+    const html = await (
+      await renderDocumentApplication({
+        session,
+        view: () => createComponent(ApplicationRouter, { router }),
+      })
+    ).text();
     expect(html).toContain(MATCH_KEY_PREFIX);
     expect(html).toContain(publicMarker);
     expect(html).toContain('native-already-fulfilled-value');
@@ -1229,7 +1243,7 @@ describe('native public match transfer', () => {
     critical.ready = privateMarker;
     critical.details.title = privateMarker;
     critical.details.tags.push(privateMarker);
-    const response = renderDocumentApplication({
+    const response = await renderDocumentApplication({
       session,
       view: () => createComponent(ApplicationRouter, { router }),
     });
@@ -1301,7 +1315,7 @@ describe('native public match transfer', () => {
       loaderCalls += 1;
       return { value: 'not loaded' };
     });
-    const html = await renderTransfer(session, router).text();
+    const html = await (await renderTransfer(session, router)).text();
     expect(html).not.toContain(MATCH_KEY_PREFIX);
     expect(loaderCalls).toBe(0);
   });

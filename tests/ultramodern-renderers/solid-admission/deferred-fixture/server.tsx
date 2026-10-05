@@ -76,7 +76,7 @@ export async function beginDeferredDocument(assets: readonly DocumentAsset[]) {
     });
     const errors: Array<{ handling: string; message: string }> = [];
     timeline.renderingAt = Date.now();
-    const response = renderDocumentApplication({
+    const response = await renderDocumentApplication({
       session,
       document: { renderId: 'managed-deferred:', assets },
       view: () => <ApplicationRouter router={router} />,
