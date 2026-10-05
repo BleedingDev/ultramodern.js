@@ -1,15 +1,239 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { once } from 'node:events';
+import { EventEmitter, once } from 'node:events';
 import http from 'node:http';
 import test from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 import {
+  browserProof,
   inspectOwnedProcessGroup,
   retireOwnedProcessGroup,
   startBridge,
 } from './runtime.mjs';
+
+function browserTrafficFixture({
+  preload = [],
+  click = [],
+  errors = [],
+  target = '/composite',
+} = {}) {
+  const origin = 'http://127.0.0.1:19100';
+  const page = new EventEmitter();
+  let location;
+  let actionValue = 0;
+  let closed = false;
+  const observe = ({
+    url = target,
+    method = 'GET',
+    headers = { 'x-rsc-tree': 'true' },
+    navigation = false,
+    status = 200,
+    response = true,
+    detached = false,
+  }) => {
+    const request = {
+      url: () => new URL(url, origin).href,
+      method: () => method,
+      headers: () => headers,
+      isNavigationRequest: () => navigation,
+    };
+    page.emit('request', request);
+    if (response)
+      page.emit('response', {
+        url: request.url,
+        status: () => status,
+        headers: () =>
+          headers['x-rsc-action'] ? { 'content-type': 'text/x-component' } : {},
+        request: () => (detached ? { ...request } : request),
+      });
+  };
+  page.goto = async url => {
+    location = url;
+    observe({ url, headers: {}, navigation: true });
+    preload.forEach(observe);
+  };
+  page.waitForSelector = async () => {};
+  page.$eval = async (selector, evaluate) =>
+    evaluate({
+      href: new URL(target, origin).href,
+      textContent: {
+        '#server-composite-output': 'server-rendered composite output',
+        '#client-slot': 'client slot:slot-label-from-server',
+        '#client-children': 'client child slot',
+      }[selector],
+    });
+  page.click = async selector => {
+    if (selector === '[data-testid="link-composite"]') {
+      location = new URL(target, origin).href;
+      click.forEach(observe);
+      for (const [type, message] of errors) {
+        page.emit(
+          type,
+          type === 'pageerror'
+            ? new Error(message)
+            : { type: () => 'error', text: () => message },
+        );
+      }
+    } else {
+      assert.equal(selector, '.server-increment');
+      actionValue += 3;
+      observe({
+        method: 'POST',
+        headers: { 'x-rsc-action': 'native-action-id' },
+      });
+    }
+  };
+  page.waitForFunction = async (_predicate, _options, expected) => {
+    if (expected !== undefined) assert.equal(String(actionValue), expected);
+  };
+  page.url = () => location;
+  page.close = async () => {
+    closed = true;
+  };
+  return {
+    browser: { newPage: async () => page },
+    origin,
+    isClosed: () => closed,
+  };
+}
+
+test('native browser proof accepts target Flight from viewport preload or click and records its delivery', async () => {
+  for (const [preload, click] of [
+    [true, false],
+    [false, true],
+    [true, true],
+  ]) {
+    const fixture = browserTrafficFixture({
+      target: '/composite?card=1',
+      preload: preload ? [{}] : [],
+      click: click ? [{}] : [],
+    });
+    const evidence = await browserProof(fixture.browser, fixture.origin);
+    assert.equal(evidence.flight.url, `${fixture.origin}/composite?card=1`);
+    assert.equal(evidence.flight.preload, preload);
+    assert.equal(evidence.flight.click, click);
+    assert.equal(
+      evidence.flight.requestIndices.length,
+      Number(preload) + Number(click),
+    );
+    assert.equal(
+      evidence.flight.responseIndices.length,
+      evidence.flight.requestIndices.length,
+    );
+    assert.equal(evidence.documentReloads, 0);
+    assert.equal(evidence.navigationRequests.length, Number(click) + 2);
+    assert.deepEqual(evidence.actionValues, [3, 6]);
+    assert.deepEqual(evidence.errors, []);
+    assert(fixture.isClosed());
+  }
+});
+
+test('native browser proof cannot credit Flight for another URL, origin, method, or header', async () => {
+  for (const packet of [
+    { url: '/other' },
+    { url: '/composite?card=other' },
+    { url: 'http://another.invalid/composite' },
+    { method: 'POST' },
+    { headers: { 'x-rsc-tree': 'false' } },
+    { headers: { 'x-rsc-tree': 'TRUE' } },
+    { headers: {} },
+    { navigation: true },
+  ]) {
+    const fixture = browserTrafficFixture({ preload: [packet] });
+    await assert.rejects(
+      () => browserProof(fixture.browser, fixture.origin),
+      error => {
+        assert.match(error.message, /target did not request Flight/u);
+        assert.equal(error.browserEvidence.requests.length, 2);
+        assert.equal(
+          error.browserEvidence.flightTarget,
+          `${fixture.origin}/composite`,
+        );
+        assert.deepEqual(error.browserEvidence.navigationRequests, []);
+        return true;
+      },
+    );
+    assert(fixture.isClosed());
+  }
+  const foreignLink = browserTrafficFixture({
+    target: 'http://another.invalid/composite',
+  });
+  await assert.rejects(() =>
+    browserProof(foreignLink.browser, foreignLink.origin),
+  );
+  assert(foreignLink.isClosed());
+});
+
+test('native browser proof requires a successful response belonging to each observed target Flight request', async () => {
+  for (const preload of [
+    [{ response: false }],
+    [{ detached: true }],
+    [{ status: 500 }],
+    [{}, { response: false }],
+  ]) {
+    const fixture = browserTrafficFixture({ preload });
+    await assert.rejects(
+      () => browserProof(fixture.browser, fixture.origin),
+      error => {
+        assert.match(
+          error.message,
+          /target Flight requests did not all succeed/u,
+        );
+        assert.equal(
+          error.browserEvidence.requests[1].headers['x-rsc-tree'],
+          'true',
+        );
+        return true;
+      },
+    );
+    assert(fixture.isClosed());
+  }
+});
+
+test('successful preloaded Flight does not excuse document reloads or browser runtime errors', async () => {
+  const reloaded = browserTrafficFixture({
+    preload: [{}],
+    click: [{ headers: {}, navigation: true }],
+  });
+  await assert.rejects(
+    () => browserProof(reloaded.browser, reloaded.origin),
+    error => {
+      assert.match(error.message, /document reload/u);
+      assert.equal(
+        error.browserEvidence.navigationRequests[0].navigation,
+        true,
+      );
+      return true;
+    },
+  );
+  assert(reloaded.isClosed());
+  const failed = browserTrafficFixture({
+    preload: [{}],
+    errors: [
+      ['pageerror', 'runtime failed'],
+      ['console', 'console failed'],
+    ],
+  });
+  await assert.rejects(
+    () => browserProof(failed.browser, failed.origin),
+    error => {
+      assert.match(error.message, /Browser reported runtime errors/u);
+      assert.deepEqual(error.browserEvidence.errors, [
+        'runtime failed',
+        'console failed',
+      ]);
+      assert.equal(
+        error.browserEvidence.requests.filter(
+          request => request.headers['x-rsc-action'],
+        ).length,
+        2,
+      );
+      return true;
+    },
+  );
+  assert(failed.isClosed());
+});
 
 const groupId = 91002;
 const inspectionOptions = { effectiveUid: 501, observerPid: 91001 };
