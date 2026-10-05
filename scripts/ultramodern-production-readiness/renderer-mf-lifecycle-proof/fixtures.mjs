@@ -333,6 +333,8 @@ export function materializeFixture({
       }),
       'modern.config.ts': modernConfig(ports[role], origins[role]),
       'module-federation.config.ts': federationConfig(role, controlOrigin),
+      'src/modern-app-env.d.ts':
+        '/// <reference types="@modern-js/ultramodern-app-tools/react-types" />\n',
     };
     if (role === 'host') {
       Object.assign(sources, {

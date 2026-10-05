@@ -13,7 +13,10 @@ import {
 import {
   assertCohortResolutionProvenance,
   createAcceptancePackageManagerEnv,
+  createAcceptanceReleaseAgeEnv,
 } from '../published-create-proof/acceptance-profile.mjs';
+import { resolveCreatePackage } from '../published-create-proof/package-cohort.mjs';
+import { resolveAcceptanceReleaseAgeExclusions } from '../published-create-proof/release-age-audit.mjs';
 import { ordinaryFiles } from '../react-rsc-worker-proof/contract.mjs';
 import { registerOwnedRoot } from '../react-rsc-worker-proof/lifecycle.mjs';
 import { runCommand } from '../react-rsc-worker-proof/main.mjs';
@@ -197,13 +200,33 @@ export async function runProof(provided) {
         qualification: 'caller-owned-authenticated-cohort-registry',
       };
     const registryUrl = registry?.registryUrl ?? options.registryUrl;
-    const packageEnv = createAcceptancePackageManagerEnv(
-      options.workDir,
-      registry?.env ?? options.env ?? {},
-      options.pnpmExecutable,
-      process.env,
-      { storeDir: options.storeDir },
+    const registryEnv = registry?.env ?? options.env ?? {};
+    const releaseAgeExclusions = resolveAcceptanceReleaseAgeExclusions({
+      release,
+      mode: 'source',
+    });
+    const packageEnv = createAcceptanceReleaseAgeEnv(
+      createAcceptancePackageManagerEnv(
+        options.workDir,
+        registryEnv,
+        options.pnpmExecutable,
+        process.env,
+        { storeDir: options.storeDir },
+      ),
+      resolveCreatePackage(release),
+      releaseAgeExclusions,
+      registryEnv,
     );
+    receipt.installPolicy = {
+      minimumReleaseAge: Number(packageEnv.pnpm_config_minimum_release_age),
+      minimumReleaseAgeStrict:
+        packageEnv.pnpm_config_minimum_release_age_strict === 'true',
+      minimumReleaseAgeIgnoreMissingTime:
+        packageEnv.pnpm_config_minimum_release_age_ignore_missing_time ===
+        'true',
+      minimumReleaseAgeExclude: releaseAgeExclusions,
+      pmOnFail: packageEnv.pnpm_config_pm_on_fail,
+    };
     const env = {
       ...process.env,
       ...options.env,
