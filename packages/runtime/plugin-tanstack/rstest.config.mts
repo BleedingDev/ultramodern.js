@@ -30,6 +30,7 @@ export default {
         'tests/router/localisedIdentity.test.tsx',
         'tests/router/routeHooks.test.ts',
         'tests/router/rsc.test.tsx',
+        'tests/router/rscRouteLayer.test.ts',
         'tests/router/slotUsageSanitizer.test.ts',
         'tests/router/ssrPreload.test.ts',
         'tests/router/tanstackTypes.test.ts',
