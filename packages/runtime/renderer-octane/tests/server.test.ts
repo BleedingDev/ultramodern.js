@@ -161,6 +161,26 @@ describe('native Octane server application', () => {
     expect((await session.completion).cacheEligible).toBe(true);
   });
 
+  test('escapes the bootstrap payload exactly once for inline script placement', async () => {
+    const session = createSession();
+    const documentId = 'a</script><script>x y&z';
+    const response = await renderOctaneCSRDocument({
+      session,
+      document: { ...document, documentId },
+    });
+    const html = await response.text();
+    const payload = html.match(
+      /<script type="application\/json" id="__ULTRAMODERN_RENDERER__">([^<]*)<\/script>/,
+    )?.[1];
+    expect(payload).toBeDefined();
+    expect(payload).not.toContain(' ');
+    expect(payload).toContain(
+      'a\\u003C/script\\u003E\\u003Cscript\\u003Ex\\u2028y\\u0026z',
+    );
+    // A doubly escaped payload would decode to literal "<" text.
+    expect(JSON.parse(payload!).documentId).toBe(documentId);
+  });
+
   test('resolves terminal HTTP outcomes before invoking the native renderer', async () => {
     const session = createSession();
     const App = rstest.fn(() => ssrHtml('<main>must not render</main>'));
