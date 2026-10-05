@@ -9,6 +9,7 @@ import type {
   WorkspaceApp,
   WorkspaceRenderer,
 } from './types';
+import { readRendererFrameworkPackageEvidence } from './validation/renderer-framework-evidence';
 
 export function isApplicationRenderer(
   value: unknown,
@@ -51,6 +52,27 @@ export function getRendererGenerationProfile(
   }
   const selected = resolveCandidateRendererProfile(renderer);
   const adapter = resolveRendererGenerationAdapter(renderer);
+  if (adapter.kind === 'native') {
+    const dependencies = { ...selected.dependencies };
+    for (const name of Object.keys(dependencies)) {
+      if (!name.startsWith('@modern-js/')) continue;
+      const evidence = readRendererFrameworkPackageEvidence(name);
+      if (evidence.kind !== 'release-cohort') continue;
+      // Source profiles describe the upstream base; published framework ABIs
+      // use the release identity authenticated by the actual create producer.
+      dependencies[name] = evidence.version;
+      for (const owner of [
+        selected.compiler,
+        selected.hydration,
+        selected.router,
+      ]) {
+        if (owner.name === name) owner.version = evidence.version;
+      }
+      if (selected.router.coreName === name)
+        selected.router.coreVersion = evidence.version;
+    }
+    selected.dependencies = dependencies;
+  }
   const generation = adapter.createProfile(selected);
   if (
     selected.renderer !== renderer ||
