@@ -273,5 +273,10 @@ describe('native owning entry generation', () => {
     }
     expect(server).toContain('selectApplicationDataRoute');
     expect(server).toContain('nativeMatchRouteIds');
+    if (renderer === 'octane') {
+      // Route ids must be matched through the router's basepath rewrite.
+      expect(server).toContain('matchApplicationRoutes(router, new URL(');
+      expect(server).not.toContain('router.matchRoutes(');
+    }
   });
 });

@@ -225,7 +225,7 @@ export function createFileSystemRouteTree<Context = unknown>(
               abortController,
             }: {
               params: Record<string, string>;
-              location: { href: string };
+              location: { publicHref: string };
               abortController: AbortController;
             }) => {
               const base =
@@ -245,7 +245,9 @@ export function createFileSystemRouteTree<Context = unknown>(
                   ])
                 : abortController.signal;
               signal.throwIfAborted();
-              const request = new Request(new URL(location.href, base), {
+              // A basepath is a router rewrite: only publicHref keeps the
+              // URL that the server and data endpoints actually serve.
+              const request = new Request(new URL(location.publicHref, base), {
                 ...(options.request
                   ? { headers: options.request.headers }
                   : {}),
@@ -340,6 +342,25 @@ export interface FileSystemDataModule<Context = unknown> {
   action?: DataHandler<Context>;
 }
 
+/**
+ * Match a public request URL through the router's own location parsing, so the
+ * basepath (a router rewrite) is removed exactly as navigation removes it.
+ */
+export function matchApplicationRoutes(
+  router: AnyRouter,
+  url: URL,
+): AnyRouteMatch[] {
+  const href = url.pathname + url.search + url.hash;
+  const location = router.parseLocation({
+    href,
+    pathname: url.pathname,
+    search: url.search,
+    hash: url.hash,
+    state: { __TSR_index: 0 },
+  });
+  return router.matchRoutes(location);
+}
+
 /** A requested data id must belong to the native router's match for this URL. */
 export function selectApplicationDataRoute<Context = unknown>(
   router: AnyRouter,
@@ -348,13 +369,12 @@ export function selectApplicationDataRoute<Context = unknown>(
   operation: DataOperation,
   handlers: Readonly<Record<string, FileSystemDataModule<Context>>>,
 ): SelectedDataRoute<Context> | undefined {
-  const url = new URL(request.url);
-  const match = router
-    .matchRoutes(url.pathname, Object.fromEntries(url.searchParams))
-    .find(candidate => {
+  const match = matchApplicationRoutes(router, new URL(request.url)).find(
+    candidate => {
       const route = router.routesById[candidate.routeId];
       return route?.options.staticData?.ultramodernRouteId === requestedRouteId;
-    });
+    },
+  );
   const handler = handlers[requestedRouteId]?.[operation];
   if (!match || !handler) return undefined;
   return { routeId: requestedRouteId, params: match.params, handler };

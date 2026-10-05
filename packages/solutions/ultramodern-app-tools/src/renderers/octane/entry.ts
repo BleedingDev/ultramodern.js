@@ -105,7 +105,7 @@ export default nativeRequestHandler;
 `;
   }
   return `${common}
-import { selectApplicationDataRoute } from '@modern-js/renderer-octane/router';
+import { matchApplicationRoutes, selectApplicationDataRoute } from '@modern-js/renderer-octane/router';
 import { createOctaneRouterInjection, createOctaneRequestHandler, createSsrStreamResponse, OctaneRouterServer } from '@modern-js/renderer-octane/router-server';
 import { handleDataRequest, mergeDataResponseMetadata, collectDataHeaders, dataMetadataToDocumentPolicy, mergeDataResponseIntoResponse } from '@modern-js/renderer-core/data';
 import type { DataOutcome, DecodedDataOutcome } from '@modern-js/renderer-core/data';
@@ -113,7 +113,7 @@ import type { DataOutcome, DecodedDataOutcome } from '@modern-js/renderer-core/d
 export async function nativeMatchRouteIds(request: Request): Promise<readonly string[]> {
   const { createNativeRouter } = await import('./application.server');
   const router = createNativeRouter(rendererIdentity, request);
-  return router.matchRoutes(new URL(request.url).pathname).map(match => {
+  return matchApplicationRoutes(router, new URL(request.url)).map(match => {
     const data = router.routesById[match.routeId]?.options.staticData;
     return data && 'ultramodernRouteId' in data && typeof data.ultramodernRouteId === 'string' ? data.ultramodernRouteId : undefined;
   }).filter((id): id is string => typeof id === 'string');

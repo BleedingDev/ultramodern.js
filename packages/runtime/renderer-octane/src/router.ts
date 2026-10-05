@@ -20,6 +20,7 @@ export type {
 } from './routes';
 export {
   createFileSystemRouteTree,
+  matchApplicationRoutes,
   RouteDataError,
   resolveRouteData,
   selectApplicationDataRoute,
@@ -78,7 +79,7 @@ export function createOctaneRouteAction(input: OctaneRouteActionOptions) {
     const target =
       typeof input.url === 'function'
         ? input.url()
-        : (input.url ?? input.router.latestLocation.href);
+        : (input.url ?? input.router.latestLocation.publicHref);
     const origin = input.router.options.origin ?? globalThis.location?.origin;
     const request = new Request(new URL(target, origin), {
       method: input.method ?? 'POST',

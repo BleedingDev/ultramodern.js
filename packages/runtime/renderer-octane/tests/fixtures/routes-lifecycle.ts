@@ -28,6 +28,7 @@ import { createOctaneRouteAction } from '../../src/router';
 import { createOctaneRouterInjection } from '../../src/router-injection';
 import {
   createFileSystemRouteTree,
+  matchApplicationRoutes,
   RouteDataError,
   resolveRouteData,
   selectApplicationDataRoute,
@@ -726,6 +727,89 @@ export async function nativeFileSystemRoutes() {
     selectApplicationDataRoute(router, request, 'product', 'action', handlers),
     undefined,
   );
+}
+
+export async function nativeBasepathRoutes() {
+  const loaderUrls: string[] = [];
+  const request = new Request('https://native.test/app/products/42?sort=price');
+  const tree = createFileSystemRouteTree(
+    [
+      descriptor('app-root', {
+        isRoot: true,
+        children: [
+          descriptor('home', { index: true }),
+          descriptor('product', {
+            path: 'products/:productId',
+            modules: { data: '/product.data.ts' },
+          }),
+        ],
+      }),
+    ],
+    {},
+    {
+      request,
+      loadRoute: async (_route, input) => {
+        loaderUrls.push(input.request.url);
+        return success({ loaded: true });
+      },
+    },
+  );
+  const router = createRouter({
+    routeTree: tree,
+    basepath: '/app',
+    isServer: true,
+    origin: 'https://native.test',
+    history: createMemoryHistory({
+      initialEntries: ['/app/products/42?sort=price'],
+    }),
+  });
+  await router.load();
+  // The loader request must carry the public URL the server serves, not the
+  // router's basepath-stripped internal href.
+  assert.deepEqual(loaderUrls, [
+    'https://native.test/app/products/42?sort=price',
+  ]);
+  const ids = (url: string) =>
+    matchApplicationRoutes(router, new URL(url)).map(
+      match =>
+        router.routesById[match.routeId]?.options.staticData
+          ?.ultramodernRouteId,
+    );
+  assert.deepEqual(ids('https://native.test/app/products/42'), [
+    'app-root',
+    'product',
+  ]);
+  assert.deepEqual(ids('https://native.test/app'), ['app-root', 'home']);
+  const loader = () => ({ authorized: true });
+  const selected = selectApplicationDataRoute(
+    router,
+    new Request('https://native.test/app/products/42?__loader=product'),
+    'product',
+    'loader',
+    { product: { loader } },
+  );
+  assert.equal(selected?.handler, loader);
+  assert.equal(selected?.params.productId, '42');
+
+  const requests: Request[] = [];
+  const action = createOctaneRouteAction({
+    router,
+    routeId: 'product',
+    identity,
+    fetch: async input => {
+      const actionRequest =
+        input instanceof Request ? input : new Request(input);
+      requests.push(actionRequest);
+      return createDataResponse(success({ saved: true }), identity, {
+        routeId: 'product',
+        operation: 'action',
+      });
+    },
+  });
+  assert.equal((await action(undefined, new FormData())).kind, 'success');
+  const actionUrl = new URL(requests[0]!.url);
+  assert.equal(actionUrl.pathname, '/app/products/42');
+  assert.equal(actionUrl.searchParams.get('sort'), 'price');
 }
 
 export async function nativeLoaderCancellation() {
