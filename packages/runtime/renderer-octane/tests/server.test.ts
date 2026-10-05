@@ -461,86 +461,112 @@ describe('native Octane server application', () => {
     expect(html.indexOf('</main>')).toBeLessThan(html.indexOf('/runtime.js'));
   });
 
-  test('fails a recovered late native error even when native allReady would resolve', async () => {
+  test('keeps a 200 document with client fallback when a boundary errors before the shell', async () => {
     const session = createSession();
     const cleanup = rstest.fn();
     session.registerCleanup(cleanup);
-    const { App, pending } = streamedApp();
-    const response = await renderOctaneApplication({
-      session,
-      App,
-      document,
-      responsePolicy: policy(),
-    });
-    const reader = response.body!.getReader();
-    await reader.read();
-    expect(decode((await reader.read()).value)).toContain('WAIT');
-    const error = new Error('late native failure');
-    pending.reject(error);
-    const remaining = async () => {
-      while (!(await reader.read()).done) {
-        /* drain native recovery chunks */
-      }
-    };
-    await expect(remaining()).rejects.toBe(error);
-    const completion = await session.completion;
-    expect(completion.state).toBe('failed');
-    expect(completion.error).toBe(error);
-    expect(completion.cacheEligible).toBe(false);
-    expect(response.status).toBe(200);
-    expect(cleanup).toHaveBeenCalledTimes(1);
+    const error = new Error('boundary failed before shell');
+    const logged = rstest.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const Broken = () => {
+        throw error;
+      };
+      const response = await renderOctaneApplication({
+        session,
+        App: () =>
+          createElement(
+            'main',
+            null,
+            createElement('p', null, 'SHELL-SURVIVES'),
+            createElement(
+              Suspense,
+              { fallback: createElement('i', null, 'CLIENT-FALLBACK') },
+              createElement(Broken),
+            ),
+          ),
+        document,
+        responsePolicy: policy(),
+      });
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain('SHELL-SURVIVES');
+      expect(html).toContain('CLIENT-FALLBACK');
+      expect(html).toContain('__ULTRAMODERN_RENDERER__');
+      expect(html).toMatch(/<\/body><\/html>$/);
+      const completion = await session.completion;
+      expect(completion.state).toBe('completed');
+      expect(completion.fallback).toBe(true);
+      expect(completion.cacheEligible).toBe(false);
+      expect(session.signal.aborted).toBe(false);
+      expect(logged).toHaveBeenCalledWith(expect.any(String), error);
+      expect(cleanup).toHaveBeenCalledTimes(1);
+    } finally {
+      logged.mockRestore();
+    }
   });
 
-  test('fails and cancels a recovered native error before another deferred producer settles', async () => {
+  test('completes the document when a deferred boundary errors after the shell', async () => {
     const session = createSession();
     const cleanup = rstest.fn();
     session.registerCleanup(cleanup);
-    const failing = deferred<{ default: () => string }>();
-    const unfinished = deferred<{ default: () => string }>();
-    const Failed = lazy(() => failing.promise);
-    const Unfinished = lazy(() => unfinished.promise);
-    const response = await renderOctaneApplication({
-      session,
-      App: () =>
-        createElement(
-          'main',
-          null,
+    const logged = rstest.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const failing = deferred<{ default: () => string }>();
+      const later = deferred<{ default: () => string }>();
+      const Failed = lazy(() => failing.promise);
+      const Later = lazy(() => later.promise);
+      const response = await renderOctaneApplication({
+        session,
+        App: () =>
           createElement(
-            Suspense,
-            { fallback: createElement('i', null, 'WAIT-FAILURE') },
-            createElement(Failed),
+            'main',
+            null,
+            createElement(
+              Suspense,
+              { fallback: createElement('i', null, 'WAIT-FAILURE') },
+              createElement(Failed),
+            ),
+            createElement(
+              Suspense,
+              { fallback: createElement('i', null, 'WAIT-LATER') },
+              createElement(Later),
+            ),
           ),
-          createElement(
-            Suspense,
-            { fallback: createElement('i', null, 'WAIT-UNFINISHED') },
-            createElement(Unfinished),
-          ),
-        ),
-      document,
-      responsePolicy: policy(),
-    });
-    const reader = response.body!.getReader();
-    await reader.read();
-    const shell = decode((await reader.read()).value);
-    expect(shell).toContain('WAIT-FAILURE');
-    expect(shell).toContain('WAIT-UNFINISHED');
-    expect(decode((await reader.read()).value)).not.toContain('</body>');
-    const error = new Error('recovered error with another producer pending');
-    failing.reject(error);
-
-    // The other native lazy producer never settles, and no further body demand
-    // can drive EOF. Failure must abort and dispose the request independently.
-    const completion = await session.completion;
-    expect(completion.state).toBe('failed');
-    expect(completion.error).toBe(error);
-    expect(completion.cacheEligible).toBe(false);
-    expect(session.signal.aborted).toBe(true);
-    expect(session.signal.reason).toBe(error);
-    expect(cleanup).toHaveBeenCalledTimes(1);
-    await expect(reader.read()).rejects.toBe(error);
-    await session.fail(error);
-    expect(cleanup).toHaveBeenCalledTimes(1);
-    expect(response.status).toBe(200);
+        document,
+        responsePolicy: policy(),
+      });
+      const reader = response.body!.getReader();
+      await reader.read();
+      const shell = decode((await reader.read()).value);
+      expect(shell).toContain('WAIT-FAILURE');
+      expect(shell).toContain('WAIT-LATER');
+      expect(decode((await reader.read()).value)).toContain(
+        '__ULTRAMODERN_RENDERER__',
+      );
+      const error = new Error('deferred boundary failed after shell');
+      failing.reject(error);
+      // The recoverable error must not abort the request or the other producer.
+      await new Promise<void>(done => setImmediate(done));
+      expect(session.signal.aborted).toBe(false);
+      later.resolve({ default: () => ssrHtml('<b>LATER-CONTENT</b>') });
+      let tail = '';
+      for (;;) {
+        const next = await reader.read();
+        if (next.done) break;
+        tail += decode(next.value);
+      }
+      expect(tail).toContain('LATER-CONTENT');
+      expect(tail).toMatch(/<\/body><\/html>$/);
+      expect(response.status).toBe(200);
+      const completion = await session.completion;
+      expect(completion.state).toBe('completed');
+      expect(completion.fallback).toBe(true);
+      expect(completion.cacheEligible).toBe(false);
+      expect(logged).toHaveBeenCalledWith(expect.any(String), error);
+      expect(cleanup).toHaveBeenCalledTimes(1);
+    } finally {
+      logged.mockRestore();
+    }
   });
 
   test('cancels native rendering and request cleanup exactly once on consumer cancellation', async () => {

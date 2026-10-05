@@ -182,8 +182,6 @@ export async function renderOctaneApplication<Bindings extends object>(
     session.startRendering();
 
     let head = '';
-    let renderError: unknown;
-    let didRenderError = false;
     const nativeStream = await renderToReadableStream(input.App, input.props, {
       signal: session.signal,
       ...(document.nonce === undefined ? {} : { nonce: document.nonce }),
@@ -198,12 +196,14 @@ export async function renderOctaneApplication<Bindings extends object>(
         head = value;
       },
       onError(error) {
-        // Native recoverable boundaries can close their HTML stream normally.
-        // Fail immediately so other pending producers cannot keep cleanup or
-        // cache admission waiting for native EOF.
-        didRenderError = true;
-        renderError ??= error;
-        void session.fail(error);
+        // Octane reports recoverable Suspense-boundary errors here as well as
+        // fatal ones. A recoverable error streams the boundary's client
+        // fallback into an otherwise valid document, so it must not terminate
+        // the request. Fatal errors reject the shell or allReady instead.
+        if (session.signal.aborted) return;
+        // A document carrying an errored boundary must not enter a shared cache.
+        session.markFallback();
+        console.error('Octane render error:', error);
       },
     });
     // Observe rejection immediately, but consume concurrently: native allReady
@@ -272,7 +272,6 @@ export async function renderOctaneApplication<Bindings extends object>(
             const completion = await ready;
             release();
             if (!completion.ok) throw completion.error;
-            if (didRenderError) throw renderError;
             phase = 'done';
             controller.enqueue(suffix);
             controller.close();
