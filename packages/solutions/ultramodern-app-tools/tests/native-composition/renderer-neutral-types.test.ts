@@ -150,8 +150,12 @@ function checkInstalledDeclarations(
 const sharedConsumer = `
 import {
   defineConfig, resolveUltramodernConfig, resolveRendererProfile,
+  resolveCandidateRendererProfile,
+  readRendererBuildManifest, readRendererDevelopmentBuildManifest,
+  validateRendererBuildManifest,
   type AppUserConfig, type ConfigParams, type RendererBuildManifest,
-  type UserConfigExport,
+  type RendererDevelopmentBuildManifest, type RendererBuildProfile,
+  type RegisteredRenderer, type UserConfigExport,
 } from '@modern-js/ultramodern-app-tools';
 import { generateRouteArtifacts } from '@modern-js/ultramodern-app-tools/cli';
 import { resolveUltramodernRsbuildConfig } from '@modern-js/ultramodern-app-tools/rsbuild';
@@ -221,12 +225,27 @@ const builder = resolveUltramodernRsbuildConfig({
 });
 const profile = resolveRendererProfile('octane');
 const renderer: 'react' | 'solid' | 'octane' = profile.renderer;
+export type SelectedProfile = Assert<Same<typeof profile.renderer, RegisteredRenderer>>;
+const candidate = resolveCandidateRendererProfile('solid');
+export type SelectedCandidate = Assert<Same<typeof candidate.renderer, RegisteredRenderer>>;
 declare const manifest: RendererBuildManifest;
 const manifestRenderer: 'react' | 'solid' | 'octane' = manifest.profile.renderer;
+export type SelectedManifest = Assert<Same<typeof manifest.profile.renderer, RegisteredRenderer>>;
+const validatedManifest = validateRendererBuildManifest(manifest, profile);
+const validatedRenderer: RegisteredRenderer = validatedManifest.profile.renderer;
+const loadedManifest: Promise<RendererBuildManifest> = readRendererBuildManifest('.', profile);
+const loadedDevelopmentManifest: Promise<RendererDevelopmentBuildManifest> = readRendererDevelopmentBuildManifest('.', profile);
+export type OpenTransport = Assert<Same<RendererBuildProfile<string>['renderer'], string>>;
+declare const transportProfile: RendererBuildProfile<string>;
+const transportManifest = validateRendererBuildManifest(manifest, transportProfile);
+export type GenericManifest = Assert<Same<typeof transportManifest.profile.renderer, string>>;
+// @ts-expect-error An open transport profile does not imply SDK selection.
+const unselectedRenderer: RegisteredRenderer = transportManifest.profile.renderer;
 // @ts-expect-error A renderer value must belong to the supported selection.
 defineConfig({ renderer: 'unsupported' });
 void objectExport; void syncExport; void resolved; void generated; void builder;
-void renderer; void manifestRenderer;
+void renderer; void manifestRenderer; void validatedRenderer;
+void loadedManifest; void loadedDevelopmentManifest; void unselectedRenderer;
 `;
 
 const neutralConsumer = `${sharedConsumer}

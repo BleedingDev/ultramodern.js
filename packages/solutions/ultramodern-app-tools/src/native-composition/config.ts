@@ -1,12 +1,7 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
-import {
-  createRequire,
-  findPackageJSON,
-  isBuiltin,
-  syncBuiltinESMExports,
-} from 'node:module';
+import { findPackageJSON, isBuiltin, syncBuiltinESMExports } from 'node:module';
 import path from 'node:path';
 import { types as utilTypes } from 'node:util';
 import type { AppTools, CliPlugin } from '@modern-js/app-tools/cli-config';
@@ -159,7 +154,18 @@ function declaredInstalledConfigRoots(
   const manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
   if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest))
     throw new Error(`Invalid config application manifest: ${manifestFile}`);
-  const appRequire = createRequire(manifestFile);
+  // Inventory the application's installed namespace, not CommonJS global
+  // lookup roots supplied by NODE_PATH or the launching tool.
+  const packageDirectories: string[] = [];
+  for (
+    let directory = path.resolve(appDirectory);
+    ;
+    directory = path.dirname(directory)
+  ) {
+    if (path.basename(directory) !== 'node_modules')
+      packageDirectories.push(path.join(directory, 'node_modules'));
+    if (path.dirname(directory) === directory) break;
+  }
   const canonicalSources = authoredRoots.map(root => fs.realpathSync(root));
   const roots = new Set<string>();
   for (const field of [
@@ -194,7 +200,7 @@ function declaredInstalledConfigRoots(
           `Config dependency cannot own its application: ${name}`,
         );
       let installed: string | undefined;
-      for (const directory of appRequire.resolve.paths(name) ?? []) {
+      for (const directory of packageDirectories) {
         const candidate = path.join(directory, name);
         try {
           fs.lstatSync(candidate);
@@ -213,16 +219,25 @@ function declaredInstalledConfigRoots(
       // Uninstalled declarations do not authorize another provider. The real
       // native load retains its own missing-package behavior if it uses one.
       if (!installed) continue;
-      const selectedManifest = findPackageJSON(name, manifestFile);
       const installedManifest = path.join(installed, 'package.json');
+      const canonical = fs.realpathSync(installed);
+      const canonicalManifest = fs.realpathSync(
+        path.join(canonical, 'package.json'),
+      );
+      // Package presence and ownership do not depend on an entry export being
+      // available under ESM's conditions. Anchor the current physical owner so
+      // Node's lexical symlink cache cannot choose an earlier installed owner.
+      const selectedManifest = findPackageJSON(
+        canonicalManifest,
+        canonicalManifest,
+      );
       if (
         !selectedManifest ||
-        fs.realpathSync(selectedManifest) !== fs.realpathSync(installedManifest)
+        fs.realpathSync(selectedManifest) !== canonicalManifest
       )
         throw new Error(
           `Config dependency owner does not match its installed slot: ${name}`,
         );
-      const canonical = fs.realpathSync(installed);
       const owner = JSON.parse(fs.readFileSync(installedManifest, 'utf8'));
       const ownerSegments =
         typeof owner?.name === 'string' ? owner.name.split('/') : [];

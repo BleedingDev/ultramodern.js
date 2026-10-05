@@ -17,6 +17,7 @@ import {
   resolveRendererProfile,
   resolveRendererProfileMetadata,
 } from '../../src/native-composition/renderer-profile';
+import { resolveRendererRegistration } from '../../src/native-composition/renderer-registration';
 
 rstest.mock('node:module', { spy: true });
 
@@ -156,6 +157,33 @@ afterEach(() => {
   rstest
     .mocked(nodeModule.createRequire)
     .mockImplementation(createActualRequire);
+});
+
+describe('selected SDK profile admission', () => {
+  it.each([
+    'solid',
+    'octane',
+  ] as const)('rejects a mismatched %s candidate before installed owner resolution', renderer => {
+    const registration = resolveRendererRegistration(renderer);
+    const expected = registration.candidateProfile.renderer;
+    const resolver = rstest.mocked(nodeModule.createRequire);
+    resolver.mockClear();
+    try {
+      registration.candidateProfile.renderer = 'foreign-profile-owner';
+      expect(() => resolveCandidateRendererProfile(renderer)).toThrow(
+        'conflicts with selected owner',
+      );
+      expect(() => resolveRendererProfileMetadata(renderer)).toThrow(
+        'conflicts with selected owner',
+      );
+      expect(() => resolveRendererProfile(renderer)).toThrow(
+        'conflicts with selected owner',
+      );
+      expect(resolver).not.toHaveBeenCalled();
+    } finally {
+      registration.candidateProfile.renderer = expected;
+    }
+  });
 });
 
 describe('physical installed framework profile identities', () => {

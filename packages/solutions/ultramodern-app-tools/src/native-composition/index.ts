@@ -4,6 +4,7 @@ import { createDeployOutputAliasesPlugin } from '@modern-js/app-tools-extensions
 import { rendererBuildArtifactStampPlugin } from '@modern-js/app-tools-extensions/release-envelope/renderer-output-stamp';
 import type { Renderer, RendererIdentity } from '@modern-js/renderer-core';
 import { createDefineConfig } from './config';
+import { isEntryMetadataRead } from './config-read-context';
 import { nativeClientAssetsPlugin } from './native-assets';
 import { nativeEntryCommandPlugin } from './native-entry-command';
 import type { NativeEntryGenerator } from './native-infrastructure';
@@ -116,19 +117,22 @@ function composeNativeRenderer(
       ...selected,
     ],
     setup(api) {
-      api.modifyResolvedConfig(async config => {
-        const compiler = await activateNativeRendererCompiler(renderer, {
-          rendererIdentities: () => rendererIdentities,
+      if (!isEntryMetadataRead())
+        api.modifyResolvedConfig(async config => {
+          const compiler = await activateNativeRendererCompiler(renderer, {
+            rendererIdentities: () => rendererIdentities,
+          });
+          const builderPlugins = [
+            nativeRendererIsolationPlugin(renderer),
+            nativeClientAssetsPlugin(renderer, () => rendererIdentities),
+            compiler,
+            ...(await resolveRendererBuilderPlugins(
+              config.builderPlugins ?? [],
+            )),
+          ];
+          assertRendererCompilerOwnership(renderer, builderPlugins);
+          return { ...config, builderPlugins };
         });
-        const builderPlugins = [
-          nativeRendererIsolationPlugin(renderer),
-          nativeClientAssetsPlugin(renderer, () => rendererIdentities),
-          compiler,
-          ...(await resolveRendererBuilderPlugins(config.builderPlugins ?? [])),
-        ];
-        assertRendererCompilerOwnership(renderer, builderPlugins);
-        return { ...config, builderPlugins };
-      });
       api._internalRuntimePlugins(({ entrypoint, plugins }) => {
         if (!registration.supports.reactRuntimeDescriptors && plugins.length) {
           throw new Error(

@@ -10,22 +10,35 @@ import {
   initPluginAPI,
 } from '@modern-js/plugin/cli';
 import {
+  defineConfig,
   presetUltramodern,
+  resolveUltramodernConfig,
   ultramodernAppTools,
 } from '@modern-js/ultramodern-app-tools';
 import { createRsbuild, rspack } from '@rsbuild/core';
 import { runtimeRegister } from '../../../../runtime/plugin-runtime/src/cli/template';
 
 async function initializeCliPlugins(createPlugin: typeof appTools) {
-  const pluginManager = createPluginManager();
-  pluginManager.addPlugins([createPlugin()]);
-  const plugins = pluginManager.getPlugins();
   const appDirectory = path.resolve(__dirname, '../..');
-  const userConfig = {
+  const consumerConfig = {
     html: { title: 'Consumer title' },
     output: { assetPrefix: '/consumer-assets/' },
   };
-  const originalConfig = structuredClone(userConfig);
+  const userConfig =
+    createPlugin === ultramodernAppTools
+      ? await resolveUltramodernConfig(defineConfig(consumerConfig), {
+          env: 'production',
+          command: 'build',
+        })
+      : { ...consumerConfig, plugins: [createPlugin()] };
+  const originalConfig = {
+    ...structuredClone(consumerConfig),
+    ...('renderer' in userConfig ? { renderer: userConfig.renderer } : {}),
+    plugins: [...(userConfig.plugins ?? [])],
+  };
+  const pluginManager = createPluginManager();
+  pluginManager.addPlugins(userConfig.plugins ?? []);
+  const plugins = pluginManager.getPlugins();
   const context = await createContext({
     appContext: initAppContext({
       packageName: 'consumer-app',

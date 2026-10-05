@@ -2,6 +2,7 @@ import childProcess from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { createPluginManager } from '@modern-js/plugin';
@@ -989,6 +990,135 @@ export default { html: { title: alias + '/' + workspace }, plugins: [{ name: '@m
       operation: 'content',
       existed: true,
     });
+  });
+
+  it('ignores an unused declared package available only through the runner global CJS fallback', async () => {
+    const app = fixture();
+    const name = '@modern-js/runtime';
+    declareFixtureDependencies(app, {
+      dependencies: { [name]: 'workspace:*' },
+    });
+    const appRequire = createRequire(
+      path.join(app.appDirectory, 'package.json'),
+    );
+    // pnpm's Rstest launcher exposes workspace packages through NODE_PATH.
+    // This app has no native dependency slot and never imports this package.
+    const fallbackManifest = appRequire.resolve
+      .paths(name)
+      ?.map(directory => path.join(directory, name, 'package.json'))
+      .find(filename => fs.existsSync(filename));
+    expect(fallbackManifest).toBeDefined();
+    for (let directory = app.appDirectory; ; ) {
+      expect(fs.existsSync(path.join(directory, 'node_modules', name))).toBe(
+        false,
+      );
+      const parent = path.dirname(directory);
+      if (parent === directory) break;
+      directory = parent;
+    }
+    fs.writeFileSync(
+      app.configFile,
+      `export default { html: { title: 'unused-global-declaration' }, plugins: [{ name: '@modern-js/ultramodern-app-tools' }] };\n`,
+    );
+    const loaded = await loadUltramodernConfigFile({
+      appDirectory: app.appDirectory,
+      env: 'development',
+      command: 'build',
+      observeSourceInputs: true,
+    });
+    expect(loaded.config.html?.title).toBe('unused-global-declaration');
+    const native = await nativeContext(app.appDirectory, loaded);
+    const snapshot = getConfigurationSourceSnapshot(native.api)!;
+    const canonicalInputs = snapshot.extraInputs.map(filename =>
+      fs.realpathSync(filename),
+    );
+    expect(canonicalInputs).not.toContain(fs.realpathSync(fallbackManifest!));
+    expect(loaded.consumedSourceInputs?.observations).toContainEqual({
+      path: app.configFile,
+      canonicalPath: fs.realpathSync(app.configFile),
+      operation: 'content',
+      existed: true,
+    });
+  });
+
+  it.each([
+    { location: 'app', exportKind: 'require-only' },
+    { location: 'ancestor', exportKind: 'require-only' },
+    { location: 'app', exportKind: 'custom-conditional' },
+    { location: 'ancestor', exportKind: 'custom-conditional' },
+  ] as const)('accepts $exportKind exports at the native $location dependency slot', async ({
+    location,
+    exportKind,
+  }) => {
+    const app = fixture();
+    const name = '@fixture/conditional-owner';
+    const expected = `${location}/${exportKind}`;
+    const installed = installFixturePackage(
+      app,
+      name,
+      {
+        type: 'commonjs',
+        exports:
+          exportKind === 'require-only'
+            ? { require: './entry.cjs' }
+            : {
+                '.': { 'ultramodern-fixture': './condition-only.cjs' },
+                './feature': { require: './entry.cjs' },
+              },
+      },
+      'throw new Error("The unexported source must not load");\n',
+    );
+    fs.writeFileSync(
+      path.join(installed.directory, 'entry.cjs'),
+      `module.exports = ${JSON.stringify(expected)};\n`,
+    );
+    fs.writeFileSync(
+      path.join(installed.directory, 'condition-only.cjs'),
+      'throw new Error("The custom root condition must not load");\n',
+    );
+    let slot = installed.slot;
+    if (location === 'ancestor') {
+      slot = path.join(app.root, 'node_modules', name);
+      fs.mkdirSync(path.dirname(slot), { recursive: true });
+      fs.renameSync(installed.slot, slot);
+    }
+    declareFixtureDependencies(app, {
+      dependencies: { [name]: 'workspace:*' },
+    });
+    const specifier = exportKind === 'require-only' ? name : `${name}/feature`;
+    fs.writeFileSync(
+      app.configFile,
+      `import { createRequire } from 'node:module';
+const requireFromConfig = createRequire(__filename);
+export default () => ({ html: { title: requireFromConfig(${JSON.stringify(specifier)}) }, plugins: [{ name: '@modern-js/ultramodern-app-tools' }] });\n`,
+    );
+    const loaded = await loadUltramodernConfigFile({
+      appDirectory: app.appDirectory,
+      env: 'development',
+      command: 'build',
+      observeSourceInputs: true,
+    });
+    expect(loaded.config.html?.title).toBe(expected);
+    expect(loaded.consumedSourceInputs?.observations).toContainEqual({
+      path: app.configFile,
+      canonicalPath: fs.realpathSync(app.configFile),
+      operation: 'content',
+      existed: true,
+    });
+    const native = await nativeContext(app.appDirectory, loaded);
+    const snapshot = getConfigurationSourceSnapshot(native.api)!;
+    const manifest = path.join(slot, 'package.json');
+    expect(snapshot.extraInputs).toContain(manifest);
+    expect(snapshot.states).toContainEqual(
+      expect.objectContaining({
+        path: manifest,
+        resolvedPath: fs.realpathSync(manifest),
+        kind: 'file',
+        sha256: createHash('sha256')
+          .update(fs.readFileSync(manifest))
+          .digest('hex'),
+      }),
+    );
   });
 
   it.each([

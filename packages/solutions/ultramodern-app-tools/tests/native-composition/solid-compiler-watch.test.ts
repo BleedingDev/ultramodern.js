@@ -51,6 +51,7 @@ it('keeps one real watcher alive across initial syntax, discovery and missing la
     ),
   );
   let dev: RsbuildDevServer | undefined;
+  let restoreWatchObservation: (() => void) | undefined;
   try {
     const metadata = resolveRendererProfileMetadata('solid');
     const dependencies: Record<string, string> = {};
@@ -136,8 +137,29 @@ it('keeps one real watcher alive across initial syntax, discovery and missing la
                 if (!actual)
                   throw new Error('Actual Solid compiler is missing');
                 observedCompilers.push(actual);
+                const watchFileSystem = actual.watchFileSystem;
+                if (!watchFileSystem)
+                  throw new Error('Actual Solid watch filesystem is missing');
+                const nativeWatch = watchFileSystem.watch;
+                const unarmedStats: Rspack.Stats[] = [];
+                const observeWatch = function (
+                  this: typeof watchFileSystem,
+                  ...args: Parameters<typeof nativeWatch>
+                ) {
+                  const watcher = nativeWatch.apply(this, args);
+                  // done precedes the next native watch arm. Publish its receipt
+                  // only after the real watch registration call has completed.
+                  for (const stats of unarmedStats.splice(0))
+                    completed.push(stats);
+                  return watcher;
+                };
+                watchFileSystem.watch = observeWatch;
+                restoreWatchObservation = () => {
+                  if (watchFileSystem.watch === observeWatch)
+                    watchFileSystem.watch = nativeWatch;
+                };
                 actual.hooks.done.tap('SolidWatchReceipts', stats => {
-                  completed.push(stats);
+                  unarmedStats.push(stats);
                 });
                 actual.hooks.failed.tap('SolidWatchReceipts', error => {
                   fatalErrors.push(error);
@@ -220,7 +242,11 @@ it('keeps one real watcher alive across initial syntax, discovery and missing la
     );
     expect(fs.existsSync(path.join(root, 'dist'))).toBe(false);
   } finally {
-    await dev?.close();
-    fs.rmSync(root, { recursive: true, force: true });
+    try {
+      await dev?.close();
+    } finally {
+      restoreWatchObservation?.();
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   }
 }, 180_000);

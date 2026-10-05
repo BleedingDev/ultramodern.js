@@ -177,7 +177,7 @@
     "@modern-js/server-runtime-extensions": "workspace:*",
     "@modern-js/types": "workspace:*",
     "@modern-js/utils": "workspace:*",
-    "@module-federation/dts-plugin": "2.9.1",
+    "@module-federation/dts-plugin": "npm:@bleedingdev/mf-dts-plugin@2.9.1",
     "@rsbuild/core": "2.2.9"
   },
   "devDependencies": {

@@ -8,7 +8,7 @@ import type {
   BffRuntimeUserConfig,
   ServerTelemetryUserConfig,
 } from '@modern-js/runtime-extensions/server-config';
-import type { RegisteredRenderer } from './renderer-registration';
+import type { RegisteredRenderer } from './renderer-selection-metadata';
 
 type NativeServerConfig = NonNullable<NativeAppUserConfig['server']>;
 type NativeSSRConfig = Exclude<NativeServerConfig['ssr'], boolean | undefined>;

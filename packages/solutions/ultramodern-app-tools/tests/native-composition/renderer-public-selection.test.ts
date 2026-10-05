@@ -1,17 +1,39 @@
 import fs from 'node:fs';
+import { createRequire as createActualRequire } from 'node:module' with {
+  rstest: 'importActual',
+};
+import * as nodeModule from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import type { CliPlugin } from '@modern-js/app-tools';
+import { createConfigOptions } from '@modern-js/plugin/cli';
 import { createRsbuild } from '@rsbuild/core';
-import { describe, expect, it } from '@rstest/core';
+import { afterEach, describe, expect, it, rstest } from '@rstest/core';
 import { createRunOptions } from '../../src/native-composition/cli';
 import {
   loadUltramodernConfigFile,
+  resolveUltramodernConfig,
   resolveUltramodernEntryIdentities,
 } from '../../src/native-composition/config';
 import { defineConfig } from '../../src/native-composition/index';
+import * as compilerActivation from '../../src/native-composition/renderer-compiler-activation';
+import { resolveCandidateRendererProfile } from '../../src/native-composition/renderer-profile';
+import { resolveRendererRegistration } from '../../src/native-composition/renderer-registration';
 import { REACT_CLI_PLUGIN_NAMES } from '../../src/native-composition/renderer-selection';
 import type { UltramodernConfigLoader } from '../../src/native-composition/types';
+
+rstest.mock('node:module', { spy: true });
+rstest.mock('../../src/native-composition/renderer-compiler-activation', {
+  spy: true,
+});
+
+afterEach(() => {
+  rstest.mocked(nodeModule.createRequire).mockReset();
+  rstest
+    .mocked(nodeModule.createRequire)
+    .mockImplementation(createActualRequire);
+  rstest.mocked(compilerActivation.activateNativeRendererCompiler).mockClear();
+});
 
 describe('public native selection through owning metadata and builder APIs', () => {
   it.each([
@@ -122,8 +144,34 @@ describe('public native selection through owning metadata and builder APIs', () 
           REACT_CLI_PLUGIN_NAMES.some(forbidden => forbidden === name),
         ),
       ).toBe(false);
-      // This metadata read initializes the real selected compiler; UI compilation,
-      // rendering and admission belong to the native application gates.
+      expect(getBuilderPlugins!()).toEqual([]);
+      await dispose?.();
+      dispose = undefined;
+      // The operational CLI initializes the installed provider and compiler.
+      await createConfigOptions<UltramodernConfigLoader>({
+        cwd: root,
+        configFile: false,
+        command: 'build',
+        config: loaded.config,
+        internalPlugins: [
+          {
+            name: 'public-native-operational-context',
+            setup(api) {
+              api.updateAppContext({ configFile: loaded.configFile });
+            },
+          },
+        ],
+      });
+      expect(evaluations).toBe(1);
+      expect(setups).toBe(2);
+      expect(
+        compilerActivation.activateNativeRendererCompiler,
+      ).toHaveBeenCalledTimes(1);
+      expect(
+        compilerActivation.activateNativeRendererCompiler,
+      ).toHaveBeenCalledWith(renderer, {
+        rendererIdentities: expect.any(Function),
+      });
       const rsbuild = await createRsbuild({
         cwd: root,
         rsbuildConfig: {
@@ -150,6 +198,130 @@ describe('public native selection through owning metadata and builder APIs', () 
           if (!previousListeners[index].has(listener))
             process.off(event, listener);
       delete registry[token];
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it.each([
+    'solid',
+    'octane',
+  ] as const)('reads %s entry metadata before adapter installation and requires it for operational setup', async renderer => {
+    const root = fs.mkdtempSync(
+      path.join(
+        process.env.OWNED_TEMP_DIR ?? os.tmpdir(),
+        'um-uninstalled-native-selection-',
+      ),
+    );
+    const requests = new Set(
+      resolveRendererRegistration(renderer).frameworkModules.map(
+        module => module.request,
+      ),
+    );
+    const attempted: string[] = [];
+    const events = [
+      'SIGINT',
+      'SIGTERM',
+      'unhandledRejection',
+      'uncaughtException',
+    ] as const;
+    const previousListeners = events.map(
+      event => new Set(process.listeners(event)),
+    );
+    let dispose: (() => Promise<unknown>) | undefined;
+    rstest.mocked(nodeModule.createRequire).mockImplementation(anchor => {
+      const request = createActualRequire(anchor);
+      const resolve = request.resolve;
+      rstest
+        .spyOn(request, 'resolve')
+        .mockImplementation((specifier, options) => {
+          if (requests.has(specifier)) {
+            attempted.push(specifier);
+            throw Object.assign(
+              new Error(`Cannot find module '${specifier}'`),
+              { code: 'MODULE_NOT_FOUND' },
+            );
+          }
+          return resolve(specifier, options);
+        });
+      return request;
+    });
+    try {
+      fs.mkdirSync(path.join(root, 'src'));
+      fs.writeFileSync(
+        path.join(root, 'src', 'App.tsx'),
+        'export default function App() { return null; }',
+      );
+      fs.writeFileSync(
+        path.join(root, 'package.json'),
+        JSON.stringify({ name: 'uninstalled-native-selection' }),
+      );
+      const config = await resolveUltramodernConfig(
+        defineConfig({
+          renderer,
+          plugins: [
+            {
+              name: 'uninstalled-native-selection-consumer',
+              setup(api) {
+                dispose = () => api.getHooks().onBeforeExit.call();
+              },
+            },
+          ],
+        }),
+        { command: 'build', env: 'test' },
+      );
+      const metadata = await resolveUltramodernEntryIdentities({
+        appDirectory: root,
+        config,
+        command: 'build',
+      });
+      expect(metadata.entries).toEqual([
+        { entryName: 'index', isMainEntry: true },
+      ]);
+      expect(metadata.routerBindings.index.defaultProvider).toEqual({
+        ...resolveCandidateRendererProfile(renderer).router,
+        framework: resolveRendererRegistration(renderer).routerFrameworks[0],
+      });
+      expect(attempted).toEqual([]);
+      expect(
+        compilerActivation.activateNativeRendererCompiler,
+      ).not.toHaveBeenCalled();
+      expect(fs.existsSync(path.join(root, 'node_modules'))).toBe(false);
+      expect(fs.existsSync(path.join(root, '.modern-js'))).toBe(false);
+      await dispose?.();
+      dispose = undefined;
+
+      const unsupported = await resolveUltramodernConfig(
+        defineConfig({ renderer, server: { rsc: true } }),
+        { command: 'build', env: 'test' },
+      );
+      await expect(
+        resolveUltramodernEntryIdentities({
+          appDirectory: root,
+          config: unsupported,
+          command: 'build',
+        }),
+      ).rejects.toThrow('unsupported-renderer-capability');
+      expect(attempted).toEqual([]);
+
+      await expect(
+        createConfigOptions<UltramodernConfigLoader>({
+          cwd: root,
+          configFile: false,
+          command: 'build',
+          config,
+        }),
+      ).rejects.toThrow(`Cannot find module '${[...requests][0]}'`);
+      expect(attempted).toEqual([[...requests][0]]);
+      expect(
+        compilerActivation.activateNativeRendererCompiler,
+      ).not.toHaveBeenCalled();
+      expect(fs.existsSync(path.join(root, '.modern-js'))).toBe(false);
+    } finally {
+      await dispose?.();
+      for (const [index, event] of events.entries())
+        for (const listener of process.listeners(event))
+          if (!previousListeners[index].has(listener))
+            process.off(event, listener);
       fs.rmSync(root, { recursive: true, force: true });
     }
   }, 30_000);

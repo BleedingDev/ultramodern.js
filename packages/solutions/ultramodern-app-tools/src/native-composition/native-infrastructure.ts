@@ -46,6 +46,7 @@ import {
 } from './native-development';
 import {
   type RendererBuildProfile,
+  resolveCandidateRendererProfile,
   resolveRendererProfile,
 } from './renderer-profile';
 import { resolveNativeRendererAdapter } from './renderer-registration';
@@ -124,7 +125,6 @@ export function nativeRendererInfrastructurePlugin(
   generator?: NativeEntryGenerator,
   options: NativeInfrastructureOptions = {},
 ): CliPlugin<WithBffRuntimeBuildIdentity<AppTools>> {
-  const profile = options.profile ?? resolveRendererProfile(renderer);
   const infrastructurePluginName =
     options.infrastructurePluginName ??
     resolveNativeRendererAdapter(renderer).infrastructurePluginName;
@@ -149,6 +149,14 @@ export function nativeRendererInfrastructurePlugin(
     name: infrastructurePluginName,
     post: ['@modern-js/plugin-analyze', '@modern-js/plugin-bff'],
     setup(api) {
+      // Entry discovery uses the owner's generation contract before installation.
+      // Operational setup still requires the selected installed provider.
+      const metadataRead = isEntryMetadataRead();
+      const profile =
+        options.profile ??
+        (metadataRead
+          ? resolveCandidateRendererProfile(renderer)
+          : resolveRendererProfile(renderer));
       const { appDirectory, command } = api.getAppContext();
       if (
         options.resolveBuildIdentities &&
@@ -177,7 +185,7 @@ export function nativeRendererInfrastructurePlugin(
           completedBuildIdentities = undefined;
         });
       }
-      if (options.resolveBuildIdentities)
+      if (options.resolveBuildIdentities && !metadataRead)
         api.modifyResolvedConfig(config => {
           const { command, apiOnly } = api.getAppContext();
           if (command !== 'dev' || apiOnly) return config;

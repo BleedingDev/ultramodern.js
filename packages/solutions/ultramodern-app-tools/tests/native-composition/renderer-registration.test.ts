@@ -41,7 +41,6 @@ import {
   resolveRendererProfileMetadata,
 } from '../../src/native-composition/renderer-profile';
 import {
-  type RegisteredRenderer,
   type RendererRegistration,
   registeredRenderers,
   resolveNativeRendererAdapter,
@@ -53,6 +52,7 @@ import {
   assertRendererCompilerOwnership,
   resolveRendererBuilderPlugins,
 } from '../../src/native-composition/renderer-selection';
+import type { RegisteredRenderer } from '../../src/native-composition/renderer-selection-metadata';
 import type { UltramodernAppUserConfig } from '../../src/native-composition/types';
 import { createCompilerActivationFixture } from './compiler-activation-fixture';
 

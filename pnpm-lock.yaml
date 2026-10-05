@@ -3112,8 +3112,8 @@ importers:
         specifier: workspace:*
         version: link:../../toolkit/utils
       '@module-federation/dts-plugin':
-        specifier: 2.9.1
-        version: 2.9.1(patch_hash=cc2ffe11766a57437971b7b723ff74ceb8919ec543020eb266d1dd97ed857d6d)(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
+        specifier: npm:@bleedingdev/mf-dts-plugin@2.9.1
+        version: '@bleedingdev/mf-dts-plugin@2.9.1(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)'
       '@rsbuild/core':
         specifier: 2.2.9
         version: 2.2.9(patch_hash=0cf4660d0fb167485dc102b912be92e56caa8280a4d7932e69277dc8c4db04e1)(@module-federation/runtime-tools@2.9.1)(core-js@3.50.0)

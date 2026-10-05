@@ -5,8 +5,12 @@ import {
 } from '@modern-js/backend-federation-contracts';
 import type { Renderer } from '@modern-js/renderer-core';
 import type { Entrypoint } from '@modern-js/types/cli/base';
+import { isEntryMetadataRead } from './config-read-context';
 import type { RendererProfileMetadata } from './renderer-installed-profile';
-import { resolveRendererProfile } from './renderer-profile';
+import {
+  resolveCandidateRendererProfile,
+  resolveRendererProfile,
+} from './renderer-profile';
 import {
   resolveNativeRendererAdapter,
   resolveRendererRegistration,
@@ -28,7 +32,12 @@ export async function resolveEntrypointRouterBindings(
     throw new Error(`The ${renderer} entry router owner is not registered`);
   const registration = resolveRendererRegistration(renderer);
   const provider = {
-    ...(metadata?.profile ?? resolveRendererProfile(renderer)).router,
+    ...(
+      metadata?.profile ??
+      (isEntryMetadataRead()
+        ? resolveCandidateRendererProfile(renderer)
+        : resolveRendererProfile(renderer))
+    ).router,
     framework: registration.routerFrameworks[0],
   };
   const bindings: RendererRouterBindings = Object.fromEntries(
