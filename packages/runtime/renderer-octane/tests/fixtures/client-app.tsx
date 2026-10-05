@@ -1,5 +1,4 @@
 import { useLayoutEffect, useState } from 'octane';
-import { signal$ } from 'octane/signals';
 
 export function ClientApplication({
   label,
@@ -31,7 +30,3 @@ export function HydrationApplication() {
 export function ThrowingApplication() {
   throw new Error('Native component failed');
 }
-
-// The native bridge must install the server value before an application import
-// reads this descriptor. The authored key is the public transport identity.
-export const initialSignal$ = signal$(0, { key: 'renderer-client-seed' });

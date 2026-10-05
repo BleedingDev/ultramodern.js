@@ -12,7 +12,6 @@ import {
 } from 'octane';
 import {
   bootstrapStreamedSignalHydration,
-  type NativeSignalManifest,
   type StreamedSignalHydration,
 } from 'octane/hydration/streamed-signals';
 import {
@@ -52,7 +51,6 @@ export interface OctaneHydrationOptions extends OctaneApplicationOptions {
   readonly documentIdentity: RendererIdentity;
   readonly documentNativeHydrationBuildId: string;
   readonly documentId: string;
-  readonly initialSignals?: NativeSignalManifest;
 }
 
 const roots = new WeakMap<RootContainer, symbol>();
@@ -60,14 +58,6 @@ const documents = new WeakMap<Document, symbol>();
 const moduleResources = new WeakMap<
   () => void,
   { users: number; retired: boolean }
->();
-const documentSeeds = new WeakMap<
-  Document,
-  {
-    documentId: string;
-    nativeHydrationBuildId: string;
-    serialized: string;
-  }
 >();
 
 function claimModuleResources(
@@ -342,11 +332,8 @@ function createHandle(input: {
       }
     });
   }
+  // Callers check the signal synchronously before constructing the handle.
   input.signal?.addEventListener('abort', onAbort, { once: true });
-  if (input.signal?.aborted) {
-    handle.dispose();
-    input.signal.throwIfAborted();
-  }
   return handle;
 }
 
@@ -457,45 +444,15 @@ export async function hydrateOctaneApplication(
     ]);
   };
   try {
-    let initialSignals = input.initialSignals;
-    let seed:
-      | {
-          documentId: string;
-          nativeHydrationBuildId: string;
-          serialized: string;
-        }
-      | undefined;
-    if (initialSignals !== undefined) {
-      seed = {
-        documentId: input.documentId,
-        nativeHydrationBuildId: input.nativeHydrationBuildId,
-        serialized: JSON.stringify(initialSignals),
-      };
-      const previousSeed = documentSeeds.get(document);
-      if (previousSeed) {
-        if (
-          previousSeed.documentId !== seed.documentId ||
-          previousSeed.nativeHydrationBuildId !== seed.nativeHydrationBuildId ||
-          previousSeed.serialized !== seed.serialized
-        ) {
-          throw new Error(
-            'Octane initial signals conflict with the installed document authority.',
-          );
-        }
-        initialSignals = undefined;
-      }
-    }
     bridge = bootstrapStreamedSignalHydration({
       buildId: input.nativeHydrationBuildId,
       documentId: input.documentId,
-      ...(initialSignals === undefined ? {} : { initialSignals }),
       ...(document.defaultView === null
         ? {}
         : {
             target: document.defaultView as unknown as Record<string, unknown>,
           }),
     });
-    if (seed) documentSeeds.set(document, seed);
     const loaded = await loadApplication(input, cleanup);
     application = loaded.application;
     releaseModule = loaded.releaseModule;
