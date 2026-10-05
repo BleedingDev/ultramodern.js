@@ -21,6 +21,10 @@ import {
   createTanstackRsbuildRouteSplittingProfile,
   type TanstackRouteCodeSplittingOption,
 } from './routeSplitting';
+import {
+  createTanstackRscRouteLayerPlugin,
+  TANSTACK_SERVER_ROUTES_FILE,
+} from './rscRouteLayer';
 
 export {
   generateTanstackRouteArtifacts,
@@ -238,6 +242,16 @@ export function tanstackRouterPlugin(
 
       api.config(() => ({
         ...routeSplittingProfile.defaultConfig,
+        builderPlugins: [
+          createTanstackRscRouteLayerPlugin(() => ({
+            entryNames: api
+              .getAppContext()
+              .entrypoints.filter(isTanstackEntrypoint)
+              .map(entrypoint => entrypoint.entryName),
+            internalDirectory: api.getAppContext().internalDirectory,
+            rsc: api.getNormalizedConfig().server.rsc,
+          })),
+        ],
         source: {
           include: [
             // TanStack Router and its runtime deps ship modern syntax and
@@ -281,7 +295,7 @@ export function tanstackRouterPlugin(
             hydrateRscClientRoutes: true,
             includeRouteServerLoadersInSsrEntry: false,
             isolateRouteDataInRscLayer: true,
-            serverRoutesFileName: 'tanstack-routes.server.js',
+            serverRoutesFileName: TANSTACK_SERVER_ROUTES_FILE,
           },
         );
 
@@ -311,7 +325,7 @@ export function tanstackRouterPlugin(
                 hydrateRscClientRoutes: true,
                 includeRouteServerLoadersInSsrEntry: false,
                 isolateRouteDataInRscLayer: true,
-                serverRoutesFileName: 'tanstack-routes.server.js',
+                serverRoutesFileName: TANSTACK_SERVER_ROUTES_FILE,
               },
             );
 
