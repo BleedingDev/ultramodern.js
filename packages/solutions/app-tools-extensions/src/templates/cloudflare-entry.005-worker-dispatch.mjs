@@ -202,6 +202,34 @@ async function dispatchRouteDataRequest(route, request) {
 async function dispatchRouteWorker(route, request, env, ctx) {
   const rendererRejection = createWorkerRendererGuardResponse(request);
   if (rendererRejection) return rendererRejection;
+
+  return withWorkerRendererIdentity(
+    await invokeRouteWorker(route, request, env, ctx),
+    route,
+  );
+}
+
+function withWorkerRendererIdentity(response, route) {
+  const identities = MODERN_WORKER_MANIFEST.rendererIdentities;
+  if (!identities) return response;
+  if (!Object.hasOwn(identities, route.entryName)) {
+    throw new Error(
+      `Cloudflare worker route has no built renderer identity for ${String(route.entryName)}`,
+    );
+  }
+  const headers = new Headers(response.headers);
+  headers.set(
+    'x-ultramodern-renderer-identity',
+    JSON.stringify(identities[route.entryName]),
+  );
+  return new Response(response.body, {
+    headers,
+    status: response.status,
+    statusText: response.statusText,
+  });
+}
+
+async function invokeRouteWorker(route, request, env, ctx) {
   const workerPath = route.worker;
   if (!workerPath) {
     return new Response('Worker bundle not configured for SSR route', {
