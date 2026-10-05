@@ -81,22 +81,22 @@ export async function runApplicationRequest<Bindings extends object, Result>(
   session: RequestSession<Bindings>,
   callback: () => Result,
 ): Promise<Awaited<Result>> {
+  let event: ApplicationRequestEvent;
   try {
-    return await provideRequestEvent(
-      applicationRequestEvent(session),
-      async () => {
-        try {
-          return await callback();
-        } catch (error) {
-          void session.fail(error);
-          throw error;
-        }
-      },
-    );
+    event = applicationRequestEvent(session);
   } catch (error) {
     void session.fail(error);
     throw error;
   }
+  // Fail inside the request scope so session cleanup observes its event.
+  return await provideRequestEvent(event, async () => {
+    try {
+      return await callback();
+    } catch (error) {
+      void session.fail(error);
+      throw error;
+    }
+  });
 }
 
 function ownData(object: object, key: PropertyKey): unknown {
