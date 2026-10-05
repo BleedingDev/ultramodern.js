@@ -8,6 +8,18 @@ const directories: string[] = [];
 const identityHeader = 'x-ultramodern-renderer-identity';
 const buildMarker = 'a'.repeat(64);
 
+type FixtureRoute = {
+  entryName?: unknown;
+  urlPath: string;
+  entryPath: string;
+  isSSR?: unknown;
+  worker?: unknown;
+  bundle?: unknown;
+  isRSC?: unknown;
+  isStream?: unknown;
+  isSPA?: boolean;
+};
+
 function buildMetadata() {
   return {
     schema: 'ultramodern-renderer-build',
@@ -73,6 +85,8 @@ async function fixture(
     includeBuild?: boolean;
     rawBuild?: string;
     mutate?: (build: ReturnType<typeof buildMetadata>) => void;
+    includePublicAsset?: boolean;
+    mutateRoutes?: (routes: FixtureRoute[]) => void;
   } = {},
 ) {
   const appDirectory = await fs.mkdtemp(
@@ -92,18 +106,28 @@ async function fixture(
       'renderer-build.json',
       options.rawBuild ?? JSON.stringify(build),
     );
-  const routes = ['main', 'other'].map(entryName => ({
+  const routes: FixtureRoute[] = ['main', 'other'].map(entryName => ({
     entryName,
     urlPath: entryName === 'main' ? '/' : '/other',
     entryPath: `html/${entryName}/index.html`,
     isSSR: true,
     worker: `worker/${entryName}.js`,
   }));
-  await write('route.json', JSON.stringify({ routes }));
   await write('routes-manifest.json', JSON.stringify({ routeAssets: {} }));
   await write('loadable-stats.json', '{}');
   for (const route of routes)
     await write(route.entryPath, '<html><head></head><body></body></html>');
+  if (options.includePublicAsset) {
+    await write('public/favicon.ico', 'native public asset bytes');
+    routes.push({
+      urlPath: '/favicon.ico',
+      isSPA: true,
+      isSSR: false,
+      entryPath: 'public/favicon.ico',
+    });
+  }
+  options.mutateRoutes?.(routes);
+  await write('route.json', JSON.stringify({ routes }));
   await write(
     'worker/main.js',
     `${streamWorker}
@@ -212,6 +236,96 @@ it('binds generated entries to their exact built identities for document and act
   );
   expect(action.headers.get('x-worker-policy')).toBe('action');
   expect(await action.text()).toBe('unchanged action input');
+});
+
+it('serves native public routes without assigning an application renderer identity', async () => {
+  const input = await fixture({ includePublicAsset: true });
+  const { worker, manifest, assets } = await emittedWorker(input);
+  expect(manifest.rendererIdentities).toEqual(input.build.identities);
+  const asset = await worker.fetch(
+    new Request('https://example.com/favicon.ico'),
+    { ASSETS: assets },
+  );
+  expect(asset.status).toBe(200);
+  expect(asset.headers.get(identityHeader)).toBeNull();
+  expect(await asset.text()).toBe('native public asset bytes');
+  const document = await worker.fetch(new Request('https://example.com/'), {
+    ASSETS: assets,
+  });
+  expect(JSON.parse(document.headers.get(identityHeader))).toEqual(
+    input.build.identities.main,
+  );
+  expect(await document.text()).toContain('document:main');
+});
+
+it('accepts a native public route whose URL was remapped by publicRoutes', async () => {
+  const input = await fixture({
+    includePublicAsset: true,
+    mutateRoutes(routes) {
+      routes[2].urlPath = '/custom-public-path';
+    },
+  });
+  await input.preset.writeOutput?.();
+});
+
+it.each([
+  { name: 'missing SSR entry', isSSR: true, entryName: undefined },
+  { name: 'missing CSR entry', isSSR: false, entryName: undefined },
+  { name: 'null entry', isSSR: false, entryName: null },
+  { name: 'nonstring entry', isSSR: false, entryName: 1 },
+  { name: 'unknown entry', isSSR: false, entryName: 'unbuilt' },
+])('rejects an application route with $name', async row => {
+  const input = await fixture({
+    includePublicAsset: true,
+    mutateRoutes(routes) {
+      Object.assign(routes[0], {
+        entryName: row.entryName,
+        isSSR: row.isSSR,
+      });
+      delete routes[0].worker;
+    },
+  });
+  await expect(input.preset.writeOutput?.()).rejects.toThrow(
+    'Cloudflare generated route has no built renderer identity',
+  );
+});
+
+it.each([
+  { name: 'SSR marker', patch: { isSSR: true } },
+  { name: 'missing SSR marker', patch: { isSSR: undefined } },
+  { name: 'malformed SSR marker', patch: { isSSR: 'false' } },
+  { name: 'null entry name', patch: { entryName: null } },
+  { name: 'unknown entry name', patch: { entryName: 'unbuilt' } },
+  { name: 'worker dispatch', patch: { worker: 'worker/main.js' } },
+  { name: 'malformed worker', patch: { worker: false } },
+  { name: 'server bundle', patch: { bundle: 'bundles/main.js' } },
+  { name: 'RSC marker', patch: { isRSC: true } },
+  { name: 'stream marker', patch: { isStream: true } },
+  { name: 'malformed RSC marker', patch: { isRSC: 'false' } },
+  {
+    name: 'application HTML path',
+    patch: { entryPath: 'html/main/index.html' },
+  },
+  {
+    name: 'traversal path',
+    patch: { entryPath: 'public/../html/main/index.html' },
+  },
+  { name: 'noncanonical path', patch: { entryPath: 'public//favicon.ico' } },
+  { name: 'backslash path', patch: { entryPath: 'public/dir\\favicon.ico' } },
+  {
+    name: 'public prefix lookalike',
+    patch: { entryPath: 'public-other/favicon.ico' },
+  },
+  { name: 'missing file', patch: { entryPath: 'public/missing.ico' } },
+  { name: 'directory path', patch: { entryPath: 'public/' } },
+])('rejects a public-looking route with $name', async row => {
+  const input = await fixture({
+    includePublicAsset: true,
+    mutateRoutes(routes) {
+      Object.assign(routes[2], row.patch);
+    },
+  });
+  await expect(input.preset.writeOutput?.()).rejects.toThrow();
 });
 
 it('decorates a pending native fetch stream without reading it and preserves cancellation and cookies', async () => {

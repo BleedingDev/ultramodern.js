@@ -17,7 +17,15 @@ export type WorkerRendererIdentities = Readonly<
 /** Bind response metadata to the finalized build and its generated entries. */
 export async function readWorkerRendererIdentities(
   distDirectory: string,
-  routes: readonly { entryName?: unknown }[],
+  routes: readonly {
+    entryName?: unknown;
+    entryPath?: unknown;
+    isSSR?: unknown;
+    worker?: unknown;
+    bundle?: unknown;
+    isRSC?: unknown;
+    isStream?: unknown;
+  }[],
   deliveryUnit?: DeliveryUnitStamp,
 ): Promise<WorkerRendererIdentities | undefined> {
   let bytes: string;
@@ -82,6 +90,24 @@ export async function readWorkerRendererIdentities(
     identities[entryName] = Object.freeze({ ...identity });
   }
   for (const route of routes) {
+    // Native public routes name a copied file rather than a renderer entry.
+    // Classify the original route shape so application dispatch markers cannot
+    // be erased by the worker manifest's normalization.
+    if (
+      route.isSSR === false &&
+      route.entryName === undefined &&
+      route.worker === undefined &&
+      route.bundle === undefined &&
+      (route.isRSC === undefined || route.isRSC === false) &&
+      (route.isStream === undefined || route.isStream === false) &&
+      typeof route.entryPath === 'string' &&
+      route.entryPath.startsWith('public/') &&
+      !route.entryPath.includes('\\') &&
+      path.posix.normalize(route.entryPath) === route.entryPath
+    ) {
+      const asset = await fs.stat(path.join(distDirectory, route.entryPath));
+      if (asset.isFile()) continue;
+    }
     if (
       typeof route.entryName !== 'string' ||
       !Object.hasOwn(identities, route.entryName)

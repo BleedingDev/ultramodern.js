@@ -148,7 +148,7 @@ export const createWorkerManifest = async (
   );
   const rendererIdentities = await readWorkerRendererIdentities(
     appContext.distDirectory,
-    routes,
+    routeSpec.routes,
     deliveryUnitStamp,
   );
 
