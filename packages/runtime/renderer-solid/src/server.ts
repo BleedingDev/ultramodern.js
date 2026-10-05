@@ -443,13 +443,18 @@ export interface SolidDocumentRenderOptions<Bindings extends object = object>
 /**
  * Render a prepared Node document through Solid's one readable consumer.
  * The caller resolves blocking route/data HTTP outcomes before calling this.
+ * Like Solid's own SSR response, the HTTP head commits when the shell
+ * completes, so status, headers and redirects declared before the shell apply
+ * and a shell-time failure rejects before any head commits.
  * A contained native fallback can finish, but is never a successful cache entry.
  * A deferred uncontained failure cancels delivery without changing sent headers.
  */
-export function renderApplication<Bindings extends object>(
+export async function renderApplication<Bindings extends object>(
   options: SolidRenderOptions<Bindings>,
-): Response {
+): Promise<Response> {
   const { session } = options;
+  let readable: ReadableStream<Uint8Array> | undefined;
+  let consumed = false;
   try {
     const event = applicationRequestEvent(session);
     if (
@@ -461,7 +466,21 @@ export function renderApplication<Bindings extends object>(
       );
     }
     session.startRendering();
-    return provideRequestEvent(event, () =>
+    let renderFailure: { error: unknown } | undefined;
+    const {
+      promise: shell,
+      resolve,
+      reject,
+    } = Promise.withResolvers<Response>();
+    // A synchronous construction failure rethrows below without awaiting this.
+    shell.catch(() => {});
+    const failBeforeShell = () =>
+      reject(renderFailure ? renderFailure.error : session.signal.reason);
+    // A native abort abandons the render without completing its shell.
+    if (session.signal.aborted) failBeforeShell();
+    else
+      session.signal.addEventListener('abort', failBeforeShell, { once: true });
+    readable = provideRequestEvent(event, () =>
       runWithOwner(null, () =>
         createRoot(
           dispose => {
@@ -491,18 +510,31 @@ export function renderApplication<Bindings extends object>(
               }),
             );
             if (session.signal.aborted) abortNative();
-            let failedBeforeCommit = false;
-            let renderError: unknown;
             const native = renderToStream(options.view, {
               ...options.document,
               plugins: [nativePromiseSerializationPlugin],
               // Restore the request event when transport cancellation occurs
               // outside the async scope that constructed the native stream.
               signal: nativeAbort.signal,
+              // The shell completes synchronously before its first write and
+              // before a finished render disposes owner-scoped declarations.
+              onCompleteShell() {
+                session.signal.removeEventListener('abort', failBeforeShell);
+                try {
+                  resolve(
+                    respondApplicationBody(session, () => {
+                      consumed = true;
+                      return native.readable;
+                    }),
+                  );
+                } catch (error) {
+                  reject(error);
+                  throw error;
+                }
+              },
               onError(error, context) {
                 if (context.handling === 'failed') {
-                  failedBeforeCommit = true;
-                  renderError = error;
+                  renderFailure ??= { error };
                   void session.fail(error);
                 } else if (
                   session.state !== 'completed' &&
@@ -514,18 +546,23 @@ export function renderApplication<Bindings extends object>(
                 return options.onError?.(error, context);
               },
             });
-            if (failedBeforeCommit) throw renderError;
-            // Do not await this thenable: that waits for the complete document.
-            // The session owns cancellation, backpressure and exactly-once cleanup.
-            return respondApplicationBody(session, () => native.readable);
+            if (renderFailure) throw renderFailure.error;
+            // Claim Solid's one consumer; do not await the native thenable, which
+            // waits for the complete document. The session owns cancellation,
+            // backpressure and exactly-once cleanup.
+            return native.readable;
           },
           { transparent: true },
         ),
       ),
     );
+    return await shell;
   } catch (error) {
     void session.fail(error);
     throw error;
+  } finally {
+    // A bodyless or failed outcome releases the native document consumer.
+    if (readable && !consumed) void readable.cancel().catch(() => {});
   }
 }
 
@@ -615,12 +652,12 @@ function createDocumentParts<Bindings extends object>(
 }
 
 /** Construct the native document used by generated and hand-authored entries. */
-export function renderDocumentApplication<Bindings extends object>(
+export async function renderDocumentApplication<Bindings extends object>(
   options: SolidDocumentRenderOptions<Bindings>,
-): Response {
+): Promise<Response> {
   try {
     const parts = createDocumentParts(options, true);
-    return renderApplication({
+    return await renderApplication({
       session: options.session,
       document: {
         renderId: parts.renderId,

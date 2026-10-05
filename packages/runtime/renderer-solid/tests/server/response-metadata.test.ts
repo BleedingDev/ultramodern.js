@@ -58,7 +58,7 @@ function nativeStub() {
 describe('native Solid response metadata before session commit', () => {
   test('an undeclared native status preserves the prepared route 404', async () => {
     const session = sessionFor({ status: 404 });
-    const response = renderApplication({
+    const response = await renderApplication({
       session,
       view: () => {
         httpHeader('x-native', 'present');
@@ -76,7 +76,7 @@ describe('native Solid response metadata before session commit', () => {
     const session = sessionFor({ headers: [['x-owner', 'prepared']] });
     let cleanup = 0;
     let stub: ReturnType<typeof nativeStub>;
-    const response = renderApplication({
+    const response = await renderApplication({
       session,
       view: () => {
         stub = nativeStub();
@@ -99,7 +99,7 @@ describe('native Solid response metadata before session commit', () => {
   test('appends each native cookie after the prepared cookie without comma folding', async () => {
     const first = 'first=1; Expires=Wed, 21 Oct 2030 07:28:00 GMT; Path=/';
     const session = sessionFor({ headers: [['set-cookie', first]] });
-    const response = renderApplication({
+    const response = await renderApplication({
       session,
       view: () => {
         httpHeader('set-cookie', 'second=2; Path=/', { append: true });
@@ -124,7 +124,7 @@ describe('native Solid response metadata before session commit', () => {
 
   test('keeps original and native Vary dimensions when native declarations overwrite', async () => {
     const session = sessionFor({ headers: [['vary', 'Accept-Encoding']] });
-    const response = renderApplication({
+    const response = await renderApplication({
       session,
       view: () => {
         httpHeader('vary', 'Accept-Language');
@@ -220,7 +220,7 @@ describe('native Solid response metadata before session commit', () => {
       headers: [['cache-control', input.original]],
       cache: input.cache,
     });
-    const response = renderApplication({
+    const response = await renderApplication({
       session,
       view: () => {
         httpHeader('cache-control', input.native);
@@ -242,7 +242,7 @@ describe('native Solid response metadata before session commit', () => {
         ['content-type', 'application/json'],
       ],
     });
-    const response = renderApplication({
+    const response = await renderApplication({
       session,
       view: () => {
         httpHeader('vary', 'Accept');
@@ -333,7 +333,7 @@ describe('native Solid response metadata before session commit', () => {
       resolve = accept;
     });
     let cleanup = 0;
-    const response = renderApplication({
+    const response = await renderApplication({
       session,
       view: () => {
         httpStatus(status);
@@ -362,7 +362,7 @@ describe('native Solid response metadata before session commit', () => {
   test('native precommit Location produces a real redirect and disposes once', async () => {
     const session = sessionFor();
     let cleanup = 0;
-    const response = renderApplication({
+    const response = await renderApplication({
       session,
       view: () => {
         httpStatus(307);
@@ -407,7 +407,7 @@ describe('native Solid response metadata before session commit', () => {
   ])('rejects a rewritten native %s accessor without invoking it', async field => {
     const session = sessionFor();
     let getterCalls = 0;
-    expect(() =>
+    await expect(
       renderApplication({
         session,
         view: () => {
@@ -420,7 +420,7 @@ describe('native Solid response metadata before session commit', () => {
           return ssr('<p>public</p>');
         },
       }),
-    ).toThrow('own data fields');
+    ).rejects.toThrow('own data fields');
     expect(getterCalls).toBe(0);
     expect(session.committedPolicy).toBeUndefined();
     expect((await session.completion).state).toBe('failed');
@@ -428,7 +428,7 @@ describe('native Solid response metadata before session commit', () => {
 
   test('rejects a replacement native Headers object and overridden cookie getter before reading', async () => {
     const first = sessionFor();
-    expect(() =>
+    await expect(
       renderApplication({
         session: first,
         view: () => {
@@ -436,11 +436,11 @@ describe('native Solid response metadata before session commit', () => {
           return ssr('public');
         },
       }),
-    ).toThrow('Headers cannot be replaced');
+    ).rejects.toThrow('Headers cannot be replaced');
     expect((await first.completion).state).toBe('failed');
     const second = sessionFor();
     let calls = 0;
-    expect(() =>
+    await expect(
       renderApplication({
         session: second,
         view: () => {
@@ -453,7 +453,7 @@ describe('native Solid response metadata before session commit', () => {
           return ssr('public');
         },
       }),
-    ).toThrow('Headers methods cannot be replaced');
+    ).rejects.toThrow('Headers methods cannot be replaced');
     expect(calls).toBe(0);
     expect(second.committedPolicy).toBeUndefined();
     expect((await second.completion).state).toBe('failed');
@@ -461,7 +461,7 @@ describe('native Solid response metadata before session commit', () => {
 
   test('native statusText reaches the frozen policy and owning response', async () => {
     const session = sessionFor();
-    const response = renderApplication({
+    const response = await renderApplication({
       session,
       view: () => {
         httpStatus(422, 'Native invalid');
@@ -475,7 +475,7 @@ describe('native Solid response metadata before session commit', () => {
 
   test('malformed native statusText fails before claiming the document stream', async () => {
     const session = sessionFor();
-    expect(() =>
+    await expect(
       renderApplication({
         session,
         view: () => {
@@ -483,15 +483,60 @@ describe('native Solid response metadata before session commit', () => {
           return ssr('invalid');
         },
       }),
-    ).toThrow();
+    ).rejects.toThrow();
     expect(session.committedPolicy).toBeUndefined();
     expect((await session.completion).state).toBe('failed');
+  });
+
+  test('status and cookies set after an awaited shell resource commit with the shell', async () => {
+    const session = sessionFor();
+    const response = await renderApplication({
+      session,
+      view: () => {
+        const value = createMemo(async () => {
+          await new Promise(resolve => setTimeout(resolve, 5));
+          httpStatus(404);
+          httpHeader('set-cookie', 'late=1; Path=/', { append: true });
+          return 'missing';
+        });
+        return ssr(['<p>', '</p>'], () => value());
+      },
+    });
+    expect(response.status).toBe(404);
+    expect(response.headers.getSetCookie()).toEqual(['late=1; Path=/']);
+    expect(session.committedPolicy?.status).toBe(404);
+    expect(await response.text()).toContain('missing');
+    expect((await session.completion).state).toBe('completed');
+  });
+
+  test('a redirect declared after an awaited shell resource is delivered bodyless', async () => {
+    const session = sessionFor();
+    let cleanup = 0;
+    const response = await renderApplication({
+      session,
+      view: () => {
+        onCleanup(() => cleanup++);
+        const value = createMemo(async () => {
+          await new Promise(resolve => setTimeout(resolve, 5));
+          httpStatus(303);
+          httpHeader('location', '/login');
+          return 'redirecting';
+        });
+        return ssr(['<p>', '</p>'], () => value());
+      },
+    });
+    expect(response.status).toBe(303);
+    expect(response.headers.get('location')).toBe('/login');
+    expect(response.body).toBeNull();
+    expect(session.committedPolicy?.kind).toBe('terminal');
+    expect((await session.completion).state).toBe('completed');
+    expect(cleanup).toBe(1);
   });
 
   test('late native Headers writes report and cannot change the delivered response', async () => {
     const session = sessionFor();
     let stub: ReturnType<typeof nativeStub>;
-    const response = renderApplication({
+    const response = await renderApplication({
       session,
       view: () => {
         stub = nativeStub();
