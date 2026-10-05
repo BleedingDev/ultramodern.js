@@ -271,8 +271,8 @@ export function createFederatedComponentsRegistry(
     )
     .join('\n');
   const runtimeImports = worker
-    ? "import { DistributedSsrBoundary } from '@modern-js/federation-runtime';\nimport type { ComponentType, ReactNode } from 'react';"
-    : "import { createLazyComponent } from '@module-federation/modern-js-v3/react';\nimport { getInstance } from '@module-federation/modern-js-v3/runtime';\nimport { createDistributedSsrComponent } from '@modern-js/federation-runtime';\nimport type { ComponentType, FunctionComponent, ReactNode } from 'react';";
+    ? "import { DistributedSsrBoundary } from '@modern-js/federation-runtime/distributed-ssr';\nimport type { ComponentType, ReactNode } from 'react';"
+    : "import { createLazyComponent } from '@module-federation/modern-js-v3/react';\nimport { getInstance } from '@module-federation/modern-js-v3/runtime';\nimport { createDistributedSsrComponent } from '@modern-js/federation-runtime/distributed-ssr';\nimport type { ComponentType, FunctionComponent, ReactNode } from 'react';";
   const moduleType = `
 ${
   worker

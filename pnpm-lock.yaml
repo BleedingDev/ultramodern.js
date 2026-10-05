@@ -1597,9 +1597,15 @@ importers:
 
   packages/runtime/federation-runtime:
     dependencies:
+      '@modern-js/backend-federation-contracts':
+        specifier: workspace:*
+        version: link:../../toolkit/backend-federation-contracts
       '@modern-js/surface-resolution':
         specifier: workspace:*
         version: link:../../toolkit/surface-resolution
+      '@module-federation/sdk':
+        specifier: 2.9.1
+        version: 2.9.1
     devDependencies:
       '@modern-js/rslib':
         specifier: workspace:*
