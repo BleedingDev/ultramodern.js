@@ -7,6 +7,10 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import { assertCohortResolutionProvenance } from '../../../../../../scripts/ultramodern-production-readiness/published-create-proof/acceptance-profile.mjs';
 import {
+  assertBootstrapReleaseAgePolicy,
+  resolveCreatePackage,
+} from '../../../../../../scripts/ultramodern-production-readiness/published-create-proof/package-cohort.mjs';
+import {
   inspectNpmTarball,
   readVerifiedPackageArtifactBytes,
 } from '../../../../../../scripts/ultramodern-publish/lib/prepare-bleedingdev-packages/release-artifacts.mjs';
@@ -72,6 +76,72 @@ export function createBareManifest(release) {
     dependencies: {
       [release.createPackage.targetName]: release.createPackage.version,
     },
+  };
+}
+
+/** Install exceptions belong to the authenticated bootstrap, never authored YAML. */
+export function createBareInstallSetup(createPackage, allowBuilds, runtimeEnv) {
+  const policy = assertBootstrapReleaseAgePolicy(createPackage);
+  assert.ok(
+    allowBuilds &&
+      typeof allowBuilds === 'object' &&
+      !Array.isArray(allowBuilds),
+    'Bare install requires the repository dependency build approval policy',
+  );
+  const env = { ...runtimeEnv };
+  const ageSettings = new Set([
+    'minimumreleaseage',
+    'minimumreleaseageexclude',
+    'minimumreleaseagestrict',
+    'minimumreleaseageignoremissingtime',
+  ]);
+  for (const name of Object.keys(env)) {
+    const setting = /^(?:npm|pnpm)[_-]config[_-](.+)$/iu.exec(name)?.[1];
+    if (setting && ageSettings.has(setting.replace(/[_-]/gu, '').toLowerCase()))
+      delete env[name];
+  }
+  Object.assign(env, {
+    pnpm_config_minimum_release_age: String(policy.minimumReleaseAge),
+    pnpm_config_minimum_release_age_exclude: JSON.stringify(
+      policy.minimumReleaseAgeExclude,
+    ),
+    pnpm_config_minimum_release_age_strict: String(
+      policy.minimumReleaseAgeStrict,
+    ),
+    pnpm_config_minimum_release_age_ignore_missing_time: String(
+      policy.minimumReleaseAgeIgnoreMissingTime,
+    ),
+  });
+  const workspaceBytes = Buffer.from(
+    stringifyYaml({
+      packages: ['.'],
+      allowBuilds,
+      minimumReleaseAge: policy.minimumReleaseAge,
+      minimumReleaseAgeStrict: policy.minimumReleaseAgeStrict,
+      minimumReleaseAgeIgnoreMissingTime:
+        policy.minimumReleaseAgeIgnoreMissingTime,
+    }),
+  );
+  return { env, bootstrapReleaseAgePolicy: policy, workspaceBytes };
+}
+
+export function assertBareWorkspacePolicyUnchanged(file, authoredBytes) {
+  const stat = fs.lstatSync(file);
+  assert.ok(
+    stat.isFile() && !stat.isSymbolicLink(),
+    'Bare workspace policy must remain an ordinary file',
+  );
+  const installedBytes = fs.readFileSync(file);
+  assert.ok(
+    installedBytes.equals(authoredBytes),
+    'Install changed the strict exception-free bare workspace policy',
+  );
+  return {
+    path: file,
+    authoredSha256: hash(authoredBytes),
+    installedSha256: hash(installedBytes),
+    byteLength: installedBytes.length,
+    unchangedByInstall: true,
   };
 }
 
@@ -275,6 +345,7 @@ export async function withBareGeneratorProof(
     'qualifiedNode must be absolute',
   );
   const release = readReleaseManifest({ manifestPath: options.manifestPath });
+  const createPackage = resolveCreatePackage(release);
   const baseEnv = runtimeEnv(options.qualifiedNode);
   const observedNode = run(
     options.qualifiedNode,
@@ -313,21 +384,16 @@ export async function withBareGeneratorProof(
     const rootWorkspace = parseYaml(
       fs.readFileSync(path.join(sourceRoot, 'pnpm-workspace.yaml'), 'utf8'),
     );
-    assert.ok(
-      rootWorkspace?.allowBuilds &&
-        typeof rootWorkspace.allowBuilds === 'object' &&
-        !Array.isArray(rootWorkspace.allowBuilds),
-      'Bare install requires the repository dependency build approval policy',
-    );
-    fs.writeFileSync(
-      path.join(bareRoot, 'pnpm-workspace.yaml'),
-      stringifyYaml({
-        packages: ['.'],
-        allowBuilds: rootWorkspace.allowBuilds,
-      }),
-      { flag: 'wx' },
-    );
     const env = runtimeEnv(options.qualifiedNode, registry.env);
+    const installSetup = createBareInstallSetup(
+      createPackage,
+      rootWorkspace?.allowBuilds,
+      env,
+    );
+    const bareWorkspacePath = path.join(bareRoot, 'pnpm-workspace.yaml');
+    fs.writeFileSync(bareWorkspacePath, installSetup.workspaceBytes, {
+      flag: 'wx',
+    });
     console.log(
       '[bare-generator] normal install of the sole direct generator dependency',
     );
@@ -338,9 +404,13 @@ export async function withBareGeneratorProof(
     ];
     const install = run('pnpm', installArgs, {
       cwd: bareRoot,
-      env,
+      env: installSetup.env,
       logFile: path.join(logs, 'bare-install.log'),
     });
+    const bareWorkspacePolicy = assertBareWorkspacePolicyUnchanged(
+      bareWorkspacePath,
+      installSetup.workspaceBytes,
+    );
     const cohortResolution = assertCohortResolutionProvenance(
       bareRoot,
       release,
@@ -432,7 +502,23 @@ export async function withBareGeneratorProof(
       directDependencies: manifest.dependencies,
       cohortResolution,
       installedBytes,
-      installCommand: { command: 'pnpm', args: installArgs },
+      bootstrapReleaseAgePolicy: installSetup.bootstrapReleaseAgePolicy,
+      bareWorkspacePolicy,
+      installCommand: {
+        command: 'pnpm',
+        args: installArgs,
+        releaseAgeEnv: {
+          pnpm_config_minimum_release_age:
+            installSetup.env.pnpm_config_minimum_release_age,
+          pnpm_config_minimum_release_age_exclude:
+            installSetup.env.pnpm_config_minimum_release_age_exclude,
+          pnpm_config_minimum_release_age_strict:
+            installSetup.env.pnpm_config_minimum_release_age_strict,
+          pnpm_config_minimum_release_age_ignore_missing_time:
+            installSetup.env
+              .pnpm_config_minimum_release_age_ignore_missing_time,
+        },
+      },
       installOutputSha256: install.sha256,
       generated,
     };
