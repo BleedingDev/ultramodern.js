@@ -10,7 +10,7 @@ import {
 import { rspack } from '@rsbuild/core';
 
 describe('presetUltramodern config', () => {
-  it('builds a bare React defineConfig through the cold public CLI with native JSX checking', async () => {
+  it('builds CSS and module CSS through the cold public CLI with native JSX checking', async () => {
     const deadline = Date.now() + 110_000;
     const childTimeout = (limit: number) => {
       const remaining = deadline - Date.now();
@@ -90,10 +90,17 @@ export default defineConfig({ renderer: 'react', server: { ssr: true } });
         strict: true,
         skipLibCheck: false,
         noEmit: true,
-        types: ['node'],
+        noUncheckedSideEffectImports: true,
+        types: [],
       },
       include: ['src'],
     });
+    const assetImports = `import './App.css';
+import styles from './App.module.css';
+`;
+    const validSource = `${assetImports}
+export default function App() { return <main id="bare-react-cli" className={styles.root}><button type="button">Native JSX</button></main>; }
+`;
     try {
       const dependencies: Record<string, string> = {};
       const owners = new Map<string, string>();
@@ -131,9 +138,18 @@ export default defineConfig({ renderer: 'react', server: { ssr: true } });
       fs.writeFileSync(configFile, config);
       fs.writeFileSync(tsconfigFile, tsconfig);
       fs.writeFileSync(
-        sourceFile,
-        'export default function App() { return <main id="bare-react-cli"><button type="button">Native JSX</button></main>; }',
+        path.join(appDirectory, 'src/env.d.ts'),
+        '/// <reference types="@modern-js/ultramodern-app-tools/types" />\n',
       );
+      fs.writeFileSync(
+        path.join(appDirectory, 'src/App.css'),
+        'main { color: red; }\n',
+      );
+      fs.writeFileSync(
+        path.join(appDirectory, 'src/App.module.css'),
+        '.root { display: block; }\n',
+      );
+      fs.writeFileSync(sourceFile, validSource);
       const fixtureRequire = createRequire(configFile);
       const typescriptDirectory = owners.get('typescript')!;
       const typescriptManifest = JSON.parse(
@@ -176,6 +192,9 @@ export default defineConfig({ renderer: 'react', server: { ssr: true } });
       expect(native.signal).toBeNull();
       expect(native.status).not.toBe(0);
       expect(native.stdout + native.stderr).toContain('TS7026');
+      expect(native.stdout + native.stderr).not.toContain('TS2882');
+      expect(native.stdout + native.stderr).not.toContain('TS2307');
+      expect(native.stdout + native.stderr).not.toContain('TS2688');
       const sdkManifest = JSON.parse(
         fs.readFileSync(path.join(sdkDirectory, 'package.json'), 'utf8'),
       );
@@ -210,7 +229,7 @@ export default defineConfig({ renderer: 'react', server: { ssr: true } });
       expect(privateCheckerFiles()).toEqual([]);
       fs.writeFileSync(
         sourceFile,
-        'export default function App() { return <main definitelyNotAReactAttribute={true} />; }',
+        `${assetImports}export default function App() { return <main definitelyNotAReactAttribute={true} />; }`,
       );
       const invalid = spawnSync(process.execPath, command, {
         cwd: appDirectory,
@@ -233,8 +252,33 @@ export default defineConfig({ renderer: 'react', server: { ssr: true } });
       expect(privateCheckerFiles()).toEqual([]);
       fs.writeFileSync(
         sourceFile,
-        'export default function App() { return <main id="bare-react-cli"><button type="button">Native JSX</button></main>; }',
+        `import './missing-runtime.js';\n${validSource}`,
       );
+      const missingJavaScript = spawnSync(process.execPath, command, {
+        cwd: appDirectory,
+        env: environment,
+        encoding: 'utf8',
+        timeout: childTimeout(60_000),
+        maxBuffer: 16 * 1024 * 1024,
+      });
+      expect(missingJavaScript.error).toBeUndefined();
+      expect(missingJavaScript.signal).toBeNull();
+      expect(missingJavaScript.status).not.toBe(0);
+      expect(missingJavaScript.stdout + missingJavaScript.stderr).toContain(
+        'TS2882',
+      );
+      expect(missingJavaScript.stdout + missingJavaScript.stderr).toContain(
+        'missing-runtime.js',
+      );
+      expect(
+        fs.existsSync(
+          path.join(appDirectory, 'dist', sdk.RENDERER_BUILD_MANIFEST_FILE),
+        ),
+      ).toBe(false);
+      expect(fs.readFileSync(configFile, 'utf8')).toBe(config);
+      expect(fs.readFileSync(tsconfigFile, 'utf8')).toBe(tsconfig);
+      expect(privateCheckerFiles()).toEqual([]);
+      fs.writeFileSync(sourceFile, validSource);
       const unsupportedConfig = `import { defineConfig } from '@modern-js/ultramodern-app-tools';
 export default defineConfig({
   renderer: 'react',

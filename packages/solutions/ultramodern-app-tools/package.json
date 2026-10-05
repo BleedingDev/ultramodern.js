@@ -13,6 +13,7 @@
   "files": [
     "dist",
     "src",
+    "lib",
     "bin"
   ],
   "types": "./dist/types/native-composition/index.d.ts",
@@ -29,6 +30,12 @@
         "default": "./dist/cjs/native-composition/index.js"
       },
       "types": "./dist/types/native-composition/index.d.ts"
+    },
+    "./types": {
+      "types": "./src/types.d.ts"
+    },
+    "./react-types": {
+      "types": "./lib/react-types.d.ts"
     },
     "./server-plugin": {
       "node": {
@@ -223,6 +230,12 @@
   },
   "typesVersions": {
     "*": {
+      "types": [
+        "./src/types.d.ts"
+      ],
+      "react-types": [
+        "./lib/react-types.d.ts"
+      ],
       "server-plugin": [
         "./dist/types/native-composition/server-plugin.d.ts",
         "./src/native-composition/server-plugin.ts"

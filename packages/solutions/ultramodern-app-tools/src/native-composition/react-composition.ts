@@ -16,7 +16,6 @@ import {
 } from '@modern-js/app-tools-extensions/runtime-package-resolution';
 import { ultramodernI18nIntegrationPlugin } from '@modern-js/i18n-integration';
 import { runtimePlugin } from '@modern-js/runtime/cli';
-import type { ReactNode } from 'react';
 import type { ConfigSourceSnapshot } from './config-evaluator/source-snapshot';
 import { getConfigurationSourceSnapshot } from './configuration-read-context';
 import { ultramodernModuleFederationRecoveryPlugin } from './module-federation-recovery-plugin';
@@ -35,11 +34,7 @@ import { resolveSdkServerPlugin } from './server-plugin-resolution';
 import { ultramodernSSRIntegrationPlugin } from './ssr-integration-plugin';
 import { rendererTypeCheckerPlugin } from './type-checker';
 
-declare module '@modern-js/app-tools/cli-config' {
-  interface CLIElementTypes {
-    react: ReactNode;
-  }
-}
+export type { ReactCLIElement } from './react-types';
 
 /** A portable application import of this exact SDK owner's public server export. */
 export function resolveReactServerPlugin(

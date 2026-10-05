@@ -19,8 +19,15 @@ const consumers = compilers.flatMap(compiler =>
 function checkInstalledDeclarations(
   consumer: (typeof consumers)[number],
   source: string,
-  react = false,
-  tanstack = false,
+  {
+    react = false,
+    tanstack = false,
+    selectedReactEnvironment = false,
+  }: {
+    react?: boolean;
+    tanstack?: boolean;
+    selectedReactEnvironment?: boolean;
+  } = {},
 ) {
   const directory = fs.mkdtempSync(
     path.join(os.tmpdir(), 'um-renderer-public-types-'),
@@ -76,6 +83,33 @@ function checkInstalledDeclarations(
     );
     const filename = `consumer${consumer.extension}`;
     fs.writeFileSync(path.join(directory, filename), source);
+    const files = [filename];
+    if (selectedReactEnvironment) {
+      fs.writeFileSync(
+        path.join(directory, 'env.d.ts'),
+        '/// <reference types="@modern-js/ultramodern-app-tools/react-types" />\n',
+      );
+      fs.writeFileSync(
+        path.join(directory, 'selected-react.tsx'),
+        `import './style.css';
+import styles from './style.module.css';
+export const valid = <button type="button" className={styles.root}>React JSX</button>;
+// @ts-expect-error Selected React JSX attributes remain typed.
+export const invalid = <main definitelyNotAReactAttribute={true} />;
+// @ts-expect-error Asset declarations do not admit missing JavaScript imports.
+import './missing-runtime.js';
+`,
+      );
+      fs.writeFileSync(
+        path.join(directory, 'style.css'),
+        'button { color: red; }\n',
+      );
+      fs.writeFileSync(
+        path.join(directory, 'style.module.css'),
+        '.root { display: block; }\n',
+      );
+      files.push('env.d.ts', 'selected-react.tsx');
+    }
     fs.writeFileSync(
       path.join(directory, 'tsconfig.json'),
       JSON.stringify({
@@ -87,8 +121,11 @@ function checkInstalledDeclarations(
           module: 'NodeNext',
           moduleResolution: 'NodeNext',
           target: 'ESNext',
+          ...(selectedReactEnvironment
+            ? { jsx: 'react-jsx', noUncheckedSideEffectImports: true }
+            : {}),
         },
-        files: [filename],
+        files,
       }),
     );
     const compilerManifestPath = requireFromPackage.resolve(
@@ -113,18 +150,23 @@ function checkInstalledDeclarations(
     const lines = `${result.stdout ?? ''}${result.stderr ?? ''}`
       .split(/\r?\n/u)
       .filter(Boolean);
-    const files = lines.filter(
+    const loadedFiles = lines.filter(
       line => path.isAbsolute(line) && fs.existsSync(line),
     );
-    const diagnostics = lines.filter(line => !files.includes(line)).join('\n');
+    const diagnostics = lines
+      .filter(line => !loadedFiles.includes(line))
+      .join('\n');
     expect(result.error).toBeUndefined();
     expect(
       result.status,
       `${consumer.name} ${compilerManifest.version} ${consumer.extension} public declarations:\n${diagnostics}`,
     ).toBe(0);
-    const graph = files.map(file => file.replaceAll('\\', '/'));
+    const graph = loadedFiles.map(file => file.replaceAll('\\', '/'));
     const declarations = graph.filter(
-      file => file !== path.join(directory, filename).replaceAll('\\', '/'),
+      file =>
+        !files.some(
+          source => file === path.join(directory, source).replaceAll('\\', '/'),
+        ),
     );
     expect(declarations.length).toBeGreaterThan(0);
     expect(
@@ -307,6 +349,61 @@ const tanstackReactConfig = defineConfig({
 void tanstackReactConfig;
 `;
 
+const nativeReactPluginConsumer = `${sharedConsumer}
+import type { AppTools as NativeAppTools, CliPlugin } from '@modern-js/app-tools';
+import type { ReactNode } from 'react';
+
+export type SelectedReactRegistry = Assert<Same<keyof CLIElementTypes, 'react'>>;
+export type SelectedReactNode = Assert<Same<CLIElementTypes['react'], ReactNode>>;
+export type NativePluginIsTyped = Assert<Same<IsAny<CliPlugin<NativeAppTools>>, false>>;
+const selectedRoute: CLIFileSystemRoute<CLIElement> = {
+  type: 'nested', origin: 'config', component: './page.tsx',
+  element: 'React route child', errorElement: 123,
+};
+// @ts-expect-error React route elements cannot contain arbitrary objects.
+selectedRoute.element = { invalidReactNode: true };
+// @ts-expect-error CLI route component metadata remains a filename.
+selectedRoute.component = () => 'invalid component';
+const selectedPlugin: NonNullable<AppUserConfig['plugins']>[number] = {
+  name: 'selected-react-route-types',
+  setup(api) {
+    api.modifyFileSystemRoutes(event => {
+      // @ts-expect-error Route callbacks keep their typed route collection.
+      event.routes = 'invalid routes';
+      return { ...event, routes: [selectedRoute] };
+    });
+  },
+};
+const nativeReactPlugin: CliPlugin<NativeAppTools> = {
+  name: 'native-react-plugin-abi',
+  setup(api) {
+    api.modifyFileSystemRoutes(event => {
+      // @ts-expect-error Native plugin route callbacks keep their typed collection.
+      event.routes = 'invalid routes';
+      return { ...event, routes: [selectedRoute] };
+    });
+  },
+};
+const defaultReact = defineConfig({
+  plugins: [nativeReactPlugin, selectedPlugin],
+});
+const explicitReact = defineConfig({
+  renderer: 'react',
+  plugins: [nativeReactPlugin],
+});
+const callbackReact = defineConfig(context => {
+  const command: string = context.command;
+  // @ts-expect-error The configuration callback context stays typed.
+  const invalidCommand: number = context.command;
+  void command; void invalidCommand;
+  return {
+    renderer: 'react',
+    plugins: [nativeReactPlugin],
+  };
+});
+void defaultReact; void explicitReact; void callbackReact;
+`;
+
 describe('installed renderer-neutral public declarations', () => {
   it.each(
     consumers,
@@ -320,7 +417,10 @@ describe('installed renderer-neutral public declarations', () => {
           file.endsWith('/packages/toolkit/types/cli/index.d.ts') ||
           file.includes('/packages/toolkit/plugin/dist/types/runtime/') ||
           file.includes('/packages/toolkit/plugin/dist/types/types/runtime/') ||
-          file.includes('/native-composition/react-composition.d.'),
+          file.includes('/native-composition/react-composition.d.') ||
+          file.includes('/native-composition/react-types.d.') ||
+          (file.includes('ultramodern-app-tools') &&
+            file.endsWith('/lib/react-types.d.ts')),
       ),
     ).toEqual([]);
     expect(
@@ -333,7 +433,9 @@ describe('installed renderer-neutral public declarations', () => {
   it.each(
     consumers,
   )('admits React route elements through its owned opt-in with $name $extension', consumer => {
-    const graph = checkInstalledDeclarations(consumer, reactConsumer, true);
+    const graph = checkInstalledDeclarations(consumer, reactConsumer, {
+      react: true,
+    });
     expect(
       graph.some(file =>
         file.endsWith('/native-composition/react-composition.d.ts'),
@@ -347,17 +449,46 @@ describe('installed renderer-neutral public declarations', () => {
   it.each(
     consumers,
   )('admits the public TanStack plugin in React config with $name $extension', consumer => {
-    const graph = checkInstalledDeclarations(
-      consumer,
-      tanstackReactConsumer,
-      true,
-      true,
-    );
+    const graph = checkInstalledDeclarations(consumer, tanstackReactConsumer, {
+      react: true,
+      tanstack: true,
+    });
     expect(
       graph.some(file =>
         file.endsWith('/plugin-tanstack/dist/types/cli/index.d.ts'),
       ),
     ).toBe(true);
+    expect(
+      graph.filter(file =>
+        file.includes('/native-composition/react-composition.d.'),
+      ),
+    ).toEqual([]);
+  }, 60_000);
+
+  it.each(
+    consumers,
+  )('admits the native React plugin ABI through only the selected React environment with $name $extension', consumer => {
+    const graph = checkInstalledDeclarations(
+      consumer,
+      nativeReactPluginConsumer,
+      { react: true, selectedReactEnvironment: true },
+    );
+    expect(
+      graph.some(file => file.endsWith('/native-composition/react-types.d.ts')),
+    ).toBe(true);
+    expect(
+      graph.some(
+        file =>
+          file.includes('ultramodern-app-tools') &&
+          file.endsWith('/lib/react-types.d.ts'),
+      ),
+    ).toBe(true);
+    expect(
+      graph.some(file => file.endsWith('/app-tools/dist/types/index.d.ts')),
+    ).toBe(true);
+    expect(graph.some(file => file.endsWith('/app-tools/lib/types.d.ts'))).toBe(
+      true,
+    );
     expect(
       graph.filter(file =>
         file.includes('/native-composition/react-composition.d.'),
