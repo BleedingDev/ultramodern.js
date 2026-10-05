@@ -680,6 +680,69 @@ async function applicationFederationPeerFixture() {
   return { ...options, modern, enhanced, tools, rspack, toolsSpecifier };
 }
 
+async function workspaceFederationPeerFixture(
+  edge: 'dependencies' | 'devDependencies' = 'devDependencies',
+) {
+  const options = await applicationFederationPeerFixture();
+  const createSpecifier = '@modern-js/ultramodern-create';
+  const createName = '@bleedingdev/modern-js-ultramodern-create';
+  const creator = path.join(options.workspace, 'node_modules', createSpecifier);
+  const modernSpecifier = '@module-federation/modern-js-v3';
+  const modern = path.join(creator, 'node_modules', modernSpecifier);
+  const enhanced = path.join(
+    modern,
+    path.relative(options.modern, options.enhanced),
+  );
+  const tools = path.join(modern, path.relative(options.modern, options.tools));
+  await fs.mkdir(path.dirname(modern), { recursive: true });
+  await fs.rename(options.modern, modern);
+  await writeFixturePackage(creator, {
+    name: createName,
+    version: options.version,
+    dependencies: {
+      [modernSpecifier]: 'npm:@bleedingdev/mf-modern-js-v3@2.9.1',
+    },
+  });
+  const appFile = path.join(options.projectRoot, 'package.json');
+  const app = JSON.parse(await fs.readFile(appFile, 'utf8'));
+  delete app.dependencies;
+  await write(appFile, JSON.stringify(app));
+  const rootFile = path.join(options.workspace, 'package.json');
+  await write(
+    rootFile,
+    JSON.stringify({
+      name: '@fixture/workspace',
+      version: '1.0.0',
+      private: true,
+      [edge]: { [createSpecifier]: 'catalog:ultramodern' },
+    }),
+  );
+  const declaration = path.join(options.workspace, 'pnpm-workspace.yaml');
+  await write(
+    declaration,
+    `packages:\n  - apps/*\ncatalogs:\n  ultramodern:\n    '${createSpecifier}': 'npm:${createName}@${options.version}'\n`,
+  );
+  const peerSlot = path.join(
+    options.rspack,
+    'node_modules',
+    options.toolsSpecifier,
+  );
+  await fs.unlink(peerSlot);
+  await fs.symlink(tools, peerSlot, 'dir');
+  return {
+    ...options,
+    creator,
+    createSpecifier,
+    createName,
+    modern,
+    enhanced,
+    tools,
+    rootFile,
+    declaration,
+    peerSlot,
+  };
+}
+
 async function unselectedNativeAdapterFixture(renderer: 'solid' | 'octane') {
   const options =
     renderer === 'solid' ? await fixture() : await rendererFixture('octane');
@@ -1854,20 +1917,269 @@ describe('renderer source and compiler build identity', () => {
     );
   });
 
-  test.each([
-    'dev-only',
-    'unreachable',
-  ])('rejects %s application graph authority for a renamed Rspack peer', async scenario => {
+  test('certifies installed application development tooling that declares the exact Rspack peer alias', async () => {
     const options = await applicationFederationPeerFixture();
     const file = path.join(options.projectRoot, 'package.json');
     const manifest = JSON.parse(await fs.readFile(file, 'utf8'));
-    if (scenario === 'dev-only')
-      manifest.devDependencies = manifest.dependencies;
+    manifest.devDependencies = manifest.dependencies;
+    delete manifest.dependencies;
+    await write(file, JSON.stringify(manifest));
+    await expect(
+      resolveRendererBuildIdentities(options),
+    ).resolves.toMatchObject({
+      cacheAllowed: false,
+    });
+  });
+
+  test('rejects unreachable application graph authority for a renamed Rspack peer', async () => {
+    const options = await applicationFederationPeerFixture();
+    const file = path.join(options.projectRoot, 'package.json');
+    const manifest = JSON.parse(await fs.readFile(file, 'utf8'));
     delete manifest.dependencies;
     await write(file, JSON.stringify(manifest));
     await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
       'requires one exact declared npm alias target',
     );
+  });
+
+  test.each([
+    'target',
+    'version',
+  ])('rejects the wrong application development alias %s before granting its peer declarations authority', async mismatch => {
+    const options = await applicationFederationPeerFixture();
+    const file = path.join(options.projectRoot, 'package.json');
+    const app = JSON.parse(await fs.readFile(file, 'utf8'));
+    app.devDependencies = {
+      '@module-federation/modern-js-v3':
+        mismatch === 'target'
+          ? 'npm:@fixture/foreign-modern@2.9.1'
+          : 'npm:@bleedingdev/mf-modern-js-v3@2.9.2',
+    };
+    delete app.dependencies;
+    await write(file, JSON.stringify(app));
+    await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+      'declared alias owner',
+    );
+  });
+
+  test('authenticates nested aliases after a canonical application development tooling edge', async () => {
+    const options = await applicationFederationPeerFixture();
+    const appFile = path.join(options.projectRoot, 'package.json');
+    const app = JSON.parse(await fs.readFile(appFile, 'utf8'));
+    const toolSpecifier = '@fixture/dev-tool';
+    app.devDependencies = { [toolSpecifier]: '1.0.0' };
+    delete app.dependencies;
+    await write(appFile, JSON.stringify(app));
+    const tool = path.join(options.projectRoot, 'node_modules', toolSpecifier);
+    await writeFixturePackage(tool, {
+      name: toolSpecifier,
+      version: '1.0.0',
+      dependencies: {
+        '@module-federation/modern-js-v3': 'npm:@fixture/foreign-modern@2.9.1',
+      },
+    });
+    const slot = path.join(
+      tool,
+      'node_modules',
+      '@module-federation/modern-js-v3',
+    );
+    await fs.mkdir(path.dirname(slot), { recursive: true });
+    await fs.symlink(options.modern, slot, 'dir');
+    await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+      'declared alias owner',
+    );
+  });
+
+  test.each([
+    'dependencies',
+    'devDependencies',
+  ] as const)('certifies the selected Rspack peer through the declaring workspace root %s and catalog graph', async edge => {
+    const options = await workspaceFederationPeerFixture(edge);
+    const before = await resolveRendererBuildIdentities(options);
+    await fs.appendFile(
+      path.join(options.tools, 'index.js'),
+      'export const changedSelectedProvider = true;\n',
+    );
+    const after = await resolveRendererBuildIdentities(options);
+    expect(after.inputDigest).toBe(before.inputDigest);
+    expect(after.compilerDigest).not.toBe(before.compilerDigest);
+    expect(after.buildMarker).not.toBe(before.buildMarker);
+  });
+
+  test('binds workspace alias authority manifests and catalogs without hashing unrelated tooling implementations', async () => {
+    const options = await workspaceFederationPeerFixture();
+    const before = await resolveRendererBuildIdentities(options);
+    await fs.appendFile(
+      path.join(options.creator, 'index.js'),
+      'export const changedUnselectedGenerator = true;\n',
+    );
+    await fs.appendFile(
+      path.join(options.enhanced, 'index.js'),
+      'export const changedAuthorityPayload = true;\n',
+    );
+    await write(
+      path.join(options.workspace, 'apps', 'unselected', 'src', 'Page.tsx'),
+      'export default () => <main>unrelated app</main>;\n',
+    );
+    const payloadChanged = await resolveRendererBuildIdentities(options);
+    expect(payloadChanged.compilerDigest).toBe(before.compilerDigest);
+    const root = JSON.parse(await fs.readFile(options.rootFile, 'utf8'));
+    root.description = 'Root alias authority bytes changed';
+    await write(options.rootFile, JSON.stringify(root));
+    const rootChanged = await resolveRendererBuildIdentities(options);
+    expect(rootChanged.compilerDigest).not.toBe(payloadChanged.compilerDigest);
+    await fs.appendFile(options.declaration, '# declaring catalog bytes\n');
+    const catalogChanged = await resolveRendererBuildIdentities(options);
+    expect(catalogChanged.compilerDigest).not.toBe(rootChanged.compilerDigest);
+    const aliasFile = path.join(options.enhanced, 'package.json');
+    const alias = JSON.parse(await fs.readFile(aliasFile, 'utf8'));
+    alias.description = 'Actual peer alias authority bytes changed';
+    await write(aliasFile, JSON.stringify(alias));
+    const aliasChanged = await resolveRendererBuildIdentities(options);
+    expect(aliasChanged.compilerDigest).not.toBe(catalogChanged.compilerDigest);
+  });
+
+  test.each([
+    'unreachable-root-tool',
+    'range-catalog',
+    'wrong-catalog-target',
+    'wrong-catalog-version',
+    'transitive-dev-only',
+    'peer-dev-only',
+    'range-peer-alias',
+    'wrong-peer-alias-target',
+    'wrong-peer-alias-version',
+    'wrong-provider-name',
+    'wrong-provider-version',
+    'incompatible-peer',
+    'ambiguous-alias',
+    'split-provider',
+    'nearer-workspace',
+    'malformed-root-manifest',
+  ])('rejects %s workspace root authority for a renamed Rspack peer', async scenario => {
+    const options = await workspaceFederationPeerFixture();
+    if (scenario === 'unreachable-root-tool') {
+      const root = JSON.parse(await fs.readFile(options.rootFile, 'utf8'));
+      delete root.devDependencies;
+      await write(options.rootFile, JSON.stringify(root));
+    }
+    if (scenario.startsWith('wrong-catalog') || scenario === 'range-catalog')
+      await write(
+        options.declaration,
+        JSON.stringify({
+          catalogs: {
+            ultramodern: {
+              [options.createSpecifier]:
+                scenario === 'wrong-catalog-target'
+                  ? `npm:@fixture/foreign-generator@${options.version}`
+                  : `npm:${options.createName}@${scenario === 'wrong-catalog-version' ? '3.9.1' : `^${options.version}`}`,
+            },
+          },
+        }),
+      );
+    if (scenario === 'transitive-dev-only' || scenario === 'peer-dev-only') {
+      const file = path.join(
+        scenario === 'transitive-dev-only' ? options.creator : options.enhanced,
+        'package.json',
+      );
+      const owner = JSON.parse(await fs.readFile(file, 'utf8'));
+      owner.devDependencies = owner.dependencies;
+      delete owner.dependencies;
+      await write(file, JSON.stringify(owner));
+    }
+    if (scenario.includes('peer-alias')) {
+      const file = path.join(options.enhanced, 'package.json');
+      const owner = JSON.parse(await fs.readFile(file, 'utf8'));
+      owner.dependencies[options.toolsSpecifier] =
+        scenario === 'wrong-peer-alias-target'
+          ? 'npm:@fixture/foreign-tools@2.9.1'
+          : `npm:@bleedingdev/mf-runtime-tools@${scenario === 'wrong-peer-alias-version' ? '2.9.2' : '^2.9.1'}`;
+      await write(file, JSON.stringify(owner));
+    }
+    if (
+      scenario === 'wrong-provider-name' ||
+      scenario === 'wrong-provider-version'
+    )
+      await writeFixturePackage(options.tools, {
+        name:
+          scenario === 'wrong-provider-name'
+            ? '@fixture/foreign-tools'
+            : '@bleedingdev/mf-runtime-tools',
+        version: scenario === 'wrong-provider-version' ? '2.9.2' : '2.9.1',
+      });
+    if (scenario === 'incompatible-peer') {
+      const file = path.join(options.rspack, 'package.json');
+      const owner = JSON.parse(await fs.readFile(file, 'utf8'));
+      owner.peerDependencies[options.toolsSpecifier] = '^3.0.0';
+      await write(file, JSON.stringify(owner));
+    }
+    if (scenario === 'ambiguous-alias') {
+      const file = path.join(options.creator, 'package.json');
+      const owner = JSON.parse(await fs.readFile(file, 'utf8'));
+      owner.dependencies[options.toolsSpecifier] =
+        'npm:@fixture/foreign-tools@2.9.1';
+      await write(file, JSON.stringify(owner));
+      await writeFixturePackage(
+        path.join(options.creator, 'node_modules', options.toolsSpecifier),
+        { name: '@fixture/foreign-tools', version: '2.9.1' },
+      );
+    }
+    if (scenario === 'split-provider') {
+      await fs.unlink(options.peerSlot);
+      await writeFixturePackage(options.peerSlot, {
+        name: '@bleedingdev/mf-runtime-tools',
+        version: '2.9.1',
+      });
+    }
+    if (scenario === 'nearer-workspace')
+      await write(
+        path.join(options.projectRoot, 'pnpm-workspace.yaml'),
+        'packages: []\n',
+      );
+    if (scenario === 'malformed-root-manifest')
+      await write(options.rootFile, '{malformed workspace root manifest');
+    await expect(resolveRendererBuildIdentities(options)).rejects.toThrow();
+  });
+
+  test.each([
+    'root-manifest',
+    'catalog',
+    'alias-manifest',
+    'closer-workspace',
+  ])('rejects workspace authority %s changing during a selected peer read', async scenario => {
+    const options = await workspaceFederationPeerFixture();
+    const file =
+      scenario === 'root-manifest'
+        ? options.rootFile
+        : scenario === 'alias-manifest'
+          ? path.join(options.enhanced, 'package.json')
+          : scenario === 'closer-workspace'
+            ? path.join(options.projectRoot, 'pnpm-workspace.yaml')
+            : options.declaration;
+    const original =
+      scenario === 'closer-workspace'
+        ? 'packages: []\n'
+        : await fs.readFile(file, 'utf8');
+    const read = fs.readFile.bind(fs);
+    let changed = false;
+    const spy = rs.spyOn(fs, 'readFile').mockImplementation(async (...args) => {
+      if (
+        !changed &&
+        String(args[0]) === path.join(options.tools, 'index.js')
+      ) {
+        changed = true;
+        await write(file, `${original}\n`);
+      }
+      return Reflect.apply(read, fs, args);
+    });
+    try {
+      await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+        'changed',
+      );
+      expect(changed).toBe(true);
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   test.each([

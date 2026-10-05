@@ -565,17 +565,20 @@ async function compilerClosure(
     { owner: string; specification: string }[]
   >();
   const selectedAliasOwners = new Set<string>();
+  const manifestOnlyAliasOwners = new Set<string>();
   const aliasAuthority = new Map<
     string,
     { name: string; version: string; digest: string }
   >();
   const catalogCandidates = new Map<string, string>();
+  const workspaceManifestCandidates = new Map<string, string>();
   const catalogAuthority = new Map<string, string>();
   const manifestAuthority = new Map<
     string,
     { state: string; digest: string }
   >();
   let appCatalog: Record<string, unknown> | undefined;
+  let appWorkspaceDirectory: string | undefined;
   let appCatalogLoaded = false;
   const authorityFileState = async (file: string): Promise<string> => {
     const stat = await fs.lstat(file, { bigint: true }).catch(error => {
@@ -622,6 +625,7 @@ async function compilerClosure(
               `Invalid renderer compiler workspace catalog: ${file}.`,
             );
           appCatalog = parsed as Record<string, unknown>;
+          appWorkspaceDirectory = directory;
           break;
         }
         const parent = path.dirname(directory);
@@ -664,10 +668,12 @@ async function compilerClosure(
   const collectPeerAliases = async (
     directory: string,
     app = false,
+    manifestOnly = false,
+    declaredAlias?: ReturnType<typeof dependencyIdentity>,
+    authenticateAliases = manifestOnly,
   ): Promise<void> => {
     const owner = await fs.realpath(directory);
-    if (selectedAliasOwners.has(owner)) return;
-    selectedAliasOwners.add(owner);
+    if (selectedAliasOwners.has(owner) && !declaredAlias) return;
     const file = path.join(owner, 'package.json');
     const state = await authorityFileState(file);
     const bytes = await fs.readFile(file, 'utf8');
@@ -678,6 +684,22 @@ async function compilerClosure(
     );
     if ((await authorityFileState(file)) !== state)
       throw new Error(`Renderer compiler authority manifest changed: ${file}.`);
+    if (
+      declaredAlias &&
+      (manifest.name !== declaredAlias.name ||
+        (declaredAlias.exactVersion !== undefined &&
+          manifest.version !== declaredAlias.exactVersion) ||
+        (declaredAlias.versionRange !== undefined &&
+          !semver.satisfies(manifest.version, declaredAlias.versionRange, {
+            loose: true,
+          })))
+    )
+      throw new Error(
+        `Renderer compiler/profile mismatch: declared alias owner ${manifest.name}@${manifest.version} conflicts with declared ${declaredAlias.name}@${declaredAlias.exactVersion ?? declaredAlias.versionRange ?? 'an installed version'}.`,
+      );
+    if (selectedAliasOwners.has(owner)) return;
+    selectedAliasOwners.add(owner);
+    if (manifestOnly) manifestOnlyAliasOwners.add(owner);
     manifestAuthority.set(file, { state, digest: manifestDigest });
     // Application plugin owners can sit outside the selected SDK graph. Their
     // actual declarations still require byte binding before certifying a peer.
@@ -701,16 +723,54 @@ async function compilerClosure(
       peerAliasRequests.set(name, requests);
     }
     for (const name of new Set([
+      ...Object.keys(app ? (manifest.devDependencies ?? {}) : {}),
       ...Object.keys(manifest.dependencies ?? {}),
       ...Object.keys(manifest.optionalDependencies ?? {}),
       ...Object.keys(manifest.peerDependencies ?? {}),
     ])) {
       const resolved = packageDirectory(name, [owner]);
       // The original validating traversal still rejects missing required edges.
-      if (resolved) await collectPeerAliases(resolved);
+      if (resolved) {
+        const declared =
+          manifest.optionalDependencies?.[name] ??
+          manifest.dependencies?.[name] ??
+          (app ? manifest.devDependencies?.[name] : undefined);
+        const specification =
+          app && declared?.startsWith('catalog:')
+            ? await appCatalogRequest(name, declared)
+            : declared;
+        const authenticateChildAliases =
+          authenticateAliases ||
+          (app &&
+            Object.hasOwn(manifest.devDependencies ?? {}, name) &&
+            !Object.hasOwn(manifest.dependencies ?? {}, name) &&
+            !Object.hasOwn(manifest.optionalDependencies ?? {}, name));
+        await collectPeerAliases(
+          resolved,
+          false,
+          manifestOnly,
+          authenticateChildAliases &&
+            specification &&
+            /^npm:/iu.test(specification)
+            ? dependencyIdentity(name, specification)
+            : undefined,
+          authenticateChildAliases,
+        );
+      }
     }
   };
   await collectPeerAliases(options.projectRoot, true);
+  await loadAppWorkspace();
+  if (appWorkspaceDirectory) {
+    // Workspace-root tooling can declare the installed provider of an app's
+    // canonical peer. Follow only declared edges, and bind their manifests;
+    // unrelated installed packages and tooling payloads grant no authority.
+    const file = path.join(appWorkspaceDirectory, 'package.json');
+    const state = await authorityFileState(file);
+    workspaceManifestCandidates.set(file, state);
+    if (state !== 'missing')
+      await collectPeerAliases(appWorkspaceDirectory, true, true);
+  }
   // Complete the same selected physical closure before validating its peers;
   // an alias-owning sibling may sort after the package that consumes that peer.
   for (const owner of new Set([
@@ -962,7 +1022,12 @@ async function compilerClosure(
   }
   const appOwner = await fs.realpath(options.projectRoot);
   for (const [owner, authority] of aliasAuthority) {
-    if (owner === appOwner || seen.has(owner)) continue;
+    if (
+      owner === appOwner ||
+      seen.has(owner) ||
+      manifestOnlyAliasOwners.has(owner)
+    )
+      continue;
     // Bind application-only compiler implementations too; selected packages
     // already carry their complete bytes in the validating closure above.
     const files = await guardedRead(lease, () =>
@@ -1007,6 +1072,9 @@ async function compilerClosure(
   for (const [file, before] of catalogCandidates)
     if ((await authorityFileState(file)) !== before)
       throw new Error(`Renderer compiler catalog changed: ${file}.`);
+  for (const [file, before] of workspaceManifestCandidates)
+    if ((await authorityFileState(file)) !== before)
+      throw new Error(`Renderer compiler workspace manifest changed: ${file}.`);
   for (const [file, before] of manifestAuthority)
     if (
       (await authorityFileState(file)) !== before.state ||
