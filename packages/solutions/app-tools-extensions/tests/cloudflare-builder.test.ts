@@ -103,6 +103,9 @@ describe('Cloudflare builder environments', () => {
         __filename,
       );
       expect(worker.resolve?.conditionNames).not.toContain('react-server');
+      expect(worker.optimization?.runtimeChunk).toEqual(
+        rsc ? false : { name: '__modern_worker_runtime' },
+      );
     } finally {
       fs.rmSync(appDirectory, { force: true, recursive: true });
     }

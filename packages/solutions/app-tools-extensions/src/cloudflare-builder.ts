@@ -853,7 +853,9 @@ const createCloudflareBundlerChain = (
 
   return chain => {
     applyCloudflareWorkerRspackConfig(chain, entryNames);
-    removeCloudflareWorkerDataLoaderClientTransform(chain);
+    // Native RSC manifests belong to each entry's runtime. A shared runtime
+    // can replace the page's client references with a loader-only manifest.
+    if (rscEnabled) chain.optimization.runtimeChunk(false);
     chain.output
       .module(true)
       .library({ type: 'module' })
