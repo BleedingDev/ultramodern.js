@@ -46,6 +46,8 @@ export const REACT_RENDERER_IDENTITY_ELEMENT_ID =
   'ultramodern-renderer-identity';
 
 export interface ReactBuildMetadataOptions {
+  /** Exact authority returned by native discovery, before its emitting pass. */
+  onBuildIdentities?: (identities: RendererBuildIdentities) => void;
   generatedOutputs?: ReactGeneratedOutputPhaseController & {
     bindPhase(
       phase: ReactTypedCssPhase,
@@ -685,6 +687,7 @@ export function reactRendererBuildMetadataPlugin(
             developmentWave = completed;
             identities = developmentSession;
           } else identities = completed;
+          options.onBuildIdentities?.(identities);
           return identities;
         };
         // Analyze awaits the full native entry-generation bus before its

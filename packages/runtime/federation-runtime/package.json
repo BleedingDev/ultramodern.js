@@ -24,6 +24,24 @@
       },
       "default": "./dist/esm/module-federation/index.mjs"
     },
+    "./renderer-contract": {
+      "types": "./dist/types/module-federation/renderer-contract.d.ts",
+      "modern:source": "./src/module-federation/renderer-contract.ts",
+      "node": {
+        "import": "./dist/esm-node/module-federation/renderer-contract.mjs",
+        "require": "./dist/cjs/module-federation/renderer-contract.js"
+      },
+      "default": "./dist/esm/module-federation/renderer-contract.mjs"
+    },
+    "./renderer-runtime-plugin": {
+      "types": "./dist/types/module-federation/renderer-runtime-plugin.d.ts",
+      "modern:source": "./src/module-federation/renderer-runtime-plugin.ts",
+      "node": {
+        "import": "./dist/esm-node/module-federation/renderer-runtime-plugin.mjs",
+        "require": "./dist/cjs/module-federation/renderer-runtime-plugin.js"
+      },
+      "default": "./dist/esm/module-federation/renderer-runtime-plugin.mjs"
+    },
     "./distributed-ssr": {
       "types": "./dist/types/module-federation/distributed-ssr.d.ts",
       "modern:source": "./src/module-federation/distributed-ssr.tsx",
@@ -49,6 +67,14 @@
         "./dist/types/module-federation/index.d.ts",
         "./src/module-federation/index.ts"
       ],
+      "renderer-contract": [
+        "./dist/types/module-federation/renderer-contract.d.ts",
+        "./src/module-federation/renderer-contract.ts"
+      ],
+      "renderer-runtime-plugin": [
+        "./dist/types/module-federation/renderer-runtime-plugin.d.ts",
+        "./src/module-federation/renderer-runtime-plugin.ts"
+      ],
       "distributed-ssr": [
         "./dist/types/module-federation/distributed-ssr.d.ts",
         "./src/module-federation/distributed-ssr.tsx"
@@ -71,6 +97,8 @@
     "test": "rstest run"
   },
   "dependencies": {
+    "@module-federation/sdk": "2.9.1",
+    "@modern-js/backend-federation-contracts": "workspace:*",
     "@modern-js/surface-resolution": "workspace:*"
   },
   "peerDependencies": {
@@ -111,6 +139,22 @@
           "require": "./dist/cjs/module-federation/index.js"
         },
         "default": "./dist/esm/module-federation/index.mjs"
+      },
+      "./renderer-contract": {
+        "types": "./dist/types/module-federation/renderer-contract.d.ts",
+        "node": {
+          "import": "./dist/esm-node/module-federation/renderer-contract.mjs",
+          "require": "./dist/cjs/module-federation/renderer-contract.js"
+        },
+        "default": "./dist/esm/module-federation/renderer-contract.mjs"
+      },
+      "./renderer-runtime-plugin": {
+        "types": "./dist/types/module-federation/renderer-runtime-plugin.d.ts",
+        "node": {
+          "import": "./dist/esm-node/module-federation/renderer-runtime-plugin.mjs",
+          "require": "./dist/cjs/module-federation/renderer-runtime-plugin.js"
+        },
+        "default": "./dist/esm/module-federation/renderer-runtime-plugin.mjs"
       },
       "./distributed-ssr": {
         "types": "./dist/types/module-federation/distributed-ssr.d.ts",

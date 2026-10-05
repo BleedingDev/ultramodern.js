@@ -792,13 +792,26 @@ describe('React metadata in the existing CLI build hooks', () => {
     const resolveBuildIdentities = rstest.fn<
       ReactBuildMetadataOptions['resolveBuildIdentities']
     >(async () => buildIdentities());
-    const { api } = await initializeMetadata(root, { resolveBuildIdentities });
+    const onBuildIdentities =
+      rstest.fn<(completed: RendererBuildIdentities) => void>();
+    const { api } = await initializeMetadata(root, {
+      resolveBuildIdentities,
+      onBuildIdentities,
+    });
     const entries = authoredEntries(root);
     const result = await analyzeFinalEntries(api, entries);
     expect(result.entrypoints).toEqual(entries);
     expect(result.entrypoints[0]).toBe(entries[0]);
     expect(resolveBuildIdentities).not.toHaveBeenCalled();
-    await compileMetadata(api);
+    expect(onBuildIdentities).not.toHaveBeenCalled();
+    await compileMetadata(api, {
+      beforeFinalize(_stats, pass) {
+        if (pass > 1)
+          expect(onBuildIdentities).toHaveBeenCalledWith(
+            expect.objectContaining(buildIdentities()),
+          );
+      },
+    });
     const resolvedContext = resolveBuildIdentities.mock.calls[0][0];
     expect(resolvedContext).toEqual(
       expect.objectContaining({
@@ -832,6 +845,8 @@ describe('React metadata in the existing CLI build hooks', () => {
       version: 1,
       profile: resolveRendererProfile('react'),
     });
+    for (const [completed] of onBuildIdentities.mock.calls)
+      expect(completed.identities).toEqual(buildIdentities().identities);
     expect(resolveBuildIdentities).toHaveBeenCalledTimes(3);
     const emittedContext = resolveBuildIdentities.mock.calls[1][0];
     expect(emittedContext).not.toBe(resolvedContext);

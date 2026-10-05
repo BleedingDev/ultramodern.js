@@ -20,6 +20,7 @@ import type { ReactNode } from 'react';
 import type { ConfigSourceSnapshot } from './config-evaluator/source-snapshot';
 import { getConfigurationSourceSnapshot } from './configuration-read-context';
 import { ultramodernModuleFederationRecoveryPlugin } from './module-federation-recovery-plugin';
+import { createReactModuleFederationRendererIntegration } from './module-federation-renderer-plugin';
 import { nativeEntryCommandPlugin } from './native-entry-command';
 import { reactRendererBuildMetadataPlugin } from './react-build-metadata';
 import { createReactReceiverOutputIntegration } from './react-mf-dts-outputs';
@@ -93,6 +94,7 @@ export const composeReactRenderer = (
   options: { consumerPlugins?: readonly CliPlugin<AppTools>[] } = {},
 ): CliPlugin<AppTools> => {
   const receiverOutputs = createReactReceiverOutputIntegration();
+  const federationRenderer = createReactModuleFederationRendererIntegration();
   const selected = [
     nativeEntryCommandPlugin(),
     appTools(),
@@ -102,11 +104,13 @@ export const composeReactRenderer = (
     reactRendererBuildMetadataPlugin({
       resolveBuildIdentities: createRendererBuildIdentityResolver('react'),
       generatedOutputs: receiverOutputs.controller,
+      onBuildIdentities: federationRenderer.controller.onBuildIdentities,
     }),
     ultramodernI18nIntegrationPlugin(),
     ultramodernRouterIntegrationPlugin(),
     ultramodernSSRIntegrationPlugin(),
     ultramodernModuleFederationRecoveryPlugin(),
+    federationRenderer.plugin,
     backendFederationBuildPlugin({
       rendererBuildPlugin: '@modern-js/renderer-react-build-metadata',
       resolveRendererBuild: createRendererBuildOutputResolver('react'),
