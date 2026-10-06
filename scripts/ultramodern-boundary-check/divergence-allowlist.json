@@ -4,9 +4,9 @@
   "upstreamRef": "2f4d9c4559e26209a0d77f02c6757f29fe3699a2",
   "pathspec": ["packages"],
   "migrationGoal": "Shrink-only budget of fork edits inside upstream-owned files. Every entry is debt: move it upstream or behind an extension point, then re-run --write-divergence-allowlist.",
-  "totalFiles": 852,
-  "totalHunks": 3266,
-  "totalChangedLines": 56651,
+  "totalFiles": 853,
+  "totalHunks": 3269,
+  "totalChangedLines": 56783,
   "files": [
     {
       "file": "packages/cli/adapter-rstest/package.json",
@@ -3285,8 +3285,8 @@
     },
     {
       "file": "packages/solutions/app-tools/src/builder/generator/adapterCopy.ts",
-      "hunks": 2,
-      "changedLines": 2
+      "hunks": 4,
+      "changedLines": 48
     },
     {
       "file": "packages/solutions/app-tools/src/builder/generator/createBuilderProviderConfig.ts",
@@ -3627,6 +3627,11 @@
       "file": "packages/solutions/app-tools/tests/builder/lazyCompilation.test.ts",
       "hunks": 4,
       "changedLines": 70
+    },
+    {
+      "file": "packages/solutions/app-tools/tests/builder/missingCopyContext.test.ts",
+      "hunks": 1,
+      "changedLines": 86
     },
     {
       "file": "packages/solutions/app-tools/tests/builder/routerPlugin.test.ts",
