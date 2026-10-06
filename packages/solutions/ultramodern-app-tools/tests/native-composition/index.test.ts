@@ -25,33 +25,21 @@ async function initializeCliPlugins(createPlugin: typeof appTools) {
     html: { title: 'Consumer title' },
     output: { assetPrefix: '/consumer-assets/' },
   };
-  const userConfig =
-    createPlugin === ultramodernAppTools
-      ? await resolveUltramodernConfig(defineConfig(consumerConfig), {
-          env: 'production',
-          command: 'build',
-        })
-      : { ...consumerConfig, plugins: [createPlugin()] };
-  const originalConfig = {
-    ...structuredClone(consumerConfig),
-    ...('renderer' in userConfig ? { renderer: userConfig.renderer } : {}),
-    plugins: [...(userConfig.plugins ?? [])],
-  };
-  const pluginManager = createPluginManager();
-  pluginManager.addPlugins(userConfig.plugins ?? []);
-  const plugins = pluginManager.getPlugins();
-  const context = await createContext({
-    appContext: initAppContext({
-      packageName: 'consumer-app',
-      configFile: false,
-      command: 'build',
-      appDirectory,
-      metaName: 'modern-js',
-      plugins,
-    }),
-    config: userConfig,
+  // Applications author the UltraModern base composition in config.plugins;
+  // a plain appTools() base registers as an internal plugin.
+  const basePlugin = createPlugin(options);
+  const authored = createPlugin === ultramodernAppTools;
+  const originalConfig = authored
+    ? { ...structuredClone(userConfig), plugins: [basePlugin] }
+    : structuredClone(userConfig);
+  let api: CLIPluginAPI<AppTools> | undefined;
+  const result = await createConfigOptions<AppTools>({
+    command: 'build',
+    configFile: false,
+    cwd: appDirectory,
+    config: authored ? { ...userConfig, plugins: [basePlugin] } : userConfig,
     internalPlugins: [
-      createPlugin(options),
+      ...(authored ? [] : [basePlugin]),
       {
         name: 'consumer-config-observer',
         setup(pluginApi) {

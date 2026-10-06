@@ -62,7 +62,7 @@ const compatibility: RendererFederationCompatibility = {
   profile: {
     renderer: 'react',
     protocolVersion: 1,
-    compiler: { name: '@rsbuild/plugin-react', version: '2.1.0' },
+    compiler: { name: '@rsbuild/plugin-react', version: '2.1.1' },
     hydration: { name: 'react-dom', version: '19.3.0' },
     router: {
       name: 'react-router',
@@ -246,123 +246,133 @@ describe('renderer authority at the actual native MF publication boundary', () =
     { target: 'web' as const, secondary: true },
     { target: 'node' as const, secondary: false },
     { target: 'node' as const, secondary: true },
-  ])('stamps finalized identities and registers the guard on $target with secondary=$secondary', async ({
-    target,
-    secondary,
-  }) => {
-    const selected = await integration();
-    const completed = completedIdentities();
-    const result = await actualChain(target, [
-      ...(await nativeModifiers(secondary)),
-      selected.modifier,
-    ]);
-    const nativeKey =
-      target === 'web'
-        ? 'plugin-module-federation'
-        : 'plugin-module-federation-server';
-    expect(result.chain.plugin(nativeKey).get('plugin')).toBe(
-      secondary
-        ? nativeConstructors.TreeShakingSharedPlugin
-        : nativeConstructors.ModuleFederationPlugin,
-    );
-    const config = nativeOptions(result.chain, target);
-    expect(config.runtimePlugins?.[0]).toEqual([runtimePlugin, compatibility]);
-    expect(config.runtimePlugins).toContain('/consumer/runtime.js');
-    expect(config.shared).toEqual({});
-    const compiler = publicationCompiler(result);
-    const compilation = {} as Rspack.Compilation;
-    const stats: NativeStats = { metaData: { name: 'native-remote' } };
-    const manifest = config.manifest as Exclude<
-      NativeConfig['manifest'],
-      boolean
-    >;
-    expect(await manifest!.additionalData!({ stats, compilation })).toBe(stats);
-    expect(stats.metaData).not.toHaveProperty(RENDERER_FEDERATION_METADATA_KEY);
-    await expect(compiler.hooks.emit.promise(compilation)).rejects.toThrow(
-      'lacks finalized renderer authority',
-    );
-    selected.controller.onBuildIdentities(completed);
-    expect(await manifest!.additionalData!({ stats, compilation })).toBe(stats);
-    expect(stats.metaData[RENDERER_FEDERATION_METADATA_KEY]).toEqual({
-      schema: RENDERER_FEDERATION_SCHEMA,
-      schemaVersion: RENDERER_FEDERATION_SCHEMA_VERSION,
-      ...compatibility,
-      identities: completed.identities,
-    });
-    await expect(
-      compiler.hooks.emit.promise(compilation),
-    ).resolves.toBeUndefined();
-    await expect(
-      compiler.hooks.emit.promise({} as Rspack.Compilation),
-    ).rejects.toThrow('lacks finalized renderer authority');
-  });
+  ])(
+    'stamps finalized identities and registers the guard on $target with secondary=$secondary',
+    async ({ target, secondary }) => {
+      const selected = await integration();
+      const completed = completedIdentities();
+      const result = await actualChain(target, [
+        ...(await nativeModifiers(secondary)),
+        selected.modifier,
+      ]);
+      const nativeKey =
+        target === 'web'
+          ? 'plugin-module-federation'
+          : 'plugin-module-federation-server';
+      expect(result.chain.plugin(nativeKey).get('plugin')).toBe(
+        secondary
+          ? nativeConstructors.TreeShakingSharedPlugin
+          : nativeConstructors.ModuleFederationPlugin,
+      );
+      const config = nativeOptions(result.chain, target);
+      expect(config.runtimePlugins?.[0]).toEqual([
+        runtimePlugin,
+        compatibility,
+      ]);
+      expect(config.runtimePlugins).toContain('/consumer/runtime.js');
+      expect(config.shared).toEqual({});
+      const compiler = publicationCompiler(result);
+      const compilation = {} as Rspack.Compilation;
+      const stats: NativeStats = { metaData: { name: 'native-remote' } };
+      const manifest = config.manifest as Exclude<
+        NativeConfig['manifest'],
+        boolean
+      >;
+      expect(await manifest!.additionalData!({ stats, compilation })).toBe(
+        stats,
+      );
+      expect(stats.metaData).not.toHaveProperty(
+        RENDERER_FEDERATION_METADATA_KEY,
+      );
+      await expect(compiler.hooks.emit.promise(compilation)).rejects.toThrow(
+        'lacks finalized renderer authority',
+      );
+      selected.controller.onBuildIdentities(completed);
+      expect(await manifest!.additionalData!({ stats, compilation })).toBe(
+        stats,
+      );
+      expect(stats.metaData[RENDERER_FEDERATION_METADATA_KEY]).toEqual({
+        schema: RENDERER_FEDERATION_SCHEMA,
+        schemaVersion: RENDERER_FEDERATION_SCHEMA_VERSION,
+        ...compatibility,
+        identities: completed.identities,
+      });
+      await expect(
+        compiler.hooks.emit.promise(compilation),
+      ).resolves.toBeUndefined();
+      await expect(
+        compiler.hooks.emit.promise({} as Rspack.Compilation),
+      ).rejects.toThrow('lacks finalized renderer authority');
+    },
+  );
 
-  it.each([
-    'web',
-    'node',
-  ] as const)('awaits prior additionalData and stamps its replacement on %s', async target => {
-    const selected = await integration();
-    selected.controller.onBuildIdentities(completedIdentities());
-    const replacement: NativeStats = {
-      metaData: { callerOwned: true },
-      preserved: 123,
-    };
-    let release: ((value: NativeStats) => void) | undefined;
-    const previous = rstest.fn(
-      async () =>
-        new Promise<NativeStats>(resolve => {
-          release = resolve;
-        }),
-    );
-    const result = await actualChain(target, [
-      ...(await nativeModifiers(false)),
-      chain => {
-        nativeOptions(chain, target).manifest = {
-          fileName: 'custom-manifest.json',
-          disableAssetsAnalyze: true,
-          additionalData: previous,
-        };
-      },
-      selected.modifier,
-    ]);
-    const config = nativeOptions(result.chain, target);
-    const manifest = config.manifest as Exclude<
-      NativeConfig['manifest'],
-      boolean
-    >;
-    expect(manifest).toMatchObject({
-      fileName: 'custom-manifest.json',
-      disableAssetsAnalyze: true,
-    });
-    const compiler = publicationCompiler(result);
-    const input = {
-      stats: { metaData: { original: true } },
-      compilation: {} as Rspack.Compilation,
-    };
-    const pending = manifest!.additionalData!(input);
-    expect(replacement.metaData).not.toHaveProperty(
-      RENDERER_FEDERATION_METADATA_KEY,
-    );
-    await expect(
-      compiler.hooks.emit.promise(input.compilation),
-    ).rejects.toThrow('lacks finalized renderer authority');
-    if (!release) throw new Error('Prior native additionalData was not called');
-    release(replacement);
-    expect(await pending).toBe(replacement);
-    expect(previous).toHaveBeenCalledTimes(1);
-    expect(previous).toHaveBeenCalledWith(input);
-    expect(input.stats.metaData).toEqual({ original: true });
-    expect(replacement).toMatchObject({
-      metaData: { callerOwned: true },
-      preserved: 123,
-    });
-    expect(replacement.metaData).toHaveProperty(
-      RENDERER_FEDERATION_METADATA_KEY,
-    );
-    await expect(
-      compiler.hooks.emit.promise(input.compilation),
-    ).resolves.toBeUndefined();
-  });
+  it.each(['web', 'node'] as const)(
+    'awaits prior additionalData and stamps its replacement on %s',
+    async target => {
+      const selected = await integration();
+      selected.controller.onBuildIdentities(completedIdentities());
+      const replacement: NativeStats = {
+        metaData: { callerOwned: true },
+        preserved: 123,
+      };
+      let release: ((value: NativeStats) => void) | undefined;
+      const previous = rstest.fn(
+        async () =>
+          new Promise<NativeStats>(resolve => {
+            release = resolve;
+          }),
+      );
+      const result = await actualChain(target, [
+        ...(await nativeModifiers(false)),
+        chain => {
+          nativeOptions(chain, target).manifest = {
+            fileName: 'custom-manifest.json',
+            disableAssetsAnalyze: true,
+            additionalData: previous,
+          };
+        },
+        selected.modifier,
+      ]);
+      const config = nativeOptions(result.chain, target);
+      const manifest = config.manifest as Exclude<
+        NativeConfig['manifest'],
+        boolean
+      >;
+      expect(manifest).toMatchObject({
+        fileName: 'custom-manifest.json',
+        disableAssetsAnalyze: true,
+      });
+      const compiler = publicationCompiler(result);
+      const input = {
+        stats: { metaData: { original: true } },
+        compilation: {} as Rspack.Compilation,
+      };
+      const pending = manifest!.additionalData!(input);
+      expect(replacement.metaData).not.toHaveProperty(
+        RENDERER_FEDERATION_METADATA_KEY,
+      );
+      await expect(
+        compiler.hooks.emit.promise(input.compilation),
+      ).rejects.toThrow('lacks finalized renderer authority');
+      if (!release)
+        throw new Error('Prior native additionalData was not called');
+      release(replacement);
+      expect(await pending).toBe(replacement);
+      expect(previous).toHaveBeenCalledTimes(1);
+      expect(previous).toHaveBeenCalledWith(input);
+      expect(input.stats.metaData).toEqual({ original: true });
+      expect(replacement).toMatchObject({
+        metaData: { callerOwned: true },
+        preserved: 123,
+      });
+      expect(replacement.metaData).toHaveProperty(
+        RENDERER_FEDERATION_METADATA_KEY,
+      );
+      await expect(
+        compiler.hooks.emit.promise(input.compilation),
+      ).resolves.toBeUndefined();
+    },
+  );
 
   it('rejects metadata owned by another publisher before accepting its compilation', async () => {
     const selected = await integration();
@@ -419,31 +429,31 @@ describe('renderer authority at the actual native MF publication boundary', () =
     ).rejects.toThrow(error);
   });
 
-  it.each([
-    'web',
-    'node',
-  ] as const)('keeps optional dependencies lazy without native MF on %s', async target => {
-    const resolveCompatibility = rstest.fn(() => {
-      throw new Error('Optional renderer tuple accessed');
-    });
-    const resolveRuntimePlugin = rstest.fn(() => {
-      throw new Error('Optional MF runtime accessed');
-    });
-    const selected = createReactModuleFederationRendererIntegration({
-      resolveCompatibility,
-      resolveRuntimePlugin,
-    });
-    let modifier: ChainModifier | undefined;
-    await selected.plugin.setup?.({
-      modifyBundlerChain: (callback: ChainModifier) => {
-        modifier = callback;
-      },
-    } as unknown as CLIPluginAPI<AppTools>);
-    const result = await actualChain(target, [modifier!]);
-    expect(
-      result.chain.plugins.has('ultramodern-mf-renderer-publication'),
-    ).toBe(false);
-    expect(resolveCompatibility).not.toHaveBeenCalled();
-    expect(resolveRuntimePlugin).not.toHaveBeenCalled();
-  });
+  it.each(['web', 'node'] as const)(
+    'keeps optional dependencies lazy without native MF on %s',
+    async target => {
+      const resolveCompatibility = rstest.fn(() => {
+        throw new Error('Optional renderer tuple accessed');
+      });
+      const resolveRuntimePlugin = rstest.fn(() => {
+        throw new Error('Optional MF runtime accessed');
+      });
+      const selected = createReactModuleFederationRendererIntegration({
+        resolveCompatibility,
+        resolveRuntimePlugin,
+      });
+      let modifier: ChainModifier | undefined;
+      await selected.plugin.setup?.({
+        modifyBundlerChain: (callback: ChainModifier) => {
+          modifier = callback;
+        },
+      } as unknown as CLIPluginAPI<AppTools>);
+      const result = await actualChain(target, [modifier!]);
+      expect(
+        result.chain.plugins.has('ultramodern-mf-renderer-publication'),
+      ).toBe(false);
+      expect(resolveCompatibility).not.toHaveBeenCalled();
+      expect(resolveRuntimePlugin).not.toHaveBeenCalled();
+    },
+  );
 });

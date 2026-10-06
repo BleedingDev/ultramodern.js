@@ -77,8 +77,13 @@ function trackAbortListeners(signal: AbortSignal) {
   };
 }
 
-beforeEach(() => nativeHydrate.mockReset().mockResolvedValue(undefined));
-afterEach(() => rs.restoreAllMocks());
+// rstest runs a function returned from a hook as its cleanup.
+beforeEach(() => {
+  nativeHydrate.mockReset().mockResolvedValue(undefined);
+});
+afterEach(() => {
+  rs.restoreAllMocks();
+});
 
 describe('Octane router hydration preparation', () => {
   it('installs the native snapshot decoder before restoring server matches', async () => {

@@ -12,7 +12,7 @@ export const reactCandidateProfile: RendererBuildProfile = {
     roots: 'single',
     cleanup: 'exactly-once',
   },
-  compiler: { name: '@rsbuild/plugin-react', version: '2.1.0' },
+  compiler: { name: '@rsbuild/plugin-react', version: '2.1.1' },
   hydration: { name: 'react-dom', version: '19.3.0' },
   router: {
     name: 'react-router',
@@ -28,7 +28,7 @@ export const reactCandidateProfile: RendererBuildProfile = {
     '@modern-js/runtime': '3.9.0',
     '@modern-js/i18n-integration': '3.8.3',
     '@modern-js/runtime-renderer-extensions': '3.8.3',
-    '@rsbuild/plugin-react': '2.1.0',
+    '@rsbuild/plugin-react': '2.1.1',
     '@rsbuild/plugin-svgr': '2.0.5',
     '@loadable/component': '5.16.7',
     'react-helmet-async': '3.0.0',

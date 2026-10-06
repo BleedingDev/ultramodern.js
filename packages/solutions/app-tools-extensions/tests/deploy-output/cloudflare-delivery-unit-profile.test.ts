@@ -19,7 +19,7 @@ const profiles: Record<RendererName, RendererProfile> = {
   react: {
     renderer: 'react',
     protocolVersion: 1,
-    compiler: { name: '@rsbuild/plugin-react', version: '2.1.0' },
+    compiler: { name: '@rsbuild/plugin-react', version: '2.1.1' },
     hydration: { name: 'react-dom', version: '19.3.0' },
     router: {
       name: '@tanstack/react-router',

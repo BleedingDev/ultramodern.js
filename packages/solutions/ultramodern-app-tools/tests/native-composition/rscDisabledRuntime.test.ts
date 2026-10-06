@@ -21,8 +21,8 @@ async function resolveComposerConfig(
     command: 'build',
     configFile: false,
     cwd: appDirectory,
-    config: config as AppUserConfig,
-    internalPlugins: [ultramodernAppTools()],
+    // Applications author the UltraModern base composition in config.plugins.
+    config: { ...config, plugins: [ultramodernAppTools()] } as AppUserConfig,
   });
   return result.config as ComposerConfig;
 }
