@@ -1,6 +1,6 @@
 import {
-  assertRendererIdentity,
   type RendererIdentity,
+  readRendererIdentity,
 } from '@modern-js/renderer-core/identity';
 
 export const SOLID_COMPILER_VERSION = '2.0.0-rc.13';
@@ -227,23 +227,7 @@ export function validateSolidModuleManifest(
     );
   }
   try {
-    const identity = requireRecord(
-      manifest.rendererIdentity,
-      'renderer identity',
-    );
-    if (
-      typeof identity.renderer !== 'string' ||
-      typeof identity.appId !== 'string' ||
-      typeof identity.entryName !== 'string' ||
-      typeof identity.buildId !== 'string' ||
-      identity.protocolVersion !== 1
-    ) {
-      throw new Error('Invalid Solid module manifest renderer identity');
-    }
-    assertRendererIdentity(
-      identity as unknown as RendererIdentity,
-      expectedIdentity,
-    );
+    readRendererIdentity(manifest.rendererIdentity, expectedIdentity);
   } catch (cause) {
     throw new Error(
       'Stale Solid module manifest identity. Serve the manifest and hydration assets from the same application build.',

@@ -50,6 +50,44 @@ export function assertRendererIdentity(
   }
 }
 
+const IDENTITY_FIELDS = [
+  'renderer',
+  'appId',
+  'entryName',
+  'protocolVersion',
+  'buildId',
+] as const;
+
+/**
+ * Read an identity from untrusted JSON (a document bootstrap or a build
+ * manifest). It must be a plain record with exactly the identity fields and
+ * equal the identity this application was built with.
+ */
+export function readRendererIdentity(
+  value: unknown,
+  expected: RendererIdentity,
+): Readonly<RendererIdentity> {
+  if (
+    !value ||
+    typeof value !== 'object' ||
+    ![Object.prototype, null].includes(Object.getPrototypeOf(value)) ||
+    Object.keys(value).some(
+      key => !(IDENTITY_FIELDS as readonly string[]).includes(key),
+    )
+  ) {
+    throw new Error('A renderer identity must contain only identity fields.');
+  }
+  const identity = value as RendererIdentity;
+  assertRendererIdentity(identity, expected);
+  return Object.freeze({
+    renderer: identity.renderer,
+    appId: identity.appId,
+    entryName: identity.entryName,
+    protocolVersion: identity.protocolVersion,
+    buildId: identity.buildId,
+  });
+}
+
 /** Response header naming the built entry identity that rendered a document. */
 export const RENDERER_IDENTITY_HEADER = 'x-ultramodern-renderer-identity';
 
