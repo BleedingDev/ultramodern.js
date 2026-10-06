@@ -38,6 +38,12 @@
       "types": "./dist/types/server.d.ts",
       "default": "./dist/esm-node/server.js"
     },
+    "./federation": {
+      "modern:source": "./src/federation.tsx",
+      "types": "./dist/types/federation.d.ts",
+      "node": "./dist/esm-node/federation.js",
+      "default": "./dist/esm/federation.js"
+    },
     "./manifest": {
       "modern:source": "./src/manifest.ts",
       "types": "./dist/types/manifest.d.ts",
