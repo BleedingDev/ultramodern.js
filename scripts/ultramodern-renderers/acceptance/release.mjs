@@ -262,6 +262,28 @@ function provisionBrowserDependencies(root) {
   return root;
 }
 
+/** Copies *.log files out of the work root, which is deleted after the run. */
+function keepLogs(root, destination) {
+  const visit = directory => {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const file = path.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        if (!['node_modules', '.pnpm-store', 'storage'].includes(entry.name))
+          visit(file);
+      } else if (entry.isFile() && entry.name.endsWith('.log')) {
+        const target = path.join(destination, path.relative(root, file));
+        fs.mkdirSync(path.dirname(target), { recursive: true });
+        fs.copyFileSync(file, target);
+      }
+    }
+  };
+  try {
+    visit(root);
+  } catch (error) {
+    process.stderr.write(`[release] could not keep logs: ${error.message}\n`);
+  }
+}
+
 function spawnProof(node, args, { cwd, env, log, timeoutMs, signal }) {
   return new Promise((resolve, reject) => {
     const descriptor = fs.openSync(log, 'w');
@@ -889,6 +911,7 @@ async function main(opts) {
 
   process.stdout.write(`\n${formatMatrix(results)}\n`);
   const failed = results.some(result => result.status === 'FAIL');
+  if (failed) keepLogs(workRoot, path.join(path.dirname(reportPath), 'logs'));
   fs.writeFileSync(
     reportPath,
     `${JSON.stringify(
