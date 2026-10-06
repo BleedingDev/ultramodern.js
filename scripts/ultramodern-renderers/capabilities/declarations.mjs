@@ -332,3 +332,37 @@ export function declaredPropertyPaths(source, symbol, options) {
 export function declaredKeys(source, symbol, options) {
   return [...declarationShape(source, symbol, options).keys()];
 }
+
+// Read the literal `capabilities: { ... }` object a renderer profile module
+// exports, so callers can check recorded support claims against the actual
+// candidate profile instead of a hand-maintained copy of its booleans.
+export function rendererProfileCapabilities(source) {
+  const tokens = tokenize(source);
+  const open = tokens.findIndex(
+    (token, index) =>
+      token.kind === 'identifier' &&
+      token.value === 'capabilities' &&
+      tokens[index + 1]?.value === ':' &&
+      tokens[index + 2]?.value === '{',
+  );
+  if (open < 0) throw new Error('Missing renderer profile capabilities');
+  const start = open + 2;
+  const end = endOfGroup(tokens, start);
+  const result = {};
+  for (const member of split(tokens.slice(start + 1, end), [','])) {
+    const key = member[0];
+    if (key?.kind !== 'identifier' || member[1]?.value !== ':')
+      throw new Error('Unsupported renderer capability entry');
+    const value = member[2];
+    if (member.length !== 3 || value === undefined)
+      throw new Error(`Unsupported renderer capability value for ${key.value}`);
+    if (value.kind === 'string') result[key.value] = value.value;
+    else if (value.value === 'true') result[key.value] = true;
+    else if (value.value === 'false') result[key.value] = false;
+    else
+      throw new Error(
+        `Unsupported renderer capability literal for ${key.value}: ${value.value}`,
+      );
+  }
+  return result;
+}
