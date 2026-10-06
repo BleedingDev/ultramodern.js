@@ -62,7 +62,9 @@ export function createRendererGenerationProfile(
       ssr: true,
       streaming: true,
       workers: selected.capabilities.worker,
-      federation: selected.capabilities.moduleFederation,
+      // Generated federation is the full MF application topology; a
+      // client-only federated-component capability does not provide it.
+      federation: selected.capabilities.moduleFederation === true,
       rsc: selected.capabilities.rsc,
     },
   };
