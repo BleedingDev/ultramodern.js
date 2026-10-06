@@ -1,9 +1,6 @@
+import type { DocumentAsset } from '../document';
 import type { RendererIdentity } from '../identity';
-import type {
-  DocumentAsset,
-  RequestPlatform,
-  RequestSession,
-} from '../session';
+import type { RequestPlatform, RequestSession } from '../session';
 
 /** Native route matching remains with the selected router adapter. */
 export interface NativeServerConfig {

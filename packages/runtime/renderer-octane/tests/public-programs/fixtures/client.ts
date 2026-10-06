@@ -1,7 +1,6 @@
 import {
   hydrateOctaneApplication,
   mountOctaneApplication,
-  OCTANE_BOOTSTRAP_ID,
   type OctaneApplicationHandle,
   type OctaneApplicationModule,
   type OctaneApplicationOptions,
@@ -17,7 +16,6 @@ export async function clientPublicProgram(
 ): Promise<{
   handle: OctaneApplicationHandle;
   bootstrap: OctaneDocumentBootstrap;
-  bootstrapId: string;
 }> {
   const NativeApplication: ComponentBody<{ label: string }> = _props => null;
   const createApplication = (): OctaneApplicationModule => ({
@@ -59,5 +57,5 @@ export async function clientPublicProgram(
   };
   const handle: OctaneApplicationHandle =
     await hydrateOctaneApplication(hydration);
-  return { handle, bootstrap, bootstrapId: OCTANE_BOOTSTRAP_ID };
+  return { handle, bootstrap };
 }

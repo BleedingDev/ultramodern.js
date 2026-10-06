@@ -1,5 +1,9 @@
 import type { ServerResponse } from 'node:http';
 import path from 'node:path';
+import {
+  collectDocumentAssets,
+  type DocumentAsset,
+} from '@modern-js/renderer-core/document';
 import type {
   Renderer,
   RendererIdentity,
@@ -18,10 +22,6 @@ import {
   rejectNativeRscRequest,
   validateNativeClientAssetManifest,
 } from '@modern-js/renderer-core/server';
-import {
-  collectDocumentAssets,
-  type DocumentAsset,
-} from '@modern-js/renderer-core/session';
 import { fileReader } from '@modern-js/runtime-utils/fileReader';
 import type {
   Context,

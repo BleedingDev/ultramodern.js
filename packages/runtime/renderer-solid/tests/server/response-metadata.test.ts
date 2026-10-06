@@ -6,7 +6,6 @@ import {
   Loading,
   onCleanup,
 } from 'solid-js';
-import { parsePublicData } from '../../../renderer-core/src/data/codec';
 import { createRequestSession } from '../../../renderer-core/src/session/request';
 import type {
   DocumentCachePolicy,
@@ -396,7 +395,7 @@ describe('native Solid response metadata before session commit', () => {
       /<script[^>]*id="__ULTRAMODERN_RENDERER__"[^>]*>(.*?)<\/script>/su.exec(
         html,
       )![1];
-    expect(parsePublicData(bootstrap)).toMatchObject({ hydrating: false });
+    expect(JSON.parse(bootstrap)).toMatchObject({ hydrating: false });
     expect((await session.completion).cacheEligible).toBe(false);
   });
 

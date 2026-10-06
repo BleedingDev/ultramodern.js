@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { runInNewContext } from 'node:vm';
+import { RENDERER_BOOTSTRAP_ID } from '@modern-js/renderer-core/document';
 import type { RendererIdentity } from '@modern-js/renderer-core/identity';
 import { flushSync } from 'octane';
 import {
@@ -10,7 +11,6 @@ import {
 import {
   hydrateOctaneApplication,
   mountOctaneApplication,
-  OCTANE_BOOTSTRAP_ID,
   type OctaneApplicationHandle,
   type OctaneApplicationModule,
   readOctaneDocumentBootstrap,
@@ -726,7 +726,7 @@ export async function assertScheduledRenderFailureReleasesRoot() {
 
 export function assertStrictBootstrapIdentity() {
   const script = document.createElement('script');
-  script.id = OCTANE_BOOTSTRAP_ID;
+  script.id = RENDERER_BOOTSTRAP_ID;
   script.type = 'application/json';
   document.head.append(script);
   const payload = {
@@ -748,16 +748,9 @@ export function assertStrictBootstrapIdentity() {
     assert.notEqual(result.identity.buildId, result.nativeHydrationBuildId);
     assert.equal(Object.isFrozen(result), true);
     assert.equal(Object.isFrozen(result.identity), true);
+    // Shared bootstrap validation is covered by renderer-core's document tests.
     for (const invalid of [
-      [],
-      null,
-      { ...payload, unexpected: true },
-      { ...payload, identity: { ...identity, unexpected: true } },
       { ...payload, identity: { ...identity, renderer: 'solid' } },
-      { ...payload, identity: { ...identity, buildId: 'different-build' } },
-      { ...payload, documentId: '' },
-      { identity, documentId: payload.documentId },
-      { ...payload, hydrating: 'true' },
       { identity, documentId: payload.documentId, hydrating: true },
       { ...payload, nativeHydrationBuildId: '' },
       { ...payload, nativeHydrationBuildId: null },
@@ -768,27 +761,6 @@ export function assertStrictBootstrapIdentity() {
         readOctaneDocumentBootstrap(document, identity, nativeHydrationBuildId),
       );
     }
-    script.textContent = '{broken-json';
-    assert.throws(
-      () =>
-        readOctaneDocumentBootstrap(document, identity, nativeHydrationBuildId),
-      SyntaxError,
-    );
-    script.textContent = JSON.stringify(payload);
-    const duplicate = script.cloneNode(true);
-    document.head.append(duplicate);
-    assert.throws(
-      () =>
-        readOctaneDocumentBootstrap(document, identity, nativeHydrationBuildId),
-      /exactly one/,
-    );
-    duplicate.parentNode?.removeChild(duplicate);
-    script.type = 'text/javascript';
-    assert.throws(
-      () =>
-        readOctaneDocumentBootstrap(document, identity, nativeHydrationBuildId),
-      /missing/,
-    );
   } finally {
     script.remove();
   }

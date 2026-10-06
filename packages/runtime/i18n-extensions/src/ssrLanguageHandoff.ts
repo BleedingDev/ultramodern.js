@@ -2,7 +2,7 @@ import {
   parsePublicData,
   serializePublicData,
 } from '@modern-js/renderer-core/data';
-import { serializeInlineData } from '@modern-js/renderer-core/session';
+import { serializeInlineData } from '@modern-js/renderer-core/document';
 
 /**
  * Renderer-neutral replacement for React's `window._SSR_DATA.data.i18nData`

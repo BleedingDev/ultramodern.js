@@ -1,13 +1,13 @@
-import { serializePublicData } from '@modern-js/renderer-core/data';
 import {
-  collectDocumentAssets,
   type DocumentAsset,
+  type DocumentInlineData,
+  prepareDocument,
+} from '@modern-js/renderer-core/document';
+import {
   policyHeaders,
   type RequestSession,
   responseHeaders,
   restrictDocumentCache,
-  serializeDocumentAsset,
-  serializeInlineData,
 } from '@modern-js/renderer-core/session';
 import {
   commitEventResponse,
@@ -17,7 +17,6 @@ import {
   type JSX,
   renderToStream,
   ssr,
-  ssrElementAttribute,
 } from '@solidjs/web';
 import { provideRequestEvent } from '@solidjs/web/storage';
 import {
@@ -319,11 +318,7 @@ export interface SolidRenderOptions<Bindings extends object = object> {
   readonly onError?: NativeStreamOptions['onError'];
 }
 
-/** Public JSON a client module reads from the document before it starts. */
-export interface DocumentInlineData {
-  readonly id: string;
-  readonly payload: Parameters<typeof serializeInlineData>[0]['payload'];
-}
+export type { DocumentInlineData };
 
 export interface SolidApplicationDocumentOptions extends SolidDocumentOptions {
   readonly rootId?: string;
@@ -470,98 +465,44 @@ function createDocumentParts<Bindings extends object>(
   options: Pick<SolidDocumentRenderOptions<Bindings>, 'session' | 'document'>,
   hydrating: boolean,
 ) {
+  const { session } = options;
   const document = options.document ?? {};
-  const rootId = document.rootId ?? 'root';
   const renderId =
     document.renderId ??
     `${[
-      options.session.identity.appId,
-      options.session.identity.entryName,
-      options.session.identity.buildId,
+      session.identity.appId,
+      session.identity.entryName,
+      session.identity.buildId,
     ]
       .map(value => encodeURIComponent(value).replaceAll("'", '%27'))
       .join(':')}:`;
-  if (
-    typeof rootId !== 'string' ||
-    !rootId.trim() ||
-    typeof renderId !== 'string' ||
-    !renderId.trim()
-  )
-    throw new TypeError(
-      'A Solid document requires nonempty rootId and renderId values.',
-    );
-  if (/[\s"'`=<>&]/u.test(renderId)) {
+  if (typeof renderId !== 'string' || /[\s"'`=<>&]/u.test(renderId)) {
     throw new TypeError(
       'A Solid renderId cannot contain whitespace, quotes or HTML syntax.',
     );
   }
-  if (
-    document.lang !== undefined &&
-    (typeof document.lang !== 'string' || !document.lang.trim())
-  ) {
-    throw new TypeError('A Solid document language must be a nonempty string.');
-  }
-  const assets = collectDocumentAssets(document.assets ?? []);
-  const scriptCSPNonce = getDocumentNonce(document.nonce, 'script');
-  const headAssets = assets
-    .filter(asset => asset.kind !== 'script')
-    .map(asset =>
-      serializeDocumentAsset(
-        asset,
-        asset.kind === 'stylesheet'
-          ? getDocumentNonce(document.nonce, 'style')
-          : scriptCSPNonce,
-      ),
-    )
-    .join('');
-  const moduleAssets = assets
-    .filter(asset => asset.kind === 'script')
-    .map(asset => {
-      if (!hydrating) return serializeDocumentAsset(asset, scriptCSPNonce);
-      // The complete root and bootstraps precede these scripts. Hydration must
-      // start while deferred native fragments keep the document stream open.
-      return serializeDocumentAsset(
-        asset,
-        scriptCSPNonce,
-        (asset.scriptType ?? 'module') === 'classic'
-          ? { defer: false }
-          : { async: true },
-      );
-    })
-    .join('');
-  const bootstrap = serializeInlineData({
-    id: '__ULTRAMODERN_RENDERER__',
-    payload: serializePublicData({
-      identity: options.session.identity,
-      documentId: renderId,
-      hydrating,
-    }),
-    nonce: scriptCSPNonce,
-  });
-  const inlineData = (document.inlineData ?? [])
-    .map(item => {
-      if (item.id === '__ULTRAMODERN_RENDERER__' || item.id === rootId)
-        throw new TypeError(
-          'Document inline data cannot reuse the root or bootstrap id.',
-        );
-      return serializeInlineData({
-        id: item.id,
-        payload: item.payload,
-        nonce: scriptCSPNonce,
-      });
-    })
-    .join('');
+  const script = getDocumentNonce(document.nonce, 'script');
+  const style = getDocumentNonce(document.nonce, 'style');
+  const parts = prepareDocument(
+    { identity: session.identity, documentId: renderId, hydrating },
+    {
+      rootId: document.rootId,
+      lang: document.lang,
+      nonce: { script, style },
+      assets: document.assets,
+      inlineData: document.inlineData,
+    },
+  );
   return {
-    rootId,
     renderId,
-    lang: ssrElementAttribute('lang', document.lang ?? 'en'),
-    root: ssrElementAttribute('id', rootId),
+    lang: ` lang="${parts.lang}"`,
+    root: ` id="${parts.rootId}"`,
+    // Solid keeps the bootstrap in the head, before its hydration script.
     head:
-      headAssets +
-      bootstrap +
-      inlineData +
-      (hydrating ? generateHydrationScript({ nonce: scriptCSPNonce }) : ''),
-    modules: moduleAssets,
+      parts.headAssets +
+      parts.bootstrap +
+      (hydrating ? generateHydrationScript({ nonce: script }) : ''),
+    modules: parts.entryScripts,
   };
 }
 

@@ -1,9 +1,9 @@
+import { collectDocumentAssets, type DocumentAsset } from '../document';
 import {
   assertRendererIdentity,
   type Renderer,
   type RendererIdentity,
 } from '../identity';
-import { collectDocumentAssets, type DocumentAsset } from '../session';
 
 export const RENDERER_ASSET_MANIFEST_FILE = 'renderer-assets.json';
 

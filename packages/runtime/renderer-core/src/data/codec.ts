@@ -1,10 +1,6 @@
 import { fromJSON, toJSON } from 'seroval';
 import { validateSerializedData } from './tree';
 
-export type InlineDataJSON = string & {
-  readonly __inlineDataJSON: unique symbol;
-};
-
 export const DATA_CODEC = 'seroval-json@1.6.8' as const;
 export const MAX_DATA_BYTES = 1024 * 1024;
 const MAX_DEPTH = 100;
@@ -140,8 +136,8 @@ export function assertPublicData(
   visit(value, 0);
 }
 
-/** JSON text stays inert even when a native adapter puts it in a script tag. */
-export function escapeInlineDataJSON(text: string): InlineDataJSON {
+/** JSON text stays inert when it is placed in a script element. */
+export function escapeInlineDataJSON(text: string): string {
   return text.replace(/[<>&\u2028\u2029]/gu, character => {
     switch (character) {
       case '<':
@@ -155,17 +151,21 @@ export function escapeInlineDataJSON(text: string): InlineDataJSON {
       default:
         return '\\u2029';
     }
-  }) as InlineDataJSON;
+  });
 }
 
-export function serializePublicData(value: unknown): InlineDataJSON {
+/** JSON text. `serializeInlineData` escapes it when it goes into a document. */
+export function serializePublicData(value: unknown): string {
   assertPublicData(value);
   const text = JSON.stringify({
     codec: DATA_CODEC,
     data: toJSON(value, { depthLimit: MAX_DEPTH }),
   });
-  const inline = escapeInlineDataJSON(text);
-  if (new TextEncoder().encode(inline).byteLength > MAX_DATA_BYTES) {
+  // A document carries the escaped form, and the decoder bounds that size.
+  if (
+    new TextEncoder().encode(escapeInlineDataJSON(text)).byteLength >
+    MAX_DATA_BYTES
+  ) {
     throw new DataProtocolError('Public data exceeds its byte limit');
   }
   // Apply the exact decoder limits to our wire representation before emitting it.
@@ -176,11 +176,15 @@ export function serializePublicData(value: unknown): InlineDataJSON {
       'Public data exceeds the supported codec limits',
     );
   }
-  return inline;
+  return text;
 }
 
 export function parsePublicData(text: string): unknown {
-  if (new TextEncoder().encode(text).byteLength > MAX_DATA_BYTES) {
+  // A document carries the escaped form, and the decoder bounds that size.
+  if (
+    new TextEncoder().encode(escapeInlineDataJSON(text)).byteLength >
+    MAX_DATA_BYTES
+  ) {
     throw new DataProtocolError('Public data exceeds its byte limit');
   }
   try {

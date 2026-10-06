@@ -1,5 +1,5 @@
+import { collectDocumentAssets, type DocumentAsset } from '../document';
 import { assertRendererIdentity, type RendererIdentity } from '../identity';
-import { collectDocumentAssets, type DocumentAsset } from '../session';
 import { dispatchNativeRequest, rejectNativeRscRequest } from './dispatch';
 import type {
   NativeExecutionContext,

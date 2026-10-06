@@ -1,7 +1,7 @@
-import { serializePublicData } from '@modern-js/renderer-core/data';
 import type { RendererIdentity } from '@modern-js/renderer-core/identity';
 import { readSolidDocumentBootstrap } from '../../src/client';
 
+// The shared reader's validation is covered in renderer-core's document tests.
 const identity: RendererIdentity = {
   renderer: 'solid',
   appId: 'store',
@@ -15,60 +15,32 @@ function documentWith(payload: unknown): Document {
   const script = document.createElement('script');
   script.id = '__ULTRAMODERN_RENDERER__';
   script.type = 'application/json';
-  script.textContent = serializePublicData(payload);
+  script.textContent = JSON.stringify(payload);
   document.body.appendChild(script);
   return document;
 }
 
 describe('native Solid document identity', () => {
-  test.each([
-    true,
-    false,
-  ])('reads the exact SSR/CSR bootstrap %s', hydrating => {
+  test('reads the bootstrap from a real document', () => {
     expect(
       readSolidDocumentBootstrap(
-        documentWith({ identity, documentId: 'main-1:', hydrating }),
+        documentWith({ identity, documentId: 'main-1:', hydrating: true }),
         identity,
       ),
-    ).toEqual({ identity, documentId: 'main-1:', hydrating });
+    ).toEqual({ identity, documentId: 'main-1:', hydrating: true });
   });
 
-  test('rejects stale build identity before native router/root creation', () => {
+  test('requires a Solid renderer identity', () => {
+    const octane = { ...identity, renderer: 'octane' };
     expect(() =>
       readSolidDocumentBootstrap(
         documentWith({
-          identity: { ...identity, buildId: 'stale' },
+          identity: octane,
           documentId: 'main:',
           hydrating: true,
         }),
-        identity,
+        octane,
       ),
-    ).toThrow('conflicts with the application build');
-  });
-
-  test.each([
-    { identity, documentId: '', hydrating: true },
-    { identity, documentId: 'main:' },
-    { identity: null, documentId: 'main:', hydrating: true },
-    [],
-    null,
-  ])('rejects an invalid current bootstrap', payload => {
-    expect(() =>
-      readSolidDocumentBootstrap(documentWith(payload), identity),
-    ).toThrow('invalid renderer identity');
-  });
-
-  test('rejects missing and executable identity scripts', () => {
-    const document = globalThis.document.implementation.createHTMLDocument();
-    expect(() => readSolidDocumentBootstrap(document, identity)).toThrow(
-      'missing',
-    );
-    const script = document.createElement('script');
-    script.id = '__ULTRAMODERN_RENDERER__';
-    script.type = 'module';
-    document.body.appendChild(script);
-    expect(() => readSolidDocumentBootstrap(document, identity)).toThrow(
-      'missing',
-    );
+    ).toThrow('Solid renderer identity');
   });
 });

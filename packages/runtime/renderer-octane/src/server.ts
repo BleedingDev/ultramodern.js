@@ -1,10 +1,11 @@
 import {
-  collectDocumentAssets,
   type DocumentAsset,
-  type RequestSession,
-  type ResponsePolicy,
-  serializeDocumentAsset,
-  serializeInlineData,
+  type DocumentInlineData,
+  prepareDocument,
+} from '@modern-js/renderer-core/document';
+import type {
+  RequestSession,
+  ResponsePolicy,
 } from '@modern-js/renderer-core/session';
 import {
   earlySignalBootstrapScript,
@@ -14,8 +15,7 @@ import {
 } from 'octane/server';
 import {
   assertNativeHydrationBuildId,
-  encodeOctaneDocumentBootstrap,
-  OCTANE_BOOTSTRAP_ID,
+  assertOctaneIdentity,
 } from './bootstrap';
 
 export interface OctaneDocumentOptions {
@@ -28,14 +28,10 @@ export interface OctaneDocumentOptions {
   readonly nonce?: string;
   readonly assets?: readonly DocumentAsset[];
   /** Placed after the renderer bootstrap and before the entry scripts. */
-  readonly inlineData?: readonly OctaneDocumentInlineData[];
+  readonly inlineData?: readonly DocumentInlineData[];
 }
 
-/** Public JSON a client module reads from the document before it starts. */
-export interface OctaneDocumentInlineData {
-  readonly id: string;
-  readonly payload: Parameters<typeof serializeInlineData>[0]['payload'];
-}
+export type { DocumentInlineData as OctaneDocumentInlineData };
 
 export interface OctaneDocumentResponseOptions<
   Bindings extends object = object,
@@ -58,84 +54,34 @@ export interface RenderOctaneApplicationOptions<
   readonly injection?: StreamOptions['injection'];
 }
 
-function documentAttribute(value: string, name: string): string {
-  if (typeof value !== 'string' || value.length === 0) {
-    throw new TypeError(`An Octane document requires a nonempty ${name}.`);
-  }
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('"', '&quot;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;');
-}
-
 function prepareOctaneDocument<Bindings extends object>(
   session: RequestSession<Bindings>,
   document: OctaneDocumentOptions,
   hydrating: boolean,
 ) {
-  if (session.identity.renderer !== 'octane') {
-    throw new Error('The Octane adapter requires an Octane renderer identity.');
-  }
+  assertOctaneIdentity(session.identity);
   if (session.platform.kind !== 'node' && session.platform.kind !== 'worker') {
     throw new Error(
       'An Octane document requires a Node or worker request platform.',
     );
   }
   assertNativeHydrationBuildId(document.nativeHydrationBuildId);
-  const rootId = documentAttribute(document.rootId ?? 'root', 'rootId');
-  if (rootId === OCTANE_BOOTSTRAP_ID) {
-    throw new Error('An Octane root cannot share the document bootstrap id.');
-  }
-  const lang = documentAttribute(document.lang ?? 'en', 'lang');
-  const bootstrap = serializeInlineData({
-    id: OCTANE_BOOTSTRAP_ID,
-    payload: encodeOctaneDocumentBootstrap({
+  const nonce = document.nonce;
+  return prepareDocument(
+    {
       identity: session.identity,
       documentId: document.documentId,
-      nativeHydrationBuildId: document.nativeHydrationBuildId,
       hydrating,
-    }),
-    ...(document.nonce === undefined ? {} : { nonce: document.nonce }),
-  });
-  const inlineData = (document.inlineData ?? [])
-    .map(item => {
-      if (item.id === OCTANE_BOOTSTRAP_ID || item.id === rootId)
-        throw new Error(
-          'Octane document inline data cannot reuse the root or bootstrap id.',
-        );
-      return serializeInlineData({
-        id: item.id,
-        payload: item.payload,
-        ...(document.nonce === undefined ? {} : { nonce: document.nonce }),
-      });
-    })
-    .join('');
-  const assets = collectDocumentAssets(document.assets ?? []);
-  const headAssets = assets
-    .filter(asset => asset.kind !== 'script')
-    .map(asset => serializeDocumentAsset(asset, document.nonce))
-    .join('');
-  const entryScripts = assets
-    .filter(asset => asset.kind === 'script')
-    .map(asset =>
-      serializeDocumentAsset(asset, document.nonce, {
-        // Native ESM entry graphs can execute before document EOF. Classic
-        // runtime/application chunks retain parser order from the build manifest.
-        async: hydrating && asset.scriptType !== 'classic',
-        ...(hydrating && asset.scriptType === 'classic'
-          ? { defer: false }
-          : {}),
-      }),
-    )
-    .join('');
-  return {
-    rootId,
-    lang,
-    bootstrap: bootstrap + inlineData,
-    headAssets,
-    entryScripts,
-  };
+      nativeHydrationBuildId: document.nativeHydrationBuildId,
+    },
+    {
+      rootId: document.rootId,
+      lang: document.lang,
+      nonce: { script: nonce, style: nonce },
+      assets: document.assets,
+      inlineData: document.inlineData,
+    },
+  );
 }
 
 async function resolveDocumentResponse<Bindings extends object>(
