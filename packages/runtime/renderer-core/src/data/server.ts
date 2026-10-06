@@ -29,7 +29,11 @@ const DEFERRED = Symbol('ultramodern.data.deferred');
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 const outcomePolicies = new WeakMap<DataOutcome, RequestDataPolicy>();
 
-interface DeferredDataResult {
+/**
+ * Opaque result of {@link deferData}. Exported so loaders returning it keep a
+ * nameable type under declaration emit (composite/declaration projects).
+ */
+export interface DeferredDataResult {
   [DEFERRED]: true;
   critical: Record<string, unknown>;
   deferred: Record<string, Promise<unknown>>;
