@@ -58,7 +58,14 @@ export const routeIR: FileSystemRouteIR[] = ${JSON.stringify(routeIR, null, 2)};
 export const routeModules: Record<string, FileSystemRouteModule> = { ${configurations.join(',\n')} };
 export const dataModules: Record<string, { loader?: DataHandler; action?: DataHandler }> = { ${data.join(',\n')} };
 ${options.mode === 'client' ? `const serverDataRoutes = new Set<string>(${JSON.stringify(serverDataRoutes)});` : ''}
-export function createNativeRouter(identity: RendererIdentity, request?: Request, context: object = {}, onOutcome?: (routeId: string, outcome: DataOutcome | DecodedDataOutcome) => void, nonce?: string${options.i18n ? ', rewrite?: I18nLocationRewrite' : ''}): AnyRouter {
+export interface NativeRouterOptions {
+  identity: RendererIdentity;
+  request?: Request;
+  context?: object;
+  onOutcome?: (routeId: string, outcome: DataOutcome | DecodedDataOutcome) => void;
+  nonce?: string;${options.i18n ? '\n  rewrite?: I18nLocationRewrite;' : ''}
+}
+export function createNativeRouter({ identity, request, context = {}, onOutcome, nonce${options.i18n ? ', rewrite' : ''} }: NativeRouterOptions): AnyRouter {
   if (Object.hasOwn(context, 'ultramodern')) throw new Error('The native router context reserves ultramodern metadata');
   const nativeContext = { ultramodern: Object.freeze({ rendererIdentity: Object.freeze({ ...identity }) }) };
   const routeTree = createFileSystemRouteTree(routeIR, routeModules, {

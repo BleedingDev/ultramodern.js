@@ -92,13 +92,12 @@ describe('generated native route context boundary', () => {
       },
     };
     const exports: {
-      createNativeRouter?: (
-        identity: RendererIdentity,
-        request?: Request,
-        context?: object,
-        onOutcome?: unknown,
-        session?: object,
-      ) => unknown;
+      createNativeRouter?: (options: {
+        identity: RendererIdentity;
+        request?: Request;
+        context?: object;
+        session?: object;
+      }) => unknown;
     } = {};
     const { code } = await rspack.experiments.swc.transform(source, {
       jsc: { parser: { syntax: 'typescript' }, target: 'es2022' },
@@ -124,23 +123,21 @@ describe('generated native route context boundary', () => {
     const firstRequest = new Request('https://example.test/catalog/one');
     const firstPrivate = { secret: 'first-request', request: firstRequest };
     const firstSession = { request: firstRequest };
-    const firstRouter = create(
+    const firstRouter = create({
       identity,
-      firstRequest,
-      firstPrivate,
-      undefined,
-      firstSession,
-    );
+      request: firstRequest,
+      context: firstPrivate,
+      session: firstSession,
+    });
     const secondRequest = new Request('https://example.test/catalog/two');
     const secondPrivate = { secret: 'second-request', request: secondRequest };
     const secondSession = { request: secondRequest };
-    const secondRouter = create(
+    const secondRouter = create({
       identity,
-      secondRequest,
-      secondPrivate,
-      undefined,
-      secondSession,
-    );
+      request: secondRequest,
+      context: secondPrivate,
+      session: secondSession,
+    });
 
     expect(factoryOptions.map(options => options.context)).toEqual([
       firstPrivate,
@@ -176,9 +173,9 @@ describe('generated native route context boundary', () => {
       expect(factoryOptions[0].getRouter?.()).toBe(firstRouter);
       expect(factoryOptions[1].getRouter?.()).toBe(secondRouter);
     }
-    expect(() => create(identity, firstRequest, { ultramodern: {} })).toThrow(
-      'reserves ultramodern metadata',
-    );
+    expect(() =>
+      create({ identity, request: firstRequest, context: { ultramodern: {} } }),
+    ).toThrow('reserves ultramodern metadata');
     expect(factoryOptions).toHaveLength(2);
   });
 });

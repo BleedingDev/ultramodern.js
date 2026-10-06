@@ -34,7 +34,7 @@ async function serverRouterFactory() {
   return {
     created,
     createNativeRouter: exports.createNativeRouter as (
-      ...args: unknown[]
+      options: Record<string, unknown>,
     ) => unknown,
   };
 }
@@ -51,15 +51,8 @@ describe('generated Solid native route module', () => {
   it('gives the per-request server router the document CSP nonce for its scripts', async () => {
     const { created, createNativeRouter } = await serverRouterFactory();
     const request = new Request('https://shop.test/admin/items');
-    createNativeRouter(
-      identity,
-      request,
-      {},
-      undefined,
-      undefined,
-      'request-nonce',
-    );
-    createNativeRouter(identity, request, {});
+    createNativeRouter({ identity, request, nonce: 'request-nonce' });
+    createNativeRouter({ identity, request });
     expect(created[0]).toMatchObject({
       basepath: '/admin',
       ssr: { nonce: 'request-nonce' },
