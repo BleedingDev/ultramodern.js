@@ -200,10 +200,10 @@ let dispose;
     const backendManifest = projectRequire.resolve('typescript/package.json');
     const effectManifest = projectRequire.resolve('@effect/tsgo/package.json');
     assert.equal(JSON.parse(fs.readFileSync(backendManifest, 'utf8')).version, '7.0.2');
-    assert.equal(JSON.parse(fs.readFileSync(effectManifest, 'utf8')).version, '0.45.0');
+    assert.equal(JSON.parse(fs.readFileSync(effectManifest, 'utf8')).version, '0.47.2');
     assert.equal(projectRequire.resolve('@typescript/native/package.json'), backendManifest);
     // Native execution is deliberately outside the original observed load.
-    assert.equal(execFileSync(compiler, ['--version'], { encoding: 'utf8' }).trim(), 'Version 7.0.2+effect-tsgo.0.45.0');
+    assert.equal(execFileSync(compiler, ['--version'], { encoding: 'utf8' }).trim(), 'Version 7.0.2+effect-tsgo.0.47.2');
     assert.equal(process.cwd(), beforeCwd);
     for (const name of ['EFFECT_TSGO_BIN', 'JITI_FS_CACHE']) assert.equal(process.env[name], beforeEnvironment[name]);
     process.stdout.write('cold-native-mf-load: observed original config and native TS7 cohort\\n');
@@ -692,159 +692,165 @@ module.exports = async context => {
       callbackCommand: 'serve',
       local: false,
     },
-  ] as const)('evaluates $command once with callback command $callbackCommand and env $env', async scenario => {
-    const root = fs.realpathSync(
-      fs.mkdtempSync(
-        path.join(process.env.OWNED_TEMP_DIR ?? os.tmpdir(), 'um-cli-read-'),
-      ),
-    );
-    const token = `__um_cli_read_${path.basename(root)}`;
-    const registry = globalThis as unknown as Record<string, unknown>;
-    const configFile = path.join(root, 'selected.config.js');
-    const localFile = path.join(root, 'selected.config.local.js');
-    const inputFile = path.join(root, 'config-data.json');
-    const workspaceFile = path.join(root, 'pnpm-workspace.yaml');
-    const linkedFile = path.join(root, 'linked-config-data.json');
-    const missingFile = path.join(root, 'missing-config-data.json');
-    const helperFile = path.join(root, 'config-helper.cjs');
-    const envKey = 'MODERN_ULTRAMODERN_CONFIG_HANDOFF';
-    const previousArgv = process.argv;
-    const previousEnv = process.env.NODE_ENV;
-    const previousModernArgv = process.env.MODERN_ARGV;
-    const previousAppEnv = process.env[envKey];
-    const previousCommands = [...program.commands];
-    const previousName = program.name();
-    const previousUsage = program.usage();
-    const previousOptions = [...program.options];
-    const previousVersionListeners = new Set(
-      EventEmitter.prototype.listeners.call(program, 'option:version'),
-    );
-    const listenerEvents = [
-      'SIGINT',
-      'SIGTERM',
-      'unhandledRejection',
-      'uncaughtException',
-    ] as const;
-    const previousListeners = listenerEvents.map(
-      event => new Set(process.listeners(event)),
-    );
-    const callbackContexts: { env: string; command: string }[] = [];
-    const localContexts: { env: string; command: string }[] = [];
-    const setupNames: string[] = [];
-    const lifecycle: string[] = [];
-    const hookBuses: object[] = [];
-    const handedInputs: (ObservedConfigSourceInputs | undefined)[] = [];
-    const handedSnapshots: ReturnType<typeof getConfigurationSourceSnapshot>[] =
-      [];
-    let dispose: (() => Promise<unknown>) | undefined;
-    let actions = 0;
-    let moduleLoads = 0;
-    const expectedEnv =
-      scenario.env ??
-      (['build', 'deploy', 'serve'].includes(scenario.command)
-        ? 'production'
-        : 'development');
-    const mutateContext = 'mutateContext' in scenario && scenario.mutateContext;
-    const skipBuild = 'skipBuild' in scenario && scenario.skipBuild;
-    const observe = (
-      api: Parameters<NonNullable<CliPlugin<AppTools>['setup']>>[0],
-    ) => {
-      expect(api.getAppContext().configFile).toBe(configFile);
-      expect(api.getAppContext().command).toBe(scenario.command);
-      hookBuses.push(api.getHooks());
-      handedInputs.push(getConfigurationSourceInputs(api));
-      const snapshot = getConfigurationSourceSnapshot(api);
-      handedSnapshots.push(snapshot);
-      expect(snapshot).toBeDefined();
-      // Deploy prepares its builder before parsing --skip-build. Catalog
-      // authority must come from the original load, including that path.
-      expect(reactWorkspaceCatalogInputs(root, snapshot)).toContain(
-        workspaceFile,
+  ] as const)(
+    'evaluates $command once with callback command $callbackCommand and env $env',
+    async scenario => {
+      const root = fs.realpathSync(
+        fs.mkdtempSync(
+          path.join(process.env.OWNED_TEMP_DIR ?? os.tmpdir(), 'um-cli-read-'),
+        ),
       );
-    };
-    const consumer: CliPlugin<AppTools> = {
-      name: 'native-cli-config-read-consumer',
-      setup(api) {
-        setupNames.push('consumer');
-        lifecycle.push('consumer');
-        observe(api);
-        dispose = () => api.getHooks().onBeforeExit.call();
-        api.onPrepare(() => {
-          lifecycle.push('prepare');
+      const token = `__um_cli_read_${path.basename(root)}`;
+      const registry = globalThis as unknown as Record<string, unknown>;
+      const configFile = path.join(root, 'selected.config.js');
+      const localFile = path.join(root, 'selected.config.local.js');
+      const inputFile = path.join(root, 'config-data.json');
+      const workspaceFile = path.join(root, 'pnpm-workspace.yaml');
+      const linkedFile = path.join(root, 'linked-config-data.json');
+      const missingFile = path.join(root, 'missing-config-data.json');
+      const helperFile = path.join(root, 'config-helper.cjs');
+      const envKey = 'MODERN_ULTRAMODERN_CONFIG_HANDOFF';
+      const previousArgv = process.argv;
+      const previousEnv = process.env.NODE_ENV;
+      const previousModernArgv = process.env.MODERN_ARGV;
+      const previousAppEnv = process.env[envKey];
+      const previousCommands = [...program.commands];
+      const previousName = program.name();
+      const previousUsage = program.usage();
+      const previousOptions = [...program.options];
+      const previousVersionListeners = new Set(
+        EventEmitter.prototype.listeners.call(program, 'option:version'),
+      );
+      const listenerEvents = [
+        'SIGINT',
+        'SIGTERM',
+        'unhandledRejection',
+        'uncaughtException',
+      ] as const;
+      const previousListeners = listenerEvents.map(
+        event => new Set(process.listeners(event)),
+      );
+      const callbackContexts: { env: string; command: string }[] = [];
+      const localContexts: { env: string; command: string }[] = [];
+      const setupNames: string[] = [];
+      const lifecycle: string[] = [];
+      const hookBuses: object[] = [];
+      const handedInputs: (ObservedConfigSourceInputs | undefined)[] = [];
+      const handedSnapshots: ReturnType<
+        typeof getConfigurationSourceSnapshot
+      >[] = [];
+      let dispose: (() => Promise<unknown>) | undefined;
+      let actions = 0;
+      let moduleLoads = 0;
+      const expectedEnv =
+        scenario.env ??
+        (['build', 'deploy', 'serve'].includes(scenario.command)
+          ? 'production'
+          : 'development');
+      const mutateContext =
+        'mutateContext' in scenario && scenario.mutateContext;
+      const skipBuild = 'skipBuild' in scenario && scenario.skipBuild;
+      const observe = (
+        api: Parameters<NonNullable<CliPlugin<AppTools>['setup']>>[0],
+      ) => {
+        expect(api.getAppContext().configFile).toBe(configFile);
+        expect(api.getAppContext().command).toBe(scenario.command);
+        hookBuses.push(api.getHooks());
+        handedInputs.push(getConfigurationSourceInputs(api));
+        const snapshot = getConfigurationSourceSnapshot(api);
+        handedSnapshots.push(snapshot);
+        expect(snapshot).toBeDefined();
+        // Deploy prepares its builder before parsing --skip-build. Catalog
+        // authority must come from the original load, including that path.
+        expect(reactWorkspaceCatalogInputs(root, snapshot)).toContain(
+          workspaceFile,
+        );
+      };
+      const consumer: CliPlugin<AppTools> = {
+        name: 'native-cli-config-read-consumer',
+        setup(api) {
+          setupNames.push('consumer');
+          lifecycle.push('consumer');
           observe(api);
-          expect(api.getNormalizedConfig().output?.assetPrefix).toBe(
-            scenario.local ? '/local/' : '/primary/',
-          );
-        });
-        api.addCommand(({ program: commandProgram }) => {
-          commandProgram
-            .command(scenario.command)
-            .option('-c, --config <file>')
-            .option('-s, --skip-build')
-            .action(options => {
-              lifecycle.push('action');
-              actions++;
-              observe(api);
-              expect(Boolean(options.skipBuild)).toBe(skipBuild);
-            });
-        });
-      },
-    };
-    const defineConfig = createDefineConfig(() => ({
-      name: '@modern-js/ultramodern-app-tools',
-      setup(api) {
-        setupNames.push('base');
-        lifecycle.push('base');
-        observe(api);
-        expect(api.getAppContext().plugins.map(plugin => plugin.name)).toEqual([
-          '@modern-js/ultramodern-configuration-read-context',
-          '@modern-js/ultramodern-app-tools',
-          consumer.name,
-        ]);
-      },
-    }));
-    registry[token] = {
-      moduleLoaded() {
-        moduleLoads++;
-      },
-      primary: defineConfig(async context => {
-        callbackContexts.push(context);
-        lifecycle.push('primary');
-        expect(process.env[envKey]).toBe('loaded-before-callback');
-        if (mutateContext) {
-          process.env.NODE_ENV = 'development';
-          process.env.MODERN_ARGV = 'node host start';
-        }
-        return {
-          renderer: 'solid',
-          plugins: [consumer],
-          output: { assetPrefix: '/primary/' },
-        };
-      }),
-      local(context: { env: string; command: string }) {
-        localContexts.push(context);
-        lifecycle.push('local');
-        return { output: { assetPrefix: '/local/' } };
-      },
-    };
-    fs.writeFileSync(
-      path.join(root, 'package.json'),
-      JSON.stringify({ name: 'native-cli-config-read-handoff' }),
-    );
-    fs.writeFileSync(
-      path.join(root, '.env'),
-      `${envKey}=loaded-before-callback\n`,
-    );
-    fs.writeFileSync(inputFile, '{"value":42}');
-    fs.writeFileSync(workspaceFile, 'packages:\n  - apps/*\n');
-    fs.symlinkSync('config-data.json', linkedFile);
-    fs.writeFileSync(
-      helperFile,
-      `globalThis[${JSON.stringify(token)}].moduleLoaded();\nmodule.exports = 42;\n`,
-    );
-    fs.writeFileSync(
-      configFile,
-      `const fs = require('node:fs');
+          dispose = () => api.getHooks().onBeforeExit.call();
+          api.onPrepare(() => {
+            lifecycle.push('prepare');
+            observe(api);
+            expect(api.getNormalizedConfig().output?.assetPrefix).toBe(
+              scenario.local ? '/local/' : '/primary/',
+            );
+          });
+          api.addCommand(({ program: commandProgram }) => {
+            commandProgram
+              .command(scenario.command)
+              .option('-c, --config <file>')
+              .option('-s, --skip-build')
+              .action(options => {
+                lifecycle.push('action');
+                actions++;
+                observe(api);
+                expect(Boolean(options.skipBuild)).toBe(skipBuild);
+              });
+          });
+        },
+      };
+      const defineConfig = createDefineConfig(() => ({
+        name: '@modern-js/ultramodern-app-tools',
+        setup(api) {
+          setupNames.push('base');
+          lifecycle.push('base');
+          observe(api);
+          expect(
+            api.getAppContext().plugins.map(plugin => plugin.name),
+          ).toEqual([
+            '@modern-js/ultramodern-configuration-read-context',
+            '@modern-js/ultramodern-app-tools',
+            consumer.name,
+          ]);
+        },
+      }));
+      registry[token] = {
+        moduleLoaded() {
+          moduleLoads++;
+        },
+        primary: defineConfig(async context => {
+          callbackContexts.push(context);
+          lifecycle.push('primary');
+          expect(process.env[envKey]).toBe('loaded-before-callback');
+          if (mutateContext) {
+            process.env.NODE_ENV = 'development';
+            process.env.MODERN_ARGV = 'node host start';
+          }
+          return {
+            renderer: 'solid',
+            plugins: [consumer],
+            output: { assetPrefix: '/primary/' },
+          };
+        }),
+        local(context: { env: string; command: string }) {
+          localContexts.push(context);
+          lifecycle.push('local');
+          return { output: { assetPrefix: '/local/' } };
+        },
+      };
+      fs.writeFileSync(
+        path.join(root, 'package.json'),
+        JSON.stringify({ name: 'native-cli-config-read-handoff' }),
+      );
+      fs.writeFileSync(
+        path.join(root, '.env'),
+        `${envKey}=loaded-before-callback\n`,
+      );
+      fs.writeFileSync(inputFile, '{"value":42}');
+      fs.writeFileSync(workspaceFile, 'packages:\n  - apps/*\n');
+      fs.symlinkSync('config-data.json', linkedFile);
+      fs.writeFileSync(
+        helperFile,
+        `globalThis[${JSON.stringify(token)}].moduleLoaded();\nmodule.exports = 42;\n`,
+      );
+      fs.writeFileSync(
+        configFile,
+        `const fs = require('node:fs');
 const helper = require('./config-helper.cjs');
 module.exports = async context => {
   if (JSON.parse(fs.readFileSync(${JSON.stringify(linkedFile)}, 'utf8')).value !== helper) throw new Error('config module input changed');
@@ -853,156 +859,157 @@ module.exports = async context => {
   if (fs.existsSync(${JSON.stringify(missingFile)})) throw new Error('unexpected config input');
   return globalThis[${JSON.stringify(token)}].primary(context);
 };\n`,
-    );
-    fs.writeFileSync(
-      localFile,
-      `module.exports = async context => globalThis[${JSON.stringify(token)}].local(context);\n`,
-    );
-    try {
-      process.argv = [
-        process.execPath,
-        'ultramodern',
-        scenario.command,
-        // The internal dev-worker command selects config through RunOptions,
-        // whereas the public commands also support the -c CLI flag.
-        ...(scenario.command === 'dev-worker' ? [] : ['-c', configFile]),
-        ...(skipBuild ? ['--skip-build'] : []),
-      ];
-      if (scenario.env === undefined) delete process.env.NODE_ENV;
-      else process.env.NODE_ENV = scenario.env;
-      if (scenario.callbackCommand === scenario.command)
-        delete process.env.MODERN_ARGV;
-      else process.env.MODERN_ARGV = `node host ${scenario.callbackCommand}`;
-      delete process.env[envKey];
-      await run({
-        cwd: root,
-        version: '0.0.0-native-cli-read-proof',
-        ...(scenario.command === 'dev-worker' ? { configFile } : {}),
-      });
-      expect(process.env.NODE_ENV).toBe(
-        mutateContext ? 'development' : expectedEnv,
       );
-      expect(callbackContexts).toEqual([
-        { env: expectedEnv, command: scenario.callbackCommand },
-      ]);
-      expect(localContexts).toEqual(
-        scenario.local
-          ? [
-              {
-                env: mutateContext ? 'development' : expectedEnv,
-                command: mutateContext ? 'start' : scenario.callbackCommand,
-              },
-            ]
-          : [],
+      fs.writeFileSync(
+        localFile,
+        `module.exports = async context => globalThis[${JSON.stringify(token)}].local(context);\n`,
       );
-      expect(moduleLoads).toBe(1);
-      expect(setupNames).toEqual(['base', 'consumer']);
-      expect(lifecycle).toEqual([
-        'primary',
-        ...(scenario.local ? ['local'] : []),
-        'base',
-        'consumer',
-        'prepare',
-        'action',
-      ]);
-      expect(actions).toBe(1);
-      expect(hookBuses).toHaveLength(4);
-      expect(hookBuses.every(hooks => hooks === hookBuses[0])).toBe(true);
-      {
-        const snapshot = handedSnapshots[0]!;
-        expect(handedSnapshots.every(value => value === snapshot)).toBe(true);
-        const inputs = handedInputs[0]!;
-        expect(inputs).toBeDefined();
-        expect(handedInputs.every(value => value === inputs)).toBe(true);
-        expect(Object.isFrozen(inputs)).toBe(true);
-        expect(Object.isFrozen(inputs.observations)).toBe(true);
-        expect(inputs.observations.every(Object.isFrozen)).toBe(true);
-        expect(inputs.observations).toEqual(
-          expect.arrayContaining([
-            {
-              path: linkedFile,
-              canonicalPath: inputFile,
-              operation: 'content',
-              existed: true,
-            },
-            {
-              path: linkedFile,
-              canonicalPath: inputFile,
-              operation: 'metadata',
-              existed: true,
-            },
-            {
-              path: root,
-              canonicalPath: root,
-              operation: 'directory',
-              existed: true,
-            },
-            {
-              path: missingFile,
-              canonicalPath: missingFile,
-              operation: 'metadata',
-              existed: false,
-            },
-            {
-              path: helperFile,
-              canonicalPath: helperFile,
-              operation: 'module',
-              existed: true,
-            },
-          ]),
-        );
-        expect(
-          inputs.observations.some(
-            input => input.path === localFile && input.operation === 'module',
-          ),
-        ).toBe(scenario.local);
-        fs.writeFileSync(workspaceFile, 'packages:\n  - verticals/*\n');
-        expect(() => reactWorkspaceCatalogInputs(root, snapshot)).toThrow(
-          /workspace catalog.*(changed|snapshot)/i,
-        );
-      }
-    } finally {
       try {
-        await dispose?.();
+        process.argv = [
+          process.execPath,
+          'ultramodern',
+          scenario.command,
+          // The internal dev-worker command selects config through RunOptions,
+          // whereas the public commands also support the -c CLI flag.
+          ...(scenario.command === 'dev-worker' ? [] : ['-c', configFile]),
+          ...(skipBuild ? ['--skip-build'] : []),
+        ];
+        if (scenario.env === undefined) delete process.env.NODE_ENV;
+        else process.env.NODE_ENV = scenario.env;
+        if (scenario.callbackCommand === scenario.command)
+          delete process.env.MODERN_ARGV;
+        else process.env.MODERN_ARGV = `node host ${scenario.callbackCommand}`;
+        delete process.env[envKey];
+        await run({
+          cwd: root,
+          version: '0.0.0-native-cli-read-proof',
+          ...(scenario.command === 'dev-worker' ? { configFile } : {}),
+        });
+        expect(process.env.NODE_ENV).toBe(
+          mutateContext ? 'development' : expectedEnv,
+        );
+        expect(callbackContexts).toEqual([
+          { env: expectedEnv, command: scenario.callbackCommand },
+        ]);
+        expect(localContexts).toEqual(
+          scenario.local
+            ? [
+                {
+                  env: mutateContext ? 'development' : expectedEnv,
+                  command: mutateContext ? 'start' : scenario.callbackCommand,
+                },
+              ]
+            : [],
+        );
+        expect(moduleLoads).toBe(1);
+        expect(setupNames).toEqual(['base', 'consumer']);
+        expect(lifecycle).toEqual([
+          'primary',
+          ...(scenario.local ? ['local'] : []),
+          'base',
+          'consumer',
+          'prepare',
+          'action',
+        ]);
+        expect(actions).toBe(1);
+        expect(hookBuses).toHaveLength(4);
+        expect(hookBuses.every(hooks => hooks === hookBuses[0])).toBe(true);
+        {
+          const snapshot = handedSnapshots[0]!;
+          expect(handedSnapshots.every(value => value === snapshot)).toBe(true);
+          const inputs = handedInputs[0]!;
+          expect(inputs).toBeDefined();
+          expect(handedInputs.every(value => value === inputs)).toBe(true);
+          expect(Object.isFrozen(inputs)).toBe(true);
+          expect(Object.isFrozen(inputs.observations)).toBe(true);
+          expect(inputs.observations.every(Object.isFrozen)).toBe(true);
+          expect(inputs.observations).toEqual(
+            expect.arrayContaining([
+              {
+                path: linkedFile,
+                canonicalPath: inputFile,
+                operation: 'content',
+                existed: true,
+              },
+              {
+                path: linkedFile,
+                canonicalPath: inputFile,
+                operation: 'metadata',
+                existed: true,
+              },
+              {
+                path: root,
+                canonicalPath: root,
+                operation: 'directory',
+                existed: true,
+              },
+              {
+                path: missingFile,
+                canonicalPath: missingFile,
+                operation: 'metadata',
+                existed: false,
+              },
+              {
+                path: helperFile,
+                canonicalPath: helperFile,
+                operation: 'module',
+                existed: true,
+              },
+            ]),
+          );
+          expect(
+            inputs.observations.some(
+              input => input.path === localFile && input.operation === 'module',
+            ),
+          ).toBe(scenario.local);
+          fs.writeFileSync(workspaceFile, 'packages:\n  - verticals/*\n');
+          expect(() => reactWorkspaceCatalogInputs(root, snapshot)).toThrow(
+            /workspace catalog.*(changed|snapshot)/i,
+          );
+        }
       } finally {
-        nativeCli.dispose();
-        Array.prototype.splice.call(
-          program.commands,
-          0,
-          program.commands.length,
-          ...previousCommands,
-        );
-        program.name(previousName).usage(previousUsage);
-        Array.prototype.splice.call(
-          program.options,
-          0,
-          program.options.length,
-          ...previousOptions,
-        );
-        for (const listener of EventEmitter.prototype.listeners.call(
-          program,
-          'option:version',
-        ))
-          if (!previousVersionListeners.has(listener))
-            EventEmitter.prototype.removeListener.call(
-              program,
-              'option:version',
-              listener,
-            );
-        process.argv = previousArgv;
-        if (previousEnv === undefined) delete process.env.NODE_ENV;
-        else process.env.NODE_ENV = previousEnv;
-        if (previousModernArgv === undefined) delete process.env.MODERN_ARGV;
-        else process.env.MODERN_ARGV = previousModernArgv;
-        if (previousAppEnv === undefined) delete process.env[envKey];
-        else process.env[envKey] = previousAppEnv;
-        for (const [index, event] of listenerEvents.entries())
-          for (const listener of process.listeners(event))
-            if (!previousListeners[index].has(listener))
-              process.off(event, listener);
-        delete registry[token];
-        fs.rmSync(root, { recursive: true, force: true });
+        try {
+          await dispose?.();
+        } finally {
+          nativeCli.dispose();
+          Array.prototype.splice.call(
+            program.commands,
+            0,
+            program.commands.length,
+            ...previousCommands,
+          );
+          program.name(previousName).usage(previousUsage);
+          Array.prototype.splice.call(
+            program.options,
+            0,
+            program.options.length,
+            ...previousOptions,
+          );
+          for (const listener of EventEmitter.prototype.listeners.call(
+            program,
+            'option:version',
+          ))
+            if (!previousVersionListeners.has(listener))
+              EventEmitter.prototype.removeListener.call(
+                program,
+                'option:version',
+                listener,
+              );
+          process.argv = previousArgv;
+          if (previousEnv === undefined) delete process.env.NODE_ENV;
+          else process.env.NODE_ENV = previousEnv;
+          if (previousModernArgv === undefined) delete process.env.MODERN_ARGV;
+          else process.env.MODERN_ARGV = previousModernArgv;
+          if (previousAppEnv === undefined) delete process.env[envKey];
+          else process.env[envKey] = previousAppEnv;
+          for (const [index, event] of listenerEvents.entries())
+            for (const listener of process.listeners(event))
+              if (!previousListeners[index].has(listener))
+                process.off(event, listener);
+          delete registry[token];
+          fs.rmSync(root, { recursive: true, force: true });
+        }
       }
-    }
-  });
+    },
+  );
 });
