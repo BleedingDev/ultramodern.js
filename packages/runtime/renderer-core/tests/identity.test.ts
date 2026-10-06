@@ -1,4 +1,8 @@
-import { type RendererIdentity, readRendererIdentity } from '../src/identity';
+import {
+  nativeModuleManifestFilename,
+  type RendererIdentity,
+  readRendererIdentity,
+} from '../src/identity';
 
 const identity: RendererIdentity = {
   renderer: 'octane',
@@ -39,5 +43,32 @@ describe('renderer identity records', () => {
     expect(() => readRendererIdentity(value, identity)).toThrow(
       'only identity fields',
     );
+  });
+});
+
+describe('native module manifest filenames', () => {
+  test.each([
+    ['solid', 'main', 'solid-module-manifest.main.json'],
+    [
+      'octane',
+      'main/admin?view=1',
+      'octane-module-manifest.main%2Fadmin%3Fview%3D1.json',
+    ],
+    ['octane', 'store%2Fmain', 'octane-module-manifest.store%252Fmain.json'],
+  ])('encodes %s entry %s into one emitted filename', (renderer, entry, filename) => {
+    expect(nativeModuleManifestFilename(renderer, entry)).toBe(filename);
+  });
+
+  test.each(['', '   '])('rejects an empty entry %s', entry => {
+    expect(() => nativeModuleManifestFilename('solid', entry)).toThrow(
+      'require an application entry name',
+    );
+  });
+
+  test.each([undefined, null, 42])('rejects a nonstring entry %s', entry => {
+    expect(() =>
+      // @ts-expect-error Exercise malformed input at the filename boundary.
+      nativeModuleManifestFilename('solid', entry),
+    ).toThrow('require an application entry name');
   });
 });
