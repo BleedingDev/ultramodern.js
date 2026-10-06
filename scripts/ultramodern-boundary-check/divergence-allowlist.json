@@ -5,8 +5,8 @@
   "pathspec": ["packages"],
   "migrationGoal": "Shrink-only budget of fork edits inside upstream-owned files. Every entry is debt: move it upstream or behind an extension point, then re-run --write-divergence-allowlist.",
   "totalFiles": 852,
-  "totalHunks": 3261,
-  "totalChangedLines": 56549,
+  "totalHunks": 3266,
+  "totalChangedLines": 56651,
   "files": [
     {
       "file": "packages/cli/adapter-rstest/package.json",
@@ -3045,8 +3045,8 @@
     },
     {
       "file": "packages/server/server/src/dev.ts",
-      "hunks": 6,
-      "changedLines": 20
+      "hunks": 5,
+      "changedLines": 42
     },
     {
       "file": "packages/server/server/src/helpers/fileReader.ts",
@@ -3095,13 +3095,8 @@
     },
     {
       "file": "packages/server/server/tests/devRuntimeReload.test.ts",
-      "hunks": 11,
-      "changedLines": 62
-    },
-    {
-      "file": "packages/server/server/tests/fixtures/federated-ssr/bundles/index.js",
-      "hunks": 1,
-      "changedLines": 26
+      "hunks": 4,
+      "changedLines": 65
     },
     {
       "file": "packages/server/server/tests/fixtures/pure/src/App.css",

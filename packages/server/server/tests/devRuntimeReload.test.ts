@@ -43,7 +43,11 @@ rstest.mock('../src/dev-tools/watcher', () => {
   };
 });
 
-import { devRuntimeMiddlewarePlugin, setupDevInfra } from '../src/dev';
+import {
+  devRuntimeMiddlewarePlugin,
+  isServerTemplateRequest,
+  setupDevInfra,
+} from '../src/dev';
 import { ReloadManager } from '../src/dev-tools/reloadManager';
 import { createRuntimeServerOptions } from '../src/dev-tools/runtimeOptions';
 import * as watcherModule from '../src/dev-tools/watcher';
@@ -134,6 +138,63 @@ describe('devRuntimeMiddlewarePlugin (per-runtime injection)', () => {
         expect.arrayContaining(['mock-dev', 'rsbuild-dev', 'init-file-reader']),
       );
     }
+  });
+
+  it('leaves page template requests to the render instead of rsbuild assets', async () => {
+    const served: string[] = [];
+    const builderDevServer = {
+      ...makeBuilderDevServer(false),
+      // Records what Rsbuild's asset lookup was offered, then passes through.
+      middlewares: (req: any, _res: any, next: any) => {
+        served.push(req.url);
+        next();
+      },
+    };
+    const routes = [
+      { urlPath: '/', entryName: 'index', entryPath: 'index.html' },
+      { urlPath: '/assets', isSPA: false, entryPath: 'assets' },
+    ];
+    const server = createServerBase({
+      config: getDefaultConfig(),
+      appContext: getDefaultAppContext(),
+      pwd: '',
+      routes,
+    } as any);
+    server.addPlugins([
+      compatPlugin(),
+      devRuntimeMiddlewarePlugin(
+        { pwd: '', dev: {}, builderDevServer } as any,
+        null,
+      ),
+    ]);
+    await server.init();
+    server.all('*', c => c.text('rendered', 302));
+    const request = (url: string) =>
+      server.request(url, {}, { node: { req: { url }, res: {} } });
+
+    // `/` and `/index.html` resolve to the root html distPath template.
+    expect((await request('/')).status).toBe(302);
+    expect((await request('/index.html')).status).toBe(302);
+    expect((await request('/en')).status).toBe(302);
+    await request('/static/js/main.js');
+    expect(served).toEqual(['/en', '/static/js/main.js']);
+  });
+
+  it('identifies the requests rsbuild would answer with a page template', () => {
+    const flat = [
+      { urlPath: '/', entryName: 'index', entryPath: 'index.html' },
+    ];
+    const nested = [
+      { urlPath: '/', entryName: 'main', entryPath: 'html/main/index.html' },
+    ];
+    expect(isServerTemplateRequest('/', flat as any)).toBe(true);
+    expect(isServerTemplateRequest('/index', flat as any)).toBe(true);
+    expect(isServerTemplateRequest('/index.html', flat as any)).toBe(true);
+    expect(isServerTemplateRequest('/en', flat as any)).toBe(false);
+    expect(isServerTemplateRequest('/static/js/a.js', flat as any)).toBe(false);
+    expect(isServerTemplateRequest('/', nested as any)).toBe(false);
+    expect(isServerTemplateRequest('/html/main/', nested as any)).toBe(true);
+    expect(isServerTemplateRequest('/', undefined)).toBe(false);
   });
 
   it('omits rsbuild-dev when the builder has no dev middleware', async () => {
