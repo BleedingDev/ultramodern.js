@@ -133,7 +133,7 @@ describe('native compiler ownership', () => {
     { renderer: 'react' },
     { transform: 'react' },
     { refresh: 'none' },
-    { svg: 'component' },
+    { svg: 'react' },
     { sourceExtensions: [] },
     { sourceExtensions: ['tsx'] },
   ])('rejects incomplete or incompatible claims: %j', invalid => {
@@ -713,6 +713,10 @@ describe('renderer guard in the owning plugin manager', () => {
       [
         { capability: 'SSG', supported: { output: { ssg: true } } },
         {
+          capability: 'default SVG components',
+          supported: { output: { svgDefaultExport: 'component' } },
+        },
+        {
           capability: 'entry SSG',
           supported: { output: { ssgByEntries: { main: true } } },
         },
@@ -735,10 +739,6 @@ describe('renderer guard in the owning plugin manager', () => {
   it.each(
     (['solid', 'octane'] as const).flatMap(renderer =>
       [
-        {
-          capability: 'SVG components',
-          unsupported: { output: { svgDefaultExport: 'component' } },
-        },
         {
           capability: 'source-adjacent CSS declarations',
           unsupported: { output: { enableCssModuleTSDeclaration: true } },

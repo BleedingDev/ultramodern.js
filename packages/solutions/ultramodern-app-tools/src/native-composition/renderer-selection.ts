@@ -14,7 +14,8 @@ export interface RendererCompilerClaim {
   readonly sourceExtensions: readonly string[];
   readonly transform: 'native';
   readonly refresh: 'native';
-  readonly svg: 'url';
+  /** `component` adds `?component` imports; URL imports always remain. */
+  readonly svg: 'url' | 'component';
 }
 
 type ClaimedPlugin = RsbuildPlugin & {
@@ -31,7 +32,7 @@ export function attachRendererCompilerClaim<T extends RsbuildPlugin>(
     resolveRendererRegistration(claim.renderer).kind !== 'native' ||
     claim.transform !== 'native' ||
     claim.refresh !== 'native' ||
-    claim.svg !== 'url' ||
+    (claim.svg !== 'url' && claim.svg !== 'component') ||
     claim.sourceExtensions.length === 0 ||
     claim.sourceExtensions.some(extension => !/^\.[a-z]+$/u.test(extension))
   ) {

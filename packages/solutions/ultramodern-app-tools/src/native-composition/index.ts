@@ -136,6 +136,7 @@ function composeNativeRenderer(
         api.modifyResolvedConfig(async config => {
           const compiler = await activateNativeRendererCompiler(renderer, {
             rendererIdentities: () => rendererIdentities,
+            svgDefaultExport: config.output?.svgDefaultExport,
           });
           const builderPlugins = [
             nativeRendererIsolationPlugin(renderer),

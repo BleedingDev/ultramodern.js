@@ -46,9 +46,20 @@ the maintained [BleedingDev release artifacts](https://github.com/bleedingdev/oc
 selected by that profile.
 
 Native previews reject workers, Module Federation, React Server Components,
-static site generation, React i18n integration, SVG component imports and CSS
-declaration emission beside authored source. SVG URL imports remain available.
+React i18n integration and CSS declaration emission beside authored source.
 These limits are checked before output generation; there is no preview bypass.
+
+`output.ssg` and `output.ssgByEntries` prerender native routes after the build,
+in the same `dist/html/<entry>/<route>/index.html` layout as React SSG. Each
+document's search-free loader data is written beside it, so client navigation
+between prerendered routes works on a static host. A route cannot use both SSR
+and SSG.
+
+`import Icon from './icon.svg?component'` compiles an SVG into a Solid or
+Octane component; `output.svgDefaultExport: 'component'` does the same for
+plain `.svg` imports from scripts. Stylesheets and `?url` imports keep URLs.
+Add `/// <reference types="@modern-js/ultramodern-app-tools/types" />` for the
+`?component` module type.
 
 Solid's native public route snapshots accept immutable plain records, arrays,
 scalars and checked top-level deferred Promise slots. Rich HTTP data transport

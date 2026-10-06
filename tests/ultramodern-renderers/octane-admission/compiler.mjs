@@ -486,7 +486,7 @@ void mountOctaneApplication({
   try {
     fs.writeFileSync(
       path.join(negative, 'svg.ts'),
-      `import value from ${JSON.stringify(path.join(root, 'src/logo.svg?component'))}; console.log(value);`,
+      `import value from ${JSON.stringify(path.join(root, 'src/logo.svg?react'))}; console.log(value);`,
     );
     fs.writeFileSync(
       path.join(negative, 'Card.jsx'),

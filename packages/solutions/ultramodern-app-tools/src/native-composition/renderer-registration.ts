@@ -19,6 +19,8 @@ export interface RendererIntegrationCapabilities {
 
 export interface NativeRendererCompilerOptions {
   rendererIdentities(): Readonly<Record<string, RendererIdentity>>;
+  /** `component` also compiles default `.svg` script imports as components. */
+  readonly svgDefaultExport?: 'component' | 'url';
 }
 
 /** Source is provenance; activation loads the owning emitted Node compiler. */
