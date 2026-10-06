@@ -8,10 +8,18 @@ export type AwaitOptions<T> = {
   promise: Promise<T>;
 };
 
+/**
+ * Native loader data is frozen, and defer() tags the promise it tracks, so a
+ * frozen promise is tracked through a follower that settles the same way.
+ */
+function track<T>(promise: Promise<T>): DeferredPromise<T> {
+  return defer(Object.isExtensible(promise) ? promise : promise.then(v => v));
+}
+
 export function useAwaited<T>({
   promise: _promise,
 }: AwaitOptions<T>): [data: T, promise: DeferredPromise<T>] {
-  const promise = defer(_promise);
+  const promise = track(_promise);
   const data = Solid.createMemo(async () => await promise);
 
   return [data(), promise];
@@ -41,7 +49,7 @@ export function Await<T>(
     children: (result: T) => SolidNode;
   },
 ): JSX.Element {
-  const deferred = defer(props.promise);
+  const deferred = track(props.promise);
   const ready = Solid.createMemo(async () => {
     await deferred;
     return true;

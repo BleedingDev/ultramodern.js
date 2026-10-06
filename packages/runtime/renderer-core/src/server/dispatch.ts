@@ -418,10 +418,24 @@ export async function dispatchNativeRequest<Bindings extends object>(
   }
 }
 
-/** Node host dispatch; the request platform binding is always `node`. */
+/**
+ * Node host dispatch; the request platform binding is always `node`.
+ * The Node adapter hands over a Proxy for requests with a body, which
+ * `new Request(request)` rejects, so the body request is rebuilt first.
+ */
 export function dispatchNativeNodeRequest<Bindings extends object>(
   request: Request,
   options: NativeDispatchOptions<Bindings>,
 ): Promise<Response> {
-  return dispatchNativeRequest(request, { ...options, platform: 'node' });
+  const fetchRequest =
+    request.body === null
+      ? request
+      : new Request(request.url, {
+          method: request.method,
+          headers: request.headers,
+          body: request.body,
+          signal: request.signal,
+          duplex: 'half',
+        } as RequestInit);
+  return dispatchNativeRequest(fetchRequest, { ...options, platform: 'node' });
 }

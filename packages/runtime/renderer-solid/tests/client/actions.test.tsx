@@ -436,6 +436,8 @@ describe('native Solid route actions', () => {
     });
     await router.load();
     const first = action.submit(request());
+    // The action body is buffered before the transport starts.
+    await waitFor(() => firstSignal !== undefined);
     const second = action.submit(request());
     expect(firstSignal?.aborted).toBe(true);
     await second;
@@ -478,6 +480,7 @@ describe('native Solid route actions', () => {
       return dispose;
     });
     const submission = action.submit(request());
+    await waitFor(() => signal !== undefined);
     disposeOwner();
     disposeOwner();
     expect(await submission).toBeUndefined();
@@ -522,6 +525,7 @@ describe('native Solid route actions', () => {
     const encode = (frame: DataStreamFrame) =>
       new TextEncoder().encode(`${serializePublicData(frame)}\n`);
     const submission = action.submit(request());
+    await waitFor(() => stream !== undefined);
     stream.enqueue(
       encode({
         type: 'initial',
