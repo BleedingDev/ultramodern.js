@@ -79,7 +79,9 @@ export function initializeOwningConfigNativeBinding(): OwningConfigNativeBinding
     // The declaring module fixes this installed cohort; callers cannot select
     // another package through a require anchor or expand the cache grant.
     const owningModule =
-      process.env.MODERN_LIB_FORMAT === 'cjs' ? __filename : import.meta.url;
+      process.env.MODERN_LIB_FORMAT === 'cjs'
+        ? pathToFileURL(__filename).href
+        : import.meta.url;
     // Node's public package lookup uses a distinct ESM resolver cache. Capture
     // its exact instance using only this fixed declaring file, before authors.
     findPackageJSON(owningModule, owningModule);

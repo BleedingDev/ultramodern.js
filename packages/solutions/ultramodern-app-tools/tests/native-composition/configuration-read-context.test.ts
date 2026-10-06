@@ -992,6 +992,47 @@ export default { html: { title: alias + '/' + workspace }, plugins: [{ name: '@m
     });
   });
 
+  it('accepts a declared package installed under a percent-encoded store path', async () => {
+    const app = fixture();
+    // pnpm names URL-sourced installs with a literal "%40"; a plain path must
+    // not be decoded as a URL when locating the installed manifest.
+    const directory = path.join(
+      app.root,
+      '.pnpm/pkg+download+%40oc_1/node_modules/@fixture/encoded',
+    );
+    fs.mkdirSync(directory, { recursive: true });
+    fs.writeFileSync(
+      path.join(directory, 'package.json'),
+      JSON.stringify({
+        name: '@fixture/encoded',
+        version: '1.0.0',
+        exports: './index.ts',
+      }),
+    );
+    fs.writeFileSync(
+      path.join(directory, 'index.ts'),
+      'export default "encoded";\n',
+    );
+    const slot = path.join(app.appDirectory, 'node_modules/@fixture/encoded');
+    fs.mkdirSync(path.dirname(slot), { recursive: true });
+    fs.symlinkSync(directory, slot, 'dir');
+    declareFixtureDependencies(app, {
+      dependencies: { '@fixture/encoded': 'https://example.test/%40oc.tgz' },
+    });
+    fs.writeFileSync(
+      app.configFile,
+      `import encoded from '@fixture/encoded';
+export default { html: { title: encoded }, plugins: [{ name: '@modern-js/ultramodern-app-tools' }] };\n`,
+    );
+    const loaded = await loadUltramodernConfigFile({
+      appDirectory: app.appDirectory,
+      env: 'development',
+      command: 'build',
+      observeSourceInputs: true,
+    });
+    expect(loaded.config.html?.title).toBe('encoded');
+  });
+
   it('ignores an unused declared package available only through the runner global CJS fallback', async () => {
     const app = fixture();
     const name = '@modern-js/runtime';

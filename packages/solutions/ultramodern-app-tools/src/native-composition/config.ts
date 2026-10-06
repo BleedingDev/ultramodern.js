@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import { findPackageJSON, isBuiltin, syncBuiltinESMExports } from 'node:module';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { types as utilTypes } from 'node:util';
 import type { AppTools, CliPlugin } from '@modern-js/app-tools/cli-config';
 import {
@@ -227,8 +228,10 @@ function declaredInstalledConfigRoots(
       // Package presence and ownership do not depend on an entry export being
       // available under ESM's conditions. Anchor the current physical owner so
       // Node's lexical symlink cache cannot choose an earlier installed owner.
+      // The specifier is a URL: a plain path would decode store names such as
+      // pnpm's "%40" for URL-sourced installs.
       const selectedManifest = findPackageJSON(
-        canonicalManifest,
+        pathToFileURL(canonicalManifest),
         canonicalManifest,
       );
       if (
@@ -597,7 +600,9 @@ export async function observeUltramodernConfigLoad<T>(
   const nativeBinding = initializeOwningConfigNativeBinding();
   await initializeOwningReleaseIdentity();
   const owningModule =
-    process.env.MODERN_LIB_FORMAT === 'esm' ? import.meta.url : __filename;
+    process.env.MODERN_LIB_FORMAT === 'esm'
+      ? import.meta.url
+      : pathToFileURL(__filename).href;
   const owningManifest = findPackageJSON(owningModule, owningModule);
   if (!owningManifest)
     throw new Error('Cannot find the owning UltraModern configuration package');
