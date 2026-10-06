@@ -1,24 +1,22 @@
 import type {
-  DataHandler,
-  DataHandlerInput,
-  DataOperation,
   DataOutcome,
-  DecodedDataOutcome,
   FileSystemRouteIR,
   PublicDataOutcome,
-  SelectedDataRoute,
 } from '@modern-js/renderer-core/data';
+import { DataProtocolError } from '@modern-js/renderer-core/data';
+import type { FileSystemRouteOptions } from '@modern-js/renderer-core/router';
 import {
-  DataProtocolError,
-  toTanstackPath,
-} from '@modern-js/renderer-core/data';
-import type { RequestSession } from '@modern-js/renderer-core/session';
-import { parseHref } from '@tanstack/history';
+  loadFileSystemRoute,
+  type NativeLoaderMatch,
+  nativeRoutePath,
+  resolveRouteData as resolveNativeRouteData,
+  splitFileSystemRoutes,
+} from '@modern-js/renderer-core/router';
 import {
   createRouteCompletionScope,
   registerRouteCompletionScope,
 } from './route-completion';
-import { RouteDataError, restoreRouteDataError } from './route-data-error';
+import { restoreRouteDataError } from './route-data-error';
 import type {
   AnyRoute,
   AnyRouter,
@@ -47,6 +45,15 @@ export type {
   PublicDataOutcome,
 } from '@modern-js/renderer-core/data';
 export type {
+  FileSystemDataModule,
+  FileSystemRouteOptions,
+} from '@modern-js/renderer-core/router';
+export {
+  matchApplicationRoutes,
+  RouteDataError,
+  selectApplicationDataRoute,
+} from '@modern-js/renderer-core/router';
+export type {
   ActionFormProps,
   RouteAction,
   RouteActionOptions,
@@ -61,7 +68,6 @@ export { ApplicationRouter } from './application-router';
 // Native TanStack owns matching, transitions, cancellation and route context.
 // Keep this entry separate from other renderer adapters and their type programs.
 export { createApplicationRouter } from './route-completion';
-export { RouteDataError } from './route-data-error';
 export * from './router-binding/index';
 
 export interface FileSystemRouteModule {
@@ -75,28 +81,6 @@ export interface FileSystemRouteModule {
   /** Native synchronous context contributions are checked before composition. */
   context?: AnyRoute['options']['context'];
   validateSearch?: (search: Record<string, unknown>) => Record<string, unknown>;
-}
-
-export interface FileSystemRouteOptions<Context = unknown> {
-  /** The Node request is supplied once per native router, never shared globally. */
-  request?: Request;
-  /** The exact request owner validates native public snapshots before rendering. */
-  session?: RequestSession;
-  context?: Context;
-  loadRoute?: (
-    route: FileSystemRouteIR,
-    input: DataHandlerInput<Context>,
-  ) => Promise<DataOutcome | DecodedDataOutcome>;
-  /** The server resolves HTTP policy from blocking outcomes before rendering. */
-  onOutcome?: (
-    routeId: string,
-    outcome: DataOutcome | PublicDataOutcome,
-  ) => void;
-}
-
-export interface FileSystemDataModule<Context = unknown> {
-  loader?: DataHandler<Context>;
-  action?: DataHandler<Context>;
 }
 
 function isPublicRecord(value: unknown): value is Record<string, unknown> {
@@ -124,70 +108,18 @@ export function getApplicationStatus(router: AnyRouter): number {
   return result.type === 'render' ? result.status : result.redirect.status;
 }
 
-/** Authorize a .data request against the native router's matched route chain. */
-export function selectApplicationDataRoute<Context>(
-  router: AnyRouter,
-  request: Request,
-  requestedRouteId: string,
-  operation: DataOperation,
-  handlers: Readonly<Record<string, FileSystemDataModule<Context>>>,
-): SelectedDataRoute<Context> | undefined {
-  // The native basepath is a location rewrite; match the parsed router path.
-  const url = new URL(request.url);
-  const location = router.parseLocation(
-    parseHref(url.pathname + url.search, undefined),
-  );
-  for (const match of router.matchRoutes(location)) {
-    const route = router.routesById[match.routeId];
-    const originalId = (
-      route?.options.staticData as { ultramodernRouteId?: string } | undefined
-    )?.ultramodernRouteId;
-    if (originalId !== requestedRouteId) continue;
-    const handler = handlers[originalId]?.[operation];
-    if (typeof handler !== 'function') return undefined;
-    return { routeId: originalId, params: match.params, handler };
-  }
-  return undefined;
-}
-
+/** Throw outcomes into the native Solid redirect, not-found and error boundaries. */
 export function resolveRouteData(
   routeId: string,
   outcome: DataOutcome | PublicDataOutcome,
-  project: (value: unknown) => unknown = value => value,
+  project?: (value: unknown) => unknown,
 ): unknown {
-  switch (outcome.kind) {
-    case 'success':
-      return project(outcome.value);
-    case 'deferred':
-      return project({ ...outcome.critical, ...outcome.deferred });
-    case 'redirect':
-      throw redirect({
-        href: outcome.location,
-        ...('response' in outcome ? { headers: outcome.response.headers } : {}),
-        statusCode:
-          'response' in outcome ? outcome.response.status : outcome.status,
-      });
-    case 'not-found':
-      throw notFound({ data: project(outcome.value) });
-    case 'error': {
-      const error = project(outcome.error);
-      if (
-        !error ||
-        typeof error !== 'object' ||
-        !('name' in error) ||
-        typeof error.name !== 'string' ||
-        !('message' in error) ||
-        typeof error.message !== 'string'
-      )
-        throw new DataProtocolError('Invalid public Solid route error');
-      const result = new RouteDataError(routeId, {
-        ...outcome,
-        error: { name: error.name, message: error.message },
-        data: project(outcome.data),
-      });
-      throw Object.freeze(result);
-    }
-  }
+  return resolveNativeRouteData(
+    { redirect, notFound },
+    routeId,
+    outcome,
+    project,
+  );
 }
 
 /** Project route structure into native factories without matching any URL. */
@@ -196,13 +128,7 @@ export function createFileSystemRouteTree<Context = unknown>(
   modules: Readonly<Record<string, FileSystemRouteModule>>,
   options: FileSystemRouteOptions<Context> = {},
 ): AnyRoute {
-  const roots = routes.filter(route => route.isRoot);
-  if (roots.length > 1) {
-    throw new Error(
-      'A Solid filesystem route tree requires one application root',
-    );
-  }
-  const rootDescriptor = roots[0];
+  const { root: rootDescriptor, children } = splitFileSystemRoutes(routes);
   const privateRoots =
     options.context &&
     (typeof options.context === 'object' ||
@@ -370,39 +296,17 @@ export function createFileSystemRouteTree<Context = unknown>(
       return {};
     }
     return {
-      loader: async ({
-        params,
-        location,
-        abortController,
-      }: {
-        params: Record<string, string>;
-        location: { publicHref: string };
-        abortController: AbortController;
-      }) => {
-        const base =
-          options.request?.url ??
-          (typeof window === 'undefined' ? undefined : window.location.href);
-        if (!base) {
-          throw new Error('A server Solid route loader requires its request');
-        }
-        const signal = options.request
-          ? AbortSignal.any([options.request.signal, abortController.signal])
-          : abortController.signal;
+      loader: async (match: NativeLoaderMatch) => {
         // The router's href omits its basepath; data URLs use the public path.
-        const request = new Request(new URL(location.publicHref, base), {
-          headers: options.request?.headers,
-          signal,
-        });
-        const outcome = await loadRoute(route, {
-          request,
-          routeId: route.id,
-          params,
-          context: options.context as Context,
-        });
+        const { outcome, request, signal } = await loadFileSystemRoute(
+          route,
+          loadRoute,
+          options,
+          match,
+        );
         options.onOutcome?.(route.id, outcome);
-        signal.throwIfAborted();
         const generation = completionScope.begin(signal, () =>
-          abortController.abort(),
+          match.abortController.abort(),
         );
         const owner = options.session ?? generation.owner;
         const project = (value: unknown): unknown => {
@@ -434,18 +338,11 @@ export function createFileSystemRouteTree<Context = unknown>(
     staticData: { ultramodernRouteId: rootDescriptor?.id },
     ...(rootDescriptor ? loaderOptions(rootDescriptor) : {}),
   });
-  const ids = new Set<string>();
-  if (rootDescriptor) ids.add(rootDescriptor.id);
 
   function bind(route: FileSystemRouteIR, parent: AnyRoute): AnyRoute {
-    if (ids.has(route.id)) {
-      throw new Error(`Duplicate filesystem route id: ${route.id}`);
-    }
-    ids.add(route.id);
-    const path = route.index ? '/' : route.path;
     const native = createRoute({
       getParentRoute: () => parent,
-      ...(path ? { path: toTanstackPath(path) } : { id: route.id }),
+      ...nativeRoutePath(route),
       ...routeModuleOptions(route.id),
       component: completionScope.component(
         modules[route.id]?.component ?? Outlet,
@@ -456,12 +353,6 @@ export function createFileSystemRouteTree<Context = unknown>(
     return native.addChildren(route.children.map(child => bind(child, native)));
   }
 
-  const children = rootDescriptor
-    ? [
-        ...rootDescriptor.children,
-        ...routes.filter(route => route !== rootDescriptor),
-      ]
-    : routes;
   const tree = root.addChildren(children.map(route => bind(route, root)));
   registerRouteCompletionScope(tree, completionScope);
   return tree;

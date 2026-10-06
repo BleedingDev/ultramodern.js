@@ -3,9 +3,9 @@ import {
   parsePublicData,
   serializePublicData,
 } from '@modern-js/renderer-core/data';
+import { RouteDataError } from '@modern-js/renderer-core/router';
 import {
   projectRouteDataError,
-  RouteDataError,
   restoreRouteDataError,
 } from '../../src/route-data-error';
 

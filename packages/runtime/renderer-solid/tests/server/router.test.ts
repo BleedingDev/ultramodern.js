@@ -1,7 +1,4 @@
-import type {
-  DataOutcome,
-  FileSystemRouteIR,
-} from '@modern-js/renderer-core/data';
+import type { FileSystemRouteIR } from '@modern-js/renderer-core/data';
 import {
   ApplicationRouter,
   createApplicationRouter,
@@ -225,38 +222,6 @@ describe('native Solid filesystem routing and data', () => {
     expect(search?.nested).toEqual({ color: 'green' });
   });
 
-  test('a data route must belong to the native matched chain', () => {
-    const router = routerAt('/items/42');
-    const loader = rstest.fn();
-    const action = rstest.fn();
-    const handlers = {
-      item: { loader, action },
-      layout: { loader },
-      unrelated: { loader },
-    };
-    const request = new Request('http://localhost/items/42?__loader=item');
-    expect(
-      selectApplicationDataRoute(router, request, 'item', 'loader', handlers),
-    ).toEqual({ routeId: 'item', params: { itemId: '42' }, handler: loader });
-    expect(
-      selectApplicationDataRoute(router, request, 'item', 'action', handlers)
-        ?.handler,
-    ).toBe(action);
-    expect(
-      selectApplicationDataRoute(router, request, 'layout', 'action', handlers),
-    ).toBeUndefined();
-    expect(
-      selectApplicationDataRoute(
-        router,
-        request,
-        'unrelated',
-        'loader',
-        handlers,
-      ),
-    ).toBeUndefined();
-    expect(loader).not.toHaveBeenCalled();
-  });
-
   test('a basepath entry authorizes data routes from the public URL', () => {
     const router = routerAt('/admin/items/42', {}, '/admin');
     const loader = rstest.fn();
@@ -291,26 +256,6 @@ describe('native Solid filesystem routing and data', () => {
         handlers,
       ),
     ).toBeUndefined();
-  });
-
-  test('duplicate filesystem ids fail before native matching', () => {
-    expect(() =>
-      createFileSystemRouteTree(
-        [
-          {
-            id: 'same',
-            path: '/one',
-            children: [],
-          },
-          {
-            id: 'same',
-            path: '/two',
-            children: [],
-          },
-        ],
-        {},
-      ),
-    ).toThrow('Duplicate filesystem route id');
   });
 
   test('HTTP redirects preserve native status, external location and repeated cookies', () => {
@@ -373,22 +318,5 @@ describe('native Solid filesystem routing and data', () => {
       name: 'ValidationError',
       data: { field: 'name' },
     });
-  });
-
-  test('deferred route values stay native promises for loading and serialization', async () => {
-    const deferred = Promise.resolve('later');
-    const outcome: DataOutcome = {
-      kind: 'deferred',
-      critical: { now: 'ready' },
-      deferred: { later: deferred },
-      response: { ...metadata, headers: [] },
-    };
-    const value = resolveRouteData('item', outcome) as {
-      now: string;
-      later: Promise<string>;
-    };
-    expect(value.now).toBe('ready');
-    expect(value.later).toBe(deferred);
-    await expect(value.later).resolves.toBe('later');
   });
 });

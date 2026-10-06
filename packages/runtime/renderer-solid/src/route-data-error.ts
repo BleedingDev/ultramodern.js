@@ -1,30 +1,8 @@
-import type {
-  DataOutcome,
-  PublicDataOutcome,
-} from '@modern-js/renderer-core/data';
 import {
   assertPublicData,
   DataProtocolError,
 } from '@modern-js/renderer-core/data';
-
-/** A route boundary receives only the public error projection and its status. */
-export class RouteDataError extends Error {
-  readonly status: number;
-  readonly data: unknown;
-  readonly routeId: string;
-
-  constructor(
-    routeId: string,
-    outcome: Extract<DataOutcome | PublicDataOutcome, { kind: 'error' }>,
-  ) {
-    super(outcome.error.message);
-    this.name = outcome.error.name;
-    this.routeId = routeId;
-    this.status =
-      'response' in outcome ? outcome.response.status : outcome.status;
-    this.data = outcome.data;
-  }
-}
+import { RouteDataError } from '@modern-js/renderer-core/router';
 
 export interface RouteDataErrorSnapshot {
   kind: 'ultramodern-route-data-error';

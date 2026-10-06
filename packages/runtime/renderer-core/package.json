@@ -60,6 +60,17 @@
         "default": "./dist/cjs/session/index.js"
       }
     },
+    "./router": {
+      "modern:source": "./src/router.ts",
+      "import": {
+        "types": "./dist/types/router.d.ts",
+        "default": "./dist/esm/router.mjs"
+      },
+      "require": {
+        "types": "./dist/types/router.d.ts",
+        "default": "./dist/cjs/router.js"
+      }
+    },
     "./server": {
       "modern:source": "./src/server/index.ts",
       "import": {
