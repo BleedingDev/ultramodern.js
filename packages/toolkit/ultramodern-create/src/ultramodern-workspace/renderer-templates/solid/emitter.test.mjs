@@ -31,8 +31,12 @@ test('native source imports resolve within the selected renderer module closure'
     [
       'src/routes/layout.tsx',
       'src/routes/page.tsx',
+      'src/routes/page.head.ts',
       'src/routes/about/page.tsx',
+      'src/routes/about/page.head.ts',
       'src/routes/page.data.ts',
+      'src/routes/error.tsx',
+      'src/routes/not-found.tsx',
       'src/components/Counter.tsx',
       'src/components/Stable.tsx',
     ],
@@ -63,10 +67,13 @@ test('native source imports resolve within the selected renderer module closure'
       }
     }
     if (path.endsWith('.tsx')) {
+      // Route fallbacks (error.tsx, not-found.tsx) type themselves through
+      // ErrorRouteComponent/NotFoundRouteComponent and never reference the
+      // @solidjs/web JSX namespace directly.
       const jsxTypes = imports.find(
         node => node.source.value === '@solidjs/web',
       );
-      assert.equal(jsxTypes?.importKind, 'type');
+      if (jsxTypes) assert.equal(jsxTypes.importKind, 'type');
     }
   }
   const layout = routes[0].program.body[1];

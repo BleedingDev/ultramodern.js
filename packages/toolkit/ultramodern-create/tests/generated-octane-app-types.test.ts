@@ -6,7 +6,7 @@ import { generateUltramodernWorkspace } from '../src/ultramodern-workspace';
 import { runStableTypeScript } from './helpers/stable-typescript';
 
 const packagesRoot = path.resolve(import.meta.dirname, '../../..');
-const rendererSolid = path.join(packagesRoot, 'runtime/renderer-solid');
+const rendererOctane = path.join(packagesRoot, 'runtime/renderer-octane');
 const appTools = path.join(packagesRoot, 'solutions/ultramodern-app-tools');
 
 /** The installed package directory, without relying on an exported ./package.json. */
@@ -22,30 +22,28 @@ function packageRoot(from: string, name: string): string {
   throw new Error(`Cannot find ${name} installed for ${from}`);
 }
 
-// The create-time Solid template gained head sidecars (page.head.ts,
-// about/page.head.ts) and route fallbacks (error.tsx, not-found.tsx) to reach
-// parity with the hand-authored conformance fixtures. This regression test
-// (ported from the C55 TS2882 side-effect import fix) covers the full
-// generated route tree, including those new files, under TypeScript 7.
-test('a generated Solid app typechecks its CSS imports under TypeScript 7', async () => {
+// Mirrors generated-solid-app-types.test.ts: the create-time Octane template
+// gained head sidecars (page.head.ts, about/page.head.ts) and route
+// fallbacks (error.tsx, not-found.tsx) to reach parity with the
+// hand-authored conformance fixtures. Typecheck the full generated route
+// tree, including those new files, under TypeScript 7 with the admitted
+// "octane" jsxImportSource.
+test('a generated Octane app typechecks its routes under TypeScript 7', async () => {
   const root = fs.realpathSync(
-    fs.mkdtempSync(path.join(os.tmpdir(), 'um-generated-solid-types-')),
+    fs.mkdtempSync(path.join(os.tmpdir(), 'um-generated-octane-types-')),
   );
   try {
     const targetDir = path.join(root, 'workspace');
     await generateUltramodernWorkspace({
       targetDir,
-      packageName: 'solid-types',
+      packageName: 'octane-types',
       modernVersion: '3.8.3',
-      renderer: 'solid',
+      renderer: 'octane',
       enableTailwind: false,
       generateAgentFiles: false,
       packageSource: { strategy: 'workspace' },
     });
     const app = path.join(targetDir, 'apps/shell-super-app');
-    expect(
-      fs.readFileSync(path.join(app, 'src/routes/layout.tsx'), 'utf8'),
-    ).toContain(`import './index.css';`);
     for (const relative of [
       'src/routes/page.head.ts',
       'src/routes/about/page.head.ts',
@@ -54,23 +52,21 @@ test('a generated Solid app typechecks its CSS imports under TypeScript 7', asyn
     ]) {
       expect(fs.existsSync(path.join(app, relative))).toBe(true);
     }
-    const web = packageRoot(rendererSolid, '@solidjs/web');
     const links: Record<string, string> = {
       '@modern-js/ultramodern-app-tools': appTools,
-      '@modern-js/renderer-solid': rendererSolid,
+      '@modern-js/renderer-octane': rendererOctane,
       '@modern-js/renderer-core': packageRoot(
-        rendererSolid,
+        rendererOctane,
         '@modern-js/renderer-core',
       ),
       '@modern-js/backend-federation-contracts': packageRoot(
         import.meta.dirname,
         '@modern-js/backend-federation-contracts',
       ),
-      '@solidjs/web': web,
-      'solid-js': packageRoot(web, 'solid-js'),
-      '@tanstack/router-core': packageRoot(
-        rendererSolid,
-        '@tanstack/router-core',
+      octane: packageRoot(rendererOctane, 'octane'),
+      '@octanejs/tanstack-router': packageRoot(
+        rendererOctane,
+        '@octanejs/tanstack-router',
       ),
       '@types/node': packageRoot(import.meta.dirname, '@types/node'),
     };
@@ -101,7 +97,6 @@ test('a generated Solid app typechecks its CSS imports under TypeScript 7', asyn
       ['-p', 'tsconfig.check.json', '--pretty', 'false'],
       app,
     );
-    expect(result.output).not.toContain('TS2882');
     expect(result.output).toBe('');
     expect(result.status).toBe(0);
   } finally {

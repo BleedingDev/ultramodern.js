@@ -27,7 +27,7 @@ export function generateSolidAppSources(
   const entryName = options.entryName ?? 'main';
   if (entryName !== 'main') {
     throw new Error(
-      'The Solid app template supports the main entry only. Additional entries require an admitted native template.',
+      'The Solid app template supports the main entry only. The create-time workspace writer places src/modern-app-env.d.ts, src/routes/index.css and the package manifest at the app root regardless of entryName, so it cannot yet route a second entry into src/<entryName>/. Add that entry by hand after generation (mirror src/routes under src/<entryName>/routes) until an admitted native multi-entry create template exists; the native entry generator itself already supports arbitrary entry names.',
     );
   }
   if (!options.appId.trim() || !options.title.trim()) {
@@ -46,6 +46,7 @@ export function generateSolidAppSources(
   }
 
   const title = JSON.stringify(options.title);
+  const aboutTitle = JSON.stringify(`${options.title} - About`);
   const appId = JSON.stringify(options.appId);
   return {
     sourceExtension: '.tsx',
@@ -123,6 +124,18 @@ export default function HomePage(): JSX.Element {
 `,
       },
       {
+        path: 'src/routes/page.head.ts',
+        content: `import type { FileSystemRouteModule } from '@modern-js/renderer-solid/router';
+
+export const head: NonNullable<FileSystemRouteModule['head']> = () => ({
+  meta: [
+    { title: ${title} },
+    { name: 'description', content: 'Built with the native Solid renderer' },
+  ],
+});
+`,
+      },
+      {
         path: 'src/routes/about/page.tsx',
         content: `import type { JSX } from '@solidjs/web';
 import { Link } from '@modern-js/renderer-solid/router';
@@ -135,6 +148,18 @@ export default function AboutPage(): JSX.Element {
     </section>
   );
 }
+`,
+      },
+      {
+        path: 'src/routes/about/page.head.ts',
+        content: `import type { FileSystemRouteModule } from '@modern-js/renderer-solid/router';
+
+export const head: NonNullable<FileSystemRouteModule['head']> = () => ({
+  meta: [
+    { title: ${aboutTitle} },
+    { name: 'description', content: 'Built with the native Solid renderer' },
+  ],
+});
 `,
       },
       {
@@ -177,6 +202,35 @@ export async function action({ request }: DataHandlerInput) {
     privateValue: request.headers.get('x-conformance-private'),
   };
 }
+`,
+      },
+      {
+        path: 'src/routes/error.tsx',
+        content: `import type { ErrorRouteComponent } from '@modern-js/renderer-solid/router';
+
+const ErrorBoundary: ErrorRouteComponent = props => (
+  <section data-testid="native-error">
+    <h1>Something went wrong</h1>
+    <output>
+      {props.error instanceof Error ? props.error.message : String(props.error)}
+    </output>
+  </section>
+);
+
+export default ErrorBoundary;
+`,
+      },
+      {
+        path: 'src/routes/not-found.tsx',
+        content: `import type { NotFoundRouteComponent } from '@modern-js/renderer-solid/router';
+
+const NotFound: NotFoundRouteComponent = () => (
+  <section data-testid="native-not-found">
+    <h1>Page not found</h1>
+  </section>
+);
+
+export default NotFound;
 `,
       },
       {

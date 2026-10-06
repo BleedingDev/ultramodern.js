@@ -32,10 +32,14 @@ test('the emitted routes use native Octane signals and router bindings', () => {
     [
       'src/routes/layout.tsx',
       'src/routes/page.tsx',
+      'src/routes/page.head.ts',
       'src/routes/about/page.tsx',
+      'src/routes/about/page.head.ts',
       'src/components/Counter.tsx',
       'src/components/Stable.tsx',
       'src/routes/page.data.ts',
+      'src/routes/error.tsx',
+      'src/routes/not-found.tsx',
     ],
   );
   const importedModules = routes.flatMap(route =>
