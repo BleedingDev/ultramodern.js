@@ -1,11 +1,20 @@
-import { Dynamic, isServer, type JSX } from '@solidjs/web';
+import { isServer, type JSX } from '@solidjs/web';
+import * as solid from 'solid-js';
 import {
   type Component,
-  createMemo,
+  createComponent,
   createSignal,
+  Errored,
   isHydrating,
-  onSettled,
+  Loading,
+  lazy,
+  onCleanup,
 } from 'solid-js';
+import {
+  type FederatedAssets,
+  federatedAssetKey,
+  federationSSRState,
+} from './federation-ssr';
 
 /** The module shape a same-renderer Module Federation remote exposes. */
 export interface FederatedModule<P extends object> {
@@ -13,23 +22,57 @@ export interface FederatedModule<P extends object> {
 }
 
 export interface FederatedComponentOptions {
-  /** Rendered on the server, during hydration and until the remote has loaded. */
+  /** Rendered while the remote loads, and on the server when it cannot load. */
   readonly fallback?: () => JSX.Element;
+  /**
+   * Milliseconds a remote load may take before it fails. Defaults to 3000 on
+   * the server, so an unavailable remote cannot hold the document; the
+   * browser waits without a limit unless one is given.
+   */
+  readonly timeout?: number;
+}
+
+const DEFAULT_SERVER_TIMEOUT = 3000;
+
+interface RemoteSnapshot {
+  readonly publicPath?: unknown;
+  readonly remoteEntry?: unknown;
+  readonly modules?: readonly {
+    readonly modulePath?: unknown;
+    readonly assets?: {
+      readonly js?: { readonly sync?: readonly string[] };
+      readonly css?: {
+        readonly sync?: readonly string[];
+        readonly async?: readonly string[];
+      };
+    };
+  }[];
 }
 
 interface FederationInstance {
   loadRemote<T>(id: string): Promise<T | null>;
+  readonly remoteHandler?: {
+    readonly idToRemoteMap?: Record<string, { name: string; expose: string }>;
+  };
+  readonly moduleCache?: Map<string, { readonly remoteInfo: unknown }>;
+  readonly snapshotHandler?: {
+    getGlobalRemoteInfo(info: unknown): { remoteSnapshot?: RemoteSnapshot };
+  };
 }
 
 /** Published by the host build's native federation runtime plugin. */
 const HOST_INSTANCE = Symbol.for('ultramodern.federation.host-instance');
 
+function hostInstance(): FederationInstance | undefined {
+  return (globalThis as Record<symbol, unknown>)[HOST_INSTANCE] as
+    | FederationInstance
+    | undefined;
+}
+
 function loadFederatedModule<P extends object>(
   id: string,
 ): Promise<FederatedModule<P>> {
-  const instance = (globalThis as Record<symbol, unknown>)[HOST_INSTANCE] as
-    | FederationInstance
-    | undefined;
+  const instance = hostInstance();
   if (!instance)
     return Promise.reject(
       new Error(
@@ -42,13 +85,115 @@ function loadFederatedModule<P extends object>(
   });
 }
 
+function withTimeout<T>(
+  promise: Promise<T>,
+  timeout: number | undefined,
+  label: string,
+): Promise<T> {
+  if (timeout === undefined) return promise;
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () =>
+        reject(
+          new Error(`Remote module ${label} did not load within ${timeout}ms`),
+        ),
+      timeout,
+    );
+    // A pending remote must not keep a server process alive.
+    (timer as { unref?: () => void }).unref?.();
+    promise.then(
+      value => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      error => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
+/**
+ * The browser assets of a loaded remote module, read from the snapshot the
+ * federation runtime resolved from the remote's manifest.
+ */
+function remoteBrowserAssets(
+  instance: FederationInstance,
+  id: string,
+): FederatedAssets | undefined {
+  const target = instance.remoteHandler?.idToRemoteMap?.[id];
+  const loaded = target && instance.moduleCache?.get(target.name);
+  const snapshot =
+    loaded &&
+    instance.snapshotHandler?.getGlobalRemoteInfo(loaded.remoteInfo)
+      .remoteSnapshot;
+  if (
+    !snapshot ||
+    typeof snapshot.publicPath !== 'string' ||
+    !snapshot.publicPath ||
+    typeof snapshot.remoteEntry !== 'string' ||
+    !snapshot.remoteEntry
+  )
+    return undefined;
+  const expose = snapshot.modules?.find(
+    module => module.modulePath === target.expose,
+  );
+  if (!expose?.assets) return undefined;
+  const publicPath = snapshot.publicPath;
+  const url = (file: string) => `${publicPath}${file}`;
+  return {
+    js: [url(snapshot.remoteEntry), ...(expose.assets.js?.sync ?? []).map(url)],
+    css: [
+      ...new Set(
+        [
+          ...(expose.assets.css?.sync ?? []),
+          ...(expose.assets.css?.async ?? []),
+        ].map(url),
+      ),
+    ],
+  };
+}
+
+/** Record a server-rendered remote's browser assets under its asset key. */
+function registerServerAssets(id: string): string {
+  const state = federationSSRState();
+  const instance = hostInstance();
+  const assets = instance && remoteBrowserAssets(instance, id);
+  if (!state || !assets)
+    throw new Error(
+      `Cannot server-render ${id}: the host has no server federation state for its browser assets`,
+    );
+  const key = federatedAssetKey(id);
+  state.assets.set(key, assets);
+  return key;
+}
+
+/**
+ * Run once the document has hydrated. A retry inside a hydration pass would
+ * look for server data the failed render never produced.
+ */
+function afterHydration(callback: () => void): void {
+  // The hydration runtime installs this hook on Solid's shared config.
+  const { sharedConfig } = solid as unknown as {
+    sharedConfig?: { onHydrationEnd?: (callback: () => void) => void };
+  };
+  const onHydrationEnd = sharedConfig?.onHydrationEnd;
+  if (onHydrationEnd) onHydrationEnd(callback);
+  else queueMicrotask(callback);
+}
+
 /**
  * Render a Solid component exposed by a Module Federation remote, by its
  * `remote/Expose` id or a custom loader.
  *
- * Remote components are client-only: the server and the hydration pass render
- * the fallback, and the remote loads once the host root has settled. Load and
- * renderer-admission failures throw to the nearest `Errored` boundary.
+ * On the server, a remote id loads through the host's server federation
+ * instance and renders into the document with the remote's stylesheets and
+ * module preloads; the browser loads the same remote before hydrating it.
+ * A remote that fails or exceeds its timeout on the server renders the
+ * fallback, and the browser retries it after hydration. Custom loaders render
+ * in the browser only. Browser load and renderer-admission failures throw to
+ * the nearest `Errored` boundary.
  */
 export function federatedComponent<P extends object = Record<string, never>>(
   remote: string | (() => Promise<FederatedModule<P>>),
@@ -62,56 +207,80 @@ export function federatedComponent<P extends object = Record<string, never>>(
     throw new TypeError(
       "federatedComponent requires a remote id such as 'remote/Widget' or a loader",
     );
-  const load =
-    typeof remote === 'string' ? () => loadFederatedModule<P>(remote) : remote;
-  let loaded: Component<P> | undefined;
-  let pending: Promise<Component<P>> | undefined;
-  const resolve = (): Promise<Component<P>> =>
-    (pending ??= Promise.resolve()
-      .then(load)
-      .then(
-        module => {
-          const component = module?.default;
-          if (typeof component !== 'function')
-            throw new TypeError(
-              'A federated Solid module must default-export a component',
-            );
-          loaded = component;
-          return component;
-        },
-        error => {
-          // A later mount may retry after a transient network failure.
-          pending = undefined;
-          throw error;
-        },
-      ));
+  if (
+    options.timeout !== undefined &&
+    (!Number.isFinite(options.timeout) || options.timeout <= 0)
+  )
+    throw new TypeError(
+      'federatedComponent timeout must be a positive number of milliseconds',
+    );
+  const id = typeof remote === 'string' ? remote : undefined;
+  const timeout =
+    options.timeout ?? (isServer ? DEFAULT_SERVER_TIMEOUT : undefined);
+  const Remote = lazy(async () => {
+    if (isServer && !id)
+      throw new Error(
+        'A federatedComponent loader renders in the browser only; use a remote id to server-render it',
+      );
+    const module = await withTimeout(
+      Promise.resolve().then(() =>
+        id ? loadFederatedModule<P>(id) : (remote as () => Promise<never>)(),
+      ),
+      timeout,
+      id ?? 'loader',
+    );
+    const component = module?.default;
+    if (typeof component !== 'function')
+      throw new TypeError(
+        'A federated Solid module must default-export a component',
+      );
+    // Solid resolves a loaded module's $$moduleUrl through the document's
+    // asset resolver: stylesheets, preloads and the hydration module.
+    return isServer && id
+      ? { default: component, $$moduleUrl: registerServerAssets(id) }
+      : { default: component };
+  });
   const fallback = (): JSX.Element => options.fallback?.();
 
+  const remoteView = (props: P) =>
+    createComponent(Remote as Component<P>, props);
+
   return (props: P): JSX.Element => {
-    if (isServer) return fallback();
-    // Hydration must claim the fallback the server produced.
-    const [state, setState] = createSignal<{
-      component?: Component<P>;
-      failure?: { reason: unknown };
-    }>({ component: isHydrating() ? undefined : loaded });
-    onSettled(() => {
-      if (state().component) return;
-      resolve().then(
-        component => setState({ component }),
-        reason => setState({ failure: { reason } }),
-      );
+    // After a server failure, the browser renders the remote afresh: like a
+    // client-only mount, its failures reach the application's boundaries.
+    const [retried, retry] = createSignal(false);
+    const recover = (error: () => unknown): JSX.Element => {
+      // A server failure renders the fallback and serializes the failure;
+      // hydration claims that fallback, then the browser retries the remote.
+      if (isServer) return fallback();
+      if (isHydrating()) {
+        let active = true;
+        onCleanup(() => {
+          active = false;
+        });
+        afterHydration(() => {
+          if (active) retry(true);
+        });
+        return fallback();
+      }
+      throw error();
+    };
+    // Loading owns the pending load. On the first render Errored sits inside
+    // it, so a load that fails after suspending still reaches it on the server.
+    return createComponent(Loading, {
+      get fallback() {
+        return fallback();
+      },
+      get children() {
+        return retried()
+          ? remoteView(props)
+          : createComponent(Errored, {
+              fallback: recover,
+              get children() {
+                return remoteView(props);
+              },
+            });
+      },
     });
-    // A memo owns the failure, so Errored boundaries observe it; a bare
-    // accessor would surface it outside the boundary.
-    const view = createMemo((): JSX.Element => {
-      const current = state();
-      if (current.failure) throw current.failure.reason;
-      return current.component ? (
-        <Dynamic component={current.component} {...props} />
-      ) : (
-        fallback()
-      );
-    });
-    return view as unknown as JSX.Element;
   };
 }
