@@ -1,0 +1,115 @@
+<!--
+DESIGN (t3-harness): replace the renderer acceptance harness with ordinary
+integration tests + one lean packed-release script.
+
+Today: ~35k lines of scripts here, ~28k lines of committed evidence and
+declaration snapshots, ~25k in tests/ultramodern-renderers and ~16.6k in
+scripts/ultramodern-production-readiness. Most of that is bookkeeping:
+digests, receipts, bindings, artifact audits and type snapshots. It does not
+test what a user sees. Target: about 3-4k lines total.
+
+(a) Fixture apps: tests/integration/renderer-*/
+  These are normal tests/integration packages. Each has a package.json with
+  workspace:* dependencies, a modern.config.ts and tests/*.test.ts. They run
+  under tests/rstest.config.mts with modernBuild/modernServe/killApp/getPort
+  from tests/utils/modernTestUtils.js, called with
+  { modernBin: packages/solutions/ultramodern-app-tools/bin/ultramodern.mjs }.
+  The source moves (git mv) from tests/ultramodern-renderers/conformance/
+  fixtures/<renderer>/src. Imports are rewritten once to the canonical
+  @modern-js/* names. The native overlay's replaceAll then has nothing left
+  to do and is deleted. Packed apps get the same names through the npm:
+  aliases the generator already writes.
+
+    renderer-react/     conformance React app (+ not-found route, head)
+    renderer-solid/     conformance Solid app
+    renderer-octane/    conformance Octane app (+ items/[id] like Solid)
+    renderer-worker-ssr/  React custom server entries (fetch export and
+                        requestHandler) built with MODERNJS_DEPLOY=cloudflare
+                        and served by miniflare (devDependency pinned like
+                        ultramodern-create). Sources come from
+                        renderer-worker-lifecycle-proof/fixtures.mjs and
+                        release-worker.mjs. Checks: streamed SSR 200, and a
+                        client disconnect aborts request.signal.
+    renderer-mf/{host,remote}/  Solid host (SSR) + Solid remote exposing
+                        ./Widget, from solid-federation/proof.mjs. Checks:
+                        remote markup and CSS are in the SSR HTML, hydration
+                        keeps that node, a down remote renders the fallback
+                        with a 200, a React-stamped container is rejected.
+    renderer-i18n/{solid,octane}/  layout + about + en/cs locales, from
+                        i18n/proof.mjs. Checks: Accept-Language and cookie
+                        redirect, Czech SSR, no language flash on hydration,
+                        client-side switch, per-request isolation.
+    renderer-ssg/{solid,octane}/  output.ssg: true, two pages. Checks: the
+                        prerendered HTML file exists, is served and hydrates.
+
+(b) Shared behavior specs: tests/integration/renderer-specs/
+    specs.ts  defineRendererSpecs({ renderer, target }) registers describe/
+              test once. target() returns { url, stop }. Driver: puppeteer +
+              utils/launchOptions (the repo driver, so playwright-core goes).
+    Specs (run per renderer against the common data-testid contract):
+      ssr-html        GET / with JS disabled holds native-route, loader value
+      hydration       the SSR native-layout node survives hydration (tagged
+                      via evaluateOnNewDocument); native-count increments;
+                      no hydration warnings or pageerror
+      client-nav      Link to /about: no document request, same window marker
+      back-forward    history back/forward restores routes without reload
+      loader-data     /items/1 loader data from SSR and on client navigation
+      action          ActionForm submit shows native-action-value; 422 field
+                      error; intent=redirect -> 303 -> /about with cookie
+      not-found       unknown path -> 404 + native-not-found
+      error-route     ?case=error -> error boundary native-error, status 500
+      head            per-route <title>/meta in SSR HTML and after client nav
+      deferred        ?case=deferred streams native-deferred-pending, then
+                      native-deferred-late after the held control is released
+    Each renderer-<x>/tests/index.test.ts is about 15 lines: build, serve,
+    defineRendererSpecs. A spec a renderer cannot meet is skipped in that
+    one file, with a reason.
+
+(c) scripts/ultramodern-renderers/release.mjs (~400 lines, replaces
+    acceptance/release*.mjs, run.mjs, artifacts.mjs and friends)
+    1. pnpm ultramodern:build-bleedingdev-publish, then
+       ultramodern:prepare-bleedingdev-publish --version <v> --out <tmp>
+       (or --cohort-dir to reuse one).
+    2. startEphemeralRegistry({ release, releaseDir, rootDir, storeDir })
+       from ultramodern-publish/lib/source-create-proof/runtime-proof.
+    3. For each renderer: <packed create bin> <dir> --renderer <r>
+       --no-agents-md, then copy the renderer-<r> fixture src/ over it.
+    4. pnpm install with the strict release-age policy: minimum_release_age
+       1440, strict, plus resolveAcceptanceReleaseAgeExclusions only for our
+       own cohort.
+    5. Inside each app: ultramodern build, a native TS 7 typecheck, and
+       bundle-check (d).
+    6. rstest run -c tests/rstest.config.mts renderer-specs with
+       RENDERER_TARGET_DIR=<app> and RENDERER_TARGET_BIN=<installed bin>.
+       These are the same specs against the packed apps.
+    7. Separate steps, unchanged entry points: react-rsc-worker-proof/
+       main.mjs, renderer-mf-lifecycle-proof, run-tractor-downstream-
+       acceptance.mjs.
+    Output: a PASS/FAIL/SKIP table and exit code 1 on failure. No
+    report.json, receipts, digests or bindings. Run it through owned-temp-dir.
+
+(d) The one AST check to keep: bundle-check.mjs (~80 lines)
+    For a Solid or Octane app, parse every dist JS file (client static/js
+    and server bundles) with @babel/core parseSync. Fail if:
+      - import / export-from / import() / require() names react, react-dom,
+        react-server-dom-*, scheduler or react/jsx-runtime;
+      - Symbol.for('react.*') appears (inlined React runtime marker).
+    Used by (c) step 5 and by renderer-solid/-octane tests after the build.
+
+Deleted, not replaced: acceptance/evidence/*.json.txt,
+test-fixtures/native-type-interop (the fixture typecheck covers type interop),
+capabilities/ (inventory), compiler-observation, compiler-activation-proof,
+react-baseline-*, export-octane-type-evidence, matrix.mts, minimum-node,
+*-http-probes, the conformance/*.test.mjs unit tests of the harness itself,
+solid-admission/ and octane-admission/ (behavior moves to (b); renderer
+units stay in the packages), react-mf-ssr-live-reload.test.mjs (folded into
+routes-tanstack-mf if still unique).
+Out of scope here: published-create-proof/ and browser-smoke/ belong to the
+ERP-10 publish lane (run-release-acceptance.mjs). They are touched only
+where they import deleted helpers.
+-->
+
+# UltraModern renderer acceptance
+
+- In-repo behavior: `tests/integration/renderer-*` (see `tests/integration/renderer-specs`).
+- Packed release: `owned-temp-dir --run renderer-release -- node scripts/ultramodern-renderers/release.mjs --version <x.y.z-ultramodern.N>`.
