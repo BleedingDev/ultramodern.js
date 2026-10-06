@@ -51,7 +51,10 @@ export default function Home(): JSX.Element {
       </output>
       <Link
         to="/"
-        search={previous => ({ ...previous, case: 'deferred' })}
+        search={(previous: Record<string, unknown>) => ({
+          ...previous,
+          case: 'deferred',
+        })}
         preload={false}
         data-testid="native-deferred-link"
       >
