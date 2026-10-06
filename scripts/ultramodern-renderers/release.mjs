@@ -1,0 +1,374 @@
+#!/usr/bin/env node
+// Packed-release acceptance: the renderer fixture apps, rebuilt from a packed
+// cohort the way a user gets them, must pass the same behavior specs as the
+// workspace apps.
+//
+//   /Users/satan/bin/owned-temp-dir --run renderer-release -- \
+//     node scripts/ultramodern-renderers/release.mjs \
+//       (--version <x.y.z-ultramodern.N> | --cohort-dir <dir>) \
+//       [--renderers react,solid,octane]
+//
+// For each renderer: generate a workspace with the packed create CLI, put the
+// tests/integration/renderer-<r> app into its shell, install from a local
+// registry under the strict release-age policy, typecheck, run the specs,
+// and (Solid, Octane) check the bundle holds no React.
+// Prints a PASS/FAIL/SKIP table and exits 1 on any failure.
+import { execFileSync, spawn } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { parseArgs } from 'node:util';
+import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
+import { resolveAcceptanceReleaseAgeExclusions } from '../ultramodern-production-readiness/published-create-proof/release-age-audit.mjs';
+import { readReleaseManifest } from '../ultramodern-publish/lib/source-create-proof/release-manifest.mjs';
+import { startEphemeralRegistry } from '../ultramodern-publish/lib/source-create-proof/runtime-proof/registry.mjs';
+import { checkBundle } from './bundle-check.mjs';
+
+const root = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../..',
+);
+const allRenderers = ['react', 'solid', 'octane'];
+
+const { values: opts } = parseArgs({
+  options: {
+    version: { type: 'string' },
+    'cohort-dir': { type: 'string' },
+    renderers: { type: 'string', default: allRenderers.join(',') },
+    'work-dir': { type: 'string' },
+  },
+});
+const renderers = opts.renderers.split(',').map(name => name.trim());
+for (const renderer of renderers)
+  if (!allRenderers.includes(renderer))
+    throw new Error(`Unknown renderer ${renderer}`);
+if (!opts.version === !opts['cohort-dir'])
+  throw new Error('Pass exactly one of --version or --cohort-dir');
+
+const workDir = fs.realpathSync(
+  opts['work-dir'] ??
+    process.env.OWNED_TEMP_DIR ??
+    fs.mkdtempSync(path.join(os.tmpdir(), 'renderer-release-')),
+);
+// Children must not inherit a NODE_PATH from another checkout, and need a
+// canonical TMPDIR (/var/folders is a symlink).
+delete process.env.NODE_PATH;
+process.env.TMPDIR = `${workDir}/`;
+const logs = path.join(workDir, 'logs');
+fs.mkdirSync(logs, { recursive: true });
+
+const children = new Set();
+let registry;
+async function stopAll() {
+  for (const child of children) child.kill('SIGTERM');
+  await registry?.stop();
+}
+/** Runs a command, logging to logs/<log>.log; rejects with the log tail. */
+function sh(command, args, { cwd = root, env = process.env, log }) {
+  const file = path.join(logs, `${log}.log`);
+  return new Promise((resolve, reject) => {
+    const out = fs.openSync(file, 'w');
+    const child = spawn(command, args, {
+      cwd,
+      env,
+      stdio: ['ignore', out, out],
+    });
+    fs.closeSync(out);
+    children.add(child);
+    child.once('error', reject);
+    child.once('close', code => {
+      children.delete(child);
+      if (code === 0) return resolve();
+      const tail = fs.readFileSync(file, 'utf8').trim().split('\n');
+      reject(
+        new Error(
+          `${path.basename(command)} ${args.join(' ')} exited ${code} (${file})\n${tail.slice(-25).join('\n')}`,
+        ),
+      );
+    });
+  });
+}
+
+const results = [];
+/** Runs one table row. Returns false (and runs nothing) once `when` fails. */
+async function step(name, body, when = true) {
+  if (!when) {
+    results.push({ name, status: 'SKIP', seconds: 0, error: '' });
+    return false;
+  }
+  const started = performance.now();
+  process.stdout.write(`[release] ${name} ...\n`);
+  try {
+    await body();
+    results.push({ name, status: 'PASS', seconds: 0, error: '' });
+    return true;
+  } catch (error) {
+    const message = String(error?.message ?? error);
+    results.push({ name, status: 'FAIL', error: message.split('\n')[0] });
+    process.stdout.write(`[release] ${name} FAIL\n${message}\n`);
+    return false;
+  } finally {
+    results.at(-1).seconds = (performance.now() - started) / 1000;
+  }
+}
+
+function table() {
+  const rows = results.map(r => [
+    r.name,
+    r.status,
+    r.seconds.toFixed(0),
+    r.error.slice(0, 120),
+  ]);
+  const widths = [0, 1, 2].map(i =>
+    Math.max(...rows.map(row => row[i].length)),
+  );
+  return rows
+    .map(row =>
+      row
+        .map((cell, i) => (i < 3 ? cell.padEnd(widths[i]) : cell))
+        .join('  ')
+        .trimEnd(),
+    )
+    .join('\n');
+}
+
+const readJson = file => JSON.parse(fs.readFileSync(file, 'utf8'));
+const writeJson = (file, value) =>
+  fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`);
+
+/**
+ * Moves the fixture app into the generated shell: its src/, config and
+ * tsconfig replace the starter ones. Each dependency keeps the specifier the
+ * generator wrote; framework packages it did not write get the cohort alias.
+ */
+function overlayFixture(appRoot, renderer, release) {
+  const fixture = path.join(root, 'tests/integration', `renderer-${renderer}`);
+  fs.rmSync(path.join(appRoot, 'src'), { recursive: true, force: true });
+  fs.cpSync(path.join(fixture, 'src'), path.join(appRoot, 'src'), {
+    recursive: true,
+  });
+  for (const file of ['modern.config.ts', 'tsconfig.json'])
+    fs.copyFileSync(path.join(fixture, file), path.join(appRoot, file));
+
+  const generated = readJson(path.join(appRoot, 'package.json'));
+  const written = { ...generated.dependencies, ...generated.devDependencies };
+  const cohort = new Map(
+    release.packages.map(item => [
+      item.sourceName,
+      `npm:${item.targetName}@${item.version}`,
+    ]),
+  );
+  const resolve = deps =>
+    Object.fromEntries(
+      Object.entries(deps ?? {}).map(([name, spec]) => {
+        if (written[name]) return [name, written[name]];
+        if (spec.startsWith('workspace:')) {
+          if (!cohort.has(name))
+            throw new Error(`${name} is not in the cohort`);
+          return [name, cohort.get(name)];
+        }
+        return [name, spec];
+      }),
+    );
+  const app = readJson(path.join(fixture, 'package.json'));
+  writeJson(path.join(appRoot, 'package.json'), {
+    ...generated,
+    dependencies: resolve(app.dependencies),
+    devDependencies: {
+      ...resolve(app.devDependencies),
+      typescript: written.typescript,
+    },
+  });
+}
+
+/** Resolves the installed ultramodern bin of the app (an npm: alias). */
+function installedBin(appRoot) {
+  const packageRoot = fs.realpathSync(
+    path.join(appRoot, 'node_modules/@modern-js/ultramodern-app-tools'),
+  );
+  const { bin } = readJson(path.join(packageRoot, 'package.json'));
+  return path.join(packageRoot, bin.ultramodern);
+}
+
+async function main() {
+  let cohortDir = opts['cohort-dir'] && path.resolve(opts['cohort-dir']);
+  let release;
+  const env = { ...process.env };
+  try {
+    await step('cohort', async () => {
+      if (!cohortDir) {
+        cohortDir = path.join(workDir, 'cohort');
+        await sh('pnpm', ['ultramodern:build-bleedingdev-publish'], {
+          log: 'cohort-build',
+        });
+        await sh(
+          'pnpm',
+          [
+            'ultramodern:prepare-bleedingdev-publish',
+            '--',
+            '--version',
+            opts.version,
+            '--scope',
+            'bleedingdev',
+            '--prefix',
+            'modern-js-',
+            '--tag',
+            'latest',
+            '--include-sidecars',
+            '--out',
+            cohortDir,
+          ],
+          { log: 'cohort-prepare' },
+        );
+      }
+      release = readReleaseManifest({
+        manifestPath: path.join(cohortDir, 'manifest.json'),
+      });
+    });
+
+    let createBin;
+    await step(
+      'registry + create install',
+      async () => {
+        const storeDir = execFileSync('pnpm', ['store', 'path'], {
+          cwd: workDir,
+          encoding: 'utf8',
+        }).trim();
+        registry = await startEphemeralRegistry({
+          release,
+          releaseDir: cohortDir,
+          rootDir: path.join(workDir, 'registry'),
+          storeDir,
+        });
+        // Strict release-age policy; only our own cohort is exempt.
+        Object.assign(env, registry.env, {
+          npm_config_store_dir: storeDir,
+          pnpm_config_minimum_release_age: '1440',
+          pnpm_config_minimum_release_age_strict: 'true',
+          pnpm_config_minimum_release_age_ignore_missing_time: 'false',
+          pnpm_config_minimum_release_age_exclude: JSON.stringify(
+            resolveAcceptanceReleaseAgeExclusions({
+              release,
+              mode: 'source',
+            }),
+          ),
+        });
+        const createRoot = path.join(workDir, 'create');
+        fs.mkdirSync(createRoot);
+        const { targetName, version } = release.createPackage;
+        writeJson(path.join(createRoot, 'package.json'), {
+          private: true,
+          dependencies: { [targetName]: version },
+        });
+        const { allowBuilds } = parseYaml(
+          fs.readFileSync(path.join(root, 'pnpm-workspace.yaml'), 'utf8'),
+        );
+        fs.writeFileSync(
+          path.join(createRoot, 'pnpm-workspace.yaml'),
+          stringifyYaml({ packages: ['.'], allowBuilds }),
+        );
+        await sh('pnpm', ['install'], {
+          cwd: createRoot,
+          env,
+          log: 'create-install',
+        });
+        const packageRoot = path.join(createRoot, 'node_modules', targetName);
+        createBin = path.join(
+          packageRoot,
+          readJson(path.join(packageRoot, 'package.json')).bin[
+            'ultramodern-create'
+          ],
+        );
+      },
+      Boolean(release),
+    );
+
+    for (const renderer of renderers) {
+      const workspace = path.join(workDir, `app-${renderer}`);
+      let appRoot;
+      let ready = await step(
+        `${renderer} generate`,
+        async () => {
+          await sh(
+            process.execPath,
+            [createBin, workspace, '--renderer', renderer, '--no-agents-md'],
+            { cwd: workDir, env, log: `${renderer}-generate` },
+          );
+          const topology = readJson(
+            path.join(workspace, 'topology/reference-topology.json'),
+          );
+          appRoot = path.join(workspace, topology.shell.path);
+          overlayFixture(appRoot, renderer, release);
+        },
+        Boolean(createBin),
+      );
+      ready = await step(
+        `${renderer} install`,
+        () =>
+          sh('pnpm', ['install'], {
+            cwd: workspace,
+            env,
+            log: `${renderer}-install`,
+          }),
+        ready,
+      );
+      await step(
+        `${renderer} typecheck`,
+        () =>
+          sh(
+            process.execPath,
+            ['node_modules/typescript/bin/tsc', '-p', 'tsconfig.json'],
+            { cwd: appRoot, env, log: `${renderer}-typecheck` },
+          ),
+        ready,
+      );
+      // The specs build and serve the app with its installed bin.
+      const built = await step(
+        `${renderer} specs`,
+        () =>
+          sh(
+            process.execPath,
+            [
+              'node_modules/@rstest/core/bin/rstest.js',
+              'run',
+              '-c',
+              'tests/rstest.config.mts',
+              `integration/renderer-${renderer}/`,
+            ],
+            {
+              env: {
+                ...process.env,
+                RENDERER_TARGET_DIR: appRoot,
+                RENDERER_TARGET_BIN: installedBin(appRoot),
+              },
+              log: `${renderer}-specs`,
+            },
+          ),
+        ready,
+      );
+      if (renderer !== 'react')
+        await step(
+          `${renderer} bundle-check`,
+          async () => {
+            const violations = checkBundle(path.join(appRoot, 'dist'));
+            if (violations.length)
+              throw new Error(`React in bundle: ${violations.join(', ')}`);
+          },
+          built || (ready && fs.existsSync(path.join(appRoot, 'dist'))),
+        );
+    }
+  } finally {
+    await stopAll();
+  }
+  const failed = results.some(r => r.status === 'FAIL');
+  process.stdout.write(
+    `\n${table()}\n\nlogs: ${logs}\n${failed ? 'FAILED' : 'PASSED'}\n`,
+  );
+  return failed ? 1 : 0;
+}
+
+for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'])
+  process.once(signal, () => stopAll().finally(() => process.exit(130)));
+
+process.exitCode = await main();
