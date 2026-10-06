@@ -73,12 +73,15 @@ function logHandler(): Middleware<ServerEnv> {
     log(logFn, LogPrefix.Incoming, method, path);
     const start = Date.now();
     await next();
+    // A Node response reports its default 200 until headers are written;
+    // before that, the handler's Response carries the status being sent.
+    const nodeRes = (c?.env as any)?.node?.res;
     log(
       logFn,
       LogPrefix.Outgoing,
       method,
       path,
-      (c?.env as any)?.node?.res?.statusCode ?? c.res.status,
+      nodeRes?.headersSent ? nodeRes.statusCode : c.res.status,
       time(start),
     );
   };
