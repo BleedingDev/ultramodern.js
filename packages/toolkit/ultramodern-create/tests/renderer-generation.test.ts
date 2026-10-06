@@ -233,8 +233,12 @@ declare const ULTRAMODERN_SITE_URL: string;
       }
       assert.ok(files[`${appDirectory}/src/routes/layout.tsx`]);
       assert.ok(files[`${appDirectory}/src/routes/page.tsx`]);
+      assert.ok(files[`${appDirectory}/src/routes/page.head.ts`]);
       assert.ok(files[`${appDirectory}/src/routes/about/page.tsx`]);
+      assert.ok(files[`${appDirectory}/src/routes/about/page.head.ts`]);
       assert.ok(files[`${appDirectory}/src/routes/page.data.ts`]);
+      assert.ok(files[`${appDirectory}/src/routes/error.tsx`]);
+      assert.ok(files[`${appDirectory}/src/routes/not-found.tsx`]);
       assert.ok(files[`${appDirectory}/src/components/Counter.tsx`]);
       assert.ok(files[`${appDirectory}/src/components/Stable.tsx`]);
       assert.match(
@@ -254,6 +258,22 @@ declare const ULTRAMODERN_SITE_URL: string;
       assert.match(
         files[`${appDirectory}/src/routes/about/page.tsx`]!,
         /<Link\s+to=['"]\/['"]/u,
+      );
+      assert.match(
+        files[`${appDirectory}/src/routes/page.head.ts`]!,
+        /export const head: NonNullable<FileSystemRouteModule\['head'\]>/u,
+      );
+      assert.match(
+        files[`${appDirectory}/src/routes/about/page.head.ts`]!,
+        /export const head: NonNullable<FileSystemRouteModule\['head'\]>/u,
+      );
+      assert.match(
+        files[`${appDirectory}/src/routes/error.tsx`]!,
+        /ErrorRouteComponent/u,
+      );
+      assert.match(
+        files[`${appDirectory}/src/routes/not-found.tsx`]!,
+        /NotFoundRouteComponent/u,
       );
       assert.doesNotMatch(config, unsupportedNativeSource);
     } finally {
