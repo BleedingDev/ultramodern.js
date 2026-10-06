@@ -1649,6 +1649,9 @@ importers:
 
   packages/runtime/i18n-extensions:
     dependencies:
+      '@modern-js/renderer-core':
+        specifier: workspace:*
+        version: link:../renderer-core
       '@modern-js/runtime-extensions':
         specifier: workspace:*
         version: link:../runtime-extensions
@@ -2226,6 +2229,9 @@ importers:
         specifier: 7.0.2
         version: 7.0.2
     devDependencies:
+      '@modern-js/i18n-runtime-extensions':
+        specifier: workspace:*
+        version: link:../i18n-extensions
       '@modern-js/tsconfig':
         specifier: workspace:*
         version: link:../../tsconfig
@@ -2281,6 +2287,9 @@ importers:
         specifier: 2.0.0-rc.13
         version: 2.0.0-rc.13
     devDependencies:
+      '@modern-js/i18n-runtime-extensions':
+        specifier: workspace:*
+        version: link:../i18n-extensions
       '@modern-js/tsconfig':
         specifier: workspace:*
         version: link:../../tsconfig

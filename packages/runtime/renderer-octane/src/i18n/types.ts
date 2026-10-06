@@ -1,4 +1,4 @@
-import type { LocalisedUrlsOption } from '@modern-js/runtime-extensions/localised-urls';
+import type { LocalisedUrlsOption } from '@modern-js/i18n-runtime-extensions/paths';
 
 /**
  * The slice of an i18next-shaped instance this binding needs. Deliberately

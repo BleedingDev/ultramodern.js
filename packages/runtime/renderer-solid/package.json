@@ -65,9 +65,7 @@
     "node": ">=26.7.0"
   },
   "dependencies": {
-    "@modern-js/i18n-runtime-extensions": "workspace:*",
     "@modern-js/renderer-core": "workspace:*",
-    "@modern-js/runtime-extensions": "workspace:*",
     "@solidjs/web": "2.0.0-rc.13",
     "@solidjs/signals": "2.0.0-rc.13",
     "@tanstack/history": "1.162.4",
@@ -78,14 +76,19 @@
     "solid-js": "2.0.0-rc.13"
   },
   "peerDependencies": {
+    "@modern-js/i18n-runtime-extensions": "workspace:*",
     "i18next": ">=25.7.4"
   },
   "peerDependenciesMeta": {
+    "@modern-js/i18n-runtime-extensions": {
+      "optional": true
+    },
     "i18next": {
       "optional": true
     }
   },
   "devDependencies": {
+    "@modern-js/i18n-runtime-extensions": "workspace:*",
     "@modern-js/tsconfig": "workspace:*",
     "@rslib/core": "1.0.2",
     "@solidjs/compiler": "2.0.0-rc.13",
