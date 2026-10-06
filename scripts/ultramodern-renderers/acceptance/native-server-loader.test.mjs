@@ -309,6 +309,21 @@ function cohortFixture(
             '',
           ].join('\n'),
         );
+        // native-development.ts imports its renderer adapter from this sibling
+        // module; the loader source guard resolves every import, so a leaf
+        // stub (never executed) must exist alongside the staged loader.
+        write(
+          path.join(
+            packageDir,
+            path.dirname(loaderFile),
+            format === 'cjs'
+              ? 'renderer-registration.js'
+              : 'renderer-registration.mjs',
+          ),
+          format === 'cjs'
+            ? 'exports.resolveNativeRendererAdapter = () => ({ compilerArtifacts: {} });\n'
+            : 'export const resolveNativeRendererAdapter = () => ({ compilerArtifacts: {} });\n',
+        );
       }
       manifest.exports['./native-unit-loader'] = `./${loaderFile}`;
       manifest.dependencies = { [core]: version, [utils]: version };
@@ -570,6 +585,10 @@ test('development source guard authenticates owner bytes and rejects authored or
     path.join(authored.consumerRoot, 'native-build-manifest.js'),
     `module.exports = require('${ultra}');\n`,
   );
+  write(
+    path.join(authored.consumerRoot, 'renderer-registration.js'),
+    'exports.resolveNativeRendererAdapter = () => ({ compilerArtifacts: {} });\n',
+  );
   authored.options.entryFiles.push('authored-development.js');
   assert.throws(
     () => auditInstalledConsumer(authored.options),
@@ -602,6 +621,14 @@ test('development source guard authenticates owner bytes and rejects authored or
         'native-build-manifest.js',
       ),
     ),
+  );
+  write(
+    path.join(
+      unrelated,
+      path.dirname(noncohort.loaderFile),
+      'renderer-registration.js',
+    ),
+    'exports.resolveNativeRendererAdapter = () => ({ compilerArtifacts: {} });\n',
   );
   write(
     path.join(noncohort.consumerRoot, 'unrelated-entry.js'),
