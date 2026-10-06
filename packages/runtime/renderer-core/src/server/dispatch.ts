@@ -3,7 +3,9 @@ import {
   createRequestSession,
   documentCacheKey,
   permitsDocumentCache,
+  policyHeaders,
   type RequestSession,
+  responseHeaders,
 } from '../session';
 import type {
   CachedNativeDocument,
@@ -24,15 +26,6 @@ export function rejectNativeRscRequest(request: Request): Response | undefined {
     );
   }
   return undefined;
-}
-
-function responseHeaders(headers: Headers): Array<[string, string]> {
-  const fields: Array<[string, string]> = [...headers.entries()].filter(
-    ([name]) => name !== 'set-cookie',
-  );
-  for (const value of headers.getSetCookie())
-    fields.push(['set-cookie', value]);
-  return fields;
 }
 
 function permitsCacheLookup(request: Request): boolean {
@@ -68,9 +61,7 @@ function isReusableDocument(
       headers: document.headers,
       cache: { mode: 'public', maxAgeSeconds: 1 },
     }) &&
-    !new Headers(document.headers.map(([name, value]) => [name, value])).has(
-      'vary',
-    )
+    !policyHeaders(document.headers).has('vary')
   );
 }
 

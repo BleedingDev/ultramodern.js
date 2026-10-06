@@ -1,4 +1,10 @@
-export { documentCacheKey, permitsDocumentCache } from './cache';
+export {
+  documentCacheKey,
+  permitsDocumentCache,
+  policyHeaders,
+  responseHeaders,
+  restrictDocumentCache,
+} from './cache';
 export {
   collectDocumentAssets,
   type DocumentAsset,
