@@ -319,6 +319,10 @@ async function unitInstalledConsumers(t) {
                   ]),
                 ),
                 getAsset: name => ({ name }),
+                // Unit fixture emits no stylesheets, but compiledStylesheets()
+                // still requires an actual output-authority surface to read.
+                getAssets: () => [],
+                outputOptions: { path: distPath, publicPath: '/' },
               },
             })),
           },
