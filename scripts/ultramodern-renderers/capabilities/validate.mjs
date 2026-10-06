@@ -1,7 +1,11 @@
 import { readFileSync, statSync } from 'node:fs';
 import { dirname, isAbsolute, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { declaredKeys, declaredPropertyPaths } from './declarations.mjs';
+import {
+  declaredKeys,
+  declaredPropertyPaths,
+  rendererProfileCapabilities,
+} from './declarations.mjs';
 import { inventory } from './inventory.mjs';
 
 export const repositoryRoot = resolve(
@@ -300,16 +304,12 @@ export function validateInventory(
     'react-rsc',
     'worker-react-rsc',
     'cross-renderer-remotes',
-    'ssg',
     'ssg-by-entries',
     'mixed-ssg-ssr-csr',
     'i18n',
-    'svg-components',
-    'worker-request-handler',
     'worker-fetch-export',
     'headless-worker',
     'worker-bindings-artifacts',
-    'same-renderer-federation',
   ]) {
     const row = capabilities.find(row => row.id === id);
     for (const renderer of ['solid', 'octane'])
@@ -317,6 +317,74 @@ export function validateInventory(
         row?.renderers[renderer]?.status === 'explicitly-unsupported',
         `${renderer}/${id} must reject explicitly`,
       );
+  }
+  // same-renderer-federation is not uniform across Solid and Octane: Octane's
+  // candidate profile has moduleFederation: false, Solid's has 'client' (its
+  // own CSR-only same-renderer federated components, never application SSR).
+  {
+    const row = capabilities.find(row => row.id === 'same-renderer-federation');
+    check(
+      row?.renderers.octane?.status === 'explicitly-unsupported',
+      'octane/same-renderer-federation must reject explicitly',
+    );
+    check(
+      row?.renderers.solid?.status !== 'explicitly-unsupported',
+      'solid/same-renderer-federation must reflect its supported CSR-only federated components',
+    );
+  }
+  // Cross-check claimed Solid/Octane support against the actual candidate
+  // renderer profiles instead of trusting a hand-maintained copy of them.
+  {
+    const profileSources = {
+      react:
+        'packages/solutions/ultramodern-app-tools/src/renderers/react/profile.ts',
+      solid:
+        'packages/solutions/ultramodern-app-tools/src/renderers/solid/profile.ts',
+      octane:
+        'packages/solutions/ultramodern-app-tools/src/renderers/octane/profile.ts',
+    };
+    const capabilityByProfileKey = {
+      ssg: 'ssg',
+      svgComponent: 'svg-components',
+      i18n: 'i18n',
+      rsc: 'react-rsc',
+      worker: 'worker-request-handler',
+    };
+    try {
+      const profiles = Object.fromEntries(
+        Object.entries(profileSources).map(([renderer, source]) => [
+          renderer,
+          rendererProfileCapabilities(read(source)),
+        ]),
+      );
+      for (const renderer of ['solid', 'octane']) {
+        for (const [profileKey, capabilityId] of Object.entries(
+          capabilityByProfileKey,
+        )) {
+          const supported = profiles[renderer]?.[profileKey];
+          const status = capabilities.find(row => row.id === capabilityId)
+            ?.renderers[renderer]?.status;
+          check(
+            supported
+              ? status !== 'explicitly-unsupported'
+              : status === 'explicitly-unsupported',
+            `${renderer}/${capabilityId} status (${status}) disagrees with the ${renderer} candidate profile's ${profileKey}=${JSON.stringify(supported)}`,
+          );
+        }
+        const federation = profiles[renderer]?.moduleFederation;
+        const federationStatus = capabilities.find(
+          row => row.id === 'same-renderer-federation',
+        )?.renderers[renderer]?.status;
+        check(
+          federation === false
+            ? federationStatus === 'explicitly-unsupported'
+            : federationStatus !== 'explicitly-unsupported',
+          `${renderer}/same-renderer-federation status (${federationStatus}) disagrees with the ${renderer} candidate profile's moduleFederation=${JSON.stringify(federation)}`,
+        );
+      }
+    } catch (error) {
+      errors.push(error.message);
+    }
   }
   return {
     valid: errors.length === 0,
