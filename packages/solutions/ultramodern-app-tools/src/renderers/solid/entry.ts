@@ -130,7 +130,7 @@ export default nativeRequestHandler;
 `;
   }
   return `${common}
-import { selectApplicationDataRoute, prepareRouterMatchTransfer, getApplicationStatus, resolveApplicationRedirect } from '@modern-js/renderer-solid/router';
+import { matchApplicationRouteIds, selectApplicationDataRoute, prepareRouterMatchTransfer, getApplicationStatus, resolveApplicationRedirect } from '@modern-js/renderer-solid/router';
 import { handleDataRequest, mergeDataResponseMetadata, dataMetadataToDocumentPolicy, mergeDataResponseIntoResponse } from '@modern-js/renderer-core/data';
 import type { DataOutcome, DecodedDataOutcome } from '@modern-js/renderer-core/data';
 import { routerView } from './router-view.server';
@@ -141,10 +141,7 @@ export async function nativeMatchRouteIds(request: Request, context: NativeReque
   if (request !== context.session.request) throw new Error('Native request/session ownership mismatch');
   const { createNativeRouter } = await import('./application.server');
   const router = createNativeRouter({ identity: rendererIdentity, request, context: context.session.platform.bindings, session: context.session${i18n ? ', rewrite: i18nRouterRewrite(() => resolveRequestLanguage(request, i18nRouting).language)' : ''} });
-  return router.matchRoutes(router.latestLocation).map(match => {
-    const data = router.routesById[match.routeId]?.options.staticData;
-    return data && 'ultramodernRouteId' in data && typeof data.ultramodernRouteId === 'string' ? data.ultramodernRouteId : undefined;
-  }).filter((id): id is string => typeof id === 'string');
+  return matchApplicationRouteIds(router, new URL(request.url));
   });
 }
 export async function nativeRequestHandler(request: Request, context: NativeRequestContext): Promise<Response> {

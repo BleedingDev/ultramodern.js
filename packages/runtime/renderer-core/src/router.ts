@@ -229,7 +229,7 @@ export function matchApplicationRoutes<Location, Match>(
 }
 
 /** The filesystem route id a native route was created for. */
-export function applicationRouteId(
+function applicationRouteId(
   router: Pick<NativeRouteMatcher<unknown, unknown>, 'routesById'>,
   nativeRouteId: string,
 ): string | undefined {
@@ -239,6 +239,17 @@ export function applicationRouteId(
       ? Reflect.get(staticData, 'ultramodernRouteId')
       : undefined;
   return typeof id === 'string' ? id : undefined;
+}
+
+/** The filesystem route ids a public request URL matches, outermost first. */
+export function matchApplicationRouteIds<
+  Location,
+  Match extends { routeId: string },
+>(router: NativeRouteMatcher<Location, Match>, url: URL): string[] {
+  return matchApplicationRoutes(router, url).flatMap(match => {
+    const id = applicationRouteId(router, match.routeId);
+    return id === undefined ? [] : [id];
+  });
 }
 
 /** A requested data id must belong to the native router's match for this URL. */

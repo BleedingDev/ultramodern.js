@@ -34,6 +34,7 @@ export type {
   FileSystemRouteOptions,
 } from '@modern-js/renderer-core/router';
 export {
+  matchApplicationRouteIds,
   matchApplicationRoutes,
   RouteDataError,
   selectApplicationDataRoute,
