@@ -649,13 +649,16 @@ export function compilerDispatcherCaller(source, filename, syntax) {
     !composed.get('object').isIdentifier() ||
     composed.get('object').scope.getBinding(composed.node.object.name) !==
       selectedBinding ||
-    alternate.get('arguments').length !== 1 ||
+    alternate.get('arguments').length !== 2 ||
     !syntax.sameBinding(
       alternate.get('arguments')[0],
       invoke.get('arguments')[1],
     )
   )
     return false;
+  // The composed factory also receives the caller's policy defaults, read
+  // directly from the same selection options that choose the renderer.
+  const policy = alternate.get('arguments')[1];
   const test = branch.get('test');
   if (!test.isBinaryExpression({ operator: '===' })) return false;
   const kind = test.get('left').isMemberExpression()
@@ -682,14 +685,19 @@ export function compilerDispatcherCaller(source, filename, syntax) {
   const option = parameter?.isAssignmentPattern()
     ? parameter.get('left')
     : parameter;
+  const optionBinding =
+    option?.isIdentifier() && option.scope.getBinding(option.node.name);
+  const optionMember = (item, name) =>
+    item.isMemberExpression() &&
+    !item.node.computed &&
+    item.node.property.name === name &&
+    item.get('object').isIdentifier() &&
+    item.get('object').scope.getBinding(item.node.object.name) ===
+      optionBinding;
   return Boolean(
-    input.isMemberExpression() &&
-      !input.node.computed &&
-      input.node.property.name === 'renderer' &&
-      input.get('object').isIdentifier() &&
-      option?.isIdentifier() &&
-      input.get('object').scope.getBinding(input.node.object.name) ===
-        option.scope.getBinding(option.node.name),
+    optionBinding &&
+      optionMember(input, 'renderer') &&
+      optionMember(policy, 'policy'),
   );
 }
 
@@ -1028,7 +1036,7 @@ export function owningSelfExportRequire(call, syntax, primitiveUnchanged) {
     !fn.parentPath.isProgram() ||
     fn.node.async ||
     fn.node.generator ||
-    fn.get('params').length !== 1 ||
+    fn.get('params').length !== 2 ||
     ![
       'Object',
       'JSON',
@@ -1089,7 +1097,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-function compose(consumerPlugins) {
+function compose(consumerPlugins, policy) {
   let directory = path.dirname(fileURLToPath(import.meta.url));
   for (;;) {
     const manifestFile = path.join(directory, 'package.json');
@@ -1098,7 +1106,7 @@ function compose(consumerPlugins) {
       if (typeof manifest.name !== 'string' || !manifest.exports?.[${JSON.stringify(subpath)}])
         throw new Error('The owning UltraModern package must export its selected React composition');
       const { ${factory} } = createRequire(import.meta.url)(\`\${manifest.name}${suffix}\`);
-      return ${factory}({ consumerPlugins });
+      return ${factory}({ consumerPlugins, policy });
     }
     const parent = path.dirname(directory);
     if (parent === directory) throw new Error('Cannot find the owning UltraModern package for React composition');
