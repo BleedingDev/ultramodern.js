@@ -1091,8 +1091,10 @@ export const inventory = {
     declaredTypes: typeKeys,
     nestedTypes: [
       {
-        source: `${app}/deploy.ts`,
-        symbol: 'DeployUserConfig',
+        // DeployUserConfig.worker references this extension-owned interface.
+        source: `${extensions}/src/config.ts`,
+        symbol: 'CloudflareWorkerDeployConfig',
+        pathPrefix: 'worker',
         declaredPaths: [
           'worker.name',
           'worker.compatibilityDate',
@@ -1103,6 +1105,7 @@ export const inventory = {
           'worker.publicAssets',
           'worker.d1Databases',
           'worker.services',
+          'worker.vpcServices',
           'worker.publicAssetExcludes',
         ],
       },
@@ -1118,8 +1121,8 @@ export const inventory = {
     ],
     aliases: configAliases,
     deployTargets: {
-      source: `${extensions}/src/config.ts`,
-      symbol: 'DeployTarget',
+      source: `${extensions}/src/deploy-output/target.ts`,
+      symbol: 'DEPLOY_TARGETS',
       values: ['node', 'vercel', 'netlify', 'ghPages', 'cloudflare'],
     },
     forwardedProviders: [

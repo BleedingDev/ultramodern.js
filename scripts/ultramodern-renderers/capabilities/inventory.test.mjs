@@ -86,11 +86,11 @@ test('nested union fields remain separate from top-level declarations', () => {
   ]);
   const candidate = structuredClone(inventory);
   candidate.config.nestedTypes.find(
-    type => type.symbol === 'DeployUserConfig',
+    type => type.symbol === 'CloudflareWorkerDeployConfig',
   ).declaredPaths = ['worker.name'];
   assert.match(
     validateInventory(candidate).errors.join('\n'),
-    /Nested config keys drift: DeployUserConfig/,
+    /Nested config keys drift: CloudflareWorkerDeployConfig/,
   );
 });
 
