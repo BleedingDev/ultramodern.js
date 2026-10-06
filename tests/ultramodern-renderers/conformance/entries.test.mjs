@@ -67,6 +67,37 @@ test('entry authoring preserves config input once and emits actual distinct sour
   );
 });
 
+test('retained-source entry authoring adds entry copies beside the original source', async t => {
+  const { root } = await ownedAuthoringInput(t);
+  const entries = await authorEntryVariants(root, { retainSource: true });
+  assert.deepEqual(Object.keys(entries), ['ssr', 'csr']);
+  assert.deepEqual((await fs.readdir(path.join(root, 'src'))).sort(), [
+    'components',
+    'csr',
+    'routes',
+    'ssr',
+  ]);
+  for (const prefix of ['src', 'src/ssr', 'src/csr'])
+    assert.equal(
+      await fs.readFile(path.join(root, prefix, 'routes/page.tsx'), 'utf8'),
+      'export default function NativePage() {}',
+    );
+  assert.deepEqual((await fs.readdir(path.join(root, 'src/ssr'))).sort(), [
+    'components',
+    'routes',
+  ]);
+  assert.equal(
+    (await fs.readdir(root)).some(name =>
+      name.startsWith('.acceptance-entry-authoring-'),
+    ),
+    false,
+  );
+  await assert.rejects(
+    authorEntryVariants(root, { retainSource: true }),
+    /EEXIST/u,
+  );
+});
+
 test('linked source and pre-existing entry input are rejected without modifying either owner', async t => {
   for (const mode of ['link', 'existing']) {
     const { root, config } = await ownedAuthoringInput(t);
