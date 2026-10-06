@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { SERVICE_WORKER_ENVIRONMENT_NAME } from '@modern-js/builder';
 import {
   identityCacheKey,
   type RendererIdentity,
@@ -117,8 +118,12 @@ export function pluginSolidRenderer(
         });
         api.modifyRspackConfig((config, { environment, isProd }) => {
           const target = environment.config.output.target;
-          const client = target === 'web';
-          const worker = target === 'web-worker';
+          // The Cloudflare SSR worker is a `web` module bundle that renders
+          // server documents; select its transform by environment, not target.
+          const ssrWorker =
+            environment.name === SERVICE_WORKER_ENVIRONMENT_NAME;
+          const client = target === 'web' && !ssrWorker;
+          const worker = target === 'web-worker' || ssrWorker;
           const server = !client;
           config.resolve ??= {};
           config.resolve.conditionNames = [

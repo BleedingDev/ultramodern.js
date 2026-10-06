@@ -29,6 +29,7 @@
     "./router": {
       "modern:source": "./src/router.ts",
       "types": "./dist/types/router.d.ts",
+      "worker": "./dist/esm-node/router.js",
       "node": "./dist/esm-node/router.js",
       "default": "./dist/esm/router.js"
     },

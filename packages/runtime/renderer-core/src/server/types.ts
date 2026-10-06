@@ -1,5 +1,9 @@
 import type { RendererIdentity } from '../identity';
-import type { DocumentAsset, RequestSession } from '../session';
+import type {
+  DocumentAsset,
+  RequestPlatform,
+  RequestSession,
+} from '../session';
 
 /** Native route matching remains with the selected router adapter. */
 export interface NativeServerConfig {
@@ -56,6 +60,11 @@ export interface NativeDocumentCache {
   set(key: string, value: CachedNativeDocument): void | Promise<void>;
 }
 
+/** The subset of a worker execution context the native dispatcher uses. */
+export interface NativeExecutionContext {
+  waitUntil(promise: Promise<unknown>): void;
+}
+
 export interface NativeDispatchOptions<Bindings extends object = object> {
   readonly identity: RendererIdentity;
   readonly loadManifest: () =>
@@ -67,6 +76,10 @@ export interface NativeDispatchOptions<Bindings extends object = object> {
   > & {
     readonly bindings: Bindings;
   };
+  /** The request host binding kind. Defaults to `node`. */
+  readonly platform?: RequestPlatform['kind'];
+  /** Worker hosts retain each owned session until its cleanup completes. */
+  readonly executionContext?: NativeExecutionContext;
   readonly cache?: NativeDocumentCache;
   readonly maxCacheBytes?: number;
   /** Native hydration ABI build, distinct from the source/profile identity. */

@@ -32,7 +32,7 @@ export const solidCandidateProfile: RendererBuildProfile = {
     'seroval-plugins': '1.6.8',
   },
   capabilities: {
-    worker: false,
+    worker: true,
     moduleFederation: false,
     rsc: false,
     ssg: false,

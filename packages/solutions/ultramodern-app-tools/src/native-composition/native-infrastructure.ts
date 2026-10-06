@@ -45,6 +45,12 @@ import {
   nativeDevelopmentOutputDirectory,
 } from './native-development';
 import {
+  isNativeWorkerBuild,
+  nativeWorkerEntrySource,
+  nativeWorkerEnvironment,
+  writeNativeWorkerResources,
+} from './native-worker';
+import {
   type RendererBuildProfile,
   resolveCandidateRendererProfile,
   resolveRendererProfile,
@@ -137,6 +143,7 @@ export function nativeRendererInfrastructurePlugin(
       ? undefined
       : resolveNativeRendererAdapter(renderer).assertSupportedSource);
   const serverEntries = new Map<string, string>();
+  const workerEntries = new Map<string, string>();
   let buildIdentities: RendererBuildIdentities | undefined;
   let completedBuildIdentities: RendererBuildIdentities | undefined;
   let development: NativeDevelopment | undefined;
@@ -307,6 +314,8 @@ export function nativeRendererInfrastructurePlugin(
         // here so renamed, added and removed entries share this final identity
         // and compiler map, rather than the earlier discovery projection.
         serverEntries.clear();
+        workerEntries.clear();
+        const workerBuild = isNativeWorkerBuild(api.getNormalizedConfig());
         const entryBasePaths = new Map<string, string>();
         for (const entrypoint of entrypoints) {
           const directory =
@@ -358,6 +367,14 @@ export function nativeRendererInfrastructurePlugin(
               'index.server.ts',
             ),
           );
+          if (workerBuild)
+            workerEntries.set(
+              entrypoint.entryName,
+              path.join(
+                path.dirname(entrypoint.internalEntry),
+                'index.worker.ts',
+              ),
+            );
         }
         if (options.resolveBuildIdentities && !isEntryMetadataRead()) {
           // Development keeps this source-bound identity for the running CLI
@@ -464,6 +481,12 @@ export default nativeRequestHandler;
               serverEntries.get(entrypoint.entryName)!,
               server,
             );
+            const workerEntry = workerEntries.get(entrypoint.entryName);
+            if (workerEntry)
+              await fs.writeFile(
+                workerEntry,
+                nativeWorkerEntrySource('./index.server'),
+              );
           }
         }
       });
@@ -538,60 +561,70 @@ export default nativeRequestHandler;
           Object.entries(withServer).map(([name, environment]) => [
             name,
             {
-              ...(name === 'server' || name === SERVICE_WORKER_ENVIRONMENT_NAME
-                ? {
-                    ...environment,
-                    source: { ...environment.source, entry: entries },
-                    ...(options.resolveBuildIdentities && name === 'server'
-                      ? {
-                          output: {
-                            ...environment.output,
-                            target: 'node' as const,
-                            filename: {
-                              ...environment.output?.filename,
-                              js: '[name].js',
-                            },
-                            distPath: {
-                              ...(typeof environment.output?.distPath ===
-                              'object'
-                                ? environment.output.distPath
-                                : {}),
-                              root: path.join(
-                                distDirectory,
-                                ...(api.getAppContext().command === 'dev'
-                                  ? [RENDERER_DEVELOPMENT_DIRECTORY]
-                                  : []),
-                                SERVER_BUNDLE_DIRECTORY,
-                              ),
-                              js: '',
-                              jsAsync: '',
-                              css: '',
-                              cssAsync: '',
-                            },
-                          },
-                        }
-                      : {}),
-                  }
-                : options.resolveBuildIdentities &&
-                    command === 'dev' &&
-                    name === 'client'
+              ...(name === SERVICE_WORKER_ENVIRONMENT_NAME && workerEntries.size
+                ? nativeWorkerEnvironment(
+                    environment,
+                    Object.fromEntries(
+                      [...workerEntries].filter(
+                        ([entryName]) =>
+                          !checkedEntries || checkedEntries.includes(entryName),
+                      ),
+                    ),
+                  )
+                : name === 'server' || name === SERVICE_WORKER_ENVIRONMENT_NAME
                   ? {
                       ...environment,
-                      output: {
-                        ...environment.output,
-                        distPath: {
-                          ...(typeof environment.output?.distPath === 'object'
-                            ? environment.output.distPath
-                            : {}),
-                          root: path.join(
-                            distDirectory,
-                            RENDERER_DEVELOPMENT_DIRECTORY,
-                            'client',
-                          ),
-                        },
-                      },
+                      source: { ...environment.source, entry: entries },
+                      ...(options.resolveBuildIdentities && name === 'server'
+                        ? {
+                            output: {
+                              ...environment.output,
+                              target: 'node' as const,
+                              filename: {
+                                ...environment.output?.filename,
+                                js: '[name].js',
+                              },
+                              distPath: {
+                                ...(typeof environment.output?.distPath ===
+                                'object'
+                                  ? environment.output.distPath
+                                  : {}),
+                                root: path.join(
+                                  distDirectory,
+                                  ...(api.getAppContext().command === 'dev'
+                                    ? [RENDERER_DEVELOPMENT_DIRECTORY]
+                                    : []),
+                                  SERVER_BUNDLE_DIRECTORY,
+                                ),
+                                js: '',
+                                jsAsync: '',
+                                css: '',
+                                cssAsync: '',
+                              },
+                            },
+                          }
+                        : {}),
                     }
-                  : environment),
+                  : options.resolveBuildIdentities &&
+                      command === 'dev' &&
+                      name === 'client'
+                    ? {
+                        ...environment,
+                        output: {
+                          ...environment.output,
+                          distPath: {
+                            ...(typeof environment.output?.distPath === 'object'
+                              ? environment.output.distPath
+                              : {}),
+                            root: path.join(
+                              distDirectory,
+                              RENDERER_DEVELOPMENT_DIRECTORY,
+                              'client',
+                            ),
+                          },
+                        },
+                      }
+                    : environment),
               ...(buildIdentities
                 ? {
                     performance: {
@@ -842,6 +875,49 @@ export default nativeRequestHandler;
               throw new Error(
                 `Native server entry ${entryName} does not export its required native transport handlers`,
               );
+          }
+          if (workerEntries.size) {
+            const worker = results.find(
+              result =>
+                result.compilation.name === SERVICE_WORKER_ENVIRONMENT_NAME,
+            );
+            if (!worker)
+              throw new Error(
+                'Native Cloudflare SSR requires its emitted worker compilation',
+              );
+            const workerOutput = worker.compilation.outputOptions.path!;
+            await writeNativeWorkerResources({
+              renderer,
+              distDirectory: api.getAppContext().distDirectory,
+              clientOutputDirectory: client.compilation.outputOptions.path!,
+              metaName: api.getAppContext().metaName,
+              config: api.getNormalizedConfig(),
+              identities: buildIdentities.identities,
+              compilerArtifacts,
+              workerEntryFiles: Object.fromEntries(
+                [...workerEntries.keys()].map(entryName => {
+                  const chunk = worker.compilation.entrypoints
+                    .get(entryName)
+                    ?.getEntrypointChunk();
+                  return [
+                    entryName,
+                    chunk
+                      ? [...chunk.files]
+                          .filter(file => /\.[cm]?js$/u.test(file))
+                          .map(file =>
+                            path
+                              .relative(
+                                api.getAppContext().distDirectory,
+                                path.join(workerOutput, file),
+                              )
+                              .split(path.sep)
+                              .join('/'),
+                          )
+                      : [],
+                  ];
+                }),
+              ),
+            });
           }
           if (!buildIdentityContext)
             throw new Error(

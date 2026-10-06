@@ -673,23 +673,39 @@ describe('native Octane server application', () => {
     expect(cleanup).toHaveBeenCalledTimes(1);
   });
 
-  test('rejects conflicting renderer and unadmitted worker identity before native render', async () => {
+  test('rejects a conflicting renderer identity before native render', async () => {
     const App = rstest.fn(() => ssrHtml('<main>unused</main>'));
-    for (const [renderer, kind, message] of [
-      ['solid', 'node', 'Octane renderer identity'],
-      ['octane', 'worker', 'worker rendering has not been admitted'],
-    ] as const) {
-      const session = createRequestSession({
-        request: new Request('https://store.test/'),
-        identity: { ...identity, renderer },
-        platform: { kind, bindings: {} },
-      });
-      await expect(
-        renderOctaneApplication({ session, App, document }),
-      ).rejects.toThrow(message);
-      expect((await session.completion).state).toBe('failed');
-    }
+    const session = createRequestSession({
+      request: new Request('https://store.test/'),
+      identity: { ...identity, renderer: 'solid' },
+      platform: { kind: 'node', bindings: {} },
+    });
+    await expect(
+      renderOctaneApplication({ session, App, document }),
+    ).rejects.toThrow('Octane renderer identity');
+    expect((await session.completion).state).toBe('failed');
     expect(App).not.toHaveBeenCalled();
+  });
+
+  test('renders the native document on the worker platform', async () => {
+    const session = createRequestSession({
+      request: new Request('https://store.test/'),
+      identity,
+      platform: { kind: 'worker', bindings: {} },
+    });
+    session.resolveResponse({
+      kind: 'document',
+      status: 200,
+      headers: [['content-type', 'text/html; charset=utf-8']],
+      cache: { mode: 'no-store' },
+    });
+    const response = await renderOctaneApplication({
+      session,
+      App: () => ssrHtml('<main>worker document</main>'),
+      document,
+    });
+    expect(await response.text()).toContain('<main>worker document</main>');
+    expect((await session.completion).state).toBe('completed');
   });
 
   test('rejects missing or empty native compilation identity before invoking Octane', async () => {

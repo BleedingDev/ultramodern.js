@@ -52,14 +52,14 @@ function applicationRequestEvent<Bindings extends object>(
   if (session.identity.renderer !== 'solid') {
     throw new Error('The Solid adapter requires a Solid renderer identity.');
   }
-  if (session.platform.kind !== 'node') {
+  if (session.platform.kind !== 'node' && session.platform.kind !== 'worker') {
     throw new Error(
-      'Solid request context requires Node; worker rendering has not been admitted.',
+      'Solid request context requires a Node or worker request platform.',
     );
   }
   if (!isServer) {
     throw new Error(
-      'The Solid server adapter must resolve @solidjs/web with the Node server condition.',
+      'The Solid server adapter must resolve @solidjs/web with a server (node or worker) condition.',
     );
   }
   let event = requestEvents.get(session);
@@ -706,10 +706,10 @@ export function renderCSRDocument<Bindings extends object>(
   try {
     if (
       session.identity.renderer !== 'solid' ||
-      session.platform.kind !== 'node'
+      (session.platform.kind !== 'node' && session.platform.kind !== 'worker')
     ) {
       throw new Error(
-        'The Solid CSR document requires a Solid Node request session.',
+        'The Solid CSR document requires a Solid Node or worker request session.',
       );
     }
     if (
