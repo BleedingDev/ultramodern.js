@@ -72,11 +72,38 @@ export default defineConfig({
       name: 'server',
       root: __dirname,
       include: ['tests/server/**/*.test.ts'],
+      exclude: ['tests/server/dev-diagnostics.test.ts'],
       testEnvironment: 'node',
       globals: true,
       tools: nativeCompiler(true),
       resolve: {
         conditionNames: ['modern:source', 'node', 'import', 'default'],
+      },
+    },
+    {
+      // Solid's dev diagnostics (STRICT_READ_UNTRACKED, SERVER_WRITE, ...)
+      // only exist in the `.dev.js` builds, which require the `development`
+      // condition. The plain `server` project above resolves the silent
+      // production build, so a regression there would never fail a test.
+      name: 'server-diagnostics',
+      root: __dirname,
+      include: ['tests/server/dev-diagnostics.test.ts'],
+      testEnvironment: 'node',
+      globals: true,
+      output: { bundleDependencies: true },
+      tools: nativeCompiler(true),
+      resolve: {
+        // `node` must precede `development`: solid-js/@solidjs/web's export
+        // maps list a top-level `development` key (browser dev build) ahead
+        // of `node`'s own nested `development` key (server dev build), so
+        // the consumer's condition order decides which one resolves here.
+        conditionNames: [
+          'modern:source',
+          'node',
+          'development',
+          'import',
+          'default',
+        ],
       },
     },
   ],
