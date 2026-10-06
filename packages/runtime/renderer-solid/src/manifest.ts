@@ -199,26 +199,10 @@ function validatePreload(value: unknown, base: string | undefined): void {
   }
 }
 
-export function validateSolidModuleManifest(
-  value: unknown,
+function assertCurrentIdentity(
+  manifest: Record<string, unknown>,
   expectedIdentity: RendererIdentity,
-  requiredModuleKeys: readonly string[] = [],
-): SolidModuleManifest {
-  if (!value || typeof value !== 'object') {
-    throw new Error(
-      'Missing Solid module manifest. Rebuild the application before SSR or hydration.',
-    );
-  }
-  const manifest = requireRecord(value, 'envelope');
-  if (
-    manifest.schemaVersion !== 1 ||
-    manifest.renderer !== 'solid' ||
-    manifest.compilerVersion !== SOLID_COMPILER_VERSION
-  ) {
-    throw new Error(
-      `Solid module manifest compiler ABI mismatch. Rebuild with @solidjs/compiler ${SOLID_COMPILER_VERSION}.`,
-    );
-  }
+): void {
   if (!manifest.rendererIdentity || expectedIdentity.renderer !== 'solid') {
     throw new Error(
       'Solid module manifest requires the current Solid application build identity.',
@@ -232,6 +216,23 @@ export function validateSolidModuleManifest(
       { cause },
     );
   }
+}
+
+function readSolidModuleManifest(
+  value: object,
+  expectedIdentity: RendererIdentity,
+): SolidModuleManifest {
+  const manifest = requireRecord(value, 'envelope');
+  if (
+    manifest.schemaVersion !== 1 ||
+    manifest.renderer !== 'solid' ||
+    manifest.compilerVersion !== SOLID_COMPILER_VERSION
+  ) {
+    throw new Error(
+      `Solid module manifest compiler ABI mismatch. Rebuild with @solidjs/compiler ${SOLID_COMPILER_VERSION}.`,
+    );
+  }
+  assertCurrentIdentity(manifest, expectedIdentity);
   if (
     !manifest.modules ||
     typeof manifest.modules !== 'object' ||
@@ -281,14 +282,40 @@ export function validateSolidModuleManifest(
       }
     }
   }
+  return manifest as unknown as SolidModuleManifest;
+}
+
+/** A build's manifest is an immutable artifact: its shape is checked once. */
+const validatedManifests = new WeakMap<object, SolidModuleManifest>();
+
+export function validateSolidModuleManifest(
+  value: unknown,
+  expectedIdentity: RendererIdentity,
+  requiredModuleKeys: readonly string[] = [],
+): SolidModuleManifest {
+  if (!value || typeof value !== 'object') {
+    throw new Error(
+      'Missing Solid module manifest. Rebuild the application before SSR or hydration.',
+    );
+  }
+  let manifest = validatedManifests.get(value);
+  if (manifest) {
+    assertCurrentIdentity(
+      manifest as unknown as Record<string, unknown>,
+      expectedIdentity,
+    );
+  } else {
+    manifest = readSolidModuleManifest(value, expectedIdentity);
+    validatedManifests.set(value, manifest);
+  }
   for (const key of requiredModuleKeys) {
-    if (key === '_base' || !Object.hasOwn(modules, key)) {
+    if (key === '_base' || !Object.hasOwn(manifest.modules, key)) {
       throw new Error(
         `Solid module manifest is missing ${key}. Rebuild the application before SSR or hydration.`,
       );
     }
   }
-  return manifest as unknown as SolidModuleManifest;
+  return manifest;
 }
 
 export function resolveSolidModuleAsset(

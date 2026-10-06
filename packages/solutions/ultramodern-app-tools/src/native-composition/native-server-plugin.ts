@@ -308,6 +308,9 @@ export function nativeServerPlugin(
   let distDirectory: string;
   let fallbackHeader = 'x-modern-ssr-fallback';
   let serverRoutes: readonly ServerRoute[] = [];
+  // Unchanged manifest bytes keep one parsed object, so renderer validators
+  // check each build's manifest once instead of on every request.
+  const parsedManifests = new Map<string, { source: string; value: unknown }>();
   const readManifest = async (file: string): Promise<unknown> => {
     if (!file || path.isAbsolute(file) || file.split(/[\\/]/u).includes('..')) {
       throw new Error(
@@ -319,14 +322,19 @@ export function nativeServerPlugin(
       throw new Error(
         `Missing native manifest ${file}. Rebuild the application before serving.`,
       );
+    const parsed = parsedManifests.get(file);
+    if (parsed?.source === source) return parsed.value;
+    let value: unknown;
     try {
-      return JSON.parse(source);
+      value = JSON.parse(source);
     } catch (cause) {
       throw new Error(
         `Invalid native manifest ${file}. Rebuild the application before serving.`,
         { cause },
       );
     }
+    parsedManifests.set(file, { source, value });
+    return value;
   };
   const dispatch: Render = async (request, requestOptions) => {
     const rejection = rejectNativeRscRequest(request);

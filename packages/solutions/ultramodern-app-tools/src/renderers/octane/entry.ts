@@ -119,25 +119,15 @@ import { createElement } from 'octane';
 import { createI18n, i18nHandoff, type I18nInstance, i18nProviderInstance, i18nRouterRewrite, i18nRouting } from './i18n';`
       : ''
   }
-import { validateOctaneModuleManifest, type OctaneModuleManifest } from '@modern-js/renderer-octane/manifest';
+import { validateOctaneModuleManifest } from '@modern-js/renderer-octane/manifest';
 import { assertRendererIdentity, type RendererIdentity } from '@modern-js/renderer-core/identity';
 import type { NativeRequestContext } from '@modern-js/renderer-core/server';
 export const rendererIdentity: Readonly<RendererIdentity> = Object.freeze(${JSON.stringify(identity)});
-// A compiler manifest object is validated once for this module, not per request.
-const validatedManifests = new WeakMap<object, OctaneModuleManifest>();
-function nativeManifest(value: unknown): OctaneModuleManifest {
-  const cached = typeof value === 'object' && value !== null ? validatedManifests.get(value) : undefined;
-  if (cached) return cached;
-  const manifest = validateOctaneModuleManifest(value, rendererIdentity);
-  if (typeof value === 'object' && value !== null) validatedManifests.set(value, manifest);
-  validatedManifests.set(manifest, manifest);
-  return manifest;
-}
 function prepare(request: Request, context: NativeRequestContext) {
   assertRendererIdentity(context.entry, rendererIdentity);
   assertRendererIdentity(context.session.identity, rendererIdentity);
   if (request !== context.session.request) throw new Error('Native request/session ownership mismatch');
-  const manifest = nativeManifest(context.nativeManifest);
+  const manifest = validateOctaneModuleManifest(context.nativeManifest, rendererIdentity);
   return { documentId: crypto.randomUUID(), rootId: 'root', ...(context.nonce === undefined ? {} : { nonce: context.nonce }), ...(context.assets === undefined ? {} : { assets: context.assets }), nativeHydrationBuildId: manifest.nativeHydrationBuildId };
 }
 export function nativeCSRRequestHandler(request: Request, context: NativeRequestContext): Response | Promise<Response> {

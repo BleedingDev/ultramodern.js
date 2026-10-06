@@ -41,6 +41,24 @@ test('accepts the exact current native module inventory', () => {
   );
 });
 
+test('checks a reused manifest object against each expected identity', () => {
+  const manifest = currentManifest();
+  assert.equal(validateSolidModuleManifest(manifest, identity), manifest);
+  assert.equal(validateSolidModuleManifest(manifest, identity), manifest);
+  assert.throws(
+    () =>
+      validateSolidModuleManifest(manifest, {
+        ...identity,
+        buildId: 'build-b',
+      }),
+    /Stale Solid module manifest identity/,
+  );
+  assert.throws(
+    () => resolveSolidModuleAsset(manifest, identity, 'src/Missing.tsx'),
+    /is missing src\/Missing.tsx/,
+  );
+});
+
 test('rejects a missing module manifest before renderer lookup', () => {
   assert.throws(
     () => validateSolidModuleManifest(undefined, identity),

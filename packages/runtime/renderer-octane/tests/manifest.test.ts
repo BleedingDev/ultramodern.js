@@ -54,7 +54,14 @@ describe('Octane compiler manifest admission', () => {
     expect(admitted).toEqual(input);
     expect(admitted.rendererIdentity.buildId).toBe('source-profile-build-a');
     expect(admitted.nativeHydrationBuildId).toBe('native-client-compilation-b');
-    expect(validateOctaneModuleManifest(input, identity)).toEqual(admitted);
+    expect(validateOctaneModuleManifest(input, identity)).toBe(admitted);
+    expect(validateOctaneModuleManifest(admitted, identity)).toBe(admitted);
+    expect(() =>
+      validateOctaneModuleManifest(admitted, {
+        ...identity,
+        buildId: 'another-source-build',
+      }),
+    ).toThrow('conflicts with the application build');
     expect(() =>
       validateOctaneModuleManifest(input, identity, identity.buildId),
     ).toThrow('native hydration build differs from the compiled client');
