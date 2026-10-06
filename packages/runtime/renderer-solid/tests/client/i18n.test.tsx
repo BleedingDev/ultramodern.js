@@ -1,3 +1,4 @@
+import { createI18nUrlRewrite } from '@modern-js/i18n-runtime-extensions/urlRewrite';
 import { flush } from 'solid-js';
 import { mountApplication } from '../../src/client';
 import { I18nProvider } from '../../src/i18n/I18nProvider';
@@ -155,6 +156,65 @@ describe('Solid i18n binding', () => {
       b.dispose();
       a.root.remove();
       b.root.remove();
+      flush();
+    }
+  });
+});
+
+describe('Solid i18n binding under the i18n router rewrite', () => {
+  test('same-language links stay in the language; a cross-language link switches before navigating', async () => {
+    const instance = createFakeI18nInstance('en');
+    const router = createRouter({
+      routeTree: createRootRoute(),
+      history: createMemoryHistory({ initialEntries: ['/en/dashboard'] }),
+      isServer: false,
+      rewrite: createI18nUrlRewrite({
+        languages: ['en', 'cs'],
+        getLanguage: () => instance.language,
+      }),
+    });
+    await router.load();
+    expect(router.state.location.pathname).toBe('/dashboard');
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const dispose = mountApplication(
+      () => (
+        <RouterContextProvider router={router}>
+          {() => (
+            <I18nProvider instance={instance} languages={['en', 'cs']}>
+              <LocalizedLink to="/products">Products</LocalizedLink>
+              <LocalizedLink to="/products" language="cs">
+                Česky
+              </LocalizedLink>
+            </I18nProvider>
+          )}
+        </RouterContextProvider>
+      ),
+      root,
+    );
+    flush();
+    try {
+      expect(
+        root.querySelector('a:not([hreflang])')?.getAttribute('href'),
+      ).toBe('/en/products');
+      const anchor = root.querySelector<HTMLAnchorElement>('a[hreflang="cs"]');
+      expect(anchor?.getAttribute('href')).toBe('/cs/products');
+      anchor?.dispatchEvent(
+        new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }),
+      );
+      for (
+        let attempt = 0;
+        attempt < 100 && router.state.location.publicHref !== '/cs/products';
+        attempt++
+      )
+        await new Promise(resolve => setTimeout(resolve, 10));
+      flush();
+      expect(router.state.location.publicHref).toBe('/cs/products');
+      expect(router.state.location.pathname).toBe('/products');
+      expect(instance.language).toBe('cs');
+    } finally {
+      dispose();
+      root.remove();
       flush();
     }
   });

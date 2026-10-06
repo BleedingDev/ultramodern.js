@@ -36,7 +36,7 @@ export const solidCandidateProfile: RendererBuildProfile = {
     moduleFederation: true,
     rsc: false,
     ssg: true,
-    i18n: false,
+    i18n: true,
     svgComponent: true,
   },
 };
