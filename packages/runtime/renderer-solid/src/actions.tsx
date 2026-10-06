@@ -8,7 +8,7 @@ import {
 import type { JSX } from '@solidjs/web';
 import { getRequestEvent } from '@solidjs/web';
 import type { Accessor } from 'solid-js';
-import { createSignal, getOwner, omit, onCleanup } from 'solid-js';
+import { createSignal, getOwner, omit, onCleanup, untrack } from 'solid-js';
 import type { AnyRouter } from './router-binding/index';
 import { redirect, useMatch, useRouter } from './router-binding/index';
 import type {
@@ -185,8 +185,9 @@ export function createRouteAction(options: RouteActionOptions): RouteAction {
 
   function cancel() {
     const current = active;
+    if (!current) return;
     active = undefined;
-    current?.abort(new DOMException('The action was cancelled', 'AbortError'));
+    current.abort(new DOMException('The action was cancelled', 'AbortError'));
     setPending(false);
   }
 
@@ -383,7 +384,13 @@ export function useRouteAction(): RouteAction {
     );
   }
   const match = useMatch({ strict: false });
-  const route = router.routesById[match().routeId];
+  // One-time snapshot: this hook identifies the filesystem route it was
+  // called from, which is fixed for the component instance's lifetime (a
+  // route component is not reused across matches). Reading the accessor
+  // here is intentionally non-reactive, so `untrack` is the correct escape
+  // hatch rather than a tracking scope.
+  const routeMatch = untrack(match);
+  const route = router.routesById[routeMatch.routeId];
   const routeId = (
     route?.options.staticData as { ultramodernRouteId?: string } | undefined
   )?.ultramodernRouteId;
