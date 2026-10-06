@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { FileSystemRouteIR } from '@modern-js/renderer-core/data';
 import type { RendererIdentity } from '@modern-js/renderer-core/identity';
+import { emitNativeI18nModules } from './native-i18n';
 import type {
   NativeEntryGeneration,
   NativeEntryGenerator,
@@ -53,6 +54,8 @@ export interface NativeApplicationSourceOptions {
   source: string;
   routed: boolean;
   mode: 'client' | 'server';
+  /** The entry composes the generated `./i18n` module. */
+  i18n: boolean;
 }
 
 export interface NativeApplicationEmission {
@@ -82,6 +85,16 @@ export async function emitNativeEntryApplication(
   const source = context.entrypoint.entry;
   const routed = (await fs.stat(source)).isDirectory();
   const sources: Record<string, string> = {};
+  if (context.i18n) {
+    if (!routed)
+      throw new Error(
+        `i18nPlugin() localizes file-system routes; entry ${context.entrypoint.entryName} has no routes directory`,
+      );
+    Object.assign(
+      sources,
+      emitNativeI18nModules(context.i18n, context.renderer),
+    );
+  }
   if (routed) {
     let discovery = entryRoutes.get(context);
     if (!discovery) {
@@ -96,12 +109,14 @@ export async function emitNativeEntryApplication(
       routes: await discovery,
       mode,
       basePath: context.basePath,
+      i18n: Boolean(context.i18n),
     });
   }
   sources[`application.${mode}.tsx`] = emission.applicationSource({
     source,
     routed,
     mode,
+    i18n: Boolean(context.i18n),
   });
   await writeNativeEntryModules(directory, sources);
   return { routed, directory };

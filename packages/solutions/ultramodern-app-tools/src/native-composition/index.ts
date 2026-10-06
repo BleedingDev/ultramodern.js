@@ -8,6 +8,7 @@ import { isEntryMetadataRead } from './config-read-context';
 import { createRendererModuleFederationIntegration } from './module-federation-renderer-plugin';
 import { nativeClientAssetsPlugin } from './native-assets';
 import { nativeEntryCommandPlugin } from './native-entry-command';
+import { findNativeI18nConfig } from './native-i18n';
 import type { NativeEntryGenerator } from './native-infrastructure';
 import { nativeRendererInfrastructurePlugin } from './native-infrastructure';
 import { nativeModuleFederationPlugin } from './native-module-federation';
@@ -48,6 +49,12 @@ export {
   validateRendererBuildManifest,
   validateRendererDevelopmentBuildManifest,
 } from './native-build-manifest';
+export {
+  i18nPlugin,
+  type NativeI18nBackendOptions,
+  type NativeI18nLocaleDetection,
+  type NativeI18nPluginOptions,
+} from './native-i18n';
 export {
   createPresetUltramodernConfig,
   type PresetUltramodernOptions,
@@ -99,6 +106,7 @@ function composeNativeRenderer(
         infrastructurePluginName: adapter.infrastructurePluginName,
         compilerArtifacts: adapter.compilerArtifacts,
         assertSupportedSource: adapter.assertSupportedSource,
+        i18n: findNativeI18nConfig(consumerPlugins),
         async resolveBuildIdentities(context) {
           const resolved = await resolveBuildIdentities(context);
           if (

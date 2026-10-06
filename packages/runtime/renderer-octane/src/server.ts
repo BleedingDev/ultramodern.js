@@ -27,6 +27,14 @@ export interface OctaneDocumentOptions {
   readonly lang?: string;
   readonly nonce?: string;
   readonly assets?: readonly DocumentAsset[];
+  /** Placed after the renderer bootstrap and before the entry scripts. */
+  readonly inlineData?: readonly OctaneDocumentInlineData[];
+}
+
+/** Public JSON a client module reads from the document before it starts. */
+export interface OctaneDocumentInlineData {
+  readonly id: string;
+  readonly payload: Parameters<typeof serializeInlineData>[0]['payload'];
 }
 
 export interface OctaneDocumentResponseOptions<
@@ -90,6 +98,19 @@ function prepareOctaneDocument<Bindings extends object>(
     }),
     ...(document.nonce === undefined ? {} : { nonce: document.nonce }),
   });
+  const inlineData = (document.inlineData ?? [])
+    .map(item => {
+      if (item.id === OCTANE_BOOTSTRAP_ID || item.id === rootId)
+        throw new Error(
+          'Octane document inline data cannot reuse the root or bootstrap id.',
+        );
+      return serializeInlineData({
+        id: item.id,
+        payload: item.payload,
+        ...(document.nonce === undefined ? {} : { nonce: document.nonce }),
+      });
+    })
+    .join('');
   const assets = collectDocumentAssets(document.assets ?? []);
   const headAssets = assets
     .filter(asset => asset.kind !== 'script')
@@ -108,7 +129,13 @@ function prepareOctaneDocument<Bindings extends object>(
       }),
     )
     .join('');
-  return { rootId, lang, bootstrap, headAssets, entryScripts };
+  return {
+    rootId,
+    lang,
+    bootstrap: bootstrap + inlineData,
+    headAssets,
+    entryScripts,
+  };
 }
 
 async function resolveDocumentResponse<Bindings extends object>(
