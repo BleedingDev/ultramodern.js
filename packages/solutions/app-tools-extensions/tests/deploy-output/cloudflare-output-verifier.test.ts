@@ -231,7 +231,11 @@ const createOutputFixture = async ({
     name: 'fixture-worker',
     main: 'server/index.mjs',
     compatibility_date: '2026-06-02',
-    compatibility_flags: ['nodejs_compat', 'global_fetch_strictly_public'],
+    compatibility_flags: [
+      'nodejs_compat',
+      'global_fetch_strictly_public',
+      'enable_request_signal',
+    ],
     assets: {
       binding: 'ASSETS',
       directory: './public',
@@ -392,6 +396,7 @@ describe('Cloudflare output verifier', () => {
         'wrangler.json assets.directory must be ./public.',
         'wrangler.json assets.run_worker_first must be true.',
         'wrangler.json compatibility_flags must include global_fetch_strictly_public.',
+        'wrangler.json compatibility_flags must include enable_request_signal.',
       ]),
     );
   });
