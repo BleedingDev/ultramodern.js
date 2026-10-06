@@ -9,19 +9,68 @@ import {
 } from '@modern-js/app-tools';
 import type { PolicyDefaultsOptions } from '@modern-js/app-tools-extensions/policy-defaults';
 import type { CLIPluginAPI } from '@modern-js/plugin';
-import { createConfigOptions } from '@modern-js/plugin/cli';
+import { createCli, createConfigOptions } from '@modern-js/plugin/cli';
 import {
   presetUltramodern,
   ultramodernAppTools,
 } from '@modern-js/ultramodern-app-tools';
 import { createRsbuild, rspack } from '@rsbuild/core';
 import { runtimeRegister } from '../../../../runtime/plugin-runtime/src/cli/template';
+import { RENDERER_BUILD_MANIFEST_FILE } from '../../src/native-composition/native-build-manifest';
+import { resolveRendererProfile } from '../../src/native-composition/renderer-profile';
+
+const packageDirectory = path.resolve(__dirname, '../..');
+// The composition runs from the built package, so its configuration read
+// context must come from the same module instance.
+const {
+  createNativeConfigLoad,
+}: typeof import('../../src/native-composition/native-config-load') =
+  createRequire(path.join(packageDirectory, 'package.json'))(
+    './dist/cjs/native-composition/native-config-load.js',
+  );
+const consumerApps: string[] = [];
+afterAll(() => {
+  for (const directory of consumerApps.splice(0))
+    fs.rmSync(directory, { recursive: true, force: true });
+});
+
+/**
+ * An authored UltraModern application resolves its server policy from the
+ * original captured config load, so it initializes through the native CLI
+ * load in an isolated consumer that depends on this package.
+ */
+function createConsumerApp() {
+  const appDirectory = fs.realpathSync(
+    fs.mkdtempSync(path.join(os.tmpdir(), 'um-native-composition-')),
+  );
+  consumerApps.push(appDirectory);
+  const scope = path.join(appDirectory, 'node_modules/@modern-js');
+  fs.mkdirSync(scope, { recursive: true });
+  fs.symlinkSync(
+    packageDirectory,
+    path.join(scope, 'ultramodern-app-tools'),
+    'dir',
+  );
+  fs.writeFileSync(
+    path.join(appDirectory, 'package.json'),
+    JSON.stringify({
+      name: 'native-composition-consumer',
+      private: true,
+      dependencies: { '@modern-js/ultramodern-app-tools': 'workspace:*' },
+    }),
+  );
+  fs.mkdirSync(path.join(appDirectory, 'src'));
+  fs.writeFileSync(
+    path.join(appDirectory, 'src/App.jsx'),
+    'export default function App() { return <main>composition</main>; }',
+  );
+  return appDirectory;
+}
 
 async function initializeCliPlugins(
   createPlugin: typeof appTools,
   options?: PolicyDefaultsOptions,
 ) {
-  const appDirectory = path.resolve(__dirname, '../..');
   const userConfig = {
     html: { title: 'Consumer title' },
     output: { assetPrefix: '/consumer-assets/' },
@@ -34,24 +83,121 @@ async function initializeCliPlugins(
     ? { ...structuredClone(userConfig), plugins: [basePlugin] }
     : structuredClone(userConfig);
   let api: CLIPluginAPI<AppTools> | undefined;
+  const observer = {
+    name: 'consumer-config-observer',
+    setup(pluginApi: CLIPluginAPI<AppTools>) {
+      api = pluginApi;
+    },
+  };
+  if (authored) {
+    const authoredConfig = { ...userConfig, plugins: [basePlugin] };
+    const appDirectory = createConsumerApp();
+    const nativeLoad = createNativeConfigLoad();
+    const cli = createCli<AppTools>();
+    try {
+      const { appContext } = await cli.init({
+        ...nativeLoad,
+        internalPlugins: [...(nativeLoad.internalPlugins ?? []), observer],
+        configFile: false,
+        command: 'build',
+        cwd: appDirectory,
+        metaName: 'modern-js',
+        config: authoredConfig,
+      });
+      if (!api)
+        throw new Error('Consumer config observer was not initialized.');
+      const plugins = appContext.plugins;
+      return {
+        api,
+        appDirectory,
+        userConfig: authoredConfig,
+        originalConfig,
+        plugins,
+      };
+    } finally {
+      cli.dispose();
+    }
+  }
+  const appDirectory = packageDirectory;
   const result = await createConfigOptions<AppTools>({
     command: 'build',
     configFile: false,
     cwd: appDirectory,
-    config: authored ? { ...userConfig, plugins: [basePlugin] } : userConfig,
-    internalPlugins: [
-      ...(authored ? [] : [basePlugin]),
-      {
-        name: 'consumer-config-observer',
-        setup(pluginApi) {
-          api = pluginApi;
-        },
-      },
-    ],
+    config: userConfig,
+    internalPlugins: [basePlugin, observer],
   });
   if (!api) throw new Error('Consumer config observer was not initialized.');
   const plugins = result.getAppContext().plugins;
   return { api, appDirectory, userConfig, originalConfig, plugins };
+}
+
+const REACT_IDENTITY_SERVER_PLUGIN =
+  /react-build-metadata-server(?:\.[cm]?js)?$/u;
+
+/**
+ * UltraModern composes the React renderer's server identity plugin, which
+ * requires resolved build identities. Serve a saved React renderer build so
+ * server-policy composition is observed against real identities.
+ */
+async function withSavedReactBuild<T>(
+  api: CLIPluginAPI<AppTools>,
+  entryNames: readonly string[],
+  run: (entries: Record<string, unknown>) => Promise<T>,
+): Promise<T> {
+  const { command, distDirectory } = api.getAppContext();
+  const savedDist = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'um-composition-dist-'),
+  );
+  const buildMarker = 'a'.repeat(64);
+  const profile = resolveRendererProfile('react');
+  const entries = Object.fromEntries(
+    entryNames.map(entryName => [
+      entryName,
+      {
+        renderer: 'react' as const,
+        appId: 'native-composition-proof',
+        entryName,
+        protocolVersion: 1 as const,
+        buildId: buildMarker,
+      },
+    ]),
+  );
+  const provider = { ...profile.router, framework: 'react-router' as const };
+  fs.writeFileSync(
+    path.join(savedDist, RENDERER_BUILD_MANIFEST_FILE),
+    JSON.stringify({
+      schema: 'ultramodern-renderer-build',
+      version: 1,
+      profile,
+      identities: entries,
+      buildMarker,
+      sourceRevision: 'workspace',
+      inputDigest: 'b'.repeat(64),
+      profileDigest: 'c'.repeat(64),
+      compilerDigest: 'd'.repeat(64),
+      frameworkCohortDigest: 'e'.repeat(64),
+      cacheAllowed: false,
+      promotable: false,
+      routerBindings: Object.fromEntries(
+        entryNames.map(entryName => [
+          entryName,
+          {
+            owner: '@modern-js/plugin-router',
+            evidence: 'owned-default',
+            defaultProvider: { ...provider },
+            providers: [{ ...provider }],
+          },
+        ]),
+      ),
+    }),
+  );
+  api.updateAppContext({ command: 'serve', distDirectory: savedDist });
+  try {
+    return await run(entries);
+  } finally {
+    api.updateAppContext({ command, distDirectory });
+    fs.rmSync(savedDist, { recursive: true, force: true });
+  }
 }
 
 async function evaluateRuntimeRegistration(
@@ -59,7 +205,6 @@ async function evaluateRuntimeRegistration(
   platform: 'browser' | 'node',
   runtimePlugins: RuntimePluginConfig[],
 ) {
-  const packageDirectory = path.resolve(__dirname, '../..');
   const consumerPackageScope = path.join(
     fixtureRoot,
     'node_modules/@modern-js',
@@ -322,18 +467,40 @@ describe('native UltraModern composition', () => {
         options: { consumer: true },
       };
       const originalServer = structuredClone(consumerServer);
-      const serverResult = await api
-        .getHooks()
-        ._internalServerPlugins.call({ plugins: [consumerServer] });
-      expect(serverResult.plugins).toHaveLength(1 + serverCount);
-      expect(serverResult.plugins[0]).toBe(consumerServer);
-      expect(consumerServer).toEqual(originalServer);
-      expect(serverResult.plugins.slice(1)).toEqual(
-        serverCount ? [{ name: serverPluginName }] : [],
-      );
-      expect(
-        await api.getHooks()._internalServerPlugins.call(serverResult),
-      ).toEqual(serverResult);
+      const rendersReact = createPlugin === ultramodernAppTools;
+      await withSavedReactBuild(api, ['main', 'admin'], async entries => {
+        const serverResult = await api
+          .getHooks()
+          ._internalServerPlugins.call({ plugins: [consumerServer] });
+        const identityPlugins = serverResult.plugins.filter(plugin =>
+          REACT_IDENTITY_SERVER_PLUGIN.test(plugin.name),
+        );
+        expect(identityPlugins).toEqual(
+          rendersReact
+            ? [{ name: expect.any(String), options: { entries } }]
+            : [],
+        );
+        const policyPlugins = serverResult.plugins.filter(
+          plugin => !identityPlugins.includes(plugin),
+        );
+        expect(serverResult.plugins).toHaveLength(
+          1 + serverCount + identityPlugins.length,
+        );
+        expect(serverResult.plugins[0]).toBe(consumerServer);
+        expect(consumerServer).toEqual(originalServer);
+        expect(policyPlugins.slice(1)).toEqual(
+          serverCount ? [{ name: serverPluginName }] : [],
+        );
+        // The server policy registers once; the renderer identity plugin
+        // fails closed on a duplicate, so recompose only the policy result.
+        const recomposed = await api
+          .getHooks()
+          ._internalServerPlugins.call({ plugins: policyPlugins });
+        expect(recomposed.plugins).toHaveLength(serverResult.plugins.length);
+        expect(recomposed.plugins).toEqual(
+          expect.arrayContaining(serverResult.plugins),
+        );
+      });
 
       const consumerBuilder = { name: 'consumer-builder', setup() {} };
       const configInput = {
@@ -366,11 +533,21 @@ describe('native UltraModern composition', () => {
   ])('preserves a consumer server policy descriptor at %s', async name => {
     const { api, plugins } = await initializeCliPlugins(ultramodernAppTools);
     const descriptor = { name, options: { consumer: true } };
-    const result = await api
-      .getHooks()
-      ._internalServerPlugins.call({ plugins: [descriptor] });
-    expect(result.plugins).toEqual([descriptor]);
-    expect(result.plugins[0]).toBe(descriptor);
+    await withSavedReactBuild(api, ['main'], async entries => {
+      const result = await api
+        .getHooks()
+        ._internalServerPlugins.call({ plugins: [descriptor] });
+      expect(result.plugins).toEqual([
+        descriptor,
+        {
+          name: expect.stringMatching(REACT_IDENTITY_SERVER_PLUGIN),
+          options: { entries },
+        },
+      ]);
+      // React composition may rewrite the canonical descriptor to the
+      // application's portable SDK import; the consumer's values survive.
+      expect(result.plugins[0]).toEqual(descriptor);
+    });
     expect(descriptor).toEqual({ name, options: { consumer: true } });
     expect(plugins.map(plugin => plugin.name)).toContain(
       '@modern-js/ultramodern-app-tools/policy-defaults',
