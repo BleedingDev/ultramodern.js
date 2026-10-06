@@ -46,6 +46,18 @@ function files(directory, prefix = '') {
     .sort();
 }
 
+function nestedNodeModules(directory) {
+  return fs
+    .readdirSync(directory, { withFileTypes: true })
+    .filter(entry => entry.isDirectory())
+    .flatMap(entry => {
+      const absolute = path.join(directory, entry.name);
+      return entry.name === 'node_modules'
+        ? [absolute]
+        : nestedNodeModules(absolute);
+    });
+}
+
 /** Reconstruct from a pinned tarball in an owned temporary directory, then compare every artifact. */
 export async function verifySidecar(
   id,
@@ -80,6 +92,15 @@ export async function verifySidecar(
     fs.writeFileSync(tarball, bytes);
     execFileSync('tar', ['-xzf', tarball, '-C', temp], { stdio: 'pipe' });
     const upstreamDir = path.join(temp, 'package');
+    // pnpm never installs node_modules directories shipped inside a package
+    // tarball, so they are not part of the installable artifact. Republishing
+    // them would declare files no consumer can receive.
+    for (const nested of nestedNodeModules(upstreamDir)) {
+      fs.rmSync(nested, { recursive: true, force: true });
+      console.log(
+        `${id}: dropped uninstallable ${path.relative(upstreamDir, nested)}`,
+      );
+    }
     const upstream = JSON.parse(
       fs.readFileSync(path.join(upstreamDir, 'package.json'), 'utf8'),
     );
