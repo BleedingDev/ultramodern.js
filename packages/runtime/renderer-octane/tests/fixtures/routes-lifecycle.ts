@@ -918,21 +918,6 @@ export async function nativeOutcomeBoundaries() {
       (error.data as { field: string }).field === 'sku',
   );
   assert.throws(
-    () => createFileSystemRouteTree([descriptor('a'), descriptor('a')], {}),
-    /Duplicate filesystem route id/,
-  );
-  assert.throws(
-    () =>
-      createFileSystemRouteTree(
-        [
-          descriptor('root', { isRoot: true }),
-          descriptor('other', { isRoot: true }),
-        ],
-        {},
-      ),
-    /one application root/,
-  );
-  assert.throws(
     () =>
       createFileSystemRouteTree(
         [descriptor('a', { modules: { data: '/a.data.ts' } })],

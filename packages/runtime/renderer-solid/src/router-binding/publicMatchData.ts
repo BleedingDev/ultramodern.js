@@ -4,10 +4,11 @@ import {
   parsePublicData,
   serializePublicData,
 } from '@modern-js/renderer-core/data';
+import { RouteDataError } from '@modern-js/renderer-core/router';
 import type { RequestSession } from '@modern-js/renderer-core/session';
 import { getRequestEvent } from '@solidjs/web';
 import type { RouteDataErrorSnapshot } from '../route-data-error';
-import { projectRouteDataError, RouteDataError } from '../route-data-error';
+import { projectRouteDataError } from '../route-data-error';
 
 export type PublicSnapshotOwner = Pick<RequestSession, 'fail' | 'signal'>;
 interface DeferredObservation {
