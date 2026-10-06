@@ -1,7 +1,4 @@
-import {
-  observeControl,
-  releaseControl,
-} from '../../server/conformance-controls';
+import { observeControl, releaseControl } from '../../conformance-controls';
 
 export function loader({ request }: { request: Request }): Response {
   return observeControl(request);

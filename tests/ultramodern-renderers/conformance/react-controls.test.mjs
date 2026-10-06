@@ -6,7 +6,7 @@ import {
   observeControl,
   releaseControl,
   responseHeaders,
-} from './fixtures/react/src/server/conformance-controls.ts';
+} from './fixtures/react/src/conformance-controls.ts';
 
 // Direct owning Request/Response tests. No React host, transport bridge, stream,
 // hydration, installed dependency, or browser behavior is certified here.
