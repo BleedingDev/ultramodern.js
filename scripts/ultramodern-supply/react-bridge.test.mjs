@@ -355,6 +355,8 @@ function createLoader(baseOverride) {
   return { loadCjs, loadEsm };
 }
 
+// The 2.9.2 recipe re-exports the router-free `/base` entry unchanged. The
+// distributed SSR boundary in federation-runtime owns `injectLink: false`.
 for (const entry of runtimeEntries) {
   test(`${entry.name} loads without routers and preserves base exports`, async () => {
     const loader = createLoader();
@@ -369,50 +371,21 @@ for (const entry of runtimeEntries) {
     assert.deepEqual(Object.keys(base).sort(), expectedExports);
     assert.deepEqual(Object.keys(actual).sort(), expectedExports);
     for (const name of expectedExports) {
-      if (name !== 'createLazyComponent') {
-        assert.equal(actual[name], base[name], `${entry.name}: ${name}`);
-      }
+      assert.equal(actual[name], base[name], `${entry.name}: ${name}`);
     }
-    assert.equal(typeof actual.createLazyComponent, 'function');
-    assert.notEqual(actual.createLazyComponent, base.createLazyComponent);
   });
 
-  test(`${entry.name} lazy wrapper preserves results and forwards options`, async () => {
-    const calls = [];
-    const result = Object.freeze({ component: entry.name });
+  test(`${entry.name} re-exports the base module bindings without wrapping`, async () => {
     const base = Object.fromEntries(
       expectedExports.map(name => [name, Symbol(name)]),
     );
-    base.createLazyComponent = (...args) => {
-      calls.push(args);
-      return result;
-    };
     const loader = createLoader(base);
     const load = entry.format === 'esm' ? loader.loadEsm : loader.loadCjs;
     const actual = await load(path.resolve(modernRoot, entry.file));
+    assert.deepEqual(Object.keys(actual).sort(), expectedExports);
     for (const name of expectedExports) {
-      if (name !== 'createLazyComponent') {
-        assert.equal(actual[name], base[name], name);
-      }
+      assert.equal(actual[name], base[name], name);
     }
-    const remoteLoader = () => Promise.resolve({ default: result });
-    for (const injectLink of [false, true, undefined]) {
-      const options = Object.freeze({ loader: remoteLoader, injectLink });
-      assert.equal(actual.createLazyComponent(options), result);
-      const [forwarded] = calls.at(-1);
-      assert.equal(calls.at(-1).length, 1);
-      assert.equal(forwarded.injectLink, injectLink);
-      assert.equal(forwarded.loader, remoteLoader);
-      assert.notEqual(forwarded, options);
-    }
-    const options = Object.freeze({ loader: remoteLoader, fallback: result });
-    assert.equal(actual.createLazyComponent(options), result);
-    assert.equal(calls.at(-1)[0].injectLink, false);
-    assert.equal(calls.at(-1)[0].loader, remoteLoader);
-    assert.equal(calls.at(-1)[0].fallback, result);
-    assert.equal(Object.hasOwn(options, 'injectLink'), false);
-    assert.equal(actual.createLazyComponent(), result);
-    assert.equal(calls.at(-1)[0].injectLink, false);
   });
 }
 
