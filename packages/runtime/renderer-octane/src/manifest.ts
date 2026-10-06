@@ -1,6 +1,6 @@
 import {
-  assertRendererIdentity,
   type RendererIdentity,
+  readRendererIdentity,
 } from '@modern-js/renderer-core/identity';
 import {
   assertNativeHydrationBuildId,
@@ -105,15 +105,10 @@ export function validateOctaneModuleManifest(
       'Octane compiler manifest ABI conflicts with the application.',
     );
   }
-  const identity = record(manifest.rendererIdentity, [
-    'renderer',
-    'appId',
-    'entryName',
-    'protocolVersion',
-    'buildId',
-  ]) as unknown as RendererIdentity;
-  assertOctaneIdentity(identity);
-  assertRendererIdentity(identity, expectedIdentity);
+  const rendererIdentity = readRendererIdentity(
+    manifest.rendererIdentity,
+    expectedIdentity,
+  );
   const nativeHydrationBuildId = manifest.nativeHydrationBuildId;
   assertNativeHydrationBuildId(nativeHydrationBuildId);
   if (expectedNativeHydrationBuildId !== undefined) {
@@ -204,7 +199,7 @@ export function validateOctaneModuleManifest(
     renderer: 'octane',
     runtimeVersion: OCTANE_RUNTIME_VERSION,
     compilerVersion: OCTANE_COMPILER_VERSION,
-    rendererIdentity: Object.freeze({ ...identity }),
+    rendererIdentity,
     nativeHydrationBuildId,
     sourceModules: Object.freeze(sourceModules),
     assets: Object.freeze(assets),

@@ -119,24 +119,7 @@ describe('Octane compiler manifest admission', () => {
     ).toThrow('Renderer identity conflicts with the application build');
   });
 
-  test.each([
-    ['renderer', { renderer: 'react' }, 'Octane renderer identity'],
-    ['protocol', { protocolVersion: 2 }, 'Unsupported renderer data protocol'],
-    ['empty application', { appId: '' }, 'nonempty appId'],
-    ['empty entry', { entryName: '   ' }, 'nonempty entryName'],
-    ['empty build', { buildId: '' }, 'nonempty buildId'],
-  ])('rejects an invalid %s identity', (_name, invalid, message) => {
-    expect(() =>
-      validateOctaneModuleManifest(
-        {
-          ...createManifest(),
-          rendererIdentity: { ...identity, ...invalid },
-        },
-        identity,
-      ),
-    ).toThrow(message);
-  });
-
+  // Identity record validation is covered by renderer-core's identity tests.
   test('rejects an invalid application identity before admitting a compiler envelope', () => {
     expect(() =>
       validateOctaneModuleManifest(createManifest(), {
@@ -173,13 +156,6 @@ describe('Octane compiler manifest admission', () => {
   test.each([
     ['envelope', { ...createManifest(), extra: true }],
     [
-      'identity',
-      {
-        ...createManifest(),
-        rendererIdentity: { ...identity, nativeHydrationBuildId },
-      },
-    ],
-    [
       'source',
       {
         ...createManifest(),
@@ -212,7 +188,6 @@ describe('Octane compiler manifest admission', () => {
   });
 
   test.each([
-    ['identity', { ...createManifest(), rendererIdentity: [] }],
     ['source', { ...createManifest(), sourceModules: [null] }],
     ['asset', { ...createManifest(), assets: [[]] }],
   ])('rejects a malformed %s record', (_name, input) => {

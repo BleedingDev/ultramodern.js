@@ -1,8 +1,8 @@
 import { escapeInlineDataJSON } from '@modern-js/renderer-core/data';
 import {
   assertRendererIdentity,
-  identityCacheKey,
   type RendererIdentity,
+  readRendererIdentity,
 } from '@modern-js/renderer-core/identity';
 
 export const OCTANE_BOOTSTRAP_ID = '__ULTRAMODERN_RENDERER__';
@@ -25,25 +25,11 @@ export function assertNativeHydrationBuildId(
 }
 
 export function assertOctaneIdentity(identity: RendererIdentity): void {
-  identityCacheKey(identity);
+  readRendererIdentity(identity, identity);
   if (identity.renderer !== 'octane') {
     throw new Error(
       'An Octane application requires an Octane renderer identity.',
     );
-  }
-  if (
-    Object.keys(identity).some(
-      key =>
-        ![
-          'renderer',
-          'appId',
-          'entryName',
-          'protocolVersion',
-          'buildId',
-        ].includes(key),
-    )
-  ) {
-    throw new Error('An Octane renderer identity contains an unknown field.');
   }
 }
 
