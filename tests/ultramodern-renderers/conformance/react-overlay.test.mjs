@@ -31,7 +31,7 @@ async function ownedStage(t) {
     JSON.stringify({
       name: 'react-observer-unit',
       devDependencies: { 'existing-tool': '1.0.0' },
-      engines: { node: '>=26.7.0' },
+      engines: { node: '>=26.10.0' },
     }),
   );
   const workspaceRoot = path.join(owner, 'logical-root');
@@ -103,7 +103,7 @@ test('React overlay adds actual entry sources and preserves runtime/bootstrap/pr
   );
   assert.equal(packageManifest.devDependencies['@rsbuild/core'], '2.2.11');
   assert.equal(packageManifest.devDependencies['existing-tool'], '1.0.0');
-  assert.equal(packageManifest.engines.node, '>=26.7.0');
+  assert.equal(packageManifest.engines.node, '>=26.10.0');
   assert.equal(
     await fs.readFile(path.join(appRoot, 'observe-native-compiler.ts'), 'utf8'),
     await fs.readFile(

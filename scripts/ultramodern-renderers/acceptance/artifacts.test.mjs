@@ -799,7 +799,7 @@ function installFixture(
         default: './index.js',
       },
     },
-    engines: { node: '>=26.7.0' },
+    engines: { node: '>=26.10.0' },
     ...manifest,
   });
   write(path.join(directory, 'index.js'), contents);
@@ -1603,7 +1603,7 @@ console.log(readNative().native);
     version,
     publishConfig: { access: 'public' },
     type: format === 'esm' ? 'module' : 'commonjs',
-    engines: { node: '>=26.7.0' },
+    engines: { node: '>=26.10.0' },
     exports: {
       '.': {
         types: './index.d.ts',
@@ -1669,7 +1669,7 @@ console.log(readNative().native);
     name: utilityName,
     version,
     publishConfig: { access: 'public' },
-    engines: { node: '>=26.7.0' },
+    engines: { node: '>=26.10.0' },
     exports: { '.': { types: './index.d.ts', import: './index.js' } },
   });
   write(path.join(stagedUtility, 'index.js'), 'export const fixture = true;\n');
@@ -1682,7 +1682,7 @@ console.log(readNative().native);
     name: generatorName,
     version,
     publishConfig: { access: 'public' },
-    engines: { node: '>=26.7.0' },
+    engines: { node: '>=26.10.0' },
     exports: {
       '.': './index.js',
       './ultramodern-workspace': './index.js',
@@ -2321,7 +2321,7 @@ test('installed audit follows real aliases, peer dependencies and source/server 
     report.closure.map(item => item.name),
     [rendererPackage, 'solid-js'],
   );
-  assert.equal(report.closure[0].engines.node, '>=26.7.0');
+  assert.equal(report.closure[0].engines.node, '>=26.10.0');
   assert.equal(report.closure[0].peerDependencies['solid-js'], nativeVersion);
   assert.equal(report.entryClosure.length, 4);
   assert.match(report.closure[0].manifestSha256, /^[a-f0-9]{64}$/u);
@@ -4473,7 +4473,7 @@ test('artifact audit certifies mapped tarballs and empty optional main, and reje
       name: aliases[`@modern-js/${name}`],
       version,
       publishConfig: { access: 'public' },
-      engines: { node: '>=26.7.0' },
+      engines: { node: '>=26.10.0' },
       exports:
         name === 'types'
           ? { '.': { types: './index.d.ts', default: './index.d.ts' } }
@@ -4578,7 +4578,7 @@ test('artifact audit certifies mapped tarballs and empty optional main, and reje
   assert.equal(report.artifacts.length, 4);
   assert.equal(report.sourceRevision, sourceRevision);
   assert.deepEqual(report.aliases, aliases);
-  assert.equal(report.artifacts[0].engines.node, '>=26.7.0');
+  assert.equal(report.artifacts[0].engines.node, '>=26.10.0');
   assert.match(report.artifacts[0].integrity, /^sha512-/u);
   assert.match(report.artifacts[0].files[0].sha256, /^[a-f0-9]{64}$/u);
   const typesArtifact = report.artifacts.find(

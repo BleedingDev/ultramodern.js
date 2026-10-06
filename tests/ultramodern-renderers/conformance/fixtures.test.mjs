@@ -20,7 +20,7 @@ test('authored fixture uses mapped public configuration and isolated native JSX 
     const result = await createHandAuthoredConsumer({
       consumerRoot,
       renderer,
-      minimumNode: '26.7.0',
+      minimumNode: '26.10.0',
       dependencySpecs: Object.fromEntries(
         requiredFixtureDependencies(renderer).map(name => [
           name,
@@ -128,7 +128,7 @@ test('authored fixture preserves exact maintained native archives and Node host 
   await createHandAuthoredConsumer({
     consumerRoot,
     renderer: 'octane',
-    minimumNode: '26.7.0',
+    minimumNode: '26.10.0',
     dependencySpecs,
     scripts: { typecheck: 'unit-only-typecheck', build: 'unit-only-build' },
   });
@@ -181,7 +181,7 @@ test('authored fixture rejects altered transport tuples and maintained registry 
   const input = {
     consumerRoot,
     renderer: 'octane',
-    minimumNode: '26.7.0',
+    minimumNode: '26.10.0',
     scripts: { typecheck: 'unit-only-typecheck', build: 'unit-only-build' },
   };
   const dependencies = Object.fromEntries(
@@ -236,7 +236,7 @@ test('authored fixture refuses an existing path and broad or workspace dependenc
   const input = {
     consumerRoot: path.join(owner, 'consumer'),
     renderer: 'solid',
-    minimumNode: '26.7.0',
+    minimumNode: '26.10.0',
     dependencySpecs: Object.fromEntries(
       requiredFixtureDependencies('solid').map(name => [name, '1.0.0-unit.1']),
     ),

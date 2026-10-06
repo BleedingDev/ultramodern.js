@@ -17,7 +17,7 @@ import {
 import { readReleaseManifest } from '../../../../../../scripts/ultramodern-publish/lib/source-create-proof/release-manifest.mjs';
 import { startEphemeralRegistry } from '../../../../../../scripts/ultramodern-publish/lib/source-create-proof/runtime-proof/registry.mjs';
 
-const minimumNode = '26.7.0';
+const minimumNode = '26.10.0';
 const renderers = ['react', 'solid', 'octane'];
 const hash = value => createHash('sha256').update(value).digest('hex');
 const sourceRoot = path.resolve(

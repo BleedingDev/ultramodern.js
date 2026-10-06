@@ -12,7 +12,7 @@ export default defineConfig({
 });
 ```
 
-Use Node **26.7.0 or newer**. Run the installed application's public CLI:
+Use Node **26.10.0 or newer**. Run the installed application's public CLI:
 
 ```sh
 pnpm exec ultramodern dev

@@ -66,7 +66,7 @@ rstest.mock('../../src/renderers/solid/registration', () => {
     renderer: 'fourth-native',
     status: 'preview',
     protocolVersion: 1,
-    minimumNode: '26.7.0',
+    minimumNode: '26.10.0',
     hmr: {
       editedBoundary: 'may-reset',
       unaffectedComponents: 'preserved',
