@@ -209,12 +209,22 @@ async function dispatchRouteWorker(route, request, env, ctx) {
   );
 }
 
+function createWorkerRendererErrorResponse(code, entryName) {
+  return Response.json(
+    { code, entryName: String(entryName) },
+    { status: 500, headers: { 'cache-control': 'no-store' } },
+  );
+}
+
 function withWorkerRendererIdentity(response, route) {
   const identities = MODERN_WORKER_MANIFEST.rendererIdentities;
   if (!identities) return response;
   if (!Object.hasOwn(identities, route.entryName)) {
-    throw new Error(
-      `Cloudflare worker route has no built renderer identity for ${String(route.entryName)}`,
+    // Do not let a manifest/route mismatch escape fetch and fail the isolate.
+    response.body?.cancel().catch(() => {});
+    return createWorkerRendererErrorResponse(
+      'missing-renderer-identity',
+      route.entryName,
     );
   }
   const headers = new Headers(response.headers);
