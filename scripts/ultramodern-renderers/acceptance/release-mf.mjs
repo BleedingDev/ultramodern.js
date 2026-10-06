@@ -6,8 +6,15 @@ import net from 'node:net';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { createReleaseArtifactBinding } from '../../ultramodern-production-readiness/published-create-proof/acceptance-contract.mjs';
+import {
+  createAcceptancePackageManagerEnv,
+  createAcceptanceReleaseAgeEnv,
+} from '../../ultramodern-production-readiness/published-create-proof/acceptance-profile.mjs';
+import { resolveCreatePackage } from '../../ultramodern-production-readiness/published-create-proof/package-cohort.mjs';
+import { resolveAcceptanceReleaseAgeExclusions } from '../../ultramodern-production-readiness/published-create-proof/release-age-audit.mjs';
 import { releaseConsumerInputs } from '../../ultramodern-production-readiness/react-rsc-worker-proof/contract.mjs';
 import { readReleaseManifest } from '../../ultramodern-publish/lib/source-create-proof/release-manifest.mjs';
+import { startEphemeralRegistry } from '../../ultramodern-publish/lib/source-create-proof/runtime-proof/registry.mjs';
 import { runReactMfRendererGuardProof } from './react-mf-renderer-guard-proof.mjs';
 import {
   atomicJson,
@@ -165,6 +172,34 @@ export async function runFederationProbe(options) {
     const release = readReleaseManifest({
       manifestPath: artifacts.manifestPath,
     });
+    // This workspace is its own consumer (not the shared generator consumer
+    // provisioning already installed), so it needs the same ephemeral local
+    // cohort registry and release-age-exclusion policy provision used there
+    // (withBareGeneratorProof) instead of resolving against the real registry.
+    const registry = await startEphemeralRegistry({
+      release,
+      releaseDir: path.dirname(artifacts.manifestPath),
+      rootDir: path.join(leaf, 'registry'),
+      storeDir,
+    });
+    handles.push({ stop: () => registry.stop() });
+    receipt.registry = { url: registry.registryUrl, tool: registry.tool };
+    const releaseAgeExclusions = resolveAcceptanceReleaseAgeExclusions({
+      release,
+      mode: 'source',
+    });
+    const installEnv = createAcceptanceReleaseAgeEnv(
+      createAcceptancePackageManagerEnv(
+        leaf,
+        registry.env,
+        pnpmExecutable,
+        env,
+        { storeDir },
+      ),
+      resolveCreatePackage(release),
+      releaseAgeExclusions,
+      registry.env,
+    );
     const mf = new Map(
       createReleaseArtifactBinding(release).moduleFederation.map(item => [
         item.packageName,
@@ -289,6 +324,7 @@ export async function runFederationProbe(options) {
           log: path.join(workDir, `${path.basename(leaf)}-install.log`),
           env: {
             ...env,
+            ...installEnv,
             npm_config_store_dir: storeDir,
             pnpm_config_store_dir: storeDir,
             npm_config_cache: path.join(leaf, 'npm-cache'),
