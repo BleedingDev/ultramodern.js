@@ -762,12 +762,20 @@ describe('native Solid Node stream', () => {
     expect(cleanup).toHaveBeenCalledTimes(1);
   });
 
-  test('rejects unsupported platforms, identities and terminal outcomes before invoking the view', async () => {
-    const view = rstest.fn(() => null);
+  test('renders the same native document on the worker platform', async () => {
     const worker = createSession({ platform: 'worker' });
-    await expect(renderApplication({ session: worker, view })).rejects.toThrow(
-      'worker rendering has not been admitted',
-    );
+    const html = await (
+      await renderDocumentApplication({
+        session: worker,
+        view: () => ssr(`<main${ssrHydrationKey()}>worker document</main>`),
+      })
+    ).text();
+    expect(html).toMatch(/<main _hk=[^>]*>worker document<\/main>/);
+    expect((await worker.completion).state).toBe('completed');
+  });
+
+  test('rejects unsupported identities and terminal outcomes before invoking the view', async () => {
+    const view = rstest.fn(() => null);
     const react = createSession({ renderer: 'react' });
     await expect(renderApplication({ session: react, view })).rejects.toThrow(
       'Solid renderer identity',
@@ -783,10 +791,6 @@ describe('native Solid Node stream', () => {
       renderApplication({ session: terminal, view }),
     ).rejects.toThrow('terminal responses bypass rendering');
     expect(view).not.toHaveBeenCalled();
-    await Promise.all([
-      worker.completion,
-      react.completion,
-      terminal.completion,
-    ]);
+    await Promise.all([react.completion, terminal.completion]);
   });
 });

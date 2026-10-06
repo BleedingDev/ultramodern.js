@@ -100,7 +100,7 @@ function createWorkerRendererGuardResponse(request) {
       { status: 500, headers: { 'cache-control': 'no-store' } },
     );
   }
-  if (isNative) {
+  if (isNative && !hasNativeWorkerRenderer(identity.renderer)) {
     return Response.json(
       {
         code: 'unsupported-renderer-capability',
@@ -153,12 +153,34 @@ async function getRequestHandler(workerModule) {
   );
 }
 
+function hasNativeWorkerRenderer(renderer) {
+  return MODERN_WORKER_MANIFEST.nativeRenderer?.renderer === renderer;
+}
+
+function getNativeRouteIdentity(route) {
+  const identities = MODERN_WORKER_MANIFEST.rendererIdentities;
+  const identity =
+    identities && Object.hasOwn(identities, route.entryName)
+      ? identities[route.entryName]
+      : undefined;
+  // Solid and Octane, or any renderer that shipped native worker resources.
+  return identity &&
+    (identity.renderer === 'solid' ||
+      identity.renderer === 'octane' ||
+      hasNativeWorkerRenderer(identity.renderer))
+    ? identity
+    : undefined;
+}
+
 async function dispatchRouteWorker(route, request, env, ctx) {
   const rendererRejection = createWorkerRendererGuardResponse(request);
   if (rendererRejection) return rendererRejection;
 
+  const nativeIdentity = getNativeRouteIdentity(route);
   return withWorkerRendererIdentity(
-    await invokeRouteWorker(route, request, env, ctx),
+    nativeIdentity
+      ? await invokeNativeRouteWorker(route, nativeIdentity, request, env, ctx)
+      : await invokeRouteWorker(route, request, env, ctx),
     route,
   );
 }
@@ -168,6 +190,61 @@ function createWorkerRendererErrorResponse(code, entryName) {
     { code, entryName: String(entryName) },
     { status: 500, headers: { 'cache-control': 'no-store' } },
   );
+}
+
+// Solid and Octane bundle their native server handler with the renderer-core
+// worker dispatcher. Build-validated document inputs come from the manifest.
+async function invokeNativeRouteWorker(route, identity, request, env, ctx) {
+  const nativeRenderer = MODERN_WORKER_MANIFEST.nativeRenderer;
+  const resources =
+    nativeRenderer?.renderer === identity.renderer &&
+    Object.hasOwn(nativeRenderer.entries, route.entryName)
+      ? nativeRenderer.entries[route.entryName]
+      : undefined;
+  // Native renderers have no Flight transport. Reject before the bundle loads.
+  if (
+    request.headers.has('x-rsc-tree') ||
+    request.headers.has('x-rsc-action')
+  ) {
+    return Response.json(
+      { code: 'unsupported-renderer-capability', capability: 'rsc' },
+      { status: 400, headers: { 'cache-control': 'no-store' } },
+    );
+  }
+  if (!resources) {
+    return createWorkerRendererErrorResponse(
+      'missing-native-renderer-resources',
+      route.entryName,
+    );
+  }
+  try {
+    const workerModule = route.worker
+      ? await loadWorkerModule(route.worker)
+      : undefined;
+    if (
+      !workerModule ||
+      typeof workerModule.dispatchNativeWorkerRequest !== 'function'
+    ) {
+      return createWorkerRendererErrorResponse(
+        'missing-native-worker-bundle',
+        route.entryName,
+      );
+    }
+    return await workerModule.dispatchNativeWorkerRequest(request, {
+      identity,
+      bundle: workerModule,
+      resources,
+      bindings: env,
+      executionContext: ctx,
+    });
+  } catch (error) {
+    // A bundle evaluation or pre-commit native failure must not escape fetch.
+    console.error(error);
+    return createWorkerRendererErrorResponse(
+      'native-render-failed',
+      route.entryName,
+    );
+  }
 }
 
 function withWorkerRendererIdentity(response, route) {

@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { SERVICE_WORKER_ENVIRONMENT_NAME } from '@modern-js/builder';
 import type { RendererIdentity } from '@modern-js/renderer-core';
 import {
   inferRspackEnvironment,
@@ -62,59 +63,67 @@ export function createOctaneCompilerPlugin(
             },
           }),
         );
-        api.modifyRspackConfig(config => {
-          const environment = inferRspackEnvironment(config.target);
-          // Octane prepends '.tsrx' only when it is absent. Keep TypeScript
-          // modules first so an extensionless './link' cannot select a
-          // case-colliding Link.tsrx on case-insensitive file systems.
-          config.resolve ??= {};
-          const extensions = (config.resolve.extensions ?? []).filter(
-            extension => extension !== '.tsrx',
-          );
-          extensions.splice(
-            Math.max(extensions.indexOf('.ts'), extensions.indexOf('.tsx')) + 1,
-            0,
-            '.tsrx',
-          );
-          config.resolve.extensions = extensions;
-          config.plugins ??= [];
-          config.plugins.push(
-            new OctaneRspackPlugin({
-              root: api.context.rootPath,
-              environment,
-              transpile: false,
-            }),
-          );
-          config.plugins.push(
-            new OctaneCompilerManifestPlugin({
-              emitClientManifest: environment === 'client',
-              root: api.context.rootPath,
-              runtimeVersion: OCTANE_RUNTIME_VERSION,
-              compilerVersion: OCTANE_COMPILER_VERSION,
-              sourceLoader: path.join(
-                directory,
-                'source-provenance-loader.cjs',
-              ),
-              rendererIdentities: options.rendererIdentities,
-              manifestFilename: octaneModuleManifestFileName,
-              validateManifest: validateOctaneModuleManifest,
-            }),
-          );
-          config.module ??= {};
-          config.module.rules ??= [];
-          // Rsbuild's existing SWC rule handles ordinary .ts/.tsx sources.
-          // TSRX needs the same stripping stage after Octane's pre-loader.
-          config.module.rules.push({
-            test: /\.tsrx$/u,
-            type: 'javascript/auto',
-            use: [
-              {
-                loader: 'builtin:swc-loader',
-                options: { detectSyntax: 'auto' },
-              },
-            ],
-          });
-        });
+        api.modifyRspackConfig(
+          (config, { environment: rsbuildEnvironment }) => {
+            // The Cloudflare SSR worker targets `webworker`; it still renders
+            // the server document rather than a client hydration bundle.
+            const environment =
+              rsbuildEnvironment.name === SERVICE_WORKER_ENVIRONMENT_NAME
+                ? 'server'
+                : inferRspackEnvironment(config.target);
+            // Octane prepends '.tsrx' only when it is absent. Keep TypeScript
+            // modules first so an extensionless './link' cannot select a
+            // case-colliding Link.tsrx on case-insensitive file systems.
+            config.resolve ??= {};
+            const extensions = (config.resolve.extensions ?? []).filter(
+              extension => extension !== '.tsrx',
+            );
+            extensions.splice(
+              Math.max(extensions.indexOf('.ts'), extensions.indexOf('.tsx')) +
+                1,
+              0,
+              '.tsrx',
+            );
+            config.resolve.extensions = extensions;
+            config.plugins ??= [];
+            config.plugins.push(
+              new OctaneRspackPlugin({
+                root: api.context.rootPath,
+                environment,
+                transpile: false,
+              }),
+            );
+            config.plugins.push(
+              new OctaneCompilerManifestPlugin({
+                emitClientManifest: environment === 'client',
+                root: api.context.rootPath,
+                runtimeVersion: OCTANE_RUNTIME_VERSION,
+                compilerVersion: OCTANE_COMPILER_VERSION,
+                sourceLoader: path.join(
+                  directory,
+                  'source-provenance-loader.cjs',
+                ),
+                rendererIdentities: options.rendererIdentities,
+                manifestFilename: octaneModuleManifestFileName,
+                validateManifest: validateOctaneModuleManifest,
+              }),
+            );
+            config.module ??= {};
+            config.module.rules ??= [];
+            // Rsbuild's existing SWC rule handles ordinary .ts/.tsx sources.
+            // TSRX needs the same stripping stage after Octane's pre-loader.
+            config.module.rules.push({
+              test: /\.tsrx$/u,
+              type: 'javascript/auto',
+              use: [
+                {
+                  loader: 'builtin:swc-loader',
+                  options: { detectSyntax: 'auto' },
+                },
+              ],
+            });
+          },
+        );
       },
     },
     {

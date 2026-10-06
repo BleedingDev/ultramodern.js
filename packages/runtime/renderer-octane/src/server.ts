@@ -69,8 +69,10 @@ function prepareOctaneDocument<Bindings extends object>(
   if (session.identity.renderer !== 'octane') {
     throw new Error('The Octane adapter requires an Octane renderer identity.');
   }
-  if (session.platform.kind !== 'node') {
-    throw new Error('Octane worker rendering has not been admitted.');
+  if (session.platform.kind !== 'node' && session.platform.kind !== 'worker') {
+    throw new Error(
+      'An Octane document requires a Node or worker request platform.',
+    );
   }
   assertNativeHydrationBuildId(document.nativeHydrationBuildId);
   const rootId = documentAttribute(document.rootId ?? 'root', 'rootId');

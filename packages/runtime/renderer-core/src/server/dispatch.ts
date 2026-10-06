@@ -74,6 +74,14 @@ function isReusableDocument(
   );
 }
 
+/**
+ * The reason phrase a Fetch runtime assigns when a policy omits one: empty in
+ * Node, the standard phrase (for example `OK`) in workerd.
+ */
+function defaultStatusText(status: number): string {
+  return new Response(null, { status }).statusText;
+}
+
 function normalizeTerminalResponse<Bindings extends object>(
   response: Response,
   session: RequestSession<Bindings>,
@@ -84,7 +92,11 @@ function normalizeTerminalResponse<Bindings extends object>(
         'Native handler changed HTTP status after committing its response policy.',
       );
     }
-    if (response.statusText !== (session.committedPolicy.statusText ?? '')) {
+    if (
+      response.statusText !==
+      (session.committedPolicy.statusText ??
+        defaultStatusText(session.committedPolicy.status))
+    ) {
       throw new Error(
         'Native handler changed HTTP status text after committing its response policy.',
       );
@@ -255,8 +267,25 @@ function captureDocument<Bindings extends object>(
   return delivered;
 }
 
+function openSession<Bindings extends object>(
+  request: Request,
+  options: NativeDispatchOptions<Bindings>,
+): RequestSession<Bindings> {
+  const session = createRequestSession({
+    request,
+    identity: options.identity,
+    platform: {
+      kind: options.platform ?? 'node',
+      bindings: options.context.bindings,
+    },
+  });
+  // Worker isolates may end once fetch returns; keep owned cleanup alive.
+  options.executionContext?.waitUntil(session.completion);
+  return session;
+}
+
 /** Production Fetch dispatch. React rendering and matching are never imported. */
-export async function dispatchNativeNodeRequest<Bindings extends object>(
+export async function dispatchNativeRequest<Bindings extends object>(
   request: Request,
   options: NativeDispatchOptions<Bindings>,
 ): Promise<Response> {
@@ -264,13 +293,9 @@ export async function dispatchNativeNodeRequest<Bindings extends object>(
   if (rscRejection) return rscRejection;
   const identityKey = identityCacheKey(options.identity);
   if (options.identity.renderer === 'react') {
-    throw new Error('Native Node dispatch requires Solid or Octane.');
+    throw new Error('Native dispatch requires Solid or Octane.');
   }
-  let session = createRequestSession({
-    request,
-    identity: options.identity,
-    platform: { kind: 'node', bindings: options.context.bindings },
-  });
+  let session = openSession(request, options);
   const { bindings: _bindings, ...renderContext } = options.context;
   let context: NativeRequestContext<Bindings> = {
     ...renderContext,
@@ -377,11 +402,7 @@ export async function dispatchNativeNodeRequest<Bindings extends object>(
     )
       throw error;
     // A pre-commit fallback owns a fresh lifetime; the failed session is disposed.
-    session = createRequestSession({
-      request,
-      identity: options.identity,
-      platform: { kind: 'node', bindings: options.context.bindings },
-    });
+    session = openSession(request, options);
     session.markFallback();
     context = { ...context, session };
     try {
@@ -404,4 +425,12 @@ export async function dispatchNativeNodeRequest<Bindings extends object>(
       throw fallbackError;
     }
   }
+}
+
+/** Node host dispatch; the request platform binding is always `node`. */
+export function dispatchNativeNodeRequest<Bindings extends object>(
+  request: Request,
+  options: NativeDispatchOptions<Bindings>,
+): Promise<Response> {
+  return dispatchNativeRequest(request, { ...options, platform: 'node' });
 }

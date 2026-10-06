@@ -681,6 +681,20 @@ describe('renderer guard in the owning plugin manager', () => {
   it.each([
     'solid',
     'octane',
+  ] as const)('admits Cloudflare worker SSR before %s host setup', async renderer => {
+    const selectedSetup = rstest.fn();
+    const config = await selectHost(renderer, {
+      name: 'fixture:selected-host',
+      setup: selectedSetup,
+    });
+    config.deploy = { target: 'cloudflare', worker: { ssr: true } };
+    await initializeSelection(config);
+    expect(selectedSetup).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    'solid',
+    'octane',
   ] as const)('rejects RSC config before %s host setup', async renderer => {
     const selectedSetup = rstest.fn();
     const config = await selectHost(renderer, {
@@ -716,11 +730,11 @@ describe('renderer guard in the owning plugin manager', () => {
           unsupported: { output: { ssgByEntries: { main: true } } },
         },
         {
-          capability: 'worker SSR',
-          unsupported: { deploy: { target: 'node', worker: { ssr: true } } },
+          capability: 'an unadmitted deployment provider',
+          unsupported: { deploy: { target: 'vercel' } },
         },
         {
-          capability: 'worker provider',
+          capability: 'Cloudflare without its native worker',
           unsupported: { deploy: { target: 'cloudflare' } },
         },
         {

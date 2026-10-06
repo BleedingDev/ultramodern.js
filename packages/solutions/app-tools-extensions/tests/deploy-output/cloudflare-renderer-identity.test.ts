@@ -87,6 +87,7 @@ async function fixture(
     mutate?: (build: ReturnType<typeof buildMetadata>) => void;
     includePublicAsset?: boolean;
     mutateRoutes?: (routes: FixtureRoute[]) => void;
+    nativeResources?: unknown;
   } = {},
 ) {
   const appDirectory = await fs.mkdtemp(
@@ -128,6 +129,11 @@ async function fixture(
   }
   options.mutateRoutes?.(routes);
   await write('route.json', JSON.stringify({ routes }));
+  if (options.nativeResources !== undefined)
+    await write(
+      'worker/native-renderer.json',
+      JSON.stringify(options.nativeResources),
+    );
   await write(
     'worker/main.js',
     `${streamWorker}
@@ -422,4 +428,65 @@ it('rejects malformed existing metadata and preserves output without a renderer 
   });
   expect(response.headers.get(identityHeader)).toBeNull();
   expect(await response.text()).toContain('document:main');
+});
+
+describe('native worker resources', () => {
+  const asSolid = (build: ReturnType<typeof buildMetadata>) => {
+    build.profile.renderer = 'solid';
+    for (const identity of Object.values(build.identities))
+      identity.renderer = 'solid';
+  };
+  const entry = {
+    assets: [{ kind: 'script', href: '/static/js/main.js' }],
+    nativeManifest: { modules: {} },
+    serverConfig: { ssr: 'stream' },
+  };
+  const resources = (entries: Record<string, unknown>) => ({
+    schema: 'ultramodern-native-worker-resources',
+    version: 1,
+    renderer: 'solid',
+    entries,
+  });
+
+  it('fails deploy before emitting a Solid worker without its native build', async () => {
+    const input = await fixture({ mutate: asSolid });
+    await expect(input.preset.writeOutput?.()).rejects.toThrow(
+      'Cloudflare worker deploy of the solid renderer requires its native worker build for entry main. Set deploy.worker.ssr: true',
+    );
+  });
+
+  it('inlines validated native document inputs for every Solid entry', async () => {
+    const nativeResources = resources({ main: entry, other: entry });
+    const input = await fixture({ mutate: asSolid, nativeResources });
+    await input.preset.writeOutput?.();
+    await input.preset.genEntry?.();
+    const manifest = JSON.parse(
+      await fs.readFile(
+        path.join(input.outputDirectory, 'server/modern-worker-manifest.json'),
+        'utf8',
+      ),
+    );
+    expect(manifest.nativeRenderer).toEqual(nativeResources);
+    await expect(
+      fs.stat(path.join(input.outputDirectory, 'worker/native-renderer.json')),
+    ).rejects.toThrow('ENOENT');
+  });
+
+  it.each([
+    ['a missing entry', resources({ main: entry })],
+    ['an unknown entry', resources({ main: entry, other: entry, x: entry })],
+    [
+      'no document assets',
+      resources({ main: entry, other: { ...entry, assets: [] } }),
+    ],
+    [
+      'another renderer',
+      { ...resources({ main: entry, other: entry }), renderer: 'react' },
+    ],
+  ])('rejects resources with %s', async (_name, nativeResources) => {
+    const input = await fixture({ mutate: asSolid, nativeResources });
+    await expect(input.preset.writeOutput?.()).rejects.toThrow(
+      'native renderer worker resources',
+    );
+  });
 });

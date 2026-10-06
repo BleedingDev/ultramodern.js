@@ -244,11 +244,22 @@ export function assertCapturedRenderer(
       ))
   )
     reject('Module Federation application SSR');
+  const deployTarget = resolveDeployTarget(config);
   if (
     !capabilities.worker &&
-    (config.deploy?.worker?.ssr || resolveDeployTarget(config) !== 'node')
+    (config.deploy?.worker?.ssr || deployTarget !== 'node')
   )
     reject('worker or unadmitted deployment providers');
+  if (registration.kind === 'native') {
+    // Native documents need a server dispatcher: the Node host, or the
+    // Cloudflare module worker built from the same native server handler.
+    if (deployTarget !== 'node' && deployTarget !== 'cloudflare')
+      reject(`the ${deployTarget} deployment provider`);
+    if (deployTarget === 'cloudflare' && !config.deploy?.worker?.ssr)
+      throw new Error(
+        `unsupported-renderer-capability: renderer ${renderer} serves Cloudflare documents only from its native worker; set deploy.worker.ssr: true`,
+      );
+  }
 }
 
 function flattenPluginNames(plugins: readonly CliPlugin<AppTools>[]): string[] {
