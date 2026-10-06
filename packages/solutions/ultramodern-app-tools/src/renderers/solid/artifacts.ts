@@ -1,10 +1,8 @@
+import { nativeModuleManifestFilename } from '@modern-js/renderer-core/identity';
 import type { NativeCompilerArtifacts } from '../../native-composition/compiler-artifacts';
 
-function clientManifestFile(entryName: string): string {
-  if (typeof entryName !== 'string' || !entryName.length)
-    throw new Error('A Solid module manifest requires a nonempty entry name');
-  return `solid-module-manifest.${encodeURIComponent(entryName)}.json`;
-}
+const clientManifestFile = (entryName: string) =>
+  nativeModuleManifestFilename('solid', entryName);
 
 export const solidCompilerArtifacts = Object.freeze<NativeCompilerArtifacts>({
   routerFrameworks: ['solid'],

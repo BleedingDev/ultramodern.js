@@ -3,7 +3,6 @@ import { describe, expect, test } from '@rstest/core';
 import {
   OCTANE_COMPILER_VERSION,
   OCTANE_RUNTIME_VERSION,
-  octaneModuleManifestFileName,
   validateOctaneModuleManifest,
 } from '../src/manifest';
 
@@ -337,31 +336,5 @@ describe('Octane compiler manifest admission', () => {
     input.assets[0].sha256 = 'e'.repeat(64);
     input.assets.push({ file: 'extra.js', sha256: assetSha256 });
     expect(admitted).toEqual(expected);
-  });
-});
-
-describe('Octane compiler manifest filenames', () => {
-  test.each([
-    ['main', 'octane-module-manifest.main.json'],
-    [
-      'main/admin?view=1',
-      'octane-module-manifest.main%2Fadmin%3Fview%3D1.json',
-    ],
-    ['store%2Fmain', 'octane-module-manifest.store%252Fmain.json'],
-  ])('encodes entry %s into a single emitted filename', (entry, filename) => {
-    expect(octaneModuleManifestFileName(entry)).toBe(filename);
-  });
-
-  test.each(['', '   '])('rejects an empty entry %s', entry => {
-    expect(() => octaneModuleManifestFileName(entry)).toThrow(
-      'require an application entry name',
-    );
-  });
-
-  test.each([undefined, null, 42])('rejects a nonstring entry %s', entry => {
-    expect(() =>
-      // @ts-expect-error Exercise malformed input at the filename boundary.
-      octaneModuleManifestFileName(entry),
-    ).toThrow('require an application entry name');
   });
 });

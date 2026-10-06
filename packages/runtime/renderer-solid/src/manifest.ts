@@ -1,14 +1,12 @@
 import {
+  nativeModuleManifestFilename,
   type RendererIdentity,
   readRendererIdentity,
 } from '@modern-js/renderer-core/identity';
 
 export const SOLID_COMPILER_VERSION = '2.0.0-rc.13';
 export function solidModuleManifestFilename(entryName: string): string {
-  if (typeof entryName !== 'string' || entryName.length === 0) {
-    throw new Error('A Solid module manifest requires a nonempty entry name');
-  }
-  return `solid-module-manifest.${encodeURIComponent(entryName)}.json`;
+  return nativeModuleManifestFilename('solid', entryName);
 }
 
 /** The compiler's structural JSON boundary matches native Solid AssetManifest. */

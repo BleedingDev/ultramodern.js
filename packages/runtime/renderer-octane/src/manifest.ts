@@ -1,4 +1,5 @@
 import {
+  nativeModuleManifestFilename,
   type RendererIdentity,
   readRendererIdentity,
 } from '@modern-js/renderer-core/identity';
@@ -35,12 +36,7 @@ export interface OctaneModuleManifest {
 }
 
 export function octaneModuleManifestFileName(entryName: string): string {
-  if (typeof entryName !== 'string' || !entryName.trim()) {
-    throw new Error(
-      'Octane module manifests require an application entry name.',
-    );
-  }
-  return `octane-module-manifest.${encodeURIComponent(entryName)}.json`;
+  return nativeModuleManifestFilename('octane', entryName);
 }
 
 function record(

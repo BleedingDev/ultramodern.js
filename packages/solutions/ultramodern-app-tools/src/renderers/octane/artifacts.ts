@@ -1,12 +1,8 @@
+import { nativeModuleManifestFilename } from '@modern-js/renderer-core/identity';
 import type { NativeCompilerArtifacts } from '../../native-composition/compiler-artifacts';
 
-function clientManifestFile(entryName: string): string {
-  if (typeof entryName !== 'string' || !entryName.trim())
-    throw new Error(
-      'Octane module manifests require an application entry name.',
-    );
-  return `octane-module-manifest.${encodeURIComponent(entryName)}.json`;
-}
+const clientManifestFile = (entryName: string) =>
+  nativeModuleManifestFilename('octane', entryName);
 
 export const octaneCompilerArtifacts = Object.freeze<NativeCompilerArtifacts>({
   routerFrameworks: ['octane'],

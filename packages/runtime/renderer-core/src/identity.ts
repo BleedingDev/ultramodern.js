@@ -88,6 +88,19 @@ export function readRendererIdentity(
   });
 }
 
+/** The emitted client compiler manifest for one native renderer entry. */
+export function nativeModuleManifestFilename(
+  renderer: Renderer,
+  entryName: string,
+): string {
+  if (typeof entryName !== 'string' || !entryName.trim()) {
+    throw new Error(
+      'Native module manifests require an application entry name.',
+    );
+  }
+  return `${resolveRenderer(renderer)}-module-manifest.${encodeURIComponent(entryName)}.json`;
+}
+
 /** Response header naming the built entry identity that rendered a document. */
 export const RENDERER_IDENTITY_HEADER = 'x-ultramodern-renderer-identity';
 
