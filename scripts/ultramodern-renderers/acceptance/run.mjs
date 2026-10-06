@@ -32,7 +32,21 @@ async function authoredInputDigest(applicationRoot) {
   for (const name of (await fs.readdir(applicationRoot)).sort())
     if (name === 'src' || /\.(?:[cm]?[jt]sx?|json|css)$/u.test(name))
       await visit(name);
-  return sha256(JSON.stringify(inputs));
+  return { digest: sha256(JSON.stringify(inputs)), inputs };
+}
+
+/** Names the authored inputs whose bytes appeared, vanished or changed. */
+async function assertAuthoredInputsUnchanged(applicationRoot, before, phase) {
+  const after = await authoredInputDigest(applicationRoot);
+  if (after.digest === before.digest) return;
+  const previous = new Map(before.inputs);
+  const current = new Map(after.inputs);
+  const drifted = [...new Set([...previous.keys(), ...current.keys()])]
+    .filter(file => previous.get(file) !== current.get(file))
+    .sort();
+  throw new Error(
+    `Authored source or type program drifted during ${phase}: ${drifted.join(', ')}`,
+  );
 }
 
 function validHmrProfile(hmr) {
@@ -750,10 +764,11 @@ export async function runPackedConformance(config, dependencies = {}) {
       applicationRoot,
       consumerRoot,
     });
-    if ((await authoredInputDigest(applicationRoot)) !== authoredDigest)
-      throw new Error(
-        'Authored source or type program drifted during the build',
-      );
+    await assertAuthoredInputsUnchanged(
+      applicationRoot,
+      authoredDigest,
+      'the build',
+    );
     let compilerObservation;
     {
       const current = await fs.stat(observationFile);
@@ -806,10 +821,11 @@ export async function runPackedConformance(config, dependencies = {}) {
         ...(await run(command, applicationRoot, commandOptions)),
       });
     }
-    if ((await authoredInputDigest(applicationRoot)) !== authoredDigest)
-      throw new Error(
-        'Authored source or type program drifted during type checking',
-      );
+    await assertAuthoredInputsUnchanged(
+      applicationRoot,
+      authoredDigest,
+      'type checking',
+    );
     for (const type of typePrograms)
       if (
         (await fs.realpath(type.path)) !== type.path ||
