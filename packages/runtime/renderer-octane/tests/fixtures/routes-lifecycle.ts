@@ -9,6 +9,7 @@ import { createRequestSession } from '@modern-js/renderer-core/session';
 import {
   createMemoryHistory,
   createRouter,
+  type ErrorRouteComponent,
   isNotFound,
   isRedirect,
   Outlet,
@@ -21,7 +22,7 @@ import {
   createSsrStreamResponse,
   RouterServer,
 } from '@octanejs/tanstack-router/ssr/server';
-import { flushSync } from 'octane';
+import { createElement, flushSync } from 'octane';
 import { ssrHtml } from 'octane/server';
 import { mountOctaneApplication } from '../../src/client';
 import { createOctaneRouteAction } from '../../src/router';
@@ -1115,6 +1116,101 @@ export async function nativeRouterDocumentStream() {
   for (const tag of scripts) assert.match(tag, /nonce=["']router-nonce["']/);
   assert.equal((await session.completion).state, 'completed');
   assert.equal(cleanup, 1);
+}
+
+async function renderRouteErrorDocument(
+  modules: Parameters<typeof createFileSystemRouteTree>[1],
+) {
+  const session = requestSession();
+  const tree = createFileSystemRouteTree(
+    [
+      descriptor('layout', {
+        isRoot: true,
+        children: [
+          descriptor('home', {
+            index: true,
+            modules: { data: '/home.data.ts' },
+          }),
+        ],
+      }),
+    ],
+    {
+      ...modules,
+      layout: {
+        ...modules.layout,
+        component: () =>
+          createElement('main', { 'data-layout': 'native' }, [
+            createElement('nav', null, 'Native layout'),
+            createElement(Outlet),
+          ]),
+      },
+    },
+    {
+      request: session.request,
+      loadRoute: async () => ({
+        kind: 'error',
+        error: { name: 'Error', message: 'Native loader failure' },
+        response: metadata(500),
+      }),
+    },
+  );
+  const router = createRouter({ routeTree: tree, isServer: true });
+  let statusCode: number | undefined;
+  const response = await createRequestHandler({
+    request: session.request,
+    createRouter: () => router,
+  })(async ({ router }) => {
+    statusCode = router.state.statusCode;
+    return createSsrStreamResponse(
+      router,
+      await renderOctaneApplication({
+        session,
+        App: RouterServer,
+        props: { router },
+        injection: createOctaneRouterInjection(router, session),
+        document: {
+          documentId: 'route-error-document',
+          nativeHydrationBuildId: 'native-router-fixture-client',
+        },
+      }),
+    );
+  });
+  const html = await response.text();
+  await session.completion;
+  return { html, statusCode };
+}
+
+export async function nativeRouteErrorDocument() {
+  // Without an authored error.tsx the native error UI replaces only the failing
+  // route; the layout stays server-rendered instead of a client-recovered hole.
+  const fallback = await renderRouteErrorDocument({});
+  assert.equal(fallback.statusCode, 500);
+  assert.match(fallback.html, /data-layout="native">[\s\S]*Native layout/);
+  assert.match(fallback.html, /Something went wrong!/);
+  assert.match(fallback.html, /Native loader failure/);
+
+  const authoredError: ErrorRouteComponent = ({ error }) =>
+    createElement('section', { 'data-route-error': 'authored' }, error.message);
+  const authored = await renderRouteErrorDocument({
+    home: { errorComponent: authoredError },
+  });
+  assert.equal(authored.statusCode, 500);
+  assert.match(
+    authored.html,
+    /Native layout<\/nav>[\s\S]*data-route-error="authored">[\s\S]*Native loader failure/,
+  );
+  assert.doesNotMatch(authored.html, /Something went wrong!/);
+
+  // An ancestor error.tsx keeps owning its descendants' failures.
+  const inherited = await renderRouteErrorDocument({
+    layout: { errorComponent: authoredError },
+  });
+  assert.equal(inherited.statusCode, 500);
+  assert.match(
+    inherited.html,
+    /Native layout<\/nav>[\s\S]*data-route-error="authored">[\s\S]*Native loader failure/,
+  );
+  assert.doesNotMatch(inherited.html, /Something went wrong!/);
 }
 
 export async function nativeRouteActionContracts() {

@@ -15,6 +15,7 @@ import {
   type AnyRouter,
   createRootRoute,
   createRoute,
+  ErrorComponent,
   type ErrorRouteComponent,
   HeadContent,
   type NotFoundRouteComponent,
@@ -201,7 +202,10 @@ export function createFileSystemRouteTree<Context = unknown>(
   const rootDescriptor = roots[0];
   const ids = new Set<string>();
 
-  function bindings(route: FileSystemRouteIR) {
+  function bindings(
+    route: FileSystemRouteIR,
+    errorComponent?: ErrorRouteComponent,
+  ) {
     if (ids.has(route.id)) {
       throw new Error(`Duplicate filesystem route id: ${route.id}`);
     }
@@ -215,6 +219,11 @@ export function createFileSystemRouteTree<Context = unknown>(
     return {
       ...module,
       ...(head !== undefined ? { head } : {}),
+      // Octane's server renders an uncaught match error through the root
+      // outlet's Suspense, which defers it to a client retry that then
+      // replaces the whole layout. Give every child match the nearest
+      // error.tsx (or the native default) so the error renders in place.
+      ...(errorComponent ? { errorComponent } : {}),
       component: module.component ?? Outlet,
       staticData: { ultramodernRouteId: route.id },
       ...(needsData && loadRoute
@@ -308,22 +317,33 @@ export function createFileSystemRouteTree<Context = unknown>(
   if (authoredRoot.preload !== undefined) {
     OctaneDocumentRoot.preload = authoredRoot.preload;
   }
+  const rootErrorComponent =
+    (rootDescriptor && modules[rootDescriptor.id]?.errorComponent) ||
+    ErrorComponent;
   const root = createRootRoute({
     ...rootBindings,
     component: OctaneDocumentRoot,
   });
 
-  function bind(route: FileSystemRouteIR, parent: AnyRoute): AnyRoute {
+  function bind(
+    route: FileSystemRouteIR,
+    parent: AnyRoute,
+    inheritedErrorComponent: ErrorRouteComponent,
+  ): AnyRoute {
     if (route.isRoot) {
       throw new Error('An Octane application root cannot be a child route');
     }
     const path = route.index ? '/' : route.path;
+    const errorComponent =
+      modules[route.id]?.errorComponent ?? inheritedErrorComponent;
     const native = createRoute({
       getParentRoute: () => parent,
       ...(path ? { path: toTanstackPath(path) } : { id: route.id }),
-      ...bindings(route),
+      ...bindings(route, errorComponent),
     });
-    return native.addChildren(route.children.map(child => bind(child, native)));
+    return native.addChildren(
+      route.children.map(child => bind(child, native, errorComponent)),
+    );
   }
 
   return root.addChildren(
@@ -333,7 +353,7 @@ export function createFileSystemRouteTree<Context = unknown>(
           ...routes.filter(route => route !== rootDescriptor),
         ]
       : routes
-    ).map(route => bind(route, root)),
+    ).map(route => bind(route, root, rootErrorComponent)),
   );
 }
 
