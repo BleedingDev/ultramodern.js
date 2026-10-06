@@ -4,10 +4,17 @@
 //   /Users/satan/bin/owned-temp-dir --run solid-federation-proof -- \
 //     node tests/ultramodern-renderers/solid-federation/proof.mjs
 //
-// Builds a remote Solid app exposing ./Widget and a Solid host that renders it
-// with federatedComponent(), serves both on random loopback ports, and drives
-// a headless browser through agent-browser. A React-stamped publication of the
-// same container must be rejected by the renderer runtime gate.
+// Builds a remote Solid app exposing ./Widget, a server-rendering Solid host
+// and a client-only Solid host that render it with federatedComponent(),
+// serves them on random loopback ports, and drives a headless browser through
+// agent-browser:
+// - the SSR document holds the remote markup, its stylesheet and module
+//   preloads; hydration keeps that server node, without warnings, under one
+//   solid-js;
+// - a remote that is down or exceeds its timeout renders its fallback on the
+//   server, with a 200 document;
+// - a React-stamped publication of the same container is rejected by the
+//   renderer runtime gate on the server and in the browser.
 import assert from 'node:assert/strict';
 import { execFile, spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
@@ -23,7 +30,7 @@ const temporary = process.env.OWNED_TEMP_DIR;
 assert.ok(temporary, 'Run through owned-temp-dir so the apps have an owner.');
 const appTools = path.join(root, 'packages/solutions/ultramodern-app-tools');
 const rendererSolid = path.join(root, 'packages/runtime/renderer-solid');
-const browserSession = `lane-mf-proof-${process.pid}`;
+let browserSession = `lane-mf-proof-${process.pid}`;
 const real = (from, request) =>
   fs.realpath(path.join(from, 'node_modules', request));
 
@@ -35,20 +42,14 @@ async function freePort() {
   return port;
 }
 
-// The workspace installs @module-federation/enhanced for the React MF plugin.
-async function enhancedPackage() {
+// The workspace installs the MF packages for the React MF plugin.
+async function storePackage(prefix, name) {
   const store = path.join(root, 'node_modules/.pnpm');
   const [candidate] = (await fs.readdir(store))
-    .filter(name =>
-      name.startsWith('@module-federation+enhanced@2.9.1_@rspack+core@2.2.7_'),
-    )
+    .filter(entry => entry.startsWith(prefix))
     .sort();
-  assert.ok(candidate, 'the workspace store has @module-federation/enhanced');
-  return path.join(
-    store,
-    candidate,
-    'node_modules/@module-federation/enhanced',
-  );
+  assert.ok(candidate, `the workspace store has ${name}`);
+  return path.join(store, candidate, 'node_modules', name);
 }
 
 async function linkDependencies(directory) {
@@ -64,7 +65,14 @@ async function linkDependencies(directory) {
     '@solidjs/signals': await real(rendererSolid, '@solidjs/signals'),
     typescript: await real(appTools, 'typescript'),
     '@types/node': await real(appTools, '@types/node'),
-    '@module-federation/enhanced': await enhancedPackage(),
+    '@module-federation/enhanced': await storePackage(
+      '@module-federation+enhanced@2.9.1_@rspack+core@2.2.7_',
+      '@module-federation/enhanced',
+    ),
+    '@module-federation/node': await storePackage(
+      '@module-federation+node@2.7.51_@rspack+core@2.2.7_',
+      '@module-federation/node',
+    ),
   };
   for (const [name, target] of Object.entries(links)) {
     const link = path.join(directory, 'node_modules', name);
@@ -111,6 +119,7 @@ const packageJson = name =>
       '@modern-js/renderer-solid': 'workspace',
       '@modern-js/renderer-core': 'workspace',
       '@module-federation/enhanced': '2.9.1',
+      '@module-federation/node': '2.7.51',
       'solid-js': '2.0.0-rc.13',
       '@solidjs/web': '2.0.0-rc.13',
       '@solidjs/signals': '2.0.0-rc.13',
@@ -152,6 +161,8 @@ function staticServer(directory, extra) {
     const pathname = decodeURIComponent(
       new URL(request.url, 'http://x').pathname,
     );
+    // A remote that accepts the connection and never answers.
+    if (pathname.startsWith('/hang/')) return;
     if (extra[pathname]) {
       response.setHeader('content-type', 'application/json');
       response.end(extra[pathname]);
@@ -172,6 +183,32 @@ function staticServer(directory, extra) {
   });
 }
 
+/**
+ * Forward to the host and mark the server-rendered remote node with a classic
+ * script that runs before any module script, so the browser check can tell a
+ * hydrated node from a remounted one.
+ */
+function markingProxy(target) {
+  const marker = `<script>window.__ssrRemoteWidget = document.querySelector('[data-testid="remote-widget"]');</script>`;
+  return createServer(async (request, response) => {
+    const upstream = await fetch(new URL(request.url, target), {
+      headers: { accept: request.headers.accept ?? '*/*' },
+    });
+    const type = upstream.headers.get('content-type') ?? '';
+    response.statusCode = upstream.status;
+    if (type) response.setHeader('content-type', type);
+    if (!type.includes('text/html')) {
+      response.end(Buffer.from(await upstream.arrayBuffer()));
+      return;
+    }
+    const html = await upstream.text();
+    const root = html.indexOf('id="root"');
+    const modules = html.indexOf('<script type="module"', root);
+    assert.ok(root > 0 && modules > root, 'the document hydrates its root');
+    response.end(html.slice(0, modules) + marker + html.slice(modules));
+  });
+}
+
 async function browser(...args) {
   const { stdout } = await execute('agent-browser', args, {
     env: {
@@ -184,6 +221,9 @@ async function browser(...args) {
   });
   return stdout.trim();
 }
+
+const evaluate = async source =>
+  JSON.parse(JSON.parse(await browser('eval', `JSON.stringify(${source})`)));
 
 async function waitFor(check, label, timeout = 30_000) {
   const deadline = Date.now() + timeout;
@@ -202,79 +242,206 @@ async function waitFor(check, label, timeout = 30_000) {
   );
 }
 
-async function verifyInBrowser() {
-  await browser('open', hostUrl);
-  await waitFor(
-    async () =>
-      (await browser('get', 'count', '[data-testid="remote-widget"]')) === '1',
-    'remote widget',
-  );
-  results.owner = await browser(
+const shareScopeSource = `(() => {
+  const instance = globalThis.__FEDERATION__.__INSTANCES__.find(item => item.name === 'host');
+  const scope = instance.shareScopeMap.default;
+  return Object.fromEntries(['solid-js', '@solidjs/web', '@solidjs/signals'].map(name => [
+    name,
+    Object.entries(scope[name] ?? {}).map(([version, shared]) => ({ version, from: shared.from, loaded: Boolean(shared.loaded || shared.lib) })),
+  ]));
+})()`;
+
+async function exerciseRemoteWidget(result) {
+  result.owner = await browser(
     'get',
     'attr',
     '[data-testid="remote-widget"]',
     'data-owner',
   );
-  results.labelBefore = await browser(
+  result.labelBefore = await browser(
     'get',
     'text',
     '[data-testid="remote-label"]',
   );
   await browser('click', '[data-testid="remote-increment"]');
   await browser('click', '[data-testid="remote-increment"]');
-  results.counter = await browser(
+  result.counter = await browser(
     'get',
     'text',
     '[data-testid="remote-increment"]',
   );
   await browser('click', '[data-testid="host-relabel"]');
-  results.labelAfter = await browser(
+  result.labelAfter = await browser(
     'get',
     'text',
     '[data-testid="remote-label"]',
   );
-  results.reactRejected = await waitFor(
+  result.color = await evaluate(
+    `getComputedStyle(document.querySelector('[data-testid="remote-widget"]')).color`,
+  );
+  result.reactRejected = await waitFor(
     async () => browser('get', 'text', '[data-testid="react-rejected"]'),
     'React remote rejection',
   );
-  results.shareScope = JSON.parse(
-    JSON.parse(
-      await browser(
-        'eval',
-        `JSON.stringify((() => {
-          const instance = globalThis.__FEDERATION__.__INSTANCES__.find(item => item.name === 'host');
-          const scope = instance.shareScopeMap.default;
-          return Object.fromEntries(['solid-js', '@solidjs/web', '@solidjs/signals'].map(name => [
-            name,
-            Object.entries(scope[name] ?? {}).map(([version, shared]) => ({ version, from: shared.from, useIn: shared.useIn, loaded: Boolean(shared.loaded || shared.lib) })),
-          ]));
-        })())`,
-      ),
-    ),
-  );
-  results.pageErrors = await browser('errors');
-
-  assert.equal(results.ssr.fallback, true, 'SSR renders the remote fallback');
-  assert.equal(results.ssr.widget, false, 'SSR never renders the remote');
-  assert.equal(results.owner, 'host-owned');
-  assert.equal(results.labelBefore, 'from host');
-  assert.equal(results.counter, 'Count 2');
-  assert.equal(results.labelAfter, 'relabelled');
-  assert.match(results.reactRejected, /Renderer federation manifest contract/u);
-  for (const [name, versions] of Object.entries(results.shareScope))
+  result.shareScope = await evaluate(shareScopeSource);
+  result.console = await browser('console');
+  result.pageErrors = await browser('errors');
+  assert.equal(result.owner, 'host-owned');
+  assert.equal(result.labelBefore, 'from host');
+  assert.equal(result.counter, 'Count 2');
+  assert.equal(result.labelAfter, 'relabelled');
+  assert.equal(result.color, 'rgb(1, 2, 3)', 'the remote stylesheet applies');
+  assert.match(result.reactRejected, /Renderer federation manifest contract/u);
+  for (const [name, versions] of Object.entries(result.shareScope))
     assert.equal(versions.length, 1, `${name} has exactly one shared version`);
-  results.verdict = 'PASS';
+  assert.equal(result.pageErrors, '', 'no uncaught page errors');
+  assert.doesNotMatch(result.console, /hydrat/iu, 'no hydration diagnostics');
+}
+
+async function verifySSRInBrowser() {
+  const result = (results.ssrBrowser = {});
+  await browser('open', proxyUrl);
+  await waitFor(
+    async () =>
+      (await browser('get', 'text', '[data-testid="remote-increment"]')) ===
+        'Count 0' && (await evaluate(`Boolean(globalThis._$HY?.done)`)),
+    'hydrated remote widget',
+  );
+  // Hydration claimed the server-rendered node instead of remounting it.
+  result.retainedSSRNode = await evaluate(
+    `window.__ssrRemoteWidget !== null && window.__ssrRemoteWidget === document.querySelector('[data-testid="remote-widget"]') && window.__ssrRemoteWidget.isConnected`,
+  );
+  result.fallbackShown = await browser(
+    'get',
+    'count',
+    '[data-testid="remote-fallback"]',
+  );
+  await exerciseRemoteWidget(result);
+  result.slowFailed = await waitFor(
+    async () => browser('get', 'text', '[data-testid="slow-failed"]'),
+    'slow remote failure in the browser',
+  );
+  result.clickedSSRNode = await evaluate(
+    `window.__ssrRemoteWidget.querySelector('[data-testid="remote-increment"]').textContent`,
+  );
+  assert.equal(result.retainedSSRNode, true, 'the SSR remote node is retained');
+  assert.equal(result.fallbackShown, '0', 'hydration never showed a fallback');
+  assert.equal(result.clickedSSRNode, 'Count 2', 'the SSR node is interactive');
+  assert.match(result.slowFailed, /did not load within 1000ms/u);
+  await browser('close');
+}
+
+async function verifyCSRInBrowser() {
+  const result = (results.csrBrowser = {});
+  // A separate session: no page state carries over from the SSR document.
+  browserSession = `${browserSession}-csr`;
+  await browser('open', csrUrl);
+  await waitFor(
+    async () =>
+      (await browser('get', 'url')).startsWith(csrUrl) &&
+      (await browser('get', 'count', '[data-testid="remote-widget"]')) === '1',
+    'client-rendered remote widget',
+  );
+  await exerciseRemoteWidget(result);
+  await browser('close');
+}
+
+async function startHost(directory, port) {
+  const child = spawn(
+    process.execPath,
+    [path.join(appTools, 'bin/ultramodern.mjs'), 'serve'],
+    {
+      cwd: directory,
+      env: {
+        ...process.env,
+        NODE_PATH: '',
+        PORT: String(port),
+        NODE_ENV: 'production',
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    },
+  );
+  child.log = '';
+  child.stdout.on('data', chunk => (child.log += chunk));
+  child.stderr.on('data', chunk => (child.log += chunk));
+  children.push(child);
+  const url = `http://127.0.0.1:${port}`;
+  await waitFor(async () => (await fetch(url)).status > 0, 'host server').catch(
+    error => {
+      process.stderr.write(child.log);
+      throw error;
+    },
+  );
+  return child;
+}
+
+async function document(url) {
+  const started = Date.now();
+  const response = await fetch(url);
+  return {
+    status: response.status,
+    html: await response.text(),
+    ms: Date.now() - started,
+  };
 }
 
 const remotePort = await freePort();
 const hostPort = await freePort();
+const proxyPort = await freePort();
+const csrPort = await freePort();
 const remoteUrl = `http://127.0.0.1:${remotePort}`;
 const hostUrl = `http://127.0.0.1:${hostPort}`;
+const proxyUrl = `http://127.0.0.1:${proxyPort}`;
+const csrUrl = `http://127.0.0.1:${csrPort}`;
 const remoteDirectory = path.join(temporary, 'remote');
 const hostDirectory = path.join(temporary, 'host');
+const csrDirectory = path.join(temporary, 'host-csr');
+const children = [];
 let remoteServer;
-let host;
+let proxy;
 const results = {};
+
+const hostConfig = `export default {
+  name: 'host',
+  remotes: {
+    remote: 'remote@${remoteUrl}/mf-manifest.json',
+    reactremote: 'reactremote@${remoteUrl}/react/mf-manifest.json',
+    slowremote: 'slowremote@${remoteUrl}/hang/mf-manifest.json',
+  },
+};
+`;
+
+const hostPage = `import { federatedComponent } from '@modern-js/renderer-solid/federation';
+import type { JSX } from '@solidjs/web';
+import { createSignal, Errored } from 'solid-js';
+
+const RemoteWidget = federatedComponent<{ label: string }>('remote/Widget', {
+  fallback: () => <p data-testid="remote-fallback">Loading remote</p>,
+});
+const ReactWidget = federatedComponent<{ label: string }>('reactremote/Widget');
+const SlowWidget = federatedComponent<{ label: string }>('slowremote/Widget', {
+  timeout: 1000,
+  fallback: () => <p data-testid="slow-fallback">Slow remote</p>,
+});
+const message = (error: unknown) => String(typeof error === 'function' ? error() : error);
+
+export default function Home(): JSX.Element {
+  const [label, setLabel] = createSignal('from host');
+  return (
+    <section>
+      <h1 data-testid="host-title">Solid host</h1>
+      <button type="button" data-testid="host-relabel" onClick={() => setLabel('relabelled')}>Relabel</button>
+      <RemoteWidget label={label()} />
+      <Errored fallback={error => <p data-testid="react-rejected">{message(error)}</p>}>
+        <ReactWidget label="react" />
+      </Errored>
+      <Errored fallback={error => <p data-testid="slow-failed">{message(error)}</p>}>
+        <SlowWidget label="slow" />
+      </Errored>
+    </section>
+  );
+}
+`;
 
 try {
   await writeApp(remoteDirectory, {
@@ -292,14 +459,17 @@ export default defineConfig({ renderer: 'solid', output: { assetPrefix: '${remot
     'src/routes/page.tsx': `import Widget from '../components/Widget';
 export default function Page() { return <Widget label="standalone" />; }
 `,
+    'src/components/Widget.css': `.remote-widget { color: rgb(1, 2, 3); }\n`,
+    'src/env.d.ts': `declare module '*.css';\n`,
     'src/components/Widget.tsx': `import { createSignal, getOwner } from 'solid-js';
 import type { JSX } from '@solidjs/web';
+import './Widget.css';
 export default function Widget(props: { label: string }): JSX.Element {
   const [count, setCount] = createSignal(0);
   // A second solid-js copy would have no owner: the host renders this component.
   const owner = getOwner() ? 'host-owned' : 'detached';
   return (
-    <div data-testid="remote-widget" data-owner={owner}>
+    <div class="remote-widget" data-testid="remote-widget" data-owner={owner}>
       <span data-testid="remote-label">{props.label}</span>
       <button type="button" data-testid="remote-increment" onClick={() => setCount(value => value + 1)}>
         Count {count()}
@@ -309,59 +479,38 @@ export default function Widget(props: { label: string }): JSX.Element {
 }
 `,
   });
-  await writeApp(hostDirectory, {
-    'package.json': packageJson('mf-proof-host'),
-    'tsconfig.json': tsconfig,
-    'modern.config.ts': `import { defineConfig } from '@modern-js/ultramodern-app-tools';
-export default defineConfig({ renderer: 'solid', server: { ssr: true }, output: { assetPrefix: '/' } });
+  for (const [directory, name, ssr] of [
+    [hostDirectory, 'mf-proof-host', true],
+    [csrDirectory, 'mf-proof-host-csr', false],
+  ])
+    await writeApp(directory, {
+      'package.json': packageJson(name),
+      'tsconfig.json': tsconfig,
+      'modern.config.ts': `import { defineConfig } from '@modern-js/ultramodern-app-tools';
+export default defineConfig({ renderer: 'solid', server: { ssr: ${ssr} }, output: { assetPrefix: '/' } });
 `,
-    'module-federation.config.ts': `export default {
-  name: 'host',
-  remotes: {
-    remote: 'remote@${remoteUrl}/mf-manifest.json',
-    reactremote: 'reactremote@${remoteUrl}/react/mf-manifest.json',
-  },
-};
-`,
-    'src/routes/layout.tsx': layout,
-    'src/routes/page.tsx': `import { federatedComponent } from '@modern-js/renderer-solid/federation';
-import type { JSX } from '@solidjs/web';
-import { createSignal, Errored } from 'solid-js';
+      'module-federation.config.ts': hostConfig,
+      'src/routes/layout.tsx': layout,
+      'src/routes/page.tsx': hostPage,
+    });
 
-const RemoteWidget = federatedComponent<{ label: string }>('remote/Widget', {
-  fallback: () => <p data-testid="remote-fallback">Loading remote</p>,
-});
-const ReactWidget = federatedComponent<{ label: string }>('reactremote/Widget');
-
-export default function Home(): JSX.Element {
-  const [label, setLabel] = createSignal('from host');
-  return (
-    <section>
-      <h1 data-testid="host-title">Solid host</h1>
-      <button type="button" data-testid="host-relabel" onClick={() => setLabel('relabelled')}>Relabel</button>
-      <RemoteWidget label={label()} />
-      <Errored fallback={error => <p data-testid="react-rejected">{String(typeof error === 'function' ? error() : error)}</p>}>
-        <ReactWidget label="react" />
-      </Errored>
-    </section>
-  );
-}
-`,
-  });
-
-  await ultramodern(remoteDirectory, 'build', { REMOTE_URL: remoteUrl });
+  await ultramodern(remoteDirectory, 'build');
   const remoteDist = path.join(remoteDirectory, 'dist');
   const manifest = JSON.parse(
     await fs.readFile(path.join(remoteDist, 'mf-manifest.json'), 'utf8'),
   );
   results.remoteManifest = {
     remoteEntry: manifest.metaData.remoteEntry,
+    ssrRemoteEntry: manifest.metaData.ssrRemoteEntry,
     publicPath: manifest.metaData.publicPath,
+    ssrPublicPath: manifest.metaData.ssrPublicPath,
     renderer: manifest.metaData.ultramodernRenderer?.profile?.renderer,
-    runtime: manifest.metaData.ultramodernRenderer?.runtime,
     shared: manifest.shared.map(item => `${item.name}@${item.version}`).sort(),
   };
   assert.equal(results.remoteManifest.renderer, 'solid');
+  assert.equal(results.remoteManifest.ssrRemoteEntry?.type, 'commonjs-module');
+  assert.equal(results.remoteManifest.ssrPublicPath, `${remoteUrl}/bundles/`);
+  await fs.access(path.join(remoteDist, 'bundles', 'remoteEntry.js'));
 
   // The same container, published under the React renderer tuple.
   const { resolveReactFederationCompatibility } = await import(
@@ -390,48 +539,96 @@ export default function Home(): JSX.Element {
   remoteServer = staticServer(remoteDist, {
     '/react/mf-manifest.json': JSON.stringify(reactManifest),
   });
+
+  await ultramodern(hostDirectory, 'build');
+  await ultramodern(csrDirectory, 'build');
+
+  // The remote is down: the host still answers 200 with the fallbacks.
+  const host = await startHost(hostDirectory, hostPort);
+  const down = await document(hostUrl);
+  results.remoteDown = {
+    status: down.status,
+    fallback: down.html.includes('data-testid="remote-fallback"'),
+    widget: down.html.includes('data-testid="remote-widget"'),
+    ms: down.ms,
+  };
+  assert.equal(results.remoteDown.status, 200);
+  assert.equal(results.remoteDown.fallback, true);
+  assert.equal(results.remoteDown.widget, false);
+  assert.equal(host.exitCode, null, 'the host survives an unavailable remote');
+
   await new Promise(resolve =>
     remoteServer.listen(remotePort, '127.0.0.1', resolve),
   );
-
-  await ultramodern(hostDirectory, 'build', { REMOTE_URL: remoteUrl });
-  host = spawn(
-    process.execPath,
-    [path.join(appTools, 'bin/ultramodern.mjs'), 'serve'],
-    {
-      cwd: hostDirectory,
-      env: {
-        ...process.env,
-        NODE_PATH: '',
-        PORT: String(hostPort),
-        NODE_ENV: 'production',
-      },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    },
-  );
-  let hostLog = '';
-  host.stdout.on('data', chunk => (hostLog += chunk));
-  host.stderr.on('data', chunk => (hostLog += chunk));
-  const ssr = await waitFor(async () => {
-    const response = await fetch(hostUrl);
-    return response.ok ? response.text() : undefined;
-  }, 'host server').catch(error => {
-    process.stderr.write(hostLog);
-    throw error;
-  });
+  const up = await document(hostUrl);
+  const link = (rel, href) =>
+    new RegExp(
+      `<link(?=[^>]*rel="${rel}")(?=[^>]*href="${href.replace(/[.?/]/gu, '\\$&')}")[^>]*>`,
+      'u',
+    ).test(up.html);
+  const remoteCss = manifest.exposes
+    .find(expose => expose.path === './Widget')
+    .assets.css.sync.map(file => `${remoteUrl}/${file}`);
   results.ssr = {
-    fallback: ssr.includes('data-testid="remote-fallback"'),
-    widget: ssr.includes('data-testid="remote-widget"'),
+    status: up.status,
+    ms: up.ms,
+    widget: up.html.includes('data-testid="remote-widget"'),
+    ownerOnServer:
+      /data-testid="remote-widget"[^>]*data-owner="host-owned"|data-owner="host-owned"[^>]*data-testid="remote-widget"/u.test(
+        up.html,
+      ),
+    label: up.html.includes('>from host</span>'),
+    fallback: up.html.includes('data-testid="remote-fallback"'),
+    remoteCss,
+    cssLinked:
+      remoteCss.length > 0 && remoteCss.every(href => link('stylesheet', href)),
+    remoteEntryPreloaded: link('modulepreload', `${remoteUrl}/remoteEntry.js`),
+    hydrationModule:
+      /ultramodern-federation-hydration\.[0-9a-f]{8}\.js\?id=remote%2FWidget/u.test(
+        up.html,
+      ),
+    slowFallback: up.html.includes('data-testid="slow-fallback"'),
+    reactFallbackOnly: !up.html.includes('data-testid="react-rejected"'),
   };
+  assert.equal(results.ssr.status, 200);
+  assert.equal(results.ssr.widget, true, 'SSR HTML holds the remote markup');
+  assert.equal(results.ssr.ownerOnServer, true, 'one solid-js on the server');
+  assert.equal(results.ssr.label, true);
+  assert.equal(results.ssr.fallback, false);
+  assert.equal(results.ssr.cssLinked, true, 'SSR links the remote stylesheet');
+  assert.equal(results.ssr.remoteEntryPreloaded, true);
+  assert.equal(results.ssr.hydrationModule, true);
+  assert.equal(results.ssr.slowFallback, true, 'a slow remote times out');
+  assert.ok(results.ssr.ms < 5000, 'the slow remote cannot hold the document');
+
+  // The remote's own server bundle reaches its renderer through the same
+  // import() boundary and still answers its documents.
+  const ownPort = await freePort();
+  await startHost(remoteDirectory, ownPort);
+  const own = await document(`http://127.0.0.1:${ownPort}`);
+  results.remoteOwnDocument = {
+    status: own.status,
+    root: own.html.includes('id="root"'),
+  };
+  assert.equal(results.remoteOwnDocument.status, 200);
+  assert.equal(results.remoteOwnDocument.root, true);
+
+  proxy = markingProxy(hostUrl);
+  await new Promise(resolve => proxy.listen(proxyPort, '127.0.0.1', resolve));
+  await startHost(csrDirectory, csrPort);
 
   if (process.env.MF_PROOF_HOLD) {
-    // Debugging: keep both servers up until this process is terminated.
+    // Debugging: keep the servers up until this process is terminated.
     process.stdout.write(
-      `${JSON.stringify({ hostUrl, remoteUrl, temporary })}\n`,
+      `${JSON.stringify({ hostUrl, proxyUrl, csrUrl, remoteUrl, temporary })}\n`,
     );
     await new Promise(resolve => process.once('SIGTERM', resolve));
     results.verdict = 'HELD';
-  } else await verifyInBrowser();
+  } else {
+    await verifySSRInBrowser();
+    await verifyCSRInBrowser();
+    results.verdict = 'PASS';
+  }
 } finally {
   if (!results.verdict) {
     results.verdict = 'FAIL';
@@ -440,15 +637,14 @@ export default function Home(): JSX.Element {
     results.html = await browser('get', 'html', 'body').catch(error =>
       String(error),
     );
-    results.probe = await browser(
-      'eval',
-      `Promise.all([...document.querySelectorAll('script[type=module][src]')].map(script => import(script.src).then(() => script.src + ' ok', error => script.src + ' ' + error.stack))).then(lines => JSON.stringify({ lines, federation: globalThis.__FEDERATION__?.__INSTANCES__?.map(item => item.name) }))`,
-    ).catch(error => String(error));
+    results.hostLogs = children.map(child => child.log.slice(-4000));
   }
   process.stdout.write(`${JSON.stringify(results, null, 2)}\n`);
   await browser('close').catch(() => {});
-  host?.kill('SIGTERM');
-  await new Promise(resolve =>
-    remoteServer ? remoteServer.close(resolve) : resolve(),
-  );
+  for (const child of children) child.kill('SIGTERM');
+  for (const server of [remoteServer, proxy])
+    if (server?.listening) {
+      server.closeAllConnections();
+      await new Promise(resolve => server.close(resolve));
+    }
 }
