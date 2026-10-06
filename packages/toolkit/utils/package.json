@@ -131,7 +131,7 @@
       "modern:source": "./src/cli/alias.ts"
     },
     "./watch-options": {
-      "types": "./dist/compiled/chokidar/types/index.d.ts"
+      "types": "./dist/types/watch-options.d.ts"
     },
     "./cli-common": {
       "types": "./dist/types/cli/common.d.ts",
@@ -211,7 +211,7 @@
         "./dist/types/cli/alias.d.ts"
       ],
       "watch-options": [
-        "./dist/compiled/chokidar/types/index.d.ts"
+        "./dist/types/watch-options.d.ts"
       ],
       "cli-common": [
         "./dist/types/cli/common.d.ts"
