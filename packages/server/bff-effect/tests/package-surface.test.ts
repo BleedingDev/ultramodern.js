@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import {
   mkdirSync,
   mkdtempSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -11,6 +12,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Schema } from 'effect';
+import { build } from 'esbuild';
 
 const packageRoot = path.resolve(__dirname, '..');
 const requireCjs = createRequire(import.meta.url);
@@ -80,6 +82,77 @@ describe('@modern-js/bff-effect package surface', () => {
       );
       const loaded = await import(pathToFileURL(esmConsumer).href);
       expect(loaded.default).toEqual(publicSubpaths.map(() => true));
+    } finally {
+      rmSync(fixtureRoot, { force: true, recursive: true });
+    }
+  });
+
+  // A workerd bundle has no `node` condition. Every ESM entry that reaches
+  // the request storage must reach the one ESM build of it through the
+  // `@modern-js/bff-effect/context` request, never the CJS build.
+  test('bundles one ESM request storage for a workerd graph', async () => {
+    const fixtureRoot = realpathSync(
+      mkdtempSync(path.join(tmpdir(), 'bff-effect-workerd-consumer-')),
+    );
+
+    try {
+      const packageLinkParent = path.join(
+        fixtureRoot,
+        'node_modules/@modern-js',
+      );
+      mkdirSync(packageLinkParent, { recursive: true });
+      symlinkSync(
+        packageRoot,
+        path.join(packageLinkParent, 'bff-effect'),
+        'dir',
+      );
+      const entryPoint = path.join(fixtureRoot, 'worker.mjs');
+      writeFileSync(
+        entryPoint,
+        [
+          "export * as Root from '@modern-js/bff-effect';",
+          "export * as Effect from '@modern-js/bff-effect/effect';",
+          "export * as Edge from '@modern-js/bff-effect/effect-edge';",
+          "export * as Context from '@modern-js/bff-effect/context';",
+        ].join('\n'),
+      );
+      const { metafile } = await build({
+        absWorkingDir: fixtureRoot,
+        bundle: true,
+        conditions: ['workerd', 'worker'],
+        entryPoints: [entryPoint],
+        format: 'esm',
+        metafile: true,
+        platform: 'neutral',
+        plugins: [
+          {
+            name: 'only-bff-effect',
+            setup(pluginBuild) {
+              pluginBuild.onResolve(
+                { filter: /^[^./]/ },
+                ({ kind, path: request }) =>
+                  kind === 'entry-point' ||
+                  request === '@modern-js/bff-effect' ||
+                  request.startsWith('@modern-js/bff-effect/')
+                    ? undefined
+                    : { external: true, path: request },
+              );
+            },
+          },
+        ],
+        preserveSymlinks: true,
+        tsconfigRaw: {},
+        write: false,
+      });
+
+      expect(
+        Object.keys(metafile.inputs).filter(input =>
+          /[\\/]effect[\\/]context\.[cm]?js$/.test(input),
+        ),
+      ).toEqual([
+        // esbuild writes metafile paths with forward slashes on every platform.
+        'node_modules/@modern-js/bff-effect/dist/esm/effect/context.mjs',
+      ]);
     } finally {
       rmSync(fixtureRoot, { force: true, recursive: true });
     }

@@ -151,9 +151,9 @@ export function strictEffectRuntimeTopologyViolation(
       };
     };
     const namespaceSources: Record<string, readonly string[]> = {
-      HttpApi: [edge, 'effect/unstable/httpapi'],
-      HttpApiBuilder: [edge, 'effect/unstable/httpapi'],
-      HttpRouter: [edge, 'effect/unstable/http'],
+      HttpApi: [edge, 'effect/http-api'],
+      HttpApiBuilder: [edge, 'effect/http-api'],
+      HttpRouter: [edge, 'effect/http'],
     };
     const native = (
       node: t.Node,
@@ -432,7 +432,7 @@ export function strictEffectRuntimeTopologyViolation(
         !groupInit ||
         !t.isCallExpression(groupInit) ||
         !method(groupInit.callee, 'RpcGroup', 'make', [
-          'effect/unstable/rpc',
+          'effect/rpc',
           '@modern-js/bff-effect/effect-client',
         ])
       )

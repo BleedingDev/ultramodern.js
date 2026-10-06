@@ -154,7 +154,7 @@ export const setupTsRuntime = async (
 ) => {
   if (resolveTsRuntimeRegisterMode() === 'unsupported') {
     throw new Error(
-      `UltraModern.js requires Node.js >=26.7.0 with native TypeScript support; detected v${process.versions.node}. Legacy TypeScript runtime transpilers are unsupported.`,
+      `UltraModern.js requires Node.js >=26.10.0 with native TypeScript support; detected v${process.versions.node}. Legacy TypeScript runtime transpilers are unsupported.`,
     );
   }
   const tsconfigPath = resolveServerTsconfig(appDir, options.tsconfigPath);

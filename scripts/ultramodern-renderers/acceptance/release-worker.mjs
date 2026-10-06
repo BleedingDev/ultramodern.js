@@ -212,7 +212,6 @@ async function executeWorker(input) {
     consumerRoot,
     generatorPackageRoot,
     generatorConsumerRoot,
-    kind,
     leaf,
     resultPath,
     binding,
@@ -445,7 +444,7 @@ async function executeWorker(input) {
   );
   assert.equal(rsbuildSidecars.length, 1);
   const rsbuildSidecar = rsbuildSidecars[0];
-  assert.equal(rsbuildSidecar.version, '2.2.9');
+  assert.equal(rsbuildSidecar.version, '2.2.11');
   assert.equal(
     sdk.record.manifest.dependencies['@rsbuild/core'],
     `npm:${rsbuildSidecar.name}@${rsbuildSidecar.version}`,

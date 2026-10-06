@@ -18,12 +18,12 @@ describe('router helper route error recognition', () => {
     ).toBe(true);
   });
 
-  test.each([
-    null,
-    { status: 404, statusText: 'Not Found', internal: false },
-  ])('rejects values outside the route error contract', value => {
-    expect(isRouteErrorResponse(value)).toBe(false);
-  });
+  test.each([null, { status: 404, statusText: 'Not Found', internal: false }])(
+    'rejects values outside the route error contract',
+    value => {
+      expect(isRouteErrorResponse(value)).toBe(false);
+    },
+  );
 });
 
 describe('router helper route module handling', () => {

@@ -91,12 +91,12 @@ describe('ultramodern boundary debugger browser overlay', () => {
 
   test('keeps controls usable when localStorage reads and writes are blocked', async () => {
     const getItem = rstest
-      .spyOn(window.localStorage, 'getItem')
+      .spyOn(Storage.prototype, 'getItem')
       .mockImplementation(() => {
         throw new Error('Storage is blocked');
       });
     const setItem = rstest
-      .spyOn(window.localStorage, 'setItem')
+      .spyOn(Storage.prototype, 'setItem')
       .mockImplementation(() => {
         throw new Error('Storage is blocked');
       });
@@ -127,6 +127,8 @@ describe('ultramodern boundary debugger browser overlay', () => {
       'modernjs:boundary-debugger:enabled',
       'false',
     );
+    getItem.mockRestore();
+    setItem.mockRestore();
   });
 
   test.each([
@@ -134,46 +136,49 @@ describe('ultramodern boundary debugger browser overlay', () => {
     ['hidden-when-off', '0', true, false, false],
     ['hidden-when-off', '1', false, true, true],
     ['hidden', '1', false, false, true],
-  ] as const)('preserves %s control visibility with query override %s', async (controlMode, query, stored, visible, enabled) => {
-    window.localStorage.setItem(
-      'modernjs:boundary-debugger:enabled',
-      String(stored),
-    );
-    window.history.replaceState(null, '', `/?modern-boundaries=${query}`);
-    document.documentElement.lang = 'cs-CZ';
-    let WrappedApp: React.ComponentType | undefined;
-    ultramodernBoundaryDebuggerPlugin({
-      controlMode,
-      metadata: {
-        appId: 'shell',
-        boundaries: [{ appId: 'checkout', mfName: 'verticalCheckout' }],
-        schemaVersion: 1,
-      },
-    }).setup?.({
-      wrapRoot(factory: (App: React.ComponentType) => React.ComponentType) {
-        WrappedApp = factory(() => (
-          <main
-            data-modern-boundary-id="verticalCheckout"
-            data-testid="checkout-control"
-          />
-        ));
-      },
-    } as any);
-    const App = WrappedApp!;
-    render(<App />);
-
-    await waitFor(() => {
-      expect(
-        window.localStorage.getItem('modernjs:boundary-debugger:enabled'),
-      ).toBe(String(enabled));
-      expect(screen.queryByLabelText('zobrazit hranice týmů') !== null).toBe(
-        visible,
+  ] as const)(
+    'preserves %s control visibility with query override %s',
+    async (controlMode, query, stored, visible, enabled) => {
+      window.localStorage.setItem(
+        'modernjs:boundary-debugger:enabled',
+        String(stored),
       );
-      expect(
-        document.querySelectorAll('[data-modern-boundary-overlay]'),
-      ).toHaveLength(enabled ? 1 : 0);
-    });
-  });
+      window.history.replaceState(null, '', `/?modern-boundaries=${query}`);
+      document.documentElement.lang = 'cs-CZ';
+      let WrappedApp: React.ComponentType | undefined;
+      ultramodernBoundaryDebuggerPlugin({
+        controlMode,
+        metadata: {
+          appId: 'shell',
+          boundaries: [{ appId: 'checkout', mfName: 'verticalCheckout' }],
+          schemaVersion: 1,
+        },
+      }).setup?.({
+        wrapRoot(factory: (App: React.ComponentType) => React.ComponentType) {
+          WrappedApp = factory(() => (
+            <main
+              data-modern-boundary-id="verticalCheckout"
+              data-testid="checkout-control"
+            />
+          ));
+        },
+      } as any);
+      const App = WrappedApp!;
+      render(<App />);
+
+      await waitFor(() => {
+        expect(
+          window.localStorage.getItem('modernjs:boundary-debugger:enabled'),
+        ).toBe(String(enabled));
+        expect(screen.queryByLabelText('zobrazit hranice týmů') !== null).toBe(
+          visible,
+        );
+        expect(
+          document.querySelectorAll('[data-modern-boundary-overlay]'),
+        ).toHaveLength(enabled ? 1 : 0);
+      });
+    },
+  );
 
   test('disconnects observers and removes the original resize and scroll listeners on unmount', async () => {
     const addListener = rstest.spyOn(window, 'addEventListener');

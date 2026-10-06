@@ -93,7 +93,7 @@
     "prepublishOnly": "only-allow-pnpm",
     "build": "rslib build",
     "dev": "rslib build --watch",
-    "test": "rstest --passWithNoTests"
+    "test": "rstest"
   },
   "dependencies": {
     "@modern-js/bff-core": "workspace:*",
@@ -101,9 +101,9 @@
     "@modern-js/server-core": "workspace:*",
     "@modern-js/server-utils": "workspace:*",
     "@modern-js/utils": "workspace:*",
-    "@swc/core": "1.16.2",
+    "@swc/core": "1.16.13",
     "qs": "^6.16.0",
-    "type-is": "^2.1.0"
+    "type-is": "^3.0.0"
   },
   "peerDependencies": {
     "@modern-js/app-tools": "workspace:^3.9.0"
@@ -121,19 +121,19 @@
     "@modern-js/rslib": "workspace:*",
     "@modern-js/runtime": "workspace:*",
     "@modern-js/types": "workspace:*",
-    "@rsbuild/core": "2.2.9",
-    "@rslib/core": "1.0.2",
+    "@rsbuild/core": "2.2.11",
+    "@rslib/core": "1.0.3",
     "@scripts/rstest-config": "workspace:*",
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.3",
     "@types/qs": "^6.15.1",
     "@types/type-is": "^1.6.7",
     "esbuild": "^0.28.2",
-    "memfs": "^4.79.0",
+    "memfs": "^4.80.0",
     "typescript": "7.0.2",
     "zod": "^4.6.5"
   },
   "engines": {
-    "node": ">=26.7.0"
+    "node": ">=26.10.0"
   },
   "sideEffects": false,
   "publishConfig": {

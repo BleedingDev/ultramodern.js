@@ -5,14 +5,12 @@ import fsKit from '../../../lib/fs-kit.js';
 import {
   repoRoot,
   sidecarAliasConsumerTargetName,
-  sidecarStagingDirectory,
   trustedPublishRef,
   trustedPublishRepository,
 } from './constants.mjs';
 import {
   collectSidecarPackages,
-  rewriteSidecarConsumerAliases,
-  stageSidecarPackage,
+  stageSidecarPackages,
   validateAliasConsistency,
   writeSidecarStagingManifest,
 } from './sidecars.mjs';
@@ -27,6 +25,7 @@ import {
   validateStagedTypeFiles,
 } from './types.mjs';
 import { validatePublishManifest } from './manifest.mjs';
+import { assertRepositoryRecipeConsumers } from '../../../ultramodern-supply/verify-sidecars.mjs';
 import {
   createReleaseArtifacts,
   resolveSourceIdentity,
@@ -115,14 +114,9 @@ async function prepareBleedingdevPackages(options) {
   fs.mkdirSync(packDir, { recursive: true });
   fs.mkdirSync(stageDir, { recursive: true });
 
-  const stagedSidecars = [];
-  if (options.includeSidecars) {
-    const sidecarStageDir = path.join(options.out, sidecarStagingDirectory);
-    fs.mkdirSync(sidecarStageDir, { recursive: true });
-    for (const sidecar of sidecars) {
-      stagedSidecars.push(await stageSidecarPackage(sidecar, sidecarStageDir));
-    }
-  }
+  const stagedSidecars = options.includeSidecars
+    ? await stageSidecarPackages(sidecars, options.out)
+    : [];
 
   const stagingManifest = {
     aliases,
@@ -142,10 +136,7 @@ async function prepareBleedingdevPackages(options) {
     const packageJsonPath = path.join(packageDir, 'package.json');
     const packageJson = readJsonFile(packageJsonPath);
     rewritePackageJson(packageJson, sourceName, options, sourceNames);
-    if (options.includeSidecars) {
-      if (targetName === sidecarAliasConsumerTargetName) sidecarAliasConsumerCount += 1;
-      rewriteSidecarConsumerAliases(packageJson, stagedSidecars);
-    }
+    if (targetName === sidecarAliasConsumerTargetName) sidecarAliasConsumerCount += 1;
     normalizeDeclaredTypePaths(packageDir, packageJson);
     writeJsonFile(packageJsonPath, packageJson);
     validateStagedTypeFiles(packageDir, packageJson);
@@ -162,6 +153,7 @@ async function prepareBleedingdevPackages(options) {
   let sidecarDescriptor = null;
   if (options.includeSidecars) {
     assertSidecarAliasConsumerCount(sidecarAliasConsumerCount);
+    assertRepositoryRecipeConsumers(stagedManifests.map(item => item.packageJson));
     validateAliasConsistency(stagedManifests, stagedSidecars, {
       cohortTargetNames: new Set(Object.values(aliases)),
     });

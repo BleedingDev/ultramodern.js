@@ -44,13 +44,18 @@ export type {
   LoaderFunctionArgs,
   ModernRoute,
 } from '../../router/runtime/types';
+// Every other runtime module imports these through `@modern-js/runtime/context`
+// so Module Federation shares one copy of them.
 export {
   getInitialContext,
   InternalRuntimeContext,
+  ReactRuntimeContext,
+  type RequestContext,
   RuntimeComponentResolverContext,
   RuntimeContext,
   type TInternalRuntimeContext,
   type TRuntimeContext,
+  useRuntimeContext,
 } from './runtime';
 
 export type { PayloadRoute, ServerPayload } from './serverPayload/index';

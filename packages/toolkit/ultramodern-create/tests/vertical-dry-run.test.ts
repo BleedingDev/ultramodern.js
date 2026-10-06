@@ -215,8 +215,17 @@ test('CLI --dry-run prints a MicroVertical plan without writing files', async ()
       '--dry-run',
     ]);
     assert.equal(dryRunResult.status, 0, dryRunResult.stderr);
+    assert.doesNotMatch(
+      dryRunResult.stderr,
+      /preserved consumer-owned artifact/,
+    );
     const plan = JSON.parse(dryRunResult.stdout);
     assert.equal(plan.dryRun, true);
+    assert.equal(
+      plan.rewrittenPaths.includes('apps/shell-super-app/modern.config.ts'),
+      false,
+      'authored application configuration is outside the generator write set',
+    );
     assert.equal(plan.selectedPort, 4101);
     assert.equal(plan.moduleFederationRemote.name, 'verticalCatalog');
     assert.equal(plan.apiPrefix, '/catalog-api');

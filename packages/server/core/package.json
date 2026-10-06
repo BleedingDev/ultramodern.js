@@ -72,7 +72,7 @@
     "prepublishOnly": "only-allow-pnpm",
     "dev": "rslib build --watch",
     "build": "rslib build",
-    "test": "rstest --passWithNoTests"
+    "test": "rstest"
   },
   "engines": {
     "node": ">=20"
@@ -87,17 +87,17 @@
     "@web-std/stream": "^1.0.3",
     "cloneable-readable": "^3.0.0",
     "flatted": "^3.4.4",
-    "hono": "^4.13.8",
+    "hono": "^4.13.12",
     "ts-deepmerge": "8.0.0"
   },
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
     "@modern-js/types": "workspace:*",
-    "@rslib/core": "1.0.2",
+    "@rslib/core": "1.0.3",
     "@scripts/rstest-config": "workspace:*",
     "@types/cloneable-readable": "^2.0.3",
     "@types/merge-deep": "^3.0.3",
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.3",
     "http-proxy-middleware": "^4.2.0",
     "typescript": "7.0.2"
   },

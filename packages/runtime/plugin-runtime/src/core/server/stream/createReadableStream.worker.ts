@@ -1,14 +1,15 @@
 // @effect-diagnostics asyncFunction:off processEnv:off
 import type { StreamSSRExtender } from '@modern-js/plugin/runtime';
 import { renderSSRStream } from '@modern-js/render/ssr';
+import {
+  getGlobalEnableRsc,
+  getGlobalInternalRuntimeContext,
+} from '@modern-js/runtime/context';
 import { storage } from '@modern-js/runtime-utils/node';
 import React from 'react';
 import { ESCAPED_SHELL_STREAM_END_MARK } from '../../../common';
 import { RenderLevel } from '../../constants';
-import {
-  getGlobalEnableRsc,
-  getGlobalInternalRuntimeContext,
-} from '../../context';
+import { getMonitors } from '../../context/monitors';
 import { wrapRuntimeComponentResolver } from '../../react/wrapper';
 import { createReplaceHelemt, getHelmetData } from '../helmet';
 import {
@@ -22,6 +23,7 @@ import {
   type CreateReadableStreamFromElement,
   getReadableStreamFromString,
   resolveStreamingMode,
+  SHELL_PROGRESSIVE_CHUNK_SIZE,
   ShellChunkStatus,
 } from './shared';
 import { getTemplates } from './template';
@@ -48,6 +50,7 @@ export const createReadableStreamFromElement: CreateReadableStreamFromElement =
         config,
         platform: 'web',
         mode: 'stream',
+        monitors: getMonitors(),
         isRsc,
         terminalMarker: ESCAPED_SHELL_STREAM_END_MARK,
       }) || [];
@@ -79,6 +82,7 @@ export const createReadableStreamFromElement: CreateReadableStreamFromElement =
         request,
         signal: request.signal,
         nonce: config.nonce,
+        progressiveChunkSize: SHELL_PROGRESSIVE_CHUNK_SIZE,
         rscManifest,
         rscRoot: rscRoot!,
         routes: runtimeContext.routes,
@@ -122,7 +126,10 @@ export const createReadableStreamFromElement: CreateReadableStreamFromElement =
       const decoder = new TextDecoder();
       const encoder = new TextEncoder();
       const pendingScripts: string[] = [];
-      let buffered = '';
+      const buffered: string[] = [];
+      let bufferedLength = 0;
+      // Characters that may hold the start of a marker split across chunks.
+      let markerTail = '';
       let shellChunkStatus = ShellChunkStatus.START;
       let bodyController: TransformStreamDefaultController<Uint8Array>;
       const emit = (
@@ -133,21 +140,35 @@ export const createReadableStreamFromElement: CreateReadableStreamFromElement =
           if (chunk.length > 0) controller.enqueue(encoder.encode(chunk));
           return;
         }
-        buffered += chunk;
-        const markerIndex = buffered.indexOf(ESCAPED_SHELL_STREAM_END_MARK);
-        if (markerIndex === -1) return;
+        // Scan only the new characters: rescanning the whole buffer made
+        // shell buffering quadratic in the shell size.
+        const window = markerTail + chunk;
+        const windowIndex = window.indexOf(ESCAPED_SHELL_STREAM_END_MARK);
+        const markerIndex = bufferedLength - markerTail.length + windowIndex;
+        buffered.push(chunk);
+        bufferedLength += chunk.length;
+        if (windowIndex === -1) {
+          markerTail = window.slice(
+            Math.max(
+              0,
+              window.length - ESCAPED_SHELL_STREAM_END_MARK.length + 1,
+            ),
+          );
+          return;
+        }
+        const shell = buffered.join('');
         const beforeMark = lifecycle.completedBody(
-          buffered.slice(0, markerIndex),
+          shell.slice(0, markerIndex),
           'shell',
         );
-        const afterMark = buffered.slice(
+        const afterMark = shell.slice(
           markerIndex + ESCAPED_SHELL_STREAM_END_MARK.length,
         );
         const completedShellBefore = createReplaceHelemt(
           getHelmetData(extenders),
         )(shellBefore);
         shellChunkStatus = ShellChunkStatus.FINISH;
-        buffered = '';
+        buffered.length = 0;
         controller.enqueue(
           encoder.encode(`${completedShellBefore}${beforeMark}${shellAfter}`),
         );

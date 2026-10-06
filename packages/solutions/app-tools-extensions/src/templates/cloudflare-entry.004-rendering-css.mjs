@@ -2,9 +2,13 @@ function createNoopMonitors() {
   const noop = () => {};
 
   return {
+    counter: noop,
     debug: noop,
     error: noop,
     info: noop,
+    push: noop,
+    timing: noop,
+    trace: noop,
     warn: noop,
   };
 }
@@ -1365,7 +1369,7 @@ async function withRouteCssLinks(
     seenCssHrefs.add(entry.preloadHref);
     return true;
   });
-  for (const { href, preloadHref } of uniqueCssEntries) {
+  for (const { preloadHref } of uniqueCssEntries) {
     const preloadUrl = new URL(preloadHref);
     const preloadReference =
       preloadUrl.origin === requestOrigin

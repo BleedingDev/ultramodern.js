@@ -18,11 +18,10 @@
     "@modern-js/server-runtime": "workspace:*",
     "axios": "^1.20.0",
     "bff-api-app": "workspace:*",
-    "effect": "4.0.0-rc.117",
+    "effect": "4.0.0",
     "express": "^5.2.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "ts-node": "^10.9.2",
     "tsconfig-paths": "4.2.0",
     "zod": "^4.6.5"
   },
@@ -31,7 +30,7 @@
     "@modern-js/plugin-bff-build-extensions": "workspace:*",
     "@types/express": "^5.0.6",
     "@types/jest": "^30.0.0",
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.3",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "typescript": "7.0.2"

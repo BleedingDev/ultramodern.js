@@ -4,14 +4,12 @@ import fs from "node:fs";
 import http from "node:http";
 import { createRequire } from "node:module";
 import path from "node:path";
+import { parseEnv } from "node:util";
 import { convertV4MiniflareOptions, Log, LogLevel, Miniflare } from "miniflare";
 
-const workspaceRoot = path.resolve(process.env.ULTRAMODERN_WORKSPACE_ROOT ?? process.cwd());
-const defaultProofRoutes = ["/en"];
-const reportPath = path.join(
-  workspaceRoot,
-  ".codex/reports/cloudflare-workerd-ssr/composition-proof.json",
-);
+const reportRelativePath = ".codex/reports/cloudflare-workerd-ssr/composition-proof.json";
+// Mirrors the public website quality gate default for server-rendered HTML.
+const defaultSsrHtmlMaxBytes = 250_000;
 
 const assert = (condition, message) => {
   if (!condition) {
@@ -45,7 +43,14 @@ class ProofLog extends Log {
   }
 }
 
-const assertSuccessfulSsrResponse = (appId, route, response, html, log) => {
+const assertSuccessfulSsrResponse = (
+  appId,
+  route,
+  response,
+  html,
+  log,
+  outboundRequests,
+) => {
   if (response.status === 200) return;
   const bytes = Buffer.from(html, "utf8");
   throw new Error(
@@ -56,6 +61,7 @@ const assertSuccessfulSsrResponse = (appId, route, response, html, log) => {
         status: response.status,
         contentType: response.headers.get("content-type"),
         responseBody: { ...diagnosticText(html, 8192), sha256: sha256(bytes) },
+        outboundRequests,
         workerErrors: log.errors,
       }),
   );
@@ -164,90 +170,175 @@ const bindExecutedModule = (app, envelope, module) => {
   };
 };
 
-const topology = readJson(path.join(workspaceRoot, "topology/reference-topology.json"));
-const overlay = readJson(path.join(workspaceRoot, "topology/local-overlays/development.json"));
-assert(topology.schemaVersion === 1 && topology.shell && Array.isArray(topology.verticals), "Invalid topology/reference-topology.json");
-const apps = await Promise.all([topology.shell, ...topology.verticals, ...(topology.shells ?? [])].map(async (rawApp) => {
-  const kind = rawApp.kind === "vertical" ? "vertical" : "shell";
-  const hasApiSurface = kind === "vertical" && rawApp.surfaceProfile !== "ui-only";
-  const appPath = rawApp.path;
-  assert(typeof appPath === "string" && appPath.length > 0, `${rawApp.id} topology path is missing`);
-  const moduleFederation =
-    rawApp.moduleFederation && typeof rawApp.moduleFederation === "object"
-      ? rawApp.moduleFederation
-      : {};
-  const configuredProofRoutes = rawApp.cloudflare?.distributedSsrProofRoutes;
-  const proofRoutes = Array.isArray(configuredProofRoutes)
-    ? [...new Set(configuredProofRoutes.filter(
-        (route) => typeof route === "string" && route.startsWith("/"),
-      ))]
-    : [];
-  const outputRoot = path.join(workspaceRoot, appPath, ".output");
-  const wranglerPath = path.join(outputRoot, "wrangler.json");
-  assert(
-    fs.existsSync(wranglerPath),
-    `${rawApp.id} Cloudflare output is missing; run pnpm cloudflare:build first`,
-  );
-  const wrangler = readJson(wranglerPath);
-  const domain = rawApp.domain ?? rawApp.id;
-  const portEnv = rawApp.portEnv ??
-    (kind === "vertical"
-      ? `VERTICAL_${String(domain).replace(/[^a-zA-Z0-9]/gu, "_").toUpperCase()}_PORT`
-      : undefined);
-  assert(typeof portEnv === "string" && portEnv.length > 0, `${rawApp.id} has no declared port environment name`);
-  const configuredPort = process.env[portEnv];
-  const port = configuredPort === undefined
-    ? Number(overlay.ports?.[rawApp.id])
-    : Number(configuredPort);
-  assert(
-    Number.isInteger(port) && port > 0 && port <= 65535,
-    `${rawApp.id} has an invalid local proof port from ${portEnv}`,
-  );
-  const executedEnvelope = await readExecutionEnvelope(
-    String(rawApp.id),
-    outputRoot,
-    rawApp.deliveryUnit?.unitId,
-  );
-  const { surfaces } = executedEnvelope.envelope;
-  assert(
-    (surfaces.apiBackend.length > 0) === hasApiSurface &&
-      Boolean(surfaces.backendFederation) === hasApiSurface &&
-      (surfaces.uiClient.length > 0) === (rawApp.surfaceProfile !== "api-only"),
-    `${rawApp.id} executed envelope surfaces differ from its declared application profile`,
+const normalizeRoutes = (routes) => [
+  ...new Set(
+    (Array.isArray(routes) ? routes : []).filter(
+      (route) => typeof route === "string" && route.startsWith("/"),
+    ),
+  ),
+];
+
+// The generator's distributed SSR contract: every expose except the page
+// route is a fragment a host can server-render (see distributedSsrExposes).
+const declaresDistributedSsrExpose = (rawApp) =>
+  Array.isArray(rawApp?.moduleFederation?.exposes) &&
+  rawApp.moduleFederation.exposes.some(
+    (expose) => typeof expose === "string" && expose !== "./Route",
   );
 
-  return {
-    id: String(rawApp.id),
-    kind,
-    hasApiSurface,
-    apiOnly: rawApp.surfaceProfile === "api-only",
-    path: appPath,
-    mfName: typeof moduleFederation.name === "string" ? moduleFederation.name : String(rawApp.id),
-    verticalRefs: Array.isArray(rawApp.verticalRefs ?? moduleFederation.verticalRefs)
-      ? (rawApp.verticalRefs ?? moduleFederation.verticalRefs).filter((ref) => typeof ref === "string")
-      : [],
-    apiPrefix:
-      typeof rawApp.api?.bff?.prefix === "string"
-        ? rawApp.api.bff.prefix.replace(/\/+$/u, "")
-        : undefined,
-    apiProtocol: rawApp.api?.protocol ?? "rest",
-    rpcRoute: rawApp.api?.protocol === "rpc" ? rawApp.cloudflare?.routes?.rpc : undefined,
-    proofRoutes: proofRoutes.length > 0 ? proofRoutes : defaultProofRoutes,
-    jsonSmokeChecks: Array.isArray(rawApp.cloudflare?.jsonSmokeChecks)
-      ? rawApp.cloudflare.jsonSmokeChecks
-      : [],
-    ...executedEnvelope,
-    outputRoot,
-    port,
-    wrangler,
-  };
-}));
+/**
+ * Derive what the proof must execute from topology/reference-topology.json.
+ *
+ * - `ssrRoutes`: every route the app itself must server-render on its own
+ *   Worker (`cloudflare.routes.ssr` plus `cloudflare.distributedSsrProofRoutes`).
+ * - `serverRenderedRoutes`: shell routes that must compose distributed SSR
+ *   boundaries. `cloudflare.distributedSsrProofRoutes` declares them; without
+ *   it the shell's `cloudflare.routes.ssr` is the composition route. An empty
+ *   array declares a shell whose MicroVerticals load on the client only.
+ * - `serverRenderedRemoteIds`: shell `verticalRefs` whose topology declares a
+ *   distributed SSR expose, i.e. the boundaries the shell must server-render.
+ */
+export const planWorkerdSsrProof = (topology) => {
+  assert(
+    topology?.schemaVersion === 1 && topology.shell && Array.isArray(topology.verticals),
+    "Invalid topology/reference-topology.json",
+  );
+  const rawApps = [topology.shell, ...topology.verticals, ...(topology.shells ?? [])];
+  const rawAppsById = new Map(rawApps.map((rawApp) => [String(rawApp.id), rawApp]));
+  const plans = rawApps.map((rawApp) => {
+    const id = String(rawApp.id);
+    const kind = rawApp.kind === "vertical" ? "vertical" : "shell";
+    const cloudflare = rawApp.cloudflare ?? {};
+    const declaredServerRenderedRoutes = cloudflare.distributedSsrProofRoutes;
+    const rawVerticalRefs = rawApp.verticalRefs ?? rawApp.moduleFederation?.verticalRefs;
+    const verticalRefs = Array.isArray(rawVerticalRefs)
+      ? rawVerticalRefs.filter((ref) => typeof ref === "string")
+      : [];
+    for (const ref of verticalRefs) {
+      assert(rawAppsById.has(ref), `${id} references missing MicroVertical ${ref}`);
+    }
+    const serverRenderedRemoteIds =
+      kind === "shell"
+        ? verticalRefs.filter((ref) => declaresDistributedSsrExpose(rawAppsById.get(ref)))
+        : [];
+    assert(
+      declaredServerRenderedRoutes === undefined ||
+        (Array.isArray(declaredServerRenderedRoutes) &&
+          normalizeRoutes(declaredServerRenderedRoutes).length ===
+            declaredServerRenderedRoutes.length),
+      `${id} cloudflare.distributedSsrProofRoutes must list unique absolute routes`,
+    );
+    const serverRenderedRoutes =
+      kind !== "shell"
+        ? []
+        : Array.isArray(declaredServerRenderedRoutes)
+          ? normalizeRoutes(declaredServerRenderedRoutes)
+          : normalizeRoutes([cloudflare.routes?.ssr]);
+    const ssrRoutes = normalizeRoutes([
+      ...(Array.isArray(declaredServerRenderedRoutes) ? declaredServerRenderedRoutes : []),
+      cloudflare.routes?.ssr,
+    ]);
+    const apiOnly = rawApp.surfaceProfile === "api-only";
+    assert(
+      apiOnly || normalizeRoutes([cloudflare.routes?.ssr]).length === 1,
+      `${id} declares no cloudflare.routes.ssr to prove on its own Worker`,
+    );
+    return {
+      apiOnly,
+      id,
+      kind,
+      serverRenderedRemoteIds:
+        serverRenderedRoutes.length > 0 ? serverRenderedRemoteIds : [],
+      serverRenderedRoutes,
+      ssrRoutes,
+      verticalRefs,
+    };
+  });
+  assert(
+    plans.some((plan) => plan.kind === "shell"),
+    "Workerd SSR proof requires at least one shell",
+  );
+  assert(
+    plans.some((plan) => plan.kind === "vertical"),
+    "Workerd SSR proof requires at least one MicroVertical or headless API",
+  );
+  return { plans, rawApps };
+};
 
-const shells = apps.filter((app) => app.kind === "shell");
-assert(shells.length > 0, "Workerd SSR proof requires at least one shell");
-if (process.env.ULTRAMODERN_KEEP_WORKERD === "1") {
-  assert(shells.length === 1, "Browser workerd proof requires exactly one shell");
-}
+const readDevVars = (outputRoot) => {
+  // Wrangler's local-secret convention: `.dev.vars` beside the executed config.
+  const devVarsPath = path.join(outputRoot, ".dev.vars");
+  return fs.existsSync(devVarsPath) ? parseEnv(fs.readFileSync(devVarsPath, "utf8")) : {};
+};
+
+const loadApps = async (workspaceRoot, topology, overlay) => {
+  const { plans, rawApps } = planWorkerdSsrProof(topology);
+  return Promise.all(rawApps.map(async (rawApp, index) => {
+    const plan = plans[index];
+    const hasApiSurface = plan.kind === "vertical" && rawApp.surfaceProfile !== "ui-only";
+    const appPath = rawApp.path;
+    assert(typeof appPath === "string" && appPath.length > 0, `${plan.id} topology path is missing`);
+    const outputRoot = path.join(workspaceRoot, appPath, ".output");
+    const wranglerPath = path.join(outputRoot, "wrangler.json");
+    assert(
+      fs.existsSync(wranglerPath),
+      `${plan.id} Cloudflare output is missing; run pnpm cloudflare:build first`,
+    );
+    const wrangler = readJson(wranglerPath);
+    const domain = rawApp.domain ?? rawApp.id;
+    const portEnv = rawApp.portEnv ??
+      (plan.kind === "vertical"
+        ? `VERTICAL_${String(domain).replace(/[^a-zA-Z0-9]/gu, "_").toUpperCase()}_PORT`
+        : undefined);
+    assert(typeof portEnv === "string" && portEnv.length > 0, `${plan.id} has no declared port environment name`);
+    const configuredPort = process.env[portEnv];
+    const port = configuredPort === undefined
+      ? Number(overlay.ports?.[plan.id])
+      : Number(configuredPort);
+    assert(
+      Number.isInteger(port) && port > 0 && port <= 65535,
+      `${plan.id} has an invalid local proof port from ${portEnv}`,
+    );
+    // Every executed Worker is bound to its owner-verified release envelope,
+    // and the envelope surfaces must match the declared application profile.
+    const executedEnvelope = await readExecutionEnvelope(
+      plan.id,
+      outputRoot,
+      rawApp.deliveryUnit?.unitId,
+    );
+    const { surfaces } = executedEnvelope.envelope;
+    assert(
+      (surfaces.apiBackend.length > 0) === hasApiSurface &&
+        Boolean(surfaces.backendFederation) === hasApiSurface &&
+        (surfaces.uiClient.length > 0) === (rawApp.surfaceProfile !== "api-only"),
+      `${plan.id} executed envelope surfaces differ from its declared application profile`,
+    );
+
+    return {
+      ...plan,
+      hasApiSurface,
+      path: appPath,
+      apiPrefix:
+        typeof rawApp.api?.bff?.prefix === "string"
+          ? rawApp.api.bff.prefix.replace(/\/+$/u, "")
+          : undefined,
+      apiProtocol: rawApp.api?.protocol ?? "rest",
+      rpcRoute: rawApp.api?.protocol === "rpc" ? rawApp.cloudflare?.routes?.rpc : undefined,
+      ssrHtmlMaxBytes: Number(
+        rawApp.cloudflare?.qualityGates?.budgets?.ssrHtmlMaxBytes ??
+          defaultSsrHtmlMaxBytes,
+      ),
+      jsonSmokeChecks: Array.isArray(rawApp.cloudflare?.jsonSmokeChecks)
+        ? rawApp.cloudflare.jsonSmokeChecks
+        : [],
+      ...executedEnvelope,
+      devVars: readDevVars(outputRoot),
+      outputRoot,
+      port,
+      wrangler,
+    };
+  }));
+};
 
 const workerName = (app) => {
   assert(
@@ -257,7 +348,30 @@ const workerName = (app) => {
   return app.wrangler.name;
 };
 
-const createWorkerOptions = (app, extra = {}) => {
+// Wrangler's local Hyperdrive convention: a binding's local PostgreSQL comes from
+// CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_<BINDING> (the app's .dev.vars, then the proof's
+// environment), else its `localConnectionString`.
+const createLocalHyperdrives = (app) => {
+  const hyperdrive = Array.isArray(app.wrangler.hyperdrive) ? app.wrangler.hyperdrive : [];
+  return Object.fromEntries(
+    hyperdrive.map((entry) => {
+      assert(
+        typeof entry?.binding === "string" && entry.binding.length > 0,
+        `${app.id} has an invalid Hyperdrive binding`,
+      );
+      const variable = `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_${entry.binding}`;
+      const connectionString =
+        app.devVars[variable] || process.env[variable] || entry.localConnectionString;
+      assert(
+        typeof connectionString === "string" && connectionString.length > 0,
+        `${app.id} Hyperdrive binding ${entry.binding} needs a local PostgreSQL connection string; set ${variable}`,
+      );
+      return [entry.binding, connectionString];
+    }),
+  );
+};
+
+const createWorkerOptions = (app, workspaceRoot, extra = {}) => {
   const main = typeof app.wrangler.main === "string" ? app.wrangler.main : "server/index.mjs";
   const assets =
     app.wrangler.assets && typeof app.wrangler.assets === "object" ? app.wrangler.assets : {};
@@ -299,12 +413,10 @@ const createWorkerOptions = (app, extra = {}) => {
   return {
     executionEvidence: {
       appId: app.id,
-      apiBackend: apiBackend ?? [],
-      envelopeDigest: app.envelope?.envelopeDigest ?? null,
-      envelopePath: app.envelopePath
-        ? normalizePath(path.relative(workspaceRoot, app.envelopePath))
-        : null,
-      identity: app.envelope?.identity ?? null,
+      apiBackend,
+      envelopeDigest: app.envelope.envelopeDigest,
+      envelopePath: normalizePath(path.relative(workspaceRoot, app.envelopePath)),
+      identity: app.envelope.identity,
       main: mainLogicalPath,
       modules: boundModules,
       modulesRoot: normalizePath(path.relative(workspaceRoot, app.outputRoot)),
@@ -315,6 +427,8 @@ const createWorkerOptions = (app, extra = {}) => {
     modulesRoot: app.outputRoot,
     compatibilityDate: app.wrangler.compatibility_date,
     compatibilityFlags: app.wrangler.compatibility_flags,
+    bindings: { ...app.wrangler.vars, ...app.devVars },
+    hyperdrives: createLocalHyperdrives(app),
     assets: {
       binding: typeof assets.binding === "string" ? assets.binding : "ASSETS",
       directory: path.resolve(app.outputRoot, directory),
@@ -423,7 +537,7 @@ const resolveApiSmokeChecks = (app, shell) => {
   return [...uniqueChecks.values()];
 };
 
-const runApiProofs = async (miniflare, shell, executionByAppId) => {
+const runApiProofs = async (apps, miniflare, shell, executionByAppId) => {
   const results = [];
   for (const app of apps.filter((candidate) => candidate.hasApiSurface)) {
     const jsonSmokeChecks = resolveApiSmokeChecks(app, shell);
@@ -513,6 +627,7 @@ const closeServer = (server) =>
   });
 
 const startWorkerdTargetServers = async (
+  apps,
   miniflare,
   failedServices,
   workerConfigurations,
@@ -526,18 +641,9 @@ const startWorkerdTargetServers = async (
         Number.isInteger(app.port) && app.port > 0,
         `${app.id} requires a configured local port for all-workerd browser proof`,
       );
-      // Miniflare assigns one shared assets storage service inside
-      // a multi-worker instance. Keep the shell composition runtime intact,
-      // but give every directly browsed MicroVertical its own runtime so its
-      // static assets and MF manifest cannot resolve from a sibling Worker.
       const runtime =
         app.kind === "vertical"
-          ? new Miniflare(
-              convertV4MiniflareOptions({
-                log: new Log(LogLevel.ERROR),
-                workers: [workerConfigurations[index]],
-              }),
-            )
+          ? createIsolatedRuntime(workerConfigurations[index], new ProofLog())
           : miniflare;
       if (runtime !== miniflare) {
         isolatedVerticalRuntimes.push(runtime);
@@ -685,9 +791,22 @@ const decodeDistributedSsrFragmentRequest = (request) => {
   };
 };
 
+// Miniflare assigns one shared assets storage service inside a multi-worker
+// instance. Keep the shell composition runtime intact, but give every directly
+// requested MicroVertical its own runtime so its static assets and MF manifest
+// cannot resolve from a sibling Worker. Its service bindings still resolve
+// through the shared composition runtime.
+const createIsolatedRuntime = (workerOptions, log) =>
+  new Miniflare(
+    convertV4MiniflareOptions({
+      log,
+      workers: [workerOptions],
+    }),
+  );
+
 const createServiceBindings = (
   caller,
-  { apiBindingRequests, failedServices, fragmentBindingRequests },
+  { apiBindingRequests, composition, failedServices, fragmentBindingRequests },
 ) => {
   const services = Array.isArray(caller.wrangler.services) ? caller.wrangler.services : [];
   return Object.fromEntries(
@@ -698,7 +817,7 @@ const createServiceBindings = (
       );
       return [
         service.binding,
-        async (request, miniflare) => {
+        async (request) => {
           if (failedServices.has(service.service)) {
             throw new Error(
               `Injected unavailable service binding ${service.binding} -> ${service.service}`,
@@ -735,7 +854,7 @@ const createServiceBindings = (
             };
             apiBindingRequests.push(apiBindingRequest);
           }
-          const target = await miniflare.getWorker(service.service);
+          const target = await composition.miniflare.getWorker(service.service);
           const response = await target.fetch(request);
           if (apiBindingRequest !== undefined) {
             apiBindingRequest.response = {
@@ -750,11 +869,93 @@ const createServiceBindings = (
   );
 };
 
-const proofs = [];
-const apiProofs = [];
-let executions = [];
+const proveRoute = async (app, route, fetchRoute, apps, recorders, log) => {
+  const apiBindingRequestStart = recorders.apiBindingRequests.length;
+  const fragmentBindingRequestStart = recorders.fragmentBindingRequests.length;
+  const outboundRequestStart = recorders.outboundRequests.length;
+  const response = await fetchRoute(`https://${workerName(app)}.invalid${route}`, {
+    headers: { accept: "text/html" },
+  });
+  const html = await response.text();
+  const htmlBytes = Buffer.byteLength(html);
+  const routeOutboundRequests = recorders.outboundRequests.slice(outboundRequestStart);
+  assertSuccessfulSsrResponse(app.id, route, response, html, log, routeOutboundRequests);
+  assert(
+    response.headers.get("content-type")?.includes("text/html") === true,
+    `${app.id} did not return HTML for ${route} in workerd`,
+  );
+  // Runaway server rendering (for example a worker re-rendering its own
+  // route data requests) can still end in an oversized document.
+  assert(
+    htmlBytes <= app.ssrHtmlMaxBytes,
+    `${app.id} rendered ${htmlBytes} bytes for ${route} in workerd, over the ${app.ssrHtmlMaxBytes} byte ssrHtmlMaxBytes budget`,
+  );
+  assert(
+    !html.includes('data-modern-distributed-ssr-status="degraded"'),
+    `${app.id} rendered a degraded MicroVertical fallback for ${route} in workerd`,
+  );
 
-const writeReport = () => {
+  const boundaries = collectDistributedBoundaries(html);
+  const routeApiBindingRequests = recorders.apiBindingRequests.slice(apiBindingRequestStart);
+  const routeFragmentBindingRequests = recorders.fragmentBindingRequests.slice(
+    fragmentBindingRequestStart,
+  );
+  for (const boundary of boundaries) {
+    assert(
+      boundary.status === "ready",
+      `${app.id} did not mark ${boundary.key} as ready for ${route}`,
+    );
+    assert(
+      typeof boundary.buildMarker === "string" && boundary.buildMarker.length > 0,
+      `${app.id} ${boundary.key} is missing immutable build provenance`,
+    );
+    assert(
+      /^[a-f\d]{64}$/u.test(boundary.digest ?? ""),
+      `${app.id} ${boundary.key} is missing a verified SHA-256 digest`,
+    );
+    const remote = apps.find((candidate) => candidate.id === boundary.remote);
+    assert(remote, `${app.id} rendered unknown remote ${boundary.remote}`);
+    const requests = routeFragmentBindingRequests.filter(
+      (request) =>
+        request.service === workerName(remote) &&
+        request.remote === boundary.remote &&
+        request.expose === boundary.expose,
+    );
+    const renderedCount = boundaries.filter(
+      (candidate) => candidate.key === boundary.key,
+    ).length;
+    assert(
+      requests.length === renderedCount &&
+        requests.every((request) => request.pathname.includes("/_mf/fragment/")),
+      `${app.id} must compose each ${boundary.key} occurrence through its remote service binding`,
+    );
+  }
+
+  const stylesheetHrefs = collectStylesheetHrefs(html);
+  assert(
+    new Set(stylesheetHrefs).size === stylesheetHrefs.length,
+    `${app.id} rendered duplicate distributed SSR stylesheets for ${route}`,
+  );
+  assert(
+    !routeOutboundRequests.some(({ url }) => /(?:remoteEntry|\.m?js(?:\?|$))/u.test(url)),
+    `${app.id} attempted to fetch remote JavaScript during ${route} server rendering`,
+  );
+
+  return {
+    worker: workerName(app),
+    route,
+    status: response.status,
+    htmlBytes,
+    boundaries,
+    fragmentBindingRequests: routeFragmentBindingRequests,
+    apiBindingRequests: routeApiBindingRequests,
+    outboundRequests: routeOutboundRequests,
+    stylesheetHrefs,
+    degradedBoundaryCount: count(html, 'data-modern-distributed-ssr-status="degraded"'),
+  };
+};
+
+const writeReport = (reportPath, report) => {
   fs.mkdirSync(path.dirname(reportPath), { recursive: true });
   fs.writeFileSync(
     reportPath,
@@ -762,10 +963,8 @@ const writeReport = () => {
       {
         schemaVersion: 3,
         runtime: "workerd",
-        routes: [...new Set(proofs.map((proof) => proof.route))],
-        executions,
-        apiProofs,
-        proofs,
+        routes: [...new Set(report.proofs.map((proof) => proof.route))],
+        ...report,
       },
       null,
       2,
@@ -773,42 +972,39 @@ const writeReport = () => {
   );
 };
 
-for (const shell of shells) {
-  const expectedRemotes = shell.verticalRefs.map((ref) => {
-    const remote = apps.find((app) => app.id === ref);
-    assert(remote, `${shell.id} references missing MicroVertical ${ref}`);
-    return remote;
-  });
-  const headlessApiVerticals = apps.filter((app) => app.kind === "vertical" && app.apiOnly);
-  assert(
-    expectedRemotes.length > 0 || headlessApiVerticals.length > 0,
-    `${shell.id} has no UI MicroVerticals or headless APIs to prove`,
+const main = async () => {
+  const workspaceRoot = path.resolve(process.env.ULTRAMODERN_WORKSPACE_ROOT ?? process.cwd());
+  const reportPath = path.join(workspaceRoot, reportRelativePath);
+  const keepWorkerd = process.env.ULTRAMODERN_KEEP_WORKERD === "1";
+  const apps = await loadApps(
+    workspaceRoot,
+    readJson(path.join(workspaceRoot, "topology/reference-topology.json")),
+    readJson(path.join(workspaceRoot, "topology/local-overlays/development.json")),
   );
+  const shells = apps.filter((app) => app.kind === "shell");
+  assert(!keepWorkerd || shells.length === 1, "Browser workerd proof requires exactly one shell");
 
-  const apiBindingRequests = [];
+  const recorders = {
+    apiBindingRequests: [],
+    fragmentBindingRequests: [],
+    outboundRequests: [],
+  };
   const failedServices = new Set();
-  const fragmentBindingRequests = [];
-  const outboundRequests = [];
+  const composition = {};
   const workerConfigurations = apps.map((app) =>
-    createWorkerOptions(app, {
-      serviceBindings: createServiceBindings(app, {
-        apiBindingRequests,
-        failedServices,
-        fragmentBindingRequests,
-      }),
+    createWorkerOptions(app, workspaceRoot, {
+      serviceBindings: createServiceBindings(app, { ...recorders, composition, failedServices }),
       async outboundService(request) {
         const requestUrl = new URL(request.url);
-        outboundRequests.push({ callerId: app.id, url: requestUrl.href });
+        recorders.outboundRequests.push({ callerId: app.id, url: requestUrl.href });
         return new Response("External network disabled by SSR proof", {
           status: 502,
         });
       },
     }),
   );
-  executions = workerConfigurations.map((configuration) => configuration.executionEvidence);
-  const executionByAppId = new Map(
-    apps.map((app, index) => [app.id, executions[index]]),
-  );
+  const executions = workerConfigurations.map((configuration) => configuration.executionEvidence);
+  const executionByAppId = new Map(apps.map((app, index) => [app.id, executions[index]]));
   const workers = workerConfigurations.map(
     ({ executionEvidence: _executionEvidence, ...configuration }) => configuration,
   );
@@ -819,110 +1015,86 @@ for (const shell of shells) {
       workers,
     }),
   );
-  const renderedRemoteIds = new Set();
+  composition.miniflare = miniflare;
+  const report = { executions, apiProofs: [], proofs: [], verticalProofs: [] };
 
   try {
-    for (const route of shell.proofRoutes) {
-      const apiBindingRequestStart = apiBindingRequests.length;
-      const fragmentBindingRequestStart = fragmentBindingRequests.length;
-      const outboundRequestStart = outboundRequests.length;
-      const response = await miniflare.dispatchFetch(
-        `https://${workerName(shell)}.invalid${route}`,
-        { headers: { accept: "text/html" } },
-      );
-      const html = await response.text();
-      assertSuccessfulSsrResponse(shell.id, route, response, html, log);
-      assert(
-        !html.includes('data-modern-distributed-ssr-status="degraded"'),
-        `${shell.id} rendered a degraded MicroVertical fallback for ${route} in workerd`,
-      );
-
-      const boundaries = collectDistributedBoundaries(html);
-      assert(
-        expectedRemotes.length > 0 ? boundaries.length > 0 : boundaries.length === 0,
-        expectedRemotes.length > 0
-          ? `${shell.id} rendered no distributed SSR boundaries for ${route}`
-          : `${shell.id} rendered unexpected distributed SSR boundaries for ${route}`,
-      );
-      const routeApiBindingRequests = apiBindingRequests.slice(
-        apiBindingRequestStart,
-      );
-      const routeFragmentBindingRequests = fragmentBindingRequests.slice(
-        fragmentBindingRequestStart,
-      );
-      const routeOutboundRequests = outboundRequests.slice(outboundRequestStart);
-      for (const boundary of boundaries) {
-        renderedRemoteIds.add(boundary.remote);
-        assert(
-          boundary.status === "ready",
-          `${shell.id} did not mark ${boundary.key} as ready for ${route}`,
+    for (const shell of shells) {
+      // Shell routes compose declared server-rendered boundaries through the
+      // shell's entry Worker exactly as a browser request would.
+      const renderedRemoteIds = new Set();
+      for (const route of shell.ssrRoutes) {
+        const proof = await proveRoute(
+          shell,
+          route,
+          (url, init) => miniflare.dispatchFetch(url, init),
+          apps,
+          recorders,
+          log,
         );
         assert(
-          typeof boundary.buildMarker === "string" && boundary.buildMarker.length > 0,
-          `${shell.id} ${boundary.key} is missing immutable build provenance`,
+          shell.serverRenderedRoutes.length > 0 || proof.boundaries.length === 0,
+          `${shell.id} declares client composition but rendered distributed SSR boundaries for ${route}`,
         );
+        if (shell.serverRenderedRoutes.includes(route)) {
+          assert(
+            shell.serverRenderedRemoteIds.length === 0 || proof.boundaries.length > 0,
+            `${shell.id} rendered no distributed SSR boundaries for ${route}`,
+          );
+          for (const boundary of proof.boundaries) {
+            renderedRemoteIds.add(boundary.remote);
+          }
+        }
+        report.proofs.push({ shellId: shell.id, ...proof });
+      }
+      for (const remoteId of shell.serverRenderedRemoteIds) {
         assert(
-          /^[a-f\d]{64}$/u.test(boundary.digest ?? ""),
-          `${shell.id} ${boundary.key} is missing a verified SHA-256 digest`,
-        );
-        const remote = apps.find((app) => app.id === boundary.remote);
-        assert(remote, `${shell.id} rendered unknown remote ${boundary.remote}`);
-        const requests = routeFragmentBindingRequests.filter(
-          (request) =>
-            request.service === workerName(remote) &&
-            request.remote === boundary.remote &&
-            request.expose === boundary.expose,
-        );
-        const renderedCount = boundaries.filter(
-          (candidate) => candidate.key === boundary.key,
-        ).length;
-        assert(
-          requests.length === renderedCount &&
-            requests.every((request) => request.pathname.includes("/_mf/fragment/")),
-          `${shell.id} must compose each ${boundary.key} occurrence through its remote service binding`,
+          renderedRemoteIds.has(remoteId),
+          `${shell.id} proof routes are missing independently rendered ${remoteId} content`,
         );
       }
-
-      const stylesheetHrefs = collectStylesheetHrefs(html);
-      assert(
-        new Set(stylesheetHrefs).size === stylesheetHrefs.length,
-        `${shell.id} rendered duplicate distributed SSR stylesheets for ${route}`,
-      );
-      assert(
-        !routeOutboundRequests.some(({ url }) => /(?:remoteEntry|\.m?js(?:\?|$))/u.test(url)),
-        `${shell.id} attempted to fetch remote JavaScript during ${route} server composition`,
-      );
-
-      proofs.push({
-        shellId: shell.id,
-        worker: workerName(shell),
-        route,
-        status: response.status,
-        boundaries,
-        fragmentBindingRequests: routeFragmentBindingRequests,
-        apiBindingRequests: routeApiBindingRequests,
-        outboundRequests: routeOutboundRequests,
-        stylesheetHrefs,
-        degradedBoundaryCount: count(html, 'data-modern-distributed-ssr-status="degraded"'),
-      });
-    }
-
-    for (const remote of expectedRemotes) {
-      assert(
-        renderedRemoteIds.has(remote.id),
-        `${shell.id} proof routes are missing independently rendered ${remote.id} content`,
+      report.apiProofs.push(
+        ...(await runApiProofs(apps, miniflare, shell, executionByAppId)),
       );
     }
-    apiProofs.push(...(await runApiProofs(miniflare, shell, executionByAppId)));
-    if (process.env.ULTRAMODERN_KEEP_WORKERD === "1") {
-      writeReport();
+
+    // Every UI MicroVertical proves its own Worker at its declared SSR routes,
+    // whether or not a shell also composes it on the server.
+    for (const [index, vertical] of apps.entries()) {
+      if (vertical.kind !== "vertical" || vertical.ssrRoutes.length === 0) {
+        continue;
+      }
+      const runtimeLog = new ProofLog();
+      const runtime = createIsolatedRuntime(workers[index], runtimeLog);
+      try {
+        for (const route of vertical.ssrRoutes) {
+          report.verticalProofs.push({
+            appId: vertical.id,
+            ...(await proveRoute(
+              vertical,
+              route,
+              (url, init) => runtime.dispatchFetch(url, init),
+              apps,
+              recorders,
+              runtimeLog,
+            )),
+          });
+        }
+      } finally {
+        await runtime.dispose();
+      }
+    }
+
+    writeReport(reportPath, report);
+    if (keepWorkerd) {
       const targetServers = await startWorkerdTargetServers(
+        apps,
         miniflare,
         failedServices,
         workers,
       );
       console.log(`WORKERD_TARGET_URLS=${JSON.stringify(targetServers.targetUrls)}`);
-      console.log(`WORKERD_URL=${targetServers.targetUrls[shell.id]}`);
+      console.log(`WORKERD_URL=${targetServers.targetUrls[shells[0].id]}`);
       try {
         await new Promise((resolve) => {
           process.once("SIGINT", resolve);
@@ -935,7 +1107,10 @@ for (const shell of shells) {
   } finally {
     await miniflare.dispose();
   }
-}
 
-writeReport();
-console.log(`Workerd SSR composition proof passed for ${shells.length} shell(s): ${reportPath}`);
+  console.log(`Workerd SSR composition proof passed for ${shells.length} shell(s): ${reportPath}`);
+};
+
+if (import.meta.main) {
+  await main();
+}

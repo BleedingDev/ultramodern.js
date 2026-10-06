@@ -12,6 +12,7 @@ import {
   ULTRAMODERN_BUILD_ARTIFACT_PATH,
   type UltramodernBuildArtifact,
 } from '@modern-js/backend-federation-contracts';
+import { readBuildIdentity } from '../backend-federation-build/config';
 import {
   resolveTopologyDeliveryUnit,
   resolveWorkerDeliveryUnitStamp,
@@ -21,14 +22,15 @@ import {
   createMicroVerticalReleaseEnvelope,
   verifyMicroVerticalReleaseEnvelope,
 } from './index';
-import type {
-  MicroVerticalReleaseArtifact,
-  MicroVerticalReleaseArtifactInput,
-  MicroVerticalReleaseEnvelope,
-  MicroVerticalReleaseIdentity,
-  MicroVerticalReleaseSurfaces,
-  MicroVerticalReleaseTarget,
-  MicroVerticalReleaseUi,
+import {
+  type MicroVerticalReleaseArtifact,
+  type MicroVerticalReleaseArtifactInput,
+  type MicroVerticalReleaseIdentity,
+  type MicroVerticalReleaseSurfaces,
+  type MicroVerticalReleaseTarget,
+  type MicroVerticalReleaseUi,
+  type ReleaseEnvelope,
+  SHELL_RELEASE_ENVELOPE_KIND,
 } from './types';
 
 export const MICROVERTICAL_RELEASE_ENVELOPE_PATH =
@@ -56,6 +58,28 @@ const isPublicMetadataPath = (logicalPath: string) =>
   logicalPath === 'public/_headers' ||
   /^public\/\.well-known\/[^/]+\.json$/u.test(logicalPath);
 const PUBLIC_BUILD_ARTIFACT_PATH = `public/${ULTRAMODERN_BUILD_ARTIFACT_FILE}`;
+// Files an app declared through `deploy.<target>.publicAssets`. The deploy
+// output stages them from app-root sources; they are served data, not a
+// UI/client surface, so API-only units may carry them.
+const DECLARED_PUBLIC_ASSET_RUNTIME = 'public-asset';
+
+const resolveDeclaredPublicAssets = (
+  files: readonly string[],
+  declaredPublicAssets: readonly string[],
+  target: 'Node' | 'Cloudflare',
+) => {
+  const staged = new Set(files);
+  const declared = new Set<string>();
+  for (const logicalPath of declaredPublicAssets) {
+    if (!logicalPath.startsWith('public/') || !staged.has(logicalPath)) {
+      throw new Error(
+        `[ultramodern-release-envelope] final ${target} staging has no declared public asset file ${JSON.stringify(logicalPath)}.`,
+      );
+    }
+    declared.add(logicalPath);
+  }
+  return declared;
+};
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -333,7 +357,7 @@ const resolveSafeReleaseEnvelopePath = async ({
 
 const writeReleaseEnvelope = async (
   artifactRoot: string,
-  envelope: MicroVerticalReleaseEnvelope,
+  envelope: ReleaseEnvelope,
 ) => {
   const envelopePath = await resolveSafeReleaseEnvelopePath({
     artifactRoot,
@@ -626,7 +650,11 @@ const createReleaseArtifactInputs = async (
   target: MicroVerticalReleaseTarget,
   apiOnly: boolean,
   uiOnly: boolean,
+  shellConsumer: boolean,
 ) => {
+  // A Shell consumes remotes and a UI-only unit has no backend; neither
+  // publishes a backend federation pair.
+  const backendProducer = !uiOnly && !shellConsumer;
   const files = await collectFiles(distDirectory);
   // Rspack emits these runtime/shared chunks for UI SSR too. Only an actual
   // Effect BFF entry makes the shared worker support part of that API surface.
@@ -760,12 +788,21 @@ const createReleaseArtifactInputs = async (
     files.filter(logicalPath => logicalPath === PUBLIC_BUILD_ARTIFACT_PATH),
     'release-identity-metadata',
   );
-  if (!uiOnly) {
+  if (backendProducer) {
     add([BACKEND_FEDERATION_MANIFEST_FILE], 'module-federation-manifest');
     add(
       [BACKEND_FEDERATION_REMOTE_ENTRY_FILE],
       target === 'node' ? 'nodejs' : 'commonjs-module',
     );
+  }
+  if (shellConsumer) {
+    // The Shell is the deployed entry point: every remaining build file is
+    // part of its deployment and must be bound.
+    for (const logicalPath of files) {
+      if (!runtimeByPath.has(logicalPath)) {
+        runtimeByPath.set(logicalPath, `${target}-deployment`);
+      }
+    }
   }
 
   const surfaces: MicroVerticalReleaseSurfaces = {
@@ -776,7 +813,7 @@ const createReleaseArtifactInputs = async (
     apiBackend: [...apiBackendPaths].sort((left, right) =>
       left.localeCompare(right),
     ),
-    ...(!uiOnly
+    ...(backendProducer
       ? {
           backendFederation: {
             manifest: BACKEND_FEDERATION_MANIFEST_FILE,
@@ -792,9 +829,9 @@ const createReleaseArtifactInputs = async (
     distDirectory,
     identity,
     {
-      ...(!uiOnly
+      ...(!uiOnly ? { apiBackend: apiBackendPaths } : {}),
+      ...(backendProducer
         ? {
-            apiBackend: apiBackendPaths,
             backendFederation: [
               BACKEND_FEDERATION_MANIFEST_FILE,
               BACKEND_FEDERATION_REMOTE_ENTRY_FILE,
@@ -815,6 +852,43 @@ const createReleaseArtifactInputs = async (
   };
 };
 
+const releaseEnvelopeSurfaces = (
+  surfaces: MicroVerticalReleaseSurfaces,
+  shellConsumer: boolean,
+) => {
+  if (!shellConsumer) {
+    return { surfaces };
+  }
+  const { uiClient, ssr, apiBackend } = surfaces;
+  return {
+    kind: SHELL_RELEASE_ENVELOPE_KIND,
+    surfaces: { uiClient, ssr, apiBackend },
+  };
+};
+
+/**
+ * A Shell publishes no backend federation pair, so no producer restamps its
+ * identity. Its finalized build artifact (stamped by the renderer build from the
+ * declared delivery unit) must belong to this app; the build-artifact contract
+ * requires every identity record to carry that one stamped identity.
+ */
+const assertShellBuildIdentity = async (
+  appDirectory: string,
+  distDirectory: string,
+) => {
+  const source = await readBuildIdentity(appDirectory);
+  const finalized = (await pathExists(
+    path.join(distDirectory, ULTRAMODERN_BUILD_ARTIFACT_FILE),
+  ))
+    ? await resolveWorkerDeliveryUnitStamp(appDirectory, distDirectory)
+    : undefined;
+  if (!source.artifact || !finalized || finalized.unitId !== source.unitId) {
+    throw new Error(
+      '[ultramodern-release-envelope] Shell is missing its native compiled delivery-unit identity.',
+    );
+  }
+};
+
 const pathExists = async (filePath: string) => {
   try {
     await fs.access(filePath);
@@ -830,6 +904,7 @@ export const emitFrameworkMicroVerticalReleaseEnvelope = async ({
   distDirectory,
   requirePromotable = true,
   expectedRendererProfile,
+  role = 'microvertical',
   target,
 }: {
   apiOnly: boolean;
@@ -837,8 +912,10 @@ export const emitFrameworkMicroVerticalReleaseEnvelope = async ({
   distDirectory: string;
   requirePromotable?: boolean;
   expectedRendererProfile?: RendererProfile;
+  role?: 'microvertical' | 'shell';
   target: MicroVerticalReleaseTarget;
-}): Promise<MicroVerticalReleaseEnvelope | undefined> => {
+}): Promise<ReleaseEnvelope | undefined> => {
+  const shellConsumer = role === 'shell';
   const backendManifestPath = path.join(
     distDirectory,
     BACKEND_FEDERATION_MANIFEST_FILE,
@@ -851,7 +928,14 @@ export const emitFrameworkMicroVerticalReleaseEnvelope = async ({
     pathExists(backendManifestPath),
     pathExists(backendContainerPath),
   ]);
-  if (!apiOnly && !hasBackendManifest && !hasBackendContainer) {
+  if (shellConsumer) {
+    if (apiOnly || hasBackendManifest || hasBackendContainer || !appDirectory) {
+      throw new Error(
+        '[ultramodern-release-envelope] Shell requires a full-stack application source and cannot declare a backend federation producer.',
+      );
+    }
+    await assertShellBuildIdentity(appDirectory, distDirectory);
+  } else if (!apiOnly && !hasBackendManifest && !hasBackendContainer) {
     const source = appDirectory
       ? path.join(appDirectory, ULTRAMODERN_BUILD_ARTIFACT_PATH)
       : undefined;
@@ -895,7 +979,11 @@ export const emitFrameworkMicroVerticalReleaseEnvelope = async ({
     );
   if (!hasBackendManifest && !hasBackendContainer && !apiOnly && !buildArtifact)
     return undefined;
-  if (!uiOnly && (!hasBackendManifest || !hasBackendContainer)) {
+  if (
+    !shellConsumer &&
+    !uiOnly &&
+    (!hasBackendManifest || !hasBackendContainer)
+  ) {
     throw new Error(
       '[ultramodern-release-envelope] MicroVertical backend federation manifest and container must be emitted together.',
     );
@@ -929,13 +1017,16 @@ export const emitFrameworkMicroVerticalReleaseEnvelope = async ({
     sourceRevision: buildArtifact.deliveryUnit.sourceRevision,
     releaseVersion: buildArtifact.deliveryUnit.version,
   };
-  if (!uiOnly) await readBackendManifest(distDirectory, identity);
+  if (!shellConsumer && !uiOnly) {
+    await readBackendManifest(distDirectory, identity);
+  }
   const { artifacts, surfaces } = await createReleaseArtifactInputs(
     distDirectory,
     identity,
     target,
     apiOnly,
     uiOnly,
+    shellConsumer,
   );
   const envelope = await createMicroVerticalReleaseEnvelope({
     artifactRoot: distDirectory,
@@ -943,7 +1034,7 @@ export const emitFrameworkMicroVerticalReleaseEnvelope = async ({
     identity,
     ...(ui ? { ui } : {}),
     artifacts,
-    surfaces,
+    ...releaseEnvelopeSurfaces(surfaces, shellConsumer),
   });
   await verifyBuildArtifactCarriers(distDirectory, envelope);
   await writeReleaseEnvelope(distDirectory, envelope);
@@ -962,7 +1053,7 @@ export const readFrameworkMicroVerticalReleaseEnvelope = async ({
   logicalPathForArtifact?: (artifact: MicroVerticalReleaseArtifact) => string;
   expectedRendererProfile?: RendererProfile;
   required?: boolean;
-}): Promise<MicroVerticalReleaseEnvelope | undefined> => {
+}): Promise<ReleaseEnvelope | undefined> => {
   const envelopePath = await resolveSafeReleaseEnvelopePath({
     artifactRoot,
     createDirectory: false,
@@ -994,7 +1085,7 @@ export const readFrameworkMicroVerticalReleaseEnvelope = async ({
 
 const verifyBuildArtifactCarriers = async (
   artifactRoot: string,
-  envelope: MicroVerticalReleaseEnvelope,
+  envelope: ReleaseEnvelope,
   logicalPathForArtifact?: (artifact: MicroVerticalReleaseArtifact) => string,
 ) => {
   const carriers = envelope.artifacts.filter(
@@ -1102,12 +1193,20 @@ const createNodeStagedReleaseArtifactInputs = async (
   identity: MicroVerticalReleaseIdentity,
   apiOnly: boolean,
   uiOnly: boolean,
+  declaredPublicAssets: readonly string[],
+  shellConsumer: boolean,
 ) => {
+  const backendProducer = !uiOnly && !shellConsumer;
   const files = await collectFiles(outputDirectory);
+  const declaredPublicAssetPaths = resolveDeclaredPublicAssets(
+    files,
+    declaredPublicAssets,
+    'Node',
+  );
   for (const requiredPath of [
     'index.js',
     'package.json',
-    ...(!uiOnly
+    ...(backendProducer
       ? [BACKEND_FEDERATION_MANIFEST_FILE, BACKEND_FEDERATION_REMOTE_ENTRY_FILE]
       : []),
   ]) {
@@ -1122,6 +1221,14 @@ const createNodeStagedReleaseArtifactInputs = async (
     BACKEND_FEDERATION_MANIFEST_FILE,
     BACKEND_FEDERATION_REMOTE_ENTRY_FILE,
   ]);
+  if (
+    shellConsumer &&
+    files.some(logicalPath => backendFederationPaths.has(logicalPath))
+  ) {
+    throw new Error(
+      '[ultramodern-release-envelope] final Shell Node staging cannot contain a backend federation producer artifact.',
+    );
+  }
   const uiClientPaths = files.filter(logicalPath => {
     const topLevel = logicalPath.split('/')[0];
     return (
@@ -1130,7 +1237,8 @@ const createNodeStagedReleaseArtifactInputs = async (
       (topLevel === 'public' &&
         logicalPath !== CRAWLER_POLICY_PATH &&
         logicalPath !== PUBLIC_BUILD_ARTIFACT_PATH &&
-        !isPublicMetadataPath(logicalPath)) ||
+        !isPublicMetadataPath(logicalPath) &&
+        !declaredPublicAssetPaths.has(logicalPath)) ||
       [
         'index.html',
         'mf-manifest.json',
@@ -1205,6 +1313,9 @@ const createNodeStagedReleaseArtifactInputs = async (
   for (const logicalPath of uiClientPaths) {
     runtimeByPath.set(logicalPath, 'browser');
   }
+  for (const logicalPath of declaredPublicAssetPaths) {
+    runtimeByPath.set(logicalPath, DECLARED_PUBLIC_ASSET_RUNTIME);
+  }
   if (files.includes(CRAWLER_POLICY_PATH)) {
     runtimeByPath.set(CRAWLER_POLICY_PATH, 'crawler-policy');
   }
@@ -1217,7 +1328,7 @@ const createNodeStagedReleaseArtifactInputs = async (
   for (const logicalPath of apiBackendPaths) {
     runtimeByPath.set(logicalPath, 'nodejs');
   }
-  if (!uiOnly) {
+  if (backendProducer) {
     runtimeByPath.set(
       BACKEND_FEDERATION_MANIFEST_FILE,
       'module-federation-manifest',
@@ -1236,9 +1347,9 @@ const createNodeStagedReleaseArtifactInputs = async (
     outputDirectory,
     identity,
     {
-      ...(!uiOnly
+      ...(!uiOnly ? { apiBackend: apiBackendPaths } : {}),
+      ...(backendProducer
         ? {
-            apiBackend: apiBackendPaths,
             backendFederation: [
               BACKEND_FEDERATION_MANIFEST_FILE,
               BACKEND_FEDERATION_REMOTE_ENTRY_FILE,
@@ -1275,7 +1386,7 @@ const createNodeStagedReleaseArtifactInputs = async (
       apiBackend: [...apiBackendPaths].sort((left, right) =>
         left.localeCompare(right),
       ),
-      ...(!uiOnly
+      ...(backendProducer
         ? {
             backendFederation: {
               manifest: BACKEND_FEDERATION_MANIFEST_FILE,
@@ -1288,9 +1399,12 @@ const createNodeStagedReleaseArtifactInputs = async (
 };
 
 export const emitNodeStagedReleaseEnvelope = async ({
+  declaredPublicAssets = [],
   distDirectory,
   outputDirectory,
 }: {
+  /** Staged `deploy.node.publicAssets` files, relative to `outputDirectory`. */
+  declaredPublicAssets?: readonly string[];
   distDirectory: string;
   outputDirectory: string;
 }) => {
@@ -1298,11 +1412,14 @@ export const emitNodeStagedReleaseEnvelope = async ({
   if (!source) {
     return undefined;
   }
+  const shellConsumer = source.kind === SHELL_RELEASE_ENVELOPE_KIND;
   const { artifacts, surfaces } = await createNodeStagedReleaseArtifactInputs(
     outputDirectory,
     source.identity,
     source.surfaces.uiClient.length === 0,
-    !source.surfaces.backendFederation,
+    source.surfaces.apiBackend.length === 0,
+    declaredPublicAssets,
+    shellConsumer,
   );
   const staged = await createMicroVerticalReleaseEnvelope({
     artifactRoot: outputDirectory,
@@ -1310,7 +1427,7 @@ export const emitNodeStagedReleaseEnvelope = async ({
     identity: source.identity,
     ...(source.ui ? { ui: source.ui } : {}),
     artifacts,
-    surfaces,
+    ...releaseEnvelopeSurfaces(surfaces, shellConsumer),
   });
   await verifyBuildArtifactCarriers(outputDirectory, staged);
   await writeReleaseEnvelope(outputDirectory, staged);
@@ -1348,8 +1465,16 @@ const createCloudflareStagedReleaseArtifactInputs = async (
   identity: MicroVerticalReleaseIdentity,
   apiOnly: boolean,
   uiOnly: boolean,
+  declaredPublicAssets: readonly string[],
+  shellConsumer: boolean,
 ) => {
+  const backendProducer = !uiOnly && !shellConsumer;
   const files = await collectFiles(outputDirectory);
+  const declaredPublicAssetPaths = resolveDeclaredPublicAssets(
+    files,
+    declaredPublicAssets,
+    'Cloudflare',
+  );
   for (const requiredPath of [
     'server/index.mjs',
     'server/modern-worker-manifest.json',
@@ -1397,10 +1522,23 @@ const createCloudflareStagedReleaseArtifactInputs = async (
       logicalPath.startsWith('public/') &&
       logicalPath !== CRAWLER_POLICY_PATH &&
       !isPublicMetadataPath(logicalPath) &&
+      !declaredPublicAssetPaths.has(logicalPath) &&
       logicalPath !== PUBLIC_BUILD_ARTIFACT_PATH &&
       logicalPath !== backendManifestPath &&
       logicalPath !== backendContainerPath,
   );
+  if (
+    shellConsumer &&
+    files.some(
+      logicalPath =>
+        logicalPath === backendManifestPath ||
+        logicalPath === backendContainerPath,
+    )
+  ) {
+    throw new Error(
+      '[ultramodern-release-envelope] final Shell Cloudflare staging cannot contain a backend federation producer artifact.',
+    );
+  }
   if (
     uiOnly &&
     (apiBackendPaths.length > 0 ||
@@ -1438,9 +1576,9 @@ const createCloudflareStagedReleaseArtifactInputs = async (
       );
     }
   }
-  for (const logicalPath of uiOnly
-    ? []
-    : [backendManifestPath, backendContainerPath]) {
+  for (const logicalPath of backendProducer
+    ? [backendManifestPath, backendContainerPath]
+    : []) {
     if (!files.includes(logicalPath)) {
       throw new Error(
         `[ultramodern-release-envelope] final Cloudflare staging is missing ${logicalPath}.`,
@@ -1482,13 +1620,14 @@ const createCloudflareStagedReleaseArtifactInputs = async (
     }
   };
   add(uiClientPaths, 'browser');
+  add([...declaredPublicAssetPaths], DECLARED_PUBLIC_ASSET_RUNTIME);
   if (files.includes(CRAWLER_POLICY_PATH)) {
     runtimeByPath.set(CRAWLER_POLICY_PATH, 'crawler-policy');
   }
   add(files.filter(isPublicMetadataPath), 'public-metadata');
   add(apiOnly ? [] : ssrPaths, 'workerd');
   add(apiBackendPaths, 'workerd-effect');
-  if (!uiOnly) {
+  if (backendProducer) {
     add([backendManifestPath], 'module-federation-manifest');
     add([backendContainerPath], 'commonjs-module');
   }
@@ -1505,11 +1644,9 @@ const createCloudflareStagedReleaseArtifactInputs = async (
     outputDirectory,
     identity,
     {
-      ...(!uiOnly
-        ? {
-            apiBackend: apiBackendPaths,
-            backendFederation: [backendManifestPath, backendContainerPath],
-          }
+      ...(!uiOnly ? { apiBackend: apiBackendPaths } : {}),
+      ...(backendProducer
+        ? { backendFederation: [backendManifestPath, backendContainerPath] }
         : {}),
       ssr: apiOnly
         ? []
@@ -1543,7 +1680,7 @@ const createCloudflareStagedReleaseArtifactInputs = async (
       apiBackend: [...apiBackendPaths].sort((left, right) =>
         left.localeCompare(right),
       ),
-      ...(!uiOnly
+      ...(backendProducer
         ? {
             backendFederation: {
               manifest: backendManifestPath,
@@ -1556,9 +1693,12 @@ const createCloudflareStagedReleaseArtifactInputs = async (
 };
 
 export const emitCloudflareStagedReleaseEnvelope = async ({
+  declaredPublicAssets = [],
   distDirectory,
   outputDirectory,
 }: {
+  /** Staged `deploy.worker.publicAssets` files, relative to `outputDirectory`. */
+  declaredPublicAssets?: readonly string[];
   distDirectory: string;
   outputDirectory: string;
 }) => {
@@ -1569,12 +1709,15 @@ export const emitCloudflareStagedReleaseEnvelope = async ({
   if (!source) {
     return undefined;
   }
+  const shellConsumer = source.kind === SHELL_RELEASE_ENVELOPE_KIND;
   const { artifacts, surfaces } =
     await createCloudflareStagedReleaseArtifactInputs(
       outputDirectory,
       source.identity,
       source.surfaces.uiClient.length === 0,
-      !source.surfaces.backendFederation,
+      source.surfaces.apiBackend.length === 0,
+      declaredPublicAssets,
+      shellConsumer,
     );
   const staged = await createMicroVerticalReleaseEnvelope({
     artifactRoot: outputDirectory,
@@ -1582,7 +1725,7 @@ export const emitCloudflareStagedReleaseEnvelope = async ({
     identity: source.identity,
     ...(source.ui ? { ui: source.ui } : {}),
     artifacts,
-    surfaces,
+    ...releaseEnvelopeSurfaces(surfaces, shellConsumer),
   });
   await verifyBuildArtifactCarriers(outputDirectory, staged);
   await writeReleaseEnvelope(outputDirectory, staged);

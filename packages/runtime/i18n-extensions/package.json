@@ -67,10 +67,10 @@
     "prepublishOnly": "only-allow-pnpm",
     "dev": "rslib build --watch",
     "build": "rslib build",
-    "test": "rstest --passWithNoTests"
+    "test": "rstest"
   },
   "engines": {
-    "node": ">=26.7.0"
+    "node": ">=26.10.0"
   },
   "dependencies": {
     "@modern-js/runtime-extensions": "workspace:*",
@@ -84,9 +84,9 @@
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
     "@modern-js/runtime": "workspace:*",
-    "@rslib/core": "1.0.2",
+    "@rslib/core": "1.0.3",
     "@scripts/rstest-config": "workspace:*",
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.3",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },
@@ -95,5 +95,9 @@
     "registry": "https://registry.npmjs.org/",
     "access": "public",
     "types": "./dist/types/index.d.ts"
-  }
+  },
+  "files": [
+    "dist",
+    "src"
+  ]
 }

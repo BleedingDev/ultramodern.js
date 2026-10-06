@@ -10,13 +10,14 @@ import {
   runChecked,
   startEphemeralRegistry,
 } from '../../ultramodern-publish/lib/source-create-proof/runtime-proof/registry.mjs';
+import { defaultReleaseAgePolicyPath } from '../../ultramodern-publish/run-release-acceptance.mjs';
 import {
   assertCohortResolutionProvenance,
   createAcceptancePackageManagerEnv,
   createAcceptanceReleaseAgeEnv,
 } from '../published-create-proof/acceptance-profile.mjs';
 import { resolveCreatePackage } from '../published-create-proof/package-cohort.mjs';
-import { resolveAcceptanceReleaseAgeExclusions } from '../published-create-proof/release-age-audit.mjs';
+import { releaseAgeExemptions } from '../published-create-proof/release-age-audit.mjs';
 import { ordinaryFiles } from '../react-rsc-worker-proof/contract.mjs';
 import { registerOwnedRoot } from '../react-rsc-worker-proof/lifecycle.mjs';
 import { runCommand } from '../react-rsc-worker-proof/main.mjs';
@@ -201,9 +202,10 @@ export async function runProof(provided) {
       };
     const registryUrl = registry?.registryUrl ?? options.registryUrl;
     const registryEnv = registry?.env ?? options.env ?? {};
-    const releaseAgeExclusions = resolveAcceptanceReleaseAgeExclusions({
-      release,
-      mode: 'source',
+    // Every lane passes the one exemption set derived from the manifest and
+    // the reviewed exception policy.
+    const releaseAgeExclusions = releaseAgeExemptions(release, {
+      policyPath: defaultReleaseAgePolicyPath,
     });
     const packageEnv = createAcceptanceReleaseAgeEnv(
       createAcceptancePackageManagerEnv(

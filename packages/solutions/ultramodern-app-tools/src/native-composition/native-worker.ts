@@ -32,8 +32,8 @@ export interface NativeWorkerConfig {
 
 /** Native Cloudflare SSR builds the same server handler as a module worker. */
 export const isNativeWorkerBuild = (config: NativeWorkerConfig): boolean =>
-  resolveDeployTarget(config) === 'cloudflare' &&
-  Boolean(config.deploy?.worker?.ssr);
+  resolveDeployTarget({ configTarget: config.deploy?.target }).target ===
+    'cloudflare' && Boolean(config.deploy?.worker?.ssr);
 
 /** The worker entry re-exports the native handler and its Fetch dispatcher. */
 export const nativeWorkerEntrySource = (serverEntry: string): string =>

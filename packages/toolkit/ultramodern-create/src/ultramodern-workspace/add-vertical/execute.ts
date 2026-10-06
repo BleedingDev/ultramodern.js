@@ -7,7 +7,11 @@ import {
 } from '@modern-js/ultramodern-app-tools/config-evaluator';
 import { yaml } from '@modern-js/utils';
 import { preserveUnknownProjectionFields } from '../../ultramodern-tooling/config';
-import { createGeneratedConfigProjections } from '../config-generated-projections';
+import {
+  createGeneratedConfigProjections,
+  projectGeneratedWorkspacePolicy,
+  projectWrittenWorkspacePolicy,
+} from '../config-generated-projections';
 import {
   createDeliveryUnitRecord,
   deliveryUnitContractBlock,
@@ -16,7 +20,6 @@ import { stampDeliveryUnitIdentity } from '../delivery-unit-stamp';
 import {
   appEmitsBrowserUi,
   createModuleFederationRemoteContracts,
-  resolveRemoteRefs,
 } from '../descriptors';
 import {
   projectAddedVerticalDevelopmentOverlay,
@@ -32,10 +35,7 @@ import {
   createGenerationResult,
   diffFileSnapshots,
 } from '../generation-result';
-import {
-  createAppModernConfig,
-  createUltramodernBuildArtifactJson,
-} from '../module-federation';
+import { createUltramodernBuildArtifactJson } from '../module-federation';
 import { runCodeSmithOverlays } from '../overlays';
 import { createRootTsConfig } from '../package-json';
 import { captureWorkspaceRendererEvaluations } from '../renderer-config-evaluation';
@@ -62,7 +62,6 @@ import {
 import {
   preserveConsumerWorkspaceArtifacts,
   workspaceArtifactCandidates,
-  workspaceDevelopmentPorts,
 } from '../workspace-artifact-ownership';
 import { writeGeneratedWorkspaceScripts } from '../workspace-scripts';
 import { writeApp } from '../write-workspace';
@@ -171,14 +170,9 @@ export async function executeAddUltramodernVertical(
     ...existingVerticals,
     ...additionalShells,
   ];
-  const previousDevPorts = workspaceDevelopmentPorts(previousApps);
   const { io: ownedIo } = preserveConsumerWorkspaceArtifacts(
     options.workspaceRoot,
-    workspaceArtifactCandidates(
-      scope,
-      previousProjection(previousApps),
-      previousTailwind,
-    ),
+    workspaceArtifactCandidates(scope, previousProjection(previousApps)),
   );
 
   const nextTargetShell = {
@@ -195,10 +189,6 @@ export async function executeAddUltramodernVertical(
       : primaryShell;
   const nextAdditionalShells = additionalShells.map(shell =>
     shell.id === nextTargetShell.id ? nextTargetShell : shell,
-  );
-  const configuredDevPorts = workspaceDevelopmentPorts(
-    [nextPrimaryShell, ...updatedVerticals, ...nextAdditionalShells],
-    overlay.ports,
   );
   const generatedProjections = createGeneratedConfigProjections({
     workspaceRoot: options.workspaceRoot,
@@ -222,7 +212,6 @@ export async function executeAddUltramodernVertical(
     enableTailwind,
     updatedVerticals,
     bridge,
-    configuredDevPorts,
   );
   for (const app of previousApps) {
     const entry =
@@ -394,13 +383,11 @@ export async function executeAddUltramodernVertical(
       shellToRefresh.id === nextTargetShell.id
         ? nextTargetShell
         : shellToRefresh,
-      configuredDevPorts,
       {
         shell: previousProjection(previousApps).find(
           app => app.id === shellToRefresh.id,
         )!,
         remotes: existingVerticals,
-        devPorts: previousDevPorts,
         enableTailwind: previousTailwind,
       },
     );
@@ -433,29 +420,6 @@ export async function executeAddUltramodernVertical(
       2,
     )}\n`,
   );
-  if (configuredDevPorts) {
-    for (const app of [
-      nextPrimaryShell,
-      ...updatedVerticals,
-      ...nextAdditionalShells,
-    ]) {
-      if (app.id === vertical.id || app.id === nextTargetShell.id) {
-        continue;
-      }
-      ownedIo.write(
-        path.join(options.workspaceRoot, app.directory, 'modern.config.ts'),
-        createAppModernConfig(
-          scope,
-          app,
-          app.kind === 'shell'
-            ? resolveRemoteRefs(app, updatedVerticals)
-            : updatedVerticals,
-          enableTailwind,
-          configuredDevPorts,
-        ),
-      );
-    }
-  }
   const preliminaryAfterFiles = createFileSnapshot(options.workspaceRoot);
   const preliminaryDiff = diffFileSnapshots(beforeFiles, preliminaryAfterFiles);
 
@@ -480,6 +444,7 @@ export async function executeAddUltramodernVertical(
       ? [`${vertical.directory}/shared/ultramodern-build.json`]
       : [],
   );
+  projectWrittenWorkspacePolicy(generatedProjections, options.workspaceRoot);
   preflight.assertConsumedInputsUnchanged(options.workspaceRoot);
   runCodeSmithOverlays({
     workspaceRoot: options.workspaceRoot,
@@ -577,11 +542,16 @@ export async function executeAddUltramodernVertical(
         bridge,
       }),
     );
+    const finalTopologySource = `${JSON.stringify(finalTopology, null, 2)}\n`;
+    projectGeneratedWorkspacePolicy(
+      [...generatedProjections, ...identityProjections],
+      finalTopologySource,
+    );
     const finalSourceSnapshot = replaceRendererIdentityProjections(
       options.workspaceRoot,
       capturedConfig.sourceSnapshots[0]!,
       new Map([
-        [TOPOLOGY_PATH, `${JSON.stringify(finalTopology, null, 2)}\n`],
+        [TOPOLOGY_PATH, finalTopologySource],
         [
           DEVELOPMENT_OVERLAY_PATH,
           `${JSON.stringify(finalOverlay, null, 2)}\n`,
@@ -653,11 +623,13 @@ export async function executeAddUltramodernVertical(
     const capturedSource = captureConfigSourceSnapshot({
       sourceRoots: [options.workspaceRoot],
     });
+    const finalTopologySource = `${JSON.stringify(finalTopology, null, 2)}\n`;
+    projectGeneratedWorkspacePolicy(generatedProjections, finalTopologySource);
     const finalSourceSnapshot = replaceRendererIdentityProjections(
       options.workspaceRoot,
       capturedSource,
       new Map([
-        [TOPOLOGY_PATH, `${JSON.stringify(finalTopology, null, 2)}\n`],
+        [TOPOLOGY_PATH, finalTopologySource],
         [
           `${vertical.directory}/shared/ultramodern-build.json`,
           createUltramodernBuildArtifactJson(scope, resolvedVertical),

@@ -1,9 +1,4 @@
 import { createHash } from 'node:crypto';
-import fs from 'node:fs/promises';
-import http from 'node:http';
-import os from 'node:os';
-import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import {
   BACKEND_FEDERATION_CONTRACT_VERSION,
   BACKEND_FEDERATION_NODE_ADAPTER_VERSION,
@@ -113,21 +108,6 @@ function withDeliveryUnitIdentity(
     },
   });
   return manifest;
-}
-
-async function listen(server: http.Server) {
-  await new Promise<void>((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(0, '127.0.0.1', () => {
-      server.off('error', reject);
-      resolve();
-    });
-  });
-  const address = server.address();
-  if (!address || typeof address === 'string') {
-    throw new Error('Expected backend federation test server TCP address.');
-  }
-  return `http://127.0.0.1:${address.port}`;
 }
 
 function createManifestEffectApiModule(
@@ -431,6 +411,20 @@ module.exports = {
         ],
       }),
     ).rejects.toThrow(/static or service-binding entries/u);
+  });
+
+  test('rejects host shares on the edge loader instead of dropping them', async () => {
+    await expect(
+      loadEdgeBackendFederatedEffectApi({
+        expected: { unitId: 'catalog@21', buildMarker: 'catalog-build-123' },
+        hostName: 'cloudflareSharedBackendHost',
+        remote: {
+          entry: 'service:verticalCheckoutBackend',
+          name: 'verticalCheckoutBackend',
+        },
+        ...({ shared: { registry: { lib: () => ({}) } } } as object),
+      }),
+    ).rejects.toThrow(/host shares/u);
   });
 
   test('does not let manifestPath disguise a network fetch as a trusted local manifest', async () => {
@@ -1009,23 +1003,26 @@ describe('caller-pinned backend federation regressions', () => {
     { unitId: 'catalog@21' },
     { unitId: 'catalog@21', build: '' },
     { unitId: 'catalog@21', build: 'another-build' },
-  ])('rejects missing or drifting executed identity independently of pinned remote identity: %j', async compatibility => {
-    const module = strictEffectApiModule();
-    const { remote, runtime } = createPinnedBackendRuntime({
-      module: {
-        ...module,
-        backendFederationContract: {
-          ...module.backendFederationContract,
-          compatibility,
+  ])(
+    'rejects missing or drifting executed identity independently of pinned remote identity: %j',
+    async compatibility => {
+      const module = strictEffectApiModule();
+      const { remote, runtime } = createPinnedBackendRuntime({
+        module: {
+          ...module,
+          backendFederationContract: {
+            ...module.backendFederationContract,
+            compatibility,
+          },
         },
-      },
-    });
-    await expect(
-      loadBackendFederatedEffectApi({
-        expected: { unitId: 'catalog@21', buildMarker: 'catalog-build-123' },
-        runtime,
-        remote,
-      }),
-    ).rejects.toThrow('delivery-unit identity mismatch');
-  });
+      });
+      await expect(
+        loadBackendFederatedEffectApi({
+          expected: { unitId: 'catalog@21', buildMarker: 'catalog-build-123' },
+          runtime,
+          remote,
+        }),
+      ).rejects.toThrow('delivery-unit identity mismatch');
+    },
+  );
 });

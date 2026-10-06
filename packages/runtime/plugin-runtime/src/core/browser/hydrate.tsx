@@ -1,3 +1,4 @@
+// @effect-diagnostics globalConsole:off
 import { loadableReady } from '@loadable/component';
 import { SSR_HYDRATION_ID_PREFIX } from '@modern-js/utils/universal/constants';
 import type React from 'react';
@@ -97,15 +98,7 @@ export function hydrateRoot(
       });
     } else {
       // unknown renderlevel or renderlevel is server prefetch.
-      const runtimeConsole: unknown = Reflect.get(globalThis, 'console');
-      if (runtimeConsole !== null && typeof runtimeConsole === 'object') {
-        const warn: unknown = Reflect.get(runtimeConsole, 'warn');
-        if (typeof warn === 'function') {
-          Reflect.apply(warn, runtimeConsole, [
-            `unknow render level: ${renderLevel}, execute render()`,
-          ]);
-        }
-      }
+      console.warn(`unknow render level: ${renderLevel}, execute render()`);
       return ModernRender(wrapRuntimeContextProvider(App, context));
     }
   }

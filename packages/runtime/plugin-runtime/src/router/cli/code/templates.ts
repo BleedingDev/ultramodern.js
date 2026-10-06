@@ -675,7 +675,9 @@ export const runtimeGlobalContext = async ({
         source: rootLayout.toString(),
         filename: rootLayoutFile,
       });
-      const hasAppInit = moduleExports.some(e => e.n === APP_INIT_EXPORTED);
+      const hasAppInit = moduleExports.some(
+        e => e.type !== 'reexport-all' && e.name === APP_INIT_EXPORTED,
+      );
       const layoutPath = formatImportPath(
         getPathWithoutExt(
           replaceWithAlias(srcDirectory, rootLayoutFile, internalSrcAlias),

@@ -1,15 +1,17 @@
 // @effect-diagnostics asyncFunction:off strictBooleanExpressions:off
+
+import {
+  getGlobalEnableRsc,
+  getGlobalInternalRuntimeContext,
+  type TInternalRuntimeContext,
+} from '@modern-js/runtime/context';
 import type { StaticHandlerContext } from '@modern-js/runtime-utils/router';
 import { time } from '@modern-js/runtime-utils/time';
 import { SSR_HYDRATION_ID_PREFIX } from '@modern-js/utils/universal/constants';
 import type React from 'react';
 import ReactDomServer from 'react-dom/server';
 import { RenderLevel } from '../../constants';
-import type { TInternalRuntimeContext } from '../../context';
-import {
-  getGlobalEnableRsc,
-  getGlobalInternalRuntimeContext,
-} from '../../context';
+import { getMonitors } from '../../context/monitors';
 import {
   wrapRuntimeComponentResolver,
   wrapRuntimeContextProvider,
@@ -100,6 +102,7 @@ export const renderString: RenderString = async (
       config,
       platform: 'node',
       mode: 'string',
+      monitors: getMonitors(),
       isRsc: getGlobalEnableRsc() === true,
     },
   });

@@ -8,7 +8,11 @@ import { createContext, initPluginAPI } from '@modern-js/plugin/cli';
 import { rs } from '@rstest/core';
 import path from 'path';
 import { getBundleEntry } from '../../../../solutions/app-tools/src/plugins/analyze/getBundleEntry';
-import { documentPlugin, getDocumentByEntryName } from '../../src/document/cli';
+import {
+  documentPlugin,
+  getDocumentByEntryName,
+  getDocumentTempEntry,
+} from '../../src/document/cli';
 
 describe('plugin runtime cli', () => {
   let pluginAPI: CLIPluginAPI<AppTools>;
@@ -45,6 +49,34 @@ describe('plugin runtime cli', () => {
     const config = await hooks.config.call();
     expect(config.find((item: any) => item.tools)).toBeTruthy();
     expect(config.find((item: any) => item.tools.htmlPlugin)).toBeTruthy();
+  });
+
+  it('runs the Document child compiler only in environments that emit HTML', async () => {
+    const hooks = pluginAPI.getHooks();
+    const config = await hooks.config.call();
+    const { bundlerChain } = (
+      config.find((item: any) => item.tools.bundlerChain)! as any
+    ).tools;
+    const applyChain = (htmlPaths: Record<string, string>) => {
+      const use = rs.fn();
+      const plugin = rs.fn(() => ({ use }));
+      bundlerChain({ plugin }, { environment: { htmlPaths } });
+      return use;
+    };
+
+    // The server compiler emits no HTML; running the child compiler there
+    // races the web compiler over the shared temp entry file.
+    expect(applyChain({})).not.toHaveBeenCalled();
+
+    const use = applyChain({ main: 'html/main/index.html' });
+    expect(use).toHaveBeenCalledTimes(1);
+    expect([...use.mock.calls[0][1][0]]).toEqual(['main']);
+  });
+
+  it('gives each compiler its own Document temp entry', () => {
+    expect(getDocumentTempEntry('/internal', 'web', 'main')).not.toEqual(
+      getDocumentTempEntry('/internal', 'web-legacy', 'main'),
+    );
   });
 
   it('plugin-document htmlPlugin can return the right', async () => {

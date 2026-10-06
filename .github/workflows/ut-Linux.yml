@@ -1,7 +1,7 @@
 name: Unit Test (Linux)
 
 concurrency:
-  group: linux-unit-test-${{ github.head_ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 # Controls when the action will run.
@@ -33,38 +33,63 @@ jobs:
           persist-credentials: false
 
       - name: Setup mise
-        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
+        uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
         with:
-          version: 2026.8.3
+          version: 2026.9.18
+          cache_save: false
           install: true
 
-      - name: Check skip CI
-        run: echo "RESULT=$(node ./scripts/skipCI.js)" >> "$GITHUB_OUTPUT"
-        id: skip-ci
+      - name: Verify pinned test toolchain
+        shell: bash
+        run: |
+          pnpm_version="$(pnpm --version)"
+          node scripts/ci/check-test-toolchain.mjs "$pnpm_version"
 
-      - name: Log skip CI result
-        env:
-          SKIP_CI_RESULT: ${{ steps.skip-ci.outputs.RESULT }}
-        run: echo "$SKIP_CI_RESULT"
+      - name: Resolve pnpm store path
+        id: pnpm-store
+        shell: bash
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
 
-      - name: Setup Node.js 26.7.0
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      # Restore only; ci-cache.yml seeds this key on main-ultramodern.
+      - name: Restore pnpm store cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          node-version: '26.7.0'
-          cache: 'pnpm'
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-
 
       - name: Install Dependencies
-        if: ${{steps.skip-ci.outputs.RESULT != 'true'}}
         run: pnpm install --frozen-lockfile
 
+      - name: Restore prepared build outputs
+        id: build-cache
+        uses: ./.github/actions/restore-build-cache
+
       - name: Build Required Pkg
-        if: ${{steps.skip-ci.outputs.RESULT != 'true'}}
+        if: steps.build-cache.outputs.cache-hit != 'true'
         run: pnpm run build:required
 
-      - name: Install Playwright Chromium
-        if: ${{steps.skip-ci.outputs.RESULT != 'true'}}
-        run: pnpm --dir tests/integration/rstest/basic-app-rstest-browser exec playwright install chromium
+      # scripts/lib/browser-provisioning.js is the one browser provisioner: it
+      # reads the playwright the frozen install resolved for these runtimes,
+      # and that version keys the browser cache.
+      - name: Resolve Playwright runtime
+        id: browser-runtime
+        run: node scripts/lib/browser-provisioning.js --resolve --runtime tests/integration/rstest/basic-app-rstest-browser --runtime tests/integration/ultramodern-sandpack-profile-smoke
+
+      - name: Restore Playwright browser cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.browser-runtime.outputs.cache_path }}
+          key: ${{ steps.browser-runtime.outputs.cache_key }}
+
+      - name: Install Playwright browsers
+        run: >-
+          node scripts/lib/browser-provisioning.js --install --runtime tests/integration/rstest/basic-app-rstest-browser --runtime tests/integration/ultramodern-sandpack-profile-smoke
+          --version ${{ steps.browser-runtime.outputs.version }}
 
       - name: Test
-        if: ${{steps.skip-ci.outputs.RESULT != 'true'}}
-        run: pnpm run test:ut
+        run: pnpm run test:ut:prepared
+
+      - name: Test build consumers
+        run: pnpm run test:build-consumers

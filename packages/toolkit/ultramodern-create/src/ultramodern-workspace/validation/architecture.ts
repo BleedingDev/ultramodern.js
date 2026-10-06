@@ -695,7 +695,9 @@ export function assertCompilerArchitecture(
             if (
               statement.moduleSpecifier.text ===
                 '@modern-js/ultramodern-app-tools' &&
-              imported === 'presetUltramodern'
+              ['presetUltramodern', 'presetUltramodernWorkspace'].includes(
+                imported,
+              )
             )
               presetFactories.add(binding.name.text);
           }

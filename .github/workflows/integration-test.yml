@@ -1,0 +1,295 @@
+name: Integration Test
+
+on:
+  # No path filter: a required check must report on every pull request and
+  # merge-queue entry, and merge_group does not support path filters.
+  pull_request:
+    branches: [main, main-ultramodern]
+
+  merge_group:
+
+  # publish-bleedingdev.yml calls this on the exact commit it releases; a
+  # called workflow shares the caller's github.sha.
+  workflow_call:
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Reusable workflows inherit the caller's event and workflow identity. Only
+# direct PR runs share a cancellation group; release, merge-queue and manual
+# runs each retain their own run attempt, including pending runs.
+concurrency:
+  group: >-
+    ${{ format('integration-test-{0}-{1}', github.repository_id,
+      github.event_name == 'pull_request' &&
+      github.workflow_ref == format('{0}/.github/workflows/integration-test.yml@{1}', github.repository, github.ref) &&
+      format('pr-{0}', github.event.pull_request.number) ||
+      format('run-{0}-attempt-{1}', github.run_id, github.run_attempt)) }}
+  cancel-in-progress: >-
+    ${{ github.event_name == 'pull_request' &&
+      github.workflow_ref == format('{0}/.github/workflows/integration-test.yml@{1}', github.repository, github.ref) }}
+
+jobs:
+  integration:
+    name: integration-${{ matrix.platform }} (${{ matrix.suite == 'framework' && format('framework {0}', matrix.shard) || matrix.suite }})
+    runs-on: ${{ matrix.runner }}
+    env:
+      MODERN_TEST_FRAMEWORK_SUITE: ${{ matrix.framework_suite || 'full' }}
+
+    # The GitHub-hosted public runner has 4 vCPU / 16 GB. A healthy job is ~15 min;
+    # this ceiling turns a hung fixture into a clean failure instead of letting
+    # the job sit on the GitHub default of 6 hours.
+    timeout-minutes: 60
+
+    # One job per suite, so a red suite never hides the ones after it behind
+    # an implicit success() and each suite is its own required check.
+    #
+    # Framework shards are separate runners, each retaining two test workers
+    # within its memory budget. rstest --shard orders normalized paths by hash
+    # and gives each shard a disjoint slice; together they run every file.
+    # The two generator fixtures each get a dedicated runner; their package
+    # installs otherwise compete for disk I/O on the same framework shard.
+    # Six core slices plus both fixtures cover the complete framework suite.
+    # Adapter and utility suites have exactly one job per supported platform.
+    strategy:
+      fail-fast: false
+      matrix:
+        # The measured Windows core long poles enter the queue first. Explicit
+        # entries preserve all suites while avoiding Cartesian jobs ahead of
+        # these shards; dispatch still depends on runner availability.
+        include:
+          - platform: Windows
+            runner: windows-latest
+            suite: framework
+            framework_suite: core
+            shard: 4/6
+          - platform: Windows
+            runner: windows-latest
+            suite: framework
+            framework_suite: core
+            shard: 3/6
+          - platform: Windows
+            runner: windows-latest
+            suite: framework
+            framework_suite: core
+            shard: 2/6
+          - platform: Windows
+            runner: windows-latest
+            suite: framework
+            framework_suite: core
+            shard: 1/6
+          - platform: Windows
+            runner: windows-latest
+            suite: framework
+            framework_suite: core
+            shard: 6/6
+          - platform: Windows
+            runner: windows-latest
+            suite: framework
+            framework_suite: core
+            shard: 5/6
+          - platform: Linux
+            runner: ubuntu-24.04
+            suite: framework
+            framework_suite: core
+            shard: 1/6
+          - platform: Linux
+            runner: ubuntu-24.04
+            suite: framework
+            framework_suite: core
+            shard: 2/6
+          - platform: Linux
+            runner: ubuntu-24.04
+            suite: framework
+            framework_suite: core
+            shard: 3/6
+          - platform: Linux
+            runner: ubuntu-24.04
+            suite: framework
+            framework_suite: core
+            shard: 4/6
+          - platform: Linux
+            runner: ubuntu-24.04
+            suite: framework
+            framework_suite: core
+            shard: 5/6
+          - platform: Linux
+            runner: ubuntu-24.04
+            suite: framework
+            framework_suite: core
+            shard: 6/6
+          - platform: Linux
+            runner: ubuntu-24.04
+            suite: framework-generator-workspace
+            framework_suite: generator-workspace
+          - platform: Windows
+            runner: windows-latest
+            suite: framework-generator-workspace
+            framework_suite: generator-workspace
+          - platform: Linux
+            runner: ubuntu-24.04
+            suite: framework-generator-bff
+            framework_suite: generator-bff
+          - platform: Windows
+            runner: windows-latest
+            suite: framework-generator-bff
+            framework_suite: generator-bff
+          - platform: Linux
+            runner: ubuntu-24.04
+            suite: rstest-adapter
+          - platform: Windows
+            runner: windows-latest
+            suite: rstest-adapter
+          - platform: Linux
+            runner: ubuntu-24.04
+            suite: utils
+
+    steps:
+      - name: Print runner context
+        env:
+          RUNNER_CONTEXT: ${{ toJson(runner) }}
+        run: echo "$RUNNER_CONTEXT"
+
+      - name: Git config
+        if: runner.os == 'Windows'
+        shell: bash
+        run: git config --system core.longpaths true
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      # Native compatibility consumers read manifests at the audited upstream
+      # commit. Fetch its tree without downloading the rest of Git history.
+      - name: Fetch native compatibility baseline
+        if: matrix.suite == 'framework' && matrix.framework_suite == 'core'
+        shell: bash
+        run: |
+          git fetch --no-tags --depth=1 origin eded841256a7cffdaa622e3889fc83407debd3e4
+          git cat-file -e 'eded841256a7cffdaa622e3889fc83407debd3e4^{commit}'
+
+      - name: Setup mise
+        uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
+        with:
+          version: 2026.9.18
+          cache_save: false
+          install: true
+
+      - name: Verify pinned test toolchain
+        shell: bash
+        run: |
+          pnpm_version="$(pnpm --version)"
+          node scripts/ci/check-test-toolchain.mjs "$pnpm_version"
+
+      - name: Resolve pnpm store path
+        id: pnpm-store
+        shell: bash
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      # Restore only; ci-cache.yml seeds this key on main-ultramodern.
+      - name: Restore pnpm store cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-store-${{ runner.os }}-
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Restore prepared build outputs
+        id: build-cache
+        uses: ./.github/actions/restore-build-cache
+
+      - name: Prepare
+        if: steps.build-cache.outputs.cache-hit != 'true'
+        run: pnpm run prepare-build
+
+      # scripts/lib/browser-provisioning.js is the one browser provisioner: it
+      # reads the playwright the frozen install resolved for these runtimes,
+      # and that version keys the browser cache.
+      - name: Resolve Playwright runtime
+        id: browser-runtime
+        run: node scripts/lib/browser-provisioning.js --resolve --runtime tests --runtime tests/integration/rstest/basic-app-rstest-browser
+
+      - name: Restore Playwright browser cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.browser-runtime.outputs.cache_path }}
+          key: ${{ steps.browser-runtime.outputs.cache_key }}
+
+      - name: Install Playwright browsers
+        run: >-
+          node scripts/lib/browser-provisioning.js --install --runtime tests --runtime tests/integration/rstest/basic-app-rstest-browser
+          --version ${{ steps.browser-runtime.outputs.version }}
+
+      - name: Test - Framework
+        if: matrix.suite == 'framework'
+        env:
+          MODERN_TEST_PACKAGE_MANIFEST: ${{ steps.build-cache.outputs.package-manifest }}
+        run: >-
+          pnpm --filter tests run test:framework:prepared --shard ${{ matrix.shard }}
+          --reporters default --reporters blob
+
+      - name: Test - Framework workspace generator
+        if: matrix.suite == 'framework-generator-workspace'
+        env:
+          MODERN_TEST_PACKAGE_MANIFEST: ${{ steps.build-cache.outputs.package-manifest }}
+        run: >-
+          pnpm --filter tests run test:framework:prepared
+          --reporters default --reporters blob
+
+      - name: Test - Framework BFF generator
+        if: matrix.suite == 'framework-generator-bff'
+        env:
+          MODERN_TEST_PACKAGE_MANIFEST: ${{ steps.build-cache.outputs.package-manifest }}
+        run: >-
+          pnpm --filter tests run test:framework:prepared
+          --reporters default --reporters blob
+
+      # Keep exact per-file timings for the next balancing pass, including red
+      # runs. Each shard writes its own blob on its isolated runner.
+      - name: Upload framework test timings
+        if: always() && (matrix.suite == 'framework' || matrix.suite == 'framework-generator-workspace' || matrix.suite == 'framework-generator-bff')
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: integration-${{ matrix.platform }}-${{ strategy.job-index }}
+          path: tests/.rstest-reports/
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Test - Adapter Rstest
+        if: matrix.suite == 'rstest-adapter'
+        working-directory: tests
+        run: pnpm run test:rstest-adapter
+
+      - name: Test - Published package surfaces
+        if: matrix.suite == 'utils'
+        working-directory: tests
+        run: pnpm run test:utils
+
+  # Repository protection requires the original three framework check names.
+  # Each check waits for all six core shards, both generator fixtures on each
+  # platform, and the side suites. Failed, cancelled, or skipped jobs cannot pass.
+  required-framework:
+    name: integration-${{ matrix.platform }} (framework ${{ matrix.required_shard }}/3)
+    if: always()
+    needs: integration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [Linux, Windows]
+        required_shard: [1, 2, 3]
+    steps:
+      - name: Require every integration job to pass
+        env:
+          INTEGRATION_RESULT: ${{ needs.integration.result }}
+        run: test "$INTEGRATION_RESULT" = success

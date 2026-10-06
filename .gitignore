@@ -13,9 +13,7 @@ node_modules/
 dist/
 dist-ssg/
 doc_build/
-!**/compiled/**/dist
-!packages/sidecar/*/dist/
-!packages/sidecar/*/dist/**
+packages/toolkit/utils/compiled/
 coverage/
 release/
 
@@ -80,3 +78,4 @@ dist-ssg
 
 # swc transform cache emitted by test runs
 .swc/
+.ci-build-cache/

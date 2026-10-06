@@ -91,12 +91,6 @@ export function resolveBackendFederationRemoteFromManifest(
     entry: remoteEntryUrl,
     type: remoteType,
     ...(verification ? { verification } : {}),
-    ...(remoteOverride.entryGlobalName
-      ? { entryGlobalName: remoteOverride.entryGlobalName }
-      : {}),
     expose,
-    ...(remoteOverride.shareScope
-      ? { shareScope: remoteOverride.shareScope }
-      : {}),
   };
 }

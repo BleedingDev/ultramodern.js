@@ -2,11 +2,11 @@ import { createRequire } from 'node:module';
 import { fs } from '@modern-js/utils';
 import os from 'os';
 import path from 'path';
+import { compile } from '../src/common';
 import {
-  compileByTs,
   createResolvedTsgoConfig,
   getTsgoBinPath,
-} from '../src/compilers/typescript';
+} from '../src/compilers/tsgo';
 import { createIsolatedTsExample } from './helpers';
 
 const require = createRequire(import.meta.url);
@@ -37,23 +37,23 @@ describe('getTsgoBinPath', () => {
     expect(getTsgoBinPath(tmpDir)).toBe(path.join(pkgDir, 'bin/tsc'));
   });
 
-  it.each([
-    '@typescript/native-preview',
-    '@typescript/native',
-  ])('does not select %s instead of the canonical stable package', async name => {
-    const pkgDir = path.join(tmpDir, 'node_modules', name);
-    await fs.outputJSON(path.join(pkgDir, 'package.json'), {
-      name: 'typescript',
-      version: '7.0.2',
-      exports: { './package.json': './package.json' },
-      bin: { tsc: './bin/tsc' },
-    });
-    await fs.outputFile(path.join(pkgDir, 'bin/tsc'), '// stub\n');
+  it.each(['@typescript/native-preview', '@typescript/native'])(
+    'does not select %s instead of the canonical stable package',
+    async name => {
+      const pkgDir = path.join(tmpDir, 'node_modules', name);
+      await fs.outputJSON(path.join(pkgDir, 'package.json'), {
+        name: 'typescript',
+        version: '7.0.2',
+        exports: { './package.json': './package.json' },
+        bin: { tsc: './bin/tsc' },
+      });
+      await fs.outputFile(path.join(pkgDir, 'bin/tsc'), '// stub\n');
 
-    expect(() => getTsgoBinPath(tmpDir, [tmpDir])).toThrow(
-      'Please install "typescript@7.0.2"',
-    );
-  });
+      expect(() => getTsgoBinPath(tmpDir, [tmpDir])).toThrow(
+        'Please install "typescript@7.0.2"',
+      );
+    },
+  );
 
   it('uses the declared stable production compiler when the app has none', () => {
     const binPath = getTsgoBinPath(tmpDir);
@@ -66,23 +66,22 @@ describe('getTsgoBinPath', () => {
     expect(fs.existsSync(binPath)).toBe(true);
   });
 
-  it.each([
-    '5.9.3',
-    '6.0.2',
-    '7.0.0-dev.20260707.2',
-  ])('rejects an app-local incompatible compiler %s without falling back', async version => {
-    const pkgDir = path.join(tmpDir, 'node_modules/typescript');
-    await fs.outputJSON(path.join(pkgDir, 'package.json'), {
-      name: 'typescript',
-      version,
-      bin: { tsc: './bin/tsc' },
-    });
-    await fs.outputFile(path.join(pkgDir, 'bin/tsc'), '// stub\n');
+  it.each(['5.9.3', '6.0.2', '7.0.0-dev.20260707.2'])(
+    'rejects an app-local incompatible compiler %s without falling back',
+    async version => {
+      const pkgDir = path.join(tmpDir, 'node_modules/typescript');
+      await fs.outputJSON(path.join(pkgDir, 'package.json'), {
+        name: 'typescript',
+        version,
+        bin: { tsc: './bin/tsc' },
+      });
+      await fs.outputFile(path.join(pkgDir, 'bin/tsc'), '// stub\n');
 
-    expect(() => getTsgoBinPath(tmpDir)).toThrow(
-      `requires typescript@7.0.2; found typescript@${version}`,
-    );
-  });
+      expect(() => getTsgoBinPath(tmpDir)).toThrow(
+        `requires typescript@7.0.2; found typescript@${version}`,
+      );
+    },
+  );
 
   it('does not guess an undeclared compiler launcher', async () => {
     const pkgDir = path.join(tmpDir, 'node_modules/typescript');
@@ -140,9 +139,7 @@ describe('createResolvedTsgoConfig', () => {
     const { config, resolvedConfigPath } = await createResolvedTsgoConfig(
       example,
       tsconfigPath,
-      path.join(example, 'dist-nested'),
       sourceDirs,
-      undefined,
       getTsgoBinPath(example),
     );
 
@@ -168,36 +165,35 @@ describe('createResolvedTsgoConfig', () => {
   it.each([
     { name: 'missing', excludeFiles: undefined },
     { name: 'empty', excludeFiles: [] },
-  ])('retains declaration roots with $name exclusions', async ({
-    excludeFiles,
-  }) => {
-    const { example, tempRoot } = await createIsolatedTsExample();
-    const tsconfigPath = path.join(example, 'tsconfig.json');
-    const declaration = path.join(example, 'src/client/register.gen.d.ts');
+  ])(
+    'retains declaration roots with $name exclusions',
+    async ({ excludeFiles }) => {
+      const { example, tempRoot } = await createIsolatedTsExample();
+      const tsconfigPath = path.join(example, 'tsconfig.json');
+      const declaration = path.join(example, 'src/client/register.gen.d.ts');
 
-    try {
-      await fs.outputFile(declaration, 'export interface Client {}\n');
-      const { config } = await createResolvedTsgoConfig(
-        example,
-        tsconfigPath,
-        path.join(example, 'dist-server'),
-        [path.join(example, 'api')],
-        undefined,
-        getTsgoBinPath(example),
-        excludeFiles,
-      );
-      const resolvedFiles = (config.files ?? []).map(file =>
-        path.resolve(example, file),
-      );
-      expect(resolvedFiles).toContain(declaration);
-      expect(resolvedFiles).toContain(
-        path.join(example, 'modern-app-env.d.ts'),
-      );
-      expect(resolvedFiles).toContain(path.join(example, 'api/index.ts'));
-    } finally {
-      await fs.remove(tempRoot);
-    }
-  });
+      try {
+        await fs.outputFile(declaration, 'export interface Client {}\n');
+        const { config } = await createResolvedTsgoConfig(
+          example,
+          tsconfigPath,
+          [path.join(example, 'api')],
+          getTsgoBinPath(example),
+          excludeFiles,
+        );
+        const resolvedFiles = (config.files ?? []).map(file =>
+          path.resolve(example, file),
+        );
+        expect(resolvedFiles).toContain(declaration);
+        expect(resolvedFiles).toContain(
+          path.join(example, 'modern-app-env.d.ts'),
+        );
+        expect(resolvedFiles).toContain(path.join(example, 'api/index.ts'));
+      } finally {
+        await fs.remove(tempRoot);
+      }
+    },
+  );
 
   it('excludes only exact root paths when the tsconfig is nested', async () => {
     const { example, tempRoot } = await createIsolatedTsExample();
@@ -214,9 +210,7 @@ describe('createResolvedTsgoConfig', () => {
       const { config } = await createResolvedTsgoConfig(
         example,
         path.join(tsconfigDir, 'tsconfig.json'),
-        path.join(example, 'dist-server'),
         [path.join(example, 'api'), path.join(example, 'shared')],
-        undefined,
         getTsgoBinPath(example),
         [excluded],
       );
@@ -265,8 +259,8 @@ describe('createResolvedTsgoConfig', () => {
       include: ['consumer'],
     });
 
-    const compile = (distName: string) =>
-      compileByTs(example, { alias: {} } as any, {
+    const build = (distName: string) =>
+      compile(example, { alias: {} } as any, {
         sourceDirs: [consumerDir],
         distDir: path.join(example, distName),
         moduleType: 'commonjs',
@@ -275,7 +269,7 @@ describe('createResolvedTsgoConfig', () => {
       });
 
     try {
-      await Promise.all([compile('dist-a'), compile('dist-b')]);
+      await Promise.all([build('dist-a'), build('dist-b')]);
 
       for (const distName of ['dist-a', 'dist-b']) {
         const outputPath = path.join(example, distName, 'consumer/entry.js');

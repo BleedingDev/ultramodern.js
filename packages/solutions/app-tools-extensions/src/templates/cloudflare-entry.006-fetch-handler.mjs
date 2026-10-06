@@ -16,7 +16,7 @@ export default {
       return finalizeResponseForRequest(corsPreflightResponse, request);
     }
 
-    const bffResponse = await dispatchBffRequest(request, env);
+    const bffResponse = await dispatchBffRequest(request, env, ctx);
 
     if (bffResponse) {
       return finalizeResponseForRequest(
@@ -69,11 +69,18 @@ export default {
     }
 
     if (route?.worker) {
-      const renderableRequest = createRenderableRequest(request);
+      // Route data requests keep their method, as on the Node server.
+      const routeDataResponse = await dispatchRouteDataRequest(route, request);
 
       return finalizeResponseForRequest(
         withAppCorsHeaders(
-          await dispatchRouteWorker(route, renderableRequest, env, ctx),
+          routeDataResponse ??
+            (await dispatchRouteWorker(
+              route,
+              createRenderableRequest(request),
+              env,
+              ctx,
+            )),
           request,
         ),
         request,

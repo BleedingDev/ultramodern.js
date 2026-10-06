@@ -9,7 +9,6 @@ import { createBuildMarker } from '../src/ultramodern-workspace/delivery-unit';
 import { shellApp } from '../src/ultramodern-workspace/descriptors';
 import { formatGeneratedSourceCandidates } from '../src/ultramodern-workspace/fs-io';
 import { createAppModernConfig } from '../src/ultramodern-workspace/module-federation';
-import { initializeGeneratedRendererIdentity } from '../src/ultramodern-workspace/renderer-initial-identity';
 import { preserveConsumerWorkspaceArtifacts } from '../src/ultramodern-workspace/workspace-artifact-ownership';
 
 test('genuine initial React config remains canonical after native router identity resolution', async () => {
@@ -86,23 +85,11 @@ test('genuine initial React config remains canonical after native router identit
     const relativePath = `${app.directory}/modern.config.ts`;
     const filename = path.join(root, relativePath);
     const original = fs.readFileSync(filename, 'utf8');
-    const provisional = initializeGeneratedRendererIdentity(
-      result.packageScope,
-      { ...shellApp, verticalRefs: [] },
-      version,
-    ).deliveryUnit?.buildMarker;
-    const sourceMarker = original.match(
-      /buildMarker:\s*(['"])([a-f0-9]{16})\1/u,
-    )?.[2];
-    assert.equal(sourceMarker, provisional);
-    assert.notEqual(sourceMarker, finalMarker);
+    // Delivery identity is read from the topology by the workspace preset;
+    // the authored config never embeds a provisional or final build marker.
+    assert.doesNotMatch(original, /buildMarker/u);
 
-    const reconstructed = createAppModernConfig(
-      result.packageScope,
-      app,
-      [],
-      false,
-    );
+    const reconstructed = createAppModernConfig(app, false);
     const [canonical] = formatGeneratedSourceCandidates([
       [relativePath, reconstructed],
     ]);

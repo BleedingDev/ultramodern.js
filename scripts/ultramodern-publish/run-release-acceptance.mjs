@@ -11,6 +11,7 @@ import {
 } from '../ultramodern-production-readiness/published-create-proof/acceptance-continuation.mjs';
 import { assertReleaseAcceptanceProfile } from '../ultramodern-production-readiness/published-create-proof/acceptance-contract.mjs';
 import {
+  acceptedResolution,
   assertAcceptanceReceipt,
   readAcceptanceReceipt,
   verifyAcceptanceReceiptOperationalEvidence,
@@ -43,6 +44,7 @@ const valueOptions = new Set([
   '--run-identity',
   '--scale-profile',
   '--shell-finalization',
+  '--source-receipt',
   '--store-dir',
   '--work-dir',
 ]);
@@ -111,6 +113,12 @@ function parseArgs(argv) {
   const receipt = values.get('--receipt');
   if (!receipt) {
     throw new Error('--receipt is required');
+  }
+  const sourceReceipt = values.get('--source-receipt');
+  if ((mode === 'published') !== (sourceReceipt !== undefined)) {
+    throw new Error(
+      '--source-receipt names the passed source receipt whose resolution published acceptance must reproduce; it is required with --mode published and valid only there',
+    );
   }
   const scaleProfile = values.get('--scale-profile') ?? 'erp-10';
   if (scaleProfile !== 'erp-10') {
@@ -204,6 +212,8 @@ function parseArgs(argv) {
     shellFinalizationPath: values.has('--shell-finalization')
       ? path.resolve(values.get('--shell-finalization'))
       : undefined,
+    sourceReceiptPath:
+      sourceReceipt === undefined ? undefined : path.resolve(sourceReceipt),
     storeDir: storeValue === undefined ? undefined : path.resolve(storeValue),
     workDir:
       workDirValue === undefined ? undefined : path.resolve(workDirValue),
@@ -398,8 +408,20 @@ async function runPrepublish({ release, options, runIdentity }) {
 
 async function runPublished({ release, options, runIdentity }) {
   const registryUrl = new URL(options.registryUrl).toString();
+  const sourceReceipt = verifyReceipt({
+    release,
+    options: { ...options, receiptPath: options.sourceReceiptPath },
+    runIdentity,
+    expectedMode: 'source',
+  });
+  if (sourceReceipt.schema === acceptanceContinuationSchema) {
+    throw new Error(
+      '--source-receipt must be a complete source acceptance receipt; a source continuation carries no accepted resolution',
+    );
+  }
   return executeAcceptanceProfile({
     mode: 'published',
+    acceptedResolution: acceptedResolution(sourceReceipt),
     release,
     registryUrl,
     registryEnv: {

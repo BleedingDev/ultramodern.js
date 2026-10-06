@@ -12,11 +12,11 @@
     "commit": "4fbd65c5c3b40be87a6248867c22021c1c19bba8",
     "sourcePath": "packages/solid-router/src"
   },
-  "routerCore": "1.171.32",
+  "routerCore": "1.171.34",
   "history": "1.162.4",
   "nativeSerializer": "1.6.8",
   "nativeSerializerPlugins": "1.6.8",
-  "rsbuild": "2.2.9",
+  "rsbuild": "2.2.11",
   "rspack": "2.2.8",
   "nodeMinimum": "26.7.0",
   "jsxImportSource": "@solidjs/web",

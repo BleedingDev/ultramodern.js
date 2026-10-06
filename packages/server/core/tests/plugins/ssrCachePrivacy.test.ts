@@ -100,67 +100,71 @@ describe('SSR cache privacy', () => {
     expect(await (await render(new Request(url))).text()).toBe('render-1');
   });
 
-  it.each([
-    302, 401, 403,
-  ])('does not replay status %i as a cached 200', async status => {
-    let renders = 0;
-    const render = renderWith(
-      async () => new Response(`render-${++renders}`, { status }),
-    );
-    const request = new Request('http://localhost/status');
-    for (let count = 1; count <= 2; count++) {
-      const response = await render(request);
-      expect(response.status).toBe(status);
-      expect(await response.text()).toBe(`render-${count}`);
-    }
-  });
+  it.each([302, 401, 403])(
+    'does not replay status %i as a cached 200',
+    async status => {
+      let renders = 0;
+      const render = renderWith(
+        async () => new Response(`render-${++renders}`, { status }),
+      );
+      const request = new Request('http://localhost/status');
+      for (let count = 1; count <= 2; count++) {
+        const response = await render(request);
+        expect(response.status).toBe(status);
+        expect(await response.text()).toBe(`render-${count}`);
+      }
+    },
+  );
 
-  it.each([
-    'miss',
-    'expired',
-  ])('preserves uncached responses when deletion fails on %s', async state => {
-    const container = createContainer();
-    let now = 10000;
-    const clock = rs.spyOn(Date, 'now').mockImplementation(() => now);
-    const onError = rs.fn();
-    const request = new Request(
-      'http://localhost/delete-failure?secret=synthetic',
-    );
-    try {
-      if (state === 'expired') {
-        const warm = renderWith(async () => new Response('public'), container);
-        expect(await (await warm(request)).text()).toBe('public');
-        now += cacheControl.maxAge + cacheControl.staleWhileRevalidate + 1;
-      }
-      container.delete = rs.fn(async () => {
-        throw new Error('synthetic store error containing sensitive data');
-      });
-      const set = rs.spyOn(container, 'set');
-      for (const [body, init] of [
-        ['private', { headers: { 'cache-control': 'private' } }],
-        ['denied', { status: 401 }],
-        ['<meta name="no-ssr-cache">uncached', {}],
-      ] as const) {
-        const response = await getCacheResult(request, {
-          cacheControl,
-          container,
-          requestHandler: async () => new Response(body, init),
-          requestHandlerOptions: { onError } as any,
+  it.each(['miss', 'expired'])(
+    'preserves uncached responses when deletion fails on %s',
+    async state => {
+      const container = createContainer();
+      let now = 10000;
+      const clock = rs.spyOn(Date, 'now').mockImplementation(() => now);
+      const onError = rs.fn();
+      const request = new Request(
+        'http://localhost/delete-failure?secret=synthetic',
+      );
+      try {
+        if (state === 'expired') {
+          const warm = renderWith(
+            async () => new Response('public'),
+            container,
+          );
+          expect(await (await warm(request)).text()).toBe('public');
+          now += cacheControl.maxAge + cacheControl.staleWhileRevalidate + 1;
+        }
+        container.delete = rs.fn(async () => {
+          throw new Error('synthetic store error containing sensitive data');
         });
-        expect(response.status).toBe('status' in init ? init.status : 200);
-        expect(await response.text()).toBe(body);
+        const set = rs.spyOn(container, 'set');
+        for (const [body, init] of [
+          ['private', { headers: { 'cache-control': 'private' } }],
+          ['denied', { status: 401 }],
+          ['<meta name="no-ssr-cache">uncached', {}],
+        ] as const) {
+          const response = await getCacheResult(request, {
+            cacheControl,
+            container,
+            requestHandler: async () => new Response(body, init),
+            requestHandlerOptions: { onError } as any,
+          });
+          expect(response.status).toBe('status' in init ? init.status : 200);
+          expect(await response.text()).toBe(body);
+        }
+        expect(set).not.toHaveBeenCalled();
+        expect(container.delete).toHaveBeenCalledTimes(3);
+        expect(onError.mock.calls).toEqual([
+          ['[render-cache] delete cache failed'],
+          ['[render-cache] delete cache failed'],
+          ['[render-cache] delete cache failed'],
+        ]);
+      } finally {
+        clock.mockRestore();
       }
-      expect(set).not.toHaveBeenCalled();
-      expect(container.delete).toHaveBeenCalledTimes(3);
-      expect(onError.mock.calls).toEqual([
-        ['[render-cache] delete cache failed'],
-        ['[render-cache] delete cache failed'],
-        ['[render-cache] delete cache failed'],
-      ]);
-    } finally {
-      clock.mockRestore();
-    }
-  });
+    },
+  );
 
   it('evicts public content when stale refresh becomes private', async () => {
     const container = createContainer();

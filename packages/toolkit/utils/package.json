@@ -48,28 +48,32 @@
       "default": "./dist/esm/universal/constants.mjs"
     },
     "./commander": {
-      "types": "./dist/compiled/commander/typings/index.d.ts",
+      "types": "./dist/compiled/commander/index.d.mts",
       "import": "./dist/compiled/commander/index.mjs",
       "default": "./dist/compiled/commander/index.js"
     },
     "./ora": {
-      "types": "./dist/compiled/ora/index.d.ts",
+      "types": "./dist/compiled/ora/index.d.mts",
+      "import": "./dist/compiled/ora/index.mjs",
       "default": "./dist/compiled/ora/index.js"
     },
     "./glob": {
-      "types": "./dist/compiled/glob/index.d.ts",
+      "types": "./dist/compiled/glob/index.d.mts",
+      "import": "./dist/compiled/glob/index.mjs",
       "default": "./dist/compiled/glob/index.js"
     },
     "./chalk": {
-      "types": "./dist/compiled/chalk/index.d.ts",
+      "types": "./dist/compiled/chalk/index.d.mts",
+      "import": "./dist/compiled/chalk/index.mjs",
       "default": "./dist/compiled/chalk/index.js"
     },
     "./execa": {
-      "types": "./dist/compiled/execa/index.d.ts",
+      "types": "./dist/compiled/execa/index.d.mts",
+      "import": "./dist/compiled/execa/index.mjs",
       "default": "./dist/compiled/execa/index.js"
     },
     "./json5": {
-      "types": "./dist/compiled/json5/lib/index.d.ts",
+      "types": "./dist/compiled/json5/index.d.ts",
       "default": "./dist/compiled/json5/index.js"
     },
     "./semver": {
@@ -82,7 +86,8 @@
       "default": "./dist/compiled/lodash/index.js"
     },
     "./globby": {
-      "types": "./dist/compiled/globby/index.d.ts",
+      "types": "./dist/compiled/globby/index.d.mts",
+      "import": "./dist/compiled/globby/index.mjs",
       "default": "./dist/compiled/globby/index.js"
     },
     "./fs-extra": {
@@ -90,11 +95,13 @@
       "default": "./dist/compiled/fs-extra/index.js"
     },
     "./fast-glob": {
-      "types": "./dist/compiled/fast-glob/out/index.d.ts",
-      "default": "./dist/compiled/fast-glob/index.js"
+      "types": "./dist/types/fast-glob.d.ts",
+      "import": "./dist/esm-node/fast-glob.mjs",
+      "require": "./dist/cjs/fast-glob.js"
     },
     "./gzip-size": {
-      "types": "./dist/compiled/gzip-size/index.d.ts",
+      "types": "./dist/compiled/gzip-size/index.d.mts",
+      "import": "./dist/compiled/gzip-size/index.mjs",
       "default": "./dist/compiled/gzip-size/index.js"
     },
     "./mime-types": {
@@ -102,7 +109,8 @@
       "default": "./dist/compiled/mime-types/index.js"
     },
     "./strip-ansi": {
-      "types": "./dist/compiled/strip-ansi/index.d.ts",
+      "types": "./dist/compiled/strip-ansi/index.d.mts",
+      "import": "./dist/compiled/strip-ansi/index.mjs",
       "default": "./dist/compiled/strip-ansi/index.js"
     },
     "./browserslist": {
@@ -110,7 +118,7 @@
       "default": "./dist/compiled/browserslist/index.js"
     },
     "./tsconfig-paths": {
-      "types": "./dist/compiled/tsconfig-paths/lib/index.d.ts",
+      "types": "./dist/compiled/tsconfig-paths/index.d.mts",
       "import": "./dist/compiled/tsconfig-paths/index.mjs",
       "default": "./dist/compiled/tsconfig-paths/index.js"
     },
@@ -149,16 +157,16 @@
         "./dist/types/universal/constants.d.ts"
       ],
       "execa": [
-        "./dist/compiled/execa/index.d.ts"
+        "./dist/compiled/execa/index.d.mts"
       ],
       "glob": [
-        "./dist/compiled/glob/index.d.ts"
+        "./dist/compiled/glob/index.d.mts"
       ],
       "chalk": [
-        "./dist/compiled/chalk/index.d.ts"
+        "./dist/compiled/chalk/index.d.mts"
       ],
       "json5": [
-        "./dist/compiled/json5/lib/index.d.ts"
+        "./dist/compiled/json5/index.d.ts"
       ],
       "semver": [
         "./dist/compiled/semver/index.d.ts"
@@ -167,34 +175,34 @@
         "./dist/compiled/lodash/index.d.ts"
       ],
       "globby": [
-        "./dist/compiled/globby/index.d.ts"
+        "./dist/compiled/globby/index.d.mts"
       ],
       "fs-extra": [
         "./dist/compiled/fs-extra/index.d.ts"
       ],
       "fast-glob": [
-        "./dist/compiled/fast-glob/out/index.d.ts"
+        "./dist/types/fast-glob.d.ts"
       ],
       "gzip-size": [
-        "./dist/compiled/gzip-size/index.d.ts"
+        "./dist/compiled/gzip-size/index.d.mts"
       ],
       "mime-types": [
         "./dist/compiled/mime-types/index.d.ts"
       ],
       "strip-ansi": [
-        "./dist/compiled/strip-ansi/index.d.ts"
+        "./dist/compiled/strip-ansi/index.d.mts"
       ],
       "browserslist": [
         "./dist/compiled/browserslist/index.d.ts"
       ],
       "tsconfig-paths": [
-        "./dist/compiled/tsconfig-paths/lib/index.d.ts"
+        "./dist/compiled/tsconfig-paths/index.d.mts"
       ],
       "commander": [
-        "./dist/compiled/commander/typings/index.d.ts"
+        "./dist/compiled/commander/index.d.mts"
       ],
       "ora": [
-        "./dist/compiled/ora/index.d.ts"
+        "./dist/compiled/ora/index.d.mts"
       ],
       "route-component-files": [
         "./dist/types/cli/routeComponentFiles.d.ts"
@@ -212,13 +220,39 @@
   },
   "scripts": {
     "prepublishOnly": "only-allow-pnpm",
-    "dev": "rslib build --watch",
-    "build": "rslib build",
-    "test": "rstest --passWithNoTests"
+    "prepack": "pnpm run build",
+    "dev": "nx run @modern-js/utils:build && rslib build --watch",
+    "build": "nx run @modern-js/utils:build",
+    "test": "nx run @scripts/prebundle:bundle && rstest"
+  },
+  "nx": {
+    "targets": {
+      "build": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "pnpm exec rslib build",
+          "cwd": "packages/toolkit/utils"
+        },
+        "dependsOn": [
+          "^build",
+          {
+            "projects": [
+              "@scripts/prebundle"
+            ],
+            "target": "bundle"
+          }
+        ],
+        "outputs": [
+          "{projectRoot}/dist"
+        ]
+      }
+    }
   },
   "dependencies": {
     "@swc/helpers": "^0.5.23",
-    "caniuse-lite": "^1.0.30001810",
+    "caniuse-lite": "^1.0.30001814",
+    "dotenv": "18.0.5",
+    "fast-glob": "3.3.3",
     "import-meta-resolve": "^4.2.0",
     "lodash": "^4.18.1",
     "lodash-es": "^4.18.1",
@@ -227,9 +261,9 @@
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
     "@modern-js/types": "workspace:*",
-    "@rslib/core": "1.0.2",
+    "@rslib/core": "1.0.3",
     "@scripts/rstest-config": "workspace:*",
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.3",
     "happy-dom": "^20.14.5",
     "rxjs": "7.8.2"
   },

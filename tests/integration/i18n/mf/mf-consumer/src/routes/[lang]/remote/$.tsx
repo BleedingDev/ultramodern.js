@@ -1,5 +1,4 @@
 import { useParams } from '@modern-js/runtime/router';
-import React from 'react';
 import RemoteApp from '../../../components/RemoteApp';
 
 export default (props: Record<string, any>) => {

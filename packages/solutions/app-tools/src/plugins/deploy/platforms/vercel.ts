@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { traceDeployFiles } from '@modern-js/app-tools-extensions/deploy-output/trace-files';
 import { fs as fse, removeModuleSyncFromExports } from '@modern-js/utils';
 import { nodeDepEmit as handleDependencies } from 'ndepe';
 import { isMainEntry } from '../../../utils/routes';
@@ -122,10 +123,8 @@ export const createVercelPreset: CreatePreset = ({
       const entry = isEsmProject
         ? await resolveESMDependency('@modern-js/prod-server')
         : require.resolve('@modern-js/prod-server');
-      if (!entry) {
-        throw new Error('Cannot find @modern-js/prod-server');
-      }
       await handleDependencies({
+        traceFiles: traceDeployFiles,
         appDir: appDirectory,
         sourceDir: funcsDirectory,
         includeEntries: [entry],

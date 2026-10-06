@@ -53,6 +53,13 @@
       },
       "default": "./dist/esm/runtime/context.mjs"
     },
+    "./runtime/contexts": {
+      "types": "./dist/types/runtime/contexts.d.ts",
+      "node": {
+        "module": "./dist/esm/runtime/contexts.mjs"
+      },
+      "default": "./dist/esm/runtime/contexts.mjs"
+    },
     "./runtime/no-react-i18next": {
       "types": "./dist/types/runtime/no-react-i18next.d.ts",
       "node": {
@@ -103,6 +110,9 @@
       "runtime/consumer": [
         "./dist/types/runtime/context.d.ts"
       ],
+      "runtime/contexts": [
+        "./dist/types/runtime/contexts.d.ts"
+      ],
       "runtime/no-react-i18next": [
         "./dist/types/runtime/no-react-i18next.d.ts"
       ],
@@ -124,7 +134,7 @@
     "dev": "rslib build --watch",
     "prepublishOnly": "only-allow-pnpm",
     "build": "rslib build",
-    "test": "rstest --passWithNoTests"
+    "test": "rstest"
   },
   "dependencies": {
     "@modern-js/i18n-runtime-extensions": "workspace:*",
@@ -161,9 +171,9 @@
     "@modern-js/rslib": "workspace:*",
     "@modern-js/runtime": "workspace:*",
     "@modern-js/runtime-extensions": "workspace:*",
-    "@rslib/core": "1.0.2",
+    "@rslib/core": "1.0.3",
     "@scripts/rstest-config": "workspace:*",
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.3",
     "esbuild": "^0.28.2",
     "i18next": "26.4.2",
     "react": "^19.3.0",
@@ -177,5 +187,9 @@
     "registry": "https://registry.npmjs.org/",
     "access": "public",
     "types": "./dist/types/cli/index.d.ts"
-  }
+  },
+  "files": [
+    "dist",
+    "src"
+  ]
 }

@@ -1,4 +1,10 @@
-import { appHasApi, sharedPackages, shellApp } from './descriptors';
+import {
+  appEmitsBrowserUi,
+  appHasApi,
+  sharedPackages,
+  shellApp,
+} from './descriptors';
+import { relativeRootFor } from './naming';
 import { createPublicSurfaceGenerationCommand } from './public-surface';
 import { hasNativeAppGeneration } from './renderer-generations';
 import {
@@ -119,37 +125,63 @@ type WorkspaceAppPackageScripts = Record<WorkspaceAppPackageScriptName, string>;
 export const createStrictTsgoTypecheckCommand = (packageDir: string) =>
   `${packageToolingWrapperCommand(packageDir, 'typecheck')} --project tsconfig.json`;
 
+// The app config imports the route metadata manifest, so it is regenerated
+// before Modern.js loads that config. Manifest-only generation never loads the
+// config, so it cannot run the app in another command or NODE_ENV first.
+// Headless apps have no route metadata.
+const createRoutesGenerateCommand = (app: WorkspaceApp) =>
+  appEmitsBrowserUi(app)
+    ? `pnpm --dir ${relativeRootFor(app.directory)} exec ${toolingCommand(
+        'routesGenerate',
+      )} --app ${app.id} --manifest-only`
+    : undefined;
+
 function createWorkspaceAppScriptPlan(
   app: WorkspaceApp,
 ): WorkspaceAppScriptPlan {
+  const routesGenerate = createRoutesGenerateCommand(app);
+  // Deploy targets are CLI flags, not env wrappers: cross-env reports a build
+  // that died from a signal (a native stack overflow) as a plain exit 1.
   const buildSteps = [
-    `${createPublicSurfaceGenerationCommand(app, 'dist')} --sync-route-metadata`,
-    'ultramodern build',
+    routesGenerate,
+    'ultramodern build --deploy-target node',
     createPublicSurfaceGenerationCommand(app, 'dist'),
-    'cross-env MODERNJS_DEPLOY=node ultramodern deploy --skip-build',
-    // NOTE: the Module Federation DTS archive is emitted by `modern build`
+    'ultramodern deploy --skip-build --deploy-target node',
+    // NOTE: the Module Federation DTS archive is emitted by `ultramodern build`
     // above; verifying it (assert-mf-types) is done ONCE at the workspace root
     // (`pnpm mf:types`) AFTER every app has built. A per-app verify here races
     // under parallel `pnpm -r build` — an early app would assert a sibling's
     // not-yet-emitted archive — so it is intentionally omitted.
   ].filter((step): step is string => Boolean(step));
-  const cloudflareBuildSteps = [
-    `${createPublicSurfaceGenerationCommand(app, 'cloudflare-dist')} --sync-route-metadata`,
-    'cross-env MODERNJS_DEPLOY=cloudflare ultramodern build',
-    createPublicSurfaceGenerationCommand(app, 'cloudflare-dist'),
-    'cross-env MODERNJS_DEPLOY=cloudflare ultramodern deploy --skip-build',
-    `${packageToolingWrapperCommand(
-      app.directory,
-      'cloudflareOutputVerify',
-    )} --app ${app.id}`,
-  ].filter((step): step is string => Boolean(step));
+  const cloudflareOutputVerify = `${packageToolingWrapperCommand(
+    app.directory,
+    'cloudflareOutputVerify',
+  )} --app ${app.id}`;
+  const cloudflareBuildSteps = (requirePublicUrls: boolean) =>
+    [
+      routesGenerate,
+      'ultramodern build --deploy-target cloudflare',
+      createPublicSurfaceGenerationCommand(
+        app,
+        'cloudflare-dist',
+        requirePublicUrls,
+      ),
+      'ultramodern deploy --skip-build --deploy-target cloudflare',
+      requirePublicUrls
+        ? `${cloudflareOutputVerify} --require-public-urls`
+        : cloudflareOutputVerify,
+    ].filter((step): step is string => Boolean(step));
 
   return {
-    dev: `${createPublicSurfaceGenerationCommand(app, 'dist')} --sync-route-metadata && ultramodern dev`,
+    dev: [routesGenerate, 'ultramodern dev']
+      .filter((step): step is string => Boolean(step))
+      .join(' && '),
     build: buildSteps.join(' && '),
-    cloudflareBuild: cloudflareBuildSteps.join(' && '),
-    cloudflareDeploy:
-      'cross-env ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json',
+    cloudflareBuild: cloudflareBuildSteps(false).join(' && '),
+    cloudflareDeploy: [
+      ...cloudflareBuildSteps(true),
+      'wrangler deploy --config .output/wrangler.json',
+    ].join(' && '),
     cloudflarePreview:
       'pnpm run cloudflare:build && wrangler dev --config .output/wrangler.json',
     cloudflareProof: `${packageToolingWrapperCommand(
@@ -235,9 +267,6 @@ export function createWorkspaceRootScriptPlan(
   } = {},
 ): WorkspaceRootScriptPlan {
   const hasRemotes = remotes.length > 0;
-  // Backend gates key off API surfaces, not vertical count (ui-only /
-  // horizontal-remote workspaces deploy without a backend proof).
-  const hasBackendSurface = remotes.some(appHasApi);
   // Enumerate configured shells (G28) instead of hard-coding the single
   // ./apps/shell-super-app. The default is the primary shell alone, so a
   // single-shell workspace produces byte-identical default scripts.

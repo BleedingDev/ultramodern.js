@@ -80,7 +80,7 @@ rstest.mock('../../src/renderers/solid/registration', () => {
       name: '@fixture/fourth-router',
       version: '1.0.0',
       coreName: '@tanstack/router-core',
-      coreVersion: '1.171.32',
+      coreVersion: '1.171.34',
     },
     sourceExtensions: ['.tsx', '.ts'],
     jsxImportSource: 'fourth-runtime',

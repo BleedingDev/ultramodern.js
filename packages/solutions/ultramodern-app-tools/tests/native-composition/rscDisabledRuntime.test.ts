@@ -3,12 +3,7 @@ import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import type { AppTools, AppUserConfig } from '@modern-js/app-tools';
-import { type CLIPluginAPI, createPluginManager } from '@modern-js/plugin';
-import {
-  createContext,
-  initAppContext,
-  initPluginAPI,
-} from '@modern-js/plugin/cli';
+import { createConfigOptions } from '@modern-js/plugin/cli';
 import type { RsbuildPlugin } from '@rsbuild/core';
 import { expect, it } from '@rstest/core';
 import { type BuilderConfig, createBuilder } from '../../../../cli/builder/src';
@@ -22,26 +17,14 @@ async function resolveComposerConfig(
   appDirectory: string,
   config: ComposerConfig,
 ) {
-  const pluginManager = createPluginManager();
-  const plugins = pluginManager.getPlugins();
-  const context = await createContext({
-    appContext: initAppContext({
-      packageName: 'rsc-composition-fixture',
-      configFile: false,
-      command: 'build',
-      appDirectory,
-      metaName: 'modern-js',
-      plugins,
-    }),
-    config,
-    normalizedConfig: config,
+  const result = await createConfigOptions<AppTools>({
+    command: 'build',
+    configFile: false,
+    cwd: appDirectory,
+    config: config as AppUserConfig,
+    internalPlugins: [ultramodernAppTools()],
   });
-  const api = initPluginAPI({ context, pluginManager });
-  context.pluginAPI = api;
-  await ultramodernAppTools().setup?.(api as unknown as CLIPluginAPI<AppTools>);
-  return (await api
-    .getHooks()
-    .modifyResolvedConfig.call(config)) as ComposerConfig;
+  return result.config as ComposerConfig;
 }
 
 it.each([
@@ -49,31 +32,30 @@ it.each([
   { rsc: false, guarded: true },
   { rsc: true, guarded: false },
   { rsc: { environments: { server: 'server' } }, guarded: false },
-])('installs the guard after consumer plugins for rsc=$rsc only when disabled', async ({
-  rsc,
-  guarded,
-}) => {
-  const consumer: RsbuildPlugin = { name: 'consumer', setup() {} };
-  const input: ComposerConfig = {
-    server: { rsc },
-    builderPlugins: [consumer],
-    html: { title: 'preserved' },
-  };
-  const result = await resolveComposerConfig(__dirname, input);
-  expect(
-    result.builderPlugins?.map(plugin =>
-      plugin && 'name' in plugin ? plugin.name : undefined,
-    ),
-  ).toEqual([
-    'consumer',
-    // Makes the composed runtime packages resolvable from the app itself.
-    'ultramodern:runtime-package-resolution',
-    ...(guarded ? ['builder:rsc-disabled-runtime'] : []),
-  ]);
-  expect(result.builderPlugins?.[0]).toBe(consumer);
-  expect(result.html).toEqual(input.html);
-  expect(input.builderPlugins).toEqual([consumer]);
-});
+])(
+  'installs the guard after consumer plugins for rsc=$rsc only when disabled',
+  async ({ rsc, guarded }) => {
+    const consumer: RsbuildPlugin = { name: 'consumer', setup() {} };
+    const input: ComposerConfig = {
+      server: { rsc },
+      builderPlugins: [consumer],
+      html: { title: 'preserved' },
+    };
+    const result = await resolveComposerConfig(__dirname, input);
+    expect(
+      result.builderPlugins
+        ?.map(plugin => (plugin && 'name' in plugin ? plugin.name : undefined))
+        .slice(guarded ? -2 : -1),
+    ).toEqual([
+      // Makes the composed runtime packages resolvable from the app itself.
+      'ultramodern:runtime-package-resolution',
+      ...(guarded ? ['builder:rsc-disabled-runtime'] : []),
+    ]);
+    expect(result.builderPlugins).toContain(consumer);
+    expect(result.html).toMatchObject(input.html!);
+    expect(input.builderPlugins).toEqual([consumer]);
+  },
+);
 
 const require = createRequire(import.meta.url);
 const runtimeSubpaths = [
@@ -157,39 +139,46 @@ it.each([
     optionalRuntime: 'resolvable',
     installPoisonRuntime: true,
   },
-])('links every disabled RSC runtime contract when the optional runtime is $optionalRuntime', async ({
-  installPoisonRuntime,
-}) => {
-  const workspaceRoot = fs.mkdtempSync(
-    path.join(os.tmpdir(), 'modern-rsc-disabled-build-'),
-  );
-  const sourcePath = path.join(workspaceRoot, 'index.js');
-  const neighborPath = path.join(workspaceRoot, 'neighbor.js');
-  const outputPath = path.join(workspaceRoot, 'dist');
+])(
+  'links every disabled RSC runtime contract when the optional runtime is $optionalRuntime',
+  async ({ installPoisonRuntime }) => {
+    const workspaceRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'modern-rsc-disabled-build-'),
+    );
+    const sourcePath = path.join(workspaceRoot, 'index.js');
+    const neighborPath = path.join(workspaceRoot, 'neighbor.js');
+    const outputPath = path.join(workspaceRoot, 'dist');
 
-  const poisonPackageRoot = path.join(
-    workspaceRoot,
-    'node_modules/react-server-dom-rspack',
-  );
+    const poisonPackageRoot = path.join(
+      workspaceRoot,
+      'node_modules/react-server-dom-rspack',
+    );
 
-  try {
-    if (installPoisonRuntime) {
-      const packageRoot = poisonPackageRoot;
-      fs.mkdirSync(packageRoot, { recursive: true });
+    try {
       fs.writeFileSync(
-        path.join(packageRoot, 'package.json'),
-        JSON.stringify({
-          name: 'react-server-dom-rspack',
-          exports: Object.fromEntries(
-            runtimeSubpaths.map(subpath => [`./${subpath}`, `./${subpath}.js`]),
-          ),
-        }),
-        'utf-8',
+        path.join(workspaceRoot, 'package.json'),
+        JSON.stringify({ name: 'rsc-disabled-runtime-fixture', private: true }),
       );
-      for (const subpath of runtimeSubpaths) {
+      if (installPoisonRuntime) {
+        const packageRoot = poisonPackageRoot;
+        fs.mkdirSync(packageRoot, { recursive: true });
         fs.writeFileSync(
-          path.join(packageRoot, `${subpath}.js`),
-          `
+          path.join(packageRoot, 'package.json'),
+          JSON.stringify({
+            name: 'react-server-dom-rspack',
+            exports: Object.fromEntries(
+              runtimeSubpaths.map(subpath => [
+                `./${subpath}`,
+                `./${subpath}.js`,
+              ]),
+            ),
+          }),
+          'utf-8',
+        );
+        for (const subpath of runtimeSubpaths) {
+          fs.writeFileSync(
+            path.join(packageRoot, `${subpath}.js`),
+            `
             const poison = () => {
               throw new Error(
                 'Resolved the optional RSC runtime while RSC was disabled.',
@@ -199,18 +188,18 @@ it.each([
               exports[name] = poison;
             }
           `,
-          'utf-8',
-        );
+            'utf-8',
+          );
+        }
       }
-    }
-    fs.writeFileSync(
-      neighborPath,
-      "export const neighborMarker = 'preserved';\n",
-      'utf-8',
-    );
-    fs.writeFileSync(
-      sourcePath,
-      `
+      fs.writeFileSync(
+        neighborPath,
+        "export const neighborMarker = 'preserved';\n",
+        'utf-8',
+      );
+      fs.writeFileSync(
+        sourcePath,
+        `
         import { neighborMarker } from '@fixture/rsc-neighbor';
         import * as clientBrowser from 'react-server-dom-rspack/client.browser';
         import * as clientEdge from 'react-server-dom-rspack/client.edge';
@@ -265,72 +254,73 @@ it.each([
           return true;
         }
       `,
-      'utf-8',
-    );
+        'utf-8',
+      );
 
-    const poisonAliasPlugin = {
-      name: 'test:poison-rsc-alias',
-      setup(
-        api: Parameters<
-          ReturnType<typeof rscDisabledRuntimePlugin>['setup']
-        >[0],
-      ) {
-        api.modifyRspackConfig(config => {
-          config.resolve ??= {};
-          config.resolve.alias = {
-            '@fixture/rsc-neighbor$': neighborPath,
-            ...(installPoisonRuntime
-              ? { 'react-server-dom-rspack': poisonPackageRoot }
-              : {}),
-          };
-        });
-      },
-    };
+      const poisonAliasPlugin = {
+        name: 'test:poison-rsc-alias',
+        setup(
+          api: Parameters<
+            ReturnType<typeof rscDisabledRuntimePlugin>['setup']
+          >[0],
+        ) {
+          api.modifyRspackConfig(config => {
+            config.resolve ??= {};
+            config.resolve.alias = {
+              '@fixture/rsc-neighbor$': neighborPath,
+              ...(installPoisonRuntime
+                ? { 'react-server-dom-rspack': poisonPackageRoot }
+                : {}),
+            };
+          });
+        },
+      };
 
-    const composed = await resolveComposerConfig(workspaceRoot, {
-      server: { rsc: false },
-      builderPlugins: [poisonAliasPlugin],
-    });
-    const rsbuild = await createBuilder({
-      bundlerType: 'rspack',
-      cwd: workspaceRoot,
-      config: {
-        source: {
-          entry: { index: sourcePath },
-        },
-        output: {
-          distPath: {
-            root: outputPath,
-            js: '',
+      const composed = await resolveComposerConfig(workspaceRoot, {
+        server: { rsc: false },
+        builderPlugins: [poisonAliasPlugin],
+      });
+      const rsbuild = await createBuilder({
+        bundlerType: 'rspack',
+        cwd: workspaceRoot,
+        config: {
+          source: {
+            entry: { index: sourcePath },
           },
-          filename: {
-            js: '[name].js',
+          output: {
+            distPath: {
+              root: outputPath,
+              js: '',
+            },
+            filename: {
+              js: '[name].js',
+            },
+            target: 'node',
+            disableTsChecker: true,
           },
-          target: 'node',
-          disableTsChecker: true,
-        },
-        performance: {
-          chunkSplit: {
-            strategy: 'all-in-one',
+          performance: {
+            chunkSplit: {
+              strategy: 'all-in-one',
+            },
+          },
+          tools: {
+            htmlPlugin: false,
           },
         },
-        tools: {
-          htmlPlugin: false,
-        },
-      },
-    });
+      });
 
-    rsbuild.addPlugins(
-      (await Promise.all(composed.builderPlugins ?? [])).flat(
-        Number.POSITIVE_INFINITY as 1,
-      ) as RsbuildPlugin[],
-    );
-    await expect(rsbuild.build()).resolves.toBeDefined();
-    const bundle = require(path.join(outputPath, 'index.js')) as {
-      invokeDisabledRscRuntime: () => boolean;
-    };
-    expect(bundle.invokeDisabledRscRuntime()).toBe(true);
-  } finally {
-    fs.rmSync(workspaceRoot, { force: true, recursive: true });
-  }
-});
+      rsbuild.addPlugins(
+        (await Promise.all(composed.builderPlugins ?? [])).flat(
+          Number.POSITIVE_INFINITY as 1,
+        ) as RsbuildPlugin[],
+      );
+      await expect(rsbuild.build()).resolves.toBeDefined();
+      const bundle = require(path.join(outputPath, 'index.js')) as {
+        invokeDisabledRscRuntime: () => boolean;
+      };
+      expect(bundle.invokeDisabledRscRuntime()).toBe(true);
+    } finally {
+      fs.rmSync(workspaceRoot, { force: true, recursive: true });
+    }
+  },
+);

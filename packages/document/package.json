@@ -31,16 +31,16 @@
   "dependencies": {
     "@modern-js/sandpack-react": "workspace:*",
     "@modern-js/ultramodern-sandpack-profile": "workspace:*",
-    "mermaid": "^11.17.2"
+    "mermaid": "^12.0.0"
   },
   "devDependencies": {
     "@rsbuild/plugin-sass": "2.0.1",
-    "@rspress/core": "2.0.22",
-    "@rspress/plugin-llms": "2.0.22",
-    "@rspress/shared": "2.0.22",
-    "@shikijs/transformers": "^4.4.3",
+    "@rspress/core": "2.0.23",
+    "@rspress/plugin-llms": "2.0.23",
+    "@rspress/shared": "2.0.23",
+    "@shikijs/transformers": "^4.5.0",
     "@types/fs-extra": "11.0.4",
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.3",
     "classnames": "^2.5.1",
     "clsx": "^2.1.1",
     "fs-extra": "^11.4.1",

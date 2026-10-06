@@ -2,7 +2,7 @@
 import 'server-only';
 import { getCountState, setCountState } from './ServerState';
 
-export async function greet(name: string) {
+export async function greet(_name: string) {
   return 'Hi';
 }
 
@@ -12,7 +12,7 @@ export async function increment(num: number) {
   return currentNum + num;
 }
 
-export async function incrementByForm(prevResult: number, formData: FormData) {
+export async function incrementByForm(_prevResult: number, formData: FormData) {
   const count = formData.get('count');
   const currentNum = getCountState();
   const newCount = currentNum + Number(count);

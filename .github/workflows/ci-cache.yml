@@ -1,0 +1,147 @@
+name: CI Cache
+
+# The one writer of the dependency caches PR jobs restore. Caches saved on a
+# PR ref are visible only to that PR, so per-PR saves parked one ~500 MB pnpm
+# store (plus mise and browsers) per PR and OS and blew the 10 GB repository
+# quota. Jobs on other refs restore only; this workflow saves on
+# main-ultramodern, whose caches every ref can read.
+on:
+  push:
+    branches: [main-ultramodern]
+
+  # GitHub evicts entries nobody read for 7 days. A weekly refresh lands on
+  # that boundary, so refresh twice a week to stay well inside it.
+  schedule:
+    - cron: '17 3 * * 1,4'
+
+  workflow_dispatch:
+
+concurrency:
+  group: ci-cache-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  seed:
+    # workflow_dispatch accepts any ref; a seed there would park branch-scoped
+    # entries again.
+    if: github.ref == 'refs/heads/main-ultramodern'
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [namespace-profile-testing, windows-latest, macos-26]
+
+    runs-on: ${{ matrix.runner }}
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup mise
+        uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
+        with:
+          version: 2026.9.18
+          install: true
+
+      - name: Setup Node.js 26.10.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '26.10.0'
+
+      - name: Resolve pnpm store path
+        id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      # Restoring first refreshes the entry's last-access time, so a quiet
+      # week does not age it out; saving an existing immutable key would not.
+      - name: Restore pnpm store cache
+        id: pnpm-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Saved right after install, not in a post step, so a later failure
+      # cannot skip the save.
+      - name: Save pnpm store cache
+        if: steps.pnpm-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      # Every browser runtime resolves the same playwright (the provisioner
+      # fails otherwise), so one runtime seeds the key all jobs restore.
+      - name: Resolve Playwright runtime
+        id: browser-runtime
+        run: node scripts/lib/browser-provisioning.js --resolve --runtime tests/integration/rstest/basic-app-rstest-browser
+
+      - name: Restore Playwright browser cache
+        id: browser-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.browser-runtime.outputs.cache_path }}
+          key: ${{ steps.browser-runtime.outputs.cache_key }}
+
+      - name: Install Playwright browsers
+        if: steps.browser-cache.outputs.cache-hit != 'true'
+        run: >-
+          node scripts/lib/browser-provisioning.js --install --runtime tests/integration/rstest/basic-app-rstest-browser
+          --version ${{ steps.browser-runtime.outputs.version }}
+
+      - name: Save Playwright browser cache
+        if: steps.browser-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.browser-runtime.outputs.cache_path }}
+          key: ${{ steps.browser-runtime.outputs.cache_key }}
+
+      # Nx 23's local database is machine-specific. Transfer validated build
+      # outputs with exact source/toolchain identity instead of its local DB.
+      - name: Identify prepared build inputs
+        id: build-cache-key
+        run: node scripts/ci/prepared-build-cache.mjs key
+
+      - name: Restore prepared build outputs
+        id: build-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .ci-build-cache/snapshot
+          key: ${{ steps.build-cache-key.outputs.key }}
+
+      - name: Validate prepared build outputs
+        id: build-cache-validate
+        run: node scripts/ci/prepared-build-cache.mjs restore
+
+      - name: Build required packages
+        if: steps.build-cache-validate.outputs.cache-hit != 'true'
+        run: pnpm run prepare-build
+
+      # Genuine package lifecycle hooks run here once on the trusted source.
+      # Consumers reuse these exact tarballs rather than repacking restored dist.
+      - name: Pack prepared test prerequisites
+        if: steps.build-cache-validate.outputs.cache-hit != 'true'
+        run: node tests/utils/runWithPrerequisites.mjs --pack-only .ci-build-cache/packed
+
+      - name: Snapshot prepared build outputs
+        if: steps.build-cache-validate.outputs.cache-hit != 'true'
+        run: node scripts/ci/prepared-build-cache.mjs snapshot .ci-build-cache/packed/packages.json
+
+      - name: Save prepared build outputs
+        if: steps.build-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .ci-build-cache/snapshot
+          key: ${{ steps.build-cache-key.outputs.key }}

@@ -1,0 +1,308 @@
+diff --git a/dist/createCompiler.d.ts b/dist/createCompiler.d.ts
+index 15bd759..85aecc5 100644
+--- a/dist/createCompiler.d.ts
++++ b/dist/createCompiler.d.ts
+@@ -1,6 +1,6 @@
+ import { type InitConfigsOptions } from './initConfigs.js';
+ import type { Rspack } from './types/index.js';
+-export declare function createCompiler(options: InitConfigsOptions): Promise<{
++export declare function createCompiler(options: InitConfigsOptions & { deferDevCompilerHooks?: boolean }): Promise<{
+     compiler: Rspack.Compiler | Rspack.MultiCompiler;
+     rspackConfigs: Rspack.Configuration[];
+ }>;
+diff --git a/dist/hooks.d.ts b/dist/hooks.d.ts
+index 7ba3b39..6cf2ceb 100644
+--- a/dist/hooks.d.ts
++++ b/dist/hooks.d.ts
+@@ -1,4 +1,4 @@
+-import type { AsyncHook, EnvironmentAsyncHook, InternalContext, ModifyBundlerChainFn, ModifyEnvironmentConfigFn, ModifyHTMLFn, ModifyHTMLTagsFn, ModifyRsbuildConfigFn, ModifyRspackConfigFn, OnAfterBuildFn, OnAfterCreateCompilerFn, OnAfterDevCompileFn, OnAfterEnvironmentCompileFn, OnAfterStartDevServerFn, OnAfterStartPreviewServerFn, OnBeforeBuildFn, OnBeforeCreateCompilerFn, OnBeforeDevCompileFn, OnBeforeEnvironmentCompileFn, OnBeforeStartDevServerFn, OnBeforeStartPreviewServerFn, OnCloseBuildFn, OnCloseDevServerFn, OnExitFn, OnRestartFn, Rspack } from './types/index.js';
++import type { AsyncHook, EnvironmentAsyncHook, InternalContext, ModifyBundlerChainFn, ModifyEnvironmentConfigFn, ModifyHTMLFn, ModifyHTMLTagsFn, ModifyRsbuildConfigFn, ModifyRspackConfigFn, OnAfterBuildFn, OnAfterCreateCompilerFn, OnAfterPrepareDevCompilerFn, OnAfterDevCompileFn, OnAfterEnvironmentCompileFn, OnAfterStartDevServerFn, OnAfterStartPreviewServerFn, OnBeforeBuildFn, OnBeforeCreateCompilerFn, OnBeforeDevCompileFn, OnBeforeEnvironmentCompileFn, OnBeforeStartDevServerFn, OnBeforeStartPreviewServerFn, OnCloseBuildFn, OnCloseDevServerFn, OnExitFn, OnRestartFn, Rspack } from './types/index.js';
+ export declare function createEnvironmentAsyncHook<Callback extends (...args: any[]) => any>(): EnvironmentAsyncHook<Callback>;
+ export declare function createAsyncHook<Callback extends (...args: any[]) => any>(): AsyncHook<Callback>;
+ export declare function initHooks(): {
+@@ -15,6 +15,7 @@ export declare function initHooks(): {
+     onAfterStartPreviewServer: AsyncHook<OnAfterStartPreviewServerFn>;
+     onBeforeStartPreviewServer: AsyncHook<OnBeforeStartPreviewServerFn>;
+     onAfterCreateCompiler: AsyncHook<OnAfterCreateCompilerFn>;
++    onAfterPrepareDevCompiler: AsyncHook<OnAfterPrepareDevCompilerFn>;
+     onBeforeCreateCompiler: AsyncHook<OnBeforeCreateCompilerFn>;
+     /**  The following hooks are related to the environment */ modifyHTML: EnvironmentAsyncHook<ModifyHTMLFn>;
+     modifyHTMLTags: EnvironmentAsyncHook<ModifyHTMLTagsFn>;
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index cb5b9c5..b2530ca 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -25,4 +25,4 @@ export type { HotClient, HotOnConnect, RsbuildDevServer } from './server/devServ
+ export type { RsbuildServerBase, ServerStartResult, StartDevServerResult, StartPreviewServerResult } from './server/helper.js';
+ export type { RsbuildPreviewServer } from './server/previewServer.js';
+ // Types
+-export type { AliasStrategy, AppIcon, AppIconItem, AutoExternal, AutoExternalExclude, Build, BuildOptions, BuildResult, Charset, CleanDistPath, CleanDistPathObject, ClientConfig, CliShortcut, CompressOptions, ConfigChain, ConfigChainWithContext, Connect, ConsoleType, CreateCompiler, CreateRsbuildOptions, CrossOrigin, CSSLoaderOptions, CSSModules, CSSModulesLocalsConvention, DataUriLimit, Decorators, DevConfig, DistPathConfig, EnvironmentConfig, EnvironmentContext, FilenameConfig, FilenameHash, HistoryApiFallbackContext, HistoryApiFallbackOptions, HtmlBasicTag, HtmlConfig, HtmlFallback, HtmlRspackPlugin, HtmlTag, HtmlTagContext, HtmlTagDescriptor, HtmlTagHandler, InitConfigsOptions, InlineChunkConfig, InlineChunkTest, InlineChunkTestFunction, InspectConfigOptions, InspectConfigResult, InternalContext, LegalComments, LogLevel, ManifestConfig, ManifestData, ManifestObjectConfig, MergedEnvironmentConfig, MetaAttrs, MetaOptions, Minify, ModifyBundlerChainFn, ModifyBundlerChainUtils, ModifyChainUtils, ModifyEnvironmentConfigFn, ModifyEnvironmentConfigUtils, ModifyHTMLContext, ModifyHTMLFn, ModifyHTMLTagsContext, ModifyHTMLTagsFn, ModifyRsbuildConfigFn, ModifyRsbuildConfigUtils, ModifyRspackConfigFn, ModifyRspackConfigUtils, ModuleFederationConfig, NormalizedConfig, NormalizedDevConfig, NormalizedEnvironmentConfig, NormalizedHtmlConfig, NormalizedModuleFederationConfig, NormalizedOutputConfig, NormalizedPerformanceConfig, NormalizedResolveConfig, NormalizedSecurityConfig, NormalizedServerConfig, NormalizedSourceConfig, NormalizedSplitChunksConfig, NormalizedToolsConfig, OnAfterBuildFn, OnAfterCreateCompilerFn, OnAfterDevCompileFn, OnAfterEnvironmentCompileFn, OnAfterStartDevServerFn, OnAfterStartPreviewServerFn, OnBeforeBuildFn, OnBeforeCreateCompilerFn, OnBeforeDevCompileFn, OnBeforeEnvironmentCompileFn, OnBeforeStartDevServerFn, OnBeforeStartPreviewServerFn, OnCloseBuildFn, OnCloseDevServerFn, OnDevCompileDoneFn, OnExitFn, OnRestartFn, OutputConfig, OverlayOptions, OutputStructure, PerformanceConfig, PluginManager, Polyfill, PostCSSLoaderOptions, PostCSSOptions, PostCSSPlugin, PreconnectOption, PreviewOptions, PrintUrls, ProcessAssetsDescriptor, ProcessAssetsHandler, ProcessAssetsHook, ProgressBarConfig, ProxyBypass, ProxyConfig, ProxyFilter, ProxyOptions, PublicDir, PublicDirOptions, ReadonlyRoutes, RequestHandler, ResolveConfig, ResolvedCreateRsbuildOptions, ResolveHandler, ResolveHook, ResourceHintsIncludeType, RestartContext, RestartFn, RsbuildConfig, RsbuildContext, RsbuildEntry, RsbuildEntryDescription, RsbuildInstance, RsbuildMiddlewares, RsbuildMode, RsbuildPlugin, RsbuildPluginAPI, RsbuildPlugins, RsbuildServerResponse, RsbuildTarget, RspackChain, RspackRule, ScriptInject, ScriptLoading, SecurityConfig, ServerConfig, SetupMiddlewaresContext, SetupMiddlewaresFn, SourceConfig, SourceMap, SourceMapExtract, SourceMapExtractOptions, SourceMapExtractTarget, SplitChunks, SplitChunksConfig, SplitChunksPreset, SriAlgorithm, SriOptions, StartDevServerOptions, StyleLoaderOptions, ToolsConfig, TransformContext, TransformDescriptor, TransformHandler, TransformHook, TransformImport, WatchFileEvent, WatchFiles, WebSocketUrlResolver } from './types/index.js';
++export type { AliasStrategy, AppIcon, AppIconItem, AutoExternal, AutoExternalExclude, Build, BuildOptions, BuildResult, Charset, CleanDistPath, CleanDistPathObject, ClientConfig, CliShortcut, CompressOptions, ConfigChain, ConfigChainWithContext, Connect, ConsoleType, CreateCompiler, CreateRsbuildOptions, CrossOrigin, CSSLoaderOptions, CSSModules, CSSModulesLocalsConvention, DataUriLimit, Decorators, DevConfig, DistPathConfig, EnvironmentConfig, EnvironmentContext, FilenameConfig, FilenameHash, HistoryApiFallbackContext, HistoryApiFallbackOptions, HtmlBasicTag, HtmlConfig, HtmlFallback, HtmlRspackPlugin, HtmlTag, HtmlTagContext, HtmlTagDescriptor, HtmlTagHandler, InitConfigsOptions, InlineChunkConfig, InlineChunkTest, InlineChunkTestFunction, InspectConfigOptions, InspectConfigResult, InternalContext, LegalComments, LogLevel, ManifestConfig, ManifestData, ManifestObjectConfig, MergedEnvironmentConfig, MetaAttrs, MetaOptions, Minify, ModifyBundlerChainFn, ModifyBundlerChainUtils, ModifyChainUtils, ModifyEnvironmentConfigFn, ModifyEnvironmentConfigUtils, ModifyHTMLContext, ModifyHTMLFn, ModifyHTMLTagsContext, ModifyHTMLTagsFn, ModifyRsbuildConfigFn, ModifyRsbuildConfigUtils, ModifyRspackConfigFn, ModifyRspackConfigUtils, ModuleFederationConfig, NormalizedConfig, NormalizedDevConfig, NormalizedEnvironmentConfig, NormalizedHtmlConfig, NormalizedModuleFederationConfig, NormalizedOutputConfig, NormalizedPerformanceConfig, NormalizedResolveConfig, NormalizedSecurityConfig, NormalizedServerConfig, NormalizedSourceConfig, NormalizedSplitChunksConfig, NormalizedToolsConfig, OnAfterBuildFn, OnAfterCreateCompilerFn, OnAfterPrepareDevCompilerFn, OnAfterDevCompileFn, OnAfterEnvironmentCompileFn, OnAfterStartDevServerFn, OnAfterStartPreviewServerFn, OnBeforeBuildFn, OnBeforeCreateCompilerFn, OnBeforeDevCompileFn, OnBeforeEnvironmentCompileFn, OnBeforeStartDevServerFn, OnBeforeStartPreviewServerFn, OnCloseBuildFn, OnCloseDevServerFn, OnDevCompileDoneFn, OnExitFn, OnRestartFn, OutputConfig, OverlayOptions, OutputStructure, PerformanceConfig, PluginManager, Polyfill, PostCSSLoaderOptions, PostCSSOptions, PostCSSPlugin, PreconnectOption, PreviewOptions, PrintUrls, ProcessAssetsDescriptor, ProcessAssetsHandler, ProcessAssetsHook, ProgressBarConfig, ProxyBypass, ProxyConfig, ProxyFilter, ProxyOptions, PublicDir, PublicDirOptions, ReadonlyRoutes, RequestHandler, ResolveConfig, ResolvedCreateRsbuildOptions, ResolveHandler, ResolveHook, ResourceHintsIncludeType, RestartContext, RestartFn, RsbuildConfig, RsbuildContext, RsbuildEntry, RsbuildEntryDescription, RsbuildInstance, RsbuildMiddlewares, RsbuildMode, RsbuildPlugin, RsbuildPluginAPI, RsbuildPlugins, RsbuildServerResponse, RsbuildTarget, RspackChain, RspackRule, ScriptInject, ScriptLoading, SecurityConfig, ServerConfig, SetupMiddlewaresContext, SetupMiddlewaresFn, SourceConfig, SourceMap, SourceMapExtract, SourceMapExtractOptions, SourceMapExtractTarget, SplitChunks, SplitChunksConfig, SplitChunksPreset, SriAlgorithm, SriOptions, StartDevServerOptions, StyleLoaderOptions, ToolsConfig, TransformContext, TransformDescriptor, TransformHandler, TransformHook, TransformImport, WatchFileEvent, WatchFiles, WebSocketUrlResolver } from './types/index.js';
+diff --git a/dist/m.js b/dist/m.js
+index dd24df0..3b00d62 100644
+--- a/dist/m.js
++++ b/dist/m.js
+@@ -2376,6 +2376,7 @@ function createEnvironmentAsyncHook() {
+ function createAsyncHook() {
+     let preGroup = [], postGroup = [], defaultGroup = [];
+     return {
++        isUsed: ()=>preGroup.length + defaultGroup.length + postGroup.length > 0,
+         tap: (cb)=>{
+             isFunction(cb) ? defaultGroup.push(cb) : 'pre' === cb.order ? preGroup.push(cb.handler) : 'post' === cb.order ? postGroup.push(cb.handler) : defaultGroup.push(cb.handler);
+         },
+@@ -2419,6 +2420,7 @@ function initHooks() {
+         onAfterStartPreviewServer: createAsyncHook(),
+         onBeforeStartPreviewServer: createAsyncHook(),
+         onAfterCreateCompiler: createAsyncHook(),
++        onAfterPrepareDevCompiler: createAsyncHook(),
+         onBeforeCreateCompiler: createAsyncHook(),
+         modifyHTML: createEnvironmentAsyncHook(),
+         modifyHTMLTags: createEnvironmentAsyncHook(),
+@@ -3167,6 +3169,7 @@ function initPluginAPI({ context, pluginManager }) {
+             onAfterDevCompile: hooks.onAfterDevCompile.tap,
+             onDevCompileDone: hooks.onAfterDevCompile.tap,
+             onAfterCreateCompiler: hooks.onAfterCreateCompiler.tap,
++            onAfterPrepareDevCompiler: hooks.onAfterPrepareDevCompiler.tap,
+             onAfterStartDevServer: hooks.onAfterStartDevServer.tap,
+             onBeforeCreateCompiler: hooks.onBeforeCreateCompiler.tap,
+             onBeforeStartDevServer: hooks.onBeforeStartDevServer.tap,
+@@ -3945,6 +3948,8 @@ function printBuildLog(compiler, context, lazyModules) {
+     }
+     logger.start('build started...');
+ }
++// Dev-server preparation can compile privately before native lifecycle publication.
++const deferredDevCompilerHooks = new WeakMap();
+ async function createCompiler_createCompiler(options) {
+     let version, HOOK_NAME = 'rsbuild:compiler', { context } = options, { logger } = context;
+     logger.debug('creating compiler');
+@@ -3963,6 +3968,7 @@ async function createCompiler_createCompiler(options) {
+     })(version, '2.2.3') >= 0)) throw Error(`${color.dim('[rsbuild]')} The current Rspack version does not meet the requirements, the minimum supported version of Rspack is ${color.green("2.2.3")}`);
+     let isMultiCompiler = rspackConfigs.length > 1, compiler = isMultiCompiler ? core_rspack(rspackConfigs) : core_rspack(rspackConfigs[0]);
+     'true' === process.env.RSPACK_UNSAFE_FAST_DROP && (compiler.unsafeFastDrop = !0);
++    const installCompilerHooks = ()=>{
+     let isVersionLogged = !1, isCompiling = !1, hasFatalError = !1, compilers = isMultiCompiler ? compiler.compilers : [
+         compiler
+     ], deferBuildLogs = isMultiCompiler && context.environmentList.some(({ config })=>config.dev.progressBar), pendingBuildLogs = [], finishFatalBuild = ()=>{
+@@ -4088,10 +4094,16 @@ async function createCompiler_createCompiler(options) {
+         compiler,
+         bundlerConfigs: rspackConfigs,
+         MultiStatsCtor: core_rspack.MultiStats
+-    }), await context.hooks.onAfterCreateCompiler.callBatch({
++    });
++    };
++    if (options.deferDevCompilerHooks && context.hooks.onAfterPrepareDevCompiler.isUsed()) deferredDevCompilerHooks.set(compiler, installCompilerHooks);
++    else installCompilerHooks();
++    await context.hooks.onAfterCreateCompiler.callBatch({
+         compiler,
+         environments: context.environments
+-    }), logger.debug('compiler created'), {
++    });
++    logger.debug('compiler created');
++    return {
+         compiler,
+         rspackConfigs
+     };
+@@ -6869,6 +6881,8 @@ init(
+ let assets_middleware_assetsMiddleware = async ({ config, compiler, context, socketServer, resolvedPort })=>{
+     var config1;
+     let watching, writeToDiskValues, { logger } = context, resolvedHost = await resolveHostname(config.server.host), { environments, environmentList } = context;
++    const installCompilerHooks = deferredDevCompilerHooks.get(compiler), pendingDevMiddlewareHooks = [];
++    const registerDevMiddlewareHook = (install)=>installCompilerHooks ? pendingDevMiddlewareHooks.push(install) : install();
+     applyToCompiler(compiler, (compiler, index)=>{
+         let environment = environmentList[index];
+         if (!environment) return;
+@@ -6879,7 +6893,7 @@ let assets_middleware_assetsMiddleware = async ({ config, compiler, context, soc
+             compiler,
+             resolvedHost,
+             resolvedPort
+-        }), (({ context, compiler, token, socketServer, liveReload })=>{
++        }), registerDevMiddlewareHook(()=>(({ context, compiler, token, socketServer, liveReload })=>{
+             if (((compiler)=>{
+                 let { target } = compiler.options;
+                 return !!target && (Array.isArray(target) ? target.includes('node') : 'node' === target);
+@@ -6920,26 +6934,42 @@ let assets_middleware_assetsMiddleware = async ({ config, compiler, context, soc
+             socketServer,
+             token,
+             liveReload: environment.config.dev.liveReload
+-        }));
++        })));
+     });
+     let compilers = compiler_isMultiCompiler(compiler) ? compiler.compilers : [
+         compiler
+     ], callbacks = [], flushCallbacks = ()=>{
+         for (let callback of callbacks.splice(0))callback();
+     };
+-    compiler.hooks.done.tap('rsbuild-dev-middleware', ()=>{
++    registerDevMiddlewareHook(()=>compiler.hooks.done.tap('rsbuild-dev-middleware', ()=>{
+         process.nextTick(()=>{
+             'done' === context.buildState.status && flushCallbacks();
+         });
+-    });
++    }));
+     let writeToDisk = (config1 = config.dev, 1 === new Set(writeToDiskValues = environmentList.map((env)=>env.config.dev.writeToDisk)).size ? writeToDiskValues[0] : (filePath, name)=>{
+         let { writeToDisk } = config1;
+         return name && environments[name] && (writeToDisk = environments[name].config.dev.writeToDisk ?? writeToDisk), 'function' == typeof writeToDisk ? writeToDisk(filePath) : writeToDisk;
+     });
+     writeToDisk && setupWriteToDisk(compilers, writeToDisk, logger);
++    let outputFileSystem = await setupOutputFileSystem(writeToDisk, compilers);
++    if (installCompilerHooks) {
++        deferredDevCompilerHooks.delete(compiler);
++        try {
++            await context.hooks.onAfterPrepareDevCompiler.callBatch({ compiler, environments });
++        } catch (error) {
++            try {
++                await new Promise((resolve, reject)=>compiler.close((closeError)=>closeError ? reject(closeError) : resolve()));
++            } catch (closeError) {
++                throw new AggregateError([error, closeError], 'Dev compiler preparation failed and its compiler could not close');
++            }
++            throw error;
++        }
++        installCompilerHooks();
++        for (const install of pendingDevMiddlewareHooks) install();
++    }
+     let instance = createAssetsMiddleware(context, (callback)=>{
+         'done' === context.buildState.status || 'failed' === context.buildState.status ? callback() : callbacks.push(callback);
+-    }, await setupOutputFileSystem(writeToDisk, compilers));
++    }, outputFileSystem);
+     return instance.watch = ()=>{
+         if (compiler.watching) watching = compiler.watching;
+         else {
+@@ -8197,6 +8227,8 @@ async function devServer_createDevServer(options, createCompiler, config, devSer
+         context.publicPathnames = getPublicPathnames(compiler_isMultiCompiler(compiler) ? compiler.compilers.map(getPublicPathFromCompiler) : [
+             getPublicPathFromCompiler(compiler)
+         ], config.server.base);
++        const waitForPreparation = deferredDevCompilerHooks.has(compiler);
++        const installEnvironmentHooks = ()=>{
+         let hookOptions = {
+             name: 'rsbuild:environment-api',
+             stage: -10000
+@@ -8212,6 +8244,8 @@ async function devServer_createDevServer(options, createCompiler, config, devSer
+         }), compiler.hooks.done.tap(hookOptions, (stats)=>{
+             compileState.done(0, stats);
+         }));
++        };
++        if (!waitForPreparation) installEnvironmentHooks();
+         let buildManager = new BuildManager({
+             context,
+             config,
+@@ -8234,7 +8268,9 @@ async function devServer_createDevServer(options, createCompiler, config, devSer
+                 }
+             }
+         });
+-        return await buildManager.init(), buildManager;
++        await buildManager.init();
++        if (waitForPreparation) installEnvironmentHooks();
++        return buildManager;
+     }, protocol = isHttps ? 'https' : 'http', urls = await getAddressUrls({
+         protocol,
+         port,
+@@ -9874,10 +9910,11 @@ async function createRsbuild(options = {}) {
+     context.getPluginAPI = getPluginAPI;
+     let globalPluginAPI = getPluginAPI();
+     logger.debug('registering default plugins'), applyDefaultPlugins(pluginManager, context), logger.debug('default plugins registered');
+-    let createCompiler = async ()=>(initAction(), (await createCompiler_createCompiler({
++    let createCompiler = async (deferDevCompilerHooks = false)=>(initAction(), (await createCompiler_createCompiler({
+             context,
+             pluginManager,
+-            rsbuildOptions: resolvedOptions
++            rsbuildOptions: resolvedOptions,
++            deferDevCompilerHooks
+         })).compiler), preview = async (options = {})=>{
+         context.action = 'preview', process.env.NODE_ENV || setNodeEnv('production');
+         let config = await initRsbuildConfig({
+@@ -9905,7 +9942,7 @@ async function createRsbuild(options = {}) {
+             context,
+             pluginManager,
+             rsbuildOptions: resolvedOptions
+-        }, createCompiler, config, options)).listen();
++        }, ()=>createCompiler(true), config, options)).listen();
+     }, createDevServer = async (options)=>{
+         context.action = 'dev', process.env.NODE_ENV || setNodeEnv('development');
+         let config = await initRsbuildConfig({
+@@ -9916,7 +9953,7 @@ async function createRsbuild(options = {}) {
+             context,
+             pluginManager,
+             rsbuildOptions: resolvedOptions
+-        }, createCompiler, config, options);
++        }, ()=>createCompiler(true), config, options);
+     }, initAction = (mode = config.mode)=>{
+         context.action || (context.action = 'development' === mode ? 'dev' : 'build');
+     }, inspectConfig = async (inspectOptions = {})=>{
+@@ -9969,6 +10006,7 @@ async function createRsbuild(options = {}) {
+             'modifyRsbuildConfig',
+             'onAfterBuild',
+             'onAfterCreateCompiler',
++            'onAfterPrepareDevCompiler',
+             'onAfterDevCompile',
+             'onAfterEnvironmentCompile',
+             'onAfterStartDevServer',
+diff --git a/dist/types/hooks.d.ts b/dist/types/hooks.d.ts
+index 83d8df0..e377e99 100644
+--- a/dist/types/hooks.d.ts
++++ b/dist/types/hooks.d.ts
+@@ -100,6 +100,17 @@ export type OnAfterCreateCompilerFn<Compiler = Rspack.Compiler | Rspack.MultiCom
+    * Context information for all environments.
+    */ environments: Record<string, EnvironmentContext>;
+ }) => MaybePromise<void>;
++/**
++ * Called once before the initial dev watch, after native dev entries and the
++ * output filesystem are prepared. Rsbuild awaits this hook before attaching
++ * dev completion, environment readiness, and socket publication handlers.
++ * Register before compiler creation. Rejection closes the compiler and aborts
++ * startup; plugins must not close the compiler themselves.
++ */
++export type OnAfterPrepareDevCompilerFn = (params: {
++    compiler: Rspack.Compiler | Rspack.MultiCompiler;
++    environments: Record<string, EnvironmentContext>;
++}) => MaybePromise<void>;
+ export type OnExitFn = (context: {
+     exitCode: number;
+ }) => void;
+diff --git a/dist/types/plugin.d.ts b/dist/types/plugin.d.ts
+index 5fa81f4..69e64c2 100644
+--- a/dist/types/plugin.d.ts
++++ b/dist/types/plugin.d.ts
+@@ -1,7 +1,7 @@
+ import type { Logger } from '../logger.js';
+ import type { ModifyRspackConfigUtils, NarrowedRspackConfig, NormalizedConfig, NormalizedEnvironmentConfig, RsbuildConfig } from './config.js';
+ import type { RsbuildContext } from './context.js';
+-import type { EnvironmentContext, ModifyBundlerChainFn, ModifyEnvironmentConfigFn, ModifyHTMLFn, ModifyHTMLTagsFn, ModifyRsbuildConfigFn, OnAfterBuildFn, OnAfterCreateCompilerFn, OnAfterDevCompileFn, OnAfterEnvironmentCompileFn, OnAfterStartDevServerFn, OnAfterStartPreviewServerFn, OnBeforeBuildFn, OnBeforeCreateCompilerFn, OnBeforeDevCompileFn, OnBeforeEnvironmentCompileFn, OnBeforeStartDevServerFn, OnBeforeStartPreviewServerFn, OnCloseBuildFn, OnCloseDevServerFn, OnExitFn, OnRestartFn } from './hooks.js';
++import type { EnvironmentContext, ModifyBundlerChainFn, ModifyEnvironmentConfigFn, ModifyHTMLFn, ModifyHTMLTagsFn, ModifyRsbuildConfigFn, OnAfterBuildFn, OnAfterCreateCompilerFn, OnAfterPrepareDevCompilerFn, OnAfterDevCompileFn, OnAfterEnvironmentCompileFn, OnAfterStartDevServerFn, OnAfterStartPreviewServerFn, OnBeforeBuildFn, OnBeforeCreateCompilerFn, OnBeforeDevCompileFn, OnBeforeEnvironmentCompileFn, OnBeforeStartDevServerFn, OnBeforeStartPreviewServerFn, OnCloseBuildFn, OnCloseDevServerFn, OnExitFn, OnRestartFn } from './hooks.js';
+ import type { AddPluginsOptions, RsbuildInstance, RsbuildTarget } from './rsbuild.js';
+ import type { Rspack } from './rspack.js';
+ import type { Falsy, MaybePromise } from './utils.js';
+@@ -58,6 +58,7 @@ export type EnvironmentAsyncHook<Callback extends (...args: any[]) => T, T = any
+     }) => Promise<Awaited<ReturnType<Callback>>[]>;
+ };
+ export type AsyncHook<Callback extends (...args: any[]) => T, T = any> = {
++    /** Whether this hook has a registered callback. */ isUsed: () => boolean;
+     /**
+    * Registers a callback function to be executed when the hook is triggered.
+    * The callback can be a plain function or a HookDescriptor that includes execution order.
+@@ -397,6 +398,13 @@ export type GetNormalizedConfig = {
+    * `rsbuild.startDevServer`, `rsbuild.build`, or `rsbuild.createCompiler`.
+    */ onAfterCreateCompiler: PluginHook<OnAfterCreateCompilerFn>;
+     /**
++   * Called once after native dev entries and the output filesystem are ready,
++   * before dev completion handlers and the initial watch are attached.
++   * Async callbacks are awaited on the same compiler used by the dev server.
++   * Register before compiler creation. Rejection closes the compiler and aborts
++   * startup; plugins must not close the compiler themselves.
++   */ onAfterPrepareDevCompiler: PluginHook<OnAfterPrepareDevCompilerFn>;
++    /**
+    * Called after each development mode build, you can use `isFirstCompile`
+    * to determine whether it is the first build.
+    */ onAfterDevCompile: PluginHook<OnAfterDevCompileFn>;
+diff --git a/dist/types/rsbuild.d.ts b/dist/types/rsbuild.d.ts
+index 11a87e7..fefc199 100644
+--- a/dist/types/rsbuild.d.ts
++++ b/dist/types/rsbuild.d.ts
+@@ -221,7 +221,7 @@ export type RsbuildInstance = {
+    * 1. Start a development server that serves your application.
+    * 2. Watch for file changes and trigger recompilation.
+    */ startDevServer: StartDevServer;
+-} & Pick<RsbuildPluginAPI, 'context' | 'expose' | 'getNormalizedConfig' | 'getRsbuildConfig' | 'isPluginExists' | 'modifyEnvironmentConfig' | 'modifyRsbuildConfig' | 'onAfterBuild' | 'onAfterCreateCompiler' | 'onAfterDevCompile' | 'onAfterEnvironmentCompile' | 'onAfterStartDevServer' | 'onAfterStartPreviewServer' | 'onBeforeBuild' | 'onBeforeCreateCompiler' | 'onBeforeDevCompile' | 'onBeforeEnvironmentCompile' | 'onBeforeStartDevServer' | 'onBeforeStartPreviewServer' | 'onCloseBuild' | 'onCloseDevServer' | 'onDevCompileDone' | 'onExit' | 'onRestart'>;
++} & Pick<RsbuildPluginAPI, 'context' | 'expose' | 'getNormalizedConfig' | 'getRsbuildConfig' | 'isPluginExists' | 'modifyEnvironmentConfig' | 'modifyRsbuildConfig' | 'onAfterBuild' | 'onAfterCreateCompiler' | 'onAfterPrepareDevCompiler' | 'onAfterDevCompile' | 'onAfterEnvironmentCompile' | 'onAfterStartDevServer' | 'onAfterStartPreviewServer' | 'onBeforeBuild' | 'onBeforeCreateCompiler' | 'onBeforeDevCompile' | 'onBeforeEnvironmentCompile' | 'onBeforeStartDevServer' | 'onBeforeStartPreviewServer' | 'onCloseBuild' | 'onCloseDevServer' | 'onDevCompileDone' | 'onExit' | 'onRestart'>;
+ export type RsbuildTarget = 'web' | 'node' | 'web-worker';
+ export type RsbuildEntryDescription = Rspack.EntryDescription & {
+     /**

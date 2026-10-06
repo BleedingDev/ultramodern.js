@@ -19,6 +19,7 @@ import type {
   ResolvedPackageSource,
   WorkspaceApp,
 } from '../src/ultramodern-workspace/types';
+import { createWorkspaceAppPackageScripts } from '../src/ultramodern-workspace/workspace-script-plan';
 
 const scope = 'tractor-store';
 const packageVersion = '3.5.0-ultramodern.9';
@@ -103,26 +104,22 @@ test('workspace package source uses workspace versions for generated framework d
   const scripts = packageRecord(packageJson.scripts);
   assert.match(
     scripts.build as string,
-    /(?:^| && )cross-env MODERNJS_DEPLOY=node ultramodern deploy --skip-build(?: && |$)/u,
+    /(?:^| && )ultramodern build --deploy-target node && .* && ultramodern deploy --skip-build --deploy-target node$/u,
   );
   assert.match(
     scripts['cloudflare:build'] as string,
-    /(?:^| && )cross-env MODERNJS_DEPLOY=cloudflare ultramodern build(?: && |$)/u,
+    /(?:^| && )ultramodern build --deploy-target cloudflare && .* && ultramodern deploy --skip-build --deploy-target cloudflare && .* cloudflare-output-verify --app catalog$/u,
   );
   assert.match(
-    scripts['cloudflare:build'] as string,
-    /(?:^| && )cross-env MODERNJS_DEPLOY=cloudflare ultramodern deploy --skip-build(?: && |$)/u,
+    scripts['cloudflare:deploy'] as string,
+    /--require-public-origin && ultramodern deploy --skip-build --deploy-target cloudflare && .* cloudflare-output-verify --app catalog --require-public-urls && wrangler deploy --config \.output\/wrangler\.json$/u,
   );
-  assert.equal(
-    scripts['cloudflare:deploy'],
-    'cross-env ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS=true pnpm run cloudflare:build && wrangler deploy --config .output/wrangler.json',
-  );
+  // Env assignments need a wrapper such as cross-env, which reports a build
+  // that died from a signal as a plain exit 1.
   for (const command of Object.values(scripts)) {
-    assert.doesNotMatch(
-      command as string,
-      /(?:^| && )(?:MODERNJS_DEPLOY|ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS)=/u,
-    );
+    assert.doesNotMatch(command as string, /(?:^|\s)[A-Z][A-Z0-9_]*=/u);
   }
+  assert.equal(packageJson.devDependencies['cross-env'], undefined);
 });
 
 test('workspace package source isolates linked framework dependencies without changing install-backed workspaces', () => {
@@ -164,7 +161,47 @@ test('root package json pins workspace package versions and bridge workspace glo
     rootScripts.postinstall,
     'ultramodern-create ultramodern skills install --postinstall',
   );
+  assert.equal(
+    packageRecord(rootPackageJson.devDependencies)['cross-env'],
+    undefined,
+  );
 });
+
+test.skipIf(process.platform === 'win32')(
+  'a generated build script surfaces a crashing build under pnpm',
+  () => {
+    const modernBuild = createWorkspaceAppPackageScripts(
+      createCatalogVertical(),
+    )
+      ['cloudflare:build'].split(' && ')
+      .find(step => step.startsWith('ultramodern build'));
+    assert.equal(modernBuild, 'ultramodern build --deploy-target cloudflare');
+    const appDir = fs.mkdtempSync(path.join(os.tmpdir(), 'um-crash-signal-'));
+    try {
+      fs.writeFileSync(
+        path.join(appDir, 'package.json'),
+        JSON.stringify({ name: 'crash', scripts: { build: modernBuild } }),
+      );
+      const bin = path.join(appDir, 'node_modules/.bin/ultramodern');
+      fs.mkdirSync(path.dirname(bin), { recursive: true });
+      // Stands in for a build that overflows the native stack.
+      fs.writeFileSync(bin, '#!/bin/sh\nkill -SEGV $$\n', { mode: 0o755 });
+      const result = spawnSync('pnpm', ['run', 'build'], {
+        cwd: appDir,
+        encoding: 'utf8',
+        env: { ...process.env, CI: '' },
+      });
+      // pnpm re-raises the signal or exits 128 + SIGSEGV; cross-env reported
+      // the same crash as a plain exit 1.
+      assert.ok(
+        result.signal === 'SIGSEGV' || result.status === 139,
+        `status ${result.status}, signal ${result.signal}`,
+      );
+    } finally {
+      fs.rmSync(appDir, { recursive: true, force: true });
+    }
+  },
+);
 
 test('generated React roots provide canonical framework peers and their pinned runtime providers', () => {
   const buildPlugin = JSON.parse(

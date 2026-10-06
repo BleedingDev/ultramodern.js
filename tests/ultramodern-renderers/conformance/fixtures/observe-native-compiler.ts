@@ -946,7 +946,7 @@ export function observeNativeCompiler(): RsbuildPlugin {
       const afterDevelopment: OnAfterDevCompileFn = input =>
         capture('onDevCompileDone', input);
       api.onAfterBuild({ order: 'post', handler: afterBuild });
-      // Rsbuild 2.2.9 calls its pre/default/post callback groups serially and
+      // Rsbuild 2.2.11 calls its pre/default/post callback groups serially and
       // awaits each. The owning native direct pre hook commits its checkpoint
       // before this direct post hook; CLI forwarding is not our authority.
       api.onDevCompileDone({ order: 'post', handler: afterDevelopment });

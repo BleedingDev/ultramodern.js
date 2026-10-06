@@ -8,6 +8,19 @@ function tempRoot(prefix) {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
 }
 
+function writeEmptyReleaseAgePolicy(root) {
+  const policyPath = path.join(root, 'release-age-policy.json');
+  fs.writeFileSync(
+    policyPath,
+    JSON.stringify({
+      schema: 'bleedingdev.ultramodern.release-age-exceptions',
+      schemaVersion: 2,
+      entries: [],
+    }),
+  );
+  return policyPath;
+}
+
 test('acceptance topology binds app manifests and overlay without compact metadata', async t => {
   const {
     readWorkspaceAcceptanceArtifacts,
@@ -140,9 +153,9 @@ function operationalEvidence(options) {
       hydration: { name: 'react-dom', version: '19.3.0' },
       router: {
         name: '@tanstack/react-router',
-        version: '1.170.39',
+        version: '1.170.41',
         coreName: '@tanstack/router-core',
-        coreVersion: '1.171.32',
+        coreVersion: '1.171.34',
       },
     },
     routerBindings: {
@@ -152,17 +165,17 @@ function operationalEvidence(options) {
         defaultProvider: {
           framework: 'tanstack',
           name: '@tanstack/react-router',
-          version: '1.170.39',
+          version: '1.170.41',
           coreName: '@tanstack/router-core',
-          coreVersion: '1.171.32',
+          coreVersion: '1.171.34',
         },
         providers: [
           {
             framework: 'tanstack',
             name: '@tanstack/react-router',
-            version: '1.170.39',
+            version: '1.170.41',
             coreName: '@tanstack/router-core',
-            coreVersion: '1.171.32',
+            coreVersion: '1.171.34',
           },
         ],
       },
@@ -516,7 +529,7 @@ test('registry cohort verification fails closed when downloaded bytes differ', a
         release: { packages: [pkg] },
         registryUrl: 'https://registry.npmjs.org/',
         workDir: root,
-        async runImpl(command, args) {
+        async runImpl(_command, args) {
           const destination = args[args.indexOf('--pack-destination') + 1];
           fs.writeFileSync(path.join(destination, 'stale.tgz'), 'stale');
           return JSON.stringify([{ filename: 'stale.tgz' }]);
@@ -646,6 +659,7 @@ test('release-age audit rejects a fresh dependency whose approval has expired', 
     fs.writeFileSync(path.join(root, name), JSON.stringify(value));
   writeJson('pnpm-workspace.yaml', {
     minimumReleaseAge: 1440,
+    minimumReleaseAgeExclude: [locator(firstParty)],
     minimumReleaseAgeIgnoreMissingTime: false,
     minimumReleaseAgeStrict: true,
     trustPolicy: 'no-downgrade',
@@ -694,7 +708,6 @@ test('release-age audit rejects a fresh dependency whose approval has expired', 
   try {
     await assert.rejects(
       auditReleaseAgePolicy({
-        mode: 'published',
         commandExclusions: [locator(firstParty)],
         fetchImpl: async url => {
           const item = registry.get(
@@ -734,116 +747,306 @@ test('release-age audit rejects a fresh dependency whose approval has expired', 
         },
         verifyYamlTool: false,
       }),
-      /without an exact, unexpired approval/u,
+      // Names the package, its publish time and the wait until it matures.
+      /@effect\/tsgo@0\.36\.2 published 2026-09-10T00:30:00\.000Z, mature at 2026-09-11T00:30:00\.000Z \(wait 23\.5h\)/u,
     );
   } finally {
     fs.rmSync(root, { force: true, recursive: true });
   }
 });
 
-test('source release-age audit binds fresh seeded sidecars to verified manifest integrity', async t => {
-  const { auditReleaseAgePolicy, resolveAcceptanceReleaseAgeExclusions } =
-    await import('../published-create-proof/release-age-audit.mjs');
-  const root = tempRoot('release-age-source-sidecar-');
+for (const { mode, registryUrl } of [
+  { mode: 'source', registryUrl: 'http://127.0.0.1:4873/' },
+  { mode: 'published', registryUrl: 'https://registry.npmjs.org/' },
+]) {
+  test(`${mode} release-age audit binds fresh sidecars to verified manifest integrity`, async t => {
+    const { auditReleaseAgePolicy, releaseAgeExemptions } = await import(
+      '../published-create-proof/release-age-audit.mjs'
+    );
+    const root = tempRoot(`release-age-${mode}-sidecar-`);
+    t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+    const version = '3.9.0-ultramodern.13';
+    const firstParty = {
+      targetName: '@bleedingdev/modern-js-runtime',
+      sourceName: '@modern-js/runtime',
+      version,
+      integrity: 'sha512-Zmlyc3QtcGFydHk=',
+    };
+    const sidecar = {
+      name: '@bleedingdev/mf-bridge-react',
+      version: '1.0.0',
+      integrity: 'sha512-c2lkZWNhcg==',
+    };
+    const release = {
+      cohortDigest: 'a'.repeat(64),
+      manifestSha256: 'b'.repeat(64),
+      packages: [firstParty],
+      release: { version },
+      sidecars: { packages: [sidecar] },
+      source: {
+        commit: 'c'.repeat(40),
+        repository: 'BleedingDev/ultramodern.js',
+      },
+      targetScope: 'bleedingdev',
+    };
+    fs.writeFileSync(
+      path.join(root, 'pnpm-workspace.yaml'),
+      JSON.stringify({
+        minimumReleaseAge: 1440,
+        minimumReleaseAgeExclude: [`${firstParty.targetName}@${version}`],
+        minimumReleaseAgeIgnoreMissingTime: false,
+        minimumReleaseAgeStrict: true,
+        trustPolicy: 'no-downgrade',
+        trustPolicyIgnoreAfter: 1440,
+      }),
+    );
+    const policyPath = writeEmptyReleaseAgePolicy(root);
+    const sidecarKey = `${sidecar.name}@${sidecar.version}`;
+    fs.writeFileSync(
+      path.join(root, 'pnpm-lock.yaml'),
+      JSON.stringify({
+        lockfileVersion: '9.0',
+        importers: {
+          '.': {
+            dependencies: {
+              [sidecar.name]: {
+                specifier: sidecar.version,
+                version: sidecar.version,
+              },
+            },
+          },
+        },
+        packages: {
+          [sidecarKey]: { resolution: { integrity: sidecar.integrity } },
+        },
+        snapshots: { [sidecarKey]: {} },
+      }),
+    );
+    const urls = [];
+    const fetchImpl = async url => {
+      urls.push(String(url));
+      return new Response(
+        JSON.stringify({
+          time: { [sidecar.version]: '2026-09-23T07:41:30.000Z' },
+          versions: {
+            [sidecar.version]: { dist: { integrity: 'sha512-c2lkZWNhcg==' } },
+          },
+        }),
+        { status: 200 },
+      );
+    };
+    const options = {
+      commandExclusions: releaseAgeExemptions(release, {
+        policyPath,
+        now: new Date('2026-09-23T08:00:00.000Z'),
+      }),
+      fetchImpl,
+      now: new Date('2026-09-23T08:00:00.000Z'),
+      parseYamlImpl: JSON.parse,
+      policyPath,
+      projectDir: root,
+      registryUrl,
+      release,
+      verifyYamlTool: false,
+    };
+    const audit = await auditReleaseAgePolicy(options);
+    assert.equal(
+      audit.approvals.find(item => item.package === sidecar.name)?.authority,
+      'strict-release-manifest-sidecar',
+    );
+    assert.ok(
+      urls.some(
+        url => url.startsWith(registryUrl) && url.includes('mf-bridge-react'),
+      ),
+    );
+    sidecar.integrity = 'sha512-Zm9yZ2Vk';
+    await assert.rejects(
+      auditReleaseAgePolicy(options),
+      /registry integrity differs from authenticated release manifest/u,
+    );
+  });
+}
+
+// Replays the 3.9.0-ultramodern.13 edge (publish run 36137116871): the
+// release reused sidecars published under 24h earlier. The source lane
+// exempted them and passed; both published lanes did not and failed with
+// ERR_PNPM_NO_MATURE_MATCHING_VERSION after the cohort was already public.
+test('a lane that drops the fresh .13 sidecars fails the audit before install, naming them', async t => {
+  const { auditReleaseAgePolicy, releaseAgeExemptions } = await import(
+    '../published-create-proof/release-age-audit.mjs'
+  );
+  const root = tempRoot('release-age-13-replay-');
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const version = '3.9.0-ultramodern.13';
-  const firstParty = {
-    targetName: '@bleedingdev/modern-js-runtime',
-    sourceName: '@modern-js/runtime',
-    version,
-    integrity: 'sha512-Zmlyc3QtcGFydHk=',
-  };
-  const sidecar = {
-    name: '@bleedingdev/mf-bridge-react',
-    version: '1.0.0',
-    integrity: 'sha512-c2lkZWNhcg==',
-  };
+  const sidecars = [
+    ['@bleedingdev/effect', '4.0.0-rc.117', '2026-09-25T11:12:17.532Z'],
+    ['@bleedingdev/mf-bridge-react', '2.9.1', '2026-09-25T11:28:45.731Z'],
+    ['@bleedingdev/mf-enhanced', '2.9.1', '2026-09-25T12:19:54.880Z'],
+    ['@bleedingdev/mf-modern-js-v3', '2.9.1', '2026-09-25T12:37:57.875Z'],
+    ['@bleedingdev/mf-node', '2.7.51', '2026-09-25T12:27:16.233Z'],
+  ].map(([name, sidecarVersion, publishedAt], index) => ({
+    name,
+    version: sidecarVersion,
+    publishedAt,
+    integrity: `sha512-${Buffer.from(`sidecar-${index}`).toString('base64')}`,
+  }));
   const release = {
     cohortDigest: 'a'.repeat(64),
     manifestSha256: 'b'.repeat(64),
-    packages: [firstParty],
+    packages: [
+      {
+        targetName: '@bleedingdev/modern-js-runtime',
+        sourceName: '@modern-js/runtime',
+        version,
+        integrity: 'sha512-Zmlyc3QtcGFydHk=',
+      },
+    ],
     release: { version },
-    sidecars: { packages: [sidecar] },
+    sidecars: {
+      packages: sidecars.map(({ name, version: v, integrity }) => ({
+        name,
+        version: v,
+        integrity,
+      })),
+    },
     source: {
       commit: 'c'.repeat(40),
       repository: 'BleedingDev/ultramodern.js',
     },
     targetScope: 'bleedingdev',
   };
+  const key = item => `${item.name}@${item.version}`;
   fs.writeFileSync(
     path.join(root, 'pnpm-workspace.yaml'),
     JSON.stringify({
       minimumReleaseAge: 1440,
+      minimumReleaseAgeExclude: [`@bleedingdev/modern-js-runtime@${version}`],
       minimumReleaseAgeIgnoreMissingTime: false,
       minimumReleaseAgeStrict: true,
       trustPolicy: 'no-downgrade',
       trustPolicyIgnoreAfter: 1440,
     }),
   );
-  const sidecarKey = `${sidecar.name}@${sidecar.version}`;
   fs.writeFileSync(
     path.join(root, 'pnpm-lock.yaml'),
     JSON.stringify({
       lockfileVersion: '9.0',
       importers: {
         '.': {
-          dependencies: {
-            [sidecar.name]: {
-              specifier: sidecar.version,
-              version: sidecar.version,
-            },
-          },
+          dependencies: Object.fromEntries(
+            sidecars.map(item => [
+              item.name,
+              { specifier: item.version, version: item.version },
+            ]),
+          ),
         },
       },
-      packages: {
-        [sidecarKey]: { resolution: { integrity: sidecar.integrity } },
-      },
-      snapshots: { [sidecarKey]: {} },
+      packages: Object.fromEntries(
+        sidecars.map(item => [
+          key(item),
+          { resolution: { integrity: item.integrity } },
+        ]),
+      ),
+      snapshots: Object.fromEntries(sidecars.map(item => [key(item), {}])),
     }),
   );
-  const urls = [];
-  const fetchImpl = async url => {
-    urls.push(String(url));
-    return new Response(
-      JSON.stringify({
-        time: { [sidecar.version]: '2026-09-23T07:41:30.000Z' },
-        versions: {
-          [sidecar.version]: { dist: { integrity: 'sha512-c2lkZWNhcg==' } },
-        },
-      }),
-      { status: 200 },
-    );
-  };
+  const byName = new Map(sidecars.map(item => [item.name, item]));
+  const policyPath = writeEmptyReleaseAgePolicy(root);
+  // The moment published ERP-10 acceptance resolved the cohort.
+  const now = new Date('2026-09-25T13:23:48.867Z');
   const options = {
-    commandExclusions: resolveAcceptanceReleaseAgeExclusions({
-      release,
-      mode: 'source',
-      now: new Date('2026-09-23T08:00:00.000Z'),
-    }),
-    fetchImpl,
-    mode: 'source',
-    now: new Date('2026-09-23T08:00:00.000Z'),
+    fetchImpl: async url => {
+      const item = byName.get(
+        decodeURIComponent(new URL(url).pathname.slice(1)),
+      );
+      return new Response(
+        JSON.stringify({
+          time: { [item.version]: item.publishedAt },
+          versions: { [item.version]: { dist: { integrity: item.integrity } } },
+        }),
+        { status: 200 },
+      );
+    },
+    now,
     parseYamlImpl: JSON.parse,
+    policyPath,
     projectDir: root,
-    registryUrl: 'http://127.0.0.1:4873/',
+    registryUrl: 'https://registry.npmjs.org/',
     release,
     verifyYamlTool: false,
   };
-  const audit = await auditReleaseAgePolicy(options);
-  assert.equal(
-    audit.approvals.find(item => item.package === sidecar.name)?.authority,
-    'strict-release-manifest-sidecar',
+  const exemptions = releaseAgeExemptions(release, { policyPath, now });
+  const audit = await auditReleaseAgePolicy({
+    ...options,
+    commandExclusions: exemptions,
+  });
+  assert.equal(audit.approvals.length, sidecars.length);
+
+  const cohortOnly = exemptions.filter(selector =>
+    selector.startsWith('@bleedingdev/modern-js-'),
   );
-  assert.ok(
-    urls.some(
-      url =>
-        url.startsWith('http://127.0.0.1:4873/') &&
-        url.includes('mf-bridge-react'),
-    ),
-  );
-  sidecar.integrity = 'sha512-Zm9yZ2Vk';
   await assert.rejects(
-    auditReleaseAgePolicy(options),
-    /registry integrity differs from authenticated release manifest/u,
+    auditReleaseAgePolicy({ ...options, commandExclusions: cohortOnly }),
+    error =>
+      error.message.includes('every lane must pass that exact set') &&
+      sidecars.every(item => error.message.includes(key(item))),
   );
+});
+
+// A workspace created on the day its cohort is published can only install if
+// ultramodern-create exempts exactly that cohort; a missing list is the
+// pre-fix generator and a wider list would silently weaken the 24h gate.
+test('release-age audit requires the generated workspace to exempt exactly its cohort', async t => {
+  const { auditReleaseAgePolicy } = await import(
+    '../published-create-proof/release-age-audit.mjs'
+  );
+  const root = tempRoot('release-age-cohort-exclude-');
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const version = '3.9.0-ultramodern.17';
+  const release = {
+    packages: ['runtime', 'app-tools'].map(name => ({
+      sourceName: `@modern-js/${name}`,
+      targetName: `@bleedingdev/modern-js-${name}`,
+      version,
+    })),
+    release: { version },
+    targetScope: 'bleedingdev',
+  };
+  const audit = minimumReleaseAgeExclude => {
+    fs.writeFileSync(
+      path.join(root, 'pnpm-workspace.yaml'),
+      JSON.stringify({
+        minimumReleaseAge: 1440,
+        minimumReleaseAgeExclude,
+        minimumReleaseAgeIgnoreMissingTime: false,
+        minimumReleaseAgeStrict: true,
+        trustPolicy: 'no-downgrade',
+        trustPolicyIgnoreAfter: 1440,
+      }),
+    );
+    return auditReleaseAgePolicy({
+      commandExclusions: [],
+      parseYamlImpl: JSON.parse,
+      projectDir: root,
+      registryUrl: 'https://registry.npmjs.org/',
+      release,
+      verifyYamlTool: false,
+    });
+  };
+  const cohort = [
+    `@bleedingdev/modern-js-app-tools@${version}`,
+    `@bleedingdev/modern-js-runtime@${version}`,
+  ];
+  for (const persisted of [
+    undefined,
+    cohort.slice(1),
+    [...cohort, '@bleedingdev/mf-runtime@2.9.1'],
+  ]) {
+    await assert.rejects(
+      audit(persisted),
+      /minimumReleaseAgeExclude must list exactly the release cohort/u,
+    );
+  }
+  // The exact cohort passes the workspace check and reaches the lockfile.
+  await assert.rejects(audit(cohort), /Generated pnpm lockfile/u);
 });

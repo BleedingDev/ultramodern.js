@@ -1,7 +1,5 @@
-import glob from 'fast-glob';
-import { copyFileSync, copySync } from 'fs-extra';
-import { join } from 'path';
-import { replaceFileContent } from './helper';
+import { copySync, readFileSync, statSync, writeFileSync } from 'fs-extra';
+import { dirname, join } from 'path';
 import type { TaskConfig } from './types';
 
 export const ROOT_DIR = join(__dirname, '..', '..', '..');
@@ -39,29 +37,74 @@ export const TASKS: TaskConfig[] = [
       'address',
       'filesize',
       'minimist',
+      'pkg-up',
       'commander',
-      'import-lazy',
-      'dotenv',
+      {
+        name: 'import-lazy',
+        afterBundle(task) {
+          // import-lazy drops `new.target`, so a subclass of a lazy export
+          // (`class Derived extends Signale`) loses its prototype. Forward it.
+          const entry = join(task.distPath, 'index.js');
+          const source = readFileSync(entry, 'utf8');
+          const construct =
+            /construct:\((\w+),(\w+)\)=>\{(\w+)=lazy\(\3,(\w+),(\w+)\);return Reflect\.construct\(\3,\2\)\}/;
+          if (!construct.test(source)) {
+            throw new Error(
+              'import-lazy construct trap changed; review the newTarget fix',
+            );
+          }
+          writeFileSync(
+            entry,
+            source.replace(
+              construct,
+              'construct:($1,$2,newTarget)=>{$3=lazy($3,$4,$5);return Reflect.construct($3,$2,newTarget)}',
+            ),
+          );
+        },
+      },
       'dotenv-expand',
       'url-join',
       'slash',
       'nanoid',
+      'upath',
+      // a few dependencies
+      'debug',
       {
-        name: 'upath',
+        name: 'lodash',
+        emitDts: false,
+        externals: { lodash: 'lodash' },
+        emitFiles: [
+          {
+            path: 'index.js',
+            content: "module.exports = require('lodash');\n",
+          },
+          { path: 'index.mjs', content: "export * from 'lodash-es';\n" },
+        ],
         afterBundle(task) {
-          replaceFileContent(
-            join(task.distPath, 'upath.d.ts'),
-            content =>
-              `${content.replace(
-                'declare module "upath"',
-                'declare namespace upath',
-              )}\nexport = upath;`,
+          copySync(
+            dirname(require.resolve('@types/lodash/package.json')),
+            task.distPath,
+            {
+              filter: file =>
+                statSync(file).isDirectory() || file.endsWith('.d.ts'),
+            },
           );
         },
       },
-      // a few dependencies
-      'debug',
-      'semver',
+      {
+        name: 'semver',
+        emitDts: false,
+        afterBundle(task) {
+          copySync(
+            dirname(require.resolve('@types/semver/package.json')),
+            task.distPath,
+            {
+              filter: file =>
+                statSync(file).isDirectory() || file.endsWith('.d.ts'),
+            },
+          );
+        },
+      },
       'js-yaml',
       'mime-types',
       'strip-ansi',
@@ -77,50 +120,32 @@ export const TASKS: TaskConfig[] = [
       'chalk',
       {
         name: 'signale',
-        externals: {
-          chalk: '../chalk',
-        },
         packageJsonField: ['options'],
       },
       'execa',
       'fs-extra',
       'browserslist',
       'chokidar',
-      'fast-glob',
       {
         name: 'globby',
         externals: {
-          'fast-glob': '../fast-glob',
+          'fast-glob': 'fast-glob',
         },
       },
-      {
-        name: 'ora',
-        externals: {
-          chalk: '../chalk',
-          'strip-ansi': '../strip-ansi',
-        },
-      },
-      {
-        name: 'inquirer',
-        externals: {
-          ora: '../ora',
-          chalk: '../chalk',
-          'strip-ansi': '../strip-ansi',
-        },
-      },
+      'ora',
+      'inquirer',
       {
         name: 'tsconfig-paths',
+        emitFiles: [
+          {
+            path: 'index.mjs',
+            content:
+              "import paths from './index.js';\nexport const { register, loadConfig, createMatchPath, matchFromAbsolutePaths, createMatchPathAsync, matchFromAbsolutePathsAsync } = paths;\n",
+          },
+        ],
         externals: {
           json5: '../json5',
           minimist: '../minimist',
-        },
-        afterBundle(task) {
-          const dtsFiles = glob.sync(join(task.depPath, 'lib', '*.d.ts'), {
-            ignore: ['**/__tests__/**'],
-          });
-          dtsFiles.forEach(file => {
-            copyFileSync(file, file.replace(task.depPath, task.distPath));
-          });
         },
       },
     ],

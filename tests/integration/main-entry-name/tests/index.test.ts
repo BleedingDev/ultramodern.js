@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import puppeteer, { type Browser, type Page } from 'puppeteer';
+import puppeteer from 'puppeteer';
 import {
   getPort,
   killApp,

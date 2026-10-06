@@ -430,7 +430,7 @@ try {
       node: process.version,
       runtime: '2.0.0-rc.13',
       router: '@modern-js/renderer-solid@3.8.3',
-      routerCore: '1.171.32',
+      routerCore: '1.171.34',
       history: '1.162.4',
       compiler: '2.0.0-rc.13',
       packageDigests,

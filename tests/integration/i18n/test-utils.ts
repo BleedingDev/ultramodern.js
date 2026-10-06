@@ -79,7 +79,7 @@ export async function clearI18nTestState(page: Page): Promise<void> {
         localStorage.clear();
       }
     });
-  } catch (error) {
+  } catch {
     // Ignore SecurityError if page is not loaded yet
   }
 
@@ -90,67 +90,20 @@ export async function clearI18nTestState(page: Page): Promise<void> {
 }
 
 /**
- * Navigate to a URL and retry if SSR fallback is detected.
- * During dev server rebuilds, the HTML template may be temporarily unavailable,
- * causing SSR to fall back to CSR. This helper retries navigation until SSR
- * succeeds or the maximum number of retries is reached.
- *
- * @returns The response body text from the final successful navigation
+ * Wait until `selector`'s trimmed text equals `text`. Polls every frame:
+ * React rewrites text nodes in place, which `waitForSelector` does not observe.
  */
-export async function gotoWithSSRRetry(
-  page: Page,
-  url: string,
-  options?: { maxRetries?: number; retryDelay?: number },
-): Promise<string | undefined> {
-  const { maxRetries = 5, retryDelay = 2000 } = options ?? {};
-
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    const response = await page.goto(url, {
-      waitUntil: ['networkidle0'],
-    });
-    const body = await response?.text();
-
-    // If SSR succeeded (no fallback marker), return immediately
-    if (body && !body.includes('__modern_ssr_fallback_reason__')) {
-      return body;
-    }
-
-    // On last attempt, return whatever we got
-    if (attempt === maxRetries) {
-      return body;
-    }
-
-    // Wait before retrying to allow dev server rebuild to complete
-    await new Promise(resolve => setTimeout(resolve, retryDelay));
-  }
-
-  return undefined;
-}
-
-/**
- * Wait for React hydration to complete on a target element.
- * After SSR, the HTML is rendered but React event handlers are not attached
- * until hydration finishes. This helper checks for React internal fiber
- * properties on the element, which are set during hydration.
- */
-export async function waitForHydration(
+export async function waitForText(
   page: Page,
   selector: string,
-  timeout = 15000,
+  text: string,
+  timeoutMs?: number,
 ): Promise<void> {
   await page.waitForFunction(
-    (sel: string) => {
-      const el = document.querySelector(sel);
-      if (!el) return false;
-      // React attaches __reactFiber$ or __reactProps$ during hydration
-      return Object.keys(el).some(
-        key =>
-          key.startsWith('__reactFiber$') ||
-          key.startsWith('__reactProps$') ||
-          key.startsWith('__reactInternalInstance$'),
-      );
-    },
-    { timeout },
+    (sel: string, expected: string) =>
+      document.querySelector(sel)?.textContent?.trim() === expected,
+    { timeout: timeoutMs },
     selector,
+    text,
   );
 }

@@ -23,9 +23,9 @@ const profiles: Record<RendererName, RendererProfile> = {
     hydration: { name: 'react-dom', version: '19.3.0' },
     router: {
       name: '@tanstack/react-router',
-      version: '1.170.39',
+      version: '1.170.41',
       coreName: '@tanstack/router-core',
-      coreVersion: '1.171.32',
+      coreVersion: '1.171.34',
     },
   },
   solid: {
@@ -160,56 +160,54 @@ afterEach(async () => {
   );
 });
 
-it.each([
-  'api-only',
-  'ui-only',
-  'full-stack',
-] as const)('stamps only topology-emitted surfaces for %s without inventing UI', async surfaceProfile => {
-  const { appDirectory } = await writeWorkspace({ surfaceProfile });
-  const topology = await resolveTopologyDeliveryUnit(appDirectory);
-  const worker = await resolveWorkerDeliveryUnitStamp(
-    appDirectory,
-    path.join(appDirectory, 'dist'),
-  );
+it.each(['api-only', 'ui-only', 'full-stack'] as const)(
+  'stamps only topology-emitted surfaces for %s without inventing UI',
+  async surfaceProfile => {
+    const { appDirectory } = await writeWorkspace({ surfaceProfile });
+    const topology = await resolveTopologyDeliveryUnit(appDirectory);
+    const worker = await resolveWorkerDeliveryUnitStamp(
+      appDirectory,
+      path.join(appDirectory, 'dist'),
+    );
 
-  expect(Boolean(topology?.surfaces.ui)).toBe(surfaceProfile !== 'api-only');
-  expect(Boolean(worker?.surfaces.ui)).toBe(surfaceProfile !== 'api-only');
-  expect(Boolean(topology?.surfaces.api)).toBe(surfaceProfile !== 'ui-only');
-  expect(Boolean(worker?.surfaces.api)).toBe(surfaceProfile !== 'ui-only');
-  if (surfaceProfile === 'api-only') {
-    expect(Object.hasOwn(worker?.surfaces ?? {}, 'ui')).toBe(false);
-  }
+    expect(Boolean(topology?.surfaces.ui)).toBe(surfaceProfile !== 'api-only');
+    expect(Boolean(worker?.surfaces.ui)).toBe(surfaceProfile !== 'api-only');
+    expect(Boolean(topology?.surfaces.api)).toBe(surfaceProfile !== 'ui-only');
+    expect(Boolean(worker?.surfaces.api)).toBe(surfaceProfile !== 'ui-only');
+    if (surfaceProfile === 'api-only') {
+      expect(Object.hasOwn(worker?.surfaces ?? {}, 'ui')).toBe(false);
+    }
 
-  const issues: Parameters<typeof verifyDeliveryUnitIdentity>[0] = [];
-  verifyDeliveryUnitIdentity(
-    issues,
-    { deliveryUnit: worker },
-    'modern-worker-manifest.json',
-    topology,
-  );
-  expect(issues).toEqual([]);
-});
+    const issues: Parameters<typeof verifyDeliveryUnitIdentity>[0] = [];
+    verifyDeliveryUnitIdentity(
+      issues,
+      { deliveryUnit: worker },
+      'modern-worker-manifest.json',
+      topology,
+    );
+    expect(issues).toEqual([]);
+  },
+);
 
-it.each([
-  'react',
-  'solid',
-  'octane',
-] as const)('preserves the actual %s UI renderer identity and profile in the worker stamp', async renderer => {
-  const { appDirectory } = await writeWorkspace({ renderer });
-  const worker = await resolveWorkerDeliveryUnitStamp(
-    appDirectory,
-    path.join(appDirectory, 'dist'),
-  );
+it.each(['react', 'solid', 'octane'] as const)(
+  'preserves the actual %s UI renderer identity and profile in the worker stamp',
+  async renderer => {
+    const { appDirectory } = await writeWorkspace({ renderer });
+    const worker = await resolveWorkerDeliveryUnitStamp(
+      appDirectory,
+      path.join(appDirectory, 'dist'),
+    );
 
-  expect(worker).toMatchObject(createDeliveryUnit('catalog'));
-  expect(worker?.surfaces.ui).toMatchObject({
-    ...createDeliveryUnit('catalog'),
-    surface: 'ui',
-    rendererIdentity: uiOptions('catalog', renderer).identity,
-    rendererProfile: profiles[renderer],
-    routerBindings: uiOptions('catalog', renderer).routerBindings,
-  });
-});
+    expect(worker).toMatchObject(createDeliveryUnit('catalog'));
+    expect(worker?.surfaces.ui).toMatchObject({
+      ...createDeliveryUnit('catalog'),
+      surface: 'ui',
+      rendererIdentity: uiOptions('catalog', renderer).identity,
+      rendererProfile: profiles[renderer],
+      routerBindings: uiOptions('catalog', renderer).routerBindings,
+    });
+  },
+);
 
 it('preserves the compiled build identity without restamping generation inputs', async () => {
   const initial = createUltramodernBuildArtifact(
@@ -488,30 +486,32 @@ it('rejects a missing declared API surface marker', () => {
   ]);
 });
 
-it.each([
-  undefined,
-  [],
-])('rejects absent or invalid delivery-unit surfaces %j', surfaces => {
-  const deliveryUnit = createDeliveryUnit('catalog');
-  const issues: Parameters<typeof verifyDeliveryUnitIdentity>[0] = [];
+it.each([undefined, []])(
+  'rejects absent or invalid delivery-unit surfaces %j',
+  surfaces => {
+    const deliveryUnit = createDeliveryUnit('catalog');
+    const issues: Parameters<typeof verifyDeliveryUnitIdentity>[0] = [];
 
-  verifyDeliveryUnitIdentity(
-    issues,
-    { deliveryUnit: { ...deliveryUnit, surfaces } },
-    'modern-worker-manifest.json',
-    {
-      ...deliveryUnit,
-      surfaces: { api: { ...deliveryUnit, surface: 'api' } },
-    },
-  );
+    verifyDeliveryUnitIdentity(
+      issues,
+      { deliveryUnit: { ...deliveryUnit, surfaces } },
+      'modern-worker-manifest.json',
+      {
+        ...deliveryUnit,
+        surfaces: { api: { ...deliveryUnit, surface: 'api' } },
+      },
+    );
 
-  expect(issues).toEqual([
-    expect.objectContaining({
-      code: 'missing-delivery-unit',
-      message: expect.stringContaining('missing delivery-unit surface markers'),
-    }),
-  ]);
-});
+    expect(issues).toEqual([
+      expect.objectContaining({
+        code: 'missing-delivery-unit',
+        message: expect.stringContaining(
+          'missing delivery-unit surface markers',
+        ),
+      }),
+    ]);
+  },
+);
 
 it('rejects changed UI renderer ABI despite unchanged delivery identity', () => {
   const artifact = createUltramodernBuildArtifact(
@@ -595,38 +595,42 @@ it('rejects a delivery-unit stamp that has no known surfaces without a topology 
   );
 });
 
-it.each([
-  'missing root appId',
-  'wrong root appId',
-  'missing UI appId',
-])('rejects %s before a verified worker can fail its renderer guard', corruption => {
-  const artifact = createUltramodernBuildArtifact(
-    createDeliveryUnit('catalog'),
-    {
-      ui: uiOptions('catalog'),
-    },
-  );
-  const manifest = JSON.parse(
-    JSON.stringify({
-      deliveryUnit: { ...artifact.deliveryUnit, surfaces: artifact.surfaces },
-    }),
-  );
-  if (corruption === 'missing root appId') {
-    delete manifest.deliveryUnit.appId;
-  } else if (corruption === 'wrong root appId') {
-    manifest.deliveryUnit.appId = 'inventory';
-  } else {
-    delete manifest.deliveryUnit.surfaces.ui.appId;
-  }
-  const issues: Parameters<typeof verifyDeliveryUnitIdentity>[0] = [];
-  verifyDeliveryUnitIdentity(issues, manifest, 'modern-worker-manifest.json', {
-    ...artifact.deliveryUnit,
-    surfaces: artifact.surfaces,
-  });
-  expect(issues).toContainEqual(
-    expect.objectContaining({
-      code: 'delivery-unit-drift',
-      message: expect.stringContaining('appId'),
-    }),
-  );
-});
+it.each(['missing root appId', 'wrong root appId', 'missing UI appId'])(
+  'rejects %s before a verified worker can fail its renderer guard',
+  corruption => {
+    const artifact = createUltramodernBuildArtifact(
+      createDeliveryUnit('catalog'),
+      {
+        ui: uiOptions('catalog'),
+      },
+    );
+    const manifest = JSON.parse(
+      JSON.stringify({
+        deliveryUnit: { ...artifact.deliveryUnit, surfaces: artifact.surfaces },
+      }),
+    );
+    if (corruption === 'missing root appId') {
+      delete manifest.deliveryUnit.appId;
+    } else if (corruption === 'wrong root appId') {
+      manifest.deliveryUnit.appId = 'inventory';
+    } else {
+      delete manifest.deliveryUnit.surfaces.ui.appId;
+    }
+    const issues: Parameters<typeof verifyDeliveryUnitIdentity>[0] = [];
+    verifyDeliveryUnitIdentity(
+      issues,
+      manifest,
+      'modern-worker-manifest.json',
+      {
+        ...artifact.deliveryUnit,
+        surfaces: artifact.surfaces,
+      },
+    );
+    expect(issues).toContainEqual(
+      expect.objectContaining({
+        code: 'delivery-unit-drift',
+        message: expect.stringContaining('appId'),
+      }),
+    );
+  },
+);

@@ -186,7 +186,7 @@ const supportLoader = async (page: Page, errors: string[], appPort: number) => {
 
 const supportThrowError = async (
   page: Page,
-  errors: string[],
+  _errors: string[],
   appPort: number,
   expectedMessage = "can't found the user",
 ) => {
@@ -229,7 +229,7 @@ const supportThrowResponse = async (
 
 const supportReturnResponse = async (
   page: Page,
-  errors: string[],
+  _errors: string[],
   appPort: number,
   code: number,
 ) => {
@@ -390,7 +390,7 @@ const hasHashCorrectly = async (appDir: string) => {
 
 const supportActionInCSR = async (
   page: Page,
-  errors: string[],
+  _errors: string[],
   appPort: number,
 ) => {
   await page.goto(`http://localhost:${appPort}/four/user/profile`, {
@@ -497,7 +497,13 @@ const supportPrefetchInIntentMode = async (
   await page.waitForSelector('.user-profile-btn');
 
   await page.hover('.user-profile-btn');
-  await new Promise(resolve => setTimeout(resolve, 400));
+  const prefetchDeadline = Date.now() + 400;
+  while (
+    !(isRequestJS && isRequestProfileLayoutData && isRequestProfilePageData) &&
+    Date.now() < prefetchDeadline
+  ) {
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
   expect(isRequestJS).toBe(true);
   expect(isRequestProfileLayoutData).toBe(true);
   expect(isRequestProfilePageData).toBe(true);
@@ -512,10 +518,9 @@ const supportPrefetchWithShouldRevalidate = async (
   await page.goto(`http://localhost:${appPort}/three/user/222`, {
     waitUntil: ['networkidle0'],
   });
-  // make sure assets have been loaded
-  await new Promise(resolve => setTimeout(resolve, 800));
+  await page.waitForSelector('.root-btn');
   await page.click('.root-btn');
-  await new Promise(resolve => setTimeout(resolve, 400));
+  await page.waitForSelector('.item-page', { hidden: true, timeout: 400 });
 
   let isRequestLayoutData = false;
   let isRequestPageData = false;
@@ -655,7 +660,7 @@ const supportMixedNestedRoutes = async (
 
 const supportConfigWithCompanionFiles = async (
   page: Page,
-  errors: string[],
+  _errors: string[],
   appPort: number,
   expectedErrorMessage = 'Product load error',
 ) => {
@@ -681,24 +686,6 @@ const supportConfigWithCompanionFiles = async (
   const errorText = await page.evaluate(el => el?.textContent, errorElm);
   expect(errorText?.includes('Product Error Boundary')).toBeTruthy();
   expect(errorText?.includes(expectedErrorMessage)).toBeTruthy();
-};
-
-const supportDeepFileRoutesManipulation = async (
-  page: Page,
-  errors: string[],
-  appPort: number,
-) => {
-  // Ensure that 'client-loader' route has been removed
-  const response = await page.goto(
-    `http://localhost:${appPort}/three/client-loader`,
-    {
-      waitUntil: ['domcontentloaded'],
-    },
-  );
-  // After removal, it should be 404 or unmatched.
-  // Since catch-all may exist, ensure no client-loader content is shown.
-  const clientLoaderLayout = await page.$('.client-loader-layout');
-  expect(clientLoaderLayout).toBeNull();
 };
 
 describe('dev with rspack', () => {

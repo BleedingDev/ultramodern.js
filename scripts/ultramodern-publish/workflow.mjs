@@ -148,7 +148,7 @@ function summarizeDelivery(env) {
     `- npm \`${outcome.release.tag}\` cohort converged: ${yesno('accept-published', !outcome.dryRun)}`,
   );
   lines.push(
-    `- Published-registry ERP-10 accepted: ${yesno('accept-published', outcome.evidence.publishedAcceptance !== null)}`,
+    `- npm resolves the accepted ERP-10 closure: ${yesno('accept-published', outcome.evidence.publishedAcceptance !== null)}`,
   );
   lines.push(
     `- Published Tractor Node/workerd/browser accepted: ${yesno('tractor-downstream', outcome.evidence.tractorAcceptance !== null)}`,
@@ -159,7 +159,7 @@ function summarizeDelivery(env) {
   );
   lines.push(
     baseline
-      ? `- Persistent Tractor adoption: REQUIRED, not automated by this workflow. Run published-mode acceptance using this release's exact bundle in a persistent ${env.TRACTOR_STORE_REPOSITORY} checkout, push the passing report's \`applicationSourceRevision\` to main, then update both \`tractor_ref\` pins. The uploaded report contains no recoverable application source.`
+      ? `- Persistent Tractor adoption: REQUIRED, not automated by this workflow. Run published-mode acceptance using this release's exact bundle in a persistent ${env.TRACTOR_STORE_REPOSITORY} checkout, push the passing report's \`applicationSourceRevision\` to main, then advance \`scripts/ultramodern-publish/tractor-baseline-revision\` to it. The uploaded report contains no recoverable application source.`
       : '- Persistent Tractor main promotion/adoption: not applicable to a dry run.',
   );
   fs.appendFileSync(env.GITHUB_STEP_SUMMARY, `${lines.join('\n')}\n`);

@@ -166,3 +166,27 @@ test('unknown references, missing results, and dependency cycles fail closed', (
     false,
   );
 });
+
+test('the release record fails the run instead of hiding behind continue-on-error', () => {
+  for (const [jobId, job] of Object.entries(publishWorkflow.jobs)) {
+    assert.equal('continue-on-error' in job, false, jobId);
+    for (const step of job.steps ?? []) {
+      assert.equal(
+        'continue-on-error' in step,
+        false,
+        `${jobId}: ${step.name}`,
+      );
+    }
+  }
+  const recovery = publishWorkflow.jobs['publish-change-record'].steps.find(
+    step => step.if === 'failure()',
+  );
+  assert.match(recovery.run, /gh run rerun \$GITHUB_RUN_ID --failed/u);
+
+  const runbook = fs.readFileSync(
+    new URL('../../ultramodern-publish/ROLLBACK-RUNBOOK.md', import.meta.url),
+    'utf8',
+  );
+  assert.doesNotMatch(runbook, /non-blocking|continue-on-error|backfill/iu);
+  assert.match(runbook, /gh run rerun <run-id> --failed/u);
+});

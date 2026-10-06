@@ -4,12 +4,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import yaml from 'js-yaml';
+import { generateUltramodernWorkspace } from '../src/ultramodern-workspace';
 import {
-  addUltramodernVertical,
-  generateUltramodernWorkspace,
-} from '../src/ultramodern-workspace';
-import {
-  hasUltramodernBridgeCliOptions,
   normalizeUltramodernBridgeConfig,
   parseUltramodernBridgeCliOptions,
 } from '../src/ultramodern-workspace/bridge-config';
@@ -17,7 +13,6 @@ import {
   prependCommandFixturePath,
   writeNodeCommandFixture,
 } from './helpers/node-command-fixture';
-import { linkWorkspaceFormatterDependencies } from './helpers/workspace-kit';
 
 const readJson = (root: string, relativePath: string) =>
   JSON.parse(fs.readFileSync(path.join(root, relativePath), 'utf-8'));

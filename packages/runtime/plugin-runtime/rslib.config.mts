@@ -10,6 +10,9 @@ export default defineConfig({
   },
   output: {
     externals: [
+      // Keep the package self-reference in the output: Module Federation
+      // shares the runtime contexts by that request.
+      '@modern-js/runtime/context',
       {
         '@modern-js/runtime-utils/node$':
           'commonjs @modern-js/runtime-utils/node',

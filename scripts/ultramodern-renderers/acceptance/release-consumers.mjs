@@ -11,11 +11,12 @@ import { parseDocument, stringify } from 'yaml';
 import { runOctanePublicPrograms } from '../../../packages/runtime/renderer-octane/tests/public-programs/run.mjs';
 import { runSolidPublicPrograms } from '../../../packages/runtime/renderer-solid/tests/public-programs/run.mjs';
 import { withBareGeneratorProof } from '../../../packages/toolkit/ultramodern-create/tests/fixtures/installed-renderers/bare-generator-proof.mjs';
-import { resolveAcceptanceReleaseAgeExclusions } from '../../ultramodern-production-readiness/published-create-proof/release-age-audit.mjs';
+import { releaseAgeExemptions } from '../../ultramodern-production-readiness/published-create-proof/release-age-audit.mjs';
 import {
   inspectNpmTarball,
   readVerifiedPackageArtifactBytes,
 } from '../../ultramodern-publish/lib/prepare-bleedingdev-packages/release-artifacts.mjs';
+import { defaultReleaseAgePolicyPath } from '../../ultramodern-publish/run-release-acceptance.mjs';
 import { auditInstalledConsumer } from './artifacts.mjs';
 import {
   createHandAuthoredConsumer,
@@ -308,7 +309,9 @@ function strictInstallEnv(env, release) {
     pnpm_config_minimum_release_age_strict: 'true',
     pnpm_config_minimum_release_age_ignore_missing_time: 'false',
     pnpm_config_minimum_release_age_exclude: JSON.stringify(
-      resolveAcceptanceReleaseAgeExclusions({ release, mode: 'source' }),
+      releaseAgeExemptions(release, {
+        policyPath: defaultReleaseAgePolicyPath,
+      }),
     ),
   });
 }

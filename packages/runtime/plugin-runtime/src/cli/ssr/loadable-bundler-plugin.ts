@@ -33,6 +33,12 @@ const normalizeChunkId = (id: string | number | null | undefined) =>
 
 const DEFAULT_CHUNK_LOADING_GLOBAL = '__LOADABLE_LOADED_CHUNKS__';
 
+// `ChunkExtractor` joins `publicPath` into server-rendered tags verbatim, and
+// Rspack's `auto` is only resolvable in the browser. Serialize the app root,
+// as the route manifest does, so SSR never emits `auto/<file>` URLs.
+const normalizeStatsPublicPath = (publicPath: string | undefined) =>
+  publicPath === 'auto' || publicPath === 'auto/' ? '/' : publicPath;
+
 const normalizeChunkGroup = (
   group: Record<string, any>,
 ): Record<string, any> => ({
@@ -133,6 +139,7 @@ class LoadablePlugin {
 
     const output = {
       ...stats,
+      publicPath: normalizeStatsPublicPath(stats.publicPath),
       namedChunkGroups,
       entrypoints,
       generator: 'loadable-components',

@@ -6,21 +6,16 @@ import {
 import * as Data from 'effect/Data';
 import * as Effect from 'effect/Effect';
 import * as Exit from 'effect/Exit';
-import * as Layer from 'effect/Layer';
-import * as ManagedRuntime from 'effect/ManagedRuntime';
-import * as Scope from 'effect/Scope';
-import {
-  FetchHttpClient,
-  HttpClient,
-  HttpClientRequest,
-} from 'effect/unstable/http';
+import { FetchHttpClient, HttpClient, HttpClientRequest } from 'effect/http';
 import {
   HttpApi,
   HttpApiClient,
   HttpApiEndpoint,
   HttpApiGroup,
   HttpApiSchema,
-} from 'effect/unstable/httpapi';
+} from 'effect/http-api';
+import * as Layer from 'effect/Layer';
+import * as ManagedRuntime from 'effect/ManagedRuntime';
 import {
   Rpc,
   RpcClient,
@@ -28,7 +23,8 @@ import {
   RpcGroup,
   RpcSchema,
   RpcSerialization,
-} from 'effect/unstable/rpc';
+} from 'effect/rpc';
+import * as Scope from 'effect/Scope';
 
 import { getRpcSerializationLayer } from '../effect/rpcSerialization';
 import {
@@ -37,9 +33,9 @@ import {
 } from './cross-project';
 
 export * as Effect from 'effect/Effect';
+export * as HttpClientError from 'effect/http/HttpClientError';
 export * as Layer from 'effect/Layer';
 export * as Schema from 'effect/Schema';
-export * as HttpClientError from 'effect/unstable/http/HttpClientError';
 export type { EffectCrossProjectClientOptions } from './cross-project';
 export {
   HttpApi,

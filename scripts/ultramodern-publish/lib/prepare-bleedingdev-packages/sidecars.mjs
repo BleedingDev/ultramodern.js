@@ -5,28 +5,29 @@
 // part of the Modern.js cohort:
 //   * their names are never prefixed with the cohort prefix (`modern-js-`) -
 //     npm-normalize-package-bin derives a string-form bin's key from
-//     basename(name), so a prefixed name would silently rename `ipx` to
-//     `modern-js-ipx` and break `npx ipx`;
+//     basename(name), so a prefixed name would silently rename an upstream
+//     CLI such as `mf` and break it;
 //   * their versions are never forced to the cohort's
-//     X.Y.Z-ultramodern.N revision - npm evaluates the non-wildcard peer
-//     `ipx: >=3.0.3` (declared by @rsbuild-image/core and
-//     @rsbuild-image/react) with a loose-only semver check that EXCLUDES
-//     prereleases, so a prerelease sidecar would satisfy pnpm but fail every
-//     strict npm/yarn-classic consumer;
+//     X.Y.Z-ultramodern.N revision - npm evaluates non-wildcard peer ranges
+//     with a loose-only semver check that EXCLUDES prereleases, so a
+//     prerelease sidecar would satisfy pnpm but fail every strict
+//     npm/yarn-classic consumer;
 //   * their dependency keys are retained - recipe-only packages are rebuilt
-//     from authenticated upstream tarballs, canonical patches and exact aliases.
+//     from authenticated upstream tarballs, canonical patches and exact aliases;
+//   * cohort packages declare the sidecar aliases in source; staging never
+//     rewrites a third-party dependency edge.
 import { execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import fsKit from '../../../lib/fs-kit.js';
 import {
-  isQualifiedSidecarVersion,
   repoRoot as defaultRepoRoot,
   sidecarManifestFile,
   sidecarManifestSchema,
   sidecarManifestSchemaVersion,
   sidecarScope,
+  sidecarStagingDirectory,
   sidecarTarballsDirectory,
 } from './constants.mjs';
 import {
@@ -40,23 +41,31 @@ import {
 } from './jiti-sidecar.mjs';
 
 const { readJsonFile } = fsKit;
-const recipeSidecars = JSON.parse(
+const recipes = JSON.parse(
   fs.readFileSync(new URL('../../../ultramodern-supply/sidecars.json', import.meta.url), 'utf8'),
-).filter(recipe => recipe.artifacts.length === 1 && recipe.artifacts[0] === '*');
-const recipeByRoot = new Map(recipeSidecars.map(recipe => [
-  `packages/sidecar/${recipe.id}`,
-  recipe,
-]));
+);
+const recipeByRoot = new Map(
+  recipes
+    .filter(recipe => recipe.artifacts.length === 1 && recipe.artifacts[0] === '*')
+    .map(recipe => [`packages/sidecar/${recipe.id}`, recipe]),
+);
 
-const SIDECAR_PACKAGE_ROOTS = [
-  'packages/sidecar/ipx',
-  'packages/sidecar/rsbuild-image-core',
-  ...recipeSidecars.map(recipe => `packages/sidecar/${recipe.id}`),
-];
+const SIDECAR_PACKAGE_ROOTS = recipes.map(recipe => `packages/sidecar/${recipe.id}`);
+
+// The code-reviewed registry chronology each sidecar name must satisfy before a
+// published version is reused: the same schema as the cohort's policies.
+function sidecarProvenancePolicy(name) {
+  const recipe = recipes.find(candidate => candidate.fork.name === name);
+  if (!recipe?.provenance) {
+    throw new Error(
+      `${name} has no provenance policy in scripts/ultramodern-supply/sidecars.json`,
+    );
+  }
+  return recipe.provenance;
+}
 
 // Upstream CLI contracts that must survive republication verbatim.
 const sidecarBinNames = new Map([
-  ['@bleedingdev/ipx', 'ipx'],
   ['@bleedingdev/mf-cli', 'mf'],
   ['@bleedingdev/mf-enhanced', 'mf'],
   ['@bleedingdev/jiti', 'jiti'],
@@ -74,39 +83,6 @@ const dependencyBlockNames = [
   'optionalDependencies',
   'peerDependencies',
 ];
-
-const requiredImageDependencyTargets = Object.freeze({
-  '@rsbuild-image/core': '@bleedingdev/rsbuild-image-core',
-  ipx: '@bleedingdev/ipx',
-});
-
-const correctedDependencyTargets = Object.freeze({
-  '@rsbuild/core': '@bleedingdev/rsbuild-core',
-  jiti: '@bleedingdev/jiti',
-  effect: '@bleedingdev/effect',
-  'drizzle-orm': '@bleedingdev/drizzle-orm',
-  zod: '@bleedingdev/zod',
-  ...Object.fromEntries(
-    [
-      'bridge-react',
-      'cli',
-      'dts-plugin',
-      'enhanced',
-      'manifest',
-      'modern-js-v3',
-      'node',
-      'rsbuild-plugin',
-      'rspack',
-      'runtime',
-      'runtime-core',
-      'runtime-tools',
-      'webpack-bundler-runtime',
-    ].map(name => [
-      `@module-federation/${name}`,
-      `@bleedingdev/mf-${name}`,
-    ]),
-  ),
-});
 
 const stagedDirectoryName = name => name.replaceAll('/', '__');
 
@@ -172,14 +148,11 @@ function assertSidecarName(name, root) {
 }
 
 function assertSidecarVersion(name, version) {
-  if (isQualifiedSidecarVersion(name, version)) {
-    return;
-  }
   if (typeof version !== 'string' || !stableVersionPattern.test(version)) {
     throw new Error(
       [
         `Sidecar ${name} version ${String(version)} must be stable semver (X.Y.Z).`,
-        "Only the exact Effect and Drizzle prereleases are qualified; npm resolves the ipx peer range '>=3.0.3' with a prerelease-excluding check.",
+        'npm resolves non-wildcard peer ranges with a prerelease-excluding check.',
       ].join('\n'),
     );
   }
@@ -334,43 +307,6 @@ function collectSidecarPackages(
   return sidecars;
 }
 
-function rewriteSidecarConsumerAliases(packageJson, sidecars) {
-  const byName = new Map(sidecars.map(sidecar => [sidecar.name, sidecar]));
-  if (packageJson.name === '@bleedingdev/modern-js-image') {
-    for (const dependencyName of Object.keys(requiredImageDependencyTargets)) {
-      if (typeof packageJson.dependencies?.[dependencyName] !== 'string') {
-        throw new Error(
-          `Sidecar consumer ${String(packageJson.name)} must declare dependencies.${dependencyName} before release staging can redirect it`,
-        );
-      }
-    }
-  }
-  for (const blockName of ['dependencies', 'devDependencies', 'optionalDependencies']) {
-    const block = packageJson[blockName];
-    if (!block || typeof block !== 'object' || Array.isArray(block)) {
-      continue;
-    }
-    for (const [dependencyName, sourceSpecifier] of Object.entries(block)) {
-      const targetName = packageJson.name === '@bleedingdev/modern-js-image'
-        ? requiredImageDependencyTargets[dependencyName] ?? correctedDependencyTargets[dependencyName]
-        : correctedDependencyTargets[dependencyName];
-      if (!targetName) continue;
-      if (typeof sourceSpecifier !== 'string' || sourceSpecifier.length === 0) {
-        throw new Error(`Sidecar consumer ${String(packageJson.name)} has invalid ${blockName}.${dependencyName}`);
-      }
-      const sidecar = byName.get(targetName);
-      if (!sidecar) {
-        throw new Error(
-          `Sidecar consumer ${String(packageJson.name)} cannot redirect ${blockName}.${dependencyName}; staged sidecar ${targetName} is missing`,
-        );
-      }
-      block[dependencyName] = `npm:${targetName}@${sidecar.version}`;
-    }
-  }
-
-  return packageJson;
-}
-
 function sidecarAliasEntries(packageJson) {
   const entries = [];
   for (const blockName of dependencyBlockNames) {
@@ -437,8 +373,10 @@ function sidecarPublishOrder(sidecars) {
 }
 
 /**
- * Stage an image sidecar verbatim, reconstruct an authenticated recipe, or copy
- * the maintained installed Jiti payload. Sidecars retain their own versions.
+ * Stage a committed sidecar verbatim, reconstruct a recipe-only sidecar from
+ * its authenticated upstream artifact, or copy the maintained installed Jiti
+ * payload and authenticate it against its recipe. No path applies cohort
+ * name/version rewriting or consumer overrides.
  */
 async function stageSidecarPackage(
   sidecar,
@@ -489,6 +427,17 @@ async function stageSidecarPackage(
     packageDir: path.relative(repoRoot, packageDir),
     stagedDir: packageDir,
   };
+}
+
+/** Stage every sidecar under `<outDir>/sidecars`; shared by release staging and the test harness. */
+async function stageSidecarPackages(sidecars, outDir) {
+  const stageDir = path.join(outDir, sidecarStagingDirectory);
+  fs.mkdirSync(stageDir, { recursive: true });
+  const staged = [];
+  for (const sidecar of sidecars) {
+    staged.push(await stageSidecarPackage(sidecar, stageDir));
+  }
+  return staged;
 }
 
 function sidecarArtifactDigests(bytes) {
@@ -609,7 +558,7 @@ function packStagedSidecar(
 /**
  * Every hard-coded `npm:@bleedingdev/<name>@<version>` alias in the staged
  * cohort (notably @modern-js/image) and inside the sidecar manifests
- * themselves (rsbuild-image-core -> image-size) must name a sidecar that this
+ * themselves must name a sidecar that this
  * run actually stages, at exactly that version. The cohort collector forces
  * the cohort version onto package versions but never touches alias TARGETS,
  * so this is the only seam that keeps those literals honest.
@@ -709,17 +658,17 @@ function writeSidecarStagingManifest(
 }
 
 export {
+  sidecarProvenancePolicy,
   SIDECAR_PACKAGE_ROOTS,
   collectSidecarPackages,
-  isQualifiedSidecarVersion,
   normalizeSidecarBin,
   packStagedSidecar,
-  rewriteSidecarConsumerAliases,
   sidecarAliasEntries,
   sidecarManifestSchema,
   sidecarManifestSchemaVersion,
   sidecarPublishOrder,
   stageSidecarPackage,
+  stageSidecarPackages,
   validateAliasConsistency,
   writeSidecarStagingManifest,
 };

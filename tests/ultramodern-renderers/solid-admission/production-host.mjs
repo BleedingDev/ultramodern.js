@@ -880,7 +880,7 @@ export async function runProductionHost(options) {
       distDirectory: path.join(root, 'dist'),
       renderer: 'solid',
       expectedEntryNames: options.entryNames,
-      expectedRsbuildVersion: '2.2.9',
+      expectedRsbuildVersion: '2.2.11',
     });
     const configured = observation.observation.configuredPlugins;
     assert.equal(

@@ -20,7 +20,7 @@ function withAssetHeaders(response, request) {
   });
 }
 
-async function createCorsPreflightResponse(request, env) {
+async function createCorsPreflightResponse(request, _env) {
   if (request.method !== 'OPTIONS') {
     return null;
   }

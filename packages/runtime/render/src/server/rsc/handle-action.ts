@@ -2,9 +2,9 @@ import type { ReactElement } from 'react';
 
 // Fork-owned shared implementation of the RSC server-action handler.
 //
-// The Node entry (`rsc.tsx`, upstream file) and the edge worker entry
-// (`rsc.worker.tsx`, fork-added) only differ in which react-server-dom-rspack
-// runtime they bind (`server.node` vs `server.edge`). The security-sensitive
+// The Node entry (`rsc.tsx`, upstream file) and the edge entry (`rsc.edge.tsx`,
+// fork-added) only differ in which react-server-dom-rspack runtime they bind
+// (`server.node` vs `server.edge`). The security-sensitive
 // request handling lives here exactly once so upstream fixes only need to be
 // merged in a single place. Behavior is intentionally identical to upstream's
 // `handleAction` in rsc.tsx — do not diverge the two lanes here.

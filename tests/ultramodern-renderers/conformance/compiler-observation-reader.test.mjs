@@ -306,7 +306,7 @@ async function fixture(
       event:
         environment === 'development' ? 'onDevCompileDone' : 'onAfterBuild',
       order: 'post',
-      rsbuildVersion: '2.2.9',
+      rsbuildVersion: '2.2.11',
       sourceFile: path.join(applicationRoot, 'observe-native-compiler.ts'),
     },
     rootPath: applicationRoot,

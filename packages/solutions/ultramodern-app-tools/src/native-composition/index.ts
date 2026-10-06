@@ -1,6 +1,10 @@
 import { appTools } from '@modern-js/app-tools';
 import type { AppTools, CliPlugin } from '@modern-js/app-tools/cli-config';
-import { createDeployOutputAliasesPlugin } from '@modern-js/app-tools-extensions/deploy-output/plugin';
+import {
+  createDeployOutputAliasesPlugin,
+  createDeployOutputPublicAssetsPlugin,
+} from '@modern-js/app-tools-extensions/deploy-output/plugin';
+import type { PolicyDefaultsOptions } from '@modern-js/app-tools-extensions/policy-defaults';
 import { rendererBuildArtifactStampPlugin } from '@modern-js/app-tools-extensions/release-envelope/renderer-output-stamp';
 import type { Renderer, RendererIdentity } from '@modern-js/renderer-core';
 import { createDefineConfig } from './config';
@@ -63,6 +67,12 @@ export {
   resolveRendererRouterFrameworks,
 } from './renderer-profile';
 export type { AppUserConfig, UltramodernAppUserConfig } from './types';
+export {
+  createPresetUltramodernWorkspaceConfig,
+  type PresetUltramodernWorkspaceOptions,
+  presetUltramodernWorkspace,
+} from './workspace-preset';
+export type { PolicyDefaultsOptions };
 
 function composeNativeRenderer(
   registration: Extract<RendererRegistration, { kind: 'native' }>,
@@ -124,6 +134,7 @@ function composeNativeRenderer(
     nativeModuleFederationPlugin(renderer),
     federation.plugin,
     createDeployOutputAliasesPlugin(),
+    createDeployOutputPublicAssetsPlugin(),
     ultramodernReleaseEnvelopePlugin(renderer),
   ];
   return {
@@ -167,18 +178,24 @@ const composeUltramodernAppTools = (
   options: {
     renderer?: Renderer;
     consumerPlugins?: readonly CliPlugin<AppTools>[];
+    policy?: PolicyDefaultsOptions;
   } = {},
 ): CliPlugin<AppTools> => {
   const registration = resolveRendererRegistration(options.renderer);
   const consumers = options.consumerPlugins ?? [];
   return registration.kind === 'native'
     ? composeNativeRenderer(registration, consumers)
-    : registration.compose(consumers);
+    : registration.compose(consumers, options.policy);
 };
 
-/** The explicit default base is React; renderer selection belongs to config. */
-export const ultramodernAppTools = (): CliPlugin<AppTools> =>
-  composeUltramodernAppTools({ renderer: 'react' });
+/**
+ * The explicit default base is React; renderer selection belongs to config.
+ * `policy` opts out of the fork's React renderer or server policy.
+ */
+export const ultramodernAppTools = (
+  policy: PolicyDefaultsOptions = {},
+): CliPlugin<AppTools> =>
+  composeUltramodernAppTools({ renderer: 'react', policy });
 
 /** Select one base plugin graph during config evaluation, before registration. */
 export const defineConfig = createDefineConfig((renderer, consumerPlugins) =>

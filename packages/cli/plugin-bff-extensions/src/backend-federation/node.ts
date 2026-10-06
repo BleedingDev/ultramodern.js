@@ -1,21 +1,26 @@
+import { evaluateNodeBackendFederationCommonJs } from '@modern-js/server-runtime-extensions/backend-federation-security/node';
 import { loadBackendFederatedEffectApi as loadUniversalBackendFederatedEffectApi } from './load';
-import { evaluateEffectBackendFederationCommonJs } from './node-evaluator';
+import { effectBffHostShared, withEffectBffHostShared } from './node-shared';
+
+/** Call for the `shared` option when building a custom runtime for Node hosts. */
+export { effectBffHostShared };
+
 import type {
   BackendFederatedEffectApiModule,
   BackendFederationIdentityLoadOptions,
-  BackendFederationLoadOptions,
 } from './types';
 
-export function loadBackendFederatedEffectApi(
+export async function loadBackendFederatedEffectApi(
   options: BackendFederationIdentityLoadOptions,
 ): Promise<BackendFederatedEffectApiModule> {
   return loadUniversalBackendFederatedEffectApi({
     ...options,
+    shared: withEffectBffHostShared(options.shared),
     entryPolicy: {
       ...options.entryPolicy,
       evaluateCommonJs:
         options.entryPolicy?.evaluateCommonJs ??
-        evaluateEffectBackendFederationCommonJs,
+        evaluateNodeBackendFederationCommonJs,
     },
   });
 }

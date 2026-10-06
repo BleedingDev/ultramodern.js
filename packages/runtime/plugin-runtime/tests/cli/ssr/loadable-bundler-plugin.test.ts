@@ -68,3 +68,49 @@ describe('LoadableBundlerPlugin chunk loading global', () => {
     expect(definePluginApply).toHaveBeenCalledWith(compiler);
   });
 });
+
+describe('LoadableBundlerPlugin stats', () => {
+  const emitStats = (publicPath: string) => {
+    const plugin = new LoadablePlugin({
+      filename: 'loadable-stats.json',
+      outputAsset: true,
+    });
+    const compilation = {
+      getStats: () => ({
+        toJson: () => ({
+          publicPath,
+          outputPath: '/dist',
+          chunks: [{ id: '1', files: ['static/js/async/page.js'] }],
+          entrypoints: {},
+          namedChunkGroups: {
+            page: {
+              assets: [{ name: 'static/js/async/page.js' }],
+              childAssets: {},
+              chunks: ['1'],
+            },
+          },
+        }),
+      }),
+    };
+    const asset = plugin.handleEmit(compilation as never);
+    return JSON.parse(String(asset?.source()));
+  };
+
+  test.each([
+    ['auto', '/static/js/async/page.js'],
+    ['auto/', '/static/js/async/page.js'],
+    [
+      'https://cdn.example/app/',
+      'https://cdn.example/app/static/js/async/page.js',
+    ],
+  ])('lets @loadable/server resolve %s chunk URLs', async (publicPath, url) => {
+    const { ChunkExtractor } = await import('@loadable/server');
+    const extractor = new ChunkExtractor({
+      stats: emitStats(publicPath),
+      entrypoints: [],
+    });
+    extractor.addChunk('page');
+
+    expect(extractor.getScriptTags()).toContain(`src="${url}"`);
+  });
+});

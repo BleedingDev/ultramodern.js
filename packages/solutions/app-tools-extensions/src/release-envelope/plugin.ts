@@ -1,5 +1,15 @@
 import path from 'node:path';
 import type { RendererProfile } from '@modern-js/backend-federation-contracts';
+import type { NodePublicAssetConfig } from '../config';
+import {
+  NODE_PUBLIC_ASSET_SCOPE,
+  normalizeDeclaredPublicAssets,
+  resolveAddedDeclaredPublicAssetPaths,
+} from '../deploy-output/public-assets';
+import {
+  getDeployingTarget,
+  type ResolvedDeployTarget,
+} from '../deploy-output/target';
 import {
   emitFrameworkMicroVerticalReleaseEnvelope,
   emitNodeStagedReleaseEnvelope,
@@ -7,10 +17,11 @@ import {
   verifyNodeReleaseEnvelopeStaging,
 } from './framework-output';
 
-type ReleaseEnvelopeTarget = 'cloudflare' | 'node' | string;
-
 export interface ReleaseEnvelopeConfig {
-  deploy?: { target?: string };
+  deploy?: {
+    releaseEnvelopeRole?: 'microvertical' | 'shell';
+    node?: { publicAssets?: NodePublicAssetConfig[] };
+  };
 }
 
 export interface ReleaseEnvelopeAppContext {
@@ -18,6 +29,7 @@ export interface ReleaseEnvelopeAppContext {
   appDirectory: string;
   distDirectory: string;
   metaName: string;
+  deployTarget?: ResolvedDeployTarget;
 }
 
 export interface ReleaseEnvelopePluginApi<
@@ -39,41 +51,20 @@ export interface ReleaseEnvelopePlugin<
   setup(api: ReleaseEnvelopePluginApi<Config>): void;
 }
 
-export type ResolveDeployTarget<
-  Config extends ReleaseEnvelopeConfig = ReleaseEnvelopeConfig,
-> = (config: Config) => ReleaseEnvelopeTarget;
-
-const resolveActiveDeployTarget = <Config extends ReleaseEnvelopeConfig>(
-  api: ReleaseEnvelopePluginApi<Config>,
-  resolveDeployTarget: ResolveDeployTarget<Config>,
-) => {
-  const { metaName } = api.getAppContext();
-  const config = api.getNormalizedConfig();
-  if (
-    metaName !== 'modern-js' &&
-    !config.deploy?.target &&
-    !process.env.MODERNJS_DEPLOY
-  ) {
-    return undefined;
-  }
-  return resolveDeployTarget(config);
-};
-
 export const createUltramodernReleaseEnvelopePlugin = <
   Config extends ReleaseEnvelopeConfig,
 >({
-  resolveDeployTarget,
   resolveRendererProfile,
 }: {
-  resolveDeployTarget: ResolveDeployTarget<Config>;
   resolveRendererProfile?: (config: Config) => RendererProfile;
-}): ReleaseEnvelopePlugin<Config> => {
+} = {}): ReleaseEnvelopePlugin<Config> => {
   return {
     name: '@modern-js/ultramodern-release-envelope',
     pre: [
       '@modern-js/backend-federation-build',
       '@modern-js/plugin-bff',
       '@modern-js/deploy-output-aliases',
+      '@modern-js/deploy-output-public-assets',
     ],
     post: ['@modern-js/plugin-deploy'],
     setup(api) {
@@ -86,6 +77,7 @@ export const createUltramodernReleaseEnvelopePlugin = <
           apiOnly,
           appDirectory,
           distDirectory,
+          role: api.getNormalizedConfig().deploy?.releaseEnvelopeRole,
           requirePromotable,
           target,
           ...(!apiOnly && resolveRendererProfile
@@ -99,7 +91,7 @@ export const createUltramodernReleaseEnvelopePlugin = <
       };
 
       api.onAfterBuild(async () => {
-        const configuredTarget = resolveDeployTarget(api.getNormalizedConfig());
+        const configuredTarget = api.getAppContext().deployTarget?.target;
         if (configuredTarget !== 'node' && configuredTarget !== 'cloudflare') {
           return;
         }
@@ -111,10 +103,7 @@ export const createUltramodernReleaseEnvelopePlugin = <
       });
 
       api.onBeforeDeploy(async () => {
-        const configuredTarget = resolveActiveDeployTarget(
-          api,
-          resolveDeployTarget,
-        );
+        const configuredTarget = getDeployingTarget(api.getAppContext());
         if (configuredTarget !== 'node') {
           return;
         }
@@ -124,16 +113,24 @@ export const createUltramodernReleaseEnvelopePlugin = <
       });
 
       api.onAfterDeploy(async () => {
-        const configuredTarget = resolveActiveDeployTarget(
-          api,
-          resolveDeployTarget,
-        );
+        const configuredTarget = getDeployingTarget(api.getAppContext());
         if (configuredTarget !== 'node') {
           return;
         }
         const { appDirectory, distDirectory } = api.getAppContext();
         const outputDirectory = path.join(appDirectory, '.output');
         const releaseEnvelope = await emitNodeStagedReleaseEnvelope({
+          // The Node deploy output is a copy of dist, so a declared file
+          // added output exactly when dist has no file at its path.
+          declaredPublicAssets: await resolveAddedDeclaredPublicAssetPaths({
+            appDirectory,
+            assets: normalizeDeclaredPublicAssets(
+              api.getNormalizedConfig().deploy?.node?.publicAssets,
+              NODE_PUBLIC_ASSET_SCOPE,
+            ),
+            generatedRoot: distDirectory,
+            scope: NODE_PUBLIC_ASSET_SCOPE,
+          }),
           distDirectory,
           outputDirectory,
         });

@@ -2,59 +2,50 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
-import { appTools, type RuntimePluginConfig } from '@modern-js/app-tools';
-import { createPluginManager } from '@modern-js/plugin';
 import {
-  createContext,
-  initAppContext,
-  initPluginAPI,
-} from '@modern-js/plugin/cli';
+  type AppTools,
+  appTools,
+  type RuntimePluginConfig,
+} from '@modern-js/app-tools';
+import type { PolicyDefaultsOptions } from '@modern-js/app-tools-extensions/policy-defaults';
+import type { CLIPluginAPI } from '@modern-js/plugin';
+import { createConfigOptions } from '@modern-js/plugin/cli';
 import {
-  defineConfig,
   presetUltramodern,
-  resolveUltramodernConfig,
   ultramodernAppTools,
 } from '@modern-js/ultramodern-app-tools';
 import { createRsbuild, rspack } from '@rsbuild/core';
 import { runtimeRegister } from '../../../../runtime/plugin-runtime/src/cli/template';
 
-async function initializeCliPlugins(createPlugin: typeof appTools) {
+async function initializeCliPlugins(
+  createPlugin: typeof appTools,
+  options?: PolicyDefaultsOptions,
+) {
   const appDirectory = path.resolve(__dirname, '../..');
-  const consumerConfig = {
+  const userConfig = {
     html: { title: 'Consumer title' },
     output: { assetPrefix: '/consumer-assets/' },
   };
-  const userConfig =
-    createPlugin === ultramodernAppTools
-      ? await resolveUltramodernConfig(defineConfig(consumerConfig), {
-          env: 'production',
-          command: 'build',
-        })
-      : { ...consumerConfig, plugins: [createPlugin()] };
-  const originalConfig = {
-    ...structuredClone(consumerConfig),
-    ...('renderer' in userConfig ? { renderer: userConfig.renderer } : {}),
-    plugins: [...(userConfig.plugins ?? [])],
-  };
-  const pluginManager = createPluginManager();
-  pluginManager.addPlugins(userConfig.plugins ?? []);
-  const plugins = pluginManager.getPlugins();
-  const context = await createContext({
-    appContext: initAppContext({
-      packageName: 'consumer-app',
-      configFile: false,
-      command: 'build',
-      appDirectory,
-      metaName: 'modern-js',
-      plugins,
-    }),
+  const originalConfig = structuredClone(userConfig);
+  let api: CLIPluginAPI<AppTools> | undefined;
+  const result = await createConfigOptions<AppTools>({
+    command: 'build',
+    configFile: false,
+    cwd: appDirectory,
     config: userConfig,
-    normalizedConfig: userConfig,
+    internalPlugins: [
+      createPlugin(options),
+      {
+        name: 'consumer-config-observer',
+        setup(pluginApi) {
+          api = pluginApi;
+        },
+      },
+    ],
   });
-  const api = initPluginAPI({ context, pluginManager });
-  context.pluginAPI = api;
-  for (const plugin of plugins) await plugin.setup?.(api);
-  return { api, appDirectory, userConfig, originalConfig };
+  if (!api) throw new Error('Consumer config observer was not initialized.');
+  const plugins = result.getAppContext().plugins;
+  return { api, appDirectory, userConfig, originalConfig, plugins };
 }
 
 async function evaluateRuntimeRegistration(
@@ -62,6 +53,25 @@ async function evaluateRuntimeRegistration(
   platform: 'browser' | 'node',
   runtimePlugins: RuntimePluginConfig[],
 ) {
+  const packageDirectory = path.resolve(__dirname, '../..');
+  const consumerPackageScope = path.join(
+    fixtureRoot,
+    'node_modules/@modern-js',
+  );
+  fs.mkdirSync(consumerPackageScope, { recursive: true });
+  fs.symlinkSync(
+    packageDirectory,
+    path.join(consumerPackageScope, 'ultramodern-app-tools'),
+    'dir',
+  );
+  fs.writeFileSync(
+    path.join(fixtureRoot, 'package.json'),
+    JSON.stringify({
+      name: 'runtime-registration-consumer',
+      private: true,
+      dependencies: { '@modern-js/ultramodern-app-tools': 'workspace:*' },
+    }),
+  );
   const runtimeDirectory = path.resolve(
     __dirname,
     '../../../../runtime/plugin-runtime',
@@ -139,7 +149,7 @@ export const acceptance = {
     resolve: {
       extensions: ['.tsx', '.ts', '.mjs', '.js', '.json'],
       conditionNames: ['modern:source', platform, 'import', 'default'],
-      modules: [path.resolve(__dirname, '../../node_modules'), 'node_modules'],
+      modules: ['node_modules', path.join(packageDirectory, 'node_modules')],
       alias: {
         '@fixture/src': fixtureRoot,
         '@modern-js/runtime/plugin$': path.join(
@@ -198,142 +208,248 @@ export const acceptance = {
 }
 
 describe('native UltraModern composition', () => {
-  it.each([
-    {
-      name: 'UltraModern',
-      createPlugin: ultramodernAppTools,
-      rendererCount: 1,
-    },
-    // The fork's renderer policy is the default for a plain `appTools()` app,
-    // and composing `ultramodernAppTools()` must not register it twice.
-    { name: 'native appTools', createPlugin: appTools, rendererCount: 1 },
-  ])('$name preserves consumer configuration and registers its renderer per entrypoint', async ({
-    createPlugin,
-    rendererCount,
-  }) => {
-    const { api, appDirectory, userConfig, originalConfig } =
-      await initializeCliPlugins(createPlugin);
+  it.each(
+    [
+      {
+        name: 'UltraModern',
+        createPlugin: ultramodernAppTools,
+        serverPluginName: '@modern-js/ultramodern-app-tools/server-plugin',
+      },
+      // The fork's renderer policy is the default for a plain `appTools()` app,
+      // and composing `ultramodernAppTools()` must not register it twice.
+      {
+        name: 'native appTools',
+        createPlugin: appTools,
+        serverPluginName: '@modern-js/app-tools/server-plugin',
+      },
+    ].flatMap(composition =>
+      [
+        { policies: 'defaults', options: {}, rendererCount: 1, serverCount: 1 },
+        {
+          policies: 'renderer disabled',
+          options: { rendererExtensions: false },
+          rendererCount: 0,
+          serverCount: 1,
+        },
+        {
+          policies: 'server disabled',
+          options: { serverExtensions: false },
+          rendererCount: 1,
+          serverCount: 0,
+        },
+        {
+          policies: 'both disabled',
+          options: { rendererExtensions: false, serverExtensions: false },
+          rendererCount: 0,
+          serverCount: 0,
+        },
+      ].map(policy => ({ ...composition, ...policy })),
+    ),
+  )(
+    '$name with $policies preserves consumer configuration and registers policy once',
+    async ({
+      createPlugin,
+      options,
+      rendererCount,
+      serverCount,
+      serverPluginName,
+    }) => {
+      const { api, appDirectory, userConfig, originalConfig } =
+        await initializeCliPlugins(createPlugin, options);
 
-    for (const entryName of ['main', 'admin']) {
-      const entrypoint = {
-        entryName,
-        entry: path.join(appDirectory, 'src', entryName, 'index.tsx'),
-      };
-      const consumerPlugin = {
-        name: `consumer-${entryName}`,
-        path: './consumer-runtime',
-        config: { entryName, nested: { enabled: true } },
-      };
-      const originalConsumer = structuredClone(consumerPlugin);
-      const result = await api.getHooks()._internalRuntimePlugins.call({
-        entrypoint,
-        plugins: [consumerPlugin],
-      });
+      for (const entryName of ['main', 'admin']) {
+        const entrypoint = {
+          entryName,
+          entry: path.join(appDirectory, 'src', entryName, 'index.tsx'),
+        };
+        const consumerPlugin = {
+          name: `consumer-${entryName}`,
+          path: './consumer-runtime',
+          config: { entryName, nested: { enabled: true } },
+        };
+        const originalConsumer = structuredClone(consumerPlugin);
+        const result = await api.getHooks()._internalRuntimePlugins.call({
+          entrypoint,
+          plugins: [consumerPlugin],
+        });
 
-      expect(result.entrypoint).toBe(entrypoint);
-      expect(result.plugins).toContain(consumerPlugin);
-      expect(consumerPlugin).toEqual(originalConsumer);
-      const renderers = result.plugins.filter(
-        plugin => plugin.name === 'rendererHead',
-      );
-      expect(renderers).toHaveLength(rendererCount);
-      if (rendererCount) {
-        expect(renderers).toEqual([
-          {
-            name: 'rendererHead',
-            path: '@modern-js/runtime-renderer-extensions',
-            config: {},
-          },
-        ]);
-      } else {
-        expect(result.plugins).toEqual([consumerPlugin]);
+        expect(result.entrypoint).toBe(entrypoint);
+        expect(result.plugins).toContain(consumerPlugin);
+        expect(consumerPlugin).toEqual(originalConsumer);
+        const renderers = result.plugins.filter(
+          plugin => plugin.name === 'rendererHead',
+        );
+        expect(renderers).toHaveLength(rendererCount);
+        if (rendererCount) {
+          expect(renderers).toEqual([
+            {
+              name: 'rendererHead',
+              path: '@modern-js/runtime-renderer-extensions',
+              config: {},
+            },
+          ]);
+        } else {
+          expect(result.plugins).toEqual([
+            consumerPlugin,
+            ...(createPlugin === ultramodernAppTools
+              ? [
+                  {
+                    name: 'routerState',
+                    path: '@modern-js/ultramodern-app-tools/router-state-runtime',
+                    config: {},
+                  },
+                ]
+              : []),
+          ]);
+        }
+        const repeated = await api
+          .getHooks()
+          ._internalRuntimePlugins.call(result);
+        expect(
+          repeated.plugins.filter(plugin => plugin.name === 'rendererHead'),
+        ).toHaveLength(rendererCount);
+        expect(repeated.plugins).toContain(consumerPlugin);
       }
-    }
 
-    expect(api.getConfig()).toBe(userConfig);
-    expect(api.getConfig()).toEqual(originalConfig);
-    expect(api.getNormalizedConfig()).toEqual(originalConfig);
-  });
+      const consumerServer = {
+        name: './consumer-server',
+        options: { consumer: true },
+      };
+      const originalServer = structuredClone(consumerServer);
+      const serverResult = await api
+        .getHooks()
+        ._internalServerPlugins.call({ plugins: [consumerServer] });
+      expect(serverResult.plugins).toHaveLength(1 + serverCount);
+      expect(serverResult.plugins[0]).toBe(consumerServer);
+      expect(consumerServer).toEqual(originalServer);
+      expect(serverResult.plugins.slice(1)).toEqual(
+        serverCount ? [{ name: serverPluginName }] : [],
+      );
+      expect(
+        await api.getHooks()._internalServerPlugins.call(serverResult),
+      ).toEqual(serverResult);
+
+      const consumerBuilder = { name: 'consumer-builder', setup() {} };
+      const configInput = {
+        ...api.getNormalizedConfig(),
+        builderPlugins: [consumerBuilder],
+      };
+      const configResult = await api
+        .getHooks()
+        .modifyResolvedConfig.call(configInput);
+      expect(configResult.builderPlugins?.[0]).toBe(consumerBuilder);
+      expect(configInput.builderPlugins).toEqual([consumerBuilder]);
+      expect(
+        configResult.builderPlugins?.filter(
+          plugin =>
+            plugin &&
+            'name' in plugin &&
+            plugin.name === 'ultramodern:runtime-package-resolution',
+        ),
+      ).toHaveLength(createPlugin === ultramodernAppTools ? 1 : rendererCount);
+
+      expect(userConfig).toEqual(originalConfig);
+      expect(api.getConfig()).toEqual(originalConfig);
+      expect(api.getNormalizedConfig()).toMatchObject(originalConfig);
+    },
+  );
 
   it.each([
-    'browser',
-    'node',
-  ] as const)('executes generated %s registration through the public renderer entry and preserves consumer hooks', async platform => {
-    const fixtureRoot = fs.mkdtempSync(
-      path.join(os.tmpdir(), 'um-runtime-registration-'),
+    '@modern-js/app-tools/server-plugin',
+    '@modern-js/ultramodern-app-tools/server-plugin',
+  ])('preserves a consumer server policy descriptor at %s', async name => {
+    const { api, plugins } = await initializeCliPlugins(ultramodernAppTools);
+    const descriptor = { name, options: { consumer: true } };
+    const result = await api
+      .getHooks()
+      ._internalServerPlugins.call({ plugins: [descriptor] });
+    expect(result.plugins).toEqual([descriptor]);
+    expect(result.plugins[0]).toBe(descriptor);
+    expect(descriptor).toEqual({ name, options: { consumer: true } });
+    expect(plugins.map(plugin => plugin.name)).toContain(
+      '@modern-js/ultramodern-app-tools/policy-defaults',
     );
-    try {
-      const { api } = await initializeCliPlugins(ultramodernAppTools);
-      const { plugins } = await api.getHooks()._internalRuntimePlugins.call({
-        entrypoint: {
-          entryName: 'main',
-          entry: path.join(fixtureRoot, 'App.tsx'),
-        },
-        plugins: [
-          {
-            name: 'consumer',
-            path: './consumer-runtime.js',
-            config: { override: 'cli', nested: { cli: true } },
-          },
-        ],
-      });
-      const acceptance = await evaluateRuntimeRegistration(
-        fixtureRoot,
-        platform,
-        plugins,
-      );
-      expect(acceptance).toMatchObject({
-        headResolved: true,
-        consumerResolved: true,
-        unknownPreserved: true,
-        config: {
-          userSetting: 'preserved',
-          consumerMerged: {
-            entryName: 'main',
-            override: 'runtime',
-            nested: { cli: true, runtime: true },
-          },
-        },
-        collectors: 1,
-        streams: [{ node: platform === 'node', web: true }],
-      });
-    } finally {
-      fs.rmSync(fixtureRoot, { recursive: true, force: true });
-    }
   });
+
+  it.each(['browser', 'node'] as const)(
+    'executes generated %s registration through the public renderer entry and preserves consumer hooks',
+    async platform => {
+      const fixtureRoot = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'um-runtime-registration-'),
+      );
+      try {
+        const { api } = await initializeCliPlugins(ultramodernAppTools);
+        const { plugins } = await api.getHooks()._internalRuntimePlugins.call({
+          entrypoint: {
+            entryName: 'main',
+            entry: path.join(fixtureRoot, 'App.tsx'),
+          },
+          plugins: [
+            {
+              name: 'consumer',
+              path: './consumer-runtime.js',
+              config: { override: 'cli', nested: { cli: true } },
+            },
+          ],
+        });
+        const acceptance = await evaluateRuntimeRegistration(
+          fixtureRoot,
+          platform,
+          plugins,
+        );
+        expect(acceptance).toMatchObject({
+          headResolved: true,
+          consumerResolved: true,
+          unknownPreserved: true,
+          config: {
+            userSetting: 'preserved',
+            consumerMerged: {
+              entryName: 'main',
+              override: 'runtime',
+              nested: { cli: true, runtime: true },
+            },
+          },
+          collectors: 1,
+          streams: [{ node: platform === 'node', web: true }],
+        });
+      } finally {
+        fs.rmSync(fixtureRoot, { recursive: true, force: true });
+      }
+    },
+  );
 
   it.each([
     { precompress: false, expected: 0 },
     { precompress: { gzip: false, brotli: { threshold: 42 } }, expected: 1 },
     { precompress: undefined, expected: 2 },
-  ])('uses merged precompression options and preserves consumer plugins: $expected', async ({
-    precompress,
-    expected,
-  }) => {
-    const calls: string[] = [];
-    const consumerPlugin = {
-      name: 'consumer-plugin',
-      setup() {
-        calls.push('consumer');
-      },
-    };
-    const config = presetUltramodern({
-      output: { precompress },
-      builderPlugins: [consumerPlugin],
-    });
-    const rsbuild = await createRsbuild({
-      rsbuildConfig: {
-        mode: 'production',
-        plugins: config.builderPlugins,
-      },
-    });
-    const [rspackConfig] = await rsbuild.initConfigs();
-    const compression =
-      rspackConfig.plugins?.filter(
-        plugin => plugin?.constructor.name === 'CompressionPlugin',
-      ) ?? [];
-    expect(compression).toHaveLength(expected);
-    expect(calls).toEqual(['consumer']);
-    expect(config.builderPlugins).toContainEqual(consumerPlugin);
-  });
+  ])(
+    'uses merged precompression options and preserves consumer plugins: $expected',
+    async ({ precompress, expected }) => {
+      const calls: string[] = [];
+      const consumerPlugin = {
+        name: 'consumer-plugin',
+        setup() {
+          calls.push('consumer');
+        },
+      };
+      const config = presetUltramodern({
+        output: { precompress },
+        builderPlugins: [consumerPlugin],
+      });
+      const rsbuild = await createRsbuild({
+        rsbuildConfig: {
+          mode: 'production',
+          plugins: config.builderPlugins,
+        },
+      });
+      const [rspackConfig] = await rsbuild.initConfigs();
+      const compression =
+        rspackConfig.plugins?.filter(
+          plugin => plugin?.constructor.name === 'CompressionPlugin',
+        ) ?? [];
+      expect(compression).toHaveLength(expected);
+      expect(calls).toEqual(['consumer']);
+      expect(config.builderPlugins).toContainEqual(consumerPlugin);
+    },
+  );
 });

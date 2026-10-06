@@ -11,44 +11,45 @@ import {
   modernTanstackRouterFastDefaults,
 } from '@modern-js/plugin-tanstack/runtime';
 
-import loader_0 from "../../string/routes/layout.loader";
-import { loader as loader_1 } from "../../string/routes/page.data";
+import { loader as loader_0 } from "../../string/routes/page.data";
 import component_0 from "../../string/routes/page";
 import component_1 from "../../string/routes/blocker/page";
-import { loader as loader_2, action as action_2 } from "../../string/routes/mutation/page.data";
+import { loader as loader_1, action as action_1 } from "../../string/routes/mutation/page.data";
 import component_2 from "../../string/routes/mutation/page";
-import { loader as loader_3 } from "../../string/routes/optional/[id$]/page.data";
+import { loader as loader_2 } from "../../string/routes/optional/[id$]/page.data";
 import component_3 from "../../string/routes/optional/[id$]/page";
-import { loader as loader_4 } from "../../string/routes/redirect/page.data";
+import { loader as loader_3 } from "../../string/routes/redirect/page.data";
 import component_4 from "../../string/routes/redirect/page";
-import { loader as loader_5 } from "../../string/routes/user/[id]/page.data";
+import { loader as loader_4 } from "../../string/routes/user/[id]/page.data";
 import component_5 from "../../string/routes/user/[id]/page";
+import loader_5 from "../../string/routes/layout.loader";
 import component_6 from "../../string/routes/layout";
 
 export const rootRoute = createRootRouteWithContext<ModernRouterContext>()({
   component: component_6,
-  loader: modernLoaderToTanstack({ hasSplat: false }, loader_0),
+  loader: modernLoaderToTanstack({ hasSplat: false }, loader_5),
   staticData: createRouteStaticData({
     modernRouteId: "string_layout",
-    modernRouteLoader: loader_0,
+    modernRouteLoader: loader_5,
   }),
+
 });
 
 const route_string_page = createRoute({
   getParentRoute: () => rootRoute,
-  component: component_0,
   path: "/",
-  loader: modernLoaderToTanstack({ hasSplat: false }, loader_1),
+  component: component_0,
+  loader: modernLoaderToTanstack({ hasSplat: false }, loader_0),
   staticData: createRouteStaticData({
     modernRouteId: "string_page",
-    modernRouteLoader: loader_1,
+    modernRouteLoader: loader_0,
   }),
 });
 
 const route_string_blocker_page = createRoute({
   getParentRoute: () => rootRoute,
-  component: component_1,
   path: "blocker",
+  component: component_1,
   staticData: createRouteStaticData({
     modernRouteId: "string_blocker/page",
   }),
@@ -56,46 +57,46 @@ const route_string_blocker_page = createRoute({
 
 const route_string_mutation_page = createRoute({
   getParentRoute: () => rootRoute,
-  component: component_2,
   path: "mutation",
-  loader: modernLoaderToTanstack({ hasSplat: false }, loader_2),
+  component: component_2,
+  loader: modernLoaderToTanstack({ hasSplat: false }, loader_1),
   staticData: createRouteStaticData({
     modernRouteId: "string_mutation/page",
-    modernRouteLoader: loader_2,
-    modernRouteAction: action_2,
+    modernRouteLoader: loader_1,
+    modernRouteAction: action_1,
   }),
 });
 
 const route_string_optional__id$__page = createRoute({
   getParentRoute: () => rootRoute,
-  component: component_3,
   path: "optional/{-$id}",
-  loader: modernLoaderToTanstack({ hasSplat: false }, loader_3),
+  component: component_3,
+  loader: modernLoaderToTanstack({ hasSplat: false }, loader_2),
   staticData: createRouteStaticData({
     modernRouteId: "string_optional/(id$)/page",
-    modernRouteLoader: loader_3,
+    modernRouteLoader: loader_2,
   }),
 });
 
 const route_string_redirect_page = createRoute({
   getParentRoute: () => rootRoute,
-  component: component_4,
   path: "redirect",
-  loader: modernLoaderToTanstack({ hasSplat: false }, loader_4),
+  component: component_4,
+  loader: modernLoaderToTanstack({ hasSplat: false }, loader_3),
   staticData: createRouteStaticData({
     modernRouteId: "string_redirect/page",
-    modernRouteLoader: loader_4,
+    modernRouteLoader: loader_3,
   }),
 });
 
 const route_string_user__id__page = createRoute({
   getParentRoute: () => rootRoute,
-  component: component_5,
   path: "user/$id",
-  loader: modernLoaderToTanstack({ hasSplat: false }, loader_5),
+  component: component_5,
+  loader: modernLoaderToTanstack({ hasSplat: false }, loader_4),
   staticData: createRouteStaticData({
     modernRouteId: "string_user/(id)/page",
-    modernRouteLoader: loader_5,
+    modernRouteLoader: loader_4,
   }),
 });
 

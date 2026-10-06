@@ -51,8 +51,28 @@ export type DistributedSsrBoundaryProps<
   remote: string;
 };
 
+/**
+ * The Module Federation `createLazyComponent` options the distributed boundary
+ * owns. `injectLink` is always false: the boundary owns remote CSS (the
+ * fragment CSS inventory in workerd, the MF manifest in the browser), so the
+ * bridge must not render a second `<link>` in SSR HTML.
+ */
+export type DistributedSsrLazyComponentOptions = {
+  export: 'default';
+  fallback: ReactNode;
+  injectLink: false;
+  loading: null;
+};
+
 export type CreateDistributedSsrComponentOptions<Props extends object> = {
-  createComponent: () => ComponentType<Props>;
+  /**
+   * Creates the native remote on first render. Spread `options` into
+   * Module Federation's `createLazyComponent` and add the instance and
+   * loader.
+   */
+  createComponent: (
+    options: DistributedSsrLazyComponentOptions,
+  ) => ComponentType<Props>;
   expose: string;
   fallback: ReactNode;
   remote: string;
@@ -221,7 +241,12 @@ export function createDistributedSsrComponent<Props extends object>({
   let RemoteComponent: ComponentType<Props> | undefined;
 
   function DeferredRemoteComponent(props: Props) {
-    RemoteComponent ??= createComponent();
+    RemoteComponent ??= createComponent({
+      export: 'default',
+      fallback,
+      injectLink: false,
+      loading: null,
+    });
     return <RemoteComponent {...props} />;
   }
 

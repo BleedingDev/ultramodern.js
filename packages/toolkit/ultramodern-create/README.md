@@ -90,15 +90,16 @@ pnpm --filter "./apps/shell-super-app" serve
 Run these as separate commands. Use the matching app directory in the filter
 to serve an added app.
 
-The generated toolchain pins Node `26.7.0`, pnpm `11.27.1`, and
-`@types/node@^26.6.2`; the generator requires Node `>=26.7.0` with pnpm `11+`.
+The generated toolchain pins Node `26.10.0`, pnpm `12.8.1`, and
+`@types/node@^26.6.3`; the generator requires Node `>=26.10.0`, and generated
+workspaces declare an engine baseline of Node `>=26` with pnpm `12+`.
 `packageManager`, `.mise.toml`, generated validation, and CI should all agree
 on those values; do not reintroduce Corepack or older pnpm aliases.
 
 The current React dependency cohort also pins `@effect/tsgo@0.45.0`,
-`@tanstack/react-router@1.170.39`, `@tanstack/router-core@1.171.32`,
-`@tanstack/history@1.162.4`, and the Module Federation integration `2.9.1`
-cohort, `@module-federation/node@2.7.51`. Move these only through the
+`@tanstack/react-router@1.170.41`, `@tanstack/router-core@1.171.34`,
+`@tanstack/history@1.162.4`, and the Module Federation integration `2.9.2`
+cohort, `@module-federation/node@2.7.52`. Move these only through the
 generator-owned version policy so templates, validation, and the published
 workspace contract stay aligned.
 
@@ -237,9 +238,15 @@ for local monorepo development. After installation, run `pnpm contract:check`,
 which invokes the installed CLI directly. The installed generator owns its
 release-integrity metadata.
 
-Normal installs retain the generated release-age and trust policy. Release
-acceptance uses exact, temporary exceptions for the artifacts being tested;
-it does not add permanent exception lists to the application.
+Normal installs retain the generated strict 24-hour release-age and trust
+policy. The one exception is `minimumReleaseAgeExclude`: it lists the exact
+`package@version` of every package in the cohort the create package ships, so a
+workspace created on the day that cohort is published can install it. Every
+other dependency still waits 24 hours, including a cohort selected with
+`--ultramodern-package-version` that differs from the create package's own; to
+install a fresh cohort on publish day, run that release's create package.
+Release acceptance adds exact, temporary exceptions for the sidecars under test
+on the command line.
 
 ## CodeSmith Adapter And Overlays
 
@@ -334,6 +341,23 @@ Use this decision table before adding a vertical:
 
 ## SuperApp Architecture Contracts
 
+Generated React `modern.config.ts` files declare their app identity through
+`presetUltramodernWorkspace(config, { appId, from: import.meta.url })` inside
+the renderer-selecting `defineConfig` from `@modern-js/ultramodern-app-tools`,
+and keep ordinary Modern.js plugins and authored configuration. The preset
+resolves `topology/reference-topology.json` and the development overlay when
+the config loads. Fork-owned packages apply deployment targets, ports, asset
+origins, CORS, Cloudflare bindings, build/cache directories, release identity,
+and Zephyr deployment policy. Authored values override preset defaults; native
+builder hooks and plugins compose normally. Solid and Octane apps select their
+renderer directly with `defineConfig({ renderer })`.
+
+Adding a shell or vertical updates topology, overlays, and generated workspace
+metadata without rewriting any existing `modern.config.ts`. Application
+configs belong to their authors from the moment they are created. New apps
+receive a config scaffold with their own stable `appId`; changing a port or
+shell composition takes effect through the canonical workspace inputs.
+
 The React SuperApp shell owns route assembly and policy. Each React vertical added with
 `--vertical` owns its route subtree, Module Federation exposes, Effect BFF
 contract, generated client, `localisedUrls`, locale JSON, CSS layer, and
@@ -342,10 +366,11 @@ Federation manifests and vertical APIs through generated Effect clients
 exported by the vertical packages.
 
 Route metadata is route-owned and colocated in
-`src/routes/**/route.meta.ts`. The scaffold regenerates
-`src/routes/ultramodern-route-metadata.ts` as a generated route manifest for
-Modern.js config, i18n, public head, and public surface contracts; authors
-should not hand-maintain it. Locale JSON is served from
+`src/routes/**/route.meta.ts`; each file exports `routeMeta`.
+`ultramodern-create ultramodern routes-generate` (run before every app `dev`
+and `build`) regenerates `src/routes/ultramodern-route-metadata.ts` as a
+formatted route manifest for Modern.js config, i18n, public head, and public
+surface contracts; authors should not hand-maintain it. Locale JSON is served from
 `/locales/{{lng}}/{{ns}}.json`; Czech and English routes are generated from the
 route owner, not from shell rewrites.
 
@@ -420,7 +445,9 @@ Each generated React workspace app has:
   `cloudflare:proof` scripts.
 - Cloudflare Worker deploy config emitted from native Modern config.
 - `zephyr:dependencies` for any consumed verticals.
-- `zephyr-rspack-plugin` wired through the generated Modern.js Rspack bridge.
+- `zephyr-rspack-plugin` composed by the fork-owned workspace preset for UI
+  apps. It activates only when `ZE_CI_TOKEN` is present; the deploy environment
+  must also set `ZE_FAIL_BUILD=true`. Ordinary builds require no Zephyr token.
 
 Deploy first, then pass each deployed app's generated public URL env key into
 the proof step. The installed proof command reads topology and deployment contracts and checks the

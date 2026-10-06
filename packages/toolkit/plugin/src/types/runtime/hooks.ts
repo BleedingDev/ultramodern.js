@@ -15,6 +15,11 @@ export type SSRRenderInfo<RuntimeContext = object> = {
   /** Original renderer resource and configuration; interpreted by extensions. */
   resource?: object;
   config?: object;
+  /** Request-scoped monitors for diagnostics an extension detects mid-render. */
+  monitors: {
+    error(message: string, ...args: unknown[]): void;
+    warn(message: string, ...args: unknown[]): void;
+  };
 };
 
 export type SSRHeadPart = { toString(): string };
@@ -101,12 +106,50 @@ export type Collector = SSRRenderLifecycle & {
 };
 
 import type React from 'react';
-import type { AsyncInterruptHook, CollectSyncHook, SyncHook } from '../hooks';
+import type {
+  AsyncHook,
+  AsyncInterruptHook,
+  CollectSyncHook,
+  SyncHook,
+} from '../hooks';
 
 export type OnBeforeRenderFn<RuntimeContext> = (
   context: RuntimeContext,
   interrupt: (info: any) => any,
 ) => Promise<any> | any;
+
+export type SSRRequestRouterResult = {
+  statusCode?: number;
+  errors?: Record<string, unknown> | null;
+};
+
+export type SSRRequestPreparedInfo<RuntimeContext = object> = {
+  runtimeContext: RuntimeContext;
+  /** Native router metadata; extensions may supply another router's result. */
+  routerResult?: SSRRequestRouterResult;
+};
+
+export type OnRenderPreparedFn<RuntimeContext> = (
+  info: SSRRequestPreparedInfo<RuntimeContext>,
+) =>
+  | SSRRequestPreparedInfo<RuntimeContext>
+  | void
+  | Promise<SSRRequestPreparedInfo<RuntimeContext> | void>;
+
+export type SSRRequestTerminal =
+  | { status: 'complete' }
+  | { status: 'error'; error: unknown }
+  | { status: 'cancelled'; reason: unknown }
+  | { status: 'discarded' };
+
+export type SSRRequestEndInfo<RuntimeContext = object> = {
+  runtimeContext: RuntimeContext;
+  terminal: SSRRequestTerminal;
+};
+
+export type OnRequestEndFn<RuntimeContext> = (
+  info: SSRRequestEndInfo<RuntimeContext>,
+) => void | Promise<void>;
 
 export type ExtendStringSSRCollectorsFn<RuntimeContext> = (
   context: RuntimeContext,
@@ -176,6 +219,10 @@ export type ConfigFn<RuntimeConfig> = () => RuntimeConfig;
 
 export type Hooks<RuntimeConfig, RuntimeContext> = {
   onBeforeRender: AsyncInterruptHook<OnBeforeRenderFn<RuntimeContext>>;
+  /** Runs after preparation and before native status/error handling. */
+  onRenderPrepared: AsyncHook<OnRenderPreparedFn<RuntimeContext>>;
+  /** Runs once after response completion, cancellation, discard or failure. */
+  onRequestEnd: AsyncHook<OnRequestEndFn<RuntimeContext>>;
   wrapRoot: SyncHook<WrapRootFn>;
   resolveComponent: SyncHook<ResolveComponentFn>;
   pickContext: SyncHook<PickContextFn<RuntimeContext>>;

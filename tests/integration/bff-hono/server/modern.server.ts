@@ -42,7 +42,7 @@ export default defineServerConfig({
       handler: timing,
     },
   ],
-  onError: (err, c) => {
+  onError: (_err, c) => {
     if (c.req.path.toLowerCase().includes('managed')) {
       return c.json({ error: 'customize Respons in config serverConfig' }, 501);
     }

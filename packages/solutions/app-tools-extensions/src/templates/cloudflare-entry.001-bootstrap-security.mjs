@@ -3,7 +3,6 @@ const MODERN_WORKER_MANIFEST = p_workerManifest;
 export const modernWorkerManifest = MODERN_WORKER_MANIFEST;
 const WORKER_MODULE_LOADERS = p_workerModuleLoaders;
 const workerModulePromises = new Map();
-const effectBffDispatcherPromises = new Map();
 const remoteJsonPromises = new Map();
 const CORS_POLICY = MODERN_WORKER_MANIFEST.security?.cors || {};
 const ASSET_CORS_ENABLED = CORS_POLICY.assets !== false;
@@ -23,9 +22,6 @@ const ASSET_CORS_HEADERS = {
   'access-control-allow-methods': 'GET, HEAD, OPTIONS',
   'access-control-allow-origin': '*',
 };
-
-globalThis.__dirname ??= '/';
-globalThis.__filename ??= '/index.js';
 
 function getAllowedAppCorsOrigin(request) {
   if (APP_CORS_ALLOWED_ORIGINS.length === 0) {
@@ -246,6 +242,9 @@ function finalizeResponseForRequest(response, request) {
 
   const headers = new Headers(securedResponse.headers);
   headers.delete('content-length');
+  // A HEAD response sends no body, so release the producer's stream instead of abandoning it:
+  // a stream nobody reads never finishes, and whatever waits for its end never runs.
+  securedResponse.body?.cancel().catch(() => undefined);
 
   return new Response(null, {
     headers,

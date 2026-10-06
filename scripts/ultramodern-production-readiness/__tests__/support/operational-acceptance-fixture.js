@@ -3,6 +3,21 @@ const fs = require('node:fs');
 
 const digest = value => crypto.createHash('sha256').update(value).digest('hex');
 
+// The resolved closure every fixture receipt binds. Keys are already in the
+// canonical (sorted) order, so JSON.stringify is its canonical JSON.
+const fixtureClosureIdentities = Object.freeze([
+  Object.freeze({
+    integrity: 'sha512-Zml4dHVyZQ==',
+    name: 'fixture-dependency',
+    version: '1.0.0',
+  }),
+]);
+const fixtureClosureSha256 = digest(JSON.stringify(fixtureClosureIdentities));
+const fixtureWorkspaceFiles = Object.freeze([
+  Object.freeze({ path: 'package.json', sha256: digest('package.json') }),
+]);
+const fixtureWorkspaceSha256 = digest(JSON.stringify(fixtureWorkspaceFiles));
+
 // Historical publish-outcome reconstruction needs the archived schema-v4
 // receipt shape. Current fixtures never create or consume this digest.
 function legacyCanonicalSerialize(value) {
@@ -107,9 +122,9 @@ async function operationalEvidence(details, options) {
     hydration: { name: 'react-dom', version: '19.3.0' },
     router: {
       name: '@tanstack/react-router',
-      version: '1.170.39',
+      version: '1.170.41',
       coreName: '@tanstack/router-core',
-      coreVersion: '1.171.32',
+      coreVersion: '1.171.34',
     },
   };
   const provider = { framework: 'tanstack', ...rendererProfile.router };
@@ -331,21 +346,36 @@ async function createOperationalAcceptanceReceiptFixture({
     await receiptApi.recordAcceptanceResult(receipt, id, async () =>
       id === 'operational-independence'
         ? recordedOperationalDetails
-        : runtime
+        : id === 'vertical-additions'
           ? {
-              artifactMode: receipt.mode,
-              assertionCount: 1,
-              dimension: runtime.dimension,
-              durationMs: 0,
-              platform: runtime.platform,
-              ...(runtime.dimension === 'release-identity'
-                ? { apps: runtimeIdentity[runtime.platform] }
-                : {}),
+              workspaceFiles: structuredClone(fixtureWorkspaceFiles),
+              workspaceSha256: fixtureWorkspaceSha256,
             }
-          : { id },
+          : id === 'dependency-closure-audit'
+            ? { closureIdentities: structuredClone(fixtureClosureIdentities) }
+            : id === 'resolution-parity'
+              ? {
+                  closureSha256: fixtureClosureSha256,
+                  packageCount: fixtureClosureIdentities.length,
+                  workspaceSha256: fixtureWorkspaceSha256,
+                }
+              : runtime
+                ? {
+                    artifactMode: receipt.mode,
+                    assertionCount: 1,
+                    dimension: runtime.dimension,
+                    durationMs: 0,
+                    platform: runtime.platform,
+                    ...(runtime.dimension === 'release-identity'
+                      ? { apps: runtimeIdentity[runtime.platform] }
+                      : {}),
+                  }
+                : { id },
     );
   }
-  receiptApi.bindRuntimeIdentityEvidence(receipt, runtimeIdentity);
+  if (receipt.mode === 'source') {
+    receiptApi.bindRuntimeIdentityEvidence(receipt, runtimeIdentity);
+  }
   receiptApi.finalizeAcceptanceReceipt(receipt);
 
   const operationalResult = receipt.results.find(
@@ -365,4 +395,7 @@ async function createOperationalAcceptanceReceiptFixture({
   };
 }
 
-module.exports = { createOperationalAcceptanceReceiptFixture };
+module.exports = {
+  createOperationalAcceptanceReceiptFixture,
+  fixtureClosureSha256,
+};

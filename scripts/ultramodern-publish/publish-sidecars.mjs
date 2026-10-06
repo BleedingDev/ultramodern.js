@@ -9,9 +9,11 @@
 // publishing OIDC exchange. There is no token path.
 //
 // Modes:
+//   --check-registry bundle-free: every recipe's package name exists on npm
 //   --check-staging  offline validation of the staged sidecar lane (no network)
 //   --dry-run        plan against the live registry without publishing
 //   (default)        publish, then re-verify the exact registry state
+import fs from 'node:fs';
 import path from 'node:path';
 import cliKit from '../lib/cli-kit.js';
 import validationKit from '../lib/validation-kit.js';
@@ -31,26 +33,27 @@ import {
 } from './lib/prepare-bleedingdev-packages/npm-buffer-publisher.mjs';
 import { resolveOwnedPreparationOutput } from './lib/prepare-bleedingdev-packages/options.mjs';
 import { lookupRegistryPackument } from './lib/prepare-bleedingdev-packages/registry.mjs';
+import {
+  pollRegistryPropagation,
+  registryPropagationDelaysMs,
+} from './lib/prepare-bleedingdev-packages/registry-propagation.mjs';
 import { verifyReleaseArtifacts } from './lib/prepare-bleedingdev-packages/release-artifacts.mjs';
 import {
   assertSidecarPublishOrder,
   assertSidecarPublishTarget,
+  assertSidecarReuseProvenance,
   assertSidecarStagingManifest,
   assertSidecarTrustedPublishContext,
   npmRegistryUrl,
   sidecarPublishTag,
   sidecarRegistryDecision,
 } from './lib/prepare-bleedingdev-packages/sidecar-publication.mjs';
+import { sidecarProvenancePolicy } from './lib/prepare-bleedingdev-packages/sidecars.mjs';
 
 const { parseCliArgs } = cliKit;
 const { isPlainObject } = validationKit;
 
 const registryNotFoundPattern = /registry metadata returned HTTP 404$/u;
-// Bounded post-publish propagation window; npm needs a few seconds before a
-// freshly published version and its dist-tag are both readable.
-const propagationDelaysMs = Object.freeze([
-  2000, 3000, 5000, 5000, 10000, 10000, 10000, 15000, 15000, 15000,
-]);
 const initialPackumentDelaysMs = Object.freeze([2000, 3000, 5000]);
 
 // The only registry states a post-publish wait may retry. Each one is a state
@@ -75,7 +78,16 @@ const resumableInitialStates = new Set([
 ]);
 
 const cliValueOptions = new Set(['--out', '--tag']);
-const cliBooleanOptions = new Set(['--dry-run', '--check-staging']);
+const cliBooleanOptions = new Set([
+  '--check-registry',
+  '--check-staging',
+  '--dry-run',
+]);
+
+const sidecarRecipesUrl = new URL(
+  '../ultramodern-supply/sidecars.json',
+  import.meta.url,
+);
 
 function parseArgs(argv) {
   rejectInlineOptionSyntax(argv, {
@@ -85,6 +97,7 @@ function parseArgs(argv) {
 
   const options = parseCliArgs(argv, {
     defaults: {
+      checkRegistry: false,
       checkStaging: false,
       dryRun: false,
       out: path.join(repoRoot, '.modern', 'bleedingdev-publish'),
@@ -92,6 +105,7 @@ function parseArgs(argv) {
     },
     ignoreTerminator: true,
     options: {
+      'check-registry': { key: 'checkRegistry', type: 'boolean' },
       'check-staging': { key: 'checkStaging', type: 'boolean' },
       'dry-run': { key: 'dryRun', type: 'boolean' },
       out: {},
@@ -99,8 +113,14 @@ function parseArgs(argv) {
     },
   });
 
-  if (options.checkStaging && options.dryRun) {
-    throw new Error('--check-staging and --dry-run are mutually exclusive');
+  if (
+    [options.checkRegistry, options.checkStaging, options.dryRun].filter(
+      Boolean,
+    ).length > 1
+  ) {
+    throw new Error(
+      '--check-registry, --check-staging and --dry-run are mutually exclusive',
+    );
   }
   if (options.tag !== sidecarPublishTag) {
     throw new Error(
@@ -176,6 +196,64 @@ async function readSidecarPackument(name, fetchImpl = globalThis.fetch) {
   }
 }
 
+// npm trusted publishing publishes to an EXISTING package with a configured
+// trusted publisher; the OIDC exchange cannot create a package name, so a first
+// publish is a deliberate, authorized, interactive act.
+function sidecarBootstrapError(sidecars, observation) {
+  return new Error(
+    [
+      ...sidecars.map(
+        sidecar =>
+          `${sidecar.name} ${observation}, so the trusted-publishing lane cannot create it.`,
+      ),
+      'npm trusted publishing publishes to an existing package with a configured trusted publisher; the OIDC token cannot bootstrap a new package name.',
+      ...sidecars.map(
+        sidecar =>
+          `Bootstrap ${sidecar.name} interactively once, with explicit authorization, as a deprecated 0.0.0-bootstrap placeholder; record it in its sidecars.json provenance.grandfatheredVersions, configure this workflow as its trusted publisher on npm and re-run this lane.`,
+      ),
+      'This lane fails closed in both dry-run and publication modes rather than claiming a publish it cannot perform.',
+    ].join('\n'),
+  );
+}
+
+function readRecipeSidecars(recipesUrl = sidecarRecipesUrl) {
+  return JSON.parse(fs.readFileSync(recipesUrl, 'utf8')).map(recipe => ({
+    name: recipe.fork.name,
+    version: recipe.fork.version,
+  }));
+}
+
+/**
+ * Bundle-free registry gate for the start of the release. Reads the sidecar
+ * recipes and fails on the first registry read when any fork name does not
+ * exist on npm, instead of after the bundle build and clean-room acceptance.
+ * No propagation wait: a name that does not exist yet is never going to
+ * appear without an interactive bootstrap.
+ *
+ * Trusted-publisher configuration is not checked here: npm serves it only to
+ * an authenticated maintainer (GET /-/package/<name>/trust answers 401), and
+ * this workflow holds no stored token. A missing trusted publisher still fails
+ * at the OIDC exchange in publish-sidecars.
+ */
+async function checkSidecarRegistry(dependencies = {}) {
+  const sidecars = (dependencies.readRecipes ?? readRecipeSidecars)();
+  const readPackument = dependencies.readPackument ?? readSidecarPackument;
+  const packuments = await Promise.all(
+    sidecars.map(sidecar => readPackument(sidecar.name)),
+  );
+  const missing = sidecars.filter(
+    (_, index) => packuments[index] === null || packuments[index] === undefined,
+  );
+  if (missing.length > 0) {
+    throw sidecarBootstrapError(missing, 'does not exist on the registry');
+  }
+  const checked = sidecars.map(sidecar => sidecar.name);
+  console.log(
+    `Registry check: all ${checked.length} sidecar name(s) exist on npm.`,
+  );
+  return { checked };
+}
+
 async function publishSidecarBuffer(
   sidecar,
   bytes,
@@ -189,6 +267,8 @@ async function publishSidecarBuffer(
   const token = await requestToken(sidecar.name, {
     registryUrl: npmRegistryUrl,
   });
+  // The lane's last chance to stop: nothing below is reversible.
+  options.assertMayPublish?.();
   const registry = new URL(npmRegistryUrl);
   const authKey = `//${registry.host}${registry.pathname}:_authToken`;
   await runtime.publish(sidecar.packageJson, bytes, {
@@ -219,7 +299,7 @@ async function publishSidecarBuffer(
  * state this re-runs `sidecarRegistryDecision`, so a terminal condition hiding
  * behind a missing tag (content drift, a backwards `latest`) still throws.
  */
-function classifySidecarPropagation(sidecar, packument, { tag }) {
+async function classifySidecarPropagation(sidecar, packument, { tag }) {
   if (packument === null || packument === undefined) {
     return {
       detail: `${sidecar.name} is not readable on the registry yet`,
@@ -251,7 +331,7 @@ function classifySidecarPropagation(sidecar, packument, { tag }) {
       };
     }
     // Throws on a backwards `latest`; returns `publish` while genuinely absent.
-    sidecarRegistryDecision(sidecar, packument, { tag });
+    await sidecarRegistryDecision(sidecar, packument, { tag });
     return {
       detail: `${sidecar.name}@${sidecar.version} is still absent from the registry`,
       state: propagationPendingStates.versionAbsent,
@@ -265,7 +345,7 @@ function classifySidecarPropagation(sidecar, packument, { tag }) {
 
   // The version is readable but untagged. Confirm the published bytes are the
   // staged bytes before waiting - content drift can never resolve itself.
-  sidecarRegistryDecision(
+  await sidecarRegistryDecision(
     sidecar,
     { ...packument, 'dist-tags': { ...distTags, [tag]: sidecar.version } },
     { tag },
@@ -276,28 +356,114 @@ function classifySidecarPropagation(sidecar, packument, { tag }) {
   };
 }
 
+// Post-publish, the sidecar lane waits on the same bounded propagation schedule
+// as the cohort: npm has needed minutes, not seconds, before a freshly
+// published version is readable (run 36137116871).
 async function awaitPublishedSidecar(sidecar, options, dependencies = {}) {
   const readPackument = dependencies.readPackument ?? readSidecarPackument;
-  const wait = dependencies.wait ?? sleep;
   const classify =
     dependencies.classifyPropagation ?? classifySidecarPropagation;
-  let lastState = `${sidecar.name}@${sidecar.version} did not appear on the registry`;
-  for (let attempt = 0; attempt <= propagationDelaysMs.length; attempt += 1) {
-    const packument = await readPackument(sidecar.name);
-    // A throw from either call is terminal by construction: the classifier only
-    // ever returns a pending state it has already proved is transient.
-    const pending = classify(sidecar, packument, { tag: options.tag });
-    if (pending === null) {
-      return sidecarRegistryDecision(sidecar, packument, { tag: options.tag });
-    }
-    lastState = pending.detail;
-    if (attempt < propagationDelaysMs.length) {
-      await wait(propagationDelaysMs[attempt]);
-    }
+  const outcome = await pollRegistryPropagation(
+    async () => {
+      const packument = await readPackument(sidecar.name);
+      // A throw from either call is terminal by construction: the classifier
+      // only ever returns a pending state it has already proved is transient.
+      const pending = await classify(sidecar, packument, { tag: options.tag });
+      if (pending === null) {
+        return {
+          settled: true,
+          value: await sidecarRegistryDecision(sidecar, packument, {
+            tag: options.tag,
+          }),
+        };
+      }
+      return { detail: pending.detail, settled: false };
+    },
+    { wait: dependencies.wait },
+  );
+  if (outcome.settled) {
+    return outcome.value;
   }
   throw new Error(
-    `Published sidecar ${sidecar.name}@${sidecar.version} did not become verifiable: ${lastState}`,
+    `Published sidecar ${sidecar.name}@${sidecar.version} did not become verifiable after ${outcome.attempts} registry reads: ${outcome.detail}`,
   );
+}
+
+// npm declares a version's `dist.attestations` and serves its attestation
+// bundle only some time after the version itself is readable (the cohort
+// verifier observed 404s a minute after publish).
+const attestationLagMs = registryPropagationDelaysMs.reduce(
+  (total, delay) => total + delay,
+  0,
+);
+
+/**
+ * A non-grandfathered version published within one propagation window, or
+ * undefined. Only such a version can still gain its provenance; an older one
+ * that fails verification never will.
+ */
+function propagatingSidecarVersion(sidecar, packument, now = Date.now()) {
+  const grandfathered = new Set(
+    (sidecarProvenancePolicy(sidecar.name).grandfatheredVersions ?? []).map(
+      entry => entry.version,
+    ),
+  );
+  return Object.keys(packument.versions ?? {}).find(
+    version =>
+      !grandfathered.has(version) &&
+      now - Date.parse(packument.time?.[version]) < attestationLagMs,
+  );
+}
+
+/**
+ * Reuse requires the registry provenance chronology. A null read (a replica
+ * that has not seen the package yet) is pending. While a non-grandfathered
+ * version is younger than the propagation window, a failed verification is
+ * re-read on the shared schedule, as the cohort verifier does after
+ * publishing; otherwise the first failure is terminal. `packument`, when
+ * given, answers the first read.
+ */
+async function awaitSidecarReuseProvenance(
+  sidecar,
+  packument,
+  { source },
+  dependencies = {},
+) {
+  const readPackument = dependencies.readPackument ?? readSidecarPackument;
+  const verify = dependencies.verifyReuse ?? assertSidecarReuseProvenance;
+  let lastSeen;
+  const outcome = await pollRegistryPropagation(
+    async attempt => {
+      const current =
+        attempt === 1 && packument
+          ? packument
+          : await readPackument(sidecar.name);
+      if (current === null || current === undefined) {
+        return {
+          detail: `${sidecar.name} is not readable on the registry`,
+          settled: false,
+        };
+      }
+      lastSeen = current;
+      try {
+        await verify(sidecar, current, { source });
+        return { settled: true };
+      } catch (error) {
+        const propagating = propagatingSidecarVersion(sidecar, lastSeen);
+        if (!propagating) throw error;
+        return {
+          detail: `${sidecar.name}@${propagating} provenance is still propagating: ${error instanceof Error ? error.message : String(error)}`,
+          settled: false,
+        };
+      }
+    },
+    { wait: dependencies.wait },
+  );
+  if (!outcome.settled) {
+    throw new Error(
+      `Reused sidecar ${sidecar.name}@${sidecar.version} provenance did not become verifiable after ${outcome.attempts} registry reads: ${outcome.detail}`,
+    );
+  }
 }
 
 async function awaitInitialSidecarPackument(sidecar, dependencies = {}) {
@@ -332,8 +498,43 @@ async function publishSidecars(options, dependencies = {}) {
   }
 
   const readPackument = dependencies.readPackument ?? readSidecarPackument;
+  const verifyReuse = (sidecar, packument) =>
+    awaitSidecarReuseProvenance(
+      sidecar,
+      packument,
+      { source: release.manifest.source },
+      { ...dependencies, readPackument },
+    );
   const published = [];
   const reused = [];
+  // Sidecars publish in alias order, so an alias target version exists on the
+  // registry before anything that aliases it is published. Read-side
+  // propagation is verified concurrently: every published sidecar must become
+  // verifiable before the lane reports success (and so before the cohort), but
+  // the lane's wall clock is one propagation window, not one per sidecar or
+  // per alias level (the job has a fixed timeout).
+  const propagating = [];
+  let propagationFailure;
+  const assertNoPropagationFailure = () => {
+    if (propagationFailure) {
+      throw propagationFailure.error;
+    }
+  };
+  const trackPropagation = (sidecar, settledMessage) => {
+    const verification = awaitPublishedSidecar(
+      sidecar,
+      options,
+      dependencies,
+    ).then(decision => {
+      console.log(settledMessage(decision));
+    });
+    // Record the first failure so the lane stops publishing; the rejection
+    // itself is still surfaced by the final Promise.all.
+    verification.catch(error => {
+      propagationFailure ??= { error };
+    });
+    propagating.push(verification);
+  };
   for (const sidecar of sidecars) {
     let packument = await readPackument(sidecar.name);
     if (packument === null || packument === undefined) {
@@ -342,7 +543,7 @@ async function publishSidecars(options, dependencies = {}) {
         readPackument,
       });
     }
-    const pending = classifySidecarPropagation(sidecar, packument, {
+    const pending = await classifySidecarPropagation(sidecar, packument, {
       tag: options.tag,
     });
     // A previous run may have published this exact version and stopped while npm
@@ -350,28 +551,34 @@ async function publishSidecars(options, dependencies = {}) {
     // the tag already names this version, or the identical version is readable
     // and only its tag is missing. An absent package/version still takes the
     // ordinary publish/bootstrap path instead of sleeping on an assumption.
-    const decision =
-      pending && resumableInitialStates.has(pending.state)
-        ? await awaitPublishedSidecar(sidecar, options, dependencies)
-        : sidecarRegistryDecision(sidecar, packument, { tag: options.tag });
+    if (pending && resumableInitialStates.has(pending.state)) {
+      // Another publisher's version is reused only after it proves the same
+      // provenance chronology as an indexed one, and nothing later publishes
+      // before it has: a later sidecar may alias it.
+      const decision = await awaitPublishedSidecar(
+        sidecar,
+        options,
+        dependencies,
+      );
+      await verifyReuse(sidecar, undefined);
+      console.log(`Reusing ${decision.reason}`);
+      reused.push(`${sidecar.name}@${sidecar.version}`);
+      continue;
+    }
+    const decision = await sidecarRegistryDecision(sidecar, packument, {
+      tag: options.tag,
+    });
     if (decision.action === 'reuse') {
+      await verifyReuse(sidecar, packument);
       console.log(`Reusing ${decision.reason}`);
       reused.push(`${sidecar.name}@${sidecar.version}`);
       continue;
     }
 
-    // npm trusted publishing can only publish to a package that ALREADY exists
-    // and already has a trusted publisher configured; the OIDC exchange has no
-    // way to create the package. A first publish is therefore a deliberate,
-    // authorized, interactive act - never something this unattended lane does.
     if (packument === null || packument === undefined) {
-      throw new Error(
-        [
-          `${sidecar.name} does not exist on the registry after the bounded propagation wait, so the trusted-publishing lane cannot create it.`,
-          'npm trusted publishing publishes to an existing package with a configured trusted publisher; the OIDC token cannot bootstrap a new package name.',
-          `Bootstrap ${sidecar.name}@${sidecar.version} interactively once, with explicit authorization, then configure this workflow as its trusted publisher on npm and re-run this lane.`,
-          'This lane fails closed in both dry-run and publication modes rather than claiming a publish it cannot perform.',
-        ].join('\n'),
+      throw sidecarBootstrapError(
+        [sidecar],
+        'does not exist on the registry after the bounded propagation wait',
       );
     }
     if (options.dryRun) {
@@ -383,18 +590,26 @@ async function publishSidecars(options, dependencies = {}) {
     }
 
     assertSidecarTrustedPublishContext();
+    // An earlier sidecar's verification may have failed during any await
+    // above; the publisher re-checks after its own token await as well.
+    assertNoPropagationFailure();
     await publishSidecarBuffer(
       sidecar,
       sidecar.bytes,
-      { ...options, acceptedTools },
+      {
+        ...options,
+        acceptedTools,
+        assertMayPublish: assertNoPropagationFailure,
+      },
       dependencies,
     );
-    await awaitPublishedSidecar(sidecar, options, dependencies);
-    console.log(
-      `Published ${sidecar.name}@${sidecar.version} at ${options.tag}`,
+    trackPropagation(
+      sidecar,
+      () => `Published ${sidecar.name}@${sidecar.version} at ${options.tag}`,
     );
     published.push(`${sidecar.name}@${sidecar.version}`);
   }
+  await Promise.all(propagating);
 
   console.log(
     [
@@ -407,7 +622,10 @@ async function publishSidecars(options, dependencies = {}) {
 }
 
 async function main() {
-  await publishSidecars(parseArgs(process.argv.slice(2)));
+  const options = parseArgs(process.argv.slice(2));
+  await (options.checkRegistry
+    ? checkSidecarRegistry()
+    : publishSidecars(options));
 }
 
 if (isDirectRun(import.meta.url)) {
@@ -422,10 +640,11 @@ if (isDirectRun(import.meta.url)) {
 export {
   awaitInitialSidecarPackument,
   awaitPublishedSidecar,
+  awaitSidecarReuseProvenance,
+  checkSidecarRegistry,
   classifySidecarPropagation,
   initialPackumentDelaysMs,
   parseArgs,
-  propagationDelaysMs,
   propagationPendingStates,
   publishSidecarBuffer,
   publishSidecars,

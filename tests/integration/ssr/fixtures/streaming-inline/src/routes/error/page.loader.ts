@@ -1,7 +1,7 @@
 import { defer } from '@modern-js/runtime/router';
 
 export default () => {
-  const data = new Promise((resolve, reject) => {
+  const data = new Promise((_resolve, reject) => {
     setTimeout(() => {
       reject(new Error('error occurs'));
     }, 200);

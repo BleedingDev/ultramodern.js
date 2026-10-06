@@ -130,7 +130,7 @@ function solidCandidate(): RendererBuildProfile {
       name: solidPackage,
       version: '3.8.3',
       coreName: '@tanstack/router-core',
-      coreVersion: '1.171.32',
+      coreVersion: '1.171.34',
     },
     sourceExtensions: ['.tsx', '.ts', '.jsx', '.js'],
     jsxImportSource: '@solidjs/web',
@@ -160,58 +160,58 @@ afterEach(() => {
 });
 
 describe('selected SDK profile admission', () => {
-  it.each([
-    'solid',
-    'octane',
-  ] as const)('rejects a mismatched %s candidate before installed owner resolution', renderer => {
-    const registration = resolveRendererRegistration(renderer);
-    const expected = registration.candidateProfile.renderer;
-    const resolver = rstest.mocked(nodeModule.createRequire);
-    resolver.mockClear();
-    try {
-      registration.candidateProfile.renderer = 'foreign-profile-owner';
-      expect(() => resolveCandidateRendererProfile(renderer)).toThrow(
-        'conflicts with selected owner',
-      );
-      expect(() => resolveRendererProfileMetadata(renderer)).toThrow(
-        'conflicts with selected owner',
-      );
-      expect(() => resolveRendererProfile(renderer)).toThrow(
-        'conflicts with selected owner',
-      );
-      expect(resolver).not.toHaveBeenCalled();
-    } finally {
-      registration.candidateProfile.renderer = expected;
-    }
-  });
+  it.each(['solid', 'octane'] as const)(
+    'rejects a mismatched %s candidate before installed owner resolution',
+    renderer => {
+      const registration = resolveRendererRegistration(renderer);
+      const expected = registration.candidateProfile.renderer;
+      const resolver = rstest.mocked(nodeModule.createRequire);
+      resolver.mockClear();
+      try {
+        registration.candidateProfile.renderer = 'foreign-profile-owner';
+        expect(() => resolveCandidateRendererProfile(renderer)).toThrow(
+          'conflicts with selected owner',
+        );
+        expect(() => resolveRendererProfileMetadata(renderer)).toThrow(
+          'conflicts with selected owner',
+        );
+        expect(() => resolveRendererProfile(renderer)).toThrow(
+          'conflicts with selected owner',
+        );
+        expect(resolver).not.toHaveBeenCalled();
+      } finally {
+        registration.candidateProfile.renderer = expected;
+      }
+    },
+  );
 });
 
 describe('physical installed framework profile identities', () => {
-  it.each([
-    solidPackage,
-    mappedSolidPackage,
-  ])('reads the physical mapped manifest through public key %s', dependencyKey =>
-    withFixture(directory => {
-      const physical = installFramework(
-        directory,
-        dependencyKey,
-        mappedSolidPackage,
-      );
-      const filename = requestFrom(directory).resolve(
-        `${dependencyKey}/manifest`,
-      );
-      const binding = readRendererFrameworkPackage({
-        specifier: solidPackage,
-        filename,
-      });
-      expect(binding).toEqual({
-        specifier: solidPackage,
-        name: mappedSolidPackage,
-        version: installedVersion,
-        directory: physical,
-      });
-      expect(Object.isFrozen(binding)).toBe(true);
-    }));
+  it.each([solidPackage, mappedSolidPackage])(
+    'reads the physical mapped manifest through public key %s',
+    dependencyKey =>
+      withFixture(directory => {
+        const physical = installFramework(
+          directory,
+          dependencyKey,
+          mappedSolidPackage,
+        );
+        const filename = requestFrom(directory).resolve(
+          `${dependencyKey}/manifest`,
+        );
+        const binding = readRendererFrameworkPackage({
+          specifier: solidPackage,
+          filename,
+        });
+        expect(binding).toEqual({
+          specifier: solidPackage,
+          name: mappedSolidPackage,
+          version: installedVersion,
+          directory: physical,
+        });
+        expect(Object.isFrozen(binding)).toBe(true);
+      }),
+  );
 
   it('projects actual owner identities while preserving canonical dependency keys and native pins', () =>
     withFixture(directory => {
@@ -251,7 +251,7 @@ describe('physical installed framework profile identities', () => {
         name: mappedSolidPackage,
         version: installedVersion,
         coreName: '@tanstack/router-core',
-        coreVersion: '1.171.32',
+        coreVersion: '1.171.34',
       });
       expect(metadata.profile.dependencies).toEqual({
         [solidPackage]: installedVersion,
@@ -313,7 +313,8 @@ describe('physical installed framework profile identities', () => {
       expect(() =>
         projectInstalledRendererProfile(solidCandidate(), [module]),
       ).toThrow(/Invalid installed framework manifest/);
-    }));
+    }),
+  );
 
   it('rejects malformed manifest JSON without substituting candidate identities', () =>
     withFixture(directory => {
@@ -367,115 +368,116 @@ describe('physical installed framework profile identities', () => {
         '@modern-js/i18n-integration',
       ],
     },
-  ] as const)('resolves only the selected $renderer framework through actual public module exports', ({
-    renderer,
-    selected,
-    exports: selectedExports,
-  }) =>
-    withFixture(directory => {
-      const frameworkNames = [
-        '@modern-js/renderer-core',
-        '@modern-js/builder',
-        ...selected,
-      ];
-      for (const specifier of frameworkNames) {
-        installFramework(
-          directory,
-          specifier,
-          specifier.replace('@modern-js/', '@bleedingdev/modern-js-'),
-        );
-      }
-      const request = requestFrom(directory);
-      const resolve = rstest
-        .spyOn(request, 'resolve')
-        .mockImplementation(specifier =>
-          resolveInPlainNode(directory, specifier),
-        );
-      rstest.mocked(nodeModule.createRequire).mockReturnValue(request);
-      const metadata = resolveRendererProfileMetadata(renderer);
-      expect(resolve.mock.calls.map(call => call[0])).toEqual([
-        '@modern-js/renderer-core/server',
-        '@modern-js/builder',
-        ...selectedExports,
-      ]);
-      expect(
-        metadata.frameworkPackages.map(binding => binding.specifier),
-      ).toEqual(['@modern-js/ultramodern-app-tools', ...frameworkNames]);
-      for (const binding of metadata.frameworkPackages.slice(1)) {
-        expect(binding.name).toBe(
-          binding.specifier.replace('@modern-js/', '@bleedingdev/modern-js-'),
-        );
-        expect(binding.version).toBe(installedVersion);
-        expect(binding.directory).toBe(
-          path.join(directory, 'physical-packages', binding.name),
-        );
-      }
-      expect(metadata.profile.renderer).toBe(renderer);
-      if (renderer === 'solid') {
-        expect(metadata.profile.router.name).toBe(mappedSolidPackage);
-        expect(metadata.profile.router.version).toBe(installedVersion);
-      }
-    }));
+  ] as const)(
+    'resolves only the selected $renderer framework through actual public module exports',
+    ({ renderer, selected, exports: selectedExports }) =>
+      withFixture(directory => {
+        const frameworkNames = [
+          '@modern-js/renderer-core',
+          '@modern-js/builder',
+          ...selected,
+        ];
+        for (const specifier of frameworkNames) {
+          installFramework(
+            directory,
+            specifier,
+            specifier.replace('@modern-js/', '@bleedingdev/modern-js-'),
+          );
+        }
+        const request = requestFrom(directory);
+        const resolve = rstest
+          .spyOn(request, 'resolve')
+          .mockImplementation(specifier =>
+            resolveInPlainNode(directory, specifier),
+          );
+        rstest.mocked(nodeModule.createRequire).mockReturnValue(request);
+        const metadata = resolveRendererProfileMetadata(renderer);
+        expect(resolve.mock.calls.map(call => call[0])).toEqual([
+          '@modern-js/renderer-core/server',
+          '@modern-js/builder',
+          ...selectedExports,
+        ]);
+        expect(
+          metadata.frameworkPackages.map(binding => binding.specifier),
+        ).toEqual(['@modern-js/ultramodern-app-tools', ...frameworkNames]);
+        for (const binding of metadata.frameworkPackages.slice(1)) {
+          expect(binding.name).toBe(
+            binding.specifier.replace('@modern-js/', '@bleedingdev/modern-js-'),
+          );
+          expect(binding.version).toBe(installedVersion);
+          expect(binding.directory).toBe(
+            path.join(directory, 'physical-packages', binding.name),
+          );
+        }
+        expect(metadata.profile.renderer).toBe(renderer);
+        if (renderer === 'solid') {
+          expect(metadata.profile.router.name).toBe(mappedSolidPackage);
+          expect(metadata.profile.router.version).toBe(installedVersion);
+        }
+      }),
+  );
 
   it.each([
     { renderer: 'react', selected: '@modern-js/runtime/cli' },
     { renderer: 'solid', selected: '@modern-js/renderer-solid/manifest' },
     { renderer: 'octane', selected: '@modern-js/renderer-octane/manifest' },
-  ] as const)('returns $renderer generation metadata without an installed selected SDK or resolver call', ({
-    renderer,
-    selected,
-  }) =>
-    withFixture(directory => {
-      expect(() => resolveInPlainNode(directory, selected)).toThrow();
-      const request = requestFrom(directory);
-      const resolve = rstest.spyOn(request, 'resolve');
-      const createRequire = rstest.mocked(nodeModule.createRequire);
-      createRequire.mockReturnValue(request);
-      createRequire.mockClear();
+  ] as const)(
+    'returns $renderer generation metadata without an installed selected SDK or resolver call',
+    ({ renderer, selected }) =>
+      withFixture(directory => {
+        expect(() => resolveInPlainNode(directory, selected)).toThrow();
+        const request = requestFrom(directory);
+        const resolve = rstest.spyOn(request, 'resolve');
+        const createRequire = rstest.mocked(nodeModule.createRequire);
+        createRequire.mockReturnValue(request);
+        createRequire.mockClear();
 
-      const candidate = resolveCandidateRendererProfile(renderer);
+        const candidate = resolveCandidateRendererProfile(renderer);
 
-      expect(candidate.renderer).toBe(renderer);
-      expect(candidate.protocolVersion).toBe(1);
-      expect(candidate.status).toBe(
-        renderer === 'react' ? 'stable' : 'preview',
-      );
-      expect(candidate.capabilities.moduleFederation).toBe(
-        renderer === 'react' ? true : renderer === 'solid' ? 'client' : false,
-      );
-      expect(createRequire).not.toHaveBeenCalled();
-      expect(resolve).not.toHaveBeenCalled();
-    }));
+        expect(candidate.renderer).toBe(renderer);
+        expect(candidate.protocolVersion).toBe(1);
+        expect(candidate.status).toBe(
+          renderer === 'react' ? 'stable' : 'preview',
+        );
+        expect(candidate.capabilities.moduleFederation).toBe(
+          renderer === 'react' ? true : renderer === 'solid' ? 'client' : false,
+        );
+        expect(createRequire).not.toHaveBeenCalled();
+        expect(resolve).not.toHaveBeenCalled();
+      }),
+  );
 
   it.each([
     { renderer: 'react', selected: /@modern-js\/runtime/ },
     { renderer: 'solid', selected: /@modern-js\/renderer-solid/ },
     { renderer: 'octane', selected: /@modern-js\/renderer-octane/ },
-  ] as const)('propagates a missing selected $renderer public export before returning an installed profile', ({
-    renderer,
-    selected,
-  }) =>
-    withFixture(directory => {
-      installFramework(
-        directory,
-        '@modern-js/renderer-core',
-        '@bleedingdev/modern-js-renderer-core',
-      );
-      installFramework(
-        directory,
-        '@modern-js/builder',
-        '@bleedingdev/modern-js-builder',
-      );
-      const request = requestFrom(directory);
-      rstest
-        .spyOn(request, 'resolve')
-        .mockImplementation(specifier =>
-          resolveInPlainNode(directory, specifier),
+  ] as const)(
+    'propagates a missing selected $renderer public export before returning an installed profile',
+    ({ renderer, selected }) =>
+      withFixture(directory => {
+        installFramework(
+          directory,
+          '@modern-js/renderer-core',
+          '@bleedingdev/modern-js-renderer-core',
         );
-      rstest.mocked(nodeModule.createRequire).mockReturnValue(request);
-      expect(() => resolveRendererProfileMetadata(renderer)).toThrow(selected);
-      expect(() => resolveRendererProfile(renderer)).toThrow(selected);
-    }));
+        installFramework(
+          directory,
+          '@modern-js/builder',
+          '@bleedingdev/modern-js-builder',
+        );
+        const request = requestFrom(directory);
+        rstest
+          .spyOn(request, 'resolve')
+          .mockImplementation(specifier =>
+            resolveInPlainNode(directory, specifier),
+          );
+        rstest.mocked(nodeModule.createRequire).mockReturnValue(request);
+        expect(() => resolveRendererProfileMetadata(renderer)).toThrow(
+          selected,
+        );
+        expect(() => resolveRendererProfile(renderer)).toThrow(selected);
+      }),
+  );
   it('rejects an installed selected owner whose public manifest export is absent', () =>
     withFixture(directory => {
       installFramework(

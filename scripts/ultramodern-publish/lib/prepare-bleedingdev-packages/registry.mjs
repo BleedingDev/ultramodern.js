@@ -19,6 +19,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { npmPublishAttempts, npmPublishRetryDelayMs } from './constants.mjs';
 import { run, sleep } from './commands.mjs';
+import { publishLevels } from './manifest.mjs';
+import { pollRegistryPropagation } from './registry-propagation.mjs';
 import {
   preflightTrustedPublishingPackages,
   publishAcceptedPackage,
@@ -35,7 +37,6 @@ import {
   slsaProvenanceV1,
   verifyRegistryProvenance,
 } from './provenance.mjs';
-import semver from '../../../../packages/toolkit/utils/compiled/semver/index.js';
 import validationKit from '../../../lib/validation-kit.js';
 
 const { assertNonEmptyString, assertPlainObject } = validationKit;
@@ -65,15 +66,15 @@ const registrySourceChronologyPolicies = Object.freeze({
   }),
 });
 
-const maxVerificationConcurrency = 8;
+const maxRegistryConcurrency = 8;
 const chronologyVerificationConcurrency = 8;
 
-function resolveVerificationConcurrency(options) {
+function resolveRegistryConcurrency(options) {
   const requested = Number(options?.publishConcurrency);
   if (!Number.isInteger(requested) || requested < 1) {
     return 1;
   }
-  return Math.min(requested, maxVerificationConcurrency);
+  return Math.min(requested, maxRegistryConcurrency);
 }
 
 function packSourcePackage(packageName, packDir) {
@@ -289,108 +290,83 @@ function historicalProvenanceExpectation(expectation) {
   };
 }
 
-async function assertRegistrySourceCommitUnpublished(
-  request,
+/**
+ * Authenticates a package's whole registry chronology against a code-reviewed
+ * policy: the pinned grandfathered prefix (exact version, publication time and
+ * integrity), the optional provenance cutover anchor, then SLSA v1 provenance
+ * from the trusted repository and workflow for every later version. Shared by
+ * the cohort source-commit gate and sidecar reuse; returns the per-version
+ * evidence so each caller applies its own identity rule.
+ */
+async function verifyRegistryProvenanceChronology(
+  { expectation, metadata, packageName, policy },
   dependencies = {},
 ) {
-  assertPlainObject(request, 'Registry source-cohort request');
-  const {
-    env = process.env,
-    packageName,
-    requestedVersion,
-    sourceCommit,
-    sourceRepository,
-  } = request;
-  assertNonEmptyString(packageName, 'Registry source-cohort package name');
-  assertNonEmptyString(
-    requestedVersion,
-    'Registry source-cohort requested version',
-  );
-  const chronologyPolicy = registrySourceChronologyPolicy(packageName);
-  const expectation = createRegistryProvenanceExpectation(
-    {
-      source: { commit: sourceCommit, repository: sourceRepository },
-    },
-    env,
-  );
   const fetchImpl = dependencies.fetchImpl ?? globalThis.fetch;
   const provenanceVerifier =
     dependencies.verifyRegistryProvenance ?? verifyRegistryProvenance;
   const provenanceRequiredFromFirstVersion =
-    chronologyPolicy.provenanceRequiredFromFirstVersion === true;
-  let metadata;
-  try {
-    metadata = await fetchRegistryPackageMetadata(packageName, fetchImpl);
-  } catch (error) {
-    if (
-      provenanceRequiredFromFirstVersion &&
-      isRegistryMetadataNotFoundError(error)
-    ) {
-      return {
-        cutover: null,
-        exactVersionAuthenticated: false,
-        grandfatheredCount: 0,
-        inspectedCount: 0,
-        packageName,
-        requestedVersion,
-        sourceCommit: expectation.source.commit,
-        versionCount: 0,
-      };
-    }
-    throw error;
+    policy.provenanceRequiredFromFirstVersion === true;
+  const { cutoverAnchor, grandfatheredVersions = [] } = policy;
+  if (
+    provenanceRequiredFromFirstVersion &&
+    (cutoverAnchor || grandfatheredVersions.length > 0)
+  ) {
+    throw new Error(
+      `${packageName} provenance policy cannot both require provenance from the first version and grandfather earlier versions`,
+    );
   }
   const chronology = registryVersionChronology(metadata, packageName);
-  const { cutoverAnchor, grandfatheredVersions = [] } = chronologyPolicy;
-  let cutoverIndex = 0;
-  if (!provenanceRequiredFromFirstVersion) {
-    cutoverIndex = chronology.findIndex(
+  const cutoverIndex = grandfatheredVersions.length;
+  if (cutoverAnchor) {
+    const anchorIndex = chronology.findIndex(
       entry => entry.version === cutoverAnchor.version,
     );
-    if (cutoverIndex === -1) {
+    if (anchorIndex === -1) {
       throw new Error(
         `${packageName} registry chronology is missing independently maintained provenance cutover anchor ${cutoverAnchor.version}`,
       );
     }
-    if (cutoverIndex !== grandfatheredVersions.length) {
+    if (anchorIndex !== cutoverIndex) {
       throw new Error(
         `${packageName} registry chronology before ${cutoverAnchor.version} is not independently authorized`,
       );
     }
-    for (const [
-      index,
-      grandfatheredVersion,
-    ] of grandfatheredVersions.entries()) {
-      assertPinnedRegistryChronologyEntry(
-        chronology[index],
-        grandfatheredVersion,
-        packageName,
-        'grandfathered version',
-      );
-    }
+  } else if (chronology.length < cutoverIndex) {
+    throw new Error(
+      `${packageName} registry chronology is missing grandfathered version ${grandfatheredVersions[chronology.length].version}`,
+    );
   }
-  const cutoverEntry = chronology[cutoverIndex];
+  for (const [index, grandfatheredVersion] of grandfatheredVersions.entries()) {
+    assertPinnedRegistryChronologyEntry(
+      chronology[index],
+      grandfatheredVersion,
+      packageName,
+      'grandfathered version',
+    );
+  }
   if (cutoverAnchor) {
     assertPinnedRegistryChronologyEntry(
-      cutoverEntry,
+      chronology[cutoverIndex],
       cutoverAnchor,
       packageName,
       'provenance cutover anchor',
     );
+    if (!declaresSlsaV1Provenance(chronology[cutoverIndex].published)) {
+      throw new Error(
+        `${packageName}@${cutoverAnchor.version} authenticated provenance cutover anchor is missing its SLSA v1 declaration`,
+      );
+    }
   }
-  if (!declaresSlsaV1Provenance(cutoverEntry.published)) {
-    throw new Error(
-      provenanceRequiredFromFirstVersion
-        ? `${packageName}@${cutoverEntry.version} is missing SLSA v1 provenance; this identity requires provenance from its first published version`
-        : `${packageName}@${cutoverAnchor.version} authenticated provenance cutover anchor is missing its SLSA v1 declaration`,
-    );
-  }
-  const requestedIndex = chronology.findIndex(
-    entry => entry.version === requestedVersion,
-  );
-  if (requestedIndex !== -1 && requestedIndex < cutoverIndex) {
-    throw new Error(
-      `${packageName}@${requestedVersion} predates authenticated registry provenance and cannot be safely reused`,
-    );
+  const missingProvenance = entry =>
+    cutoverAnchor
+      ? `${packageName}@${entry.version} is missing SLSA v1 provenance after the ${cutoverAnchor.version} cutover`
+      : provenanceRequiredFromFirstVersion
+        ? `${packageName}@${entry.version} is missing SLSA v1 provenance; this identity requires provenance from its first published version`
+        : `${packageName}@${entry.version} is missing SLSA v1 provenance and is not a grandfathered version`;
+  const firstVerified = chronology[cutoverIndex];
+  if (firstVerified && !declaresSlsaV1Provenance(firstVerified.published)) {
+    throw new Error(missingProvenance(firstVerified));
   }
 
   const discoveryExpectation = historicalProvenanceExpectation(expectation);
@@ -409,11 +385,7 @@ async function assertRegistrySourceCommitUnpublished(
     async entry => {
       try {
         if (!declaresSlsaV1Provenance(entry.published)) {
-          throw new Error(
-            provenanceRequiredFromFirstVersion
-              ? `${packageName}@${entry.version} is missing SLSA v1 provenance; this identity requires provenance from its first published version`
-              : `${packageName}@${entry.version} is missing SLSA v1 provenance after the ${cutoverAnchor.version} cutover`,
-          );
+          throw new Error(missingProvenance(entry));
         }
         assertPlainObject(
           entry.published.dist,
@@ -466,6 +438,76 @@ async function assertRegistrySourceCommitUnpublished(
         `${packageName}@${cutoverAnchor.version} provenance cutover anchor authenticated unexpected source commit ${String(evidence.sourceCommit)}`,
       );
     }
+  }
+  return { chronology, cutoverIndex, results };
+}
+
+async function assertRegistrySourceCommitUnpublished(
+  request,
+  dependencies = {},
+) {
+  assertPlainObject(request, 'Registry source-cohort request');
+  const {
+    env = process.env,
+    packageName,
+    requestedVersion,
+    sourceCommit,
+    sourceRepository,
+  } = request;
+  assertNonEmptyString(packageName, 'Registry source-cohort package name');
+  assertNonEmptyString(
+    requestedVersion,
+    'Registry source-cohort requested version',
+  );
+  const chronologyPolicy = registrySourceChronologyPolicy(packageName);
+  const expectation = createRegistryProvenanceExpectation(
+    {
+      source: { commit: sourceCommit, repository: sourceRepository },
+    },
+    env,
+  );
+  const fetchImpl = dependencies.fetchImpl ?? globalThis.fetch;
+  let metadata;
+  try {
+    metadata = await fetchRegistryPackageMetadata(packageName, fetchImpl);
+  } catch (error) {
+    if (
+      chronologyPolicy.provenanceRequiredFromFirstVersion === true &&
+      isRegistryMetadataNotFoundError(error)
+    ) {
+      return {
+        cutover: null,
+        exactVersionAuthenticated: false,
+        grandfatheredCount: 0,
+        inspectedCount: 0,
+        packageName,
+        requestedVersion,
+        sourceCommit: expectation.source.commit,
+        versionCount: 0,
+      };
+    }
+    throw error;
+  }
+  const { chronology, cutoverIndex, results } =
+    await verifyRegistryProvenanceChronology(
+      {
+        expectation,
+        metadata,
+        packageName,
+        policy: chronologyPolicy,
+      },
+      dependencies,
+    );
+  const cutoverEntry = chronology[cutoverIndex];
+  const requestedIndex = chronology.findIndex(
+    entry => entry.version === requestedVersion,
+  );
+  if (requestedIndex !== -1 && requestedIndex < cutoverIndex) {
+    throw new Error(
+      `${packageName}@${requestedVersion} predates authenticated registry provenance and cannot be safely reused`,
+    );
+  }
+  for (const { entry, evidence } of results) {
     if (
       entry.version !== requestedVersion &&
       evidence.sourceCommit === expectation.source.commit
@@ -514,24 +556,6 @@ async function verifyRegistryPackageDist(
   return dist;
 }
 
-// 60 attempts, front-loaded so a package that is already coherent is accepted
-// in seconds. The delays the loop can spend must outlast npm's propagation:
-// 350s was the attestation window it had needed, and on 2026-09-12 (run
-// 34689880072) the packument of one freshly published package stayed without
-// its version for more than the 360s the previous shape spent, failing an
-// otherwise complete cohort after the unrollbackable publish. The loop sleeps
-// only between attempts, so the last entry is never spent: this shape waits
-// 855s; the publish job's timeout leaves room for it.
-const registryVerificationRetryDelaysMs = Object.freeze([
-  2000,
-  3000,
-  5000,
-  5000,
-  ...Array.from({ length: 24 }, () => 10000),
-  ...Array.from({ length: 8 }, () => 15000),
-  ...Array.from({ length: 25 }, () => 20000),
-]);
-
 async function verifyRegistryPackage(
   item,
   provenanceExpectation,
@@ -545,10 +569,9 @@ async function verifyRegistryPackage(
 ) {
   // npm's attestation propagation regularly exceeds one minute right after
   // publish (observed: attestations endpoint 404s ~60s in, then appears), so
-  // the window must comfortably outlast that lag or the cohort aborts on a
-  // package that in fact published fine.
-  const attempts = registryVerificationRetryDelaysMs.length;
-  let lastError = '';
+  // the shared post-publish schedule (registry-propagation.mjs) must
+  // comfortably outlast that lag or the cohort aborts on a package that in
+  // fact published fine.
   // Byte identity is established against the manifest-pinned integrity, shasum,
   // and size, none of which change between attempts, so the tarball download is
   // not repeated once it has matched. The dist itself is re-resolved every
@@ -567,14 +590,18 @@ async function verifyRegistryPackage(
     tarballVerified = true;
   };
 
-  for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    const dist = await registry.lookupRegistryPackageDist(
-      item.targetName,
-      item.version,
-    );
-    if (dist === null) {
-      lastError = `${item.targetName}@${item.version} is not present in the registry`;
-    } else {
+  const outcome = await pollRegistryPropagation(
+    async () => {
+      const dist = await registry.lookupRegistryPackageDist(
+        item.targetName,
+        item.version,
+      );
+      if (dist === null) {
+        return {
+          detail: `${item.targetName}@${item.version} is not present in the registry`,
+          settled: false,
+        };
+      }
       try {
         await registry.verifyRegistryPackageDist(
           item,
@@ -586,21 +613,27 @@ async function verifyRegistryPackage(
             verifyRegistryTarball: verifyTarballOnce,
           },
         );
-        return dist;
+        return { settled: true, value: dist };
       } catch (error) {
-        lastError = error instanceof Error ? error.message : String(error);
+        return {
+          detail: error instanceof Error ? error.message : String(error),
+          settled: false,
+        };
       }
-    }
-
-    if (attempt < attempts) {
-      await new Promise(resolve =>
-        setTimeout(resolve, registryVerificationRetryDelaysMs[attempt - 1]),
+    },
+    { wait: registry.wait },
+  );
+  if (outcome.settled) {
+    if (outcome.firstDetail !== undefined) {
+      console.log(
+        `${item.targetName}@${item.version} verified on npm after ${outcome.attempts} reads; first pending: ${outcome.firstDetail}`,
       );
     }
+    return outcome.value;
   }
 
   throw new Error(
-    `Published package ${item.targetName}@${item.version} did not verify on npm after ${attempts} attempts: ${lastError}`,
+    `Published package ${item.targetName}@${item.version} did not verify on npm after ${outcome.attempts} attempts: ${outcome.detail} (first pending: ${outcome.firstDetail})`,
   );
 }
 
@@ -628,6 +661,7 @@ const ultramodernVersionPattern = /^(\d+\.\d+\.\d+)-ultramodern\.([1-9]\d*)$/;
  * recovery cohort publishes at the next free revision instead.
  */
 function assertBaseRevisionReset(
+  semver,
   targetName,
   candidate,
   currentTag,
@@ -697,9 +731,10 @@ async function preflightRegistryPackages(
   },
 ) {
   const failures = [];
+  const { default: semver } = await import('semver');
   const states = new Map();
   const currentTags = new Map();
-  const concurrency = resolveVerificationConcurrency(options);
+  const concurrency = resolveRegistryConcurrency(options);
   const describeFailure = (item, error) =>
     `${item.targetName}@${item.version}: ${
       error instanceof Error ? error.message : String(error)
@@ -826,6 +861,7 @@ async function preflightRegistryPackages(
             );
           }
           assertBaseRevisionReset(
+            semver,
             item.targetName,
             item.version,
             currentTag,
@@ -962,6 +998,7 @@ async function validateRegistryCohort(
   manifest,
   options,
   registry = { verifyRegistryDistTag, verifyRegistryPackage },
+  now = () => performance.now(),
 ) {
   if (options.dryRun) {
     console.log('Skipping final registry cohort assertion for dry-run publish');
@@ -972,7 +1009,7 @@ async function validateRegistryCohort(
   let failureCount = 0;
   const outcomes = await mapWithConcurrency(
     manifest.packages,
-    resolveVerificationConcurrency(options),
+    resolveRegistryConcurrency(options),
     async item => {
       // Every member keeps its full propagation window, but once this many have
       // definitively failed the cohort cannot become coherent, so the remaining
@@ -980,6 +1017,8 @@ async function validateRegistryCohort(
       if (failureCount >= cohortVerificationFailureBudget) {
         return { unverified: true };
       }
+      const startedAt = now();
+      const elapsed = () => `${((now() - startedAt) / 1000).toFixed(1)}s`;
       try {
         await registry.verifyRegistryPackage(item, provenanceExpectation);
         await registry.verifyRegistryDistTag(
@@ -987,9 +1026,13 @@ async function validateRegistryCohort(
           options.tag,
           manifest.release.version,
         );
+        console.log(`Registry verified ${item.targetName} in ${elapsed()}`);
         return {};
       } catch (error) {
         failureCount += 1;
+        console.log(
+          `Registry verification failed for ${item.targetName} after ${elapsed()}`,
+        );
         return { error };
       }
     },
@@ -1100,15 +1143,13 @@ async function publishManifestPackages(
     );
   }
 
-  console.log(
-    `Publishing ${publishItems.length} immutable package artifact(s) in dependency order`,
+  const levels = publishLevels(manifest).map(level =>
+    level.map(targetName => artifactsByTarget.get(targetName)),
   );
-  if (options.publishConcurrency !== 1) {
-    console.log(
-      `Publish concurrency ${options.publishConcurrency} applies to registry verification only; full-cohort packages publish sequentially so dependency tarballs are fetchable before consumers.`,
-    );
-  }
-  for (const artifact of publishItems) {
+  console.log(
+    `Publishing ${publishItems.length} immutable package artifact(s) in ${levels.length} dependency level(s)`,
+  );
+  const publishOne = async artifact => {
     const state = preflight.get(artifact.targetName);
     if (!state) {
       throw new Error(
@@ -1119,7 +1160,7 @@ async function publishManifestPackages(
       console.log(
         `Reusing byte-identical ${artifact.targetName}@${artifact.version} for full-cohort publish`,
       );
-      continue;
+      return;
     }
 
     const publishedName = await registry.publishPackage(artifact, {
@@ -1133,6 +1174,15 @@ async function publishManifestPackages(
         : `Published ${publishedName}@${artifact.version}`,
     );
     registry.verifyPackageArtifact(artifact, artifact.artifactPath);
+  };
+  // A level starts only after every publish of the previous level has
+  // returned, so consumers never reach npm before their cohort dependencies.
+  for (const level of levels) {
+    await mapWithConcurrency(
+      level,
+      resolveRegistryConcurrency(options),
+      publishOne,
+    );
   }
 
   if (!options.dryRun) {
@@ -1159,11 +1209,11 @@ export {
   preflightRegistryPackages,
   publishManifestPackages,
   publishPackage,
-  registryVerificationRetryDelaysMs,
   validateRegistryCohort,
   verifyRegistryDistTag,
   verifyRegistryPackage,
   verifyRegistryPackageDist,
   verifyRegistryProvenance,
+  verifyRegistryProvenanceChronology,
   verifyRegistryTarball,
 };

@@ -12,11 +12,9 @@ import type { TransformFunction } from '../plugin';
 import type { MaybePromise } from '../utils';
 import type { Entrypoint } from './context';
 
-declare module '@modern-js/utils/commander' {
-  export interface Command {
-    commandsMap: Map<string, Command>;
-  }
-}
+export type CliProgram = Command & {
+  commandsMap: Map<string, Command>;
+};
 
 export interface RuntimePluginConfig {
   name: string;
@@ -53,7 +51,7 @@ export type ModifyHtmlPartialsFn = (params: {
   };
 }) => Promise<void> | void;
 
-export type AddCommandFn = (params: { program: Command }) => void;
+export type AddCommandFn = (params: { program: CliProgram }) => void;
 
 export type OnPrepareFn = () => Promise<void> | void;
 

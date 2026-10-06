@@ -2,8 +2,22 @@
   "$schema": "./node_modules/nx/schemas/nx-schema.json",
   "namedInputs": {
     "default": ["{projectRoot}/src/**/*"],
+    "dependencyBundles": [
+      "{workspaceRoot}/scripts/prebundle/src/**/*",
+      "{workspaceRoot}/scripts/prebundle/ultramodern/vendor/**/*",
+      "{workspaceRoot}/scripts/prebundle/package.json",
+      "{workspaceRoot}/scripts/prebundle/tsconfig.json",
+      "{workspaceRoot}/packages/tsconfig/*.json",
+      "{workspaceRoot}/scripts/prebundle/ultramodern/public-declarations.mjs",
+      "{workspaceRoot}/pnpm-lock.yaml",
+      "{workspaceRoot}/pnpm-workspace.yaml",
+      {
+        "runtime": "node -p \"process.platform + '-' + process.arch + '-' + process.version\""
+      }
+    ],
     "build": [
       "default",
+      "dependencyBundles",
       "{projectRoot}/tsconfig.json",
       "{projectRoot}/package.json",
       "{projectRoot}/modern.config.*",

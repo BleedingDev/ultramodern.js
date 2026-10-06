@@ -1,78 +1,57 @@
 import { createRequire } from 'node:module';
 import { Import } from './import';
 
-export { default as address } from '../compiled/address';
+export { default as dotenv } from 'dotenv';
+export { default as address, ip } from '../compiled/address/index.mjs';
 export { default as browserslist } from '../compiled/browserslist';
-export { default as chalk } from '../compiled/chalk';
-export { Command, program } from '../compiled/commander';
+export { default as chalk } from '../compiled/chalk/index.mjs';
+export { Command, program } from '../compiled/commander/index.mjs';
 export { default as debug } from '../compiled/debug';
-export { default as dotenv } from '../compiled/dotenv';
-export { default as dotenvExpand } from '../compiled/dotenv-expand';
-export { default as execa } from '../compiled/execa';
-export { default as fastGlob } from '../compiled/fast-glob';
-export { default as filesize } from '../compiled/filesize';
+
+import _dotenvExpand from '../compiled/dotenv-expand';
+export const { expand: dotenvExpand } = _dotenvExpand;
+export { default as fastGlob } from 'fast-glob';
+export { execa, execaSync } from '../compiled/execa/index.mjs';
+export { filesize } from '../compiled/filesize/index.mjs';
 export { default as fs } from '../compiled/fs-extra';
-export { default as glob } from '../compiled/glob';
-export { default as globby } from '../compiled/globby';
-export { default as gzipSize } from '../compiled/gzip-size';
-export * as yaml from '../compiled/js-yaml';
+export { glob } from '../compiled/glob/index.mjs';
+export { globby, globbySync } from '../compiled/globby/index.mjs';
+export { gzipSize } from '../compiled/gzip-size/index.mjs';
+export * as yaml from '../compiled/js-yaml/index.mjs';
 export { default as json5 } from '../compiled/json5';
 export { default as lodash } from '../compiled/lodash';
 export { default as minimist } from '../compiled/minimist';
-export { nanoid } from '../compiled/nanoid';
-export { default as ora } from '../compiled/ora';
+export { nanoid } from '../compiled/nanoid/index.mjs';
+export { default as ora } from '../compiled/ora/index.mjs';
 export { default as pkgUp } from '../compiled/pkg-up/index.js';
 export { default as semver } from '../compiled/semver';
-export { default as slash } from '../compiled/slash';
-export { default as stripAnsi } from '../compiled/strip-ansi';
-export { default as upath } from '../compiled/upath';
-export { default as urlJoin } from '../compiled/url-join';
+export { default as slash } from '../compiled/slash/index.mjs';
+export { default as stripAnsi } from '../compiled/strip-ansi/index.mjs';
+export { default as upath } from '../compiled/upath/index.mjs';
+export { default as urlJoin } from '../compiled/url-join/index.mjs';
 
 type SignaleModule = typeof import('../compiled/signale');
 
-export type { FSWatcher, WatchOptions } from '../compiled/chokidar';
-export type { ExecaError } from '../compiled/execa';
-export type { IOptions as GlobOptions } from '../compiled/glob';
-export type { GlobbyOptions } from '../compiled/globby';
-export type { SignaleOptions } from '../compiled/signale';
+export type {
+  ChokidarOptions as WatchOptions,
+  FSWatcher,
+} from '../compiled/chokidar/index.mjs';
+export type { ExecaError } from '../compiled/execa/index.mjs';
+export type { GlobOptions } from '../compiled/glob/index.mjs';
+export type { Options as GlobbyOptions } from '../compiled/globby/index.mjs';
+export type SignaleOptions = SignaleModule['SignaleOptions'];
 
 /**
  * Lazy import some expensive modules that will slow down startup speed.
  * Notice that `csmith-tools build` can not bundle lazy imported modules.
  */
-const getNodeRequire = () => {
-  // Prefer module-scoped require. In Bun, globalThis.require may not be bound
-  // to a file and breaks relative lazy imports (e.g. ../compiled/chokidar).
-  try {
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore - import.meta is only valid in ESM, but this path is transpiled.
-    return /*#__PURE__*/ createRequire(import.meta.url);
-  } catch {
-    if (
-      typeof global === 'object' &&
-      typeof (global as any).require === 'function'
-    ) {
-      return (global as any).require;
-    }
-    if (
-      typeof globalThis === 'object' &&
-      typeof (globalThis as any).require === 'function'
-    ) {
-      return (globalThis as any).require;
-    }
-    throw new Error(
-      'Unable to resolve require function for lazy compiled imports',
-    );
-  }
-};
+const getNodeRequire = () => createRequire(import.meta.url);
 export const mime: typeof import('../compiled/mime-types') = Import.lazy(
   '../compiled/mime-types',
   getNodeRequire,
 );
-export const chokidar: typeof import('../compiled/chokidar') = Import.lazy(
-  '../compiled/chokidar',
-  getNodeRequire,
-);
+export const chokidar: typeof import('../compiled/chokidar/index.mjs') =
+  Import.lazy('../compiled/chokidar/index.mjs', getNodeRequire);
 export const signale: SignaleModule = Import.lazy(
   '../compiled/signale',
   getNodeRequire,
@@ -81,7 +60,8 @@ export const Signale: SignaleModule['Signale'] = Import.lazy(
   '../compiled/signale',
   () => moduleName => getNodeRequire()(moduleName).Signale,
 );
-export const inquirer: typeof import('../compiled/inquirer') = Import.lazy(
-  '../compiled/inquirer',
-  getNodeRequire,
-);
+export const inquirer: typeof import('../compiled/inquirer').default =
+  Import.lazy(
+    '../compiled/inquirer',
+    () => name => getNodeRequire()(name).default,
+  );

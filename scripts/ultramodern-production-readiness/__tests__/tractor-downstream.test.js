@@ -6,8 +6,11 @@ const path = require('node:path');
 const test = require('node:test');
 const { createProcessEnv, runCommand } = require('../../lib/process-kit');
 
-const contractPromise = import('../tractor-downstream/contract.mjs');
+const cohortInstallPromise = import('../tractor-downstream/cohort-install.mjs');
 const runnerPromise = import('../tractor-downstream/main.mjs');
+const releaseAgePromise = import(
+  '../published-create-proof/release-age-audit.mjs'
+);
 
 function releaseAgeEntry(selector, overrides = {}) {
   const separator = selector.lastIndexOf('@');
@@ -143,7 +146,7 @@ test('native catalog and installed framework bind to the exact release', async (
   const {
     assertAuthenticatedTractorCohort,
     assertExactModernDependencySpecifiers,
-  } = await contractPromise;
+  } = await cohortInstallPromise;
   const root = fixture();
   try {
     writeAuthenticatedCohort(root);
@@ -201,8 +204,8 @@ test('native catalog and installed framework bind to the exact release', async (
 });
 
 test('release-age exclusions are exact specifiers, sorted as specifiers, and reach pnpm dlx', async t => {
-  const { createTractorPnpmDlxArgs, resolveTractorMinimumReleaseAgeExclude } =
-    await runnerPromise;
+  const { createTractorPnpmDlxArgs } = await runnerPromise;
+  const { releaseAgeExemptions } = await releaseAgePromise;
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tractor-dlx-policy-'));
   t.after(() => fs.rmSync(root, { force: true, recursive: true }));
 
@@ -233,17 +236,15 @@ test('release-age exclusions are exact specifiers, sorted as specifiers, and rea
   // An empty policy must not resurrect retired third-party exceptions into a
   // release install.
   assert.deepEqual(
-    resolveTractorMinimumReleaseAgeExclude({
-      release: strictRelease,
-      releaseAgePolicyPath: writeReleaseAgePolicy(root, []),
+    releaseAgeExemptions(strictRelease, {
+      policyPath: writeReleaseAgePolicy(root, []),
       now: new Date('2026-08-26T12:00:00.000Z'),
     }),
     expected.filter(selector => selector.startsWith('@bleedingdev/')),
   );
 
-  const minimumReleaseAgeExclude = resolveTractorMinimumReleaseAgeExclude({
-    release: strictRelease,
-    releaseAgePolicyPath: writeReleaseAgePolicy(root, [
+  const minimumReleaseAgeExclude = releaseAgeExemptions(strictRelease, {
+    policyPath: writeReleaseAgePolicy(root, [
       releaseAgeEntry('@rspack/core@2.2.0'),
     ]),
     now: new Date('2026-08-26T12:00:00.000Z'),
@@ -278,7 +279,7 @@ test('release-age exclusions are exact specifiers, sorted as specifiers, and rea
 });
 
 test('Tractor bootstrap rejects wildcard, future-dated and unbound release-age approvals', async t => {
-  const { resolveTractorMinimumReleaseAgeExclude } = await runnerPromise;
+  const { releaseAgeExemptions } = await releaseAgePromise;
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tractor-dlx-invalid-'));
   t.after(() => fs.rmSync(root, { force: true, recursive: true }));
   const now = new Date('2026-08-26T12:00:00.000Z');
@@ -294,9 +295,8 @@ test('Tractor bootstrap rejects wildcard, future-dated and unbound release-age a
 
   assert.throws(
     () =>
-      resolveTractorMinimumReleaseAgeExclude({
-        release: strictRelease,
-        releaseAgePolicyPath: writeReleaseAgePolicy(root, [
+      releaseAgeExemptions(strictRelease, {
+        policyPath: writeReleaseAgePolicy(root, [
           releaseAgeEntry('@rspack/core@2.2.0', { package: '@rspack/*' }),
         ]),
         now,
@@ -306,9 +306,8 @@ test('Tractor bootstrap rejects wildcard, future-dated and unbound release-age a
 
   assert.throws(
     () =>
-      resolveTractorMinimumReleaseAgeExclude({
-        release: strictRelease,
-        releaseAgePolicyPath: writeReleaseAgePolicy(root, [
+      releaseAgeExemptions(strictRelease, {
+        policyPath: writeReleaseAgePolicy(root, [
           releaseAgeEntry('@rspack/core@2.2.0', {
             expiresAt: '2026-08-28T12:00:00.000Z',
             reviewedAt: '2026-08-27T12:00:00.000Z',
@@ -321,8 +320,8 @@ test('Tractor bootstrap rejects wildcard, future-dated and unbound release-age a
 
   assert.throws(
     () =>
-      resolveTractorMinimumReleaseAgeExclude({
-        release: {
+      releaseAgeExemptions(
+        {
           ...strictRelease,
           packages: [
             {
@@ -331,9 +330,8 @@ test('Tractor bootstrap rejects wildcard, future-dated and unbound release-age a
             },
           ],
         },
-        releaseAgePolicyPath: writeReleaseAgePolicy(root, []),
-        now,
-      }),
+        { policyPath: writeReleaseAgePolicy(root, []), now },
+      ),
     /must bind targetName to release version/u,
   );
 });
@@ -931,12 +929,63 @@ test('cohort installation updates native catalog to exact bundle without changin
       path.join(root, 'package.json'),
       'utf8',
     );
+    // The baseline selects the sidecars of the cohort it adopted last; the
+    // bundle moved one of them.
+    next.sidecars = {
+      packages: [
+        { name: '@bleedingdev/mf-modern-js-v3', version: '2.9.2' },
+        { name: '@bleedingdev/zod', version: '4.6.5' },
+        { name: '@bleedingdev/ipx', version: '3.2.2' },
+      ],
+    };
+    const shellManifestFile = path.join(
+      root,
+      'apps/shell-super-app/package.json',
+    );
+    fs.writeFileSync(
+      shellManifestFile,
+      `${JSON.stringify(
+        {
+          name: 'shell',
+          dependencies: {
+            '@module-federation/modern-js-v3':
+              'npm:@bleedingdev/mf-modern-js-v3@2.9.1',
+            react: '19.3.0',
+          },
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    fs.appendFileSync(
+      path.join(root, 'pnpm-workspace.yaml'),
+      'catalog:\n  ipx: npm:@bleedingdev/ipx@3.2.1\noverrides:\n  zod: npm:@bleedingdev/zod@4.6.5\n  effect: npm:@bleedingdev/effect@4.0.0-rc.117\n',
+    );
     const result = prepareTractorCohortInstallation(root, next);
     assert.equal(result.dependencyCount, 1);
+    const policyText = fs.readFileSync(
+      path.join(root, 'pnpm-workspace.yaml'),
+      'utf8',
+    );
     assert.match(
-      fs.readFileSync(path.join(root, 'pnpm-workspace.yaml'), 'utf8'),
+      policyText,
       /npm:@bleedingdev\/modern-js-runtime@3\.9\.0-ultramodern\.6/u,
     );
+    assert.match(policyText, /zod: npm:@bleedingdev\/zod@4\.6\.5/u);
+    assert.match(policyText, /ipx: npm:@bleedingdev\/ipx@3\.2\.2/u);
+    assert.match(
+      policyText,
+      /effect: npm:@bleedingdev\/effect@4\.0\.0-rc\.117/u,
+    );
+    assert.deepEqual(
+      JSON.parse(fs.readFileSync(shellManifestFile, 'utf8')).dependencies,
+      {
+        '@module-federation/modern-js-v3':
+          'npm:@bleedingdev/mf-modern-js-v3@2.9.2',
+        react: '19.3.0',
+      },
+    );
+    fs.rmSync(shellManifestFile);
     assert.equal(fs.readFileSync(uiFile, 'utf8'), beforeUi);
     assert.equal(
       fs.readFileSync(path.join(root, 'package.json'), 'utf8'),

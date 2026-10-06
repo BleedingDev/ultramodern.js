@@ -1,7 +1,6 @@
 const assert = require('node:assert/strict');
 const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 
@@ -10,22 +9,48 @@ const {
   createAllowlistSnapshot,
   writeAllowlist,
 } = require('../checker');
+const { createGitFixture } = require('../../lib/git-fixture');
 
 const repoRoot = path.resolve(__dirname, '../../..');
 
-const runGit = (rootDir, args) =>
-  execFileSync('git', args, {
-    cwd: rootDir,
-    encoding: 'utf8',
-  }).trim();
+test('loading checker modules and running divergence self-tests needs no parser installation', () => {
+  const output = execFileSync(
+    process.execPath,
+    [
+      '-e',
+      `
+        const Module = require('node:module');
+        const load = Module._load;
+        Module._load = function (specifier, ...args) {
+          if (['@babel/core', 'yaml', 'js-yaml'].includes(specifier)) {
+            throw new Error('Parser dependency unavailable: ' + specifier);
+          }
+          return load.call(this, specifier, ...args);
+        };
+        require(process.argv[1]);
+        require(process.argv[2]);
+        process.argv = [process.execPath, process.argv[3], '--self-test'];
+        require(process.argv[1]);
+      `,
+      path.join(__dirname, '../checker.js'),
+      path.join(__dirname, '../import-ownership.js'),
+      path.join(__dirname, '../check-fork-import-boundary.js'),
+    ],
+    { cwd: repoRoot, encoding: 'utf8', env: { ...process.env, NODE_PATH: '' } },
+  );
+  assert.match(output, /checks passed/);
+  assert.doesNotMatch(output, /FAIL/);
+});
 
 const makeGitFixture = () => {
-  const rootDir = fs.mkdtempSync(
-    path.join(os.tmpdir(), 'modern-fork-boundary-'),
-  );
-  runGit(rootDir, ['init']);
-  runGit(rootDir, ['config', 'user.email', 'fixture@example.test']);
-  runGit(rootDir, ['config', 'user.name', 'Fixture']);
+  const {
+    cleanup,
+    git,
+    repoDir: rootDir,
+  } = createGitFixture({
+    prefix: 'modern-fork-boundary-',
+  });
+  git(['init', '--quiet']);
 
   const sourceDir = path.join(rootDir, 'packages/runtime/src');
   fs.mkdirSync(sourceDir, { recursive: true });
@@ -34,11 +59,13 @@ const makeGitFixture = () => {
     'export const runtimeValue = "upstream";\n',
   );
 
-  runGit(rootDir, ['add', '.']);
-  runGit(rootDir, ['commit', '-m', 'base']);
+  git(['add', '.']);
+  git(['commit', '--quiet', '-m', 'base']);
 
   return {
-    baseRef: runGit(rootDir, ['rev-parse', 'HEAD']),
+    baseRef: git(['rev-parse', 'HEAD']),
+    cleanup,
+    git,
     rootDir,
   };
 };
@@ -57,7 +84,7 @@ const writeFixtureAllowlist = ({ rootDir, baseRef, violations = [] }) => {
 };
 
 test('detects a new fork-only import in an upstream-owned source file', () => {
-  const { rootDir, baseRef } = makeGitFixture();
+  const { rootDir, baseRef, cleanup } = makeGitFixture();
 
   try {
     const allowlistPath = writeFixtureAllowlist({ rootDir, baseRef });
@@ -84,12 +111,12 @@ test('detects a new fork-only import in an upstream-owned source file', () => {
       specifier: '@modern-js/plugin-tanstack',
     });
   } finally {
-    fs.rmSync(rootDir, { recursive: true, force: true });
+    cleanup();
   }
 });
 
 test('ignores package source files that did not exist at the merge-base', () => {
-  const { rootDir, baseRef } = makeGitFixture();
+  const { rootDir, baseRef, cleanup, git } = makeGitFixture();
 
   try {
     const allowlistPath = writeFixtureAllowlist({ rootDir, baseRef });
@@ -97,7 +124,7 @@ test('ignores package source files that did not exist at the merge-base', () => 
       path.join(rootDir, 'packages/runtime/src/new-file.ts'),
       "import '@modern-js/plugin-tanstack';\n",
     );
-    runGit(rootDir, ['add', '.']);
+    git(['add', '.']);
 
     const report = checkForkImportBoundary({
       rootDir,
@@ -108,12 +135,12 @@ test('ignores package source files that did not exist at the merge-base', () => 
     assert.equal(report.ok, true);
     assert.equal(report.added.length, 0);
   } finally {
-    fs.rmSync(rootDir, { recursive: true, force: true });
+    cleanup();
   }
 });
 
 test('writeAllowlist cannot permit existing governed imports', () => {
-  const { rootDir, baseRef } = makeGitFixture();
+  const { rootDir, baseRef, cleanup } = makeGitFixture();
 
   try {
     fs.writeFileSync(
@@ -137,12 +164,12 @@ test('writeAllowlist cannot permit existing governed imports', () => {
     assert.equal(checkReport.ok, false);
     assert.equal(checkReport.added.length, 0);
   } finally {
-    fs.rmSync(rootDir, { recursive: true, force: true });
+    cleanup();
   }
 });
 
 test('an unresolvable ownership base fails closed instead of reporting clean', () => {
-  const { rootDir, baseRef } = makeGitFixture();
+  const { rootDir, baseRef, cleanup } = makeGitFixture();
   try {
     const allowlistPath = writeFixtureAllowlist({ rootDir, baseRef });
     assert.throws(
@@ -155,12 +182,51 @@ test('an unresolvable ownership base fails closed instead of reporting clean', (
       /ownership base.*does not resolve/,
     );
   } finally {
-    fs.rmSync(rootDir, { recursive: true, force: true });
+    cleanup();
+  }
+});
+
+test('an actual import scan fails closed when its source parser is unavailable', () => {
+  const { rootDir, baseRef, cleanup } = makeGitFixture();
+  try {
+    assert.throws(
+      () =>
+        execFileSync(
+          process.execPath,
+          [
+            '-e',
+            `
+              const Module = require('node:module');
+              const load = Module._load;
+              Module._load = function (specifier, ...args) {
+                if (specifier === '@babel/core') {
+                  throw new Error('Source parser unavailable');
+                }
+                return load.call(this, specifier, ...args);
+              };
+              require(process.argv[1]).scanUpstreamOwnedForkImports({
+                rootDir: process.argv[2], baseRef: process.argv[3],
+              });
+            `,
+            path.join(__dirname, '../checker.js'),
+            rootDir,
+            baseRef,
+          ],
+          { cwd: repoRoot, stdio: 'pipe' },
+        ),
+      error => {
+        assert.equal(error.status, 1);
+        assert.match(error.stderr.toString(), /Source parser unavailable/);
+        return true;
+      },
+    );
+  } finally {
+    cleanup();
   }
 });
 
 test('inherited Git repository redirection cannot empty the import scan', () => {
-  const { rootDir, baseRef } = makeGitFixture();
+  const { rootDir, baseRef, cleanup } = makeGitFixture();
   const previous = process.env.GIT_DIR;
   try {
     const allowlistPath = writeFixtureAllowlist({ rootDir, baseRef });
@@ -177,7 +243,7 @@ test('inherited Git repository redirection cannot empty the import scan', () => 
   } finally {
     if (previous === undefined) delete process.env.GIT_DIR;
     else process.env.GIT_DIR = previous;
-    fs.rmSync(rootDir, { recursive: true, force: true });
+    cleanup();
   }
 });
 

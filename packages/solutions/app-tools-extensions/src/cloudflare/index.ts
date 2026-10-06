@@ -27,9 +27,6 @@ import {
   ROUTE_SPEC_FILE,
   ROUTE_SPEC_OUTPUT,
   WORKER_BUNDLE_DIRECTORY,
-  WORKER_ENTRY,
-  WORKER_MANIFEST,
-  WRANGLER_CONFIG_FILE,
 } from './constants';
 import { resolveWorkerDeliveryUnitStamp } from './delivery-unit';
 import type { CreateCloudflarePreset } from './types';
@@ -89,6 +86,7 @@ export const createCloudflarePreset: CreateCloudflarePreset = ({
     '@modern-js/ultramodern-release-envelope',
   );
   let hasReleaseEnvelope = false;
+  let declaredPublicAssets: string[] = [];
 
   return {
     async prepare() {
@@ -100,6 +98,7 @@ export const createCloudflarePreset: CreateCloudflarePreset = ({
           apiOnly,
           appDirectory,
           distDirectory,
+          role: modernConfig.deploy?.releaseEnvelopeRole,
           target: 'cloudflare',
         });
       }
@@ -185,9 +184,9 @@ export const createCloudflarePreset: CreateCloudflarePreset = ({
         outputDirectory,
         cloudflareArtifacts,
       );
-      await copyCloudflarePublicAssets(
+      declaredPublicAssets = await copyCloudflarePublicAssets(
         appDirectory,
-        publicDirectory,
+        outputDirectory,
         getCloudflarePublicAssets(modernConfig),
       );
       await copyCloudflareD1Migrations(
@@ -257,6 +256,7 @@ export const createCloudflarePreset: CreateCloudflarePreset = ({
       });
       if (hasReleaseEnvelope) {
         await emitCloudflareStagedReleaseEnvelope({
+          declaredPublicAssets,
           distDirectory,
           outputDirectory,
         });

@@ -16,6 +16,7 @@ import {
   readPackageIdentity,
 } from '../../src/deploy-output/npmAliases';
 import { createDeployOutputAliasesPlugin } from '../../src/deploy-output/plugin';
+import { traceDeployFiles } from '../../src/deploy-output/trace-files';
 
 const writeJson = async (filePath: string, value: unknown) => {
   await mkdir(path.dirname(filePath), { recursive: true });
@@ -60,8 +61,11 @@ describe('Node deployment npm aliases', () => {
 
       const plugin = createDeployOutputAliasesPlugin();
       plugin.setup({
-        getAppContext: () => ({ appDirectory, metaName: 'modern-js' }),
-        getNormalizedConfig: () => ({ deploy: { target: 'node' } }),
+        getAppContext: () => ({
+          appDirectory,
+          metaName: 'modern-js',
+          deployTarget: { target: 'node', explicit: true },
+        }),
         onAfterDeploy: handler => callbacks.push(handler),
       });
       expect(callbacks).toHaveLength(1);
@@ -79,27 +83,26 @@ describe('Node deployment npm aliases', () => {
   });
 
   it('does not touch output for other targets or deployments that did not opt in', async () => {
-    const originalTarget = process.env.MODERNJS_DEPLOY;
-    delete process.env.MODERNJS_DEPLOY;
-    try {
-      for (const { metaName, config } of [
-        { metaName: 'modern-js', config: { deploy: { target: 'cloudflare' } } },
-        { metaName: 'custom-framework', config: {} },
-      ]) {
-        const callbacks: (() => Promise<void>)[] = [];
-        createDeployOutputAliasesPlugin().setup({
-          getAppContext: () => ({
-            appDirectory: '/missing-deployment-output',
-            metaName,
-          }),
-          getNormalizedConfig: () => config,
-          onAfterDeploy: handler => callbacks.push(handler),
-        });
-        await expect(callbacks[0]()).resolves.toBeUndefined();
-      }
-    } finally {
-      if (originalTarget === undefined) delete process.env.MODERNJS_DEPLOY;
-      else process.env.MODERNJS_DEPLOY = originalTarget;
+    for (const { metaName, deployTarget } of [
+      {
+        metaName: 'modern-js',
+        deployTarget: { target: 'cloudflare', explicit: true },
+      },
+      {
+        metaName: 'custom-framework',
+        deployTarget: { target: 'node', explicit: false },
+      },
+    ] as const) {
+      const callbacks: (() => Promise<void>)[] = [];
+      createDeployOutputAliasesPlugin().setup({
+        getAppContext: () => ({
+          appDirectory: '/missing-deployment-output',
+          metaName,
+          deployTarget,
+        }),
+        onAfterDeploy: handler => callbacks.push(handler),
+      });
+      await expect(callbacks[0]()).resolves.toBeUndefined();
     }
   });
 
@@ -174,6 +177,7 @@ describe('Node deployment npm aliases', () => {
         "module.exports = require('@modern-js/prod-server');\n",
       );
       await nodeDepEmit({
+        traceFiles: traceDeployFiles,
         appDir: appDirectory,
         sourceDir: outputDirectory,
         includeEntries: [path.join(prodServerDirectory, 'index.js')],
@@ -327,71 +331,79 @@ describe('Node deployment npm aliases', () => {
     }
   });
 
-  it.each([
-    'dependencies',
-    'devDependencies',
-  ] as const)('resolves installed %s catalog aliases into relocatable deployment aliases', async dependencyKey => {
-    const appDirectory = await mkdtemp(
-      path.join(tmpdir(), 'app-tools-catalog-alias-'),
-    );
-    const relocationRoot = await mkdtemp(
-      path.join(tmpdir(), 'app-tools-catalog-relocated-'),
-    );
-    const outputDirectory = path.join(appDirectory, '.output');
-    const installedDirectory = path.join(appDirectory, 'installed-rpc-runtime');
-    const aliasName = '@modern-js/rpc-runtime';
-    const targetName = '@bleedingdev/rpc-runtime';
+  it.each(['dependencies', 'devDependencies'] as const)(
+    'resolves installed %s catalog aliases into relocatable deployment aliases',
+    async dependencyKey => {
+      const appDirectory = await mkdtemp(
+        path.join(tmpdir(), 'app-tools-catalog-alias-'),
+      );
+      const relocationRoot = await mkdtemp(
+        path.join(tmpdir(), 'app-tools-catalog-relocated-'),
+      );
+      const outputDirectory = path.join(appDirectory, '.output');
+      const installedDirectory = path.join(
+        appDirectory,
+        'installed-rpc-runtime',
+      );
+      const aliasName = '@modern-js/rpc-runtime';
+      const targetName = '@bleedingdev/rpc-runtime';
 
-    try {
-      await writeJson(path.join(appDirectory, 'package.json'), {
-        name: 'catalog-alias-app',
-        [dependencyKey]: { [aliasName]: 'catalog:ultramodern' },
-      });
-      await writeJson(path.join(installedDirectory, 'package.json'), {
-        name: targetName,
-        version: '1.2.3',
-      });
-      await mkdir(path.join(appDirectory, 'node_modules/@modern-js'), {
-        recursive: true,
-      });
-      await symlink(
-        path.relative(
-          path.join(appDirectory, 'node_modules/@modern-js'),
-          installedDirectory,
-        ),
-        path.join(appDirectory, 'node_modules', aliasName),
-        'dir',
-      );
-      await writeJson(path.join(outputDirectory, 'package.json'), {
-        name: 'catalog-alias-output',
-      });
-      await writeJson(
-        path.join(outputDirectory, 'node_modules', targetName, 'package.json'),
-        { name: targetName, version: '1.2.3', main: 'index.js' },
-      );
-      await writeFile(
-        path.join(outputDirectory, 'node_modules', targetName, 'index.js'),
-        "module.exports = 'deployed-rpc-runtime';\n",
-      );
+      try {
+        await writeJson(path.join(appDirectory, 'package.json'), {
+          name: 'catalog-alias-app',
+          [dependencyKey]: { [aliasName]: 'catalog:ultramodern' },
+        });
+        await writeJson(path.join(installedDirectory, 'package.json'), {
+          name: targetName,
+          version: '1.2.3',
+        });
+        await mkdir(path.join(appDirectory, 'node_modules/@modern-js'), {
+          recursive: true,
+        });
+        await symlink(
+          path.relative(
+            path.join(appDirectory, 'node_modules/@modern-js'),
+            installedDirectory,
+          ),
+          path.join(appDirectory, 'node_modules', aliasName),
+          'dir',
+        );
+        await writeJson(path.join(outputDirectory, 'package.json'), {
+          name: 'catalog-alias-output',
+        });
+        await writeJson(
+          path.join(
+            outputDirectory,
+            'node_modules',
+            targetName,
+            'package.json',
+          ),
+          { name: targetName, version: '1.2.3', main: 'index.js' },
+        );
+        await writeFile(
+          path.join(outputDirectory, 'node_modules', targetName, 'index.js'),
+          "module.exports = 'deployed-rpc-runtime';\n",
+        );
 
-      await preserveNpmAliases({ appDirectory, outputDirectory });
-      const relocatedOutput = path.join(relocationRoot, '.relocated-output');
-      await rename(outputDirectory, relocatedOutput);
-      const requireFromOutput = createRequire(
-        path.join(relocatedOutput, 'index.js'),
-      );
-      expect(requireFromOutput(aliasName)).toBe('deployed-rpc-runtime');
-      const outputPackageJson = JSON.parse(
-        await readFile(path.join(relocatedOutput, 'package.json'), 'utf8'),
-      );
-      expect(outputPackageJson.dependencies[aliasName]).toBe(
-        `npm:${targetName}@1.2.3`,
-      );
-    } finally {
-      await rm(appDirectory, { recursive: true, force: true });
-      await rm(relocationRoot, { recursive: true, force: true });
-    }
-  });
+        await preserveNpmAliases({ appDirectory, outputDirectory });
+        const relocatedOutput = path.join(relocationRoot, '.relocated-output');
+        await rename(outputDirectory, relocatedOutput);
+        const requireFromOutput = createRequire(
+          path.join(relocatedOutput, 'index.js'),
+        );
+        expect(requireFromOutput(aliasName)).toBe('deployed-rpc-runtime');
+        const outputPackageJson = JSON.parse(
+          await readFile(path.join(relocatedOutput, 'package.json'), 'utf8'),
+        );
+        expect(outputPackageJson.dependencies[aliasName]).toBe(
+          `npm:${targetName}@1.2.3`,
+        );
+      } finally {
+        await rm(appDirectory, { recursive: true, force: true });
+        await rm(relocationRoot, { recursive: true, force: true });
+      }
+    },
+  );
 
   it('preserves each owner-specific target in an ndepe multi-version layout', async () => {
     const appDirectory = await mkdtemp(

@@ -51,6 +51,21 @@
       },
       "types": "./dist/types/native-composition/server-plugin.d.ts"
     },
+    "./router-state-runtime": {
+      "modern:source": "./src/native-composition/router-state-runtime.ts",
+      "node": {
+        "import": {
+          "types": "./dist/types-esm/native-composition/router-state-runtime.d.mts",
+          "default": "./dist/esm-node/native-composition/router-state-runtime.mjs"
+        },
+        "require": {
+          "types": "./dist/types/native-composition/router-state-runtime.d.ts",
+          "default": "./dist/cjs/native-composition/router-state-runtime.js"
+        }
+      },
+      "default": "./dist/esm/native-composition/router-state-runtime.mjs",
+      "types": "./dist/types-esm/native-composition/router-state-runtime.d.mts"
+    },
     "./router-runtime": {
       "modern:source": "./src/native-composition/router-runtime.ts",
       "node": {
@@ -165,7 +180,7 @@
     "verify:deploy-output": "node ./tests/deploy-output/verify-public-surface.mjs"
   },
   "engines": {
-    "node": ">=26.7.0"
+    "node": ">=26.10.0"
   },
   "dependencies": {
     "@babel/core": "7.29.7",
@@ -184,8 +199,8 @@
     "@modern-js/server-runtime-extensions": "workspace:*",
     "@modern-js/types": "workspace:*",
     "@modern-js/utils": "workspace:*",
-    "@module-federation/dts-plugin": "npm:@bleedingdev/mf-dts-plugin@2.9.1",
-    "@rsbuild/core": "2.2.9"
+    "@module-federation/dts-plugin": "npm:@bleedingdev/mf-dts-plugin@2.9.2",
+    "@rsbuild/core": "2.2.11"
   },
   "devDependencies": {
     "typescript": "7.0.2",
@@ -195,9 +210,9 @@
     "@modern-js/rslib": "workspace:*",
     "@modern-js/server": "workspace:*",
     "@modern-js/tsconfig": "workspace:*",
-    "@rslib/core": "1.0.2",
+    "@rslib/core": "1.0.3",
     "@scripts/rstest-config": "workspace:*",
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.3",
     "@modern-js/runtime": "workspace:*",
     "@modern-js/i18n-integration": "workspace:*",
     "@modern-js/runtime-renderer-extensions": "workspace:*",
@@ -224,6 +239,10 @@
       "server-plugin": [
         "./dist/types/native-composition/server-plugin.d.ts",
         "./src/native-composition/server-plugin.ts"
+      ],
+      "router-state-runtime": [
+        "./dist/types/native-composition/router-state-runtime.d.ts",
+        "./src/native-composition/router-state-runtime.ts"
       ],
       "router-runtime": [
         "./dist/types/native-composition/router-runtime.d.ts",

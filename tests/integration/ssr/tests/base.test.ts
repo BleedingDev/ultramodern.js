@@ -82,12 +82,25 @@ describe('Traditional SSR', () => {
     await basicUsage(page, appPort);
   });
 
-  test.skip(`client navigation works`, async () => {
+  test(`client navigation works`, async () => {
     await page.goto(`http://localhost:${appPort}`, {
       waitUntil: ['networkidle0'],
     });
+    // Clicking before React hydrates the link falls back to a document load,
+    // which renders the same text and hides a broken client navigation.
+    await page.waitForFunction(() =>
+      Object.keys(document.querySelector('#user-btn') ?? {}).some(key =>
+        key.startsWith('__reactProps$'),
+      ),
+    );
+    await page.evaluate(() => {
+      (window as any).__beforeClientNavigation = true;
+    });
     await page.click('#user-btn');
     await expectPageToMatchTextContent(page, 'user1-18');
+    expect(
+      await page.evaluate(() => (window as any).__beforeClientNavigation),
+    ).toBe(true);
   });
 
   test('error thrown in loader', async () => {

@@ -7,7 +7,12 @@ import {
   modernPackageSpecifier,
   ULTRAMODERN_WORKSPACE_MODERN_PACKAGES,
 } from '../ultramodern-package-source';
-import { isCreatePackageSourceCheckout } from '../ultramodern-release-cohort';
+import {
+  hasCreateReleaseCohort,
+  isCreatePackageSourceCheckout,
+  readCreateReleaseCohort,
+  releaseCohortSelectors,
+} from '../ultramodern-release-cohort';
 import { runFreshWorkspaceTransaction } from './add-vertical/transaction';
 import { createSharedDesignTokensCss } from './app-files';
 import type { UltramodernBridgeConfig } from './bridge-config';
@@ -138,6 +143,50 @@ function writeSharedPackages(
   );
 }
 
+// The catalog pins one exact release cohort. The workspace keeps pnpm's strict
+// 24h release-age gate for everything else but exempts exactly the cohort this
+// create package ships (catalog entries and the cohort packages they depend
+// on), so a workspace created on the day the cohort is published installs.
+// A catalog for any other release gets no exemption: this package cannot
+// authenticate that cohort, so it installs once it is 24h old.
+function renderCatalogPolicy(
+  packageSource: ResolvedPackageSource,
+  primaryShell: WorkspaceApp,
+) {
+  if (packageSource.strategy !== 'install') {
+    return '';
+  }
+  const catalog = [
+    ...new Set([
+      ...ULTRAMODERN_WORKSPACE_MODERN_PACKAGES,
+      '@modern-js/backend-federation-contracts',
+      '@modern-js/renderer-core',
+      ...(resolveAppGenerationProfile(primaryShell)?.frameworkDependencies ??
+        []),
+    ]),
+  ]
+    .map(
+      name =>
+        `    ${JSON.stringify(name)}: ${JSON.stringify(modernPackageSpecifier(name, packageSource))}`,
+    )
+    .join('\n');
+  const cohort = hasCreateReleaseCohort()
+    ? readCreateReleaseCohort()
+    : undefined;
+  const pinsShippedCohort = cohort?.packages.every(
+    item =>
+      modernPackageSpecifier(item.sourceName, packageSource) ===
+      `npm:${item.targetName}@${item.version}`,
+  );
+  const exclude =
+    cohort && pinsShippedCohort
+      ? `minimumReleaseAgeExclude:\n${releaseCohortSelectors(cohort)
+          .map(selector => `  - ${JSON.stringify(selector)}`)
+          .join('\n')}\n\n`
+      : '';
+  return `catalogs:\n  ultramodern:\n${catalog}\n\n${exclude}`;
+}
+
 function writePnpmWorkspacePackages(
   targetDir: string,
   bridge: UltramodernBridgeConfig | undefined,
@@ -154,27 +203,10 @@ function writePnpmWorkspacePackages(
   ];
   const renderedPackages = packages.map(pattern => `  - ${pattern}`).join('\n');
 
-  const catalog =
-    packageSource.strategy === 'install'
-      ? `catalogs:\n  ultramodern:\n${[
-          ...new Set([
-            ...ULTRAMODERN_WORKSPACE_MODERN_PACKAGES,
-            '@modern-js/backend-federation-contracts',
-            '@modern-js/renderer-core',
-            ...(resolveAppGenerationProfile(primaryShell)
-              ?.frameworkDependencies ?? []),
-          ]),
-        ]
-          .map(
-            name =>
-              `    ${JSON.stringify(name)}: ${JSON.stringify(modernPackageSpecifier(name, packageSource))}`,
-          )
-          .join('\n')}\n\n`
-      : '';
   writeFileReplacing(
     targetDir,
     'pnpm-workspace.yaml',
-    `${catalog}${pnpmWorkspace.replace(
+    `${renderCatalogPolicy(packageSource, primaryShell)}${pnpmWorkspace.replace(
       /^packages:\r?\n(?: {2}- .+\r?\n)+/u,
       `packages:\n${renderedPackages}\n`,
     )}`,

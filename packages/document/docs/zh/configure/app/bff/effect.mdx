@@ -221,10 +221,6 @@ UltraModern 生成的 workspace 会通过 `pnpm-workspace.yaml` overrides 锁定
 Effect 版本组。当前 UltraModern 版本组使用：
 
 ```yaml
-trustPolicyExclude:
-  - 'effect@4.0.0-rc.117'
-  - '@effect/opentelemetry@4.0.0-rc.117'
-
 overrides:
   '@effect/opentelemetry': 4.0.0-rc.117
   '@effect/vitest': 4.0.0-rc.117
@@ -235,9 +231,6 @@ overrides:
 middleware 构建可能因为运行时 service 来自不同包实例而失败。严格的 24 小时发布年龄
 门禁适用于实际安装的包；当前版本组没有 Effect 年龄豁免，且仅用于 override 的
 `@effect/vitest` 不是已安装的审批目标。
-`trustPolicyExclude` 是另一项独立策略：其中精确的 `effect` 与
-`@effect/opentelemetry` 例外用于处理 trusted-publisher metadata 向 provenance
-attestation 的迁移，并不等同于 release-age 审批。
 
 ## 契约测试
 

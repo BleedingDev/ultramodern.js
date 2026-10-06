@@ -2,16 +2,10 @@ export type { ResolveEffectTsgoCompilerOptions } from './build-config/public';
 export {
   getBuildConfigEnvironment,
   resolveEffectTsgoCompiler,
-  withBuildConfigEnvironment,
 } from './build-config/public';
 export { createRemoteManifestUrl } from './build-config/remote-address';
-
-export type DeployTarget =
-  | 'node'
-  | 'vercel'
-  | 'netlify'
-  | 'ghPages'
-  | 'cloudflare';
+export type { DeployTarget } from './deploy-output/target';
+export { resolveDeployTarget } from './deploy-output/target';
 
 export type CloudflareWorkerSecurityCspMode = 'enforce' | 'report-only' | 'off';
 
@@ -39,6 +33,18 @@ export interface CloudflareWorkerPublicAssetConfig {
   /**
    * Source file or directory, relative to the app root, to copy into
    * Cloudflare Worker Static Assets.
+   */
+  from: string;
+  /**
+   * Destination path relative to `.output/public`.
+   */
+  to: string;
+}
+
+export interface NodePublicAssetConfig {
+  /**
+   * Source file or directory, relative to the app root, to copy into the
+   * Node deploy output's public directory.
    */
   from: string;
   /**
@@ -91,6 +97,19 @@ export interface CloudflareWorkerServiceBindingConfig {
    * from Wrangler's `services` entries.
    */
   fragments?: CloudflareWorkerServiceBindingFragmentConfig[];
+}
+
+export interface CloudflareWorkerVpcServiceConfig {
+  /** Worker binding name exposed on the module worker `env` object. */
+  binding: string;
+  /** Workers VPC service id (`wrangler vpc service create`). */
+  serviceId: string;
+  /**
+   * Optional application path prefix that Modern.js should dispatch to this
+   * private origin with `env[binding].fetch(request)`, exactly like a
+   * prefixed Worker service binding.
+   */
+  prefix?: string;
 }
 
 export interface CloudflareWorkerServiceBindingFragmentConfig {
@@ -188,17 +207,79 @@ export interface CloudflareWorkerSecurityConfig {
   reason?: string;
 }
 
+export interface CloudflareWorkerDeployConfig {
+  name?: string;
+  /**
+   * Cloudflare Workers compatibility date for generated wrangler config.
+   * Use YYYY-MM-DD. Defaults to the date validated against the bundled
+   * Wrangler version used by UltraModern generated workspaces.
+   */
+  compatibilityDate?: string;
+  ssr?: boolean;
+  security?: CloudflareWorkerSecurityConfig;
+  /**
+   * Raw Wrangler-compatible config merged into `.output/wrangler.json`.
+   * Framework-owned worker invariants still win for `main`, the assets
+   * binding/directory/run mode, and required compatibility flags.
+   */
+  wrangler?: Record<string, JsonValue>;
+  /**
+   * Additional app-root files or directories to stage under `.output`.
+   * Use this for provider resources such as migrations or generated config.
+   */
+  artifacts?: CloudflareWorkerArtifactConfig[];
+  /**
+   * Additional app-root files or directories to serve as Cloudflare Worker
+   * Static Assets under `.output/public`. Use `to: '.'` to copy a
+   * source directory's contents into the public asset root.
+   */
+  publicAssets?: CloudflareWorkerPublicAssetConfig[];
+  /**
+   * First-class Cloudflare D1 bindings. Modern.js writes these to
+   * `wrangler.json` as `d1_databases` and stages configured migration
+   * directories into `.output`.
+   */
+  d1Databases?: CloudflareWorkerD1DatabaseConfig[];
+  /**
+   * First-class Cloudflare service bindings. Modern.js writes these to
+   * `wrangler.json` as `services`; when a binding also has `prefix`,
+   * the generated Worker dispatches matching requests through
+   * `env[binding].fetch(request)`.
+   */
+  services?: CloudflareWorkerServiceBindingConfig[];
+  /**
+   * First-class Workers VPC service bindings to private origins reached
+   * through a Cloudflare Tunnel. Modern.js writes these to `wrangler.json`
+   * as `vpc_services`; a binding with `prefix` joins the prefix dispatch of
+   * `services`.
+   */
+  vpcServices?: CloudflareWorkerVpcServiceConfig[];
+  /**
+   * Dist output paths that must not be copied into Cloudflare public assets.
+   * Entries are slash-normalized path prefixes relative to the app dist root.
+   * Top-level `api` and `shared` dist directories are excluded when matching
+   * source directories exist in the app root because they conventionally
+   * contain server-only implementation code.
+   */
+  publicAssetExcludes?: string[];
+}
+
 export interface CloudflareDeployConfig {
-  worker?: {
-    name?: string;
-    compatibilityDate?: string;
-    ssr?: boolean;
-    security?: CloudflareWorkerSecurityConfig;
-    wrangler?: Record<string, JsonValue>;
-    artifacts?: CloudflareWorkerArtifactConfig[];
-    publicAssets?: CloudflareWorkerPublicAssetConfig[];
-    d1Databases?: CloudflareWorkerD1DatabaseConfig[];
-    services?: CloudflareWorkerServiceBindingConfig[];
-    publicAssetExcludes?: string[];
+  /** Release surface owned by this application, independent of federation production. */
+  releaseEnvelopeRole?: 'microvertical' | 'shell';
+  worker?: CloudflareWorkerDeployConfig;
+}
+
+export interface NodeDeployConfig {
+  node?: {
+    /**
+     * Additional app-root files or directories to stage under
+     * `.output/public` when `modern deploy` targets Node, the counterpart of
+     * `deploy.worker.publicAssets`. The Node server does not route these
+     * files; serve them from the app, for example from an API handler.
+     * Release envelopes record them as declared public assets, so API-only
+     * units may ship them.
+     */
+    publicAssets?: NodePublicAssetConfig[];
   };
 }

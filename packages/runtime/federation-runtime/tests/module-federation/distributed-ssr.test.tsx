@@ -275,15 +275,16 @@ describe('createDistributedSsrComponent', () => {
     expect(html).not.toContain('data-native-mf');
   });
 
-  it('constructs and caches the native remote for Node SSR', () => {
-    let nativeRemoteCreations = 0;
+  it('constructs and caches the native remote for Node SSR without bridge-injected links', () => {
+    const fallback = <p>unavailable</p>;
+    const lazyOptions: unknown[] = [];
     const Remote = createDistributedSsrComponent({
-      createComponent: () => {
-        nativeRemoteCreations += 1;
+      createComponent: options => {
+        lazyOptions.push(options);
         return () => <section data-native-mf="inventory">inventory</section>;
       },
       expose: './Widget',
-      fallback: <p>unavailable</p>,
+      fallback,
       remote: 'inventory',
     });
     const context = {
@@ -304,6 +305,47 @@ describe('createDistributedSsrComponent', () => {
       </RuntimeContext.Provider>,
     );
 
-    expect(nativeRemoteCreations).toBe(1);
+    // The bridge renders a remote CSS <link> into SSR HTML unless injectLink
+    // is false; the boundary owns remote CSS, so it hands the native factory
+    // the options that turn the bridge link off in every build format.
+    expect(lazyOptions).toEqual([
+      {
+        export: 'default',
+        fallback,
+        injectLink: false,
+        loading: null,
+      },
+    ]);
+  });
+
+  // Shells generated before the factory received options pass a factory that
+  // takes none, with the Props type argument written out.
+  it('accepts a native factory that ignores the boundary options', () => {
+    type WidgetProps = { label: string };
+    const Remote = createDistributedSsrComponent<WidgetProps>({
+      createComponent:
+        () =>
+        ({ label }: WidgetProps) => (
+          <section data-native-mf="inventory">{label}</section>
+        ),
+      expose: './Widget',
+      fallback: null,
+      remote: 'inventory',
+    });
+
+    expect(
+      renderToString(
+        <RuntimeContext.Provider
+          value={
+            {
+              isBrowser: false,
+              requestContext: { request: {}, response: {} },
+            } as never
+          }
+        >
+          <Remote label="tractor" />
+        </RuntimeContext.Provider>,
+      ),
+    ).toContain('>tractor</section>');
   });
 });

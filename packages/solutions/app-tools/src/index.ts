@@ -1,3 +1,4 @@
+import { resolveDeployTarget } from '@modern-js/app-tools-extensions/deploy-output/target';
 import {
   createPolicyDefaultsPlugin,
   type PolicyDefaultsOptions,
@@ -109,6 +110,11 @@ export const appTools = (
     });
 
     api.onPrepare(async () => {
+      api.updateAppContext({
+        deployTarget: resolveDeployTarget({
+          configTarget: api.getNormalizedConfig().deploy?.target,
+        }),
+      });
       const command = getCommand();
 
       // CLI `deploy --skip-build` reuses the previous build output, so it must

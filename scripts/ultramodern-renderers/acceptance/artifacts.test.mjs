@@ -121,11 +121,15 @@ test('owning self-export proof authenticates the complete real source, ESM, and 
       source.replace('directory = parent;', 'directory = directory;'),
       source.replace("!manifest.exports?.['./react-composition']", 'false'),
       source.replace(
+        // biome-ignore lint/suspicious/noTemplateCurlyInString: source text under mutation
         '`${manifest.name}/react-composition`',
+        // biome-ignore lint/suspicious/noTemplateCurlyInString: source text under mutation
         '`${process.env.OWNER}/react-composition`',
       ),
       source.replace(
+        // biome-ignore lint/suspicious/noTemplateCurlyInString: source text under mutation
         '`${manifest.name}/react-composition`',
+        // biome-ignore lint/suspicious/noTemplateCurlyInString: source text under mutation
         '`${manifest.name}/../foreign`',
       ),
       source.replace('for (;;)', 'return consumerPlugins; for (;;)'),
@@ -4448,7 +4452,7 @@ test('React baseline declaration packages do not inherit the native Octane permi
 test('artifact audit certifies mapped tarballs and empty optional main, and rejects missing targets or changed evidence', async t => {
   const root = ownedDirectory(t);
   const sidecarName = '@bleedingdev/rsbuild-core';
-  const sidecarVersion = '2.2.9';
+  const sidecarVersion = '2.2.11';
   const sidecarAlias = `npm:${sidecarName}@${sidecarVersion}`;
   const names = ['renderer-solid', 'i18n-utils', 'ultramodern-create', 'types'];
   const aliases = Object.fromEntries(

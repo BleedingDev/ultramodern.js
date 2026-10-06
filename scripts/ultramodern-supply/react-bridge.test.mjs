@@ -10,7 +10,6 @@ import test from 'node:test';
 import { pathToFileURL } from 'node:url';
 import vm from 'node:vm';
 import {
-  isQualifiedSidecarVersion,
   sidecarManifestSchema,
   sidecarManifestSchemaVersion,
   sidecarScope,
@@ -112,10 +111,7 @@ function readStandaloneSidecars(manifestPath) {
       assert.ok(item[field].trim());
     }
     assert.ok(item.name.startsWith(`${sidecarScope}/`));
-    assert.ok(
-      /^\d+\.\d+\.\d+$/u.test(item.version) ||
-        isQualifiedSidecarVersion(item.name, item.version),
-    );
+    assert.match(item.version, /^\d+\.\d+\.\d+$/u);
     const segments = item.tarballPath.split('/');
     assert.equal(segments.length, 2);
     assert.equal(segments[0], sidecarTarballsDirectory);

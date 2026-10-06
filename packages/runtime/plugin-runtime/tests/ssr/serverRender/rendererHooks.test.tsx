@@ -178,6 +178,61 @@ test('Node processes legacy transforms before body transforms and completes deli
   expect(terminal).toHaveBeenCalledExactlyOnceWith({ status: 'complete' });
 });
 
+const rechunk = (size: number) =>
+  new Transform({
+    transform(chunk: Buffer, _encoding, callback) {
+      for (let start = 0; start < chunk.length; start += size)
+        this.push(chunk.subarray(start, start + size));
+      callback();
+    },
+  });
+
+test('Node finds a shell marker split across chunks', async () => {
+  const hooks = installHooks();
+  hooks.extendStreamSSR.tap(() => ({ processStream: s => s.pipe(rechunk(1)) }));
+  const stream = await renderStreaming(
+    new Request('http://localhost/'),
+    <p>α🌐body</p>,
+    createOptions(),
+  );
+  expect(await new Response(stream).text()).toBe(
+    '<html><head></head><body><p>α🌐body</p></body></html>',
+  );
+});
+
+test('Node buffers a large completed shell in linear time', async () => {
+  // A ~1 MB route completed at shell time stays inline in the shell (see
+  // SHELL_PROGRESSIVE_CHUNK_SIZE), so the whole route is buffered before the
+  // head is sealed. Rescanning the buffer per chunk copied ~chunks * size / 2
+  // bytes (17 ms instead of 1.2 ms to the shell on a 1 MB route).
+  const hooks = installHooks();
+  hooks.extendStreamSSR.tap(() => ({
+    processStream: s => s.pipe(rechunk(2048)),
+  }));
+  const content = 'Route content. '.repeat(70_000);
+  const concat = rs.spyOn(Buffer, 'concat');
+  const stream = await renderStreaming(
+    new Request('http://localhost/'),
+    <div id="app">
+      <React.Suspense fallback="loading">
+        <main>{content}</main>
+      </React.Suspense>
+    </div>,
+    createOptions(),
+  );
+  const html = await new Response(stream).text();
+  const copied = concat.mock.results.reduce(
+    (total, result) => total + (result.value as Buffer).length,
+    0,
+  );
+  concat.mockRestore();
+  expect(html).toBe(
+    `<html><head></head><body><div id="app"><!--$--><main>${content}</main><!--/$--></div></body></html>`,
+  );
+  // Linear buffering copies each byte a few times; the rescan copied ~270 MB.
+  expect(copied).toBeLessThan(4 * content.length);
+});
+
 test('Node cancellation stops a suspended render and reports one cancellation', async () => {
   const hooks = installHooks();
   const terminal = rs.fn();

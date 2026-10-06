@@ -1,13 +1,6 @@
 import type { ReactElement } from 'react';
 import { injectCSS, injectRSCPayload } from '../../rsc-html-stream/server';
 
-// @ts-ignore - __rspack_rsc_manifest__ is injected at build time
-declare const __rspack_rsc_manifest__:
-  | {
-      entryCssFiles?: Record<string, string[]>;
-    }
-  | undefined;
-
 type RenderRsc = (options: { element: ReactElement }) => ReadableStream;
 
 export const createRenderCSRWithRSC =

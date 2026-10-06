@@ -1,4 +1,5 @@
 import { createServer } from 'node:http';
+import path from 'node:path';
 import initializePlugin from '../../src/plugins/initialize';
 
 // Keep the real `isLazyCompilationSafeByDefault`, but stub `createDefaultConfig`
@@ -47,7 +48,23 @@ describe('initialize plugin: default lazyCompilation', () => {
     expect(configCb!().dev.lazyCompilation).toEqual({
       imports: true,
       entries: false,
+      test: expect.any(Function),
     });
+  });
+
+  it('keeps the generated async-entry module eager', () => {
+    const internalDirectory = path.resolve('/tmp/app/node_modules/.modern-js');
+    const { configCb } = setupPlugin(
+      {},
+      { appDirectory: path.resolve('/tmp/app'), internalDirectory },
+    );
+    const { test } = configCb!().dev.lazyCompilation;
+    expect(
+      test({ resource: path.join(internalDirectory, 'main', 'index.jsx') }),
+    ).toBe(false);
+    expect(
+      test({ resource: path.resolve('/tmp/app/src/components/Heavy.tsx') }),
+    ).toBe(true);
   });
 
   it('does not override an explicit user `false`', () => {
@@ -68,6 +85,7 @@ describe('initialize plugin: default lazyCompilation', () => {
     expect(configCb!().dev.lazyCompilation).toEqual({
       imports: true,
       entries: false,
+      test: expect.any(Function),
     });
   });
 
@@ -85,45 +103,45 @@ describe('initialize plugin: default lazyCompilation', () => {
 });
 
 describe('initialize plugin: programmatic dev port', () => {
-  it.each([
-    'dev',
-    'start',
-  ])('selects an available port for appContext.command=%s', async command => {
-    const previousNodeEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = 'development';
-    const occupiedServer = createServer();
-    await new Promise<void>(resolve => {
-      occupiedServer.listen(0, '0.0.0.0', resolve);
-    });
-    const address = occupiedServer.address();
-    const occupiedPort =
-      typeof address === 'object' && address ? address.port : 0;
-
-    try {
-      const captured = setupPlugin({}, { appDirectory: '/tmp/app', command });
-      await captured.modifyCb?.({
-        dev: {},
-        output: {},
-        server: { port: occupiedPort },
-        source: {},
+  it.each(['dev', 'start'])(
+    'selects an available port for appContext.command=%s',
+    async command => {
+      const previousNodeEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'development';
+      const occupiedServer = createServer();
+      await new Promise<void>(resolve => {
+        occupiedServer.listen(0, '0.0.0.0', resolve);
       });
+      const address = occupiedServer.address();
+      const occupiedPort =
+        typeof address === 'object' && address ? address.port : 0;
 
-      expect(captured.updatedContext?.port).not.toBe(occupiedPort);
-    } finally {
-      await new Promise<void>((resolve, reject) => {
-        occupiedServer.close(error => {
-          if (error) {
-            reject(error);
-          } else {
-            resolve();
-          }
+      try {
+        const captured = setupPlugin({}, { appDirectory: '/tmp/app', command });
+        await captured.modifyCb?.({
+          dev: {},
+          output: {},
+          server: { port: occupiedPort },
+          source: {},
         });
-      });
-      if (previousNodeEnv === undefined) {
-        delete process.env.NODE_ENV;
-      } else {
-        process.env.NODE_ENV = previousNodeEnv;
+
+        expect(captured.updatedContext?.port).not.toBe(occupiedPort);
+      } finally {
+        await new Promise<void>((resolve, reject) => {
+          occupiedServer.close(error => {
+            if (error) {
+              reject(error);
+            } else {
+              resolve();
+            }
+          });
+        });
+        if (previousNodeEnv === undefined) {
+          delete process.env.NODE_ENV;
+        } else {
+          process.env.NODE_ENV = previousNodeEnv;
+        }
       }
-    }
-  });
+    },
+  );
 });

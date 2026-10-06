@@ -121,7 +121,7 @@ const closed: Promise<void> = watcher.close();
 const paths: Promise<string[]> = fastGlob('**/*.ts');
 const entries = fastGlob.sync('**/*.ts', { objectMode: true });
 const entryPath: string = entries[0].path;
-const answer: Promise<{ name: string }> = inquirer.prompt<{ name: string }>({ type: 'input', name: 'name' });
+const answer: Promise<{ name: string }> = inquirer.prompt<{ name: string }>([{ type: 'input', name: 'name', message: 'Name' }]);
 const prompt = new inquirer.ui.Prompt({}, {});
 const values: string[] = lodash.map([{ name: 'yes' }], item => item.name);
 const weak = new WeakMap<symbol, string>();
@@ -155,18 +155,13 @@ try {
   console.log(
     'BUILT Utils/AppTools/fork composition: strict TS7 + Node-only consumer passed',
   );
-  // Start from clean producer input: overlaying raw declarations would leave
-  // restored Inquirer modules from the build and conceal the original defect.
+  // Check the generated dependency declarations without package-build repairs.
   rmSync(utils, { recursive: true });
   cpSync(join(root, 'packages/toolkit/utils/compiled'), utils, {
     recursive: true,
   });
   const baseline = compile(file);
-  assert.notEqual(
-    baseline.status,
-    0,
-    'raw compiled input unexpectedly typechecked',
-  );
+  assert.equal(baseline.status, 0, baseline.output);
   const runtimeBefore = readdirSync(utils, { recursive: true })
     .filter(name => /\.[cm]?js$/.test(name))
     .sort();
@@ -177,7 +172,7 @@ try {
     'rxjs',
     realpathSync(join(root, 'packages/toolkit/utils/node_modules/rxjs')),
   );
-  for (const kind of ['utils', 'builder', 'app-tools-extensions']) {
+  for (const kind of ['builder', 'app-tools-extensions']) {
     let emit;
     publicDeclarationsPlugin(kind).setup({
       context: { rootPath: join(modules, `@modern-js/${kind}`) },
@@ -219,7 +214,7 @@ import { defineConfig } from '@modern-js/app-tools';
 import type { AppUserConfig } from '@modern-js/ultramodern-app-tools';
 chokidar.watch('src').ref();
 fastGlob.sync('src', { objectMode: 'yes' });
-inquirer.prompt<{ name: string }>({ type: 'input', name: 'name' }).then(value => { const invalid: number = value.name; });
+inquirer.prompt<{ name: string }>([{ type: 'input', name: 'name', message: 'Name' }]).then(value => { const invalid: number = value.name; });
 upath.win32.normalize(42);
 defineConfig({ tools: { sass: { api: 'invalid' } }, output: { svgDefaultExport: 'invalid' } });
 defineConfig({ tools: { minifyCss: { parallel: 'invalid' } } });

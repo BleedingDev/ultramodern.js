@@ -1,5 +1,4 @@
 import { spawnSync } from 'node:child_process';
-import crypto from 'node:crypto';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import os from 'node:os';
@@ -34,6 +33,7 @@ const workspaceOxfmtIgnorePatterns = [
   '.modernjs',
   '**/modern-tanstack/**',
   '**/routeTree.gen.*',
+  '**/src/routes/ultramodern-route-metadata.ts',
 ];
 const formattableExtensions = new Set([
   '.cjs',

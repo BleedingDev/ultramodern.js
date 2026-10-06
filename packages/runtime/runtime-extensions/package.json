@@ -11,7 +11,7 @@
   "license": "MIT",
   "version": "3.8.3",
   "engines": {
-    "node": ">=26.7.0"
+    "node": ">=26.10.0"
   },
   "types": "./src/index.ts",
   "main": "./dist/cjs/index.js",
@@ -64,15 +64,6 @@
         "require": "./dist/cjs/localisedLoaderIdentity.js"
       },
       "default": "./dist/esm/localisedLoaderIdentity.mjs"
-    },
-    "./react-context": {
-      "types": "./dist/types/reactContext.d.ts",
-      "modern:source": "./src/reactContext.ts",
-      "node": {
-        "import": "./dist/esm-node/reactContext.mjs",
-        "require": "./dist/cjs/reactContext.js"
-      },
-      "default": "./dist/esm/reactContext.mjs"
     },
     "./context-extensions": {
       "types": "./dist/types/contextExtensions.d.ts",
@@ -230,10 +221,6 @@
         "./dist/types/localisedLoaderIdentity.d.ts",
         "./src/localisedLoaderIdentity.ts"
       ],
-      "react-context": [
-        "./dist/types/reactContext.d.ts",
-        "./src/reactContext.ts"
-      ],
       "context-extensions": [
         "./dist/types/contextExtensions.d.ts",
         "./src/contextExtensions.ts"
@@ -302,12 +289,12 @@
     "@loadable/component": "5.16.7",
     "@modern-js/rslib": "workspace:*",
     "@modern-js/utils": "workspace:*",
-    "@rsbuild/core": "2.2.9",
-    "@rslib/core": "1.0.2",
+    "@rsbuild/core": "2.2.11",
+    "@rslib/core": "1.0.3",
     "@scripts/rstest-config": "workspace:*",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.3.3",
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.3",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "esbuild": "^0.28.2",
@@ -338,5 +325,9 @@
   "dependencies": {
     "@modern-js/create-request": "workspace:*",
     "@modern-js/runtime-utils": "workspace:*"
-  }
+  },
+  "files": [
+    "dist",
+    "src"
+  ]
 }

@@ -18,10 +18,10 @@ const writeFile = (filePath, contents = 'fixture\n') => {
   fs.writeFileSync(filePath, contents);
 };
 
-const legacyRoots = [
+const fixtureRoots = [
   'packages/sidecar/ipx',
-  'packages/sidecar/image-size',
-  'packages/sidecar/rsbuild-image-core',
+  'packages/sidecar/leaf',
+  'packages/sidecar/dependent',
 ];
 
 const importSidecars = async () => {
@@ -31,7 +31,10 @@ const importSidecars = async () => {
   return {
     ...sidecars,
     collectSidecarPackages: (root, options = {}) =>
-      sidecars.collectSidecarPackages(root, { roots: legacyRoots, ...options }),
+      sidecars.collectSidecarPackages(root, {
+        roots: fixtureRoots,
+        ...options,
+      }),
   };
 };
 
@@ -47,21 +50,20 @@ const ipxManifest = (overrides = {}) => ({
   ...overrides,
 });
 
-const imageSizeManifest = (overrides = {}) => ({
-  name: '@bleedingdev/image-size',
+const leafManifest = (overrides = {}) => ({
+  name: '@bleedingdev/leaf',
   version: '2.1.0',
   license: 'MIT',
-  bin: 'bin/image-size.js',
   publishConfig: { access: 'public' },
   ...overrides,
 });
 
-const coreManifest = (overrides = {}) => ({
-  name: '@bleedingdev/rsbuild-image-core',
+const dependentManifest = (overrides = {}) => ({
+  name: '@bleedingdev/dependent',
   version: '0.1.0',
   license: 'MIT',
   dependencies: {
-    'image-size': 'npm:@bleedingdev/image-size@2.1.0',
+    leaf: 'npm:@bleedingdev/leaf@2.1.0',
   },
   publishConfig: { access: 'public' },
   ...overrides,
@@ -69,8 +71,8 @@ const coreManifest = (overrides = {}) => ({
 
 const makeSidecarFixture = ({
   ipx = ipxManifest(),
-  imageSize = imageSizeManifest(),
-  core = coreManifest(),
+  leaf = leafManifest(),
+  dependent = dependentManifest(),
 } = {}) => {
   const root = makeTempDir();
   writeJson(path.join(root, 'packages/sidecar/ipx/package.json'), ipx);
@@ -82,20 +84,13 @@ const makeSidecarFixture = ({
     path.join(root, 'packages/sidecar/ipx/dist/index.mjs'),
     'export {};\n',
   );
+  writeJson(path.join(root, 'packages/sidecar/leaf/package.json'), leaf);
   writeJson(
-    path.join(root, 'packages/sidecar/image-size/package.json'),
-    imageSize,
+    path.join(root, 'packages/sidecar/dependent/package.json'),
+    dependent,
   );
   writeFile(
-    path.join(root, 'packages/sidecar/image-size/bin/image-size.js'),
-    '#!/usr/bin/env node\n',
-  );
-  writeJson(
-    path.join(root, 'packages/sidecar/rsbuild-image-core/package.json'),
-    core,
-  );
-  writeFile(
-    path.join(root, 'packages/sidecar/rsbuild-image-core/dist/index.js'),
+    path.join(root, 'packages/sidecar/dependent/dist/index.js'),
     'module.exports = {};\n',
   );
   return root;
@@ -109,7 +104,7 @@ const stagedImageManifest = (overrides = {}) => ({
     dependencies: {
       '@modern-js/utils':
         'npm:@bleedingdev/modern-js-utils@3.8.3-ultramodern.9',
-      '@rsbuild-image/core': 'npm:@bleedingdev/rsbuild-image-core@0.1.0',
+      '@rsbuild-image/core': '0.0.1-next.36',
       '@rsbuild-image/react': '0.0.1-next.36',
       ipx: 'npm:@bleedingdev/ipx@3.2.0',
       sharp: '^0.35.3',
@@ -133,8 +128,8 @@ test('stable sidecars are collected and staged verbatim', async () => {
     sidecars.map(sidecar => `${sidecar.name}@${sidecar.version}`),
     [
       '@bleedingdev/ipx@3.2.0',
-      '@bleedingdev/image-size@2.1.0',
-      '@bleedingdev/rsbuild-image-core@0.1.0',
+      '@bleedingdev/leaf@2.1.0',
+      '@bleedingdev/dependent@0.1.0',
     ],
   );
 
@@ -191,14 +186,27 @@ test('recipe-only sidecar closure records exact publication identities and alias
   );
   const sidecars = sidecarsModule.collectSidecarPackages();
   const byName = new Map(sidecars.map(sidecar => [sidecar.name, sidecar]));
-  assert.equal(sidecars.length, 20);
-  assert.equal(byName.get('@bleedingdev/rsbuild-core').version, '2.2.9');
+  assert.equal(sidecars.length, 15);
+  assert.equal(byName.get('@bleedingdev/rsbuild-core').version, '2.2.11');
   assert.equal(byName.get('@bleedingdev/rsbuild-core').recipeOnly, true);
   assert.equal(byName.get('@bleedingdev/jiti').version, '2.7.0');
   assert.equal(byName.get('@bleedingdev/jiti').installedPatched, true);
-  assert.equal(byName.get('@bleedingdev/effect').version, '4.0.0-rc.117');
+  assert.equal(byName.has('@bleedingdev/ipx'), false);
+  assert.equal(byName.has('@bleedingdev/effect'), false);
   assert.equal(byName.has('@bleedingdev/msgpackr'), false);
-  assert.equal(byName.get('@bleedingdev/drizzle-orm').version, '1.0.0-rc.4');
+  assert.equal(byName.has('@bleedingdev/zod'), false);
+  assert.equal(byName.has('@bleedingdev/drizzle-orm'), false);
+  // runtime-core carries resetFederationRuntime (module-federation/core#5152),
+  // which the mf-modern-js-v3 server plugin calls, so the runtime chain that
+  // reaches it publishes as sidecars.
+  for (const carried of [
+    '@bleedingdev/mf-runtime-core',
+    '@bleedingdev/mf-runtime',
+    '@bleedingdev/mf-runtime-tools',
+    '@bleedingdev/mf-webpack-bundler-runtime',
+  ]) {
+    assert.equal(byName.has(carried), true, carried);
+  }
   assert.equal(byName.get('@bleedingdev/mf-cli').recipeOnly, true);
   assert.equal(byName.get('@bleedingdev/mf-enhanced').recipeOnly, true);
 
@@ -208,57 +216,6 @@ test('recipe-only sidecar closure records exact publication identities and alias
   for (const sidecar of ordered) {
     publication.sidecarContentProjection(sidecar.packageJson, sidecar.name);
   }
-
-  const consumer = {
-    name: '@bleedingdev/modern-js-plugin-bff-extensions',
-    dependencies: {
-      '@module-federation/runtime': '2.9.1',
-      effect: '4.0.0-rc.117',
-    },
-  };
-  sidecarsModule.rewriteSidecarConsumerAliases(consumer, sidecars);
-  assert.equal(
-    consumer.dependencies['@module-federation/runtime'],
-    'npm:@bleedingdev/mf-runtime@2.9.1',
-  );
-  assert.equal(
-    consumer.dependencies.effect,
-    'npm:@bleedingdev/effect@4.0.0-rc.117',
-  );
-});
-
-test('Rsbuild aliases preserve canonical keys and peers and require the staged maintained package', async () => {
-  const { collectSidecarPackages, rewriteSidecarConsumerAliases } =
-    await import('../lib/prepare-bleedingdev-packages/sidecars.mjs');
-  const sidecars = collectSidecarPackages();
-  const consumer = {
-    name: '@bleedingdev/modern-js-ultramodern-app-tools',
-    dependencies: { '@rsbuild/core': '2.2.9' },
-    devDependencies: { '@rsbuild/core': '2.2.9', typescript: '7.0.2' },
-    optionalDependencies: { '@rsbuild/core': '2.2.9' },
-    peerDependencies: { '@rsbuild/core': '2.2.9' },
-  };
-  const source = structuredClone(consumer);
-  assert.throws(
-    () =>
-      rewriteSidecarConsumerAliases(
-        structuredClone(source),
-        sidecars.filter(item => item.name !== '@bleedingdev/rsbuild-core'),
-      ),
-    /staged sidecar @bleedingdev\/rsbuild-core is missing/u,
-  );
-  rewriteSidecarConsumerAliases(consumer, sidecars);
-  assert.deepEqual(consumer, {
-    ...source,
-    dependencies: { '@rsbuild/core': 'npm:@bleedingdev/rsbuild-core@2.2.9' },
-    devDependencies: {
-      '@rsbuild/core': 'npm:@bleedingdev/rsbuild-core@2.2.9',
-      typescript: '7.0.2',
-    },
-    optionalDependencies: {
-      '@rsbuild/core': 'npm:@bleedingdev/rsbuild-core@2.2.9',
-    },
-  });
 });
 
 test('prerelease sidecar versions are rejected', async () => {
@@ -306,8 +263,8 @@ test('non-bleedingdev sidecar names and non-public access are rejected', async (
     () =>
       collectSidecarPackages(
         makeSidecarFixture({
-          core: coreManifest({
-            dependencies: { 'image-size': 'workspace:*' },
+          dependent: dependentManifest({
+            dependencies: { leaf: 'workspace:*' },
           }),
         }),
       ),
@@ -352,39 +309,89 @@ test('alias targets must match a staged sidecar exactly', async () => {
   );
 });
 
-test('release staging projects exact sidecar aliases without making source installs depend on unpublished packages', async () => {
-  const { collectSidecarPackages, rewriteSidecarConsumerAliases } =
-    await importSidecars();
-  const sidecars = collectSidecarPackages(makeSidecarFixture());
-  const packageJson = {
-    name: '@bleedingdev/modern-js-image',
-    dependencies: {
-      '@rsbuild-image/core': '0.0.1-next.36',
-      '@rsbuild-image/react': '0.0.1-next.36',
-      ipx: '^3.1.1',
-      sharp: '^0.35.3',
-    },
-  };
-
-  rewriteSidecarConsumerAliases(packageJson, sidecars);
-  assert.equal(
-    packageJson.dependencies['@rsbuild-image/core'],
-    'npm:@bleedingdev/rsbuild-image-core@0.1.0',
+test('every repository recipe has a runtime consumer in the published cohort', async () => {
+  const { collectModernPackages, targetPackageName } = await import(
+    '../lib/prepare-bleedingdev-packages/rewrite.mjs'
   );
-  assert.equal(packageJson.dependencies.ipx, 'npm:@bleedingdev/ipx@3.2.0');
-  assert.equal(
-    packageJson.dependencies['@rsbuild-image/react'],
-    '0.0.1-next.36',
+  const { assertRepositoryRecipeConsumers } = await import(
+    '../../ultramodern-supply/verify-sidecars.mjs'
   );
-  assert.equal(packageJson.dependencies.sharp, '^0.35.3');
-
+  const options = { scope: 'bleedingdev', prefix: 'modern-js-' };
+  const published = collectModernPackages(options).packages.map(
+    ({ packageJson }) => ({
+      ...packageJson,
+      name: targetPackageName(packageJson.name, options),
+    }),
+  );
+  assertRepositoryRecipeConsumers(published);
+  // Staging ships source edges unchanged, so an upstream name that has a
+  // recipe must already be the exact fork alias in source.
   assert.throws(
     () =>
-      rewriteSidecarConsumerAliases(
-        { name: packageJson.name, dependencies: { ipx: '^3.1.1' } },
-        sidecars,
-      ),
-    /must declare dependencies\.@rsbuild-image\/core/u,
+      assertRepositoryRecipeConsumers([
+        ...published,
+        {
+          name: '@bleedingdev/modern-js-server',
+          dependencies: { '@module-federation/enhanced': '2.9.2' },
+        },
+      ]),
+    /@bleedingdev\/modern-js-server dependencies\.@module-federation\/enhanced is 2\.9\.2; declare npm:@bleedingdev\/mf-enhanced@2\.9\.2 in source/,
+  );
+});
+
+test('staging changes no third-party dependency edge of a cohort package', async () => {
+  const { collectModernPackages, rewritePackageJson } = await import(
+    '../lib/prepare-bleedingdev-packages/rewrite.mjs'
+  );
+  const options = {
+    dependencyVersion: '3.9.0-ultramodern.99',
+    prefix: 'modern-js-',
+    scope: 'bleedingdev',
+    version: '3.9.0-ultramodern.99',
+  };
+  const { packages, sourceNames } = collectModernPackages(options);
+  for (const { packageJson: source } of packages) {
+    const staged = structuredClone(source);
+    rewritePackageJson(staged, source.name, options, sourceNames);
+    for (const block of [
+      'dependencies',
+      'optionalDependencies',
+      'peerDependencies',
+    ]) {
+      for (const [name, specifier] of Object.entries(source[block] ?? {})) {
+        if (name.startsWith('@modern-js/')) continue;
+        assert.equal(
+          staged[block]?.[name],
+          specifier,
+          `${source.name} ${block}.${name}`,
+        );
+      }
+    }
+  }
+});
+
+test('the published image package depends on upstream @rsbuild-image/core, not a fork alias', async () => {
+  const sidecarsModule = await import(
+    '../lib/prepare-bleedingdev-packages/sidecars.mjs'
+  );
+  const { collectModernPackages } = await import(
+    '../lib/prepare-bleedingdev-packages/rewrite.mjs'
+  );
+  const options = { scope: 'bleedingdev', prefix: 'modern-js-' };
+  const sidecars = sidecarsModule.collectSidecarPackages();
+  const published = collectModernPackages(options).packages.find(
+    ({ packageJson }) => packageJson.name === '@modern-js/image',
+  ).packageJson;
+
+  assert.equal(published.dependencies['@rsbuild-image/core'], '0.0.1-next.36');
+  assert.equal(
+    sidecars.some(sidecar => sidecar.name.includes('rsbuild-image')),
+    false,
+  );
+  assert.match(published.dependencies.ipx, /^\^4\./u);
+  assert.equal(
+    sidecars.some(sidecar => sidecar.name === '@bleedingdev/ipx'),
+    false,
   );
 });
 
@@ -399,23 +406,23 @@ test('sidecar-internal aliases are validated and ordered before their dependents
 
   const mismatched = collectSidecarPackages(
     makeSidecarFixture({
-      core: coreManifest({
-        dependencies: { 'image-size': 'npm:@bleedingdev/image-size@2.0.2' },
+      dependent: dependentManifest({
+        dependencies: { leaf: 'npm:@bleedingdev/leaf@2.0.2' },
       }),
     }),
   );
   assert.throws(
     () => validateAliasConsistency([], mismatched, { cohortTargetNames }),
-    /pins npm:@bleedingdev\/image-size@2\.0\.2/u,
+    /pins npm:@bleedingdev\/leaf@2\.0\.2/u,
   );
 
   const root = makeSidecarFixture();
   const sidecars = collectSidecarPackages(root);
   const order = sidecarPublishOrder(sidecars).map(sidecar => sidecar.name);
   assert.ok(
-    order.indexOf('@bleedingdev/image-size') <
-      order.indexOf('@bleedingdev/rsbuild-image-core'),
-    'image-size must publish before the core fork that aliases it',
+    order.indexOf('@bleedingdev/leaf') <
+      order.indexOf('@bleedingdev/dependent'),
+    'a sidecar must publish before the sidecar that aliases it',
   );
 
   const outDir = path.join(root, '.modern/bleedingdev-publish');
@@ -452,7 +459,10 @@ test('object-form sidecar bins must still expose the upstream CLI name', async (
   assert.doesNotThrow(() =>
     collectSidecarPackages(
       makeSidecarFixture({
-        ipx: ipxManifest({ bin: { ipx: './bin/ipx.mjs' } }),
+        ipx: ipxManifest({
+          name: '@bleedingdev/mf-cli',
+          bin: { mf: './bin/ipx.mjs' },
+        }),
       }),
     ),
   );
@@ -460,17 +470,22 @@ test('object-form sidecar bins must still expose the upstream CLI name', async (
     () =>
       collectSidecarPackages(
         makeSidecarFixture({
-          ipx: ipxManifest({ bin: { 'ipx-cli': './bin/ipx.mjs' } }),
+          ipx: ipxManifest({
+            name: '@bleedingdev/mf-cli',
+            bin: { 'mf-cli': './bin/ipx.mjs' },
+          }),
         }),
       ),
-    /must expose the 'ipx' bin/u,
+    /must expose the 'mf' bin/u,
   );
   assert.throws(
     () =>
       collectSidecarPackages(
-        makeSidecarFixture({ ipx: ipxManifest({ bin: undefined }) }),
+        makeSidecarFixture({
+          ipx: ipxManifest({ name: '@bleedingdev/mf-cli', bin: undefined }),
+        }),
       ),
-    /must keep the upstream 'ipx' bin/u,
+    /must keep the upstream 'mf' bin/u,
   );
 });
 
@@ -542,7 +557,7 @@ test('sidecar npm: aliases survive cohort rewriting untouched', async () => {
     version: '3.8.3',
     dependencies: {
       '@modern-js/utils': 'workspace:*',
-      '@rsbuild-image/core': 'npm:@bleedingdev/rsbuild-image-core@0.1.0',
+      '@rsbuild-image/core': '0.0.1-next.36',
       '@rsbuild-image/react': '0.0.1-next.36',
       ipx: 'npm:@bleedingdev/ipx@3.2.0',
       sharp: '^0.35.3',
@@ -558,7 +573,7 @@ test('sidecar npm: aliases survive cohort rewriting untouched', async () => {
 
   assert.deepEqual(packageJson.dependencies, {
     '@modern-js/utils': 'npm:@bleedingdev/modern-js-utils@3.8.3-ultramodern.9',
-    '@rsbuild-image/core': 'npm:@bleedingdev/rsbuild-image-core@0.1.0',
+    '@rsbuild-image/core': '0.0.1-next.36',
     '@rsbuild-image/react': '0.0.1-next.36',
     ipx: 'npm:@bleedingdev/ipx@3.2.0',
     sharp: '^0.35.3',

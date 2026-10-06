@@ -273,6 +273,7 @@ export async function loadBackendFederatedEffectApiFromManifest(
         hostName: options.hostName,
         remote,
         ...(options.plugins ? { plugins: options.plugins } : {}),
+        ...(options.shared ? { shared: options.shared } : {}),
         entryPolicy: {
           ...options.entryPolicy,
           signal: scope.signal,

@@ -14,7 +14,7 @@ function binding() {
         sourceName: '@modern-js/ultramodern-app-tools',
         packageJson: {
           dependencies: {
-            '@rsbuild/core': 'npm:@bleedingdev/rsbuild-core@2.2.9',
+            '@rsbuild/core': 'npm:@bleedingdev/rsbuild-core@2.2.11',
           },
         },
       },
@@ -23,8 +23,8 @@ function binding() {
       packages: [
         {
           name: '@bleedingdev/rsbuild-core',
-          version: '2.2.9',
-          packageJson: { name: '@bleedingdev/rsbuild-core', version: '2.2.9' },
+          version: '2.2.11',
+          packageJson: { name: '@bleedingdev/rsbuild-core', version: '2.2.11' },
         },
       ],
     },
@@ -32,12 +32,12 @@ function binding() {
 }
 
 test('source authoring keeps its canonical patched dependency and rejects unbound aliases', () => {
-  assert.equal(resolveRsbuildDependency(), '2.2.9');
-  assert.equal(resolveRsbuildDependency({ specifier: '2.2.9' }), '2.2.9');
+  assert.equal(resolveRsbuildDependency(), '2.2.11');
+  assert.equal(resolveRsbuildDependency({ specifier: '2.2.11' }), '2.2.11');
   for (const specifier of [
-    'npm:@bleedingdev/rsbuild-core@2.2.9',
-    'npm:@other/rsbuild-core@2.2.9',
-    '^2.2.9',
+    'npm:@bleedingdev/rsbuild-core@2.2.11',
+    'npm:@other/rsbuild-core@2.2.11',
+    '^2.2.11',
     '2.2.10',
     'file:rsbuild.tgz',
   ])
@@ -54,12 +54,12 @@ test('source authoring keeps its canonical patched dependency and rejects unboun
 test('candidate authoring requires agreement between the owning dependency and packed maintained sidecar', () => {
   assert.equal(
     rsbuildSpecifierFromRelease(binding()),
-    'npm:@bleedingdev/rsbuild-core@2.2.9',
+    'npm:@bleedingdev/rsbuild-core@2.2.11',
   );
   for (const specifier of [
-    '2.2.9',
-    'npm:@bleedingdev/rsbuild-core@^2.2.9',
-    'npm:@other/core@2.2.9',
+    '2.2.11',
+    'npm:@bleedingdev/rsbuild-core@^2.2.11',
+    'npm:@other/core@2.2.11',
   ]) {
     const release = binding();
     release.packages[0].packageJson.dependencies['@rsbuild/core'] = specifier;

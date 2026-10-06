@@ -6,6 +6,9 @@
     "isolatedModules": true,
     "strict": true,
     "types": ["node"],
+    "paths": {
+      "@modern-js/bff-effect/context": ["./src/effect/context.ts"]
+    },
     "rootDir": "./src"
   },
   "include": ["src"]

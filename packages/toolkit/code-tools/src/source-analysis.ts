@@ -2,11 +2,16 @@ import { parse } from '@babel/parser';
 import traverse, { Hub, NodePath, type Visitor } from '@babel/traverse';
 import * as t from '@babel/types';
 
-/** Only JSX extensions enable JSX: generic arrows in .ts must remain valid. */
+/**
+ * Only JSX extensions enable JSX: generic arrows in .ts must remain valid.
+ * Decorators are standard TypeScript syntax.
+ */
 export const consumerParserPlugins = (
   filePath: string,
-): ('typescript' | 'jsx')[] =>
-  /\.[jt]sx$/u.test(filePath) ? ['typescript', 'jsx'] : ['typescript'];
+): ('typescript' | 'jsx' | 'decorators' | 'decoratorAutoAccessors')[] =>
+  /\.[jt]sx$/u.test(filePath)
+    ? ['typescript', 'decorators', 'decoratorAutoAccessors', 'jsx']
+    : ['typescript', 'decorators', 'decoratorAutoAccessors'];
 
 /** Only parser/binder diagnostics are policy violations; tool failures escape. */
 export class SourceSyntaxError extends Error {}
@@ -67,7 +72,9 @@ export function unwrapExpression(
     t.isParenthesizedExpression(node) ||
     t.isTSSatisfiesExpression(node) ||
     (includeAssertions &&
-      (t.isTSTypeAssertion(node) || t.isTSNonNullExpression(node)))
+      (t.isTSTypeAssertion(node) ||
+        t.isTSNonNullExpression(node) ||
+        t.isTSInstantiationExpression(node)))
   )
     node = node.expression;
   return node;

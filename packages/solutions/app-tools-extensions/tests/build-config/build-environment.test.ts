@@ -18,10 +18,9 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import type { Rspack } from '@rsbuild/core';
 import {
+  getBuildConfigEnvironment,
   resolveEffectTsgoCompiler,
-  withBuildConfigEnvironment,
 } from '../../src/build-config/public';
 
 const nativePlatformName = `@typescript/typescript-${process.platform}-${process.arch}`;
@@ -30,21 +29,6 @@ const compilerBasename = process.platform === 'win32' ? 'tsc.exe' : 'tsc';
 const nativeGitHead = '2bd066d87f5bafd315be9f40889d0a60b9e58e0b';
 const nativeVersion = '7.0.2';
 const effectVersion = '0.45.0';
-
-const LIFECYCLE_HOOK_NAMES = [
-  'run',
-  'watchRun',
-  'done',
-  'afterDone',
-  'failed',
-  'shutdown',
-  'watchClose',
-] as const;
-
-type LifecycleHookName = (typeof LIFECYCLE_HOOK_NAMES)[number];
-type TestRspackConfig = {
-  plugins?: Rspack.Plugin[];
-};
 
 async function withEnvironment<T>(
   name: string,
@@ -201,208 +185,55 @@ function writeCompiler(compilerPath: string, mode: number): void {
   chmodSync(compilerPath, mode);
 }
 
-function createTestCompiler() {
-  const handlers = Object.fromEntries(
-    LIFECYCLE_HOOK_NAMES.map(name => [name, [] as Array<() => void>]),
-  ) as Record<LifecycleHookName, Array<() => void>>;
-  const hooks = Object.fromEntries(
-    LIFECYCLE_HOOK_NAMES.map(name => [
-      name,
-      {
-        tap: (
-          _options: { name: string; stage: number },
-          handler: () => void,
-        ) => {
-          handlers[name].push(handler);
-        },
-      },
-    ]),
+test('reads build config environment without process-global state', async () => {
+  await withEnvironment('ZE_FAIL_BUILD', 'true', () => {
+    assert.equal(getBuildConfigEnvironment('ZE_FAIL_BUILD'), 'true');
+  });
+  await withEnvironment('ZE_FAIL_BUILD', undefined, () => {
+    assert.equal(getBuildConfigEnvironment('ZE_FAIL_BUILD'), undefined);
+  });
+  assert.deepEqual(
+    Object.getOwnPropertySymbols(process).filter(symbol =>
+      symbol.description?.startsWith('@modern-js/app-tools/'),
+    ),
+    [],
   );
-  const compiler = {
-    hooks,
-    watchMode: false,
-  } as unknown as Rspack.Compiler;
-
-  return {
-    compiler,
-    handlers,
-    call(name: LifecycleHookName) {
-      if (name === 'run') {
-        compiler.watchMode = false;
-      } else if (name === 'watchRun') {
-        compiler.watchMode = true;
-      } else if (name === 'watchClose') {
-        compiler.watchMode = false;
-      }
-
-      for (const handler of handlers[name]) {
-        handler();
-      }
-    },
-  };
-}
-
-function getLeasePlugin(config: TestRspackConfig): Rspack.RspackPluginInstance {
-  const plugin = config.plugins?.at(-1);
-  assert.ok(plugin && typeof plugin === 'object' && 'apply' in plugin);
-  return plugin as Rspack.RspackPluginInstance;
-}
-
-test('reference-counts overlapping leases for the same value', async () => {
-  const name = 'ULTRAMODERN_CONFIG_SAME_VALUE_LEASE_TEST';
-
-  await withEnvironment(name, 'original', async () => {
-    const firstConfig = await withBuildConfigEnvironment(
-      name,
-      'leased',
-      (config: TestRspackConfig) => config,
-    )({ plugins: [] });
-    const secondConfig = await withBuildConfigEnvironment(
-      name,
-      'leased',
-      (config: TestRspackConfig) => config,
-    )({ plugins: [] });
-
-    assert.equal(process.env[name], 'leased');
-
-    const firstCompiler = createTestCompiler();
-    const secondCompiler = createTestCompiler();
-    getLeasePlugin(firstConfig).apply(firstCompiler.compiler);
-    getLeasePlugin(secondConfig).apply(secondCompiler.compiler);
-
-    firstCompiler.call('run');
-    firstCompiler.call('afterDone');
-    assert.equal(process.env[name], 'leased');
-
-    secondCompiler.call('run');
-    secondCompiler.call('failed');
-    assert.equal(process.env[name], 'original');
-  });
 });
 
-test('rejects overlapping leases for conflicting values', async () => {
-  const name = 'ULTRAMODERN_CONFIG_CONFLICTING_LEASE_TEST';
+test('resolves only the packaged TypeScript compiler with Oxlint installed', async () => {
+  const directory = mkdtempSync(
+    join(tmpdir(), 'app-tools-effect-tsgo-oxlint-'),
+  );
+  const compilerPath = effectCompilerPath(directory);
 
-  await withEnvironment(name, 'original', async () => {
-    const ownerConfig = await withBuildConfigEnvironment(
-      name,
-      'owner',
-      (config: TestRspackConfig) => config,
-    )({ plugins: [] });
-    let conflictingSetupCalled = false;
+  try {
+    writeEffectTsgoPackage(directory);
+    writeCompiler(compilerPath, 0o700);
+    // `effect-tsgo get-exe-path` discovered every integration first, so an
+    // Oxlint without a musl binding failed the TypeScript lookup on Alpine.
+    for (const [name, version] of [
+      ['oxlint', '1.85.0'],
+      ['oxlint-tsgolint', '7.0.2003'],
+    ]) {
+      mkdirSync(join(directory, 'node_modules', name), { recursive: true });
+      writeFileSync(
+        join(directory, 'node_modules', name, 'package.json'),
+        JSON.stringify({ name, version }),
+      );
+    }
 
-    await assert.rejects(
-      withBuildConfigEnvironment(
-        name,
-        'conflict',
-        (config: TestRspackConfig) => {
-          conflictingSetupCalled = true;
-          return config;
-        },
-      )({ plugins: [] }),
-      /already has an active lease for a different value/u,
-    );
-    assert.equal(conflictingSetupCalled, false);
-    assert.equal(process.env[name], 'owner');
-
-    const compiler = createTestCompiler();
-    getLeasePlugin(ownerConfig).apply(compiler.compiler);
-    compiler.call('failed');
-    assert.equal(process.env[name], 'original');
-  });
-});
-
-test('holds a lease through watch-mode rebuilds and a one-shot done cycle, restoring on close', async () => {
-  const name = 'ULTRAMODERN_CONFIG_HOOK_LIFECYCLE_TEST';
-
-  await withEnvironment(name, 'original', async () => {
-    // Watch mode: repeated done/afterDone/failed cycles must not release the
-    // lease early — only watchClose ends it.
-    const watchConfig = await withBuildConfigEnvironment(
-      name,
-      'leased',
-      (rspackConfig: TestRspackConfig) => rspackConfig,
-    )({ plugins: [] });
-    const watchCompiler = createTestCompiler();
-    getLeasePlugin(watchConfig).apply(watchCompiler.compiler);
-
-    watchCompiler.call('watchRun');
-    watchCompiler.call('done');
-    watchCompiler.call('afterDone');
-    watchCompiler.call('failed');
-    assert.equal(process.env[name], 'leased');
-    watchCompiler.call('watchClose');
-    assert.equal(process.env[name], 'original');
-
-    // One-shot mode: the lease is acquired for `run` and released as soon as
-    // `afterDone` fires, without needing a watchClose.
-    const oneShotConfig = await withBuildConfigEnvironment(
-      name,
-      'leased',
-      (rspackConfig: TestRspackConfig) => rspackConfig,
-    )({ plugins: [] });
-    const oneShotCompiler = createTestCompiler();
-    getLeasePlugin(oneShotConfig).apply(oneShotCompiler.compiler);
-
-    oneShotCompiler.call('run');
-    oneShotCompiler.call('done');
-    assert.equal(process.env[name], 'leased');
-    oneShotCompiler.call('afterDone');
-    assert.equal(process.env[name], 'original');
-  });
-});
-
-test('restores the lease when setup throws or rejects', async () => {
-  const name = 'ULTRAMODERN_CONFIG_THROWN_SETUP_TEST';
-
-  await withEnvironment(name, 'original', async () => {
-    const thrownError = new Error('synchronous setup failure');
-    await assert.rejects(
-      withBuildConfigEnvironment(
-        name,
-        'leased',
-        (_config: TestRspackConfig) => {
-          throw thrownError;
-        },
-      )({ plugins: [] }),
-      error => error === thrownError,
-    );
-    assert.equal(process.env[name], 'original');
-
-    const rejectedError = new Error('asynchronous setup failure');
-    await assert.rejects(
-      withBuildConfigEnvironment(
-        name,
-        'leased',
-        async (_config: TestRspackConfig) => {
-          throw rejectedError;
-        },
-      )({ plugins: [] }),
-      error => error === rejectedError,
-    );
-    assert.equal(process.env[name], 'original');
-  });
-});
-
-test('fails closed and restores the original value after ownership drift', async () => {
-  const name = 'ULTRAMODERN_CONFIG_OWNERSHIP_DRIFT_TEST';
-
-  await withEnvironment(name, 'original', async () => {
-    const config = await withBuildConfigEnvironment(
-      name,
-      'leased',
-      (rspackConfig: TestRspackConfig) => rspackConfig,
-    )({ plugins: [] });
-    const compiler = createTestCompiler();
-    getLeasePlugin(config).apply(compiler.compiler);
-
-    process.env[name] = 'unowned';
-    assert.throws(
-      () => compiler.call('failed'),
-      /lost ownership before restoration/u,
-    );
-    assert.equal(process.env[name], 'original');
-  });
+    await withEnvironment('EFFECT_TSGO_BIN', undefined, () => {
+      assert.equal(
+        resolveEffectTsgoCompiler({
+          from: pathToFileURL(join(directory, 'modern.config.ts')),
+        }),
+        compilerPath,
+      );
+      assert.equal(existsSync(join(directory, 'cli-started')), false);
+    });
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 test('repairs Unix execute bits and preserves Windows package paths without mutation', async () => {
@@ -768,7 +599,10 @@ test('selects the actual declared generator Effect artifact from an empty stagin
     const nativeManifest = JSON.parse(
       readFileSync(nativeManifestPath, 'utf-8'),
     );
-    assert.ok(generatorManifest.dependencies['@effect/tsgo']);
+    assert.equal(
+      effectManifest.version,
+      generatorManifest.dependencies['@effect/tsgo'],
+    );
     assert.ok(generatorManifest.dependencies['@typescript/native']);
     assert.equal(generatorManifest.dependencies.typescript, '7.0.2');
     assert.equal(nativeManifest.name, 'typescript');

@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import execa from '@modern-js/utils/execa';
+import { execaSync } from '@modern-js/utils/execa';
 import { readWorkspacePackageSource } from '../../dist/esm-node/ultramodern-tooling/config/metadata.js';
 
 const workspaceRoot = path.resolve(
@@ -51,7 +51,7 @@ function writeJson(filePath, value) {
 }
 
 function run(command, commandArgs, options = {}) {
-  const result = execa.sync(command, commandArgs, {
+  const result = execaSync(command, commandArgs, {
     cwd: options.cwd ?? workspaceRoot,
     env: {
       ...process.env,

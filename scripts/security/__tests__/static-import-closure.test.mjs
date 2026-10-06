@@ -1,0 +1,396 @@
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import test from 'node:test';
+import {
+  collectStaticSpecifiers,
+  findUnloadableImports,
+  listTrackedFiles,
+} from '../static-import-closure.mjs';
+import { validateWorkflowContent } from '../validate-github-workflows.mjs';
+
+const withRepository = (t, files, untracked = {}) => {
+  const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'import-closure-'));
+  t.after(() => fs.rmSync(rootDir, { force: true, recursive: true }));
+  const write = entries => {
+    for (const [file, content] of Object.entries(entries)) {
+      fs.mkdirSync(path.dirname(path.join(rootDir, file)), { recursive: true });
+      fs.writeFileSync(path.join(rootDir, file), content);
+    }
+  };
+  write(files);
+  for (const args of [
+    ['init', '-q'],
+    ['add', '-A'],
+  ]) {
+    assert.equal(spawnSync('git', args, { cwd: rootDir }).status, 0);
+  }
+  write(untracked);
+  return rootDir;
+};
+
+const workflowWithJob = steps => `name: Example
+on:
+  push:
+permissions:
+  contents: read
+jobs:
+  recorder:
+    runs-on: ubuntu-latest
+    steps:
+${steps}`;
+
+const bareJob =
+  workflowWithJob(`      - run: node scripts/record.mjs create --out outcome.json
+`);
+const installJob =
+  workflowWithJob(`      - run: mise exec -- pnpm install --frozen-lockfile
+      - run: node scripts/record.mjs create --out outcome.json
+`);
+
+const recorderFiles = {
+  'scripts/record.mjs': "import { contract } from './contract.mjs';\n",
+  'scripts/contract.mjs':
+    "import YAML from 'yaml';\nexport const contract = YAML;\n",
+};
+
+test('a bare job whose script statically imports a package fails, naming job, entrypoint, chain and fix', t => {
+  const rootDir = withRepository(t, recorderFiles);
+  assert.deepEqual(
+    validateWorkflowContent('.github/workflows/example.yml', bareJob, {
+      rootDir,
+    }),
+    [
+      '.github/workflows/example.yml job recorder runs scripts/record.mjs before any dependency install, but it statically loads yaml via scripts/record.mjs -> scripts/contract.mjs; add a dependency install step before it or move the import into a function behind a dynamic import()',
+    ],
+  );
+});
+
+test('the same script passes in a job that installs dependencies', t => {
+  const rootDir = withRepository(t, recorderFiles);
+  assert.deepEqual(
+    validateWorkflowContent('.github/workflows/example.yml', installJob, {
+      rootDir,
+    }),
+    [],
+  );
+});
+
+test('a script run before the install step is still checked', t => {
+  const rootDir = withRepository(t, recorderFiles);
+  const workflow =
+    workflowWithJob(`      - run: node scripts/record.mjs create --out outcome.json
+      - run: mise exec -- pnpm install --frozen-lockfile
+`);
+  assert.equal(
+    validateWorkflowContent('.github/workflows/example.yml', workflow, {
+      rootDir,
+    }).length,
+    1,
+  );
+});
+
+test('a backgrounded install covers only steps after its join', t => {
+  const rootDir = withRepository(t, recorderFiles);
+  const workflow = workflowWithJob(`      - run: |
+          ( mise exec -- pnpm install --frozen-lockfile ) > install.log 2>&1 &
+          printf '%s\\n' "$!" > install.pid
+      - run: node scripts/record.mjs resolve
+      - run: |
+          while kill -0 "$(cat install.pid)" 2>/dev/null; do sleep 2; done
+      - run: node scripts/installed.mjs
+`);
+  assert.deepEqual(
+    validateWorkflowContent('.github/workflows/example.yml', workflow, {
+      rootDir,
+    }).map(message => message.split(',')[0]),
+    [
+      '.github/workflows/example.yml job recorder runs scripts/record.mjs before any dependency install',
+    ],
+  );
+});
+
+test('commands before an install in the same step are still checked', t => {
+  const rootDir = withRepository(t, recorderFiles);
+  const workflow = workflowWithJob(`      - run: |
+          node scripts/record.mjs check
+          mise exec -- pnpm install --frozen-lockfile
+          node scripts/installed.mjs
+`);
+  assert.deepEqual(
+    validateWorkflowContent('.github/workflows/example.yml', workflow, {
+      rootDir,
+    }).map(message => message.split(',')[0]),
+    [
+      '.github/workflows/example.yml job recorder runs scripts/record.mjs before any dependency install',
+    ],
+  );
+});
+
+test('the script after option values and the commands before a join are checked', t => {
+  const rootDir = withRepository(t, recorderFiles);
+  const workflow = workflowWithJob(`      - run: |
+          ( mise exec -- pnpm install --frozen-lockfile ) > install.log 2>&1 &
+      - run: |
+          node --conditions development scripts/record.mjs check
+          wait
+          node scripts/installed.mjs
+`);
+  assert.deepEqual(
+    validateWorkflowContent('.github/workflows/example.yml', workflow, {
+      rootDir,
+    }).map(message => message.split(',')[0]),
+    [
+      '.github/workflows/example.yml job recorder runs scripts/record.mjs before any dependency install',
+    ],
+  );
+});
+
+test('quoted entrypoints are checked', t => {
+  const rootDir = withRepository(t, recorderFiles);
+  const workflow = workflowWithJob(`      - run: node "scripts/record.mjs" check
+      - run: echo "RESULT=$(node './scripts/contract.mjs')" >> out
+      - run: node --test scripts/*.test.mjs
+`);
+  assert.deepEqual(
+    validateWorkflowContent('.github/workflows/example.yml', workflow, {
+      rootDir,
+    }).map(message => message.split(' before')[0]),
+    [
+      '.github/workflows/example.yml job recorder runs scripts/record.mjs',
+      '.github/workflows/example.yml job recorder runs scripts/contract.mjs',
+    ],
+  );
+});
+
+test('a preloaded module in a bare step is rejected', t => {
+  const rootDir = withRepository(t, { 'scripts/ok.mjs': '' });
+  const workflow = workflowWithJob(`      - run: node -r yaml scripts/ok.mjs
+      - run: |
+          node \\
+            --import=yaml \\
+            scripts/ok.mjs
+`);
+  assert.deepEqual(
+    validateWorkflowContent('.github/workflows/example.yml', workflow, {
+      rootDir,
+    }).map(message => message.split(' before')[0]),
+    [
+      '.github/workflows/example.yml job recorder runs node -r',
+      '.github/workflows/example.yml job recorder runs node --import',
+    ],
+  );
+});
+
+test('an npm install of named packages makes only those packages available', t => {
+  const rootDir = withRepository(t, {
+    'scripts/record.mjs':
+      "import YAML from 'yaml';\nimport { x } from '@scope/kit/sub';\n",
+  });
+  const workflow = workflowWithJob(`      - run: |
+          npm install --prefix "$DIR" --no-save '@scope/kit@1.0.0'
+      - run: node scripts/record.mjs
+`);
+  assert.deepEqual(
+    validateWorkflowContent('.github/workflows/example.yml', workflow, {
+      rootDir,
+    }).map(message => message.split(' via')[0]),
+    [
+      '.github/workflows/example.yml job recorder runs scripts/record.mjs before any dependency install, but it statically loads yaml',
+    ],
+  );
+});
+
+test('each invocation keeps its own dependency state and working directory', t => {
+  const rootDir = withRepository(t, {
+    ...recorderFiles,
+    'tools/check.mjs': "import { z } from 'zod';\n",
+    'check.mjs': '',
+  });
+  const workflow =
+    workflowWithJob(`      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: repo
+      - working-directory: repo
+        run: node scripts/record.mjs
+      - run: npm install --no-save yaml
+      - working-directory: repo
+        run: node scripts/record.mjs
+      - working-directory: repo/tools
+        run: node check.mjs
+      - working-directory: \${{ github.workspace }}/repo
+        run: node check.mjs
+      - working-directory: other
+        run: node scripts/record.mjs
+`);
+  const bareTail = workflowWithJob(`      - run: |
+          mise exec -- pnpm install --frozen-lockfile > install.log 2>&1 &
+          node scripts/record.mjs
+`);
+  const loads = content =>
+    validateWorkflowContent('.github/workflows/example.yml', content, {
+      rootDir,
+    }).map(message => message.match(/runs (\S+) .* loads (\S+)/u).slice(1));
+  assert.deepEqual(loads(workflow), [
+    ['scripts/record.mjs', 'yaml'],
+    ['tools/check.mjs', 'zod'],
+  ]);
+  assert.deepEqual(loads(bareTail), [['scripts/record.mjs', 'yaml']]);
+});
+
+test('the workflow-level working-directory default applies to jobs', t => {
+  const rootDir = withRepository(t, {
+    'tools/check.mjs': "import YAML from 'yaml';\n",
+    'check.mjs': '',
+  });
+  const workflow = workflowWithJob(`      - run: node check.mjs
+`).replace('jobs:', 'defaults:\n  run:\n    working-directory: tools\njobs:');
+  assert.equal(
+    validateWorkflowContent('.github/workflows/example.yml', workflow, {
+      rootDir,
+    }).length,
+    1,
+  );
+});
+
+test('a conditional install does not make later steps installed', t => {
+  const rootDir = withRepository(t, recorderFiles);
+  const workflow = workflowWithJob(`      - if: github.event_name == 'push'
+        run: mise exec -- pnpm install --frozen-lockfile
+      - run: node scripts/record.mjs create --out outcome.json
+`);
+  assert.equal(
+    validateWorkflowContent('.github/workflows/example.yml', workflow, {
+      rootDir,
+    }).length,
+    1,
+  );
+});
+
+test('a module-scope import() starts on load and is followed', t => {
+  const rootDir = withRepository(t, {
+    'scripts/record.mjs':
+      "const { contract } = await import('./contract.mjs');\n",
+    'scripts/contract.mjs': "import YAML from 'yaml';\n",
+  });
+  assert.deepEqual(
+    findUnloadableImports(
+      rootDir,
+      'scripts/record.mjs',
+      listTrackedFiles(rootDir),
+    ),
+    [
+      {
+        chain: ['scripts/record.mjs', 'scripts/contract.mjs'],
+        specifier: 'yaml',
+      },
+    ],
+  );
+});
+
+test('a dynamic import inside a function is a lazy boundary and builtins are always loadable', t => {
+  const rootDir = withRepository(t, {
+    'scripts/record.mjs':
+      "import fs from 'node:fs';\nexport async function load() {\n  return await import('./contract.mjs');\n}\nconst later = () => import('./contract.mjs');\n",
+    'scripts/contract.mjs': "import YAML from 'yaml';\n",
+  });
+  assert.deepEqual(
+    validateWorkflowContent('.github/workflows/example.yml', bareJob, {
+      rootDir,
+    }),
+    [],
+  );
+});
+
+test('CommonJS requires resolve without extensions and untracked files are unloadable', t => {
+  const rootDir = withRepository(
+    t,
+    {
+      'scripts/record.mjs': "import kit from './lib/kit.cjs';\n",
+      'scripts/lib/kit.cjs':
+        "const fs = require('fs');\nconst tracked = require('./tracked');\nconst local = require('./generated');\n",
+      'scripts/lib/tracked.js': 'module.exports = {};\n',
+    },
+    { 'scripts/lib/generated.js': 'module.exports = {};\n' },
+  );
+  assert.deepEqual(
+    findUnloadableImports(
+      rootDir,
+      'scripts/record.mjs',
+      listTrackedFiles(rootDir),
+    ),
+    [
+      {
+        chain: ['scripts/record.mjs', 'scripts/lib/kit.cjs'],
+        specifier: './generated',
+      },
+    ],
+  );
+});
+
+test('ESM imports resolve the exact path, without extension or index search', t => {
+  const rootDir = withRepository(t, {
+    'scripts/record.mjs':
+      "import './dep';\nimport './dir';\nimport './ok.mjs';\n",
+    'scripts/dep.js': '',
+    'scripts/dir/index.js': '',
+    'scripts/ok.mjs': '',
+  });
+  assert.deepEqual(
+    findUnloadableImports(
+      rootDir,
+      'scripts/record.mjs',
+      listTrackedFiles(rootDir),
+    ).map(({ specifier }) => specifier),
+    ['./dep', './dir'],
+  );
+});
+
+test('an entrypoint that is not tracked is reported', t => {
+  const rootDir = withRepository(t, { 'README.md': '' });
+  assert.deepEqual(
+    validateWorkflowContent('.github/workflows/example.yml', bareJob, {
+      rootDir,
+    }),
+    [
+      '.github/workflows/example.yml job recorder runs scripts/record.mjs, which is not a tracked file',
+    ],
+  );
+});
+
+test('static specifiers ignore comments, strings, templates, regexes and import.meta', () => {
+  const source = `
+    // import 'commented';
+    /* export * from 'block'; */
+    import a, { b as c } from './a.mjs';
+    import './side-effect.mjs';
+    export * as ns from './ns.mjs';
+    export { d } from './d.mjs';
+    export { e };
+    const text = "import x from 'in-string'";
+    const template = \`require('in-template') \${require('./in-expression.cjs')}\`;
+    const pattern = /import 'in-regex'/u;
+    const url = new URL('.', import.meta.url);
+    const eager = await import('eager');
+    const pending = import('pending');
+    await Promise.all([import('in-array')]);
+    const lazy = () => import('lazy');
+    if (process.env.X) { await import('in-block'); }
+    function load() { return await import('in-function'); }
+    object.require('member');
+    const kit = require('./kit');
+  `;
+  assert.deepEqual(collectStaticSpecifiers(source), [
+    { kind: 'import', specifier: './a.mjs' },
+    { kind: 'import', specifier: './side-effect.mjs' },
+    { kind: 'import', specifier: './ns.mjs' },
+    { kind: 'import', specifier: './d.mjs' },
+    { kind: 'require', specifier: './in-expression.cjs' },
+    { kind: 'import', specifier: 'eager' },
+    { kind: 'import', specifier: 'pending' },
+    { kind: 'import', specifier: 'in-array' },
+    { kind: 'require', specifier: './kit' },
+  ]);
+});

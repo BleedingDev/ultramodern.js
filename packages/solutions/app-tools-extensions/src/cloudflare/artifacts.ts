@@ -1,9 +1,11 @@
 import path from 'node:path';
 import { fs as fse } from '@modern-js/utils';
-import type {
-  CloudflareWorkerArtifactConfig,
-  CloudflareWorkerPublicAssetConfig,
-} from '../config';
+import type { CloudflareWorkerArtifactConfig } from '../config';
+import {
+  CLOUDFLARE_PUBLIC_ASSET_SCOPE,
+  normalizeDeclaredPublicAssets,
+  stageDeclaredPublicAssets,
+} from '../deploy-output/public-assets';
 import {
   RESERVED_ARTIFACT_DESTINATION_DIRECTORIES,
   RESERVED_ARTIFACT_DESTINATION_FILES,
@@ -54,34 +56,12 @@ export const getCloudflareArtifacts = (modernConfig: CloudflareModernConfig) =>
     normalizeCloudflareArtifact,
   );
 
-const normalizeCloudflarePublicAsset = (
-  asset: CloudflareWorkerPublicAssetConfig,
-  index: number,
-) => {
-  const from = normalizeRelativePath(
-    asset.from,
-    `deploy.worker.publicAssets[${index}].from`,
-    'app root',
-  );
-  const to = normalizeRelativePath(
-    asset.to,
-    `deploy.worker.publicAssets[${index}].to`,
-    'Cloudflare public output',
-    { allowRoot: true },
-  );
-
-  return {
-    from,
-    to,
-    index,
-  };
-};
-
 export const getCloudflarePublicAssets = (
   modernConfig: CloudflareModernConfig,
 ) =>
-  (modernConfig.deploy?.worker?.publicAssets ?? []).map(
-    normalizeCloudflarePublicAsset,
+  normalizeDeclaredPublicAssets(
+    modernConfig.deploy?.worker?.publicAssets,
+    CLOUDFLARE_PUBLIC_ASSET_SCOPE,
   );
 
 export const copyCloudflareArtifacts = async (
@@ -102,23 +82,22 @@ export const copyCloudflareArtifacts = async (
   }
 };
 
+/**
+ * Stage `deploy.worker.publicAssets` into Worker Static Assets.
+ *
+ * @returns the staged files relative to the Cloudflare output root.
+ */
 export const copyCloudflarePublicAssets = async (
   appDirectory: string,
-  publicDirectory: string,
+  outputDirectory: string,
   publicAssets: ReturnType<typeof getCloudflarePublicAssets>,
-) => {
-  for (const asset of publicAssets) {
-    const sourcePath = path.join(appDirectory, asset.from);
-
-    if (!(await fse.pathExists(sourcePath))) {
-      throw new Error(
-        `deploy.worker.publicAssets[${asset.index}].from does not exist: ${asset.from}`,
-      );
-    }
-
-    await fse.copy(sourcePath, path.join(publicDirectory, asset.to));
-  }
-};
+) =>
+  stageDeclaredPublicAssets({
+    appDirectory,
+    outputDirectory,
+    assets: publicAssets,
+    scope: CLOUDFLARE_PUBLIC_ASSET_SCOPE,
+  });
 
 export const copyCloudflareD1Migrations = async (
   appDirectory: string,

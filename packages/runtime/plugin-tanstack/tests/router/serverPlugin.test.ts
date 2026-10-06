@@ -1,6 +1,11 @@
+import { runtime } from '@modern-js/plugin/runtime';
 import type { TInternalRuntimeContext } from '@modern-js/runtime/context';
 import * as runtimeContext from '@modern-js/runtime/context';
-import { routerProviderRegistryHooks } from '@modern-js/runtime/context';
+import {
+  routerProviderRegistryHooks,
+  setGlobalContext,
+  setGlobalInternalRuntimeContext,
+} from '@modern-js/runtime/context';
 import { storage } from '@modern-js/runtime-utils/node';
 import {
   type AnyRouter,
@@ -9,11 +14,9 @@ import {
 } from '@tanstack/react-router';
 import { createElement } from 'react';
 import { renderToString } from 'react-dom/server';
-import {
-  finalizeRenderResponse,
-  type ResponseProxy,
-} from '../../../plugin-runtime/src/core/server/requestResponse';
-import { createRouterCleanup } from '../../../plugin-runtime/src/core/server/routerCleanup';
+import { routerStatePlugin } from '../../../../solutions/ultramodern-app-tools/src/native-composition/router-state-runtime';
+import type { ResponseProxy } from '../../../plugin-runtime/src/core/server/requestHandler';
+import { SSRErrors } from '../../../plugin-runtime/src/core/server/tracer';
 import {
   getRouterRuntimeState,
   getRouterServerSnapshot,
@@ -42,23 +45,28 @@ type BeforeRenderListener = Parameters<
   TanstackRouterPluginAPI['onBeforeRender']
 >[0];
 
+(
+  globalThis as typeof globalThis & {
+    __webpack_require__?: { u: (chunkId: unknown) => string };
+  }
+).__webpack_require__ = {
+  u: chunkId => String(chunkId),
+};
+
 function collectBeforeRender(
   createRoutes: NonNullable<RouterConfig['createRoutes']>,
-) {
-  let listener: BeforeRenderListener | undefined;
-  tanstackRouterPlugin({ createRoutes }).setup?.({
-    getRuntimeConfig: () => ({}),
-    getHooks: () => routerProviderRegistryHooks,
-    onBeforeRender: nextListener => {
-      listener = nextListener;
-    },
-    wrapRoot: () => {},
+): BeforeRenderListener {
+  const { runtimeContext } = runtime.run({
+    config: {},
+    plugins: [tanstackRouterPlugin({ createRoutes })],
   });
-
-  if (!listener) {
-    throw new Error('Expected the TanStack server plugin to register a hook');
-  }
-  return listener;
+  return async (context, interrupt) => {
+    const result = await runtimeContext.hooks.onBeforeRender.call(context);
+    if (result instanceof Response) {
+      interrupt(result);
+      return result;
+    }
+  };
 }
 
 function createServerContext(
@@ -87,46 +95,46 @@ function createServerContext(
   return { context, status, setHeader, responseProxy };
 }
 
+afterEach(() => {
+  rstest.restoreAllMocks();
+});
+
 describe('tanstack server plugin router results', () => {
-  afterEach(() => {
-    rstest.restoreAllMocks();
-  });
-
-  test.each([
-    '/cs/login',
-    '/en/login',
-  ])('renders native link active attributes during SSR at %s', async pathname => {
-    const { context } = createServerContext(pathname);
-    const beforeRender = collectBeforeRender(() => [
-      {
-        id: 'login',
-        path: '/:lang/login',
-        Component: () => {
-          const Link = context.router?.Link;
-          if (!Link) {
-            throw new Error('SSR router did not provide its native Link');
-          }
-          return createElement(Link, { to: '/cs' }, 'Home');
+  test.each(['/cs/login', '/en/login'])(
+    'renders native link active attributes during SSR at %s',
+    async pathname => {
+      const { context } = createServerContext(pathname);
+      const beforeRender = collectBeforeRender(() => [
+        {
+          id: 'login',
+          path: '/:lang/login',
+          Component: () => {
+            const Link = context.router?.Link;
+            if (!Link) {
+              throw new Error('SSR router did not provide its native Link');
+            }
+            return createElement(Link, { to: '/cs' }, 'Home');
+          },
         },
-      },
-    ]);
-    await beforeRender(context, value => value);
+      ]);
+      await beforeRender(context, value => value);
 
-    expect(context.router?.Link).toBeTypeOf('function');
-    const html = renderToString(
-      createElement(RouterProvider, {
-        router: getRouterRuntimeState(context)?.instance as AnyRouter,
-      }),
-    );
-    expect(html).toContain('href="/cs"');
-    if (pathname === '/cs/login') {
-      expect(html).toContain('data-status="active"');
-      expect(html).toContain('aria-current="page"');
-    } else {
-      expect(html).not.toContain('data-status="active"');
-      expect(html).not.toContain('aria-current="page"');
-    }
-  });
+      expect(context.router?.Link).toBeTypeOf('function');
+      const html = renderToString(
+        createElement(RouterProvider, {
+          router: getRouterRuntimeState(context)?.instance as AnyRouter,
+        }),
+      );
+      expect(html).toContain('href="/cs"');
+      if (pathname === '/cs/login') {
+        expect(html).toContain('data-status="active"');
+        expect(html).toContain('aria-current="page"');
+      } else {
+        expect(html).not.toContain('data-status="active"');
+        expect(html).not.toContain('aria-current="page"');
+      }
+    },
+  );
 
   test('uses the router render result as the HTTP and hydration status', async () => {
     const beforeRender = collectBeforeRender(() => [
@@ -210,40 +218,38 @@ describe('TanStack Flight response protocol', () => {
     { enableRsc: true, tree: '', action: false, expected: false },
     { enableRsc: true, tree: 'false', action: false, expected: false },
     { enableRsc: true, tree: undefined, action: true, expected: false },
-  ])('sets Flight MIME only for native tree navigation: $enableRsc/$tree/$action', async ({
-    enableRsc,
-    tree,
-    action,
-    expected,
-  }) => {
-    rstest
-      .spyOn(runtimeContext, 'getGlobalEnableRsc')
-      .mockReturnValue(enableRsc);
-    const headers = new Headers();
-    if (tree !== undefined) headers.set('x-rsc-tree', tree);
-    if (action) headers.set('x-rsc-action', 'compiled-action');
-    const { context, setHeader, responseProxy } = createServerContext('/', {
-      headers,
-      method: action ? 'POST' : 'GET',
-    });
-    const beforeRender = collectBeforeRender(() => [
-      { id: 'root', path: '/', Component: () => null },
-    ]);
+  ])(
+    'sets Flight MIME only for native tree navigation: $enableRsc/$tree/$action',
+    async ({ enableRsc, tree, action, expected }) => {
+      rstest
+        .spyOn(runtimeContext, 'getGlobalEnableRsc')
+        .mockReturnValue(enableRsc);
+      const headers = new Headers();
+      if (tree !== undefined) headers.set('x-rsc-tree', tree);
+      if (action) headers.set('x-rsc-action', 'compiled-action');
+      const { context, setHeader, responseProxy } = createServerContext('/', {
+        headers,
+        method: action ? 'POST' : 'GET',
+      });
+      const beforeRender = collectBeforeRender(() => [
+        { id: 'root', path: '/', Component: () => null },
+      ]);
 
-    await storage.run({ responseProxy }, () =>
-      beforeRender(context, value => value),
-    );
-
-    if (expected) {
-      expect(setHeader).toHaveBeenCalledExactlyOnceWith(
-        'Content-Type',
-        'text/x-component',
+      await storage.run({ responseProxy }, () =>
+        beforeRender(context, value => value),
       );
-    } else {
-      expect(setHeader).not.toHaveBeenCalled();
-    }
-    await getRouterRuntimeState(context)?.cleanup?.();
-  });
+
+      if (expected) {
+        expect(setHeader).toHaveBeenCalledExactlyOnceWith(
+          'Content-Type',
+          'text/x-component',
+        );
+      } else {
+        expect(setHeader).not.toHaveBeenCalled();
+      }
+      await getRouterRuntimeState(context)?.cleanup?.();
+    },
+  );
 
   test('preserves native RSC redirects without declaring a Flight body', async () => {
     rstest.spyOn(runtimeContext, 'getGlobalEnableRsc').mockReturnValue(true);
@@ -288,76 +294,85 @@ describe('TanStack Flight response protocol', () => {
     await getRouterRuntimeState(context)?.cleanup?.();
   });
 
-  test.each([
-    'eof',
-    'cancel',
-  ] as const)('native finalization preserves Flight headers, status and streamed %s', async terminal => {
-    rstest.spyOn(runtimeContext, 'getGlobalEnableRsc').mockReturnValue(true);
-    const beforeRender = collectBeforeRender(() => [
-      { id: 'root', path: '/', Component: () => null },
-    ]);
-    const { context, responseProxy } = createServerContext('/', {
-      headers: { 'x-rsc-tree': 'true' },
-    });
-    await storage.run({ responseProxy }, () =>
-      beforeRender(context, value => value),
-    );
-    const router = getRouterRuntimeState(context)!.instance as AnyRouter;
-    const cleanup = rstest.spyOn(router.serverSsr!, 'cleanup');
-    const onError = rstest.fn();
-    const cancel = rstest.fn();
-    let controller!: ReadableStreamDefaultController<Uint8Array>;
-    const body = new ReadableStream<Uint8Array>({
-      start(nextController) {
-        controller = nextController;
-      },
-      cancel,
-    });
-    context.ssrContext!.response.setHeader('X-Consumer-Header', 'kept');
-    context.ssrContext!.response.status(202);
-    const response = await finalizeRenderResponse(
-      new Response(body, {
-        status: 200,
-        headers: { 'Cache-Control': 'private, no-store' },
-      }),
-      responseProxy,
-      { enableRsc: true, isRSCNavigation: true, basename: '/' },
-      createRouterCleanup(context, onError),
-    );
+  test.each(['eof', 'cancel'] as const)(
+    'native finalization preserves Flight headers, status and streamed %s',
+    async terminal => {
+      rstest.spyOn(runtimeContext, 'getGlobalEnableRsc').mockReturnValue(true);
+      const beforeRender = collectBeforeRender(() => [
+        { id: 'root', path: '/', Component: () => null },
+      ]);
+      const { context, responseProxy } = createServerContext('/', {
+        headers: { 'x-rsc-tree': 'true' },
+      });
+      await storage.run({ responseProxy }, () =>
+        beforeRender(context, value => value),
+      );
+      const router = getRouterRuntimeState(context)!.instance as AnyRouter;
+      const cleanup = rstest.spyOn(router.serverSsr!, 'cleanup');
+      const onError = rstest.fn();
+      const cancel = rstest.fn();
+      let controller!: ReadableStreamDefaultController<Uint8Array>;
+      const body = new ReadableStream<Uint8Array>({
+        start(nextController) {
+          controller = nextController;
+        },
+        cancel,
+      });
+      context.ssrContext!.response.setHeader('X-Consumer-Header', 'kept');
+      context.ssrContext!.response.status(202);
+      const { createRequestLifecycle, finalizeRenderResponse } = await import(
+        '../../../plugin-runtime/src/core/server/requestHandler'
+      );
+      const response = await finalizeRenderResponse(
+        new Response(body, {
+          status: 200,
+          headers: { 'Cache-Control': 'private, no-store' },
+        }),
+        responseProxy,
+        { enableRsc: true, isRSCNavigation: true, basename: '/' },
+        createRequestLifecycle(
+          () => getRouterRuntimeState(context)?.cleanup?.(),
+          onError,
+        ),
+      );
 
-    expect(response.status).toBe(202);
-    expect(response.headers.get('Content-Type')).toBe('text/x-component');
-    expect(response.headers.get('X-Consumer-Header')).toBe('kept');
-    expect(response.headers.get('Cache-Control')).toBe('private, no-store');
-    expect(response.bodyUsed).toBe(false);
-    expect(cleanup).not.toHaveBeenCalled();
-    const reader = response.body!.getReader();
-    const first = new TextEncoder().encode('0:{"type":"render"}\n');
-    controller.enqueue(first);
-    await expect(reader.read()).resolves.toEqual({ done: false, value: first });
-    expect(cleanup).not.toHaveBeenCalled();
-    if (terminal === 'eof') {
-      const tail = new TextEncoder().encode('1:"server tree"\n');
-      controller.enqueue(tail);
-      controller.close();
+      expect(response.status).toBe(202);
+      expect(response.headers.get('Content-Type')).toBe('text/x-component');
+      expect(response.headers.get('X-Consumer-Header')).toBe('kept');
+      expect(response.headers.get('Cache-Control')).toBe('private, no-store');
+      expect(response.bodyUsed).toBe(false);
+      expect(cleanup).not.toHaveBeenCalled();
+      const reader = response.body!.getReader();
+      const first = new TextEncoder().encode('0:{"type":"render"}\n');
+      controller.enqueue(first);
       await expect(reader.read()).resolves.toEqual({
         done: false,
-        value: tail,
+        value: first,
       });
-      await expect(reader.read()).resolves.toEqual({
-        done: true,
-        value: undefined,
-      });
-      expect(cancel).not.toHaveBeenCalled();
-    } else {
-      await reader.cancel('client disconnected');
-      expect(cancel).toHaveBeenCalledExactlyOnceWith('client disconnected');
-    }
-    expect(cleanup).toHaveBeenCalledTimes(1);
-    await getRouterRuntimeState(context)?.cleanup?.();
-    expect(cleanup).toHaveBeenCalledTimes(1);
-    expect(onError).not.toHaveBeenCalled();
-  });
+      expect(cleanup).not.toHaveBeenCalled();
+      if (terminal === 'eof') {
+        const tail = new TextEncoder().encode('1:"server tree"\n');
+        controller.enqueue(tail);
+        controller.close();
+        await expect(reader.read()).resolves.toEqual({
+          done: false,
+          value: tail,
+        });
+        await expect(reader.read()).resolves.toEqual({
+          done: true,
+          value: undefined,
+        });
+        expect(cancel).not.toHaveBeenCalled();
+      } else {
+        await reader.cancel('client disconnected');
+        expect(cancel).toHaveBeenCalledExactlyOnceWith('client disconnected');
+      }
+      expect(cleanup).toHaveBeenCalledTimes(1);
+      await getRouterRuntimeState(context)?.cleanup?.();
+      expect(cleanup).toHaveBeenCalledTimes(1);
+      expect(onError).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe('TanStack preparation resource lifetime', () => {
@@ -422,47 +437,51 @@ describe('TanStack preparation resource lifetime', () => {
     expect(cleanup).toHaveBeenCalledTimes(1);
   });
 
-  test.each([
-    'string',
-    'stream',
-  ] as const)('retains %s router resources for response termination', async mode => {
-    const { context } = createServerContext('/products/shoe?q=1#detail');
-    context.ssrContext!.mode = mode;
-    const beforeRender = collectBeforeRender(() => [
-      { id: 'product', path: '/products/:id', Component: () => null },
-    ]);
-    await beforeRender(context, value => value);
-    const state = getRouterRuntimeState(context)!;
-    const router = state.instance as AnyRouter;
-    const cleanup = rstest.spyOn(router.serverSsr!, 'cleanup');
-    const navigation = state.navigation!;
-    expect(navigation.getSnapshot()).toMatchObject({
-      location: { pathname: '/products/shoe', search: '?q=1', hash: '#detail' },
-      params: { id: 'shoe' },
-    });
-    expect(navigation.getSnapshot()).toBe(navigation.getSnapshot());
-    expect(navigation.Link).toBe(context.router?.Link);
-    expect(
-      navigation.createLinkProps!({
-        pathname: '/products/shoe',
-        href: '/products/shoe?q=2#detail',
+  test.each(['string', 'stream'] as const)(
+    'retains %s router resources for response termination',
+    async mode => {
+      const { context } = createServerContext('/products/shoe?q=1#detail');
+      context.ssrContext!.mode = mode;
+      const beforeRender = collectBeforeRender(() => [
+        { id: 'product', path: '/products/:id', Component: () => null },
+      ]);
+      await beforeRender(context, value => value);
+      const state = getRouterRuntimeState(context)!;
+      const router = state.instance as AnyRouter;
+      const cleanup = rstest.spyOn(router.serverSsr!, 'cleanup');
+      const navigation = state.navigation!;
+      expect(navigation.getSnapshot()).toMatchObject({
+        location: {
+          pathname: '/products/shoe',
+          search: '?q=1',
+          hash: '#detail',
+        },
+        params: { id: 'shoe' },
+      });
+      expect(navigation.getSnapshot()).toBe(navigation.getSnapshot());
+      expect(navigation.Link).toBe(context.router?.Link);
+      expect(
+        navigation.createLinkProps!({
+          pathname: '/products/shoe',
+          href: '/products/shoe?q=2#detail',
+          search: { q: '2' },
+          hash: 'detail',
+          hashScrollIntoView: false,
+          prefetch: 'none',
+        }),
+      ).toEqual({
+        to: '/products/shoe',
         search: { q: '2' },
         hash: 'detail',
         hashScrollIntoView: false,
-        prefetch: 'none',
-      }),
-    ).toEqual({
-      to: '/products/shoe',
-      search: { q: '2' },
-      hash: 'detail',
-      hashScrollIntoView: false,
-      preload: false,
-    });
-    expect(cleanup).not.toHaveBeenCalled();
-    await state.cleanup?.();
-    await state.cleanup?.();
-    expect(cleanup).toHaveBeenCalledTimes(1);
-  });
+        preload: false,
+      });
+      expect(cleanup).not.toHaveBeenCalled();
+      await state.cleanup?.();
+      await state.cleanup?.();
+      expect(cleanup).toHaveBeenCalledTimes(1);
+    },
+  );
 });
 
 test('incoming abort reaches an active Modern loader and disposes its router', async () => {
@@ -501,4 +520,173 @@ test('incoming abort reaches an active Modern loader and disposes its router', a
   expect(cleanup).toHaveBeenCalledTimes(1);
   await getRouterRuntimeState(context)?.cleanup?.();
   expect(cleanup).toHaveBeenCalledTimes(1);
+});
+
+describe('TanStack provider with the native request handler', () => {
+  test.each([
+    {
+      label: 'plain provider completion',
+      ultraPolicy: false,
+      terminal: 'complete',
+    },
+    {
+      label: 'plain provider cancellation',
+      ultraPolicy: false,
+      terminal: 'cancelled',
+    },
+    {
+      label: 'Ultra observer completion',
+      ultraPolicy: true,
+      terminal: 'complete',
+    },
+    {
+      label: 'Ultra observer cancellation',
+      ultraPolicy: true,
+      terminal: 'cancelled',
+    },
+  ] as const)(
+    'preserves loader reporting and disposes once for $label',
+    async ({ ultraPolicy, terminal }) => {
+      const failure = new Error('TanStack loader failed');
+      let loaderRequest: Request | undefined;
+      const provider = tanstackRouterPlugin({
+        createRoutes: () => [
+          {
+            id: 'root',
+            path: '/',
+            Component: () => null,
+            children: [
+              {
+                id: 'error',
+                path: 'error',
+                Component: () => null,
+                loader: ({ request }: { request: Request }) => {
+                  loaderRequest = request;
+                  throw failure;
+                },
+              },
+            ],
+          },
+        ],
+      });
+      const { runtimeContext } = runtime.run({
+        config: { router: { framework: 'tanstack' } },
+        plugins: ultraPolicy ? [routerStatePlugin(), provider] : [provider],
+      });
+      setGlobalContext({
+        entryName: 'main',
+        App: () => null,
+        enableRsc: false,
+      });
+      setGlobalInternalRuntimeContext(runtimeContext as any);
+      const request = new Request('http://localhost/error');
+      const removeAbortListener = rstest.spyOn(
+        request.signal,
+        'removeEventListener',
+      );
+      const onError = rstest.fn();
+      const observer = rstest.fn();
+      runtimeContext.hooks.onRequestEnd.tap(observer);
+      let state: ReturnType<typeof getRouterRuntimeState>;
+      let cleanup: ReturnType<typeof rstest.fn> | undefined;
+      let serverCleanup: ReturnType<typeof rstest.spyOn> | undefined;
+      let releaseTail = () => {};
+      const tailReleased = new Promise<void>(resolve => {
+        releaseTail = resolve;
+      });
+      const encoder = new TextEncoder();
+      const { createRequestHandler } = await import(
+        '../../../plugin-runtime/src/core/server/requestHandler'
+      );
+      const handler = await createRequestHandler(
+        async (_request, _Root, options) => {
+          state = getRouterRuntimeState(options.runtimeContext);
+          if (!state?.cleanup)
+            throw new Error('TanStack did not register request resources');
+          cleanup = rstest.fn(state.cleanup);
+          state.cleanup = cleanup;
+          const router = state.instance as AnyRouter;
+          serverCleanup = rstest.spyOn(router.serverSsr!, 'cleanup');
+          const snapshot = getRouterServerSnapshot(options.runtimeContext);
+          expect(snapshot).toMatchObject({
+            framework: 'tanstack',
+            statusCode: 500,
+          });
+          expect(Object.values(snapshot?.errors ?? {})).toContain(failure);
+          return new Response(
+            new ReadableStream<Uint8Array>({
+              start(controller) {
+                controller.enqueue(encoder.encode('<shell>'));
+              },
+              async pull(controller) {
+                if (terminal === 'cancelled') return;
+                await tailReleased;
+                controller.enqueue(encoder.encode('<tail>'));
+                controller.close();
+              },
+            }),
+          );
+        },
+      );
+
+      const response = await handler(request, {
+        resource: {
+          entryName: 'main',
+          route: { urlPath: '/' },
+          htmlTemplate: '<html><head></head><body></body></html>',
+        },
+        config: { ssr: { mode: 'stream' } },
+        params: {},
+        locals: {},
+        loaderContext: {},
+        onTiming: () => {},
+        onError,
+      } as any);
+
+      expect(response.status).toBe(500);
+      expect(onError).toHaveBeenCalledTimes(1);
+      expect(onError).toHaveBeenCalledWith(failure, SSRErrors.LOADER_ERROR);
+      expect(state?.framework).toBe('tanstack');
+      expect(cleanup).not.toHaveBeenCalled();
+      expect(serverCleanup).not.toHaveBeenCalled();
+      expect(observer).not.toHaveBeenCalled();
+      expect(removeAbortListener).not.toHaveBeenCalled();
+      expect(loaderRequest?.signal.aborted).toBe(false);
+
+      const reader = response.body!.getReader();
+      expect(new TextDecoder().decode((await reader.read()).value)).toBe(
+        '<shell>',
+      );
+      if (terminal === 'cancelled') {
+        await reader.cancel('client disconnected');
+      } else {
+        releaseTail();
+        expect(new TextDecoder().decode((await reader.read()).value)).toBe(
+          '<tail>',
+        );
+        expect((await reader.read()).done).toBe(true);
+      }
+      reader.releaseLock();
+
+      expect(cleanup).toHaveBeenCalledTimes(1);
+      expect(serverCleanup).toHaveBeenCalledTimes(1);
+      expect(removeAbortListener).toHaveBeenCalledTimes(1);
+      expect(removeAbortListener).toHaveBeenCalledWith(
+        'abort',
+        expect.any(Function),
+      );
+      expect(loaderRequest?.signal.aborted).toBe(true);
+      expect(observer).toHaveBeenCalledTimes(1);
+      expect(observer.mock.calls[0]?.[0]).toMatchObject({
+        terminal:
+          terminal === 'complete'
+            ? { status: 'complete' }
+            : { status: 'cancelled', reason: 'client disconnected' },
+      });
+      expect(onError).toHaveBeenCalledTimes(1);
+      await state?.cleanup?.();
+      expect(serverCleanup).toHaveBeenCalledTimes(1);
+      expect(removeAbortListener).toHaveBeenCalledTimes(1);
+    },
+  );
 });

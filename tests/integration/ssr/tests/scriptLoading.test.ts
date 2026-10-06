@@ -36,6 +36,12 @@ describe('init with SSR', () => {
   });
 
   test(`use ssr init data`, async () => {
+    // `networkidle0` waits on every request, so any off-host resource turns
+    // the first navigation into a wait on the public network.
+    const requestedOrigins = new Set<string>();
+    page.on('request', request => {
+      requestedOrigins.add(new URL(request.url()).origin);
+    });
     await page.goto(`http://localhost:${appPort}`, {
       waitUntil: ['networkidle0'],
     });
@@ -45,6 +51,7 @@ describe('init with SSR', () => {
       scripts: Array.from(document.scripts, script => script.src),
     }));
 
+    expect([...requestedOrigins]).toEqual([`http://localhost:${appPort}`]);
     expect(runtime.hasRouteManifest).toBe(true);
     expect(runtime.scripts).toContain(
       `http://localhost:${appPort}/static/js/builder-runtime.js`,

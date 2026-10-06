@@ -18,7 +18,7 @@ export const solidCandidateProfile: RendererBuildProfile = {
     name: '@modern-js/renderer-solid',
     version: '3.8.3',
     coreName: '@tanstack/router-core',
-    coreVersion: '1.171.32',
+    coreVersion: '1.171.34',
   },
   sourceExtensions: ['.tsx', '.ts', '.jsx', '.js'],
   jsxImportSource: '@solidjs/web',

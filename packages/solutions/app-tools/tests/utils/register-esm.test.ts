@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
-import fs from 'node:fs';
-import os from 'node:os';
+import fs, { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import os, { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -11,6 +11,46 @@ const registerUrl = pathToFileURL(
 ).href;
 
 describe('registerPathsLoader', () => {
+  it('resolves CommonJS aliases through native synchronous loader hooks', () => {
+    const directory = mkdtempSync(path.join(tmpdir(), 'modern-cjs-alias-'));
+    writeFileSync(
+      path.join(directory, 'fixture.mjs'),
+      'export const value = 42;',
+    );
+    try {
+      const result = spawnSync(
+        process.execPath,
+        [
+          '--input-type=module',
+          '-e',
+          `
+import { createRequire } from 'node:module';
+import { registerPathsLoader } from ${JSON.stringify(registerUrl)};
+const hooks = await registerPathsLoader({
+  appDir: ${JSON.stringify(directory)},
+  baseUrl: ${JSON.stringify(directory)},
+  paths: {
+    '@fixture/module': ['fixture.mjs'],
+    '@modern-js/utils': ['fixture.mjs'],
+  },
+});
+try {
+  console.log(createRequire(import.meta.url)('@fixture/module').value);
+  console.log(createRequire(${JSON.stringify(registerUrl)})('@modern-js/utils').program ? 'framework' : 'shadowed');
+} finally {
+  hooks.deregister();
+}
+`,
+        ],
+        { cwd: directory, encoding: 'utf8' },
+      );
+      expect(result.status, result.stderr).toBe(0);
+      expect(result.stdout.trim()).toBe('42\nframework');
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
   it('does not use deprecated module.register when registerHooks is available', () => {
     const result = spawnSync(
       process.execPath,
@@ -91,50 +131,52 @@ try {
     ['module', 'none'],
     ['module', 'require'],
     ['commonjs', 'import'],
-  ] as const)('registers real %s paths with added %s condition without changing native failures', (format, additionalCondition) => {
-    const appDir = fs.mkdtempSync(path.join(os.tmpdir(), 'modern-hooks-'));
-    try {
-      const isCommonJS = format === 'commonjs';
-      const extension = isCommonJS ? 'cjs' : 'mjs';
-      fs.writeFileSync(
-        path.join(appDir, 'package.json'),
-        JSON.stringify({
-          name: 'loader-fixture',
-          exports: {
-            './condition': {
-              development: './development.cjs',
-              default: './default.cjs',
-            },
-          },
-        }),
-      );
-      fs.writeFileSync(
-        path.join(appDir, 'development.cjs'),
-        'module.exports = "development";',
-      );
-      fs.writeFileSync(
-        path.join(appDir, 'default.cjs'),
-        'module.exports = "default";',
-      );
-      for (const name of ['alias #?', 'relative #?']) {
+  ] as const)(
+    'registers real %s paths with added %s condition without changing native failures',
+    (format, additionalCondition) => {
+      const appDir = fs.mkdtempSync(path.join(os.tmpdir(), 'modern-hooks-'));
+      try {
+        const isCommonJS = format === 'commonjs';
+        const extension = isCommonJS ? 'cjs' : 'mjs';
         fs.writeFileSync(
-          path.join(appDir, `${name}.${extension}`),
-          isCommonJS
-            ? `module.exports = ${JSON.stringify(name)};`
-            : `export default ${JSON.stringify(name)};`,
+          path.join(appDir, 'package.json'),
+          JSON.stringify({
+            name: 'loader-fixture',
+            exports: {
+              './condition': {
+                development: './development.cjs',
+                default: './default.cjs',
+              },
+            },
+          }),
         );
-      }
-      fs.writeFileSync(
-        path.join(appDir, `entry.${extension}`),
-        isCommonJS
-          ? `const assert = require('node:assert/strict');
+        fs.writeFileSync(
+          path.join(appDir, 'development.cjs'),
+          'module.exports = "development";',
+        );
+        fs.writeFileSync(
+          path.join(appDir, 'default.cjs'),
+          'module.exports = "default";',
+        );
+        for (const name of ['alias #?', 'relative #?']) {
+          fs.writeFileSync(
+            path.join(appDir, `${name}.${extension}`),
+            isCommonJS
+              ? `module.exports = ${JSON.stringify(name)};`
+              : `export default ${JSON.stringify(name)};`,
+          );
+        }
+        fs.writeFileSync(
+          path.join(appDir, `entry.${extension}`),
+          isCommonJS
+            ? `const assert = require('node:assert/strict');
 assert.equal(require('@fixture/alias #?'), 'alias #?');
 assert.equal(require('./relative #?'), 'relative #?');
 assert.equal(require('loader-fixture/condition'), 'development');
 assert.throws(() => require('./missing #?'), { code: 'MODULE_NOT_FOUND' });
 assert.throws(() => require('@fixture/missing'), { code: 'MODULE_NOT_FOUND' });
 module.exports = 'authored-commonjs';`
-          : `import assert from 'node:assert/strict';
+            : `import assert from 'node:assert/strict';
 import alias from '@fixture/alias #?';
 import relative from './relative #?';
 import condition from 'loader-fixture/condition';
@@ -144,17 +186,17 @@ assert.equal(condition, 'development');
 await assert.rejects(import('./missing #?'), { code: 'ERR_MODULE_NOT_FOUND' });
 await assert.rejects(import('@fixture/missing'), { code: 'ERR_MODULE_NOT_FOUND' });
 export default 'authored-module';`,
-      );
-      const result = spawnSync(
-        process.execPath,
-        [
-          '--conditions=development',
-          ...(additionalCondition === 'none'
-            ? []
-            : [`--conditions=${additionalCondition}`]),
-          '--input-type=module',
-          '-e',
-          `import assert from 'node:assert/strict';
+        );
+        const result = spawnSync(
+          process.execPath,
+          [
+            '--conditions=development',
+            ...(additionalCondition === 'none'
+              ? []
+              : [`--conditions=${additionalCondition}`]),
+            '--input-type=module',
+            '-e',
+            `import assert from 'node:assert/strict';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
@@ -169,20 +211,23 @@ try {
 } finally {
   hooks.deregister();
 }`,
-          appDir,
-        ],
-        {
-          cwd: appDir,
-          encoding: 'utf8',
-          env: { ...process.env, NODE_PATH: '' },
-        },
-      );
-      if (result.status !== 0) {
-        throw new Error(result.stdout + result.stderr, { cause: result.error });
+            appDir,
+          ],
+          {
+            cwd: appDir,
+            encoding: 'utf8',
+            env: { ...process.env, NODE_PATH: '' },
+          },
+        );
+        if (result.status !== 0) {
+          throw new Error(result.stdout + result.stderr, {
+            cause: result.error,
+          });
+        }
+        expect(result.stdout).toContain('authored-native-paths-loaded');
+      } finally {
+        fs.rmSync(appDir, { recursive: true, force: true });
       }
-      expect(result.stdout).toContain('authored-native-paths-loaded');
-    } finally {
-      fs.rmSync(appDir, { recursive: true, force: true });
-    }
-  });
+    },
+  );
 });

@@ -60,8 +60,12 @@ describe('headless Cloudflare worker build', () => {
 
     const onAfterBuild = createAsyncHook<() => Promise<void>>();
     const api = {
-      getAppContext: () => ({ apiOnly: true, appDirectory: '/app' }),
-      getNormalizedConfig: () => ({ deploy: { target: 'cloudflare' } }),
+      getAppContext: () => ({
+        apiOnly: true,
+        appDirectory: '/app',
+        deployTarget: { target: 'cloudflare', explicit: true },
+      }),
+      getNormalizedConfig: () => ({}),
       onAfterBuild: onAfterBuild.tap,
     } as unknown as CLIPluginAPI<AppTools>;
     for (const plugin of plugins) {
@@ -81,8 +85,12 @@ describe('headless Cloudflare worker build', () => {
       .mockResolvedValue(
         createBuilder as Awaited<ReturnType<typeof createBuilderGenerator>>,
       );
-    const appContext = { apiOnly: true, appDirectory: '/app' };
-    const normalizedConfig = { deploy: { target: 'cloudflare' } };
+    const appContext = {
+      apiOnly: true,
+      appDirectory: '/app',
+      deployTarget: { target: 'cloudflare', explicit: true },
+    };
+    const normalizedConfig = {};
     let onAfterBuild: (() => Promise<void>) | undefined;
     const plugin = getPlugin();
     expect(plugin.post).toContain('@modern-js/ultramodern-release-envelope');
@@ -110,22 +118,25 @@ describe('headless Cloudflare worker build', () => {
   it.each([
     { apiOnly: false, target: 'cloudflare' },
     { apiOnly: true, target: 'node' },
-  ])('does not build a worker for $target with apiOnly=$apiOnly', async ({
-    apiOnly,
-    target,
-  }) => {
-    rstest.mocked(createBuilderGenerator).mockClear();
-    let onAfterBuild: (() => Promise<void>) | undefined;
-    await getPlugin().setup?.({
-      getAppContext: () => ({ apiOnly }),
-      getNormalizedConfig: () => ({ deploy: { target } }),
-      onAfterBuild: handler => {
-        onAfterBuild = handler;
-      },
-    } as unknown as CLIPluginAPI<AppTools>);
+  ])(
+    'does not build a worker for $target with apiOnly=$apiOnly',
+    async ({ apiOnly, target }) => {
+      rstest.mocked(createBuilderGenerator).mockClear();
+      let onAfterBuild: (() => Promise<void>) | undefined;
+      await getPlugin().setup?.({
+        getAppContext: () => ({
+          apiOnly,
+          deployTarget: { target, explicit: true },
+        }),
+        getNormalizedConfig: () => ({}),
+        onAfterBuild: handler => {
+          onAfterBuild = handler;
+        },
+      } as unknown as CLIPluginAPI<AppTools>);
 
-    await onAfterBuild?.();
+      await onAfterBuild?.();
 
-    expect(createBuilderGenerator).not.toHaveBeenCalled();
-  });
+      expect(createBuilderGenerator).not.toHaveBeenCalled();
+    },
+  );
 });

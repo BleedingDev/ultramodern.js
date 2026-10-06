@@ -109,10 +109,13 @@ describe('React worker integration in actual CLI hooks', () => {
     { server: { rsc: false }, deploy: { target: 'cloudflare' as const } },
     { server: {}, deploy: { target: 'cloudflare' as const } },
     { server: { rsc: true }, deploy: { target: 'node' as const } },
-  ])('leaves disabled RSC and other deployment targets untouched', async config => {
-    const normalized = normalizedConfig(config);
-    expect(await resolveCliConfig(normalized)).toBe(normalized);
-  });
+  ])(
+    'leaves disabled RSC and other deployment targets untouched',
+    async config => {
+      const normalized = normalizedConfig(config);
+      expect(await resolveCliConfig(normalized)).toBe(normalized);
+    },
+  );
 
   it('accepts a public native environment mapping and rejects conflicts before builder creation', async () => {
     const mapped: AppUserConfig = {
@@ -279,9 +282,9 @@ describe('actual native RSC configuration without compilation', () => {
         expect.objectContaining({ layer: 'rsc-common' }),
       ]),
     );
-    expect(worker.resolve?.alias).toMatchObject({
-      '@modern-js/render/rsc$': '@modern-js/render/rsc-worker',
-    });
+    // `@modern-js/render/rsc` selects its edge runtime through the worker
+    // export conditions; the builder pins no server-side runtime alias.
+    expect(worker.resolve?.alias).not.toHaveProperty('@modern-js/render/rsc$');
     expect(
       rules(worker).some(rule =>
         Array.isArray(rule.use)
@@ -399,7 +402,7 @@ it('compiles and runs Flight and HTML SSR with their own React exports in one wo
       import { createElement, Fragment, useState } from 'react';
       import { renderToReadableStream } from 'react-dom/server.edge';
       import { RSCServerSlot } from '@modern-js/render/client';
-      import { renderRsc } from '@modern-js/render/rsc-worker';
+      import { renderRsc } from '@modern-js/render/rsc';
       import { renderSSRStream } from '@modern-js/render/ssr';
       import Root from './AppProxy.js';
       function HtmlRoot({ children }) { const [value] = useState('HTML SSR default React'); return createElement(Fragment, null, createElement('p', null, value), children); }
@@ -461,11 +464,9 @@ it('compiles and runs Flight and HTML SSR with their own React exports in one wo
           appContext: {
             appDirectory,
             apiDirectory: path.join(appDirectory, 'api'),
+            deployTarget: { target: 'cloudflare', explicit: true },
           },
-          normalizedConfig: {
-            deploy: { target: 'cloudflare' },
-            server: { rsc: options },
-          },
+          normalizedConfig: { server: { rsc: options } },
           environments: {
             client: {
               source: {
@@ -652,7 +653,7 @@ it('compiles and runs Flight and HTML SSR with their own React exports in one wo
       if (!includes(worker, resource, layer)) {
         const actual = modules(worker)
           .filter(module =>
-            /react|AppProxy|rscWorker/u.test(module.nameForCondition() ?? ''),
+            /react|AppProxy|rsc\.edge/u.test(module.nameForCondition() ?? ''),
           )
           .map(module => ({
             resource:

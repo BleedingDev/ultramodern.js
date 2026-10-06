@@ -14,8 +14,6 @@ export type BackendFederationRemote = {
   name: string;
   entry: string;
   type?: 'commonjs-module' | 'module' | string;
-  entryGlobalName?: string;
-  shareScope?: string | string[];
   expose?: typeof BACKEND_FEDERATION_EFFECT_EXPOSE;
   verification?: BackendFederationRemoteEntryVerification;
 };
@@ -25,6 +23,8 @@ export type BackendFederationRuntimeOptions = {
   remote?: BackendFederationRemote;
   remotes?: BackendFederationRemote[];
   plugins?: ModuleFederationRuntimePlugin[];
+  /** Host shares handed to every remote container's `init()`. */
+  shared?: ConstructorParameters<typeof ModuleFederation>[0]['shared'];
   entryPolicy?: BackendFederationRemoteEntryPolicy;
 };
 
@@ -86,12 +86,3 @@ export type BackendFederationIdentityLoadOptions =
   BackendFederationLoadOptions & {
     expected: BackendFederationExpectedIdentity;
   };
-
-export type BackendFederationLoadEntryPlugin = ModuleFederationRuntimePlugin & {
-  loadEntry?: (args: {
-    remoteInfo: BackendFederationRemote;
-  }) =>
-    | BackendFederationEntryExports
-    | undefined
-    | Promise<BackendFederationEntryExports | undefined>;
-};

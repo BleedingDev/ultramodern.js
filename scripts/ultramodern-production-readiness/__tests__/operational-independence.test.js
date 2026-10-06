@@ -62,14 +62,15 @@ function createEnvelopeFixture(
     uiEnabled = true,
     apiEnabled = true,
     target = 'node',
+    appId = 'catalog',
     buildMarker = '0123456789abcdef',
+    identity = createIdentity('a'.repeat(40), buildMarker),
   } = {},
 ) {
-  const identity = createIdentity('a'.repeat(40), buildMarker);
   const ui = {
     rendererIdentity: {
       renderer: 'react',
-      appId: 'catalog',
+      appId,
       entryName: 'main',
       protocolVersion: 1,
       buildId: identity.buildMarker,
@@ -81,9 +82,9 @@ function createEnvelopeFixture(
       hydration: { name: 'react-dom', version: '19.3.0' },
       router: {
         name: '@tanstack/react-router',
-        version: '1.170.39',
+        version: '1.170.41',
         coreName: '@tanstack/router-core',
-        coreVersion: '1.171.32',
+        coreVersion: '1.171.34',
       },
     },
   };
@@ -102,7 +103,7 @@ function createEnvelopeFixture(
     buildMarker: identity.buildMarker,
     deployProfile: 'cloudflare-ssr-mf-effect-v1',
     kind: 'microvertical-delivery-unit',
-    packageName: '@fixture/catalog',
+    packageName: `@fixture/${appId}`,
     schemaVersion: 1,
     sourceRevision: identity.sourceRevision,
     unitId: identity.unitId,
@@ -730,4 +731,112 @@ test('final-envelope verification rejects hostile symbolic-link targets and meta
 
     assert.throws(() => readAndVerifyEnvelope(root, 'node'), expected);
   }
+});
+
+function gitIn(cwd, args) {
+  return require('node:child_process')
+    .execFileSync(
+      'git',
+      [
+        '-c',
+        'user.name=Proof',
+        '-c',
+        'user.email=proof@example.invalid',
+        '-c',
+        'commit.gpgsign=false',
+        ...args,
+      ],
+      { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+    )
+    .trim();
+}
+
+function writeFile(root, logicalPath, contents) {
+  const filePath = path.join(root, logicalPath);
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, contents);
+}
+
+test('operational proof fails when the sibling differs from its C0 build snapshot', async t => {
+  const { captureOperationalBaseline, proveOperationalTarget } =
+    await loadProof();
+  const root = fs.realpathSync(makeRoot(t, 'operational-sibling-snapshot'));
+  writeFile(
+    root,
+    'topology/reference-topology.json',
+    JSON.stringify({
+      shell: { id: 'shell', kind: 'shell', path: 'apps/shell' },
+      verticals: [
+        { id: 'catalog', kind: 'vertical', path: 'verticals/catalog' },
+        { id: 'checkout', kind: 'vertical', path: 'verticals/checkout' },
+      ],
+    }),
+  );
+  writeFile(
+    root,
+    'topology/local-overlays/development.json',
+    JSON.stringify({ ports: { shell: 3000, catalog: 3001, checkout: 3002 } }),
+  );
+  for (const [appPath, name] of [
+    ['apps/shell', '@fixture/shell'],
+    ['verticals/catalog', '@fixture/catalog'],
+    ['verticals/checkout', '@fixture/checkout'],
+  ]) {
+    writeFile(root, `${appPath}/package.json`, JSON.stringify({ name }));
+  }
+  writeFile(root, '.gitignore', '.output/\n');
+  gitIn(root, ['init', '--quiet']);
+  gitIn(root, ['add', '--all']);
+  gitIn(root, ['commit', '--quiet', '-m', 'C0']);
+  const c0 = gitIn(root, ['rev-parse', 'HEAD']);
+
+  const outputOf = appPath => path.join(root, appPath, '.output');
+  writeFile(root, 'apps/shell/.output/index.js', 'served');
+  createEnvelopeFixture(outputOf('verticals/catalog'), {
+    appId: 'catalog',
+    identity: createIdentity(c0, '1111111111111111'),
+  });
+  createEnvelopeFixture(outputOf('verticals/checkout'), {
+    appId: 'checkout',
+    identity: createIdentity(c0, '2222222222222222'),
+  });
+  const ids = { shell: 'shell', changed: 'catalog', sibling: 'checkout' };
+  const baseline = captureOperationalBaseline({
+    workspace: root,
+    target: 'node',
+    ids,
+  });
+
+  // A sibling rebuilt after the snapshot: valid envelope, different bytes.
+  fs.rmSync(outputOf('verticals/checkout'), { recursive: true });
+  createEnvelopeFixture(outputOf('verticals/checkout'), {
+    appId: 'checkout',
+    identity: createIdentity(c0, '3333333333333333'),
+  });
+
+  writeFile(root, 'verticals/catalog/api.ts', 'export const title = "C1";');
+  gitIn(root, ['add', '--all']);
+  gitIn(root, ['commit', '--quiet', '-m', 'C1']);
+  const c1 = gitIn(root, ['rev-parse', 'HEAD']);
+  gitIn(root, ['switch', '--quiet', '--detach', c0]);
+
+  const builds = [];
+  await assert.rejects(
+    proveOperationalTarget({
+      baseline,
+      changedRef: c1,
+      expectedApiValue: 'C1 API',
+      expectedUiValue: 'C1 UI',
+      run: (command, args) => {
+        builds.push([command, ...args].join(' '));
+        createEnvelopeFixture(outputOf('verticals/catalog'), {
+          appId: 'catalog',
+          identity: createIdentity(c1, '4444444444444444'),
+        });
+      },
+    }),
+    /node checkout final output bytes changed unexpectedly/,
+  );
+  assert.deepEqual(builds, ['pnpm --filter @fixture/catalog run build']);
+  assert.equal(gitIn(root, ['rev-parse', 'HEAD']), c0);
 });

@@ -1,8 +1,8 @@
-import { ULTRAMODERN_PACKAGE_PINS } from '../../policy';
 import {
   createRendererGenerationProfile,
   type RendererGenerationAdapter,
 } from '../../renderer-generation-profile';
+import { ULTRAMODERN_PACKAGE_PINS } from '../../versions';
 
 export const reactGeneration: RendererGenerationAdapter = {
   renderer: 'react',

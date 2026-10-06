@@ -1,2 +1,5 @@
 pnpm-lock.yaml               merge=ours
 *.patch                      text eol=lf whitespace=-space-before-tab
+**/bin/*.js                  text eol=lf
+**/bin/*.mjs                 text eol=lf
+**/bin/*.cjs                 text eol=lf

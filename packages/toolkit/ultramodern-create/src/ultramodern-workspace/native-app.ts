@@ -64,7 +64,7 @@ export function writeNativeApp(
   // Validate all generated contracts before creating any application output.
   const manifest = createAppPackage(scope, app, packageSource, enableTailwind);
   const tsconfig = createAppTsConfig(app);
-  const config = createAppModernConfig(scope, app, [], enableTailwind);
+  const config = createAppModernConfig(app, enableTailwind);
   const buildModule = createUltramodernBuildModule(scope, app);
   const buildJson = app.routerBindings
     ? createUltramodernBuildArtifactJson(scope, app)

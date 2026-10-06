@@ -1,46 +1,27 @@
 const fs = require('fs');
-const os = require('os');
-const path = require('path');
+const { chromium } = require('playwright');
 
-const resolveHeadlessShellExecutable = () => {
-  if (process.env.PUPPETEER_EXECUTABLE_PATH) {
-    return process.env.PUPPETEER_EXECUTABLE_PATH;
+// Puppeteer drives the Chromium that scripts/lib/browser-provisioning.js
+// installs for this package's playwright. Puppeteer's own postinstall
+// download is disabled (pnpm-workspace.yaml allowBuilds): it writes outside
+// node_modules, so a restored pnpm side-effects cache skips it and leaves no
+// browser behind.
+const resolveExecutablePath = () => {
+  const executablePath = chromium.executablePath();
+  if (!fs.existsSync(executablePath)) {
+    throw new Error(
+      `Playwright Chromium is not installed at ${executablePath}. Run \`pnpm --dir tests exec playwright install chromium\` (CI: node scripts/lib/browser-provisioning.js --install --runtime tests).`,
+    );
   }
-
-  const rootDir = path.join(
-    os.homedir(),
-    '.cache/puppeteer/chrome-headless-shell',
-  );
-  if (!fs.existsSync(rootDir)) {
-    return undefined;
-  }
-
-  const revisions = fs
-    .readdirSync(rootDir, { withFileTypes: true })
-    .filter(entry => entry.isDirectory())
-    .map(entry => entry.name)
-    .sort((left, right) => right.localeCompare(left));
-
-  const candidates = [
-    ['chrome-headless-shell-mac-arm64', 'chrome-headless-shell'],
-    ['chrome-headless-shell-mac-x64', 'chrome-headless-shell'],
-    ['chrome-headless-shell-linux64', 'chrome-headless-shell'],
-    ['chrome-headless-shell-win64', 'chrome-headless-shell.exe'],
-  ];
-
-  for (const revision of revisions) {
-    for (const [folder, executable] of candidates) {
-      const resolvedPath = path.join(rootDir, revision, folder, executable);
-      if (fs.existsSync(resolvedPath)) {
-        return resolvedPath;
-      }
-    }
-  }
-
-  return undefined;
+  return executablePath;
 };
 
 const launchOptions = {
+  // Resolved on launch so suites that only import the test utils do not need
+  // a browser.
+  get executablePath() {
+    return resolveExecutablePath();
+  },
   headless: 'new',
   dumpio: true,
   args: [
@@ -91,11 +72,6 @@ const launchOptions = {
   // see: https://github.com/puppeteer/puppeteer/issues/9927
   protocolTimeout: 0,
 };
-
-const headlessShellExecutable = resolveHeadlessShellExecutable();
-if (headlessShellExecutable) {
-  launchOptions.executablePath = headlessShellExecutable;
-}
 
 module.exports = {
   launchOptions,

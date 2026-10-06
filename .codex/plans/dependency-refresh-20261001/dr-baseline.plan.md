@@ -4,13 +4,13 @@ overview: Freeze the dependency target matrix, ownership routes and verification
 todos:
   - id: freeze-target-matrix
     content: Refresh registry evidence and freeze a target or reasoned exception for every active dependency, peer, alias, override and recipe.
-    status: pending
+    status: completed
   - id: record-ownership-routes
     content: Classify expected package edits by fork ownership and record the reviewed route for each upstream-owned change.
-    status: pending
+    status: completed
   - id: capture-acceptance-baseline
     content: Capture current build, runtime, consumer install and bundle baselines with reproducible commands and failure provenance.
-    status: pending
+    status: completed
 isProject: false
 ---
 

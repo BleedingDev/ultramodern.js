@@ -1,3 +1,5 @@
+import { createSyncHook } from '@modern-js/plugin';
+import { runtime } from '@modern-js/plugin/runtime';
 import {
   ModernI18nProvider,
   useModernI18n,
@@ -5,6 +7,7 @@ import {
 import type { I18nInstance } from '@modern-js/plugin-i18n/runtime/no-react-i18next';
 import {
   InternalRuntimeContext,
+  type RouterLifecycleContext,
   RuntimeContext,
 } from '@modern-js/runtime/context';
 import {
@@ -90,16 +93,20 @@ function createRuntimeContext(
       ),
     });
   } else {
-    createRouterStatePlugin({ registryHooks: {} }).setup({
-      onBeforeRender() {},
-      onAfterCreateRouter(callback) {
-        callback({
-          framework,
-          phase: 'client-create',
-          runtimeContext: context,
-          router,
-        });
-      },
+    const onAfterCreateRouter =
+      createSyncHook<(event: RouterLifecycleContext) => void>();
+    runtime.run({
+      config: {},
+      plugins: [
+        createRouterStatePlugin({ registryHooks: { onAfterCreateRouter } }),
+      ],
+    });
+    onAfterCreateRouter.call({
+      framework,
+      phase: 'client-create',
+      routes: [],
+      runtimeContext: context,
+      router,
     });
   }
   return context;

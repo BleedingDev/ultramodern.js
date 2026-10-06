@@ -74,20 +74,20 @@
   "scripts": {
     "build": "rm -rf dist && rslib build -c rslib.config.mts",
     "dev": "rslib build -c rslib.config.mts -w",
-    "test": "rstest --passWithNoTests"
+    "test": "rstest"
   },
   "dependencies": {
     "@babel/parser": "^8.0.6",
     "@babel/traverse": "^8.0.6",
     "@babel/types": "^8.0.6",
-    "oxlint": "1.85.0",
+    "oxlint": "1.86.0",
     "resolve.exports": "2.0.3"
   },
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
-    "@rslib/core": "1.0.2",
+    "@rslib/core": "1.0.3",
     "@scripts/rstest-config": "workspace:*",
-    "@types/node": "^26.6.2"
+    "@types/node": "^26.6.3"
   },
   "sideEffects": false,
   "publishConfig": {
@@ -127,6 +127,7 @@
   "modern:source": "./src/index.ts",
   "bin": {
     "modern-api-check": "./bin/modern-api-check.mjs",
-    "modern-api-check-files": "./bin/modern-api-check-files.mjs"
+    "modern-api-check-files": "./bin/modern-api-check-files.mjs",
+    "modern-i18n-check": "./bin/modern-i18n-check.mjs"
   }
 }

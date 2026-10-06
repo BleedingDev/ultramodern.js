@@ -1,12 +1,5 @@
-import path from 'node:path';
-import { readJsonFile } from './constants.mjs';
 import { createPnpmDlxArgs } from './package-cohort.mjs';
 import { run } from './process.mjs';
-
-function packageScriptExists(projectDir, scriptName) {
-  const packageJson = readJsonFile(path.join(projectDir, 'package.json'));
-  return typeof packageJson.scripts?.[scriptName] === 'string';
-}
 
 function createWorkspace(
   workDir,

@@ -25,7 +25,8 @@
 
 ## Common Commands
 
-- Install dependencies: `pnpm install`
+- Install dependencies: `pnpm install` (installs git hooks only; it does not build)
+- Build all framework packages: `pnpm prepare-build:local`
 - Build one package: `pnpm --filter <pkg> build`
 - Unit tests: `pnpm test:ut` from repo root, or `pnpm --filter <pkg> test` for a package.
 - Framework integration tests: `pnpm test:framework`

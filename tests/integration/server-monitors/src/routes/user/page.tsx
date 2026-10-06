@@ -1,5 +1,4 @@
 import { useLoaderData } from '@modern-js/runtime/router';
-import React from 'react';
 
 function App() {
   const data = useLoaderData() as { exist: boolean };

@@ -1,6 +1,7 @@
 import path from 'node:path';
 import type {} from '@modern-js/server-runtime-extensions/server-config';
 import { fs as fse } from '@modern-js/utils';
+import { getCloudflareWorkerRouteDataEntryName } from '../cloudflare-output-contract';
 import { readRouteSpec } from './artifacts';
 import {
   ASSETS_BINDING,
@@ -32,6 +33,8 @@ import { isRecord, normalizeRelativePath } from './utils';
 import {
   createWorkerManifestServiceBindings,
   createWorkerServiceBindings,
+  createWorkerVpcServiceBindings,
+  getWorkerEffectBffPrefix,
 } from './wrangler-config';
 
 const createMissingEffectBffWorkerError = (
@@ -137,6 +140,15 @@ export const createWorkerManifest = async (
     routeSpec.routes.map(async (route: Record<string, any>) => {
       const worker =
         typeof route.worker === 'string' ? route.worker : undefined;
+      const routeDataWorker =
+        route.isSSR && typeof route.entryName === 'string'
+          ? `${WORKER_BUNDLE_DIRECTORY}/${getCloudflareWorkerRouteDataEntryName(
+              route.entryName,
+            )}.js`
+          : undefined;
+      const hasRouteDataWorker = routeDataWorker
+        ? await fse.pathExists(path.join(outputDirectory, routeDataWorker))
+        : false;
 
       return {
         urlPath: route.urlPath,
@@ -147,6 +159,7 @@ export const createWorkerManifest = async (
         workerExists: worker
           ? await fse.pathExists(path.join(outputDirectory, worker))
           : false,
+        ...(hasRouteDataWorker ? { routeDataWorker } : {}),
       };
     }),
   );
@@ -179,20 +192,31 @@ export const createWorkerManifest = async (
       );
   }
 
-  const bffPrefix = modernConfig.bff?.prefix;
-  const primaryBffPrefix = Array.isArray(bffPrefix) ? bffPrefix[0] : bffPrefix;
   const isEffectApi =
     Boolean(modernConfig.bff) && modernConfig.bff?.runtimeFramework !== 'hono';
+  const effectBffPrefix = getWorkerEffectBffPrefix(modernConfig);
   const effectApiWorkerExists = await fse.pathExists(
     path.join(outputDirectory, BFF_EFFECT_WORKER_ENTRY),
   );
+  const typedServiceBindings = createWorkerServiceBindings(
+    modernConfig,
+    undefined,
+  );
   const serviceBindings = createWorkerManifestServiceBindings(
-    createWorkerServiceBindings(modernConfig, undefined),
+    typedServiceBindings,
+    // The wrangler config checks VPC names against every Worker binding; the
+    // manifest only needs the framework-owned assets binding reserved.
+    createWorkerVpcServiceBindings(
+      modernConfig,
+      undefined,
+      typedServiceBindings,
+      new Set([ASSETS_BINDING]),
+    ),
   );
   const moduleFederation =
     await createModuleFederationWorkerManifest(outputDirectory);
 
-  if (isEffectApi && primaryBffPrefix && !effectApiWorkerExists) {
+  if (effectBffPrefix !== undefined && !effectApiWorkerExists) {
     throw createMissingEffectBffWorkerError(
       outputDirectory,
       BFF_EFFECT_WORKER_ENTRY,
@@ -236,11 +260,11 @@ export const createWorkerManifest = async (
     ...(nativeRenderer ? { nativeRenderer } : {}),
     i18n: createI18nWorkerManifest(routeSpec, appContext),
     bff:
-      isEffectApi && primaryBffPrefix && effectApiWorkerExists
+      effectBffPrefix !== undefined && effectApiWorkerExists
         ? {
             dispatcherExport: BFF_EFFECT_WORKER_DISPATCHER_EXPORT,
             runtimeFramework: 'effect',
-            prefix: primaryBffPrefix,
+            prefix: effectBffPrefix,
             worker: BFF_EFFECT_WORKER_ENTRY,
             effect: effectBffManifest,
           }
@@ -253,9 +277,14 @@ export const createWorkerModuleLoaders = (manifest: any) => {
   const imports = new Map<string, string>();
 
   for (const route of manifest.routeSpec.routes) {
-    if (route.worker && route.workerExists) {
-      const importPath = `../${String(route.worker).replace(/^\/+/u, '')}`;
-      imports.set(route.worker, `() => import(${JSON.stringify(importPath)})`);
+    for (const worker of [
+      route.workerExists ? route.worker : undefined,
+      route.routeDataWorker,
+    ]) {
+      if (worker) {
+        const importPath = `../${String(worker).replace(/^\/+/u, '')}`;
+        imports.set(worker, `() => import(${JSON.stringify(importPath)})`);
+      }
     }
   }
 

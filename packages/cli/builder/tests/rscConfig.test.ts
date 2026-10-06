@@ -48,13 +48,13 @@ describe('getRscPlugins', () => {
       internalDir: String.raw`C:\repo\node_modules\.modern-js`,
       route: String.raw`C:\repo\node_modules\.modern-js\loader\routes.server.js`,
     },
-  ])('classifies generated conventional routes as RSC modules', ({
-    internalDir,
-    route,
-  }) => {
-    const matchers = createRscLayerMatchers(internalDir);
-    expect(matchers.some(matcher => matcher.test(route))).toBe(true);
-  });
+  ])(
+    'classifies generated conventional routes as RSC modules',
+    ({ internalDir, route }) => {
+      const matchers = createRscLayerMatchers(internalDir);
+      expect(matchers.some(matcher => matcher.test(route))).toBe(true);
+    },
+  );
 
   it('keeps the TanStack render tree in SSR while isolating its data modules in RSC', () => {
     const matchers = createRscLayerMatchers('/repo/node_modules/.modern-js');
@@ -181,9 +181,10 @@ describe('RSC configured environment compiler configuration', () => {
     nativeRscEnvironment = true,
   ) {
     expect(entry(config).layer).toBe(layers.ssr);
-    expect(config.resolve?.alias).toMatchObject({
-      '@modern-js/render/rsc$': '@modern-js/render/rsc-worker',
-    });
+    // Export conditions select the Flight runtime; no server alias pins it.
+    expect(config.resolve?.alias ?? {}).not.toHaveProperty(
+      '@modern-js/render/rsc$',
+    );
     const configuredRules = rules(config);
     expect(JSON.stringify(configuredRules)).toContain(
       'rsc-server-entry-loader',

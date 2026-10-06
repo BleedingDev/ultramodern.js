@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'path';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
+import { collectBrowserErrors } from '../../../utils/browserErrors';
 import {
   acquireFixtureLock,
   type ReleaseFixtureLock,
@@ -37,7 +38,6 @@ async function waitForAppReady(url: string, maxRetries = 60) {
       // with no output at all and the hook dies on the suite timeout with
       // nothing to read. Ready means this URL is actually serving.
       if (res.ok || (res.status >= 300 && res.status < 400)) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
         return;
       }
     } catch {
@@ -762,11 +762,7 @@ describe('routes-tanstack-mf', () => {
 
     browser = await puppeteer.launch(launchOptions as any);
     page = await browser.newPage();
-    page.on('console', msg => {
-      if (msg.type() === 'error') {
-        errors.push(msg.text());
-      }
-    });
+    await collectBrowserErrors(page, errors);
   });
 
   afterAll(async () => {

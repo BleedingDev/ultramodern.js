@@ -4,7 +4,7 @@ import { readReleaseManifest } from '../../ultramodern-publish/lib/source-create
 
 const canonicalName = '@rsbuild/core';
 const maintainedName = '@bleedingdev/rsbuild-core';
-const supportedVersion = '2.2.9';
+const supportedVersion = '2.2.11';
 
 /** Select the same maintained provider as the verified owning framework. */
 export function rsbuildSpecifierFromRelease(release) {

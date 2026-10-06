@@ -1,6 +1,6 @@
 import type { ConfigPackageMetadataRead } from '@modern-js/plugin/cli';
 import type { BffRuntimeFramework } from '@modern-js/plugin/server';
-import { address, fs } from '@modern-js/utils';
+import { fs, ip } from '@modern-js/utils';
 import path from 'path';
 
 function isSymlinkedNodeModules(appDirectory: string): boolean {
@@ -61,7 +61,7 @@ export const initAppContext = ({
 
   return {
     runtimeConfigFile,
-    ip: address.ip(),
+    ip: ip(),
     port: 0,
     moduleType,
     apiDirectory: path.resolve(appDirectory, apiDir),

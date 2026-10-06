@@ -97,6 +97,200 @@ export function prepareTractorCohortInstallation(workspace, release) {
   for (const [name, target] of Object.entries(cohort.aliases)) {
     catalog[name] = `npm:${target}@${version}`;
   }
+  // Consumers select sidecars directly (`npm:@bleedingdev/mf-modern-js-v3@…`
+  // in manifests, the default and named catalogs, and overrides). The bundle ships its own sidecar
+  // versions, so adopting it moves those selections too.
+  const sidecars = new Map(
+    (release.sidecars?.packages ?? []).map(item => [item.name, item.version]),
+  );
+  for (const selections of [
+    policy.catalog,
+    ...Object.values(policy.catalogs),
+    policy.overrides,
+  ]) {
+    selectBundleSidecars(selections, sidecars);
+  }
+  const manifestUpdates = collectPackageJsonFiles(workspace).flatMap(file => {
+    const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
+    const changed = dependencyBlocks
+      .map(block => selectBundleSidecars(manifest[block], sidecars))
+      .some(Boolean);
+    return changed ? [[file, manifest]] : [];
+  });
   fs.writeFileSync(workspaceFile, dump(policy, { lineWidth: 0 }));
+  for (const [file, manifest] of manifestUpdates) {
+    fs.writeFileSync(file, `${JSON.stringify(manifest, null, 2)}\n`);
+  }
   return { catalogCount: Object.keys(cohort.aliases).length, dependencyCount };
+}
+
+/** Point every `npm:<sidecar>@<version>` selection at the bundle's version. */
+function selectBundleSidecars(selections, sidecars) {
+  let changed = false;
+  for (const [name, specifier] of Object.entries(selections ?? {})) {
+    if (typeof specifier !== 'string' || !specifier.startsWith('npm:')) {
+      continue;
+    }
+    const separator = specifier.lastIndexOf('@');
+    const sidecar = specifier.slice('npm:'.length, separator);
+    const version = sidecars.get(sidecar);
+    if (separator <= 'npm:'.length || version === undefined) continue;
+    const selected = `npm:${sidecar}@${version}`;
+    if (selected !== specifier) {
+      selections[name] = selected;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+function assert(condition, message) {
+  if (!condition) {
+    throw new Error(message);
+  }
+}
+
+function normalizePath(value) {
+  return value.split(path.sep).join('/');
+}
+
+function readJson(file) {
+  return JSON.parse(fs.readFileSync(file, 'utf8'));
+}
+
+function readNativeCatalog(workspace) {
+  const policy = load(
+    fs.readFileSync(path.join(workspace, 'pnpm-workspace.yaml'), 'utf8'),
+  );
+  const catalog = policy?.catalogs?.ultramodern;
+  assert(
+    catalog && typeof catalog === 'object' && !Array.isArray(catalog),
+    'Tractor requires native catalogs.ultramodern',
+  );
+  return catalog;
+}
+
+function findInstalledManifest(workspace, packageFile, name) {
+  let directory = path.dirname(packageFile);
+  const root = path.resolve(workspace);
+  while (directory === root || directory.startsWith(`${root}${path.sep}`)) {
+    const candidate = path.join(
+      directory,
+      'node_modules',
+      name,
+      'package.json',
+    );
+    if (fs.existsSync(candidate)) return readJson(candidate);
+    if (directory === root) break;
+    directory = path.dirname(directory);
+  }
+  throw new Error(
+    `${normalizePath(path.relative(workspace, packageFile))} ${name} is not installed`,
+  );
+}
+
+export function assertAuthenticatedTractorCohort(workspace, release) {
+  for (const retired of [
+    '.modernjs/ultramodern.json',
+    '.modernjs/release-cohort.json',
+  ]) {
+    assert(
+      !fs.existsSync(path.join(workspace, retired)),
+      `Tractor still carries retired ${retired}`,
+    );
+  }
+  const catalog = readNativeCatalog(workspace);
+  const version = release.release?.version;
+  const aliases = release.aliases;
+  assert(
+    typeof version === 'string' && version.length > 0,
+    'Exact release version is required',
+  );
+  assert(
+    aliases && typeof aliases === 'object',
+    'Exact release aliases are required',
+  );
+  const cohortPath = path.join(
+    workspace,
+    'node_modules/@modern-js/ultramodern-create/release-cohort.json',
+  );
+  assert(
+    fs.existsSync(cohortPath),
+    'Installed producer release cohort is missing',
+  );
+  const observed = readJson(cohortPath);
+  assert(
+    observed.release?.version === version &&
+      isDeepStrictEqual(observed.aliases, aliases) &&
+      (!release.cohortProjection?.value ||
+        isDeepStrictEqual(observed, release.cohortProjection.value)),
+    'Installed producer release cohort differs from the exact release manifest',
+  );
+  for (const [name, target] of Object.entries(aliases)) {
+    assert(
+      catalog[name] === `npm:${target}@${version}`,
+      `Tractor native catalog ${name} must select exact release ${version}`,
+    );
+  }
+  return { catalogCount: Object.keys(aliases).length, version };
+}
+
+export function assertExactModernDependencySpecifiers(workspace, release) {
+  const catalog = readNativeCatalog(workspace);
+  const version = release.release?.version;
+  const aliases = release.aliases;
+  assert(
+    typeof version === 'string' && version.length > 0,
+    'Release version is required for Tractor cohort validation',
+  );
+  assert(
+    aliases && typeof aliases === 'object',
+    'Release aliases are required for Tractor cohort validation',
+  );
+  const observations = [];
+  for (const packageFile of collectPackageJsonFiles(workspace)) {
+    const manifest = readJson(packageFile);
+    for (const blockName of dependencyBlocks) {
+      for (const [dependencyName, specifier] of Object.entries(
+        manifest[blockName] ?? {},
+      )) {
+        if (!dependencyName.startsWith('@modern-js/')) continue;
+        const targetName = aliases[dependencyName];
+        assert(
+          typeof targetName === 'string',
+          `${normalizePath(path.relative(workspace, packageFile))} ${blockName}.${dependencyName} is absent from the exact release cohort`,
+        );
+        assert(
+          specifier === 'catalog:ultramodern',
+          `${normalizePath(path.relative(workspace, packageFile))} ${blockName}.${dependencyName} must use catalog:ultramodern`,
+        );
+        const expected = `npm:${targetName}@${version}`;
+        assert(
+          catalog[dependencyName] === expected,
+          `${dependencyName} catalog request must be ${expected}`,
+        );
+        const installed = findInstalledManifest(
+          workspace,
+          packageFile,
+          dependencyName,
+        );
+        assert(
+          installed.name === targetName && installed.version === version,
+          `${dependencyName} installed identity/version differs from the exact release`,
+        );
+        observations.push({
+          blockName,
+          dependencyName,
+          packageFile: normalizePath(path.relative(workspace, packageFile)),
+          specifier,
+          targetName,
+        });
+      }
+    }
+  }
+  assert(
+    observations.length > 0,
+    'Tractor workspace contains no Modern.js dependencies to bind to the release cohort',
+  );
+  return observations;
 }

@@ -536,13 +536,13 @@ export function validateWorkspace(
 
   const catalogs = record(workspace.catalogs ?? {}, 'workspace catalogs');
   const catalog = record(catalogs.ultramodern ?? {}, 'ultramodern catalog');
-  assert(
-    hasCreateReleaseCohort() || isCreatePackageSourceCheckout(),
-    'Installed ultramodern-create package is missing release-cohort.json',
-  );
+  // Only catalog requests resolve through the release cohort; a workspace
+  // generated with the workspace package source links every framework package
+  // with workspace:* and needs no cohort.
   const producer = hasCreateReleaseCohort()
     ? readCreateReleaseCohort()
     : undefined;
+  const sourceCheckout = isCreatePackageSourceCheckout();
   const cohort = new Map(
     producer?.packages.map(pkg => [pkg.sourceName, pkg]) ?? [],
   );
@@ -591,6 +591,10 @@ export function validateWorkspace(
             request === 'catalog:ultramodern',
             `${member} ${name} must use the ultramodern catalog`,
           );
+        assert(
+          producer || sourceCheckout || request === 'workspace:*',
+          `${member} ${name} uses the ultramodern catalog, but the installed ultramodern-create package is missing release-cohort.json. Install a published ultramodern-create release, or generate with --ultramodern-package-source workspace.`,
+        );
         if (producer && request !== 'workspace:*') {
           const release = cohort.get(name);
           assert(

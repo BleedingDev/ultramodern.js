@@ -463,7 +463,7 @@ async function readCompilerObservation({
   distDirectory,
   renderer,
   expectedEntryNames,
-  expectedRsbuildVersion = '2.2.9',
+  expectedRsbuildVersion = '2.2.11',
   environment: buildEnvironment = 'production',
   expectedDevelopmentManifest,
   nativeOwnership = true,

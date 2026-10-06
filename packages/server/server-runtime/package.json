@@ -51,8 +51,7 @@
   "scripts": {
     "prepublishOnly": "only-allow-pnpm",
     "dev": "rslib build --watch",
-    "build": "rslib build",
-    "test": "rstest --passWithNoTests"
+    "build": "rslib build"
   },
   "dependencies": {
     "@modern-js/runtime-utils": "workspace:*",
@@ -62,9 +61,8 @@
   },
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
-    "@rslib/core": "1.0.2",
-    "@scripts/rstest-config": "workspace:*",
-    "@types/node": "^26.6.2"
+    "@rslib/core": "1.0.3",
+    "@types/node": "^26.6.3"
   },
   "sideEffects": false,
   "publishConfig": {

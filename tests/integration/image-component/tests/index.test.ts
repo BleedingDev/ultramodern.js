@@ -75,10 +75,15 @@ describe('dev', () => {
   test(`should render page correctly`, async () => {
     if (!isVersionAtLeast18()) return;
     const appPort = await getPort();
+    let devStderr = '';
     const app = await launchApp(
       appDir,
       appPort,
-      {},
+      {
+        onStderr: (message: string) => {
+          devStderr += message;
+        },
+      },
       {
         // FIXME: disable the fast refresh plugin to avoid the `require` not found issue.
         FAST_REFRESH: 'false',
@@ -112,12 +117,34 @@ describe('dev', () => {
     expect(image.naturalWidth).toBeGreaterThan(0);
     expect(image.naturalHeight).toBeGreaterThan(0);
     expect(image.srcset).toMatch(
-      /\/_(?:modern|rsbuild)\/ipx\/f_auto,w_500,q_75\/static\/assets\/crab\.png 1x,\/_(?:modern|rsbuild)\/ipx\/f_auto,w_1000,q_75\/static\/assets\/crab\.png 2x/,
+      /\/_modern\/ipx\/f_auto,w_500,q_75\/static\/assets\/crab\.png 1x,\/_modern\/ipx\/f_auto,w_1000,q_75\/static\/assets\/crab\.png 2x/,
     );
     expect(image.src).toMatch(
-      /\/_(?:modern|rsbuild)\/ipx\/f_auto,w_1000,q_75\/static\/assets\/crab\.png/,
+      /\/_modern\/ipx\/f_auto,w_1000,q_75\/static\/assets\/crab\.png/,
     );
     expect(errors.length).toEqual(0);
+
+    // ipx 4 passes sharpen arguments in sharp 0.35's object form, so the
+    // sharpened image differs from the plain resize.
+    const ipxImage = async (modifiers: string) => {
+      const response = await fetch(
+        `http://localhost:${appPort}/_modern/ipx/${modifiers}/static/assets/crab.png`,
+      );
+      expect(response.status).toBe(200);
+      expect(response.headers.get('content-type')).toMatch(/^image\//);
+      // IPX runs after the dev server's own middleware, so configured
+      // response headers still apply.
+      expect(response.headers.get('x-image-dev-header')).toBe('kept');
+      return Buffer.from(await response.arrayBuffer());
+    };
+    const plain = await ipxImage('s_200');
+    const sharpened = await ipxImage('s_200,sharpen_2');
+    expect(sharpened.length).toBeGreaterThan(0);
+    expect(sharpened.equals(plain)).toBe(false);
+
+    // Two sharp copies in one process share libvips type registrations and
+    // log GLib criticals while the page still renders.
+    expect(devStderr).not.toContain('GLib-GObject-CRITICAL');
 
     await browser.close();
     await killApp(app);

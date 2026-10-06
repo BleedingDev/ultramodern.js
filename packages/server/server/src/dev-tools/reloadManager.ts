@@ -135,6 +135,12 @@ export class ReloadManager {
 
   #closed = false;
 
+  /** Settles when every task passed to `hold()` so far has settled. */
+  #held: Promise<void> = Promise.resolve();
+
+  /** Number of `hold()` tasks that have not settled yet. */
+  #holding = 0;
+
   constructor(options: ReloadManagerOptions) {
     this.#current = options.initialHandle ?? notReadyHandle;
     this.#build = options.build;
@@ -159,7 +165,34 @@ export class ReloadManager {
    * be recreated on reload.
    */
   get handle(): ReloadableHandle {
-    return (request, ...args) => this.#current(request, ...args);
+    return (request, ...args) =>
+      this.#holding === 0
+        ? this.#current(request, ...args)
+        : this.#released().then(() => this.#current(request, ...args));
+  }
+
+  /** Settles once no `hold()` task is pending, including ones held later. */
+  async #released(): Promise<void> {
+    while (this.#holding > 0) {
+      await this.#held;
+    }
+  }
+
+  /**
+   * Run `task` after the previously held tasks, and make requests arriving
+   * through `handle` wait until it settles. A reload waits for it before it
+   * swaps the runtime. Requests already dispatched are not waited for: an SSR
+   * loader fetching its own dev server would deadlock. The task itself must
+   * not await a request to this handle, which waits for the task.
+   * Returns the task's own result, rejection included.
+   */
+  hold(task: () => Promise<void>): Promise<void> {
+    this.#holding += 1;
+    const run = this.#held.then(task).finally(() => {
+      this.#holding -= 1;
+    });
+    this.#held = run.catch(() => {});
+    return run;
   }
 
   /** The currently active resolved handle (introspection / tests). */
@@ -227,6 +260,10 @@ export class ReloadManager {
         this.#reportBuildError(error);
         continue;
       }
+
+      // Never swap out a runtime whose held repack task is still running its
+      // reset handlers.
+      await this.#released();
 
       // If the manager was closed while this build was in flight, drop the
       // result without committing — no swap, no onReload after close.
@@ -302,7 +339,11 @@ export class ReloadManager {
       clearTimeout(this.#debounceTimer);
       this.#debounceTimer = null;
     }
-    void this.#dispose(this.#current);
+    // Requests queued behind a hold were accepted before close: dispose only
+    // once they have dispatched. Their `#released()` waits resolve before this
+    // one, so they enter the draining handle before it retires.
+    const current = this.#current;
+    void this.#released().then(() => this.#dispose(current));
   }
 }
 

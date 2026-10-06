@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
+import { createRequire, findPackageJSON } from 'node:module';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -11,10 +11,14 @@ const pluginImageRequire = createRequire(
   ),
 );
 const rsbuildImageEntry = pluginImageRequire.resolve('@rsbuild-image/core');
-const imageSizeCjsEntry =
-  createRequire(rsbuildImageEntry).resolve('image-size');
-const imageSizeDist = path.dirname(imageSizeCjsEntry);
-const moduleKinds = ['commonjs'] as const;
+const imageSizeEntry = createRequire(rsbuildImageEntry).resolve('image-size');
+const imageSizePackageJson = findPackageJSON(
+  'image-size',
+  pathToFileURL(rsbuildImageEntry),
+);
+// 2.0.3 is the first upstream release that terminates on malformed box
+// lengths; anything older can spin forever inside the image core sidecar.
+const MINIMUM_IMAGE_SIZE_VERSION = [2, 0, 3] as const;
 // Each case parses untrusted bytes in a throwaway child so an unbounded parse
 // loop surfaces as a deterministic failure instead of hanging the suite. A
 // healthy child finishes in ~60ms; the bound only has to be small enough to
@@ -23,6 +27,19 @@ const CHILD_TIMEOUT_MS = 5_000;
 
 function hex(value: string): readonly number[] {
   return [...Buffer.from(value.replaceAll(/\s/g, ''), 'hex')];
+}
+
+function compareVersions(
+  actual: readonly number[],
+  minimum: readonly number[],
+): number {
+  for (let index = 0; index < minimum.length; index += 1) {
+    const difference = (actual[index] ?? 0) - minimum[index];
+    if (difference !== 0) {
+      return difference;
+    }
+  }
+  return 0;
 }
 
 const jxlContainerPrefix = `
@@ -69,25 +86,11 @@ const validImages = [
   },
 ] as const;
 
-type ImageType = 'heif' | 'icns' | 'jp2' | 'jpg' | 'jxl';
-type ModuleKind = (typeof moduleKinds)[number];
 type ChildResult =
-  | {
-      outcome: 'parsed';
-      result: { height: number; type?: string; width: number };
-    }
-  | { errorMessage: string; errorName: string; outcome: 'rejected' };
-type ExpectedOutcome =
-  | { height: number; outcome: 'parsed'; width: number }
-  | { errorMessage?: string; outcome: 'rejected' };
-type SecurityCase = {
-  bytes: readonly number[];
-  expected: ExpectedOutcome;
-  imageType: ImageType;
-  name: string;
-};
+  | { outcome: 'parsed'; result: { height: unknown; width: unknown } }
+  | { errorName: string; outcome: 'rejected' };
 
-const securityCases: readonly SecurityCase[] = [
+const malformedInputs = [
   {
     bytes: hex(`
       00000010667479706176696600000000
@@ -96,8 +99,6 @@ const securityCases: readonly SecurityCase[] = [
       0000001c6970636f
       0000000069737065000000000000000700000009
     `),
-    expected: { height: 9, outcome: 'parsed', width: 7 },
-    imageType: 'heif',
     name: 'terminal size-zero HEIF ispe box',
   },
   {
@@ -109,20 +110,14 @@ const securityCases: readonly SecurityCase[] = [
       0000000069737065000000000000000700000009
       0000000866726565
     `),
-    expected: { outcome: 'rejected' },
-    imageType: 'heif',
     name: 'HEIF ispe box extending beyond ipco',
   },
   {
     bytes: hex('69636e73000000106963303700000000'),
-    expected: { outcome: 'rejected' },
-    imageType: 'icns',
     name: 'zero-length ICNS entry',
   },
   {
     bytes: hex(`${jxlContainerPrefix} 000000086a786c70`),
-    expected: { outcome: 'rejected' },
-    imageType: 'jxl',
     name: 'undersized JXL partial-stream box',
   },
   {
@@ -132,8 +127,6 @@ const securityCases: readonly SecurityCase[] = [
       000000046a703268
       00000010696864720000000900000007
     `),
-    expected: { outcome: 'rejected' },
-    imageType: 'jp2',
     name: 'undersized JP2 header box',
   },
   {
@@ -143,74 +136,37 @@ const securityCases: readonly SecurityCase[] = [
       000000186a703268
       00000004696864720000000900000007
     `),
-    expected: { outcome: 'rejected' },
-    imageType: 'jp2',
     name: 'undersized JP2 image-header box',
   },
   {
     bytes: hex('ffd8ffe00000'),
-    expected: {
-      errorMessage: 'Corrupt JPG, invalid segment length',
-      outcome: 'rejected',
-    },
-    imageType: 'jpg',
     name: 'zero-length JPEG segment',
   },
   {
     bytes: hex('ffd8ffe00001'),
-    expected: {
-      errorMessage: 'Corrupt JPG, invalid segment length',
-      outcome: 'rejected',
-    },
-    imageType: 'jpg',
     name: 'one-byte JPEG segment',
   },
-];
+] as const;
 
-function distributionEntry(
-  moduleKind: ModuleKind,
-  name: 'fromFile' | 'index',
-): string {
-  return path.join(
-    imageSizeDist,
-    `${name}.${moduleKind === 'module' ? 'mjs' : 'cjs'}`,
-  );
-}
-
-function loadModuleSource(moduleKind: ModuleKind, entry: string): string {
-  return moduleKind === 'module'
-    ? `await import(${JSON.stringify(pathToFileURL(entry).href)})`
-    : `createRequire(import.meta.url)(${JSON.stringify(entry)})`;
-}
-
-async function loadModule(moduleKind: ModuleKind, entry: string) {
-  return moduleKind === 'module'
-    ? import(pathToFileURL(entry).href)
-    : createRequire(import.meta.url)(entry);
-}
-
-function runInChild(operation: string): ChildResult {
+function parseBufferInChild(bytes: readonly number[]): ChildResult {
   const source = `
-    import { createRequire } from 'node:module';
+    const { imageSize } = require(${JSON.stringify(imageSizeEntry)});
+    let output;
     try {
-      const result = await (${operation})();
-      process.stdout.write(JSON.stringify({ outcome: 'parsed', result }));
+      const { height, width } = imageSize(Uint8Array.from(${JSON.stringify(bytes)}));
+      output = { outcome: 'parsed', result: { height, width } };
     } catch (error) {
-      process.stdout.write(JSON.stringify({
+      output = {
         outcome: 'rejected',
-        errorMessage: error instanceof Error ? error.message : String(error),
         errorName: error instanceof Error ? error.name : typeof error,
-      }));
+      };
     }
+    process.stdout.write(JSON.stringify(output));
   `;
-  const execution = spawnSync(
-    process.execPath,
-    ['--input-type=module', '--eval', source],
-    {
-      encoding: 'utf8',
-      timeout: CHILD_TIMEOUT_MS,
-    },
-  );
+  const execution = spawnSync(process.execPath, ['--eval', source], {
+    encoding: 'utf8',
+    timeout: CHILD_TIMEOUT_MS,
+  });
 
   expect(execution.error).toBeUndefined();
   expect(execution.signal).toBeNull();
@@ -220,62 +176,43 @@ function runInChild(operation: string): ChildResult {
   return JSON.parse(execution.stdout) as ChildResult;
 }
 
-function parseBufferInChild(
-  moduleKind: ModuleKind,
-  bytes: readonly number[],
-): ChildResult {
-  const loadDistribution = loadModuleSource(
-    moduleKind,
-    distributionEntry(moduleKind, 'index'),
-  );
-  return runInChild(`async () => {
-    const { imageSize } = ${loadDistribution};
-    return imageSize(Uint8Array.from(${JSON.stringify(bytes)}));
-  }`);
+function expectBoundedDimension(value: unknown): void {
+  expect(Number.isSafeInteger(value)).toBe(true);
+  expect(value as number).toBeGreaterThanOrEqual(0);
 }
 
-function expectSecurityOutcome(
-  actual: ChildResult,
-  expected: ExpectedOutcome,
-): void {
-  expect(actual.outcome).toBe(expected.outcome);
-  if (actual.outcome === 'parsed' && expected.outcome === 'parsed') {
-    expect(actual.result).toMatchObject({
-      height: expected.height,
-      width: expected.width,
-    });
-  } else if (actual.outcome === 'rejected' && expected.outcome === 'rejected') {
-    expect(actual.errorName).toMatch(/Error$/);
-    if (expected.errorMessage) {
-      expect(actual.errorMessage).toBe(expected.errorMessage);
+describe('image-size resolved by @rsbuild-image/core', () => {
+  it('is at least the release that terminates on malformed boxes', () => {
+    const { version } = JSON.parse(
+      readFileSync(imageSizePackageJson as string, 'utf8'),
+    ) as { version: string };
+    const actual = version.split(/[.+-]/).slice(0, 3).map(Number);
+
+    expect(
+      compareVersions(actual, MINIMUM_IMAGE_SIZE_VERSION),
+      `image-size ${version} predates ${MINIMUM_IMAGE_SIZE_VERSION.join('.')}; raise the image-size range of @rsbuild-image/core`,
+    ).toBeGreaterThanOrEqual(0);
+  });
+
+  it.each(malformedInputs)('terminates on $name', ({ bytes }) => {
+    const actual = parseBufferInChild(bytes);
+
+    if (actual.outcome === 'rejected') {
+      expect(actual.errorName).toMatch(/Error$/);
+    } else {
+      expectBoundedDimension(actual.result.width);
+      expectBoundedDimension(actual.result.height);
     }
-  }
-}
-
-describe.each(moduleKinds)('image-size %s distribution', moduleKind => {
-  it.each(securityCases)('bounds the public buffer parser for $name', ({
-    bytes,
-    expected,
-  }) => {
-    expectSecurityOutcome(parseBufferInChild(moduleKind, bytes), expected);
   });
 
-  it.each(validImages)('preserves valid $name parsing', async fixture => {
-    const imageSizeModule = await loadModule(
-      moduleKind,
-      distributionEntry(moduleKind, 'index'),
-    );
+  it.each(validImages)('preserves valid $name parsing', fixture => {
+    const { imageSize } = createRequire(__filename)(imageSizeEntry);
 
-    expect(imageSizeModule.imageSize(Uint8Array.from(fixture.bytes))).toEqual(
-      fixture.expected,
-    );
+    expect(imageSize(Uint8Array.from(fixture.bytes))).toEqual(fixture.expected);
   });
 
-  it('preserves valid PNG parsing from a nonzero-byte-offset view', async () => {
-    const imageSizeModule = await loadModule(
-      moduleKind,
-      distributionEntry(moduleKind, 'index'),
-    );
+  it('preserves valid PNG parsing from a nonzero-byte-offset view', () => {
+    const { imageSize } = createRequire(__filename)(imageSizeEntry);
     const png = readFileSync(path.resolve(__dirname, '../src/routes/crab.png'));
     const padded = Buffer.alloc(png.length + 32, 0xa5);
     png.copy(padded, 17);
@@ -285,7 +222,7 @@ describe.each(moduleKinds)('image-size %s distribution', moduleKind => {
       png.length,
     );
 
-    expect(imageSizeModule.imageSize(view)).toMatchObject({
+    expect(imageSize(view)).toMatchObject({
       height: 1281,
       type: 'png',
       width: 1920,

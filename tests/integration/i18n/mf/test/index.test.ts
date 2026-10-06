@@ -1,5 +1,6 @@
 import path from 'path';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
+import { collectBrowserErrors } from '../../../../utils/browserErrors';
 import {
   killApp,
   launchApp,
@@ -9,22 +10,26 @@ import {
   acquireTestLock,
   clearI18nTestState,
   conditionalTest,
+  waitForText,
 } from '../../test-utils';
 
 rstest.setConfig({ testTimeout: 1000 * 60 * 5, hookTimeout: 1000 * 60 * 5 });
 
-async function waitForAppReady(port: number, maxRetries = 30) {
+async function waitForAppReady(
+  port: number,
+  pathname = '/en',
+  maxRetries = 30,
+) {
   for (let i = 0; i < maxRetries; i++) {
     try {
-      const response = await fetch(`http://localhost:${port}`, {
+      const response = await fetch(`http://localhost:${port}${pathname}`, {
         method: 'HEAD',
         signal: AbortSignal.timeout(2000),
       });
-      if (response.ok || response.status < 500) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
+      if (response.ok) {
         return;
       }
-    } catch (error) {}
+    } catch {}
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
   throw new Error(`Application on port ${port} did not become ready`);
@@ -46,17 +51,6 @@ const APP_MF_SSR_ENV = {
 };
 const MULTIPLE_RENDERERS_WARNING =
   'Detected multiple renderers concurrently rendering the same context provider.';
-
-function collectBrowserErrors(page: Page, browserErrors: string[]) {
-  page.on('console', message => {
-    if (message.type() === 'error') {
-      browserErrors.push(message.text());
-    }
-  });
-  page.on('pageerror', error => {
-    browserErrors.push(error instanceof Error ? error.message : String(error));
-  });
-}
 
 function expectNoRendererWarnings(output: string[]) {
   expect(output.join('')).not.toContain(MULTIPLE_RENDERERS_WARNING);
@@ -99,7 +93,7 @@ describe('mf-i18n-tests', () => {
         onStderr: (message: string) => componentProviderOutput.push(message),
       },
     );
-    await waitForAppReady(COMPONENT_PROVIDER_PORT);
+    await waitForAppReady(COMPONENT_PROVIDER_PORT, '/mf-manifest.json');
 
     appProviderApp = await launchApp(
       appProviderDir,
@@ -110,18 +104,21 @@ describe('mf-i18n-tests', () => {
       },
       APP_MF_SSR_ENV,
     );
-    await waitForAppReady(APP_PROVIDER_PORT);
+    await waitForAppReady(APP_PROVIDER_PORT, '/mf-manifest.json');
 
     componentProviderBrowser = await puppeteer.launch(launchOptions as any);
     componentProviderPage = await componentProviderBrowser.newPage();
-    collectBrowserErrors(componentProviderPage, componentProviderBrowserErrors);
+    await collectBrowserErrors(
+      componentProviderPage,
+      componentProviderBrowserErrors,
+    );
     await componentProviderPage.setExtraHTTPHeaders({
       'Accept-Language': 'en-US,en;q=0.9',
     });
 
     appProviderBrowser = await puppeteer.launch(launchOptions as any);
     appProviderPage = await appProviderBrowser.newPage();
-    collectBrowserErrors(appProviderPage, appProviderBrowserErrors);
+    await collectBrowserErrors(appProviderPage, appProviderBrowserErrors);
     await appProviderPage.setExtraHTTPHeaders({
       'Accept-Language': 'en-US,en;q=0.9',
     });
@@ -337,7 +334,7 @@ describe('mf-i18n-tests', () => {
 
       browser = await puppeteer.launch(launchOptions as any);
       page = await browser.newPage();
-      collectBrowserErrors(page, browserErrors);
+      await collectBrowserErrors(page, browserErrors);
       await page.setExtraHTTPHeaders({
         'Accept-Language': 'en-US,en;q=0.9',
       });
@@ -459,7 +456,7 @@ describe('mf-i18n-tests', () => {
 
       browser = await puppeteer.launch(launchOptions as any);
       page = await browser.newPage();
-      collectBrowserErrors(page, browserErrors);
+      await collectBrowserErrors(page, browserErrors);
       await page.setExtraHTTPHeaders({
         'Accept-Language': 'en-US,en;q=0.9',
       });
@@ -491,12 +488,7 @@ describe('mf-i18n-tests', () => {
         waitUntil: ['networkidle0'],
         timeout: 60000,
       });
-      const remoteAppTitle = await page.$('h2');
-      const titleText = await page.evaluate(
-        el => el?.textContent,
-        remoteAppTitle,
-      );
-      expect(titleText?.trim()).toEqual('远程应用页面');
+      await waitForText(page, 'h2', '远程应用页面');
       const body = await page.$('body');
       expect(body).toBeTruthy();
     });
@@ -506,12 +498,7 @@ describe('mf-i18n-tests', () => {
         waitUntil: ['networkidle0'],
         timeout: 60000,
       });
-      const remoteAppTitle = await page.$('h2');
-      const titleText = await page.evaluate(
-        el => el?.textContent,
-        remoteAppTitle,
-      );
-      expect(titleText?.trim()).toEqual('远程应用页面');
+      await waitForText(page, 'h2', '远程应用页面');
     });
 
     conditionalTest('should load remote-2 app correctly', async () => {
@@ -519,12 +506,7 @@ describe('mf-i18n-tests', () => {
         waitUntil: ['networkidle0'],
         timeout: 60000,
       });
-      const remoteAppTitle = await page.$('h2');
-      const titleText = await page.evaluate(
-        el => el?.textContent,
-        remoteAppTitle,
-      );
-      expect(titleText?.trim()).toEqual('远程应用页面');
+      await waitForText(page, 'h2', '远程应用页面');
       await page.waitForSelector('#key', { timeout: 30000 });
       const remoteKey = await page.$('#key');
       const remoteText = await page.evaluate(el => el?.textContent, remoteKey);
@@ -536,12 +518,7 @@ describe('mf-i18n-tests', () => {
         waitUntil: ['networkidle0'],
         timeout: 60000,
       });
-      const remoteAppTitle = await page.$('h2');
-      const titleText = await page.evaluate(
-        el => el?.textContent,
-        remoteAppTitle,
-      );
-      expect(titleText?.trim()).toEqual('远程应用页面');
+      await waitForText(page, 'h2', '远程应用页面');
       await page.waitForSelector('#key', { timeout: 30000 });
       const remoteKey = await page.$('#key');
       const remoteText = await page.evaluate(el => el?.textContent, remoteKey);

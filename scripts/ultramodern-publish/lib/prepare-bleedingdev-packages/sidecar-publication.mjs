@@ -13,10 +13,13 @@
 //     (content drift, an absent version the dist-tag claims, a dist-tag that
 //     points elsewhere, a backwards republish) fails closed.
 //
+//   * a reused version passes the cohort's registry provenance chronology:
+//     it is a pinned grandfathered version or carries SLSA v1 provenance from
+//     this repository's publish workflow.
+//
 // Nothing here publishes, packs, or mutates state; the CLI wires these
 // decisions to the npm buffer publisher.
 import path from 'node:path';
-import semver from '../../../../packages/toolkit/utils/compiled/semver/index.js';
 import validationKit from '../../../lib/validation-kit.js';
 import {
   npmRegistryOrigin,
@@ -28,10 +31,12 @@ import {
   trustedPublishRef,
   trustedPublishRepository,
 } from './constants.mjs';
+import { createRegistryProvenanceExpectation } from './provenance.mjs';
+import { verifyRegistryProvenanceChronology } from './registry.mjs';
 import {
-  isQualifiedSidecarVersion,
   normalizeSidecarBin,
   sidecarAliasEntries,
+  sidecarProvenancePolicy,
 } from './sidecars.mjs';
 
 const { assertNonEmptyString, assertPlainObject, isPlainObject } = validationKit;
@@ -155,9 +160,6 @@ function registryContentProjection(source, name) {
 }
 
 function assertStableSidecarVersion(name, version) {
-  if (isQualifiedSidecarVersion(name, version)) {
-    return;
-  }
   if (typeof version !== 'string' || !stableVersionPattern.test(version)) {
     throw new Error(
       `Sidecar ${name} version ${String(version)} must be stable semver (X.Y.Z) to publish`,
@@ -166,7 +168,7 @@ function assertStableSidecarVersion(name, version) {
 }
 
 /**
- * The registry a sidecar may be published to. `@bleedingdev/ipx` carries an
+ * The registry a sidecar may be published to. Every sidecar carries an
  * explicit `publishConfig.registry`; anything but the pinned npm endpoint, or
  * any attempt to pin a dist-tag from inside the package, fails closed.
  */
@@ -385,7 +387,7 @@ function assertSidecarPublishOrder(sidecars) {
  *              re-run converges instead of failing on an immutable version.
  * throws     - any other registry state.
  */
-function sidecarRegistryDecision(
+async function sidecarRegistryDecision(
   sidecar,
   packument,
   { tag = sidecarPublishTag } = {},
@@ -435,6 +437,7 @@ function sidecarRegistryDecision(
       );
     }
     if (currentTag !== undefined) {
+      const { default: semver } = await import('semver');
       if (!semver.valid(currentTag) || !semver.valid(version)) {
         throw new Error(
           `${name} cannot compare candidate ${version} with current ${tag} ${currentTag} as strict semantic versions`,
@@ -531,6 +534,39 @@ function sidecarRegistryDecision(
 }
 
 /**
+ * Matching bytes alone do not make a reused version trustworthy: whoever
+ * published it first chose those bytes. Reuse requires the package's whole
+ * registry chronology to pass the cohort verifier against the sidecar's
+ * code-reviewed policy in scripts/ultramodern-supply/sidecars.json.
+ */
+async function assertSidecarReuseProvenance(
+  sidecar,
+  packument,
+  { env = process.env, policy = sidecarProvenancePolicy(sidecar.name), source },
+  dependencies = {},
+) {
+  // The chronology authenticates only the versions this read contains; a
+  // stale replica without the reused version must not vouch for it.
+  if (
+    packument?.versions?.[sidecar.version]?.dist?.integrity !==
+    sidecar.integrity
+  ) {
+    throw new Error(
+      `${sidecar.name} registry read does not contain the reused ${sidecar.version} with the accepted integrity`,
+    );
+  }
+  await verifyRegistryProvenanceChronology(
+    {
+      expectation: createRegistryProvenanceExpectation({ source }, env),
+      metadata: packument,
+      packageName: sidecar.name,
+      policy,
+    },
+    dependencies,
+  );
+}
+
+/**
  * Publishing is only ever reachable from the trusted-publishing workflow on the
  * publish branch of the fork; there is no token path.
  */
@@ -552,6 +588,7 @@ function assertSidecarTrustedPublishContext(env = process.env) {
 
 export {
   assertSidecarPublishOrder,
+  assertSidecarReuseProvenance,
   assertSidecarPublishTarget,
   assertSidecarStagingManifest,
   assertSidecarTrustedPublishContext,

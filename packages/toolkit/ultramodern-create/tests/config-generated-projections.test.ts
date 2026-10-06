@@ -42,14 +42,16 @@ const configPath = `${shellDirectory}/modern.config.ts`;
 const mfPath = `${shellDirectory}/module-federation.config.ts`;
 const packagePath = `${shellDirectory}/package.json`;
 const overlayPath = 'topology/local-overlays/development.json';
-const projectedPaths = [configPath, mfPath, packagePath, overlayPath];
+// The React config reads workspace policy through its preset; adding a
+// vertical leaves the config bytes unchanged and projects only these inputs.
+const projectedPaths = [mfPath, packagePath, overlayPath];
 const consumedInputError = /changed a source input consumed by modern\.config/u;
 const json = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
 
 function sources(shell: WorkspaceApp, verticals: WorkspaceApp[]) {
   const publicWeb = createPublicWebAppArtifacts(shell);
   return new Map([
-    [configPath, createAppModernConfig(scope, shell, verticals, false)],
+    [configPath, createAppModernConfig(shell, false)],
     [mfPath, createShellModuleFederationConfig(scope, shell, verticals)],
     [
       packagePath,
@@ -179,7 +181,7 @@ function fixture() {
   };
 }
 
-test('exact generated UI and API composition permits only its four canonical projections', async () => {
+test('exact generated UI and API composition permits only its three canonical projections', async () => {
   const f = fixture();
   try {
     const proof = f.prove();
@@ -187,6 +189,10 @@ test('exact generated UI and API composition permits only its four canonical pro
     const captured = await f.capture();
     assert.notEqual(f.root, f.stage);
     f.project();
+    assert.equal(
+      f.nextSources.get(configPath),
+      f.originalSources.get(configPath),
+    );
     for (const relative of projectedPaths) {
       assert.notEqual(
         f.nextSources.get(relative),

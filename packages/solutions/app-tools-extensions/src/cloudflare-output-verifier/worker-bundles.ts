@@ -5,6 +5,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { parse } from '@babel/parser';
 import traverse, { type NodePath } from '@babel/traverse';
 import {
+  CLOUDFLARE_ROUTE_DATA_HANDLER_EXPORT,
   CLOUDFLARE_WORKER_BUNDLE_DIRECTORY,
   CLOUDFLARE_WORKER_NODE_BUILTINS,
   CLOUDFLARE_WORKER_PLATFORM_MODULES,
@@ -14,7 +15,7 @@ import { addIssue } from './issues';
 
 interface WorkerBundleReference {
   dispatcherExport?: string;
-  kind: 'effect-bff' | 'route';
+  kind: 'effect-bff' | 'route' | 'route-data';
   reference: string;
 }
 
@@ -22,12 +23,15 @@ interface ResolvedWorkerBundleReference extends WorkerBundleReference {
   path: string;
 }
 
-const getReferencedRouteWorkers = (manifest: JsonObject) =>
+const getReferencedRouteWorkers = (
+  manifest: JsonObject,
+  field: 'routeDataWorker' | 'worker',
+) =>
   Array.isArray(manifest?.routeSpec?.routes)
     ? manifest.routeSpec.routes
         .map((route: any) =>
-          typeof route?.worker === 'string' && route.worker.length > 0
-            ? route.worker
+          typeof route?.[field] === 'string' && route[field].length > 0
+            ? route[field]
             : undefined,
         )
         .filter(
@@ -58,10 +62,19 @@ export const getWorkerBundleReferences = (
           },
         ]
       : []),
-    ...getReferencedRouteWorkers(manifest).map((reference: string) => ({
-      kind: 'route' as const,
-      reference,
-    })),
+    ...getReferencedRouteWorkers(manifest, 'worker').map(
+      (reference: string) => ({
+        kind: 'route' as const,
+        reference,
+      }),
+    ),
+    ...getReferencedRouteWorkers(manifest, 'routeDataWorker').map(
+      (reference: string) => ({
+        dispatcherExport: CLOUDFLARE_ROUTE_DATA_HANDLER_EXPORT,
+        kind: 'route-data' as const,
+        reference,
+      }),
+    ),
   ];
 };
 
@@ -101,7 +114,9 @@ export const resolveWorkerBundleReference = (
 export const missingWorkerBundleMessage = (reference: WorkerBundleReference) =>
   reference.kind === 'effect-bff'
     ? 'Cloudflare Effect BFF manifest points to a missing worker bundle.'
-    : 'Cloudflare route worker manifest points to a missing worker bundle.';
+    : reference.kind === 'route-data'
+      ? 'Cloudflare route data worker manifest points to a missing worker bundle.'
+      : 'Cloudflare route worker manifest points to a missing worker bundle.';
 
 interface AstNode {
   type: string;
@@ -611,14 +626,15 @@ export const verifyWorkerBundleReferences = async (
     contract,
   );
   if (
-    worker.kind === 'effect-bff' &&
     typeof worker.dispatcherExport === 'string' &&
     !entryAnalysis?.exports.has(worker.dispatcherExport)
   ) {
     addIssue(issues, {
       code: 'invalid-worker-bundle',
       message:
-        'Cloudflare Effect BFF worker bundle must expose its manifest dispatcherExport.',
+        worker.kind === 'route-data'
+          ? `Cloudflare route data worker bundle must expose ${worker.dispatcherExport}.`
+          : 'Cloudflare Effect BFF worker bundle must expose its manifest dispatcherExport.',
       path: worker.path,
     });
   }

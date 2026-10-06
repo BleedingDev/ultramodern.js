@@ -147,7 +147,7 @@ async function fixture(t) {
   const context = {
     rootPath,
     distPath,
-    version: '2.2.9',
+    version: '2.2.11',
     configFile: path.join(rootPath, 'modern.config.ts'),
     configFileDependencies: [path.join(rootPath, 'authored.config.ts')],
   };
@@ -460,7 +460,7 @@ test('rejects absent startup CSS assets and CSS bytes, public path or hash mutat
     client => {
       client.outputOptions.publicPath = '/changed/';
     },
-    (client, source) => {
+    (_client, source) => {
       source.bytes = Buffer.from('changed CSS');
     },
   ]) {
@@ -734,7 +734,7 @@ test('rejects a renderer that disagrees with its development compiler output lay
   );
 });
 
-test('uses the installed Rsbuild 2.2.9 awaited pre/default/post semantics for the direct dev hook', async t => {
+test('uses the installed Rsbuild 2.2.11 awaited pre/default/post semantics for the direct dev hook', async t => {
   const input = await developmentFixture(t);
   const sdkRoot = fileURLToPath(
     new URL(
@@ -745,7 +745,7 @@ test('uses the installed Rsbuild 2.2.9 awaited pre/default/post semantics for th
   assert.equal(
     JSON.parse(await fs.readFile(path.join(sdkRoot, 'package.json'), 'utf8'))
       .version,
-    '2.2.9',
+    '2.2.11',
   );
   const source = await fs.readFile(path.join(sdkRoot, 'dist/m.js'), 'utf8');
   assert.match(source, /onDevCompileDone:\s*hooks\.onAfterDevCompile\.tap/u);
@@ -931,7 +931,7 @@ test('captures actual final roots and completed entrypoints without changing con
   assert.deepEqual(receipt.observer, {
     event: 'onAfterBuild',
     order: 'post',
-    rsbuildVersion: '2.2.9',
+    rsbuildVersion: '2.2.11',
     sourceFile: path.join(input.rootPath, 'observe-native-compiler.ts'),
   });
   assert.equal(receipt.rootPath, input.rootPath);

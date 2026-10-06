@@ -157,6 +157,24 @@
       "modern:source": "./src/deploy-output/target.ts",
       "import": "./dist/esm-node/deploy-output/target.mjs",
       "require": "./dist/cjs/deploy-output/target.js"
+    },
+    "./deploy-output/trace-files": {
+      "types": "./dist/types/deploy-output/trace-files.d.ts",
+      "modern:source": "./src/deploy-output/trace-files.ts",
+      "import": "./dist/esm-node/deploy-output/trace-files.mjs",
+      "require": "./dist/cjs/deploy-output/trace-files.js"
+    },
+    "./workspace-topology": {
+      "types": "./dist/types/workspace-topology.d.ts",
+      "modern:source": "./src/workspace-topology.ts",
+      "import": "./dist/esm-node/workspace-topology.mjs",
+      "require": "./dist/cjs/workspace-topology.js"
+    },
+    "./module-federation-config": {
+      "types": "./dist/types/module-federation-config/index.d.ts",
+      "modern:source": "./src/module-federation-config/index.ts",
+      "import": "./dist/esm-node/module-federation-config/index.mjs",
+      "require": "./dist/cjs/module-federation-config/index.js"
     }
   },
   "typesVersions": {
@@ -176,6 +194,9 @@
       ],
       "deploy-output/target": [
         "./dist/types/deploy-output/target.d.ts"
+      ],
+      "deploy-output/trace-files": [
+        "./dist/types/deploy-output/trace-files.d.ts"
       ]
     }
   },
@@ -188,7 +209,7 @@
     "verify:public-surface": "node ./tests/build-config/verify-public-surface.mjs"
   },
   "engines": {
-    "node": ">=26.7.0"
+    "node": ">=26.10.0"
   },
   "dependencies": {
     "@babel/parser": "^8.0.6",
@@ -197,42 +218,24 @@
     "@modern-js/builder": "workspace:*",
     "@modern-js/plugin": "workspace:*",
     "@modern-js/prod-server": "workspace:*",
+    "@modern-js/runtime-utils": "workspace:*",
     "@modern-js/server-core": "workspace:*",
     "@modern-js/server-runtime-extensions": "workspace:*",
     "@modern-js/surface-resolution": "workspace:*",
     "@modern-js/types": "workspace:*",
     "@modern-js/utils": "workspace:*",
     "@swc/helpers": "^0.5.23",
+    "@vercel/nft": "^1.11.0",
     "compression-webpack-plugin": "^12.0.0",
     "esbuild": "^0.28.2",
     "jsonc-parser": "3.3.1",
-    "std-env": "4.2.0"
+    "std-env": "4.3.0"
   },
   "peerDependencies": {
-    "@rsbuild/core": "2.2.9",
+    "@rsbuild/core": "2.2.11",
     "@loadable/component": "5.16.7",
-    "@modern-js/runtime-renderer-extensions": "workspace:*"
-  },
-  "devDependencies": {
-    "@modern-js/plugin-bff-extensions": "workspace:*",
-    "@modern-js/rslib": "workspace:*",
-    "@module-federation/runtime-tools": "2.9.1",
-    "@rsbuild/core": "2.2.9",
-    "@rslib/core": "1.0.2",
-    "@scripts/rstest-config": "workspace:*",
-    "@types/babel__traverse": "7.28.0",
-    "@types/node": "^26.6.2",
-    "core-js": "^3.50.0",
-    "effect": "4.0.0-rc.117",
-    "ndepe": "^0.1.13",
-    "@loadable/component": "5.16.7",
-    "@modern-js/runtime-renderer-extensions": "workspace:*"
-  },
-  "sideEffects": false,
-  "publishConfig": {
-    "registry": "https://registry.npmjs.org/",
-    "access": "public",
-    "types": "./dist/types/index.d.ts"
+    "@modern-js/runtime-renderer-extensions": "workspace:*",
+    "react": "^19.2.8"
   },
   "peerDependenciesMeta": {
     "@loadable/component": {
@@ -240,6 +243,37 @@
     },
     "@modern-js/runtime-renderer-extensions": {
       "optional": true
+    },
+    "react": {
+      "optional": true
     }
+  },
+  "devDependencies": {
+    "@modern-js/bff-effect": "workspace:*",
+    "@modern-js/plugin-bff-extensions": "workspace:*",
+    "@modern-js/plugin-data-loader": "workspace:*",
+    "@modern-js/rslib": "workspace:*",
+    "@module-federation/modern-js-v3": "2.9.2",
+    "@module-federation/runtime-tools": "2.9.2",
+    "@rsbuild/core": "2.2.11",
+    "@rslib/core": "1.0.3",
+    "@scripts/rstest-config": "workspace:*",
+    "@types/babel__traverse": "7.28.0",
+    "@types/node": "^26.6.3",
+    "core-js": "^3.50.0",
+    "effect": "4.0.0",
+    "miniflare": "5.20260930.0-alpha",
+    "ndepe": "^0.1.13",
+    "@loadable/component": "5.16.7",
+    "@modern-js/runtime-renderer-extensions": "workspace:*",
+    "pg": "8.23.1",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "sideEffects": false,
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public",
+    "types": "./dist/types/index.d.ts"
   }
 }

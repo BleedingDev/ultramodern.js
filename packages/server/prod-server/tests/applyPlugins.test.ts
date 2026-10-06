@@ -117,57 +117,57 @@ describe('native error response extension', () => {
     expect(calls).toEqual(['user']);
   });
 
-  test.each([
-    'declines',
-    'throws',
-  ])('runs plugins when the user handler %s', async outcome => {
-    const calls: string[] = [];
-    const instance = await initialize(
-      [
-        {
-          name: 'delegating-hook',
-          setup(api) {
-            api.handleError(async (input, next) => {
-              calls.push('delegate');
-              next?.(input);
-              return input;
-            });
+  test.each(['declines', 'throws'])(
+    'runs plugins when the user handler %s',
+    async outcome => {
+      const calls: string[] = [];
+      const instance = await initialize(
+        [
+          {
+            name: 'delegating-hook',
+            setup(api) {
+              api.handleError(async (input, next) => {
+                calls.push('delegate');
+                next?.(input);
+                return input;
+              });
+            },
           },
-        },
-        {
-          name: 'response-hook',
-          setup(api) {
-            api.handleError(async input => {
-              calls.push('response');
-              expect(input.error.message).toBe('private database detail');
-              expect(input.context.req.path).toBe('/api/failure');
-              return {
-                ...input,
-                response: new Response('plugin response', { status: 422 }),
-              };
-            });
+          {
+            name: 'response-hook',
+            setup(api) {
+              api.handleError(async input => {
+                calls.push('response');
+                expect(input.error.message).toBe('private database detail');
+                expect(input.context.req.path).toBe('/api/failure');
+                return {
+                  ...input,
+                  response: new Response('plugin response', { status: 422 }),
+                };
+              });
+            },
           },
-        },
-        {
-          name: 'unreached-hook',
-          setup(api) {
-            api.handleError(async input => {
-              calls.push('unreached');
-              return input;
-            });
+          {
+            name: 'unreached-hook',
+            setup(api) {
+              api.handleError(async input => {
+                calls.push('unreached');
+                return input;
+              });
+            },
           },
+        ],
+        () => {
+          calls.push('user');
+          if (outcome === 'throws') throw new Error('handler failure');
         },
-      ],
-      () => {
-        calls.push('user');
-        if (outcome === 'throws') throw new Error('handler failure');
-      },
-    );
-    const response = await instance.request('/api/failure', {}, {});
-    expect(response.status).toBe(422);
-    expect(await response.text()).toBe('plugin response');
-    expect(calls).toEqual(['user', 'delegate', 'response']);
-  });
+      );
+      const response = await instance.request('/api/failure', {}, {});
+      expect(response.status).toBe(422);
+      expect(await response.text()).toBe('plugin response');
+      expect(calls).toEqual(['user', 'delegate', 'response']);
+    },
+  );
 
   test('falls back safely when a response plugin throws', async () => {
     const instance = await initialize([

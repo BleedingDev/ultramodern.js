@@ -15,6 +15,7 @@ export default defineConfig({
     '.modernjs',
     '**/modern-tanstack/**',
     '**/routeTree.gen.*',
+    '**/src/routes/ultramodern-route-metadata.ts',
   ],
   printWidth: 120,
   singleQuote: true,

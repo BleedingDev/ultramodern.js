@@ -1,4 +1,5 @@
 import type { AppTools, CliPlugin } from '@modern-js/app-tools/cli-config';
+import type { PolicyDefaultsOptions } from '@modern-js/app-tools-extensions/policy-defaults';
 import type { RouterFramework } from '@modern-js/backend-federation-contracts';
 import type { Renderer, RendererIdentity } from '@modern-js/renderer-core';
 import { octaneRendererRegistration } from '../renderers/octane/registration';
@@ -74,6 +75,7 @@ export type RendererRegistration = RendererRegistrationMetadata &
         readonly kind: 'composed';
         compose(
           consumerPlugins: readonly CliPlugin<AppTools>[],
+          policy?: PolicyDefaultsOptions,
         ): CliPlugin<AppTools>;
       }
   );

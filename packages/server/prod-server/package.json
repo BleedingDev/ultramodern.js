@@ -22,7 +22,7 @@
     "prepublishOnly": "only-allow-pnpm",
     "build": "rslib build",
     "dev": "rslib build --watch",
-    "test": "rstest --passWithNoTests"
+    "test": "rstest"
   },
   "exports": {
     ".": {
@@ -62,11 +62,11 @@
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
     "@modern-js/types": "workspace:*",
-    "@rslib/core": "1.0.2",
+    "@rslib/core": "1.0.3",
     "@scripts/rstest-config": "workspace:*",
     "@types/merge-deep": "^3.0.3",
-    "@types/node": "^26.6.2",
-    "lint-staged": "~17.5.1"
+    "@types/node": "^26.6.3",
+    "lint-staged": "~17.6.0"
   },
   "sideEffects": [],
   "engines": {

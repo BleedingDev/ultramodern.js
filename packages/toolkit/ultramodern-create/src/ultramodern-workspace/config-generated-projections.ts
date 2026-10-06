@@ -21,10 +21,7 @@ import { createAppPackage } from './package-json';
 import { createPublicWebAppArtifacts } from './public-surface';
 import { resolveWorkspaceRenderer } from './renderer-profile';
 import type { ResolvedPackageSource, WorkspaceApp } from './types';
-import {
-  preserveConsumerWorkspaceArtifacts,
-  workspaceDevelopmentPorts,
-} from './workspace-artifact-ownership';
+import { preserveConsumerWorkspaceArtifacts } from './workspace-artifact-ownership';
 
 type Source = { relativePath: string; content: string };
 
@@ -49,6 +46,43 @@ const verifiedProjections = new WeakMap<
   GeneratedConfigProjection,
   GeneratedConfigProjectionEvidence
 >();
+
+// Generated React configs read workspace policy through
+// presetUltramodernWorkspace, so the topology is a consumed config input. Its
+// generated revision exists only after the generator writes it; the owning
+// operation binds those exact bytes before any consumed-input check.
+const WORKSPACE_POLICY_INPUT = 'topology/reference-topology.json';
+const workspacePolicyRevisions = new WeakMap<
+  GeneratedConfigProjection,
+  Set<string>
+>();
+
+/** Bind the generator's own topology revision to its config projections. */
+export function projectGeneratedWorkspacePolicy(
+  projections: readonly GeneratedConfigProjection[],
+  content: string,
+): void {
+  const [formatted] = formatGeneratedSourceCandidates([
+    [WORKSPACE_POLICY_INPUT, content],
+  ]);
+  for (const projection of projections) {
+    const revisions = workspacePolicyRevisions.get(projection);
+    if (!revisions) continue;
+    revisions.add(sha256(content));
+    revisions.add(sha256(formatted));
+  }
+}
+
+/** Bind the topology the generator has just written in its staging root. */
+export function projectWrittenWorkspacePolicy(
+  projections: readonly GeneratedConfigProjection[],
+  workspaceRoot: string,
+): void {
+  projectGeneratedWorkspacePolicy(
+    projections,
+    fs.readFileSync(path.join(workspaceRoot, WORKSPACE_POLICY_INPUT), 'utf8'),
+  );
+}
 
 export function generatedConfigProjectionEvidence(
   projection: GeneratedConfigProjection,
@@ -101,7 +135,6 @@ function appSources(options: {
   packageSource: ResolvedPackageSource;
   enableTailwind: boolean;
   bridge?: UltramodernBridgeConfig;
-  overlayPorts: Record<string, unknown>;
 }) {
   const { scope, app, apps, packageSource, enableTailwind, bridge } = options;
   const verticals = apps.filter(candidate => candidate.kind === 'vertical');
@@ -109,13 +142,7 @@ function appSources(options: {
     app.kind === 'shell' ? resolveRemoteRefs(app, verticals) : verticals;
   const config: Source = {
     relativePath: `${app.directory}/modern.config.ts`,
-    content: createAppModernConfig(
-      scope,
-      app,
-      remotes,
-      enableTailwind,
-      workspaceDevelopmentPorts(apps, options.overlayPorts),
-    ),
+    content: createAppModernConfig(app, enableTailwind),
   };
   const artifacts: Source[] = [
     ...(app.kind === 'shell'
@@ -126,7 +153,6 @@ function appSources(options: {
           verticals,
           bridge,
           app,
-          workspaceDevelopmentPorts(apps, options.overlayPorts),
         ).artifacts
       : [config]),
     {
@@ -275,14 +301,12 @@ export function createGeneratedConfigProjections(options: {
       app: beforeApp,
       apps: options.beforeApps,
       enableTailwind: options.beforeTailwind,
-      overlayPorts: originalOverlay.ports,
     });
     const after = appSources({
       ...options,
       app: afterApp,
       apps: options.afterApps,
       enableTailwind: options.afterTailwind,
-      overlayPorts: projectedOverlay.ports,
     });
     const originalCandidates = [
       ...before.artifacts,
@@ -321,6 +345,17 @@ export function createGeneratedConfigProjections(options: {
     const projection: GeneratedConfigProjection = Object.freeze({
       kind: 'canonical-generated-config-projection',
     });
+    if (
+      resolveWorkspaceRenderer(beforeApp) === 'react' &&
+      fs.existsSync(path.join(options.workspaceRoot, WORKSPACE_POLICY_INPUT))
+    ) {
+      const revisions = new Set<string>();
+      artifacts.set(WORKSPACE_POLICY_INPUT, {
+        originalSha256: originalHash(WORKSPACE_POLICY_INPUT),
+        projectedSha256: revisions,
+      });
+      workspacePolicyRevisions.set(projection, revisions);
+    }
     verifiedProjections.set(projection, {
       configRelativePath: before.config.relativePath,
       originalConfigSha256: originalHash(before.config.relativePath),

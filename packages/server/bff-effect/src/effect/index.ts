@@ -6,7 +6,7 @@ export {
   runWithEffectContext,
   useEffectContext,
   useOperationContext,
-} from './context';
+} from '@modern-js/bff-effect/context';
 export {
   createEffectBffEdgeHandler,
   createEffectBffTestHandler,

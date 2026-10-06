@@ -1,12 +1,6 @@
 import { RuntimeComponentResolverContext } from '@modern-js/runtime/context';
 import type { ComponentType, FC, ReactNode } from 'react';
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-} from 'react';
+import { useCallback, useContext, useEffect, useMemo } from 'react';
 import type { I18nUrlStrategy } from '../shared/urlStrategy';
 import {
   changeModernI18nLanguage,
@@ -19,6 +13,10 @@ import type { I18nInstance } from './i18n';
 import type { Resources } from './i18n/instance';
 
 import { useI18nRouterAdapter } from './routerAdapter';
+import {
+  ModernI18nContext,
+  ReactI18nextProviderContext,
+} from './sharedContexts';
 
 export { getActualI18nextInstance } from './i18n/instance';
 
@@ -36,30 +34,7 @@ export interface ModernI18nContextValue {
   synchronizeLanguage?: (newLang: string) => void;
 }
 
-const modernI18nContextKey = Symbol.for(
-  '@modern-js/plugin-i18n/runtime/ModernI18nContext',
-);
-const reactI18nextProviderContextKey = Symbol.for(
-  '@modern-js/plugin-i18n/runtime/ReactI18nextProviderContext',
-);
-
-type GlobalContextStore<T> = typeof globalThis & {
-  [key: symbol]: ReturnType<typeof createContext<T>> | undefined;
-};
-
-const getGlobalContext = <T,>(key: symbol, defaultValue: T) => {
-  const globalStore = globalThis as GlobalContextStore<T>;
-  globalStore[key] ??= createContext<T>(defaultValue);
-  return globalStore[key];
-};
-
-export const ModernI18nContext =
-  getGlobalContext<ModernI18nContextValue | null>(modernI18nContextKey, null);
-export const ReactI18nextProviderContext =
-  getGlobalContext<ComponentType<any> | null>(
-    reactI18nextProviderContextKey,
-    null,
-  );
+export { ModernI18nContext, ReactI18nextProviderContext };
 
 export interface ModernI18nProviderProps {
   children: ReactNode;

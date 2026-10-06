@@ -1,3 +1,4 @@
+import type { FSWatcher } from '@modern-js/utils';
 import { chokidar, createDebugger, isDevCommand } from '@modern-js/utils';
 import type { FSWatcher } from '@modern-js/utils/watch-options';
 import crypto from 'crypto';

@@ -12,7 +12,7 @@
     "@modern-js/renderer-solid": "3.8.3"
   },
   "devDependencies": {
-    "@rsbuild/core": "2.2.9",
+    "@rsbuild/core": "2.2.11",
     "@babel/core": "7.29.7",
     "playwright": "1.63.0",
     "typescript": "7.0.2"

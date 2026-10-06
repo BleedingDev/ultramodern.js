@@ -1,0 +1,9 @@
+{
+  "extends": "@modern-js/tsconfig/base",
+  "compilerOptions": {
+    "declaration": false,
+    "jsx": "preserve",
+    "moduleResolution": "Bundler"
+  },
+  "include": ["src", "tests", "modern.config.ts"]
+}

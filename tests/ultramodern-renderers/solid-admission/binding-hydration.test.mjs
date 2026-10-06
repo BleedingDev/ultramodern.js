@@ -56,7 +56,7 @@ before(async () => {
   const resolve = createRequire(path.join(consumer, 'package.json'));
   const packageFile = resolve.resolve('@modern-js/renderer-solid/package.json');
   const manifest = JSON.parse(await readFile(packageFile, 'utf8'));
-  assert.equal(manifest.dependencies['@tanstack/router-core'], '1.171.32');
+  assert.equal(manifest.dependencies['@tanstack/router-core'], '1.171.34');
   assert.equal(manifest.dependencies['@tanstack/history'], '1.162.4');
   assert.equal(manifest.dependencies['@tanstack/solid-router'], undefined);
   await access(

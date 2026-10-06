@@ -5,6 +5,7 @@ import {
   type TInternalRuntimeContext,
 } from '@modern-js/runtime/context';
 import type { InternalRouterServerSnapshot } from '@modern-js/runtime-extensions/router-state';
+import { createRouterStatePlugin } from '@modern-js/runtime-extensions/router-state-plugin';
 import {
   createRequestContext,
   type RequestContext,
@@ -74,6 +75,9 @@ export const tanstackRouterPlugin = (
     name: '@modern-js/plugin-router-tanstack',
     registryHooks: routerProviderRegistryHooks,
     setup: (api: TanstackRouterPluginAPI) => {
+      createRouterStatePlugin({
+        registryHooks: routerProviderRegistryHooks,
+      }).setup(api);
       api.onBeforeRender(async (context, interrupt) => {
         const routeConfig = getTanstackRouteConfig(api, userConfig);
         const { mergedConfig } = routeConfig;

@@ -162,7 +162,7 @@
     "prepublishOnly": "only-allow-pnpm",
     "dev": "rslib build --watch",
     "build": "rslib build",
-    "test": "rstest --passWithNoTests"
+    "test": "rstest"
   },
   "dependencies": {
     "@modern-js/types": "workspace:*",
@@ -188,10 +188,10 @@
   },
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
-    "@rslib/core": "1.0.2",
+    "@rslib/core": "1.0.3",
     "@scripts/rstest-config": "workspace:*",
     "@types/ioredis-mock": "^8.2.8",
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.3",
     "happy-dom": "^20.14.5",
     "ioredis": "^5.11.1",
     "ioredis-mock": "^8.13.1",

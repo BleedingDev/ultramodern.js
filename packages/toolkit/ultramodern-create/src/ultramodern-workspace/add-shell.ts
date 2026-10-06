@@ -30,6 +30,8 @@ import {
 import {
   createGeneratedConfigProjections,
   type GeneratedConfigProjection,
+  projectGeneratedWorkspacePolicy,
+  projectWrittenWorkspacePolicy,
 } from './config-generated-projections';
 import { stampDeliveryUnitIdentity } from './delivery-unit-stamp';
 import { appEmitsBrowserUi, resolveRemoteRefs } from './descriptors';
@@ -44,10 +46,7 @@ import {
   createGenerationResult,
   diffFileSnapshots,
 } from './generation-result';
-import {
-  createAppModernConfig,
-  createUltramodernBuildArtifactJson,
-} from './module-federation';
+import { createUltramodernBuildArtifactJson } from './module-federation';
 import {
   assertUniqueTailwindPrefixes,
   packageName,
@@ -86,7 +85,6 @@ import type {
 import {
   preserveConsumerWorkspaceArtifacts,
   workspaceArtifactCandidates,
-  workspaceDevelopmentPorts,
 } from './workspace-artifact-ownership';
 import { writeGeneratedWorkspaceScripts } from './workspace-scripts';
 import { writeApp } from './write-app';
@@ -362,11 +360,6 @@ async function executeAddUltramodernShell(
   } = preflight;
 
   const allAdditionalShells = [...existingAdditionalShells, shell];
-  const configuredDevPorts = workspaceDevelopmentPorts(
-    [primaryShell, ...existingVerticals, ...allAdditionalShells],
-    preflight.overlay.ports,
-  );
-
   const previousApps = [
     primaryShell,
     ...existingVerticals,
@@ -387,7 +380,7 @@ async function executeAddUltramodernShell(
     assertConsumedInputsUnchanged(stagedRoot, generatedProjections);
   const { io: ownedIo } = preserveConsumerWorkspaceArtifacts(
     options.workspaceRoot,
-    workspaceArtifactCandidates(scope, previousApps, enableTailwind),
+    workspaceArtifactCandidates(scope, previousApps),
   );
 
   writeApp(
@@ -398,7 +391,6 @@ async function executeAddUltramodernShell(
     enableTailwind,
     existingVerticals,
     bridge,
-    configuredDevPorts,
   );
 
   for (const app of previousApps) {
@@ -494,20 +486,6 @@ async function executeAddUltramodernShell(
   };
   writeJsonFile(newPackagePath, newPackage as JsonValue);
 
-  for (const app of previousApps) {
-    ownedIo.write(
-      path.join(options.workspaceRoot, app.directory, 'modern.config.ts'),
-      createAppModernConfig(
-        scope,
-        app,
-        app.kind === 'shell'
-          ? resolveRemoteRefs(app, existingVerticals)
-          : existingVerticals,
-        enableTailwind,
-        configuredDevPorts,
-      ),
-    );
-  }
   updateRootWorkspaceScripts(
     options.workspaceRoot,
     scope,
@@ -560,6 +538,7 @@ async function executeAddUltramodernShell(
   const deferredUiArtifactPaths = new Set([
     `${shell.directory}/shared/ultramodern-build.json`,
   ]);
+  projectWrittenWorkspacePolicy(generatedProjections, options.workspaceRoot);
   preflight.assertConsumedInputsUnchanged(options.workspaceRoot);
   runCodeSmithOverlays({
     workspaceRoot: options.workspaceRoot,
@@ -617,11 +596,30 @@ async function executeAddUltramodernShell(
     );
   }
   stampDeliveryUnitIdentity(finalEntry, scope, resolvedShell, version);
+  const finalApps = [...previousApps, shell];
+  const identityProjections = createGeneratedConfigProjections({
+    workspaceRoot: options.workspaceRoot,
+    scope,
+    beforeApps: finalApps,
+    afterApps: finalApps.map(app =>
+      app.id === resolvedShell.id ? resolvedShell : app,
+    ),
+    packageSource,
+    beforeTailwind: enableTailwind,
+    afterTailwind: enableTailwind,
+    bridge,
+    finalizeIdentities: true,
+  });
+  const finalTopologySource = `${JSON.stringify(finalTopology, null, 2)}\n`;
+  projectGeneratedWorkspacePolicy(
+    [...generatedProjections, ...identityProjections],
+    finalTopologySource,
+  );
   const finalSourceSnapshot = replaceRendererIdentityProjections(
     options.workspaceRoot,
     capturedConfig.sourceSnapshots[0]!,
     new Map([
-      [TOPOLOGY_PATH, `${JSON.stringify(finalTopology, null, 2)}\n`],
+      [TOPOLOGY_PATH, finalTopologySource],
       [
         `${resolvedShell.directory}/shared/ultramodern-build.json`,
         createUltramodernBuildArtifactJson(scope, resolvedShell),
@@ -629,7 +627,10 @@ async function executeAddUltramodernShell(
     ]),
     deferredUiArtifactPaths,
   );
-  capturedConfig.assertConsumedInputsUnchanged();
+  capturedConfig.assertConsumedInputsUnchanged(
+    options.workspaceRoot,
+    identityProjections,
+  );
   preflight.assertConsumedInputsUnchanged(options.workspaceRoot);
   const assertOriginalInputsUnchanged = preflight.assertInputsUnchanged;
   const assertPublicationInputsUnchanged =

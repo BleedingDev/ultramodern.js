@@ -1,5 +1,6 @@
 import path from 'path';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
+import { collectBrowserErrors } from '../../../../utils/browserErrors';
 import {
   getPort,
   killApp,
@@ -7,7 +8,7 @@ import {
   modernBuild,
   modernServe,
 } from '../../../../utils/modernTestUtils';
-import { clearI18nTestState, waitForHydration } from '../../test-utils';
+import { clearI18nTestState } from '../../test-utils';
 
 const appDir = path.resolve(__dirname, '../');
 
@@ -45,14 +46,7 @@ describe('i18n TanStack localisedUrls', () => {
     await trackedPage.setExtraHTTPHeaders({
       'Accept-Language': 'en-US,en;q=0.9',
     });
-    trackedPage.on('console', msg => {
-      if (msg.type() === 'error') {
-        errors.push(msg.text());
-      }
-    });
-    trackedPage.on('pageerror', error => {
-      errors.push((error as Error).message);
-    });
+    await collectBrowserErrors(trackedPage, errors);
     await clearI18nTestState(trackedPage);
     return trackedPage;
   }
@@ -118,7 +112,7 @@ describe('i18n TanStack localisedUrls', () => {
     await page.goto(`http://localhost:${appPort}/en/products/shoe`, {
       waitUntil: ['networkidle0'],
     });
-    await waitForHydration(page, '[data-testid="tanstack-cs-product"]');
+    await page.waitForSelector('html[data-hydrated]');
     const initialProduct = await page.$eval('#product', el => el.textContent);
     expect(initialProduct).toBe('product:en:shoe:Products');
     await setReloadSentinel(page);
@@ -146,7 +140,7 @@ describe('i18n TanStack localisedUrls', () => {
     await page.goto(`http://localhost:${appPort}/en/products/shoe`, {
       waitUntil: ['networkidle0'],
     });
-    await waitForHydration(page, '[data-testid="switch-cs"]');
+    await page.waitForSelector('html[data-hydrated]');
     await setReloadSentinel(page);
 
     await page.click('[data-testid="switch-cs"]');
@@ -172,7 +166,7 @@ describe('i18n TanStack localisedUrls', () => {
     await page.goto(`http://localhost:${appPort}/cs/odkaz-probe`, {
       waitUntil: ['networkidle0'],
     });
-    await waitForHydration(page, '[data-testid="i18n-terms"]');
+    await page.waitForSelector('html[data-hydrated]');
 
     const href = await page.$eval('[data-testid="i18n-terms"]', el =>
       el.getAttribute('href'),
@@ -197,7 +191,7 @@ describe('i18n TanStack localisedUrls', () => {
     await page.goto(`http://localhost:${appPort}/cs/volitelne`, {
       waitUntil: ['networkidle0'],
     });
-    await waitForHydration(page, '#optional');
+    await page.waitForSelector('html[data-hydrated]');
     const emptyOptional = await page.$eval('#optional', el => el.textContent);
     expect(emptyOptional).toBe('optional:cs:none');
     expect(errors).toEqual([]);
@@ -209,7 +203,7 @@ describe('i18n TanStack localisedUrls', () => {
     await page.goto(`http://localhost:${appPort}/cs/volitelne/lehke`, {
       waitUntil: ['networkidle0'],
     });
-    await waitForHydration(page, '#optional');
+    await page.waitForSelector('html[data-hydrated]');
     const optionalWithSlug = await page.$eval(
       '#optional',
       el => el.textContent,
@@ -242,7 +236,7 @@ describe('i18n TanStack localisedUrls', () => {
     await page.goto(`http://localhost:${appPort}/en/terms-of-service`, {
       waitUntil: ['networkidle0'],
     });
-    await waitForHydration(page, '[data-testid="layout-nav-terms"]');
+    await page.waitForSelector('html[data-hydrated]');
 
     const enStatus = await page.$eval('[data-testid="layout-nav-terms"]', el =>
       el.getAttribute('data-status'),
@@ -262,7 +256,7 @@ describe('i18n TanStack localisedUrls', () => {
     await page.goto(`http://localhost:${appPort}/cs/obchodni-podminky`, {
       waitUntil: ['networkidle0'],
     });
-    await waitForHydration(page, '[data-testid="layout-nav-terms"]');
+    await page.waitForSelector('html[data-hydrated]');
 
     const csStatus = await page.$eval('[data-testid="layout-nav-terms"]', el =>
       el.getAttribute('data-status'),
@@ -282,7 +276,7 @@ describe('i18n TanStack localisedUrls', () => {
     await page.goto(`http://localhost:${appPort}/cs/odkaz-probe`, {
       waitUntil: ['networkidle0'],
     });
-    await waitForHydration(page, '[data-testid="layout-nav-terms"]');
+    await page.waitForSelector('html[data-hydrated]');
 
     const probeStatus = await page.$eval(
       '[data-testid="layout-nav-terms"]',

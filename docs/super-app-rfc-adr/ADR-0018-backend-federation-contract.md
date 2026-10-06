@@ -174,7 +174,7 @@ loading:
 ```ts
 type NodeServerExecutionSurface = {
   kind: 'node-mf-runtime';
-  adapterVersion: 'backend-mf-effect-v1';
+  adapterVersion: 'backend-mf-effect-v2';
   remoteName: string;
   manifestEnv: string;
   manifestUrl: string;

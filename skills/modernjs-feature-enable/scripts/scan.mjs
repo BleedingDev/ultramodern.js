@@ -11,7 +11,6 @@ import {
   exists,
   featureMatrix,
   findConfigFile,
-  readText,
   TIER_LABEL,
 } from './lib.mjs';
 

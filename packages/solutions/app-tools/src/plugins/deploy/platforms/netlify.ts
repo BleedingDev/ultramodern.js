@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { traceDeployFiles } from '@modern-js/app-tools-extensions/deploy-output/trace-files';
 import { fs as fse, removeModuleSyncFromExports } from '@modern-js/utils';
 import { nodeDepEmit as handleDependencies } from 'ndepe';
 import { isMainEntry } from '../../../utils/routes';
@@ -120,10 +121,8 @@ export const createNetlifyPreset: CreatePreset = ({
       const netlifyEntry = isEsmProject
         ? await resolveESMDependency('@modern-js/prod-server/netlify')
         : require.resolve('@modern-js/prod-server/netlify');
-      if (!entry || !netlifyEntry) {
-        throw new Error('Cannot find @modern-js/prod-server');
-      }
       await handleDependencies({
+        traceFiles: traceDeployFiles,
         appDir: appDirectory,
         sourceDir: funcsDirectory,
         includeEntries: [entry, netlifyEntry],

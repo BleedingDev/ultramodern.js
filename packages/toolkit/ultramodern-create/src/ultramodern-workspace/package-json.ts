@@ -9,17 +9,13 @@ import {
   remoteDependencyAlias,
   resolveApiProtocol,
   resolveRemoteRefs,
-  sharedPackages,
   shellApp,
   verticalApiApps,
   zephyrRemoteDependency,
 } from './descriptors';
 import { readFileTemplate } from './fs-io';
 import { packageName, relativeRootFor } from './naming';
-import {
-  ULTRAMODERN_PACKAGE_PINS,
-  ULTRAMODERN_WORKSPACE_POLICY,
-} from './policy';
+import { ULTRAMODERN_WORKSPACE_POLICY } from './policy';
 import { hasNativeAppGeneration } from './renderer-generations';
 import {
   appSupportsFederation,
@@ -27,7 +23,7 @@ import {
   resolveWorkspaceRenderer,
 } from './renderer-profile';
 import type { JsonValue, ResolvedPackageSource, WorkspaceApp } from './types';
-import { NODE_VERSION } from './versions';
+import { NODE_VERSION, ULTRAMODERN_PACKAGE_PINS } from './versions';
 import {
   createStrictTsgoTypecheckCommand,
   createWorkspaceAppPackageScripts,
@@ -307,7 +303,7 @@ export function createRootPackageJson(
         'node ./scripts/setup-agent-reference-repos.mts --check',
       'api:check': 'modern-api-check',
       'api:check:files': 'modern-api-check-files',
-      'i18n:boundaries': 'node ./scripts/check-ultramodern-i18n-boundaries.mts',
+      'i18n:boundaries': 'modern-i18n-check',
       ...bridgeScripts,
       postinstall: GENERATED_POSTINSTALL_SCRIPT,
     },

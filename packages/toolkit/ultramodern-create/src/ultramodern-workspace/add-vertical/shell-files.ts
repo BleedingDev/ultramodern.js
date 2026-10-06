@@ -100,7 +100,6 @@ export function shellAppArtifacts(
   remotes: WorkspaceApp[],
   bridge: UltramodernBridgeConfig | undefined,
   shell: WorkspaceApp,
-  devPorts?: number[],
 ) {
   const shellHost = {
     ...shell,
@@ -112,11 +111,8 @@ export function shellAppArtifacts(
   if (resolveWorkspaceRenderer(shellHost) !== 'react') {
     const files = {
       [`${shellHost.directory}/modern.config.ts`]: createAppModernConfig(
-        scope,
         shellHost,
-        shellRemotes,
         enableTailwind,
-        devPorts,
       ),
       [`${shellHost.directory}/tsconfig.json`]: `${JSON.stringify(
         createAppTsConfig(shellHost, shellRemotes),
@@ -160,13 +156,6 @@ export function shellAppArtifacts(
       shellHost,
       shellRemotes,
       scope,
-    ),
-    [`${shellHost.directory}/modern.config.ts`]: createAppModernConfig(
-      scope,
-      shellHost,
-      shellRemotes,
-      enableTailwind,
-      devPorts,
     ),
     [publicWeb.jsonLdHelperFile.path]: publicWeb.jsonLdHelperFile.content,
     [publicWeb.routeMetadataFile.path]: publicWeb.routeMetadataFile.content,
@@ -229,13 +218,11 @@ export function rewriteShellAppFiles(
   remotes: WorkspaceApp[],
   bridge?: UltramodernBridgeConfig,
   shell: WorkspaceApp = shellApp,
-  devPorts?: number[],
   previous: {
     shell: WorkspaceApp;
     remotes: WorkspaceApp[];
-    devPorts?: number[];
     enableTailwind?: boolean;
-  } = { shell, remotes, devPorts },
+  } = { shell, remotes },
 ) {
   const before = shellAppArtifacts(
     scope,
@@ -244,7 +231,6 @@ export function rewriteShellAppFiles(
     previous.remotes,
     bridge,
     previous.shell,
-    previous.devPorts,
   );
   const next = shellAppArtifacts(
     scope,
@@ -253,7 +239,6 @@ export function rewriteShellAppFiles(
     remotes,
     bridge,
     shell,
-    devPorts,
   );
   const { io } = preserveConsumerWorkspaceArtifacts(
     workspaceRoot,

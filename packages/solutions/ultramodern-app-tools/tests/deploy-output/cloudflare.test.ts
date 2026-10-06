@@ -6,7 +6,9 @@ import { createCloudflarePreset } from '@modern-js/app-tools-extensions/cloudfla
 import type {
   CloudflareWorkerArtifactConfig,
   CloudflareWorkerD1DatabaseConfig,
+  CloudflareWorkerPublicAssetConfig,
   CloudflareWorkerServiceBindingConfig,
+  CloudflareWorkerVpcServiceConfig,
   JsonValue,
 } from '@modern-js/app-tools-extensions/config';
 import {
@@ -23,8 +25,8 @@ const reactProfile: RendererProfile = {
   hydration: { name: 'react-dom', version: '19.3.0' },
   router: {
     name: '@tanstack/react-router',
-    version: '1.170.39',
-    coreVersion: '1.171.32',
+    version: '1.170.41',
+    coreVersion: '1.171.34',
   },
 };
 
@@ -81,8 +83,10 @@ async function createFixture({
   distFiles,
   includeBffWorker = true,
   publicAssetExcludes,
+  publicAssets,
   services,
   sourceFiles,
+  vpcServices,
   wrangler,
   workerName,
   workerSecurity,
@@ -96,8 +100,10 @@ async function createFixture({
   distFiles?: Record<string, string>;
   includeBffWorker?: boolean;
   publicAssetExcludes?: string[];
+  publicAssets?: CloudflareWorkerPublicAssetConfig[];
   services?: CloudflareWorkerServiceBindingConfig[];
   sourceFiles?: Record<string, Record<string, string>>;
+  vpcServices?: CloudflareWorkerVpcServiceConfig[];
   wrangler?: Record<string, JsonValue>;
   workerName?: string;
   workerSecurity?: Record<string, unknown>;
@@ -326,8 +332,10 @@ async function createFixture({
           d1Databases,
           name: workerName,
           publicAssetExcludes,
+          publicAssets,
           security: workerSecurity,
           services,
+          vpcServices,
           wrangler,
         },
       },
@@ -346,6 +354,19 @@ async function createFixture({
     outputDirectory: path.join(appDirectory, '.output'),
   };
 }
+
+// workerd hands every fetch an ExecutionContext; the generated Worker disposes each request's
+// Effect BFF runtime through `ctx.waitUntil`.
+const createExecutionContext = () => {
+  const pending: Promise<unknown>[] = [];
+  return {
+    pending,
+    passThroughOnException: () => undefined,
+    waitUntil: (promise: Promise<unknown>) => {
+      pending.push(promise);
+    },
+  };
+};
 
 const loadWorker = async (outputDirectory: string) =>
   (
@@ -418,7 +439,7 @@ describe('cloudflare deploy preset', () => {
         },
       },
       wrangler: {
-        compatibility_date: '2026-05-01',
+        compatibility_date: '2026-07-01',
         compatibility_flags: ['streams_enable_constructors', 'nodejs_compat'],
         main: 'custom-entry.mjs',
         assets: {
@@ -438,7 +459,7 @@ describe('cloudflare deploy preset', () => {
     );
 
     expect(wranglerConfig.name).toBe('commerce-production-worker');
-    expect(wranglerConfig.compatibility_date).toBe('2026-05-01');
+    expect(wranglerConfig.compatibility_date).toBe('2026-07-01');
     expect(wranglerConfig.main).toBe('server/index.mjs');
     expect(wranglerConfig.compatibility_flags).toEqual([
       'streams_enable_constructors',
@@ -553,6 +574,316 @@ describe('cloudflare deploy preset', () => {
     ]);
   });
 
+  it('emits Workers VPC service bindings to wrangler and worker manifest', async () => {
+    const { outputDirectory } = await createFixture({
+      services: [
+        {
+          binding: 'VERTICAL_CATALOG_WORKER',
+          prefix: '/catalog-api',
+          service: 'tractor-catalog-worker',
+        },
+      ],
+      vpcServices: [
+        {
+          binding: 'VERTICAL_PRICING_WORKER',
+          prefix: '/pricing-api',
+          serviceId: '0199f0aa-0000-7000-8000-00000000c0de',
+        },
+        {
+          binding: 'SPICEDB',
+          serviceId: '0199f0aa-0000-7000-8000-0000000051ce',
+        },
+      ],
+    });
+    const wranglerConfig = JSON.parse(
+      await fs.readFile(path.join(outputDirectory, 'wrangler.json'), 'utf-8'),
+    );
+    const workerManifest = JSON.parse(
+      await fs.readFile(
+        path.join(outputDirectory, 'server/modern-worker-manifest.json'),
+        'utf-8',
+      ),
+    );
+
+    expect(wranglerConfig.vpc_services).toEqual([
+      {
+        binding: 'VERTICAL_PRICING_WORKER',
+        service_id: '0199f0aa-0000-7000-8000-00000000c0de',
+      },
+      {
+        binding: 'SPICEDB',
+        service_id: '0199f0aa-0000-7000-8000-0000000051ce',
+      },
+    ]);
+    // Only a prefixed VPC binding is an application route; the SpiceDB
+    // binding is reached by application code through `cloudflare:workers`.
+    expect(workerManifest.serviceBindings).toEqual([
+      {
+        binding: 'VERTICAL_CATALOG_WORKER',
+        interface: 'fetch',
+        prefix: '/catalog-api',
+        service: 'tractor-catalog-worker',
+      },
+      {
+        binding: 'VERTICAL_PRICING_WORKER',
+        interface: 'fetch',
+        prefix: '/pricing-api',
+        vpcServiceId: '0199f0aa-0000-7000-8000-00000000c0de',
+      },
+    ]);
+  });
+
+  it('emits Workers VPC bindings into every Wrangler environment', async () => {
+    const { outputDirectory } = await createFixture({
+      vpcServices: [{ binding: 'SPICEDB', serviceId: 'vpc-spicedb' }],
+      wrangler: { env: { staging: { name: 'app-staging' } } },
+    });
+    const wranglerConfig = JSON.parse(
+      await fs.readFile(path.join(outputDirectory, 'wrangler.json'), 'utf-8'),
+    );
+    const expected = [{ binding: 'SPICEDB', service_id: 'vpc-spicedb' }];
+
+    // Wrangler bindings are not inherited by named environments.
+    expect(wranglerConfig.vpc_services).toEqual(expected);
+    expect(wranglerConfig.env.staging).toEqual({
+      name: 'app-staging',
+      vpc_services: expected,
+    });
+    await expect(
+      createFixture({
+        vpcServices: [{ binding: 'SPICEDB', serviceId: 'vpc-spicedb' }],
+        wrangler: {
+          env: {
+            staging: {
+              vpc_services: [{ binding: 'OTHER', service_id: 'vpc-other' }],
+            },
+          },
+        },
+      }),
+    ).rejects.toThrow(
+      'Use deploy.worker.vpcServices or deploy.worker.wrangler.env.staging.vpc_services, not both.',
+    );
+    // A named environment declares its own bindings, which the VPC names must
+    // not reuse either.
+    await expect(
+      createFixture({
+        vpcServices: [{ binding: 'SPICEDB', serviceId: 'vpc-spicedb' }],
+        wrangler: {
+          env: {
+            staging: { kv_namespaces: [{ binding: 'SPICEDB', id: 'kv-id' }] },
+          },
+        },
+      }),
+    ).rejects.toThrow(
+      'deploy.worker.vpcServices binding "SPICEDB" is already a binding of deploy.worker.wrangler.env.staging.',
+    );
+    await expect(
+      createFixture({
+        vpcServices: [{ binding: 'SPICEDB', serviceId: 'vpc-spicedb' }],
+        wrangler: {
+          env: {
+            staging: { services: [{ binding: 'SPICEDB', service: 'authz' }] },
+          },
+        },
+      }),
+    ).rejects.toThrow(
+      'deploy.worker.vpcServices binding "SPICEDB" is already a binding of deploy.worker.wrangler.env.staging.',
+    );
+  });
+
+  it('rejects ambiguous Workers VPC service declarations', async () => {
+    await expect(
+      createFixture({
+        vpcServices: [{ binding: 'SPICEDB', serviceId: 'a' }],
+        wrangler: { vpc_services: [{ binding: 'SPICEDB', service_id: 'a' }] },
+      }),
+    ).rejects.toThrow(
+      'Use deploy.worker.vpcServices or deploy.worker.wrangler.vpc_services, not both.',
+    );
+    await expect(
+      createFixture({
+        services: [{ binding: 'API', service: 'api-worker' }],
+        vpcServices: [{ binding: 'API', serviceId: 'a' }],
+      }),
+    ).rejects.toThrow(
+      'deploy.worker.vpcServices[0].binding "API" is already declared by deploy.worker.services.',
+    );
+    await expect(
+      createFixture({
+        vpcServices: [{ binding: 'API', serviceId: ' ' }],
+      }),
+    ).rejects.toThrow(
+      'deploy.worker.vpcServices[0].serviceId must be a non-empty string.',
+    );
+    // Names collide on the effective bindings: raw Wrangler services and
+    // typed services after trimming.
+    await expect(
+      createFixture({
+        vpcServices: [{ binding: 'API', serviceId: 'a' }],
+        wrangler: { services: [{ binding: 'API', service: 'api-worker' }] },
+      }),
+    ).rejects.toThrow(
+      'deploy.worker.vpcServices[0].binding "API" is already declared by deploy.worker.services.',
+    );
+    await expect(
+      createFixture({
+        services: [{ binding: ' API ', service: 'api-worker' }],
+        vpcServices: [{ binding: 'API', serviceId: 'a' }],
+      }),
+    ).rejects.toThrow(
+      'deploy.worker.vpcServices[0].binding "API" is already declared by deploy.worker.services.',
+    );
+  });
+
+  it('rejects Workers VPC bindings that reuse any other Worker binding name', async () => {
+    for (const [binding, config] of [
+      ['ASSETS', {}],
+      [
+        'DB',
+        {
+          d1Databases: [
+            { binding: 'DB', databaseId: 'db-id', databaseName: 'app-data' },
+          ],
+        },
+      ],
+      [
+        'CACHE',
+        {
+          wrangler: {
+            kv_namespaces: [{ binding: 'CACHE', id: 'kv-id' }],
+          },
+        },
+      ],
+      [
+        'JOBS',
+        {
+          wrangler: {
+            queues: { producers: [{ binding: 'JOBS', queue: 'jobs' }] },
+          },
+        },
+      ],
+      [
+        'COUNTER',
+        {
+          wrangler: {
+            durable_objects: {
+              bindings: [{ class_name: 'Counter', name: 'COUNTER' }],
+            },
+          },
+        },
+      ],
+      ['API_ORIGIN', { wrangler: { vars: { API_ORIGIN: 'https://x' } } }],
+      ['MAIL', { wrangler: { send_email: [{ name: 'MAIL' }] } }],
+      [
+        'LIMITER',
+        {
+          wrangler: {
+            ratelimits: [
+              {
+                name: 'LIMITER',
+                namespace_id: '1001',
+                simple: { limit: 10, period: 60 },
+              },
+            ],
+          },
+        },
+      ],
+    ] as const) {
+      await expect(
+        createFixture({
+          ...config,
+          vpcServices: [{ binding, serviceId: 'a' }],
+        }),
+      ).rejects.toThrow(
+        `deploy.worker.vpcServices[0].binding "${binding}" is already a binding of this Worker.`,
+      );
+    }
+  });
+
+  it('rejects Workers VPC prefixes that another binding would shadow', async () => {
+    for (const [services, vpcServices] of [
+      [
+        [{ binding: 'API', prefix: '/api', service: 'api-worker' }],
+        [{ binding: 'PRIVATE', prefix: '/api/private', serviceId: 'a' }],
+      ],
+      [
+        [{ binding: 'API', prefix: '/api/private/', service: 'api-worker' }],
+        [{ binding: 'PRIVATE', prefix: '/api', serviceId: 'a' }],
+      ],
+      [
+        [],
+        [
+          { binding: 'FIRST', prefix: '/api', serviceId: 'a' },
+          { binding: 'SECOND', prefix: '/api/', serviceId: 'b' },
+        ],
+      ],
+      [
+        [{ binding: 'ROOT', prefix: '/', service: 'root-worker' }],
+        [{ binding: 'PRIVATE', prefix: '/private', serviceId: 'a' }],
+      ],
+    ] as const) {
+      await expect(
+        createFixture({
+          services: [...services],
+          vpcServices: [...vpcServices],
+        }),
+      ).rejects.toThrow(
+        /deploy\.worker\.vpcServices\[\d\]\.prefix "[^"]+" overlaps the prefix "[^"]+" of binding "[A-Z]+"/u,
+      );
+    }
+    // The dispatcher percent-decodes request paths before matching, so an
+    // encoded prefix would alias a decoded one; prefixes must be canonical.
+    for (const prefix of [
+      '/%61pi/private',
+      'api/private',
+      '/api\\private',
+      '/api/../private',
+      '/./private',
+      '/private?tenant=x',
+      '/private#section',
+    ]) {
+      await expect(
+        createFixture({
+          services: [{ binding: 'API', prefix: '/api', service: 'api-worker' }],
+          vpcServices: [{ binding: 'PRIVATE', prefix, serviceId: 'a' }],
+        }),
+      ).rejects.toThrow(
+        `deploy.worker.vpcServices[0].prefix "${prefix}" must be a decoded URL path`,
+      );
+    }
+    await expect(
+      createFixture({
+        services: [{ binding: 'API', prefix: '/%61pi', service: 'api-worker' }],
+        vpcServices: [
+          { binding: 'PRIVATE', prefix: '/api/private', serviceId: 'a' },
+        ],
+      }),
+    ).rejects.toThrow(
+      'deploy.worker.vpcServices[0].prefix "/api/private" overlaps the prefix "/%61pi" of binding "API"',
+    );
+    // The Effect BFF (fixture prefix `/commerce-api`) is dispatched before
+    // any service binding, so a nested VPC prefix would never be reached.
+    await expect(
+      createFixture({
+        vpcServices: [
+          {
+            binding: 'PRIVATE',
+            prefix: '/commerce-api/private',
+            serviceId: 'a',
+          },
+        ],
+      }),
+    ).rejects.toThrow(
+      'deploy.worker.vpcServices[0].prefix "/commerce-api/private" overlaps the prefix "/commerce-api" of the Effect BFF',
+    );
+    await expect(
+      createFixture({
+        services: [{ binding: 'API', prefix: '/api', service: 'api-worker' }],
+        vpcServices: [{ binding: 'APIX', prefix: '/apix', serviceId: 'a' }],
+      }),
+    ).resolves.toBeDefined();
+  });
+
   it('keeps server bundles and source maps out of Cloudflare public assets', async () => {
     const { outputDirectory } = await createFixture();
     const publicDirectory = path.join(outputDirectory, 'public');
@@ -638,6 +969,54 @@ describe('cloudflare deploy preset', () => {
         'utf-8',
       ),
     ).resolves.toBe(effectBffWorkerSource);
+  });
+
+  it('stages declared public assets beside generated output', async () => {
+    const { outputDirectory } = await createFixture({
+      apiOnly: true,
+      distFiles: {
+        'backend-mf-manifest.json': '{"name":"presentations"}',
+        'backendRemoteEntry.cjs': 'module.exports = {};',
+        'public/robots.txt': 'User-agent: *\nDisallow: /',
+      },
+      publicAssets: [{ from: 'staging/presentations', to: 'presentations' }],
+      sourceFiles: {
+        'staging/presentations/deck': {
+          'index.html': '<!doctype html><main>deck</main>',
+          'assets/deck.js': 'deck();',
+        },
+      },
+    });
+    const publicDirectory = path.join(outputDirectory, 'public');
+
+    await expect(
+      fs.readFile(
+        path.join(publicDirectory, 'presentations/deck/index.html'),
+        'utf-8',
+      ),
+    ).resolves.toBe('<!doctype html><main>deck</main>');
+    await expect(
+      fs.readFile(
+        path.join(publicDirectory, 'presentations/deck/assets/deck.js'),
+        'utf-8',
+      ),
+    ).resolves.toBe('deck();');
+    await expect(
+      fs.readFile(path.join(publicDirectory, 'robots.txt'), 'utf-8'),
+    ).resolves.toBe('User-agent: *\nDisallow: /');
+  });
+
+  it('lets a declared public asset replace a generated public file', async () => {
+    const { outputDirectory } = await createFixture({
+      apiOnly: true,
+      distFiles: { 'public/robots.txt': 'User-agent: *\nDisallow: /' },
+      publicAssets: [{ from: 'surface', to: '.' }],
+      sourceFiles: { surface: { 'robots.txt': 'User-agent: *\nAllow: /' } },
+    });
+
+    await expect(
+      fs.readFile(path.join(outputDirectory, 'public/robots.txt'), 'utf-8'),
+    ).resolves.toBe('User-agent: *\nAllow: /');
   });
 
   it('does not expose dotenv files through Cloudflare public assets', async () => {
@@ -838,6 +1217,145 @@ describe('cloudflare deploy preset', () => {
         },
       },
     });
+  });
+
+  it('dispatches encoded spellings of the BFF prefix to the BFF, never to Worker Static Assets', async () => {
+    const { outputDirectory } = await createFixture({
+      distFiles: {
+        'commerce-api/orders.json': '{"secret":"static"}',
+      },
+    });
+    const worker = await loadWorker(outputDirectory);
+    const requestedAssets: string[] = [];
+    const assetBinding = createAssetBinding(
+      path.join(outputDirectory, 'public'),
+    );
+    const env = {
+      ASSETS: {
+        fetch: async (request: Request) => {
+          requestedAssets.push(new URL(request.url).pathname);
+          return assetBinding.fetch(request);
+        },
+      },
+    };
+    const dispatch = async (pathname: string) => {
+      const executionContext = createExecutionContext();
+      const response = await worker.fetch(
+        new Request(`https://example.com${pathname}`),
+        env,
+        executionContext,
+      );
+      expect(response.status).toBe(200);
+      const { pathname: dispatchedPathname } = (await response.json()) as {
+        pathname: string;
+      };
+      await Promise.all(executionContext.pending);
+      return dispatchedPathname;
+    };
+
+    for (const pathname of [
+      '/commerce-api/orders.json',
+      '/%63ommerce-api/orders.json',
+      '/%2563ommerce-api/orders.json',
+      '/%252563ommerce-api/orders.json',
+      '/commerce-api%2forders.json',
+      '/commerce-api%2Forders.json',
+      '/commerce-api%252Forders.json',
+    ]) {
+      await expect(dispatch(pathname)).resolves.toBe(
+        '/commerce-api/orders.json',
+      );
+    }
+    for (const pathname of [
+      '/commerce-api%5Corders.json',
+      '/commerce-api%5corders.json',
+      '/commerce-api%ZZ/orders.json',
+      '/COMMERCE-API%ZZ/orders.json',
+    ]) {
+      await expect(dispatch(pathname)).resolves.toBe(
+        '/commerce-api/__invalid_encoded_path__',
+      );
+    }
+    expect(requestedAssets).toEqual([]);
+
+    const assetResponse = await worker.fetch(
+      new Request('https://example.com/static/app.1234abcd.css'),
+      env,
+    );
+    expect(assetResponse.status).toBe(200);
+    expect(requestedAssets).toEqual(['/static/app.1234abcd.css']);
+  });
+
+  it('dispatches a Workers VPC service prefix through the VPC binding', async () => {
+    const { outputDirectory } = await createFixture({
+      vpcServices: [
+        {
+          binding: 'VERTICAL_PRICING_WORKER',
+          prefix: '/pricing-api',
+          serviceId: '0199f0aa-0000-7000-8000-00000000c0de',
+        },
+      ],
+    });
+    const worker = await loadWorker(outputDirectory);
+    const vpcRequests: string[] = [];
+
+    const response = await worker.fetch(
+      new Request('https://example.com/pricing-api/prices?sku=1'),
+      {
+        ASSETS: {
+          fetch: async () => new Response('asset', { status: 200 }),
+        },
+        VERTICAL_PRICING_WORKER: {
+          fetch: async (request: Request) => {
+            const url = new URL(request.url);
+            vpcRequests.push(`${url.pathname}${url.search}`);
+            return new Response('pricing', { status: 200 });
+          },
+        },
+      },
+    );
+
+    await expect(response.text()).resolves.toBe('pricing');
+    expect(vpcRequests).toEqual(['/pricing-api/prices?sku=1']);
+  });
+
+  it('dispatches encoded spellings of a service binding prefix to the binding', async () => {
+    const { outputDirectory } = await createFixture({
+      services: [
+        {
+          binding: 'VERTICAL_CATALOG_WORKER',
+          prefix: '/catalog-api',
+          service: 'tractor-catalog-worker',
+        },
+      ],
+    });
+    const worker = await loadWorker(outputDirectory);
+    const serviceRequests: string[] = [];
+
+    for (const pathname of [
+      '/%63atalog-api/items.json',
+      '/catalog-api%2Fitems.json',
+    ]) {
+      const response = await worker.fetch(
+        new Request(`https://example.com${pathname}`),
+        {
+          ASSETS: {
+            fetch: async () => new Response('asset', { status: 200 }),
+          },
+          VERTICAL_CATALOG_WORKER: {
+            fetch: async (request: Request) => {
+              serviceRequests.push(new URL(request.url).pathname);
+              return new Response('catalog', { status: 200 });
+            },
+          },
+        },
+      );
+      await expect(response.text()).resolves.toBe('catalog');
+    }
+    expect(serviceRequests).toEqual([
+      '/%63atalog-api/items.json',
+      '/catalog-api%2Fitems.json',
+    ]);
   });
 
   it('serves fingerprinted Cloudflare assets with immutable cache headers', async () => {

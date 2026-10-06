@@ -172,6 +172,52 @@ function getNativeRouteIdentity(route) {
     : undefined;
 }
 
+const ROUTE_DATA_REQUEST_PARAM = '__loader';
+
+// Route data requests (`?__loader=`) are answered by the entry's route data
+// worker, like the Node server's data handler. Without a match the request
+// falls through to page rendering, as it does on Node.
+async function dispatchRouteDataRequest(route, request) {
+  const routeDataWorkerPath = route.routeDataWorker;
+  if (
+    !routeDataWorkerPath ||
+    !new URL(request.url).searchParams.has(ROUTE_DATA_REQUEST_PARAM)
+  ) {
+    return undefined;
+  }
+
+  const routeDataWorkerModule = await loadWorkerModule(routeDataWorkerPath);
+  const handleRouteDataRequest = routeDataWorkerModule
+    ? getRuntimeModule(routeDataWorkerModule).handleRouteDataRequest
+    : undefined;
+
+  if (typeof handleRouteDataRequest !== 'function') {
+    return new Response(
+      `Route data worker bundle has no handleRouteDataRequest export: ${routeDataWorkerPath}`,
+      {
+        status: 500,
+        headers: {
+          'content-type': 'text/plain; charset=utf-8',
+          'x-modern-js-route-data-worker': routeDataWorkerPath,
+        },
+      },
+    );
+  }
+
+  return handleRouteDataRequest({
+    request,
+    serverRoutes: MODERN_WORKER_MANIFEST.routeSpec.routes,
+    context: {
+      loaderContext: new Map(),
+      monitors: createNoopMonitors(),
+      reporter: {
+        reportTiming: () => {},
+      },
+    },
+    onTiming() {},
+  });
+}
+
 async function dispatchRouteWorker(route, request, env, ctx) {
   const rendererRejection = createWorkerRendererGuardResponse(request);
   if (rendererRejection) return rendererRejection;
@@ -356,14 +402,46 @@ async function invokeRouteWorker(route, request, env, ctx) {
   );
 }
 
-function matchesPrefix(pathname, prefix) {
+// Worker Static Assets decode percent-encoded paths, so an encoded spelling
+// of a mounted prefix (`/%70refix/...`, `/prefix%2F...`) would otherwise skip
+// the BFF or service binding that owns the prefix and reach ASSETS directly.
+// Resolve such spellings to the canonical pathname the owner sees; a
+// backslash or undecodable spelling becomes a path the owner rejects.
+function resolvePrefixPathname(pathname, prefix) {
   if (!prefix || prefix === '/') {
-    return true;
+    return pathname;
   }
 
   const normalized = prefix.endsWith('/') ? prefix.slice(0, -1) : prefix;
+  let candidate = pathname;
 
-  return pathname === normalized || pathname.startsWith(`${normalized}/`);
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    if (candidate === normalized || candidate.startsWith(`${normalized}/`)) {
+      return candidate;
+    }
+    if (candidate.startsWith(`${normalized}\\`)) {
+      return `${normalized}/__invalid_encoded_path__`;
+    }
+
+    let decoded;
+    try {
+      decoded = decodeURIComponent(candidate);
+    } catch {
+      return candidate.toLowerCase().startsWith(normalized.toLowerCase())
+        ? `${normalized}/__invalid_encoded_path__`
+        : null;
+    }
+    if (decoded === candidate) {
+      return null;
+    }
+    candidate = decoded;
+  }
+
+  return null;
+}
+
+function matchesPrefix(pathname, prefix) {
+  return resolvePrefixPathname(pathname, prefix) !== null;
 }
 
 function createRequestForMountedPrefix(request, prefix) {
@@ -373,12 +451,13 @@ function createRequestForMountedPrefix(request, prefix) {
 
   const url = new URL(request.url);
   const normalized = prefix.endsWith('/') ? prefix.slice(0, -1) : prefix;
+  const matchedPathname = resolvePrefixPathname(url.pathname, normalized);
 
-  if (!matchesPrefix(url.pathname, normalized)) {
+  if (matchedPathname === null) {
     return request;
   }
 
-  const nextPath = url.pathname.slice(normalized.length) || '/';
+  const nextPath = matchedPathname.slice(normalized.length) || '/';
   url.pathname = nextPath.startsWith('/') ? nextPath : `/${nextPath}`;
 
   return new Request(url, request);
@@ -400,119 +479,131 @@ function createEffectBffDispatcherErrorResponse(bff, error) {
   );
 }
 
-function getEffectBffDispatcher(bff, runtime) {
-  let effectDispatcherPromise = effectBffDispatcherPromises.get(bff.worker);
-
-  if (effectDispatcherPromise) {
-    return effectDispatcherPromise;
+// workerd binds every I/O object (sockets, timers, pending promises) to the request that
+// created it, so an Effect runtime built while serving one request cannot serve the next: a
+// pooled PostgreSQL connection or a cached in-flight effect from an earlier request never
+// completes. Each BFF request therefore builds its own dispatcher and disposes it once the
+// response body has been delivered; platform pools such as Hyperdrive keep connections warm.
+async function createEffectBffDispatcher(bff, runtime) {
+  if (
+    typeof bff.dispatcherExport !== 'string' ||
+    bff.dispatcherExport.length === 0
+  ) {
+    throw new Error('manifest does not declare dispatcherExport');
   }
 
-  effectDispatcherPromise = Promise.resolve().then(async () => {
-    if (
-      typeof bff.dispatcherExport !== 'string' ||
-      bff.dispatcherExport.length === 0
-    ) {
-      throw new Error('manifest does not declare dispatcherExport');
-    }
+  const effectDispatcherFactory = runtime[bff.dispatcherExport];
 
-    const effectDispatcherFactory = runtime[bff.dispatcherExport];
+  if (typeof effectDispatcherFactory !== 'function') {
+    throw new Error(`worker bundle does not export ${bff.dispatcherExport}`);
+  }
 
-    if (typeof effectDispatcherFactory !== 'function') {
-      throw new Error(`worker bundle does not export ${bff.dispatcherExport}`);
-    }
-
-    const effectConfig = bff.effect;
-    if (
-      !effectConfig ||
-      typeof effectConfig !== 'object' ||
-      Array.isArray(effectConfig)
-    ) {
-      throw new Error('manifest declares invalid Effect BFF runtime config');
-    }
-    const crossProjectPolicy = effectConfig.crossProjectPolicy;
-    if (
-      !crossProjectPolicy ||
-      typeof crossProjectPolicy !== 'object' ||
-      Array.isArray(crossProjectPolicy)
-    ) {
+  const effectConfig = bff.effect;
+  if (
+    !effectConfig ||
+    typeof effectConfig !== 'object' ||
+    Array.isArray(effectConfig)
+  ) {
+    throw new Error('manifest declares invalid Effect BFF runtime config');
+  }
+  const crossProjectPolicy = effectConfig.crossProjectPolicy;
+  if (
+    !crossProjectPolicy ||
+    typeof crossProjectPolicy !== 'object' ||
+    Array.isArray(crossProjectPolicy)
+  ) {
+    throw new Error(
+      'manifest declares invalid Effect BFF cross-project policy',
+    );
+  }
+  for (const field of [
+    'enabled',
+    'requireEnvelope',
+    'requireOperationContext',
+    'requireOperationContextDetails',
+    'requireOperationSchemaHash',
+    'requireOperationVersion',
+    'allowUnknownOperations',
+  ]) {
+    if (typeof crossProjectPolicy[field] !== 'boolean') {
       throw new Error(
-        'manifest declares invalid Effect BFF cross-project policy',
+        `manifest Effect BFF cross-project policy requires boolean ${field}`,
       );
     }
-    for (const field of [
-      'enabled',
-      'requireEnvelope',
-      'requireOperationContext',
-      'requireOperationContextDetails',
-      'requireOperationSchemaHash',
-      'requireOperationVersion',
-      'allowUnknownOperations',
-    ]) {
-      if (typeof crossProjectPolicy[field] !== 'boolean') {
-        throw new Error(
-          `manifest Effect BFF cross-project policy requires boolean ${field}`,
-        );
-      }
-    }
-    if (
-      !crossProjectPolicy.expectedOperationContracts ||
-      typeof crossProjectPolicy.expectedOperationContracts !== 'object' ||
-      Array.isArray(crossProjectPolicy.expectedOperationContracts)
-    ) {
-      throw new Error(
-        'manifest Effect BFF cross-project policy requires expectedOperationContracts object',
-      );
-    }
+  }
+  if (
+    !crossProjectPolicy.expectedOperationContracts ||
+    typeof crossProjectPolicy.expectedOperationContracts !== 'object' ||
+    Array.isArray(crossProjectPolicy.expectedOperationContracts)
+  ) {
+    throw new Error(
+      'manifest Effect BFF cross-project policy requires expectedOperationContracts object',
+    );
+  }
 
-    const effectDispatcher = await effectDispatcherFactory({
-      prefix: bff.prefix,
-      ...(effectConfig?.openapi === undefined
-        ? {}
-        : { openapi: effectConfig.openapi }),
-      ...(effectConfig?.dataPlatform === undefined
-        ? {}
-        : { dataPlatform: effectConfig.dataPlatform }),
-      ...(effectConfig?.crossProjectPolicy === undefined
-        ? {}
-        : { crossProjectPolicy }),
-    });
-
-    if (!effectDispatcher || typeof effectDispatcher.dispatch !== 'function') {
-      try {
-        await effectDispatcher?.dispose?.();
-      } catch {}
-
-      throw new Error(
-        `worker export ${bff.dispatcherExport} did not return a dispatcher with a dispatch function`,
-      );
-    }
-
-    return effectDispatcher;
+  const effectDispatcher = await effectDispatcherFactory({
+    prefix: bff.prefix,
+    ...(effectConfig?.openapi === undefined
+      ? {}
+      : { openapi: effectConfig.openapi }),
+    ...(effectConfig?.dataPlatform === undefined
+      ? {}
+      : { dataPlatform: effectConfig.dataPlatform }),
+    ...(effectConfig?.crossProjectPolicy === undefined
+      ? {}
+      : { crossProjectPolicy }),
   });
 
-  effectBffDispatcherPromises.set(bff.worker, effectDispatcherPromise);
-  effectDispatcherPromise.catch(() => {
-    if (
-      effectBffDispatcherPromises.get(bff.worker) === effectDispatcherPromise
-    ) {
-      effectBffDispatcherPromises.delete(bff.worker);
-    }
-  });
+  if (!effectDispatcher || typeof effectDispatcher.dispatch !== 'function') {
+    try {
+      await effectDispatcher?.dispose?.();
+    } catch {}
 
-  return effectDispatcherPromise;
+    throw new Error(
+      `worker export ${bff.dispatcherExport} did not return a dispatcher with a dispatch function`,
+    );
+  }
+
+  return effectDispatcher;
 }
 
-async function dispatchBffRequest(request, env) {
+function disposeEffectBffDispatcherAfterResponse(response, dispatcher, ctx) {
+  if (response.body === null) {
+    ctx.waitUntil(dispatcher.dispose());
+    return response;
+  }
+  const { readable, writable } = new TransformStream();
+  // The body pipe settles when the client has the whole body or the stream failed; a failure
+  // already reached the client through `readable`, so it only has to release the runtime here.
+  ctx.waitUntil(
+    response.body
+      .pipeTo(writable)
+      .catch(() => undefined)
+      .then(() => dispatcher.dispose()),
+  );
+  return new Response(readable, response);
+}
+
+async function dispatchBffRequest(request, env, ctx) {
   const rendererRejection = createWorkerRendererGuardResponse(request);
   if (rendererRejection) return rendererRejection;
   const bff = MODERN_WORKER_MANIFEST.bff;
 
-  if (
-    !bff?.worker ||
-    !matchesPrefix(new URL(request.url).pathname, bff.prefix)
-  ) {
+  const requestUrl = new URL(request.url);
+  const matchedPathname = resolvePrefixPathname(
+    requestUrl.pathname,
+    bff?.prefix,
+  );
+  if (!bff?.worker || matchedPathname === null) {
     return null;
   }
+  const canonicalRequest =
+    matchedPathname === requestUrl.pathname
+      ? request
+      : new Request(
+          Object.assign(requestUrl, { pathname: matchedPathname }),
+          request,
+        );
   if (bff.runtimeFramework !== 'effect') {
     return createEffectBffDispatcherErrorResponse(
       bff,
@@ -540,12 +631,23 @@ async function dispatchBffRequest(request, env) {
     let effectDispatcher;
 
     try {
-      effectDispatcher = await getEffectBffDispatcher(bff, runtime);
+      effectDispatcher = await createEffectBffDispatcher(bff, runtime);
     } catch (error) {
       return createEffectBffDispatcherErrorResponse(bff, error);
     }
 
-    return effectDispatcher.dispatch(request, { env });
+    let response;
+    try {
+      response = await effectDispatcher.dispatch(canonicalRequest, { env });
+    } catch (error) {
+      ctx.waitUntil(effectDispatcher.dispose());
+      throw error;
+    }
+    return disposeEffectBffDispatcherAfterResponse(
+      response,
+      effectDispatcher,
+      ctx,
+    );
   }
 
   const directHandler =

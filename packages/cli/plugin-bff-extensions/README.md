@@ -17,7 +17,17 @@ upstream Modern.js project.
   consumed by `@modern-js/plugin-bff`.
 - `/backend-federation` exposes the portable federation runtime, while
   `/backend-federation/edge` rejects Node evaluators and non-binding remotes.
-- `/backend-federation/node` enables the hardened Node entry evaluator.
+  The runtime is a real Module Federation instance: caller `plugins` see its
+  lifecycle hooks, and a last integrity plugin loads each remote once per
+  runtime. `http(s):` entries must be SHA-256 and length verified, `data:` and
+  `file:` entries are evaluated or imported, and `binding:`, `service:` and
+  `static:` entries come from `createBackendFederationLoadEntryPlugin()`. Any
+  other entry fails with an error that names the remote. CommonJS containers are
+  evaluated per runtime; ES module containers are cached by Node per URL and
+  therefore shared between runtimes.
+- `/backend-federation/node` enables the hardened Node entry evaluator and
+  shares the Effect handler factory registry with remote containers through
+  their `init()` share scope.
 - `/backend-federation-manifest` exposes manifest contracts and resolution,
   while
   `/backend-federation-manifest/node` enables its hardened Node evaluator.
@@ -25,7 +35,7 @@ upstream Modern.js project.
   manifest-plus-entry load deadline (default 10s, override via `timeoutMs`,
   0 to opt out) instead of resetting a fresh timeout per network hop. The
   load settles on that shared deadline/abort even when a caller-pinned
-  `loadEntry` plugin, its `init`/`get`, or a custom runtime's `loadRemote`
+  entry provider plugin, its `init`/`get`, or a custom runtime's `loadRemote`
   never settles; it cannot stop that uncooperative work from still running,
   only stop waiting on it.
 

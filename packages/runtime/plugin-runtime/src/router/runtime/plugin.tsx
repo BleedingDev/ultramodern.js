@@ -1,5 +1,12 @@
 // @effect-diagnostics globalConsole:off strictBooleanExpressions:off unnecessaryArrowBlock:off
 import type { RuntimePluginAPI } from '@modern-js/plugin/runtime';
+import {
+  getGlobalEnableRsc,
+  getGlobalIsRscClient,
+  getGlobalLayoutApp,
+  getGlobalRoutes,
+  InternalRuntimeContext,
+} from '@modern-js/runtime/context';
 import { merge } from '@modern-js/runtime-utils/merge';
 import type { RouterSubscriber } from '@modern-js/runtime-utils/router';
 import {
@@ -20,13 +27,6 @@ import { normalizePathname } from '@modern-js/runtime-utils/url';
 import * as React from 'react';
 import { useContext, useEffect, useRef } from 'react';
 import type { RuntimePlugin } from '../../common';
-import {
-  getGlobalEnableRsc,
-  getGlobalIsRscClient,
-  getGlobalLayoutApp,
-  getGlobalRoutes,
-  InternalRuntimeContext,
-} from '../../core/context';
 import type { TInternalRuntimeContext } from '../../core/context/runtime';
 import type { RouterExtendsHooks, RouterLifecycleContext } from './hooks';
 import { routerProviderRegistryHooks } from './hooks';

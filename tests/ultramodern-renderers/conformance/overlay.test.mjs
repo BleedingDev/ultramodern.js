@@ -151,7 +151,7 @@ test('two-entry overlay authoring occurs in the stage before native configuratio
   assert.deepEqual(manifest.engines, { node: '>=26.7.0' });
   assert.deepEqual(manifest.devDependencies, {
     'unit-existing-tool': '1.0.0',
-    '@rsbuild/core': '2.2.9',
+    '@rsbuild/core': '2.2.11',
   });
   assert.equal(
     await fs.readFile(path.join(appRoot, 'observe-native-compiler.ts'), 'utf8'),

@@ -1,12 +1,12 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import {
   generatedModernBin,
   installPackedGenerator,
   materializeGeneratedWorkspaceDependencies,
 } from '../../../utils/generatedWorkspaceDependencies';
+import { generatorTestTempParent } from '../../../utils/generatorTestTemp.mjs';
 import { modernBuild } from '../../../utils/modernTestUtils';
 import { setSuiteTimeout } from '../../../utils/setSuiteTimeout';
 
@@ -115,7 +115,7 @@ function runWorkspaceValidator(workspaceDir: string) {
 
 function expectWorkspaceValidatorPass(workspaceDir: string) {
   expect(runWorkspaceValidator(workspaceDir).trim()).toBe(
-    'UltraModern workspace scaffold validated',
+    'UltraModern workspace validated',
   );
 }
 
@@ -128,8 +128,12 @@ describe('create-ultramodern-workspace', () => {
 
   beforeAll(() => {
     tempRoot = fs.mkdtempSync(
-      path.join(os.tmpdir(), 'modern-create-ultramodern-workspace-'),
+      path.join(
+        generatorTestTempParent(repoRoot),
+        'modern-create-ultramodern-workspace-',
+      ),
     );
+    console.log(`create-ultramodern-workspace scratch directory: ${tempRoot}`);
     createBin = installPackedGenerator(tempRoot);
   });
 
@@ -165,6 +169,9 @@ describe('create-ultramodern-workspace', () => {
         { cwd: shellDir, env: isolatedEnv, stdio: 'pipe' },
       ),
     ).toThrow();
+    const routeManifestPath =
+      'apps/shell-super-app/src/routes/ultramodern-route-metadata.ts';
+    const scaffoldedRouteManifest = readText(workspaceDir, routeManifestPath);
     execFileSync(
       process.execPath,
       [
@@ -185,6 +192,9 @@ describe('create-ultramodern-workspace', () => {
     expect(
       fs.globSync('src/modern-tanstack/*/router.gen.ts', { cwd: shellDir }),
     ).not.toEqual([]);
+    expect(readText(workspaceDir, routeManifestPath)).toBe(
+      scaffoldedRouteManifest,
+    );
     const buildResult = await modernBuild(
       path.join(workspaceDir, 'apps/shell-super-app'),
       [],
@@ -230,7 +240,7 @@ describe('create-ultramodern-workspace', () => {
           ? execError.stderr
           : execError.stderr?.toString() || '';
       expect(`${stdout}\n${stderr}`).toMatch(
-        /apps\/shell-super-app\/package\.json dependencies\.@modern-js\/runtime must match package source metadata/u,
+        /apps\/shell-super-app\/package\.json @modern-js\/runtime must use the ultramodern catalog/u,
       );
     } finally {
       writeText(workspaceDir, shellPackagePath, originalShellPackage);

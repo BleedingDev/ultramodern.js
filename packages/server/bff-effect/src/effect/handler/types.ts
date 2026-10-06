@@ -1,15 +1,10 @@
 // @effect-diagnostics anyUnknownInErrorContext:off asyncFunction:off globalDate:off globalTimers:off newPromise:off strictBooleanExpressions:off
 import type { FileSystem, Path } from 'effect';
 import * as Context from 'effect/Context';
-import type * as EffectType from 'effect/Effect';
+import type { Etag, HttpPlatform, HttpRouter } from 'effect/http';
+import type { HttpApi, HttpApiClient, HttpApiGroup } from 'effect/http-api';
 import type * as Layer from 'effect/Layer';
-import type { Etag, HttpPlatform, HttpRouter } from 'effect/unstable/http';
-import type {
-  HttpApi,
-  HttpApiClient,
-  HttpApiGroup,
-} from 'effect/unstable/httpapi';
-import type { Rpc, RpcGroup } from 'effect/unstable/rpc';
+import type { Rpc, RpcGroup } from 'effect/rpc';
 
 import type { createHttpApiHandler } from './http';
 import type { createRpcApiHandler } from './rpc';
@@ -200,8 +195,8 @@ export type EffectRequestInterceptor = (options: {
 }) => Response | Promise<Response>;
 
 export type EffectBffHandlerFactory<
-  TApi extends HttpApi.Constraint = HttpApi.Top,
-  TLayer extends EffectRuntimeLayer = EffectRuntimeLayer,
+  _TApi extends HttpApi.Constraint = HttpApi.Top,
+  _TLayer extends EffectRuntimeLayer = EffectRuntimeLayer,
 > = (options?: {
   openapi?: EffectBffOpenApiConfig;
   rpc?: Partial<EffectRpcBffHandlerOptions>;

@@ -101,7 +101,7 @@ test('React overlay adds actual entry sources and preserves runtime/bootstrap/pr
   const packageManifest = JSON.parse(
     await fs.readFile(path.join(appRoot, 'package.json'), 'utf8'),
   );
-  assert.equal(packageManifest.devDependencies['@rsbuild/core'], '2.2.9');
+  assert.equal(packageManifest.devDependencies['@rsbuild/core'], '2.2.11');
   assert.equal(packageManifest.devDependencies['existing-tool'], '1.0.0');
   assert.equal(packageManifest.engines.node, '>=26.7.0');
   assert.equal(

@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import execa from '@modern-js/utils/execa';
+import { execaSync } from '@modern-js/utils/execa';
 import yaml from 'js-yaml';
 import type { WorkspaceApp } from '../src/ultramodern-workspace/types';
 import { createZeropsYaml } from '../src/ultramodern-workspace/zerops';
@@ -16,11 +16,11 @@ type CommandRecord = {
 function resolvePosixShell() {
   const candidates: string[] = [];
   if (process.platform === 'win32') {
-    const fromPath = execa.sync('where.exe', ['sh.exe'], { reject: false });
+    const fromPath = execaSync('where.exe', ['sh.exe'], { reject: false });
     if (!fromPath.failed) {
       candidates.push(...fromPath.stdout.trim().split(/\r?\n/u));
     }
-    const git = execa.sync('git', ['--exec-path'], { reject: false });
+    const git = execaSync('git', ['--exec-path'], { reject: false });
     if (!git.failed) {
       const gitRoot = path.resolve(git.stdout.trim(), '../../..');
       candidates.push(
@@ -114,6 +114,7 @@ test('Zerops commands preserve interpolated arguments and launch the materialize
       service.deploy.readinessCheck.httpGet.path,
       "/catalog api/catalog 'stem'/readiness",
     );
+    assert.deepEqual(service.build.envVariables, { ZE_FAIL_BUILD: 'true' });
 
     const fakeHome = path.join(tempRoot, 'home');
     const fakeBin = path.join(tempRoot, 'bin');

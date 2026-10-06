@@ -14,7 +14,7 @@
       "sourcePath": "packages/solid-router/src",
       "upstreamPackage": "@tanstack/solid-router",
       "upstreamVersion": "1.170.36",
-      "routerCoreVersion": "1.171.32",
+      "routerCoreVersion": "1.171.34",
       "files": ["Scripts.tsx", "link.tsx"],
       "adaptation": "Native body-script composition and positional search equality are ported from the matching router-core release. The owned binding retains Solid 2 RC.13 JSX, NoHydration, keyed public match transfer and its module-keyed client-assets resolver."
     }
@@ -67,7 +67,7 @@
     "utils.ts": "a398c76ac378efe6f8b9aa859a5335d4f07cc692a31754fa93c8bf3e5df0b6ff"
   },
   "localChanges": [
-    "The public router surface omits InjectedHtmlEntry, isPlainArray and isPlainObject, which router-core 1.171.32 no longer exports. SSR options use the current top-level serializationAdapters contract and the public Solid 2 option types without legacy fallbacks or type assertions.",
+    "The public router surface omits InjectedHtmlEntry, isPlainArray and isPlainObject, which router-core 1.171.34 no longer exports. SSR options use the current top-level serializationAdapters contract and the public Solid 2 option types without legacy fallbacks or type assertions.",
     "Authored JSX types import @solidjs/web and have explicit return annotations for Solid 2 declaration generation.",
     "Hydration state and keyed match transfer use Solid 2 RC.13 public isHydrating, isHydratable, getHydrationWriter and takeHydrationValue APIs.",
     "Explicit public beforeLoad results transfer after canonical validation; private request context stays in owner closures. Initial hydration inherits checked server beforeLoad contributions, invokes the native client route-context callback and preserves client options context without rerunning initial beforeLoad callbacks or loaders.",

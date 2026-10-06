@@ -2,12 +2,13 @@
 // ROOT-ONLY. Packed-consumer proof for the sidecar publication lane.
 //
 // What it proves, end to end, against a LOOPBACK registry only:
-//   * the committed image sidecars publish before the cohort;
+//   * the recipe sidecars publish before the cohort;
 //   * the cohort package @bleedingdev/modern-js-image, packed from this
 //     checkout, installs from that registry with strict npm peer resolution;
-//   * its `npm:@bleedingdev/...` aliases resolve to the fork packages;
+//   * ipx resolves upstream under its own name and @rsbuild-image/core
+//     resolves upstream at its exact source version;
 //   * sharp resolves on the 0.35 line, image-size resolves upstream at
-//     2.0.3+ through the core fork's own dependency edge;
+//     2.0.3+ through @rsbuild-image/core's own dependency edge;
 //   * ipx and @rsbuild-image/core/shared import through BOTH CJS and ESM;
 //   * `npm ls` reports no invalid or missing peer edges.
 //
@@ -24,7 +25,7 @@
 //   * no original sidecar tarball is ever published: each package is staged
 //     into scratch with `publishConfig.registry` removed (access preserved),
 //     and the packed tarball's own manifest is re-read to prove no registry
-//     field survived. `@bleedingdev/ipx` pins publishConfig.registry to public
+//     field survived. Every sidecar pins publishConfig.registry to public
 //     npm, and npm honours a packed publishConfig.registry over `--registry`.
 //
 // It never installs Verdaccio and never touches the repository working tree or
@@ -65,7 +66,6 @@ import { readNpmTarballFile } from './lib/prepare-bleedingdev-packages/release-a
 import { sidecarRegistryDecision } from './lib/prepare-bleedingdev-packages/sidecar-publication.mjs';
 import {
   collectSidecarPackages,
-  rewriteSidecarConsumerAliases,
   sidecarPublishOrder,
   validateAliasConsistency,
 } from './lib/prepare-bleedingdev-packages/sidecars.mjs';
@@ -361,7 +361,7 @@ function assertRegistryConfigValue(key, raw, approvedHref) {
   return normalized;
 }
 
-function assertEffectiveRegistries(cwd, env, registry, label) {
+function assertEffectiveRegistries(cwd, env, registry, _label) {
   for (const key of registryConfigKeys) {
     const raw = run('npm', ['config', 'get', key], {
       cwd,
@@ -556,15 +556,12 @@ function proofImageVersion(
 
 /**
  * Stage the cohort image package exactly as the publisher would: the fork
- * name, a per-run proof version, and exact `npm:@bleedingdev/...` aliases
- * projected from the staged sidecars. Nothing is written inside the repository.
+ * name, a per-run proof version, and the `npm:@bleedingdev/...` aliases its
+ * source manifest declares. Nothing is written inside the repository.
  */
 function stageCohortImagePackage(
   stageDir,
-  {
-    sidecars = collectSidecarPackages(repoRoot),
-    version = proofImageVersion(),
-  } = {},
+  { version = proofImageVersion() } = {},
 ) {
   const sourceDir = path.join(repoRoot, cohortImageSourceDir);
   const distDir = path.join(sourceDir, 'dist');
@@ -600,7 +597,6 @@ function stageCohortImagePackage(
   packageJson.name = cohortImageTargetName;
   packageJson.version = version;
   packageJson.publishConfig = { access: 'public' };
-  rewriteSidecarConsumerAliases(packageJson, sidecars);
   for (const [dependencyName, specifier] of Object.entries(
     packageJson.dependencies ?? {},
   )) {
@@ -677,7 +673,7 @@ function publishPacked(packed, { cwd, env, registry, label }) {
  *
  * `require.resolve('<pkg>/package.json')` is NOT usable here: a package that
  * declares `exports` without a `./package.json` subpath blocks it, which is the
- * case for @bleedingdev/modern-js-image and both sidecar forks. So the proof
+ * case for @bleedingdev/modern-js-image and @rsbuild-image/core. So the proof
  * starts at a public entry and walks ancestors to the first NAMED package.json,
  * which is the package that owns the entry, and checks that name.
  *
@@ -742,28 +738,32 @@ async function consumerProofMain(config, io) {
     `${image.manifest.name}@${image.manifest.version}`,
   );
 
-  // 1. npm: alias resolution - the aliased request names must land on the
-  //    forks, resolved from the image package's own entry.
+  // 1. Dependency resolution from the image package's own entry: upstream
+  //    @rsbuild-image/core at its exact version, ipx under its own name.
   const imageRequire = createRequire(imageEntry);
 
   const coreEntry = imageRequire.resolve('@rsbuild-image/core');
   const core = resolvePackageFromEntry(coreEntry, config.coreName, walkIo);
   assert.equal(
     image.manifest.dependencies['@rsbuild-image/core'],
-    `npm:${config.coreName}@${core.manifest.version}`,
+    core.manifest.version,
   );
   record(
-    '@rsbuild-image/core alias resolves',
+    '@rsbuild-image/core resolves upstream',
     `${core.manifest.name}@${core.manifest.version}`,
   );
 
   const ipxEntry = imageRequire.resolve('ipx');
-  const ipx = resolvePackageFromEntry(ipxEntry, config.ipxName, walkIo);
-  assert.equal(
-    image.manifest.dependencies.ipx,
-    `npm:${config.ipxName}@${ipx.manifest.version}`,
+  const ipx = resolvePackageFromEntry(ipxEntry, 'ipx', walkIo);
+  assert.match(
+    ipx.manifest.version,
+    /^4\./u,
+    `ipx must resolve on 4.x, found ${ipx.manifest.version}`,
   );
-  record('ipx alias resolves', `${ipx.manifest.name}@${ipx.manifest.version}`);
+  record(
+    'ipx resolves upstream',
+    `${ipx.manifest.name}@${ipx.manifest.version}`,
+  );
 
   // 2. sharp stays on the 0.35 line (the exact patch floats with the range).
   const sharp = resolvePackageFromEntry(
@@ -792,7 +792,7 @@ async function consumerProofMain(config, io) {
   );
   record('image-size resolves', `image-size@${imageSize.manifest.version}`);
 
-  // 4. CJS: ipx and the core fork's shared subpath.
+  // 4. CJS: ipx and the core shared subpath.
   const ipxCjs = imageRequire('ipx');
   assert.equal(
     typeof ipxCjs.createIPX,
@@ -1047,7 +1047,6 @@ async function verifySidecarConsumer(options) {
     const sidecars = sidecarPublishOrder(collectSidecarPackages(repoRoot));
     const imageVersion = proofImageVersion();
     const stagedImage = stageCohortImagePackage(path.join(workDir, 'image'), {
-      sidecars,
       version: imageVersion,
     });
     validateAliasConsistency(
@@ -1082,7 +1081,7 @@ async function verifySidecarConsumer(options) {
       // the published copy resolves identically to what this run staged; every
       // other state (content drift, a tag pointing elsewhere, a backwards
       // latest) throws instead of hitting E403 halfway through.
-      const decision = sidecarRegistryDecision(
+      const decision = await sidecarRegistryDecision(
         {
           integrity: packed.integrity,
           name: sidecar.name,
@@ -1182,10 +1181,9 @@ async function verifySidecarConsumer(options) {
     fs.writeFileSync(
       proofPath,
       buildConsumerProofSource({
-        coreName: '@bleedingdev/rsbuild-image-core',
+        coreName: '@rsbuild-image/core',
         imageName: cohortImageTargetName,
         imageVersion: packedImage.version,
-        ipxName: '@bleedingdev/ipx',
         sharpVersionPattern: '^0\\.35\\.',
       }),
     );

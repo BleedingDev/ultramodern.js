@@ -100,9 +100,6 @@ curl -I -H 'Accept-Language: cs-CZ,cs;q=0.9,en;q=0.1' https://<worker-host>/
 `@effect/vitest@4.0.0-rc.117`。不要添加与这些 overrides 冲突的 app 本地直接
 Effect 版本。严格的 24 小时发布年龄门禁适用于实际安装的包；当前版本组不包含 Effect
 年龄豁免，仅用于 override 的 `@effect/vitest` 也不是已安装的审批目标。
-`trustPolicyExclude` 是独立策略，仅为 `effect` 和
-`@effect/opentelemetry` 保留精确例外，以处理 trusted-publisher metadata 向
-provenance attestation 的迁移；它不属于 release-age 审批。
 
 ### 当前生成依赖基线
 
@@ -111,8 +108,8 @@ provenance attestation 的迁移；它不属于 release-age 审批。
 | Effect runtime 与测试版本组 | `effect`、`@effect/opentelemetry`、`@effect/vitest`：`4.0.0-rc.117` |
 | Effect compiler | `@effect/tsgo@0.45.0` |
 | Oxc 与 Ultracite | `oxlint@1.85.0`、`oxfmt@0.70.0`、`ultracite@7.12.0` |
-| TanStack Router | `@tanstack/react-router@1.170.39`、`@tanstack/router-core@1.171.32`、`@tanstack/history@1.162.4` |
-| Module Federation | `bridge-react`、`manifest`、`modern-js-v3`、`rspack`：`2.9.1`；`@module-federation/node@2.7.51` |
+| TanStack Router | `@tanstack/react-router@1.170.41`、`@tanstack/router-core@1.171.34`、`@tanstack/history@1.162.4` |
+| Module Federation | `bridge-react`、`manifest`、`modern-js-v3`、`rspack`：`2.9.2`；`@module-federation/node@2.7.52` |
 | Tailwind CSS | `tailwindcss@4.3.3` |
 | Node 与包管理工具 | Node `26.7.0`、`@types/node@^26.6.2`、pnpm `11.27.1` |
 

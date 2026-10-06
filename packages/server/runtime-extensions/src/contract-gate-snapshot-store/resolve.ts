@@ -9,7 +9,6 @@ import { tryResolveBuiltinSnapshotStore } from './http-store';
 import type {
   ContractGateSnapshotStore,
   ContractGateSnapshotStoreFactory,
-  ContractGateSnapshotStoreFactoryContext,
   ContractGateSnapshotStoreModule,
   ContractGateSnapshotStoreUserConfig,
   GateSnapshot,

@@ -1,4 +1,3 @@
-import path from 'node:path';
 import { apiTopologyMetadata } from '../api';
 import { createBackendFederationContract } from '../backend-federation';
 import {

@@ -2,8 +2,50 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import {
+  createVerticalDescriptor,
+  shellApp,
+} from '../src/ultramodern-workspace/descriptors';
 import { formatGeneratedSourceCandidates } from '../src/ultramodern-workspace/fs-io';
-import { preserveConsumerWorkspaceArtifacts } from '../src/ultramodern-workspace/workspace-artifact-ownership';
+import {
+  preserveConsumerWorkspaceArtifacts,
+  workspaceArtifactCandidates,
+} from '../src/ultramodern-workspace/workspace-artifact-ownership';
+
+test('workspace ownership excludes application configs from every topology projection', () => {
+  const catalog = createVerticalDescriptor('catalog', 3101);
+  const orders = createVerticalDescriptor('orders', 3102);
+  const apps = [{ ...shellApp, verticalRefs: ['catalog'] }, catalog];
+  const alternateApps = [
+    { ...shellApp, verticalRefs: ['catalog', 'orders'] },
+    {
+      ...shellApp,
+      id: 'shell-admin',
+      directory: 'apps/shell-admin',
+      packageSuffix: 'shell-admin',
+      mfName: 'shellAdmin',
+      port: 3121,
+      verticalRefs: ['orders'],
+    },
+    catalog,
+    orders,
+  ];
+
+  const paths = workspaceArtifactCandidates(
+    'workspace',
+    apps,
+    alternateApps,
+  ).map(candidate => candidate.relativePath);
+
+  assert.deepEqual(
+    paths.filter(relativePath => relativePath.endsWith('/modern.config.ts')),
+    [],
+    'pristine and authored app configs are both outside generator ownership',
+  );
+  assert.ok(paths.includes('tsconfig.json'));
+  assert.ok(paths.includes('zerops.yaml'));
+  assert.ok(paths.some(relativePath => relativePath.startsWith('scripts/')));
+});
 
 test('pre-install canonical refreshes preserve config bytes and permit changed JSON artifacts', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'um-artifact-noop-'));

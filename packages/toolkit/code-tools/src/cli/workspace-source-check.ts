@@ -30,6 +30,8 @@ const WORKSPACE_SOURCE_SUCCESS =
 
 const DEFAULT_LOCALES = ['en', 'cs'] as const;
 
+const DEFAULT_SOURCE_ROOTS = ['apps', 'verticals', 'packages'] as const;
+
 const ignoredDirectories = new Set([
   '.modern',
   '.modernjs',
@@ -102,6 +104,9 @@ const localeImportPattern = (locale: string): RegExp =>
     'u',
   );
 
+/** A source or locale-resource violation; every other throw is a tool failure. */
+class SourceViolation extends Error {}
+
 const checkRuntimeResources = (
   root: string,
   filePath: string,
@@ -124,7 +129,7 @@ const checkRuntimeResources = (
       missingLocales.length > 0
         ? `missing locale JSON imports for: ${missingLocales.join(', ')}`
         : 'initOptions does not register a `resources` entry';
-    throw new Error(
+    throw new SourceViolation(
       `${relative} must register locale JSON resources in modern.runtime.ts so Worker SSR and hydration use the same first-render translations (${detail}).`,
     );
   }
@@ -163,7 +168,7 @@ const checkPluralResources = (
 
     const suffixMatch = key.match(pluralSuffixPattern);
     if (!suffixMatch) {
-      throw new Error(
+      throw new SourceViolation(
         `${relative} key ${pathParts.join('.')} contains {{count}} but is not plural-suffixed.`,
       );
     }
@@ -179,7 +184,7 @@ const checkPluralResources = (
   for (const [group, suffixes] of groups) {
     for (const suffix of requiredSuffixes) {
       if (!suffixes.has(suffix)) {
-        throw new Error(
+        throw new SourceViolation(
           `${relative} plural group ${group} is missing _${suffix}.`,
         );
       }
@@ -236,7 +241,7 @@ const runRuntimeAndLocaleResourceChecks = (
 
 export const runWorkspaceSourceCheck = ({
   cwd = process.cwd(),
-  sourceRoots = ['apps', 'verticals', 'packages'],
+  sourceRoots = DEFAULT_SOURCE_ROOTS,
   locales = DEFAULT_LOCALES,
   pluralCategories,
 }: WorkspaceSourceCheckOptions = {}): number => {
@@ -279,18 +284,151 @@ export const runWorkspaceSourceCheck = ({
       pluralCategories,
     );
   } catch (error) {
-    console.error(
-      error instanceof Error
-        ? error.message
-        : 'UltraModern workspace source checks failed.',
-    );
-    return 1;
+    console.error(error instanceof Error ? error.message : String(error));
+    return error instanceof SourceViolation ? 1 : 2;
   }
 
   console.log(WORKSPACE_SOURCE_SUCCESS);
   return 0;
 };
 
-export const main = (): void => {
-  process.exitCode = runWorkspaceSourceCheck();
+const USAGE = `modern-i18n-check [--workspace-root <path>]
+Runs the UltraModern i18n and boundary source checks for a workspace.
+Workspace defaults to ULTRAMODERN_WORKSPACE_ROOT then cwd. Options come from
+package.json "modernjs.i18nCheck": { sourceRoots, locales, pluralCategories }.
+Exit codes: 0 valid, 1 source violation, 2 tool/configuration failure.`;
+
+const isStringArray = (value: unknown): value is string[] =>
+  Array.isArray(value) &&
+  value.every(entry => typeof entry === 'string' && entry.length > 0);
+
+const isLocaleArray = (value: unknown): value is string[] => {
+  if (!isStringArray(value)) return false;
+  try {
+    Intl.getCanonicalLocales(value);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/**
+ * Accepts a workspace-relative directory only: both check phases join the
+ * entry onto the root, and canonical paths stop a symlink pointing outside.
+ */
+const isWorkspaceDirectory = (root: string, entry: string): boolean => {
+  if (path.isAbsolute(entry)) return false;
+  const target = path.resolve(root, entry);
+  if (!fs.existsSync(target) || !fs.statSync(target).isDirectory()) {
+    return false;
+  }
+  const relative = path.relative(
+    fs.realpathSync(root),
+    fs.realpathSync(target),
+  );
+  return (
+    relative !== '' &&
+    relative !== '..' &&
+    !relative.startsWith(`..${path.sep}`) &&
+    !path.isAbsolute(relative)
+  );
+};
+
+const CLDR_PLURAL_CATEGORIES = new Set([
+  'zero',
+  'one',
+  'two',
+  'few',
+  'many',
+  'other',
+]);
+
+/** Each override must be a CLDR category list; CLDR always has `other`. */
+const isPluralCategories = (
+  value: unknown,
+): value is Record<string, string[]> =>
+  isRecord(value) &&
+  Object.values(value).every(
+    categories =>
+      isStringArray(categories) &&
+      categories.includes('other') &&
+      categories.every(category => CLDR_PLURAL_CATEGORIES.has(category)),
+  );
+
+/** Reads `modernjs.i18nCheck` from the workspace package.json. */
+const readWorkspaceCheckOptions = (
+  root: string,
+): WorkspaceSourceCheckOptions => {
+  const manifestPath = path.join(root, 'package.json');
+  const modernjs = JSON.parse(readText(manifestPath)).modernjs;
+  const config =
+    isRecord(modernjs) && Object.hasOwn(modernjs, 'i18nCheck')
+      ? modernjs.i18nCheck
+      : {};
+  const invalid = (field: string, expected: string) =>
+    new Error(
+      `${manifestPath} "modernjs.i18nCheck${field}" must be ${expected}.`,
+    );
+  if (!isRecord(config)) {
+    throw invalid('', 'an object');
+  }
+  const { locales, pluralCategories } = config;
+  if (locales !== undefined && !isLocaleArray(locales)) {
+    throw invalid('.locales', 'an array of BCP 47 locale codes');
+  }
+  if (pluralCategories !== undefined && !isPluralCategories(pluralCategories)) {
+    throw invalid(
+      '.pluralCategories',
+      'an object of locale -> CLDR plural categories including "other"',
+    );
+  }
+  // Omitted roots mean the conventional ones this workspace actually has.
+  const sourceRoots = Object.hasOwn(config, 'sourceRoots')
+    ? config.sourceRoots
+    : DEFAULT_SOURCE_ROOTS.filter(entry => isWorkspaceDirectory(root, entry));
+  if (
+    !isStringArray(sourceRoots) ||
+    sourceRoots.length === 0 ||
+    !sourceRoots.every(entry => isWorkspaceDirectory(root, entry))
+  ) {
+    throw invalid(
+      '.sourceRoots',
+      `a non-empty array of existing workspace-relative directories (default: whichever of ${DEFAULT_SOURCE_ROOTS.join(', ')} exist)`,
+    );
+  }
+  return { cwd: root, sourceRoots, locales, pluralCategories };
+};
+
+export const runWorkspaceSourceCheckCli = (
+  args: readonly string[] = process.argv.slice(2),
+): number => {
+  let workspaceRoot = process.env.ULTRAMODERN_WORKSPACE_ROOT ?? process.cwd();
+  for (let index = 0; index < args.length; index += 1) {
+    const argument = args[index];
+    if (argument === '--help' || argument === '-h') {
+      console.log(USAGE);
+      return 0;
+    }
+    const value = args[index + 1];
+    if (argument !== '--workspace-root' || !value || value.startsWith('--')) {
+      console.error(`Invalid argument: ${argument ?? ''}. Use --help.`);
+      return 2;
+    }
+    workspaceRoot = value;
+    index += 1;
+  }
+
+  // runWorkspaceSourceCheck returns 1 for violations and 2 for check-time
+  // tool failures; anything thrown here is a configuration failure.
+  try {
+    return runWorkspaceSourceCheck(
+      readWorkspaceCheckOptions(path.resolve(workspaceRoot)),
+    );
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    return 2;
+  }
 };

@@ -13,6 +13,15 @@ export type UltramodernReleaseIdentity = {
   sourceRevision: string;
 };
 
+// Inherited GIT_* variables (git hooks export GIT_DIR and GIT_INDEX_FILE)
+// would make git describe some other repository than `workspaceRoot`.
+const workspaceGitEnv = (): NodeJS.ProcessEnv =>
+  Object.fromEntries(
+    Object.entries(process.env).filter(
+      ([name]) => !name.toUpperCase().startsWith('GIT_'),
+    ),
+  );
+
 const gitOutput = (
   workspaceRoot: string,
   args: string[],
@@ -21,6 +30,7 @@ const gitOutput = (
     return invokeGit('git', args, {
       cwd: workspaceRoot,
       encoding: 'utf8',
+      env: workspaceGitEnv(),
       stdio: ['ignore', 'pipe', 'ignore'],
     }).trim();
   } catch {
@@ -47,10 +57,11 @@ export const createUltramodernReleaseBuildMarker = ({
 export const resolveUltramodernSourceRevision = (
   workspaceRoot = process.cwd(),
   configuredSourceRevision?: string,
+  environment: Readonly<NodeJS.ProcessEnv> = process.env,
 ): string => {
   const configuredArgumentValue = configuredSourceRevision?.trim();
   const configuredEnvironmentValue =
-    process.env.ULTRAMODERN_SOURCE_REVISION?.trim();
+    environment.ULTRAMODERN_SOURCE_REVISION?.trim();
   const configuredArgument =
     configuredArgumentValue && configuredArgumentValue !== 'workspace'
       ? configuredArgumentValue
@@ -113,16 +124,19 @@ export const resolveUltramodernReleaseIdentity = ({
   sourceRevision: configuredSourceRevision,
   unitId,
   workspaceRoot,
+  environment,
 }: {
   generationBuildMarker: string;
   sourceRevision?: string;
   unitId: string;
   workspaceRoot?: string;
+  environment?: Readonly<NodeJS.ProcessEnv>;
 }): UltramodernReleaseIdentity => {
   const explicitSourceRevision = configuredSourceRevision?.trim();
   const sourceRevision = resolveUltramodernSourceRevision(
     workspaceRoot,
     explicitSourceRevision,
+    environment,
   );
   return {
     buildMarker:

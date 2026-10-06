@@ -45,15 +45,6 @@ const sidecarManifestFile = 'sidecars.json';
 const sidecarManifestSchema = 'bleedingdev.ultramodern.sidecar-manifest';
 const sidecarManifestSchemaVersion = 2;
 const sidecarAliasConsumerTargetName = '@bleedingdev/modern-js-image';
-const qualifiedPrereleaseSidecars = new Map([
-  ['@bleedingdev/drizzle-orm', '1.0.0-rc.4'],
-  ['@bleedingdev/effect', '4.0.0-rc.117'],
-]);
-
-function isQualifiedSidecarVersion(name, version) {
-  return qualifiedPrereleaseSidecars.get(name) === version;
-}
-
 const createTemplateRequiredFiles = [
   'template-workspace/.agents/agent-reference-repos.json',
   'template-workspace/.codex/rstackjs-agent-skills-LICENSE',
@@ -68,7 +59,6 @@ const createTemplateRequiredFiles = [
 export {
   createTemplateRequiredFiles,
   incorporatedModernCreateSourceName,
-  isQualifiedSidecarVersion,
   npmPublishAttempts,
   npmPublishRetryDelayMs,
   npmRegistryOrigin,

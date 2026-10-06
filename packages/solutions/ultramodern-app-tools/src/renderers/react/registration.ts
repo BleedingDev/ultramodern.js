@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { AppTools, CliPlugin } from '@modern-js/app-tools/cli-config';
+import type { PolicyDefaultsOptions } from '@modern-js/app-tools-extensions/policy-defaults';
 import { findHostingModuleDirectory } from '@modern-js/app-tools-extensions/runtime-package-resolution';
 import type { FrameworkModule } from '../../native-composition/renderer-installed-profile';
 import type { RendererRegistration } from '../../native-composition/renderer-registration';
@@ -39,6 +40,7 @@ function resolveBuildFrameworkModules(context: {
 
 function compose(
   consumerPlugins: readonly CliPlugin<AppTools>[],
+  policy?: PolicyDefaultsOptions,
 ): CliPlugin<AppTools> {
   let directory = path.dirname(fileURLToPath(import.meta.url));
   for (;;) {
@@ -55,7 +57,7 @@ function compose(
       const { composeReactRenderer } = createRequire(import.meta.url)(
         `${manifest.name}/react-composition`,
       ) as typeof import('../../native-composition/react-composition');
-      return composeReactRenderer({ consumerPlugins });
+      return composeReactRenderer({ consumerPlugins, policy });
     }
     const parent = path.dirname(directory);
     if (parent === directory)

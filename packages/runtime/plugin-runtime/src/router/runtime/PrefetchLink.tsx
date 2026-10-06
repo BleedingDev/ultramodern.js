@@ -1,5 +1,6 @@
 // @effect-diagnostics asyncFunction:off globalConsole:off globalTimers:off strictBooleanExpressions:off unnecessaryArrowBlock:off
 'use client';
+import { InternalRuntimeContext } from '@modern-js/runtime/context';
 import {
   matchRoutes,
   type Path,
@@ -19,7 +20,6 @@ import type {
   TouchEventHandler,
 } from 'react';
 import React, { useContext, useMemo } from 'react';
-import { InternalRuntimeContext } from '../../core/context';
 import type { RouteAssets, RouteManifest } from './types';
 
 declare const WEBPACK_CHUNK_LOAD:
@@ -29,7 +29,6 @@ const getWebpackChunkLoader = (): typeof WEBPACK_CHUNK_LOAD =>
   typeof WEBPACK_CHUNK_LOAD === 'function' ? WEBPACK_CHUNK_LOAD : undefined;
 const getWebpackPublicPath = () => {
   try {
-    // @ts-expect-error Webpack supplies this runtime value.
     return __webpack_public_path__ || '';
   } catch {
     return '';

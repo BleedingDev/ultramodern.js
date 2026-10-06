@@ -75,6 +75,68 @@ describe('source.reactCompiler', () => {
     });
   });
 
+  test('should apply react compiler to browser environments only', async () => {
+    const rsbuild = await createBuilder({
+      bundlerType: 'rspack',
+      config: {
+        source: {
+          reactCompiler: true,
+        },
+        environments: {
+          client: { output: { target: 'web' } },
+          server: { output: { target: 'node' } },
+          workerSSR: { output: { target: 'web-worker' } },
+        },
+      },
+      cwd: join(__dirname, '..'),
+    });
+    const {
+      origin: { bundlerConfigs },
+    } = await rsbuild.inspectConfig();
+    const transformByName = Object.fromEntries(
+      bundlerConfigs.map(config => [
+        config.name,
+        getSwcTransformOptions(config),
+      ]),
+    );
+
+    expect(transformByName.client?.reactCompiler).toEqual(true);
+    expect(transformByName.server).toBeDefined();
+    expect(transformByName.server).not.toHaveProperty('reactCompiler');
+    expect(transformByName.workerSSR).toBeDefined();
+    expect(transformByName.workerSSR).not.toHaveProperty('reactCompiler');
+  });
+
+  test('should not apply react compiler to a web-target worker SSR environment', async () => {
+    // Cloudflare deploys build workerSSR with output.target 'web'.
+    const rsbuild = await createBuilder({
+      bundlerType: 'rspack',
+      config: {
+        source: {
+          reactCompiler: true,
+        },
+        environments: {
+          client: { output: { target: 'web' } },
+          workerSSR: { output: { target: 'web' } },
+        },
+      },
+      cwd: join(__dirname, '..'),
+    });
+    const {
+      origin: { bundlerConfigs },
+    } = await rsbuild.inspectConfig();
+    const transformByName = Object.fromEntries(
+      bundlerConfigs.map(config => [
+        config.name,
+        getSwcTransformOptions(config),
+      ]),
+    );
+
+    expect(transformByName.client?.reactCompiler).toEqual(true);
+    expect(transformByName.workerSSR).toBeDefined();
+    expect(transformByName.workerSSR).not.toHaveProperty('reactCompiler');
+  });
+
   test('should not leak reactCompiler into rsbuild source config', async () => {
     const { rsbuildConfig } = await parseCommonConfig({
       source: {

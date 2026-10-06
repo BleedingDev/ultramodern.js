@@ -35,8 +35,7 @@
   "scripts": {
     "prepublishOnly": "only-allow-pnpm",
     "build": "node --disable-warning=ExperimentalWarning --experimental-strip-types scripts/template.mts && rslib build",
-    "dev": "rslib build --watch",
-    "test": "rstest --passWithNoTests"
+    "dev": "rslib build --watch"
   },
   "dependencies": {
     "@codesandbox/sandpack-react": "^2.20.0",
@@ -50,8 +49,8 @@
     "@modern-js/codesmith-utils": "2.6.9",
     "@modern-js/create": "workspace:*",
     "@modern-js/rslib": "workspace:*",
-    "@rslib/core": "1.0.2",
-    "@types/node": "^26.6.2",
+    "@rslib/core": "1.0.3",
+    "@types/node": "^26.6.3",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@types/recursive-readdir": "^2.2.4",

@@ -253,8 +253,8 @@ function releaseFixture(
     },
     'plugin-tanstack': {
       dependencies: {
-        '@tanstack/react-router': '1.170.39',
-        '@tanstack/router-core': '1.171.32',
+        '@tanstack/react-router': '1.170.41',
+        '@tanstack/router-core': '1.171.34',
       },
       peerDependencies: { 'react-server-dom-rspack': '0.1.0' },
     },
@@ -823,8 +823,8 @@ test('consumer inputs authenticate mapped tar bytes and retain their exact pins 
     'react-dom': '19.3.0',
     'react-server-dom-rspack': '0.1.0',
     'rsbuild-plugin-rsc': '0.1.1',
-    '@tanstack/react-router': '1.170.39',
-    '@tanstack/router-core': '1.171.32',
+    '@tanstack/react-router': '1.170.41',
+    '@tanstack/router-core': '1.171.34',
     'react-router': '7.18.4',
   });
   assert.equal(inputs.manifest.devDependencies['rsbuild-plugin-rsc'], '0.1.1');
@@ -867,15 +867,15 @@ test('consumer input authentication rejects changed tarball bytes', t => {
 test('consumer inputs resolve exact prepared sidecars and their dependencies from authenticated archives', t => {
   const { release, template } = releaseFixture(t, {
     toolsDependencies: {
-      '@rsbuild/core': 'npm:@bleedingdev/rsbuild-core@2.2.9',
+      '@rsbuild/core': 'npm:@bleedingdev/rsbuild-core@2.2.11',
     },
     sidecars: [
-      { name: '@bleedingdev/rsbuild-core', version: '2.2.9' },
+      { name: '@bleedingdev/rsbuild-core', version: '2.2.11' },
       {
         name: '@bleedingdev/rslib-core',
         version: '0.20.0',
         dependencies: {
-          '@rsbuild/core': 'npm:@bleedingdev/rsbuild-core@2.2.9',
+          '@rsbuild/core': 'npm:@bleedingdev/rsbuild-core@2.2.11',
         },
       },
     ],
@@ -894,18 +894,18 @@ test('consumer inputs resolve exact prepared sidecars and their dependencies fro
   }
   assert.equal(
     workspace.overrides['@rsbuild/core'],
-    'npm:@bleedingdev/rsbuild-core@2.2.9',
+    'npm:@bleedingdev/rsbuild-core@2.2.11',
   );
   assert.equal(workspace.overrides['@rslib/core'], undefined);
   assert.equal(
     workspace.overrides[
-      `@bleedingdev/modern-js-ultramodern-app-tools@${release.release.version}>@rsbuild/core@npm:@bleedingdev/rsbuild-core@2.2.9`
+      `@bleedingdev/modern-js-ultramodern-app-tools@${release.release.version}>@rsbuild/core@npm:@bleedingdev/rsbuild-core@2.2.11`
     ],
     undefined,
   );
   assert.equal(
     workspace.overrides[
-      '@bleedingdev/rslib-core@0.20.0>@rsbuild/core@npm:@bleedingdev/rsbuild-core@2.2.9'
+      '@bleedingdev/rslib-core@0.20.0>@rsbuild/core@npm:@bleedingdev/rsbuild-core@2.2.11'
     ],
     undefined,
   );
@@ -917,7 +917,7 @@ test('sidecar alias transport rejects an authenticated dependency on a different
     toolsDependencies: {
       '@rsbuild/core': 'npm:@bleedingdev/rsbuild-core@2.2.10',
     },
-    sidecars: [{ name: '@bleedingdev/rsbuild-core', version: '2.2.9' }],
+    sidecars: [{ name: '@bleedingdev/rsbuild-core', version: '2.2.11' }],
   });
   assert.throws(
     () => releaseConsumerInputs(release, template),
@@ -928,12 +928,12 @@ test('sidecar alias transport rejects an authenticated dependency on a different
 test('sidecar alias transport rejects conflicting canonical aliases from two authenticated owners', t => {
   const { release, template } = releaseFixture(t, {
     toolsDependencies: {
-      '@rsbuild/core': 'npm:@bleedingdev/rsbuild-core@2.2.9',
+      '@rsbuild/core': 'npm:@bleedingdev/rsbuild-core@2.2.11',
     },
     sidecars: [
       {
         name: '@bleedingdev/rsbuild-core',
-        version: '2.2.9',
+        version: '2.2.11',
         dependencies: {
           '@rsbuild/core': 'npm:@bleedingdev/rslib-core@0.20.0',
         },
@@ -951,12 +951,12 @@ test('consumer registry transport retains bare package selectors without file ov
   const { release, template } = releaseFixture(t, {
     toolsDependencies: { '@rslib/core': 'npm:@bleedingdev/rslib-core@0.20.0' },
     sidecars: [
-      { name: '@bleedingdev/rsbuild-core', version: '2.2.9' },
+      { name: '@bleedingdev/rsbuild-core', version: '2.2.11' },
       {
         name: '@bleedingdev/rslib-core',
         version: '0.20.0',
         dependencies: {
-          '@rsbuild/core': 'npm:@bleedingdev/rsbuild-core@2.2.9',
+          '@rsbuild/core': 'npm:@bleedingdev/rsbuild-core@2.2.11',
         },
       },
     ],
@@ -987,7 +987,7 @@ test('consumer registry transport retains bare package selectors without file ov
 test('consumer sidecar transport rejects changed manifests and archive bytes', t => {
   for (const target of ['manifest', 'archive']) {
     const { release, template } = releaseFixture(t, {
-      sidecars: [{ name: '@bleedingdev/rsbuild-core', version: '2.2.9' }],
+      sidecars: [{ name: '@bleedingdev/rsbuild-core', version: '2.2.11' }],
     });
     const file =
       target === 'manifest'

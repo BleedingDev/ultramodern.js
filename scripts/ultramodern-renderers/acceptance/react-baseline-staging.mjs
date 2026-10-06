@@ -3,10 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import {
-  rewriteSidecarConsumerAliases,
-  sidecarAliasEntries,
-} from '../../ultramodern-publish/lib/prepare-bleedingdev-packages/sidecars.mjs';
+import { sidecarAliasEntries } from '../../ultramodern-publish/lib/prepare-bleedingdev-packages/sidecars.mjs';
 
 export const REACT_BASELINE_SUITES = Object.freeze([
   'integration/routes-tanstack-mf/test/index.test.ts',
@@ -579,21 +576,15 @@ export function createReactBaselineTransportOverrides(
     const recipe = recipes.find(item => item.fork.name === sidecar.name);
     assert.ok(recipe, `Sidecar has no owning canonical slot: ${sidecar.name}`);
     byName.set(sidecar.name, sidecar);
-    dependencies[recipe.upstream.name] = '*';
+    // Framework sources declare the exact fork alias; mirror that edge.
+    dependencies[recipe.upstream.name] =
+      `npm:${sidecar.name}@${sidecar.version}`;
     add(sidecar.name, sidecar.version);
   }
   const consumer = {
     name: 'ultramodern-react-baseline-transport',
     dependencies,
   };
-  rewriteSidecarConsumerAliases(consumer, sidecars);
-  if (Object.values(dependencies).some(specifier => specifier === '*')) {
-    // The publisher admits image aliases only for its owning image consumer.
-    rewriteSidecarConsumerAliases(
-      { ...consumer, name: '@bleedingdev/modern-js-image' },
-      sidecars,
-    );
-  }
   const covered = new Set();
   for (const entry of sidecarAliasEntries(consumer)) {
     const sidecar = byName.get(entry.target);

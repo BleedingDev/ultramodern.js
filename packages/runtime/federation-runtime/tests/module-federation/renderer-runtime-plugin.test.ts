@@ -157,27 +157,26 @@ describe('renderer federation publication admission', () => {
       'solid',
     ],
     ['non-exact runtime version', ['runtime', 'version'], '^19.3.0'],
-  ] satisfies [
-    string,
-    string[],
-    unknown,
-  ][])('rejects %s before the consumer evaluates its entry', async (_name, path, value) => {
-    const plugin = createRendererFederationRuntimePlugin(consumingRenderer);
-    let entryEvaluations = 0;
-    const load = async () => {
-      const remoteSnapshot = snapshot();
-      await plugin.loadRemoteSnapshot({
-        from: 'manifest',
-        manifestJson: manifest(withField(path, value)),
-        remoteSnapshot,
-      });
-      await plugin.afterLoadSnapshot({ remoteSnapshot });
-      entryEvaluations += 1;
-    };
+  ] satisfies [string, string[], unknown][])(
+    'rejects %s before the consumer evaluates its entry',
+    async (_name, path, value) => {
+      const plugin = createRendererFederationRuntimePlugin(consumingRenderer);
+      let entryEvaluations = 0;
+      const load = async () => {
+        const remoteSnapshot = snapshot();
+        await plugin.loadRemoteSnapshot({
+          from: 'manifest',
+          manifestJson: manifest(withField(path, value)),
+          remoteSnapshot,
+        });
+        await plugin.afterLoadSnapshot({ remoteSnapshot });
+        entryEvaluations += 1;
+      };
 
-    await expect(load()).rejects.toThrow();
-    expect(entryEvaluations).toBe(0);
-  });
+      await expect(load()).rejects.toThrow();
+      expect(entryEvaluations).toBe(0);
+    },
+  );
 
   test('rejects a coherent cross-renderer publication before entry evaluation', async () => {
     const plugin = createRendererFederationRuntimePlugin(consumingRenderer);
@@ -254,15 +253,15 @@ describe('renderer federation publication admission', () => {
     ).toEqual(entries);
   });
 
-  test.each([
-    'https://inventory.example/remoteEntry.js',
-    '/remoteEntry.js',
-  ])('rejects an unchecked direct container %s during registration', entry => {
-    const plugin = createRendererFederationRuntimePlugin(consumingRenderer);
-    expect(() =>
-      plugin.beforeRegisterRemote({ remote: { name: 'inventory', entry } }),
-    ).toThrow('native JSON manifest');
-  });
+  test.each(['https://inventory.example/remoteEntry.js', '/remoteEntry.js'])(
+    'rejects an unchecked direct container %s during registration',
+    entry => {
+      const plugin = createRendererFederationRuntimePlugin(consumingRenderer);
+      expect(() =>
+        plugin.beforeRegisterRemote({ remote: { name: 'inventory', entry } }),
+      ).toThrow('native JSON manifest');
+    },
+  );
 
   test('accepts native manifest and version registrations', () => {
     const plugin = createRendererFederationRuntimePlugin(consumingRenderer);
@@ -384,21 +383,21 @@ describe('renderer federation native snapshot cache', () => {
     expect(entryEvaluations).toBe(0);
   });
 
-  test.each([
-    'global',
-    'afterLoadSnapshot',
-  ] as const)('rejects bare serialized metadata in the %s cache gate', async hook => {
-    const plugin = createRendererFederationRuntimePlugin(consumingRenderer);
-    const remoteSnapshot = {
-      ...snapshot(),
-      [RENDERER_FEDERATION_METADATA_KEY]: publication(),
-    };
-    const load =
-      hook === 'global'
-        ? plugin.loadRemoteSnapshot({ from: 'global', remoteSnapshot })
-        : plugin.afterLoadSnapshot({ remoteSnapshot });
-    await expect(load).rejects.toThrow('attestation');
-  });
+  test.each(['global', 'afterLoadSnapshot'] as const)(
+    'rejects bare serialized metadata in the %s cache gate',
+    async hook => {
+      const plugin = createRendererFederationRuntimePlugin(consumingRenderer);
+      const remoteSnapshot = {
+        ...snapshot(),
+        [RENDERER_FEDERATION_METADATA_KEY]: publication(),
+      };
+      const load =
+        hook === 'global'
+          ? plugin.loadRemoteSnapshot({ from: 'global', remoteSnapshot })
+          : plugin.afterLoadSnapshot({ remoteSnapshot });
+      await expect(load).rejects.toThrow('attestation');
+    },
+  );
 
   test('rejects a cloned snapshot that lost its loader attestation', async () => {
     const plugin = createRendererFederationRuntimePlugin(consumingRenderer);
@@ -466,26 +465,25 @@ describe('renderer federation native container cache', () => {
     expect(plugin.loadEntry({ remoteInfo: args.remoteInfo })).toBeUndefined();
   });
 
-  test.each([
-    'entry',
-    'type',
-    'name',
-  ])('rejects an unattested %s before entry evaluation', async field => {
-    const plugin = createRendererFederationRuntimePlugin(consumingRenderer);
-    await nativeResolution(plugin);
-    const unmatched = remoteInfo();
-    unmatched[field] = 'unattested-entry-coordinate';
-    let entryEvaluations = 0;
-    const load = () => {
-      plugin.loadEntry({ remoteInfo: unmatched });
-      entryEvaluations += 1;
-    };
+  test.each(['entry', 'type', 'name'])(
+    'rejects an unattested %s before entry evaluation',
+    async field => {
+      const plugin = createRendererFederationRuntimePlugin(consumingRenderer);
+      await nativeResolution(plugin);
+      const unmatched = remoteInfo();
+      unmatched[field] = 'unattested-entry-coordinate';
+      let entryEvaluations = 0;
+      const load = () => {
+        plugin.loadEntry({ remoteInfo: unmatched });
+        entryEvaluations += 1;
+      };
 
-    expect(load).toThrow(
-      'coordinates differ from the attested native snapshot',
-    );
-    expect(entryEvaluations).toBe(0);
-  });
+      expect(load).toThrow(
+        'coordinates differ from the attested native snapshot',
+      );
+      expect(entryEvaluations).toBe(0);
+    },
+  );
 
   test('rejects entry loading before this host accepts any snapshot', () => {
     const plugin = createRendererFederationRuntimePlugin(consumingRenderer);
@@ -552,32 +550,29 @@ describe('renderer federation native container cache', () => {
     expect(entryEvaluations).toBe(0);
   });
 
-  test.each([
-    'name',
-    'entry',
-    'type',
-    'entryGlobalName',
-    'buildVersion',
-  ])('rejects in-place changes to an approved container %s', async field => {
-    const plugin = createRendererFederationRuntimePlugin(consumingRenderer);
-    const remoteSnapshot = snapshot();
-    await plugin.loadRemoteSnapshot({
-      from: 'manifest',
-      manifestJson: manifest(),
-      remoteSnapshot,
-    });
-    const args: ResolveArgs = {
-      remote: { name: 'inventory' },
-      remoteInfo: remoteInfo(),
-      remoteSnapshot,
-      origin: { moduleCache: new Map() },
-    };
-    await plugin.afterResolve(args);
-    args.origin.moduleCache.set('inventory', { remoteInfo: args.remoteInfo });
-    args.remoteInfo[field] = 'changed-container-coordinate';
+  test.each(['name', 'entry', 'type', 'entryGlobalName', 'buildVersion'])(
+    'rejects in-place changes to an approved container %s',
+    async field => {
+      const plugin = createRendererFederationRuntimePlugin(consumingRenderer);
+      const remoteSnapshot = snapshot();
+      await plugin.loadRemoteSnapshot({
+        from: 'manifest',
+        manifestJson: manifest(),
+        remoteSnapshot,
+      });
+      const args: ResolveArgs = {
+        remote: { name: 'inventory' },
+        remoteInfo: remoteInfo(),
+        remoteSnapshot,
+        origin: { moduleCache: new Map() },
+      };
+      await plugin.afterResolve(args);
+      args.origin.moduleCache.set('inventory', { remoteInfo: args.remoteInfo });
+      args.remoteInfo[field] = 'changed-container-coordinate';
 
-    await expect(plugin.afterResolve(args)).rejects.toThrow('ownership');
-  });
+      await expect(plugin.afterResolve(args)).rejects.toThrow('ownership');
+    },
+  );
 
   test('checks compatibility again at final native resolution', async () => {
     const creator = createRendererFederationRuntimePlugin(consumingRenderer);
@@ -650,31 +645,29 @@ describe('renderer federation native container cache', () => {
     await expect(plugin.afterLoadEntry(cached)).resolves.toBe(cached);
   });
 
-  test.each([
-    'name',
-    'entry',
-    'type',
-    'entryGlobalName',
-  ])('rejects noncached entry exports with an unattested %s', async field => {
-    const plugin = createRendererFederationRuntimePlugin(consumingRenderer);
-    const remoteSnapshot = snapshot();
-    await plugin.loadRemoteSnapshot({
-      from: 'manifest',
-      manifestJson: manifest(),
-      remoteSnapshot,
-    });
-    await plugin.afterLoadSnapshot({ remoteSnapshot });
-    const unmatched = remoteInfo();
-    unmatched[field] = 'unattested-entry-coordinate';
+  test.each(['name', 'entry', 'type', 'entryGlobalName'])(
+    'rejects noncached entry exports with an unattested %s',
+    async field => {
+      const plugin = createRendererFederationRuntimePlugin(consumingRenderer);
+      const remoteSnapshot = snapshot();
+      await plugin.loadRemoteSnapshot({
+        from: 'manifest',
+        manifestJson: manifest(),
+        remoteSnapshot,
+      });
+      await plugin.afterLoadSnapshot({ remoteSnapshot });
+      const unmatched = remoteInfo();
+      unmatched[field] = 'unattested-entry-coordinate';
 
-    await expect(
-      plugin.afterLoadEntry({
-        remoteInfo: unmatched,
-        remoteEntryExports: { get: () => Promise.resolve(() => ({})) },
-        cached: false,
-      }),
-    ).rejects.toThrow('coordinates differ from the attested native snapshot');
-  });
+      await expect(
+        plugin.afterLoadEntry({
+          remoteInfo: unmatched,
+          remoteEntryExports: { get: () => Promise.resolve(() => ({})) },
+          cached: false,
+        }),
+      ).rejects.toThrow('coordinates differ from the attested native snapshot');
+    },
+  );
 
   test('observes recovered native exports and permits their subsequent cached reuse', async () => {
     const plugin = createRendererFederationRuntimePlugin(consumingRenderer);
@@ -742,34 +735,37 @@ describe('renderer federation native container cache', () => {
   test.each([
     ['injected exports', false],
     ['replacement exports', true],
-  ])('rejects %s despite approved container coordinates', async (_name, previouslyLoaded) => {
-    const plugin = createRendererFederationRuntimePlugin(consumingRenderer);
-    const args = await nativeResolution(plugin);
-    if (previouslyLoaded) {
-      await plugin.afterLoadEntry({
-        remoteInfo: args.remoteInfo,
-        remoteEntryExports: { get: () => Promise.resolve(() => ({})) },
-      });
-    }
-    let containerGets = 0;
-    const injected = {
-      get() {
-        containerGets += 1;
-        return Promise.resolve(() => ({}));
-      },
-    };
-    const load = async () => {
-      await plugin.afterLoadEntry({
-        remoteInfo: args.remoteInfo,
-        remoteEntryExports: injected,
-        cached: true,
-      });
-      await injected.get();
-    };
+  ])(
+    'rejects %s despite approved container coordinates',
+    async (_name, previouslyLoaded) => {
+      const plugin = createRendererFederationRuntimePlugin(consumingRenderer);
+      const args = await nativeResolution(plugin);
+      if (previouslyLoaded) {
+        await plugin.afterLoadEntry({
+          remoteInfo: args.remoteInfo,
+          remoteEntryExports: { get: () => Promise.resolve(() => ({})) },
+        });
+      }
+      let containerGets = 0;
+      const injected = {
+        get() {
+          containerGets += 1;
+          return Promise.resolve(() => ({}));
+        },
+      };
+      const load = async () => {
+        await plugin.afterLoadEntry({
+          remoteInfo: args.remoteInfo,
+          remoteEntryExports: injected,
+          cached: true,
+        });
+        await injected.get();
+      };
 
-    await expect(load()).rejects.toThrow('unattested ownership');
-    expect(containerGets).toBe(0);
-  });
+      await expect(load()).rejects.toThrow('unattested ownership');
+      expect(containerGets).toBe(0);
+    },
+  );
 });
 
 describe('renderer federation selected runtime ownership', () => {
@@ -778,28 +774,31 @@ describe('renderer federation selected runtime ownership', () => {
     ['react-dom', '19.3.0'],
     ['react-dom/client', '19.3.0'],
     ['@modern-js/runtime', '3.9.0'],
-  ])('rejects the selected %s version before its factory is evaluated', (pkgName, version) => {
-    const plugin = createRendererFederationRuntimePlugin(consumingRenderer);
-    let factoryEvaluations = 0;
-    const shared = {
-      version: '99.0.0',
-      get() {
-        factoryEvaluations += 1;
-        return Promise.resolve(() => ({}));
-      },
-    };
-    const args = plugin.resolveShare({
-      pkgName,
-      shareScopeMap: {},
-      resolver: () => ({ shared }),
-    });
+  ])(
+    'rejects the selected %s version before its factory is evaluated',
+    (pkgName, version) => {
+      const plugin = createRendererFederationRuntimePlugin(consumingRenderer);
+      let factoryEvaluations = 0;
+      const shared = {
+        version: '99.0.0',
+        get() {
+          factoryEvaluations += 1;
+          return Promise.resolve(() => ({}));
+        },
+      };
+      const args = plugin.resolveShare({
+        pkgName,
+        shareScopeMap: {},
+        resolver: () => ({ shared }),
+      });
 
-    expect(() => {
-      args.resolver();
-      shared.get();
-    }).toThrow(`shared ${pkgName} version must be ${version}`);
-    expect(factoryEvaluations).toBe(0);
-  });
+      expect(() => {
+        args.resolver();
+        shared.get();
+      }).toThrow(`shared ${pkgName} version must be ${version}`);
+      expect(factoryEvaluations).toBe(0);
+    },
+  );
 
   test('allows unloaded candidates and retains the native resolver result', () => {
     const plugin = createRendererFederationRuntimePlugin(consumingRenderer);
@@ -828,33 +827,33 @@ describe('renderer federation selected runtime ownership', () => {
     expect(resolutions).toBe(1);
   });
 
-  test.each([
-    'loaded',
-    'lib',
-  ] as const)('rejects another active runtime registered through %s', activeField => {
-    const plugin = createRendererFederationRuntimePlugin(consumingRenderer);
-    const shared = {
-      version: '19.3.0',
-      get: () => Promise.resolve(() => ({})),
-    };
-    const conflicting = {
-      version: '19.3.0',
-      get: () => Promise.resolve(() => ({})),
-      [activeField]: activeField === 'loaded' ? true : () => ({}),
-    };
-    const args = plugin.resolveShare({
-      pkgName: 'react',
-      shareScopeMap: {
-        default: { react: { '19.3.0': shared } },
-        remote: { react: { '19.3.0': conflicting } },
-      },
-      resolver: () => ({ shared }),
-    });
+  test.each(['loaded', 'lib'] as const)(
+    'rejects another active runtime registered through %s',
+    activeField => {
+      const plugin = createRendererFederationRuntimePlugin(consumingRenderer);
+      const shared = {
+        version: '19.3.0',
+        get: () => Promise.resolve(() => ({})),
+      };
+      const conflicting = {
+        version: '19.3.0',
+        get: () => Promise.resolve(() => ({})),
+        [activeField]: activeField === 'loaded' ? true : () => ({}),
+      };
+      const args = plugin.resolveShare({
+        pkgName: 'react',
+        shareScopeMap: {
+          default: { react: { '19.3.0': shared } },
+          remote: { react: { '19.3.0': conflicting } },
+        },
+        resolver: () => ({ shared }),
+      });
 
-    expect(() => args.resolver()).toThrow(
-      'duplicate loaded runtime identities',
-    );
-  });
+      expect(() => args.resolver()).toThrow(
+        'duplicate loaded runtime identities',
+      );
+    },
+  );
 
   test('accepts registrations that expose the same loaded factory', () => {
     const plugin = createRendererFederationRuntimePlugin(consumingRenderer);
@@ -1011,7 +1010,7 @@ describe('native renderer share tuple', () => {
         name: '@modern-js/renderer-solid',
         version: '3.8.3',
         coreName: '@tanstack/router-core',
-        coreVersion: '1.171.32',
+        coreVersion: '1.171.34',
       },
     },
     runtime: { name: 'solid-js', version: '2.0.0-rc.13' },
@@ -1023,7 +1022,7 @@ describe('native renderer share tuple', () => {
       'solid-js': '2.0.0-rc.13',
       '@solidjs/web': '2.0.0-rc.13',
       '@modern-js/renderer-solid': '3.8.3',
-      '@tanstack/router-core': '1.171.32',
+      '@tanstack/router-core': '1.171.34',
     });
     expect(
       rendererShareVersions(consumingRenderer).has('react-dom/client'),

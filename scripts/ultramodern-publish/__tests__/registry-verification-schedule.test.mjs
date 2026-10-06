@@ -1,24 +1,85 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { registryVerificationRetryDelaysMs } from '../lib/prepare-bleedingdev-packages/registry.mjs';
+import {
+  pollRegistryPropagation,
+  registryPropagationDelaysMs,
+} from '../lib/prepare-bleedingdev-packages/registry-propagation.mjs';
 
-// The post-publish verifier runs after the unrollbackable publish. If it gives
-// up before npm has propagated a freshly published version into the packument,
-// a complete cohort is reported as a failed publication (run 34689880072:
-// one package's packument lagged for more than the 360s the loop then spent).
-test('post-publish verification outlasts npm packument propagation', () => {
-  const delays = [...registryVerificationRetryDelaysMs];
-  // The loop sleeps only between attempts: the final entry is never spent.
-  const spentMs = delays.slice(0, -1).reduce((sum, delay) => sum + delay, 0);
+// The cohort verifier and the sidecar lane both run this schedule after the
+// unrollbackable publish. If it gives up before npm has propagated a freshly
+// published version, a complete publish is reported as a failure (run
+// 34689880072: one cohort packument lagged for more than 360s; run
+// 36137116871: a sidecar became readable minutes after a 90s window).
+test('post-publish propagation schedule outlasts npm packument propagation', () => {
+  const delays = [...registryPropagationDelaysMs];
+  // The poller sleeps once between each pair of reads: every delay is spent.
+  const spentMs = delays.reduce((sum, delay) => sum + delay, 0);
   assert.ok(
     spentMs >= 840_000,
-    `verification waits ${spentMs}ms; npm has needed more than 420s`,
+    `propagation waits ${spentMs}ms; npm has needed more than 420s`,
   );
   // Front-loaded: a package that is already coherent is accepted in seconds.
   assert.ok(delays[0] <= 2000);
   for (let index = 1; index < delays.length; index += 1) {
     assert.ok(delays[index] >= delays[index - 1], 'delays never shrink');
   }
+  assert.ok(Math.max(...delays) <= 20_000, 'reads stay at most 20s apart');
+});
+
+test('propagation poller spends the schedule, then reports the last pending state', async () => {
+  const waits = [];
+  const outcome = await pollRegistryPropagation(
+    async attempt => ({ detail: `pending ${attempt}`, settled: false }),
+    {
+      delaysMs: [1, 2, 3],
+      wait: async ms => {
+        waits.push(ms);
+      },
+    },
+  );
+  assert.deepEqual(outcome, {
+    attempts: 4,
+    detail: 'pending 4',
+    firstDetail: 'pending 1',
+    settled: false,
+  });
+  assert.deepEqual(waits, [1, 2, 3]);
+});
+
+test('propagation poller settles without waiting further and never retries a throw', async () => {
+  const waits = [];
+  const wait = async ms => {
+    waits.push(ms);
+  };
+  let reads = 0;
+  const settled = await pollRegistryPropagation(
+    async () => {
+      reads += 1;
+      return reads < 3
+        ? { detail: 'absent', settled: false }
+        : { settled: true, value: 'dist' };
+    },
+    { wait },
+  );
+  assert.deepEqual(settled, {
+    attempts: 3,
+    firstDetail: 'absent',
+    settled: true,
+    value: 'dist',
+  });
+  assert.deepEqual(waits, registryPropagationDelaysMs.slice(0, 2));
+
+  waits.length = 0;
+  await assert.rejects(
+    pollRegistryPropagation(
+      async () => {
+        throw new Error('integrity drift');
+      },
+      { wait },
+    ),
+    /integrity drift/u,
+  );
+  assert.deepEqual(waits, [], 'a terminal probe failure never sleeps');
 });
 
 test('registry readers drain concurrent work before reporting the first input failure', async () => {
@@ -88,4 +149,90 @@ test('registry reads distinguish absent, throttled and malformed state', async (
     assert.equal(requests, status === 404 ? 1 : 4);
     assert.deepEqual(delays, status === 404 ? [] : [1000, 2000, 3000]);
   }
+});
+
+// The post-publish probe waits for a version npm has just accepted. A CDN or
+// npm-cache copy of the packument never shows it, so every read must bypass
+// caches and still see the fresh version while cached requests get stale data.
+test('post-publish registry lookups read the origin, not a cached packument', async () => {
+  const { lookupRegistryDistTag, lookupRegistryPackageDist } = await import(
+    '../lib/prepare-bleedingdev-packages/registry-read.mjs'
+  );
+  const pkg = '@bleedingdev/modern-js-runtime';
+  const freshDist = { integrity: 'sha512-fresh', shasum: 'fresh' };
+  const stale = {
+    'dist-tags': { latest: '1.0.0' },
+    versions: { '1.0.0': { dist: { integrity: 'old', shasum: 'old' } } },
+  };
+  const fresh = {
+    'dist-tags': { latest: '1.0.1' },
+    versions: { ...stale.versions, '1.0.1': { dist: freshDist } },
+  };
+  const requests = [];
+  const fetchImpl = async (url, init) => {
+    requests.push(url);
+    const bypassesCache =
+      init?.cache === 'no-store' &&
+      init?.headers?.['cache-control'] === 'no-cache';
+    return { ok: true, json: async () => (bypassesCache ? fresh : stale) };
+  };
+  assert.deepEqual(
+    await lookupRegistryPackageDist(pkg, '1.0.1', { fetchImpl }),
+    freshDist,
+  );
+  assert.equal(
+    await lookupRegistryDistTag(pkg, 'latest', { fetchImpl }),
+    '1.0.1',
+  );
+  assert.deepEqual(requests, [
+    `https://registry.npmjs.org/${encodeURIComponent(pkg)}`,
+    `https://registry.npmjs.org/${encodeURIComponent(pkg)}`,
+  ]);
+
+  const absent = { fetchImpl: async () => ({ ok: false, status: 404 }) };
+  assert.equal(await lookupRegistryPackageDist(pkg, '1.0.1', absent), null);
+  assert.equal(await lookupRegistryDistTag(pkg, 'latest', absent), undefined);
+  assert.equal(
+    await lookupRegistryPackageDist(pkg, '9.9.9', { fetchImpl }),
+    null,
+    'an absent version of a present package is not published yet',
+  );
+});
+
+test('registry reads retry a network reset that undici reports only on the cause', async () => {
+  const { lookupRegistryPackageDist } = await import(
+    '../lib/prepare-bleedingdev-packages/registry-read.mjs'
+  );
+  const dist = { integrity: 'sha512-fresh', shasum: 'fresh' };
+  let requests = 0;
+  const delays = [];
+  const found = await lookupRegistryPackageDist(
+    '@bleedingdev/modern-js-runtime',
+    '1.0.1',
+    {
+      fetchImpl: async () => {
+        requests += 1;
+        if (requests === 1) {
+          throw new TypeError('fetch failed', {
+            cause: Object.assign(new Error('read ECONNRESET'), {
+              code: 'ECONNRESET',
+            }),
+          });
+        }
+        return {
+          ok: true,
+          json: async () => ({
+            'dist-tags': { latest: '1.0.1' },
+            versions: { '1.0.1': { dist } },
+          }),
+        };
+      },
+      wait: async delay => {
+        delays.push(delay);
+      },
+    },
+  );
+  assert.deepEqual(found, dist);
+  assert.equal(requests, 2);
+  assert.deepEqual(delays, [1000]);
 });

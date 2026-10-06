@@ -343,67 +343,70 @@ describe('BFF extension artifact publication', () => {
 });
 
 describe('native client transform publication', () => {
-  test.each([
-    false,
-    true,
-  ])('routes the configured plugin to lambda rendering and preserves publication on failure=%s', async reject => {
-    const appDir = await fs.mkdtemp(
-      path.join(os.tmpdir(), 'bff-transform-publish-'),
-    );
-    try {
-      const lambdaDir = path.join(appDir, 'api/lambda');
-      const resourcePath = path.join(lambdaDir, 'ping.ts');
-      await fs.outputFile(resourcePath, 'export default () => "pong";');
-      await fs.outputFile(
-        path.join(appDir, 'dist/api/lambda/ping.d.ts'),
-        'declare const handler: () => string; export default handler;',
+  test.each([false, true])(
+    'routes the configured plugin to lambda rendering and preserves publication on failure=%s',
+    async reject => {
+      const appDir = await fs.mkdtemp(
+        path.join(os.tmpdir(), 'bff-transform-publish-'),
       );
-      const manifest = { name: 'neutral-transform-producer' };
-      await fs.outputJSON(path.join(appDir, 'package.json'), manifest);
-      const plugin = path.join(appDir, 'transform.cjs');
-      await fs.writeFile(
-        plugin,
-        reject
-          ? 'exports.modifyClient = () => { throw new Error("rejected publication"); };'
-          : 'exports.modifyClient = draft => { draft.statements.push("export const neutralValue = 42;"); };',
-      );
-      const publication = clientGenerator({
-        appDir,
-        apiDir: path.join(appDir, 'api'),
-        lambdaDir,
-        prefix: '/api',
-        port: 3000,
-        existLambda: true,
-        relativeDistPath: 'dist',
-        relativeApiPath: 'api',
-        apiFiles: [resourcePath],
-        clientCodegenPlugin: plugin,
-        requestId: 'configured-client-id',
-      });
-      if (reject) {
-        await expect(publication).rejects.toMatchObject({
-          name: 'ClientCodegenError',
-        });
-        expect(await fs.readJSON(path.join(appDir, 'package.json'))).toEqual(
-          manifest,
+      try {
+        const lambdaDir = path.join(appDir, 'api/lambda');
+        const resourcePath = path.join(lambdaDir, 'ping.ts');
+        await fs.outputFile(resourcePath, 'export default () => "pong";');
+        await fs.outputFile(
+          path.join(appDir, 'dist/api/lambda/ping.d.ts'),
+          'declare const handler: () => string; export default handler;',
         );
-      } else {
-        await publication;
-        expect(
-          await fs.readFile(path.join(appDir, 'dist/client/ping.js'), 'utf8'),
-        ).toContain('neutralValue = 42');
-        expect(
-          await fs.readFile(path.join(appDir, 'dist/client/ping.js'), 'utf8'),
-        ).toContain('requestId: "configured-client-id"');
-        expect(
-          await fs.readFile(path.join(appDir, 'dist/client/ping.d.ts'), 'utf8'),
-        ).toContain('../api/lambda/ping.js');
-        expect(
-          (await fs.readJSON(path.join(appDir, 'package.json'))).exports,
-        ).toHaveProperty('./api/ping');
+        const manifest = { name: 'neutral-transform-producer' };
+        await fs.outputJSON(path.join(appDir, 'package.json'), manifest);
+        const plugin = path.join(appDir, 'transform.cjs');
+        await fs.writeFile(
+          plugin,
+          reject
+            ? 'exports.modifyClient = () => { throw new Error("rejected publication"); };'
+            : 'exports.modifyClient = draft => { draft.statements.push("export const neutralValue = 42;"); };',
+        );
+        const publication = clientGenerator({
+          appDir,
+          apiDir: path.join(appDir, 'api'),
+          lambdaDir,
+          prefix: '/api',
+          port: 3000,
+          existLambda: true,
+          relativeDistPath: 'dist',
+          relativeApiPath: 'api',
+          apiFiles: [resourcePath],
+          clientCodegenPlugin: plugin,
+          requestId: 'configured-client-id',
+        });
+        if (reject) {
+          await expect(publication).rejects.toMatchObject({
+            name: 'ClientCodegenError',
+          });
+          expect(await fs.readJSON(path.join(appDir, 'package.json'))).toEqual(
+            manifest,
+          );
+        } else {
+          await publication;
+          expect(
+            await fs.readFile(path.join(appDir, 'dist/client/ping.js'), 'utf8'),
+          ).toContain('neutralValue = 42');
+          expect(
+            await fs.readFile(path.join(appDir, 'dist/client/ping.js'), 'utf8'),
+          ).toContain('requestId: "configured-client-id"');
+          expect(
+            await fs.readFile(
+              path.join(appDir, 'dist/client/ping.d.ts'),
+              'utf8',
+            ),
+          ).toContain('../api/lambda/ping.js');
+          expect(
+            (await fs.readJSON(path.join(appDir, 'package.json'))).exports,
+          ).toHaveProperty('./api/ping');
+        }
+      } finally {
+        await fs.remove(appDir);
       }
-    } finally {
-      await fs.remove(appDir);
-    }
-  });
+    },
+  );
 });

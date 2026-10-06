@@ -8,6 +8,7 @@ const test = require('node:test');
 const { pathToFileURL } = require('node:url');
 const {
   createOperationalAcceptanceReceiptFixture,
+  fixtureClosureSha256,
 } = require('./support/operational-acceptance-fixture');
 
 const repoRoot = path.resolve(__dirname, '../../..');
@@ -79,7 +80,7 @@ async function createReceiptFixture(root) {
     runIdentity,
   });
   bindSupplyChainEvidence(receipt, {
-    closureSha256: digest('closure'),
+    closureSha256: fixtureClosureSha256,
     exceptionPolicySha256: digest('exceptions'),
     lockSha256: digest('lock'),
     registryMetadataSha256: digest('registry'),
@@ -285,6 +286,15 @@ test('producer receipt preserves runtime-only MF identity and distinct native ta
             receipt.binding.runtimeIdentity.node[0].buildMarker;
         },
         /does not match independently recorded Node\/workerd results/,
+      ],
+      [
+        'closure identities that do not hash to the bound closure',
+        receipt => {
+          receipt.results.find(
+            result => result.id === 'dependency-closure-audit',
+          ).details.closureIdentities[0].version = '9.9.9';
+        },
+        /closure identities do not match the bound closureSha256/,
       ],
       [
         'missing operational-independence result',

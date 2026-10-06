@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const test = require('node:test');
 const { pathToFileURL } = require('node:url');
+const { createGitFixture } = require('../../lib/git-fixture');
 const repoRoot = path.resolve(__dirname, '../../..');
 
 // The generator is ESM; every sibling test in this directory is CommonJS
@@ -48,9 +49,7 @@ test('CLI refuses caller-supplied release identity without a verified manifest',
 });
 
 test('generator derives the record from an isolated verified release checkout', async () => {
-  const { execFileSync } = require('node:child_process');
   const fs = require('node:fs');
-  const os = require('node:os');
   const [
     { createReleaseArtifacts },
     { createTemplateRequiredFiles },
@@ -60,9 +59,13 @@ test('generator derives the record from an isolated verified release checkout', 
     import('../lib/prepare-bleedingdev-packages/constants.mjs'),
     loadGenerator(),
   ]);
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cohort-record-release-'));
-  const run = (...args) =>
-    execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+  // A fork-owned author, so the record classifies the changeset as fork work.
+  const fixture = createGitFixture({
+    author: { email: 'debug@ultramodern.local', name: 'UltraModern Debug' },
+    prefix: 'cohort-record-release-',
+  });
+  const root = fixture.repoDir;
+  const run = (...args) => fixture.git(args);
   const version = '3.5.0-ultramodern.1';
   const aliases = {
     '@modern-js/ultramodern-create':
@@ -93,8 +96,6 @@ test('generator derives the record from an isolated verified release checkout', 
 
   try {
     run('init', '-q', '-b', 'main');
-    run('config', 'user.email', 'debug@ultramodern.local');
-    run('config', 'user.name', 'UltraModern Debug');
     fs.mkdirSync(path.join(root, '.changeset'), { recursive: true });
     fs.writeFileSync(
       path.join(root, '.changeset', 'queued.md'),
@@ -163,6 +164,9 @@ test('generator derives the record from an isolated verified release checkout', 
       release,
     });
     assert.equal(entries.length, 1);
+    assert.equal(entries[0].fork, true);
+    assert.match(body, /## UltraModern changes/u);
+    assert.doesNotMatch(body, /## Inherited from upstream Modern\.js/u);
     assert.match(body, new RegExp(`— ${version.replaceAll('.', '\\.')}`));
     assert.ok(
       body.includes(
@@ -172,7 +176,7 @@ test('generator derives the record from an isolated verified release checkout', 
     assert.doesNotMatch(body, /Mallory|eeeeeeee/u);
     assert.equal(fs.readFileSync(out, 'utf8'), body);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fixture.cleanup();
   }
 });
 
@@ -248,19 +252,15 @@ test('hoists major entries into a BREAKING CHANGES section and labels every bump
 });
 
 test('excludes changesets already reachable from the previous release', async () => {
-  const { execFileSync } = require('node:child_process');
   const fs = require('node:fs');
-  const os = require('node:os');
 
   const { collectChangesetEntries, resolvePreviousReleaseCommit } =
     await loadGenerator();
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cohort-record-'));
-  const run = (...args) =>
-    execFileSync('git', args, { cwd: root, stdio: 'ignore' });
+  const fixture = createGitFixture({ prefix: 'cohort-record-' });
+  const root = fixture.repoDir;
+  const run = (...args) => fixture.git(args);
   try {
     run('init', '-q', '-b', 'main');
-    run('config', 'user.email', 'debug@ultramodern.local');
-    run('config', 'user.name', 'UltraModern Debug');
     fs.mkdirSync(path.join(root, '.changeset'));
 
     fs.writeFileSync(
@@ -289,23 +289,19 @@ test('excludes changesets already reachable from the previous release', async ()
     const all = await collectChangesetEntries(root, { since: '' });
     assert.deepEqual(all.map(entry => entry.id).sort(), ['new', 'released']);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fixture.cleanup();
   }
 });
 
 test('regenerates the same non-empty record after the target release tag exists', async () => {
-  const { execFileSync } = require('node:child_process');
   const fs = require('node:fs');
-  const os = require('node:os');
 
   const { generateCohortChangeRecord } = await loadGenerator();
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cohort-record-rerun-'));
-  const run = (...args) =>
-    execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+  const fixture = createGitFixture({ prefix: 'cohort-record-rerun-' });
+  const root = fixture.repoDir;
+  const run = (...args) => fixture.git(args);
   try {
     run('init', '-q', '-b', 'main');
-    run('config', 'user.email', 'debug@ultramodern.local');
-    run('config', 'user.name', 'UltraModern Debug');
     fs.mkdirSync(path.join(root, '.changeset'));
 
     fs.writeFileSync(
@@ -348,6 +344,6 @@ test('regenerates the same non-empty record after the target release tag exists'
     assert.ok(first.byteLength > 0);
     assert.deepEqual(rerun, first);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    fixture.cleanup();
   }
 });

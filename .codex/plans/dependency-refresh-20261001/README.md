@@ -1,6 +1,6 @@
 # One-release dependency refresh plan
 
-This is a research-backed plan, not an executed upgrade. All implementation work is pending under Beads epic `modernjs-h8xqq`. [Research summary](../../../docs/research/dependency-refresh-20261001/research.md) covers tracked manifests, generator policies, correction recipes and the complete resolved lockfile.
+Implementation is underway under Beads epic `modernjs-h8xqq`, on `deps/refresh-20261001` from `27d3bcea8b`. [Research summary](../../../docs/research/dependency-refresh-20261001/research.md) covers tracked manifests, generator policies, correction recipes and the complete resolved lockfile.
 
 Seven plans sequence internal work into one public release. Beads owns progress and blocking relationships. Frontmatter status is the graph projection.
 

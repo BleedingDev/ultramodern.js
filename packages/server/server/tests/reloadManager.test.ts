@@ -454,4 +454,84 @@ describe('ReloadManager', () => {
     await first;
     expect(handle.dispose()).toBe(first);
   });
+
+  it('holds new requests until every held task settles, in order', async () => {
+    const initial = makeHandle('initial');
+    const manager = new ReloadManager({
+      initialHandle: initial,
+      build: async () => makeHandle('next'),
+    });
+    const first = defer<void>();
+    const second = defer<void>();
+    const firstHold = manager.hold(() => first.promise);
+    const secondTask = rstest.fn(() => second.promise);
+    const secondHold = manager.hold(secondTask);
+
+    const response = manager.handle(fakeRequest);
+    first.resolve();
+    await firstHold;
+    await flush();
+    expect(secondTask).toHaveBeenCalledTimes(1);
+    expect(initial).not.toHaveBeenCalled();
+
+    second.resolve();
+    await secondHold;
+    await expect(response).resolves.toEqual({ tag: 'initial' });
+    expect(manager.handle(fakeRequest)).toEqual({ tag: 'initial' });
+  });
+
+  it('releases held requests when a held task rejects', async () => {
+    const initial = makeHandle('initial');
+    const manager = new ReloadManager({
+      initialHandle: initial,
+      build: async () => makeHandle('next'),
+    });
+    const error = new Error('reset failed');
+    const hold = manager.hold(async () => Promise.reject(error));
+    const response = manager.handle(fakeRequest);
+
+    await expect(hold).rejects.toBe(error);
+    await expect(response).resolves.toEqual({ tag: 'initial' });
+  });
+
+  it('does not swap the runtime while a held task is running', async () => {
+    const initial = makeHandle('initial');
+    const next = makeHandle('next');
+    const manager = new ReloadManager({
+      initialHandle: initial,
+      build: async () => next,
+    });
+    const task = defer<void>();
+    const hold = manager.hold(() => task.promise);
+
+    const reload = manager.reloadNow();
+    await flush();
+    expect(manager.currentHandle).toBe(initial);
+
+    task.resolve();
+    await hold;
+    await reload;
+    expect(manager.currentHandle).toBe(next);
+  });
+  it('dispatches held requests before close disposes the runtime', async () => {
+    const dispose = rstest.fn(async () => {});
+    const initial = createDrainingHandle(makeHandle('initial'), dispose);
+    const manager = new ReloadManager({
+      initialHandle: initial,
+      build: async () => makeHandle('next'),
+    });
+    const task = defer<void>();
+    const hold = manager.hold(() => task.promise);
+    const response = manager.handle(fakeRequest);
+
+    manager.close();
+    await flush();
+    expect(dispose).not.toHaveBeenCalled();
+
+    task.resolve();
+    await hold;
+    await expect(response).resolves.toEqual({ tag: 'initial' });
+    await flush();
+    expect(dispose).toHaveBeenCalledTimes(1);
+  });
 });

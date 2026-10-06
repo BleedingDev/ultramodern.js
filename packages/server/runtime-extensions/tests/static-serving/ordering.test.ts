@@ -45,40 +45,39 @@ async function serverFor(
   return server;
 }
 
-it.each([
-  'federation',
-  'public',
-  'generated',
-] as const)('keeps MF/public/generated precedence when %s is the first available response', async winner => {
-  const root = await fixture();
-  await writeFile(path.join(root, 'public/shared.txt'), 'generated');
-  const routes =
-    winner === 'generated'
-      ? []
-      : ([
-          {
-            urlPath: '/shared.txt',
-            entryPath: 'public/route.txt',
-            isSSR: false,
-          },
-        ] as ServerRoute[]);
-  if (winner !== 'generated') {
-    await writeFile(path.join(root, 'public/route.txt'), 'public');
-  }
-  if (winner === 'federation') {
-    await writeFile(
-      path.join(root, 'mf-manifest.json'),
-      JSON.stringify({
-        metaData: { publicPath: '/', remoteEntry: { name: 'shared.txt' } },
-      }),
-    );
-    await writeFile(path.join(root, 'shared.txt'), 'federation');
-  }
-  const server = await serverFor(root, routes);
-  const response = await server.request('/shared.txt');
-  expect(response.status).toBe(200);
-  expect(await response.text()).toBe(winner);
-});
+it.each(['federation', 'public', 'generated'] as const)(
+  'keeps MF/public/generated precedence when %s is the first available response',
+  async winner => {
+    const root = await fixture();
+    await writeFile(path.join(root, 'public/shared.txt'), 'generated');
+    const routes =
+      winner === 'generated'
+        ? []
+        : ([
+            {
+              urlPath: '/shared.txt',
+              entryPath: 'public/route.txt',
+              isSSR: false,
+            },
+          ] as ServerRoute[]);
+    if (winner !== 'generated') {
+      await writeFile(path.join(root, 'public/route.txt'), 'public');
+    }
+    if (winner === 'federation') {
+      await writeFile(
+        path.join(root, 'mf-manifest.json'),
+        JSON.stringify({
+          metaData: { publicPath: '/', remoteEntry: { name: 'shared.txt' } },
+        }),
+      );
+      await writeFile(path.join(root, 'shared.txt'), 'federation');
+    }
+    const server = await serverFor(root, routes);
+    const response = await server.request('/shared.txt');
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe(winner);
+  },
+);
 
 it('does not serve generated or public fallback for a native static-pattern miss', async () => {
   const root = await fixture();

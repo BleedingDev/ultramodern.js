@@ -4,16 +4,23 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { createGitFixture } from '../../../../scripts/lib/git-fixture.js';
+import {
+  addUltramodernShell,
+  addUltramodernVertical,
+  generateUltramodernWorkspace,
+} from '../src/ultramodern-workspace';
 
 const packageRoot = path.resolve(__dirname, '..');
 const builtCliPath = path.join(packageRoot, 'dist/esm-node/index.js');
 
-// Keeps every spawned CLI hermetic: no test may dial the npm registry for
-// the @bleedingdev/modern-js-ultramodern-create framework cohort.
-const hermeticEnv = {
-  ...process.env,
+// Keeps every spawned CLI hermetic: its git sees only the fixture's git
+// config and environment, and no test may dial the npm registry for the
+// @bleedingdev/modern-js-ultramodern-create framework cohort.
+const createCliEnv = (gitEnv: NodeJS.ProcessEnv) => ({
+  ...gitEnv,
   ULTRAMODERN_CREATE_FRAMEWORK_VERSION: '3.2.0-ultramodern.108',
-};
+});
 
 const writeExecutable = (filePath: string, content: string) => {
   fs.writeFileSync(filePath, content, { mode: 0o755 });
@@ -23,14 +30,15 @@ function linkGeneratedConfigRuntime(
   workspacePath: string,
   appDirectory: string,
 ) {
-  fs.symlinkSync(
-    path.resolve(packageRoot, '../../../node_modules/.pnpm/node_modules'),
-    path.join(workspacePath, 'node_modules'),
-    'dir',
-  );
+  if (!fs.existsSync(path.join(workspacePath, 'node_modules'))) {
+    fs.symlinkSync(
+      path.resolve(packageRoot, '../../../node_modules/.pnpm/node_modules'),
+      path.join(workspacePath, 'node_modules'),
+      'dir',
+    );
+  }
   const modernScope = path.join(
     workspacePath,
-    'apps',
     appDirectory,
     'node_modules/@modern-js',
   );
@@ -51,18 +59,13 @@ function linkGeneratedConfigRuntime(
 }
 
 // Evaluates the generated modern.config.ts the way the app build does, so the
-// assertion is the asset prefix a browser would receive, not config text.
-function loadGeneratedAssetPrefix(
+// assertions inspect the native policy a browser and build would receive.
+function loadGeneratedConfig(
   workspacePath: string,
   appDirectory: string,
   env: Record<string, string | undefined>,
 ) {
-  const configPath = path.join(
-    workspacePath,
-    'apps',
-    appDirectory,
-    'modern.config.ts',
-  );
+  const configPath = path.join(workspacePath, appDirectory, 'modern.config.ts');
   const tsxLoader = pathToFileURL(
     fs.realpathSync(path.join(packageRoot, 'node_modules/tsx/dist/loader.mjs')),
   ).href;
@@ -98,7 +101,15 @@ function loadGeneratedAssetPrefix(
         } finally {
           await new Promise((resolve, reject) => compiler.close(error => error ? reject(error) : resolve()));
         }
-        process.stdout.write(JSON.stringify(config.output.assetPrefix));
+        process.stdout.write(JSON.stringify({
+          deploy: config.deploy,
+          dev: config.dev,
+          output: config.output,
+          performance: config.performance,
+          server: config.server,
+          source: config.source,
+          pluginNames: config.plugins.map(plugin => plugin.name),
+        }));
       `,
     ],
     {
@@ -108,7 +119,7 @@ function loadGeneratedAssetPrefix(
     },
   );
   assert.equal(result.status, 0, result.stderr);
-  return JSON.parse(result.stdout) as string;
+  return JSON.parse(result.stdout);
 }
 
 test('built public UltraModern subpath imports from an ESM consumer and generates a vertical', () => {
@@ -176,7 +187,8 @@ test('built public UltraModern subpath imports from an ESM consumer and generate
 });
 
 test('built CLI scaffolds a workspace whose asset prefix resolves by precedence', () => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'modern-create-cli-'));
+  const fixture = createGitFixture({ prefix: 'modern-create-cli-' });
+  const tmpDir = fixture.repoDir;
 
   try {
     const result = spawnSync(
@@ -185,7 +197,7 @@ test('built CLI scaffolds a workspace whose asset prefix resolves by precedence'
       {
         cwd: tmpDir,
         encoding: 'utf8',
-        env: hermeticEnv,
+        env: createCliEnv(fixture.env),
       },
     );
 
@@ -197,7 +209,7 @@ test('built CLI scaffolds a workspace whose asset prefix resolves by precedence'
       ),
     );
 
-    linkGeneratedConfigRuntime(workspacePath, 'shell-super-app');
+    linkGeneratedConfigRuntime(workspacePath, 'apps/shell-super-app');
     const precedence: [string | undefined, string | undefined, string][] = [
       [
         'https://modern.example/assets/',
@@ -213,30 +225,131 @@ test('built CLI scaffolds a workspace whose asset prefix resolves by precedence'
     ];
     for (const [modern, ultramodern, expected] of precedence) {
       assert.equal(
-        loadGeneratedAssetPrefix(workspacePath, 'shell-super-app', {
+        loadGeneratedConfig(workspacePath, 'apps/shell-super-app', {
           MODERN_ASSET_PREFIX: modern,
           MODERN_PUBLIC_SITE_URL: 'https://site.example/',
           ULTRAMODERN_ASSET_PREFIX: ultramodern,
-        }),
+        }).output.assetPrefix,
         expected,
       );
     }
   } finally {
-    fs.rmSync(tmpDir, {
-      recursive: true,
-      force: true,
-      maxRetries: 5,
-      retryDelay: 200,
+    fixture.cleanup();
+  }
+});
+
+test('generated configs resolve current topology and ports without being rewritten', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-native-config-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  const appDirectory = 'apps/shell-super-app';
+  const configPath = path.join(workspacePath, appDirectory, 'modern.config.ts');
+  const environment = {
+    MODERN_ASSET_PREFIX: undefined,
+    ULTRAMODERN_ASSET_PREFIX: undefined,
+    MODERNJS_DEPLOY: undefined,
+    MODERN_PUBLIC_SITE_URL: undefined,
+    SHELL_SUPER_APP_PORT: undefined,
+    ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP: undefined,
+    ZE_CI_TOKEN: undefined,
+    ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN: undefined,
+  };
+  try {
+    generateUltramodernWorkspace({
+      targetDir: workspacePath,
+      packageName: 'native-config-workspace',
+      modernVersion: '3.2.1',
+      enableTailwind: false,
+      packageSource: { strategy: 'workspace' },
     });
+    const original = fs.readFileSync(configPath);
+    linkGeneratedConfigRuntime(workspacePath, appDirectory);
+    const initial = loadGeneratedConfig(
+      workspacePath,
+      appDirectory,
+      environment,
+    );
+    assert.equal(initial.server.port, 3020);
+    assert.equal(
+      initial.source.globalVars.ULTRAMODERN_SITE_URL,
+      'http://localhost:3020',
+    );
+    assert.deepEqual(initial.dev.server.cors.origin, ['http://localhost:3020']);
+    assert.equal(initial.output.assetPrefix, '/');
+
+    addUltramodernVertical({
+      workspaceRoot: workspacePath,
+      name: 'catalog',
+      preset: 'ui-only',
+      modernVersion: '3.2.1',
+    });
+    addUltramodernShell({
+      workspaceRoot: workspacePath,
+      name: 'admin',
+      modernVersion: '3.2.1',
+    });
+    const overlayPath = path.join(
+      workspacePath,
+      'topology/local-overlays/development.json',
+    );
+    const overlay = JSON.parse(fs.readFileSync(overlayPath, 'utf8'));
+    overlay.ports['shell-super-app'] = 4200;
+    overlay.ports.catalog = 4201;
+    overlay.ports['shell-admin'] = 4202;
+    fs.writeFileSync(overlayPath, JSON.stringify(overlay));
+    assert.deepEqual(fs.readFileSync(configPath), original);
+
+    const current = loadGeneratedConfig(
+      workspacePath,
+      appDirectory,
+      environment,
+    );
+    assert.equal(current.server.port, 4200);
+    assert.equal(
+      current.source.globalVars.ULTRAMODERN_SITE_URL,
+      'http://localhost:4200',
+    );
+    assert.deepEqual([...current.dev.server.cors.origin].sort(), [
+      'http://localhost:4200',
+      'http://localhost:4201',
+      'http://localhost:4202',
+    ]);
+    assert.deepEqual(current.performance.buildCache.cacheDigest, [
+      'shell-super-app',
+      'web',
+    ]);
+    assert.equal(current.output.distPath.root, 'dist');
+
+    const deployed = loadGeneratedConfig(workspacePath, appDirectory, {
+      ...environment,
+      MODERNJS_DEPLOY: 'cloudflare',
+    });
+    assert.equal(deployed.output.distPath.root, 'dist-cloudflare');
+    assert.deepEqual(deployed.performance.buildCache.cacheDigest, [
+      'shell-super-app',
+      'cloudflare',
+    ]);
+    assert.equal(
+      deployed.deploy.worker.services[0].binding,
+      'VERTICAL_CATALOG_WORKER',
+    );
+    assert.ok(deployed.deploy.worker.services[0].fragments.length > 0);
+    assert.equal(
+      deployed.deploy.worker.services[0].fragments[0].remote,
+      'catalog',
+    );
+    assert.deepEqual(fs.readFileSync(configPath), original);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
   }
 });
 
 test('local source initializes Git offline and leaves the first commit to the user', () => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'modern-create-cli-'));
+  const fixture = createGitFixture({ prefix: 'modern-create-cli-' });
+  const tmpDir = fixture.repoDir;
   const fakeBinDir = path.join(tmpDir, 'fake-bin');
   const hooksDir = path.join(tmpDir, 'hooks');
   const hookMarker = path.join(tmpDir, 'pre-commit-ran');
-  const isolatedGitConfig = path.join(tmpDir, 'gitconfig');
+  const isolatedGitConfig = fixture.globalConfigPath;
   fs.mkdirSync(fakeBinDir);
   fs.mkdirSync(hooksDir);
   // A failing npm proves the registry is never required on this path.
@@ -247,11 +360,10 @@ test('local source initializes Git offline and leaves the first commit to the us
   );
   // Background maintenance (auto gc, fsmonitor) would keep writing into .git
   // after `git commit` returns and race the cleanup below (ENOTEMPTY on macOS).
-  const gitConfig = `[core]\n\thooksPath = ${JSON.stringify(hooksDir)}\n\tfsmonitor = false\n[user]\n\tname = Scaffold Test\n\temail = scaffold@example.test\n[commit]\n\tgpgsign = false\n[gc]\n\tauto = 0\n[maintenance]\n\tauto = false\n`;
+  const gitConfig = `[core]\n\thooksPath = ${JSON.stringify(hooksDir)}\n\tfsmonitor = false\n[gc]\n\tauto = 0\n[maintenance]\n\tauto = false\n`;
   fs.writeFileSync(isolatedGitConfig, gitConfig);
   const env = {
-    ...hermeticEnv,
-    GIT_CONFIG_GLOBAL: isolatedGitConfig,
+    ...createCliEnv(fixture.env),
     PATH: `${fakeBinDir}${path.delimiter}${process.env.PATH ?? ''}`,
     ULTRAMODERN_TEST_HOOK_MARKER: hookMarker,
   };
@@ -294,36 +406,26 @@ test('local source initializes Git offline and leaves the first commit to the us
     assert.equal(fs.existsSync(hookMarker), true);
     assert.equal(git(['rev-parse', '--verify', 'HEAD']).status, 0);
   } finally {
-    fs.rmSync(tmpDir, {
-      recursive: true,
-      force: true,
-      maxRetries: 5,
-      retryDelay: 200,
-    });
+    fixture.cleanup();
   }
 });
 
 test('creation inside a repository preserves its HEAD and staged changes', () => {
-  const tmpDir = fs.mkdtempSync(
-    path.join(os.tmpdir(), 'modern-create-parent-'),
-  );
-  const parentDir = path.join(tmpDir, 'parent');
-  const hooksDir = path.join(tmpDir, 'hooks');
-  const hookMarker = path.join(tmpDir, 'pre-commit-ran');
-  const isolatedGitConfig = path.join(tmpDir, 'gitconfig');
-  fs.mkdirSync(parentDir);
+  const fixture = createGitFixture({ prefix: 'modern-create-parent-' });
+  const parentDir = fixture.repoDir;
+  const hooksDir = path.join(fixture.tempDir, 'hooks');
+  const hookMarker = path.join(fixture.tempDir, 'pre-commit-ran');
   fs.mkdirSync(hooksDir);
   writeExecutable(
     path.join(hooksDir, 'pre-commit'),
     '#!/bin/sh\n: > "$ULTRAMODERN_TEST_HOOK_MARKER"\n',
   );
   fs.writeFileSync(
-    isolatedGitConfig,
-    `[core]\n\thooksPath = ${JSON.stringify(hooksDir)}\n[user]\n\tname = Parent Test\n\temail = parent@example.test\n[commit]\n\tgpgsign = false\n`,
+    fixture.globalConfigPath,
+    `[core]\n\thooksPath = ${JSON.stringify(hooksDir)}\n`,
   );
   const env = {
-    ...hermeticEnv,
-    GIT_CONFIG_GLOBAL: isolatedGitConfig,
+    ...createCliEnv(fixture.env),
     ULTRAMODERN_TEST_HOOK_MARKER: hookMarker,
   };
   const git = (args: string[]) => {
@@ -371,17 +473,13 @@ test('creation inside a repository preserves its HEAD and staged changes', () =>
     );
     assert.equal(fs.existsSync(hookMarker), false);
   } finally {
-    fs.rmSync(tmpDir, {
-      recursive: true,
-      force: true,
-      maxRetries: 5,
-      retryDelay: 200,
-    });
+    fixture.cleanup();
   }
 });
 
 test('missing git fails fast without attempting a system package install', () => {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'modern-create-cli-'));
+  const fixture = createGitFixture({ prefix: 'modern-create-cli-' });
+  const tmpDir = fixture.repoDir;
   const fakeBinDir = path.join(tmpDir, 'fake-bin');
   const brewMarker = path.join(tmpDir, 'brew-was-invoked');
   fs.mkdirSync(fakeBinDir);
@@ -401,7 +499,7 @@ test('missing git fails fast without attempting a system package install', () =>
         cwd: tmpDir,
         encoding: 'utf8',
         env: {
-          ...hermeticEnv,
+          ...createCliEnv(fixture.env),
           PATH: fakeBinDir,
         },
       },
@@ -415,11 +513,6 @@ test('missing git fails fast without attempting a system package install', () =>
       'create must never attempt to install git through a package manager',
     );
   } finally {
-    fs.rmSync(tmpDir, {
-      recursive: true,
-      force: true,
-      maxRetries: 5,
-      retryDelay: 200,
-    });
+    fixture.cleanup();
   }
 });

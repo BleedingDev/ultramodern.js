@@ -5,6 +5,8 @@ import {
   collectHeadRecord,
   completeHeadRender,
   createHeadChunkProcessor,
+  LATE_HEAD_MESSAGE,
+  publishHeadRender,
 } from '../src';
 import { createNodeHeadMarkerStripper, pipeNodeHeadStream } from '../src/node';
 
@@ -15,7 +17,7 @@ describe('renderer head transactions', () => {
   it('commits only markers observed in completed output', () => {
     const context = {};
     let published: string[] = [];
-    beginHeadRender(context);
+    beginHeadRender(context, () => {});
     const committed = collectHeadRecord(
       context,
       () => 'committed',
@@ -35,9 +37,50 @@ describe('renderer head transactions', () => {
     expect(published).toEqual(['committed']);
   });
 
+  it('reports head records whose markers commit after the seal', () => {
+    const context = {};
+    const reports: string[] = [];
+    let published: string[] = [];
+    const publish = (records: string[]) => {
+      published = records;
+    };
+    beginHeadRender(context, message => reports.push(message));
+    const shell = collectHeadRecord(context, () => 'shell', publish)!;
+    // A boundary rendered before the seal but flushed after it.
+    const flushedLate = collectHeadRecord(context, () => 'flushed', publish)!;
+    const processor = createHeadChunkProcessor(context);
+    expect(processor.push(`a${marker(shell)}`)).toBe('a');
+    publishHeadRender(context);
+    // A boundary rendered after the seal.
+    const renderedLate = collectHeadRecord(context, () => 'rendered', publish)!;
+    // A retry that renders a Helmet and then suspends again never commits.
+    collectHeadRecord(context, () => 'discarded', publish);
+    expect(reports).toEqual([]);
+
+    expect(processor.push(`b${marker(flushedLate)}${marker(shell)}`)).toBe('b');
+    expect(processor.finish(`c${marker(renderedLate)}`)).toBe('c');
+
+    expect(published).toEqual(['shell']);
+    expect(reports).toEqual([LATE_HEAD_MESSAGE]);
+  });
+
+  it('does not report a late Helmet whose boundary never commits', () => {
+    const context = {};
+    const reports: string[] = [];
+    beginHeadRender(context, message => reports.push(message));
+    publishHeadRender(context);
+    collectHeadRecord(
+      context,
+      () => 'discarded',
+      () => {},
+    );
+    expect(completeHeadRender(context, 'done')).toBe('done');
+    expect(reports).toEqual([]);
+  });
+
   it('preserves user templates that are not current transaction markers', () => {
     const context = {};
-    beginHeadRender(context);
+    beginHeadRender(context, () => {});
     const userTemplate =
       '<template data-modern-helmet="h00000000-0000-0000-0000-000000000000000000000000"></template>';
 
@@ -46,7 +89,7 @@ describe('renderer head transactions', () => {
 
   it('strips markers split across chunks without corrupting unicode', () => {
     const sampleContext = {};
-    beginHeadRender(sampleContext);
+    beginHeadRender(sampleContext, () => {});
     const sampleProps = collectHeadRecord(
       sampleContext,
       () => 'head',
@@ -56,7 +99,7 @@ describe('renderer head transactions', () => {
 
     for (let split = 1; split < sampleHtml.length; split += 1) {
       const context = {};
-      beginHeadRender(context);
+      beginHeadRender(context, () => {});
       const props = collectHeadRecord(
         context,
         () => 'head',
@@ -78,12 +121,12 @@ describe('renderer head transactions', () => {
       published = records;
     };
 
-    beginHeadRender(context);
+    beginHeadRender(context, () => {});
     const previous = collectHeadRecord(context, () => 'previous', publish)!;
     completeHeadRender(context, marker(previous));
     expect(published).toEqual(['previous']);
 
-    beginHeadRender(context);
+    beginHeadRender(context, () => {});
     expect(published).toEqual([]);
     collectHeadRecord(context, () => 'provisional', publish);
     abortHeadRender(context);
@@ -93,7 +136,7 @@ describe('renderer head transactions', () => {
   it('strips split markers from a Node stream', async () => {
     const context = {};
     let published: string[] = [];
-    beginHeadRender(context);
+    beginHeadRender(context, () => {});
     const props = collectHeadRecord(
       context,
       () => 'node',
@@ -127,7 +170,7 @@ describe('renderer head transactions', () => {
     const prefix = Buffer.from('x'.repeat(9 * 1024));
     const unicodeTail = Buffer.from('č尾');
     const input = Buffer.concat([prefix, unicodeTail]);
-    beginHeadRender(context);
+    beginHeadRender(context, () => {});
     const stripper = createNodeHeadMarkerStripper(context, terminalMarker);
     const output = new Promise<string>((resolve, reject) => {
       let rendered = '';
@@ -152,7 +195,7 @@ describe('renderer head transactions', () => {
     const terminalMarker = '<!-- shell stream end -->';
     const input = Buffer.from(`shell${terminalMarker}č尾`);
     const markerOffset = Buffer.byteLength('shell') + 7;
-    beginHeadRender(context);
+    beginHeadRender(context, () => {});
     const stripper = createNodeHeadMarkerStripper(context, terminalMarker);
     const output = new Promise<string>((resolve, reject) => {
       let rendered = '';

@@ -14,7 +14,6 @@ import type {
 } from '@modern-js/types';
 import {
   filterRoutesForServer,
-  fs,
   NESTED_ROUTE_SPEC_FILE,
 } from '@modern-js/utils';
 import { writeTanstackRouterTypesForEntries } from './artifacts';
@@ -29,6 +28,7 @@ import {
 
 export {
   generateTanstackRouteArtifacts,
+  writeRouteMetadataManifest,
   writeTanstackRegisterFile,
   writeTanstackRouterTypesForEntries,
 } from './artifacts';

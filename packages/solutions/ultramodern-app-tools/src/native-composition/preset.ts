@@ -6,6 +6,7 @@ import { findHostingModuleDirectory } from '@modern-js/app-tools-extensions/runt
 import { mergeConfig } from '@modern-js/plugin/cli';
 import { type Renderer, resolveRenderer } from '@modern-js/renderer-core';
 import { type RspackChain, rspack } from '@rsbuild/core';
+import { ultramodernModuleFederationSharedPlugin } from './module-federation-shared-plugin';
 import { rendererTypeCheckerOptions } from './type-checker';
 import type { AppUserConfig } from './types';
 
@@ -37,6 +38,8 @@ export function isUltramodernReleaseIdentityBannerPlugin(
 }
 
 export interface PresetUltramodernOptions {
+  /** Build environment; defaults to the current process environment. */
+  environment?: Readonly<NodeJS.ProcessEnv>;
   /**
    * Stable producer identity used by BFF cross-project clients.
    * @default "app"
@@ -51,6 +54,9 @@ export interface PresetUltramodernOptions {
     buildMarker: string;
     unitId: string;
     version: string;
+    /** Workspace containing the delivery unit, independent of process cwd. */
+    workspaceRoot?: string;
+    sourceRevision?: string;
   };
   /**
    * Enable BFF requestId contract by default.
@@ -169,13 +175,14 @@ const createRendererPreset = (
   renderer: Renderer = 'react',
 ): AppUserConfig => {
   const {
+    environment = process.env,
     appId = 'app',
     deliveryUnit,
     enableBffRequestId = true,
     enableTelemetry = true,
     enableTelemetryExporters,
-    otlpEndpoint = process.env.MODERN_TELEMETRY_OTLP_ENDPOINT,
-    victoriaMetricsEndpoint = process.env.MODERN_TELEMETRY_VICTORIA_ENDPOINT,
+    otlpEndpoint = environment.MODERN_TELEMETRY_OTLP_ENDPOINT,
+    victoriaMetricsEndpoint = environment.MODERN_TELEMETRY_VICTORIA_ENDPOINT,
     telemetryFailLoudStartup = false,
     enableModuleFederationSSR = renderer === 'react',
   } = options;
@@ -191,6 +198,9 @@ const createRendererPreset = (
     ? resolveUltramodernReleaseIdentity({
         generationBuildMarker: deliveryUnit.buildMarker,
         unitId: deliveryUnit.unitId,
+        workspaceRoot: deliveryUnit.workspaceRoot,
+        sourceRevision: deliveryUnit.sourceRevision,
+        environment,
       })
     : undefined;
   const bundledReleaseIdentity = releaseIdentity
@@ -244,8 +254,15 @@ const createRendererPreset = (
       // Keep build artifacts predictable across apps.
       precompress: true,
     },
+    // React's Module Federation shares its JSX runtimes and framework
+    // contexts; native renderers own their federation shares.
+    ...(renderer === 'react'
+      ? { plugins: [ultramodernModuleFederationSharedPlugin()] }
+      : {}),
     server,
     source: {
+      // Client code only: the builder applies React Compiler to `web`
+      // environments and never to node/workerSSR/BFF graphs.
       ...(renderer === 'react' ? { reactCompiler: true } : {}),
       ...(deliveryUnit
         ? {

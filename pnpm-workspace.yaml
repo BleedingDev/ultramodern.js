@@ -43,64 +43,64 @@ allowBuilds:
   '@swc/core': true
   bufferutil: true
   core-js: true
-  # Browser binaries are installed explicitly by examples/test-cypress.
+  # Browser binaries are installed explicitly (examples/test-cypress and
+  # scripts/lib/browser-provisioning.js), never as install side effects.
   cypress: false
   es5-ext: true
   esbuild: true
   nx: true
-  puppeteer: true
+  puppeteer: false
   sharp: true
   unrs-resolver: true
   utf-8-validate: true
   workerd: true
 
 patchedDependencies:
-  '@rsbuild/core@2.2.9': patches/@rsbuild__core@2.2.9.patch
+  '@rsbuild/core@2.2.11': patches/@rsbuild__core@2.2.11.patch
   'jiti@2.7.0': patches/jiti@2.7.0.patch
-  '@module-federation/bridge-react@2.9.1': patches/@module-federation__bridge-react@2.9.1.patch
-  '@module-federation/dts-plugin@2.9.1': patches/@module-federation__dts-plugin@2.9.1.patch
-  '@module-federation/manifest@2.9.1': patches/@module-federation__manifest@2.9.1.patch
-  '@module-federation/modern-js-v3@2.9.1': patches/@module-federation__modern-js-v3@2.9.1.patch
-  '@module-federation/rspack@2.9.1': patches/@module-federation__rspack@2.9.1.patch
-  '@module-federation/runtime-core@2.9.1': patches/@module-federation__runtime-core@2.9.1.patch
-  'effect@4.0.0-rc.117': patches/effect@4.0.0-rc.117.patch
-  'zod@4.6.5': patches/zod@4.6.5.patch
+  '@module-federation/bridge-react@2.9.2': patches/@module-federation__bridge-react@2.9.2.patch
+  '@module-federation/dts-plugin@2.9.2': patches/@module-federation__dts-plugin@2.9.2.patch
+  '@module-federation/manifest@2.9.2': patches/@module-federation__manifest@2.9.2.patch
+  '@module-federation/modern-js-v3@2.9.2': patches/@module-federation__modern-js-v3@2.9.2.patch
+  '@module-federation/node@2.7.52': patches/@module-federation__node@2.7.52.patch
+  '@module-federation/rspack@2.9.2': patches/@module-federation__rspack@2.9.2.patch
+  '@module-federation/runtime-core@2.9.2': patches/@module-federation__runtime-core@2.9.2.patch
 overrides:
-  micromatch: ^4.0.8
+  # Keep Miniflare and image plugins on one compatible Sharp native patch.
+  'sharp@>=0.35.0 <0.35.5': 0.35.5
+  'axios@>=1.0.0 <1.20.0': 1.20.0
+  'engine.io@>=6.0.0 <6.6.10': 6.6.11
+  # Each key closes an advisory range inside one major and pins the fix from
+  # that major, so no dependent is forced onto a major it never declared.
+  # scripts/check-overrides.mjs enforces this.
+  'micromatch@>=4.0.0 <4.0.8': 4.0.8
   'js-yaml@>=3.0.0 <3.15.2': 3.15.2
   'js-yaml@>=4.0.0 <4.3.2': 4.3.2
-  '@remix-run/router': '>=1.23.4'
-  # Preserve each consumer's declared router major while closing the affected
-  # ranges. The Module Federation bridge still requires the v7 layout.
+  # Close the affected router ranges within each major. Workspace packages pin
+  # their own router version in package.json, never through a parent selector.
   'react-router@>=7.0.0 <7.18.2': 7.18.4
   'react-router@>=8.0.0 <8.3.1': 8.4.0
-  '@modern-js/runtime-utils>react-router': 7.18.4
-  'dev-server>react-router': 8.3.1
-  h3: '>=1.15.11'
-  tar: '>=7.5.22'
-  diff: '>=9.0.0'
-  debug: '>=4.4.3'
-  cross-spawn: '>=7.0.6'
-  lodash-es: '>=4.18.1'
-  esbuild: '>=0.28.2'
-  tmp: '>=0.2.7'
-  '@isaacs/brace-expansion': '>=5.0.1'
-  'minimatch@3>brace-expansion': 1.1.18
-  'minimatch@9>brace-expansion': 2.1.4
-  'brace-expansion@': 5.0.12
-  yaml: '>=2.9.1'
-  qs: '>=6.16.0'
-  smol-toml: '>=1.9.0'
-  dompurify: '>=3.4.15'
-  serialize-javascript: '>=7.1.1'
-  ws: '>=8.21.3'
+  'tar@>=7.0.0 <7.5.22': 7.5.22
+  'diff@>=4.0.0 <4.0.4': 4.0.4
+  'debug@>=4.0.0 <4.4.3': 4.4.3
+  'cross-spawn@>=7.0.0 <7.0.6': 7.0.6
+  'lodash-es@>=4.0.0 <4.18.1': 4.18.1
+  'tmp@>=0.2.0 <0.2.7': 0.2.7
+  'minimatch@3>brace-expansion': 1.1.21
+  'minimatch@9>brace-expansion': 2.1.7
+  'brace-expansion@>=5.0.0 <5.0.12': 5.0.12
+  'yaml@>=1.0.0 <1.10.3': 1.10.3
+  'yaml@>=2.0.0 <2.9.1': 2.9.1
+  'qs@>=6.0.0 <6.16.0': 6.16.0
+  'smol-toml@>=1.0.0 <1.9.0': 1.9.0
+  'dompurify@>=3.0.0 <3.4.16': 3.4.16
+  'serialize-javascript@>=7.0.0 <7.1.2': 7.1.2
+  'ws@>=7.0.0 <7.5.11': 7.5.11
+  'ws@>=8.0.0 <8.21.3': 8.21.3
   'fast-uri@>=3.0.0 <3.1.6': 3.1.8
-  'uuid@>=13.0.0 <13.0.1': 14.0.2
-  follow-redirects: '>=1.16.0'
-  defu: '>=6.1.7'
-  handlebars: '>=4.7.9'
-  node-forge: '>=1.4.0'
-  'picomatch@<3': 2.3.2
+  'follow-redirects@>=1.0.0 <1.16.0': 1.16.0
+  'handlebars@>=4.0.0 <4.7.9': 4.7.9
+  'picomatch@>=2.0.0 <2.3.2': 2.3.2
   'picomatch@>=4.0.0 <4.0.4': 4.0.7
   'socket.io@4.8.1>socket.io-parser': 4.2.7
   'svgo@>=3.0.0 <3.3.5': 3.3.5
@@ -130,3 +130,75 @@ allowedDeprecatedVersions:
   debug: 4.1.1
   uuid: 3.4.0
   trim: 0.0.1
+
+minimumReleaseAgeExclude:
+  - '@biomejs/biome@2.5.15'
+  - '@biomejs/cli-darwin-arm64@2.5.15'
+  - '@biomejs/cli-darwin-x64@2.5.15'
+  - '@biomejs/cli-linux-arm64-musl@2.5.15'
+  - '@biomejs/cli-linux-arm64@2.5.15'
+  - '@biomejs/cli-linux-x64-musl@2.5.15'
+  - '@biomejs/cli-linux-x64@2.5.15'
+  - '@biomejs/cli-win32-arm64@2.5.15'
+  - '@biomejs/cli-win32-x64@2.5.15'
+  - '@csstools/cascade-layer-name-parser@3.0.2'
+  - '@csstools/css-parser-algorithms@4.0.2'
+  - '@effect/opentelemetry@4.0.0'
+  - '@effect/tsgo-darwin-arm64@0.47.2'
+  - '@effect/tsgo-darwin-x64@0.47.2'
+  - '@effect/tsgo-linux-arm64@0.47.2'
+  - '@effect/tsgo-linux-arm@0.47.2'
+  - '@effect/tsgo-linux-x64@0.47.2'
+  - '@effect/tsgo-win32-arm64@0.47.2'
+  - '@effect/tsgo-win32-x64@0.47.2'
+  - '@effect/tsgo@0.47.2'
+  - '@rollup/rollup-android-arm-eabi@4.63.6'
+  - '@rollup/rollup-android-arm64@4.63.6'
+  - '@rollup/rollup-darwin-arm64@4.63.6'
+  - '@rollup/rollup-darwin-x64@4.63.6'
+  - '@rollup/rollup-freebsd-arm64@4.63.6'
+  - '@rollup/rollup-freebsd-x64@4.63.6'
+  - '@rollup/rollup-linux-arm-gnueabihf@4.63.6'
+  - '@rollup/rollup-linux-arm-musleabihf@4.63.6'
+  - '@rollup/rollup-linux-arm64-gnu@4.63.6'
+  - '@rollup/rollup-linux-arm64-musl@4.63.6'
+  - '@rollup/rollup-linux-loong64-gnu@4.63.6'
+  - '@rollup/rollup-linux-loong64-musl@4.63.6'
+  - '@rollup/rollup-linux-ppc64-gnu@4.63.6'
+  - '@rollup/rollup-linux-ppc64-musl@4.63.6'
+  - '@rollup/rollup-linux-riscv64-gnu@4.63.6'
+  - '@rollup/rollup-linux-riscv64-musl@4.63.6'
+  - '@rollup/rollup-linux-s390x-gnu@4.63.6'
+  - '@rollup/rollup-linux-x64-gnu@4.63.6'
+  - '@rollup/rollup-linux-x64-musl@4.63.6'
+  - '@rollup/rollup-openbsd-x64@4.63.6'
+  - '@rollup/rollup-openharmony-arm64@4.63.6'
+  - '@rollup/rollup-win32-arm64-msvc@4.63.6'
+  - '@rollup/rollup-win32-ia32-msvc@4.63.6'
+  - '@rollup/rollup-win32-x64-gnu@4.63.6'
+  - '@rollup/rollup-win32-x64-msvc@4.63.6'
+  - '@shikijs/core@4.5.0'
+  - '@shikijs/primitive@4.5.0'
+  - '@shikijs/transformers@4.5.0'
+  - '@shikijs/types@4.5.0'
+  - '@tanstack/react-router@1.170.41'
+  - '@tanstack/router-core@1.171.34'
+  - '@vitest/mocker@5.0.3'
+  - '@vitest/spy@5.0.3'
+  - dotenv@18.0.5
+  - effect@4.0.0
+  - miniflare@5.20260930.0-alpha
+  - pg-cloudflare@1.4.1
+  - pg-connection-string@2.14.1
+  - pg-protocol@1.16.1
+  - pg@8.23.1
+  - postcss-custom-properties@15.0.3
+  - rollup@4.63.6
+  - vite@8.3.2
+  - vitest@5.0.3
+  - wrangler@4.145.0
+  - zephyr-agent@1.4.2
+  - zephyr-edge-contract@1.4.2
+  - zephyr-modernjs-plugin@1.4.2
+  - zephyr-rspack-plugin@1.4.2
+  - zephyr-xpack-internal@1.4.2

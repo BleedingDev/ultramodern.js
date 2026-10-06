@@ -1,4 +1,5 @@
 import type {
+  CliProgram,
   InternalContext,
   RuntimePluginConfig,
   ServerPluginConfig,
@@ -10,7 +11,6 @@ import type {
   PageRoute,
   ServerRoute,
 } from '@modern-js/types';
-import type { Command } from '@modern-js/utils/commander';
 import { getModifyHtmlPartials } from '../plugins/analyze/getHtmlTemplate';
 import type { AppTools, AppToolsNormalizedConfig } from '../types/config';
 import type { AppToolsHookRunners } from '../types/plugin-base';
@@ -117,7 +117,7 @@ export function getHookRunners(
       });
       return { partials: params.partials };
     },
-    commands: async (params: { program: Command }) => {
+    commands: async (params: { program: CliProgram }) => {
       return hooks.addCommand.call(params);
     },
     watchFiles: async () => {

@@ -3,11 +3,54 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { yaml } from '@modern-js/utils';
-import { runPnpm } from './runWithPrerequisites.mjs';
+import { parsePnpmLockfile } from '../../scripts/lib/parse-pnpm-lockfile.mjs';
+import { stripPackedFrameworkSources } from './packedConsumerSources.mjs';
+import { bleedingdevEdges, runPnpm } from './runWithPrerequisites.mjs';
 
 const { dump, load } = yaml;
 
 type PackedPackage = { tarball: string; integrity: string };
+type PackedSidecar = PackedPackage & { version: string };
+type BleedingdevEdge = {
+  name: string;
+  spec: string;
+  target: string;
+  version: string;
+};
+
+function assertPacked(file: string, name: string, integrity: string) {
+  const actual = createHash('sha256')
+    .update(fs.readFileSync(file))
+    .digest('hex');
+  if (actual !== integrity) {
+    throw new Error(`Packed prerequisite changed after preparation: ${name}`);
+  }
+}
+
+/**
+ * Point every `@bleedingdev/*` edge at its packed tarball. pnpm matches an
+ * override by dependency key, so an `npm:` alias needs a `key@npm:...` selector;
+ * a bare target-name override would leave the alias on the registry.
+ */
+export function bleedingdevOverrides(
+  edges: BleedingdevEdge[],
+  sidecars: Record<string, PackedSidecar>,
+): Record<string, string> {
+  const overrides: Record<string, string> = {};
+  for (const edge of edges) {
+    const packed = sidecars[edge.target];
+    if (packed?.version !== edge.version) {
+      throw new Error(
+        `${edge.name}: ${edge.spec} is not in the packed test cohort ` +
+          `(packed ${edge.target}: ${packed?.version ?? 'none'}). ` +
+          'Add it to scripts/ultramodern-supply/sidecars.json / staged cohort ' +
+          'so tests install the artifact the release publishes.',
+      );
+    }
+    overrides[`${edge.name}@${edge.spec}`] = `file:${packed.tarball}`;
+  }
+  return overrides;
+}
 
 function packedPrerequisites() {
   const manifestPath = process.env.MODERN_TEST_PACKAGE_MANIFEST;
@@ -18,23 +61,35 @@ function packedPrerequisites() {
         'tests/utils/runWithPrerequisites.mjs --pack-only <directory>.',
     );
   }
-  const { packages, allowBuilds } = JSON.parse(
-    fs.readFileSync(manifestPath, 'utf8'),
-  ) as {
+  const {
+    packages,
+    sidecars,
+    edges,
+    allowBuilds,
+    minimumReleaseAgeExclude = [],
+  } = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as {
     packages: Record<string, PackedPackage>;
+    sidecars: Record<string, PackedSidecar>;
+    edges: BleedingdevEdge[];
     allowBuilds: Record<string, boolean>;
+    minimumReleaseAgeExclude: string[];
   };
   const overrides: Record<string, string> = {};
   for (const [name, { tarball, integrity }] of Object.entries(packages)) {
-    const actual = createHash('sha256')
-      .update(fs.readFileSync(tarball))
-      .digest('hex');
-    if (actual !== integrity) {
-      throw new Error(`Packed prerequisite changed after preparation: ${name}`);
-    }
+    assertPacked(tarball, name, integrity);
     overrides[name] = `file:${tarball}`;
   }
-  return { overrides, allowBuilds };
+  for (const [name, { tarball, integrity }] of Object.entries(sidecars)) {
+    assertPacked(tarball, name, integrity);
+  }
+  Object.assign(overrides, bleedingdevOverrides(edges, sidecars));
+  return {
+    framework: Object.keys(packages),
+    overrides,
+    sidecars,
+    allowBuilds,
+    minimumReleaseAgeExclude,
+  };
 }
 
 /** Remove only framework source copies in this disposable consumer. Application
@@ -43,7 +98,6 @@ function prepareSourceUnavailableConsumer(
   consumer: string,
   requireFramework = false,
 ) {
-  const root = fs.realpathSync(consumer);
   const required = new Set(
     requireFramework
       ? [
@@ -54,42 +108,31 @@ function prepareSourceUnavailableConsumer(
         ]
       : ['@modern-js/ultramodern-create'],
   );
-  const { overrides } = packedPrerequisites();
-  for (const name of Object.keys(overrides)) {
-    for (const manifest of fs.globSync(
-      `node_modules/.pnpm/*/node_modules/${name}/package.json`,
-      { cwd: consumer },
-    )) {
-      const packageDir = fs.realpathSync(
-        path.dirname(path.join(consumer, manifest)),
-      );
-      if (!packageDir.startsWith(`${root}${path.sep}`)) {
+  const { root, packages } = stripPackedFrameworkSources(
+    consumer,
+    packedPrerequisites().framework,
+  );
+  for (const { name, packageDir } of packages) {
+    if (required.has(name)) {
+      const entry = execFileSync(
+        process.execPath,
+        ['-e', 'console.log(require.resolve(process.argv[1]))', name],
+        {
+          cwd: packageDir,
+          encoding: 'utf8',
+          env: { ...process.env, NODE_PATH: '' },
+        },
+      ).trim();
+      const resolved = fs.realpathSync(entry);
+      if (
+        !resolved.startsWith(`${root}${path.sep}`) ||
+        resolved.split(path.sep).includes('src')
+      ) {
         throw new Error(
-          `Packed package escaped its consumer: ${name}: ${packageDir}`,
+          `Packed entry selected framework source or an external tree: ${name}: ${resolved}`,
         );
       }
-      fs.rmSync(path.join(packageDir, 'src'), { recursive: true, force: true });
-      if (required.has(name)) {
-        const entry = execFileSync(
-          process.execPath,
-          ['-e', 'console.log(require.resolve(process.argv[1]))', name],
-          {
-            cwd: packageDir,
-            encoding: 'utf8',
-            env: { ...process.env, NODE_PATH: '' },
-          },
-        ).trim();
-        const resolved = fs.realpathSync(entry);
-        if (
-          !resolved.startsWith(`${root}${path.sep}`) ||
-          resolved.split(path.sep).includes('src')
-        ) {
-          throw new Error(
-            `Packed entry selected framework source or an external tree: ${name}: ${resolved}`,
-          );
-        }
-        required.delete(name);
-      }
+      required.delete(name);
     }
   }
   if (required.size)
@@ -102,28 +145,75 @@ function prepareSourceUnavailableConsumer(
 export function materializeGeneratedWorkspaceDependencies(
   workspaceDir: string,
 ): void {
-  const { overrides } = packedPrerequisites();
+  const {
+    overrides: packedOverrides,
+    sidecars,
+    minimumReleaseAgeExclude,
+  } = packedPrerequisites();
+  const overrides = {
+    ...packedOverrides,
+    ...bleedingdevOverrides(
+      fs
+        .globSync('**/package.json', {
+          cwd: workspaceDir,
+          exclude: ['**/node_modules'],
+        })
+        .flatMap(manifest =>
+          bleedingdevEdges(
+            JSON.parse(
+              fs.readFileSync(path.join(workspaceDir, manifest), 'utf8'),
+            ),
+          ),
+        ),
+      sidecars,
+    ),
+  };
   const workspaceFile = path.join(workspaceDir, 'pnpm-workspace.yaml');
   const workspace = load(fs.readFileSync(workspaceFile, 'utf8')) as {
     overrides?: Record<string, string>;
+    minimumReleaseAgeExclude?: string[];
   };
+  // Fresh dependency candidates use only the repository's exact reviewed selectors.
+  // The published generator retains its normal release-age policy.
   // Keep the transport overrides installed: reverting them would invalidate
   // pnpm's lockfile settings and break verifyDepsBeforeRun for real commands.
   fs.writeFileSync(
     workspaceFile,
-    dump({ ...workspace, overrides: { ...workspace.overrides, ...overrides } }),
+    dump({
+      ...workspace,
+      overrides: { ...workspace.overrides, ...overrides },
+      minimumReleaseAgeExclude: [
+        ...new Set([
+          ...(workspace.minimumReleaseAgeExclude ?? []),
+          ...minimumReleaseAgeExclude,
+        ]),
+      ],
+    }),
   );
   runPnpm(['install', '--no-frozen-lockfile'], {
     cwd: workspaceDir,
     env: { ...process.env, NODE_PATH: '', CI: 'true' },
     stdio: 'pipe',
   });
+  const { packages: locked } = parsePnpmLockfile(
+    fs.readFileSync(path.join(workspaceDir, 'pnpm-lock.yaml'), 'utf8'),
+  ) as { packages?: Record<string, unknown> };
+  const fromRegistry = Object.keys(locked ?? {}).filter(
+    key => key.startsWith('@bleedingdev/') && !key.includes('@file:'),
+  );
+  if (fromRegistry.length) {
+    throw new Error(
+      `Generated workspace resolved @bleedingdev packages from the registry: ${fromRegistry.join(', ')}. ` +
+        'Add them to scripts/ultramodern-supply/sidecars.json / staged cohort.',
+    );
+  }
   prepareSourceUnavailableConsumer(workspaceDir, true);
 }
 
 /** A standalone consumer outside the repository, without source links. */
 export function installPackedGenerator(tempRoot: string): string {
-  const { overrides, allowBuilds } = packedPrerequisites();
+  const { overrides, allowBuilds, minimumReleaseAgeExclude } =
+    packedPrerequisites();
   const consumer = path.join(tempRoot, 'generator-consumer');
   fs.mkdirSync(consumer, { recursive: true });
   fs.writeFileSync(
@@ -139,7 +229,7 @@ export function installPackedGenerator(tempRoot: string): string {
   );
   fs.writeFileSync(
     path.join(consumer, 'pnpm-workspace.yaml'),
-    dump({ packages: [], overrides, allowBuilds }),
+    dump({ packages: [], overrides, allowBuilds, minimumReleaseAgeExclude }),
   );
   runPnpm(['install', '--no-frozen-lockfile'], {
     cwd: consumer,

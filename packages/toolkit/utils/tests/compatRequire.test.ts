@@ -8,7 +8,6 @@ import {
   chokidar,
   cleanRequireCache,
   compatibleRequire,
-  dynamicImport,
   type FSWatcher,
   tryResolve,
 } from '../src';
@@ -52,7 +51,7 @@ describe('compat require', () => {
 
       const resolved = tryResolve('example', directory);
       expect(resolved).toBe(fs.realpathSync(modulePath));
-      expect((await dynamicImport(pathToFileURL(resolved).href)).default).toBe(
+      expect((await import(pathToFileURL(resolved).href)).default).toBe(
         'resolved',
       );
     } finally {
@@ -158,20 +157,19 @@ describe('lazy compiled watcher imports', () => {
     }
   });
 
-  test.each([
-    'cjs',
-    'esm',
-  ] as const)('cold public %s import defers the addon until native watching', async format => {
-    const directory = fs.mkdtempSync(
-      path.join(
-        process.env.OWNED_TEMP_DIR ?? os.tmpdir(),
-        'modern-lazy-public-watcher-',
-      ),
-    );
-    const owner = path.resolve(__dirname, '../package.json');
-    // A separate normal Node process proves cold published require/import
-    // conditions; this never aliases public exports to utility source files.
-    const script = `
+  test.each(['cjs', 'esm'] as const)(
+    'cold public %s import defers the addon until native watching',
+    async format => {
+      const directory = fs.mkdtempSync(
+        path.join(
+          process.env.OWNED_TEMP_DIR ?? os.tmpdir(),
+          'modern-lazy-public-watcher-',
+        ),
+      );
+      const owner = path.resolve(__dirname, '../package.json');
+      // A separate normal Node process proves cold published require/import
+      // conditions; this never aliases public exports to utility source files.
+      const script = `
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -231,42 +229,43 @@ const wait = (watcher, event) => {
   }
 })().catch(error => { console.error(error.stack); process.exitCode = 1; });
 `;
-    try {
-      const output = await new Promise<string>((resolve, reject) => {
-        const child = spawn(
-          process.execPath,
-          ['--input-type=commonjs', '-e', script],
-          {
-            cwd: path.dirname(owner),
-            stdio: ['ignore', 'pipe', 'pipe'],
-          },
-        );
-        let stdout = '';
-        let stderr = '';
-        const timer = setTimeout(() => child.kill('SIGKILL'), 25000);
-        child.stdout.on('data', value => {
-          stdout += value;
+      try {
+        const output = await new Promise<string>((resolve, reject) => {
+          const child = spawn(
+            process.execPath,
+            ['--input-type=commonjs', '-e', script],
+            {
+              cwd: path.dirname(owner),
+              stdio: ['ignore', 'pipe', 'pipe'],
+            },
+          );
+          let stdout = '';
+          let stderr = '';
+          const timer = setTimeout(() => child.kill('SIGKILL'), 25000);
+          child.stdout.on('data', value => {
+            stdout += value;
+          });
+          child.stderr.on('data', value => {
+            stderr += value;
+          });
+          child.once('error', reject);
+          child.once('close', code => {
+            clearTimeout(timer);
+            if (code === 0) resolve(stdout);
+            else
+              reject(
+                new Error(`Cold ${format} watcher failed (${code}): ${stderr}`),
+              );
+          });
         });
-        child.stderr.on('data', value => {
-          stderr += value;
+        expect(JSON.parse(output)).toEqual({
+          format,
+          changed: true,
+          closed: true,
         });
-        child.once('error', reject);
-        child.once('close', code => {
-          clearTimeout(timer);
-          if (code === 0) resolve(stdout);
-          else
-            reject(
-              new Error(`Cold ${format} watcher failed (${code}): ${stderr}`),
-            );
-        });
-      });
-      expect(JSON.parse(output)).toEqual({
-        format,
-        changed: true,
-        closed: true,
-      });
-    } finally {
-      fs.rmSync(directory, { recursive: true, force: true });
-    }
-  });
+      } finally {
+        fs.rmSync(directory, { recursive: true, force: true });
+      }
+    },
+  );
 });

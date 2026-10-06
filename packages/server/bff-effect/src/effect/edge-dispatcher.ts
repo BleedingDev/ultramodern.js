@@ -1,4 +1,6 @@
 // @effect-diagnostics anyUnknownInErrorContext:off asyncFunction:off strictBooleanExpressions:off
+
+import { runWithEffectContext } from '@modern-js/bff-effect/context';
 import {
   evaluateCrossProjectPolicy,
   type NormalizedCrossProjectPolicy,
@@ -10,7 +12,6 @@ import {
   type DispatchEffectBffRequestOptions,
   dispatchEffectBffRequestWithContext,
 } from './dispatch';
-import { runWithEffectContext } from './edge-context';
 import type {
   EffectBffOpenApiConfig,
   EffectDataPlatformValidationOptions,
@@ -22,11 +23,13 @@ import {
 } from './module';
 import type { EffectContext } from './operation-context';
 
+export {
+  runWithEffectContext,
+  useEffectContext,
+  useOperationContext,
+} from '@modern-js/bff-effect/context';
 export * as Config from 'effect/Config';
 export * as Effect from 'effect/Effect';
-export * as Layer from 'effect/Layer';
-export * as Option from 'effect/Option';
-export * as Schema from 'effect/Schema';
 export {
   Cookies,
   Etag,
@@ -57,7 +60,7 @@ export {
   Template,
   Url,
   UrlParams,
-} from 'effect/unstable/http';
+} from 'effect/http';
 export {
   HttpApi,
   HttpApiBuilder,
@@ -70,7 +73,9 @@ export {
   HttpApiSecurity,
   HttpApiTest,
   OpenApi,
-} from 'effect/unstable/httpapi';
+} from 'effect/http-api';
+export * as Layer from 'effect/Layer';
+export * as Option from 'effect/Option';
 export {
   Rpc,
   RpcClient,
@@ -84,12 +89,8 @@ export {
   RpcTest,
   RpcWorker,
   Utils,
-} from 'effect/unstable/rpc';
-export {
-  runWithEffectContext,
-  useEffectContext,
-  useOperationContext,
-} from './edge-context';
+} from 'effect/rpc';
+export * as Schema from 'effect/Schema';
 export type {
   EffectApiClientFromApi,
   EffectBffDefinition,

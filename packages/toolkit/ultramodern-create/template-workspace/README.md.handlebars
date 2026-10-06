@@ -2,8 +2,8 @@
 
 Generated UltraModern SuperApp workspace.
 
-This workspace keeps `presetUltramodern(...)` as the single public
-UltraModern.js 3.0 SuperApp surface and starts with an explicit shell:
+This workspace uses `presetUltramodernWorkspace(...)` to compose native
+UltraModern.js configuration and starts with an explicit shell:
 
 - `apps/shell-super-app` owns shell route assembly, Module Federation host
   wiring, shared SSR/i18n runtime setup, and the boundary debugger.
@@ -26,19 +26,26 @@ handlers and Effect client/contract modules stay out of browser exposes.
 ## Generated config policy
 
 Each generated `modern.config.ts` calls
-`presetUltramodern(appConfig, presetOptions)`. A bare config materialized by
-`createPresetUltramodernConfig()` uses `appId: 'app'` and has no
-`deliveryUnit`. Generated apps instead keep their app-specific `appId` and
-stamped `deliveryUnit` in `presetOptions`. Other strict defaults come from the
-preset, so do not copy an expanded defaults object or spread one config over
-another.
+`presetUltramodernWorkspace(appConfig, { appId, from: import.meta.url })`.
+The preset resolves app membership and release identity from
+`topology/reference-topology.json`, and development ports from
+`topology/local-overlays/development.json` whenever the config loads. Native
+fork packages own deployment targets, output/cache directories, asset origins,
+CORS, Cloudflare service bindings, and Zephyr upload policy.
+
+App configs stay native and belong to their authors. Adding a shell or vertical
+updates canonical topology and generated metadata without rewriting existing
+`modern.config.ts` files. Keep the stable app identity and module location;
+use `appConfig` for business settings, Modern.js plugins, builder hooks, and
+other overrides. Authored scalars take precedence, nested records merge, and
+hooks compose through the Modern.js config merger.
 
 Telemetry stays enabled, but exporters have no endpoint by default. Set
 `MODERN_TELEMETRY_OTLP_ENDPOINT` to enable only OTLP, or
 `MODERN_TELEMETRY_VICTORIA_ENDPOINT` to enable only VictoriaMetrics. Set both
 to enable both exporters. Leaving both unset configures neither exporter.
 
-Keep the generated identity options and use typed preset options for opt-outs:
+Keep `appId` and `from` and use typed preset options for opt-outs:
 
 - `enableTelemetryExporters: false` disables all exporters.
 - `enableTelemetry: false` disables the telemetry contract.
@@ -46,15 +53,15 @@ Keep the generated identity options and use typed preset options for opt-outs:
   their matching preset contracts.
 
 Use the first `appConfig` argument for app-owned overrides such as
-`server.telemetry.failLoudStartup`. Nested records merge through the Modern.js
-config merger, so sibling preset fields remain intact.
+`server.telemetry.failLoudStartup`. Sibling preset fields remain intact.
 
 ## Private-First Public Surfaces
 
 Generated app routes are private and non-indexable by default. Author route
-metadata in colocated `src/routes/**/route.meta.ts` files; the scaffold
-regenerates `src/routes/ultramodern-route-metadata.ts` as a compatibility
-manifest for config, i18n, public head, and public surface contracts. Private
+metadata in colocated `src/routes/**/route.meta.ts` files that export
+`routeMeta`; `ultramodern-create ultramodern routes-generate` regenerates
+`src/routes/ultramodern-route-metadata.ts` as the route manifest for config,
+i18n, public head, and public surface contracts. Private
 app, auth, tenant, dashboard, and internal routes publish no discovery output
 unless route metadata explicitly marks them `public && indexable`. The default
 scaffold therefore emits only a disallowing `robots.txt`; sitemap, web
@@ -167,9 +174,15 @@ the shell URL; added verticals use the same `ULTRAMODERN_PUBLIC_URL_<APP_ID>`
 pattern with hyphens converted to underscores and uppercased.
 
 ```bash
+export ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP=https://shell-super-app.example.workers.dev
 pnpm cloudflare:deploy
-pnpm exec cross-env ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP=https://shell-super-app.example.workers.dev pnpm cloudflare:proof --require-public-urls
+pnpm cloudflare:proof --require-public-urls
 ```
+
+`cloudflare:deploy` refuses to deploy an app without a public URL
+(`ULTRAMODERN_PUBLIC_URL_<APP_ID>`, `MODERN_PUBLIC_SITE_URL` or
+`ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN`). A Zephyr upload also needs
+`ZE_FAIL_BUILD=true` next to `ZE_CI_TOKEN` in the deploy environment.
 
 ## Strict Effect API
 

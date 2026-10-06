@@ -1,7 +1,6 @@
 import { getMonitors } from '@modern-js/runtime';
-import type { LoaderFunctionArgs } from '@modern-js/runtime/router';
 
-export const loader = ({ context }: LoaderFunctionArgs) => {
+export const loader = () => {
   const monitors = getMonitors();
   monitors.error('error in monitors');
 

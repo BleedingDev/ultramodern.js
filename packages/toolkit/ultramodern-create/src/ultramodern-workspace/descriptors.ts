@@ -1,4 +1,3 @@
-import { WORKSPACE_PACKAGE_VERSION } from '../ultramodern-package-source';
 import {
   packageName,
   toCamelCase,
@@ -21,17 +20,10 @@ export function distributedSsrExposes(app: WorkspaceApp) {
     .toSorted();
 }
 
-export function distributedSsrFragmentSlug(expose: string) {
-  const slug = toKebabCase(expose.replace(/^\.\//u, ''));
-  if (!slug) {
-    throw new Error(`Invalid distributed SSR expose ${expose}.`);
-  }
-  return slug;
-}
-
-export function distributedSsrFragmentRoute(expose: string) {
-  return `/{locale}/_mf/fragment/${distributedSsrFragmentSlug(expose)}`;
-}
+export {
+  distributedSsrFragmentRoute,
+  distributedSsrFragmentSlug,
+} from '@modern-js/app-tools-extensions/workspace-topology';
 
 export const shellApp: WorkspaceApp = {
   renderer: 'react',

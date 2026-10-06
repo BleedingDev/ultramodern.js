@@ -280,7 +280,7 @@ async function unitInstalledConsumers(t) {
           context: {
             rootPath: consumer.consumerRoot,
             distPath,
-            version: '2.2.9',
+            version: '2.2.11',
             configFile: null,
             configFileDependencies: [],
           },

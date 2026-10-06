@@ -9,7 +9,6 @@ import {
   launchOptions,
   modernBuild,
   modernServe,
-  sleep,
 } from '../../../utils/modernTestUtils';
 
 rstest.setConfig({ testTimeout: 1000 * 60 * 5, hookTimeout: 1000 * 60 * 5 });
@@ -98,39 +97,20 @@ async function gotoAndWaitForSelector(
   url: string,
   selector: string,
 ) {
-  return retryPageAction(async () => {
-    await page.goto(url, {
-      waitUntil: ['domcontentloaded'],
-    });
-    await page.waitForSelector(selector, { timeout: 10_000 });
+  await page.goto(url, {
+    waitUntil: ['domcontentloaded'],
   });
-}
-
-async function retryPageAction<T>(action: () => Promise<T>) {
-  let lastError: unknown;
-
-  for (let attempt = 0; attempt < 5; attempt++) {
-    try {
-      return await action();
-    } catch (error) {
-      lastError = error;
-      await sleep(1000);
-    }
-  }
-
-  throw lastError;
+  await page.waitForSelector(selector);
 }
 
 async function navigateHomeAndReadData(page: Page, userUrl: string) {
-  return retryPageAction(async () => {
-    await page.goto(userUrl, {
-      waitUntil: ['domcontentloaded'],
-    });
-    await page.waitForSelector('#home-btn', { timeout: 10_000 });
-    await page.click('#home-btn');
-    await page.waitForSelector('#data', { timeout: 10_000 });
-    return page.$eval('#data', el => el?.textContent);
+  await page.goto(userUrl, {
+    waitUntil: ['domcontentloaded'],
   });
+  await page.waitForSelector('html[data-hydrated]');
+  await page.click('#home-btn');
+  await page.waitForSelector('#data');
+  return page.$eval('#data', el => el?.textContent);
 }
 
 describe('pure-esm-project in dev', () => {

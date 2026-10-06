@@ -9,7 +9,7 @@ import {
 } from '@modern-js/backend-federation-contracts';
 import { loadBackendFederatedEffectApiFromManifest } from '@modern-js/plugin-bff-extensions/backend-federation-manifest/node';
 import { Effect, ManagedRuntime } from 'effect';
-import { HttpApi } from 'effect/unstable/httpapi';
+import { HttpApi } from 'effect/http-api';
 import backendFederationBuildPlugin, {
   emitBackendFederationArtifacts,
 } from '../../src/backend-federation-build';
@@ -375,7 +375,7 @@ describe('backend federation build artifacts', () => {
         apiProtocol: 'rpc',
         backendBase: `http://127.0.0.1:${address.port}`,
         effectApiSource: `
-import { defineEffectBff, Effect, HttpApi, Layer, Rpc, RpcGroup, Schema } from ${JSON.stringify(effectEdgePath)};
+import { defineEffectBff, Effect, HttpApi, Layer, Rpc, RpcGroup, Schema, useEffectContext } from ${JSON.stringify(effectEdgePath)};
 const item = Schema.Struct({ id: Schema.String, title: Schema.String });
 const notFound = Schema.TaggedError;
 class ExploreNotFoundRpc extends notFound<ExploreNotFoundRpc>()('ExploreNotFoundRpc', { id: Schema.String }) {}
@@ -403,9 +403,11 @@ const runtime = defineEffectBff({
           ? Effect.fail(new ExploreNotFoundRpc({ id }))
           : Effect.succeed(matched);
       },
-      list: ({ limit }) => Effect.succeed({
-        items: typeof limit === 'number' ? items.slice(0, limit) : items,
-      }),
+      // Reads the request storage the host handler entered.
+      list: ({ limit }) => Effect.sync(() => ({
+        items: (typeof limit === 'number' ? items.slice(0, limit) : items)
+          .map(entry => ({ ...entry, title: \`\${entry.title} \${useEffectContext().path}\` })),
+      })),
     })),
     path: '/rpc',
     serialization: 'json',
@@ -481,7 +483,12 @@ export default runtime;
           jsonrpc: '2.0',
           id: 'proof',
           result: {
-            items: [{ id: 'bundled-explore', title: 'Bundled Effect RPC' }],
+            items: [
+              {
+                id: 'bundled-explore',
+                title: 'Bundled Effect RPC /explore-api/rpc',
+              },
+            ],
           },
         });
         expect(warnings).toEqual([]);
@@ -709,7 +716,7 @@ export const backendFederationContract = {
   strictEffectApproach: true,
 };
 import { Layer, ManagedRuntime, Schema } from 'effect';
-import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/unstable/httpapi';
+import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/http-api';
 export const api = HttpApi.make('ExploreApi').add(
   HttpApiGroup.make('explore').add(
     HttpApiEndpoint.get('ping', '/ping', { success: Schema.String }),

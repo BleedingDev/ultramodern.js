@@ -24,7 +24,7 @@
     "prepublishOnly": "only-allow-pnpm",
     "dev": "rslib build --watch",
     "build": "rslib build",
-    "test": "tsc --noEmit -p tsconfig.json && rstest --passWithNoTests"
+    "test": "tsc --noEmit -p tsconfig.json && rstest"
   },
   "dependencies": {
     "@modern-js/types": "workspace:*",
@@ -34,10 +34,10 @@
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
     "@modern-js/server-core": "workspace:*",
-    "@rslib/core": "1.0.2",
+    "@rslib/core": "1.0.3",
     "@scripts/build": "workspace:*",
     "@scripts/rstest-config": "workspace:*",
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.3",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "react": "^19.3.0",
@@ -62,11 +62,10 @@
     },
     "./rsc": {
       "types": "./dist/types/server/rsc/index.d.ts",
+      "workerd": "./dist/esm/rsc.edge.mjs",
+      "worker": "./dist/esm/rsc.edge.mjs",
+      "edge-light": "./dist/esm/rsc.edge.mjs",
       "default": "./dist/esm/rsc.mjs"
-    },
-    "./rsc-worker": {
-      "types": "./dist/types/rsc.worker.d.ts",
-      "default": "./dist/esm/rscWorker.mjs"
     },
     "./client": {
       "types": "./dist/types/client/index.d.ts",
@@ -80,9 +79,6 @@
       ],
       "rsc": [
         "./dist/types/server/rsc/index.d.ts"
-      ],
-      "rsc-worker": [
-        "./dist/types/rsc.worker.d.ts"
       ],
       "client": [
         "./dist/types/client/index.d.ts"

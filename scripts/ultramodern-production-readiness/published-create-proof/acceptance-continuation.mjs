@@ -6,7 +6,12 @@ import { performance } from 'node:perf_hooks';
 import { isDeepStrictEqual } from 'node:util';
 import { assertCleanCommittedSource } from '../../ultramodern-publish/lib/release-source-state.mjs';
 import { appPortEnv, readSmokeContract } from '../browser-smoke/contract.mjs';
-import { readAndVerifyEnvelope } from '../operational-independence.mjs';
+import {
+  assembleOperationalEvidence,
+  captureOperationalBaseline,
+  proveOperationalTarget,
+  readAndVerifyEnvelope,
+} from '../operational-independence.mjs';
 import { createAcceptedNodeProofEnvironment } from '../run-browser-smoke.mjs';
 import {
   assertApiAcceptance,
@@ -19,7 +24,9 @@ import {
   assertOperationalIndependenceResultDetails,
   assertReleaseAcceptanceProfile,
   assertRuntimeAcceptanceDimension,
+  createOperationalIndependenceResultDetails,
   createReleaseArtifactBinding,
+  operationalIndependenceEvidencePath,
   operationalIndependenceResultId,
   releaseIdentityCoherence,
   rendererReleaseCoherence,
@@ -843,8 +850,9 @@ async function runAcceptanceContinuation({
       createAcceptanceBuildEnv,
       createAcceptanceDeploymentEnv,
       createAcceptanceRuntimeContext,
+      createOperationalIndependenceCommit,
+      operationalIndependenceIds,
       requiredPnpmCommands,
-      runOperationalIndependenceAcceptance,
     } = await import('./acceptance-profile.mjs');
     const { runBrowserSmoke } = await import('./browser-smoke.mjs');
     const runtime = createAcceptanceRuntimeContext({
@@ -1070,16 +1078,58 @@ async function runAcceptanceContinuation({
       identityDetails.get('node'),
       identityDetails.get('workerd'),
     );
-    await stage(operationalIndependenceResultId, () =>
-      runOperationalIndependenceAcceptance({
-        applicationSourceRevision,
-        mode: 'source',
-        outPath,
-        packageManagerEnv: deploymentEnv,
+    // The operational proof reuses C0 target builds instead of rebuilding
+    // them. Every app's `.output` now holds the Cloudflare C0 build, so prove
+    // Cloudflare first, then rebuild Node C0 once and prove Node against it.
+    await stage(operationalIndependenceResultId, async () => {
+      const baseline = target =>
+        captureOperationalBaseline({
+          workspace: projectDir,
+          target,
+          ids: operationalIndependenceIds,
+          packageManagerEnv: deploymentEnv,
+        });
+      const cloudflareBaseline = baseline('cloudflare');
+      const transition = createOperationalIndependenceCommit(
         projectDir,
+        applicationSourceRevision,
+        deploymentEnv,
         runImpl,
-      }),
-    );
+      );
+      const proofInput = {
+        changedRef: transition.changedRevision,
+        expectedApiValue: transition.mutations.apiResponse.value,
+        expectedUiValue: transition.mutations.uiLocalization.value,
+        packageManagerEnv: deploymentEnv,
+      };
+      const cloudflare = await proveOperationalTarget({
+        baseline: cloudflareBaseline,
+        ...proofInput,
+      });
+      runImpl('pnpm', requiredPnpmCommands.build, {
+        cwd: projectDir,
+        env: createAcceptanceBuildEnv(deploymentEnv),
+      });
+      const node = await proveOperationalTarget({
+        baseline: baseline('node'),
+        ...proofInput,
+      });
+      const evidencePath = operationalIndependenceEvidencePath(outPath);
+      return createOperationalIndependenceResultDetails({
+        applicationSourceRevision,
+        changedRevision: transition.changedRevision,
+        evidence: assembleOperationalEvidence({
+          node,
+          cloudflare,
+          out: evidencePath,
+        }),
+        evidencePath,
+        expectedApiValue: transition.mutations.apiResponse.value,
+        expectedChangedPaths: transition.changedPaths,
+        expectedUiValue: transition.mutations.uiLocalization.value,
+        mode: 'source',
+      });
+    });
   } catch (error) {
     failure = error;
   }

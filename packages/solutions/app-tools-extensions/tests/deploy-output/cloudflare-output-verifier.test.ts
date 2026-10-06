@@ -2,10 +2,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import {
-  applyCloudflareWorkerMfRuntimeBoundary,
-  applyCloudflareWorkerRspackConfig,
-} from '@modern-js/app-tools-extensions/cloudflare-builder';
+import { applyCloudflareWorkerRspackConfig } from '@modern-js/app-tools-extensions/cloudflare-builder';
 import {
   assertCloudflareOutput,
   verifyCloudflareOutput,
@@ -14,6 +11,7 @@ import {
 import { createRsbuild } from '@rsbuild/core';
 
 const tempDirectories: string[] = [];
+const packageNodeModules = path.join(__dirname, '../../node_modules');
 
 const writeJson = async (filePath: string, value: unknown) => {
   await fs.mkdir(path.dirname(filePath), { recursive: true });
@@ -95,7 +93,13 @@ const buildRsbuildWorker = async ({
                 entryNames.bff,
                 entryNames.route,
               ]);
-              applyCloudflareWorkerMfRuntimeBoundary(chain);
+              // The fixture lives in a temporary directory: resolve its
+              // packages from this package, under the worker condition the
+              // Cloudflare builder adds.
+              chain.resolve.modules.add(packageNodeModules).add('node_modules');
+              chain.resolve.byDependency.set('esm', {
+                conditionNames: ['worker', 'import', '...'],
+              });
               chain.optimization.minimize(true);
               chain.output
                 .module(true)
@@ -494,31 +498,30 @@ describe('Cloudflare output verifier', () => {
         "// require('node:child_process')\nconst text = \"import('node:child_process')\";",
       expectedOk: true,
     },
-  ])('enforces worker import grammar: $name', async ({
-    source,
-    dependencies,
-    expectedOk,
-  }) => {
-    const { outputDirectory } = await createOutputFixture({
-      bffWorkerSource: withDispatcher(source),
-    });
-    await writeJson(path.join(outputDirectory, 'worker/package.json'), {
-      dependencies,
-      type: 'commonjs',
-    });
+  ])(
+    'enforces worker import grammar: $name',
+    async ({ source, dependencies, expectedOk }) => {
+      const { outputDirectory } = await createOutputFixture({
+        bffWorkerSource: withDispatcher(source),
+      });
+      await writeJson(path.join(outputDirectory, 'worker/package.json'), {
+        dependencies,
+        type: 'commonjs',
+      });
 
-    const result = await verifyCloudflareOutput({
-      outputDirectory,
-      importWorker: false,
-    });
+      const result = await verifyCloudflareOutput({
+        outputDirectory,
+        importWorker: false,
+      });
 
-    expect(result.ok).toBe(expectedOk);
-    if (!expectedOk) {
-      expect(result.issues).toContainEqual(
-        expect.objectContaining({ code: 'invalid-worker-bundle' }),
-      );
-    }
-  });
+      expect(result.ok).toBe(expectedOk);
+      if (!expectedOk) {
+        expect(result.issues).toContainEqual(
+          expect.objectContaining({ code: 'invalid-worker-bundle' }),
+        );
+      }
+    },
+  );
 
   it('eagerly lowers local imports across real Rspack worker entries', async () => {
     const { directory, outputDirectory } = await createOutputFixture({
@@ -546,6 +549,11 @@ describe('Cloudflare output verifier', () => {
       pathToFileURL(path.join(outputDirectory, 'worker/__modern_bff_effect.js'))
         .href
     );
+    // The worker condition selects Module Federation's no-op SSR runtime
+    // plugin: no data-fetch hooks reach workerd.
+    expect(worker.mfRuntimePlugin).toEqual({
+      name: '@module-federation/inject-data-fetch-function-plugin',
+    });
     (globalThis as any).__modernWorkerSharedEvaluations = 0;
     const first = await worker.loadFirst();
     expect(first).toMatchObject({ value: 'first', evaluations: 1 });

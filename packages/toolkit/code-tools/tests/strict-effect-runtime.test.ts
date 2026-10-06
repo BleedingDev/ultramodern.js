@@ -79,12 +79,12 @@ export default make(Layer.empty);`;
       expect(violation(invalid)).toBeDefined();
   });
 
-  test.each([
-    shared,
-    direct,
-  ])('accepts genuine executable direct/assembled roots', source => {
-    expect(violation(source)).toBeUndefined();
-  });
+  test.each([shared, direct])(
+    'accepts genuine executable direct/assembled roots',
+    source => {
+      expect(violation(source)).toBeUndefined();
+    },
+  );
 
   test.each([
     // OntOS: published lint validators reject string and local strict-root spoofs, fixture 32.
@@ -94,9 +94,12 @@ defineEffectBff({api: fixtureApi, layer: fixtureLayer});`,
     direct.replace('export default defineEffectBff', 'defineEffectBff'),
     shared.replace('HttpApiBuilder, Layer', 'fake as HttpApiBuilder, Layer'),
     `const decoy = ${JSON.stringify(shared)}; export default fake;`,
-  ])('rejects spoofed, shadowed, discarded and non-executable roots', source => {
-    expect(violation(source)).toBeDefined();
-  });
+  ])(
+    'rejects spoofed, shadowed, discarded and non-executable roots',
+    source => {
+      expect(violation(source)).toBeDefined();
+    },
+  );
 
   test('classifies parser syntax and binder collision diagnostics as invalid source', () => {
     expect(violation('export const invalid = ;')).toBeDefined();
@@ -120,7 +123,7 @@ const handlers = fixtureRpcGroup.toLayer(fixtureRpcGroup.of({ get: () => undefin
 export default defineEffectBff({ api, layer, rpc: { group: fixtureRpcGroup, layer: handlers, path: '/rpc', serialization: 'json' } });`;
     const resolve = () => ({
       id: '/fixture/shared/rpc.ts',
-      source: `import { RpcGroup, Rpc } from 'effect/unstable/rpc'; export const fixtureRpcGroup = RpcGroup.make(Rpc.make('get', {}));`,
+      source: `import { RpcGroup, Rpc } from 'effect/rpc'; export const fixtureRpcGroup = RpcGroup.make(Rpc.make('get', {}));`,
     });
     expect(violation(source, resolve)).toBeUndefined();
     for (const invalid of [
@@ -167,7 +170,7 @@ export default defineEffectBff({ api, layer, rpc: { group: fixtureRpcGroup, laye
 describe('canonical Effect package provenance', () => {
   const node = direct.replace(
     "import { defineEffectBff, HttpApiBuilder, Layer } from '@modern-js/bff-effect/effect-edge';",
-    "import { defineEffectBff } from '@modern-js/bff-effect/effect';\nimport { HttpApiBuilder } from 'effect/unstable/httpapi';\nimport * as Layer from 'effect/Layer';",
+    "import { defineEffectBff } from '@modern-js/bff-effect/effect';\nimport { HttpApiBuilder } from 'effect/http-api';\nimport * as Layer from 'effect/Layer';",
   );
   test('accepts Node runtime imports split by owning module and preserves namespace aliases', () => {
     expect(violation(node)).toBeUndefined();
@@ -185,7 +188,7 @@ describe('canonical Effect package provenance', () => {
   });
   test.each([
     node.replace('import * as Layer', 'import type * as Layer'),
-    node.replace("'effect/unstable/httpapi'", "'@foreign/httpapi'"),
+    node.replace("'effect/http-api'", "'@foreign/httpapi'"),
     node.replace('HttpApiBuilder }', 'fake as HttpApiBuilder }'),
     node.replace('const handlers', 'const Layer = fake; const handlers'),
     node.replace(

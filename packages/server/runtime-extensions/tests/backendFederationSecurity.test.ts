@@ -402,18 +402,10 @@ describe('verified backend federation entry loading', () => {
     ) as { get(id: string): () => string };
 
     expect(builtinEntry.get('./effect-api')()).toBe('value');
-    const privateCapability = { register: () => undefined };
-    const capabilityEntry = evaluateNodeBackendFederationCommonJs(
-      'module.exports = { get: () => () => __modernjs_backend_private_capability__ };',
-      { remote: { entry: entryUrl, name: remoteName } },
-      privateCapability,
-    ) as { get(id: string): () => unknown };
-    expect(capabilityEntry.get('./effect-api')()).toBe(privateCapability);
     expect(() =>
       evaluateNodeBackendFederationCommonJs(
         "require('@attacker/package'); module.exports = { get() {} };",
         { remote: { entry: entryUrl, name: remoteName } },
-        privateCapability,
       ),
     ).toThrow(
       expect.objectContaining<Partial<BackendFederationRemoteEntryError>>({
@@ -424,32 +416,32 @@ describe('verified backend federation entry loading', () => {
 });
 
 describe('shared acquisition deadline', () => {
-  test.each([
-    'resource',
-    'entry',
-  ] as const)('%s settles despite noncooperative stream cancellation', async kind => {
-    let cancelled = false;
-    const fetch = async () =>
-      new Response(
-        new ReadableStream<Uint8Array>({
-          cancel() {
-            cancelled = true;
-            return new Promise(() => {});
-          },
-        }),
-      );
-    const policy = { fetch, timeoutMs: 10 };
-    const operation =
-      kind === 'resource'
-        ? loadBoundedBackendFederationResource(entryUrl, policy)
-        : loadVerifiedNodeEntry({
-            ...policy,
-            remote: { entry: entryUrl, name: remoteName },
-            verification: verification(),
-          });
-    await expect(operation).rejects.toMatchObject({ code: 'timeout' });
-    expect(cancelled).toBe(true);
-  });
+  test.each(['resource', 'entry'] as const)(
+    '%s settles despite noncooperative stream cancellation',
+    async kind => {
+      let cancelled = false;
+      const fetch = async () =>
+        new Response(
+          new ReadableStream<Uint8Array>({
+            cancel() {
+              cancelled = true;
+              return new Promise(() => {});
+            },
+          }),
+        );
+      const policy = { fetch, timeoutMs: 10 };
+      const operation =
+        kind === 'resource'
+          ? loadBoundedBackendFederationResource(entryUrl, policy)
+          : loadVerifiedNodeEntry({
+              ...policy,
+              remote: { entry: entryUrl, name: remoteName },
+              verification: verification(),
+            });
+      await expect(operation).rejects.toMatchObject({ code: 'timeout' });
+      expect(cancelled).toBe(true);
+    },
+  );
 
   test('the entry deadline includes SHA-256 and never evaluates after expiration', async () => {
     const evaluateCommonJs = rs.fn();

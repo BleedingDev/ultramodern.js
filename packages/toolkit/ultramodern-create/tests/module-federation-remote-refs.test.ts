@@ -16,6 +16,7 @@ import {
 import {
   createModuleFederationRemotesConfig,
   createModuleFederationRemoteUrlHelpers,
+  createSharedModuleFederationConfig,
 } from '../src/ultramodern-workspace/module-federation';
 
 function evaluateGeneratedRemoteManifestUrl(
@@ -44,7 +45,6 @@ module.exports = createRemoteManifestUrl({
     'VERTICAL_CATALOG_MF_MANIFEST',
     'VERTICAL_CATALOG_PUBLIC_URL',
     'ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN',
-    'ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS',
   ]);
   const previous = new Map([...names].map(name => [name, process.env[name]]));
   try {
@@ -94,10 +94,9 @@ test('module federation remote refs treat blank Cloudflare workers subdomain as 
     () =>
       evaluateGeneratedRemoteManifestUrl(helpers, {
         MODERNJS_DEPLOY: 'cloudflare',
-        ULTRAMODERN_CLOUDFLARE_REQUIRE_PUBLIC_URLS: 'true',
         ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN: '   ',
       }),
-    /Remote verticalCatalog:.*Cloudflare deploy requires VERTICAL_CATALOG_PUBLIC_URL/u,
+    /Remote verticalCatalog:.*set VERTICAL_CATALOG_PUBLIC_URL \(localhost fallback is disabled/u,
   );
 });
 
@@ -191,5 +190,29 @@ test('generated federation modules import i18n specifiers that really resolve', 
     }
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('generated shared config shares both JSX runtimes as React singletons', () => {
+  const { shared } = vm.runInNewContext(
+    `({${createSharedModuleFederationConfig()}})`,
+    {
+      dependencies: {},
+      pluginI18nVersion: 'i18n',
+      pluginTanstackVersion: 'tanstack',
+      reactDomVersion: 'react-dom',
+      reactVersion: 'react',
+      runtimeVersion: 'runtime',
+    },
+  );
+  for (const request of ['react/jsx-runtime', 'react/jsx-dev-runtime']) {
+    assert.deepEqual(
+      { ...shared[request] },
+      {
+        requiredVersion: 'react',
+        singleton: true,
+        treeShaking: false,
+      },
+    );
   }
 });

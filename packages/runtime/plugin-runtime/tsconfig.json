@@ -5,8 +5,10 @@
     "lib": ["DOM", "ESNext", "dom.iterable"],
     "jsx": "preserve",
     "isolatedModules": true,
-    "paths": {},
+    "paths": {
+      "@modern-js/runtime/context": ["./src/core/context/index.ts"]
+    },
     "rootDir": "./src"
   },
-  "include": ["src", "types"]
+  "include": ["src", "types", "../render/bundler-globals.d.ts"]
 }

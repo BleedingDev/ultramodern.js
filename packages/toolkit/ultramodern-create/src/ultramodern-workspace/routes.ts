@@ -110,28 +110,15 @@ export function createJsonLdHelperModule(): string {
   );
 }
 
-export function createRouteMetadataModule(app: WorkspaceApp): string {
-  const routes = createRouteOwnedI18nPaths(app)
-    .map(route => ({
-      file: createRouteMetaFilePath(app, route.canonicalPath),
-    }))
-    .sort((left, right) =>
-      left.file < right.file ? -1 : left.file > right.file ? 1 : 0,
-    );
-  const routesRoot = `${app.directory}/src/routes/`;
-  const imports = routes.map(({ file }, index) => {
-    const relative = file.slice(routesRoot.length).replace(/\.ts$/u, '');
-    return `import { routeMeta as route${index} } from ${JSON.stringify(`./${relative}`)};`;
-  });
-  const namespace = appI18nNamespace(app);
-
+/**
+ * The manifest `ultramodern-create ultramodern routes-generate` writes for the
+ * single `[lang]/route.meta.ts` a new app starts with. plugin-tanstack owns the
+ * format; tests keep this copy byte-identical to its output.
+ */
+export function createRouteMetadataModule(): string {
   return renderFileTemplate(
     'workspace/apps/shared/src/routes/ultramodern-route-metadata.ts',
-    {
-      value0: imports.join('\n'),
-      value1: JSON.stringify(namespace),
-      value2: routes.map((_, index) => `route${index}`).join(', '),
-    },
+    {},
   );
 }
 

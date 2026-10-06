@@ -32,9 +32,9 @@ const reactProfile: RendererProfile = {
   hydration: { name: 'react-dom', version: '19.3.0' },
   router: {
     name: '@tanstack/react-router',
-    version: '1.170.39',
+    version: '1.170.41',
     coreName: '@tanstack/router-core',
-    coreVersion: '1.171.32',
+    coreVersion: '1.171.34',
   },
 };
 
@@ -153,42 +153,43 @@ it('keeps API-only artifacts headless when compiler identity is resolved', () =>
   });
 });
 
-it.each(
-  nativeProfiles,
-)('preserves the $renderer profile through compiler identity resolution', profile => {
-  const nativeArtifact = createUltramodernBuildArtifact(deliveryUnit, {
-    ui: {
-      identity: {
-        renderer: profile.renderer,
-        appId: deliveryUnit.appId,
-        entryName: 'main',
-        protocolVersion: 1,
-        buildId: deliveryUnit.buildMarker,
+it.each(nativeProfiles)(
+  'preserves the $renderer profile through compiler identity resolution',
+  profile => {
+    const nativeArtifact = createUltramodernBuildArtifact(deliveryUnit, {
+      ui: {
+        identity: {
+          renderer: profile.renderer,
+          appId: deliveryUnit.appId,
+          entryName: 'main',
+          protocolVersion: 1,
+          buildId: deliveryUnit.buildMarker,
+        },
+        profile,
+        routerBindings: controlledRouterBindings(profile),
       },
-      profile,
-      routerBindings: controlledRouterBindings(profile),
-    },
-  });
-  const result = resolveUltramodernBuildArtifact(nativeArtifact, readers);
+    });
+    const result = resolveUltramodernBuildArtifact(nativeArtifact, readers);
 
-  expect(validateUltramodernBuildArtifact(result).ok).toBe(true);
-  expect(result.surfaces.ui?.rendererIdentity.buildId).toBe('compiled-build');
-  expect(result.surfaces.ui?.routerBindings).toEqual(
-    controlledRouterBindings(profile),
-  );
-  expect(() =>
-    assertRendererProfileCompatibility(
-      profile,
-      result.surfaces.ui?.rendererProfile,
-    ),
-  ).not.toThrow();
-  expect(() =>
-    assertRendererProfileCompatibility(
-      reactProfile,
-      result.surfaces.ui?.rendererProfile,
-    ),
-  ).toThrow('cross-renderer components are unsupported');
-});
+    expect(validateUltramodernBuildArtifact(result).ok).toBe(true);
+    expect(result.surfaces.ui?.rendererIdentity.buildId).toBe('compiled-build');
+    expect(result.surfaces.ui?.routerBindings).toEqual(
+      controlledRouterBindings(profile),
+    );
+    expect(() =>
+      assertRendererProfileCompatibility(
+        profile,
+        result.surfaces.ui?.rendererProfile,
+      ),
+    ).not.toThrow();
+    expect(() =>
+      assertRendererProfileCompatibility(
+        reactProfile,
+        result.surfaces.ui?.rendererProfile,
+      ),
+    ).toThrow('cross-renderer components are unsupported');
+  },
+);
 
 it('rejects obsolete and incompatible renderer metadata at the runtime boundary', () => {
   const obsoleteArtifact = JSON.parse(

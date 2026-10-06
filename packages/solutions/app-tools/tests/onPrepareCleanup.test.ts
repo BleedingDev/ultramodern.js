@@ -76,23 +76,22 @@ describe('app-tools onPrepare dist cleanup', () => {
     }
   });
 
-  it.each([
-    'dev',
-    'start',
-    'build',
-  ])('empties dist for programmatic appContext.command=%s', async command => {
-    // argv is a non-build command (e.g. a test runner), so cleanup must come
-    // from the programmatic appContext.command fallback.
-    process.env.MODERN_ARGV = 'node rstest test';
-    const harness = setupPrepare({ contextCommand: command });
-    try {
-      await harness.runPrepare();
-      expect(fs.existsSync(harness.distDirectory)).toBe(true);
-      expect(fs.readdirSync(harness.distDirectory)).toEqual([]);
-    } finally {
-      harness.cleanup();
-    }
-  });
+  it.each(['dev', 'start', 'build'])(
+    'empties dist for programmatic appContext.command=%s',
+    async command => {
+      // argv is a non-build command (e.g. a test runner), so cleanup must come
+      // from the programmatic appContext.command fallback.
+      process.env.MODERN_ARGV = 'node rstest test';
+      const harness = setupPrepare({ contextCommand: command });
+      try {
+        await harness.runPrepare();
+        expect(fs.existsSync(harness.distDirectory)).toBe(true);
+        expect(fs.readdirSync(harness.distDirectory)).toEqual([]);
+      } finally {
+        harness.cleanup();
+      }
+    },
+  );
 
   it('does not clean dist when cleanDistPath is disabled', async () => {
     process.env.MODERN_ARGV = 'node rstest test';

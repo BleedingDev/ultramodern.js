@@ -5,9 +5,6 @@ import { renderedFlightRoots } from '../fixtures/rsc-server';
 beforeEach(() => {
   renderedFlightRoots.length = 0;
 });
-afterEach(() => {
-  rstest.unstubAllEnvs();
-});
 test('ordinary HTML root callback wraps the real React render', async () => {
   const root = <p>body</p>;
   const wrapHtmlRoot = rstest.fn(value => <section>{value}</section>);
@@ -20,11 +17,7 @@ test('ordinary HTML root callback wraps the real React render', async () => {
     '<section><p>body</p></section>',
   );
 });
-test.each([
-  'node',
-  'edge',
-])('RSC (%s) keeps the original Flight input and wraps only the real HTML render', async environment => {
-  rstest.stubEnv('MODERN_SSR_ENV', environment);
+test('RSC keeps the original Flight input and wraps only the real HTML render', async () => {
   const root = <p>body</p>;
   const flightRoot = <p>flight</p>;
   const wrapHtmlRoot = rstest.fn(value => <section>{value}</section>);

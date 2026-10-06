@@ -98,3 +98,21 @@ test('parallel nested runners reuse their owner artifacts without invoking the p
     { packages: {}, allowBuilds: {} },
   ]);
 });
+
+test('an empty inherited manifest still invokes genuine cold package preparation', async () => {
+  const fixture = command('');
+  const run = promisify(execFile);
+  const runner = path.resolve(__dirname, 'runWithPrerequisites.mjs');
+  await expect(
+    run(
+      process.execPath,
+      [runner, '--prepared', '--', process.execPath, '-e', 'process.exit(0)'],
+      {
+        cwd: fixture.cwd,
+        // A cold runner must try the real package manager before launching
+        // its child. An empty optional CI output must not bypass packing.
+        env: { ...process.env, PATH: '', MODERN_TEST_PACKAGE_MANIFEST: '' },
+      },
+    ),
+  ).rejects.toThrow(/pnpm/u);
+});

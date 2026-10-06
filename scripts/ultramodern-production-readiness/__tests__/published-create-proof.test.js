@@ -7,6 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 const { writeJsonFile } = require('../../lib/fs-kit');
+const { createGitFixture } = require('../../lib/git-fixture');
 const { createProcessEnv } = require('../../lib/process-kit');
 
 function writeJson(root, relativePath, value) {
@@ -414,10 +415,7 @@ test('bootstrap admits only the exact reachable sidecar runtime and optional clo
   const jiti = makeBootstrapSidecar('@bleedingdev/jiti', '2.7.0');
   const runtime = makeBootstrapSidecar('@bleedingdev/mf-runtime', '2.9.1');
   const node = makeBootstrapSidecar('@bleedingdev/mf-node', '2.7.51');
-  const image = makeBootstrapSidecar(
-    '@bleedingdev/rsbuild-image-core',
-    '0.1.4',
-  );
+  const image = makeBootstrapSidecar('@bleedingdev/optional-native', '0.1.4');
   const modern = makeBootstrapSidecar('@bleedingdev/mf-modern-js-v3', '2.9.1', {
     dependencies: {
       '@module-federation/runtime': `npm:${runtime.name}@${runtime.version}`,
@@ -569,8 +567,8 @@ test('bootstrap rejects invalid sidecar observations and cannot forge sidecar ex
   );
 });
 
-test('fresh-release installs use exact command-scoped cohort and source sidecar selectors', async () => {
-  const { resolveAcceptanceReleaseAgeExclusions } = await import(
+test('fresh-release installs use one exact cohort and sidecar selector set', async t => {
+  const { releaseAgeExemptions } = await import(
     '../published-create-proof/release-age-audit.mjs'
   );
   const { createAcceptanceReleaseAgeEnv } = await import(
@@ -579,38 +577,41 @@ test('fresh-release installs use exact command-scoped cohort and source sidecar 
   const { resolveCreatePackage } = await import(
     '../published-create-proof/package-cohort.mjs'
   );
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'release-age-set-'));
+  t.after(() => fs.rmSync(root, { force: true, recursive: true }));
+  const policyPath = path.join(root, 'release-age-policy.json');
+  writeJson(root, 'release-age-policy.json', {
+    schema: 'bleedingdev.ultramodern.release-age-exceptions',
+    schemaVersion: 2,
+    entries: [],
+  });
   const release = makeBootstrapRelease();
   release.sidecars = {
     packages: [makeBootstrapSidecar('@bleedingdev/mf-bridge-react', '1.0.0')],
   };
-  const published = resolveAcceptanceReleaseAgeExclusions({
-    release,
-    mode: 'published',
-  });
-  const source = resolveAcceptanceReleaseAgeExclusions({
-    release,
-    mode: 'source',
-  });
-  assert.equal(published.length, release.packages.length);
-  assert.deepEqual(
-    source,
-    [...published, '@bleedingdev/mf-bridge-react@1.0.0'].sort(),
+  const exemptions = releaseAgeExemptions(release, { policyPath });
+  assert.equal(exemptions.length, release.packages.length + 1);
+  assert.ok(exemptions.includes('@bleedingdev/mf-bridge-react@1.0.0'));
+  // No lane may derive a set without the reviewed policy.
+  assert.throws(
+    () => releaseAgeExemptions(release, {}),
+    /require the reviewed exception policy path/u,
   );
   const env = createAcceptanceReleaseAgeEnv(
     { PATH: '/exact/pnpm' },
     resolveCreatePackage(release),
-    source,
+    exemptions,
   );
   assert.equal(
     env.pnpm_config_minimum_release_age_exclude,
-    JSON.stringify(source),
+    JSON.stringify(exemptions),
   );
   assert.equal(env.pnpm_config_minimum_release_age, '1440');
   assert.equal(env.pnpm_config_minimum_release_age_strict, 'true');
   assert.equal(env.PATH, '/exact/pnpm');
   release.sidecars.packages[0].version = '1.*';
   assert.throws(
-    () => resolveAcceptanceReleaseAgeExclusions({ release, mode: 'source' }),
+    () => releaseAgeExemptions(release, { policyPath }),
     /Acceptance command release-age exclusions/u,
   );
 });
@@ -1064,22 +1065,16 @@ test('acceptance Git setup refuses to commit into an enclosing repository', asyn
   const { configureAcceptanceWorkspaceGit } = await import(
     '../published-create-proof/acceptance-profile.mjs'
   );
-  const fixture = fs.mkdtempSync(
-    path.join(os.tmpdir(), 'acceptance-git-root-'),
-  );
-  const parent = path.join(fixture, 'parent');
+  const fixture = createGitFixture({ prefix: 'acceptance-git-root-' });
+  const parent = fixture.repoDir;
   const nested = path.join(parent, 'generated');
-  const env = {
-    GIT_CONFIG_GLOBAL: path.join(fixture, 'empty-gitconfig'),
-    GIT_CONFIG_NOSYSTEM: '1',
-  };
   const calls = [];
   const runImpl = (command, args, options = {}) => {
     calls.push(args);
     const result = spawnSync(command, args, {
       cwd: options.cwd ?? parent,
       encoding: 'utf8',
-      env: createProcessEnv({ ...env, ...options.env }),
+      env: options.env ?? fixture.env,
       stdio: 'pipe',
     });
     assert.equal(result.status, 0, result.stderr || result.stdout);
@@ -1087,13 +1082,10 @@ test('acceptance Git setup refuses to commit into an enclosing repository', asyn
   };
   try {
     fs.mkdirSync(nested, { recursive: true });
-    fs.writeFileSync(env.GIT_CONFIG_GLOBAL, '');
     runImpl('git', ['init', '--quiet']);
-    runImpl('git', ['config', 'user.name', 'Parent Author']);
-    runImpl('git', ['config', 'user.email', 'parent@example.test']);
     fs.writeFileSync(path.join(parent, 'tracked.txt'), 'initial\n');
     runImpl('git', ['add', 'tracked.txt']);
-    runImpl('git', ['-c', 'commit.gpgsign=false', 'commit', '-m', 'initial']);
+    runImpl('git', ['commit', '--quiet', '-m', 'initial']);
     fs.writeFileSync(path.join(parent, 'tracked.txt'), 'staged\n');
     runImpl('git', ['add', 'tracked.txt']);
     fs.writeFileSync(path.join(parent, 'tracked.txt'), 'unstaged\n');
@@ -1110,7 +1102,7 @@ test('acceptance Git setup refuses to commit into an enclosing repository', asyn
     // rewrite their working tree.
     calls.length = 0;
     assert.throws(
-      () => configureAcceptanceWorkspaceGit(nested, env, runImpl),
+      () => configureAcceptanceWorkspaceGit(nested, fixture.env, runImpl),
       /workspace must be its own Git root:.*Use a work directory outside an existing repository/u,
     );
     assert.deepEqual(calls, [['rev-parse', '--show-toplevel']]);
@@ -1123,7 +1115,7 @@ test('acceptance Git setup refuses to commit into an enclosing repository', asyn
     }
     assert.equal(runImpl('git', ['rev-parse', 'HEAD']), originalHead);
   } finally {
-    fs.rmSync(fixture, { recursive: true, force: true });
+    fixture.cleanup();
   }
 });
 

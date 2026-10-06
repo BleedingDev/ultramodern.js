@@ -179,7 +179,7 @@ export const createCli = <Extends extends CLIPluginExtends>() => {
   }
   async function run(options: CLIRunOptions<Extends>) {
     const { appContext } = await init(options);
-    await appContext.hooks.addCommand.call({ program });
+    await appContext.hooks.addCommand.call({ program: initCommandsMap() });
 
     await createFileWatcher(appContext);
 

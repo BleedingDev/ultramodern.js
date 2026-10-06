@@ -9,7 +9,6 @@ import {
   initAppContext,
   initPluginAPI,
 } from '@modern-js/plugin/cli';
-import { type RuntimePlugin, runtime } from '@modern-js/plugin/runtime';
 import { tanstackRouterPlugin } from '@modern-js/plugin-tanstack';
 import {
   routerPlugin as nativeRouterCliPlugin,
@@ -22,6 +21,13 @@ import {
 import { rspack } from '@rsbuild/core';
 
 const integrationPath = '@modern-js/ultramodern-app-tools/router-runtime';
+const stateIntegrationPath =
+  '@modern-js/ultramodern-app-tools/router-state-runtime';
+const expectedStateDescriptor: RuntimePluginConfig = {
+  name: 'routerState',
+  path: stateIntegrationPath,
+  config: {},
+};
 
 async function initializeRouterCli({
   tanstack = false,
@@ -70,29 +76,34 @@ async function initializeRouterCli({
   return { api, appDirectory, plugins };
 }
 
-async function evaluateRouterRuntime(descriptor: RuntimePluginConfig) {
-  const fixture = fs.mkdtempSync(
-    path.join(os.tmpdir(), 'um-router-registration-'),
-  );
+async function evaluateRouterRuntime(
+  descriptor: RuntimePluginConfig,
+  stateDescriptor: RuntimePluginConfig,
+) {
   const source = `import { ${descriptor.name}Plugin as selectedFactory } from ${JSON.stringify(descriptor.path)};
+import { ${stateDescriptor.name}Plugin as stateFactory } from ${JSON.stringify(stateDescriptor.path)};
 import { runtime } from '@modern-js/plugin/runtime';
 import { getInitialContext } from '@modern-js/runtime/context';
 import { routerProviderRegistryHooks } from '@modern-js/runtime/router/internal';
 import { getRouterRuntimeState } from '@modern-js/runtime-extensions/router-state';
 export async function acceptance() {
   const plugin = selectedFactory(${JSON.stringify(descriptor.config)});
+  const statePlugin = stateFactory(${JSON.stringify(stateDescriptor.config)});
   const observations = [];
   const consumer = {
     name: 'consumer-observes-router',
     pre: ['@modern-js/plugin-router'],
     setup(api) {
       api.onAfterCreateRouter(event => {
-        observations.push(getRouterRuntimeState(event.runtimeContext)?.instance);
+        observations.push({
+          instance: getRouterRuntimeState(event.runtimeContext)?.instance,
+          policyInstalled: event.runtimeContext.linkPrefetchPolicy !== undefined,
+        });
       });
     },
   };
   const { runtimeContext } = runtime.run({
-    config: { router: { framework: 'react-router' } }, plugins: [consumer, plugin],
+    config: { router: { framework: 'react-router' } }, plugins: [consumer, plugin, statePlugin],
   });
   const context = getInitialContext(true);
   const windowDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'window');
@@ -110,12 +121,87 @@ export async function acceptance() {
   });
   return {
     canonicalRegistry: plugin.registryHooks === routerProviderRegistryHooks,
+    stateCanonicalRegistry: statePlugin.registryHooks === routerProviderRegistryHooks,
     policyInstalled: context.linkPrefetchPolicy !== undefined,
     nativeLinkInstalled: context.router?.Link !== undefined,
-    observedNativeInstance: observations.length === 1 && observations[0] === instance,
+    observedNativeInstance: observations.length === 1 && observations[0].instance === instance,
+    policyInstalledBeforeConsumer: observations.length === 1 && observations[0].policyInstalled,
     basename: getRouterRuntimeState(context)?.basename,
   };
 }`;
+  return evaluateRuntimeExport(source);
+}
+
+async function evaluateRouterStateRuntime(descriptor: RuntimePluginConfig) {
+  const source = `import { ${descriptor.name}Plugin as stateFactory } from ${JSON.stringify(descriptor.path)};
+import { runtime } from '@modern-js/plugin/runtime';
+import { getInitialContext, routerProviderRegistryHooks } from '@modern-js/runtime/context';
+import { applyRouterServerPrepareResult } from '@modern-js/runtime-extensions/router-state';
+export async function acceptance() {
+  const statePlugin = stateFactory(${JSON.stringify(descriptor.config)});
+  const failure = new Error('custom router loader failed');
+  const nativeFailure = new Error('native fallback loader failed');
+  let cleanupCalls = 0;
+  let policyInstalledBeforePreparation = false;
+  let context;
+  const observations = [];
+  const provider = {
+    name: '@modern-js/plugin-tanstack',
+    setup(api) {
+      api.onBeforeRender(runtimeContext => {
+        policyInstalledBeforePreparation = runtimeContext.linkPrefetchPolicy !== undefined;
+        applyRouterServerPrepareResult(runtimeContext, {
+          state: { framework: 'custom-router' },
+          snapshot: { framework: 'custom-router', statusCode: 418, errors: { route: failure } },
+          cleanup: () => { cleanupCalls += 1; },
+        });
+      });
+    },
+  };
+  const consumer = {
+    name: 'consumer-observes-custom-router',
+    pre: ['@modern-js/router-runtime-policy'],
+    setup(api) {
+      api.onRenderPrepared(info => {
+        observations.push(info.routerResult?.statusCode === 418 && info.routerResult?.errors?.route === failure);
+        return info;
+      });
+      api.onRequestEnd(info => {
+        observations.push(info.runtimeContext === context && info.terminal.status === 'complete');
+      });
+    },
+  };
+  const { runtimeContext } = runtime.run({
+    config: { router: { framework: 'custom-router' } }, plugins: [consumer, provider, statePlugin],
+  });
+  context = getInitialContext(false);
+  context.routerContext = { statusCode: 404, errors: { native: nativeFailure } };
+  await runtimeContext.hooks.onBeforeRender.call(context);
+  const prepared = await runtimeContext.hooks.onRenderPrepared.call({
+    runtimeContext: context, routerResult: context.routerContext,
+  });
+  const cleanupBeforeEnd = cleanupCalls;
+  await runtimeContext.hooks.onRequestEnd.call({
+    runtimeContext: context, terminal: { status: 'complete' },
+  });
+  return {
+    canonicalRegistry: statePlugin.registryHooks === routerProviderRegistryHooks,
+    policyInstalledBeforePreparation,
+    snapshotStatus: prepared.routerResult?.statusCode,
+    snapshotErrorPreserved: prepared.routerResult?.errors?.route === failure,
+    nativeFallbackPreserved: context.routerContext.statusCode === 404 && context.routerContext.errors.native === nativeFailure,
+    cleanupBeforeEnd,
+    cleanupCalls,
+    laterConsumersObservedState: observations.length === 2 && observations.every(Boolean),
+  };
+}`;
+  return evaluateRuntimeExport(source);
+}
+
+async function evaluateRuntimeExport(source: string) {
+  const fixture = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'um-router-registration-'),
+  );
   const fixtureScope = path.join(fixture, 'node_modules/@modern-js');
   fs.mkdirSync(fixtureScope, { recursive: true });
   // An external consumer resolves the package through its installed link,
@@ -186,42 +272,55 @@ describe('canonical router composition', () => {
       metadata: {},
       router: { framework: 'react-router' },
     },
-  ])('replaces the actual native descriptor for each $label entry', async ({
-    metadata,
-    router,
-  }) => {
-    const { api, appDirectory } = await initializeRouterCli({
-      router,
-    });
-    for (const entryName of ['main', 'admin']) {
-      const entrypoint = {
-        entryName,
-        entry: path.join(appDirectory, 'src', entryName, 'App.tsx'),
-        ...metadata,
-      };
-      const consumer = {
-        name: 'consumer',
-        path: './consumer-runtime',
-        config: { untouched: true },
-      };
-      const result = await api
-        .getHooks()
-        ._internalRuntimePlugins.call({ entrypoint, plugins: [consumer] });
-      const routers = result.plugins.filter(plugin => plugin.name === 'router');
-      expect(routers).toEqual([
-        {
-          name: 'router',
-          path: integrationPath,
-          config: { serverBase: [entryName === 'main' ? '/store' : '/admin'] },
-        },
-      ]);
-      expect(result.entrypoint).toBe(entrypoint);
-      expect(result.plugins[0]).toBe(consumer);
-      expect(
-        result.plugins.filter(plugin => plugin.name === 'rendererHead'),
-      ).toHaveLength(1);
-    }
-  });
+  ])(
+    'replaces the actual native descriptor for each $label entry',
+    async ({ metadata, router }) => {
+      const { api, appDirectory } = await initializeRouterCli({
+        router,
+      });
+      for (const entryName of ['main', 'admin']) {
+        const entrypoint = {
+          entryName,
+          entry: path.join(appDirectory, 'src', entryName, 'App.tsx'),
+          ...metadata,
+        };
+        const consumer = {
+          name: 'consumer',
+          path: './consumer-runtime',
+          config: { untouched: true },
+        };
+        const result = await api
+          .getHooks()
+          ._internalRuntimePlugins.call({ entrypoint, plugins: [consumer] });
+        const routers = result.plugins.filter(
+          plugin => plugin.name === 'router',
+        );
+        expect(routers).toEqual([
+          {
+            name: 'router',
+            path: integrationPath,
+            config: {
+              serverBase: [entryName === 'main' ? '/store' : '/admin'],
+            },
+          },
+        ]);
+        expect(result.entrypoint).toBe(entrypoint);
+        expect(result.plugins[0]).toBe(consumer);
+        expect(
+          result.plugins.filter(plugin => plugin.name === 'rendererHead'),
+        ).toHaveLength(1);
+        expect(
+          result.plugins.filter(plugin => plugin.name === 'routerState'),
+        ).toEqual([expectedStateDescriptor]);
+        const repeated = await api
+          .getHooks()
+          ._internalRuntimePlugins.call(result);
+        expect(
+          repeated.plugins.filter(plugin => plugin.name === 'routerState'),
+        ).toEqual([expectedStateDescriptor]);
+      }
+    },
+  );
 
   test.each([
     {
@@ -245,58 +344,86 @@ describe('canonical router composition', () => {
       name: 'router',
       runtimePath: integrationPath,
     },
-  ])('preserves selected routing for $label when TanStack is installed', async ({
-    metadata,
-    name,
-    runtimePath,
-  }) => {
-    const { api, appDirectory } = await initializeRouterCli({
-      tanstack: true,
-      router: { framework: 'tanstack' },
-    });
-    const result = await api.getHooks()._internalRuntimePlugins.call({
-      entrypoint: {
+  ])(
+    'preserves selected routing for $label when TanStack is installed',
+    async ({ metadata, name, runtimePath }) => {
+      const { api, appDirectory } = await initializeRouterCli({
+        tanstack: true,
+        router: { framework: 'tanstack' },
+      });
+      const result = await api.getHooks()._internalRuntimePlugins.call({
+        entrypoint: {
+          entryName: 'main',
+          entry: path.join(appDirectory, 'src/App.tsx'),
+          ...metadata,
+        },
+        plugins: [],
+      });
+      expect(
+        result.plugins.filter(plugin =>
+          ['router', 'tanstackRouter'].includes(plugin.name),
+        ),
+      ).toEqual([
+        {
+          name,
+          path: runtimePath,
+          config: { serverBase: ['/store'] },
+        },
+      ]);
+      expect(
+        result.plugins.filter(plugin => plugin.name === 'routerState'),
+      ).toEqual([expectedStateDescriptor]);
+      const repeated = await api
+        .getHooks()
+        ._internalRuntimePlugins.call(result);
+      expect(
+        repeated.plugins.filter(plugin => plugin.name === 'routerState'),
+      ).toEqual([expectedStateDescriptor]);
+    },
+  );
+
+  test.each(['./custom-router', '@foreign/router/runtime'])(
+    'preserves explicit descriptor %s and observes plain entries',
+    async runtimePath => {
+      const { api, appDirectory } = await initializeRouterCli();
+      const entrypoint = {
         entryName: 'main',
         entry: path.join(appDirectory, 'src/App.tsx'),
-        ...metadata,
-      },
-      plugins: [],
-    });
-    expect(
-      result.plugins.filter(plugin =>
-        ['router', 'tanstackRouter'].includes(plugin.name),
-      ),
-    ).toEqual([
-      {
-        name,
+      };
+      const custom: RuntimePluginConfig = {
+        name: 'router',
         path: runtimePath,
-        config: { serverBase: ['/store'] },
-      },
-    ]);
-  });
-
-  test('preserves explicit custom descriptors and does not install a router in plain entries', async () => {
-    const { api, appDirectory } = await initializeRouterCli();
-    const entrypoint = {
-      entryName: 'main',
-      entry: path.join(appDirectory, 'src/App.tsx'),
-    };
-    const custom: RuntimePluginConfig = {
-      name: 'router',
-      path: './custom-router',
-      config: { custom: true },
-    };
-    const result = await api
-      .getHooks()
-      ._internalRuntimePlugins.call({ entrypoint, plugins: [custom] });
-    expect(result.plugins.find(plugin => plugin.name === 'router')).toBe(
-      custom,
-    );
-    const plain = await api
-      .getHooks()
-      ._internalRuntimePlugins.call({ entrypoint, plugins: [] });
-    expect(plain.plugins.some(plugin => plugin.name === 'router')).toBe(false);
-  });
+        config: { custom: true },
+      };
+      const result = await api
+        .getHooks()
+        ._internalRuntimePlugins.call({ entrypoint, plugins: [custom] });
+      expect(result.plugins.find(plugin => plugin.name === 'router')).toBe(
+        custom,
+      );
+      expect(
+        result.plugins.filter(plugin => plugin.name === 'routerState'),
+      ).toEqual([expectedStateDescriptor]);
+      const repeated = await api
+        .getHooks()
+        ._internalRuntimePlugins.call(result);
+      expect(
+        repeated.plugins.filter(plugin => plugin.name === 'routerState'),
+      ).toEqual([expectedStateDescriptor]);
+      expect(repeated.plugins.find(plugin => plugin.name === 'router')).toBe(
+        custom,
+      );
+      const plain = await api
+        .getHooks()
+        ._internalRuntimePlugins.call({ entrypoint, plugins: [] });
+      expect(plain.plugins.some(plugin => plugin.name === 'router')).toBe(
+        false,
+      );
+      expect(
+        plain.plugins.filter(plugin => plugin.name === 'routerState'),
+      ).toEqual([expectedStateDescriptor]);
+    },
+  );
 
   test('the public selected factory installs policy before native and later lifecycle consumers', async () => {
     const { api, appDirectory } = await initializeRouterCli({
@@ -314,13 +441,49 @@ describe('canonical router composition', () => {
     );
     expect(descriptor?.name).toBe('router');
     if (!descriptor) throw new Error('Missing canonical router descriptor');
-    const acceptance = await evaluateRouterRuntime(descriptor);
+    const stateDescriptor = result.plugins.find(
+      plugin => plugin.name === 'routerState',
+    );
+    if (!stateDescriptor) throw new Error('Missing router state descriptor');
+    const acceptance = await evaluateRouterRuntime(descriptor, stateDescriptor);
     expect(acceptance).toEqual({
       canonicalRegistry: true,
+      stateCanonicalRegistry: true,
       policyInstalled: true,
       nativeLinkInstalled: true,
       observedNativeInstance: true,
+      policyInstalledBeforeConsumer: true,
       basename: '/store',
+    });
+  });
+
+  test('the separate public state factory observes custom SSR snapshots and ends request resources', async () => {
+    const { api, appDirectory } = await initializeRouterCli();
+    const result = await api.getHooks()._internalRuntimePlugins.call({
+      entrypoint: {
+        entryName: 'main',
+        entry: path.join(appDirectory, 'src/App.tsx'),
+      },
+      plugins: [],
+    });
+    expect(result.plugins.some(plugin => plugin.name === 'router')).toBe(false);
+    expect(
+      result.plugins.filter(plugin => plugin.name === 'routerState'),
+    ).toEqual([expectedStateDescriptor]);
+    const stateDescriptor = result.plugins.find(
+      plugin => plugin.name === 'routerState',
+    );
+    if (!stateDescriptor) throw new Error('Missing router state descriptor');
+
+    expect(await evaluateRouterStateRuntime(stateDescriptor)).toEqual({
+      canonicalRegistry: true,
+      policyInstalledBeforePreparation: true,
+      snapshotStatus: 418,
+      snapshotErrorPreserved: true,
+      nativeFallbackPreserved: true,
+      cleanupBeforeEnd: 0,
+      cleanupCalls: 1,
+      laterConsumersObservedState: true,
     });
   });
 });

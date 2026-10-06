@@ -31,23 +31,24 @@ import {
 } from '../published-create-proof/acceptance-profile.mjs';
 import { writeJsonFile } from '../published-create-proof/constants.mjs';
 import {
-  assertBootstrapReleaseAgePolicy,
   createPnpmDlxArgs,
   resolveCreatePackage,
 } from '../published-create-proof/package-cohort.mjs';
 import { run } from '../published-create-proof/process.mjs';
 import {
-  resolveAcceptanceReleaseAgeExclusions,
+  releaseAgeExemptions,
   validateExactExclusions,
 } from '../published-create-proof/release-age-audit.mjs';
-import { prepareTractorCohortInstallation } from './cohort-install.mjs';
 import {
   assertAuthenticatedTractorCohort,
   assertExactModernDependencySpecifiers,
+  prepareTractorCohortInstallation,
+} from './cohort-install.mjs';
+import {
   assertNativeTanStackSearch,
+  assertTractorAcceptanceReport,
   assertVisibleTractorUi,
   promotableTractorAcceptanceMode,
-  requiredTractorCheckIds,
   requiredVisibleRuntimePlatforms,
   tractorAcceptanceModes,
 } from './contract.mjs';
@@ -90,28 +91,6 @@ const executionCommands = Object.freeze([
     .slice(1)
     .map(command => Object.freeze({ command, report: true })),
 ]);
-
-function resolveTractorMinimumReleaseAgeExclude({
-  mode = promotableTractorAcceptanceMode,
-  release,
-  releaseAgePolicyPath,
-  now = new Date(),
-}) {
-  if (
-    typeof releaseAgePolicyPath !== 'string' ||
-    releaseAgePolicyPath.length === 0
-  ) {
-    throw new Error(
-      'Tractor bootstrap requires the audited release-age exception policy path',
-    );
-  }
-  return resolveAcceptanceReleaseAgeExclusions({
-    release,
-    mode,
-    policyPath: releaseAgePolicyPath,
-    now,
-  });
-}
 
 function createTractorPnpmDlxArgs(
   createPackage,
@@ -771,10 +750,8 @@ async function runTractorDownstreamAcceptance(
   });
   const createPackage = resolveCreatePackage(release);
   const startedAt = new now();
-  const minimumReleaseAgeExclude = resolveTractorMinimumReleaseAgeExclude({
-    mode,
-    release,
-    releaseAgePolicyPath: options.releaseAgePolicyPath,
+  const minimumReleaseAgeExclude = releaseAgeExemptions(release, {
+    policyPath: options.releaseAgePolicyPath,
     now: startedAt,
   });
   const packageManagerRoot = fs.mkdtempSync(
@@ -980,22 +957,16 @@ async function runTractorDownstreamAcceptance(
         ]),
       ),
     });
-    const checkIds = report.checks.map(check => check.id);
-    if (JSON.stringify(checkIds) !== JSON.stringify(requiredTractorCheckIds)) {
-      throw new Error(
-        'Tractor acceptance did not execute every required check exactly once and in contract order',
-      );
-    }
-    for (const platform of requiredVisibleRuntimePlatforms) {
-      const detail = report.checks.find(
-        check => check.id === `${platform}-visible-tractor-workflow`,
-      )?.detail;
-      if (detail?.platform !== platform) {
-        throw new Error(
-          `Tractor acceptance is missing ${platform} visible workflow evidence`,
-        );
-      }
-    }
+    // The recorder's contract, asserted before this report may claim `passed`:
+    // both lanes run it, so a rehearsal catches report drift before publish.
+    assertTractorAcceptanceReport(
+      { ...report, status: 'passed' },
+      {
+        baselineRevision: report.tractor.baselineRevision,
+        manifest: release,
+        mode,
+      },
+    );
     report.finishedAt = new now().toISOString();
     report.status = 'passed';
     return report;
@@ -1142,10 +1113,8 @@ export {
   proveNodeServerRenderedSsr,
   readPassingNodeBackendProof,
   requiredCommands,
-  requiredTractorCheckIds,
   requiredVisibleRuntimePlatforms,
   resolveAcceptanceRegistryEnv,
-  resolveTractorMinimumReleaseAgeExclude,
   runTractorDownstreamAcceptance,
   runVisibleWorkflow,
   sourceCandidateRegistryPath,
