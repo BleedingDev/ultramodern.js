@@ -10,9 +10,22 @@ import {
   readRendererFederationContract,
   rendererFederationError,
 } from '@modern-js/federation-runtime/renderer-contract';
+import type { Renderer } from '@modern-js/renderer-core';
 import type { Rspack } from '@rsbuild/core';
 import { readRendererFrameworkPackage } from './renderer-installed-profile';
 import { resolveRendererProfileMetadata } from './renderer-profile';
+
+/** The CLI plugin that installs native MF for non-React renderers. */
+export const NATIVE_MODULE_FEDERATION_PLUGIN =
+  '@modern-js/ultramodern-native-module-federation';
+
+/** Native renderer runtime and bootstrap owners stamped into MF publications. */
+const NATIVE_FEDERATION_OWNERS: Readonly<
+  Record<Exclude<Renderer, 'react'>, { runtime: string; bootstrap: string }>
+> = {
+  solid: { runtime: 'solid-js', bootstrap: '@modern-js/renderer-solid' },
+  octane: { runtime: 'octane', bootstrap: '@modern-js/renderer-octane' },
+};
 
 const NATIVE_PLUGINS = [
   'plugin-module-federation',
@@ -57,8 +70,52 @@ export function resolveRendererFederationRuntimePlugin(
   );
 }
 
+/** Resolve the consuming renderer tuple from the selected installed owners. */
+export function resolveRendererFederationCompatibility(
+  renderer: Renderer,
+): RendererFederationCompatibility {
+  if (renderer === 'react') return resolveReactFederationCompatibility();
+  const owners = NATIVE_FEDERATION_OWNERS[renderer];
+  if (!owners)
+    throw rendererFederationError(
+      `renderer ${renderer} has no federation runtime owners.`,
+    );
+  const metadata = resolveRendererProfileMetadata(renderer);
+  const bootstrap = metadata.frameworkPackages.find(
+    owner => owner.specifier === owners.bootstrap,
+  );
+  if (!bootstrap)
+    throw rendererFederationError(
+      `the installed ${renderer} bootstrap owner is absent.`,
+    );
+  // The runtime is the copy the selected bootstrap owner itself imports.
+  const runtime = readRendererFrameworkPackage({
+    specifier: owners.runtime,
+    filename: createRequire(`${bootstrap.directory}/package.json`).resolve(
+      owners.runtime,
+    ),
+  });
+  const { protocolVersion, compiler, hydration, router } = metadata.profile;
+  return readRendererFederationCompatibility({
+    profile: { renderer, protocolVersion, compiler, hydration, router },
+    runtime: { name: runtime.name, version: runtime.version },
+    bootstrap: { name: bootstrap.name, version: bootstrap.version },
+  });
+}
+
 /** Publish completed authority through native MF, without awaiting afterEmit from processAssets. */
 export function createReactModuleFederationRendererIntegration(
+  options: {
+    resolveCompatibility?: () => RendererFederationCompatibility;
+    resolveRuntimePlugin?: () => string;
+  } = {},
+) {
+  return createRendererModuleFederationIntegration('react', options);
+}
+
+/** Stamp and gate MF publications for the selected renderer tuple. */
+export function createRendererModuleFederationIntegration(
+  renderer: Renderer,
   options: {
     resolveCompatibility?: () => RendererFederationCompatibility;
     resolveRuntimePlugin?: () => string;
@@ -76,15 +133,15 @@ export function createReactModuleFederationRendererIntegration(
       '@modern-js/plugin-module-federation-config',
       '@modern-js/plugin-module-federation',
       '@modern-js/plugin-module-federation-ssr',
+      NATIVE_MODULE_FEDERATION_PLUGIN,
     ],
     setup(api) {
       api.modifyBundlerChain(chain => {
         const nativeKeys = NATIVE_PLUGINS.filter(key => chain.plugins.has(key));
         if (!nativeKeys.length) return;
         const compatibility = readRendererFederationCompatibility(
-          (
-            options.resolveCompatibility ?? resolveReactFederationCompatibility
-          )(),
+          options.resolveCompatibility?.() ??
+            resolveRendererFederationCompatibility(renderer),
         );
         const runtimePlugin = (
           options.resolveRuntimePlugin ?? resolveRendererFederationRuntimePlugin

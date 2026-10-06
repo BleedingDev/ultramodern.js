@@ -40,7 +40,12 @@ export interface RendererBuildProfile<TRenderer extends Renderer = Renderer> {
   dependencies: Readonly<Record<string, string>>;
   capabilities: {
     worker: boolean;
-    moduleFederation: boolean;
+    /**
+     * `true`: Module Federation application SSR through the React MF plugin.
+     * `'client'`: same-renderer federated components rendered on the client
+     * from a native module-federation.config; never application SSR.
+     */
+    moduleFederation: boolean | 'client';
     rsc: boolean;
     ssg: boolean;
     i18n: boolean;

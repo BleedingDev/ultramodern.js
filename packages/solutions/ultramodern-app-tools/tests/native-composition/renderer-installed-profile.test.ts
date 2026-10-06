@@ -441,7 +441,7 @@ describe('physical installed framework profile identities', () => {
         renderer === 'react' ? 'stable' : 'preview',
       );
       expect(candidate.capabilities.moduleFederation).toBe(
-        renderer === 'react',
+        renderer === 'react' ? true : renderer === 'solid' ? 'client' : false,
       );
       expect(createRequire).not.toHaveBeenCalled();
       expect(resolve).not.toHaveBeenCalled();

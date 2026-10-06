@@ -153,9 +153,12 @@ export function pluginSolidRenderer(
           config.module.rules.unshift({
             test: /\.[jt]sx?$/u,
             exclude: /\.d\.[cm]?ts$/u,
+            // Bundler virtual modules, such as the Module Federation runtime
+            // entry, have no source file for the Solid compiler to own.
             include: (filename: string) =>
-              !filename.includes(`${path.sep}node_modules${path.sep}`) ||
-              nativeDependencySources.some(source => source.test(filename)),
+              path.isAbsolute(filename) &&
+              (!filename.includes(`${path.sep}node_modules${path.sep}`) ||
+                nativeDependencySources.some(source => source.test(filename))),
             enforce: 'pre',
             use: [
               {
