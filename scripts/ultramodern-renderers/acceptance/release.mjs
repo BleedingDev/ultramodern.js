@@ -213,8 +213,12 @@ function buildCohort({ version, pnpm, logs, owner }) {
   run(pnpm, ['ultramodern:build-bleedingdev-publish'], {
     log: path.join(logs, 'cohort-build.log'),
   });
-  fs.mkdirSync(path.dirname(out), { recursive: true });
-  registerArtifact(path.dirname(out), {
+  // Register the named `build` leaf itself, not its `renderer-release-<stamp>`
+  // container: disk-guardian only accepts known build/dependency subtree
+  // names (dist, build, node_modules, ...), and registering the container
+  // trips "only named build/dependency subtrees may be registered".
+  // registerArtifact creates `out` (and any missing parents) itself.
+  registerArtifact(out, {
     owner,
     ownerPid: process.pid,
     kind: 'build',
@@ -902,7 +906,9 @@ async function main(opts) {
             fs.existsSync(path.join(source, 'package.json')),
             `No tractor demo at ${source}`,
           );
-          const clone = path.join(workRoot, 'tractor-workspace');
+          // disk-guardian only registers named build subtrees; `target-*` is
+          // its recognized build-leaf naming convention.
+          const clone = path.join(workRoot, 'target-tractor-workspace');
           if (process.platform === 'darwin')
             execFileSync('cp', ['-cR', source, clone]);
           else fs.cpSync(source, clone, { recursive: true });
