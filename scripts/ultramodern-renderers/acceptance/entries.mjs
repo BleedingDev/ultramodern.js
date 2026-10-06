@@ -149,8 +149,13 @@ export async function authorEntryVariants(
       `import authoredConfig from './modern.entry-base.config';
 ${compilerObservation ? "import { observeNativeCompiler } from './observe-native-compiler';\n" : ''}
 
+// The authored export is typed as a config or a config factory; entry authoring
+// composes the plain config object the authored file actually exports.
+if (typeof authoredConfig === 'function') {
+  throw new Error('Conformance entry authoring requires an object configuration export.');
+}
 const authoredSSR = authoredConfig.server?.ssr;
-if (['solid', 'octane'].includes(authoredConfig.renderer) && !authoredSSR) {
+if (['solid', 'octane'].includes(authoredConfig.renderer ?? '') && !authoredSSR) {
   throw new Error('Native generated source must enable SSR through server.ssr before conformance entry authoring.');
 }
 const ssr = authoredSSR || true;
