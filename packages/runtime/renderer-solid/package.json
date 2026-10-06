@@ -49,6 +49,12 @@
       "types": "./dist/types/manifest.d.ts",
       "default": "./dist/esm-node/manifest.js"
     },
+    "./i18n": {
+      "modern:source": "./src/i18n/index.ts",
+      "types": "./dist/types/i18n/index.d.ts",
+      "node": "./dist/esm-node/i18n/index.js",
+      "default": "./dist/esm/i18n/index.js"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -59,7 +65,9 @@
     "node": ">=26.7.0"
   },
   "dependencies": {
+    "@modern-js/i18n-runtime-extensions": "workspace:*",
     "@modern-js/renderer-core": "workspace:*",
+    "@modern-js/runtime-extensions": "workspace:*",
     "@solidjs/web": "2.0.0-rc.13",
     "@solidjs/signals": "2.0.0-rc.13",
     "@tanstack/history": "1.162.4",
@@ -68,6 +76,14 @@
     "seroval": "1.6.8",
     "seroval-plugins": "1.6.8",
     "solid-js": "2.0.0-rc.13"
+  },
+  "peerDependencies": {
+    "i18next": ">=25.7.4"
+  },
+  "peerDependenciesMeta": {
+    "i18next": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@modern-js/tsconfig": "workspace:*",

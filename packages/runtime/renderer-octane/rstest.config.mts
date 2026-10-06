@@ -34,7 +34,7 @@ export default withTestPreset({
       name: 'octane-router-lifecycle',
       root: __dirname,
       globals: true,
-      include: ['tests/native-router-lifecycle.test.ts'],
+      include: ['tests/native-router-lifecycle.test.ts', 'tests/i18n.test.ts'],
       testEnvironment: 'happy-dom',
       resolve: {
         conditionNames: [
