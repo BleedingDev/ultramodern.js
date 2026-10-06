@@ -72,9 +72,12 @@ test('Cloudflare command rejects conflicting selectors before loading a provider
 });
 
 test('--require-public-urls fails an app without a public origin before verifying output', async () => {
-  const { tempRoot, workspaceDir } = createWorkspace('require-public-urls', {
-    tempPrefix: 'um-cloudflare-public-urls-',
-  });
+  const { tempRoot, workspaceDir } = await createWorkspace(
+    'require-public-urls',
+    {
+      tempPrefix: 'um-cloudflare-public-urls-',
+    },
+  );
   const names = [
     'ULTRAMODERN_PUBLIC_URL_SHELL_SUPER_APP',
     'MODERN_PUBLIC_SITE_URL',
