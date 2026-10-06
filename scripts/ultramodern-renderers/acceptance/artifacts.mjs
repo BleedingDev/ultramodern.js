@@ -2520,6 +2520,24 @@ function resolveTypeFile(candidate, { beforeRealpath } = {}) {
   return resolveFile(candidate, { beforeRealpath });
 }
 
+/**
+ * Projects an installed renderer profile onto the consumer's exact tuple so
+ * `testedProfile` binds the profile the build validated against to the
+ * packages the consumer actually installed.
+ */
+export function testedProfileTuple(profile, exactPackages) {
+  const packages = Object.fromEntries(
+    Object.entries(profile?.dependencies ?? {}).filter(([name]) =>
+      Object.hasOwn(exactPackages ?? {}, name),
+    ),
+  );
+  assert(
+    Object.keys(packages).length > 0,
+    'Tested profile shares no exact package with the consumer tuple',
+  );
+  return { renderer: profile.renderer, packages };
+}
+
 /** Runtime imports are source-strict; host build inputs join their actual build. */
 export function auditInstalledConsumer({
   consumerRoot,
