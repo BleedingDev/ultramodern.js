@@ -331,6 +331,8 @@ export function releaseConsumerInputs(release, template) {
       consumerManifests.push(item.packageJson);
     }
     const byName = new Map(sidecars.packages.map(item => [item.name, item]));
+    const sidecarAliases = new Map();
+    const exactDeclarations = [];
     for (const parent of consumerManifests) {
       for (const block of ['dependencies', 'optionalDependencies']) {
         for (const [name, specifier] of Object.entries(parent[block] ?? {})) {
@@ -338,6 +340,11 @@ export function releaseConsumerInputs(release, template) {
             typeof specifier === 'string'
               ? /^npm:(@[^/]+\/[^@]+|[^@]+)@.+$/u.exec(specifier)?.[1]
               : undefined;
+          if (
+            !target &&
+            /^\d+\.\d+\.\d+(?:-[\w.-]+)?(?:\+[\w.-]+)?$/u.test(specifier)
+          )
+            exactDeclarations.push({ owner: parent.name, name, specifier });
           const sidecar = byName.get(target);
           if (!sidecar) continue;
           assert.equal(
@@ -350,8 +357,17 @@ export function releaseConsumerInputs(release, template) {
             `Conflicting authenticated sidecar alias: ${name}`,
           );
           overrides[name] = specifier;
+          sidecarAliases.set(name, sidecar);
         }
       }
+    }
+    // A sidecar alias is the owning framework package's own dependency; it
+    // must not silently replace another authenticated package's exact pin
+    // (MF sidecars pin jiti 2.4.2 while the plugin aliases @bleedingdev/jiti).
+    // Generated workspaces carry no such override, so neither does the proof.
+    for (const { name, specifier } of exactDeclarations) {
+      const sidecar = sidecarAliases.get(name);
+      if (sidecar && sidecar.version !== specifier) delete overrides[name];
     }
   }
   const inspection = inspectNpmTarball(
