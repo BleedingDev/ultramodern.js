@@ -2,6 +2,64 @@ import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
+const moduleExtensions = new Set([
+  '.ts',
+  '.tsx',
+  '.mts',
+  '.cts',
+  '.js',
+  '.jsx',
+  '.mjs',
+  '.cjs',
+]);
+const relativeSpecifier =
+  /(\bfrom\s*|\bimport\s*\(\s*|\bimport\s+|\brequire\s*\(\s*)(['"])(\.{1,2}\/[^'"]*)\2/gu;
+
+/**
+ * An entry copy sits one directory deeper than the source it was copied from,
+ * so relative module specifiers that leave the source tree (for example the
+ * generated `src/ultramodern-build.ts` re-exporting `../shared/ultramodern-build`)
+ * must be re-anchored from the copy. Specifiers inside the tree move with it.
+ */
+async function rebaseEscapingSpecifiers(sourceRoot, copyRoot, finalRoot) {
+  async function visit(relativeDirectory) {
+    const directory = path.join(copyRoot, relativeDirectory);
+    for (const entry of await fs.readdir(directory, { withFileTypes: true })) {
+      const relative = path.join(relativeDirectory, entry.name);
+      if (entry.isDirectory()) {
+        await visit(relative);
+        continue;
+      }
+      if (!moduleExtensions.has(path.extname(entry.name))) continue;
+      const file = path.join(copyRoot, relative);
+      const original = path.dirname(path.join(sourceRoot, relative));
+      const contents = await fs.readFile(file, 'utf8');
+      const rebased = contents.replace(
+        relativeSpecifier,
+        (match, prefix, quote, specifier) => {
+          const target = path.resolve(original, specifier);
+          const inside = path.relative(sourceRoot, target);
+          if (
+            inside !== '..' &&
+            !inside.startsWith(`..${path.sep}`) &&
+            !path.isAbsolute(inside)
+          )
+            return match;
+          let next = path
+            .relative(path.dirname(path.join(finalRoot, relative)), target)
+            .split(path.sep)
+            .join('/');
+          if (!next.startsWith('.')) next = `./${next}`;
+          if (specifier.endsWith('/') && !next.endsWith('/')) next += '/';
+          return `${prefix}${quote}${next}${quote}`;
+        },
+      );
+      if (rebased !== contents) await fs.writeFile(file, rebased);
+    }
+  }
+  await visit('');
+}
+
 /**
  * Author the supported two-entry input before framework config capture/build.
  * `retainSource` keeps the original `src` tree in place and adds the entry
@@ -57,12 +115,19 @@ export async function authorEntryVariants(
   try {
     const authoredSource = path.join(temporary, 'new-src');
     await fs.mkdir(authoredSource);
-    for (const entry of ['ssr', 'csr'])
+    for (const entry of ['ssr', 'csr']) {
       await fs.cp(source, path.join(authoredSource, entry), {
         recursive: true,
         errorOnExist: true,
         force: false,
       });
+      // Final location is <source>/<entry> in both placement modes.
+      await rebaseEscapingSpecifiers(
+        source,
+        path.join(authoredSource, entry),
+        path.join(source, entry),
+      );
+    }
     await fs.writeFile(base, originalConfig, { flag: 'wx' });
     baseCreated = true;
     if (retainSource)
