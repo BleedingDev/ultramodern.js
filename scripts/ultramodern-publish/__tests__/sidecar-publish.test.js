@@ -428,7 +428,7 @@ test('every repository recipe has a cohort or independently qualified SDK consum
           dependencies: { '@module-federation/enhanced': '2.9.2' },
         },
       ]),
-    /@bleedingdev\/modern-js-server dependencies\.@module-federation\/enhanced is 2\.9\.2; declare npm:@bleedingdev\/mf-enhanced@2\.9\.2 in source/,
+    /@bleedingdev\/modern-js-server dependencies\.@module-federation\/enhanced is 2\.9\.2; declare npm:@bleedingdev\/mf-enhanced@2\.9\.3 in source/,
   );
 });
 

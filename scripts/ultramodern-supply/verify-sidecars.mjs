@@ -68,6 +68,41 @@ export const unpublishedForkEdges = [
     published: '@bleedingdev/modern-js-plugin-bff-extensions',
     dependency: '@module-federation/runtime',
   },
+  ...[
+    ['packages/cli/builder', '@bleedingdev/modern-js-builder'],
+    ['packages/solutions/app-tools', '@bleedingdev/modern-js-app-tools'],
+    [
+      'packages/solutions/app-tools-extensions',
+      '@bleedingdev/modern-js-app-tools-extensions',
+    ],
+    [
+      'packages/solutions/ultramodern-app-tools',
+      '@bleedingdev/modern-js-ultramodern-app-tools',
+    ],
+    ['packages/toolkit/plugin', '@bleedingdev/modern-js-plugin'],
+  ].map(([importer, published]) => ({
+    importer,
+    published,
+    dependency: '@rsbuild/core',
+  })),
+  {
+    importer: 'packages/toolkit/plugin',
+    published: '@bleedingdev/modern-js-plugin',
+    dependency: 'jiti',
+  },
+  // The merged 2.9.2 patches carry renderer hunks the published 2.9.3
+  // modern-js-v3 and 2.9.2 dts-plugin forks lack; their fork versions move to
+  // 2.9.4 and 2.9.3 and these edges declare them once published.
+  {
+    importer: 'packages/toolkit/ultramodern-create',
+    published: '@bleedingdev/modern-js-ultramodern-create',
+    dependency: '@module-federation/modern-js-v3',
+  },
+  {
+    importer: 'packages/solutions/ultramodern-app-tools',
+    published: '@bleedingdev/modern-js-ultramodern-app-tools',
+    dependency: '@module-federation/dts-plugin',
+  },
 ];
 
 /**

@@ -128,14 +128,14 @@
     },
     "fork": {
       "name": "@bleedingdev/mf-cli",
-      "version": "2.9.2"
+      "version": "2.9.3"
     },
     "license": "MIT",
     "artifacts": ["*"],
     "patch": null,
     "manifestChanges": {
       "dependencies": {
-        "@module-federation/dts-plugin": "npm:@bleedingdev/mf-dts-plugin@2.9.2"
+        "@module-federation/dts-plugin": "npm:@bleedingdev/mf-dts-plugin@2.9.3"
       }
     },
     "provenance": {
@@ -158,7 +158,7 @@
     },
     "fork": {
       "name": "@bleedingdev/mf-dts-plugin",
-      "version": "2.9.2"
+      "version": "2.9.3"
     },
     "license": "MIT",
     "artifacts": ["*"],
@@ -190,7 +190,7 @@
     },
     "fork": {
       "name": "@bleedingdev/mf-enhanced",
-      "version": "2.9.2"
+      "version": "2.9.3"
     },
     "license": "MIT",
     "artifacts": ["*"],
@@ -198,11 +198,11 @@
     "manifestChanges": {
       "dependencies": {
         "@module-federation/webpack-bundler-runtime": "npm:@bleedingdev/mf-webpack-bundler-runtime@2.9.2",
-        "@module-federation/dts-plugin": "npm:@bleedingdev/mf-dts-plugin@2.9.2",
-        "@module-federation/manifest": "npm:@bleedingdev/mf-manifest@2.9.2",
-        "@module-federation/rspack": "npm:@bleedingdev/mf-rspack@2.9.2",
+        "@module-federation/dts-plugin": "npm:@bleedingdev/mf-dts-plugin@2.9.3",
+        "@module-federation/manifest": "npm:@bleedingdev/mf-manifest@2.9.3",
+        "@module-federation/rspack": "npm:@bleedingdev/mf-rspack@2.9.3",
         "@module-federation/runtime-tools": "npm:@bleedingdev/mf-runtime-tools@2.9.2",
-        "@module-federation/cli": "npm:@bleedingdev/mf-cli@2.9.2"
+        "@module-federation/cli": "npm:@bleedingdev/mf-cli@2.9.3"
       }
     },
     "provenance": {
@@ -225,7 +225,7 @@
     },
     "fork": {
       "name": "@bleedingdev/mf-manifest",
-      "version": "2.9.2"
+      "version": "2.9.3"
     },
     "license": "MIT",
     "artifacts": ["*"],
@@ -234,7 +234,7 @@
     },
     "manifestChanges": {
       "dependencies": {
-        "@module-federation/dts-plugin": "npm:@bleedingdev/mf-dts-plugin@2.9.2"
+        "@module-federation/dts-plugin": "npm:@bleedingdev/mf-dts-plugin@2.9.3"
       }
     },
     "provenance": {
@@ -257,7 +257,7 @@
     },
     "fork": {
       "name": "@bleedingdev/mf-modern-js-v3",
-      "version": "2.9.3"
+      "version": "2.9.4"
     },
     "license": "MIT",
     "artifacts": ["*"],
@@ -266,15 +266,15 @@
     },
     "manifestChanges": {
       "dependencies": {
-        "@module-federation/rsbuild-plugin": "npm:@bleedingdev/mf-rsbuild-plugin@2.9.2",
+        "@module-federation/rsbuild-plugin": "npm:@bleedingdev/mf-rsbuild-plugin@2.9.3",
         "@module-federation/bridge-react": "npm:@bleedingdev/mf-bridge-react@2.9.2",
-        "@module-federation/enhanced": "npm:@bleedingdev/mf-enhanced@2.9.2",
+        "@module-federation/enhanced": "npm:@bleedingdev/mf-enhanced@2.9.3",
         "@module-federation/runtime": "npm:@bleedingdev/mf-runtime@2.9.2",
-        "@module-federation/node": "npm:@bleedingdev/mf-node@2.7.52",
-        "@module-federation/cli": "npm:@bleedingdev/mf-cli@2.9.2"
+        "@module-federation/node": "npm:@bleedingdev/mf-node@2.7.53",
+        "@module-federation/cli": "npm:@bleedingdev/mf-cli@2.9.3"
       },
       "devDependencies": {
-        "@module-federation/manifest": "npm:@bleedingdev/mf-manifest@2.9.2"
+        "@module-federation/manifest": "npm:@bleedingdev/mf-manifest@2.9.3"
       }
     },
     "provenance": {
@@ -297,7 +297,7 @@
     },
     "fork": {
       "name": "@bleedingdev/mf-node",
-      "version": "2.7.52"
+      "version": "2.7.53"
     },
     "license": "MIT",
     "artifacts": ["*"],
@@ -306,7 +306,7 @@
     },
     "manifestChanges": {
       "dependencies": {
-        "@module-federation/enhanced": "npm:@bleedingdev/mf-enhanced@2.9.2",
+        "@module-federation/enhanced": "npm:@bleedingdev/mf-enhanced@2.9.3",
         "@module-federation/runtime": "npm:@bleedingdev/mf-runtime@2.9.2"
       }
     },
@@ -330,15 +330,15 @@
     },
     "fork": {
       "name": "@bleedingdev/mf-rsbuild-plugin",
-      "version": "2.9.2"
+      "version": "2.9.3"
     },
     "license": "MIT",
     "artifacts": ["*"],
     "patch": null,
     "manifestChanges": {
       "dependencies": {
-        "@module-federation/enhanced": "npm:@bleedingdev/mf-enhanced@2.9.2",
-        "@module-federation/node": "npm:@bleedingdev/mf-node@2.7.52"
+        "@module-federation/enhanced": "npm:@bleedingdev/mf-enhanced@2.9.3",
+        "@module-federation/node": "npm:@bleedingdev/mf-node@2.7.53"
       }
     },
     "provenance": {
@@ -361,7 +361,7 @@
     },
     "fork": {
       "name": "@bleedingdev/mf-rspack",
-      "version": "2.9.2"
+      "version": "2.9.3"
     },
     "license": "MIT",
     "artifacts": ["*"],
@@ -370,8 +370,8 @@
     },
     "manifestChanges": {
       "dependencies": {
-        "@module-federation/dts-plugin": "npm:@bleedingdev/mf-dts-plugin@2.9.2",
-        "@module-federation/manifest": "npm:@bleedingdev/mf-manifest@2.9.2",
+        "@module-federation/dts-plugin": "npm:@bleedingdev/mf-dts-plugin@2.9.3",
+        "@module-federation/manifest": "npm:@bleedingdev/mf-manifest@2.9.3",
         "@module-federation/runtime-tools": "npm:@bleedingdev/mf-runtime-tools@2.9.2"
       }
     },
