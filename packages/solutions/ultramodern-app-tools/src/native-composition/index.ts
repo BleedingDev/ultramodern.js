@@ -9,6 +9,7 @@ import { nativeClientAssetsPlugin } from './native-assets';
 import { nativeEntryCommandPlugin } from './native-entry-command';
 import type { NativeEntryGenerator } from './native-infrastructure';
 import { nativeRendererInfrastructurePlugin } from './native-infrastructure';
+import { nativePrerenderPlugin } from './native-prerender';
 import { ultramodernReleaseEnvelopePlugin } from './release-envelope-plugin';
 import { createRendererBuildOutputResolver } from './renderer-build-output';
 import { createRendererBuildIdentityResolver } from './renderer-build-resolution';
@@ -107,6 +108,14 @@ function composeNativeRenderer(
       }),
       post: ['@modern-js/ultramodern-release-envelope'],
     },
+    ...(registration.candidateProfile.capabilities.ssg
+      ? [
+          nativePrerenderPlugin(renderer, {
+            infrastructurePluginName: adapter.infrastructurePluginName,
+            compilerArtifacts: adapter.compilerArtifacts,
+          }),
+        ]
+      : []),
     createDeployOutputAliasesPlugin(),
     ultramodernReleaseEnvelopePlugin(renderer),
   ];

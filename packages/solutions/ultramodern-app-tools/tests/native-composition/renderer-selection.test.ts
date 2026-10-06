@@ -711,6 +711,30 @@ describe('renderer guard in the owning plugin manager', () => {
   it.each(
     (['solid', 'octane'] as const).flatMap(renderer =>
       [
+        { capability: 'SSG', supported: { output: { ssg: true } } },
+        {
+          capability: 'entry SSG',
+          supported: { output: { ssgByEntries: { main: true } } },
+        },
+      ].map(testCase => ({ renderer, ...testCase })),
+    ),
+  )('admits $capability for $renderer host setup', async ({
+    renderer,
+    supported,
+  }) => {
+    const selectedSetup = rstest.fn();
+    const config = await selectHost(renderer, {
+      name: 'fixture:selected-host',
+      setup: selectedSetup,
+    });
+    Object.assign(config, supported);
+    await initializeSelection(config);
+    expect(selectedSetup).toHaveBeenCalled();
+  });
+
+  it.each(
+    (['solid', 'octane'] as const).flatMap(renderer =>
+      [
         {
           capability: 'SVG components',
           unsupported: { output: { svgDefaultExport: 'component' } },
@@ -724,11 +748,6 @@ describe('renderer guard in the owning plugin manager', () => {
           unsupported: { runtime: { i18n: { locale: 'en' } } },
         },
         { capability: 'i18n', unsupported: { i18n: { locale: 'en' } } },
-        { capability: 'SSG', unsupported: { output: { ssg: true } } },
-        {
-          capability: 'entry SSG',
-          unsupported: { output: { ssgByEntries: { main: true } } },
-        },
         {
           capability: 'an unadmitted deployment provider',
           unsupported: { deploy: { target: 'vercel' } },

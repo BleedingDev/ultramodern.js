@@ -145,7 +145,7 @@ function solidCandidate(): RendererBuildProfile {
       worker: false,
       moduleFederation: false,
       rsc: false,
-      ssg: false,
+      ssg: true,
       i18n: false,
       svgComponent: false,
     },
