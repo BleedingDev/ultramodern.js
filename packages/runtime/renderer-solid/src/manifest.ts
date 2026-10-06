@@ -317,13 +317,3 @@ export function validateSolidModuleManifest(
   }
   return manifest;
 }
-
-export function resolveSolidModuleAsset(
-  manifest: unknown,
-  expectedIdentity: RendererIdentity,
-  key: string,
-): SolidAssetChunk {
-  return validateSolidModuleManifest(manifest, expectedIdentity, [key]).modules[
-    key
-  ] as SolidAssetChunk;
-}
