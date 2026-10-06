@@ -274,16 +274,7 @@ describe('native i18n entry modules', () => {
         [`@modern-js/renderer-${renderer}/router`]: runtime,
         '@modern-js/renderer-core/data': {},
       });
-      const trailing =
-        renderer === 'solid' ? [undefined, undefined] : [undefined];
-      module.createNativeRouter(
-        identity,
-        undefined,
-        undefined,
-        undefined,
-        ...trailing,
-        rewrite,
-      );
+      module.createNativeRouter({ identity, rewrite });
     }
     expect(routerOptions[0].rewrite).toBe(rewrite);
     expect(routerOptions[1]).not.toHaveProperty('rewrite');

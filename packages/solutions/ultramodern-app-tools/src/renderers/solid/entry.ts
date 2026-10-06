@@ -18,7 +18,7 @@ export async function loadApplication(identity: RendererIdentity, hydrating: boo
   // The server's language and bundles arrive in the document: no flash, no refetch.
   const handoff = clientI18nHandoff();
   const i18n = await createI18n(handoff.language, handoff.resources);
-  const router = createNativeRouter(identity, undefined, undefined, undefined, undefined, undefined, i18nRouterRewrite(() => i18n.language));
+  const router = createNativeRouter({ identity, rewrite: i18nRouterRewrite(() => i18n.language) });
   syncI18nWithRouter(router, i18n);
   if (!hydrating) await router.load();
   return { view: () => <I18nProvider instance={i18nProviderInstance(i18n)} languages={i18nRouting.languages} localisedUrls={i18nRouting.localisedUrls}><ApplicationRouter router={router} /></I18nProvider> };
@@ -38,7 +38,7 @@ function applicationSource({
 import type { RendererIdentity } from '@modern-js/renderer-core/identity';
 import { createNativeRouter } from './routes.client';
 export async function loadApplication(identity: RendererIdentity, hydrating: boolean) {
-  const router = createNativeRouter(identity);
+  const router = createNativeRouter({ identity });
   if (!hydrating) await router.load();
   return { view: () => <ApplicationRouter router={router} /> };
 }
@@ -140,7 +140,7 @@ export async function nativeMatchRouteIds(request: Request, context: NativeReque
   assertRendererIdentity(context.session.identity, rendererIdentity);
   if (request !== context.session.request) throw new Error('Native request/session ownership mismatch');
   const { createNativeRouter } = await import('./application.server');
-  const router = createNativeRouter(rendererIdentity, request, context.session.platform.bindings, undefined, context.session${i18n ? ', undefined, i18nRouterRewrite(() => resolveRequestLanguage(request, i18nRouting).language)' : ''});
+  const router = createNativeRouter({ identity: rendererIdentity, request, context: context.session.platform.bindings, session: context.session${i18n ? ', rewrite: i18nRouterRewrite(() => resolveRequestLanguage(request, i18nRouting).language)' : ''} });
   return router.matchRoutes(router.latestLocation).map(match => {
     const data = router.routesById[match.routeId]?.options.staticData;
     return data && 'ultramodernRouteId' in data && typeof data.ultramodernRouteId === 'string' ? data.ultramodernRouteId : undefined;
@@ -160,14 +160,14 @@ export async function nativeRequestHandler(request: Request, context: NativeRequ
       : ''
   }
   const outcomes: DataOutcome[] = [];
-  const router = createNativeRouter(rendererIdentity, nativeRequest, context.session.platform.bindings, (_routeId: string, outcome: DataOutcome | DecodedDataOutcome) => {
+  const router = createNativeRouter({ identity: rendererIdentity, request: nativeRequest, context: context.session.platform.bindings, onOutcome: (_routeId: string, outcome: DataOutcome | DecodedDataOutcome) => {
     if ('response' in outcome) outcomes.push(outcome);
     else if (outcome.completion) {
       const completion = outcome.completion;
       void completion.catch(error => context.session.fail(error));
       context.session.registerCleanup(() => completion);
     }
-  }, context.session, context.nonce${i18n ? ', i18nRouterRewrite(() => i18n.language)' : ''});
+  }, session: context.session, nonce: context.nonce${i18n ? ', rewrite: i18nRouterRewrite(() => i18n.language)' : ''} });
   const dataResponse = await handleDataRequest({ request: nativeRequest, identity: rendererIdentity, context: context.session.platform.bindings, privateValues: [context, context.session, context.session.platform, context.session.platform.bindings], selectRoute: (request, routeId, operation) => selectApplicationDataRoute(router, request, routeId, operation, dataModules) });
   if (dataResponse) return respondApplicationResponse(context.session, dataResponse);${
     i18n

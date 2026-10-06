@@ -289,7 +289,7 @@ describe('native owning entry generation', () => {
       expect(server).toContain('matchApplicationRoutes(router, new URL(');
       expect(server).not.toContain('router.matchRoutes(');
       // The request CSP nonce reaches the router that emits $_TSR scripts.
-      expect(server).toContain('}, context.nonce);');
+      expect(server).toContain('}, nonce: context.nonce });');
     }
   });
 
@@ -302,7 +302,9 @@ describe('native owning entry generation', () => {
     expect(server).toContain('router.matchRoutes(router.latestLocation)');
     expect(server).not.toContain('new URL(request.url).pathname');
     // The document nonce reaches the per-request router's emitted scripts.
-    expect(server).toContain('context.session, context.nonce)');
+    expect(server).toContain(
+      'session: context.session, nonce: context.nonce }',
+    );
   });
 
   it('starts a federated Solid server entry through an import() boundary', async () => {
