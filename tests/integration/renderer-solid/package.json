@@ -1,0 +1,19 @@
+{
+  "private": true,
+  "name": "renderer-solid",
+  "version": "2.66.0",
+  "dependencies": {
+    "@modern-js/renderer-core": "workspace:*",
+    "@modern-js/renderer-solid": "workspace:*",
+    "@solidjs/signals": "2.0.0-rc.13",
+    "@solidjs/web": "2.0.0-rc.13",
+    "seroval": "1.6.8",
+    "seroval-plugins": "1.6.8",
+    "solid-js": "2.0.0-rc.13"
+  },
+  "devDependencies": {
+    "@modern-js/ultramodern-app-tools": "workspace:*",
+    "@solidjs/compiler": "2.0.0-rc.13",
+    "@types/node": "^26.6.2"
+  }
+}

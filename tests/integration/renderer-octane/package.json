@@ -1,0 +1,19 @@
+{
+  "private": true,
+  "name": "renderer-octane",
+  "version": "2.66.0",
+  "dependencies": {
+    "@modern-js/renderer-core": "workspace:*",
+    "@modern-js/renderer-octane": "workspace:*",
+    "@octanejs/tanstack-router": "https://github.com/bleedingdev/octane/releases/download/%40octanejs%2Ftanstack-router%400.1.60%2Bultramodern.6c31d4be4768/octanejs-tanstack-router-0.1.60%2Bultramodern.6c31d4be4768.tgz",
+    "octane": "https://github.com/bleedingdev/octane/releases/download/octane%400.7.1%2Bultramodern.f75bf12ac8be/octane-0.7.1%2Bultramodern.f75bf12ac8be.tgz",
+    "seroval": "1.6.8",
+    "seroval-plugins": "1.6.8"
+  },
+  "devDependencies": {
+    "@modern-js/ultramodern-app-tools": "workspace:*",
+    "@octanejs/rspack-plugin": "0.1.55",
+    "@types/node": "^26.6.2",
+    "typescript": "7.0.2"
+  }
+}
