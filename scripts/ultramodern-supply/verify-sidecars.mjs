@@ -154,132 +154,22 @@ export function assertRecipeConsumers(
   );
 }
 
-/** Check the repository recipes against the generator's runtime pins and the published cohort manifests. */
-export function assertRepositoryRecipeConsumers(publishedManifests) {
-  const qualifiedSdkPins = Object.fromEntries(
-    Object.entries(sidecarProfile('mf-sdk').dependencies).map(
-      ([name, version]) => [name, `npm:${name}@${version}`],
-    ),
-  );
-  assertRecipeGraph(recipes, {
-    generatorPins: [
-      ...Object.values(ULTRAMODERN_PACKAGE_PINS),
-      qualifiedSdkPins,
-    ],
-  });
-  assertRecipeConsumers(recipes, {
-    // The standalone SDK qualifier is a direct installed public API consumer.
-    // Its immutable profile also drives the exact installer dependencies.
-    generatorPins: [
-      ...Object.entries(ULTRAMODERN_PACKAGE_PINS)
-        .filter(([block]) => !block.endsWith('DevDependencies'))
-        .map(([, pins]) => pins),
-      qualifiedSdkPins,
-    ],
-    publishedManifests,
-  });
+function nestedNodeModules(directory) {
+  return fs
+    .readdirSync(directory, { withFileTypes: true })
+    .filter(entry => entry.isDirectory())
+    .flatMap(entry => {
+      const absolute = path.join(directory, entry.name);
+      return entry.name === 'node_modules'
+        ? [absolute]
+        : nestedNodeModules(absolute);
+    });
 }
 
-/**
- * Resolve the recipe graph. Every `npm:@bleedingdev/<fork>@<version>` alias in
- * a recipe or a generator pin must name a recipe at exactly that version, so
- * deleting a recipe fails here instead of publishing a dangling alias. A
- * runtime, optional or peer alias is a graph edge; any other manifest change
- * is a correction the recipe carries itself, like a patch.
- */
-function recipeGraph(recipeList, generatorPins) {
-  const byFork = new Map(
-    recipeList.map(item => [`${item.fork.name}@${item.fork.version}`, item]),
-  );
-  const resolve = (owner, specifier) => {
-    const [, fork, version] = forkSpecifier.exec(String(specifier)) ?? [];
-    if (!fork) return undefined;
-    const target = byFork.get(`${fork}@${version}`);
-    assert.ok(
-      target,
-      `${owner} aliases ${specifier}, which no sidecar recipe publishes; restore the recipe or drop the alias`,
-    );
-    return target;
-  };
-  for (const pins of generatorPins)
-    for (const [name, specifier] of Object.entries(pins))
-      resolve(`generator pin ${name}`, specifier);
-  const edges = new Map();
-  const corrections = new Set();
-  for (const recipe of recipeList) {
-    const aliases = [];
-    for (const [block, changes] of Object.entries(recipe.manifestChanges)) {
-      for (const [name, specifier] of Object.entries(changes)) {
-        const target = resolve(
-          `sidecar ${recipe.id} ${block}.${name}`,
-          specifier,
-        );
-        if (!target) corrections.add(recipe);
-        else if (consumerBlocks.includes(block))
-          aliases.push({ block, name, specifier, target });
-      }
-    }
-    edges.set(recipe, aliases);
-  }
-  return { corrections, edges };
-}
-
-/**
- * Split the recipes into those that still carry or reach a correction and the
- * retirable rest, treating the `upstreamed` recipes' patches as already
- * shipped by upstream.
- */
-function partitionRecipes(recipeList, { generatorPins, upstreamed }) {
-  const { corrections, edges } = recipeGraph(recipeList, generatorPins);
-  const parents = new Map(recipeList.map(item => [item, []]));
-  for (const [recipe, aliases] of edges)
-    for (const { target } of aliases) parents.get(target).push(recipe);
-  const required = new Set(
-    recipeList.filter(
-      item => corrections.has(item) || (item.patch && !upstreamed.has(item)),
-    ),
-  );
-  const pending = [...required];
-  while (pending.length) {
-    for (const parent of parents.get(pending.pop())) {
-      if (!required.has(parent)) {
-        required.add(parent);
-        pending.push(parent);
-      }
-    }
-  }
-  return {
-    edges,
-    required,
-    retirable: recipeList.filter(item => !required.has(item)),
-  };
-}
-
-/**
- * A recipe without a patch exists only to rewire a runtime dependency onto a
- * corrected recipe. Reject any recipe that neither carries a correction nor
- * reaches one through its runtime aliases, and any alias whose recipe is gone.
- */
-export function assertRecipeGraph(recipeList, { generatorPins = [] } = {}) {
-  const [orphan] = partitionRecipes(recipeList, {
-    generatorPins,
-    upstreamed: new Set(),
-  }).retirable;
-  assert.ok(
-    !orphan,
-    `sidecar ${orphan?.id} has no patched descendant; delete recipe`,
-  );
-}
-
-/**
- * Report what upstream releases make retirable: each upstreamed patch, every
- * recipe that no longer reaches a correction, and every alias a remaining
- * recipe must drop.
- */
-export function assertNoUpstreamedPatches(
-  recipeList,
-  upstreamed,
-  { generatorPins = [] } = {},
+/** Reconstruct from a pinned tarball in an owned temporary directory, then compare every artifact. */
+export async function verifySidecar(
+  id,
+  { artifactsDir, packageDir, materializeTo } = {},
 ) {
   const { edges, required, retirable } = partitionRecipes(recipeList, {
     generatorPins,
@@ -454,6 +344,15 @@ export async function verifySidecar(id, { artifactsDir, materializeTo } = {}) {
     fs.writeFileSync(tarball, bytes);
     execFileSync('tar', ['-xzf', tarball, '-C', temp], { stdio: 'pipe' });
     const upstreamDir = path.join(temp, 'package');
+    // pnpm never installs node_modules directories shipped inside a package
+    // tarball, so they are not part of the installable artifact. Republishing
+    // them would declare files no consumer can receive.
+    for (const nested of nestedNodeModules(upstreamDir)) {
+      fs.rmSync(nested, { recursive: true, force: true });
+      console.log(
+        `${id}: dropped uninstallable ${path.relative(upstreamDir, nested)}`,
+      );
+    }
     const upstream = JSON.parse(
       fs.readFileSync(path.join(upstreamDir, 'package.json'), 'utf8'),
     );
