@@ -19,7 +19,7 @@ function resolveLazyModule(
   const suffix = split < 0 ? '' : specifier.slice(split);
   if (!pathname.startsWith('.') && !path.isAbsolute(pathname)) {
     throw new Error(
-      `Solid lazy import ${specifier} in ${filename} must name a static relative or absolute application module`,
+      `Solid lazy import ${specifier} in ${filename} must name a static relative or absolute application module. Render Module Federation remotes with federatedComponent('${pathname}') from @modern-js/renderer-solid/federation`,
     );
   }
   const requested = path.resolve(path.dirname(filename), pathname);

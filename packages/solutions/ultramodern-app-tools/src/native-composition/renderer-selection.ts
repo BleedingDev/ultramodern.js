@@ -232,7 +232,7 @@ export function assertCapturedRenderer(
   if (!registration.supports.reactCompiler && config.source?.reactCompiler)
     reject('the React compiler');
   if (
-    !capabilities.moduleFederation &&
+    capabilities.moduleFederation !== true &&
     (selected.moduleFederation ||
       (typeof config.server?.ssr === 'object' &&
         config.server.ssr.moduleFederationAppSSR) ||

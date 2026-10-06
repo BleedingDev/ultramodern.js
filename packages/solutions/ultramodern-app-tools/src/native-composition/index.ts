@@ -5,11 +5,13 @@ import { rendererBuildArtifactStampPlugin } from '@modern-js/app-tools-extension
 import type { Renderer, RendererIdentity } from '@modern-js/renderer-core';
 import { createDefineConfig } from './config';
 import { isEntryMetadataRead } from './config-read-context';
+import { createRendererModuleFederationIntegration } from './module-federation-renderer-plugin';
 import { nativeClientAssetsPlugin } from './native-assets';
 import { nativeEntryCommandPlugin } from './native-entry-command';
 import type { NativeEntryGenerator } from './native-infrastructure';
 import { nativeRendererInfrastructurePlugin } from './native-infrastructure';
 import { nativePrerenderPlugin } from './native-prerender';
+import { nativeModuleFederationPlugin } from './native-module-federation';
 import { ultramodernReleaseEnvelopePlugin } from './release-envelope-plugin';
 import { createRendererBuildOutputResolver } from './renderer-build-output';
 import { createRendererBuildIdentityResolver } from './renderer-build-resolution';
@@ -78,6 +80,7 @@ function composeNativeRenderer(
   const resolveBuildIdentities = createRendererBuildIdentityResolver(renderer);
   let generator: NativeEntryGenerator | undefined;
   const resolveGenerator = () => (generator ??= adapter.createEntryGenerator());
+  const federation = createRendererModuleFederationIntegration(renderer);
   const selected = [
     appTools({ rendererExtensions: false, serverExtensions: false }),
     rendererTypeCheckerPlugin(renderer),
@@ -101,8 +104,10 @@ function composeNativeRenderer(
           if (
             context.mode !== 'development' ||
             !Object.keys(rendererIdentities).length
-          )
+          ) {
             rendererIdentities = resolved.identities;
+            federation.controller.onBuildIdentities(resolved);
+          }
           return resolved;
         },
       },
@@ -122,6 +127,8 @@ function composeNativeRenderer(
           }),
         ]
       : []),
+    nativeModuleFederationPlugin(renderer),
+    federation.plugin,
     createDeployOutputAliasesPlugin(),
     ultramodernReleaseEnvelopePlugin(renderer),
   ];
