@@ -122,7 +122,7 @@
       "reason": "Preserve existing public deployment configuration types."
     },
     {
-      "file": "packages/solutions/app-tools/src/types/plugin.ts",
+      "file": "packages/solutions/app-tools/src/types/plugin-base.ts",
       "specifier": "@modern-js/app-tools-extensions/deploy-output/target",
       "target": "packages/solutions/app-tools-extensions/src/deploy-output/target.ts",
       "owner": "bleedingdev",
