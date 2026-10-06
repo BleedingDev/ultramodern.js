@@ -20,6 +20,7 @@ export type {
 } from './routes';
 export {
   createFileSystemRouteTree,
+  matchApplicationRouteIds,
   matchApplicationRoutes,
   RouteDataError,
   resolveRouteData,

@@ -284,10 +284,10 @@ describe('native owning entry generation', () => {
     }
     expect(server).toContain('selectApplicationDataRoute');
     expect(server).toContain('nativeMatchRouteIds');
+    // Route ids must be matched through the router's basepath rewrite.
+    expect(server).toContain('matchApplicationRouteIds(router, new URL(');
+    expect(server).not.toContain('router.matchRoutes(');
     if (renderer === 'octane') {
-      // Route ids must be matched through the router's basepath rewrite.
-      expect(server).toContain('matchApplicationRoutes(router, new URL(');
-      expect(server).not.toContain('router.matchRoutes(');
       // The request CSP nonce reaches the router that emits $_TSR scripts.
       expect(server).toContain('}, nonce: context.nonce });');
     }
@@ -299,7 +299,9 @@ describe('native owning entry generation', () => {
     const server = await createSolidNativeEntryGenerator().server(generation);
     await expectValidNativeSource(server);
     // A raw request pathname keeps the basepath the native router rewrites away.
-    expect(server).toContain('router.matchRoutes(router.latestLocation)');
+    expect(server).toContain(
+      'matchApplicationRouteIds(router, new URL(request.url))',
+    );
     expect(server).not.toContain('new URL(request.url).pathname');
     // The document nonce reaches the per-request router's emitted scripts.
     expect(server).toContain(

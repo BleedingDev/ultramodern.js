@@ -3,6 +3,7 @@ import type { DataOutcome, FileSystemRouteIR } from '../../src/data';
 import { DataProtocolError } from '../../src/data';
 import {
   loadFileSystemRoute,
+  matchApplicationRouteIds,
   matchApplicationRoutes,
   type NativeHistoryLocation,
   nativeRoutePath,
@@ -93,6 +94,19 @@ describe('native router glue', () => {
         state: { __TSR_index: 0 },
       },
     ]);
+  });
+
+  it('names the filesystem routes a public URL matches', () => {
+    const router = fakeRouter('/admin');
+    expect(
+      matchApplicationRouteIds(
+        router,
+        new URL('http://localhost/admin/items/42'),
+      ),
+    ).toEqual(['layout', 'pathless', 'item']);
+    expect(
+      matchApplicationRouteIds(router, new URL('http://localhost/items/42')),
+    ).toEqual([]);
   });
 
   it('authorizes a data route only inside the matched chain', () => {
