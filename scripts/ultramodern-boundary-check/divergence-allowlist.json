@@ -4,14 +4,14 @@
   "upstreamRef": "2f4d9c4559e26209a0d77f02c6757f29fe3699a2",
   "pathspec": ["packages"],
   "migrationGoal": "Shrink-only budget of fork edits inside upstream-owned files. Every entry is debt: move it upstream or behind an extension point, then re-run --write-divergence-allowlist.",
-  "totalFiles": 853,
-  "totalHunks": 3269,
-  "totalChangedLines": 56783,
+  "totalFiles": 1100,
+  "totalHunks": 3613,
+  "totalChangedLines": 82372,
   "files": [
     {
       "file": "packages/cli/adapter-rstest/package.json",
-      "hunks": 4,
-      "changedLines": 14
+      "hunks": 5,
+      "changedLines": 20
     },
     {
       "file": "packages/cli/adapter-rstest/src/index.ts",
@@ -66,7 +66,7 @@
     {
       "file": "packages/cli/builder/src/plugins/rscConfig.ts",
       "hunks": 16,
-      "changedLines": 138
+      "changedLines": 132
     },
     {
       "file": "packages/cli/builder/src/shared/devServer.ts",
@@ -76,7 +76,7 @@
     {
       "file": "packages/cli/builder/src/shared/parseCommonConfig.ts",
       "hunks": 11,
-      "changedLines": 62
+      "changedLines": 82
     },
     {
       "file": "packages/cli/builder/src/shared/rsc/rscClientBrowserFallback.ts",
@@ -91,7 +91,7 @@
     {
       "file": "packages/cli/builder/src/types.ts",
       "hunks": 8,
-      "changedLines": 24
+      "changedLines": 27
     },
     {
       "file": "packages/cli/builder/tests/__snapshots__/cache.test.ts.snap",
@@ -156,7 +156,7 @@
     {
       "file": "packages/cli/builder/tests/rscConfig.test.ts",
       "hunks": 3,
-      "changedLines": 231
+      "changedLines": 232
     },
     {
       "file": "packages/cli/builder/tests/tsgo.test.ts",
@@ -170,8 +170,8 @@
     },
     {
       "file": "packages/cli/plugin-bff/package.json",
-      "hunks": 11,
-      "changedLines": 50
+      "hunks": 12,
+      "changedLines": 52
     },
     {
       "file": "packages/cli/plugin-bff/src/cli.ts",
@@ -330,8 +330,8 @@
     },
     {
       "file": "packages/cli/plugin-data-loader/package.json",
-      "hunks": 6,
-      "changedLines": 32
+      "hunks": 7,
+      "changedLines": 34
     },
     {
       "file": "packages/cli/plugin-data-loader/src/cli/loader.ts",
@@ -385,8 +385,8 @@
     },
     {
       "file": "packages/cli/plugin-ssg/package.json",
-      "hunks": 7,
-      "changedLines": 35
+      "hunks": 8,
+      "changedLines": 37
     },
     {
       "file": "packages/cli/plugin-ssg/rslib.config.mts",
@@ -440,8 +440,8 @@
     },
     {
       "file": "packages/cli/plugin-styled-components/package.json",
-      "hunks": 8,
-      "changedLines": 30
+      "hunks": 9,
+      "changedLines": 39
     },
     {
       "file": "packages/cli/plugin-styled-components/rslib.config.mts",
@@ -716,7 +716,7 @@
     {
       "file": "packages/document/docs/en/guides/get-started/ultramodern.mdx",
       "hunks": 1,
-      "changedLines": 485
+      "changedLines": 483
     },
     {
       "file": "packages/document/docs/en/guides/get-started/upgrade.mdx",
@@ -1011,7 +1011,7 @@
     {
       "file": "packages/document/docs/zh/guides/get-started/ultramodern.mdx",
       "hunks": 1,
-      "changedLines": 445
+      "changedLines": 442
     },
     {
       "file": "packages/document/docs/zh/guides/get-started/upgrade.mdx",
@@ -1161,7 +1161,7 @@
     {
       "file": "packages/runtime/plugin-i18n/package.json",
       "hunks": 13,
-      "changedLines": 82
+      "changedLines": 96
     },
     {
       "file": "packages/runtime/plugin-i18n/README.md",
@@ -1515,8 +1515,8 @@
     },
     {
       "file": "packages/runtime/plugin-image/package.json",
-      "hunks": 5,
-      "changedLines": 19
+      "hunks": 4,
+      "changedLines": 21
     },
     {
       "file": "packages/runtime/plugin-image/src/cli.ts",
@@ -2320,8 +2320,8 @@
     },
     {
       "file": "packages/runtime/render/package.json",
-      "hunks": 13,
-      "changedLines": 48
+      "hunks": 12,
+      "changedLines": 44
     },
     {
       "file": "packages/runtime/render/react-server-dom-rspack.d.ts",
@@ -2395,8 +2395,8 @@
     },
     {
       "file": "packages/runtime/render/src/server/ssr/ssr.tsx",
-      "hunks": 11,
-      "changedLines": 63
+      "hunks": 10,
+      "changedLines": 59
     },
     {
       "file": "packages/runtime/render/src/ssr.ts",
@@ -2450,8 +2450,8 @@
     },
     {
       "file": "packages/server/bff-core/package.json",
-      "hunks": 9,
-      "changedLines": 23
+      "hunks": 10,
+      "changedLines": 25
     },
     {
       "file": "packages/server/bff-core/src/api.ts",
@@ -2539,6 +2539,16 @@
       "changedLines": 47
     },
     {
+      "file": "packages/server/bff-core/tests/router.test.ts",
+      "hunks": 3,
+      "changedLines": 28
+    },
+    {
+      "file": "packages/server/bff-core/tests/utils.test.ts",
+      "hunks": 1,
+      "changedLines": 19
+    },
+    {
       "file": "packages/server/bff-core/tsconfig.json",
       "hunks": 2,
       "changedLines": 4
@@ -2550,8 +2560,8 @@
     },
     {
       "file": "packages/server/bff-runtime/package.json",
-      "hunks": 3,
-      "changedLines": 16
+      "hunks": 4,
+      "changedLines": 18
     },
     {
       "file": "packages/server/bff-runtime/src/index.ts",
@@ -2575,8 +2585,8 @@
     },
     {
       "file": "packages/server/core/package.json",
-      "hunks": 9,
-      "changedLines": 31
+      "hunks": 10,
+      "changedLines": 33
     },
     {
       "file": "packages/server/core/src/adapters/node/helper/index.ts",
@@ -2860,8 +2870,8 @@
     },
     {
       "file": "packages/server/create-request/package.json",
-      "hunks": 9,
-      "changedLines": 29
+      "hunks": 10,
+      "changedLines": 31
     },
     {
       "file": "packages/server/create-request/rstest.config.mts",
@@ -2931,7 +2941,7 @@
     {
       "file": "packages/server/plugin-polyfill/package.json",
       "hunks": 4,
-      "changedLines": 16
+      "changedLines": 20
     },
     {
       "file": "packages/server/plugin-polyfill/src/index.ts",
@@ -2955,8 +2965,8 @@
     },
     {
       "file": "packages/server/prod-server/package.json",
-      "hunks": 4,
-      "changedLines": 11
+      "hunks": 5,
+      "changedLines": 13
     },
     {
       "file": "packages/server/prod-server/src/apply.ts",
@@ -2996,7 +3006,7 @@
     {
       "file": "packages/server/server-runtime/package.json",
       "hunks": 4,
-      "changedLines": 9
+      "changedLines": 13
     },
     {
       "file": "packages/server/server-runtime/src/index.ts",
@@ -3015,8 +3025,8 @@
     },
     {
       "file": "packages/server/server/package.json",
-      "hunks": 11,
-      "changedLines": 33
+      "hunks": 10,
+      "changedLines": 38
     },
     {
       "file": "packages/server/server/src/createDevServer.ts",
@@ -3045,8 +3055,8 @@
     },
     {
       "file": "packages/server/server/src/dev.ts",
-      "hunks": 5,
-      "changedLines": 42
+      "hunks": 9,
+      "changedLines": 59
     },
     {
       "file": "packages/server/server/src/helpers/fileReader.ts",
@@ -3095,8 +3105,13 @@
     },
     {
       "file": "packages/server/server/tests/devRuntimeReload.test.ts",
-      "hunks": 4,
-      "changedLines": 65
+      "hunks": 13,
+      "changedLines": 125
+    },
+    {
+      "file": "packages/server/server/tests/fixtures/federated-ssr/bundles/index.js",
+      "hunks": 1,
+      "changedLines": 26
     },
     {
       "file": "packages/server/server/tests/fixtures/pure/src/App.css",
@@ -3140,8 +3155,8 @@
     },
     {
       "file": "packages/server/utils/package.json",
-      "hunks": 4,
-      "changedLines": 11
+      "hunks": 5,
+      "changedLines": 12
     },
     {
       "file": "packages/server/utils/src/common/index.ts",
@@ -3156,7 +3171,7 @@
     {
       "file": "packages/server/utils/src/compilers/tsgo.ts",
       "hunks": 1,
-      "changedLines": 241
+      "changedLines": 236
     },
     {
       "file": "packages/server/utils/src/compilers/typescript/index.ts",
@@ -3241,7 +3256,7 @@
     {
       "file": "packages/server/utils/tests/tsgo.test.ts",
       "hunks": 1,
-      "changedLines": 292
+      "changedLines": 286
     },
     {
       "file": "packages/server/utils/tests/tsgoCleanup.test.ts",
@@ -3275,8 +3290,8 @@
     },
     {
       "file": "packages/solutions/app-tools/package.json",
-      "hunks": 13,
-      "changedLines": 73
+      "hunks": 15,
+      "changedLines": 63
     },
     {
       "file": "packages/solutions/app-tools/rslib.config.mts",
@@ -3380,8 +3395,8 @@
     },
     {
       "file": "packages/solutions/app-tools/src/compat/hooks.ts",
-      "hunks": 6,
-      "changedLines": 21
+      "hunks": 9,
+      "changedLines": 25
     },
     {
       "file": "packages/solutions/app-tools/src/config/index.ts",
@@ -3405,13 +3420,13 @@
     },
     {
       "file": "packages/solutions/app-tools/src/esm/ts-paths-loader.mjs",
-      "hunks": 5,
-      "changedLines": 26
+      "hunks": 7,
+      "changedLines": 32
     },
     {
       "file": "packages/solutions/app-tools/src/index.ts",
-      "hunks": 12,
-      "changedLines": 27
+      "hunks": 13,
+      "changedLines": 33
     },
     {
       "file": "packages/solutions/app-tools/src/plugins/analyze/getBundleEntry.ts",
@@ -3556,7 +3571,7 @@
     {
       "file": "packages/solutions/app-tools/src/types/plugin-base.ts",
       "hunks": 1,
-      "changedLines": 222
+      "changedLines": 224
     },
     {
       "file": "packages/solutions/app-tools/src/types/plugin.ts",
@@ -3580,13 +3595,13 @@
     },
     {
       "file": "packages/solutions/app-tools/src/utils/initAppContext.ts",
-      "hunks": 9,
-      "changedLines": 52
+      "hunks": 10,
+      "changedLines": 54
     },
     {
       "file": "packages/solutions/app-tools/src/utils/loadPlugins.ts",
       "hunks": 6,
-      "changedLines": 20
+      "changedLines": 25
     },
     {
       "file": "packages/solutions/app-tools/src/utils/register.ts",
@@ -3711,7 +3726,7 @@
     {
       "file": "packages/solutions/app-tools/tests/utils/register-esm.test.ts",
       "hunks": 1,
-      "changedLines": 188
+      "changedLines": 233
     },
     {
       "file": "packages/solutions/app-tools/tests/utils/register.test.ts",
@@ -3765,8 +3780,8 @@
     },
     {
       "file": "packages/toolkit/i18n-utils/package.json",
-      "hunks": 4,
-      "changedLines": 9
+      "hunks": 5,
+      "changedLines": 11
     },
     {
       "file": "packages/toolkit/i18n-utils/tsconfig.json",
@@ -3815,8 +3830,8 @@
     },
     {
       "file": "packages/toolkit/plugin/src/cli/run/create.ts",
-      "hunks": 17,
-      "changedLines": 75
+      "hunks": 18,
+      "changedLines": 77
     },
     {
       "file": "packages/toolkit/plugin/src/cli/run/index.ts",
@@ -3830,13 +3845,8 @@
     },
     {
       "file": "packages/toolkit/plugin/src/cli/run/utils/commander.ts",
-      "hunks": 1,
-      "changedLines": 2
-    },
-    {
-      "file": "packages/toolkit/plugin/src/cli/run/utils/commander.ts",
       "hunks": 4,
-      "changedLines": 9
+      "changedLines": 11
     },
     {
       "file": "packages/toolkit/plugin/src/cli/run/utils/createFileWatcher.ts",
@@ -3915,13 +3925,8 @@
     },
     {
       "file": "packages/toolkit/plugin/src/types/cli/hooks.ts",
-      "hunks": 1,
-      "changedLines": 6
-    },
-    {
-      "file": "packages/toolkit/plugin/src/types/cli/hooks.ts",
-      "hunks": 2,
-      "changedLines": 10
+      "hunks": 3,
+      "changedLines": 16
     },
     {
       "file": "packages/toolkit/plugin/src/types/cli/index.ts",
@@ -3974,6 +3979,16 @@
       "changedLines": 86
     },
     {
+      "file": "packages/toolkit/plugin/tests/commanderVersion.test.ts",
+      "hunks": 1,
+      "changedLines": 86
+    },
+    {
+      "file": "packages/toolkit/plugin/tests/configEvaluationContext.test.ts",
+      "hunks": 1,
+      "changedLines": 639
+    },
+    {
       "file": "packages/toolkit/plugin/tests/configEvaluationContext.test.ts",
       "hunks": 1,
       "changedLines": 639
@@ -4015,8 +4030,8 @@
     },
     {
       "file": "packages/toolkit/runtime-utils/package.json",
-      "hunks": 9,
-      "changedLines": 41
+      "hunks": 10,
+      "changedLines": 43
     },
     {
       "file": "packages/toolkit/runtime-utils/rslib.config.mts",
@@ -4096,7 +4111,12 @@
     {
       "file": "packages/toolkit/sandpack-react/package.json",
       "hunks": 7,
-      "changedLines": 23
+      "changedLines": 26
+    },
+    {
+      "file": "packages/toolkit/sandpack-react/rstest.config.mts",
+      "hunks": 1,
+      "changedLines": 5
     },
     {
       "file": "packages/toolkit/sandpack-react/scripts/template.mts",
@@ -4145,8 +4165,8 @@
     },
     {
       "file": "packages/toolkit/types/package.json",
-      "hunks": 6,
-      "changedLines": 41
+      "hunks": 7,
+      "changedLines": 43
     },
     {
       "file": "packages/toolkit/types/packages/hoist-non-react-statics.d.ts",
@@ -5180,8 +5200,8 @@
     },
     {
       "file": "packages/toolkit/utils/package.json",
-      "hunks": 23,
-      "changedLines": 140
+      "hunks": 24,
+      "changedLines": 178
     },
     {
       "file": "packages/toolkit/utils/rslib.config.mts",
@@ -5260,8 +5280,13 @@
     },
     {
       "file": "packages/toolkit/utils/src/compiled.ts",
-      "hunks": 11,
-      "changedLines": 98
+      "hunks": 9,
+      "changedLines": 104
+    },
+    {
+      "file": "packages/toolkit/utils/src/fast-glob.ts",
+      "hunks": 1,
+      "changedLines": 1
     },
     {
       "file": "packages/toolkit/utils/src/index.ts",
@@ -5279,14 +5304,19 @@
       "changedLines": 4
     },
     {
+      "file": "packages/toolkit/utils/src/watch-options.ts",
+      "hunks": 1,
+      "changedLines": 5
+    },
+    {
       "file": "packages/toolkit/utils/tests/alias.test.ts",
       "hunks": 2,
       "changedLines": 19
     },
     {
       "file": "packages/toolkit/utils/tests/compatRequire.test.ts",
-      "hunks": 6,
-      "changedLines": 251
+      "hunks": 7,
+      "changedLines": 250
     },
     {
       "file": "packages/toolkit/utils/tests/compiledYamlExports.test.ts",
