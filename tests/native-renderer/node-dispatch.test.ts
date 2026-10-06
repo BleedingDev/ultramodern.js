@@ -764,11 +764,17 @@ it('preserves two entry identities and their adjacent render middleware', async 
     expect(first.headers.get('x-render-entry')).toBe('main');
     expect(first.headers.get('x-configured-entry')).toBe('main-policy');
     expect(first.headers.getSetCookie()).toEqual(['entry=main; Path=/']);
+    expect(
+      JSON.parse(first.headers.get('x-ultramodern-renderer-identity')!),
+    ).toEqual(identity);
     expect(firstBody).toBe('native:solid:build-a');
     const second = await fetch(`${origin}/second/path`);
     expect(second.headers.get('x-render-entry')).toBe('second');
     expect(second.headers.get('x-configured-entry')).toBe('second-policy');
     expect(second.headers.getSetCookie()).toEqual(['entry=second; Path=/']);
+    expect(
+      JSON.parse(second.headers.get('x-ultramodern-renderer-identity')!),
+    ).toEqual(secondIdentity);
     expect(await second.text()).toBe('native:solid:second-build');
     const cookies = await fetch(`${origin}/cookies`);
     expect(cookies.headers.getSetCookie()).toEqual([
