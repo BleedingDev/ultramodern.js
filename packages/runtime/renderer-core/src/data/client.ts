@@ -405,7 +405,14 @@ export function createDataClient(
     }
     url.searchParams.set(LOADER_ID_PARAM, routeId);
     url.searchParams.set(DIRECT_PARAM, 'true');
-    const proxyRequest = new Request(url, request);
+    // Browsers only stream request bodies over HTTP/2, so the action body
+    // is buffered instead of forwarding the source request's stream.
+    const proxyRequest = new Request(url, {
+      method: request.method,
+      headers: request.headers,
+      body: operation === 'action' ? await request.blob() : null,
+      signal: request.signal,
+    });
     const response = await fetchData(proxyRequest, {
       credentials: 'same-origin',
       redirect: 'manual',

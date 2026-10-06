@@ -340,21 +340,34 @@ export function createFileSystemRouteTree<Context = unknown>(
     ...(rootDescriptor ? loaderOptions(rootDescriptor) : {}),
   });
 
-  function bind(route: FileSystemRouteIR, parent: AnyRoute): AnyRoute {
+  // Like a React Router error element, error.tsx covers its whole subtree.
+  function bind(
+    route: FileSystemRouteIR,
+    parent: AnyRoute,
+    inheritedErrorComponent?: ErrorRouteComponent,
+  ): AnyRoute {
+    const errorComponent =
+      modules[route.id]?.errorComponent ?? inheritedErrorComponent;
     const native = createRoute({
       getParentRoute: () => parent,
       ...nativeRoutePath(route),
       ...routeModuleOptions(route.id),
+      ...(errorComponent ? { errorComponent } : {}),
       component: completionScope.component(
         modules[route.id]?.component ?? Outlet,
       ),
       staticData: { ultramodernRouteId: route.id },
       ...loaderOptions(route),
     });
-    return native.addChildren(route.children.map(child => bind(child, native)));
+    return native.addChildren(
+      route.children.map(child => bind(child, native, errorComponent)),
+    );
   }
 
-  const tree = root.addChildren(children.map(route => bind(route, root)));
+  const rootErrorComponent = modules[rootDescriptor?.id ?? '']?.errorComponent;
+  const tree = root.addChildren(
+    children.map(route => bind(route, root, rootErrorComponent)),
+  );
   registerRouteCompletionScope(tree, completionScope);
   return tree;
 }
