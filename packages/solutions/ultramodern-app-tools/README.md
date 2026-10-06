@@ -46,8 +46,29 @@ the maintained [BleedingDev release artifacts](https://github.com/bleedingdev/oc
 selected by that profile.
 
 Native previews reject workers, Module Federation, React Server Components,
-React i18n integration and CSS declaration emission beside authored source.
+React i18n plugins and CSS declaration emission beside authored source.
 These limits are checked before output generation; there is no preview bypass.
+
+Native apps localize with `i18nPlugin()` from this package, which takes the
+same `localeDetection`/`backend` options as `@modern-js/plugin-i18n`. URLs are
+language-prefixed (`/cs/about`), translations come from
+`locales/<language>/<namespace>.json`, and components use `useI18n`,
+`LocalizedLink` and `I18nProvider` from `@modern-js/renderer-<renderer>/i18n`.
+Install `i18next` and `@modern-js/i18n-runtime-extensions` next to the renderer:
+
+```ts
+import { defineConfig, i18nPlugin } from '@modern-js/ultramodern-app-tools';
+
+export default defineConfig({
+  renderer: 'solid',
+  server: { ssr: true },
+  plugins: [
+    i18nPlugin({
+      localeDetection: { languages: ['en', 'cs'], fallbackLanguage: 'en' },
+    }),
+  ],
+});
+```
 
 `output.ssg` and `output.ssgByEntries` prerender native routes after the build,
 in the same `dist/html/<entry>/<route>/index.html` layout as React SSG. Each

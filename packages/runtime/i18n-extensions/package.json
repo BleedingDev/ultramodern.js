@@ -74,6 +74,15 @@
         "require": "./dist/cjs/language-sync/controller.js"
       },
       "default": "./dist/esm/language-sync/controller.mjs"
+    },
+    "./request-language": {
+      "types": "./dist/types/requestLanguage.d.ts",
+      "modern:source": "./src/requestLanguage.ts",
+      "node": {
+        "import": "./dist/esm-node/requestLanguage.mjs",
+        "require": "./dist/cjs/requestLanguage.js"
+      },
+      "default": "./dist/esm/requestLanguage.mjs"
     }
   },
   "typesVersions": {
@@ -96,6 +105,9 @@
       ],
       "language-sync/controller": [
         "./dist/types/language-sync/controller.d.ts"
+      ],
+      "request-language": [
+        "./dist/types/requestLanguage.d.ts"
       ]
     }
   },

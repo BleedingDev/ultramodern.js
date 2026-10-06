@@ -430,10 +430,18 @@ export interface SolidRenderOptions<Bindings extends object = object> {
   readonly onError?: NativeStreamOptions['onError'];
 }
 
+/** Public JSON a client module reads from the document before it starts. */
+export interface DocumentInlineData {
+  readonly id: string;
+  readonly payload: Parameters<typeof serializeInlineData>[0]['payload'];
+}
+
 export interface SolidApplicationDocumentOptions extends SolidDocumentOptions {
   readonly rootId?: string;
   readonly lang?: string;
   readonly assets?: readonly DocumentAsset[];
+  /** Placed in the head, after the renderer bootstrap and before modules. */
+  readonly inlineData?: readonly DocumentInlineData[];
 }
 
 export interface SolidDocumentRenderOptions<Bindings extends object = object>
@@ -641,6 +649,19 @@ function createDocumentParts<Bindings extends object>(
     }),
     nonce: scriptCSPNonce,
   });
+  const inlineData = (document.inlineData ?? [])
+    .map(item => {
+      if (item.id === '__ULTRAMODERN_RENDERER__' || item.id === rootId)
+        throw new TypeError(
+          'Document inline data cannot reuse the root or bootstrap id.',
+        );
+      return serializeInlineData({
+        id: item.id,
+        payload: item.payload,
+        nonce: scriptCSPNonce,
+      });
+    })
+    .join('');
   return {
     rootId,
     renderId,
@@ -649,6 +670,7 @@ function createDocumentParts<Bindings extends object>(
     head:
       headAssets +
       bootstrap +
+      inlineData +
       (hydrating ? generateHydrationScript({ nonce: scriptCSPNonce }) : ''),
     modules: moduleAssets,
   };

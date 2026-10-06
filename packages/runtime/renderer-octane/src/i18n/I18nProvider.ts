@@ -1,4 +1,4 @@
-import { createElement, useEffect, useState } from 'octane';
+import { createElement, hookSlots, useEffect, useState } from 'octane';
 import { I18nContext } from './context';
 import type { I18nContextValue, I18nInstanceLike } from './types';
 
@@ -20,18 +20,30 @@ export interface I18nProviderProps extends Omit<I18nContextValue, 'language'> {
  * style (see `src/routes.ts`), and avoiding any dependency on Octane's
  * JSX/compiler toolchain for a file that needs none of its features.
  */
-export function I18nProvider(props: I18nProviderProps) {
-  const [language, setLanguage] = useState(() => props.instance.language);
+// Plain TypeScript is not rewritten by the Octane compiler, so each hook call
+// site carries its own stable slot, like `OctaneRouterRoot`.
+const languageStateSlot = Symbol(hookSlots(1));
+const languageSubscriptionSlot = Symbol(hookSlots(1));
 
-  useEffect(() => {
-    const instance: I18nInstanceLike = props.instance;
-    setLanguage(instance.language);
-    const handleLanguageChanged = (lng: string) => setLanguage(lng);
-    instance.on?.('languageChanged', handleLanguageChanged);
-    return () => {
-      instance.off?.('languageChanged', handleLanguageChanged);
-    };
-  }, [props.instance]);
+export function I18nProvider(props: I18nProviderProps) {
+  const [language, setLanguage] = useState(
+    () => props.instance.language,
+    languageStateSlot,
+  );
+
+  useEffect(
+    () => {
+      const instance: I18nInstanceLike = props.instance;
+      setLanguage(instance.language);
+      const handleLanguageChanged = (lng: string) => setLanguage(lng);
+      instance.on?.('languageChanged', handleLanguageChanged);
+      return () => {
+        instance.off?.('languageChanged', handleLanguageChanged);
+      };
+    },
+    [props.instance],
+    languageSubscriptionSlot,
+  );
 
   const value: I18nContextValue = {
     instance: props.instance,

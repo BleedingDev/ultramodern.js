@@ -3,7 +3,7 @@ import {
   type LanguageSyncFailure,
   type LanguageSyncPolicy,
 } from '@modern-js/i18n-runtime-extensions/language-sync/controller';
-import { useCallback, useEffect, useRef } from 'octane';
+import { hookSlots, useCallback, useEffect, useRef } from 'octane';
 
 export interface OctaneLatestLanguageSyncOptions<TTarget extends object> {
   changeLanguage: (
@@ -18,6 +18,15 @@ export interface OctaneLatestLanguageSyncOptions<TTarget extends object> {
   reportFailure?: (failure: LanguageSyncFailure) => void;
   target?: TTarget;
 }
+
+// Plain TypeScript is not rewritten by the Octane compiler, so each hook call
+// site carries its own stable slot.
+const bindingSlot = Symbol(hookSlots(1));
+const callbacksSlot = Symbol(hookSlots(1));
+const activationSlot = Symbol(hookSlots(1));
+const requestSlot = Symbol(hookSlots(1));
+const retrySlot = Symbol(hookSlots(1));
+const requestCallbackSlot = Symbol(hookSlots(1));
 
 /**
  * Octane binding over the fork's renderer-neutral `Coordinator`/`Binding`
@@ -45,62 +54,79 @@ export const useLatestLanguageSync = <TTarget extends object>({
 }: OctaneLatestLanguageSyncOptions<TTarget>): ((language: string) => void) => {
   const bindingRef = useRef<ReturnType<
     typeof createLatestLanguageSyncBinding<TTarget>
-  > | null>(null);
+  > | null>(null, bindingSlot);
   if (bindingRef.current === null) {
     bindingRef.current = createLatestLanguageSyncBinding<TTarget>(policy);
   }
   const binding = bindingRef.current;
 
-  useEffect(() => {
-    binding.updateCallbacks({
-      changeLanguage,
-      commitLanguage,
-      readLanguage,
-      reportFailure,
-    });
-  });
+  useEffect(
+    () => {
+      binding.updateCallbacks({
+        changeLanguage,
+        commitLanguage,
+        readLanguage,
+        reportFailure,
+      });
+    },
+    undefined,
+    callbacksSlot,
+  );
 
-  useEffect(() => {
-    if (!enabled || !target) {
-      return;
-    }
-    binding.activate(target);
-    return () => binding.deactivate();
-  }, [binding, enabled, target]);
-
-  useEffect(() => {
-    if (!enabled || !target || !desiredLanguage) {
-      binding.clearRequest();
-      return;
-    }
-    binding.request(desiredLanguage);
-  }, [binding, desiredLanguage, enabled, target]);
-
-  useEffect(() => {
-    if (
-      !enabled ||
-      !target ||
-      !desiredLanguage ||
-      typeof window === 'undefined'
-    ) {
-      return;
-    }
-    const retryCurrentIntent = () => binding.request(desiredLanguage);
-    const retryVisibleIntent = () => {
-      if (document.visibilityState === 'visible') {
-        retryCurrentIntent();
+  useEffect(
+    () => {
+      if (!enabled || !target) {
+        return;
       }
-    };
-    window.addEventListener('online', retryCurrentIntent);
-    document.addEventListener('visibilitychange', retryVisibleIntent);
-    return () => {
-      window.removeEventListener('online', retryCurrentIntent);
-      document.removeEventListener('visibilitychange', retryVisibleIntent);
-    };
-  }, [binding, desiredLanguage, enabled, target]);
+      binding.activate(target);
+      return () => binding.deactivate();
+    },
+    [binding, enabled, target],
+    activationSlot,
+  );
+
+  useEffect(
+    () => {
+      if (!enabled || !target || !desiredLanguage) {
+        binding.clearRequest();
+        return;
+      }
+      binding.request(desiredLanguage);
+    },
+    [binding, desiredLanguage, enabled, target],
+    requestSlot,
+  );
+
+  useEffect(
+    () => {
+      if (
+        !enabled ||
+        !target ||
+        !desiredLanguage ||
+        typeof window === 'undefined'
+      ) {
+        return;
+      }
+      const retryCurrentIntent = () => binding.request(desiredLanguage);
+      const retryVisibleIntent = () => {
+        if (document.visibilityState === 'visible') {
+          retryCurrentIntent();
+        }
+      };
+      window.addEventListener('online', retryCurrentIntent);
+      document.addEventListener('visibilitychange', retryVisibleIntent);
+      return () => {
+        window.removeEventListener('online', retryCurrentIntent);
+        document.removeEventListener('visibilitychange', retryVisibleIntent);
+      };
+    },
+    [binding, desiredLanguage, enabled, target],
+    retrySlot,
+  );
 
   return useCallback(
     (language: string) => binding.request(language),
     [binding],
+    requestCallbackSlot,
   );
 };

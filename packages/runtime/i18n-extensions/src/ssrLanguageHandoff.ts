@@ -51,6 +51,31 @@ function assertPayload(
   }
 }
 
+/** An inline data element a native document serializes with its own nonce. */
+export interface I18nSsrHandoffInlineData {
+  readonly id: string;
+  readonly payload: ReturnType<typeof serializePublicData>;
+}
+
+/**
+ * Encode the handoff as `{ id, payload }` for a native document's
+ * `inlineData` option, which places it before the client modules and stamps
+ * it with the document's CSP nonce.
+ */
+export function createI18nSsrHandoffInlineData(
+  payload: I18nSsrHandoffPayload,
+  options: Pick<SerializeI18nSsrHandoffOptions, 'id'> = {},
+): I18nSsrHandoffInlineData {
+  assertPayload(payload);
+  return {
+    id: options.id ?? I18N_SSR_HANDOFF_ELEMENT_ID,
+    payload: serializePublicData({
+      language: payload.language,
+      ...(payload.resources ? { resources: payload.resources } : {}),
+    }),
+  };
+}
+
 /**
  * Serialize the language/resources handoff into a complete, inert
  * `<script type="application/json">` element string. The native renderer's
@@ -61,13 +86,8 @@ export function serializeI18nSsrHandoff(
   payload: I18nSsrHandoffPayload,
   options: SerializeI18nSsrHandoffOptions = {},
 ): string {
-  assertPayload(payload);
   return serializeInlineData({
-    id: options.id ?? I18N_SSR_HANDOFF_ELEMENT_ID,
-    payload: serializePublicData({
-      language: payload.language,
-      ...(payload.resources ? { resources: payload.resources } : {}),
-    }),
+    ...createI18nSsrHandoffInlineData(payload, options),
     nonce: options.nonce,
   });
 }

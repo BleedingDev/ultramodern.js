@@ -186,13 +186,18 @@ describe('native owning entry generation', () => {
         source: generation.entrypoint.entry,
         routed: true,
         mode,
+        i18n: false,
       })),
     );
     expect(
-      routeEmissions.map(({ mode, basePath }) => ({ mode, basePath })),
+      routeEmissions.map(({ mode, basePath, i18n }) => ({
+        mode,
+        basePath,
+        i18n,
+      })),
     ).toEqual([
-      { mode: 'client', basePath: '/catalog' },
-      { mode: 'server', basePath: '/catalog' },
+      { mode: 'client', basePath: '/catalog', i18n: false },
+      { mode: 'server', basePath: '/catalog', i18n: false },
     ]);
     expect(routeEmissions[0].routes).toBe(routeEmissions[1].routes);
     expect(routeEmissions[0].routes).toMatchObject([

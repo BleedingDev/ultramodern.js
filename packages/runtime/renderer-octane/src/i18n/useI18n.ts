@@ -1,5 +1,5 @@
 import { localizePath } from '@modern-js/i18n-runtime-extensions/paths';
-import { useContext } from 'octane';
+import { hookSlots, useContext } from 'octane';
 import { useNavigate, useRouter } from '../router';
 import { I18nContext } from './context';
 import type { I18nInstanceLike } from './types';
@@ -19,6 +19,10 @@ export interface UseI18nReturn {
   changeLanguage: (language: string) => Promise<void>;
 }
 
+// Plain TypeScript is not rewritten by the Octane compiler: router hooks take
+// their stable slot explicitly.
+const navigateSlot = Symbol(hookSlots(1));
+
 /**
  * Must render under `I18nProvider`; throws rather than silently reading a
  * fallback instance when no provider is mounted (Octane's `createContext`
@@ -37,7 +41,7 @@ export function useI18n(): UseI18nReturn {
   const t: I18nInstanceLike['t'] = (key, options) => instance.t(key, options);
 
   const router = useRouter();
-  const navigate = useNavigate();
+  const navigate = useNavigate(undefined, navigateSlot);
 
   const changeLanguage = async (nextLanguage: string): Promise<void> => {
     await instance.changeLanguage?.(nextLanguage);

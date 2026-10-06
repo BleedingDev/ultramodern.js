@@ -50,7 +50,7 @@ import { ${options.mode === 'client' ? 'createDataClient, ' : ''}invokeRouteData
 import type { AnyRouter, FileSystemRouteModule } from "@modern-js/renderer-solid/router";
 import type { DataHandler, DataOutcome, DecodedDataOutcome, FileSystemRouteIR } from '@modern-js/renderer-core/data';
 import type { RendererIdentity } from '@modern-js/renderer-core/identity';
-import type { RequestSession } from '@modern-js/renderer-core/session';
+${options.i18n ? `import type { I18nLocationRewrite } from "@modern-js/renderer-solid/i18n";\n` : ''}import type { RequestSession } from '@modern-js/renderer-core/session';
 ${options.mode === 'client' ? 'declare const process: { env: { NODE_ENV?: string } };' : ''}
 ${hasHead ? `function resolveNativeHeadModule(module: { head?: FileSystemRouteModule['head']; default?: FileSystemRouteModule['head'] }): FileSystemRouteModule['head'] { return module.head ?? module.default; }` : ''}
 ${hasSearch ? `function resolveNativeSearchModule(module: { validateSearch?: FileSystemRouteModule['validateSearch']; default?: FileSystemRouteModule['validateSearch'] }): NonNullable<FileSystemRouteModule['validateSearch']> { const validateSearch = module.validateSearch ?? module.default; if (typeof validateSearch !== 'function') throw new Error('A native search module must export validateSearch or a default validator'); return validateSearch; }` : ''}
@@ -58,7 +58,7 @@ export const routeIR: FileSystemRouteIR[] = ${JSON.stringify(routeIR, null, 2)};
 export const routeModules: Record<string, FileSystemRouteModule> = { ${configurations.join(',\n')} };
 export const dataModules: Record<string, { loader?: DataHandler; action?: DataHandler }> = { ${data.join(',\n')} };
 ${options.mode === 'client' ? `const serverDataRoutes = new Set<string>(${JSON.stringify(serverDataRoutes)});` : ''}
-export function createNativeRouter(identity: RendererIdentity, request?: Request, context: object = {}, onOutcome?: (routeId: string, outcome: DataOutcome | DecodedDataOutcome) => void, session?: RequestSession, nonce?: string): AnyRouter {
+export function createNativeRouter(identity: RendererIdentity, request?: Request, context: object = {}, onOutcome?: (routeId: string, outcome: DataOutcome | DecodedDataOutcome) => void, session?: RequestSession, nonce?: string${options.i18n ? ', rewrite?: I18nLocationRewrite' : ''}): AnyRouter {
   if (Object.hasOwn(context, 'ultramodern')) throw new Error('The native router context reserves ultramodern metadata');
   const nativeContext = { ultramodern: Object.freeze({ rendererIdentity: Object.freeze({ ...identity }) }) };
   const routeTree = createFileSystemRouteTree(routeIR, routeModules, {
@@ -75,7 +75,7 @@ export function createNativeRouter(identity: RendererIdentity, request?: Request
   const router: AnyRouter = createApplicationRouter({
     routeTree,
     basepath: ${JSON.stringify(options.basePath)},
-    context: nativeContext,
+    context: nativeContext,${options.i18n ? '\n    // Matching stays on canonical paths; public URLs carry the language.\n    ...(rewrite ? { rewrite } : {}),' : ''}
     // Router-emitted scripts carry the document's CSP nonce.
     ...(nonce === undefined ? {} : { ssr: { nonce } }),
     ...(url ? { origin: url.origin, history: createMemoryHistory({ initialEntries: [url.pathname + url.search + url.hash] }) } : {}),
