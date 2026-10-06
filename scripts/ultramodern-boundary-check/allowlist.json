@@ -101,6 +101,13 @@
       "reason": "Preserve existing Vercel deploy output dependency tracing."
     },
     {
+      "file": "packages/solutions/app-tools/src/run/index.ts",
+      "specifier": "@modern-js/app-tools-extensions/native-config-load-provider",
+      "target": "packages/solutions/app-tools-extensions/src/native-config-load-provider.ts",
+      "owner": "bleedingdev",
+      "reason": "Delegate native config loading to the fork-owned provider that captures the original configuration for renderer and deployment commands."
+    },
+    {
       "file": "packages/solutions/app-tools/src/server-plugin.ts",
       "specifier": "@modern-js/server-runtime-extensions/server-plugin",
       "target": "packages/server/runtime-extensions/src/serverPlugin.ts",

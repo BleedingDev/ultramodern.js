@@ -1,4 +1,3 @@
-import type { ResolvedDeployTarget } from '@modern-js/app-tools-extensions/deploy-output/target';
 import type {
   AppContext,
   AsyncHook,
@@ -187,7 +186,6 @@ export interface AppToolsExtendContextBase<Extends extends CLIPluginExtends> {
   serverRoutes: ServerRoute[];
   /** Whether to use api only mode */
   apiOnly: boolean;
-  deployTarget: ResolvedDeployTarget;
   _internalContext: InternalContext<Extends>;
   /**
    * Information for HTML templates by entry
