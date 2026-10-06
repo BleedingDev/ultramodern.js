@@ -8,9 +8,11 @@ export const TANSTACK_ROUTER_CORE_VERSION = '1.171.34';
 export const TANSTACK_HISTORY_VERSION = '1.162.4';
 export const MODULE_FEDERATION_VERSION = '2.9.2';
 // The mf-modern-js-v3 sidecar is upstream 2.9.2 plus the repository patch. Its
-// fork version moves past 2.9.2 because the 2.9.2 fork name already carries
-// upstream 2.9.1 bytes, and a published sidecar version is immutable.
-export const MODULE_FEDERATION_MODERN_JS_V3_FORK_VERSION = '2.9.3';
+// fork version moves past 2.9.2 because published sidecar versions are
+// immutable: 2.9.2 carries upstream 2.9.1 bytes and 2.9.3 predates the
+// renderer hunks (router-free `/base` bridge entry). 2.9.4 also pins the
+// dts-plugin 2.9.3 cascade (native DTS worker witness, onDevWorkerCreated).
+export const MODULE_FEDERATION_MODERN_JS_V3_FORK_VERSION = '2.9.4';
 export const ZEPHYR_RSPACK_PLUGIN_VERSION = '1.4.2';
 export const ZEPHYR_AGENT_VERSION = '1.4.2';
 export const WRANGLER_VERSION = '4.145.0';
