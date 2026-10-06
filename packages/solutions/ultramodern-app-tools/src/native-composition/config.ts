@@ -51,6 +51,7 @@ import { resolveEntrypointRouterBindings } from './renderer-router-resolution';
 import {
   assertCapturedRenderer,
   assertNoAdditionalBasePlugins,
+  assertRendererCliPlugins,
   ULTRAMODERN_BASE_PLUGIN,
 } from './renderer-selection';
 import type {
@@ -90,6 +91,7 @@ function selectConfig(
   const renderer = resolveRendererRegistration(config.renderer).renderer;
   const plugins = config.plugins ?? [];
   assertNoAdditionalBasePlugins(plugins);
+  assertRendererCliPlugins(renderer, plugins);
   const base = factory(renderer, plugins);
   Object.defineProperty(base, selectedRenderer, {
     value: renderer,

@@ -6,6 +6,7 @@ import { pathToFileURL } from 'node:url';
 import { createRsbuild, rspack } from '@rsbuild/core';
 import {
   configureUltramodernTypeChecker,
+  missingJsxRuntimeHint,
   resolveNativeTypeCheckerCommand,
   UltramodernNativeTypeChecker,
 } from '../src/native-type-checker';
@@ -776,3 +777,51 @@ test('the rspack plugin reports type errors as build errors and registers refere
     fs.rmSync(root, { recursive: true, force: true });
   }
 }, 30000);
+
+test('a missing renderer JSX runtime failure names the selected jsxImportSource', async () => {
+  const root = fs.realpathSync.native(
+    fs.mkdtempSync(path.join(os.tmpdir(), 'native-checker-jsx-runtime-')),
+  );
+  const configFile = path.join(root, 'tsconfig.json');
+  try {
+    fs.mkdirSync(path.join(root, 'src'));
+    fs.writeFileSync(
+      path.join(root, 'src/page.tsx'),
+      'export default function Page() { return <main>authored for another renderer</main>; }',
+    );
+    fs.writeFileSync(
+      configFile,
+      JSON.stringify({
+        compilerOptions: {
+          module: 'ESNext',
+          moduleResolution: 'Bundler',
+          jsx: 'preserve',
+          noEmit: true,
+          strict: true,
+          types: [],
+        },
+        include: ['src'],
+      }),
+    );
+    const failure = await new UltramodernNativeTypeChecker({
+      compiler: () => compiler,
+      configFile,
+      build: false,
+      configOverwrite: { compilerOptions: { jsxImportSource: 'octane' } },
+    })
+      .check()
+      .then(
+        () => undefined,
+        (error: Error) => error.message,
+      );
+    expect(failure).toContain(
+      "error TS2875: This JSX tag requires the module path 'octane/jsx-runtime'",
+    );
+    expect(failure).toContain(
+      "Hint: JSX compiles against jsxImportSource 'octane', the selected renderer's runtime, but 'octane/jsx-runtime' cannot be resolved from this app.",
+    );
+    expect(missingJsxRuntimeHint('error TS2322: unrelated')).toBe('');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
