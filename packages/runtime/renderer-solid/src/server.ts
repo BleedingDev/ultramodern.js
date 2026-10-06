@@ -26,6 +26,7 @@ import {
   NoHydration,
   runWithOwner,
 } from 'solid-js';
+import { withFederatedAssets } from './federation-ssr';
 import { nativePromiseSerializationPlugin } from './native-promise-serialization';
 
 type NativeStreamOptions = NonNullable<Parameters<typeof renderToStream>[1]>;
@@ -512,6 +513,8 @@ export async function renderApplication<Bindings extends object>(
             if (session.signal.aborted) abortNative();
             const native = renderToStream(options.view, {
               ...options.document,
+              // Server-rendered federated components add their remote assets.
+              manifest: withFederatedAssets(options.document?.manifest),
               plugins: [nativePromiseSerializationPlugin],
               // Restore the request event when transport cancellation occurs
               // outside the async scope that constructed the native stream.
