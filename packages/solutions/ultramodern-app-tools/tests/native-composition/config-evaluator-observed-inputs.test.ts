@@ -246,38 +246,40 @@ describe('native entry path-kind provenance', () => {
       });
     }));
 
-  it.each([
-    'missing',
-    'file',
-  ] as const)('preserves the native %s source error and candidate existence', async kind =>
-    fixture(async root => {
-      const src = path.join(root, 'src');
-      if (kind === 'file') fs.writeFileSync(src, 'not a directory');
-      const checkEntryPoint = createAsyncHook<CheckEntryPointFn>();
-      const config = { source: { entriesDir: './src' } };
-      const baseline = await getFileSystemEntry(
-        { checkEntryPoint },
-        { appDirectory: root },
-        config,
-      ).catch(error => error);
-      const observed = await observeConfigSourceInputs(snapshot(root), reader =>
-        getFileSystemEntry(
+  it.each(['missing', 'file'] as const)(
+    'preserves the native %s source error and candidate existence',
+    async kind =>
+      fixture(async root => {
+        const src = path.join(root, 'src');
+        if (kind === 'file') fs.writeFileSync(src, 'not a directory');
+        const checkEntryPoint = createAsyncHook<CheckEntryPointFn>();
+        const config = { source: { entriesDir: './src' } };
+        const baseline = await getFileSystemEntry(
           { checkEntryPoint },
-          { appDirectory: root, packageMetadataRead: reader },
+          { appDirectory: root },
           config,
-        ).catch(error => error),
-      );
-      expect(observed.value).toBeInstanceOf(Error);
-      expect(observed.value.message).toBe(baseline.message);
-      expect(observations(observed.consumedSourceInputs, root)).toEqual([
-        {
-          path: 'src',
-          canonicalPath: 'src',
-          operation: 'entry-kind',
-          existed: kind === 'file',
-        },
-      ]);
-    }));
+        ).catch(error => error);
+        const observed = await observeConfigSourceInputs(
+          snapshot(root),
+          reader =>
+            getFileSystemEntry(
+              { checkEntryPoint },
+              { appDirectory: root, packageMetadataRead: reader },
+              config,
+            ).catch(error => error),
+        );
+        expect(observed.value).toBeInstanceOf(Error);
+        expect(observed.value.message).toBe(baseline.message);
+        expect(observations(observed.consumedSourceInputs, root)).toEqual([
+          {
+            path: 'src',
+            canonicalPath: 'src',
+            operation: 'entry-kind',
+            existed: kind === 'file',
+          },
+        ]);
+      }),
+  );
 
   it('retains synchronous, callback and promise stat results and missing errors', async () =>
     fixture(async root => {
@@ -880,71 +882,57 @@ describe('actual config authority source observations', () => {
       }
     }));
 
-  it.each([
-    'require',
-    'import',
-  ] as const)('routes retained source wrappers through the genuine public %s config-load phase', async format =>
-    fixture(async root => {
-      fs.writeFileSync(
-        path.join(root, 'package.json'),
-        JSON.stringify({ name: 'public-observation', private: true }),
-      );
-      const manifestFile = path.resolve(__dirname, '../../package.json');
-      const ownerRequire = createRequire(manifestFile);
-      const manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
-      const nativeImportFile = path.join(root, 'native-import.cjs');
-      fs.writeFileSync(
-        nativeImportFile,
-        'module.exports = url => import(url);\n',
-      );
-      const nativeImport = createRequire(path.join(root, 'config.cjs'))(
-        nativeImportFile,
-      );
-      // Read the actual published target, so this control uses the refreshed
-      // package formats rather than a second source-loader instance.
-      const namespace =
-        format === 'require'
-          ? ownerRequire('@modern-js/ultramodern-app-tools/native-config-load')
-          : await nativeImport(
-              pathToFileURL(
-                path.resolve(
-                  path.dirname(manifestFile),
-                  manifest.exports['./native-config-load'].node.import.default,
-                ),
-              ).href,
-            );
-      const captured = await observeConfigSourceInputs(
-        snapshot(root),
-        async () => ({
-          copyFile: fs.copyFile,
-          readFileSync: fs.readFileSync,
-          realpath: fs.realpathSync.native,
-        }),
-      );
-      const integration = namespace.createNativeConfigLoad();
-      const input = path.join(root, 'input.json');
-      const read = await integration.wrapConfigLoad(
-        async () => {
-          expect(captured.value.realpath(input)).toBe(input);
-          expect(captured.value.readFileSync(input, 'utf8')).toContain('solid');
-          return {
-            packageName: 'public-observation',
-            configFile: false,
-            config: {},
-          };
-        },
-        { appDirectory: root, configFile: false },
-      );
-      expect(read.packageName).toBe('public-observation');
-      const copy = path.join(root, 'forbidden-public-copy.json');
-      await expect(
-        integration.wrapConfigLoad(
+  it.each(['require', 'import'] as const)(
+    'routes retained source wrappers through the genuine public %s config-load phase',
+    async format =>
+      fixture(async root => {
+        fs.writeFileSync(
+          path.join(root, 'package.json'),
+          JSON.stringify({ name: 'public-observation', private: true }),
+        );
+        const manifestFile = path.resolve(__dirname, '../../package.json');
+        const ownerRequire = createRequire(manifestFile);
+        const manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
+        const nativeImportFile = path.join(root, 'native-import.cjs');
+        fs.writeFileSync(
+          nativeImportFile,
+          'module.exports = url => import(url);\n',
+        );
+        const nativeImport = createRequire(path.join(root, 'config.cjs'))(
+          nativeImportFile,
+        );
+        // Read the actual published target, so this control uses the refreshed
+        // package formats rather than a second source-loader instance.
+        const namespace =
+          format === 'require'
+            ? ownerRequire(
+                '@modern-js/ultramodern-app-tools/native-config-load',
+              )
+            : await nativeImport(
+                pathToFileURL(
+                  path.resolve(
+                    path.dirname(manifestFile),
+                    manifest.exports['./native-config-load'].node.import
+                      .default,
+                  ),
+                ).href,
+              );
+        const captured = await observeConfigSourceInputs(
+          snapshot(root),
+          async () => ({
+            copyFile: fs.copyFile,
+            readFileSync: fs.readFileSync,
+            realpath: fs.realpathSync.native,
+          }),
+        );
+        const integration = namespace.createNativeConfigLoad();
+        const input = path.join(root, 'input.json');
+        const read = await integration.wrapConfigLoad(
           async () => {
-            try {
-              await promisify(captured.value.copyFile)(input, copy);
-            } catch {
-              /* The public owner must retain sticky active denial. */
-            }
+            expect(captured.value.realpath(input)).toBe(input);
+            expect(captured.value.readFileSync(input, 'utf8')).toContain(
+              'solid',
+            );
             return {
               packageName: 'public-observation',
               configFile: false,
@@ -952,10 +940,29 @@ describe('actual config authority source observations', () => {
             };
           },
           { appDirectory: root, configFile: false },
-        ),
-      ).rejects.toThrow('fs.copyFile');
-      expect(fs.existsSync(copy)).toBe(false);
-    }));
+        );
+        expect(read.packageName).toBe('public-observation');
+        const copy = path.join(root, 'forbidden-public-copy.json');
+        await expect(
+          integration.wrapConfigLoad(
+            async () => {
+              try {
+                await promisify(captured.value.copyFile)(input, copy);
+              } catch {
+                /* The public owner must retain sticky active denial. */
+              }
+              return {
+                packageName: 'public-observation',
+                configFile: false,
+                config: {},
+              };
+            },
+            { appDirectory: root, configFile: false },
+          ),
+        ).rejects.toThrow('fs.copyFile');
+        expect(fs.existsSync(copy)).toBe(false);
+      }),
+  );
 
   it('preserves expired Worker construction and denies it during later observation', async () =>
     fixture(async root => {
@@ -1026,57 +1033,57 @@ describe('actual config authority source observations', () => {
       ).toBe(true);
     }));
 
-  it.each([
-    'before',
-    'after',
-  ] as const)('keeps authored manifest reads and imports %s both native automatic metadata calls', async order =>
-    fixture(async root => {
-      const manifest = path.join(root, 'package.json');
-      fs.writeFileSync(
-        manifest,
-        '{"name":"native-metadata","dependencies":{}}',
-      );
-      const author = createRequire(path.join(root, 'config.cjs'));
-      const observed = await observeConfigSourceInputs(
-        snapshot(root),
-        async packageMetadataRead => {
-          const readAuthored = () => {
-            expect(JSON.parse(fs.readFileSync(manifest, 'utf8')).name).toBe(
-              'native-metadata',
+  it.each(['before', 'after'] as const)(
+    'keeps authored manifest reads and imports %s both native automatic metadata calls',
+    async order =>
+      fixture(async root => {
+        const manifest = path.join(root, 'package.json');
+        fs.writeFileSync(
+          manifest,
+          '{"name":"native-metadata","dependencies":{}}',
+        );
+        const author = createRequire(path.join(root, 'config.cjs'));
+        const observed = await observeConfigSourceInputs(
+          snapshot(root),
+          async packageMetadataRead => {
+            const readAuthored = () => {
+              expect(JSON.parse(fs.readFileSync(manifest, 'utf8')).name).toBe(
+                'native-metadata',
+              );
+              expect(author(manifest).name).toBe('native-metadata');
+            };
+            if (order === 'before') readAuthored();
+            const loaded = await createLoadedConfig(
+              root,
+              false,
+              undefined,
+              undefined,
+              packageMetadataRead,
             );
-            expect(author(manifest).name).toBe('native-metadata');
-          };
-          if (order === 'before') readAuthored();
-          const loaded = await createLoadedConfig(
-            root,
-            false,
-            undefined,
-            undefined,
-            packageMetadataRead,
-          );
-          expect(loaded.packageName).toBe('native-metadata');
-          const context = initAppContext({
-            metaName: 'modern-js',
-            appDirectory: root,
-            runtimeConfigFile: '',
-            packageMetadataRead,
-          });
-          expect(context.moduleType).toBe('commonjs');
-          if (order === 'after') readAuthored();
-        },
-      );
-      expect(observed.consumedSourceInputs.packageMetadata).toHaveLength(2);
-      for (const operation of ['content', 'module']) {
-        expect(
-          observed.consumedSourceInputs.observations.some(
-            input =>
-              input.path === manifest &&
-              input.operation === operation &&
-              input.existed,
-          ),
-        ).toBe(true);
-      }
-    }));
+            expect(loaded.packageName).toBe('native-metadata');
+            const context = initAppContext({
+              metaName: 'modern-js',
+              appDirectory: root,
+              runtimeConfigFile: '',
+              packageMetadataRead,
+            });
+            expect(context.moduleType).toBe('commonjs');
+            if (order === 'after') readAuthored();
+          },
+        );
+        expect(observed.consumedSourceInputs.packageMetadata).toHaveLength(2);
+        for (const operation of ['content', 'module']) {
+          expect(
+            observed.consumedSourceInputs.observations.some(
+              input =>
+                input.path === manifest &&
+                input.operation === operation &&
+                input.existed,
+            ),
+          ).toBe(true);
+        }
+      }),
+  );
 
   it('preserves the original native automatic manifest reader error', async () =>
     fixture(async root => {
@@ -1113,44 +1120,44 @@ describe('actual config authority source observations', () => {
     { type: 'module', expected: 'module' },
     { type: 'commonjs', expected: 'commonjs' },
     { type: false, expected: 'commonjs' },
-  ])('records the original native effective module type $expected for $type', async ({
-    type,
-    expected,
-  }) =>
-    fixture(async root => {
-      const manifest = path.join(root, 'package.json');
-      fs.writeFileSync(
-        manifest,
-        JSON.stringify({ name: 'native-metadata', type }),
-      );
-      const observed = await observeConfigSourceInputs(
-        snapshot(root),
-        async packageMetadataRead => {
-          const context = initAppContext({
-            metaName: 'modern-js',
-            appDirectory: root,
-            runtimeConfigFile: '',
-            packageMetadataRead,
-          });
-          expect(context.moduleType).toBe(expected);
-          return context.moduleType;
-        },
-      );
-      expect(observed.value).toBe(expected);
-      expect(observed.consumedSourceInputs.packageMetadata).toEqual([
-        {
-          path: manifest,
-          canonicalPath: manifest,
-          field: 'type',
-          value: expected,
-        },
-      ]);
-      expect(
-        observed.consumedSourceInputs.observations.some(
-          input => input.path === manifest,
-        ),
-      ).toBe(false);
-    }));
+  ])(
+    'records the original native effective module type $expected for $type',
+    async ({ type, expected }) =>
+      fixture(async root => {
+        const manifest = path.join(root, 'package.json');
+        fs.writeFileSync(
+          manifest,
+          JSON.stringify({ name: 'native-metadata', type }),
+        );
+        const observed = await observeConfigSourceInputs(
+          snapshot(root),
+          async packageMetadataRead => {
+            const context = initAppContext({
+              metaName: 'modern-js',
+              appDirectory: root,
+              runtimeConfigFile: '',
+              packageMetadataRead,
+            });
+            expect(context.moduleType).toBe(expected);
+            return context.moduleType;
+          },
+        );
+        expect(observed.value).toBe(expected);
+        expect(observed.consumedSourceInputs.packageMetadata).toEqual([
+          {
+            path: manifest,
+            canonicalPath: manifest,
+            field: 'type',
+            value: expected,
+          },
+        ]);
+        expect(
+          observed.consumedSourceInputs.observations.some(
+            input => input.path === manifest,
+          ),
+        ).toBe(false);
+      }),
+  );
 
   it('preserves the original synchronous native module-type reader error', async () =>
     fixture(async root => {
@@ -1208,27 +1215,27 @@ describe('actual config authority source observations', () => {
       ).toBe(true);
     }));
 
-  it.each([
-    '?probe=1',
-    '#probe=1',
-  ])('rejects authored native ESM binding URL alias %s even when caught', async suffix =>
-    fixture(async root => {
-      const binding = initializeOwningConfigNativeBinding();
-      await expect(
-        observeConfigSourceInputs(
-          snapshot(root),
-          async () => {
-            try {
-              await import(`${binding.bindingURL}${suffix}`);
-            } catch {}
-            return 'solid';
-          },
-          undefined,
-          undefined,
-          binding,
-        ),
-      ).rejects.toThrow('native binding module');
-    }));
+  it.each(['?probe=1', '#probe=1'])(
+    'rejects authored native ESM binding URL alias %s even when caught',
+    async suffix =>
+      fixture(async root => {
+        const binding = initializeOwningConfigNativeBinding();
+        await expect(
+          observeConfigSourceInputs(
+            snapshot(root),
+            async () => {
+              try {
+                await import(`${binding.bindingURL}${suffix}`);
+              } catch {}
+              return 'solid';
+            },
+            undefined,
+            undefined,
+            binding,
+          ),
+        ).rejects.toThrow('native binding module');
+      }),
+  );
 
   it('permits the exact installed owner edge and rejects authored cached binding access', async () =>
     fixture(async root => {
@@ -1242,7 +1249,7 @@ describe('actual config authority source observations', () => {
         undefined,
         binding,
       );
-      expect(observed.value.EXPECTED_RSPACK_CORE_VERSION).toBe('2.2.7');
+      expect(observed.value.EXPECTED_RSPACK_CORE_VERSION).toBe('2.2.8');
       await expect(
         observeConfigSourceInputs(
           snapshot(root),
@@ -1350,38 +1357,40 @@ describe('actual config authority source observations', () => {
       ]);
     }));
 
-  it.each([
-    'statSync',
-    'lstatSync',
-  ] as const)('records native metadata probe %s absence without changing its return or errors', async method =>
-    fixture(async root => {
-      const input = path.join(root, 'input.json');
-      const absent = path.join(root, '.env');
-      const observed = await observeConfigSourceInputs(
-        snapshot(root),
-        async () => {
-          expect(fs[method](absent, { throwIfNoEntry: false })).toBeUndefined();
-          expect(fs[method](input, { throwIfNoEntry: false })?.isFile()).toBe(
-            true,
-          );
-          expect(() => fs[method](absent)).toThrow('ENOENT');
-        },
-      );
-      expect(observations(observed.consumedSourceInputs, root)).toEqual([
-        {
-          path: '.env',
-          canonicalPath: '.env',
-          operation: 'metadata',
-          existed: false,
-        },
-        {
-          path: 'input.json',
-          canonicalPath: 'input.json',
-          operation: 'metadata',
-          existed: true,
-        },
-      ]);
-    }));
+  it.each(['statSync', 'lstatSync'] as const)(
+    'records native metadata probe %s absence without changing its return or errors',
+    async method =>
+      fixture(async root => {
+        const input = path.join(root, 'input.json');
+        const absent = path.join(root, '.env');
+        const observed = await observeConfigSourceInputs(
+          snapshot(root),
+          async () => {
+            expect(
+              fs[method](absent, { throwIfNoEntry: false }),
+            ).toBeUndefined();
+            expect(fs[method](input, { throwIfNoEntry: false })?.isFile()).toBe(
+              true,
+            );
+            expect(() => fs[method](absent)).toThrow('ENOENT');
+          },
+        );
+        expect(observations(observed.consumedSourceInputs, root)).toEqual([
+          {
+            path: '.env',
+            canonicalPath: '.env',
+            operation: 'metadata',
+            existed: false,
+          },
+          {
+            path: 'input.json',
+            canonicalPath: 'input.json',
+            operation: 'metadata',
+            existed: true,
+          },
+        ]);
+      }),
+  );
 
   it('records native metadata probe stat callback and promise absence without changing their returns', async () =>
     fixture(async root => {
@@ -1651,35 +1660,39 @@ describe('actual config authority source observations', () => {
     'subprocess',
     'worker',
     'native',
-  ] as const)('fails closed for unsupported %s reads even if authored code catches the error', async operation =>
-    fixture(async root => {
-      const originalRead = fs.readFileSync;
-      await expect(
-        observeConfigSourceInputs(snapshot(root), async () => {
-          try {
-            if (operation === 'descriptor')
-              fs.openSync(path.join(root, 'input.json'), 'r');
-            if (operation === 'stream')
-              fs.createReadStream(path.join(root, 'input.json'));
-            if (operation === 'promise-handle')
-              await fsPromises.open(path.join(root, 'input.json'), 'r');
-            if (operation === 'private') Reflect.get(process, 'binding')('fs');
-            if (operation === 'worker')
-              new workerThreads.Worker('0', { eval: true });
-            if (operation === 'native')
-              Reflect.get(process, 'dlopen')({}, 'untracked.node');
-            if (operation === 'subprocess')
-              childProcess.execFileSync(process.execPath, ['--version']);
-          } catch {
-            /* The evaluator must reject caught unsupported source IO too. */
-          }
-        }),
-      ).rejects.toThrow('Unsupported config source observation');
-      expect(fs.readFileSync).toBe(originalRead);
-      expect(fs.readFileSync(path.join(root, 'input.json'), 'utf8')).toContain(
-        'solid',
-      );
-    }));
+  ] as const)(
+    'fails closed for unsupported %s reads even if authored code catches the error',
+    async operation =>
+      fixture(async root => {
+        const originalRead = fs.readFileSync;
+        await expect(
+          observeConfigSourceInputs(snapshot(root), async () => {
+            try {
+              if (operation === 'descriptor')
+                fs.openSync(path.join(root, 'input.json'), 'r');
+              if (operation === 'stream')
+                fs.createReadStream(path.join(root, 'input.json'));
+              if (operation === 'promise-handle')
+                await fsPromises.open(path.join(root, 'input.json'), 'r');
+              if (operation === 'private')
+                Reflect.get(process, 'binding')('fs');
+              if (operation === 'worker')
+                new workerThreads.Worker('0', { eval: true });
+              if (operation === 'native')
+                Reflect.get(process, 'dlopen')({}, 'untracked.node');
+              if (operation === 'subprocess')
+                childProcess.execFileSync(process.execPath, ['--version']);
+            } catch {
+              /* The evaluator must reject caught unsupported source IO too. */
+            }
+          }),
+        ).rejects.toThrow('Unsupported config source observation');
+        expect(fs.readFileSync).toBe(originalRead);
+        expect(
+          fs.readFileSync(path.join(root, 'input.json'), 'utf8'),
+        ).toContain('solid');
+      }),
+  );
 
   it('rejects filesystem option getters before hidden reads or subprocesses run', async () =>
     fixture(async root => {
@@ -1702,27 +1715,27 @@ describe('actual config authority source observations', () => {
       expect(calls).toBe(0);
     }));
 
-  it.each([
-    'copy',
-    'glob',
-  ] as const)('fails closed for unobserved %s reads', async operation =>
-    fixture(async root => {
-      await expect(
-        observeConfigSourceInputs(snapshot(root), async () => {
-          try {
-            if (operation === 'copy')
-              fs.copyFileSync(
-                path.join(root, 'input.json'),
-                path.join(root, 'copied.json'),
-              );
-            else fs.globSync('*.json', { cwd: root });
-          } catch {
-            /* Unsupported reads remain a session failure. */
-          }
-        }),
-      ).rejects.toThrow('Unsupported config source observation');
-      expect(fs.existsSync(path.join(root, 'copied.json'))).toBe(false);
-    }));
+  it.each(['copy', 'glob'] as const)(
+    'fails closed for unobserved %s reads',
+    async operation =>
+      fixture(async root => {
+        await expect(
+          observeConfigSourceInputs(snapshot(root), async () => {
+            try {
+              if (operation === 'copy')
+                fs.copyFileSync(
+                  path.join(root, 'input.json'),
+                  path.join(root, 'copied.json'),
+                );
+              else fs.globSync('*.json', { cwd: root });
+            } catch {
+              /* Unsupported reads remain a session failure. */
+            }
+          }),
+        ).rejects.toThrow('Unsupported config source observation');
+        expect(fs.existsSync(path.join(root, 'copied.json'))).toBe(false);
+      }),
+  );
 
   it('observes caught explicit missing module resolution, and rejects extensionless probes', async () =>
     fixture(async root => {
@@ -2220,37 +2233,36 @@ describe('actual config authority source observations', () => {
       );
     }));
 
-  it.each([
-    './helper/',
-    './helper/.',
-    './helper/child/..',
-  ])('preserves native CJS directory intent for %s despite a sibling file', async specifier =>
-    fixture(async root => {
-      const directory = path.join(root, 'helper');
-      fs.mkdirSync(path.join(directory, 'child'), { recursive: true });
-      fs.writeFileSync(
-        path.join(root, 'helper.js'),
-        "module.exports = 'octane';",
-      );
-      fs.writeFileSync(
-        path.join(directory, 'index.js'),
-        "module.exports = 'solid';",
-      );
-      const owningRequire = createRequire(path.join(root, 'config.cjs'));
-      const observed = await observeConfigSourceInputs(
-        snapshot(root),
-        async () => owningRequire(specifier),
-      );
-      expect(observed.value).toBe('solid');
-      const inputs = observations(observed.consumedSourceInputs, root);
-      expect(inputs).toContainEqual({
-        path: 'helper/package.json',
-        canonicalPath: 'helper/package.json',
-        operation: 'content',
-        existed: false,
-      });
-      expect(inputs.some(input => input.path === 'helper.js')).toBe(false);
-    }));
+  it.each(['./helper/', './helper/.', './helper/child/..'])(
+    'preserves native CJS directory intent for %s despite a sibling file',
+    async specifier =>
+      fixture(async root => {
+        const directory = path.join(root, 'helper');
+        fs.mkdirSync(path.join(directory, 'child'), { recursive: true });
+        fs.writeFileSync(
+          path.join(root, 'helper.js'),
+          "module.exports = 'octane';",
+        );
+        fs.writeFileSync(
+          path.join(directory, 'index.js'),
+          "module.exports = 'solid';",
+        );
+        const owningRequire = createRequire(path.join(root, 'config.cjs'));
+        const observed = await observeConfigSourceInputs(
+          snapshot(root),
+          async () => owningRequire(specifier),
+        );
+        expect(observed.value).toBe('solid');
+        const inputs = observations(observed.consumedSourceInputs, root);
+        expect(inputs).toContainEqual({
+          path: 'helper/package.json',
+          canonicalPath: 'helper/package.json',
+          operation: 'content',
+          existed: false,
+        });
+        expect(inputs.some(input => input.path === 'helper.js')).toBe(false);
+      }),
+  );
 
   it('rejects a new higher-priority candidate despite the native CJS resolution cache', async () =>
     fixture(async root => {

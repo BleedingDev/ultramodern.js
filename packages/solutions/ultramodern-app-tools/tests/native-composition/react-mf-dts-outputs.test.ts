@@ -30,7 +30,6 @@ import {
   rspack,
 } from '@rsbuild/core';
 import { afterEach, describe, expect, it } from '@rstest/core';
-import { applyCloudflareWorkerMfRuntimeBoundary } from '../../../app-tools-extensions/src/cloudflare-builder';
 import { captureConfigSourceSnapshot } from '../../src/native-composition/config-evaluator/source-snapshot';
 import {
   type ConfigSourceSnapshot,
@@ -1201,26 +1200,24 @@ async function settleClosedReceiver(receiver: ReceiverContext) {
 }
 
 describe('React native receiver output controller', () => {
-  it.each([
-    'success',
-    'metadata-error',
-    'compiler-error',
-  ])('lets a plain one-shot compiler process exit naturally: %s', async outcome => {
-    const app = fixture();
-    const owningRequire = createRequire(import.meta.url);
-    const sourceDirectory = path.resolve(
-      __dirname,
-      '../../src/native-composition',
-    );
-    const childEntry = path.join(app.root, 'one-shot-entry.mjs');
-    const childBundle = path.join(app.root, 'one-shot-bundle.cjs');
-    const phaseModule = path.resolve(
-      sourceDirectory,
-      '../../dist/cjs/native-composition/react-typed-css-phase.js',
-    );
-    fs.writeFileSync(
-      childEntry,
-      `
+  it.each(['success', 'metadata-error', 'compiler-error'])(
+    'lets a plain one-shot compiler process exit naturally: %s',
+    async outcome => {
+      const app = fixture();
+      const owningRequire = createRequire(import.meta.url);
+      const sourceDirectory = path.resolve(
+        __dirname,
+        '../../src/native-composition',
+      );
+      const childEntry = path.join(app.root, 'one-shot-entry.mjs');
+      const childBundle = path.join(app.root, 'one-shot-bundle.cjs');
+      const phaseModule = path.resolve(
+        sourceDirectory,
+        '../../dist/cjs/native-composition/react-typed-css-phase.js',
+      );
+      fs.writeFileSync(
+        childEntry,
+        `
       import assert from 'node:assert/strict';
       import fs from 'node:fs';
       import path from 'node:path';
@@ -1306,88 +1303,89 @@ describe('React native receiver output controller', () => {
       process.stdout.write('NATURAL_RECEIVER_BUILD_EXIT:${outcome}\\n');
       // No explicit controller cleanup, process.exit(), signals or unref.
     `,
-    );
-    const childCompiler = rspack({
-      mode: 'development',
-      target: 'node',
-      entry: childEntry,
-      devtool: false,
-      output: { path: app.root, filename: path.basename(childBundle) },
-      resolve: { extensions: ['.ts', '.js', '.mjs', '.cjs'] },
-      module: {
-        rules: [
-          {
-            test: /\.ts$/u,
-            use: {
-              loader: 'builtin:swc-loader',
-              options: { jsc: { parser: { syntax: 'typescript' } } },
+      );
+      const childCompiler = rspack({
+        mode: 'development',
+        target: 'node',
+        entry: childEntry,
+        devtool: false,
+        output: { path: app.root, filename: path.basename(childBundle) },
+        resolve: { extensions: ['.ts', '.js', '.mjs', '.cjs'] },
+        module: {
+          rules: [
+            {
+              test: /\.ts$/u,
+              use: {
+                loader: 'builtin:swc-loader',
+                options: { jsc: { parser: { syntax: 'typescript' } } },
+              },
             },
-          },
-        ],
-      },
-      externals: ({ request }, callback) => {
-        if (request === phaseModule)
-          return callback(undefined, `commonjs ${phaseModule}`);
-        if (!request || request.startsWith('.') || path.isAbsolute(request))
-          return callback();
-        if (request.startsWith('node:'))
-          return callback(undefined, `commonjs ${request}`);
-        return callback(
-          undefined,
-          `commonjs ${owningRequire.resolve(request)}`,
-        );
-      },
-    });
-    await new Promise<void>((resolve, reject) => {
-      childCompiler.run((error, stats) => {
-        childCompiler.close(closeError => {
-          if (error || closeError) reject(error ?? closeError);
-          else if (stats?.hasErrors())
-            reject(new Error(stats.toString({ all: false, errors: true })));
-          else resolve();
+          ],
+        },
+        externals: ({ request }, callback) => {
+          if (request === phaseModule)
+            return callback(undefined, `commonjs ${phaseModule}`);
+          if (!request || request.startsWith('.') || path.isAbsolute(request))
+            return callback();
+          if (request.startsWith('node:'))
+            return callback(undefined, `commonjs ${request}`);
+          return callback(
+            undefined,
+            `commonjs ${owningRequire.resolve(request)}`,
+          );
+        },
+      });
+      await new Promise<void>((resolve, reject) => {
+        childCompiler.run((error, stats) => {
+          childCompiler.close(closeError => {
+            if (error || closeError) reject(error ?? closeError);
+            else if (stats?.hasErrors())
+              reject(new Error(stats.toString({ all: false, errors: true })));
+            else resolve();
+          });
         });
       });
-    });
-    const output = await new Promise<string>((resolve, reject) => {
-      execFile(
-        process.execPath,
-        [childBundle],
-        { cwd: app.appDirectory, timeout: 20_000 },
-        (error, stdout, stderr) => {
-          if (error)
-            reject(
-              new Error(`Natural build process failed: ${stderr}`, {
-                cause: error,
-              }),
-            );
-          else resolve(stdout);
-        },
-      );
-    });
-    expect(output).toContain(`NATURAL_RECEIVER_BUILD_EXIT:${outcome}`);
-  });
+      const output = await new Promise<string>((resolve, reject) => {
+        execFile(
+          process.execPath,
+          [childBundle],
+          { cwd: app.appDirectory, timeout: 20_000 },
+          (error, stdout, stderr) => {
+            if (error)
+              reject(
+                new Error(`Natural build process failed: ${stderr}`, {
+                  cause: error,
+                }),
+              );
+            else resolve(stdout);
+          },
+        );
+      });
+      expect(output).toContain(`NATURAL_RECEIVER_BUILD_EXIT:${outcome}`);
+    },
+  );
 
   it.each([
     { command: 'build' as const, isWatch: true },
     { command: 'dev' as const, isWatch: false },
-  ])('retains the receiver bridge across the close hook for %o', async ({
-    command,
-    isWatch,
-  }) => {
-    const app = fixture();
-    const result = await integration(app, { command });
-    await configureChain(result, { dts: true });
-    for (const callback of result.beforeBuild)
-      await callback({ isWatch } as never);
-    const bridge = await result.registry().openBridge();
-    for (const callback of result.closeBuild) await callback();
-    expect(result.restoreCalls()).toBe(0);
-    expect((await postBridge(bridge, { action: 'unknown' })).status).not.toBe(
-      0,
-    );
-    await result.close();
-    expect(result.restoreCalls()).toBe(1);
-  });
+  ])(
+    'retains the receiver bridge across the close hook for %o',
+    async ({ command, isWatch }) => {
+      const app = fixture();
+      const result = await integration(app, { command });
+      await configureChain(result, { dts: true });
+      for (const callback of result.beforeBuild)
+        await callback({ isWatch } as never);
+      const bridge = await result.registry().openBridge();
+      for (const callback of result.closeBuild) await callback();
+      expect(result.restoreCalls()).toBe(0);
+      expect((await postBridge(bridge, { action: 'unknown' })).status).not.toBe(
+        0,
+      );
+      await result.close();
+      expect(result.restoreCalls()).toBe(1);
+    },
+  );
   it('closes a one-shot bridge after actual native compiler close, metadata and worker drain', async () => {
     const app = fixture();
     const worker = execFile(process.execPath, [
@@ -1498,47 +1496,52 @@ describe('React native receiver output controller', () => {
   it.each([
     { input: 'unrelated', reject: false },
     { input: 'consumed', reject: true },
-  ])('protects only app and consumed shared Git files before receiver IO: $input', async ({
-    input,
-    reject,
-  }) => {
-    const app = fixture();
-    const consumed = path.join(app.root, 'shared-input.ts');
-    const unrelated = path.join(app.root, 'unrelated-package.ts');
-    fs.writeFileSync(consumed, 'export const value = 1;\n');
-    fs.writeFileSync(unrelated, 'export const value = 1;\n');
-    execFileSync('git', ['init', '--quiet'], { cwd: app.root });
-    execFileSync('git', ['add', '.'], { cwd: app.root });
-    const result = await integration(app, {
-      useRealTrackedInputs: true,
-      sourceOverrides: { alias: { '@shared': consumed } },
-    });
-    const options: Record<string, unknown> = { name: 'native-host', dts: true };
-    await configureChain(result, options);
-    bindTestPhase(app, result);
-    fs.writeFileSync(
-      input === 'consumed' ? consumed : unrelated,
-      'export const value = 2;\n',
-    );
-    const beginning = result.registry().begin(seed(options), receiverDetails());
-    if (reject)
-      await expect(beginning).rejects.toThrow(
-        'authored file changed before IO',
+  ])(
+    'protects only app and consumed shared Git files before receiver IO: $input',
+    async ({ input, reject }) => {
+      const app = fixture();
+      const consumed = path.join(app.root, 'shared-input.ts');
+      const unrelated = path.join(app.root, 'unrelated-package.ts');
+      fs.writeFileSync(consumed, 'export const value = 1;\n');
+      fs.writeFileSync(unrelated, 'export const value = 1;\n');
+      execFileSync('git', ['init', '--quiet'], { cwd: app.root });
+      execFileSync('git', ['add', '.'], { cwd: app.root });
+      const result = await integration(app, {
+        useRealTrackedInputs: true,
+        sourceOverrides: { alias: { '@shared': consumed } },
+      });
+      const options: Record<string, unknown> = {
+        name: 'native-host',
+        dts: true,
+      };
+      await configureChain(result, options);
+      bindTestPhase(app, result);
+      fs.writeFileSync(
+        input === 'consumed' ? consumed : unrelated,
+        'export const value = 2;\n',
       );
-    else {
-      const receiver = await beginning;
-      await completeReceiver(receiver);
-      const registration = result
+      const beginning = result
         .registry()
-        .completedReceipts()[0].registration;
-      expect(
-        registration.authoredPaths.some(input => input.lexical === consumed),
-      ).toBe(true);
-      expect(
-        registration.authoredPaths.some(input => input.lexical === unrelated),
-      ).toBe(false);
-    }
-  });
+        .begin(seed(options), receiverDetails());
+      if (reject)
+        await expect(beginning).rejects.toThrow(
+          'authored file changed before IO',
+        );
+      else {
+        const receiver = await beginning;
+        await completeReceiver(receiver);
+        const registration = result
+          .registry()
+          .completedReceipts()[0].registration;
+        expect(
+          registration.authoredPaths.some(input => input.lexical === consumed),
+        ).toBe(true);
+        expect(
+          registration.authoredPaths.some(input => input.lexical === unrelated),
+        ).toBe(false);
+      }
+    },
+  );
 
   it('rejects a configured native remote declaration hardlink to an original authored file before IO', async () => {
     const app = fixture();
@@ -1696,159 +1699,161 @@ describe('React native receiver output controller', () => {
     expect(fs.readFileSync(app.declaration)).toEqual(beforeBytes);
   });
 
-  it.each([
-    false,
-    true,
-  ])('runs the actual native CLI key installer before receiver configuration, tracked declaration=%s', async tracked => {
-    const app = fixture();
-    if (tracked) {
-      execFileSync('git', ['init', '--quiet'], { cwd: app.appDirectory });
-      execFileSync('git', ['add', '--', '@mf-types/remote/App.d.ts'], {
-        cwd: app.appDirectory,
-      });
-    }
-    const applicationRequire = createRequire(
-      path.resolve(
-        __dirname,
-        '../../../../../tests/integration/routes-tanstack-mf/mf-remote/package.json',
-      ),
-    );
-    const native = applicationRequire('@module-federation/modern-js-v3') as {
-      moduleFederationPlugin(
-        options: Record<string, unknown>,
-      ): CliPlugin<AppTools>;
-    };
-    const modifierOwners: string[] = [];
-    const setupOrder: string[] = [];
-    const result = await integration(app, {
-      useRealTrackedInputs: tracked,
-      async setupPlugins(api, receiver) {
-        let currentPlugin = '';
-        const modifyBundlerChain = api.modifyBundlerChain;
-        Object.assign(api, {
-          getConfig: () => api.getNormalizedConfig(),
-          config() {},
-          _internalServerPlugins() {},
-          modifyBundlerChain(callback: ChainModifier) {
-            modifierOwners.push(currentPlugin);
-            modifyBundlerChain(callback);
-          },
+  it.each([false, true])(
+    'runs the actual native CLI key installer before receiver configuration, tracked declaration=%s',
+    async tracked => {
+      const app = fixture();
+      if (tracked) {
+        execFileSync('git', ['init', '--quiet'], { cwd: app.appDirectory });
+        execFileSync('git', ['add', '--', '@mf-types/remote/App.d.ts'], {
+          cwd: app.appDirectory,
         });
-        const manager = createPluginManager<CLIPluginAPI<AppTools>>();
-        manager.addPlugins([
-          receiver,
-          native.moduleFederationPlugin({
-            config: {
-              name: 'native-cli-order',
-              remotes: {},
-              dts: {
-                generateTypes: false,
-                consumeTypes: { consumeAPITypes: false },
-              },
-              dev: false,
-            },
-            ssr: false,
-          }),
-        ]);
-        for (const plugin of manager.getPlugins()) {
-          currentPlugin = plugin.name;
-          setupOrder.push(plugin.name);
-          await plugin.setup?.(api);
-        }
-      },
-    });
-    expect(
-      setupOrder.indexOf('@modern-js/plugin-module-federation'),
-    ).toBeLessThan(setupOrder.indexOf(result.plugin.name));
-    expect(
-      modifierOwners.indexOf('@modern-js/plugin-module-federation'),
-    ).toBeLessThan(modifierOwners.indexOf(result.plugin.name));
-    let nativeOptions: Record<string, unknown> | undefined;
-    const transitions: { owner: string; before: boolean; after: boolean }[] =
-      [];
-    const rsbuild = await createRsbuild({
-      cwd: app.appDirectory,
-      rsbuildConfig: {
-        mode: 'development',
-        plugins: [
-          {
-            name: 'test-real-native-cli-key-installation',
-            setup(api: Parameters<RsbuildPlugin['setup']>[0]) {
-              api.modifyBundlerChain(async (chain, utils) => {
-                expect(chain.plugins.has('plugin-module-federation')).toBe(
-                  false,
-                );
-                for (const [
-                  index,
-                  modifier,
-                ] of result.chainModifiers.entries()) {
-                  const before = chain.plugins.has('plugin-module-federation');
-                  await modifier(chain, utils as never);
-                  transitions.push({
-                    owner: modifierOwners[index],
-                    before,
-                    after: chain.plugins.has('plugin-module-federation'),
-                  });
-                }
-                nativeOptions = (
-                  chain.plugin('plugin-module-federation').get('args') as [
-                    Record<string, unknown>,
-                  ]
-                )[0];
-              });
-            },
-          },
-        ],
-        environments: {
-          client: {
-            source: {
-              entry: { main: path.join(app.appDirectory, 'src/main.js') },
-            },
-            output: { target: 'web' },
-          },
-        },
-        tools: { htmlPlugin: false },
-        output: {
-          cleanDistPath: false,
-          distPath: { root: result.context.distDirectory },
-        },
-      },
-    });
-    const bundlerConfigs = await rsbuild.initConfigs();
-    expect(transitions).toContainEqual({
-      owner: '@modern-js/plugin-module-federation',
-      before: false,
-      after: true,
-    });
-    expect(transitions).toContainEqual({
-      owner: result.plugin.name,
-      before: true,
-      after: true,
-    });
-    expect(result.loads()).toBe(1);
-    expect(nativeOptions?.dts).toMatchObject({
-      implementation: app.producerPath,
-      generateTypes: false,
-      consumeTypes: { consumeAPITypes: false },
-    });
-    expect(seed(nativeOptions!)).toMatchObject({
-      schemaVersion: 1,
-      receiverBridge: { schemaVersion: 1 },
-    });
-    if (tracked) {
-      bindTestPhase(app, result);
-      for (const callback of result.beforeCompiler)
-        await callback({ bundlerConfigs } as never);
-      const before = fs.readFileSync(app.declaration);
-      await expectWriteRejectedBeforeIO(
-        result,
-        seed(nativeOptions!),
-        app.declaration,
-        'authored or tracked input',
+      }
+      const applicationRequire = createRequire(
+        path.resolve(
+          __dirname,
+          '../../../../../tests/integration/routes-tanstack-mf/mf-remote/package.json',
+        ),
       );
-      expect(fs.readFileSync(app.declaration)).toEqual(before);
-    }
-  });
+      const native = applicationRequire('@module-federation/modern-js-v3') as {
+        moduleFederationPlugin(
+          options: Record<string, unknown>,
+        ): CliPlugin<AppTools>;
+      };
+      const modifierOwners: string[] = [];
+      const setupOrder: string[] = [];
+      const result = await integration(app, {
+        useRealTrackedInputs: tracked,
+        async setupPlugins(api, receiver) {
+          let currentPlugin = '';
+          const modifyBundlerChain = api.modifyBundlerChain;
+          Object.assign(api, {
+            getConfig: () => api.getNormalizedConfig(),
+            config() {},
+            _internalServerPlugins() {},
+            modifyBundlerChain(callback: ChainModifier) {
+              modifierOwners.push(currentPlugin);
+              modifyBundlerChain(callback);
+            },
+          });
+          const manager = createPluginManager<CLIPluginAPI<AppTools>>();
+          manager.addPlugins([
+            receiver,
+            native.moduleFederationPlugin({
+              config: {
+                name: 'native-cli-order',
+                remotes: {},
+                dts: {
+                  generateTypes: false,
+                  consumeTypes: { consumeAPITypes: false },
+                },
+                dev: false,
+              },
+              ssr: false,
+            }),
+          ]);
+          for (const plugin of manager.getPlugins()) {
+            currentPlugin = plugin.name;
+            setupOrder.push(plugin.name);
+            await plugin.setup?.(api);
+          }
+        },
+      });
+      expect(
+        setupOrder.indexOf('@modern-js/plugin-module-federation'),
+      ).toBeLessThan(setupOrder.indexOf(result.plugin.name));
+      expect(
+        modifierOwners.indexOf('@modern-js/plugin-module-federation'),
+      ).toBeLessThan(modifierOwners.indexOf(result.plugin.name));
+      let nativeOptions: Record<string, unknown> | undefined;
+      const transitions: { owner: string; before: boolean; after: boolean }[] =
+        [];
+      const rsbuild = await createRsbuild({
+        cwd: app.appDirectory,
+        rsbuildConfig: {
+          mode: 'development',
+          plugins: [
+            {
+              name: 'test-real-native-cli-key-installation',
+              setup(api: Parameters<RsbuildPlugin['setup']>[0]) {
+                api.modifyBundlerChain(async (chain, utils) => {
+                  expect(chain.plugins.has('plugin-module-federation')).toBe(
+                    false,
+                  );
+                  for (const [
+                    index,
+                    modifier,
+                  ] of result.chainModifiers.entries()) {
+                    const before = chain.plugins.has(
+                      'plugin-module-federation',
+                    );
+                    await modifier(chain, utils as never);
+                    transitions.push({
+                      owner: modifierOwners[index],
+                      before,
+                      after: chain.plugins.has('plugin-module-federation'),
+                    });
+                  }
+                  nativeOptions = (
+                    chain.plugin('plugin-module-federation').get('args') as [
+                      Record<string, unknown>,
+                    ]
+                  )[0];
+                });
+              },
+            },
+          ],
+          environments: {
+            client: {
+              source: {
+                entry: { main: path.join(app.appDirectory, 'src/main.js') },
+              },
+              output: { target: 'web' },
+            },
+          },
+          tools: { htmlPlugin: false },
+          output: {
+            cleanDistPath: false,
+            distPath: { root: result.context.distDirectory },
+          },
+        },
+      });
+      const bundlerConfigs = await rsbuild.initConfigs();
+      expect(transitions).toContainEqual({
+        owner: '@modern-js/plugin-module-federation',
+        before: false,
+        after: true,
+      });
+      expect(transitions).toContainEqual({
+        owner: result.plugin.name,
+        before: true,
+        after: true,
+      });
+      expect(result.loads()).toBe(1);
+      expect(nativeOptions?.dts).toMatchObject({
+        implementation: app.producerPath,
+        generateTypes: false,
+        consumeTypes: { consumeAPITypes: false },
+      });
+      expect(seed(nativeOptions!)).toMatchObject({
+        schemaVersion: 1,
+        receiverBridge: { schemaVersion: 1 },
+      });
+      if (tracked) {
+        bindTestPhase(app, result);
+        for (const callback of result.beforeCompiler)
+          await callback({ bundlerConfigs } as never);
+        const before = fs.readFileSync(app.declaration);
+        await expectWriteRejectedBeforeIO(
+          result,
+          seed(nativeOptions!),
+          app.declaration,
+          'authored or tracked input',
+        );
+        expect(fs.readFileSync(app.declaration)).toEqual(before);
+      }
+    },
+  );
 
   it('preserves the native worker callback and binds one exact manual witness identity', async () => {
     const app = fixture();
@@ -1887,20 +1892,19 @@ describe('React native receiver output controller', () => {
     expect(() => created(witness)).toThrow('witness was already retired');
   });
 
-  it.each([
-    true,
-    'invalid-native-hook',
-    {},
-  ])('rejects a malformed native worker callback: %s', async onDevWorkerCreated => {
-    const app = fixture();
-    const result = await integration(app);
-    const options = { dts: { onDevWorkerCreated } };
-    await expect(configureChain(result, options)).rejects.toThrow(
-      'worker lifecycle hook must be a function',
-    );
-    expect(result.producerReads()).toBe(0);
-    expect(fs.readFileSync(app.declaration, 'utf8')).toContain('string');
-  });
+  it.each([true, 'invalid-native-hook', {}])(
+    'rejects a malformed native worker callback: %s',
+    async onDevWorkerCreated => {
+      const app = fixture();
+      const result = await integration(app);
+      const options = { dts: { onDevWorkerCreated } };
+      await expect(configureChain(result, options)).rejects.toThrow(
+        'worker lifecycle hook must be a function',
+      );
+      expect(result.producerReads()).toBe(0);
+      expect(fs.readFileSync(app.declaration, 'utf8')).toContain('string');
+    },
+  );
 
   it('rejects malformed manual worker witnesses before invoking the authored hook', async () => {
     const app = fixture();
@@ -1989,87 +1993,90 @@ describe('React native receiver output controller', () => {
     expect(result.producerPreflights()).toBe(0);
   });
 
-  it.each([
-    true,
-    false,
-  ])('requires the exact manual worker close witness for a quarantined TCP frame, matched=%s', async matched => {
-    const app = fixture();
-    const result = await integration(app);
-    const options: Record<string, unknown> = { name: 'native-host', dts: true };
-    await configureChain(result, options);
-    bindTestPhase(app, result);
-    const closed = deferred<void>();
-    closes.push(async () => {
-      closed.resolve();
-    });
-    workerCreated(options)(
-      Object.freeze({ pid: 424242, closed: closed.promise }),
-    );
-    const bridge = seed(options).receiverBridge!;
-    const beginId = randomBytes(16).toString('hex');
-    const response = await postBridge(bridge, {
-      action: 'begin',
-      beginId,
-      seed: seed(options),
-      details: {
-        ...receiverDetails(),
-        receiverProcessId: matched ? 424242 : 424243,
-      },
-    });
-    expect(response.status).toBe(200);
-    const frame = (response.value as { frame: ReceiverFrame }).frame;
-    let terminalRequired = true;
-    closes.push(async () => {
-      if (terminalRequired)
-        await postBridge(bridge, bridgeTerminal(beginId, frame, true)).catch(
-          () => {},
-        );
-    });
-    expect(result.registry().receiverProcessId(frame)).toBe(
-      matched ? 424242 : 424243,
-    );
-    const compiler = result.testCompilers.get('client')!;
-    const publicCloseReached = deferred<void>();
-    compiler.close = callback => {
-      publicCloseReached.resolve();
-      callback();
-    };
-    let exited = false;
-    const exit = result.close().then(() => {
-      exited = true;
-    });
-    await publicCloseReached.promise;
-    expect(result.registry().quarantinedFrames('bridge')).toEqual([frame]);
-    expect(result.restoreCalls()).toBe(0);
-    expect(exited).toBe(false);
-    closed.resolve();
-    await closed.promise;
-    if (!matched) {
+  it.each([true, false])(
+    'requires the exact manual worker close witness for a quarantined TCP frame, matched=%s',
+    async matched => {
+      const app = fixture();
+      const result = await integration(app);
+      const options: Record<string, unknown> = {
+        name: 'native-host',
+        dts: true,
+      };
+      await configureChain(result, options);
+      bindTestPhase(app, result);
+      const closed = deferred<void>();
+      closes.push(async () => {
+        closed.resolve();
+      });
+      workerCreated(options)(
+        Object.freeze({ pid: 424242, closed: closed.promise }),
+      );
+      const bridge = seed(options).receiverBridge!;
+      const beginId = randomBytes(16).toString('hex');
+      const response = await postBridge(bridge, {
+        action: 'begin',
+        beginId,
+        seed: seed(options),
+        details: {
+          ...receiverDetails(),
+          receiverProcessId: matched ? 424242 : 424243,
+        },
+      });
+      expect(response.status).toBe(200);
+      const frame = (response.value as { frame: ReceiverFrame }).frame;
+      let terminalRequired = true;
+      closes.push(async () => {
+        if (terminalRequired)
+          await postBridge(bridge, bridgeTerminal(beginId, frame, true)).catch(
+            () => {},
+          );
+      });
+      expect(result.registry().receiverProcessId(frame)).toBe(
+        matched ? 424242 : 424243,
+      );
+      const compiler = result.testCompilers.get('client')!;
+      const publicCloseReached = deferred<void>();
+      compiler.close = callback => {
+        publicCloseReached.resolve();
+        callback();
+      };
+      let exited = false;
+      const exit = result.close().then(() => {
+        exited = true;
+      });
+      await publicCloseReached.promise;
       expect(result.registry().quarantinedFrames('bridge')).toEqual([frame]);
       expect(result.restoreCalls()).toBe(0);
       expect(exited).toBe(false);
-      expect(() => result.registry().confirmReceiverTerminated(frame)).toThrow(
-        'termination is unproven',
-      );
-      const terminal = await postBridge(
-        bridge,
-        bridgeTerminal(beginId, frame, true),
-      ).then(
-        response => ({ response }),
-        error => ({ error }),
-      );
-      if ('response' in terminal) expect(terminal.response.status).toBe(400);
-      else
-        expect(terminal.error).toMatchObject({
-          code: 'ECONNRESET',
-          message: 'socket hang up',
-        });
-    }
-    await exit;
-    terminalRequired = false;
-    expect(exited).toBe(true);
-    expect(result.restoreCalls()).toBe(1);
-  });
+      closed.resolve();
+      await closed.promise;
+      if (!matched) {
+        expect(result.registry().quarantinedFrames('bridge')).toEqual([frame]);
+        expect(result.restoreCalls()).toBe(0);
+        expect(exited).toBe(false);
+        expect(() =>
+          result.registry().confirmReceiverTerminated(frame),
+        ).toThrow('termination is unproven');
+        const terminal = await postBridge(
+          bridge,
+          bridgeTerminal(beginId, frame, true),
+        ).then(
+          response => ({ response }),
+          error => ({ error }),
+        );
+        if ('response' in terminal) expect(terminal.response.status).toBe(400);
+        else
+          expect(terminal.error).toMatchObject({
+            code: 'ECONNRESET',
+            message: 'socket hang up',
+          });
+      }
+      await exit;
+      terminalRequired = false;
+      expect(exited).toBe(true);
+      expect(result.restoreCalls()).toBe(1);
+    },
+  );
 
   it('closes the actual public native compiler before retiring quarantined live watch work', async () => {
     const app = fixture();
@@ -2273,67 +2280,69 @@ describe('React native receiver output controller', () => {
     expect(drained).toBe(true);
   });
 
-  it.each([
-    'entry source',
-    'static asset',
-    'filesystem alias',
-  ] as const)('rejects a destructive operation covering non-Git authored files before IO: %s', async sourceKind => {
-    const app = fixture();
-    let directory: string;
-    let sourceOverrides: Record<string, unknown> = {};
-    if (sourceKind === 'entry source')
-      directory = path.join(app.appDirectory, 'src');
-    else if (sourceKind === 'static asset') {
-      directory = path.join(app.appDirectory, 'config/public');
-      fs.mkdirSync(directory, { recursive: true });
-    } else {
-      directory = path.join(app.appDirectory, 'physical-authored-alias');
-      fs.mkdirSync(directory);
-      fs.symlinkSync(
+  it.each(['entry source', 'static asset', 'filesystem alias'] as const)(
+    'rejects a destructive operation covering non-Git authored files before IO: %s',
+    async sourceKind => {
+      const app = fixture();
+      let directory: string;
+      let sourceOverrides: Record<string, unknown> = {};
+      if (sourceKind === 'entry source')
+        directory = path.join(app.appDirectory, 'src');
+      else if (sourceKind === 'static asset') {
+        directory = path.join(app.appDirectory, 'config/public');
+        fs.mkdirSync(directory, { recursive: true });
+      } else {
+        directory = path.join(app.appDirectory, 'physical-authored-alias');
+        fs.mkdirSync(directory);
+        fs.symlinkSync(
+          directory,
+          path.join(app.appDirectory, 'authored-alias'),
+          'dir',
+        );
+        sourceOverrides = { alias: { '@authored': './authored-alias' } };
+      }
+      const authored = path.join(directory, 'authored.txt');
+      fs.writeFileSync(authored, `Original ${sourceKind} bytes\n`);
+      const before = fs.readFileSync(authored);
+      const beforeAuthored = observe(authored);
+      const beforeDirectory = observe(directory);
+      const alias = path.join(app.appDirectory, 'authored-alias');
+      const beforeAlias =
+        sourceKind === 'filesystem alias'
+          ? {
+              metadata: fs.lstatSync(alias, { bigint: true }),
+              target: fs.readlinkSync(alias),
+            }
+          : undefined;
+      const result = await integration(app, {
+        destinations: [directory],
+        destructiveDirectories: [directory],
+        sourceOverrides,
+      });
+      const options: Record<string, unknown> = {
+        name: 'native-host',
+        dts: true,
+      };
+      await configureChain(result, options);
+      bindTestPhase(app, result);
+      expect(fs.existsSync(path.join(app.appDirectory, '.git'))).toBe(false);
+      await destructiveDirectoryRejectedBeforeIO(
+        result,
+        seed(options),
         directory,
-        path.join(app.appDirectory, 'authored-alias'),
-        'dir',
       );
-      sourceOverrides = { alias: { '@authored': './authored-alias' } };
-    }
-    const authored = path.join(directory, 'authored.txt');
-    fs.writeFileSync(authored, `Original ${sourceKind} bytes\n`);
-    const before = fs.readFileSync(authored);
-    const beforeAuthored = observe(authored);
-    const beforeDirectory = observe(directory);
-    const alias = path.join(app.appDirectory, 'authored-alias');
-    const beforeAlias =
-      sourceKind === 'filesystem alias'
-        ? {
-            metadata: fs.lstatSync(alias, { bigint: true }),
-            target: fs.readlinkSync(alias),
-          }
-        : undefined;
-    const result = await integration(app, {
-      destinations: [directory],
-      destructiveDirectories: [directory],
-      sourceOverrides,
-    });
-    const options: Record<string, unknown> = { name: 'native-host', dts: true };
-    await configureChain(result, options);
-    bindTestPhase(app, result);
-    expect(fs.existsSync(path.join(app.appDirectory, '.git'))).toBe(false);
-    await destructiveDirectoryRejectedBeforeIO(
-      result,
-      seed(options),
-      directory,
-    );
-    expect(fs.readFileSync(authored)).toEqual(before);
-    expect(observe(authored)).toEqual(beforeAuthored);
-    expect(observe(directory)).toEqual(beforeDirectory);
-    if (beforeAlias) {
-      expect(fs.lstatSync(alias, { bigint: true })).toEqual(
-        beforeAlias.metadata,
-      );
-      expect(fs.readlinkSync(alias)).toBe(beforeAlias.target);
-    }
-    expect(fs.readFileSync(app.declaration, 'utf8')).toContain('string');
-  });
+      expect(fs.readFileSync(authored)).toEqual(before);
+      expect(observe(authored)).toEqual(beforeAuthored);
+      expect(observe(directory)).toEqual(beforeDirectory);
+      if (beforeAlias) {
+        expect(fs.lstatSync(alias, { bigint: true })).toEqual(
+          beforeAlias.metadata,
+        );
+        expect(fs.readlinkSync(alias)).toBe(beforeAlias.target);
+      }
+      expect(fs.readFileSync(app.declaration, 'utf8')).toContain('string');
+    },
+  );
 
   it('rejects an exact non-entry source file captured by the original reservation', async () => {
     const app = fixture();
@@ -2368,35 +2377,35 @@ describe('React native receiver output controller', () => {
     expect(fs.readFileSync(authored)).toEqual(before);
   });
 
-  it.each([
-    undefined,
-    true,
-  ])('registers a stable worker authority and preserves native options, dts=%s', async dts => {
-    const app = fixture();
-    const result = await integration(app);
-    const remotes = { remote: 'remote@http://127.0.0.1/remote.js' };
-    const shared = { react: { singleton: true } };
-    const options = { name: 'native-host', remotes, shared, dts };
-    const args = await configureChain(result, options);
-    const effective = args[0] as Record<string, unknown>;
-    expect(args).toEqual([effective, 'retained-native-argument']);
-    expect(effective).not.toBe(options);
-    expect(effective.remotes).toBe(remotes);
-    expect(effective.shared).toBe(shared);
-    expect(options.remotes).toBe(remotes);
-    expect(options.shared).toBe(shared);
-    expect(options.dts).toBe(dts);
-    expect(effective.dts).toMatchObject({ implementation: app.producerPath });
-    expect(seed(options)).toMatchObject({
-      schemaVersion: 1,
-      generation: 1,
-      receiverBridge: { schemaVersion: 1 },
-    });
-    expect(Object.isFrozen(seed(options))).toBe(true);
-    expect(result.loads()).toBe(1);
-    await result.close();
-    expect(result.restoreCalls()).toBe(1);
-  });
+  it.each([undefined, true])(
+    'registers a stable worker authority and preserves native options, dts=%s',
+    async dts => {
+      const app = fixture();
+      const result = await integration(app);
+      const remotes = { remote: 'remote@http://127.0.0.1/remote.js' };
+      const shared = { react: { singleton: true } };
+      const options = { name: 'native-host', remotes, shared, dts };
+      const args = await configureChain(result, options);
+      const effective = args[0] as Record<string, unknown>;
+      expect(args).toEqual([effective, 'retained-native-argument']);
+      expect(effective).not.toBe(options);
+      expect(effective.remotes).toBe(remotes);
+      expect(effective.shared).toBe(shared);
+      expect(options.remotes).toBe(remotes);
+      expect(options.shared).toBe(shared);
+      expect(options.dts).toBe(dts);
+      expect(effective.dts).toMatchObject({ implementation: app.producerPath });
+      expect(seed(options)).toMatchObject({
+        schemaVersion: 1,
+        generation: 1,
+        receiverBridge: { schemaVersion: 1 },
+      });
+      expect(Object.isFrozen(seed(options))).toBe(true);
+      expect(result.loads()).toBe(1);
+      await result.close();
+      expect(result.restoreCalls()).toBe(1);
+    },
+  );
 
   it('preserves native DTS and extra options when selecting the receiver', async () => {
     const app = fixture();
@@ -2434,33 +2443,33 @@ describe('React native receiver output controller', () => {
     );
   });
 
-  it.each([
-    { dts: false },
-    { dts: { consumeTypes: false } },
-  ])('keeps disabled native receivers inactive: %s', async options => {
-    const app = fixture();
-    const result = await integration(app);
-    const before = JSON.stringify(options);
-    await configureChain(result, options);
-    expect(JSON.stringify(options)).toBe(before);
-    expect(result.loads()).toBe(0);
-    const phase = new ReactTypedCssPhase({
-      appDirectory: app.appDirectory,
-      internalDirectory: result.context.internalDirectory,
-      distDirectory: result.context.distDirectory,
-      produceTypedCss: false,
-      finalize: async () => identities(),
-    });
-    result.controller.bindPhase(phase, result.context);
-    result.controller.bindGeneration?.(
-      phase.currentGeneratedOutputGeneration(),
-    );
-    const lease = await result.controller.pinReceipts();
-    await lease.assertCurrent();
-    expect(lease.receipts).toHaveLength(0);
-    expect(lease.permission(app.declaration)).toBeUndefined();
-    lease.release();
-  });
+  it.each([{ dts: false }, { dts: { consumeTypes: false } }])(
+    'keeps disabled native receivers inactive: %s',
+    async options => {
+      const app = fixture();
+      const result = await integration(app);
+      const before = JSON.stringify(options);
+      await configureChain(result, options);
+      expect(JSON.stringify(options)).toBe(before);
+      expect(result.loads()).toBe(0);
+      const phase = new ReactTypedCssPhase({
+        appDirectory: app.appDirectory,
+        internalDirectory: result.context.internalDirectory,
+        distDirectory: result.context.distDirectory,
+        produceTypedCss: false,
+        finalize: async () => identities(),
+      });
+      result.controller.bindPhase(phase, result.context);
+      result.controller.bindGeneration?.(
+        phase.currentGeneratedOutputGeneration(),
+      );
+      const lease = await result.controller.pinReceipts();
+      await lease.assertCurrent();
+      expect(lease.receipts).toHaveLength(0);
+      expect(lease.permission(app.declaration)).toBeUndefined();
+      lease.release();
+    },
+  );
 
   it('keeps ordinary React compilers active without loading optional MF code', async () => {
     const app = fixture();
@@ -2499,34 +2508,36 @@ describe('React native receiver output controller', () => {
     expect(fs.readFileSync(app.declaration, 'utf8')).toContain('string');
   });
 
-  it.each([
-    'generation',
-    'operationId',
-    'revision',
-  ] as const)('rejects a modified configured worker authority before IO: %s', async field => {
-    const app = fixture();
-    const result = await integration(app);
-    const options: Record<string, unknown> = { name: 'native-host', dts: true };
-    await configureChain(result, options);
-    const phase = new ReactTypedCssPhase({
-      appDirectory: app.appDirectory,
-      internalDirectory: result.context.internalDirectory,
-      distDirectory: result.context.distDirectory,
-      produceTypedCss: false,
-      finalize: async () => identities(),
-    });
-    result.controller.bindPhase(phase, result.context);
-    const configured = seed(options);
-    const changed = {
-      ...configured,
-      [field]: field === 'generation' ? configured.generation + 1 : 'changed',
-    };
-    await expect(
-      result.registry().begin(changed, receiverDetails()),
-    ).rejects.toThrow();
-    expect(result.producerReads()).toBe(0);
-    expect(fs.readFileSync(app.declaration, 'utf8')).toContain('string');
-  });
+  it.each(['generation', 'operationId', 'revision'] as const)(
+    'rejects a modified configured worker authority before IO: %s',
+    async field => {
+      const app = fixture();
+      const result = await integration(app);
+      const options: Record<string, unknown> = {
+        name: 'native-host',
+        dts: true,
+      };
+      await configureChain(result, options);
+      const phase = new ReactTypedCssPhase({
+        appDirectory: app.appDirectory,
+        internalDirectory: result.context.internalDirectory,
+        distDirectory: result.context.distDirectory,
+        produceTypedCss: false,
+        finalize: async () => identities(),
+      });
+      result.controller.bindPhase(phase, result.context);
+      const configured = seed(options);
+      const changed = {
+        ...configured,
+        [field]: field === 'generation' ? configured.generation + 1 : 'changed',
+      };
+      await expect(
+        result.registry().begin(changed, receiverDetails()),
+      ).rejects.toThrow();
+      expect(result.producerReads()).toBe(0);
+      expect(fs.readFileSync(app.declaration, 'utf8')).toContain('string');
+    },
+  );
 
   it('binds constructor-time receiver IO to the explicit initial generation', async () => {
     const app = fixture();
@@ -2639,52 +2650,58 @@ describe('React native receiver output controller', () => {
     expect(fs.readFileSync(manifest)).toEqual(originalBytes);
   });
 
-  it.each([
-    'changed',
-    'swapped',
-    'missing',
-  ] as const)('rejects a %s native package metadata companion before receiver IO', async malformedKind => {
-    const app = fixture();
-    const captured = await captureNativeConfiguration(app.appDirectory);
-    const metadataIndex = captured.observed.observations.length;
-    const nodes = [...captured.nodes];
-    const metadata = nodes[metadataIndex];
-    if (!metadata || !nodes[0] || metadataIndex === 0)
-      throw new Error(
-        'The real native capture has no ordinary and metadata companions',
-      );
-    if (malformedKind === 'missing') nodes.splice(metadataIndex, 1);
-    else if (malformedKind === 'swapped')
-      [nodes[0], nodes[metadataIndex]] = [metadata, nodes[0]];
-    else
-      nodes[metadataIndex] = Object.freeze({
-        ...metadata,
-        observation: Object.freeze({
-          ...metadata.observation,
-          operation: 'content' as const,
-        }),
+  it.each(['changed', 'swapped', 'missing'] as const)(
+    'rejects a %s native package metadata companion before receiver IO',
+    async malformedKind => {
+      const app = fixture();
+      const captured = await captureNativeConfiguration(app.appDirectory);
+      const metadataIndex = captured.observed.observations.length;
+      const nodes = [...captured.nodes];
+      const metadata = nodes[metadataIndex];
+      if (!metadata || !nodes[0] || metadataIndex === 0)
+        throw new Error(
+          'The real native capture has no ordinary and metadata companions',
+        );
+      if (malformedKind === 'missing') nodes.splice(metadataIndex, 1);
+      else if (malformedKind === 'swapped')
+        [nodes[0], nodes[metadataIndex]] = [metadata, nodes[0]];
+      else
+        nodes[metadataIndex] = Object.freeze({
+          ...metadata,
+          observation: Object.freeze({
+            ...metadata.observation,
+            operation: 'content' as const,
+          }),
+        });
+      // A distinct negative owner permits retention of the malformed array;
+      // all original records and the pre-load snapshot remain untouched.
+      const malformed: NativeConfigurationCapture = {
+        ...captured,
+        observed: Object.freeze({ ...captured.observed }),
+        nodes: Object.freeze(nodes),
+      };
+      const result = await integration(app, {
+        capturedConfiguration: malformed,
       });
-    // A distinct negative owner permits retention of the malformed array;
-    // all original records and the pre-load snapshot remain untouched.
-    const malformed: NativeConfigurationCapture = {
-      ...captured,
-      observed: Object.freeze({ ...captured.observed }),
-      nodes: Object.freeze(nodes),
-    };
-    const result = await integration(app, { capturedConfiguration: malformed });
-    expect(result.context.consumedSourceInputs).toBe(malformed.observed);
-    expect(result.context.configurationSourceSnapshot).toBe(captured.snapshot);
-    expect(result.context.configurationSourceNodes).toBe(malformed.nodes);
-    const options: Record<string, unknown> = { name: 'native-host', dts: true };
-    await configureChain(result, options);
-    bindTestPhase(app, result);
-    const before = observe(app.declaration);
-    await expect(
-      result.registry().begin(seed(options), receiverDetails()),
-    ).rejects.toThrow('configuration provenance has changed');
-    expect(observe(app.declaration)).toEqual(before);
-    expect(fs.readFileSync(app.declaration, 'utf8')).toContain('string');
-  });
+      expect(result.context.consumedSourceInputs).toBe(malformed.observed);
+      expect(result.context.configurationSourceSnapshot).toBe(
+        captured.snapshot,
+      );
+      expect(result.context.configurationSourceNodes).toBe(malformed.nodes);
+      const options: Record<string, unknown> = {
+        name: 'native-host',
+        dts: true,
+      };
+      await configureChain(result, options);
+      bindTestPhase(app, result);
+      const before = observe(app.declaration);
+      await expect(
+        result.registry().begin(seed(options), receiverDetails()),
+      ).rejects.toThrow('configuration provenance has changed');
+      expect(observe(app.declaration)).toEqual(before);
+      expect(fs.readFileSync(app.declaration, 'utf8')).toContain('string');
+    },
+  );
 
   it('keeps initial enrollment unchanged and waits for a pending receiver before public rebuild preparation', async () => {
     const app = fixture();
@@ -2940,50 +2957,55 @@ describe('React native receiver output controller', () => {
     lease.release();
   });
 
-  it.each([
-    'content',
-    'metadata',
-    'directory',
-  ] as const)('rejects a changed original configuration read after an awaited helper before output IO: %s', async operation => {
-    const app = fixture();
-    const configurationInput = path.join(
-      app.appDirectory,
-      operation === 'directory' ? 'selection' : 'selection.json',
-    );
-    if (operation === 'directory') fs.mkdirSync(configurationInput);
-    else fs.writeFileSync(configurationInput, '{"selected":"original"}\n');
-    const producerGate = deferred<void>();
-    const result = await integration(app, {
-      producerGate: producerGate.promise,
-      configurationInput,
-      configurationOperation: operation,
-    });
-    const options: Record<string, unknown> = { name: 'native-host', dts: true };
-    await configureChain(result, options);
-    const phase = new ReactTypedCssPhase({
-      appDirectory: app.appDirectory,
-      internalDirectory: result.context.internalDirectory,
-      distDirectory: result.context.distDirectory,
-      produceTypedCss: false,
-      finalize: async () => identities(),
-    });
-    result.controller.bindPhase(phase, result.context);
-    const receiver = result.registry().begin(seed(options), receiverDetails());
-    await result.producerEntered;
-    if (operation === 'directory')
-      fs.writeFileSync(path.join(configurationInput, 'added.json'), '{}\n');
-    else if (operation === 'metadata') fs.chmodSync(configurationInput, 0o400);
-    else fs.writeFileSync(configurationInput, '{"selected":"changed"}\n');
-    producerGate.resolve();
-    await expect(receiver).rejects.toThrow(
-      'React receiver configuration input changed',
-    );
-    expect(fs.readFileSync(app.declaration, 'utf8')).toBe(
-      'export declare const App: string;\n',
-    );
-    await result.controller.waitForIdle();
-    await expect(result.controller.pinReceipts()).rejects.toThrow();
-  });
+  it.each(['content', 'metadata', 'directory'] as const)(
+    'rejects a changed original configuration read after an awaited helper before output IO: %s',
+    async operation => {
+      const app = fixture();
+      const configurationInput = path.join(
+        app.appDirectory,
+        operation === 'directory' ? 'selection' : 'selection.json',
+      );
+      if (operation === 'directory') fs.mkdirSync(configurationInput);
+      else fs.writeFileSync(configurationInput, '{"selected":"original"}\n');
+      const producerGate = deferred<void>();
+      const result = await integration(app, {
+        producerGate: producerGate.promise,
+        configurationInput,
+        configurationOperation: operation,
+      });
+      const options: Record<string, unknown> = {
+        name: 'native-host',
+        dts: true,
+      };
+      await configureChain(result, options);
+      const phase = new ReactTypedCssPhase({
+        appDirectory: app.appDirectory,
+        internalDirectory: result.context.internalDirectory,
+        distDirectory: result.context.distDirectory,
+        produceTypedCss: false,
+        finalize: async () => identities(),
+      });
+      result.controller.bindPhase(phase, result.context);
+      const receiver = result
+        .registry()
+        .begin(seed(options), receiverDetails());
+      await result.producerEntered;
+      if (operation === 'directory')
+        fs.writeFileSync(path.join(configurationInput, 'added.json'), '{}\n');
+      else if (operation === 'metadata')
+        fs.chmodSync(configurationInput, 0o400);
+      else fs.writeFileSync(configurationInput, '{"selected":"changed"}\n');
+      producerGate.resolve();
+      await expect(receiver).rejects.toThrow(
+        'React receiver configuration input changed',
+      );
+      expect(fs.readFileSync(app.declaration, 'utf8')).toBe(
+        'export declare const App: string;\n',
+      );
+      await result.controller.waitForIdle();
+      await expect(result.controller.pinReceipts()).rejects.toThrow();
+    },
+  );
 
   it('accepts the captured configuration alias and rejects its retarget before native IO', async () => {
     const app = fixture();
@@ -3886,7 +3908,8 @@ describe('native receiver ownership in final bundler configurations', () => {
                 expect(
                   chain.plugins.has('ultramodern-react-mf-receiver-owner'),
                 ).toBe(true);
-                applyCloudflareWorkerMfRuntimeBoundary(chain);
+                // The Cloudflare worker chain removes the browser federation plugin.
+                chain.plugins.delete('plugin-module-federation');
               },
             },
           },

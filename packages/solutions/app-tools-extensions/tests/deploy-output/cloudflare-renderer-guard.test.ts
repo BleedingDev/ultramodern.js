@@ -31,7 +31,7 @@ const route = {
 };
 const profiles = {
   react: {
-    compiler: { name: '@rsbuild/plugin-react', version: '2.1.0' },
+    compiler: { name: '@rsbuild/plugin-react', version: '2.1.1' },
     hydration: { name: 'react-dom', version: '19.3.0' },
     router: {
       name: '@tanstack/react-router',
@@ -607,15 +607,19 @@ it('preserves headless Effect BFF dispatch despite its universal API identity', 
             executions += 1;
             return new Response('Effect API fixture');
           },
+          dispose: async () => {},
         }),
       };
     },
   });
+  // The Effect BFF runtime is scoped to the Worker request's ExecutionContext.
   const response = await runtime.worker.fetch(
     new Request('https://example.com/api/items', {
       method: 'POST',
       headers: { 'x-rsc-action': '' },
     }),
+    {},
+    { waitUntil() {}, passThroughOnException() {} },
   );
   expect(response.status).toBe(200);
   await expect(response.text()).resolves.toBe('Effect API fixture');

@@ -159,7 +159,7 @@ async function rendererFixture(renderer: 'react' | 'octane') {
     options.profile = {
       renderer,
       protocolVersion: 1,
-      compiler: { name: '@rsbuild/plugin-react', version: '2.1.0' },
+      compiler: { name: '@rsbuild/plugin-react', version: '2.1.1' },
       hydration: { name: 'react-dom', version: '19.3.0' },
       router: {
         name: 'react-router',
@@ -170,7 +170,7 @@ async function rendererFixture(renderer: 'react' | 'octane') {
       dependencies: { react: '19.3.0' },
     };
     for (const manifest of [
-      { name: '@rsbuild/plugin-react', version: '2.1.0' },
+      { name: '@rsbuild/plugin-react', version: '2.1.1' },
       { name: 'react', version: '19.3.0' },
       {
         name: 'react-dom',
@@ -1182,21 +1182,20 @@ describe('renderer source and compiler build identity', () => {
     expect(Object.isFrozen(result.identities.main)).toBe(true);
   });
 
-  test.each([
-    'src/App.tsx',
-    'src/style.css',
-    'modern.config.ts',
-  ])('changes identity when authored %s changes', async file => {
-    const options = await fixture();
-    const before = await resolveRendererBuildIdentities(options);
-    await fs.appendFile(
-      path.join(options.projectRoot, file),
-      '\n/* changed owning source */\n',
-    );
-    const after = await resolveRendererBuildIdentities(options);
-    expect(after.inputDigest).not.toBe(before.inputDigest);
-    expect(after.buildMarker).not.toBe(before.buildMarker);
-  });
+  test.each(['src/App.tsx', 'src/style.css', 'modern.config.ts'])(
+    'changes identity when authored %s changes',
+    async file => {
+      const options = await fixture();
+      const before = await resolveRendererBuildIdentities(options);
+      await fs.appendFile(
+        path.join(options.projectRoot, file),
+        '\n/* changed owning source */\n',
+      );
+      const after = await resolveRendererBuildIdentities(options);
+      expect(after.inputDigest).not.toBe(before.inputDigest);
+      expect(after.buildMarker).not.toBe(before.buildMarker);
+    },
+  );
 
   test('includes explicitly observed shared source outside the app root', async () => {
     const options = await fixture(true);
@@ -1299,72 +1298,78 @@ describe('renderer source and compiler build identity', () => {
     ['npm:@fixture/parser@ latest ', '@fixture/parser', '1.3.0'],
     ['npm:@fixture/_parser@=1.3.0', '@fixture/_parser', '1.3.0'],
     ['npm:@fixture/parser.tgz@1.3.0', '@fixture/parser.tgz', '1.3.0'],
-  ])('binds actual npm alias target bytes for %s', async (specifier, name, version) => {
-    const options = await fixture();
-    const parser = path.join(
-      options.projectRoot,
-      'node_modules',
-      '@babel',
-      'parser',
-    );
-    const alias = path.join(parser, 'node_modules', 'compiler-current');
-    await write(
-      path.join(parser, 'package.json'),
-      JSON.stringify({
-        name: '@babel/parser',
-        version: '8.0.6',
-        dependencies: { 'compiler-current': specifier },
-      }),
-    );
-    await write(
-      path.join(alias, 'package.json'),
-      JSON.stringify({ name, version }),
-    );
-    await write(
-      path.join(alias, 'index.js'),
-      'export const implementation = "A";',
-    );
-    const before = await resolveRendererBuildIdentities(options);
-    await write(
-      path.join(alias, 'index.js'),
-      'export const implementation = "B";',
-    );
-    const after = await resolveRendererBuildIdentities(options);
-    expect(after.inputDigest).toBe(before.inputDigest);
-    expect(after.compilerDigest).not.toBe(before.compilerDigest);
-    expect(after.buildMarker).not.toBe(before.buildMarker);
-  });
+  ])(
+    'binds actual npm alias target bytes for %s',
+    async (specifier, name, version) => {
+      const options = await fixture();
+      const parser = path.join(
+        options.projectRoot,
+        'node_modules',
+        '@babel',
+        'parser',
+      );
+      const alias = path.join(parser, 'node_modules', 'compiler-current');
+      await write(
+        path.join(parser, 'package.json'),
+        JSON.stringify({
+          name: '@babel/parser',
+          version: '8.0.6',
+          dependencies: { 'compiler-current': specifier },
+        }),
+      );
+      await write(
+        path.join(alias, 'package.json'),
+        JSON.stringify({ name, version }),
+      );
+      await write(
+        path.join(alias, 'index.js'),
+        'export const implementation = "A";',
+      );
+      const before = await resolveRendererBuildIdentities(options);
+      await write(
+        path.join(alias, 'index.js'),
+        'export const implementation = "B";',
+      );
+      const after = await resolveRendererBuildIdentities(options);
+      expect(after.inputDigest).toBe(before.inputDigest);
+      expect(after.compilerDigest).not.toBe(before.compilerDigest);
+      expect(after.buildMarker).not.toBe(before.buildMarker);
+    },
+  );
 
   test.each([
     ['npm:oxfmt@0.68.0', 'other-package', '0.68.0'],
     ['npm:oxfmt@0.68.0', 'oxfmt', '0.69.0'],
     ['npm:@fixture/parser@^1.2.0', '@fixture/parser', '2.0.0'],
     ['0.68.0', 'oxfmt', '0.68.0'],
-  ])('rejects undeclared or mismatched alias targets for %s', async (specifier, name, version) => {
-    const options = await fixture();
-    const parser = path.join(
-      options.projectRoot,
-      'node_modules',
-      '@babel',
-      'parser',
-    );
-    const alias = path.join(parser, 'node_modules', 'compiler-current');
-    await write(
-      path.join(parser, 'package.json'),
-      JSON.stringify({
-        name: '@babel/parser',
-        version: '8.0.6',
-        dependencies: { 'compiler-current': specifier },
-      }),
-    );
-    await write(
-      path.join(alias, 'package.json'),
-      JSON.stringify({ name, version }),
-    );
-    await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
-      'compiler/profile mismatch',
-    );
-  });
+  ])(
+    'rejects undeclared or mismatched alias targets for %s',
+    async (specifier, name, version) => {
+      const options = await fixture();
+      const parser = path.join(
+        options.projectRoot,
+        'node_modules',
+        '@babel',
+        'parser',
+      );
+      const alias = path.join(parser, 'node_modules', 'compiler-current');
+      await write(
+        path.join(parser, 'package.json'),
+        JSON.stringify({
+          name: '@babel/parser',
+          version: '8.0.6',
+          dependencies: { 'compiler-current': specifier },
+        }),
+      );
+      await write(
+        path.join(alias, 'package.json'),
+        JSON.stringify({ name, version }),
+      );
+      await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+        'compiler/profile mismatch',
+      );
+    },
+  );
 
   test.each([
     'npm:',
@@ -1375,43 +1380,48 @@ describe('renderer source and compiler build identity', () => {
     'npm:compiler.tgz@1.0.0',
     'npm:_private@1.0.0',
     'npm:@scope/.private@1.0.0',
-  ])('rejects malformed npm alias %s without accepting a renamed package', async specifier => {
-    const options = await fixture();
-    const parser = path.join(
-      options.projectRoot,
-      'node_modules',
-      '@babel',
-      'parser',
-    );
-    await write(
-      path.join(parser, 'package.json'),
-      JSON.stringify({
-        name: '@babel/parser',
-        version: '8.0.6',
-        dependencies: { 'compiler-current': specifier },
-      }),
-    );
-    await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
-      'Invalid renderer compiler npm alias',
-    );
-  });
+  ])(
+    'rejects malformed npm alias %s without accepting a renamed package',
+    async specifier => {
+      const options = await fixture();
+      const parser = path.join(
+        options.projectRoot,
+        'node_modules',
+        '@babel',
+        'parser',
+      );
+      await write(
+        path.join(parser, 'package.json'),
+        JSON.stringify({
+          name: '@babel/parser',
+          version: '8.0.6',
+          dependencies: { 'compiler-current': specifier },
+        }),
+      );
+      await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+        'Invalid renderer compiler npm alias',
+      );
+    },
+  );
 
-  test.each([
-    'sdk',
-    'app',
-  ] as const)('certifies a published canonical peer through its %s exact physical npm alias', async authority => {
-    const options = await publishedPeerFixture(authority);
-    const before = await resolveRendererBuildIdentities(options);
-    await fs.appendFile(
-      path.join(options.provider, 'index.js'),
-      'export const changedCompiler = true;\n',
-    );
-    const after = await resolveRendererBuildIdentities(options);
-    expect(after.inputDigest).toBe(before.inputDigest);
-    expect(after.compilerDigest).not.toBe(before.compilerDigest);
-    expect(after.frameworkCohortDigest).not.toBe(before.frameworkCohortDigest);
-    expect(after.buildMarker).not.toBe(before.buildMarker);
-  });
+  test.each(['sdk', 'app'] as const)(
+    'certifies a published canonical peer through its %s exact physical npm alias',
+    async authority => {
+      const options = await publishedPeerFixture(authority);
+      const before = await resolveRendererBuildIdentities(options);
+      await fs.appendFile(
+        path.join(options.provider, 'index.js'),
+        'export const changedCompiler = true;\n',
+      );
+      const after = await resolveRendererBuildIdentities(options);
+      expect(after.inputDigest).toBe(before.inputDigest);
+      expect(after.compilerDigest).not.toBe(before.compilerDigest);
+      expect(after.frameworkCohortDigest).not.toBe(
+        before.frameworkCohortDigest,
+      );
+      expect(after.buildMarker).not.toBe(before.buildMarker);
+    },
+  );
 
   test('uses the effective optional alias instead of its shadowed dependency declaration', async () => {
     const options = await publishedPeerFixture();
@@ -1501,134 +1511,142 @@ describe('renderer source and compiler build identity', () => {
     'malformed-yaml',
     'malformed-overrides',
     'nearer-workspace',
-  ])('rejects %s workspace override authority for an actually declared renamed peer', async scenario => {
-    const options = await workspaceOverridePeerFixture();
-    const overrides: Record<string, unknown> = {
-      [options.peer]: options.request,
-    };
-    if (scenario === 'missing-rule') delete overrides[options.peer];
-    if (scenario === 'range')
-      overrides[options.peer] = `npm:${options.target}@^4.6.5`;
-    if (scenario === 'non-alias') overrides[options.peer] = options.peerVersion;
-    if (scenario === 'non-string') overrides[options.peer] = 42;
-    if (scenario === 'wrong-target')
-      overrides[options.peer] = `npm:@fixture/foreign@${options.peerVersion}`;
-    if (scenario === 'wrong-version')
-      overrides[options.peer] = `npm:${options.target}@4.6.6`;
-    if (scenario === 'scoped-owner')
-      overrides[`@fixture/consumer>${options.peer}`] = options.request;
-    if (scenario === 'scoped-version')
-      overrides[`${options.peer}@^4.5.4`] = options.request;
-    await write(
-      options.declaration,
-      scenario === 'malformed-yaml'
-        ? 'overrides: ['
-        : JSON.stringify({
-            overrides: scenario === 'malformed-overrides' ? [] : overrides,
-          }),
-    );
-    if (
-      scenario === 'wrong-provider-name' ||
-      scenario === 'wrong-provider-version'
-    )
-      await writeFixturePackage(options.peerProvider, {
-        name:
-          scenario === 'wrong-provider-name'
-            ? '@fixture/foreign'
-            : options.target,
-        version:
-          scenario === 'wrong-provider-version' ? '4.6.6' : options.peerVersion,
-      });
-    if (scenario === 'incompatible-peer') {
-      const file = path.join(options.plugin, 'package.json');
-      const owner = JSON.parse(await fs.readFile(file, 'utf8'));
-      owner.peerDependencies[options.peer] = '^5.0.0';
-      await write(file, JSON.stringify(owner));
-    }
-    if (
-      scenario === 'ambiguous-alias' ||
-      scenario === 'disconnected-alias-provider'
-    ) {
-      const file = path.join(options.sdk, 'package.json');
-      const sdk = JSON.parse(await fs.readFile(file, 'utf8'));
-      sdk.dependencies[options.peer] =
-        scenario === 'ambiguous-alias'
-          ? `npm:@fixture/foreign@${options.peerVersion}`
-          : options.request;
-      await write(file, JSON.stringify(sdk));
-      await writeFixturePackage(
-        path.join(options.sdk, 'node_modules', options.peer),
-        {
+  ])(
+    'rejects %s workspace override authority for an actually declared renamed peer',
+    async scenario => {
+      const options = await workspaceOverridePeerFixture();
+      const overrides: Record<string, unknown> = {
+        [options.peer]: options.request,
+      };
+      if (scenario === 'missing-rule') delete overrides[options.peer];
+      if (scenario === 'range')
+        overrides[options.peer] = `npm:${options.target}@^4.6.5`;
+      if (scenario === 'non-alias')
+        overrides[options.peer] = options.peerVersion;
+      if (scenario === 'non-string') overrides[options.peer] = 42;
+      if (scenario === 'wrong-target')
+        overrides[options.peer] = `npm:@fixture/foreign@${options.peerVersion}`;
+      if (scenario === 'wrong-version')
+        overrides[options.peer] = `npm:${options.target}@4.6.6`;
+      if (scenario === 'scoped-owner')
+        overrides[`@fixture/consumer>${options.peer}`] = options.request;
+      if (scenario === 'scoped-version')
+        overrides[`${options.peer}@^4.5.4`] = options.request;
+      await write(
+        options.declaration,
+        scenario === 'malformed-yaml'
+          ? 'overrides: ['
+          : JSON.stringify({
+              overrides: scenario === 'malformed-overrides' ? [] : overrides,
+            }),
+      );
+      if (
+        scenario === 'wrong-provider-name' ||
+        scenario === 'wrong-provider-version'
+      )
+        await writeFixturePackage(options.peerProvider, {
           name:
-            scenario === 'ambiguous-alias'
+            scenario === 'wrong-provider-name'
               ? '@fixture/foreign'
               : options.target,
-          version: options.peerVersion,
-        },
-      );
-    }
-    if (scenario === 'nearer-workspace')
-      await write(
-        path.join(options.projectRoot, 'pnpm-workspace.yaml'),
-        'packages: []\n',
-      );
-    await expect(resolveRendererBuildIdentities(options)).rejects.toThrow();
-  });
-
-  test.each([
-    'change',
-    'closer-creation',
-  ])('rejects workspace override %s during an awaited peer implementation read', async scenario => {
-    const options = await workspaceOverridePeerFixture();
-    const original = await fs.readFile(options.declaration, 'utf8');
-    const read = fs.readFile.bind(fs);
-    let changed = false;
-    const spy = rs.spyOn(fs, 'readFile').mockImplementation(async (...args) => {
+          version:
+            scenario === 'wrong-provider-version'
+              ? '4.6.6'
+              : options.peerVersion,
+        });
+      if (scenario === 'incompatible-peer') {
+        const file = path.join(options.plugin, 'package.json');
+        const owner = JSON.parse(await fs.readFile(file, 'utf8'));
+        owner.peerDependencies[options.peer] = '^5.0.0';
+        await write(file, JSON.stringify(owner));
+      }
       if (
-        !changed &&
-        String(args[0]) === path.join(options.peerProvider, 'index.js')
+        scenario === 'ambiguous-alias' ||
+        scenario === 'disconnected-alias-provider'
       ) {
-        changed = true;
-        await write(
-          scenario === 'change'
-            ? options.declaration
-            : path.join(
-                path.dirname(options.projectRoot),
-                'pnpm-workspace.yaml',
-              ),
-          `${original}# changed during native peer read\n`,
+        const file = path.join(options.sdk, 'package.json');
+        const sdk = JSON.parse(await fs.readFile(file, 'utf8'));
+        sdk.dependencies[options.peer] =
+          scenario === 'ambiguous-alias'
+            ? `npm:@fixture/foreign@${options.peerVersion}`
+            : options.request;
+        await write(file, JSON.stringify(sdk));
+        await writeFixturePackage(
+          path.join(options.sdk, 'node_modules', options.peer),
+          {
+            name:
+              scenario === 'ambiguous-alias'
+                ? '@fixture/foreign'
+                : options.target,
+            version: options.peerVersion,
+          },
         );
       }
-      return Reflect.apply(read, fs, args);
-    });
-    try {
-      await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
-        'catalog changed',
-      );
-      expect(changed).toBe(true);
-    } finally {
-      spy.mockRestore();
-    }
-  });
+      if (scenario === 'nearer-workspace')
+        await write(
+          path.join(options.projectRoot, 'pnpm-workspace.yaml'),
+          'packages: []\n',
+        );
+      await expect(resolveRendererBuildIdentities(options)).rejects.toThrow();
+    },
+  );
 
-  test.each([
-    'catalog:ultramodern',
-    'catalog:',
-  ])('certifies an exact published peer through its declared %s and binds the YAML bytes', async catalog => {
-    const options = await publishedPeerFixture('app');
-    const manifest = path.join(options.projectRoot, 'package.json');
-    const app = JSON.parse(await fs.readFile(manifest, 'utf8'));
-    app.dependencies = { [options.providerSpecifier]: catalog };
-    delete app.devDependencies;
-    await write(manifest, JSON.stringify(app));
-    const file = path.join(options.workspace, 'pnpm-workspace.yaml');
-    const text = `${catalog === 'catalog:' ? 'catalog:' : 'catalogs:\n  ultramodern:'}\n${catalog === 'catalog:' ? '  ' : '    '}'${options.providerSpecifier}': '${options.providerRequest}'\n`;
-    await write(file, text);
-    const before = await resolveRendererBuildIdentities(options);
-    await fs.appendFile(file, '# catalog authority bytes\n');
-    const after = await resolveRendererBuildIdentities(options);
-    expect(after.compilerDigest).not.toBe(before.compilerDigest);
-  });
+  test.each(['change', 'closer-creation'])(
+    'rejects workspace override %s during an awaited peer implementation read',
+    async scenario => {
+      const options = await workspaceOverridePeerFixture();
+      const original = await fs.readFile(options.declaration, 'utf8');
+      const read = fs.readFile.bind(fs);
+      let changed = false;
+      const spy = rs
+        .spyOn(fs, 'readFile')
+        .mockImplementation(async (...args) => {
+          if (
+            !changed &&
+            String(args[0]) === path.join(options.peerProvider, 'index.js')
+          ) {
+            changed = true;
+            await write(
+              scenario === 'change'
+                ? options.declaration
+                : path.join(
+                    path.dirname(options.projectRoot),
+                    'pnpm-workspace.yaml',
+                  ),
+              `${original}# changed during native peer read\n`,
+            );
+          }
+          return Reflect.apply(read, fs, args);
+        });
+      try {
+        await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+          'catalog changed',
+        );
+        expect(changed).toBe(true);
+      } finally {
+        spy.mockRestore();
+      }
+    },
+  );
+
+  test.each(['catalog:ultramodern', 'catalog:'])(
+    'certifies an exact published peer through its declared %s and binds the YAML bytes',
+    async catalog => {
+      const options = await publishedPeerFixture('app');
+      const manifest = path.join(options.projectRoot, 'package.json');
+      const app = JSON.parse(await fs.readFile(manifest, 'utf8'));
+      app.dependencies = { [options.providerSpecifier]: catalog };
+      delete app.devDependencies;
+      await write(manifest, JSON.stringify(app));
+      const file = path.join(options.workspace, 'pnpm-workspace.yaml');
+      const text = `${catalog === 'catalog:' ? 'catalog:' : 'catalogs:\n  ultramodern:'}\n${catalog === 'catalog:' ? '  ' : '    '}'${options.providerSpecifier}': '${options.providerRequest}'\n`;
+      await write(file, text);
+      const before = await resolveRendererBuildIdentities(options);
+      await fs.appendFile(file, '# catalog authority bytes\n');
+      const after = await resolveRendererBuildIdentities(options);
+      expect(after.compilerDigest).not.toBe(before.compilerDigest);
+    },
+  );
 
   test.each([
     'missing-workspace',
@@ -1712,45 +1730,47 @@ describe('renderer source and compiler build identity', () => {
     }
   });
 
-  test.each([
-    'change',
-    'closer-creation',
-  ])('rejects catalog %s during an awaited compiler package read', async scenario => {
-    const options = await publishedPeerFixture('app');
-    const manifest = path.join(options.projectRoot, 'package.json');
-    const app = JSON.parse(await fs.readFile(manifest, 'utf8'));
-    app.dependencies = { [options.providerSpecifier]: 'catalog:ultramodern' };
-    delete app.devDependencies;
-    await write(manifest, JSON.stringify(app));
-    const file = path.join(options.workspace, 'pnpm-workspace.yaml');
-    const text = `catalogs:\n  ultramodern:\n    '${options.providerSpecifier}': '${options.providerRequest}'\n`;
-    await write(file, text);
-    const read = fs.readFile.bind(fs);
-    let changed = false;
-    const spy = rs.spyOn(fs, 'readFile').mockImplementation(async (...args) => {
-      if (
-        !changed &&
-        String(args[0]) === path.join(options.provider, 'index.js')
-      ) {
-        changed = true;
-        await write(
-          scenario === 'change'
-            ? file
-            : path.join(options.projectRoot, 'pnpm-workspace.yaml'),
-          `${text}# changed during compiler read\n`,
+  test.each(['change', 'closer-creation'])(
+    'rejects catalog %s during an awaited compiler package read',
+    async scenario => {
+      const options = await publishedPeerFixture('app');
+      const manifest = path.join(options.projectRoot, 'package.json');
+      const app = JSON.parse(await fs.readFile(manifest, 'utf8'));
+      app.dependencies = { [options.providerSpecifier]: 'catalog:ultramodern' };
+      delete app.devDependencies;
+      await write(manifest, JSON.stringify(app));
+      const file = path.join(options.workspace, 'pnpm-workspace.yaml');
+      const text = `catalogs:\n  ultramodern:\n    '${options.providerSpecifier}': '${options.providerRequest}'\n`;
+      await write(file, text);
+      const read = fs.readFile.bind(fs);
+      let changed = false;
+      const spy = rs
+        .spyOn(fs, 'readFile')
+        .mockImplementation(async (...args) => {
+          if (
+            !changed &&
+            String(args[0]) === path.join(options.provider, 'index.js')
+          ) {
+            changed = true;
+            await write(
+              scenario === 'change'
+                ? file
+                : path.join(options.projectRoot, 'pnpm-workspace.yaml'),
+              `${text}# changed during compiler read\n`,
+            );
+          }
+          return Reflect.apply(read, fs, args);
+        });
+      try {
+        await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+          'catalog changed',
         );
+        expect(changed).toBe(true);
+      } finally {
+        spy.mockRestore();
       }
-      return Reflect.apply(read, fs, args);
-    });
-    try {
-      await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
-        'catalog changed',
-      );
-      expect(changed).toBe(true);
-    } finally {
-      spy.mockRestore();
-    }
-  });
+    },
+  );
 
   test('certifies peer aliases declared by an additional selected physical framework owner', async () => {
     const options = await publishedPeerFixture();
@@ -1791,65 +1811,73 @@ describe('renderer source and compiler build identity', () => {
     'ambiguous',
     'different-physical-owner',
     'sdk-dev-only',
-  ])('rejects %s authority for a renamed published canonical peer', async scenario => {
-    const options = await publishedPeerFixture();
-    const sdkManifestFile = path.join(options.sdk, 'package.json');
-    const sdkManifest = JSON.parse(await fs.readFile(sdkManifestFile, 'utf8'));
-    const pluginManifestFile = path.join(options.plugin, 'package.json');
-    const pluginManifest = JSON.parse(
-      await fs.readFile(pluginManifestFile, 'utf8'),
-    );
-    if (scenario === 'undeclared' || scenario === 'sdk-dev-only') {
-      delete sdkManifest.dependencies[options.providerSpecifier];
-      if (scenario === 'sdk-dev-only')
-        sdkManifest.devDependencies = {
-          [options.providerSpecifier]: options.providerRequest,
-        };
-    } else if (scenario === 'wrong-name' || scenario === 'wrong-version') {
-      await writeFixturePackage(options.provider, {
-        name:
-          scenario === 'wrong-name'
-            ? '@fixture/undeclared-provider'
-            : options.providerName,
-        version: scenario === 'wrong-version' ? '3.9.1' : options.version,
-      });
-    } else if (scenario === 'wrong-peer-version' || scenario === 'peer-range') {
-      pluginManifest.peerDependencies[options.providerSpecifier] =
-        scenario === 'wrong-peer-version' ? '3.9.1' : '^3.9.1';
-    } else if (scenario === 'alias-range') {
-      sdkManifest.dependencies[options.providerSpecifier] =
-        `npm:${options.providerName}@^${options.version}`;
-    } else if (scenario === 'ambiguous') {
-      await write(
-        path.join(options.projectRoot, 'package.json'),
-        JSON.stringify({
-          name: '@demo/shop',
-          version: '1.0.0',
-          devDependencies: {
-            [options.providerSpecifier]: `npm:@fixture/competing-provider@${options.version}`,
-          },
-        }),
+  ])(
+    'rejects %s authority for a renamed published canonical peer',
+    async scenario => {
+      const options = await publishedPeerFixture();
+      const sdkManifestFile = path.join(options.sdk, 'package.json');
+      const sdkManifest = JSON.parse(
+        await fs.readFile(sdkManifestFile, 'utf8'),
       );
-      await writeFixturePackage(
-        path.join(
-          options.projectRoot,
-          'node_modules',
-          options.providerSpecifier,
-        ),
-        { name: '@fixture/competing-provider', version: options.version },
+      const pluginManifestFile = path.join(options.plugin, 'package.json');
+      const pluginManifest = JSON.parse(
+        await fs.readFile(pluginManifestFile, 'utf8'),
       );
-    } else {
-      await writeFixturePackage(
-        path.join(options.plugin, 'node_modules', options.providerSpecifier),
-        { name: options.providerName, version: options.version },
+      if (scenario === 'undeclared' || scenario === 'sdk-dev-only') {
+        delete sdkManifest.dependencies[options.providerSpecifier];
+        if (scenario === 'sdk-dev-only')
+          sdkManifest.devDependencies = {
+            [options.providerSpecifier]: options.providerRequest,
+          };
+      } else if (scenario === 'wrong-name' || scenario === 'wrong-version') {
+        await writeFixturePackage(options.provider, {
+          name:
+            scenario === 'wrong-name'
+              ? '@fixture/undeclared-provider'
+              : options.providerName,
+          version: scenario === 'wrong-version' ? '3.9.1' : options.version,
+        });
+      } else if (
+        scenario === 'wrong-peer-version' ||
+        scenario === 'peer-range'
+      ) {
+        pluginManifest.peerDependencies[options.providerSpecifier] =
+          scenario === 'wrong-peer-version' ? '3.9.1' : '^3.9.1';
+      } else if (scenario === 'alias-range') {
+        sdkManifest.dependencies[options.providerSpecifier] =
+          `npm:${options.providerName}@^${options.version}`;
+      } else if (scenario === 'ambiguous') {
+        await write(
+          path.join(options.projectRoot, 'package.json'),
+          JSON.stringify({
+            name: '@demo/shop',
+            version: '1.0.0',
+            devDependencies: {
+              [options.providerSpecifier]: `npm:@fixture/competing-provider@${options.version}`,
+            },
+          }),
+        );
+        await writeFixturePackage(
+          path.join(
+            options.projectRoot,
+            'node_modules',
+            options.providerSpecifier,
+          ),
+          { name: '@fixture/competing-provider', version: options.version },
+        );
+      } else {
+        await writeFixturePackage(
+          path.join(options.plugin, 'node_modules', options.providerSpecifier),
+          { name: options.providerName, version: options.version },
+        );
+      }
+      await write(sdkManifestFile, JSON.stringify(sdkManifest));
+      await write(pluginManifestFile, JSON.stringify(pluginManifest));
+      await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+        'compiler/profile mismatch',
       );
-    }
-    await write(sdkManifestFile, JSON.stringify(sdkManifest));
-    await write(pluginManifestFile, JSON.stringify(pluginManifest));
-    await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
-      'compiler/profile mismatch',
-    );
-  });
+    },
+  );
 
   test.each(
     (['dependency', 'optional', 'peer'] as const).flatMap(edge =>
@@ -1858,22 +1886,24 @@ describe('renderer source and compiler build identity', () => {
         order,
       })),
     ),
-  )('certifies a transitive MF peer cycle through $edge edges with $order declarations', async ({
-    edge,
-    order,
-  }) => {
-    const options = await transitiveFederationPeerFixture(edge, order);
-    const before = await resolveRendererBuildIdentities(options);
-    await fs.appendFile(
-      path.join(options.tools, 'index.js'),
-      'export const modifiedRuntimeTools = true;\n',
-    );
-    const after = await resolveRendererBuildIdentities(options);
-    expect(after.inputDigest).toBe(before.inputDigest);
-    expect(after.compilerDigest).not.toBe(before.compilerDigest);
-    expect(after.frameworkCohortDigest).not.toBe(before.frameworkCohortDigest);
-    expect(after.buildMarker).not.toBe(before.buildMarker);
-  });
+  )(
+    'certifies a transitive MF peer cycle through $edge edges with $order declarations',
+    async ({ edge, order }) => {
+      const options = await transitiveFederationPeerFixture(edge, order);
+      const before = await resolveRendererBuildIdentities(options);
+      await fs.appendFile(
+        path.join(options.tools, 'index.js'),
+        'export const modifiedRuntimeTools = true;\n',
+      );
+      const after = await resolveRendererBuildIdentities(options);
+      expect(after.inputDigest).toBe(before.inputDigest);
+      expect(after.compilerDigest).not.toBe(before.compilerDigest);
+      expect(after.frameworkCohortDigest).not.toBe(
+        before.frameworkCohortDigest,
+      );
+      expect(after.buildMarker).not.toBe(before.buildMarker);
+    },
+  );
 
   test('certifies the selected Rspack peer range through the application MF dependency graph', async () => {
     const options = await applicationFederationPeerFixture();
@@ -1902,20 +1932,19 @@ describe('renderer source and compiler build identity', () => {
     );
   });
 
-  test.each([
-    '^3.0.0',
-    'latest',
-    'catalog:mf',
-  ])('rejects the incompatible or non-semver renamed Rspack peer %s', async specification => {
-    const options = await applicationFederationPeerFixture();
-    const file = path.join(options.rspack, 'package.json');
-    const manifest = JSON.parse(await fs.readFile(file, 'utf8'));
-    manifest.peerDependencies[options.toolsSpecifier] = specification;
-    await write(file, JSON.stringify(manifest));
-    await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
-      'compiler/profile mismatch',
-    );
-  });
+  test.each(['^3.0.0', 'latest', 'catalog:mf'])(
+    'rejects the incompatible or non-semver renamed Rspack peer %s',
+    async specification => {
+      const options = await applicationFederationPeerFixture();
+      const file = path.join(options.rspack, 'package.json');
+      const manifest = JSON.parse(await fs.readFile(file, 'utf8'));
+      manifest.peerDependencies[options.toolsSpecifier] = specification;
+      await write(file, JSON.stringify(manifest));
+      await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+        'compiler/profile mismatch',
+      );
+    },
+  );
 
   test('certifies installed application development tooling that declares the exact Rspack peer alias', async () => {
     const options = await applicationFederationPeerFixture();
@@ -1942,25 +1971,25 @@ describe('renderer source and compiler build identity', () => {
     );
   });
 
-  test.each([
-    'target',
-    'version',
-  ])('rejects the wrong application development alias %s before granting its peer declarations authority', async mismatch => {
-    const options = await applicationFederationPeerFixture();
-    const file = path.join(options.projectRoot, 'package.json');
-    const app = JSON.parse(await fs.readFile(file, 'utf8'));
-    app.devDependencies = {
-      '@module-federation/modern-js-v3':
-        mismatch === 'target'
-          ? 'npm:@fixture/foreign-modern@2.9.1'
-          : 'npm:@bleedingdev/mf-modern-js-v3@2.9.2',
-    };
-    delete app.dependencies;
-    await write(file, JSON.stringify(app));
-    await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
-      'declared alias owner',
-    );
-  });
+  test.each(['target', 'version'])(
+    'rejects the wrong application development alias %s before granting its peer declarations authority',
+    async mismatch => {
+      const options = await applicationFederationPeerFixture();
+      const file = path.join(options.projectRoot, 'package.json');
+      const app = JSON.parse(await fs.readFile(file, 'utf8'));
+      app.devDependencies = {
+        '@module-federation/modern-js-v3':
+          mismatch === 'target'
+            ? 'npm:@fixture/foreign-modern@2.9.1'
+            : 'npm:@bleedingdev/mf-modern-js-v3@2.9.2',
+      };
+      delete app.dependencies;
+      await write(file, JSON.stringify(app));
+      await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+        'declared alias owner',
+      );
+    },
+  );
 
   test('authenticates nested aliases after a canonical application development tooling edge', async () => {
     const options = await applicationFederationPeerFixture();
@@ -1990,21 +2019,21 @@ describe('renderer source and compiler build identity', () => {
     );
   });
 
-  test.each([
-    'dependencies',
-    'devDependencies',
-  ] as const)('certifies the selected Rspack peer through the declaring workspace root %s and catalog graph', async edge => {
-    const options = await workspaceFederationPeerFixture(edge);
-    const before = await resolveRendererBuildIdentities(options);
-    await fs.appendFile(
-      path.join(options.tools, 'index.js'),
-      'export const changedSelectedProvider = true;\n',
-    );
-    const after = await resolveRendererBuildIdentities(options);
-    expect(after.inputDigest).toBe(before.inputDigest);
-    expect(after.compilerDigest).not.toBe(before.compilerDigest);
-    expect(after.buildMarker).not.toBe(before.buildMarker);
-  });
+  test.each(['dependencies', 'devDependencies'] as const)(
+    'certifies the selected Rspack peer through the declaring workspace root %s and catalog graph',
+    async edge => {
+      const options = await workspaceFederationPeerFixture(edge);
+      const before = await resolveRendererBuildIdentities(options);
+      await fs.appendFile(
+        path.join(options.tools, 'index.js'),
+        'export const changedSelectedProvider = true;\n',
+      );
+      const after = await resolveRendererBuildIdentities(options);
+      expect(after.inputDigest).toBe(before.inputDigest);
+      expect(after.compilerDigest).not.toBe(before.compilerDigest);
+      expect(after.buildMarker).not.toBe(before.buildMarker);
+    },
+  );
 
   test('binds workspace alias authority manifests and catalogs without hashing unrelated tooling implementations', async () => {
     const options = await workspaceFederationPeerFixture();
@@ -2056,192 +2085,195 @@ describe('renderer source and compiler build identity', () => {
     'split-provider',
     'nearer-workspace',
     'malformed-root-manifest',
-  ])('rejects %s workspace root authority for a renamed Rspack peer', async scenario => {
-    const options = await workspaceFederationPeerFixture();
-    if (scenario === 'unreachable-root-tool') {
-      const root = JSON.parse(await fs.readFile(options.rootFile, 'utf8'));
-      delete root.devDependencies;
-      await write(options.rootFile, JSON.stringify(root));
-    }
-    if (scenario.startsWith('wrong-catalog') || scenario === 'range-catalog')
-      await write(
-        options.declaration,
-        JSON.stringify({
-          catalogs: {
-            ultramodern: {
-              [options.createSpecifier]:
-                scenario === 'wrong-catalog-target'
-                  ? `npm:@fixture/foreign-generator@${options.version}`
-                  : `npm:${options.createName}@${scenario === 'wrong-catalog-version' ? '3.9.1' : `^${options.version}`}`,
+  ])(
+    'rejects %s workspace root authority for a renamed Rspack peer',
+    async scenario => {
+      const options = await workspaceFederationPeerFixture();
+      if (scenario === 'unreachable-root-tool') {
+        const root = JSON.parse(await fs.readFile(options.rootFile, 'utf8'));
+        delete root.devDependencies;
+        await write(options.rootFile, JSON.stringify(root));
+      }
+      if (scenario.startsWith('wrong-catalog') || scenario === 'range-catalog')
+        await write(
+          options.declaration,
+          JSON.stringify({
+            catalogs: {
+              ultramodern: {
+                [options.createSpecifier]:
+                  scenario === 'wrong-catalog-target'
+                    ? `npm:@fixture/foreign-generator@${options.version}`
+                    : `npm:${options.createName}@${scenario === 'wrong-catalog-version' ? '3.9.1' : `^${options.version}`}`,
+              },
             },
-          },
-        }),
-      );
-    if (scenario === 'transitive-dev-only' || scenario === 'peer-dev-only') {
-      const file = path.join(
-        scenario === 'transitive-dev-only' ? options.creator : options.enhanced,
-        'package.json',
-      );
-      const owner = JSON.parse(await fs.readFile(file, 'utf8'));
-      owner.devDependencies = owner.dependencies;
-      delete owner.dependencies;
-      await write(file, JSON.stringify(owner));
-    }
-    if (scenario.includes('peer-alias')) {
-      const file = path.join(options.enhanced, 'package.json');
-      const owner = JSON.parse(await fs.readFile(file, 'utf8'));
-      owner.dependencies[options.toolsSpecifier] =
-        scenario === 'wrong-peer-alias-target'
-          ? 'npm:@fixture/foreign-tools@2.9.1'
-          : `npm:@bleedingdev/mf-runtime-tools@${scenario === 'wrong-peer-alias-version' ? '2.9.2' : '^2.9.1'}`;
-      await write(file, JSON.stringify(owner));
-    }
-    if (
-      scenario === 'wrong-provider-name' ||
-      scenario === 'wrong-provider-version'
-    )
-      await writeFixturePackage(options.tools, {
-        name:
-          scenario === 'wrong-provider-name'
-            ? '@fixture/foreign-tools'
-            : '@bleedingdev/mf-runtime-tools',
-        version: scenario === 'wrong-provider-version' ? '2.9.2' : '2.9.1',
-      });
-    if (scenario === 'incompatible-peer') {
-      const file = path.join(options.rspack, 'package.json');
-      const owner = JSON.parse(await fs.readFile(file, 'utf8'));
-      owner.peerDependencies[options.toolsSpecifier] = '^3.0.0';
-      await write(file, JSON.stringify(owner));
-    }
-    if (scenario === 'ambiguous-alias') {
-      const file = path.join(options.creator, 'package.json');
-      const owner = JSON.parse(await fs.readFile(file, 'utf8'));
-      owner.dependencies[options.toolsSpecifier] =
-        'npm:@fixture/foreign-tools@2.9.1';
-      await write(file, JSON.stringify(owner));
-      await writeFixturePackage(
-        path.join(options.creator, 'node_modules', options.toolsSpecifier),
-        { name: '@fixture/foreign-tools', version: '2.9.1' },
-      );
-    }
-    if (scenario === 'split-provider') {
-      await fs.unlink(options.peerSlot);
-      await writeFixturePackage(options.peerSlot, {
-        name: '@bleedingdev/mf-runtime-tools',
-        version: '2.9.1',
-      });
-    }
-    if (scenario === 'nearer-workspace')
-      await write(
-        path.join(options.projectRoot, 'pnpm-workspace.yaml'),
-        'packages: []\n',
-      );
-    if (scenario === 'malformed-root-manifest')
-      await write(options.rootFile, '{malformed workspace root manifest');
-    await expect(resolveRendererBuildIdentities(options)).rejects.toThrow();
-  });
-
-  test.each([
-    'root-manifest',
-    'catalog',
-    'alias-manifest',
-    'closer-workspace',
-  ])('rejects workspace authority %s changing during a selected peer read', async scenario => {
-    const options = await workspaceFederationPeerFixture();
-    const file =
-      scenario === 'root-manifest'
-        ? options.rootFile
-        : scenario === 'alias-manifest'
-          ? path.join(options.enhanced, 'package.json')
-          : scenario === 'closer-workspace'
-            ? path.join(options.projectRoot, 'pnpm-workspace.yaml')
-            : options.declaration;
-    const original =
-      scenario === 'closer-workspace'
-        ? 'packages: []\n'
-        : await fs.readFile(file, 'utf8');
-    const read = fs.readFile.bind(fs);
-    let changed = false;
-    const spy = rs.spyOn(fs, 'readFile').mockImplementation(async (...args) => {
+          }),
+        );
+      if (scenario === 'transitive-dev-only' || scenario === 'peer-dev-only') {
+        const file = path.join(
+          scenario === 'transitive-dev-only'
+            ? options.creator
+            : options.enhanced,
+          'package.json',
+        );
+        const owner = JSON.parse(await fs.readFile(file, 'utf8'));
+        owner.devDependencies = owner.dependencies;
+        delete owner.dependencies;
+        await write(file, JSON.stringify(owner));
+      }
+      if (scenario.includes('peer-alias')) {
+        const file = path.join(options.enhanced, 'package.json');
+        const owner = JSON.parse(await fs.readFile(file, 'utf8'));
+        owner.dependencies[options.toolsSpecifier] =
+          scenario === 'wrong-peer-alias-target'
+            ? 'npm:@fixture/foreign-tools@2.9.1'
+            : `npm:@bleedingdev/mf-runtime-tools@${scenario === 'wrong-peer-alias-version' ? '2.9.2' : '^2.9.1'}`;
+        await write(file, JSON.stringify(owner));
+      }
       if (
-        !changed &&
-        String(args[0]) === path.join(options.tools, 'index.js')
-      ) {
-        changed = true;
-        await write(file, `${original}\n`);
-      }
-      return Reflect.apply(read, fs, args);
-    });
-    try {
-      await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
-        'changed',
-      );
-      expect(changed).toBe(true);
-    } finally {
-      spy.mockRestore();
-    }
-  });
-
-  test.each([
-    'dev-only',
-    'unreachable',
-    'conflicting',
-    'split-owner',
-  ])('rejects %s transitive authority for a renamed MF peer', async scenario => {
-    const options = await transitiveFederationPeerFixture();
-    const file = path.join(options.enhanced, 'package.json');
-    const manifest = JSON.parse(await fs.readFile(file, 'utf8'));
-    if (scenario === 'dev-only' || scenario === 'unreachable') {
-      delete manifest.dependencies[options.toolsSpecifier];
-      if (scenario === 'dev-only')
-        manifest.devDependencies = {
-          [options.toolsSpecifier]: options.toolsRequest,
-        };
-      else {
-        const unrelated = path.join(
-          options.projectRoot,
-          'node_modules/@fixture/unreachable',
-        );
-        await writeFixturePackage(unrelated, {
-          name: '@fixture/unreachable',
-          version: '1.0.0',
-          dependencies: { [options.toolsSpecifier]: options.toolsRequest },
+        scenario === 'wrong-provider-name' ||
+        scenario === 'wrong-provider-version'
+      )
+        await writeFixturePackage(options.tools, {
+          name:
+            scenario === 'wrong-provider-name'
+              ? '@fixture/foreign-tools'
+              : '@bleedingdev/mf-runtime-tools',
+          version: scenario === 'wrong-provider-version' ? '2.9.2' : '2.9.1',
         });
-        const slot = path.join(
-          unrelated,
-          'node_modules',
-          options.toolsSpecifier,
-        );
-        await fs.mkdir(path.dirname(slot), { recursive: true });
-        await fs.symlink(options.tools, slot, 'dir');
+      if (scenario === 'incompatible-peer') {
+        const file = path.join(options.rspack, 'package.json');
+        const owner = JSON.parse(await fs.readFile(file, 'utf8'));
+        owner.peerDependencies[options.toolsSpecifier] = '^3.0.0';
+        await write(file, JSON.stringify(owner));
       }
-      await write(file, JSON.stringify(manifest));
-    } else if (scenario === 'conflicting') {
-      const otherOwner = '@fixture/other-owner';
-      manifest.dependencies[otherOwner] = '1.0.0';
-      await write(file, JSON.stringify(manifest));
-      const owner = path.join(options.enhanced, 'node_modules', otherOwner);
-      await writeFixturePackage(owner, {
-        name: otherOwner,
-        version: '1.0.0',
-        dependencies: {
-          [options.toolsSpecifier]: 'npm:@fixture/other-runtime-tools@2.9.1',
-        },
-      });
-      await writeFixturePackage(
-        path.join(owner, 'node_modules', options.toolsSpecifier),
-        { name: '@fixture/other-runtime-tools', version: '2.9.1' },
+      if (scenario === 'ambiguous-alias') {
+        const file = path.join(options.creator, 'package.json');
+        const owner = JSON.parse(await fs.readFile(file, 'utf8'));
+        owner.dependencies[options.toolsSpecifier] =
+          'npm:@fixture/foreign-tools@2.9.1';
+        await write(file, JSON.stringify(owner));
+        await writeFixturePackage(
+          path.join(options.creator, 'node_modules', options.toolsSpecifier),
+          { name: '@fixture/foreign-tools', version: '2.9.1' },
+        );
+      }
+      if (scenario === 'split-provider') {
+        await fs.unlink(options.peerSlot);
+        await writeFixturePackage(options.peerSlot, {
+          name: '@bleedingdev/mf-runtime-tools',
+          version: '2.9.1',
+        });
+      }
+      if (scenario === 'nearer-workspace')
+        await write(
+          path.join(options.projectRoot, 'pnpm-workspace.yaml'),
+          'packages: []\n',
+        );
+      if (scenario === 'malformed-root-manifest')
+        await write(options.rootFile, '{malformed workspace root manifest');
+      await expect(resolveRendererBuildIdentities(options)).rejects.toThrow();
+    },
+  );
+
+  test.each(['root-manifest', 'catalog', 'alias-manifest', 'closer-workspace'])(
+    'rejects workspace authority %s changing during a selected peer read',
+    async scenario => {
+      const options = await workspaceFederationPeerFixture();
+      const file =
+        scenario === 'root-manifest'
+          ? options.rootFile
+          : scenario === 'alias-manifest'
+            ? path.join(options.enhanced, 'package.json')
+            : scenario === 'closer-workspace'
+              ? path.join(options.projectRoot, 'pnpm-workspace.yaml')
+              : options.declaration;
+      const original =
+        scenario === 'closer-workspace'
+          ? 'packages: []\n'
+          : await fs.readFile(file, 'utf8');
+      const read = fs.readFile.bind(fs);
+      let changed = false;
+      const spy = rs
+        .spyOn(fs, 'readFile')
+        .mockImplementation(async (...args) => {
+          if (
+            !changed &&
+            String(args[0]) === path.join(options.tools, 'index.js')
+          ) {
+            changed = true;
+            await write(file, `${original}\n`);
+          }
+          return Reflect.apply(read, fs, args);
+        });
+      try {
+        await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+          'changed',
+        );
+        expect(changed).toBe(true);
+      } finally {
+        spy.mockRestore();
+      }
+    },
+  );
+
+  test.each(['dev-only', 'unreachable', 'conflicting', 'split-owner'])(
+    'rejects %s transitive authority for a renamed MF peer',
+    async scenario => {
+      const options = await transitiveFederationPeerFixture();
+      const file = path.join(options.enhanced, 'package.json');
+      const manifest = JSON.parse(await fs.readFile(file, 'utf8'));
+      if (scenario === 'dev-only' || scenario === 'unreachable') {
+        delete manifest.dependencies[options.toolsSpecifier];
+        if (scenario === 'dev-only')
+          manifest.devDependencies = {
+            [options.toolsSpecifier]: options.toolsRequest,
+          };
+        else {
+          const unrelated = path.join(
+            options.projectRoot,
+            'node_modules/@fixture/unreachable',
+          );
+          await writeFixturePackage(unrelated, {
+            name: '@fixture/unreachable',
+            version: '1.0.0',
+            dependencies: { [options.toolsSpecifier]: options.toolsRequest },
+          });
+          const slot = path.join(
+            unrelated,
+            'node_modules',
+            options.toolsSpecifier,
+          );
+          await fs.mkdir(path.dirname(slot), { recursive: true });
+          await fs.symlink(options.tools, slot, 'dir');
+        }
+        await write(file, JSON.stringify(manifest));
+      } else if (scenario === 'conflicting') {
+        const otherOwner = '@fixture/other-owner';
+        manifest.dependencies[otherOwner] = '1.0.0';
+        await write(file, JSON.stringify(manifest));
+        const owner = path.join(options.enhanced, 'node_modules', otherOwner);
+        await writeFixturePackage(owner, {
+          name: otherOwner,
+          version: '1.0.0',
+          dependencies: {
+            [options.toolsSpecifier]: 'npm:@fixture/other-runtime-tools@2.9.1',
+          },
+        });
+        await writeFixturePackage(
+          path.join(owner, 'node_modules', options.toolsSpecifier),
+          { name: '@fixture/other-runtime-tools', version: '2.9.1' },
+        );
+      } else {
+        await writeFixturePackage(
+          path.join(options.consumer, 'node_modules', options.toolsSpecifier),
+          { name: '@bleedingdev/mf-runtime-tools', version: '2.9.1' },
+        );
+      }
+      await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+        'compiler/profile mismatch',
       );
-    } else {
-      await writeFixturePackage(
-        path.join(options.consumer, 'node_modules', options.toolsSpecifier),
-        { name: '@bleedingdev/mf-runtime-tools', version: '2.9.1' },
-      );
-    }
-    await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
-      'compiler/profile mismatch',
-    );
-  });
+    },
+  );
 
   test('does not let an npm alias in the native hydration graph bypass its runtime pin', async () => {
     const options = await fixture();
@@ -2285,40 +2317,43 @@ describe('renderer source and compiler build identity', () => {
     expect(after.buildMarker).not.toBe(before.buildMarker);
   });
 
-  test.each([
-    'adapter',
-    'router-core',
-    'plugins-peer',
-  ])('rejects mismatched serde in the native %s graph', async owner => {
-    const options = await serdeFixture();
-    let wrongSerde = options.nativeSerde;
-    if (owner === 'router-core') {
-      const core = path.join(
-        options.projectRoot,
-        'node_modules',
-        '@tanstack',
-        'router-core',
-      );
+  test.each(['adapter', 'router-core', 'plugins-peer'])(
+    'rejects mismatched serde in the native %s graph',
+    async owner => {
+      const options = await serdeFixture();
+      let wrongSerde = options.nativeSerde;
+      if (owner === 'router-core') {
+        const core = path.join(
+          options.projectRoot,
+          'node_modules',
+          '@tanstack',
+          'router-core',
+        );
+        await write(
+          path.join(core, 'package.json'),
+          JSON.stringify({
+            name: '@tanstack/router-core',
+            version: '1.171.22',
+            dependencies: { seroval: '^1.6.2' },
+          }),
+        );
+        wrongSerde = path.join(core, 'node_modules', 'seroval');
+      } else if (owner === 'plugins-peer') {
+        wrongSerde = path.join(
+          options.nativePlugins,
+          'node_modules',
+          'seroval',
+        );
+      }
       await write(
-        path.join(core, 'package.json'),
-        JSON.stringify({
-          name: '@tanstack/router-core',
-          version: '1.171.22',
-          dependencies: { seroval: '^1.6.2' },
-        }),
+        path.join(wrongSerde, 'package.json'),
+        JSON.stringify({ name: 'seroval', version: '1.6.2' }),
       );
-      wrongSerde = path.join(core, 'node_modules', 'seroval');
-    } else if (owner === 'plugins-peer') {
-      wrongSerde = path.join(options.nativePlugins, 'node_modules', 'seroval');
-    }
-    await write(
-      path.join(wrongSerde, 'package.json'),
-      JSON.stringify({ name: 'seroval', version: '1.6.2' }),
-    );
-    await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
-      'expected seroval@1.6.8',
-    );
-  });
+      await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+        'expected seroval@1.6.8',
+      );
+    },
+  );
 
   test('does not treat a different physical copy of a declared neutral package as an exempt native boundary', async () => {
     const options = await serdeFixture();
@@ -2652,32 +2687,32 @@ describe('renderer source and compiler build identity', () => {
         form,
       })),
     ),
-  )('accepts $form resolution for native observed $role roots', async ({
-    role,
-    form,
-  }) => {
-    const options = await observedFrameworkFixture(role);
-    if (form === 'canonical-only') {
-      await relocateObservedFramework(
-        options,
-        path.join(options.workspace, 'package-store', options.binding.name),
-      );
-    }
-    if (form !== 'target-only') {
-      await fs.mkdir(path.dirname(options.canonicalDirectory), {
-        recursive: true,
-      });
-      await fs.symlink(
-        options.observedDirectory,
-        options.canonicalDirectory,
-        'dir',
-      );
-    }
-    const result = await resolveRendererBuildIdentities(options);
-    expect(result.compilerDigest).toMatch(/^[a-f0-9]{64}$/);
-    expect(result.frameworkCohortDigest).toMatch(/^[a-f0-9]{64}$/);
-    expect(result.identities.main.renderer).toBe('solid');
-  });
+  )(
+    'accepts $form resolution for native observed $role roots',
+    async ({ role, form }) => {
+      const options = await observedFrameworkFixture(role);
+      if (form === 'canonical-only') {
+        await relocateObservedFramework(
+          options,
+          path.join(options.workspace, 'package-store', options.binding.name),
+        );
+      }
+      if (form !== 'target-only') {
+        await fs.mkdir(path.dirname(options.canonicalDirectory), {
+          recursive: true,
+        });
+        await fs.symlink(
+          options.observedDirectory,
+          options.canonicalDirectory,
+          'dir',
+        );
+      }
+      const result = await resolveRendererBuildIdentities(options);
+      expect(result.compilerDigest).toMatch(/^[a-f0-9]{64}$/);
+      expect(result.frameworkCohortDigest).toMatch(/^[a-f0-9]{64}$/);
+      expect(result.identities.main.renderer).toBe('solid');
+    },
+  );
 
   test('uses an app-level target before an ancestor canonical package', async () => {
     const options = await observedFrameworkFixture('adapter');
@@ -2697,78 +2732,80 @@ describe('renderer source and compiler build identity', () => {
     { target: 'same-level', field: 'version' },
     { target: 'ancestor', field: 'name' },
     { target: 'ancestor', field: 'version' },
-  ])('rejects an invalid app canonical $field despite a valid $target target', async ({
-    target,
-    field,
-  }) => {
-    const options = await observedFrameworkFixture('adapter');
-    if (target === 'ancestor') {
-      await relocateObservedFramework(
-        options,
-        path.join(options.workspace, 'node_modules', options.binding.name),
+  ])(
+    'rejects an invalid app canonical $field despite a valid $target target',
+    async ({ target, field }) => {
+      const options = await observedFrameworkFixture('adapter');
+      if (target === 'ancestor') {
+        await relocateObservedFramework(
+          options,
+          path.join(options.workspace, 'node_modules', options.binding.name),
+        );
+      }
+      // The target really is admissible before the invalid local alias appears.
+      await resolveRendererBuildIdentities(options);
+      await writeFixturePackage(options.canonicalDirectory, {
+        name:
+          field === 'name'
+            ? '@fixture/wrong-canonical-owner'
+            : options.binding.name,
+        version: field === 'version' ? '9.9.9' : options.binding.version,
+      });
+      await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+        `Selected framework owner mismatch: ${options.binding.specifier}`,
       );
-    }
-    // The target really is admissible before the invalid local alias appears.
-    await resolveRendererBuildIdentities(options);
-    await writeFixturePackage(options.canonicalDirectory, {
-      name:
-        field === 'name'
-          ? '@fixture/wrong-canonical-owner'
-          : options.binding.name,
-      version: field === 'version' ? '9.9.9' : options.binding.version,
-    });
-    await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
-      `Selected framework owner mismatch: ${options.binding.specifier}`,
-    );
-  });
+    },
+  );
 
-  test.each(
-    nativeFrameworkRoles,
-  )('rejects split physical owners for native observed %s roots', async role => {
-    const options = await observedFrameworkFixture(role);
-    await writeFixturePackage(options.canonicalDirectory, {
-      name: options.binding.name,
-      version: options.binding.version,
-    });
-    await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
-      'resolves a different physical owner from the application',
-    );
-  });
+  test.each(nativeFrameworkRoles)(
+    'rejects split physical owners for native observed %s roots',
+    async role => {
+      const options = await observedFrameworkFixture(role);
+      await writeFixturePackage(options.canonicalDirectory, {
+        name: options.binding.name,
+        version: options.binding.version,
+      });
+      await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+        'resolves a different physical owner from the application',
+      );
+    },
+  );
 
-  test.each(
-    nativeFrameworkRoles,
-  )('rejects a different captured registrar owner for native observed %s roots', async role => {
-    const options = await observedFrameworkFixture(role);
-    const registrarDirectory = path.join(
-      options.workspace,
-      'registrar',
-      'node_modules',
-      options.binding.name,
-    );
-    await writeFixturePackage(registrarDirectory, {
-      name: options.binding.name,
-      version: options.binding.version,
-    });
-    options.binding.directory = registrarDirectory;
-    await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
-      'resolves a different physical owner from the application',
-    );
-  });
+  test.each(nativeFrameworkRoles)(
+    'rejects a different captured registrar owner for native observed %s roots',
+    async role => {
+      const options = await observedFrameworkFixture(role);
+      const registrarDirectory = path.join(
+        options.workspace,
+        'registrar',
+        'node_modules',
+        options.binding.name,
+      );
+      await writeFixturePackage(registrarDirectory, {
+        name: options.binding.name,
+        version: options.binding.version,
+      });
+      options.binding.directory = registrarDirectory;
+      await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+        'resolves a different physical owner from the application',
+      );
+    },
+  );
 
-  test.each([
-    'name',
-    'version',
-  ] as const)('rejects a changed observed framework manifest %s', async field => {
-    const options = await observedFrameworkFixture('adapter');
-    const manifestFile = path.join(options.observedDirectory, 'package.json');
-    const manifest = JSON.parse(await fs.readFile(manifestFile, 'utf8'));
-    manifest[field] =
-      field === 'name' ? '@fixture/changed-public-owner' : '9.9.9';
-    await write(manifestFile, JSON.stringify(manifest));
-    await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
-      `Selected public framework module ${options.binding.specifier} changed its owning manifest before identity resolution.`,
-    );
-  });
+  test.each(['name', 'version'] as const)(
+    'rejects a changed observed framework manifest %s',
+    async field => {
+      const options = await observedFrameworkFixture('adapter');
+      const manifestFile = path.join(options.observedDirectory, 'package.json');
+      const manifest = JSON.parse(await fs.readFile(manifestFile, 'utf8'));
+      manifest[field] =
+        field === 'name' ? '@fixture/changed-public-owner' : '9.9.9';
+      await write(manifestFile, JSON.stringify(manifest));
+      await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+        `Selected public framework module ${options.binding.specifier} changed its owning manifest before identity resolution.`,
+      );
+    },
+  );
 
   test.each([
     { role: 'core', copy: 'canonical' },
@@ -2777,56 +2814,58 @@ describe('renderer source and compiler build identity', () => {
     { role: 'builder', copy: 'canonical' },
     { role: 'builder', copy: 'target' },
     { role: 'builder', copy: 'observed' },
-  ] as const)('binds the $copy physical owner of neutral observed $role roots', async ({
-    role,
-    copy,
-  }) => {
-    const options = await observedFrameworkFixture(role);
-    const targetDirectory = options.observedDirectory;
-    await relocateObservedFramework(
-      options,
-      path.join(
-        options.workspace,
-        'registrar',
-        'node_modules',
-        options.binding.name,
-      ),
-    );
-    await writeFixturePackage(targetDirectory, {
-      name: options.binding.name,
-      version: options.binding.version,
-    });
-    await write(
-      path.join(targetDirectory, 'index.js'),
-      'export const owningCopy = "app target package";',
-    );
-    await writeFixturePackage(options.canonicalDirectory, {
-      name: options.binding.name,
-      version: options.binding.version,
-    });
-    await write(
-      path.join(options.canonicalDirectory, 'index.js'),
-      'export const owningCopy = "app neutral package";',
-    );
-    const before = await resolveRendererBuildIdentities(options);
-    await fs.appendFile(
-      path.join(
-        copy === 'canonical'
-          ? options.canonicalDirectory
-          : copy === 'target'
-            ? targetDirectory
-            : options.observedDirectory,
-        'index.js',
-      ),
-      '\nexport const changedPhysicalBytes = true;\n',
-    );
-    const after = await resolveRendererBuildIdentities(options);
-    expect(after.inputDigest).toBe(before.inputDigest);
-    expect(after.profileDigest).toBe(before.profileDigest);
-    expect(after.compilerDigest).not.toBe(before.compilerDigest);
-    expect(after.frameworkCohortDigest).not.toBe(before.frameworkCohortDigest);
-    expect(after.buildMarker).not.toBe(before.buildMarker);
-  });
+  ] as const)(
+    'binds the $copy physical owner of neutral observed $role roots',
+    async ({ role, copy }) => {
+      const options = await observedFrameworkFixture(role);
+      const targetDirectory = options.observedDirectory;
+      await relocateObservedFramework(
+        options,
+        path.join(
+          options.workspace,
+          'registrar',
+          'node_modules',
+          options.binding.name,
+        ),
+      );
+      await writeFixturePackage(targetDirectory, {
+        name: options.binding.name,
+        version: options.binding.version,
+      });
+      await write(
+        path.join(targetDirectory, 'index.js'),
+        'export const owningCopy = "app target package";',
+      );
+      await writeFixturePackage(options.canonicalDirectory, {
+        name: options.binding.name,
+        version: options.binding.version,
+      });
+      await write(
+        path.join(options.canonicalDirectory, 'index.js'),
+        'export const owningCopy = "app neutral package";',
+      );
+      const before = await resolveRendererBuildIdentities(options);
+      await fs.appendFile(
+        path.join(
+          copy === 'canonical'
+            ? options.canonicalDirectory
+            : copy === 'target'
+              ? targetDirectory
+              : options.observedDirectory,
+          'index.js',
+        ),
+        '\nexport const changedPhysicalBytes = true;\n',
+      );
+      const after = await resolveRendererBuildIdentities(options);
+      expect(after.inputDigest).toBe(before.inputDigest);
+      expect(after.profileDigest).toBe(before.profileDigest);
+      expect(after.compilerDigest).not.toBe(before.compilerDigest);
+      expect(after.frameworkCohortDigest).not.toBe(
+        before.frameworkCohortDigest,
+      );
+      expect(after.buildMarker).not.toBe(before.buildMarker);
+    },
+  );
 
   test('binds the observed canonical specifier to the framework digest', async () => {
     const options = await observedFrameworkFixture('core');
@@ -2952,56 +2991,59 @@ describe('renderer source and compiler build identity', () => {
     'default-mismatch',
     'duplicate-framework',
     'noncanonical-owner',
-  ])('validates router bindings against the exact generated entry set: %s', async invalidCase => {
-    const options = await rendererFixture('react');
-    const bindings = ownedRouterBindings(options);
-    const routerBindings = (() => {
-      switch (invalidCase) {
-        case 'missing-entry':
-          return { main: bindings.main };
-        case 'extra-entry':
-          return { ...bindings, other: bindings.main };
-        case 'unexpected-field':
-          return {
-            ...bindings,
-            main: { ...bindings.main, unownedExtension: true },
-          };
-        case 'default-mismatch':
-          return {
-            ...bindings,
-            main: {
-              ...bindings.main,
-              defaultProvider: {
-                ...bindings.main.defaultProvider,
-                version: '7.18.3',
+  ])(
+    'validates router bindings against the exact generated entry set: %s',
+    async invalidCase => {
+      const options = await rendererFixture('react');
+      const bindings = ownedRouterBindings(options);
+      const routerBindings = (() => {
+        switch (invalidCase) {
+          case 'missing-entry':
+            return { main: bindings.main };
+          case 'extra-entry':
+            return { ...bindings, other: bindings.main };
+          case 'unexpected-field':
+            return {
+              ...bindings,
+              main: { ...bindings.main, unownedExtension: true },
+            };
+          case 'default-mismatch':
+            return {
+              ...bindings,
+              main: {
+                ...bindings.main,
+                defaultProvider: {
+                  ...bindings.main.defaultProvider,
+                  version: '7.18.3',
+                },
               },
-            },
-          };
-        case 'duplicate-framework':
-          return {
-            ...bindings,
-            main: {
-              ...bindings.main,
-              evidence: 'provider-registry' as const,
-              providers: [
-                bindings.main.defaultProvider,
-                { ...bindings.main.defaultProvider },
-              ],
-            },
-          };
-        case 'noncanonical-owner':
-          return {
-            ...bindings,
-            main: { ...bindings.main, owner: ' @fixture/runtime-router' },
-          };
-        default:
-          throw new Error(`Unknown fixture case: ${invalidCase}`);
-      }
-    })();
-    await expect(
-      resolveRendererBuildIdentities({ ...options, routerBindings }),
-    ).rejects.toThrow('Invalid renderer router bindings');
-  });
+            };
+          case 'duplicate-framework':
+            return {
+              ...bindings,
+              main: {
+                ...bindings.main,
+                evidence: 'provider-registry' as const,
+                providers: [
+                  bindings.main.defaultProvider,
+                  { ...bindings.main.defaultProvider },
+                ],
+              },
+            };
+          case 'noncanonical-owner':
+            return {
+              ...bindings,
+              main: { ...bindings.main, owner: ' @fixture/runtime-router' },
+            };
+          default:
+            throw new Error(`Unknown fixture case: ${invalidCase}`);
+        }
+      })();
+      await expect(
+        resolveRendererBuildIdentities({ ...options, routerBindings }),
+      ).rejects.toThrow('Invalid renderer router bindings');
+    },
+  );
 
   test('rejects a missing router binding map before resolving package identities', async () => {
     const options = await fixture();
@@ -3011,21 +3053,20 @@ describe('renderer source and compiler build identity', () => {
     );
   });
 
-  test.each([
-    'octane',
-    'lumen',
-    'soliid',
-  ])('admits canonical router framework %s without an owner policy', async framework => {
-    const options = await rendererFixture('react');
-    for (const binding of Object.values(options.routerBindings)) {
-      binding.defaultProvider.framework = framework;
-      binding.providers[0].framework = framework;
-    }
-    const result = await resolveRendererBuildIdentities(options);
-    expect(result.routerBindings).toEqual(options.routerBindings);
-    expect(result.identities.main.renderer).toBe('react');
-    expect(result.compilerDigest).toMatch(/^[a-f0-9]{64}$/);
-  });
+  test.each(['octane', 'lumen', 'soliid'])(
+    'admits canonical router framework %s without an owner policy',
+    async framework => {
+      const options = await rendererFixture('react');
+      for (const binding of Object.values(options.routerBindings)) {
+        binding.defaultProvider.framework = framework;
+        binding.providers[0].framework = framework;
+      }
+      const result = await resolveRendererBuildIdentities(options);
+      expect(result.routerBindings).toEqual(options.routerBindings);
+      expect(result.identities.main.renderer).toBe('react');
+      expect(result.compilerDigest).toMatch(/^[a-f0-9]{64}$/);
+    },
+  );
 
   test.each([
     { role: 'default', framework: 'octane' },
@@ -3034,44 +3075,44 @@ describe('renderer source and compiler build identity', () => {
     { role: 'provider', framework: 'lumen' },
     { role: 'default', framework: 'soliid' },
     { role: 'provider', framework: 'soliid' },
-  ])('rejects foreign $framework $role tokens under the selected owner policy before package reads', async ({
-    role,
-    framework,
-  }) => {
-    const options = await fixture();
-    const foreignProvider = {
-      ...options.routerBindings.main.defaultProvider,
-      framework,
-    };
-    const main =
-      role === 'default'
-        ? {
-            ...options.routerBindings.main,
-            defaultProvider: foreignProvider,
-            providers: [foreignProvider],
-          }
-        : {
-            ...options.routerBindings.main,
-            evidence: 'provider-registry' as const,
-            providers: [
-              options.routerBindings.main.defaultProvider,
-              foreignProvider,
-            ],
-          };
-    const spy = rs.spyOn(fs, 'readFile');
-    try {
-      await expect(
-        resolveRendererBuildIdentities({
-          ...options,
-          routerFrameworks: ['solid'],
-          routerBindings: { ...options.routerBindings, main },
-        }),
-      ).rejects.toThrow('must be admitted by the selected router owner.');
-      expect(spy).not.toHaveBeenCalled();
-    } finally {
-      spy.mockRestore();
-    }
-  });
+  ])(
+    'rejects foreign $framework $role tokens under the selected owner policy before package reads',
+    async ({ role, framework }) => {
+      const options = await fixture();
+      const foreignProvider = {
+        ...options.routerBindings.main.defaultProvider,
+        framework,
+      };
+      const main =
+        role === 'default'
+          ? {
+              ...options.routerBindings.main,
+              defaultProvider: foreignProvider,
+              providers: [foreignProvider],
+            }
+          : {
+              ...options.routerBindings.main,
+              evidence: 'provider-registry' as const,
+              providers: [
+                options.routerBindings.main.defaultProvider,
+                foreignProvider,
+              ],
+            };
+      const spy = rs.spyOn(fs, 'readFile');
+      try {
+        await expect(
+          resolveRendererBuildIdentities({
+            ...options,
+            routerFrameworks: ['solid'],
+            routerBindings: { ...options.routerBindings, main },
+          }),
+        ).rejects.toThrow('must be admitted by the selected router owner.');
+        expect(spy).not.toHaveBeenCalled();
+      } finally {
+        spy.mockRestore();
+      }
+    },
+  );
 
   test('admits mixed React router providers under their explicit owner policy', async () => {
     const options = await providerRegistryFixture();
@@ -3132,124 +3173,127 @@ describe('renderer source and compiler build identity', () => {
     );
   });
 
-  test.each(
-    tupleRoles,
-  )('admits known %s HTTPS specs independently of archive filename versions', async role => {
-    const options = await uriProfileFixture(role);
-    const result = await resolveRendererBuildIdentities(options);
-    expect(result.identities.main.renderer).toBe('solid');
-    expect(result.compilerDigest).toMatch(/^[a-f0-9]{64}$/);
-    expect(result.buildMarker).toMatch(/^[a-f0-9]{64}$/);
-    expect(result.routerBindings).toEqual(options.routerBindings);
-  });
+  test.each(tupleRoles)(
+    'admits known %s HTTPS specs independently of archive filename versions',
+    async role => {
+      const options = await uriProfileFixture(role);
+      const result = await resolveRendererBuildIdentities(options);
+      expect(result.identities.main.renderer).toBe('solid');
+      expect(result.compilerDigest).toMatch(/^[a-f0-9]{64}$/);
+      expect(result.buildMarker).toMatch(/^[a-f0-9]{64}$/);
+      expect(result.routerBindings).toEqual(options.routerBindings);
+    },
+  );
 
-  test.each(
-    tupleRoles,
-  )('enforces the actual installed %s version behind an HTTPS spec', async role => {
-    const options = await uriProfileFixture(role);
-    const manifest = JSON.parse(
-      await fs.readFile(
-        path.join(options.packageDirectory, 'package.json'),
-        'utf8',
-      ),
-    );
-    // Matching the URI's filename is insufficient: the authored tuple owns
-    // the admitted installed version.
-    manifest.version = '9.9.9';
-    await write(
-      path.join(options.packageDirectory, 'package.json'),
-      JSON.stringify(manifest),
-    );
-    await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
-      `expected ${options.nativePackage.name}@${options.nativePackage.version}`,
-    );
-  });
-
-  test.each(
-    tupleRoles,
-  )('binds a changed %s HTTPS spec to metadata while retaining package byte identity', async role => {
-    const options = await uriProfileFixture(role);
-    const before = await resolveRendererBuildIdentities(options);
-    const after = await resolveRendererBuildIdentities({
-      ...options,
-      profile: {
-        ...options.profile,
-        dependencies: {
-          ...options.profile.dependencies,
-          [options.nativePackage.name]:
-            `https://artifacts.example.invalid/${encodeURIComponent(options.nativePackage.name)}/unversioned.tgz?digest=second`,
-        },
-      },
-    });
-    expect(after.routerBindings).toEqual(before.routerBindings);
-    expect(after.inputDigest).toBe(before.inputDigest);
-    expect(after.compilerDigest).toBe(before.compilerDigest);
-    expect(after.frameworkCohortDigest).toBe(before.frameworkCohortDigest);
-    expect(after.profileDigest).not.toBe(before.profileDigest);
-    expect(after.buildMarker).not.toBe(before.buildMarker);
-  });
-
-  test.each([
-    'solid-js',
-    'seroval',
-    '@fixture/framework-bootstrap',
-  ])('rejects supplemental HTTPS specs without an explicit tuple for %s', async name => {
-    const options = await fixture();
-    if (name !== 'solid-js') {
-      await writeFixturePackage(
-        path.join(options.projectRoot, 'node_modules', name),
-        { name, version: name === 'seroval' ? '1.6.8' : '1.0.0' },
+  test.each(tupleRoles)(
+    'enforces the actual installed %s version behind an HTTPS spec',
+    async role => {
+      const options = await uriProfileFixture(role);
+      const manifest = JSON.parse(
+        await fs.readFile(
+          path.join(options.packageDirectory, 'package.json'),
+          'utf8',
+        ),
       );
-    }
-    await expect(
-      resolveRendererBuildIdentities({
+      // Matching the URI's filename is insufficient: the authored tuple owns
+      // the admitted installed version.
+      manifest.version = '9.9.9';
+      await write(
+        path.join(options.packageDirectory, 'package.json'),
+        JSON.stringify(manifest),
+      );
+      await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+        `expected ${options.nativePackage.name}@${options.nativePackage.version}`,
+      );
+    },
+  );
+
+  test.each(tupleRoles)(
+    'binds a changed %s HTTPS spec to metadata while retaining package byte identity',
+    async role => {
+      const options = await uriProfileFixture(role);
+      const before = await resolveRendererBuildIdentities(options);
+      const after = await resolveRendererBuildIdentities({
         ...options,
-        frameworkPackages:
-          name === '@fixture/framework-bootstrap' ? [name] : [],
         profile: {
           ...options.profile,
           dependencies: {
             ...options.profile.dependencies,
-            [name]: 'https://artifacts.example.invalid/runtime-1.6.8.tgz',
+            [options.nativePackage.name]:
+              `https://artifacts.example.invalid/${encodeURIComponent(options.nativePackage.name)}/unversioned.tgz?digest=second`,
           },
         },
-      }),
-    ).rejects.toThrow(`Renderer profile requires an exact version for ${name}`);
-  });
+      });
+      expect(after.routerBindings).toEqual(before.routerBindings);
+      expect(after.inputDigest).toBe(before.inputDigest);
+      expect(after.compilerDigest).toBe(before.compilerDigest);
+      expect(after.frameworkCohortDigest).toBe(before.frameworkCohortDigest);
+      expect(after.profileDigest).not.toBe(before.profileDigest);
+      expect(after.buildMarker).not.toBe(before.buildMarker);
+    },
+  );
 
-  test.each([
-    'protocolVersion',
-    'renderer',
-    'nested-dependency',
-  ])('uses the captured full renderer profile during pending %s mutation', async changedField => {
-    const options = await fixture();
-    const before = await resolveRendererBuildIdentities(options);
-    const pending = resolveRendererBuildIdentities(options);
-    expect(Object.isFrozen(options.profile)).toBe(false);
-    expect(Object.isFrozen(options.profile.dependencies)).toBe(false);
-    if (changedField === 'nested-dependency') {
-      const dependencies = options.profile.dependencies;
-      if (!dependencies) throw new Error('Expected fixture dependency pins.');
-      expect(Reflect.set(dependencies, 'solid-js', '2.0.0-rc.14')).toBe(true);
-    } else {
-      expect(
-        Reflect.set(
-          options.profile,
-          changedField,
-          changedField === 'renderer' ? 'octane' : 2,
-        ),
-      ).toBe(true);
-    }
-    const after = await pending;
-    expect(after.inputDigest).toBe(before.inputDigest);
-    expect(after.profileDigest).toBe(before.profileDigest);
-    expect(after.compilerDigest).toBe(before.compilerDigest);
-    expect(after.frameworkCohortDigest).toBe(before.frameworkCohortDigest);
-    expect(after.buildMarker).toBe(before.buildMarker);
-    expect(after.identities).toEqual(before.identities);
-    expect(after.identities.main.renderer).toBe('solid');
-    expect(after.identities.main.protocolVersion).toBe(1);
-  });
+  test.each(['solid-js', 'seroval', '@fixture/framework-bootstrap'])(
+    'rejects supplemental HTTPS specs without an explicit tuple for %s',
+    async name => {
+      const options = await fixture();
+      if (name !== 'solid-js') {
+        await writeFixturePackage(
+          path.join(options.projectRoot, 'node_modules', name),
+          { name, version: name === 'seroval' ? '1.6.8' : '1.0.0' },
+        );
+      }
+      await expect(
+        resolveRendererBuildIdentities({
+          ...options,
+          frameworkPackages:
+            name === '@fixture/framework-bootstrap' ? [name] : [],
+          profile: {
+            ...options.profile,
+            dependencies: {
+              ...options.profile.dependencies,
+              [name]: 'https://artifacts.example.invalid/runtime-1.6.8.tgz',
+            },
+          },
+        }),
+      ).rejects.toThrow(
+        `Renderer profile requires an exact version for ${name}`,
+      );
+    },
+  );
+
+  test.each(['protocolVersion', 'renderer', 'nested-dependency'])(
+    'uses the captured full renderer profile during pending %s mutation',
+    async changedField => {
+      const options = await fixture();
+      const before = await resolveRendererBuildIdentities(options);
+      const pending = resolveRendererBuildIdentities(options);
+      expect(Object.isFrozen(options.profile)).toBe(false);
+      expect(Object.isFrozen(options.profile.dependencies)).toBe(false);
+      if (changedField === 'nested-dependency') {
+        const dependencies = options.profile.dependencies;
+        if (!dependencies) throw new Error('Expected fixture dependency pins.');
+        expect(Reflect.set(dependencies, 'solid-js', '2.0.0-rc.14')).toBe(true);
+      } else {
+        expect(
+          Reflect.set(
+            options.profile,
+            changedField,
+            changedField === 'renderer' ? 'octane' : 2,
+          ),
+        ).toBe(true);
+      }
+      const after = await pending;
+      expect(after.inputDigest).toBe(before.inputDigest);
+      expect(after.profileDigest).toBe(before.profileDigest);
+      expect(after.compilerDigest).toBe(before.compilerDigest);
+      expect(after.frameworkCohortDigest).toBe(before.frameworkCohortDigest);
+      expect(after.buildMarker).toBe(before.buildMarker);
+      expect(after.identities).toEqual(before.identities);
+      expect(after.identities.main.renderer).toBe('solid');
+      expect(after.identities.main.protocolVersion).toBe(1);
+    },
+  );
 
   test('uses the validated router binding snapshot throughout asynchronous package resolution', async () => {
     const options = await providerRegistryFixture();
@@ -3269,29 +3313,29 @@ describe('renderer source and compiler build identity', () => {
     expect(after.buildMarker).toBe(before.buildMarker);
   });
 
-  test.each([
-    'owner',
-    'evidence',
-  ])('binds router %s metadata to the marker without changing compiler bytes', async field => {
-    const options = await rendererFixture('react');
-    const routerBindings = ownedRouterBindings(options);
-    const before = await resolveRendererBuildIdentities({
-      ...options,
-      routerBindings,
-    });
-    const main =
-      field === 'owner'
-        ? { ...routerBindings.main, owner: '@fixture/file-router-owner' }
-        : { ...routerBindings.main, evidence: 'file-routes' as const };
-    const after = await resolveRendererBuildIdentities({
-      ...options,
-      routerBindings: { ...routerBindings, main },
-    });
-    expect(after.inputDigest).toBe(before.inputDigest);
-    expect(after.compilerDigest).toBe(before.compilerDigest);
-    expect(after.profileDigest).not.toBe(before.profileDigest);
-    expect(after.buildMarker).not.toBe(before.buildMarker);
-  });
+  test.each(['owner', 'evidence'])(
+    'binds router %s metadata to the marker without changing compiler bytes',
+    async field => {
+      const options = await rendererFixture('react');
+      const routerBindings = ownedRouterBindings(options);
+      const before = await resolveRendererBuildIdentities({
+        ...options,
+        routerBindings,
+      });
+      const main =
+        field === 'owner'
+          ? { ...routerBindings.main, owner: '@fixture/file-router-owner' }
+          : { ...routerBindings.main, evidence: 'file-routes' as const };
+      const after = await resolveRendererBuildIdentities({
+        ...options,
+        routerBindings: { ...routerBindings, main },
+      });
+      expect(after.inputDigest).toBe(before.inputDigest);
+      expect(after.compilerDigest).toBe(before.compilerDigest);
+      expect(after.profileDigest).not.toBe(before.profileDigest);
+      expect(after.buildMarker).not.toBe(before.buildMarker);
+    },
+  );
 
   test('canonicalizes entry order while preserving the full router binding map', async () => {
     const options = await providerRegistryFixture();
@@ -3312,69 +3356,75 @@ describe('renderer source and compiler build identity', () => {
     expect(reordered.routerBindings?.main.providers).toHaveLength(2);
   });
 
-  test.each([
-    'provider',
-    'core',
-  ])('hashes the registered optional TanStack %s bytes from its owning package', async packageRole => {
-    const options = await providerRegistryFixture();
-    const before = await resolveRendererBuildIdentities(options);
-    await fs.appendFile(
-      path.join(options.ambientCoreDirectory, 'index.js'),
-      '\nexport const unselectedAmbientChange = true;\n',
-    );
-    const ambientChanged = await resolveRendererBuildIdentities(options);
-    expect(ambientChanged.compilerDigest).toBe(before.compilerDigest);
-    const directory =
-      packageRole === 'provider'
-        ? options.providerDirectory
-        : options.coreDirectory;
-    await fs.appendFile(
-      path.join(directory, 'index.js'),
-      '\nexport const owningProviderChange = true;\n',
-    );
-    const after = await resolveRendererBuildIdentities(options);
-    expect(after.inputDigest).toBe(before.inputDigest);
-    expect(after.profileDigest).toBe(before.profileDigest);
-    expect(after.compilerDigest).not.toBe(before.compilerDigest);
-    expect(after.buildMarker).not.toBe(before.buildMarker);
-  });
+  test.each(['provider', 'core'])(
+    'hashes the registered optional TanStack %s bytes from its owning package',
+    async packageRole => {
+      const options = await providerRegistryFixture();
+      const before = await resolveRendererBuildIdentities(options);
+      await fs.appendFile(
+        path.join(options.ambientCoreDirectory, 'index.js'),
+        '\nexport const unselectedAmbientChange = true;\n',
+      );
+      const ambientChanged = await resolveRendererBuildIdentities(options);
+      expect(ambientChanged.compilerDigest).toBe(before.compilerDigest);
+      const directory =
+        packageRole === 'provider'
+          ? options.providerDirectory
+          : options.coreDirectory;
+      await fs.appendFile(
+        path.join(directory, 'index.js'),
+        '\nexport const owningProviderChange = true;\n',
+      );
+      const after = await resolveRendererBuildIdentities(options);
+      expect(after.inputDigest).toBe(before.inputDigest);
+      expect(after.profileDigest).toBe(before.profileDigest);
+      expect(after.compilerDigest).not.toBe(before.compilerDigest);
+      expect(after.buildMarker).not.toBe(before.buildMarker);
+    },
+  );
 
   test.each([
     { packageRole: 'provider', field: 'name' },
     { packageRole: 'provider', field: 'version' },
     { packageRole: 'core', field: 'name' },
     { packageRole: 'core', field: 'version' },
-  ])('rejects an optional provider actual $packageRole $field tuple mismatch', async mismatch => {
-    const options = await providerRegistryFixture();
-    const provider = options.routerBindings.main.providers[1];
-    const expectedName =
-      mismatch.packageRole === 'provider' ? provider.name : provider.coreName;
-    const expectedVersion =
-      mismatch.packageRole === 'provider'
-        ? provider.version
-        : provider.coreVersion;
-    const directory =
-      mismatch.packageRole === 'provider'
-        ? options.providerDirectory
-        : options.coreDirectory;
-    // The correctly labelled ambient core must not override the provider's
-    // actual resolved core owner.
-    await writeFixturePackage(options.ambientCoreDirectory, {
-      name: provider.coreName,
-      version: provider.coreVersion,
-    });
-    const manifest = JSON.parse(
-      await fs.readFile(path.join(directory, 'package.json'), 'utf8'),
-    );
-    manifest[mismatch.field] =
-      mismatch.field === 'name'
-        ? '@fixture/renamed-router-package'
-        : '1.171.30';
-    await write(path.join(directory, 'package.json'), JSON.stringify(manifest));
-    await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
-      `expected ${expectedName}@${expectedVersion}`,
-    );
-  });
+  ])(
+    'rejects an optional provider actual $packageRole $field tuple mismatch',
+    async mismatch => {
+      const options = await providerRegistryFixture();
+      const provider = options.routerBindings.main.providers[1];
+      const expectedName =
+        mismatch.packageRole === 'provider' ? provider.name : provider.coreName;
+      const expectedVersion =
+        mismatch.packageRole === 'provider'
+          ? provider.version
+          : provider.coreVersion;
+      const directory =
+        mismatch.packageRole === 'provider'
+          ? options.providerDirectory
+          : options.coreDirectory;
+      // The correctly labelled ambient core must not override the provider's
+      // actual resolved core owner.
+      await writeFixturePackage(options.ambientCoreDirectory, {
+        name: provider.coreName,
+        version: provider.coreVersion,
+      });
+      const manifest = JSON.parse(
+        await fs.readFile(path.join(directory, 'package.json'), 'utf8'),
+      );
+      manifest[mismatch.field] =
+        mismatch.field === 'name'
+          ? '@fixture/renamed-router-package'
+          : '1.171.30';
+      await write(
+        path.join(directory, 'package.json'),
+        JSON.stringify(manifest),
+      );
+      await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+        `expected ${expectedName}@${expectedVersion}`,
+      );
+    },
+  );
 
   test('requires every registered provider to be installed even when its default is React', async () => {
     const options = await providerRegistryFixture();
@@ -3398,26 +3448,28 @@ describe('renderer source and compiler build identity', () => {
     ).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
-  test.each([
-    'solid',
-    'react',
-  ] as const)('rejects an actual selected %s router package with a competing exact version', async renderer => {
-    const options =
-      renderer === 'solid' ? await fixture() : await rendererFixture(renderer);
-    const router = path.join(
-      options.projectRoot,
-      'node_modules',
-      options.profile.router.name,
-    );
-    const manifest = JSON.parse(
-      await fs.readFile(path.join(router, 'package.json'), 'utf8'),
-    );
-    manifest.version = renderer === 'solid' ? '2.0.0-rc.9' : '7.18.3';
-    await write(path.join(router, 'package.json'), JSON.stringify(manifest));
-    await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
-      `expected ${options.profile.router.name}@${options.profile.router.version}`,
-    );
-  });
+  test.each(['solid', 'react'] as const)(
+    'rejects an actual selected %s router package with a competing exact version',
+    async renderer => {
+      const options =
+        renderer === 'solid'
+          ? await fixture()
+          : await rendererFixture(renderer);
+      const router = path.join(
+        options.projectRoot,
+        'node_modules',
+        options.profile.router.name,
+      );
+      const manifest = JSON.parse(
+        await fs.readFile(path.join(router, 'package.json'), 'utf8'),
+      );
+      manifest.version = renderer === 'solid' ? '2.0.0-rc.9' : '7.18.3';
+      await write(path.join(router, 'package.json'), JSON.stringify(manifest));
+      await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+        `expected ${options.profile.router.name}@${options.profile.router.version}`,
+      );
+    },
+  );
 
   test('binds the selected nested router core bytes instead of an unselected ambient core', async () => {
     const options = await fixture();
@@ -3457,99 +3509,107 @@ describe('renderer source and compiler build identity', () => {
 
   // Matching package versions still have distinct physical byte identities.
   // This graph test does not certify shared application router contexts.
-  test.each([
-    'router',
-    'core',
-  ])('binds equal-version physical compiler-tooling %s copies independently', async changedPackage => {
-    const options = await fixture();
-    const compiler = path.join(
-      options.projectRoot,
-      'node_modules',
-      options.profile.compiler.name,
-    );
-    const compilerManifest = JSON.parse(
-      await fs.readFile(path.join(compiler, 'package.json'), 'utf8'),
-    );
-    compilerManifest.dependencies['tooling-router'] =
-      'npm:@tanstack/solid-router@2.0.0-rc.8';
-    await write(
-      path.join(compiler, 'package.json'),
-      JSON.stringify(compilerManifest),
-    );
-    const toolingRouter = path.join(compiler, 'node_modules', 'tooling-router');
-    const toolingCore = path.join(
-      toolingRouter,
-      'node_modules',
-      'tooling-core',
-    );
-    await writeFixturePackage(toolingRouter, {
-      name: '@tanstack/solid-router',
-      version: '2.0.0-rc.8',
-      dependencies: { 'tooling-core': 'npm:@tanstack/router-core@1.171.22' },
-    });
-    await writeFixturePackage(toolingCore, {
-      name: '@tanstack/router-core',
-      version: '1.171.22',
-    });
-    const before = await resolveRendererBuildIdentities(options);
-    const changedDirectory =
-      changedPackage === 'router' ? toolingRouter : toolingCore;
-    await fs.appendFile(
-      path.join(changedDirectory, 'index.js'),
-      '\nexport const toolingBytesChanged = true;\n',
-    );
-    const after = await resolveRendererBuildIdentities(options);
-    expect(after.inputDigest).toBe(before.inputDigest);
-    expect(after.compilerDigest).not.toBe(before.compilerDigest);
-    expect(after.buildMarker).not.toBe(before.buildMarker);
-    const manifest = JSON.parse(
-      await fs.readFile(path.join(changedDirectory, 'package.json'), 'utf8'),
-    );
-    const expectedVersion =
-      changedPackage === 'router'
-        ? options.profile.router.version
-        : options.profile.router.coreVersion;
-    manifest.version = changedPackage === 'router' ? '2.0.0-rc.9' : '1.171.23';
-    await write(
-      path.join(changedDirectory, 'package.json'),
-      JSON.stringify(manifest),
-    );
-    await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
-      `expected ${manifest.name}@${expectedVersion}`,
-    );
-  });
+  test.each(['router', 'core'])(
+    'binds equal-version physical compiler-tooling %s copies independently',
+    async changedPackage => {
+      const options = await fixture();
+      const compiler = path.join(
+        options.projectRoot,
+        'node_modules',
+        options.profile.compiler.name,
+      );
+      const compilerManifest = JSON.parse(
+        await fs.readFile(path.join(compiler, 'package.json'), 'utf8'),
+      );
+      compilerManifest.dependencies['tooling-router'] =
+        'npm:@tanstack/solid-router@2.0.0-rc.8';
+      await write(
+        path.join(compiler, 'package.json'),
+        JSON.stringify(compilerManifest),
+      );
+      const toolingRouter = path.join(
+        compiler,
+        'node_modules',
+        'tooling-router',
+      );
+      const toolingCore = path.join(
+        toolingRouter,
+        'node_modules',
+        'tooling-core',
+      );
+      await writeFixturePackage(toolingRouter, {
+        name: '@tanstack/solid-router',
+        version: '2.0.0-rc.8',
+        dependencies: { 'tooling-core': 'npm:@tanstack/router-core@1.171.22' },
+      });
+      await writeFixturePackage(toolingCore, {
+        name: '@tanstack/router-core',
+        version: '1.171.22',
+      });
+      const before = await resolveRendererBuildIdentities(options);
+      const changedDirectory =
+        changedPackage === 'router' ? toolingRouter : toolingCore;
+      await fs.appendFile(
+        path.join(changedDirectory, 'index.js'),
+        '\nexport const toolingBytesChanged = true;\n',
+      );
+      const after = await resolveRendererBuildIdentities(options);
+      expect(after.inputDigest).toBe(before.inputDigest);
+      expect(after.compilerDigest).not.toBe(before.compilerDigest);
+      expect(after.buildMarker).not.toBe(before.buildMarker);
+      const manifest = JSON.parse(
+        await fs.readFile(path.join(changedDirectory, 'package.json'), 'utf8'),
+      );
+      const expectedVersion =
+        changedPackage === 'router'
+          ? options.profile.router.version
+          : options.profile.router.coreVersion;
+      manifest.version =
+        changedPackage === 'router' ? '2.0.0-rc.9' : '1.171.23';
+      await write(
+        path.join(changedDirectory, 'package.json'),
+        JSON.stringify(manifest),
+      );
+      await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+        `expected ${manifest.name}@${expectedVersion}`,
+      );
+    },
+  );
 
-  test.each([
-    'router',
-    'core',
-  ])('rejects a conflicting contextual %s alias under the compiler owner', async packageRole => {
-    const options = await fixture();
-    const name =
-      packageRole === 'router'
-        ? options.profile.router.name
-        : options.profile.router.coreName;
-    const version =
-      packageRole === 'router'
-        ? options.profile.router.version
-        : options.profile.router.coreVersion;
-    const compiler = path.join(
-      options.projectRoot,
-      'node_modules',
-      options.profile.compiler.name,
-    );
-    const manifest = JSON.parse(
-      await fs.readFile(path.join(compiler, 'package.json'), 'utf8'),
-    );
-    manifest.dependencies['tooling-copy'] = `npm:${name}@1.170.0`;
-    await write(path.join(compiler, 'package.json'), JSON.stringify(manifest));
-    await writeFixturePackage(
-      path.join(compiler, 'node_modules', 'tooling-copy'),
-      { name, version: '1.170.0' },
-    );
-    await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
-      `expected ${name}@${version}`,
-    );
-  });
+  test.each(['router', 'core'])(
+    'rejects a conflicting contextual %s alias under the compiler owner',
+    async packageRole => {
+      const options = await fixture();
+      const name =
+        packageRole === 'router'
+          ? options.profile.router.name
+          : options.profile.router.coreName;
+      const version =
+        packageRole === 'router'
+          ? options.profile.router.version
+          : options.profile.router.coreVersion;
+      const compiler = path.join(
+        options.projectRoot,
+        'node_modules',
+        options.profile.compiler.name,
+      );
+      const manifest = JSON.parse(
+        await fs.readFile(path.join(compiler, 'package.json'), 'utf8'),
+      );
+      manifest.dependencies['tooling-copy'] = `npm:${name}@1.170.0`;
+      await write(
+        path.join(compiler, 'package.json'),
+        JSON.stringify(manifest),
+      );
+      await writeFixturePackage(
+        path.join(compiler, 'node_modules', 'tooling-copy'),
+        { name, version: '1.170.0' },
+      );
+      await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+        `expected ${name}@${version}`,
+      );
+    },
+  );
 
   test.each([
     {
@@ -3564,34 +3624,41 @@ describe('renderer source and compiler build identity', () => {
       version: '0.7.1',
       wrong: '0.7.0',
     },
-  ] as const)('rejects a conflicting foundational $renderer runtime reached through a nested tooling router copy', async runtime => {
-    const options = await rendererFixture(runtime.renderer);
-    const compiler = path.join(
-      options.projectRoot,
-      'node_modules',
-      options.profile.compiler.name,
-    );
-    await writeFixturePackage(compiler, {
-      name: options.profile.compiler.name,
-      version: options.profile.compiler.version,
-      dependencies: {
-        'tooling-router': `npm:${options.profile.router.name}@${options.profile.router.version}`,
-      },
-    });
-    const toolingRouter = path.join(compiler, 'node_modules', 'tooling-router');
-    await writeFixturePackage(toolingRouter, {
-      name: options.profile.router.name,
-      version: options.profile.router.version,
-      dependencies: { [runtime.name]: runtime.wrong },
-    });
-    await writeFixturePackage(
-      path.join(toolingRouter, 'node_modules', runtime.name),
-      { name: runtime.name, version: runtime.wrong },
-    );
-    await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
-      `expected ${runtime.name}@${runtime.version}`,
-    );
-  });
+  ] as const)(
+    'rejects a conflicting foundational $renderer runtime reached through a nested tooling router copy',
+    async runtime => {
+      const options = await rendererFixture(runtime.renderer);
+      const compiler = path.join(
+        options.projectRoot,
+        'node_modules',
+        options.profile.compiler.name,
+      );
+      await writeFixturePackage(compiler, {
+        name: options.profile.compiler.name,
+        version: options.profile.compiler.version,
+        dependencies: {
+          'tooling-router': `npm:${options.profile.router.name}@${options.profile.router.version}`,
+        },
+      });
+      const toolingRouter = path.join(
+        compiler,
+        'node_modules',
+        'tooling-router',
+      );
+      await writeFixturePackage(toolingRouter, {
+        name: options.profile.router.name,
+        version: options.profile.router.version,
+        dependencies: { [runtime.name]: runtime.wrong },
+      });
+      await writeFixturePackage(
+        path.join(toolingRouter, 'node_modules', runtime.name),
+        { name: runtime.name, version: runtime.wrong },
+      );
+      await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+        `expected ${runtime.name}@${runtime.version}`,
+      );
+    },
+  );
 
   test('binds a distinct unselected router core reached through a declared neutral tooling boundary', async () => {
     const options = await fixture();
@@ -3671,140 +3738,146 @@ describe('renderer source and compiler build identity', () => {
     expect(after.buildMarker).not.toBe(before.buildMarker);
   });
 
-  test.each([
-    'solid',
-    'octane',
-  ] as const)('binds installed inactive loadable package and implementation bytes without React in the selected %s application', async renderer => {
-    const options = await installedLoadableFixture(renderer);
-    expect(
-      options.ownerManifest.peerDependencies[options.loadableManifest.name],
-    ).toBe(options.loadableManifest.version);
-    expect(
-      options.ownerManifest.peerDependenciesMeta[options.loadableManifest.name],
-    ).toEqual({ optional: true });
-    expect(options.loadableManifest.peerDependencies.react).toBe(
-      '^16.3.0 || ^17.0.0 || ^18.0.0 || ^19.0.0',
-    );
-    await expect(
-      fs.lstat(path.join(options.projectRoot, 'node_modules', 'react')),
-    ).rejects.toMatchObject({ code: 'ENOENT' });
-    let before = await resolveRendererBuildIdentities(options);
-    for (const file of ['package.json', 'index.js']) {
-      if (file === 'package.json')
+  test.each(['solid', 'octane'] as const)(
+    'binds installed inactive loadable package and implementation bytes without React in the selected %s application',
+    async renderer => {
+      const options = await installedLoadableFixture(renderer);
+      expect(
+        options.ownerManifest.peerDependencies[options.loadableManifest.name],
+      ).toBe(options.loadableManifest.version);
+      expect(
+        options.ownerManifest.peerDependenciesMeta[
+          options.loadableManifest.name
+        ],
+      ).toEqual({ optional: true });
+      expect(options.loadableManifest.peerDependencies.react).toBe(
+        '^16.3.0 || ^17.0.0 || ^18.0.0 || ^19.0.0',
+      );
+      await expect(
+        fs.lstat(path.join(options.projectRoot, 'node_modules', 'react')),
+      ).rejects.toMatchObject({ code: 'ENOENT' });
+      let before = await resolveRendererBuildIdentities(options);
+      for (const file of ['package.json', 'index.js']) {
+        if (file === 'package.json')
+          await write(
+            path.join(options.loadable, file),
+            JSON.stringify({
+              ...options.loadableManifest,
+              description: 'Changed inactive loadable package bytes',
+            }),
+          );
+        else
+          await fs.appendFile(
+            path.join(options.loadable, file),
+            'export const changedInactiveLoadable = true;\n',
+          );
+        const after = await resolveRendererBuildIdentities(options);
+        expect(after.identities.main.renderer).toBe(renderer);
+        expect(after.inputDigest).toBe(before.inputDigest);
+        expect(after.profileDigest).toBe(before.profileDigest);
+        expect(after.compilerDigest).not.toBe(before.compilerDigest);
+        expect(after.frameworkCohortDigest).not.toBe(
+          before.frameworkCohortDigest,
+        );
+        expect(after.buildMarker).not.toBe(before.buildMarker);
+        before = after;
+      }
+    },
+  );
+
+  test.each(['normal-dependency', 'shadowed-optional-peer'] as const)(
+    'rejects a missing %s in an inactive installed optional branch',
+    async scenario => {
+      const options = await installedLoadableFixture();
+      const name =
+        scenario === 'normal-dependency' ? '@babel/runtime' : 'react';
+      if (scenario === 'normal-dependency')
+        await fs.rm(path.join(options.projectRoot, 'node_modules', name), {
+          recursive: true,
+        });
+      else
         await write(
-          path.join(options.loadable, file),
+          path.join(options.loadable, 'package.json'),
           JSON.stringify({
             ...options.loadableManifest,
-            description: 'Changed inactive loadable package bytes',
+            dependencies: {
+              ...options.loadableManifest.dependencies,
+              react: '19.3.0',
+            },
+            peerDependenciesMeta: { react: { optional: true } },
           }),
         );
-      else
-        await fs.appendFile(
-          path.join(options.loadable, file),
-          'export const changedInactiveLoadable = true;\n',
+      await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+        `dependency ${name} cannot be resolved from ${options.loadableManifest.name}`,
+      );
+    },
+  );
+
+  test.each(['owner', 'normal-child'] as const)(
+    'revalidates the %s peer contract when an optional-first physical owner is later reached through a required path',
+    async role => {
+      const options = await installedLoadableFixture();
+      const modules = path.join(options.projectRoot, 'node_modules');
+      let missingPeer = 'react';
+      let peerOwner = options.loadableManifest.name;
+      if (role === 'normal-child') {
+        await writeFixturePackage(path.join(modules, 'react'), {
+          name: 'react',
+          version: '19.3.0',
+        });
+        missingPeer = '@fixture/missing-child-peer';
+        peerOwner = '@fixture/required-child';
+        await write(
+          path.join(options.loadable, 'package.json'),
+          JSON.stringify({
+            ...options.loadableManifest,
+            dependencies: {
+              ...options.loadableManifest.dependencies,
+              [peerOwner]: '1.0.0',
+            },
+          }),
         );
-      const after = await resolveRendererBuildIdentities(options);
-      expect(after.identities.main.renderer).toBe(renderer);
-      expect(after.inputDigest).toBe(before.inputDigest);
-      expect(after.profileDigest).toBe(before.profileDigest);
-      expect(after.compilerDigest).not.toBe(before.compilerDigest);
-      expect(after.frameworkCohortDigest).not.toBe(
-        before.frameworkCohortDigest,
-      );
-      expect(after.buildMarker).not.toBe(before.buildMarker);
-      before = after;
-    }
-  });
-
-  test.each([
-    'normal-dependency',
-    'shadowed-optional-peer',
-  ] as const)('rejects a missing %s in an inactive installed optional branch', async scenario => {
-    const options = await installedLoadableFixture();
-    const name = scenario === 'normal-dependency' ? '@babel/runtime' : 'react';
-    if (scenario === 'normal-dependency')
-      await fs.rm(path.join(options.projectRoot, 'node_modules', name), {
-        recursive: true,
+        const child = path.join(options.loadable, 'node_modules', peerOwner);
+        await write(
+          path.join(child, 'package.json'),
+          JSON.stringify({
+            name: peerOwner,
+            version: '1.0.0',
+            peerDependencies: { [missingPeer]: '1.0.0' },
+          }),
+        );
+        await write(
+          path.join(child, 'index.js'),
+          'export const child = true;\n',
+        );
+      }
+      await resolveRendererBuildIdentities(options);
+      const consumerName = 'zz-required-consumer';
+      const consumer = path.join(modules, consumerName);
+      await writeFixturePackage(consumer, {
+        name: consumerName,
+        version: '1.0.0',
+        dependencies: {
+          [options.loadableManifest.name]: options.loadableManifest.version,
+        },
       });
-    else
-      await write(
-        path.join(options.loadable, 'package.json'),
-        JSON.stringify({
-          ...options.loadableManifest,
-          dependencies: {
-            ...options.loadableManifest.dependencies,
-            react: '19.3.0',
-          },
-          peerDependenciesMeta: { react: { optional: true } },
-        }),
+      const link = path.join(
+        consumer,
+        'node_modules',
+        options.loadableManifest.name,
       );
-    await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
-      `dependency ${name} cannot be resolved from ${options.loadableManifest.name}`,
-    );
-  });
-
-  test.each([
-    'owner',
-    'normal-child',
-  ] as const)('revalidates the %s peer contract when an optional-first physical owner is later reached through a required path', async role => {
-    const options = await installedLoadableFixture();
-    const modules = path.join(options.projectRoot, 'node_modules');
-    let missingPeer = 'react';
-    let peerOwner = options.loadableManifest.name;
-    if (role === 'normal-child') {
-      await writeFixturePackage(path.join(modules, 'react'), {
-        name: 'react',
-        version: '19.3.0',
-      });
-      missingPeer = '@fixture/missing-child-peer';
-      peerOwner = '@fixture/required-child';
-      await write(
-        path.join(options.loadable, 'package.json'),
-        JSON.stringify({
-          ...options.loadableManifest,
-          dependencies: {
-            ...options.loadableManifest.dependencies,
-            [peerOwner]: '1.0.0',
-          },
-        }),
+      await fs.mkdir(path.dirname(link), { recursive: true });
+      await fs.symlink(options.loadable, link, 'dir');
+      expect(await fs.realpath(link)).toBe(await fs.realpath(options.loadable));
+      const ownerFile = path.join(options.owner, 'package.json');
+      const owner = JSON.parse(await fs.readFile(ownerFile, 'utf8'));
+      owner.dependencies = { [consumerName]: '1.0.0' };
+      await write(ownerFile, JSON.stringify(owner));
+      await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+        `dependency ${missingPeer} cannot be resolved from ${peerOwner}`,
       );
-      const child = path.join(options.loadable, 'node_modules', peerOwner);
-      await write(
-        path.join(child, 'package.json'),
-        JSON.stringify({
-          name: peerOwner,
-          version: '1.0.0',
-          peerDependencies: { [missingPeer]: '1.0.0' },
-        }),
-      );
-      await write(path.join(child, 'index.js'), 'export const child = true;\n');
-    }
-    await resolveRendererBuildIdentities(options);
-    const consumerName = 'zz-required-consumer';
-    const consumer = path.join(modules, consumerName);
-    await writeFixturePackage(consumer, {
-      name: consumerName,
-      version: '1.0.0',
-      dependencies: {
-        [options.loadableManifest.name]: options.loadableManifest.version,
-      },
-    });
-    const link = path.join(
-      consumer,
-      'node_modules',
-      options.loadableManifest.name,
-    );
-    await fs.mkdir(path.dirname(link), { recursive: true });
-    await fs.symlink(options.loadable, link, 'dir');
-    expect(await fs.realpath(link)).toBe(await fs.realpath(options.loadable));
-    const ownerFile = path.join(options.owner, 'package.json');
-    const owner = JSON.parse(await fs.readFile(ownerFile, 'utf8'));
-    owner.dependencies = { [consumerName]: '1.0.0' };
-    await write(ownerFile, JSON.stringify(owner));
-    await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
-      `dependency ${missingPeer} cannot be resolved from ${peerOwner}`,
-    );
-  });
+    },
+  );
 
   test('requires the absent peer when an inactive optional owner becomes an explicit framework root', async () => {
     const options = await installedLoadableFixture();
@@ -3822,50 +3895,48 @@ describe('renderer source and compiler build identity', () => {
     );
   });
 
-  test.each([
-    'name',
-    'version',
-    'range',
-    'alias-conflict',
-  ] as const)('rejects a present peer %s conflict inside an inactive optional branch', async conflict => {
-    const options = await installedLoadableFixture();
-    const target = '@fixture/renamed-react';
-    const version = '19.3.0';
-    const appFile = path.join(options.projectRoot, 'package.json');
-    const app = JSON.parse(await fs.readFile(appFile, 'utf8'));
-    if (conflict !== 'name') {
-      app.dependencies = { react: `npm:${target}@${version}` };
-      await write(appFile, JSON.stringify(app));
-    }
-    await writeFixturePackage(
-      path.join(options.projectRoot, 'node_modules', 'react'),
-      {
-        name: conflict === 'name' ? '@fixture/foreign-react' : target,
-        version: conflict === 'version' ? '19.3.1' : version,
-      },
-    );
-    if (conflict === 'range')
-      await write(
-        path.join(options.loadable, 'package.json'),
-        JSON.stringify({
-          ...options.loadableManifest,
-          peerDependencies: { react: '^20.0.0' },
-        }),
+  test.each(['name', 'version', 'range', 'alias-conflict'] as const)(
+    'rejects a present peer %s conflict inside an inactive optional branch',
+    async conflict => {
+      const options = await installedLoadableFixture();
+      const target = '@fixture/renamed-react';
+      const version = '19.3.0';
+      const appFile = path.join(options.projectRoot, 'package.json');
+      const app = JSON.parse(await fs.readFile(appFile, 'utf8'));
+      if (conflict !== 'name') {
+        app.dependencies = { react: `npm:${target}@${version}` };
+        await write(appFile, JSON.stringify(app));
+      }
+      await writeFixturePackage(
+        path.join(options.projectRoot, 'node_modules', 'react'),
+        {
+          name: conflict === 'name' ? '@fixture/foreign-react' : target,
+          version: conflict === 'version' ? '19.3.1' : version,
+        },
       );
-    if (conflict === 'alias-conflict') {
-      const ownerFile = path.join(options.owner, 'package.json');
-      const owner = JSON.parse(await fs.readFile(ownerFile, 'utf8'));
-      owner.dependencies = { react: `npm:@fixture/other-react@${version}` };
-      await write(ownerFile, JSON.stringify(owner));
-    }
-    await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
-      conflict === 'version'
-        ? `expected ${target}@${version}`
-        : conflict === 'range'
-          ? `peer react@^20.0.0 conflicts with declared ${target}@${version}`
-          : 'renamed peer react requires one exact declared npm alias target',
-    );
-  });
+      if (conflict === 'range')
+        await write(
+          path.join(options.loadable, 'package.json'),
+          JSON.stringify({
+            ...options.loadableManifest,
+            peerDependencies: { react: '^20.0.0' },
+          }),
+        );
+      if (conflict === 'alias-conflict') {
+        const ownerFile = path.join(options.owner, 'package.json');
+        const owner = JSON.parse(await fs.readFile(ownerFile, 'utf8'));
+        owner.dependencies = { react: `npm:@fixture/other-react@${version}` };
+        await write(ownerFile, JSON.stringify(owner));
+      }
+      await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+        conflict === 'version'
+          ? `expected ${target}@${version}`
+          : conflict === 'range'
+            ? `peer react@^20.0.0 conflicts with declared ${target}@${version}`
+            : 'renamed peer react requires one exact declared npm alias target',
+      );
+    },
+  );
 
   test('binds a present peer package and implementation bytes inside an inactive optional branch', async () => {
     const options = await installedLoadableFixture();
@@ -3899,57 +3970,57 @@ describe('renderer source and compiler build identity', () => {
     }
   });
 
-  test.each([
-    'solid',
-    'octane',
-  ] as const)('binds the installed SDK federation-runtime optional runtime chain without React for %s', async renderer => {
-    const options = await installedFederationRuntimeFixture(renderer);
-    await expect(
-      fs.lstat(path.join(options.projectRoot, 'node_modules', 'react')),
-    ).rejects.toMatchObject({ code: 'ENOENT' });
-    let before = await resolveRendererBuildIdentities(options);
-    for (const directory of [
-      options.federation,
-      options.runtime,
-      options.loadable,
-    ]) {
-      await fs.appendFile(
-        path.join(directory, 'index.js'),
-        'export const changedInactiveFederationChain = true;\n',
-      );
-      const after = await resolveRendererBuildIdentities(options);
-      expect(after.identities.main.renderer).toBe(renderer);
-      expect(after.inputDigest).toBe(before.inputDigest);
-      expect(after.profileDigest).toBe(before.profileDigest);
-      expect(after.compilerDigest).not.toBe(before.compilerDigest);
-      expect(after.frameworkCohortDigest).not.toBe(
-        before.frameworkCohortDigest,
-      );
-      expect(after.buildMarker).not.toBe(before.buildMarker);
-      before = after;
-    }
-    await fs.rm(options.runtime, { recursive: true });
-    await expect(
-      resolveRendererBuildIdentities(options),
-    ).resolves.toMatchObject({
-      identities: { main: { renderer } },
-    });
-  });
+  test.each(['solid', 'octane'] as const)(
+    'binds the installed SDK federation-runtime optional runtime chain without React for %s',
+    async renderer => {
+      const options = await installedFederationRuntimeFixture(renderer);
+      await expect(
+        fs.lstat(path.join(options.projectRoot, 'node_modules', 'react')),
+      ).rejects.toMatchObject({ code: 'ENOENT' });
+      let before = await resolveRendererBuildIdentities(options);
+      for (const directory of [
+        options.federation,
+        options.runtime,
+        options.loadable,
+      ]) {
+        await fs.appendFile(
+          path.join(directory, 'index.js'),
+          'export const changedInactiveFederationChain = true;\n',
+        );
+        const after = await resolveRendererBuildIdentities(options);
+        expect(after.identities.main.renderer).toBe(renderer);
+        expect(after.inputDigest).toBe(before.inputDigest);
+        expect(after.profileDigest).toBe(before.profileDigest);
+        expect(after.compilerDigest).not.toBe(before.compilerDigest);
+        expect(after.frameworkCohortDigest).not.toBe(
+          before.frameworkCohortDigest,
+        );
+        expect(after.buildMarker).not.toBe(before.buildMarker);
+        before = after;
+      }
+      await fs.rm(options.runtime, { recursive: true });
+      await expect(
+        resolveRendererBuildIdentities(options),
+      ).resolves.toMatchObject({
+        identities: { main: { renderer } },
+      });
+    },
+  );
 
-  test.each([
-    'runtime',
-    'react',
-  ] as const)('requires the selected React %s root despite federation-runtime optional peer metadata', async role => {
-    const options = await installedFederationRuntimeFixture('react');
-    await resolveRendererBuildIdentities(options);
-    const name = role === 'runtime' ? options.runtimeManifest.name : 'react';
-    await fs.rm(path.join(options.projectRoot, 'node_modules', name), {
-      recursive: true,
-    });
-    await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
-      `Selected renderer framework package ${name} cannot be resolved before entry generation`,
-    );
-  });
+  test.each(['runtime', 'react'] as const)(
+    'requires the selected React %s root despite federation-runtime optional peer metadata',
+    async role => {
+      const options = await installedFederationRuntimeFixture('react');
+      await resolveRendererBuildIdentities(options);
+      const name = role === 'runtime' ? options.runtimeManifest.name : 'react';
+      await fs.rm(path.join(options.projectRoot, 'node_modules', name), {
+        recursive: true,
+      });
+      await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+        `Selected renderer framework package ${name} cannot be resolved before entry generation`,
+      );
+    },
+  );
 
   test('binds an installed inactive Octane adapter with its real optional peer contract while both native peers are absent', async () => {
     const options = await installedOctaneAdapterFixture('react');
@@ -3972,127 +4043,133 @@ describe('renderer source and compiler build identity', () => {
     expect(after.buildMarker).not.toBe(before.buildMarker);
   });
 
-  test.each([
-    'hydration',
-    'router',
-    'core',
-  ] as const)('rejects a missing selected Octane %s despite the adapter optional peer metadata', async role => {
-    const options = await installedOctaneAdapterFixture('octane');
-    const name =
-      role === 'core'
-        ? options.profile.router.coreName
-        : options.profile[role].name;
-    await fs.rm(path.join(options.projectRoot, 'node_modules', name), {
-      recursive: true,
-    });
-    await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
-      role === 'core'
-        ? `selected router must resolve its own exact ${name}`
-        : `requires installed ${name}@${options.profile[role].version}`,
-    );
-  });
+  test.each(['hydration', 'router', 'core'] as const)(
+    'rejects a missing selected Octane %s despite the adapter optional peer metadata',
+    async role => {
+      const options = await installedOctaneAdapterFixture('octane');
+      const name =
+        role === 'core'
+          ? options.profile.router.coreName
+          : options.profile[role].name;
+      await fs.rm(path.join(options.projectRoot, 'node_modules', name), {
+        recursive: true,
+      });
+      await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+        role === 'core'
+          ? `selected router must resolve its own exact ${name}`
+          : `requires installed ${name}@${options.profile[role].version}`,
+      );
+    },
+  );
 
   test.each(
     (['hydration', 'router'] as const).flatMap(role =>
       (['version', 'owner'] as const).map(conflict => ({ role, conflict })),
     ),
-  )('rejects a selected Octane $role $conflict mismatch despite optional peer metadata', async ({
-    role,
-    conflict,
-  }) => {
-    const options = await installedOctaneAdapterFixture('octane');
-    const selected = options.profile[role];
-    await writeFixturePackage(
-      path.join(options.projectRoot, 'node_modules', selected.name),
-      {
-        name:
-          conflict === 'owner'
-            ? '@fixture/foreign-native-provider'
-            : selected.name,
-        version: conflict === 'version' ? '99.0.0' : selected.version,
-        ...(role === 'router'
-          ? {
-              dependencies: {
-                [options.profile.router.coreName]:
-                  options.profile.router.coreVersion,
-              },
-            }
-          : {}),
-      },
-    );
-    await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
-      conflict === 'owner'
-        ? `renamed peer ${selected.name} requires one exact declared npm alias target`
-        : `expected ${selected.name}@${selected.version}`,
-    );
-  });
-
-  test.each([
-    'hydration',
-    'router',
-  ] as const)('rejects selected Octane %s implementation bytes changed during identity hashing', async role => {
-    const options = await installedOctaneAdapterFixture('octane');
-    const file = path.join(
-      options.projectRoot,
-      'node_modules',
-      options.profile[role].name,
-      'index.js',
-    );
-    const read = fs.readFile.bind(fs);
-    let changed = false;
-    const spy = rs.spyOn(fs, 'readFile').mockImplementation(async (...args) => {
-      if (!changed && String(args[0]) === file) {
-        changed = true;
-        await fs.appendFile(file, 'export const changedDuringHash = true;\n');
-      }
-      return Reflect.apply(read, fs, args);
-    });
-    try {
-      await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
-        'input changed while being read',
+  )(
+    'rejects a selected Octane $role $conflict mismatch despite optional peer metadata',
+    async ({ role, conflict }) => {
+      const options = await installedOctaneAdapterFixture('octane');
+      const selected = options.profile[role];
+      await writeFixturePackage(
+        path.join(options.projectRoot, 'node_modules', selected.name),
+        {
+          name:
+            conflict === 'owner'
+              ? '@fixture/foreign-native-provider'
+              : selected.name,
+          version: conflict === 'version' ? '99.0.0' : selected.version,
+          ...(role === 'router'
+            ? {
+                dependencies: {
+                  [options.profile.router.coreName]:
+                    options.profile.router.coreVersion,
+                },
+              }
+            : {}),
+        },
       );
-      expect(changed).toBe(true);
-    } finally {
-      spy.mockRestore();
-    }
-  });
+      await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+        conflict === 'owner'
+          ? `renamed peer ${selected.name} requires one exact declared npm alias target`
+          : `expected ${selected.name}@${selected.version}`,
+      );
+    },
+  );
 
-  test.each([
-    'solid',
-    'octane',
-  ] as const)('binds neutral framework unselected adapter core bytes beside selected %s ownership', async renderer => {
-    const options = await unselectedNativeAdapterFixture(renderer);
-    expect(options.unselectedCoreVersion).not.toBe(
-      options.profile.router.coreVersion,
-    );
-    const before = await resolveRendererBuildIdentities(options);
-    await fs.appendFile(
-      path.join(options.unselectedCoreDirectory, 'index.js'),
-      '\nexport const changedUnselectedCoreBytes = true;\n',
-    );
-    const after = await resolveRendererBuildIdentities(options);
-    expect(after.identities.main.renderer).toBe(renderer);
-    expect(after.inputDigest).toBe(before.inputDigest);
-    expect(after.profileDigest).toBe(before.profileDigest);
-    expect(after.compilerDigest).not.toBe(before.compilerDigest);
-    expect(after.frameworkCohortDigest).not.toBe(before.frameworkCohortDigest);
-    expect(after.buildMarker).not.toBe(before.buildMarker);
-  });
+  test.each(['hydration', 'router'] as const)(
+    'rejects selected Octane %s implementation bytes changed during identity hashing',
+    async role => {
+      const options = await installedOctaneAdapterFixture('octane');
+      const file = path.join(
+        options.projectRoot,
+        'node_modules',
+        options.profile[role].name,
+        'index.js',
+      );
+      const read = fs.readFile.bind(fs);
+      let changed = false;
+      const spy = rs
+        .spyOn(fs, 'readFile')
+        .mockImplementation(async (...args) => {
+          if (!changed && String(args[0]) === file) {
+            changed = true;
+            await fs.appendFile(
+              file,
+              'export const changedDuringHash = true;\n',
+            );
+          }
+          return Reflect.apply(read, fs, args);
+        });
+      try {
+        await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+          'input changed while being read',
+        );
+        expect(changed).toBe(true);
+      } finally {
+        spy.mockRestore();
+      }
+    },
+  );
 
-  test.each([
-    'solid',
-    'octane',
-  ] as const)('rejects the selected %s own core mismatch beside neutral unselected adapter copies', async renderer => {
-    const options = await unselectedNativeAdapterFixture(renderer);
-    await resolveRendererBuildIdentities(options);
-    await writeFixturePackage(options.selectedCoreDirectory, {
-      name: options.profile.router.coreName,
-      version: options.unselectedCoreVersion,
-    });
-    await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
-      `expected ${options.profile.router.coreName}@${options.profile.router.coreVersion}`,
-    );
-  });
+  test.each(['solid', 'octane'] as const)(
+    'binds neutral framework unselected adapter core bytes beside selected %s ownership',
+    async renderer => {
+      const options = await unselectedNativeAdapterFixture(renderer);
+      expect(options.unselectedCoreVersion).not.toBe(
+        options.profile.router.coreVersion,
+      );
+      const before = await resolveRendererBuildIdentities(options);
+      await fs.appendFile(
+        path.join(options.unselectedCoreDirectory, 'index.js'),
+        '\nexport const changedUnselectedCoreBytes = true;\n',
+      );
+      const after = await resolveRendererBuildIdentities(options);
+      expect(after.identities.main.renderer).toBe(renderer);
+      expect(after.inputDigest).toBe(before.inputDigest);
+      expect(after.profileDigest).toBe(before.profileDigest);
+      expect(after.compilerDigest).not.toBe(before.compilerDigest);
+      expect(after.frameworkCohortDigest).not.toBe(
+        before.frameworkCohortDigest,
+      );
+      expect(after.buildMarker).not.toBe(before.buildMarker);
+    },
+  );
+
+  test.each(['solid', 'octane'] as const)(
+    'rejects the selected %s own core mismatch beside neutral unselected adapter copies',
+    async renderer => {
+      const options = await unselectedNativeAdapterFixture(renderer);
+      await resolveRendererBuildIdentities(options);
+      await writeFixturePackage(options.selectedCoreDirectory, {
+        name: options.profile.router.coreName,
+        version: options.unselectedCoreVersion,
+      });
+      await expect(resolveRendererBuildIdentities(options)).rejects.toThrow(
+        `expected ${options.profile.router.coreName}@${options.profile.router.coreVersion}`,
+      );
+    },
+  );
 
   test('gives different development and production compiler modes different identities', async () => {
     const options = await fixture();

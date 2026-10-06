@@ -26,15 +26,21 @@ async function initializeCliPlugins(
     html: { title: 'Consumer title' },
     output: { assetPrefix: '/consumer-assets/' },
   };
-  const originalConfig = structuredClone(userConfig);
+  // Applications author the UltraModern base composition in config.plugins;
+  // a plain appTools() base registers as an internal plugin.
+  const basePlugin = createPlugin(options);
+  const authored = createPlugin === ultramodernAppTools;
+  const originalConfig = authored
+    ? { ...structuredClone(userConfig), plugins: [basePlugin] }
+    : structuredClone(userConfig);
   let api: CLIPluginAPI<AppTools> | undefined;
   const result = await createConfigOptions<AppTools>({
     command: 'build',
     configFile: false,
     cwd: appDirectory,
-    config: userConfig,
+    config: authored ? { ...userConfig, plugins: [basePlugin] } : userConfig,
     internalPlugins: [
-      createPlugin(options),
+      ...(authored ? [] : [basePlugin]),
       {
         name: 'consumer-config-observer',
         setup(pluginApi) {

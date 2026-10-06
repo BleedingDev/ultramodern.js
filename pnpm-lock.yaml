@@ -3311,8 +3311,8 @@ importers:
         specifier: workspace:*
         version: link:../../toolkit/utils
       '@module-federation/dts-plugin':
-        specifier: npm:@bleedingdev/mf-dts-plugin@2.9.2
-        version: '@bleedingdev/mf-dts-plugin@2.9.2(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)'
+        specifier: 2.9.2
+        version: 2.9.2(patch_hash=f93107fb896839b94ca31491774b920c82a3cc31dda8fd9e53d06b47ad72cba0)(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       '@rsbuild/core':
         specifier: 2.2.11
         version: 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
@@ -8655,15 +8655,6 @@ packages:
     engines: {node: '>=14.21.3'}
     cpu: [x64]
     os: [win32]
-
-  '@bleedingdev/mf-dts-plugin@2.9.2':
-    resolution: {integrity: sha512-f1TnU0c8RTOTnVFAzLOTJctdOP8bYP+cnYYLsKFV651T46V8fX8b27QKLbXC0anEJ9yfJryRNW1mBcD8oPnpbg==}
-    peerDependencies:
-      typescript: ^4.9.0 || ^5.0.0 || ^6.0.0 || ^7.0.0
-      vue-tsc: '>=1.0.24'
-    peerDependenciesMeta:
-      vue-tsc:
-        optional: true
 
   '@braintree/sanitize-url@7.1.2':
     resolution: {integrity: sha512-jigsZK+sMF/cuiB7sERuo9V7N9jx+dhmHHnQyDSVdpZwVutaBu7WvNYqMDLSgFgfB30n452TP3vjDAvFC973mA==}
@@ -22412,21 +22403,6 @@ snapshots:
 
   '@biomejs/cli-win32-x64@2.5.15':
     optional: true
-
-  '@bleedingdev/mf-dts-plugin@2.9.2(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)':
-    dependencies:
-      '@module-federation/error-codes': 2.9.2
-      '@module-federation/managers': 2.9.2
-      '@module-federation/sdk': 2.9.2
-      '@module-federation/third-party-dts-extractor': 2.9.2
-      adm-zip: 0.6.1
-      isomorphic-ws: 5.0.0(ws@8.21.3(bufferutil@4.1.0)(utf-8-validate@5.0.10))
-      typescript: 7.0.2
-      undici: 7.29.1
-      ws: 8.21.3(bufferutil@4.1.0)(utf-8-validate@5.0.10)
-    transitivePeerDependencies:
-      - bufferutil
-      - utf-8-validate
 
   '@braintree/sanitize-url@7.1.2': {}
 
