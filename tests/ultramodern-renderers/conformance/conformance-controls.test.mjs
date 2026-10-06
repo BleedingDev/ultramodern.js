@@ -6,8 +6,7 @@ import test from 'node:test';
 // the installed data wire, SSR, streaming or either native application.
 const modules = await Promise.all(
   ['solid', 'octane'].map(
-    renderer =>
-      import(`./fixtures/${renderer}/src/server/conformance-controls.ts`),
+    renderer => import(`./fixtures/${renderer}/src/conformance-controls.ts`),
   ),
 );
 let nextId = 0;
@@ -203,7 +202,7 @@ for (const [index, renderer] of ['solid', 'octane'].entries()) {
 
   test(`${renderer} bounds group storage without evicting active producers`, async t => {
     const fresh = await import(
-      `./fixtures/${renderer}/src/server/conformance-controls.ts?capacity=isolated`
+      `./fixtures/${renderer}/src/conformance-controls.ts?capacity=isolated`
     );
     const active = request('capacity-0', 'active-private');
     const pending = ownedProducer(t, fresh, active);

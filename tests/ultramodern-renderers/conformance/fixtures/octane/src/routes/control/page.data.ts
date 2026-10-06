@@ -1,8 +1,5 @@
 import type { DataHandlerInput } from '@bleedingdev/modern-js-renderer-core/data';
-import {
-  observeControl,
-  releaseControl,
-} from '../../server/conformance-controls';
+import { observeControl, releaseControl } from '../../conformance-controls';
 
 export function loader({ request }: DataHandlerInput): Response {
   return observeControl(request);

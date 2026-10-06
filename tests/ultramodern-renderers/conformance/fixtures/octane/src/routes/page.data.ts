@@ -1,6 +1,6 @@
 import type { DataHandlerInput } from '@bleedingdev/modern-js-renderer-core/data';
 import { deferData } from '@bleedingdev/modern-js-renderer-core/data';
-import { holdProducer, responseHeaders } from '../server/conformance-controls';
+import { holdProducer, responseHeaders } from '../conformance-controls';
 
 export function loader({ request }: DataHandlerInput) {
   const url = new URL(request.url);
