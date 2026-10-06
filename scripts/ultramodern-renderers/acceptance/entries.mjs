@@ -2,10 +2,14 @@ import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-/** Author the supported two-entry input before framework config capture/build. */
+/**
+ * Author the supported two-entry input before framework config capture/build.
+ * `retainSource` keeps the original `src` tree in place and adds the entry
+ * copies beside it, for generated apps whose starter source surface is guarded.
+ */
 export async function authorEntryVariants(
   applicationRoot,
-  { compilerObservation = false } = {},
+  { compilerObservation = false, retainSource = false } = {},
 ) {
   const root = await fs.realpath(applicationRoot);
   const source = path.join(root, 'src');
@@ -48,6 +52,7 @@ export async function authorEntryVariants(
   await fs.mkdir(temporary);
   let sourceRetired = false;
   let newSourcePlaced = false;
+  const placedEntries = [];
   let baseCreated = false;
   try {
     const authoredSource = path.join(temporary, 'new-src');
@@ -60,10 +65,20 @@ export async function authorEntryVariants(
       });
     await fs.writeFile(base, originalConfig, { flag: 'wx' });
     baseCreated = true;
-    await fs.rename(source, path.join(temporary, 'original-src'));
-    sourceRetired = true;
-    await fs.rename(authoredSource, source);
-    newSourcePlaced = true;
+    if (retainSource)
+      for (const entry of ['ssr', 'csr']) {
+        await fs.rename(
+          path.join(authoredSource, entry),
+          path.join(source, entry),
+        );
+        placedEntries.push(path.join(source, entry));
+      }
+    else {
+      await fs.rename(source, path.join(temporary, 'original-src'));
+      sourceRetired = true;
+      await fs.rename(authoredSource, source);
+      newSourcePlaced = true;
+    }
     await fs.writeFile(
       config,
       `import authoredConfig from './modern.entry-base.config';
@@ -104,6 +119,8 @@ ${compilerObservation ? '  builderPlugins: [...(authoredConfig.builderPlugins ??
       ]),
     );
   } catch (error) {
+    for (const placed of placedEntries)
+      await fs.rm(placed, { recursive: true, force: true });
     if (newSourcePlaced) await fs.rm(source, { recursive: true, force: true });
     if (sourceRetired)
       await fs.rename(path.join(temporary, 'original-src'), source);

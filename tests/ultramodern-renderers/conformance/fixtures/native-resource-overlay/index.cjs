@@ -194,6 +194,11 @@ module.exports = async context => {
         '../../../../../scripts/ultramodern-renderers/acceptance/entries.mjs',
       )
     );
-    await authorEntryVariants(appRoot, { compilerObservation: true });
+    // The generator guards its starter source surface (src/routes/layout.tsx,
+    // page.tsx, about/page.tsx), so entry variants are added beside it.
+    await authorEntryVariants(appRoot, {
+      compilerObservation: true,
+      retainSource: true,
+    });
   }
 };
