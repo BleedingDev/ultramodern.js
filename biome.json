@@ -17,7 +17,8 @@
       "!**/tests/integration/swc/fixtures/minify-css/src/bootstrap.css",
       "!**/tests/integration/swc/fixtures/config-function/src/bootstrap.css",
       "!**/packages/runtime/plugin-runtime/static/**",
-      "!**/tests/integration/i18n/mf-consumer/@mf-types/**"
+      "!**/tests/integration/i18n/mf-consumer/@mf-types/**",
+      "!**/tests/ultramodern-renderers/conformance/fixtures/observe-native-compiler.ts"
     ]
   },
   "css": {
