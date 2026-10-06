@@ -1,6 +1,6 @@
 import type { RendererIdentity } from '../identity';
 import { identityCacheKey } from '../identity';
-import { permitsDocumentCache } from './cache';
+import { permitsDocumentCache, policyHeaders } from './cache';
 import type {
   RequestCleanup,
   RequestCompletion,
@@ -243,9 +243,7 @@ export function createRequestSession<Bindings extends object>(input: {
       responseCreated = true;
       committedPolicy = policy;
       state = 'committed';
-      const headers = new Headers();
-      for (const [name, value] of committedPolicy.headers)
-        headers.append(name, value);
+      const headers = policyHeaders(committedPolicy.headers);
       if (!reader) {
         void finish('completed');
         const response = new Response(null, {

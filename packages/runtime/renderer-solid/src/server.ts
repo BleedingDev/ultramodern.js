@@ -2,9 +2,10 @@ import { serializePublicData } from '@modern-js/renderer-core/data';
 import {
   collectDocumentAssets,
   type DocumentAsset,
-  type DocumentCachePolicy,
+  policyHeaders,
   type RequestSession,
-  type ResponsePolicy,
+  responseHeaders,
+  restrictDocumentCache,
   serializeDocumentAsset,
   serializeInlineData,
 } from '@modern-js/renderer-core/session';
@@ -42,10 +43,6 @@ const nativeHeads = new WeakMap<
   ApplicationRequestEvent,
   { response: ApplicationRequestEvent['response']; headers: Headers }
 >();
-const headerForEach = Headers.prototype.forEach;
-const headerGet = Headers.prototype.get;
-const headerHas = Headers.prototype.has;
-const headerCookies = Headers.prototype.getSetCookie;
 
 function applicationRequestEvent<Bindings extends object>(
   session: RequestSession<Bindings>,
@@ -163,107 +160,6 @@ function readNativeHead(event: ApplicationRequestEvent) {
   return { status, statusText, headers: native.headers };
 }
 
-function collectResponseHeaders(headers: Headers): [string, string][] {
-  const entries: [string, string][] = [];
-  headerForEach.call(headers, (value, name) => {
-    if (name !== 'set-cookie') entries.push([name, value]);
-  });
-  for (const cookie of headerCookies.call(headers)) {
-    entries.push(['set-cookie', cookie]);
-  }
-  return entries;
-}
-
-function policyHeaders(policy: ResponsePolicy): Headers {
-  const headers = new Headers();
-  for (const [name, value] of policy.headers) headers.append(name, value);
-  return headers;
-}
-
-function cacheDirectives(value: string | null) {
-  let mode: DocumentCachePolicy['mode'] = 'public';
-  const ages: number[] = [];
-  const ageNames = new Set<string>();
-  if (value !== null) {
-    for (const part of value.split(',')) {
-      const match = /^\s*([!#$%&'*+.^_`|~\w-]+)(?:\s*=\s*([^\s]+))?\s*$/u.exec(
-        part,
-      );
-      if (!match) return { mode: 'no-store' as const, ages: [] };
-      const name = match[1].toLowerCase();
-      if (name === 'no-store' || name === 'no-cache') mode = 'no-store';
-      else if (name === 'private' && mode !== 'no-store') mode = 'private';
-      if (name === 'max-age' || name === 's-maxage') {
-        if (ageNames.has(name) || !/^\d+$/u.test(match[2] ?? '')) {
-          return { mode: 'no-store' as const, ages: [] };
-        }
-        const age = Number(match[2]);
-        if (!Number.isSafeInteger(age))
-          return { mode: 'no-store' as const, ages: [] };
-        ageNames.add(name);
-        ages.push(age);
-      }
-    }
-  }
-  return { mode, ages };
-}
-
-function restrictDocumentCache(
-  policy: ResponsePolicy,
-  status: number,
-  original: Headers,
-  native: Headers,
-  outgoing: Headers,
-): DocumentCachePolicy {
-  let mode = policy.cache.mode;
-  const ages =
-    policy.cache.mode === 'public' ? [policy.cache.maxAgeSeconds] : [];
-  for (const headers of [original, native, outgoing]) {
-    const control = cacheDirectives(headerGet.call(headers, 'cache-control'));
-    ages.push(...control.ages);
-    if (control.mode === 'no-store') mode = 'no-store';
-    else if (control.mode === 'private' && mode === 'public') mode = 'private';
-    if (
-      headerHas.call(headers, 'set-cookie') ||
-      headerGet
-        .call(headers, 'vary')
-        ?.split(',')
-        .some(value => value.trim() === '*')
-    )
-      mode = 'no-store';
-  }
-  if (
-    policy.kind !== 'document' ||
-    status !== 200 ||
-    headerGet.call(original, 'content-type')?.includes(',') ||
-    headerGet.call(outgoing, 'content-type')?.includes(',') ||
-    headerGet
-      .call(original, 'content-type')
-      ?.split(';')[0]
-      .trim()
-      .toLowerCase() !== 'text/html' ||
-    headerGet
-      .call(outgoing, 'content-type')
-      ?.split(';')[0]
-      .trim()
-      .toLowerCase() !== 'text/html'
-  )
-    mode = 'no-store';
-  if (mode === 'public') {
-    const maxAgeSeconds = Math.min(...ages);
-    outgoing.set(
-      'cache-control',
-      `public, max-age=${maxAgeSeconds}, s-maxage=${maxAgeSeconds}, must-revalidate`,
-    );
-    return { mode, maxAgeSeconds };
-  }
-  outgoing.set(
-    'cache-control',
-    mode === 'private' ? 'private, max-age=0, must-revalidate' : 'no-store',
-  );
-  return { mode };
-}
-
 function respondApplicationBody<Bindings extends object>(
   session: RequestSession<Bindings>,
   body: () => ReadableStream<Uint8Array> | null,
@@ -279,8 +175,8 @@ function respondApplicationBody<Bindings extends object>(
         );
       }
       const native = readNativeHead(event);
-      const original = policyHeaders(policy);
-      const outgoing = policyHeaders(policy);
+      const original = policyHeaders(policy.headers);
+      const outgoing = policyHeaders(policy.headers);
       let status = policy.status;
       let statusText = policy.statusText;
       let kind = policy.kind;
@@ -288,7 +184,7 @@ function respondApplicationBody<Bindings extends object>(
       if (kind === 'document') {
         status = native.status ?? status;
         statusText = native.statusText ?? statusText;
-        headerForEach.call(native.headers, (value, name) => {
+        native.headers.forEach((value, name) => {
           // Cookies and timing merge through the native commit operation below.
           if (
             name !== 'set-cookie' &&
@@ -298,10 +194,7 @@ function respondApplicationBody<Bindings extends object>(
             outgoing.set(name, value);
           }
         });
-        const vary = [
-          headerGet.call(original, 'vary'),
-          headerGet.call(native.headers, 'vary'),
-        ].flatMap(
+        const vary = [original.get('vary'), native.headers.get('vary')].flatMap(
           value =>
             value
               ?.split(',')
@@ -330,10 +223,8 @@ function respondApplicationBody<Bindings extends object>(
         );
       }
       const cache = restrictDocumentCache(
-        { ...policy, kind },
-        status,
-        original,
-        native.headers,
+        { ...policy, kind, status },
+        [native.headers],
         outgoing,
       );
       // Validate the complete policy before native commit makes late writes fail.
@@ -341,7 +232,7 @@ function respondApplicationBody<Bindings extends object>(
         kind,
         status,
         statusText,
-        headers: collectResponseHeaders(outgoing),
+        headers: responseHeaders(outgoing),
         cache,
       });
       const preview = commitEventResponse(
@@ -354,17 +245,15 @@ function respondApplicationBody<Bindings extends object>(
       );
       const committedHeaders = preview.headers;
       const finalCache = restrictDocumentCache(
-        { ...policy, kind },
-        status,
-        original,
-        native.headers,
+        { ...policy, kind, status },
+        [native.headers],
         committedHeaders,
       );
       session.resolveResponse({
         kind,
         status,
         statusText,
-        headers: collectResponseHeaders(committedHeaders),
+        headers: responseHeaders(committedHeaders),
         cache: finalCache,
       });
       return session.respond(preview.body);
@@ -398,7 +287,7 @@ export function respondApplicationResponse<Bindings extends object>(
       kind: 'terminal',
       status: response.status,
       statusText: response.statusText,
-      headers: collectResponseHeaders(response.headers),
+      headers: responseHeaders(response.headers),
       cache: { mode: 'no-store' },
     });
     return respondApplication(session, response.body);
