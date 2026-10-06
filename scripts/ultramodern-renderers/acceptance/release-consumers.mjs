@@ -133,6 +133,12 @@ async function authoredSpecifications(release, generated, profile) {
   const catalogs = workspace.toJS({ maxAliasCount: 0 });
   const dependencies = {};
   const devDependencies = {};
+  // Framework-generated runtime code (the native entries import
+  // @modern-js/renderer-core/data, @modern-js/renderer-<name>/router, ...)
+  // names canonical packages, which the generator declares as canonical
+  // runtime dependencies satisfied by `npm:` aliases of the cohort. The twin
+  // keeps its published-name declarations and adds the same aliases.
+  const canonicalAliases = {};
   const wanted = new Set([
     ...requiredFixtureDependencies(generated.renderer),
     ...Object.keys(profile.dependencies).map(name =>
@@ -161,6 +167,8 @@ async function authoredSpecifications(release, generated, profile) {
         generated.appRoot,
       );
       output[value.name] = value.spec;
+      if (role === 'dependencies' && value.name !== key)
+        canonicalAliases[key] = `npm:${value.name}@${value.spec}`;
     }
   }
   for (const [key, spec] of Object.entries(profile.dependencies)) {
@@ -200,7 +208,12 @@ async function authoredSpecifications(release, generated, profile) {
     );
     devDependencies[name] = unique[0];
   }
-  return { dependencies, devDependencies, allowBuilds: catalogs.allowBuilds };
+  return {
+    dependencies,
+    devDependencies,
+    canonicalAliases,
+    allowBuilds: catalogs.allowBuilds,
+  };
 }
 
 /**
@@ -511,9 +524,11 @@ export async function provisionConsumers({
           handPackage.version = '0.1.0';
           handPackage.dependencies = {
             ...specs.dependencies,
+            ...specs.canonicalAliases,
             ...frameworkPeerAliases(context.release, [
               ...Object.keys(specs.dependencies),
               ...Object.keys(specs.devDependencies),
+              ...Object.keys(specs.canonicalAliases),
             ]),
           };
           handPackage.devDependencies = specs.devDependencies;
