@@ -4,9 +4,9 @@
   "upstreamRef": "2f4d9c4559e26209a0d77f02c6757f29fe3699a2",
   "pathspec": ["packages"],
   "migrationGoal": "Shrink-only budget of fork edits inside upstream-owned files. Every entry is debt: move it upstream or behind an extension point, then re-run --write-divergence-allowlist.",
-  "totalFiles": 850,
-  "totalHunks": 3258,
-  "totalChangedLines": 56481,
+  "totalFiles": 852,
+  "totalHunks": 3261,
+  "totalChangedLines": 56549,
   "files": [
     {
       "file": "packages/cli/adapter-rstest/package.json",
@@ -2604,6 +2604,11 @@
       "changedLines": 28
     },
     {
+      "file": "packages/server/core/src/plugins/log.ts",
+      "hunks": 2,
+      "changedLines": 5
+    },
+    {
       "file": "packages/server/core/src/plugins/monitors.ts",
       "hunks": 2,
       "changedLines": 2
@@ -2727,6 +2732,11 @@
       "file": "packages/server/core/tests/plugins/dataHandler.test.ts",
       "hunks": 1,
       "changedLines": 50
+    },
+    {
+      "file": "packages/server/core/tests/plugins/log.test.ts",
+      "hunks": 1,
+      "changedLines": 63
     },
     {
       "file": "packages/server/core/tests/plugins/render.test.ts",
