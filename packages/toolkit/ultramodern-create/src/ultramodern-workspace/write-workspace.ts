@@ -18,6 +18,10 @@ import { createSharedDesignTokensCss } from './app-files';
 import type { UltramodernBridgeConfig } from './bridge-config';
 import { normalizeUltramodernBridgeConfig } from './bridge-config';
 import {
+  createFreshWorkspacePolicyProjections,
+  projectGeneratedWorkspacePolicy,
+} from './config-generated-projections';
+import {
   createDevelopmentOverlay,
   createOwnership,
   createTopology,
@@ -414,6 +418,22 @@ async function generateUltramodernWorkspaceInPlace(
     overlays: options.overlays,
     result: preliminaryResult,
   });
+  // Files an overlay created or rewrote are not generator-owned config inputs.
+  const overlayDiff = options.overlays?.length
+    ? diffFileSnapshots(
+        preliminaryAfterFiles,
+        createFileSnapshot(options.targetDir),
+      )
+    : { createdPaths: [], rewrittenPaths: [] };
+  const overlayAuthoredPaths = new Set([
+    ...overlayDiff.createdPaths,
+    ...overlayDiff.rewrittenPaths,
+  ]);
+  const generatorOwnedPaths = new Set(
+    [...preliminaryDiff.createdPaths, ...preliminaryDiff.rewrittenPaths].filter(
+      relativePath => !overlayAuthoredPaths.has(relativePath),
+    ),
+  );
   formatGeneratedWorkspaceFiles(options.targetDir);
 
   const capturedConfig = await captureWorkspaceRendererEvaluations(
@@ -434,11 +454,19 @@ async function generateUltramodernWorkspaceInPlace(
       `Generated application renderer ${renderer} disagrees with the renderer resolved from modern.config (${reconciledShell.renderer}).`,
     );
   }
+  const finalTopologySource = `${JSON.stringify(createTopology(scope, initialVerticals, reconciledShell), null, 2)}\n`;
+  // Generated React configs read workspace policy through
+  // presetUltramodernWorkspace, so the topology is a consumed config input.
+  // Bind the identity-finalized topology revision to the generator-owned
+  // configs before the consumed-input check, like add shell/vertical.
+  const generatedProjections = createFreshWorkspacePolicyProjections({
+    workspaceRoot: options.targetDir,
+    apps: reconciledApps,
+    generatorOwnedPaths,
+  });
+  projectGeneratedWorkspacePolicy(generatedProjections, finalTopologySource);
   const identityProjections = new Map<string, string>([
-    [
-      'topology/reference-topology.json',
-      `${JSON.stringify(createTopology(scope, initialVerticals, reconciledShell), null, 2)}\n`,
-    ],
+    ['topology/reference-topology.json', finalTopologySource],
   ]);
   for (const app of reconciledApps) {
     identityProjections.set(
@@ -458,7 +486,10 @@ async function generateUltramodernWorkspaceInPlace(
     identityProjections,
     deferredUiArtifactPaths,
   );
-  capturedConfig.assertConsumedInputsUnchanged();
+  capturedConfig.assertConsumedInputsUnchanged(
+    options.targetDir,
+    generatedProjections,
+  );
   validateWorkspace(
     options.targetDir,
     createWorkspaceValidationContract(

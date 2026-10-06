@@ -387,3 +387,60 @@ export function createGeneratedConfigProjections(options: {
   }
   return projections;
 }
+
+const SCRIPT_INPUT = /\.[cm]?[jt]sx?$/u;
+
+/**
+ * Fresh generation owns every workspace file it wrote. Bind the configs of a
+ * just-generated workspace to the topology the generator finalizes after
+ * config evaluation. Only generator-written script bytes become canonical
+ * inputs; files an overlay created or rewrote stay unverified, so a config
+ * that executes them still fails closed.
+ */
+export function createFreshWorkspacePolicyProjections(options: {
+  workspaceRoot: string;
+  apps: readonly WorkspaceApp[];
+  generatorOwnedPaths: ReadonlySet<string>;
+}): GeneratedConfigProjection[] {
+  if (!fs.existsSync(path.join(options.workspaceRoot, WORKSPACE_POLICY_INPUT)))
+    return [];
+  const hash = (relative: string) =>
+    sha256(fs.readFileSync(path.join(options.workspaceRoot, relative), 'utf8'));
+  const canonicalScriptInputs = new Map(
+    [...options.generatorOwnedPaths]
+      .filter(
+        relative =>
+          SCRIPT_INPUT.test(relative) &&
+          fs.existsSync(path.join(options.workspaceRoot, relative)),
+      )
+      .map(relative => [relative, hash(relative)] as const),
+  );
+  const projections: GeneratedConfigProjection[] = [];
+  for (const app of options.apps) {
+    if (resolveWorkspaceRenderer(app) !== 'react') continue;
+    const configRelativePath = `${app.directory}/modern.config.ts`;
+    if (!canonicalScriptInputs.has(configRelativePath)) continue;
+    const revisions = new Set<string>();
+    const projection: GeneratedConfigProjection = Object.freeze({
+      kind: 'canonical-generated-config-projection',
+    });
+    workspacePolicyRevisions.set(projection, revisions);
+    verifiedProjections.set(projection, {
+      configRelativePath,
+      originalConfigSha256: canonicalScriptInputs.get(configRelativePath)!,
+      canonicalScriptInputs,
+      preservedScriptInputs: new Map(),
+      artifacts: new Map([
+        [
+          WORKSPACE_POLICY_INPUT,
+          {
+            originalSha256: hash(WORKSPACE_POLICY_INPUT),
+            projectedSha256: revisions,
+          },
+        ],
+      ]),
+    });
+    projections.push(projection);
+  }
+  return projections;
+}
