@@ -30,7 +30,7 @@ export { default as stripAnsi } from '../compiled/strip-ansi';
 export { default as upath } from '../compiled/upath';
 export { default as urlJoin } from '../compiled/url-join';
 
-type SignaleModule = typeof import('../compiled/signale');
+type SignaleModule = typeof import('../compiled/signale').default;
 
 export type {
   ChokidarOptions as WatchOptions,
