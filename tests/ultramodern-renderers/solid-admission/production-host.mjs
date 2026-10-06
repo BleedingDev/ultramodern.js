@@ -777,8 +777,8 @@ async function browserDevelopment(browser, origin, root, restores) {
 export async function runProductionHost(options) {
   const [major, minor] = process.versions.node.split('.').map(Number);
   assert.ok(
-    major > 26 || (major === 26 && minor >= 7),
-    'Public host requires Node >=26.7.0',
+    major > 26 || (major === 26 && minor >= 10),
+    'Public host requires Node >=26.10.0',
   );
   assert.ok(
     !/modern:source/u.test(

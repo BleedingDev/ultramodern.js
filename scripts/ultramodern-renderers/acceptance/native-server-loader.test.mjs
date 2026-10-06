@@ -283,7 +283,7 @@ function cohortFixture(
       name: targetName,
       version,
       publishConfig: { access: 'public' },
-      engines: { node: '>=26.7.0' },
+      engines: { node: '>=26.10.0' },
       main: './index.cjs',
       exports: { '.': './index.cjs' },
     };

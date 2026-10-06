@@ -25,7 +25,7 @@ async function ownedStage(t, renderer) {
     JSON.stringify({
       name: 'native-overlay-unit',
       private: true,
-      engines: { node: '>=26.7.0' },
+      engines: { node: '>=26.10.0' },
       devDependencies: { 'unit-existing-tool': '1.0.0' },
     }),
   );
@@ -157,7 +157,7 @@ test('two-entry overlay authoring occurs in the stage before native configuratio
   const manifest = JSON.parse(
     await fs.readFile(path.join(appRoot, 'package.json'), 'utf8'),
   );
-  assert.deepEqual(manifest.engines, { node: '>=26.7.0' });
+  assert.deepEqual(manifest.engines, { node: '>=26.10.0' });
   assert.deepEqual(manifest.devDependencies, {
     'unit-existing-tool': '1.0.0',
     '@rsbuild/core': '2.2.9',

@@ -250,7 +250,7 @@ test('bare consumer starts with only the exact released generator direct depende
   });
   assert.equal(Object.hasOwn(manifest, 'devDependencies'), false);
   assert.equal(Object.hasOwn(manifest, 'optionalDependencies'), false);
-  assert.equal(manifest.engines.node, '>=26.7.0');
+  assert.equal(manifest.engines.node, '>=26.10.0');
 });
 
 test('an empty owned consumer outside the worktree has no ambient dependency ancestor', () => {

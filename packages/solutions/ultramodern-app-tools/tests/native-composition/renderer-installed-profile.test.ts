@@ -127,7 +127,7 @@ function solidCandidate(): RendererBuildProfile {
     renderer: 'solid',
     status: 'preview',
     protocolVersion: 1,
-    minimumNode: '26.7.0',
+    minimumNode: '26.10.0',
     hmr: {
       editedBoundary: 'may-reset',
       unaffectedComponents: 'preserved',

@@ -76,8 +76,8 @@ export async function runProof(provided) {
   );
   const [major, minor] = process.versions.node.split('.').map(Number);
   assert(
-    major > 26 || (major === 26 && minor >= 7),
-    'Node >=26.7.0 is required',
+    major > 26 || (major === 26 && minor >= 10),
+    'Node >=26.10.0 is required',
   );
   const release = readReleaseManifest({ manifestPath: options.manifestPath });
   assert.equal(release.source.commit, options.expectedSourceRevision);
