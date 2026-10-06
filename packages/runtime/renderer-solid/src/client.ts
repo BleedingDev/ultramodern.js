@@ -1,6 +1,8 @@
-import { parsePublicData } from '@modern-js/renderer-core/data';
+import {
+  type DocumentBootstrap,
+  readDocumentBootstrap,
+} from '@modern-js/renderer-core/document';
 import type { RendererIdentity } from '@modern-js/renderer-core/identity';
-import { assertRendererIdentity } from '@modern-js/renderer-core/identity';
 import type { JSX } from '@solidjs/web';
 import { hydrate, render } from '@solidjs/web';
 import { runWithOwner } from 'solid-js';
@@ -8,44 +10,21 @@ import { runWithOwner } from 'solid-js';
 type NativeMountOptions = NonNullable<Parameters<typeof hydrate>[2]>;
 export type ApplicationMountElement = Parameters<typeof hydrate>[1];
 
-export interface SolidDocumentBootstrap {
-  identity: RendererIdentity;
-  documentId: string;
-  hydrating: boolean;
-}
+export type SolidDocumentBootstrap = DocumentBootstrap;
 
 /** Read the server's exact identity before creating a native router or owner. */
 export function readSolidDocumentBootstrap(
   document: Document,
   expectedIdentity: RendererIdentity,
 ): SolidDocumentBootstrap {
-  const element = document.getElementById('__ULTRAMODERN_RENDERER__');
-  if (!element || element.getAttribute('type') !== 'application/json') {
-    throw new Error('The Solid document is missing its renderer identity');
-  }
-  const payload = parsePublicData(element.textContent ?? '');
-  if (
-    payload === null ||
-    typeof payload !== 'object' ||
-    Array.isArray(payload)
-  ) {
-    throw new Error('The Solid document has an invalid renderer identity');
-  }
-  const bootstrap = payload as SolidDocumentBootstrap;
-  if (
-    bootstrap.identity === null ||
-    typeof bootstrap.identity !== 'object' ||
-    typeof bootstrap.documentId !== 'string' ||
-    bootstrap.documentId.length === 0 ||
-    typeof bootstrap.hydrating !== 'boolean'
-  ) {
-    throw new Error('The Solid document has an invalid renderer identity');
-  }
-  assertRendererIdentity(bootstrap.identity, expectedIdentity);
-  if (bootstrap.identity.renderer !== 'solid') {
+  if (expectedIdentity.renderer !== 'solid') {
     throw new Error('The Solid document requires a Solid renderer identity');
   }
-  return bootstrap;
+  const { identity, documentId, hydrating } = readDocumentBootstrap(
+    document,
+    expectedIdentity,
+  );
+  return { identity, documentId, hydrating };
 }
 
 /** The generated entry passes its bundler's native HMR disposal callback. */

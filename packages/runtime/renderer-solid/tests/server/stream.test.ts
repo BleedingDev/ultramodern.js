@@ -17,7 +17,6 @@ import {
   NoHydration,
   onCleanup,
 } from 'solid-js';
-import { parsePublicData } from '../../../renderer-core/src/data/codec';
 import type { RendererIdentity } from '../../../renderer-core/src/identity';
 import { createRequestSession } from '../../../renderer-core/src/session/request';
 import type { RequestSession } from '../../../renderer-core/src/session/types';
@@ -118,7 +117,7 @@ describe('native Solid Node stream', () => {
       /<script[^>]*id="__ULTRAMODERN_RENDERER__"[^>]*>(.*?)<\/script>/s.exec(
         html,
       )![1];
-    expect(parsePublicData(json)).toEqual({
+    expect(JSON.parse(json)).toEqual({
       identity: session.identity,
       documentId: 'shop%22%20%3C%26%27%20main:main:build-a:',
       hydrating: true,
@@ -189,7 +188,7 @@ describe('native Solid Node stream', () => {
       /<script[^>]*id="__ULTRAMODERN_RENDERER__"[^>]*>(.*?)<\/script>/s.exec(
         html,
       )![1];
-    expect(parsePublicData(json)).toEqual({
+    expect(JSON.parse(json)).toEqual({
       identity: session.identity,
       documentId: 'app-zone:',
       hydrating: true,
@@ -302,7 +301,7 @@ describe('native Solid Node stream', () => {
       /<script[^>]*id="__ULTRAMODERN_RENDERER__"[^>]*>(.*?)<\/script>/s.exec(
         html,
       )![1];
-    expect(parsePublicData(json)).toEqual({
+    expect(JSON.parse(json)).toEqual({
       identity: session.identity,
       documentId: 'csr:',
       hydrating: false,

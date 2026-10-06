@@ -60,6 +60,17 @@
         "default": "./dist/cjs/session/index.js"
       }
     },
+    "./document": {
+      "modern:source": "./src/document.ts",
+      "import": {
+        "types": "./dist/types/document.d.ts",
+        "default": "./dist/esm/document.mjs"
+      },
+      "require": {
+        "types": "./dist/types/document.d.ts",
+        "default": "./dist/cjs/document.js"
+      }
+    },
     "./router": {
       "modern:source": "./src/router.ts",
       "import": {

@@ -3,7 +3,7 @@ import {
   type Renderer,
   type RendererIdentity,
 } from '@modern-js/renderer-core';
-import type { DocumentAsset } from '@modern-js/renderer-core/session';
+import type { DocumentAsset } from '@modern-js/renderer-core/document';
 import type { RsbuildPlugin, Rspack } from '@rsbuild/core';
 import { rspack } from '@rsbuild/core';
 

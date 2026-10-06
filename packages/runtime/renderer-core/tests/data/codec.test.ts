@@ -38,14 +38,12 @@ describe('public data codec', () => {
     );
   });
 
-  it('makes every script-breaking character inert and remains JSON', () => {
+  it('escapes JSON text so it stays inert inside a script element', () => {
     const value = '</script><script>alert(1)</script>&\u2028\u2029';
-    const text = serializePublicData(value);
+    const text = escapeInlineDataJSON(serializePublicData(value));
     expect(text).not.toMatch(/[<>&\u2028\u2029]/u);
     expect(parsePublicData(text)).toBe(value);
     expect(escapeInlineDataJSON(text)).toBe(text);
-    const chunks = [text.slice(0, 19), text.slice(19, 31), text.slice(31)];
-    expect(chunks.join('')).not.toMatch(/<\/script/i);
   });
 
   it('uses a structured JSON tree that decodes without dynamic evaluation', () => {
@@ -313,7 +311,9 @@ describe('public data codec', () => {
 
   it('applies the byte limit after HTML escaping so accepted output can decode', () => {
     const accepted = '&'.repeat(100_000);
-    expect(parsePublicData(serializePublicData(accepted))).toBe(accepted);
+    expect(
+      parsePublicData(escapeInlineDataJSON(serializePublicData(accepted))),
+    ).toBe(accepted);
     expect(() => serializePublicData('&'.repeat(200_000))).toThrow(
       /byte limit/,
     );

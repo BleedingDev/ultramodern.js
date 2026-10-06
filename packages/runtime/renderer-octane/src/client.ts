@@ -20,7 +20,7 @@ import {
 } from './bootstrap';
 
 export type { OctaneDocumentBootstrap } from './bootstrap';
-export { OCTANE_BOOTSTRAP_ID, readOctaneDocumentBootstrap } from './bootstrap';
+export { readOctaneDocumentBootstrap } from './bootstrap';
 
 export interface OctaneApplicationModule {
   readonly default: ComponentBody;
