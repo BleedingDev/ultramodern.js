@@ -605,16 +605,74 @@ describe('renderer guard in the owning plugin manager', () => {
   it.each([
     'solid',
     'octane',
-  ] as const)('rejects registered React CLI plugins before %s host setup', async renderer => {
+  ] as const)('rejects React-only app plugins in %s defineConfig before plugin resolution', async renderer => {
+    const reactSetup = rstest.fn();
+    const consumers: CliPlugin<AppTools>[] = [
+      {
+        name: '@modern-js/plugin-tanstack',
+        required: ['@modern-js/runtime'],
+        setup: reactSetup,
+      },
+      { name: '@modern-js/plugin-i18n', setup: reactSetup },
+      {
+        name: 'fixture:federation-wrapper',
+        usePlugins: [
+          { name: '@modern-js/plugin-module-federation', setup: reactSetup },
+        ],
+      },
+      { name: 'fixture:portable', setup() {} },
+    ];
+    let failure: unknown;
+    try {
+      await selectHost(
+        renderer,
+        { name: 'fixture:selected-host', setup() {} },
+        consumers,
+      );
+    } catch (error) {
+      failure = error;
+    }
+    const message = (failure as Error).message;
+    expect(message).toContain(
+      `unsupported-renderer-plugin: renderer ${renderer} cannot use React-only plugins`,
+    );
+    expect(message).toContain(
+      `@modern-js/plugin-tanstack: remove tanstackRouterPlugin(); the ${renderer} renderer routes src/routes through @modern-js/renderer-${renderer}/router`,
+    );
+    expect(message).toContain('@modern-js/plugin-i18n: remove i18nPlugin()');
+    expect(message).toContain(
+      '@modern-js/plugin-module-federation: remove moduleFederationPlugin()',
+    );
+    expect(message).toContain("or keep renderer: 'react'");
+    expect(message).not.toContain('fixture:portable');
+    expect(reactSetup).not.toHaveBeenCalled();
+  });
+
+  it('keeps React-only app plugins for the React renderer', async () => {
+    const config = await selectHost(
+      'react',
+      { name: 'fixture:selected-host', setup() {} },
+      [{ name: '@modern-js/plugin-tanstack' }],
+    );
+    expect(config.plugins?.map(plugin => plugin.name)).toEqual([
+      ULTRAMODERN_BASE_PLUGIN,
+      '@modern-js/plugin-tanstack',
+    ]);
+  });
+
+  it.each([
+    'solid',
+    'octane',
+  ] as const)('rejects React CLI plugins added after %s selection before host setup', async renderer => {
     const selectedSetup = rstest.fn();
     const reactSetup = rstest.fn();
-    const config = await selectHost(
-      renderer,
-      { name: 'fixture:selected-host', setup: selectedSetup },
-      [{ name: '@modern-js/plugin-ssr', setup: reactSetup }],
-    );
+    const config = await selectHost(renderer, {
+      name: 'fixture:selected-host',
+      setup: selectedSetup,
+    });
+    config.plugins?.push({ name: '@modern-js/plugin-ssr', setup: reactSetup });
     await expect(initializeSelection(config)).rejects.toThrow(
-      `Renderer ${renderer} cannot register React CLI plugins`,
+      `unsupported-renderer-plugin: renderer ${renderer} cannot use React-only plugins`,
     );
     expect(selectedSetup).not.toHaveBeenCalled();
     expect(reactSetup).not.toHaveBeenCalled();

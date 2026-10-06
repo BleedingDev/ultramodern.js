@@ -3,6 +3,7 @@ import { resolveDeployTarget } from '@modern-js/app-tools-extensions/deploy-outp
 import { type Renderer, resolveRenderer } from '@modern-js/renderer-core';
 import type { RsbuildPlugin, RsbuildPlugins } from '@rsbuild/core';
 import { resolveRendererRegistration } from './renderer-registration';
+import { assertRouteSourcesMatchRenderer } from './renderer-source-ownership';
 import type { UltramodernAppUserConfig } from './types';
 
 export const ULTRAMODERN_BASE_PLUGIN = '@modern-js/ultramodern-app-tools';
@@ -102,6 +103,51 @@ export const REACT_CLI_PLUGIN_NAMES = [
   '@modern-js/plugin-module-federation',
 ] as const;
 
+type ReactCliPluginName = (typeof REACT_CLI_PLUGIN_NAMES)[number];
+
+const reactOnlyPluginAdvice: Partial<Record<ReactCliPluginName, string>> = {
+  '@modern-js/plugin-tanstack':
+    'remove tanstackRouterPlugin(); the {renderer} renderer routes src/routes through @modern-js/renderer-{renderer}/router',
+  '@modern-js/plugin-i18n':
+    'remove i18nPlugin(); the {renderer} renderer has no i18n integration yet',
+  '@modern-js/i18n-integration':
+    'remove the i18n integration; the {renderer} renderer has no i18n integration yet',
+  '@modern-js/ultramodern-i18n-integration':
+    'remove the i18n integration; the {renderer} renderer has no i18n integration yet',
+  '@modern-js/plugin-module-federation':
+    'remove moduleFederationPlugin(); the {renderer} renderer does not support Module Federation',
+};
+
+/**
+ * React-only CLI plugins require React's runtime plugin, which a native
+ * renderer never registers. Reject them while the config is selected, before
+ * the plugin manager reports the missing runtime as an internal requirement.
+ */
+export function assertRendererCliPlugins(
+  renderer: Renderer,
+  plugins: readonly CliPlugin<AppTools>[],
+): void {
+  if (resolveRendererRegistration(renderer).supports.reactCliPlugins) return;
+  const reactOnly = new Set<string>(REACT_CLI_PLUGIN_NAMES);
+  const found = [
+    ...new Set(flattenPluginNames(plugins).filter(name => reactOnly.has(name))),
+  ];
+  if (!found.length) return;
+  const steps = found.map(name => {
+    const advice =
+      reactOnlyPluginAdvice[name as ReactCliPluginName] ??
+      'remove it; the native renderer owns runtime, routing, SSR and the document';
+    return `  - ${name}: ${advice.replaceAll('{renderer}', renderer)}`;
+  });
+  throw new Error(
+    [
+      `unsupported-renderer-plugin: renderer ${renderer} cannot use React-only plugins registered in modern.config plugins:`,
+      ...steps,
+      "Remove these plugins for the native renderer, or keep renderer: 'react'.",
+    ].join('\n'),
+  );
+}
+
 const basePluginNames = new Set([
   ULTRAMODERN_BASE_PLUGIN,
   '@modern-js/app-tools',
@@ -148,6 +194,7 @@ export function assertCapturedRenderer(
       `Renderer changed from ${renderer} to ${actual} after plugin selection. Update the source configuration and restart the dev server.`,
     );
   }
+  assertRendererCliPlugins(renderer, config.plugins ?? []);
   if (registration.kind === 'native')
     assertNativeExternalScripts(renderer, config.output);
   const capabilities = registration.candidateProfile.capabilities;
@@ -257,6 +304,9 @@ export function rendererSelectionGuard(
           );
         }
       }
+      const { appDirectory, srcDirectory } = api.getAppContext();
+      if (srcDirectory)
+        assertRouteSourcesMatchRenderer(renderer, appDirectory, srcDirectory);
       api.modifyResolvedConfig(config => {
         validate(config as UltramodernAppUserConfig);
         if (resolveRendererRegistration(renderer).kind !== 'native')

@@ -76,6 +76,19 @@ const watchDependencyPath = (file: string): string => {
   }
 };
 
+/**
+ * TS2875 means JSX compiles against a jsxImportSource whose runtime is not
+ * installed: usually components still authored for a previous renderer.
+ */
+export function missingJsxRuntimeHint(diagnostics: string): string {
+  const source =
+    /error TS2875: This JSX tag requires the module path '(.+?)\/jsx-(?:dev-)?runtime'/u.exec(
+      diagnostics,
+    )?.[1];
+  if (!source) return '';
+  return `\nHint: JSX compiles against jsxImportSource '${source}', the selected renderer's runtime, but '${source}/jsx-runtime' cannot be resolved from this app. If you changed \`renderer\` in modern.config, install that renderer's packages and port components authored for the previous renderer, or switch \`renderer\` back.\n`;
+}
+
 export class UltramodernNativeTypeChecker {
   constructor(
     private readonly options: {
@@ -234,7 +247,7 @@ export class UltramodernNativeTypeChecker {
       const output = cause as { stdout?: string; stderr?: string };
       const diagnostics = `${output.stdout ?? ''}${output.stderr ?? ''}`;
       throw new Error(
-        `${name} failed:\n${diagnostics || (cause instanceof Error ? cause.message : String(cause))}`,
+        `${name} failed:\n${diagnostics || (cause instanceof Error ? cause.message : String(cause))}${missingJsxRuntimeHint(diagnostics)}`,
         { cause },
       );
     }
