@@ -56,6 +56,7 @@ async function bounded(label, promise, timeoutMs) {
  */
 export async function verifyWorkerLifecycle({
   miniflare,
+  miniflareClass,
   workerName,
   token,
   candidateBinding,
@@ -66,11 +67,26 @@ export async function verifyWorkerLifecycle({
   const candidate = validateCandidateBinding(candidateBinding);
   validateToken(token);
   const routeInputs = validateRoutes(routes);
-  assert.equal(
-    miniflare?.constructor?.name,
-    'Miniflare',
-    'Use the actual installed Miniflare provider',
-  );
+  // `constructor.name` is not robust: the installed `miniflare` package ships
+  // its `Miniflare` export under a minified/bundled internal name (observed
+  // as `_Miniflare`). Check against the exact class the caller imported, and
+  // fall back to the provider's public API surface when the caller did not
+  // pass its `Miniflare` reference through.
+  if (miniflareClass !== undefined) {
+    assert(
+      miniflare instanceof miniflareClass,
+      'Use the actual installed Miniflare provider',
+    );
+  } else {
+    assert(
+      miniflare !== null &&
+        typeof miniflare === 'object' &&
+        typeof miniflare.dispatchFetch === 'function' &&
+        typeof miniflare.ready?.then === 'function' &&
+        typeof miniflare.dispose === 'function',
+      'Use the actual installed Miniflare provider',
+    );
+  }
   assert.equal(typeof miniflare.dispatchFetch, 'function');
   assert.equal(typeof workerName, 'string');
   assert(/^[a-zA-Z0-9_-]+$/u.test(workerName));
