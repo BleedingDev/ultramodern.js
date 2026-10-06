@@ -1336,6 +1336,7 @@ async function startIdentityBoundHost({
     let observedIdentity;
     let currentAuthority = authority;
     let lastReadinessError;
+    let lastObservation;
     while (Date.now() < deadline) {
       if (failure) throw failure;
       try {
@@ -1357,9 +1358,11 @@ async function startIdentityBoundHost({
           { redirect: 'manual', signal: readinessSignal },
         );
         try {
-          const actual = JSON.parse(
-            response.headers.get('x-ultramodern-renderer-identity') ?? 'null',
+          const header = response.headers.get(
+            'x-ultramodern-renderer-identity',
           );
+          lastObservation = `last response ${response.status}, identity header ${header ?? 'absent'}`;
+          const actual = JSON.parse(header ?? 'null');
           ready =
             response.status === 200 &&
             isDeepStrictEqual(actual, currentAuthority.identity);
@@ -1378,7 +1381,7 @@ async function startIdentityBoundHost({
       throw (
         failure ??
         new Error(
-          `Owned host did not become identity-bound ready before its deadline${lastReadinessError ? `: ${lastReadinessError.message ?? String(lastReadinessError)}` : ''}`,
+          `Owned host did not become identity-bound ready before its deadline: ${lastObservation ?? `no response${lastReadinessError ? ` (${lastReadinessError.message ?? String(lastReadinessError)})` : ''}`}\nhost output tail:\n${tail.slice(-1_500)}`,
           { cause: lastReadinessError },
         )
       );
