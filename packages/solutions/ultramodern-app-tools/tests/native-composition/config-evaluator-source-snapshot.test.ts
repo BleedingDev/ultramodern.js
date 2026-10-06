@@ -454,6 +454,47 @@ describe('bounded config source snapshots', () => {
       );
     }));
 
+  it('owns an installed-dependency symlink reached through its own symlinked ancestor directory', () =>
+    fixture(directory => {
+      // Simulate a real project living under a symlinked ancestor, the way a
+      // macOS default TMPDIR sits under /var -> /private/var: the project
+      // root is only reachable by first resolving an unrelated ancestor
+      // symlink, and only then do we reach the dependency's own symlink
+      // (e.g. a pnpm/workspace link under node_modules).
+      const realAncestor = path.join(directory, 'real-ancestor');
+      fs.mkdirSync(realAncestor);
+      const ancestorLink = path.join(directory, 'ancestor-link');
+      fs.symlinkSync(realAncestor, ancestorLink);
+      const root = path.join(ancestorLink, 'project');
+      fs.mkdirSync(root, { recursive: true });
+      fs.writeFileSync(
+        path.join(root, 'package.json'),
+        JSON.stringify({ name: 'project' }),
+      );
+      const dependencyTarget = path.join(directory, 'dependency');
+      fs.mkdirSync(dependencyTarget);
+      fs.writeFileSync(
+        path.join(dependencyTarget, 'package.json'),
+        JSON.stringify({ name: 'dependency' }),
+      );
+      const dependencySlot = path.join(root, 'node_modules', 'dependency');
+      fs.mkdirSync(path.dirname(dependencySlot), { recursive: true });
+      fs.symlinkSync(dependencyTarget, dependencySlot);
+      // Ownership snapshots (no source roots, only explicit extraInputs) must
+      // not misclassify the dependency symlink as an unbounded escape purely
+      // because an earlier, unrelated ancestor symlink already resolved part
+      // of the path.
+      expect(() =>
+        captureConfigSourceSnapshot({
+          sourceRoots: [],
+          extraInputs: [
+            path.join(root, 'package.json'),
+            path.join(dependencySlot, 'package.json'),
+          ],
+        }),
+      ).not.toThrow();
+    }));
+
   it('allows root exit and reentry through ordinary directories', () =>
     fixture(directory => {
       const root = path.join(directory, 'source');
