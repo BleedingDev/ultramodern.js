@@ -111,6 +111,40 @@ const entryCoordinates = (info: Record<string, unknown>): string =>
     ['name', 'entry', 'type', 'entryGlobalName'].map(key => [key, info[key]]),
   );
 
+/**
+ * Exact versions every shared copy of the consuming renderer tuple must carry.
+ * React keeps its established package set; native renderers derive theirs from
+ * the tuple's runtime, hydration, bootstrap and router owners.
+ */
+export function rendererShareVersions(
+  expected: RendererFederationCompatibility,
+): ReadonlyMap<string, string> {
+  const { profile, runtime, bootstrap } = expected;
+  if (profile.renderer === 'react')
+    return new Map([
+      ['react', runtime.version],
+      ['react-dom', profile.hydration.version],
+      ['react-dom/client', profile.hydration.version],
+      ['@modern-js/runtime', bootstrap.version],
+    ]);
+  const versions = new Map<string, string>();
+  for (const [name, version] of [
+    [runtime.name, runtime.version],
+    [profile.hydration.name, profile.hydration.version],
+    [bootstrap.name, bootstrap.version],
+    [profile.router.name, profile.router.version],
+    [profile.router.coreName, profile.router.coreVersion],
+  ] as const) {
+    const prior = versions.get(name);
+    if (prior !== undefined && prior !== version)
+      throw rendererFederationError(
+        `renderer tuple names ${name} with conflicting versions.`,
+      );
+    versions.set(name, version);
+  }
+  return versions;
+}
+
 /** Gate the native snapshot and share lifecycles before executing component factories. */
 export function createRendererFederationRuntimePlugin(
   options: RendererFederationCompatibility,
@@ -120,12 +154,7 @@ export function createRendererFederationRuntimePlugin(
   const approvedRemoteInfos = new WeakMap<object, string>();
   const observedEntries = new WeakMap<object, string>();
   const acceptedEntries = new Set<string>();
-  const versions = new Map([
-    ['react', expected.runtime.version],
-    ['react-dom', expected.profile.hydration.version],
-    ['react-dom/client', expected.profile.hydration.version],
-    ['@modern-js/runtime', expected.bootstrap.version],
-  ]);
+  const versions = rendererShareVersions(expected);
   return {
     name: 'ultramodern-renderer-federation-contract',
     beforeRegisterRemote(args: { remote: unknown }) {

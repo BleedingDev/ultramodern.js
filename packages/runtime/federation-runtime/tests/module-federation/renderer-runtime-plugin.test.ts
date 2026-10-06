@@ -5,7 +5,10 @@ import {
   type RendererFederationCompatibility,
   readRendererFederationContract,
 } from '../../src/module-federation/renderer-contract';
-import { createRendererFederationRuntimePlugin } from '../../src/module-federation/renderer-runtime-plugin';
+import {
+  createRendererFederationRuntimePlugin,
+  rendererShareVersions,
+} from '../../src/module-federation/renderer-runtime-plugin';
 
 const consumingRenderer: RendererFederationCompatibility = {
   profile: {
@@ -994,5 +997,66 @@ describe('renderer federation selected runtime ownership', () => {
     };
     expect(plugin.resolveShare(original)).toBe(original);
     expect(original.resolver()).toBe(result);
+  });
+});
+
+describe('native renderer share tuple', () => {
+  const solid: RendererFederationCompatibility = {
+    profile: {
+      renderer: 'solid',
+      protocolVersion: 1,
+      compiler: { name: '@solidjs/compiler', version: '2.0.0-rc.13' },
+      hydration: { name: '@solidjs/web', version: '2.0.0-rc.13' },
+      router: {
+        name: '@modern-js/renderer-solid',
+        version: '3.8.3',
+        coreName: '@tanstack/router-core',
+        coreVersion: '1.171.32',
+      },
+    },
+    runtime: { name: 'solid-js', version: '2.0.0-rc.13' },
+    bootstrap: { name: '@modern-js/renderer-solid', version: '3.8.3' },
+  };
+
+  test('derives exact versions from the native tuple instead of React packages', () => {
+    expect(Object.fromEntries(rendererShareVersions(solid))).toEqual({
+      'solid-js': '2.0.0-rc.13',
+      '@solidjs/web': '2.0.0-rc.13',
+      '@modern-js/renderer-solid': '3.8.3',
+      '@tanstack/router-core': '1.171.32',
+    });
+    expect(
+      rendererShareVersions(consumingRenderer).has('react-dom/client'),
+    ).toBe(true);
+  });
+
+  test('rejects a tuple naming one package with two versions', () => {
+    expect(() =>
+      rendererShareVersions({
+        ...solid,
+        profile: {
+          ...solid.profile,
+          router: { ...solid.profile.router, version: '3.8.4' },
+        },
+      }),
+    ).toThrow('conflicting versions');
+  });
+
+  test('gates a shared native runtime by the tuple version', () => {
+    const plugin = createRendererFederationRuntimePlugin(solid);
+    const args = plugin.resolveShare({
+      pkgName: 'solid-js',
+      shareScopeMap: {},
+      resolver: () => ({ shared: { version: '2.0.0-rc.12' } }),
+    });
+    expect(() => args.resolver()).toThrow(
+      'shared solid-js version must be 2.0.0-rc.13',
+    );
+    const react = plugin.resolveShare({
+      pkgName: 'react',
+      shareScopeMap: {},
+      resolver: () => ({ shared: { version: '1.0.0' } }),
+    });
+    expect(react.resolver()).toEqual({ shared: { version: '1.0.0' } });
   });
 });
