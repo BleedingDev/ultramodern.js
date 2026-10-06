@@ -366,6 +366,18 @@ export function releaseConsumerInputs(release, template) {
   const allowBuilds = parse(allowBlock).allowBuilds;
   assert(Object.values(allowBuilds).every(value => typeof value === 'boolean'));
   assert(/^strictDepBuilds:\s*true\s*$/mu.test(policy));
+  // Generated apps install with the generator's peer rules (React 19 for
+  // React 18-era peers such as react-helmet's react-side-effect). Keep the
+  // authenticated concrete rules; templated ones bind generator inputs.
+  const peerBlock = /^peerDependencyRules:\n(?:[ \t]+[^\n]*\n?)+/mu.exec(
+    policy,
+  )?.[0];
+  const allowedVersions = Object.fromEntries(
+    Object.entries(
+      (peerBlock && parse(peerBlock).peerDependencyRules?.allowedVersions) ??
+        {},
+    ).filter(([, range]) => typeof range === 'string' && !range.includes('{{')),
+  );
   return {
     manifest,
     exactPackages,
@@ -378,6 +390,9 @@ export function releaseConsumerInputs(release, template) {
       packageImportMethod: 'clone-or-copy',
       strictDepBuilds: true,
       allowBuilds,
+      ...(Object.keys(allowedVersions).length > 0
+        ? { peerDependencyRules: { allowedVersions } }
+        : {}),
     }),
   };
 }
