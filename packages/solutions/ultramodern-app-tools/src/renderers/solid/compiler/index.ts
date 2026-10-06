@@ -10,6 +10,10 @@ import {
 import { type RsbuildPlugin, type Rspack, rspack } from '@rsbuild/core';
 import { attachRendererCompilerClaim } from '../../../native-composition/renderer-selection';
 import {
+  applyNativeSvgComponents,
+  type SvgDefaultExport,
+} from '../../../native-composition/svg-components';
+import {
   SOLID_COMPILER_VERSION,
   type SolidAssetManifest,
   type SolidModuleManifest,
@@ -57,6 +61,7 @@ const nativeDependencySources = [
 export interface SolidRendererCompilerOptions {
   /** The selected native infrastructure owns these source-build identities. */
   rendererIdentities(): Readonly<Record<string, RendererIdentity>>;
+  readonly svgDefaultExport?: SvgDefaultExport;
 }
 
 /** Private loaders remain in the package's shipped src tree in every format. */
@@ -82,7 +87,7 @@ function privateCompilerDirectory(): string {
   }
 }
 
-/** Own Solid's native compiler, refresh, lazy assets and URL SVG policy. */
+/** Own Solid's native compiler, refresh, lazy assets and SVG policy. */
 export function pluginSolidRenderer(
   options: SolidRendererCompilerOptions,
 ): RsbuildPlugin {
@@ -106,6 +111,11 @@ export function pluginSolidRenderer(
           ): LazyModule[];
         };
         const projectRoot = api.context.rootPath;
+        applyNativeSvgComponents(api, {
+          renderer: 'solid',
+          loader: path.join(directory, 'svg-component-loader.cjs'),
+          defaultExport: options.svgDefaultExport,
+        });
         api.modifyRsbuildConfig(config => {
           config.html ??= {};
           config.html.scriptLoading = 'module';
@@ -348,7 +358,7 @@ export function pluginSolidRenderer(
       sourceExtensions: ['.jsx', '.tsx', '.js', '.ts'],
       transform: 'native',
       refresh: 'native',
-      svg: 'url',
+      svg: 'component',
     },
   );
 }

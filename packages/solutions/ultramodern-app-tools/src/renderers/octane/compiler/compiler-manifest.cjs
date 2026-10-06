@@ -23,13 +23,9 @@ class OctaneCompilerManifestPlugin {
     }
     compiler.hooks.normalModuleFactory.tap(name, factory => {
       factory.hooks.beforeResolve.tap(name, result => {
-        if (
-          /\.svg\?(?:[^#]*&)?(?:react|component)(?:[=&]|$)/u.test(
-            result.request,
-          )
-        ) {
+        if (/\.svg\?(?:[^#]*&)?react(?:[=&]|$)/u.test(result.request)) {
           throw new Error(
-            'unsupported-renderer-capability: Octane SVG imports are URL assets; SVG components require a supported native compiler profile.',
+            'unsupported-renderer-capability: `?react` SVG imports are React components; import Octane SVG components with `?component`.',
           );
         }
       });

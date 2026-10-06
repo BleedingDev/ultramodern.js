@@ -11,6 +11,10 @@ import {
 import type { RsbuildPlugin } from '@rsbuild/core';
 import { attachRendererCompilerClaim } from '../../../native-composition/renderer-selection';
 import {
+  applyNativeSvgComponents,
+  type SvgDefaultExport,
+} from '../../../native-composition/svg-components';
+import {
   OCTANE_COMPILER_VERSION,
   OCTANE_RUNTIME_VERSION,
   octaneModuleManifestFileName,
@@ -21,6 +25,7 @@ export * from './manifest';
 
 export interface OctaneRendererCompilerOptions {
   rendererIdentities(): Readonly<Record<string, RendererIdentity>>;
+  readonly svgDefaultExport?: SvgDefaultExport;
 }
 
 function privateCompilerDirectory(): string {
@@ -55,6 +60,11 @@ export function createOctaneCompilerPlugin(
         const {
           OctaneCompilerManifestPlugin,
         } = require('./compiler-manifest.cjs');
+        applyNativeSvgComponents(api, {
+          renderer: 'octane',
+          loader: path.join(directory, 'svg-component-loader.cjs'),
+          defaultExport: options.svgDefaultExport,
+        });
         api.modifyRsbuildConfig((config, { mergeRsbuildConfig }) =>
           mergeRsbuildConfig(config, {
             source: {
@@ -131,7 +141,7 @@ export function createOctaneCompilerPlugin(
       sourceExtensions: ['.tsrx', '.tsx', '.ts', '.js'],
       transform: 'native',
       refresh: 'native',
-      svg: 'url',
+      svg: 'component',
     },
   );
 }
