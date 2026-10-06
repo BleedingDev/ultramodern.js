@@ -5,6 +5,7 @@ import {
   resolveNativeEntryIdentity,
   writeNativeEntryModules,
 } from '../../native-composition/native-entry';
+import { findNativeFederationConfig } from '../../native-composition/native-federation-files';
 import type { NativeEntryGenerator } from '../../native-composition/native-infrastructure';
 import { emitSolidNativeRouteModule } from './routes';
 
@@ -141,6 +142,35 @@ export default nativeRequestHandler;
 `;
 }
 
+/**
+ * A federated server entry reaches the renderer through an import() boundary,
+ * like the federated client entry: the Module Federation share scope must
+ * initialize before the entry consumes the shared Solid singletons.
+ */
+function federatedServerSource(
+  identity: RendererIdentity,
+  routed: boolean,
+): string {
+  const handlers = [
+    'nativeCSRRequestHandler',
+    'nativeRequestHandler',
+    ...(routed ? ['nativeMatchRouteIds'] : []),
+  ];
+  return `import type { NativeRequestContext } from '@modern-js/renderer-core/server';
+export const rendererIdentity = Object.freeze(${JSON.stringify(identity)});
+const handlers = () => import('./handlers.server');
+${handlers
+  .map(
+    name =>
+      `export async function ${name}(request: Request, context: NativeRequestContext) {
+  return (await handlers()).${name}(request, context);
+}`,
+  )
+  .join('\n')}
+export default nativeRequestHandler;
+`;
+}
+
 /** Solid owns its application lifecycle and native request handling. */
 export function createSolidNativeEntryGenerator(): NativeEntryGenerator {
   return {
@@ -168,7 +198,12 @@ export function createSolidNativeEntryGenerator(): NativeEntryGenerator {
             "import { ApplicationRouter, type AnyRouter } from '@modern-js/renderer-solid/router';\nexport function routerView(router: AnyRouter) { return <ApplicationRouter router={router} />; }\n",
         });
       }
-      return serverSource(identity, routed);
+      if (!findNativeFederationConfig(context.appDirectory))
+        return serverSource(identity, routed);
+      await writeNativeEntryModules(directory, {
+        'handlers.server.tsx': serverSource(identity, routed),
+      });
+      return federatedServerSource(identity, routed);
     },
   };
 }

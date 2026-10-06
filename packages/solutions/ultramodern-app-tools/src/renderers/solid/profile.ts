@@ -33,7 +33,7 @@ export const solidCandidateProfile: RendererBuildProfile = {
   },
   capabilities: {
     worker: true,
-    moduleFederation: 'client',
+    moduleFederation: true,
     rsc: false,
     ssg: true,
     i18n: false,

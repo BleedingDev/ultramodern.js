@@ -1,21 +1,25 @@
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { AppTools, CliPlugin } from '@modern-js/app-tools';
 import type { Renderer } from '@modern-js/renderer-core';
+import { SERVER_BUNDLE_DIRECTORY } from '@modern-js/utils';
 import { NATIVE_MODULE_FEDERATION_PLUGIN } from './module-federation-renderer-plugin';
+import { findNativeFederationConfig } from './native-federation-files';
 import { resolveRendererRegistration } from './renderer-registration';
 
-export const NATIVE_FEDERATION_CONFIG_FILES = [
-  'module-federation.config.ts',
-  'module-federation.config.mts',
-  'module-federation.config.js',
-  'module-federation.config.mjs',
-] as const;
+export {
+  findNativeFederationConfig,
+  NATIVE_FEDERATION_CONFIG_FILES,
+} from './native-federation-files';
 
 /** Chain keys shared with the React MF plugin, so publication stamping applies. */
 export const NATIVE_FEDERATION_CHAIN_KEY = 'plugin-module-federation';
+
+/** The Node container format a server-rendering host loads over HTTP. */
+export const NATIVE_SERVER_CONTAINER_TYPE = 'commonjs-module';
 
 type NativeRenderer = Exclude<Renderer, 'react'>;
 type FederationOptions = Record<string, unknown>;
@@ -61,19 +65,6 @@ const record = (value: unknown): value is Record<string, unknown> =>
 
 const federationError = (message: string): Error =>
   new Error(`Native Module Federation: ${message}`);
-
-export function findNativeFederationConfig(
-  appDirectory: string,
-): string | undefined {
-  const found = NATIVE_FEDERATION_CONFIG_FILES.map(name =>
-    path.join(appDirectory, name),
-  ).filter(file => fs.existsSync(file));
-  if (found.length > 1)
-    throw federationError(
-      `choose one configuration file: ${found.map(file => path.basename(file)).join(', ')}`,
-    );
-  return found[0];
-}
 
 /** Remote request prefixes, keyed by alias, for `name@url` manifest remotes. */
 export function readNativeFederationRemotes(
@@ -256,12 +247,54 @@ export function createNativeSharedConfig(
   return result;
 }
 
+/**
+ * Publish the server container beside the browser one, as the MF SSR snapshot
+ * expects: the manifest's ssrRemoteEntry and ssrPublicPath name the Node
+ * container a server-rendering host loads.
+ */
+export function withNativeServerContainer(
+  manifest: unknown,
+  serverDirectory: string,
+  filename: string,
+): Record<string, unknown> {
+  if (manifest === false)
+    throw federationError(
+      'renderer components require native manifest publication.',
+    );
+  const options = record(manifest) ? manifest : {};
+  const previous = options.additionalData;
+  if (previous !== undefined && typeof previous !== 'function')
+    throw federationError('manifest additionalData must be callable.');
+  return {
+    ...options,
+    async additionalData(input: { stats: Record<string, unknown> }) {
+      const stats =
+        ((await (previous as ((value: typeof input) => unknown) | undefined)?.(
+          input,
+        )) as Record<string, unknown> | undefined) ?? input.stats;
+      const metaData = stats.metaData;
+      if (!record(metaData) || typeof metaData.publicPath !== 'string')
+        throw federationError(
+          'a server container requires an explicit browser publicPath.',
+        );
+      metaData.ssrRemoteEntry = {
+        name: filename,
+        path: '',
+        type: NATIVE_SERVER_CONTAINER_TYPE,
+      };
+      metaData.ssrPublicPath = `${metaData.publicPath}${metaData.publicPath.endsWith('/') ? '' : '/'}${serverDirectory}/`;
+      return stats;
+    },
+  };
+}
+
 /** Browser container options for a native renderer client compilation. */
 export function createNativeClientFederationOptions(
   renderer: NativeRenderer,
   authored: FederationOptions,
   versions: Readonly<Record<string, string>>,
   runtimePlugin?: string,
+  serverDirectory?: string,
 ): FederationOptions {
   const profile = NATIVE_FEDERATION_PROFILES[renderer];
   if (!profile)
@@ -285,7 +318,14 @@ export function createNativeClientFederationOptions(
     runtime: false,
     // A host must start without contacting remotes it has not rendered yet.
     shareStrategy: authored.shareStrategy ?? 'loaded-first',
-    manifest: authored.manifest ?? true,
+    manifest:
+      serverDirectory && authored.exposes !== undefined
+        ? withNativeServerContainer(
+            authored.manifest,
+            serverDirectory,
+            String(authored.filename ?? 'remoteEntry.js'),
+          )
+        : (authored.manifest ?? true),
     dts: authored.dts ?? false,
     shared: createNativeSharedConfig(renderer, authored.shared, versions),
     experiments: {
@@ -296,6 +336,73 @@ export function createNativeClientFederationOptions(
     },
   };
 }
+
+/**
+ * Node container options for a native renderer server compilation. Shares
+ * stay non-eager: the generated server entry reaches the renderer through an
+ * import() boundary, so the host's singletons serve every remote it renders.
+ */
+export function createNativeServerFederationOptions(
+  renderer: NativeRenderer,
+  authored: FederationOptions,
+  versions: Readonly<Record<string, string>>,
+  runtimePlugins: readonly string[],
+): FederationOptions {
+  const { remotes: _remotes, ...container } = authored;
+  if (
+    authored.runtimePlugins !== undefined &&
+    !Array.isArray(authored.runtimePlugins)
+  )
+    throw federationError('runtimePlugins must be an array.');
+  return {
+    ...container,
+    runtimePlugins: [
+      ...((authored.runtimePlugins as unknown[] | undefined) ?? []),
+      ...runtimePlugins,
+    ],
+    filename: authored.filename ?? 'remoteEntry.js',
+    library: { type: NATIVE_SERVER_CONTAINER_TYPE, name: authored.name },
+    remoteType: 'script',
+    shareStrategy: authored.shareStrategy ?? 'loaded-first',
+    // The browser manifest publishes this container as its ssrRemoteEntry.
+    manifest: authored.manifest ?? true,
+    dts: false,
+    dev: false,
+    shared: createNativeSharedConfig(renderer, authored.shared, versions),
+    experiments: {
+      ...(record(authored.experiments) ? authored.experiments : {}),
+      asyncStartup: false,
+      optimization: {
+        ...(record(authored.experiments) &&
+        record(authored.experiments.optimization)
+          ? authored.experiments.optimization
+          : {}),
+        target: 'node',
+      },
+    },
+  };
+}
+
+/**
+ * The host client module that loads a remote through the host's federation
+ * instance. Solid imports it, by the asset key the server rendered, before it
+ * hydrates the boundary holding that remote.
+ */
+export const nativeFederationHydrationSource = `const id = new URL(import.meta.url).searchParams.get('id');
+const host = globalThis[Symbol.for('ultramodern.federation.host-instance')];
+if (!id || !host) throw new Error('Cannot hydrate the federated component ' + id + ': the host federation runtime has not started');
+const module = await host.loadRemote(id);
+if (!module || typeof module.default !== 'function') throw new TypeError('Remote module ' + id + ' has no default component to hydrate');
+export default module.default;
+`;
+
+/** Content-addressed client path of the hydration module. */
+export const NATIVE_FEDERATION_HYDRATION_MODULE = `static/js/ultramodern-federation-hydration.${createHash(
+  'sha256',
+)
+  .update(nativeFederationHydrationSource)
+  .digest('hex')
+  .slice(0, 8)}.js`;
 
 /** The import() boundary that lets an entry consume shared singletons. */
 export function nativeFederationBootstrapSource(entry: string): string {
@@ -364,14 +471,30 @@ export function createNativeRuntimeRemotes(
  */
 export function nativeFederationRuntimePluginSource(
   remotes: ReturnType<typeof createNativeRuntimeRemotes>,
+  server?: { readonly hydrationModule: string },
 ): string {
   return `const remotes = ${JSON.stringify(remotes)};
 const hostInstance = Symbol.for('ultramodern.federation.host-instance');
-export default function ultramodernNativeFederation() {
+${
+  server
+    ? `const ssr = Symbol.for('ultramodern.federation.ssr');
+const hydrationModule = ${JSON.stringify(server.hydrationModule)};
+`
+    : ''
+}export default function ultramodernNativeFederation() {
   return {
     name: 'ultramodern-native-federation',
     beforeInit(args) {
-      globalThis[hostInstance] ??= args.origin;
+      if (!globalThis[hostInstance]) {
+        globalThis[hostInstance] = args.origin;${
+          server
+            ? `
+        // federatedComponent() records the browser assets of the remotes it
+        // server-renders here; the document resolves them by asset key.
+        globalThis[ssr] = { hydrationModule, assets: new Map() };`
+            : ''
+        }
+      }
       const registered = args.userOptions.remotes ?? [];
       const known = new Set(registered.map(remote => remote.alias ?? remote.name));
       args.userOptions.remotes = [
@@ -408,10 +531,75 @@ function resolveModuleFederationPlugin(appDirectory: string): unknown {
   return ModuleFederationPlugin;
 }
 
+/** The Node runtime plugin that loads remote containers and chunks over HTTP. */
+function resolveNodeRuntimePlugin(appDirectory: string): string {
+  const require = createRequire(path.join(appDirectory, 'package.json'));
+  try {
+    return require.resolve('@module-federation/node/runtimePlugin');
+  } catch (error) {
+    throw Object.assign(
+      federationError(
+        'install @module-federation/node in the application: server rendering and server containers load remotes through it.',
+      ),
+      { cause: error },
+    );
+  }
+}
+
+const STATIC_ASSET_MODULE_TYPES = ['asset', 'asset/resource'] as const;
+
+/** Emit the hydration module beside the client's own scripts. */
+class NativeFederationHydrationModulePlugin {
+  apply(compiler: {
+    webpack: {
+      Compilation: { PROCESS_ASSETS_STAGE_ADDITIONAL: number };
+      sources: { RawSource: new (source: string) => unknown };
+    };
+    hooks: {
+      thisCompilation: {
+        tap(
+          name: string,
+          callback: (compilation: {
+            hooks: {
+              processAssets: {
+                tap(
+                  options: { name: string; stage: number },
+                  callback: () => void,
+                ): void;
+              };
+            };
+            emitAsset(file: string, source: unknown): void;
+          }) => void,
+        ): void;
+      };
+    };
+  }): void {
+    const name = 'UltraModernFederationHydrationModule';
+    compiler.hooks.thisCompilation.tap(name, compilation => {
+      compilation.hooks.processAssets.tap(
+        {
+          name,
+          stage: compiler.webpack.Compilation.PROCESS_ASSETS_STAGE_ADDITIONAL,
+        },
+        () =>
+          compilation.emitAsset(
+            NATIVE_FEDERATION_HYDRATION_MODULE,
+            new compiler.webpack.sources.RawSource(
+              nativeFederationHydrationSource,
+            ),
+          ),
+      );
+    });
+  }
+}
+
 /**
  * Same-renderer Module Federation for native renderers. The plugin is inert
  * without a module-federation.config file; with one, the client compilation
  * publishes and consumes ESM containers whose renderer runtime is shared.
+ * When the application server-renders, or exposes modules a host may
+ * server-render, the server compilation publishes and consumes Node
+ * containers with the same singletons.
  */
 export function nativeModuleFederationPlugin(
   renderer: NativeRenderer,
@@ -435,25 +623,67 @@ export function nativeModuleFederationPlugin(
             );
           return loadNativeFederationConfig(file);
         })());
+      const serverRendered = (authored: FederationOptions): boolean => {
+        if (authored.exposes !== undefined) return true;
+        const { server } = api.getNormalizedConfig();
+        return Boolean(
+          server?.ssr ||
+            Object.values(server?.ssrByEntries ?? {}).some(Boolean),
+        );
+      };
+      const writeRuntimePlugin = async (
+        name: string,
+        source: string,
+      ): Promise<string> => {
+        const file = path.join(
+          api.getAppContext().internalDirectory,
+          'federation',
+          name,
+        );
+        await fs.promises.mkdir(path.dirname(file), { recursive: true });
+        await fs.promises.writeFile(file, source);
+        return file;
+      };
 
       api.modifyBundlerChain(async (chain, { environment }) => {
         const authored = await load();
-        if (!authored || environment.name !== 'client') return;
+        if (!authored) return;
+        const server = environment.name === 'server';
+        if (!server && environment.name !== 'client') return;
+        const ssr = serverRendered(authored);
+        if (server && !ssr) return;
         const { appDirectory, internalDirectory } = api.getAppContext();
         const Plugin = resolveModuleFederationPlugin(appDirectory);
         const remotes = createNativeRuntimeRemotes(
           readNativeFederationRemotes(authored),
         );
-        const runtimePlugin = path.join(
-          internalDirectory,
-          'federation',
+        const versions = resolveNativeSharedVersions(renderer, appDirectory);
+        if (server) {
+          const runtimePlugin = await writeRuntimePlugin(
+            'native-runtime.server.mjs',
+            nativeFederationRuntimePluginSource(remotes, {
+              hydrationModule: NATIVE_FEDERATION_HYDRATION_MODULE,
+            }),
+          );
+          // Remote chunks load through the Node runtime plugin's readFileVm.
+          chain.target('async-node');
+          chain
+            .plugin(NATIVE_FEDERATION_CHAIN_KEY)
+            .use(
+              Plugin as never,
+              [
+                createNativeServerFederationOptions(
+                  renderer,
+                  authored,
+                  versions,
+                  [resolveNodeRuntimePlugin(appDirectory), runtimePlugin],
+                ),
+              ] as never,
+            );
+          return;
+        }
+        const runtimePlugin = await writeRuntimePlugin(
           'native-runtime.mjs',
-        );
-        await fs.promises.mkdir(path.dirname(runtimePlugin), {
-          recursive: true,
-        });
-        await fs.promises.writeFile(
-          runtimePlugin,
           nativeFederationRuntimePluginSource(remotes),
         );
         chain
@@ -464,12 +694,44 @@ export function nativeModuleFederationPlugin(
               createNativeClientFederationOptions(
                 renderer,
                 authored,
-                resolveNativeSharedVersions(renderer, appDirectory),
+                versions,
                 runtimePlugin,
+                ssr ? SERVER_BUNDLE_DIRECTORY : undefined,
               ),
             ] as never,
           );
+        if (ssr)
+          chain
+            .plugin('ultramodern-federation-hydration-module')
+            .use(NativeFederationHydrationModulePlugin);
         await splitClientEntries(chain as never, internalDirectory);
+      });
+
+      // A server container resolves its chunks from its own public path,
+      // while server-rendered asset URLs keep the client's.
+      api.modifyRspackConfig(async (config, { environment }) => {
+        if (environment.name !== 'server') return;
+        const authored = await load();
+        if (!authored || !serverRendered(authored)) return;
+        const publicPath = config.output?.publicPath;
+        if (
+          typeof publicPath !== 'string' ||
+          !publicPath ||
+          publicPath === 'auto'
+        )
+          throw federationError(
+            'server containers require an explicit output.assetPrefix.',
+          );
+        config.module ??= {};
+        const generator = (config.module.generator ??= {}) as Record<
+          string,
+          Record<string, unknown>
+        >;
+        for (const type of STATIC_ASSET_MODULE_TYPES) {
+          generator[type] ??= {};
+          generator[type].publicPath ??= publicPath;
+        }
+        config.output!.publicPath = `${publicPath}${publicPath.endsWith('/') ? '' : '/'}${SERVER_BUNDLE_DIRECTORY}/`;
       });
     },
   };
