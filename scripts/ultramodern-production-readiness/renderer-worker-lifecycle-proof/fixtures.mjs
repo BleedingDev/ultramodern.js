@@ -133,6 +133,12 @@ function begin(
   let rejectDeferred!: (reason: unknown) => void;
   const setup = new Promise<void>(resolve => { releaseSetup = resolve; });
   const deferred = new Promise<void>((resolve, reject) => { releaseDeferred = resolve; rejectDeferred = reject; });
+  // Only the diagnostic request settles these gates. workerd cancels a request
+  // as hung (500) when its sole pending work is a promise another request
+  // settles, so this request owns a timer until both of its gates settle.
+  const keepAlive = setInterval(() => {}, 50);
+  const releaseKeepAlive = () => clearInterval(keepAlive);
+  void Promise.allSettled([setup, deferred]).then(releaseKeepAlive);
   const observation: Observation = {
     id, mapAlreadyOwned, events: [], snapshots: [], setupReleased: false, deferredReleased: false,
     producerStarts: 0, producerResolutions: 0, producerCancellationCalls: 0, producerCleanups: 0,
@@ -170,6 +176,7 @@ function begin(
       observation.requestCleanups += 1;
       event(observation, 'request-cleanup');
       request.signal.removeEventListener('abort', aborted);
+      releaseKeepAlive();
       controls.delete(id);
     },
   };
@@ -213,12 +220,14 @@ function renderTree(state: State) {
     state.snapshot('deferred-render');
     return <span id="lifecycle-deferred">{token + ':' + state.id + ':deferred:α🌐'}</span>;
   }
-  return <>
+  // A host root: React withholds the shell while a root-level Suspense
+  // boundary is pending, since it could still contain <html>/<body>.
+  return <main id="lifecycle-root">
     <p id="lifecycle-shell">{token + ':' + state.id + ':shell:α🌐'}</p>
     <Suspense fallback={<p id="lifecycle-pending">{state.id + ':pending'}</p>}>
       <Deferred />
     </Suspense>
-  </>;
+  </main>;
 }
 // Forward one native read per consumer pull, including cancellation of the original reader.
 function observeNativeSource(source: ReadableStream<Uint8Array>, state: State, ownsCleanup: boolean): ReadableStream<Uint8Array> {

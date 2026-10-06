@@ -117,7 +117,11 @@ export async function verifyWorkerLifecycle({
   const publish = async () => {
     await onObservation?.(evidence);
   };
+  // Miniflare's entry worker gzips compressible responses for clients that
+  // accept gzip, and workerd's encoder holds bytes until the body ends. Ask
+  // for identity so progressive SSR bytes reach the reader as they stream.
   const headers = id => ({
+    'accept-encoding': 'identity',
     [controlHeader]: token,
     [candidateHeader]: candidateText,
     ...(id ? { 'x-lifecycle-request': id } : {}),
