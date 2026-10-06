@@ -203,6 +203,67 @@ async function authoredSpecifications(release, generated, profile) {
   return { dependencies, devDependencies, allowBuilds: catalogs.allowBuilds };
 }
 
+/**
+ * Public framework packages keep canonical `@modern-js/*` peer names. The
+ * generator satisfies them with `npm:` aliases of the public cohort packages;
+ * without them pnpm auto-installs the bare canonical name from the public
+ * registry, and selected optional peers stay unresolvable. Walk the packed
+ * closure of the declared framework packages and return the alias each
+ * canonical peer needs that no ancestor already provides (pnpm resolves a
+ * peer from its parents' dependencies).
+ */
+export function frameworkPeerAliases(release, declaredNames) {
+  const aliases = {};
+  const manifests = new Map();
+  const manifest = item => {
+    if (!manifests.has(item.targetName))
+      manifests.set(
+        item.targetName,
+        inspectNpmTarball(
+          readVerifiedPackageArtifactBytes(item, item.artifactPath),
+        ).packageJson,
+      );
+    return manifests.get(item.targetName);
+  };
+  const seen = new Set();
+  const queue = declaredNames
+    .map(name => frameworkItem(release, name))
+    .filter(Boolean)
+    .map(item => ({ item, provided: new Set(declaredNames) }));
+  while (queue.length) {
+    const { item, provided } = queue.shift();
+    const key = `${item.targetName}|${[...provided].sort().join(',')}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const json = manifest(item);
+    for (const name of Object.keys(json.peerDependencies ?? {})) {
+      if (provided.has(name) || Object.hasOwn(aliases, name)) continue;
+      const peer = frameworkItem(release, name);
+      if (!peer || peer.targetName === name) continue;
+      // An optional peer binds only when the consumer selects that package
+      // (ultramodern-app-tools resolves the selected renderer's modules
+      // through these canonical peers).
+      if (
+        json.peerDependenciesMeta?.[name]?.optional &&
+        !declaredNames.includes(peer.targetName)
+      )
+        continue;
+      aliases[name] = `npm:${peer.targetName}@${peer.version}`;
+      queue.push({ item: peer, provided: new Set(declaredNames) });
+    }
+    const children = new Set(provided);
+    for (const block of ['dependencies', 'optionalDependencies'])
+      for (const name of Object.keys(json[block] ?? {})) children.add(name);
+    for (const block of ['dependencies', 'optionalDependencies'])
+      for (const spec of Object.values(json[block] ?? {})) {
+        const target = /^npm:(@[^/]+\/[^@]+|[^@]+)@/u.exec(spec)?.[1];
+        const owned = target && frameworkItem(release, target);
+        if (owned) queue.push({ item: owned, provided: children });
+      }
+  }
+  return aliases;
+}
+
 /** Lists authored files (path + bytes) so a build cannot silently rewrite them. */
 export async function authoredInventory(
   directory,
@@ -447,7 +508,13 @@ export async function provisionConsumers({
             await fs.readFile(handPackageFile, 'utf8'),
           );
           handPackage.version = '0.1.0';
-          handPackage.dependencies = specs.dependencies;
+          handPackage.dependencies = {
+            ...specs.dependencies,
+            ...frameworkPeerAliases(context.release, [
+              ...Object.keys(specs.dependencies),
+              ...Object.keys(specs.devDependencies),
+            ]),
+          };
           handPackage.devDependencies = specs.devDependencies;
           handPackage.packageManager = `pnpm@${context.release.tools.pnpm}`;
           await fs.writeFile(
