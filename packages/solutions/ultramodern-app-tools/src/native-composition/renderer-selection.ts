@@ -231,8 +231,11 @@ export function assertCapturedRenderer(
     reject('CSS declaration generation beside authored source');
   if (!registration.supports.reactCompiler && config.source?.reactCompiler)
     reject('the React compiler');
+  // The React MF plugin's application SSR stays React's; native renderers
+  // federate through module-federation.config instead.
   if (
-    capabilities.moduleFederation !== true &&
+    (capabilities.moduleFederation !== true ||
+      registration.kind === 'native') &&
     (selected.moduleFederation ||
       (typeof config.server?.ssr === 'object' &&
         config.server.ssr.moduleFederationAppSSR) ||
