@@ -161,8 +161,8 @@ test('owning self-export proof authenticates the complete real source, ESM, and 
           'utf8',
         )
         .replace(
-          'registration.compose(consumers)',
-          'unknownCompose(consumers)',
+          'registration.compose(consumers, options.policy)',
+          'unknownCompose(consumers, options.policy)',
         ),
       'index.ts',
       compilerActivationAstAuthority().syntax,
@@ -456,6 +456,14 @@ test('actual source, ESM, and CJS composition retain selected private compiler d
   for (const [before, after] of [
     ['const renderer = registration.renderer;', "const renderer = 'foreign';"],
     ["registration.kind === 'native'", "registration.kind === 'composed'"],
+    [
+      'registration.compose(consumers, options.policy)',
+      'registration.compose(consumers, {})',
+    ],
+    [
+      'registration.compose(consumers, options.policy)',
+      'registration.compose(consumers)',
+    ],
     [
       'function composeNativeRenderer(',
       'export function composeNativeRenderer(',
