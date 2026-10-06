@@ -259,13 +259,18 @@ function moduleSpecifiers(source, file, additionalRequireNames = new Set()) {
       typeOnly: true,
       computed: false,
     });
-  for (const match of source.matchAll(/@jsxImportSource\s+([^\s*]+)/gu))
-    imports.push({
-      specifier: match[1],
-      typeOnly: true,
-      jsxSource: true,
-      computed: false,
-    });
+  // JSX pragmas live in comments; code such as a template literal that
+  // mentions @jsxImportSource is not a JSX runtime import.
+  for (const comment of parsed.comments ?? [])
+    for (const match of comment.value.matchAll(
+      /@jsxImportSource\s+([^\s*]+)/gu,
+    ))
+      imports.push({
+        specifier: match[1],
+        typeOnly: true,
+        jsxSource: true,
+        computed: false,
+      });
   return imports;
 }
 
