@@ -227,27 +227,30 @@ function assertSymlinkTraversal(
   physicalPath(input, new Set(), (link, stat, target) => {
     // A declared root/input also owns its lexical ancestor chain. Those links
     // are recorded separately, without expanding coverage to their siblings.
+    //
+    // Ownership is decided by actually resolving each declared root/input's
+    // own ancestor chain (the same incremental resolution `input` itself just
+    // went through) and checking whether it passes through this exact link.
+    // Comparing raw path strings instead breaks as soon as an earlier
+    // ancestor symlink (for example macOS's /var -> /private/var, which sits
+    // above every default TMPDIR path) has already been resolved into
+    // `link`'s prefix while the declared name is still fully lexical: the two
+    // strings then share no prefix even though `link` genuinely sits on the
+    // declared name's path. That mismatch misclassified ordinary installed
+    // dependencies (e.g. a pnpm/workspace symlink under node_modules) as an
+    // unbounded escape whenever the project itself lived under a symlinked
+    // ancestor directory.
     if (!isCovered(link)) {
       const declared = [...snapshot.sourceRoots, ...snapshot.extraInputs];
-      const isAncestor = (name: string) => {
-        const relative = path.relative(link, name);
-        return (
-          relative === '' ||
-          (relative !== '..' &&
-            !relative.startsWith(`..${path.sep}`) &&
-            !path.isAbsolute(relative))
-        );
+      const ownsLink = (name: string): boolean => {
+        if (name === link) return true;
+        let owned = false;
+        physicalPath(name, new Set(), candidate => {
+          if (candidate === link) owned = true;
+        });
+        return owned;
       };
-      // Resolve declared parents only for a link whose ownership needs them.
-      // Ordinary source walks must not resolve every declared input per item.
-      if (
-        !declared.some(isAncestor) &&
-        !declared.some(name =>
-          isAncestor(
-            path.join(physicalPath(path.dirname(name)), path.basename(name)),
-          ),
-        )
-      ) {
+      if (!declared.some(ownsLink)) {
         throw new Error(
           `Config source snapshot unbounded symlink intermediate: ${link}`,
         );
