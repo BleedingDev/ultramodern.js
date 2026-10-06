@@ -13,7 +13,7 @@ import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import {
   assertBinding,
@@ -348,6 +348,40 @@ export function formatMatrix(results) {
   ].join('\n');
 }
 
+const nativeRendererProfileFiles = {
+  solid: 'solid/profile.ts',
+  octane: 'octane/profile.ts',
+};
+
+/**
+ * Which of the reject step's three selection-time probes a native renderer
+ * genuinely refuses. `worker` and `rsc` are read straight from the renderer's
+ * own candidate profile (the source of truth for what it can actually do) so
+ * this list stays correct as renderers gain capabilities. `module-federation`
+ * probes the React-style application-SSR federation flag
+ * (`server.ssr.moduleFederationAppSSR`); every native renderer refuses that
+ * flag in favor of `module-federation.config`-based federation regardless of
+ * its own `capabilities.moduleFederation` (see
+ * assertCapturedRenderer in native-composition/renderer-selection.ts), so it
+ * is always expected to reject here.
+ */
+async function unsupportedRejectCapabilities(renderer) {
+  const profileFile = nativeRendererProfileFiles[renderer];
+  if (!profileFile)
+    throw new Error(`No candidate profile known for renderer ${renderer}`);
+  const profilePath = path.join(
+    workspaceRoot,
+    'packages/solutions/ultramodern-app-tools/src/renderers',
+    profileFile,
+  );
+  const module = await import(pathToFileURL(profilePath).href);
+  const { capabilities } = module[`${renderer}CandidateProfile`];
+  const unsupported = new Set(['module-federation']);
+  if (!capabilities.worker) unsupported.add('worker');
+  if (!capabilities.rsc) unsupported.add('rsc');
+  return unsupported;
+}
+
 async function main(opts) {
   const workRoot = fs.realpathSync(
     opts['work-dir'] ??
@@ -634,7 +668,9 @@ async function main(opts) {
           fs.mkdirSync(directory, { recursive: true });
           const outcomes = [];
           for (const row of rowsFor(native))
-            for (const capability of ['worker', 'module-federation', 'rsc']) {
+            for (const capability of await unsupportedRejectCapabilities(
+              row.renderer,
+            )) {
               const stem = `${row.renderer}-${row.kind}-${capability}`;
               const input = path.join(directory, `${stem}-input.json`);
               const output = path.join(directory, `${stem}-proof.json`);
