@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { findHostingModuleDirectory } from '@modern-js/app-tools-extensions/runtime-package-resolution';
 import type { RendererIdentity } from '@modern-js/renderer-core';
+import { validateSolidModuleManifest } from '@modern-js/renderer-solid/manifest';
 import {
   createRsbuild,
   type RsbuildDevServer,
@@ -12,10 +13,7 @@ import {
 } from '@rsbuild/core';
 import { expect, it } from '@rstest/core';
 import { resolveRendererProfileMetadata } from '../../src/native-composition/renderer-profile';
-import {
-  pluginSolidRenderer,
-  validateSolidModuleManifest,
-} from '../../src/renderers/solid/compiler';
+import { pluginSolidRenderer } from '../../src/renderers/solid/compiler';
 
 function receipts() {
   const values: Rspack.Stats[] = [];

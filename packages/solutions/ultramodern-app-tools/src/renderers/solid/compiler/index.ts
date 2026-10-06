@@ -7,30 +7,18 @@ import {
   identityCacheKey,
   type RendererIdentity,
 } from '@modern-js/renderer-core';
+import {
+  SOLID_COMPILER_VERSION,
+  type SolidAssetManifest,
+  type SolidModuleManifest,
+  solidModuleManifestFilename,
+} from '@modern-js/renderer-solid/manifest';
 import { type RsbuildPlugin, type Rspack, rspack } from '@rsbuild/core';
 import { attachRendererCompilerClaim } from '../../../native-composition/renderer-selection';
 import {
   applyNativeSvgComponents,
   type SvgDefaultExport,
 } from '../../../native-composition/svg-components';
-import {
-  SOLID_COMPILER_VERSION,
-  type SolidAssetManifest,
-  type SolidModuleManifest,
-  solidModuleManifestFilename,
-} from './manifest';
-
-export type {
-  SolidAssetChunk,
-  SolidAssetManifest,
-  SolidModuleManifest,
-} from './manifest';
-export {
-  resolveSolidModuleAsset,
-  SOLID_COMPILER_VERSION,
-  solidModuleManifestFilename,
-  validateSolidModuleManifest,
-} from './manifest';
 
 interface LazyModule {
   key: string;
@@ -55,7 +43,6 @@ interface LazyDiscovery {
 const nativeDependencySources = [
   /[/\\]node_modules[/\\]\.modern-js[/\\]solid[/\\]/u,
   /[/\\]node_modules[/\\]@modern-js[/\\]renderer-solid[/\\]/u,
-  /[/\\]node_modules[/\\]@tanstack[/\\]solid-router[/\\]/u,
 ];
 
 export interface SolidRendererCompilerOptions {
