@@ -5,6 +5,12 @@ import { fileURLToPath } from 'node:url';
 import { SERVICE_WORKER_ENVIRONMENT_NAME } from '@modern-js/builder';
 import type { RendererIdentity } from '@modern-js/renderer-core';
 import {
+  OCTANE_COMPILER_VERSION,
+  OCTANE_RUNTIME_VERSION,
+  octaneModuleManifestFileName,
+  validateOctaneModuleManifest,
+} from '@modern-js/renderer-octane/manifest';
+import {
   inferRspackEnvironment,
   OctaneRspackPlugin,
 } from '@octanejs/rspack-plugin';
@@ -14,14 +20,6 @@ import {
   applyNativeSvgComponents,
   type SvgDefaultExport,
 } from '../../../native-composition/svg-components';
-import {
-  OCTANE_COMPILER_VERSION,
-  OCTANE_RUNTIME_VERSION,
-  octaneModuleManifestFileName,
-  validateOctaneModuleManifest,
-} from './manifest';
-
-export * from './manifest';
 
 export interface OctaneRendererCompilerOptions {
   rendererIdentities(): Readonly<Record<string, RendererIdentity>>;
