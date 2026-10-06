@@ -1,9 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import {
-  resolveSolidModuleAsset,
-  validateSolidModuleManifest,
-} from '../../../packages/runtime/renderer-solid/src/manifest.ts';
+import { validateSolidModuleManifest } from '../../../packages/runtime/renderer-solid/src/manifest.ts';
 
 const identity = {
   renderer: 'solid',
@@ -36,7 +33,9 @@ test('accepts the exact current native module inventory', () => {
     manifest,
   );
   assert.deepEqual(
-    resolveSolidModuleAsset(manifest, identity, 'src/Lazy.tsx'),
+    validateSolidModuleManifest(manifest, identity, ['src/Lazy.tsx']).modules[
+      'src/Lazy.tsx'
+    ],
     manifest.modules['src/Lazy.tsx'],
   );
 });
@@ -54,7 +53,7 @@ test('checks a reused manifest object against each expected identity', () => {
     /Stale Solid module manifest identity/,
   );
   assert.throws(
-    () => resolveSolidModuleAsset(manifest, identity, 'src/Missing.tsx'),
+    () => validateSolidModuleManifest(manifest, identity, ['src/Missing.tsx']),
     /is missing src\/Missing.tsx/,
   );
 });
@@ -104,7 +103,9 @@ test('rejects identity drift in every request namespace field', () => {
 test('rejects a missing lazy module before native hydration import', () => {
   assert.throws(
     () =>
-      resolveSolidModuleAsset(currentManifest(), identity, 'src/Missing.tsx'),
+      validateSolidModuleManifest(currentManifest(), identity, [
+        'src/Missing.tsx',
+      ]),
     /is missing src\/Missing.tsx/,
   );
 });

@@ -443,7 +443,9 @@ async function compilationManifests(root, generated, resolver, build) {
       JSON.parse(await fs.readFile(path.join(root, 'dist', filename), 'utf8')),
       identity,
     );
-    const lazy = native.resolveSolidModuleAsset(manifest, identity, lazyKey);
+    const lazy = native.validateSolidModuleManifest(manifest, identity, [
+      lazyKey,
+    ]).modules[lazyKey];
     assert.ok(lazy.css?.length, 'Automatic native lazy facade omitted its CSS');
     const facade = await fs.readFile(
       path.join(root, 'dist', lazy.file),
@@ -488,7 +490,9 @@ async function compilationManifests(root, generated, resolver, build) {
       ),
     );
     assert.throws(() =>
-      native.resolveSolidModuleAsset(manifest, identity, 'src/missing.tsx'),
+      native.validateSolidModuleManifest(manifest, identity, [
+        'src/missing.tsx',
+      ]),
     );
     entries.push({
       identity,
