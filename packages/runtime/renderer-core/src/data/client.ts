@@ -2,6 +2,11 @@ import { assertRendererIdentity, type RendererIdentity } from '../identity';
 import { readBoundedDataText } from './body';
 import { DataProtocolError, MAX_DATA_BYTES, parsePublicData } from './codec';
 import {
+  isPrerenderedDocument,
+  isStaticDataPayload,
+  staticDataPayloadPath,
+} from './static';
+import {
   DATA_CONTENT_TYPE,
   DATA_PROTOCOL_VERSION,
   DATA_STREAM_CONTENT_TYPE,
@@ -323,6 +328,45 @@ export async function readDataResponse(
   return value.outcome;
 }
 
+/**
+ * A prerendered document can be hosted without a server. Its search-free
+ * loader payloads were captured beside it at build time; anything missing
+ * falls through to the server data request.
+ */
+async function readStaticPayload(
+  url: URL,
+  routeId: string,
+  fetchData: typeof globalThis.fetch,
+  request: Request,
+): Promise<Response | undefined> {
+  if (url.search || !isPrerenderedDocument()) return undefined;
+  let response: Response;
+  try {
+    response = await fetchData(
+      new URL(staticDataPayloadPath(url.pathname, routeId), url),
+      { credentials: 'same-origin', signal: request.signal },
+    );
+  } catch {
+    request.signal.throwIfAborted();
+    return undefined;
+  }
+  if (!response.ok) {
+    await response.body?.cancel();
+    return undefined;
+  }
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch {
+    return undefined;
+  }
+  if (!isStaticDataPayload(payload)) return undefined;
+  return new Response(payload.body, {
+    status: payload.status,
+    headers: { 'content-type': payload.contentType },
+  });
+}
+
 export function createDataClient(
   routeId: string,
   identity: RendererIdentity,
@@ -345,6 +389,20 @@ export function createDataClient(
     if (operation === 'action' && ['GET', 'HEAD'].includes(request.method))
       throw new DataProtocolError('An action client needs a mutation Request');
     const url = new URL(request.url);
+    if (operation === 'loader') {
+      const replayed = await readStaticPayload(
+        url,
+        routeId,
+        fetchData,
+        request,
+      );
+      if (replayed)
+        return readDataResponse(
+          replayed,
+          { identity, routeId, operation },
+          request.signal,
+        );
+    }
     url.searchParams.set(LOADER_ID_PARAM, routeId);
     url.searchParams.set(DIRECT_PARAM, 'true');
     const proxyRequest = new Request(url, request);

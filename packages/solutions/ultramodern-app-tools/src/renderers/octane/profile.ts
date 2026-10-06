@@ -39,7 +39,7 @@ export const octaneCandidateProfile: RendererBuildProfile = {
     worker: true,
     moduleFederation: false,
     rsc: false,
-    ssg: false,
+    ssg: true,
     i18n: false,
     svgComponent: false,
   },
