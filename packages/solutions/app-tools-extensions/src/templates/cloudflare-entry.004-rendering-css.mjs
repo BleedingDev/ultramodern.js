@@ -977,33 +977,54 @@ function getRemoteAssetBase(remoteManifest, manifestUrl) {
   }
 }
 
-async function fetchRemoteJson(jsonUrl) {
-  if (!remoteJsonPromises.has(jsonUrl)) {
-    remoteJsonPromises.set(
-      jsonUrl,
-      fetch(jsonUrl)
-        .then(response => {
-          if (!response.ok) {
-            remoteJsonPromises.delete(jsonUrl);
+// Per-request scope for in-flight remote JSON fetches. A fetch Promise is
+// request-bound I/O in workerd: it must never be stored on a module-level
+// map and awaited by a later, unrelated request (that throws "Cannot
+// perform I/O on behalf of a different request"). This scope only dedupes
+// concurrent lookups for the same URL made while handling one request; it is
+// created fresh per request and discarded once that request completes.
+function createRemoteJsonFetchScope() {
+  return new Map();
+}
 
-            return {};
-          }
-
-          return response.json().catch(() => {
-            remoteJsonPromises.delete(jsonUrl);
-
-            return {};
-          });
-        })
-        .catch(() => {
-          remoteJsonPromises.delete(jsonUrl);
-
-          return {};
-        }),
-    );
+async function fetchRemoteJson(jsonUrl, pendingFetches) {
+  if (remoteJsonCache.has(jsonUrl)) {
+    return remoteJsonCache.get(jsonUrl);
   }
 
-  return remoteJsonPromises.get(jsonUrl);
+  if (pendingFetches.has(jsonUrl)) {
+    return pendingFetches.get(jsonUrl);
+  }
+
+  const pending = (async () => {
+    let response;
+    try {
+      response = await fetch(jsonUrl);
+    } catch {
+      return {};
+    }
+
+    if (!response.ok) {
+      return {};
+    }
+
+    const value = await response.json().catch(() => undefined);
+    if (value === undefined) {
+      return {};
+    }
+
+    // Only a settled, plain value is safe to share across requests.
+    remoteJsonCache.set(jsonUrl, value);
+    return value;
+  })();
+
+  pendingFetches.set(jsonUrl, pending);
+
+  try {
+    return await pending;
+  } finally {
+    pendingFetches.delete(jsonUrl);
+  }
 }
 
 function findRemoteExpose(remoteManifest, exposePath) {
@@ -1123,7 +1144,13 @@ function collectRouteManifestCssAssets(routeManifest) {
   return [...assets];
 }
 
-async function collectRenderedRemoteCssHrefs(html, request, env, exposes) {
+async function collectRenderedRemoteCssHrefs(
+  html,
+  request,
+  env,
+  exposes,
+  pendingRemoteJsonFetches,
+) {
   const bodyStart = html.indexOf('</head>');
   const composedFragmentHrefs = collectStylesheetHrefs(
     bodyStart >= 0 ? html.slice(bodyStart + '</head>'.length) : html,
@@ -1167,11 +1194,15 @@ async function collectRenderedRemoteCssHrefs(html, request, env, exposes) {
         return;
       }
 
-      const remoteManifest = await fetchRemoteJson(manifestUrl);
+      const remoteManifest = await fetchRemoteJson(
+        manifestUrl,
+        pendingRemoteJsonFetches,
+      );
       const remoteExpose = findRemoteExpose(remoteManifest, expose);
       const publicPath = getRemoteAssetBase(remoteManifest, manifestUrl);
       const remoteRouteManifest = await fetchRemoteJson(
         new URL('routes-manifest.json', publicPath).toString(),
+        pendingRemoteJsonFetches,
       );
 
       for (const asset of collectCssAssetEntries(remoteExpose?.assets)) {
@@ -1221,6 +1252,9 @@ async function withRouteCssLinks(
   if (!contentType.includes('text/html') || response.body === null) {
     return response;
   }
+
+  // Scoped to this one request/response cycle; never stored on a module map.
+  const pendingRemoteJsonFetches = createRemoteJsonFetchScope();
 
   if (readDistributedSsrFragmentRequest(request) === undefined) {
     const resolvedDistributedSsrFragmentCssHrefs =
@@ -1277,9 +1311,13 @@ async function withRouteCssLinks(
       const key = JSON.stringify([boundaryId, expose]);
       if (seenExposes.has(key)) return [];
       seenExposes.add(key);
-      return collectRenderedRemoteCssHrefs('', request, env, [
-        { boundaryId, expose },
-      ]);
+      return collectRenderedRemoteCssHrefs(
+        '',
+        request,
+        env,
+        [{ boundaryId, expose }],
+        pendingRemoteJsonFetches,
+      );
     };
     return new Response(
       createStylesheetLinkStream(
@@ -1339,7 +1377,13 @@ async function withRouteCssLinks(
     }),
     ...(resolvedDistributedSsrFragmentCssHrefs.length > 0
       ? resolvedDistributedSsrFragmentCssHrefs
-      : await collectRenderedRemoteCssHrefs(html, request, env)
+      : await collectRenderedRemoteCssHrefs(
+          html,
+          request,
+          env,
+          undefined,
+          pendingRemoteJsonFetches,
+        )
     ).map(href => ({
       href,
       preloadHref: new URL(href, request.url).toString(),
