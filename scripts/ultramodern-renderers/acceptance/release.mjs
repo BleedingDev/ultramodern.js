@@ -744,8 +744,9 @@ async function main(opts) {
           assert.equal(receipt.status, 'passed');
           assert.equal(receipt.rendererGuardProof?.status, 'passed');
           const lifecycleDir = path.join(workRoot, 'mf-lifecycle');
+          // The proof requires its receipt confined inside --work-dir.
           const lifecycleReceipt = path.join(
-            workRoot,
+            lifecycleDir,
             'mf-lifecycle-receipt.json',
           );
           await spawnProof(
@@ -806,7 +807,9 @@ async function main(opts) {
       await step(
         'rsc',
         async signal => {
-          const receiptPath = path.join(workRoot, 'rsc-receipt.json');
+          const rscDir = path.join(workRoot, 'rsc');
+          // The proof requires its receipt confined inside --work-dir.
+          const receiptPath = path.join(rscDir, 'rsc-receipt.json');
           await spawnProof(
             qualifiedNode,
             [
@@ -821,7 +824,7 @@ async function main(opts) {
               '--expected-version',
               state.binding.releaseVersion,
               '--work-dir',
-              path.join(workRoot, 'rsc'),
+              rscDir,
               '--receipt',
               receiptPath,
               '--store-dir',
