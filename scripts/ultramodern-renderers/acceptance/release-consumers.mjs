@@ -377,7 +377,8 @@ function strictInstallEnv(env, release) {
 /**
  * Installs the generator from an ephemeral registry seeded with the cohort,
  * generates/hand-authors consumers for each selected renderer, and installs
- * them with the strict release-age policy. The registry stops on return.
+ * them with the strict release-age policy. The registry stops on return; the
+ * returned env carries that same policy for every later consumer command.
  */
 export async function provisionConsumers({
   manifestPath,
@@ -572,7 +573,10 @@ export async function provisionConsumers({
         return {
           bareReport: context.report,
           release: context.release,
-          env: context.env,
+          // Later consumer commands include the frozen offline install. pnpm
+          // re-verifies a lockfile whose supply-chain policy differs from the
+          // one it was resolved under, so they keep the install policy.
+          env: installEnv,
           bareRoot: context.bareRoot,
           generatorPackageRoot: context.installed.packageRoot,
           reportsRoot,
