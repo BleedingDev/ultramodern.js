@@ -74,6 +74,9 @@ function assetPath(value: unknown): value is string {
   );
 }
 
+/** A build's manifest is an immutable artifact: its shape is checked once. */
+const validatedManifests = new WeakMap<object, OctaneModuleManifest>();
+
 /** Validates completed native bytes separately from the source/profile build. */
 export function validateOctaneModuleManifest(
   value: unknown,
@@ -81,6 +84,28 @@ export function validateOctaneModuleManifest(
   expectedNativeHydrationBuildId?: string,
 ): OctaneModuleManifest {
   assertOctaneIdentity(expectedIdentity);
+  const cached =
+    value && typeof value === 'object'
+      ? validatedManifests.get(value)
+      : undefined;
+  const manifest = cached ?? readOctaneModuleManifest(value);
+  readRendererIdentity(manifest.rendererIdentity, expectedIdentity);
+  if (expectedNativeHydrationBuildId !== undefined) {
+    assertNativeHydrationBuildId(expectedNativeHydrationBuildId);
+    if (manifest.nativeHydrationBuildId !== expectedNativeHydrationBuildId) {
+      throw new Error(
+        'Octane native hydration build differs from the compiled client.',
+      );
+    }
+  }
+  if (!cached) {
+    validatedManifests.set(value as object, manifest);
+    validatedManifests.set(manifest, manifest);
+  }
+  return manifest;
+}
+
+function readOctaneModuleManifest(value: unknown): OctaneModuleManifest {
   const manifest = record(value, [
     'schemaVersion',
     'renderer',
@@ -101,20 +126,13 @@ export function validateOctaneModuleManifest(
       'Octane compiler manifest ABI conflicts with the application.',
     );
   }
+  // The caller compares this well-formed record with its expected identity.
   const rendererIdentity = readRendererIdentity(
     manifest.rendererIdentity,
-    expectedIdentity,
+    manifest.rendererIdentity as RendererIdentity,
   );
   const nativeHydrationBuildId = manifest.nativeHydrationBuildId;
   assertNativeHydrationBuildId(nativeHydrationBuildId);
-  if (expectedNativeHydrationBuildId !== undefined) {
-    assertNativeHydrationBuildId(expectedNativeHydrationBuildId);
-    if (nativeHydrationBuildId !== expectedNativeHydrationBuildId) {
-      throw new Error(
-        'Octane native hydration build differs from the compiled client.',
-      );
-    }
-  }
   if (!Array.isArray(manifest.assets) || !manifest.assets.length) {
     throw new Error(
       'Octane compiler manifest has no emitted JavaScript closure.',
