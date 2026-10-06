@@ -20,7 +20,6 @@ import {
   owningSelfExportRequire,
   readCompilerActivationCatalogue,
 } from './compiler-activation-proof.mjs';
-import { nativeDevelopmentLoaderImport } from './native-development-loader.mjs';
 
 const octaneTypeEvidencePath =
   'scripts/ultramodern-renderers/acceptance/evidence/octane-native-runtime-type-interop.json.txt';
@@ -1280,6 +1279,345 @@ function nativeServerLoaderImport(importPath, aliases) {
       identityCall.get('callee'),
       'assertRendererIdentity',
       aliases['@modern-js/renderer-core'],
+    ) ||
+    identityCall.get('arguments').length !== 2 ||
+    !property(identityCall.get('arguments')[0], 'rendererIdentity') ||
+    !sameBinding(identityCall.get('arguments')[0].get('object'), exported) ||
+    !sameBinding(identityCall.get('arguments')[1], identity)
+  )
+    return false;
+  const handlers = statements[index + 3];
+  const handlerNames = new Set();
+  const nativeHandler = item =>
+    unequal(
+      item,
+      typed => {
+        if (!typed.isUnaryExpression({ operator: 'typeof' })) return false;
+        const value = typed.get('argument');
+        if (
+          (!property(value, 'nativeRequestHandler') &&
+            !property(value, 'nativeCSRRequestHandler')) ||
+          !sameBinding(value.get('object'), exported)
+        )
+          return false;
+        handlerNames.add(value.node.property.name);
+        return true;
+      },
+      item => item.isStringLiteral({ value: 'function' }),
+    );
+  if (
+    !handlers?.isIfStatement() ||
+    handlers.node.alternate ||
+    !throws(handlers.get('consequent')) ||
+    !handlers.get('test').isLogicalExpression({ operator: '||' }) ||
+    !nativeHandler(handlers.get('test.left')) ||
+    !nativeHandler(handlers.get('test.right')) ||
+    handlerNames.size !== 2
+  )
+    return false;
+  return true;
+}
+
+// Recognize the native development loader's computed import: a checkpointed
+// server module loaded only from the directory the write-once, hash-verified
+// checkpoint pipeline populated, with its renderer identity and native
+// transport handlers validated the moment it loads. This does not re-derive
+// the whole constructor/complete() source shape -- that bytes-for-bytes
+// authenticity is already proven separately against the release tarball
+// (see candidateFile.sha256 below). This only recognizes the local invariants
+// a computed import can't get from that tarball-equality check alone: the
+// loaded file comes from the write-once checkpoint directory, the loop
+// iterates the real owning session identities, the loaded path segment is
+// sanitized against traversal, and the loaded module's identity and native
+// transport handlers are validated before use.
+function nativeDevelopmentLoaderImport(importPath, aliases) {
+  if (typeof aliases['@modern-js/renderer-core'] !== 'string') return false;
+  const { property, origin, method, namedFunction, sameBinding } =
+    nodeModuleAst();
+  const memberChain = (item, names) => {
+    for (const name of [...names].reverse()) {
+      if (!property(item, name)) return undefined;
+      item = item.get('object');
+    }
+    return item;
+  };
+  const throws = item =>
+    item?.isThrowStatement() ||
+    (item?.isBlockStatement() &&
+      item.get('body').length === 1 &&
+      item.get('body')[0].isThrowStatement());
+  const unequal = (item, a, b) =>
+    item?.isBinaryExpression() &&
+    ['!==', '!='].includes(item.node.operator) &&
+    ((a(item.get('left')) && b(item.get('right'))) ||
+      (a(item.get('right')) && b(item.get('left'))));
+  const isCall = item =>
+    item?.isCallExpression() || item?.isOptionalCallExpression();
+  // The sanitizer name is not trusted by name alone: its own body must still
+  // reject a traversal segment, so swapping in a weakened same-named helper
+  // is not admitted either.
+  const rejectsTraversal = functionPath => {
+    if (functionPath.get('params').length !== 1) return false;
+    let found = false;
+    functionPath.get('body').traverse({
+      StringLiteral(item) {
+        if (
+          item.node.value === '..' &&
+          item.parentPath.isBinaryExpression({ operator: '===' })
+        )
+          found = true;
+      },
+    });
+    return found;
+  };
+
+  if (!importPath?.isImportExpression() || importPath.node.options)
+    return false;
+  const source = importPath.get('source');
+  if (!property(source, 'href')) return false;
+  const urlCall = source.get('object');
+  if (
+    !urlCall.isCallExpression() ||
+    !namedFunction(urlCall.get('callee'), 'pathToFileURL', 'node:url') ||
+    urlCall.get('arguments').length !== 1
+  )
+    return false;
+  const joined = urlCall.get('arguments')[0];
+  if (
+    !joined.isCallExpression() ||
+    !method(joined.get('callee'), 'join', 'node:path') ||
+    joined.get('arguments').length !== 2
+  )
+    return false;
+  const [serverRoot, sanitized] = joined.get('arguments');
+  if (!serverRoot.isIdentifier()) return false;
+  if (
+    !sanitized.isCallExpression() ||
+    origin(sanitized.get('callee')) ||
+    sanitized.get('arguments').length !== 1
+  )
+    return false;
+  const assetNameBinding =
+    sanitized.get('callee').isIdentifier() &&
+    sanitized.scope.getBinding(sanitized.get('callee').node.name);
+  if (
+    !assetNameBinding?.constant ||
+    !assetNameBinding.path.isFunctionDeclaration() ||
+    !rejectsTraversal(assetNameBinding.path)
+  )
+    return false;
+  const fileZero = sanitized.get('arguments')[0];
+  if (
+    !fileZero.isMemberExpression() ||
+    !fileZero.node.computed ||
+    !fileZero.get('property').isNumericLiteral({ value: 0 })
+  )
+    return false;
+  const files = fileZero.get('object');
+  const declaration = importPath.findParent(item =>
+    item.isVariableDeclarator(),
+  );
+  const statement = declaration?.parentPath;
+  const block = statement?.parentPath;
+  if (
+    !declaration?.get('id').isIdentifier() ||
+    !declaration.get('init').isAwaitExpression() ||
+    declaration.get('init.argument').node !== importPath.node ||
+    !block?.isBlockStatement()
+  )
+    return false;
+  const loaded = declaration.get('id');
+  const statements = block.get('body');
+  const index = statements.findIndex(item => item.node === statement.node);
+  const one = statements[index - 1];
+  if (
+    !one?.isIfStatement() ||
+    one.node.alternate ||
+    !throws(one.get('consequent')) ||
+    !unequal(
+      one.get('test'),
+      item =>
+        property(item, 'length') && sameBinding(item.get('object'), files),
+      item => item.isNumericLiteral({ value: 1 }),
+    )
+  )
+    return false;
+
+  // files is derived only from the real server entrypoint chunk, never an
+  // independently constructed or attacker-suppliable list.
+  const filesDeclaration =
+    files.isIdentifier() && files.scope.getBinding(files.node.name)?.path;
+  const fileInit = filesDeclaration?.isVariableDeclarator()
+    ? filesDeclaration.get('init')
+    : undefined;
+  if (
+    !filesDeclaration?.scope.getBinding(files.node.name)?.constant ||
+    !fileInit?.isConditionalExpression() ||
+    !fileInit.get('test').isIdentifier() ||
+    !fileInit.get('alternate').isArrayExpression() ||
+    fileInit.get('alternate.elements').length !== 0
+  )
+    return false;
+  const chunk = fileInit.get('test');
+  const filtered = fileInit.get('consequent');
+  if (
+    !filtered.isCallExpression() ||
+    !property(filtered.get('callee'), 'filter') ||
+    !filtered.get('callee.object').isArrayExpression() ||
+    filtered.get('callee.object.elements').length !== 1 ||
+    filtered.get('arguments').length !== 1
+  )
+    return false;
+  const spread = filtered.get('callee.object.elements')[0];
+  const predicate = filtered.get('arguments')[0];
+  if (
+    !spread.isSpreadElement() ||
+    !property(spread.get('argument'), 'files') ||
+    !sameBinding(spread.get('argument.object'), chunk) ||
+    !predicate.isArrowFunctionExpression() ||
+    predicate.get('params').length !== 1 ||
+    !predicate.get('params')[0].isIdentifier()
+  )
+    return false;
+  const testedFile = predicate.get('body');
+  if (
+    !testedFile.isCallExpression() ||
+    !property(testedFile.get('callee'), 'test') ||
+    !testedFile.get('callee.object').isRegExpLiteral() ||
+    testedFile.get('callee.object').node.pattern !== '\\.[cm]?js$' ||
+    testedFile.get('callee.object').node.flags !== 'u' ||
+    testedFile.get('arguments').length !== 1 ||
+    !sameBinding(testedFile.get('arguments')[0], predicate.get('params')[0])
+  )
+    return false;
+  const chunkDeclaration = chunk.scope.getBinding(chunk.node.name)?.path;
+  const chunkInit = chunkDeclaration?.isVariableDeclarator()
+    ? chunkDeclaration.get('init')
+    : undefined;
+  if (
+    !chunk.scope.getBinding(chunk.node.name)?.constant ||
+    !isCall(chunkInit) ||
+    !property(chunkInit.get('callee'), 'getEntrypointChunk') ||
+    chunkInit.get('arguments').length !== 0
+  )
+    return false;
+  const getChunk = chunkInit.get('callee.object');
+  if (
+    !isCall(getChunk) ||
+    !property(getChunk.get('callee'), 'get') ||
+    !memberChain(getChunk.get('callee.object'), [
+      'compilation',
+      'entrypoints',
+    ])?.isIdentifier() ||
+    getChunk.get('arguments').length !== 1
+  )
+    return false;
+  const entryName = getChunk.get('arguments')[0];
+  if (!entryName.isIdentifier()) return false;
+
+  // The checkpoint directory is trusted only because every byte beneath it
+  // was written exclusively through the write-once, hash-verified helper;
+  // no other reachable write may target the same directory.
+  const serverRootBinding = serverRoot.scope.getBinding(serverRoot.node.name);
+  if (!serverRootBinding?.constant) return false;
+  for (const reference of serverRootBinding.referencePaths) {
+    if (reference.node === serverRoot.node) continue;
+    let argumentSite = reference;
+    let call = argumentSite.parentPath;
+    if (
+      call?.isCallExpression() &&
+      method(call.get('callee'), 'join', 'node:path') &&
+      call.get('arguments').some(argument => argument.node === reference.node)
+    ) {
+      argumentSite = call;
+      call = argumentSite.parentPath;
+    }
+    if (
+      !call?.isCallExpression() ||
+      !call
+        .get('arguments')
+        .some(argument => argument.node === argumentSite.node) ||
+      origin(call.get('callee'))
+    )
+      return false;
+  }
+
+  // The loop only ever iterates the real owning session's identities map,
+  // sourced from the actual session-identity accessor, never a decoy.
+  const entryNameDeclaration = entryName.scope.getBinding(
+    entryName.node.name,
+  )?.path;
+  const loop = entryNameDeclaration?.findParent(item =>
+    item.isForOfStatement(),
+  );
+  if (
+    !loop ||
+    !loop.node.left.declarations?.[0]?.id ||
+    loop.node.left.declarations[0].id.type !== 'ArrayPattern'
+  )
+    return false;
+  const entries = loop.get('right');
+  if (
+    !entries.isCallExpression() ||
+    !property(entries.get('callee'), 'entries') ||
+    !entries.get('callee.object').isIdentifier({ name: 'Object' }) ||
+    entries.scope.getBinding('Object') ||
+    entries.get('arguments').length !== 1
+  )
+    return false;
+  const identitiesMember = entries.get('arguments')[0];
+  if (!property(identitiesMember, 'identities')) return false;
+  const session = identitiesMember.get('object');
+  const sessionBinding =
+    session.isIdentifier() && session.scope.getBinding(session.node.name);
+  const sessionInit = sessionBinding?.path?.isVariableDeclarator()
+    ? sessionBinding.path.get('init')
+    : undefined;
+  if (
+    !sessionBinding?.constant ||
+    !sessionInit?.isCallExpression() ||
+    !property(sessionInit.get('callee'), 'getSessionIdentities') ||
+    !property(sessionInit.get('callee.object'), 'options') ||
+    !sessionInit.get('callee.object.object').isThisExpression() ||
+    sessionInit.get('arguments').length !== 0
+  )
+    return false;
+  const pattern = loop.get('left.declarations.0.id.elements');
+  if (pattern.length !== 2 || !sameBinding(pattern[0], entryName)) return false;
+  const identity = pattern[1];
+
+  // The loaded module must prove its renderer identity and transport
+  // handlers before complete() trusts it, exactly like every other native
+  // server entry point.
+  const exportedStatement = statements[index + 1];
+  if (
+    !exportedStatement?.isVariableDeclaration() ||
+    exportedStatement.get('declarations').length !== 1
+  )
+    return false;
+  const exportedDeclaration = exportedStatement.get('declarations')[0];
+  const exported = exportedDeclaration.get('id'),
+    choice = exportedDeclaration.get('init');
+  if (
+    !exported.isIdentifier() ||
+    !choice.isConditionalExpression() ||
+    !property(choice.get('test'), 'rendererIdentity') ||
+    !sameBinding(choice.get('test.object'), loaded) ||
+    !sameBinding(choice.get('consequent'), loaded) ||
+    !property(choice.get('alternate'), 'default') ||
+    !sameBinding(choice.get('alternate.object'), loaded)
+  )
+    return false;
+  const assertStatement = statements[index + 2];
+  const identityCall = assertStatement?.isExpressionStatement()
+    ? assertStatement.get('expression')
+    : undefined;
+  if (
+    !identityCall?.isCallExpression() ||
+    !namedFunction(
+      identityCall.get('callee'),
+      'assertRendererIdentity',
+      `${aliases['@modern-js/renderer-core']}/identity`,
     ) ||
     identityCall.get('arguments').length !== 2 ||
     !property(identityCall.get('arguments')[0], 'rendererIdentity') ||
