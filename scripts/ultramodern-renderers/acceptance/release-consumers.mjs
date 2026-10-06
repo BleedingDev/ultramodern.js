@@ -570,13 +570,16 @@ export async function provisionConsumers({
             );
           }
         }
+        // Later consumer commands include the frozen offline install. pnpm
+        // re-verifies a lockfile whose supply-chain policy differs from the
+        // one it was resolved under, so they keep the install policy. The
+        // generator's NODE_ENV=development stays behind: builds pick their
+        // own mode and hosts set theirs explicitly.
+        const { NODE_ENV: _generationMode, ...consumerEnv } = installEnv;
         return {
           bareReport: context.report,
           release: context.release,
-          // Later consumer commands include the frozen offline install. pnpm
-          // re-verifies a lockfile whose supply-chain policy differs from the
-          // one it was resolved under, so they keep the install policy.
-          env: installEnv,
+          env: consumerEnv,
           bareRoot: context.bareRoot,
           generatorPackageRoot: context.installed.packageRoot,
           reportsRoot,
