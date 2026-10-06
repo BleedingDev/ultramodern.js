@@ -131,6 +131,9 @@ export function validateInventory(
         declaration.symbol,
         declarationOptions(declaration.source),
       )
+        .map(path =>
+          declaration.pathPrefix ? `${declaration.pathPrefix}.${path}` : path,
+        )
         .filter(path => path.includes('.'))
         .sort();
       check(
@@ -159,7 +162,7 @@ export function validateInventory(
   const targets = candidate.config?.deployTargets;
   if (targets) {
     const declaration = new RegExp(
-      `export\\s+type\\s+${targets.symbol}\\s*=([\\s\\S]*?);`,
+      `export\\s+(?:type|const)\\s+${targets.symbol}\\s*=([\\s\\S]*?);`,
     ).exec(read(targets.source));
     const actual = [...(declaration?.[1] ?? '').matchAll(/'([^']+)'/g)]
       .map(match => match[1])
