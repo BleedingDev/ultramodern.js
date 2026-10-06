@@ -7,6 +7,7 @@ import path from 'node:path';
 import {
   auditInstalledConsumer,
   auditReleaseArtifacts,
+  testedProfileTuple,
 } from '../../ultramodern-renderers/acceptance/artifacts.mjs';
 import { fileEvidence, writeJson } from './contract.mjs';
 
@@ -61,7 +62,7 @@ const installed = auditInstalledConsumer({
   renderer: 'react',
   exactPackages: input.exactPackages,
   entryFiles: input.entryFiles,
-  testedProfile: profile,
+  testedProfile: testedProfileTuple(profile, input.exactPackages),
   releaseArtifacts: artifacts,
 });
 writeJson(outputFile, {

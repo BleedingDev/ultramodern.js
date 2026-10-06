@@ -129,7 +129,7 @@ test('React overlay adds actual entry sources and preserves runtime/bootstrap/pr
     assert.ok(
       (
         await fs.stat(
-          path.join(appRoot, `src/${entry}/server/conformance-controls.ts`),
+          path.join(appRoot, `src/${entry}/conformance-controls.ts`),
         )
       ).isFile(),
     );

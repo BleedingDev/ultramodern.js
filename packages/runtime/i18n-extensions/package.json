@@ -47,6 +47,42 @@
         "require": "./dist/cjs/paths.js"
       },
       "default": "./dist/esm/paths.mjs"
+    },
+    "./urlRewrite": {
+      "types": "./dist/types/urlRewrite.d.ts",
+      "modern:source": "./src/urlRewrite.ts",
+      "node": {
+        "import": "./dist/esm-node/urlRewrite.mjs",
+        "require": "./dist/cjs/urlRewrite.js"
+      },
+      "default": "./dist/esm/urlRewrite.mjs"
+    },
+    "./ssrLanguageHandoff": {
+      "types": "./dist/types/ssrLanguageHandoff.d.ts",
+      "modern:source": "./src/ssrLanguageHandoff.ts",
+      "node": {
+        "import": "./dist/esm-node/ssrLanguageHandoff.mjs",
+        "require": "./dist/cjs/ssrLanguageHandoff.js"
+      },
+      "default": "./dist/esm/ssrLanguageHandoff.mjs"
+    },
+    "./language-sync/controller": {
+      "types": "./dist/types/language-sync/controller.d.ts",
+      "modern:source": "./src/language-sync/controller.ts",
+      "node": {
+        "import": "./dist/esm-node/language-sync/controller.mjs",
+        "require": "./dist/cjs/language-sync/controller.js"
+      },
+      "default": "./dist/esm/language-sync/controller.mjs"
+    },
+    "./request-language": {
+      "types": "./dist/types/requestLanguage.d.ts",
+      "modern:source": "./src/requestLanguage.ts",
+      "node": {
+        "import": "./dist/esm-node/requestLanguage.mjs",
+        "require": "./dist/cjs/requestLanguage.js"
+      },
+      "default": "./dist/esm/requestLanguage.mjs"
     }
   },
   "typesVersions": {
@@ -60,6 +96,18 @@
       ],
       "router-navigation": [
         "./dist/types/router-navigation/index.d.ts"
+      ],
+      "urlRewrite": [
+        "./dist/types/urlRewrite.d.ts"
+      ],
+      "ssrLanguageHandoff": [
+        "./dist/types/ssrLanguageHandoff.d.ts"
+      ],
+      "language-sync/controller": [
+        "./dist/types/language-sync/controller.d.ts"
+      ],
+      "request-language": [
+        "./dist/types/requestLanguage.d.ts"
       ]
     }
   },
@@ -73,6 +121,7 @@
     "node": ">=26.10.0"
   },
   "dependencies": {
+    "@modern-js/renderer-core": "workspace:*",
     "@modern-js/runtime-extensions": "workspace:*",
     "@modern-js/runtime-utils": "workspace:*",
     "i18next-browser-languagedetector": "^8.2.1"
@@ -80,6 +129,14 @@
   "peerDependencies": {
     "@modern-js/runtime": "workspace:^3.9.0",
     "react": "^19.2.8"
+  },
+  "peerDependenciesMeta": {
+    "@modern-js/runtime": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",

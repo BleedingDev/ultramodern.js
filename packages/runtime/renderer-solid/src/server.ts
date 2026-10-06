@@ -26,6 +26,7 @@ import {
   NoHydration,
   runWithOwner,
 } from 'solid-js';
+import { withFederatedAssets } from './federation-ssr';
 import { nativePromiseSerializationPlugin } from './native-promise-serialization';
 
 type NativeStreamOptions = NonNullable<Parameters<typeof renderToStream>[1]>;
@@ -429,10 +430,18 @@ export interface SolidRenderOptions<Bindings extends object = object> {
   readonly onError?: NativeStreamOptions['onError'];
 }
 
+/** Public JSON a client module reads from the document before it starts. */
+export interface DocumentInlineData {
+  readonly id: string;
+  readonly payload: Parameters<typeof serializeInlineData>[0]['payload'];
+}
+
 export interface SolidApplicationDocumentOptions extends SolidDocumentOptions {
   readonly rootId?: string;
   readonly lang?: string;
   readonly assets?: readonly DocumentAsset[];
+  /** Placed in the head, after the renderer bootstrap and before modules. */
+  readonly inlineData?: readonly DocumentInlineData[];
 }
 
 export interface SolidDocumentRenderOptions<Bindings extends object = object>
@@ -512,6 +521,8 @@ export async function renderApplication<Bindings extends object>(
             if (session.signal.aborted) abortNative();
             const native = renderToStream(options.view, {
               ...options.document,
+              // Server-rendered federated components add their remote assets.
+              manifest: withFederatedAssets(options.document?.manifest),
               plugins: [nativePromiseSerializationPlugin],
               // Restore the request event when transport cancellation occurs
               // outside the async scope that constructed the native stream.
@@ -638,6 +649,19 @@ function createDocumentParts<Bindings extends object>(
     }),
     nonce: scriptCSPNonce,
   });
+  const inlineData = (document.inlineData ?? [])
+    .map(item => {
+      if (item.id === '__ULTRAMODERN_RENDERER__' || item.id === rootId)
+        throw new TypeError(
+          'Document inline data cannot reuse the root or bootstrap id.',
+        );
+      return serializeInlineData({
+        id: item.id,
+        payload: item.payload,
+        nonce: scriptCSPNonce,
+      });
+    })
+    .join('');
   return {
     rootId,
     renderId,
@@ -646,6 +670,7 @@ function createDocumentParts<Bindings extends object>(
     head:
       headAssets +
       bootstrap +
+      inlineData +
       (hydrating ? generateHydrationScript({ nonce: scriptCSPNonce }) : ''),
     modules: moduleAssets,
   };

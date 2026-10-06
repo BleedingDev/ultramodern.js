@@ -2,10 +2,72 @@ import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-/** Author the supported two-entry input before framework config capture/build. */
+const moduleExtensions = new Set([
+  '.ts',
+  '.tsx',
+  '.mts',
+  '.cts',
+  '.js',
+  '.jsx',
+  '.mjs',
+  '.cjs',
+]);
+const relativeSpecifier =
+  /(\bfrom\s*|\bimport\s*\(\s*|\bimport\s+|\brequire\s*\(\s*)(['"])(\.{1,2}\/[^'"]*)\2/gu;
+
+/**
+ * An entry copy sits one directory deeper than the source it was copied from,
+ * so relative module specifiers that leave the source tree (for example the
+ * generated `src/ultramodern-build.ts` re-exporting `../shared/ultramodern-build`)
+ * must be re-anchored from the copy. Specifiers inside the tree move with it.
+ */
+async function rebaseEscapingSpecifiers(sourceRoot, copyRoot, finalRoot) {
+  async function visit(relativeDirectory) {
+    const directory = path.join(copyRoot, relativeDirectory);
+    for (const entry of await fs.readdir(directory, { withFileTypes: true })) {
+      const relative = path.join(relativeDirectory, entry.name);
+      if (entry.isDirectory()) {
+        await visit(relative);
+        continue;
+      }
+      if (!moduleExtensions.has(path.extname(entry.name))) continue;
+      const file = path.join(copyRoot, relative);
+      const original = path.dirname(path.join(sourceRoot, relative));
+      const contents = await fs.readFile(file, 'utf8');
+      const rebased = contents.replace(
+        relativeSpecifier,
+        (match, prefix, quote, specifier) => {
+          const target = path.resolve(original, specifier);
+          const inside = path.relative(sourceRoot, target);
+          if (
+            inside !== '..' &&
+            !inside.startsWith(`..${path.sep}`) &&
+            !path.isAbsolute(inside)
+          )
+            return match;
+          let next = path
+            .relative(path.dirname(path.join(finalRoot, relative)), target)
+            .split(path.sep)
+            .join('/');
+          if (!next.startsWith('.')) next = `./${next}`;
+          if (specifier.endsWith('/') && !next.endsWith('/')) next += '/';
+          return `${prefix}${quote}${next}${quote}`;
+        },
+      );
+      if (rebased !== contents) await fs.writeFile(file, rebased);
+    }
+  }
+  await visit('');
+}
+
+/**
+ * Author the supported two-entry input before framework config capture/build.
+ * `retainSource` keeps the original `src` tree in place and adds the entry
+ * copies beside it, for generated apps whose starter source surface is guarded.
+ */
 export async function authorEntryVariants(
   applicationRoot,
-  { compilerObservation = false } = {},
+  { compilerObservation = false, retainSource = false } = {},
 ) {
   const root = await fs.realpath(applicationRoot);
   const source = path.join(root, 'src');
@@ -48,29 +110,52 @@ export async function authorEntryVariants(
   await fs.mkdir(temporary);
   let sourceRetired = false;
   let newSourcePlaced = false;
+  const placedEntries = [];
   let baseCreated = false;
   try {
     const authoredSource = path.join(temporary, 'new-src');
     await fs.mkdir(authoredSource);
-    for (const entry of ['ssr', 'csr'])
+    for (const entry of ['ssr', 'csr']) {
       await fs.cp(source, path.join(authoredSource, entry), {
         recursive: true,
         errorOnExist: true,
         force: false,
       });
+      // Final location is <source>/<entry> in both placement modes.
+      await rebaseEscapingSpecifiers(
+        source,
+        path.join(authoredSource, entry),
+        path.join(source, entry),
+      );
+    }
     await fs.writeFile(base, originalConfig, { flag: 'wx' });
     baseCreated = true;
-    await fs.rename(source, path.join(temporary, 'original-src'));
-    sourceRetired = true;
-    await fs.rename(authoredSource, source);
-    newSourcePlaced = true;
+    if (retainSource)
+      for (const entry of ['ssr', 'csr']) {
+        await fs.rename(
+          path.join(authoredSource, entry),
+          path.join(source, entry),
+        );
+        placedEntries.push(path.join(source, entry));
+      }
+    else {
+      await fs.rename(source, path.join(temporary, 'original-src'));
+      sourceRetired = true;
+      await fs.rename(authoredSource, source);
+      newSourcePlaced = true;
+    }
     await fs.writeFile(
       config,
       `import authoredConfig from './modern.entry-base.config';
 ${compilerObservation ? "import { observeNativeCompiler } from './observe-native-compiler';\n" : ''}
 
+// The authored export is typed as a config or a config factory; entry authoring
+// composes the plain config object the authored file actually exports.
+if (typeof authoredConfig === 'function') {
+  throw new Error('Conformance entry authoring requires an object configuration export.');
+}
 const authoredSSR = authoredConfig.server?.ssr;
-if (['solid', 'octane'].includes(authoredConfig.renderer) && !authoredSSR) {
+if (['solid', 'octane'].includes(authoredConfig.renderer ?? '') && !authoredSSR) {
   throw new Error('Native generated source must enable SSR through server.ssr before conformance entry authoring.');
 }
 const ssr = authoredSSR || true;
@@ -104,6 +189,8 @@ ${compilerObservation ? '  builderPlugins: [...(authoredConfig.builderPlugins ??
       ]),
     );
   } catch (error) {
+    for (const placed of placedEntries)
+      await fs.rm(placed, { recursive: true, force: true });
     if (newSourcePlaced) await fs.rm(source, { recursive: true, force: true });
     if (sourceRetired)
       await fs.rename(path.join(temporary, 'original-src'), source);

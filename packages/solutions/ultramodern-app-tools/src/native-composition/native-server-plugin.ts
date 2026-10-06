@@ -7,6 +7,8 @@ import type {
 import {
   assertRendererIdentity,
   identityCacheKey,
+  RENDERER_IDENTITY_HEADER,
+  serializeRendererIdentityHeader,
 } from '@modern-js/renderer-core/identity';
 import {
   dispatchNativeNodeRequest,
@@ -464,6 +466,11 @@ export function nativeServerPlugin(
     )) {
       response.headers.set(name, String(value));
     }
+    // Like the React host and the worker, name the built entry that rendered.
+    response.headers.set(
+      RENDERER_IDENTITY_HEADER,
+      serializeRendererIdentityHeader(identity),
+    );
     return response;
   };
 

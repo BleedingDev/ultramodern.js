@@ -8,14 +8,19 @@ export const reactGeneration: RendererGenerationAdapter = {
   renderer: 'react',
   kind: 'react',
   createProfile: selected =>
-    createRendererGenerationProfile('react', selected, {
-      frameworkDependencies: [],
-      dependencies: { ...ULTRAMODERN_PACKAGE_PINS.appDependencies },
-      devDependencies: {
-        '@types/react':
-          ULTRAMODERN_PACKAGE_PINS.appDevDependencies['@types/react'],
-        '@types/react-dom':
-          ULTRAMODERN_PACKAGE_PINS.appDevDependencies['@types/react-dom'],
+    createRendererGenerationProfile(
+      'react',
+      selected,
+      {
+        frameworkDependencies: [],
+        dependencies: { ...ULTRAMODERN_PACKAGE_PINS.appDependencies },
+        devDependencies: {
+          '@types/react':
+            ULTRAMODERN_PACKAGE_PINS.appDevDependencies['@types/react'],
+          '@types/react-dom':
+            ULTRAMODERN_PACKAGE_PINS.appDevDependencies['@types/react-dom'],
+        },
       },
-    }),
+      { federation: true, workers: true },
+    ),
 };

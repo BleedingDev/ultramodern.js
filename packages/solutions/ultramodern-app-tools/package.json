@@ -213,6 +213,7 @@
     "@rslib/core": "1.0.3",
     "@scripts/rstest-config": "workspace:*",
     "@types/node": "^26.6.3",
+    "esbuild": "^0.28.2",
     "@modern-js/runtime": "workspace:*",
     "@modern-js/i18n-integration": "workspace:*",
     "@modern-js/runtime-renderer-extensions": "workspace:*",

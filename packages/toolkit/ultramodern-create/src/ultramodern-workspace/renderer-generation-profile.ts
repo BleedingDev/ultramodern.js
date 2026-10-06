@@ -43,6 +43,10 @@ export function createRendererGenerationProfile(
     'frameworkDependencies' | 'dependencies' | 'devDependencies'
   > &
     Pick<RendererGenerationProfile, 'typecheckCommand' | 'tsconfig'>,
+  templates: { federation: boolean; workers: boolean } = {
+    federation: false,
+    workers: false,
+  },
 ): RendererGenerationProfile {
   return {
     renderer,
@@ -61,10 +65,11 @@ export function createRendererGenerationProfile(
     capabilities: {
       ssr: true,
       streaming: true,
-      workers: selected.capabilities.worker,
-      // Generated federation is the full MF application topology; a
-      // client-only federated-component capability does not provide it.
-      federation: selected.capabilities.moduleFederation === true,
+      // Generated workers and federation scaffold whole deployment and MF
+      // topologies; they need runtime support and templates that emit them.
+      workers: templates.workers && selected.capabilities.worker,
+      federation:
+        templates.federation && selected.capabilities.moduleFederation === true,
       rsc: selected.capabilities.rsc,
     },
   };

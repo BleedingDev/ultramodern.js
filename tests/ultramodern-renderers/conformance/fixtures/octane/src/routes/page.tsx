@@ -40,7 +40,10 @@ export default function Home() {
       <pre data-testid="native-action-value">{JSON.stringify(result)}</pre>
       <Link
         to="/"
-        search={previous => ({ ...previous, case: 'deferred' })}
+        search={(previous: Record<string, unknown>) => ({
+          ...previous,
+          case: 'deferred',
+        })}
         preload={false}
         data-testid="native-deferred-link"
       >

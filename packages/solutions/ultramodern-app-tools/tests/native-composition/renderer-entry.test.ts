@@ -186,13 +186,18 @@ describe('native owning entry generation', () => {
         source: generation.entrypoint.entry,
         routed: true,
         mode,
+        i18n: false,
       })),
     );
     expect(
-      routeEmissions.map(({ mode, basePath }) => ({ mode, basePath })),
+      routeEmissions.map(({ mode, basePath, i18n }) => ({
+        mode,
+        basePath,
+        i18n,
+      })),
     ).toEqual([
-      { mode: 'client', basePath: '/catalog' },
-      { mode: 'server', basePath: '/catalog' },
+      { mode: 'client', basePath: '/catalog', i18n: false },
+      { mode: 'server', basePath: '/catalog', i18n: false },
     ]);
     expect(routeEmissions[0].routes).toBe(routeEmissions[1].routes);
     expect(routeEmissions[0].routes).toMatchObject([
@@ -298,5 +303,34 @@ describe('native owning entry generation', () => {
     expect(server).not.toContain('new URL(request.url).pathname');
     // The document nonce reaches the per-request router's emitted scripts.
     expect(server).toContain('context.session, context.nonce)');
+  });
+
+  it('starts a federated Solid server entry through an import() boundary', async () => {
+    const generation = await context('solid', true);
+    await fs.writeFile(
+      path.join(generation.appDirectory, 'module-federation.config.ts'),
+      "export default { name: 'host' };",
+    );
+    const server = await createSolidNativeEntryGenerator().server(generation);
+    await expectValidNativeSource(server);
+    // The facade imports no shared runtime before the share scope starts.
+    expect(server).not.toMatch(/^import (?!type )/mu);
+    expect(server).toContain("import('./handlers.server')");
+    for (const handler of [
+      'nativeCSRRequestHandler',
+      'nativeRequestHandler',
+      'nativeMatchRouteIds',
+    ])
+      expect(server).toContain(`export async function ${handler}(`);
+    const handlers = await fs.readFile(
+      path.join(
+        generation.internalDirectory,
+        'solid',
+        'main',
+        'handlers.server.tsx',
+      ),
+      'utf8',
+    );
+    expect(handlers).toContain('export async function nativeRequestHandler(');
   });
 });

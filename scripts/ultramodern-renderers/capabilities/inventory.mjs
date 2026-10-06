@@ -623,7 +623,10 @@ const capabilities = [
   required(
     'ssg',
     'plugin-ssr static generator',
-    [`${app}/output.ts`],
+    [
+      `${app}/output.ts`,
+      'packages/solutions/ultramodern-app-tools/src/native-composition/native-prerender.ts',
+    ],
     [
       runtimeTest(
         'tests/integration/ssg/tests/simple.test.ts',
@@ -633,10 +636,17 @@ const capabilities = [
         'tests/integration/ssg/tests/nested-routes.test.ts',
         'Conventional nested/data routes prerender.',
       ),
+      runtimeTest(
+        'packages/solutions/ultramodern-app-tools/tests/native-composition/native-prerender.test.ts',
+        'Solid and Octane SSG routes prerender through the native handler and replay loader payloads on navigation.',
+      ),
+      runtimeTest(
+        'packages/runtime/renderer-core/tests/data/static.test.ts',
+        'Native static data client round trip for prerendered documents.',
+      ),
     ],
     'output.ssg/staticGenerate emit correct native documents and data for dynamic route parameters.',
     'modernjs-dnpv3.19',
-    'unresolved',
   ),
   required(
     'ssg-by-entries',
@@ -710,16 +720,23 @@ const capabilities = [
   required(
     'svg-components',
     'renderer compiler SVG claimant',
-    [builder, builderTypes],
+    [
+      builder,
+      builderTypes,
+      'packages/solutions/ultramodern-app-tools/src/native-composition/svg-components.ts',
+    ],
     [
       sourceEvidence(
         builder,
-        'Default component transform is React svgr; no native Solid/Octane runtime SVG proof is established.',
+        'Default component transform is React svgr; Solid/Octane claim their own native SVG component compiler instead.',
+      ),
+      runtimeTest(
+        'packages/solutions/ultramodern-app-tools/tests/native-composition/svg-components.test.ts',
+        'Solid and Octane claim ?component/default SVG imports and compile a renderer-native module; Octane still rejects React-only ?react imports.',
       ),
     ],
     'Selected renderer compiles native SVG components without React output, or rejects component SVG mode before writes.',
     'modernjs-dnpv3.19',
-    'unresolved',
   ),
   required(
     'source-build',
@@ -774,16 +791,30 @@ const capabilities = [
   required(
     'worker-request-handler',
     'app-tools-extensions Cloudflare adapter',
-    [`${extensions}/src/templates/cloudflare-entry.004-rendering-css.mjs`],
+    [
+      `${extensions}/src/templates/cloudflare-entry.004-rendering-css.mjs`,
+      'packages/solutions/ultramodern-app-tools/src/native-composition/native-worker.ts',
+    ],
     [
       structuralTest(
         `${extensions}/tests/cloudflare-builder.test.ts`,
         'Generated worker requestHandler code is inspected; this does not execute a deployment.',
       ),
+      runtimeTest(
+        'packages/solutions/app-tools-extensions/tests/deploy-output/cloudflare-native-worker-dispatch.test.ts',
+        'React, Solid and Octane native server handlers answer document/loader/action requests on local workerd instead of 501.',
+      ),
+      runtimeTest(
+        'packages/runtime/renderer-core/tests/server/worker.test.ts',
+        'dispatchNativeWorkerRequest binds env as the worker platform, keeps cleanup alive via ctx.waitUntil and rejects RSC headers.',
+      ),
+      runtimeTest(
+        'packages/solutions/ultramodern-app-tools/tests/native-composition/native-worker.test.ts',
+        'Worker build selects the native server transform by the workerSSR environment and writes build-validated assets/manifest.',
+      ),
     ],
     'Generated requestHandler runs in the actual worker runtime with data/actions/native SSR, assets and cleanup.',
     'modernjs-dnpv3.20',
-    'unresolved',
   ),
   required(
     'worker-fetch-export',
@@ -851,16 +882,26 @@ const capabilities = [
   required(
     'same-renderer-federation',
     'server-runtime-extensions and Module Federation native bridge',
-    ['packages/server/runtime-extensions/src/index.ts'],
+    [
+      'packages/server/runtime-extensions/src/index.ts',
+      'packages/solutions/ultramodern-app-tools/src/native-composition/native-module-federation.ts',
+    ],
     [
       runtimeTest(
         'tests/integration/routes-tanstack-mf/test/index.test.ts',
         'React host/remotes exercise SSR/navigation/data/actions and mutations.',
       ),
+      runtimeTest(
+        'packages/solutions/ultramodern-app-tools/tests/native-composition/native-module-federation.test.ts',
+        'Solid native Module Federation renderer plugin wiring and manifest validation.',
+      ),
+      sourceEvidence(
+        'tests/ultramodern-renderers/solid-federation/proof.mjs',
+        'Browser proof script (not a unit test file): a Solid host renders a Solid remote widget under a single shared solid-js (CSR-only); SSR renders only the fallback and a React-stamped publication is rejected.',
+      ),
     ],
     'Same-renderer host/remotes prove native SSR, navigation, shared data, cancellation and unmount, or reject unsupported preview configuration.',
     'modernjs-dnpv3.21',
-    'unresolved',
   ),
   required(
     'react-rsc',
@@ -949,23 +990,21 @@ for (const id of ['react-rsc', 'worker-react-rsc']) {
 }
 
 // The admitted first native profile is Node. Unsupported requests fail at their owner.
+// ssg, svg-components and worker-request-handler (Cloudflare SSR) are no longer
+// in this list: Solid and Octane profiles now declare them supported (see
+// packages/solutions/ultramodern-app-tools/src/renderers/{solid,octane}/profile.ts)
+// and keep their own `required()` native status above.
 for (const id of [
-  'ssg',
   'ssg-by-entries',
   'mixed-ssg-ssr-csr',
   'i18n',
-  'svg-components',
-  'worker-request-handler',
   'worker-fetch-export',
   'headless-worker',
   'worker-bindings-artifacts',
-  'same-renderer-federation',
 ]) {
   const capability = capabilities.find(row => row.id === id);
   for (const renderer of ['solid', 'octane']) {
     const worker = id.includes('worker');
-    const federation = id === 'same-renderer-federation';
-    const svg = id === 'svg-components';
     capability.renderers[renderer] = {
       status: 'explicitly-unsupported',
       expectedTest: {
@@ -973,23 +1012,42 @@ for (const id of [
         assertion: `Reject ${id} for ${renderer} before output writes or unsupported platform dispatch; React behavior remains required.`,
         owner: worker
           ? 'descriptor and worker capability guards'
-          : federation
-            ? 'descriptor and federation capability guards'
-            : svg
-              ? 'descriptor and native compiler SVG policy'
-              : 'renderer descriptor capability guard',
-        gate: worker
-          ? 'modernjs-dnpv3.20'
-          : federation
-            ? 'modernjs-dnpv3.21'
-            : svg
-              ? renderer === 'solid'
-                ? 'modernjs-dnpv3.15'
-                : 'modernjs-dnpv3.16'
-              : 'modernjs-dnpv3.2',
+          : 'renderer descriptor capability guard',
+        gate: worker ? 'modernjs-dnpv3.20' : 'modernjs-dnpv3.2',
       },
     };
   }
+}
+
+// same-renderer-federation only has a renderer-neutral `moduleFederation`
+// boolean in the candidate profile for octane (false); Solid's profile
+// declares 'client', a narrower CSR-only same-renderer component federation,
+// never application-SSR host/remote federation. Each renderer is handled on
+// its own below instead of through the uniform unsupported loop.
+{
+  const capability = capabilities.find(
+    row => row.id === 'same-renderer-federation',
+  );
+  capability.renderers.solid = {
+    status: 'preview-after-proof',
+    expectedTest: {
+      kind: 'positive-runtime',
+      assertion:
+        'Solid admits same-renderer federated components between a workspace host and remote under a single shared solid-js; this is CSR-only, never application SSR host/remote federation.',
+      owner: 'solid application adapter',
+      gate: 'modernjs-dnpv3.21',
+    },
+  };
+  capability.renderers.octane = {
+    status: 'explicitly-unsupported',
+    expectedTest: {
+      kind: 'rejection',
+      assertion:
+        'Reject same-renderer-federation for octane before output writes or unsupported platform dispatch; React behavior remains required.',
+      owner: 'descriptor and federation capability guards',
+      gate: 'modernjs-dnpv3.21',
+    },
+  };
 }
 
 capabilities.push({

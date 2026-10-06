@@ -415,20 +415,22 @@ test('public renderer package identities retain exact SemVer metadata and mapped
     /must match the release envelope/u,
   );
   const solid = envelope({ renderer: 'solid' });
-  solid.ui.rendererProfile.router.name =
-    '@bleedingdev/modern-js-renderer-solid';
-  const mappedProfile = structuredClone(solid.ui.rendererProfile);
+  // Profile identities use the canonical source specifier; the published
+  // package name is an install-transport fact and never a router identity.
+  solid.ui.rendererProfile.router.name = '@modern-js/renderer-solid';
+  const canonicalProfile = structuredClone(solid.ui.rendererProfile);
   assert.deepEqual(
     assertReleaseEnvelopeRendererBinding(solid, {
-      expectedRendererProfile: mappedProfile,
+      expectedRendererProfile: canonicalProfile,
     }).rendererProfile,
-    mappedProfile,
+    canonicalProfile,
   );
-  solid.ui.rendererProfile.router.name = '@modern-js/renderer-solid';
+  solid.ui.rendererProfile.router.name =
+    '@bleedingdev/modern-js-renderer-solid';
   assert.throws(
     () =>
       assertReleaseEnvelopeRendererBinding(solid, {
-        expectedRendererProfile: mappedProfile,
+        expectedRendererProfile: canonicalProfile,
       }),
     /must match the release envelope/u,
   );

@@ -2,7 +2,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import { auditInstalledConsumer, auditReleaseArtifacts } from './artifacts.mjs';
+import {
+  auditInstalledConsumer,
+  auditReleaseArtifacts,
+  testedProfileTuple,
+} from './artifacts.mjs';
 import {
   atomicJson,
   readEvidence,
@@ -36,11 +40,12 @@ const installed = auditInstalledConsumer({
   applicationRoot: input.role,
   renderer: 'react',
   exactPackages: input.exactPackages,
+  // Entry files are consumer-root relative; the app lives in its role dir.
   entryFiles: [
     'src/App.tsx',
     ...(input.role === 'remote' ? ['src/Proof.tsx'] : []),
-  ],
-  testedProfile: profile,
+  ].map(file => path.join(input.role, file)),
+  testedProfile: testedProfileTuple(profile, input.exactPackages),
   releaseArtifacts: artifacts,
 });
 atomicJson(process.argv[3], {

@@ -3,7 +3,12 @@ const MODERN_WORKER_MANIFEST = p_workerManifest;
 export const modernWorkerManifest = MODERN_WORKER_MANIFEST;
 const WORKER_MODULE_LOADERS = p_workerModuleLoaders;
 const workerModulePromises = new Map();
-const remoteJsonPromises = new Map();
+// workerd forbids awaiting I/O (a `fetch()` Promise) that was started by a
+// different request's execution context. This worker isolate outlives any
+// single request, so this map may only ever hold settled, plain JSON values
+// — never a live fetch Promise shared across requests. In-flight dedupe is
+// instead scoped per request; see `createRemoteJsonFetchScope`.
+const remoteJsonCache = new Map();
 const CORS_POLICY = MODERN_WORKER_MANIFEST.security?.cors || {};
 const ASSET_CORS_ENABLED = CORS_POLICY.assets !== false;
 const APP_CORS_ALLOWED_ORIGINS = (CORS_POLICY.allowedOrigins || []).map(

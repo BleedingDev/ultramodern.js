@@ -465,6 +465,7 @@ describe('cloudflare deploy preset', () => {
       'streams_enable_constructors',
       'nodejs_compat',
       'global_fetch_strictly_public',
+      'enable_request_signal',
     ]);
     expect(wranglerConfig.assets).toEqual({
       binding: 'ASSETS',

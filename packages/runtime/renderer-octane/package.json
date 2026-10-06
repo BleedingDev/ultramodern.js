@@ -55,6 +55,11 @@
         "require": "./dist/cjs/typecheck.js"
       }
     },
+    "./i18n": {
+      "modern:source": "./src/i18n/index.ts",
+      "import": { "types": "./dist/types/i18n/index.d.ts", "default": "./dist/esm/i18n/index.mjs" },
+      "require": { "types": "./dist/types/i18n/index.d.ts", "default": "./dist/cjs/i18n/index.js" }
+    },
     "./package.json": "./package.json"
   },
   "bin": { "octane-tsc": "./bin/octane-tsc.mjs" },
@@ -69,14 +74,19 @@
     "seroval-plugins": "1.6.8"
   },
   "peerDependencies": {
+    "@modern-js/i18n-runtime-extensions": "workspace:*",
     "@octanejs/tanstack-router": "0.1.60+ultramodern.6c31d4be4768",
-    "octane": "0.7.1+ultramodern.f75bf12ac8be"
+    "octane": "0.7.1+ultramodern.f75bf12ac8be",
+    "i18next": ">=25.7.4"
   },
   "peerDependenciesMeta": {
+    "@modern-js/i18n-runtime-extensions": { "optional": true },
     "@octanejs/tanstack-router": { "optional": true },
-    "octane": { "optional": true }
+    "octane": { "optional": true },
+    "i18next": { "optional": true }
   },
   "devDependencies": {
+    "@modern-js/i18n-runtime-extensions": "workspace:*",
     "@octanejs/rspack-plugin": "0.1.55",
     "@octanejs/tanstack-router": "https://github.com/bleedingdev/octane/releases/download/%40octanejs%2Ftanstack-router%400.1.60%2Bultramodern.6c31d4be4768/octanejs-tanstack-router-0.1.60%2Bultramodern.6c31d4be4768.tgz",
     "@modern-js/tsconfig": "workspace:*",

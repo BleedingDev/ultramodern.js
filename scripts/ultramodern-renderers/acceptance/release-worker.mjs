@@ -912,6 +912,7 @@ async function executeWorker(input) {
     try {
       workerLifecycle = await verifyWorkerLifecycle({
         miniflare,
+        miniflareClass: Miniflare,
         workerName: wrangler.name,
         token,
         candidateBinding: binding,

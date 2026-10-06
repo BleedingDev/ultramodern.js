@@ -19,6 +19,7 @@ import {
   auditInstalledConsumer,
   auditReleaseArtifacts,
   compilerActivationAstAuthority,
+  testedProfileTuple,
 } from './artifacts.mjs';
 import {
   compilerDispatcherCaller,
@@ -4926,4 +4927,19 @@ test('artifact audit certifies mapped tarballs and empty optional main, and reje
       diagnostic,
     );
   }
+});
+
+test('tested profile tuple projects the installed renderer profile onto the consumer tuple', () => {
+  const profile = {
+    renderer: 'react',
+    dependencies: { react: '19.3.0', 'react-dom': '19.3.0', jiti: '2.7.0' },
+  };
+  assert.deepEqual(
+    testedProfileTuple(profile, { react: '19.3.0', 'react-dom': '19.3.0' }),
+    { renderer: 'react', packages: { react: '19.3.0', 'react-dom': '19.3.0' } },
+  );
+  assert.throws(
+    () => testedProfileTuple(profile, { vue: '3.0.0' }),
+    /shares no exact package/u,
+  );
 });

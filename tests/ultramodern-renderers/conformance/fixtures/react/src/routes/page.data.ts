@@ -1,4 +1,4 @@
-import { holdProducer, responseHeaders } from '../server/conformance-controls';
+import { holdProducer, responseHeaders } from '../conformance-controls';
 
 interface RouteDataInput {
   request: Request;

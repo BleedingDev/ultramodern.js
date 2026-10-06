@@ -1,6 +1,8 @@
 import {
   identityCacheKey,
+  RENDERER_IDENTITY_HEADER,
   type RendererIdentity,
+  serializeRendererIdentityHeader,
 } from '@modern-js/renderer-core/identity';
 import type {
   Middleware,
@@ -18,7 +20,7 @@ import {
   resolveRendererRouterFrameworks,
 } from './renderer-profile';
 
-export const REACT_RENDERER_IDENTITY_HEADER = 'x-ultramodern-renderer-identity';
+export const REACT_RENDERER_IDENTITY_HEADER = RENDERER_IDENTITY_HEADER;
 
 export interface ReactBuildMetadataServerOptions {
   readonly entries?: Readonly<Record<string, RendererIdentity>>;
@@ -51,22 +53,7 @@ function serializeEntries(
           throw new Error(
             'React server entry identity conflicts with its build',
           );
-        return [
-          entryName,
-          JSON.stringify({
-            renderer: identity.renderer,
-            appId: identity.appId,
-            entryName,
-            protocolVersion: identity.protocolVersion,
-            buildId: identity.buildId,
-          }).replace(/[\u007f-\u{10ffff}]/gu, character =>
-            Array.from(
-              { length: character.length },
-              (_, index) =>
-                `\\u${character.charCodeAt(index).toString(16).padStart(4, '0')}`,
-            ).join(''),
-          ),
-        ];
+        return [entryName, serializeRendererIdentityHeader(identity)];
       }),
     ),
   );

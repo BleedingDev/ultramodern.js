@@ -527,9 +527,13 @@ export default async (context: { env: string; command: string }) => {
     const packageRoot = path.resolve(__dirname, '../..');
     // This copy stays below the actual cohort's installed dependencies. No
     // dependency links or source aliases are created for the isolated worker.
+    // It lives in the installed namespace, like a published owner: a copy in
+    // the package source tree would change the framework cohort bytes and
+    // config source snapshots that concurrently running test files observe.
     const owner = fs.mkdtempSync(
       path.join(
-        process.env.OWNED_CONFIG_EVALUATOR_PACKAGE_TEMP_ROOT ?? packageRoot,
+        process.env.OWNED_CONFIG_EVALUATOR_PACKAGE_TEMP_ROOT ??
+          path.join(packageRoot, 'node_modules'),
         '.config-evaluator-owner-',
       ),
     );

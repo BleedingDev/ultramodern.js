@@ -13,7 +13,7 @@ import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import {
   assertBinding,
@@ -213,8 +213,12 @@ function buildCohort({ version, pnpm, logs, owner }) {
   run(pnpm, ['ultramodern:build-bleedingdev-publish'], {
     log: path.join(logs, 'cohort-build.log'),
   });
-  fs.mkdirSync(path.dirname(out), { recursive: true });
-  registerArtifact(path.dirname(out), {
+  // Register the named `build` leaf itself, not its `renderer-release-<stamp>`
+  // container: disk-guardian only accepts known build/dependency subtree
+  // names (dist, build, node_modules, ...), and registering the container
+  // trips "only named build/dependency subtrees may be registered".
+  // registerArtifact creates `out` (and any missing parents) itself.
+  registerArtifact(out, {
     owner,
     ownerPid: process.pid,
     kind: 'build',
@@ -346,6 +350,40 @@ export function formatMatrix(results) {
     widths.map(width => '-'.repeat(width)).join('-|-'),
     ...rows.map(line),
   ].join('\n');
+}
+
+const nativeRendererProfileFiles = {
+  solid: 'solid/profile.ts',
+  octane: 'octane/profile.ts',
+};
+
+/**
+ * Which of the reject step's three selection-time probes a native renderer
+ * genuinely refuses. `worker` and `rsc` are read straight from the renderer's
+ * own candidate profile (the source of truth for what it can actually do) so
+ * this list stays correct as renderers gain capabilities. `module-federation`
+ * probes the React-style application-SSR federation flag
+ * (`server.ssr.moduleFederationAppSSR`); every native renderer refuses that
+ * flag in favor of `module-federation.config`-based federation regardless of
+ * its own `capabilities.moduleFederation` (see
+ * assertCapturedRenderer in native-composition/renderer-selection.ts), so it
+ * is always expected to reject here.
+ */
+async function unsupportedRejectCapabilities(renderer) {
+  const profileFile = nativeRendererProfileFiles[renderer];
+  if (!profileFile)
+    throw new Error(`No candidate profile known for renderer ${renderer}`);
+  const profilePath = path.join(
+    workspaceRoot,
+    'packages/solutions/ultramodern-app-tools/src/renderers',
+    profileFile,
+  );
+  const module = await import(pathToFileURL(profilePath).href);
+  const { capabilities } = module[`${renderer}CandidateProfile`];
+  const unsupported = new Set(['module-federation']);
+  if (!capabilities.worker) unsupported.add('worker');
+  if (!capabilities.rsc) unsupported.add('rsc');
+  return unsupported;
 }
 
 async function main(opts) {
@@ -634,7 +672,9 @@ async function main(opts) {
           fs.mkdirSync(directory, { recursive: true });
           const outcomes = [];
           for (const row of rowsFor(native))
-            for (const capability of ['worker', 'module-federation', 'rsc']) {
+            for (const capability of await unsupportedRejectCapabilities(
+              row.renderer,
+            )) {
               const stem = `${row.renderer}-${row.kind}-${capability}`;
               const input = path.join(directory, `${stem}-input.json`);
               const output = path.join(directory, `${stem}-proof.json`);
@@ -744,8 +784,9 @@ async function main(opts) {
           assert.equal(receipt.status, 'passed');
           assert.equal(receipt.rendererGuardProof?.status, 'passed');
           const lifecycleDir = path.join(workRoot, 'mf-lifecycle');
+          // The proof requires its receipt confined inside --work-dir.
           const lifecycleReceipt = path.join(
-            workRoot,
+            lifecycleDir,
             'mf-lifecycle-receipt.json',
           );
           await spawnProof(
@@ -806,7 +847,9 @@ async function main(opts) {
       await step(
         'rsc',
         async signal => {
-          const receiptPath = path.join(workRoot, 'rsc-receipt.json');
+          const rscDir = path.join(workRoot, 'rsc');
+          // The proof requires its receipt confined inside --work-dir.
+          const receiptPath = path.join(rscDir, 'rsc-receipt.json');
           await spawnProof(
             qualifiedNode,
             [
@@ -821,7 +864,7 @@ async function main(opts) {
               '--expected-version',
               state.binding.releaseVersion,
               '--work-dir',
-              path.join(workRoot, 'rsc'),
+              rscDir,
               '--receipt',
               receiptPath,
               '--store-dir',
@@ -863,7 +906,9 @@ async function main(opts) {
             fs.existsSync(path.join(source, 'package.json')),
             `No tractor demo at ${source}`,
           );
-          const clone = path.join(workRoot, 'tractor-workspace');
+          // disk-guardian only registers named build subtrees; `target-*` is
+          // its recognized build-leaf naming convention.
+          const clone = path.join(workRoot, 'target-tractor-workspace');
           if (process.platform === 'darwin')
             execFileSync('cp', ['-cR', source, clone]);
           else fs.cpSync(source, clone, { recursive: true });

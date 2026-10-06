@@ -110,11 +110,11 @@ const reactOnlyPluginAdvice: Partial<Record<ReactCliPluginName, string>> = {
   '@modern-js/plugin-tanstack':
     'remove tanstackRouterPlugin(); the {renderer} renderer routes src/routes through @modern-js/renderer-{renderer}/router',
   '@modern-js/plugin-i18n':
-    'remove i18nPlugin(); the {renderer} renderer has no i18n integration yet',
+    "replace it with i18nPlugin() from @modern-js/ultramodern-app-tools (same localeDetection/backend options); the {renderer} renderer's components use @modern-js/renderer-{renderer}/i18n",
   '@modern-js/i18n-integration':
-    'remove the i18n integration; the {renderer} renderer has no i18n integration yet',
+    'replace the React i18n integration with i18nPlugin() from @modern-js/ultramodern-app-tools',
   '@modern-js/ultramodern-i18n-integration':
-    'remove the i18n integration; the {renderer} renderer has no i18n integration yet',
+    'replace the React i18n integration with i18nPlugin() from @modern-js/ultramodern-app-tools',
   '@modern-js/plugin-module-federation':
     'remove moduleFederationPlugin(); the {renderer} renderer does not support Module Federation',
 };
@@ -213,6 +213,12 @@ export function assertCapturedRenderer(
   };
   if (!capabilities.i18n && (selected.runtime?.i18n || selected.i18n))
     reject('React i18n integration');
+  // `runtime.i18n` is React's runtime-plugin configuration; native renderers
+  // localize through i18nPlugin() instead of silently ignoring it.
+  if (registration.kind === 'native' && selected.runtime?.i18n)
+    throw new Error(
+      `unsupported-renderer-capability: renderer ${renderer} does not read React runtime i18n configuration; register i18nPlugin() from @modern-js/ultramodern-app-tools in plugins instead`,
+    );
   if (
     !capabilities.ssg &&
     (config.output?.ssg ||
@@ -231,8 +237,11 @@ export function assertCapturedRenderer(
     reject('CSS declaration generation beside authored source');
   if (!registration.supports.reactCompiler && config.source?.reactCompiler)
     reject('the React compiler');
+  // The React MF plugin's application SSR stays React's; native renderers
+  // federate through module-federation.config instead.
   if (
-    capabilities.moduleFederation !== true &&
+    (capabilities.moduleFederation !== true ||
+      registration.kind === 'native') &&
     (selected.moduleFederation ||
       (typeof config.server?.ssr === 'object' &&
         config.server.ssr.moduleFederationAppSSR) ||

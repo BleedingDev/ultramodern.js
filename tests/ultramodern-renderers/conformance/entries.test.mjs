@@ -67,6 +67,71 @@ test('entry authoring preserves config input once and emits actual distinct sour
   );
 });
 
+test('retained-source entry authoring adds entry copies beside the original source', async t => {
+  const { root } = await ownedAuthoringInput(t);
+  const entries = await authorEntryVariants(root, { retainSource: true });
+  assert.deepEqual(Object.keys(entries), ['ssr', 'csr']);
+  assert.deepEqual((await fs.readdir(path.join(root, 'src'))).sort(), [
+    'components',
+    'csr',
+    'routes',
+    'ssr',
+  ]);
+  for (const prefix of ['src', 'src/ssr', 'src/csr'])
+    assert.equal(
+      await fs.readFile(path.join(root, prefix, 'routes/page.tsx'), 'utf8'),
+      'export default function NativePage() {}',
+    );
+  assert.deepEqual((await fs.readdir(path.join(root, 'src/ssr'))).sort(), [
+    'components',
+    'routes',
+  ]);
+  assert.equal(
+    (await fs.readdir(root)).some(name =>
+      name.startsWith('.acceptance-entry-authoring-'),
+    ),
+    false,
+  );
+  await assert.rejects(
+    authorEntryVariants(root, { retainSource: true }),
+    /EEXIST/u,
+  );
+});
+
+test('entry copies re-anchor relative imports that leave the source tree', async t => {
+  for (const retainSource of [false, true]) {
+    const { root } = await ownedAuthoringInput(t);
+    const reexport =
+      "export { ultramodernBuildMarker } from '../shared/ultramodern-build';\n";
+    await fs.writeFile(path.join(root, 'src/ultramodern-build.ts'), reexport);
+    const page =
+      "import Counter from '../components/Counter';\nimport { ultramodernBuildMarker } from '../ultramodern-build';\nconst css = import('../../styles/app.css');\nexport default function NativePage() {}\n";
+    await fs.writeFile(path.join(root, 'src/routes/page.tsx'), page);
+    await authorEntryVariants(root, { retainSource });
+    for (const entry of ['ssr', 'csr']) {
+      assert.equal(
+        await fs.readFile(
+          path.join(root, `src/${entry}/ultramodern-build.ts`),
+          'utf8',
+        ),
+        "export { ultramodernBuildMarker } from '../../shared/ultramodern-build';\n",
+      );
+      assert.equal(
+        await fs.readFile(
+          path.join(root, `src/${entry}/routes/page.tsx`),
+          'utf8',
+        ),
+        page.replace("'../../styles/app.css'", "'../../../styles/app.css'"),
+      );
+    }
+    if (retainSource)
+      assert.equal(
+        await fs.readFile(path.join(root, 'src/ultramodern-build.ts'), 'utf8'),
+        reexport,
+      );
+  }
+});
+
 test('linked source and pre-existing entry input are rejected without modifying either owner', async t => {
   for (const mode of ['link', 'existing']) {
     const { root, config } = await ownedAuthoringInput(t);

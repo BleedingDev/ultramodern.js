@@ -134,6 +134,12 @@ async function authoredSpecifications(release, generated, profile) {
   const catalogs = workspace.toJS({ maxAliasCount: 0 });
   const dependencies = {};
   const devDependencies = {};
+  // Framework-generated runtime code (the native entries import
+  // @modern-js/renderer-core/data, @modern-js/renderer-<name>/router, ...)
+  // names canonical packages, which the generator declares as canonical
+  // runtime dependencies satisfied by `npm:` aliases of the cohort. The twin
+  // keeps its published-name declarations and adds the same aliases.
+  const canonicalAliases = {};
   const wanted = new Set([
     ...requiredFixtureDependencies(generated.renderer),
     ...Object.keys(profile.dependencies).map(name =>
@@ -162,6 +168,8 @@ async function authoredSpecifications(release, generated, profile) {
         generated.appRoot,
       );
       output[value.name] = value.spec;
+      if (role === 'dependencies' && value.name !== key)
+        canonicalAliases[key] = `npm:${value.name}@${value.spec}`;
     }
   }
   for (const [key, spec] of Object.entries(profile.dependencies)) {
@@ -201,7 +209,73 @@ async function authoredSpecifications(release, generated, profile) {
     );
     devDependencies[name] = unique[0];
   }
-  return { dependencies, devDependencies, allowBuilds: catalogs.allowBuilds };
+  return {
+    dependencies,
+    devDependencies,
+    canonicalAliases,
+    allowBuilds: catalogs.allowBuilds,
+  };
+}
+
+/**
+ * Public framework packages keep canonical `@modern-js/*` peer names. The
+ * generator satisfies them with `npm:` aliases of the public cohort packages;
+ * without them pnpm auto-installs the bare canonical name from the public
+ * registry, and selected optional peers stay unresolvable. Walk the packed
+ * closure of the declared framework packages and return the alias each
+ * canonical peer needs that no ancestor already provides (pnpm resolves a
+ * peer from its parents' dependencies).
+ */
+export function frameworkPeerAliases(release, declaredNames) {
+  const aliases = {};
+  const manifests = new Map();
+  const manifest = item => {
+    if (!manifests.has(item.targetName))
+      manifests.set(
+        item.targetName,
+        inspectNpmTarball(
+          readVerifiedPackageArtifactBytes(item, item.artifactPath),
+        ).packageJson,
+      );
+    return manifests.get(item.targetName);
+  };
+  const seen = new Set();
+  const queue = declaredNames
+    .map(name => frameworkItem(release, name))
+    .filter(Boolean)
+    .map(item => ({ item, provided: new Set(declaredNames) }));
+  while (queue.length) {
+    const { item, provided } = queue.shift();
+    const key = `${item.targetName}|${[...provided].sort().join(',')}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const json = manifest(item);
+    for (const name of Object.keys(json.peerDependencies ?? {})) {
+      if (provided.has(name) || Object.hasOwn(aliases, name)) continue;
+      const peer = frameworkItem(release, name);
+      if (!peer || peer.targetName === name) continue;
+      // An optional peer binds only when the consumer selects that package
+      // (ultramodern-app-tools resolves the selected renderer's modules
+      // through these canonical peers).
+      if (
+        json.peerDependenciesMeta?.[name]?.optional &&
+        !declaredNames.includes(peer.targetName)
+      )
+        continue;
+      aliases[name] = `npm:${peer.targetName}@${peer.version}`;
+      queue.push({ item: peer, provided: new Set(declaredNames) });
+    }
+    const children = new Set(provided);
+    for (const block of ['dependencies', 'optionalDependencies'])
+      for (const name of Object.keys(json[block] ?? {})) children.add(name);
+    for (const block of ['dependencies', 'optionalDependencies'])
+      for (const spec of Object.values(json[block] ?? {})) {
+        const target = /^npm:(@[^/]+\/[^@]+|[^@]+)@/u.exec(spec)?.[1];
+        const owned = target && frameworkItem(release, target);
+        if (owned) queue.push({ item: owned, provided: children });
+      }
+  }
+  return aliases;
 }
 
 /** Lists authored files (path + bytes) so a build cannot silently rewrite them. */
@@ -319,7 +393,8 @@ function strictInstallEnv(env, release) {
 /**
  * Installs the generator from an ephemeral registry seeded with the cohort,
  * generates/hand-authors consumers for each selected renderer, and installs
- * them with the strict release-age policy. The registry stops on return.
+ * them with the strict release-age policy. The registry stops on return; the
+ * returned env carries that same policy for every later consumer command.
  */
 export async function provisionConsumers({
   manifestPath,
@@ -450,7 +525,15 @@ export async function provisionConsumers({
             await fs.readFile(handPackageFile, 'utf8'),
           );
           handPackage.version = '0.1.0';
-          handPackage.dependencies = specs.dependencies;
+          handPackage.dependencies = {
+            ...specs.dependencies,
+            ...specs.canonicalAliases,
+            ...frameworkPeerAliases(context.release, [
+              ...Object.keys(specs.dependencies),
+              ...Object.keys(specs.devDependencies),
+              ...Object.keys(specs.canonicalAliases),
+            ]),
+          };
           handPackage.devDependencies = specs.devDependencies;
           handPackage.packageManager = `pnpm@${context.release.tools.pnpm}`;
           await fs.writeFile(
@@ -505,10 +588,16 @@ export async function provisionConsumers({
             );
           }
         }
+        // Later consumer commands include the frozen offline install. pnpm
+        // re-verifies a lockfile whose supply-chain policy differs from the
+        // one it was resolved under, so they keep the install policy. The
+        // generator's NODE_ENV=development stays behind: builds pick their
+        // own mode and hosts set theirs explicitly.
+        const { NODE_ENV: _generationMode, ...consumerEnv } = installEnv;
         return {
           bareReport: context.report,
           release: context.release,
-          env: context.env,
+          env: consumerEnv,
           bareRoot: context.bareRoot,
           generatorPackageRoot: context.installed.packageRoot,
           reportsRoot,

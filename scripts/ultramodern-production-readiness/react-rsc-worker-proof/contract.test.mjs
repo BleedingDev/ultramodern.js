@@ -912,6 +912,42 @@ test('consumer inputs resolve exact prepared sidecars and their dependencies fro
   assert.deepEqual(template, before);
 });
 
+test('sidecar aliases do not override another authenticated package exact pin', t => {
+  const { release, template } = releaseFixture(t, {
+    toolsDependencies: { jiti: 'npm:@bleedingdev/jiti@2.7.0' },
+    sidecars: [
+      { name: '@bleedingdev/jiti', version: '2.7.0' },
+      {
+        name: '@bleedingdev/mf-cli',
+        version: '2.9.1',
+        dependencies: { jiti: '2.4.2' },
+      },
+    ],
+  });
+  const workspace = parse(
+    releaseConsumerInputs(release, template).workspaceYaml,
+  );
+  assert.equal(workspace.overrides.jiti, undefined);
+  assert.equal(workspace.overrides['@bleedingdev/jiti'], '2.7.0');
+  const matching = releaseFixture(t, {
+    toolsDependencies: { jiti: 'npm:@bleedingdev/jiti@2.7.0' },
+    sidecars: [
+      { name: '@bleedingdev/jiti', version: '2.7.0' },
+      {
+        name: '@bleedingdev/mf-cli',
+        version: '2.9.1',
+        dependencies: { jiti: '2.7.0' },
+      },
+    ],
+  });
+  assert.equal(
+    parse(
+      releaseConsumerInputs(matching.release, matching.template).workspaceYaml,
+    ).overrides.jiti,
+    'npm:@bleedingdev/jiti@2.7.0',
+  );
+});
+
 test('sidecar alias transport rejects an authenticated dependency on a different sidecar version', t => {
   const { release, template } = releaseFixture(t, {
     toolsDependencies: {

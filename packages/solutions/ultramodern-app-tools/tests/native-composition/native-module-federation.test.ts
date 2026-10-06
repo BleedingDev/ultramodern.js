@@ -6,13 +6,17 @@ import { afterEach, describe, expect, it } from '@rstest/core';
 import { resolveRendererFederationCompatibility } from '../../src/native-composition/module-federation-renderer-plugin';
 import {
   createNativeClientFederationOptions,
+  createNativeServerFederationOptions,
   createNativeSharedConfig,
   findNativeFederationConfig,
   loadNativeFederationConfig,
+  NATIVE_FEDERATION_HYDRATION_MODULE,
+  nativeFederationRuntimePluginSource,
   nativeModuleFederationPlugin,
   readNativeFederationRemotes,
   resolveNativeSharedVersions,
   sharedPackageName,
+  withNativeServerContainer,
 } from '../../src/native-composition/native-module-federation';
 import { assertCapturedRenderer } from '../../src/native-composition/renderer-selection';
 
@@ -150,18 +154,125 @@ export default { name, remotes: { remote: '${manifestRemote}' } };`,
       experiments: { asyncStartup: false },
     });
   });
+
+  it('publishes a Node container whose shares wait for the host scope', () => {
+    const options = createNativeServerFederationOptions(
+      'solid',
+      {
+        name: 'remote',
+        exposes: { './Widget': './src/Widget.tsx' },
+        remotes: { other: manifestRemote },
+      },
+      versions(),
+      ['/node/runtimePlugin.js', '/generated/native-runtime.server.mjs'],
+    );
+    expect(options).toMatchObject({
+      name: 'remote',
+      filename: 'remoteEntry.js',
+      library: { type: 'commonjs-module', name: 'remote' },
+      remoteType: 'script',
+      shareStrategy: 'loaded-first',
+      manifest: true,
+      dts: false,
+      runtimePlugins: [
+        '/node/runtimePlugin.js',
+        '/generated/native-runtime.server.mjs',
+      ],
+      experiments: { asyncStartup: false, optimization: { target: 'node' } },
+    });
+    expect(options.remotes).toBeUndefined();
+    expect((options.shared as Record<string, any>)['solid-js']).toMatchObject({
+      singleton: true,
+      eager: false,
+    });
+  });
+
+  it('names the server container in the browser manifest', async () => {
+    const manifest = withNativeServerContainer(
+      {
+        additionalData: ({ stats }: { stats: any }) => ({
+          ...stats,
+          authored: true,
+        }),
+      },
+      'bundles',
+      'remoteEntry.js',
+    );
+    const stats = await (manifest.additionalData as any)({
+      stats: { metaData: { publicPath: 'https://remote.example/' } },
+    });
+    expect(stats).toEqual({
+      authored: true,
+      metaData: {
+        publicPath: 'https://remote.example/',
+        ssrPublicPath: 'https://remote.example/bundles/',
+        ssrRemoteEntry: {
+          name: 'remoteEntry.js',
+          path: '',
+          type: 'commonjs-module',
+        },
+      },
+    });
+    expect(() => withNativeServerContainer(false, 'bundles', 'r.js')).toThrow(
+      'native manifest publication',
+    );
+    const client = createNativeClientFederationOptions(
+      'solid',
+      { name: 'remote', exposes: { './Widget': './src/Widget.tsx' } },
+      versions(),
+      undefined,
+      'bundles',
+    );
+    expect(typeof (client.manifest as any).additionalData).toBe('function');
+  });
+
+  it('publishes the server federation state from the host instance only', async () => {
+    const root = app({});
+    const file = path.join(root, 'runtime.mjs');
+    fs.writeFileSync(
+      file,
+      nativeFederationRuntimePluginSource([], {
+        hydrationModule: NATIVE_FEDERATION_HYDRATION_MODULE,
+      }),
+    );
+    const { default: plugin } = await import(pathToFileURL(file).href);
+    const host = {};
+    const globals = globalThis as Record<symbol, any>;
+    try {
+      plugin().beforeInit({ origin: host, userOptions: {} });
+      plugin().beforeInit({ origin: {}, userOptions: {} });
+      expect(globals[Symbol.for('ultramodern.federation.host-instance')]).toBe(
+        host,
+      );
+      const state = globals[Symbol.for('ultramodern.federation.ssr')];
+      expect(state.hydrationModule).toMatch(
+        /^static\/js\/ultramodern-federation-hydration\.[0-9a-f]{8}\.js$/u,
+      );
+      expect(state.assets).toBeInstanceOf(Map);
+    } finally {
+      delete globals[Symbol.for('ultramodern.federation.host-instance')];
+      delete globals[Symbol.for('ultramodern.federation.ssr')];
+    }
+  });
 });
 
 describe('native Module Federation plugin', () => {
   type Hook = (...args: any[]) => any;
-  function setup(renderer: 'solid' | 'octane', appDirectory: string) {
+  function setup(
+    renderer: 'solid' | 'octane',
+    appDirectory: string,
+    config: Record<string, unknown> = {},
+  ) {
     const hooks: Record<string, Hook> = {};
     const internalDirectory = path.join(
       appDirectory,
       'node_modules/.modern-js',
     );
     const api = new Proxy(
-      { getAppContext: () => ({ appDirectory, internalDirectory }) },
+      {
+        getAppContext: () => ({ appDirectory, internalDirectory }),
+        getNormalizedConfig: () => config,
+      },
       {
         get: (target, key: string) =>
           key in target
@@ -192,17 +303,14 @@ describe('native Module Federation plugin', () => {
           use: (Plugin: unknown, args: unknown[]) =>
             uses.push([key, Plugin, args]),
         }),
+        target: (value: string) => uses.push(['target', value]),
         entryPoints: { entries: () => ({ ...entries }) },
         entry,
       },
     };
   }
 
-  it('installs the client container and starts entries through a bootstrap', async () => {
-    const root = app({
-      'package.json': '{}',
-      'module-federation.config.mjs': `export default { name: 'host', remotes: { remote: '${manifestRemote}' } };`,
-    });
+  function installPackages(root: string, node = false) {
     const enhanced = path.join(
       root,
       'node_modules/@module-federation/enhanced',
@@ -219,6 +327,18 @@ describe('native Module Federation plugin', () => {
       path.join(enhanced, 'rspack.cjs'),
       'exports.ModuleFederationPlugin = class ModuleFederationPlugin {};',
     );
+    if (node) {
+      const directory = path.join(root, 'node_modules/@module-federation/node');
+      fs.mkdirSync(directory, { recursive: true });
+      fs.writeFileSync(
+        path.join(directory, 'package.json'),
+        JSON.stringify({
+          name: '@module-federation/node',
+          exports: { './runtimePlugin': './runtimePlugin.js' },
+        }),
+      );
+      fs.writeFileSync(path.join(directory, 'runtimePlugin.js'), '');
+    }
     fs.mkdirSync(path.join(root, 'node_modules/@modern-js'), {
       recursive: true,
     });
@@ -226,6 +346,88 @@ describe('native Module Federation plugin', () => {
       path.resolve(__dirname, '../../../../runtime/renderer-solid'),
       path.join(root, 'node_modules/@modern-js/renderer-solid'),
     );
+  }
+
+  it('installs a Node container on the server compilation of an SSR host', async () => {
+    const root = app({
+      'package.json': '{}',
+      'module-federation.config.mjs': `export default { name: 'host', remotes: { remote: '${manifestRemote}' } };`,
+    });
+    installPackages(root, true);
+    const hooks = setup('solid', root, { server: { ssr: true } });
+    const server = chain();
+    await hooks.modifyBundlerChain(server.chain, {
+      environment: { name: 'server' },
+    });
+    const [target, [key, , [options]]] = server.uses as [
+      unknown,
+      [string, unknown, [any]],
+    ];
+    expect(target).toEqual(['target', 'async-node']);
+    expect(key).toBe('plugin-module-federation');
+    expect(options.library).toEqual({ type: 'commonjs-module', name: 'host' });
+    expect(options.runtimePlugins).toEqual([
+      fs.realpathSync(
+        path.join(
+          root,
+          'node_modules/@module-federation/node/runtimePlugin.js',
+        ),
+      ),
+      path.join(
+        root,
+        'node_modules/.modern-js/federation/native-runtime.server.mjs',
+      ),
+    ]);
+    // The client emits the hydration module the server document names.
+    const client = chain();
+    await hooks.modifyBundlerChain(client.chain, {
+      environment: { name: 'client' },
+    });
+    expect(client.uses.map(([name]) => name)).toEqual([
+      'plugin-module-federation',
+      'ultramodern-federation-hydration-module',
+    ]);
+    // Server assets keep the client public path; the container gets its own.
+    const config: any = { output: { publicPath: '/' } };
+    await hooks.modifyRspackConfig(config, { environment: { name: 'server' } });
+    expect(config.output.publicPath).toBe('/bundles/');
+    expect(config.module.generator['asset/resource'].publicPath).toBe('/');
+  });
+
+  it('keeps a client-only host off the server compilation', async () => {
+    const root = app({
+      'package.json': '{}',
+      'module-federation.config.mjs': `export default { name: 'host', remotes: { remote: '${manifestRemote}' } };`,
+    });
+    installPackages(root);
+    const hooks = setup('solid', root, { server: { ssr: false } });
+    const server = chain();
+    await hooks.modifyBundlerChain(server.chain, {
+      environment: { name: 'server' },
+    });
+    expect(server.uses).toEqual([]);
+  });
+
+  it('requires @module-federation/node for server containers', async () => {
+    const root = app({
+      'package.json': '{}',
+      'module-federation.config.mjs': `export default { name: 'remote', exposes: { './Widget': './Widget.tsx' } };`,
+    });
+    installPackages(root);
+    const hooks = setup('solid', root);
+    await expect(
+      hooks.modifyBundlerChain(chain().chain, {
+        environment: { name: 'server' },
+      }),
+    ).rejects.toThrow('install @module-federation/node');
+  });
+
+  it('installs the client container and starts entries through a bootstrap', async () => {
+    const root = app({
+      'package.json': '{}',
+      'module-federation.config.mjs': `export default { name: 'host', remotes: { remote: '${manifestRemote}' } };`,
+    });
+    installPackages(root);
     const generated = path.join(
       root,
       'node_modules/.modern-js/solid/index/index.ts',

@@ -5,14 +5,33 @@ import {
   resolveNativeEntryIdentity,
   writeNativeEntryModules,
 } from '../../native-composition/native-entry';
+import { findNativeFederationConfig } from '../../native-composition/native-federation-files';
 import type { NativeEntryGenerator } from '../../native-composition/native-infrastructure';
 import { emitSolidNativeRouteModule } from './routes';
+
+const i18nClientApplication = `import { ApplicationRouter } from "@modern-js/renderer-solid/router";
+import { I18nProvider } from "@modern-js/renderer-solid/i18n";
+import type { RendererIdentity } from '@modern-js/renderer-core/identity';
+import { createNativeRouter } from './routes.client';
+import { clientI18nHandoff, createI18n, i18nProviderInstance, i18nRouterRewrite, i18nRouting, syncI18nWithRouter } from './i18n';
+export async function loadApplication(identity: RendererIdentity, hydrating: boolean) {
+  // The server's language and bundles arrive in the document: no flash, no refetch.
+  const handoff = clientI18nHandoff();
+  const i18n = await createI18n(handoff.language, handoff.resources);
+  const router = createNativeRouter(identity, undefined, undefined, undefined, undefined, undefined, i18nRouterRewrite(() => i18n.language));
+  syncI18nWithRouter(router, i18n);
+  if (!hydrating) await router.load();
+  return { view: () => <I18nProvider instance={i18nProviderInstance(i18n)} languages={i18nRouting.languages} localisedUrls={i18nRouting.localisedUrls}><ApplicationRouter router={router} /></I18nProvider> };
+}
+`;
 
 function applicationSource({
   mode,
   routed,
   source,
+  i18n,
 }: NativeApplicationSourceOptions): string {
+  if (routed && i18n && mode === 'client') return i18nClientApplication;
   if (routed) {
     return mode === 'client'
       ? `import { ApplicationRouter } from "@modern-js/renderer-solid/router";
@@ -60,8 +79,25 @@ void start().catch(error => { if (!disposed) queueMicrotask(() => { throw error;
 `;
 }
 
-function serverSource(identity: RendererIdentity, routed: boolean): string {
-  const common = `import { renderDocumentApplication, renderCSRDocument, runApplicationRequest${routed ? ', respondApplicationResponse' : ''} } from '@modern-js/renderer-solid/server';
+function serverSource(
+  identity: RendererIdentity,
+  routed: boolean,
+  i18n: boolean,
+): string {
+  const csrDocument = i18n
+    ? `const requestLanguage = resolveRequestLanguage(request, i18nRouting);
+  if (requestLanguage.kind === 'redirect') return respondApplicationResponse(context.session, createRequestLanguageRedirect(requestLanguage.location));
+  if (!context.session.responsePolicy) context.session.resolveResponse({ kind: 'document', status: 200, headers: [['content-type', 'text/html; charset=utf-8']], cache: { mode: 'no-store' } });
+  return renderCSRDocument({ session: context.session, document: { ...document, renderId: document.documentId, lang: requestLanguage.language, inlineData: [createI18nSsrHandoffInlineData({ language: requestLanguage.language })] } });`
+    : `if (!context.session.responsePolicy) context.session.resolveResponse({ kind: 'document', status: 200, headers: [['content-type', 'text/html; charset=utf-8']], cache: { mode: 'no-store' } });
+  return renderCSRDocument({ session: context.session, document: { ...document, renderId: document.documentId } });`;
+  const common = `import { renderDocumentApplication, renderCSRDocument, runApplicationRequest${routed ? ', respondApplicationResponse' : ''} } from '@modern-js/renderer-solid/server';${
+    i18n
+      ? `
+import { createI18nSsrHandoffInlineData, createRequestLanguageRedirect, resolveRequestLanguage } from '@modern-js/renderer-solid/i18n';
+import { createI18n, i18nHandoff, i18nRouterRewrite, i18nRouting } from './i18n';`
+      : ''
+  }
 import { validateSolidModuleManifest } from '@modern-js/renderer-solid/manifest';
 import { assertRendererIdentity, type RendererIdentity } from '@modern-js/renderer-core/identity';
 import type { NativeRequestContext } from '@modern-js/renderer-core/server';
@@ -76,8 +112,7 @@ function prepare(request: Request, context: NativeRequestContext) {
 export function nativeCSRRequestHandler(request: Request, context: NativeRequestContext): Response | Promise<Response> {
   return runApplicationRequest(context.session, async () => {
   const document = prepare(request, context);
-  if (!context.session.responsePolicy) context.session.resolveResponse({ kind: 'document', status: 200, headers: [['content-type', 'text/html; charset=utf-8']], cache: { mode: 'no-store' } });
-  return renderCSRDocument({ session: context.session, document: { ...document, renderId: document.documentId } });
+  ${csrDocument}
   });
 }
 `;
@@ -105,7 +140,7 @@ export async function nativeMatchRouteIds(request: Request, context: NativeReque
   assertRendererIdentity(context.session.identity, rendererIdentity);
   if (request !== context.session.request) throw new Error('Native request/session ownership mismatch');
   const { createNativeRouter } = await import('./application.server');
-  const router = createNativeRouter(rendererIdentity, request, context.session.platform.bindings, undefined, context.session);
+  const router = createNativeRouter(rendererIdentity, request, context.session.platform.bindings, undefined, context.session${i18n ? ', undefined, i18nRouterRewrite(() => resolveRequestLanguage(request, i18nRouting).language)' : ''});
   return router.matchRoutes(router.latestLocation).map(match => {
     const data = router.routesById[match.routeId]?.options.staticData;
     return data && 'ultramodernRouteId' in data && typeof data.ultramodernRouteId === 'string' ? data.ultramodernRouteId : undefined;
@@ -116,7 +151,14 @@ export async function nativeRequestHandler(request: Request, context: NativeRequ
   return runApplicationRequest(context.session, async () => {
   const document = prepare(request, context);
   const nativeRequest = new Request(request, { signal: context.session.signal });
-  const { createNativeRouter, dataModules } = await import('./application.server');
+  const { createNativeRouter, dataModules } = await import('./application.server');${
+    i18n
+      ? `
+  // One isolated i18next instance per request; the URL decides its language.
+  const requestLanguage = resolveRequestLanguage(nativeRequest, i18nRouting);
+  const i18n = await createI18n(requestLanguage.language);`
+      : ''
+  }
   const outcomes: DataOutcome[] = [];
   const router = createNativeRouter(rendererIdentity, nativeRequest, context.session.platform.bindings, (_routeId: string, outcome: DataOutcome | DecodedDataOutcome) => {
     if ('response' in outcome) outcomes.push(outcome);
@@ -125,18 +167,52 @@ export async function nativeRequestHandler(request: Request, context: NativeRequ
       void completion.catch(error => context.session.fail(error));
       context.session.registerCleanup(() => completion);
     }
-  }, context.session, context.nonce);
+  }, context.session, context.nonce${i18n ? ', i18nRouterRewrite(() => i18n.language)' : ''});
   const dataResponse = await handleDataRequest({ request: nativeRequest, identity: rendererIdentity, context: context.session.platform.bindings, privateValues: [context, context.session, context.session.platform, context.session.platform.bindings], selectRoute: (request, routeId, operation) => selectApplicationDataRoute(router, request, routeId, operation, dataModules) });
-  if (dataResponse) return respondApplicationResponse(context.session, dataResponse);
+  if (dataResponse) return respondApplicationResponse(context.session, dataResponse);${
+    i18n
+      ? `
+  if (requestLanguage.kind === 'redirect') return respondApplicationResponse(context.session, createRequestLanguageRedirect(requestLanguage.location));`
+      : ''
+  }
   await router.load();
   prepareRouterMatchTransfer(router, context.session, [context, context.session, context.session.platform, context.session.platform.bindings, nativeRequest]);
   const metadata = mergeDataResponseMetadata(outcomes, { status: getApplicationStatus(router) });
   const redirect = resolveApplicationRedirect(router);
   if (redirect) return respondApplicationResponse(context.session, mergeDataResponseIntoResponse(redirect, metadata));
   context.session.resolveResponse(dataMetadataToDocumentPolicy(metadata));
-  return renderDocumentApplication({ session: context.session, view: () => routerView(router), document: { ...document, renderId: document.documentId } });
+  return renderDocumentApplication({ session: context.session, view: () => routerView(router${i18n ? ', i18n' : ''}), document: { ...document, renderId: document.documentId${i18n ? ', lang: i18n.language, inlineData: [i18nHandoff(i18n)]' : ''} } });
   });
 }
+export default nativeRequestHandler;
+`;
+}
+
+/**
+ * A federated server entry reaches the renderer through an import() boundary,
+ * like the federated client entry: the Module Federation share scope must
+ * initialize before the entry consumes the shared Solid singletons.
+ */
+function federatedServerSource(
+  identity: RendererIdentity,
+  routed: boolean,
+): string {
+  const handlers = [
+    'nativeCSRRequestHandler',
+    'nativeRequestHandler',
+    ...(routed ? ['nativeMatchRouteIds'] : []),
+  ];
+  return `import type { NativeRequestContext } from '@modern-js/renderer-core/server';
+export const rendererIdentity = Object.freeze(${JSON.stringify(identity)});
+const handlers = () => import('./handlers.server');
+${handlers
+  .map(
+    name =>
+      `export async function ${name}(request: Request, context: NativeRequestContext) {
+  return (await handlers()).${name}(request, context);
+}`,
+  )
+  .join('\n')}
 export default nativeRequestHandler;
 `;
 }
@@ -164,11 +240,21 @@ export function createSolidNativeEntryGenerator(): NativeEntryGenerator {
       );
       if (routed) {
         await writeNativeEntryModules(directory, {
-          'router-view.server.tsx':
-            "import { ApplicationRouter, type AnyRouter } from '@modern-js/renderer-solid/router';\nexport function routerView(router: AnyRouter) { return <ApplicationRouter router={router} />; }\n",
+          'router-view.server.tsx': context.i18n
+            ? `import { ApplicationRouter, type AnyRouter } from '@modern-js/renderer-solid/router';
+import { I18nProvider } from '@modern-js/renderer-solid/i18n';
+import { type I18nInstance, i18nProviderInstance, i18nRouting } from './i18n';
+export function routerView(router: AnyRouter, i18n: I18nInstance) { return <I18nProvider instance={i18nProviderInstance(i18n)} languages={i18nRouting.languages} localisedUrls={i18nRouting.localisedUrls}><ApplicationRouter router={router} /></I18nProvider>; }
+`
+            : "import { ApplicationRouter, type AnyRouter } from '@modern-js/renderer-solid/router';\nexport function routerView(router: AnyRouter) { return <ApplicationRouter router={router} />; }\n",
         });
       }
-      return serverSource(identity, routed);
+      const server = serverSource(identity, routed, Boolean(context.i18n));
+      if (!findNativeFederationConfig(context.appDirectory)) return server;
+      await writeNativeEntryModules(directory, {
+        'handlers.server.tsx': server,
+      });
+      return federatedServerSource(identity, routed);
     },
   };
 }

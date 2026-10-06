@@ -331,6 +331,8 @@ export function releaseConsumerInputs(release, template) {
       consumerManifests.push(item.packageJson);
     }
     const byName = new Map(sidecars.packages.map(item => [item.name, item]));
+    const sidecarAliases = new Map();
+    const exactDeclarations = [];
     for (const parent of consumerManifests) {
       for (const block of ['dependencies', 'optionalDependencies']) {
         for (const [name, specifier] of Object.entries(parent[block] ?? {})) {
@@ -338,6 +340,11 @@ export function releaseConsumerInputs(release, template) {
             typeof specifier === 'string'
               ? /^npm:(@[^/]+\/[^@]+|[^@]+)@.+$/u.exec(specifier)?.[1]
               : undefined;
+          if (
+            !target &&
+            /^\d+\.\d+\.\d+(?:-[\w.-]+)?(?:\+[\w.-]+)?$/u.test(specifier)
+          )
+            exactDeclarations.push({ owner: parent.name, name, specifier });
           const sidecar = byName.get(target);
           if (!sidecar) continue;
           assert.equal(
@@ -350,8 +357,17 @@ export function releaseConsumerInputs(release, template) {
             `Conflicting authenticated sidecar alias: ${name}`,
           );
           overrides[name] = specifier;
+          sidecarAliases.set(name, sidecar);
         }
       }
+    }
+    // A sidecar alias is the owning framework package's own dependency; it
+    // must not silently replace another authenticated package's exact pin
+    // (MF sidecars pin jiti 2.4.2 while the plugin aliases @bleedingdev/jiti).
+    // Generated workspaces carry no such override, so neither does the proof.
+    for (const { name, specifier } of exactDeclarations) {
+      const sidecar = sidecarAliases.get(name);
+      if (sidecar && sidecar.version !== specifier) delete overrides[name];
     }
   }
   const inspection = inspectNpmTarball(
@@ -366,6 +382,18 @@ export function releaseConsumerInputs(release, template) {
   const allowBuilds = parse(allowBlock).allowBuilds;
   assert(Object.values(allowBuilds).every(value => typeof value === 'boolean'));
   assert(/^strictDepBuilds:\s*true\s*$/mu.test(policy));
+  // Generated apps install with the generator's peer rules (React 19 for
+  // React 18-era peers such as react-helmet's react-side-effect). Keep the
+  // authenticated concrete rules; templated ones bind generator inputs.
+  const peerBlock = /^peerDependencyRules:\n(?:[ \t]+[^\n]*\n?)+/mu.exec(
+    policy,
+  )?.[0];
+  const allowedVersions = Object.fromEntries(
+    Object.entries(
+      (peerBlock && parse(peerBlock).peerDependencyRules?.allowedVersions) ??
+        {},
+    ).filter(([, range]) => typeof range === 'string' && !range.includes('{{')),
+  );
   return {
     manifest,
     exactPackages,
@@ -378,6 +406,9 @@ export function releaseConsumerInputs(release, template) {
       packageImportMethod: 'clone-or-copy',
       strictDepBuilds: true,
       allowBuilds,
+      ...(Object.keys(allowedVersions).length > 0
+        ? { peerDependencyRules: { allowedVersions } }
+        : {}),
     }),
   };
 }

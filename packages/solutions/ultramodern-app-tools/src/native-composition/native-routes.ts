@@ -134,6 +134,8 @@ export interface NativeRouteEmissionOptions {
   routes: readonly FileSystemRouteIR[];
   mode: 'client' | 'server';
   basePath: string;
+  /** Accept the i18n location rewrite that keeps matching on canonical paths. */
+  i18n?: boolean;
 }
 
 export interface NativeRouteEmission extends NativeRouteEmissionOptions {

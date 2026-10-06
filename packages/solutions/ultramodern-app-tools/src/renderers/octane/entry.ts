@@ -7,11 +7,35 @@ import {
 import type { NativeEntryGenerator } from '../../native-composition/native-infrastructure';
 import { emitOctaneNativeRouteModule } from './routes';
 
+const i18nClientApplication = `import { OctaneRouterRoot, prepareOctaneRouterHydration } from '@modern-js/renderer-octane/router-client';
+import { I18nProvider } from '@modern-js/renderer-octane/i18n';
+import type { AnyRouter } from '@modern-js/renderer-octane/router';
+import type { RendererIdentity } from '@modern-js/renderer-core/identity';
+import { createElement } from 'octane';
+import { createNativeRouter } from './routes.client';
+import { clientI18nHandoff, createI18n, type I18nInstance, i18nProviderInstance, i18nRouterRewrite, i18nRouting, syncI18nWithRouter } from './i18n';
+function I18nRouterRoot(props: { router: AnyRouter; i18n: I18nInstance }) {
+  return createElement(I18nProvider, { instance: i18nProviderInstance(props.i18n), languages: i18nRouting.languages, localisedUrls: i18nRouting.localisedUrls, children: createElement(OctaneRouterRoot, { router: props.router }) });
+}
+export async function loadApplication(identity: RendererIdentity, hydrating: boolean, signal?: AbortSignal) {
+  // The server's language and bundles arrive in the document: no flash, no refetch.
+  const handoff = clientI18nHandoff();
+  const i18n = await createI18n(handoff.language, handoff.resources);
+  const router = createNativeRouter(identity, undefined, undefined, undefined, undefined, i18nRouterRewrite(() => i18n.language));
+  syncI18nWithRouter(router, i18n);
+  if (hydrating) await prepareOctaneRouterHydration(router, signal ? { signal } : {});
+  else await router.load();
+  return { default: I18nRouterRoot, props: { router, i18n } };
+}
+`;
+
 function applicationSource({
   mode,
   routed,
   source,
+  i18n,
 }: NativeApplicationSourceOptions): string {
+  if (routed && i18n && mode === 'client') return i18nClientApplication;
   if (routed) {
     return mode === 'client'
       ? `import { OctaneRouterRoot, prepareOctaneRouterHydration } from '@modern-js/renderer-octane/router-client';
@@ -74,8 +98,27 @@ void start().catch(error => { if (!disposed) queueMicrotask(() => { throw error;
 `;
 }
 
-function serverSource(identity: RendererIdentity, routed: boolean): string {
-  const common = `import { renderOctaneApplication, renderOctaneCSRDocument } from '@modern-js/renderer-octane/server';
+function serverSource(
+  identity: RendererIdentity,
+  routed: boolean,
+  i18n: boolean,
+): string {
+  const csrDocument = i18n
+    ? `const requestLanguage = resolveRequestLanguage(request, i18nRouting);
+  if (requestLanguage.kind === 'redirect') return createRequestLanguageRedirect(requestLanguage.location);
+  if (!context.session.responsePolicy) context.session.resolveResponse({ kind: 'document', status: 200, headers: [['content-type', 'text/html; charset=utf-8']], cache: { mode: 'no-store' } });
+  return renderOctaneCSRDocument({ session: context.session, document: { ...document, lang: requestLanguage.language, inlineData: [createI18nSsrHandoffInlineData({ language: requestLanguage.language })] } });`
+    : `if (!context.session.responsePolicy) context.session.resolveResponse({ kind: 'document', status: 200, headers: [['content-type', 'text/html; charset=utf-8']], cache: { mode: 'no-store' } });
+  return renderOctaneCSRDocument({ session: context.session, document: document });`;
+  const common = `import { renderOctaneApplication, renderOctaneCSRDocument } from '@modern-js/renderer-octane/server';${
+    i18n
+      ? `
+import { createI18nSsrHandoffInlineData, createRequestLanguageRedirect, I18nProvider, resolveRequestLanguage } from '@modern-js/renderer-octane/i18n';
+import type { AnyRouter } from '@modern-js/renderer-octane/router';
+import { createElement } from 'octane';
+import { createI18n, i18nHandoff, type I18nInstance, i18nProviderInstance, i18nRouterRewrite, i18nRouting } from './i18n';`
+      : ''
+  }
 import { validateOctaneModuleManifest, type OctaneModuleManifest } from '@modern-js/renderer-octane/manifest';
 import { assertRendererIdentity, type RendererIdentity } from '@modern-js/renderer-core/identity';
 import type { NativeRequestContext } from '@modern-js/renderer-core/server';
@@ -99,8 +142,7 @@ function prepare(request: Request, context: NativeRequestContext) {
 }
 export function nativeCSRRequestHandler(request: Request, context: NativeRequestContext): Response | Promise<Response> {
   const document = prepare(request, context);
-  if (!context.session.responsePolicy) context.session.resolveResponse({ kind: 'document', status: 200, headers: [['content-type', 'text/html; charset=utf-8']], cache: { mode: 'no-store' } });
-  return renderOctaneCSRDocument({ session: context.session, document: document });
+  ${csrDocument}
 }
 `;
   if (!routed) {
@@ -122,16 +164,30 @@ import type { DataOutcome, DecodedDataOutcome } from '@modern-js/renderer-core/d
 
 export async function nativeMatchRouteIds(request: Request): Promise<readonly string[]> {
   const { createNativeRouter } = await import('./application.server');
-  const router = createNativeRouter(rendererIdentity, request);
+  const router = createNativeRouter(rendererIdentity, request${i18n ? ', undefined, undefined, undefined, i18nRouterRewrite(() => resolveRequestLanguage(request, i18nRouting).language)' : ''});
   return matchApplicationRoutes(router, new URL(request.url)).map(match => {
     const data = router.routesById[match.routeId]?.options.staticData;
     return data && 'ultramodernRouteId' in data && typeof data.ultramodernRouteId === 'string' ? data.ultramodernRouteId : undefined;
   }).filter((id): id is string => typeof id === 'string');
 }
-export async function nativeRequestHandler(request: Request, context: NativeRequestContext): Promise<Response> {
+${
+  i18n
+    ? `function I18nRouterServer(props: { router: AnyRouter; i18n: I18nInstance }) {
+  return createElement(I18nProvider, { instance: i18nProviderInstance(props.i18n), languages: i18nRouting.languages, localisedUrls: i18nRouting.localisedUrls, children: createElement(OctaneRouterServer, { router: props.router }) });
+}
+`
+    : ''
+}export async function nativeRequestHandler(request: Request, context: NativeRequestContext): Promise<Response> {
   const document = prepare(request, context);
   const nativeRequest = new Request(request, { signal: context.session.signal });
-  const { createNativeRouter, dataModules } = await import('./application.server');
+  const { createNativeRouter, dataModules } = await import('./application.server');${
+    i18n
+      ? `
+  // One isolated i18next instance per request; the URL decides its language.
+  const requestLanguage = resolveRequestLanguage(nativeRequest, i18nRouting);
+  const i18n = await createI18n(requestLanguage.language);`
+      : ''
+  }
   const outcomes: DataOutcome[] = [];
   const router = createNativeRouter(rendererIdentity, nativeRequest, context.session.platform.bindings, (_routeId: string, outcome: DataOutcome | DecodedDataOutcome) => {
     if ('response' in outcome) outcomes.push(outcome);
@@ -140,14 +196,19 @@ export async function nativeRequestHandler(request: Request, context: NativeRequ
       void completion.catch(error => context.session.fail(error));
       context.session.registerCleanup(() => completion);
     }
-  }, context.nonce);
+  }, context.nonce${i18n ? ', i18nRouterRewrite(() => i18n.language)' : ''});
   const dataResponse = await handleDataRequest({ request: nativeRequest, identity: rendererIdentity, context: context.session.platform.bindings, privateValues: [context, context.session, context.session.platform, context.session.platform.bindings], selectRoute: (request, routeId, operation) => selectApplicationDataRoute(router, request, routeId, operation, dataModules) });
-  if (dataResponse) return dataResponse;
+  if (dataResponse) return dataResponse;${
+    i18n
+      ? `
+  if (requestLanguage.kind === 'redirect') return createRequestLanguageRedirect(requestLanguage.location);`
+      : ''
+  }
   const response = await createOctaneRequestHandler({ request: nativeRequest, session: context.session, createRouter: () => router, serialization: { forbiddenValues: [context, context.session, context.session.platform, context.session.platform.bindings, nativeRequest] } })(async ({ router, responseHeaders }) => {
     const metadata = mergeDataResponseMetadata(outcomes, { status: router.state.statusCode ?? 200 });
     context.session.resolveResponse(dataMetadataToDocumentPolicy({ ...metadata, headers: [...collectDataHeaders(responseHeaders), ...metadata.headers] }));
     const injection = createOctaneRouterInjection(router, context.session);
-    const response = await renderOctaneApplication({ session: context.session, App: OctaneRouterServer, props: { router }, document, injection });
+    const response = await renderOctaneApplication({ session: context.session, ${i18n ? 'App: I18nRouterServer, props: { router, i18n }, document: { ...document, lang: i18n.language, inlineData: [i18nHandoff(i18n)] }' : 'App: OctaneRouterServer, props: { router }, document'}, injection });
     return createSsrStreamResponse(router, response);
   });
   return context.session.committedPolicy ? response : mergeDataResponseIntoResponse(response, mergeDataResponseMetadata(outcomes, { status: response.status }));
@@ -173,7 +234,7 @@ export function createOctaneNativeEntryGenerator(): NativeEntryGenerator {
         applicationSource,
         routeSource: emitOctaneNativeRouteModule,
       });
-      return serverSource(identity, routed);
+      return serverSource(identity, routed, Boolean(context.i18n));
     },
   };
 }

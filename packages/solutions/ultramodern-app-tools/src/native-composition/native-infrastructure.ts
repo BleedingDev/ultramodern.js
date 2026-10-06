@@ -45,6 +45,11 @@ import {
   nativeDevelopmentOutputDirectory,
 } from './native-development';
 import {
+  type NativeI18nConfig,
+  type NativeI18nEntry,
+  resolveNativeI18nEntry,
+} from './native-i18n';
+import {
   isNativeWorkerBuild,
   nativeWorkerEntrySource,
   nativeWorkerEnvironment,
@@ -67,6 +72,8 @@ export interface NativeEntryGeneration {
   rendererIdentity?: RendererIdentity;
   documentSSR: boolean;
   basePath: string;
+  /** Present when the application registered the native i18nPlugin(). */
+  i18n?: NativeI18nEntry;
   modifyRoutes(routes: FileSystemRouteIR[]): Promise<FileSystemRouteIR[]>;
 }
 
@@ -78,6 +85,8 @@ export interface NativeEntryGenerator {
 
 export interface NativeInfrastructureOptions {
   readonly infrastructurePluginName?: string;
+  /** Localized routing and translations from the native i18nPlugin(). */
+  readonly i18n?: NativeI18nConfig;
   readonly profile?: RendererBuildProfile;
   readonly compilerArtifacts?: NativeCompilerArtifacts;
   readonly assertSupportedSource?: (
@@ -407,6 +416,15 @@ export function nativeRendererInfrastructurePlugin(
             internalDirectory,
             profile,
             basePath: entryBasePaths.get(entrypoint.entryName)!,
+            ...(options.i18n
+              ? {
+                  i18n: resolveNativeI18nEntry(
+                    options.i18n,
+                    appDirectory,
+                    entryBasePaths.get(entrypoint.entryName)!,
+                  ),
+                }
+              : {}),
             rendererIdentity: buildIdentities?.identities[entrypoint.entryName],
             documentSSR: Boolean(
               api.getNormalizedConfig().server?.ssrByEntries?.[

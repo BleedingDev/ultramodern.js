@@ -145,6 +145,15 @@ test('two-entry overlay authoring occurs in the stage before native configuratio
       ),
       /observeResource\('counter'\)/u,
     );
+  // The generator's guarded starter source surface stays in place.
+  assert.equal(
+    await fs.readFile(path.join(appRoot, 'src/routes/page.tsx'), 'utf8'),
+    'export default function Page() {}',
+  );
+  assert.equal(
+    (await fs.readdir(path.join(appRoot, 'src/ssr'))).includes('ssr'),
+    false,
+  );
   const manifest = JSON.parse(
     await fs.readFile(path.join(appRoot, 'package.json'), 'utf8'),
   );

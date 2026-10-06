@@ -66,6 +66,7 @@ import {
   getRendererGenerationProfile,
   isApplicationRenderer,
   resolveAppGenerationProfile,
+  resolveWorkspaceRenderer,
 } from './renderer-profile';
 import type {
   ResolvedPackageSource,
@@ -73,6 +74,7 @@ import type {
   UltramodernWorkspaceOptions,
   WorkspaceApp,
 } from './types';
+import { isForeignRendererPackage } from './validation/renderer';
 import { validateWorkspace } from './validation/workspace';
 import {
   EFFECT_VERSION,
@@ -156,6 +158,9 @@ function renderCatalogPolicy(
   if (packageSource.strategy !== 'install') {
     return '';
   }
+  // The catalog is workspace policy: it must not offer packages that belong
+  // to another renderer than the one the workspace was generated for.
+  const renderer = resolveWorkspaceRenderer(primaryShell);
   const catalog = [
     ...new Set([
       ...ULTRAMODERN_WORKSPACE_MODERN_PACKAGES,
@@ -165,6 +170,7 @@ function renderCatalogPolicy(
         []),
     ]),
   ]
+    .filter(name => !isForeignRendererPackage(name, renderer))
     .map(
       name =>
         `    ${JSON.stringify(name)}: ${JSON.stringify(modernPackageSpecifier(name, packageSource))}`,

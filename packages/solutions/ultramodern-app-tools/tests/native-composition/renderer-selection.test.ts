@@ -639,7 +639,9 @@ describe('renderer guard in the owning plugin manager', () => {
     expect(message).toContain(
       `@modern-js/plugin-tanstack: remove tanstackRouterPlugin(); the ${renderer} renderer routes src/routes through @modern-js/renderer-${renderer}/router`,
     );
-    expect(message).toContain('@modern-js/plugin-i18n: remove i18nPlugin()');
+    expect(message).toContain(
+      '@modern-js/plugin-i18n: replace it with i18nPlugin() from @modern-js/ultramodern-app-tools',
+    );
     expect(message).toContain(
       '@modern-js/plugin-module-federation: remove moduleFederationPlugin()',
     );
@@ -747,7 +749,6 @@ describe('renderer guard in the owning plugin manager', () => {
           capability: 'runtime i18n',
           unsupported: { runtime: { i18n: { locale: 'en' } } },
         },
-        { capability: 'i18n', unsupported: { i18n: { locale: 'en' } } },
         {
           capability: 'an unadmitted deployment provider',
           unsupported: { deploy: { target: 'vercel' } },
