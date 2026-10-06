@@ -64,6 +64,19 @@ export function createOctaneCompilerPlugin(
         );
         api.modifyRspackConfig(config => {
           const environment = inferRspackEnvironment(config.target);
+          // Octane prepends '.tsrx' only when it is absent. Keep TypeScript
+          // modules first so an extensionless './link' cannot select a
+          // case-colliding Link.tsrx on case-insensitive file systems.
+          config.resolve ??= {};
+          const extensions = (config.resolve.extensions ?? []).filter(
+            extension => extension !== '.tsrx',
+          );
+          extensions.splice(
+            Math.max(extensions.indexOf('.ts'), extensions.indexOf('.tsx')) + 1,
+            0,
+            '.tsrx',
+          );
+          config.resolve.extensions = extensions;
           config.plugins ??= [];
           config.plugins.push(
             new OctaneRspackPlugin({
