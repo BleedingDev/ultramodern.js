@@ -321,6 +321,38 @@ test('parseArgs confines destructive preparation to its owned output tree', asyn
   );
 });
 
+test('rewritten manifests name their canonical source package', async () => {
+  const { rewritePackageJson } = await import(
+    '../lib/prepare-bleedingdev-packages/rewrite.mjs'
+  );
+  const options = {
+    scope: 'bleedingdev',
+    prefix: 'modern-js-',
+    version: '3.2.0-ultramodern.1',
+    dependencyVersion: '3.2.0-ultramodern.1',
+    homepage: 'https://example.test',
+    bugsUrl: 'https://example.test/issues',
+    repositoryUrl: 'https://example.test/repo.git',
+  };
+  const renderer = { name: '@modern-js/renderer-solid', version: '0.0.0' };
+  rewritePackageJson(
+    renderer,
+    renderer.name,
+    options,
+    new Set([renderer.name]),
+  );
+  assert.equal(renderer.name, '@bleedingdev/modern-js-renderer-solid');
+  assert.deepEqual(renderer.ultramodern, {
+    sourceName: '@modern-js/renderer-solid',
+  });
+  const create = { name: '@modern-js/ultramodern-create', version: '0.0.0' };
+  rewritePackageJson(create, create.name, options, new Set([create.name]));
+  assert.deepEqual(create.ultramodern, {
+    sourceName: '@modern-js/ultramodern-create',
+    frameworkVersion: '3.2.0-ultramodern.1',
+  });
+});
+
 test('orderPublishItems publishes hard dependencies before consumers', async () => {
   const { orderPublishItems } = await import(
     '../prepare-bleedingdev-packages.mjs'

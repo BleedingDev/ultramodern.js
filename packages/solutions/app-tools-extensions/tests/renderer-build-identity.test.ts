@@ -2679,6 +2679,34 @@ describe('renderer source and compiler build identity', () => {
     expect(result.identities.main.renderer).toBe('solid');
   });
 
+  test('walks the observed physical owner of a canonically named router provider', async () => {
+    const options = await observedFrameworkFixture('router');
+    const canonical = (version: string) => {
+      const profile = {
+        ...options.profile,
+        router: {
+          ...options.profile.router,
+          name: options.binding.specifier,
+          version,
+        },
+      };
+      return {
+        ...options,
+        profile,
+        routerBindings: ownedRouterBindings({ renderer: 'solid', profile }),
+      };
+    };
+    const result = await resolveRendererBuildIdentities(
+      canonical(options.binding.version),
+    );
+    expect(result.compilerDigest).toMatch(/^[a-f0-9]{64}$/);
+    await expect(
+      resolveRendererBuildIdentities(canonical('2.0.0-rc.9')),
+    ).rejects.toThrow(
+      `expected ${options.binding.name}@2.0.0-rc.9, found ${options.binding.name}@${options.binding.version}`,
+    );
+  });
+
   test('uses an app-level target before an ancestor canonical package', async () => {
     const options = await observedFrameworkFixture('adapter');
     await writeFixturePackage(

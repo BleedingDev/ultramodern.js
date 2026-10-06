@@ -398,21 +398,6 @@ async function compilerClosure(
 ): Promise<{ compilerDigest: string; frameworkCohortDigest: string }> {
   const lease = options.generatedOutputs;
   const fs = identityFileSystem(lease);
-  const routers = [
-    options.profile.router,
-    ...Object.values(options.routerBindings ?? {}).flatMap(
-      binding => binding.providers,
-    ),
-  ];
-  const tuple = [
-    options.profile.compiler,
-    options.profile.hydration,
-    ...routers.flatMap(router => [
-      router,
-      { name: router.coreName, version: router.coreVersion },
-    ]),
-  ];
-  const tupleNames = new Set(tuple.map(item => item.name));
   const observedFrameworks = new Map(
     (options.frameworkPackageBindings ?? []).map(binding => [
       binding.name,
@@ -425,11 +410,34 @@ async function compilerClosure(
       binding,
     ]),
   );
+  // Profile identities name canonical public specifiers; the closure walks
+  // the physical owner each specifier actually resolved to (npm aliases too).
+  const physicalName = (name: string) =>
+    frameworkSpecifiers.get(name)?.name ?? name;
+  const routers = [
+    options.profile.router,
+    ...Object.values(options.routerBindings ?? {}).flatMap(
+      binding => binding.providers,
+    ),
+  ].map(router => ({
+    ...router,
+    name: physicalName(router.name),
+    coreName: physicalName(router.coreName),
+  }));
+  const tuple = [
+    options.profile.compiler,
+    options.profile.hydration,
+    ...routers.flatMap(router => [
+      router,
+      { name: router.coreName, version: router.coreVersion },
+    ]),
+  ].map(item => ({ name: physicalName(item.name), version: item.version }));
+  const tupleNames = new Set(tuple.map(item => item.name));
   const pins: Record<string, string> = {};
   for (const [specifier, specification] of Object.entries(
     options.profile.dependencies ?? {},
   )) {
-    const name = frameworkSpecifiers.get(specifier)?.name ?? specifier;
+    const name = physicalName(specifier);
     if (semver.valid(specification)) {
       if (pins[name] !== undefined && pins[name] !== specification)
         throw new Error(
@@ -483,14 +491,11 @@ async function compilerClosure(
   >();
   const frameworkNames = [...new Set(options.frameworkPackages ?? [])].sort();
   const profileDependencyNames = new Set(
-    Object.keys(options.profile.dependencies ?? {}).map(
-      name => frameworkSpecifiers.get(name)?.name ?? name,
-    ),
+    Object.keys(options.profile.dependencies ?? {}).map(physicalName),
   );
   const nativeRootNames = new Set([
-    options.profile.compiler.name,
-    options.profile.hydration.name,
-    options.profile.router.name,
+    physicalName(options.profile.compiler.name),
+    physicalName(options.profile.hydration.name),
     ...routers.map(router => router.name),
     ...frameworkNames.filter(name => profileDependencyNames.has(name)),
   ]);

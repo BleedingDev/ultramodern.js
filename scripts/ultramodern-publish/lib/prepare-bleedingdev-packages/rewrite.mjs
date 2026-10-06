@@ -299,12 +299,16 @@ function rewritePackageJson(packageJson, sourceName, options, sourceNames) {
       packageJson.publishConfig.exports,
     );
   }
-  if (sourceName === ultramodernCreateSourceName) {
-    packageJson.ultramodern = {
-      ...(packageJson.ultramodern ?? {}),
-      frameworkVersion: options.dependencyVersion,
-    };
-  }
+  // The published manifest names the canonical package it was renamed from,
+  // so installed owners map back to canonical identities without parsing
+  // the transport name.
+  packageJson.ultramodern = {
+    ...(packageJson.ultramodern ?? {}),
+    sourceName,
+    ...(sourceName === ultramodernCreateSourceName
+      ? { frameworkVersion: options.dependencyVersion }
+      : {}),
+  };
 
   const ownerName = packageJson.name;
   rewriteDependencyBlock(packageJson.dependencies, options, sourceNames, {

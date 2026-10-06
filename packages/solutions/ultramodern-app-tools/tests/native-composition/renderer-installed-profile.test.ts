@@ -60,6 +60,17 @@ function installFramework(
     JSON.stringify({
       name: actualName,
       version: installedVersion,
+      // Stand-in for the publish step's canonical source stamp.
+      ...(actualName.startsWith('@bleedingdev/modern-js-')
+        ? {
+            ultramodern: {
+              sourceName: actualName.replace(
+                '@bleedingdev/modern-js-',
+                '@modern-js/',
+              ),
+            },
+          }
+        : {}),
       exports: {
         '.': './dist/entry.cjs',
         './server': './dist/entry.cjs',
@@ -213,7 +224,7 @@ describe('physical installed framework profile identities', () => {
       expect(Object.isFrozen(binding)).toBe(true);
     }));
 
-  it('projects actual owner identities while preserving canonical dependency keys and native pins', () =>
+  it('projects actual owner versions while preserving canonical identities and native pins', () =>
     withFixture(directory => {
       const owner = installFramework(
         directory,
@@ -248,7 +259,7 @@ describe('physical installed framework profile identities', () => {
         },
       ]);
       expect(metadata.profile.router).toEqual({
-        name: mappedSolidPackage,
+        name: solidPackage,
         version: installedVersion,
         coreName: '@tanstack/router-core',
         coreVersion: '1.171.32',
@@ -276,6 +287,89 @@ describe('physical installed framework profile identities', () => {
       expect(Object.isFrozen(metadata.profile.router)).toBe(true);
       expect(Object.isFrozen(metadata.frameworkPackages)).toBe(true);
       expect(metadata.frameworkPackages.every(Object.isFrozen)).toBe(true);
+    }));
+
+  // The generator authors the canonical router at the release version; the
+  // build must project the same tuple whichever way the owner is installed.
+  const capturedRouter = () => ({
+    ...solidCandidate().router,
+    version: installedVersion,
+  });
+
+  it.each([
+    { form: 'workspace-linked canonical', actualName: solidPackage },
+    { form: 'published npm alias', actualName: mappedSolidPackage },
+  ])('projects the generator router identity for a $form owner', ({
+    actualName,
+  }) =>
+    withFixture(directory => {
+      const owner = installFramework(directory, solidPackage, actualName);
+      const metadata = projectInstalledRendererProfile(solidCandidate(), [
+        {
+          specifier: solidPackage,
+          filename: requestFrom(directory).resolve(`${solidPackage}/manifest`),
+        },
+      ]);
+      expect(metadata.profile.router).toEqual(capturedRouter());
+      expect(metadata.profile.dependencies[solidPackage]).toBe(
+        installedVersion,
+      );
+      expect(metadata.frameworkPackages).toEqual([
+        {
+          specifier: solidPackage,
+          name: actualName,
+          version: installedVersion,
+          directory: owner,
+        },
+      ]);
+    }));
+
+  it.each([
+    {
+      form: 'a renamed owner without a publication source',
+      actualName: '@foreign/solid-router',
+      manifest: {},
+      error:
+        /@foreign\/solid-router@.* is not a publication of @modern-js\/renderer-solid/,
+    },
+    {
+      form: 'a published owner of a different canonical package',
+      actualName: mappedSolidPackage,
+      manifest: { ultramodern: { sourceName: '@modern-js/renderer-octane' } },
+      error: /is not a publication of @modern-js\/renderer-solid/,
+    },
+  ])('rejects $form behind the canonical specifier', ({
+    actualName,
+    manifest,
+    error,
+  }) =>
+    withFixture(directory => {
+      installFramework(directory, solidPackage, actualName, manifest);
+      expect(() =>
+        projectInstalledRendererProfile(solidCandidate(), [
+          {
+            specifier: solidPackage,
+            filename: requestFrom(directory).resolve(
+              `${solidPackage}/manifest`,
+            ),
+          },
+        ]),
+      ).toThrow(error);
+    }));
+
+  it('keeps a different installed provider version distinct from the captured router', () =>
+    withFixture(directory => {
+      installFramework(directory, solidPackage, mappedSolidPackage, {
+        version: '3.8.3-ultramodern.43',
+      });
+      const metadata = projectInstalledRendererProfile(solidCandidate(), [
+        {
+          specifier: solidPackage,
+          filename: requestFrom(directory).resolve(`${solidPackage}/manifest`),
+        },
+      ]);
+      expect(metadata.profile.router.name).toBe(solidPackage);
+      expect(metadata.profile.router).not.toEqual(capturedRouter());
     }));
 
   it.each([
@@ -412,7 +506,7 @@ describe('physical installed framework profile identities', () => {
       }
       expect(metadata.profile.renderer).toBe(renderer);
       if (renderer === 'solid') {
-        expect(metadata.profile.router.name).toBe(mappedSolidPackage);
+        expect(metadata.profile.router.name).toBe(solidPackage);
         expect(metadata.profile.router.version).toBe(installedVersion);
       }
     }));
