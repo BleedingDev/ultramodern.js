@@ -124,7 +124,7 @@ export default function Layout() {
 
 const hostLoader = `import type { LoaderFunctionArgs } from '@modern-js/runtime/router';
 
-export default function loader({ request }: LoaderFunctionArgs) {
+export function loader({ request }: LoaderFunctionArgs) {
   const url = new URL(request.url);
   return {
     token: url.searchParams.get('token') ?? 'browser',
