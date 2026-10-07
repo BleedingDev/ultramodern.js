@@ -84,6 +84,10 @@ const nativeConsumer = compileFunction(
     'fixtureRoot',
     'generatorTestTempParent',
     'upstreamDependencies',
+    'upstreamOverrides',
+    'packedOverrides',
+    'guardian',
+    'execFileSync',
   ],
 );
 
@@ -217,6 +221,60 @@ test('explicit native consumer tempDir overrides retain their contract with inva
       assertConsumerScratch(root, inside, { tempDir: inside });
     });
     assert.deepEqual(fs.readdirSync(inside), []);
+  }));
+
+test('consumer manifests preserve audited upstream compilers and select the supported fork compiler', () =>
+  ownedDirectory(root => {
+    const manifestFile = path.join(root, 'packed.json');
+    fs.writeFileSync(manifestFile, '{}');
+    const previous = process.env.MODERN_TEST_PACKAGE_MANIFEST;
+    process.env.MODERN_TEST_PACKAGE_MANIFEST = manifestFile;
+    const stopped = new Error('Stop before installing packages');
+    const emitted = {};
+    try {
+      for (const target of ['upstream', 'fork']) {
+        const createConsumer = nativeConsumer(
+          assert,
+          fs,
+          path,
+          process,
+          fileURLToPath(new URL('../../', import.meta.url)),
+          fileURLToPath(
+            new URL(
+              '../../tests/integration/native-compatibility/fixture',
+              import.meta.url,
+            ),
+          ),
+          generatorTestTempParent,
+          () => ({ '@modern-js/app-tools': '3.8.2' }),
+          () => ({}),
+          () => ({ '@modern-js/app-tools': 'file:app-tools.tgz' }),
+          () => {},
+          (command, args, { cwd }) => {
+            assert.equal(command, 'pnpm');
+            assert.deepEqual(args, ['install', '--no-frozen-lockfile']);
+            emitted[target] = JSON.parse(
+              fs.readFileSync(path.join(cwd, 'package.json'), 'utf8'),
+            ).devDependencies;
+            throw stopped;
+          },
+        );
+        assert.throws(
+          () => createConsumer(target, { tempDir: root }),
+          error => error === stopped,
+        );
+      }
+      assert.deepEqual(emitted.upstream, {
+        typescript: '5.9.3',
+        '@typescript/native-preview': '7.0.0-dev.20260707.2',
+      });
+      assert.deepEqual(emitted.fork, { typescript: '7.0.2' });
+      assert.deepEqual(fs.readdirSync(root), ['packed.json']);
+    } finally {
+      if (previous === undefined)
+        delete process.env.MODERN_TEST_PACKAGE_MANIFEST;
+      else process.env.MODERN_TEST_PACKAGE_MANIFEST = previous;
+    }
   }));
 const nativeGuardian = compileFunction(
   `${consumerSource.slice(
