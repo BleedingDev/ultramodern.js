@@ -19,7 +19,6 @@ import { ultramodernModuleFederationRecoveryPlugin } from './module-federation-r
 import { createReactModuleFederationRendererIntegration } from './module-federation-renderer-plugin';
 import { nativeEntryCommandPlugin } from './native-entry-command';
 import { reactRendererBuildMetadataPlugin } from './react-build-metadata';
-import { createReactReceiverOutputIntegration } from './react-mf-dts-outputs';
 import { createReactRscWorkerIntegrationPlugin } from './react-rsc-worker-integration';
 import { ultramodernReleaseEnvelopePlugin } from './release-envelope-plugin';
 import { createRendererBuildOutputResolver } from './renderer-build-output';
@@ -89,7 +88,6 @@ export const composeReactRenderer = (
   } = {},
 ): CliPlugin<AppTools> => {
   const policy = options.policy ?? {};
-  const receiverOutputs = createReactReceiverOutputIntegration();
   const federationRenderer = createReactModuleFederationRendererIntegration();
   const selected = [
     nativeEntryCommandPlugin(),
@@ -108,10 +106,8 @@ export const composeReactRenderer = (
     }) as CliPlugin<AppTools>,
     rendererTypeCheckerPlugin('react'),
     runtimePlugin(),
-    receiverOutputs.plugin,
     reactRendererBuildMetadataPlugin({
       resolveBuildIdentities: createRendererBuildIdentityResolver('react'),
-      generatedOutputs: receiverOutputs.controller,
       onBuildIdentities: federationRenderer.controller.onBuildIdentities,
     }),
     ultramodernI18nIntegrationPlugin(),

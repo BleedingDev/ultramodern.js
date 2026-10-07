@@ -170,8 +170,7 @@
         }
       },
       "types": "./dist/types/native-composition/react-build-metadata-server.d.ts"
-    },
-    "./react-mf-dts-implementation": "./dist/cjs/native-composition/react-mf-dts-implementation.cjs"
+    }
   },
   "scripts": {
     "prepublishOnly": "only-allow-pnpm",
@@ -199,7 +198,6 @@
     "@modern-js/server-runtime-extensions": "workspace:*",
     "@modern-js/types": "workspace:*",
     "@modern-js/utils": "workspace:*",
-    "@module-federation/dts-plugin": "2.9.2",
     "@rsbuild/core": "2.2.11"
   },
   "devDependencies": {

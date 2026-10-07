@@ -5,7 +5,6 @@ import { resolveTopologyDeliveryUnit } from '@modern-js/app-tools-extensions/clo
 import { resolveRendererBuildIdentities } from '@modern-js/app-tools-extensions/renderer-build-identity';
 import type { Renderer } from '@modern-js/renderer-core';
 import type { NativeInfrastructureOptions } from './native-infrastructure';
-import { reactObservedInputFiles } from './react-authored-inputs';
 import { readRendererFrameworkPackage } from './renderer-installed-profile';
 import {
   resolveRendererProfileMetadata,
@@ -17,30 +16,43 @@ import {
 } from './renderer-registration';
 import { resolveEntrypointRouterBindings } from './renderer-router-resolution';
 
+type BuildContext = Parameters<
+  NonNullable<NativeInfrastructureOptions['resolveBuildIdentities']>
+>[0];
+
+/** Actual configuration reads whose original capture proves a regular file. */
+function observedConfigInputFiles(context: BuildContext): readonly string[] {
+  const capturedFiles = new Set(
+    context.configurationSourceSnapshot?.states
+      .filter(state => state.kind === 'file')
+      .flatMap(state => [state.path, state.resolvedPath ?? state.path]),
+  );
+  return [
+    ...new Set(
+      [
+        ...(context.consumedSourceInputs?.observations ?? []),
+        ...(context.consumedSourceInputs?.packageMetadata ?? []),
+      ]
+        .flatMap(input => [input.path, input.canonicalPath])
+        .filter(filename => capturedFiles.has(filename)),
+    ),
+  ];
+}
+
 /** Bind selected renderer metadata to the actual app and framework inputs. */
 export function createRendererBuildIdentityResolver(
   renderer: Renderer,
 ): NonNullable<NativeInfrastructureOptions['resolveBuildIdentities']> {
   return async context => {
-    const generatedOutputs = context.generatedOutputs;
-    const assertEpochCurrent = () => {
-      if (context.generatedOutputs !== generatedOutputs)
-        throw new Error('Renderer generated-output input view changed');
-      generatedOutputs?.assertEpochCurrent();
-    };
-    await generatedOutputs?.assertCurrent();
-    assertEpochCurrent();
     const registrar = path.dirname(fileURLToPath(import.meta.url));
     const metadata = resolveRendererProfileMetadata(renderer);
     const frameworkPackages = [...metadata.frameworkPackages];
-    assertEpochCurrent();
     const routerBindings = await resolveEntrypointRouterBindings(
       renderer,
       context.entrypoints,
       context.pluginNames ?? [],
       metadata,
     );
-    assertEpochCurrent();
     const registration: RendererRegistration =
       resolveRendererRegistration(renderer);
     const buildFrameworkModules = registration.resolveBuildFrameworkModules?.({
@@ -51,36 +63,30 @@ export function createRendererBuildIdentityResolver(
     frameworkPackages.push(
       ...(buildFrameworkModules ?? []).map(readRendererFrameworkPackage),
     );
-    assertEpochCurrent();
     const delivery = await resolveTopologyDeliveryUnit(context.appDirectory);
-    assertEpochCurrent();
     if (delivery && !delivery.surfaces.ui)
       throw new Error(
         'A renderer UI build requires the authoritative UI delivery surface app identity',
       );
-    assertEpochCurrent();
     const manifest = JSON.parse(
       await fs.readFile(
         path.join(context.appDirectory, 'package.json'),
         'utf8',
       ),
     );
-    assertEpochCurrent();
     const { source, output, server, html, bff, deploy, experiments } =
       context.config;
     const router =
       'router' in context.config ? context.config.router : undefined;
-    assertEpochCurrent();
     const inputFiles = [
       ...new Set([
-        ...reactObservedInputFiles(context),
+        ...observedConfigInputFiles(context),
         ...(context.inputFiles ?? []).filter(
           filename => !filename.split(path.sep).includes('node_modules'),
         ),
       ]),
     ];
     const identities = await resolveRendererBuildIdentities({
-      generatedOutputs,
       inputFiles,
       projectRoot: context.appDirectory,
       renderer,
@@ -120,9 +126,6 @@ export function createRendererBuildIdentityResolver(
       frameworkPackages: frameworkPackages.map(owner => owner.name),
       frameworkPackageBindings: frameworkPackages,
     });
-    assertEpochCurrent();
-    await generatedOutputs?.assertCurrent();
-    assertEpochCurrent();
     return identities;
   };
 }

@@ -3319,9 +3319,6 @@ importers:
       '@modern-js/utils':
         specifier: workspace:*
         version: link:../../toolkit/utils
-      '@module-federation/dts-plugin':
-        specifier: 2.9.2
-        version: 2.9.2(patch_hash=f93107fb896839b94ca31491774b920c82a3cc31dda8fd9e53d06b47ad72cba0)(bufferutil@4.1.0)(typescript@7.0.2)(utf-8-validate@5.0.10)
       '@rsbuild/core':
         specifier: 2.2.11
         version: 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)

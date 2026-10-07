@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import os from 'node:os';
@@ -28,7 +27,6 @@ import {
 } from '@rsbuild/core';
 import { afterEach, describe, expect, it, rstest } from '@rstest/core';
 import { tanstackRouterPlugin } from '../../../../runtime/plugin-tanstack/src/cli';
-import { writeTanstackRouterTypesForEntries } from '../../../../runtime/plugin-tanstack/src/cli/artifacts';
 import { withEntryMetadataRead } from '../../src/native-composition/config-read-context';
 import {
   RENDERER_BUILD_MANIFEST_FILE,
@@ -41,7 +39,6 @@ import {
 } from '../../src/native-composition/react-build-metadata';
 import reactBuildMetadataServerPlugin, {
   REACT_RENDERER_IDENTITY_HEADER,
-  type ReactBuildMetadataServerOptions,
 } from '../../src/native-composition/react-build-metadata-server';
 import { composeReactRenderer } from '../../src/native-composition/react-composition';
 import {
@@ -125,25 +122,19 @@ function buildIdentities(
 async function initializeMetadata(
   root: string,
   options: ReactBuildMetadataOptions,
-  cssDeclarations = false,
-  producerPlugins: CliPlugin<AppTools>[] = [],
   command: 'build' | 'dev' = 'build',
 ) {
   const manager = createPluginManager<CLIPluginAPI<AppTools>>();
   manager.addPlugins([
     appTools({ rendererExtensions: false, serverExtensions: false }),
     reactRendererBuildMetadataPlugin(options) as unknown as CliPlugin<AppTools>,
-    ...producerPlugins,
   ]);
   const plugins = manager.getPlugins();
   const config = {
     renderer: 'react',
     source: { entriesDir: './src', mainEntryName: 'ssr' },
     server: { ssr: true, ssrByEntries: { ssr: true, csr: false } },
-    output: {
-      cleanDistPath: false,
-      ...(cssDeclarations ? { enableCssModuleTSDeclaration: true } : {}),
-    },
+    output: { cleanDistPath: false },
   };
   const context = await createContext<AppTools>({
     appContext: initAppContext({
@@ -194,11 +185,6 @@ async function compileMetadata(
   api: Awaited<ReturnType<typeof initializeMetadata>>['api'],
   options: {
     entryNames?: string[];
-    typedCss?: boolean;
-    beforeFinalize?: (
-      stats: Rspack.Stats | Rspack.MultiStats,
-      pass: number,
-    ) => void;
     rsbuildConfig?: NonNullable<
       Parameters<typeof createRsbuild>[0]
     >['rsbuildConfig'];
@@ -209,9 +195,6 @@ async function compileMetadata(
     ...api.getNormalizedConfig(),
     builderPlugins: [],
   } as AppNormalizedConfig);
-  const require = createRequire(
-    path.resolve(__dirname, '../../../../cli/builder/package.json'),
-  );
   const htmlPaths: Record<string, string> = {};
   let compiler: Rspack.Compiler | Rspack.MultiCompiler | undefined;
   const rsbuild = await createRsbuild({
@@ -219,23 +202,11 @@ async function compileMetadata(
     rsbuildConfig: {
       mode: 'production',
       plugins: [
-        ...(options.typedCss
-          ? [
-              require('@rsbuild/plugin-typed-css-modules').pluginTypedCSSModules(),
-            ]
-          : []),
         {
           name: 'test-native-metadata-completion',
           setup(rsbuildApi) {
             rsbuildApi.onAfterCreateCompiler(({ compiler: created }) => {
               compiler = created;
-              if (options.beforeFinalize) {
-                let pass = 0;
-                created.hooks.done.tap(
-                  { name: 'test-completed-evidence', stage: -100 },
-                  stats => options.beforeFinalize?.(stats, ++pass),
-                );
-              }
             });
             rsbuildApi.modifyHTMLTags((tags, { environment }) => {
               if (environment.name === 'client')
@@ -347,6 +318,38 @@ const invalidHtmlOutputs: {
   },
 ];
 
+function environmentConfigHook(plugin: RsbuildPlugin, action: 'dev' | 'build') {
+  type Handler = (
+    config: { tools: { htmlPlugin?: unknown } },
+    context: { name: string },
+  ) => unknown;
+  let handler: Handler | undefined;
+  const noop = () => {};
+  plugin.setup({
+    context: { action },
+    modifyEnvironmentConfig(options: { handler: Handler }) {
+      handler = options.handler;
+    },
+    modifyBundlerChain: noop,
+    modifyRspackConfig: noop,
+    modifyHTMLTags: noop,
+  } as never);
+  return handler;
+}
+
+async function metadataBuilderPlugin(
+  api: Awaited<ReturnType<typeof initializeMetadata>>['api'],
+) {
+  const { builderPlugins } = await api.getHooks().modifyResolvedConfig.call({
+    ...api.getNormalizedConfig(),
+    builderPlugins: [],
+  } as AppNormalizedConfig);
+  return builderPlugins!.find(
+    candidate =>
+      (candidate as RsbuildPlugin).name === 'ultramodern:react:build-metadata',
+  ) as RsbuildPlugin;
+}
+
 describe('React metadata in the existing CLI build hooks', () => {
   it('keeps the full native React, TanStack, BFF and federation plugin graph acyclic', () => {
     const applicationRequire = createRequire(
@@ -380,7 +383,6 @@ describe('React metadata in the existing CLI build hooks', () => {
         '@modern-js/plugin-analyze',
         '@modern-js/plugin-module-federation-config',
         '@modern-js/renderer-react-build-metadata',
-        '@modern-js/ultramodern-react-mf-receiver-outputs',
       ]),
     );
     expect(
@@ -391,92 +393,21 @@ describe('React metadata in the existing CLI build hooks', () => {
     ).toBeLessThan(names.indexOf('@modern-js/plugin-bff'));
   });
 
-  it.each([
-    false,
-    true,
-  ])('captures exact native router producer bytes before receiver preparation; later edit=%s', async edit => {
-    const root = createFixture();
-    const generatedDirName = 'custom-native-router';
-    const router = path.join(
-      root,
-      'src',
-      generatedDirName,
-      'ssr',
-      'router.gen.ts',
-    );
-    fs.mkdirSync(path.dirname(router), { recursive: true });
-    fs.writeFileSync(router, '// previous native generation\n');
-    let produced: string | undefined;
-    const resolveBuildIdentities = rstest.fn<
-      ReactBuildMetadataOptions['resolveBuildIdentities']
-    >(async () => {
-      expect(fs.readFileSync(router, 'utf8')).toBe(produced);
-      return buildIdentities();
-    });
-    const { api } = await initializeMetadata(
-      root,
-      { resolveBuildIdentities },
-      false,
-      [
-        {
-          name: '@modern-js/plugin-tanstack',
-          setup(producerApi) {
-            producerApi.generateEntryCode(async () => {
-              await writeTanstackRouterTypesForEntries({
-                appContext: producerApi.getAppContext(),
-                generatedDirName,
-                routesByEntry: { ssr: [], csr: [] },
-              });
-              produced = fs.readFileSync(router, 'utf8');
-            });
-          },
-        },
-      ],
-    );
-    await analyzeFinalEntries(api, authoredEntries(root));
-    expect(produced).not.toBe('// previous native generation\n');
-    if (edit) {
-      await expect(
-        compileMetadata(api, {
-          beforeFinalize() {
-            fs.writeFileSync(router, '// unacknowledged generated-file edit\n');
-          },
-        }),
-      ).rejects.toThrow('authored inputs changed');
-      expect(resolveBuildIdentities).not.toHaveBeenCalled();
-    } else {
-      await compileMetadata(api);
-      expect(resolveBuildIdentities).toHaveBeenCalledTimes(3);
-      expect(fs.readFileSync(router, 'utf8')).toBe(produced);
-    }
-  });
-
-  it('publishes one canonical final manifest and document identity after actual typed CSS generation', async () => {
+  it('resolves identities once from the analyzed entries and publishes them to HTML, bundles, manifest, BFF and server', async () => {
     const root = createFixture();
     fs.writeFileSync(
-      path.join(root, 'src', 'style.module.css'),
-      '.final { color: red; }\n',
+      path.join(root, 'src', 'ssr.js'),
+      'globalThis.marker = ULTRAMODERN_BUILD_MARKER;\nglobalThis.revision = ULTRAMODERN_SOURCE_REVISION;\n',
     );
-    for (const entryName of ['ssr', 'csr'])
-      fs.writeFileSync(
-        path.join(root, 'src', `${entryName}.js`),
-        "import styles from './style.module.css'; globalThis.selected = styles.final;\n",
-      );
     const resolveBuildIdentities = rstest.fn<
       ReactBuildMetadataOptions['resolveBuildIdentities']
-    >(async () => {
-      const declaration = fs.readFileSync(
-        path.join(root, 'src', 'style.module.css.d.ts'),
-      );
-      return buildIdentities(['ssr', 'csr'], {
-        buildMarker: createHash('sha256').update(declaration).digest('hex'),
-      });
+    >(async () => buildIdentities());
+    const onBuildIdentities =
+      rstest.fn<(completed: RendererBuildIdentities) => void>();
+    const { api } = await initializeMetadata(root, {
+      resolveBuildIdentities,
+      onBuildIdentities,
     });
-    const { api } = await initializeMetadata(
-      root,
-      { resolveBuildIdentities },
-      true,
-    );
     const resolveBffRuntimeBuildIdentity =
       api.getAppContext().resolveBffRuntimeBuildIdentity;
     if (!resolveBffRuntimeBuildIdentity)
@@ -494,326 +425,14 @@ describe('React metadata in the existing CLI build hooks', () => {
     await expect(
       resolveBffRuntimeBuildIdentity(bffCompilation),
     ).rejects.toThrow('requires a completed renderer build');
-    await analyzeFinalEntries(api, authoredEntries(root));
-    expect(resolveBuildIdentities).not.toHaveBeenCalled();
-    const { builderPlugins } = await api.getHooks().modifyResolvedConfig.call({
-      ...api.getNormalizedConfig(),
-      builderPlugins: [],
-    } as AppNormalizedConfig);
-    const require = createRequire(
-      path.resolve(__dirname, '../../../../cli/builder/package.json'),
-    );
-    let clientHTMLPaths: Record<string, string> = {};
-    const rsbuild = await createRsbuild({
-      cwd: root,
-      rsbuildConfig: {
-        mode: 'production',
-        plugins: [
-          require('@rsbuild/plugin-typed-css-modules').pluginTypedCSSModules(),
-          ...(builderPlugins as RsbuildPlugin[]),
-          {
-            name: 'test-existing-cli-after-build',
-            setup(rsbuildApi) {
-              rsbuildApi.modifyHTMLTags((tags, { environment }) => {
-                if (environment.name === 'client')
-                  clientHTMLPaths = environment.htmlPaths;
-                return tags;
-              });
-              rsbuildApi.onAfterBuild(async ({ stats }) => {
-                await api.getHooks().onAfterBuild.call(afterBuildInput(stats));
-              });
-            },
-          },
-        ],
-        output: {
-          cleanDistPath: false,
-          distPath: { root: path.join(root, 'dist') },
-        },
-        performance: { printFileSize: false },
-        environments: {
-          client: {
-            source: {
-              entry: Object.fromEntries(
-                ['ssr', 'csr'].map(name => [
-                  name,
-                  path.join(root, 'src', `${name}.js`),
-                ]),
-              ),
-            },
-          },
-        },
-      },
-    });
-    const result = await rsbuild.build();
-    try {
-      const manifest = JSON.parse(
-        fs.readFileSync(
-          path.join(root, 'dist', RENDERER_BUILD_MANIFEST_FILE),
-          'utf8',
-        ),
-      );
-      const bffRuntimeIdentity =
-        await resolveBffRuntimeBuildIdentity(bffCompilation);
-      expect(bffRuntimeIdentity).toEqual({
-        buildMarker: manifest.buildMarker,
-        sourceRevision: manifest.sourceRevision,
-      });
-      expect(bffRuntimeIdentity.buildMarker).toMatch(/^[a-f0-9]{64}$/u);
-      expect(Object.isFrozen(bffRuntimeIdentity)).toBe(true);
-      await expect(
-        resolveBffRuntimeBuildIdentity({
-          ...bffCompilation,
-          appDirectory: path.join(root, 'another-app'),
-        }),
-      ).rejects.toThrow('requires its owning application compilation');
-      expect(resolveBuildIdentities).toHaveBeenCalledTimes(3);
-      for (const entryName of ['ssr', 'csr']) {
-        const html = fs.readFileSync(
-          path.join(root, 'dist', clientHTMLPaths[entryName]),
-          'utf8',
-        );
-        expect(html).toContain(JSON.stringify(manifest.identities[entryName]));
-        expect(html).not.toContain('ultramodernPendingReactIdentity');
-      }
-      expect(manifest.routerBindings).toEqual(buildIdentities().routerBindings);
-      const { plugins } = await api
-        .getHooks()
-        ._internalServerPlugins.call({ plugins: [] });
-      const metadata = plugins.find(plugin =>
-        plugin.name.endsWith('react-build-metadata-server.js'),
-      )!;
-      expect(typeof metadata.options?.resolveEntries).toBe('function');
-      const serialized = JSON.parse(JSON.stringify(metadata.options));
-      expect(serialized).toEqual({
-        manifestFile: RENDERER_BUILD_MANIFEST_FILE,
-      });
-      const server = createServerBase<ServerEnv>({
-        pwd: path.join(root, 'dist'),
-        routes: [],
-        appContext: {
-          appDirectory: root,
-          apiDirectory: '',
-          lambdaDirectory: '',
-        },
-        config: {
-          html: {},
-          output: {},
-          source: {},
-          tools: {},
-          server: { logger: false },
-          bff: {},
-          dev: {},
-          security: {},
-        },
-      });
-      server.addPlugins([
-        reactBuildMetadataServerPlugin(serialized),
-        {
-          name: 'test-existing-react-response',
-          setup(serverApi) {
-            serverApi.onPrepare(() => {
-              serverApi.getServerContext().middlewares.push({
-                name: 'test-existing-react-response',
-                order: 'post',
-                handler(context) {
-                  context.set('renderRoute', {
-                    entryName: 'ssr',
-                    urlPath: '/ssr',
-                    entryPath: clientHTMLPaths.ssr,
-                  });
-                  return new Response('existing React response');
-                },
-              });
-            });
-          },
-        },
-      ]);
-      try {
-        await server.init();
-        const response = await server.request('/ssr');
-        expect(
-          JSON.parse(response.headers.get(REACT_RENDERER_IDENTITY_HEADER)!),
-        ).toEqual(manifest.identities.ssr);
-        expect(await response.text()).toBe('existing React response');
-      } finally {
-        await server.dispose();
-      }
-    } finally {
-      await result.close();
-    }
-  });
-  it('reports first-live compiler evidence without publishing a mismatched development identity', async () => {
-    const root = createFixture();
-    const dependencies: string[][] = [];
-    const resolveBuildIdentities = rstest.fn<
-      ReactBuildMetadataOptions['resolveBuildIdentities']
-    >(async context => {
-      if (!context.compilerInputs)
-        throw new Error('Native development compiler inputs were not captured');
-      dependencies.push(context.compilerInputs.map(input => input.path));
-      return buildIdentities(
-        ['ssr', 'csr'],
-        dependencies.length === 1
-          ? {}
-          : { buildMarker: 'f'.repeat(64), inputDigest: '9'.repeat(64) },
-      );
-    });
-    const { api } = await initializeMetadata(
-      root,
-      { resolveBuildIdentities },
-      false,
-      [],
-      'dev',
-    );
-    await analyzeFinalEntries(api, authoredEntries(root));
-    const { builderPlugins } = await api.getHooks().modifyResolvedConfig.call({
-      ...api.getNormalizedConfig(),
-      builderPlugins: [],
-    } as AppNormalizedConfig);
-    const { plugins } = await api
-      .getHooks()
-      ._internalServerPlugins.call({ plugins: [] });
-    const metadata = plugins.find(plugin =>
-      plugin.name.endsWith('react-build-metadata-server.js'),
-    );
-    const options = metadata?.options as
-      | ReactBuildMetadataServerOptions
-      | undefined;
-    if (!options?.resolveEntries)
-      throw new Error(
-        'Native development metadata readiness was not registered',
-      );
-    const readiness = options.resolveEntries().then(
-      entries => ({ entries }),
-      (error: unknown) => ({ error }),
-    );
-    const rsbuild = await createRsbuild({
-      cwd: root,
-      rsbuildConfig: {
-        mode: 'development',
-        plugins: builderPlugins as RsbuildPlugin[],
-        server: { host: '127.0.0.1', port: 0, printUrls: false },
-        dev: { writeToDisk: false, hmr: true, liveReload: false },
-        output: {
-          cleanDistPath: false,
-          distPath: { root: path.join(root, 'dist') },
-        },
-        performance: { printFileSize: false },
-        environments: {
-          client: {
-            source: {
-              entry: {
-                ssr: path.join(root, 'src', 'ssr.js'),
-                csr: path.join(root, 'src', 'csr.js'),
-              },
-            },
-          },
-        },
-      },
-    });
-    const devServer = await rsbuild.createDevServer({ getPortSilently: true });
-    try {
-      const listening = await devServer.listen().then(
-        () => ({ error: undefined }),
-        (error: unknown) => ({ error }),
-      );
-      const result = await readiness;
-      if (!('error' in result) || !(result.error instanceof Error))
-        throw new Error(
-          'The first live native identity mismatch did not reject',
-        );
-      const failure = result.error;
-      if (listening.error !== undefined) expect(listening.error).toBe(failure);
-      expect(failure.message).toMatch(
-        /^Native build inputs changed during compilation \(buildMarker\);/u,
-      );
-      expect(failure.cause).toBeInstanceOf(Error);
-      if (!(failure.cause instanceof Error))
-        throw new Error('The original native identity guard error was lost');
-      expect(failure.message.startsWith(`${failure.cause.message}\n`)).toBe(
-        true,
-      );
-      expect(failure.cause.message).toContain('Changed identity fields:');
-      expect(failure.cause.message).toContain('inputDigest: expected=');
-      expect(resolveBuildIdentities).toHaveBeenCalledTimes(2);
-      const packageManifest = path.join(root, 'package.json');
-      expect(dependencies[0]).toContain(packageManifest);
-      expect(dependencies[1]).not.toContain(packageManifest);
-      expect(
-        dependencies[0].filter(filename => filename !== packageManifest),
-      ).toEqual(dependencies[1]);
-      for (const captured of dependencies)
-        expect(captured).toEqual(
-          expect.arrayContaining([
-            path.join(root, 'src', 'ssr.js'),
-            path.join(root, 'src', 'csr.js'),
-          ]),
-        );
-      for (const [context] of resolveBuildIdentities.mock.calls)
-        expect(context.mode).toBe('development');
-      const lines = failure.message.split('\n');
-      const evidence = lines.find(line =>
-        line.startsWith('React first-live compiler evidence: dependencies='),
-      );
-      expect(evidence).toBe(
-        'React first-live compiler evidence: dependencies={"addedCount":0,"removedCount":1,"added":[],"removed":["package.json"]}',
-      );
-      const emptyReceipts = {
-        count: 0,
-        selectedNodeCount: 0,
-        differenceCount: 0,
-        differences: [],
-      };
-      for (const prefix of ['expectedReceipts=', 'actualReceipts=']) {
-        const line = lines.find(candidate => candidate.startsWith(prefix));
-        if (!line)
-          throw new Error(`Missing native compiler diagnostic ${prefix}`);
-        expect(JSON.parse(line.slice(prefix.length))).toEqual(emptyReceipts);
-      }
-      expect(
-        fs.existsSync(
-          path.join(
-            root,
-            'dist',
-            RENDERER_DEVELOPMENT_DIRECTORY,
-            RENDERER_BUILD_MANIFEST_FILE,
-          ),
-        ),
-      ).toBe(false);
-      expect(
-        fs.existsSync(path.join(root, 'dist', RENDERER_BUILD_MANIFEST_FILE)),
-      ).toBe(false);
-    } finally {
-      await devServer.close();
-    }
-  });
-  it('keeps authored entries and existing runtime paths, then writes canonical evidence from emitted assets', async () => {
-    const root = createFixture();
-    const resolveBuildIdentities = rstest.fn<
-      ReactBuildMetadataOptions['resolveBuildIdentities']
-    >(async () => buildIdentities());
-    const onBuildIdentities =
-      rstest.fn<(completed: RendererBuildIdentities) => void>();
-    const { api } = await initializeMetadata(root, {
-      resolveBuildIdentities,
-      onBuildIdentities,
-    });
+
     const entries = authoredEntries(root);
     const result = await analyzeFinalEntries(api, entries);
     expect(result.entrypoints).toEqual(entries);
-    expect(result.entrypoints[0]).toBe(entries[0]);
-    expect(resolveBuildIdentities).not.toHaveBeenCalled();
-    expect(onBuildIdentities).not.toHaveBeenCalled();
-    await compileMetadata(api, {
-      beforeFinalize(_stats, pass) {
-        if (pass > 1)
-          expect(onBuildIdentities).toHaveBeenCalledWith(
-            expect.objectContaining(buildIdentities()),
-          );
-      },
-    });
-    const resolvedContext = resolveBuildIdentities.mock.calls[0][0];
-    expect(resolvedContext).toEqual(
+    expect(resolveBuildIdentities).toHaveBeenCalledTimes(1);
+    expect(onBuildIdentities).toHaveBeenCalledWith(buildIdentities());
+    const [context] = resolveBuildIdentities.mock.calls[0];
+    expect(context).toEqual(
       expect.objectContaining({
         appDirectory: root,
         packageName: 'react-metadata-proof',
@@ -823,107 +442,232 @@ describe('React metadata in the existing CLI build hooks', () => {
         }),
       }),
     );
-    expect(resolvedContext.entrypoints[0]).not.toBe(entries[0]);
-    expect(resolvedContext.pluginNames).toEqual(
-      api.getAppContext().plugins.map(plugin => plugin.name),
-    );
-    expect(resolvedContext.pluginNames).toContain('@modern-js/plugin-analyze');
-    expect(resolvedContext.inputFiles).toEqual(
-      expect.arrayContaining([
-        path.join(root, 'src', 'ssr.js'),
-        path.join(root, 'src', 'csr.js'),
-      ]),
-    );
-    expect(Object.isFrozen(resolvedContext.inputFiles)).toBe(true);
-    const manifestFile = path.join(
-      api.getAppContext().distDirectory,
-      RENDERER_BUILD_MANIFEST_FILE,
-    );
-    expect(JSON.parse(fs.readFileSync(manifestFile, 'utf8'))).toEqual({
+    expect(context.entrypoints[0]).not.toBe(entries[0]);
+    expect(context.mode).toBeUndefined();
+    expect(context.pluginNames).toContain('@modern-js/plugin-analyze');
+
+    const { htmlPaths } = await compileMetadata(api);
+    expect(resolveBuildIdentities).toHaveBeenCalledTimes(1);
+    const manifestFile = path.join(root, 'dist', RENDERER_BUILD_MANIFEST_FILE);
+    const manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
+    expect(manifest).toEqual({
       ...buildIdentities(),
       schema: 'ultramodern-renderer-build',
       version: 1,
       profile: resolveRendererProfile('react'),
     });
-    for (const [completed] of onBuildIdentities.mock.calls)
-      expect(completed.identities).toEqual(buildIdentities().identities);
-    expect(resolveBuildIdentities).toHaveBeenCalledTimes(3);
-    const emittedContext = resolveBuildIdentities.mock.calls[1][0];
-    expect(emittedContext).not.toBe(resolvedContext);
-    expect(emittedContext.entrypoints).toEqual(resolvedContext.entrypoints);
-    expect(resolveBuildIdentities.mock.calls[2][0]).toBe(emittedContext);
     expect(
       fs
         .readdirSync(path.dirname(manifestFile))
         .some(name => name.endsWith('.tmp')),
     ).toBe(false);
-  });
-
-  it.each([
-    'rename',
-    'add',
-    'remove',
-  ] as const)('captures final analyzed entries after a late consumer %s hook', async change => {
-    const root = createFixture();
-    const resolveBuildIdentities = rstest.fn<
-      ReactBuildMetadataOptions['resolveBuildIdentities']
-    >(async ({ entrypoints }) =>
-      buildIdentities(entrypoints.map(entry => entry.entryName)),
-    );
-    const { api } = await initializeMetadata(root, { resolveBuildIdentities });
-    api.modifyEntrypoints(({ entrypoints }) => ({
-      entrypoints:
-        change === 'rename'
-          ? entrypoints.map(entry =>
-              entry.entryName === 'ssr'
-                ? { ...entry, entryName: 'dashboard' }
-                : entry,
-            )
-          : change === 'add'
-            ? [
-                ...entrypoints,
-                { ...entrypoints[0], entryName: 'extra', isMainEntry: false },
-              ]
-            : entrypoints.filter(entry => entry.entryName !== 'csr'),
-    }));
-    const result = await api
-      .getHooks()
-      .modifyEntrypoints.call({ entrypoints: authoredEntries(root) });
-    expect(resolveBuildIdentities).not.toHaveBeenCalled();
-    const finalNames = result.entrypoints.map(entry => entry.entryName);
-    api.updateAppContext({
-      entrypoints: result.entrypoints,
-      checkedEntries: finalNames,
-    });
-    await api.getHooks().generateEntryCode.call(result);
-    expect(resolveBuildIdentities).not.toHaveBeenCalled();
-    const { htmlPaths } = await compileMetadata(api, {
-      entryNames: finalNames,
-    });
-    expect(
-      resolveBuildIdentities.mock.calls[0][0].entrypoints.map(
-        entry => entry.entryName,
-      ),
-    ).toEqual(finalNames);
-    const manifest = JSON.parse(
-      fs.readFileSync(
-        path.join(
-          api.getAppContext().distDirectory,
-          RENDERER_BUILD_MANIFEST_FILE,
-        ),
-        'utf8',
-      ),
-    );
-    expect(Object.keys(manifest.identities)).toEqual(finalNames);
-    for (const entryName of finalNames) {
+    for (const entryName of ['ssr', 'csr']) {
       const html = fs.readFileSync(
         path.join(root, 'dist', htmlPaths[entryName]),
         'utf8',
       );
       expect(html).toContain(JSON.stringify(manifest.identities[entryName]));
-      expect(html).not.toContain('ultramodernPendingReactIdentity');
+    }
+    const scripts = fs
+      .readdirSync(path.join(root, 'dist', 'static', 'js'))
+      .filter(name => name.startsWith('ssr') && name.endsWith('.js'))
+      .map(name =>
+        fs.readFileSync(path.join(root, 'dist', 'static', 'js', name), 'utf8'),
+      )
+      .join('\n');
+    expect(scripts).toContain(JSON.stringify(manifest.buildMarker));
+    expect(scripts).not.toContain('ULTRAMODERN_BUILD_MARKER');
+    expect(scripts).not.toContain('ULTRAMODERN_SOURCE_REVISION');
+
+    const bffRuntimeIdentity =
+      await resolveBffRuntimeBuildIdentity(bffCompilation);
+    expect(bffRuntimeIdentity).toEqual({
+      buildMarker: manifest.buildMarker,
+      sourceRevision: manifest.sourceRevision,
+    });
+    expect(Object.isFrozen(bffRuntimeIdentity)).toBe(true);
+    await expect(
+      resolveBffRuntimeBuildIdentity({
+        ...bffCompilation,
+        appDirectory: path.join(root, 'another-app'),
+      }),
+    ).rejects.toThrow('requires its owning application compilation');
+
+    const { plugins } = await api
+      .getHooks()
+      ._internalServerPlugins.call({ plugins: [] });
+    const metadata = plugins.find(plugin =>
+      plugin.name.endsWith('react-build-metadata-server.js'),
+    )!;
+    const serialized = JSON.parse(JSON.stringify(metadata.options));
+    expect(serialized).toEqual({ entries: manifest.identities });
+    const server = createServerBase<ServerEnv>({
+      pwd: path.join(root, 'dist'),
+      routes: [],
+      appContext: { appDirectory: root, apiDirectory: '', lambdaDirectory: '' },
+      config: {
+        html: {},
+        output: {},
+        source: {},
+        tools: {},
+        server: { logger: false },
+        bff: {},
+        dev: {},
+        security: {},
+      },
+    });
+    server.addPlugins([
+      reactBuildMetadataServerPlugin(serialized),
+      {
+        name: 'test-existing-react-response',
+        setup(serverApi) {
+          serverApi.onPrepare(() => {
+            serverApi.getServerContext().middlewares.push({
+              name: 'test-existing-react-response',
+              order: 'post',
+              handler(context) {
+                context.set('renderRoute', {
+                  entryName: 'ssr',
+                  urlPath: '/ssr',
+                  entryPath: htmlPaths.ssr,
+                });
+                return new Response('existing React response');
+              },
+            });
+          });
+        },
+      },
+    ]);
+    try {
+      await server.init();
+      const response = await server.request('/ssr');
+      expect(
+        JSON.parse(response.headers.get(REACT_RENDERER_IDENTITY_HEADER)!),
+      ).toEqual(manifest.identities.ssr);
+      expect(await response.text()).toBe('existing React response');
+    } finally {
+      await server.dispose();
     }
   });
+
+  it('keeps the first development identity, renders fresh HTML and writes no manifest', async () => {
+    const root = createFixture();
+    const resolveBuildIdentities = rstest.fn<
+      ReactBuildMetadataOptions['resolveBuildIdentities']
+    >(async () => buildIdentities());
+    const { api } = await initializeMetadata(
+      root,
+      { resolveBuildIdentities },
+      'dev',
+    );
+    const result = await analyzeFinalEntries(api, authoredEntries(root));
+    await api.getHooks().generateEntryCode.call(result);
+    expect(resolveBuildIdentities).toHaveBeenCalledTimes(1);
+    expect(resolveBuildIdentities.mock.calls[0][0].mode).toBe('development');
+    const { plugins } = await api
+      .getHooks()
+      ._internalServerPlugins.call({ plugins: [] });
+    expect(plugins[0].options).toEqual({
+      entries: buildIdentities().identities,
+    });
+    const plugin = await metadataBuilderPlugin(api);
+    const devHandler = environmentConfigHook(plugin, 'dev')!;
+    expect(
+      devHandler({ tools: { htmlPlugin: undefined } }, { name: 'client' }),
+    ).toEqual({ tools: { htmlPlugin: [{ cache: false }] } });
+    expect(
+      devHandler({ tools: { htmlPlugin: false } }, { name: 'client' }),
+    ).toBeUndefined();
+    expect(
+      devHandler({ tools: { htmlPlugin: undefined } }, { name: 'server' }),
+    ).toBeUndefined();
+    expect(
+      fs.existsSync(
+        path.join(
+          root,
+          'dist',
+          RENDERER_DEVELOPMENT_DIRECTORY,
+          RENDERER_BUILD_MANIFEST_FILE,
+        ),
+      ),
+    ).toBe(false);
+  });
+
+  it('leaves production HTML caching to the native builder', async () => {
+    const root = createFixture();
+    const { api } = await initializeMetadata(root, {
+      resolveBuildIdentities: async () => buildIdentities(),
+    });
+    await analyzeFinalEntries(api, authoredEntries(root));
+    expect(
+      environmentConfigHook(await metadataBuilderPlugin(api), 'build'),
+    ).toBeUndefined();
+  });
+
+  it.each(['rename', 'add', 'remove'] as const)(
+    'captures final analyzed entries after a late consumer %s hook',
+    async change => {
+      const root = createFixture();
+      const resolveBuildIdentities = rstest.fn<
+        ReactBuildMetadataOptions['resolveBuildIdentities']
+      >(async ({ entrypoints }) =>
+        buildIdentities(entrypoints.map(entry => entry.entryName)),
+      );
+      const { api } = await initializeMetadata(root, {
+        resolveBuildIdentities,
+      });
+      api.modifyEntrypoints(({ entrypoints }) => ({
+        entrypoints:
+          change === 'rename'
+            ? entrypoints.map(entry =>
+                entry.entryName === 'ssr'
+                  ? { ...entry, entryName: 'dashboard' }
+                  : entry,
+              )
+            : change === 'add'
+              ? [
+                  ...entrypoints,
+                  { ...entrypoints[0], entryName: 'extra', isMainEntry: false },
+                ]
+              : entrypoints.filter(entry => entry.entryName !== 'csr'),
+      }));
+      const result = await api
+        .getHooks()
+        .modifyEntrypoints.call({ entrypoints: authoredEntries(root) });
+      expect(resolveBuildIdentities).not.toHaveBeenCalled();
+      const finalNames = result.entrypoints.map(entry => entry.entryName);
+      api.updateAppContext({
+        entrypoints: result.entrypoints,
+        checkedEntries: finalNames,
+      });
+      await api.getHooks().generateEntryCode.call(result);
+      expect(
+        resolveBuildIdentities.mock.calls[0][0].entrypoints.map(
+          entry => entry.entryName,
+        ),
+      ).toEqual(finalNames);
+      const { htmlPaths } = await compileMetadata(api, {
+        entryNames: finalNames,
+      });
+      const manifest = JSON.parse(
+        fs.readFileSync(
+          path.join(
+            api.getAppContext().distDirectory,
+            RENDERER_BUILD_MANIFEST_FILE,
+          ),
+          'utf8',
+        ),
+      );
+      expect(Object.keys(manifest.identities)).toEqual(finalNames);
+      for (const entryName of finalNames) {
+        const html = fs.readFileSync(
+          path.join(root, 'dist', htmlPaths[entryName]),
+          'utf8',
+        );
+        expect(html).toContain(JSON.stringify(manifest.identities[entryName]));
+      }
+    },
+  );
 
   it('uses exact Rsbuild HTML entry metadata for nested custom-template outputs and escapes inert JSON outside the root', async () => {
     const root = createFixture();
@@ -934,7 +678,7 @@ describe('React metadata in the existing CLI build hooks', () => {
         ...initial.identities,
         ssr: {
           ...initial.identities.ssr,
-          appId: '</script><script>alert(1)</script>\u2028\u2029',
+          appId: '</script><script>alert(1)</script>  ',
         },
       },
     };
@@ -966,31 +710,28 @@ describe('React metadata in the existing CLI build hooks', () => {
       html.indexOf('Custom template</div>'),
     );
     expect(marker![1]).not.toContain('</script>');
-    expect(marker![1]).not.toContain('\u2028');
-    expect(marker![1]).not.toContain('\u2029');
+    expect(marker![1]).not.toContain(' ');
+    expect(marker![1]).not.toContain(' ');
     expect(JSON.parse(marker![1])).toEqual(identities.identities.ssr);
-    expect(html).not.toContain('ultramodernPendingReactIdentity');
   });
 
-  it.each(
-    invalidHtmlOutputs,
-  )('rejects an HTML output with conflicting or absent analyzed identity: $message', async ({
-    htmlPaths,
-    message,
-  }) => {
-    const root = createFixture();
-    const { api } = await initializeMetadata(root, {
-      resolveBuildIdentities: async () => buildIdentities(),
-    });
-    await analyzeFinalEntries(api, authoredEntries(root));
-    const modifyHTMLTags = await htmlHook(api);
-    expect(() =>
-      modifyHTMLTags(
-        { headTags: [], bodyTags: [] },
-        htmlContext('index.html', htmlPaths),
-      ),
-    ).toThrow(message);
-  });
+  it.each(invalidHtmlOutputs)(
+    'rejects an HTML output with conflicting or absent analyzed identity: $message',
+    async ({ htmlPaths, message }) => {
+      const root = createFixture();
+      const { api } = await initializeMetadata(root, {
+        resolveBuildIdentities: async () => buildIdentities(),
+      });
+      await analyzeFinalEntries(api, authoredEntries(root));
+      const modifyHTMLTags = await htmlHook(api);
+      expect(() =>
+        modifyHTMLTags(
+          { headTags: [], bodyTags: [] },
+          htmlContext('index.html', htmlPaths),
+        ),
+      ).toThrow(message);
+    },
+  );
 
   it('rejects an existing document marker and leaves non-client HTML untouched', async () => {
     const root = createFixture();
@@ -1013,118 +754,85 @@ describe('React metadata in the existing CLI build hooks', () => {
     ).toBe(tags);
   });
 
-  it('keeps a frozen identity snapshot when the resolver later mutates its own result', async () => {
-    const root = createFixture();
-    const initial = buildIdentities();
-    const mutable = {
-      ...initial,
-      identities: {
-        ssr: { ...initial.identities.ssr },
-        csr: { ...initial.identities.csr },
-      },
-    };
-    let calls = 0;
-    const { api } = await initializeMetadata(root, {
-      resolveBuildIdentities: async () => {
-        if (++calls === 2) {
-          mutable.identities.ssr.appId = 'changed after capture';
-          mutable.inputDigest = 'f'.repeat(64);
-        }
-        return mutable;
-      },
-    });
-    await analyzeFinalEntries(api, authoredEntries(root));
-    await expect(compileMetadata(api)).rejects.toThrow(
-      'changed during compilation (inputDigest)',
-    );
-    expect(calls).toBe(2);
-    const html = fs.readFileSync(path.join(root, 'dist', 'ssr.html'), 'utf8');
-    expect(html).toContain(JSON.stringify(initial.identities.ssr));
-    expect(html).not.toContain('changed after capture');
-    expect(
-      fs.existsSync(
-        path.join(
-          api.getAppContext().distDirectory,
-          RENDERER_BUILD_MANIFEST_FILE,
-        ),
-      ),
-    ).toBe(false);
-  });
-
   it.each([
     'missing',
     'profile',
     'identity',
     'solidRouter',
     'octaneRouter',
-  ] as const)('rejects invalid saved serve evidence before resolving a server plugin: %s', async failure => {
-    const root = createFixture();
-    const resolveBuildIdentities = rstest.fn(async () => buildIdentities());
-    const { api } = await initializeMetadata(root, { resolveBuildIdentities });
-    api.updateAppContext({ command: 'serve' });
-    if (failure !== 'missing') {
-      const manifest = {
-        ...buildIdentities(),
-        schema: 'ultramodern-renderer-build',
-        version: 1,
-        profile: resolveRendererProfile(
-          failure === 'profile' ? 'solid' : 'react',
-        ),
-      };
-      if (failure === 'identity') {
-        manifest.identities = {
-          ssr: { ...manifest.identities.ssr, buildId: 'conflicting build' },
+  ] as const)(
+    'rejects invalid saved serve evidence before resolving a server plugin: %s',
+    async failure => {
+      const root = createFixture();
+      const resolveBuildIdentities = rstest.fn(async () => buildIdentities());
+      const { api } = await initializeMetadata(root, {
+        resolveBuildIdentities,
+      });
+      api.updateAppContext({ command: 'serve' });
+      if (failure !== 'missing') {
+        const manifest = {
+          ...buildIdentities(),
+          schema: 'ultramodern-renderer-build',
+          version: 1,
+          profile: resolveRendererProfile(
+            failure === 'profile' ? 'solid' : 'react',
+          ),
         };
-        manifest.routerBindings = {
-          ssr: manifest.routerBindings!.ssr,
-        };
-      }
-      if (failure === 'solidRouter' || failure === 'octaneRouter') {
-        const framework = failure === 'solidRouter' ? 'solid' : 'octane';
-        const provider = {
-          ...resolveCandidateRendererProfile(framework).router,
-          framework,
-        };
-        manifest.routerBindings = Object.fromEntries(
-          Object.keys(manifest.identities).map(entryName => [
-            entryName,
-            {
-              owner: `@modern-js/renderer-${framework}`,
-              evidence: 'owned-default' as const,
-              defaultProvider: provider,
-              providers: [provider] as const,
-            },
-          ]),
+        if (failure === 'identity') {
+          manifest.identities = {
+            ssr: { ...manifest.identities.ssr, buildId: 'conflicting build' },
+          };
+          manifest.routerBindings = {
+            ssr: manifest.routerBindings!.ssr,
+          };
+        }
+        if (failure === 'solidRouter' || failure === 'octaneRouter') {
+          const framework = failure === 'solidRouter' ? 'solid' : 'octane';
+          const provider = {
+            ...resolveCandidateRendererProfile(framework).router,
+            framework,
+          };
+          manifest.routerBindings = Object.fromEntries(
+            Object.keys(manifest.identities).map(entryName => [
+              entryName,
+              {
+                owner: `@modern-js/renderer-${framework}`,
+                evidence: 'owned-default' as const,
+                defaultProvider: provider,
+                providers: [provider] as const,
+              },
+            ]),
+          );
+          expect(
+            validateRendererRouterBindings(
+              manifest.routerBindings,
+              Object.keys(manifest.identities),
+            ).ok,
+          ).toBe(true);
+        }
+        fs.mkdirSync(api.getAppContext().distDirectory, { recursive: true });
+        fs.writeFileSync(
+          path.join(
+            api.getAppContext().distDirectory,
+            RENDERER_BUILD_MANIFEST_FILE,
+          ),
+          JSON.stringify(manifest),
         );
-        expect(
-          validateRendererRouterBindings(
-            manifest.routerBindings,
-            Object.keys(manifest.identities),
-          ).ok,
-        ).toBe(true);
       }
-      fs.mkdirSync(api.getAppContext().distDirectory, { recursive: true });
-      fs.writeFileSync(
-        path.join(
-          api.getAppContext().distDirectory,
-          RENDERER_BUILD_MANIFEST_FILE,
-        ),
-        JSON.stringify(manifest),
+      await expect(
+        api.getHooks()._internalServerPlugins.call({ plugins: [] }),
+      ).rejects.toThrow(
+        failure === 'missing'
+          ? 'ENOENT'
+          : failure === 'profile'
+            ? 'profile conflicts'
+            : failure === 'identity'
+              ? 'identity conflicts'
+              : 'must be admitted by the selected router owner',
       );
-    }
-    await expect(
-      api.getHooks()._internalServerPlugins.call({ plugins: [] }),
-    ).rejects.toThrow(
-      failure === 'missing'
-        ? 'ENOENT'
-        : failure === 'profile'
-          ? 'profile conflicts'
-          : failure === 'identity'
-            ? 'identity conflicts'
-            : 'must be admitted by the selected router owner',
-    );
-    expect(resolveBuildIdentities).not.toHaveBeenCalled();
-  });
+      expect(resolveBuildIdentities).not.toHaveBeenCalled();
+    },
+  );
 
   it('accepts saved mixed React router providers before resolving a server plugin', async () => {
     const root = createFixture();
@@ -1174,7 +882,7 @@ describe('React metadata in the existing CLI build hooks', () => {
     expect(resolveBuildIdentities).not.toHaveBeenCalled();
   });
 
-  it('retains existing builder plugins and cache opt-outs while deferring cache admission until the compiler graph is known', async () => {
+  it('retains existing builder plugins and keys an admitted build cache by the resolved identity', async () => {
     const root = createFixture();
     const identities = buildIdentities(['ssr', 'csr'], {
       sourceRevision: 'f'.repeat(40),
@@ -1222,7 +930,16 @@ describe('React metadata in the existing CLI build hooks', () => {
     expect(environments.client.source?.entry).toEqual({
       ssr: '/authored/ssr.tsx',
     });
-    expect(environments.client.performance?.buildCache).toBe(false);
+    expect(environments.client.performance?.buildCache).toEqual({
+      cacheDirectory: '/existing/cache',
+      cacheDigest: [
+        'existing',
+        'react',
+        identities.buildMarker,
+        identities.profileDigest,
+        identities.compilerDigest,
+      ],
+    });
     expect(environments.server.performance?.buildCache).toBe(false);
     expect(environments.server.output?.target).toBe('node');
   });
@@ -1285,38 +1002,7 @@ describe('React metadata in the existing CLI build hooks', () => {
     expect(resolveBuildIdentities).not.toHaveBeenCalled();
   });
 
-  it.each([
-    'inputDigest',
-    'compilerDigest',
-    'frameworkCohortDigest',
-    'buildMarker',
-  ] as const)('rejects a changed %s after compilation and leaves the prior manifest intact', async field => {
-    const root = createFixture();
-    const initial = buildIdentities();
-    const resolveBuildIdentities = rstest.fn(async () =>
-      resolveBuildIdentities.mock.calls.length === 1
-        ? initial
-        : buildIdentities(['ssr', 'csr'], { [field]: 'f'.repeat(64) }),
-    );
-    const { api } = await initializeMetadata(root, { resolveBuildIdentities });
-    await analyzeFinalEntries(api, authoredEntries(root));
-    expect(resolveBuildIdentities).not.toHaveBeenCalled();
-    const manifestFile = path.join(
-      api.getAppContext().distDirectory,
-      RENDERER_BUILD_MANIFEST_FILE,
-    );
-    fs.mkdirSync(path.dirname(manifestFile), { recursive: true });
-    fs.writeFileSync(manifestFile, 'previous accepted bytes');
-    await expect(compileMetadata(api)).rejects.toThrow(
-      `changed during compilation (${field})`,
-    );
-    expect(resolveBuildIdentities).toHaveBeenCalledTimes(2);
-    expect(fs.readFileSync(manifestFile, 'utf8')).toBe(
-      'previous accepted bytes',
-    );
-  });
-
-  it('rejects HTML for an entry outside the completed identity graph', async () => {
+  it('rejects HTML for an entry outside the resolved identities', async () => {
     const root = createFixture();
     const { api } = await initializeMetadata(root, {
       resolveBuildIdentities: async () => buildIdentities(),
@@ -1324,72 +1010,23 @@ describe('React metadata in the existing CLI build hooks', () => {
     await analyzeFinalEntries(api, authoredEntries(root));
     await expect(
       compileMetadata(api, { entryNames: ['unknown'] }),
-    ).rejects.toThrow('HTML output has no final entry identity');
+    ).rejects.toThrow('requires successful compiler stats');
     expect(
       fs.existsSync(path.join(root, 'dist', RENDERER_BUILD_MANIFEST_FILE)),
     ).toBe(false);
   });
 
-  it.each([
-    'hash',
-    'entry',
-    'asset',
-    'empty',
-  ] as const)('rejects incomplete actual compilation evidence: %s', async failure => {
-    const root = createFixture();
-    const { api } = await initializeMetadata(root, {
-      resolveBuildIdentities: async () => buildIdentities(),
-    });
-    await analyzeFinalEntries(api, authoredEntries(root));
-    await expect(
-      compileMetadata(api, {
-        entryNames: failure === 'entry' ? ['ssr'] : ['ssr', 'csr'],
-        beforeFinalize(stats, pass) {
-          // The private discovery does not emit files. Inject an empty output
-          // only after the native emitting pass creates its genuine asset.
-          if (failure === 'empty' && pass === 1) return;
-          const compilation = ('stats' in stats ? stats.stats : [stats]).find(
-            result => result.compilation.name === 'client',
-          )!.compilation;
-          if (failure === 'entry') return;
-          const file = compilation.entrypoints
-            .get('csr')!
-            .getFiles()
-            .find(name => name.endsWith('.js'))!;
-          expect(file).toBeDefined();
-          if (failure === 'hash')
-            Object.defineProperty(compilation, 'hash', { value: '' });
-          if (failure === 'asset') compilation.deleteAsset(file);
-          if (failure === 'empty')
-            fs.writeFileSync(
-              path.join(compilation.outputOptions.path!, file),
-              '',
-            );
-        },
-      }),
-    ).rejects.toThrow(
-      failure === 'hash'
-        ? 'requires a completed client compilation'
-        : failure === 'entry' || failure === 'asset'
-          ? 'React application entry csr was not emitted'
-          : 'missing or empty',
-    );
-    expect(
-      fs.existsSync(path.join(root, 'dist', RENDERER_BUILD_MANIFEST_FILE)),
-    ).toBe(false);
-  });
-
-  it('rejects a real compiler error without publishing renderer evidence', async () => {
+  it('rejects a real compiler error without publishing renderer metadata', async () => {
     const root = createFixture();
     fs.writeFileSync(
       path.join(root, 'src', 'ssr.js'),
       'export const broken = ;',
     );
-    const resolveBuildIdentities = rstest.fn(async () => buildIdentities());
-    const { api } = await initializeMetadata(root, { resolveBuildIdentities });
+    const { api } = await initializeMetadata(root, {
+      resolveBuildIdentities: async () => buildIdentities(),
+    });
     await analyzeFinalEntries(api, authoredEntries(root));
     await expect(compileMetadata(api)).rejects.toThrow();
-    expect(resolveBuildIdentities).not.toHaveBeenCalled();
     expect(
       fs.existsSync(path.join(root, 'dist', RENDERER_BUILD_MANIFEST_FILE)),
     ).toBe(false);
