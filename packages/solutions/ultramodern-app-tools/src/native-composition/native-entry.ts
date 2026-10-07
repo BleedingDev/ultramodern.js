@@ -126,16 +126,20 @@ export function createNativeEntryStubGenerator(
   return {
     async client(context) {
       const identity = resolveNativeEntryIdentity(context, renderer);
+      const federated = Boolean(
+        findNativeFederationConfig(context.appDirectory),
+      );
       await emitNativeEntryApplication(context, 'client');
       const fields = {
         identity: JSON.stringify(identity),
         load: `() => import(${JSON.stringify(NATIVE_APPLICATION_CLIENT_REQUEST)})`,
         ...(context.i18n ? { i18n: 'i18n' } : {}),
         hot: 'import.meta.webpackHot',
+        ...(federated ? { federation: nativeFederationBinding } : {}),
         ...extra?.fields,
       };
       return `import { startNativeClient } from ${JSON.stringify(adapter.runtime.entryClient)};
-${context.i18n ? 'import { i18n } from "./i18n";\n' : ''}${extra?.declarations ?? ''}
+${context.i18n ? 'import { i18n } from "./i18n";\n' : ''}${extra?.declarations ?? ''}${federated ? nativeFederationDeclaration : ''}
 startNativeClient({
 ${Object.entries(fields)
   .map(([name, value]) => `  ${name === value ? name : `${name}: ${value}`},`)
@@ -146,14 +150,17 @@ ${Object.entries(fields)
     async server(context) {
       const identity = resolveNativeEntryIdentity(context, renderer);
       const { directory } = await emitNativeEntryApplication(context, 'server');
+      const federated = Boolean(
+        findNativeFederationConfig(context.appDirectory),
+      );
       const server = `import { createNativeServerEntry } from ${JSON.stringify(adapter.runtime.entryServer)};
-${context.i18n ? 'import { i18n } from "./i18n";\n' : ''}
+${context.i18n ? 'import { i18n } from "./i18n";\n' : ''}${federated ? nativeFederationDeclaration : ''}
 export const { ${nativeServerHandlers.join(', ')} } = createNativeServerEntry({
   identity: ${JSON.stringify(identity)},
-  app: () => import("./app.server"),${context.i18n ? '\n  i18n,' : ''}
+  app: () => import("./app.server"),${federated ? `\n  federation: ${nativeFederationBinding},` : ''}${context.i18n ? '\n  i18n,' : ''}
 });
 `;
-      if (!findNativeFederationConfig(context.appDirectory)) return server;
+      if (!federated) return server;
       await writeNativeEntryModules(directory, {
         'handlers.server.ts': server,
       });
@@ -161,6 +168,13 @@ export const { ${nativeServerHandlers.join(', ')} } = createNativeServerEntry({
     },
   };
 }
+
+// MF owns this compiler-local runtime. Passing a getter from the generated
+// entry keeps application ownership when another host or remote starts later.
+const nativeFederationBinding =
+  '{ instance: () => __webpack_require__.federation.instance }';
+const nativeFederationDeclaration =
+  'declare const __webpack_require__: { federation: { instance: import("@modern-js/renderer-core/federation").FederationInstance } };\n';
 
 const nativeServerHandlers = [
   'rendererIdentity',

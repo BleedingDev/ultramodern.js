@@ -166,3 +166,37 @@ index edd30a8..1810ce2 100644
  	setGlobalFederationInstance,
  	getGlobalFederationConstructor,
  	setGlobalFederationConstructor,
+diff --git a/dist/utils/load.cjs b/dist/utils/load.cjs
+--- a/dist/utils/load.cjs
++++ b/dist/utils/load.cjs
+@@ -132,7 +132,12 @@
+ 			globalName,
+ 			type
+ 		},
+-		loaderHook: { createScriptHook: (url, attrs = {}) => {
++		loaderHook: {
++			fetch: ([url, init]) => loaderHook.lifecycle.fetch.emit(url, init, remoteInfo, resourceContext ? {
++				...resourceContext,
++				url
++			} : void 0),
++			createScriptHook: (url, attrs = {}) => {
+ 			const res = loaderHook.lifecycle.createScript.emit({
+ 				url,
+ 				attrs,
+diff --git a/dist/utils/load.js b/dist/utils/load.js
+--- a/dist/utils/load.js
++++ b/dist/utils/load.js
+@@ -132,7 +132,12 @@
+ 			globalName,
+ 			type
+ 		},
+-		loaderHook: { createScriptHook: (url, attrs = {}) => {
++		loaderHook: {
++			fetch: ([url, init]) => loaderHook.lifecycle.fetch.emit(url, init, remoteInfo, resourceContext ? {
++				...resourceContext,
++				url
++			} : void 0),
++			createScriptHook: (url, attrs = {}) => {
+ 			const res = loaderHook.lifecycle.createScript.emit({
+ 				url,
+ 				attrs,

@@ -184,6 +184,35 @@ describe('selected SDK profile admission', () => {
       ).toThrow('profile names foreign-profile-owner');
     },
   );
+
+  it.each(['solid', 'octane'] as const)(
+    'requires the %s federation descriptor and profile to agree',
+    renderer => {
+      const adapter = resolveRendererAdapter(renderer);
+      expect(adapter.profile.capabilities.moduleFederation).toBe(true);
+      expect(adapter).toMatchObject({
+        federation: { library: 'module', ssr: true },
+      });
+      expect(() =>
+        defineRendererAdapter({
+          ...adapter,
+          federation: undefined,
+        }),
+      ).toThrow('federation support contradicts its profile');
+      expect(() =>
+        defineRendererAdapter({
+          ...adapter,
+          profile: {
+            ...adapter.profile,
+            capabilities: {
+              ...adapter.profile.capabilities,
+              moduleFederation: false,
+            },
+          },
+        }),
+      ).toThrow('federation support contradicts its profile');
+    },
+  );
 });
 
 describe('physical installed framework profile identities', () => {
@@ -524,9 +553,7 @@ describe('physical installed framework profile identities', () => {
         expect(candidate.status).toBe(
           renderer === 'react' ? 'stable' : 'preview',
         );
-        expect(candidate.capabilities.moduleFederation).toBe(
-          renderer !== 'octane',
-        );
+        expect(candidate.capabilities.moduleFederation).toBe(true);
         expect(createRequire).not.toHaveBeenCalled();
         expect(resolve).not.toHaveBeenCalled();
       }),

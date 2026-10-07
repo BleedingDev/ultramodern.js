@@ -268,10 +268,12 @@ export function validateWorkspace(
     }
     if (nativeRenderer) {
       assertNativeRendererSourceSurface(root, app, generation, manifest);
-      assert(
-        !Object.hasOwn(overlay.manifests ?? {}, app.id),
-        `${app.id} native renderer must not declare a Module Federation manifest`,
-      );
+      if (!generation.capabilities.federation) {
+        assert(
+          !Object.hasOwn(overlay.manifests ?? {}, app.id),
+          `${app.id} renderer does not support a Module Federation manifest`,
+        );
+      }
     }
     const owner = owners.find(candidate => candidate.id === app.id);
     assert(
@@ -290,11 +292,37 @@ export function validateWorkspace(
       JSON.stringify(refs) === JSON.stringify(input.verticalRefs),
       `${app.id} verticalRefs disagree with canonical inputs`,
     );
+    const nativeFederationConfigured =
+      nativeRenderer &&
+      (Boolean(app.moduleFederation) ||
+        refs.length > 0 ||
+        Object.keys(input.exposes).length > 0 ||
+        Object.hasOwn(overlay.manifests ?? {}, app.id));
+    if (nativeFederationConfigured && generation.capabilities.federation) {
+      requiredFile(
+        root,
+        `${app.path}/module-federation.config.ts`,
+        `${app.id} Module Federation config`,
+      );
+    }
     const port = overlay.ports?.[app.id];
     assert(
       Number.isInteger(port) && port > 0 && port < 65536,
       `${app.id} has no development port`,
     );
+    if (
+      nativeRenderer &&
+      generation.capabilities.federation &&
+      app.kind === 'shell' &&
+      Object.hasOwn(overlay.manifests ?? {}, app.id)
+    ) {
+      developmentUrl(
+        overlay.manifests[app.id],
+        port,
+        `${app.id} MF manifest URL`,
+        '/mf-manifest.json',
+      );
+    }
     requiredFile(
       root,
       `${app.path}/modern.config.ts`,
@@ -340,7 +368,12 @@ export function validateWorkspace(
         );
       }
     }
-    if (input.emitsUi && app.kind !== 'shell' && !nativeRenderer) {
+    if (
+      input.emitsUi &&
+      app.kind !== 'shell' &&
+      (!nativeRenderer ||
+        (generation.capabilities.federation && nativeFederationConfigured))
+    ) {
       assert(
         typeof overlay.manifests?.[app.id] === 'string',
         `${app.id} has no development MF manifest URL`,
@@ -351,11 +384,13 @@ export function validateWorkspace(
         `${app.id} MF manifest URL`,
         '/mf-manifest.json',
       );
-      requiredFile(
-        root,
-        `${app.path}/module-federation.config.ts`,
-        `${app.id} Module Federation config`,
-      );
+      if (!nativeRenderer) {
+        requiredFile(
+          root,
+          `${app.path}/module-federation.config.ts`,
+          `${app.id} Module Federation config`,
+        );
+      }
       for (const [expose, relative] of Object.entries(input.exposes)) {
         assert(
           typeof relative === 'string' && relative.startsWith('./src/'),

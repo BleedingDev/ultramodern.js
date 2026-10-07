@@ -3,6 +3,11 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import type * as ts from '@typescript/native/unstable/ast';
 import type { API, Snapshot } from '@typescript/native/unstable/sync';
+import { hasNativeAppGeneration } from '../renderer-generations';
+import {
+  getRendererGenerationProfile,
+  isApplicationRenderer,
+} from '../renderer-profile';
 import { assert, sameJson, selfCheckFailure } from './assertions';
 import { isForeignRendererPackage } from './renderer';
 import type { JsonRecord, ValidationContract } from './types';
@@ -656,6 +661,18 @@ export function assertCompilerArchitecture(
           )
           .filter((entry: JsonRecord) => fs.existsSync(entry[0])),
       );
+      const nativeModuleFederationApps = new Map(
+        workspaceValidationContract.apps.flatMap(app => {
+          if (
+            !isApplicationRenderer(app.renderer) ||
+            !hasNativeAppGeneration(app.renderer)
+          )
+            return [];
+          return [
+            [app.path, getRendererGenerationProfile(app.renderer)] as const,
+          ];
+        }),
+      );
       const checkedFiles = new Set([
         ...shellRouteDirectories.flatMap(collectCompilerInputs),
         ...configFiles
@@ -670,6 +687,10 @@ export function assertCompilerArchitecture(
         });
         const moduleFederationAppPath =
           moduleFederationConfigAppPaths.get(absolutePath);
+        const nativeFederation =
+          moduleFederationAppPath === undefined
+            ? undefined
+            : nativeModuleFederationApps.get(moduleFederationAppPath);
         const tailwindFactories = new Set<string>();
         const presetFactories = new Set<string>();
         for (const statement of sourceFile.statements) {
@@ -779,15 +800,20 @@ export function assertCompilerArchitecture(
               'use Zephyr native deploy-token behavior',
             );
           }
-          if (typescript.isPropertyAssignment(node)) {
+          if (
+            typescript.isPropertyAssignment(node) ||
+            typescript.isShorthandPropertyAssignment(node)
+          ) {
             const property = nodeName(node.name);
             if (
               // Inside a Module Federation config the flag is required evidence
               // checked positionally after this walk; anywhere else it is a
               // deviation, whatever it is set to.
               (property === 'enableBridgeRouter' &&
-                moduleFederationAppPath === undefined) ||
+                (moduleFederationAppPath === undefined ||
+                  nativeFederation !== undefined)) ||
               (property === 'disableDynamicRemoteTypeHints' &&
+                typescript.isPropertyAssignment(node) &&
                 isBooleanLiteral(node.initializer, true)) ||
               property === 'treeShakingSharedExcludePlugins'
             ) {
@@ -851,7 +877,35 @@ export function assertCompilerArchitecture(
         };
         visit(sourceFile);
         if (moduleFederationAppPath !== undefined) {
-          assertBridgeRouterCapability(sourceFile, moduleFederationAppPath);
+          if (nativeFederation) {
+            if (!nativeFederation.capabilities.federation) {
+              compilerFailure(
+                sourceFile,
+                sourceFile,
+                'native module federation capability',
+                `Application ${moduleFederationAppPath} has no admitted native Module Federation template.`,
+                'use the selected renderer admitted Module Federation capability',
+              );
+            }
+            if (
+              !sourceFile.statements.some(
+                statement =>
+                  typescript.isExportAssignment(statement) &&
+                  !statement.isExportEquals &&
+                  typescript.isObjectLiteralExpression(statement.expression),
+              )
+            ) {
+              compilerFailure(
+                sourceFile,
+                sourceFile,
+                'native module federation config',
+                'Generated native Module Federation must export a literal configuration object.',
+                'use the selected renderer native Module Federation template',
+              );
+            }
+          } else {
+            assertBridgeRouterCapability(sourceFile, moduleFederationAppPath);
+          }
         }
       }
     };

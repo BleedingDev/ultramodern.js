@@ -64,6 +64,7 @@ patchedDependencies:
   '@module-federation/node@2.7.52': patches/@module-federation__node@2.7.52.patch
   '@module-federation/rspack@2.9.2': patches/@module-federation__rspack@2.9.2.patch
   '@module-federation/runtime-core@2.9.2': patches/@module-federation__runtime-core@2.9.2.patch
+  '@module-federation/sdk@2.9.2': patches/@module-federation__sdk@2.9.2.patch
 overrides:
   # Keep Miniflare and image plugins on one compatible Sharp native patch.
   'sharp@>=0.35.0 <0.35.5': 0.35.5

@@ -382,6 +382,113 @@ test('runner CLI has no bypass flag and builds a hermetic package-manager env', 
   assert.equal(packageManager.env.pnpm_config_trust_policy_exclude, undefined);
 });
 
+test('Tractor CLI accepts an absolute shared store and rejects invalid paths', async () => {
+  const { parseArgs } = await runnerPromise;
+  const args = [
+    '--manifest',
+    path.join(os.tmpdir(), 'release/manifest.json'),
+    '--workspace',
+    os.tmpdir(),
+  ];
+  const storeDir = path.join(os.tmpdir(), 'shared pnpm store');
+  assert.equal(parseArgs(args).storeDir, undefined);
+  assert.equal(
+    parseArgs([...args, '--store-dir', storeDir]).storeDir,
+    storeDir,
+  );
+  for (const invalid of [
+    './store',
+    '../store',
+    `${storeDir}\0invalid`,
+    ` ${storeDir}`,
+    `${storeDir} `,
+  ]) {
+    assert.throws(
+      () => parseArgs([...args, '--store-dir', invalid]),
+      /--store-dir must be an absolute path/u,
+    );
+  }
+});
+
+test('Tractor commands use the selected external store with clone-or-copy imports', async t => {
+  const { createTractorPackageManagerContext, executeTractorCommands } =
+    await runnerPromise;
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tractor-shared-store-'));
+  t.after(() => fs.rmSync(root, { force: true, recursive: true }));
+  const packageManagerRoot = path.join(root, 'package-manager');
+  const storeDir = path.join(root, 'shared store');
+  const packageManager = createTractorPackageManagerContext(
+    packageManagerOptions({
+      packageManagerRoot,
+      storeDir,
+      registryEnv: {
+        npm_config_registry: 'https://registry.npmjs.org/',
+        pnpm_config_registry: 'https://registry.npmjs.org/',
+        NPM_CONFIG_STORE_DIR: '/inherited/wrong-store',
+        pnpm_config_store_dir: '/registry/wrong-store',
+        PNPM_CONFIG_PACKAGE_IMPORT_METHOD: 'copy',
+      },
+    }),
+  );
+  const expectedStoreEnv = {
+    npm_config_package_import_method: 'clone-or-copy',
+    npm_config_store_dir: storeDir,
+    pnpm_config_package_import_method: 'clone-or-copy',
+    pnpm_config_store_dir: storeDir,
+  };
+  const observed = [];
+  Array.from(
+    executeTractorCommands({
+      workspace: root,
+      env: packageManager.env,
+      report: { checks: [] },
+      runImpl(_command, _args, options) {
+        observed.push(options.env);
+        assert.equal(options.cwd, root);
+      },
+    }),
+  );
+  assert.equal(observed.length, 7);
+  for (const env of observed) {
+    for (const [name, value] of Object.entries(expectedStoreEnv)) {
+      assert.equal(env[name], value, name);
+    }
+    assert.equal(env.NPM_CONFIG_STORE_DIR, undefined);
+    assert.equal(env.PNPM_CONFIG_PACKAGE_IMPORT_METHOD, undefined);
+    assert.equal(env.pnpm_config_minimum_release_age, '1440');
+    assert.equal(env.pnpm_config_minimum_release_age_strict, 'true');
+    assert.equal(env.pnpm_config_trust_policy_exclude, undefined);
+  }
+  const child = runCommand(
+    process.execPath,
+    [
+      '-e',
+      `process.stdout.write(JSON.stringify(Object.fromEntries(
+        Object.entries(process.env).filter(([name]) =>
+          /^(?:npm|pnpm)_config_(?:store_dir|package_import_method)$/iu.test(name),
+        ),
+      )))`,
+    ],
+    {
+      encoding: 'utf8',
+      env: createProcessEnv(packageManager.env),
+      stdio: 'pipe',
+    },
+  );
+  assert.equal(child.exitCode, 0, child.stderr);
+  assert.deepEqual(JSON.parse(child.stdout), expectedStoreEnv);
+  assert.throws(
+    () =>
+      createTractorPackageManagerContext(
+        packageManagerOptions({
+          packageManagerRoot,
+          storeDir: path.join(packageManagerRoot, 'private-store'),
+        }),
+      ),
+    /external store must be outside its work directory/u,
+  );
+});
+
 test('runner rejects inherited release-age bypasses and preserves verified source selectors', async () => {
   const { createTractorPackageManagerContext } = await runnerPromise;
   // One representative per casing family: the child env is filtered
@@ -745,6 +852,10 @@ test('source-candidate rehearsal tears down its registry and refuses an escaped 
     release: { version: releaseVersion },
     tools: { node: process.version, npm: '11.10.1', pnpm: '11.17.0' },
   };
+  const storeDir = path.join(root, 'shared store');
+  fs.mkdirSync(storeDir);
+  const sharedStoreSentinel = path.join(storeDir, 'keep');
+  fs.writeFileSync(sharedStoreSentinel, 'shared store belongs to the caller');
   const options = parseArgs([
     '--mode',
     'source',
@@ -752,6 +863,8 @@ test('source-candidate rehearsal tears down its registry and refuses an escaped 
     path.join(root, 'release', 'manifest.json'),
     '--workspace',
     root,
+    '--store-dir',
+    storeDir,
   ]);
   const seededEnv = {
     npm_config_cache: path.join(root, 'npm-cache'),
@@ -785,8 +898,13 @@ test('source-candidate rehearsal tears down its registry and refuses an escaped 
   );
   assert.equal(returned, 'accepted');
   assert.equal(starts.length, 1);
+  assert.equal(starts[0].storeDir, storeDir);
   assert.equal(stopped, 1);
   assert.equal(fs.existsSync(starts[0].rootDir), false);
+  assert.equal(
+    fs.readFileSync(sharedStoreSentinel, 'utf8'),
+    'shared store belongs to the caller',
+  );
 
   // The seeder's scoped user config reaches the acceptance verbatim, and
   // nothing in it names a registry globally, so unrelated dependencies are
@@ -818,6 +936,34 @@ test('source-candidate rehearsal tears down its registry and refuses an escaped 
   );
   assert.equal(escapedStops, 1);
   assert.equal(fs.existsSync(escapedRootDir), false);
+
+  let retainedRootDir;
+  const shutdownFailure = new Error('registry process did not retire');
+  await assert.rejects(
+    withSourceCandidateRegistry(options, () => 'accepted', {
+      readReleaseManifestImpl: () => rehearsalRelease,
+      startEphemeralRegistryImpl: async started => {
+        retainedRootDir = started.rootDir;
+        t.after(() =>
+          fs.rmSync(retainedRootDir, { force: true, recursive: true }),
+        );
+        assert.equal(started.storeDir, storeDir);
+        return {
+          env: seededEnv,
+          registryUrl: 'http://127.0.0.1:4873/',
+          stop: async () => {
+            throw shutdownFailure;
+          },
+        };
+      },
+    }),
+    error => error === shutdownFailure,
+  );
+  assert.equal(fs.existsSync(retainedRootDir), true);
+  assert.equal(
+    fs.readFileSync(sharedStoreSentinel, 'utf8'),
+    'shared store belongs to the caller',
+  );
 
   // A registry seeded with a global override never reaches the acceptance.
   let overriddenStops = 0;

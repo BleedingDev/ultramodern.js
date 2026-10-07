@@ -73,10 +73,20 @@ export default [
     packageName: '@module-federation/runtime-core',
     version: '2.9.2',
     path: 'patches/@module-federation__runtime-core@2.9.2.patch',
-    sha256: 'f7b9f3dcdb48ee9a00b2dfc858f2b403e00355b154142f876ac71648e27a9867',
+    sha256: '8f844e9c948e1e0b8fa183bf3e8c87f9e7fa9d9abbab91cdf0aeb708123b574e',
     repository: true,
     workspace: null,
     reason:
-      'Add helpers.global.resetFederationRuntime() for rebuilt server bundles ([#5152](https://github.com/module-federation/core/pull/5152)).',
+      'Add helpers.global.resetFederationRuntime() for rebuilt server bundles ([#5152](https://github.com/module-federation/core/pull/5152)). Forward the public fetch lifecycle to the canonical Node entry loader so transport failures can settle and retry without replacing the loader or clearing healthy caches.',
+  },
+  {
+    packageName: '@module-federation/sdk',
+    version: '2.9.2',
+    path: 'patches/@module-federation__sdk@2.9.2.patch',
+    sha256: 'fb4b0dfd33a0588ad3821f1d56e2316044ae0b721c515a69080d7d9d9de72e3e',
+    repository: true,
+    workspace: null,
+    reason:
+      'Call the documented Node fetch hook with its URL/options tuple and declare it on loadScriptNode; preserve native response and fallback behavior. Retire only failed ESM modules so imported fetch, link and evaluation failures can retry while healthy shared modules remain cached.',
   },
 ];

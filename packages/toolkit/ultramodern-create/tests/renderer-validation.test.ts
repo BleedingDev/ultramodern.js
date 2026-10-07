@@ -11,18 +11,31 @@ import {
 import { getRendererGenerationProfile } from '../src/ultramodern-workspace/renderer-profile';
 import {
   assertAuthoredRendererDependencyPins,
+  assertNativeRendererSourceSurface,
   assertRendererDependencies,
   assertRendererProjection,
   isForeignRendererPackage,
   readReactFrameworkCompatibleRanges,
 } from '../src/ultramodern-workspace/validation/renderer';
 import { readRendererFrameworkPackageEvidence } from '../src/ultramodern-workspace/validation/renderer-framework-evidence';
+import { validateWorkspace } from '../src/ultramodern-workspace/validation/workspace';
+import {
+  MODULE_FEDERATION_NODE_VERSION,
+  MODULE_FEDERATION_VERSION,
+  ULTRAMODERN_PACKAGE_PINS,
+} from '../src/ultramodern-workspace/versions';
+import { createWorkspaceValidationContract } from '../src/ultramodern-workspace/workspace-validation-contract';
+import { linkInstalledCompiler } from './helpers/workspace-kit';
 
-function nativeProjection(renderer: 'solid' | 'octane') {
+function nativeProjection(
+  renderer: 'solid' | 'octane',
+  appId = 'shell-super-app',
+  appPath = `apps/${appId}`,
+) {
   const generation = getRendererGenerationProfile(renderer);
   const identity = {
     renderer,
-    appId: 'shell-super-app',
+    appId,
     entryName: 'main',
     protocolVersion: 1,
     buildId: 'build-native-fixture',
@@ -30,7 +43,7 @@ function nativeProjection(renderer: 'solid' | 'octane') {
   const provider = { ...generation.profile.router, framework: renderer };
   return {
     id: identity.appId,
-    path: 'apps/shell-super-app',
+    path: appPath,
     renderer,
     rendererProfile: generation.profile,
     rendererIdentity: identity,
@@ -56,8 +69,9 @@ function overlayFixture(renderer: 'solid' | 'octane') {
     name: '@fixture/shell-super-app',
     dependencies: {
       ...generation.dependencies,
-      '@modern-js/renderer-core': 'workspace:*',
-      [`@modern-js/renderer-${renderer}`]: 'workspace:*',
+      ...Object.fromEntries(
+        generation.frameworkDependencies.map(name => [name, 'workspace:*']),
+      ),
     },
     devDependencies: { ...generation.devDependencies },
     scripts: { build: 'ultramodern build' },
@@ -166,14 +180,14 @@ test('native renderer projections reject a mismatched tuple, identity and capabi
           ...app,
           rendererCapabilities: {
             ...app.rendererCapabilities,
-            federation: true,
+            federation: !app.rendererCapabilities.federation,
           },
         }),
       /admitted profile/,
     );
-    assert.throws(
-      () => assertRendererProjection({ ...app, moduleFederation: {} }),
-      /does not support Module Federation/,
+    assert.equal(app.rendererCapabilities.federation, true);
+    assert.doesNotThrow(() =>
+      assertRendererProjection({ ...app, moduleFederation: {} }),
     );
   }
 });
@@ -385,6 +399,561 @@ test('authored renderer ABI pins resolve explicit catalogs and reject mismatches
   );
 });
 
+test('native federation dependencies use exact producer pins through catalogs and same-name aliases', () => {
+  for (const renderer of ['solid', 'octane'] as const) {
+    const generation = getRendererGenerationProfile(renderer);
+    const dependencies = {
+      ...generation.dependencies,
+      ...Object.fromEntries(
+        generation.frameworkDependencies.map(name => [name, 'workspace:*']),
+      ),
+      '@module-federation/enhanced': 'catalog:federation',
+      '@module-federation/node': `npm:@module-federation/node@${MODULE_FEDERATION_NODE_VERSION}`,
+    };
+    const manifest = {
+      name: `@fixture/${renderer}-federation`,
+      dependencies,
+      devDependencies: { ...generation.devDependencies },
+    };
+    const catalogs = {
+      catalogs: {
+        federation: {
+          '@module-federation/enhanced': MODULE_FEDERATION_VERSION,
+        },
+      },
+    };
+    assert.doesNotThrow(() =>
+      assertRendererDependencies(manifest, renderer, generation, catalogs),
+    );
+    assert.doesNotThrow(() =>
+      assertAuthoredRendererDependencyPins(manifest, generation, catalogs),
+    );
+    assert.doesNotThrow(() =>
+      assertRendererDependencies(manifest, renderer, undefined, catalogs),
+    );
+    assert.doesNotThrow(() =>
+      assertRendererDependencies({ name: 'standalone' }, renderer),
+    );
+    assert.throws(
+      () => assertRendererDependencies(manifest, renderer),
+      /declared federation ABI catalog:federation disagrees/u,
+    );
+    const missing: Record<string, string> = { ...dependencies };
+    delete missing['@module-federation/node'];
+    assert.throws(
+      () =>
+        assertRendererDependencies(
+          { ...manifest, dependencies: missing },
+          renderer,
+          generation,
+          catalogs,
+        ),
+      /must use the selected renderer pin/u,
+    );
+  }
+});
+
+test('native federation admission stays closed across every dependency group and alias target', () => {
+  for (const renderer of ['solid', 'octane'] as const) {
+    const generation = getRendererGenerationProfile(renderer);
+    for (const group of [
+      'dependencies',
+      'devDependencies',
+      'optionalDependencies',
+      'peerDependencies',
+    ]) {
+      const admitted = {
+        name: `@fixture/${renderer}`,
+        [group]: {
+          '@module-federation/enhanced': MODULE_FEDERATION_VERSION,
+          '@module-federation/node': MODULE_FEDERATION_NODE_VERSION,
+          '@module-federation/runtime':
+            ULTRAMODERN_PACKAGE_PINS.appDependencies[
+              '@module-federation/runtime'
+            ],
+        },
+      };
+      assert.doesNotThrow(() =>
+        assertAuthoredRendererDependencyPins(admitted, generation),
+      );
+      assert.doesNotThrow(() => assertRendererDependencies(admitted, renderer));
+      for (const [name, request, message] of [
+        ['@module-federation/enhanced', '^2.9.2', /declared federation ABI/u],
+        ['@module-federation/node', 'latest', /declared federation ABI/u],
+        ['@module-federation/node', '2.7.51', /declared federation ABI/u],
+        [
+          '@module-federation/enhanced',
+          `npm:@module-federation/node@${MODULE_FEDERATION_NODE_VERSION}`,
+          /declared federation ABI/u,
+        ],
+        [
+          'alternate-federation',
+          `npm:@module-federation/enhanced@${MODULE_FEDERATION_VERSION}`,
+          /declared federation ABI/u,
+        ],
+        [
+          '@module-federation/bridge-react',
+          MODULE_FEDERATION_VERSION,
+          /unsupported .* capability/u,
+        ],
+        [
+          'legacy-federation',
+          `npm:@module-federation/modern-js-v3@${MODULE_FEDERATION_VERSION}`,
+          /unsupported .* capability/u,
+        ],
+        [
+          'legacy-federation',
+          `npm:@bleedingdev/mf-bridge-react@${MODULE_FEDERATION_VERSION}`,
+          /unsupported .* capability/u,
+        ],
+        [
+          '@module-federation/runtime',
+          MODULE_FEDERATION_VERSION,
+          /declared federation ABI/u,
+        ],
+        [
+          '@module-federation/runtime',
+          `npm:@module-federation/runtime@${MODULE_FEDERATION_VERSION}`,
+          /declared federation ABI/u,
+        ],
+        [
+          '@module-federation/runtime',
+          `npm:@module-federation/runtime@${ULTRAMODERN_PACKAGE_PINS.appDependencies['@module-federation/runtime']}`,
+          /declared federation ABI/u,
+        ],
+        ['wrangler', '4.145.0', /unsupported .* capability/u],
+        ['worker-tools', 'npm:wrangler@4.145.0', /unsupported .* capability/u],
+      ] as const) {
+        const manifest = {
+          name: `@fixture/${renderer}`,
+          [group]: { [name]: request },
+        };
+        assert.throws(
+          () => assertAuthoredRendererDependencyPins(manifest, generation),
+          message,
+        );
+        assert.throws(
+          () => assertRendererDependencies(manifest, renderer),
+          message,
+        );
+      }
+      const gated = {
+        ...generation,
+        capabilities: { ...generation.capabilities, federation: false },
+      };
+      for (const [name, request] of [
+        ['@module-federation/enhanced', MODULE_FEDERATION_VERSION],
+        ['@module-federation/node', MODULE_FEDERATION_NODE_VERSION],
+        [
+          '@module-federation/runtime',
+          ULTRAMODERN_PACKAGE_PINS.appDependencies[
+            '@module-federation/runtime'
+          ],
+        ],
+        ['@modern-js/federation-runtime', 'workspace:*'],
+      ]) {
+        const manifest = {
+          name: 'unadmitted-federation',
+          [group]: { [name]: request },
+        };
+        assert.throws(
+          () => assertAuthoredRendererDependencyPins(manifest, gated),
+          /unsupported .* capability/u,
+        );
+        assert.throws(
+          () => assertRendererDependencies(manifest, renderer, gated),
+          /unsupported .* capability/u,
+        );
+      }
+    }
+  }
+});
+
+test('native federation runtime requests authenticate the actual framework producer', () => {
+  const name = '@modern-js/federation-runtime';
+  const evidence = readRendererFrameworkPackageEvidence(name);
+  assert.equal(evidence.kind, 'source-checkout');
+  assert.ok(fs.existsSync(evidence.evidencePath));
+  assert.throws(
+    () => readRendererFrameworkPackageEvidence('@modern-js/renderer-core'),
+    /Unsupported renderer framework ABI package/u,
+  );
+  for (const renderer of ['solid', 'octane'] as const) {
+    const generation = getRendererGenerationProfile(renderer);
+    for (const group of [
+      'dependencies',
+      'devDependencies',
+      'optionalDependencies',
+      'peerDependencies',
+    ]) {
+      for (const request of [
+        'workspace:*',
+        evidence.version,
+        `npm:${evidence.targetName}@${evidence.version}`,
+        'catalog:federation-runtime',
+      ]) {
+        const manifest = {
+          name: '@fixture/authenticated-federation',
+          [group]: { [name]: request },
+        };
+        const catalogs = {
+          catalogs: { 'federation-runtime': { [name]: evidence.version } },
+        };
+        assert.doesNotThrow(() =>
+          assertAuthoredRendererDependencyPins(manifest, generation, catalogs),
+        );
+        assert.doesNotThrow(() =>
+          assertRendererDependencies(manifest, renderer, undefined, catalogs),
+        );
+      }
+      for (const request of [
+        `npm:@unverified/federation-runtime@${evidence.version}`,
+        `^${evidence.version}`,
+        generation.profile.hydration.version,
+        'catalog:missing',
+      ]) {
+        const manifest = {
+          name: '@fixture/unverified-federation',
+          [group]: { [name]: request },
+        };
+        assert.throws(
+          () => assertAuthoredRendererDependencyPins(manifest, generation),
+          /authenticated producer package/u,
+        );
+        assert.throws(
+          () => assertRendererDependencies(manifest, renderer),
+          /authenticated producer package/u,
+        );
+      }
+    }
+  }
+});
+
+test('native federation source artifacts are admitted by capability while worker and React artifacts stay rejected', () => {
+  for (const renderer of ['solid', 'octane'] as const) {
+    const { root, app, manifest, write } = overlayFixture(renderer);
+    const generation = getRendererGenerationProfile(renderer);
+    const gated = {
+      ...generation,
+      capabilities: { ...generation.capabilities, federation: false },
+    };
+    try {
+      // Authored native applications can keep their ordinary route files
+      // without adding federation declarations.
+      assert.doesNotThrow(() =>
+        assertNativeRendererSourceSurface(root, app, generation, manifest),
+      );
+      for (const artifact of [
+        'module-federation.config.ts',
+        'module-federation.config.tsx',
+        'module-federation.config.js',
+        'module-federation.config.mjs',
+        'module-federation.config.cjs',
+        'module-federation.config.mts',
+        'module-federation.config.cts',
+        'src/federation-entry.ts',
+        'src/federation-entry.tsx',
+        'src/federation-entry.tsrx',
+        'src/federation-entry.gtsx',
+      ]) {
+        write(`${app.path}/${artifact}`, 'export default {};');
+        assert.doesNotThrow(() =>
+          assertNativeRendererSourceSurface(root, app, generation, manifest),
+        );
+        assert.throws(
+          () => assertNativeRendererSourceSurface(root, app, gated, manifest),
+          /unsupported artifact/u,
+        );
+        fs.rmSync(path.join(root, app.path, artifact));
+      }
+      const federationScript = {
+        ...manifest,
+        scripts: { build: 'ultramodern build --module-federation' },
+      };
+      assert.doesNotThrow(() =>
+        assertNativeRendererSourceSurface(
+          root,
+          app,
+          generation,
+          federationScript,
+        ),
+      );
+      assert.throws(
+        () =>
+          assertNativeRendererSourceSurface(root, app, gated, federationScript),
+        /scripts claim an unsupported capability/u,
+      );
+      for (const artifact of ['wrangler.toml', 'src/modern.runtime.ts']) {
+        write(`${app.path}/${artifact}`, 'export default {};');
+        assert.throws(
+          () =>
+            assertNativeRendererSourceSurface(root, app, generation, manifest),
+          /unsupported artifact/u,
+        );
+        fs.rmSync(path.join(root, app.path, artifact));
+      }
+      assert.throws(
+        () =>
+          assertNativeRendererSourceSurface(root, app, generation, {
+            ...manifest,
+            scripts: { build: 'wrangler deploy' },
+          }),
+        /scripts claim an unsupported capability/u,
+      );
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
+test('authored native workspace federation validates discovery, exposes and renderer metadata without the React bridge', () => {
+  for (const renderer of ['solid', 'octane'] as const) {
+    const { root, app, manifest, write } = overlayFixture(renderer);
+    const generation = getRendererGenerationProfile(renderer);
+    const scope = 'native-validation';
+    const remote = nativeProjection(renderer, 'catalog', 'verticals/catalog');
+    const expose = './src/components/catalog-widget.tsx';
+    const remoteExposes: Record<string, string> = { './Widget': expose };
+    const projections = [app, remote];
+    const apps = projections.map((projection, index) => {
+      const kind: 'shell' | 'vertical' = index === 0 ? 'shell' : 'vertical';
+      const packageName = `@fixture/${projection.id}`;
+      const deliveryUnit = {
+        ...projection.deliveryUnit,
+        unitId: `${scope}/${projection.id}`,
+        packageName,
+      };
+      return {
+        ...projection,
+        kind,
+        package: packageName,
+        deliveryUnit,
+        moduleFederation: {
+          role: index === 0 ? 'host' : 'remote',
+          name: index === 0 ? 'shell' : 'verticalCatalog',
+        },
+        verticalRefs: index === 0 ? [remote.id] : [],
+      };
+    });
+    const overlay = {
+      schemaVersion: 1,
+      ports: { [app.id]: 3020, [remote.id]: 4101 },
+      manifests: { [remote.id]: 'http://localhost:4101/mf-manifest.json' },
+    };
+    const contract = {
+      ...createWorkspaceValidationContract(scope, false, []),
+      apps: apps.map((candidate, index) => ({
+        id: candidate.id,
+        kind: candidate.kind,
+        path: candidate.path,
+        packageName: candidate.package,
+        emitsApi: false,
+        emitsUi: true,
+        renderer,
+        rendererIdentity: candidate.rendererIdentity,
+        rendererIdentities: candidate.rendererIdentities,
+        rendererProfile: candidate.rendererProfile,
+        routerBindings: candidate.routerBindings,
+        validatesRendererProjection: true,
+        rendererCapabilities: generation.capabilities,
+        exposes: index === 0 ? {} : remoteExposes,
+        verticalRefs: candidate.verticalRefs,
+      })),
+    };
+    try {
+      write('package.json', { name: scope });
+      write('pnpm-workspace.yaml', 'packages:\n  - apps/*\n  - verticals/*\n');
+      write('topology/reference-topology.json', {
+        schemaVersion: 1,
+        shell: apps[0],
+        verticals: [apps[1]],
+        sharedPackages: [],
+      });
+      write('topology/ownership.json', {
+        schemaVersion: 1,
+        owners: apps.map(candidate => ({
+          id: candidate.id,
+          path: candidate.path,
+          package: candidate.package,
+        })),
+      });
+      write('topology/local-overlays/development.json', overlay);
+      for (const candidate of apps) {
+        write(`${candidate.path}/package.json`, {
+          ...manifest,
+          name: candidate.package,
+          modernjs: { appId: candidate.id },
+        });
+        write(`${candidate.path}/modern.config.ts`, 'export default {};');
+        write(
+          `${candidate.path}/module-federation.config.ts`,
+          `export default ${JSON.stringify({
+            name: candidate.moduleFederation.name,
+            exposes: candidate.kind === 'vertical' ? remoteExposes : {},
+            ...(candidate.kind === 'shell'
+              ? {
+                  remotes: {
+                    catalog:
+                      'verticalCatalog@http://localhost:4101/mf-manifest.json',
+                  },
+                }
+              : {}),
+          })};`,
+        );
+        write(`${candidate.path}/tsconfig.json`, {
+          compilerOptions: {
+            jsx: 'preserve',
+            jsxImportSource: generation.jsxImportSource,
+          },
+        });
+        for (const relative of ['layout.tsx', 'page.tsx', 'about/page.tsx'])
+          write(
+            `${candidate.path}/src/routes/${relative}`,
+            'export default function Page() { return null; }',
+          );
+        // This fixture checks authored relationships only. Real MF emission,
+        // Node containers and hydration are covered by the federation proofs.
+        write(`${candidate.path}/shared/ultramodern-build.json`, {
+          deliveryUnit: candidate.deliveryUnit,
+          surfaces: {
+            ui: {
+              rendererProfile: candidate.rendererProfile,
+              rendererIdentity: candidate.rendererIdentity,
+              routerBindings: candidate.routerBindings,
+            },
+          },
+        });
+      }
+      write(
+        `${remote.path}/${expose.slice(2)}`,
+        'export default function Widget() { return null; }',
+      );
+      linkInstalledCompiler(root);
+      validateWorkspace(root, contract);
+
+      const configs = new Map(
+        apps.map(candidate => [
+          candidate.path,
+          fs.readFileSync(
+            path.join(root, candidate.path, 'module-federation.config.ts'),
+            'utf8',
+          ),
+        ]),
+      );
+      fs.rmSync(path.join(root, app.path, 'module-federation.config.ts'));
+      assert.throws(
+        () => validateWorkspace(root, contract),
+        /shell-super-app Module Federation config is missing/u,
+      );
+      write(`${app.path}/module-federation.config.ts`, configs.get(app.path)!);
+
+      // Admission also leaves authored standalone native hosts and verticals
+      // valid when neither declares federation endpoints or exposes.
+      const standalone = apps.map(candidate => ({
+        ...candidate,
+        moduleFederation: undefined,
+        verticalRefs: [],
+      }));
+      write('topology/reference-topology.json', {
+        schemaVersion: 1,
+        shell: standalone[0],
+        verticals: [standalone[1]],
+        sharedPackages: [],
+      });
+      write('topology/local-overlays/development.json', {
+        ...overlay,
+        manifests: {},
+      });
+      for (const candidate of apps)
+        fs.rmSync(
+          path.join(root, candidate.path, 'module-federation.config.ts'),
+        );
+      validateWorkspace(root, {
+        ...contract,
+        apps: contract.apps.map(candidate => ({
+          ...candidate,
+          exposes: {},
+          verticalRefs: [],
+        })),
+      });
+      write('topology/reference-topology.json', {
+        schemaVersion: 1,
+        shell: apps[0],
+        verticals: [apps[1]],
+        sharedPackages: [],
+      });
+      for (const candidate of apps)
+        write(
+          `${candidate.path}/module-federation.config.ts`,
+          configs.get(candidate.path)!,
+        );
+
+      write('topology/local-overlays/development.json', {
+        ...overlay,
+        manifests: {},
+      });
+      assert.throws(
+        () => validateWorkspace(root, contract),
+        /has no development MF manifest URL/u,
+      );
+      write('topology/local-overlays/development.json', {
+        ...overlay,
+        manifests: { [remote.id]: 'http://localhost:4999/mf-manifest.json' },
+      });
+      assert.throws(
+        () => validateWorkspace(root, contract),
+        /must use the app development port/u,
+      );
+      write('topology/local-overlays/development.json', overlay);
+      fs.rmSync(path.join(root, remote.path, expose));
+      assert.throws(
+        () => validateWorkspace(root, contract),
+        /Module Federation expose source .* is missing/u,
+      );
+      write(
+        `${remote.path}/${expose.slice(2)}`,
+        'export default function Widget() { return null; }',
+      );
+      write(
+        `${app.path}/module-federation.config.ts`,
+        'export default { name: "native", bridge: { enableBridgeRouter: false } };',
+      );
+      assert.throws(
+        () => validateWorkspace(root, contract),
+        /forbidden option enableBridgeRouter/u,
+      );
+      write(
+        `${app.path}/module-federation.config.ts`,
+        'const enableBridgeRouter = false; export default { name: "native", bridge: { enableBridgeRouter } };',
+      );
+      assert.throws(
+        () => validateWorkspace(root, contract),
+        /forbidden option enableBridgeRouter/u,
+      );
+      write(`${app.path}/module-federation.config.ts`, configs.get(app.path)!);
+      write(`${app.path}/shared/ultramodern-build.json`, {
+        deliveryUnit: apps[0]!.deliveryUnit,
+        surfaces: {
+          ui: {
+            rendererProfile: app.rendererProfile,
+            rendererIdentity: {
+              ...app.rendererIdentity,
+              buildId: 'wrong-build',
+            },
+            routerBindings: app.routerBindings,
+          },
+        },
+      });
+      assert.throws(
+        () => validateWorkspace(root, contract),
+        /build renderer profile\/identity contradicts topology/u,
+      );
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
 test('React apps declare router and runtime installs within the framework compatible ranges', () => {
   const generation = getRendererGenerationProfile('react');
   const router = generation.dependencies['@tanstack/react-router'];
@@ -486,7 +1055,11 @@ test('maintained Octane distribution pins match the generated requests exactly',
         { catalogs: { 'maintained-octane': { [profile.name]: request } } },
       ),
     );
-    for (const mismatch of [profile.version, `${request}?unreviewed=1`]) {
+    for (const mismatch of [
+      profile.version,
+      `${request}?unreviewed=1`,
+      `npm:${profile.name}@${request}`,
+    ]) {
       assert.throws(
         () =>
           assertAuthoredRendererDependencyPins(
@@ -631,7 +1204,7 @@ test('native overlays reject foreign aliases, metadata drift and unsupported art
           verticals: [],
         });
       } else if (mutation === 'artifact') {
-        write(`${app.path}/module-federation.config.ts`, 'export default {};');
+        write(`${app.path}/wrangler.toml`, 'name = "unsupported-worker"');
       } else if (mutation === 'workspace-policy') {
         write('pnpm-workspace.yaml', 'overrides:\n  react: 19.3.0\n');
       } else {

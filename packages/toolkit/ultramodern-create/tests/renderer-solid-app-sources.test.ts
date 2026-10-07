@@ -225,17 +225,31 @@ test('the same native components serve admitted CSR and SSR hosts', () => {
   );
 });
 
-test('unsupported entry and federation requests fail before artifacts exist', () => {
+test('unsupported entry requests fail before artifacts exist', () => {
   assert.throws(
     () => generateSolidAppSources({ ...options, entryName: 'admin' }),
     /main entry only/,
   );
-  assert.throws(
-    () =>
-      generateSolidAppSources({
-        ...options,
-        capabilities: { ssr: false, federation: true },
-      }),
-    /does not support federation/,
+});
+
+test('admitted federation templates keep native routes and expose navigation', () => {
+  const sources = parseNativeRoutes(
+    generateSolidAppSources({
+      ...options,
+      capabilities: { ssr: true, federation: true },
+    }),
+  );
+  assert.equal(
+    sources.length,
+    generateSolidAppSources(options).artifacts.length,
+  );
+  assert.ok(
+    sources
+      .find(route => route.path === 'src/routes/layout.tsx')
+      .program.body.some(
+        node =>
+          node.type === 'ImportDeclaration' &&
+          node.source.value === '@modern-js/renderer-solid/router',
+      ),
   );
 });

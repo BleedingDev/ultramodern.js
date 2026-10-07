@@ -57,6 +57,7 @@ export function createNativeServerEntry(
         session,
         App: componentView(component, i18n) as ServerRenderNode,
         document,
+        federation: options.federation,
       }),
     async renderRoutes({
       request,
@@ -97,6 +98,7 @@ export function createNativeServerEntry(
                 props: { router },
               }),
           document,
+          federation: options.federation,
           injection: createOctaneRouterInjection(router, session),
         });
         return createSsrStreamResponse(router, rendered);

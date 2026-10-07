@@ -5,8 +5,13 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { AppTools, CliPlugin } from '@modern-js/app-tools';
 import type { Renderer } from '@modern-js/renderer-core';
+import type { NativeRendererFederation } from '@modern-js/renderer-core/adapter';
 import { SERVER_BUNDLE_DIRECTORY } from '@modern-js/utils';
+import { type Rspack, rspack } from '@rsbuild/core';
+import { resolveManifestRecoveryRuntimePlugin } from '../renderers/react/module-federation-recovery-plugin';
 import { NATIVE_MODULE_FEDERATION_PLUGIN } from './module-federation-renderer-plugin';
+import { NativeFederationDevAssetsPlugin } from './native-federation-dev-assets';
+import { resolveNativeFederationDevPublicPath } from './native-federation-dev-public-path';
 import { findNativeFederationConfig } from './native-federation-files';
 import { resolveNativeRendererAdapter } from './renderer-registration';
 
@@ -23,6 +28,20 @@ export const NATIVE_SERVER_CONTAINER_TYPE = 'commonjs-module';
 
 type NativeRenderer = Exclude<Renderer, 'react'>;
 type FederationOptions = Record<string, unknown>;
+type NativeFederationEnvironment = 'client' | 'server';
+
+interface NativeSharedOwner {
+  readonly directory: string;
+  readonly name: string;
+  readonly version: string;
+  readonly exports: unknown;
+}
+
+export interface NativeSharedBindings {
+  readonly versions: Readonly<Record<string, string>>;
+  readonly imports: Readonly<Record<string, string>>;
+  readonly aliases: Readonly<Record<string, string>>;
+}
 
 /** The selected adapter's federation descriptor and its bootstrap package. */
 function nativeFederationProfile(renderer: NativeRenderer) {
@@ -116,10 +135,10 @@ export function sharedPackageName(key: string): string {
 }
 
 /** Read the installed version by Node's node_modules lookup, ignoring exports. */
-function installedPackageVersion(
+function installedPackageOwner(
   name: string,
   from: readonly string[],
-): string | undefined {
+): NativeSharedOwner | undefined {
   for (const base of from)
     for (let directory = base; ; directory = path.dirname(directory)) {
       const manifest = path.join(
@@ -129,47 +148,292 @@ function installedPackageVersion(
         'package.json',
       );
       if (fs.existsSync(manifest)) {
-        const version: unknown = JSON.parse(
-          fs.readFileSync(manifest, 'utf8'),
-        ).version;
-        if (typeof version === 'string') return version;
+        const installed = JSON.parse(fs.readFileSync(manifest, 'utf8'));
+        if (
+          typeof installed.version === 'string' &&
+          typeof installed.name === 'string'
+        )
+          return {
+            directory: path.dirname(fs.realpathSync(manifest)),
+            name: installed.name,
+            version: installed.version,
+            exports: installed.exports,
+          };
       }
       if (path.dirname(directory) === directory) break;
     }
   return undefined;
 }
 
-/**
- * Exact installed versions of the renderer singletons. The application's own
- * dependency on the renderer bootstrap decides which copies it shares.
- */
+function nativeSharedRequests(
+  profile: NativeRendererFederation,
+  environment?: NativeFederationEnvironment,
+): string[] {
+  return [
+    ...new Set(
+      [
+        ...profile.shared,
+        ...Object.keys(profile.sharedByEnvironment?.client ?? {}),
+        ...Object.keys(profile.sharedByEnvironment?.server ?? {}),
+      ].filter(
+        name =>
+          environment === undefined ||
+          profile.shared.includes(name) ||
+          Object.hasOwn(profile.sharedByEnvironment?.[environment] ?? {}, name),
+      ),
+    ),
+  ];
+}
+
+/** The selected bootstrap and router own the packages whose state is shared. */
+function resolveNativeSharedOwners(
+  renderer: NativeRenderer,
+  appDirectory: string,
+): Readonly<Record<string, NativeSharedOwner>> {
+  const profile = nativeFederationProfile(renderer);
+  const bootstrap = installedPackageOwner(profile.bootstrap, [appDirectory]);
+  const from = [...(bootstrap ? [bootstrap.directory] : []), appDirectory];
+  const adapter = resolveNativeRendererAdapter(renderer);
+  const router =
+    adapter.profile.router.name === profile.bootstrap
+      ? bootstrap
+      : installedPackageOwner(adapter.profile.router.name, from);
+  const routerFrom = router ? [router.directory, ...from] : from;
+  const core = installedPackageOwner(
+    adapter.profile.router.coreName,
+    routerFrom,
+  );
+  const owners: Record<string, NativeSharedOwner> = {};
+  for (const key of nativeSharedRequests(profile)) {
+    const name = sharedPackageName(key);
+    const owner =
+      name === adapter.profile.router.coreName
+        ? core
+        : name === profile.bootstrap
+          ? bootstrap
+          : installedPackageOwner(
+              name,
+              name === '@tanstack/history' && core
+                ? [core.directory, ...routerFrom]
+                : from,
+            );
+    if (!owner)
+      throw federationError(
+        `cannot find the installed ${name} that ${renderer} shares.`,
+      );
+    owners[name] = owner;
+  }
+  return owners;
+}
+
+/** Installed versions for all required providers, including both native targets. */
 export function resolveNativeSharedVersions(
   renderer: NativeRenderer,
   appDirectory: string,
 ): Readonly<Record<string, string>> {
   const profile = nativeFederationProfile(renderer);
-  const bootstrapManifest = path.join(
-    appDirectory,
-    'node_modules',
-    profile.bootstrap,
-    'package.json',
+  const owners = resolveNativeSharedOwners(renderer, appDirectory);
+  return Object.fromEntries(
+    nativeSharedRequests(profile).map(name => [
+      name,
+      owners[sharedPackageName(name)].version,
+    ]),
   );
-  const from = [
-    appDirectory,
-    ...(fs.existsSync(bootstrapManifest)
-      ? [path.dirname(fs.realpathSync(bootstrapManifest))]
-      : []),
-  ];
+}
+
+function hasRuntimeExport(
+  value: unknown,
+  conditions: ReadonlySet<string>,
+): boolean {
+  if (typeof value === 'string') return true;
+  if (Array.isArray(value))
+    return value.some(target => hasRuntimeExport(target, conditions));
+  if (!record(value)) return false;
+  return Object.entries(value).some(
+    ([condition, target]) =>
+      (condition === 'default' || conditions.has(condition)) &&
+      hasRuntimeExport(target, conditions),
+  );
+}
+
+/** Resolve the actual ESM providers and their canonical requests from one owner. */
+export function resolveNativeSharedBindings(
+  renderer: NativeRenderer,
+  appDirectory: string,
+  environment: NativeFederationEnvironment,
+  configuration: Rspack.Configuration = {},
+): NativeSharedBindings {
+  const profile = nativeFederationProfile(renderer);
+  const owners = resolveNativeSharedOwners(renderer, appDirectory);
+  const normalized = rspack.config.getNormalizedRspackOptions({
+    ...configuration,
+    context: appDirectory,
+    target:
+      configuration.target ?? (environment === 'server' ? 'async-node' : 'web'),
+  });
+  rspack.config.applyRspackOptionsDefaults(normalized);
+  const { byDependency, ...base } = normalized.resolve;
+  const esm = rspack.util.cleverMerge(base, byDependency?.esm ?? {});
+  const resolver = new rspack.experiments.resolver.ResolverFactory({
+    conditionNames: esm.conditionNames,
+    extensions: esm.extensions,
+    mainFields: esm.mainFields,
+    mainFiles: esm.mainFiles,
+    exportsFields: esm.exportsFields,
+    symlinks: true,
+  });
+  const conditions = new Set<string>(esm.conditionNames);
   const versions: Record<string, string> = {};
-  for (const key of profile.shared) {
-    const version = installedPackageVersion(sharedPackageName(key), from);
-    if (!version)
+  const imports: Record<string, string> = {};
+  const aliases: Record<string, string> = {};
+  const overrides = profile.sharedByEnvironment?.[environment] ?? {};
+  const resolve = (request: string): string => {
+    const canonical = sharedPackageName(request);
+    const owner = owners[canonical];
+    if (!owner)
+      throw federationError(`native import ${request} has no selected owner.`);
+    const physicalRequest = `${owner.name}${request.slice(canonical.length)}`;
+    const resolved = resolver.sync(owner.directory, physicalRequest);
+    if (!resolved.path)
       throw federationError(
-        `cannot find the installed ${sharedPackageName(key)} that ${renderer} shares.`,
+        `native import ${request} has no ESM implementation.`,
       );
-    versions[key] = version;
+    return resolved.path;
+  };
+  for (const key of nativeSharedRequests(profile, environment)) {
+    const owner = owners[sharedPackageName(key)];
+    versions[key] = owner.version;
+    if (key.endsWith('/')) {
+      // Prefix shares consume optional subpaths when present. Anchor those
+      // requests to the same physical package without forcing optional APIs.
+      if (record(owner.exports))
+        for (const [subpath, target] of Object.entries(owner.exports)) {
+          if (
+            !subpath.startsWith('./') ||
+            !hasRuntimeExport(target, conditions)
+          )
+            continue;
+          if (subpath.includes('*'))
+            throw federationError(
+              `singleton ${key} must publish exact runtime exports.`,
+            );
+          const request = `${sharedPackageName(key)}${subpath.slice(1)}`;
+          aliases[`${request}$`] = resolve(overrides[request] ?? request);
+        }
+      continue;
+    }
+    imports[key] = resolve(overrides[key] ?? key);
+    aliases[`${key}$`] = imports[key];
   }
-  return versions;
+  return { versions, imports, aliases };
+}
+
+/** Keep compiler imports and MF provider factories on the selected ESM graph. */
+export class NativeFederationSharedOwnersPlugin {
+  constructor(
+    private readonly renderer: NativeRenderer,
+    private readonly appDirectory: string,
+    private readonly environment: NativeFederationEnvironment,
+    private readonly bindings: NativeSharedBindings,
+  ) {}
+
+  apply(compiler: Rspack.Compiler): void {
+    const owned = nativeSharedRequests(nativeFederationProfile(this.renderer));
+    compiler.hooks.normalModuleFactory.tap(
+      'UltraModernFederationSharedOwners',
+      factory => {
+        factory.hooks.beforeResolve.tap(
+          'UltraModernFederationSharedOwners',
+          data => {
+            if (!data) return;
+            const request = data.request.split(/[?#]/u, 1)[0];
+            if (
+              !Object.hasOwn(this.bindings.aliases, `${request}$`) &&
+              owned.some(
+                key =>
+                  key === request ||
+                  (key.endsWith('/') && request.startsWith(key)),
+              )
+            ) {
+              throw federationError(
+                `singleton ${request} has no runtime export in its selected owner.`,
+              );
+            }
+          },
+        );
+      },
+    );
+    compiler.hooks.afterResolvers.tap(
+      {
+        name: 'UltraModernFederationSharedOwners',
+        // Native compiler aliases are installed at the ordinary stage. Pin the
+        // shared owner after those aliases exist, before modules are compiled.
+        stage: 100,
+      },
+      () => {
+        const finalized = resolveNativeSharedBindings(
+          this.renderer,
+          this.appDirectory,
+          this.environment,
+          compiler.options as Rspack.Configuration,
+        );
+        for (const [request, imported] of Object.entries(this.bindings.imports))
+          if (finalized.imports[request] !== imported)
+            throw federationError(
+              `the finalized ESM owner of ${request} differs from its provider.`,
+            );
+        compiler.options.resolve.alias = {
+          ...finalized.aliases,
+          ...Object.fromEntries(
+            Object.entries(compiler.options.resolve.alias || {}).filter(
+              ([request]) => !Object.hasOwn(finalized.aliases, request),
+            ),
+          ),
+        };
+        for (const dependency of Object.values(
+          compiler.options.resolve.byDependency ?? {},
+        )) {
+          if (!dependency) continue;
+          dependency.alias = {
+            ...finalized.aliases,
+            ...Object.fromEntries(
+              Object.entries(dependency.alias || {}).filter(
+                ([request]) => !Object.hasOwn(finalized.aliases, request),
+              ),
+            ),
+          };
+        }
+      },
+    );
+  }
+}
+
+/** Private identity discovery creates a compiler but never starts it. */
+export class NativeFederationDevOriginPlugin {
+  constructor(
+    private readonly readAddress: () => Parameters<
+      typeof resolveNativeFederationDevPublicPath
+    >[1],
+  ) {}
+
+  apply(compiler: Rspack.Compiler): void {
+    const assertOrigin = () => {
+      const publicPath = compiler.options.output.publicPath;
+      const resolved = resolveNativeFederationDevPublicPath(
+        typeof publicPath === 'string' ? publicPath : '',
+        this.readAddress(),
+      );
+      if (resolved !== publicPath)
+        throw federationError(
+          'a live dev compiler must publish its resolved server origin.',
+        );
+    };
+    compiler.hooks.beforeRun.tap(
+      'UltraModernFederationDevOrigin',
+      assertOrigin,
+    );
+    compiler.hooks.watchRun.tap('UltraModernFederationDevOrigin', assertOrigin);
+  }
 }
 
 /** Merge renderer singletons; a config may add packages but not weaken them. */
@@ -177,6 +441,8 @@ export function createNativeSharedConfig(
   renderer: NativeRenderer,
   shared: unknown,
   versions: Readonly<Record<string, string>>,
+  bindings?: NativeSharedBindings,
+  environment?: NativeFederationEnvironment,
 ): Record<string, unknown> {
   const profile = nativeFederationProfile(renderer);
   const authored: Record<string, unknown> =
@@ -197,14 +463,19 @@ export function createNativeSharedConfig(
             })();
   const result: Record<string, unknown> = {};
   for (const [name, value] of Object.entries(authored)) {
-    if (profile.shared.includes(name))
+    if (
+      nativeSharedRequests(profile).some(
+        owned =>
+          owned === name || (owned.endsWith('/') && name.startsWith(owned)),
+      )
+    )
       throw federationError(
         `${name} is a ${renderer} runtime singleton owned by the renderer; remove it from shared.`,
       );
     result[name] = value;
   }
   // Exact versions: workspace and alias ranges in manifests are not semver.
-  for (const name of profile.shared) {
+  for (const name of nativeSharedRequests(profile, environment)) {
     const version = versions[name];
     if (!version)
       throw federationError(`shared ${name} has no installed version.`);
@@ -212,6 +483,8 @@ export function createNativeSharedConfig(
       singleton: true,
       strictVersion: true,
       requiredVersion: version,
+      version,
+      ...(bindings?.imports[name] ? { import: bindings.imports[name] } : {}),
       eager: false,
     };
   }
@@ -266,6 +539,7 @@ export function createNativeClientFederationOptions(
   versions: Readonly<Record<string, string>>,
   runtimePlugin?: string,
   serverDirectory?: string,
+  bindings?: NativeSharedBindings,
 ): FederationOptions {
   const profile = nativeFederationProfile(renderer);
   const { remotes: _remotes, ...container } = authored;
@@ -296,7 +570,13 @@ export function createNativeClientFederationOptions(
           )
         : (authored.manifest ?? true),
     dts: authored.dts ?? false,
-    shared: createNativeSharedConfig(renderer, authored.shared, versions),
+    shared: createNativeSharedConfig(
+      renderer,
+      authored.shared,
+      versions,
+      bindings,
+      'client',
+    ),
     experiments: {
       ...(record(authored.experiments) ? authored.experiments : {}),
       // Entries start through an import() bootstrap instead. Async startup
@@ -316,6 +596,7 @@ export function createNativeServerFederationOptions(
   authored: FederationOptions,
   versions: Readonly<Record<string, string>>,
   runtimePlugins: readonly string[],
+  bindings?: NativeSharedBindings,
 ): FederationOptions {
   const { remotes: _remotes, ...container } = authored;
   if (
@@ -323,10 +604,25 @@ export function createNativeServerFederationOptions(
     !Array.isArray(authored.runtimePlugins)
   )
     throw federationError('runtimePlugins must be an array.');
+  const recovery = resolveManifestRecoveryRuntimePlugin(import.meta.url);
+  const authoredPlugins =
+    (authored.runtimePlugins as unknown[] | undefined) ?? [];
+  if (
+    authoredPlugins.some(
+      plugin => (Array.isArray(plugin) ? plugin[0] : plugin) === recovery,
+    )
+  )
+    throw federationError(
+      'manifest recovery has duplicate registration ownership.',
+    );
   return {
     ...container,
     runtimePlugins: [
-      ...((authored.runtimePlugins as unknown[] | undefined) ?? []),
+      // Recover transient manifest failures before the native Node loader
+      // converts them into terminal rendering failures. Admission still gates
+      // every recovered manifest before a remote factory executes.
+      recovery,
+      ...authoredPlugins,
       ...runtimePlugins,
     ],
     filename: authored.filename ?? 'remoteEntry.js',
@@ -337,7 +633,13 @@ export function createNativeServerFederationOptions(
     manifest: authored.manifest ?? true,
     dts: false,
     dev: false,
-    shared: createNativeSharedConfig(renderer, authored.shared, versions),
+    shared: createNativeSharedConfig(
+      renderer,
+      authored.shared,
+      versions,
+      bindings,
+      'server',
+    ),
     experiments: {
       ...(record(authored.experiments) ? authored.experiments : {}),
       asyncStartup: false,
@@ -440,19 +742,47 @@ export function createNativeRuntimeRemotes(
  */
 export function nativeFederationRuntimePluginSource(
   remotes: ReturnType<typeof createNativeRuntimeRemotes>,
-  server?: { readonly hydrationModule: string },
+  server?: {
+    readonly hydrationModule: string;
+    readonly requestTimeout?: number;
+  },
 ): string {
+  const requestTimeout = server?.requestTimeout ?? 3000;
+  if (server && (!Number.isSafeInteger(requestTimeout) || requestTimeout <= 0))
+    throw federationError('server requestTimeout must be a positive integer.');
   return `const remotes = ${JSON.stringify(remotes)};
 const hostInstance = Symbol.for('ultramodern.federation.host-instance');
 ${
   server
     ? `const ssr = Symbol.for('ultramodern.federation.ssr');
 const hydrationModule = ${JSON.stringify(server.hydrationModule)};
+const requestTimeout = ${requestTimeout};
 `
     : ''
 }export default function ultramodernNativeFederation() {
   return {
-    name: 'ultramodern-native-federation',
+    name: 'ultramodern-native-federation',${
+      server
+        ? `
+    async fetch(url, options) {
+      // The deadline belongs to this shared transport, and stays active while
+      // the native SDK consumes its Response body. A component only times out
+      // its own waiter; it cannot abort another response's shared entry load.
+      const deadline = AbortSignal.timeout(requestTimeout);
+      const signal = options?.signal
+        ? AbortSignal.any([options.signal, deadline])
+        : deadline;
+      const response = await globalThis.fetch(url, { ...options, signal });
+      if (!response.ok) {
+        void response.body?.cancel().catch(() => {});
+        throw Object.assign(new Error('Remote HTTP request failed: ' + response.status + ' ' + url), {
+          status: response.status,
+        });
+      }
+      return response;
+    },`
+        : ''
+    }
     beforeInit(args) {
       if (!globalThis[hostInstance]) {
         globalThis[hostInstance] = args.origin;${
@@ -587,6 +917,10 @@ export function nativeModuleFederationPlugin(
             throw new Error(
               `unsupported-renderer-capability: renderer ${renderer} does not support Module Federation; remove ${path.basename(file)}`,
             );
+          if (api.getNormalizedConfig().deploy?.worker?.ssr)
+            throw new Error(
+              `unsupported-renderer-capability: renderer ${renderer} does not support Module Federation worker server rendering; native federation requires the Node server transport`,
+            );
           return loadNativeFederationConfig(file);
         })());
       const serverRendered = (authored: FederationOptions): boolean => {
@@ -626,16 +960,42 @@ export function nativeModuleFederationPlugin(
         const remotes = createNativeRuntimeRemotes(
           readNativeFederationRemotes(authored),
         );
-        const versions = resolveNativeSharedVersions(renderer, appDirectory);
+        if (api.getAppContext().command === 'dev')
+          chain
+            .plugin('ultramodern-federation-dev-origin')
+            .use(NativeFederationDevOriginPlugin, [
+              () => api.getAppContext().builder?.context.devServer,
+            ]);
+        if (server) chain.target('async-node');
+        const bindings = resolveNativeSharedBindings(
+          renderer,
+          appDirectory,
+          server ? 'server' : 'client',
+          chain.toConfig?.() ?? {},
+        );
+        const versions = bindings.versions;
+        chain
+          .plugin('ultramodern-federation-shared-owners')
+          .use(NativeFederationSharedOwnersPlugin, [
+            renderer,
+            appDirectory,
+            server ? 'server' : 'client',
+            bindings,
+          ]);
         if (server) {
+          if (
+            api.getAppContext().command === 'dev' &&
+            authored.exposes !== undefined
+          )
+            chain
+              .plugin('ultramodern-federation-dev-assets')
+              .use(NativeFederationDevAssetsPlugin, [String(authored.name)]);
           const runtimePlugin = await writeRuntimePlugin(
             'native-runtime.server.mjs',
             nativeFederationRuntimePluginSource(remotes, {
               hydrationModule: NATIVE_FEDERATION_HYDRATION_MODULE,
             }),
           );
-          // Remote chunks load through the Node runtime plugin's readFileVm.
-          chain.target('async-node');
           chain
             .plugin(NATIVE_FEDERATION_CHAIN_KEY)
             .use(
@@ -646,6 +1006,7 @@ export function nativeModuleFederationPlugin(
                   authored,
                   versions,
                   [resolveNodeRuntimePlugin(appDirectory), runtimePlugin],
+                  bindings,
                 ),
               ] as never,
             );
@@ -666,6 +1027,7 @@ export function nativeModuleFederationPlugin(
                 versions,
                 runtimePlugin,
                 ssr ? SERVER_BUNDLE_DIRECTORY : undefined,
+                bindings,
               ),
             ] as never,
           );
@@ -679,9 +1041,25 @@ export function nativeModuleFederationPlugin(
       // A server container resolves its chunks from its own public path,
       // while server-rendered asset URLs keep the client's.
       api.modifyRspackConfig(async (config, { environment }) => {
-        if (environment.name !== 'server') return;
         const authored = await load();
-        if (!authored || !serverRendered(authored)) return;
+        if (!authored) return;
+        if (environment.name !== 'client' && environment.name !== 'server')
+          return;
+        const context = api.getAppContext();
+        const address = context.builder?.context.devServer;
+        if (context.command === 'dev' && address) {
+          config.output ??= {};
+          config.output.publicPath = resolveNativeFederationDevPublicPath(
+            typeof config.output.publicPath === 'string'
+              ? config.output.publicPath
+              : '',
+            address,
+            environment.config.dev.assetPrefix,
+          );
+        }
+        // Private compiler discovery precedes the live dev server and never
+        // emits. The public dev compiler receives its resolved address above.
+        if (environment.name !== 'server' || !serverRendered(authored)) return;
         const publicPath = config.output?.publicPath;
         if (
           typeof publicPath !== 'string' ||

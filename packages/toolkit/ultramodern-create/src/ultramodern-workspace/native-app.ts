@@ -1,11 +1,16 @@
+import { createShellApiClient } from './api';
+import { writeAppApiFiles } from './api/write-app-api';
 import { createAppStyles, createTailwindConfig } from './app-files';
+import { appHasApi } from './descriptors';
 import { writeFile, writeJson } from './fs-io';
 import {
   createAppModernConfig,
+  createBackendModuleFederationConfig,
   createUltramodernBuildArtifactJson,
   createUltramodernBuildModule,
   createUltramodernBuildReexportModule,
 } from './module-federation';
+import { createNativeFederationArtifacts } from './native-federation';
 import { createAppPackage, createAppTsConfig } from './package-json';
 import { resolveRendererGenerationAdapter } from './renderer-generations';
 import {
@@ -20,6 +25,7 @@ export function writeNativeApp(
   app: WorkspaceApp,
   packageSource: ResolvedPackageSource,
   enableTailwind: boolean,
+  remotes: WorkspaceApp[] = [],
 ): void {
   const renderer = resolveWorkspaceRenderer(app);
   if (renderer === 'none') {
@@ -34,14 +40,6 @@ export function writeNativeApp(
     );
   }
   const generation = resolveAppGenerationProfile(app)!;
-  if (
-    (app.verticalRefs?.length ?? 0) > 0 ||
-    Object.keys(app.exposes ?? {}).length > 0
-  ) {
-    throw new Error(
-      `Renderer ${renderer} has no admitted federation template for ${app.id}.`,
-    );
-  }
   const sources = adapter.generateAppSources({
     appId: app.id,
     title: app.displayName,
@@ -61,10 +59,31 @@ export function writeNativeApp(
       `Renderer ${renderer} template does not match its selected compiler profile.`,
     );
   }
+  const artifacts = [
+    ...sources.artifacts,
+    ...createNativeFederationArtifacts(scope, app, remotes),
+  ];
+  const paths = new Set<string>();
+  for (const artifact of artifacts) {
+    if (paths.has(artifact.path))
+      throw new Error(
+        `Native template ${app.id} has duplicate source ownership at ${artifact.path}.`,
+      );
+    paths.add(artifact.path);
+  }
   // Validate all generated contracts before creating any application output.
-  const manifest = createAppPackage(scope, app, packageSource, enableTailwind);
-  const tsconfig = createAppTsConfig(app);
+  const manifest = createAppPackage(
+    scope,
+    app,
+    packageSource,
+    enableTailwind,
+    remotes,
+  );
+  const tsconfig = createAppTsConfig(app, remotes);
   const config = createAppModernConfig(app, enableTailwind);
+  const backendConfig = appHasApi(app)
+    ? createBackendModuleFederationConfig(app)
+    : undefined;
   const buildModule = createUltramodernBuildModule(scope, app);
   const buildJson = app.routerBindings
     ? createUltramodernBuildArtifactJson(scope, app)
@@ -74,6 +93,7 @@ export function writeNativeApp(
   writeJson(targetDir, `${app.directory}/package.json`, manifest);
   writeJson(targetDir, `${app.directory}/tsconfig.json`, tsconfig);
   write('modern.config.ts', config);
+  if (backendConfig) write('backend-federation.config.ts', backendConfig);
   write(
     'src/modern-app-env.d.ts',
     `/// <reference types="@modern-js/ultramodern-app-tools/types" />
@@ -85,6 +105,8 @@ export function writeNativeApp(
   if (buildJson) write('shared/ultramodern-build.json', buildJson);
   write('src/ultramodern-build.ts', createUltramodernBuildReexportModule(app));
   if (enableTailwind) write('tailwind.config.ts', createTailwindConfig());
-  for (const artifact of sources.artifacts)
-    write(artifact.path, artifact.content);
+  for (const artifact of artifacts) write(artifact.path, artifact.content);
+  writeAppApiFiles({ targetDir, scope, resolvedApp: app, emitsUi: true });
+  if (app.kind === 'shell' && remotes.some(appHasApi))
+    write('src/api/vertical-clients.ts', createShellApiClient(scope, remotes));
 }

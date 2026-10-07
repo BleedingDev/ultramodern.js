@@ -9,7 +9,12 @@ import {
 } from './renderer-generation-profile';
 import { reactGeneration } from './renderer-templates/react/generation';
 import type { JsonObject } from './types';
-import { TYPESCRIPT_VERSION } from './versions';
+import {
+  MODULE_FEDERATION_NODE_VERSION,
+  MODULE_FEDERATION_VERSION,
+  TYPESCRIPT_VERSION,
+  ULTRAMODERN_PACKAGE_PINS,
+} from './versions';
 
 /** Composed renderers generate from this package's own templates. */
 const composedGenerations: Readonly<
@@ -46,11 +51,35 @@ export function resolveRendererGenerationAdapter(
       const { tsconfig, ...packages } = create.dependencies(selected, {
         typescriptVersion: TYPESCRIPT_VERSION,
       });
-      return createRendererGenerationProfile(renderer, selected, {
-        ...packages,
-        frameworkDependencies: [...packages.frameworkDependencies],
-        ...(tsconfig ? { tsconfig: tsconfig as JsonObject } : {}),
-      });
+      const federation =
+        create.templates?.federation === true &&
+        selected.capabilities.moduleFederation === true;
+      return createRendererGenerationProfile(
+        renderer,
+        selected,
+        {
+          ...packages,
+          frameworkDependencies: [
+            ...packages.frameworkDependencies,
+            ...(federation ? ['@modern-js/federation-runtime'] : []),
+          ],
+          dependencies: {
+            ...packages.dependencies,
+            ...(federation
+              ? {
+                  '@module-federation/enhanced': MODULE_FEDERATION_VERSION,
+                  '@module-federation/node': MODULE_FEDERATION_NODE_VERSION,
+                  '@module-federation/runtime':
+                    ULTRAMODERN_PACKAGE_PINS.appDependencies[
+                      '@module-federation/runtime'
+                    ],
+                }
+              : {}),
+          },
+          ...(tsconfig ? { tsconfig: tsconfig as JsonObject } : {}),
+        },
+        create.templates,
+      );
     },
     generateAppSources: create.generateAppSources,
   };

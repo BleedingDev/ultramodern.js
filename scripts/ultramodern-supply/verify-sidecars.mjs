@@ -38,6 +38,12 @@ const forkSpecifier = /^npm:(@bleedingdev\/[\w.-]+)@(.+)$/u;
  * in the monorepo.
  */
 export const unpublishedForkEdges = [
+  // The SDK fork has not had its first signed release plus 24h admission.
+  {
+    importer: 'packages/runtime/federation-runtime',
+    published: '@bleedingdev/modern-js-federation-runtime',
+    dependency: '@module-federation/sdk',
+  },
   {
     importer: 'packages/cli/plugin-bff-extensions',
     published: '@bleedingdev/modern-js-plugin-bff-extensions',

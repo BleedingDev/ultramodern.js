@@ -49,6 +49,17 @@
       }
     },
     "./package.json": "./package.json",
+    "./federation": {
+      "modern:source": "./src/federation.ts",
+      "import": {
+        "types": "./dist/types/federation.d.ts",
+        "default": "./dist/esm/federation.mjs"
+      },
+      "require": {
+        "types": "./dist/types/federation.d.ts",
+        "default": "./dist/cjs/federation.js"
+      }
+    },
     "./data": {
       "modern:source": "./src/data/index.ts",
       "import": {

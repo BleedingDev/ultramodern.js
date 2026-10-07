@@ -1,7 +1,9 @@
 import fs from 'node:fs';
+import { createServer } from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { rspack } from '@rsbuild/core';
 import { afterEach, describe, expect, it } from '@rstest/core';
 import { resolveRendererFederationCompatibility } from '../../src/native-composition/module-federation-renderer-plugin';
 import {
@@ -11,14 +13,18 @@ import {
   findNativeFederationConfig,
   loadNativeFederationConfig,
   NATIVE_FEDERATION_HYDRATION_MODULE,
+  NativeFederationDevOriginPlugin,
+  NativeFederationSharedOwnersPlugin,
   nativeFederationRuntimePluginSource,
   nativeModuleFederationPlugin,
   readNativeFederationRemotes,
+  resolveNativeSharedBindings,
   resolveNativeSharedVersions,
   sharedPackageName,
   withNativeServerContainer,
 } from '../../src/native-composition/native-module-federation';
 import { assertCapturedRenderer } from '../../src/native-composition/renderer-selection';
+import { resolveManifestRecoveryRuntimePlugin } from '../../src/renderers/react/module-federation-recovery-plugin';
 
 const roots: string[] = [];
 afterEach(() => {
@@ -38,6 +44,8 @@ function app(files: Record<string, string>): string {
 }
 
 const manifestRemote = 'remote@https://remote.example/mf-manifest.json';
+const nativeRenderers = ['solid', 'octane'] as const;
+type NativeRenderer = (typeof nativeRenderers)[number];
 
 describe('native Module Federation configuration', () => {
   it('finds exactly one module-federation config file', () => {
@@ -101,94 +109,468 @@ export default { name, remotes: { remote: '${manifestRemote}' } };`,
     });
   });
 
-  const versions = () =>
-    // This package installs the Solid renderer as a development dependency.
-    resolveNativeSharedVersions('solid', path.resolve(__dirname, '../..'));
+  const versions = (renderer: NativeRenderer = 'solid') =>
+    resolveNativeSharedVersions(renderer, path.resolve(__dirname, '../..'));
 
-  it('pins renderer singletons to installed versions, not manifest ranges', () => {
-    expect(sharedPackageName('@modern-js/renderer-core/')).toBe(
+  it.each(nativeRenderers)(
+    '%s pins singletons to installed versions, not manifest ranges',
+    renderer => {
+      expect(sharedPackageName('@modern-js/renderer-core/')).toBe(
+        '@modern-js/renderer-core',
+      );
+      expect(sharedPackageName('solid-js')).toBe('solid-js');
+      const installed = versions(renderer);
+      const runtime = renderer === 'solid' ? 'solid-js' : 'octane';
+      expect(installed[runtime]).toBe(
+        renderer === 'solid' ? '2.0.0-rc.13' : '0.7.1+ultramodern.1331985ea3b0',
+      );
+      expect(installed['@modern-js/renderer-core/']).toMatch(/^\d+\.\d+\.\d+/u);
+      expect(() => resolveNativeSharedVersions(renderer, os.tmpdir())).toThrow(
+        'cannot find the installed',
+      );
+    },
+  );
+
+  it.each(nativeRenderers)(
+    'owns %s runtime singletons and keeps authored shares',
+    renderer => {
+      const runtime = renderer === 'solid' ? 'solid-js' : 'octane';
+      const shared = createNativeSharedConfig(
+        renderer,
+        { lodash: {} },
+        versions(renderer),
+      );
+      expect(shared.lodash).toEqual({});
+      expect(shared[runtime]).toEqual({
+        singleton: true,
+        strictVersion: true,
+        requiredVersion: versions(renderer)[runtime],
+        version: versions(renderer)[runtime],
+        eager: false,
+      });
+      expect(() =>
+        createNativeSharedConfig(
+          renderer,
+          { [runtime]: { singleton: false } },
+          versions(renderer),
+        ),
+      ).toThrow(`${runtime} is a ${renderer} runtime singleton`);
+    },
+  );
+
+  it('shares the Octane compiler entries and SDK contexts with the host', () => {
+    const installed = versions('octane');
+    const shared = createNativeSharedConfig('octane', undefined, installed);
+    for (const key of [
+      'octane',
+      'octane/',
+      'octane/server',
+      'octane/internal/client',
+      'octane/internal/server',
+      'octane/internal/context',
+      'octane/signals',
+      'octane/hydration/streamed-signals',
+      'octane/internal/signal-read',
+      'octane/signals/client',
+      'octane/signals/server',
+      'octane/profiling',
+      '@modern-js/renderer-octane/client',
+      '@octanejs/tanstack-router',
+      '@octanejs/tanstack-router/',
+      '@modern-js/renderer-octane',
+      '@modern-js/renderer-octane/',
+      '@modern-js/renderer-octane/router',
+      '@modern-js/renderer-octane/federation',
       '@modern-js/renderer-core',
+      '@modern-js/renderer-core/',
+      '@tanstack/router-core',
+      '@tanstack/history',
+    ]) {
+      expect(shared[key]).toEqual({
+        singleton: true,
+        strictVersion: true,
+        requiredVersion: installed[key],
+        version: installed[key],
+        eager: false,
+      });
+    }
+    expect(installed['@tanstack/router-core']).toBe('1.171.15');
+    expect(installed['@tanstack/history']).toBe('1.162.0');
+    // Localization is optional; its context belongs to the shared SDK prefix.
+    expect(shared.i18next).toBeUndefined();
+    expect(shared['@modern-js/i18n-runtime-extensions']).toBeUndefined();
+    const server = createNativeSharedConfig(
+      'octane',
+      undefined,
+      installed,
+      undefined,
+      'server',
     );
-    expect(sharedPackageName('solid-js')).toBe('solid-js');
-    const installed = versions();
-    expect(installed['solid-js']).toBe('2.0.0-rc.13');
-    expect(installed['@modern-js/renderer-core/']).toMatch(/^\d+\.\d+\.\d+/u);
-    expect(() => resolveNativeSharedVersions('solid', os.tmpdir())).toThrow(
-      'cannot find the installed',
+    const client = createNativeSharedConfig(
+      'octane',
+      undefined,
+      installed,
+      undefined,
+      'client',
     );
+    expect(server['@modern-js/renderer-octane/client']).toBeUndefined();
+    expect(server['octane/signals/client']).toBeUndefined();
+    expect(client['octane/signals/server']).toBeUndefined();
+    expect(client['octane/internal/server']).toBeUndefined();
+    for (const key of [
+      '@modern-js/renderer-octane/i18n',
+      '@octanejs/tanstack-router/ssr/server',
+      'octane/signals/server',
+    ]) {
+      expect(() =>
+        createNativeSharedConfig(
+          'octane',
+          { [key]: { singleton: false } },
+          installed,
+        ),
+      ).toThrow(`${key} is a octane runtime singleton`);
+    }
   });
 
-  it('owns the Solid runtime singletons and keeps authored shares', () => {
-    const shared = createNativeSharedConfig(
-      'solid',
-      { lodash: {} },
-      versions(),
-    );
-    expect(shared.lodash).toEqual({});
-    expect(shared['solid-js']).toEqual({
-      singleton: true,
-      strictVersion: true,
-      requiredVersion: '2.0.0-rc.13',
-      eager: false,
-    });
-    expect(() =>
-      createNativeSharedConfig(
-        'solid',
-        { 'solid-js': { singleton: false } },
-        versions(),
+  it('pins Octane shares to its selected owners when the consumer has foreign copies', () => {
+    const root = app({
+      'package.json': '{}',
+      ...Object.fromEntries(
+        ['octane', '@tanstack/router-core', '@tanstack/history', 'seroval'].map(
+          name => [
+            `node_modules/${name}/package.json`,
+            JSON.stringify({
+              name,
+              version: '99.0.0',
+              exports: {
+                '.': './foreign.js',
+                './foreign': './foreign.js',
+              },
+            }),
+          ],
+        ),
       ),
-    ).toThrow('solid-js is a solid runtime singleton');
-  });
-
-  it('publishes an ESM container with its own runtime and a bootstrap startup', () => {
-    const options = createNativeClientFederationOptions(
-      'solid',
-      { name: 'remote', exposes: { './Widget': './src/Widget.tsx' } },
-      versions(),
+    });
+    fs.mkdirSync(path.join(root, 'node_modules/@modern-js'), {
+      recursive: true,
+    });
+    fs.symlinkSync(
+      path.resolve(__dirname, '../../../../runtime/renderer-octane'),
+      path.join(root, 'node_modules/@modern-js/renderer-octane'),
     );
-    expect(options).toMatchObject({
-      name: 'remote',
-      filename: 'remoteEntry.js',
-      library: { type: 'module' },
-      runtime: false,
-      shareStrategy: 'loaded-first',
-      manifest: true,
-      dts: false,
-      experiments: { asyncStartup: false },
+    const installed = resolveNativeSharedVersions('octane', root);
+    expect(installed.octane).toBe('0.7.1+ultramodern.1331985ea3b0');
+    expect(installed['@tanstack/router-core']).toBe('1.171.15');
+    expect(installed['@tanstack/history']).toBe('1.162.0');
+    expect(installed.seroval).toBe('1.6.8');
+    const bindings = resolveNativeSharedBindings('octane', root, 'server');
+    const selected = fs.realpathSync(
+      path.resolve(
+        __dirname,
+        '../../../../runtime/renderer-octane/node_modules/octane',
+      ),
+    );
+    expect(bindings.imports.octane).toBe(
+      path.join(selected, 'dist/node/server/index.js'),
+    );
+    expect(bindings.imports['octane/signals/server']).toBe(
+      path.join(selected, 'dist/node/signals/server.js'),
+    );
+    for (const imported of Object.values(bindings.imports)) {
+      expect(imported.startsWith(root)).toBe(false);
+      expect(imported).not.toContain('/dist/cjs/');
+    }
+    expect(bindings.aliases['octane/foreign$']).toBeUndefined();
+    expect(bindings.aliases['octane/jsx-runtime$']).toBeUndefined();
+    const shared = createNativeSharedConfig(
+      'octane',
+      undefined,
+      bindings.versions,
+      bindings,
+      'server',
+    );
+    expect(shared['octane/signals/server']).toMatchObject({
+      import: bindings.imports['octane/signals/server'],
+      version: installed.octane,
     });
   });
 
-  it('publishes a Node container whose shares wait for the host scope', () => {
-    const options = createNativeServerFederationOptions(
-      'solid',
-      {
+  it('resolves canonical SDK shares through a published npm alias owner', async () => {
+    const owner = 'node_modules/@modern-js/renderer-octane';
+    const root = app({
+      [`${owner}/package.json`]: JSON.stringify({
+        name: '@bleedingdev/modern-js-renderer-octane',
+        version: '3.8.3',
+        type: 'module',
+        exports: Object.fromEntries(
+          ['.', './router', './federation', './client'].map(key => [
+            key,
+            { import: './published.mjs' },
+          ]),
+        ),
+      }),
+      [`${owner}/published.mjs`]:
+        'export const selected = "published-alias-owner";',
+    });
+    fs.symlinkSync(
+      path.resolve(
+        __dirname,
+        '../../../../runtime/renderer-octane/node_modules',
+      ),
+      path.join(root, owner, 'node_modules'),
+    );
+    const bindings = resolveNativeSharedBindings('octane', root, 'client');
+    for (const request of [
+      '@modern-js/renderer-octane',
+      '@modern-js/renderer-octane/router',
+      '@modern-js/renderer-octane/federation',
+      '@modern-js/renderer-octane/client',
+    ]) {
+      expect(bindings.imports[request]).toBe(
+        path.join(root, owner, 'published.mjs'),
+      );
+      expect(bindings.aliases[`${request}$`]).toBe(bindings.imports[request]);
+    }
+    expect(
+      (
+        await import(
+          pathToFileURL(bindings.imports['@modern-js/renderer-octane']).href
+        )
+      ).selected,
+    ).toBe('published-alias-owner');
+  });
+
+  it('uses one selected native server hook scope across all required providers', async () => {
+    const bindings = resolveNativeSharedBindings(
+      'octane',
+      path.resolve(__dirname, '../..'),
+      'server',
+    );
+    const server = await import(pathToFileURL(bindings.imports.octane).href);
+    const internal = await import(
+      pathToFileURL(bindings.imports['octane/internal/server']).href
+    );
+    const signals = await import(
+      pathToFileURL(bindings.imports['octane/signals/server']).href
+    );
+    internal.enableServerSignalBindings();
+    const slot = server.hookSlots(1);
+    expect(
+      server.renderToString(() => {
+        internal.beginNativeReadScope(undefined, 1);
+        return signals.useSignal$('selected-native-owner', slot).get();
+      }).html,
+    ).toBe('selected-native-owner');
+    const client = resolveNativeSharedBindings(
+      'octane',
+      path.resolve(__dirname, '../..'),
+      'client',
+    );
+    expect(client.imports['octane/signals/client']).toMatch(
+      /\/dist\/signals\/client\.js$/u,
+    );
+    expect(client.imports.octane).toMatch(/\/dist\/index\.js$/u);
+    expect(client.imports['octane/signals/server']).toBeUndefined();
+  });
+
+  it('keeps prefix consumption on selected physical bytes despite broad foreign aliases', async () => {
+    const root = app({
+      'package.json': '{}',
+      'node_modules/octane/package.json': JSON.stringify({
+        name: 'octane',
+        version: '99.0.0',
+        exports: { './profiling': './foreign.js', './foreign': './foreign.js' },
+      }),
+      'node_modules/octane/foreign.js': 'export const foreign = true;',
+    });
+    fs.mkdirSync(path.join(root, 'node_modules/@modern-js'), {
+      recursive: true,
+    });
+    fs.symlinkSync(
+      path.resolve(__dirname, '../../../../runtime/renderer-octane'),
+      path.join(root, 'node_modules/@modern-js/renderer-octane'),
+    );
+    const bindings = resolveNativeSharedBindings('octane', root, 'client');
+    const foreign = path.join(root, 'node_modules/octane');
+    const compile = async (request: string, commonjs = false) => {
+      const compiler = rspack({
+        mode: 'none',
+        context: root,
+        target: 'web',
+        entry: `data:text/javascript,${commonjs ? `const api=require(${JSON.stringify(request)});` : `import * as api from ${JSON.stringify(request)};`}globalThis.__nativeProvider=api;`,
+        module: { rules: [{ scheme: 'data', type: 'javascript/auto' }] },
+        resolve: {
+          alias: { octane: foreign },
+          byDependency: {
+            esm: { alias: { octane: foreign } },
+            commonjs: { alias: { octane: foreign } },
+          },
+        },
+        plugins: [
+          new rspack.sharing.SharePlugin({
+            shared: {
+              'octane/': {
+                singleton: true,
+                strictVersion: true,
+                requiredVersion: bindings.versions['octane/'],
+                version: bindings.versions['octane/'],
+              },
+            },
+          }),
+          new NativeFederationSharedOwnersPlugin(
+            'octane',
+            root,
+            'client',
+            bindings,
+          ),
+          {
+            apply(compiler) {
+              compiler.hooks.shouldEmit.tap('no-test-output', () => false);
+            },
+          },
+        ],
+      });
+      try {
+        const stats = await new Promise<any>((resolve, reject) =>
+          compiler.run((error, stats) =>
+            error ? reject(error) : resolve(stats),
+          ),
+        );
+        return {
+          errors: stats.toJson({ all: false, errors: true }).errors,
+          modules: [...stats.compilation.modules].map(module =>
+            module.identifier(),
+          ),
+        };
+      } finally {
+        await new Promise<void>((resolve, reject) =>
+          compiler.close(error => (error ? reject(error) : resolve())),
+        );
+      }
+    };
+    for (const commonjs of [false, true]) {
+      const valid = await compile('octane/profiling', commonjs);
+      expect(valid.errors).toEqual([]);
+      expect(valid.modules).toEqual(
+        expect.arrayContaining([
+          expect.stringMatching(
+            /^consume shared module \(default\) octane\/profiling@/u,
+          ),
+        ]),
+      );
+      expect(valid.modules).toEqual(
+        expect.arrayContaining([
+          expect.stringMatching(
+            /^provide shared module \(default\) octane\/profiling@/u,
+          ),
+        ]),
+      );
+      expect(
+        valid.modules.some(module =>
+          module.includes(bindings.imports['octane/profiling']),
+        ),
+      ).toBe(true);
+      expect(valid.modules.some(module => module.includes(foreign))).toBe(
+        false,
+      );
+    }
+    const unknown = await compile('octane/foreign');
+    expect(unknown.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          message: expect.stringContaining(
+            'singleton octane/foreign has no runtime export in its selected owner',
+          ),
+        }),
+      ]),
+    );
+    expect(unknown.modules.some(module => module.includes(foreign))).toBe(
+      false,
+    );
+  });
+
+  it.each(nativeRenderers)(
+    '%s publishes an ESM container with a bootstrap startup',
+    renderer => {
+      const options = createNativeClientFederationOptions(
+        renderer,
+        { name: 'remote', exposes: { './Widget': './src/Widget.tsx' } },
+        versions(renderer),
+      );
+      expect(options).toMatchObject({
         name: 'remote',
-        exposes: { './Widget': './src/Widget.tsx' },
-        remotes: { other: manifestRemote },
-      },
-      versions(),
-      ['/node/runtimePlugin.js', '/generated/native-runtime.server.mjs'],
-    );
-    expect(options).toMatchObject({
-      name: 'remote',
-      filename: 'remoteEntry.js',
-      library: { type: 'commonjs-module', name: 'remote' },
-      remoteType: 'script',
-      shareStrategy: 'loaded-first',
-      manifest: true,
-      dts: false,
-      runtimePlugins: [
-        '/node/runtimePlugin.js',
-        '/generated/native-runtime.server.mjs',
-      ],
-      experiments: { asyncStartup: false, optimization: { target: 'node' } },
-    });
-    expect(options.remotes).toBeUndefined();
-    expect((options.shared as Record<string, any>)['solid-js']).toMatchObject({
-      singleton: true,
-      eager: false,
-    });
-  });
+        filename: 'remoteEntry.js',
+        library: { type: 'module' },
+        runtime: false,
+        shareStrategy: 'loaded-first',
+        manifest: true,
+        dts: false,
+        experiments: { asyncStartup: false },
+      });
+    },
+  );
+
+  it.each(nativeRenderers)(
+    '%s publishes a Node container whose shares wait for the host scope',
+    renderer => {
+      const options = createNativeServerFederationOptions(
+        renderer,
+        {
+          name: 'remote',
+          exposes: { './Widget': './src/Widget.tsx' },
+          remotes: { other: manifestRemote },
+        },
+        versions(renderer),
+        ['/node/runtimePlugin.js', '/generated/native-runtime.server.mjs'],
+      );
+      expect(options).toMatchObject({
+        name: 'remote',
+        filename: 'remoteEntry.js',
+        library: { type: 'commonjs-module', name: 'remote' },
+        remoteType: 'script',
+        shareStrategy: 'loaded-first',
+        manifest: true,
+        dts: false,
+        runtimePlugins: [
+          resolveManifestRecoveryRuntimePlugin(import.meta.url),
+          '/node/runtimePlugin.js',
+          '/generated/native-runtime.server.mjs',
+        ],
+        experiments: { asyncStartup: false, optimization: { target: 'node' } },
+      });
+      expect(options.remotes).toBeUndefined();
+      expect(
+        (options.shared as Record<string, any>)[
+          renderer === 'solid' ? 'solid-js' : 'octane'
+        ],
+      ).toMatchObject({
+        singleton: true,
+        eager: false,
+      });
+    },
+  );
+
+  it.each(
+    nativeRenderers.flatMap(renderer =>
+      ['string', 'tuple'].map(form => ({ renderer, form })),
+    ),
+  )(
+    'rejects $form duplicate manifest recovery for $renderer',
+    ({ renderer, form }) => {
+      const recovery = resolveManifestRecoveryRuntimePlugin(import.meta.url);
+      expect(() =>
+        createNativeServerFederationOptions(
+          renderer,
+          {
+            name: 'host',
+            runtimePlugins: [form === 'tuple' ? [recovery, {}] : recovery],
+          },
+          versions(renderer),
+          ['/node/runtimePlugin.js'],
+        ),
+      ).toThrow('manifest recovery has duplicate registration ownership');
+    },
+  );
 
   it('names the server container in the browser manifest', async () => {
     const manifest = withNativeServerContainer(
@@ -229,6 +611,74 @@ export default { name, remotes: { remote: '${manifestRemote}' } };`,
     expect(typeof (client.manifest as any).additionalData).toBe('function');
   });
 
+  it('bounds native server HTTP headers and bodies and preserves caller aborts', async () => {
+    const file = path.join(app({}), 'native-server-transport.mjs');
+    fs.writeFileSync(
+      file,
+      nativeFederationRuntimePluginSource([], {
+        hydrationModule: NATIVE_FEDERATION_HYDRATION_MODULE,
+        requestTimeout: 50,
+      }),
+    );
+    const { default: createPlugin } = await import(pathToFileURL(file).href);
+    const plugin = createPlugin();
+    const server = createServer((request, response) => {
+      if (request.url === '/hang') return;
+      if (request.url === '/body') {
+        response.writeHead(200);
+        response.flushHeaders();
+        return;
+      }
+      if (request.url === '/status') {
+        response.writeHead(503).end('SSR container unavailable');
+        return;
+      }
+      response.end('native response');
+    });
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (!address || typeof address === 'string')
+      throw new Error('missing test server address');
+    const origin = `http://127.0.0.1:${address.port}`;
+    try {
+      await expect((await plugin.fetch(`${origin}/ok`)).text()).resolves.toBe(
+        'native response',
+      );
+      await expect(plugin.fetch(`${origin}/status`)).rejects.toMatchObject({
+        status: 503,
+      });
+      await expect(plugin.fetch(`${origin}/hang`)).rejects.toMatchObject({
+        name: 'TimeoutError',
+      });
+      const body = await plugin.fetch(`${origin}/body`);
+      await expect(body.text()).rejects.toMatchObject({ name: 'TimeoutError' });
+      const controller = new AbortController();
+      const reason = new Error('caller stopped');
+      controller.abort(reason);
+      await expect(
+        plugin.fetch(`${origin}/hang`, { signal: controller.signal }),
+      ).rejects.toBe(reason);
+    } finally {
+      server.closeAllConnections();
+      await new Promise<void>((resolve, reject) =>
+        server.close(error => (error ? reject(error) : resolve())),
+      );
+    }
+  });
+
+  it('keeps the native browser runtime off the server fetch transport', async () => {
+    const file = path.join(app({}), 'native-client-transport.mjs');
+    fs.writeFileSync(file, nativeFederationRuntimePluginSource([]));
+    const { default: createPlugin } = await import(pathToFileURL(file).href);
+    expect(createPlugin().fetch).toBeUndefined();
+    expect(() =>
+      nativeFederationRuntimePluginSource([], {
+        hydrationModule: NATIVE_FEDERATION_HYDRATION_MODULE,
+        requestTimeout: 0,
+      }),
+    ).toThrow('server requestTimeout must be a positive integer');
+  });
+
   it('publishes the server federation state from the host instance only', async () => {
     const root = app({});
     const file = path.join(root, 'runtime.mjs');
@@ -265,6 +715,7 @@ describe('native Module Federation plugin', () => {
     renderer: 'solid' | 'octane',
     appDirectory: string,
     config: Record<string, unknown> = {},
+    context: Record<string, unknown> = {},
   ) {
     const hooks: Record<string, Hook> = {};
     const internalDirectory = path.join(
@@ -273,7 +724,7 @@ describe('native Module Federation plugin', () => {
     );
     const api = new Proxy(
       {
-        getAppContext: () => ({ appDirectory, internalDirectory }),
+        getAppContext: () => ({ appDirectory, internalDirectory, ...context }),
         getNormalizedConfig: () => config,
       },
       {
@@ -313,7 +764,11 @@ describe('native Module Federation plugin', () => {
     };
   }
 
-  function installPackages(root: string, node = false) {
+  function installPackages(
+    root: string,
+    node = false,
+    renderer: NativeRenderer = 'solid',
+  ) {
     const enhanced = path.join(
       root,
       'node_modules/@module-federation/enhanced',
@@ -346,208 +801,315 @@ describe('native Module Federation plugin', () => {
       recursive: true,
     });
     fs.symlinkSync(
-      path.resolve(__dirname, '../../../../runtime/renderer-solid'),
-      path.join(root, 'node_modules/@modern-js/renderer-solid'),
+      path.resolve(__dirname, `../../../../runtime/renderer-${renderer}`),
+      path.join(root, `node_modules/@modern-js/renderer-${renderer}`),
     );
   }
 
-  it('installs a Node container on the server compilation of an SSR host', async () => {
-    const root = app({
-      'package.json': '{}',
-      'module-federation.config.mjs': `export default { name: 'host', remotes: { remote: '${manifestRemote}' } };`,
-    });
-    installPackages(root, true);
-    const hooks = setup('solid', root, { server: { ssr: true } });
-    const server = chain();
-    await hooks.modifyBundlerChain(server.chain, {
-      environment: { name: 'server' },
-    });
-    const [target, [key, , [options]]] = server.uses as [
-      unknown,
-      [string, unknown, [any]],
-    ];
-    expect(target).toEqual(['target', 'async-node']);
-    expect(key).toBe('plugin-module-federation');
-    expect(options.library).toEqual({ type: 'commonjs-module', name: 'host' });
-    expect(options.runtimePlugins).toEqual([
-      fs.realpathSync(
+  it.each(nativeRenderers)(
+    'installs a Node container on an SSR %s host',
+    async renderer => {
+      const root = app({
+        'package.json': '{}',
+        'module-federation.config.mjs': `export default { name: 'host', remotes: { remote: '${manifestRemote}' } };`,
+      });
+      installPackages(root, true, renderer);
+      const hooks = setup(renderer, root, { server: { ssr: true } });
+      const server = chain();
+      await hooks.modifyBundlerChain(server.chain, {
+        environment: { name: 'server' },
+      });
+      expect(server.uses).toContainEqual(['target', 'async-node']);
+      const [, , [options]] = server.uses.find(
+        ([key]) => key === 'plugin-module-federation',
+      ) as [string, unknown, [any]];
+      expect(options.library).toEqual({
+        type: 'commonjs-module',
+        name: 'host',
+      });
+      expect(options.runtimePlugins).toEqual([
+        resolveManifestRecoveryRuntimePlugin(import.meta.url),
+        fs.realpathSync(
+          path.join(
+            root,
+            'node_modules/@module-federation/node/runtimePlugin.js',
+          ),
+        ),
         path.join(
           root,
-          'node_modules/@module-federation/node/runtimePlugin.js',
+          'node_modules/.modern-js/federation/native-runtime.server.mjs',
         ),
-      ),
-      path.join(
-        root,
-        'node_modules/.modern-js/federation/native-runtime.server.mjs',
-      ),
-    ]);
-    // The client emits the hydration module the server document names.
-    const client = chain();
-    await hooks.modifyBundlerChain(client.chain, {
-      environment: { name: 'client' },
-    });
-    expect(client.uses.map(([name]) => name)).toEqual([
-      'plugin-module-federation',
-      'ultramodern-federation-hydration-module',
-    ]);
-    // Server assets keep the client public path; the container gets its own.
-    const config: any = { output: { publicPath: '/' } };
-    await hooks.modifyRspackConfig(config, { environment: { name: 'server' } });
-    expect(config.output.publicPath).toBe('/bundles/');
-    expect(config.module.generator['asset/resource'].publicPath).toBe('/');
-  });
-
-  it('keeps a client-only host off the server compilation', async () => {
-    const root = app({
-      'package.json': '{}',
-      'module-federation.config.mjs': `export default { name: 'host', remotes: { remote: '${manifestRemote}' } };`,
-    });
-    installPackages(root);
-    const hooks = setup('solid', root, { server: { ssr: false } });
-    const server = chain();
-    await hooks.modifyBundlerChain(server.chain, {
-      environment: { name: 'server' },
-    });
-    expect(server.uses).toEqual([]);
-  });
-
-  it('requires @module-federation/node for server containers', async () => {
-    const root = app({
-      'package.json': '{}',
-      'module-federation.config.mjs': `export default { name: 'remote', exposes: { './Widget': './Widget.tsx' } };`,
-      // Block the test runner's ambient package lookup outside the application.
-      'node_modules/@module-federation/node/package.json': JSON.stringify({
-        name: '@module-federation/node',
-        exports: {},
-      }),
-    });
-    installPackages(root);
-    const hooks = setup('solid', root);
-    await expect(
-      hooks.modifyBundlerChain(chain().chain, {
+      ]);
+      // The client emits the hydration module the server document names.
+      const client = chain();
+      await hooks.modifyBundlerChain(client.chain, {
+        environment: { name: 'client' },
+      });
+      expect(client.uses.map(([name]) => name)).toEqual([
+        'ultramodern-federation-shared-owners',
+        'plugin-module-federation',
+        'ultramodern-federation-hydration-module',
+      ]);
+      // Server assets keep the client public path; the container gets its own.
+      const config: any = { output: { publicPath: '/' } };
+      await hooks.modifyRspackConfig(config, {
         environment: { name: 'server' },
-      }),
-    ).rejects.toThrow('install @module-federation/node');
+      });
+      expect(config.output.publicPath).toBe('/bundles/');
+      expect(config.module.generator['asset/resource'].publicPath).toBe('/');
+    },
+  );
+
+  it.each(nativeRenderers)(
+    'rejects %s Worker MF before creating runtime files or providers',
+    async renderer => {
+      const root = app({
+        'module-federation.config.mjs': `export default { name: 'host' };`,
+      });
+      const hooks = setup(renderer, root, {
+        deploy: { worker: { ssr: true } },
+      });
+      const client = chain();
+      await expect(
+        hooks.modifyBundlerChain(client.chain, {
+          environment: { name: 'client' },
+        }),
+      ).rejects.toThrow('native federation requires the Node server transport');
+      expect(client.uses).toEqual([]);
+      expect(
+        fs.existsSync(path.join(root, 'node_modules/.modern-js/federation')),
+      ).toBe(false);
+    },
+  );
+
+  it('allows private compiler discovery but rejects a live dev compiler without an origin', () => {
+    const callbacks: Record<string, () => void> = {};
+    let address: { hostname: string; port: number; https: boolean } | undefined;
+    const compiler: any = {
+      options: { output: { publicPath: '/base/' } },
+      hooks: Object.fromEntries(
+        ['beforeRun', 'watchRun'].map(name => [
+          name,
+          {
+            tap: (_: string, callback: () => void) => {
+              callbacks[name] = callback;
+            },
+          },
+        ]),
+      ),
+    };
+    expect(() =>
+      new NativeFederationDevOriginPlugin(() => address).apply(compiler),
+    ).not.toThrow();
+    for (const hook of ['beforeRun', 'watchRun']) {
+      compiler.options.output.publicPath = '/base/';
+      expect(() => callbacks[hook]()).toThrow('dev server address');
+      address = { hostname: '127.0.0.1', port: 59937, https: false };
+      expect(() => callbacks[hook]()).toThrow(
+        'live dev compiler must publish its resolved server origin',
+      );
+      compiler.options.output.publicPath = 'http://127.0.0.1:59937/base/';
+      expect(() => callbacks[hook]()).not.toThrow();
+      address = undefined;
+    }
   });
 
-  it('installs the client container and starts entries through a bootstrap', async () => {
+  it('publishes actual dev addresses on browser and server containers', async () => {
     const root = app({
-      'package.json': '{}',
-      'module-federation.config.mjs': `export default { name: 'host', remotes: { remote: '${manifestRemote}' } };`,
+      'module-federation.config.mjs': `export default { name: 'host' };`,
     });
-    installPackages(root);
-    const generated = path.join(
-      root,
-      'node_modules/.modern-js/solid/index/index.ts',
-    );
-    fs.mkdirSync(path.dirname(generated), { recursive: true });
-    const hooks = setup('solid', root);
-    const client = chain({ index: ['core-js/polyfill', generated] });
-    await hooks.modifyBundlerChain(client.chain, {
-      environment: { name: 'client' },
-    });
-    const [[key, Plugin, [options]]] = client.uses as [[string, any, [any]]];
-    expect(key).toBe('plugin-module-federation');
-    expect(Plugin.name).toBe('ModuleFederationPlugin');
-    expect(options).toMatchObject({
-      name: 'host',
-      library: { type: 'module' },
-    });
-    // Remotes register at runtime through the generated runtime plugin.
-    expect(options.remotes).toBeUndefined();
-    const runtimePlugin = path.join(
-      root,
-      'node_modules/.modern-js/federation/native-runtime.mjs',
-    );
-    expect(options.runtimePlugins).toEqual([runtimePlugin]);
-    const { default: plugin } = await import(
-      `${pathToFileURL(runtimePlugin).href}?test`
-    );
-    const origin = {};
-    const args = plugin().beforeInit({
-      origin,
-      userOptions: {
-        remotes: [
-          { name: 'other', alias: 'other', entry: '/other/mf-manifest.json' },
-        ],
-      },
-    });
-    expect(args.userOptions.remotes).toEqual([
-      { name: 'other', alias: 'other', entry: '/other/mf-manifest.json' },
-      {
-        name: 'remote',
-        alias: 'remote',
-        entry: 'https://remote.example/mf-manifest.json',
-      },
-    ]);
-    expect(
-      (globalThis as Record<symbol, unknown>)[
-        Symbol.for('ultramodern.federation.host-instance')
-      ],
-    ).toBe(origin);
-    delete (globalThis as Record<symbol, unknown>)[
-      Symbol.for('ultramodern.federation.host-instance')
-    ];
-    const bootstrap = path.join(path.dirname(generated), 'index.federation.js');
-    expect(client.entries.index).toEqual(['core-js/polyfill', bootstrap]);
-    expect(fs.readFileSync(bootstrap, 'utf8')).toBe(
-      `import(${JSON.stringify(generated)});\n`,
-    );
-  });
-
-  it('is inert without a configuration file', async () => {
-    const hooks = setup('solid', app({}));
-    const client = chain();
-    await hooks.modifyBundlerChain(client.chain, {
-      environment: { name: 'client' },
-    });
-    expect(client.uses).toEqual([]);
-  });
-
-  it('rejects a renderer without the federation capability', async () => {
     const hooks = setup(
       'octane',
-      app({ 'module-federation.config.mjs': 'export default { name: "x" }' }),
+      root,
+      { server: { ssr: true } },
+      {
+        command: 'dev',
+        builder: {
+          context: {
+            devServer: { hostname: '127.0.0.1', port: 59937, https: false },
+          },
+        },
+      },
     );
-    await expect(
-      hooks.modifyBundlerChain(chain().chain, {
-        environment: { name: 'client' },
-      }),
-    ).rejects.toThrow(
-      'unsupported-renderer-capability: renderer octane does not support Module Federation',
-    );
+    for (const name of ['client', 'server']) {
+      const config: any = { output: { publicPath: '/base/' } };
+      await hooks.modifyRspackConfig(config, {
+        environment: { name, config: { dev: { assetPrefix: true } } },
+      });
+      expect(config.output.publicPath).toBe(
+        `http://127.0.0.1:59937/base/${name === 'server' ? 'bundles/' : ''}`,
+      );
+      if (name === 'server')
+        expect(config.module.generator['asset/resource'].publicPath).toBe(
+          'http://127.0.0.1:59937/base/',
+        );
+    }
   });
 
-  it('requires the application to install @module-federation/enhanced', async () => {
-    const hooks = setup(
-      'solid',
-      app({
+  it.each(nativeRenderers)(
+    'keeps a client-only %s host off the server compilation',
+    async renderer => {
+      const root = app({
         'package.json': '{}',
-        'module-federation.config.mjs': 'export default { name: "x" }',
-        'node_modules/@module-federation/enhanced/package.json': JSON.stringify(
-          {
-            name: '@module-federation/enhanced',
-            exports: {},
-          },
-        ),
-      }),
-    );
-    await expect(
-      hooks.modifyBundlerChain(chain().chain, {
+        'module-federation.config.mjs': `export default { name: 'host', remotes: { remote: '${manifestRemote}' } };`,
+      });
+      installPackages(root, false, renderer);
+      const hooks = setup(renderer, root, { server: { ssr: false } });
+      const server = chain();
+      await hooks.modifyBundlerChain(server.chain, {
+        environment: { name: 'server' },
+      });
+      expect(server.uses).toEqual([]);
+    },
+  );
+
+  it.each(nativeRenderers)(
+    'requires @module-federation/node for %s server containers',
+    async renderer => {
+      const root = app({
+        'package.json': '{}',
+        'module-federation.config.mjs': `export default { name: 'remote', exposes: { './Widget': './Widget.tsx' } };`,
+        // Block the test runner's ambient package lookup outside the application.
+        'node_modules/@module-federation/node/package.json': JSON.stringify({
+          name: '@module-federation/node',
+          exports: {},
+        }),
+      });
+      installPackages(root, false, renderer);
+      const hooks = setup(renderer, root);
+      await expect(
+        hooks.modifyBundlerChain(chain().chain, {
+          environment: { name: 'server' },
+        }),
+      ).rejects.toThrow('install @module-federation/node');
+    },
+  );
+
+  it.each(nativeRenderers)(
+    'starts %s client entries through a federation bootstrap',
+    async renderer => {
+      const root = app({
+        'package.json': '{}',
+        'module-federation.config.mjs': `export default { name: 'host', remotes: { remote: '${manifestRemote}' } };`,
+      });
+      installPackages(root, false, renderer);
+      const generated = path.join(
+        root,
+        `node_modules/.modern-js/${renderer}/index/index.ts`,
+      );
+      fs.mkdirSync(path.dirname(generated), { recursive: true });
+      const hooks = setup(renderer, root);
+      const client = chain({ index: ['core-js/polyfill', generated] });
+      await hooks.modifyBundlerChain(client.chain, {
         environment: { name: 'client' },
-      }),
-    ).rejects.toThrow('install @module-federation/enhanced');
-  });
+      });
+      const [, Plugin, [options]] = client.uses.find(
+        ([key]) => key === 'plugin-module-federation',
+      ) as [string, any, [any]];
+      expect(Plugin.name).toBe('ModuleFederationPlugin');
+      expect(options).toMatchObject({
+        name: 'host',
+        library: { type: 'module' },
+      });
+      // Remotes register at runtime through the generated runtime plugin.
+      expect(options.remotes).toBeUndefined();
+      const runtimePlugin = path.join(
+        root,
+        'node_modules/.modern-js/federation/native-runtime.mjs',
+      );
+      expect(options.runtimePlugins).toEqual([runtimePlugin]);
+      const { default: plugin } = await import(
+        `${pathToFileURL(runtimePlugin).href}?test`
+      );
+      const origin = {};
+      const args = plugin().beforeInit({
+        origin,
+        userOptions: {
+          remotes: [
+            { name: 'other', alias: 'other', entry: '/other/mf-manifest.json' },
+          ],
+        },
+      });
+      expect(args.userOptions.remotes).toEqual([
+        { name: 'other', alias: 'other', entry: '/other/mf-manifest.json' },
+        {
+          name: 'remote',
+          alias: 'remote',
+          entry: 'https://remote.example/mf-manifest.json',
+        },
+      ]);
+      expect(
+        (globalThis as Record<symbol, unknown>)[
+          Symbol.for('ultramodern.federation.host-instance')
+        ],
+      ).toBe(origin);
+      delete (globalThis as Record<symbol, unknown>)[
+        Symbol.for('ultramodern.federation.host-instance')
+      ];
+      const bootstrap = path.join(
+        path.dirname(generated),
+        'index.federation.js',
+      );
+      expect(client.entries.index).toEqual(['core-js/polyfill', bootstrap]);
+      expect(fs.readFileSync(bootstrap, 'utf8')).toBe(
+        `import(${JSON.stringify(generated)});\n`,
+      );
+    },
+  );
+
+  it.each(nativeRenderers)(
+    'is inert for %s without a configuration file',
+    async renderer => {
+      const hooks = setup(renderer, app({}));
+      const client = chain();
+      await hooks.modifyBundlerChain(client.chain, {
+        environment: { name: 'client' },
+      });
+      expect(client.uses).toEqual([]);
+    },
+  );
+
+  it.each(nativeRenderers)(
+    'requires @module-federation/enhanced for a %s application',
+    async renderer => {
+      const hooks = setup(
+        renderer,
+        app({
+          'package.json': '{}',
+          'module-federation.config.mjs': 'export default { name: "x" }',
+          'node_modules/@module-federation/enhanced/package.json':
+            JSON.stringify({
+              name: '@module-federation/enhanced',
+              exports: {},
+            }),
+        }),
+      );
+      await expect(
+        hooks.modifyBundlerChain(chain().chain, {
+          environment: { name: 'client' },
+        }),
+      ).rejects.toThrow('install @module-federation/enhanced');
+    },
+  );
 });
 
 describe('native renderer federation identity', () => {
-  it('resolves the Solid tuple from the installed renderer owners', () => {
-    const compatibility = resolveRendererFederationCompatibility('solid');
-    expect(compatibility.profile.renderer).toBe('solid');
-    expect(compatibility.runtime.name).toBe('solid-js');
-    expect(compatibility.bootstrap.name).toBe('@modern-js/renderer-solid');
-    expect(compatibility.profile.hydration.name).toBe('@solidjs/web');
-  });
+  it.each(nativeRenderers)(
+    'resolves the %s tuple from installed renderer owners',
+    renderer => {
+      const compatibility = resolveRendererFederationCompatibility(renderer);
+      expect(compatibility.profile.renderer).toBe(renderer);
+      expect(compatibility.runtime.name).toBe(
+        renderer === 'solid' ? 'solid-js' : 'octane',
+      );
+      expect(compatibility.bootstrap.name).toBe(
+        `@modern-js/renderer-${renderer}`,
+      );
+      expect(compatibility.profile.hydration.name).toBe(
+        renderer === 'solid' ? '@solidjs/web' : 'octane',
+      );
+    },
+  );
 
   it('keeps Module Federation application SSR React-only', () => {
     expect(() =>

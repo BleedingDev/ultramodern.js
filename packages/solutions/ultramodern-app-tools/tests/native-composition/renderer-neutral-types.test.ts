@@ -68,6 +68,14 @@ function checkInstalledDeclarations(
       fs.symlinkSync(
         path.join(
           packageDirectory,
+          'node_modules/@modern-js/runtime-extensions',
+        ),
+        path.join(scope, 'runtime-extensions'),
+        'dir',
+      );
+      fs.symlinkSync(
+        path.join(
+          packageDirectory,
           'node_modules/@modern-js/plugin/node_modules/@types/react',
         ),
         path.join(ambientDirectory, 'react'),
@@ -357,7 +365,23 @@ void tanstackReactConfig;
 const nativeReactPluginConsumer = `${sharedConsumer}
 import type { AppTools as NativeAppTools, CliPlugin } from '@modern-js/app-tools';
 import type { RuntimePlugin } from '@modern-js/runtime';
+import {
+  routerPlugin as nativeRouterPlugin,
+  routerProviderRegistryHooks,
+} from '@modern-js/runtime/router/internal';
+import { createRouterPlugin } from '@modern-js/runtime-extensions/router-provider';
 import type { ReactNode } from 'react';
+
+const createNativeRouterProvider: typeof nativeRouterPlugin = createRouterPlugin({
+  defaultProvider: { name: 'react-router', factory: nativeRouterPlugin },
+  registryHooks: routerProviderRegistryHooks,
+});
+const nativeRouterProvider: ReturnType<typeof nativeRouterPlugin> = createNativeRouterProvider({
+  framework: 'react-router',
+});
+// @ts-expect-error Native router configuration remains typed through composition.
+createNativeRouterProvider({ framework: 123 });
+void nativeRouterProvider;
 
 export type SelectedReactRegistry = Assert<Same<keyof CLIElementTypes, 'react'>>;
 export type SelectedReactNode = Assert<Same<CLIElementTypes['react'], ReactNode>>;

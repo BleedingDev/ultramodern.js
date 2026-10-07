@@ -7,6 +7,9 @@ export const TANSTACK_ROUTER_VERSION = '1.170.41';
 export const TANSTACK_ROUTER_CORE_VERSION = '1.171.34';
 export const TANSTACK_HISTORY_VERSION = '1.162.4';
 export const MODULE_FEDERATION_VERSION = '2.9.2';
+// Fork release identities advance independently of the upstream MF protocol.
+export const MODULE_FEDERATION_BRIDGE_REACT_FORK_VERSION = '2.9.3';
+export const MODULE_FEDERATION_RUNTIME_FORK_VERSION = '2.9.3';
 // The mf-modern-js-v3 sidecar is upstream 2.9.2 plus the repository patch. Its
 // fork version moves past 2.9.2 because published sidecar versions are
 // immutable: 2.9.2 carries upstream 2.9.1 bytes and 2.9.3 predates the
@@ -60,9 +63,9 @@ export const ULTRAMODERN_PACKAGE_PINS = {
     // by aliasing bridge-react to its router-free `base` entry when it finds
     // the package in the app's own `package.json`. Drop it and the default,
     // `react-router-dom`-importing entry is bundled again.
-    '@module-federation/bridge-react': `npm:@bleedingdev/mf-bridge-react@${MODULE_FEDERATION_VERSION}`,
+    '@module-federation/bridge-react': `npm:@bleedingdev/mf-bridge-react@${MODULE_FEDERATION_BRIDGE_REACT_FORK_VERSION}`,
     '@module-federation/modern-js-v3': `npm:@bleedingdev/mf-modern-js-v3@${MODULE_FEDERATION_MODERN_JS_V3_FORK_VERSION}`,
-    '@module-federation/runtime': `npm:@bleedingdev/mf-runtime@${MODULE_FEDERATION_VERSION}`,
+    '@module-federation/runtime': `npm:@bleedingdev/mf-runtime@${MODULE_FEDERATION_RUNTIME_FORK_VERSION}`,
     '@tanstack/react-router': TANSTACK_ROUTER_VERSION,
     i18next: I18NEXT_VERSION,
     'node-fetch': NODE_FETCH_VERSION,

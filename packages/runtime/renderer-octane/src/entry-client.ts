@@ -48,6 +48,7 @@ export function startNativeClient(options: OctaneClientEntryOptions): void {
         container: root,
         identity,
         nativeHydrationBuildId,
+        federation: options.federation,
         signal,
         // Hydration installs the native signal bridge before this importer runs.
         load: async (): Promise<OctaneApplicationModule> => {

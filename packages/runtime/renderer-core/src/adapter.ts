@@ -104,6 +104,10 @@ export interface NativeRendererRuntime {
 export interface NativeRendererFederation {
   /** Runtime singletons a host and every remote share (`pkg/` for subpaths). */
   readonly shared: readonly string[];
+  /** Required providers, with the native import each compilation owns. */
+  readonly sharedByEnvironment?: Readonly<
+    Record<'client' | 'server', Readonly<Record<string, string>>>
+  >;
   /** Browser container format, matching the renderer's client chunks. */
   readonly library: 'module';
   /** Whether federated components also render on the server. */
@@ -148,6 +152,11 @@ export interface RendererCreatePackages {
 }
 
 export interface RendererCreateSupport {
+  /** Deployment templates the adapter admits in generated workspaces. */
+  readonly templates?: {
+    readonly federation: boolean;
+    readonly workers: boolean;
+  };
   dependencies(
     profile: RendererBuildProfile,
     context: { readonly typescriptVersion: string },

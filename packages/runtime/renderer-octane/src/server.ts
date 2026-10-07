@@ -3,11 +3,13 @@ import {
   type DocumentInlineData,
   prepareDocument,
 } from '@modern-js/renderer-core/document';
+import type { NativeFederationBinding } from '@modern-js/renderer-core/federation';
 import type {
   RequestSession,
   ResponsePolicy,
 } from '@modern-js/renderer-core/session';
 import {
+  createElement,
   earlySignalBootstrapScript,
   renderToReadableStream,
   type ServerRenderNode,
@@ -17,6 +19,7 @@ import {
   assertNativeHydrationBuildId,
   assertOctaneIdentity,
 } from './bootstrap';
+import { createFederationScope, FederationRoot } from './federation-context';
 
 export interface OctaneDocumentOptions {
   /** One identity for this response, shared with the client's signal receiver. */
@@ -52,6 +55,8 @@ export interface RenderOctaneApplicationOptions<
   readonly props?: unknown;
   /** Native router serialization, owned by this request's router SSR context. */
   readonly injection?: StreamOptions['injection'];
+  /** This server compilation's native Module Federation runtime. */
+  readonly federation?: NativeFederationBinding;
 }
 
 function prepareOctaneDocument<Bindings extends object>(
@@ -157,7 +162,20 @@ export async function renderOctaneApplication<Bindings extends object>(
     session.startRendering();
 
     let head = '';
-    const nativeStream = await renderToReadableStream(input.App, input.props, {
+    const federation = input.federation
+      ? createFederationScope(input.federation, true, document.nonce)
+      : undefined;
+    const App = federation
+      ? () =>
+          createElement(FederationRoot, {
+            scope: federation,
+            children:
+              typeof input.App === 'function'
+                ? createElement(input.App, input.props)
+                : input.App,
+          })
+      : input.App;
+    const nativeStream = await renderToReadableStream(App, input.props, {
       signal: session.signal,
       ...(document.nonce === undefined ? {} : { nonce: document.nonce }),
       earlySignalBootstrap: 'external',

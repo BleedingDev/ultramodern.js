@@ -1,11 +1,5 @@
-import {
-  createApiClient,
-  createApiServiceEntry,
-  createBackendEffectApiExpose,
-  createSharedApi,
-  createShellApiClient,
-} from './api';
-import { createRpcClientFile, createRpcContractFile } from './api/rpc';
+import { createShellApiClient } from './api';
+import { writeAppApiFiles } from './api/write-app-api';
 import {
   createAppEnvDts,
   createAppRuntimeConfig,
@@ -13,7 +7,6 @@ import {
   createShellFrameComponent,
   createTailwindConfig,
 } from './app-files';
-import { createBackendFederationContractFile } from './backend-federation';
 import type { UltramodernBridgeConfig } from './bridge-config';
 import {
   createFederatedComponentsRegistry,
@@ -34,7 +27,6 @@ import {
   createShellHost,
   distributedSsrExposes,
   distributedSsrFragmentSlug,
-  resolveApiProtocol,
   resolveRemoteRefs,
 } from './descriptors';
 import { writeFile, writeJson } from './fs-io';
@@ -108,6 +100,7 @@ export function writeApp(
       resolvedApp,
       packageSource,
       enableTailwind,
+      remotes,
     );
     return;
   }
@@ -142,7 +135,8 @@ export function writeApp(
   writeAppLocaleAndStyleFiles(context);
   writeAppFederationConfigFiles(context);
   writeAppRouteAndShellFiles(context);
-  writeAppApiAndRemoteExposeFiles(context);
+  writeAppApiFiles(context);
+  writeAppRemoteExposeFiles(context);
 }
 
 function writeAppConfigFiles({
@@ -382,68 +376,11 @@ function writeAppRouteAndShellFiles({
   }
 }
 
-function writeAppApiAndRemoteExposeFiles({
-  targetDir,
-  scope,
+function writeAppRemoteExposeFiles({
   resolvedApp,
   emitsUi,
   writeAppFile,
 }: WriteAppContext) {
-  if (appHasApi(resolvedApp)) {
-    const rpcProtocol = resolveApiProtocol(resolvedApp) === 'rpc';
-    const clientDirectory = emitsUi ? 'src/api' : 'shared';
-    if (rpcProtocol) {
-      writeFile(
-        targetDir,
-        `${resolvedApp.directory}/shared/rpc.ts`,
-        createRpcContractFile(resolvedApp),
-      );
-    } else {
-      writeFile(
-        targetDir,
-        `${resolvedApp.directory}/shared/api.ts`,
-        createSharedApi(resolvedApp, { scope }),
-      );
-    }
-    writeFile(
-      targetDir,
-      `${resolvedApp.directory}/api/index.ts`,
-      createApiServiceEntry(
-        resolvedApp,
-        rpcProtocol ? '../shared/rpc.ts' : '../shared/api.ts',
-        { scope },
-      ),
-    );
-    writeFile(
-      targetDir,
-      `${resolvedApp.directory}/api/backend-federation.ts`,
-      createBackendFederationContractFile(resolvedApp),
-    );
-    writeFile(
-      targetDir,
-      `${resolvedApp.directory}/api/effect-api.ts`,
-      createBackendEffectApiExpose(scope, resolvedApp),
-    );
-    if (rpcProtocol) {
-      writeFile(
-        targetDir,
-        `${resolvedApp.directory}/${clientDirectory}/${resolvedApp.api.stem}-rpc-client.ts`,
-        createRpcClientFile(
-          resolvedApp,
-          emitsUi ? '../../shared/rpc.ts' : './rpc.ts',
-        ),
-      );
-    } else {
-      writeFile(
-        targetDir,
-        `${resolvedApp.directory}/${clientDirectory}/${resolvedApp.api.stem}-client.ts`,
-        createApiClient(resolvedApp, emitsUi ? '../../shared/api' : './api', {
-          scope,
-        }),
-      );
-    }
-  }
-
   if (resolvedApp.kind === 'vertical' && emitsUi) {
     writeAppFile('src/federation-entry.tsx', createRemoteEntry(resolvedApp));
     for (const expose of Object.keys(resolvedApp.exposes ?? {})) {

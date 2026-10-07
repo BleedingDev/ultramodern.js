@@ -32,12 +32,15 @@ export function createModuleFederationRemotesConfig(
     )
     .map(remote => {
       const key = remoteDependencyAlias(remote);
-      return `    ${key}: createRemoteManifestUrl({
-      manifestEnv: '${createRemoteManifestEnv(remote)}',
-      mfName: '${remote.mfName}',
+      const property = /^[a-zA-Z_$][\w$]*$/u.test(key)
+        ? key
+        : JSON.stringify(key);
+      return `    ${property}: createRemoteManifestUrl({
+      manifestEnv: ${JSON.stringify(createRemoteManifestEnv(remote))},
+      mfName: ${JSON.stringify(remote.mfName)},
       port: ${remote.port},
-      publicUrlEnv: '${createCloudflarePublicUrlEnv(remote)}',
-      workerName: '${createCloudflareWorkerName(scope, remote)}',
+      publicUrlEnv: ${JSON.stringify(createCloudflarePublicUrlEnv(remote))},
+      workerName: ${JSON.stringify(createCloudflareWorkerName(scope, remote))},
     }),`;
     })
     .join('\n');

@@ -23,12 +23,29 @@ import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
+import { resolveSourceFederationDependencies } from '../../../scripts/ultramodern-renderers/native-federation-source-dependencies.mjs';
 
 const execute = promisify(execFile);
 const root = fileURLToPath(new URL('../../../', import.meta.url));
 const temporary = process.env.OWNED_TEMP_DIR;
 assert.ok(temporary, 'Run through owned-temp-dir so the apps have an owner.');
-const appTools = path.join(root, 'packages/solutions/ultramodern-app-tools');
+const packedHelpers = process.env.ULTRAMODERN_MF_PACKED_CONTEXT
+  ? await import(
+      '../../../scripts/ultramodern-renderers/native-federation-packed.mjs'
+    )
+  : undefined;
+const packedContext = packedHelpers
+  ? await packedHelpers.readPackedNativeFederationContext(
+      process.env.ULTRAMODERN_MF_PACKED_CONTEXT,
+      'solid',
+    )
+  : undefined;
+const sourceFederation = packedContext
+  ? undefined
+  : await resolveSourceFederationDependencies(root);
+const appTools =
+  packedContext?.appToolsRoot ??
+  path.join(root, 'packages/solutions/ultramodern-app-tools');
 const rendererSolid = path.join(root, 'packages/runtime/renderer-solid');
 let browserSession = `lane-mf-proof-${process.pid}`;
 const real = (from, request) =>
@@ -40,16 +57,6 @@ async function freePort() {
   const { port } = server.address();
   await new Promise(resolve => server.close(resolve));
   return port;
-}
-
-// The workspace installs the MF packages for the React MF plugin.
-async function storePackage(prefix, name) {
-  const store = path.join(root, 'node_modules/.pnpm');
-  const [candidate] = (await fs.readdir(store))
-    .filter(entry => entry.startsWith(prefix))
-    .sort();
-  assert.ok(candidate, `the workspace store has ${name}`);
-  return path.join(store, candidate, 'node_modules', name);
 }
 
 async function linkDependencies(directory) {
@@ -65,14 +72,8 @@ async function linkDependencies(directory) {
     '@solidjs/signals': await real(rendererSolid, '@solidjs/signals'),
     typescript: await real(appTools, 'typescript'),
     '@types/node': await real(appTools, '@types/node'),
-    '@module-federation/enhanced': await storePackage(
-      '@module-federation+enhanced@2.9.1_@rspack+core@2.2.7_',
-      '@module-federation/enhanced',
-    ),
-    '@module-federation/node': await storePackage(
-      '@module-federation+node@2.7.51_@rspack+core@2.2.7_',
-      '@module-federation/node',
-    ),
+    '@module-federation/enhanced': sourceFederation.enhanced.root,
+    '@module-federation/node': sourceFederation.node.root,
   };
   for (const [name, target] of Object.entries(links)) {
     const link = path.join(directory, 'node_modules', name);
@@ -87,7 +88,13 @@ async function writeApp(directory, files) {
     await fs.mkdir(path.dirname(target), { recursive: true });
     await fs.writeFile(target, content);
   }
-  await linkDependencies(directory);
+  if (packedContext)
+    await packedHelpers.preparePackedNativeFederationApp({
+      directory,
+      renderer: 'solid',
+      context: packedContext,
+    });
+  else await linkDependencies(directory);
 }
 
 const tsconfig = JSON.stringify({
@@ -118,8 +125,12 @@ const packageJson = name =>
       '@modern-js/ultramodern-app-tools': 'workspace',
       '@modern-js/renderer-solid': 'workspace',
       '@modern-js/renderer-core': 'workspace',
-      '@module-federation/enhanced': '2.9.1',
-      '@module-federation/node': '2.7.51',
+      '@module-federation/enhanced':
+        packedContext?.packageRequests['@module-federation/enhanced'] ??
+        sourceFederation.enhanced.version,
+      '@module-federation/node':
+        packedContext?.packageRequests['@module-federation/node'] ??
+        sourceFederation.node.version,
       'solid-js': '2.0.0-rc.13',
       '@solidjs/web': '2.0.0-rc.13',
       '@solidjs/signals': '2.0.0-rc.13',
@@ -136,7 +147,12 @@ export default function Layout(): JSX.Element {
 async function ultramodern(directory, command, env) {
   const result = await execute(
     process.execPath,
-    [path.join(appTools, 'bin/ultramodern.mjs'), command],
+    [
+      packedContext
+        ? packedHelpers.installedBin(directory)
+        : path.join(appTools, 'bin/ultramodern.mjs'),
+      command,
+    ],
     {
       cwd: directory,
       env: { ...process.env, NODE_PATH: '', ...env },
@@ -350,7 +366,12 @@ async function verifyCSRInBrowser() {
 async function startHost(directory, port) {
   const child = spawn(
     process.execPath,
-    [path.join(appTools, 'bin/ultramodern.mjs'), 'serve'],
+    [
+      packedContext
+        ? packedHelpers.installedBin(directory)
+        : path.join(appTools, 'bin/ultramodern.mjs'),
+      'serve',
+    ],
     {
       cwd: directory,
       env: {
@@ -514,15 +535,25 @@ export default defineConfig({ renderer: 'solid', server: { ssr: ${ssr} }, output
   await fs.access(path.join(remoteDist, 'bundles', 'remoteEntry.js'));
 
   // The same container, published under the React renderer tuple.
-  const { resolveReactFederationCompatibility } = await import(
-    pathToFileURL(
-      path.join(
-        appTools,
-        'dist/esm-node/renderers/react/module-federation.mjs',
-      ),
-    ).href
-  );
-  const react = resolveReactFederationCompatibility();
+  let react;
+  if (packedContext)
+    react = {
+      profile: {
+        ...manifest.metaData.ultramodernRenderer.profile,
+        renderer: 'react',
+      },
+    };
+  else {
+    const { resolveReactFederationCompatibility } = await import(
+      pathToFileURL(
+        path.join(
+          appTools,
+          'dist/esm-node/renderers/react/module-federation.mjs',
+        ),
+      ).href
+    );
+    react = resolveReactFederationCompatibility();
+  }
   const reactManifest = structuredClone(manifest);
   const contract = reactManifest.metaData.ultramodernRenderer;
   reactManifest.name = 'reactremote';

@@ -1,5 +1,6 @@
 import { type DataOutcome, handleDataRequest, invokeRouteData } from './data';
 import type { DocumentAsset, DocumentInlineData } from './document';
+import type { NativeFederationBinding } from './federation';
 import { assertRendererIdentity, type RendererIdentity } from './identity';
 import {
   type NativeEntryI18n,
@@ -33,6 +34,7 @@ export interface NativeServerEntryOptions<
   LocalisedUrls = unknown,
 > {
   readonly identity: RendererIdentity;
+  readonly federation?: NativeFederationBinding;
   /** The generated application module, imported per request. */
   readonly app: () => Promise<NativeApplicationModule>;
   readonly i18n?: NativeEntryI18n<Instance, LocalisedUrls>;

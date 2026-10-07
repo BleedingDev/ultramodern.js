@@ -10,7 +10,12 @@ import { SERVICE_WORKER_ENVIRONMENT_NAME } from '@modern-js/builder';
 import type { RendererIdentity } from '@modern-js/renderer-core/identity';
 import { createRequestSession } from '@modern-js/renderer-core/session';
 import type { Entrypoint } from '@modern-js/types/cli/base';
-import { createRsbuild, type RsbuildPlugin, rspack } from '@rsbuild/core';
+import {
+  createRsbuild,
+  type RsbuildPlugin,
+  type Rspack,
+  rspack,
+} from '@rsbuild/core';
 import { afterEach, describe, expect, it } from '@rstest/core';
 import { nativeClientAssetsPlugin } from '../../src/native-composition/native-assets';
 import {
@@ -23,6 +28,7 @@ import {
   nativeDevelopmentOutputDirectory,
 } from '../../src/native-composition/native-development';
 import { createNativeEntryGenerator } from '../../src/native-composition/native-entry';
+import { NativeFederationDevAssetsPlugin } from '../../src/native-composition/native-federation-dev-assets';
 import type { NativeDevelopmentSnapshot } from '../../src/native-composition/native-server-plugin';
 import {
   type RendererBuildProfile,
@@ -305,7 +311,7 @@ async function nativeApp(renderer: 'solid' | 'octane', module: boolean) {
 }
 
 /** A compiler outside the registry that owns its own manifest ABI. */
-async function replacementApp(module: boolean) {
+async function replacementApp(module: boolean, federation = false) {
   const root = temporaryRoot('replacement-dev-');
   fs.writeFileSync(
     path.join(root, 'package.json'),
@@ -326,6 +332,42 @@ async function replacementApp(module: boolean) {
   const state = path.join(root, 'state.js');
   const clientEntry = path.join(root, 'client.js');
   const serverEntry = path.join(root, 'server.js');
+  const widget = path.join(root, 'widget.js');
+  if (federation) {
+    fs.writeFileSync(
+      widget,
+      'import { shared } from "fixture-shared"; import image from "./widget.png"; import font from "./widget.woff2"; import wasm from "./widget.wasm"; import sourceMap from "./widget.js.map"; import config from "./private.config.ts?raw"; export const resources = { image, font, wasm, sourceMap, config }; export const marker = "first-remote" + shared; export const lazy = () => import("./remote-lazy.js");\n',
+    );
+    fs.writeFileSync(
+      path.join(root, 'remote-lazy.js'),
+      'export default "REMOTE_LAZY_CHUNK";\n',
+    );
+    fs.writeFileSync(
+      path.join(root, 'private-lazy.js'),
+      'export default "PRIVATE_SERVER_CHUNK";\n',
+    );
+    fs.writeFileSync(
+      path.join(root, 'widget.png'),
+      Buffer.from([137, 80, 78, 71]),
+    );
+    fs.writeFileSync(path.join(root, 'widget.woff2'), Buffer.from('wOF2'));
+    fs.writeFileSync(
+      path.join(root, 'widget.wasm'),
+      Buffer.from([0, 97, 115, 109, 1, 0, 0, 0]),
+    );
+    fs.writeFileSync(
+      path.join(root, 'widget.js.map'),
+      '{"sourcesContent":["PRIVATE_SOURCE"]}',
+    );
+    fs.writeFileSync(
+      path.join(root, 'private.config.ts'),
+      'export const token = "PRIVATE_CONFIG";',
+    );
+    fs.writeFileSync(
+      path.join(root, 'shared-lib.js'),
+      'export const shared = "PUBLIC_SHARED_CHUNK";\n',
+    );
+  }
   fs.writeFileSync(state, 'export const marker = "first";\n');
   fs.writeFileSync(
     clientEntry,
@@ -339,6 +381,7 @@ export async function nativeRequestHandler(_request, context) {
   return new Response(marker + ":" + context.nativeManifest.owner);
 }
 export async function nativeCSRRequestHandler() { return new Response(marker); }
+${federation ? 'export const privateLazy = () => import("./private-lazy.js");' : ''}
 `,
   );
   const provider = { framework: 'replacement', ...profile.router };
@@ -357,6 +400,10 @@ export async function nativeCSRRequestHandler() { return new Response(marker); }
     },
   };
   let poison = false;
+  let serverCompilation: Rspack.Compilation | undefined;
+  let clientCompiler: Rspack.Compiler | undefined;
+  let beforeAggregateCompile: (() => Promise<void>) | undefined;
+  let afterAggregateCompile: (() => void) | undefined;
   let duringNextCompile: (() => void) | undefined;
   const compilerArtifacts = createReplacementCompilerArtifacts();
   const authority = new NativeDevelopment({
@@ -369,7 +416,71 @@ export async function nativeCSRRequestHandler() { return new Response(marker); }
   const owner: RsbuildPlugin = {
     name: 'test-replacement-compiler',
     setup(api) {
+      api.onAfterCreateCompiler(({ compiler }) => {
+        clientCompiler = (
+          'compilers' in compiler ? compiler.compilers : [compiler]
+        ).find(candidate => candidate.options.name === 'client');
+      });
+      api.onDevCompileDone({
+        order: 'post',
+        handler: () => {
+          const callback = afterAggregateCompile;
+          afterAggregateCompile = undefined;
+          callback?.();
+        },
+      });
+      api.onDevCompileDone(async ({ stats }) => {
+        serverCompilation = ('stats' in stats ? stats.stats : [stats]).find(
+          result => result.compilation.name === 'server',
+        )?.compilation;
+        const callback = beforeAggregateCompile;
+        beforeAggregateCompile = undefined;
+        await callback?.();
+      });
       api.modifyRspackConfig((config, { environment }) => {
+        if (federation && environment.name === 'server') {
+          config.target = 'async-node';
+          config.output ??= {};
+          config.output.publicPath = `http://${api.context.devServer!.hostname}:${api.context.devServer!.port}/bundles/`;
+          config.plugins ??= [];
+          config.plugins.push(
+            new rspack.container.ModuleFederationPlugin({
+              name: 'test_remote',
+              filename: 'remoteEntry.js',
+              library: { type: 'commonjs-module', name: 'test_remote' },
+              exposes: { './Widget': widget },
+              shared: {
+                'fixture-shared': {
+                  import: path.join(root, 'shared-lib.js'),
+                  version: '1.0.0',
+                  requiredVersion: false,
+                },
+              },
+            }),
+            new NativeFederationDevAssetsPlugin('test_remote'),
+          );
+          config.module ??= {};
+          config.module.rules ??= [];
+          config.module.rules.push({
+            oneOf: [
+              {
+                test: /\.config\.ts$/u,
+                type: 'asset/resource',
+                generator: { filename: 'resources/config.png' },
+              },
+              {
+                test: /\.map$/u,
+                type: 'asset/resource',
+                generator: { filename: 'resources/source.png' },
+              },
+              {
+                test: /\.(?:png|woff2|wasm)$/u,
+                type: 'asset/resource',
+                generator: { filename: 'resources/[name][ext]' },
+              },
+            ],
+          });
+        }
         if (environment.name !== 'client') return;
         config.plugins ??= [];
         config.plugins.push({
@@ -459,6 +570,34 @@ export async function nativeCSRRequestHandler() { return new Response(marker); }
   );
   return {
     ...app,
+    serverCompilation() {
+      if (!serverCompilation)
+        throw new Error('No completed server compilation');
+      return serverCompilation;
+    },
+    removeFederatedImport() {
+      fs.writeFileSync(widget, 'export const marker = "second-remote";\n');
+      app.edit('second');
+    },
+    beforeNextAggregateCompile(callback: () => Promise<void>) {
+      beforeAggregateCompile = callback;
+    },
+    afterNextAggregateCompile(callback: () => void) {
+      afterAggregateCompile = callback;
+    },
+    invalidateClient() {
+      if (!clientCompiler?.watching)
+        throw new Error('No watching client compiler');
+      clientCompiler.watching.invalidate();
+    },
+    async startInvalidatedClientRun() {
+      if (!clientCompiler) throw new Error('No client compiler');
+      // Exercise the actual invalid/watchRun callbacks while an aggregate
+      // callback still holds the previous Stats, without blocking Rspack's
+      // scheduler on a second compile inside its awaited done hook.
+      clientCompiler.hooks.invalid.call(undefined, Date.now());
+      await clientCompiler.hooks.watchRun.promise(clientCompiler);
+    },
     compilerArtifacts,
     poison(value: boolean) {
       poison = value;
@@ -471,6 +610,141 @@ export async function nativeCSRRequestHandler() { return new Response(marker); }
 }
 
 describe('native development', () => {
+  it('discards an old aggregate done callback after a sibling starts another compile', async () => {
+    const app = await replacementApp(false, true);
+    await until(app, 'first:replacement-compiler');
+    const aggregateReached = Promise.withResolvers<void>();
+    const abort = new AbortController();
+    let resolved = false;
+    let snapshot: Promise<unknown> | undefined;
+    try {
+      app.beforeNextAggregateCompile(async () => {
+        await app.startInvalidatedClientRun();
+        snapshot = app.authority
+          .resolveSnapshot(app.identity, abort.signal)
+          .then(() => {
+            resolved = true;
+          });
+      });
+      app.afterNextAggregateCompile(() => aggregateReached.resolve());
+      app.edit('stale');
+      await aggregateReached.promise;
+      expect(resolved).toBe(false);
+      app.invalidateClient();
+      await until(app, 'stale:replacement-compiler');
+      await snapshot;
+      expect(resolved).toBe(true);
+    } finally {
+      abort.abort();
+      await snapshot?.catch(() => {});
+    }
+  }, 300_000);
+
+  it('publishes only the latest Node federation graph and stops publishing when closed', async () => {
+    const app = await replacementApp(false, true);
+    await until(app, 'first:replacement-compiler');
+    const compilation = app.serverCompilation();
+    const chunks = compilation.entrypoints
+      .get('test_remote')!
+      .getEntrypointChunk()
+      .getAllReferencedChunks();
+    const names = new Set([
+      ...chunks.flatMap(chunk => [...chunk.files]),
+      ...chunks
+        .flatMap(chunk => [...chunk.auxiliaryFiles])
+        .filter(name => /resources\/widget\.(?:png|woff2|wasm)$/u.test(name)),
+    ]);
+    expect(names.has('remoteEntry.js')).toBe(true);
+    for (const extension of ['png', 'woff2', 'wasm'])
+      expect([...names].some(name => name.endsWith(`.${extension}`))).toBe(
+        true,
+      );
+    const lazy = [...names].find(name =>
+      fs
+        .readFileSync(path.join(compilation.outputOptions.path!, name), 'utf8')
+        .includes('REMOTE_LAZY_CHUNK'),
+    );
+    expect(lazy).toBeDefined();
+    expect(
+      [...names].some(
+        name =>
+          /\.js$/u.test(name) &&
+          fs
+            .readFileSync(
+              path.join(compilation.outputOptions.path!, name),
+              'utf8',
+            )
+            .includes('PUBLIC_SHARED_CHUNK'),
+      ),
+    ).toBe(true);
+    for (const name of names) {
+      const response = await fetch(
+        new URL(`/bundles/${name}?build=first`, app.address),
+      );
+      expect(response.status).toBe(200);
+      expect(response.headers.get('content-type')).toMatch(
+        /javascript|image\/png|font\/woff2|application\/wasm/u,
+      );
+      expect(response.headers.get('cache-control')).toBe('no-store');
+      expect(Buffer.from(await response.arrayBuffer())).toEqual(
+        fs.readFileSync(path.join(compilation.outputOptions.path!, name)),
+      );
+    }
+    const head = await fetch(new URL('/bundles/remoteEntry.js', app.address), {
+      method: 'HEAD',
+    });
+    expect(head.status).toBe(200);
+    expect(Number(head.headers.get('content-length'))).toBeGreaterThan(0);
+    expect(await head.text()).toBe('');
+    const privateNames = compilation
+      .getAssets()
+      .map(asset => asset.name)
+      .filter(name => !names.has(name));
+    expect(privateNames.some(name => name === 'main.js')).toBe(true);
+    expect(privateNames).toContain('resources/config.png');
+    expect(privateNames).toContain('resources/source.png');
+    expect(
+      privateNames.some(
+        name =>
+          /\.js$/u.test(name) &&
+          fs
+            .readFileSync(
+              path.join(compilation.outputOptions.path!, name),
+              'utf8',
+            )
+            .includes('PRIVATE_SERVER_CHUNK'),
+      ),
+    ).toBe(true);
+    for (const name of [
+      ...privateNames,
+      'renderer-build.json',
+      'module-federation.config.ts',
+    ])
+      expect(
+        (await fetch(new URL(`/bundles/${name}`, app.address))).status,
+      ).toBe(404);
+
+    app.removeFederatedImport();
+    await until(app, 'second:replacement-compiler');
+    expect((await fetch(new URL(`/bundles/${lazy}`, app.address))).status).toBe(
+      404,
+    );
+    const latest = await fetch(new URL('/bundles/remoteEntry.js', app.address));
+    expect(latest.status).toBe(200);
+    expect(Buffer.from(await latest.arrayBuffer())).toEqual(
+      fs.readFileSync(
+        path.join(
+          app.serverCompilation().outputOptions.path!,
+          'remoteEntry.js',
+        ),
+      ),
+    );
+    await app.authority.close();
+    expect(
+      (await fetch(new URL('/bundles/remoteEntry.js', app.address))).status,
+    ).toBe(404);
+  }, 300_000);
+
   it.each([
     ['CommonJS', false],
     ['ESM', true],
