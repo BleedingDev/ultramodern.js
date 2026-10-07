@@ -12,7 +12,9 @@ export type Renderer = 'react' | 'solid' | 'octane';
 
 export type SpecName =
   | 'ssr-html'
+  | 'ssr-css'
   | 'hydration'
+  | 'lazy'
   | 'client-nav'
   | 'back-forward'
   | 'loader-data'
@@ -132,6 +134,21 @@ export function defineRendererSpecs(options: RendererSpecOptions) {
         expected,
       );
 
+    const waitForStyle = (testId: string, property: string, value: string) =>
+      page.waitForFunction(
+        (selector, name, expected) => {
+          const element = document.querySelector(selector);
+          return (
+            element !== null &&
+            getComputedStyle(element).getPropertyValue(name) === expected
+          );
+        },
+        { timeout: 15_000 },
+        id(testId),
+        property,
+        value,
+      );
+
     /** Clicking the counter only updates once the page is hydrated. */
     async function openHydrated(pathname: string) {
       const response = await page.goto(`${origin}${pathname}`, {
@@ -175,6 +192,28 @@ export function defineRendererSpecs(options: RendererSpecOptions) {
         element => element === (window as any).__ssrLayout,
       );
       expect(adopted).toBe(true);
+      await waitForStyle('native-layout', 'color', 'rgb(20, 40, 60)');
+      expect(pageErrors).toEqual([]);
+    });
+
+    spec('ssr-css', async () => {
+      // The layout stylesheet must be linked from the server document, so
+      // the first paint is styled before any bundle runs.
+      const { html } = await fetchHtml('/');
+      const hrefs = [...html.matchAll(/<link\b[^>]*>/g)]
+        .map(([tag]) => tag)
+        .filter(tag => /\brel="stylesheet"/.test(tag))
+        .map(tag => /\bhref="([^"]+)"/.exec(tag)![1]);
+      const css = await Promise.all(
+        hrefs.map(href => fetch(new URL(href, origin)).then(r => r.text())),
+      );
+      expect(css.join('\n')).toMatch(/native-layout/);
+    });
+
+    spec('lazy', async () => {
+      await openHydrated('/');
+      await page.waitForSelector(id('native-lazy'), { timeout: 15_000 });
+      await waitForStyle('native-lazy', 'border-inline-start-width', '2px');
       expect(pageErrors).toEqual([]);
     });
 
