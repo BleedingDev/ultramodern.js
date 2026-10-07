@@ -7,6 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { inspectNpmTarball } from '../../ultramodern-publish/lib/prepare-bleedingdev-packages/release-artifacts.mjs';
 import { readReleaseManifest } from '../../ultramodern-publish/lib/source-create-proof/release-manifest.mjs';
 import { readCohort } from '../../ultramodern-renderers/installed-cohort.mjs';
+import { isUnpublishedForkEdge } from '../../ultramodern-supply/verify-sidecars.mjs';
 import {
   fileEvidence,
   ordinaryFiles,
@@ -107,6 +108,40 @@ function authenticatePackage(record, artifacts, packedArtifact) {
     name: record.manifest.name,
     version: record.manifest.version,
     artifactSha256: artifact.sha256,
+    installedPath: record.directory,
+    manifest: sourceEvidence(record.manifestPath),
+    fileGraphSha256: sha256(JSON.stringify(files)),
+    files,
+  };
+}
+
+/**
+ * Records an installed owner that has no packed candidate bytes (an upstream
+ * package behind an unpublished fork edge) so the proof can check that the
+ * build did not change it.
+ */
+function recordInstalledOwner(record) {
+  const files = [];
+  function visit(directory) {
+    for (const item of fs.readdirSync(directory, { withFileTypes: true })) {
+      if (item.name === 'node_modules' && item.isDirectory()) continue;
+      const file = path.join(directory, item.name);
+      assert(
+        !item.isSymbolicLink(),
+        `Installed owner contains a symlink: ${file}`,
+      );
+      if (item.isDirectory()) visit(file);
+      else {
+        assert(item.isFile(), `Installed owner contains a non-file: ${file}`);
+        files.push(fileEvidence(file, record.directory));
+      }
+    }
+  }
+  visit(record.directory);
+  files.sort((left, right) => left.path.localeCompare(right.path));
+  return {
+    name: record.manifest.name,
+    version: record.manifest.version,
     installedPath: record.directory,
     manifest: sourceEvidence(record.manifestPath),
     fileGraphSha256: sha256(JSON.stringify(files)),
@@ -422,21 +457,39 @@ async function executeWorker(input) {
   );
   assert.equal(rsbuildSidecars.length, 1);
   const rsbuildSidecar = rsbuildSidecars[0];
-  assert.equal(rsbuildSidecar.version, '2.2.9');
-  assert.equal(
-    sdk.record.manifest.dependencies['@rsbuild/core'],
-    `npm:${rsbuildSidecar.name}@${rsbuildSidecar.version}`,
+  assert.equal(rsbuildSidecar.version, '2.2.11');
+  // Until @bleedingdev/rsbuild-core is bootstrapped on npm, the SDK's
+  // @rsbuild/core edge is a listed unpublished fork edge that installs the
+  // upstream package (scripts/ultramodern-supply/verify-sidecars.mjs). Only a
+  // declared fork alias has packed candidate bytes to authenticate.
+  const rsbuildDeclared = sdk.record.manifest.dependencies['@rsbuild/core'];
+  const rsbuildForkDeclared =
+    rsbuildDeclared === `npm:${rsbuildSidecar.name}@${rsbuildSidecar.version}`;
+  assert(
+    rsbuildForkDeclared ||
+      isUnpublishedForkEdge(
+        sdk.record.manifest.name,
+        '@rsbuild/core',
+        rsbuildDeclared,
+        {
+          upstream: { version: rsbuildSidecar.version },
+        },
+      ),
+    `The SDK declares @rsbuild/core ${rsbuildDeclared}, neither the ${rsbuildSidecar.name} alias nor a listed unpublished fork edge`,
   );
-  const rsbuildInspection = inspectNpmTarball(rsbuildSidecar.bytes);
-  const rsbuildArtifact = {
-    targetName: rsbuildSidecar.name,
-    version: rsbuildSidecar.version,
-    sha256: rsbuildSidecar.sha256,
-    files: rsbuildInspection.files.map(file => ({
-      ...file,
-      sha256: sha256(rsbuildInspection.fileContents.get(file.path)),
-    })),
-  };
+  let rsbuildArtifact;
+  if (rsbuildForkDeclared) {
+    const rsbuildInspection = inspectNpmTarball(rsbuildSidecar.bytes);
+    rsbuildArtifact = {
+      targetName: rsbuildSidecar.name,
+      version: rsbuildSidecar.version,
+      sha256: rsbuildSidecar.sha256,
+      files: rsbuildInspection.files.map(file => ({
+        ...file,
+        sha256: sha256(rsbuildInspection.fileContents.get(file.path)),
+      })),
+    };
+  }
   const rsbuildEntry = sdkRequire.resolve('@rsbuild/core');
   assert.equal(
     fs.realpathSync(adapterRequire.resolve('@rsbuild/core')),
@@ -444,16 +497,17 @@ async function executeWorker(input) {
     'The Cloudflare adapter must use the same authenticated Rsbuild owner',
   );
   const rsbuildPackage = packageAt(rsbuildEntry, consumerRoot);
-  assert.equal(rsbuildPackage.manifest.name, rsbuildSidecar.name);
+  assert.equal(
+    rsbuildPackage.manifest.name,
+    rsbuildForkDeclared ? rsbuildSidecar.name : '@rsbuild/core',
+  );
   assert.equal(
     rsbuildPackage.manifest.version,
     compilerAdapter.record.manifest.peerDependencies['@rsbuild/core'],
   );
-  const rsbuildOwner = authenticatePackage(
-    rsbuildPackage,
-    artifacts,
-    rsbuildArtifact,
-  );
+  const rsbuildOwner = rsbuildForkDeclared
+    ? authenticatePackage(rsbuildPackage, artifacts, rsbuildArtifact)
+    : recordInstalledOwner(rsbuildPackage);
   const { createRsbuild } = sdkRequire('@rsbuild/core');
   const token = `c2-${sha256(JSON.stringify(binding)).slice(0, 16)}-${randomUUID()}`;
   const authored = createWorkerLifecycleSources({
@@ -932,7 +986,14 @@ async function executeWorker(input) {
       sourceEvidence(path.join(applicationRoot, 'package.json')),
       applicationDeclaration,
     );
-    authenticatePackage(rsbuildPackage, artifacts, rsbuildArtifact);
+    if (rsbuildForkDeclared)
+      authenticatePackage(rsbuildPackage, artifacts, rsbuildArtifact);
+    else
+      assert.deepEqual(
+        recordInstalledOwner(rsbuildPackage),
+        rsbuildOwner,
+        'Executed Rsbuild bytes changed during qualification',
+      );
     for (const [directory] of ownerBindings)
       authenticatePackage(
         {
@@ -977,7 +1038,9 @@ async function executeWorker(input) {
         binary: sourceEvidence(fs.realpathSync(workerdBinary)),
       },
       nativeCompiler: {
-        packedOwner: rsbuildOwner,
+        ...(rsbuildForkDeclared
+          ? { packedOwner: rsbuildOwner }
+          : { upstreamOwner: rsbuildOwner }),
         name: rsbuildPackage.manifest.name,
         version: rsbuildPackage.manifest.version,
         entry: sourceEvidence(rsbuildEntry),
