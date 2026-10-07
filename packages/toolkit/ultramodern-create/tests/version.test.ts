@@ -238,7 +238,7 @@ test('built CLI scaffolds a workspace whose asset prefix resolves by precedence'
   }
 });
 
-test('generated configs resolve current topology and ports without being rewritten', () => {
+test('generated configs resolve current topology and ports without being rewritten', async () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-native-config-'));
   const workspacePath = path.join(tempRoot, 'workspace');
   const appDirectory = 'apps/shell-super-app';
@@ -254,7 +254,7 @@ test('generated configs resolve current topology and ports without being rewritt
     ULTRAMODERN_CLOUDFLARE_WORKERS_DEV_SUBDOMAIN: undefined,
   };
   try {
-    generateUltramodernWorkspace({
+    await generateUltramodernWorkspace({
       targetDir: workspacePath,
       packageName: 'native-config-workspace',
       modernVersion: '3.2.1',
@@ -276,13 +276,13 @@ test('generated configs resolve current topology and ports without being rewritt
     assert.deepEqual(initial.dev.server.cors.origin, ['http://localhost:3020']);
     assert.equal(initial.output.assetPrefix, '/');
 
-    addUltramodernVertical({
+    await addUltramodernVertical({
       workspaceRoot: workspacePath,
       name: 'catalog',
       preset: 'ui-only',
       modernVersion: '3.2.1',
     });
-    addUltramodernShell({
+    await addUltramodernShell({
       workspaceRoot: workspacePath,
       name: 'admin',
       modernVersion: '3.2.1',
