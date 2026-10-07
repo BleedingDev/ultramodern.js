@@ -49,6 +49,8 @@ const rendererRegistrations: Readonly<
     ownedPackages: [
       'react',
       'react-dom',
+      'react-router',
+      'react-router-dom',
       '@modern-js/runtime',
       '@modern-js/plugin-tanstack',
       '@modern-js/plugin-i18n',

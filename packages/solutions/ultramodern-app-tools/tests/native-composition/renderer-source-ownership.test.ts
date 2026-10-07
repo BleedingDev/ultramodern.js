@@ -129,6 +129,9 @@ describe('route source renderer ownership', () => {
       evidence: "imports '@modern-js/plugin-tanstack/runtime'",
     });
     expect(
+      detectSourceRenderer('page.tsx', "import { Link } from 'react-router';"),
+    ).toEqual({ renderer: 'react', evidence: "imports 'react-router'" });
+    expect(
       detectSourceRenderer(
         'page.tsx',
         "import { useMemo } from 'octane';\nimport x from '@octanejs/tanstack-router';",
