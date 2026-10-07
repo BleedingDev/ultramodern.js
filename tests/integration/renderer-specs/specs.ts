@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { ChildProcess, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -93,26 +93,69 @@ export function defineRendererSpecs(options: RendererSpecOptions) {
   let documentRequests: string[];
   let sockets: string[];
 
-  /** Starts a server for one describe block and stops it afterwards. */
-  function useServer(start: (port: number) => Promise<unknown>) {
-    let app: unknown;
+  /** Owns one block's browser, server and temporary deploy directories. */
+  function useApp(
+    start: (
+      port: number,
+      ownServer: (app: ChildProcess) => void,
+    ) => Promise<unknown>,
+    ownedDirectories: () => string[] = () => [],
+  ) {
+    let app: ChildProcess | undefined;
+    let appClosed: Promise<void> | undefined;
+    let ownedBrowser: Browser | undefined;
+    const ownServer = (instance: unknown) => {
+      if (!(instance instanceof ChildProcess))
+        throw new TypeError('Renderer server must return a child process');
+      app = instance;
+      appClosed = new Promise(resolve =>
+        instance.once('close', () => resolve()),
+      );
+    };
     beforeAll(async () => {
       const port = await getPort();
-      app = await start(port);
+      const started = await start(port, ownServer);
+      if (!app) ownServer(started);
       origin = `http://localhost:${port}`;
+      ownedBrowser = await puppeteer.launch(launchOptions as any);
+      browser = ownedBrowser;
     });
     afterAll(async () => {
-      if (app) await killApp(app);
-    });
-  }
-
-  /** One browser per describe block, one fresh page per spec. */
-  function usePages() {
-    beforeAll(async () => {
-      browser = await puppeteer.launch(launchOptions as any);
-    });
-    afterAll(async () => {
-      await browser?.close();
+      const errors: unknown[] = [];
+      try {
+        await ownedBrowser?.close();
+        ownedBrowser = undefined;
+      } catch (error) {
+        errors.push(error);
+      }
+      try {
+        if (app) {
+          if (app.exitCode === null && app.signalCode === null && app.pid)
+            await killApp(app);
+          // tree-kill's callback can precede close, especially on Windows.
+          await appClosed;
+          app = undefined;
+        }
+      } catch (error) {
+        errors.push(error);
+      }
+      for (const directory of ownedDirectories()) {
+        if (app || ownedBrowser) {
+          errors.push(
+            new Error(
+              `Retained ${directory}: renderer resources did not close`,
+            ),
+          );
+          continue;
+        }
+        try {
+          fs.rmSync(directory, { recursive: true, force: true });
+        } catch (error) {
+          errors.push(error);
+        }
+      }
+      if (errors.length)
+        throw new AggregateError(errors, 'Renderer teardown failed');
     });
 
     beforeEach(async () => {
@@ -240,11 +283,10 @@ export function defineRendererSpecs(options: RendererSpecOptions) {
   };
 
   describe(`renderer ${renderer}`, () => {
-    useServer(async port => {
+    useApp(async port => {
       await build();
       return modernServe(appDir, port, { modernBin });
     });
-    usePages();
 
     if (renderer !== 'react')
       spec('no-react-bundle', async () => {
@@ -469,12 +511,11 @@ export function defineRendererSpecs(options: RendererSpecOptions) {
   // A CSR build of the same app: an empty shell the client renders into.
   if (renderer !== 'react')
     describe(`renderer ${renderer} csr`, () => {
-      useServer(async port => {
+      useApp(async port => {
         const env = { RENDERER_CSR: 'true' };
         await build(env);
         return modernServe(appDir, port, { modernBin, env });
       });
-      usePages();
 
       spec('csr-shell', async () => {
         const { response, html } = await fetchHtml('/');
@@ -527,8 +568,7 @@ export function defineRendererSpecs(options: RendererSpecOptions) {
   describe(`renderer ${renderer} dev`, () => {
     const messageFile = path.join(appDir, 'src/components/Message.tsx');
     const original = fs.readFileSync(messageFile, 'utf8');
-    useServer(port => launchApp(appDir, port, { modernBin }));
-    usePages();
+    useApp(port => launchApp(appDir, port, { modernBin }));
     afterAll(() => fs.writeFileSync(messageFile, original));
 
     spec('dev-hmr', async () => {
@@ -574,61 +614,69 @@ export function defineRendererSpecs(options: RendererSpecOptions) {
       const output = path.join(nodeDeployDir, '.output');
       let isolated: string | undefined;
       let ownsOutput = false;
-      useServer(async port => {
-        if (fs.existsSync(output))
-          throw new Error(
-            `Refusing to replace an existing deploy output: ${output}`,
+      useApp(
+        async (port, ownServer) => {
+          if (fs.existsSync(output))
+            throw new Error(
+              `Refusing to replace an existing deploy output: ${output}`,
+            );
+          ownsOutput = true;
+          const result = await runModernCommand(['deploy'], {
+            cwd: nodeDeployDir,
+            modernBin: nodeDeployBin,
+            env: { NODE_ENV: 'production', MODERNJS_DEPLOY: 'node' },
+          });
+          if (result.code !== 0)
+            throw new Error(
+              `deploy failed\n${result.stdout}\n${result.stderr}`,
+            );
+          isolated = fs.realpathSync(
+            fs.mkdtempSync(
+              path.join(os.tmpdir(), `renderer-${renderer}-deploy-`),
+            ),
           );
-        ownsOutput = true;
-        const result = await runModernCommand(['deploy'], {
-          cwd: nodeDeployDir,
-          modernBin: nodeDeployBin,
-          env: { NODE_ENV: 'production', MODERNJS_DEPLOY: 'node' },
-        });
-        if (result.code !== 0)
-          throw new Error(`deploy failed\n${result.stdout}\n${result.stderr}`);
-        isolated = fs.realpathSync(
-          fs.mkdtempSync(
-            path.join(os.tmpdir(), `renderer-${renderer}-deploy-`),
-          ),
-        );
-        fs.cpSync(output, isolated, {
-          recursive: true,
-          verbatimSymlinks: true,
-        });
-        for (const entry of fs.readdirSync(isolated, {
-          recursive: true,
-          withFileTypes: true,
-        })) {
-          if (!entry.isSymbolicLink()) continue;
-          const resolved = fs.realpathSync(
-            path.join(entry.parentPath, entry.name),
+          fs.cpSync(output, isolated, {
+            recursive: true,
+            verbatimSymlinks: true,
+          });
+          for (const entry of fs.readdirSync(isolated, {
+            recursive: true,
+            withFileTypes: true,
+          })) {
+            if (!entry.isSymbolicLink()) continue;
+            const resolved = fs.realpathSync(
+              path.join(entry.parentPath, entry.name),
+            );
+            expect(resolved.startsWith(`${isolated}${path.sep}`)).toBe(true);
+          }
+          const env: NodeJS.ProcessEnv = {
+            ...process.env,
+            PORT: String(port),
+            NODE_ENV: 'production',
+          };
+          delete env.NODE_PATH;
+          const server = spawn(
+            process.execPath,
+            [
+              '--permission',
+              `--allow-fs-read=${isolated}`,
+              `--allow-fs-write=${isolated}`,
+              '--allow-net',
+              'index',
+            ],
+            { cwd: isolated, env, stdio: ['ignore', 'pipe', 'pipe'] },
           );
-          expect(resolved.startsWith(`${isolated}${path.sep}`)).toBe(true);
-        }
-        const env: NodeJS.ProcessEnv = {
-          ...process.env,
-          PORT: String(port),
-          NODE_ENV: 'production',
-        };
-        delete env.NODE_PATH;
-        const server = spawn(
-          process.execPath,
-          [
-            '--permission',
-            `--allow-fs-read=${isolated}`,
-            `--allow-fs-write=${isolated}`,
-            '--allow-net',
-            'index',
-          ],
-          { cwd: isolated, env, stdio: ['ignore', 'pipe', 'pipe'] },
-        );
-        let log = '';
-        server.stdout.on('data', chunk => (log += chunk));
-        server.stderr.on('data', chunk => (log += chunk));
-        const deadline = Date.now() + 60_000;
-        try {
+          ownServer(server);
+          let spawnError: Error | undefined;
+          server.once('error', error => {
+            spawnError = error;
+          });
+          let log = '';
+          server.stdout.on('data', chunk => (log += chunk));
+          server.stderr.on('data', chunk => (log += chunk));
+          const deadline = Date.now() + 60_000;
           for (;;) {
+            if (spawnError) throw spawnError;
             if (server.exitCode !== null)
               throw new Error(`deployed server exited\n${log}`);
             try {
@@ -637,21 +685,18 @@ export function defineRendererSpecs(options: RendererSpecOptions) {
               });
               return server;
             } catch {
+              if (spawnError) throw spawnError;
               if (Date.now() > deadline)
                 throw new Error(`deployed server did not start\n${log}`);
               await new Promise(resolve => setTimeout(resolve, 250));
             }
           }
-        } catch (error) {
-          await killApp(server);
-          throw error;
-        }
-      });
-      usePages();
-      afterAll(() => {
-        if (isolated) fs.rmSync(isolated, { recursive: true, force: true });
-        if (ownsOutput) fs.rmSync(output, { recursive: true, force: true });
-      });
+        },
+        () =>
+          [isolated, ownsOutput ? output : undefined].filter(
+            (directory): directory is string => directory !== undefined,
+          ),
+      );
 
       spec('node-deploy', async () => {
         const { response, html } = await fetchHtml('/');
