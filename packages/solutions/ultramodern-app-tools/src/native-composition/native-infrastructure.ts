@@ -25,7 +25,6 @@ import type { Entrypoint } from '@modern-js/types/cli/base';
 import { getArgv, SERVER_BUNDLE_DIRECTORY } from '@modern-js/utils';
 import type { NativeCompilerArtifacts } from './compiler-artifacts';
 import { isEntryMetadataRead } from './config-read-context';
-import { getConfigurationSourceSnapshot } from './configuration-read-context';
 import {
   createRendererBuildManifest,
   RENDERER_DEVELOPMENT_DIRECTORY,
@@ -212,13 +211,7 @@ export function nativeRendererInfrastructurePlugin(
         if (app) return { path: directory, entry: app };
         const routes = path.join(directory, 'routes');
         try {
-          const { packageMetadataRead } = api.getAppContext();
-          const isDirectory = async () => (await fs.stat(routes)).isDirectory();
-          if (
-            await (packageMetadataRead?.entryPathRead
-              ? packageMetadataRead.entryPathRead(isDirectory)
-              : isDirectory())
-          ) {
+          if ((await fs.stat(routes)).isDirectory()) {
             return { path: directory, entry: routes };
           }
         } catch {}
@@ -682,16 +675,10 @@ export default nativeRequestHandler;
             throw new Error(
               'Native server plugins require resolved build identities',
             );
-          const snapshot = getConfigurationSourceSnapshot(api);
-          if (!snapshot && command !== 'serve')
-            throw new Error(
-              'Native server plugin requires the original configuration source snapshot',
-            );
           const name = resolveSdkServerPlugin(
             appDirectory,
             'native-server-plugin',
             import.meta.url,
-            snapshot,
           );
           if (plugins.some(plugin => plugin.name === name)) {
             throw new Error('Duplicate native server dispatcher');

@@ -1,17 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { assertUltramodernBuildArtifact } from '@modern-js/backend-federation-contracts';
-import {
-  assertConfigSourceSnapshotUnchanged,
-  captureConfigSourceSnapshot,
-} from '@modern-js/ultramodern-app-tools/config-evaluator';
 import { yaml } from '@modern-js/utils';
 import { preserveUnknownProjectionFields } from '../../ultramodern-tooling/config';
-import {
-  createGeneratedConfigProjections,
-  projectGeneratedWorkspacePolicy,
-  projectWrittenWorkspacePolicy,
-} from '../config-generated-projections';
 import {
   createDeliveryUnitRecord,
   deliveryUnitContractBlock,
@@ -27,10 +18,12 @@ import {
 } from '../development-overlay-projection';
 import {
   formatGeneratedWorkspaceFiles,
+  writeFile,
   writeFileReplacing,
   writeJsonFile,
 } from '../fs-io';
 import {
+  assertOverlayKeptExistingSource,
   createFileSnapshot,
   createGenerationResult,
   diffFileSnapshots,
@@ -43,10 +36,6 @@ import {
   assertWorkspaceRendererArtifact,
   reconcileWorkspaceRendererIdentities,
 } from '../renderer-identity';
-import {
-  captureExistingWorkspaceOverlayGuard,
-  replaceRendererIdentityProjections,
-} from '../renderer-identity-projections';
 import { appSupportsFederation } from '../renderer-profile';
 import type {
   AddUltramodernVerticalOptions,
@@ -97,27 +86,15 @@ export async function addUltramodernVertical(
 ): Promise<UltramodernGenerationResult> {
   recoverWorkspaceTransactions(path.resolve(options.workspaceRoot));
   const preflight = await prepareAddUltramodernVertical(options);
-  let stagedPreflight: AddUltramodernVerticalPreflight | undefined;
-  return runWorkspaceTransaction(
-    options.workspaceRoot,
-    stagingRoot => {
-      stagedPreflight = stageAddUltramodernVerticalPreflight(
-        preflight,
-        stagingRoot,
-      );
-      return executeAddUltramodernVertical(
-        {
-          ...options,
-          workspaceRoot: stagingRoot,
-        },
-        options.workspaceRoot,
-        stagedPreflight,
-      );
-    },
-    {
-      assertInputsUnchanged: () =>
-        (stagedPreflight ?? preflight).assertPublicationInputsUnchanged(),
-    },
+  return runWorkspaceTransaction(options.workspaceRoot, stagingRoot =>
+    executeAddUltramodernVertical(
+      {
+        ...options,
+        workspaceRoot: stagingRoot,
+      },
+      options.workspaceRoot,
+      stageAddUltramodernVerticalPreflight(preflight, stagingRoot),
+    ),
   );
 }
 
@@ -127,7 +104,6 @@ export async function executeAddUltramodernVertical(
   prepared?: AddUltramodernVerticalPreflight,
 ): Promise<UltramodernGenerationResult> {
   const preflight = prepared ?? (await prepareAddUltramodernVertical(options));
-  preflight.assertInputsUnchanged();
   const beforeFiles = createFileSnapshot(options.workspaceRoot);
   const {
     scope,
@@ -190,19 +166,6 @@ export async function executeAddUltramodernVertical(
   const nextAdditionalShells = additionalShells.map(shell =>
     shell.id === nextTargetShell.id ? nextTargetShell : shell,
   );
-  const generatedProjections = createGeneratedConfigProjections({
-    workspaceRoot: options.workspaceRoot,
-    scope,
-    beforeApps: previousProjection(previousApps),
-    afterApps: [nextPrimaryShell, ...updatedVerticals, ...nextAdditionalShells],
-    packageSource,
-    beforeTailwind: previousTailwind,
-    afterTailwind: enableTailwind,
-    bridge,
-  });
-  const assertConsumedInputsUnchanged = preflight.assertConsumedInputsUnchanged;
-  preflight.assertConsumedInputsUnchanged = stagedRoot =>
-    assertConsumedInputsUnchanged(stagedRoot, generatedProjections);
 
   writeApp(
     options.workspaceRoot,
@@ -433,44 +396,35 @@ export async function executeAddUltramodernVertical(
     createdPaths: preliminaryDiff.createdPaths,
     rewrittenPaths: preliminaryDiff.rewrittenPaths,
   });
-  const assertExistingOverlayInputsUnchanged = options.overlays?.length
-    ? captureExistingWorkspaceOverlayGuard(
-        options.workspaceRoot,
-        vertical.directory,
-      )
-    : undefined;
-  const deferredUiArtifactPaths = new Set(
-    appEmitsBrowserUi(vertical)
-      ? [`${vertical.directory}/shared/ultramodern-build.json`]
-      : [],
-  );
-  projectWrittenWorkspacePolicy(generatedProjections, options.workspaceRoot);
-  preflight.assertConsumedInputsUnchanged(options.workspaceRoot);
+  const buildArtifactPath = `${vertical.directory}/shared/ultramodern-build.json`;
   runCodeSmithOverlays({
     workspaceRoot: options.workspaceRoot,
-    deferredUiArtifactPaths,
+    deferredUiArtifactPaths: new Set(
+      appEmitsBrowserUi(vertical) ? [buildArtifactPath] : [],
+    ),
     overlays: options.overlays,
     result: preliminaryResult,
   });
-  assertExistingOverlayInputsUnchanged?.();
   const afterOverlaysFiles = createFileSnapshot(options.workspaceRoot);
+  if (options.overlays?.length)
+    assertOverlayKeptExistingSource(
+      preliminaryAfterFiles,
+      afterOverlaysFiles,
+      vertical.directory,
+    );
   const changedPaths = diffFileSnapshots(beforeFiles, afterOverlaysFiles);
   formatGeneratedWorkspaceFiles(options.workspaceRoot, [
     ...changedPaths.createdPaths,
     ...changedPaths.rewrittenPaths,
   ]);
   if (appEmitsBrowserUi(vertical)) {
-    preflight.assertInputsUnchanged();
-    const capturedConfig = await captureWorkspaceRendererEvaluations(
+    const evaluations = await captureWorkspaceRendererEvaluations(
       options.workspaceRoot,
       [vertical],
-      {
-        command: 'generate',
-        dependencyRoots: [path.resolve(logicalWorkspaceRoot)],
-      },
+      { command: 'generate', originalWorkspaceRoot: logicalWorkspaceRoot },
     );
     const selectedRenderer = vertical.renderer;
-    const finalRenderer = capturedConfig.evaluations.get(vertical.id)?.renderer;
+    const finalRenderer = evaluations.get(vertical.id)?.renderer;
     if (finalRenderer !== selectedRenderer) {
       throw new Error(
         `Generated application ${vertical.id} uses ${selectedRenderer} templates, but its final modern.config resolves ${finalRenderer}. Changing the renderer requires matching compiler and source templates.`,
@@ -480,7 +434,7 @@ export async function executeAddUltramodernVertical(
       options.workspaceRoot,
       scope,
       [vertical],
-      { evaluations: capturedConfig.evaluations },
+      { evaluations },
     );
     const version = resolvedVertical?.deliveryUnit?.version;
     if (!resolvedVertical || typeof version !== 'string') {
@@ -506,83 +460,27 @@ export async function executeAddUltramodernVertical(
       );
     }
     stampDeliveryUnitIdentity(finalEntry, scope, resolvedVertical, version);
-    const beforeIdentityApps = [
-      nextPrimaryShell,
-      ...updatedVerticals,
-      ...nextAdditionalShells,
-    ];
-    const finalApps = beforeIdentityApps.map(app =>
-      app.id === resolvedVertical.id ? resolvedVertical : app,
-    );
-    const identityProjections = createGeneratedConfigProjections({
-      workspaceRoot: options.workspaceRoot,
-      scope,
-      beforeApps: beforeIdentityApps,
-      afterApps: finalApps,
-      packageSource,
-      beforeTailwind: enableTailwind,
-      afterTailwind: enableTailwind,
-      bridge,
-      finalizeIdentities: true,
-    });
     const finalOverlay = projectResolvedDevelopmentOverlay(
       scope,
       readRequiredJsonObject(overlayPath),
       [resolvedVertical],
     );
-    generatedProjections.push(
-      ...createGeneratedConfigProjections({
-        workspaceRoot: logicalWorkspaceRoot,
-        scope,
-        beforeApps: previousProjection(previousApps),
-        afterApps: finalApps,
-        packageSource,
-        beforeTailwind: previousTailwind,
-        afterTailwind: enableTailwind,
-        bridge,
-      }),
-    );
-    const finalTopologySource = `${JSON.stringify(finalTopology, null, 2)}\n`;
-    projectGeneratedWorkspacePolicy(
-      [...generatedProjections, ...identityProjections],
-      finalTopologySource,
-    );
-    const finalSourceSnapshot = replaceRendererIdentityProjections(
+    writeFileReplacing(
       options.workspaceRoot,
-      capturedConfig.sourceSnapshots[0]!,
-      new Map([
-        [TOPOLOGY_PATH, finalTopologySource],
-        [
-          DEVELOPMENT_OVERLAY_PATH,
-          `${JSON.stringify(finalOverlay, null, 2)}\n`,
-        ],
-        [
-          `${resolvedVertical.directory}/shared/ultramodern-build.json`,
-          createUltramodernBuildArtifactJson(scope, resolvedVertical),
-        ],
-      ]),
-      deferredUiArtifactPaths,
+      TOPOLOGY_PATH,
+      `${JSON.stringify(finalTopology, null, 2)}\n`,
     );
-    capturedConfig.assertConsumedInputsUnchanged(
+    writeFileReplacing(
       options.workspaceRoot,
-      identityProjections,
+      DEVELOPMENT_OVERLAY_PATH,
+      `${JSON.stringify(finalOverlay, null, 2)}\n`,
     );
-    preflight.assertConsumedInputsUnchanged(options.workspaceRoot);
-    const assertOriginalInputsUnchanged = preflight.assertInputsUnchanged;
-    const assertPublicationInputsUnchanged =
-      preflight.assertPublicationInputsUnchanged;
-    preflight.assertPublicationInputsUnchanged = () => {
-      assertPublicationInputsUnchanged();
-      preflight.assertConsumedInputsUnchanged(options.workspaceRoot);
-      assertConfigSourceSnapshotUnchanged(finalSourceSnapshot);
-    };
-    preflight.assertInputsUnchanged = () => {
-      assertOriginalInputsUnchanged();
-      preflight.assertConsumedInputsUnchanged(options.workspaceRoot);
-      assertConfigSourceSnapshotUnchanged(finalSourceSnapshot);
-    };
+    writeFile(
+      options.workspaceRoot,
+      buildArtifactPath,
+      createUltramodernBuildArtifactJson(scope, resolvedVertical),
+    );
     Object.assign(vertical, resolvedVertical);
-    preflight.assertInputsUnchanged();
   } else {
     const authoredArtifact = readRequiredJsonObject(
       path.join(
@@ -620,21 +518,15 @@ export async function executeAddUltramodernVertical(
       resolvedVertical,
       resolvedVertical.deliveryUnit.version,
     );
-    const capturedSource = captureConfigSourceSnapshot({
-      sourceRoots: [options.workspaceRoot],
-    });
-    const finalTopologySource = `${JSON.stringify(finalTopology, null, 2)}\n`;
-    projectGeneratedWorkspacePolicy(generatedProjections, finalTopologySource);
-    const finalSourceSnapshot = replaceRendererIdentityProjections(
+    writeFileReplacing(
       options.workspaceRoot,
-      capturedSource,
-      new Map([
-        [TOPOLOGY_PATH, finalTopologySource],
-        [
-          `${vertical.directory}/shared/ultramodern-build.json`,
-          createUltramodernBuildArtifactJson(scope, resolvedVertical),
-        ],
-      ]),
+      TOPOLOGY_PATH,
+      `${JSON.stringify(finalTopology, null, 2)}\n`,
+    );
+    writeFileReplacing(
+      options.workspaceRoot,
+      buildArtifactPath,
+      createUltramodernBuildArtifactJson(scope, resolvedVertical),
     );
     Object.assign(vertical, resolvedVertical);
     assertRendererProjection(entry);
@@ -663,20 +555,6 @@ export async function executeAddUltramodernVertical(
     );
     assertUltramodernBuildArtifact(artifact);
     assertWorkspaceRendererArtifact(vertical, artifact);
-    const assertOriginalInputsUnchanged = preflight.assertInputsUnchanged;
-    const assertPublicationInputsUnchanged =
-      preflight.assertPublicationInputsUnchanged;
-    preflight.assertPublicationInputsUnchanged = () => {
-      assertPublicationInputsUnchanged();
-      preflight.assertConsumedInputsUnchanged(options.workspaceRoot);
-      assertConfigSourceSnapshotUnchanged(finalSourceSnapshot);
-    };
-    preflight.assertInputsUnchanged = () => {
-      assertOriginalInputsUnchanged();
-      preflight.assertConsumedInputsUnchanged(options.workspaceRoot);
-      assertConfigSourceSnapshotUnchanged(finalSourceSnapshot);
-    };
-    preflight.assertInputsUnchanged();
   }
   const afterFiles = createFileSnapshot(options.workspaceRoot);
   const { createdPaths, rewrittenPaths } = diffFileSnapshots(

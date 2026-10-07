@@ -3,13 +3,6 @@ import path from 'node:path';
 import { inspectModuleFederationConfigSource } from './inspect';
 import type { ModuleFederationConfigInspection } from './types';
 
-/** Records each filesystem read so callers can bind the inputs they consumed. */
-export type ModuleFederationConfigReadObserver = (
-  input: string,
-  operation: 'content' | 'entry-kind',
-  existed: boolean,
-) => void;
-
 const moduleFederationConfigFile = 'module-federation.config.ts';
 
 /**
@@ -22,21 +15,17 @@ const moduleFederationConfigFile = 'module-federation.config.ts';
 export function readModuleFederationConfigInspection(
   workspaceRoot: string,
   appDirectory: string,
-  observeInput?: ModuleFederationConfigReadObserver,
 ): ModuleFederationConfigInspection | undefined {
   const configPath = path.join(
     workspaceRoot,
     appDirectory,
     moduleFederationConfigFile,
   );
-  const existed = fs.existsSync(configPath);
-  observeInput?.(configPath, 'entry-kind', existed);
-  if (!existed) {
+  if (!fs.existsSync(configPath)) {
     return undefined;
   }
   try {
     const source = fs.readFileSync(configPath, 'utf-8');
-    observeInput?.(configPath, 'content', true);
     return inspectModuleFederationConfigSource(
       source,
       appDirectory,
@@ -51,11 +40,7 @@ export function readModuleFederationConfigInspection(
 export function readModuleFederationExposePaths(
   workspaceRoot: string,
   appDirectory: string,
-  observeInput?: ModuleFederationConfigReadObserver,
 ): Record<string, string> | undefined {
-  return readModuleFederationConfigInspection(
-    workspaceRoot,
-    appDirectory,
-    observeInput,
-  )?.exposePaths;
+  return readModuleFederationConfigInspection(workspaceRoot, appDirectory)
+    ?.exposePaths;
 }

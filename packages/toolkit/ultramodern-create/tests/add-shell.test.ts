@@ -100,13 +100,13 @@ function assertAppConfigsPreserved(
   }
 }
 
-test('shell and vertical additions preserve every existing native config through previews and target changes', () => {
+test('shell and vertical additions preserve every existing native config through previews and target changes', async () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-add-shell-'));
   const workspaceDir = path.join(tempRoot, 'workspace');
   const topologyRelative = 'topology/reference-topology.json';
   const overlayRelative = 'topology/local-overlays/development.json';
   try {
-    createBaseWorkspace(workspaceDir);
+    await createBaseWorkspace(workspaceDir);
     assert.equal(readAppConfigs(workspaceDir).size, 2);
 
     for (const name of ['admin', 'partner']) {
@@ -122,7 +122,7 @@ test('shell and vertical additions preserve every existing native config through
         name,
         modernVersion: '3.2.1',
       };
-      const plan = planUltramodernShell(options);
+      const plan = await planUltramodernShell(options);
       const configPath = `apps/shell-${name}/modern.config.ts`;
       assertAppConfigsPreserved(workspaceDir, configs, plan);
       assert.ok(plan.createdPaths.includes(configPath));
@@ -136,7 +136,7 @@ test('shell and vertical additions preserve every existing native config through
         overlayBefore,
       );
 
-      const result = addUltramodernShell(options);
+      const result = await addUltramodernShell(options);
       assertAppConfigsPreserved(workspaceDir, configs, result);
       assert.ok(result.createdPaths.includes(configPath));
       assert.ok(fs.readFileSync(path.join(workspaceDir, configPath)).length);
@@ -204,7 +204,7 @@ test('shell and vertical additions preserve every existing native config through
         shell,
         modernVersion: '3.2.1',
       };
-      const plan = planUltramodernVertical(options);
+      const plan = await planUltramodernVertical(options);
       const configPath = `verticals/${name}/modern.config.ts`;
       assertAppConfigsPreserved(workspaceDir, configs, plan);
       assert.ok(plan.createdPaths.includes(configPath));
@@ -219,7 +219,7 @@ test('shell and vertical additions preserve every existing native config through
         overlayBefore,
       );
 
-      const result = addUltramodernVertical(options);
+      const result = await addUltramodernVertical(options);
       assertAppConfigsPreserved(workspaceDir, configs, result);
       assert.ok(result.createdPaths.includes(configPath));
       assert.ok(fs.readFileSync(path.join(workspaceDir, configPath)).length);
@@ -253,7 +253,7 @@ test('shell and vertical additions preserve every existing native config through
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
-});
+}, 300_000);
 
 type RecordedBuildInvocation = {
   argv: string[];

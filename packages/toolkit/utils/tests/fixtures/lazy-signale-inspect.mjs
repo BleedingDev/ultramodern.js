@@ -9,22 +9,6 @@ async function inspectSignale(ownerRoot, appRoot, moduleKind, action) {
     path.resolve(ownerRoot, '../plugin/package.json'),
   );
   const { createJiti } = providerRequire('jiti');
-  const helperLoader = createJiti(path.join(ownerRoot, 'source-observer.ts'), {
-    fsCache: false,
-  });
-  const helperRoot = path.resolve(
-    ownerRoot,
-    '../../solutions/ultramodern-app-tools/src/native-composition/config-evaluator',
-  );
-  const { initializeOwningConfigNativeBinding } = helperLoader(
-    path.join(helperRoot, 'native-bootstrap.ts'),
-  );
-  const { observeConfigSourceInputs } = helperLoader(
-    path.join(helperRoot, 'observed-inputs.ts'),
-  );
-  const { captureConfigSourceSnapshot, assertConfigSourceSnapshotUnchanged } =
-    helperLoader(path.join(helperRoot, 'source-snapshot.ts'));
-  const nativeBinding = initializeOwningConfigNativeBinding();
   const nativeEntry = owningRequire.resolve(
     moduleKind === 'source'
       ? './compiled/signale/index.js'
@@ -44,19 +28,27 @@ async function inspectSignale(ownerRoot, appRoot, moduleKind, action) {
   });
   process.chdir(appRoot);
   const manifestFile = path.join(appRoot, 'package.json');
-  const snapshot = captureConfigSourceSnapshot({ sourceRoots: [appRoot] });
-  const insideOwner = filename => {
-    const relative = path.relative(ownerRoot, filename);
-    return (
-      relative === '' ||
-      (relative !== '..' &&
-        !relative.startsWith(`..${path.sep}`) &&
-        !path.isAbsolute(relative))
-    );
-  };
-  const observed = await observeConfigSourceInputs(
-    snapshot,
-    async () => {
+  // Record reads of the authored manifest; Signale reads its settings there.
+  const manifestReads = [];
+  const restores = [];
+  for (const name of ['readFileSync', 'openSync']) {
+    const original = fs[name];
+    fs[name] = function (file, ...rest) {
+      if (
+        typeof file === 'string' &&
+        path.resolve(file) === manifestFile &&
+        !manifestReads.includes(name)
+      )
+        manifestReads.push(name);
+      return original.call(this, file, ...rest);
+    };
+    restores.push(() => {
+      fs[name] = original;
+    });
+  }
+  let value;
+  try {
+    value = await (async () => {
       const utils =
         moduleKind === 'source'
           ? sourceLoader(utilsEntry)
@@ -137,39 +129,15 @@ async function inspectSignale(ownerRoot, appRoot, moduleKind, action) {
           customLabel: scoped.currentOptions.types.success.label,
         },
       };
-    },
-    // Only this exact owning provider root, plus ordinary installed packages,
-    // is framework code. The authored app manifest remains covered source.
-    filename =>
-      filename.split(path.sep).includes('node_modules') ||
-      insideOwner(filename),
-    undefined,
-    nativeBinding,
-  );
-  assertConfigSourceSnapshotUnchanged(snapshot);
-  let mutationRejected = false;
-  if (action !== 'cold') {
-    const manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
-    fs.writeFileSync(
-      manifestFile,
-      JSON.stringify({
-        ...manifest,
-        dependencies: { 'authored-api': 'workspace:*' },
-      }),
-    );
-    try {
-      assertConfigSourceSnapshotUnchanged(snapshot);
-    } catch (error) {
-      mutationRejected =
-        error instanceof Error && error.message.includes(manifestFile);
-    }
+    })();
+  } finally {
+    for (const restore of restores) restore();
   }
   return {
     nativeInitiallyCached,
     utilsInitiallyCached,
-    value: observed.value,
-    inputs: observed.consumedSourceInputs,
-    mutationRejected,
+    value,
+    manifestRead: manifestReads.length > 0,
   };
 }
 

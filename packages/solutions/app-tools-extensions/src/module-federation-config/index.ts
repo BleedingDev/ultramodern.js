@@ -1,5 +1,4 @@
 export {
-  type ModuleFederationConfigReadObserver,
   readModuleFederationConfigInspection,
   readModuleFederationExposePaths,
 } from './exposes';

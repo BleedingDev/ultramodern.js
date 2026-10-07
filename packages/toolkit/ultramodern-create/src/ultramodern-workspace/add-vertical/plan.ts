@@ -29,7 +29,6 @@ export async function planUltramodernVertical(
   options: AddUltramodernVerticalOptions,
 ): Promise<UltramodernVerticalPlan> {
   const originalPreflight = await prepareAddUltramodernVertical(options);
-  let stagedPreflight: AddUltramodernVerticalPreflight | undefined;
   let jsonMutations: UltramodernJsonMutation[] = [];
   const { preflight, result } = await runWorkspaceTransaction(
     options.workspaceRoot,
@@ -42,7 +41,6 @@ export async function planUltramodernVertical(
         originalPreflight,
         stagingRoot,
       );
-      stagedPreflight = preflight;
       const result = await executeAddUltramodernVertical(
         stagedOptions,
         options.workspaceRoot,
@@ -52,10 +50,7 @@ export async function planUltramodernVertical(
     },
     {
       mode: 'preview',
-      assertInputsUnchanged: () =>
-        (stagedPreflight ?? originalPreflight).assertInputsUnchanged(),
       inspectChanges: changes => {
-        (stagedPreflight ?? originalPreflight).assertInputsUnchanged();
         jsonMutations = describeJsonChanges(changes);
       },
     },

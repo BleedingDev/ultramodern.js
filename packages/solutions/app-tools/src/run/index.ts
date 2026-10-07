@@ -1,4 +1,3 @@
-import { resolveNativeConfigLoadProvider } from '@modern-js/app-tools-extensions/native-config-load-provider';
 import { initAppDir } from '@modern-js/plugin/cli';
 import { run as CLIPluginRun } from '@modern-js/plugin/run';
 import type { InternalPlugins } from '@modern-js/types/common';
@@ -86,7 +85,6 @@ export async function createRunOptions({
   const plugins = await loadInternalPlugins(appDirectory, internalPlugins);
 
   return {
-    appDirectory,
     cwd,
     initialLog: initialLog || `Modern.js Framework v${version}`,
     configFile: finalConfigFile,
@@ -98,20 +96,5 @@ export async function createRunOptions({
 
 export async function run(options: RunOptions) {
   const runOptions = await createRunOptions(options);
-  const configurationLoad = await resolveNativeConfigLoadProvider({
-    appDirectory: runOptions.appDirectory,
-    command: process.argv[2] ?? '',
-  });
-  await CLIPluginRun(
-    configurationLoad
-      ? {
-          ...runOptions,
-          ...configurationLoad,
-          internalPlugins: [
-            ...(configurationLoad.internalPlugins ?? []),
-            ...runOptions.internalPlugins,
-          ],
-        }
-      : runOptions,
-  );
+  await CLIPluginRun(runOptions);
 }

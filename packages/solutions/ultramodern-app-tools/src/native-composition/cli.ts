@@ -2,14 +2,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRunOptions as createAppToolsRunOptions } from '@modern-js/app-tools/cli/run';
 import type { CliPlugin } from '@modern-js/app-tools/cli-config';
-import { isNativeConfigLoadCommand } from '@modern-js/app-tools-extensions/native-config-load-provider';
 import { type CLIOptions, createCli, type Plugin } from '@modern-js/plugin/cli';
 import { run as runPluginCli } from '@modern-js/plugin/run';
 import { getNodeEnv } from '@modern-js/utils';
 import { Command } from '@modern-js/utils/commander';
 import { loadEnv } from '@rsbuild/core';
 import { loadUltramodernConfigFile } from './config';
-import { createNativeConfigLoad } from './native-config-load';
 import { createRouteGenerationCommand } from './native-entry-command';
 import type { UltramodernConfigLoader } from './types';
 
@@ -97,19 +95,6 @@ export async function run(options: RunOptions): Promise<void> {
       appDirectory: options.cwd ?? process.cwd(),
       configPath: runOptions.configFile || undefined,
       version: options.version,
-    });
-    return;
-  }
-  const command = process.argv[2];
-  if (isNativeConfigLoadCommand(command)) {
-    const configLoad = createNativeConfigLoad();
-    await runPluginCli({
-      ...runOptions,
-      ...configLoad,
-      internalPlugins: [
-        ...(configLoad.internalPlugins ?? []),
-        ...runOptions.internalPlugins,
-      ],
     });
     return;
   }

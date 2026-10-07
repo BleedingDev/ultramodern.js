@@ -5,8 +5,8 @@
   "pathspec": ["packages"],
   "migrationGoal": "Shrink-only budget of fork edits inside upstream-owned files. Every entry is debt: move it upstream or behind an extension point, then re-run --write-divergence-allowlist.",
   "totalFiles": 1100,
-  "totalHunks": 3613,
-  "totalChangedLines": 82372,
+  "totalHunks": 3585,
+  "totalChangedLines": 81806,
   "files": [
     {
       "file": "packages/cli/adapter-rstest/package.json",
@@ -3425,8 +3425,8 @@
     },
     {
       "file": "packages/solutions/app-tools/src/index.ts",
-      "hunks": 13,
-      "changedLines": 33
+      "hunks": 12,
+      "changedLines": 32
     },
     {
       "file": "packages/solutions/app-tools/src/plugins/analyze/getBundleEntry.ts",
@@ -3435,8 +3435,8 @@
     },
     {
       "file": "packages/solutions/app-tools/src/plugins/analyze/getFileSystemEntry.ts",
-      "hunks": 9,
-      "changedLines": 45
+      "hunks": 7,
+      "changedLines": 26
     },
     {
       "file": "packages/solutions/app-tools/src/plugins/analyze/getHtmlTemplate.ts",
@@ -3520,8 +3520,8 @@
     },
     {
       "file": "packages/solutions/app-tools/src/run/index.ts",
-      "hunks": 11,
-      "changedLines": 43
+      "hunks": 8,
+      "changedLines": 24
     },
     {
       "file": "packages/solutions/app-tools/src/server-plugin.ts",
@@ -3595,8 +3595,8 @@
     },
     {
       "file": "packages/solutions/app-tools/src/utils/initAppContext.ts",
-      "hunks": 10,
-      "changedLines": 54
+      "hunks": 7,
+      "changedLines": 41
     },
     {
       "file": "packages/solutions/app-tools/src/utils/loadPlugins.ts",
@@ -3805,8 +3805,8 @@
     },
     {
       "file": "packages/toolkit/plugin/src/cli/context.ts",
-      "hunks": 4,
-      "changedLines": 7
+      "hunks": 1,
+      "changedLines": 2
     },
     {
       "file": "packages/toolkit/plugin/src/cli/hooks.ts",
@@ -3816,22 +3816,22 @@
     {
       "file": "packages/toolkit/plugin/src/cli/index.ts",
       "hunks": 10,
-      "changedLines": 64
+      "changedLines": 61
     },
     {
       "file": "packages/toolkit/plugin/src/cli/run/config/createLoadedConfig.ts",
-      "hunks": 13,
-      "changedLines": 63
+      "hunks": 12,
+      "changedLines": 40
     },
     {
       "file": "packages/toolkit/plugin/src/cli/run/config/loadConfig.ts",
-      "hunks": 11,
-      "changedLines": 44
+      "hunks": 7,
+      "changedLines": 13
     },
     {
       "file": "packages/toolkit/plugin/src/cli/run/create.ts",
-      "hunks": 18,
-      "changedLines": 77
+      "hunks": 11,
+      "changedLines": 43
     },
     {
       "file": "packages/toolkit/plugin/src/cli/run/index.ts",
@@ -3841,7 +3841,7 @@
     {
       "file": "packages/toolkit/plugin/src/cli/run/types.ts",
       "hunks": 4,
-      "changedLines": 23
+      "changedLines": 15
     },
     {
       "file": "packages/toolkit/plugin/src/cli/run/utils/commander.ts",
@@ -3860,8 +3860,8 @@
     },
     {
       "file": "packages/toolkit/plugin/src/cli/run/utils/initAppDir.ts",
-      "hunks": 4,
-      "changedLines": 13
+      "hunks": 2,
+      "changedLines": 2
     },
     {
       "file": "packages/toolkit/plugin/src/index.ts",
@@ -3920,8 +3920,8 @@
     },
     {
       "file": "packages/toolkit/plugin/src/types/cli/context.ts",
-      "hunks": 4,
-      "changedLines": 7
+      "hunks": 2,
+      "changedLines": 4
     },
     {
       "file": "packages/toolkit/plugin/src/types/cli/hooks.ts",
@@ -3986,7 +3986,7 @@
     {
       "file": "packages/toolkit/plugin/tests/configEvaluationContext.test.ts",
       "hunks": 1,
-      "changedLines": 639
+      "changedLines": 289
     },
     {
       "file": "packages/toolkit/plugin/tests/createConfigOptions.test.ts",
@@ -5476,7 +5476,7 @@
     {
       "file": "packages/toolkit/utils/tests/fixtures/lazy-signale-inspect.mjs",
       "hunks": 1,
-      "changedLines": 177
+      "changedLines": 145
     },
     {
       "file": "packages/toolkit/utils/tests/is.test.ts",
@@ -5486,7 +5486,7 @@
     {
       "file": "packages/toolkit/utils/tests/lazySignale.test.ts",
       "hunks": 1,
-      "changedLines": 151
+      "changedLines": 137
     },
     {
       "file": "packages/toolkit/utils/tsconfig.json",

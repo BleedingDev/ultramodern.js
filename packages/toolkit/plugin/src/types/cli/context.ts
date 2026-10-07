@@ -1,7 +1,6 @@
 import type { BuilderInstance } from '@modern-js/builder';
 import type { ServerRoute } from '@modern-js/types/server';
 import type { Hooks } from '../../cli/hooks';
-import type { ConfigPackageMetadataRead } from '../../cli/run/config/loadConfig';
 import type { CLIPluginAPI } from './api';
 import type { CLIPlugin, CLIPluginExtends } from './plugin';
 
@@ -17,8 +16,6 @@ export type AppContext<Extends extends CLIPluginExtends> = {
   metaName: string;
   // current project package name
   packageName: string;
-  // Optional observation of native automatic application metadata reads.
-  packageMetadataRead?: ConfigPackageMetadataRead;
   // current config file absolute path
   configFile: string | false;
   // current command name

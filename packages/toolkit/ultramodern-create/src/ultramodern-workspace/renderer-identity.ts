@@ -116,10 +116,9 @@ export async function reconcileWorkspaceRendererIdentities(
     immutableArtifacts?: ReadonlyMap<string, UltramodernBuildArtifact>;
   } = {},
 ): Promise<WorkspaceApp[]> {
-  const captured = options.evaluations
-    ? undefined
-    : await captureWorkspaceRendererEvaluations(workspaceRoot, apps, options);
-  const evaluations = options.evaluations ?? captured!.evaluations;
+  const evaluations =
+    options.evaluations ??
+    (await captureWorkspaceRendererEvaluations(workspaceRoot, apps, options));
   const workspaceConfigPath = path.join(workspaceRoot, 'pnpm-workspace.yaml');
   const workspaceCatalogs = fs.existsSync(workspaceConfigPath)
     ? (yaml.load(fs.readFileSync(workspaceConfigPath, 'utf8')) as {
@@ -267,7 +266,6 @@ export async function reconcileWorkspaceRendererIdentities(
     if (immutable) assertWorkspaceRendererArtifact(resolved, immutable);
     reconciled.push(resolved);
   }
-  captured?.assertUnchanged();
   return reconciled;
 }
 

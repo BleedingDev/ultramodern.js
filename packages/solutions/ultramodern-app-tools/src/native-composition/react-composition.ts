@@ -13,8 +13,6 @@ import {
 } from '@modern-js/app-tools-extensions/policy-defaults';
 import { ultramodernI18nIntegrationPlugin } from '@modern-js/i18n-integration';
 import { runtimePlugin } from '@modern-js/runtime/cli';
-import type { ConfigSourceSnapshot } from './config-evaluator/source-snapshot';
-import { getConfigurationSourceSnapshot } from './configuration-read-context';
 import { ultramodernModuleFederationRecoveryPlugin } from './module-federation-recovery-plugin';
 import { createReactModuleFederationRendererIntegration } from './module-federation-renderer-plugin';
 import { nativeEntryCommandPlugin } from './native-entry-command';
@@ -35,19 +33,9 @@ export type { ReactCLIElement } from './react-types';
 /** A portable application import of this exact SDK owner's public server export. */
 export function resolveReactServerPlugin(
   appDirectory: string,
-  snapshot: ConfigSourceSnapshot | undefined,
   registrarUrl = import.meta.url,
 ): string {
-  if (!snapshot)
-    throw new Error(
-      'React server plugin requires the original configuration source snapshot',
-    );
-  return resolveSdkServerPlugin(
-    appDirectory,
-    'server-plugin',
-    registrarUrl,
-    snapshot,
-  );
+  return resolveSdkServerPlugin(appDirectory, 'server-plugin', registrarUrl);
 }
 
 const headlessCloudflareWorkerPlugin = (): CliPlugin<AppTools> => ({
@@ -146,7 +134,6 @@ export const composeReactRenderer = (
           // applications that declare the mapped SDK without its canonical alias.
           const name = resolveReactServerPlugin(
             api.getAppContext().appDirectory,
-            getConfigurationSourceSnapshot(api),
           );
           return {
             plugins: plugins.map(plugin =>

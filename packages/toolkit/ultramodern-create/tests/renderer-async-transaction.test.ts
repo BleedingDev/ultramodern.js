@@ -5,7 +5,6 @@ import path from 'node:path';
 import {
   __transactionTestHooks,
   runFreshWorkspaceTransaction,
-  runWorkspaceTransaction,
 } from '../src/ultramodern-workspace/add-vertical/transaction';
 
 test('fresh publication waits for asynchronous config work and keeps staged output private', async () => {
@@ -80,36 +79,6 @@ test('fresh publication rejects a post-validation staged source edit', async () 
     assert.deepEqual(fs.readdirSync(root), []);
   } finally {
     __transactionTestHooks.beforeFreshPublish = undefined;
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test('publication verifies read-only inputs after its final hook', async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'um-final-source-'));
-  const config = path.join(root, 'modern.config.ts');
-  fs.writeFileSync(config, 'renderer: solid');
-  try {
-    __transactionTestHooks.beforePublish = () => {
-      fs.writeFileSync(config, 'renderer: octane');
-    };
-    await assert.rejects(
-      runWorkspaceTransaction(
-        root,
-        async stage => {
-          fs.writeFileSync(path.join(stage, 'topology.json'), 'solid');
-        },
-        {
-          assertInputsUnchanged() {
-            assert.equal(fs.readFileSync(config, 'utf8'), 'renderer: solid');
-          },
-        },
-      ),
-    );
-    assert.equal(fs.readFileSync(config, 'utf8'), 'renderer: octane');
-    assert.equal(fs.existsSync(path.join(root, 'topology.json')), false);
-    assert.deepEqual(fs.readdirSync(root), ['modern.config.ts']);
-  } finally {
-    __transactionTestHooks.beforePublish = undefined;
     fs.rmSync(root, { recursive: true, force: true });
   }
 });

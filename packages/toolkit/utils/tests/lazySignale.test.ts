@@ -8,7 +8,7 @@ const packageRoot = path.resolve(__dirname, '..');
 type ModuleKind = 'source' | 'cjs' | 'esm';
 type Action = 'cold' | 'use' | 'subclass';
 
-function fixture(run: (fixture: { root: string; manifest: string }) => void) {
+function fixture(run: (fixture: { root: string }) => void) {
   const root = fs.realpathSync.native(
     fs.mkdtempSync(
       path.join(
@@ -32,7 +32,7 @@ function fixture(run: (fixture: { root: string; manifest: string }) => void) {
     }),
   );
   try {
-    run({ root, manifest });
+    run({ root });
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -59,11 +59,10 @@ function expectCold(root: string, kind: ModuleKind) {
     symbolKinds: ['function', 'function'],
     nativeLoaded: false,
   });
-  expect(result.inputs.observations).toEqual([]);
-  expect(result.inputs.packageMetadata).toEqual([]);
+  expect(result.manifestRead).toBe(false);
 }
 
-function expectNativeUse(root: string, manifest: string, kind: ModuleKind) {
+function expectNativeUse(root: string, kind: ModuleKind) {
   const result = runChild(root, kind, 'use');
   expect(result.nativeInitiallyCached).toBe(false);
   expect(result.utilsInitiallyCached).toBe(false);
@@ -101,25 +100,18 @@ function expectNativeUse(root: string, manifest: string, kind: ModuleKind) {
     },
   });
   expect(result.value.scope.settings).toEqual(result.value.configuredSettings);
-  expect(result.inputs.packageMetadata).toEqual([]);
-  expect(result.inputs.observations).toContainEqual({
-    path: manifest,
-    canonicalPath: manifest,
-    operation: 'content',
-    existed: true,
-  });
-  expect(result.mutationRejected).toBe(true);
+  expect(result.manifestRead).toBe(true);
 }
 
 describe('lazy Signale source exports', () => {
   it('imports source utils, a constant, and lazy symbols without reading app settings', () =>
     fixture(({ root }) => expectCold(root, 'source')));
 
-  it('preserves native construction, settings, and authored manifest protection from source', () =>
-    fixture(({ root, manifest }) => expectNativeUse(root, manifest, 'source')));
+  it('preserves native construction and settings from source', () =>
+    fixture(({ root }) => expectNativeUse(root, 'source')));
 
   it('preserves a native subclass prototype and methods through the lazy source constructor', () =>
-    fixture(({ root, manifest }) => {
+    fixture(({ root }) => {
       const result = runChild(root, 'source', 'subclass');
       expect(result.nativeInitiallyCached).toBe(false);
       expect(result.value).toEqual({
@@ -130,13 +122,7 @@ describe('lazy Signale source exports', () => {
         inheritedPrototype: true,
         marker: 'derived-method',
       });
-      expect(result.inputs.observations).toContainEqual({
-        path: manifest,
-        canonicalPath: manifest,
-        operation: 'content',
-        existed: true,
-      });
-      expect(result.mutationRejected).toBe(true);
+      expect(result.manifestRead).toBe(true);
     }));
 });
 
@@ -145,7 +131,7 @@ describe('lazy Signale public package exports', () => {
     it(`keeps the cold public ${kind} import, constant, and symbols independent of app settings`, () =>
       fixture(({ root }) => expectCold(root, kind)));
 
-    it(`preserves native behavior and authored manifest protection through the public ${kind} export`, () =>
-      fixture(({ root, manifest }) => expectNativeUse(root, manifest, kind)));
+    it(`preserves native behavior and settings through the public ${kind} export`, () =>
+      fixture(({ root }) => expectNativeUse(root, kind)));
   }
 });

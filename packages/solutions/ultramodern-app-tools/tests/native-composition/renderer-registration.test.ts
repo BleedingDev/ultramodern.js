@@ -1,5 +1,3 @@
-import * as childProcess from 'node:child_process';
-import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -23,7 +21,6 @@ import {
   type ServerPlugin,
 } from '../../../../server/core/src';
 import { resolveUltramodernConfig } from '../../src/native-composition/config';
-import { loadUltramodernConfigSnapshot } from '../../src/native-composition/config-evaluator';
 import { defineConfig } from '../../src/native-composition/index';
 import { RENDERER_BUILD_MANIFEST_FILE } from '../../src/native-composition/native-build-manifest';
 import { createNativeEntryGenerator } from '../../src/native-composition/native-entry';
@@ -54,7 +51,6 @@ import type { UltramodernAppUserConfig } from '../../src/native-composition/type
 import { createCompilerActivationFixture } from './compiler-activation-fixture';
 
 // Replace one owner at its existing static registration, without a runtime registry API.
-rstest.mock('node:child_process', { spy: true });
 rstest.mock('../../src/renderers/solid/registration', () => {
   const { createReplacementCompilerArtifacts } = rstest.requireActual<
     typeof import('./replacement-compiler-artifacts')
@@ -514,90 +510,6 @@ describe('static renderer owner admission', () => {
     } finally {
       await runtime?.dispose();
       files.mockRestore();
-      fs.rmSync(root, { recursive: true, force: true });
-    }
-  });
-
-  it('admits the same fourth owner over evaluator IPC and rejects an unregistered token or router policy', async () => {
-    const root = fs.mkdtempSync(
-      path.join(
-        process.env.OWNED_TEMP_DIR ?? os.tmpdir(),
-        'um-fourth-evaluator-',
-      ),
-    );
-    const fork = rstest.mocked(childProcess.fork);
-    const originalNodeOptions = process.env.NODE_OPTIONS;
-    delete process.env.NODE_OPTIONS;
-    try {
-      fs.writeFileSync(
-        path.join(root, 'package.json'),
-        JSON.stringify({ name: 'fourth-evaluator-fixture', version: '1.0.0' }),
-      );
-      for (const [selectedToken, framework, accepted] of [
-        [renderer, 'fourth-router', true],
-        ['fourth-nativ', 'fourth-router', false],
-        [renderer, 'octane', false],
-      ] as const) {
-        const provider = {
-          ...resolveCandidateRendererProfile(renderer).router,
-          framework,
-        };
-        fork.mockImplementation(() => {
-          const child: EventEmitter & {
-            stdout: EventEmitter;
-            stderr: EventEmitter;
-            kill(): boolean;
-            send(): boolean;
-          } = Object.assign(new EventEmitter(), {
-            stdout: new EventEmitter(),
-            stderr: new EventEmitter(),
-            kill() {
-              queueMicrotask(() => child.emit('close', 0, null));
-              return true;
-            },
-            send() {
-              queueMicrotask(() => {
-                child.emit('message', {
-                  kind: 'result',
-                  result: {
-                    renderer: selectedToken,
-                    entries: [{ entryName: 'main', isMainEntry: true }],
-                    primaryEntryName: 'main',
-                    routerBindings: {
-                      main: {
-                        owner: 'fourth-router-owner',
-                        evidence: 'owned-default',
-                        defaultProvider: provider,
-                        providers: [provider],
-                      },
-                    },
-                    consumedSourceInputs: {
-                      kind: 'observed-config-source-inputs',
-                      version: 1,
-                      observations: [],
-                      packageMetadata: [],
-                    },
-                  },
-                });
-                child.emit('close', 0, null);
-              });
-              return true;
-            },
-          });
-          return child as unknown as childProcess.ChildProcess;
-        });
-        const result = loadUltramodernConfigSnapshot({
-          appDirectory: root,
-          env: 'test',
-          command: 'build',
-        });
-        if (accepted) expect((await result).renderer).toBe(renderer);
-        else await expect(result).rejects.toThrow('invalid metadata');
-      }
-    } finally {
-      fork.mockRestore();
-      if (originalNodeOptions === undefined) delete process.env.NODE_OPTIONS;
-      else process.env.NODE_OPTIONS = originalNodeOptions;
       fs.rmSync(root, { recursive: true, force: true });
     }
   });

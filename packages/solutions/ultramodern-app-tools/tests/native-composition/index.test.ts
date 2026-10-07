@@ -20,14 +20,6 @@ import { RENDERER_BUILD_MANIFEST_FILE } from '../../src/native-composition/nativ
 import { resolveRendererProfile } from '../../src/native-composition/renderer-profile';
 
 const packageDirectory = path.resolve(__dirname, '../..');
-// The composition runs from the built package, so its configuration read
-// context must come from the same module instance.
-const {
-  createNativeConfigLoad,
-}: typeof import('../../src/native-composition/native-config-load') =
-  createRequire(path.join(packageDirectory, 'package.json'))(
-    './dist/cjs/native-composition/native-config-load.js',
-  );
 const consumerApps: string[] = [];
 afterAll(() => {
   for (const directory of consumerApps.splice(0))
@@ -35,9 +27,9 @@ afterAll(() => {
 });
 
 /**
- * An authored UltraModern application resolves its server policy from the
- * original captured config load, so it initializes through the native CLI
- * load in an isolated consumer that depends on this package.
+ * An authored UltraModern application resolves its server plugin through its
+ * own declared dependency, so it initializes in an isolated consumer that
+ * depends on this package.
  */
 function createConsumerApp() {
   const appDirectory = fs.realpathSync(
@@ -92,12 +84,10 @@ async function initializeCliPlugins(
   if (authored) {
     const authoredConfig = { ...userConfig, plugins: [basePlugin] };
     const appDirectory = createConsumerApp();
-    const nativeLoad = createNativeConfigLoad();
     const cli = createCli<AppTools>();
     try {
       const { appContext } = await cli.init({
-        ...nativeLoad,
-        internalPlugins: [...(nativeLoad.internalPlugins ?? []), observer],
+        internalPlugins: [observer],
         configFile: false,
         command: 'build',
         cwd: appDirectory,

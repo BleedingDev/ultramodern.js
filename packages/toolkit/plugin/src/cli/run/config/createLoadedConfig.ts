@@ -9,13 +9,7 @@ import {
 } from '@modern-js/utils';
 import type { LoadedConfig } from '../types';
 import { mergeConfig } from '../utils/mergeConfig';
-import {
-  type ConfigPackageMetadataRead,
-  getConfigFilePath,
-  loadConfig,
-} from './loadConfig';
-
-export type { ConfigPackageMetadataRead } from './loadConfig';
+import { getConfigFilePath, loadConfig } from './loadConfig';
 
 export interface ConfigEvaluationContext {
   env: string;
@@ -44,7 +38,6 @@ async function loadLocalConfig<T>(
   appDirectory: string,
   configFile: string | false,
   context?: ConfigEvaluationContext,
-  packageMetadataRead?: ConfigPackageMetadataRead,
 ) {
   let localConfigFile: string | false = false;
 
@@ -60,11 +53,7 @@ async function loadLocalConfig<T>(
   }
 
   if (localConfigFile) {
-    const loaded = await loadConfig<T>(
-      appDirectory,
-      localConfigFile,
-      packageMetadataRead,
-    );
+    const loaded = await loadConfig<T>(appDirectory, localConfigFile);
     return getConfigObject(loaded.config, context);
   }
 
@@ -76,7 +65,6 @@ export async function createLoadedConfig<T>(
   configFilePath: string | false,
   otherConfig?: T,
   context?: ConfigEvaluationContext,
-  packageMetadataRead?: ConfigPackageMetadataRead,
 ): Promise<LoadedConfig<T>> {
   const evaluationContext = context ? { ...context } : undefined;
   const shouldLoadLocal = evaluationContext
@@ -84,11 +72,7 @@ export async function createLoadedConfig<T>(
     : undefined;
   const configFile = getConfigFilePath(appDirectory, configFilePath);
 
-  const loaded = await loadConfig<T>(
-    appDirectory,
-    configFile,
-    packageMetadataRead,
-  );
+  const loaded = await loadConfig<T>(appDirectory, configFile);
 
   if (!loaded.config && !loaded.pkgConfig) {
     logger.warn(
@@ -106,7 +90,6 @@ export async function createLoadedConfig<T>(
       appDirectory,
       configFile,
       evaluationContext,
-      packageMetadataRead,
     );
 
     // The priority of local config is higher than the user config and pkg config

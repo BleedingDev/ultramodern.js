@@ -1,5 +1,4 @@
 import type { CLIPlugin, CLIPluginExtends } from '../../types/cli';
-import type { ConfigPackageMetadataRead } from './config/createLoadedConfig';
 export interface CLIOptions<
   Extends extends CLIPluginExtends = CLIPluginExtends,
 > {
@@ -15,13 +14,6 @@ export interface CLIOptions<
    */
   config?: Extends['config'];
   configFile: string | false;
-  /** Observe the native config load before the plugin graph is initialized. */
-  wrapConfigLoad?: (
-    load: (
-      packageMetadataRead?: ConfigPackageMetadataRead,
-    ) => Promise<LoadedConfig<Extends['config']>>,
-    context: Readonly<{ appDirectory: string; configFile: string | false }>,
-  ) => Promise<LoadedConfig<Extends['config']>>;
   internalPlugins?: CLIPlugin<Extends>[];
   handleSetupResult?: (
     params: any,

@@ -580,10 +580,6 @@ async function createAcceptanceContinuationFixture({
           path.join(sdkDirectory, 'dist/cjs/cli/index.js'),
           'native SDK CLI fixture',
         ),
-        nativeLoadEntry: fileDescriptor(
-          path.join(sdkDirectory, 'dist/cjs/native-config-load/index.js'),
-          'native config loader fixture',
-        ),
         pluginEntry: fileDescriptor(
           path.join(
             projectDirectory,

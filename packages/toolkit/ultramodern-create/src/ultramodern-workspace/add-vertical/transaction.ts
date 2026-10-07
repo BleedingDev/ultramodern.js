@@ -1261,14 +1261,14 @@ function publishChangePlan(
   stagingRoot: string,
   changes: WorkspaceChange[],
   emptyTarget?: FreshWorkspaceTarget,
-  assertInputsUnchanged?: () => void,
+  assertStagedSourceUnchanged?: () => void,
 ) {
   __transactionTestHooks.beforePublish?.({
     workspaceRoot: root,
     stagingRoot,
     changedPaths: changes.map(change => change.relativePath),
   });
-  assertInputsUnchanged?.();
+  assertStagedSourceUnchanged?.();
   if (emptyTarget) assertFreshTarget(root, emptyTarget);
   for (const change of changes) assertPreimage(root, change);
   if (changes.length === 0) return;
@@ -1368,7 +1368,6 @@ export function runWorkspaceTransaction<T>(
     mode?: 'publish' | 'preview';
     commitWhen?: (result: Awaited<T>) => boolean;
     inspectChanges?: (changes: readonly WorkspaceChange[]) => void;
-    assertInputsUnchanged?: () => void;
   } = {},
 ): T {
   const workspaceRoot = fs.realpathSync.native(path.resolve(root));
@@ -1387,27 +1386,15 @@ export function runWorkspaceTransaction<T>(
     copyWorkspaceToStage(workspaceRoot, stagingRoot);
     const before = captureWorkspace(stagingRoot, workspaceRoot);
     const finish = (result: Awaited<T>) => {
-      if (options.commitWhen && !options.commitWhen(result)) {
-        options.assertInputsUnchanged?.();
-        return result;
-      }
+      if (options.commitWhen && !options.commitWhen(result)) return result;
       relocateStagedWorkspaceReferences(stagingRoot, root);
       const changes = buildChangePlan(
         before,
         captureWorkspace(stagingRoot, workspaceRoot),
       );
       options.inspectChanges?.(changes);
-      if (options.mode !== 'preview') {
-        publishChangePlan(
-          workspaceRoot,
-          stagingRoot,
-          changes,
-          undefined,
-          options.assertInputsUnchanged,
-        );
-      } else {
-        options.assertInputsUnchanged?.();
-      }
+      if (options.mode !== 'preview')
+        publishChangePlan(workspaceRoot, stagingRoot, changes);
       return result;
     };
     const result = mutate(stagingRoot);
@@ -1573,9 +1560,6 @@ function publishFreshWorkspace(
 export function runFreshWorkspaceTransaction<T>(
   targetDir: string,
   generate: (stagingRoot: string) => T,
-  options: {
-    assertInputsUnchanged?: (stagingRoot: string, result: Awaited<T>) => void;
-  } = {},
 ): T {
   const workspaceRoot = path.resolve(targetDir);
   recoverFreshWorkspaceTransactions(workspaceRoot);
@@ -1589,7 +1573,6 @@ export function runFreshWorkspaceTransaction<T>(
     }
   };
   const finish = (result: Awaited<T>) => {
-    options.assertInputsUnchanged?.(stagingRoot, result);
     relocateStagedWorkspaceReferences(stagingRoot, targetDir);
     const stagedPreimage = captureWorkspace(stagingRoot, workspaceRoot);
     const assertStagedSourceUnchanged = () => {

@@ -7,7 +7,6 @@ import {
 } from '../../ultramodern-workspace/descriptors';
 import { readModuleFederationExposePaths } from '../../ultramodern-workspace/mf-validation';
 import { toEnvSegment } from '../../ultramodern-workspace/naming';
-import type { WorkspaceSourceReadObserver } from '../../ultramodern-workspace/publication-inputs';
 import { appSupportsFederation } from '../../ultramodern-workspace/renderer-profile';
 import type { WorkspaceApp } from '../../ultramodern-workspace/types';
 import { readJsonObject } from './json';
@@ -23,7 +22,6 @@ export type UltramodernWorkspaceInputs = {
 export function normalizeWorkspaceInputs(
   workspaceRoot: string,
   inputs: UltramodernWorkspaceInputs,
-  observeInput?: WorkspaceSourceReadObserver,
 ) {
   const { topology, overlay } = inputs;
   if (
@@ -90,9 +88,8 @@ export function normalizeWorkspaceInputs(
       );
     }
     paths.add(appRoot);
-    observeInput?.(appPath, 'entry-kind', true);
     const manifestPath = path.join(appRoot, 'package.json');
-    const manifest = readJsonObject(manifestPath, observeInput);
+    const manifest = readJsonObject(manifestPath);
     if (
       typeof manifest.name !== 'string' ||
       !manifest.name ||
@@ -148,7 +145,6 @@ export function normalizeWorkspaceInputs(
     const actualExposes = readModuleFederationExposePaths(
       workspaceRoot,
       entry.path,
-      observeInput,
     );
     return {
       ...app,
@@ -174,9 +170,9 @@ export function normalizeWorkspaceInputs(
   ) as Record<string, string>;
   const config: UltramodernToolingConfig = {
     workspace: {
-      packageScope: packageScopeFromRoot(workspaceRoot, observeInput),
+      packageScope: packageScopeFromRoot(workspaceRoot),
     },
-    packageSource: readWorkspacePackageSource(workspaceRoot, observeInput),
+    packageSource: readWorkspacePackageSource(workspaceRoot),
     features: {
       tailwind: Boolean(
         primaryManifest.devDependencies?.tailwindcss ??

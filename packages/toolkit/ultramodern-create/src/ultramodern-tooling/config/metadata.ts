@@ -1,16 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { yaml } from '@modern-js/utils';
-import type { WorkspaceSourceReadObserver } from '../../ultramodern-workspace/publication-inputs';
 import type { ResolvedPackageSource } from '../../ultramodern-workspace/types';
 import { readOptionalJsonObject } from './json';
 
-export function packageScopeFromRoot(
-  workspaceRoot: string,
-  observeInput?: WorkspaceSourceReadObserver,
-): string {
+export function packageScopeFromRoot(workspaceRoot: string): string {
   const manifestPath = path.join(workspaceRoot, 'package.json');
-  const rootPackage = readOptionalJsonObject(manifestPath, observeInput);
+  const rootPackage = readOptionalJsonObject(manifestPath);
   return typeof rootPackage.name === 'string' && rootPackage.name.length > 0
     ? rootPackage.name
     : path.basename(workspaceRoot);
@@ -19,10 +15,9 @@ export function packageScopeFromRoot(
 /** Native dependency requests own the source; no application config is loaded. */
 export function readWorkspacePackageSource(
   workspaceRoot: string,
-  observeInput?: WorkspaceSourceReadObserver,
 ): ResolvedPackageSource {
   const manifestPath = path.join(workspaceRoot, 'package.json');
-  const manifest = readOptionalJsonObject(manifestPath, observeInput);
+  const manifest = readOptionalJsonObject(manifestPath);
   const name = '@modern-js/ultramodern-create';
   let request =
     manifest.devDependencies?.[name] ?? manifest.dependencies?.[name];
@@ -31,7 +26,6 @@ export function readWorkspacePackageSource(
   if (request.startsWith('catalog:')) {
     const catalogPath = path.join(workspaceRoot, 'pnpm-workspace.yaml');
     const catalogSource = fs.readFileSync(catalogPath, 'utf8');
-    observeInput?.(catalogPath, 'content', true);
     const config = yaml.load(catalogSource) as Record<string, any>;
     const catalog = request.slice('catalog:'.length);
     request = (catalog ? config.catalogs?.[catalog] : config.catalog)?.[name];

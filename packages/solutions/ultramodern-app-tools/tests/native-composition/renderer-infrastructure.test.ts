@@ -29,8 +29,6 @@ import {
 import { describe, expect, it, rstest } from '@rstest/core';
 import { createDefaultConfig } from '../../../app-tools/src/config';
 import { getBundleEntry } from '../../../app-tools/src/plugins/analyze/getBundleEntry';
-import { observeUltramodernConfigLoad } from '../../src/native-composition/config';
-import { createConfigurationReadContextPlugin } from '../../src/native-composition/configuration-read-context';
 import {
   defineConfig,
   resolveUltramodernConfig,
@@ -66,16 +64,8 @@ async function initializeInfrastructure(
     server: { ssr },
     output: { cleanDistPath: false },
   };
-  const configFile = path.join(appDirectory, 'infrastructure.config.json');
-  fs.writeFileSync(configFile, JSON.stringify(config));
-  const captured = await observeUltramodernConfigLoad(
-    { appDirectory, configFile },
-    async () =>
-      JSON.parse(fs.readFileSync(configFile, 'utf8')) as typeof config,
-  );
   const manager = createPluginManager();
   manager.addPlugins([
-    createConfigurationReadContextPlugin(() => captured.consumedSourceInputs),
     appTools({ rendererExtensions: false, serverExtensions: false }),
     nativeRendererInfrastructurePlugin(renderer, generator, options),
     ...(withBff ? [nativeBffPlugin()] : []),
@@ -90,8 +80,8 @@ async function initializeInfrastructure(
       metaName: 'modern-js',
       plugins,
     }),
-    config: captured.value,
-    normalizedConfig: captured.value as AppNormalizedConfig,
+    config,
+    normalizedConfig: config as AppNormalizedConfig,
   });
   const api = initPluginAPI({ context, pluginManager: manager });
   context.pluginAPI = api;

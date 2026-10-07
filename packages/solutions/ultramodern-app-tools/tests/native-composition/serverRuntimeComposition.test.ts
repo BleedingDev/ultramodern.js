@@ -6,7 +6,6 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { AppTools } from '@modern-js/app-tools';
 import { createCloudflarePreset } from '@modern-js/app-tools-extensions/cloudflare';
-import { resolveNativeConfigLoadProvider } from '@modern-js/app-tools-extensions/native-config-load-provider';
 import {
   createCli,
   initAppContext as initCliContext,
@@ -19,27 +18,10 @@ import { build as buildApp } from '../../../app-tools/src/commands/build';
 import { generateHandler } from '../../../app-tools/src/plugins/deploy/utils/generator';
 import { initAppContext as initAppToolsContext } from '../../../app-tools/src/utils/initAppContext';
 import { getServerPlugins } from '../../../app-tools/src/utils/loadPlugins';
-import {
-  type ConfigSourceSnapshot,
-  captureConfigSourceSnapshot,
-} from '../../src/native-composition/config-evaluator/source-snapshot';
 
 const descriptorName = '@modern-js/ultramodern-app-tools/server-plugin';
 const packageDirectory = path.resolve(__dirname, '../..');
 const mappedPackageName = '@bleedingdev/modern-js-ultramodern-app-tools';
-const requireFromPackage = createRequire(
-  path.join(packageDirectory, 'package.json'),
-);
-const {
-  createNativeConfigLoad,
-}: typeof import('../../src/native-composition/native-config-load') =
-  requireFromPackage('./dist/cjs/native-composition/native-config-load.js');
-const {
-  getConfigurationSourceSnapshot,
-}: typeof import('../../src/native-composition/configuration-read-context') =
-  requireFromPackage(
-    './dist/cjs/native-composition/configuration-read-context.js',
-  );
 
 function createMappedServerOwner(
   root: string,
@@ -133,7 +115,6 @@ function linkMappedComposer(
 function resolveMappedServerDescriptor(
   appDirectory: string,
   owner: ReturnType<typeof createMappedServerOwner>,
-  snapshot?: ConfigSourceSnapshot,
 ) {
   return spawnSync(
     process.execPath,
@@ -141,10 +122,8 @@ function resolveMappedServerDescriptor(
       '-e',
       `const { pathToFileURL } = require('node:url');
 const { resolveReactServerPlugin } = require(process.argv[1]);
-const snapshot = JSON.parse(process.argv[3]);
 process.stdout.write(resolveReactServerPlugin(
-  process.argv[4],
-  snapshot ?? undefined,
+  process.argv[3],
   pathToFileURL(process.argv[2]).href,
 ));`,
       path.join(
@@ -152,7 +131,6 @@ process.stdout.write(resolveReactServerPlugin(
         'dist/cjs/native-composition/react-composition.js',
       ),
       owner.registrar,
-      JSON.stringify(snapshot ?? null),
       appDirectory,
     ],
     {
@@ -174,7 +152,6 @@ async function createCliApi(appDirectory: string) {
   const cli = createCli<AppTools>();
   try {
     const { appContext } = await cli.init({
-      ...createNativeConfigLoad(),
       configFile: false,
       command: 'build',
       cwd: appDirectory,
@@ -182,7 +159,6 @@ async function createCliApi(appDirectory: string) {
       config: { plugins: [base] },
     });
     const api = appContext.pluginAPI;
-    expect(getConfigurationSourceSnapshot(api)).toBeDefined();
     expect(api.getAppContext().entrypoints).toHaveLength(1);
     return api;
   } finally {
@@ -276,13 +252,7 @@ describe('server runtime composition', () => {
       const buildCli = createCli<AppTools>();
       let disposeBuild: (() => Promise<unknown>) | undefined;
       try {
-        const buildProvider = await resolveNativeConfigLoadProvider({
-          appDirectory,
-          command: 'build',
-        });
-        expect(buildProvider).toBeDefined();
         const { appContext: buildContext } = await buildCli.init({
-          ...buildProvider,
           cwd: appDirectory,
           configFile,
           command: 'build',
@@ -320,13 +290,7 @@ describe('server runtime composition', () => {
       expect(fs.statSync(builtEntryFile).isFile()).toBe(true);
       loads.length = 0;
       process.argv = [process.execPath, 'modern', 'serve'];
-      const provider = await resolveNativeConfigLoadProvider({
-        appDirectory,
-        command: 'serve',
-      });
-      expect(provider).toBeDefined();
       const { appContext } = await cli.init({
-        ...provider,
         cwd: appDirectory,
         configFile,
         command: 'serve',
@@ -342,29 +306,10 @@ describe('server runtime composition', () => {
           entry: builtEntryFile,
         }),
       ]);
-      const snapshot = getConfigurationSourceSnapshot(api);
-      expect(snapshot?.states.some(state => state.path === configFile)).toBe(
-        true,
-      );
       const plugins = await getServerPlugins(api);
       expect(
         plugins.filter(plugin => plugin.name === descriptorName),
       ).toHaveLength(1);
-      expect(getConfigurationSourceSnapshot(api)).toBe(snapshot);
-      const manifestFile = path.join(appDirectory, 'package.json');
-      const manifestBytes = fs.readFileSync(manifestFile);
-      const manifest = JSON.parse(manifestBytes.toString('utf8'));
-      fs.writeFileSync(
-        manifestFile,
-        JSON.stringify({ ...manifest, changed: true }),
-      );
-      try {
-        await expect(getServerPlugins(api)).rejects.toThrow(
-          'React server plugin declaration changed after configuration load',
-        );
-      } finally {
-        fs.writeFileSync(manifestFile, manifestBytes);
-      }
       expect(loads).toHaveLength(1);
     } finally {
       try {
@@ -382,36 +327,23 @@ describe('server runtime composition', () => {
     }
   });
 
-  test.each([
-    mappedPackageName,
-    '@modern-js/ultramodern-app-tools',
-  ])('loads the native server descriptor from its declared %s SDK owner', dependencyKey => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'um-native-server-'));
-    const appDirectory = path.join(root, 'app');
-    try {
-      const owner = createMappedServerOwner(
-        root,
-        'mapped-native-sdk',
-        'native-server-plugin',
-      );
-      linkMappedComposer(appDirectory, owner, dependencyKey);
-      const snapshot = captureConfigSourceSnapshot({
-        sourceRoots: [],
-        extraInputs: [
-          path.join(appDirectory, 'package.json'),
-          path.join(
-            appDirectory,
-            'node_modules',
-            dependencyKey,
-            'package.json',
-          ),
-        ],
-      });
-      const execution = execFileSync(
-        process.execPath,
-        [
-          '-e',
-          `const assert = require('node:assert/strict');
+  test.each([mappedPackageName, '@modern-js/ultramodern-app-tools'])(
+    'loads the native server descriptor from its declared %s SDK owner',
+    dependencyKey => {
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), 'um-native-server-'));
+      const appDirectory = path.join(root, 'app');
+      try {
+        const owner = createMappedServerOwner(
+          root,
+          'mapped-native-sdk',
+          'native-server-plugin',
+        );
+        linkMappedComposer(appDirectory, owner, dependencyKey);
+        const execution = execFileSync(
+          process.execPath,
+          [
+            '-e',
+            `const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { createRequire } = require('node:module');
@@ -420,128 +352,110 @@ const ownerRequire = createRequire(path.join(process.argv[1], 'package.json'));
 const requireFromApp = createRequire(path.join(process.cwd(), 'package.json'));
 const { resolveSdkServerPlugin } = ownerRequire('./dist/cjs/native-composition/server-plugin-resolution.js');
 const { loadServerPlugins } = createRequire(path.join(process.argv[2], 'package.json'))('@modern-js/server-core/node');
-const snapshot = JSON.parse(process.argv[3]);
-const dependencyKey = process.argv[4];
+const dependencyKey = process.argv[3];
 const ownerExport = ownerRequire.resolve(${JSON.stringify(`${mappedPackageName}/native-server-plugin`)});
 if (dependencyKey === ${JSON.stringify(mappedPackageName)}) {
   assert.throws(() => requireFromApp.resolve('@modern-js/ultramodern-app-tools/native-server-plugin'), { code: 'MODULE_NOT_FOUND' });
 }
 assert.throws(() => requireFromApp.resolve('@modern-js/renderer-core/server'), { code: 'MODULE_NOT_FOUND' });
 (async () => {
-  for (const originalSnapshot of [snapshot, undefined]) {
-    const name = resolveSdkServerPlugin(
-      process.cwd(),
-      'native-server-plugin',
-      pathToFileURL(ownerExport).href,
-      originalSnapshot,
-    );
-    assert.equal(name, dependencyKey + '/native-server-plugin');
-    assert.equal(fs.realpathSync(requireFromApp.resolve(name)), fs.realpathSync(ownerExport));
-    const instances = await loadServerPlugins([
-      { name, options: { renderer: 'solid', entries: {} } },
-    ], process.cwd());
-    assert.deepEqual(instances.map(plugin => plugin.name), ['@modern-js/native-node-server']);
-    assert.ok(instances[0].usePlugins.some(plugin => plugin.name === '@modern-js/native-node-dispatch'));
-  }
+  const name = resolveSdkServerPlugin(
+    process.cwd(),
+    'native-server-plugin',
+    pathToFileURL(ownerExport).href,
+  );
+  assert.equal(name, dependencyKey + '/native-server-plugin');
+  assert.equal(fs.realpathSync(requireFromApp.resolve(name)), fs.realpathSync(ownerExport));
+  const instances = await loadServerPlugins([
+    { name, options: { renderer: 'solid', entries: {} } },
+  ], process.cwd());
+  assert.deepEqual(instances.map(plugin => plugin.name), ['@modern-js/native-node-server']);
+  assert.ok(instances[0].usePlugins.some(plugin => plugin.name === '@modern-js/native-node-dispatch'));
 })().catch(error => { console.error(error); process.exitCode = 1; });`,
-          owner.owner,
-          packageDirectory,
-          JSON.stringify(snapshot),
-          dependencyKey,
-        ],
-        {
-          cwd: appDirectory,
-          encoding: 'utf8',
-          env: { ...process.env, NODE_PATH: '' },
-        },
-      );
-      expect(execution).toBe('');
-    } finally {
-      fs.rmSync(root, { recursive: true, force: true });
-    }
-  });
-
-  test.each([
-    mappedPackageName,
-    '@modern-js/ultramodern-app-tools',
-  ])('loads the same physical mapped SDK through portable %s handlers', async dependencyKey => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'um-mapped-server-'));
-    const originalDirectory = path.join(root, 'original');
-    const relocatedDirectory = path.join(root, 'relocated');
-    try {
-      const owner = createMappedServerOwner(root);
-      linkMappedComposer(originalDirectory, owner, dependencyKey);
-      const appContext = {
-        ...initCliContext<AppTools>({
-          appDirectory: originalDirectory,
-          command: 'deploy',
-          configFile: false,
-          metaName: 'modern-js',
-          packageName: 'mapped-server-consumer',
-          plugins: [],
-        }),
-        ...initAppToolsContext({
-          appDirectory: originalDirectory,
-          metaName: 'modern-js',
-          runtimeConfigFile: 'modern.runtime.ts',
-        }),
-      };
-      const snapshot = captureConfigSourceSnapshot({
-        sourceRoots: [],
-        extraInputs: [
-          path.join(originalDirectory, 'package.json'),
-          path.join(
-            originalDirectory,
-            'node_modules',
+            owner.owner,
+            packageDirectory,
             dependencyKey,
-            'package.json',
-          ),
-        ],
-      });
-      const resolution = resolveMappedServerDescriptor(
-        originalDirectory,
-        owner,
-        snapshot,
-      );
-      if (resolution.status !== 0) {
-        throw new Error(resolution.stdout + resolution.stderr, {
-          cause: resolution.error,
-        });
-      }
-      const descriptor = { name: resolution.stdout };
-      expect(descriptor.name).toBe(`${dependencyKey}/server-plugin`);
-      for (const isESM of [false, true]) {
-        const code = await generateHandler({
-          template: isESM
-            ? 'p_genPluginImportsCode; export default p_plugins;'
-            : 'p_genPluginImportsCode; module.exports = p_plugins;',
-          appContext: {
-            ...appContext,
-            appDirectory: originalDirectory,
-            sharedDirectory: path.join(originalDirectory, 'shared'),
-            apiDirectory: path.join(originalDirectory, 'api'),
-            lambdaDirectory: path.join(originalDirectory, 'lambda'),
-            serverPlugins: [descriptor],
+          ],
+          {
+            cwd: appDirectory,
+            encoding: 'utf8',
+            env: { ...process.env, NODE_PATH: '' },
           },
-          config: { bff: {} } as Parameters<
-            typeof generateHandler
-          >[0]['config'],
-          isESM,
-        });
-        fs.writeFileSync(
-          path.join(
-            originalDirectory,
-            `generated-server.${isESM ? 'mjs' : 'cjs'}`,
-          ),
-          code,
         );
+        expect(execution).toBe('');
+      } finally {
+        fs.rmSync(root, { recursive: true, force: true });
       }
-      fs.renameSync(originalDirectory, relocatedDirectory);
-      const execution = execFileSync(
-        process.execPath,
-        [
-          '-e',
-          `const assert = require('node:assert/strict');
+    },
+  );
+
+  test.each([mappedPackageName, '@modern-js/ultramodern-app-tools'])(
+    'loads the same physical mapped SDK through portable %s handlers',
+    async dependencyKey => {
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), 'um-mapped-server-'));
+      const originalDirectory = path.join(root, 'original');
+      const relocatedDirectory = path.join(root, 'relocated');
+      try {
+        const owner = createMappedServerOwner(root);
+        linkMappedComposer(originalDirectory, owner, dependencyKey);
+        const appContext = {
+          ...initCliContext<AppTools>({
+            appDirectory: originalDirectory,
+            command: 'deploy',
+            configFile: false,
+            metaName: 'modern-js',
+            packageName: 'mapped-server-consumer',
+            plugins: [],
+          }),
+          ...initAppToolsContext({
+            appDirectory: originalDirectory,
+            metaName: 'modern-js',
+            runtimeConfigFile: 'modern.runtime.ts',
+          }),
+        };
+        const resolution = resolveMappedServerDescriptor(
+          originalDirectory,
+          owner,
+        );
+        if (resolution.status !== 0) {
+          throw new Error(resolution.stdout + resolution.stderr, {
+            cause: resolution.error,
+          });
+        }
+        const descriptor = { name: resolution.stdout };
+        expect(descriptor.name).toBe(`${dependencyKey}/server-plugin`);
+        for (const isESM of [false, true]) {
+          const code = await generateHandler({
+            template: isESM
+              ? 'p_genPluginImportsCode; export default p_plugins;'
+              : 'p_genPluginImportsCode; module.exports = p_plugins;',
+            appContext: {
+              ...appContext,
+              appDirectory: originalDirectory,
+              sharedDirectory: path.join(originalDirectory, 'shared'),
+              apiDirectory: path.join(originalDirectory, 'api'),
+              lambdaDirectory: path.join(originalDirectory, 'lambda'),
+              serverPlugins: [descriptor],
+            },
+            config: { bff: {} } as Parameters<
+              typeof generateHandler
+            >[0]['config'],
+            isESM,
+          });
+          fs.writeFileSync(
+            path.join(
+              originalDirectory,
+              `generated-server.${isESM ? 'mjs' : 'cjs'}`,
+            ),
+            code,
+          );
+        }
+        fs.renameSync(originalDirectory, relocatedDirectory);
+        const execution = execFileSync(
+          process.execPath,
+          [
+            '-e',
+            `const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { createRequire } = require('node:module');
@@ -562,22 +476,23 @@ assert.throws(() => requireFromApp.resolve('@modern-js/server-runtime-extensions
     assert.deepEqual(instances.map(plugin => plugin.name), ['@modern-js/ultramodern-server']);
   }
 })().catch(error => { console.error(error); process.exitCode = 1; });`,
-          packageDirectory,
-          JSON.stringify(descriptor),
-          owner.registrar,
-          dependencyKey,
-        ],
-        {
-          cwd: relocatedDirectory,
-          encoding: 'utf8',
-          env: { ...process.env, NODE_PATH: '' },
-        },
-      );
-      expect(execution).toBe('');
-    } finally {
-      fs.rmSync(root, { recursive: true, force: true });
-    }
-  });
+            packageDirectory,
+            JSON.stringify(descriptor),
+            owner.registrar,
+            dependencyKey,
+          ],
+          {
+            cwd: relocatedDirectory,
+            encoding: 'utf8',
+            env: { ...process.env, NODE_PATH: '' },
+          },
+        );
+        expect(execution).toBe('');
+      } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+      }
+    },
+  );
 
   test('rejects a declaration that resolves to a foreign physical SDK copy', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'um-foreign-server-'));
@@ -590,26 +505,7 @@ assert.throws(() => requireFromApp.resolve('@modern-js/server-runtime-extensions
         foreign,
         '@modern-js/ultramodern-app-tools',
       );
-      const missing = resolveMappedServerDescriptor(appDirectory, owner);
-      expect(missing.status).not.toBe(0);
-      expect(missing.stderr).toContain(
-        'React server plugin requires the original configuration source snapshot',
-      );
-      const snapshot = captureConfigSourceSnapshot({
-        sourceRoots: [],
-        extraInputs: [
-          path.join(appDirectory, 'package.json'),
-          path.join(
-            appDirectory,
-            'node_modules/@modern-js/ultramodern-app-tools/package.json',
-          ),
-        ],
-      });
-      const result = resolveMappedServerDescriptor(
-        appDirectory,
-        owner,
-        snapshot,
-      );
+      const result = resolveMappedServerDescriptor(appDirectory, owner);
       expect(result.status).not.toBe(0);
       expect(result.stderr).toContain(
         'React server plugin has no declared application import of its SDK owner',
@@ -619,53 +515,11 @@ assert.throws(() => requireFromApp.resolve('@modern-js/server-runtime-extensions
     }
   });
 
-  test('rejects a changed original SDK declaration', () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'um-changed-server-'));
-    const appDirectory = path.join(root, 'app');
-    try {
-      const owner = createMappedServerOwner(root);
-      linkMappedComposer(appDirectory, owner, mappedPackageName);
-      const manifest = path.join(appDirectory, 'package.json');
-      const snapshot = captureConfigSourceSnapshot({
-        sourceRoots: [],
-        extraInputs: [
-          manifest,
-          path.join(
-            appDirectory,
-            'node_modules',
-            mappedPackageName,
-            'package.json',
-          ),
-        ],
-      });
-      fs.writeFileSync(
-        manifest,
-        JSON.stringify({ private: true, dependencies: {} }),
-      );
-      const result = resolveMappedServerDescriptor(
-        appDirectory,
-        owner,
-        snapshot,
-      );
-      expect(result.status).not.toBe(0);
-      expect(result.stderr).toContain(
-        'React server plugin declaration changed after configuration load',
-      );
-    } finally {
-      fs.rmSync(root, { recursive: true, force: true });
-    }
-  });
-
-  test.each([
-    'unchanged',
-    'declaration',
-    'slot',
-  ] as const)('preserves original server ownership through public Rsbuild: %s', mutation => {
+  test('resolves the server plugin through public Rsbuild', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'um-rsbuild-server-'));
     const appDirectory = path.join(root, 'app');
     try {
       linkComposer(appDirectory);
-      const foreign = createMappedServerOwner(root, 'foreign-sdk');
       fs.writeFileSync(
         path.join(appDirectory, 'modern.config.cjs'),
         `const { defineConfig } = require('@modern-js/ultramodern-app-tools');
@@ -693,46 +547,26 @@ delete process.env.MODERN_LIB_FORMAT;
 delete process.env.MODERN_ARGV;
 delete process.env.MODERN_ENV;
 const appDirectory = process.argv[1];
-const mutation = process.argv[2];
 const requireFromApp = createRequire(path.join(appDirectory, 'package.json'));
-const rsbuildEntry = requireFromApp.resolve('@modern-js/ultramodern-app-tools/rsbuild');
 const { resolveUltramodernRsbuildConfig } = requireFromApp('@modern-js/ultramodern-app-tools/rsbuild');
-const { getConfigurationSourceSnapshot } = require(path.join(path.dirname(rsbuildEntry), 'configuration-read-context.js'));
 const { resolveReactServerPlugin } = requireFromApp('@modern-js/ultramodern-app-tools/react-composition');
 (async () => {
   const { rsbuildConfig } = await resolveUltramodernRsbuildConfig({
     command: 'build',
     cwd: appDirectory,
     configPath: path.join(appDirectory, 'modern.config.cjs'),
-    modifyModernConfig(config) {
-      if (mutation === 'declaration') {
-        const manifestPath = path.join(appDirectory, 'package.json');
-        const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-        manifest.dependencies['@modern-js/ultramodern-app-tools'] = '0.0.0-declaration-changed';
-        fs.writeFileSync(manifestPath, JSON.stringify(manifest));
-      } else if (mutation === 'slot') {
-        const slot = path.join(appDirectory, 'node_modules/@modern-js/ultramodern-app-tools');
-        fs.unlinkSync(slot);
-        fs.symlinkSync(process.argv[3], slot, 'dir');
-      }
-      return config;
-    },
   });
   const pluginNames = rsbuildConfig.plugins.map(plugin => plugin.name);
   assert.ok(pluginNames.includes('builder-plugin-adapter-modern-basic'));
   assert.ok(pluginNames.includes('builder-plugin-support-modern-hooks'));
   const api = globalThis.originalServerOwnershipApi;
   assert.ok(api, 'The public loader must run the original consumer setup');
-  const snapshot = getConfigurationSourceSnapshot(api);
-  assert.ok(snapshot, 'The public loader must retain the original source snapshot');
-  const name = resolveReactServerPlugin(api.getAppContext().appDirectory, snapshot);
+  const name = resolveReactServerPlugin(api.getAppContext().appDirectory);
   assert.equal(name, ${JSON.stringify(descriptorName)});
   process.stdout.write('ORIGINAL_SERVER_DESCRIPTOR:' + name + '\\n');
   process.stdout.write('PUBLIC_RSBUILD_RESOLVED\\n');
 })().catch(error => { console.error(error); process.exitCode = 1; });`,
           appDirectory,
-          mutation,
-          foreign.owner,
         ],
         {
           cwd: appDirectory,
@@ -741,23 +575,15 @@ const { resolveReactServerPlugin } = requireFromApp('@modern-js/ultramodern-app-
         },
       );
       expect(result.stdout.match(/AUTHORED_CONFIG_LOADED/g)).toHaveLength(1);
-      if (mutation === 'unchanged') {
-        if (result.status !== 0) {
-          throw new Error(result.stdout + result.stderr, {
-            cause: result.error,
-          });
-        }
-        expect(result.stdout).toContain(
-          `ORIGINAL_SERVER_DESCRIPTOR:${descriptorName}`,
-        );
-        expect(result.stdout).toContain('PUBLIC_RSBUILD_RESOLVED');
-      } else {
-        expect(result.status).not.toBe(0);
-        expect(result.stderr).toContain(
-          'React server plugin declaration changed after configuration load',
-        );
-        expect(result.stdout).not.toContain('PUBLIC_RSBUILD_RESOLVED');
+      if (result.status !== 0) {
+        throw new Error(result.stdout + result.stderr, {
+          cause: result.error,
+        });
       }
+      expect(result.stdout).toContain(
+        `ORIGINAL_SERVER_DESCRIPTOR:${descriptorName}`,
+      );
+      expect(result.stdout).toContain('PUBLIC_RSBUILD_RESOLVED');
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }

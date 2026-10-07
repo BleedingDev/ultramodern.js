@@ -209,6 +209,9 @@ function assertOnceOnlyEvaluations(
   f: Awaited<ReturnType<typeof fixture>>,
   observations: Observation[],
   newAppId = 'catalog',
+  newEntryHooks: readonly Observation[] = [
+    { kind: 'new-entry-hook', id: newAppId },
+  ],
 ): void {
   for (const app of f.originalApps) {
     assert.deepEqual(
@@ -254,7 +257,7 @@ function assertOnceOnlyEvaluations(
   );
   assert.deepEqual(
     observations.filter(event => event.kind === 'new-entry-hook'),
-    [{ kind: 'new-entry-hook', id: newAppId }],
+    newEntryHooks,
   );
   assert.ok(
     observations.findIndex(event => event.kind === 'overlay') <
@@ -389,10 +392,11 @@ test('a post-overlay renderer switch rejects before publication and leaves the l
     const before = snapshotWorkspace(f.workspaceRoot);
     await assert.rejects(
       addUltramodernVertical(f.options('solid')),
-      /uses react templates.*final modern\.config resolves solid.*matching compiler and source templates/isu,
+      // The config load already rejects the React route modules it would own.
+      /renderer-source-mismatch: modern\.config selects renderer solid, but these route modules are authored for react/u,
     );
     assert.deepEqual(snapshotWorkspace(f.workspaceRoot), before);
-    assertOnceOnlyEvaluations(f, f.observations());
+    assertOnceOnlyEvaluations(f, f.observations(), 'catalog', []);
   } finally {
     f.clean();
   }

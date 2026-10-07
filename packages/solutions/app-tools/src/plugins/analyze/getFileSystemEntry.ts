@@ -95,13 +95,10 @@ const scanDir = async (
 
 export const getFileSystemEntry = async (
   hooks: Pick<AppToolsExtendHooksBase<never>, 'checkEntryPoint'>,
-  appContext: Pick<
-    AppContext<CLIPluginExtends>,
-    'appDirectory' | 'packageMetadataRead'
-  >,
+  appContext: Pick<AppContext<CLIPluginExtends>, 'appDirectory'>,
   config: Pick<AppToolsNormalizedConfig, 'source'>,
 ): Promise<Entrypoint[]> => {
-  const { appDirectory, packageMetadataRead } = appContext;
+  const { appDirectory } = appContext;
 
   const {
     source: { entriesDir },
@@ -109,18 +106,8 @@ export const getFileSystemEntry = async (
 
   const src = ensureAbsolutePath(appDirectory, entriesDir || '');
 
-  const exists = () => fs.existsSync(src);
-  if (
-    packageMetadataRead?.entryPathRead
-      ? packageMetadataRead.entryPathRead(exists)
-      : exists()
-  ) {
-    const isDirectory = () => fs.statSync(src).isDirectory();
-    if (
-      packageMetadataRead?.entryPathRead
-        ? packageMetadataRead.entryPathRead(isDirectory)
-        : isDirectory()
-    ) {
+  if (fs.existsSync(src)) {
+    if (fs.statSync(src).isDirectory()) {
       if (await isBundleEntry(hooks, src)) {
         return scanDir(hooks, [src]);
       }

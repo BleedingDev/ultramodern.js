@@ -8,10 +8,7 @@ import type { CLIPlugin, CLIPluginExtends } from '../../types/cli/plugin';
 import type { DeepPartial } from '../../types/utils';
 import { initPluginAPI } from '../api';
 import { createContext, initAppContext } from '../context';
-import {
-  type ConfigPackageMetadataRead,
-  createLoadedConfig,
-} from './config/createLoadedConfig';
+import { createLoadedConfig } from './config/createLoadedConfig';
 import { createResolveConfig } from './config/createResolvedConfig';
 import type { CLIRunOptions } from './types';
 import { checkIsDuplicationPlugin } from './utils/checkIsDuplicationPlugin';
@@ -83,23 +80,11 @@ export const createCli = <Extends extends CLIPluginExtends>() => {
       prefixes: [`${envName.toUpperCase()}_`],
     });
 
-    let packageMetadataRead: ConfigPackageMetadataRead | undefined;
-    const load = (reader?: ConfigPackageMetadataRead) => {
-      packageMetadataRead = reader;
-      return createLoadedConfig<Extends['config']>(
-        appDirectory,
-        configFile,
-        config,
-        undefined,
-        reader,
-      );
-    };
-    const loaded = await (options.wrapConfigLoad
-      ? options.wrapConfigLoad(
-          load,
-          Object.freeze({ appDirectory, configFile }),
-        )
-      : load());
+    const loaded = await createLoadedConfig<Extends['config']>(
+      appDirectory,
+      configFile,
+      config,
+    );
 
     const allPlugins = [
       ...(internalPlugins || []),
@@ -125,7 +110,6 @@ export const createCli = <Extends extends CLIPluginExtends>() => {
         appDirectory,
         plugins,
         metaName,
-        packageMetadataRead,
       }),
       config: loaded.config,
       normalizedConfig: {},
@@ -212,7 +196,6 @@ type CreateConfigOption<Extends extends CLIPluginExtends> = Omit<
   UselessOptions
 > & {
   command: string;
-  packageMetadataRead?: ConfigPackageMetadataRead;
   modifyModernConfig?: (
     config: Extends['config'],
   ) => Extends['config'] | Promise<Extends['config']>;
@@ -228,14 +211,12 @@ export const createConfigOptions = async <Extends extends CLIPluginExtends>(
   pluginManager.clear();
 
   const { configFile, cwd, metaName = 'modern-js', command } = options;
-  const appDirectory = await initAppDir(cwd, options.packageMetadataRead);
+  const appDirectory = await initAppDir(cwd);
 
   const loaded = await createLoadedConfig<Extends['config']>(
     appDirectory,
     configFile,
     options.config,
-    undefined,
-    options.packageMetadataRead,
   );
 
   loaded.config = options.modifyModernConfig
@@ -259,7 +240,6 @@ export const createConfigOptions = async <Extends extends CLIPluginExtends>(
       command,
       plugins,
       metaName,
-      packageMetadataRead: options.packageMetadataRead,
     }),
     config: loaded.config,
     normalizedConfig: {},
