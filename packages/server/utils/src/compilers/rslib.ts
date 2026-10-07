@@ -1,4 +1,4 @@
-import { fs, logger, mergeAlias } from '@modern-js/utils';
+import { fs, logger, mergeAlias, semver } from '@modern-js/utils';
 import type { LibConfig, Rspack } from '@rslib/core';
 import path from 'path';
 import type { CompileOptions, IConfig } from '../common';
@@ -310,6 +310,16 @@ export const compileServerSources = async (
       return;
     }
     const { createRslib } = await import('@rslib/core');
+    const appPackage = await fs
+      .readJSON(path.join(appDirectory, 'package.json'))
+      .catch(() => undefined);
+    const nodeEngine = appPackage?.engines?.node;
+    const nodeRange =
+      typeof nodeEngine === 'string' ? semver.validRange(nodeEngine) : null;
+    const nodeVersion = nodeRange ? semver.minVersion(nodeRange) : null;
+    const nodeTarget: Rspack.Configuration['target'] = nodeVersion?.major
+      ? `node${nodeVersion.major}.${nodeVersion.minor}`
+      : undefined;
     // The declaration program is the tsconfig, which the passes below never
     // change, so every pass would emit the same declarations. Only the first
     // one emits them.
@@ -340,6 +350,9 @@ export const compileServerSources = async (
           performance: { buildCache: false },
           tools: {
             rspack: rspackConfig => {
+              // Keep Rslib's engine-based syntax transforms, but describe the
+              // Node runtime with Rspack's native target, not its browser database.
+              if (nodeTarget) rspackConfig.target = nodeTarget;
               // Externals run in order; app imports must not reach Rslib's
               // redirect, which knows only one output extension per library.
               rspackConfig.externals = [
