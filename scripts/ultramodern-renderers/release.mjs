@@ -28,10 +28,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
-import { resolveAcceptanceReleaseAgeExclusions } from '../ultramodern-production-readiness/published-create-proof/release-age-audit.mjs';
+import { releaseAgeExemptions } from '../ultramodern-production-readiness/published-create-proof/release-age-audit.mjs';
 import { runWorkerDispatchProbe } from '../ultramodern-production-readiness/renderer-worker-lifecycle-proof/probe.mjs';
 import { readReleaseManifest } from '../ultramodern-publish/lib/source-create-proof/release-manifest.mjs';
 import { startEphemeralRegistry } from '../ultramodern-publish/lib/source-create-proof/runtime-proof/registry.mjs';
+import { defaultReleaseAgePolicyPath } from '../ultramodern-publish/run-release-acceptance.mjs';
 import { checkInstalledCohort, readCohort } from './installed-cohort.mjs';
 
 const root = path.resolve(
@@ -357,9 +358,8 @@ async function main() {
           pnpm_config_minimum_release_age_strict: 'true',
           pnpm_config_minimum_release_age_ignore_missing_time: 'false',
           pnpm_config_minimum_release_age_exclude: JSON.stringify(
-            resolveAcceptanceReleaseAgeExclusions({
-              release,
-              mode: 'source',
+            releaseAgeExemptions(release, {
+              policyPath: defaultReleaseAgePolicyPath,
             }),
           ),
         });
