@@ -5,7 +5,7 @@ import { once } from 'node:events';
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
-import { createAcceptancePackageManagerEnv } from '../../../../ultramodern-production-readiness/published-create-proof/acceptance-profile.mjs';
+import { createAcceptancePackageManagerEnv } from '../../../../ultramodern-production-readiness/published-create-proof/process.mjs';
 import { createProcessEnv } from '../../../../ultramodern-production-readiness/published-create-proof/constants.mjs';
 import { readStagedSidecars } from '../../../publish-sidecars.mjs';
 import {

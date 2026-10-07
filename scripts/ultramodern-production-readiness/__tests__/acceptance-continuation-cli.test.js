@@ -1,6 +1,8 @@
 const assert = require('node:assert/strict');
+const { spawnSync } = require('node:child_process');
 const path = require('node:path');
 const test = require('node:test');
+const { pathToFileURL } = require('node:url');
 
 const cliModule = '../../ultramodern-publish/run-release-acceptance.mjs';
 const requiredArgs = [
@@ -10,6 +12,36 @@ const requiredArgs = [
   'acceptance/receipt.json',
 ];
 const workDir = path.resolve('acceptance/work');
+
+test('the release acceptance entrypoint loads without installed packages', () => {
+  const loader = `
+    import { isBuiltin, registerHooks } from 'node:module';
+    registerHooks({
+      resolve(specifier, context, nextResolve) {
+        if (!isBuiltin(specifier) && !/^(file:|\\.|\\/)/u.test(specifier)) {
+          throw new Error('Unexpected package import: ' + specifier);
+        }
+        return nextResolve(specifier, context);
+      },
+    });
+  `;
+  const cliUrl = pathToFileURL(path.resolve(__dirname, cliModule)).href;
+  const result = spawnSync(
+    process.execPath,
+    [
+      '--import',
+      `data:text/javascript,${encodeURIComponent(loader)}`,
+      '--input-type=module',
+      '-e',
+      `const { parseArgs } = await import(${JSON.stringify(cliUrl)});
+       console.log(parseArgs(${JSON.stringify(requiredArgs)}).mode);`,
+    ],
+    { encoding: 'utf8', env: { ...process.env, NODE_PATH: '' } },
+  );
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout.trim(), 'prepublish');
+});
 
 test('prepublish acceptance keeps its defaults without continuation', async () => {
   const { parseArgs } = await import(cliModule);

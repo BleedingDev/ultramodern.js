@@ -891,8 +891,8 @@ test('continuation rejects a prior build attributed to another application commi
 
 test('continuation policy environment restores the accepted install settings without changing the project', async t => {
   const { readInstalledPolicyEnvironment } = await import(continuationModule);
-  const root = fs.mkdtempSync(
-    path.join(os.tmpdir(), 'acceptance-continuation-policy-'),
+  const root = fs.realpathSync(
+    fs.mkdtempSync(path.join(os.tmpdir(), 'acceptance-continuation-policy-')),
   );
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const statePath = path.join(
@@ -944,8 +944,10 @@ test('continuation policy environment restores the accepted install settings wit
 
 test('continuation policy environment requires both installed exclusion arrays', async t => {
   const { readInstalledPolicyEnvironment } = await import(continuationModule);
-  const root = fs.mkdtempSync(
-    path.join(os.tmpdir(), 'acceptance-continuation-invalid-policy-'),
+  const root = fs.realpathSync(
+    fs.mkdtempSync(
+      path.join(os.tmpdir(), 'acceptance-continuation-invalid-policy-'),
+    ),
   );
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const statePath = path.join(

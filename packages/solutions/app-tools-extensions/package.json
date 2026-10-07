@@ -92,6 +92,12 @@
       "import": "./dist/esm-node/release-envelope/*.mjs",
       "require": "./dist/cjs/release-envelope/*.js"
     },
+    "./release-envelope/contract": {
+      "types": "./dist/types/release-envelope/contract.d.mts",
+      "modern:source": "./src/release-envelope/contract.mjs",
+      "import": "./dist/esm-node/release-envelope/contract.mjs",
+      "require": "./dist/cjs/release-envelope/contract.js"
+    },
     "./renderer-build-identity": {
       "types": "./dist/types/renderer-build-identity.d.ts",
       "modern:source": "./src/renderer-build-identity.ts",

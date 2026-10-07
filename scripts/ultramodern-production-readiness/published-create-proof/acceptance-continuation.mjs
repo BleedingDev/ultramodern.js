@@ -40,7 +40,6 @@ import {
   verifyAcceptanceReceiptOperationalEvidence,
 } from './acceptance-receipt.mjs';
 import { repoRoot, writeJsonFile } from './constants.mjs';
-import { assertGeneratedCohort } from './package-cohort.mjs';
 import { roundDurationMs, run } from './process.mjs';
 import {
   parsePriorCloudflareBuildAttribution,
@@ -770,6 +769,7 @@ async function runAcceptanceContinuation({
   );
   const projectDir = path.join(workDir, options.projectName);
   const applicationSourceRevision = assertCleanCommittedSource(projectDir);
+  const { assertGeneratedCohort } = await import('./package-cohort.mjs');
   const installedCohort = assertGeneratedCohort(projectDir, release);
   const artifacts = readWorkspaceAcceptanceArtifacts(projectDir);
   const { contract } = readSmokeContract(projectDir);

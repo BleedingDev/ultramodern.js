@@ -12,7 +12,9 @@ export default defineConfig({
     ...libConfig,
     source: {
       ...libConfig.source,
-      entry: { index: ['./src/**/*.ts'] },
+      entry: {
+        index: ['./src/**/*.ts', './src/release-envelope/contract.mjs'],
+      },
     },
     output: {
       ...libConfig.output,
