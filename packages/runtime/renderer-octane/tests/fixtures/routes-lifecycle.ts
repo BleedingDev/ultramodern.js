@@ -22,6 +22,7 @@ import {
   createSsrStreamResponse,
   RouterServer,
 } from '@octanejs/tanstack-router/ssr/server';
+import { rs } from '@rstest/core';
 import { createElement, flushSync } from 'octane';
 import { ssrHtml } from 'octane/server';
 import { mountOctaneApplication } from '../../src/client';
@@ -213,6 +214,91 @@ export async function nativeRouterPreloadAndInvalidationCounts() {
     assert.equal(actions, 3);
     assert.deepEqual(loads, ['home', 'item', 'item', 'item']);
   } finally {
+    handle.dispose();
+    container.remove();
+    router.history.destroy();
+  }
+}
+
+export async function nativeRouterActionRedirect(
+  location: string,
+  expectedHref: string,
+  url?: string | (() => string),
+  documentNavigation = false,
+) {
+  const tree = createFileSystemRouteTree(
+    [
+      descriptor('product', { path: 'products/:id' }),
+      descriptor('account-complete', { path: 'account/complete' }),
+      descriptor('complete', { path: 'complete' }),
+      descriptor('save', { path: 'account/actions/save' }),
+    ],
+    {},
+  );
+  const router = createRouter({
+    routeTree: tree,
+    isServer: false,
+    origin: 'https://native.test',
+    history: createMemoryHistory({ initialEntries: ['/products/42'] }),
+  });
+  const { container, handle } = await mountNativeRouter(router);
+  const documentLocation = rs
+    .spyOn(window.location, 'href', 'set')
+    .mockImplementation(() => {});
+  try {
+    await waitForNativeRouter(() => {
+      assert.equal(router.stores.matches.get().at(-1)?.status, 'success');
+      assert.equal(router.stores.location.get().pathname, '/products/42');
+    });
+    let submissions = 0;
+    const action = createOctaneRouteAction({
+      router,
+      routeId: 'product',
+      identity,
+      url,
+      fetch: async (input, init) => {
+        const request = input as Request;
+        const target = new URL(request.url);
+        assert.equal(
+          target.pathname,
+          url ? '/account/actions/save' : '/products/42',
+        );
+        assert.equal(target.searchParams.get('__loader'), 'product');
+        assert.equal(target.searchParams.get('__ssrDirect'), 'true');
+        assert.equal(request.method, 'POST');
+        assert.equal(init?.credentials, 'same-origin');
+        assert.equal(init?.redirect, 'manual');
+        assert.equal((await request.formData()).get('sku'), 'tractor');
+        submissions++;
+        return createDataResponse(
+          { kind: 'redirect', location, response: metadata(303) },
+          identity,
+          { routeId: 'product', operation: 'action' },
+        );
+      },
+    });
+    const form = new FormData();
+    form.set('sku', 'tractor');
+    const result = await action(undefined, form);
+    assert.equal(submissions, 1);
+    assert.equal(result.kind, 'redirect');
+    assert.equal(result.kind === 'redirect' && result.location, location);
+    if (documentNavigation) {
+      assert.deepEqual(documentLocation.mock.calls, [[expectedHref]]);
+      assert.equal(router.stores.location.get().pathname, '/products/42');
+    } else {
+      assert.equal(documentLocation.mock.calls.length, 0);
+      const expected = new URL(expectedHref);
+      await waitForNativeRouter(() => {
+        const actual = router.stores.location.get();
+        assert.equal(actual.pathname, expected.pathname);
+        assert.equal(actual.searchStr, expected.search);
+        assert.equal(actual.hash, expected.hash.slice(1));
+        assert.equal(router.stores.matches.get().at(-1)?.status, 'success');
+      });
+    }
+  } finally {
+    documentLocation.mockRestore();
     handle.dispose();
     container.remove();
     router.history.destroy();
