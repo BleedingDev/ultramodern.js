@@ -18,6 +18,7 @@ import {
 } from '../src/release-envelope/framework-output';
 import {
   createMicroVerticalReleaseEnvelope,
+  MICROVERTICAL_RELEASE_ENVELOPE_SCHEMA_VERSION,
   verifyMicroVerticalReleaseEnvelope,
 } from '../src/release-envelope/index';
 import type {
@@ -212,35 +213,36 @@ describe('immutable renderer release binding', () => {
       ).rejects.toThrow(/routerBindings|evidence/);
     }
   });
-  it.each([
-    'react',
-    'solid',
-    'octane',
-  ] as const)('preserves %s build evidence in an immutable framework envelope', async renderer => {
-    const ui = nativeUi(renderer);
-    const { root } = await fixture(ui);
-    const envelope = await emitFrameworkMicroVerticalReleaseEnvelope({
-      apiOnly: false,
-      distDirectory: root,
-      target: 'node',
-      expectedRendererProfile: ui.rendererProfile,
-    });
-    expect(envelope?.schemaVersion).toBe(4);
-    expect(envelope?.ui).toEqual(ui);
-    expect(Object.isFrozen(envelope?.ui?.rendererIdentity)).toBe(true);
-    expect(Object.isFrozen(envelope?.ui?.rendererProfile.router)).toBe(true);
-    expect(
-      envelope?.artifacts.some(
-        artifact => artifact.logicalPath === 'ultramodern-build.json',
-      ),
-    ).toBe(true);
-    await expect(
-      readFrameworkMicroVerticalReleaseEnvelope({
-        artifactRoot: root,
+  it.each(['react', 'solid', 'octane'] as const)(
+    'preserves %s build evidence in an immutable framework envelope',
+    async renderer => {
+      const ui = nativeUi(renderer);
+      const { root } = await fixture(ui);
+      const envelope = await emitFrameworkMicroVerticalReleaseEnvelope({
+        apiOnly: false,
+        distDirectory: root,
+        target: 'node',
         expectedRendererProfile: ui.rendererProfile,
-      }),
-    ).resolves.toEqual(envelope);
-  });
+      });
+      expect(envelope?.schemaVersion).toBe(
+        MICROVERTICAL_RELEASE_ENVELOPE_SCHEMA_VERSION,
+      );
+      expect(envelope?.ui).toEqual(ui);
+      expect(Object.isFrozen(envelope?.ui?.rendererIdentity)).toBe(true);
+      expect(Object.isFrozen(envelope?.ui?.rendererProfile.router)).toBe(true);
+      expect(
+        envelope?.artifacts.some(
+          artifact => artifact.logicalPath === 'ultramodern-build.json',
+        ),
+      ).toBe(true);
+      await expect(
+        readFrameworkMicroVerticalReleaseEnvelope({
+          artifactRoot: root,
+          expectedRendererProfile: ui.rendererProfile,
+        }),
+      ).resolves.toEqual(envelope);
+    },
+  );
 
   it('rejects a configured cross-renderer profile before release metadata is emitted', async () => {
     const { root } = await fixture(nativeUi('solid'));
@@ -323,10 +325,15 @@ describe('immutable renderer release binding', () => {
     const envelope = await createMicroVerticalReleaseEnvelope(input);
     await expect(
       verifyMicroVerticalReleaseEnvelope(
-        { ...envelope, schemaVersion: 3 },
+        {
+          ...envelope,
+          schemaVersion: MICROVERTICAL_RELEASE_ENVELOPE_SCHEMA_VERSION - 1,
+        },
         { artifactRoot: root },
       ),
-    ).rejects.toThrow(/schemaVersion must be 4/);
+    ).rejects.toThrow(
+      `schemaVersion must be ${MICROVERTICAL_RELEASE_ENVELOPE_SCHEMA_VERSION}`,
+    );
   });
 
   it('rejects a consuming ABI or entry mismatch before reading release bytes', async () => {
