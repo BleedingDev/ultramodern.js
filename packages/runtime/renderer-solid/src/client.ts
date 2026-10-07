@@ -34,12 +34,7 @@ export interface ApplicationMountOptions {
   hot?: { dispose(callback: () => void): void };
 }
 
-interface ApplicationRoot {
-  dispose: (() => void) | undefined;
-  disposed: boolean;
-}
-
-const applications = new WeakMap<ApplicationMountElement, ApplicationRoot>();
+const applications = new WeakSet<ApplicationMountElement>();
 
 function createApplication(
   view: () => JSX.Element,
@@ -51,18 +46,17 @@ function createApplication(
     throw new Error('A Solid application already owns this mount element');
   }
 
-  const application: ApplicationRoot = { dispose: undefined, disposed: false };
-  applications.set(element, application);
+  let nativeDispose: (() => void) | undefined;
+  let disposed = false;
+  applications.add(element);
 
   const dispose = () => {
-    if (application.disposed) return;
-    application.disposed = true;
+    if (disposed) return;
+    disposed = true;
     try {
-      application.dispose?.();
+      nativeDispose?.();
     } finally {
-      if (applications.get(element) === application) {
-        applications.delete(element);
-      }
+      applications.delete(element);
     }
   };
 
@@ -73,7 +67,7 @@ function createApplication(
     };
     // Each application gets an independent native owner. Do not inherit a
     // caller's component owner, including when mounting during a transition.
-    application.dispose = runWithOwner(null, () =>
+    nativeDispose = runWithOwner(null, () =>
       hydrating
         ? hydrate(view, element, nativeOptions)
         : render(view, element, undefined, nativeOptions),

@@ -51,6 +51,24 @@ describe('native Solid application ownership', () => {
     expect(secondCleanup).toHaveBeenCalledTimes(1);
   });
 
+  test('the mount element stays owned until native cleanup finishes', () => {
+    const element = document.createElement('div');
+    const cleanup = rstest.fn(() => {
+      expect(() => mountApplication(() => 'replacement', element)).toThrow(
+        'already owns this mount element',
+      );
+    });
+    const dispose = mountApplication(() => {
+      onCleanup(cleanup);
+      return 'first';
+    }, element);
+    dispose();
+    expect(cleanup).toHaveBeenCalledTimes(1);
+    const disposeReplacement = mountApplication(() => 'replacement', element);
+    expect(element.textContent).toBe('replacement');
+    disposeReplacement();
+  });
+
   test('the application owner outlives the owner that creates it', () => {
     const element = document.createElement('div');
     const cleanup = rstest.fn();

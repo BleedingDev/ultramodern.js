@@ -31,9 +31,9 @@ export function I18nProvider(props: I18nProviderProps): JSX.Element {
       setLanguage(instance.language);
       const handleLanguageChanged = (lng: string) => setLanguage(lng);
       instance.on?.('languageChanged', handleLanguageChanged);
-      Solid.onCleanup(() => {
+      return () => {
         instance.off?.('languageChanged', handleLanguageChanged);
-      });
+      };
     },
   );
 
