@@ -34,8 +34,10 @@ document reload. The generated entries own mounting and hydration.
 | Octane | `octane` | `@modern-js/renderer-octane/router` |
 
 Solid and Octane use their native component syntax and managed filesystem
-routes. Their SDKs expose `/client`, `/router`, `/server` and `/manifest`
-entrypoints. Generated applications select these automatically.
+routes. Generated applications import the runtime modules of their renderer
+package automatically: `/entry-client`, `/entry-server`, `/router`, `/i18n`
+and `/manifest`, plus `/federation` for Solid. `/plugin` is the build-only
+adapter; only the CLI loads it.
 
 ### Renderer adapters
 
