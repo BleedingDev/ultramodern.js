@@ -210,18 +210,13 @@ function createPublishedReactManifest() {
   sdk.validateRendererBuildManifest(
     {
       schema: 'ultramodern-renderer-build',
-      version: 1,
+      version: 2,
+      renderer,
       profile,
       routerBindings,
-      buildMarker,
+      buildId: buildMarker,
       sourceRevision,
-      inputDigest: 'c'.repeat(64),
-      profileDigest: 'd'.repeat(64),
-      compilerDigest: 'e'.repeat(64),
-      frameworkCohortDigest: 'f'.repeat(64),
-      cacheAllowed: true,
-      promotable: true,
-      identities: { main: rendererIdentity },
+      entries: { main: rendererIdentity },
     },
     profile,
   );

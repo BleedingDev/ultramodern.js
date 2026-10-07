@@ -689,18 +689,13 @@ function writeFinalizedRuntimeAuthority(projectDir, app, renderer) {
     manifest = sdk.validateRendererBuildManifest(
       {
         schema: 'ultramodern-renderer-build',
-        version: 1,
+        version: 2,
+        renderer: profile.renderer,
         profile,
         routerBindings,
-        buildMarker,
+        buildId: buildMarker,
         sourceRevision,
-        inputDigest: 'b'.repeat(64),
-        profileDigest: 'c'.repeat(64),
-        compilerDigest: 'd'.repeat(64),
-        frameworkCohortDigest: 'e'.repeat(64),
-        cacheAllowed: true,
-        promotable: true,
-        identities: { main: rendererIdentity },
+        entries: { main: rendererIdentity },
       },
       profile,
     );
