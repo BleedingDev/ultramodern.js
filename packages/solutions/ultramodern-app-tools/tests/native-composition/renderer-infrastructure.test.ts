@@ -48,6 +48,7 @@ import {
   resolveRendererProfile,
 } from '../../src/native-composition/renderer-profile';
 import { nativeRendererIsolationPlugin } from '../../src/native-composition/renderer-selection';
+import { createFourthAdapter } from './fourth-renderer-adapter';
 import {
   createReplacementAdapter,
   createReplacementCompilerArtifacts,
@@ -125,6 +126,88 @@ function createFixture() {
 }
 
 describe('native infrastructure in the owning CLI hooks', () => {
+  it.each(['build', 'dev'] as const)(
+    'preserves environment output options while assigning owned %s paths',
+    async command => {
+      const root = createFixture();
+      try {
+        const adapter = createFourthAdapter();
+        const { api } = await initializeInfrastructure(
+          'solid',
+          root,
+          undefined,
+          true,
+          {
+            adapter,
+            profile: adapter.profile,
+            async resolveBuildIdentities() {
+              throw new Error(
+                'Environment projection must not resolve identities',
+              );
+            },
+          },
+          false,
+          command,
+        );
+        const distDirectory = path.join(root, 'dist');
+        api.updateAppContext({ distDirectory });
+        const authored = {
+          client: {
+            output: {
+              filename: { css: 'client.css' },
+              distPath: { root: path.join(root, 'client'), css: 'client-css' },
+            },
+          },
+          server: {
+            output: {
+              filename: { css: 'server.css' },
+              distPath: { root: path.join(root, 'server'), css: 'server-css' },
+            },
+          },
+          auxiliary: {
+            output: {
+              filename: { css: 'auxiliary.css' },
+              distPath: { root: path.join(root, 'auxiliary'), css: 'assets' },
+            },
+          },
+        } satisfies Record<string, EnvironmentConfig>;
+        const before = structuredClone(authored);
+        const { environments } = await api
+          .getHooks()
+          .modifyBuilderEnvironments.call({ environments: authored });
+        expect(authored).toEqual(before);
+        expect(environments.server.output).toEqual({
+          target: 'node',
+          filename: { css: 'server.css', js: '[name].js' },
+          distPath: {
+            root: path.join(
+              distDirectory,
+              ...(command === 'dev' ? ['.ultramodern-dev'] : []),
+              'bundles',
+            ),
+            js: '',
+            jsAsync: '',
+            css: '',
+            cssAsync: '',
+          },
+        });
+        for (const name of ['client', 'auxiliary'] as const)
+          expect(environments[name].output).toEqual({
+            ...before[name].output,
+            distPath: {
+              ...before[name].output?.distPath,
+              root:
+                command === 'dev'
+                  ? path.join(distDirectory, '.ultramodern-dev', name)
+                  : path.join(root, name),
+            },
+          });
+      } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+      }
+    },
+  );
+
   it.each([
     ['solid', 'octane'],
     ['octane', 'solid'],

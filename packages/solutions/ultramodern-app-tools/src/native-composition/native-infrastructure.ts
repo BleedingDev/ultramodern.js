@@ -513,111 +513,76 @@ export default nativeRequestHandler;
               }
             : environments;
         const selected = Object.fromEntries(
-          Object.entries(withServer).map(([name, environment]) => [
-            name,
-            {
-              ...(name === SERVICE_WORKER_ENVIRONMENT_NAME && workerEntries.size
-                ? nativeWorkerEnvironment(
-                    environment,
-                    Object.fromEntries(
-                      [...workerEntries].filter(
-                        ([entryName]) =>
-                          !checkedEntries || checkedEntries.includes(entryName),
-                      ),
-                    ),
-                  )
-                : name === 'server' || name === SERVICE_WORKER_ENVIRONMENT_NAME
-                  ? {
-                      ...environment,
-                      source: { ...environment.source, entry: entries },
-                      ...(options.resolveBuildIdentities && name === 'server'
-                        ? {
-                            output: {
-                              ...environment.output,
-                              target: 'node' as const,
-                              filename: {
-                                ...environment.output?.filename,
-                                js: '[name].js',
-                              },
-                              distPath: {
-                                ...(typeof environment.output?.distPath ===
-                                'object'
-                                  ? environment.output.distPath
-                                  : {}),
-                                root: path.join(
-                                  distDirectory,
-                                  ...(api.getAppContext().command === 'dev'
-                                    ? [RENDERER_DEVELOPMENT_DIRECTORY]
-                                    : []),
-                                  SERVER_BUNDLE_DIRECTORY,
-                                ),
-                                js: '',
-                                jsAsync: '',
-                                css: '',
-                                cssAsync: '',
-                              },
-                            },
-                          }
-                        : {}),
-                    }
-                  : options.resolveBuildIdentities &&
-                      command === 'dev' &&
-                      name === 'client'
-                    ? {
-                        ...environment,
-                        output: {
-                          ...environment.output,
-                          distPath: {
-                            ...(typeof environment.output?.distPath === 'object'
-                              ? environment.output.distPath
-                              : {}),
-                            root: path.join(
-                              distDirectory,
-                              RENDERER_DEVELOPMENT_DIRECTORY,
-                              'client',
-                            ),
-                          },
-                        },
-                      }
-                    : environment),
-              ...(options.resolveBuildIdentities
-                ? {
-                    performance: rendererBuildCachePerformance(
-                      environment.performance,
-                      renderer,
-                      profile,
-                      api.getNormalizedConfig().performance?.buildCache,
-                    ),
-                  }
-                : {}),
-            },
-          ]),
+          Object.entries(withServer).map(([name, environment]) => {
+            let selectedEnvironment = { ...environment };
+            if (
+              name === SERVICE_WORKER_ENVIRONMENT_NAME &&
+              workerEntries.size
+            ) {
+              selectedEnvironment = nativeWorkerEnvironment(
+                environment,
+                Object.fromEntries(
+                  [...workerEntries].filter(
+                    ([entryName]) =>
+                      !checkedEntries || checkedEntries.includes(entryName),
+                  ),
+                ),
+              );
+            } else if (
+              name === 'server' ||
+              name === SERVICE_WORKER_ENVIRONMENT_NAME
+            ) {
+              selectedEnvironment = {
+                ...environment,
+                source: { ...environment.source, entry: entries },
+              };
+              if (options.resolveBuildIdentities && name === 'server') {
+                selectedEnvironment.output = {
+                  ...environment.output,
+                  target: 'node',
+                  filename: {
+                    ...environment.output?.filename,
+                    js: '[name].js',
+                  },
+                  distPath: {
+                    ...(typeof environment.output?.distPath === 'object'
+                      ? environment.output.distPath
+                      : {}),
+                    root: path.join(distDirectory, SERVER_BUNDLE_DIRECTORY),
+                    js: '',
+                    jsAsync: '',
+                    css: '',
+                    cssAsync: '',
+                  },
+                };
+              }
+            }
+            if (options.resolveBuildIdentities) {
+              selectedEnvironment = {
+                ...selectedEnvironment,
+                performance: rendererBuildCachePerformance(
+                  environment.performance,
+                  renderer,
+                  profile,
+                  api.getNormalizedConfig().performance?.buildCache,
+                ),
+              };
+              if (command === 'dev') {
+                selectedEnvironment.output = {
+                  ...selectedEnvironment.output,
+                  distPath: {
+                    ...(typeof selectedEnvironment.output?.distPath === 'object'
+                      ? selectedEnvironment.output.distPath
+                      : {}),
+                    root: nativeDevelopmentOutputDirectory(distDirectory, name),
+                  },
+                };
+              }
+            }
+            return [name, selectedEnvironment];
+          }),
         );
-        return {
-          environments:
-            options.resolveBuildIdentities && command === 'dev'
-              ? Object.fromEntries(
-                  Object.entries(selected).map(([name, environment]) => [
-                    name,
-                    {
-                      ...environment,
-                      output: {
-                        ...environment.output,
-                        distPath: {
-                          ...(typeof environment.output?.distPath === 'object'
-                            ? environment.output.distPath
-                            : {}),
-                          root: nativeDevelopmentOutputDirectory(
-                            distDirectory,
-                            name,
-                          ),
-                        },
-                      },
-                    },
-                  ]),
-                )
-              : selected,
-        };
+        return { environments: selected };
       });
 
       if (options.resolveBuildIdentities) {
