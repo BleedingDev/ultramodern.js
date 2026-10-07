@@ -556,7 +556,11 @@ export function defineRendererSpecs(options: RendererSpecOptions) {
 
   // The node deploy output must serve from any directory: it may only use
   // what deploy traced into it, never the app's own node_modules.
-  if (renderer !== 'react')
+  // A packed-release target is a generated delivery unit, where deploy is a
+  // release: it needs a committed source revision and a federated
+  // MicroVertical envelope. The overlaid fixture is neither, so only the
+  // in-repo fixture app proves deploy portability.
+  if (renderer !== 'react' && !process.env.RENDERER_TARGET_DIR)
     describe(`renderer ${renderer} node deploy`, () => {
       const output = path.join(appDir, '.output');
       let isolated: string | undefined;
