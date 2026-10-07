@@ -974,10 +974,10 @@ if (prepareSourceHost) {
             files.set(file, Buffer.from(bytes));
             callback();
           },
-          mkdir(file, ...args) {
+          mkdir(_file, ...args) {
             args.at(-1)();
           },
-          stat(file, callback) {
+          stat(_file, callback) {
             callback(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
           },
           readFile(file, callback) {

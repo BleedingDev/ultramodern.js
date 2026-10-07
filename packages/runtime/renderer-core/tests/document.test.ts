@@ -310,18 +310,18 @@ describe('native document parts', () => {
 describe('native document bootstrap reader', () => {
   const payload = { identity, documentId: 'doc-1', hydrating: true };
 
-  test.each([
-    true,
-    false,
-  ])('reads the exact bootstrap (hydrating %s)', hydrating => {
-    const result = readDocumentBootstrap(
-      documentWith(JSON.stringify({ ...payload, hydrating })),
-      identity,
-    );
-    expect(result).toEqual({ ...payload, hydrating });
-    expect(Object.isFrozen(result)).toBe(true);
-    expect(Object.isFrozen(result.identity)).toBe(true);
-  });
+  test.each([true, false])(
+    'reads the exact bootstrap (hydrating %s)',
+    hydrating => {
+      const result = readDocumentBootstrap(
+        documentWith(JSON.stringify({ ...payload, hydrating })),
+        identity,
+      );
+      expect(result).toEqual({ ...payload, hydrating });
+      expect(Object.isFrozen(result)).toBe(true);
+      expect(Object.isFrozen(result.identity)).toBe(true);
+    },
+  );
 
   test('returns only the renderer fields an adapter names', () => {
     const text = JSON.stringify({ ...payload, nativeHydrationBuildId: 'n' });

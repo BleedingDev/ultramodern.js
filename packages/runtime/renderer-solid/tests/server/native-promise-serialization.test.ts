@@ -238,35 +238,35 @@ describe('SSR native Promise serialization candidate', () => {
     }
   });
 
-  test.each([
-    'pending',
-    'fulfilled',
-  ])('native direct memo retains %s fulfillment and Loading behavior', async state => {
-    const source = deferred<string>();
-    if (state === 'fulfilled') source.resolve('native memo value');
-    const native = renderToStream(
-      () => {
-        const value = createMemo(() => source.promise);
-        return createComponent(Loading, {
-          fallback: ssr('<p>native memo loading</p>'),
-          get children() {
-            return ssr(['<p>', '</p>'], () => value());
-          },
-        });
-      },
-      { plugins: [nativePromiseSerializationPlugin] },
-    );
-    const reader = native.readable.getReader();
-    let html = new TextDecoder().decode((await reader.read()).value);
-    if (state === 'pending') expect(html).toContain('native memo loading');
-    source.resolve('native memo value');
-    for (;;) {
-      const chunk = await reader.read();
-      if (chunk.done) break;
-      html += new TextDecoder().decode(chunk.value);
-    }
-    expect(html).toContain('native memo value');
-  });
+  test.each(['pending', 'fulfilled'])(
+    'native direct memo retains %s fulfillment and Loading behavior',
+    async state => {
+      const source = deferred<string>();
+      if (state === 'fulfilled') source.resolve('native memo value');
+      const native = renderToStream(
+        () => {
+          const value = createMemo(() => source.promise);
+          return createComponent(Loading, {
+            fallback: ssr('<p>native memo loading</p>'),
+            get children() {
+              return ssr(['<p>', '</p>'], () => value());
+            },
+          });
+        },
+        { plugins: [nativePromiseSerializationPlugin] },
+      );
+      const reader = native.readable.getReader();
+      let html = new TextDecoder().decode((await reader.read()).value);
+      if (state === 'pending') expect(html).toContain('native memo loading');
+      source.resolve('native memo value');
+      for (;;) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        html += new TextDecoder().decode(chunk.value);
+      }
+      expect(html).toContain('native memo value');
+    },
+  );
 
   test('native Errored synchronous fallback still renders its own HTML', async () => {
     const native = renderToStream(

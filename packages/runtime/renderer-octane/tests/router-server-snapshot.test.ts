@@ -173,39 +173,42 @@ describe('native Octane public router snapshots', () => {
     expect(decoded.map.get(decoded.shared)).toBe(decoded.date);
   });
 
-  it.each([
-    'critical',
-    'promise',
-  ] as const)('never reads a %s constructor installed during the native asynchronous dehydrate hook', async kind => {
-    let getters = 0;
-    const original =
-      kind === 'critical' ? { value: 'visible' } : Promise.resolve('visible');
-    const fixture = await nativeFixture({
-      data: { slot: original },
-      dehydrate: () =>
-        Promise.resolve().then(() => {
-          Object.defineProperty(original, 'constructor', {
-            get() {
-              getters++;
-              throw new Error('PRIVATE_CONSTRUCTOR');
-            },
-          });
-        }),
-    });
-    await expect(fixture.dehydrate()).rejects.toThrow(
-      /accessors|without own fields/,
-    );
-    expect(getters).toBe(0);
-    expect(
-      (fixture.router.stores.matches.get()[0]!.loaderData as { slot: unknown })
-        .slot,
-    ).toBe(original);
-    expect(fixture.owner.signal.aborted).toBe(true);
-    expect((await fixture.owner.completion).cacheEligible).toBe(false);
-    expect(fixture.nativeSsr.takeBufferedHtml() ?? '').not.toContain(
-      'PRIVATE_CONSTRUCTOR',
-    );
-  });
+  it.each(['critical', 'promise'] as const)(
+    'never reads a %s constructor installed during the native asynchronous dehydrate hook',
+    async kind => {
+      let getters = 0;
+      const original =
+        kind === 'critical' ? { value: 'visible' } : Promise.resolve('visible');
+      const fixture = await nativeFixture({
+        data: { slot: original },
+        dehydrate: () =>
+          Promise.resolve().then(() => {
+            Object.defineProperty(original, 'constructor', {
+              get() {
+                getters++;
+                throw new Error('PRIVATE_CONSTRUCTOR');
+              },
+            });
+          }),
+      });
+      await expect(fixture.dehydrate()).rejects.toThrow(
+        /accessors|without own fields/,
+      );
+      expect(getters).toBe(0);
+      expect(
+        (
+          fixture.router.stores.matches.get()[0]!.loaderData as {
+            slot: unknown;
+          }
+        ).slot,
+      ).toBe(original);
+      expect(fixture.owner.signal.aborted).toBe(true);
+      expect((await fixture.owner.completion).cacheEligible).toBe(false);
+      expect(fixture.nativeSsr.takeBufferedHtml() ?? '').not.toContain(
+        'PRIVATE_CONSTRUCTOR',
+      );
+    },
+  );
 
   it.each([
     'getter',
@@ -213,55 +216,58 @@ describe('native Octane public router snapshots', () => {
     'constructor',
     'request',
     'nested-promise',
-  ] as const)('fails late %s poison without reaching native Seroval or cache admission', async kind => {
-    const late = deferred<unknown>();
-    let getters = 0;
-    const poison = kind === 'index' ? [] : {};
-    if (kind === 'getter' || kind === 'index' || kind === 'constructor') {
-      Object.defineProperty(
-        poison,
-        kind === 'index'
-          ? '0'
-          : kind === 'constructor'
-            ? 'constructor'
-            : 'private',
-        {
-          enumerable: true,
-          get() {
-            getters++;
-            return 'PRIVATE_SETTLEMENT';
+  ] as const)(
+    'fails late %s poison without reaching native Seroval or cache admission',
+    async kind => {
+      const late = deferred<unknown>();
+      let getters = 0;
+      const poison = kind === 'index' ? [] : {};
+      if (kind === 'getter' || kind === 'index' || kind === 'constructor') {
+        Object.defineProperty(
+          poison,
+          kind === 'index'
+            ? '0'
+            : kind === 'constructor'
+              ? 'constructor'
+              : 'private',
+          {
+            enumerable: true,
+            get() {
+              getters++;
+              return 'PRIVATE_SETTLEMENT';
+            },
           },
-        },
+        );
+      }
+      const value =
+        kind === 'request'
+          ? new Request('https://private.test/PRIVATE_SETTLEMENT')
+          : kind === 'nested-promise'
+            ? { nested: Promise.resolve('PRIVATE_SETTLEMENT') }
+            : poison;
+      const data = {
+        critical: 'visible',
+        first: late.promise,
+        alias: late.promise,
+      };
+      const fixture = await nativeFixture({ data });
+      await fixture.dehydrate();
+      const projected = fixture.snapshot().matches[0]!.l;
+      expect(projected.first).toBe(projected.alias);
+      expect(projected.first).not.toBe(late.promise);
+      expect(fixture.router.stores.matches.get()[0]!.loaderData).toBe(data);
+      expect(fixture.scripts()).toContain('visible');
+      late.resolve(value);
+      await flush();
+      expect(getters).toBe(0);
+      expect(fixture.owner.signal.aborted).toBe(true);
+      expect((await fixture.owner.completion).state).toBe('failed');
+      expect((await fixture.owner.completion).cacheEligible).toBe(false);
+      expect(fixture.nativeSsr.takeBufferedHtml() ?? '').not.toContain(
+        'PRIVATE_SETTLEMENT',
       );
-    }
-    const value =
-      kind === 'request'
-        ? new Request('https://private.test/PRIVATE_SETTLEMENT')
-        : kind === 'nested-promise'
-          ? { nested: Promise.resolve('PRIVATE_SETTLEMENT') }
-          : poison;
-    const data = {
-      critical: 'visible',
-      first: late.promise,
-      alias: late.promise,
-    };
-    const fixture = await nativeFixture({ data });
-    await fixture.dehydrate();
-    const projected = fixture.snapshot().matches[0]!.l;
-    expect(projected.first).toBe(projected.alias);
-    expect(projected.first).not.toBe(late.promise);
-    expect(fixture.router.stores.matches.get()[0]!.loaderData).toBe(data);
-    expect(fixture.scripts()).toContain('visible');
-    late.resolve(value);
-    await flush();
-    expect(getters).toBe(0);
-    expect(fixture.owner.signal.aborted).toBe(true);
-    expect((await fixture.owner.completion).state).toBe('failed');
-    expect((await fixture.owner.completion).cacheEligible).toBe(false);
-    expect(fixture.nativeSsr.takeBufferedHtml() ?? '').not.toContain(
-      'PRIVATE_SETTLEMENT',
-    );
-  });
+    },
+  );
 
   it('rejects a malicious Promise species without calling its nested getter or constructor', async () => {
     let getters = 0;
@@ -403,43 +409,41 @@ describe('native Octane public router snapshots', () => {
     }
   });
 
-  it.each([
-    'locals',
-    'map-key',
-    'map-value',
-    'set',
-  ] as const)('rejects nested private %s identities before native publication', async kind => {
-    const privateDescendant = { token: 'PRIVATE_DESCENDANT' };
-    const bindings = {
-      locals:
-        kind === 'locals'
-          ? privateDescendant
-          : kind === 'map-key'
-            ? new Map([[privateDescendant, 'value']])
-            : kind === 'map-value'
-              ? new Map([['key', privateDescendant]])
-              : new Set([privateDescendant]),
-    };
-    let getters = 0;
-    Object.defineProperty(bindings, 'lazyContext', {
-      get() {
-        getters++;
-        return { token: 'PRIVATE_GETTER' };
-      },
-    });
-    const data = { privateDescendant };
-    const fixture = await nativeFixture({ owner: session(bindings), data });
-    await expect(fixture.dehydrate()).rejects.toThrow(
-      'Request-private context',
-    );
-    expect(getters).toBe(0);
-    expect(fixture.router.stores.matches.get()[0]!.loaderData).toBe(data);
-    expect(fixture.owner.signal.aborted).toBe(true);
-    expect((await fixture.owner.completion).cacheEligible).toBe(false);
-    expect(fixture.nativeSsr.takeBufferedHtml() ?? '').not.toContain(
-      'PRIVATE_DESCENDANT',
-    );
-  });
+  it.each(['locals', 'map-key', 'map-value', 'set'] as const)(
+    'rejects nested private %s identities before native publication',
+    async kind => {
+      const privateDescendant = { token: 'PRIVATE_DESCENDANT' };
+      const bindings = {
+        locals:
+          kind === 'locals'
+            ? privateDescendant
+            : kind === 'map-key'
+              ? new Map([[privateDescendant, 'value']])
+              : kind === 'map-value'
+                ? new Map([['key', privateDescendant]])
+                : new Set([privateDescendant]),
+      };
+      let getters = 0;
+      Object.defineProperty(bindings, 'lazyContext', {
+        get() {
+          getters++;
+          return { token: 'PRIVATE_GETTER' };
+        },
+      });
+      const data = { privateDescendant };
+      const fixture = await nativeFixture({ owner: session(bindings), data });
+      await expect(fixture.dehydrate()).rejects.toThrow(
+        'Request-private context',
+      );
+      expect(getters).toBe(0);
+      expect(fixture.router.stores.matches.get()[0]!.loaderData).toBe(data);
+      expect(fixture.owner.signal.aborted).toBe(true);
+      expect((await fixture.owner.completion).cacheEligible).toBe(false);
+      expect(fixture.nativeSsr.takeBufferedHtml() ?? '').not.toContain(
+        'PRIVATE_DESCENDANT',
+      );
+    },
+  );
 
   it('retains captured private aliases after a consumer dehydrate hook removes their context path', async () => {
     const privateAlias = { token: 'REMOVED_PRIVATE_ALIAS' };
@@ -490,31 +494,31 @@ describe('native Octane public router snapshots', () => {
     ).not.toContain('NEW_PRIVATE_DESCENDANT');
   });
 
-  it.each([
-    'resolve',
-    'reject',
-  ] as const)('rechecks an original deferred Promise made private before %s', async settlement => {
-    const late = deferred<unknown>();
-    const bindings: { pending?: Promise<unknown> } = {};
-    const fixture = await nativeFixture({
-      owner: session(bindings),
-      data: { late: late.promise },
-    });
-    await fixture.dehydrate();
-    bindings.pending = late.promise;
-    if (settlement === 'resolve') late.resolve({ visible: true });
-    else late.reject(new TypeError('Public failure'));
-    await flush();
-    expect(fixture.owner.signal.aborted).toBe(true);
-    expect((await fixture.owner.completion).cacheEligible).toBe(false);
-    expect(
-      (
-        fixture.router.stores.matches.get()[0]!.loaderData as {
-          late: unknown;
-        }
-      ).late,
-    ).toBe(late.promise);
-  });
+  it.each(['resolve', 'reject'] as const)(
+    'rechecks an original deferred Promise made private before %s',
+    async settlement => {
+      const late = deferred<unknown>();
+      const bindings: { pending?: Promise<unknown> } = {};
+      const fixture = await nativeFixture({
+        owner: session(bindings),
+        data: { late: late.promise },
+      });
+      await fixture.dehydrate();
+      bindings.pending = late.promise;
+      if (settlement === 'resolve') late.resolve({ visible: true });
+      else late.reject(new TypeError('Public failure'));
+      await flush();
+      expect(fixture.owner.signal.aborted).toBe(true);
+      expect((await fixture.owner.completion).cacheEligible).toBe(false);
+      expect(
+        (
+          fixture.router.stores.matches.get()[0]!.loaderData as {
+            late: unknown;
+          }
+        ).late,
+      ).toBe(late.promise);
+    },
+  );
 
   it('rejects original private Error identities in the native deferred error channel', async () => {
     const late = deferred<unknown>();
@@ -643,54 +647,53 @@ describe('native Octane public router snapshots', () => {
     expect(fixture.owner.signal.aborted).toBe(true);
   });
 
-  it.each([
-    'inherited',
-    'id',
-    'routeId',
-  ] as const)('rejects %s metadata before native pre-adapter reads can execute user code', async kind => {
-    let getters = 0;
-    const fixture = await nativeFixture({ data: 'visible' });
-    const match = fixture.router.stores.matches.get()[0]!;
-    if (kind === 'inherited') {
-      delete match.loaderData;
-      Object.setPrototypeOf(match, {
-        get loaderData() {
-          getters++;
-          return 'PRIVATE';
-        },
-      });
-    } else {
-      Object.defineProperty(match, kind, {
-        value: {
-          get replaceAll() {
+  it.each(['inherited', 'id', 'routeId'] as const)(
+    'rejects %s metadata before native pre-adapter reads can execute user code',
+    async kind => {
+      let getters = 0;
+      const fixture = await nativeFixture({ data: 'visible' });
+      const match = fixture.router.stores.matches.get()[0]!;
+      if (kind === 'inherited') {
+        delete match.loaderData;
+        Object.setPrototypeOf(match, {
+          get loaderData() {
             getters++;
-            return () => 'PRIVATE';
+            return 'PRIVATE';
           },
-        },
-      });
-    }
-    await expect(
-      (async () => {
-        fixture.guard.assertMatches();
-        await fixture.nativeSsr.dehydrate();
-      })(),
-    ).rejects.toThrow();
-    expect(getters).toBe(0);
-  });
+        });
+      } else {
+        Object.defineProperty(match, kind, {
+          value: {
+            get replaceAll() {
+              getters++;
+              return () => 'PRIVATE';
+            },
+          },
+        });
+      }
+      await expect(
+        (async () => {
+          fixture.guard.assertMatches();
+          await fixture.nativeSsr.dehydrate();
+        })(),
+      ).rejects.toThrow();
+      expect(getters).toBe(0);
+    },
+  );
 
-  it.each([
-    'styles',
-    'headScripts',
-  ] as const)('rejects native %s before the fragment host can render unsupported document tags', async field => {
-    const fixture = await nativeFixture({ data: 'visible' });
-    Object.assign(fixture.router.stores.matches.get()[0]!, {
-      [field]: [{ children: 'PRIVATE_HEAD' }],
-    });
-    expect(() => fixture.guard.assertMatches()).toThrow(
-      'styles/headScripts are not admitted',
-    );
-    expect(fixture.owner.signal.aborted).toBe(true);
-  });
+  it.each(['styles', 'headScripts'] as const)(
+    'rejects native %s before the fragment host can render unsupported document tags',
+    async field => {
+      const fixture = await nativeFixture({ data: 'visible' });
+      Object.assign(fixture.router.stores.matches.get()[0]!, {
+        [field]: [{ children: 'PRIVATE_HEAD' }],
+      });
+      expect(() => fixture.guard.assertMatches()).toThrow(
+        'styles/headScripts are not admitted',
+      );
+      expect(fixture.owner.signal.aborted).toBe(true);
+    },
+  );
 
   it('uses the shared production error policy for opaque native errors while retaining explicit public route errors', async () => {
     const late = deferred<unknown>();

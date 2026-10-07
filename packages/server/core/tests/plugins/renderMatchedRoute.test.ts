@@ -160,37 +160,37 @@ describe('actual render match exposed to server extensions', () => {
     expect(await result.response.text()).toBe(body);
   });
 
-  it.each([
-    'rsc-tree',
-    'rsc-action',
-  ] as const)('exposes the same actual route for %s without changing the existing protocol', async mode => {
-    const result = await execute({
-      request: new Request('http://localhost/original', {
-        method: mode === 'rsc-action' ? 'POST' : 'GET',
-        headers: { [`x-${mode}`]: 'actual-control' },
-      }),
-      rewrite: { matchPathname: '/user/details' },
-      serverManifest: {
-        renderBundles: {
-          user: {
-            rscPayloadHandler: async (_request, options) => {
-              expect(options.resource.route).toBe(user);
-              return new Response('actual flight', {
-                headers: { 'content-type': 'text/x-component' },
-              });
+  it.each(['rsc-tree', 'rsc-action'] as const)(
+    'exposes the same actual route for %s without changing the existing protocol',
+    async mode => {
+      const result = await execute({
+        request: new Request('http://localhost/original', {
+          method: mode === 'rsc-action' ? 'POST' : 'GET',
+          headers: { [`x-${mode}`]: 'actual-control' },
+        }),
+        rewrite: { matchPathname: '/user/details' },
+        serverManifest: {
+          renderBundles: {
+            user: {
+              rscPayloadHandler: async (_request, options) => {
+                expect(options.resource.route).toBe(user);
+                return new Response('actual flight', {
+                  headers: { 'content-type': 'text/x-component' },
+                });
+              },
+              handleAction: async () =>
+                new Response('actual action', { status: 201 }),
             },
-            handleAction: async () =>
-              new Response('actual action', { status: 201 }),
           },
         },
-      },
-    });
-    expect(result.final).toBe(user);
-    expect(await result.response.text()).toBe(
-      mode === 'rsc-action' ? 'actual action' : 'actual flight',
-    );
-    expect(result.response.status).toBe(mode === 'rsc-action' ? 201 : 200);
-  });
+      });
+      expect(result.final).toBe(user);
+      expect(await result.response.text()).toBe(
+        mode === 'rsc-action' ? 'actual action' : 'actual flight',
+      );
+      expect(result.response.status).toBe(mode === 'rsc-action' ? 201 : 200);
+    },
+  );
 
   it('preserves a route with omitted entryName and the executor main bundle default', async () => {
     const implicit: ServerRoute = {

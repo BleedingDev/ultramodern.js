@@ -282,27 +282,32 @@ describe('native Solid route actions', () => {
     ['RegExp', /tractor/gu],
     ['Map', new Map([['name', 'tractor']])],
     ['Set', new Set(['tractor'])],
-  ])('the native UI boundary rejects mutable %s without changing the HTTP codec', async (_name, value) => {
-    const decoded = await readDataResponse(success(value), {
-      identity,
-      routeId: 'item',
-      operation: 'action',
-    });
-    if (decoded.kind !== 'success')
-      throw new Error('Missing HTTP data outcome');
-    expect(Object.getPrototypeOf(decoded.value)).toBe(
-      Object.getPrototypeOf(value),
-    );
-    const { router, action, loads } = actionFixture(async () => success(value));
-    await router.load();
-    expect(await action.submit(request())).toBeUndefined();
-    flush();
-    expect(action.outcome()).toBeUndefined();
-    expect(action.error()).toBeInstanceOf(Error);
-    expect(action.error()?.name).toBe('DataProtocolError');
-    expect(action.pending()).toBe(false);
-    expect(loads()).toBe(1);
-  });
+  ])(
+    'the native UI boundary rejects mutable %s without changing the HTTP codec',
+    async (_name, value) => {
+      const decoded = await readDataResponse(success(value), {
+        identity,
+        routeId: 'item',
+        operation: 'action',
+      });
+      if (decoded.kind !== 'success')
+        throw new Error('Missing HTTP data outcome');
+      expect(Object.getPrototypeOf(decoded.value)).toBe(
+        Object.getPrototypeOf(value),
+      );
+      const { router, action, loads } = actionFixture(async () =>
+        success(value),
+      );
+      await router.load();
+      expect(await action.submit(request())).toBeUndefined();
+      flush();
+      expect(action.outcome()).toBeUndefined();
+      expect(action.error()).toBeInstanceOf(Error);
+      expect(action.error()?.name).toBe('DataProtocolError');
+      expect(action.pending()).toBe(false);
+      expect(loads()).toBe(1);
+    },
+  );
 
   test('public errors and not-found outcomes retain honest action failure state', async () => {
     for (const outcome of [

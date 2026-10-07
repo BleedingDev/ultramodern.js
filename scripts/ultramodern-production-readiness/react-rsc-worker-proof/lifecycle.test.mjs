@@ -200,7 +200,7 @@ for (const [name, parentValue] of [
   ['absent', () => undefined],
   ['relative', () => 'relative'],
   ['noncanonical', parent => `${parent.root}/.`],
-  ['equal to the proof root', (parent, proof) => proof.workDir],
+  ['equal to the proof root', (_parent, proof) => proof.workDir],
   ['missing', parent => path.join(parent.root, 'missing')],
   ['sibling', parent => `${parent.root}-sibling`],
 ]) {

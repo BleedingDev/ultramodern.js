@@ -382,14 +382,17 @@ describe('document cache isolation', () => {
   test.each([
     ['set-cookie', 'token=secret'],
     ['cache-control', 'private'],
-  ])('uses final middleware headers for cache admission: %s', async (name, value) => {
-    const session = createSession();
-    session.resolveResponse(policy());
-    const response = session.respond(body());
-    response.headers.append(name, value);
-    await response.text();
-    expect((await session.completion).cacheEligible).toBe(false);
-  });
+  ])(
+    'uses final middleware headers for cache admission: %s',
+    async (name, value) => {
+      const session = createSession();
+      session.resolveResponse(policy());
+      const response = session.respond(body());
+      response.headers.append(name, value);
+      await response.text();
+      expect((await session.completion).cacheEligible).toBe(false);
+    },
+  );
 
   test('namespaces every immutable identity field before a custom request key', () => {
     const identities = [
@@ -439,10 +442,13 @@ describe('document cache isolation', () => {
     { headers: [['content-type', 'application/json']] },
     { status: 404 },
     { kind: 'terminal' as const },
-  ])('keeps private, terminal and non-document responses out of the shared cache: %j', async overrides => {
-    const session = createSession();
-    session.resolveResponse(policy(overrides as Partial<ResponsePolicy>));
-    await session.respond(body()).text();
-    expect((await session.completion).cacheEligible).toBe(false);
-  });
+  ])(
+    'keeps private, terminal and non-document responses out of the shared cache: %j',
+    async overrides => {
+      const session = createSession();
+      session.resolveResponse(policy(overrides as Partial<ResponsePolicy>));
+      await session.respond(body()).text();
+      expect((await session.completion).cacheEligible).toBe(false);
+    },
+  );
 });

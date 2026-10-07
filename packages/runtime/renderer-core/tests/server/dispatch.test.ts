@@ -375,49 +375,55 @@ describe('production native Node Fetch dispatch', () => {
     { headers: { 'cache-control': 'no-store' } },
     { headers: { pragma: 'no-cache' } },
     { headers: { range: 'bytes=0-5' } },
-  ])('bypasses cache before lookup for private or non-document request %j', async requestOptions => {
-    const cache = store();
-    const response = await dispatchNativeNodeRequest(
-      new Request('https://example.test/', requestOptions),
-      options((_request, context) => publicDocument('uncached', context), {
-        cache,
-      }),
-    );
-    await response.text();
-    expect(cache.get).not.toHaveBeenCalled();
-    expect(cache.set).not.toHaveBeenCalled();
-  });
+  ])(
+    'bypasses cache before lookup for private or non-document request %j',
+    async requestOptions => {
+      const cache = store();
+      const response = await dispatchNativeNodeRequest(
+        new Request('https://example.test/', requestOptions),
+        options((_request, context) => publicDocument('uncached', context), {
+          cache,
+        }),
+      );
+      await response.text();
+      expect(cache.get).not.toHaveBeenCalled();
+      expect(cache.set).not.toHaveBeenCalled();
+    },
+  );
 
-  it.each([
-    '__loader=route',
-    '__ssrDirect=1',
-  ])('bypasses loader protocol cache before lookup: %s', async query => {
-    const cache = store();
-    const response = await dispatchNativeNodeRequest(
-      new Request(`https://example.test/?${query}`),
-      options(() => Response.json({ ok: true }), { cache }),
-    );
-    await response.text();
-    expect(cache.get).not.toHaveBeenCalled();
-    expect(cache.set).not.toHaveBeenCalled();
-  });
+  it.each(['__loader=route', '__ssrDirect=1'])(
+    'bypasses loader protocol cache before lookup: %s',
+    async query => {
+      const cache = store();
+      const response = await dispatchNativeNodeRequest(
+        new Request(`https://example.test/?${query}`),
+        options(() => Response.json({ ok: true }), { cache }),
+      );
+      await response.text();
+      expect(cache.get).not.toHaveBeenCalled();
+      expect(cache.set).not.toHaveBeenCalled();
+    },
+  );
 
   it.each([
     ['set-cookie', 'late=1'],
     ['cache-control', 'private'],
     ['vary', 'Accept-Language'],
-  ])('rejects mutable delivered privacy header %s at cache commit', async (name, value) => {
-    const cache = store();
-    const response = await dispatchNativeNodeRequest(
-      new Request('https://example.test/'),
-      options((_request, context) => publicDocument('private', context), {
-        cache,
-      }),
-    );
-    response.headers.append(name, value);
-    await response.text();
-    expect(cache.set).not.toHaveBeenCalled();
-  });
+  ])(
+    'rejects mutable delivered privacy header %s at cache commit',
+    async (name, value) => {
+      const cache = store();
+      const response = await dispatchNativeNodeRequest(
+        new Request('https://example.test/'),
+        options((_request, context) => publicDocument('private', context), {
+          cache,
+        }),
+      );
+      response.headers.append(name, value);
+      await response.text();
+      expect(cache.set).not.toHaveBeenCalled();
+    },
+  );
 
   it('bounds capture memory without interrupting native body delivery', async () => {
     const cache = store();

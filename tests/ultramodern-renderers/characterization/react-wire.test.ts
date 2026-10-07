@@ -80,28 +80,29 @@ describe.sequential('current React server-only data HTTP contract', () => {
     expect(await response?.json()).toEqual({ ok: true });
   });
 
-  test.each([
-    301, 302, 303, 307, 308,
-  ])('encodes returned and thrown %i redirects before browser dispatch', async status => {
-    for (const mode of ['returned', 'thrown']) {
-      const routes = item({
-        loader: () => {
-          const response = new Response(null, {
-            status,
-            headers: { location: '/next', 'set-cookie': 'auth=1; Path=/' },
-          });
-          if (mode === 'thrown') throw response;
-          return response;
-        },
-      });
-      const response = await dispatch(routes);
-      expect(response?.status).toBe(204);
-      expect(response?.headers.get('x-modernjs-redirect')).toBe('/next');
-      expect(response?.headers.has('location')).toBe(false);
-      expect(response?.headers.get('set-cookie')).toBe('auth=1; Path=/');
-      expect(await response?.text()).toBe('');
-    }
-  });
+  test.each([301, 302, 303, 307, 308])(
+    'encodes returned and thrown %i redirects before browser dispatch',
+    async status => {
+      for (const mode of ['returned', 'thrown']) {
+        const routes = item({
+          loader: () => {
+            const response = new Response(null, {
+              status,
+              headers: { location: '/next', 'set-cookie': 'auth=1; Path=/' },
+            });
+            if (mode === 'thrown') throw response;
+            return response;
+          },
+        });
+        const response = await dispatch(routes);
+        expect(response?.status).toBe(204);
+        expect(response?.headers.get('x-modernjs-redirect')).toBe('/next');
+        expect(response?.headers.has('location')).toBe(false);
+        expect(response?.headers.get('set-cookie')).toBe('auth=1; Path=/');
+        expect(await response?.text()).toBe('');
+      }
+    },
+  );
 
   test('distinguishes returned non-2xx data from a thrown catch response', async () => {
     const returned = await dispatch(

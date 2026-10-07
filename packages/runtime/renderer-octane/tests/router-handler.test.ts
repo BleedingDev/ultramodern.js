@@ -94,25 +94,28 @@ test('native matching and document callback follow guarded serialization', async
 test.each([
   ['/target', 303],
   ['https://elsewhere.test/target', 307],
-] as const)('native terminal redirect %s bypasses document serialization', async (href, statusCode) => {
-  const owner = createOwner();
-  const root = createRootRoute({
-    loader: () => {
-      throw redirect({ href, statusCode });
-    },
-  });
-  const router = createRouter({ routeTree: root, isServer: true });
-  const callback = rs.fn(async () => new Response('incorrect document'));
-  const response = await createOctaneRequestHandler({
-    ...owner,
-    createRouter: () => router,
-  })(callback);
-  expect(response.status).toBe(statusCode);
-  expect(response.headers.get('location')).toBe(href);
-  expect(response.body).toBeNull();
-  expect(callback).not.toHaveBeenCalled();
-  expect(router.serverSsr?.takeBufferedHtml()).toBeUndefined();
-});
+] as const)(
+  'native terminal redirect %s bypasses document serialization',
+  async (href, statusCode) => {
+    const owner = createOwner();
+    const root = createRootRoute({
+      loader: () => {
+        throw redirect({ href, statusCode });
+      },
+    });
+    const router = createRouter({ routeTree: root, isServer: true });
+    const callback = rs.fn(async () => new Response('incorrect document'));
+    const response = await createOctaneRequestHandler({
+      ...owner,
+      createRouter: () => router,
+    })(callback);
+    expect(response.status).toBe(statusCode);
+    expect(response.headers.get('location')).toBe(href);
+    expect(response.body).toBeNull();
+    expect(callback).not.toHaveBeenCalled();
+    expect(router.serverSsr?.takeBufferedHtml()).toBeUndefined();
+  },
+);
 
 test('preflight rejects a match accessor before native id handling', async () => {
   const owner = createOwner();

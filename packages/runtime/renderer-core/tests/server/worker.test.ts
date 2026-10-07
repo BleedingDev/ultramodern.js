@@ -102,27 +102,27 @@ describe('native worker Fetch dispatch', () => {
     ).rejects.toThrow('conflicts with the application build');
   });
 
-  it.each([
-    'x-rsc-tree',
-    'x-rsc-action',
-  ])('rejects %s before loading the bundle', async header => {
-    const response = await dispatchNativeWorkerRequest(
-      new Request('https://worker.test/', { headers: { [header]: '1' } }),
-      {
-        identity,
-        get bundle(): unknown {
-          throw new Error('bundle must not be read');
+  it.each(['x-rsc-tree', 'x-rsc-action'])(
+    'rejects %s before loading the bundle',
+    async header => {
+      const response = await dispatchNativeWorkerRequest(
+        new Request('https://worker.test/', { headers: { [header]: '1' } }),
+        {
+          identity,
+          get bundle(): unknown {
+            throw new Error('bundle must not be read');
+          },
+          resources,
+          bindings: {},
         },
-        resources,
-        bindings: {},
-      },
-    );
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({
-      code: 'unsupported-renderer-capability',
-      capability: 'rsc',
-    });
-  });
+      );
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({
+        code: 'unsupported-renderer-capability',
+        capability: 'rsc',
+      });
+    },
+  );
 
   it('admits a CSR fallback only when the build declares its header', async () => {
     const seen: NativeRequestContext[] = [];

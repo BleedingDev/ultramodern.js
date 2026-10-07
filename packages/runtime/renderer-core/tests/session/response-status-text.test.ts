@@ -58,33 +58,33 @@ describe('native response status text', () => {
     expect((await session.completion).cacheEligible).toBe(true);
   });
 
-  test.each([
-    'Invalid\r\nreason',
-    'Invalid\u20ac',
-  ])('rejects invalid Fetch reason %j before committing or claiming a stream', async statusText => {
-    const session = createSession();
-    const stream = new ReadableStream<Uint8Array>({}, { highWaterMark: 0 });
-    const reader = rstest.spyOn(stream, 'getReader');
+  test.each(['Invalid\r\nreason', 'Invalid\u20ac'])(
+    'rejects invalid Fetch reason %j before committing or claiming a stream',
+    async statusText => {
+      const session = createSession();
+      const stream = new ReadableStream<Uint8Array>({}, { highWaterMark: 0 });
+      const reader = rstest.spyOn(stream, 'getReader');
 
-    expect(() =>
-      session.resolveResponse({
-        kind: 'document',
-        status: 200,
-        statusText,
-        headers: [['content-type', 'text/html']],
-        cache: { mode: 'no-store' },
-      }),
-    ).toThrow(TypeError);
-    expect(session.state).toBe('matching');
-    expect(session.responsePolicy).toBeUndefined();
-    expect(session.committedPolicy).toBeUndefined();
-    expect(() => session.respond(stream)).toThrow('blocking HTTP outcome');
-    expect(reader).not.toHaveBeenCalled();
+      expect(() =>
+        session.resolveResponse({
+          kind: 'document',
+          status: 200,
+          statusText,
+          headers: [['content-type', 'text/html']],
+          cache: { mode: 'no-store' },
+        }),
+      ).toThrow(TypeError);
+      expect(session.state).toBe('matching');
+      expect(session.responsePolicy).toBeUndefined();
+      expect(session.committedPolicy).toBeUndefined();
+      expect(() => session.respond(stream)).toThrow('blocking HTTP outcome');
+      expect(reader).not.toHaveBeenCalled();
 
-    session.abort();
-    await session.completion;
-    await stream.cancel();
-  });
+      session.abort();
+      await session.completion;
+      await stream.cancel();
+    },
+  );
 
   test('keeps the Fetch default when no reason text was supplied', async () => {
     const session = createSession();
