@@ -29,14 +29,21 @@ import {
 import {
   assertAcceptedPublishToolchain,
   loadNpmPublishingRuntime,
+  preflightTrustedPublishingPackages,
   requestTrustedPublishingToken,
 } from './lib/prepare-bleedingdev-packages/npm-buffer-publisher.mjs';
 import { resolveOwnedPreparationOutput } from './lib/prepare-bleedingdev-packages/options.mjs';
+import {
+  createRegistryProvenanceExpectation,
+  RegistryProvenancePendingError,
+  verifyRegistryProvenance,
+} from './lib/prepare-bleedingdev-packages/provenance.mjs';
 import { lookupRegistryPackument } from './lib/prepare-bleedingdev-packages/registry.mjs';
 import {
   pollRegistryPropagation,
   registryPropagationDelaysMs,
 } from './lib/prepare-bleedingdev-packages/registry-propagation.mjs';
+import { verifyRegistryTarball } from './lib/prepare-bleedingdev-packages/registry-read.mjs';
 import { verifyReleaseArtifacts } from './lib/prepare-bleedingdev-packages/release-artifacts.mjs';
 import {
   assertSidecarPublishOrder,
@@ -45,10 +52,16 @@ import {
   assertSidecarStagingManifest,
   assertSidecarTrustedPublishContext,
   npmRegistryUrl,
+  sidecarContentProjection,
   sidecarPublishTag,
   sidecarRegistryDecision,
 } from './lib/prepare-bleedingdev-packages/sidecar-publication.mjs';
 import { sidecarProvenancePolicy } from './lib/prepare-bleedingdev-packages/sidecars.mjs';
+import {
+  resolveSidecarOutput,
+  sidecarPublishBefore,
+  verifySidecarQualification,
+} from './sidecar-bundle.mjs';
 
 const { parseCliArgs } = cliKit;
 const { isPlainObject } = validationKit;
@@ -77,7 +90,12 @@ const resumableInitialStates = new Set([
   propagationPendingStates.tagAbsent,
 ]);
 
-const cliValueOptions = new Set(['--out', '--tag']);
+const cliValueOptions = new Set([
+  '--out',
+  '--tag',
+  '--mode',
+  '--qualification',
+]);
 const cliBooleanOptions = new Set([
   '--check-registry',
   '--check-staging',
@@ -97,6 +115,8 @@ function parseArgs(argv) {
 
   const options = parseCliArgs(argv, {
     defaults: {
+      mode: 'cohort',
+      qualification: undefined,
       checkRegistry: false,
       checkStaging: false,
       dryRun: false,
@@ -110,6 +130,8 @@ function parseArgs(argv) {
       'dry-run': { key: 'dryRun', type: 'boolean' },
       out: {},
       tag: {},
+      mode: {},
+      qualification: {},
     },
   });
 
@@ -127,7 +149,29 @@ function parseArgs(argv) {
       `--tag must be ${sidecarPublishTag}; the cohort and its sidecars ship one dist-tag`,
     );
   }
-  options.out = resolveOwnedPreparationOutput(options.out);
+  if (!['cohort', 'sidecars'].includes(options.mode))
+    throw new Error('--mode must be cohort or sidecars');
+  if (options.mode === 'sidecars') {
+    if (!argv.includes('--out'))
+      options.out = path.join(
+        repoRoot,
+        '.modern',
+        'bleedingdev-sidecars',
+        'bundle',
+      );
+    if (options.checkRegistry)
+      throw new Error(
+        'Independent sidecars require the qualified bundle; --check-registry is cohort-only',
+      );
+    if (!options.qualification)
+      throw new Error('Independent sidecars require --qualification');
+    options.out = resolveSidecarOutput(options.out);
+    options.qualification = resolveSidecarOutput(options.qualification);
+  } else {
+    if (options.qualification)
+      throw new Error('--qualification is independent-sidecar-only');
+    options.out = resolveOwnedPreparationOutput(options.out);
+  }
   return options;
 }
 
@@ -137,16 +181,26 @@ function parseArgs(argv) {
  */
 function readStagedSidecars(
   releaseDir,
-  { verifyRelease = verifyReleaseArtifacts } = {},
+  {
+    verifyRelease = verifyReleaseArtifacts,
+    mode = 'cohort',
+    qualification,
+  } = {},
 ) {
-  const release = verifyRelease(releaseDir);
+  const release =
+    mode === 'sidecars'
+      ? verifySidecarQualification(releaseDir, qualification)
+      : verifyRelease(releaseDir);
   if (!release.sidecars) {
     throw new Error(
       `Missing accepted ${sidecarManifestFile} in ${releaseDir}; stage the release with --include-sidecars before publishing sidecars`,
     );
   }
   const manifest = assertSidecarStagingManifest(release.sidecars.manifest, {
-    publishBefore: sidecarAliasConsumerTargetName,
+    publishBefore:
+      mode === 'sidecars'
+        ? sidecarPublishBefore
+        : sidecarAliasConsumerTargetName,
   });
   const byName = new Map(
     release.sidecars.packages.map(sidecar => [sidecar.name, sidecar]),
@@ -466,6 +520,64 @@ async function awaitSidecarReuseProvenance(
   }
 }
 
+async function verifyFreshSidecar(sidecar, { source }, dependencies = {}) {
+  const readPackument = dependencies.readPackument ?? readSidecarPackument;
+  const exactProvenance =
+    dependencies.verifyFreshProvenance ?? verifyRegistryProvenance;
+  const verifyTarball =
+    dependencies.verifyFreshTarball ?? verifyRegistryTarball;
+  const expectation = createRegistryProvenanceExpectation({ source });
+  if (!expectation.invocation)
+    throw new Error(
+      'Fresh sidecar provenance requires its workflow run and attempt',
+    );
+  expectation.invocation.exactAttempt = true;
+  const outcome = await pollRegistryPropagation(
+    async () => {
+      const packument = await readPackument(sidecar.name);
+      const pending = await classifySidecarPropagation(sidecar, packument, {
+        tag: sidecarPublishTag,
+      });
+      if (pending) return { settled: false, detail: pending.detail };
+      await sidecarRegistryDecision(sidecar, packument);
+      const dist = packument.versions[sidecar.version].dist;
+      await verifyTarball({ ...sidecar, targetName: sidecar.name }, dist);
+      if (
+        !Object.hasOwn(dist, 'attestations') ||
+        (isPlainObject(dist.attestations) &&
+          !Object.hasOwn(dist.attestations, 'provenance'))
+      ) {
+        return {
+          settled: false,
+          detail: `${sidecar.name}@${sidecar.version} provenance metadata is not indexed yet`,
+        };
+      }
+      try {
+        await exactProvenance(
+          { ...sidecar, targetName: sidecar.name },
+          dist,
+          expectation,
+        );
+      } catch (error) {
+        if (error instanceof RegistryProvenancePendingError)
+          return { settled: false, detail: error.message };
+        throw error;
+      }
+      await (dependencies.verifyReuse ?? assertSidecarReuseProvenance)(
+        sidecar,
+        packument,
+        { source },
+      );
+      return { settled: true };
+    },
+    { wait: dependencies.wait },
+  );
+  if (!outcome.settled)
+    throw new Error(
+      `Published sidecar ${sidecar.name}@${sidecar.version} provenance did not verify: ${outcome.detail}`,
+    );
+}
+
 async function awaitInitialSidecarPackument(sidecar, dependencies = {}) {
   const readPackument = dependencies.readPackument ?? readSidecarPackument;
   const wait = dependencies.wait ?? sleep;
@@ -481,7 +593,7 @@ async function awaitInitialSidecarPackument(sidecar, dependencies = {}) {
 
 async function publishSidecars(options, dependencies = {}) {
   const readSidecars = dependencies.readSidecars ?? readStagedSidecars;
-  const { manifest, release, sidecars } = readSidecars(options.out);
+  const { manifest, release, sidecars } = readSidecars(options.out, options);
   const acceptedTools = release.manifest.tools;
   const plan = sidecars.map(sidecar => `${sidecar.name}@${sidecar.version}`);
   console.log(
@@ -513,6 +625,59 @@ async function publishSidecars(options, dependencies = {}) {
   // verifiable before the lane reports success (and so before the cohort), but
   // the lane's wall clock is one propagation window, not one per sidecar or
   // per alias level (the job has a fixed timeout).
+  for (const sidecar of sidecars) {
+    assertSidecarPublishTarget(sidecar.packageJson, sidecar.name);
+    sidecarContentProjection(sidecar.packageJson, sidecar.name);
+  }
+  const missingNames = [];
+  const absentVersions = [];
+  for (const sidecar of sidecars) {
+    let packument = await readPackument(sidecar.name);
+    if (packument === null || packument === undefined) {
+      packument = await awaitInitialSidecarPackument(sidecar, {
+        ...dependencies,
+        readPackument,
+      });
+    }
+    if (packument === null || packument === undefined) {
+      missingNames.push(sidecar);
+      continue;
+    }
+    const pending = await classifySidecarPropagation(sidecar, packument, {
+      tag: options.tag,
+    });
+    if (pending && resumableInitialStates.has(pending.state)) {
+      await awaitPublishedSidecar(sidecar, options, dependencies);
+      await verifyReuse(sidecar, undefined);
+    } else {
+      const decision = await sidecarRegistryDecision(sidecar, packument, {
+        tag: options.tag,
+      });
+      if (decision.action === 'publish')
+        absentVersions.push({ targetName: sidecar.name });
+      else await verifyReuse(sidecar, packument);
+    }
+  }
+  if (missingNames.length > 0)
+    throw sidecarBootstrapError(
+      missingNames,
+      'does not exist on the registry after the bounded propagation wait',
+    );
+  const preflightPublishNames = new Set(
+    absentVersions.map(item => item.targetName),
+  );
+  if (!options.dryRun && absentVersions.length > 0) {
+    assertSidecarTrustedPublishContext();
+    assertAcceptedPublishToolchain(
+      acceptedTools,
+      (dependencies.loadRuntime ?? loadNpmPublishingRuntime)(),
+    );
+    await (dependencies.preflightTokens ?? preflightTrustedPublishingPackages)(
+      absentVersions,
+      { registryUrl: npmRegistryUrl },
+      dependencies,
+    );
+  }
   const propagating = [];
   let propagationFailure;
   const assertNoPropagationFailure = () => {
@@ -525,7 +690,12 @@ async function publishSidecars(options, dependencies = {}) {
       sidecar,
       options,
       dependencies,
-    ).then(decision => {
+    ).then(async decision => {
+      await verifyFreshSidecar(
+        sidecar,
+        { source: release.manifest.source },
+        dependencies,
+      );
       console.log(settledMessage(decision));
     });
     // Record the first failure so the lane stops publishing; the rejection
@@ -589,6 +759,10 @@ async function publishSidecars(options, dependencies = {}) {
       continue;
     }
 
+    if (!preflightPublishNames.has(sidecar.name))
+      throw new Error(
+        `Sidecar ${sidecar.name} registry state changed after the complete publication preflight`,
+      );
     assertSidecarTrustedPublishContext();
     // An earlier sidecar's verification may have failed during any await
     // above; the publisher re-checks after its own token await as well.
@@ -651,4 +825,5 @@ export {
   readSidecarPackument,
   readStagedSidecars,
   sidecarTarballsDirectory,
+  verifyFreshSidecar,
 };

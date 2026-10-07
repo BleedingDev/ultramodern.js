@@ -87,6 +87,92 @@ test('a listed unpublished fork edge at the exact upstream version consumes its 
   );
 });
 
+test('unpublished parser recipe roots require the exact consumer, dependency and upstream version', () => {
+  const roots = [
+    [
+      'packages/toolkit/utils',
+      '@bleedingdev/modern-js-utils',
+      'fast-glob',
+      '3.3.3',
+    ],
+    [
+      'packages/cli/builder',
+      '@bleedingdev/modern-js-builder',
+      '@rsbuild/plugin-source-build',
+      '1.0.7',
+    ],
+    [
+      'packages/cli/builder',
+      '@bleedingdev/modern-js-builder',
+      '@rsbuild/plugin-type-check',
+      '1.6.0',
+    ],
+    [
+      'packages/toolkit/ultramodern-create',
+      '@bleedingdev/modern-js-ultramodern-create',
+      'ultracite',
+      '7.12.2',
+    ],
+  ];
+  for (const [importer, published, dependency, version] of roots) {
+    const recipe = {
+      id: dependency,
+      upstream: { name: dependency, version },
+      fork: { name: `@bleedingdev/${dependency.split('/').pop()}`, version },
+      manifestChanges: {},
+    };
+    for (const consumer of [importer, published]) {
+      assert.equal(
+        isUnpublishedForkEdge(consumer, dependency, version, recipe),
+        true,
+      );
+      assert.equal(
+        isUnpublishedForkEdge(
+          consumer,
+          dependency,
+          `${version}(peer@1.0.0)`,
+          recipe,
+        ),
+        true,
+      );
+      for (const specifier of [
+        `^${version}`,
+        `${version}0`,
+        `${version}-next`,
+        `${version}+local`,
+      ])
+        assert.equal(
+          isUnpublishedForkEdge(consumer, dependency, specifier, recipe),
+          false,
+        );
+      assert.equal(
+        isUnpublishedForkEdge(consumer, `${dependency}-other`, version, recipe),
+        false,
+      );
+    }
+    const consumers = {
+      generatorPins: [],
+      publishedManifests: [
+        { name: published, dependencies: { [dependency]: version } },
+      ],
+    };
+    assertRecipeConsumers([recipe], consumers);
+    consumers.publishedManifests[0].name = '@bleedingdev/modern-js-unlisted';
+    assert.throws(
+      () => assertRecipeConsumers([recipe], consumers),
+      /declare npm:/u,
+    );
+    consumers.publishedManifests[0] = {
+      name: published,
+      devDependencies: { [dependency]: version },
+    };
+    assert.throws(
+      () => assertRecipeConsumers([recipe], consumers),
+      /has no runtime consumer/u,
+    );
+  }
+});
+
 test('recipes reached only through a reachable recipe alias edge are consumed', () => {
   const child = {
     id: 'child',

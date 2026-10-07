@@ -1493,7 +1493,8 @@ async function runAcceptanceProfile({
             now: currentTime(now),
           });
           bindSupplyChainEvidence(receipt, audit.digests);
-          const advisories = assertNoHighAdvisoriesImpl({
+          const advisories = await assertNoHighAdvisoriesImpl({
+            allowRepositoryCorrections: false,
             cwd: projectDir,
             env: packageManagerEnv,
             now: currentTime(now),

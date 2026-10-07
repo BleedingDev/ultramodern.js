@@ -352,7 +352,10 @@ async function createOperationalAcceptanceReceiptFixture({
               workspaceSha256: fixtureWorkspaceSha256,
             }
           : id === 'dependency-closure-audit'
-            ? { closureIdentities: structuredClone(fixtureClosureIdentities) }
+            ? {
+                advisories: { auditLevel: 'high', acknowledged: [] },
+                closureIdentities: structuredClone(fixtureClosureIdentities),
+              }
             : id === 'resolution-parity'
               ? {
                   closureSha256: fixtureClosureSha256,

@@ -512,6 +512,8 @@ const withTrustedPublishEnv = t => {
     GITHUB_ACTIONS: 'true',
     GITHUB_REF: 'refs/heads/main-ultramodern',
     GITHUB_REPOSITORY: 'BleedingDev/ultramodern.js',
+    GITHUB_RUN_ID: '12345',
+    GITHUB_RUN_ATTEMPT: '2',
   };
   const savedEnv = Object.fromEntries(
     Object.keys(trustedEnv).map(key => [key, process.env[key]]),
@@ -539,6 +541,10 @@ const publishedPackumentFor = (sidecar, overrides = {}) =>
     overrides: {
       bin: sidecar.packageJson.bin,
       dependencies: sidecar.packageJson.dependencies,
+      dist: {
+        ...packumentFor(sidecar).versions[sidecar.version].dist,
+        attestations: { provenance: {} },
+      },
       ...overrides,
     },
   });
@@ -554,10 +560,17 @@ const sidecarLaneDependencies = ({
     publish: async packageJson => onPublish(packageJson.name),
   }),
   readPackument,
+  verifyFreshTarball: async () => {},
+  verifyFreshProvenance: async () => {},
+  verifyReuse: async () => {},
   readSidecars: () => ({
     manifest: { publishBefore: '@bleedingdev/modern-js-image' },
     release: {
       manifest: {
+        source: {
+          repository: 'BleedingDev/ultramodern.js',
+          commit: 'a'.repeat(40),
+        },
         tools: { node: process.version, npm: '11.10.1', pnpm: '11.24.0' },
       },
     },
@@ -1049,7 +1062,10 @@ test('publishSidecars verifies provenance before reusing a published version', a
   };
   const result = await publishSidecars(publishOptions, dependencies);
   assert.deepEqual(result.reused, ['@bleedingdev/mf-cli@3.2.0']);
-  assert.deepEqual(verified, [['@bleedingdev/mf-cli', releaseSource]]);
+  assert.deepEqual(verified, [
+    ['@bleedingdev/mf-cli', releaseSource],
+    ['@bleedingdev/mf-cli', releaseSource],
+  ]);
 
   dependencies.verifyReuse = async () => {
     throw new Error('not grandfathered');
@@ -1081,7 +1097,7 @@ test('a reuse resumed while npm indexes the tag still verifies provenance on the
   };
   const result = await publishSidecars(publishOptions, dependencies);
   assert.deepEqual(result.reused, ['@bleedingdev/mf-cli@3.2.0']);
-  assert.deepEqual(verified, [settled]);
+  assert.deepEqual(verified, [settled, settled]);
 
   dependencies.readPackument = stubReads([untaggedPackument(sidecar), settled]);
   dependencies.verifyReuse = async () => {
@@ -1223,3 +1239,258 @@ test('a resumed reuse finishes provenance before any later sidecar publishes', a
   );
   assert.deepEqual(events, [`verify ${resumed.name}`]);
 });
+
+test('all new-version authorizations pass before the first irreversible publication', async t => {
+  const { publishSidecars } = await importCli();
+  withTrustedPublishEnv(t);
+  const first = namedSidecar('@bleedingdev/ipx-first');
+  const second = namedSidecar('@bleedingdev/ipx-second');
+  const events = [];
+  const dependencies = sidecarLaneDependencies({
+    sidecars: [first, second],
+    readPackument: async name =>
+      priorReleaseOnly(name === first.name ? first : second),
+    onPublish: name => events.push(`publish:${name}`),
+    requestToken: async name => {
+      events.push(`authorize:${name}`);
+      if (name === second.name)
+        throw new Error('not authorized for second package');
+      return 'opaque-test-token';
+    },
+  });
+  await assert.rejects(
+    publishSidecars(publishOptions, dependencies),
+    /preflight failed[\s\S]*second package/,
+  );
+  assert.deepEqual(events, [
+    `authorize:${first.name}`,
+    `authorize:${second.name}`,
+  ]);
+});
+
+test('a later missing package or unclassified manifest stops the entire lane before authorization', async t => {
+  const { publishSidecars } = await importCli();
+  withTrustedPublishEnv(t);
+  const first = namedSidecar('@bleedingdev/ipx-first');
+  const second = namedSidecar('@bleedingdev/ipx-second');
+  const noPublish = () => assert.fail('must fail before publishing');
+  const dependencies = sidecarLaneDependencies({
+    sidecars: [first, second],
+    readPackument: async name =>
+      name === first.name ? priorReleaseOnly(first) : null,
+    onPublish: noPublish,
+    requestToken: async () => assert.fail('must fail before OIDC exchange'),
+  });
+  await assert.rejects(
+    publishSidecars(publishOptions, dependencies),
+    /Bootstrap @bleedingdev\/ipx-second/,
+  );
+  second.packageJson.unspecifiedConsumerField = true;
+  await assert.rejects(
+    publishSidecars(publishOptions, dependencies),
+    /does not classify/,
+  );
+});
+
+test('typings participates in immutable resolution comparison while explicit development metadata does not', async () => {
+  const { sidecarRegistryDecision, sidecarContentProjection } =
+    await importPublication();
+  const sidecar = stagedMfCli();
+  Object.assign(sidecar.packageJson, {
+    typings: 'out/index.d.ts',
+    packageManager: 'bun@1.4.2',
+    verb: { tasks: ['readme'] },
+    'simple-git-hooks': { 'pre-commit': 'lint' },
+  });
+  assert.equal(
+    sidecarContentProjection(sidecar.packageJson, sidecar.name).typings,
+    'out/index.d.ts',
+  );
+  await assert.rejects(
+    sidecarRegistryDecision(sidecar, packumentFor(sidecar)),
+    /typings/,
+  );
+  assert.equal(
+    (
+      await sidecarRegistryDecision(
+        sidecar,
+        packumentFor(sidecar, { overrides: { typings: 'out/index.d.ts' } }),
+      )
+    ).action,
+    'reuse',
+  );
+});
+
+test('fresh publication verifies exact source/run provenance and registry bytes before chronology', async t => {
+  const { verifyFreshSidecar } = await importCli();
+  withTrustedPublishEnv(t);
+  const keys = ['GITHUB_RUN_ID', 'GITHUB_RUN_ATTEMPT'];
+  const saved = keys.map(key => process.env[key]);
+  process.env.GITHUB_RUN_ID = '12345';
+  process.env.GITHUB_RUN_ATTEMPT = '2';
+  t.after(() =>
+    keys.forEach((key, i) => {
+      if (saved[i] === undefined) delete process.env[key];
+      else process.env[key] = saved[i];
+    }),
+  );
+  const sidecar = stagedMfCli();
+  const events = [];
+  await verifyFreshSidecar(
+    sidecar,
+    { source: releaseSource },
+    {
+      readPackument: async () => publishedPackumentFor(sidecar),
+      verifyFreshTarball: async item => {
+        assert.equal(item.targetName, sidecar.name);
+        events.push('bytes');
+      },
+      verifyFreshProvenance: async (_item, _dist, expectation) => {
+        assert.equal(expectation.source.commit, releaseSource.commit);
+        assert.deepEqual(expectation.invocation, {
+          repository: 'BleedingDev/ultramodern.js',
+          runId: '12345',
+          runAttempt: '2',
+          exactAttempt: true,
+        });
+        events.push('exact provenance');
+      },
+      verifyReuse: async () => events.push('chronology'),
+    },
+  );
+  assert.deepEqual(events, ['bytes', 'exact provenance', 'chronology']);
+  await assert.rejects(
+    verifyFreshSidecar(
+      sidecar,
+      { source: releaseSource },
+      {
+        readPackument: async () => publishedPackumentFor(sidecar),
+        verifyFreshTarball: async () => {},
+        verifyFreshProvenance: async () => {
+          throw new Error('wrong source/run');
+        },
+        verifyReuse: async () =>
+          assert.fail('chronology cannot replace exact provenance'),
+      },
+    ),
+    /wrong source\/run/,
+  );
+});
+
+test('settled fresh bytes wait only for absent provenance, never mismatched signed provenance', async t => {
+  const { verifyFreshSidecar } = await importCli();
+  const { RegistryProvenancePendingError } = await import(
+    '../lib/prepare-bleedingdev-packages/provenance.mjs'
+  );
+  withTrustedPublishEnv(t);
+  const sidecar = stagedMfCli();
+  const visible = () =>
+    packumentFor(sidecar, {
+      overrides: {
+        dist: {
+          integrity: sidecar.integrity,
+          shasum: sidecar.shasum,
+          attestations: { provenance: {} },
+        },
+      },
+    });
+  let reads = 0;
+  let provenanceReads = 0;
+  let waits = 0;
+  let chronology = 0;
+  await verifyFreshSidecar(
+    sidecar,
+    { source: releaseSource },
+    {
+      readPackument: async () =>
+        ++reads === 1 ? packumentFor(sidecar) : visible(),
+      verifyFreshTarball: async () => {},
+      verifyFreshProvenance: async () => {
+        if (++provenanceReads === 1)
+          throw new RegistryProvenancePendingError(
+            'attestation endpoint returned HTTP 404',
+          );
+      },
+      verifyReuse: async () => {
+        chronology += 1;
+      },
+      wait: async () => {
+        waits += 1;
+      },
+    },
+  );
+  assert.equal(reads, 3);
+  assert.equal(provenanceReads, 2);
+  assert.equal(waits, 2);
+  assert.equal(chronology, 1);
+  waits = 0;
+  await assert.rejects(
+    verifyFreshSidecar(
+      sidecar,
+      { source: releaseSource },
+      {
+        readPackument: async () => ({
+          ...visible(),
+          time: { [sidecar.version]: new Date().toISOString() },
+        }),
+        verifyFreshTarball: async () => {},
+        verifyFreshProvenance: async () => {
+          throw new Error('mismatched signed source and producer attempt');
+        },
+        verifyReuse: async () =>
+          assert.fail(
+            'untrusted signed provenance cannot authorize chronology',
+          ),
+        wait: async () => {
+          waits += 1;
+        },
+      },
+    ),
+    /mismatched signed source/,
+  );
+  assert.equal(
+    waits,
+    0,
+    'fresh timestamps cannot turn mismatched signed provenance into a propagation state',
+  );
+});
+
+for (const state of ['missing tag', 'unindexed tagged version']) {
+  test(`a later resumed reuse with ${state} must authenticate before any earlier package publishes`, async t => {
+    const { publishSidecars } = await importCli();
+    withTrustedPublishEnv(t);
+    const first = namedSidecar('@bleedingdev/ipx-first');
+    const second = namedSidecar('@bleedingdev/mf-cli');
+    let secondReads = 0;
+    const events = [];
+    const dependencies = sidecarLaneDependencies({
+      sidecars: [first, second],
+      readPackument: async name => {
+        if (name === first.name) return priorReleaseOnly(first);
+        if (++secondReads === 1)
+          return state === 'missing tag'
+            ? untaggedPackument(second)
+            : { ...packumentFor(second), versions: {} };
+        return publishedPackumentFor(second);
+      },
+      onPublish: name => events.push(`publish:${name}`),
+      requestToken: async name => {
+        events.push(`authorize:${name}`);
+        return 'opaque-test-token';
+      },
+    });
+    dependencies.verifyReuse = async candidate => {
+      if (candidate.name === second.name)
+        throw new Error('resumed candidate has untrusted provenance');
+    };
+    await assert.rejects(
+      publishSidecars(publishOptions, dependencies),
+      /untrusted provenance/,
+    );
+    assert.deepEqual(
+      events,
+      [],
+      'the complete existing registry set must be trusted before OIDC or publication',
+    );
+  });
+}
