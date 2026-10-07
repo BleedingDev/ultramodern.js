@@ -144,26 +144,25 @@ test('accepts a topology without additional shells', () => {
   expect(readUltramodernWorkspaceInputs(root).additionalShells).toEqual([]);
 });
 
-test.each([
-  'full-stack',
-  'api-only',
-  'ui-only',
-] as const)('preserves the explicit %s surface contract of every shell', surfaceProfile => {
-  const topologyFile = path.join(root, 'topology/reference-topology.json');
-  const topology = JSON.parse(fs.readFileSync(topologyFile, 'utf8'));
-  topology.shell.surfaceProfile = surfaceProfile;
-  topology.shells[0].surfaceProfile = surfaceProfile;
-  write(root, 'topology/reference-topology.json', topology);
+test.each(['full-stack', 'api-only', 'ui-only'] as const)(
+  'preserves the explicit %s surface contract of every shell',
+  surfaceProfile => {
+    const topologyFile = path.join(root, 'topology/reference-topology.json');
+    const topology = JSON.parse(fs.readFileSync(topologyFile, 'utf8'));
+    topology.shell.surfaceProfile = surfaceProfile;
+    topology.shells[0].surfaceProfile = surfaceProfile;
+    write(root, 'topology/reference-topology.json', topology);
 
-  const view = readUltramodernWorkspaceInputs(root);
-  expect(view.primaryShell.surfaceProfile).toBe(surfaceProfile);
-  expect(view.additionalShells[0]?.surfaceProfile).toBe(surfaceProfile);
-  expect(
-    workspaceAppsFromToolingConfig(view.config)
-      .filter(app => app.kind === 'shell')
-      .map(app => app.surfaceProfile),
-  ).toEqual([surfaceProfile, surfaceProfile]);
-});
+    const view = readUltramodernWorkspaceInputs(root);
+    expect(view.primaryShell.surfaceProfile).toBe(surfaceProfile);
+    expect(view.additionalShells[0]?.surfaceProfile).toBe(surfaceProfile);
+    expect(
+      workspaceAppsFromToolingConfig(view.config)
+        .filter(app => app.kind === 'shell')
+        .map(app => app.surfaceProfile),
+    ).toEqual([surfaceProfile, surfaceProfile]);
+  },
+);
 
 test('rejects missing canonical inputs and inconsistent package resolution', () => {
   const topologyFile = path.join(root, 'topology/reference-topology.json');

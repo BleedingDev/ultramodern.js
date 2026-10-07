@@ -20,35 +20,34 @@ function createFactory() {
 }
 
 describe('renderer configuration materialization', () => {
-  it.each([
-    'react',
-    'solid',
-    'octane',
-  ] as const)('selects %s once and retains authored configuration and consumer plugins', async renderer => {
-    const consumer: CliPlugin<AppTools> = { name: 'fixture:consumer' };
-    const plugins = [consumer];
-    const html = { title: 'Authored title' };
-    const factory = createFactory();
-    const input = { renderer, plugins, html };
-    const selected = createDefineConfig(factory)(input);
-    expect(typeof selected).toBe('object');
-    const config = await resolveUltramodernConfig(selected, {
-      env: 'production',
-      command: 'build',
-    });
+  it.each(['react', 'solid', 'octane'] as const)(
+    'selects %s once and retains authored configuration and consumer plugins',
+    async renderer => {
+      const consumer: CliPlugin<AppTools> = { name: 'fixture:consumer' };
+      const plugins = [consumer];
+      const html = { title: 'Authored title' };
+      const factory = createFactory();
+      const input = { renderer, plugins, html };
+      const selected = createDefineConfig(factory)(input);
+      expect(typeof selected).toBe('object');
+      const config = await resolveUltramodernConfig(selected, {
+        env: 'production',
+        command: 'build',
+      });
 
-    expect(config).not.toBe(input);
-    expect(config.renderer).toBe(renderer);
-    expect(config.html).toBe(html);
-    expect(config.plugins?.map(plugin => plugin.name)).toEqual([
-      ULTRAMODERN_BASE_PLUGIN,
-      'fixture:consumer',
-    ]);
-    expect(config.plugins?.[1]).toBe(consumer);
-    expect(factory).toHaveBeenCalledTimes(1);
-    expect(factory).toHaveBeenCalledWith(renderer, plugins);
-    expect(input.plugins).toEqual([consumer]);
-  });
+      expect(config).not.toBe(input);
+      expect(config.renderer).toBe(renderer);
+      expect(config.html).toBe(html);
+      expect(config.plugins?.map(plugin => plugin.name)).toEqual([
+        ULTRAMODERN_BASE_PLUGIN,
+        'fixture:consumer',
+      ]);
+      expect(config.plugins?.[1]).toBe(consumer);
+      expect(factory).toHaveBeenCalledTimes(1);
+      expect(factory).toHaveBeenCalledWith(renderer, plugins);
+      expect(input.plugins).toEqual([consumer]);
+    },
+  );
 
   it('selects React when renderer is omitted', async () => {
     const factory = createFactory();
@@ -61,30 +60,32 @@ describe('renderer configuration materialization', () => {
     expect(factory).toHaveBeenCalledWith('react', []);
   });
 
-  it.each([
-    false,
-    true,
-  ])('evaluates an authored callback exactly once with the exact context, async=%s', async asynchronous => {
-    const context = { env: 'test', command: 'inspect' };
-    const factory = createFactory();
-    const consumer: CliPlugin<AppTools> = { name: 'fixture:callback-consumer' };
-    const result = { renderer: 'solid' as const, plugins: [consumer] };
-    const callback = rstest.fn((received: ConfigParams) => {
-      expect(received).toBe(context);
-      return asynchronous ? Promise.resolve(result) : result;
-    });
-    const selected = createDefineConfig(factory)(callback);
-    expect(typeof selected).toBe('function');
-    expect(callback).not.toHaveBeenCalled();
-    expect(factory).not.toHaveBeenCalled();
+  it.each([false, true])(
+    'evaluates an authored callback exactly once with the exact context, async=%s',
+    async asynchronous => {
+      const context = { env: 'test', command: 'inspect' };
+      const factory = createFactory();
+      const consumer: CliPlugin<AppTools> = {
+        name: 'fixture:callback-consumer',
+      };
+      const result = { renderer: 'solid' as const, plugins: [consumer] };
+      const callback = rstest.fn((received: ConfigParams) => {
+        expect(received).toBe(context);
+        return asynchronous ? Promise.resolve(result) : result;
+      });
+      const selected = createDefineConfig(factory)(callback);
+      expect(typeof selected).toBe('function');
+      expect(callback).not.toHaveBeenCalled();
+      expect(factory).not.toHaveBeenCalled();
 
-    const config = await resolveUltramodernConfig(selected, context);
-    expect(callback).toHaveBeenCalledTimes(1);
-    expect(callback).toHaveBeenCalledWith(context);
-    expect(factory).toHaveBeenCalledTimes(1);
-    expect(factory).toHaveBeenCalledWith('solid', result.plugins);
-    expect(config.plugins?.[1]).toBe(consumer);
-  });
+      const config = await resolveUltramodernConfig(selected, context);
+      expect(callback).toHaveBeenCalledTimes(1);
+      expect(callback).toHaveBeenCalledWith(context);
+      expect(factory).toHaveBeenCalledTimes(1);
+      expect(factory).toHaveBeenCalledWith('solid', result.plugins);
+      expect(config.plugins?.[1]).toBe(consumer);
+    },
+  );
 
   it('keeps synchronous callbacks synchronous and asynchronous callbacks awaitable', async () => {
     const defineConfig = createDefineConfig(createFactory());
@@ -103,38 +104,34 @@ describe('renderer configuration materialization', () => {
     expect((await promise).renderer).toBe('solid');
   });
 
-  it.each([
-    ULTRAMODERN_BASE_PLUGIN,
-    '@modern-js/app-tools',
-  ])('rejects an additional %s base before constructing a composition', name => {
-    const factory = createFactory();
-    const defineConfig = createDefineConfig(factory);
-    expect(() => defineConfig({ plugins: [{ name }] })).toThrow(
-      'defineConfig owns the UltraModern base composition',
-    );
-    expect(() =>
-      defineConfig({
-        plugins: [{ name: 'fixture:wrapper', usePlugins: [{ name }] }],
-      }),
-    ).toThrow('defineConfig owns the UltraModern base composition');
-    expect(factory).not.toHaveBeenCalled();
-  });
+  it.each([ULTRAMODERN_BASE_PLUGIN, '@modern-js/app-tools'])(
+    'rejects an additional %s base before constructing a composition',
+    name => {
+      const factory = createFactory();
+      const defineConfig = createDefineConfig(factory);
+      expect(() => defineConfig({ plugins: [{ name }] })).toThrow(
+        'defineConfig owns the UltraModern base composition',
+      );
+      expect(() =>
+        defineConfig({
+          plugins: [{ name: 'fixture:wrapper', usePlugins: [{ name }] }],
+        }),
+      ).toThrow('defineConfig owns the UltraModern base composition');
+      expect(factory).not.toHaveBeenCalled();
+    },
+  );
 
-  it.each([
-    'vue',
-    'soild',
-    'reactt',
-    'Solid',
-    'solid/framework',
-    '',
-  ])('rejects unknown or malformed renderer %s before constructing a composition', renderer => {
-    const factory = createFactory();
-    expect(() =>
-      // @ts-expect-error Exercise invalid authored JavaScript configuration.
-      createDefineConfig(factory)({ renderer }),
-    ).toThrow(`Unsupported UltraModern renderer: ${renderer}`);
-    expect(factory).not.toHaveBeenCalled();
-  });
+  it.each(['vue', 'soild', 'reactt', 'Solid', 'solid/framework', ''])(
+    'rejects unknown or malformed renderer %s before constructing a composition',
+    renderer => {
+      const factory = createFactory();
+      expect(() =>
+        // @ts-expect-error Exercise invalid authored JavaScript configuration.
+        createDefineConfig(factory)({ renderer }),
+      ).toThrow(`Unsupported UltraModern renderer: ${renderer}`);
+      expect(factory).not.toHaveBeenCalled();
+    },
+  );
 
   it.each([
     { label: 'null', value: null },
@@ -149,47 +146,47 @@ describe('renderer configuration materialization', () => {
 });
 
 describe('owning configuration loader', () => {
-  it.each([
-    'local',
-    'programmatic',
-  ] as const)('rejects a conflicting %s renderer after the owning loader merges config', async override => {
-    const appDirectory = fs.mkdtempSync(
-      path.join(os.tmpdir(), 'um-renderer-loader-conflict-'),
-    );
-    try {
-      fs.writeFileSync(
-        path.join(appDirectory, 'package.json'),
-        JSON.stringify({ name: 'renderer-loader-conflict' }),
+  it.each(['local', 'programmatic'] as const)(
+    'rejects a conflicting %s renderer after the owning loader merges config',
+    async override => {
+      const appDirectory = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'um-renderer-loader-conflict-'),
       );
-      fs.writeFileSync(
-        path.join(appDirectory, 'modern.config.js'),
-        `
+      try {
+        fs.writeFileSync(
+          path.join(appDirectory, 'package.json'),
+          JSON.stringify({ name: 'renderer-loader-conflict' }),
+        );
+        fs.writeFileSync(
+          path.join(appDirectory, 'modern.config.js'),
+          `
         const base = { name: ${JSON.stringify(ULTRAMODERN_BASE_PLUGIN)} };
         Object.defineProperty(base, Symbol.for('ultramodern.selected-renderer'), { value: 'solid', enumerable: true });
         module.exports = { renderer: 'solid', plugins: [base] };
       `,
-      );
-      if (override === 'local') {
-        fs.writeFileSync(
-          path.join(appDirectory, 'modern.config.local.js'),
-          "module.exports = { renderer: 'octane' };\n",
         );
+        if (override === 'local') {
+          fs.writeFileSync(
+            path.join(appDirectory, 'modern.config.local.js'),
+            "module.exports = { renderer: 'octane' };\n",
+          );
+        }
+        await expect(
+          loadUltramodernConfigFile({
+            appDirectory,
+            env: 'development',
+            command: 'dev',
+            config:
+              override === 'programmatic' ? { renderer: 'octane' } : undefined,
+          }),
+        ).rejects.toThrow(
+          'Renderer changed from solid to octane after plugin selection',
+        );
+      } finally {
+        fs.rmSync(appDirectory, { recursive: true, force: true });
       }
-      await expect(
-        loadUltramodernConfigFile({
-          appDirectory,
-          env: 'development',
-          command: 'dev',
-          config:
-            override === 'programmatic' ? { renderer: 'octane' } : undefined,
-        }),
-      ).rejects.toThrow(
-        'Renderer changed from solid to octane after plugin selection',
-      );
-    } finally {
-      fs.rmSync(appDirectory, { recursive: true, force: true });
-    }
-  });
+    },
+  );
 
   it('forwards env and command through the real loader and preserves local and programmatic merges', async () => {
     const appDirectory = fs.mkdtempSync(

@@ -103,25 +103,22 @@ describe('public RouteDataError projection', () => {
     expect(getterCalls).toBe(0);
   });
 
-  test.each([
-    'routeId',
-    'status',
-    'data',
-    'name',
-    'message',
-  ])('a declared %s accessor rejects without invoking it', field => {
-    const original = createError();
-    let getterCalls = 0;
-    Object.defineProperty(original, field, {
-      get() {
-        getterCalls += 1;
-        return 'ULTRA_PRIVATE_ERROR_TOKEN';
-      },
-      configurable: true,
-    });
-    expect(() => projectRouteDataError(original)).toThrow(DataProtocolError);
-    expect(getterCalls).toBe(0);
-  });
+  test.each(['routeId', 'status', 'data', 'name', 'message'])(
+    'a declared %s accessor rejects without invoking it',
+    field => {
+      const original = createError();
+      let getterCalls = 0;
+      Object.defineProperty(original, field, {
+        get() {
+          getterCalls += 1;
+          return 'ULTRA_PRIVATE_ERROR_TOKEN';
+        },
+        configurable: true,
+      });
+      expect(() => projectRouteDataError(original)).toThrow(DataProtocolError);
+      expect(getterCalls).toBe(0);
+    },
+  );
 
   test.each([
     ['Request', () => new Request('https://private.test/')],
@@ -171,16 +168,14 @@ describe('public RouteDataError projection', () => {
     );
   });
 
-  test.each([
-    'context',
-    'cause',
-    'internal',
-    'toJSON',
-  ])('an extra own %s field is refused even if its value looks public', field => {
-    const original = createError();
-    Object.defineProperty(original, field, { value: 'must not transfer' });
-    expect(() => projectRouteDataError(original)).toThrow(DataProtocolError);
-  });
+  test.each(['context', 'cause', 'internal', 'toJSON'])(
+    'an extra own %s field is refused even if its value looks public',
+    field => {
+      const original = createError();
+      Object.defineProperty(original, field, { value: 'must not transfer' });
+      expect(() => projectRouteDataError(original)).toThrow(DataProtocolError);
+    },
+  );
 
   test('an extra own symbol is refused', () => {
     const original = createError();
@@ -243,10 +238,11 @@ describe('public RouteDataError projection', () => {
     expect(getterCalls).toBe(0);
   });
 
-  test.each([
-    200, 599,
-  ])('the public ABI status boundary %i is preserved', status => {
-    const snapshot = { ...createSnapshot(), status };
-    expect(restoreRouteDataError(snapshot).status).toBe(status);
-  });
+  test.each([200, 599])(
+    'the public ABI status boundary %i is preserved',
+    status => {
+      const snapshot = { ...createSnapshot(), status };
+      expect(restoreRouteDataError(snapshot).status).toBe(status);
+    },
+  );
 });

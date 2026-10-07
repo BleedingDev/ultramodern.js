@@ -258,30 +258,32 @@ describe('BFF compiler global variables', () => {
       message: 'BFF runtime build identity must be immutable.',
       name: 'mutable identity',
     },
-  ])('rejects $name before replacing globals', async ({
-    identity,
-    message,
-  }) => {
-    const appDirectory = await fs.realpath(
-      await fs.mkdtemp(path.join(os.tmpdir(), 'plugin-bff-invalid-identity-')),
-    );
-    try {
-      const fixture = await createRuntimeIdentityFixture(
-        appDirectory,
-        normalizedRuntimeGlobals,
-        async () => identity,
+  ])(
+    'rejects $name before replacing globals',
+    async ({ identity, message }) => {
+      const appDirectory = await fs.realpath(
+        await fs.mkdtemp(
+          path.join(os.tmpdir(), 'plugin-bff-invalid-identity-'),
+        ),
       );
+      try {
+        const fixture = await createRuntimeIdentityFixture(
+          appDirectory,
+          normalizedRuntimeGlobals,
+          async () => identity,
+        );
 
-      await expect(fixture.compileApi()).rejects.toThrow(message);
+        await expect(fixture.compileApi()).rejects.toThrow(message);
 
-      const compiledSource = await fs.readFile(fixture.compiledEntry, 'utf8');
-      expect(compiledSource).toContain('ULTRAMODERN_BUILD_MARKER');
-      expect(compiledSource).toContain('ULTRAMODERN_SOURCE_REVISION');
-      expect(fixture.config.source.globalVars).toBe(normalizedRuntimeGlobals);
-    } finally {
-      await fs.remove(appDirectory);
-    }
-  });
+        const compiledSource = await fs.readFile(fixture.compiledEntry, 'utf8');
+        expect(compiledSource).toContain('ULTRAMODERN_BUILD_MARKER');
+        expect(compiledSource).toContain('ULTRAMODERN_SOURCE_REVISION');
+        expect(fixture.config.source.globalVars).toBe(normalizedRuntimeGlobals);
+      } finally {
+        await fs.remove(appDirectory);
+      }
+    },
+  );
 
   it('propagates an unready registered provider before replacing globals', async () => {
     const appDirectory = await fs.realpath(

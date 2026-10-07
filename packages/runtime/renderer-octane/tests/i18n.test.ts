@@ -106,27 +106,27 @@ const sameLanguageHref = (root: HTMLElement) =>
   root.querySelector('a:not([hreflang])')?.getAttribute('href');
 
 describe('Octane i18n binding', () => {
-  test.each([
-    false,
-    true,
-  ])('useI18n and LocalizedLink follow languageChanged (router rewrite: %s)', async rewrite => {
-    const instance = createFakeI18nInstance('en');
-    const { router, root, dispose } = await mount(instance, rewrite);
-    try {
-      expect(text(root, 'language')).toBe('en');
-      expect(text(root, 'greeting')).toBe('Hello');
-      expect(sameLanguageHref(root)).toBe('/en/products');
-      if (rewrite) expect(router.state.location.pathname).toBe('/dashboard');
+  test.each([false, true])(
+    'useI18n and LocalizedLink follow languageChanged (router rewrite: %s)',
+    async rewrite => {
+      const instance = createFakeI18nInstance('en');
+      const { router, root, dispose } = await mount(instance, rewrite);
+      try {
+        expect(text(root, 'language')).toBe('en');
+        expect(text(root, 'greeting')).toBe('Hello');
+        expect(sameLanguageHref(root)).toBe('/en/products');
+        if (rewrite) expect(router.state.location.pathname).toBe('/dashboard');
 
-      flushSync(() => instance.emit('cs'));
+        flushSync(() => instance.emit('cs'));
 
-      expect(text(root, 'language')).toBe('cs');
-      expect(text(root, 'greeting')).toBe('Ahoj');
-      expect(sameLanguageHref(root)).toBe('/cs/products');
-    } finally {
-      dispose();
-    }
-  });
+        expect(text(root, 'language')).toBe('cs');
+        expect(text(root, 'greeting')).toBe('Ahoj');
+        expect(sameLanguageHref(root)).toBe('/cs/products');
+      } finally {
+        dispose();
+      }
+    },
+  );
 
   test('a link to another language switches the instance, then navigates client-side', async () => {
     const instance = createFakeI18nInstance('en');

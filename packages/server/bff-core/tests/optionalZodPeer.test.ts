@@ -15,28 +15,27 @@ describe('zod stays an optional peer', () => {
     expect(manifest.peerDependenciesMeta.zod.optional).toBe(true);
   });
 
-  test.each([
-    'src/index.ts',
-    'dist/cjs/index.js',
-    'dist/esm-node/index.mjs',
-  ])('%s bundles without eager optional or unused compiler dependencies', async entry => {
-    await expect(
-      build({
-        bundle: true,
-        entryPoints: [path.resolve(__dirname, '..', entry)],
-        format: 'esm',
-        packages: 'external',
-        platform: 'node',
-        plugins: [
-          {
-            name: 'reject-eager-optional-or-unused-compiler-dependency',
-            setup(buildApi) {
-              buildApi.onResolve(
-                { filter: /^(?:zod|ts-node|tsconfig-paths)(?:\/|$)/ },
-                args => {
-                  throw new Error(`${args.path} entered the eager graph`);
-                },
-              );
+  test.each(['src/index.ts', 'dist/cjs/index.js', 'dist/esm-node/index.mjs'])(
+    '%s bundles without eager optional or unused compiler dependencies',
+    async entry => {
+      await expect(
+        build({
+          bundle: true,
+          entryPoints: [path.resolve(__dirname, '..', entry)],
+          format: 'esm',
+          packages: 'external',
+          platform: 'node',
+          plugins: [
+            {
+              name: 'reject-eager-optional-or-unused-compiler-dependency',
+              setup(buildApi) {
+                buildApi.onResolve(
+                  { filter: /^(?:zod|ts-node|tsconfig-paths)(?:\/|$)/ },
+                  args => {
+                    throw new Error(`${args.path} entered the eager graph`);
+                  },
+                );
+              },
             },
           ],
           write: false,

@@ -64,22 +64,21 @@ function routerAt(
 }
 
 describe('native Solid filesystem routing and data', () => {
-  test.each([
-    'loader',
-    'beforeLoad',
-    'context',
-  ] as const)('custom native %s routes fail the immutable application profile before execution', operation => {
-    const callback = rstest.fn(() => ({ private: 'not-public-data' }));
-    const root = createRootRoute({ [operation]: callback });
-    expect(() =>
-      createApplicationRouter({
-        routeTree: root,
-        history: createMemoryHistory({ initialEntries: ['/'] }),
-        isServer: true,
-      }),
-    ).toThrow('use createFileSystemRouteTree');
-    expect(callback).not.toHaveBeenCalled();
-  });
+  test.each(['loader', 'beforeLoad', 'context'] as const)(
+    'custom native %s routes fail the immutable application profile before execution',
+    operation => {
+      const callback = rstest.fn(() => ({ private: 'not-public-data' }));
+      const root = createRootRoute({ [operation]: callback });
+      expect(() =>
+        createApplicationRouter({
+          routeTree: root,
+          history: createMemoryHistory({ initialEntries: ['/'] }),
+          isServer: true,
+        }),
+      ).toThrow('use createFileSystemRouteTree');
+      expect(callback).not.toHaveBeenCalled();
+    },
+  );
 
   test('managed public router options are cloned and immutable without freezing the author', () => {
     const shared = { value: 'public' };
@@ -119,16 +118,17 @@ describe('native Solid filesystem routing and data', () => {
     expect(router.options.context).toBe(context);
   });
 
-  test.each([
-    'loader',
-  ] as const)('undeclared native %s module callbacks cannot bypass the managed data boundary', operation => {
-    const callback = rstest.fn(() => ({ private: 'not-public-data' }));
-    const module = { component: () => undefined, [operation]: callback };
-    expect(() => createFileSystemRouteTree(routes, { layout: module })).toThrow(
-      'Unsupported native Solid filesystem route option',
-    );
-    expect(callback).not.toHaveBeenCalled();
-  });
+  test.each(['loader'] as const)(
+    'undeclared native %s module callbacks cannot bypass the managed data boundary',
+    operation => {
+      const callback = rstest.fn(() => ({ private: 'not-public-data' }));
+      const module = { component: () => undefined, [operation]: callback };
+      expect(() =>
+        createFileSystemRouteTree(routes, { layout: module }),
+      ).toThrow('Unsupported native Solid filesystem route option');
+      expect(callback).not.toHaveBeenCalled();
+    },
+  );
 
   test('native matching retains layouts, pathless routes and dynamic params', () => {
     const router = routerAt('/items/42');

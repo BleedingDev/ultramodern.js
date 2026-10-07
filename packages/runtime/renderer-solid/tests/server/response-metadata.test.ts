@@ -214,25 +214,28 @@ describe('native Solid response metadata before session commit', () => {
       expected: 'private, max-age=0, must-revalidate',
       mode: 'private',
     },
-  ])('intersects original policy and both Cache-Control declarations: $original / $native / $mode', async input => {
-    const session = sessionFor({
-      headers: [['cache-control', input.original]],
-      cache: input.cache,
-    });
-    const response = await renderApplication({
-      session,
-      view: () => {
-        httpHeader('cache-control', input.native);
-        return ssr('<p>cache</p>');
-      },
-    });
-    expect(response.headers.get('cache-control')).toBe(input.expected);
-    expect(session.committedPolicy?.cache.mode).toBe(input.mode);
-    await response.text();
-    expect((await session.completion).cacheEligible).toBe(
-      input.mode === 'public',
-    );
-  });
+  ])(
+    'intersects original policy and both Cache-Control declarations: $original / $native / $mode',
+    async input => {
+      const session = sessionFor({
+        headers: [['cache-control', input.original]],
+        cache: input.cache,
+      });
+      const response = await renderApplication({
+        session,
+        view: () => {
+          httpHeader('cache-control', input.native);
+          return ssr('<p>cache</p>');
+        },
+      });
+      expect(response.headers.get('cache-control')).toBe(input.expected);
+      expect(session.committedPolicy?.cache.mode).toBe(input.mode);
+      await response.text();
+      expect((await session.completion).cacheEligible).toBe(
+        input.mode === 'public',
+      );
+    },
+  );
 
   test('a prior Vary star and non-HTML representation cannot be upgraded by native headers', async () => {
     const session = sessionFor({
@@ -323,40 +326,41 @@ describe('native Solid response metadata before session commit', () => {
     expect((await session.completion).state).toBe('completed');
   });
 
-  test.each([
-    204, 205, 304,
-  ])('native HTTP %i abandons pending SSR without starting a document transport', async status => {
-    const session = sessionFor();
-    let resolve!: (value: string) => void;
-    const future = new Promise<string>(accept => {
-      resolve = accept;
-    });
-    let cleanup = 0;
-    const response = await renderApplication({
-      session,
-      view: () => {
-        httpStatus(status);
-        onCleanup(() => cleanup++);
-        const value = createMemo(async () => future);
-        return createComponent(Loading, {
-          fallback: ssr('<p>pending</p>'),
-          get children() {
-            return ssr(['<p>', '</p>'], () => value());
-          },
-        });
-      },
-    });
-    expect(response.status).toBe(status);
-    expect(response.body).toBeNull();
-    expect(session.committedPolicy?.kind).toBe('terminal');
-    expect((await session.completion).state).toBe('completed');
-    expect(cleanup).toBe(1);
-    resolve('late');
-    await future;
-    await Promise.resolve();
-    expect(cleanup).toBe(1);
-    expect(session.state).toBe('completed');
-  });
+  test.each([204, 205, 304])(
+    'native HTTP %i abandons pending SSR without starting a document transport',
+    async status => {
+      const session = sessionFor();
+      let resolve!: (value: string) => void;
+      const future = new Promise<string>(accept => {
+        resolve = accept;
+      });
+      let cleanup = 0;
+      const response = await renderApplication({
+        session,
+        view: () => {
+          httpStatus(status);
+          onCleanup(() => cleanup++);
+          const value = createMemo(async () => future);
+          return createComponent(Loading, {
+            fallback: ssr('<p>pending</p>'),
+            get children() {
+              return ssr(['<p>', '</p>'], () => value());
+            },
+          });
+        },
+      });
+      expect(response.status).toBe(status);
+      expect(response.body).toBeNull();
+      expect(session.committedPolicy?.kind).toBe('terminal');
+      expect((await session.completion).state).toBe('completed');
+      expect(cleanup).toBe(1);
+      resolve('late');
+      await future;
+      await Promise.resolve();
+      expect(cleanup).toBe(1);
+      expect(session.state).toBe('completed');
+    },
+  );
 
   test('native precommit Location produces a real redirect and disposes once', async () => {
     const session = sessionFor();
@@ -399,31 +403,30 @@ describe('native Solid response metadata before session commit', () => {
     expect((await session.completion).cacheEligible).toBe(false);
   });
 
-  test.each([
-    'status',
-    'statusText',
-    'headers',
-  ])('rejects a rewritten native %s accessor without invoking it', async field => {
-    const session = sessionFor();
-    let getterCalls = 0;
-    await expect(
-      renderApplication({
-        session,
-        view: () => {
-          Object.defineProperty(nativeStub(), field, {
-            get() {
-              getterCalls++;
-              return 'private';
-            },
-          });
-          return ssr('<p>public</p>');
-        },
-      }),
-    ).rejects.toThrow('own data fields');
-    expect(getterCalls).toBe(0);
-    expect(session.committedPolicy).toBeUndefined();
-    expect((await session.completion).state).toBe('failed');
-  });
+  test.each(['status', 'statusText', 'headers'])(
+    'rejects a rewritten native %s accessor without invoking it',
+    async field => {
+      const session = sessionFor();
+      let getterCalls = 0;
+      await expect(
+        renderApplication({
+          session,
+          view: () => {
+            Object.defineProperty(nativeStub(), field, {
+              get() {
+                getterCalls++;
+                return 'private';
+              },
+            });
+            return ssr('<p>public</p>');
+          },
+        }),
+      ).rejects.toThrow('own data fields');
+      expect(getterCalls).toBe(0);
+      expect(session.committedPolicy).toBeUndefined();
+      expect((await session.completion).state).toBe('failed');
+    },
+  );
 
   test('rejects a replacement native Headers object and overridden cookie getter before reading', async () => {
     const first = sessionFor();

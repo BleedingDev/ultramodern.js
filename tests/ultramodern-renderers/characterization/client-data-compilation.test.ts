@@ -27,18 +27,16 @@ function compilerContext(target: string | string[]) {
   };
 }
 
-test.each([
-  'node',
-  'async-node',
-  'webworker',
-  ['webworker', 'es2024'],
-])('keeps .data server exports on target %s without reading clientData', async target => {
-  const fixture = compilerContext(target);
-  const serverSource = 'export const loader = () => process.env.SECRET;';
-  expect(await loader.call(fixture.context, serverSource)).toBe(serverSource);
-  expect(fixture.reads).toEqual([]);
-  expect(fixture.dependencies).toEqual([]);
-});
+test.each(['node', 'async-node', 'webworker', ['webworker', 'es2024']])(
+  'keeps .data server exports on target %s without reading clientData',
+  async target => {
+    const fixture = compilerContext(target);
+    const serverSource = 'export const loader = () => process.env.SECRET;';
+    expect(await loader.call(fixture.context, serverSource)).toBe(serverSource);
+    expect(fixture.reads).toEqual([]);
+    expect(fixture.dependencies).toEqual([]);
+  },
+);
 
 test('uses the browser .data.client module and registers its HMR dependency', async () => {
   const fixture = compilerContext('web');

@@ -321,27 +321,31 @@ describe('native keyed receiver metadata', () => {
     ],
   ];
 
-  test.each(
-    malformed,
-  )('receiver rejects real decoded Promise with %s without reading getters', async (_name, mutate) => {
-    const { decoder, record } = await receivedFulfilled();
-    let getterCalls = 0;
-    try {
-      const original = Object.getOwnPropertyDescriptor(record, 'later')?.value;
-      mutate(original, () => {
-        getterCalls += 1;
-        return 'unexpected-native-private-value';
-      });
-      let result: unknown;
-      expect(() => {
-        result = prepareHydratedLoaderData(record, createOwner());
-      }).toThrow();
-      expect(result).toBeUndefined();
-      expect(getterCalls).toBe(0);
-    } finally {
-      decoder.close();
-    }
-  });
+  test.each(malformed)(
+    'receiver rejects real decoded Promise with %s without reading getters',
+    async (_name, mutate) => {
+      const { decoder, record } = await receivedFulfilled();
+      let getterCalls = 0;
+      try {
+        const original = Object.getOwnPropertyDescriptor(
+          record,
+          'later',
+        )?.value;
+        mutate(original, () => {
+          getterCalls += 1;
+          return 'unexpected-native-private-value';
+        });
+        let result: unknown;
+        expect(() => {
+          result = prepareHydratedLoaderData(record, createOwner());
+        }).toThrow();
+        expect(result).toBeUndefined();
+        expect(getterCalls).toBe(0);
+      } finally {
+        decoder.close();
+      }
+    },
+  );
 
   test('receiver rejects a decoded private bindings v before returning a public graph', async () => {
     const { decoder, record } = await receivedFulfilled();

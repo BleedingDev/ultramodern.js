@@ -3,7 +3,6 @@ import {
   createRootRoute,
   createRoute,
   createRouter,
-  HeadContent,
   Link,
   Outlet,
   RouterProvider,

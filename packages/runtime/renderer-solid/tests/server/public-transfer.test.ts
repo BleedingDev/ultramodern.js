@@ -183,69 +183,70 @@ const mutableContainers: Array<readonly [string, () => unknown]> = [
 ];
 
 describe('native public match transfer', () => {
-  test.each([
-    'provider',
-    'writer',
-  ] as const)('the native %s rejects an unmanaged raw router inside an UltraModern document request', async entry => {
-    let loaderCalls = 0;
-    let componentCalls = 0;
-    const root = createRootRoute({ component: Outlet });
-    const item = createRoute({
-      getParentRoute: () => root,
-      path: '/item',
-      loader: () => {
-        loaderCalls += 1;
-        return { value: 'raw-native-public-value' };
-      },
-      component: () => {
-        componentCalls += 1;
-        return ssr('<main>raw native view</main>');
-      },
-    });
-    const router = createRouter({
-      routeTree: root.addChildren([item]),
-      history: createMemoryHistory({ initialEntries: ['/item'] }),
-      isServer: true,
-    });
-    await router.load();
-    expect(loaderCalls).toBe(1);
-    expect(router.state.matches.at(-1)?.status).toBe('success');
-    const session = createSession();
-    await expect(
-      renderDocumentApplication({
-        session,
-        view: () => {
-          if (entry === 'provider')
-            return createComponent(RouterProvider, { router });
-          serializeMatchTransfer(router);
-          return ssr('<main>raw native writer</main>');
+  test.each(['provider', 'writer'] as const)(
+    'the native %s rejects an unmanaged raw router inside an UltraModern document request',
+    async entry => {
+      let loaderCalls = 0;
+      let componentCalls = 0;
+      const root = createRootRoute({ component: Outlet });
+      const item = createRoute({
+        getParentRoute: () => root,
+        path: '/item',
+        loader: () => {
+          loaderCalls += 1;
+          return { value: 'raw-native-public-value' };
         },
-      }),
-    ).rejects.toThrow(
-      /Custom native Solid routers are unsupported by UltraModern SSR/,
-    );
-    expect(componentCalls).toBe(0);
-    expect(session.committedPolicy).toBeUndefined();
-    expect((await session.completion).state).toBe('failed');
-  });
+        component: () => {
+          componentCalls += 1;
+          return ssr('<main>raw native view</main>');
+        },
+      });
+      const router = createRouter({
+        routeTree: root.addChildren([item]),
+        history: createMemoryHistory({ initialEntries: ['/item'] }),
+        isServer: true,
+      });
+      await router.load();
+      expect(loaderCalls).toBe(1);
+      expect(router.state.matches.at(-1)?.status).toBe('success');
+      const session = createSession();
+      await expect(
+        renderDocumentApplication({
+          session,
+          view: () => {
+            if (entry === 'provider')
+              return createComponent(RouterProvider, { router });
+            serializeMatchTransfer(router);
+            return ssr('<main>raw native writer</main>');
+          },
+        }),
+      ).rejects.toThrow(
+        /Custom native Solid routers are unsupported by UltraModern SSR/,
+      );
+      expect(componentCalls).toBe(0);
+      expect(session.committedPolicy).toBeUndefined();
+      expect((await session.completion).state).toBe('failed');
+    },
+  );
 
-  test.each(
-    forbidden,
-  )('%s cannot cross the document commit boundary', async (_name, createValue) => {
-    const session = createSession();
-    const router = await loadedRouter(session, { payload: createValue() });
-    let error: unknown;
-    let emitted = '';
-    try {
-      emitted = await (await renderTransfer(session, router)).text();
-    } catch (cause) {
-      error = cause;
-    }
-    expect(error).toBeInstanceOf(Error);
-    expect(session.committedPolicy).toBeUndefined();
-    expect(emitted).not.toContain(privateMarker);
-    expect((await session.completion).state).toBe('failed');
-  });
+  test.each(forbidden)(
+    '%s cannot cross the document commit boundary',
+    async (_name, createValue) => {
+      const session = createSession();
+      const router = await loadedRouter(session, { payload: createValue() });
+      let error: unknown;
+      let emitted = '';
+      try {
+        emitted = await (await renderTransfer(session, router)).text();
+      } catch (cause) {
+        error = cause;
+      }
+      expect(error).toBeInstanceOf(Error);
+      expect(session.committedPolicy).toBeUndefined();
+      expect(emitted).not.toContain(privateMarker);
+      expect((await session.completion).state).toBe('failed');
+    },
+  );
 
   test('public validation does not invoke a loader-data getter', async () => {
     const session = createSession();
@@ -315,20 +316,21 @@ describe('native public match transfer', () => {
     expect((await session.completion).cacheEligible).toBe(true);
   });
 
-  test.each(
-    forbidden,
-  )('an explicitly returned beforeLoad %s is refused before the document commits', async (_name, createValue) => {
-    const session = createSession();
-    const router = createDataRouter(
-      session,
-      () => ({ greeting: publicMarker }),
-      () => ({ payload: createValue() }),
-    );
-    await router.load();
-    await expect(renderTransfer(session, router)).rejects.toThrow();
-    expect(session.committedPolicy).toBeUndefined();
-    expect((await session.completion).state).toBe('failed');
-  });
+  test.each(forbidden)(
+    'an explicitly returned beforeLoad %s is refused before the document commits',
+    async (_name, createValue) => {
+      const session = createSession();
+      const router = createDataRouter(
+        session,
+        () => ({ greeting: publicMarker }),
+        () => ({ payload: createValue() }),
+      );
+      await router.load();
+      await expect(renderTransfer(session, router)).rejects.toThrow();
+      expect(session.committedPolicy).toBeUndefined();
+      expect((await session.completion).state).toBe('failed');
+    },
+  );
 
   test('returned beforeLoad context rejects getters without invoking them', async () => {
     const session = createSession();
@@ -366,28 +368,29 @@ describe('native public match transfer', () => {
     expect((await session.completion).state).toBe('failed');
   });
 
-  test.each(
-    forbidden,
-  )('a synchronous module.context cannot return %s before document headers', async (_name, createValue) => {
-    const session = createSession();
-    let error: unknown;
-    try {
-      const router = createDataRouter(
-        session,
-        () => ({ ready: publicMarker }),
-        undefined,
-        undefined,
-        () => ({ payload: createValue() }),
-      );
-      await router.load();
-      await renderTransfer(session, router);
-    } catch (cause) {
-      error = cause;
-    }
-    expect(error).toBeInstanceOf(Error);
-    expect(session.committedPolicy).toBeUndefined();
-    expect((await session.completion).state).toBe('failed');
-  });
+  test.each(forbidden)(
+    'a synchronous module.context cannot return %s before document headers',
+    async (_name, createValue) => {
+      const session = createSession();
+      let error: unknown;
+      try {
+        const router = createDataRouter(
+          session,
+          () => ({ ready: publicMarker }),
+          undefined,
+          undefined,
+          () => ({ payload: createValue() }),
+        );
+        await router.load();
+        await renderTransfer(session, router);
+      } catch (cause) {
+        error = cause;
+      }
+      expect(error).toBeInstanceOf(Error);
+      expect(session.committedPolicy).toBeUndefined();
+      expect((await session.completion).state).toBe('failed');
+    },
+  );
 
   test('a synchronous module.context rejects a getter before native context composition reads it', async () => {
     const session = createSession();
@@ -528,30 +531,32 @@ describe('native public match transfer', () => {
     expect((await session.completion).state).toBe('completed');
   });
 
-  test.each(
-    mutableContainers,
-  )('managed native data rejects mutable %s before commit', async (_name, createValue) => {
-    const session = createSession();
-    const router = await loadedRouter(session, { payload: createValue() });
-    await expect(renderTransfer(session, router)).rejects.toThrow();
-    expect(session.committedPolicy).toBeUndefined();
-    expect((await session.completion).state).toBe('failed');
-  });
+  test.each(mutableContainers)(
+    'managed native data rejects mutable %s before commit',
+    async (_name, createValue) => {
+      const session = createSession();
+      const router = await loadedRouter(session, { payload: createValue() });
+      await expect(renderTransfer(session, router)).rejects.toThrow();
+      expect(session.committedPolicy).toBeUndefined();
+      expect((await session.completion).state).toBe('failed');
+    },
+  );
 
-  test.each(
-    mutableContainers,
-  )('managed beforeLoad rejects mutable %s before commit', async (_name, createValue) => {
-    const session = createSession();
-    const router = createDataRouter(
-      session,
-      () => ({ greeting: publicMarker }),
-      () => ({ payload: createValue() }),
-    );
-    await router.load();
-    await expect(renderTransfer(session, router)).rejects.toThrow();
-    expect(session.committedPolicy).toBeUndefined();
-    expect((await session.completion).state).toBe('failed');
-  });
+  test.each(mutableContainers)(
+    'managed beforeLoad rejects mutable %s before commit',
+    async (_name, createValue) => {
+      const session = createSession();
+      const router = createDataRouter(
+        session,
+        () => ({ greeting: publicMarker }),
+        () => ({ payload: createValue() }),
+      );
+      await router.load();
+      await expect(renderTransfer(session, router)).rejects.toThrow();
+      expect(session.committedPolicy).toBeUndefined();
+      expect((await session.completion).state).toBe('failed');
+    },
+  );
 
   test('a prepared public record isolates critical mutation and owns a checked native deferred Promise', async () => {
     const source = deferred<unknown>();
@@ -774,27 +779,28 @@ describe('native public match transfer', () => {
     expect((await session.completion).state).toBe('completed');
   });
 
-  test.each(
-    forbidden,
-  )('deferred %s fulfillment never emits private bytes or enters the success cache', async (_name, createValue) => {
-    const source = deferred<unknown>();
-    const session = createSession();
-    const router = await loadedRouter(session, {
-      ready: publicMarker,
-      later: source.promise,
-    });
-    const reader = (await renderTransfer(session, router)).body!.getReader();
-    const shell = await reader.read();
-    const prefix = new TextDecoder().decode(shell.value);
-    expect(prefix).toContain('stream shell');
-    source.resolve(createValue());
-    const result = await consume(reader, prefix);
-    expect(result.html).not.toContain(privateMarker);
-    expect(result.error).toBeInstanceOf(Error);
-    expect((await session.completion).state).toBe('failed');
-    expect((await session.completion).cacheEligible).toBe(false);
-    expect(session.committedPolicy?.status).toBe(200);
-  });
+  test.each(forbidden)(
+    'deferred %s fulfillment never emits private bytes or enters the success cache',
+    async (_name, createValue) => {
+      const source = deferred<unknown>();
+      const session = createSession();
+      const router = await loadedRouter(session, {
+        ready: publicMarker,
+        later: source.promise,
+      });
+      const reader = (await renderTransfer(session, router)).body!.getReader();
+      const shell = await reader.read();
+      const prefix = new TextDecoder().decode(shell.value);
+      expect(prefix).toContain('stream shell');
+      source.resolve(createValue());
+      const result = await consume(reader, prefix);
+      expect(result.html).not.toContain(privateMarker);
+      expect(result.error).toBeInstanceOf(Error);
+      expect((await session.completion).state).toBe('failed');
+      expect((await session.completion).cacheEligible).toBe(false);
+      expect(session.committedPolicy?.status).toBe(200);
+    },
+  );
 
   test('a deferred accessor is rejected without evaluating it after the shell', async () => {
     const source = deferred<unknown>();
@@ -823,24 +829,25 @@ describe('native public match transfer', () => {
     expect((await session.completion).cacheEligible).toBe(false);
   });
 
-  test.each(
-    mutableContainers,
-  )('native deferred %s fails the immutable UI boundary after the shell', async (_name, createValue) => {
-    const source = deferred<unknown>();
-    const session = createSession();
-    const router = await loadedRouter(session, {
-      ready: publicMarker,
-      later: source.promise,
-    });
-    const reader = (await renderTransfer(session, router)).body!.getReader();
-    const prefix = new TextDecoder().decode((await reader.read()).value);
-    expect(prefix).toContain('stream shell');
-    source.resolve(createValue());
-    const result = await consume(reader, prefix);
-    expect(result.error).toBeInstanceOf(Error);
-    expect((await session.completion).state).toBe('failed');
-    expect((await session.completion).cacheEligible).toBe(false);
-  });
+  test.each(mutableContainers)(
+    'native deferred %s fails the immutable UI boundary after the shell',
+    async (_name, createValue) => {
+      const source = deferred<unknown>();
+      const session = createSession();
+      const router = await loadedRouter(session, {
+        ready: publicMarker,
+        later: source.promise,
+      });
+      const reader = (await renderTransfer(session, router)).body!.getReader();
+      const prefix = new TextDecoder().decode((await reader.read()).value);
+      expect(prefix).toContain('stream shell');
+      source.resolve(createValue());
+      const result = await consume(reader, prefix);
+      expect(result.error).toBeInstanceOf(Error);
+      expect((await session.completion).state).toBe('failed');
+      expect((await session.completion).cacheEligible).toBe(false);
+    },
+  );
 
   test('an array accessor is refused before native hydration can read its index', async () => {
     let getterCalls = 0;
@@ -892,49 +899,50 @@ describe('native public match transfer', () => {
     expect(result.html).not.toContain(privateMarker);
   });
 
-  test.each(
-    forbidden,
-  )('native Promise state rejects %s after the document shell', async (_name, createValue) => {
-    const source = deferred<unknown>();
-    const session = createSession();
-    let handle: Promise<unknown> | undefined;
-    const router = createDataRouter(
-      session,
-      () => ({ ready: publicMarker, later: source.promise }),
-      undefined,
-      () => {
-        const data = useLoaderData({ strict: false })();
-        handle = Object.getOwnPropertyDescriptor(data, 'later')?.value;
-        const memo = createMemo(() => handle!);
-        return createComponent(Loading, {
-          fallback: ssr('<p>native-state shell</p>'),
-          get children() {
-            return ssr(['<p>', '</p>'], () => memo());
-          },
-        });
-      },
-    );
-    await router.load();
-    const reader = (
-      await renderDocumentApplication({
+  test.each(forbidden)(
+    'native Promise state rejects %s after the document shell',
+    async (_name, createValue) => {
+      const source = deferred<unknown>();
+      const session = createSession();
+      let handle: Promise<unknown> | undefined;
+      const router = createDataRouter(
         session,
-        view: () => createComponent(ApplicationRouter, { router }),
-      })
-    ).body!.getReader();
-    const prefix = new TextDecoder().decode((await reader.read()).value);
-    expect(prefix).toContain('native-state shell');
-    if (!handle) throw new Error('Expected a managed native Promise handle.');
-    expect(Object.isSealed(handle)).toBe(true);
-    Reflect.set(handle, 's', 1);
-    expect(() => Reflect.set(handle!, 'v', createValue())).toThrow();
-    const result = await consume(reader, prefix);
-    expect(result.error).toBeInstanceOf(Error);
-    expect(result.html).not.toContain(privateMarker);
-    expect((await session.completion).state).toBe('failed');
-    expect((await session.completion).cacheEligible).toBe(false);
-    expect(Reflect.ownKeys(source.promise)).toEqual([]);
-    source.resolve({ value: 'late-public-fulfillment' });
-  });
+        () => ({ ready: publicMarker, later: source.promise }),
+        undefined,
+        () => {
+          const data = useLoaderData({ strict: false })();
+          handle = Object.getOwnPropertyDescriptor(data, 'later')?.value;
+          const memo = createMemo(() => handle!);
+          return createComponent(Loading, {
+            fallback: ssr('<p>native-state shell</p>'),
+            get children() {
+              return ssr(['<p>', '</p>'], () => memo());
+            },
+          });
+        },
+      );
+      await router.load();
+      const reader = (
+        await renderDocumentApplication({
+          session,
+          view: () => createComponent(ApplicationRouter, { router }),
+        })
+      ).body!.getReader();
+      const prefix = new TextDecoder().decode((await reader.read()).value);
+      expect(prefix).toContain('native-state shell');
+      if (!handle) throw new Error('Expected a managed native Promise handle.');
+      expect(Object.isSealed(handle)).toBe(true);
+      Reflect.set(handle, 's', 1);
+      expect(() => Reflect.set(handle!, 'v', createValue())).toThrow();
+      const result = await consume(reader, prefix);
+      expect(result.error).toBeInstanceOf(Error);
+      expect(result.html).not.toContain(privateMarker);
+      expect((await session.completion).state).toBe('failed');
+      expect((await session.completion).cacheEligible).toBe(false);
+      expect(Reflect.ownKeys(source.promise)).toEqual([]);
+      source.resolve({ value: 'late-public-fulfillment' });
+    },
+  );
 
   test('native Promise state rejects an accessor without evaluating it after the document shell', async () => {
     const source = deferred<unknown>();
@@ -1074,212 +1082,215 @@ describe('native public match transfer', () => {
     source.resolve({ value: 'late-public-fulfillment' });
   });
 
-  test.each([
-    'direct',
-    'await',
-  ] as const)('an already fulfilled checked Promise supports native %s memo and match transfer', async memoKind => {
-    const authored = {
-      value: 'native-already-fulfilled-value',
-      nested: ['native-already-fulfilled-array'],
-    };
-    const source = Promise.resolve(authored);
-    const session = createSession();
-    const router = createDataRouter(
-      session,
-      () => ({ ready: publicMarker, later: source }),
-      undefined,
-      () => {
-        const data = useLoaderData({ strict: false })();
-        const handle = Object.getOwnPropertyDescriptor(data, 'later')?.value;
-        expect(Object.isSealed(handle)).toBe(true);
-        expect(handle === source).toBe(false);
-        const memo =
-          memoKind === 'direct'
-            ? createMemo(() => handle)
-            : createMemo(async () => await handle);
-        return createComponent(Loading, {
-          fallback: ssr('<p>already fulfilled fallback</p>'),
-          get children() {
-            return ssr(['<p>', '</p>'], () => memo().value);
-          },
-        });
-      },
-    );
-    await router.load();
-    const html = await (
-      await renderDocumentApplication({
+  test.each(['direct', 'await'] as const)(
+    'an already fulfilled checked Promise supports native %s memo and match transfer',
+    async memoKind => {
+      const authored = {
+        value: 'native-already-fulfilled-value',
+        nested: ['native-already-fulfilled-array'],
+      };
+      const source = Promise.resolve(authored);
+      const session = createSession();
+      const router = createDataRouter(
         session,
-        view: () => createComponent(ApplicationRouter, { router }),
-      })
-    ).text();
-    expect(html).toContain(MATCH_KEY_PREFIX);
-    expect(html).toContain(publicMarker);
-    expect(html).toContain('native-already-fulfilled-value');
-    expect(html).toContain('native-already-fulfilled-array');
-    expect(Object.isFrozen(authored)).toBe(false);
-    expect(Object.isFrozen(authored.nested)).toBe(false);
-    expect(Reflect.ownKeys(source)).toEqual([]);
-    expect((await session.completion).state).toBe('completed');
-  });
+        () => ({ ready: publicMarker, later: source }),
+        undefined,
+        () => {
+          const data = useLoaderData({ strict: false })();
+          const handle = Object.getOwnPropertyDescriptor(data, 'later')?.value;
+          expect(Object.isSealed(handle)).toBe(true);
+          expect(handle === source).toBe(false);
+          const memo =
+            memoKind === 'direct'
+              ? createMemo(() => handle)
+              : createMemo(async () => await handle);
+          return createComponent(Loading, {
+            fallback: ssr('<p>already fulfilled fallback</p>'),
+            get children() {
+              return ssr(['<p>', '</p>'], () => memo().value);
+            },
+          });
+        },
+      );
+      await router.load();
+      const html = await (
+        await renderDocumentApplication({
+          session,
+          view: () => createComponent(ApplicationRouter, { router }),
+        })
+      ).text();
+      expect(html).toContain(MATCH_KEY_PREFIX);
+      expect(html).toContain(publicMarker);
+      expect(html).toContain('native-already-fulfilled-value');
+      expect(html).toContain('native-already-fulfilled-array');
+      expect(Object.isFrozen(authored)).toBe(false);
+      expect(Object.isFrozen(authored.nested)).toBe(false);
+      expect(Reflect.ownKeys(source)).toEqual([]);
+      expect((await session.completion).state).toBe('completed');
+    },
+  );
 
   test.each([
     ['authored', 'direct'],
     ['authored', 'await'],
     ['published', 'direct'],
     ['published', 'await'],
-  ] as const)('managed data blocks %s Promise mutation during native %s memo hydration', async (mutationTarget, memoKind) => {
-    const source = deferred<{ value: string }>();
-    const session = createSession();
-    const critical = {
-      ready: publicMarker,
-      details: {
-        title: 'public-managed-critical',
-        tags: ['public-managed-array'],
-      },
-      nullRecord: Object.assign(Object.create(null), {
-        tag: 'public-null-record',
-      }),
-    };
-    const outcome: DataOutcome = {
-      kind: 'deferred',
-      critical,
-      deferred: { later: source.promise },
-      response: {
-        status: 200,
-        statusText: 'OK',
-        headers: [],
-        cachePolicy: 'public',
-      },
-    };
-    const routes: FileSystemRouteIR[] = [
-      {
-        id: 'layout',
-        isRoot: true,
-        children: [
-          {
-            id: 'item',
-            path: 'item',
-            modules: { data: '/item.data.ts' },
-            children: [],
-          },
-        ],
-      },
-    ];
-    let getterCalls = 0;
-    const routeTree = createFileSystemRouteTree(
-      routes,
-      {
-        item: {
-          component: () => {
-            const data = useLoaderData({ strict: false })();
-            if (!data || typeof data !== 'object')
-              throw new Error('Expected managed native loader data.');
-            expect(Object.isFrozen(data)).toBe(true);
-            const details = Object.getOwnPropertyDescriptor(
-              data,
-              'details',
-            )?.value;
-            expect(Object.isFrozen(details)).toBe(true);
-            const tags = Object.getOwnPropertyDescriptor(
-              details,
-              'tags',
-            )?.value;
-            expect(Array.isArray(tags)).toBe(true);
-            expect(Object.isFrozen(tags)).toBe(true);
-            expect(Reflect.set(tags, '0', privateMarker)).toBe(false);
-            const nullRecord = Object.getOwnPropertyDescriptor(
-              data,
-              'nullRecord',
-            )?.value;
-            expect(Object.getPrototypeOf(nullRecord)).toBeNull();
-            expect(Object.isFrozen(nullRecord)).toBe(true);
-            const promise = Object.getOwnPropertyDescriptor(
-              data,
-              'later',
-            )?.value;
-            if (!(promise instanceof Promise))
-              throw new Error('Expected a checked public view Promise.');
-            expect(promise).not.toBe(source.promise);
-            const mutationPromise =
-              mutationTarget === 'authored' ? source.promise : promise;
-            void mutationPromise
-              .then((value: unknown) => {
-                if (!value || typeof value !== 'object') return;
-                Object.defineProperty(value, 'privateToken', {
-                  enumerable: true,
-                  get() {
-                    getterCalls += 1;
-                    return privateMarker;
-                  },
-                });
-              })
-              .catch(() => {});
-            const memo =
-              memoKind === 'direct'
-                ? createMemo(() => promise)
-                : createMemo(async () => await promise);
-            return createComponent(Loading, {
-              fallback: ssr('<p>waiting native memo</p>'),
-              get children() {
-                return ssr(['<p>', '</p>'], () => memo().value);
-              },
-            });
+  ] as const)(
+    'managed data blocks %s Promise mutation during native %s memo hydration',
+    async (mutationTarget, memoKind) => {
+      const source = deferred<{ value: string }>();
+      const session = createSession();
+      const critical = {
+        ready: publicMarker,
+        details: {
+          title: 'public-managed-critical',
+          tags: ['public-managed-array'],
+        },
+        nullRecord: Object.assign(Object.create(null), {
+          tag: 'public-null-record',
+        }),
+      };
+      const outcome: DataOutcome = {
+        kind: 'deferred',
+        critical,
+        deferred: { later: source.promise },
+        response: {
+          status: 200,
+          statusText: 'OK',
+          headers: [],
+          cachePolicy: 'public',
+        },
+      };
+      const routes: FileSystemRouteIR[] = [
+        {
+          id: 'layout',
+          isRoot: true,
+          children: [
+            {
+              id: 'item',
+              path: 'item',
+              modules: { data: '/item.data.ts' },
+              children: [],
+            },
+          ],
+        },
+      ];
+      let getterCalls = 0;
+      const routeTree = createFileSystemRouteTree(
+        routes,
+        {
+          item: {
+            component: () => {
+              const data = useLoaderData({ strict: false })();
+              if (!data || typeof data !== 'object')
+                throw new Error('Expected managed native loader data.');
+              expect(Object.isFrozen(data)).toBe(true);
+              const details = Object.getOwnPropertyDescriptor(
+                data,
+                'details',
+              )?.value;
+              expect(Object.isFrozen(details)).toBe(true);
+              const tags = Object.getOwnPropertyDescriptor(
+                details,
+                'tags',
+              )?.value;
+              expect(Array.isArray(tags)).toBe(true);
+              expect(Object.isFrozen(tags)).toBe(true);
+              expect(Reflect.set(tags, '0', privateMarker)).toBe(false);
+              const nullRecord = Object.getOwnPropertyDescriptor(
+                data,
+                'nullRecord',
+              )?.value;
+              expect(Object.getPrototypeOf(nullRecord)).toBeNull();
+              expect(Object.isFrozen(nullRecord)).toBe(true);
+              const promise = Object.getOwnPropertyDescriptor(
+                data,
+                'later',
+              )?.value;
+              if (!(promise instanceof Promise))
+                throw new Error('Expected a checked public view Promise.');
+              expect(promise).not.toBe(source.promise);
+              const mutationPromise =
+                mutationTarget === 'authored' ? source.promise : promise;
+              void mutationPromise
+                .then((value: unknown) => {
+                  if (!value || typeof value !== 'object') return;
+                  Object.defineProperty(value, 'privateToken', {
+                    enumerable: true,
+                    get() {
+                      getterCalls += 1;
+                      return privateMarker;
+                    },
+                  });
+                })
+                .catch(() => {});
+              const memo =
+                memoKind === 'direct'
+                  ? createMemo(() => promise)
+                  : createMemo(async () => await promise);
+              return createComponent(Loading, {
+                fallback: ssr('<p>waiting native memo</p>'),
+                get children() {
+                  return ssr(['<p>', '</p>'], () => memo().value);
+                },
+              });
+            },
           },
         },
-      },
-      {
-        request: session.request,
+        {
+          request: session.request,
+          session,
+          loadRoute: async () => outcome,
+        },
+      );
+      const router = createApplicationRouter({
+        routeTree,
+        history: createMemoryHistory({ initialEntries: ['/item'] }),
+        isServer: true,
+      });
+      await router.load();
+      expect(router.state.matches.at(-1)?.error).toBeUndefined();
+      critical.ready = privateMarker;
+      critical.details.title = privateMarker;
+      critical.details.tags.push(privateMarker);
+      const response = await renderDocumentApplication({
         session,
-        loadRoute: async () => outcome,
-      },
-    );
-    const router = createApplicationRouter({
-      routeTree,
-      history: createMemoryHistory({ initialEntries: ['/item'] }),
-      isServer: true,
-    });
-    await router.load();
-    expect(router.state.matches.at(-1)?.error).toBeUndefined();
-    critical.ready = privateMarker;
-    critical.details.title = privateMarker;
-    critical.details.tags.push(privateMarker);
-    const response = await renderDocumentApplication({
-      session,
-      view: () => createComponent(ApplicationRouter, { router }),
-    });
-    const reader = response.body!.getReader();
-    const prefix = new TextDecoder().decode((await reader.read()).value);
-    expect(prefix).toContain('waiting native memo');
-    const authored = { value: 'public-native-view' };
-    source.resolve(authored);
-    const result = await consume(reader, prefix);
-    expect(getterCalls).toBe(0);
-    expect(result.html).not.toContain(privateMarker);
-    expect(result.html).toContain(publicMarker);
-    expect(result.html).toContain('public-managed-critical');
-    expect(result.html).toContain('public-managed-array');
-    expect(result.html).toContain('public-null-record');
-    expect(Object.isFrozen(critical)).toBe(false);
-    expect(Object.isFrozen(critical.details)).toBe(false);
-    expect(Object.isFrozen(critical.details.tags)).toBe(false);
-    expect(Object.isFrozen(authored)).toBe(false);
-    if (mutationTarget === 'authored') {
-      expect(
-        Object.getOwnPropertyDescriptor(authored, 'privateToken')?.get,
-      ).toBeInstanceOf(Function);
-      expect(result.error).toBeUndefined();
-      expect(result.html).toContain('public-native-view');
-      expect((await session.completion).state).toBe('completed');
-    } else {
-      expect(
-        Object.getOwnPropertyDescriptor(authored, 'privateToken'),
-      ).toBeUndefined();
-      if (result.error)
-        expect((await session.completion).cacheEligible).toBe(false);
-      else expect(result.html).toContain('public-native-view');
-    }
-    expect(outcome.deferred.later).toBe(source.promise);
-  });
+        view: () => createComponent(ApplicationRouter, { router }),
+      });
+      const reader = response.body!.getReader();
+      const prefix = new TextDecoder().decode((await reader.read()).value);
+      expect(prefix).toContain('waiting native memo');
+      const authored = { value: 'public-native-view' };
+      source.resolve(authored);
+      const result = await consume(reader, prefix);
+      expect(getterCalls).toBe(0);
+      expect(result.html).not.toContain(privateMarker);
+      expect(result.html).toContain(publicMarker);
+      expect(result.html).toContain('public-managed-critical');
+      expect(result.html).toContain('public-managed-array');
+      expect(result.html).toContain('public-null-record');
+      expect(Object.isFrozen(critical)).toBe(false);
+      expect(Object.isFrozen(critical.details)).toBe(false);
+      expect(Object.isFrozen(critical.details.tags)).toBe(false);
+      expect(Object.isFrozen(authored)).toBe(false);
+      if (mutationTarget === 'authored') {
+        expect(
+          Object.getOwnPropertyDescriptor(authored, 'privateToken')?.get,
+        ).toBeInstanceOf(Function);
+        expect(result.error).toBeUndefined();
+        expect(result.html).toContain('public-native-view');
+        expect((await session.completion).state).toBe('completed');
+      } else {
+        expect(
+          Object.getOwnPropertyDescriptor(authored, 'privateToken'),
+        ).toBeUndefined();
+        if (result.error)
+          expect((await session.completion).cacheEligible).toBe(false);
+        else expect(result.html).toContain('public-native-view');
+      }
+      expect(outcome.deferred.later).toBe(source.promise);
+    },
+  );
 
   test('NoHydration performs no match-state write or loader-value getter reads', async () => {
     let getterCalls = 0;

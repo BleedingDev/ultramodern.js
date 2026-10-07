@@ -408,45 +408,50 @@ describe('native Solid application request event', () => {
     }
   });
 
-  test.each([
-    'synchronous',
-    'asynchronous',
-  ] as const)('%s handler failure belongs to its request session', async kind => {
-    const session = createSession(`failure-${kind}`);
-    const error = new Error(`private ${kind} handler failure`);
-    let initialEvent: ReturnType<typeof getRequestEvent>;
-    let cleanupEvent: ReturnType<typeof getRequestEvent>;
-    const cleanup = rstest.fn(() => {
-      cleanupEvent = getRequestEvent();
-    });
-    const registerCleanup = () => {
-      const event = requestEvent();
-      initialEvent = event;
-      session.registerCleanup(cleanup);
-      return event;
-    };
-    const callback =
-      kind === 'synchronous'
-        ? () => {
-            expect(registerCleanup().locals.session).toBe(session);
-            throw error;
-          }
-        : async () => {
-            const event = registerCleanup();
-            await Promise.resolve();
-            expect(requestEvent()).toBe(event);
-            throw error;
-          };
+  test.each(['synchronous', 'asynchronous'] as const)(
+    '%s handler failure belongs to its request session',
+    async kind => {
+      const session = createSession(`failure-${kind}`);
+      const error = new Error(`private ${kind} handler failure`);
+      let initialEvent: ReturnType<typeof getRequestEvent>;
+      let cleanupEvent: ReturnType<typeof getRequestEvent>;
+      const cleanup = rstest.fn(() => {
+        cleanupEvent = getRequestEvent();
+      });
+      const registerCleanup = () => {
+        const event = requestEvent();
+        initialEvent = event;
+        session.registerCleanup(cleanup);
+        return event;
+      };
+      const callback =
+        kind === 'synchronous'
+          ? () => {
+              expect(registerCleanup().locals.session).toBe(session);
+              throw error;
+            }
+          : async () => {
+              const event = registerCleanup();
+              await Promise.resolve();
+              expect(requestEvent()).toBe(event);
+              throw error;
+            };
 
-    await expect(runApplicationRequest(session, callback)).rejects.toBe(error);
-    expect(await session.completion).toMatchObject({ state: 'failed', error });
-    expect(session.committedPolicy).toBeUndefined();
-    expect(cleanup).toHaveBeenCalledTimes(1);
-    expect(cleanupEvent).toBe(initialEvent);
-    expect(cleanupEvent?.request).toBe(session.request);
-    expect(cleanupEvent?.locals.session).toBe(session);
-    expect(cleanupEvent?.locals.bindings).toBe(session.platform.bindings);
-  });
+      await expect(runApplicationRequest(session, callback)).rejects.toBe(
+        error,
+      );
+      expect(await session.completion).toMatchObject({
+        state: 'failed',
+        error,
+      });
+      expect(session.committedPolicy).toBeUndefined();
+      expect(cleanup).toHaveBeenCalledTimes(1);
+      expect(cleanupEvent).toBe(initialEvent);
+      expect(cleanupEvent?.request).toBe(session.request);
+      expect(cleanupEvent?.locals.session).toBe(session);
+      expect(cleanupEvent?.locals.bindings).toBe(session.platform.bindings);
+    },
+  );
 
   test('cancelling a deferred stream disposes its exact event while another handler is active', async () => {
     const first = createSession('cancelled');
@@ -511,72 +516,75 @@ describe('native Solid application request event', () => {
     'getter-bearing object',
     'nested plain alias',
     'locals bag',
-  ] as const)('managed router options reject private event.locals %s without reading getters', async kind => {
-    let getterReads = 0;
-    const bindings = { authorization: privateMarker };
-    const session = createSession('item', bindings);
-    const rejection = runApplicationRequest(session, async () => {
-      const event = requestEvent();
-      event.locals.authenticatedRequest = new Request(
-        'https://internal.test/',
-        {
-          headers: { authorization: privateMarker },
-        },
-      );
-      event.locals.authenticationHeaders = new Headers({
-        authorization: privateMarker,
-      });
-      event.locals.privateRoot = Object.defineProperty(
-        { nestedAlias: { authorization: privateMarker } },
-        'authorization',
-        {
+  ] as const)(
+    'managed router options reject private event.locals %s without reading getters',
+    async kind => {
+      let getterReads = 0;
+      const bindings = { authorization: privateMarker };
+      const session = createSession('item', bindings);
+      const rejection = runApplicationRequest(session, async () => {
+        const event = requestEvent();
+        event.locals.authenticatedRequest = new Request(
+          'https://internal.test/',
+          {
+            headers: { authorization: privateMarker },
+          },
+        );
+        event.locals.authenticationHeaders = new Headers({
+          authorization: privateMarker,
+        });
+        event.locals.privateRoot = Object.defineProperty(
+          { nestedAlias: { authorization: privateMarker } },
+          'authorization',
+          {
+            enumerable: true,
+            get() {
+              getterReads += 1;
+              return privateMarker;
+            },
+          },
+        );
+        Object.defineProperty(event.locals, 'privateGetter', {
           enumerable: true,
           get() {
             getterReads += 1;
             return privateMarker;
           },
-        },
-      );
-      Object.defineProperty(event.locals, 'privateGetter', {
-        enumerable: true,
-        get() {
-          getterReads += 1;
-          return privateMarker;
-        },
+        });
+        await Promise.resolve();
+        expect(requestEvent()).toBe(event);
+        const privateValues = {
+          Request: event.locals.authenticatedRequest,
+          Headers: event.locals.authenticationHeaders,
+          session: event.locals.session,
+          bindings: event.locals.bindings,
+          'getter-bearing object': event.locals.privateRoot,
+          'nested plain alias': event.locals.privateRoot.nestedAlias,
+          'locals bag': event.locals,
+        };
+        const routeTree = createFileSystemRouteTree(
+          routes,
+          {},
+          {
+            request: session.request,
+            session,
+          },
+        );
+        return createApplicationRouter({
+          routeTree,
+          history: createMemoryHistory({ initialEntries: ['/item'] }),
+          context: { payload: privateValues[kind] },
+          isServer: true,
+        });
       });
-      await Promise.resolve();
-      expect(requestEvent()).toBe(event);
-      const privateValues = {
-        Request: event.locals.authenticatedRequest,
-        Headers: event.locals.authenticationHeaders,
-        session: event.locals.session,
-        bindings: event.locals.bindings,
-        'getter-bearing object': event.locals.privateRoot,
-        'nested plain alias': event.locals.privateRoot.nestedAlias,
-        'locals bag': event.locals,
-      };
-      const routeTree = createFileSystemRouteTree(
-        routes,
-        {},
-        {
-          request: session.request,
-          session,
-        },
-      );
-      return createApplicationRouter({
-        routeTree,
-        history: createMemoryHistory({ initialEntries: ['/item'] }),
-        context: { payload: privateValues[kind] },
-        isServer: true,
-      });
-    });
 
-    await expect(rejection).rejects.toBeInstanceOf(DataProtocolError);
-    if (kind === 'bindings' || kind === 'nested plain alias')
-      await expect(rejection).rejects.toThrow('private request references');
-    expect(getterReads).toBe(0);
-    expect(session.committedPolicy).toBeUndefined();
-    expect((await session.completion).state).toBe('failed');
-    expect(Object.isFrozen(bindings)).toBe(false);
-  });
+      await expect(rejection).rejects.toBeInstanceOf(DataProtocolError);
+      if (kind === 'bindings' || kind === 'nested plain alias')
+        await expect(rejection).rejects.toThrow('private request references');
+      expect(getterReads).toBe(0);
+      expect(session.committedPolicy).toBeUndefined();
+      expect((await session.completion).state).toBe('failed');
+      expect(Object.isFrozen(bindings)).toBe(false);
+    },
+  );
 });

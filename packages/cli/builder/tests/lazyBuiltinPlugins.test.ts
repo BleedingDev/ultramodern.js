@@ -195,60 +195,61 @@ const hooks = registerHooks({ resolve(specifier, context, nextResolve) {
       reactCompiler: true,
       disableReactCompiler: true,
     },
-  ] as const)('matches original initialized compiler factories in $mode', async ({
-    mode,
-    svgDefaultExport,
-    reactCompiler,
-    disableReactCompiler,
-  }) => {
-    const { pluginReact } = await import('@rsbuild/plugin-react');
-    const { pluginSvgr } = await import('@rsbuild/plugin-svgr');
-    const builderConfig: BuilderConfig = {
-      output: { disableTsChecker: true, svgDefaultExport },
-      source: { reactCompiler },
-    };
-    const options: CreateBuilderCommonOptions = {
-      cwd: builderDirectory,
-      disableReactCompiler,
-    };
-    const parsed = await parseCommonConfig(builderConfig, options);
-    expect(
-      parsed.rsbuildPlugins.find(plugin => plugin.name === 'rsbuild:svgr')?.pre,
-    ).toEqual(['rsbuild:react']);
-    const original: RsbuildPlugin[] = parsed.rsbuildPlugins.map(plugin => {
-      if (plugin.name === 'rsbuild:react')
-        return pluginReact(disableReactCompiler ? {} : { reactCompiler });
-      if (plugin.name === 'rsbuild:svgr')
-        return pluginSvgr({
-          mixedImport: true,
-          parallel: true,
-          svgrOptions: {
-            exportType: svgDefaultExport === 'component' ? 'default' : 'named',
-          },
-        });
-      return plugin;
-    });
-    const initialize = async (plugins: RsbuildPlugin[]) => {
-      const rsbuild = await createRsbuild({
+  ] as const)(
+    'matches original initialized compiler factories in $mode',
+    async ({ mode, svgDefaultExport, reactCompiler, disableReactCompiler }) => {
+      const { pluginReact } = await import('@rsbuild/plugin-react');
+      const { pluginSvgr } = await import('@rsbuild/plugin-svgr');
+      const builderConfig: BuilderConfig = {
+        output: { disableTsChecker: true, svgDefaultExport },
+        source: { reactCompiler },
+      };
+      const options: CreateBuilderCommonOptions = {
         cwd: builderDirectory,
-        rsbuildConfig: { ...parsed.rsbuildConfig, mode, plugins },
-      });
-      return (await rsbuild.initConfigs())[0];
-    };
-    const deferredConfig = await initialize(parsed.rsbuildPlugins);
-    const originalConfig = await initialize(original);
-    expect(projectConfig(deferredConfig)).toEqual(
-      projectConfig(originalConfig),
-    );
-    if (mode === 'development') {
+        disableReactCompiler,
+      };
+      const parsed = await parseCommonConfig(builderConfig, options);
       expect(
-        deferredConfig.plugins?.map(plugin => plugin?.constructor.name),
-      ).toContain('ReactRefreshRspackPlugin');
-    }
-    expect(JSON.stringify(projectConfig(deferredConfig).svg)).toContain(
-      'plugin-svgr',
-    );
-  }, 30_000);
+        parsed.rsbuildPlugins.find(plugin => plugin.name === 'rsbuild:svgr')
+          ?.pre,
+      ).toEqual(['rsbuild:react']);
+      const original: RsbuildPlugin[] = parsed.rsbuildPlugins.map(plugin => {
+        if (plugin.name === 'rsbuild:react')
+          return pluginReact(disableReactCompiler ? {} : { reactCompiler });
+        if (plugin.name === 'rsbuild:svgr')
+          return pluginSvgr({
+            mixedImport: true,
+            parallel: true,
+            svgrOptions: {
+              exportType:
+                svgDefaultExport === 'component' ? 'default' : 'named',
+            },
+          });
+        return plugin;
+      });
+      const initialize = async (plugins: RsbuildPlugin[]) => {
+        const rsbuild = await createRsbuild({
+          cwd: builderDirectory,
+          rsbuildConfig: { ...parsed.rsbuildConfig, mode, plugins },
+        });
+        return (await rsbuild.initConfigs())[0];
+      };
+      const deferredConfig = await initialize(parsed.rsbuildPlugins);
+      const originalConfig = await initialize(original);
+      expect(projectConfig(deferredConfig)).toEqual(
+        projectConfig(originalConfig),
+      );
+      if (mode === 'development') {
+        expect(
+          deferredConfig.plugins?.map(plugin => plugin?.constructor.name),
+        ).toContain('ReactRefreshRspackPlugin');
+      }
+      expect(JSON.stringify(projectConfig(deferredConfig).svg)).toContain(
+        'plugin-svgr',
+      );
+    },
+    30_000,
+  );
 
   it('preserves output.disableSvgr', async () => {
     const parsed = await parseCommonConfig({

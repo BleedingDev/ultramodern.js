@@ -67,18 +67,19 @@ describe('per-entry renderer router bindings', () => {
   ] satisfies {
     renderer: RendererName;
     provider: RouterPackageBinding;
-  }[])('accepts $provider.framework providers admitted by the $renderer owner', ({
-    provider,
-  }) => {
-    expect(
-      validateRendererRouterBindings(
-        { main: owned(provider) },
-        ['main'],
-        'routerBindings',
-        [provider.framework],
-      ),
-    ).toEqual({ ok: true, errors: [] });
-  });
+  }[])(
+    'accepts $provider.framework providers admitted by the $renderer owner',
+    ({ provider }) => {
+      expect(
+        validateRendererRouterBindings(
+          { main: owned(provider) },
+          ['main'],
+          'routerBindings',
+          [provider.framework],
+        ),
+      ).toEqual({ ok: true, errors: [] });
+    },
+  );
 
   it.each([
     {
@@ -101,26 +102,26 @@ describe('per-entry renderer router bindings', () => {
     renderer: RendererName;
     frameworks: readonly RouterPackageBinding['framework'][];
     provider: RouterPackageBinding;
-  }[])('rejects $provider.framework providers outside the $renderer owner admission list', ({
-    frameworks,
-    provider,
-  }) => {
-    const bindings = { main: owned(provider) };
-    expect(validateRendererRouterBindings(bindings, ['main']).ok).toBe(true);
-    const result = validateRendererRouterBindings(
-      bindings,
-      ['main'],
-      'routerBindings',
-      frameworks,
-    );
-    expect(result.ok).toBe(false);
-    for (const providerPath of ['defaultProvider', 'providers[0]']) {
-      expect(result.errors).toContainEqual({
-        path: `routerBindings.main.${providerPath}.framework`,
-        message: 'must be admitted by the selected router owner.',
-      });
-    }
-  });
+  }[])(
+    'rejects $provider.framework providers outside the $renderer owner admission list',
+    ({ frameworks, provider }) => {
+      const bindings = { main: owned(provider) };
+      expect(validateRendererRouterBindings(bindings, ['main']).ok).toBe(true);
+      const result = validateRendererRouterBindings(
+        bindings,
+        ['main'],
+        'routerBindings',
+        frameworks,
+      );
+      expect(result.ok).toBe(false);
+      for (const providerPath of ['defaultProvider', 'providers[0]']) {
+        expect(result.errors).toContainEqual({
+          path: `routerBindings.main.${providerPath}.framework`,
+          message: 'must be admitted by the selected router owner.',
+        });
+      }
+    },
+  );
 
   it('accepts both React router providers in an explicit React provider registry', () => {
     expect(
@@ -133,33 +134,33 @@ describe('per-entry renderer router bindings', () => {
     ).toEqual({ ok: true, errors: [] });
   });
 
-  it.each([
-    'main',
-    'secondary',
-  ])('checks the %s entry owner admission even when package tuples match', entryName => {
-    const wrongFramework = { ...replacement, framework: 'replacment' };
-    const result = validateRendererRouterBindings(
-      {
-        main: owned(replacement),
-        secondary: owned(replacement),
-        [entryName]: owned(wrongFramework),
-      },
-      ['main', 'secondary'],
-      'routerBindings',
-      ['replacement'],
-    );
-    expect(result.errors).toContainEqual({
-      path: `routerBindings.${entryName}.defaultProvider.framework`,
-      message: 'must be admitted by the selected router owner.',
-    });
-    expect(
-      result.errors.some(error =>
-        error.path.startsWith(
-          `routerBindings.${entryName === 'main' ? 'secondary' : 'main'}.`,
+  it.each(['main', 'secondary'])(
+    'checks the %s entry owner admission even when package tuples match',
+    entryName => {
+      const wrongFramework = { ...replacement, framework: 'replacment' };
+      const result = validateRendererRouterBindings(
+        {
+          main: owned(replacement),
+          secondary: owned(replacement),
+          [entryName]: owned(wrongFramework),
+        },
+        ['main', 'secondary'],
+        'routerBindings',
+        ['replacement'],
+      );
+      expect(result.errors).toContainEqual({
+        path: `routerBindings.${entryName}.defaultProvider.framework`,
+        message: 'must be admitted by the selected router owner.',
+      });
+      expect(
+        result.errors.some(error =>
+          error.path.startsWith(
+            `routerBindings.${entryName === 'main' ? 'secondary' : 'main'}.`,
+          ),
         ),
-      ),
-    ).toBe(false);
-  });
+      ).toBe(false);
+    },
+  );
 
   it('accepts canonical available providers without an owner admission list', () => {
     const result = validateRendererRouterBindings(
@@ -382,29 +383,29 @@ describe('per-entry renderer router bindings', () => {
     });
   });
 
-  it.each([
-    true,
-    false,
-  ])('rejects accessor entry properties with enumerable=%s without invoking getters', enumerable => {
-    let getterExecutions = 0;
-    const bindings = Object.defineProperty({}, 'main', {
-      enumerable,
-      get() {
-        getterExecutions++;
-        throw new Error('entry getter must not run');
-      },
-    });
-    expect(validateRendererRouterBindings(bindings, ['main'])).toEqual({
-      ok: false,
-      errors: [
-        {
-          path: 'routerBindings.main',
-          message: 'must be an enumerable data property.',
+  it.each([true, false])(
+    'rejects accessor entry properties with enumerable=%s without invoking getters',
+    enumerable => {
+      let getterExecutions = 0;
+      const bindings = Object.defineProperty({}, 'main', {
+        enumerable,
+        get() {
+          getterExecutions++;
+          throw new Error('entry getter must not run');
         },
-      ],
-    });
-    expect(getterExecutions).toBe(0);
-  });
+      });
+      expect(validateRendererRouterBindings(bindings, ['main'])).toEqual({
+        ok: false,
+        errors: [
+          {
+            path: 'routerBindings.main',
+            message: 'must be an enumerable data property.',
+          },
+        ],
+      });
+      expect(getterExecutions).toBe(0);
+    },
+  );
 
   it('rejects own symbol entries that disappear during JSON serialization', () => {
     const bindings = { main: owned(), [Symbol('hidden-entry')]: owned(solid) };
@@ -435,15 +436,13 @@ describe('per-entry renderer router bindings', () => {
     expect(validateRendererRouterBindings(roundtrip, entries).ok).toBe(true);
   });
 
-  it.each([
-    '',
-    ' main',
-    'main ',
-    '__proto__',
-  ])('rejects unsafe or noncanonical entry %s', entry => {
-    const bindings = Object.fromEntries([[entry, owned()]]);
-    expect(validateRendererRouterBindings(bindings, [entry]).ok).toBe(false);
-  });
+  it.each(['', ' main', 'main ', '__proto__'])(
+    'rejects unsafe or noncanonical entry %s',
+    entry => {
+      const bindings = Object.fromEntries([[entry, owned()]]);
+      expect(validateRendererRouterBindings(bindings, [entry]).ok).toBe(false);
+    },
+  );
 
   it('rejects duplicate expected entry names', () => {
     expect(
@@ -455,89 +454,77 @@ describe('per-entry renderer router bindings', () => {
     });
   });
 
-  it.each([
-    null,
-    undefined,
-    [],
-    'main',
-    123,
-    new Date(),
-  ])('rejects a non-record binding projection %s', value => {
-    expect(validateRendererRouterBindings(value, ['main']).ok).toBe(false);
-  });
+  it.each([null, undefined, [], 'main', 123, new Date()])(
+    'rejects a non-record binding projection %s',
+    value => {
+      expect(validateRendererRouterBindings(value, ['main']).ok).toBe(false);
+    },
+  );
 
-  it.each([
-    'selectedProvider',
-    'routerType',
-    'available',
-    'legacyRouter',
-  ])('rejects unknown entry field %s', field => {
-    expect(
-      validateRendererRouterBindings(
-        { main: { ...registry(), [field]: 'tanstack' } },
-        ['main'],
-      ).errors,
-    ).toContainEqual({
-      path: `routerBindings.main.${field}`,
-      message: 'is not a supported field.',
-    });
-  });
+  it.each(['selectedProvider', 'routerType', 'available', 'legacyRouter'])(
+    'rejects unknown entry field %s',
+    field => {
+      expect(
+        validateRendererRouterBindings(
+          { main: { ...registry(), [field]: 'tanstack' } },
+          ['main'],
+        ).errors,
+      ).toContainEqual({
+        path: `routerBindings.main.${field}`,
+        message: 'is not a supported field.',
+      });
+    },
+  );
 
-  it.each([
-    'owner',
-    'evidence',
-    'defaultProvider',
-    'providers',
-  ])('requires explicit own binding field %s', field => {
-    const binding: Record<string, unknown> = { ...owned() };
-    delete binding[field];
-    expect(
-      validateRendererRouterBindings({ main: binding }, ['main']).errors,
-    ).toContainEqual({
-      path: `routerBindings.main.${field}`,
-      message: 'is required.',
-    });
-  });
+  it.each(['owner', 'evidence', 'defaultProvider', 'providers'])(
+    'requires explicit own binding field %s',
+    field => {
+      const binding: Record<string, unknown> = { ...owned() };
+      delete binding[field];
+      expect(
+        validateRendererRouterBindings({ main: binding }, ['main']).errors,
+      ).toContainEqual({
+        path: `routerBindings.main.${field}`,
+        message: 'is required.',
+      });
+    },
+  );
 
-  it.each([
-    '',
-    ' owner',
-    'owner ',
-    undefined,
-    123,
-  ])('requires a canonical owner %s', owner => {
-    expect(
-      validateRendererRouterBindings({ main: { ...owned(), owner } }, ['main'])
-        .ok,
-    ).toBe(false);
-  });
+  it.each(['', ' owner', 'owner ', undefined, 123])(
+    'requires a canonical owner %s',
+    owner => {
+      expect(
+        validateRendererRouterBindings({ main: { ...owned(), owner } }, [
+          'main',
+        ]).ok,
+      ).toBe(false);
+    },
+  );
 
-  it.each([
-    'selected',
-    'plugin-presence',
-    ' provider-registry',
-    undefined,
-  ])('rejects unsupported provenance %s', evidence => {
-    expect(
-      validateRendererRouterBindings({ main: { ...owned(), evidence } }, [
-        'main',
-      ]).ok,
-    ).toBe(false);
-  });
+  it.each(['selected', 'plugin-presence', ' provider-registry', undefined])(
+    'rejects unsupported provenance %s',
+    evidence => {
+      expect(
+        validateRendererRouterBindings({ main: { ...owned(), evidence } }, [
+          'main',
+        ]).ok,
+      ).toBe(false);
+    },
+  );
 
-  it.each([
-    'owned-default',
-    'file-routes',
-  ] as const)('%s attests only its one owned provider', evidence => {
-    expect(
-      validateRendererRouterBindings({ main: { ...registry(), evidence } }, [
-        'main',
-      ]).errors,
-    ).toContainEqual({
-      path: 'routerBindings.main.providers',
-      message: 'must contain only the owned default provider.',
-    });
-  });
+  it.each(['owned-default', 'file-routes'] as const)(
+    '%s attests only its one owned provider',
+    evidence => {
+      expect(
+        validateRendererRouterBindings({ main: { ...registry(), evidence } }, [
+          'main',
+        ]).errors,
+      ).toContainEqual({
+        path: 'routerBindings.main.providers',
+        message: 'must contain only the owned default provider.',
+      });
+    },
+  );
 
   it('accepts the explicitly selected TanStack default in a React provider registry', () => {
     expect(
@@ -553,32 +540,29 @@ describe('per-entry renderer router bindings', () => {
     ).toEqual({ ok: true, errors: [] });
   });
 
-  it.each([
-    'framework',
-    'name',
-    'version',
-    'coreName',
-    'coreVersion',
-  ])('matches default provider %s to its complete registered package tuple', field => {
-    const changed = {
-      ...reactRouter,
-      [field]:
-        field === 'framework'
-          ? 'tanstack'
-          : field.includes('Version') || field === 'version'
-            ? '9.0.0'
-            : 'another-package',
-    };
-    expect(
-      validateRendererRouterBindings(
-        { main: { ...owned(), defaultProvider: changed } },
-        ['main'],
-      ).errors,
-    ).toContainEqual({
-      path: 'routerBindings.main.defaultProvider',
-      message: 'must exactly match a registered provider.',
-    });
-  });
+  it.each(['framework', 'name', 'version', 'coreName', 'coreVersion'])(
+    'matches default provider %s to its complete registered package tuple',
+    field => {
+      const changed = {
+        ...reactRouter,
+        [field]:
+          field === 'framework'
+            ? 'tanstack'
+            : field.includes('Version') || field === 'version'
+              ? '9.0.0'
+              : 'another-package',
+      };
+      expect(
+        validateRendererRouterBindings(
+          { main: { ...owned(), defaultProvider: changed } },
+          ['main'],
+        ).errors,
+      ).toContainEqual({
+        path: 'routerBindings.main.defaultProvider',
+        message: 'must exactly match a registered provider.',
+      });
+    },
+  );
 
   it('rejects duplicate provider frameworks even when their versions differ', () => {
     expect(
@@ -634,15 +618,15 @@ describe('per-entry renderer router bindings', () => {
     ).toBe(true);
   });
 
-  it.each([
-    'name',
-    'coreName',
-  ])('requires canonical %s package identity', field => {
-    const provider = { ...reactRouter, [field]: ' package ' };
-    expect(
-      validateRendererRouterBindings({ main: owned(provider) }, ['main']).ok,
-    ).toBe(false);
-  });
+  it.each(['name', 'coreName'])(
+    'requires canonical %s package identity',
+    field => {
+      const provider = { ...reactRouter, [field]: ' package ' };
+      expect(
+        validateRendererRouterBindings({ main: owned(provider) }, ['main']).ok,
+      ).toBe(false);
+    },
+  );
 
   it('rejects a malformed framework and unknown package tuple fields', () => {
     const provider = { ...reactRouter, framework: ' inferred', selected: true };
@@ -672,58 +656,54 @@ describe('per-entry renderer router bindings', () => {
     'replacement--router',
     ' replacement',
     'replacement ',
-  ])('rejects malformed framework token %s without an owner policy', framework => {
-    const provider = { ...replacement, framework };
-    expect(
-      validateRendererRouterBindings({ main: owned(provider) }, ['main'])
-        .errors,
-    ).toContainEqual({
-      path: 'routerBindings.main.defaultProvider.framework',
-      message:
-        'must be a lowercase router framework token separated by single hyphens.',
-    });
-  });
+  ])(
+    'rejects malformed framework token %s without an owner policy',
+    framework => {
+      const provider = { ...replacement, framework };
+      expect(
+        validateRendererRouterBindings({ main: owned(provider) }, ['main'])
+          .errors,
+      ).toContainEqual({
+        path: 'routerBindings.main.defaultProvider.framework',
+        message:
+          'must be a lowercase router framework token separated by single hyphens.',
+      });
+    },
+  );
 
-  it.each([
-    'framework',
-    'name',
-    'version',
-    'coreName',
-    'coreVersion',
-  ])('requires own tuple field %s', field => {
-    const provider: Record<string, unknown> = { ...reactRouter };
-    delete provider[field];
-    expect(
-      validateRendererRouterBindings(
-        {
-          main: {
-            ...owned(),
-            defaultProvider: provider,
-            providers: [provider],
+  it.each(['framework', 'name', 'version', 'coreName', 'coreVersion'])(
+    'requires own tuple field %s',
+    field => {
+      const provider: Record<string, unknown> = { ...reactRouter };
+      delete provider[field];
+      expect(
+        validateRendererRouterBindings(
+          {
+            main: {
+              ...owned(),
+              defaultProvider: provider,
+              providers: [provider],
+            },
           },
-        },
-        ['main'],
-      ).errors,
-    ).toContainEqual({
-      path: `routerBindings.main.defaultProvider.${field}`,
-      message: 'is required.',
-    });
-  });
+          ['main'],
+        ).errors,
+      ).toContainEqual({
+        path: `routerBindings.main.defaultProvider.${field}`,
+        message: 'is required.',
+      });
+    },
+  );
 
-  it.each([
-    undefined,
-    null,
-    {},
-    [],
-    [undefined],
-    new Array(1),
-  ])('rejects a missing, malformed, or sparse provider list %s', providers => {
-    expect(
-      validateRendererRouterBindings({ main: { ...owned(), providers } }, [
-        'main',
-      ]).ok,
-    ).toBe(false);
-  });
+  it.each([undefined, null, {}, [], [undefined], new Array(1)])(
+    'rejects a missing, malformed, or sparse provider list %s',
+    providers => {
+      expect(
+        validateRendererRouterBindings({ main: { ...owned(), providers } }, [
+          'main',
+        ]).ok,
+      ).toBe(false);
+    },
+  );
 
   it('uses the caller path for artifact integration errors', () => {
     expect(

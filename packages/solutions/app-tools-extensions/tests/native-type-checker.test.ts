@@ -312,40 +312,44 @@ test.each([
       "files": ["index.ts"]
     }`,
   },
-])('rejects authored JSONC with $description before normalizing a checker overwrite', async ({
-  config,
-}) => {
-  const root = fs.realpathSync.native(
-    fs.mkdtempSync(path.join(os.tmpdir(), 'native-checker-invalid-jsonc-')),
-  );
-  const configFile = path.join(root, 'tsconfig.json');
-  try {
-    fs.writeFileSync(
-      path.join(root, 'index.ts'),
-      'export const value = "valid";',
+])(
+  'rejects authored JSONC with $description before normalizing a checker overwrite',
+  async ({ config }) => {
+    const root = fs.realpathSync.native(
+      fs.mkdtempSync(path.join(os.tmpdir(), 'native-checker-invalid-jsonc-')),
     );
-    fs.writeFileSync(configFile, config);
-    const options = {
-      build: false,
-      compiler: () => compiler,
-      configFile,
-    };
-    await expect(
-      new UltramodernNativeTypeChecker(options).check(),
-    ).rejects.toThrow(/TS\d+/);
-    expect(fs.readFileSync(configFile, 'utf8')).toBe(config);
-    await expect(
-      new UltramodernNativeTypeChecker({
-        ...options,
-        configOverwrite: { compilerOptions: { strict: true } },
-      }).check(),
-    ).rejects.toThrow(/requires valid JSONC/);
-    expect(fs.readFileSync(configFile, 'utf8')).toBe(config);
-    expect(fs.readdirSync(root).sort()).toEqual(['index.ts', 'tsconfig.json']);
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
+    const configFile = path.join(root, 'tsconfig.json');
+    try {
+      fs.writeFileSync(
+        path.join(root, 'index.ts'),
+        'export const value = "valid";',
+      );
+      fs.writeFileSync(configFile, config);
+      const options = {
+        build: false,
+        compiler: () => compiler,
+        configFile,
+      };
+      await expect(
+        new UltramodernNativeTypeChecker(options).check(),
+      ).rejects.toThrow(/TS\d+/);
+      expect(fs.readFileSync(configFile, 'utf8')).toBe(config);
+      await expect(
+        new UltramodernNativeTypeChecker({
+          ...options,
+          configOverwrite: { compilerOptions: { strict: true } },
+        }).check(),
+      ).rejects.toThrow(/requires valid JSONC/);
+      expect(fs.readFileSync(configFile, 'utf8')).toBe(config);
+      expect(fs.readdirSync(root).sort()).toEqual([
+        'index.ts',
+        'tsconfig.json',
+      ]);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  },
+);
 
 test('checks and rebuilds referenced projects without overriding their emit contracts', async () => {
   const root = fs.mkdtempSync(

@@ -71,42 +71,42 @@ describe('native compiler ownership', () => {
       ]),
     ).rejects.toThrow('Compiler plugin failed to load');
   });
-  it.each([
-    'solid',
-    'octane',
-  ] as const)('accepts one complete %s ownership claim', renderer => {
-    const plugin = compiler(renderer);
-    const claim = assertRendererCompilerOwnership(renderer, [plugin]);
-    expect(claim).toEqual({
-      renderer,
-      sourceExtensions: ['.tsx'],
-      transform: 'native',
-      refresh: 'native',
-      svg: 'url',
-    });
-    expect(Object.isFrozen(claim)).toBe(true);
-    expect(Object.isFrozen(claim?.sourceExtensions)).toBe(true);
-  });
+  it.each(['solid', 'octane'] as const)(
+    'accepts one complete %s ownership claim',
+    renderer => {
+      const plugin = compiler(renderer);
+      const claim = assertRendererCompilerOwnership(renderer, [plugin]);
+      expect(claim).toEqual({
+        renderer,
+        sourceExtensions: ['.tsx'],
+        transform: 'native',
+        refresh: 'native',
+        svg: 'url',
+      });
+      expect(Object.isFrozen(claim)).toBe(true);
+      expect(Object.isFrozen(claim?.sourceExtensions)).toBe(true);
+    },
+  );
 
-  it.each([
-    'solid',
-    'octane',
-  ] as const)('rejects missing, duplicate, and mismatched owners for %s', renderer => {
-    const other = renderer === 'solid' ? 'octane' : 'solid';
-    const expected = `Renderer ${renderer} requires exactly one matching native compiler owner`;
-    expect(() => assertRendererCompilerOwnership(renderer, [])).toThrow(
-      expected,
-    );
-    expect(() =>
-      assertRendererCompilerOwnership(renderer, [compiler(other)]),
-    ).toThrow(expected);
-    expect(() =>
-      assertRendererCompilerOwnership(renderer, [
-        compiler(renderer, 'first'),
-        compiler(renderer, 'second'),
-      ]),
-    ).toThrow(expected);
-  });
+  it.each(['solid', 'octane'] as const)(
+    'rejects missing, duplicate, and mismatched owners for %s',
+    renderer => {
+      const other = renderer === 'solid' ? 'octane' : 'solid';
+      const expected = `Renderer ${renderer} requires exactly one matching native compiler owner`;
+      expect(() => assertRendererCompilerOwnership(renderer, [])).toThrow(
+        expected,
+      );
+      expect(() =>
+        assertRendererCompilerOwnership(renderer, [compiler(other)]),
+      ).toThrow(expected);
+      expect(() =>
+        assertRendererCompilerOwnership(renderer, [
+          compiler(renderer, 'first'),
+          compiler(renderer, 'second'),
+        ]),
+      ).toThrow(expected);
+    },
+  );
 
   it('rejects native owners in React configuration and a second claim on one plugin', () => {
     const plugin = compiler('solid');
@@ -153,74 +153,77 @@ describe('native compiler ownership', () => {
     ).toThrow('Invalid native renderer compiler ownership claim');
   });
 
-  it.each([
-    'solid',
-    'octane',
-  ] as const)('removes global React transforms before %s Rsbuild plugin setup', async renderer => {
-    const isolation: RsbuildPlugin = nativeRendererIsolationPlugin(renderer);
-    const forbiddenSetup = rstest.fn(() => {
-      throw new Error('A removed React transform reached setup');
-    });
-    const nativeSetup = rstest.fn();
-    const native = attachRendererCompilerClaim(
-      { name: `fixture:${renderer}:compiler`, setup: nativeSetup },
-      {
-        renderer,
-        sourceExtensions: ['.tsx'],
-        transform: 'native',
-        refresh: 'native',
-        svg: 'url',
-      },
-    );
-    const rsbuild = await createRsbuild({
-      cwd: __dirname,
-      rsbuildConfig: {
-        source: { entry: { main: './plain-owning-host.js' } },
-        tools: { htmlPlugin: false },
-        plugins: [
-          { name: 'rsbuild:react', setup: forbiddenSetup },
-          { name: 'rsbuild:svgr', setup: forbiddenSetup },
-          { name: 'builder-plugin-adapter-modern-ssr', setup: forbiddenSetup },
-          isolation,
-          native,
-        ],
-      },
-    });
-    await rsbuild.initConfigs();
-    expect(forbiddenSetup).not.toHaveBeenCalled();
-    expect(nativeSetup).toHaveBeenCalledTimes(1);
-  });
+  it.each(['solid', 'octane'] as const)(
+    'removes global React transforms before %s Rsbuild plugin setup',
+    async renderer => {
+      const isolation: RsbuildPlugin = nativeRendererIsolationPlugin(renderer);
+      const forbiddenSetup = rstest.fn(() => {
+        throw new Error('A removed React transform reached setup');
+      });
+      const nativeSetup = rstest.fn();
+      const native = attachRendererCompilerClaim(
+        { name: `fixture:${renderer}:compiler`, setup: nativeSetup },
+        {
+          renderer,
+          sourceExtensions: ['.tsx'],
+          transform: 'native',
+          refresh: 'native',
+          svg: 'url',
+        },
+      );
+      const rsbuild = await createRsbuild({
+        cwd: __dirname,
+        rsbuildConfig: {
+          source: { entry: { main: './plain-owning-host.js' } },
+          tools: { htmlPlugin: false },
+          plugins: [
+            { name: 'rsbuild:react', setup: forbiddenSetup },
+            { name: 'rsbuild:svgr', setup: forbiddenSetup },
+            {
+              name: 'builder-plugin-adapter-modern-ssr',
+              setup: forbiddenSetup,
+            },
+            isolation,
+            native,
+          ],
+        },
+      });
+      await rsbuild.initConfigs();
+      expect(forbiddenSetup).not.toHaveBeenCalled();
+      expect(nativeSetup).toHaveBeenCalledTimes(1);
+    },
+  );
 });
 
 describe('native external script asset policy', () => {
-  it.each([
-    'solid',
-    'octane',
-  ] as const)('keeps the %s runtime external through the owning config and builder hooks', async renderer => {
-    const config = await selectHost(renderer, {
-      name: 'fixture:selected-host',
-    });
-    const { api } = await initializeSelection(config);
-    const resolved = await api.getHooks().modifyResolvedConfig.call(config);
-    expect(resolved.output?.disableInlineRuntimeChunk).toBe(true);
-    const rsbuild = await createRsbuild({
-      cwd: __dirname,
-      rsbuildConfig: {
-        source: { entry: { main: './native-runtime-owning-host.js' } },
-        tools: { htmlPlugin: false },
-        output: { inlineScripts: resolved.output?.inlineScripts },
-        plugins: [
-          pluginRuntimeChunk(resolved.output?.disableInlineRuntimeChunk),
-          nativeRendererIsolationPlugin(renderer),
-        ],
-      },
-    });
-    const [bundler] = await rsbuild.initConfigs();
-    expect(rsbuild.getNormalizedConfig().output.inlineScripts).toBe(false);
-    expect(bundler.optimization?.runtimeChunk).toEqual({
-      name: 'builder-runtime',
-    });
-  });
+  it.each(['solid', 'octane'] as const)(
+    'keeps the %s runtime external through the owning config and builder hooks',
+    async renderer => {
+      const config = await selectHost(renderer, {
+        name: 'fixture:selected-host',
+      });
+      const { api } = await initializeSelection(config);
+      const resolved = await api.getHooks().modifyResolvedConfig.call(config);
+      expect(resolved.output?.disableInlineRuntimeChunk).toBe(true);
+      const rsbuild = await createRsbuild({
+        cwd: __dirname,
+        rsbuildConfig: {
+          source: { entry: { main: './native-runtime-owning-host.js' } },
+          tools: { htmlPlugin: false },
+          output: { inlineScripts: resolved.output?.inlineScripts },
+          plugins: [
+            pluginRuntimeChunk(resolved.output?.disableInlineRuntimeChunk),
+            nativeRendererIsolationPlugin(renderer),
+          ],
+        },
+      });
+      const [bundler] = await rsbuild.initConfigs();
+      expect(rsbuild.getNormalizedConfig().output.inlineScripts).toBe(false);
+      expect(bundler.optimization?.runtimeChunk).toEqual({
+        name: 'builder-runtime',
+      });
+    },
+  );
 
   it('preserves the upstream inline-runtime default for React', async () => {
     const config = await selectHost('react', { name: 'fixture:selected-host' });
@@ -251,36 +254,44 @@ describe('native external script asset policy', () => {
     { inlineScripts: () => true },
     { inlineScripts: { test: /runtime/u } },
     { disableInlineRuntimeChunk: true, inlineScripts: true },
-  ])('rejects an explicit unsupported native inlining request: %j', async output => {
-    const selectedSetup = rstest.fn();
-    const config = await selectHost('solid', {
-      name: 'fixture:selected-host',
-      setup: selectedSetup,
-    });
-    await expect(initializeSelection({ ...config, output })).rejects.toThrow(
-      'requires external script assets; script inlining is not supported by native documents',
-    );
-    expect(selectedSetup).not.toHaveBeenCalled();
-  });
+  ])(
+    'rejects an explicit unsupported native inlining request: %j',
+    async output => {
+      const selectedSetup = rstest.fn();
+      const config = await selectHost('solid', {
+        name: 'fixture:selected-host',
+        setup: selectedSetup,
+      });
+      await expect(initializeSelection({ ...config, output })).rejects.toThrow(
+        'requires external script assets; script inlining is not supported by native documents',
+      );
+      expect(selectedSetup).not.toHaveBeenCalled();
+    },
+  );
 
   it.each([
     { inlineScripts: false },
     { disableInlineRuntimeChunk: true },
     { disableInlineRuntimeChunk: false, inlineScripts: false },
-  ] as const)('preserves an explicit supported external-script policy: %j', async output => {
-    const config = await selectHost('solid', { name: 'fixture:selected-host' });
-    const { api } = await initializeSelection({ ...config, output });
-    const resolved = await api
-      .getHooks()
-      .modifyResolvedConfig.call({ ...config, output });
-    expect(resolved.output).toEqual({
-      ...output,
-      disableInlineRuntimeChunk:
-        ('disableInlineRuntimeChunk' in output
-          ? output.disableInlineRuntimeChunk
-          : undefined) ?? true,
-    });
-  });
+  ] as const)(
+    'preserves an explicit supported external-script policy: %j',
+    async output => {
+      const config = await selectHost('solid', {
+        name: 'fixture:selected-host',
+      });
+      const { api } = await initializeSelection({ ...config, output });
+      const resolved = await api
+        .getHooks()
+        .modifyResolvedConfig.call({ ...config, output });
+      expect(resolved.output).toEqual({
+        ...output,
+        disableInlineRuntimeChunk:
+          ('disableInlineRuntimeChunk' in output
+            ? output.disableInlineRuntimeChunk
+            : undefined) ?? true,
+      });
+    },
+  );
 
   it('rejects a later environment inlining request before compiler creation', async () => {
     const rsbuild = await createRsbuild({
@@ -394,50 +405,50 @@ describe('renderer guard in the owning plugin manager', () => {
     expect(events).toEqual(['selected-nested', 'selected', 'consumer']);
   });
 
-  it.each([
-    'local',
-    'programmatic',
-  ] as const)('rejects a raw %s renderer override before selected setup', async override => {
-    const selectedSetup = rstest.fn();
-    const selected = { name: 'fixture:selected-host', setup: selectedSetup };
-    const original = await selectHost('solid', selected);
-    const appDirectory = fs.mkdtempSync(
-      path.join(os.tmpdir(), 'um-renderer-override-'),
-    );
-    try {
-      fs.writeFileSync(
-        path.join(appDirectory, 'package.json'),
-        JSON.stringify({ name: 'renderer-override-host' }),
+  it.each(['local', 'programmatic'] as const)(
+    'rejects a raw %s renderer override before selected setup',
+    async override => {
+      const selectedSetup = rstest.fn();
+      const selected = { name: 'fixture:selected-host', setup: selectedSetup };
+      const original = await selectHost('solid', selected);
+      const appDirectory = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'um-renderer-override-'),
       );
-      fs.writeFileSync(
-        path.join(appDirectory, 'modern.config.js'),
-        "module.exports = { renderer: 'solid' };\n",
-      );
-      if (override === 'local') {
+      try {
         fs.writeFileSync(
-          path.join(appDirectory, 'modern.config.local.js'),
-          "module.exports = { renderer: 'octane' };\n",
+          path.join(appDirectory, 'package.json'),
+          JSON.stringify({ name: 'renderer-override-host' }),
         );
+        fs.writeFileSync(
+          path.join(appDirectory, 'modern.config.js'),
+          "module.exports = { renderer: 'solid' };\n",
+        );
+        if (override === 'local') {
+          fs.writeFileSync(
+            path.join(appDirectory, 'modern.config.local.js'),
+            "module.exports = { renderer: 'octane' };\n",
+          );
+        }
+        const loaded = await createLoadedConfig<UltramodernAppUserConfig>(
+          appDirectory,
+          path.join(appDirectory, 'modern.config.js'),
+          override === 'programmatic' ? { renderer: 'octane' } : undefined,
+          { env: 'development', command: 'dev' },
+        );
+        const merged = {
+          ...original,
+          ...loaded.config,
+          plugins: original.plugins,
+        };
+        await expect(initializeSelection(merged)).rejects.toThrow(
+          'Renderer changed from solid to octane after plugin selection',
+        );
+        expect(selectedSetup).not.toHaveBeenCalled();
+      } finally {
+        fs.rmSync(appDirectory, { recursive: true, force: true });
       }
-      const loaded = await createLoadedConfig<UltramodernAppUserConfig>(
-        appDirectory,
-        path.join(appDirectory, 'modern.config.js'),
-        override === 'programmatic' ? { renderer: 'octane' } : undefined,
-        { env: 'development', command: 'dev' },
-      );
-      const merged = {
-        ...original,
-        ...loaded.config,
-        plugins: original.plugins,
-      };
-      await expect(initializeSelection(merged)).rejects.toThrow(
-        'Renderer changed from solid to octane after plugin selection',
-      );
-      expect(selectedSetup).not.toHaveBeenCalled();
-    } finally {
-      fs.rmSync(appDirectory, { recursive: true, force: true });
-    }
-  });
+    },
+  );
 
   it('rejects a late resolved renderer change before any selected output hook', async () => {
     const output = rstest.fn();
@@ -471,108 +482,111 @@ describe('renderer guard in the owning plugin manager', () => {
     { renderer: 'octane', ownership: 'missing' },
     { renderer: 'octane', ownership: 'duplicate' },
     { renderer: 'octane', ownership: 'mismatch' },
-  ] as const)('rejects $ownership compiler ownership before $renderer output', async ({
-    renderer,
-    ownership,
-  }) => {
-    const output = rstest.fn();
-    const config = await selectHost(
-      renderer,
-      {
-        name: 'fixture:selected-host',
-        setup(api) {
-          api.onPrepare(output);
+  ] as const)(
+    'rejects $ownership compiler ownership before $renderer output',
+    async ({ renderer, ownership }) => {
+      const output = rstest.fn();
+      const config = await selectHost(
+        renderer,
+        {
+          name: 'fixture:selected-host',
+          setup(api) {
+            api.onPrepare(output);
+          },
         },
-      },
-      [],
-      true,
-    );
-    config.builderPlugins =
-      ownership === 'missing'
-        ? []
-        : ownership === 'duplicate'
-          ? [compiler(renderer, 'first'), compiler(renderer, 'second')]
-          : [compiler(renderer === 'solid' ? 'octane' : 'solid')];
-    const { api } = await initializeSelection(config);
-    await expect(api.getHooks().onPrepare.call()).rejects.toThrow(
-      `Renderer ${renderer} requires exactly one matching native compiler owner`,
-    );
-    expect(output).not.toHaveBeenCalled();
-  });
+        [],
+        true,
+      );
+      config.builderPlugins =
+        ownership === 'missing'
+          ? []
+          : ownership === 'duplicate'
+            ? [compiler(renderer, 'first'), compiler(renderer, 'second')]
+            : [compiler(renderer === 'solid' ? 'octane' : 'solid')];
+      const { api } = await initializeSelection(config);
+      await expect(api.getHooks().onPrepare.call()).rejects.toThrow(
+        `Renderer ${renderer} requires exactly one matching native compiler owner`,
+      );
+      expect(output).not.toHaveBeenCalled();
+    },
+  );
 
-  it.each([
-    'solid',
-    'octane',
-  ] as const)('permits selected %s output with exactly one matching compiler owner', async renderer => {
-    const output = rstest.fn();
-    const config = await selectHost(
-      renderer,
-      {
-        name: 'fixture:selected-host',
-        setup(api) {
-          api.onPrepare(output);
+  it.each(['solid', 'octane'] as const)(
+    'permits selected %s output with exactly one matching compiler owner',
+    async renderer => {
+      const output = rstest.fn();
+      const config = await selectHost(
+        renderer,
+        {
+          name: 'fixture:selected-host',
+          setup(api) {
+            api.onPrepare(output);
+          },
         },
-      },
-      [],
-      true,
-    );
-    config.builderPlugins = [compiler(renderer)];
-    const { api } = await initializeSelection(config);
-    await api.getHooks().onPrepare.call();
-    expect(output).toHaveBeenCalledTimes(1);
-  });
+        [],
+        true,
+      );
+      config.builderPlugins = [compiler(renderer)];
+      const { api } = await initializeSelection(config);
+      await api.getHooks().onPrepare.call();
+      expect(output).toHaveBeenCalledTimes(1);
+    },
+  );
 
-  it.each([
-    'solid',
-    'octane',
-  ] as const)('resolves async nested %s ownership before selected output', async renderer => {
-    const output = rstest.fn();
-    const config = await selectHost(
-      renderer,
-      {
-        name: 'fixture:selected-host',
-        setup(api) {
-          api.onPrepare(output);
+  it.each(['solid', 'octane'] as const)(
+    'resolves async nested %s ownership before selected output',
+    async renderer => {
+      const output = rstest.fn();
+      const config = await selectHost(
+        renderer,
+        {
+          name: 'fixture:selected-host',
+          setup(api) {
+            api.onPrepare(output);
+          },
         },
-      },
-      [],
-      true,
-    );
-    config.builderPlugins = [
-      false,
-      Promise.resolve([undefined, [Promise.resolve(compiler(renderer)), null]]),
-    ];
-    const { api } = await initializeSelection(config);
-    await api.getHooks().onPrepare.call();
-    expect(output).toHaveBeenCalledTimes(1);
-  });
+        [],
+        true,
+      );
+      config.builderPlugins = [
+        false,
+        Promise.resolve([
+          undefined,
+          [Promise.resolve(compiler(renderer)), null],
+        ]),
+      ];
+      const { api } = await initializeSelection(config);
+      await api.getHooks().onPrepare.call();
+      expect(output).toHaveBeenCalledTimes(1);
+    },
+  );
 
-  it.each([
-    'solid',
-    'octane',
-  ] as const)('rejects duplicate async nested %s owners before output', async renderer => {
-    const output = rstest.fn();
-    const config = await selectHost(
-      renderer,
-      {
-        name: 'fixture:selected-host',
-        setup(api) {
-          api.onPrepare(output);
+  it.each(['solid', 'octane'] as const)(
+    'rejects duplicate async nested %s owners before output',
+    async renderer => {
+      const output = rstest.fn();
+      const config = await selectHost(
+        renderer,
+        {
+          name: 'fixture:selected-host',
+          setup(api) {
+            api.onPrepare(output);
+          },
         },
-      },
-      [],
-      true,
-    );
-    config.builderPlugins = [
-      Promise.resolve(compiler(renderer, 'first')),
-      [false, Promise.resolve([compiler(renderer, 'second')])],
-    ];
-    const { api } = await initializeSelection(config);
-    await expect(api.getHooks().onPrepare.call()).rejects.toThrow(
-      `Renderer ${renderer} requires exactly one matching native compiler owner`,
-    );
-    expect(output).not.toHaveBeenCalled();
-  });
+        [],
+        true,
+      );
+      config.builderPlugins = [
+        Promise.resolve(compiler(renderer, 'first')),
+        [false, Promise.resolve([compiler(renderer, 'second')])],
+      ];
+      const { api } = await initializeSelection(config);
+      await expect(api.getHooks().onPrepare.call()).rejects.toThrow(
+        `Renderer ${renderer} requires exactly one matching native compiler owner`,
+      );
+      expect(output).not.toHaveBeenCalled();
+    },
+  );
 
   it('rejects a second raw base even when the actual manager deduplicates its name', async () => {
     const selectedSetup = rstest.fn();
@@ -602,53 +616,53 @@ describe('renderer guard in the owning plugin manager', () => {
     expect(selectedSetup).not.toHaveBeenCalled();
   });
 
-  it.each([
-    'solid',
-    'octane',
-  ] as const)('rejects React-only app plugins in %s defineConfig before plugin resolution', async renderer => {
-    const reactSetup = rstest.fn();
-    const consumers: CliPlugin<AppTools>[] = [
-      {
-        name: '@modern-js/plugin-tanstack',
-        required: ['@modern-js/runtime'],
-        setup: reactSetup,
-      },
-      { name: '@modern-js/plugin-i18n', setup: reactSetup },
-      {
-        name: 'fixture:federation-wrapper',
-        usePlugins: [
-          { name: '@modern-js/plugin-module-federation', setup: reactSetup },
-        ],
-      },
-      { name: 'fixture:portable', setup() {} },
-    ];
-    let failure: unknown;
-    try {
-      await selectHost(
-        renderer,
-        { name: 'fixture:selected-host', setup() {} },
-        consumers,
+  it.each(['solid', 'octane'] as const)(
+    'rejects React-only app plugins in %s defineConfig before plugin resolution',
+    async renderer => {
+      const reactSetup = rstest.fn();
+      const consumers: CliPlugin<AppTools>[] = [
+        {
+          name: '@modern-js/plugin-tanstack',
+          required: ['@modern-js/runtime'],
+          setup: reactSetup,
+        },
+        { name: '@modern-js/plugin-i18n', setup: reactSetup },
+        {
+          name: 'fixture:federation-wrapper',
+          usePlugins: [
+            { name: '@modern-js/plugin-module-federation', setup: reactSetup },
+          ],
+        },
+        { name: 'fixture:portable', setup() {} },
+      ];
+      let failure: unknown;
+      try {
+        await selectHost(
+          renderer,
+          { name: 'fixture:selected-host', setup() {} },
+          consumers,
+        );
+      } catch (error) {
+        failure = error;
+      }
+      const message = (failure as Error).message;
+      expect(message).toContain(
+        `unsupported-renderer-plugin: renderer ${renderer} cannot use React-only plugins`,
       );
-    } catch (error) {
-      failure = error;
-    }
-    const message = (failure as Error).message;
-    expect(message).toContain(
-      `unsupported-renderer-plugin: renderer ${renderer} cannot use React-only plugins`,
-    );
-    expect(message).toContain(
-      `@modern-js/plugin-tanstack: remove tanstackRouterPlugin(); the ${renderer} renderer routes src/routes through @modern-js/renderer-${renderer}/router`,
-    );
-    expect(message).toContain(
-      '@modern-js/plugin-i18n: replace it with i18nPlugin() from @modern-js/ultramodern-app-tools',
-    );
-    expect(message).toContain(
-      '@modern-js/plugin-module-federation: remove moduleFederationPlugin()',
-    );
-    expect(message).toContain("or keep renderer: 'react'");
-    expect(message).not.toContain('fixture:portable');
-    expect(reactSetup).not.toHaveBeenCalled();
-  });
+      expect(message).toContain(
+        `@modern-js/plugin-tanstack: remove tanstackRouterPlugin(); the ${renderer} renderer routes src/routes through @modern-js/renderer-${renderer}/router`,
+      );
+      expect(message).toContain(
+        '@modern-js/plugin-i18n: replace it with i18nPlugin() from @modern-js/ultramodern-app-tools',
+      );
+      expect(message).toContain(
+        '@modern-js/plugin-module-federation: remove moduleFederationPlugin()',
+      );
+      expect(message).toContain("or keep renderer: 'react'");
+      expect(message).not.toContain('fixture:portable');
+      expect(reactSetup).not.toHaveBeenCalled();
+    },
+  );
 
   it('keeps React-only app plugins for the React renderer', async () => {
     const config = await selectHost(
@@ -662,53 +676,56 @@ describe('renderer guard in the owning plugin manager', () => {
     ]);
   });
 
-  it.each([
-    'solid',
-    'octane',
-  ] as const)('rejects React CLI plugins added after %s selection before host setup', async renderer => {
-    const selectedSetup = rstest.fn();
-    const reactSetup = rstest.fn();
-    const config = await selectHost(renderer, {
-      name: 'fixture:selected-host',
-      setup: selectedSetup,
-    });
-    config.plugins?.push({ name: '@modern-js/plugin-ssr', setup: reactSetup });
-    await expect(initializeSelection(config)).rejects.toThrow(
-      `unsupported-renderer-plugin: renderer ${renderer} cannot use React-only plugins`,
-    );
-    expect(selectedSetup).not.toHaveBeenCalled();
-    expect(reactSetup).not.toHaveBeenCalled();
-  });
+  it.each(['solid', 'octane'] as const)(
+    'rejects React CLI plugins added after %s selection before host setup',
+    async renderer => {
+      const selectedSetup = rstest.fn();
+      const reactSetup = rstest.fn();
+      const config = await selectHost(renderer, {
+        name: 'fixture:selected-host',
+        setup: selectedSetup,
+      });
+      config.plugins?.push({
+        name: '@modern-js/plugin-ssr',
+        setup: reactSetup,
+      });
+      await expect(initializeSelection(config)).rejects.toThrow(
+        `unsupported-renderer-plugin: renderer ${renderer} cannot use React-only plugins`,
+      );
+      expect(selectedSetup).not.toHaveBeenCalled();
+      expect(reactSetup).not.toHaveBeenCalled();
+    },
+  );
 
-  it.each([
-    'solid',
-    'octane',
-  ] as const)('admits Cloudflare worker SSR before %s host setup', async renderer => {
-    const selectedSetup = rstest.fn();
-    const config = await selectHost(renderer, {
-      name: 'fixture:selected-host',
-      setup: selectedSetup,
-    });
-    config.deploy = { target: 'cloudflare', worker: { ssr: true } };
-    await initializeSelection(config);
-    expect(selectedSetup).toHaveBeenCalledTimes(1);
-  });
+  it.each(['solid', 'octane'] as const)(
+    'admits Cloudflare worker SSR before %s host setup',
+    async renderer => {
+      const selectedSetup = rstest.fn();
+      const config = await selectHost(renderer, {
+        name: 'fixture:selected-host',
+        setup: selectedSetup,
+      });
+      config.deploy = { target: 'cloudflare', worker: { ssr: true } };
+      await initializeSelection(config);
+      expect(selectedSetup).toHaveBeenCalledTimes(1);
+    },
+  );
 
-  it.each([
-    'solid',
-    'octane',
-  ] as const)('rejects RSC config before %s host setup', async renderer => {
-    const selectedSetup = rstest.fn();
-    const config = await selectHost(renderer, {
-      name: 'fixture:selected-host',
-      setup: selectedSetup,
-    });
-    config.server = { rsc: true };
-    await expect(initializeSelection(config)).rejects.toThrow(
-      'unsupported-renderer-capability',
-    );
-    expect(selectedSetup).not.toHaveBeenCalled();
-  });
+  it.each(['solid', 'octane'] as const)(
+    'rejects RSC config before %s host setup',
+    async renderer => {
+      const selectedSetup = rstest.fn();
+      const config = await selectHost(renderer, {
+        name: 'fixture:selected-host',
+        setup: selectedSetup,
+      });
+      config.server = { rsc: true };
+      await expect(initializeSelection(config)).rejects.toThrow(
+        'unsupported-renderer-capability',
+      );
+      expect(selectedSetup).not.toHaveBeenCalled();
+    },
+  );
 
   it.each(
     (['solid', 'octane'] as const).flatMap(renderer =>
@@ -724,19 +741,19 @@ describe('renderer guard in the owning plugin manager', () => {
         },
       ].map(testCase => ({ renderer, ...testCase })),
     ),
-  )('admits $capability for $renderer host setup', async ({
-    renderer,
-    supported,
-  }) => {
-    const selectedSetup = rstest.fn();
-    const config = await selectHost(renderer, {
-      name: 'fixture:selected-host',
-      setup: selectedSetup,
-    });
-    Object.assign(config, supported);
-    await initializeSelection(config);
-    expect(selectedSetup).toHaveBeenCalled();
-  });
+  )(
+    'admits $capability for $renderer host setup',
+    async ({ renderer, supported }) => {
+      const selectedSetup = rstest.fn();
+      const config = await selectHost(renderer, {
+        name: 'fixture:selected-host',
+        setup: selectedSetup,
+      });
+      Object.assign(config, supported);
+      await initializeSelection(config);
+      expect(selectedSetup).toHaveBeenCalled();
+    },
+  );
 
   it.each(
     (['solid', 'octane'] as const).flatMap(renderer =>
@@ -771,19 +788,19 @@ describe('renderer guard in the owning plugin manager', () => {
         },
       ].map(testCase => ({ renderer, ...testCase })),
     ),
-  )('rejects $capability before $renderer host setup', async ({
-    renderer,
-    unsupported,
-  }) => {
-    const selectedSetup = rstest.fn();
-    const config = await selectHost(renderer, {
-      name: 'fixture:selected-host',
-      setup: selectedSetup,
-    });
-    Object.assign(config, unsupported);
-    await expect(initializeSelection(config)).rejects.toThrow(
-      'unsupported-renderer-capability',
-    );
-    expect(selectedSetup).not.toHaveBeenCalled();
-  });
+  )(
+    'rejects $capability before $renderer host setup',
+    async ({ renderer, unsupported }) => {
+      const selectedSetup = rstest.fn();
+      const config = await selectHost(renderer, {
+        name: 'fixture:selected-host',
+        setup: selectedSetup,
+      });
+      Object.assign(config, unsupported);
+      await expect(initializeSelection(config)).rejects.toThrow(
+        'unsupported-renderer-capability',
+      );
+      expect(selectedSetup).not.toHaveBeenCalled();
+    },
+  );
 });

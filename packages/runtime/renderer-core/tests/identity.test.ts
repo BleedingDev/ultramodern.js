@@ -34,16 +34,14 @@ describe('renderer identity records', () => {
     ).toThrow(message);
   });
 
-  test.each([
-    null,
-    [],
-    'identity',
-    new (class Identity {})(),
-  ])('rejects a non-record %#', value => {
-    expect(() => readRendererIdentity(value, identity)).toThrow(
-      'only identity fields',
-    );
-  });
+  test.each([null, [], 'identity', new (class Identity {})()])(
+    'rejects a non-record %#',
+    value => {
+      expect(() => readRendererIdentity(value, identity)).toThrow(
+        'only identity fields',
+      );
+    },
+  );
 });
 
 describe('native module manifest filenames', () => {
@@ -55,9 +53,12 @@ describe('native module manifest filenames', () => {
       'octane-module-manifest.main%2Fadmin%3Fview%3D1.json',
     ],
     ['octane', 'store%2Fmain', 'octane-module-manifest.store%252Fmain.json'],
-  ])('encodes %s entry %s into one emitted filename', (renderer, entry, filename) => {
-    expect(nativeModuleManifestFilename(renderer, entry)).toBe(filename);
-  });
+  ])(
+    'encodes %s entry %s into one emitted filename',
+    (renderer, entry, filename) => {
+      expect(nativeModuleManifestFilename(renderer, entry)).toBe(filename);
+    },
+  );
 
   test.each(['', '   '])('rejects an empty entry %s', entry => {
     expect(() => nativeModuleManifestFilename('solid', entry)).toThrow(

@@ -84,27 +84,31 @@ describe('current framework actions with an actual TanStack router', () => {
     { encType: 'application/json', body: '{"quantity":"2"}' },
     { encType: 'text/plain', body: 'quantity=2' },
     { encType: 'application/x-www-form-urlencoded', body: 'quantity=2' },
-  ])('POST $encType preserves action params and waits for native invalidation', async ({
-    encType,
-    body,
-  }) => {
-    const seen: unknown[] = [];
-    const fixture = await nativeRouter(async ({ request, params }) => {
-      seen.push({ method: request.method, params, body: await request.text() });
-      return Response.json({ saved: true });
-    });
-    const phases: string[] = [];
-    const result = await submitRouteAction({
-      router: fixture.router,
-      target: { quantity: 2 },
-      options: { action: '/items/42', method: 'post', encType },
-      onInvalidateStart: () => phases.push('invalidate'),
-    });
-    expect(result).toEqual({ saved: true });
-    expect(seen).toEqual([{ method: 'POST', params: { id: '42' }, body }]);
-    expect(phases).toEqual(['invalidate']);
-    expect(fixture.loads()).toBe(2);
-  });
+  ])(
+    'POST $encType preserves action params and waits for native invalidation',
+    async ({ encType, body }) => {
+      const seen: unknown[] = [];
+      const fixture = await nativeRouter(async ({ request, params }) => {
+        seen.push({
+          method: request.method,
+          params,
+          body: await request.text(),
+        });
+        return Response.json({ saved: true });
+      });
+      const phases: string[] = [];
+      const result = await submitRouteAction({
+        router: fixture.router,
+        target: { quantity: 2 },
+        options: { action: '/items/42', method: 'post', encType },
+        onInvalidateStart: () => phases.push('invalidate'),
+      });
+      expect(result).toEqual({ saved: true });
+      expect(seen).toEqual([{ method: 'POST', params: { id: '42' }, body }]);
+      expect(phases).toEqual(['invalidate']);
+      expect(fixture.loads()).toBe(2);
+    },
+  );
 
   test('a returned 422 Form result is parsed and invalidates', async () => {
     const fixture = await nativeRouter(() =>
