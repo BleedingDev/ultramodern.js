@@ -30,14 +30,18 @@ export function rejectNativeRscRequest(request: Request): Response | undefined {
 
 function permitsCacheLookup(request: Request): boolean {
   const url = new URL(request.url);
+  const cacheControl = request.headers.get('cache-control') ?? '';
   return (
     request.method === 'GET' &&
     !request.headers.has('authorization') &&
     !request.headers.has('cookie') &&
     !request.headers.has('range') &&
+    !request.headers.has('if-none-match') &&
+    !request.headers.has('if-modified-since') &&
     !/(?:^|,)\s*(?:private|no-store|no-cache)(?:\s|,|=|$)/i.test(
-      request.headers.get('cache-control') ?? '',
+      cacheControl,
     ) &&
+    !/(?:^|,)\s*max-age\s*=\s*(?:0+|"0+")\s*(?:,|$)/i.test(cacheControl) &&
     request.headers.get('pragma')?.toLowerCase() !== 'no-cache' &&
     !url.searchParams.has('__loader') &&
     !url.searchParams.has('__ssrDirect')
