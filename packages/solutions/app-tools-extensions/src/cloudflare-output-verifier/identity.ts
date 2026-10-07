@@ -6,13 +6,16 @@ import {
   validateRendererProfile,
   validateRendererProfileCompatibility,
 } from '@modern-js/backend-federation-contracts';
-import type { DeliveryUnitStamp } from '../cloudflare/delivery-unit';
+import type { TopologyUiSurface } from '../cloudflare/delivery-unit';
 import { isRecord } from '../cloudflare/utils';
 import type { CloudflareOutputVerifierIssue, JsonObject } from './issues';
 import { addIssue, assertEqual } from './issues';
 
 export type CloudflareDeliveryUnitIdentity = DeliveryUnitIdentity & {
-  surfaces?: DeliveryUnitStamp['surfaces'];
+  surfaces?: {
+    ui?: TopologyUiSurface;
+    api?: DeliveryUnitIdentity & { surface: 'api' };
+  };
 };
 
 export const verifyDeliveryUnitIdentity = (
@@ -179,7 +182,8 @@ export const verifyDeliveryUnitIdentity = (
         });
       }
       const expectedUi = declared?.surfaces?.ui;
-      if (expectedUi) {
+      // A topology without a renderer projection declares no identity to match.
+      if (expectedUi?.rendererIdentity) {
         for (const field of [
           'renderer',
           'appId',
