@@ -1,3 +1,9 @@
+import './Lazy.css';
+
 export default function Lazy() {
-  return <p data-testid="native-lazy-value">Native lazy React value</p>;
+  return (
+    <p className="native-lazy-detail" data-testid="native-lazy">
+      Native lazy React value
+    </p>
+  );
 }
