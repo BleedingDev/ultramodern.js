@@ -104,12 +104,6 @@
       "import": "./dist/esm-node/release-identity.mjs",
       "require": "./dist/cjs/release-identity.js"
     },
-    "./native-config-load-provider": {
-      "types": "./dist/types/native-config-load-provider.d.ts",
-      "modern:source": "./src/native-config-load-provider.ts",
-      "import": "./dist/esm-node/native-config-load-provider.mjs",
-      "require": "./dist/cjs/native-config-load-provider.js"
-    },
     "./native-type-checker": {
       "types": "./dist/types/native-type-checker.d.ts",
       "modern:source": "./src/native-type-checker.ts",

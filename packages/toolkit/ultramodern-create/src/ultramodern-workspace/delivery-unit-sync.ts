@@ -2,10 +2,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import {
-  assertConfigSourceSnapshotUnchanged,
-  captureConfigSourceSnapshot,
-} from '@modern-js/ultramodern-app-tools/config-evaluator';
-import {
   readResolvedUltramodernWorkspaceInputs,
   readUltramodernWorkspaceInputs,
 } from '../ultramodern-tooling/config';
@@ -63,36 +59,18 @@ Headless units have no UI identity. Authored source configs are preserved.
   const workspaceRoot = parsed.values.workspace
     ? path.resolve(context.invocationCwd, parsed.values.workspace)
     : context.workspaceRoot;
-  const sourceSnapshot = captureConfigSourceSnapshot({
-    sourceRoots: [workspaceRoot],
-  });
   const originalWorkspace = readUltramodernWorkspaceInputs(workspaceRoot);
-  const captured = await captureWorkspaceRendererEvaluations(
+  const evaluations = await captureWorkspaceRendererEvaluations(
     workspaceRoot,
     originalWorkspace.apps,
   );
-  const assertSourceUnchanged = () => {
-    assertConfigSourceSnapshotUnchanged(sourceSnapshot);
-    captured.assertUnchanged();
-  };
-  assertSourceUnchanged();
-
-  let stagedWorkspaceRoot: string | undefined;
-  const assertOperationInputsUnchanged = () => {
-    assertSourceUnchanged();
-    if (stagedWorkspaceRoot)
-      captured.assertConsumedInputsUnchanged(stagedWorkspaceRoot);
-  };
   const { written, unchanged } = await runWorkspaceTransaction(
     workspaceRoot,
     async stagingRoot => {
-      stagedWorkspaceRoot = stagingRoot;
       const workspace = await readResolvedUltramodernWorkspaceInputs(
         stagingRoot,
         {},
-        {
-          evaluations: captured.evaluations,
-        },
+        { evaluations },
       );
       const scope = workspace.config.workspace.packageScope;
       const appById = new Map(workspace.apps.map(app => [app.id, app]));
@@ -138,10 +116,6 @@ Headless units have no UI identity. Authored source configs are preserved.
         );
       }
       return { written, unchanged };
-    },
-    {
-      inspectChanges: assertOperationInputsUnchanged,
-      assertInputsUnchanged: assertOperationInputsUnchanged,
     },
   );
 

@@ -3,7 +3,6 @@ import type { AppContext, InternalContext } from '../types/cli/context';
 import type { CLIPlugin, CLIPluginExtends } from '../types/cli/plugin';
 import type { PluginHook } from '../types/hooks';
 import { initHooks } from './hooks';
-import type { ConfigPackageMetadataRead } from './run/config/loadConfig';
 
 interface ContextParams<Extends extends CLIPluginExtends> {
   appContext: AppContext<Extends>;
@@ -20,7 +19,6 @@ export function initAppContext<Extends extends CLIPluginExtends>(params: {
   plugins: CLIPlugin<Extends>[];
   srcDir?: string;
   distDir?: string;
-  packageMetadataRead?: ConfigPackageMetadataRead;
 }): AppContext<Extends> {
   const { appDirectory, srcDir = 'src', distDir = 'dist' } = params;
   return {
@@ -34,9 +32,6 @@ export function initAppContext<Extends extends CLIPluginExtends>(params: {
     distDirectory: '',
     nodeModulesDirectory: path.resolve(appDirectory, 'node_modules'),
     plugins: params.plugins,
-    ...(params.packageMetadataRead
-      ? { packageMetadataRead: params.packageMetadataRead }
-      : {}),
   };
 }
 

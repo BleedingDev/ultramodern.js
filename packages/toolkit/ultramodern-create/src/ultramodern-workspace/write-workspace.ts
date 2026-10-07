@@ -1,9 +1,5 @@
 import fs from 'node:fs';
 import {
-  assertConfigSourceSnapshotUnchanged,
-  captureConfigSourceSnapshot,
-} from '@modern-js/ultramodern-app-tools/config-evaluator';
-import {
   modernPackageSpecifier,
   ULTRAMODERN_WORKSPACE_MODERN_PACKAGES,
 } from '../ultramodern-package-source';
@@ -17,10 +13,6 @@ import { runFreshWorkspaceTransaction } from './add-vertical/transaction';
 import { createSharedDesignTokensCss } from './app-files';
 import type { UltramodernBridgeConfig } from './bridge-config';
 import { normalizeUltramodernBridgeConfig } from './bridge-config';
-import {
-  createFreshWorkspacePolicyProjections,
-  projectGeneratedWorkspacePolicy,
-} from './config-generated-projections';
 import {
   createDevelopmentOverlay,
   createOwnership,
@@ -64,7 +56,6 @@ import {
 } from './package-source';
 import { captureWorkspaceRendererEvaluations } from './renderer-config-evaluation';
 import { reconcileWorkspaceRendererIdentities } from './renderer-identity';
-import { replaceRendererIdentityProjections } from './renderer-identity-projections';
 import { initializeGeneratedRendererIdentity } from './renderer-initial-identity';
 import {
   getRendererGenerationProfile,
@@ -230,29 +221,15 @@ function writePnpmWorkspacePackages(
 export async function generateUltramodernWorkspace(
   options: UltramodernWorkspaceOptions,
 ): Promise<UltramodernGenerationResult> {
-  const completed = await runFreshWorkspaceTransaction(
-    options.targetDir,
-    async stagingRoot => {
-      const result = await generateUltramodernWorkspaceInPlace(
-        {
-          ...options,
-          targetDir: stagingRoot,
-        },
-        options.targetDir,
-      );
-      return {
-        result,
-        sourceSnapshot: captureConfigSourceSnapshot({
-          sourceRoots: [stagingRoot],
-        }),
-      };
-    },
-    {
-      assertInputsUnchanged: (_stagingRoot, { sourceSnapshot }) =>
-        assertConfigSourceSnapshotUnchanged(sourceSnapshot),
-    },
+  return runFreshWorkspaceTransaction(options.targetDir, stagingRoot =>
+    generateUltramodernWorkspaceInPlace(
+      {
+        ...options,
+        targetDir: stagingRoot,
+      },
+      options.targetDir,
+    ),
   );
-  return completed.result;
 }
 
 async function generateUltramodernWorkspaceInPlace(
@@ -422,25 +399,9 @@ async function generateUltramodernWorkspaceInPlace(
     overlays: options.overlays,
     result: preliminaryResult,
   });
-  // Files an overlay created or rewrote are not generator-owned config inputs.
-  const overlayDiff = options.overlays?.length
-    ? diffFileSnapshots(
-        preliminaryAfterFiles,
-        createFileSnapshot(options.targetDir),
-      )
-    : { createdPaths: [], rewrittenPaths: [] };
-  const overlayAuthoredPaths = new Set([
-    ...overlayDiff.createdPaths,
-    ...overlayDiff.rewrittenPaths,
-  ]);
-  const generatorOwnedPaths = new Set(
-    [...preliminaryDiff.createdPaths, ...preliminaryDiff.rewrittenPaths].filter(
-      relativePath => !overlayAuthoredPaths.has(relativePath),
-    ),
-  );
   formatGeneratedWorkspaceFiles(options.targetDir);
 
-  const capturedConfig = await captureWorkspaceRendererEvaluations(
+  const evaluations = await captureWorkspaceRendererEvaluations(
     options.targetDir,
     createdApps,
     { command: 'generate' },
@@ -449,51 +410,29 @@ async function generateUltramodernWorkspaceInPlace(
     options.targetDir,
     scope,
     createdApps,
-    { command: 'generate', evaluations: capturedConfig.evaluations },
+    { command: 'generate', evaluations },
   );
-  capturedConfig.assertUnchanged();
   const reconciledShell = reconciledApps[0]!;
   if (reconciledShell.renderer !== renderer) {
     throw new Error(
       `Generated application renderer ${renderer} disagrees with the renderer resolved from modern.config (${reconciledShell.renderer}).`,
     );
   }
-  const finalTopologySource = `${JSON.stringify(createTopology(scope, initialVerticals, reconciledShell), null, 2)}\n`;
-  // Generated React configs read workspace policy through
-  // presetUltramodernWorkspace, so the topology is a consumed config input.
-  // Bind the identity-finalized topology revision to the generator-owned
-  // configs before the consumed-input check, like add shell/vertical.
-  const generatedProjections = createFreshWorkspacePolicyProjections({
-    workspaceRoot: options.targetDir,
-    apps: reconciledApps,
-    generatorOwnedPaths,
-  });
-  projectGeneratedWorkspacePolicy(generatedProjections, finalTopologySource);
-  const identityProjections = new Map<string, string>([
-    ['topology/reference-topology.json', finalTopologySource],
-  ]);
+  writeFileReplacing(
+    options.targetDir,
+    'topology/reference-topology.json',
+    `${JSON.stringify(createTopology(scope, initialVerticals, reconciledShell), null, 2)}\n`,
+  );
   for (const app of reconciledApps) {
-    identityProjections.set(
-      `${app.directory}/shared/ultramodern-build.json`,
+    const artifactPath = `${app.directory}/shared/ultramodern-build.json`;
+    (deferredUiArtifactPaths.has(artifactPath)
+      ? writeFile
+      : writeFileReplacing)(
+      options.targetDir,
+      artifactPath,
       createUltramodernBuildArtifactJson(scope, app),
     );
   }
-  const configSourceSnapshot = capturedConfig.sourceSnapshots[0];
-  if (!configSourceSnapshot) {
-    throw new Error(
-      'Generated UI requires an evaluated config source snapshot.',
-    );
-  }
-  replaceRendererIdentityProjections(
-    options.targetDir,
-    configSourceSnapshot,
-    identityProjections,
-    deferredUiArtifactPaths,
-  );
-  capturedConfig.assertConsumedInputsUnchanged(
-    options.targetDir,
-    generatedProjections,
-  );
   validateWorkspace(
     options.targetDir,
     createWorkspaceValidationContract(

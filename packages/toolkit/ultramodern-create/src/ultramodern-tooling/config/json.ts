@@ -1,12 +1,7 @@
 import fs from 'node:fs';
-import type { WorkspaceSourceReadObserver } from '../../ultramodern-workspace/publication-inputs';
 
-export function readJsonObject(
-  filePath: string,
-  observeInput?: WorkspaceSourceReadObserver,
-): Record<string, any> {
+export function readJsonObject(filePath: string): Record<string, any> {
   const source = fs.readFileSync(filePath, 'utf-8');
-  observeInput?.(filePath, 'content', true);
   const value = JSON.parse(source);
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
     throw new Error(
@@ -16,11 +11,7 @@ export function readJsonObject(
   return value;
 }
 
-export function readOptionalJsonObject(
-  filePath: string,
-  observeInput?: WorkspaceSourceReadObserver,
-): Record<string, any> {
+export function readOptionalJsonObject(filePath: string): Record<string, any> {
   const existed = fs.existsSync(filePath);
-  observeInput?.(filePath, 'entry-kind', existed);
-  return existed ? readJsonObject(filePath, observeInput) : {};
+  return existed ? readJsonObject(filePath) : {};
 }

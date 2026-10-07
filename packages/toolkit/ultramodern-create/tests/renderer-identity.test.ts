@@ -523,9 +523,7 @@ test('checked metadata reconciles per-entry partitions without replaying authore
     const workspace = await readResolvedUltramodernWorkspaceInputs(
       f.root,
       {},
-      {
-        evaluations: captured.evaluations,
-      },
+      { evaluations: captured },
     );
     const apps = workspace.apps;
     const [shell, catalog, headless] = apps;
@@ -573,33 +571,24 @@ test('checked metadata reconciles per-entry partitions without replaying authore
   }
 });
 
-test('sync rejects a source edit made after staging and preserves the concurrent authored edit', async () => {
+test('sync keeps a config edit made while it runs', async () => {
   const f = fixture();
   try {
-    const topologyPath = path.join(f.root, 'topology/reference-topology.json');
-    const originalTopology = fs.readFileSync(topologyPath);
     const configPath = path.join(f.root, 'catalog/modern.config.mjs');
     const concurrentEdit = '\n// concurrent authored config edit\n';
     __transactionTestHooks.beforePublish = () => {
       fs.appendFileSync(configPath, concurrentEdit);
     };
-    await assert.rejects(
-      runSyncDeliveryUnit([], {
-        workspaceRoot: f.root,
-        invocationCwd: f.root,
-      }),
-      /changed|snapshot|source/i,
-    );
-    assert.deepEqual(fs.readFileSync(topologyPath), originalTopology);
+    await runSyncDeliveryUnit([], {
+      workspaceRoot: f.root,
+      invocationCwd: f.root,
+    });
     assert.equal(
       fs.readFileSync(configPath, 'utf8').endsWith(concurrentEdit),
       true,
     );
-    assert.equal(
-      fs.existsSync(path.join(f.root, 'shell/shared/ultramodern-build.json')),
-      false,
-    );
   } finally {
+    __transactionTestHooks.beforePublish = undefined;
     f.clean();
   }
 });

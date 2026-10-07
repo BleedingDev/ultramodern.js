@@ -1,12 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import {
-  assertConfigSourceSnapshotUnchanged,
-  captureConfigSourceSnapshot,
-} from '@modern-js/ultramodern-app-tools/config-evaluator';
 import { normalizeWorkspaceInputs } from '../../ultramodern-tooling/config';
 import type { UltramodernBridgeConfig } from '../bridge-config';
-import type { GeneratedConfigProjection } from '../config-generated-projections';
 import {
   appEmitsBrowserUi,
   createRemoteManifestEnv,
@@ -19,7 +14,6 @@ import {
   normalizePath,
   toPackageScope,
 } from '../naming';
-import { trackWorkspacePublicationInputs } from '../publication-inputs';
 import { captureWorkspaceRendererEvaluations } from '../renderer-config-evaluation';
 import { reconcileWorkspaceRendererIdentities } from '../renderer-identity';
 import { initializeGeneratedRendererIdentity } from '../renderer-initial-identity';
@@ -49,12 +43,6 @@ import {
 } from './workspace-state';
 
 export type AddUltramodernVerticalPreflight = {
-  assertInputsUnchanged(): void;
-  assertPublicationInputsUnchanged(): void;
-  assertConsumedInputsUnchanged(
-    stagedWorkspaceRoot: string,
-    generatedProjections?: readonly GeneratedConfigProjection[],
-  ): void;
   name: string;
   scope: string;
   topologyPath: string;
@@ -132,9 +120,6 @@ export function resolveAddedVerticalComposition(
 export async function prepareAddUltramodernVertical(
   options: AddUltramodernVerticalOptions,
 ): Promise<AddUltramodernVerticalPreflight> {
-  const sourceSnapshot = captureConfigSourceSnapshot({
-    sourceRoots: [path.resolve(options.workspaceRoot)],
-  });
   const name = assertValidVerticalName(options.name);
   const topologyPath = path.join(options.workspaceRoot, TOPOLOGY_PATH);
   const ownershipPath = path.join(options.workspaceRoot, OWNERSHIP_PATH);
@@ -143,21 +128,12 @@ export async function prepareAddUltramodernVertical(
     DEVELOPMENT_OVERLAY_PATH,
   );
 
-  const publicationInputs = trackWorkspacePublicationInputs(
-    options.workspaceRoot,
-    sourceSnapshot,
-  );
-  const readPreflightJson = (input: string) => {
-    const value = readRequiredJsonObject(input);
-    publicationInputs.observe(input, 'content', true);
-    return value;
-  };
-  const rootPackage = readPreflightJson(
+  const rootPackage = readRequiredJsonObject(
     path.join(options.workspaceRoot, 'package.json'),
   );
-  const topology = readPreflightJson(topologyPath);
-  const ownership = readPreflightJson(ownershipPath);
-  const overlay = readPreflightJson(overlayPath);
+  const topology = readRequiredJsonObject(topologyPath);
+  const ownership = readRequiredJsonObject(ownershipPath);
+  const overlay = readRequiredJsonObject(overlayPath);
 
   assertOptionalJsonObject(topology.shell, 'topology.shell', topologyPath);
   assertOptionalJsonArray(
@@ -170,14 +146,10 @@ export async function prepareAddUltramodernVertical(
   assertOptionalJsonObject(overlay.manifests, 'overlay.manifests', overlayPath);
   assertOptionalJsonObject(overlay.apis, 'overlay.apis', overlayPath);
 
-  const workspace = normalizeWorkspaceInputs(
-    options.workspaceRoot,
-    {
-      topology,
-      overlay,
-    },
-    publicationInputs.observe,
-  );
+  const workspace = normalizeWorkspaceInputs(options.workspaceRoot, {
+    topology,
+    overlay,
+  });
   assertValidWorkspaceMembership(workspace.apps);
   assertGlobalPortUniqueness(
     {
@@ -202,21 +174,15 @@ export async function prepareAddUltramodernVertical(
     topologyPath,
   ).id;
 
-  const configEvaluations = await captureWorkspaceRendererEvaluations(
+  const evaluations = await captureWorkspaceRendererEvaluations(
     options.workspaceRoot,
     workspace.apps,
-    { sourceRoots: [path.resolve(options.workspaceRoot)] },
   );
-  const assertInputsUnchanged = () => {
-    assertConfigSourceSnapshotUnchanged(sourceSnapshot);
-    configEvaluations.assertUnchanged();
-  };
-  assertInputsUnchanged();
   const resolvedApps = await reconcileWorkspaceRendererIdentities(
     options.workspaceRoot,
     scope,
     workspace.apps,
-    { evaluations: configEvaluations.evaluations },
+    { evaluations },
   );
   const existingVerticals = resolvedApps.filter(app => app.kind === 'vertical');
   const additionalShells = resolvedApps.filter(
@@ -274,16 +240,8 @@ export async function prepareAddUltramodernVertical(
     );
   }
   assertValidWorkspaceMembership(allApps);
-  assertInputsUnchanged();
 
   return {
-    assertInputsUnchanged,
-    assertPublicationInputsUnchanged() {
-      publicationInputs.assertUnchanged();
-      configEvaluations.assertConsumedInputsUnchanged();
-    },
-    assertConsumedInputsUnchanged:
-      configEvaluations.assertConsumedInputsUnchanged,
     name,
     scope,
     topologyPath,

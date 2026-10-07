@@ -63,10 +63,7 @@ export {
   type ServerPluginConfig,
 } from './hooks';
 export { cli, createCli, createLoadedConfig, initAppDir } from './run';
-export type {
-  ConfigEvaluationContext,
-  ConfigPackageMetadataRead,
-} from './run/config/createLoadedConfig';
+export type { ConfigEvaluationContext } from './run/config/createLoadedConfig';
 export { createConfigOptions, createStorybookOptions } from './run/create';
 export type { CLIOptions, CLIRunOptions, LoadedConfig } from './run/types';
 export { mergeConfig } from './run/utils/mergeConfig';

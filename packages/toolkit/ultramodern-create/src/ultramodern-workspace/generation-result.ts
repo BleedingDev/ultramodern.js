@@ -95,6 +95,29 @@ export function diffFileSnapshots(
   };
 }
 
+/** CodeSmith overlays of an add command may only write inside the new app. */
+export function assertOverlayKeptExistingSource(
+  beforeOverlays: FileSnapshot,
+  afterOverlays: FileSnapshot,
+  createdAppDirectory: string,
+): void {
+  const appPrefix = `${normalizePath(createdAppDirectory).replace(/\/+$/u, '')}/`;
+  const changed = [
+    ...new Set([...beforeOverlays.keys(), ...afterOverlays.keys()]),
+  ]
+    .filter(
+      relativePath =>
+        !relativePath.startsWith(appPrefix) &&
+        beforeOverlays.get(relativePath) !== afterOverlays.get(relativePath),
+    )
+    .sort();
+  if (changed.length) {
+    throw new Error(
+      `CodeSmith overlay changed existing authored source: ${changed[0]}. Edit original source before add; overlays may only write inside the new application.`,
+    );
+  }
+}
+
 export function createGenerationResult(options: {
   operation: UltramodernGenerationOperation;
   workspaceRoot: string;

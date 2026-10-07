@@ -103,20 +103,6 @@
         "default": "./dist/cjs/native-composition/rsbuild.js"
       }
     },
-    "./native-config-load": {
-      "node": {
-        "modern:source": "./src/native-composition/native-config-load.ts",
-        "import": {
-          "types": "./dist/types-esm/native-composition/native-config-load.d.mts",
-          "default": "./dist/esm-node/native-composition/native-config-load.mjs"
-        },
-        "require": {
-          "types": "./dist/types/native-composition/native-config-load.d.ts",
-          "default": "./dist/cjs/native-composition/native-config-load.js"
-        }
-      },
-      "types": "./dist/types/native-composition/native-config-load.d.ts"
-    },
     "./native-server-plugin": {
       "node": {
         "modern:source": "./src/native-composition/native-server-plugin.ts",
@@ -131,25 +117,19 @@
       },
       "types": "./dist/types/native-composition/native-server-plugin.d.ts"
     },
-    "./config-evaluator": {
+    "./config-metadata": {
       "node": {
-        "modern:source": "./src/native-composition/config-evaluator.ts",
+        "modern:source": "./src/native-composition/config-metadata.ts",
         "import": {
-          "types": "./dist/types-esm/native-composition/config-evaluator.d.mts",
-          "default": "./dist/esm-node/native-composition/config-evaluator.mjs"
+          "types": "./dist/types-esm/native-composition/config-metadata.d.mts",
+          "default": "./dist/esm-node/native-composition/config-metadata.mjs"
         },
         "require": {
-          "types": "./dist/types/native-composition/config-evaluator.d.ts",
-          "default": "./dist/cjs/native-composition/config-evaluator.js"
+          "types": "./dist/types/native-composition/config-metadata.d.ts",
+          "default": "./dist/cjs/native-composition/config-metadata.js"
         }
       },
-      "types": "./dist/types/native-composition/config-evaluator.d.ts"
-    },
-    "./config-evaluator-worker": {
-      "node": {
-        "import": "./dist/esm-node/native-composition/config-evaluator/worker.mjs",
-        "require": "./dist/cjs/native-composition/config-evaluator/worker.js"
-      }
+      "types": "./dist/types/native-composition/config-metadata.d.ts"
     },
     "./react-composition": {
       "node": {
@@ -253,14 +233,11 @@
       "rsbuild": [
         "./dist/types/native-composition/rsbuild.d.ts"
       ],
-      "native-config-load": [
-        "./dist/types/native-composition/native-config-load.d.ts"
-      ],
       "native-server-plugin": [
         "./dist/types/native-composition/native-server-plugin.d.ts"
       ],
-      "config-evaluator": [
-        "./dist/types/native-composition/config-evaluator.d.ts"
+      "config-metadata": [
+        "./dist/types/native-composition/config-metadata.d.ts"
       ],
       "react-composition": [
         "./dist/types/native-composition/react-composition.d.ts"

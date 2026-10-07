@@ -463,7 +463,7 @@ function assertShellFinalization(record, release) {
       ) &&
       path.isAbsolute(result.configLoad?.configFile) &&
       Array.isArray(result.configLoad.plugins) &&
-      ['cliEntry', 'nativeLoadEntry', 'pluginEntry'].every(
+      ['cliEntry', 'pluginEntry'].every(
         key =>
           result.configLoad[key] &&
           path.isAbsolute(result.configLoad[key].path) &&

@@ -307,7 +307,7 @@ test('staged mutation never follows a workspace symlink outside the workspace', 
           name: 'payments',
           modernVersion: '3.2.1',
         }),
-      /Config source snapshot symlink escapes captured coverage:/u,
+      /Refusing to overwrite existing path: verticals\/payments/u,
     );
 
     assert.deepEqual(fs.readdirSync(outsideDir), []);

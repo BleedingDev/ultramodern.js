@@ -1,8 +1,4 @@
 import path from 'node:path';
-import {
-  assertConfigSourceSnapshotUnchanged,
-  captureConfigSourceSnapshot,
-} from '@modern-js/ultramodern-app-tools/config-evaluator';
 import { reconcileWorkspaceRendererIdentities } from '../../ultramodern-workspace/renderer-identity';
 import { appSupportsFederation } from '../../ultramodern-workspace/renderer-profile';
 import { readJsonObject } from './json';
@@ -39,9 +35,6 @@ export async function readResolvedUltramodernWorkspaceInputs(
   inputs: Partial<UltramodernWorkspaceInputs> = {},
   options: Parameters<typeof reconcileWorkspaceRendererIdentities>[3] = {},
 ) {
-  const sourceSnapshot = options.evaluations
-    ? undefined
-    : captureConfigSourceSnapshot({ sourceRoots: [workspaceRoot] });
   const workspace = readUltramodernWorkspaceInputs(workspaceRoot, inputs);
   const apps = await reconcileWorkspaceRendererIdentities(
     workspaceRoot,
@@ -49,7 +42,6 @@ export async function readResolvedUltramodernWorkspaceInputs(
     workspace.apps,
     options,
   );
-  if (sourceSnapshot) assertConfigSourceSnapshotUnchanged(sourceSnapshot);
   return {
     ...workspace,
     apps,

@@ -17,21 +17,17 @@ const moduleFederationConfigFile = 'module-federation.config.ts';
 export function readModuleFederationConfigInspection(
   workspaceRoot: string,
   appDirectory: string,
-  observeInput?: WorkspaceSourceReadObserver,
-): Record<string, string> | undefined {
+): ModuleFederationConfigInspection | undefined {
   const configPath = path.join(
     workspaceRoot,
     appDirectory,
     moduleFederationConfigFile,
   );
-  const existed = fs.existsSync(configPath);
-  observeInput?.(configPath, 'entry-kind', existed);
-  if (!existed) {
+  if (!fs.existsSync(configPath)) {
     return undefined;
   }
   try {
     const source = fs.readFileSync(configPath, 'utf-8');
-    observeInput?.(configPath, 'content', true);
     return inspectModuleFederationConfigSource(
       source,
       appDirectory,

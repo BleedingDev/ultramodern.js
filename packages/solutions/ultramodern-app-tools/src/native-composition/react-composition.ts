@@ -16,8 +16,6 @@ import {
 } from '@modern-js/app-tools-extensions/runtime-package-resolution';
 import { ultramodernI18nIntegrationPlugin } from '@modern-js/i18n-integration';
 import { runtimePlugin } from '@modern-js/runtime/cli';
-import type { ConfigSourceSnapshot } from './config-evaluator/source-snapshot';
-import { getConfigurationSourceSnapshot } from './configuration-read-context';
 import { ultramodernModuleFederationRecoveryPlugin } from './module-federation-recovery-plugin';
 import { createReactModuleFederationRendererIntegration } from './module-federation-renderer-plugin';
 import { nativeEntryCommandPlugin } from './native-entry-command';
@@ -38,19 +36,9 @@ export type { ReactCLIElement } from './react-types';
 /** A portable application import of this exact SDK owner's public server export. */
 export function resolveReactServerPlugin(
   appDirectory: string,
-  snapshot: ConfigSourceSnapshot | undefined,
   registrarUrl = import.meta.url,
 ): string {
-  if (!snapshot)
-    throw new Error(
-      'React server plugin requires the original configuration source snapshot',
-    );
-  return resolveSdkServerPlugin(
-    appDirectory,
-    'server-plugin',
-    registrarUrl,
-    snapshot,
-  );
+  return resolveSdkServerPlugin(appDirectory, 'server-plugin', registrarUrl);
 }
 
 const headlessCloudflareWorkerPlugin = (): CliPlugin<AppTools> => ({
@@ -139,37 +127,22 @@ export const composeReactRenderer = (
         ];
         return { ...config, builderPlugins };
       });
-      api._internalServerPlugins(({ plugins }) => {
-        // Preserve a public import for generated deploy handlers, including
-        // applications that declare the mapped SDK without its canonical alias.
-        const name = resolveReactServerPlugin(
-          api.getAppContext().appDirectory,
-          getConfigurationSourceSnapshot(api),
-        );
-        const renamed = plugins.map(plugin =>
-          plugin.name === SERVER_EXTENSIONS_PLUGIN_NAME
-            ? { ...plugin, name }
-            : plugin,
-        );
-        if (!renamed.some(plugin => plugin.name === name)) {
-          renamed.push({ name });
-        }
-        return { plugins: renamed };
-      });
-      api._internalRuntimePlugins(({ entrypoint, plugins }) => {
-        // Same story for the renderer descriptor: `appTools()` already appended
-        // it unless the app opted out.
-        if (
-          !plugins.some(plugin => plugin.path === RENDERER_EXTENSIONS_PACKAGE)
-        ) {
-          plugins.push({
-            name: 'rendererHead',
-            path: RENDERER_EXTENSIONS_PACKAGE,
-            config: {},
-          });
-        }
-        return { entrypoint, plugins };
-      });
+      if (policy.serverExtensions !== false) {
+        api._internalServerPlugins(({ plugins }) => {
+          // Preserve a public import for generated deploy handlers, including
+          // applications that declare the mapped SDK without its canonical alias.
+          const name = resolveReactServerPlugin(
+            api.getAppContext().appDirectory,
+          );
+          return {
+            plugins: plugins.map(plugin =>
+              plugin.name === ULTRAMODERN_SERVER_EXTENSIONS_PLUGIN_NAME
+                ? { ...plugin, name }
+                : plugin,
+            ),
+          };
+        });
+      }
     },
   };
 };
