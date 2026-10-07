@@ -14,6 +14,6 @@
   "devDependencies": {
     "@modern-js/ultramodern-app-tools": "workspace:*",
     "@solidjs/compiler": "2.0.0-rc.13",
-    "@types/node": "^26.6.2"
+    "@types/node": "^26.6.3"
   }
 }

@@ -111,7 +111,7 @@
     "@modern-js/plugin-i18n": "workspace:*",
     "@modern-js/plugin-tanstack": "workspace:*",
     "@modern-js/plugin-bff-build-extensions": "workspace:*",
-    "@module-federation/modern-js-v3": "2.9.2",
+    "@module-federation/modern-js-v3": "npm:@bleedingdev/mf-modern-js-v3@2.9.4",
     "zephyr-rspack-plugin": "1.4.2",
     "@rsbuild/plugin-tailwindcss": "2.0.3",
     "tailwindcss": "4.3.3",
