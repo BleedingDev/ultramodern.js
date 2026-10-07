@@ -293,18 +293,14 @@ function finalizedBuildArtifact(projectDir, app, sourceRevision, platform) {
     sdk.resolveRendererProfile(renderer),
   );
   if (
-    !manifest.promotable ||
-    !manifest.cacheAllowed ||
     manifest.sourceRevision !== sourceRevision ||
-    Object.values(manifest.identities).some(
-      identity => identity.appId !== app.id,
-    )
+    Object.values(manifest.entries).some(identity => identity.appId !== app.id)
   )
     throw new Error(
       `${app.id} finalized renderer provenance conflicts with its release`,
     );
   const primaryEntryName = source.surfaces.ui.rendererIdentity.entryName;
-  const primary = manifest.identities[primaryEntryName];
+  const primary = manifest.entries[primaryEntryName];
   if (!primary)
     throw new Error(
       `${app.id} finalized renderer has no configured primary entry`,
@@ -322,7 +318,7 @@ function finalizedBuildArtifact(projectDir, app, sourceRevision, platform) {
   return stampFinalizedRendererBuildArtifact(
     source,
     {
-      buildMarker: manifest.buildMarker,
+      buildMarker: manifest.buildId,
       sourceRevision: manifest.sourceRevision,
       ui: {
         rendererIdentity: primary,
@@ -339,7 +335,7 @@ function finalizedBuildArtifact(projectDir, app, sourceRevision, platform) {
     {
       appDirectory: appRoot,
       distDirectory: path.join(appRoot, '.output'),
-      entrypoints: Object.keys(manifest.identities).map(entryName => ({
+      entrypoints: Object.keys(manifest.entries).map(entryName => ({
         entryName,
         isMainEntry: entryName === primaryEntryName,
       })),

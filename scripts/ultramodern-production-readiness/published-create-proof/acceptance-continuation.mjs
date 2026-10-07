@@ -182,25 +182,23 @@ function assertNativeOutputSnapshots(
             ? 'public/renderer-build.json'
             : 'renderer-build.json') &&
         manifest?.schema === 'ultramodern-renderer-build' &&
-        manifest.version === 1 &&
-        manifest.promotable === true &&
-        manifest.cacheAllowed === true &&
+        manifest.version === 2 &&
         manifest.sourceRevision === applicationSourceRevision &&
-        /^[a-f0-9]{64}$/u.test(manifest.buildMarker) &&
-        Object.values(manifest.identities ?? {}).length > 0 &&
-        Object.values(manifest.identities).every(
+        /^[a-f0-9]{64}$/u.test(manifest.buildId) &&
+        Object.values(manifest.entries ?? {}).length > 0 &&
+        Object.values(manifest.entries).every(
           identity =>
             identity.appId === output.appId &&
-            identity.buildId === manifest.buildMarker,
+            identity.buildId === manifest.buildId,
         ) &&
         envelope?.schemaVersion === 5 &&
         envelope.target === target &&
         envelope.identity?.sourceRevision === applicationSourceRevision &&
-        envelope.identity?.buildMarker === manifest.buildMarker &&
+        envelope.identity?.buildMarker === manifest.buildId &&
         envelope.identity?.unitId === output.identity?.unitId &&
         envelope.identity?.releaseVersion === output.identity?.releaseVersion &&
         output.identity?.sourceRevision === applicationSourceRevision &&
-        output.identity?.buildMarker === manifest.buildMarker,
+        output.identity?.buildMarker === manifest.buildId,
       `${output.appId} retained ${label} output conflicts with finalized native identity`,
     );
     const ui = envelope.ui;
@@ -208,7 +206,7 @@ function assertNativeOutputSnapshots(
       ui &&
         isDeepStrictEqual(
           ui.rendererIdentity,
-          manifest.identities[ui.rendererIdentity?.entryName],
+          manifest.entries[ui.rendererIdentity?.entryName],
         ) &&
         isDeepStrictEqual(ui.routerBindings, manifest.routerBindings) &&
         isDeepStrictEqual(ui.rendererProfile, {
@@ -312,7 +310,7 @@ function captureNativeOutputs(
       sdk.resolveRendererProfile(renderer),
     );
     const entryName = source.surfaces.ui.rendererIdentity.entryName;
-    const identity = rendererManifest.identities[entryName];
+    const identity = rendererManifest.entries[entryName];
     assertCondition(
       identity,
       `${app.id} native renderer primary entry is missing`,
@@ -349,7 +347,6 @@ function captureNativeOutputs(
 
 const shellFinalizationActions = Object.freeze([
   'createRunOptions',
-  'createNativeConfigLoad',
   'createCli.init(deploy --skip-build)',
   'emitFrameworkMicroVerticalReleaseEnvelope',
   'verifyBuildOutputReleaseEnvelope',

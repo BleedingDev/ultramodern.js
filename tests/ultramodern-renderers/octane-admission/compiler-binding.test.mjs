@@ -56,7 +56,6 @@ function emitManifest(versions, validateManifest) {
     ...versions,
     emitClientManifest: true,
     root: workspace,
-    sourceLoader: path.join(directory, 'source-provenance-loader.cjs'),
     rendererIdentities: () => ({ main: identity }),
     manifestFilename: name => `${name}.json`,
     validateManifest,

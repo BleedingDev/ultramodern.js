@@ -151,18 +151,13 @@ async function createAcceptanceContinuationFixture({
       identity,
       rendererManifest: {
         schema: 'ultramodern-renderer-build',
-        version: 1,
-        buildMarker: identity.buildMarker,
+        version: 2,
+        renderer: rendererIdentity.renderer,
+        buildId: identity.buildMarker,
         sourceRevision: applicationSourceRevision,
-        inputDigest: sha256(`${app.id} inputs`),
-        profileDigest: sha256(`${app.id} renderer profile`),
-        compilerDigest: sha256(`${app.id} compiler`),
-        frameworkCohortDigest: release.cohortDigest,
         profile: structuredClone(rendererProfile),
         routerBindings: structuredClone(routerBindings),
-        cacheAllowed: true,
-        promotable: true,
-        identities: {
+        entries: {
           main: { ...rendererIdentity },
         },
       },
@@ -183,8 +178,8 @@ async function createAcceptanceContinuationFixture({
     const buildMarker =
       workerdBuildMarkers[output.appId] ?? output.identity.buildMarker;
     output.identity.buildMarker = buildMarker;
-    output.rendererManifest.buildMarker = buildMarker;
-    output.rendererManifest.identities.main.buildId = buildMarker;
+    output.rendererManifest.buildId = buildMarker;
+    output.rendererManifest.entries.main.buildId = buildMarker;
     output.rendererManifestPath = 'public/renderer-build.json';
     output.releaseEnvelope.target = 'cloudflare';
     output.releaseEnvelope.identity.buildMarker = buildMarker;
@@ -561,7 +556,6 @@ async function createAcceptanceContinuationFixture({
         ],
         actions: [
           'createRunOptions',
-          'createNativeConfigLoad',
           'createCli.init(deploy --skip-build)',
           'emitFrameworkMicroVerticalReleaseEnvelope',
           'verifyBuildOutputReleaseEnvelope',

@@ -425,7 +425,6 @@ export async function runProof(options) {
       publicTools.resolveRendererProfile('react'),
     );
     assert.equal(buildManifest.sourceRevision, release.source.commit);
-    assert.equal(buildManifest.promotable, true);
     receipt.rendererBuild = {
       ...fileEvidence(buildManifestPath, consumer),
       value: buildManifest,
@@ -501,7 +500,7 @@ export async function runProof(options) {
     const htmlIdentity = JSON.parse(identities[0][1]);
     assert.deepEqual(
       htmlIdentity,
-      buildManifest.identities[htmlIdentity.entryName],
+      buildManifest.entries[htmlIdentity.entryName],
     );
     const identityHeader = ssr.headers.get('x-ultramodern-renderer-identity');
     assert(

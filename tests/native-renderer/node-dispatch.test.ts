@@ -327,14 +327,10 @@ async function authoredServerFixture(renderer: 'solid' | 'octane') {
       async resolveBuildIdentities() {
         return {
           identities: { main: authoredIdentity },
-          buildMarker: authoredIdentity.buildId,
+          buildId: authoredIdentity.buildId,
+          profileKey: 'a'.repeat(64),
           sourceRevision: 'authored-server-dispatch-proof',
-          inputDigest: 'a'.repeat(64),
-          profileDigest: 'b'.repeat(64),
-          compilerDigest: 'c'.repeat(64),
-          frameworkCohortDigest: 'd'.repeat(64),
-          cacheAllowed: false,
-          promotable: false,
+          routerBindings: { main: [] },
         };
       },
     }),
@@ -410,261 +406,272 @@ it.each([
   ['solid', 'development'],
   ['octane', 'production'],
   ['octane', 'development'],
-] as const)('rejects RSC before importing an authored %s server entry through the real %s server', async (renderer, mode) => {
-  process.env.NODE_ENV = mode;
-  const {
-    root,
-    dist,
-    authoredIdentity,
-    sourceServerEntry,
-    fixtureServerEntry,
-  } = await authoredServerFixture(renderer);
-  const options = serverOptions(root, dist, authoredIdentity);
-  options.serverConfig.middlewares = [];
-  const server =
-    mode === 'production'
-      ? await createProdServer(options)
-      : (
-          await createDevServer(
-            { ...options, pwd: root, dev: {} },
-            applyPlugins,
-          )
-        ).server;
-  const origin = await listen(server);
-  const imported = path.join(root, 'authored-entry-imported.txt');
-  const dispatched = path.join(root, 'authored-entry-dispatches.txt');
-  const marker = (file: string) => readFile(file, 'utf-8').catch(() => '');
-  try {
-    const rejectRsc = async () => {
-      for (const [header, method] of [
-        ['x-rsc-tree', 'GET'],
-        ['x-rsc-action', 'POST'],
-      ]) {
-        const response = await fetch(`${origin}/authored`, {
-          method,
-          headers: { [header]: '1' },
-        });
-        expect(response.status).toBe(400);
-        expect(response.headers.get('cache-control')).toBe('no-store');
-        expect((await response.json()).code).toBe(
-          'unsupported-renderer-capability',
-        );
-      }
-    };
-    await rejectRsc();
-    expect(await marker(imported)).toBe('');
-    expect(await marker(dispatched)).toBe('');
+] as const)(
+  'rejects RSC before importing an authored %s server entry through the real %s server',
+  async (renderer, mode) => {
+    process.env.NODE_ENV = mode;
+    const {
+      root,
+      dist,
+      authoredIdentity,
+      sourceServerEntry,
+      fixtureServerEntry,
+    } = await authoredServerFixture(renderer);
+    const options = serverOptions(root, dist, authoredIdentity);
+    options.serverConfig.middlewares = [];
+    const server =
+      mode === 'production'
+        ? await createProdServer(options)
+        : (
+            await createDevServer(
+              { ...options, pwd: root, dev: {} },
+              applyPlugins,
+            )
+          ).server;
+    const origin = await listen(server);
+    const imported = path.join(root, 'authored-entry-imported.txt');
+    const dispatched = path.join(root, 'authored-entry-dispatches.txt');
+    const marker = (file: string) => readFile(file, 'utf-8').catch(() => '');
+    try {
+      const rejectRsc = async () => {
+        for (const [header, method] of [
+          ['x-rsc-tree', 'GET'],
+          ['x-rsc-action', 'POST'],
+        ]) {
+          const response = await fetch(`${origin}/authored`, {
+            method,
+            headers: { [header]: '1' },
+          });
+          expect(response.status).toBe(400);
+          expect(response.headers.get('cache-control')).toBe('no-store');
+          expect((await response.json()).code).toBe(
+            'unsupported-renderer-capability',
+          );
+        }
+      };
+      await rejectRsc();
+      expect(await marker(imported)).toBe('');
+      expect(await marker(dispatched)).toBe('');
 
-    const response = await fetch(`${origin}/authored`);
-    expect(response.status).toBe(207);
-    expect(response.statusText).toBe('Authored Native Entry');
-    expect(response.headers.get('x-authored-entry')).toBe('fetch-handler');
-    expect(await response.json()).toEqual({
-      authored: true,
-      renderer,
-      buildId: authoredIdentity.buildId,
-      sessionRenderer: renderer,
-      entryName: 'main',
-      loaderContextIsMap: true,
-      method: 'GET',
-      pathname: '/authored',
-    });
-    expect(await marker(imported)).toBe('authored module imported\n');
-    expect(await marker(dispatched)).toBe('GET /authored\n');
-
-    await rejectRsc();
-    expect(await marker(imported)).toBe('authored module imported\n');
-    expect(await marker(dispatched)).toBe('GET /authored\n');
-    expect(await readFile(sourceServerEntry, 'utf-8')).toBe(
-      await readFile(fixtureServerEntry, 'utf-8'),
-    );
-  } finally {
-    await close(server);
-  }
-});
-
-it.each([
-  'production',
-  'development',
-] as const)('preserves terminal Fetch outcomes through the real %s server', async mode => {
-  process.env.NODE_ENV = mode;
-  const { root, dist } = await fixture();
-  const options = serverOptions(root, dist);
-  options.plugins.push({
-    name: 'native-proof-final-order',
-    pre: [
-      '@modern-js/plugin-inject-resource',
-      '@modern-js/plugin-render',
-      '@modern-js/native-node-terminal-responses',
-    ],
-    setup(api) {
-      api.onPrepare(() => {
-        const names = api
-          .getServerContext()
-          .middlewares.map(middleware => middleware.name);
-        expect(names.indexOf('inject-server-manifest')).toBeLessThan(
-          names.indexOf('render'),
-        );
-        expect(names.indexOf('inject-html')).toBeLessThan(
-          names.indexOf('render'),
-        );
-        expect(names[0]).toBe('native-node-rsc-guard');
+      const response = await fetch(`${origin}/authored`);
+      expect(response.status).toBe(207);
+      expect(response.statusText).toBe('Authored Native Entry');
+      expect(response.headers.get('x-authored-entry')).toBe('fetch-handler');
+      expect(await response.json()).toEqual({
+        authored: true,
+        renderer,
+        buildId: authoredIdentity.buildId,
+        sessionRenderer: renderer,
+        entryName: 'main',
+        loaderContextIsMap: true,
+        method: 'GET',
+        pathname: '/authored',
       });
-    },
-  } as ServerPlugin);
-  const server =
-    mode === 'production'
-      ? await createProdServer(options)
-      : (
-          await createDevServer(
-            { ...options, pwd: root, dev: {} },
-            applyPlugins,
-          )
-        ).server;
-  const origin = await listen(server);
-  try {
-    const document = await fetch(`${origin}/`);
-    const documentBody = await document.text();
-    expect(document.status, documentBody).toBe(202);
-    expect(document.statusText).toBe('Native Document');
-    expect(documentBody).toBe('native:solid:build-a');
-    const contexts = await Promise.all([
-      fetch(`${origin}/context`).then(response => response.json()),
-      fetch(`${origin}/context`).then(response => response.json()),
-    ]);
-    expect(contexts).toEqual([{ count: 1 }, { count: 1 }]);
-    expect(await (await fetch(`${origin}/context-preserved`)).json()).toEqual({
-      value: 'preserved',
-    });
+      expect(await marker(imported)).toBe('authored module imported\n');
+      expect(await marker(dispatched)).toBe('GET /authored\n');
 
-    const progressive = await fetch(`${origin}/stream`);
-    expect(progressive.status).toBe(206);
-    const reader = progressive.body!.getReader();
-    const first = await reader.read();
-    expect(new TextDecoder().decode(first.value)).toBe('first native chunk');
-    await writeFile(path.join(root, 'release-stream.txt'), 'release');
-    const second = await reader.read();
-    expect(new TextDecoder().decode(second.value)).toBe('second native chunk');
-    expect((await reader.read()).done).toBe(true);
-
-    const abort = new AbortController();
-    const cancellable = await fetch(`${origin}/cancel`, {
-      signal: abort.signal,
-    });
-    expect(
-      new TextDecoder().decode(
-        (await cancellable.body!.getReader().read()).value,
-      ),
-    ).toBe('cancel shell');
-    abort.abort();
-    let cancellation = '';
-    for (let retry = 0; retry < 30 && !cancellation; retry++) {
-      await new Promise(resolve => setTimeout(resolve, 20));
-      cancellation = await readFile(
-        path.join(root, 'cancelled.txt'),
-        'utf-8',
-      ).catch(() => '');
+      await rejectRsc();
+      expect(await marker(imported)).toBe('authored module imported\n');
+      expect(await marker(dispatched)).toBe('GET /authored\n');
+      expect(await readFile(sourceServerEntry, 'utf-8')).toBe(
+        await readFile(fixtureServerEntry, 'utf-8'),
+      );
+    } finally {
+      await close(server);
     }
-    expect(cancellation).toBe('cancelled');
+  },
+);
 
-    const interrupted = await fetch(`${origin}/stream-error`);
-    expect(interrupted.status).toBe(202);
-    expect(interrupted.headers.get('x-native')).toBe('committed');
-    await expect(interrupted.text()).rejects.toThrow();
-    const data = await fetch(`${origin}/data`);
-    expect(data.status).toBe(201);
-    expect(data.statusText).toBe('Native Data');
-    expect(data.headers.get('content-type')).toBe('application/x-native-data');
-    expect(Array.from(new Uint8Array(await data.arrayBuffer()))).toEqual([
-      0, 255, 10, 13, 128,
-    ]);
-
-    const redirect = await fetch(`${origin}/redirect`, { redirect: 'manual' });
-    expect(redirect.status).toBe(307);
-    expect(redirect.statusText).toBe('Native Redirect');
-    expect(redirect.headers.get('location')).toBe('/destination');
-    expect(await redirect.text()).toBe('');
-
-    const cookies = await fetch(`${origin}/cookies`);
-    expect(cookies.headers.getSetCookie()).toEqual([
-      'first=1; Path=/; HttpOnly',
-      'second=2; Path=/; SameSite=Lax',
-    ]);
-    expect(cookies.headers.get('content-type')).toBe('application/json');
-    expect(await cookies.json()).toEqual({ ok: true });
-
-    const nullBody = await fetch(`${origin}/null-body`);
-    expect(nullBody.status).toBe(200);
-    expect(nullBody.statusText).toBe('Native Null');
-    expect(nullBody.headers.get('x-native-null-body')).toBe('true');
-    expect(nullBody.headers.has('content-type')).toBe(false);
-    expect(await nullBody.text()).toBe('');
-    for (const [pathname, status, statusText] of [
-      ['/no-content', 204, 'Native Empty'],
-      ['/not-modified', 304, 'Native Unchanged'],
-    ] as const) {
-      const response = await fetch(`${origin}${pathname}`);
-      expect(response.status).toBe(status);
-      expect(response.statusText).toBe(statusText);
-      expect(response.body).toBeNull();
-      expect(await response.text()).toBe('');
-    }
-
-    const head = await fetch(`${origin}/`, { method: 'HEAD' });
-    expect(head.status).toBe(202);
-    expect(head.statusText).toBe('Native Document');
-    expect(head.headers.get('x-native')).toBe('document');
-    expect(await head.text()).toBe('');
-
-    expect(await (await fetch(`${origin}/static/asset.txt`)).text()).toBe(
-      'static bytes',
-    );
-    expect(await (await fetch(`${origin}/public.txt`)).text()).toBe(
-      'public bytes',
-    );
-    expect(await (await fetch(`${origin}/api/ping`)).json()).toEqual({
-      api: true,
-    });
-    const custom = await fetch(`${origin}/custom`);
-    expect(custom.status).toBe(203);
-    expect(await custom.text()).toBe('custom bytes');
-
-    const dataRequest = await fetch(`${origin}/data?__loader=route-id`, {
-      method: 'POST',
-    });
-    expect(dataRequest.status).toBe(201);
-    expect(dataRequest.headers.get('content-type')).toBe(
-      'application/x-native-data',
-    );
-    expect(Array.from(new Uint8Array(await dataRequest.arrayBuffer()))).toEqual(
-      [0, 255, 10, 13, 128],
-    );
-
-    for (const pathname of [
-      '/',
-      '/static/asset.txt',
-      '/public.txt',
-      '/api/ping',
-      '/custom',
-    ]) {
-      for (const header of ['x-rsc-tree', 'x-rsc-action']) {
-        const response = await fetch(`${origin}${pathname}`, {
-          headers: { [header]: '1' },
+it.each(['production', 'development'] as const)(
+  'preserves terminal Fetch outcomes through the real %s server',
+  async mode => {
+    process.env.NODE_ENV = mode;
+    const { root, dist } = await fixture();
+    const options = serverOptions(root, dist);
+    options.plugins.push({
+      name: 'native-proof-final-order',
+      pre: [
+        '@modern-js/plugin-inject-resource',
+        '@modern-js/plugin-render',
+        '@modern-js/native-node-terminal-responses',
+      ],
+      setup(api) {
+        api.onPrepare(() => {
+          const names = api
+            .getServerContext()
+            .middlewares.map(middleware => middleware.name);
+          expect(names.indexOf('inject-server-manifest')).toBeLessThan(
+            names.indexOf('render'),
+          );
+          expect(names.indexOf('inject-html')).toBeLessThan(
+            names.indexOf('render'),
+          );
+          expect(names[0]).toBe('native-node-rsc-guard');
         });
-        expect(response.status).toBe(400);
-        expect(response.headers.get('cache-control')).toBe('no-store');
-        expect((await response.json()).code).toBe(
-          'unsupported-renderer-capability',
-        );
+      },
+    } as ServerPlugin);
+    const server =
+      mode === 'production'
+        ? await createProdServer(options)
+        : (
+            await createDevServer(
+              { ...options, pwd: root, dev: {} },
+              applyPlugins,
+            )
+          ).server;
+    const origin = await listen(server);
+    try {
+      const document = await fetch(`${origin}/`);
+      const documentBody = await document.text();
+      expect(document.status, documentBody).toBe(202);
+      expect(document.statusText).toBe('Native Document');
+      expect(documentBody).toBe('native:solid:build-a');
+      const contexts = await Promise.all([
+        fetch(`${origin}/context`).then(response => response.json()),
+        fetch(`${origin}/context`).then(response => response.json()),
+      ]);
+      expect(contexts).toEqual([{ count: 1 }, { count: 1 }]);
+      expect(await (await fetch(`${origin}/context-preserved`)).json()).toEqual(
+        {
+          value: 'preserved',
+        },
+      );
+
+      const progressive = await fetch(`${origin}/stream`);
+      expect(progressive.status).toBe(206);
+      const reader = progressive.body!.getReader();
+      const first = await reader.read();
+      expect(new TextDecoder().decode(first.value)).toBe('first native chunk');
+      await writeFile(path.join(root, 'release-stream.txt'), 'release');
+      const second = await reader.read();
+      expect(new TextDecoder().decode(second.value)).toBe(
+        'second native chunk',
+      );
+      expect((await reader.read()).done).toBe(true);
+
+      const abort = new AbortController();
+      const cancellable = await fetch(`${origin}/cancel`, {
+        signal: abort.signal,
+      });
+      expect(
+        new TextDecoder().decode(
+          (await cancellable.body!.getReader().read()).value,
+        ),
+      ).toBe('cancel shell');
+      abort.abort();
+      let cancellation = '';
+      for (let retry = 0; retry < 30 && !cancellation; retry++) {
+        await new Promise(resolve => setTimeout(resolve, 20));
+        cancellation = await readFile(
+          path.join(root, 'cancelled.txt'),
+          'utf-8',
+        ).catch(() => '');
       }
+      expect(cancellation).toBe('cancelled');
+
+      const interrupted = await fetch(`${origin}/stream-error`);
+      expect(interrupted.status).toBe(202);
+      expect(interrupted.headers.get('x-native')).toBe('committed');
+      await expect(interrupted.text()).rejects.toThrow();
+      const data = await fetch(`${origin}/data`);
+      expect(data.status).toBe(201);
+      expect(data.statusText).toBe('Native Data');
+      expect(data.headers.get('content-type')).toBe(
+        'application/x-native-data',
+      );
+      expect(Array.from(new Uint8Array(await data.arrayBuffer()))).toEqual([
+        0, 255, 10, 13, 128,
+      ]);
+
+      const redirect = await fetch(`${origin}/redirect`, {
+        redirect: 'manual',
+      });
+      expect(redirect.status).toBe(307);
+      expect(redirect.statusText).toBe('Native Redirect');
+      expect(redirect.headers.get('location')).toBe('/destination');
+      expect(await redirect.text()).toBe('');
+
+      const cookies = await fetch(`${origin}/cookies`);
+      expect(cookies.headers.getSetCookie()).toEqual([
+        'first=1; Path=/; HttpOnly',
+        'second=2; Path=/; SameSite=Lax',
+      ]);
+      expect(cookies.headers.get('content-type')).toBe('application/json');
+      expect(await cookies.json()).toEqual({ ok: true });
+
+      const nullBody = await fetch(`${origin}/null-body`);
+      expect(nullBody.status).toBe(200);
+      expect(nullBody.statusText).toBe('Native Null');
+      expect(nullBody.headers.get('x-native-null-body')).toBe('true');
+      expect(nullBody.headers.has('content-type')).toBe(false);
+      expect(await nullBody.text()).toBe('');
+      for (const [pathname, status, statusText] of [
+        ['/no-content', 204, 'Native Empty'],
+        ['/not-modified', 304, 'Native Unchanged'],
+      ] as const) {
+        const response = await fetch(`${origin}${pathname}`);
+        expect(response.status).toBe(status);
+        expect(response.statusText).toBe(statusText);
+        expect(response.body).toBeNull();
+        expect(await response.text()).toBe('');
+      }
+
+      const head = await fetch(`${origin}/`, { method: 'HEAD' });
+      expect(head.status).toBe(202);
+      expect(head.statusText).toBe('Native Document');
+      expect(head.headers.get('x-native')).toBe('document');
+      expect(await head.text()).toBe('');
+
+      expect(await (await fetch(`${origin}/static/asset.txt`)).text()).toBe(
+        'static bytes',
+      );
+      expect(await (await fetch(`${origin}/public.txt`)).text()).toBe(
+        'public bytes',
+      );
+      expect(await (await fetch(`${origin}/api/ping`)).json()).toEqual({
+        api: true,
+      });
+      const custom = await fetch(`${origin}/custom`);
+      expect(custom.status).toBe(203);
+      expect(await custom.text()).toBe('custom bytes');
+
+      const dataRequest = await fetch(`${origin}/data?__loader=route-id`, {
+        method: 'POST',
+      });
+      expect(dataRequest.status).toBe(201);
+      expect(dataRequest.headers.get('content-type')).toBe(
+        'application/x-native-data',
+      );
+      expect(
+        Array.from(new Uint8Array(await dataRequest.arrayBuffer())),
+      ).toEqual([0, 255, 10, 13, 128]);
+
+      for (const pathname of [
+        '/',
+        '/static/asset.txt',
+        '/public.txt',
+        '/api/ping',
+        '/custom',
+      ]) {
+        for (const header of ['x-rsc-tree', 'x-rsc-action']) {
+          const response = await fetch(`${origin}${pathname}`, {
+            headers: { [header]: '1' },
+          });
+          expect(response.status).toBe(400);
+          expect(response.headers.get('cache-control')).toBe('no-store');
+          expect((await response.json()).code).toBe(
+            'unsupported-renderer-capability',
+          );
+        }
+      }
+      const fallback = await fetch(`${origin}/error`);
+      expect(fallback.status).toBe(503);
+      expect(await fallback.text()).toBe('selected native fallback');
+    } finally {
+      await close(server);
     }
-    const fallback = await fetch(`${origin}/error`);
-    expect(fallback.status).toBe(503);
-    expect(await fallback.text()).toBe('selected native fallback');
-  } finally {
-    await close(server);
-  }
-});
+  },
+);
 
 it('rejects final modifyConfig RSC before resource warmup', async () => {
   process.env.NODE_ENV = 'production';
@@ -949,236 +956,243 @@ it.each([
   'mutated-reason',
   'vary',
   'status',
-] as const)('refuses cache writes after configured middleware changes final wire %s', async policy => {
-  process.env.NODE_ENV = 'production';
-  const { root, dist } = await fixture();
-  const options = serverOptions(root, dist);
-  let cacheWrites = 0;
-  let handlerCalls = 0;
-  options.plugins = [
-    nativeServerPlugin({
-      renderer: 'solid',
-      entries: { main: identity },
-      cacheAllowed: true,
-      cache: {
-        get: () => undefined,
-        set: () => {
-          cacheWrites++;
-        },
-      },
-      resolveManifest: manifest => ({
-        ...(manifest.renderBundles!
-          .main as unknown as NativeServerManifest<NativeNodeBindings>),
-        nativeRequestHandler: (_request, context) => {
-          handlerCalls++;
-          context.session.resolveResponse({
-            kind: 'document',
-            status: 200,
-            statusText: 'Native Public Document',
-            headers: [
-              ['content-type', 'text/html'],
-              ['cache-control', 'public, max-age=60'],
-            ],
-            cache: { mode: 'public', maxAgeSeconds: 60 },
-          });
-          return context.session.respond(
-            new ReadableStream({
-              start(controller) {
-                controller.enqueue(new TextEncoder().encode('public document'));
-                controller.close();
-              },
-            }),
-          );
-        },
-      }),
-    }),
-  ];
-  if (policy === 'configured-private')
-    Object.assign(options.routes[0], {
-      responseHeaders: { 'cache-control': 'private' },
-    });
-  const server = await createProdServer({
-    ...options,
-    serverConfig: {
-      ...options.serverConfig,
-      renderMiddlewares: [
-        {
-          name: 'late-document-policy',
-          async handler(context, next) {
-            if (policy === 'prepared-private')
-              context.header('cache-control', 'private');
-            await next();
-            if (policy === 'mutated-reason') {
-              const original = context.res;
-              context.res = new Response(original.body, {
-                status: original.status,
-                statusText: 'Middleware Reason',
-                headers: original.headers,
-              });
-              expect(context.res.body).toBe(original.body);
-              return;
-            }
-            // Consumption precedes the final privacy mutation and transport.
-            const body = await context.res.text();
-            const headers = new Headers(context.res.headers);
-            context.res = new Response(
-              policy === 'transformed-body' ? `transformed:${body}` : body,
-              {
-                status: policy === 'status' ? 203 : 200,
-                headers,
-              },
-            );
-            if (policy === 'cookie')
-              context.header('set-cookie', 'late=1; Path=/', { append: true });
-            if (policy === 'private')
-              context.header('cache-control', 'private');
-            if (policy === 'vary') context.header('vary', 'Accept-Language');
+] as const)(
+  'refuses cache writes after configured middleware changes final wire %s',
+  async policy => {
+    process.env.NODE_ENV = 'production';
+    const { root, dist } = await fixture();
+    const options = serverOptions(root, dist);
+    let cacheWrites = 0;
+    let handlerCalls = 0;
+    options.plugins = [
+      nativeServerPlugin({
+        renderer: 'solid',
+        entries: { main: identity },
+        cacheAllowed: true,
+        cache: {
+          get: () => undefined,
+          set: () => {
+            cacheWrites++;
           },
         },
-      ],
-    },
-  });
-  const origin = await listen(server);
-  try {
-    for (let request = 0; request < 2; request++) {
-      const response = await fetch(`${origin}/`);
-      expect(response.status).toBe(policy === 'status' ? 203 : 200);
-      if (policy === 'mutated-reason') {
-        expect(response.statusText).toBe('Middleware Reason');
-        expect(response.headers.get('cache-control')).toBe(
-          'public, max-age=60',
-        );
-      }
-      expect(await response.text()).toBe(
-        policy === 'transformed-body'
-          ? 'transformed:public document'
-          : 'public document',
-      );
-      if (policy === 'transformed-body')
-        expect(response.headers.get('cache-control')).toBe(
-          'public, max-age=60',
-        );
-      if (policy === 'cookie')
-        expect(response.headers.getSetCookie()).toEqual(['late=1; Path=/']);
-      if (
-        policy === 'private' ||
-        policy === 'configured-private' ||
-        policy === 'prepared-private'
-      )
-        expect(response.headers.get('cache-control')).toBe('private');
-      if (policy === 'vary')
-        expect(response.headers.get('vary')).toBe('Accept-Language');
-    }
-    await new Promise(resolve => setImmediate(resolve));
-    expect(handlerCalls).toBe(2);
-    expect(cacheWrites).toBe(0);
-  } finally {
-    await close(server);
-  }
-});
-
-it.each([
-  'route-ids',
-  'disabled',
-  'entry-disabled',
-  'force-csr',
-] as const)('uses native document selection for %s without redirecting data or action requests', async policy => {
-  process.env.NODE_ENV = 'production';
-  const { root, dist } = await fixture();
-  const options = serverOptions(root, dist);
-  options.plugins = [
-    nativeServerPlugin({
-      renderer: 'solid',
-      entries: { main: identity },
-      resolveManifest: manifest => ({
-        ...(manifest.renderBundles!
-          .main as unknown as NativeServerManifest<NativeNodeBindings>),
-        nativeRequestHandler: request =>
-          Response.json({ selected: 'ssr', method: request.method }),
-        nativeCSRRequestHandler: () => Response.json({ selected: 'csr' }),
-        nativeMatchRouteIds: request => [
-          'root',
-          new URL(request.url).pathname.slice(1),
-        ],
+        resolveManifest: manifest => ({
+          ...(manifest.renderBundles!
+            .main as unknown as NativeServerManifest<NativeNodeBindings>),
+          nativeRequestHandler: (_request, context) => {
+            handlerCalls++;
+            context.session.resolveResponse({
+              kind: 'document',
+              status: 200,
+              statusText: 'Native Public Document',
+              headers: [
+                ['content-type', 'text/html'],
+                ['cache-control', 'public, max-age=60'],
+              ],
+              cache: { mode: 'public', maxAgeSeconds: 60 },
+            });
+            return context.session.respond(
+              new ReadableStream({
+                start(controller) {
+                  controller.enqueue(
+                    new TextEncoder().encode('public document'),
+                  );
+                  controller.close();
+                },
+              }),
+            );
+          },
+        }),
       }),
-    }),
-  ];
-  const serverPolicy =
-    policy === 'route-ids'
-      ? { ssr: true, ssrByRouteIds: ['allowed', 'shell'] }
-      : policy === 'disabled'
-        ? { ssr: false }
-        : policy === 'entry-disabled'
-          ? { ssr: true, ssrByEntries: { main: false } }
-          : { ssr: { mode: 'stream' as const, forceCSR: true } };
-  const server = await createProdServer({
-    ...options,
-    config: {
-      ...options.config,
-      server: { ...options.config.server, ...serverPolicy },
-    },
-  });
-  const origin = await listen(server);
-  try {
-    const selected = policy === 'force-csr' ? '/allowed?csr=1' : '/disabled';
-    expect(await (await fetch(`${origin}${selected}`)).json()).toEqual({
-      selected: 'csr',
+    ];
+    if (policy === 'configured-private')
+      Object.assign(options.routes[0], {
+        responseHeaders: { 'cache-control': 'private' },
+      });
+    const server = await createProdServer({
+      ...options,
+      serverConfig: {
+        ...options.serverConfig,
+        renderMiddlewares: [
+          {
+            name: 'late-document-policy',
+            async handler(context, next) {
+              if (policy === 'prepared-private')
+                context.header('cache-control', 'private');
+              await next();
+              if (policy === 'mutated-reason') {
+                const original = context.res;
+                context.res = new Response(original.body, {
+                  status: original.status,
+                  statusText: 'Middleware Reason',
+                  headers: original.headers,
+                });
+                expect(context.res.body).toBe(original.body);
+                return;
+              }
+              // Consumption precedes the final privacy mutation and transport.
+              const body = await context.res.text();
+              const headers = new Headers(context.res.headers);
+              context.res = new Response(
+                policy === 'transformed-body' ? `transformed:${body}` : body,
+                {
+                  status: policy === 'status' ? 203 : 200,
+                  headers,
+                },
+              );
+              if (policy === 'cookie')
+                context.header('set-cookie', 'late=1; Path=/', {
+                  append: true,
+                });
+              if (policy === 'private')
+                context.header('cache-control', 'private');
+              if (policy === 'vary') context.header('vary', 'Accept-Language');
+            },
+          },
+        ],
+      },
     });
-    if (policy === 'route-ids' || policy === 'force-csr') {
-      expect(await (await fetch(`${origin}/allowed`)).json()).toEqual({
-        selected: 'ssr',
-        method: 'GET',
-      });
-      expect(
-        await (
-          await fetch(`${origin}/shell`, { headers: { purpose: 'prefetch' } })
-        ).json(),
-      ).toEqual({ selected: 'ssr', method: 'GET' });
+    const origin = await listen(server);
+    try {
+      for (let request = 0; request < 2; request++) {
+        const response = await fetch(`${origin}/`);
+        expect(response.status).toBe(policy === 'status' ? 203 : 200);
+        if (policy === 'mutated-reason') {
+          expect(response.statusText).toBe('Middleware Reason');
+          expect(response.headers.get('cache-control')).toBe(
+            'public, max-age=60',
+          );
+        }
+        expect(await response.text()).toBe(
+          policy === 'transformed-body'
+            ? 'transformed:public document'
+            : 'public document',
+        );
+        if (policy === 'transformed-body')
+          expect(response.headers.get('cache-control')).toBe(
+            'public, max-age=60',
+          );
+        if (policy === 'cookie')
+          expect(response.headers.getSetCookie()).toEqual(['late=1; Path=/']);
+        if (
+          policy === 'private' ||
+          policy === 'configured-private' ||
+          policy === 'prepared-private'
+        )
+          expect(response.headers.get('cache-control')).toBe('private');
+        if (policy === 'vary')
+          expect(response.headers.get('vary')).toBe('Accept-Language');
+      }
+      await new Promise(resolve => setImmediate(resolve));
+      expect(handlerCalls).toBe(2);
+      expect(cacheWrites).toBe(0);
+    } finally {
+      await close(server);
     }
-    if (policy === 'force-csr') {
-      expect(
-        await (
-          await fetch(`${origin}/allowed`, {
-            headers: { 'x-modern-ssr-fallback': '1' },
-          })
-        ).json(),
-      ).toEqual({ selected: 'csr' });
-      expect(await (await fetch(`${origin}/allowed?csr`)).json()).toEqual({
-        selected: 'ssr',
-        method: 'GET',
+  },
+);
+
+it.each(['route-ids', 'disabled', 'entry-disabled', 'force-csr'] as const)(
+  'uses native document selection for %s without redirecting data or action requests',
+  async policy => {
+    process.env.NODE_ENV = 'production';
+    const { root, dist } = await fixture();
+    const options = serverOptions(root, dist);
+    options.plugins = [
+      nativeServerPlugin({
+        renderer: 'solid',
+        entries: { main: identity },
+        resolveManifest: manifest => ({
+          ...(manifest.renderBundles!
+            .main as unknown as NativeServerManifest<NativeNodeBindings>),
+          nativeRequestHandler: request =>
+            Response.json({ selected: 'ssr', method: request.method }),
+          nativeCSRRequestHandler: () => Response.json({ selected: 'csr' }),
+          nativeMatchRouteIds: request => [
+            'root',
+            new URL(request.url).pathname.slice(1),
+          ],
+        }),
+      }),
+    ];
+    const serverPolicy =
+      policy === 'route-ids'
+        ? { ssr: true, ssrByRouteIds: ['allowed', 'shell'] }
+        : policy === 'disabled'
+          ? { ssr: false }
+          : policy === 'entry-disabled'
+            ? { ssr: true, ssrByEntries: { main: false } }
+            : { ssr: { mode: 'stream' as const, forceCSR: true } };
+    const server = await createProdServer({
+      ...options,
+      config: {
+        ...options.config,
+        server: { ...options.config.server, ...serverPolicy },
+      },
+    });
+    const origin = await listen(server);
+    try {
+      const selected = policy === 'force-csr' ? '/allowed?csr=1' : '/disabled';
+      expect(await (await fetch(`${origin}${selected}`)).json()).toEqual({
+        selected: 'csr',
       });
-      expect(
-        await (
-          await fetch(`${origin}/allowed`, {
-            headers: { 'x-modern-ssr-fallback': '' },
-          })
-        ).json(),
-      ).toEqual({ selected: 'ssr', method: 'GET' });
-      expect(
-        await (
-          await fetch(`${origin}/allowed`, {
-            headers: { 'x-modernjs-ssr-fallback': '1' },
-          })
-        ).json(),
-      ).toEqual({ selected: 'ssr', method: 'GET' });
+      if (policy === 'route-ids' || policy === 'force-csr') {
+        expect(await (await fetch(`${origin}/allowed`)).json()).toEqual({
+          selected: 'ssr',
+          method: 'GET',
+        });
+        expect(
+          await (
+            await fetch(`${origin}/shell`, { headers: { purpose: 'prefetch' } })
+          ).json(),
+        ).toEqual({ selected: 'ssr', method: 'GET' });
+      }
+      if (policy === 'force-csr') {
+        expect(
+          await (
+            await fetch(`${origin}/allowed`, {
+              headers: { 'x-modern-ssr-fallback': '1' },
+            })
+          ).json(),
+        ).toEqual({ selected: 'csr' });
+        expect(await (await fetch(`${origin}/allowed?csr`)).json()).toEqual({
+          selected: 'ssr',
+          method: 'GET',
+        });
+        expect(
+          await (
+            await fetch(`${origin}/allowed`, {
+              headers: { 'x-modern-ssr-fallback': '' },
+            })
+          ).json(),
+        ).toEqual({ selected: 'ssr', method: 'GET' });
+        expect(
+          await (
+            await fetch(`${origin}/allowed`, {
+              headers: { 'x-modernjs-ssr-fallback': '1' },
+            })
+          ).json(),
+        ).toEqual({ selected: 'ssr', method: 'GET' });
+      }
+      for (const [pathname, init] of [
+        ['/disabled?csr=1', { method: 'POST' }],
+        ['/disabled?__loader=route&csr=1', { method: 'GET' }],
+        ['/disabled?__ssrDirect=1&csr=1', { method: 'GET' }],
+      ] as const) {
+        expect(
+          await (await fetch(`${origin}${pathname}`, init)).json(),
+        ).toEqual({
+          selected: 'ssr',
+          method: init.method ?? 'GET',
+        });
+      }
+      const head = await fetch(`${origin}${selected}`, { method: 'HEAD' });
+      expect(head.status).toBe(200);
+      expect(await head.text()).toBe('');
+    } finally {
+      await close(server);
     }
-    for (const [pathname, init] of [
-      ['/disabled?csr=1', { method: 'POST' }],
-      ['/disabled?__loader=route&csr=1', { method: 'GET' }],
-      ['/disabled?__ssrDirect=1&csr=1', { method: 'GET' }],
-    ] as const) {
-      expect(await (await fetch(`${origin}${pathname}`, init)).json()).toEqual({
-        selected: 'ssr',
-        method: init.method ?? 'GET',
-      });
-    }
-    const head = await fetch(`${origin}${selected}`, { method: 'HEAD' });
-    expect(head.status).toBe(200);
-    expect(await head.text()).toBe('');
-  } finally {
-    await close(server);
-  }
-});
+  },
+);
 
 it('rejects RSC on unmatched paths while retaining the real host not-found response', async () => {
   process.env.NODE_ENV = 'production';
@@ -1203,95 +1217,94 @@ it('rejects RSC on unmatched paths while retaining the real host not-found respo
   }
 });
 
-it.each([
-  'unproven-build',
-  'cancel',
-  'stream-error',
-] as const)('never caches a document with %s and never falls back after commit', async failure => {
-  process.env.NODE_ENV = 'production';
-  const { root, dist } = await fixture();
-  const options = serverOptions(root, dist);
-  let gets = 0;
-  let writes = 0;
-  let fallbacks = 0;
-  options.plugins = [
-    nativeServerPlugin({
-      renderer: 'solid',
-      entries: { main: identity },
-      cacheAllowed: failure !== 'unproven-build',
-      cache: {
-        get: () => {
-          gets++;
-          return undefined;
-        },
-        set: () => {
-          writes++;
-        },
-      },
-      onError: () => {
-        fallbacks++;
-        return new Response('wrong post-commit fallback', { status: 503 });
-      },
-      resolveManifest: manifest => {
-        const nativeManifest = manifest.renderBundles!
-          .main as unknown as NativeServerManifest<NativeNodeBindings>;
-        return {
-          ...nativeManifest,
-          async nativeRequestHandler(request, context) {
-            const nativeResponse = await nativeManifest.nativeRequestHandler(
-              request,
-              context,
-            );
-            context.session.resolveResponse({
-              kind: 'document',
-              status: 200,
-              headers: [['content-type', 'text/html']],
-              cache: { mode: 'public', maxAgeSeconds: 60 },
-            });
-            return context.session.respond(nativeResponse.body);
+it.each(['unproven-build', 'cancel', 'stream-error'] as const)(
+  'never caches a document with %s and never falls back after commit',
+  async failure => {
+    process.env.NODE_ENV = 'production';
+    const { root, dist } = await fixture();
+    const options = serverOptions(root, dist);
+    let gets = 0;
+    let writes = 0;
+    let fallbacks = 0;
+    options.plugins = [
+      nativeServerPlugin({
+        renderer: 'solid',
+        entries: { main: identity },
+        cacheAllowed: failure !== 'unproven-build',
+        cache: {
+          get: () => {
+            gets++;
+            return undefined;
           },
-        };
-      },
-    }),
-  ];
-  const server = await createProdServer(options);
-  const origin = await listen(server);
-  try {
-    const abort = new AbortController();
-    const pathname = failure === 'unproven-build' ? '/' : `/${failure}`;
-    const response = await fetch(`${origin}${pathname}`, {
-      signal: abort.signal,
-    });
-    expect(response.status).toBe(200);
-    if (failure === 'unproven-build')
-      expect(await response.text()).toBe('native:solid:build-a');
-    if (failure === 'stream-error')
-      await expect(response.text()).rejects.toThrow();
-    if (failure === 'cancel') {
-      expect(
-        new TextDecoder().decode(
-          (await response.body!.getReader().read()).value,
-        ),
-      ).toBe('cancel shell');
-      abort.abort();
-      let cancellation = '';
-      for (let retry = 0; retry < 30 && !cancellation; retry++) {
-        await new Promise(resolve => setTimeout(resolve, 20));
-        cancellation = await readFile(
-          path.join(root, 'cancelled.txt'),
-          'utf-8',
-        ).catch(() => '');
+          set: () => {
+            writes++;
+          },
+        },
+        onError: () => {
+          fallbacks++;
+          return new Response('wrong post-commit fallback', { status: 503 });
+        },
+        resolveManifest: manifest => {
+          const nativeManifest = manifest.renderBundles!
+            .main as unknown as NativeServerManifest<NativeNodeBindings>;
+          return {
+            ...nativeManifest,
+            async nativeRequestHandler(request, context) {
+              const nativeResponse = await nativeManifest.nativeRequestHandler(
+                request,
+                context,
+              );
+              context.session.resolveResponse({
+                kind: 'document',
+                status: 200,
+                headers: [['content-type', 'text/html']],
+                cache: { mode: 'public', maxAgeSeconds: 60 },
+              });
+              return context.session.respond(nativeResponse.body);
+            },
+          };
+        },
+      }),
+    ];
+    const server = await createProdServer(options);
+    const origin = await listen(server);
+    try {
+      const abort = new AbortController();
+      const pathname = failure === 'unproven-build' ? '/' : `/${failure}`;
+      const response = await fetch(`${origin}${pathname}`, {
+        signal: abort.signal,
+      });
+      expect(response.status).toBe(200);
+      if (failure === 'unproven-build')
+        expect(await response.text()).toBe('native:solid:build-a');
+      if (failure === 'stream-error')
+        await expect(response.text()).rejects.toThrow();
+      if (failure === 'cancel') {
+        expect(
+          new TextDecoder().decode(
+            (await response.body!.getReader().read()).value,
+          ),
+        ).toBe('cancel shell');
+        abort.abort();
+        let cancellation = '';
+        for (let retry = 0; retry < 30 && !cancellation; retry++) {
+          await new Promise(resolve => setTimeout(resolve, 20));
+          cancellation = await readFile(
+            path.join(root, 'cancelled.txt'),
+            'utf-8',
+          ).catch(() => '');
+        }
+        expect(cancellation).toBe('cancelled');
       }
-      expect(cancellation).toBe('cancelled');
+      await new Promise(resolve => setImmediate(resolve));
+      expect(gets).toBe(failure === 'unproven-build' ? 0 : 1);
+      expect(writes).toBe(0);
+      expect(fallbacks).toBe(0);
+    } finally {
+      await close(server);
     }
-    await new Promise(resolve => setImmediate(resolve));
-    expect(gets).toBe(failure === 'unproven-build' ? 0 : 1);
-    expect(writes).toBe(0);
-    expect(fallbacks).toBe(0);
-  } finally {
-    await close(server);
-  }
-});
+  },
+);
 
 it('uses the configured metadata fallback header for native CSR', async () => {
   process.env.NODE_ENV = 'production';
