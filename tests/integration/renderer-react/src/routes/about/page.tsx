@@ -1,9 +1,10 @@
 import { Link } from '@modern-js/plugin-tanstack/runtime';
 import { Helmet } from '@modern-js/runtime/head';
+import './page.css';
 
 export default function About() {
   return (
-    <section data-testid="native-about">
+    <section className="native-about-route" data-testid="native-about">
       <Helmet>
         <title>react fixture about</title>
         <meta name="description" content="Renderer fixture" />

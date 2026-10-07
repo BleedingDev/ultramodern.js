@@ -7,7 +7,11 @@ export default function Lazy(): JSX.Element {
   return (
     <aside class="native-lazy-detail" data-testid="native-lazy">
       <span>Native lazy component</span>
-      <button type="button" onClick={() => setCount(count() + 1)}>
+      <button
+        type="button"
+        data-testid="native-lazy-increment"
+        onClick={() => setCount(count() + 1)}
+      >
         Increment lazy
       </button>
       <output data-testid="native-lazy-count">{count()}</output>
