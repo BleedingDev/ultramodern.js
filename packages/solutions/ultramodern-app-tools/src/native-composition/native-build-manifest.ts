@@ -1,7 +1,10 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
-import type { RendererBuildIdentities } from '@modern-js/app-tools-extensions/renderer-build-identity';
+import {
+  type RendererBuildIdentities,
+  rendererProfileKey,
+} from '@modern-js/app-tools-extensions/renderer-build-identity';
 import {
   immutableRendererRouterBindings,
   type RendererRouterBindings,
@@ -19,19 +22,23 @@ import type { RegisteredRenderer } from './renderer-selection-metadata';
 export const RENDERER_BUILD_MANIFEST_FILE = 'renderer-build.json';
 export const RENDERER_DEVELOPMENT_DIRECTORY = '.ultramodern-dev';
 
+/** What `serve`, deploy and the Cloudflare worker need from a finished build. */
+export interface RendererBuildManifest<
+  TRenderer extends Renderer = RegisteredRenderer,
+> {
+  readonly schema: 'ultramodern-renderer-build';
+  readonly version: 2;
+  readonly renderer: TRenderer;
+  readonly profile: RendererBuildProfile<TRenderer>;
+  readonly routerBindings: RendererRouterBindings;
+  readonly buildId: string;
+  readonly sourceRevision: string;
+  readonly entries: Readonly<Record<string, RendererIdentity>>;
+}
+
 export interface RendererDevelopmentCompilation {
   readonly compilationHashes: Readonly<Record<string, string>>;
   readonly generation: number;
-  readonly sourceInputDigest: string;
-}
-
-export interface RendererBuildManifest<
-  TRenderer extends Renderer = RegisteredRenderer,
-> extends RendererBuildIdentities {
-  readonly schema: 'ultramodern-renderer-build';
-  readonly version: 1;
-  readonly profile: RendererBuildProfile<TRenderer>;
-  readonly routerBindings: RendererRouterBindings;
 }
 
 export interface RendererDevelopmentBuildManifest<
@@ -44,237 +51,80 @@ export interface RendererBuildManifestValidationOptions {
   readonly routerFrameworks?: readonly RouterFramework[];
 }
 
-/** A dev checkpoint certifies an actual completed wave, never a production build. */
-export function validateRendererDevelopmentBuildManifest<
-  TRenderer extends Renderer,
->(
-  input: unknown,
+export function createRendererBuildManifest<TRenderer extends Renderer>(
   profile: RendererBuildProfile<TRenderer>,
-  options: RendererBuildManifestValidationOptions = {},
-): RendererDevelopmentBuildManifest<TRenderer> {
-  if (!input || typeof input !== 'object' || Array.isArray(input))
-    throw new Error('Invalid development renderer metadata');
-  const descriptor = Object.getOwnPropertyDescriptor(input, 'devCompilation');
-  if (!descriptor?.enumerable || !('value' in descriptor))
-    throw new Error(
-      'Development renderer metadata requires an own compilation record',
-    );
-  const compilation: unknown = descriptor.value;
-  const keys = ['compilationHashes', 'generation', 'sourceInputDigest'];
-  if (
-    !compilation ||
-    typeof compilation !== 'object' ||
-    Array.isArray(compilation) ||
-    Reflect.ownKeys(compilation).length !== keys.length ||
-    !Reflect.ownKeys(compilation).every(
-      key => typeof key === 'string' && keys.includes(key),
-    )
-  )
-    throw new Error('Invalid development compilation record');
-  const fields: Record<string, unknown> = {};
-  for (const key of keys) {
-    const field = Object.getOwnPropertyDescriptor(compilation, key);
-    if (!field?.enumerable || !('value' in field))
-      throw new Error(
-        'Development compilation fields must be enumerable data properties',
-      );
-    fields[key] = field.value;
-  }
-  const hashes = fields.compilationHashes;
-  if (
-    !hashes ||
-    typeof hashes !== 'object' ||
-    Array.isArray(hashes) ||
-    !Reflect.ownKeys(hashes).length
-  )
-    throw new Error(
-      'Development compilation requires its actual named compiler hashes',
-    );
-  const compilationHashes: Record<string, string> = {};
-  for (const name of Reflect.ownKeys(hashes)) {
-    const hash = Object.getOwnPropertyDescriptor(hashes, name);
-    if (
-      typeof name !== 'string' ||
-      !name.trim() ||
-      name !== name.trim() ||
-      !hash?.enumerable ||
-      !('value' in hash) ||
-      typeof hash.value !== 'string' ||
-      !/^[a-f0-9]{1,64}$(?![\s\S])/u.test(hash.value)
-    )
-      throw new Error(
-        'Development compilation requires enumerable named hash data',
-      );
-    Object.defineProperty(compilationHashes, name, {
-      value: hash.value,
-      enumerable: true,
-    });
-  }
-  if (
-    typeof fields.generation !== 'number' ||
-    !Number.isSafeInteger(fields.generation) ||
-    fields.generation < 1 ||
-    typeof fields.sourceInputDigest !== 'string' ||
-    !/^[a-f0-9]{64}$(?![\s\S])/u.test(fields.sourceInputDigest)
-  )
-    throw new Error(
-      'Invalid development compilation generation or source digest',
-    );
-  const base = validateRendererBuildManifest(input, profile, options);
-  if (base.cacheAllowed || base.promotable)
-    throw new Error(
-      'Development renderer metadata cannot be cached or promoted',
-    );
-  return Object.freeze({
-    ...base,
-    devCompilation: Object.freeze({
-      compilationHashes: Object.freeze(compilationHashes),
-      generation: fields.generation,
-      sourceInputDigest: fields.sourceInputDigest,
-    }),
-  });
-}
-
-/** Do not attest an output compiled while its authored or framework inputs changed. */
-export function assertRendererBuildInputsUnchanged(
-  initial: RendererBuildIdentities,
-  completed: RendererBuildIdentities,
-): void {
-  const fields = [
-    'buildMarker',
-    'sourceRevision',
-    'inputDigest',
-    'profileDigest',
-    'compilerDigest',
-    'frameworkCohortDigest',
-    'cacheAllowed',
-    'promotable',
-    'identities',
-    'routerBindings',
-  ] as const;
-  const changed = fields.filter(
-    key => !isDeepStrictEqual(initial[key], completed[key]),
-  );
-  if (!changed.length) return;
-  const describe = (
-    value: RendererBuildIdentities,
-    key: (typeof fields)[number],
-  ): string => {
-    const field = value[key];
-    if (key === 'identities')
-      return JSON.stringify(
-        Object.entries(value.identities)
-          .slice(0, 8)
-          .map(([entry, identity]) => ({
-            entry: entry.slice(0, 128),
-            renderer: identity.renderer,
-            appId: identity.appId.slice(0, 128),
-            entryName: identity.entryName.slice(0, 128),
-            protocolVersion: identity.protocolVersion,
-            buildId: identity.buildId,
-          })),
-      ).slice(0, 512);
-    if (key === 'routerBindings')
-      return JSON.stringify(
-        Object.entries(value.routerBindings)
-          .slice(0, 8)
-          .map(([entry, binding]) => ({
-            entry: entry.slice(0, 128),
-            owner: binding.owner.slice(0, 128),
-            evidence: binding.evidence,
-            providers: binding.providers.slice(0, 8).map(provider => ({
-              name: provider.name,
-              version: provider.version,
-            })),
-          })),
-      ).slice(0, 512);
-    return JSON.stringify(
-      typeof field === 'string' ? field.slice(0, 128) : field,
-    );
+  identities: RendererBuildIdentities,
+): RendererBuildManifest<TRenderer> {
+  return {
+    schema: 'ultramodern-renderer-build',
+    version: 2,
+    renderer: profile.renderer,
+    profile,
+    routerBindings: identities.routerBindings,
+    buildId: identities.buildId,
+    sourceRevision: identities.sourceRevision,
+    entries: identities.identities,
   };
-  const differences = changed
-    .map(
-      key =>
-        `${key}: expected=${describe(initial, key)}, actual=${describe(completed, key)}`,
-    )
-    .join('; ');
-  throw new Error(
-    `Native build inputs changed during compilation (${changed[0]}); rebuild from one unchanged source and framework cohort. Changed identity fields: ${differences}`,
-  );
 }
 
-function freezeProfile<T>(value: T): T {
-  if (value && typeof value === 'object') {
-    for (const child of Object.values(value)) freezeProfile(child);
-    Object.freeze(value);
-  }
-  return value;
-}
-
-/** Built identity is immutable evidence. Missing or conflicting bytes fail closed. */
+/** Reject a build made for another renderer or renderer profile. */
 export function validateRendererBuildManifest<TRenderer extends Renderer>(
   input: unknown,
   profile: RendererBuildProfile<TRenderer>,
   options: RendererBuildManifestValidationOptions = {},
 ): RendererBuildManifest<TRenderer> {
-  if (!input || typeof input !== 'object' || Array.isArray(input))
-    throw new Error('Invalid native renderer build manifest');
-  const value = input as RendererBuildManifest<TRenderer>;
+  const value = input as RendererBuildManifest<TRenderer> | undefined;
   if (
+    !value ||
+    typeof value !== 'object' ||
     value.schema !== 'ultramodern-renderer-build' ||
-    value.version !== 1 ||
-    !isDeepStrictEqual(value.profile, profile)
+    value.version !== 2
   )
     throw new Error(
-      'Native renderer build manifest profile conflicts with the selected configuration',
+      `Invalid or outdated ${RENDERER_BUILD_MANIFEST_FILE}; rebuild the application.`,
     );
-  for (const key of [
-    'buildMarker',
-    'inputDigest',
-    'profileDigest',
-    'compilerDigest',
-    'frameworkCohortDigest',
-  ] as const) {
-    if (typeof value[key] !== 'string' || !/^[a-f0-9]{64}$/u.test(value[key]))
-      throw new Error(`Native renderer build manifest requires a valid ${key}`);
-  }
+  if (value.renderer !== profile.renderer)
+    throw new Error(
+      `The build output was made for the ${String(value.renderer)} renderer, but the configuration selects ${profile.renderer}; rebuild the application.`,
+    );
+  if (!isDeepStrictEqual(value.profile, profile))
+    throw new Error(
+      `The build output was made with a different ${profile.renderer} renderer profile than the installed one; rebuild the application.`,
+    );
   if (
-    typeof value.sourceRevision !== 'string' ||
-    !value.sourceRevision.trim() ||
-    typeof value.cacheAllowed !== 'boolean' ||
-    typeof value.promotable !== 'boolean'
-  )
-    throw new Error('Invalid native renderer build provenance');
-  if (
-    !value.identities ||
-    typeof value.identities !== 'object' ||
-    Array.isArray(value.identities) ||
-    !Object.keys(value.identities).length
+    typeof value.buildId !== 'string' ||
+    !/^[a-f0-9]{64}$/u.test(value.buildId)
   )
     throw new Error(
-      'Native renderer build manifest has no application entries',
+      `${RENDERER_BUILD_MANIFEST_FILE} has no valid buildId; rebuild the application.`,
     );
-  for (const [entryName, identity] of Object.entries(value.identities)) {
-    identityCacheKey(identity as RendererIdentity);
+  if (typeof value.sourceRevision !== 'string' || !value.sourceRevision)
+    throw new Error(
+      `${RENDERER_BUILD_MANIFEST_FILE} has no source revision; rebuild the application.`,
+    );
+  if (
+    !value.entries ||
+    typeof value.entries !== 'object' ||
+    Array.isArray(value.entries) ||
+    !Object.keys(value.entries).length
+  )
+    throw new Error(
+      `${RENDERER_BUILD_MANIFEST_FILE} has no application entries`,
+    );
+  for (const [entryName, identity] of Object.entries(value.entries)) {
+    identityCacheKey(identity);
     if (
       identity.renderer !== profile.renderer ||
       identity.entryName !== entryName ||
-      identity.buildId !== value.buildMarker
+      identity.buildId !== value.buildId
     )
       throw new Error(
-        'Native renderer build manifest entry identity conflicts with its build',
+        `${RENDERER_BUILD_MANIFEST_FILE} entry ${entryName} conflicts with its build`,
       );
   }
-  if (
-    (value.cacheAllowed || value.promotable) &&
-    value.sourceRevision === 'workspace'
-  )
-    throw new Error(
-      'A dirty native renderer build cannot be promoted or cached',
-    );
   const routerValidation = validateRendererRouterBindings(
     value.routerBindings,
-    Object.keys(value.identities),
+    Object.keys(value.entries),
     'routerBindings',
     options.routerFrameworks,
   );
@@ -284,10 +134,9 @@ export function validateRendererBuildManifest<TRenderer extends Renderer>(
     );
   return Object.freeze({
     ...value,
-    profile: freezeProfile(structuredClone(profile)),
-    identities: Object.freeze(
+    entries: Object.freeze(
       Object.fromEntries(
-        Object.entries(value.identities).map(([entryName, identity]) => [
+        Object.entries(value.entries).map(([entryName, identity]) => [
           entryName,
           Object.freeze({ ...identity }),
         ]),
@@ -297,21 +146,94 @@ export function validateRendererBuildManifest<TRenderer extends Renderer>(
   });
 }
 
+export function validateRendererDevelopmentBuildManifest<
+  TRenderer extends Renderer,
+>(
+  input: unknown,
+  profile: RendererBuildProfile<TRenderer>,
+  options: RendererBuildManifestValidationOptions = {},
+): RendererDevelopmentBuildManifest<TRenderer> {
+  const compilation = (input as { devCompilation?: unknown } | undefined)
+    ?.devCompilation as RendererDevelopmentCompilation | undefined;
+  if (
+    !compilation ||
+    typeof compilation !== 'object' ||
+    !Number.isSafeInteger(compilation.generation) ||
+    compilation.generation < 1 ||
+    !compilation.compilationHashes ||
+    typeof compilation.compilationHashes !== 'object' ||
+    !Object.keys(compilation.compilationHashes).length
+  )
+    throw new Error('Invalid development compilation record');
+  return Object.freeze({
+    ...validateRendererBuildManifest(input, profile, options),
+    devCompilation: Object.freeze({
+      compilationHashes: Object.freeze({ ...compilation.compilationHashes }),
+      generation: compilation.generation,
+    }),
+  });
+}
+
+type BuildCachePerformance = {
+  buildCache?: boolean | { cacheDigest?: readonly unknown[] };
+};
+
+/** The persistent Rspack cache is always on, keyed by renderer and profile. */
+export function rendererBuildCachePerformance<T extends BuildCachePerformance>(
+  performance: T | undefined,
+  renderer: Renderer,
+  profile: Parameters<typeof rendererProfileKey>[0],
+): T & BuildCachePerformance {
+  const authored = performance?.buildCache;
+  if (authored === false) return { ...performance } as T;
+  const options = typeof authored === 'object' ? authored : {};
+  return {
+    ...performance,
+    buildCache: {
+      ...options,
+      cacheDigest: [
+        ...(options.cacheDigest ?? []),
+        renderer,
+        rendererProfileKey(profile),
+      ],
+    },
+  } as T & BuildCachePerformance;
+}
+
+export async function writeRendererBuildManifest(
+  distDirectory: string,
+  manifest: RendererBuildManifest<Renderer>,
+): Promise<void> {
+  const output = path.join(distDirectory, RENDERER_BUILD_MANIFEST_FILE);
+  await fs.mkdir(distDirectory, { recursive: true });
+  const temporary = `${output}.${process.pid}.tmp`;
+  try {
+    await fs.writeFile(temporary, JSON.stringify(manifest));
+    await fs.rename(temporary, output);
+  } finally {
+    await fs.rm(temporary, { force: true });
+  }
+}
+
 export async function readRendererBuildManifest<TRenderer extends Renderer>(
   distDirectory: string,
   profile: RendererBuildProfile<TRenderer>,
   options: RendererBuildManifestValidationOptions = {},
 ): Promise<RendererBuildManifest<TRenderer>> {
-  return validateRendererBuildManifest(
-    JSON.parse(
-      await fs.readFile(
-        path.join(distDirectory, RENDERER_BUILD_MANIFEST_FILE),
-        'utf8',
-      ),
-    ),
-    profile,
-    options,
-  );
+  let bytes: string;
+  try {
+    bytes = await fs.readFile(
+      path.join(distDirectory, RENDERER_BUILD_MANIFEST_FILE),
+      'utf8',
+    );
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT')
+      throw new Error(
+        `${path.join(distDirectory, RENDERER_BUILD_MANIFEST_FILE)} is missing; build the application first.`,
+      );
+    throw error;
+  }
+  return validateRendererBuildManifest(JSON.parse(bytes), profile, options);
 }
 
 export async function readRendererDevelopmentBuildManifest<

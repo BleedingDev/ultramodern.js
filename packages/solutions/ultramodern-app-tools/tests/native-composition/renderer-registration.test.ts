@@ -33,15 +33,12 @@ import {
   type NativeServerPluginOptions,
   nativeServerPlugin,
 } from '../../src/native-composition/native-server-plugin';
-import { createRendererBuildIdentityResolver } from '../../src/native-composition/renderer-build-resolution';
 import { activateNativeRendererCompiler } from '../../src/native-composition/renderer-compiler-activation';
 import {
   type RendererBuildProfile,
   resolveCandidateRendererProfile,
-  resolveRendererProfileMetadata,
 } from '../../src/native-composition/renderer-profile';
 import {
-  type RendererRegistration,
   registeredRenderers,
   resolveNativeRendererAdapter,
   resolveRendererRegistration,
@@ -110,24 +107,6 @@ rstest.mock('../../src/renderers/solid/registration', () => {
       candidateProfile: profile,
       routerFrameworks,
       frameworkModules: [],
-      resolveBuildFrameworkModules: rstest.fn(
-        (context: {
-          appDirectory: string;
-          registrarDirectory: string;
-          pluginNames: readonly string[];
-        }) =>
-          context.pluginNames.includes('fixture:fourth-build-cohort')
-            ? [
-                {
-                  specifier: '@fixture/fourth-build-module',
-                  filename: path.join(
-                    context.appDirectory,
-                    'node_modules/@fixture/fourth-build-module/index.cjs',
-                  ),
-                },
-              ]
-            : [],
-      ),
       supports: {
         reactCliPlugins: false,
         reactRuntimeDescriptors: false,
@@ -172,141 +151,6 @@ rstest.mock('../../src/native-composition/renderer-compiler-activation', {
 const renderer = 'fourth-native' as RegisteredRenderer;
 
 describe('static renderer owner admission', () => {
-  it('binds one extra physical build module declared by the fourth owner into its cohort', async () => {
-    const root = fs.mkdtempSync(
-      path.join(process.env.OWNED_TEMP_DIR ?? os.tmpdir(), 'um-fourth-cohort-'),
-    );
-    const selected: RendererRegistration =
-      resolveRendererRegistration(renderer);
-    const hook = rstest.mocked(selected.resolveBuildFrameworkModules!);
-    hook.mockClear();
-    try {
-      const metadata = resolveRendererProfileMetadata(renderer);
-      const dependencies: Record<string, string> = {};
-      for (const owner of metadata.frameworkPackages) {
-        const slot = path.join(root, 'node_modules', owner.specifier);
-        fs.mkdirSync(path.dirname(slot), { recursive: true });
-        fs.symlinkSync(owner.directory, slot, 'dir');
-        dependencies[owner.specifier] =
-          owner.name === owner.specifier
-            ? owner.version
-            : `npm:${owner.name}@${owner.version}`;
-      }
-      const extraModule = path.join(
-        root,
-        'node_modules/@fixture/fourth-build-module/index.cjs',
-      );
-      const packages: readonly {
-        name: string;
-        version: string;
-        specifier?: string;
-        dependencies?: Readonly<Record<string, string>>;
-      }[] = [
-        { ...metadata.profile.compiler },
-        { ...metadata.profile.hydration },
-        {
-          name: metadata.profile.router.name,
-          version: metadata.profile.router.version,
-          dependencies: {
-            [metadata.profile.router.coreName]:
-              metadata.profile.router.coreVersion,
-          },
-        },
-        {
-          name: metadata.profile.router.coreName,
-          version: metadata.profile.router.coreVersion,
-        },
-        {
-          name: 'fourth-build-module-owner',
-          version: '3.4.5',
-          specifier: '@fixture/fourth-build-module',
-        },
-      ];
-      for (const owner of packages) {
-        const specifier = owner.specifier ?? owner.name;
-        const directory = path.join(root, 'node_modules', specifier);
-        fs.mkdirSync(directory, { recursive: true });
-        fs.writeFileSync(
-          path.join(directory, 'package.json'),
-          JSON.stringify({
-            name: owner.name,
-            version: owner.version,
-            main: './index.cjs',
-            ...(owner.dependencies ? { dependencies: owner.dependencies } : {}),
-          }),
-        );
-        fs.writeFileSync(
-          path.join(directory, 'index.cjs'),
-          'module.exports = 1;',
-        );
-        dependencies[specifier] =
-          owner.name === specifier
-            ? owner.version
-            : `npm:${owner.name}@${owner.version}`;
-      }
-      fs.writeFileSync(
-        path.join(root, 'package.json'),
-        JSON.stringify({
-          name: 'fourth-build-cohort-fixture',
-          version: '1.0.0',
-          dependencies,
-        }),
-      );
-      const entry = path.join(root, 'src/App.tsx');
-      fs.mkdirSync(path.dirname(entry));
-      fs.writeFileSync(entry, 'export default function App() {}');
-      const resolve = createRendererBuildIdentityResolver(renderer);
-      const context: Parameters<typeof resolve>[0] = {
-        appDirectory: root,
-        internalDirectory: path.join(root, 'internal'),
-        distDirectory: path.join(root, 'dist'),
-        packageName: 'fourth-build-cohort-fixture',
-        entrypoints: [{ entryName: 'main', isMainEntry: true, entry }],
-        mode: 'production',
-        pluginNames: [
-          '@fixture/fourth-native-infrastructure',
-          'fixture:fourth-build-cohort',
-        ],
-        config: {
-          source: {},
-          output: {},
-          server: {},
-          html: {},
-          bff: {},
-          deploy: {},
-          experiments: {},
-        } as Parameters<typeof resolve>[0]['config'],
-        inputFiles: [entry],
-      };
-      const initial = await resolve(context);
-      expect(initial.identities.main.renderer).toBe(renderer);
-      expect(hook).toHaveBeenCalledTimes(1);
-      expect(hook).toHaveBeenCalledWith({
-        appDirectory: root,
-        registrarDirectory: path.resolve(
-          import.meta.dirname,
-          '../../src/native-composition',
-        ),
-        pluginNames: context.pluginNames,
-      });
-      expect(hook.mock.results[0].value).toEqual([
-        { specifier: '@fixture/fourth-build-module', filename: extraModule },
-      ]);
-      fs.writeFileSync(extraModule, 'module.exports = 2;');
-      const changed = await resolve(context);
-      expect(hook).toHaveBeenCalledTimes(2);
-      expect(changed.frameworkCohortDigest).not.toBe(
-        initial.frameworkCohortDigest,
-      );
-      expect(changed.identities.main.buildId).not.toBe(
-        initial.identities.main.buildId,
-      );
-    } finally {
-      hook.mockClear();
-      fs.rmSync(root, { recursive: true, force: true });
-    }
-  });
-
   it('records the fourth router adapter owner and rejects a manufactured plugin name', async () => {
     const adapter = resolveNativeRendererAdapter(renderer);
     const entrypoints: Entrypoint[] = [
@@ -503,18 +347,13 @@ describe('static renderer owner admission', () => {
         path.join(distDirectory, RENDERER_BUILD_MANIFEST_FILE),
         JSON.stringify({
           schema: 'ultramodern-renderer-build',
-          version: 1,
+          version: 2,
+          renderer,
           profile: resolveCandidateRendererProfile(renderer),
-          identities: { main: identity },
+          entries: { main: identity },
           routerBindings,
-          buildMarker: identity.buildId,
+          buildId: identity.buildId,
           sourceRevision: 'workspace',
-          inputDigest: 'b'.repeat(64),
-          profileDigest: 'c'.repeat(64),
-          compilerDigest: 'd'.repeat(64),
-          frameworkCohortDigest: 'e'.repeat(64),
-          cacheAllowed: false,
-          promotable: false,
         }),
       );
       const manager = createPluginManager();

@@ -8,7 +8,10 @@ import {
   appTools,
   type CliPlugin,
 } from '@modern-js/app-tools';
-import type { RendererBuildIdentities } from '@modern-js/app-tools-extensions/renderer-build-identity';
+import {
+  type RendererBuildIdentities,
+  rendererProfileKey,
+} from '@modern-js/app-tools-extensions/renderer-build-identity';
 import { validateRendererRouterBindings } from '@modern-js/backend-federation-contracts';
 import { type CLIPluginAPI, createPluginManager } from '@modern-js/plugin';
 import {
@@ -73,7 +76,7 @@ function buildIdentities(
   entryNames = ['ssr', 'csr'],
   options: Partial<RendererBuildIdentities> = {},
 ): RendererBuildIdentities {
-  const buildMarker = options.buildMarker ?? 'a'.repeat(64);
+  const buildMarker = options.buildId ?? 'a'.repeat(64);
   const identities =
     options.identities ??
     Object.fromEntries(
@@ -94,14 +97,9 @@ function buildIdentities(
   };
   return {
     identities,
-    buildMarker,
+    buildId: buildMarker,
+    profileKey: 'b'.repeat(64),
     sourceRevision: 'workspace',
-    inputDigest: 'b'.repeat(64),
-    profileDigest: 'c'.repeat(64),
-    compilerDigest: 'd'.repeat(64),
-    frameworkCohortDigest: 'e'.repeat(64),
-    cacheAllowed: false,
-    promotable: false,
     ...options,
     routerBindings:
       options.routerBindings ??
@@ -116,6 +114,22 @@ function buildIdentities(
           },
         ]),
       ),
+  };
+}
+
+function builtManifest(
+  identities: RendererBuildIdentities = buildIdentities(),
+  renderer: 'react' | 'solid' = 'react',
+) {
+  return {
+    schema: 'ultramodern-renderer-build',
+    version: 2,
+    renderer,
+    profile: resolveRendererProfile(renderer),
+    routerBindings: identities.routerBindings,
+    buildId: identities.buildId,
+    sourceRevision: identities.sourceRevision,
+    entries: identities.identities,
   };
 }
 
@@ -437,9 +451,6 @@ describe('React metadata in the existing CLI build hooks', () => {
         appDirectory: root,
         packageName: 'react-metadata-proof',
         entrypoints: entries,
-        config: expect.objectContaining({
-          server: { ssr: true, ssrByEntries: { ssr: true, csr: false } },
-        }),
       }),
     );
     expect(context.entrypoints[0]).not.toBe(entries[0]);
@@ -450,12 +461,7 @@ describe('React metadata in the existing CLI build hooks', () => {
     expect(resolveBuildIdentities).toHaveBeenCalledTimes(1);
     const manifestFile = path.join(root, 'dist', RENDERER_BUILD_MANIFEST_FILE);
     const manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
-    expect(manifest).toEqual({
-      ...buildIdentities(),
-      schema: 'ultramodern-renderer-build',
-      version: 1,
-      profile: resolveRendererProfile('react'),
-    });
+    expect(manifest).toEqual(builtManifest());
     expect(
       fs
         .readdirSync(path.dirname(manifestFile))
@@ -466,7 +472,7 @@ describe('React metadata in the existing CLI build hooks', () => {
         path.join(root, 'dist', htmlPaths[entryName]),
         'utf8',
       );
-      expect(html).toContain(JSON.stringify(manifest.identities[entryName]));
+      expect(html).toContain(JSON.stringify(manifest.entries[entryName]));
     }
     const scripts = fs
       .readdirSync(path.join(root, 'dist', 'static', 'js'))
@@ -475,14 +481,14 @@ describe('React metadata in the existing CLI build hooks', () => {
         fs.readFileSync(path.join(root, 'dist', 'static', 'js', name), 'utf8'),
       )
       .join('\n');
-    expect(scripts).toContain(JSON.stringify(manifest.buildMarker));
+    expect(scripts).toContain(JSON.stringify(manifest.buildId));
     expect(scripts).not.toContain('ULTRAMODERN_BUILD_MARKER');
     expect(scripts).not.toContain('ULTRAMODERN_SOURCE_REVISION');
 
     const bffRuntimeIdentity =
       await resolveBffRuntimeBuildIdentity(bffCompilation);
     expect(bffRuntimeIdentity).toEqual({
-      buildMarker: manifest.buildMarker,
+      buildMarker: manifest.buildId,
       sourceRevision: manifest.sourceRevision,
     });
     expect(Object.isFrozen(bffRuntimeIdentity)).toBe(true);
@@ -500,7 +506,7 @@ describe('React metadata in the existing CLI build hooks', () => {
       plugin.name.endsWith('react-build-metadata-server.js'),
     )!;
     const serialized = JSON.parse(JSON.stringify(metadata.options));
-    expect(serialized).toEqual({ entries: manifest.identities });
+    expect(serialized).toEqual({ entries: manifest.entries });
     const server = createServerBase<ServerEnv>({
       pwd: path.join(root, 'dist'),
       routes: [],
@@ -543,7 +549,7 @@ describe('React metadata in the existing CLI build hooks', () => {
       const response = await server.request('/ssr');
       expect(
         JSON.parse(response.headers.get(REACT_RENDERER_IDENTITY_HEADER)!),
-      ).toEqual(manifest.identities.ssr);
+      ).toEqual(manifest.entries.ssr);
       expect(await response.text()).toBe('existing React response');
     } finally {
       await server.dispose();
@@ -658,13 +664,13 @@ describe('React metadata in the existing CLI build hooks', () => {
           'utf8',
         ),
       );
-      expect(Object.keys(manifest.identities)).toEqual(finalNames);
+      expect(Object.keys(manifest.entries)).toEqual(finalNames);
       for (const entryName of finalNames) {
         const html = fs.readFileSync(
           path.join(root, 'dist', htmlPaths[entryName]),
           'utf8',
         );
-        expect(html).toContain(JSON.stringify(manifest.identities[entryName]));
+        expect(html).toContain(JSON.stringify(manifest.entries[entryName]));
       }
     },
   );
@@ -770,17 +776,13 @@ describe('React metadata in the existing CLI build hooks', () => {
       });
       api.updateAppContext({ command: 'serve' });
       if (failure !== 'missing') {
-        const manifest = {
-          ...buildIdentities(),
-          schema: 'ultramodern-renderer-build',
-          version: 1,
-          profile: resolveRendererProfile(
-            failure === 'profile' ? 'solid' : 'react',
-          ),
-        };
+        const manifest: ReturnType<typeof builtManifest> = builtManifest(
+          buildIdentities(),
+          failure === 'profile' ? 'solid' : 'react',
+        );
         if (failure === 'identity') {
-          manifest.identities = {
-            ssr: { ...manifest.identities.ssr, buildId: 'conflicting build' },
+          manifest.entries = {
+            ssr: { ...manifest.entries.ssr, buildId: 'conflicting build' },
           };
           manifest.routerBindings = {
             ssr: manifest.routerBindings!.ssr,
@@ -793,7 +795,7 @@ describe('React metadata in the existing CLI build hooks', () => {
             framework,
           };
           manifest.routerBindings = Object.fromEntries(
-            Object.keys(manifest.identities).map(entryName => [
+            Object.keys(manifest.entries).map(entryName => [
               entryName,
               {
                 owner: `@modern-js/renderer-${framework}`,
@@ -806,7 +808,7 @@ describe('React metadata in the existing CLI build hooks', () => {
           expect(
             validateRendererRouterBindings(
               manifest.routerBindings,
-              Object.keys(manifest.identities),
+              Object.keys(manifest.entries),
             ).ok,
           ).toBe(true);
         }
@@ -823,11 +825,11 @@ describe('React metadata in the existing CLI build hooks', () => {
         api.getHooks()._internalServerPlugins.call({ plugins: [] }),
       ).rejects.toThrow(
         failure === 'missing'
-          ? 'ENOENT'
+          ? 'build the application first'
           : failure === 'profile'
-            ? 'profile conflicts'
+            ? 'made for the solid renderer, but the configuration selects react; rebuild'
             : failure === 'identity'
-              ? 'identity conflicts'
+              ? 'conflicts with its build'
               : 'must be admitted by the selected router owner',
       );
       expect(resolveBuildIdentities).not.toHaveBeenCalled();
@@ -864,13 +866,7 @@ describe('React metadata in the existing CLI build hooks', () => {
         api.getAppContext().distDirectory,
         RENDERER_BUILD_MANIFEST_FILE,
       ),
-      JSON.stringify({
-        ...resolved,
-        schema: 'ultramodern-renderer-build',
-        version: 1,
-        profile: resolveRendererProfile('react'),
-        routerBindings,
-      }),
+      JSON.stringify({ ...builtManifest(resolved), routerBindings }),
     );
 
     const { plugins } = await api
@@ -882,12 +878,10 @@ describe('React metadata in the existing CLI build hooks', () => {
     expect(resolveBuildIdentities).not.toHaveBeenCalled();
   });
 
-  it('retains existing builder plugins and keys an admitted build cache by the resolved identity', async () => {
+  it('retains existing builder plugins and keys the build cache by renderer and profile', async () => {
     const root = createFixture();
     const identities = buildIdentities(['ssr', 'csr'], {
       sourceRevision: 'f'.repeat(40),
-      cacheAllowed: true,
-      promotable: true,
     });
     const { api } = await initializeMetadata(root, {
       resolveBuildIdentities: async () => identities,
@@ -935,30 +929,36 @@ describe('React metadata in the existing CLI build hooks', () => {
       cacheDigest: [
         'existing',
         'react',
-        identities.buildMarker,
-        identities.profileDigest,
-        identities.compilerDigest,
+        rendererProfileKey(resolveRendererProfile('react')),
       ],
     });
     expect(environments.server.performance?.buildCache).toBe(false);
     expect(environments.server.output?.target).toBe('node');
   });
 
-  it('disables caches for an unpromotable workspace build', async () => {
-    const root = createFixture();
-    const { api } = await initializeMetadata(root, {
-      resolveBuildIdentities: async () => buildIdentities(),
-    });
-    await analyzeFinalEntries(api, authoredEntries(root));
-    const { environments } = await api
-      .getHooks()
-      .modifyBuilderEnvironments.call({
-        environments: {
-          client: { performance: { buildCache: { cacheDigest: ['old'] } } },
-        },
+  it.each(['build', 'dev'] as const)(
+    'keeps the build cache for a dirty-tree %s',
+    async command => {
+      const root = createFixture();
+      const { api } = await initializeMetadata(
+        root,
+        { resolveBuildIdentities: async () => buildIdentities() },
+        command,
+      );
+      await analyzeFinalEntries(api, authoredEntries(root));
+      const { environments } = await api
+        .getHooks()
+        .modifyBuilderEnvironments.call({
+          environments: { client: {} },
+        });
+      expect(environments.client.performance?.buildCache).toEqual({
+        cacheDigest: [
+          'react',
+          rendererProfileKey(resolveRendererProfile('react')),
+        ],
       });
-    expect(environments.client.performance?.buildCache).toBe(false);
-  });
+    },
+  );
 
   it('does no build admission or metadata output for API-only apps', async () => {
     const root = createFixture();

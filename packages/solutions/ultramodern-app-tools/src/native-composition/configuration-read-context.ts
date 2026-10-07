@@ -1,5 +1,4 @@
 import { createRequire } from 'node:module';
-import type { RendererGeneratedOutputNode } from '@modern-js/app-tools-extensions/renderer-generated-outputs';
 import type { Plugin } from '@modern-js/plugin/cli';
 import type {
   ObservedConfigSourceInput,
@@ -9,6 +8,39 @@ import type { ConfigSourceSnapshot } from './config-evaluator/source-snapshot';
 
 export type { ObservedConfigSourceInputs } from './config-evaluator/observed-inputs';
 export type { ConfigSourceSnapshot } from './config-evaluator/source-snapshot';
+
+type RendererGeneratedOutputValue =
+  | null
+  | boolean
+  | number
+  | string
+  | readonly RendererGeneratedOutputValue[]
+  | { readonly [key: string]: RendererGeneratedOutputValue };
+
+export interface RendererGeneratedOutputMetadata {
+  readonly device: string;
+  readonly inode: string;
+  readonly [key: string]: RendererGeneratedOutputValue;
+}
+
+export type RendererGeneratedOutputNode = {
+  readonly path: { readonly lexical: string; readonly canonical: string };
+} & (
+  | { readonly kind: 'missing' }
+  | {
+      readonly kind: 'file';
+      readonly byteDigest: string;
+      readonly metadata: RendererGeneratedOutputMetadata;
+    }
+  | {
+      readonly kind: 'directory';
+      readonly entries: readonly {
+        readonly name: string;
+        readonly kind: 'file' | 'directory' | 'symlink';
+      }[];
+      readonly metadata: RendererGeneratedOutputMetadata;
+    }
+);
 
 export type ConfigurationSourceNode = {
   readonly observation: ObservedConfigSourceInput;

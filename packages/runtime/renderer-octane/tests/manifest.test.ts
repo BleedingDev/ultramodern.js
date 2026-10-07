@@ -14,7 +14,6 @@ const identity: RendererIdentity = {
   buildId: 'source-profile-build-a',
 };
 const nativeHydrationBuildId = 'native-client-compilation-b';
-const sourceSha256 = 'a'.repeat(64);
 const emittedSourceSha256 = 'b'.repeat(64);
 const assetSha256 = 'c'.repeat(64);
 
@@ -24,7 +23,6 @@ function createSource() {
     canonicalId: 'store:src/App.tsrx',
     moduleId: './src/App.tsrx',
     transformKind: 'compile' as const,
-    sourceSha256,
     emittedSourceSha256,
     assets: ['static/js/main.js'],
   };
@@ -135,29 +133,26 @@ describe('Octane compiler manifest admission', () => {
     ).toThrow('Octane renderer identity');
   });
 
-  test.each([
-    undefined,
-    null,
-    '',
-    '   ',
-    42,
-  ])('rejects a missing or invalid native compilation identity %s', invalid => {
-    expect(() =>
-      validateOctaneModuleManifest(
-        { ...createManifest(), nativeHydrationBuildId: invalid },
-        identity,
-      ),
-    ).toThrow('native client compilation identity');
-  });
+  test.each([undefined, null, '', '   ', 42])(
+    'rejects a missing or invalid native compilation identity %s',
+    invalid => {
+      expect(() =>
+        validateOctaneModuleManifest(
+          { ...createManifest(), nativeHydrationBuildId: invalid },
+          identity,
+        ),
+      ).toThrow('native client compilation identity');
+    },
+  );
 
-  test.each([
-    '',
-    '   ',
-  ])('rejects an empty expected native identity %s', invalid => {
-    expect(() =>
-      validateOctaneModuleManifest(createManifest(), identity, invalid),
-    ).toThrow('native client compilation identity');
-  });
+  test.each(['', '   '])(
+    'rejects an empty expected native identity %s',
+    invalid => {
+      expect(() =>
+        validateOctaneModuleManifest(createManifest(), identity, invalid),
+      ).toThrow('native client compilation identity');
+    },
+  );
 
   test.each([
     ['envelope', { ...createManifest(), extra: true }],
@@ -250,17 +245,15 @@ describe('Octane compiler manifest admission', () => {
         identity,
       ),
     ).toThrow('Invalid Octane emitted asset digest');
-    for (const field of ['sourceSha256', 'emittedSourceSha256']) {
-      expect(() =>
-        validateOctaneModuleManifest(
-          {
-            ...createManifest(),
-            sourceModules: [{ ...createSource(), [field]: sha256 }],
-          },
-          identity,
-        ),
-      ).toThrow('Invalid Octane native source-to-asset provenance');
-    }
+    expect(() =>
+      validateOctaneModuleManifest(
+        {
+          ...createManifest(),
+          sourceModules: [{ ...createSource(), emittedSourceSha256: sha256 }],
+        },
+        identity,
+      ),
+    ).toThrow('Invalid Octane native source-to-asset provenance');
   });
 
   test('rejects duplicate emitted assets and duplicate source resources', () => {
@@ -336,7 +329,6 @@ describe('Octane compiler manifest admission', () => {
     input.rendererIdentity.buildId = 'tampered-source-build';
     input.nativeHydrationBuildId = 'tampered-native-build';
     input.sourceModules[0].resource = 'tampered.tsrx';
-    input.sourceModules[0].sourceSha256 = 'd'.repeat(64);
     input.sourceModules[0].assets.push('tampered.js');
     input.sourceModules.push(createSource());
     input.assets[0].file = 'tampered.js';

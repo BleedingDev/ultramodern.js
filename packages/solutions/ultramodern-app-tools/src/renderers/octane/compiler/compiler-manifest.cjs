@@ -1,5 +1,4 @@
 const { createHash } = require('node:crypto');
-const fs = require('node:fs');
 const path = require('node:path');
 const { getOctaneRspackBuildInfo } = require('@octanejs/rspack-plugin');
 
@@ -13,14 +12,6 @@ class OctaneCompilerManifestPlugin {
   }
 
   apply(compiler) {
-    // Applied after Octane's plugin: the last pre-loader runs first on raw bytes.
-    if (this.options.emitClientManifest) {
-      compiler.options.module.rules.push({
-        test: /\.(?:tsrx|[cm]?[jt]sx?)$/u,
-        enforce: 'pre',
-        use: [{ loader: this.options.sourceLoader }],
-      });
-    }
     compiler.hooks.normalModuleFactory.tap(name, factory => {
       factory.hooks.beforeResolve.tap(name, result => {
         if (/\.svg\?(?:[^#]*&)?react(?:[=&]|$)/u.test(result.request)) {
@@ -89,17 +80,10 @@ class OctaneCompilerManifestPlugin {
             const info = getOctaneRspackBuildInfo(module);
             if (info && assets.length) {
               const resource = module.resource?.split('?')[0];
-              const sourceSha256 =
-                module.buildInfo.ultramodernOctaneSourceSha256;
               const emitted = module.originalSource();
-              if (!resource || !sourceSha256 || !emitted) {
+              if (!resource || !emitted) {
                 throw new Error(
-                  `Octane compiled source lacks authenticated provenance: ${module.identifier()}. Rebuild the native compiler cache.`,
-                );
-              }
-              if (digest(fs.readFileSync(resource)) !== sourceSha256) {
-                throw new Error(
-                  `Octane source changed after compilation: ${resource}. Rebuild the application.`,
+                  `Octane compiled module has no source: ${module.identifier()}.`,
                 );
               }
               const relative = path.relative(this.options.root, resource);
@@ -112,7 +96,6 @@ class OctaneCompilerManifestPlugin {
                   compilation.chunkGraph.getModuleId(module) ??
                   module.identifier(),
                 transformKind: info.transformKind,
-                sourceSha256,
                 emittedSourceSha256: digest(emitted.buffer()),
                 assets,
               });

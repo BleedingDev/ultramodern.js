@@ -8,7 +8,6 @@ import { solidRendererRegistration } from '../renderers/solid/registration';
 import type { NativeCompilerArtifacts } from './compiler-artifacts';
 import type { NativeEntryGenerator } from './native-infrastructure';
 import type { NativeRouteEmissionOptions } from './native-routes';
-import type { FrameworkModule } from './renderer-installed-profile';
 import type { RendererBuildProfile } from './renderer-profile';
 
 export interface RendererIntegrationCapabilities {
@@ -57,11 +56,6 @@ interface RendererRegistrationMetadata {
     readonly specifier: string;
     readonly request: string;
   }[];
-  resolveBuildFrameworkModules?(context: {
-    readonly appDirectory: string;
-    readonly registrarDirectory: string;
-    readonly pluginNames: readonly string[];
-  }): readonly FrameworkModule[];
   readonly supports: RendererIntegrationCapabilities;
 }
 

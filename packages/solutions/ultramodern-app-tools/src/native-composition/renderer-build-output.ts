@@ -27,7 +27,7 @@ export const createRendererBuildOutputResolver =
       new Set(actualEntries).size !== actualEntries.length ||
       !isDeepStrictEqual(
         [...actualEntries].sort(),
-        Object.keys(manifest.identities).sort(),
+        Object.keys(manifest.entries).sort(),
       )
     ) {
       throw new Error(
@@ -44,7 +44,7 @@ export const createRendererBuildOutputResolver =
       throw new Error(
         'Finalized renderer output requires one actual primary application entry.',
       );
-    const identity = manifest.identities[primary.entryName];
+    const identity = manifest.entries[primary.entryName];
     if (!identity)
       throw new Error(
         'Finalized renderer output has no primary application identity.',
@@ -57,7 +57,7 @@ export const createRendererBuildOutputResolver =
       router,
     } = manifest.profile;
     return Object.freeze({
-      buildMarker: manifest.buildMarker,
+      buildMarker: manifest.buildId,
       sourceRevision: manifest.sourceRevision,
       ui: Object.freeze({
         rendererIdentity: identity,

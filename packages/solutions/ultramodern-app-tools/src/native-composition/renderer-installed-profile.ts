@@ -1,9 +1,16 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import type { RendererFrameworkPackageBinding } from '@modern-js/app-tools-extensions/renderer-build-identity';
 import type { Renderer } from '@modern-js/renderer-core';
 import semver from '@modern-js/utils/semver';
 import type { RendererBuildProfile } from './renderer-profile';
+
+/** Installed package that owns a selected public framework module. */
+export interface RendererFrameworkPackageBinding {
+  readonly specifier: string;
+  readonly name: string;
+  readonly version: string;
+  readonly directory: string;
+}
 
 export interface FrameworkModule {
   readonly specifier: string;

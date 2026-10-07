@@ -218,11 +218,11 @@ export default function App() { return <main id="bare-react-cli" className={styl
         sdk.resolveRendererProfile('react'),
       );
       expect(manifest.schema).toBe('ultramodern-renderer-build');
-      expect(manifest.buildMarker).toMatch(/^[a-f0-9]{64}$/);
-      expect(Object.keys(manifest.identities)).toHaveLength(1);
-      for (const identity of Object.values(manifest.identities)) {
+      expect(manifest.buildId).toMatch(/^[a-f0-9]{64}$/);
+      expect(Object.keys(manifest.entries)).toHaveLength(1);
+      for (const identity of Object.values(manifest.entries)) {
         expect(identity.renderer).toBe('react');
-        expect(identity.buildId).toBe(manifest.buildMarker);
+        expect(identity.buildId).toBe(manifest.buildId);
       }
       expect(fs.readFileSync(configFile, 'utf8')).toBe(config);
       expect(fs.readFileSync(tsconfigFile, 'utf8')).toBe(tsconfig);

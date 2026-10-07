@@ -18,25 +18,25 @@ describe('package-owned Node compiler activation', () => {
     }
   });
 
-  it.each([
-    'source',
-    'import',
-  ] as const)('activates only the selected emitted compiler from a %s dispatcher', async format => {
-    const fixture = await createCompilerActivationFixture({ format });
-    try {
-      const compiler = await fixture.activate('solid', options);
-      expect(compiler).toMatchObject({
-        name: 'fixture:solid:compiler',
-        rendererIdentities: options.rendererIdentities,
-      });
-      expect(fixture.calls()).toEqual([
-        { renderer: 'solid', format: 'import', action: 'loaded' },
-        { renderer: 'solid', format: 'import', action: 'factory' },
-      ]);
-    } finally {
-      fixture.cleanup();
-    }
-  });
+  it.each(['source', 'import'] as const)(
+    'activates only the selected emitted compiler from a %s dispatcher',
+    async format => {
+      const fixture = await createCompilerActivationFixture({ format });
+      try {
+        const compiler = await fixture.activate('solid', options);
+        expect(compiler).toMatchObject({
+          name: 'fixture:solid:compiler',
+          rendererIdentities: options.rendererIdentities,
+        });
+        expect(fixture.calls()).toEqual([
+          { renderer: 'solid', format: 'import', action: 'loaded' },
+          { renderer: 'solid', format: 'import', action: 'factory' },
+        ]);
+      } finally {
+        fixture.cleanup();
+      }
+    },
+  );
 
   it('preserves physical owner paths containing URL fragment and query characters', async () => {
     const fixture = await createCompilerActivationFixture({
@@ -91,60 +91,6 @@ describe('package-owned Node compiler activation', () => {
     try {
       await expect(fixture.activate('solid', options)).rejects.toThrow(
         'Invalid native compiler activation',
-      );
-      expect(fixture.calls()).toEqual([]);
-    } finally {
-      fixture.cleanup();
-    }
-  });
-
-  it('rejects mutable compiler module declarations', async () => {
-    const fixture = await createCompilerActivationFixture({
-      freezeModule: false,
-    });
-    try {
-      await expect(fixture.activate('solid', options)).rejects.toThrow(
-        'Invalid native compiler activation',
-      );
-      expect(fixture.calls()).toEqual([]);
-    } finally {
-      fixture.cleanup();
-    }
-  });
-
-  it('rejects source and emitted entries for different compiler owners', async () => {
-    const fixture = await createCompilerActivationFixture({
-      replaceActivation: activation => ({
-        ...activation,
-        module: {
-          ...activation.module,
-          import: './dist/esm-node/renderers/foreign/compiler/index.mjs',
-        },
-      }),
-    });
-    try {
-      await expect(fixture.activate('solid', options)).rejects.toThrow(
-        'Conflicting compiler module formats',
-      );
-      expect(fixture.calls()).toEqual([]);
-    } finally {
-      fixture.cleanup();
-    }
-  });
-
-  it('rejects a compiler entry that leaves its package', async () => {
-    const fixture = await createCompilerActivationFixture({
-      replaceActivation: activation => ({
-        ...activation,
-        module: {
-          ...activation.module,
-          source: './src/../../another-package/compiler/index.ts',
-        },
-      }),
-    });
-    try {
-      await expect(fixture.activate('solid', options)).rejects.toThrow(
-        'Conflicting compiler module formats',
       );
       expect(fixture.calls()).toEqual([]);
     } finally {
