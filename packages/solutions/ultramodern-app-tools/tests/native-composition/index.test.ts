@@ -122,7 +122,7 @@ async function initializeCliPlugins(
 }
 
 const REACT_IDENTITY_SERVER_PLUGIN =
-  /react-build-metadata-server(?:\.[cm]?js)?$/u;
+  /renderers\/react\/build-metadata-server(?:\.[cm]?js)?$/u;
 
 /**
  * UltraModern composes the React renderer's server identity plugin, which

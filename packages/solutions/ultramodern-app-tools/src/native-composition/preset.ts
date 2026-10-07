@@ -6,7 +6,7 @@ import { findHostingModuleDirectory } from '@modern-js/app-tools-extensions/runt
 import { mergeConfig } from '@modern-js/plugin/cli';
 import { type Renderer, resolveRenderer } from '@modern-js/renderer-core';
 import { type RspackChain, rspack } from '@rsbuild/core';
-import { ultramodernModuleFederationSharedPlugin } from './module-federation-shared-plugin';
+import { ultramodernModuleFederationSharedPlugin } from '../renderers/react/module-federation-shared-plugin';
 import { rendererTypeCheckerOptions } from './type-checker';
 import type { AppUserConfig } from './types';
 

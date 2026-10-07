@@ -16,14 +16,14 @@ import type { ServerRoute } from '@modern-js/types';
 import { MAIN_ENTRY_NAME } from '@modern-js/utils/universal/constants';
 import { afterEach, describe, expect, it } from '@rstest/core';
 import { RENDERER_BUILD_MANIFEST_FILE } from '../../src/native-composition/native-build-manifest';
-import reactBuildMetadataServerPlugin, {
-  REACT_RENDERER_IDENTITY_HEADER,
-  type ReactBuildMetadataServerOptions,
-} from '../../src/native-composition/react-build-metadata-server';
 import {
   resolveCandidateRendererProfile,
   resolveRendererProfile,
 } from '../../src/native-composition/renderer-profile';
+import reactBuildMetadataServerPlugin, {
+  REACT_RENDERER_IDENTITY_HEADER,
+  type ReactBuildMetadataServerOptions,
+} from '../../src/renderers/react/build-metadata-server';
 
 function identity(entryName = 'main'): RendererIdentity {
   return {

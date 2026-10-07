@@ -28,7 +28,7 @@ function compose(
         );
       const { composeReactRenderer } = createRequire(import.meta.url)(
         `${manifest.name}/react-composition`,
-      ) as typeof import('../../native-composition/react-composition');
+      ) as typeof import('./composition');
       return composeReactRenderer({ consumerPlugins, policy });
     }
     const parent = path.dirname(directory);

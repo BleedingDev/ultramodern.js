@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from '@rstest/core';
-import { resolveReactMetadataServerPlugin } from '../../src/native-composition/react-build-metadata';
+import { resolveReactMetadataServerPlugin } from '../../src/renderers/react/build-metadata';
 
 describe('React metadata owning public export resolution', () => {
   it.each([
@@ -17,7 +17,7 @@ describe('React metadata owning public export resolution', () => {
       const owner = path.join(root, 'node_modules', dependencyKey);
       const registrar = path.join(
         owner,
-        'src/native-composition/react-build-metadata.ts',
+        'src/renderers/react/build-metadata.ts',
       );
       const target = path.join(owner, 'dist/react-build-metadata-server.cjs');
       try {

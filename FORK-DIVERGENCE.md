@@ -911,7 +911,7 @@ pins, complete scope and stored budgets; import-boundary review remains separate
 The earlier native-retention review traced `rscDisabledRuntime.ts` to the
 audited fallback responsibility and required preservation of its five-entry
 correctness and conflict handling. The final relocation preserves those
-contracts in `ultramodern-app-tools/src/native-composition/rsc-disabled-plugin.ts`
+contracts in `ultramodern-app-tools/src/renderers/react/rsc-disabled-plugin.ts`
 through existing builder plugin composition. Native
 `rscClientBrowserFallback.ts` restores the audited implementation from
 `eded841256`, with import ordering adjusted by the formatter, and

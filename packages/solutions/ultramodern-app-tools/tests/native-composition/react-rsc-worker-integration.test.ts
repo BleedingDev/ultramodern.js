@@ -29,7 +29,7 @@ import {
   createReactRscWorkerBuilderPlugin,
   createReactRscWorkerIntegrationPlugin,
   resolveReactWorkerRscOptions,
-} from '../../src/native-composition/react-rsc-worker-integration';
+} from '../../src/renderers/react/rsc-worker-integration';
 
 function normalizedConfig(config: AppUserConfig): AppNormalizedConfig {
   return {

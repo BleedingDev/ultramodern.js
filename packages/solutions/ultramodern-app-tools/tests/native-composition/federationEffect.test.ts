@@ -14,7 +14,7 @@ import {
   type FrameworkSharedPackage,
   resolveFrameworkSharedPackages,
   withFrameworkShared,
-} from '../../src/native-composition/module-federation-shared-plugin';
+} from '../../src/renderers/react/module-federation-shared-plugin';
 
 // The workspace `@modern-js/bff-effect`, installed as an app installs it. Its
 // own `effect` is the copy the release cohort pins.

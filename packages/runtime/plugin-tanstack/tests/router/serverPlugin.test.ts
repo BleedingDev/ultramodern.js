@@ -14,7 +14,7 @@ import {
 } from '@tanstack/react-router';
 import { createElement } from 'react';
 import { renderToString } from 'react-dom/server';
-import { routerStatePlugin } from '../../../../solutions/ultramodern-app-tools/src/native-composition/router-state-runtime';
+import { routerStatePlugin } from '../../../../solutions/ultramodern-app-tools/src/renderers/react/router-state-runtime';
 import type { ResponseProxy } from '../../../plugin-runtime/src/core/server/requestHandler';
 import { SSRErrors } from '../../../plugin-runtime/src/core/server/tracer';
 import {

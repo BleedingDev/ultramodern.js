@@ -126,10 +126,7 @@ process.stdout.write(resolveReactServerPlugin(
   process.argv[3],
   pathToFileURL(process.argv[2]).href,
 ));`,
-      path.join(
-        packageDirectory,
-        'dist/cjs/native-composition/react-composition.js',
-      ),
+      path.join(packageDirectory, 'dist/cjs/renderers/react/composition.js'),
       owner.registrar,
       appDirectory,
     ],

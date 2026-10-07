@@ -3,7 +3,7 @@ import { createBuilderGenerator } from '@modern-js/app-tools/builder';
 import { createAsyncHook, createPluginManager } from '@modern-js/plugin';
 import type { CLIPluginAPI } from '@modern-js/plugin/cli';
 import { rstest } from '@rstest/core';
-import { composeReactRenderer } from '../../src/native-composition/react-composition';
+import { composeReactRenderer } from '../../src/renderers/react/composition';
 
 rstest.mock('@modern-js/app-tools/builder', () => ({
   createBuilderGenerator: rstest.fn(),
