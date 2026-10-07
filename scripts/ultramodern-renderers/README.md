@@ -105,7 +105,9 @@ and compiler-activation-proof, react-baseline-*, matrix.mts, minimum-node,
 the React MF probe with its manifest guard proof, which renderer-selection,
 renderer-runtime-plugin and renderer-mf-lifecycle-proof cover),
 capabilities/ (inventory), the renderer-solid/-octane public-programs
-type harnesses (the packed fixture typecheck replaces them), the conformance/
+type harnesses (src/public-api.ts in the Solid and Octane fixtures uses the
+client, server and manifest entries, so the packed fixture typecheck covers
+those declarations), the conformance/
 fixtures and harness unit tests, and solid-admission/production-host.mjs.
 Kept: installed-cohort.mjs ("installed = packed, not workspace links") and
 bundle-check.mjs (no React in native bundles). The React worker probe moved
