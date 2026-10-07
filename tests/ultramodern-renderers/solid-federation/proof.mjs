@@ -217,7 +217,8 @@ async function browser(...args) {
       AGENT_BROWSER_HEADED: 'false',
     },
     maxBuffer: 8 * 1024 * 1024,
-    timeout: 60_000,
+    // A cold agent-browser daemon can take about a minute to start Chrome.
+    timeout: 180_000,
   });
   return stdout.trim();
 }
@@ -517,7 +518,7 @@ export default defineConfig({ renderer: 'solid', server: { ssr: ${ssr} }, output
     pathToFileURL(
       path.join(
         appTools,
-        'dist/esm-node/native-composition/module-federation-renderer-plugin.mjs',
+        'dist/esm-node/renderers/react/module-federation.mjs',
       ),
     ).href
   );
