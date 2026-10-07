@@ -38,17 +38,7 @@ assert.equal(fileURLToPath(import.meta.resolve('@ultramodern/app-tools-extension
 assert.notEqual(cjsConfig.resolveEffectTsgoCompiler, esmConfig.resolveEffectTsgoCompiler);
 assert.equal(require.resolve('@ultramodern/app-tools-extensions/internal-effect-discovery'), join(packageDirectory, 'dist/cjs/build-config/internal-effect-discovery.js'));
 assert.equal(fileURLToPath(import.meta.resolve('@ultramodern/app-tools-extensions/internal-effect-discovery')), require.resolve('@ultramodern/app-tools-extensions/internal-effect-discovery'));
-const expectedSelection = {
-  from: fileURLToPath(import.meta.url),
-  cliPath: proof.cliPath,
-  backendManifest: proof.backendManifest,
-  nativePlatformManifest: proof.nativePlatformManifest,
-  effectPlatformManifest: proof.effectPlatformManifest,
-  compilerPath: proof.artifactPath,
-};
-const selection = cjsSelection.resolveEffectCompilerSelection(import.meta.url);
-assert.equal(Object.isFrozen(selection), true);
-assert.deepEqual(selection, expectedSelection);
+assert.equal(cjsSelection.resolveInstalledEffectCompiler(import.meta.url), proof.artifactPath);
 const cjsCompiler = cjsConfig.resolveEffectTsgoCompiler({ from: import.meta.url });
 const esmCompiler = esmConfig.resolveEffectTsgoCompiler({ from: import.meta.url });
 assert.equal(cjsConfig.resolveEffectTsgoCompiler({ from: import.meta.url }), cjsCompiler);
@@ -72,7 +62,7 @@ import { createHash } from 'node:crypto';
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const [sourcePackageRoot, generatorRoot, rewritePath, consumerSource] = process.argv.slice(1);
@@ -155,10 +145,6 @@ try {
   const nativeCompilerPath = realpathSync(join(dirname(nativePlatformManifest), 'lib', binaryName));
   const digest = filename => createHash('sha256').update(readFileSync(filename)).digest('hex');
   const proof = {
-    cliPath: realpathSync(resolve(effect.sourceDirectory, typeof effect.sourcePackageJson.bin === 'string' ? effect.sourcePackageJson.bin : effect.sourcePackageJson.bin['effect-tsgo'])),
-    backendManifest: realpathSync(join(native.sourceDirectory, 'package.json')),
-    nativePlatformManifest: realpathSync(nativePlatformManifest),
-    effectPlatformManifest: realpathSync(effectPlatformManifest),
     artifactPath,
     nativeCompilerPath,
     artifactDigest: digest(artifactPath),
