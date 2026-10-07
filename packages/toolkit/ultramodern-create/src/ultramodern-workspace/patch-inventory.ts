@@ -14,10 +14,10 @@ export default [
     version: '3.0.3',
     path: 'patches/braces@3.0.3.patch',
     sha256: 'e14af28f138a243a283deed5e9f26275891ad6eedc02e964d8ec7ae7efc6783a',
-    repository: false,
+    repository: true,
     workspace: null,
     reason:
-      'Bound parser and AST walker nesting before recursive traversal ([braces#78](https://github.com/micromatch/braces/pull/78), commit 97308a01d091b211cf015314a2d0696da28a5392); the corrected sidecar carries the public fix without repository or generated-workspace patches.',
+      'Bound parser and AST walker nesting in every repository consumer ([braces#78](https://github.com/micromatch/braces/pull/78), commit 97308a01d091b211cf015314a2d0696da28a5392); authenticated installed bytes and depth regressions guard the registry correction. Generated workspaces remain patch-free, and a mature signed dependency will replace this repository correction.',
   },
   {
     packageName: '@module-federation/bridge-react',
