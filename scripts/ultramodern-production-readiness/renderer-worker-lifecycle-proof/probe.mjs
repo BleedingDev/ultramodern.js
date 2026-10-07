@@ -29,19 +29,6 @@ import {
 
 const script = fileURLToPath(import.meta.url);
 
-const workerLifecycleSourceFiles = [
-  'contract.mjs',
-  'fixtures.mjs',
-  'runtime.mjs',
-  'index.mjs',
-];
-
-function workerLifecycleHelperEvidence() {
-  return workerLifecycleSourceFiles.map(filename =>
-    sourceEvidence(fileURLToPath(new URL(`./${filename}`, import.meta.url))),
-  );
-}
-
 function packageAt(file, consumerRoot) {
   let directory = path.dirname(fs.realpathSync(file));
   for (;;) {
@@ -468,7 +455,6 @@ async function executeWorker(input) {
   );
   const { createRsbuild } = sdkRequire('@rsbuild/core');
   const token = `c2-${sha256(JSON.stringify(binding)).slice(0, 16)}-${randomUUID()}`;
-  const workerLifecycleHelpersBefore = workerLifecycleHelperEvidence();
   const authored = createWorkerLifecycleSources({
     runtimeSpecifier: runtime.requestName,
     runtimeExtensionsSpecifier: runtimeExtensions.requestName,
@@ -586,7 +572,6 @@ async function executeWorker(input) {
     },
     workerLifecycle: {
       candidateBinding: binding,
-      helperSources: workerLifecycleHelpersBefore,
       bindingVariable: authored.bindingVariable,
       controlHeader: authored.controlHeader,
       candidateHeader: authored.candidateHeader,
@@ -898,7 +883,6 @@ async function executeWorker(input) {
       });
     }
     let workerLifecycle;
-    let workerLifecycleHelpersAfter;
     try {
       workerLifecycle = await verifyWorkerLifecycle({
         miniflare,
@@ -908,9 +892,7 @@ async function executeWorker(input) {
         candidateBinding: binding,
         routes: authored.sources.map(({ source, ...route }) => route),
       });
-      workerLifecycleHelpersAfter = workerLifecycleHelperEvidence();
     } catch (error) {
-      workerLifecycleHelpersAfter = workerLifecycleHelperEvidence();
       atomicJson(resultPath, {
         schema: 'c2-worker-dispatch-proof',
         schemaVersion: 1,
@@ -918,10 +900,6 @@ async function executeWorker(input) {
         ...binding,
         executions,
         workerLifecycle: error.workerLifecycleEvidence ?? workerLifecycle,
-        workerLifecycleHelpers: {
-          before: workerLifecycleHelpersBefore,
-          after: workerLifecycleHelpersAfter,
-        },
         workerLifecycleError: {
           name: error.name,
           message: error.message,
@@ -1020,10 +998,6 @@ async function executeWorker(input) {
       },
       executions,
       workerLifecycle,
-      workerLifecycleHelpers: {
-        before: workerLifecycleHelpersBefore,
-        after: workerLifecycleHelpersAfter,
-      },
       observations: {
         runtime: 'workerd',
         fetchStatus: 200,

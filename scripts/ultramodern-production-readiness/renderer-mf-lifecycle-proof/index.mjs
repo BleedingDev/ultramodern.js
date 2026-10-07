@@ -18,7 +18,6 @@ import {
 } from '../published-create-proof/acceptance-profile.mjs';
 import { resolveCreatePackage } from '../published-create-proof/package-cohort.mjs';
 import { releaseAgeExemptions } from '../published-create-proof/release-age-audit.mjs';
-import { ordinaryFiles } from '../react-rsc-worker-proof/contract.mjs';
 import { registerOwnedRoot } from '../react-rsc-worker-proof/lifecycle.mjs';
 import { runCommand } from '../react-rsc-worker-proof/main.mjs';
 import {
@@ -143,13 +142,6 @@ export async function runProof(provided) {
     commands: [],
     builds: {},
     serverCleanup: [],
-    producer: {
-      files: ordinaryFiles(fileURLToPath(new URL('./', import.meta.url)))
-        .filter(file => file.endsWith('.mjs'))
-        .map(file =>
-          fileEvidence(file, fileURLToPath(new URL('./', import.meta.url))),
-        ),
-    },
   };
   const command = async (executable, args, label, cwd, env) => {
     const result = await runCommand(executable, args, {
