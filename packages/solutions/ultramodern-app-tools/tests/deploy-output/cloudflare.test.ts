@@ -14,6 +14,7 @@ import type {
 import {
   createUltramodernBuildArtifact,
   type RendererProfile,
+  type RendererRouterBindings,
 } from '@modern-js/backend-federation-contracts';
 import { cloudflareWorkerSources } from './fixtures/worker-sources';
 
@@ -25,8 +26,21 @@ const reactProfile: RendererProfile = {
   hydration: { name: 'react-dom', version: '19.3.0' },
   router: {
     name: '@tanstack/react-router',
-    version: '1.170.39',
-    coreVersion: '1.171.32',
+    version: '1.170.41',
+    coreName: '@tanstack/router-core',
+    coreVersion: '1.171.34',
+  },
+};
+const reactRouterProvider = {
+  framework: 'tanstack' as const,
+  ...reactProfile.router,
+};
+const reactRouterBindings: RendererRouterBindings = {
+  main: {
+    owner: 'fixture-file-routes',
+    evidence: 'file-routes',
+    defaultProvider: reactRouterProvider,
+    providers: [reactRouterProvider],
   },
 };
 
@@ -92,6 +106,7 @@ async function createFixture({
   workerSecurity,
   deliveryUnit,
   buildArtifactIdentity,
+  buildArtifactUiBuildId,
 }: {
   apiOnly?: boolean;
   artifacts?: CloudflareWorkerArtifactConfig[];
@@ -117,6 +132,7 @@ async function createFixture({
     buildMarker: string;
     sourceRevision: string;
   };
+  buildArtifactUiBuildId?: string;
 } = {}) {
   const appDirectory = await fs.mkdtemp(
     path.join(os.tmpdir(), 'modern-cloudflare-deploy-'),
@@ -266,6 +282,7 @@ async function createFixture({
                     buildId: deliveryUnit.buildMarker,
                   },
                   rendererProfile: reactProfile,
+                  routerBindings: reactRouterBindings,
                 }),
           },
           verticals: [],
@@ -281,36 +298,73 @@ async function createFixture({
 
     const buildIdentity = buildArtifactIdentity ?? deliveryUnit;
     await fs.mkdir(path.join(appDirectory, 'shared'), { recursive: true });
+    const createBuildArtifact = (identity: typeof buildIdentity) =>
+      createUltramodernBuildArtifact(
+        {
+          ...identity,
+          appId: 'checkout',
+          deployProfile: 'cloudflare-ssr-mf-effect-v1',
+          kind: 'microvertical-delivery-unit',
+          packageName: '@acme/checkout',
+          schemaVersion: 1,
+          version: '0.1.0',
+        },
+        apiOnly
+          ? {}
+          : {
+              ui: {
+                identity: {
+                  renderer: 'react',
+                  appId: 'checkout',
+                  entryName: 'main',
+                  protocolVersion: 1,
+                  buildId: identity.buildMarker,
+                },
+                profile: reactProfile,
+                routerBindings: reactRouterBindings,
+              },
+            },
+      );
+    const buildArtifact = createBuildArtifact(buildIdentity);
     await fs.writeFile(
       path.join(appDirectory, 'shared/ultramodern-build.json'),
-      JSON.stringify(
-        createUltramodernBuildArtifact(
-          {
-            ...buildIdentity,
-            appId: 'checkout',
-            deployProfile: 'cloudflare-ssr-mf-effect-v1',
-            kind: 'microvertical-delivery-unit',
-            packageName: '@acme/checkout',
-            schemaVersion: 1,
-            version: '0.1.0',
-          },
-          apiOnly
-            ? {}
-            : {
-                ui: {
-                  identity: {
-                    renderer: 'react',
-                    appId: 'checkout',
-                    entryName: 'main',
-                    protocolVersion: 1,
-                    buildId: buildIdentity.buildMarker,
-                  },
-                  profile: reactProfile,
-                },
-              },
-        ),
-      ),
+      JSON.stringify(createBuildArtifact(deliveryUnit)),
     );
+    if (buildArtifactUiBuildId && buildArtifact.surfaces.ui) {
+      buildArtifact.surfaces.ui.rendererIdentity = {
+        ...buildArtifact.surfaces.ui.rendererIdentity,
+        buildId: buildArtifactUiBuildId,
+      };
+    }
+    await fs.writeFile(
+      path.join(distDirectory, 'ultramodern-build.json'),
+      JSON.stringify(buildArtifact),
+    );
+    if (!apiOnly) {
+      await fs.writeFile(
+        path.join(distDirectory, 'renderer-build.json'),
+        JSON.stringify({
+          schema: 'ultramodern-renderer-build',
+          version: 2,
+          renderer: 'react',
+          worker: { nativeDocuments: false, rsc: true },
+          buildId: buildIdentity.buildMarker,
+          profile: reactProfile,
+          entries: Object.fromEntries(
+            ['main', 'fallback', 'plain'].map(entryName => [
+              entryName,
+              {
+                renderer: 'react',
+                appId: 'checkout',
+                entryName,
+                protocolVersion: 1,
+                buildId: buildIdentity.buildMarker,
+              },
+            ]),
+          ),
+        }),
+      );
+    }
   }
 
   const preset = createCloudflarePreset({
@@ -408,21 +462,44 @@ describe('cloudflare deploy preset', () => {
     );
   });
 
-  it('fails closed when the bundled build marker drifts from the topology delivery-unit record', async () => {
+  it('fails closed when the finalized UI build marker drifts from its delivery-unit record', async () => {
     await expect(
       createFixture({
         deliveryUnit: {
           unitId: 'acme/checkout',
-          buildMarker: '0123456789abcdef',
+          buildMarker: '0'.repeat(64),
           sourceRevision: 'workspace',
         },
-        buildArtifactIdentity: {
-          unitId: 'acme/checkout',
-          buildMarker: 'deadbeefdeadbeef',
-          sourceRevision: 'workspace',
-        },
+        buildArtifactUiBuildId: 'd'.repeat(64),
       }),
-    ).rejects.toThrow(/Build artifact buildMarker must match/u);
+    ).rejects.toThrow(/rendererIdentity\.buildId.*must match/u);
+  });
+
+  it('preserves the finalized build marker when the topology still carries the generation marker', async () => {
+    const compiledBuildMarker = 'b'.repeat(64);
+    const { outputDirectory } = await createFixture({
+      deliveryUnit: {
+        unitId: 'acme/checkout',
+        buildMarker: 'a'.repeat(64),
+        sourceRevision: 'workspace',
+      },
+      buildArtifactIdentity: {
+        unitId: 'acme/checkout',
+        buildMarker: compiledBuildMarker,
+        sourceRevision: 'compiled-revision',
+      },
+    });
+    const manifest = JSON.parse(
+      await fs.readFile(
+        path.join(outputDirectory, 'server/modern-worker-manifest.json'),
+        'utf8',
+      ),
+    );
+    expect(manifest.deliveryUnit.buildMarker).toBe(compiledBuildMarker);
+    expect(manifest.deliveryUnit.sourceRevision).toBe('compiled-revision');
+    expect(manifest.deliveryUnit.surfaces.ui.rendererIdentity.buildId).toBe(
+      compiledBuildMarker,
+    );
   });
 
   it('merges Wrangler config, stages artifacts, and enforces Worker invariants', async () => {
@@ -926,7 +1003,19 @@ describe('cloudflare deploy preset', () => {
     const backendFiles = {
       'backend-mf-manifest.json': '{"name":"payment-term"}',
       'backendRemoteEntry.cjs': 'module.exports = {};',
-      'ultramodern-build.json': '{"buildMarker":"api-only"}',
+      'ultramodern-build.json': JSON.stringify(
+        createUltramodernBuildArtifact({
+          appId: 'checkout',
+          unitId: 'acme/checkout',
+          buildMarker: 'api-only',
+          sourceRevision: 'workspace',
+          deployProfile: 'cloudflare-ssr-mf-effect-v1',
+          kind: 'microvertical-delivery-unit',
+          packageName: '@acme/checkout',
+          schemaVersion: 1,
+          version: '0.1.0',
+        }),
+      ),
     };
     const privateFiles = {
       'src/actions/change.js': 'export const change = () => {};',
@@ -1177,10 +1266,11 @@ describe('cloudflare deploy preset', () => {
   });
 
   it('dispatches generated React workers with their strict schema 2 UI identity', async () => {
+    const buildMarker = 'a'.repeat(64);
     const { outputDirectory } = await createFixture({
       deliveryUnit: {
         unitId: 'acme/checkout',
-        buildMarker: 'checkout-proof-build',
+        buildMarker,
         sourceRevision: 'checkout-proof-revision',
       },
     });
@@ -1192,7 +1282,7 @@ describe('cloudflare deploy preset', () => {
       },
     );
 
-    expect(response.status).toBe(200);
+    expect(response.status, await response.clone().text()).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
       pathname: '/dashboard/settings',
       entryName: 'main',
@@ -1205,16 +1295,17 @@ describe('cloudflare deploy preset', () => {
     );
     expect(manifest.deliveryUnit).toMatchObject({
       appId: 'checkout',
-      buildMarker: 'checkout-proof-build',
+      buildMarker,
       surfaces: {
         ui: {
           appId: 'checkout',
           rendererIdentity: {
             renderer: 'react',
             appId: 'checkout',
-            buildId: 'checkout-proof-build',
+            buildId: buildMarker,
           },
           rendererProfile: reactProfile,
+          routerBindings: reactRouterBindings,
         },
       },
     });
