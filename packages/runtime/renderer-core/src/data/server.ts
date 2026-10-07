@@ -1,4 +1,5 @@
 import { identityCacheKey, type RendererIdentity } from '../identity';
+import { responseHeaders as collectDataHeaders } from '../session/cache';
 import type { DocumentCachePolicy, ResponsePolicy } from '../session/types';
 import { readBoundedDataText } from './body';
 import {
@@ -13,7 +14,6 @@ import {
   DATA_STREAM_CONTENT_TYPE,
   type DataHandler,
   type DataHandlerInput,
-  type DataHeaders,
   type DataOperation,
   type DataOutcome,
   type DataResponseMetadata,
@@ -25,8 +25,11 @@ import {
   type SelectedDataRoute,
 } from './types';
 
+export { collectDataHeaders };
+
 const DEFERRED = Symbol('ultramodern.data.deferred');
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+const BODYLESS_STATUSES = new Set([204, 205, 304]);
 const outcomePolicies = new WeakMap<DataOutcome, RequestDataPolicy>();
 
 /**
@@ -81,16 +84,6 @@ export function deferData(
   };
 }
 
-export function collectDataHeaders(headers: Headers): DataHeaders {
-  const result: DataHeaders = [];
-  for (const [name, value] of headers) {
-    if (name.toLowerCase() !== 'set-cookie') result.push([name, value]);
-  }
-  for (const cookie of headers.getSetCookie())
-    result.push(['set-cookie', cookie]);
-  return result;
-}
-
 function publicCacheLifetime(cacheControl: string): number | undefined {
   const directives = [
     ...cacheControl.matchAll(/(?:^|,)\s*(s-maxage|max-age)\s*=\s*([^,]*)/gi),
@@ -119,7 +112,9 @@ export function mergeDataResponseMetadata(
   let cachePolicy: DataResponseMetadata['cachePolicy'] = 'public';
   for (const outcome of outcomes) {
     for (const [name, value] of outcome.response.headers) {
-      if (name.toLowerCase() === 'set-cookie') headers.append(name, value);
+      const headerName = name.toLowerCase();
+      if (headerName === 'set-cookie' || headerName === 'vary')
+        headers.append(name, value);
       else headers.set(name, value);
     }
     if (
@@ -132,6 +127,16 @@ export function mergeDataResponseMetadata(
       cachePolicy === 'public'
     )
       cachePolicy = 'private';
+  }
+  const vary = headers.get('vary');
+  if (vary !== null) {
+    const fields = new Map<string, string>();
+    for (const field of vary.split(',')) {
+      const name = field.trim();
+      const key = name.toLowerCase();
+      if (name && !fields.has(key)) fields.set(key, name);
+    }
+    headers.set('vary', [...fields.values()].join(', '));
   }
   if (
     outcomes.length === 0 ||
@@ -312,11 +317,7 @@ async function responseValue(
   response: Response,
   signal?: AbortSignal,
 ): Promise<unknown> {
-  if (
-    response.status === 204 ||
-    response.status === 205 ||
-    response.body === null
-  )
+  if (BODYLESS_STATUSES.has(response.status) || response.body === null)
     return undefined;
   const text = await readBoundedDataText(response, signal);
   if (
@@ -392,8 +393,7 @@ export async function normalizeDataResult(
     if (
       REDIRECT_STATUSES.has(response.status) ||
       response.status >= 400 ||
-      response.status === 204 ||
-      response.status === 205
+      BODYLESS_STATUSES.has(response.status)
     ) {
       throw new DataProtocolError(
         'Deferred data must have a successful body-bearing response status',
@@ -687,11 +687,10 @@ export function createDataResponse(
     'content-type',
     `${outcome.kind === 'deferred' ? DATA_STREAM_CONTENT_TYPE : DATA_CONTENT_TYPE}; charset=utf-8`,
   );
-  // 204/205 cannot carry a body; the envelope retains the original status.
+  // Bodyless statuses need a body-bearing transport; the envelope keeps the status.
   const status =
     outcome.kind === 'redirect' ||
-    outcome.response.status === 204 ||
-    outcome.response.status === 205
+    BODYLESS_STATUSES.has(outcome.response.status)
       ? 200
       : outcome.response.status;
   let body: ReadableStream<Uint8Array> | string;

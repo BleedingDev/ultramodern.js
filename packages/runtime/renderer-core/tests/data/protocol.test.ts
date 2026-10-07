@@ -216,18 +216,19 @@ describe('renderer-neutral HTTP data outcomes', () => {
     });
   });
 
-  it('preserves empty loader values through a body-bearing protocol envelope', async () => {
-    const outcome = await normalizeDataResult(
-      new Response(null, { status: 204 }),
-    );
-    const response = createDataResponse(outcome, identity, expected);
-    expect(response.status).toBe(200);
-    expect(await readDataResponse(response, expected)).toEqual({
-      kind: 'success',
-      value: undefined,
-      status: 204,
-    });
-  });
+  it.each([204, 205, 304])(
+    'preserves HTTP %s through a body-bearing protocol envelope',
+    async status => {
+      const outcome = await normalizeDataResult(new Response(null, { status }));
+      const response = createDataResponse(outcome, identity, expected);
+      expect(response.status).toBe(200);
+      expect(await readDataResponse(response, expected)).toEqual({
+        kind: 'success',
+        value: undefined,
+        status,
+      });
+    },
+  );
 
   it('asks the native router to authorize a route ID and never runs another handler', async () => {
     let calls = 0;
@@ -316,6 +317,62 @@ describe('renderer-neutral HTTP data outcomes', () => {
     ]);
     expect(metadata.cachePolicy).toBe('no-store');
   });
+
+  it.each([
+    {
+      root: 'Cookie',
+      leaf: 'Accept-Language',
+      vary: 'Cookie, Accept-Language',
+      cacheMode: 'public',
+    },
+    {
+      root: ' Cookie , Accept-Encoding, Cookie ',
+      leaf: 'cookie, Accept-Language, ACCEPT-ENCODING',
+      vary: 'Cookie, Accept-Encoding, Accept-Language',
+      cacheMode: 'public',
+    },
+    {
+      root: '*',
+      leaf: 'Accept-Language',
+      vary: '*, Accept-Language',
+      cacheMode: 'no-store',
+    },
+    {
+      root: 'Cookie',
+      leaf: '*, cookie, *',
+      vary: 'Cookie, *',
+      cacheMode: 'no-store',
+    },
+  ])(
+    'unions matched loader Vary fields without losing privacy: $vary',
+    ({ root, leaf, vary, cacheMode }) => {
+      const outcomes = [root, leaf].map(
+        (value, index) =>
+          ({
+            kind: 'success',
+            value: index,
+            response: {
+              status: 200,
+              statusText: '',
+              headers: [
+                [index === 0 ? 'Vary' : 'vArY', value],
+                ['cache-control', 'public, max-age=60'],
+              ],
+              cachePolicy: 'public',
+            },
+          }) satisfies DataOutcome,
+      );
+      const metadata = mergeDataResponseMetadata(outcomes, { status: 200 });
+      expect(new Headers(metadata.headers).get('vary')).toBe(vary);
+      const policy = dataMetadataToDocumentPolicy(metadata);
+      expect(
+        new Headers(policy.headers.map(([name, value]) => [name, value])).get(
+          'vary',
+        ),
+      ).toBe(vary);
+      expect(policy.cache.mode).toBe(cacheMode);
+    },
+  );
 
   it('projects loader metadata to HTML without data representation headers', async () => {
     const value = await normalizeDataResult(
@@ -611,6 +668,17 @@ describe('renderer-neutral HTTP data outcomes', () => {
 });
 
 describe('deferred data stream', () => {
+  it.each([204, 205, 304])(
+    'rejects deferred HTTP %s before creating a stream',
+    async status => {
+      await expect(
+        normalizeDataResult(deferData({ critical: true }, {}, { status })),
+      ).rejects.toThrow(
+        'Deferred data must have a successful body-bearing response status',
+      );
+    },
+  );
+
   it('validates and snapshots critical data before a response can commit headers', async () => {
     const critical = { value: 'original' };
     const outcome = await normalizeDataResult(deferData(critical, {}));
