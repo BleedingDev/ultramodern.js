@@ -123,7 +123,7 @@ const acceptedLanguages = (header: string | null): string[] =>
       const [tag, ...parameters] = item.trim().split(';');
       const quality = parameters
         .map(parameter => parameter.trim())
-        .find(parameter => parameter.startsWith('q='));
+        .find(parameter => parameter.toLowerCase().startsWith('q='));
       const q = quality ? Number(quality.slice(2)) : 1;
       return { tag: tag.trim(), q: Number.isFinite(q) ? q : 0, index };
     })

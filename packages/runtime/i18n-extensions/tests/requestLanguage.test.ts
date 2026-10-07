@@ -67,6 +67,29 @@ describe('detectRequestLanguage', () => {
       }),
     ).toBe('cs');
   });
+
+  test.each([
+    'fr;Q=0,en;q=1',
+    'fr;q=0,en;Q=1',
+    'fr;Q=0.2,en;q=0.9',
+    'fr;q=0.2,en;Q=0.9',
+  ])('honours case-insensitive quality parameters in %s', header => {
+    expect(
+      detectRequestLanguage(request('/', { 'accept-language': header }), [
+        'fr',
+        'en',
+      ]),
+    ).toBe('en');
+  });
+
+  test('excludes uppercase quality parameters when every language has zero quality', () => {
+    expect(
+      detectRequestLanguage(
+        request('/', { 'accept-language': 'fr;Q=0,en;q=0' }),
+        ['fr', 'en'],
+      ),
+    ).toBeUndefined();
+  });
 });
 
 describe('resolveRequestLanguage', () => {
