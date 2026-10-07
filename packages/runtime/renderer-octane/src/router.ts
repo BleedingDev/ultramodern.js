@@ -3,7 +3,12 @@ import {
   type PublicDataOutcome,
 } from '@modern-js/renderer-core/data';
 import type { RendererIdentity } from '@modern-js/renderer-core/identity';
-import { type AnyRouter, useMatch, useRouter } from '@octanejs/tanstack-router';
+import {
+  type AnyRouter,
+  redirect,
+  useMatch,
+  useRouter,
+} from '@octanejs/tanstack-router';
 import { assertOctaneIdentity } from './bootstrap';
 import { resolveRouteData } from './routes';
 
@@ -91,7 +96,14 @@ export function createOctaneRouteAction(input: OctaneRouteActionOptions) {
     await outcome.completion;
     input.signal?.throwIfAborted();
     if (outcome.kind === 'redirect') {
-      await input.router.navigate({ href: outcome.location });
+      const resolved = input.router.resolveRedirect(
+        redirect({
+          href: new URL(outcome.location, request.url).href,
+          statusCode: outcome.status,
+        }),
+      );
+      // Native navigation chooses document loading from the normalized href.
+      await input.router.navigate({ href: resolved.options.href });
     } else if (
       (outcome.kind === 'error' || outcome.kind === 'not-found') &&
       outcome.thrown
