@@ -37,6 +37,17 @@
         "default": "./dist/cjs/identity.js"
       }
     },
+    "./adapter": {
+      "modern:source": "./src/adapter.ts",
+      "import": {
+        "types": "./dist/types/adapter.d.ts",
+        "default": "./dist/esm/adapter.mjs"
+      },
+      "require": {
+        "types": "./dist/types/adapter.d.ts",
+        "default": "./dist/cjs/adapter.js"
+      }
+    },
     "./package.json": "./package.json",
     "./data": {
       "modern:source": "./src/data/index.ts",
@@ -126,10 +137,19 @@
   "dependencies": {
     "seroval": "1.6.8"
   },
+  "peerDependencies": {
+    "@rsbuild/core": "2.2.11"
+  },
+  "peerDependenciesMeta": {
+    "@rsbuild/core": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
     "@modern-js/tsconfig": "workspace:*",
-    "@rslib/core": "1.0.2",
+    "@rsbuild/core": "2.2.11",
+    "@rslib/core": "1.0.3",
     "@scripts/rstest-config": "workspace:*",
     "@types/node": "^26.6.2"
   },
