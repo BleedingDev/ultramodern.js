@@ -158,7 +158,7 @@ test('routes command awaits each app-installed public helper once in an isolated
     assert.deepEqual(
       invocations.map(invocation => [
         invocation.phase,
-        path.relative(root, invocation.appDirectory),
+        path.relative(root, invocation.appDirectory).split(path.sep).join('/'),
       ]),
       uiRecords.flatMap(record => [
         ['start', record.path],
@@ -220,7 +220,7 @@ test('routes command selects one application and rejects absent or headless sele
     assert.equal(selected.status, 0, `${selected.stdout}${selected.stderr}`);
     assert.deepEqual(
       readInvocations(log).map(invocation =>
-        path.relative(root, invocation.appDirectory),
+        path.relative(root, invocation.appDirectory).split(path.sep).join('/'),
       ),
       ['apps/octane', 'apps/octane'],
     );

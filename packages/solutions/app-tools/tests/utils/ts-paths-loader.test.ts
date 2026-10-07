@@ -31,15 +31,20 @@ describe('ts-paths-loader', () => {
   it.each(['require', 'import'] as const)(
     'preserves the native %s resolver context and result for authored paths',
     async condition => {
-      const appDir = fs.mkdtempSync(path.join(os.tmpdir(), 'modern-paths-'));
+      const appDir = fs.realpathSync(
+        fs.mkdtempSync(path.join(os.tmpdir(), 'modern-paths-')),
+      );
       try {
-        const target = path.join(appDir, 'target #?.cjs');
+        const target = path.join(appDir, 'target #%.cjs');
         fs.writeFileSync(target, 'module.exports = "authored";');
         const loader = await import('../../src/esm/ts-paths-loader.mjs');
         await loader.initialize({
           appDir,
           baseUrl: appDir,
-          paths: { '@fixture/*': ['./*'] },
+          paths: {
+            '@fixture/target #?': ['./target #%'],
+            '@fixture/*': ['./*'],
+          },
         });
         const context = {
           conditions:
@@ -50,7 +55,7 @@ describe('ts-paths-loader', () => {
         };
         const nativeResult = { url: 'native-result', format: 'commonjs' };
         const nextResolve = rstest.fn(() => nativeResult);
-        for (const specifier of ['./target #?', '@fixture/target #?']) {
+        for (const specifier of ['./target #%', '@fixture/target #?']) {
           expect(loader.resolve(specifier, context, nextResolve)).toBe(
             nativeResult,
           );

@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
-import { createRequire } from 'node:module';
+import { createRequire, syncBuiltinESMExports } from 'node:module';
 import os from 'node:os';
 import { pathToFileURL } from 'node:url';
 import path from 'path';
@@ -87,7 +87,10 @@ describe('compat require', () => {
   });
 });
 
-function watchEvent(watcher: FSWatcher, event: 'ready' | 'change') {
+function watchEvent(
+  watcher: FSWatcher | fs.FSWatcher,
+  event: 'ready' | 'change' | 'close',
+) {
   let cancel = () => {};
   const promise = new Promise<string | undefined>((resolve, reject) => {
     const timer = setTimeout(
@@ -114,51 +117,108 @@ function watchEvent(watcher: FSWatcher, event: 'ready' | 'change') {
   return { promise, cancel: () => cancel() };
 }
 
+async function writeFromNode(
+  filename: string,
+  changed: Promise<string | undefined>,
+) {
+  const writer = spawn(
+    process.execPath,
+    [
+      '--input-type=commonjs',
+      '-e',
+      "require('node:fs').writeFileSync(process.argv[1], 'after');",
+      filename,
+    ],
+    { stdio: 'ignore' },
+  );
+  const closed = new Promise<void>((resolve, reject) => {
+    let writerError: Error | undefined;
+    writer.once('error', error => {
+      writerError = error;
+    });
+    writer.once('close', (code, signal) => {
+      if (writerError) reject(writerError);
+      else if (code === 0) resolve();
+      else reject(new Error(`Writer failed (${signal ?? code})`));
+    });
+  });
+  try {
+    const [, result] = await Promise.all([closed, changed]);
+    return result;
+  } finally {
+    if (writer.exitCode === null && writer.signalCode === null)
+      writer.kill('SIGKILL');
+    await closed.catch(() => {});
+  }
+}
+
 describe('lazy compiled watcher imports', () => {
-  test('source export defers Chokidar and preserves native ready/change/close', async () => {
+  test('source export defers Chokidar and preserves native external change/close', async () => {
     const owningRequire = createRequire(
       path.resolve(__dirname, '../package.json'),
     );
-    expect(
-      Object.keys(owningRequire.cache).filter(filename =>
-        /[/\\]chokidar[/\\]fsevents\.node$/.test(filename),
-      ),
-    ).toEqual([]);
+    const compiledFilename = owningRequire.resolve(
+      './compiled/chokidar/index.mjs',
+    );
+    expect(owningRequire.cache[compiledFilename]).toBeUndefined();
     const directory = fs.mkdtempSync(
       path.join(
         process.env.OWNED_TEMP_DIR ?? os.tmpdir(),
         'modern-lazy-source-watcher-',
       ),
     );
+    const originalWatch = fs.watch;
+    const nativeWatchers: fs.FSWatcher[] = [];
     let watcher: FSWatcher | undefined;
     try {
+      fs.watch = new Proxy(originalWatch, {
+        apply(target, receiver, args) {
+          const nativeWatcher: fs.FSWatcher = Reflect.apply(
+            target,
+            receiver,
+            args,
+          );
+          nativeWatchers.push(nativeWatcher);
+          return nativeWatcher;
+        },
+      });
+      syncBuiltinESMExports();
       const filename = path.join(directory, 'input.txt');
       fs.writeFileSync(filename, 'before');
       watcher = chokidar.watch(filename, { ignoreInitial: true });
       expect(watcher).toBeInstanceOf(chokidar.FSWatcher);
       await watchEvent(watcher, 'ready').promise;
-      if (process.platform === 'darwin')
-        expect(watcher.options.useFsEvents).toBe(true);
+      expect(owningRequire.cache[compiledFilename]?.loaded).toBe(true);
+      expect(nativeWatchers.length).toBeGreaterThan(0);
       const changed = watchEvent(watcher, 'change');
       try {
-        fs.writeFileSync(filename, 'after');
-        expect(await changed.promise).toBe(filename);
+        expect(await writeFromNode(filename, changed.promise)).toBe(filename);
       } finally {
         changed.cancel();
       }
-      await watcher.close();
+      const nativeClosed = nativeWatchers.map(nativeWatcher =>
+        watchEvent(nativeWatcher, 'close'),
+      );
+      try {
+        await watcher.close();
+        await Promise.all(nativeClosed.map(event => event.promise));
+      } finally {
+        nativeClosed.forEach(event => event.cancel());
+      }
       expect(watcher).toEqual(expect.objectContaining({ closed: true }));
     } finally {
       try {
         await watcher?.close();
       } finally {
+        fs.watch = originalWatch;
+        syncBuiltinESMExports();
         fs.rmSync(directory, { recursive: true, force: true });
       }
     }
   });
 
   test.each(['cjs', 'esm'] as const)(
-    'cold public %s import defers the addon until native watching',
+    'cold public %s import defers Chokidar and observes native external changes',
     async format => {
       const directory = fs.mkdtempSync(
         path.join(
@@ -171,15 +231,21 @@ describe('lazy compiled watcher imports', () => {
       // conditions; this never aliases public exports to utility source files.
       const script = `
 const assert = require('node:assert/strict');
+const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
-const { createRequire, registerHooks } = require('node:module');
+const { createRequire, registerHooks, syncBuiltinESMExports } = require('node:module');
 const owningRequire = createRequire(${JSON.stringify(owner)});
 const directory = ${JSON.stringify(directory)};
-const addonFilename = process.platform === 'darwin'
-  ? owningRequire.resolve('./dist/compiled/chokidar/fsevents.node')
-  : undefined;
 const initialized = [];
+const originalWatch = fs.watch;
+const nativeWatchers = [];
+fs.watch = new Proxy(originalWatch, { apply(target, receiver, args) {
+  const watcher = Reflect.apply(target, receiver, args);
+  nativeWatchers.push(watcher);
+  return watcher;
+} });
+syncBuiltinESMExports();
 const hooks = registerHooks({ load(url, context, nextLoad) {
   if (url.includes('/compiled/chokidar/')) initialized.push(url);
   return nextLoad(url, context);
@@ -196,36 +262,61 @@ const wait = (watcher, event) => {
   });
   return { promise, cancel: () => cancel() };
 };
+const writeFromNode = async (filename, changed) => {
+  const writer = spawn(process.execPath, [
+    '--input-type=commonjs', '-e',
+    "require('node:fs').writeFileSync(process.argv[1], 'after');", filename
+  ], { stdio: 'ignore' });
+  const closed = new Promise((resolve, reject) => {
+    let writerError;
+    writer.once('error', error => { writerError = error; });
+    writer.once('close', (code, signal) => {
+      if (writerError) reject(writerError);
+      else if (code === 0) resolve();
+      else reject(new Error('Writer failed (' + (signal ?? code) + ')'));
+    });
+  });
+  try {
+    const [, result] = await Promise.all([closed, changed]);
+    return result;
+  } finally {
+    if (writer.exitCode === null && writer.signalCode === null) writer.kill('SIGKILL');
+    await closed.catch(() => {});
+  }
+};
 (async () => {
-  if (addonFilename) assert.equal(owningRequire.cache[addonFilename], undefined);
-  const utils = ${format === 'cjs' ? "owningRequire('@modern-js/utils')" : "await import('@modern-js/utils')"};
-  assert.deepEqual(initialized, [], 'metadata import initialized Chokidar');
-  if (addonFilename) assert.equal(owningRequire.cache[addonFilename], undefined);
-  assert.ok(Array.isArray(utils.CONFIG_FILE_EXTENSIONS));
-  assert.deepEqual(initialized, [], 'constant access initialized Chokidar');
-  if (addonFilename) assert.equal(owningRequire.cache[addonFilename], undefined);
   let watcher;
   try {
+    const utils = ${format === 'cjs' ? "owningRequire('@modern-js/utils')" : "await import('@modern-js/utils')"};
+    assert.deepEqual(initialized, [], 'metadata import initialized Chokidar');
+    assert.equal(nativeWatchers.length, 0, 'metadata import started native watching');
+    assert.ok(Array.isArray(utils.CONFIG_FILE_EXTENSIONS));
+    assert.deepEqual(initialized, [], 'constant access initialized Chokidar');
+    assert.equal(nativeWatchers.length, 0, 'constant access started native watching');
     const filename = path.join(directory, 'input.txt');
     fs.writeFileSync(filename, 'before');
     watcher = utils.chokidar.watch(filename, { ignoreInitial: true });
     assert.ok(watcher instanceof utils.chokidar.FSWatcher);
     await wait(watcher, 'ready').promise;
-    if (process.platform === 'darwin') {
-      assert.equal(watcher.options.useFsEvents, true);
-      // Node's native CJS extension calls dlopen without the load hook.
-      assert.equal(owningRequire.cache[addonFilename].loaded, true);
-    }
+    assert.ok(initialized.length > 0, 'watching did not initialize Chokidar');
+    assert.ok(nativeWatchers.length > 0, 'watching did not call native fs.watch');
     const changed = wait(watcher, 'change');
     try {
-      fs.writeFileSync(filename, 'after');
-      assert.equal(await changed.promise, filename);
+      assert.equal(await writeFromNode(filename, changed.promise), filename);
     } finally { changed.cancel(); }
-    await watcher.close();
+    const nativeClosed = nativeWatchers.map(nativeWatcher => wait(nativeWatcher, 'close'));
+    try {
+      await watcher.close();
+      await Promise.all(nativeClosed.map(event => event.promise));
+    } finally { nativeClosed.forEach(event => event.cancel()); }
     assert.equal(watcher.closed, true);
-    process.stdout.write(JSON.stringify({ format: ${JSON.stringify(format)}, changed: true, closed: watcher.closed }));
+    process.stdout.write(JSON.stringify({ format: ${JSON.stringify(format)}, changed: true, closed: watcher.closed, nativeWatchers: nativeWatchers.length }));
   } finally {
-    try { await watcher?.close(); } finally { hooks.deregister(); }
+    try { await watcher?.close(); } finally {
+      fs.watch = originalWatch;
+      syncBuiltinESMExports();
+      hooks.deregister();
+    }
   }
 })().catch(error => { console.error(error.stack); process.exitCode = 1; });
 `;
@@ -258,11 +349,14 @@ const wait = (watcher, event) => {
               );
           });
         });
-        expect(JSON.parse(output)).toEqual({
+        const result = JSON.parse(output);
+        expect(result).toEqual({
           format,
           changed: true,
           closed: true,
+          nativeWatchers: expect.any(Number),
         });
+        expect(result.nativeWatchers).toBeGreaterThan(0);
       } finally {
         fs.rmSync(directory, { recursive: true, force: true });
       }

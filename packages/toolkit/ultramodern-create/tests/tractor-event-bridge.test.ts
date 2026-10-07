@@ -9,6 +9,7 @@ import {
 } from '../src/ultramodern-workspace';
 import { linkBuiltRuntimeExtensions } from './helpers/build-module';
 import { runStableTypeScript } from './helpers/stable-typescript';
+import { linkInstalledEffectCompiler } from './helpers/workspace-kit';
 
 async function scaffoldSharedContractsWorkspace() {
   const tempRoot = fs.mkdtempSync(
@@ -25,6 +26,7 @@ async function scaffoldSharedContractsWorkspace() {
       strategy: 'workspace',
     },
   });
+  linkInstalledEffectCompiler(workspaceDir);
   await addUltramodernVertical({
     workspaceRoot: workspaceDir,
     name: 'checkout',

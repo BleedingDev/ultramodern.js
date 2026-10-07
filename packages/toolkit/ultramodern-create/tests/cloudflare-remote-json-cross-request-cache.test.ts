@@ -47,10 +47,12 @@ async function extractRemoteJsonCacheModule() {
     ),
     'utf8',
   );
-  const renderingSource = await fs.readFile(
-    path.join(templatesDirectory, 'cloudflare-entry.004-rendering-css.mjs'),
-    'utf8',
-  );
+  const renderingSource = (
+    await fs.readFile(
+      path.join(templatesDirectory, 'cloudflare-entry.004-rendering-css.mjs'),
+      'utf8',
+    )
+  ).replace(/\r\n/gu, '\n');
 
   const cacheDeclaration = /const remoteJsonCache = new Map\(\);/u.exec(
     bootstrapSource,

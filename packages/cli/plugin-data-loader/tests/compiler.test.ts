@@ -261,8 +261,8 @@ const server = http.createServer(async (request, response) => {
   });
 
   test('preserves retained inline data behind an SSR registration chain in an additional Node compiler', async () => {
-    const directory = fs.mkdtempSync(
-      path.join(os.tmpdir(), 'modern-data-ssr-compiler-'),
+    const directory = fs.realpathSync(
+      fs.mkdtempSync(path.join(os.tmpdir(), 'modern-data-ssr-compiler-')),
     );
     let compiler: Rspack.MultiCompiler | undefined;
     try {
@@ -388,10 +388,24 @@ export async function loader() { return ${JSON.stringify(serverValue)}; }`,
         result => result.compilation.name === 'server',
       );
       expect(nodeStats).toBeDefined();
-      const nativeModule = Array.from(
-        nodeStats?.compilation.modules ?? [],
-      ).find(module => module.nameForCondition() === wrapper);
-      expect(nativeModule).toBeDefined();
+      const nativeModules = Array.from(nodeStats?.compilation.modules ?? []);
+      const nativeModule = nativeModules.find(
+        module => module.nameForCondition() === wrapper,
+      );
+      let moduleLookupDiagnostic: string | undefined;
+      if (!nativeModule) {
+        const canonicalWrapper = fs.realpathSync(wrapper);
+        const canonicalModule = nativeModules.find(
+          module => module.nameForCondition() === canonicalWrapper,
+        );
+        moduleLookupDiagnostic = JSON.stringify({
+          requestedWrapper: wrapper,
+          canonicalWrapper,
+          actualCanonicalNativePath:
+            canonicalModule?.nameForCondition() ?? null,
+        });
+      }
+      expect(nativeModule, moduleLookupDiagnostic).toBeDefined();
       const modules =
         nodeStats?.toJson({
           all: false,
