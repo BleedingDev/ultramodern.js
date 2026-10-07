@@ -84,6 +84,11 @@ function emittedRuntime(
   options: {
     serviceBindings?: ServiceBinding[];
     workerModule?: Record<string, unknown>;
+    moduleFederation?: {
+      name: string;
+      exposes: { path: string; css: string[] }[];
+      routeCss?: string[];
+    };
   } = {},
 ): TemplateRuntime {
   // Run every shipped fragment; the decorator itself is not replaced.
@@ -104,6 +109,7 @@ function emittedRuntime(
         loadableStats: 'loadable-stats.json',
       },
       serviceBindings: options.serviceBindings,
+      moduleFederation: options.moduleFederation,
     },
     { [route.worker]: async () => options.workerModule ?? {} },
     fetchRemote,
@@ -955,24 +961,24 @@ it.each([
     ],
     message: /head exceeds 256 KiB/,
   },
-])('bounds an incomplete $name and cancels its producer with the same failure', async ({
-  chunks,
-  message,
-}) => {
-  const source = textChunks([...chunks, '<p>must remain unconsumed</p>']);
-  const response = await decorate(htmlResponse(source.body));
-  const failure = await response.text().then(
-    () => {
-      throw new Error('Oversized HTML unexpectedly completed');
-    },
-    error => error,
-  );
-  expect(failure).toBeInstanceOf(RangeError);
-  expect(failure.message).toMatch(message);
-  expect(source.cancellations).toEqual([failure]);
-  expect(source.pulls()).toBe(chunks.length);
-  expect(source.body.locked).toBe(false);
-});
+])(
+  'bounds an incomplete $name and cancels its producer with the same failure',
+  async ({ chunks, message }) => {
+    const source = textChunks([...chunks, '<p>must remain unconsumed</p>']);
+    const response = await decorate(htmlResponse(source.body));
+    const failure = await response.text().then(
+      () => {
+        throw new Error('Oversized HTML unexpectedly completed');
+      },
+      error => error,
+    );
+    expect(failure).toBeInstanceOf(RangeError);
+    expect(failure.message).toMatch(message);
+    expect(source.cancellations).toEqual([failure]);
+    expect(source.pulls()).toBe(chunks.length);
+    expect(source.body.locked).toBe(false);
+  },
+);
 
 it('includes generated sentinel links and the closing tag in the head size bound', async () => {
   const source = textChunks([
@@ -999,13 +1005,66 @@ it('includes generated sentinel links and the closing tag in the head size bound
 it.each([
   ['null HTML body', null, 'text/html; charset=utf-8', '0'],
   ['native Flight body', 'native Flight bytes', 'text/x-component', '19'],
-] as const)('passes through a %s and its original content length', async (_name, body, contentType, contentLength) => {
-  const original = new Response(body, {
-    status: 202,
-    headers: { 'content-type': contentType, 'content-length': contentLength },
+] as const)(
+  'passes through a %s and its original content length',
+  async (_name, body, contentType, contentLength) => {
+    const original = new Response(body, {
+      status: 202,
+      headers: { 'content-type': contentType, 'content-length': contentLength },
+    });
+    const response = await decorate(original);
+    expect(response).toBe(original);
+    expect(response.headers.get('content-length')).toBe(contentLength);
+    expect(await response.text()).toBe(body ?? '');
+  },
+);
+
+function localFragmentRequest(boundaryId: string, expose: string) {
+  return new Request('https://worker.example/en/_mf/fragment/mini-cart', {
+    headers: {
+      'x-modern-js-fragment-request': '1',
+      'x-modern-distributed-ssr-boundary-id': boundaryId,
+      'x-modern-distributed-ssr-expose': expose,
+      'x-modern-distributed-ssr-props': encodeURIComponent('{}'),
+      'x-modern-distributed-ssr-remote': 'checkout',
+      'x-modern-distributed-ssr-source-url': 'https://shell.example/en',
+    },
   });
-  const response = await decorate(original);
-  expect(response).toBe(original);
-  expect(response.headers.get('content-length')).toBe(contentLength);
-  expect(await response.text()).toBe(body ?? '');
-});
+}
+
+it.each([
+  [
+    'its own expose',
+    'verticalCheckout',
+    './MiniCart',
+    ['/static/css/async/async-index.css'],
+  ],
+  ['another container', 'verticalExplore', './MiniCart', []],
+  ['an unpublished expose', 'verticalCheckout', './Unknown', []],
+] as const)(
+  'reports the rendering route stylesheets for a fragment request for %s',
+  async (_name, boundaryId, expose, expected) => {
+    const runtime = emittedRuntime(undefined, {
+      moduleFederation: {
+        name: 'verticalCheckout',
+        exposes: [{ path: './MiniCart', css: [] }],
+        routeCss: ['/static/css/async/async-index.css'],
+      },
+    });
+    const response = await runtime.withRouteCssLinks(
+      htmlResponse(
+        `<!doctype html><html><head>${sentinel}</head><body>` +
+          '<a data-modern-boundary-id="checkout" data-modern-mf-expose="./MiniCart">basket</a>' +
+          '</body></html>',
+      ),
+      route,
+      { routeAssets: { main: { assets: ['static/main.css'] } } },
+      localFragmentRequest(boundaryId, expose),
+    );
+    expect(
+      JSON.parse(
+        response.headers.get('x-modern-distributed-ssr-css') ?? 'null',
+      ),
+    ).toEqual(expected);
+  },
+);

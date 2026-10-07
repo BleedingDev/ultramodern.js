@@ -126,7 +126,38 @@ const createModuleFederationWorkerManifest = async (
     ];
   });
 
-  return name && exposes.length > 0 ? { name, exposes } : undefined;
+  if (!name || exposes.length === 0) return undefined;
+
+  // A fragment is rendered by this app's own route, so it depends on the
+  // route stylesheets too (for example a global Tailwind sheet no exposed
+  // component imports). Bundle them so the worker reports them to the
+  // composing shell without reading assets at request time.
+  const routeManifestPath = path.join(
+    outputDirectory,
+    PUBLIC_ASSETS_DIRECTORY,
+    ROUTE_MANIFEST_FILE,
+  );
+  const routeManifest = (await fse.pathExists(routeManifestPath))
+    ? ((await fse.readJson(routeManifestPath)) as unknown)
+    : undefined;
+  const routeAssets =
+    isRecord(routeManifest) && isRecord(routeManifest.routeAssets)
+      ? Object.values(routeManifest.routeAssets).filter(isRecord)
+      : [];
+  const routeCss = [
+    ...new Set(
+      routeAssets.flatMap(routeAsset =>
+        [routeAsset.referenceCssAssets, routeAsset.assets]
+          .flatMap(value => (Array.isArray(value) ? value : []))
+          .filter(
+            (asset): asset is string =>
+              typeof asset === 'string' && asset.endsWith('.css'),
+          ),
+      ),
+    ),
+  ];
+
+  return { name, exposes, routeCss };
 };
 
 export const createWorkerManifest = async (
