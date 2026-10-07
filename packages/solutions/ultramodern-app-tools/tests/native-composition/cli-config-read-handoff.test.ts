@@ -27,7 +27,6 @@ import {
   type ObservedConfigSourceInputs,
 } from '../../src/native-composition/configuration-read-context';
 import { createNativeConfigLoad } from '../../src/native-composition/native-config-load';
-import { reactWorkspaceCatalogInputs } from '../../src/native-composition/react-authored-inputs';
 
 describe('native CLI configuration read handoff', () => {
   it('loads a cold public Effect compiler from the original nested Module Federation config', async () => {
@@ -760,11 +759,6 @@ module.exports = async context => {
         const snapshot = getConfigurationSourceSnapshot(api);
         handedSnapshots.push(snapshot);
         expect(snapshot).toBeDefined();
-        // Deploy prepares its builder before parsing --skip-build. Catalog
-        // authority must come from the original load, including that path.
-        expect(reactWorkspaceCatalogInputs(root, snapshot)).toContain(
-          workspaceFile,
-        );
       };
       const consumer: CliPlugin<AppTools> = {
         name: 'native-cli-config-read-consumer',
@@ -962,10 +956,6 @@ module.exports = async context => {
               input => input.path === localFile && input.operation === 'module',
             ),
           ).toBe(scenario.local);
-          fs.writeFileSync(workspaceFile, 'packages:\n  - verticals/*\n');
-          expect(() => reactWorkspaceCatalogInputs(root, snapshot)).toThrow(
-            /workspace catalog.*(changed|snapshot)/i,
-          );
         }
       } finally {
         try {

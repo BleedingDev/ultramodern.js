@@ -16,14 +16,6 @@ import {
 import { yaml } from '@modern-js/utils';
 import semver from '@modern-js/utils/semver';
 import { resolveUltramodernReleaseIdentity } from './release-identity';
-import {
-  assertRendererGeneratedOutputReceiptNodesCurrent,
-  type RendererGeneratedOutputNode,
-  type RendererGeneratedOutputReceipt,
-  type RendererGeneratedOutputRegistration,
-  type RendererGeneratedOutputValue,
-  rendererGeneratedOutputPermission,
-} from './renderer-generated-outputs';
 import { findHostingModuleDirectory } from './runtime-package-resolution';
 
 export type RendererBuildConfiguration =
@@ -42,25 +34,8 @@ export interface RendererFrameworkPackageBinding {
   readonly directory: string;
 }
 
-/** One host-pinned receipt revision shared by phase and final identity reads. */
-export interface RendererGeneratedOutputIdentityLease {
-  readonly revision: string;
-  readonly receipts: readonly {
-    readonly registration: RendererGeneratedOutputRegistration;
-    readonly receipt: RendererGeneratedOutputReceipt;
-  }[];
-  /** Check the exact live generation and pinned revision without rereading files. */
-  assertEpochCurrent(): void;
-  /** Fully reobserve the pinned filesystem inputs at identity transaction boundaries. */
-  assertCurrent(): Promise<void>;
-  permission(inputPath: string): RendererGeneratedOutputNode | undefined;
-  withPublication<T>(callback: () => Promise<T>): Promise<T>;
-  release(): void;
-}
-
 export interface RendererBuildIdentityOptions {
   projectRoot: string;
-  generatedOutputs?: RendererGeneratedOutputIdentityLease;
   renderer: RendererName;
   profile: RendererProfile & {
     dependencies?: Readonly<Record<string, string>>;
@@ -162,41 +137,11 @@ function git(root: string, args: string[]): string | undefined {
   }
 }
 
-async function guardedRead<T>(
-  lease: RendererGeneratedOutputIdentityLease | undefined,
-  read: () => Promise<T>,
-): Promise<T> {
-  if (!lease) return read();
-  lease.assertEpochCurrent();
-  const result = await read();
-  lease.assertEpochCurrent();
-  return result;
-}
-
-/** Guard each IO's live generation; full filesystem validation fences the batch. */
-function identityFileSystem(
-  lease?: RendererGeneratedOutputIdentityLease,
-): typeof fs {
-  if (!lease) return fs;
-  return new Proxy(fs, {
-    get(target, key) {
-      const value = Reflect.get(target, key);
-      if (typeof value !== 'function') return value;
-      return (...args: unknown[]) =>
-        guardedRead(lease, () =>
-          Promise.resolve(Reflect.apply(value, target, args)),
-        );
-    },
-  });
-}
-
 async function filesIn(
   directory: string,
   excluded: readonly string[],
   ancestors = new Set<string>(),
-  lease?: RendererGeneratedOutputIdentityLease,
 ): Promise<string[]> {
-  const fs = identityFileSystem(lease);
   if (excluded.some(value => within(directory, value))) return [];
   const real = await fs.realpath(directory);
   if (ancestors.has(real))
@@ -213,11 +158,7 @@ async function filesIn(
     if (excluded.some(value => within(file, value))) continue;
     const stat = item.isSymbolicLink() ? await fs.stat(file) : item;
     if (stat.isDirectory())
-      files.push(
-        ...(await guardedRead(lease, () =>
-          filesIn(file, excluded, nextAncestors, lease),
-        )),
-      );
+      files.push(...(await filesIn(file, excluded, nextAncestors)));
     else if (stat.isFile()) files.push(file);
   }
   return files;
@@ -225,9 +166,7 @@ async function filesIn(
 
 async function hashFiles(
   files: readonly { file: string; key: string }[],
-  lease?: RendererGeneratedOutputIdentityLease,
 ): Promise<string> {
-  const fs = identityFileSystem(lease);
   const hash = createHash('sha256');
   for (const { file, key } of [...files].sort((a, b) =>
     a.key < b.key ? -1 : a.key > b.key ? 1 : 0,
@@ -253,10 +192,7 @@ async function hashFiles(
   return hash.digest('hex');
 }
 
-async function readPackage(
-  directory: string,
-  lease?: RendererGeneratedOutputIdentityLease,
-): Promise<{
+async function readPackage(directory: string): Promise<{
   name: string;
   version: string;
   dependencies?: Record<string, string>;
@@ -265,7 +201,6 @@ async function readPackage(
   peerDependencies?: Record<string, string>;
   peerDependenciesMeta?: Record<string, { optional?: boolean }>;
 }> {
-  const fs = identityFileSystem(lease);
   return JSON.parse(
     await fs.readFile(path.join(directory, 'package.json'), 'utf8'),
   );
@@ -286,13 +221,9 @@ async function frameworkPackageDirectory(
   binding: RendererFrameworkPackageBinding,
   roots: readonly string[],
   requireSelectedPhysicalOwner: boolean,
-  lease?: RendererGeneratedOutputIdentityLease,
 ): Promise<readonly string[]> {
-  const fs = identityFileSystem(lease);
   const expectedDirectory = await fs.realpath(binding.directory);
-  const expectedManifest = await guardedRead(lease, () =>
-    readPackage(expectedDirectory, lease),
-  );
+  const expectedManifest = await readPackage(expectedDirectory);
   if (
     expectedManifest.name !== binding.name ||
     expectedManifest.version !== binding.version
@@ -317,9 +248,7 @@ async function frameworkPackageDirectory(
         const actualDirectories = await Promise.all(
           candidates.map(async candidate => {
             const real = await fs.realpath(candidate);
-            const manifest = await guardedRead(lease, () =>
-              readPackage(real, lease),
-            );
+            const manifest = await readPackage(real);
             if (
               manifest.name !== binding.name ||
               manifest.version !== binding.version
@@ -396,8 +325,6 @@ function dependencyIdentity(
 async function compilerClosure(
   options: RendererBuildIdentityOptions,
 ): Promise<{ compilerDigest: string; frameworkCohortDigest: string }> {
-  const lease = options.generatedOutputs;
-  const fs = identityFileSystem(lease);
   const observedFrameworks = new Map(
     (options.frameworkPackageBindings ?? []).map(binding => [
       binding.name,
@@ -513,7 +440,6 @@ async function compilerClosure(
           observed,
           roots,
           nativeRootNames.has(name),
-          lease,
         )
       : undefined;
     const directory =
@@ -617,7 +543,7 @@ async function compilerClosure(
           const bytes = await fs.readFile(file, 'utf8');
           catalogAuthority.set(
             file,
-            await hashFiles([{ file, key: 'pnpm-workspace.yaml' }], lease),
+            await hashFiles([{ file, key: 'pnpm-workspace.yaml' }]),
           );
           if (
             (await authorityFileState(file)) !== before ||
@@ -683,10 +609,7 @@ async function compilerClosure(
     const state = await authorityFileState(file);
     const bytes = await fs.readFile(file, 'utf8');
     const manifest: Awaited<ReturnType<typeof readPackage>> = JSON.parse(bytes);
-    const manifestDigest = await hashFiles(
-      [{ file, key: 'package.json' }],
-      lease,
-    );
+    const manifestDigest = await hashFiles([{ file, key: 'package.json' }]);
     if ((await authorityFileState(file)) !== state)
       throw new Error(`Renderer compiler authority manifest changed: ${file}.`);
     if (
@@ -791,7 +714,7 @@ async function compilerClosure(
     resolved: string,
     owner: string,
   ) => {
-    const actual = await guardedRead(lease, () => readPackage(resolved, lease));
+    const actual = await readPackage(resolved);
     if (actual.name === name) return dependencyIdentity(name, specification);
     // Published peers retain their canonical import key. Only an exact alias
     // declared by this selected cohort can certify its renamed physical owner.
@@ -878,125 +801,121 @@ async function compilerClosure(
     enforcePins = true,
     versionRange?: string,
     requirePeers = true,
-  ): Promise<string> =>
-    guardedRead(lease, async () => {
-      const real = await fs.realpath(directory);
-      const manifest = await guardedRead(lease, () => readPackage(real, lease));
-      // Only declared neutral cohort roots reset a native branch. Aliases and
-      // physical copies of native anchors still enter the exact native contract.
-      const nativeBranch =
-        nativeRoots.has(real) ||
-        nativeAnchorNames.has(manifest.name) ||
-        (enforcePins && !neutralRoots.has(real));
-      // Installed optional tooling remains byte-bound without making its
-      // inactive peer contract a requirement of the selected renderer.
-      const requiredPeerBranch =
-        requirePeers ||
-        nativeRoots.has(real) ||
-        neutralRoots.has(real) ||
-        nativeAnchorNames.has(manifest.name);
-      const pinnedVersion = nativeBranch ? pins[manifest.name] : undefined;
+  ): Promise<string> => {
+    const real = await fs.realpath(directory);
+    const manifest = await readPackage(real);
+    // Only declared neutral cohort roots reset a native branch. Aliases and
+    // physical copies of native anchors still enter the exact native contract.
+    const nativeBranch =
+      nativeRoots.has(real) ||
+      nativeAnchorNames.has(manifest.name) ||
+      (enforcePins && !neutralRoots.has(real));
+    // Installed optional tooling remains byte-bound without making its
+    // inactive peer contract a requirement of the selected renderer.
+    const requiredPeerBranch =
+      requirePeers ||
+      nativeRoots.has(real) ||
+      neutralRoots.has(real) ||
+      nativeAnchorNames.has(manifest.name);
+    const pinnedVersion = nativeBranch ? pins[manifest.name] : undefined;
+    if (
+      !manifest.name ||
+      !manifest.version ||
+      (expectedName && manifest.name !== expectedName) ||
+      (expectedVersion && manifest.version !== expectedVersion) ||
+      (pinnedVersion && manifest.version !== pinnedVersion) ||
+      (versionRange &&
+        !semver.satisfies(manifest.version, versionRange, { loose: true }))
+    ) {
+      throw new Error(
+        `Renderer compiler/profile mismatch: expected ${expectedName ?? manifest.name ?? 'a named package'}@${expectedVersion ?? pinnedVersion ?? versionRange ?? 'an exact version'}, found ${manifest.name}@${manifest.version}.`,
+      );
+    }
+    if (pinnedVersion) validatedPins.add(manifest.name);
+    // Separate physical copies must not silently share an identity if their bytes differ.
+    const existing = seen.get(real);
+    if (
+      existing &&
+      (!nativeBranch || existing.pinsValidated) &&
+      (!requiredPeerBranch || existing.requiredPeersValidated)
+    )
+      return existing.record.id;
+    let record = existing?.record;
+    if (!record) {
+      const files = await filesIn(real, [], new Set());
+      const packageDigest = await hashFiles(
+        files.map(file => ({ file, key: slash(path.relative(real, file)) })),
+      );
+      // Stable traversal IDs preserve the directed graph without absolute paths.
+      record = {
+        id: `package-${packages.length}`,
+        name: manifest.name,
+        version: manifest.version,
+        digest: packageDigest,
+        dependencies: [],
+      };
+      packages.push(record);
+    }
+    seen.set(real, {
+      record,
+      pinsValidated: nativeBranch || existing?.pinsValidated === true,
+      requiredPeersValidated:
+        requiredPeerBranch || existing?.requiredPeersValidated === true,
+    });
+    const resolvedDependencies: { name: string; package: string }[] = [];
+    const dependencies = new Set([
+      ...Object.keys(manifest.dependencies ?? {}),
+      ...Object.keys(manifest.optionalDependencies ?? {}),
+      ...Object.keys(manifest.peerDependencies ?? {}),
+    ]);
+    for (const name of [...dependencies].sort()) {
+      const specification =
+        manifest.optionalDependencies?.[name] ??
+        manifest.dependencies?.[name] ??
+        manifest.peerDependencies![name];
+      let dependency = dependencyIdentity(name, specification);
+      const resolved = packageDirectory(name, [real]);
+      const peer =
+        !Object.hasOwn(manifest.optionalDependencies ?? {}, name) &&
+        !Object.hasOwn(manifest.dependencies ?? {}, name);
+      const optional =
+        Object.hasOwn(manifest.optionalDependencies ?? {}, name) ||
+        (peer && manifest.peerDependenciesMeta?.[name]?.optional === true);
+      if (!resolved) {
+        if (optional || (peer && !requiredPeerBranch)) continue;
+        throw new Error(
+          `Renderer compiler dependency ${name} cannot be resolved from ${manifest.name}. Install the admitted compiler tuple.`,
+        );
+      }
+      if (peer && !/^npm:/iu.test(specification))
+        dependency = await peerIdentity(name, specification, resolved, real);
+      const nativeClosure =
+        nativeBranch || nativeAnchorNames.has(dependency.name);
+      const pinnedVersion = nativeClosure ? pins[dependency.name] : undefined;
       if (
-        !manifest.name ||
-        !manifest.version ||
-        (expectedName && manifest.name !== expectedName) ||
-        (expectedVersion && manifest.version !== expectedVersion) ||
-        (pinnedVersion && manifest.version !== pinnedVersion) ||
-        (versionRange &&
-          !semver.satisfies(manifest.version, versionRange, { loose: true }))
+        pinnedVersion &&
+        dependency.exactVersion &&
+        pinnedVersion !== dependency.exactVersion
       ) {
         throw new Error(
-          `Renderer compiler/profile mismatch: expected ${expectedName ?? manifest.name ?? 'a named package'}@${expectedVersion ?? pinnedVersion ?? versionRange ?? 'an exact version'}, found ${manifest.name}@${manifest.version}.`,
+          `Renderer compiler/profile mismatch: expected ${dependency.name}@${pinnedVersion}, but ${name} declares ${dependency.exactVersion}.`,
         );
       }
-      if (pinnedVersion) validatedPins.add(manifest.name);
-      // Separate physical copies must not silently share an identity if their bytes differ.
-      const existing = seen.get(real);
-      if (
-        existing &&
-        (!nativeBranch || existing.pinsValidated) &&
-        (!requiredPeerBranch || existing.requiredPeersValidated)
-      )
-        return existing.record.id;
-      let record = existing?.record;
-      if (!record) {
-        const files = await guardedRead(lease, () =>
-          filesIn(real, [], new Set(), lease),
-        );
-        const packageDigest = await hashFiles(
-          files.map(file => ({ file, key: slash(path.relative(real, file)) })),
-          lease,
-        );
-        // Stable traversal IDs preserve the directed graph without absolute paths.
-        record = {
-          id: `package-${packages.length}`,
-          name: manifest.name,
-          version: manifest.version,
-          digest: packageDigest,
-          dependencies: [],
-        };
-        packages.push(record);
-      }
-      seen.set(real, {
-        record,
-        pinsValidated: nativeBranch || existing?.pinsValidated === true,
-        requiredPeersValidated:
-          requiredPeerBranch || existing?.requiredPeersValidated === true,
+      resolvedDependencies.push({
+        name,
+        package: await visit(
+          resolved,
+          dependency.name,
+          pinnedVersion ?? dependency.exactVersion,
+          nativeClosure,
+          dependency.versionRange,
+          requiredPeerBranch && !optional,
+        ),
       });
-      const resolvedDependencies: { name: string; package: string }[] = [];
-      const dependencies = new Set([
-        ...Object.keys(manifest.dependencies ?? {}),
-        ...Object.keys(manifest.optionalDependencies ?? {}),
-        ...Object.keys(manifest.peerDependencies ?? {}),
-      ]);
-      for (const name of [...dependencies].sort()) {
-        const specification =
-          manifest.optionalDependencies?.[name] ??
-          manifest.dependencies?.[name] ??
-          manifest.peerDependencies![name];
-        let dependency = dependencyIdentity(name, specification);
-        const resolved = packageDirectory(name, [real]);
-        const peer =
-          !Object.hasOwn(manifest.optionalDependencies ?? {}, name) &&
-          !Object.hasOwn(manifest.dependencies ?? {}, name);
-        const optional =
-          Object.hasOwn(manifest.optionalDependencies ?? {}, name) ||
-          (peer && manifest.peerDependenciesMeta?.[name]?.optional === true);
-        if (!resolved) {
-          if (optional || (peer && !requiredPeerBranch)) continue;
-          throw new Error(
-            `Renderer compiler dependency ${name} cannot be resolved from ${manifest.name}. Install the admitted compiler tuple.`,
-          );
-        }
-        if (peer && !/^npm:/iu.test(specification))
-          dependency = await peerIdentity(name, specification, resolved, real);
-        const nativeClosure =
-          nativeBranch || nativeAnchorNames.has(dependency.name);
-        const pinnedVersion = nativeClosure ? pins[dependency.name] : undefined;
-        if (
-          pinnedVersion &&
-          dependency.exactVersion &&
-          pinnedVersion !== dependency.exactVersion
-        ) {
-          throw new Error(
-            `Renderer compiler/profile mismatch: expected ${dependency.name}@${pinnedVersion}, but ${name} declares ${dependency.exactVersion}.`,
-          );
-        }
-        resolvedDependencies.push({
-          name,
-          package: await visit(
-            resolved,
-            dependency.name,
-            pinnedVersion ?? dependency.exactVersion,
-            nativeClosure,
-            dependency.versionRange,
-            requiredPeerBranch && !optional,
-          ),
-        });
-      }
-      record.dependencies = resolvedDependencies;
-      return record.id;
-    });
+    }
+    record.dependencies = resolvedDependencies;
+    return record.id;
+  };
   for (const { router, directory } of routerCoreDirectories) {
     await visit(directory, router.coreName, router.coreVersion);
   }
@@ -1035,12 +954,9 @@ async function compilerClosure(
       continue;
     // Bind application-only compiler implementations too; selected packages
     // already carry their complete bytes in the validating closure above.
-    const files = await guardedRead(lease, () =>
-      filesIn(owner, [], new Set(), lease),
-    );
+    const files = await filesIn(owner, [], new Set());
     authority.digest = await hashFiles(
       files.map(file => ({ file, key: slash(path.relative(owner, file)) })),
-      lease,
     );
   }
   for (const name of Object.keys(pins).sort()) {
@@ -1083,8 +999,7 @@ async function compilerClosure(
   for (const [file, before] of manifestAuthority)
     if (
       (await authorityFileState(file)) !== before.state ||
-      (await hashFiles([{ file, key: 'package.json' }], lease)) !==
-        before.digest ||
+      (await hashFiles([{ file, key: 'package.json' }])) !== before.digest ||
       (await authorityFileState(file)) !== before.state
     )
       throw new Error(`Renderer compiler authority manifest changed: ${file}.`);
@@ -1110,8 +1025,6 @@ async function compilerClosure(
 export async function resolveRendererBuildIdentities(
   options: RendererBuildIdentityOptions,
 ): Promise<RendererBuildIdentities> {
-  const lease = options.generatedOutputs;
-  const fs = identityFileSystem(lease);
   // Validation, package pinning and digest calculation share one authored
   // profile, even if a caller changes its object while files are being read.
   const capturedProfile = structuredClone(options.profile);
@@ -1213,10 +1126,7 @@ export async function resolveRendererBuildIdentities(
   // The pinned host rereads its complete source/receipt scope once before and
   // once after the transaction. Per-IO guards keep its actual revision live;
   // per-file stat/read/stat still rejects mutation during a physical read.
-  if (lease) await lease.assertCurrent();
-  const manifest = await guardedRead(lease, () =>
-    readPackage(projectRoot, lease),
-  );
+  const manifest = await readPackage(projectRoot);
   if (options.packageName && options.packageName !== manifest.name)
     throw new Error(
       'Renderer application package name conflicts with its package manifest.',
@@ -1295,9 +1205,7 @@ export async function resolveRendererBuildIdentities(
     }
   }
   for (const [index, directory] of directories.entries()) {
-    for (const file of await guardedRead(lease, () =>
-      filesIn(directory, excluded, new Set(), lease),
-    )) {
+    for (const file of await filesIn(directory, excluded, new Set())) {
       if (!inputs.has(file))
         inputs.set(
           file,
@@ -1319,156 +1227,10 @@ export async function resolveRendererBuildIdentities(
           : `observed/${index}/${path.basename(file)}`,
       );
   }
-  const generatedRecords: unknown[] = [];
-  const generatedGroups = new Map<
-    string,
-    {
-      binding: Record<string, unknown>;
-      nodes: Map<string, unknown>;
-    }
-  >();
-  if (lease) {
-    if (
-      !Object.isFrozen(lease) ||
-      !Object.isFrozen(lease.receipts) ||
-      !lease.revision
-    )
-      throw new Error(
-        'Renderer generated outputs require an immutable host receipt lease.',
-      );
-    for (const { registration, receipt } of lease.receipts) {
-      // Full receipts retain provenance. Only this pinned overlay's final
-      // exact members may classify or bind current generated output bytes.
-      const selectedNodes = receipt.nodes.filter(node => {
-        const permission = lease.permission(node.path.lexical);
-        return (
-          permission !== undefined && canonical(permission) === canonical(node)
-        );
-      });
-      assertRendererGeneratedOutputReceiptNodesCurrent(registration, receipt, {
-        generation: receipt.generation,
-        nodes: selectedNodes,
-      });
-      for (const node of selectedNodes) {
-        const owned = rendererGeneratedOutputPermission(
-          receipt,
-          node.path.lexical,
-        );
-        if (!owned || canonical(owned) !== canonical(node))
-          throw new Error(
-            'Renderer generated output is not an exact pinned receipt member.',
-          );
-        if (node.kind === 'file' && !inputs.has(node.path.lexical))
-          inputs.set(
-            node.path.lexical,
-            `generated/${slash(path.relative(workspaceRoot, node.path.lexical))}`,
-          );
-      }
-      if (!selectedNodes.length) continue;
-      const inputPath = (value: { lexical: string; canonical: string }) => ({
-        lexical: slash(path.relative(workspaceRoot, value.lexical)),
-        canonical: slash(path.relative(workspaceRoot, value.canonical)),
-      });
-      const context = registration.context;
-      const implementation =
-        context && typeof context === 'object' && !Array.isArray(context)
-          ? (
-              context as {
-                readonly [key: string]: RendererGeneratedOutputValue;
-              }
-            ).implementation
-          : undefined;
-      const implementationRecord =
-        implementation &&
-        typeof implementation === 'object' &&
-        !Array.isArray(implementation)
-          ? (implementation as {
-              readonly [key: string]: RendererGeneratedOutputValue;
-            })
-          : undefined;
-      const capturedImplementation = implementationRecord
-        ? {
-            packageName: implementationRecord.packageName,
-            version: implementationRecord.version,
-            moduleDigest: implementationRecord.moduleDigest,
-            modulePath:
-              typeof implementationRecord.modulePath === 'string'
-                ? slash(
-                    path.relative(
-                      typeof implementationRecord.packageDirectory === 'string'
-                        ? implementationRecord.packageDirectory
-                        : workspaceRoot,
-                      implementationRecord.modulePath,
-                    ),
-                  )
-                : implementationRecord.modulePath,
-          }
-        : undefined;
-      const binding = {
-        implementation: capturedImplementation,
-        producer: {
-          packageName: registration.producer.packageName,
-          version: registration.producer.version,
-          modulePath: slash(
-            path.relative(
-              registration.producer.packageDirectory,
-              registration.producer.modulePath,
-            ),
-          ),
-          moduleDigest: registration.producer.moduleDigest,
-        },
-        effectiveOptions: registration.effectiveOptions,
-        destinations: registration.destinations.map(destination => ({
-          ...destination,
-          path: inputPath(destination.path),
-        })),
-      };
-      const groupKey = canonical(binding);
-      let group = generatedGroups.get(groupKey);
-      if (!group) {
-        group = { binding, nodes: new Map() };
-        generatedGroups.set(groupKey, group);
-      }
-      for (const node of selectedNodes) {
-        const projected = {
-          path: inputPath(node.path),
-          kind: node.kind,
-          ...(node.kind === 'file' ? { byteDigest: node.byteDigest } : {}),
-          ...(node.kind === 'directory' ? { entries: node.entries } : {}),
-        };
-        group.nodes.set(canonical(projected.path), projected);
-      }
-    }
-    for (const group of generatedGroups.values())
-      generatedRecords.push({
-        ...group.binding,
-        nodes: [...group.nodes.values()].sort((left, right) =>
-          canonical(left) < canonical(right)
-            ? -1
-            : canonical(left) > canonical(right)
-              ? 1
-              : 0,
-        ),
-      });
-  }
-  const filesDigest = await guardedRead(lease, () =>
-    hashFiles(
-      [...inputs].map(([file, key]) => ({ file, key })),
-      lease,
-    ),
+  const filesDigest = await hashFiles(
+    [...inputs].map(([file, key]) => ({ file, key })),
   );
-  const inputDigest = generatedRecords.length
-    ? digest({
-        filesDigest,
-        generatedOutputs: generatedRecords.sort((left, right) =>
-          canonical(left) < canonical(right)
-            ? -1
-            : canonical(left) > canonical(right)
-              ? 1
-              : 0,
-        ),
-      })
-    : filesDigest;
+  const inputDigest = filesDigest;
   const profileDigest = digest({
     mode: options.mode,
     profile: options.profile,
@@ -1478,14 +1240,10 @@ export async function resolveRendererBuildIdentities(
     configuration: options.configuration ?? null,
     routerBindings,
   });
-  const { compilerDigest, frameworkCohortDigest } = await guardedRead(
-    lease,
-    () =>
-      compilerClosure({
-        ...options,
-        routerBindings,
-      }),
-  );
+  const { compilerDigest, frameworkCohortDigest } = await compilerClosure({
+    ...options,
+    routerBindings,
+  });
   const release = resolveUltramodernReleaseIdentity({
     workspaceRoot,
     generationBuildMarker: options.deliveryUnit?.buildMarker ?? inputDigest,
@@ -1518,7 +1276,6 @@ export async function resolveRendererBuildIdentities(
   );
   const promotable =
     options.mode === 'production' && release.sourceRevision !== 'workspace';
-  await lease?.assertCurrent();
   return Object.freeze({
     identities: Object.freeze(identities),
     buildMarker,

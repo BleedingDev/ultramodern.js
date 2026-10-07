@@ -22,7 +22,6 @@ import { ultramodernModuleFederationRecoveryPlugin } from './module-federation-r
 import { createReactModuleFederationRendererIntegration } from './module-federation-renderer-plugin';
 import { nativeEntryCommandPlugin } from './native-entry-command';
 import { reactRendererBuildMetadataPlugin } from './react-build-metadata';
-import { createReactReceiverOutputIntegration } from './react-mf-dts-outputs';
 import { createReactRscWorkerIntegrationPlugin } from './react-rsc-worker-integration';
 import { ultramodernReleaseEnvelopePlugin } from './release-envelope-plugin';
 import { createRendererBuildOutputResolver } from './renderer-build-output';
@@ -88,17 +87,15 @@ const headlessCloudflareWorkerPlugin = (): CliPlugin<AppTools> => ({
 export const composeReactRenderer = (
   options: { consumerPlugins?: readonly CliPlugin<AppTools>[] } = {},
 ): CliPlugin<AppTools> => {
-  const receiverOutputs = createReactReceiverOutputIntegration();
+  const policy = options.policy ?? {};
   const federationRenderer = createReactModuleFederationRendererIntegration();
   const selected = [
     nativeEntryCommandPlugin(),
     appTools(),
     rendererTypeCheckerPlugin('react'),
     runtimePlugin(),
-    receiverOutputs.plugin,
     reactRendererBuildMetadataPlugin({
       resolveBuildIdentities: createRendererBuildIdentityResolver('react'),
-      generatedOutputs: receiverOutputs.controller,
       onBuildIdentities: federationRenderer.controller.onBuildIdentities,
     }),
     ultramodernI18nIntegrationPlugin(),

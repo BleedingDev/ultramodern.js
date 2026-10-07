@@ -15,10 +15,7 @@ import {
 import type { ServerRoute } from '@modern-js/types';
 import { MAIN_ENTRY_NAME } from '@modern-js/utils/universal/constants';
 import { afterEach, describe, expect, it } from '@rstest/core';
-import {
-  RENDERER_BUILD_MANIFEST_FILE,
-  RENDERER_DEVELOPMENT_DIRECTORY,
-} from '../../src/native-composition/native-build-manifest';
+import { RENDERER_BUILD_MANIFEST_FILE } from '../../src/native-composition/native-build-manifest';
 import reactBuildMetadataServerPlugin, {
   REACT_RENDERER_IDENTITY_HEADER,
   type ReactBuildMetadataServerOptions,
@@ -59,21 +56,13 @@ afterEach(async () => {
   );
 });
 
-async function committedManifest(
-  routerBindings: RendererRouterBindings,
-  mode: 'production' | 'development',
-) {
+async function committedManifest(routerBindings: RendererRouterBindings) {
   const directory = await fs.mkdtemp(
     path.join(os.tmpdir(), 'react-build-metadata-'),
   );
   manifestDirectories.push(directory);
-  const outputDirectory =
-    mode === 'development'
-      ? path.join(directory, RENDERER_DEVELOPMENT_DIRECTORY)
-      : directory;
-  await fs.mkdir(outputDirectory, { recursive: true });
   await fs.writeFile(
-    path.join(outputDirectory, RENDERER_BUILD_MANIFEST_FILE),
+    path.join(directory, RENDERER_BUILD_MANIFEST_FILE),
     JSON.stringify({
       schema: 'ultramodern-renderer-build',
       version: 1,
@@ -88,15 +77,6 @@ async function committedManifest(
       frameworkCohortDigest: 'e'.repeat(64),
       cacheAllowed: false,
       promotable: false,
-      ...(mode === 'development'
-        ? {
-            devCompilation: {
-              compilationHashes: { client: 'a' },
-              generation: 1,
-              sourceInputDigest: 'b'.repeat(64),
-            },
-          }
-        : {}),
     }),
   );
   return directory;
@@ -186,51 +166,35 @@ async function metadataServer({
 }
 
 describe('React server build metadata', () => {
-  it.each([
-    ['solid', 'production'],
-    ['octane', 'production'],
-    ['solid', 'development'],
-    ['octane', 'development'],
-  ] as const)('rejects canonical %s router bindings in late committed %s metadata', async (renderer, mode) => {
-    const provider: RouterPackageBinding = {
-      framework: renderer,
-      ...resolveCandidateRendererProfile(renderer).router,
-    };
-    const binding = {
-      owner: `@modern-js/renderer-${renderer}`,
-      evidence: 'owned-default' as const,
-      defaultProvider: provider,
-      providers: [provider] as const,
-    };
-    const routerBindings = { main: binding, other: binding };
-    expect(
-      validateRendererRouterBindings(routerBindings, ['main', 'other']).ok,
-    ).toBe(true);
-    const pwd = await committedManifest(routerBindings, mode);
-    const preparing = metadataServer({
-      pwd,
-      plugin: reactBuildMetadataServerPlugin({
-        manifestFile: RENDERER_BUILD_MANIFEST_FILE,
-        ...(mode === 'development' ? { manifestMode: 'development' } : {}),
-      }),
-    });
+  it.each(['solid', 'octane'] as const)(
+    'rejects canonical %s router bindings in late committed metadata',
+    async renderer => {
+      const provider: RouterPackageBinding = {
+        framework: renderer,
+        ...resolveCandidateRendererProfile(renderer).router,
+      };
+      const binding = {
+        owner: `@modern-js/renderer-${renderer}`,
+        evidence: 'owned-default' as const,
+        defaultProvider: provider,
+        providers: [provider] as const,
+      };
+      const routerBindings = { main: binding, other: binding };
+      expect(
+        validateRendererRouterBindings(routerBindings, ['main', 'other']).ok,
+      ).toBe(true);
+      await expect(
+        metadataServer({
+          pwd: await committedManifest(routerBindings),
+          plugin: reactBuildMetadataServerPlugin({
+            manifestFile: RENDERER_BUILD_MANIFEST_FILE,
+          }),
+        }),
+      ).rejects.toThrow('must be admitted by the selected router owner.');
+    },
+  );
 
-    if (mode === 'production') {
-      await expect(preparing).rejects.toThrow(
-        'must be admitted by the selected router owner.',
-      );
-    } else {
-      const server = await preparing;
-      const response = await server.request('/react/result');
-      expect(response.status).toBe(500);
-      expect(response.headers.has(REACT_RENDERER_IDENTITY_HEADER)).toBe(false);
-    }
-  });
-
-  it.each([
-    'production',
-    'development',
-  ] as const)('admits a mixed React router registry in late committed %s metadata', async mode => {
+  it('admits a mixed React router registry in late committed metadata', async () => {
     const reactRouter: RouterPackageBinding = {
       framework: 'react-router',
       ...resolveRendererProfile('react').router,
@@ -253,10 +217,9 @@ describe('React server build metadata', () => {
       validateRendererRouterBindings(routerBindings, ['main', 'other']).ok,
     ).toBe(true);
     const server = await metadataServer({
-      pwd: await committedManifest(routerBindings, mode),
+      pwd: await committedManifest(routerBindings),
       plugin: reactBuildMetadataServerPlugin({
         manifestFile: RENDERER_BUILD_MANIFEST_FILE,
-        ...(mode === 'development' ? { manifestMode: 'development' } : {}),
       }),
     });
 
@@ -269,143 +232,6 @@ describe('React server build metadata', () => {
     expect(await response.text()).toBe('existing response');
   });
 
-  it('serves native assets and APIs while document identity is pending', async () => {
-    let finish!: (entries: Record<string, RendererIdentity>) => void;
-    const ready = new Promise<Record<string, RendererIdentity>>(resolve => {
-      finish = resolve;
-    });
-    let observeRead!: () => void;
-    const reading = new Promise<void>(resolve => {
-      observeRead = resolve;
-    });
-    let reads = 0;
-    const server = await metadataServer({
-      plugin: reactBuildMetadataServerPlugin({
-        manifestFile: RENDERER_BUILD_MANIFEST_FILE,
-        resolveEntries: () => {
-          reads++;
-          observeRead();
-          return ready;
-        },
-      }),
-      nativePlugin: {
-        name: 'test-native-assets-and-api',
-        setup(api) {
-          api.onPrepare(() => {
-            const { middlewares } = api.getServerContext();
-            middlewares.push({
-              name: 'rsbuild-dev',
-              handler(context, next) {
-                if (context.req.path === '/mf-manifest.json')
-                  return context.json({ name: 'native-remote' });
-                if (context.req.path === '/main.js')
-                  return context.body('native script', 200, {
-                    'content-type': 'text/javascript',
-                  });
-                return next();
-              },
-            });
-            middlewares.push({
-              name: 'effect-api-handler',
-              path: '/api/*',
-              order: 'post',
-              before: ['render'],
-              handler: context => context.json({ result: 'native-api' }),
-            });
-          });
-        },
-      },
-    });
-    let delivered = false;
-    const document = server.request('/react/result').then(response => {
-      delivered = true;
-      return response;
-    });
-    await reading;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    try {
-      const responses = await Promise.race([
-        Promise.all([
-          server.request('/mf-manifest.json'),
-          server.request('/main.js'),
-          server.request('/api/result'),
-        ]),
-        new Promise<never>((_resolve, reject) => {
-          timer = setTimeout(
-            () =>
-              reject(new Error('Native requests waited for document identity')),
-            1000,
-          );
-        }),
-      ]);
-      expect(await responses[0].json()).toEqual({ name: 'native-remote' });
-      expect(await responses[1].text()).toBe('native script');
-      expect(await responses[2].json()).toEqual({ result: 'native-api' });
-      for (const response of responses)
-        expect(response.headers.has(REACT_RENDERER_IDENTITY_HEADER)).toBe(
-          false,
-        );
-      expect(reads).toBe(1);
-      expect(delivered).toBe(false);
-    } finally {
-      clearTimeout(timer);
-      finish({ main: identity(), other: identity('other') });
-    }
-    const response = await document;
-    expect(await response.text()).toBe('existing response');
-    expect(
-      JSON.parse(response.headers.get(REACT_RENDERER_IDENTITY_HEADER)!),
-    ).toEqual(identity());
-  });
-
-  it('does not await compilation during setup and waits before rendering when an owning generation is pending', async () => {
-    let finish!: (entries: Record<string, RendererIdentity>) => void;
-    const ready = new Promise<Record<string, RendererIdentity>>(resolve => {
-      finish = resolve;
-    });
-    let reads = 0;
-    const server = await metadataServer({
-      plugin: reactBuildMetadataServerPlugin({
-        manifestFile: RENDERER_BUILD_MANIFEST_FILE,
-        resolveEntries: () => {
-          reads++;
-          return ready;
-        },
-      }),
-    });
-    expect(reads).toBe(0);
-    const pending = server.request('/react/result');
-    finish({ main: identity(), other: identity('other') });
-    const delivered = await pending;
-    expect(reads).toBe(1);
-    expect(
-      JSON.parse(delivered.headers.get(REACT_RENDERER_IDENTITY_HEADER)!),
-    ).toEqual(identity());
-    expect(await delivered.text()).toBe('existing response');
-  });
-
-  it('reads the current owning generation instead of retaining an earlier entry map', async () => {
-    let entries = { main: identity(), other: identity('other') };
-    const server = await metadataServer({
-      plugin: reactBuildMetadataServerPlugin({
-        manifestFile: RENDERER_BUILD_MANIFEST_FILE,
-        resolveEntries: async () => entries,
-      }),
-    });
-    const first = await server.request('/react/result');
-    expect(
-      JSON.parse(first.headers.get(REACT_RENDERER_IDENTITY_HEADER)!).buildId,
-    ).toBe('a'.repeat(64));
-    entries = {
-      main: { ...identity(), buildId: 'b'.repeat(64) },
-      other: identity('other'),
-    };
-    const second = await server.request('/react/result');
-    expect(
-      JSON.parse(second.headers.get(REACT_RENDERER_IDENTITY_HEADER)!).buildId,
-    ).toBe('b'.repeat(64));
-  });
-
   it.each([
     ['SSR document', 200, 'text/html; charset=UTF-8', 'server', undefined],
     ['CSR document', 200, 'text/html; charset=UTF-8', 'client', undefined],
@@ -413,37 +239,40 @@ describe('React server build metadata', () => {
     ['redirect', 302, 'text/html; charset=UTF-8', 'server', '/other'],
     ['React loader data', 200, 'application/json', 'server', undefined],
     ['React action payload', 200, 'text/x-component', 'server', undefined],
-  ] as const)('adds identity while preserving an existing %s response', async (_name, status, contentType, renderMode, location) => {
-    const text = 'original response bytes';
-    const headers = new Headers({
-      'content-type': contentType,
-      'x-modernjs-render': renderMode,
-      'cache-control': 'private, no-store',
-      vary: 'Cookie',
-    });
-    headers.append('set-cookie', 'session=one; Path=/; HttpOnly');
-    headers.append('set-cookie', 'csrf=two; Path=/');
-    if (location) headers.set('location', location);
-    const original = new Response(text, { status, headers });
-    const expectedCookies = original.headers.getSetCookie();
-    const server = await metadataServer({ response: original });
+  ] as const)(
+    'adds identity while preserving an existing %s response',
+    async (_name, status, contentType, renderMode, location) => {
+      const text = 'original response bytes';
+      const headers = new Headers({
+        'content-type': contentType,
+        'x-modernjs-render': renderMode,
+        'cache-control': 'private, no-store',
+        vary: 'Cookie',
+      });
+      headers.append('set-cookie', 'session=one; Path=/; HttpOnly');
+      headers.append('set-cookie', 'csrf=two; Path=/');
+      if (location) headers.set('location', location);
+      const original = new Response(text, { status, headers });
+      const expectedCookies = original.headers.getSetCookie();
+      const server = await metadataServer({ response: original });
 
-    const delivered = await server.request('/react/result');
+      const delivered = await server.request('/react/result');
 
-    expect(delivered.status).toBe(status);
-    expect(delivered.statusText).toBe(original.statusText);
-    expect(delivered.body).toBe(original.body);
-    expect(delivered.headers.get('content-type')).toBe(contentType);
-    expect(delivered.headers.get('x-modernjs-render')).toBe(renderMode);
-    expect(delivered.headers.get('cache-control')).toBe('private, no-store');
-    expect(delivered.headers.get('vary')).toBe('Cookie');
-    expect(delivered.headers.get('location')).toBe(location ?? null);
-    expect(delivered.headers.getSetCookie()).toEqual(expectedCookies);
-    expect(
-      JSON.parse(delivered.headers.get(REACT_RENDERER_IDENTITY_HEADER)!),
-    ).toEqual(identity());
-    expect(await delivered.text()).toBe(text);
-  });
+      expect(delivered.status).toBe(status);
+      expect(delivered.statusText).toBe(original.statusText);
+      expect(delivered.body).toBe(original.body);
+      expect(delivered.headers.get('content-type')).toBe(contentType);
+      expect(delivered.headers.get('x-modernjs-render')).toBe(renderMode);
+      expect(delivered.headers.get('cache-control')).toBe('private, no-store');
+      expect(delivered.headers.get('vary')).toBe('Cookie');
+      expect(delivered.headers.get('location')).toBe(location ?? null);
+      expect(delivered.headers.getSetCookie()).toEqual(expectedCookies);
+      expect(
+        JSON.parse(delivered.headers.get(REACT_RENDERER_IDENTITY_HEADER)!),
+      ).toEqual(identity());
+      expect(await delivered.text()).toBe(text);
+    },
+  );
 
   it('preserves a native redirect response with immutable headers', async () => {
     const location = 'https://redirect.invalid/destination';
@@ -490,42 +319,42 @@ describe('React server build metadata', () => {
     ).toEqual(identity('other'));
   });
 
-  it.each([
-    undefined,
-    '',
-  ])('uses the existing main entry fallback for an actual route with entryName %s', async entryName => {
-    const finalRoute = { ...route(), entryName };
-    if (entryName === undefined) delete finalRoute.entryName;
-    const server = await metadataServer({
-      renderRoute: finalRoute,
-      routes: [finalRoute],
-      entries: { [MAIN_ENTRY_NAME]: identity(MAIN_ENTRY_NAME) },
-    });
+  it.each([undefined, ''])(
+    'uses the existing main entry fallback for an actual route with entryName %s',
+    async entryName => {
+      const finalRoute = { ...route(), entryName };
+      if (entryName === undefined) delete finalRoute.entryName;
+      const server = await metadataServer({
+        renderRoute: finalRoute,
+        routes: [finalRoute],
+        entries: { [MAIN_ENTRY_NAME]: identity(MAIN_ENTRY_NAME) },
+      });
 
-    const response = await server.request('/react/result');
+      const response = await server.request('/react/result');
 
-    expect(
-      JSON.parse(response.headers.get(REACT_RENDERER_IDENTITY_HEADER)!),
-    ).toEqual(identity(MAIN_ENTRY_NAME));
-  });
+      expect(
+        JSON.parse(response.headers.get(REACT_RENDERER_IDENTITY_HEADER)!),
+      ).toEqual(identity(MAIN_ENTRY_NAME));
+    },
+  );
 
-  it.each([
-    undefined,
-    '',
-  ])('omits identity when an actual route with entryName %s has no main entry identity', async entryName => {
-    const finalRoute = { ...route(), entryName };
-    if (entryName === undefined) delete finalRoute.entryName;
-    const server = await metadataServer({
-      renderRoute: finalRoute,
-      routes: [finalRoute],
-      entries: { other: identity('other') },
-    });
+  it.each([undefined, ''])(
+    'omits identity when an actual route with entryName %s has no main entry identity',
+    async entryName => {
+      const finalRoute = { ...route(), entryName };
+      if (entryName === undefined) delete finalRoute.entryName;
+      const server = await metadataServer({
+        renderRoute: finalRoute,
+        routes: [finalRoute],
+        entries: { other: identity('other') },
+      });
 
-    const response = await server.request('/react/result');
+      const response = await server.request('/react/result');
 
-    expect(response.headers.has(REACT_RENDERER_IDENTITY_HEADER)).toBe(false);
-    expect(await response.text()).toBe('existing response');
-  });
+      expect(response.headers.has(REACT_RENDERER_IDENTITY_HEADER)).toBe(false);
+      expect(await response.text()).toBe('existing response');
+    },
+  );
 
   it.each([
     [
@@ -552,19 +381,22 @@ describe('React server build metadata', () => {
       'other',
     ],
     ['both rewrites without a final match', route(), null, '/other', 'other'],
-  ] as const)('does not stamp %s', async (_name, originalRoute, renderRoute, matchPathname, matchEntryName) => {
-    const server = await metadataServer({
-      originalRoute,
-      renderRoute,
-      matchPathname,
-      matchEntryName,
-    });
+  ] as const)(
+    'does not stamp %s',
+    async (_name, originalRoute, renderRoute, matchPathname, matchEntryName) => {
+      const server = await metadataServer({
+        originalRoute,
+        renderRoute,
+        matchPathname,
+        matchEntryName,
+      });
 
-    const response = await server.request('/react/original');
+      const response = await server.request('/react/original');
 
-    expect(response.headers.has(REACT_RENDERER_IDENTITY_HEADER)).toBe(false);
-    expect(await response.text()).toBe('existing response');
-  });
+      expect(response.headers.has(REACT_RENDERER_IDENTITY_HEADER)).toBe(false);
+      expect(await response.text()).toBe('existing response');
+    },
+  );
 
   it('does not read or replace a streaming response before delivery', async () => {
     const chunks = ['first chunk\n', 'second chunk\n'];

@@ -2,10 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { AppTools, CliPlugin } from '@modern-js/app-tools/cli-config';
-import type {
-  RendererBuildIdentities,
-  RendererGeneratedOutputIdentityLease,
-} from '@modern-js/app-tools-extensions/renderer-build-identity';
+import type { RendererBuildIdentities } from '@modern-js/app-tools-extensions/renderer-build-identity';
 import { SERVICE_WORKER_ENVIRONMENT_NAME } from '@modern-js/builder';
 import type {
   BffRuntimeBuildIdentityProvider,
@@ -108,7 +105,6 @@ export interface NativeInfrastructureOptions {
     }[];
     /** Regular files from that completed compiler graph. */
     inputFiles?: readonly string[];
-    generatedOutputs?: RendererGeneratedOutputIdentityLease;
     config: ReturnType<
       Parameters<
         NonNullable<CliPlugin<AppTools>['setup']>

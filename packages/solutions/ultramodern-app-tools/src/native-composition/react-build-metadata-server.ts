@@ -13,7 +13,6 @@ import { MAIN_ENTRY_NAME } from '@modern-js/utils/universal/constants';
 import {
   RENDERER_BUILD_MANIFEST_FILE,
   readRendererBuildManifest,
-  readRendererDevelopmentBuildManifest,
 } from './native-build-manifest';
 import {
   resolveRendererProfile,
@@ -24,14 +23,8 @@ export const REACT_RENDERER_IDENTITY_HEADER = RENDERER_IDENTITY_HEADER;
 
 export interface ReactBuildMetadataServerOptions {
   readonly entries?: Readonly<Record<string, RendererIdentity>>;
-  /** In-process compiler readiness is deliberately awaited only by a rendered request. */
-  readonly resolveEntries?: () => Promise<
-    Readonly<Record<string, RendererIdentity>>
-  >;
   /** Serializable deployments load the owning committed build manifest. */
   readonly manifestFile?: typeof RENDERER_BUILD_MANIFEST_FILE;
-  /** Development metadata is isolated from the production artifact. */
-  readonly manifestMode?: 'development';
 }
 
 function serializeEntries(
@@ -66,13 +59,7 @@ export default function reactBuildMetadataServerPlugin(
   const late = options?.manifestFile === RENDERER_BUILD_MANIFEST_FILE;
   if (
     (options?.manifestFile !== undefined && !late) ||
-    (late && options.entries) ||
-    (options?.manifestMode !== undefined &&
-      (options.manifestMode !== 'development' || !late)) ||
-    (!late && options?.resolveEntries !== undefined) ||
-    (late &&
-      options.resolveEntries !== undefined &&
-      typeof options.resolveEntries !== 'function')
+    (late && options.entries)
   )
     throw new Error(
       'React server metadata has conflicting identity lifecycle options',
@@ -88,7 +75,7 @@ export default function reactBuildMetadataServerPlugin(
       api.onPrepare(async () => {
         const { middlewares, routes, distDirectory, pwd } =
           api.getServerContext();
-        if (late && !options.resolveEntries && !options.manifestMode) {
+        if (late) {
           const manifest = await readRendererBuildManifest(
             distDirectory || pwd,
             resolveRendererProfile('react'),
@@ -114,19 +101,7 @@ export default function reactBuildMetadataServerPlugin(
             );
         }
         const handler: Middleware<ServerEnv> = async (context, next) => {
-          const current = options.resolveEntries
-            ? serializeEntries(await options.resolveEntries())
-            : options.manifestMode === 'development'
-              ? serializeEntries(
-                  (
-                    await readRendererDevelopmentBuildManifest(
-                      distDirectory || pwd,
-                      resolveRendererProfile('react'),
-                      manifestValidation,
-                    )
-                  ).identities,
-                )
-              : entries!;
+          const current = entries!;
           await next();
           const route = context.get('renderRoute');
           const entryName = route && (route.entryName || MAIN_ENTRY_NAME);
