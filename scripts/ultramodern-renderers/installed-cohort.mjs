@@ -1,11 +1,11 @@
 // "Installed = packed": every cohort package an app installed must be the
 // packed tarball byte for byte, never a workspace link or a rebuilt copy.
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
+import { fileEvidence, sha256 } from '../lib/file-evidence.mjs';
 import {
   inspectNpmTarball,
   readVerifiedPackageArtifactBytes,
@@ -16,7 +16,6 @@ const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   '../..',
 );
-const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 
 /** Reads a prepared cohort with the size and digest of every packed file. */
 export function readCohort(manifestPath) {
@@ -47,35 +46,58 @@ export function readCohort(manifestPath) {
   };
 }
 
+/** Records a physical package root, excluding nested dependency directories. */
+export function readInstalledPackageFiles(directory) {
+  const files = [];
+  const visit = current => {
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      if (entry.isDirectory() && entry.name === 'node_modules') continue;
+      const file = path.join(current, entry.name);
+      assert(
+        !entry.isSymbolicLink(),
+        `Installed package contains a symlink: ${file}`,
+      );
+      if (entry.isDirectory()) visit(file);
+      else {
+        assert(
+          entry.isFile(),
+          `Installed package contains a non-file: ${file}`,
+        );
+        files.push(fileEvidence(file, directory));
+      }
+    }
+  };
+  visit(directory);
+  return files.sort((left, right) => left.path.localeCompare(right.path));
+}
+
+/** Authenticates every package-owned file against its packed candidate. */
+export function verifyInstalledPackage(directory, artifact) {
+  const expected = new Map(artifact.files.map(file => [file.path, file]));
+  const files = readInstalledPackageFiles(directory);
+  for (const file of files) {
+    const packed = expected.get(file.path);
+    assert(packed, `${artifact.targetName} has an unpacked file ${file.path}`);
+    assert(
+      file.byteLength === packed.size && file.sha256 === packed.sha256,
+      `${artifact.targetName} differs from its tarball at ${file.path}`,
+    );
+    expected.delete(file.path);
+  }
+  assert(
+    expected.size === 0,
+    `${artifact.targetName} is missing ${[...expected.keys()].join(', ')}`,
+  );
+  return files;
+}
+
 function compareInstalled(directory, artifact) {
   const real = fs.realpathSync(directory);
   assert(
     !real.startsWith(`${repoRoot}${path.sep}packages${path.sep}`),
     `${artifact.targetName} is a workspace link: ${real}`,
   );
-  const expected = new Map(artifact.files.map(file => [file.path, file]));
-  const visit = current => {
-    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
-      const file = path.join(current, entry.name);
-      if (entry.isDirectory()) {
-        if (entry.name !== 'node_modules') visit(file);
-        continue;
-      }
-      const relative = path.relative(real, file).split(path.sep).join('/');
-      const packed = expected.get(relative);
-      assert(packed, `${artifact.targetName} has an unpacked file ${relative}`);
-      assert(
-        entry.isFile() && sha256(fs.readFileSync(file)) === packed.sha256,
-        `${artifact.targetName} differs from its tarball at ${relative}`,
-      );
-      expected.delete(relative);
-    }
-  };
-  visit(real);
-  assert(
-    expected.size === 0,
-    `${artifact.targetName} is missing ${[...expected.keys()].join(', ')}`,
-  );
+  verifyInstalledPackage(real, artifact);
 }
 
 /** The nearest directory at or above `start` that holds `file`. */
