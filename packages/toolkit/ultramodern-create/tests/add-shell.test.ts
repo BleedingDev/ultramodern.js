@@ -23,7 +23,11 @@ import {
   prependCommandFixturePath,
   writeNodeCommandFixture,
 } from './helpers/node-command-fixture';
-import { createWorkspace, runValidation } from './helpers/workspace-kit';
+import {
+  createWorkspace,
+  linkInstalledEffectCompiler,
+  runValidation,
+} from './helpers/workspace-kit';
 
 const createBinPath = path.resolve(__dirname, '../bin/run.js');
 const typescriptManifest = createRequire(import.meta.url).resolve(
@@ -52,6 +56,7 @@ function readJson(workspaceDir: string, relativePath: string): any {
 
 async function createBaseWorkspace(workspaceDir: string) {
   await createWorkspace(workspaceDir);
+  linkInstalledEffectCompiler(workspaceDir);
   await addUltramodernVertical({
     workspaceRoot: workspaceDir,
     name: 'catalog',
@@ -610,10 +615,13 @@ test('add-vertical targets an additional shell and rejects unknown shell ids dur
   }
 });
 
-test('workspace-wide port allocation avoids customized shell and overlay ports', async () => {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-add-shell-'));
-  const workspaceDir = path.join(tempRoot, 'workspace');
-  try {
+describe('workspace-wide port allocation', () => {
+  let tempRoot: string;
+  let workspaceDir: string;
+
+  beforeAll(async () => {
+    tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-add-shell-'));
+    workspaceDir = path.join(tempRoot, 'workspace');
     await createBaseWorkspace(workspaceDir);
 
     const overlayPath = path.join(
@@ -626,7 +634,9 @@ test('workspace-wide port allocation avoids customized shell and overlay ports',
     );
     overlay.ports.catalog = 3120;
     fs.writeFileSync(overlayPath, `${JSON.stringify(overlay, null, 2)}\n`);
+  }, 30000);
 
+  beforeAll(async () => {
     await addUltramodernShell({
       workspaceRoot: workspaceDir,
       name: 'admin',
@@ -637,6 +647,13 @@ test('workspace-wide port allocation avoids customized shell and overlay ports',
       name: 'partner',
       modernVersion: '3.2.1',
     });
+  }, 30000);
+
+  afterAll(() => {
+    if (tempRoot) fs.rmSync(tempRoot, { recursive: true, force: true });
+  });
+
+  test('additional shells avoid customized overlay ports and keep distinct ports', () => {
     const topologyAfterShell = readJson(
       workspaceDir,
       'topology/reference-topology.json',
@@ -671,23 +688,34 @@ test('workspace-wide port allocation avoids customized shell and overlay ports',
     );
     assert.ok(referencePaths.includes('apps/shell-admin'));
     assert.ok(referencePaths.includes('apps/shell-partner'));
+  });
 
+  test('a new vertical avoids customized shell ports and preserves existing allocations', async () => {
+    const verticalWorkspace = path.join(tempRoot, 'vertical-workspace');
+    fs.cpSync(workspaceDir, verticalWorkspace, {
+      recursive: true,
+      verbatimSymlinks: true,
+    });
+    const overlayAfterShell = readJson(
+      verticalWorkspace,
+      'topology/local-overlays/development.json',
+    );
     overlayAfterShell.ports['shell-admin'] = 4101;
     fs.writeFileSync(
-      overlayPath,
+      path.join(verticalWorkspace, 'topology/local-overlays/development.json'),
       `${JSON.stringify(overlayAfterShell, null, 2)}\n`,
     );
     await addUltramodernVertical({
-      workspaceRoot: workspaceDir,
+      workspaceRoot: verticalWorkspace,
       name: 'orders',
       modernVersion: '3.2.1',
     });
     const topologyAfterVertical = readJson(
-      workspaceDir,
+      verticalWorkspace,
       'topology/reference-topology.json',
     );
     const overlayAfterVertical = readJson(
-      workspaceDir,
+      verticalWorkspace,
       'topology/local-overlays/development.json',
     );
     assert.equal(overlayAfterVertical.ports.orders, 4102);
@@ -697,9 +725,7 @@ test('workspace-wide port allocation avoids customized shell and overlay ports',
     );
     assert.equal(overlayAfterVertical.ports['shell-admin'], 4101);
     assert.equal(overlayAfterVertical.ports['shell-partner'], 3122);
-  } finally {
-    fs.rmSync(tempRoot, { recursive: true, force: true });
-  }
+  });
 });
 
 test('planUltramodernShell reports the planned shell without mutating the workspace', async () => {

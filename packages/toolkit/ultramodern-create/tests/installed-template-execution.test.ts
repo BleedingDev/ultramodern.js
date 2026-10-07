@@ -300,6 +300,7 @@ async function createWorkerdEnvelopeFixture(
         surfaceProfile: 'ui-only',
         deliveryUnit: { unitId: 'test/shell' },
         verticalRefs: profile === 'api-only' ? [] : ['inventory'],
+        cloudflare: { routes: { ssr: '/en' } },
       },
       verticals: [
         {
@@ -309,6 +310,9 @@ async function createWorkerdEnvelopeFixture(
           portEnv: 'INVENTORY_PORT',
           surfaceProfile: profile,
           deliveryUnit: { unitId: 'test/inventory' },
+          ...(profile === 'api-only'
+            ? {}
+            : { cloudflare: { routes: { ssr: '/en/inventory' } } }),
         },
       ],
     };

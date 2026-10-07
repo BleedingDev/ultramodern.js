@@ -41,45 +41,38 @@ function assertGeneratedVertical(workspaceDir: string, name: string) {
   );
 }
 
-test('CLI MicroVertical flow supports positional and explicit vertical names', async () => {
-  const cases = [
-    {
-      workspace: 'vertical-cli-positional',
-      args: ['catalog', '--vertical'],
-      name: 'catalog',
-    },
-    {
-      workspace: 'vertical-cli-equals',
-      args: ['--vertical=checkout'],
-      name: 'checkout',
-    },
-    {
-      workspace: 'vertical-cli-name-flag',
-      args: ['--vertical-name', 'inventory'],
-      name: 'inventory',
-    },
-    {
-      workspace: 'vertical-cli-name-equals',
-      args: ['--vertical-name=reports'],
-      name: 'reports',
-    },
-  ];
+test.each([
+  {
+    workspace: 'vertical-cli-positional',
+    args: ['catalog', '--vertical'],
+    name: 'catalog',
+  },
+  {
+    workspace: 'vertical-cli-equals',
+    args: ['--vertical=checkout'],
+    name: 'checkout',
+  },
+  {
+    workspace: 'vertical-cli-name-flag',
+    args: ['--vertical-name', 'inventory'],
+    name: 'inventory',
+  },
+  {
+    workspace: 'vertical-cli-name-equals',
+    args: ['--vertical-name=reports'],
+    name: 'reports',
+  },
+])('CLI MicroVertical flow supports $workspace', async testCase => {
+  const { tempRoot, workspaceDir } = await createWorkspace(testCase.workspace, {
+    tempPrefix: 'um-vertical-cli-',
+  });
 
-  for (const testCase of cases) {
-    const { tempRoot, workspaceDir } = await createWorkspace(
-      testCase.workspace,
-      {
-        tempPrefix: 'um-vertical-cli-',
-      },
-    );
-
-    try {
-      const result = runCli(workspaceDir, testCase.args);
-      assert.equal(result.status, 0, result.stderr);
-      assertGeneratedVertical(workspaceDir, testCase.name);
-    } finally {
-      fs.rmSync(tempRoot, { recursive: true, force: true });
-    }
+  try {
+    const result = runCli(workspaceDir, testCase.args);
+    assert.equal(result.status, 0, result.stderr);
+    assertGeneratedVertical(workspaceDir, testCase.name);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
   }
 });
 

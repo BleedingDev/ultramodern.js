@@ -2,11 +2,14 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { readUltramodernWorkspaceInputs } from '../src/ultramodern-tooling/config';
 import {
   addUltramodernVertical,
   generateUltramodernWorkspace,
 } from '../src/ultramodern-workspace';
 import { runSyncDeliveryUnit } from '../src/ultramodern-workspace/delivery-unit-sync';
+import { captureWorkspaceRendererEvaluations } from '../src/ultramodern-workspace/renderer-config-evaluation';
+import { linkInstalledEffectCompiler } from './helpers/workspace-kit';
 
 function read(workspaceDir: string, relativePath: string) {
   return fs.readFileSync(path.join(workspaceDir, relativePath), 'utf-8');
@@ -61,6 +64,7 @@ async function scaffoldWorkspace(): Promise<{
     name: 'catalog',
     modernVersion: '3.2.1',
   });
+  linkInstalledEffectCompiler(workspaceDir);
   return { tempRoot, workspaceDir };
 }
 
@@ -102,6 +106,11 @@ test('sync-delivery-unit backfills identity blocks matching the generator', asyn
   const { tempRoot, workspaceDir } = await scaffoldWorkspace();
   try {
     stripDeliveryUnitIdentity(workspaceDir);
+    for (const appPath of ['apps/shell-super-app', 'verticals/catalog']) {
+      fs.rmSync(
+        path.join(workspaceDir, appPath, 'shared/ultramodern-build.json'),
+      );
+    }
     const stripped = JSON.parse(
       read(workspaceDir, 'topology/reference-topology.json'),
     );
@@ -109,12 +118,24 @@ test('sync-delivery-unit backfills identity blocks matching the generator', asyn
     assert.ok(
       stripped.verticals.every((app: any) => app.deliveryUnit === undefined),
     );
+    const shellApps = readUltramodernWorkspaceInputs(workspaceDir).apps.slice(
+      0,
+      1,
+    );
+    await assert.rejects(
+      () => captureWorkspaceRendererEvaluations(workspaceDir, shellApps),
+      /Package identity .* does not match topology/u,
+    );
 
     const status = await runSyncDeliveryUnit([], {
       workspaceRoot: workspaceDir,
       invocationCwd: workspaceDir,
     });
     assert.equal(status, 0);
+    assert.equal(
+      (await captureWorkspaceRendererEvaluations(workspaceDir, shellApps)).size,
+      1,
+    );
 
     // Check the repaired identity independently of generator output. This
     // catches a shared-oracle regression while keeping the public identity
@@ -165,12 +186,26 @@ test('sync-delivery-unit is idempotent and only touches topology and build recor
   const { tempRoot, workspaceDir } = await scaffoldWorkspace();
   try {
     stripDeliveryUnitIdentity(workspaceDir);
+    const beforeFirst = snapshotAllFiles(workspaceDir);
 
     await runSyncDeliveryUnit([], {
       workspaceRoot: workspaceDir,
       invocationCwd: workspaceDir,
     });
     const afterFirst = snapshotAllFiles(workspaceDir);
+    const allowedChanges = new Set([
+      'topology/reference-topology.json',
+      'apps/shell-super-app/shared/ultramodern-build.ts',
+      'apps/shell-super-app/shared/ultramodern-build.json',
+      'verticals/catalog/shared/ultramodern-build.ts',
+      'verticals/catalog/shared/ultramodern-build.json',
+    ]);
+    assert.deepEqual([...afterFirst.keys()], [...beforeFirst.keys()]);
+    for (const [relativePath, content] of afterFirst) {
+      if (content !== beforeFirst.get(relativePath)) {
+        assert.ok(allowedChanges.has(relativePath), relativePath);
+      }
+    }
 
     // Second run: no writes at all.
     const status = await runSyncDeliveryUnit([], {
@@ -196,6 +231,11 @@ test('sync-delivery-unit follows an authored app package version and remains ide
       previousTopology.verticals[0].deliveryUnit.buildMarker;
     manifest.version = '0.2.0';
     writeJson(workspaceDir, manifestPath, manifest);
+    const catalogApps = readUltramodernWorkspaceInputs(workspaceDir).verticals;
+    await assert.rejects(
+      () => captureWorkspaceRendererEvaluations(workspaceDir, catalogApps),
+      /Delivery unit version .* does not match package\.json/u,
+    );
 
     assert.equal(
       await runSyncDeliveryUnit([], {
@@ -220,6 +260,11 @@ test('sync-delivery-unit follows an authored app package version and remains ide
       build.deliveryUnit.buildMarker,
       catalog.deliveryUnit.buildMarker,
     );
+    assert.equal(
+      (await captureWorkspaceRendererEvaluations(workspaceDir, catalogApps))
+        .size,
+      1,
+    );
 
     const afterFirst = snapshotAllFiles(workspaceDir);
     assert.equal(
@@ -230,6 +275,83 @@ test('sync-delivery-unit follows an authored app package version and remains ide
       0,
     );
     assert.deepEqual(snapshotAllFiles(workspaceDir), afterFirst);
+  } finally {
+    fs.rmSync(tempRoot, { force: true, recursive: true });
+  }
+});
+
+test('sync-delivery-unit leaves authored manifests and configs untouched on failure', async () => {
+  const { tempRoot, workspaceDir } = await scaffoldWorkspace();
+  try {
+    stripDeliveryUnitIdentity(workspaceDir);
+    const manifestPath = 'verticals/catalog/package.json';
+    const manifest = JSON.parse(read(workspaceDir, manifestPath));
+    const configPath = 'verticals/catalog/modern.config.ts';
+    const topologyPath = 'topology/reference-topology.json';
+    const foreignTopology = JSON.parse(read(workspaceDir, topologyPath));
+    foreignTopology.verticals[0].package = '@foreign/catalog';
+    const foreignManifest = JSON.stringify({
+      ...manifest,
+      name: '@foreign/catalog',
+    });
+    const failures: { files: Record<string, string>; expected: RegExp }[] = [
+      {
+        files: { [manifestPath]: foreignManifest },
+        expected: /package identity disagrees/u,
+      },
+      {
+        files: {
+          [manifestPath]: foreignManifest,
+          [topologyPath]: JSON.stringify(foreignTopology),
+        },
+        expected: /delivery-unit package identity disagrees/u,
+      },
+      {
+        files: {
+          [manifestPath]: JSON.stringify({ ...manifest, version: ' ' }),
+        },
+        expected: /requires a package version/u,
+      },
+      {
+        files: {
+          [configPath]: `import { defineConfig, presetUltramodernWorkspace } from '@modern-js/ultramodern-app-tools';
+export default defineConfig(presetUltramodernWorkspace(
+  { renderer: 'solid' },
+  { appId: 'catalog', from: import.meta.url },
+));
+`,
+        },
+        expected: /Renderer for catalog does not match topology/u,
+      },
+      {
+        files: {
+          [configPath]: `${read(workspaceDir, configPath)}\nthrow new Error('authored config rejected');\n`,
+        },
+        expected: /authored config rejected/u,
+      },
+    ];
+    for (const { files, expected } of failures) {
+      const originals = new Map<string, string>();
+      for (const [relativePath, content] of Object.entries(files)) {
+        originals.set(relativePath, read(workspaceDir, relativePath));
+        fs.writeFileSync(path.join(workspaceDir, relativePath), content);
+      }
+      const before = snapshotAllFiles(workspaceDir);
+      const beforeSiblings = fs.readdirSync(tempRoot);
+      await assert.rejects(
+        () =>
+          runSyncDeliveryUnit([], {
+            workspaceRoot: workspaceDir,
+            invocationCwd: workspaceDir,
+          }),
+        expected,
+      );
+      assert.deepEqual(snapshotAllFiles(workspaceDir), before);
+      assert.deepEqual(fs.readdirSync(tempRoot), beforeSiblings);
+      for (const [relativePath, content] of originals) {
+        fs.writeFileSync(path.join(workspaceDir, relativePath), content);
+      }
+    }
   } finally {
     fs.rmSync(tempRoot, { force: true, recursive: true });
   }
@@ -263,6 +385,26 @@ test('sync-delivery-unit recaptures a native shell whose config drops the genera
 
 export default defineConfig({ renderer: 'solid', server: { ssr: true } });
 `,
+    );
+    const initialTopology = JSON.parse(
+      read(workspaceDir, 'topology/reference-topology.json'),
+    );
+    // Reconciliation must work when renderer projections need backfilling too.
+    for (const field of [
+      'renderer',
+      'rendererIdentity',
+      'rendererIdentities',
+      'rendererProfile',
+      'rendererGenerationProfile',
+      'routerBindings',
+      'rendererCapabilities',
+    ]) {
+      delete initialTopology.shell[field];
+    }
+    writeJson(
+      workspaceDir,
+      'topology/reference-topology.json',
+      initialTopology,
     );
 
     assert.equal(

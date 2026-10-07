@@ -11,12 +11,21 @@ const require = createRequire(import.meta.url);
 // Use the same public, built package entry that the shipped Node script loads.
 const contracts: typeof import('@modern-js/backend-federation-contracts') =
   require('@modern-js/backend-federation-contracts');
-const contractsPackageRoot = fs.realpathSync(
-  path.resolve(__dirname, '../../backend-federation-contracts'),
+const consumerPackageRoots = {
+  '@modern-js/backend-federation-contracts': fs.realpathSync(
+    path.resolve(__dirname, '../../backend-federation-contracts'),
+  ),
+  '@modern-js/bff-effect': fs.realpathSync(
+    path.resolve(__dirname, '../../../server/bff-effect'),
+  ),
+};
+const consumerDependencies = Object.fromEntries(
+  Object.entries(consumerPackageRoots).map(([name, packageRoot]) => [
+    name,
+    JSON.parse(fs.readFileSync(path.join(packageRoot, 'package.json'), 'utf8'))
+      .version,
+  ]),
 );
-const contractsPackageVersion = JSON.parse(
-  fs.readFileSync(path.join(contractsPackageRoot, 'package.json'), 'utf8'),
-).version;
 const generatorScript = path.resolve(
   __dirname,
   '../templates/workspace-scripts/generate-node-backend-federation.mjs',
@@ -88,17 +97,17 @@ function createFixture(
     writeJson('verticals/catalog/package.json', {
       name: record.packageName,
       version: record.version,
-      dependencies: {
-        '@modern-js/backend-federation-contracts': contractsPackageVersion,
-      },
+      dependencies: consumerDependencies,
     });
     const installedScope = path.join(appRoot, 'node_modules/@modern-js');
     fs.mkdirSync(installedScope, { recursive: true });
-    fs.symlinkSync(
-      contractsPackageRoot,
-      path.join(installedScope, 'backend-federation-contracts'),
-      process.platform === 'win32' ? 'junction' : 'dir',
-    );
+    for (const [name, packageRoot] of Object.entries(consumerPackageRoots)) {
+      fs.symlinkSync(
+        packageRoot,
+        path.join(appRoot, 'node_modules', name),
+        process.platform === 'win32' ? 'junction' : 'dir',
+      );
+    }
     writeJson('verticals/catalog/shared/ultramodern-build.json', artifact);
     writeJson('topology/reference-topology.json', {
       schemaVersion: 1,

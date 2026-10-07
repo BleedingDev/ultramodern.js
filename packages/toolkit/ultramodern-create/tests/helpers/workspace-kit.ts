@@ -22,6 +22,20 @@ export function linkInstalledCompiler(workspaceDir: string) {
   }
 }
 
+export function linkInstalledEffectCompiler(workspaceDir: string) {
+  for (const name of ['typescript', '@effect/tsgo']) {
+    const compilerPath = path.join(workspaceDir, 'node_modules', name);
+    if (!fs.existsSync(compilerPath)) {
+      fs.mkdirSync(path.dirname(compilerPath), { recursive: true });
+      fs.symlinkSync(
+        path.dirname(require.resolve(`${name}/package.json`)),
+        compilerPath,
+        process.platform === 'win32' ? 'junction' : 'dir',
+      );
+    }
+  }
+}
+
 export function runValidation(workspaceDir: string) {
   return spawnSync(
     process.execPath,
