@@ -16,7 +16,7 @@ const require = createRequire(path.join(root, 'package.json'));
 const privateManifest = JSON.parse(
   fs.readFileSync(path.join(root, 'package.json'), 'utf8'),
 );
-const maintainedVersion = '0.7.1+ultramodern.f75bf12ac8be';
+const maintainedVersion = '0.7.1+ultramodern.1331985ea3b0';
 const maintainedAdmission =
   privateManifest.ultramodernAdmission?.nativeArtifact !== undefined;
 const nativeDeclarationHashes = {
@@ -359,12 +359,12 @@ async function maintainedTypeInterop(inspection, typeFiles) {
   assert.equal(admission.nativeArtifact.version, maintainedVersion);
   assert.equal(
     admission.nativeArtifact.sha256,
-    '485b62884e9e85621ad9d58347fed22dc66a628a9a7ec5f1c4cd5c7a86643137',
+    '363a3f81fa82665ccaa61bf14669209dbd87bb8955b5055e73e1d825e5a8f141',
     'Audited maintained native runtime artifact',
   );
   assert.equal(
     admission.nativeArtifact.provenanceSha256,
-    '623a5d9962b9011de0dcc06e5e31001f17a535be5b1e240a346e59fb51e9d4d1',
+    '6db01750e3abd612ba4f0d7346a1f003512b8fc806db5cf494c003dd9a1588eb',
     'Audited maintained native runtime provenance',
   );
   if (admission.nativeRouterArtifact) {
@@ -374,16 +374,16 @@ async function maintainedTypeInterop(inspection, typeFiles) {
     );
     assert.equal(
       admission.nativeRouterArtifact.version,
-      '0.1.60+ultramodern.6c31d4be4768',
+      '0.1.60+ultramodern.0b9f76ee3003',
     );
     assert.equal(
       admission.nativeRouterArtifact.sha256,
-      'a153fc802498dcd20034fc4a9596288e69d7ba0155e02e339e900a8c05ca27eb',
+      '0debe9e9bcf0d99e91d24b34b9d1a821d8b953167555ae7f7a494495e628377d',
       'Audited maintained native router artifact',
     );
     assert.equal(
       admission.nativeRouterArtifact.provenanceSha256,
-      '11a770099ece430b3cf0de92d7b9f2b43cb20394314e2bbd8e7b38c62e1ada89',
+      '21f7c3d902ca2a27dd18d0ec92c5dad986f8419300c54f02929d3458d82306ee',
       'Audited maintained native router provenance',
     );
   }
