@@ -233,6 +233,27 @@ function renderTree(state: State) {
 function observeNativeSource(source: ReadableStream<Uint8Array>, state: State, ownsCleanup: boolean): ReadableStream<Uint8Array> {
   const reader = source.getReader();
   let consumerCancelled = false;
+  let settled = false;
+  const release = () => {
+    if (settled) return;
+    settled = true;
+    if (ownsCleanup) state.request.signal.removeEventListener('abort', aborted);
+    try { reader.releaseLock(); }
+    finally { if (ownsCleanup) state.cleanup(); }
+  };
+  const cancelSource = async (reason: unknown) => {
+    if (consumerCancelled || settled) return;
+    consumerCancelled = true;
+    state.observation.sourceCancels += 1;
+    event(state.observation, 'source-cancel', String(reason));
+    state.cancelProducer(reason);
+    try { await reader.cancel(reason); }
+    finally { release(); }
+  };
+  // workerd stops reading, but does not cancel, the body of a response whose
+  // client disconnected. A fetch export that owns its stream releases it.
+  const aborted = () => { void cancelSource(state.request.signal.reason); };
+  if (ownsCleanup) state.request.signal.addEventListener('abort', aborted, { once: true });
   return new ReadableStream<Uint8Array>({
     async pull(controller) {
       let chunk: ReadableStreamReadResult<Uint8Array>;
@@ -243,10 +264,7 @@ function observeNativeSource(source: ReadableStream<Uint8Array>, state: State, o
         event(state.observation, 'source-error', String(error));
         if (consumerCancelled) return;
         try { controller.error(error); }
-        finally {
-          try { reader.releaseLock(); }
-          finally { if (ownsCleanup) state.cleanup(); }
-        }
+        finally { release(); }
         return;
       }
       if (consumerCancelled) {
@@ -257,25 +275,12 @@ function observeNativeSource(source: ReadableStream<Uint8Array>, state: State, o
         state.observation.sourceCompletions += 1;
         event(state.observation, 'source-complete');
         try { controller.close(); }
-        finally {
-          try { reader.releaseLock(); }
-          finally { if (ownsCleanup) state.cleanup(); }
-        }
+        finally { release(); }
       } else {
         controller.enqueue(chunk.value);
       }
     },
-    async cancel(reason) {
-      consumerCancelled = true;
-      state.observation.sourceCancels += 1;
-      event(state.observation, 'source-cancel', String(reason));
-      state.cancelProducer(reason);
-      try { await reader.cancel(reason); }
-      finally {
-        try { reader.releaseLock(); }
-        finally { if (ownsCleanup) state.cleanup(); }
-      }
-    },
+    cancel: cancelSource,
   }, { highWaterMark: 0 });
 }
 function nativeResponse(body: ReadableStream<Uint8Array>, state: State): Response {
