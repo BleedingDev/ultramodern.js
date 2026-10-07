@@ -9,7 +9,8 @@
 //       [--renderers react,solid,octane] [--with worker,rsc,mf]
 //       [--tractor-source <tractor demo checkout>]
 //
-// For each renderer: generate a workspace with the packed create CLI, put the
+// For each renderer: generate a workspace with the packed create CLI,
+// (Solid, Octane) build and serve its untouched starter, put the
 // tests/integration/renderer-<r> app into its shell, install from a local
 // registry under the strict release-age policy, check the installed cohort is
 // the packed bytes, typecheck, and run the specs (for Solid and Octane they
@@ -21,6 +22,7 @@
 import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
+import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -208,6 +210,70 @@ function installedBin(appRoot) {
   return path.join(packageRoot, bin.ultramodern);
 }
 
+/** A free local port. */
+function freePort() {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const { port } = server.address();
+      server.close(() => resolve(port));
+    });
+  });
+}
+
+/**
+ * Builds and serves the generated app before the fixture replaces it: the
+ * untouched starter must build, and its server must answer / with the
+ * renderer's own markup.
+ */
+async function checkStarter(appRoot, renderer, env) {
+  const bin = installedBin(appRoot);
+  await sh(process.execPath, [bin, 'build'], {
+    cwd: appRoot,
+    env: { ...env, NODE_ENV: 'production' },
+    log: `${renderer}-starter-build`,
+  });
+  const port = await freePort();
+  const out = fs.openSync(
+    path.join(logs, `${renderer}-starter-serve.log`),
+    'w',
+  );
+  const server = spawn(process.execPath, [bin, 'serve'], {
+    cwd: appRoot,
+    env: { ...env, NODE_ENV: 'production', PORT: String(port) },
+    stdio: ['ignore', out, out],
+  });
+  fs.closeSync(out);
+  children.add(server);
+  try {
+    const deadline = Date.now() + 60_000;
+    let response;
+    while (!response) {
+      if (server.exitCode !== null)
+        throw new Error(`serve exited ${server.exitCode}`);
+      response = await fetch(`http://127.0.0.1:${port}/`, {
+        headers: { accept: 'text/html' },
+      }).catch(() => undefined);
+      if (!response) {
+        if (Date.now() > deadline) throw new Error('serve did not start');
+        await new Promise(resolve => setTimeout(resolve, 250));
+      }
+    }
+    const html = await response.text();
+    if (response.status !== 200)
+      throw new Error(`GET / answered ${response.status}`);
+    for (const marker of [
+      `data-renderer="${renderer}"`,
+      'data-testid="native-route"',
+    ])
+      if (!html.includes(marker)) throw new Error(`GET / lacks ${marker}`);
+  } finally {
+    server.kill('SIGTERM');
+    children.delete(server);
+  }
+}
+
 /** Chrome for the runners: --browser-executable, then puppeteer's own. */
 function browserExecutable() {
   if (opts['browser-executable'])
@@ -342,9 +408,26 @@ async function main() {
             path.join(workspace, 'topology/reference-topology.json'),
           );
           appRoot = path.join(workspace, topology.shell.path);
-          overlayFixture(appRoot, renderer, release);
         },
         Boolean(createBin),
+      );
+      if (renderer !== 'react')
+        ready = await step(
+          `${renderer} starter`,
+          async () => {
+            await sh('pnpm', ['install'], {
+              cwd: workspace,
+              env,
+              log: `${renderer}-starter-install`,
+            });
+            await checkStarter(appRoot, renderer, env);
+          },
+          ready,
+        );
+      ready = await step(
+        `${renderer} overlay`,
+        async () => overlayFixture(appRoot, renderer, release),
+        ready,
       );
       ready = await step(
         `${renderer} install`,
