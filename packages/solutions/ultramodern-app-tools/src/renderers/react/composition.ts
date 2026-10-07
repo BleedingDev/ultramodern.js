@@ -16,22 +16,22 @@ import {
 } from '@modern-js/app-tools-extensions/runtime-package-resolution';
 import { ultramodernI18nIntegrationPlugin } from '@modern-js/i18n-integration';
 import { runtimePlugin } from '@modern-js/runtime/cli';
+import { createRendererModuleFederationIntegration } from '../../native-composition/module-federation-renderer-plugin';
+import { nativeEntryCommandPlugin } from '../../native-composition/native-entry-command';
+import { ultramodernReleaseEnvelopePlugin } from '../../native-composition/release-envelope-plugin';
+import { createRendererBuildOutputResolver } from '../../native-composition/renderer-build-output';
+import { createRendererBuildIdentityResolver } from '../../native-composition/renderer-build-resolution';
+import { rendererSelectionGuard } from '../../native-composition/renderer-selection';
+import { resolveSdkServerPlugin } from '../../native-composition/server-plugin-resolution';
+import { rendererTypeCheckerPlugin } from '../../native-composition/type-checker';
+import { reactRendererBuildMetadataPlugin } from './build-metadata';
 import { ultramodernModuleFederationRecoveryPlugin } from './module-federation-recovery-plugin';
-import { createReactModuleFederationRendererIntegration } from './module-federation-renderer-plugin';
-import { nativeEntryCommandPlugin } from './native-entry-command';
-import { reactRendererBuildMetadataPlugin } from './react-build-metadata';
-import { createReactRscWorkerIntegrationPlugin } from './react-rsc-worker-integration';
-import { ultramodernReleaseEnvelopePlugin } from './release-envelope-plugin';
-import { createRendererBuildOutputResolver } from './renderer-build-output';
-import { createRendererBuildIdentityResolver } from './renderer-build-resolution';
-import { rendererSelectionGuard } from './renderer-selection';
 import { ultramodernRouterIntegrationPlugin } from './router-integration-plugin';
 import { rscDisabledRuntimePlugin } from './rsc-disabled-plugin';
-import { resolveSdkServerPlugin } from './server-plugin-resolution';
+import { createReactRscWorkerIntegrationPlugin } from './rsc-worker-integration';
 import { ultramodernSSRIntegrationPlugin } from './ssr-integration-plugin';
-import { rendererTypeCheckerPlugin } from './type-checker';
 
-export type { ReactCLIElement } from './react-types';
+export type { ReactCLIElement } from './types';
 
 /** A portable application import of this exact SDK owner's public server export. */
 export function resolveReactServerPlugin(
@@ -76,7 +76,7 @@ export const composeReactRenderer = (
   options: { consumerPlugins?: readonly CliPlugin<AppTools>[] } = {},
 ): CliPlugin<AppTools> => {
   const policy = options.policy ?? {};
-  const federationRenderer = createReactModuleFederationRendererIntegration();
+  const federationRenderer = createRendererModuleFederationIntegration('react');
   const selected = [
     nativeEntryCommandPlugin(),
     appTools(),

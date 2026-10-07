@@ -4,7 +4,7 @@ import path from 'node:path';
 import type { Entrypoint } from '@modern-js/types/cli/base';
 import { describe, expect, it } from '@rstest/core';
 import { validateRendererRouterBindings } from '../../../../toolkit/backend-federation-contracts/src/backend-federation-contract';
-import { resolveReactRouterBindings } from '../../src/native-composition/react-router-bindings';
+import { resolveReactRouterBindings } from '../../src/renderers/react/router-bindings';
 
 const legacy = '@modern-js/plugin-router';
 const tanstack = '@modern-js/plugin-tanstack';

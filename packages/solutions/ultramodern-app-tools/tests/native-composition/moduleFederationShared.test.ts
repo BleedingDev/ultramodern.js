@@ -17,7 +17,7 @@ import {
   withFrameworkShared,
   withReactJsxRuntimeShared,
   withRuntimePlugin,
-} from '../../src/native-composition/module-federation-shared-plugin';
+} from '../../src/renderers/react/module-federation-shared-plugin';
 
 /** An app directory that installs only `@modern-js/runtime` at 9.9.9. */
 const createAppDirectory = () => {

@@ -36,18 +36,18 @@ import {
   RENDERER_DEVELOPMENT_DIRECTORY,
 } from '../../src/native-composition/native-build-manifest';
 import {
-  REACT_RENDERER_IDENTITY_ELEMENT_ID,
-  type ReactBuildMetadataOptions,
-  reactRendererBuildMetadataPlugin,
-} from '../../src/native-composition/react-build-metadata';
-import reactBuildMetadataServerPlugin, {
-  REACT_RENDERER_IDENTITY_HEADER,
-} from '../../src/native-composition/react-build-metadata-server';
-import { composeReactRenderer } from '../../src/native-composition/react-composition';
-import {
   resolveCandidateRendererProfile,
   resolveRendererProfile,
 } from '../../src/native-composition/renderer-profile';
+import {
+  REACT_RENDERER_IDENTITY_ELEMENT_ID,
+  type ReactBuildMetadataOptions,
+  reactRendererBuildMetadataPlugin,
+} from '../../src/renderers/react/build-metadata';
+import reactBuildMetadataServerPlugin, {
+  REACT_RENDERER_IDENTITY_HEADER,
+} from '../../src/renderers/react/build-metadata-server';
+import { composeReactRenderer } from '../../src/renderers/react/composition';
 
 const fixtureRoots: string[] = [];
 
@@ -509,7 +509,7 @@ describe('React metadata in the existing CLI build hooks', () => {
       .getHooks()
       ._internalServerPlugins.call({ plugins: [] });
     const metadata = plugins.find(plugin =>
-      plugin.name.endsWith('react-build-metadata-server.js'),
+      plugin.name.endsWith('renderers/react/build-metadata-server.js'),
     )!;
     const serialized = JSON.parse(JSON.stringify(metadata.options));
     expect(serialized).toEqual({ entries: manifest.entries });

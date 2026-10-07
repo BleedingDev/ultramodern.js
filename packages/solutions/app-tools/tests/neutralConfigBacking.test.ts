@@ -366,41 +366,47 @@ void nativeBasic; void nativeHooks;
 `;
 
 describe('canonical app-tools neutral source backing', () => {
-  it.each(
-    compilers,
-  )('preserves all legacy config, plugin, API, context and hook structures with $name', compiler => {
-    checkSourceContract(compiler, structuralParity, true);
-  }, 40_000);
+  it.each(compilers)(
+    'preserves all legacy config, plugin, API, context and hook structures with $name',
+    compiler => {
+      checkSourceContract(compiler, structuralParity, true);
+    },
+    40_000,
+  );
 
-  it.each(
-    compilers,
-  )('preserves open legacy and recursive route augmentations with $name', compiler => {
-    checkSourceContract(compiler, legacyAugmentation, true);
-  }, 40_000);
+  it.each(compilers)(
+    'preserves open legacy and recursive route augmentations with $name',
+    compiler => {
+      checkSourceContract(compiler, legacyAugmentation, true);
+    },
+    40_000,
+  );
 
-  it.each(
-    compilers,
-  )('keeps neutral metadata renderer-free in its own $name source program', compiler => {
-    const graph = checkSourceContract(compiler, neutralMetadata, false);
-    expect(graph.some(file => file.endsWith('/src/types/config/base.ts'))).toBe(
-      true,
-    );
-    expect(graph.some(file => file.endsWith('/src/types/plugin-base.ts'))).toBe(
-      true,
-    );
-    const legacyCli = fs
-      .realpathSync(requireFromTest.resolve('@modern-js/types/cli'))
-      .replaceAll('\\', '/');
-    expect(
-      graph.filter(
-        file =>
-          file.endsWith('/src/native-composition/react-composition.ts') ||
-          file === legacyCli ||
-          /(?:\/@types\/react(?:-dom)?\/|\/react(?:-dom)?\/.*\.d\.[cm]?ts$)/u.test(
-            file,
-          ),
-      ),
-      'React declarations or legacy React routes in the neutral source program',
-    ).toEqual([]);
-  }, 40_000);
+  it.each(compilers)(
+    'keeps neutral metadata renderer-free in its own $name source program',
+    compiler => {
+      const graph = checkSourceContract(compiler, neutralMetadata, false);
+      expect(
+        graph.some(file => file.endsWith('/src/types/config/base.ts')),
+      ).toBe(true);
+      expect(
+        graph.some(file => file.endsWith('/src/types/plugin-base.ts')),
+      ).toBe(true);
+      const legacyCli = fs
+        .realpathSync(requireFromTest.resolve('@modern-js/types/cli'))
+        .replaceAll('\\', '/');
+      expect(
+        graph.filter(
+          file =>
+            file.endsWith('/src/renderers/react/composition.ts') ||
+            file === legacyCli ||
+            /(?:\/@types\/react(?:-dom)?\/|\/react(?:-dom)?\/.*\.d\.[cm]?ts$)/u.test(
+              file,
+            ),
+        ),
+        'React declarations or legacy React routes in the neutral source program',
+      ).toEqual([]);
+    },
+    40_000,
+  );
 });

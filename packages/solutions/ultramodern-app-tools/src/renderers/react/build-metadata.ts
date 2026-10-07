@@ -15,20 +15,20 @@ import type {
 import { escapeInlineDataJSON } from '@modern-js/renderer-core/data';
 import { getArgv } from '@modern-js/utils';
 import { type RsbuildPlugin, rspack } from '@rsbuild/core';
-import { reactRendererAdapter } from '../renderers/react/adapter';
-import { isEntryMetadataRead } from './config-read-context';
+import { isEntryMetadataRead } from '../../native-composition/config-read-context';
 import {
   createRendererBuildManifest,
   readRendererBuildManifest,
   rendererBuildCachePerformance,
   writeRendererBuildManifest,
-} from './native-build-manifest';
-import type { NativeInfrastructureOptions } from './native-infrastructure';
-import { isUltramodernReleaseIdentityBannerPlugin } from './preset';
+} from '../../native-composition/native-build-manifest';
+import type { NativeInfrastructureOptions } from '../../native-composition/native-infrastructure';
+import { isUltramodernReleaseIdentityBannerPlugin } from '../../native-composition/preset';
 import {
   resolveRendererProfile,
   resolveRendererRouterFrameworks,
-} from './renderer-profile';
+} from '../../native-composition/renderer-profile';
+import { reactRendererAdapter } from './adapter';
 
 export const REACT_RENDERER_IDENTITY_ELEMENT_ID =
   'ultramodern-renderer-identity';

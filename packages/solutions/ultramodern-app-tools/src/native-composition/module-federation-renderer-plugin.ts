@@ -13,6 +13,7 @@ import {
 } from '@modern-js/federation-runtime/renderer-contract';
 import type { Renderer } from '@modern-js/renderer-core';
 import type { Rspack } from '@rsbuild/core';
+import { resolveReactFederationCompatibility } from '../renderers/react/module-federation';
 import { readRendererFrameworkPackage } from './renderer-installed-profile';
 import { resolveRendererProfileMetadata } from './renderer-profile';
 import { resolveRendererAdapter } from './renderer-registration';
@@ -47,32 +48,6 @@ function nativeManifestAssetNames(manifest: Record<string, unknown>): string[] {
   return [manifestName, statsName].map(name =>
     path.posix.join(filePath.replace(/\\/gu, '/'), name),
   );
-}
-
-export function resolveReactFederationCompatibility(): RendererFederationCompatibility {
-  const metadata = resolveRendererProfileMetadata('react');
-  const runtimeFile = createRequire(import.meta.url).resolve(
-    '@modern-js/runtime/cli',
-  );
-  const runtimeRequire = createRequire(runtimeFile);
-  const runtime = readRendererFrameworkPackage({
-    specifier: 'react',
-    filename: runtimeRequire.resolve('react'),
-  });
-  const bootstrap = metadata.frameworkPackages.find(
-    owner => owner.specifier === '@modern-js/runtime',
-  );
-  if (!bootstrap)
-    throw rendererFederationError(
-      'the installed React bootstrap owner is absent.',
-    );
-  const { renderer, protocolVersion, compiler, hydration, router } =
-    metadata.profile;
-  return readRendererFederationCompatibility({
-    profile: { renderer, protocolVersion, compiler, hydration, router },
-    runtime: { name: runtime.name, version: runtime.version },
-    bootstrap: { name: bootstrap.name, version: bootstrap.version },
-  });
 }
 
 export function resolveRendererFederationRuntimePlugin(
@@ -111,16 +86,6 @@ export function resolveRendererFederationCompatibility(
     runtime: { name: runtime.name, version: runtime.version },
     bootstrap: { name: bootstrap.name, version: bootstrap.version },
   });
-}
-
-/** Publish completed authority through native MF, without awaiting afterEmit from processAssets. */
-export function createReactModuleFederationRendererIntegration(
-  options: {
-    resolveCompatibility?: () => RendererFederationCompatibility;
-    resolveRuntimePlugin?: () => string;
-  } = {},
-) {
-  return createRendererModuleFederationIntegration('react', options);
 }
 
 /** Stamp and gate MF publications for the selected renderer tuple. */

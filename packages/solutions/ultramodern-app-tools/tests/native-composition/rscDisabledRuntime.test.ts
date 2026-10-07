@@ -8,7 +8,7 @@ import type { RsbuildPlugin } from '@rsbuild/core';
 import { expect, it } from '@rstest/core';
 import { type BuilderConfig, createBuilder } from '../../../../cli/builder/src';
 import { ultramodernAppTools } from '../../src/native-composition';
-import { rscDisabledRuntimePlugin } from '../../src/native-composition/rsc-disabled-plugin';
+import { rscDisabledRuntimePlugin } from '../../src/renderers/react/rsc-disabled-plugin';
 
 type ComposerConfig = Omit<AppUserConfig, 'server'> &
   Pick<BuilderConfig, 'server'>;

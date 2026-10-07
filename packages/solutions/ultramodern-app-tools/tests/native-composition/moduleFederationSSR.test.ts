@@ -1,6 +1,6 @@
 import { createRsbuild, type RsbuildPlugin } from '@rsbuild/core';
 import ssrPlugin from '../../../../runtime/plugin-runtime/src/cli/ssr';
-import { ultramodernSSRIntegrationPlugin } from '../../src/native-composition/ssr-integration-plugin';
+import { ultramodernSSRIntegrationPlugin } from '../../src/renderers/react/ssr-integration-plugin';
 
 type PlainObject = Record<string, any>;
 

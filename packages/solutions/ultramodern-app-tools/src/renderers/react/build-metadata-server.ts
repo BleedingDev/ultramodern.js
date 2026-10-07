@@ -13,11 +13,11 @@ import { MAIN_ENTRY_NAME } from '@modern-js/utils/universal/constants';
 import {
   RENDERER_BUILD_MANIFEST_FILE,
   readRendererBuildManifest,
-} from './native-build-manifest';
+} from '../../native-composition/native-build-manifest';
 import {
   resolveRendererProfile,
   resolveRendererRouterFrameworks,
-} from './renderer-profile';
+} from '../../native-composition/renderer-profile';
 
 export const REACT_RENDERER_IDENTITY_HEADER = RENDERER_IDENTITY_HEADER;
 

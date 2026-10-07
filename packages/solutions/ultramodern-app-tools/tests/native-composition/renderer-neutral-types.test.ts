@@ -405,94 +405,102 @@ void defaultReact; void explicitReact; void callbackReact;
 `;
 
 describe('installed renderer-neutral public declarations', () => {
-  it.each(
-    consumers,
-  )('keeps native root, CLI, and Rsbuild consumers renderer-free with $name $extension', consumer => {
-    const graph = checkInstalledDeclarations(consumer, neutralConsumer);
-    expect(
-      graph.filter(
-        file =>
-          file.includes('/node_modules/@types/react/') ||
-          file.includes('/node_modules/react/') ||
-          file.endsWith('/packages/toolkit/types/cli/index.d.ts') ||
-          file.includes('/packages/toolkit/plugin/dist/types/runtime/') ||
-          file.includes('/packages/toolkit/plugin/dist/types/types/runtime/') ||
-          file.includes('/native-composition/react-composition.d.') ||
-          file.includes('/native-composition/react-types.d.') ||
-          (file.includes('ultramodern-app-tools') &&
-            file.endsWith('/lib/react-types.d.ts')),
-      ),
-    ).toEqual([]);
-    expect(
-      graph.some(file =>
-        file.endsWith('/app-tools/dist/types/types/config/base.d.ts'),
-      ),
-    ).toBe(true);
-  }, 60_000);
+  it.each(consumers)(
+    'keeps native root, CLI, and Rsbuild consumers renderer-free with $name $extension',
+    consumer => {
+      const graph = checkInstalledDeclarations(consumer, neutralConsumer);
+      expect(
+        graph.filter(
+          file =>
+            file.includes('/node_modules/@types/react/') ||
+            file.includes('/node_modules/react/') ||
+            file.endsWith('/packages/toolkit/types/cli/index.d.ts') ||
+            file.includes('/packages/toolkit/plugin/dist/types/runtime/') ||
+            file.includes(
+              '/packages/toolkit/plugin/dist/types/types/runtime/',
+            ) ||
+            file.includes('/renderers/react/composition.d.') ||
+            file.includes('/renderers/react/types.d.') ||
+            (file.includes('ultramodern-app-tools') &&
+              file.endsWith('/lib/react-types.d.ts')),
+        ),
+      ).toEqual([]);
+      expect(
+        graph.some(file =>
+          file.endsWith('/app-tools/dist/types/types/config/base.d.ts'),
+        ),
+      ).toBe(true);
+    },
+    60_000,
+  );
 
-  it.each(
-    consumers,
-  )('admits React route elements through its owned opt-in with $name $extension', consumer => {
-    const graph = checkInstalledDeclarations(consumer, reactConsumer, {
-      react: true,
-    });
-    expect(
-      graph.some(file =>
-        file.endsWith('/native-composition/react-composition.d.ts'),
-      ),
-    ).toBe(true);
-    expect(
-      graph.some(file => file.includes('/node_modules/@types/react/')),
-    ).toBe(true);
-  }, 60_000);
+  it.each(consumers)(
+    'admits React route elements through its owned opt-in with $name $extension',
+    consumer => {
+      const graph = checkInstalledDeclarations(consumer, reactConsumer, {
+        react: true,
+      });
+      expect(
+        graph.some(file => file.endsWith('/renderers/react/composition.d.ts')),
+      ).toBe(true);
+      expect(
+        graph.some(file => file.includes('/node_modules/@types/react/')),
+      ).toBe(true);
+    },
+    60_000,
+  );
 
-  it.each(
-    consumers,
-  )('admits the public TanStack plugin in React config with $name $extension', consumer => {
-    const graph = checkInstalledDeclarations(consumer, tanstackReactConsumer, {
-      react: true,
-      tanstack: true,
-    });
-    expect(
-      graph.some(file =>
-        file.endsWith('/plugin-tanstack/dist/types/cli/index.d.ts'),
-      ),
-    ).toBe(true);
-    expect(
-      graph.filter(file =>
-        file.includes('/native-composition/react-composition.d.'),
-      ),
-    ).toEqual([]);
-  }, 60_000);
+  it.each(consumers)(
+    'admits the public TanStack plugin in React config with $name $extension',
+    consumer => {
+      const graph = checkInstalledDeclarations(
+        consumer,
+        tanstackReactConsumer,
+        {
+          react: true,
+          tanstack: true,
+        },
+      );
+      expect(
+        graph.some(file =>
+          file.endsWith('/plugin-tanstack/dist/types/cli/index.d.ts'),
+        ),
+      ).toBe(true);
+      expect(
+        graph.filter(file => file.includes('/renderers/react/composition.d.')),
+      ).toEqual([]);
+    },
+    60_000,
+  );
 
-  it.each(
-    consumers,
-  )('admits the native React plugin ABI through only the selected React environment with $name $extension', consumer => {
-    const graph = checkInstalledDeclarations(
-      consumer,
-      nativeReactPluginConsumer,
-      { react: true, selectedReactEnvironment: true },
-    );
-    expect(
-      graph.some(file => file.endsWith('/native-composition/react-types.d.ts')),
-    ).toBe(true);
-    expect(
-      graph.some(
-        file =>
-          file.includes('ultramodern-app-tools') &&
-          file.endsWith('/lib/react-types.d.ts'),
-      ),
-    ).toBe(true);
-    expect(
-      graph.some(file => file.endsWith('/app-tools/dist/types/index.d.ts')),
-    ).toBe(true);
-    expect(graph.some(file => file.endsWith('/app-tools/lib/types.d.ts'))).toBe(
-      true,
-    );
-    expect(
-      graph.filter(file =>
-        file.includes('/native-composition/react-composition.d.'),
-      ),
-    ).toEqual([]);
-  }, 60_000);
+  it.each(consumers)(
+    'admits the native React plugin ABI through only the selected React environment with $name $extension',
+    consumer => {
+      const graph = checkInstalledDeclarations(
+        consumer,
+        nativeReactPluginConsumer,
+        { react: true, selectedReactEnvironment: true },
+      );
+      expect(
+        graph.some(file => file.endsWith('/renderers/react/types.d.ts')),
+      ).toBe(true);
+      expect(
+        graph.some(
+          file =>
+            file.includes('ultramodern-app-tools') &&
+            file.endsWith('/lib/react-types.d.ts'),
+        ),
+      ).toBe(true);
+      expect(
+        graph.some(file => file.endsWith('/app-tools/dist/types/index.d.ts')),
+      ).toBe(true);
+      expect(
+        graph.some(file => file.endsWith('/app-tools/lib/types.d.ts')),
+      ).toBe(true);
+      expect(
+        graph.filter(file => file.includes('/renderers/react/composition.d.')),
+      ).toEqual([]);
+    },
+    60_000,
+  );
 });

@@ -7,7 +7,7 @@ import {
   resolveFrameworkSharedPackages,
   withFrameworkShared,
   withReactJsxRuntimeShared,
-} from '../../src/native-composition/module-federation-shared-plugin';
+} from '../../src/renderers/react/module-federation-shared-plugin';
 
 // The real `@modern-js/runtime` build, resolved as the fixture apps install it.
 const packages = resolveFrameworkSharedPackages(__dirname).filter(

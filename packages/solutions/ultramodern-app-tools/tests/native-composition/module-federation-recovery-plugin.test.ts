@@ -15,7 +15,7 @@ import { afterEach, describe, expect, it, rstest } from '@rstest/core';
 import {
   resolveManifestRecoveryRuntimePlugin,
   ultramodernModuleFederationRecoveryPlugin,
-} from '../../src/native-composition/module-federation-recovery-plugin';
+} from '../../src/renderers/react/module-federation-recovery-plugin';
 
 type ChainModifier = Parameters<
   CLIPluginAPI<AppTools>['modifyBundlerChain']
@@ -126,7 +126,7 @@ function owningSourceFixture() {
   fs.copyFileSync(
     path.resolve(
       __dirname,
-      '../../src/native-composition/module-federation-recovery-plugin.ts',
+      '../../src/renderers/react/module-federation-recovery-plugin.ts',
     ),
     sourceFile,
   );
@@ -294,123 +294,130 @@ describe('fork recovery at the actual native MF server boundary', () => {
     { secondary: false, format: 'import' as const },
     { secondary: true, format: 'require' as const },
     { secondary: true, format: 'import' as const },
-  ])('preserves actual native options and inserts recovery before the $format node runtime with secondary=$secondary', async ({
-    secondary,
-    format,
-  }) => {
-    const fixture = owningSourceFixture();
-    const recovery = fixture.source.resolveManifestRecoveryRuntimePlugin(
-      pathToFileURL(fixture.sourceFile).href,
-    );
-    const userPlugin: RuntimePlugin = [
-      '/consumer/runtime-plugin.js',
-      { retries: 7 },
-    ];
-    const runtimePlugins: RuntimePlugin[] = [
-      userPlugin,
-      '/native/shared-strategy.js',
-      nativeRuntimePaths[format],
-      '/native/fetch-runtime.js',
-    ];
-    const ssrConfig = federationConfig(runtimePlugins);
-    const native = await captureNativeModifier(ssrConfig, secondary);
-    const repair = await captureRecoveryModifier(
-      fixture.source.ultramodernModuleFederationRecoveryPlugin,
-      nativeAppDirectory,
-    );
-    const { chain, configs } = await configureActualChain(
-      fixture.root,
-      'node',
-      [native, repair],
-    );
-    const nativePlugin = chain.plugin(nativeSSR.CHAIN_MF_PLUGIN_ID);
-    expect(nativePlugin.get('plugin')).toBe(
-      secondary
-        ? nativeConstructors.TreeShakingSharedPlugin
-        : nativeConstructors.ModuleFederationPlugin,
-    );
-    const args = nativePlugin.get('args');
-    expect(secondary ? args[0].mfConfig : args[0]).toBe(ssrConfig);
-    if (secondary) expect(args[0].secondary).toBe(true);
-    expect(ssrConfig.runtimePlugins).toEqual([
-      userPlugin,
-      '/native/shared-strategy.js',
-      recovery,
-      nativeRuntimePaths[format],
-      '/native/fetch-runtime.js',
-    ]);
-    expect(ssrConfig.runtimePlugins[0]).toBe(userPlugin);
-    expect(runtimePlugins).toEqual([
-      userPlugin,
-      '/native/shared-strategy.js',
-      nativeRuntimePaths[format],
-      '/native/fetch-runtime.js',
-    ]);
-    expect(ssrConfig.shared).toEqual({});
-    expect(
-      configs[0].plugins!.some(
-        plugin =>
-          plugin?.constructor ===
-          (secondary
-            ? nativeConstructors.TreeShakingSharedPlugin
-            : nativeConstructors.ModuleFederationPlugin),
-      ),
-    ).toBe(true);
-  });
+  ])(
+    'preserves actual native options and inserts recovery before the $format node runtime with secondary=$secondary',
+    async ({ secondary, format }) => {
+      const fixture = owningSourceFixture();
+      const recovery = fixture.source.resolveManifestRecoveryRuntimePlugin(
+        pathToFileURL(fixture.sourceFile).href,
+      );
+      const userPlugin: RuntimePlugin = [
+        '/consumer/runtime-plugin.js',
+        { retries: 7 },
+      ];
+      const runtimePlugins: RuntimePlugin[] = [
+        userPlugin,
+        '/native/shared-strategy.js',
+        nativeRuntimePaths[format],
+        '/native/fetch-runtime.js',
+      ];
+      const ssrConfig = federationConfig(runtimePlugins);
+      const native = await captureNativeModifier(ssrConfig, secondary);
+      const repair = await captureRecoveryModifier(
+        fixture.source.ultramodernModuleFederationRecoveryPlugin,
+        nativeAppDirectory,
+      );
+      const { chain, configs } = await configureActualChain(
+        fixture.root,
+        'node',
+        [native, repair],
+      );
+      const nativePlugin = chain.plugin(nativeSSR.CHAIN_MF_PLUGIN_ID);
+      expect(nativePlugin.get('plugin')).toBe(
+        secondary
+          ? nativeConstructors.TreeShakingSharedPlugin
+          : nativeConstructors.ModuleFederationPlugin,
+      );
+      const args = nativePlugin.get('args');
+      expect(secondary ? args[0].mfConfig : args[0]).toBe(ssrConfig);
+      if (secondary) expect(args[0].secondary).toBe(true);
+      expect(ssrConfig.runtimePlugins).toEqual([
+        userPlugin,
+        '/native/shared-strategy.js',
+        recovery,
+        nativeRuntimePaths[format],
+        '/native/fetch-runtime.js',
+      ]);
+      expect(ssrConfig.runtimePlugins[0]).toBe(userPlugin);
+      expect(runtimePlugins).toEqual([
+        userPlugin,
+        '/native/shared-strategy.js',
+        nativeRuntimePaths[format],
+        '/native/fetch-runtime.js',
+      ]);
+      expect(ssrConfig.shared).toEqual({});
+      expect(
+        configs[0].plugins!.some(
+          plugin =>
+            plugin?.constructor ===
+            (secondary
+              ? nativeConstructors.TreeShakingSharedPlugin
+              : nativeConstructors.ModuleFederationPlugin),
+        ),
+      ).toBe(true);
+    },
+  );
 
-  it.each([
-    false,
-    true,
-  ])('keeps an existing recovery tuple and its position with secondary=%s', async secondary => {
-    const fixture = owningSourceFixture();
-    const recovery = fixture.source.resolveManifestRecoveryRuntimePlugin(
-      pathToFileURL(fixture.sourceFile).href,
-    );
-    const existing: RuntimePlugin = [recovery, { attempts: 2, timeoutMs: 321 }];
-    const runtimePlugins: RuntimePlugin[] = [
-      '/consumer/runtime.js',
-      nativeRuntimePaths.require,
-      existing,
-      '/native/fetch-runtime.js',
-    ];
-    const ssrConfig = federationConfig(runtimePlugins);
-    const native = await captureNativeModifier(ssrConfig, secondary);
-    const repair = await captureRecoveryModifier(
-      fixture.source.ultramodernModuleFederationRecoveryPlugin,
-      nativeAppDirectory,
-    );
-    await configureActualChain(fixture.root, 'node', [native, repair, repair]);
-    expect(ssrConfig.runtimePlugins).toBe(runtimePlugins);
-    expect(ssrConfig.runtimePlugins[2]).toBe(existing);
-    expect(ssrConfig.runtimePlugins).toEqual([
-      '/consumer/runtime.js',
-      nativeRuntimePaths.require,
-      [recovery, { attempts: 2, timeoutMs: 321 }],
-      '/native/fetch-runtime.js',
-    ]);
-  });
+  it.each([false, true])(
+    'keeps an existing recovery tuple and its position with secondary=%s',
+    async secondary => {
+      const fixture = owningSourceFixture();
+      const recovery = fixture.source.resolveManifestRecoveryRuntimePlugin(
+        pathToFileURL(fixture.sourceFile).href,
+      );
+      const existing: RuntimePlugin = [
+        recovery,
+        { attempts: 2, timeoutMs: 321 },
+      ];
+      const runtimePlugins: RuntimePlugin[] = [
+        '/consumer/runtime.js',
+        nativeRuntimePaths.require,
+        existing,
+        '/native/fetch-runtime.js',
+      ];
+      const ssrConfig = federationConfig(runtimePlugins);
+      const native = await captureNativeModifier(ssrConfig, secondary);
+      const repair = await captureRecoveryModifier(
+        fixture.source.ultramodernModuleFederationRecoveryPlugin,
+        nativeAppDirectory,
+      );
+      await configureActualChain(fixture.root, 'node', [
+        native,
+        repair,
+        repair,
+      ]);
+      expect(ssrConfig.runtimePlugins).toBe(runtimePlugins);
+      expect(ssrConfig.runtimePlugins[2]).toBe(existing);
+      expect(ssrConfig.runtimePlugins).toEqual([
+        '/consumer/runtime.js',
+        nativeRuntimePaths.require,
+        [recovery, { attempts: 2, timeoutMs: 321 }],
+        '/native/fetch-runtime.js',
+      ]);
+    },
+  );
 
-  it.each([
-    'node',
-    'web',
-  ] as const)('does not access optional integration dependencies without a native server plugin on %s', async target => {
-    const fixture = owningSourceFixture();
-    let repair: ChainModifier | undefined;
-    const getAppContext = rstest.fn(() => {
-      throw new Error('Optional MF dependency access');
-    });
-    await ultramodernModuleFederationRecoveryPlugin().setup?.({
-      modifyBundlerChain: (callback: ChainModifier) => {
-        repair = callback;
-      },
-      getAppContext,
-    } as unknown as CLIPluginAPI<AppTools>);
-    const { chain } = await configureActualChain(fixture.root, target, [
-      repair!,
-    ]);
-    expect(chain.plugins.has(nativeSSR.CHAIN_MF_PLUGIN_ID)).toBe(false);
-    expect(getAppContext).not.toHaveBeenCalled();
-  });
+  it.each(['node', 'web'] as const)(
+    'does not access optional integration dependencies without a native server plugin on %s',
+    async target => {
+      const fixture = owningSourceFixture();
+      let repair: ChainModifier | undefined;
+      const getAppContext = rstest.fn(() => {
+        throw new Error('Optional MF dependency access');
+      });
+      await ultramodernModuleFederationRecoveryPlugin().setup?.({
+        modifyBundlerChain: (callback: ChainModifier) => {
+          repair = callback;
+        },
+        getAppContext,
+      } as unknown as CLIPluginAPI<AppTools>);
+      const { chain } = await configureActualChain(fixture.root, target, [
+        repair!,
+      ]);
+      expect(chain.plugins.has(nativeSSR.CHAIN_MF_PLUGIN_ID)).toBe(false);
+      expect(getAppContext).not.toHaveBeenCalled();
+    },
+  );
 
   it('leaves the actual native SSR web branch unchanged', async () => {
     const fixture = owningSourceFixture();

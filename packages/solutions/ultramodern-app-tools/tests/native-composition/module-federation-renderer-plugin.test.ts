@@ -19,7 +19,7 @@ import {
   rspack,
 } from '@rsbuild/core';
 import { afterEach, describe, expect, it, rstest } from '@rstest/core';
-import { createReactModuleFederationRendererIntegration } from '../../src/native-composition/module-federation-renderer-plugin';
+import { createRendererModuleFederationIntegration } from '../../src/native-composition/module-federation-renderer-plugin';
 
 type ChainModifier = Parameters<
   CLIPluginAPI<AppTools>['modifyBundlerChain']
@@ -118,7 +118,7 @@ function completedIdentities(): RendererBuildIdentities {
 }
 
 async function integration() {
-  const result = createReactModuleFederationRendererIntegration({
+  const result = createRendererModuleFederationIntegration('react', {
     resolveCompatibility: () => compatibility,
     resolveRuntimePlugin: () => runtimePlugin,
   });
@@ -475,7 +475,7 @@ describe('renderer authority at the actual native MF publication boundary', () =
       const resolveRuntimePlugin = rstest.fn(() => {
         throw new Error('Optional MF runtime accessed');
       });
-      const selected = createReactModuleFederationRendererIntegration({
+      const selected = createRendererModuleFederationIntegration('react', {
         resolveCompatibility,
         resolveRuntimePlugin,
       });

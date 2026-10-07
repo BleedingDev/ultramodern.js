@@ -23,9 +23,9 @@ export async function resolveEntrypointRouterBindings(
   appDirectory?: string,
 ): Promise<RendererRouterBindings> {
   if (renderer === 'react')
-    return (await import('./react-router-bindings')).resolveReactRouterBindings(
-      { entrypoints, pluginNames, appDirectory },
-    );
+    return (
+      await import('../renderers/react/router-bindings')
+    ).resolveReactRouterBindings({ entrypoints, pluginNames, appDirectory });
   const owner = nativeInfrastructurePluginName(renderer);
   if (!pluginNames.includes(owner))
     throw new Error(`The ${renderer} entry router owner is not registered`);
