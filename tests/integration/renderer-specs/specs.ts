@@ -116,21 +116,25 @@ export function defineRendererSpecs(options: RendererSpecOptions) {
       const cdp = await page.createCDPSession();
       await cdp.send('Network.enable');
       cdp.on('Network.webSocketCreated', event => sockets.push(event.url));
-      // Keep the first native-layout the document gets: the parser inserts
-      // the server one before any bundle can render its own, so hydration
-      // must leave that same node in place.
+      // Keep the first native-layout and native-lazy the document gets: the
+      // server ones arrive before any bundle can render its own, so
+      // hydration must leave those same nodes in place.
       await page.evaluateOnNewDocument(() => {
+        const nodes: Record<string, Element> = {};
+        (window as any).__ssrNodes = nodes;
         const observer = new MutationObserver(records => {
           for (const record of records)
             for (const node of record.addedNodes) {
               if (!(node instanceof Element)) continue;
-              const layout = node.matches('[data-testid="native-layout"]')
-                ? node
-                : node.querySelector('[data-testid="native-layout"]');
-              if (!layout) continue;
-              (window as any).__ssrLayout = layout;
-              observer.disconnect();
-              return;
+              for (const testId of ['native-layout', 'native-lazy']) {
+                const selector = `[data-testid="${testId}"]`;
+                const found = node.matches(selector)
+                  ? node
+                  : node.querySelector(selector);
+                if (found) nodes[testId] ??= found;
+              }
+              if (nodes['native-layout'] && nodes['native-lazy'])
+                return observer.disconnect();
             }
         });
         observer.observe(document, { childList: true, subtree: true });
@@ -191,6 +195,27 @@ export function defineRendererSpecs(options: RendererSpecOptions) {
     await page.waitForSelector(id(target), { timeout: 15_000 });
   }
 
+  /** Hydration kept the node the server rendered for this test id. */
+  const adopted = (testId: string) =>
+    page.$eval(
+      id(testId),
+      (element, key) => element === (window as any).__ssrNodes[key],
+      testId,
+    );
+
+  /** The stylesheets a server document links, with their offsets in it. */
+  const linkedStyles = (html: string) =>
+    Promise.all(
+      [...html.matchAll(/<link\b[^>]*>/g)]
+        .filter(([tag]) => /\brel="stylesheet"/.test(tag))
+        .map(async ({ 0: tag, index }) => ({
+          index,
+          css: await fetch(
+            new URL(/\bhref="([^"]+)"/.exec(tag)![1], origin),
+          ).then(response => response.text()),
+        })),
+    );
+
   const fetchHtml = async (pathname: string) => {
     const response = await fetch(`${origin}${pathname}`, {
       redirect: 'manual',
@@ -230,33 +255,55 @@ export function defineRendererSpecs(options: RendererSpecOptions) {
 
     spec('hydration', async () => {
       await openHydrated('/');
-      const adopted = await page.$eval(
-        id('native-layout'),
-        element => element === (window as any).__ssrLayout,
-      );
-      expect(adopted).toBe(true);
+      expect(await adopted('native-layout')).toBe(true);
       await waitForStyle('native-layout', 'color', 'rgb(20, 40, 60)');
       expect(pageErrors).toEqual([]);
     });
 
     spec('ssr-css', async () => {
-      // The layout stylesheet must be linked from the server document, so
-      // the first paint is styled before any bundle runs.
-      const { html } = await fetchHtml('/');
-      const hrefs = [...html.matchAll(/<link\b[^>]*>/g)]
-        .map(([tag]) => tag)
-        .filter(tag => /\brel="stylesheet"/.test(tag))
-        .map(tag => /\bhref="([^"]+)"/.exec(tag)![1]);
-      const css = await Promise.all(
-        hrefs.map(href => fetch(new URL(href, origin)).then(r => r.text())),
-      );
-      expect(css.join('\n')).toMatch(/native-layout/);
+      // The layout and route stylesheets are linked from the server document
+      // ahead of the markup they style, so the first paint is styled before
+      // any bundle runs.
+      for (const [pathname, selector, testId] of [
+        ['/', 'native-layout', 'native-layout'],
+        ['/about', 'native-about-route', 'native-about'],
+      ]) {
+        const { html } = await fetchHtml(pathname);
+        const markup = html.indexOf(`data-testid="${testId}"`);
+        expect(markup).toBeGreaterThan(-1);
+        const style = (await linkedStyles(html)).find(({ css }) =>
+          css.includes(selector),
+        );
+        expect(style).toBeDefined();
+        expect(style!.index).toBeLessThan(markup);
+        // Native documents also link styles ahead of every script. React's
+        // document puts its async entry scripts in the head first.
+        if (renderer !== 'react')
+          expect(style!.index).toBeLessThan(
+            html.search(/<script\b[^>]*\bsrc=/),
+          );
+      }
     });
 
     spec('lazy', async () => {
+      // The server renders the lazy component and links its stylesheet
+      // ahead of it, so it is styled before any bundle runs.
+      const { html } = await fetchHtml('/');
+      const lazy = html.search(/data-testid=\\?"native-lazy\\?"/);
+      expect(lazy).toBeGreaterThan(-1);
+      const style = (await linkedStyles(html)).find(({ css }) =>
+        css.includes('native-lazy-detail'),
+      );
+      expect(style).toBeDefined();
+      expect(style!.index).toBeLessThan(lazy);
+
       await openHydrated('/');
       await page.waitForSelector(id('native-lazy'), { timeout: 15_000 });
       await waitForStyle('native-lazy', 'border-inline-start-width', '2px');
+      // Hydration adopts the server's lazy subtree and makes it interactive.
+      await page.click(id('native-lazy-increment'));
+      await waitForText('native-lazy-count', '1');
+      expect(await adopted('native-lazy')).toBe(true);
       expect(pageErrors).toEqual([]);
     });
 
