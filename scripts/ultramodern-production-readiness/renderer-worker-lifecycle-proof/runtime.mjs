@@ -122,6 +122,10 @@ export async function verifyWorkerLifecycle({
   // for identity so progressive SSR bytes reach the reader as they stream.
   const headers = id => ({
     'accept-encoding': 'identity',
+    // Node's fetch user agent reads as a bot, and native SSR answers bots
+    // only after all content is ready instead of streaming the shell.
+    'user-agent':
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
     [controlHeader]: token,
     [candidateHeader]: candidateText,
     ...(id ? { 'x-lifecycle-request': id } : {}),
