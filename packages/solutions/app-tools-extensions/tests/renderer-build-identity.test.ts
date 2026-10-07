@@ -113,6 +113,38 @@ test('a clean checkout yields a reproducible buildId bound to its lockfile', asy
   expect(dirty.buildId).not.toBe(first.buildId);
 });
 
+test('a fixed revision binds the production buildId to the lockfile', async () => {
+  const options = {
+    ...(await fixture()),
+    sourceRevision: 'f'.repeat(40),
+  };
+  const first = resolveRendererBuildIdentities(options);
+  expect(first.sourceRevision).toBe('f'.repeat(40));
+  expect(resolveRendererBuildIdentities(options).buildId).toBe(first.buildId);
+  await fs.writeFile(
+    path.join(options.projectRoot, 'pnpm-lock.yaml'),
+    'lock: 2\n',
+  );
+  const relocked = resolveRendererBuildIdentities(options);
+  expect(relocked.buildId).not.toBe(first.buildId);
+  expect(resolveRendererBuildIdentities(options).buildId).toBe(
+    relocked.buildId,
+  );
+});
+
+test('development uses a per-process buildId, not the clean revision', async () => {
+  const options = { ...(await fixture()), sourceRevision: 'f'.repeat(40) };
+  const production = resolveRendererBuildIdentities(options);
+  const development = resolveRendererBuildIdentities({
+    ...options,
+    mode: 'development',
+  });
+  expect(development.buildId).not.toBe(production.buildId);
+  expect(
+    resolveRendererBuildIdentities({ ...options, mode: 'development' }).buildId,
+  ).toBe(development.buildId);
+});
+
 test('the profile key changes with renderer, versions and protocol only', () => {
   const key = rendererProfileKey(solidProfile);
   expect(rendererProfileKey({ ...solidProfile })).toBe(key);
