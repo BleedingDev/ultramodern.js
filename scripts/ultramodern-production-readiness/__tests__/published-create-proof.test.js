@@ -1,7 +1,9 @@
 const assert = require('node:assert/strict');
-const { spawnSync } = require('node:child_process');
+const childProcess = require('node:child_process');
+const { spawnSync } = childProcess;
 const crypto = require('node:crypto');
 const fs = require('node:fs');
+const { createRequire, syncBuiltinESMExports } = require('node:module');
 const net = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
@@ -1141,13 +1143,37 @@ test('browser smoke diagnostics redact structured and embedded JSON secrets', as
   }
 });
 
-test('asserts generated cohorts only from strict manifest expectations', async () => {
+test('asserts generated cohorts only from strict manifest expectations', async t => {
   const { assertGeneratedCohort } = await import(
     '../published-create-proof/package-cohort.mjs'
+  );
+  const { YAML_SPECIFIER, YAML_VERSION } = await import(
+    '../published-create-proof/release-age-audit.mjs'
+  );
+  const yamlRequire = createRequire(
+    path.join(__dirname, '../../prebundle/package.json'),
+  );
+  const yamlManifest = yamlRequire('js-yaml/package.json');
+  assert.equal(yamlManifest.version, YAML_VERSION);
+  const yamlCli = path.join(
+    path.dirname(yamlRequire.resolve('js-yaml/package.json')),
+    yamlManifest.bin['js-yaml'],
   );
   const root = fs.mkdtempSync(
     path.join(os.tmpdir(), 'published-create-cohort-'),
   );
+  const catalogPath = path.join(root, 'pnpm-workspace.yaml');
+  // Exercise the installed pinned CLI without downloading it for each check.
+  t.mock.method(childProcess, 'spawnSync', (command, args, options) => {
+    assert.equal(command, 'pnpm');
+    assert.deepEqual(args, ['dlx', YAML_SPECIFIER, catalogPath]);
+    return spawnSync(process.execPath, [yamlCli, catalogPath], options);
+  });
+  syncBuiltinESMExports();
+  t.after(() => {
+    t.mock.restoreAll();
+    syncBuiltinESMExports();
+  });
   const version = '3.2.0-framework.1';
   const release = {
     aliases: {
@@ -1190,7 +1216,7 @@ test('asserts generated cohorts only from strict manifest expectations', async (
 
   try {
     fs.writeFileSync(
-      path.join(root, 'pnpm-workspace.yaml'),
+      catalogPath,
       `catalogs:\n  ultramodern:\n    '@modern-js/ultramodern-create': npm:@bleedingdev/modern-js-ultramodern-create@${version}\n    '@modern-js/runtime': npm:@bleedingdev/modern-js-runtime@${version}\n`,
     );
     writeJson(root, 'package.json', {
@@ -1216,6 +1242,39 @@ test('asserts generated cohorts only from strict manifest expectations', async (
     };
 
     assert.equal(assertGeneratedCohort(root, release).observedPackageCount, 2);
+
+    const catalog = fs.readFileSync(catalogPath, 'utf8');
+    fs.writeFileSync(
+      catalogPath,
+      `catalog:\n  '@modern-js/ultramodern-create': npm:@bleedingdev/modern-js-ultramodern-create@${version}\n  '@modern-js/runtime': npm:@bleedingdev/modern-js-runtime@${version}\n`,
+    );
+    writeJson(root, 'package.json', {
+      devDependencies: { '@modern-js/ultramodern-create': 'catalog:' },
+      dependencies: { '@modern-js/runtime': 'catalog:' },
+    });
+    assert.equal(assertGeneratedCohort(root, release).observedPackageCount, 2);
+
+    for (const source of ['', 'null\n', 'inventory\n', '- inventory\n']) {
+      fs.writeFileSync(catalogPath, source);
+      assert.throws(
+        () => assertGeneratedCohort(root, release),
+        /must be a mapping|Expected one YAML document/u,
+      );
+    }
+    fs.writeFileSync(
+      catalogPath,
+      `lockfileVersion: '9.0'\n${catalog}---\nlockfileVersion: '9.0'\n${catalog}`,
+    );
+    assert.throws(
+      () => assertGeneratedCohort(root, release),
+      /Expected one YAML document/u,
+    );
+    fs.writeFileSync(catalogPath, 'catalogs: [\n');
+    assert.throws(
+      () => assertGeneratedCohort(root, release),
+      /Pinned YAML parser exited 1/u,
+    );
+    fs.writeFileSync(catalogPath, catalog);
 
     release.sidecars = {
       packages: [{ name: '@bleedingdev/mf-bridge-react', version: '1.0.0' }],
@@ -1262,8 +1321,6 @@ test('asserts generated cohorts only from strict manifest expectations', async (
       },
     });
 
-    const catalogPath = path.join(root, 'pnpm-workspace.yaml');
-    const catalog = fs.readFileSync(catalogPath, 'utf8');
     fs.writeFileSync(
       catalogPath,
       catalog.replace(/^ {4}'@modern-js\/runtime'.*\n/mu, ''),

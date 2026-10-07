@@ -21,6 +21,68 @@ function writeEmptyReleaseAgePolicy(root) {
   return policyPath;
 }
 
+test('pinned YAML file parsing keeps lockfile document merging by default', async () => {
+  const { parseYamlFile, YAML_SPECIFIER } = await import(
+    '../published-create-proof/release-age-audit.mjs'
+  );
+  const packageManager = {
+    importers: { '.': { packageManagerDependencies: { pnpm: '12.8.1' } } },
+    lockfileVersion: '9.0',
+    packages: { 'pnpm@12.8.1': {} },
+    snapshots: { 'pnpm@12.8.1': {} },
+  };
+  const workspace = {
+    importers: { '.': { dependencies: { effect: '3.19.0' } } },
+    lockfileVersion: '9.0',
+    packages: { 'effect@3.19.0': {} },
+    snapshots: { 'effect@3.19.0': {} },
+  };
+  const documents = [packageManager, workspace];
+  const spawnImpl = (command, args, options) => {
+    assert.equal(command, 'pnpm');
+    assert.deepEqual(args, ['dlx', YAML_SPECIFIER, 'pnpm-lock.yaml']);
+    assert.deepEqual(options.stdio, ['ignore', 'pipe', 'pipe']);
+    return { status: 0, stdout: JSON.stringify(documents) };
+  };
+  assert.deepEqual(parseYamlFile('pnpm-lock.yaml', spawnImpl), {
+    importers: {
+      '.': {
+        ...packageManager.importers['.'],
+        ...workspace.importers['.'],
+      },
+    },
+    lockfileVersion: '9.0',
+    packages: { ...packageManager.packages, ...workspace.packages },
+    snapshots: { ...packageManager.snapshots, ...workspace.snapshots },
+  });
+  assert.throws(
+    () => parseYamlFile('pnpm-lock.yaml', spawnImpl, { singleDocument: true }),
+    /Expected one YAML document/u,
+  );
+});
+
+test('single-document YAML file parsing preserves mappings and parser errors', async () => {
+  const { parseYamlFile } = await import(
+    '../published-create-proof/release-age-audit.mjs'
+  );
+  const workspace = {
+    catalog: {
+      '@modern-js/runtime': 'npm:@bleedingdev/modern-js-runtime@1.0.0',
+    },
+  };
+  const parseOutput = stdout =>
+    parseYamlFile('pnpm-workspace.yaml', () => ({ status: 0, stdout }), {
+      singleDocument: true,
+    });
+  assert.deepEqual(parseOutput(JSON.stringify(workspace)), workspace);
+  assert.equal(parseOutput('null'), null);
+  assert.throws(() => parseOutput('[]'), /Expected one YAML document/u);
+  assert.throws(
+    () => parseOutput('invalid-json'),
+    /Pinned YAML parser returned invalid JSON/u,
+  );
+});
+
 test('acceptance topology binds app manifests and overlay without compact metadata', async t => {
   const {
     readWorkspaceAcceptanceArtifacts,
