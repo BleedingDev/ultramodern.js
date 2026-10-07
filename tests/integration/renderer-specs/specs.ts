@@ -153,7 +153,11 @@ export function defineRendererSpecs(options: RendererSpecOptions) {
       expect(response.status).toBe(200);
       expect(html).toContain('data-testid="native-layout"');
       expect(html).toContain(`data-renderer="${renderer}"`);
-      expect(html).toContain('Native loader value');
+      // The loader value is also in the hydration data script, so match the
+      // rendered element.
+      expect(html).toMatch(
+        /data-testid="native-loader-value"[^>]*>[^<]*Native loader value/,
+      );
     });
 
     spec('hydration', async () => {
@@ -194,7 +198,7 @@ export function defineRendererSpecs(options: RendererSpecOptions) {
 
     spec('loader-data', async () => {
       const { html } = await fetchHtml('/items/1');
-      expect(html).toContain('Item 1');
+      expect(html).toMatch(/data-testid="native-item-value"[^>]*>[^<]*Item 1/);
       await openHydrated('/');
       await clickAndWait('nav-item', 'native-item');
       await waitForText('native-item-value', 'Item 1');
