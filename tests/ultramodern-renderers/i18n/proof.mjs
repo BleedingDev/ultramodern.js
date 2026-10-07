@@ -4,11 +4,11 @@
 //   /Users/satan/bin/owned-temp-dir --run i18n-proof -- \
 //     node tests/ultramodern-renderers/i18n/proof.mjs [solid|octane ...]
 //
-// Copies each conformance fixture into the owned temporary directory, adds
-// i18nPlugin() with en/cs translations, builds it with the UltraModern CLI,
-// serves it, and checks redirects, Czech SSR, hydration without a language
-// flash, client-side language switching, and per-request isolation in a
-// headless agent-browser session.
+// Copies each renderer fixture app (tests/integration/renderer-<r>) into the
+// owned temporary directory, adds i18nPlugin() with en/cs translations, builds
+// it with the UltraModern CLI, serves it, and checks redirects, Czech SSR,
+// hydration without a language flash, client-side language switching, and
+// per-request isolation in a headless agent-browser session.
 import assert from 'node:assert/strict';
 import { execFile, spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
@@ -21,10 +21,7 @@ const execute = promisify(execFile);
 const root = fileURLToPath(new URL('../../../', import.meta.url));
 const temporary = process.env.OWNED_TEMP_DIR;
 assert.ok(temporary, 'Run through owned-temp-dir so the apps have an owner.');
-const fixtures = path.join(
-  root,
-  'tests/ultramodern-renderers/conformance/fixtures',
-);
+const fixtures = path.join(root, 'tests/integration');
 const appTools = path.join(root, 'packages/solutions/ultramodern-app-tools');
 const renderers = process.argv.slice(2).length
   ? process.argv.slice(2)
@@ -87,20 +84,6 @@ async function linkDependencies(directory, renderer) {
   }
 }
 
-async function rewriteImports(directory) {
-  for (const entry of await fs.readdir(directory, { withFileTypes: true })) {
-    const file = path.join(directory, entry.name);
-    if (entry.isDirectory()) await rewriteImports(file);
-    else if (/\.(?:tsx?|mts)$/u.test(entry.name)) {
-      const source = await fs.readFile(file, 'utf8');
-      await fs.writeFile(
-        file,
-        source.replaceAll('@bleedingdev/modern-js-', '@modern-js/'),
-      );
-    }
-  }
-}
-
 const translations = {
   en: {
     nav: { home: 'Home', about: 'About' },
@@ -119,7 +102,6 @@ const sources = {
     'src/routes/layout.tsx': `import { Outlet } from '@modern-js/renderer-solid/router';
 import { LocalizedLink, useI18n } from '@modern-js/renderer-solid/i18n';
 import type { JSX } from '@solidjs/web';
-import Stable from '../components/Stable';
 import './index.css';
 
 export default function Layout(): JSX.Element {
@@ -133,7 +115,6 @@ export default function Layout(): JSX.Element {
         <button type="button" data-testid="i18n-switch" onClick={() => void changeLanguage(language() === 'cs' ? 'en' : 'cs')}>{t('switch')}</button>
       </nav>
       <output data-testid="i18n-language">{language()}</output>
-      <Stable />
       <Outlet />
     </main>
   );
@@ -156,7 +137,6 @@ export default function About(): JSX.Element {
   octane: {
     'src/routes/layout.tsx': `import { Outlet } from '@modern-js/renderer-octane/router';
 import { LocalizedLink, useI18n } from '@modern-js/renderer-octane/i18n';
-import Stable from '../components/Stable';
 import './index.css';
 
 export default function Layout() {
@@ -170,7 +150,6 @@ export default function Layout() {
         <button type="button" data-testid="i18n-switch" onClick={() => void changeLanguage(language === 'cs' ? 'en' : 'cs')}>{t('switch')}</button>
       </nav>
       <output data-testid="i18n-language">{language}</output>
-      <Stable />
       <Outlet />
     </main>
   );
@@ -193,8 +172,12 @@ export default function About() {
 
 async function createApp(renderer) {
   const directory = path.join(temporary, renderer);
-  await fs.cp(path.join(fixtures, renderer), directory, { recursive: true });
-  await rewriteImports(directory);
+  for (const entry of ['src', 'tsconfig.json'])
+    await fs.cp(
+      path.join(fixtures, `renderer-${renderer}`, entry),
+      path.join(directory, entry),
+      { recursive: true },
+    );
   // The acceptance harness authors these ambient types and typed-route
   // registrations; this standalone copy patches the same spots so the native
   // type checker still runs over the generated i18n entry code.

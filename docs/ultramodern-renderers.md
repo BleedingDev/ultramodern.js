@@ -15,8 +15,9 @@ export default defineConfig({ renderer: 'solid' });
 A workspace created by the generator installs it through a pnpm catalog
 alias, so its own `modern.config.ts` imports the unscoped specifier,
 `@modern-js/ultramodern-app-tools`; installing the package directly uses the
-published name shown above, as the renderer conformance fixtures do
-(`tests/ultramodern-renderers/conformance/fixtures/{solid,octane}/modern.config.ts`).
+published name shown above. The in-repo renderer fixture apps
+(`tests/integration/renderer-{react,solid,octane}`) import the unscoped name
+from the workspace.
 
 ## What the renderer switch does
 
@@ -104,7 +105,7 @@ export async function action({ request }: DataHandlerInput) {
 ```
 
 (Full fixture:
-`tests/ultramodern-renderers/conformance/fixtures/solid/src/routes/page.tsx`.)
+`tests/integration/renderer-solid/src/routes/page.tsx`.)
 
 ### Octane
 

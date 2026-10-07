@@ -96,14 +96,22 @@ test what a user sees. Target: about 3-4k lines total.
       - Symbol.for('react.*') appears (inlined React runtime marker).
     Used by (c) step 5 and by renderer-solid/-octane tests after the build.
 
-Deleted, not replaced: acceptance/evidence/*.json.txt,
-test-fixtures/native-type-interop (the fixture typecheck covers type interop),
-capabilities/ (inventory), compiler-observation, compiler-activation-proof,
-react-baseline-*, export-octane-type-evidence, matrix.mts, minimum-node,
-*-http-probes, the conformance/*.test.mjs unit tests of the harness itself,
-solid-admission/ and octane-admission/ (behavior moves to (b); renderer
-units stay in the packages), react-mf-ssr-live-reload.test.mjs (folded into
-routes-tanstack-mf if still unique).
+Deleted: the acceptance/ harness (run.mjs, release*.mjs, artifacts.mjs and
+its digest/receipt layers, evidence/*.json.txt, the native-type-interop
+declaration snapshots and export-octane-type-evidence, compiler-observation
+and compiler-activation-proof, react-baseline-*, matrix.mts, minimum-node,
+*-http-probes, prepare-octane-admission; the capability rejection probe and
+the React MF probe with its manifest guard proof, which renderer-selection,
+renderer-runtime-plugin and renderer-mf-lifecycle-proof cover),
+capabilities/ (inventory), the renderer-solid/-octane public-programs
+type harnesses (the packed fixture typecheck replaces them), the conformance/
+fixtures and harness unit tests, and solid-admission/production-host.mjs.
+Kept: installed-cohort.mjs ("installed = packed, not workspace links") and
+bundle-check.mjs (no React in native bundles). The React worker probe moved
+next to its library in production-readiness/renderer-worker-lifecycle-proof;
+release.mjs runs it with the RSC, MF and Tractor runners. Still to replace:
+the native MF proof (solid-federation/proof.mjs) and i18n/proof.mjs, which
+remain standalone until renderer-mf/ and renderer-i18n/ fixtures exist.
 Out of scope here: published-create-proof/ and browser-smoke/ belong to the
 ERP-10 publish lane (run-release-acceptance.mjs). They are touched only
 where they import deleted helpers.
