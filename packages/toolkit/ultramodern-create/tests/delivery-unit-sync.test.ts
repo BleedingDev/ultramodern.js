@@ -234,3 +234,52 @@ test('sync-delivery-unit follows an authored app package version and remains ide
     fs.rmSync(tempRoot, { force: true, recursive: true });
   }
 });
+
+// scripts/ultramodern-renderers/release.mjs overlays the renderer fixture's
+// modern.config onto a generated Solid shell. The starter names its main entry
+// `main`; the fixture keeps the default `index`, so its build only matches the
+// captured UI identity once sync-delivery-unit recaptures it.
+test('sync-delivery-unit recaptures a native shell whose config drops the generated main entry name', async () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-du-sync-entry-'));
+  try {
+    const workspaceDir = path.join(tempRoot, 'workspace');
+    await generateUltramodernWorkspace({
+      targetDir: workspaceDir,
+      packageName: 'entry-sync',
+      modernVersion: '3.8.3',
+      renderer: 'solid',
+      enableTailwind: false,
+      generateAgentFiles: false,
+      packageSource: { strategy: 'workspace' },
+    });
+    const shell = 'apps/shell-super-app';
+    const captured = () =>
+      JSON.parse(read(workspaceDir, `${shell}/shared/ultramodern-build.json`))
+        .surfaces.ui;
+    assert.equal(captured().rendererIdentity.entryName, 'main');
+    fs.writeFileSync(
+      path.join(workspaceDir, shell, 'modern.config.ts'),
+      `import { defineConfig } from '@modern-js/ultramodern-app-tools';
+
+export default defineConfig({ renderer: 'solid', server: { ssr: true } });
+`,
+    );
+
+    assert.equal(
+      await runSyncDeliveryUnit([], {
+        workspaceRoot: workspaceDir,
+        invocationCwd: workspaceDir,
+      }),
+      0,
+    );
+    const ui = captured();
+    assert.equal(ui.rendererIdentity.entryName, 'index');
+    assert.deepEqual(Object.keys(ui.routerBindings), ['index']);
+    const topology = JSON.parse(
+      read(workspaceDir, 'topology/reference-topology.json'),
+    );
+    assert.equal(topology.shell.rendererIdentity.entryName, 'index');
+  } finally {
+    fs.rmSync(tempRoot, { force: true, recursive: true });
+  }
+});
