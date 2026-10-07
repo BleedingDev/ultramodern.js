@@ -13,7 +13,7 @@
   "devDependencies": {
     "@modern-js/ultramodern-app-tools": "workspace:*",
     "@octanejs/rspack-plugin": "0.1.55",
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.3",
     "typescript": "7.0.2"
   }
 }
