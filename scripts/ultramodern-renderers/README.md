@@ -73,7 +73,9 @@ test what a user sees. Target: about 3-4k lines total.
     2. startEphemeralRegistry({ release, releaseDir, rootDir, storeDir })
        from ultramodern-publish/lib/source-create-proof/runtime-proof.
     3. For each renderer: <packed create bin> <dir> --renderer <r>
-       --no-agents-md, then copy the renderer-<r> fixture src/ over it.
+       --no-agents-md. For Solid and Octane, install, build and serve the
+       untouched starter first (GET / answers 200 with its renderer
+       markup). Then copy the renderer-<r> fixture src/ over it.
     4. pnpm install with the strict release-age policy: minimum_release_age
        1440, strict, plus resolveAcceptanceReleaseAgeExclusions only for our
        own cohort.
