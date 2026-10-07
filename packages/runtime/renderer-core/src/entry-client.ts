@@ -35,13 +35,12 @@ export interface NativeClientEntryOptions<
 }
 
 /** The application view a renderer mounts or hydrates. */
-export type NativeClientView<Router, Instance, LocalisedUrls> =
+export type NativeClientView<Router, Instance, LocalisedUrls> = {
+  readonly i18n?: NativeI18nView<Instance, LocalisedUrls>;
+} & (
   | { readonly kind: 'component'; readonly component: unknown }
-  | {
-      readonly kind: 'router';
-      readonly router: Router;
-      readonly i18n?: NativeI18nView<Instance, LocalisedUrls>;
-    };
+  | { readonly kind: 'router'; readonly router: Router }
+);
 
 export interface NativeClientStart<
   Bootstrap extends DocumentBootstrap,
@@ -157,8 +156,6 @@ export function startNativeClientEntry<
   > => {
     const application = await options.load();
     signal.throwIfAborted();
-    if (!isRoutedApplication(application))
-      return { kind: 'component', component: application.default };
     const { i18n } = options;
     let instance: Instance | undefined;
     if (i18n) {
@@ -168,6 +165,14 @@ export function startNativeClientEntry<
       signal.throwIfAborted();
     }
     const current = instance;
+    const localization =
+      i18n && current ? { i18n: nativeI18nView(i18n, current) } : {};
+    if (!isRoutedApplication(application))
+      return {
+        kind: 'component',
+        component: application.default,
+        ...localization,
+      };
     const router = adapter.createRouter(application, {
       identity,
       loadRoute: clientRouteLoader(application, identity),
@@ -181,7 +186,7 @@ export function startNativeClientEntry<
     return {
       kind: 'router',
       router,
-      ...(i18n && current ? { i18n: nativeI18nView(i18n, current) } : {}),
+      ...localization,
     };
   };
 

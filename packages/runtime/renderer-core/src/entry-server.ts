@@ -98,6 +98,7 @@ export interface NativeServerAdapter<
     context: NativeRequestContext,
     component: unknown,
     document: Document,
+    i18n?: NativeI18nView<Instance, LocalisedUrls>,
   ): Promise<Response>;
   /** Load the router, resolve its HTTP outcome and render the document. */
   renderRoutes(
@@ -231,15 +232,40 @@ export function createNativeServerEntry<
       const document = prepare(request, context);
       const { session } = context;
       const application = await options.app();
-      if (!isRoutedApplication(application)) {
-        resolveDocumentPolicy(session);
-        return adapter.renderComponent(context, application.default, document);
-      }
-      const nativeRequest = new Request(request, { signal: session.signal });
+      const routed = isRoutedApplication(application);
+      const nativeRequest = routed
+        ? new Request(request, { signal: session.signal })
+        : request;
       // One isolated instance per request; the URL decides its language.
       const language = i18n?.resolveRequest(nativeRequest);
+      if (!routed && i18n && language?.kind === 'redirect')
+        return adapter.respond(session, i18n.redirect(language.location));
       const instance =
         i18n && language ? await i18n.create(language.language) : undefined;
+      const localization =
+        i18n && instance ? nativeI18nView(i18n, instance) : undefined;
+      const localizedDocument = (
+        inlineData: readonly DocumentInlineData[] = [],
+      ) =>
+        i18n && instance
+          ? {
+              ...document,
+              lang: instance.language,
+              inlineData: [
+                ...inlineData,
+                i18n.handoff(instance.language, instance),
+              ],
+            }
+          : document;
+      if (!routed) {
+        resolveDocumentPolicy(session);
+        return adapter.renderComponent(
+          context,
+          application.default,
+          localizedDocument(document.inlineData),
+          localization,
+        );
+      }
       const bindings = session.platform.bindings;
       const outcomes: DataOutcome[] = [];
       const router = adapter.createRouter(application, {
@@ -283,14 +309,7 @@ export function createNativeServerEntry<
         context,
         router,
         outcomes,
-        document:
-          i18n && instance
-            ? {
-                ...document,
-                lang: instance.language,
-                inlineData: [i18n.handoff(instance.language, instance)],
-              }
-            : document,
+        document: localizedDocument(),
         forbiddenValues: [
           context,
           session,
@@ -298,7 +317,7 @@ export function createNativeServerEntry<
           bindings,
           nativeRequest,
         ],
-        ...(i18n && instance ? { i18n: nativeI18nView(i18n, instance) } : {}),
+        ...(localization ? { i18n: localization } : {}),
       });
     });
 

@@ -35,7 +35,7 @@ export function startNativeClient(options: SolidClientEntryOptions): void {
       const view = await load();
       return (bootstrap?.hydrating ? hydrateApplication : mountApplication)(
         view.kind === 'component'
-          ? componentView(view.component)
+          ? componentView(view.component, view.i18n)
           : routerView(view.router, view.i18n),
         root,
         bootstrap ? { renderId: bootstrap.documentId } : {},

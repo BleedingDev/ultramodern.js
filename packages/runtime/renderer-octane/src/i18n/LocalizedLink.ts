@@ -43,7 +43,8 @@ export interface LocalizedLinkProps {
  * `rewrite` localizes every outgoing location to the *current* language. It
  * renders a plain anchor (correct href for crawlers and new tabs) whose click
  * first switches the i18next language and then navigates client-side, the
- * same order `useI18n().changeLanguage` uses.
+ * same order `useI18n().changeLanguage` uses. If loading that language fails,
+ * native document navigation follows the anchor's URL instead.
  *
  * No JSX: built with `createElement`, matching this package's existing
  * style (see `src/routes.ts`).
@@ -87,7 +88,17 @@ export function LocalizedLink(props: LocalizedLinkProps): OctaneNode {
             return;
           event.preventDefault();
           void (async () => {
-            await instance.changeLanguage?.(language);
+            try {
+              await instance.changeLanguage?.(language);
+            } catch {
+              // Omit `to` so the current language rewrite cannot alter the anchor URL.
+              await router.navigate({
+                href: documentHref,
+                reloadDocument: true,
+                replace: props.replace,
+              });
+              return;
+            }
             await navigate({ to: '.', href, replace: props.replace });
           })();
         },

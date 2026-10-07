@@ -47,7 +47,7 @@ interface Bootstrap {
   readonly hydrating: boolean;
 }
 
-function recordingAdapter() {
+function recordingAdapter(expectedBootstrap = true) {
   const routers: {
     application: NativeRoutedApplication;
     options: NativeRouterOptions;
@@ -74,7 +74,9 @@ function recordingAdapter() {
     },
     async start({ root: element, bootstrap, load }) {
       expect(element).toBe(root);
-      expect(bootstrap?.documentId).toBe('document');
+      expect(bootstrap?.documentId).toBe(
+        expectedBootstrap ? 'document' : undefined,
+      );
       views.push(await load());
       started();
       return disposed;
@@ -159,6 +161,47 @@ describe('generated native client entry', () => {
       loadRoute({ id: 'other', children: [] }, input),
     ).resolves.toEqual({ kind: 'success', value: undefined, status: 200 });
   });
+
+  it.each([true, false])(
+    'localizes a component application from the document handoff when hydrating is %s',
+    async hydrating => {
+      installDocument(hydrating);
+      const { adapter, routers, prepared, views, ready } =
+        recordingAdapter(hydrating);
+      const instance = { language: 'cs' };
+      const resources = { translation: { title: 'Ahoj' } };
+      const create = rstest.fn(async () => instance);
+      const rewrite = rstest.fn(() => ({}));
+      const syncWithRouter = rstest.fn();
+      const i18n: NativeEntryI18n<Instance, never> = {
+        languages: ['en', 'cs'],
+        resolveRequest: () => ({ kind: 'language', language: 'cs' }),
+        redirect: () => new Response(null),
+        create,
+        rewrite,
+        handoff: () => ({ id: 'handoff', payload: '{}' }),
+        clientHandoff: () => ({ language: 'cs', resources }),
+        syncWithRouter,
+      };
+      const component = () => null;
+      startNativeClientEntry(
+        { identity, load: async () => ({ default: component }), i18n },
+        adapter,
+      );
+      await ready;
+      expect(create).toHaveBeenCalledExactlyOnceWith('cs', resources);
+      expect(views[0]).toMatchObject({
+        kind: 'component',
+        component,
+        i18n: { instance, languages: ['en', 'cs'] },
+      });
+      expect(views[0].i18n?.instance).toBe(instance);
+      expect(routers).toEqual([]);
+      expect(prepared).toEqual([]);
+      expect(rewrite).not.toHaveBeenCalled();
+      expect(syncWithRouter).not.toHaveBeenCalled();
+    },
+  );
 
   it('cancels startup and disposes the root when the entry is replaced', async () => {
     installDocument(false);

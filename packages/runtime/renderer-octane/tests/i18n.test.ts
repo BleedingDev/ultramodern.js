@@ -56,17 +56,31 @@ function Consumer() {
 }
 
 /** Mount the provider as the root route component, as generated entries do. */
-async function mount(instance: FakeInstance, rewrite: boolean) {
+async function mount(
+  instance: FakeInstance,
+  rewrite: boolean,
+  basepath = '/',
+  replace?: boolean,
+) {
   const router = createRouter({
     routeTree: createRootRoute({
       component: () =>
         createElement(I18nProvider, {
           instance,
           languages: ['en', 'cs'],
-          children: createElement(Consumer),
+          children: replace
+            ? createElement(
+                LocalizedLink,
+                { to: '/products', language: 'cs', replace },
+                'Česky',
+              )
+            : createElement(Consumer),
         }),
     }),
-    history: createMemoryHistory({ initialEntries: ['/en/dashboard'] }),
+    history: createMemoryHistory({
+      initialEntries: [`${basepath === '/' ? '' : basepath}/en/dashboard`],
+    }),
+    basepath,
     isServer: false,
     ...(rewrite
       ? {
@@ -106,6 +120,54 @@ const sameLanguageHref = (root: HTMLElement) =>
   root.querySelector('a:not([hreflang])')?.getAttribute('href');
 
 describe('Octane i18n binding', () => {
+  test('a rejected language load uses native document navigation to the anchor URL', async () => {
+    const instance = createFakeI18nInstance('en');
+    const changeLanguage = rstest.fn(() =>
+      Promise.reject(new Error('The lazy language bundle is unavailable')),
+    );
+    instance.changeLanguage = changeLanguage;
+    const { router, root, dispose } = await mount(
+      instance,
+      true,
+      '/store',
+      true,
+    );
+    const replaceDocument = rstest
+      .spyOn(window.location, 'replace')
+      .mockImplementation(() => undefined);
+    try {
+      const anchor = root.querySelector<HTMLAnchorElement>('a[hreflang="cs"]');
+      expect(anchor?.getAttribute('href')).toBe('/store/cs/products');
+      const modified = new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true,
+        button: 0,
+        ctrlKey: true,
+      });
+      anchor?.dispatchEvent(modified);
+      expect(modified.defaultPrevented).toBe(false);
+      expect(changeLanguage).not.toHaveBeenCalled();
+
+      const click = new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true,
+        button: 0,
+      });
+      anchor?.dispatchEvent(click);
+      expect(click.defaultPrevented).toBe(true);
+      await rstest.waitFor(() =>
+        expect(replaceDocument).toHaveBeenCalledWith('/store/cs/products'),
+      );
+      expect(changeLanguage).toHaveBeenCalledOnce();
+      expect(changeLanguage).toHaveBeenCalledWith('cs');
+      expect(instance.language).toBe('en');
+      expect(router.state.location.publicHref).toBe('/store/en/dashboard');
+    } finally {
+      dispose();
+      replaceDocument.mockRestore();
+    }
+  });
+
   test.each([false, true])(
     'useI18n and LocalizedLink follow languageChanged (router rewrite: %s)',
     async rewrite => {

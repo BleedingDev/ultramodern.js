@@ -47,10 +47,10 @@ export function createNativeServerEntry(
       createNativeRouter(application, routerOptions, solidRouterFactory),
     renderCSR: ({ session }, document) =>
       renderCSRDocument({ session, document }),
-    renderComponent: ({ session }, component, document) =>
+    renderComponent: ({ session }, component, document, i18n) =>
       renderDocumentApplication({
         session,
-        view: componentView(component),
+        view: componentView(component, i18n),
         document,
       }),
     async renderRoutes({

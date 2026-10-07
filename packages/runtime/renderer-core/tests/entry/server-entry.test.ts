@@ -1,8 +1,9 @@
-import { describe, expect, it } from '@rstest/core';
+import { describe, expect, it, rstest } from '@rstest/core';
 import type { DataOutcome } from '../../src/data';
 import {
   createNativeServerEntry,
   type NativeEntryI18n,
+  type NativeI18nView,
   type NativeServerAdapter,
   type NativeServerDocument,
 } from '../../src/entry-server';
@@ -63,7 +64,12 @@ type Document = NativeServerDocument & { manifest: unknown };
 
 /** A recording renderer whose router matches `/items` to the `page` route. */
 function adapter() {
-  const calls: { kind: string; document?: Document; value?: unknown }[] = [];
+  const calls: {
+    kind: string;
+    document?: Document;
+    value?: unknown;
+    i18n?: NativeI18nView<I18nInstance, never>;
+  }[] = [];
   const routers: Router[] = [];
   const recording: NativeServerAdapter<Router, Document, I18nInstance, never> =
     {
@@ -101,8 +107,13 @@ function adapter() {
         calls.push({ kind: 'csr', document });
         return html(requestContext, 'csr');
       },
-      async renderComponent(requestContext, component, document) {
-        calls.push({ kind: 'component', document, value: component });
+      async renderComponent(
+        requestContext,
+        component,
+        document,
+        i18n?: NativeI18nView<I18nInstance, never>,
+      ) {
+        calls.push({ kind: 'component', document, value: component, i18n });
         return html(requestContext, 'component');
       },
       async renderRoutes(input) {
@@ -207,6 +218,123 @@ describe('generated native server entry', () => {
     ).rejects.toThrow('ssrByRouteIds requires native route matching');
   });
 
+  it('localizes component SSR with one request instance and keeps CSR handoff language-only', async () => {
+    const { adapter: recording, calls, routers } = adapter();
+    const instance = { language: 'cs' };
+    const adapterBootstrap = {
+      id: 'adapter-bootstrap',
+      payload: '{"feature":true}',
+    };
+    const i18n = localization();
+    const create = rstest.fn(async () => instance);
+    const handoff = rstest.fn(i18n.handoff);
+    const entry = createNativeServerEntry(
+      {
+        identity,
+        app: async () => ({ default: component }),
+        i18n: { ...i18n, create, handoff },
+      },
+      {
+        ...recording,
+        document: (base, manifest) => ({
+          ...recording.document(base, manifest, identity),
+          inlineData: [adapterBootstrap],
+        }),
+      },
+    );
+    const request = new Request('https://example.test/cs/items');
+    const response = await entry.nativeRequestHandler(
+      request,
+      context(request),
+    );
+    expect(await response.text()).toBe('component');
+    expect(create).toHaveBeenCalledExactlyOnceWith('cs');
+    expect(handoff).toHaveBeenCalledExactlyOnceWith('cs', instance);
+    expect(calls[0].document).toMatchObject({
+      lang: 'cs',
+      inlineData: [
+        adapterBootstrap,
+        { id: 'handoff', payload: '{"language":"cs","bundles":true}' },
+      ],
+    });
+    expect(calls[0].i18n).toEqual({
+      instance,
+      languages: ['en', 'cs'],
+    });
+    expect(calls[0].i18n?.instance).toBe(instance);
+    expect(routers).toEqual([]);
+
+    await entry.nativeCSRRequestHandler(request, context(request));
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(calls[1].document).toMatchObject({
+      lang: 'cs',
+      inlineData: [
+        { id: 'handoff', payload: '{"language":"cs","bundles":false}' },
+      ],
+    });
+  });
+
+  it('redirects component requests through the native response without loading bundles', async () => {
+    const { adapter: recording, calls, routers } = adapter();
+    const create = rstest.fn(localization().create);
+    const redirected = new Response(null, {
+      status: 307,
+      headers: { location: '/en/items', 'set-cookie': 'language=en' },
+    });
+    const entry = createNativeServerEntry(
+      {
+        identity,
+        app: async () => ({ default: component }),
+        i18n: { ...localization(), create, redirect: () => redirected },
+      },
+      recording,
+    );
+    const request = new Request('https://example.test/items');
+    const response = await entry.nativeRequestHandler(
+      request,
+      context(request),
+    );
+    expect(response).toBe(redirected);
+    expect(response.status).toBe(307);
+    expect(response.headers.get('location')).toBe('/en/items');
+    expect(response.headers.get('set-cookie')).toBe('language=en');
+    expect(create).not.toHaveBeenCalled();
+    expect(calls).toEqual([]);
+    expect(routers).toEqual([]);
+  });
+
+  it.each([false, true])(
+    'preserves the component request body when localization is %s',
+    async localized => {
+      const { adapter: recording } = adapter();
+      const entry = createNativeServerEntry(
+        {
+          identity,
+          app: async () => ({ default: component }),
+          ...(localized ? { i18n: localization() } : {}),
+        },
+        {
+          ...recording,
+          async renderComponent(requestContext) {
+            return html(
+              requestContext,
+              await requestContext.session.request.text(),
+            );
+          },
+        },
+      );
+      const request = new Request('https://example.test/cs/items', {
+        method: 'POST',
+        body: 'native-component-request',
+      });
+      const response = await entry.nativeRequestHandler(
+        request,
+        context(request),
+      );
+      expect(await response.text()).toBe('native-component-request');
+    },
+  );
+
   it('answers data requests before rendering and keeps private values out of the router', async () => {
     const { adapter: recording, calls, routers } = adapter();
     const entry = createNativeServerEntry(
@@ -246,6 +374,31 @@ describe('generated native server entry', () => {
       'layout',
       'page',
     ]);
+  });
+
+  it('answers routed data requests before localized redirects or document handoff', async () => {
+    const { adapter: recording, calls } = adapter();
+    const i18n = localization();
+    const handoff = rstest.fn(i18n.handoff);
+    const redirect = rstest.fn(i18n.redirect);
+    const entry = createNativeServerEntry(
+      {
+        identity,
+        app: async () => routed,
+        i18n: { ...i18n, handoff, redirect },
+      },
+      recording,
+    );
+    const request = new Request('https://example.test/items?__loader=page');
+    const response = await entry.nativeRequestHandler(
+      request,
+      context(request),
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('json');
+    expect(redirect).not.toHaveBeenCalled();
+    expect(handoff).not.toHaveBeenCalled();
+    expect(calls).toEqual([]);
   });
 
   it('localizes CSR and SSR documents and redirects unprefixed URLs', async () => {

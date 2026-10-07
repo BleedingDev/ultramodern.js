@@ -1,6 +1,6 @@
 import { localizePath } from '@modern-js/i18n-runtime-extensions/paths';
 import * as Solid from 'solid-js';
-import { useNavigate, useRouter } from '../router';
+import { useRouter } from '../router';
 import { I18nContext } from './context';
 import type { I18nInstanceLike } from './types';
 
@@ -13,9 +13,8 @@ export interface UseI18nReturn {
   /** The raw per-request instance, for advanced use (namespaces, `exists`, ...). */
   instance: I18nInstanceLike;
   /**
-   * Switches the i18next instance's language and navigates to the localized
-   * path for the current location under the new language, so the URL and the
-   * active language never disagree.
+   * Switches the i18next instance's language. Inside a router, also replaces
+   * the current URL with the localized path for the new language.
    */
   changeLanguage: (language: string) => Promise<void>;
 }
@@ -38,17 +37,17 @@ export function useI18n(): UseI18nReturn {
     return instance.t(key, options);
   };
 
-  const router = useRouter();
-  const navigate = useNavigate();
+  const router = useRouter({ warn: false });
 
   const changeLanguage = async (nextLanguage: string): Promise<void> => {
     await instance.changeLanguage?.(nextLanguage);
+    if (!router) return;
     const currentPathname = router.state.location.pathname;
     const href = localizePath(currentPathname, nextLanguage, {
       languages: [...languages],
       localisedUrls,
     });
-    await navigate({ to: '.', href, replace: true });
+    await router.navigate({ to: '.', href, replace: true });
   };
 
   return { t, language, languages, instance, changeLanguage };

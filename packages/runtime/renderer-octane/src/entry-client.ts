@@ -12,7 +12,11 @@ import {
   type OctaneApplicationModule,
   readOctaneDocumentBootstrap,
 } from './client';
-import { localizedRouterRoot, octaneRouterFactory } from './entry-application';
+import {
+  componentView,
+  localizedRouterRoot,
+  octaneRouterFactory,
+} from './entry-application';
 import {
   OctaneRouterRoot,
   prepareOctaneRouterHydration,
@@ -49,7 +53,7 @@ export function startNativeClient(options: OctaneClientEntryOptions): void {
         load: async (): Promise<OctaneApplicationModule> => {
           const view = await load();
           if (view.kind === 'component')
-            return { default: view.component as ComponentBody };
+            return { default: componentView(view.component, view.i18n) };
           return view.i18n
             ? {
                 default: LocalizedRouterRoot as ComponentBody,
