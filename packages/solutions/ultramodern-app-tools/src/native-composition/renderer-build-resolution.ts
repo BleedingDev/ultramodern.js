@@ -19,6 +19,7 @@ export function createRendererBuildIdentityResolver(
       context.entrypoints,
       context.pluginNames ?? [],
       metadata,
+      context.appDirectory,
     );
     const delivery = await resolveTopologyDeliveryUnit(context.appDirectory);
     if (delivery && !delivery.surfaces.ui)

@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import type { Entrypoint } from '@modern-js/types/cli/base';
 import { describe, expect, it } from '@rstest/core';
@@ -222,6 +223,90 @@ describe('React router owner bindings', () => {
     });
     expect(Object.keys(bindings)).toEqual([]);
     expect(Object.isFrozen(bindings)).toBe(true);
+  });
+
+  it('records the router versions the application installs through its framework owners', () => {
+    const app = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'react-router-bindings-'),
+    );
+    const install = (
+      directory: string,
+      name: string,
+      version: string,
+      manifest: Record<string, unknown> = { name },
+    ) => {
+      const root = path.join(directory, 'node_modules', name);
+      fs.mkdirSync(root, { recursive: true });
+      fs.writeFileSync(
+        path.join(root, 'package.json'),
+        JSON.stringify({ ...manifest, version }),
+      );
+      return root;
+    };
+    try {
+      // The app shares an earlier TanStack patch with plugin-tanstack, as
+      // pnpm overrides do; @modern-js/runtime keeps its React Router.
+      // The published owner is an npm alias stamped with its source name.
+      const plugin = install(app, tanstack, '3.9.0', {
+        name: '@bleedingdev/modern-js-plugin-tanstack',
+        ultramodern: { sourceName: tanstack },
+      });
+      const router = install(plugin, '@tanstack/react-router', '1.170.39');
+      install(router, '@tanstack/router-core', '1.171.32');
+      install(
+        install(app, '@modern-js/runtime', '3.9.0'),
+        'react-router',
+        '7.18.4',
+      );
+      const bindings = resolveReactRouterBindings({
+        entrypoints: [entry('main')],
+        pluginNames: [legacy, tanstack],
+        appDirectory: app,
+      });
+      expect(bindings.main.providers).toEqual([
+        reactRouter,
+        { ...tanstackRouter, version: '1.170.39', coreVersion: '1.171.32' },
+      ]);
+      // Before installation, the framework's declared routers are bound.
+      const uninstalled = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'react-router-bindings-'),
+      );
+      try {
+        expect(
+          resolveReactRouterBindings({
+            entrypoints: [entry('main')],
+            pluginNames: [legacy, tanstack],
+            appDirectory: uninstalled,
+          }).main.providers,
+        ).toEqual([reactRouter, tanstackRouter]);
+      } finally {
+        fs.rmSync(uninstalled, { recursive: true, force: true });
+      }
+      // A framework owner installed without the router core is broken.
+      const broken = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'react-router-bindings-'),
+      );
+      try {
+        install(
+          install(broken, tanstack, '3.9.0'),
+          '@tanstack/react-router',
+          '1.170.39',
+        );
+        expect(() =>
+          resolveReactRouterBindings({
+            entrypoints: [entry('main')],
+            pluginNames: [legacy, tanstack],
+            appDirectory: broken,
+          }),
+        ).toThrow(
+          /installed without its @tanstack\/router-core core dependency/,
+        );
+      } finally {
+        fs.rmSync(broken, { recursive: true, force: true });
+      }
+    } finally {
+      fs.rmSync(app, { recursive: true, force: true });
+    }
   });
 
   it('keeps the explicit tuples aligned with their owning package manifests', () => {

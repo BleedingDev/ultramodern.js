@@ -22,10 +22,11 @@ export async function resolveEntrypointRouterBindings(
   entrypoints: readonly Entrypoint[],
   pluginNames: readonly string[],
   metadata?: RendererProfileMetadata,
+  appDirectory?: string,
 ): Promise<RendererRouterBindings> {
   if (renderer === 'react')
     return (await import('./react-router-bindings')).resolveReactRouterBindings(
-      { entrypoints, pluginNames },
+      { entrypoints, pluginNames, appDirectory },
     );
   const owner = resolveNativeRendererAdapter(renderer).infrastructurePluginName;
   if (!pluginNames.includes(owner))
