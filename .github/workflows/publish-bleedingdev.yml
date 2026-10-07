@@ -1032,7 +1032,8 @@ jobs:
           node --test scripts/ultramodern-publish/__tests__/sidecar-bundle.test.js \
             scripts/ultramodern-publish/__tests__/sidecar-qualification.test.js \
             scripts/ultramodern-publish/__tests__/sidecar-provenance.test.js \
-            scripts/ultramodern-publish/__tests__/sidecar-publish-lane.test.js
+            scripts/ultramodern-publish/__tests__/sidecar-publish-lane.test.js \
+            scripts/ultramodern-publish/__tests__/packed-mf-sdk-probe.test.js
 
       - name: Qualify the exact sidecar artifact
         env:
