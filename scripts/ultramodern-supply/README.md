@@ -8,8 +8,6 @@ The corrected dependency lane reconstructs the exact Module Federation artifacts
 
 Each recipe's `provenance` is the registry chronology policy the publish lane enforces before it reuses an already-published version, with the same schema and verifier as the cohort's own packages: `grandfatheredVersions` pins the exact version, publication time and integrity of every version published without SLSA v1 provenance from `publish-bleedingdev.yml` on this repository, and every later version must carry that provenance. A new sidecar name is bootstrapped once, interactively, as a deprecated `0.0.0-bootstrap` placeholder recorded as its only grandfathered version; trusted publishing publishes every real version.
 
-The Jiti 2.7.0 recipe publishes `@bleedingdev/jiti@2.7.0` with the optional native package-metadata read callback. Release staging copies the toolkit plugin's installed, patched Jiti package and compares its complete payload against the authenticated recipe before packing it. Framework dependencies retain the `jiti` key and resolve that exact sidecar through an npm alias; peer contracts remain unchanged.
-
 Run:
 
 ```sh

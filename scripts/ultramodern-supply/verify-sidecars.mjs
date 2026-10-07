@@ -32,6 +32,11 @@ const forkSpecifier = /^npm:(@bleedingdev\/[\w.-]+)@(.+)$/u;
  * `@bleedingdev/mf-runtime@2.9.2` reaches runtime-core's
  * resetFederationRuntime (module-federation/core#5152). Backend federation in
  * plugin-bff-extensions creates its own instance and never calls it.
+ *
+ * `@bleedingdev/rsbuild-core` (onAfterPrepareDevCompiler) is a new sidecar
+ * name that has not been bootstrapped on npm yet. Until it is, these framework
+ * edges are its declared consumers and resolve the patched upstream package
+ * in the monorepo.
  */
 export const unpublishedForkEdges = [
   // The SDK fork has not had its first signed release plus 24h admission.
@@ -85,23 +90,13 @@ export const unpublishedForkEdges = [
     published,
     dependency: '@rsbuild/core',
   })),
-  {
-    importer: 'packages/toolkit/plugin',
-    published: '@bleedingdev/modern-js-plugin',
-    dependency: 'jiti',
-  },
-  // The merged 2.9.2 patches carry renderer hunks the published 2.9.3
-  // modern-js-v3 and 2.9.2 dts-plugin forks lack; their fork versions move to
-  // 2.9.4 and 2.9.3 and these edges declare them once published.
+  // The merged 2.9.2 patch carries a renderer hunk the published 2.9.3
+  // modern-js-v3 fork lacks; its fork version moves to 2.9.4 and this edge
+  // declares it once published.
   {
     importer: 'packages/toolkit/ultramodern-create',
     published: '@bleedingdev/modern-js-ultramodern-create',
     dependency: '@module-federation/modern-js-v3',
-  },
-  {
-    importer: 'packages/solutions/ultramodern-app-tools',
-    published: '@bleedingdev/modern-js-ultramodern-app-tools',
-    dependency: '@module-federation/dts-plugin',
   },
 ];
 

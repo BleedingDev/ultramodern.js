@@ -10,16 +10,6 @@ export default [
       'Await the public final development compiler hook after native HMR and filesystem setup before completion and watch adapters attach.',
   },
   {
-    packageName: 'jiti',
-    version: '2.7.0',
-    path: 'patches/jiti@2.7.0.patch',
-    sha256: '12a1f0bd5856038e6cb75913671dcf76a994dcb13ec6302fad507c35708afbe0',
-    repository: true,
-    workspace: null,
-    reason:
-      'Observe original package resolver name/type reads and consumed main/exports/imports without replacing cached values.',
-  },
-  {
     packageName: '@module-federation/bridge-react',
     version: '2.9.1',
     path: 'patches/@module-federation__bridge-react@2.9.1.patch',
