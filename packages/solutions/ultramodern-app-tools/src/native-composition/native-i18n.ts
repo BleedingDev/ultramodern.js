@@ -74,7 +74,6 @@ export interface NativeI18nConfig {
 /** Translation files discovered for one native entry. */
 export interface NativeI18nEntry extends NativeI18nConfig {
   basePath: string;
-  namespaces: string[];
   /** language -> namespace -> absolute JSON file */
   resources: Record<string, Record<string, string>>;
 }
@@ -241,7 +240,6 @@ export function resolveNativeI18nEntry(
   basePath: string,
 ): NativeI18nEntry {
   const resources: Record<string, Record<string, string>> = {};
-  const namespaces = new Set<string>();
   if (config.backend.enabled) {
     const candidates = config.backend.localesDirectory
       ? [config.backend.localesDirectory]
@@ -268,7 +266,6 @@ export function resolveNativeI18nEntry(
         const namespace = file.slice(0, -'.json'.length);
         resources[language] ??= {};
         resources[language][namespace] = path.join(languageDirectory, file);
-        namespaces.add(namespace);
       }
     }
     if (!resources[config.fallbackLanguage])
@@ -276,25 +273,16 @@ export function resolveNativeI18nEntry(
         `i18nPlugin() found no translations for the fallback language in ${path.join(directory, config.fallbackLanguage)}`,
       );
   }
-  return {
-    ...config,
-    basePath,
-    namespaces: [...namespaces].sort(),
-    resources,
-  };
+  return { ...config, basePath, resources };
 }
 
 /**
- * Generated per-entry i18n modules: per-request i18next instances (never a
- * module singleton), lazily imported translation bundles, the router rewrite
- * and the SSR language/resources handoff.
+ * The generated per-entry i18n module: localized routing data and each
+ * language's lazily imported translation bundles. `createNativeI18n()` owns
+ * per-request i18next instances, the router rewrite and the SSR handoff.
  */
-export function emitNativeI18nModules(
-  entry: NativeI18nEntry,
-  renderer: Exclude<Renderer, 'react'>,
-): Record<string, string> {
-  const rendererI18n = `@modern-js/renderer-${renderer}/i18n`;
-  const routing = {
+export function emitNativeI18nModule(entry: NativeI18nEntry): string {
+  const options = {
     languages: entry.languages,
     fallbackLanguage: entry.fallbackLanguage,
     basePath: entry.basePath,
@@ -304,13 +292,8 @@ export function emitNativeI18nModules(
     ...(entry.localisedUrls === undefined
       ? {}
       : { localisedUrls: entry.localisedUrls }),
+    initOptions: entry.initOptions,
   };
-  const defaultNamespace =
-    typeof entry.initOptions.defaultNS === 'string'
-      ? entry.initOptions.defaultNS
-      : entry.namespaces.includes('translation')
-        ? 'translation'
-        : (entry.namespaces[0] ?? 'translation');
   const loaders = Object.entries(entry.resources)
     .map(
       ([language, namespaces]) =>
@@ -322,121 +305,9 @@ export function emitNativeI18nModules(
           .join('\n')}\n  },`,
     )
     .join('\n');
-  const resourcesModule = `// Each language's bundles load on demand.
-export const resourceLoaders = {
+  return `import { createNativeI18n } from "@modern-js/i18n-runtime-extensions/native";
+export const i18n = createNativeI18n(${JSON.stringify(options, null, 2)}, {
 ${loaders}
-};
+});
 `;
-  const resourcesDeclaration = `export declare const resourceLoaders: Record<string, Record<string, () => Promise<unknown>>>;
-`;
-  const lookupCookie = entry.detection.lookupCookie ?? 'i18next';
-  const i18nModule = `import { createInstance, type BackendModule, type i18n as I18nInstance, type InitOptions } from 'i18next';
-import {
-  createI18nSsrHandoffInlineData,
-  createI18nUrlRewrite,
-  type I18nInstanceLike,
-  type I18nSsrHandoffResources,
-  languageFromPathname,
-  readI18nSsrHandoff,
-  type ResolveRequestLanguageOptions,
-} from ${JSON.stringify(rendererI18n)};
-import { resourceLoaders } from './i18n-resources.js';
-
-export type { I18nInstance };
-export const i18nRouting: ResolveRequestLanguageOptions = ${JSON.stringify(routing, null, 2)};
-const namespaces: string[] = ${JSON.stringify(entry.namespaces)};
-const initOptions: InitOptions = ${JSON.stringify(entry.initOptions)};
-
-function unwrapResource(module: unknown): unknown {
-  return typeof module === 'object' && module !== null && 'default' in module ? module.default : module;
-}
-
-const backend: BackendModule = {
-  type: 'backend',
-  init() {},
-  read(language, namespace, callback) {
-    const load = resourceLoaders[language]?.[namespace];
-    if (!load) {
-      callback(null, {});
-      return;
-    }
-    load().then(
-      module => callback(null, unwrapResource(module) as Record<string, unknown>),
-      error => callback(error as Error, false),
-    );
-  },
-};
-
-/** A new, fully isolated instance for one request or one browser document. */
-export async function createI18n(language: string, resources?: I18nSsrHandoffResources): Promise<I18nInstance> {
-  const instance = createInstance();
-  instance.use(backend);
-  await instance.init({
-    ...initOptions,
-    lng: language,
-    fallbackLng: i18nRouting.fallbackLanguage,
-    supportedLngs: i18nRouting.languages,
-    ns: namespaces,
-    defaultNS: ${JSON.stringify(defaultNamespace)},
-    partialBundledLanguages: true,
-    resources: resources ? { [language]: resources } : {},
-    interpolation: { escapeValue: false, ...initOptions.interpolation },
-  });
-  return instance;
-}
-
-export function i18nProviderInstance(instance: I18nInstance): I18nInstanceLike {
-  return instance as unknown as I18nInstanceLike;
-}
-
-/** Router-core rewrite: the router matches canonical paths, URLs carry the language. */
-export function i18nRouterRewrite(getLanguage: () => string) {
-  return createI18nUrlRewrite({
-    languages: i18nRouting.languages,
-    getLanguage,
-    localisedUrls: i18nRouting.localisedUrls,
-  });
-}
-
-/** The server language and its loaded bundles, read before hydration. */
-export function i18nHandoff(instance: I18nInstance, includeResources = true) {
-  const language = instance.language;
-  return createI18nSsrHandoffInlineData({
-    language,
-    ...(includeResources
-      ? { resources: Object.fromEntries(namespaces.map(namespace => [namespace, instance.getResourceBundle(language, namespace) ?? {}])) }
-      : {}),
-  });
-}
-
-export function clientI18nHandoff(): { language: string; resources?: I18nSsrHandoffResources } {
-  const handoff = readI18nSsrHandoff();
-  if (handoff && i18nRouting.languages.includes(handoff.language)) return handoff;
-  return {
-    language: languageFromPathname(window.location.pathname, i18nRouting.languages, i18nRouting.basePath) ?? i18nRouting.fallbackLanguage,
-  };
-}
-
-interface LanguageRouter {
-  subscribe(event: 'onBeforeLoad', listener: (event: { toLocation: { publicHref: string } }) => void): () => void;
-}
-
-/** History navigation to another language prefix switches the instance; switches persist. */
-export function syncI18nWithRouter(router: LanguageRouter, instance: I18nInstance): void {
-  router.subscribe('onBeforeLoad', ({ toLocation }) => {
-    const pathname = new URL(toLocation.publicHref, window.location.origin).pathname;
-    const language = languageFromPathname(pathname, i18nRouting.languages, i18nRouting.basePath);
-    if (language && language !== instance.language) void instance.changeLanguage(language);
-  });
-  instance.on('languageChanged', language => {
-    document.documentElement.lang = language;
-    document.cookie = ${JSON.stringify(`${lookupCookie}=`)} + encodeURIComponent(language) + '; path=/; max-age=31536000; samesite=lax';
-  });
-}
-`;
-  return {
-    'i18n.ts': i18nModule,
-    'i18n-resources.js': resourcesModule,
-    'i18n-resources.d.ts': resourcesDeclaration,
-  };
 }

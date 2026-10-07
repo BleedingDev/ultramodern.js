@@ -2,16 +2,14 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { AppTools, CLIPluginAPI } from '@modern-js/app-tools';
-import type { RendererIdentity } from '@modern-js/renderer-core/identity';
 import { rspack } from '@rsbuild/core';
 import { describe, expect, it } from '@rstest/core';
 import {
-  emitNativeI18nModules,
+  emitNativeI18nModule,
   findNativeI18nConfig,
   i18nPlugin,
   resolveNativeI18nEntry,
 } from '../../src/native-composition/native-i18n';
-import { emitNativeRouteModule } from '../../src/native-composition/native-routes';
 
 const localeDetection = { languages: ['en', 'cs'], fallbackLanguage: 'en' };
 
@@ -112,7 +110,10 @@ describe('native i18n entry modules', () => {
     try {
       const config = findNativeI18nConfig([i18nPlugin({ localeDetection })])!;
       const entry = resolveNativeI18nEntry(config, appDirectory, '/');
-      expect(entry.namespaces).toEqual(['common', 'translation']);
+      expect(Object.keys(entry.resources.en)).toEqual([
+        'common',
+        'translation',
+      ]);
       expect(Object.keys(entry.resources.cs)).toEqual(['translation']);
       expect(entry.resources.en.common).toBe(
         path.join(appDirectory, 'locales/en/common.json'),
@@ -126,157 +127,51 @@ describe('native i18n entry modules', () => {
     }
   });
 
-  it('creates an isolated i18next instance per call and hands its bundles off', async () => {
+  it('emits routing data and lazy bundle loaders for createNativeI18n()', async () => {
     const appDirectory = appWithLocales();
     try {
-      const config = findNativeI18nConfig([i18nPlugin({ localeDetection })])!;
-      const entry = resolveNativeI18nEntry(config, appDirectory, '/');
-      const files = emitNativeI18nModules(entry, 'solid');
-      expect(Object.keys(files).sort()).toEqual([
-        'i18n-resources.d.ts',
-        'i18n-resources.js',
-        'i18n.ts',
-      ]);
-      expect(files['i18n-resources.js']).toContain(
-        `() => import(${JSON.stringify(path.join(appDirectory, 'locales/cs/translation.json'))})`,
-      );
-      const loads: string[] = [];
-      const instances: any[] = [];
-      const i18next = {
-        createInstance() {
-          const store: Record<string, Record<string, unknown>> = {};
-          let backend: any;
-          const instance = {
-            language: '',
-            use(module: unknown) {
-              backend = module;
-              return instance;
-            },
-            async init(options: any) {
-              instance.language = options.lng;
-              instance.options = options;
-              for (const [language, bundles] of Object.entries<any>(
-                options.resources,
-              ))
-                for (const [ns, bundle] of Object.entries(bundles))
-                  store[`${language}/${ns}`] = bundle as Record<
-                    string,
-                    unknown
-                  >;
-              for (const ns of options.ns)
-                if (!store[`${options.lng}/${ns}`])
-                  store[`${options.lng}/${ns}`] = await new Promise(
-                    (resolve, reject) =>
-                      backend.read(
-                        options.lng,
-                        ns,
-                        (error: unknown, data: any) =>
-                          error ? reject(error) : resolve(data),
-                      ),
-                  );
-            },
-            getResourceBundle: (language: string, ns: string) =>
-              store[`${language}/${ns}`],
-            options: undefined as any,
-          };
-          instances.push(instance);
-          return instance;
-        },
-      };
-      const renderer = {
-        createI18nUrlRewrite: (options: any) => ({ options }),
-        createI18nSsrHandoffInlineData: (payload: unknown) => ({
-          id: 'handoff',
-          payload,
+      const config = findNativeI18nConfig([
+        i18nPlugin({
+          localeDetection: {
+            ...localeDetection,
+            detection: { lookupCookie: 'language' },
+          },
+          initOptions: { defaultNS: 'common' },
         }),
-        languageFromPathname: () => undefined,
-        readI18nSsrHandoff: () => undefined,
-      };
-      const resources = {
-        resourceLoaders: {
-          cs: {
-            translation: async () => {
-              loads.push('cs/translation');
-              return { default: { title: 'Ahoj' } };
-            },
+      ])!;
+      const entry = resolveNativeI18nEntry(config, appDirectory, '/shop');
+      const source = emitNativeI18nModule(entry);
+      const calls: [Record<string, unknown>, any][] = [];
+      const module = await evaluate(source, {
+        '@modern-js/i18n-runtime-extensions/native': {
+          createNativeI18n: (
+            options: Record<string, unknown>,
+            loaders: any,
+          ) => {
+            calls.push([options, loaders]);
+            return 'native-i18n';
           },
         },
-      };
-      const module = await evaluate(files['i18n.ts'], {
-        i18next,
-        '@modern-js/renderer-solid/i18n': renderer,
-        './i18n-resources.js': resources,
       });
-      const first = await module.createI18n('cs');
-      const second = await module.createI18n('cs', {
-        translation: { title: 'Ahoj' },
+      expect(module.i18n).toBe('native-i18n');
+      const [options, loaders] = calls[0];
+      expect(options).toEqual({
+        languages: ['en', 'cs'],
+        fallbackLanguage: 'en',
+        basePath: '/shop',
+        detect: true,
+        detection: { lookupCookie: 'language' },
+        ignoreRedirectRoutes: [],
+        initOptions: { defaultNS: 'common' },
       });
-      expect(first).not.toBe(second);
-      expect(instances).toHaveLength(2);
-      // The handed-off bundle is used directly; only the first instance loads.
-      expect(loads).toEqual(['cs/translation']);
-      expect(first.options).toMatchObject({
-        lng: 'cs',
-        fallbackLng: 'en',
-        supportedLngs: ['en', 'cs'],
-        ns: ['common', 'translation'],
-        defaultNS: 'translation',
-        partialBundledLanguages: true,
-        interpolation: { escapeValue: false },
-      });
-      expect(module.i18nHandoff(first)).toEqual({
-        id: 'handoff',
-        payload: {
-          language: 'cs',
-          resources: { common: {}, translation: { title: 'Ahoj' } },
-        },
-      });
-      let language = 'en';
-      const rewrite = module.i18nRouterRewrite(() => language);
-      language = 'cs';
-      expect(rewrite.options.languages).toEqual(['en', 'cs']);
-      expect(rewrite.options.getLanguage()).toBe('cs');
+      expect(Object.keys(loaders.en)).toEqual(['common', 'translation']);
+      expect(Object.keys(loaders.cs)).toEqual(['translation']);
+      // Each language's bundles load on demand.
+      expect(source).toContain(
+        `"translation": () => import(${JSON.stringify(path.join(appDirectory, 'locales/cs/translation.json'))}),`,
+      );
     } finally {
       fs.rmSync(appDirectory, { recursive: true, force: true });
     }
-  });
-
-  it.each([
-    'solid',
-    'octane',
-  ] as const)('passes the i18n rewrite to the %s application router only when enabled', async renderer => {
-    const routerOptions: Record<string, unknown>[] = [];
-    const runtime = {
-      createFileSystemRouteTree: () => ({}),
-      createApplicationRouter(options: Record<string, unknown>) {
-        routerOptions.push(options);
-        return { options };
-      },
-      createMemoryHistory: () => ({}),
-    };
-    const identity: RendererIdentity = {
-      renderer,
-      appId: 'i18n',
-      entryName: 'main',
-      protocolVersion: 1,
-      buildId: 'digest',
-    };
-    const rewrite = { input: () => undefined, output: () => undefined };
-    for (const i18n of [true, false]) {
-      const source = emitNativeRouteModule({
-        renderer,
-        routes: [{ id: 'layout', isRoot: true, children: [] }],
-        mode: 'client',
-        basePath: '/',
-        i18n,
-      });
-      const module = await evaluate(source, {
-        [`@modern-js/renderer-${renderer}/router`]: runtime,
-        '@modern-js/renderer-core/data': {},
-      });
-      module.createNativeRouter({ identity, rewrite });
-    }
-    expect(routerOptions[0].rewrite).toBe(rewrite);
-    expect(routerOptions[1]).not.toHaveProperty('rewrite');
   });
 });
