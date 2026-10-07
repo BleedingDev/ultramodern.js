@@ -207,6 +207,12 @@ describe('create-ultramodern-workspace', () => {
         stderr: false,
       },
     );
+    if (buildResult.code !== 0) {
+      console.error(
+        `Generated shell build failed in ${shellDir} with exit code ${buildResult.code}.\n` +
+          `stdout:\n${buildResult.stdout}\nstderr:\n${buildResult.stderr}`,
+      );
+    }
     expect(buildResult.code).toBe(0);
 
     const shellPackagePath = 'apps/shell-super-app/package.json';
