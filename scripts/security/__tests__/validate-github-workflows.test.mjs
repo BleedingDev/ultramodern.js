@@ -1250,6 +1250,33 @@ test('release validator requires sidecar receipt checks and exact artifact ident
   );
 });
 
+test('sidecar bundle and receipt uploads must include hidden files', () => {
+  for (const [jobId, name] of [
+    ['prepare-sidecars', 'Upload the immutable sidecar bundle'],
+    ['qualify-sidecars', 'Upload the sidecar qualification receipt'],
+  ]) {
+    assert.equal(
+      publishStep(readPublishWorkflow(), jobId, name).with[
+        'include-hidden-files'
+      ],
+      true,
+    );
+    for (const value of [undefined, false]) {
+      assertStepMutationRejected(
+        jobId,
+        name,
+        value === undefined
+          ? 'omits hidden files option'
+          : 'excludes hidden files',
+        step => {
+          if (value === undefined) delete step.with['include-hidden-files'];
+          else step.with['include-hidden-files'] = value;
+        },
+      );
+    }
+  }
+});
+
 test('live publication modes share a non-cancelling lock and dry runs use independent locks', () => {
   const workflow = readPublishWorkflow();
   const group = workflow.concurrency.group.replace(
