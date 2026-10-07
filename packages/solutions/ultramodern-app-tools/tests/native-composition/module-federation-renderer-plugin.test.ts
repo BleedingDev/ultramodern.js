@@ -235,6 +235,16 @@ function publicationCompiler(result: Awaited<ReturnType<typeof actualChain>>) {
   return compiler;
 }
 
+/** A compilation that emits the named native MF publication assets. */
+function publishing(...names: string[]): Rspack.Compilation {
+  const published = names.length
+    ? names
+    : ['mf-manifest.json', 'mf-stats.json'];
+  return {
+    assets: Object.fromEntries(published.map(name => [name, {}])),
+  } as unknown as Rspack.Compilation;
+}
+
 describe('renderer authority at the actual native MF publication boundary', () => {
   it.each([
     { target: 'web' as const, secondary: false },
@@ -267,7 +277,7 @@ describe('renderer authority at the actual native MF publication boundary', () =
       expect(config.runtimePlugins).toContain('/consumer/runtime.js');
       expect(config.shared).toEqual({});
       const compiler = publicationCompiler(result);
-      const compilation = {} as Rspack.Compilation;
+      const compilation = publishing();
       const stats: NativeStats = { metaData: { name: 'native-remote' } };
       const manifest = config.manifest as Exclude<
         NativeConfig['manifest'],
@@ -295,9 +305,9 @@ describe('renderer authority at the actual native MF publication boundary', () =
       await expect(
         compiler.hooks.emit.promise(compilation),
       ).resolves.toBeUndefined();
-      await expect(
-        compiler.hooks.emit.promise({} as Rspack.Compilation),
-      ).rejects.toThrow('lacks finalized renderer authority');
+      await expect(compiler.hooks.emit.promise(publishing())).rejects.toThrow(
+        'lacks finalized renderer authority',
+      );
     },
   );
 
@@ -340,7 +350,7 @@ describe('renderer authority at the actual native MF publication boundary', () =
       const compiler = publicationCompiler(result);
       const input = {
         stats: { metaData: { original: true } },
-        compilation: {} as Rspack.Compilation,
+        compilation: publishing('custom-manifest.json'),
       };
       const pending = manifest!.additionalData!(input);
       expect(replacement.metaData).not.toHaveProperty(
@@ -369,6 +379,38 @@ describe('renderer authority at the actual native MF publication boundary', () =
     },
   );
 
+  it.each(['web', 'node'] as const)(
+    'gates only compilations that publish the native manifest on %s',
+    async target => {
+      const selected = await integration();
+      const result = await actualChain(target, [
+        ...(await nativeModifiers(false)),
+        chain => {
+          nativeOptions(chain, target).manifest = {
+            filePath: 'static',
+            fileName: 'remote-manifest',
+          };
+        },
+        selected.modifier,
+      ]);
+      const compiler = publicationCompiler(result);
+      // A sibling environment (the Cloudflare workerSSR bundle) carries the
+      // native plugin but emits no manifest, so there is nothing to stamp.
+      await expect(
+        compiler.hooks.emit.promise(
+          publishing('routes-manifest.json', 'mf-manifest.json'),
+        ),
+      ).resolves.toBeUndefined();
+      for (const published of [
+        'static/remote-manifest.json',
+        'static/remote-manifest-stats.json',
+      ])
+        await expect(
+          compiler.hooks.emit.promise(publishing(published)),
+        ).rejects.toThrow('lacks finalized renderer authority');
+    },
+  );
+
   it('rejects metadata owned by another publisher before accepting its compilation', async () => {
     const selected = await integration();
     selected.controller.onBuildIdentities(completedIdentities());
@@ -381,7 +423,7 @@ describe('renderer authority at the actual native MF publication boundary', () =
       NativeConfig['manifest'],
       boolean
     >;
-    const compilation = {} as Rspack.Compilation;
+    const compilation = publishing();
     const owned = { from: 'another-publisher' };
     const stats: NativeStats = {
       metaData: { [RENDERER_FEDERATION_METADATA_KEY]: owned },

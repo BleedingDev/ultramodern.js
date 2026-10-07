@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module';
+import path from 'node:path';
 import type { AppTools, CliPlugin } from '@modern-js/app-tools';
 import type { RendererBuildIdentities } from '@modern-js/app-tools-extensions/renderer-build-identity';
 import {
@@ -35,6 +36,25 @@ const record = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
 type AdditionalDataArgs = { stats: unknown; compilation: object };
 type AdditionalData = (args: AdditionalDataArgs) => unknown | Promise<unknown>;
+
+/** The manifest and stats asset names native MF derives from its manifest options. */
+function nativeManifestAssetNames(manifest: Record<string, unknown>): string[] {
+  const filePath =
+    typeof manifest.filePath === 'string' ? manifest.filePath : '';
+  const fileName =
+    typeof manifest.fileName === 'string' ? manifest.fileName : '';
+  const manifestName = fileName
+    ? fileName.endsWith('.json')
+      ? fileName
+      : `${fileName}.json`
+    : 'mf-manifest.json';
+  const statsName = fileName
+    ? manifestName.replace('.json', '-stats.json')
+    : 'mf-stats.json';
+  return [manifestName, statsName].map(name =>
+    path.posix.join(filePath.replace(/\\/gu, '/'), name),
+  );
+}
 
 export function resolveReactFederationCompatibility(): RendererFederationCompatibility {
   const metadata = resolveRendererProfileMetadata('react');
@@ -147,6 +167,7 @@ export function createRendererModuleFederationIntegration(
           options.resolveRuntimePlugin ?? resolveRendererFederationRuntimePlugin
         )();
         const stamped = new WeakSet<object>();
+        const publications = new Set<string>();
         for (const nativeKey of nativeKeys)
           chain.plugin(nativeKey).tap(args => {
             const config =
@@ -170,6 +191,8 @@ export function createRendererModuleFederationIntegration(
                 'native manifest options must be a boolean or record.',
               );
             const manifest = record(config.manifest) ? config.manifest : {};
+            for (const name of nativeManifestAssetNames(manifest))
+              publications.add(name);
             const previous = manifest.additionalData;
             if (previous !== undefined && typeof previous !== 'function')
               throw rendererFederationError(
@@ -240,6 +263,14 @@ export function createRendererModuleFederationIntegration(
               compiler.hooks.emit.tap(
                 'ultramodern-mf-renderer-publication',
                 compilation => {
+                  // An environment whose native MF publishes no manifest (the
+                  // Cloudflare workerSSR bundle) has no publication to gate.
+                  if (
+                    !Object.keys(compilation.assets).some(name =>
+                      publications.has(name),
+                    )
+                  )
+                    return;
                   if (!stamped.has(compilation))
                     throw rendererFederationError(
                       'emitted native manifest lacks finalized renderer authority.',
