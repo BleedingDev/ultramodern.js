@@ -98,14 +98,9 @@ function completedIdentities(): RendererBuildIdentities {
         buildId: buildMarker,
       },
     },
-    buildMarker,
+    buildId: buildMarker,
+    profileKey: 'c'.repeat(64),
     sourceRevision: 'workspace',
-    inputDigest: 'b'.repeat(64),
-    profileDigest: 'c'.repeat(64),
-    compilerDigest: 'd'.repeat(64),
-    frameworkCohortDigest: 'e'.repeat(64),
-    cacheAllowed: false,
-    promotable: false,
     routerBindings: {
       main: {
         owner: '@modern-js/plugin-router',
