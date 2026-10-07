@@ -536,6 +536,7 @@ function providerOptions(
 ): NativeServerPluginOptions {
   return {
     renderer: 'solid',
+    manifestModule: '@modern-js/renderer-solid/manifest',
     entries: { main: identity },
     assetManifestFile: 'renderer-assets.json',
     nativeManifestFiles: { main: 'solid-module-manifest.main.json' },
@@ -719,6 +720,7 @@ describe('native development compiler snapshot provider', () => {
           : { ...snapshot, hydrationBuildId: 'other-compiled-client' };
       const render = await installedRender({
         renderer: 'octane',
+        manifestModule: '@modern-js/renderer-octane/manifest',
         entries: { main: octaneIdentity },
         resolveDevelopmentSnapshot: async () => invalid,
       });
@@ -785,6 +787,7 @@ describe('native development compiler snapshot provider', () => {
     });
     const render = await installedRender({
       renderer: 'solid',
+      manifestModule: '@modern-js/renderer-solid/manifest',
       entries: { main: identity, admin: adminIdentity },
       resolveDevelopmentSnapshot: provider,
     });

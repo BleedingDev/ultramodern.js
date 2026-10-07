@@ -4,7 +4,7 @@ import {
   type NativeRendererAdapter,
   nativeRendererDependencies,
 } from '@modern-js/renderer-core/adapter';
-import { solidCompilerArtifacts } from './artifacts';
+import { compilerArtifacts } from '../manifest';
 import { pluginSolidRenderer, pluginSourceDirectory } from './compiler';
 import { generateSolidAppSources } from './create';
 import { solidProfile } from './profile';
@@ -46,12 +46,10 @@ export const rendererAdapter: NativeRendererAdapter<'solid'> =
     },
     worker: { nativeDocuments: true, rsc: false },
     lazyStyles: 'renderer',
-    svgComponentTemplate: path.join(
-      pluginSourceDirectory(),
-      'svg-component-template.cjs',
-    ),
+    svgComponentTemplate: () =>
+      path.join(pluginSourceDirectory(), 'svg-component-template.cjs'),
     compiler: pluginSolidRenderer,
-    artifacts: solidCompilerArtifacts,
+    artifacts: compilerArtifacts,
     create: {
       dependencies: profile => ({
         frameworkDependencies: [

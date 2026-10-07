@@ -1,3 +1,4 @@
+import type { NativeCompilerArtifacts } from '@modern-js/renderer-core/adapter';
 import {
   nativeModuleManifestFilename,
   type RendererIdentity,
@@ -317,3 +318,20 @@ export function validateSolidModuleManifest(
   }
   return manifest;
 }
+
+/**
+ * The compiler artifact ABI. It lives in this runtime module, not in the
+ * build-only `./plugin`, because the production server validates manifests
+ * with it and deployments trace it from there.
+ */
+export const compilerArtifacts: NativeCompilerArtifacts = {
+  clientManifestFile: solidModuleManifestFilename,
+  async validateClientManifest(value, identity) {
+    return { nativeManifest: validateSolidModuleManifest(value, identity) };
+  },
+  isMutableDevelopmentAsset(filename, entryNames) {
+    return entryNames.some(
+      entry => filename === solidModuleManifestFilename(entry),
+    );
+  },
+};

@@ -681,8 +681,12 @@ export default nativeRequestHandler;
               ...plugins,
               {
                 name,
+                // The deployed server loads the renderer's runtime manifest
+                // module by name, so trace it into the output.
+                includeEntries: [adapter.runtime.manifest],
                 options: {
                   renderer,
+                  manifestModule: adapter.runtime.manifest,
                   entries: buildIdentities?.identities ?? {},
                   // Document caching stays off in dev.
                   cacheAllowed: command !== 'dev',
