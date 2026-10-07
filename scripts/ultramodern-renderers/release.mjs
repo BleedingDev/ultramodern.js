@@ -7,7 +7,7 @@
 //     node scripts/ultramodern-renderers/release.mjs \
 //       (--version <x.y.z-ultramodern.N> | --cohort-dir <dir>) \
 //       [--renderers react,solid,octane] [--with worker,rsc,mf]
-//       [--tractor-source <tractor demo checkout>]
+//       [--tractor-source <tractor demo checkout> [--tractor-revision <rev>]]
 //
 // For each renderer: generate a workspace with the packed create CLI,
 // (Solid, Octane) build and serve its untouched starter, put the
@@ -20,7 +20,8 @@
 // custom entries and RSC on workerd, Module Federation lifecycle, and (with
 // --tractor-source, a Tractor repository containing the pinned
 // scripts/ultramodern-publish/tractor-baseline-revision) the Tractor
-// downstream adoption of that exact baseline.
+// downstream adoption of that exact baseline, or of --tractor-revision (any
+// revision of the source checkout, e.g. a local adoption commit) when given.
 // Prints a PASS/FAIL/SKIP table and exits 1 on any failure.
 import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
@@ -52,6 +53,7 @@ const { values: opts } = parseArgs({
     renderers: { type: 'string', default: allRenderers.join(',') },
     with: { type: 'string', default: allRunners.join(',') },
     'tractor-source': { type: 'string' },
+    'tractor-revision': { type: 'string' },
     'browser-executable': { type: 'string' },
     'work-dir': { type: 'string' },
   },
@@ -68,6 +70,8 @@ for (const runner of runners)
   if (!allRunners.includes(runner)) throw new Error(`Unknown runner ${runner}`);
 if (!opts.version === !opts['cohort-dir'])
   throw new Error('Pass exactly one of --version or --cohort-dir');
+if (opts['tractor-revision'] && !opts['tractor-source'])
+  throw new Error('--tractor-revision needs --tractor-source');
 
 const workDir = fs.realpathSync(
   opts['work-dir'] ??
@@ -622,18 +626,31 @@ async function main() {
     await step(
       'tractor',
       async () => {
-        // Accept the pinned Tractor baseline the CI lane checks out, not
-        // whatever the source checkout happens to have at HEAD.
+        // Accept the pinned Tractor baseline the CI lane checks out (or the
+        // explicitly requested revision), not whatever the source checkout
+        // happens to have at HEAD.
         const source = path.resolve(opts['tractor-source']);
-        const revision = fs
-          .readFileSync(
-            path.join(
-              root,
-              'scripts/ultramodern-publish/tractor-baseline-revision',
-            ),
-            'utf8',
-          )
-          .trim();
+        const revision = opts['tractor-revision']
+          ? execFileSync(
+              'git',
+              [
+                '-C',
+                source,
+                'rev-parse',
+                '--verify',
+                `${opts['tractor-revision']}^{commit}`,
+              ],
+              { encoding: 'utf8' },
+            ).trim()
+          : fs
+              .readFileSync(
+                path.join(
+                  root,
+                  'scripts/ultramodern-publish/tractor-baseline-revision',
+                ),
+                'utf8',
+              )
+              .trim();
         if (!/^[0-9a-f]{40}$/u.test(revision))
           throw new Error(`Invalid Tractor baseline revision: ${revision}`);
         const clone = path.join(workDir, 'tractor');
