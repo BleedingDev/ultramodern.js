@@ -664,8 +664,10 @@ async function executeWorker(input) {
       apiOnly: false,
       appDirectory: applicationRoot,
       apiDirectory: path.join(leaf, 'api'),
+      // Commands resolve the deploy target once into the app context.
+      deployTarget: { target: 'cloudflare', explicit: true },
     },
-    normalizedConfig: { deploy: { target: 'cloudflare' } },
+    normalizedConfig: {},
     environments: {
       [SERVICE_WORKER_ENVIRONMENT_NAME]: {
         source: {
