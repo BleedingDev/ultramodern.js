@@ -3,7 +3,36 @@ import {
   getRendererGenerationProfile,
   resolveWorkspaceRenderer,
 } from './renderer-profile';
-import type { WorkspaceApp } from './types';
+import type {
+  ApplicationRenderer,
+  WorkspaceApp,
+  WorkspaceRendererIdentity,
+} from './types';
+
+/** Stamp one entry using its resolved profile and router binding. */
+export function createRendererEntryIdentity(
+  scope: string,
+  app: WorkspaceApp,
+  renderer: ApplicationRenderer,
+  entryName: string,
+  version: string,
+): WorkspaceRendererIdentity {
+  const identity: WorkspaceRendererIdentity = {
+    renderer,
+    appId: app.id,
+    entryName,
+    protocolVersion: 1,
+    buildId: '',
+  };
+  return {
+    ...identity,
+    buildId: createBuildMarker(
+      scope,
+      { ...app, rendererIdentity: identity },
+      version,
+    ),
+  };
+}
 
 /** Identity for a new source template. Existing applications use config loading. */
 export function initializeGeneratedRendererIdentity(
@@ -20,23 +49,22 @@ export function initializeGeneratedRendererIdentity(
     rendererProfile: generation.profile,
     rendererGenerationProfile: generation,
     rendererCapabilities: { ...generation.capabilities },
-    rendererIdentity: {
-      renderer,
-      appId: app.id,
-      entryName: renderer === 'react' ? 'index' : 'main',
-      protocolVersion: 1,
-      buildId: '',
-    },
   };
-  const buildId = createBuildMarker(scope, initialized, version);
-  initialized.rendererIdentity!.buildId = buildId;
+  const identity = createRendererEntryIdentity(
+    scope,
+    initialized,
+    renderer,
+    renderer === 'react' ? 'index' : 'main',
+    version,
+  );
+  initialized.rendererIdentity = identity;
   initialized.rendererIdentities = {
-    [initialized.rendererIdentity!.entryName]: initialized.rendererIdentity!,
+    [identity.entryName]: identity,
   };
   initialized.deliveryUnit = {
     ...app.deliveryUnit,
     version,
-    buildMarker: buildId,
+    buildMarker: identity.buildId,
   };
   return initialized;
 }
