@@ -3,14 +3,37 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { performance } from 'node:perf_hooks';
+import type { TestContext } from '@rstest/core';
 import {
   addUltramodernVertical,
   generateUltramodernWorkspace,
 } from '../src/ultramodern-workspace';
+import { linkInstalledEffectCompiler } from './helpers/workspace-kit';
 
 type FileTreeSnapshot = Map<string, Buffer>;
 
-async function generateFixedWorkspace(workspaceDir: string) {
+function trackPhases(onTestFailed: TestContext['onTestFailed']) {
+  const startedAt = performance.now();
+  let phase = 'fixture setup';
+  let phaseStartedAt = startedAt;
+  onTestFailed(() => {
+    const failedAt = performance.now();
+    console.error(
+      `[workspace-determinism] phase=${phase}; phase elapsed=${Math.round(failedAt - phaseStartedAt)}ms; total elapsed=${Math.round(failedAt - startedAt)}ms`,
+    );
+  });
+  return (nextPhase: string) => {
+    phase = nextPhase;
+    phaseStartedAt = performance.now();
+  };
+}
+
+async function generateFixedWorkspace(
+  workspaceDir: string,
+  setPhase: (phase: string) => void,
+) {
+  setPhase(`${path.basename(workspaceDir)}: generation`);
   await generateUltramodernWorkspace({
     targetDir: workspaceDir,
     packageName: 'deterministic-workspace',
@@ -21,6 +44,9 @@ async function generateFixedWorkspace(workspaceDir: string) {
     },
   });
 
+  setPhase(`${path.basename(workspaceDir)}: compiler fixture setup`);
+  linkInstalledEffectCompiler(workspaceDir);
+  setPhase(`${path.basename(workspaceDir)}: addVertical`);
   await addUltramodernVertical({
     workspaceRoot: workspaceDir,
     name: 'catalog',
@@ -37,6 +63,10 @@ function collectFileTreeSnapshot(root: string) {
       .sort((first, second) => first.name.localeCompare(second.name));
 
     for (const entry of entries) {
+      // Keep installed compiler fixtures outside the authored-file snapshot.
+      if (directory === root && entry.name === 'node_modules') {
+        continue;
+      }
       const absolutePath = path.join(directory, entry.name);
       const relativePath = path
         .relative(root, absolutePath)
@@ -101,7 +131,10 @@ function firstFileTreeDifference(
   return undefined;
 }
 
-test('generates byte-identical workspaces for a fixed shell and MicroVertical spec', async () => {
+test('generates byte-identical workspaces for a fixed shell and MicroVertical spec', async ({
+  onTestFailed,
+}) => {
+  const setPhase = trackPhases(onTestFailed);
   const tempRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), 'um-workspace-determinism-'),
   );
@@ -110,9 +143,10 @@ test('generates byte-identical workspaces for a fixed shell and MicroVertical sp
     const firstWorkspaceDir = path.join(tempRoot, 'first');
     const secondWorkspaceDir = path.join(tempRoot, 'second');
 
-    await generateFixedWorkspace(firstWorkspaceDir);
-    await generateFixedWorkspace(secondWorkspaceDir);
+    await generateFixedWorkspace(firstWorkspaceDir, setPhase);
+    await generateFixedWorkspace(secondWorkspaceDir, setPhase);
 
+    setPhase('file tree snapshot comparison');
     const difference = firstFileTreeDifference(
       collectFileTreeSnapshot(firstWorkspaceDir),
       collectFileTreeSnapshot(secondWorkspaceDir),
@@ -127,13 +161,17 @@ test('generates byte-identical workspaces for a fixed shell and MicroVertical sp
 // Restored: delivery-unit build markers were once seeded per process, so a
 // marker stamped by the CLI never matched the one recomputed by a later
 // process (the generated `pnpm check` validator asserts they agree).
-test('the CLI stamps the same delivery-unit build marker as an in-process add', async () => {
+test('the CLI stamps the same delivery-unit build marker as an in-process add', async ({
+  onTestFailed,
+}) => {
+  const setPhase = trackPhases(onTestFailed);
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-marker-cross-'));
   try {
     const inProcessDir = path.join(tempRoot, 'in-process');
-    await generateFixedWorkspace(inProcessDir);
+    await generateFixedWorkspace(inProcessDir, setPhase);
 
     const cliDir = path.join(tempRoot, 'cli');
+    setPhase('cli: generation');
     await generateUltramodernWorkspace({
       targetDir: cliDir,
       packageName: 'deterministic-workspace',
@@ -141,6 +179,9 @@ test('the CLI stamps the same delivery-unit build marker as an in-process add', 
       enableTailwind: true,
       packageSource: { strategy: 'workspace' },
     });
+    setPhase('cli: compiler fixture setup');
+    linkInstalledEffectCompiler(cliDir);
+    setPhase('cli: addVertical command');
     const cli = spawnSync(
       process.execPath,
       [
@@ -152,6 +193,7 @@ test('the CLI stamps the same delivery-unit build marker as an in-process add', 
     );
     assert.equal(cli.status, 0, `${cli.stdout}\n${cli.stderr}`);
 
+    setPhase('delivery-unit build marker assertion');
     const markerOf = (root: string) =>
       JSON.parse(
         fs.readFileSync(
