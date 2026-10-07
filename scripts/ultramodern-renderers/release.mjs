@@ -14,8 +14,9 @@
 // tests/integration/renderer-<r> app into its shell, install from a local
 // registry under the strict release-age policy, recapture the shell's delivery
 // unit from the fixture config (sync-delivery-unit), check the installed cohort is
-// the packed bytes, typecheck, and run the specs (for Solid and Octane they
-// include the no-React bundle check).
+// the packed bytes, typecheck, and run the specs. Solid and Octane also install
+// an ordinary fixture outside the generated topology to prove portable Node
+// deployment; this does not qualify the generated shell's release envelope.
 // Then the React runners in scripts/ultramodern-production-readiness: worker
 // custom entries and RSC on workerd, Module Federation lifecycle, and (with
 // --tractor-source, a Tractor repository containing the pinned
@@ -215,14 +216,8 @@ const readJson = file => JSON.parse(fs.readFileSync(file, 'utf8'));
 const writeJson = (file, value) =>
   fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`);
 
-/**
- * Moves the fixture app into the generated shell: its src/, config and
- * tsconfig replace the starter ones. The shell keeps the dependencies the
- * generator wrote (the worker probe builds against them), the fixture's are
- * added, and framework packages the generator did not write get the cohort
- * alias.
- */
-function overlayFixture(appRoot, renderer, release) {
+/** Copies authored fixture source into an operation-owned app directory. */
+function copyFixtureSource(appRoot, renderer) {
   const fixture = path.join(root, 'tests/integration', `renderer-${renderer}`);
   fs.rmSync(path.join(appRoot, 'src'), { recursive: true, force: true });
   fs.cpSync(path.join(fixture, 'src'), path.join(appRoot, 'src'), {
@@ -230,37 +225,42 @@ function overlayFixture(appRoot, renderer, release) {
   });
   for (const file of ['modern.config.ts', 'tsconfig.json'])
     fs.copyFileSync(path.join(fixture, file), path.join(appRoot, file));
+  return readJson(path.join(fixture, 'package.json'));
+}
 
-  const generated = readJson(path.join(appRoot, 'package.json'));
-  const written = { ...generated.dependencies, ...generated.devDependencies };
+function resolveFixtureDependencies(deps, release, written = {}) {
   const cohort = new Map(
     release.packages.map(item => [
       item.sourceName,
       `npm:${item.targetName}@${item.version}`,
     ]),
   );
-  const resolve = deps =>
-    Object.fromEntries(
-      Object.entries(deps ?? {}).map(([name, spec]) => {
-        if (written[name]) return [name, written[name]];
-        if (spec.startsWith('workspace:')) {
-          if (!cohort.has(name))
-            throw new Error(`${name} is not in the cohort`);
-          return [name, cohort.get(name)];
-        }
-        return [name, spec];
-      }),
-    );
-  const app = readJson(path.join(fixture, 'package.json'));
+  return Object.fromEntries(
+    Object.entries(deps ?? {}).map(([name, spec]) => {
+      if (written[name]) return [name, written[name]];
+      if (spec.startsWith('workspace:')) {
+        if (!cohort.has(name)) throw new Error(`${name} is not in the cohort`);
+        return [name, cohort.get(name)];
+      }
+      return [name, spec];
+    }),
+  );
+}
+
+/** The generated shell keeps its metadata and generator-written dependencies. */
+function overlayFixture(appRoot, renderer, release) {
+  const app = copyFixtureSource(appRoot, renderer);
+  const generated = readJson(path.join(appRoot, 'package.json'));
+  const written = { ...generated.dependencies, ...generated.devDependencies };
   writeJson(path.join(appRoot, 'package.json'), {
     ...generated,
     dependencies: {
       ...generated.dependencies,
-      ...resolve(app.dependencies),
+      ...resolveFixtureDependencies(app.dependencies, release, written),
     },
     devDependencies: {
       ...generated.devDependencies,
-      ...resolve(app.devDependencies),
+      ...resolveFixtureDependencies(app.devDependencies, release, written),
       typescript: written.typescript,
     },
   });
@@ -553,6 +553,58 @@ async function main() {
         ready,
       );
       if (ready) apps[renderer] = { workspace, appRoot };
+      let nodeDeployRoot;
+      if (renderer !== 'react')
+        ready = await step(
+          `${renderer} node fixture`,
+          async () => {
+            nodeDeployRoot = path.join(workDir, `node-${renderer}`);
+            for (let ancestor = workDir; ; ancestor = path.dirname(ancestor)) {
+              for (const entry of [
+                'node_modules',
+                'topology/reference-topology.json',
+              ])
+                if (fs.existsSync(path.join(ancestor, entry)))
+                  throw new Error(
+                    `Ordinary Node fixture requires an isolated work directory; found ${path.join(ancestor, entry)}`,
+                  );
+              if (ancestor === path.dirname(ancestor)) break;
+            }
+            fs.mkdirSync(nodeDeployRoot);
+            const app = copyFixtureSource(nodeDeployRoot, renderer);
+            writeJson(path.join(nodeDeployRoot, 'package.json'), {
+              ...app,
+              dependencies: resolveFixtureDependencies(
+                app.dependencies,
+                release,
+              ),
+              devDependencies: {
+                ...resolveFixtureDependencies(app.devDependencies, release),
+                typescript: readJson(
+                  path.join(appRoot, 'node_modules/typescript/package.json'),
+                ).version,
+              },
+            });
+            const { allowBuilds } = parseYaml(
+              fs.readFileSync(path.join(root, 'pnpm-workspace.yaml'), 'utf8'),
+            );
+            fs.writeFileSync(
+              path.join(nodeDeployRoot, 'pnpm-workspace.yaml'),
+              stringifyYaml({
+                packages: ['.'],
+                allowBuilds,
+                packageImportMethod: 'clone-or-copy',
+              }),
+            );
+            await sh('pnpm', ['install'], {
+              cwd: nodeDeployRoot,
+              env,
+              log: `${renderer}-node-install`,
+            });
+            checkInstalledCohort({ appRoot: nodeDeployRoot, cohort });
+          },
+          ready,
+        );
       await step(
         `${renderer} typecheck`,
         () =>
@@ -585,6 +637,12 @@ async function main() {
                 ...process.env,
                 RENDERER_TARGET_DIR: appRoot,
                 RENDERER_TARGET_BIN: installedBin(appRoot),
+                ...(nodeDeployRoot
+                  ? {
+                      RENDERER_NODE_DEPLOY_DIR: nodeDeployRoot,
+                      RENDERER_NODE_DEPLOY_BIN: installedBin(nodeDeployRoot),
+                    }
+                  : {}),
               },
               log: `${renderer}-specs`,
             },

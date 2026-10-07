@@ -69,6 +69,17 @@ export function defineRendererSpecs(options: RendererSpecOptions) {
     options.notFoundMarker ?? 'data-testid="native-not-found"';
   const appDir = process.env.RENDERER_TARGET_DIR ?? options.appDir;
   const modernBin = process.env.RENDERER_TARGET_BIN ?? workspaceBin;
+  if (
+    renderer !== 'react' &&
+    process.env.RENDERER_TARGET_DIR &&
+    (!process.env.RENDERER_NODE_DEPLOY_DIR ||
+      !process.env.RENDERER_NODE_DEPLOY_BIN)
+  )
+    throw new Error(
+      'Packed native specs require RENDERER_NODE_DEPLOY_DIR and RENDERER_NODE_DEPLOY_BIN for an ordinary packed deployment fixture',
+    );
+  const nodeDeployDir = process.env.RENDERER_NODE_DEPLOY_DIR ?? appDir;
+  const nodeDeployBin = process.env.RENDERER_NODE_DEPLOY_BIN ?? modernBin;
   const spec = (name: SpecName, body: () => Promise<void>) => {
     const reason = options.skip?.[name];
     if (reason) test.skip(`${name} (${reason})`, body);
@@ -556,54 +567,90 @@ export function defineRendererSpecs(options: RendererSpecOptions) {
 
   // The node deploy output must serve from any directory: it may only use
   // what deploy traced into it, never the app's own node_modules.
-  // A packed-release target is a generated delivery unit, where deploy is a
-  // release: it needs a committed source revision and a federated
-  // MicroVertical envelope. The overlaid fixture is neither, so only the
-  // in-repo fixture app proves deploy portability.
-  if (renderer !== 'react' && !process.env.RENDERER_TARGET_DIR)
+  // Packed runs provide a separate ordinary app. The generated shell keeps
+  // its delivery-unit release gate; this fixture proves plain Node deployment.
+  if (renderer !== 'react')
     describe(`renderer ${renderer} node deploy`, () => {
-      const output = path.join(appDir, '.output');
+      const output = path.join(nodeDeployDir, '.output');
       let isolated: string | undefined;
+      let ownsOutput = false;
       useServer(async port => {
+        if (fs.existsSync(output))
+          throw new Error(
+            `Refusing to replace an existing deploy output: ${output}`,
+          );
+        ownsOutput = true;
         const result = await runModernCommand(['deploy'], {
-          cwd: appDir,
-          modernBin,
-          env: { NODE_ENV: 'production' },
+          cwd: nodeDeployDir,
+          modernBin: nodeDeployBin,
+          env: { NODE_ENV: 'production', MODERNJS_DEPLOY: 'node' },
         });
         if (result.code !== 0)
           throw new Error(`deploy failed\n${result.stdout}\n${result.stderr}`);
-        isolated = fs.mkdtempSync(
-          path.join(os.tmpdir(), `renderer-${renderer}-deploy-`),
+        isolated = fs.realpathSync(
+          fs.mkdtempSync(
+            path.join(os.tmpdir(), `renderer-${renderer}-deploy-`),
+          ),
         );
         fs.cpSync(output, isolated, {
           recursive: true,
           verbatimSymlinks: true,
         });
-        const server = spawn(process.execPath, ['index'], {
-          cwd: isolated,
-          env: { ...process.env, PORT: String(port), NODE_ENV: 'production' },
-          stdio: ['ignore', 'pipe', 'pipe'],
-        });
+        for (const entry of fs.readdirSync(isolated, {
+          recursive: true,
+          withFileTypes: true,
+        })) {
+          if (!entry.isSymbolicLink()) continue;
+          const resolved = fs.realpathSync(
+            path.join(entry.parentPath, entry.name),
+          );
+          expect(resolved.startsWith(`${isolated}${path.sep}`)).toBe(true);
+        }
+        const env: NodeJS.ProcessEnv = {
+          ...process.env,
+          PORT: String(port),
+          NODE_ENV: 'production',
+        };
+        delete env.NODE_PATH;
+        const server = spawn(
+          process.execPath,
+          [
+            '--permission',
+            `--allow-fs-read=${isolated}`,
+            `--allow-fs-write=${isolated}`,
+            '--allow-net',
+            'index',
+          ],
+          { cwd: isolated, env, stdio: ['ignore', 'pipe', 'pipe'] },
+        );
         let log = '';
         server.stdout.on('data', chunk => (log += chunk));
         server.stderr.on('data', chunk => (log += chunk));
         const deadline = Date.now() + 60_000;
-        for (;;) {
-          if (server.exitCode !== null)
-            throw new Error(`deployed server exited\n${log}`);
-          try {
-            await fetch(`http://localhost:${port}/`);
-            return server;
-          } catch {
-            if (Date.now() > deadline)
-              throw new Error(`deployed server did not start\n${log}`);
-            await new Promise(resolve => setTimeout(resolve, 250));
+        try {
+          for (;;) {
+            if (server.exitCode !== null)
+              throw new Error(`deployed server exited\n${log}`);
+            try {
+              await fetch(`http://localhost:${port}/`, {
+                signal: AbortSignal.timeout(2_000),
+              });
+              return server;
+            } catch {
+              if (Date.now() > deadline)
+                throw new Error(`deployed server did not start\n${log}`);
+              await new Promise(resolve => setTimeout(resolve, 250));
+            }
           }
+        } catch (error) {
+          await killApp(server);
+          throw error;
         }
       });
+      usePages();
       afterAll(() => {
         if (isolated) fs.rmSync(isolated, { recursive: true, force: true });
-        fs.rmSync(output, { recursive: true, force: true });
+        if (ownsOutput) fs.rmSync(output, { recursive: true, force: true });
       });
 
       spec('node-deploy', async () => {
@@ -611,6 +658,31 @@ export function defineRendererSpecs(options: RendererSpecOptions) {
         expect(response.status).toBe(200);
         expect(html).toContain('data-testid="native-layout"');
         expect(html).toContain(`data-renderer="${renderer}"`);
+        expect(html).toMatch(
+          /data-testid="native-loader-value"[^>]*>[^<]*Native loader value/,
+        );
+        await openHydrated('/');
+        expect(await adopted('native-layout')).toBe(true);
+        await waitForStyle('native-layout', 'color', 'rgb(20, 40, 60)');
+        await page.type('input[name="name"]', 'Ada');
+        await page.click(id('native-submit'));
+        await waitForText('native-action-value', 'Ada');
+        const before = documentRequests.length;
+        await clickAndWait('nav-about', 'native-about');
+        expect(documentRequests.length).toBe(before);
+        await waitForStyle('native-about', 'border-block-start-width', '3px');
+        await clickAndWait('nav-item', 'native-item');
+        await waitForText('native-item-value', 'Item 1');
+        expect((await fetchHtml('/no-such-route')).response.status).toBe(404);
+        expect((await fetchHtml('/?case=error')).response.status).toBe(500);
+        const redirect = (await fetchHtml('/?case=redirect')).response;
+        expect(redirect.status).toBeGreaterThanOrEqual(300);
+        expect(redirect.status).toBeLessThan(400);
+        expect(
+          new URL(redirect.headers.get('location')!, origin).pathname,
+        ).toBe('/about');
+        expect(pageErrors).toEqual([]);
+        expect(sockets).toEqual([]);
       });
     });
 }

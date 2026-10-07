@@ -138,3 +138,5 @@ where they import deleted helpers.
 
 - In-repo behavior: `tests/integration/renderer-*` (see `tests/integration/renderer-specs`).
 - Packed release: `owned-temp-dir --run renderer-release -- pnpm ultramodern:renderer-release --version <x.y.z-ultramodern.N>` (or `--cohort-dir <dir>`). It also runs the React worker, RSC and Module Federation runners from `scripts/ultramodern-production-readiness` (`--with`), and Tractor with `--tractor-source`.
+- Packed Solid and Octane Node deployment uses separate ordinary fixture apps, installed from the same cohort under the same release-age policy. The shared specs run copied `.output` with Node filesystem permissions restricted to that directory, then check HTML, hydration, styles, navigation, actions, redirects and errors.
+- These fixtures prove plain-app deployment. The generated shell still requires a committed source revision and its delivery-unit release envelope; they do not prove that separate release path.
