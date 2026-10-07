@@ -115,34 +115,34 @@ async function fixture(renderer: 'solid' | 'octane') {
 }
 
 describe('finalized native UI output stamping', () => {
-  it.each([
-    'solid',
-    'octane',
-  ] as const)('stamps actual %s identity in both carriers without a backend surface or generation edit', async renderer => {
-    const { context, source, sourceBytes, artifact, output, options } =
-      await fixture(renderer);
-    const result = await emitRendererBuildArtifact(context, options);
-    expect(result?.deliveryUnit.buildMarker).toBe(output.buildMarker);
-    expect(result?.deliveryUnit.sourceRevision).toBe(output.sourceRevision);
-    expect(result?.surfaces.ui?.routerBindings).toEqual(
-      output.ui.routerBindings,
-    );
-    expect(Object.keys(result!.surfaces)).toEqual(
-      Object.keys(artifact.surfaces),
-    );
-    const root = await fs.readFile(
-      path.join(context.distDirectory, 'ultramodern-build.json'),
-    );
-    const publicCarrier = await fs.readFile(
-      path.join(context.distDirectory, 'public/ultramodern-build.json'),
-    );
-    expect(root.equals(publicCarrier)).toBe(true);
-    expect(await fs.readFile(source, 'utf8')).toBe(sourceBytes);
-    expect(await fs.readdir(context.distDirectory)).toEqual([
-      'public',
-      'ultramodern-build.json',
-    ]);
-  });
+  it.each(['solid', 'octane'] as const)(
+    'stamps actual %s identity in both carriers without a backend surface or generation edit',
+    async renderer => {
+      const { context, source, sourceBytes, artifact, output, options } =
+        await fixture(renderer);
+      const result = await emitRendererBuildArtifact(context, options);
+      expect(result?.deliveryUnit.buildMarker).toBe(output.buildMarker);
+      expect(result?.deliveryUnit.sourceRevision).toBe(output.sourceRevision);
+      expect(result?.surfaces.ui?.routerBindings).toEqual(
+        output.ui.routerBindings,
+      );
+      expect(Object.keys(result!.surfaces)).toEqual(
+        Object.keys(artifact.surfaces),
+      );
+      const root = await fs.readFile(
+        path.join(context.distDirectory, 'ultramodern-build.json'),
+      );
+      const publicCarrier = await fs.readFile(
+        path.join(context.distDirectory, 'public/ultramodern-build.json'),
+      );
+      expect(root.equals(publicCarrier)).toBe(true);
+      expect(await fs.readFile(source, 'utf8')).toBe(sourceBytes);
+      expect(await fs.readdir(context.distDirectory)).toEqual([
+        'public',
+        'ultramodern-build.json',
+      ]);
+    },
+  );
 
   it('runs only after its required metadata producer and leaves API-only output alone', async () => {
     const { context, options } = await fixture('solid');
@@ -220,6 +220,22 @@ describe('finalized native UI output stamping', () => {
       ).rejects.toThrow();
       await expect(fs.stat(context.distDirectory)).rejects.toThrow('ENOENT');
     }
+  });
+
+  it('names the drifted entry and the recapture command when modern.config renames the main entry after capture', async () => {
+    const { context, output, options } = await fixture('solid');
+    // The generator captured `main`; the edited config keeps the default `index`.
+    context.entrypoints = [{ entryName: 'index', isMainEntry: true }];
+    output.ui.rendererIdentity.entryName = 'index';
+    output.ui.routerBindings = { index: output.ui.routerBindings.main };
+    const failure = emitRendererBuildArtifact(context, options);
+    await expect(failure).rejects.toThrow(
+      'rendererIdentity (captured entry main, built entry index); routerBindings (captured entries main, csr, built entries index) differ from shared/ultramodern-build.json',
+    );
+    await expect(failure).rejects.toThrow(
+      'ultramodern-create ultramodern sync-delivery-unit',
+    );
+    await expect(fs.stat(context.distDirectory)).rejects.toThrow('ENOENT');
   });
 
   it('preserves the exact selected fourth metadata producer without substituting a built-in owner', () => {
