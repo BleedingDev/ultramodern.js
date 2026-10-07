@@ -89,10 +89,10 @@
     "seroval-plugins": "1.6.8"
   },
   "peerDependencies": {
-    "@modern-js/i18n-runtime-extensions": "workspace:*",
+    "@modern-js/i18n-runtime-extensions": "workspace:^3.8.3",
     "@octanejs/rspack-plugin": "0.1.55",
-    "@octanejs/tanstack-router": "0.1.60+ultramodern.6c31d4be4768",
-    "octane": "0.7.1+ultramodern.f75bf12ac8be",
+    "@octanejs/tanstack-router": "0.1.60+ultramodern.0b9f76ee3003",
+    "octane": "0.7.1+ultramodern.1331985ea3b0",
     "i18next": ">=25.7.4",
     "@rsbuild/core": "2.2.11"
   },
@@ -107,14 +107,14 @@
   "devDependencies": {
     "@modern-js/i18n-runtime-extensions": "workspace:*",
     "@octanejs/rspack-plugin": "0.1.55",
-    "@octanejs/tanstack-router": "https://github.com/bleedingdev/octane/releases/download/%40octanejs%2Ftanstack-router%400.1.60%2Bultramodern.6c31d4be4768/octanejs-tanstack-router-0.1.60%2Bultramodern.6c31d4be4768.tgz",
+    "@octanejs/tanstack-router": "https://github.com/bleedingdev/octane/releases/download/%40octanejs%2Ftanstack-router%400.1.60%2Bultramodern.0b9f76ee3003/octanejs-tanstack-router-0.1.60%2Bultramodern.0b9f76ee3003.tgz",
     "@modern-js/tsconfig": "workspace:*",
     "@rsbuild/core": "2.2.11",
     "@rslib/core": "1.0.3",
     "@scripts/rstest-config": "workspace:*",
     "@types/node": "^26.6.2",
     "happy-dom": "^20.14.5",
-    "octane": "https://github.com/bleedingdev/octane/releases/download/octane%400.7.1%2Bultramodern.f75bf12ac8be/octane-0.7.1%2Bultramodern.f75bf12ac8be.tgz",
+    "octane": "https://github.com/bleedingdev/octane/releases/download/octane%400.7.1%2Bultramodern.1331985ea3b0/octane-0.7.1%2Bultramodern.1331985ea3b0.tgz",
     "typescript": "7.0.2"
   },
   "sideEffects": false,

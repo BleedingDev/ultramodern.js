@@ -15,11 +15,11 @@ export const octaneProfile: RendererBuildProfile<'octane'> = {
   compiler: { name: '@octanejs/rspack-plugin', version: '0.1.55' },
   hydration: {
     name: 'octane',
-    version: '0.7.1+ultramodern.f75bf12ac8be',
+    version: '0.7.1+ultramodern.1331985ea3b0',
   },
   router: {
     name: '@octanejs/tanstack-router',
-    version: '0.1.60+ultramodern.6c31d4be4768',
+    version: '0.1.60+ultramodern.0b9f76ee3003',
     coreName: '@tanstack/router-core',
     coreVersion: '1.171.15',
   },
@@ -27,9 +27,9 @@ export const octaneProfile: RendererBuildProfile<'octane'> = {
   jsxImportSource: 'octane',
   dependencies: {
     octane:
-      'https://github.com/bleedingdev/octane/releases/download/octane%400.7.1%2Bultramodern.f75bf12ac8be/octane-0.7.1%2Bultramodern.f75bf12ac8be.tgz',
+      'https://github.com/bleedingdev/octane/releases/download/octane%400.7.1%2Bultramodern.1331985ea3b0/octane-0.7.1%2Bultramodern.1331985ea3b0.tgz',
     '@octanejs/tanstack-router':
-      'https://github.com/bleedingdev/octane/releases/download/%40octanejs%2Ftanstack-router%400.1.60%2Bultramodern.6c31d4be4768/octanejs-tanstack-router-0.1.60%2Bultramodern.6c31d4be4768.tgz',
+      'https://github.com/bleedingdev/octane/releases/download/%40octanejs%2Ftanstack-router%400.1.60%2Bultramodern.0b9f76ee3003/octanejs-tanstack-router-0.1.60%2Bultramodern.0b9f76ee3003.tgz',
     '@octanejs/rspack-plugin': '0.1.55',
     '@modern-js/renderer-octane': '3.8.3',
     seroval: '1.6.8',

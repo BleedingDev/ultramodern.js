@@ -93,7 +93,7 @@
     "solid-js": "2.0.0-rc.13"
   },
   "peerDependencies": {
-    "@modern-js/i18n-runtime-extensions": "workspace:*",
+    "@modern-js/i18n-runtime-extensions": "workspace:^3.8.3",
     "@rsbuild/core": "2.2.11",
     "@solidjs/compiler": "2.0.0-rc.13",
     "i18next": ">=25.7.4"

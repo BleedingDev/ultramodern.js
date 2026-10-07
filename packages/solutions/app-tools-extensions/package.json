@@ -227,7 +227,19 @@
   "peerDependencies": {
     "@rsbuild/core": "2.2.9",
     "@loadable/component": "5.16.7",
-    "@modern-js/runtime-renderer-extensions": "workspace:*"
+    "@modern-js/runtime-renderer-extensions": "workspace:^3.8.3",
+    "react": "^19.2.8"
+  },
+  "peerDependenciesMeta": {
+    "@loadable/component": {
+      "optional": true
+    },
+    "@modern-js/runtime-renderer-extensions": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@modern-js/plugin-bff-extensions": "workspace:*",
