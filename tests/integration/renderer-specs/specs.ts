@@ -95,16 +95,24 @@ export function defineRendererSpecs(options: RendererSpecOptions) {
         if (request.resourceType() === 'document')
           documentRequests.push(request.url());
       });
-      // Tag server-rendered nodes as the parser inserts them, before any
-      // bundle runs, so hydration can prove it adopted them.
+      // Keep the first native-layout the document gets: the parser inserts
+      // the server one before any bundle can render its own, so hydration
+      // must leave that same node in place.
       await page.evaluateOnNewDocument(() => {
-        new MutationObserver(records => {
+        const observer = new MutationObserver(records => {
           for (const record of records)
-            for (const node of record.addedNodes)
-              if (node instanceof Element)
-                for (const element of [node, ...node.querySelectorAll('*')])
-                  (element as any).__fromServer = true;
-        }).observe(document, { childList: true, subtree: true });
+            for (const node of record.addedNodes) {
+              if (!(node instanceof Element)) continue;
+              const layout = node.matches('[data-testid="native-layout"]')
+                ? node
+                : node.querySelector('[data-testid="native-layout"]');
+              if (!layout) continue;
+              (window as any).__ssrLayout = layout;
+              observer.disconnect();
+              return;
+            }
+        });
+        observer.observe(document, { childList: true, subtree: true });
       });
     });
 
@@ -164,7 +172,7 @@ export function defineRendererSpecs(options: RendererSpecOptions) {
       await openHydrated('/');
       const adopted = await page.$eval(
         id('native-layout'),
-        element => (element as any).__fromServer === true,
+        element => element === (window as any).__ssrLayout,
       );
       expect(adopted).toBe(true);
       expect(pageErrors).toEqual([]);
