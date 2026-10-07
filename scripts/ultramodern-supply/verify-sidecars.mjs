@@ -20,22 +20,6 @@ const consumerBlocks = [
 ];
 const forkSpecifier = /^npm:(@bleedingdev\/[\w.-]+)@(.+)$/u;
 
-function files(directory, prefix = '') {
-  return fs
-    .readdirSync(directory, { withFileTypes: true })
-    .flatMap(entry => {
-      const relative = path.posix.join(prefix, entry.name);
-      assert.ok(
-        entry.isDirectory() || entry.isFile(),
-        `unexpected artifact type: ${relative}`,
-      );
-      return entry.isDirectory()
-        ? files(path.join(directory, entry.name), relative)
-        : [relative];
-    })
-    .sort();
-}
-
 /**
  * Framework runtime edges that still name an upstream package with a recipe,
  * because the fork version they must declare is not on npm yet. The monorepo
@@ -434,25 +418,16 @@ function nestedNodeModules(directory) {
 }
 
 /**
- * Reconstruct a recipe from its pinned tarball in an owned temporary directory.
- * With `packageDir`, compare an existing package (the installed, patched Jiti
- * copied by release staging) byte for byte against the reconstruction instead
- * of writing one.
+ * Reconstruct a recipe from its pinned tarball in an owned temporary directory,
+ * or into `materializeTo` when given.
  */
-export async function verifySidecar(
-  id,
-  { artifactsDir, materializeTo, packageDir } = {},
-) {
+export async function verifySidecar(id, { artifactsDir, materializeTo } = {}) {
   const recipe = recipes.find(item => item.id === id);
   assert.ok(recipe, `unknown sidecar: ${id}`);
   assert.deepEqual(
     recipe.artifacts,
     ['*'],
     `${id}: reconstruction requires the complete upstream artifact`,
-  );
-  assert.ok(
-    !(materializeTo && packageDir),
-    `${id}: materializeTo and packageDir are exclusive`,
   );
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'ultramodern-sidecar-'));
   try {
@@ -531,41 +506,6 @@ export async function verifySidecar(
         );
       }
       projected[key] = { ...patched[key], ...changes };
-    }
-    if (packageDir) {
-      assert.deepEqual(
-        JSON.parse(
-          fs.readFileSync(path.join(packageDir, 'package.json'), 'utf8'),
-        ),
-        projected,
-        `${id}: recipe must account for every manifest field`,
-      );
-      const expectedFiles = files(upstreamDir).filter(
-        file => file !== 'package.json',
-      );
-      assert.deepEqual(
-        files(packageDir).filter(file => file !== 'package.json'),
-        expectedFiles,
-        `${id}: complete artifact set`,
-      );
-      for (const file of expectedFiles) {
-        const expectedPath = path.join(upstreamDir, file);
-        const actualPath = path.join(packageDir, file);
-        assert.deepEqual(
-          fs.readFileSync(actualPath),
-          fs.readFileSync(expectedPath),
-          `${id}: ${file}`,
-        );
-        assert.equal(
-          fs.statSync(actualPath).mode & 0o111,
-          fs.statSync(expectedPath).mode & 0o111,
-          `${id}: executable mode ${file}`,
-        );
-      }
-      console.log(
-        `Verified ${id}: ${packageDir} matches authenticated ${recipe.upstream.name}@${recipe.upstream.version}, exact patch and publication manifest.`,
-      );
-      return upstream;
     }
     fs.writeFileSync(
       path.join(upstreamDir, 'package.json'),

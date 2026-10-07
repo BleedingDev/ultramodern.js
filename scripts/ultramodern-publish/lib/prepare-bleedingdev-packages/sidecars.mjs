@@ -366,9 +366,8 @@ function sidecarPublishOrder(sidecars) {
 }
 
 /**
- * Stage a committed sidecar verbatim, reconstruct a recipe-only sidecar from
- * its authenticated upstream artifact, or copy the maintained installed Jiti
- * payload and authenticate it against its recipe. No path applies cohort
+ * Stage a committed sidecar verbatim, or reconstruct a recipe-only sidecar
+ * from its authenticated upstream artifact. Neither path applies cohort
  * name/version rewriting or consumer overrides.
  */
 async function stageSidecarPackage(
