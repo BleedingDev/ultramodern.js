@@ -6,20 +6,9 @@ import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
 export const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
-export const guardian =
+const guardian =
   process.env.DISK_GUARDIAN_ARTIFACTS ??
   '/Users/satan/bin/disk-guardian-artifacts';
-
-export function readEvidence(file) {
-  assert(path.isAbsolute(file), 'Evidence must use an absolute path');
-  const bytes = fs.readFileSync(file);
-  return {
-    path: path.resolve(file),
-    sha256: sha256(bytes),
-    byteLength: bytes.length,
-    value: JSON.parse(bytes),
-  };
-}
 
 export function sourceEvidence(file) {
   const bytes = fs.readFileSync(file);
@@ -100,19 +89,13 @@ export function registerArtifact(directory, { owner, ownerPid, kind }) {
   return result.status === 0;
 }
 
-export function releaseArtifact(directory, owner) {
+function releaseArtifact(directory, owner) {
   registered.delete(directory);
   if (!fs.existsSync(guardian)) return;
   spawnSync(guardian, ['release', directory, '--owner', owner], {
     encoding: 'utf8',
     timeout: 30_000,
   });
-}
-
-/** Releases every registration this process made that is still outstanding. */
-export function releaseRegisteredArtifacts() {
-  for (const [directory, owner] of [...registered])
-    releaseArtifact(directory, owner);
 }
 
 /** Releases and removes an owned leaf created by one probe. */
@@ -148,7 +131,7 @@ async function waitBounded(completion, duration) {
   }
 }
 
-export async function stopChild(child, closed, graceMs = 4000) {
+async function stopChild(child, closed, graceMs = 4000) {
   if (!child?.pid) return;
   if (groupAlive(child.pid)) {
     try {
@@ -228,55 +211,4 @@ export function launch(
       }
     },
   };
-}
-
-/** Runs one bounded command in its own process group, logging to `log`. */
-export async function command(executable, args, options = {}) {
-  const handle = launch(executable, args, options);
-  let timeout;
-  let failure;
-  let evidence;
-  try {
-    const deadline = new Promise((_, reject) => {
-      timeout = setTimeout(
-        () => reject(new Error(`Command timeout: ${executable}`)),
-        options.timeoutMs ?? 300000,
-      );
-      timeout.unref();
-    });
-    const result = await Promise.race([handle.closed, deadline]);
-    if (handle.failure) throw handle.failure;
-    if (result.code !== 0) {
-      const tail = fs.existsSync(options.log)
-        ? fs.readFileSync(options.log, 'utf8').slice(-2000)
-        : '';
-      throw new Error(
-        `Command failed (${result.code ?? result.signal}): ${executable} ${args.join(' ')}; log ${options.log}\n${tail}`,
-      );
-    }
-    options.signal?.throwIfAborted();
-    evidence = {
-      command: executable,
-      args,
-      cwd: options.cwd,
-      exitCode: result.code,
-      log: sourceEvidence(options.log),
-    };
-  } catch (error) {
-    failure = error;
-  } finally {
-    clearTimeout(timeout);
-  }
-  try {
-    await handle.stop();
-  } catch (error) {
-    if (failure)
-      throw new AggregateError(
-        [failure, error],
-        'Command and owned process cleanup failed',
-      );
-    throw error;
-  }
-  if (failure) throw failure;
-  return evidence;
 }

@@ -11,9 +11,9 @@ import {
   startEphemeralRegistry,
 } from '../../ultramodern-publish/lib/source-create-proof/runtime-proof/registry.mjs';
 import {
-  auditInstalledConsumer,
-  auditReleaseArtifacts,
-} from '../../ultramodern-renderers/acceptance/artifacts.mjs';
+  checkInstalledCohort,
+  readCohort,
+} from '../../ultramodern-renderers/installed-cohort.mjs';
 import {
   assertCohortResolutionProvenance,
   createAcceptancePackageManagerEnv,
@@ -188,10 +188,7 @@ export async function runProof(options) {
   const release = readReleaseManifest({ manifestPath: options.manifestPath });
   assert.equal(release.source.commit, options.expectedSourceRevision);
   assert.equal(release.release.version, options.expectedVersion);
-  const releaseAudit = auditReleaseArtifacts({
-    manifestPath: options.manifestPath,
-    expectedSourceRevision: options.expectedSourceRevision,
-  });
+  const cohort = readCohort(options.manifestPath);
   fs.accessSync(options.browserExecutable, fs.constants.X_OK);
   assert(
     fs.statSync(options.storeDir).isDirectory(),
@@ -389,7 +386,6 @@ export async function runProof(options) {
     );
     assert.equal(tools.manifest.version, release.release.version);
     const cli = confinedPath(tools.directory, tools.manifest.bin.ultramodern);
-    let buildCommandEvidence;
     for (const [label, args] of [
       ['build', ['build']],
       ['deploy', ['deploy', '--skip-build']],
@@ -406,12 +402,6 @@ export async function runProof(options) {
         },
       );
       receipt.commands.push(commandEvidence);
-      if (label === 'build')
-        buildCommandEvidence = {
-          ...commandEvidence,
-          cwd: consumer,
-          phase: 'build',
-        };
     }
     const outputRoot = path.join(consumer, '.output');
     const wranglerPath = path.join(outputRoot, 'wrangler.json');
@@ -440,31 +430,9 @@ export async function runProof(options) {
       ...fileEvidence(buildManifestPath, consumer),
       value: buildManifest,
     };
-    const sourceEntries = [
-      ...ordinaryFiles(path.join(consumer, 'src')).filter(file =>
-        /\.[cm]?tsx?$/u.test(file),
-      ),
-    ];
-    receipt.installedConsumer = auditInstalledConsumer({
-      consumerRoot: consumer,
-      renderer: 'react',
-      exactPackages: inputs.exactPackages,
-      entryFiles: [
-        ...sourceEntries,
-        ...optionsForWorker.modules.map(module => module.path),
-      ],
-      buildEntryFiles: [
-        {
-          ...fixtureSources.fixture.find(
-            file => file.path === 'modern.config.ts',
-          ),
-          purpose: 'configuration',
-        },
-      ],
-      buildCommandEvidence,
-      releaseArtifacts: releaseAudit,
-      rendererBuildManifestPath: path.relative(consumer, buildManifestPath),
-      rendererBuildEvidence: receipt.rendererBuild,
+    receipt.installedCohortPackages = checkInstalledCohort({
+      appRoot: consumer,
+      cohort,
     });
     receipt.lockfile = fileEvidence(
       path.join(consumer, 'pnpm-lock.yaml'),
@@ -476,32 +444,9 @@ export async function runProof(options) {
       consumer,
     );
     assert.equal(generator.manifest.version, release.createPackage.version);
-    const generatorArtifact = releaseAudit.artifacts.find(
-      item => item.targetName === release.createPackage.targetName,
-    );
-    assert(generatorArtifact, 'Authenticated generator artifact is missing');
-    const generatorFiles = generatorArtifact.files.map(file => {
-      const actual = fileEvidence(
-        confinedPath(generator.directory, file.path),
-        generator.directory,
-      );
-      assert.equal(
-        actual.byteLength,
-        file.size,
-        `Installed generator file size: ${file.path}`,
-      );
-      assert.equal(
-        actual.sha256,
-        file.sha256,
-        `Installed generator file digest: ${file.path}`,
-      );
-      return actual;
-    });
     receipt.generator = {
       name: generator.manifest.name,
       version: generator.manifest.version,
-      artifactSha256: generatorArtifact.sha256,
-      files: generatorFiles,
     };
     const generatorRequire = createRequire(
       path.join(generator.directory, 'package.json'),

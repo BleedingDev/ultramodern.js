@@ -6,36 +6,48 @@
 //   /Users/satan/bin/owned-temp-dir --run renderer-release -- \
 //     node scripts/ultramodern-renderers/release.mjs \
 //       (--version <x.y.z-ultramodern.N> | --cohort-dir <dir>) \
-//       [--renderers react,solid,octane]
+//       [--renderers react,solid,octane] [--with worker,rsc,mf]
+//       [--tractor-source <tractor demo checkout>]
 //
 // For each renderer: generate a workspace with the packed create CLI, put the
 // tests/integration/renderer-<r> app into its shell, install from a local
-// registry under the strict release-age policy, typecheck, run the specs,
-// and (Solid, Octane) check the bundle holds no React.
+// registry under the strict release-age policy, check the installed cohort is
+// the packed bytes, typecheck, run the specs, and (Solid, Octane) check the
+// bundle holds no React.
+// Then the React runners in scripts/ultramodern-production-readiness: worker
+// custom entries and RSC on workerd, Module Federation lifecycle, and (with
+// --tractor-source) the Tractor downstream adoption.
 // Prints a PASS/FAIL/SKIP table and exits 1 on any failure.
 import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import { resolveAcceptanceReleaseAgeExclusions } from '../ultramodern-production-readiness/published-create-proof/release-age-audit.mjs';
+import { runWorkerDispatchProbe } from '../ultramodern-production-readiness/renderer-worker-lifecycle-proof/probe.mjs';
 import { readReleaseManifest } from '../ultramodern-publish/lib/source-create-proof/release-manifest.mjs';
 import { startEphemeralRegistry } from '../ultramodern-publish/lib/source-create-proof/runtime-proof/registry.mjs';
 import { checkBundle } from './bundle-check.mjs';
+import { checkInstalledCohort, readCohort } from './installed-cohort.mjs';
 
 const root = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   '../..',
 );
 const allRenderers = ['react', 'solid', 'octane'];
+const allRunners = ['worker', 'rsc', 'mf'];
 
 const { values: opts } = parseArgs({
   options: {
     version: { type: 'string' },
     'cohort-dir': { type: 'string' },
     renderers: { type: 'string', default: allRenderers.join(',') },
+    with: { type: 'string', default: allRunners.join(',') },
+    'tractor-source': { type: 'string' },
+    'browser-executable': { type: 'string' },
     'work-dir': { type: 'string' },
   },
 });
@@ -43,6 +55,12 @@ const renderers = opts.renderers.split(',').map(name => name.trim());
 for (const renderer of renderers)
   if (!allRenderers.includes(renderer))
     throw new Error(`Unknown renderer ${renderer}`);
+const runners = opts.with
+  .split(',')
+  .map(name => name.trim())
+  .filter(Boolean);
+for (const runner of runners)
+  if (!allRunners.includes(runner)) throw new Error(`Unknown runner ${runner}`);
 if (!opts.version === !opts['cohort-dir'])
   throw new Error('Pass exactly one of --version or --cohort-dir');
 
@@ -191,9 +209,34 @@ function installedBin(appRoot) {
   return path.join(packageRoot, bin.ultramodern);
 }
 
+/** Chrome for the runners: --browser-executable, then puppeteer's own. */
+function browserExecutable() {
+  if (opts['browser-executable'])
+    return path.resolve(opts['browser-executable']);
+  if (process.env.PUPPETEER_EXECUTABLE_PATH)
+    return process.env.PUPPETEER_EXECUTABLE_PATH;
+  return createRequire(path.join(root, 'tests/package.json'))(
+    'puppeteer',
+  ).executablePath();
+}
+
+/** A directory that resolves the workspace's playwright-core (MF runner). */
+function playwrightRoot() {
+  const store = path.join(root, 'node_modules/.pnpm');
+  const entry = fs
+    .readdirSync(store)
+    .find(name => name.startsWith('playwright-core@'));
+  if (!entry) throw new Error('playwright-core is not installed');
+  return path.join(store, entry);
+}
+
 async function main() {
   let cohortDir = opts['cohort-dir'] && path.resolve(opts['cohort-dir']);
   let release;
+  let cohort;
+  let storeDir;
+  let createRoot;
+  const apps = {};
   const env = { ...process.env };
   try {
     await step('cohort', async () => {
@@ -225,13 +268,14 @@ async function main() {
       release = readReleaseManifest({
         manifestPath: path.join(cohortDir, 'manifest.json'),
       });
+      cohort = readCohort(release.manifestPath);
     });
 
     let createBin;
     await step(
       'registry + create install',
       async () => {
-        const storeDir = execFileSync('pnpm', ['store', 'path'], {
+        storeDir = execFileSync('pnpm', ['store', 'path'], {
           cwd: workDir,
           encoding: 'utf8',
         }).trim();
@@ -254,7 +298,7 @@ async function main() {
             }),
           ),
         });
-        const createRoot = path.join(workDir, 'create');
+        createRoot = path.join(workDir, 'create');
         fs.mkdirSync(createRoot);
         const { targetName, version } = release.createPackage;
         writeJson(path.join(createRoot, 'package.json'), {
@@ -313,6 +357,14 @@ async function main() {
           }),
         ready,
       );
+      ready = await step(
+        `${renderer} installed = packed`,
+        async () => {
+          checkInstalledCohort({ appRoot, cohort });
+        },
+        ready,
+      );
+      if (ready) apps[renderer] = { workspace, appRoot };
       await step(
         `${renderer} typecheck`,
         () =>
@@ -358,6 +410,129 @@ async function main() {
           built || (ready && fs.existsSync(path.join(appRoot, 'dist'))),
         );
     }
+
+    // The React runners need a browser, the shared store and the release.
+    const owner = `renderer-release-${process.pid}`;
+    const proof = (name, script, extraArgs = () => []) =>
+      step(
+        name,
+        async () => {
+          const dir = path.join(workDir, name);
+          await sh(
+            process.execPath,
+            [
+              path.join(
+                root,
+                'scripts/ultramodern-production-readiness',
+                script,
+              ),
+              '--manifest',
+              release.manifestPath,
+              '--expected-source-revision',
+              release.source.commit,
+              '--expected-version',
+              release.release.version,
+              '--store-dir',
+              storeDir,
+              '--work-dir',
+              dir,
+              '--receipt',
+              path.join(dir, 'receipt.json'),
+              '--browser-executable',
+              browserExecutable(),
+              '--owner',
+              owner,
+              '--owner-pid',
+              String(process.pid),
+              ...extraArgs(),
+            ],
+            { env, log: name },
+          );
+        },
+        Boolean(storeDir) && runners.includes(name),
+      );
+    await step(
+      'worker',
+      async () => {
+        const dir = path.join(workDir, 'worker');
+        fs.mkdirSync(dir);
+        const receipt = await runWorkerDispatchProbe({
+          workDir: dir,
+          receiptPath: path.join(dir, 'receipt.json'),
+          binding: {
+            sourceRevision: cohort.sourceRevision,
+            releaseVersion: cohort.release.version,
+            manifestSha256: cohort.manifestSha256,
+            frameworkCohortDigest: cohort.cohortDigest,
+          },
+          artifacts: {
+            manifestPath: cohort.manifestPath,
+            sourceRevision: cohort.sourceRevision,
+            manifestSha256: cohort.manifestSha256,
+            cohortDigest: cohort.cohortDigest,
+          },
+          qualifiedNode: process.execPath,
+          applicationRoot: apps.react.appRoot,
+          consumerRoot: apps.react.workspace,
+          generatorPackageRoot: path.join(
+            createRoot,
+            'node_modules',
+            release.createPackage.targetName,
+          ),
+          generatorConsumerRoot: createRoot,
+          owner,
+          ownerPid: process.pid,
+          env,
+        });
+        if (receipt.status !== 'passed')
+          throw new Error(receipt.error?.message ?? 'worker probe failed');
+      },
+      Boolean(apps.react) && runners.includes('worker'),
+    );
+    await proof('rsc', 'react-rsc-worker-proof/main.mjs');
+    await proof('mf', 'renderer-mf-lifecycle-proof/index.mjs', () => [
+      '--qualified-node',
+      process.execPath,
+      '--pnpm-executable',
+      execFileSync('which', ['pnpm'], { encoding: 'utf8' }).trim(),
+      '--browser-dependency-root',
+      playwrightRoot(),
+    ]);
+    await step(
+      'tractor',
+      async () => {
+        const clone = path.join(workDir, 'tractor');
+        if (process.platform === 'darwin')
+          execFileSync('cp', [
+            '-cR',
+            path.resolve(opts['tractor-source']),
+            clone,
+          ]);
+        else
+          fs.cpSync(path.resolve(opts['tractor-source']), clone, {
+            recursive: true,
+          });
+        await sh(
+          process.execPath,
+          [
+            path.join(
+              root,
+              'scripts/ultramodern-production-readiness/run-tractor-downstream-acceptance.mjs',
+            ),
+            '--mode',
+            'source',
+            '--manifest',
+            release.manifestPath,
+            '--workspace',
+            clone,
+            '--out',
+            path.join(workDir, 'tractor-report.json'),
+          ],
+          { env, log: 'tractor' },
+        );
+      },
+      Boolean(release && opts['tractor-source']),
+    );
   } finally {
     await stopAll();
   }

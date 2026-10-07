@@ -112,4 +112,4 @@ where they import deleted helpers.
 # UltraModern renderer acceptance
 
 - In-repo behavior: `tests/integration/renderer-*` (see `tests/integration/renderer-specs`).
-- Packed release: `owned-temp-dir --run renderer-release -- node scripts/ultramodern-renderers/release.mjs --version <x.y.z-ultramodern.N>`.
+- Packed release: `owned-temp-dir --run renderer-release -- pnpm ultramodern:renderer-release --version <x.y.z-ultramodern.N>` (or `--cohort-dir <dir>`). It also runs the React worker, RSC and Module Federation runners from `scripts/ultramodern-production-readiness` (`--with`), and Tractor with `--tractor-source`.
