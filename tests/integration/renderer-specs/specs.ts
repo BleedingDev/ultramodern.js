@@ -30,7 +30,10 @@ export type SpecName =
   | 'deferred'
   | 'no-react-bundle'
   | 'no-hmr-client'
-  | 'dev-hmr';
+  | 'dev-hmr'
+  | 'csr-shell'
+  | 'csr-navigation'
+  | 'csr-errors';
 
 export interface RendererSpecOptions {
   renderer: Renderer;
@@ -400,6 +403,64 @@ export function defineRendererSpecs(options: RendererSpecOptions) {
       expect(pageErrors).toEqual([]);
     });
   });
+
+  // A CSR build of the same app: an empty shell the client renders into.
+  if (renderer !== 'react')
+    describe(`renderer ${renderer} csr`, () => {
+      useServer(async port => {
+        const env = { RENDERER_CSR: 'true' };
+        await build(env);
+        return modernServe(appDir, port, { modernBin, env });
+      });
+      usePages();
+
+      spec('csr-shell', async () => {
+        const { response, html } = await fetchHtml('/');
+        expect(response.status).toBe(200);
+        expect(html).not.toContain('data-testid="native-layout"');
+        expect(html.match(/id="root"/g)).toHaveLength(1);
+        await openHydrated('/');
+        expect(await page.$$eval('#root', roots => roots.length)).toBe(1);
+        expect(await page.$$eval(id('native-layout'), all => all.length)).toBe(
+          1,
+        );
+        await waitForText('native-loader-value', 'Native loader value');
+        await waitForStyle('native-layout', 'color', 'rgb(20, 40, 60)');
+        expect(pageErrors).toEqual([]);
+      });
+
+      spec('csr-navigation', async () => {
+        await openHydrated('/');
+        const before = documentRequests.length;
+        await clickAndWait('nav-about', 'native-about');
+        await page.goBack();
+        await page.waitForSelector(id('native-route'));
+        await page.goForward();
+        await page.waitForSelector(id('native-about'));
+        await clickAndWait('nav-item', 'native-item');
+        await waitForText('native-item-value', 'Item 1');
+        await clickAndWait('nav-deferred', 'native-deferred-pending');
+        await waitForText('native-deferred-late', 'Native late value');
+        expect(documentRequests.length).toBe(before);
+        expect(pageErrors).toEqual([]);
+      });
+
+      spec('csr-errors', async () => {
+        // The server only sends the shell, so these answer 200 and the
+        // client renders the outcome.
+        for (const [pathname, testId] of [
+          ['/no-such-route', 'native-not-found'],
+          ['/?case=not-found', 'native-not-found'],
+          ['/?case=error', 'native-error'],
+        ]) {
+          const { response, html } = await fetchHtml(pathname);
+          expect(response.status).toBe(200);
+          expect(html).toContain('id="root"');
+          await page.goto(`${origin}${pathname}`);
+          await page.waitForSelector(id(testId), { timeout: 15_000 });
+        }
+      });
+    });
 
   describe(`renderer ${renderer} dev`, () => {
     const messageFile = path.join(appDir, 'src/components/Message.tsx');

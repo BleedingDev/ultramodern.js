@@ -65,6 +65,14 @@ test what a user sees. Target: about 3-4k lines total.
       dev-hmr         under modern dev, editing a sibling of Counter updates
                       it in place: same document, Counter keeps its count,
                       the layout stylesheet still applies
+    Solid and Octane also run a CSR build of the same fixture
+    (RENDERER_CSR=true turns server.ssr off):
+      csr-shell       / is a 200 shell with one root and no server markup;
+                      the client renders the route, loader data and styles
+      csr-navigation  client nav, back/forward, loader data and deferred
+                      data without a document request
+      csr-errors      unknown route, loader not-found and loader error
+                      answer 200 and render native-not-found / native-error
     Each renderer-<x>/tests/index.test.ts is about 15 lines: build, serve,
     defineRendererSpecs. A spec a renderer cannot meet is skipped in that
     one file, with a reason.
