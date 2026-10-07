@@ -34,7 +34,10 @@ import {
   resolveUltramodernConfig,
 } from '../../src/native-composition/index';
 import { nativeClientAssetsPlugin } from '../../src/native-composition/native-assets';
-import { readRendererBuildManifest } from '../../src/native-composition/native-build-manifest';
+import {
+  RENDERER_BUILD_MANIFEST_FILE,
+  readRendererBuildManifest,
+} from '../../src/native-composition/native-build-manifest';
 import {
   type NativeEntryGenerator,
   type NativeInfrastructureOptions,
@@ -56,7 +59,7 @@ async function initializeInfrastructure(
   ssr = true,
   options: NativeInfrastructureOptions = {},
   withBff = false,
-  command: 'build' | 'dev' = 'build',
+  command: 'build' | 'dev' | 'serve' = 'build',
 ) {
   const config = {
     renderer,
@@ -119,6 +122,68 @@ function createFixture() {
 }
 
 describe('native infrastructure in the owning CLI hooks', () => {
+  it.each([
+    ['solid', 'octane'],
+    ['octane', 'solid'],
+  ] as const)(
+    'rejects a %s serve over a build made for another renderer or profile',
+    async (renderer, other) => {
+      const root = createFixture();
+      try {
+        const { api } = await initializeInfrastructure(
+          renderer,
+          root,
+          undefined,
+          true,
+          {
+            async resolveBuildIdentities() {
+              throw new Error('serve reuses the built identities');
+            },
+          },
+          false,
+          'serve',
+        );
+        const distDirectory = path.join(root, 'dist');
+        fs.mkdirSync(distDirectory);
+        api.updateAppContext({ distDirectory });
+        const serveBuiltBy = (
+          profile: ReturnType<typeof resolveRendererProfile>,
+        ) => {
+          fs.writeFileSync(
+            path.join(distDirectory, RENDERER_BUILD_MANIFEST_FILE),
+            JSON.stringify({
+              schema: 'ultramodern-renderer-build',
+              version: 2,
+              renderer: profile.renderer,
+              profile,
+              routerBindings: {},
+              buildId: 'a'.repeat(64),
+              sourceRevision: 'workspace',
+              entries: {},
+            }),
+          );
+          return api.getHooks()._internalServerPlugins.call({ plugins: [] });
+        };
+        await expect(
+          serveBuiltBy(resolveRendererProfile(other)),
+        ).rejects.toThrow(
+          `made for the ${other} renderer, but the configuration selects ${renderer}; rebuild`,
+        );
+        const installed = resolveRendererProfile(renderer);
+        await expect(
+          serveBuiltBy({
+            ...installed,
+            compiler: { ...installed.compiler, version: '0.0.0-stale' },
+          }),
+        ).rejects.toThrow(
+          `different ${renderer} renderer profile than the installed one; rebuild`,
+        );
+      } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+      }
+    },
+  );
+
   it.each(['solid', 'octane'] as const)(
     'binds final %s entries after consumer rename, addition and removal',
     async renderer => {
