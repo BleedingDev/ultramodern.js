@@ -200,6 +200,8 @@ export async function resolveUltramodernEntryIdentities({
       renderer,
       entrypoints,
       context.plugins.map(plugin => plugin.name),
+      undefined,
+      appDirectory,
     );
     return { entries, primaryEntryName: primary.entryName, routerBindings };
   });
