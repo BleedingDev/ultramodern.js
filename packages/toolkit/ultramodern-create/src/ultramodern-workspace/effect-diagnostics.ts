@@ -13,6 +13,7 @@ export const effectDiagnostics = [
   'nonObjectEffectServiceType',
   'outdatedApi',
   'experimentalApiUsage',
+  'unstableApiUsage',
   'obsoleteMatchImport',
   'obsoleteSchemaImport',
   'promiseInEffectSuccess',
@@ -80,8 +81,6 @@ export const effectDiagnostics = [
   'unnecessaryPipeChain',
 ];
 
-// HTTP/RPC are supported framework APIs but still carry Effect's unstable annotation.
-export const effectDiagnosticSeverity = {
-  ...Object.fromEntries(effectDiagnostics.map(name => [name, 'error'])),
-  unstableApiUsage: 'message',
-};
+export const effectDiagnosticSeverity = Object.fromEntries(
+  effectDiagnostics.map(name => [name, 'error']),
+);
