@@ -72,6 +72,7 @@ export default defineConfig({
           index: [
             './src/**/*.{ts,tsx}',
             '!./src/server.ts',
+            '!./src/entry-server.tsx',
             '!./src/native-promise-serialization.ts',
           ],
         },

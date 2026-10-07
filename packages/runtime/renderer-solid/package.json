@@ -55,6 +55,16 @@
       "node": "./dist/esm-node/i18n/index.js",
       "default": "./dist/esm/i18n/index.js"
     },
+    "./entry-client": {
+      "modern:source": "./src/entry-client.tsx",
+      "types": "./dist/types/entry-client.d.ts",
+      "default": "./dist/esm/entry-client.js"
+    },
+    "./entry-server": {
+      "modern:source": "./src/entry-server.tsx",
+      "types": "./dist/types/entry-server.d.ts",
+      "default": "./dist/esm-node/entry-server.js"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {
