@@ -23,8 +23,7 @@ from the workspace.
 
 Selecting a renderer swaps, for the whole app, the compiler, the JSX import
 source, the hydration runtime, the router bindings and the server document
-renderer (`packages/solutions/ultramodern-app-tools/src/renderers/{react,solid,octane}/profile.ts`).
-It does not translate source. A component authored for one renderer is not
+renderer. It does not translate source. A component authored for one renderer is not
 rewritten for another: route modules are checked against the selected
 renderer before the build proceeds, and plugins that only work with React are
 rejected outright. See "Switching an existing app" below.
@@ -52,7 +51,7 @@ pnpm dlx @bleedingdev/modern-js-ultramodern-create@<V> my-app --renderer solid
 | `src/routes/not-found.tsx` | `NotFoundRouteComponent` |
 | `src/components/Counter.tsx`, `Stable.tsx` | HMR fixtures: one edited component, one left alone |
 
-(`packages/toolkit/ultramodern-create/src/ultramodern-workspace/renderer-templates/{solid,octane}/index.ts`.)
+(`packages/runtime/renderer-{solid,octane}/src/plugin/create.ts`.)
 
 ## Routing and data
 
@@ -153,8 +152,9 @@ export function Counter() @{
 
 ## Capability matrix
 
-Source of truth:
-`packages/solutions/ultramodern-app-tools/src/renderers/{react,solid,octane}/profile.ts`.
+Source of truth: each renderer's build profile
+(`packages/solutions/ultramodern-app-tools/src/renderers/react/profile.ts`,
+`packages/runtime/renderer-{solid,octane}/src/plugin/profile.ts`).
 
 | Capability | react | solid | octane |
 | --- | --- | --- | --- |
@@ -162,19 +162,20 @@ Source of truth:
 | Worker (Cloudflare) SSR | Yes | Yes | Yes |
 | SSG (`output.ssg`) | Yes | Yes | Yes |
 | SVG components (`?component` import) | Yes | Yes | Yes |
-| Module Federation | Full, including app SSR | Federated components, client-only | No |
+| Module Federation | Full, including app SSR | Federated components, including SSR | No |
 | RSC | Yes | No | No |
-| i18n | Yes | No | No |
+| i18n | Yes | Yes | Yes |
 
 SSR/streaming and CSR carry no per-renderer gate in
-`renderer-selection.ts`; worker, SSG and SVG components are declared `true`
-in all three profiles' `capabilities`.
+`renderer-selection.ts`; worker, SSG, i18n and SVG components are declared
+`true` in all three profiles' `capabilities`.
 
-Solid's Module Federation support is one-directional and client-only:
+Solid federates components between same-renderer apps:
 `federatedComponent()` from `@bleedingdev/modern-js-renderer-solid/federation`
-renders a same-renderer remote's default export on the client once the host
-root has settled; the server and the hydration pass render its `fallback`
-instead. It never participates in application-level SSR federation.
+loads a remote by its `remote/Expose` id through the host's server federation
+instance, renders it into the document with its stylesheets and preloads, and
+hydrates the same remote in the browser. A remote that fails or times out on
+the server renders `fallback`, and the browser retries it after hydration.
 
 ```tsx
 import { federatedComponent } from '@bleedingdev/modern-js-renderer-solid/federation';
@@ -194,6 +195,32 @@ unsupported-renderer-capability: renderer solid does not support React Server Co
 `assertCapturedRenderer` in `renderer-selection.ts` raises the same error,
 naming the capability, for RSC, i18n, SSG, SVG components, Module Federation
 application SSR, and worker or non-Node/Cloudflare deployment targets.
+
+## How a renderer plugs in
+
+Every renderer is a `RendererAdapter` (`@bleedingdev/modern-js-renderer-core/adapter`).
+`defineConfig` looks up the selected name and loads only that adapter:
+
+```
+renderer: 'react'   -> app-tools src/renderers/react/adapter.ts  (kind: 'composed')
+renderer: 'solid'   -> @bleedingdev/modern-js-renderer-solid/plugin   (kind: 'native')
+renderer: 'octane'  -> @bleedingdev/modern-js-renderer-octane/plugin  (kind: 'native')
+```
+
+- A **composed** adapter (React) registers the existing Modern.js React graph
+  through `compose()`.
+- A **native** adapter is data plus a compiler. It names its build profile,
+  the packages it owns, its runtime modules (`entry-client`, `entry-server`,
+  `router`, `i18n`, `manifest`), Module Federation singletons, worker support,
+  the Rsbuild compiler plugin, the compiler artifacts to verify, and the create
+  templates. app-tools runs the same build, dev, SSG, worker and federation
+  orchestration for every native adapter.
+
+Generated entries hold only data. `index.ts` calls `startNativeClient()` and
+`index.server.ts` calls `createNativeServerEntry()`; the renderer package's
+`entry-client`/`entry-server` modules and renderer-core own mounting,
+hydration, documents, sessions, i18n and data endpoints. `app.client.ts` and
+`app.server.ts` list the route modules and route data.
 
 ## Switching an existing app
 

@@ -37,11 +37,27 @@ Solid and Octane use their native component syntax and managed filesystem
 routes. Their SDKs expose `/client`, `/router`, `/server` and `/manifest`
 entrypoints. Generated applications select these automatically.
 
-Each native renderer package also exports a build-only adapter from `./plugin`
-(the `RendererAdapter` interface in `@modern-js/renderer-core/adapter`). It
-carries the renderer's profile, runtime entry modules, compiler, artifact
-validation, Module Federation singletons, worker support and create templates.
-`defineConfig` loads only the selected renderer's adapter.
+### Renderer adapters
+
+Every renderer is a `RendererAdapter` from `@modern-js/renderer-core/adapter`.
+`defineConfig` loads only the selected one:
+
+- `react` is a composed adapter (`src/renderers/react`). Its `compose()`
+  registers the Modern.js React graph.
+- `solid` and `octane` are native adapters exported from
+  `@modern-js/renderer-<renderer>/plugin`. Each one carries its build profile,
+  owned packages, runtime entry modules, Rsbuild compiler plugin, compiler
+  artifact checks, Module Federation singletons, worker support and create
+  templates.
+
+This package keeps the renderer-neutral parts: config selection, capability
+checks, and one build, dev, SSG, worker and federation pipeline for every
+native adapter. The entries it generates hold only data: `index.ts` calls the
+renderer's `startNativeClient()`, `index.server.ts` calls
+`createNativeServerEntry()`, and `app.client.ts`/`app.server.ts` list the
+route modules. Mounting, hydration, documents, sessions, i18n and data
+endpoints live in `@modern-js/renderer-core/entry-client` and
+`@modern-js/renderer-core/entry-server`.
 
 ## Supported preview profile
 
@@ -51,8 +67,9 @@ pins come from `resolveRendererProfile` exported by this package. Octane uses
 the maintained [BleedingDev release artifacts](https://github.com/bleedingdev/octane/releases)
 selected by that profile.
 
-Native previews reject workers, Module Federation, React Server Components,
-React i18n plugins and CSS declaration emission beside authored source.
+Native previews reject React Server Components, React runtime i18n
+configuration and CSS declaration emission beside authored source. Octane
+also rejects Module Federation.
 These limits are checked before output generation; there is no preview bypass.
 
 Native apps localize with `i18nPlugin()` from this package, which takes the
