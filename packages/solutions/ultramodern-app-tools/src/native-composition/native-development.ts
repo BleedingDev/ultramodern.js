@@ -754,14 +754,24 @@ export class NativeDevelopment {
       ).pathname;
       const digest = sha256(bytes);
       const previous = retained.get(pathname) ?? this.retained.get(pathname);
-      if (previous && previous.digest !== digest)
+      // A source map keeps its script's content-hashed name even when its
+      // own bytes change, for example after an edit is undone.
+      if (
+        previous &&
+        previous.digest !== digest &&
+        !asset.name.endsWith('.map')
+      )
         throw new Error(
           `Native development immutable asset filename conflicts: ${pathname}`,
         );
       retained.set(pathname, {
         bytes,
         digest,
-        contentType: mime.contentType(asset.name) || 'application/octet-stream',
+        // contentType() treats a name with a slash as a MIME type, so pass
+        // only the extension.
+        contentType:
+          mime.contentType(path.extname(asset.name)) ||
+          'application/octet-stream',
       });
     }
     const assets = JSON.parse(
