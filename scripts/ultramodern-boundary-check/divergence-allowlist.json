@@ -5,8 +5,8 @@
   "pathspec": ["packages"],
   "migrationGoal": "Shrink-only budget of fork edits inside upstream-owned files. Every entry is debt: move it upstream or behind an extension point, then re-run --write-divergence-allowlist.",
   "totalFiles": 1100,
-  "totalHunks": 3585,
-  "totalChangedLines": 81812,
+  "totalHunks": 3587,
+  "totalChangedLines": 81957,
   "files": [
     {
       "file": "packages/cli/adapter-rstest/package.json",
@@ -86,7 +86,7 @@
     {
       "file": "packages/cli/builder/src/shared/tsgo.ts",
       "hunks": 1,
-      "changedLines": 378
+      "changedLines": 376
     },
     {
       "file": "packages/cli/builder/src/types.ts",
@@ -131,7 +131,7 @@
     {
       "file": "packages/cli/builder/tests/lazyBuiltinPlugins.test.ts",
       "hunks": 1,
-      "changedLines": 264
+      "changedLines": 265
     },
     {
       "file": "packages/cli/builder/tests/loaders/fixtures/client-component.jsx",
@@ -141,7 +141,7 @@
     {
       "file": "packages/cli/builder/tests/neutralConfigTypes.test.ts",
       "hunks": 1,
-      "changedLines": 76
+      "changedLines": 82
     },
     {
       "file": "packages/cli/builder/tests/reactCompiler.test.ts",
@@ -161,7 +161,7 @@
     {
       "file": "packages/cli/builder/tests/tsgo.test.ts",
       "hunks": 1,
-      "changedLines": 427
+      "changedLines": 524
     },
     {
       "file": "packages/cli/plugin-bff/CHANGELOG.md",
@@ -2536,7 +2536,7 @@
     {
       "file": "packages/server/bff-core/tests/optionalZodPeer.test.ts",
       "hunks": 1,
-      "changedLines": 47
+      "changedLines": 46
     },
     {
       "file": "packages/server/bff-core/tests/router.test.ts",
@@ -3166,7 +3166,7 @@
     {
       "file": "packages/server/utils/src/compilers/rslib.ts",
       "hunks": 1,
-      "changedLines": 446
+      "changedLines": 459
     },
     {
       "file": "packages/server/utils/src/compilers/tsgo.ts",
@@ -3335,8 +3335,8 @@
     },
     {
       "file": "packages/solutions/app-tools/src/builder/shared/builderPlugins/adapterSSR.ts",
-      "hunks": 15,
-      "changedLines": 28
+      "hunks": 17,
+      "changedLines": 38
     },
     {
       "file": "packages/solutions/app-tools/src/builder/shared/builderPlugins/builderHooks.ts",
@@ -3546,7 +3546,7 @@
     {
       "file": "packages/solutions/app-tools/src/types/config/index.ts",
       "hunks": 7,
-      "changedLines": 58
+      "changedLines": 65
     },
     {
       "file": "packages/solutions/app-tools/src/types/config/output.ts",
@@ -3711,7 +3711,7 @@
     {
       "file": "packages/solutions/app-tools/tests/types.test.ts",
       "hunks": 5,
-      "changedLines": 135
+      "changedLines": 149
     },
     {
       "file": "packages/solutions/app-tools/tests/utils/env.test.ts",
