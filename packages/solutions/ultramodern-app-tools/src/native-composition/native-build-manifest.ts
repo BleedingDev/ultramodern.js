@@ -190,7 +190,10 @@ export function rendererBuildCachePerformance<T extends BuildCachePerformance>(
   topLevelBuildCache?: BuildCachePerformance['buildCache'],
 ): T & BuildCachePerformance {
   const authored = performance?.buildCache;
-  if ((authored ?? topLevelBuildCache) === false)
+  if (
+    authored === false ||
+    (authored === undefined && topLevelBuildCache === false)
+  )
     return { ...performance } as T;
   const options = typeof authored === 'object' ? authored : {};
   return {
