@@ -594,6 +594,7 @@ export default nativeRequestHandler;
                       environment.performance,
                       renderer,
                       profile,
+                      api.getNormalizedConfig().performance?.buildCache,
                     ),
                   }
                 : {}),

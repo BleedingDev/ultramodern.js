@@ -137,6 +137,7 @@ async function initializeMetadata(
   root: string,
   options: ReactBuildMetadataOptions,
   command: 'build' | 'dev' = 'build',
+  configOverrides: Record<string, unknown> = {},
 ) {
   const manager = createPluginManager<CLIPluginAPI<AppTools>>();
   manager.addPlugins([
@@ -149,6 +150,7 @@ async function initializeMetadata(
     source: { entriesDir: './src', mainEntryName: 'ssr' },
     server: { ssr: true, ssrByEntries: { ssr: true, csr: false } },
     output: { cleanDistPath: false },
+    ...configOverrides,
   };
   const context = await createContext<AppTools>({
     appContext: initAppContext({
@@ -935,6 +937,43 @@ describe('React metadata in the existing CLI build hooks', () => {
     expect(environments.server.performance?.buildCache).toBe(false);
     expect(environments.server.output?.target).toBe('node');
   });
+
+  it.each(['build', 'dev'] as const)(
+    'resolves no persistent Rspack cache for a top-level %s opt-out',
+    async command => {
+      const root = createFixture();
+      const { api } = await initializeMetadata(
+        root,
+        { resolveBuildIdentities: async () => buildIdentities() },
+        command,
+        { performance: { buildCache: false } },
+      );
+      await analyzeFinalEntries(api, authoredEntries(root));
+      const { environments } = await api
+        .getHooks()
+        .modifyBuilderEnvironments.call({
+          environments: {
+            client: { source: { entry: { ssr: path.join(root, 'a.js') } } },
+            server: {
+              source: { entry: { ssr: path.join(root, 'a.js') } },
+              output: { target: 'node' },
+            },
+          },
+        });
+      const rsbuild = await createRsbuild({
+        cwd: root,
+        rsbuildConfig: {
+          mode: command === 'dev' ? 'development' : 'production',
+          performance: { buildCache: false },
+          environments,
+        },
+      });
+      const rspackConfigs = await rsbuild.initConfigs();
+      expect(rspackConfigs).toHaveLength(2);
+      for (const config of rspackConfigs)
+        expect(config.cache).not.toMatchObject({ type: 'persistent' });
+    },
+  );
 
   it.each(['build', 'dev'] as const)(
     'keeps the build cache for a dirty-tree %s',
