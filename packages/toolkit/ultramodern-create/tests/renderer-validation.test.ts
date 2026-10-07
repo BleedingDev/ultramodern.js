@@ -14,6 +14,7 @@ import {
   assertRendererDependencies,
   assertRendererProjection,
   isForeignRendererPackage,
+  readReactFrameworkCompatibleRanges,
 } from '../src/ultramodern-workspace/validation/renderer';
 import { readRendererFrameworkPackageEvidence } from '../src/ultramodern-workspace/validation/renderer-framework-evidence';
 
@@ -356,6 +357,77 @@ test('authored renderer ABI pins resolve explicit catalogs and reject mismatches
         catalogs,
       ),
     /conflicts with the selected solid renderer/,
+  );
+});
+
+test('React apps declare router and runtime installs within the framework compatible ranges', () => {
+  const generation = getRendererGenerationProfile('react');
+  const router = generation.dependencies['@tanstack/react-router'];
+  const ranges = readReactFrameworkCompatibleRanges();
+  // @modern-js/plugin-tanstack depends on one exact router; the app shares
+  // that singleton anywhere on its patch line.
+  assert.ok(ranges.get('@tanstack/react-router')?.includes('~1.170.0'));
+  assert.ok(ranges.get('react')?.length);
+  const generated = {
+    name: '@fixture/react-generated',
+    dependencies: { ...generation.dependencies },
+    devDependencies: { ...generation.devDependencies },
+  };
+  assert.doesNotThrow(() =>
+    assertAuthoredRendererDependencyPins(generated, generation),
+  );
+  // A downstream app that pins an earlier patch of the same router line and
+  // an earlier React within the framework peer range keeps validating.
+  const downstream = {
+    name: '@fixture/react-downstream',
+    dependencies: {
+      ...generation.dependencies,
+      '@tanstack/react-router': '1.170.39',
+      react: '19.2.8',
+      'react-dom': 'catalog:react',
+    },
+    devDependencies: {
+      '@types/react': '^19.2.18',
+      '@types/react-dom': '^19.2.7',
+    },
+  };
+  assert.notEqual(router, '1.170.39');
+  assert.doesNotThrow(() =>
+    assertAuthoredRendererDependencyPins(downstream, generation, {
+      catalogs: { react: { 'react-dom': '19.2.8' } },
+    }),
+  );
+  for (const [name, request, message] of [
+    [
+      '@tanstack/react-router',
+      '1.171.0',
+      /outside the React framework's compatible range ~1\.170\.0/u,
+    ],
+    ['@tanstack/react-router', '^1.170.39', /outside the React framework/u],
+    ['react', '18.3.1', /outside the React framework's compatible range/u],
+    ['react-dom', 'latest', /must be a version range of react-dom/u],
+    ['react', 'npm:@fixture/react@19.3.0', /must be a version range of react/u],
+  ] as const) {
+    assert.throws(
+      () =>
+        assertAuthoredRendererDependencyPins(
+          {
+            ...downstream,
+            dependencies: { ...downstream.dependencies, [name]: request },
+          },
+          generation,
+          { catalogs: { react: { 'react-dom': '19.2.8' } } },
+        ),
+      message,
+    );
+  }
+  assert.throws(
+    () =>
+      assertAuthoredRendererDependencyPins(
+        { name: '@fixture/react', dependencies: { 'solid-js': '2.0.0' } },
+        generation,
+      ),
+    /conflicts with the selected react renderer/u,
   );
 });
 

@@ -1,10 +1,12 @@
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import {
   validateRendererIdentity,
   validateRendererProfile,
   validateRendererRouterBindings,
 } from '@modern-js/backend-federation-contracts';
+import semver from '@modern-js/utils/semver';
 import {
   getRendererGenerationProfile,
   isApplicationRenderer,
@@ -384,12 +386,92 @@ export function assertAuthoredRendererDependencyPins(
         );
         continue;
       }
+      if (generation.renderer === 'react') {
+        assertReactFrameworkCompatibleRequest(
+          `${manifest.name} ${group}.${name}`,
+          name,
+          request,
+          alias ? (alias.name === name ? alias.range : undefined) : resolved,
+        );
+        continue;
+      }
       assert(
         resolved === expected ||
           (alias?.range === expected && alias.name === name),
         `${manifest.name} ${group}.${name} declared renderer ABI ${request} disagrees with the selected pin ${expected}`,
       );
     }
+  }
+}
+
+/**
+ * Framework owners of the composed React renderer. The application owns its
+ * React and router installs; these packages declare which installs they admit.
+ */
+const REACT_FRAMEWORK_OWNERS = [
+  '@modern-js/runtime',
+  '@modern-js/plugin-tanstack',
+] as const;
+
+let reactFrameworkCompatibleRanges:
+  | ReadonlyMap<string, readonly string[]>
+  | undefined;
+
+/**
+ * Compatible ranges the installed React framework owners declare: their peer
+ * ranges, and the patch line of an exact framework dependency the application
+ * shares as a singleton (for example `@tanstack/react-router` 1.170.x through
+ * `@modern-js/plugin-tanstack`).
+ */
+export function readReactFrameworkCompatibleRanges(): ReadonlyMap<
+  string,
+  readonly string[]
+> {
+  if (reactFrameworkCompatibleRanges) return reactFrameworkCompatibleRanges;
+  const require = createRequire(import.meta.url);
+  const ranges = new Map<string, string[]>();
+  const declare = (name: string, range: string) => {
+    ranges.set(name, [...(ranges.get(name) ?? []), range]);
+  };
+  for (const owner of REACT_FRAMEWORK_OWNERS) {
+    const manifest = JSON.parse(
+      fs.readFileSync(require.resolve(`${owner}/package.json`), 'utf8'),
+    ) as JsonRecord;
+    for (const [name, request] of Object.entries(
+      manifest.peerDependencies ?? {},
+    )) {
+      if (typeof request === 'string' && semver.validRange(request))
+        declare(name, request);
+    }
+    for (const [name, request] of Object.entries(manifest.dependencies ?? {})) {
+      const version =
+        typeof request === 'string' ? semver.valid(request) : null;
+      if (version)
+        declare(name, `~${semver.major(version)}.${semver.minor(version)}.0`);
+    }
+  }
+  reactFrameworkCompatibleRanges = ranges;
+  return ranges;
+}
+
+function assertReactFrameworkCompatibleRequest(
+  label: string,
+  name: string,
+  request: string,
+  range: string | undefined,
+): void {
+  const declared = readReactFrameworkCompatibleRanges().get(name) ?? [];
+  assert(
+    range !== undefined && semver.validRange(range) !== null,
+    `${label} declared renderer ABI ${request} must be a version range of ${name}`,
+  );
+  for (const compatible of declared) {
+    assert(
+      semver.valid(range)
+        ? semver.satisfies(range, compatible)
+        : semver.subset(range, compatible),
+      `${label} declared renderer ABI ${request} is outside the React framework's compatible range ${compatible}`,
+    );
   }
 }
 
