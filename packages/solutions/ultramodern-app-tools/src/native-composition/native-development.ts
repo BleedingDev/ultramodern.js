@@ -1,5 +1,5 @@
-import { createHash, randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { RendererBuildIdentities } from '@modern-js/app-tools-extensions/renderer-build-identity';
@@ -16,7 +16,6 @@ import {
   createRendererBuildManifest,
   RENDERER_BUILD_MANIFEST_FILE,
   RENDERER_DEVELOPMENT_DIRECTORY,
-  type RendererDevelopmentBuildManifest,
   validateRendererDevelopmentBuildManifest,
 } from './native-build-manifest';
 import type { NativeDevelopmentSnapshot } from './native-server-plugin';
@@ -37,18 +36,10 @@ export function nativeDevelopmentOutputDirectory(
 ): string {
   if (
     !name ||
-    name.includes('/') ||
-    name.includes('\\') ||
-    name.includes('\0') ||
+    name !== path.basename(name) ||
     name === '.' ||
     name === '..' ||
-    /^[a-z]:/iu.test(name) ||
-    [
-      'bundles',
-      'compilations',
-      RENDERER_BUILD_MANIFEST_FILE,
-      '.native-development-owner.json',
-    ].includes(name)
+    ['bundles', RENDERER_BUILD_MANIFEST_FILE].includes(name)
   )
     throw new Error(
       `Unsafe or conflicting native development environment name: ${name}`,
@@ -60,220 +51,78 @@ export function nativeDevelopmentOutputDirectory(
   );
 }
 
+const serverModules = createRequire(import.meta.url);
+
 interface RetainedAsset {
   readonly bytes: Buffer;
-  readonly digest: string;
   readonly contentType: string;
 }
 
-interface Wave {
-  readonly epoch: number;
-}
-
-interface ReadyGeneration {
-  readonly metadata: RendererDevelopmentBuildManifest<Renderer>;
-  readonly entries: ReadonlyMap<string, NativeDevelopmentSnapshot>;
-}
-
-interface OwnedPath {
-  readonly device: number;
-  readonly inode: number;
-  readonly digest?: string;
-}
-
-/** Compiler asset paths are relative names, not arbitrary filesystem inputs. */
-function assetName(name: string): string {
-  if (
-    !name ||
-    name.includes('\\') ||
-    name.includes('\0') ||
-    /[?#]/u.test(name) ||
-    /^[a-z]:/iu.test(name) ||
-    path.posix.isAbsolute(name) ||
-    name.split('/').some(part => !part || part === '.' || part === '..')
-  )
-    throw new Error(`Unsafe native development compiler asset: ${name}`);
-  return name;
-}
-
-function sha256(bytes: Uint8Array): string {
-  return createHash('sha256').update(bytes).digest('hex');
-}
-
-function freezeJSON<T>(value: T): T {
-  if (value && typeof value === 'object') {
-    for (const child of Object.values(value)) freezeJSON(child);
-    Object.freeze(value);
-  }
-  return value;
-}
-
-/** Read the actual compiler output filesystem. Disk is never a fallback. */
+/** Read an asset from the compiler's own output filesystem. */
 function emittedBytes(result: Rspack.Stats, name: string): Promise<Buffer> {
-  assetName(name);
-  if (!result.compilation.getAsset(name))
-    throw new Error(`Native compilation did not emit ${name}`);
   const output = result.compilation.outputOptions.path;
   const filesystem = result.compilation.compiler.outputFileSystem;
-  if (!output || !filesystem)
-    throw new Error('Native development compilation has no output filesystem');
+  if (!result.compilation.getAsset(name) || !output || !filesystem)
+    throw new Error(`Native compilation did not emit ${name}`);
   return new Promise((resolve, reject) => {
     filesystem.readFile(path.join(output, name), (error, bytes) => {
-      if (error) return reject(error);
-      if (!bytes)
-        return reject(new Error(`Missing emitted native asset ${name}`));
-      resolve(Buffer.isBuffer(bytes) ? Buffer.from(bytes) : Buffer.from(bytes));
+      if (error || !bytes)
+        reject(error ?? new Error(`Missing emitted native asset ${name}`));
+      else resolve(Buffer.from(bytes));
     });
   });
 }
 
-async function safeDirectory(directory: string): Promise<void> {
-  const parent = path.dirname(directory);
-  if (parent !== directory) await safeDirectory(parent);
-  try {
-    const stat = await fs.lstat(directory);
-    if (!stat.isDirectory() || stat.isSymbolicLink())
-      throw new Error(
-        `Native development checkpoint directory conflicts: ${directory}`,
-      );
-  } catch (error) {
-    if (
-      !(error instanceof Error) ||
-      !('code' in error) ||
-      error.code !== 'ENOENT'
-    )
-      throw error;
-    await fs.mkdir(directory);
-    const stat = await fs.lstat(directory);
-    if (!stat.isDirectory() || stat.isSymbolicLink())
-      throw new Error(
-        'Native development checkpoint directory changed during creation',
-      );
-  }
-}
-
-async function writeExclusive(
-  directory: string,
-  name: string,
-  bytes: Buffer,
-): Promise<void> {
-  const filename = path.join(directory, assetName(name));
-  await safeDirectory(path.dirname(filename));
-  await fs.writeFile(filename, bytes, { flag: 'wx' });
-  const stat = await fs.lstat(filename);
-  if (
-    !stat.isFile() ||
-    stat.isSymbolicLink() ||
-    sha256(await fs.readFile(filename)) !== sha256(bytes)
-  )
-    throw new Error(
-      'Native development checkpoint bytes changed before validation',
-    );
-}
-
-/** A session identity survives HMR; the compiler wave and its byte closure do not. */
+/**
+ * Publishes each successful client+server dev compile: the server entry is
+ * imported fresh (cache-busting query) and `.ultramodern-dev/renderer-build.json`
+ * is refreshed. A save during a compile only starts another compile; requests
+ * wait for the newest completed one.
+ */
 export class NativeDevelopment {
   readonly plugin: RsbuildPlugin;
-  private outputPaths:
-    | {
-        readonly directory: string;
-        readonly checkpointRoot: string;
-        readonly manifestFile: string;
-        readonly lockFile: string;
-      }
-    | undefined;
-  private get paths() {
-    if (!this.outputPaths)
-      throw new Error(
-        'Native development output ownership requires its initialized builder',
-      );
-    return this.outputPaths;
-  }
-  private get directory() {
-    return this.paths.directory;
-  }
-  private get checkpointRoot() {
-    return this.paths.checkpointRoot;
-  }
-  private get manifestFile() {
-    return this.paths.manifestFile;
-  }
-  private get lockFile() {
-    return this.paths.lockFile;
-  }
-  private readonly lockBytes: Buffer;
-  private lockOwner: OwnedPath | undefined;
-  private checkpointOwner: OwnedPath | undefined;
-  private manifestOwner: OwnedPath | undefined;
-  private ownership: Promise<void> | undefined;
-  private publicationClaimed = false;
+  /** Bumped by every invalidation; a compile publishes only if still current. */
   private epoch = 0;
+  private compileEpoch = 0;
   private generation = 0;
   private closed = false;
-  private ready: ReadyGeneration | undefined;
-  private failure: unknown;
-  private failed = false;
-  private wave: Wave | undefined;
+  private ready: ReadonlyMap<string, NativeDevelopmentSnapshot> | undefined;
+  private failure: { readonly error: unknown } | undefined;
+  /** Client assets of earlier compiles stay reachable for already-open pages. */
   private readonly retained = new Map<string, RetainedAsset>();
   private readonly mutableClientAssets = new Set(['renderer-assets.json']);
   private readonly compilerArtifacts: NativeCompilerArtifacts;
   private readonly waiters = new Set<() => void>();
-  private invalidation = Promise.resolve();
-  private preparation: Promise<void> | undefined;
-  private completion: Promise<void> | undefined;
-  private devServerOrigin: string | undefined;
+  private manifestFile: string | undefined;
 
   constructor(private readonly options: NativeDevelopmentOptions) {
     this.compilerArtifacts =
       options.compilerArtifacts ??
       resolveNativeRendererAdapter(options.renderer).compilerArtifacts;
-    const session = randomUUID();
-    this.lockBytes = Buffer.from(JSON.stringify({ session, pid: process.pid }));
     this.plugin = {
-      name: `ultramodern:${options.renderer}:development-authority`,
+      name: `ultramodern:${options.renderer}:development`,
       setup: api => {
-        const distDirectory = options.distDirectory;
-        if (!path.isAbsolute(distDirectory))
-          throw new Error(
-            'Native development output ownership requires the resolved absolute application directory',
-          );
-        const directory = path.join(
-          distDirectory,
+        this.manifestFile = path.join(
+          options.distDirectory,
           RENDERER_DEVELOPMENT_DIRECTORY,
+          RENDERER_BUILD_MANIFEST_FILE,
         );
-        this.outputPaths = {
-          directory,
-          manifestFile: path.join(directory, RENDERER_BUILD_MANIFEST_FILE),
-          lockFile: path.join(directory, '.native-development-owner.json'),
-          checkpointRoot: path.join(directory, 'compilations', session),
-        };
-        api.modifyEnvironmentConfig((config, { name }) => {
-          return {
-            ...config,
-            output: {
-              ...config.output,
-              distPath: {
-                ...config.output.distPath,
-                root: nativeDevelopmentOutputDirectory(distDirectory, name),
-              },
-              ...(name === 'client'
-                ? {
-                    filename: {
-                      ...config.output?.filename,
-                      js: '[name].[contenthash].js',
-                      css: '[name].[contenthash].css',
-                    },
-                  }
-                : {}),
-            },
-          };
-        });
+        // The dev SSR handler imports the server bundle from disk.
+        api.modifyEnvironmentConfig((config, { name }) =>
+          name === 'server'
+            ? { ...config, dev: { ...config.dev, writeToDisk: true } }
+            : config,
+        );
         api.modifyRspackConfig((config, { environment }) => {
+          config.output ??= {};
+          if (environment.name === 'server') {
+            // Server chunks are imported relative to the entry; a content hash
+            // keeps a fresh entry from reusing an older chunk module.
+            config.output.chunkFilename = '[name].[contenthash].js';
+            return;
+          }
           if (environment.name !== 'client') return;
-          // A completed native generation owns every emitted client byte.
-          // Source-on-demand proxies could activate a newer application under
-          // an older document. Keep dynamic chunks and native lazy loading,
-          // while compiling the selected client graph before publication.
+          // Publication needs the selected client graph compiled up front.
           if (config.lazyCompilation)
             config.lazyCompilation = {
               ...(config.lazyCompilation === true
@@ -282,28 +131,12 @@ export class NativeDevelopment {
               entries: false,
               imports: false,
             };
-          config.output ??= {};
           config.output.filename = '[name].[contenthash].js';
           config.output.chunkFilename = '[name].[contenthash].js';
           config.output.cssFilename = '[name].[contenthash].css';
           config.output.cssChunkFilename = '[name].[contenthash].css';
         });
         api.modifyRsbuildConfig(config => {
-          // This plugin is registered only by the actual native dev command.
-          // The hook runs before Rsbuild fills mode from ambient NODE_ENV.
-          if (config.mode && config.mode !== 'development')
-            throw new Error(
-              'Native dev cannot use an explicitly authored production compiler mode',
-            );
-          for (const environment of Object.values(config.environments ?? {}))
-            if (
-              'mode' in environment &&
-              environment.mode !== undefined &&
-              environment.mode !== 'development'
-            )
-              throw new Error(
-                'Native dev cannot use an explicitly authored non-development environment mode',
-              );
           config.mode = 'development';
           const previous = config.dev?.setupMiddlewares;
           const retain: NonNullable<
@@ -312,16 +145,11 @@ export class NativeDevelopment {
             middlewares.unshift((request, response, next) => {
               if (request.method !== 'GET' && request.method !== 'HEAD')
                 return next();
-              let pathname: string;
-              try {
-                pathname = new URL(
-                  request.url ?? '/',
-                  'http://native-dev.invalid',
-                ).pathname;
-              } catch {
-                return next();
-              }
-              const asset = this.retained.get(pathname);
+              const pathname = URL.parse(
+                request.url ?? '/',
+                'http://native-dev.invalid',
+              )?.pathname;
+              const asset = pathname && this.retained.get(pathname);
               if (!asset) return next();
               response.setHeader('Content-Type', asset.contentType);
               response.setHeader('Content-Length', asset.bytes.length);
@@ -342,51 +170,13 @@ export class NativeDevelopment {
           };
         });
         api.onAfterCreateCompiler(({ compiler, environments }) => {
-          if (api.context.action !== 'dev')
-            throw new Error(
-              'Native development authority requires the actual dev server lifecycle',
-            );
-          const devServer = api.context.devServer;
-          if (!devServer)
-            throw new Error(
-              'Native development authority requires the actual dev server address',
-            );
-          const hostname =
-            devServer.hostname === '0.0.0.0' ? 'localhost' : devServer.hostname;
-          this.devServerOrigin = new URL(
-            `${devServer.https ? 'https' : 'http'}://${hostname}:${devServer.port}`,
-          ).origin;
-          const compilers =
-            'compilers' in compiler ? compiler.compilers : [compiler];
           for (const filename of Object.values(
             environments.client?.htmlPaths ?? {},
           ))
             this.mutableClientAssets.add(filename);
+          const compilers =
+            'compilers' in compiler ? compiler.compilers : [compiler];
           for (const candidate of compilers) {
-            if (
-              !candidate.options.name ||
-              candidate.options.output.path !==
-                nativeDevelopmentOutputDirectory(
-                  distDirectory,
-                  candidate.options.name,
-                )
-            )
-              throw new Error(
-                'Native development compiler output must remain in its isolated owning environment directory',
-              );
-            if (candidate.options.mode !== 'development')
-              throw new Error(
-                'Native development authority requires actual development compiler mode',
-              );
-            if (
-              candidate.options.name === 'client' &&
-              candidate.options.lazyCompilation &&
-              (candidate.options.lazyCompilation.entries !== false ||
-                candidate.options.lazyCompilation.imports !== false)
-            )
-              throw new Error(
-                'Native development requires the complete selected client graph to compile before publication',
-              );
             candidate.hooks.invalid.tap('UltraModernNativeDevelopment', () =>
               this.invalidate(),
             );
@@ -395,43 +185,31 @@ export class NativeDevelopment {
             );
           }
         });
-        api.onBeforeDevCompile({
-          order: 'pre',
-          handler: async () => {
-            let preparation = this.preparation;
-            if (!preparation) {
-              this.invalidate();
-              preparation = this.prepareWave();
-              this.preparation = preparation;
-            }
-            try {
-              await preparation;
-            } finally {
-              if (this.preparation === preparation)
-                this.preparation = undefined;
-            }
-          },
+        api.onBeforeDevCompile(() => {
+          this.compileEpoch = this.epoch;
         });
-        api.onDevCompileDone({
-          order: 'pre',
-          handler: async ({ stats }) => {
-            const epoch = this.wave?.epoch ?? this.epoch;
-            const completion = this.complete(stats);
-            this.completion = completion;
-            try {
-              await completion;
-            } catch (error) {
-              if (this.closed || epoch !== this.epoch) return;
-              this.fail(error);
-              // Throwing from the done hook closes the native MultiCompiler watcher.
-              api.logger.error(
-                'Native development publication failed; requests remain unavailable.',
-                error,
-              );
-            } finally {
-              if (this.completion === completion) this.completion = undefined;
-            }
-          },
+        api.onDevCompileDone(async ({ stats }) => {
+          const epoch = this.compileEpoch;
+          if (this.closed || epoch !== this.epoch) return;
+          // Rsbuild already reports compile errors; requests surface them too.
+          if (stats.hasErrors())
+            return this.fail(
+              new Error('Native development compilation failed'),
+            );
+          try {
+            const entries = await this.publish(stats);
+            if (this.closed || epoch !== this.epoch) return;
+            this.ready = entries;
+            this.failure = undefined;
+            this.notify();
+          } catch (error) {
+            if (this.closed || epoch !== this.epoch) return;
+            this.fail(error);
+            api.logger.error(
+              'Native development could not load the compiled application.',
+              error,
+            );
+          }
         });
         api.onCloseDevServer(() => this.close());
       },
@@ -443,140 +221,17 @@ export class NativeDevelopment {
     this.waiters.clear();
   }
 
-  private async verifyOwned(
-    filename: string,
-    owner: OwnedPath,
-    directory = false,
-  ): Promise<void> {
-    const stat = await fs.lstat(filename);
-    if (
-      stat.isSymbolicLink() ||
-      stat.dev !== owner.device ||
-      stat.ino !== owner.inode ||
-      (directory ? !stat.isDirectory() : !stat.isFile()) ||
-      (owner.digest && sha256(await fs.readFile(filename)) !== owner.digest)
-    )
-      throw new Error(
-        `Native development owned path was replaced or changed: ${filename}`,
-      );
-  }
-
-  private ensureOwnership(): Promise<void> {
-    return (this.ownership ??= (async () => {
-      await safeDirectory(this.directory);
-      const lock = await fs.open(this.lockFile, 'wx').catch(cause => {
-        throw new Error(
-          `Native development output is already claimed: ${this.lockFile}. Stop the existing dev session or clear its stale owned outputs explicitly.`,
-          { cause },
-        );
-      });
-      try {
-        const stat = await lock.stat();
-        this.lockOwner = {
-          device: stat.dev,
-          inode: stat.ino,
-        };
-        await lock.writeFile(this.lockBytes);
-        this.lockOwner = {
-          ...this.lockOwner,
-          digest: sha256(this.lockBytes),
-        };
-      } finally {
-        await lock.close();
-      }
-      const existing = await fs.lstat(this.manifestFile).catch(error => {
-        if (error?.code === 'ENOENT') return undefined;
-        throw error;
-      });
-      if (existing)
-        throw new Error(
-          `Native development metadata already exists and is not owned by this session: ${this.manifestFile}`,
-        );
-      this.publicationClaimed = true;
-      await safeDirectory(path.dirname(this.checkpointRoot));
-      await fs.mkdir(this.checkpointRoot);
-      const checkpoint = await fs.lstat(this.checkpointRoot);
-      this.checkpointOwner = { device: checkpoint.dev, inode: checkpoint.ino };
-    })());
-  }
-
-  private async removeOwnedManifest(): Promise<void> {
-    if (!this.publicationClaimed) return;
-    const existing = await fs.lstat(this.manifestFile).catch(error => {
-      if (error?.code === 'ENOENT') return undefined;
-      throw error;
-    });
-    if (!existing) {
-      this.manifestOwner = undefined;
-      return;
-    }
-    if (!this.manifestOwner)
-      throw new Error(
-        `Native development metadata conflicts with a foreign file: ${this.manifestFile}`,
-      );
-    await this.verifyOwned(this.manifestFile, this.manifestOwner);
-    await fs.unlink(this.manifestFile);
-    this.manifestOwner = undefined;
-  }
-
-  private assertCurrent(epoch: number): void {
-    if (this.closed || epoch !== this.epoch)
-      throw new Error('Native development compilation is no longer active');
-  }
-
-  private async prepareWave(): Promise<void> {
-    for (;;) {
-      if (this.closed) return;
-      if (this.failed) throw this.failure;
-      const epoch = this.epoch;
-      try {
-        await this.invalidation;
-        if (this.closed) return;
-        if (epoch !== this.epoch) continue;
-        this.wave = { epoch };
-        return;
-      } catch (error) {
-        if (this.closed) return;
-        if (epoch !== this.epoch) continue;
-        this.fail(error);
-        throw error;
-      }
-    }
-  }
-
   private invalidate(): void {
     if (this.closed) return;
     this.epoch++;
     this.ready = undefined;
     this.failure = undefined;
-    this.failed = false;
-    this.wave = undefined;
-    const epoch = this.epoch;
-    this.invalidation = this.invalidation
-      .catch(() => {})
-      .then(async () => {
-        await this.ensureOwnership();
-        await this.verifyOwned(this.lockFile, this.lockOwner!);
-        await this.removeOwnedManifest();
-      });
-    this.invalidation.catch(error => {
-      if (!this.closed && epoch === this.epoch) this.fail(error);
-    });
   }
 
   private fail(error: unknown): void {
     if (this.closed) return;
-    this.epoch++;
     this.ready = undefined;
-    this.failure = error;
-    this.failed = true;
-    this.wave = undefined;
-    this.invalidation = this.invalidation
-      .catch(() => {})
-      .then(async () => {
-        await this.removeOwnedManifest();
-      });
-    this.invalidation.catch(() => {});
+    this.failure = { error };
     this.notify();
   }
 
@@ -585,12 +240,11 @@ export class NativeDevelopment {
     signal: AbortSignal,
   ): Promise<NativeDevelopmentSnapshot> {
     for (;;) {
-      if (signal.aborted)
-        throw signal.reason ?? new Error('Native development request aborted');
+      signal.throwIfAborted();
       if (this.closed) throw new Error('Native development compiler is closed');
-      if (this.failed) throw this.failure;
+      if (this.failure) throw this.failure.error;
       if (this.ready) {
-        const snapshot = this.ready.entries.get(identity.entryName);
+        const snapshot = this.ready.get(identity.entryName);
         if (!snapshot)
           throw new Error(
             `Native development has no entry ${identity.entryName}`,
@@ -605,129 +259,48 @@ export class NativeDevelopment {
         };
         const aborted = () => {
           this.waiters.delete(resumed);
-          reject(
-            signal.reason ?? new Error('Native development request aborted'),
-          );
+          reject(signal.reason);
         };
         this.waiters.add(resumed);
         signal.addEventListener('abort', aborted, { once: true });
-        if (signal.aborted) aborted();
       });
     }
   }
 
-  private async complete(
+  private async publish(
     stats: Rspack.Stats | Rspack.MultiStats,
-  ): Promise<void> {
-    const wave = this.wave;
-    if (!wave)
-      throw new Error('Native development completion has no owning input wave');
-    this.assertCurrent(wave.epoch);
-    if (stats.hasErrors())
-      throw new Error('Native development compilation failed');
+  ): Promise<ReadonlyMap<string, NativeDevelopmentSnapshot>> {
     const results = 'stats' in stats ? stats.stats : [stats];
-    const names = results.map(result => result.compilation.name);
-    if (names.some(name => !name) || new Set(names).size !== names.length)
-      throw new Error(
-        'Native development requires unique actual compiler names',
-      );
     const client = results.find(result => result.compilation.name === 'client');
     const server = results.find(result => result.compilation.name === 'server');
-    if (
-      !client ||
-      !server ||
-      !client.compilation.hash ||
-      !server.compilation.hash
-    )
+    const serverRoot = server?.compilation.outputOptions.path;
+    if (!client?.compilation.hash || !server?.compilation.hash || !serverRoot)
       throw new Error(
         'Native development requires completed client and server compilations',
       );
-    if (
-      client.compilation.compiler.options.mode !== 'development' ||
-      server.compilation.compiler.options.mode !== 'development'
-    )
-      throw new Error(
-        'Native development cannot publish a production compilation',
-      );
     const session = this.options.getSessionIdentities();
-    await this.verifyOwned(this.lockFile, this.lockOwner!);
-    await this.verifyOwned(this.checkpointRoot, this.checkpointOwner!, true);
-    const generation = this.generation + 1;
-    const checkpoint = path.join(
-      this.checkpointRoot,
-      `${generation}-${wave.epoch}-${server.compilation.hash}`,
-    );
-    await safeDirectory(path.dirname(checkpoint));
-    await fs.mkdir(checkpoint);
-    const serverRoot = path.join(checkpoint, 'server');
-    const serverAssets = server.compilation.getAssets();
-    if (!serverAssets.some(asset => asset.name === 'package.json'))
-      throw new Error(
-        'Native development requires the actual emitted server package format',
-      );
-    for (const asset of serverAssets)
-      await writeExclusive(
-        serverRoot,
-        asset.name,
-        await emittedBytes(server, asset.name),
-      );
-    const clientRoot = path.join(checkpoint, 'client');
-    const retained = new Map<string, RetainedAsset>();
+    const entryNames = Object.keys(session.identities);
     const publicPath = client.compilation.outputOptions.publicPath;
-    if (
-      typeof publicPath !== 'string' ||
-      publicPath === 'auto' ||
-      publicPath.startsWith('//') ||
-      /[?#\\\0]/u.test(publicPath)
-    )
-      throw new Error(
-        'Native development immutable assets require an owning dev-server publicPath',
-      );
-    const prefix = new URL(publicPath, 'http://native-dev.invalid');
-    if (
-      prefix.username ||
-      prefix.password ||
-      (publicPath.startsWith('/')
-        ? prefix.origin !== 'http://native-dev.invalid'
-        : !/^https?:\/\//u.test(publicPath) ||
-          prefix.origin !== this.devServerOrigin)
-    )
-      throw new Error(
-        'Native development immutable assets must use the actual owning dev server origin',
-      );
+    const prefix =
+      typeof publicPath === 'string' && publicPath !== 'auto'
+        ? publicPath.endsWith('/')
+          ? publicPath
+          : `${publicPath}/`
+        : '/';
     for (const asset of client.compilation.getAssets()) {
-      const bytes = await emittedBytes(client, asset.name);
-      await writeExclusive(clientRoot, asset.name, bytes);
-      // Exclude actual compiler document/manifest endpoints, retaining opaque
-      // JSON/HTML resources just like the rest of the emitted client closure.
       if (
+        asset.info.hotModuleReplacement ||
         this.mutableClientAssets.has(asset.name) ||
-        this.compilerArtifacts.isMutableDevelopmentAsset(
-          asset.name,
-          Object.keys(session.identities),
-        ) ||
-        asset.info.hotModuleReplacement
+        this.compilerArtifacts.isMutableDevelopmentAsset(asset.name, entryNames)
       )
         continue;
       const pathname = new URL(
-        `${publicPath.endsWith('/') ? publicPath : `${publicPath}/`}${assetName(asset.name)}`,
+        `${prefix}${asset.name}`,
         'http://native-dev.invalid',
       ).pathname;
-      const digest = sha256(bytes);
-      const previous = retained.get(pathname) ?? this.retained.get(pathname);
-      // A source map keeps its script's content-hashed name even when its
-      // own bytes change, for example after an edit is undone.
-      if (
-        previous &&
-        previous.digest !== digest &&
-        !asset.name.endsWith('.map')
-      )
-        throw new Error(
-          `Native development immutable asset filename conflicts: ${pathname}`,
-        );
-      retained.set(pathname, {
-        bytes,
-        digest,
+      if (this.retained.has(pathname)) continue;
+      this.retained.set(pathname, {
+        bytes: await emittedBytes(client, asset.name),
         // contentType() treats a name with a slash as a MIME type, so pass
         // only the extension.
         contentType:
@@ -740,32 +313,33 @@ export class NativeDevelopment {
     );
     const entries = new Map<string, NativeDevelopmentSnapshot>();
     for (const [entryName, identity] of Object.entries(session.identities)) {
-      const emittedManifest = JSON.parse(
-        (
-          await emittedBytes(
-            client,
-            this.compilerArtifacts.clientManifestFile(entryName),
-          )
-        ).toString(),
-      );
       const { nativeManifest, hydrationBuildId } =
         await this.compilerArtifacts.validateClientManifest(
-          emittedManifest,
+          JSON.parse(
+            (
+              await emittedBytes(
+                client,
+                this.compilerArtifacts.clientManifestFile(entryName),
+              )
+            ).toString(),
+          ),
           identity,
           { compilationHash: client.compilation.hash, development: true },
         );
-      const chunk = server.compilation.entrypoints
-        .get(entryName)
-        ?.getEntrypointChunk();
-      const files = chunk
-        ? [...chunk.files].filter(filename => /\.[cm]?js$/u.test(filename))
-        : [];
+      const files = [
+        ...(server.compilation.entrypoints.get(entryName)?.getEntrypointChunk()
+          .files ?? []),
+      ].filter(filename => /\.[cm]?js$/u.test(filename));
       if (files.length !== 1)
         throw new Error(
-          `Native development entry ${entryName} requires one actual emitted server module`,
+          `Native development entry ${entryName} requires one emitted server module`,
         );
+      // Load the newest server bundle once per server compilation: ESM is
+      // cached by URL (the query), CommonJS by filename (require.cache).
+      const filename = path.join(serverRoot, files[0]);
+      delete serverModules.cache[filename];
       const loaded = await import(
-        pathToFileURL(path.join(serverRoot, assetName(files[0]))).href
+        `${pathToFileURL(filename).href}?compilation=${server.compilation.hash}`
       );
       const exported = loaded.rendererIdentity ? loaded : loaded.default;
       assertRendererIdentity(exported?.rendererIdentity, identity);
@@ -776,36 +350,30 @@ export class NativeDevelopment {
         throw new Error(
           `Native development entry ${entryName} is missing its native transport handlers`,
         );
-      entries.set(
-        entryName,
-        Object.freeze({
-          manifest: Object.freeze({
-            rendererIdentity: Object.freeze({ ...exported.rendererIdentity }),
-            nativeRequestHandler: exported.nativeRequestHandler,
-            nativeCSRRequestHandler: exported.nativeCSRRequestHandler,
-            ...(typeof exported.nativeMatchRouteIds === 'function'
-              ? { nativeMatchRouteIds: exported.nativeMatchRouteIds }
-              : {}),
-          }),
-          assets: validateNativeClientAssetManifest(assets, identity),
-          nativeManifest: freezeJSON(nativeManifest),
-          ...(hydrationBuildId !== undefined ? { hydrationBuildId } : {}),
-        }),
-      );
+      entries.set(entryName, {
+        manifest: {
+          rendererIdentity: { ...exported.rendererIdentity },
+          nativeRequestHandler: exported.nativeRequestHandler,
+          nativeCSRRequestHandler: exported.nativeCSRRequestHandler,
+          ...(typeof exported.nativeMatchRouteIds === 'function'
+            ? { nativeMatchRouteIds: exported.nativeMatchRouteIds }
+            : {}),
+        },
+        assets: validateNativeClientAssetManifest(assets, identity),
+        nativeManifest,
+        ...(hydrationBuildId !== undefined ? { hydrationBuildId } : {}),
+      });
     }
-    this.assertCurrent(wave.epoch);
+    const generation = ++this.generation;
     const metadata = validateRendererDevelopmentBuildManifest(
       {
         ...createRendererBuildManifest(this.options.profile, session),
         devCompilation: {
           compilationHashes: Object.fromEntries(
-            results.map(result => {
-              if (!result.compilation.name || !result.compilation.hash)
-                throw new Error(
-                  'Native development requires every actual named compiler hash',
-                );
-              return [result.compilation.name, result.compilation.hash];
-            }),
+            results.map(result => [
+              result.compilation.name,
+              result.compilation.hash,
+            ]),
           ),
           generation,
         },
@@ -813,84 +381,20 @@ export class NativeDevelopment {
       this.options.profile,
       { routerFrameworks: this.compilerArtifacts.routerFrameworks },
     );
-    // Serialize publication with invalidation/close so a stale in-flight rename
-    // cannot resurrect metadata after a newer wave removed it.
-    this.invalidation = this.invalidation.then(async () => {
-      this.assertCurrent(wave.epoch);
-      await this.verifyOwned(this.lockFile, this.lockOwner!);
-      await this.verifyOwned(this.checkpointRoot, this.checkpointOwner!, true);
-      const temporary = `${this.manifestFile}.${randomUUID()}.tmp`;
-      let temporaryOwner: OwnedPath | undefined;
-      const bytes = Buffer.from(JSON.stringify(metadata));
-      try {
-        const file = await fs.open(temporary, 'wx');
-        try {
-          const stat = await file.stat();
-          temporaryOwner = { device: stat.dev, inode: stat.ino };
-          await file.writeFile(bytes);
-          temporaryOwner = { ...temporaryOwner, digest: sha256(bytes) };
-        } finally {
-          await file.close();
-        }
-        this.assertCurrent(wave.epoch);
-        await this.verifyOwned(temporary, temporaryOwner);
-        // Same-directory hard-link publication is atomic and refuses an
-        // existing target. A foreign file created mid-wave is never replaced.
-        await fs.link(temporary, this.manifestFile);
-        this.manifestOwner = temporaryOwner;
-        await this.verifyOwned(this.manifestFile, this.manifestOwner);
-        this.assertCurrent(wave.epoch);
-        for (const [url, asset] of retained) this.retained.set(url, asset);
-        this.generation = generation;
-        this.ready = { metadata, entries };
-        this.notify();
-      } finally {
-        if (temporaryOwner) {
-          await this.verifyOwned(temporary, temporaryOwner);
-          await fs.unlink(temporary);
-        }
-      }
-    });
-    await this.invalidation;
+    const manifestFile = this.manifestFile!;
+    const temporary = `${manifestFile}.${process.pid}.${generation}.tmp`;
+    await fs.mkdir(path.dirname(manifestFile), { recursive: true });
+    await fs.writeFile(temporary, JSON.stringify(metadata));
+    await fs.rename(temporary, manifestFile);
+    return entries;
   }
 
   async close(): Promise<void> {
     if (this.closed) return;
     this.closed = true;
-    this.epoch++;
     this.ready = undefined;
     this.notify();
-    await this.preparation?.catch(() => {});
-    await this.completion?.catch(() => {});
-    await this.invalidation.catch(() => {});
-    await this.ownership?.catch(() => {});
-    const cleanupErrors: unknown[] = [];
-    try {
-      await this.removeOwnedManifest();
-    } catch (error) {
-      cleanupErrors.push(error);
-    }
-    if (this.checkpointOwner) {
-      try {
-        await this.verifyOwned(this.checkpointRoot, this.checkpointOwner, true);
-        await fs.rm(this.checkpointRoot, { recursive: true });
-      } catch (error) {
-        cleanupErrors.push(error);
-      }
-    }
-    if (this.lockOwner) {
-      try {
-        await this.verifyOwned(this.lockFile, this.lockOwner);
-        await fs.unlink(this.lockFile);
-      } catch (error) {
-        cleanupErrors.push(error);
-      }
-    }
     this.retained.clear();
-    if (cleanupErrors.length)
-      throw new AggregateError(
-        cleanupErrors,
-        'Native development cleanup refused changed owned outputs',
-      );
+    if (this.manifestFile) await fs.rm(this.manifestFile, { force: true });
   }
 }
