@@ -7,6 +7,10 @@ import {
 } from '../ultramodern-tooling/config';
 import { runWorkspaceTransaction } from './add-vertical/transaction';
 import {
+  createDeliveryUnitRecord,
+  deliveryUnitContractBlock,
+} from './delivery-unit';
+import {
   isPlainObject,
   stampDeliveryUnitIdentity,
 } from './delivery-unit-stamp';
@@ -59,20 +63,68 @@ Headless units have no UI identity. Authored source configs are preserved.
   const workspaceRoot = parsed.values.workspace
     ? path.resolve(context.invocationCwd, parsed.values.workspace)
     : context.workspaceRoot;
-  const originalWorkspace = readUltramodernWorkspaceInputs(workspaceRoot);
-  const evaluations = await captureWorkspaceRendererEvaluations(
-    workspaceRoot,
-    originalWorkspace.apps,
-  );
   const { written, unchanged } = await runWorkspaceTransaction(
     workspaceRoot,
     async stagingRoot => {
+      const topologyRelativePath = 'topology/reference-topology.json';
+      const topologyPath = path.join(stagingRoot, topologyRelativePath);
+      const originalTopologyContent = fs.readFileSync(topologyPath, 'utf8');
+      const membership = readUltramodernWorkspaceInputs(stagingRoot);
+      const scope = membership.config.workspace.packageScope;
+      const entries = [
+        membership.raw.topology.shell,
+        ...membership.raw.topology.verticals,
+        ...(membership.raw.topology.shells ?? []),
+      ];
+      const packageNames = new Map<string, string>();
+      // Config presets require these delivery projections to match the authored
+      // manifests. Repair them only in staging before normal config validation.
+      for (const [index, app] of membership.apps.entries()) {
+        const manifestPath = path.join(
+          stagingRoot,
+          app.directory,
+          'package.json',
+        );
+        const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+        packageNames.set(app.id, manifest.name);
+        if (typeof manifest.version !== 'string' || !manifest.version.trim()) {
+          throw new Error(
+            `${manifestPath} requires a package version for delivery-unit sync.`,
+          );
+        }
+        const entry = entries[index];
+        const deliveryUnit = isPlainObject(entry.deliveryUnit)
+          ? entry.deliveryUnit
+          : {};
+        const needsBootstrap = [
+          deliveryUnit.buildMarker,
+          deliveryUnit.unitId,
+        ].some(value => typeof value !== 'string' || !value.trim());
+        entry.deliveryUnit = {
+          ...deliveryUnit,
+          ...(needsBootstrap && app.renderer
+            ? deliveryUnitContractBlock(
+                createDeliveryUnitRecord(scope, app, manifest.version),
+              )
+            : {}),
+          packageName: manifest.name,
+          version: manifest.version,
+        };
+      }
+      writeTextIfChanged(
+        topologyPath,
+        `${JSON.stringify(membership.raw.topology, null, 2)}\n`,
+      );
+      const evaluations = await captureWorkspaceRendererEvaluations(
+        stagingRoot,
+        membership.apps,
+        { originalWorkspaceRoot: workspaceRoot },
+      );
       const workspace = await readResolvedUltramodernWorkspaceInputs(
         stagingRoot,
         {},
         { evaluations },
       );
-      const scope = workspace.config.workspace.packageScope;
       const appById = new Map(workspace.apps.map(app => [app.id, app]));
       const written: string[] = [];
       const unchanged: string[] = [];
@@ -81,7 +133,11 @@ Headless units have no UI identity. Authored source configs are preserved.
           path.join(stagingRoot, relativePath),
           content,
         );
-        (changed ? written : unchanged).push(relativePath);
+        const changedFromOriginal =
+          relativePath === topologyRelativePath
+            ? content !== originalTopologyContent
+            : changed;
+        (changedFromOriginal ? written : unchanged).push(relativePath);
       };
       const topology = workspace.raw.topology;
       for (const entry of [
@@ -94,6 +150,11 @@ Headless units have no UI identity. Authored source configs are preserved.
         const app = appById.get(entry.id);
         if (!app)
           throw new Error(`Unknown topology application: ${String(entry.id)}.`);
+        if (app.deliveryUnit?.packageName !== packageNames.get(app.id)) {
+          throw new Error(
+            `Application ${app.id} delivery-unit package identity disagrees with package.json.`,
+          );
+        }
         stampDeliveryUnitIdentity(
           entry,
           scope,
@@ -101,10 +162,7 @@ Headless units have no UI identity. Authored source configs are preserved.
           app.deliveryUnit!.version!,
         );
       }
-      track(
-        'topology/reference-topology.json',
-        `${JSON.stringify(topology, null, 2)}\n`,
-      );
+      track(topologyRelativePath, `${JSON.stringify(topology, null, 2)}\n`);
       for (const app of workspace.apps) {
         track(
           path.join(app.directory, 'shared/ultramodern-build.ts'),

@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { yaml } from '@modern-js/utils';
+import { ULTRAMODERN_WORKSPACE_MODERN_PACKAGES } from '../src/ultramodern-package-source';
 import {
   assertReleaseCohortPackageSource,
   parseUltramodernReleaseCohort,
@@ -155,7 +156,12 @@ test('an installed create package exempts exactly its shipped cohort from the re
     const version = '3.9.0-ultramodern.17';
     // modern-js-utils is not a catalog entry: it arrives transitively at the
     // same cohort version and must be exempt too.
-    const names = ['runtime', 'ultramodern-create', 'utils'];
+    const names = [
+      ...ULTRAMODERN_WORKSPACE_MODERN_PACKAGES.map(name =>
+        name.slice('@modern-js/'.length),
+      ),
+      'utils',
+    ].sort();
     fs.writeFileSync(
       path.join(installed, 'release-cohort.json'),
       JSON.stringify({
@@ -211,7 +217,7 @@ generateUltramodernWorkspace(JSON.parse(process.argv[2]));`,
     ) as Record<string, any>;
     assert.deepEqual(
       policy.minimumReleaseAgeExclude,
-      names.map(name => `@bleedingdev/modern-js-${name}@${version}`),
+      names.map(name => `@bleedingdev/modern-js-${name}@${version}`).sort(),
     );
     assert.equal(policy.minimumReleaseAge, 1440);
     assert.equal(policy.minimumReleaseAgeStrict, true);
@@ -220,18 +226,15 @@ generateUltramodernWorkspace(JSON.parse(process.argv[2]));`,
       `npm:@bleedingdev/modern-js-runtime@${version}`,
     );
 
-    // A catalog for another release cannot be authenticated by this package,
-    // so it keeps the full 24h gate instead of borrowing this cohort's list.
+    // The installed producer cannot authenticate another release, so a failed
+    // generation must not publish a workspace with that release's catalog.
     const other = generate('other', '3.9.0-ultramodern.16');
-    assert.equal(other.status, 0, other.stderr);
-    const otherPolicy = yaml.load(
-      fs.readFileSync(path.join(tempRoot, 'other/pnpm-workspace.yaml'), 'utf8'),
-    ) as Record<string, any>;
-    assert.equal(
-      otherPolicy.catalogs.ultramodern['@modern-js/runtime'],
-      'npm:@bleedingdev/modern-js-runtime@3.9.0-ultramodern.16',
+    assert.equal(other.status, 1, other.stderr);
+    assert.match(
+      other.stderr,
+      /catalog request disagrees with the installed release cohort/u,
     );
-    assert.equal('minimumReleaseAgeExclude' in otherPolicy, false);
+    assert.equal(fs.existsSync(path.join(tempRoot, 'other')), false);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
     fs.rmSync(installRoot, { recursive: true, force: true });

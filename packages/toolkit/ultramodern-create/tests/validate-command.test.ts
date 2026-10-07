@@ -22,6 +22,7 @@ test('validate evaluates authored config in development regardless of the caller
     // async callback so its context is checked by the real config evaluator.
     const authored = `import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { getBuildConfigEnvironment } from '@modern-js/app-tools-extensions/config';
 ${generated
   .replace(
     configStart,
