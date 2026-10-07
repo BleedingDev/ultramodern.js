@@ -41,7 +41,7 @@
     "test": "rstest"
   },
   "dependencies": {
-    "@modern-js/plugin": "workspace:*"
+    "@modern-js/runtime": "workspace:*"
   },
   "devDependencies": {
     "@modern-js/rslib": "workspace:*",
