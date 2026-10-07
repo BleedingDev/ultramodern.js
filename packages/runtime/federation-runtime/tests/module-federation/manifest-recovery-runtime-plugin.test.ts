@@ -78,6 +78,45 @@ describe('Module Federation manifest recovery runtime plugin', () => {
     expect(calls).toBe(2);
   });
 
+  // The runtime parses a 503 error page as JSON and reports the SyntaxError.
+  test('recovers a transient HTTP 503 that the runtime saw as malformed JSON', async () => {
+    let calls = 0;
+    const fetchImpl: typeof fetch = async () => {
+      calls += 1;
+      return calls === 1
+        ? new Response('temporarily unavailable', { status: 503 })
+        : Response.json(manifest);
+    };
+
+    await expect(
+      hook({
+        attempts: 3,
+        fetchImpl,
+        retryDelayMs: 0,
+        timeoutMs: 50,
+      })(args(new SyntaxError('Unexpected token'))),
+    ).resolves.toEqual(manifest);
+    expect(calls).toBe(2);
+  });
+
+  test('checks a malformed manifest once and leaves a successful response alone', async () => {
+    let calls = 0;
+    const fetchImpl: typeof fetch = async () => {
+      calls += 1;
+      return new Response('{broken', { status: 200 });
+    };
+
+    await expect(
+      hook({
+        attempts: 3,
+        fetchImpl,
+        retryDelayMs: 0,
+        timeoutMs: 50,
+      })(args(new SyntaxError('Unexpected token'))),
+    ).resolves.toBeUndefined();
+    expect(calls).toBe(1);
+  });
+
   test('stops after the configured bounded attempt count', async () => {
     let calls = 0;
     const fetchImpl: typeof fetch = async () => {
@@ -153,12 +192,6 @@ describe('Module Federation manifest recovery runtime plugin', () => {
       id: 'http://127.0.0.1:3999/mf-manifest.json',
       lifecycle: 'afterResolve',
       name: 'typed invalid-manifest failure',
-    },
-    {
-      error: new SyntaxError('Unexpected token'),
-      id: 'http://127.0.0.1:3999/mf-manifest.json',
-      lifecycle: 'afterResolve',
-      name: 'malformed JSON',
     },
     {
       error: new Error('identity mismatch'),
