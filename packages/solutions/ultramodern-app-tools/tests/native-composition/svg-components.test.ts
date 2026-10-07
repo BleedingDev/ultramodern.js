@@ -19,8 +19,8 @@ const loader = path.join(
   'src/native-composition/svg-component-loader.cjs',
 );
 const templates = {
-  solid: resolveNativeRendererAdapter('solid').svgComponentTemplate!,
-  octane: resolveNativeRendererAdapter('octane').svgComponentTemplate!,
+  solid: resolveNativeRendererAdapter('solid').svgComponentTemplate!(),
+  octane: resolveNativeRendererAdapter('octane').svgComponentTemplate!(),
 } as const;
 
 const badge = `<?xml version="1.0" encoding="UTF-8"?>

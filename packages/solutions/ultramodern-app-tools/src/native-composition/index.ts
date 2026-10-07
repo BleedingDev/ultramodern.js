@@ -154,7 +154,7 @@ function composeNativeRenderer(
         api.modifyResolvedConfig(async config => {
           const svgComponents =
             adapter.profile.capabilities.svgComponent &&
-            adapter.svgComponentTemplate;
+            adapter.svgComponentTemplate?.();
           // The adapter compiles sources; UltraModern owns SVG and ownership.
           const compiler = attachRendererCompilerClaim(
             adapter.compiler({

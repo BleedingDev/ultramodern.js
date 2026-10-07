@@ -93,7 +93,11 @@ export interface NativeRendererRuntime {
   readonly entryServer: string;
   readonly router: string;
   readonly i18n?: string;
-  /** Validates compiler module manifests; also proves the installed owner. */
+  /**
+   * Exports the renderer's `compilerArtifacts`, which the production server
+   * loads to validate compiler module manifests; also proves the installed
+   * owner.
+   */
   readonly manifest: string;
 }
 
@@ -172,8 +176,8 @@ export interface NativeRendererAdapter<TRenderer extends Renderer = Renderer>
    * rendered, so the document links every lazy stylesheet up front.
    */
   readonly lazyStyles: 'renderer' | 'document';
-  /** CommonJS module exporting `(parts) => source` for `?component` SVGs. */
-  readonly svgComponentTemplate?: string;
+  /** Path of a CommonJS module exporting `(parts) => source` for `?component` SVGs. */
+  svgComponentTemplate?(): string;
   /** The renderer compiler; UltraModern applies SVG and ownership policy. */
   compiler(options: NativeRendererCompilerOptions): RsbuildPlugin;
   readonly artifacts: NativeCompilerArtifacts;

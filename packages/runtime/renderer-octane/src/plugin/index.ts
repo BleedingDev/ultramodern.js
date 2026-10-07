@@ -4,7 +4,7 @@ import {
   type NativeRendererAdapter,
   nativeRendererDependencies,
 } from '@modern-js/renderer-core/adapter';
-import { octaneCompilerArtifacts } from './artifacts';
+import { compilerArtifacts } from '../manifest';
 import { createOctaneCompilerPlugin, pluginSourceDirectory } from './compiler';
 import { generateOctaneAppSources } from './create';
 import { octaneProfile } from './profile';
@@ -33,12 +33,10 @@ export const rendererAdapter: NativeRendererAdapter<'octane'> =
       declarations: 'declare const __webpack_hash__: string;\n',
       fields: { nativeHydrationBuildId: '__webpack_hash__' },
     },
-    svgComponentTemplate: path.join(
-      pluginSourceDirectory(),
-      'svg-component-template.cjs',
-    ),
+    svgComponentTemplate: () =>
+      path.join(pluginSourceDirectory(), 'svg-component-template.cjs'),
     compiler: createOctaneCompilerPlugin,
-    artifacts: octaneCompilerArtifacts,
+    artifacts: compilerArtifacts,
     assertSupportedSource: assertOctaneEntrySource,
     create: {
       dependencies: (profile, { typescriptVersion }) => ({

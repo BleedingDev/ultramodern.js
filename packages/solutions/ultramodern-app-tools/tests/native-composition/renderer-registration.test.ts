@@ -57,7 +57,12 @@ rstest.mock('node:module', () => {
       (id: string) =>
         id === '@modern-js/renderer-solid/plugin'
           ? { rendererAdapter: (fourthAdapter ??= createFourthAdapter()) }
-          : require(id),
+          : id === '@modern-js/renderer-solid/manifest'
+            ? {
+                compilerArtifacts: (fourthAdapter ??= createFourthAdapter())
+                  .artifacts,
+              }
+            : require(id),
       require,
     ) as NodeJS.Require;
   };
@@ -275,6 +280,10 @@ describe('static renderer owner admission', () => {
       const options = descriptor.options as NativeServerPluginOptions;
       expect(options.renderer).toBe(renderer);
       expect(Object.hasOwn(options, 'compilerArtifacts')).toBe(false);
+      // The server loads the runtime manifest module, never the adapter.
+      const { manifest } = resolveNativeRendererAdapter(renderer).runtime;
+      expect(options.manifestModule).toBe(manifest);
+      expect(descriptor.includeEntries).toEqual([manifest]);
       expect(options.nativeManifestFiles).toEqual({
         main: 'compiled-artifacts/main.replacement.json',
       });

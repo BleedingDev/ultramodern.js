@@ -1,4 +1,6 @@
+import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
 import { checkBundle } from '../../../scripts/ultramodern-renderers/bundle-check.mjs';
@@ -9,6 +11,7 @@ import {
   launchOptions,
   modernBuild,
   modernServe,
+  runModernCommand,
 } from '../../utils/modernTestUtils';
 
 export type Renderer = 'react' | 'solid' | 'octane';
@@ -30,6 +33,7 @@ export type SpecName =
   | 'deferred'
   | 'no-react-bundle'
   | 'no-hmr-client'
+  | 'node-deploy'
   | 'dev-hmr'
   | 'csr-shell'
   | 'csr-navigation'
@@ -549,4 +553,60 @@ export function defineRendererSpecs(options: RendererSpecOptions) {
       }
     });
   });
+
+  // The node deploy output must serve from any directory: it may only use
+  // what deploy traced into it, never the app's own node_modules.
+  if (renderer !== 'react')
+    describe(`renderer ${renderer} node deploy`, () => {
+      const output = path.join(appDir, '.output');
+      let isolated: string | undefined;
+      useServer(async port => {
+        const result = await runModernCommand(['deploy'], {
+          cwd: appDir,
+          modernBin,
+          env: { NODE_ENV: 'production' },
+        });
+        if (result.code !== 0)
+          throw new Error(`deploy failed\n${result.stdout}\n${result.stderr}`);
+        isolated = fs.mkdtempSync(
+          path.join(os.tmpdir(), `renderer-${renderer}-deploy-`),
+        );
+        fs.cpSync(output, isolated, {
+          recursive: true,
+          verbatimSymlinks: true,
+        });
+        const server = spawn(process.execPath, ['index'], {
+          cwd: isolated,
+          env: { ...process.env, PORT: String(port), NODE_ENV: 'production' },
+          stdio: ['ignore', 'pipe', 'pipe'],
+        });
+        let log = '';
+        server.stdout.on('data', chunk => (log += chunk));
+        server.stderr.on('data', chunk => (log += chunk));
+        const deadline = Date.now() + 60_000;
+        for (;;) {
+          if (server.exitCode !== null)
+            throw new Error(`deployed server exited\n${log}`);
+          try {
+            await fetch(`http://localhost:${port}/`);
+            return server;
+          } catch {
+            if (Date.now() > deadline)
+              throw new Error(`deployed server did not start\n${log}`);
+            await new Promise(resolve => setTimeout(resolve, 250));
+          }
+        }
+      });
+      afterAll(() => {
+        if (isolated) fs.rmSync(isolated, { recursive: true, force: true });
+        fs.rmSync(output, { recursive: true, force: true });
+      });
+
+      spec('node-deploy', async () => {
+        const { response, html } = await fetchHtml('/');
+        expect(response.status).toBe(200);
+        expect(html).toContain('data-testid="native-layout"');
+        expect(html).toContain(`data-renderer="${renderer}"`);
+      });
+    });
 }

@@ -1,3 +1,4 @@
+import type { NativeCompilerArtifacts } from '@modern-js/renderer-core/adapter';
 import {
   nativeModuleManifestFilename,
   type RendererIdentity,
@@ -215,3 +216,38 @@ function readOctaneModuleManifest(value: unknown): OctaneModuleManifest {
     assets: Object.freeze(assets),
   });
 }
+
+/**
+ * The compiler artifact ABI. It lives in this runtime module, not in the
+ * build-only `./plugin`, because the production server validates manifests
+ * with it and deployments trace it from there.
+ */
+export const compilerArtifacts: NativeCompilerArtifacts = {
+  clientManifestFile: octaneModuleManifestFileName,
+  async validateClientManifest(value, identity, context) {
+    const hydrationBuildId =
+      context.compilationHash ?? context.hydrationBuildId;
+    if (
+      context.development &&
+      (typeof hydrationBuildId !== 'string' || !hydrationBuildId.trim())
+    )
+      throw new Error(
+        'Octane development snapshot has no native hydration build.',
+      );
+    const nativeManifest = validateOctaneModuleManifest(
+      value,
+      identity,
+      hydrationBuildId,
+    );
+    return {
+      nativeManifest,
+      hydrationBuildId: nativeManifest.nativeHydrationBuildId,
+    };
+  },
+  isMutableDevelopmentAsset(filename, entryNames) {
+    return (
+      filename === 'octane-client-build.json' ||
+      entryNames.some(entry => filename === octaneModuleManifestFileName(entry))
+    );
+  },
+};

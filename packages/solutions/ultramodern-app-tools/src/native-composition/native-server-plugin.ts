@@ -1,4 +1,5 @@
 import type { ServerResponse } from 'node:http';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import type { NativeCompilerArtifacts } from '@modern-js/renderer-core/adapter';
 import {
@@ -36,7 +37,6 @@ import type {
 import type { ServerRoute } from '@modern-js/types/server';
 import { getEntryOptions } from '@modern-js/utils';
 import { cutNameByHyphen } from '@modern-js/utils/universal';
-import { resolveNativeRendererAdapter } from './renderer-registration';
 
 export interface NativeNodeBindings {
   readonly loaderContext: Map<string, unknown>;
@@ -54,6 +54,13 @@ export interface NativeDevelopmentSnapshot {
 
 export interface NativeServerPluginOptions {
   readonly renderer: Exclude<Renderer, 'react'>;
+  /**
+   * The renderer's runtime `./manifest` module, which exports its
+   * `compilerArtifacts`. Never the build-only `./plugin`, so a deployed
+   * server traces and loads only runtime code.
+   */
+  readonly manifestModule?: string;
+  /** In-process artifacts, instead of `manifestModule`. */
   readonly compilerArtifacts?: NativeCompilerArtifacts;
   readonly entries: Readonly<Record<string, RendererIdentity>>;
   readonly cache?: NativeDocumentCache;
@@ -274,15 +281,33 @@ function confirmNodeDelivery(
   });
 }
 
+const requireManifest = createRequire(import.meta.url);
+
+function loadCompilerArtifacts(
+  specifier: string | undefined,
+): NativeCompilerArtifacts {
+  if (typeof specifier !== 'string' || !specifier)
+    throw new Error(
+      "Native server plugin requires its renderer's manifest module.",
+    );
+  const artifacts = requireManifest(specifier).compilerArtifacts as
+    | NativeCompilerArtifacts
+    | undefined;
+  if (typeof artifacts?.validateClientManifest !== 'function')
+    throw new Error(
+      `Renderer manifest module ${specifier} exports no compilerArtifacts.`,
+    );
+  return artifacts;
+}
+
 /** The selected native app retains Modern's Node host, static/API and middleware. */
 export function nativeServerPlugin(
   options: NativeServerPluginOptions,
 ): ServerPlugin {
   if (!options)
     throw new Error('Native server plugin requires a selected renderer.');
-  const compilerArtifacts =
-    options.compilerArtifacts ??
-    resolveNativeRendererAdapter(options.renderer).artifacts;
+  // Loaded on the first manifest, so API-only servers never need it.
+  let compilerArtifacts = options.compilerArtifacts;
   if (options.resolveDevelopmentSnapshot && options.cacheAllowed === true) {
     throw new Error(
       'Native development snapshots cannot enable document cache.',
@@ -403,6 +428,7 @@ export function nativeServerPlugin(
       throw new Error('Native development snapshot has no compiler manifest.');
     }
     if (nativeManifest !== undefined) {
+      compilerArtifacts ??= loadCompilerArtifacts(options.manifestModule);
       const validated = await compilerArtifacts.validateClientManifest(
         nativeManifest,
         identity,
