@@ -509,8 +509,11 @@ describe('React metadata in the existing CLI build hooks', () => {
       .getHooks()
       ._internalServerPlugins.call({ plugins: [] });
     const metadata = plugins.find(plugin =>
-      plugin.name.endsWith('renderers/react/build-metadata-server.js'),
-    )!;
+      plugin.name.endsWith(
+        path.join('renderers', 'react', 'build-metadata-server.js'),
+      ),
+    );
+    if (!metadata) throw new Error('React metadata server plugin is missing.');
     const serialized = JSON.parse(JSON.stringify(metadata.options));
     expect(serialized).toEqual({ entries: manifest.entries });
     const server = createServerBase<ServerEnv>({

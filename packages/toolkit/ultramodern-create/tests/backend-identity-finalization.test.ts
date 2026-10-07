@@ -5,13 +5,18 @@ import { runValidate } from '../src/ultramodern-tooling/commands/validate';
 import { readResolvedUltramodernWorkspaceInputs } from '../src/ultramodern-tooling/config';
 import { addUltramodernVertical } from '../src/ultramodern-workspace';
 import { stampDeliveryUnitIdentity } from '../src/ultramodern-workspace/delivery-unit-stamp';
-import { createWorkspace, snapshotWorkspace } from './helpers/workspace-kit';
+import {
+  createWorkspace,
+  linkInstalledEffectCompiler,
+  snapshotWorkspace,
+} from './helpers/workspace-kit';
 
 test('resolved renderer identity binds topology and development backend execution and rejects drift', async () => {
   const { tempRoot, workspaceDir } = await createWorkspace('backend-identity', {
     tempPrefix: 'um-backend-identity-',
   });
   try {
+    linkInstalledEffectCompiler(workspaceDir);
     await addUltramodernVertical({
       workspaceRoot: workspaceDir,
       name: 'catalog',
@@ -118,6 +123,7 @@ test('restamping backend identity preserves authored node endpoints and unrelate
     tempPrefix: 'um-backend-restamp-',
   });
   try {
+    linkInstalledEffectCompiler(workspaceDir);
     await addUltramodernVertical({
       workspaceRoot: workspaceDir,
       name: 'catalog',

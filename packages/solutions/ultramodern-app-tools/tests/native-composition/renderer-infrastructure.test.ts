@@ -1478,11 +1478,11 @@ export const nativeCSRRequestHandler = nativeRequestHandler;
         const configs = await rsbuild.initConfigs();
         expect(setupEvents).toEqual([]);
         expect(configs).toHaveLength(2);
-        expect(
-          JSON.stringify(
-            configs.find(config => config.name === 'server')?.entry,
-          ),
-        ).toContain(serverEntry);
+        expect(configs.find(config => config.name === 'server')?.entry).toEqual(
+          {
+            main: [serverEntry],
+          },
+        );
         expect(
           configs
             .flatMap(config => config.plugins ?? [])

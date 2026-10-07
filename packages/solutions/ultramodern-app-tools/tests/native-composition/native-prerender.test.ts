@@ -106,7 +106,7 @@ describe('native prerender route selection', () => {
       routeTrees: new Map([['index', tree]]),
     });
     expect(routes.map(route => [route.urlPath, route.output])).toEqual([
-      ['/', 'html/index/index.html'],
+      ['/', path.join('html', 'index', 'index.html')],
       ['/about', path.join('html/index/about/index.html')],
     ]);
   });

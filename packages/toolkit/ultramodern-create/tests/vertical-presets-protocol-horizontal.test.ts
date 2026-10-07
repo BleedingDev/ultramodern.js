@@ -3,7 +3,9 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import { performance } from 'node:perf_hooks';
 import { pathToFileURL } from 'node:url';
+import type { TestContext } from '@rstest/core';
 import type {
   AddUltramodernVerticalOptions,
   UltramodernGenerationResult,
@@ -11,6 +13,7 @@ import type {
 import { addUltramodernVertical } from '../src/ultramodern-workspace';
 import {
   createWorkspace,
+  linkInstalledEffectCompiler,
   linkWorkspaceFormatterDependencies,
   runValidation,
 } from './helpers/workspace-kit';
@@ -21,6 +24,25 @@ const oxlintEntry = require.resolve('oxlint', {
   paths: [path.dirname(require.resolve('ultracite/oxlint/core'))],
 });
 const oxlintBin = path.resolve(path.dirname(oxlintEntry), '../bin/oxlint');
+
+function trackPhases(onTestFailed: TestContext['onTestFailed']) {
+  const startedAt = performance.now();
+  let phase = 'workspace generation';
+  let phaseStartedAt = startedAt;
+  const completedPhases: Record<string, number> = {};
+  onTestFailed(() => {
+    const failedAt = performance.now();
+    console.error(
+      `[vertical-presets] phase=${phase}; phase elapsed=${Math.round(failedAt - phaseStartedAt)}ms; total elapsed=${Math.round(failedAt - startedAt)}ms; completed phases=${JSON.stringify(completedPhases)}`,
+    );
+  });
+  return (nextPhase: string) => {
+    const now = performance.now();
+    completedPhases[phase] = Math.round(now - phaseStartedAt);
+    phase = nextPhase;
+    phaseStartedAt = now;
+  };
+}
 
 async function withWorkspace(
   fn: (workspaceDir: string) => Promise<void>,
@@ -101,11 +123,19 @@ test('api-only and ui-only presets keep their distinct generated surfaces', asyn
   });
 });
 
-test('topology rehydration preserves protocol, profile and delivery-unit identity', async () => {
+test('topology rehydration preserves protocol, profile and delivery-unit identity', async ({
+  onTestFailed,
+}) => {
+  const setPhase = trackPhases(onTestFailed);
   await withWorkspace(async dir => {
+    setPhase('compiler fixture setup');
+    linkInstalledEffectCompiler(dir);
+    setPhase('add catalog');
     await add(dir, 'catalog', { apiProtocol: 'rpc' });
+    setPhase('add design-system');
     await add(dir, 'design-system', { horizontalRemote: true });
 
+    setPhase('initial topology assertions');
     const topologyPath = path.join(dir, 'topology/reference-topology.json');
     const topology = JSON.parse(fs.readFileSync(topologyPath, 'utf-8'));
     const topologyEntry = (id: string) =>
@@ -124,8 +154,10 @@ test('topology rehydration preserves protocol, profile and delivery-unit identit
     const catalogProfile = structuredClone(
       topologyEntry('catalog').rendererProfile,
     );
+    setPhase('add identity-preserved');
     await add(dir, 'identity-preserved');
 
+    setPhase('rehydrated topology assertions');
     const rehydratedTopology = JSON.parse(
       fs.readFileSync(topologyPath, 'utf-8'),
     );
@@ -145,21 +177,31 @@ test('topology rehydration preserves protocol, profile and delivery-unit identit
       ).deliveryUnitKind,
       'horizontal-remote',
     );
+    setPhase('fixture cleanup');
   });
 });
 
-test('rpc protocol emits its contract and routes metadata without a REST surface', async () => {
+test('rpc protocol emits its contract and routes metadata without a REST surface', async ({
+  onTestFailed,
+}) => {
+  const setPhase = trackPhases(onTestFailed);
   await withWorkspace(async dir => {
+    setPhase('compiler fixture setup');
+    linkInstalledEffectCompiler(dir);
+    setPhase('add catalog');
     const result = await add(dir, 'catalog', { apiProtocol: 'rpc' });
+    setPhase('catalog surface assertions');
     const files = verticalPaths(result, 'catalog');
     assert.ok(files.has('shared/rpc.ts'));
     assert.ok(files.has('src/api/catalog-rpc-client.ts'));
     assert.ok(!files.has('shared/api.ts'));
     assert.ok(!files.has('src/api/catalog-client.ts'));
+    setPhase('add headless-rpc');
     const headless = await add(dir, 'headless-rpc', {
       preset: 'api-only',
       apiProtocol: 'rpc',
     });
+    setPhase('RPC topology assertions');
     const headlessFiles = verticalPaths(headless, 'headless-rpc');
     assert.ok(headlessFiles.has('shared/headless-rpc-rpc-client.ts'));
     assert.ok(!fs.existsSync(path.join(dir, 'verticals/headless-rpc/src')));
@@ -183,12 +225,14 @@ test('rpc protocol emits its contract and routes metadata without a REST surface
         .protocol,
       'rpc',
     );
+    setPhase('formatter fixture setup');
     linkWorkspaceFormatterDependencies(dir);
     fs.symlinkSync(
       path.resolve(path.dirname(oxlintEntry), '..'),
       path.join(dir, 'node_modules/oxlint'),
       process.platform === 'win32' ? 'junction' : 'dir',
     );
+    setPhase('lint RPC surfaces');
     const lint = spawnSync(
       process.execPath,
       [
@@ -206,7 +250,9 @@ test('rpc protocol emits its contract and routes metadata without a REST surface
       0,
       `${lint.error ?? ''}\n${lint.stdout}\n${lint.stderr}`,
     );
+    setPhase('workspace validation');
     assertWorkspaceValid(dir);
+    setPhase('fixture cleanup');
   });
 });
 

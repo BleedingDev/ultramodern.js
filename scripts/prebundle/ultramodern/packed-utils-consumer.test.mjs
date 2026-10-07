@@ -128,9 +128,26 @@ test('packed utils contains generated bundles and works without workspace source
       assert.ok(provenance.version, name);
       assert.ok(provenance.declarationSources.length > 0, name);
     }
-    const subpaths = Object.keys(manifest.exports).map(key =>
-      key === '.' ? manifest.name : `${manifest.name}${key.slice(1)}`,
-    );
+    const subpaths = [];
+    const typeOnlySubpaths = [];
+    for (const [key, conditions] of Object.entries(manifest.exports)) {
+      assert.equal(typeof conditions.types, 'string', `${key} declaration`);
+      assert.ok(
+        existsSync(join(installed, conditions.types)),
+        `${key} packaged declaration target`,
+      );
+      const subpath =
+        key === '.' ? manifest.name : `${manifest.name}${key.slice(1)}`;
+      if (
+        ['node', 'import', 'require', 'default'].some(condition =>
+          Object.hasOwn(conditions, condition),
+        )
+      ) {
+        subpaths.push(subpath);
+      } else {
+        typeOnlySubpaths.push(subpath);
+      }
+    }
     for (const mode of ['cjs', 'mjs']) {
       const source = `
         ${mode === 'mjs' ? "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);" : ''}
@@ -166,6 +183,12 @@ test('packed utils contains generated bundles and works without workspace source
       writeFileSync(
         join(consumer, `types.${extension}`),
         `
+        ${typeOnlySubpaths
+          .map(
+            (specifier, index) =>
+              `import type * as TypeOnly${index} from '${specifier}';\ntype TypeOnlyContract${index} = typeof TypeOnly${index};`,
+          )
+          .join('\n')}
         import { execa } from '@modern-js/utils/execa';
         import { Command } from '@modern-js/utils/commander';
         import { glob } from '@modern-js/utils/glob';

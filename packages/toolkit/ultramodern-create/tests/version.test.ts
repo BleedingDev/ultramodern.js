@@ -10,6 +10,7 @@ import {
   addUltramodernVertical,
   generateUltramodernWorkspace,
 } from '../src/ultramodern-workspace';
+import { linkInstalledEffectCompiler } from './helpers/workspace-kit';
 
 const packageRoot = path.resolve(__dirname, '..');
 const builtCliPath = path.join(packageRoot, 'dist/esm-node/index.js');
@@ -30,12 +31,23 @@ function linkGeneratedConfigRuntime(
   workspacePath: string,
   appDirectory: string,
 ) {
-  if (!fs.existsSync(path.join(workspacePath, 'node_modules'))) {
-    fs.symlinkSync(
-      path.resolve(packageRoot, '../../../node_modules/.pnpm/node_modules'),
-      path.join(workspacePath, 'node_modules'),
-      'dir',
+  const modulesDirectory = path.join(workspacePath, 'node_modules');
+  if (!fs.existsSync(modulesDirectory)) {
+    linkInstalledEffectCompiler(workspacePath);
+    const installedModules = path.resolve(
+      packageRoot,
+      '../../../node_modules/.pnpm/node_modules',
     );
+    for (const name of fs.readdirSync(installedModules)) {
+      const modulePath = path.join(modulesDirectory, name);
+      if (!fs.existsSync(modulePath)) {
+        fs.symlinkSync(
+          path.join(installedModules, name),
+          modulePath,
+          process.platform === 'win32' ? 'junction' : 'dir',
+        );
+      }
+    }
   }
   const modernScope = path.join(
     workspacePath,

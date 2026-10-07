@@ -3,11 +3,15 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { performance } from 'node:perf_hooks';
 import {
   addUltramodernVertical,
   generateUltramodernWorkspace,
 } from '../src/ultramodern-workspace';
-import { createWorkspace } from './helpers/workspace-kit';
+import {
+  createWorkspace,
+  linkInstalledEffectCompiler,
+} from './helpers/workspace-kit';
 
 const packageRoot = path.resolve(__dirname, '..');
 const builtCliPath = path.join(packageRoot, 'dist/esm-node/index.js');
@@ -95,12 +99,31 @@ module.exports = async context => {
   return generatorDir;
 }
 
-test('public API runs explicit CodeSmith overlays and leaves base generation unchanged without overlays', async () => {
+test('public API runs explicit CodeSmith overlays and leaves base generation unchanged without overlays', async ({
+  onTestFailed,
+}) => {
+  const startedAt = performance.now();
+  let phase = 'fixture setup';
+  let phaseStartedAt = startedAt;
+  const completedPhases: Record<string, number> = {};
+  const setPhase = (nextPhase: string) => {
+    const now = performance.now();
+    completedPhases[phase] = Math.round(now - phaseStartedAt);
+    phase = nextPhase;
+    phaseStartedAt = now;
+  };
+  onTestFailed(() => {
+    const failedAt = performance.now();
+    console.error(
+      `[codesmith-overlays] phase=${phase}; phase elapsed=${Math.round(failedAt - phaseStartedAt)}ms; total elapsed=${Math.round(failedAt - startedAt)}ms; completed phases=${JSON.stringify(completedPhases)}`,
+    );
+  });
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'um-overlay-'));
 
   try {
     const overlayGenerator = createOverlayGenerator(tempRoot);
     const workspaceWithOverlay = path.join(tempRoot, 'workspace-overlay');
+    setPhase('workspace overlay generation');
     await generateUltramodernWorkspace({
       targetDir: workspaceWithOverlay,
       packageName: 'workspace-overlay',
@@ -114,6 +137,7 @@ test('public API runs explicit CodeSmith overlays and leaves base generation unc
       ],
       packageSource: { strategy: 'workspace' },
     });
+    setPhase('workspace overlay assertions');
     assert.deepEqual(
       readJson(
         workspaceWithOverlay,
@@ -133,17 +157,23 @@ test('public API runs explicit CodeSmith overlays and leaves base generation unc
     );
 
     const baseWorkspace = path.join(tempRoot, 'base-workspace');
+    setPhase('base workspace generation');
     await createWorkspace(baseWorkspace);
+    setPhase('compiler fixture setup');
+    linkInstalledEffectCompiler(baseWorkspace);
+    setPhase('add catalog');
     await addUltramodernVertical({
       workspaceRoot: baseWorkspace,
       name: 'catalog',
       modernVersion: '3.2.1',
     });
+    setPhase('base overlay assertions');
     assert.equal(
       fs.existsSync(path.join(baseWorkspace, 'overlay-output')),
       false,
     );
 
+    setPhase('add checkout with overlay');
     await addUltramodernVertical({
       workspaceRoot: baseWorkspace,
       name: 'checkout',
@@ -155,6 +185,7 @@ test('public API runs explicit CodeSmith overlays and leaves base generation unc
         },
       ],
     });
+    setPhase('vertical overlay assertions');
     assert.deepEqual(
       readJson(
         baseWorkspace,

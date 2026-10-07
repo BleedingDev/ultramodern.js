@@ -61,6 +61,11 @@ function checkInstalledDeclarations(
     );
     if (react) {
       fs.symlinkSync(
+        path.join(packageDirectory, 'node_modules/@modern-js/runtime'),
+        path.join(scope, 'runtime'),
+        'dir',
+      );
+      fs.symlinkSync(
         path.join(
           packageDirectory,
           'node_modules/@modern-js/plugin/node_modules/@types/react',
@@ -351,6 +356,7 @@ void tanstackReactConfig;
 
 const nativeReactPluginConsumer = `${sharedConsumer}
 import type { AppTools as NativeAppTools, CliPlugin } from '@modern-js/app-tools';
+import type { RuntimePlugin } from '@modern-js/runtime';
 import type { ReactNode } from 'react';
 
 export type SelectedReactRegistry = Assert<Same<keyof CLIElementTypes, 'react'>>;
@@ -384,6 +390,21 @@ const nativeReactPlugin: CliPlugin<NativeAppTools> = {
     });
   },
 };
+const nativeRuntimePlugin: RuntimePlugin = {
+  name: 'native-runtime-hook-context',
+  setup(api) {
+    api.onBeforeRender(context => {
+      type ContextIsTyped = Assert<Same<IsAny<typeof context>, false>>;
+      const typedContext: ContextIsTyped = true;
+      const isBrowser: boolean = context.isBrowser;
+      context.initialData = { message: 'typed native hook' };
+      // @ts-expect-error Runtime hook contexts retain their native field types.
+      context.isBrowser = 'invalid browser flag';
+      void typedContext; void isBrowser;
+      return context;
+    });
+  },
+};
 const defaultReact = defineConfig({
   plugins: [nativeReactPlugin, selectedPlugin],
 });
@@ -401,7 +422,7 @@ const callbackReact = defineConfig(context => {
     plugins: [nativeReactPlugin],
   };
 });
-void defaultReact; void explicitReact; void callbackReact;
+void defaultReact; void explicitReact; void callbackReact; void nativeRuntimePlugin;
 `;
 
 const legacyReactFactoryConsumer = `${sharedConsumer}

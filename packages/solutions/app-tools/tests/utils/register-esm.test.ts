@@ -161,28 +161,37 @@ try {
       );
       for (const name of ['alias #?', 'relative #?']) {
         fs.writeFileSync(
-          path.join(appDir, `${name}.${extension}`),
-          isCommonJS
-            ? `module.exports = ${JSON.stringify(name)};`
-            : `export default ${JSON.stringify(name)};`,
+          path.join(appDir, 'development.cjs'),
+          'module.exports = "development";',
         );
-      }
-      fs.writeFileSync(
-        path.join(appDir, `entry.${extension}`),
-        isCommonJS
-          ? `const assert = require('node:assert/strict');
-assert.equal(require('@fixture/alias #?'), 'alias #?');
-assert.equal(require('./relative #?'), 'relative #?');
+        fs.writeFileSync(
+          path.join(appDir, 'default.cjs'),
+          'module.exports = "default";',
+        );
+        for (const name of ['alias #%', 'relative #%']) {
+          fs.writeFileSync(
+            path.join(appDir, `${name}.${extension}`),
+            isCommonJS
+              ? `module.exports = ${JSON.stringify(name)};`
+              : `export default ${JSON.stringify(name)};`,
+          );
+        }
+        fs.writeFileSync(
+          path.join(appDir, `entry.${extension}`),
+          isCommonJS
+            ? `const assert = require('node:assert/strict');
+assert.equal(require('@fixture/alias #?'), 'alias #%');
+assert.equal(require('./relative #%'), 'relative #%');
 assert.equal(require('loader-fixture/condition'), 'development');
 assert.throws(() => require('./missing #?'), { code: 'MODULE_NOT_FOUND' });
 assert.throws(() => require('@fixture/missing'), { code: 'MODULE_NOT_FOUND' });
 module.exports = 'authored-commonjs';`
           : `import assert from 'node:assert/strict';
 import alias from '@fixture/alias #?';
-import relative from './relative #?';
+import relative from './relative #%';
 import condition from 'loader-fixture/condition';
-assert.equal(alias, 'alias #?');
-assert.equal(relative, 'relative #?');
+assert.equal(alias, 'alias #%');
+assert.equal(relative, 'relative #%');
 assert.equal(condition, 'development');
 await assert.rejects(import('./missing #?'), { code: 'ERR_MODULE_NOT_FOUND' });
 await assert.rejects(import('@fixture/missing'), { code: 'ERR_MODULE_NOT_FOUND' });
@@ -203,7 +212,7 @@ import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { registerPathsLoader } from ${JSON.stringify(registerUrl)};
 const appDir = process.argv[1];
-const hooks = await registerPathsLoader({ appDir, baseUrl: appDir, paths: { '@fixture/*': ['./*'] } });
+const hooks = await registerPathsLoader({ appDir, baseUrl: appDir, paths: { '@fixture/alias #?': ['./alias #%'], '@fixture/*': ['./*'] } });
 try {
   const entry = path.join(appDir, ${JSON.stringify(`entry.${extension}`)});
   const value = ${isCommonJS ? "createRequire(path.join(appDir, 'package.json'))(entry)" : '(await import(pathToFileURL(entry).href)).default'};
