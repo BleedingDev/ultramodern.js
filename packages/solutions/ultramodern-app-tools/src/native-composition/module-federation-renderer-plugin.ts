@@ -125,14 +125,15 @@ export function createRendererModuleFederationIntegration(
         const publications = new Set<string>();
         for (const nativeKey of nativeKeys)
           chain.plugin(nativeKey).tap(args => {
-            const config =
-              record(args[0]) && record(args[0].mfConfig)
-                ? args[0].mfConfig
-                : args[0];
-            if (!record(config))
+            const wrapped = record(args[0]) && record(args[0].mfConfig);
+            const original = wrapped ? args[0].mfConfig : args[0];
+            if (!record(original))
               throw rendererFederationError(
                 'native MF configuration is absent.',
               );
+            // Native MF shares its browser options with workerSSR. Register on
+            // this compiler's snapshot without changing the next compiler's input.
+            const config = { ...original };
             if (config.manifest === false)
               throw rendererFederationError(
                 'renderer components require native manifest publication.',
@@ -210,7 +211,10 @@ export function createRendererModuleFederationIntegration(
               [runtimePlugin, compatibility],
               ...runtimePlugins,
             ];
-            return args;
+            return [
+              wrapped ? { ...args[0], mfConfig: config } : config,
+              ...args.slice(1),
+            ];
           });
         chain.plugin('ultramodern-mf-renderer-publication').use(
           class {

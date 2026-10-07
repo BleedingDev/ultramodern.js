@@ -311,6 +311,54 @@ describe('renderer authority at the actual native MF publication boundary', () =
     },
   );
 
+  it.each([false, true])(
+    'owns separate browser and worker snapshots with secondary=%s',
+    async secondary => {
+      const selected = await integration();
+      selected.controller.onBuildIdentities(completedIdentities());
+      const inputs: NativeConfig[] = [];
+      const modifiers = [
+        ...(await nativeModifiers(secondary)),
+        (chain: RspackChain) => {
+          inputs.push(nativeOptions(chain, 'web'));
+        },
+        selected.modifier,
+      ];
+      const browser = await actualChain('web', modifiers);
+      const worker = await actualChain('web', modifiers);
+      const browserConfig = nativeOptions(browser.chain, 'web');
+      const workerConfig = nativeOptions(worker.chain, 'web');
+      expect(inputs[1]).toBe(inputs[0]);
+      expect(inputs[0].runtimePlugins).not.toContainEqual([
+        runtimePlugin,
+        compatibility,
+      ]);
+      expect(workerConfig).not.toBe(browserConfig);
+      expect(workerConfig.manifest).not.toBe(browserConfig.manifest);
+      for (const result of [browser, worker]) {
+        const config = nativeOptions(result.chain, 'web');
+        expect(config.runtimePlugins).toEqual([
+          [runtimePlugin, compatibility],
+          ...inputs[0].runtimePlugins!,
+        ]);
+        const manifest = config.manifest as Exclude<
+          NativeConfig['manifest'],
+          boolean
+        >;
+        const compilation = publishing();
+        const stats: NativeStats = { metaData: { name: 'native-remote' } };
+        await manifest!.additionalData!({ stats, compilation });
+        expect(stats.metaData[RENDERER_FEDERATION_METADATA_KEY]).toMatchObject({
+          ...compatibility,
+          identities: completedIdentities().identities,
+        });
+        await expect(
+          publicationCompiler(result).hooks.emit.promise(compilation),
+        ).resolves.toBeUndefined();
+      }
+    },
+  );
+
   it.each(['web', 'node'] as const)(
     'awaits prior additionalData and stamps its replacement on %s',
     async target => {
