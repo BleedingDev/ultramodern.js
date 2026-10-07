@@ -20,6 +20,7 @@ export async function readWorkerRendererIdentities(
   routes: readonly {
     entryName?: unknown;
     entryPath?: unknown;
+    isApi?: unknown;
     isSSR?: unknown;
     worker?: unknown;
     bundle?: unknown;
@@ -111,6 +112,19 @@ export async function readWorkerRendererIdentities(
       const asset = await fs.stat(path.join(distDirectory, route.entryPath));
       if (asset.isFile()) continue;
     }
+    // The BFF prefix route is served by the API worker, never a renderer
+    // entry; it carries no document, bundle or dispatch marker.
+    if (
+      route.isApi === true &&
+      route.isSSR === false &&
+      route.entryName === undefined &&
+      route.entryPath === '' &&
+      route.worker === undefined &&
+      route.bundle === undefined &&
+      (route.isRSC === undefined || route.isRSC === false) &&
+      (route.isStream === undefined || route.isStream === false)
+    )
+      continue;
     if (
       typeof route.entryName !== 'string' ||
       !Object.hasOwn(identities, route.entryName)
