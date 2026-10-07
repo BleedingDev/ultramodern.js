@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -17,6 +18,12 @@ import { createTanstackRouteObjectsFromConfig } from '../../src/runtime/utils';
 import { navigateOnClient } from './clientNavigation';
 
 const execFileAsync = promisify(execFile);
+const packageRequire = createRequire(__filename);
+const compilerPackage = packageRequire.resolve('typescript/package.json');
+const compilerPath = path.resolve(
+  path.dirname(compilerPackage),
+  packageRequire(compilerPackage).bin.tsc,
+);
 const strictestTsconfigPath = path.resolve(
   __dirname,
   '../../node_modules/@tsconfig/strictest/tsconfig.json',
@@ -55,9 +62,9 @@ async function writeTsconfig(
 async function runTsgo(projectDirectory: string) {
   try {
     await execFileAsync(
-      process.platform === 'win32' ? 'tsgo.cmd' : 'tsgo',
-      ['-p', 'tsconfig.json'],
-      { cwd: projectDirectory, shell: process.platform === 'win32' },
+      process.execPath,
+      [compilerPath, '-p', 'tsconfig.json'],
+      { cwd: projectDirectory },
     );
   } catch (error) {
     const { stdout, stderr } = (error ?? {}) as {

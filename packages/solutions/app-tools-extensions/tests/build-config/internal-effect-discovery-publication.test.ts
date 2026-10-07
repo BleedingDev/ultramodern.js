@@ -166,6 +166,7 @@ try {
   const environment = { ...process.env, TMPDIR: nativeCache, TMP: nativeCache, TEMP: nativeCache };
   delete environment.EFFECT_TSGO_BIN;
   delete environment.NODE_OPTIONS;
+  delete environment.NODE_PATH;
   execFileSync(process.execPath, [consumerFile], {
     cwd: fixtureRoot,
     env: environment,
@@ -182,6 +183,7 @@ try {
 test('renamed standalone publication selects the same native artifact through public CJS and native ESM config', () => {
   const environment = { ...process.env };
   delete environment.NODE_OPTIONS;
+  delete environment.NODE_PATH;
   execFileSync(
     process.execPath,
     [
