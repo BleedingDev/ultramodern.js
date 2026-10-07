@@ -996,6 +996,10 @@ const bleedingdevSidecarJobs = Object.freeze([
 
 function collectBleedingdevModeInputErrors(workflow, relativePath) {
   const errors = [];
+  const normalizedRun = step =>
+    normalizeShellContinuations(stripShellComments(String(step?.run ?? '')))
+      .replace(/\s+/gu, ' ')
+      .trim();
   const jobs = workflow.jobs ?? {};
   const inputs = workflow.on?.workflow_dispatch?.inputs ?? {};
   if (
@@ -1086,6 +1090,43 @@ function collectBleedingdevModeInputErrors(workflow, relativePath) {
   ) {
     errors.push(
       `${relativePath} publish-security must reject unknown modes or sidecar profiles, mf-sdk in cohort mode and cohort version/recovery inputs in sidecars mode`,
+    );
+  }
+
+  const registryChecks = workflowSteps(workflow).filter(
+    ({ step }) =>
+      runIncludes(step, 'publish-sidecars.mjs') &&
+      runIncludes(step, '--check-registry'),
+  );
+  const expectedRegistryChecks = [
+    {
+      name: 'Check every sidecar name exists on npm',
+      condition: "inputs.mode == 'cohort' && inputs.recovery_run_id == ''",
+      command:
+        'node scripts/ultramodern-publish/publish-sidecars.mjs --check-registry',
+    },
+    {
+      name: 'Check selected sidecar names exist on npm',
+      condition: "inputs.mode == 'sidecars'",
+      command:
+        'node scripts/ultramodern-publish/publish-sidecars.mjs --mode sidecars --profile "$BLEEDINGDEV_SIDECAR_PROFILE" --check-registry',
+    },
+  ];
+  if (
+    registryChecks.length !== expectedRegistryChecks.length ||
+    expectedRegistryChecks.some(
+      expected =>
+        registryChecks.filter(
+          ({ jobId, step }) =>
+            jobId === 'publish-security' &&
+            step.name === expected.name &&
+            step.if === expected.condition &&
+            normalizedRun(step) === expected.command,
+        ).length !== 1,
+    )
+  ) {
+    errors.push(
+      `${relativePath} publish-security must keep exact full-cohort and dispatched-profile registry preflights`,
     );
   }
 

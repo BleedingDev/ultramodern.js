@@ -235,7 +235,7 @@ test('independent CLI arguments fail closed on cross-mode inputs and unsafe outp
   );
   assert.throws(
     () => parseArgs(['--mode', 'sidecars', '--check-registry']),
-    /cohort-only/,
+    /requires --profile/,
   );
   assert.throws(
     () => resolveSidecarOutput('/tmp/sidecar-bundle'),

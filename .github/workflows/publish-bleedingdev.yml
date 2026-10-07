@@ -158,14 +158,16 @@ jobs:
             [[ "$RECOVERY_QUALIFICATION_ATTEMPT" =~ ^[1-9][0-9]*$ ]]
           fi
 
-      # Seconds, bundle-free: a sidecar name that was never bootstrapped on npm
-      # fails the release here instead of after the bundle build and clean-room
-      # acceptance. accept-release waits on this job through reconcile-sidecars.
-      # A recovery dispatch publishes the recovered bundle's sidecars, not this
-      # HEAD's recipes; reconcile-sidecars checks that bundle.
+      # A cohort requires every recipe name. A recovery dispatch instead checks
+      # the recovered bundle through reconcile-sidecars.
       - name: Check every sidecar name exists on npm
-        if: inputs.recovery_run_id == ''
+        if: inputs.mode == 'cohort' && inputs.recovery_run_id == ''
         run: node scripts/ultramodern-publish/publish-sidecars.mjs --check-registry
+
+      # Independent publication checks only its immutable selected profile.
+      - name: Check selected sidecar names exist on npm
+        if: inputs.mode == 'sidecars'
+        run: node scripts/ultramodern-publish/publish-sidecars.mjs --mode sidecars --profile "$BLEEDINGDEV_SIDECAR_PROFILE" --check-registry
 
   # The integration suites on the exact release commit: a called workflow
   # shares this run's github.sha, so no other run's check is polled. A

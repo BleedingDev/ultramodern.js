@@ -1243,6 +1243,69 @@ test('release validator requires SDK probe tests before qualification', () => {
   );
 });
 
+test('release validator binds registry preflights to the selected publication mode and profile', () => {
+  const cohort = 'Check every sidecar name exists on npm';
+  const sidecars = 'Check selected sidecar names exist on npm';
+  for (const name of [cohort, sidecars]) {
+    assertPublishMutationRejected(
+      'missing registry preflight ' + name,
+      workflow => {
+        const job = workflow.jobs['publish-security'];
+        assert.ok(job.steps.some(step => step.name === name));
+        job.steps = job.steps.filter(step => step.name !== name);
+      },
+      /registry preflights/u,
+    );
+    for (const mutate of [
+      removeField('if'),
+      setField('if', "inputs.mode == 'cohort' || inputs.mode == 'sidecars'"),
+    ]) {
+      assertStepMutationRejected(
+        'publish-security',
+        name,
+        'checks recipes for another publication mode',
+        mutate,
+      );
+    }
+  }
+  for (const replacement of [
+    '',
+    '--profile parser',
+    '--profile mf-sdk',
+    '--profile "$PUBLISH_MODE"',
+  ]) {
+    assertStepMutationRejected(
+      'publish-security',
+      sidecars,
+      'changes the dispatched registry profile',
+      step => {
+        const argument = '--profile "$BLEEDINGDEV_SIDECAR_PROFILE"';
+        assert.ok(step.run.includes(argument));
+        step.run = step.run.replace(argument, replacement);
+      },
+    );
+  }
+  assertStepMutationRejected(
+    'publish-security',
+    cohort,
+    'narrows the cohort registry check to one profile',
+    step => {
+      step.run += ' --mode sidecars --profile parser';
+    },
+  );
+  assertPublishMutationRejected(
+    'extra registry preflight outside publish-security',
+    workflow => {
+      const step = workflow.jobs['publish-security'].steps.find(
+        item => item.name === sidecars,
+      );
+      assert.ok(step);
+      workflow.jobs['qualify-sidecars'].steps.push(structuredClone(step));
+    },
+    /registry preflights/u,
+  );
+});
+
 test('release validator rejects missing mode and identity guards', () => {
   for (const [mode, jobIds] of [
     ['cohort', cohortJobs],
