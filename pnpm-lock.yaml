@@ -5902,6 +5902,102 @@ importers:
         specifier: 7.0.2
         version: 7.0.2
 
+  tests/integration/renderer-octane:
+    dependencies:
+      '@modern-js/renderer-core':
+        specifier: workspace:*
+        version: link:../../../packages/runtime/renderer-core
+      '@modern-js/renderer-octane':
+        specifier: workspace:*
+        version: link:../../../packages/runtime/renderer-octane
+      '@octanejs/tanstack-router':
+        specifier: https://github.com/bleedingdev/octane/releases/download/%40octanejs%2Ftanstack-router%400.1.60%2Bultramodern.6c31d4be4768/octanejs-tanstack-router-0.1.60%2Bultramodern.6c31d4be4768.tgz
+        version: https://github.com/bleedingdev/octane/releases/download/%40octanejs%2Ftanstack-router%400.1.60%2Bultramodern.6c31d4be4768/octanejs-tanstack-router-0.1.60%2Bultramodern.6c31d4be4768.tgz(octane@https://github.com/bleedingdev/octane/releases/download/octane%400.7.1%2Bultramodern.f75bf12ac8be/octane-0.7.1%2Bultramodern.f75bf12ac8be.tgz(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(vite@8.3.2(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1(supports-color@10.2.2))(sass-embedded@1.105.1)(sass@1.105.1)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)))
+      octane:
+        specifier: https://github.com/bleedingdev/octane/releases/download/octane%400.7.1%2Bultramodern.f75bf12ac8be/octane-0.7.1%2Bultramodern.f75bf12ac8be.tgz
+        version: https://github.com/bleedingdev/octane/releases/download/octane%400.7.1%2Bultramodern.f75bf12ac8be/octane-0.7.1%2Bultramodern.f75bf12ac8be.tgz(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(vite@8.3.2(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1(supports-color@10.2.2))(sass-embedded@1.105.1)(sass@1.105.1)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+      seroval:
+        specifier: 1.6.8
+        version: 1.6.8
+      seroval-plugins:
+        specifier: 1.6.8
+        version: 1.6.8(seroval@1.6.8)
+    devDependencies:
+      '@modern-js/ultramodern-app-tools':
+        specifier: workspace:*
+        version: link:../../../packages/solutions/ultramodern-app-tools
+      '@octanejs/rspack-plugin':
+        specifier: 0.1.55
+        version: 0.1.55(@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23))(octane@https://github.com/bleedingdev/octane/releases/download/octane%400.7.1%2Bultramodern.f75bf12ac8be/octane-0.7.1%2Bultramodern.f75bf12ac8be.tgz(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(vite@8.3.2(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1(supports-color@10.2.2))(sass-embedded@1.105.1)(sass@1.105.1)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)))
+      '@types/node':
+        specifier: ^26.6.2
+        version: 26.6.3
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  tests/integration/renderer-react:
+    dependencies:
+      '@modern-js/plugin-tanstack':
+        specifier: workspace:*
+        version: link:../../../packages/runtime/plugin-tanstack
+      '@modern-js/runtime':
+        specifier: workspace:*
+        version: link:../../../packages/runtime/plugin-runtime
+      react:
+        specifier: ^19.3.0
+        version: 19.3.0
+      react-dom:
+        specifier: ^19.3.0
+        version: 19.3.0(react@19.3.0)
+    devDependencies:
+      '@modern-js/ultramodern-app-tools':
+        specifier: workspace:*
+        version: link:../../../packages/solutions/ultramodern-app-tools
+      '@types/node':
+        specifier: ^26.6.2
+        version: 26.6.3
+      '@types/react':
+        specifier: ^19.3.0
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: ^19.3.0
+        version: 19.3.0(@types/react@19.3.0)
+
+  tests/integration/renderer-solid:
+    dependencies:
+      '@modern-js/renderer-core':
+        specifier: workspace:*
+        version: link:../../../packages/runtime/renderer-core
+      '@modern-js/renderer-solid':
+        specifier: workspace:*
+        version: link:../../../packages/runtime/renderer-solid
+      '@solidjs/signals':
+        specifier: 2.0.0-rc.13
+        version: 2.0.0-rc.13
+      '@solidjs/web':
+        specifier: 2.0.0-rc.13
+        version: 2.0.0-rc.13(solid-js@2.0.0-rc.13)
+      seroval:
+        specifier: 1.6.8
+        version: 1.6.8
+      seroval-plugins:
+        specifier: 1.6.8
+        version: 1.6.8(seroval@1.6.8)
+      solid-js:
+        specifier: 2.0.0-rc.13
+        version: 2.0.0-rc.13
+    devDependencies:
+      '@modern-js/ultramodern-app-tools':
+        specifier: workspace:*
+        version: link:../../../packages/solutions/ultramodern-app-tools
+      '@solidjs/compiler':
+        specifier: 2.0.0-rc.13
+        version: 2.0.0-rc.13
+      '@types/node':
+        specifier: ^26.6.2
+        version: 26.6.3
+
   tests/integration/routes:
     dependencies:
       '@modern-js/runtime':
