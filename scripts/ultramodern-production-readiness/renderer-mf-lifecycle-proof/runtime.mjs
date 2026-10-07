@@ -271,8 +271,13 @@ export async function ready(server, url, signal) {
   );
 }
 
-async function readNativeStream(url, signal) {
-  const response = await fetch(url, { signal });
+// Node's fetch user agent reads as a bot, and native SSR answers bots only
+// after all content is ready. A browser agent receives the streamed shell.
+const browserUserAgent =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36';
+
+async function readNativeStream(url, signal, headers) {
+  const response = await fetch(url, { signal, headers });
   assert.equal(response.status, 200);
   assert(response.body);
   const reader = response.body.getReader();
@@ -303,10 +308,11 @@ export async function overlapAndAbortProof(hostOrigin, control, signal) {
     healthy: 'abort_B',
     later: 'after_abort_C',
   };
-  const openHeld = async (token, requestSignal = signal) => {
+  const openHeld = async (token, requestSignal = signal, headers) => {
     const promise = readNativeStream(
       `${hostOrigin}/mf?token=${token}&gate=held`,
       requestSignal,
+      headers,
     );
     await waitFor(
       () => control.gates.get(token)?.arrived >= 2,
@@ -350,14 +356,19 @@ export async function overlapAndAbortProof(hostOrigin, control, signal) {
     second: assertRequestHtml(secondHtml, tokens.second, expectedAssets),
     completionOrder: ['B', 'A'],
   };
+  // The overlap pair is read as a bot, so the cold remotes' Helmet markers
+  // finish before the head is sent. Cancellation needs streamed shell bytes,
+  // which only a browser agent receives before the held gates open.
+  const streamed = { 'user-agent': browserUserAgent };
   const abort = new AbortController();
   const abortedPending = openHeld(
     tokens.aborted,
     AbortSignal.any([signal, abort.signal]),
+    streamed,
   );
   // Prevent an unhandled rejection while the other request reaches its gate.
   abortedPending.catch(() => {});
-  const healthyPending = openHeld(tokens.healthy);
+  const healthyPending = openHeld(tokens.healthy, signal, streamed);
   await waitFor(
     () =>
       [tokens.aborted, tokens.healthy].every(
