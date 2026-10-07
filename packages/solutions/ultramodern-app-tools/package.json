@@ -162,8 +162,6 @@
     "node": ">=26.10.0"
   },
   "dependencies": {
-    "@babel/core": "7.29.7",
-    "@jridgewell/remapping": "2.3.5",
     "@modern-js/app-tools": "workspace:*",
     "@modern-js/app-tools-extensions": "workspace:*",
     "@modern-js/backend-federation-contracts": "workspace:*",
@@ -255,9 +253,6 @@
     "@modern-js/runtime": "workspace:*",
     "@modern-js/i18n-integration": "workspace:*",
     "@modern-js/runtime-renderer-extensions": "workspace:*",
-    "@solidjs/compiler": "2.0.0-rc.13",
-    "@octanejs/rspack-plugin": "0.1.55",
-    "octane": "0.7.1+ultramodern.f75bf12ac8be",
     "@modern-js/renderer-solid": "workspace:*",
     "@modern-js/renderer-octane": "workspace:*"
   },
@@ -269,15 +264,6 @@
       "optional": true
     },
     "@modern-js/runtime-renderer-extensions": {
-      "optional": true
-    },
-    "@solidjs/compiler": {
-      "optional": true
-    },
-    "@octanejs/rspack-plugin": {
-      "optional": true
-    },
-    "octane": {
       "optional": true
     },
     "@modern-js/renderer-solid": {

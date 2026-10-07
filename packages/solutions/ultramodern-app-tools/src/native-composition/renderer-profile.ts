@@ -2,78 +2,37 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import type { RouterFramework } from '@modern-js/backend-federation-contracts';
 import type { Renderer } from '@modern-js/renderer-core';
+import type { RendererBuildProfile } from '@modern-js/renderer-core/adapter';
 import {
   type FrameworkModule,
   projectInstalledRendererProfile,
   type RendererProfileMetadata,
 } from './renderer-installed-profile';
-import { resolveRendererRegistration } from './renderer-registration';
-import type { RegisteredRenderer } from './renderer-selection-metadata';
+import {
+  type RegisteredRenderer,
+  resolveRendererAdapter,
+} from './renderer-registration';
 
 export {
   type RegisteredRenderer,
   registeredRenderers,
-} from './renderer-selection-metadata';
+} from './renderer-registration';
+export type { RendererBuildProfile };
 
-export interface RendererBuildProfile<TRenderer extends Renderer = Renderer> {
-  renderer: TRenderer;
-  status: 'stable' | 'preview';
-  protocolVersion: 1;
-  minimumNode: '26.10.0';
-  hmr: {
-    editedBoundary: 'may-reset';
-    unaffectedComponents: 'preserved';
-    document: 'preserved';
-    roots: 'single';
-    cleanup: 'exactly-once';
-  };
-  compiler: { name: string; version: string };
-  hydration: { name: string; version: string };
-  router: {
-    name: string;
-    version: string;
-    coreName: string;
-    coreVersion: string;
-  };
-  sourceExtensions: readonly string[];
-  jsxImportSource: string;
-  dependencies: Readonly<Record<string, string>>;
-  capabilities: {
-    worker: boolean;
-    /**
-     * `true`: Module Federation with SSR. React federates through the React
-     * MF plugin; native renderers server-render same-renderer federated
-     * components from a native module-federation.config.
-     * `'client'`: native same-renderer federated components rendered on the
-     * client only.
-     */
-    moduleFederation: boolean | 'client';
-    rsc: boolean;
-    ssg: boolean;
-    i18n: boolean;
-    svgComponent: boolean;
-  };
-}
-
-/** Generation metadata does not resolve or evaluate optional framework peers. */
+/** The selected adapter's source profile, before installed versions are projected. */
 export function resolveCandidateRendererProfile(
   renderer: Renderer,
 ): RendererBuildProfile<RegisteredRenderer> {
-  const registration = resolveRendererRegistration(renderer);
-  const candidate = structuredClone(registration.candidateProfile);
-  if (candidate.renderer !== registration.renderer)
-    throw new Error(
-      `Renderer profile ${candidate.renderer} conflicts with selected owner ${registration.renderer}`,
-    );
-  return { ...candidate, renderer: registration.renderer };
+  const adapter = resolveRendererAdapter(renderer);
+  return { ...structuredClone(adapter.profile), renderer: adapter.name };
 }
 
 /** Resolve only the selected SDK owners through their public module specifiers. */
 export function resolveRendererProfileMetadata(
   renderer: Renderer,
 ): RendererProfileMetadata<RegisteredRenderer> {
-  const registration = resolveRendererRegistration(renderer);
-  const candidate = resolveCandidateRendererProfile(registration.renderer);
+  const adapter = resolveRendererAdapter(renderer);
+  const candidate = resolveCandidateRendererProfile(adapter.name);
   const require = createRequire(import.meta.url);
   const modules: FrameworkModule[] = [
     {
@@ -88,7 +47,15 @@ export function resolveRendererProfileMetadata(
       specifier: '@modern-js/builder',
       filename: require.resolve('@modern-js/builder'),
     },
-    ...registration.frameworkModules.map(module => ({
+    ...(adapter.kind === 'native'
+      ? [
+          {
+            specifier: adapter.runtime.bootstrap,
+            request: adapter.runtime.manifest,
+          },
+        ]
+      : adapter.frameworkModules
+    ).map(module => ({
       specifier: module.specifier,
       filename: require.resolve(module.request),
     })),
@@ -107,6 +74,6 @@ export function resolveRendererRouterFrameworks(
   renderer: Renderer,
 ): readonly RouterFramework[] {
   return Object.freeze([
-    ...resolveRendererRegistration(renderer).routerFrameworks,
-  ]);
+    ...resolveRendererAdapter(renderer).routerFrameworks,
+  ] as RouterFramework[]);
 }

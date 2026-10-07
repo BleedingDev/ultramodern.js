@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { findHostingModuleDirectory } from '@modern-js/app-tools-extensions/runtime-package-resolution';
+import { SERVICE_WORKER_ENVIRONMENT_NAME } from '@modern-js/builder';
 import type { RendererIdentity } from '@modern-js/renderer-core';
 import { validateSolidModuleManifest } from '@modern-js/renderer-solid/manifest';
 import {
@@ -13,7 +14,7 @@ import {
 } from '@rsbuild/core';
 import { expect, it } from '@rstest/core';
 import { resolveRendererProfileMetadata } from '../../src/native-composition/renderer-profile';
-import { pluginSolidRenderer } from '../../src/renderers/solid/compiler';
+import { resolveNativeRendererAdapter } from '../../src/native-composition/renderer-registration';
 
 function receipts() {
   const values: Rspack.Stats[] = [];
@@ -121,8 +122,9 @@ it('keeps one real watcher alive across initial syntax, discovery and missing la
       cwd: root,
       rsbuildConfig: {
         plugins: [
-          pluginSolidRenderer({
+          resolveNativeRendererAdapter('solid').compiler({
             rendererIdentities: () => ({ main: identity }),
+            workerEnvironmentName: SERVICE_WORKER_ENVIRONMENT_NAME,
           }),
           {
             name: 'observe-solid-watch-recovery',

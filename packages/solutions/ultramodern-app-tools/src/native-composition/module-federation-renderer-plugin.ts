@@ -15,18 +15,11 @@ import type { Renderer } from '@modern-js/renderer-core';
 import type { Rspack } from '@rsbuild/core';
 import { readRendererFrameworkPackage } from './renderer-installed-profile';
 import { resolveRendererProfileMetadata } from './renderer-profile';
+import { resolveRendererAdapter } from './renderer-registration';
 
 /** The CLI plugin that installs native MF for non-React renderers. */
 export const NATIVE_MODULE_FEDERATION_PLUGIN =
   '@modern-js/ultramodern-native-module-federation';
-
-/** Native renderer runtime and bootstrap owners stamped into MF publications. */
-const NATIVE_FEDERATION_OWNERS: Readonly<
-  Record<Exclude<Renderer, 'react'>, { runtime: string; bootstrap: string }>
-> = {
-  solid: { runtime: 'solid-js', bootstrap: '@modern-js/renderer-solid' },
-  octane: { runtime: 'octane', bootstrap: '@modern-js/renderer-octane' },
-};
 
 const NATIVE_PLUGINS = [
   'plugin-module-federation',
@@ -94,12 +87,9 @@ export function resolveRendererFederationRuntimePlugin(
 export function resolveRendererFederationCompatibility(
   renderer: Renderer,
 ): RendererFederationCompatibility {
-  if (renderer === 'react') return resolveReactFederationCompatibility();
-  const owners = NATIVE_FEDERATION_OWNERS[renderer];
-  if (!owners)
-    throw rendererFederationError(
-      `renderer ${renderer} has no federation runtime owners.`,
-    );
+  const adapter = resolveRendererAdapter(renderer);
+  if (adapter.kind !== 'native') return resolveReactFederationCompatibility();
+  const owners = adapter.runtime;
   const metadata = resolveRendererProfileMetadata(renderer);
   const bootstrap = metadata.frameworkPackages.find(
     owner => owner.specifier === owners.bootstrap,
@@ -110,9 +100,9 @@ export function resolveRendererFederationCompatibility(
     );
   // The runtime is the copy the selected bootstrap owner itself imports.
   const runtime = readRendererFrameworkPackage({
-    specifier: owners.runtime,
+    specifier: owners.package,
     filename: createRequire(`${bootstrap.directory}/package.json`).resolve(
-      owners.runtime,
+      owners.package,
     ),
   });
   const { protocolVersion, compiler, hydration, router } = metadata.profile;

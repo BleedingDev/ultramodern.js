@@ -2,7 +2,11 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { AppTools, CliPlugin } from '@modern-js/app-tools/cli-config';
-import type { Renderer, RendererIdentity } from '@modern-js/renderer-core';
+import type { RendererIdentity } from '@modern-js/renderer-core';
+import type {
+  NativeCompilerArtifacts,
+  NativeRendererAdapter,
+} from '@modern-js/renderer-core/adapter';
 import {
   DATA_CONTENT_TYPE,
   DATA_STREAM_CONTENT_TYPE,
@@ -29,9 +33,12 @@ import {
   ROUTE_SPEC_FILE,
   SERVER_BUNDLE_DIRECTORY,
 } from '@modern-js/utils';
-import type { NativeCompilerArtifacts } from './compiler-artifacts';
 import { readRendererBuildManifest } from './native-build-manifest';
-import { resolveRendererProfile } from './renderer-profile';
+import {
+  resolveRendererProfile,
+  resolveRendererRouterFrameworks,
+} from './renderer-profile';
+import { nativeInfrastructurePluginName } from './renderer-registration';
 
 /** Structural route fields read from the native file-system route hook. */
 export interface PrerenderRouteNode {
@@ -366,15 +373,12 @@ async function loadPrerenderEntry(options: {
 
 /** Prerender output.ssg documents after the native build has been validated. */
 export function nativePrerenderPlugin(
-  renderer: Exclude<Renderer, 'react'>,
-  options: {
-    infrastructurePluginName: string;
-    compilerArtifacts: NativeCompilerArtifacts;
-  },
+  adapter: NativeRendererAdapter,
 ): CliPlugin<AppTools> {
+  const renderer = adapter.name;
   return {
     name: '@modern-js/ultramodern-native-prerender',
-    pre: [options.infrastructurePluginName],
+    pre: [nativeInfrastructurePluginName(renderer)],
     post: [
       '@modern-js/renderer-build-artifact-stamp',
       '@modern-js/ultramodern-release-envelope',
@@ -419,7 +423,7 @@ export function nativePrerenderPlugin(
         const build = await readRendererBuildManifest(
           distDirectory,
           resolveRendererProfile(renderer),
-          { routerFrameworks: options.compilerArtifacts.routerFrameworks },
+          { routerFrameworks: resolveRendererRouterFrameworks(renderer) },
         );
         const assetManifest = JSON.parse(
           await fs.readFile(
@@ -441,7 +445,7 @@ export function nativePrerenderPlugin(
               entryName,
               identity,
               assetManifest,
-              compilerArtifacts: options.compilerArtifacts,
+              compilerArtifacts: adapter.artifacts,
             });
             entries.set(entryName, entry);
           }

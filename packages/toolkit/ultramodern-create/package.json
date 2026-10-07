@@ -104,6 +104,8 @@
     "tsx": "^4.23.15",
     "ultracite": "7.12.0",
     "@modern-js/renderer-core": "workspace:*",
+    "@modern-js/renderer-octane": "workspace:*",
+    "@modern-js/renderer-solid": "workspace:*",
     "@modern-js/ultramodern-app-tools": "workspace:*",
     "@modern-js/runtime": "workspace:*",
     "@modern-js/i18n-integration": "workspace:*",
@@ -124,8 +126,6 @@
     "@typescript/native": "npm:typescript@7.0.2"
   },
   "devDependencies": {
-    "@modern-js/renderer-solid": "workspace:*",
-    "@modern-js/renderer-octane": "workspace:*",
     "@solidjs/compiler": "2.0.0-rc.13",
     "@solidjs/babel-plugin": "2.0.0-rc.13",
     "@octanejs/rspack-plugin": "0.1.55",

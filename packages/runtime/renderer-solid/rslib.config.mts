@@ -10,6 +10,8 @@ function nativeBindingTools(server: boolean): RslibConfig['tools'] {
         enforce: 'pre',
         test: /\.[cm]?[jt]sx?$/,
         include: fileURLToPath(new URL('./src', import.meta.url)),
+        // The build-side adapter is plain Node TypeScript.
+        exclude: fileURLToPath(new URL('./src/plugin', import.meta.url)),
         use: [
           {
             loader: fileURLToPath(
@@ -74,6 +76,7 @@ export default defineConfig({
             '!./src/server.ts',
             '!./src/entry-server.tsx',
             '!./src/native-promise-serialization.ts',
+            '!./src/plugin/**',
           ],
         },
       },

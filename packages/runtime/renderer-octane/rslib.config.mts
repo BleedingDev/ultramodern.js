@@ -12,7 +12,11 @@ export default defineConfig({
       bundle: false,
       outBase: './src',
       autoExtension: true,
-      source: { entry: { index: ['./src/**/*.ts', '!./src/typecheck.ts'] } },
+      source: {
+        entry: {
+          index: ['./src/**/*.ts', '!./src/typecheck.ts', '!./src/plugin/**'],
+        },
+      },
       output: { distPath: { root: './dist/esm' }, target: 'web' },
       dts: false,
     },
@@ -22,7 +26,18 @@ export default defineConfig({
       bundle: false,
       outBase: './src',
       autoExtension: true,
-      source: { entry: { typecheck: './src/typecheck.ts' } },
+      // Build-side entries: the typecheck CLI and the renderer adapter with
+      // the manifest validator it shares with the runtime.
+      source: {
+        entry: {
+          index: [
+            './src/typecheck.ts',
+            './src/plugin/**/*.ts',
+            './src/manifest.ts',
+            './src/bootstrap.ts',
+          ],
+        },
+      },
       output: { distPath: { root: './dist/esm-node' }, target: 'node' },
       dts: false,
     },

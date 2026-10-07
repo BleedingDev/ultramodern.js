@@ -1,5 +1,6 @@
 import type { ServerResponse } from 'node:http';
 import path from 'node:path';
+import type { NativeCompilerArtifacts } from '@modern-js/renderer-core/adapter';
 import {
   collectDocumentAssets,
   type DocumentAsset,
@@ -35,7 +36,6 @@ import type {
 import type { ServerRoute } from '@modern-js/types/server';
 import { getEntryOptions } from '@modern-js/utils';
 import { cutNameByHyphen } from '@modern-js/utils/universal';
-import type { NativeCompilerArtifacts } from './compiler-artifacts';
 import { resolveNativeRendererAdapter } from './renderer-registration';
 
 export interface NativeNodeBindings {
@@ -282,7 +282,7 @@ export function nativeServerPlugin(
     throw new Error('Native server plugin requires a selected renderer.');
   const compilerArtifacts =
     options.compilerArtifacts ??
-    resolveNativeRendererAdapter(options.renderer).compilerArtifacts;
+    resolveNativeRendererAdapter(options.renderer).artifacts;
   if (options.resolveDevelopmentSnapshot && options.cacheAllowed === true) {
     throw new Error(
       'Native development snapshots cannot enable document cache.',

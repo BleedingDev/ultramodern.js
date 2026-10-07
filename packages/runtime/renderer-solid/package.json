@@ -65,6 +65,11 @@
       "types": "./dist/types/entry-server.d.ts",
       "default": "./dist/esm-node/entry-server.js"
     },
+    "./plugin": {
+      "modern:source": "./src/plugin/index.ts",
+      "types": "./dist/types/plugin/index.d.ts",
+      "default": "./dist/esm-node/plugin/index.js"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -75,9 +80,11 @@
     "node": ">=26.10.0"
   },
   "dependencies": {
+    "@babel/core": "7.29.7",
+    "@jridgewell/remapping": "2.3.5",
     "@modern-js/renderer-core": "workspace:*",
-    "@solidjs/web": "2.0.0-rc.13",
     "@solidjs/signals": "2.0.0-rc.13",
+    "@solidjs/web": "2.0.0-rc.13",
     "@tanstack/history": "1.162.4",
     "@tanstack/router-core": "1.171.32",
     "isbot": "5.2.2",
@@ -87,10 +94,18 @@
   },
   "peerDependencies": {
     "@modern-js/i18n-runtime-extensions": "workspace:*",
+    "@rsbuild/core": "2.2.11",
+    "@solidjs/compiler": "2.0.0-rc.13",
     "i18next": ">=25.7.4"
   },
   "peerDependenciesMeta": {
     "@modern-js/i18n-runtime-extensions": {
+      "optional": true
+    },
+    "@rsbuild/core": {
+      "optional": true
+    },
+    "@solidjs/compiler": {
       "optional": true
     },
     "i18next": {
@@ -100,10 +115,11 @@
   "devDependencies": {
     "@modern-js/i18n-runtime-extensions": "workspace:*",
     "@modern-js/tsconfig": "workspace:*",
-    "@rslib/core": "1.0.2",
-    "@solidjs/compiler": "2.0.0-rc.13",
+    "@rsbuild/core": "2.2.11",
+    "@rslib/core": "1.0.3",
     "@scripts/rstest-config": "workspace:*",
-    "@types/node": "^26.6.2"
+    "@solidjs/compiler": "2.0.0-rc.13",
+    "@types/node": "^26.6.3"
   },
   "sideEffects": false,
   "publishConfig": {

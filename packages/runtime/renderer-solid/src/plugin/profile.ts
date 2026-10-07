@@ -1,6 +1,6 @@
-import type { RendererBuildProfile } from '../../native-composition/renderer-profile';
+import type { RendererBuildProfile } from '@modern-js/renderer-core/adapter';
 
-export const solidCandidateProfile: RendererBuildProfile = {
+export const solidProfile: RendererBuildProfile<'solid'> = {
   renderer: 'solid',
   status: 'preview',
   protocolVersion: 1,

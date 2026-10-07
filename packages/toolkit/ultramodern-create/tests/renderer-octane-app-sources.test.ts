@@ -1,8 +1,15 @@
 import assert from 'node:assert/strict';
 import { stripTypeScriptTypes } from 'node:module';
-import test from 'node:test';
 import { parse } from '@babel/parser';
-import { generateOctaneAppSources } from './index.ts';
+import { resolveRendererAdapter } from '@modern-js/ultramodern-app-tools';
+
+/** The Octane adapter's create support generates these sources. */
+function generateOctaneAppSources(options: any) {
+  const adapter = resolveRendererAdapter('octane');
+  if (adapter.kind !== 'native' || !adapter.create)
+    throw new Error('The octane adapter has no create support');
+  return adapter.create.generateAppSources(options);
+}
 
 const options = {
   appId: 'octane-shell',

@@ -1,6 +1,6 @@
-import type { RendererBuildProfile } from '../../native-composition/renderer-profile';
+import type { RendererBuildProfile } from '@modern-js/renderer-core/adapter';
 
-export const octaneCandidateProfile: RendererBuildProfile = {
+export const octaneProfile: RendererBuildProfile<'octane'> = {
   renderer: 'octane',
   status: 'preview',
   protocolVersion: 1,

@@ -37,6 +37,12 @@ Solid and Octane use their native component syntax and managed filesystem
 routes. Their SDKs expose `/client`, `/router`, `/server` and `/manifest`
 entrypoints. Generated applications select these automatically.
 
+Each native renderer package also exports a build-only adapter from `./plugin`
+(the `RendererAdapter` interface in `@modern-js/renderer-core/adapter`). It
+carries the renderer's profile, runtime entry modules, compiler, artifact
+validation, Module Federation singletons, worker support and create templates.
+`defineConfig` loads only the selected renderer's adapter.
+
 ## Supported preview profile
 
 Solid **2.0.0-rc.13** and Octane are Node previews with CSR, native streaming SSR,

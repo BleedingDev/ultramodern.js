@@ -1,5 +1,8 @@
+import fs from 'node:fs';
 import path from 'node:path';
-import type { RsbuildPluginAPI } from '@rsbuild/core';
+import { fileURLToPath } from 'node:url';
+import type { Renderer } from '@modern-js/renderer-core';
+import type { RsbuildPlugin, RsbuildPluginAPI } from '@rsbuild/core';
 
 export type SvgDefaultExport = 'component' | 'url';
 
@@ -10,7 +13,7 @@ const SCRIPT_ISSUER = /\.(?:[cm]?[jt]sx?|tsrx)$/u;
 /** Generated components live with the native entry sources the compiler owns. */
 export function svgComponentOutputDirectory(
   rootPath: string,
-  renderer: 'solid' | 'octane',
+  renderer: Renderer,
 ): string {
   return path.join(
     rootPath,
@@ -21,19 +24,45 @@ export function svgComponentOutputDirectory(
   );
 }
 
+/** The CommonJS loader ships in this package's `src` tree in every format. */
+function svgComponentLoaderFile(): string {
+  for (
+    let directory =
+      typeof __dirname === 'string'
+        ? __dirname
+        : path.dirname(fileURLToPath(import.meta.url));
+    ;
+    directory = path.dirname(directory)
+  ) {
+    const loader = path.join(
+      directory,
+      'src/native-composition/svg-component-loader.cjs',
+    );
+    if (
+      fs.existsSync(path.join(directory, 'package.json')) &&
+      fs.existsSync(loader)
+    )
+      return loader;
+    if (path.dirname(directory) === directory)
+      throw new Error('Cannot locate the UltraModern SVG component loader');
+  }
+}
+
 /**
- * Route SVG component imports to the renderer's loader inside Rsbuild's SVG
+ * Route SVG component imports to the renderer's template inside Rsbuild's SVG
  * rule. URL, inline, raw and text queries keep their asset behavior, and
  * stylesheet references stay URLs even when components are the default export.
  */
 export function applyNativeSvgComponents(
   api: RsbuildPluginAPI,
   options: {
-    renderer: 'solid' | 'octane';
-    loader: string;
+    renderer: Renderer;
+    /** CommonJS module exporting the renderer's component source template. */
+    template: string;
     defaultExport?: SvgDefaultExport;
   },
 ): void {
+  const loader = svgComponentLoaderFile();
   api.modifyBundlerChain({
     order: 'post',
     handler(chain, { CHAIN_ID }) {
@@ -42,6 +71,7 @@ export function applyNativeSvgComponents(
           api.context.rootPath,
           options.renderer,
         ),
+        template: options.template,
       };
       const rule = chain.module.rule(CHAIN_ID.RULE.SVG);
       rule
@@ -50,7 +80,7 @@ export function applyNativeSvgComponents(
         .type('javascript/auto')
         .resourceQuery(SVG_COMPONENT_QUERY)
         .use('native-svg-component')
-        .loader(options.loader)
+        .loader(loader)
         .options(loaderOptions);
       if (options.defaultExport === 'component')
         rule
@@ -59,8 +89,19 @@ export function applyNativeSvgComponents(
           .type('javascript/auto')
           .issuer(SCRIPT_ISSUER)
           .use('native-svg-component')
-          .loader(options.loader)
+          .loader(loader)
           .options(loaderOptions);
     },
   });
+}
+
+export function nativeSvgComponentsPlugin(options: {
+  renderer: Renderer;
+  template: string;
+  defaultExport?: SvgDefaultExport;
+}): RsbuildPlugin {
+  return {
+    name: `ultramodern:${options.renderer}:svg-components`,
+    setup: api => applyNativeSvgComponents(api, options),
+  };
 }

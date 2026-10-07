@@ -5,9 +5,9 @@ import test from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const workspace = fileURLToPath(new URL('../../../', import.meta.url));
-const tools = path.join(workspace, 'packages/solutions/ultramodern-app-tools');
-const require = createRequire(path.join(tools, 'package.json'));
-const directory = path.join(tools, 'src/renderers/octane/compiler');
+const adapter = path.join(workspace, 'packages/runtime/renderer-octane');
+const require = createRequire(path.join(adapter, 'package.json'));
+const directory = path.join(adapter, 'src/plugin');
 const { OctaneCompilerManifestPlugin } = require(
   path.join(directory, 'compiler-manifest.cjs'),
 );
@@ -126,28 +126,23 @@ test('the factory binds canonical versions only to its owning manifest plugin', 
       ),
     },
   });
-  const {
-    createOctaneCompilerPlugin,
-    OCTANE_RUNTIME_VERSION,
-    OCTANE_COMPILER_VERSION,
-  } = await jiti.import(path.join(directory, 'index.ts'));
-  const { assertRendererCompilerOwnership } = await jiti.import(
-    path.join(tools, 'src/native-composition/renderer-selection.ts'),
+  const { createOctaneCompilerPlugin } = await jiti.import(
+    path.join(directory, 'compiler.ts'),
+  );
+  const { OCTANE_RUNTIME_VERSION, OCTANE_COMPILER_VERSION } = await jiti.import(
+    path.join(adapter, 'src/manifest.ts'),
   );
   const compiler = createOctaneCompilerPlugin({
     rendererIdentities: () => ({}),
+    workerEnvironmentName: 'workerSSR',
   });
-  assert.deepEqual(
-    assertRendererCompilerOwnership('octane', [compiler]).sourceExtensions,
-    ['.tsrx', '.tsx', '.ts', '.js'],
-  );
   let config;
   compiler.setup({
     context: { rootPath: workspace },
     modifyRsbuildConfig() {},
     modifyRspackConfig(callback) {
       config = { target: 'web' };
-      callback(config);
+      callback(config, { environment: { name: 'client' } });
     },
   });
   assert.equal(config.plugins.length, 2);

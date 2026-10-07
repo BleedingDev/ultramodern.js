@@ -6,6 +6,7 @@ import {
   resolveRendererBuildIdentities,
 } from '@modern-js/app-tools-extensions/renderer-build-identity';
 import { findHostingModuleDirectory } from '@modern-js/app-tools-extensions/runtime-package-resolution';
+import { SERVICE_WORKER_ENVIRONMENT_NAME } from '@modern-js/builder';
 import type { RendererIdentity } from '@modern-js/renderer-core/identity';
 import { createRequestSession } from '@modern-js/renderer-core/session';
 import type { Entrypoint } from '@modern-js/types/cli/base';
@@ -28,11 +29,13 @@ import {
   resolveCandidateRendererProfile,
   resolveRendererProfileMetadata,
 } from '../../src/native-composition/renderer-profile';
+import { resolveNativeRendererAdapter } from '../../src/native-composition/renderer-registration';
 import { resolveEntrypointRouterBindings } from '../../src/native-composition/renderer-router-resolution';
 import { nativeRendererIsolationPlugin } from '../../src/native-composition/renderer-selection';
-import { createOctaneCompilerPlugin } from '../../src/renderers/octane/compiler';
-import { pluginSolidRenderer } from '../../src/renderers/solid/compiler';
-import { createReplacementCompilerArtifacts } from './replacement-compiler-artifacts';
+import {
+  createReplacementAdapter,
+  createReplacementCompilerArtifacts,
+} from './replacement-compiler-artifacts';
 
 const roots: string[] = [];
 const closes: (() => Promise<void>)[] = [];
@@ -260,15 +263,12 @@ async function nativeApp(renderer: 'solid' | 'octane', module: boolean) {
         nativeClientAssetsPlugin(
           renderer,
           () => session.identities,
-          renderer === 'octane' ? 'document' : 'renderer',
+          resolveNativeRendererAdapter(renderer).lazyStyles,
         ),
-        renderer === 'solid'
-          ? pluginSolidRenderer({
-              rendererIdentities: () => session.identities,
-            })
-          : createOctaneCompilerPlugin({
-              rendererIdentities: () => session.identities,
-            }),
+        resolveNativeRendererAdapter(renderer).compiler({
+          rendererIdentities: () => session.identities,
+          workerEnvironmentName: SERVICE_WORKER_ENVIRONMENT_NAME,
+        }),
         authority.plugin,
       ],
       server: { host: '127.0.0.1', port: 0, printUrls: false },
@@ -362,7 +362,7 @@ export async function nativeCSRRequestHandler() { return new Response(marker); }
   const authority = new NativeDevelopment({
     renderer: 'replacement',
     profile,
-    compilerArtifacts,
+    adapter: createReplacementAdapter(profile, compilerArtifacts),
     distDirectory: path.join(root, 'dist'),
     getSessionIdentities: () => session,
   });

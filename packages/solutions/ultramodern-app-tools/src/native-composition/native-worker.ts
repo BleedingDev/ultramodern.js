@@ -8,6 +8,7 @@ import {
 import { applyCloudflareWorkerRspackConfig } from '@modern-js/app-tools-extensions/cloudflare-builder';
 import { resolveDeployTarget } from '@modern-js/app-tools-extensions/deploy-output/target';
 import type { Renderer, RendererIdentity } from '@modern-js/renderer-core';
+import type { NativeCompilerArtifacts } from '@modern-js/renderer-core/adapter';
 import {
   RENDERER_ASSET_MANIFEST_FILE,
   validateNativeClientAssetManifest,
@@ -18,7 +19,6 @@ import {
 } from '@modern-js/utils';
 import { cutNameByHyphen } from '@modern-js/utils/universal';
 import type { EnvironmentConfig, ModifyBundlerChainFn } from '@rsbuild/core';
-import type { NativeCompilerArtifacts } from './compiler-artifacts';
 
 export interface NativeWorkerConfig {
   deploy?: { target?: string; worker?: { ssr?: boolean } };

@@ -17,6 +17,7 @@ import {
   resolveEntrySsgOptions,
   resolvePrerenderRoutes,
 } from '../../src/native-composition/native-prerender';
+import { resolveNativeRendererAdapter } from '../../src/native-composition/renderer-registration';
 
 const tree: PrerenderRouteNode[] = [
   {
@@ -160,11 +161,8 @@ describe('native prerender route selection', () => {
   });
 
   it('runs after the native build owner and before release stamping', () => {
-    const plugin = nativePrerenderPlugin('solid', {
-      infrastructurePluginName: '@modern-js/ultramodern-native-solid',
-      compilerArtifacts: {} as never,
-    });
-    expect(plugin.pre).toEqual(['@modern-js/ultramodern-native-solid']);
+    const plugin = nativePrerenderPlugin(resolveNativeRendererAdapter('solid'));
+    expect(plugin.pre).toEqual(['@modern-js/renderer-solid-infrastructure']);
     expect(plugin.post).toEqual([
       '@modern-js/renderer-build-artifact-stamp',
       '@modern-js/ultramodern-release-envelope',

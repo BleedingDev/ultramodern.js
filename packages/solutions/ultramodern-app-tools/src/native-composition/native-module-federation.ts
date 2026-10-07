@@ -8,7 +8,7 @@ import type { Renderer } from '@modern-js/renderer-core';
 import { SERVER_BUNDLE_DIRECTORY } from '@modern-js/utils';
 import { NATIVE_MODULE_FEDERATION_PLUGIN } from './module-federation-renderer-plugin';
 import { findNativeFederationConfig } from './native-federation-files';
-import { resolveRendererRegistration } from './renderer-registration';
+import { resolveNativeRendererAdapter } from './renderer-registration';
 
 export {
   findNativeFederationConfig,
@@ -24,38 +24,13 @@ export const NATIVE_SERVER_CONTAINER_TYPE = 'commonjs-module';
 type NativeRenderer = Exclude<Renderer, 'react'>;
 type FederationOptions = Record<string, unknown>;
 
-interface NativeFederationProfile {
-  /** The renderer bootstrap package whose dependencies are shared. */
-  readonly bootstrap: string;
-  /** Container format, matching the renderer's client chunk format. */
-  readonly library: 'module';
-  /** Runtime singletons the host and every remote must share. */
-  readonly shared: readonly string[];
+/** The selected adapter's federation descriptor and its bootstrap package. */
+function nativeFederationProfile(renderer: NativeRenderer) {
+  const adapter = resolveNativeRendererAdapter(renderer);
+  if (!adapter.federation)
+    throw federationError(`renderer ${renderer} has no federation profile.`);
+  return { ...adapter.federation, bootstrap: adapter.runtime.bootstrap };
 }
-
-const NATIVE_FEDERATION_PROFILES: Readonly<
-  Partial<Record<NativeRenderer, NativeFederationProfile>>
-> = {
-  solid: {
-    bootstrap: '@modern-js/renderer-solid',
-    library: 'module',
-    shared: [
-      'solid-js',
-      '@solidjs/web',
-      '@solidjs/signals',
-      'seroval',
-      'seroval-plugins',
-      '@modern-js/renderer-solid',
-      '@modern-js/renderer-solid/client',
-      '@modern-js/renderer-solid/router',
-      '@modern-js/renderer-solid/federation',
-      '@modern-js/renderer-core',
-      '@modern-js/renderer-core/',
-      '@tanstack/router-core',
-      '@tanstack/history',
-    ],
-  },
-};
 
 /** Options the native renderer owns; a config cannot replace them. */
 const OWNED_OPTIONS = ['library', 'remoteType', 'runtime'] as const;
@@ -172,9 +147,7 @@ export function resolveNativeSharedVersions(
   renderer: NativeRenderer,
   appDirectory: string,
 ): Readonly<Record<string, string>> {
-  const profile = NATIVE_FEDERATION_PROFILES[renderer];
-  if (!profile)
-    throw federationError(`renderer ${renderer} has no federation profile.`);
+  const profile = nativeFederationProfile(renderer);
   const bootstrapManifest = path.join(
     appDirectory,
     'node_modules',
@@ -205,9 +178,7 @@ export function createNativeSharedConfig(
   shared: unknown,
   versions: Readonly<Record<string, string>>,
 ): Record<string, unknown> {
-  const profile = NATIVE_FEDERATION_PROFILES[renderer];
-  if (!profile)
-    throw federationError(`renderer ${renderer} has no federation profile.`);
+  const profile = nativeFederationProfile(renderer);
   const authored: Record<string, unknown> =
     shared === undefined
       ? {}
@@ -296,9 +267,7 @@ export function createNativeClientFederationOptions(
   runtimePlugin?: string,
   serverDirectory?: string,
 ): FederationOptions {
-  const profile = NATIVE_FEDERATION_PROFILES[renderer];
-  if (!profile)
-    throw federationError(`renderer ${renderer} has no federation profile.`);
+  const profile = nativeFederationProfile(renderer);
   const { remotes: _remotes, ...container } = authored;
   if (
     authored.runtimePlugins !== undefined &&
@@ -614,16 +583,16 @@ export function nativeModuleFederationPlugin(
             api.getAppContext().appDirectory,
           );
           if (!file) return undefined;
-          const capability =
-            resolveRendererRegistration(renderer).candidateProfile.capabilities
-              .moduleFederation;
-          if (capability === false || !NATIVE_FEDERATION_PROFILES[renderer])
+          if (!resolveNativeRendererAdapter(renderer).federation)
             throw new Error(
               `unsupported-renderer-capability: renderer ${renderer} does not support Module Federation; remove ${path.basename(file)}`,
             );
           return loadNativeFederationConfig(file);
         })());
       const serverRendered = (authored: FederationOptions): boolean => {
+        // Client-only federation never publishes or consumes Node containers.
+        if (!resolveNativeRendererAdapter(renderer).federation?.ssr)
+          return false;
         if (authored.exposes !== undefined) return true;
         const { server } = api.getNormalizedConfig();
         return Boolean(

@@ -1,11 +1,11 @@
+import type { NativeCompilerArtifacts } from '@modern-js/renderer-core/adapter';
 import { nativeModuleManifestFilename } from '@modern-js/renderer-core/identity';
-import type { NativeCompilerArtifacts } from '../../native-composition/compiler-artifacts';
+import { validateOctaneModuleManifest } from '../manifest';
 
 const clientManifestFile = (entryName: string) =>
   nativeModuleManifestFilename('octane', entryName);
 
-export const octaneCompilerArtifacts = Object.freeze<NativeCompilerArtifacts>({
-  routerFrameworks: ['octane'],
+export const octaneCompilerArtifacts: NativeCompilerArtifacts = {
   clientManifestFile,
   async validateClientManifest(value, identity, context) {
     const hydrationBuildId =
@@ -17,9 +17,6 @@ export const octaneCompilerArtifacts = Object.freeze<NativeCompilerArtifacts>({
       throw new Error(
         'Octane development snapshot has no native hydration build.',
       );
-    const { validateOctaneModuleManifest } = await import(
-      '@modern-js/renderer-octane/manifest'
-    );
     const nativeManifest = validateOctaneModuleManifest(
       value,
       identity,
@@ -36,4 +33,4 @@ export const octaneCompilerArtifacts = Object.freeze<NativeCompilerArtifacts>({
       entryNames.some(entry => filename === clientManifestFile(entry))
     );
   },
-});
+};

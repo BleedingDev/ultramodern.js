@@ -1,16 +1,19 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import * as actualModule from 'node:module' with { rstest: 'importActual' };
 import os from 'node:os';
 import path from 'node:path';
+import type {
+  NativeRendererAdapter,
+  RendererAppSourceOptions,
+  RendererBuildProfile,
+} from '@modern-js/renderer-core/adapter';
 import {
-  type RendererBuildProfile,
   registeredRenderers,
   resolveCandidateRendererProfile,
   resolveRendererRouterFrameworks,
 } from '@modern-js/ultramodern-app-tools';
-import type { RendererRegistration } from '../../../solutions/ultramodern-app-tools/src/native-composition/renderer-registration';
 import { shellApp } from '../src/ultramodern-workspace/descriptors';
-import type { NativeAppSourceOptions } from '../src/ultramodern-workspace/renderer-generation-profile';
 import {
   getRendererGenerationProfile,
   isApplicationRenderer,
@@ -21,7 +24,7 @@ import { snapshotWorkspace } from './helpers/workspace-kit';
 
 const paper = rstest.hoisted(() => {
   const candidate = {
-    renderer: 'paper',
+    renderer: 'octane',
     status: 'preview',
     protocolVersion: 1,
     minimumNode: '26.10.0',
@@ -58,154 +61,105 @@ const paper = rstest.hoisted(() => {
   const unusedNativeRuntime = () => {
     throw new Error('Cold generation must not evaluate native runtime hooks.');
   };
-  const nativeAdapter = {
-    renderer: 'paper',
-    infrastructurePluginName: '@modern-js/renderer-paper-infrastructure',
+  const sourceOptions: RendererAppSourceOptions[] = [];
+  const adapter: NativeRendererAdapter = {
+    name: 'octane',
+    kind: 'native',
     profile: candidate,
-    compilerArtifacts: {
-      routerFrameworks: ['paper'],
+    routerFrameworks: ['paper'],
+    ownedPackages: ['paper-runtime', '@modern-js/renderer-paper'],
+    runtime: {
+      package: 'paper-runtime',
+      bootstrap: '@modern-js/renderer-paper',
+      entryClient: '@modern-js/renderer-paper/entry-client',
+      entryServer: '@modern-js/renderer-paper/entry-server',
+      router: '@modern-js/renderer-paper/router',
+      manifest: '@modern-js/renderer-paper/manifest',
+    },
+    worker: { nativeDocuments: true, rsc: false },
+    compiler: unusedNativeRuntime,
+    artifacts: {
       clientManifestFile: unusedNativeRuntime,
       validateClientManifest: async () => unusedNativeRuntime(),
       isMutableDevelopmentAsset: unusedNativeRuntime,
     },
-    createEntryGenerator: unusedNativeRuntime,
-    compiler: Object.freeze({
-      schema: 'ultramodern-native-compiler-activation',
-      version: 1,
-      renderer: 'paper',
-      operation: 'compiler',
-      module: Object.freeze({
-        source: './src/renderers/paper/compiler/index.ts',
-        import: './dist/esm-node/renderers/paper/compiler/index.mjs',
-        require: './dist/cjs/renderers/paper/compiler/index.js',
-      }),
-      export: 'createPaperCompilerPlugin',
-    }),
-  };
-  const registration = {
-    renderer: 'paper',
-    kind: 'native',
-    candidateProfile: candidate,
-    routerFrameworks: ['paper'],
-    frameworkModules: [
-      {
-        specifier: '@modern-js/renderer-paper',
-        request: '@modern-js/renderer-paper/manifest',
-      },
-    ],
-    supports: {
-      reactCliPlugins: false,
-      reactRuntimeDescriptors: false,
-      reactCompiler: false,
-      cssDeclarations: false,
-    },
-    nativeAdapter,
-  } satisfies RendererRegistration;
-  return {
-    candidate,
-    registration,
-    nativeAdapter,
-    sourceOptions: [] as NativeAppSourceOptions[],
-  };
-});
-
-// Replace one static SDK owner without replacing its public catalogue resolver.
-rstest.mock(
-  '../../../solutions/ultramodern-app-tools/src/renderers/octane/registration',
-  () => ({
-    octaneRendererRegistration: paper.registration,
-    octaneNativeRendererAdapter: paper.nativeAdapter,
-  }),
-);
-
-rstest.mock('../src/ultramodern-workspace/renderer-generation-registry', () => {
-  const actual = rstest.requireActual<
-    typeof import('../src/ultramodern-workspace/renderer-generation-registry')
-  >('../src/ultramodern-workspace/renderer-generation-registry');
-  return {
-    ...actual,
-    rendererGenerations: {
-      ...actual.rendererGenerations,
-      paper: {
-        renderer: 'paper',
-        kind: 'native',
-        createProfile(selected: RendererBuildProfile) {
-          return {
-            renderer: selected.renderer,
-            profile: {
-              renderer: selected.renderer,
-              protocolVersion: selected.protocolVersion,
-              compiler: { ...selected.compiler },
-              hydration: { ...selected.hydration },
-              router: { ...selected.router },
-            },
-            sourceExtension: '.tsx',
-            jsxImportSource: selected.jsxImportSource,
-            routerFrameworks: ['paper'],
-            nodeVersion: selected.minimumNode,
-            frameworkDependencies: [
-              '@modern-js/renderer-core',
-              '@modern-js/renderer-paper',
-            ],
-            dependencies: { ...selected.dependencies },
-            devDependencies: {
-              [selected.compiler.name]: selected.compiler.version,
-            },
-            capabilities: {
-              ssr: true,
-              streaming: true,
-              workers: selected.capabilities.worker,
-              federation: selected.capabilities.moduleFederation,
-              rsc: selected.capabilities.rsc,
-            },
-            typecheckCommand: 'paper-check --project tsconfig.json',
-            tsconfig: {
-              paper: { compiler: 'paper/compiler', platform: 'web' },
-            },
-          };
+    create: {
+      dependencies: selected => ({
+        frameworkDependencies: [
+          '@modern-js/renderer-core',
+          '@modern-js/renderer-paper',
+        ],
+        dependencies: { ...selected.dependencies },
+        devDependencies: {
+          [selected.compiler.name]: selected.compiler.version,
         },
-        generateAppSources(options: NativeAppSourceOptions) {
-          paper.sourceOptions.push(options);
-          return {
-            sourceExtension: options.sourceExtension,
-            jsxImportSource: options.jsxImportSource,
-            artifacts: [
-              {
-                path: 'src/routes/layout.tsx',
-                content: `import { Outlet } from '@modern-js/renderer-paper/router';
+        typecheckCommand: 'paper-check --project tsconfig.json',
+        tsconfig: {
+          paper: { compiler: 'paper/compiler', platform: 'web' },
+        },
+      }),
+      generateAppSources(options) {
+        sourceOptions.push(options);
+        return {
+          sourceExtension: options.sourceExtension,
+          jsxImportSource: options.jsxImportSource,
+          artifacts: [
+            {
+              path: 'src/routes/layout.tsx',
+              content: `import { Outlet } from '@modern-js/renderer-paper/router';
 
 export default function Layout() {
   return <main data-renderer="paper"><Outlet /></main>;
 }
 `,
-              },
-              {
-                path: 'src/routes/page.tsx',
-                content: `import { createAtom } from 'paper-runtime';
+            },
+            {
+              path: 'src/routes/page.tsx',
+              content: `import { createAtom } from 'paper-runtime';
 
 export default function Page() {
   const count = createAtom(0);
   return <button onClick={() => count.update(value => value + 1)}>${options.title}: {count.read()}</button>;
 }
 `,
-              },
-            ],
-          };
-        },
+            },
+          ],
+        };
       },
     },
   };
+  return { candidate, adapter, sourceOptions };
 });
 
-test('a foreign renderer owner uses the public SDK resolver and common writer', () => {
-  const renderer: string = 'paper';
-  assert.deepEqual(registeredRenderers, ['react', 'solid', 'paper']);
+// Install a foreign renderer in the Octane package's adapter slot; generation
+// must follow the adapter's profile and create support alone.
+rstest.mock('node:module', () => {
+  const createRequire: typeof actualModule.createRequire = anchor => {
+    const require = actualModule.createRequire(anchor);
+    return Object.assign(
+      (id: string) =>
+        id === '@modern-js/renderer-octane/plugin'
+          ? { rendererAdapter: paper.adapter }
+          : require(id),
+      require,
+    ) as NodeJS.Require;
+  };
+  return {
+    ...actualModule,
+    createRequire,
+    default: { ...actualModule, createRequire },
+  };
+});
+
+test('a foreign renderer adapter uses the public SDK resolver and common writer', () => {
+  const renderer = 'octane';
+  assert.deepEqual(registeredRenderers, ['react', 'solid', 'octane']);
   assert.deepEqual(resolveCandidateRendererProfile(renderer), paper.candidate);
   assert.deepEqual(resolveRendererRouterFrameworks(renderer), ['paper']);
   assert.ok(isApplicationRenderer(renderer));
   const profile = getRendererGenerationProfile(renderer);
-  assert.equal(profile.renderer, 'paper');
-  assert.equal(profile.profile.renderer, 'paper');
+  assert.equal(profile.renderer, 'octane');
+  assert.equal(profile.profile.renderer, 'octane');
   assert.deepEqual(profile.profile.compiler, {
     name: '@paper/compiler',
     version: '4.2.1',
@@ -300,7 +254,7 @@ export default function Page() {
     );
     assert.match(
       files[`${directory}/modern.config.ts`]!,
-      /renderer:\s*["']paper["']/u,
+      /renderer:\s*["']octane["']/u,
     );
     assert.match(
       files[`${directory}/modern.config.ts`]!,
@@ -319,7 +273,7 @@ export default function Page() {
     for (const [relativePath, content] of Object.entries(files)) {
       assert.doesNotMatch(
         content,
-        /(?:solid-js|@solidjs\/|octane|@octanejs\/|@modern-js\/renderer-(?:solid|octane))/u,
+        /(?:solid-js|@solidjs\/|@octanejs\/|from 'octane|@modern-js\/renderer-(?:solid|octane))/u,
         relativePath,
       );
     }

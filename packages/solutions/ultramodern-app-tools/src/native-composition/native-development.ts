@@ -3,6 +3,10 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { RendererBuildIdentities } from '@modern-js/app-tools-extensions/renderer-build-identity';
+import type {
+  NativeCompilerArtifacts,
+  NativeRendererAdapter,
+} from '@modern-js/renderer-core/adapter';
 import {
   assertRendererIdentity,
   type Renderer,
@@ -11,7 +15,6 @@ import {
 import { validateNativeClientAssetManifest } from '@modern-js/renderer-core/server';
 import { mime } from '@modern-js/utils';
 import type { RsbuildPlugin, Rspack } from '@rsbuild/core';
-import type { NativeCompilerArtifacts } from './compiler-artifacts';
 import {
   createRendererBuildManifest,
   RENDERER_BUILD_MANIFEST_FILE,
@@ -25,7 +28,8 @@ import { resolveNativeRendererAdapter } from './renderer-registration';
 export interface NativeDevelopmentOptions {
   readonly renderer: Exclude<Renderer, 'react'>;
   readonly profile: RendererBuildProfile;
-  readonly compilerArtifacts?: NativeCompilerArtifacts;
+  /** The renderer adapter to run; defaults to the registered one. */
+  readonly adapter?: NativeRendererAdapter;
   readonly distDirectory: string;
   readonly getSessionIdentities: () => RendererBuildIdentities;
 }
@@ -91,14 +95,15 @@ export class NativeDevelopment {
   /** Client assets of earlier compiles stay reachable for already-open pages. */
   private readonly retained = new Map<string, RetainedAsset>();
   private readonly mutableClientAssets = new Set(['renderer-assets.json']);
+  private readonly adapter: NativeRendererAdapter;
   private readonly compilerArtifacts: NativeCompilerArtifacts;
   private readonly waiters = new Set<() => void>();
   private manifestFile: string | undefined;
 
   constructor(private readonly options: NativeDevelopmentOptions) {
-    this.compilerArtifacts =
-      options.compilerArtifacts ??
-      resolveNativeRendererAdapter(options.renderer).compilerArtifacts;
+    this.adapter =
+      options.adapter ?? resolveNativeRendererAdapter(options.renderer);
+    this.compilerArtifacts = this.adapter.artifacts;
     this.plugin = {
       name: `ultramodern:${options.renderer}:development`,
       setup: api => {
@@ -367,7 +372,11 @@ export class NativeDevelopment {
     const generation = ++this.generation;
     const metadata = validateRendererDevelopmentBuildManifest(
       {
-        ...createRendererBuildManifest(this.options.profile, session),
+        ...createRendererBuildManifest(
+          this.options.profile,
+          session,
+          this.adapter.worker,
+        ),
         devCompilation: {
           compilationHashes: Object.fromEntries(
             results.map(result => [
@@ -379,7 +388,7 @@ export class NativeDevelopment {
         },
       },
       this.options.profile,
-      { routerFrameworks: this.compilerArtifacts.routerFrameworks },
+      { routerFrameworks: this.adapter.routerFrameworks },
     );
     const manifestFile = this.manifestFile!;
     const temporary = `${manifestFile}.${process.pid}.${generation}.tmp`;

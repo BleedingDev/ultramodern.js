@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { octaneCandidateProfile } from './profile';
+import { octaneProfile } from './profile';
 
 export async function assertOctaneEntrySource(
   source: string | false | undefined,
@@ -11,6 +11,6 @@ export async function assertOctaneEntrySource(
     (await fs.stat(source)).isFile()
   )
     throw new Error(
-      `unsupported-renderer-capability: Octane does not support .jsx source: ${source}. Supported source extensions: ${octaneCandidateProfile.sourceExtensions.join(', ')}.`,
+      `unsupported-renderer-capability: Octane does not support .jsx source: ${source}. Supported source extensions: ${octaneProfile.sourceExtensions.join(', ')}.`,
     );
 }

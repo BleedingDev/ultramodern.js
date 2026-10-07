@@ -6,6 +6,7 @@ import { createRequire as createActualRequire } from 'node:module' with {
 import * as nodeModule from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
+import { defineRendererAdapter } from '@modern-js/renderer-core/adapter';
 import { afterEach, describe, expect, it, rstest } from '@rstest/core';
 import {
   projectInstalledRendererProfile,
@@ -17,7 +18,7 @@ import {
   resolveRendererProfile,
   resolveRendererProfileMetadata,
 } from '../../src/native-composition/renderer-profile';
-import { resolveRendererRegistration } from '../../src/native-composition/renderer-registration';
+import { resolveRendererAdapter } from '../../src/native-composition/renderer-registration';
 
 rstest.mock('node:module', { spy: true });
 
@@ -171,30 +172,18 @@ afterEach(() => {
 });
 
 describe('selected SDK profile admission', () => {
-  it.each([
-    'solid',
-    'octane',
-  ] as const)('rejects a mismatched %s candidate before installed owner resolution', renderer => {
-    const registration = resolveRendererRegistration(renderer);
-    const expected = registration.candidateProfile.renderer;
-    const resolver = rstest.mocked(nodeModule.createRequire);
-    resolver.mockClear();
-    try {
-      registration.candidateProfile.renderer = 'foreign-profile-owner';
-      expect(() => resolveCandidateRendererProfile(renderer)).toThrow(
-        'conflicts with selected owner',
-      );
-      expect(() => resolveRendererProfileMetadata(renderer)).toThrow(
-        'conflicts with selected owner',
-      );
-      expect(() => resolveRendererProfile(renderer)).toThrow(
-        'conflicts with selected owner',
-      );
-      expect(resolver).not.toHaveBeenCalled();
-    } finally {
-      registration.candidateProfile.renderer = expected;
-    }
-  });
+  it.each(['solid', 'octane'] as const)(
+    'rejects a %s adapter whose profile names another renderer',
+    renderer => {
+      const adapter = resolveRendererAdapter(renderer);
+      expect(() =>
+        defineRendererAdapter({
+          ...adapter,
+          profile: { ...adapter.profile, renderer: 'foreign-profile-owner' },
+        }),
+      ).toThrow('profile names foreign-profile-owner');
+    },
+  );
 });
 
 describe('physical installed framework profile identities', () => {

@@ -112,7 +112,7 @@ if (!workerProbe) {
     alias: sourceExports,
   });
   const { createOctaneCompilerPlugin } = await jiti.import(
-    path.join(tools, 'src/renderers/octane/compiler/index.ts'),
+    path.join(adapter, 'src/plugin/compiler.ts'),
   );
   const { createNativeEntryGenerator } = await jiti.import(
     path.join(tools, 'src/native-composition/native-entry.ts'),

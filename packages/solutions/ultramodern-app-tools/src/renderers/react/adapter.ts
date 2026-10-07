@@ -4,8 +4,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { AppTools, CliPlugin } from '@modern-js/app-tools/cli-config';
 import type { PolicyDefaultsOptions } from '@modern-js/app-tools-extensions/policy-defaults';
-import type { RendererRegistration } from '../../native-composition/renderer-registration';
-import { reactCandidateProfile } from './profile';
+import {
+  type ComposedRendererAdapter,
+  defineRendererAdapter,
+} from '@modern-js/renderer-core/adapter';
+import { reactProfile } from './profile';
 
 function compose(
   consumerPlugins: readonly CliPlugin<AppTools>[],
@@ -36,11 +39,25 @@ function compose(
   }
 }
 
-export const reactRendererRegistration = {
-  renderer: 'react',
+/** React composes the Modern.js React stack instead of a native compiler. */
+export const reactRendererAdapter: ComposedRendererAdapter<
+  'react',
+  CliPlugin<AppTools>,
+  PolicyDefaultsOptions
+> = defineRendererAdapter({
+  name: 'react',
   kind: 'composed',
-  candidateProfile: reactCandidateProfile,
+  profile: reactProfile,
   routerFrameworks: ['react-router', 'tanstack'],
+  ownedPackages: [
+    'react',
+    'react-dom',
+    '@modern-js/runtime',
+    '@modern-js/plugin-tanstack',
+    '@modern-js/plugin-i18n',
+    '@tanstack/react-router',
+  ],
+  worker: { nativeDocuments: false, rsc: true },
   frameworkModules: [
     { specifier: '@modern-js/runtime', request: '@modern-js/runtime/cli' },
     {
@@ -52,11 +69,5 @@ export const reactRendererRegistration = {
       request: '@modern-js/i18n-integration',
     },
   ],
-  supports: {
-    reactCliPlugins: true,
-    reactRuntimeDescriptors: true,
-    reactCompiler: true,
-    cssDeclarations: true,
-  },
   compose,
-} as const satisfies RendererRegistration;
+});

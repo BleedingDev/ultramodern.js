@@ -230,7 +230,7 @@ async function main() {
   const { createOctaneCompilerPlugin } = await jiti.import(
     path.join(
       workspace,
-      'packages/solutions/ultramodern-app-tools/src/renderers/octane/compiler/index.ts',
+      'packages/runtime/renderer-octane/src/plugin/compiler.ts',
     ),
   );
   const { validateOctaneModuleManifest, octaneModuleManifestFileName } =

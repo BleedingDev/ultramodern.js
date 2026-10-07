@@ -48,6 +48,8 @@ function identities(renderer: 'react' | 'solid') {
   };
 }
 
+const nativeWorker = { nativeDocuments: true, rsc: false };
+
 function temporaryDist() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'renderer-build-manifest-'));
 }
@@ -59,7 +61,7 @@ describe('renderer-build.json', () => {
     try {
       await writeRendererBuildManifest(
         dist,
-        createRendererBuildManifest(profile, built),
+        createRendererBuildManifest(profile, built, nativeWorker),
       );
       const written = JSON.parse(
         fs.readFileSync(path.join(dist, RENDERER_BUILD_MANIFEST_FILE), 'utf8'),
@@ -73,7 +75,9 @@ describe('renderer-build.json', () => {
         'schema',
         'sourceRevision',
         'version',
+        'worker',
       ]);
+      expect(written.worker).toEqual({ nativeDocuments: true, rsc: false });
       const read = await readRendererBuildManifest(dist, profile);
       expect(read.renderer).toBe('solid');
       expect(read.entries.main).toEqual(built.identities.main);
@@ -88,7 +92,7 @@ describe('renderer-build.json', () => {
     try {
       await writeRendererBuildManifest(
         dist,
-        createRendererBuildManifest(profile, built),
+        createRendererBuildManifest(profile, built, nativeWorker),
       );
       await expect(
         readRendererBuildManifest(dist, resolveRendererProfile('react')),
@@ -102,7 +106,7 @@ describe('renderer-build.json', () => {
 
   it('rejects a build made with another installed renderer profile', () => {
     const { profile, built } = identities('solid');
-    const manifest = createRendererBuildManifest(profile, built);
+    const manifest = createRendererBuildManifest(profile, built, nativeWorker);
     const upgraded: RendererBuildProfile = {
       ...profile,
       compiler: { ...profile.compiler, version: '999.0.0' },
@@ -129,7 +133,7 @@ describe('renderer-build.json', () => {
   it('rejects entries whose buildId disagrees with the build', () => {
     const { profile, built } = identities('solid');
     const manifest = JSON.parse(
-      JSON.stringify(createRendererBuildManifest(profile, built)),
+      JSON.stringify(createRendererBuildManifest(profile, built, nativeWorker)),
     );
     manifest.entries.main.buildId = 'c'.repeat(64);
     expect(() => validateRendererBuildManifest(manifest, profile)).toThrow(

@@ -16,6 +16,7 @@ import {
   type Renderer,
   type RendererIdentity,
 } from '@modern-js/renderer-core';
+import type { NativeRendererAdapter } from '@modern-js/renderer-core/adapter';
 import {
   type FileSystemRouteIR,
   projectFileSystemRoutes,
@@ -23,7 +24,6 @@ import {
 import { validateNativeClientAssetManifest } from '@modern-js/renderer-core/server';
 import type { Entrypoint } from '@modern-js/types/cli/base';
 import { getArgv, SERVER_BUNDLE_DIRECTORY } from '@modern-js/utils';
-import type { NativeCompilerArtifacts } from './compiler-artifacts';
 import { isEntryMetadataRead } from './config-read-context';
 import {
   createRendererBuildManifest,
@@ -52,7 +52,10 @@ import {
   resolveCandidateRendererProfile,
   resolveRendererProfile,
 } from './renderer-profile';
-import { resolveNativeRendererAdapter } from './renderer-registration';
+import {
+  nativeInfrastructurePluginName,
+  resolveNativeRendererAdapter,
+} from './renderer-registration';
 import { resolveSdkServerPlugin } from './server-plugin-resolution';
 
 export interface NativeEntryGeneration {
@@ -76,14 +79,11 @@ export interface NativeEntryGenerator {
 }
 
 export interface NativeInfrastructureOptions {
-  readonly infrastructurePluginName?: string;
   /** Localized routing and translations from the native i18nPlugin(). */
   readonly i18n?: NativeI18nConfig;
   readonly profile?: RendererBuildProfile;
-  readonly compilerArtifacts?: NativeCompilerArtifacts;
-  readonly assertSupportedSource?: (
-    source: string | false | undefined,
-  ) => Promise<void>;
+  /** The renderer adapter this plugin runs; defaults to the registered one. */
+  readonly adapter?: NativeRendererAdapter;
   resolveBuildIdentities?(context: {
     entrypoints: readonly Entrypoint[];
     appDirectory: string;
@@ -115,24 +115,16 @@ export function nativeRendererInfrastructurePlugin(
   generator?: NativeEntryGenerator,
   options: NativeInfrastructureOptions = {},
 ): CliPlugin<WithBffRuntimeBuildIdentity<AppTools>> {
-  const infrastructurePluginName =
-    options.infrastructurePluginName ??
-    resolveNativeRendererAdapter(renderer).infrastructurePluginName;
-  const compilerArtifacts =
-    options.compilerArtifacts ??
-    resolveNativeRendererAdapter(renderer).compilerArtifacts;
-  const assertSupportedSource =
-    options.assertSupportedSource ??
-    (options.profile && options.compilerArtifacts
-      ? undefined
-      : resolveNativeRendererAdapter(renderer).assertSupportedSource);
+  const adapter = options.adapter ?? resolveNativeRendererAdapter(renderer);
+  const compilerArtifacts = adapter.artifacts;
+  const assertSupportedSource = adapter.assertSupportedSource;
   const serverEntries = new Map<string, string>();
   const workerEntries = new Map<string, string>();
   let buildIdentities: RendererBuildIdentities | undefined;
   let completedBuildIdentities: RendererBuildIdentities | undefined;
   let development: NativeDevelopment | undefined;
   return {
-    name: infrastructurePluginName,
+    name: nativeInfrastructurePluginName(renderer),
     post: ['@modern-js/plugin-analyze', '@modern-js/plugin-bff'],
     setup(api) {
       // Entry discovery uses the owner's generation contract before installation.
@@ -178,7 +170,7 @@ export function nativeRendererInfrastructurePlugin(
           development ??= new NativeDevelopment({
             renderer,
             profile,
-            compilerArtifacts,
+            adapter,
             get distDirectory() {
               return api.getAppContext().distDirectory;
             },
@@ -662,7 +654,7 @@ export default nativeRequestHandler;
             const built = await readRendererBuildManifest(
               distDirectory,
               profile,
-              { routerFrameworks: compilerArtifacts.routerFrameworks },
+              { routerFrameworks: adapter.routerFrameworks },
             );
             buildIdentities = {
               identities: built.entries,
@@ -869,7 +861,11 @@ export default nativeRequestHandler;
           }
           await writeRendererBuildManifest(
             api.getAppContext().distDirectory,
-            createRendererBuildManifest(profile, buildIdentities),
+            createRendererBuildManifest(
+              profile,
+              buildIdentities,
+              adapter.worker,
+            ),
           );
           completedBuildIdentities = buildIdentities;
         });

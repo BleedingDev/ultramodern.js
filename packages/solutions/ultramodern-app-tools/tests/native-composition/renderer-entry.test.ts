@@ -112,7 +112,7 @@ describe('native owning entry generation', () => {
   it('rejects an unregistered renderer instead of emitting another renderer bootstrap', () => {
     expect(() =>
       Reflect.apply(createNativeEntryGenerator, undefined, ['unregistered']),
-    ).toThrow('Unsupported UltraModern native renderer');
+    ).toThrow('Unsupported UltraModern renderer');
   });
 
   it('rejects a context owned by another renderer before writing source', async () => {
