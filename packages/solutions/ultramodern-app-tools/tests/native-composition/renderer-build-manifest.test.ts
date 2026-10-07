@@ -3,294 +3,183 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from '@rstest/core';
 import {
-  assertRendererBuildInputsUnchanged,
+  createRendererBuildManifest,
   RENDERER_BUILD_MANIFEST_FILE,
   readRendererBuildManifest,
+  rendererBuildCachePerformance,
   validateRendererBuildManifest,
+  writeRendererBuildManifest,
 } from '../../src/native-composition/native-build-manifest';
 import {
+  type RendererBuildProfile,
   resolveRendererProfile,
-  resolveRendererRouterFrameworks,
 } from '../../src/native-composition/renderer-profile';
 
-function artifact() {
+function identities(renderer: 'react' | 'solid') {
+  const profile = resolveRendererProfile(renderer);
+  const provider = {
+    ...profile.router,
+    framework: renderer === 'react' ? ('tanstack' as const) : renderer,
+  };
   return {
-    schema: 'ultramodern-renderer-build',
-    version: 1,
-    profile: resolveRendererProfile('solid'),
-    routerBindings: {
-      main: {
-        owner: '@modern-js/renderer-solid-infrastructure',
-        evidence: 'owned-default',
-        defaultProvider: {
-          ...resolveRendererProfile('solid').router,
-          framework: 'solid',
+    profile,
+    built: {
+      buildId: 'a'.repeat(64),
+      profileKey: 'b'.repeat(64),
+      sourceRevision: 'workspace',
+      identities: {
+        main: {
+          renderer,
+          appId: 'checkout',
+          entryName: 'main',
+          protocolVersion: 1 as const,
+          buildId: 'a'.repeat(64),
         },
-        providers: [
-          { ...resolveRendererProfile('solid').router, framework: 'solid' },
-        ],
       },
-    },
-    buildMarker: 'a'.repeat(64),
-    sourceRevision: 'app-commit-proof',
-    inputDigest: 'b'.repeat(64),
-    profileDigest: 'c'.repeat(64),
-    compilerDigest: 'd'.repeat(64),
-    frameworkCohortDigest: 'e'.repeat(64),
-    cacheAllowed: true,
-    promotable: true,
-    identities: {
-      main: {
-        renderer: 'solid',
-        appId: 'checkout',
-        entryName: 'main',
-        protocolVersion: 1,
-        buildId: 'a'.repeat(64),
+      routerBindings: {
+        main: {
+          owner: `@fixture/${renderer}-router`,
+          evidence: 'file-routes' as const,
+          defaultProvider: provider,
+          providers: [provider] satisfies [typeof provider],
+        },
       },
     },
   };
 }
 
-describe('immutable native build evidence', () => {
-  it('requires router ownership for every built entry and rejects undeclared entries', () => {
-    const { routerBindings, ...missing } = artifact();
-    expect(() =>
-      validateRendererBuildManifest(missing, resolveRendererProfile('solid')),
-    ).toThrow('router bindings');
-    expect(() =>
-      validateRendererBuildManifest(
-        { ...artifact(), routerBindings: {} },
-        resolveRendererProfile('solid'),
-      ),
-    ).toThrow('router bindings');
-    expect(() =>
-      validateRendererBuildManifest(
-        {
-          ...artifact(),
-          routerBindings: { ...routerBindings, extra: routerBindings.main },
-        },
-        resolveRendererProfile('solid'),
-      ),
-    ).toThrow('not an expected entry');
-  });
+function temporaryDist() {
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'renderer-build-manifest-'));
+}
 
-  it('freezes an isolated router ownership map instead of retaining authored objects', () => {
-    const built = artifact();
-    const validated = validateRendererBuildManifest(
-      built,
-      resolveRendererProfile('solid'),
-    );
-    built.routerBindings.main.owner = 'changed-source';
-    expect(validated.routerBindings.main.owner).toBe(
-      '@modern-js/renderer-solid-infrastructure',
-    );
-    expect(Object.isFrozen(validated.routerBindings)).toBe(true);
-    expect(Object.isFrozen(validated.routerBindings.main.providers)).toBe(true);
-    expect(Object.isFrozen(validated.routerBindings.main.defaultProvider)).toBe(
-      true,
-    );
-  });
-
-  it('accepts well-formed router evidence and applies an explicit selected owner policy', () => {
-    const built = artifact();
-    const provider = {
-      ...resolveRendererProfile('octane').router,
-      framework: 'octane',
-    };
-    const conflicting = {
-      ...built,
-      routerBindings: {
-        main: {
-          owner: '@modern-js/renderer-octane-infrastructure',
-          evidence: 'owned-default',
-          defaultProvider: provider,
-          providers: [provider],
-        },
-      },
-    };
-    const validated = validateRendererBuildManifest(
-      conflicting,
-      resolveRendererProfile('solid'),
-    );
-    expect(validated.identities).toEqual(built.identities);
-    expect(validated.routerBindings).toEqual(conflicting.routerBindings);
-    expect(() =>
-      validateRendererBuildManifest(
-        conflicting,
-        resolveRendererProfile('solid'),
-        { routerFrameworks: resolveRendererRouterFrameworks('solid') },
-      ),
-    ).toThrow('must be admitted by the selected router owner.');
-  });
-  it.each([
-    'buildMarker',
-    'sourceRevision',
-    'inputDigest',
-    'profileDigest',
-    'compilerDigest',
-    'frameworkCohortDigest',
-    'cacheAllowed',
-    'promotable',
-    'identities',
-    'routerBindings',
-  ] as const)('rejects an input change during compilation: %s', key => {
-    const initial = validateRendererBuildManifest(
-      artifact(),
-      resolveRendererProfile('solid'),
-    );
-    const current = structuredClone(initial);
-    Object.assign(current, {
-      [key]:
-        key === 'identities' || key === 'routerBindings'
-          ? {}
-          : typeof initial[key] === 'boolean'
-            ? !initial[key]
-            : 'changed',
-    });
-    expect(() => assertRendererBuildInputsUnchanged(initial, current)).toThrow(
-      `changed during compilation (${key})`,
-    );
-    expect(() =>
-      assertRendererBuildInputsUnchanged(initial, structuredClone(initial)),
-    ).not.toThrow();
-  });
-  it('reports every changed fingerprint while retaining the first fatal input field', () => {
-    const initial = validateRendererBuildManifest(
-      artifact(),
-      resolveRendererProfile('solid'),
-    );
-    const current = {
-      ...initial,
-      buildMarker: 'f'.repeat(64),
-      inputDigest: '0'.repeat(64),
-      compilerDigest: '1'.repeat(64),
-    };
-    let failure: unknown;
+describe('renderer-build.json', () => {
+  it('records renderer, profile, router bindings, buildId and entries', async () => {
+    const { profile, built } = identities('solid');
+    const dist = temporaryDist();
     try {
-      assertRendererBuildInputsUnchanged(initial, current);
-    } catch (error) {
-      failure = error;
-    }
-    expect(failure).toBeInstanceOf(Error);
-    if (!(failure instanceof Error))
-      throw new Error('The changed build fingerprints must reject');
-    expect(failure.message).toContain(
-      'changed during compilation (buildMarker)',
-    );
-    expect(failure.message).toContain(
-      `inputDigest: expected="${initial.inputDigest}", actual="${current.inputDigest}"`,
-    );
-    expect(failure.message).toContain(
-      `compilerDigest: expected="${initial.compilerDigest}", actual="${current.compilerDigest}"`,
-    );
-    expect(failure.message).not.toContain('profileDigest:');
-    expect(() =>
-      assertRendererBuildInputsUnchanged(initial, structuredClone(initial)),
-    ).not.toThrow();
-  });
-  it('loads the actual built identity without replacing it from current app source', async () => {
-    const root = fs.mkdtempSync(
-      path.join(os.tmpdir(), 'um-renderer-manifest-'),
-    );
-    try {
-      const built = artifact();
-      fs.writeFileSync(
-        path.join(root, RENDERER_BUILD_MANIFEST_FILE),
-        JSON.stringify(built),
+      await writeRendererBuildManifest(
+        dist,
+        createRendererBuildManifest(profile, built),
       );
-      fs.writeFileSync(
-        path.join(root, 'App.tsx'),
-        'export default "changed-after-build";',
+      const written = JSON.parse(
+        fs.readFileSync(path.join(dist, RENDERER_BUILD_MANIFEST_FILE), 'utf8'),
       );
-      const loaded = await readRendererBuildManifest(
-        root,
-        resolveRendererProfile('solid'),
-      );
-      expect(loaded.identities.main.buildId).toBe(built.buildMarker);
-      expect(loaded.sourceRevision).toBe('app-commit-proof');
-      expect(Object.isFrozen(loaded.identities.main)).toBe(true);
-      expect(Object.isFrozen(loaded.profile.compiler)).toBe(true);
-      const provider = {
-        ...resolveRendererProfile('octane').router,
-        framework: 'octane',
-      };
-      const foreignRouter = {
-        ...built,
-        routerBindings: {
-          main: {
-            owner: '@modern-js/renderer-octane-infrastructure',
-            evidence: 'owned-default',
-            defaultProvider: provider,
-            providers: [provider],
-          },
-        },
-      };
-      fs.writeFileSync(
-        path.join(root, RENDERER_BUILD_MANIFEST_FILE),
-        JSON.stringify(foreignRouter),
-      );
-      const generic = await readRendererBuildManifest(
-        root,
-        resolveRendererProfile('solid'),
-      );
-      expect(generic.identities).toEqual(built.identities);
-      expect(generic.routerBindings).toEqual(foreignRouter.routerBindings);
-      await expect(
-        readRendererBuildManifest(root, resolveRendererProfile('solid'), {
-          routerFrameworks: resolveRendererRouterFrameworks('solid'),
-        }),
-      ).rejects.toThrow('must be admitted by the selected router owner.');
-      fs.unlinkSync(path.join(root, RENDERER_BUILD_MANIFEST_FILE));
-      await expect(
-        readRendererBuildManifest(root, resolveRendererProfile('solid')),
-      ).rejects.toThrow();
+      expect(Object.keys(written).sort()).toEqual([
+        'buildId',
+        'entries',
+        'profile',
+        'renderer',
+        'routerBindings',
+        'schema',
+        'sourceRevision',
+        'version',
+      ]);
+      const read = await readRendererBuildManifest(dist, profile);
+      expect(read.renderer).toBe('solid');
+      expect(read.entries.main).toEqual(built.identities.main);
     } finally {
-      fs.rmSync(root, { recursive: true, force: true });
+      fs.rmSync(dist, { recursive: true, force: true });
     }
   });
 
-  it.each([
-    'renderer',
-    'entryName',
-    'buildId',
-  ] as const)('rejects conflicting entry %s', field => {
-    const built = artifact();
-    built.identities.main[field] = 'conflicting';
-    expect(() =>
-      validateRendererBuildManifest(built, resolveRendererProfile('solid')),
-    ).toThrow();
+  it('rejects a stale build at serve after the renderer was switched', async () => {
+    const { profile, built } = identities('solid');
+    const dist = temporaryDist();
+    try {
+      await writeRendererBuildManifest(
+        dist,
+        createRendererBuildManifest(profile, built),
+      );
+      await expect(
+        readRendererBuildManifest(dist, resolveRendererProfile('react')),
+      ).rejects.toThrow(
+        'made for the solid renderer, but the configuration selects react; rebuild',
+      );
+    } finally {
+      fs.rmSync(dist, { recursive: true, force: true });
+    }
   });
 
-  it('rejects a different selected profile and preserves separate app/cohort provenance', () => {
-    const built = artifact();
+  it('rejects a build made with another installed renderer profile', () => {
+    const { profile, built } = identities('solid');
+    const manifest = createRendererBuildManifest(profile, built);
+    const upgraded: RendererBuildProfile = {
+      ...profile,
+      compiler: { ...profile.compiler, version: '999.0.0' },
+    };
     expect(() =>
-      validateRendererBuildManifest(built, resolveRendererProfile('octane')),
-    ).toThrow('profile conflicts');
-    const validated = validateRendererBuildManifest(
-      built,
+      validateRendererBuildManifest(
+        JSON.parse(JSON.stringify(manifest)),
+        upgraded,
+      ),
+    ).toThrow(/different solid renderer profile.*rebuild/u);
+  });
+
+  it('rejects a missing build with a build-first message', async () => {
+    const dist = temporaryDist();
+    try {
+      await expect(
+        readRendererBuildManifest(dist, resolveRendererProfile('solid')),
+      ).rejects.toThrow('build the application first');
+    } finally {
+      fs.rmSync(dist, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects entries whose buildId disagrees with the build', () => {
+    const { profile, built } = identities('solid');
+    const manifest = JSON.parse(
+      JSON.stringify(createRendererBuildManifest(profile, built)),
+    );
+    manifest.entries.main.buildId = 'c'.repeat(64);
+    expect(() => validateRendererBuildManifest(manifest, profile)).toThrow(
+      'conflicts with its build',
+    );
+  });
+});
+
+describe('persistent build cache', () => {
+  it('is always on and keyed by renderer and profile', () => {
+    const solid = rendererBuildCachePerformance(
+      undefined,
+      'solid',
       resolveRendererProfile('solid'),
     );
-    expect(validated.sourceRevision).toBe(built.sourceRevision);
-    expect(validated.frameworkCohortDigest).toBe(built.frameworkCohortDigest);
-    built.identities.main.appId = 'modified-after-validation';
-    expect(validated.identities.main.appId).toBe('checkout');
+    const react = rendererBuildCachePerformance(
+      undefined,
+      'react',
+      resolveRendererProfile('react'),
+    );
+    const solidDigest = (solid.buildCache as { cacheDigest: unknown[] })
+      .cacheDigest;
+    expect(solidDigest).toHaveLength(2);
+    expect(solidDigest[0]).toBe('solid');
+    expect(
+      (react.buildCache as { cacheDigest: unknown[] }).cacheDigest,
+    ).not.toEqual(solidDigest);
   });
 
-  it('requires actual provenance and cannot promote or cache dirty source', () => {
-    const built = artifact();
-    built.sourceRevision = 'workspace';
-    expect(() =>
-      validateRendererBuildManifest(built, resolveRendererProfile('solid')),
-    ).toThrow('dirty');
-    built.cacheAllowed = false;
-    built.promotable = false;
+  it('keeps authored cache options and an explicit opt-out', () => {
+    const profile = resolveRendererProfile('solid');
     expect(
-      validateRendererBuildManifest(built, resolveRendererProfile('solid'))
-        .cacheAllowed,
+      rendererBuildCachePerformance(
+        { buildCache: { cacheDigest: ['authored'] } },
+        'solid',
+        profile,
+      ).buildCache,
+    ).toEqual({
+      cacheDigest: [
+        'authored',
+        'solid',
+        (
+          rendererBuildCachePerformance(undefined, 'solid', profile)
+            .buildCache as { cacheDigest: unknown[] }
+        ).cacheDigest[1],
+      ],
+    });
+    expect(
+      rendererBuildCachePerformance({ buildCache: false }, 'solid', profile)
+        .buildCache,
     ).toBe(false);
-    built.compilerDigest = 'not-a-compiler-digest';
-    expect(() =>
-      validateRendererBuildManifest(built, resolveRendererProfile('solid')),
-    ).toThrow('compilerDigest');
   });
 });

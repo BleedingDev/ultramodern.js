@@ -10,10 +10,6 @@ import {
   installEffectCompilerSelectionValidator,
   resolveEffectCompilerSelection,
 } from '@modern-js/app-tools-extensions/internal-effect-discovery';
-import type {
-  RendererGeneratedOutputMetadata,
-  RendererGeneratedOutputNode,
-} from '@modern-js/app-tools-extensions/renderer-generated-outputs';
 import {
   type ConfigPackageMetadataRead,
   createConfigOptions,
@@ -44,6 +40,8 @@ import {
 import { withEntryMetadataRead } from './config-read-context';
 import {
   type ConfigurationSourceNode,
+  type RendererGeneratedOutputMetadata,
+  type RendererGeneratedOutputNode,
   retainConfigurationSourceSnapshot,
 } from './configuration-read-context';
 import { resolveRendererRegistration } from './renderer-registration';

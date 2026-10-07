@@ -43,14 +43,17 @@ export async function readWorkerRendererIdentities(
   if (
     !isRecord(build) ||
     build.schema !== 'ultramodern-renderer-build' ||
-    build.version !== 1 ||
-    typeof build.buildMarker !== 'string' ||
-    !/^[a-f0-9]{64}$/u.test(build.buildMarker) ||
+    build.version !== 2 ||
+    typeof build.buildId !== 'string' ||
+    !/^[a-f0-9]{64}$/u.test(build.buildId) ||
     !isRecord(build.profile) ||
-    !isRecord(build.identities) ||
-    !Object.keys(build.identities).length
+    build.renderer !== build.profile.renderer ||
+    !isRecord(build.entries) ||
+    !Object.keys(build.entries).length
   )
-    throw new Error('Invalid Cloudflare built renderer identity metadata');
+    throw new Error(
+      'Invalid or outdated renderer-build.json for the Cloudflare worker; rebuild the application.',
+    );
 
   // The SDK profile also carries compiler configuration. Only the neutral
   // renderer protocol fields belong to the worker response binding.
@@ -68,7 +71,7 @@ export async function readWorkerRendererIdentities(
 
   const identities: Record<string, RendererIdentity> = {};
   let appId: string | undefined;
-  for (const [entryName, value] of Object.entries(build.identities)) {
+  for (const [entryName, value] of Object.entries(build.entries)) {
     const validation = validateRendererIdentity(value);
     if (!validation.ok)
       throw new Error(
@@ -80,7 +83,7 @@ export async function readWorkerRendererIdentities(
       identity.entryName !== entryName ||
       identity.renderer !== renderer ||
       identity.protocolVersion !== protocolVersion ||
-      identity.buildId !== build.buildMarker ||
+      identity.buildId !== build.buildId ||
       (appId !== undefined && identity.appId !== appId)
     )
       throw new Error(

@@ -98,12 +98,6 @@
       "import": "./dist/esm-node/renderer-build-identity.mjs",
       "require": "./dist/cjs/renderer-build-identity.js"
     },
-    "./renderer-generated-outputs": {
-      "types": "./dist/types/renderer-generated-outputs.d.ts",
-      "modern:source": "./src/renderer-generated-outputs.ts",
-      "import": "./dist/esm-node/renderer-generated-outputs.mjs",
-      "require": "./dist/cjs/renderer-generated-outputs.js"
-    },
     "./release-identity": {
       "types": "./dist/types/release-identity.d.ts",
       "modern:source": "./src/release-identity.ts",

@@ -2,7 +2,6 @@ import { createHash, randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { isDeepStrictEqual } from 'node:util';
 import type { RendererBuildIdentities } from '@modern-js/app-tools-extensions/renderer-build-identity';
 import {
   assertRendererIdentity,
@@ -14,7 +13,7 @@ import { mime } from '@modern-js/utils';
 import type { RsbuildPlugin, Rspack } from '@rsbuild/core';
 import type { NativeCompilerArtifacts } from './compiler-artifacts';
 import {
-  assertRendererBuildInputsUnchanged,
+  createRendererBuildManifest,
   RENDERER_BUILD_MANIFEST_FILE,
   RENDERER_DEVELOPMENT_DIRECTORY,
   type RendererDevelopmentBuildManifest,
@@ -30,7 +29,6 @@ export interface NativeDevelopmentOptions {
   readonly compilerArtifacts?: NativeCompilerArtifacts;
   readonly distDirectory: string;
   readonly getSessionIdentities: () => RendererBuildIdentities;
-  readonly resolveWaveInputs: () => Promise<RendererBuildIdentities>;
 }
 
 export function nativeDevelopmentOutputDirectory(
@@ -70,7 +68,6 @@ interface RetainedAsset {
 
 interface Wave {
   readonly epoch: number;
-  readonly inputs: RendererBuildIdentities;
 }
 
 interface ReadyGeneration {
@@ -536,13 +533,7 @@ export class NativeDevelopment {
         await this.invalidation;
         if (this.closed) return;
         if (epoch !== this.epoch) continue;
-        const inputs = await this.options.resolveWaveInputs();
-        if (this.closed) return;
-        // Each child can invalidate the shared MultiCompiler preparation.
-        // Discard superseded inputs before any compiler starts its next wave.
-        if (epoch !== this.epoch) continue;
-        this.assertSessionGraph(inputs);
-        this.wave = { epoch, inputs };
+        this.wave = { epoch };
         return;
       } catch (error) {
         if (this.closed) return;
@@ -551,36 +542,6 @@ export class NativeDevelopment {
         throw error;
       }
     }
-  }
-
-  private assertSessionGraph(inputs: RendererBuildIdentities): void {
-    const session = this.options.getSessionIdentities();
-    if (
-      inputs.cacheAllowed ||
-      inputs.promotable ||
-      session.cacheAllowed ||
-      session.promotable
-    )
-      throw new Error('Native development inputs cannot be cached or promoted');
-    for (const key of [
-      'profileDigest',
-      'compilerDigest',
-      'frameworkCohortDigest',
-      'routerBindings',
-    ] as const)
-      if (!isDeepStrictEqual(inputs[key], session[key]))
-        throw new Error(
-          `Native development ${key} changed; restart the owning CLI graph`,
-        );
-    if (
-      !isDeepStrictEqual(
-        Object.keys(inputs.identities).sort(),
-        Object.keys(session.identities).sort(),
-      )
-    )
-      throw new Error(
-        'Native development entry registry changed; restart the owning CLI graph',
-      );
   }
 
   private invalidate(): void {
@@ -832,16 +793,10 @@ export class NativeDevelopment {
         }),
       );
     }
-    const completed = await this.options.resolveWaveInputs();
     this.assertCurrent(wave.epoch);
-    this.assertSessionGraph(completed);
-    assertRendererBuildInputsUnchanged(wave.inputs, completed);
     const metadata = validateRendererDevelopmentBuildManifest(
       {
-        ...session,
-        schema: 'ultramodern-renderer-build',
-        version: 1,
-        profile: this.options.profile,
+        ...createRendererBuildManifest(this.options.profile, session),
         devCompilation: {
           compilationHashes: Object.fromEntries(
             results.map(result => {
@@ -853,7 +808,6 @@ export class NativeDevelopment {
             }),
           ),
           generation,
-          sourceInputDigest: completed.inputDigest,
         },
       },
       this.options.profile,

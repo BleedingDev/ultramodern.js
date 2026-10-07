@@ -429,7 +429,7 @@ export function nativePrerenderPlugin(
         );
         const entries = new Map<string, Promise<PrerenderEntry>>();
         const loadEntry = (entryName: string) => {
-          const identity = build.identities[entryName];
+          const identity = build.entries[entryName];
           if (!identity)
             throw new Error(
               `Prerendered entry ${entryName} has no native build identity`,

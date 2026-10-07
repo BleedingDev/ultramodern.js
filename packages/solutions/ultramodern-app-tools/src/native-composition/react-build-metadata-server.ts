@@ -81,7 +81,7 @@ export default function reactBuildMetadataServerPlugin(
             resolveRendererProfile('react'),
             manifestValidation,
           );
-          entries = serializeEntries(manifest.identities);
+          entries = serializeEntries(manifest.entries);
         }
         if (
           middlewares.some(

@@ -100,7 +100,6 @@ function createRspackCompilerObserver() {
                   native: native ?? null,
                   rawOctaneBuildInfo: buildInfo.octane ?? null,
                   buildInfoKeys: Object.keys(buildInfo).sort(),
-                  sourceSha256: buildInfo.ultramodernOctaneSourceSha256 ?? null,
                   emittedSourceSha256: source ? digest(source.buffer()) : null,
                   ownAssets,
                   inheritedAssets: inherited,
@@ -304,13 +303,6 @@ void mountOctaneApplication({
     singleIdentity,
     singleNativeBuild.buildId,
   );
-  for (const source of singleManifest.sourceModules)
-    assert.equal(
-      digest(
-        fs.readFileSync(path.resolve(root, source.resource.split('?')[0])),
-      ),
-      source.sourceSha256,
-    );
   for (const asset of singleManifest.assets)
     assert.equal(
       digest(fs.readFileSync(path.join(singleOutput, asset.file))),
@@ -340,7 +332,6 @@ void mountOctaneApplication({
   );
   assert.ok(standalonePlain.topLevelIndex < concatenatedPlain.topLevelIndex);
   assert.equal(standalonePlain.native.transformKind, 'compile');
-  assert.equal(standalonePlain.sourceSha256, concatenatedPlain.sourceSha256);
   const singlePlainSources = singleManifest.sourceModules.filter(
     source => source.resource === 'src/PlainApp.tsx',
   );
@@ -419,14 +410,6 @@ void mountOctaneApplication({
       identities[entryName],
       nativeBuild.buildId,
     );
-    for (const source of manifest.sourceModules) {
-      assert.equal(
-        digest(
-          fs.readFileSync(path.resolve(root, source.resource.split('?')[0])),
-        ),
-        source.sourceSha256,
-      );
-    }
     for (const asset of manifest.assets) {
       assert.equal(
         digest(fs.readFileSync(path.join(output, asset.file))),

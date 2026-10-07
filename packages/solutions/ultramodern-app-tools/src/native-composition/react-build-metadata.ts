@@ -1,10 +1,12 @@
-import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { AppTools, CliPlugin } from '@modern-js/app-tools/cli-config';
-import type { RendererBuildIdentities } from '@modern-js/app-tools-extensions/renderer-build-identity';
+import {
+  type RendererBuildIdentities,
+  rendererProfileKey,
+} from '@modern-js/app-tools-extensions/renderer-build-identity';
 import { findHostingModuleDirectory } from '@modern-js/app-tools-extensions/runtime-package-resolution';
 import type {
   BffRuntimeBuildIdentityProvider,
@@ -15,14 +17,10 @@ import { getArgv } from '@modern-js/utils';
 import { type RsbuildPlugin, rspack } from '@rsbuild/core';
 import { isEntryMetadataRead } from './config-read-context';
 import {
-  getConfigurationSourceInputs,
-  getConfigurationSourceNodes,
-  getConfigurationSourceSnapshot,
-} from './configuration-read-context';
-import {
-  RENDERER_BUILD_MANIFEST_FILE,
+  createRendererBuildManifest,
   readRendererBuildManifest,
-  validateRendererBuildManifest,
+  rendererBuildCachePerformance,
+  writeRendererBuildManifest,
 } from './native-build-manifest';
 import type { NativeInfrastructureOptions } from './native-infrastructure';
 import { isUltramodernReleaseIdentityBannerPlugin } from './preset';
@@ -149,9 +147,7 @@ export function reactRendererBuildMetadataPlugin(
             .plugin('ultramodern-react-runtime-identity')
             .use(rspack.DefinePlugin, [
               {
-                ULTRAMODERN_BUILD_MARKER: JSON.stringify(
-                  identities.buildMarker,
-                ),
+                ULTRAMODERN_BUILD_MARKER: JSON.stringify(identities.buildId),
                 ULTRAMODERN_SOURCE_REVISION: JSON.stringify(
                   identities.sourceRevision,
                 ),
@@ -163,7 +159,7 @@ export function reactRendererBuildMetadataPlugin(
         order: 'post',
         handler: config => {
           if (!identities) return config;
-          const { buildMarker, sourceRevision } = identities;
+          const { buildId, sourceRevision } = identities;
           config.plugins = (config.plugins ?? []).filter(
             plugin => !isUltramodernReleaseIdentityBannerPlugin(plugin),
           );
@@ -171,7 +167,7 @@ export function reactRendererBuildMetadataPlugin(
           // identity changes every emitted script's content hash.
           config.plugins.push(
             new rspack.BannerPlugin({
-              banner: `void ${JSON.stringify(buildMarker)};void ${JSON.stringify(sourceRevision)};`,
+              banner: `void ${JSON.stringify(buildId)};void ${JSON.stringify(sourceRevision)};`,
               raw: true,
               stage: rspack.Compilation.PROCESS_ASSETS_STAGE_SUMMARIZE,
               test: /\.(?:c|m)?js$/u,
@@ -235,7 +231,7 @@ export function reactRendererBuildMetadataPlugin(
                 'React BFF runtime identity requires a completed renderer build',
               );
             return Object.freeze({
-              buildMarker: identities.buildMarker,
+              buildMarker: identities.buildId,
               sourceRevision: identities.sourceRevision,
             });
           };
@@ -252,11 +248,7 @@ export function reactRendererBuildMetadataPlugin(
           internalDirectory: context.internalDirectory,
           distDirectory: context.distDirectory,
           packageName: context.packageName,
-          config: api.getNormalizedConfig(),
           pluginNames: context.plugins.map(plugin => plugin.name),
-          consumedSourceInputs: getConfigurationSourceInputs(api),
-          configurationSourceSnapshot: getConfigurationSourceSnapshot(api),
-          configurationSourceNodes: getConfigurationSourceNodes(api),
           ...(context.command === 'dev'
             ? { mode: 'development' as const }
             : {}),
@@ -269,43 +261,21 @@ export function reactRendererBuildMetadataPlugin(
         builderPlugins: [...(config.builderPlugins ?? []), builderPlugin],
       }));
 
-      api.modifyBuilderEnvironments(({ environments }) => {
-        const resolved = identities;
-        return {
-          environments: Object.fromEntries(
-            Object.entries(environments).map(([name, environment]) => [
-              name,
-              {
-                ...environment,
-                performance: {
-                  ...environment.performance,
-                  buildCache:
-                    !resolved?.cacheAllowed ||
-                    environment.performance?.buildCache === false
-                      ? false
-                      : {
-                          ...(typeof environment.performance?.buildCache ===
-                          'object'
-                            ? environment.performance.buildCache
-                            : {}),
-                          cacheDigest: [
-                            ...(typeof environment.performance?.buildCache ===
-                            'object'
-                              ? (environment.performance.buildCache
-                                  .cacheDigest ?? [])
-                              : []),
-                            'react',
-                            resolved.buildMarker,
-                            resolved.profileDigest,
-                            resolved.compilerDigest,
-                          ],
-                        },
-                },
-              },
-            ]),
-          ),
-        };
-      });
+      api.modifyBuilderEnvironments(({ environments }) => ({
+        environments: Object.fromEntries(
+          Object.entries(environments).map(([name, environment]) => [
+            name,
+            {
+              ...environment,
+              performance: rendererBuildCachePerformance(
+                environment.performance,
+                'react',
+                profile,
+              ),
+            },
+          ]),
+        ),
+      }));
 
       api._internalServerPlugins(async ({ plugins }) => {
         const { command, distDirectory, apiOnly } = api.getAppContext();
@@ -316,12 +286,20 @@ export function reactRendererBuildMetadataPlugin(
             getArgv().some(argument =>
               ['--skip-build', '-s'].includes(argument),
             ));
-        if (reuseBuilt)
-          identities = await readRendererBuildManifest(
+        if (reuseBuilt) {
+          const built = await readRendererBuildManifest(
             distDirectory,
             profile,
             manifestValidation,
           );
+          identities = {
+            identities: built.entries,
+            buildId: built.buildId,
+            profileKey: rendererProfileKey(built.profile),
+            sourceRevision: built.sourceRevision,
+            routerBindings: built.routerBindings,
+          };
+        }
         if (!identities)
           throw new Error(
             'React server metadata requires resolved build identities',
@@ -346,25 +324,10 @@ export function reactRendererBuildMetadataPlugin(
           throw new Error(
             'React build metadata requires successful compiler stats',
           );
-        const manifest = validateRendererBuildManifest(
-          {
-            ...identities,
-            schema: 'ultramodern-renderer-build',
-            version: 1,
-            profile,
-          },
-          profile,
-          manifestValidation,
+        await writeRendererBuildManifest(
+          distDirectory,
+          createRendererBuildManifest(profile, identities),
         );
-        const output = path.join(distDirectory, RENDERER_BUILD_MANIFEST_FILE);
-        await fs.mkdir(distDirectory, { recursive: true });
-        const temporary = `${output}.${process.pid}.${randomUUID()}.tmp`;
-        try {
-          await fs.writeFile(temporary, JSON.stringify(manifest));
-          await fs.rename(temporary, output);
-        } finally {
-          await fs.rm(temporary, { force: true });
-        }
       });
     },
   };

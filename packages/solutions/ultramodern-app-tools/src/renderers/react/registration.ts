@@ -3,39 +3,9 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { AppTools, CliPlugin } from '@modern-js/app-tools/cli-config';
-import { findHostingModuleDirectory } from '@modern-js/app-tools-extensions/runtime-package-resolution';
-import type { FrameworkModule } from '../../native-composition/renderer-installed-profile';
+import type { PolicyDefaultsOptions } from '@modern-js/app-tools-extensions/policy-defaults';
 import type { RendererRegistration } from '../../native-composition/renderer-registration';
 import { reactCandidateProfile } from './profile';
-
-function resolveBuildFrameworkModules(context: {
-  readonly appDirectory: string;
-  readonly registrarDirectory: string;
-  readonly pluginNames: readonly string[];
-}): readonly FrameworkModule[] {
-  if (!context.pluginNames.includes('@modern-js/plugin-tanstack')) return [];
-  const modules =
-    findHostingModuleDirectory(
-      '@modern-js/plugin-tanstack',
-      context.appDirectory,
-    ) ??
-    findHostingModuleDirectory(
-      '@modern-js/plugin-tanstack',
-      context.registrarDirectory,
-    );
-  if (!modules)
-    throw new Error(
-      'The registered TanStack entry owner cannot be resolved from the application or selected framework',
-    );
-  return [
-    {
-      specifier: '@modern-js/plugin-tanstack',
-      filename: createRequire(
-        path.join(path.dirname(modules), 'package.json'),
-      ).resolve('@modern-js/plugin-tanstack'),
-    },
-  ];
-}
 
 function compose(
   consumerPlugins: readonly CliPlugin<AppTools>[],
@@ -82,7 +52,6 @@ export const reactRendererRegistration = {
       request: '@modern-js/i18n-integration',
     },
   ],
-  resolveBuildFrameworkModules,
   supports: {
     reactCliPlugins: true,
     reactRuntimeDescriptors: true,

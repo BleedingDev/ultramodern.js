@@ -23,12 +23,7 @@ const requireFromTest = createRequire(import.meta.url);
 const packageManifest = JSON.parse(
   readFileSync(path.join(packageRoot, 'package.json'), 'utf8'),
 ) as PackageManifest;
-const publicSubpaths = [
-  '.',
-  './cloudflare',
-  './cloudflare-builder',
-  './renderer-generated-outputs',
-] as const;
+const publicSubpaths = ['.', './cloudflare', './cloudflare-builder'] as const;
 const publicSpecifiers = publicSubpaths.map(subpath =>
   subpath === '.'
     ? packageManifest.name
@@ -184,23 +179,14 @@ describe('@modern-js/app-tools-extensions package acceptance', () => {
           createCloudflareBuilderPlugin,
           type CloudflareBuilderPlugin,
         } from '${packageManifest.name}/cloudflare-builder';
-        import type {
-          RendererGeneratedOutputDestination,
-        } from '${packageManifest.name}/renderer-generated-outputs';
 
         const plugin: CloudflareBuilderPlugin = createCloudflareBuilderPlugin();
-        const destination: RendererGeneratedOutputDestination = {
-          path: { lexical: '/app/types', canonical: '/app/types' },
-          kind: 'directory',
-          scope: 'subtree',
-        };
         type RootKeys = keyof typeof Root;
         type CloudflareKeys = keyof typeof Cloudflare;
         declare const rootKey: RootKeys;
         declare const cloudflareKey: CloudflareKeys;
         void new CssExtractRuntimePlugin();
         void plugin;
-        void destination;
         void rootKey;
         void cloudflareKey;
       `,

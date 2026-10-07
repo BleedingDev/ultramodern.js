@@ -65,18 +65,13 @@ async function committedManifest(routerBindings: RendererRouterBindings) {
     path.join(directory, RENDERER_BUILD_MANIFEST_FILE),
     JSON.stringify({
       schema: 'ultramodern-renderer-build',
-      version: 1,
+      version: 2,
+      renderer: 'react',
       profile: resolveRendererProfile('react'),
-      identities: { main: identity(), other: identity('other') },
+      entries: { main: identity(), other: identity('other') },
       routerBindings,
-      buildMarker: 'a'.repeat(64),
+      buildId: 'a'.repeat(64),
       sourceRevision: 'workspace',
-      inputDigest: 'b'.repeat(64),
-      profileDigest: 'c'.repeat(64),
-      compilerDigest: 'd'.repeat(64),
-      frameworkCohortDigest: 'e'.repeat(64),
-      cacheAllowed: false,
-      promotable: false,
     }),
   );
   return directory;

@@ -107,10 +107,6 @@ export function createOctaneCompilerPlugin(
                 root: api.context.rootPath,
                 runtimeVersion: OCTANE_RUNTIME_VERSION,
                 compilerVersion: OCTANE_COMPILER_VERSION,
-                sourceLoader: path.join(
-                  directory,
-                  'source-provenance-loader.cjs',
-                ),
                 rendererIdentities: options.rendererIdentities,
                 manifestFilename: octaneModuleManifestFileName,
                 validateManifest: validateOctaneModuleManifest,

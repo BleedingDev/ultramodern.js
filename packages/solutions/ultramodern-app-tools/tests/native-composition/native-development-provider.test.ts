@@ -133,58 +133,64 @@ function bundleRequestOptions(bundle: unknown): RenderOptions {
 }
 
 describe('native production bundle exports', () => {
-  it.each([
-    'direct',
-    'cjs-namespace',
-  ])('dispatches the exported native handler from a %s bundle without inferring identity', async shape => {
-    const handler = rstest.fn(
-      (_request: Request, context: NativeRequestContext<NativeNodeBindings>) =>
-        Response.json({
-          entry: context.entry,
-          requestOwner: context.session.identity,
-        }),
-    );
-    const manifest = {
-      rendererIdentity: identity,
-      nativeRequestHandler: handler,
-    };
-    const bundle =
-      shape === 'direct'
-        ? manifest
-        : { default: manifest, 'module.exports': manifest };
-    const render = await installedRender({
-      renderer: 'solid',
-      entries: { main: identity },
-    });
-    const response = await render(
-      new Request('https://native.invalid/'),
-      bundleRequestOptions(bundle),
-    );
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
-      entry: identity,
-      requestOwner: identity,
-    });
-    expect(handler).toHaveBeenCalledTimes(1);
-  });
+  it.each(['direct', 'cjs-namespace'])(
+    'dispatches the exported native handler from a %s bundle without inferring identity',
+    async shape => {
+      const handler = rstest.fn(
+        (
+          _request: Request,
+          context: NativeRequestContext<NativeNodeBindings>,
+        ) =>
+          Response.json({
+            entry: context.entry,
+            requestOwner: context.session.identity,
+          }),
+      );
+      const manifest = {
+        rendererIdentity: identity,
+        nativeRequestHandler: handler,
+      };
+      const bundle =
+        shape === 'direct'
+          ? manifest
+          : { default: manifest, 'module.exports': manifest };
+      const render = await installedRender({
+        renderer: 'solid',
+        entries: { main: identity },
+      });
+      const response = await render(
+        new Request('https://native.invalid/'),
+        bundleRequestOptions(bundle),
+      );
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({
+        entry: identity,
+        requestOwner: identity,
+      });
+      expect(handler).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it.each([
     ['missing', { nativeRequestHandler: rstest.fn() }],
     ['wrapped-missing', { default: { nativeRequestHandler: rstest.fn() } }],
-  ])('rejects a %s exported identity before invoking a handler', async (_shape, bundle) => {
-    const render = await installedRender({
-      renderer: 'solid',
-      entries: { main: identity },
-    });
-    await expect(
-      render(
-        new Request('https://native.invalid/'),
-        bundleRequestOptions(bundle),
-      ),
-    ).rejects.toThrow(
-      'Native server bundle requires its exported renderer identity',
-    );
-  });
+  ])(
+    'rejects a %s exported identity before invoking a handler',
+    async (_shape, bundle) => {
+      const render = await installedRender({
+        renderer: 'solid',
+        entries: { main: identity },
+      });
+      await expect(
+        render(
+          new Request('https://native.invalid/'),
+          bundleRequestOptions(bundle),
+        ),
+      ).rejects.toThrow(
+        'Native server bundle requires its exported renderer identity',
+      );
+    },
+  );
 
   it('rejects a wrapped foreign identity before invoking its native handler', async () => {
     const handler = rstest.fn();
@@ -419,38 +425,38 @@ describe('native server compiler artifact ownership', () => {
     expect(files).not.toHaveBeenCalled();
   });
 
-  it.each([
-    'missing',
-    'mismatched',
-  ])('rejects a replacement %s snapshot hydration ID before dispatch', async kind => {
-    const compilerArtifacts = replacementCompilerArtifacts();
-    const clientManifest = replacementClientManifest();
-    const handler = rstest.fn(() => new Response('handler must not execute'));
-    const render = await installedRender({
-      renderer: 'replacement',
-      entries: { main: replacementIdentity },
-      compilerArtifacts,
-      resolveDevelopmentSnapshot: async () => ({
-        manifest: {
-          rendererIdentity: replacementIdentity,
-          nativeRequestHandler: handler,
-        },
-        assets: [{ kind: 'script', href: '/compiled/main.replacement.js' }],
-        nativeManifest: clientManifest,
-        hydrationBuildId:
-          kind === 'missing' ? undefined : 'unrelated-replacement-client',
-      }),
-    });
-    await expect(
-      render(new Request('https://native.invalid/'), requestOptions()),
-    ).rejects.toThrow(
-      kind === 'missing'
-        ? /no hydration build/iu
-        : /differs from its compiler manifest/iu,
-    );
-    expect(compilerArtifacts.validateClientManifest).toHaveBeenCalledTimes(1);
-    expect(handler).not.toHaveBeenCalled();
-  });
+  it.each(['missing', 'mismatched'])(
+    'rejects a replacement %s snapshot hydration ID before dispatch',
+    async kind => {
+      const compilerArtifacts = replacementCompilerArtifacts();
+      const clientManifest = replacementClientManifest();
+      const handler = rstest.fn(() => new Response('handler must not execute'));
+      const render = await installedRender({
+        renderer: 'replacement',
+        entries: { main: replacementIdentity },
+        compilerArtifacts,
+        resolveDevelopmentSnapshot: async () => ({
+          manifest: {
+            rendererIdentity: replacementIdentity,
+            nativeRequestHandler: handler,
+          },
+          assets: [{ kind: 'script', href: '/compiled/main.replacement.js' }],
+          nativeManifest: clientManifest,
+          hydrationBuildId:
+            kind === 'missing' ? undefined : 'unrelated-replacement-client',
+        }),
+      });
+      await expect(
+        render(new Request('https://native.invalid/'), requestOptions()),
+      ).rejects.toThrow(
+        kind === 'missing'
+          ? /no hydration build/iu
+          : /differs from its compiler manifest/iu,
+      );
+      expect(compilerArtifacts.validateClientManifest).toHaveBeenCalledTimes(1);
+      expect(handler).not.toHaveBeenCalled();
+    },
+  );
 });
 
 function solidSnapshot(
@@ -514,7 +520,6 @@ function octaneSnapshot(
           canonicalId: 'main',
           moduleId: 'main',
           transformKind: 'compile',
-          sourceSha256: 'a'.repeat(64),
           emittedSourceSha256: 'b'.repeat(64),
           assets: ['compiled/main.js'],
         },
@@ -683,48 +688,50 @@ describe('native development compiler snapshot provider', () => {
       error: /HTTP URL/iu,
     },
   ];
-  it.each(invalidSnapshots)('rejects $name before the handler runs', async ({
-    invalid,
-    error,
-  }) => {
-    const handler = rstest.fn(() => new Response('handler must not execute'));
-    const snapshot = invalid(solidSnapshot(identity, 'first', handler));
-    const render = await installedRender(providerOptions(async () => snapshot));
-    await expect(
-      render(new Request('http://native.invalid/'), requestOptions()),
-    ).rejects.toThrow(error);
-    expect(handler).not.toHaveBeenCalled();
-  });
+  it.each(invalidSnapshots)(
+    'rejects $name before the handler runs',
+    async ({ invalid, error }) => {
+      const handler = rstest.fn(() => new Response('handler must not execute'));
+      const snapshot = invalid(solidSnapshot(identity, 'first', handler));
+      const render = await installedRender(
+        providerOptions(async () => snapshot),
+      );
+      await expect(
+        render(new Request('http://native.invalid/'), requestOptions()),
+      ).rejects.toThrow(error);
+      expect(handler).not.toHaveBeenCalled();
+    },
+  );
 
-  it.each([
-    'missing',
-    'mismatched',
-  ])('rejects an Octane %s hydration hash before the handler runs', async kind => {
-    const octaneIdentity: RendererIdentity = {
-      ...identity,
-      renderer: 'octane',
-    };
-    const handler = rstest.fn(() => new Response('handler must not execute'));
-    const snapshot = octaneSnapshot(octaneIdentity, handler);
-    const { hydrationBuildId: _hash, ...withoutHash } = snapshot;
-    const invalid =
-      kind === 'missing'
-        ? withoutHash
-        : { ...snapshot, hydrationBuildId: 'other-compiled-client' };
-    const render = await installedRender({
-      renderer: 'octane',
-      entries: { main: octaneIdentity },
-      resolveDevelopmentSnapshot: async () => invalid,
-    });
-    await expect(
-      render(new Request('http://native.invalid/'), requestOptions()),
-    ).rejects.toThrow(
-      kind === 'missing'
-        ? /no native hydration build/iu
-        : /differs from the compiled client/iu,
-    );
-    expect(handler).not.toHaveBeenCalled();
-  });
+  it.each(['missing', 'mismatched'])(
+    'rejects an Octane %s hydration hash before the handler runs',
+    async kind => {
+      const octaneIdentity: RendererIdentity = {
+        ...identity,
+        renderer: 'octane',
+      };
+      const handler = rstest.fn(() => new Response('handler must not execute'));
+      const snapshot = octaneSnapshot(octaneIdentity, handler);
+      const { hydrationBuildId: _hash, ...withoutHash } = snapshot;
+      const invalid =
+        kind === 'missing'
+          ? withoutHash
+          : { ...snapshot, hydrationBuildId: 'other-compiled-client' };
+      const render = await installedRender({
+        renderer: 'octane',
+        entries: { main: octaneIdentity },
+        resolveDevelopmentSnapshot: async () => invalid,
+      });
+      await expect(
+        render(new Request('http://native.invalid/'), requestOptions()),
+      ).rejects.toThrow(
+        kind === 'missing'
+          ? /no native hydration build/iu
+          : /differs from the compiled client/iu,
+      );
+      expect(handler).not.toHaveBeenCalled();
+    },
+  );
 
   it('interrupts unresolved compiler readiness promptly when the request aborts', async () => {
     const ready = deferred<NativeDevelopmentSnapshot>();

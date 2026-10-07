@@ -23,8 +23,9 @@ type FixtureRoute = {
 function buildMetadata() {
   return {
     schema: 'ultramodern-renderer-build',
-    version: 1,
-    buildMarker,
+    version: 2,
+    renderer: 'fixture-renderer',
+    buildId: buildMarker,
     // This fixture qualifies transfer of compiler metadata, not compilation.
     profile: {
       renderer: 'fixture-renderer',
@@ -39,7 +40,7 @@ function buildMetadata() {
       },
       sourceExtensions: ['.tsx'],
     },
-    identities: Object.fromEntries(
+    entries: Object.fromEntries(
       ['main', 'other'].map(entryName => [
         entryName,
         {
@@ -218,13 +219,13 @@ afterEach(async () => {
 it('binds generated entries to their exact built identities for document and action responses', async () => {
   const input = await fixture();
   const { worker, manifest, assets } = await emittedWorker(input);
-  expect(manifest.rendererIdentities).toEqual(input.build.identities);
+  expect(manifest.rendererIdentities).toEqual(input.build.entries);
   const document = await worker.fetch(new Request('https://example.com/'), {
     ASSETS: assets,
   });
   expect(document.status).toBe(200);
   expect(JSON.parse(document.headers.get(identityHeader))).toEqual(
-    input.build.identities.main,
+    input.build.entries.main,
   );
   expect(document.headers.get('x-worker-policy')).toBe('preserved');
   expect(await document.text()).toContain('document:main');
@@ -238,7 +239,7 @@ it('binds generated entries to their exact built identities for document and act
   );
   expect(action.status).toBe(207);
   expect(JSON.parse(action.headers.get(identityHeader))).toEqual(
-    input.build.identities.main,
+    input.build.entries.main,
   );
   expect(action.headers.get('x-worker-policy')).toBe('action');
   expect(await action.text()).toBe('unchanged action input');
@@ -247,7 +248,7 @@ it('binds generated entries to their exact built identities for document and act
 it('serves native public routes without assigning an application renderer identity', async () => {
   const input = await fixture({ includePublicAsset: true });
   const { worker, manifest, assets } = await emittedWorker(input);
-  expect(manifest.rendererIdentities).toEqual(input.build.identities);
+  expect(manifest.rendererIdentities).toEqual(input.build.entries);
   const asset = await worker.fetch(
     new Request('https://example.com/favicon.ico'),
     { ASSETS: assets },
@@ -259,7 +260,7 @@ it('serves native public routes without assigning an application renderer identi
     ASSETS: assets,
   });
   expect(JSON.parse(document.headers.get(identityHeader))).toEqual(
-    input.build.identities.main,
+    input.build.entries.main,
   );
   expect(await document.text()).toContain('document:main');
 });
@@ -350,7 +351,7 @@ it('decorates a pending native fetch stream without reading it and preserves can
   );
   const state = runtime.controls.latest;
   expect(JSON.parse(response.headers.get(identityHeader))).toEqual(
-    input.build.identities.other,
+    input.build.entries.other,
   );
   expect(response.body).toBe(state.response.body);
   expect(response.body.locked).toBe(false);
@@ -384,7 +385,7 @@ it('decorates native Flight dispatch without buffering or swallowing a late stre
   expect(runtime.controls.resource.entryName).toBe('main');
   expect(runtime.controls.resource).not.toHaveProperty('htmlTemplate');
   expect(JSON.parse(response.headers.get(identityHeader))).toEqual(
-    input.build.identities.main,
+    input.build.entries.main,
   );
   expect(response.headers.get('content-type')).toBe('text/x-component');
   expect(response.body).toBe(state.response.body);
@@ -399,23 +400,21 @@ it('decorates native Flight dispatch without buffering or swallowing a late stre
   await expect(reader.read()).rejects.toBe(failure);
 });
 
-it.each([
-  'missing-entry',
-  'entry-name',
-  'build-marker',
-  'protocol',
-])('rejects a %s conflict instead of guessing a route identity', async conflict => {
-  const input = await fixture({
-    mutate(build) {
-      if (conflict === 'missing-entry') delete build.identities.other;
-      if (conflict === 'entry-name') build.identities.other.entryName = 'main';
-      if (conflict === 'build-marker')
-        build.identities.other.buildId = 'b'.repeat(64);
-      if (conflict === 'protocol') build.identities.other.protocolVersion = 2;
-    },
-  });
-  await expect(input.preset.writeOutput?.()).rejects.toThrow();
-});
+it.each(['missing-entry', 'entry-name', 'build-marker', 'protocol'])(
+  'rejects a %s conflict instead of guessing a route identity',
+  async conflict => {
+    const input = await fixture({
+      mutate(build) {
+        if (conflict === 'missing-entry') delete build.entries.other;
+        if (conflict === 'entry-name') build.entries.other.entryName = 'main';
+        if (conflict === 'build-marker')
+          build.entries.other.buildId = 'b'.repeat(64);
+        if (conflict === 'protocol') build.entries.other.protocolVersion = 2;
+      },
+    });
+    await expect(input.preset.writeOutput?.()).rejects.toThrow();
+  },
+);
 
 it('rejects malformed existing metadata and preserves output without a renderer manifest', async () => {
   const invalid = await fixture({ rawBuild: '{malformed renderer metadata' });
@@ -432,8 +431,8 @@ it('rejects malformed existing metadata and preserves output without a renderer 
 
 describe('native worker resources', () => {
   const asSolid = (build: ReturnType<typeof buildMetadata>) => {
-    build.profile.renderer = 'solid';
-    for (const identity of Object.values(build.identities))
+    build.renderer = build.profile.renderer = 'solid';
+    for (const identity of Object.values(build.entries))
       identity.renderer = 'solid';
   };
   const entry = {

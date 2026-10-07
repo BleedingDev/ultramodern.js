@@ -22,47 +22,13 @@ export async function activateNativeRendererCompiler(
   const adapter = registration.nativeAdapter;
   const activation = adapter.compiler;
   if (
-    !activation ||
-    !activation.module ||
-    registration.renderer !== renderer ||
-    registration.candidateProfile.renderer !== renderer ||
-    adapter.renderer !== renderer ||
-    adapter.profile.renderer !== renderer ||
+    !activation?.module ||
     activation.renderer !== renderer ||
     activation.schema !== 'ultramodern-native-compiler-activation' ||
     activation.version !== 1 ||
-    activation.operation !== 'compiler' ||
-    !Object.isFrozen(activation) ||
-    !Object.isFrozen(activation.module) ||
-    typeof activation.export !== 'string' ||
-    !/^[$A-Z_a-z][$\w]*$/u.test(activation.export)
+    activation.operation !== 'compiler'
   )
     throw new Error(`Invalid native compiler activation for ${renderer}`);
-
-  const entries = [
-    ['source', './src/', '.ts'],
-    ['import', './dist/esm-node/', '.mjs'],
-    ['require', './dist/cjs/', '.js'],
-  ] as const;
-  let compilerStem: string | undefined;
-  for (const [format, prefix, suffix] of entries) {
-    const entry = activation.module[format];
-    if (
-      typeof entry !== 'string' ||
-      !entry.startsWith(prefix) ||
-      !entry.endsWith(suffix)
-    )
-      throw new Error(`Invalid ${format} compiler entry for ${renderer}`);
-    const stem = entry.slice(prefix.length, -suffix.length);
-    if (
-      !/^[A-Za-z0-9_-][A-Za-z0-9._-]*(?:\/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$/u.test(
-        stem,
-      ) ||
-      (compilerStem !== undefined && compilerStem !== stem)
-    )
-      throw new Error(`Conflicting compiler module formats for ${renderer}`);
-    compilerStem = stem;
-  }
 
   const filename = fs.realpathSync(
     typeof __filename === 'string'
@@ -90,8 +56,6 @@ export async function activateNativeRendererCompiler(
   if (!format)
     throw new Error('Native compiler dispatcher has no owning module format');
   const target = path.join(owner.directory, activation.module[format]);
-  if (fs.realpathSync(target) !== target || !fs.statSync(target).isFile())
-    throw new Error(`Native compiler entry is not owned by ${owner.name}`);
   const compiler: Record<string, unknown> = await import(
     pathToFileURL(target).href
   );

@@ -2,7 +2,10 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { AppTools, CliPlugin } from '@modern-js/app-tools/cli-config';
-import type { RendererBuildIdentities } from '@modern-js/app-tools-extensions/renderer-build-identity';
+import {
+  type RendererBuildIdentities,
+  rendererProfileKey,
+} from '@modern-js/app-tools-extensions/renderer-build-identity';
 import { SERVICE_WORKER_ENVIRONMENT_NAME } from '@modern-js/builder';
 import type {
   BffRuntimeBuildIdentityProvider,
@@ -21,21 +24,14 @@ import { validateNativeClientAssetManifest } from '@modern-js/renderer-core/serv
 import type { Entrypoint } from '@modern-js/types/cli/base';
 import { getArgv, SERVER_BUNDLE_DIRECTORY } from '@modern-js/utils';
 import type { NativeCompilerArtifacts } from './compiler-artifacts';
-import type { ConfigSourceSnapshot } from './config-evaluator/source-snapshot';
 import { isEntryMetadataRead } from './config-read-context';
+import { getConfigurationSourceSnapshot } from './configuration-read-context';
 import {
-  type ConfigurationSourceNode,
-  getConfigurationSourceInputs,
-  getConfigurationSourceNodes,
-  getConfigurationSourceSnapshot,
-  type ObservedConfigSourceInputs,
-} from './configuration-read-context';
-import {
-  assertRendererBuildInputsUnchanged,
-  RENDERER_BUILD_MANIFEST_FILE,
+  createRendererBuildManifest,
   RENDERER_DEVELOPMENT_DIRECTORY,
   readRendererBuildManifest,
-  validateRendererBuildManifest,
+  rendererBuildCachePerformance,
+  writeRendererBuildManifest,
 } from './native-build-manifest';
 import {
   NativeDevelopment,
@@ -94,22 +90,6 @@ export interface NativeInfrastructureOptions {
     appDirectory: string;
     internalDirectory: string;
     distDirectory: string;
-    configFile?: string | false;
-    consumedSourceInputs?: ObservedConfigSourceInputs;
-    configurationSourceSnapshot?: ConfigSourceSnapshot;
-    configurationSourceNodes?: readonly ConfigurationSourceNode[];
-    /** Exact dependency graph, classified from the completed native filesystem. */
-    compilerInputs?: readonly {
-      readonly path: string;
-      readonly kind: 'file' | 'directory';
-    }[];
-    /** Regular files from that completed compiler graph. */
-    inputFiles?: readonly string[];
-    config: ReturnType<
-      Parameters<
-        NonNullable<CliPlugin<AppTools>['setup']>
-      >[0]['getNormalizedConfig']
-    >;
     packageName: string;
     pluginNames?: readonly string[];
     mode?: 'development' | 'production';
@@ -152,11 +132,6 @@ export function nativeRendererInfrastructurePlugin(
   let buildIdentities: RendererBuildIdentities | undefined;
   let completedBuildIdentities: RendererBuildIdentities | undefined;
   let development: NativeDevelopment | undefined;
-  let buildIdentityContext:
-    | Parameters<
-        NonNullable<NativeInfrastructureOptions['resolveBuildIdentities']>
-      >[0]
-    | undefined;
   return {
     name: infrastructurePluginName,
     post: ['@modern-js/plugin-analyze', '@modern-js/plugin-bff'],
@@ -188,7 +163,7 @@ export function nativeRendererInfrastructurePlugin(
                 'Native BFF runtime identity requires a completed renderer build',
               );
             return Object.freeze({
-              buildMarker: completedBuildIdentities.buildMarker,
+              buildMarker: completedBuildIdentities.buildId,
               sourceRevision: completedBuildIdentities.sourceRevision,
             });
           };
@@ -214,16 +189,6 @@ export function nativeRendererInfrastructurePlugin(
                   'Native development session identity is not prepared',
                 );
               return buildIdentities;
-            },
-            async resolveWaveInputs() {
-              if (!buildIdentityContext)
-                throw new Error(
-                  'Native development source context is not prepared',
-                );
-              return options.resolveBuildIdentities!({
-                ...buildIdentityContext,
-                mode: 'development',
-              });
             },
           });
           return {
@@ -382,27 +347,18 @@ export function nativeRendererInfrastructurePlugin(
             );
         }
         if (options.resolveBuildIdentities && !isEntryMetadataRead()) {
-          // Development keeps this source-bound identity for the running CLI
-          // session. Native compiler hydration IDs still change per compile;
-          // development cache/promotion stay disabled. Config changes restart
-          // the graph. Production certifies the same inputs again after build.
-          buildIdentityContext = {
+          // One identity per build or dev session; config changes restart dev.
+          buildIdentities = await options.resolveBuildIdentities({
             entrypoints: entrypoints.map(entrypoint => ({ ...entrypoint })),
             appDirectory,
             internalDirectory,
             distDirectory,
             packageName,
             pluginNames: api.getAppContext().plugins.map(plugin => plugin.name),
-            config: api.getNormalizedConfig(),
-            consumedSourceInputs: getConfigurationSourceInputs(api),
-            configurationSourceSnapshot: getConfigurationSourceSnapshot(api),
-            configurationSourceNodes: getConfigurationSourceNodes(api),
             ...(api.getAppContext().command === 'dev'
               ? { mode: 'development' as const }
               : {}),
-          };
-          buildIdentities =
-            await options.resolveBuildIdentities(buildIdentityContext);
+          });
         }
         for (const entrypoint of entrypoints) {
           const context: NativeEntryGeneration = {
@@ -639,32 +595,13 @@ export default nativeRequestHandler;
                         },
                       }
                     : environment),
-              ...(buildIdentities
+              ...(options.resolveBuildIdentities
                 ? {
-                    performance: {
-                      ...environment.performance,
-                      buildCache:
-                        !buildIdentities.cacheAllowed ||
-                        environment.performance?.buildCache === false
-                          ? false
-                          : {
-                              ...(typeof environment.performance?.buildCache ===
-                              'object'
-                                ? environment.performance.buildCache
-                                : {}),
-                              cacheDigest: [
-                                ...(typeof environment.performance
-                                  ?.buildCache === 'object'
-                                  ? (environment.performance.buildCache
-                                      .cacheDigest ?? [])
-                                  : []),
-                                renderer,
-                                buildIdentities.buildMarker,
-                                buildIdentities.profileDigest,
-                                buildIdentities.compilerDigest,
-                              ],
-                            },
-                    },
+                    performance: rendererBuildCachePerformance(
+                      environment.performance,
+                      renderer,
+                      profile,
+                    ),
                   }
                 : {}),
             },
@@ -727,12 +664,20 @@ export default nativeRequestHandler;
               getArgv().some(
                 argument => argument === '--skip-build' || argument === '-s',
               ));
-          if (reuseBuilt && !apiOnly)
-            buildIdentities = await readRendererBuildManifest(
+          if (reuseBuilt && !apiOnly) {
+            const built = await readRendererBuildManifest(
               distDirectory,
               profile,
               { routerFrameworks: compilerArtifacts.routerFrameworks },
             );
+            buildIdentities = {
+              identities: built.entries,
+              buildId: built.buildId,
+              profileKey: rendererProfileKey(built.profile),
+              sourceRevision: built.sourceRevision,
+              routerBindings: built.routerBindings,
+            };
+          }
           if (!buildIdentities && !apiOnly)
             throw new Error(
               'Native server plugins require resolved build identities',
@@ -759,7 +704,8 @@ export default nativeRequestHandler;
                 options: {
                   renderer,
                   entries: buildIdentities?.identities ?? {},
-                  cacheAllowed: buildIdentities?.cacheAllowed ?? false,
+                  // Document caching stays off in dev.
+                  cacheAllowed: command !== 'dev',
                   ...(command === 'dev' && !apiOnly
                     ? {
                         resolveDevelopmentSnapshot: (
@@ -933,37 +879,11 @@ export default nativeRequestHandler;
               ),
             });
           }
-          if (!buildIdentityContext)
-            throw new Error(
-              'Native build input context is unavailable for completed compilation',
-            );
-          assertRendererBuildInputsUnchanged(
-            buildIdentities,
-            await options.resolveBuildIdentities!(buildIdentityContext),
-          );
-          const manifest = validateRendererBuildManifest(
-            {
-              ...buildIdentities,
-              schema: 'ultramodern-renderer-build',
-              version: 1,
-              profile,
-            },
-            profile,
-            { routerFrameworks: compilerArtifacts.routerFrameworks },
-          );
-          const output = path.join(
+          await writeRendererBuildManifest(
             api.getAppContext().distDirectory,
-            RENDERER_BUILD_MANIFEST_FILE,
+            createRendererBuildManifest(profile, buildIdentities),
           );
-          await fs.mkdir(path.dirname(output), { recursive: true });
-          const temporary = `${output}.${process.pid}.tmp`;
-          try {
-            await fs.writeFile(temporary, JSON.stringify(manifest));
-            await fs.rename(temporary, output);
-          } finally {
-            await fs.rm(temporary, { force: true });
-          }
-          completedBuildIdentities = manifest;
+          completedBuildIdentities = buildIdentities;
         });
       }
     },

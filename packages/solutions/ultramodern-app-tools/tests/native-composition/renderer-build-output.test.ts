@@ -24,17 +24,12 @@ const fixture = async (renderer: 'react' | 'solid' | 'octane') => {
   const provider = { framework, ...profile.router };
   const manifest = {
     schema: 'ultramodern-renderer-build',
-    version: 1,
+    version: 2,
+    renderer,
     profile,
-    buildMarker,
+    buildId: buildMarker,
     sourceRevision: 'b'.repeat(40),
-    inputDigest: 'c'.repeat(64),
-    profileDigest: 'd'.repeat(64),
-    compilerDigest: 'e'.repeat(64),
-    frameworkCohortDigest: 'f'.repeat(64),
-    cacheAllowed: true,
-    promotable: true,
-    identities: Object.fromEntries(
+    entries: Object.fromEntries(
       ['ssr', 'csr'].map(entryName => [
         entryName,
         {
@@ -77,21 +72,20 @@ const fixture = async (renderer: 'react' | 'solid' | 'octane') => {
 };
 
 describe('finalized renderer output projection', () => {
-  it.each([
-    'react',
-    'solid',
-    'octane',
-  ] as const)('preserves every actual %s router binding and the actual primary identity', async renderer => {
-    const { context, manifest } = await fixture(renderer);
-    const output = await createRendererBuildOutputResolver(renderer)(context);
-    expect(output.ui.rendererIdentity).toEqual(manifest.identities.ssr);
-    expect(output.ui.routerBindings).toEqual(manifest.routerBindings);
-    expect(Object.isFrozen(output.ui.routerBindings.csr!.providers[0])).toBe(
-      true,
-    );
-    expect(output.buildMarker).toBe(manifest.buildMarker);
-    expect(output.sourceRevision).toBe(manifest.sourceRevision);
-  });
+  it.each(['react', 'solid', 'octane'] as const)(
+    'preserves every actual %s router binding and the actual primary identity',
+    async renderer => {
+      const { context, manifest } = await fixture(renderer);
+      const output = await createRendererBuildOutputResolver(renderer)(context);
+      expect(output.ui.rendererIdentity).toEqual(manifest.entries.ssr);
+      expect(output.ui.routerBindings).toEqual(manifest.routerBindings);
+      expect(Object.isFrozen(output.ui.routerBindings.csr!.providers[0])).toBe(
+        true,
+      );
+      expect(output.buildMarker).toBe(manifest.buildId);
+      expect(output.sourceRevision).toBe(manifest.sourceRevision);
+    },
+  );
 
   it('rejects missing or additional final entries and ambiguous primary entries', async () => {
     const { context } = await fixture('react');
@@ -124,10 +118,10 @@ describe('finalized renderer output projection', () => {
     ).rejects.toThrow();
     await fs.writeFile(
       path.join(directory, 'renderer-build.json'),
-      JSON.stringify({ ...manifest, profile: resolveRendererProfile('react') }),
+      JSON.stringify({ ...manifest, renderer: 'react' }),
     );
     await expect(
       createRendererBuildOutputResolver('solid')(context),
-    ).rejects.toThrow(/profile conflicts/);
+    ).rejects.toThrow(/made for the react renderer.*rebuild/);
   });
 });

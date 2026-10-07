@@ -16,7 +16,6 @@ export interface OctaneCompiledSource {
   readonly canonicalId: string;
   readonly moduleId: string | number;
   readonly transformKind: 'compile' | 'slots' | 'client-only-stub';
-  readonly sourceSha256: string;
   readonly emittedSourceSha256: string;
   readonly assets: readonly string[];
 }
@@ -166,7 +165,6 @@ function readOctaneModuleManifest(value: unknown): OctaneModuleManifest {
       'canonicalId',
       'moduleId',
       'transformKind',
-      'sourceSha256',
       'emittedSourceSha256',
       'assets',
     ]);
@@ -185,7 +183,6 @@ function readOctaneModuleManifest(value: unknown): OctaneModuleManifest {
         source.transformKind === 'slots' ||
         source.transformKind === 'client-only-stub'
       ) ||
-      !digest(source.sourceSha256) ||
       !digest(source.emittedSourceSha256) ||
       !Array.isArray(source.assets) ||
       !source.assets.length ||
@@ -203,7 +200,6 @@ function readOctaneModuleManifest(value: unknown): OctaneModuleManifest {
       canonicalId: source.canonicalId,
       moduleId: source.moduleId,
       transformKind: source.transformKind,
-      sourceSha256: source.sourceSha256,
       emittedSourceSha256: source.emittedSourceSha256,
       assets: Object.freeze([...source.assets] as string[]),
     });

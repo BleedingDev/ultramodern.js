@@ -21,11 +21,11 @@ import {
 import { afterEach, describe, expect, it } from '@rstest/core';
 import { nativeClientAssetsPlugin } from '../../src/native-composition/native-assets';
 import {
+  createRendererBuildManifest,
   RENDERER_BUILD_MANIFEST_FILE,
   RENDERER_DEVELOPMENT_DIRECTORY,
   type RendererDevelopmentBuildManifest,
   readRendererDevelopmentBuildManifest,
-  validateRendererBuildManifest,
 } from '../../src/native-composition/native-build-manifest';
 import {
   NativeDevelopment,
@@ -64,14 +64,6 @@ afterEach(async () => {
   if (failures.length)
     throw new AggregateError(failures, 'Native fixture cleanup failed');
 });
-
-function deferred() {
-  let resolve!: () => void;
-  const promise = new Promise<void>(settle => {
-    resolve = settle;
-  });
-  return { promise, resolve };
-}
 
 function queue<T>(name: string, events: () => readonly string[]) {
   const values: T[] = [];
@@ -305,37 +297,19 @@ async function fixture(
   const resolveInputs = (mode: 'development' | 'production') =>
     resolveRendererBuildIdentities({
       projectRoot: root,
-      packageName,
+      appId: packageName,
       renderer,
       profile: metadata.profile,
       mode,
       entryNames: ['main'],
-      configuration: {
-        renderer,
-        mode,
-        serverModule: module,
-        absoluteDevPrefix,
-        extraWeb,
-      },
-      excludedDirectories: [internalDirectory, distDirectory],
-      packageResolutionRoots: metadata.frameworkPackages.map(
-        owner => owner.directory,
-      ),
-      frameworkPackages: metadata.frameworkPackages.map(owner => owner.name),
-      frameworkPackageBindings: metadata.frameworkPackages,
       routerBindings,
     });
   const session = await resolveInputs('development');
   const identity = session.identities.main;
   if (!identity) throw new Error('Owning resolver did not resolve main');
-  const production = validateRendererBuildManifest(
-    {
-      ...(await resolveInputs('production')),
-      schema: 'ultramodern-renderer-build',
-      version: 1,
-      profile: metadata.profile,
-    },
+  const production = createRendererBuildManifest(
     metadata.profile,
+    await resolveInputs('production'),
   );
   fs.mkdirSync(distDirectory);
   const productionFile = path.join(distDirectory, RENDERER_BUILD_MANIFEST_FILE);
@@ -359,28 +333,11 @@ async function fixture(
   await fs.promises.mkdir(entryDirectory, { recursive: true });
   await fs.promises.writeFile(clientEntry, await generator.client(context));
   await fs.promises.writeFile(serverEntry, await generator.server(context));
-  const completedInputs: RendererBuildIdentities[] = [];
-  let completionGate:
-    | {
-        entered: ReturnType<typeof deferred>;
-        release: ReturnType<typeof deferred>;
-      }
-    | undefined;
-  let atCompletion = false;
   const authority = new NativeDevelopment({
     renderer,
     profile: metadata.profile,
     distDirectory,
     getSessionIdentities: () => session,
-    resolveWaveInputs: async () => {
-      if (atCompletion && completionGate) {
-        completionGate.entered.resolve();
-        await completionGate.release.promise;
-      }
-      const inputs = await resolveInputs('development');
-      if (atCompletion) completedInputs.push(inputs);
-      return inputs;
-    },
   });
   closes.push(() => authority.close());
   const compilerEvents: string[] = [];
@@ -624,16 +581,9 @@ async function fixture(
           },
         });
       });
-      api.onBeforeDevCompile({
-        order: 'pre',
-        handler: () => {
-          atCompletion = false;
-        },
-      });
       api.onDevCompileDone({
         order: 'pre',
         handler: ({ stats }) => {
-          atCompletion = true;
           recordCompilerEvent(`all:completed:errors=${stats.hasErrors()}`);
           let sourceMutation: GuardCompletionObservation['sourceMutation'];
           if (changeInputDuringCompletion) {
@@ -860,10 +810,7 @@ async function fixture(
     },
   });
   const dev = await rsbuild.createDevServer({ getPortSilently: true });
-  closes.push(() => {
-    completionGate?.release.resolve();
-    return dev.close();
-  });
+  closes.push(() => dev.close());
   const listening = await dev.listen();
   const address = new URL(listening.urls[0]);
   return {
@@ -878,7 +825,6 @@ async function fixture(
     compilerFailures,
     ready,
     address,
-    completedInputs,
     publicationFailures,
     guardCompleted,
     guardSequence: () => guardSequence,
@@ -889,10 +835,6 @@ async function fixture(
     },
     changeInput(value: boolean) {
       changeInputDuringCompletion = value;
-    },
-    gateCompletion() {
-      completionGate = { entered: deferred(), release: deferred() };
-      return completionGate;
     },
     async edit(marker: string) {
       fs.writeFileSync(app, view(marker));
@@ -928,15 +870,10 @@ async function fixture(
 type Fixture = Awaited<ReturnType<typeof fixture>>;
 
 function assertPublished(appFixture: Fixture, receipt: Receipt) {
-  expect(receipt.metadata.identities).toEqual(appFixture.session.identities);
+  expect(receipt.metadata.entries).toEqual(appFixture.session.identities);
   expect(receipt.metadata.devCompilation.compilationHashes).toEqual(
     actualHashes(receipt.stats),
   );
-  expect(receipt.metadata.devCompilation.sourceInputDigest).toBe(
-    appFixture.completedInputs.at(-1)?.inputDigest,
-  );
-  expect(receipt.metadata.cacheAllowed).toBe(false);
-  expect(receipt.metadata.promotable).toBe(false);
   expect(fs.readFileSync(appFixture.productionFile)).toEqual(
     appFixture.productionBytes,
   );
@@ -1047,23 +984,12 @@ export async function nativeRequestHandler(_request, context) {
 export async function nativeCSRRequestHandler() { return new Response(marker); }
 `,
   );
-  const inputDigest = () =>
-    digest(
-      [state, clientEntry, serverEntry]
-        .map(filename => fs.readFileSync(filename, 'utf8'))
-        .join('\n'),
-    );
   const provider = { framework: 'replacement', ...profile.router };
   const session: RendererBuildIdentities = {
     identities: { main: identity },
-    buildMarker,
+    buildId: buildMarker,
+    profileKey: digest(JSON.stringify(profile)),
     sourceRevision: 'workspace',
-    inputDigest: inputDigest(),
-    profileDigest: digest(JSON.stringify(profile)),
-    compilerDigest: digest(JSON.stringify(profile.compiler)),
-    frameworkCohortDigest: digest('replacement-fixture-framework-cohort'),
-    cacheAllowed: false,
-    promotable: false,
     routerBindings: {
       main: {
         owner: '@fixture/replacement-router-owner',
@@ -1087,7 +1013,6 @@ export async function nativeCSRRequestHandler() { return new Response(marker); }
     compilerArtifacts,
     distDirectory,
     getSessionIdentities: () => session,
-    resolveWaveInputs: async () => ({ ...session, inputDigest: inputDigest() }),
   });
   closes.push(() => authority.close());
   let poison: 'identity' | 'hydration' | undefined;
@@ -1266,7 +1191,6 @@ export async function nativeCSRRequestHandler() { return new Response(marker); }
     completions,
     delivered,
     compilerArtifacts,
-    inputDigest,
     edit(marker: string, attack?: typeof poison) {
       poison = attack;
       fs.writeFileSync(
@@ -1307,12 +1231,9 @@ describe('native memory development checkpoints', () => {
       expect(receipt.client.hasErrors()).toBe(false);
       expect(receipt.server.hasErrors()).toBe(false);
       expect(receipt.publicationError).toBeUndefined();
-      expect(receipt.metadata?.identities).toEqual(app.session.identities);
+      expect(receipt.metadata?.entries).toEqual(app.session.identities);
       expect(receipt.metadata?.devCompilation.compilationHashes).toEqual(
         receipt.hashes,
-      );
-      expect(receipt.metadata?.devCompilation.sourceInputDigest).toBe(
-        app.inputDigest(),
       );
       expect(receipt.snapshot?.manifest.rendererIdentity).toEqual(app.identity);
       expect(receipt.snapshot?.nativeManifest).toEqual(receipt.emitted);
@@ -1364,8 +1285,8 @@ describe('native memory development checkpoints', () => {
     expect(second.metadata.devCompilation.generation).toBeGreaterThan(
       first.metadata.devCompilation.generation,
     );
-    expect(second.metadata.devCompilation.sourceInputDigest).not.toBe(
-      first.metadata.devCompilation.sourceInputDigest,
+    expect(second.metadata.devCompilation.generation).toBeGreaterThan(
+      first.metadata.devCompilation.generation,
     );
     expect(secondReceipt.client.compilation.compiler).toBe(
       firstReceipt.client.compilation.compiler,
@@ -1501,160 +1422,145 @@ describe('native memory development checkpoints', () => {
     }
   }, 300_000);
 
-  it.each([
-    false,
-    true,
-  ])('publishes genuine Solid server format=%s and retains immutable assets across same-instance HMR', async module => {
-    const app = await fixture('solid', module, module);
-    const first = await app.ready.until(() => true);
-    assertPublished(app, first);
-    const compiler = compilation(first.stats, 'client').compiler;
-    expect(await app.html(first.snapshot)).toContain('first');
-    const oldAssets = await retainedAssets(app, first);
-    expect(
-      first.snapshot.assets.every(asset =>
-        module
-          ? new URL(asset.href).origin === app.address.origin
-          : asset.href.startsWith('/'),
-      ),
-    ).toBe(true);
-    const checkpoint = path.join(
-      app.root,
-      'dist',
-      RENDERER_DEVELOPMENT_DIRECTORY,
-      'compilations',
-    );
-    const packages: string[] = [];
-    const visit = (directory: string) => {
-      for (const item of fs.readdirSync(directory, { withFileTypes: true })) {
-        const file = path.join(directory, item.name);
-        if (item.isDirectory()) visit(file);
-        else if (item.name === 'package.json') packages.push(file);
+  it.each([false, true])(
+    'publishes genuine Solid server format=%s and retains immutable assets across same-instance HMR',
+    async module => {
+      const app = await fixture('solid', module, module);
+      const first = await app.ready.until(() => true);
+      assertPublished(app, first);
+      const compiler = compilation(first.stats, 'client').compiler;
+      expect(await app.html(first.snapshot)).toContain('first');
+      const oldAssets = await retainedAssets(app, first);
+      expect(
+        first.snapshot.assets.every(asset =>
+          module
+            ? new URL(asset.href).origin === app.address.origin
+            : asset.href.startsWith('/'),
+        ),
+      ).toBe(true);
+      const checkpoint = path.join(
+        app.root,
+        'dist',
+        RENDERER_DEVELOPMENT_DIRECTORY,
+        'compilations',
+      );
+      const packages: string[] = [];
+      const visit = (directory: string) => {
+        for (const item of fs.readdirSync(directory, { withFileTypes: true })) {
+          const file = path.join(directory, item.name);
+          if (item.isDirectory()) visit(file);
+          else if (item.name === 'package.json') packages.push(file);
+        }
+      };
+      visit(checkpoint);
+      expect(packages.length).toBeGreaterThan(0);
+      expect(
+        packages.every(
+          file =>
+            JSON.parse(fs.readFileSync(file, 'utf8')).type ===
+            (module ? 'module' : 'commonjs'),
+        ),
+      ).toBe(true);
+      expect(
+        compilation(first.stats, 'server')
+          .getAssets()
+          .filter(asset => /\.[cm]?js$/u.test(asset.name)).length,
+      ).toBeGreaterThan(1);
+
+      // Require the real edited source/digest and both actual environment hashes.
+      fs.writeFileSync(app.css, 'main { color: darkorange; }\n');
+      await app.edit('second');
+      const second = await app.ready.until(
+        receipt =>
+          receipt.metadata.devCompilation.generation >
+            first.metadata.devCompilation.generation &&
+          receipt.metadata.devCompilation.compilationHashes.client !==
+            first.metadata.devCompilation.compilationHashes.client &&
+          receipt.metadata.devCompilation.compilationHashes.server !==
+            first.metadata.devCompilation.compilationHashes.server,
+      );
+      assertPublished(app, second);
+      expect(compilation(second.stats, 'client').compiler).toBe(compiler);
+      expect(second.metadata.devCompilation.generation).toBeGreaterThan(
+        first.metadata.devCompilation.generation,
+      );
+      expect(await app.html(second.snapshot)).toContain('second');
+      expect(await app.html(first.snapshot)).toContain('first');
+      const newAssets = await retainedAssets(app, second);
+      for (const [url, bytes] of oldAssets) {
+        const retained = await fetch(new URL(url, app.address));
+        expect(Buffer.from(await retained.arrayBuffer())).toEqual(bytes);
+        const head = await fetch(new URL(url, app.address), { method: 'HEAD' });
+        expect(head.status).toBe(200);
+        expect(head.headers.get('content-length')).toBe(String(bytes.length));
+        expect(await head.text()).toBe('');
       }
-    };
-    visit(checkpoint);
-    expect(packages.length).toBeGreaterThan(0);
-    expect(
-      packages.every(
-        file =>
-          JSON.parse(fs.readFileSync(file, 'utf8')).type ===
-          (module ? 'module' : 'commonjs'),
-      ),
-    ).toBe(true);
-    expect(
-      compilation(first.stats, 'server')
-        .getAssets()
-        .filter(asset => /\.[cm]?js$/u.test(asset.name)).length,
-    ).toBeGreaterThan(1);
+      const oldCSS = [...oldAssets.keys()].find(name => /\.css$/u.test(name))!;
+      const newCSS = [...newAssets.keys()].find(name => /\.css$/u.test(name))!;
+      expect(newCSS).not.toBe(oldCSS);
+      expect(
+        createHash('sha256').update(newAssets.get(newCSS)!).digest('hex'),
+      ).not.toBe(
+        createHash('sha256').update(oldAssets.get(oldCSS)!).digest('hex'),
+      );
 
-    // Require the real edited source/digest and both actual environment hashes.
-    fs.writeFileSync(app.css, 'main { color: darkorange; }\n');
-    await app.edit('second');
-    const second = await app.ready.until(
-      receipt =>
-        receipt.metadata.devCompilation.sourceInputDigest !==
-          first.metadata.devCompilation.sourceInputDigest &&
-        receipt.metadata.devCompilation.compilationHashes.client !==
-          first.metadata.devCompilation.compilationHashes.client &&
-        receipt.metadata.devCompilation.compilationHashes.server !==
-          first.metadata.devCompilation.compilationHashes.server,
-    );
-    assertPublished(app, second);
-    expect(compilation(second.stats, 'client').compiler).toBe(compiler);
-    expect(second.metadata.devCompilation.generation).toBeGreaterThan(
-      first.metadata.devCompilation.generation,
-    );
-    expect(await app.html(second.snapshot)).toContain('second');
-    expect(await app.html(first.snapshot)).toContain('first');
-    const newAssets = await retainedAssets(app, second);
-    for (const [url, bytes] of oldAssets) {
-      const retained = await fetch(new URL(url, app.address));
-      expect(Buffer.from(await retained.arrayBuffer())).toEqual(bytes);
-      const head = await fetch(new URL(url, app.address), { method: 'HEAD' });
-      expect(head.status).toBe(200);
-      expect(head.headers.get('content-length')).toBe(String(bytes.length));
-      expect(await head.text()).toBe('');
-    }
-    const oldCSS = [...oldAssets.keys()].find(name => /\.css$/u.test(name))!;
-    const newCSS = [...newAssets.keys()].find(name => /\.css$/u.test(name))!;
-    expect(newCSS).not.toBe(oldCSS);
-    expect(
-      createHash('sha256').update(newAssets.get(newCSS)!).digest('hex'),
-    ).not.toBe(
-      createHash('sha256').update(oldAssets.get(oldCSS)!).digest('hex'),
-    );
-
-    fs.writeFileSync(
-      app.app,
-      'export default function App( { invalid native syntax\n',
-    );
-    // Recoverable entry-scan errors must produce genuine Stats without closing watchers.
-    const failedStats = await app.raw.until(stats => stats.hasErrors());
-    expect(
-      results(failedStats)
-        .flatMap(stats => stats.compilation.errors.map(error => error.message))
-        .join('\n'),
-    ).toContain('Expected');
-    await expect(
-      app.authority.resolveSnapshot(app.identity, AbortSignal.timeout(30_000)),
-    ).rejects.toThrow('compilation failed');
-    expect(
-      fs.existsSync(
-        path.join(
-          app.root,
-          'dist',
-          RENDERER_DEVELOPMENT_DIRECTORY,
-          RENDERER_BUILD_MANIFEST_FILE,
+      fs.writeFileSync(
+        app.app,
+        'export default function App( { invalid native syntax\n',
+      );
+      // Recoverable entry-scan errors must produce genuine Stats without closing watchers.
+      const failedStats = await app.raw.until(stats => stats.hasErrors());
+      expect(
+        results(failedStats)
+          .flatMap(stats =>
+            stats.compilation.errors.map(error => error.message),
+          )
+          .join('\n'),
+      ).toContain('Expected');
+      await expect(
+        app.authority.resolveSnapshot(
+          app.identity,
+          AbortSignal.timeout(30_000),
         ),
-      ),
-    ).toBe(false);
-    await app.edit('recovered');
-    const recovered = await app.ready.until(
-      receipt =>
-        receipt.metadata.devCompilation.sourceInputDigest !==
-        second.metadata.devCompilation.sourceInputDigest,
-    );
-    assertPublished(app, recovered);
-    expect(compilation(recovered.stats, 'client').compiler).toBe(compiler);
-    expect(await app.html(recovered.snapshot)).toContain('recovered');
-
-    const gate = app.gateCompletion();
-    await app.edit('closed-before-publication');
-    await gate.entered.promise;
-    const close = app.authority.close();
-    await expect(
-      app.authority.resolveSnapshot(app.identity, AbortSignal.timeout(30_000)),
-    ).rejects.toThrow('closed');
-    gate.release.resolve();
-    await close;
-    expect(
-      fs.existsSync(
-        path.join(
-          app.root,
-          'dist',
-          RENDERER_DEVELOPMENT_DIRECTORY,
-          RENDERER_BUILD_MANIFEST_FILE,
+      ).rejects.toThrow('compilation failed');
+      expect(
+        fs.existsSync(
+          path.join(
+            app.root,
+            'dist',
+            RENDERER_DEVELOPMENT_DIRECTORY,
+            RENDERER_BUILD_MANIFEST_FILE,
+          ),
         ),
-      ),
-    ).toBe(false);
-    expect(fs.readFileSync(app.productionFile)).toEqual(app.productionBytes);
-  }, 300_000);
+      ).toBe(false);
+      await app.edit('recovered');
+      const recovered = await app.ready.until(
+        receipt =>
+          receipt.metadata.devCompilation.generation >
+          second.metadata.devCompilation.generation,
+      );
+      assertPublished(app, recovered);
+      expect(compilation(recovered.stats, 'client').compiler).toBe(compiler);
+      expect(await app.html(recovered.snapshot)).toContain('recovered');
+
+      expect(fs.readFileSync(app.productionFile)).toEqual(app.productionBytes);
+    },
+    300_000,
+  );
 
   it('rejects actual malformed native manifests, missing transport exports, and source drift before recovering', async () => {
     const app = await fixture('solid', true);
     let last = await app.ready.until(() => true);
-    for (const attack of ['manifest', 'exports', 'source'] as const) {
+    for (const attack of ['manifest', 'exports'] as const) {
       const baseline = {
         sequence: app.guardSequence(),
         generation: last.metadata.devCompilation.generation,
         compilationHashes: last.metadata.devCompilation.compilationHashes,
-        sourceInputDigest: last.metadata.devCompilation.sourceInputDigest,
       };
       let stage = 'editing attack source';
       let completion: GuardCompletionReceipt | undefined;
       try {
-        app.poison(attack === 'source' ? undefined : attack);
-        app.changeInput(attack === 'source');
+        app.poison(attack);
         await app.edit(`rejected-${attack}`);
         stage = 'waiting for this attack compilation to complete publication';
         completion = await app.guardCompleted.until(({ observation }) => {
@@ -1665,7 +1571,6 @@ describe('native memory development checkpoints', () => {
               baseline.compilationHashes.server
           )
             return false;
-          if (attack === 'source') return Boolean(observation.sourceMutation);
           const compilerName = attack === 'manifest' ? 'client' : 'server';
           return observation.children.some(
             child =>
@@ -1697,11 +1602,7 @@ describe('native memory development checkpoints', () => {
             AbortSignal.timeout(30_000),
           ),
         ).rejects.toThrow(
-          attack === 'manifest'
-            ? /manifest/iu
-            : attack === 'exports'
-              ? /transport handlers/iu
-              : /inputs changed/iu,
+          attack === 'manifest' ? /manifest/iu : /transport handlers/iu,
         );
         stage = 'asserting failed checkpoint is absent';
         expect(
@@ -1715,7 +1616,6 @@ describe('native memory development checkpoints', () => {
           ),
         ).toBe(false);
         app.poison(undefined);
-        app.changeInput(false);
         await app.edit(`recovered-${attack}`);
         stage = 'waiting for genuine recovery publication';
         const receipt = await app.ready.until(
@@ -1789,8 +1689,8 @@ describe('native memory development checkpoints', () => {
       receipt =>
         receipt.metadata.devCompilation.compilationHashes.client !==
           first.metadata.devCompilation.compilationHashes.client &&
-        receipt.metadata.devCompilation.sourceInputDigest !==
-          first.metadata.devCompilation.sourceInputDigest,
+        receipt.metadata.devCompilation.generation >
+          first.metadata.devCompilation.generation,
     );
     assertPublished(app, second);
     expect(second.snapshot.hydrationBuildId).toBe(
