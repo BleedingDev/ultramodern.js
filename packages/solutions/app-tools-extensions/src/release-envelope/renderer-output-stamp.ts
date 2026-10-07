@@ -84,16 +84,20 @@ export const stampFinalizedRendererBuildArtifact = (
       'Finalized renderer output requires a declared UI artifact',
     );
   validateFinalizedRendererBuild(output, context, artifact.deliveryUnit.appId);
-  if (
+  const drifted = [
     !isDeepStrictEqual(
       { ...ui.rendererIdentity, buildId: output.ui.rendererIdentity.buildId },
       output.ui.rendererIdentity,
-    ) ||
-    !isDeepStrictEqual(ui.rendererProfile, output.ui.rendererProfile) ||
-    !isDeepStrictEqual(ui.routerBindings, output.ui.routerBindings)
-  )
+    ) &&
+      `rendererIdentity (captured entry ${ui.rendererIdentity.entryName}, built entry ${output.ui.rendererIdentity.entryName})`,
+    !isDeepStrictEqual(ui.rendererProfile, output.ui.rendererProfile) &&
+      'rendererProfile',
+    !isDeepStrictEqual(ui.routerBindings, output.ui.routerBindings) &&
+      `routerBindings (captured entries ${Object.keys(ui.routerBindings).join(', ')}, built entries ${Object.keys(output.ui.routerBindings).join(', ')})`,
+  ].filter(Boolean);
+  if (drifted.length)
     throw new Error(
-      'Finalized renderer output conflicts with the captured application profile or router bindings.',
+      `Finalized renderer output conflicts with the captured application profile or router bindings: ${drifted.join('; ')} differ from ${ULTRAMODERN_BUILD_ARTIFACT_PATH}. After changing modern.config entries, renderer or router, recapture it with \`ultramodern-create ultramodern sync-delivery-unit\`.`,
     );
   const identity = {
     buildMarker: output.buildMarker,
