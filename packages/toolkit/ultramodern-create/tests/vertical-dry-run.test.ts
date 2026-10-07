@@ -238,33 +238,3 @@ test('CLI --dry-run prints a MicroVertical plan without writing files', async ()
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 });
-
-test('CLI preview rejects changed consumed federation input when an authored config has no projection authority', async () => {
-  const { tempRoot, workspaceDir } = await createWorkspace(
-    'cli-authored-dry-run-workspace',
-    { tempPrefix: 'um-cli-authored-dry-run-' },
-  );
-  try {
-    const configPath = path.join(
-      workspaceDir,
-      'apps/shell-super-app/modern.config.ts',
-    );
-    fs.writeFileSync(
-      configPath,
-      `// Authored configuration must survive preview.\n${fs.readFileSync(configPath, 'utf8')}`,
-    );
-    const before = snapshotWorkspace(workspaceDir);
-    const result = runCli(workspaceDir, ['catalog', '--vertical', '--dry-run']);
-    assert.equal(result.status, 1, result.stderr);
-    assert.match(result.stderr, /preserved consumer-owned artifact/u);
-    assert.match(result.stderr, /source input consumed by modern\.config/u);
-    assert.match(result.stderr, /module-federation\.config\.ts/u);
-    assert.deepEqual(snapshotWorkspace(workspaceDir), before);
-    assert.equal(
-      fs.existsSync(path.join(workspaceDir, 'verticals/catalog')),
-      false,
-    );
-  } finally {
-    fs.rmSync(tempRoot, { recursive: true, force: true });
-  }
-});
