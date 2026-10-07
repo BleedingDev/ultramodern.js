@@ -8,6 +8,7 @@ import {
   assertForeignDocumentFailsBeforeImport,
   assertHydrationFailuresReleaseNativeRoot,
   assertHydrationIdentityAndBootstrap,
+  assertHydrationImportFailuresReleaseOwnership,
   assertInitialRenderFailureReleasesRoot,
   assertNativeCompilationMismatchBeforeImport,
   assertNativeMountLifecycle,
@@ -59,6 +60,10 @@ describe('native Octane application lifecycle', () => {
   it(
     'releases native ownership after a failed hydration',
     assertHydrationFailuresReleaseNativeRoot,
+  );
+  it(
+    'releases hydration ownership after synchronous and rejected imports fail',
+    assertHydrationImportFailuresReleaseOwnership,
   );
   it(
     'checks hydration identity and seeds native signals before import',
