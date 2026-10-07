@@ -27,6 +27,14 @@ describe('build', () => {
   test('hooks', async () => {
     const buildResult = await modernBuild(appDir);
 
+    if (buildResult.code !== 0) {
+      console.error(
+        `modernBuild failed for ${appDir} with exit code ${buildResult.code}\n` +
+          `stdout:\n${buildResult.stdout}\n` +
+          `stderr:\n${buildResult.stderr}`,
+      );
+    }
+
     expect(buildResult.code).toEqual(0);
 
     const cleanOutput = processStdout(buildResult.stdout);
