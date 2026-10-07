@@ -59,7 +59,7 @@ import {
 import { sidecarProvenancePolicy } from './lib/prepare-bleedingdev-packages/sidecars.mjs';
 import {
   resolveSidecarOutput,
-  sidecarPublishBefore,
+  sidecarProfile,
   verifySidecarQualification,
 } from './sidecar-bundle.mjs';
 
@@ -199,7 +199,7 @@ function readStagedSidecars(
   const manifest = assertSidecarStagingManifest(release.sidecars.manifest, {
     publishBefore:
       mode === 'sidecars'
-        ? sidecarPublishBefore
+        ? sidecarProfile(release.manifest.profile).publishBefore
         : sidecarAliasConsumerTargetName,
   });
   const byName = new Map(

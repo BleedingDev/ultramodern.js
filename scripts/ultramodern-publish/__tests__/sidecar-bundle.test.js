@@ -8,7 +8,7 @@ const load = () => import('../sidecar-bundle.mjs');
 const artifacts = () =>
   import('../lib/prepare-bleedingdev-packages/release-artifacts.mjs');
 
-async function fixture(t) {
+async function fixture(t, profile = 'parser') {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sidecar-contract-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const bundle = await load();
@@ -29,7 +29,8 @@ async function fixture(t) {
   };
   const output = path.join(root, 'bundle');
   fs.mkdirSync(output);
-  const inputs = bundle.readSidecarBundleInputs();
+  const selected = bundle.sidecarProfile(profile);
+  const inputs = bundle.readSidecarBundleInputs(profile);
   const staged = inputs.map(input => {
     const stagedDir = path.join(root, input.id);
     fs.mkdirSync(stagedDir);
@@ -60,19 +61,18 @@ async function fixture(t) {
     };
   });
   const { descriptor } = writeSidecarStagingManifest(output, staged, {
-    publishBefore: bundle.sidecarPublishBefore,
+    publishBefore: selected.publishBefore,
   });
   const accepted = bundle.writeSidecarBundle(output, {
     descriptor,
     source,
     tools,
     env,
+    profile,
   });
   const options = { source, tools, env };
   const receiptPath = path.join(root, 'qualification.json');
-  const probes = Object.fromEntries(
-    bundle.sidecarQualificationProbeKeys.map(key => [key, true]),
-  );
+  const probes = Object.fromEntries(selected.probeKeys.map(key => [key, true]));
   bundle.writeSidecarQualification(output, probes, { env, receiptPath });
   const rewrite = (file, transform) => {
     const before = fs.readFileSync(file);
@@ -241,4 +241,88 @@ test('independent CLI arguments fail closed on cross-mode inputs and unsafe outp
     () => resolveSidecarOutput('/tmp/sidecar-bundle'),
     /must be inside/,
   );
+});
+
+test('SDK profile admits only its exact package, canonical patch and installed API receipt', async t => {
+  const f = await fixture(t, 'mf-sdk');
+  assert.equal(f.accepted.manifest.profile, 'mf-sdk');
+  assert.deepEqual(
+    f.accepted.sidecars.packages.map(item => [item.name, item.version]),
+    [['@bleedingdev/mf-sdk', '2.9.2']],
+  );
+  assert.equal(
+    f.accepted.sidecars.manifest.publishBefore,
+    '@bleedingdev/modern-js-federation-runtime',
+  );
+  assert.equal(
+    f.accepted.manifest.inputs[0].patch.sha256,
+    'fb4b0dfd33a0588ad3821f1d56e2316044ae0b721c515a69080d7d9d9de72e3e',
+  );
+  assert.deepEqual(f.probes, {
+    'packed-install': true,
+    'mf-sdk-cjs-api': true,
+    'mf-sdk-esm-api': true,
+  });
+  assert.equal(
+    f.verifySidecarQualification(f.output, f.receiptPath, f.options)
+      .bundleSha256,
+    f.accepted.bundleSha256,
+  );
+  assert.throws(
+    () =>
+      f.verifySidecarBundle(f.output, {
+        ...f.options,
+        env: { ...f.options.env, BLEEDINGDEV_SIDECAR_PROFILE: 'parser' },
+      }),
+    /workflow selection/,
+  );
+  for (const profile of ['unknown', '__proto__', 'constructor', null]) {
+    assert.throws(() => f.sidecarProfile(profile), /Unknown sidecar profile/);
+  }
+  for (const transform of [
+    value => ({ ...value, profile: 'parser' }),
+    value => ({ ...value, profile: 'unknown' }),
+  ]) {
+    const restore = f.rewrite(
+      path.join(f.output, f.sidecarBundleFile),
+      transform,
+    );
+    assert.throws(
+      () => f.verifySidecarBundle(f.output, f.options),
+      /recipe or patch|Unknown sidecar profile/,
+    );
+    restore();
+  }
+  const restore = f.rewrite(f.receiptPath, value => ({
+    ...value,
+    profile: 'parser',
+  }));
+  assert.throws(
+    () => f.verifySidecarQualification(f.output, f.receiptPath, f.options),
+    /does not bind/,
+  );
+  restore();
+  const { sidecarProvenancePolicy } = await import(
+    '../lib/prepare-bleedingdev-packages/sidecars.mjs'
+  );
+  assert.deepEqual(sidecarProvenancePolicy('@bleedingdev/mf-sdk'), {
+    grandfatheredVersions: [],
+  });
+  const { assertSidecarProfileDependencies } = await import(
+    '../sidecar-profiles.mjs'
+  );
+  for (const packages of [
+    [],
+    [{ name: '@bleedingdev/mf-sdk', version: '2.9.3' }],
+    [{ name: '@module-federation/sdk', version: '2.9.2' }],
+    [
+      { name: '@bleedingdev/mf-sdk', version: '2.9.2' },
+      { name: '@bleedingdev/braces', version: '3.0.4' },
+    ],
+  ]) {
+    assert.throws(
+      () => assertSidecarProfileDependencies('mf-sdk', packages),
+      /closed profile/,
+    );
+  }
 });
