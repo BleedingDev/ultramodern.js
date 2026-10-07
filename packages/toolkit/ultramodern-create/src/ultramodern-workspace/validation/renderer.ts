@@ -6,6 +6,7 @@ import {
   validateRendererProfile,
   validateRendererRouterBindings,
 } from '@modern-js/backend-federation-contracts';
+import { specifierRenderer } from '@modern-js/ultramodern-app-tools';
 import semver from '@modern-js/utils/semver';
 import {
   getRendererGenerationProfile,
@@ -56,7 +57,11 @@ export function parseNpmAlias(
   };
 }
 
-/** Runtime imports and direct dependencies must agree with the selected adapter. */
+/**
+ * Runtime imports and direct dependencies must agree with the selected
+ * adapter. React's composed stack spans more packages than its route
+ * ownership; native renderers use their registered ownership.
+ */
 export function isForeignRendererPackage(
   name: string,
   renderer: WorkspaceRenderer,
@@ -104,25 +109,9 @@ export function isForeignRendererPackage(
     name.startsWith('@modern-js/i18n-runtime-extensions/') ||
     name === '@modern-js/plugin-runtime' ||
     name.startsWith('@modern-js/plugin-runtime/');
-  const solid =
-    name === 'solid-js' ||
-    name.startsWith('solid-js/') ||
-    name.startsWith('@solidjs/') ||
-    name === '@tanstack/solid-router' ||
-    name.startsWith('@tanstack/solid-router/') ||
-    name === '@modern-js/renderer-solid' ||
-    name.startsWith('@modern-js/renderer-solid/');
-  const octane =
-    name === 'octane' ||
-    name.startsWith('octane/') ||
-    name.startsWith('@octanejs/') ||
-    name === '@modern-js/renderer-octane' ||
-    name.startsWith('@modern-js/renderer-octane/');
-  return (
-    (react && renderer !== 'react') ||
-    (solid && renderer !== 'solid') ||
-    (octane && renderer !== 'octane')
-  );
+  if (react) return renderer !== 'react';
+  const owner = specifierRenderer(name);
+  return owner !== undefined && owner !== 'react' && owner !== renderer;
 }
 
 const RENDERER_PROJECTION_FIELDS = [

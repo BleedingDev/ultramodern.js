@@ -79,6 +79,7 @@ export {
 } from './renderer-profile';
 export {
   resolveRendererAdapter,
+  specifierRenderer,
   type UltramodernRendererAdapter,
 } from './renderer-registration';
 export type { AppUserConfig, UltramodernAppUserConfig } from './types';
