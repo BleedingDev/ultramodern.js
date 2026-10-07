@@ -70,6 +70,9 @@ jobs:
         if: steps.build-cache.outputs.cache-hit != 'true'
         run: pnpm run build:required
 
+      - name: Test release browser contracts
+        run: node --test scripts/ultramodern-production-readiness/__tests__/built-framework/*.test.js
+
       # scripts/lib/browser-provisioning.js is the one browser provisioner: it
       # reads the playwright the frozen install resolved for these runtimes,
       # and that version keys the browser cache.

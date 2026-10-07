@@ -11,6 +11,7 @@ import {
 } from '../src/ultramodern-workspace';
 import { createWorkspaceRootPackageScripts } from '../src/ultramodern-workspace/workspace-script-plan';
 import { linkBuiltCodeTools } from './helpers/built-code-tools';
+import { linkInstalledEffectCompiler } from './helpers/workspace-kit';
 
 const packageRoot = path.resolve(__dirname, '..');
 const createBinPath = path.join(packageRoot, 'bin/run.js');
@@ -138,6 +139,7 @@ test('referenced remote declaration prebuild emits declarations from a clean cac
       enableTailwind: true,
       packageSource: { strategy: 'workspace' },
     });
+    linkInstalledEffectCompiler(workspaceDir);
     await addUltramodernVertical({
       workspaceRoot: workspaceDir,
       name: 'catalog',
@@ -351,6 +353,7 @@ for (const scenario of validationDriftScenarios) {
         enableTailwind: true,
         packageSource: { strategy: 'workspace' },
       });
+      linkInstalledEffectCompiler(workspaceDir);
       await addUltramodernVertical({
         workspaceRoot: workspaceDir,
         name: 'catalog',
@@ -384,6 +387,7 @@ test('generated validator accepts authored remote development URLs', async () =>
       enableTailwind: true,
       packageSource: { strategy: 'workspace' },
     });
+    linkInstalledEffectCompiler(workspaceDir);
     await addUltramodernVertical({
       workspaceRoot: workspaceDir,
       name: 'catalog',
@@ -434,6 +438,7 @@ test('UI-only vertical rejects a planted backend federation surface', async () =
       enableTailwind: true,
       packageSource: { strategy: 'workspace' },
     });
+    linkInstalledEffectCompiler(workspaceDir);
     await addUltramodernVertical({
       workspaceRoot: workspaceDir,
       name: 'catalog',
@@ -469,6 +474,7 @@ test('generated API boundary check structurally rejects raw handler drift', asyn
       enableTailwind: true,
       packageSource: { strategy: 'workspace' },
     });
+    linkInstalledEffectCompiler(workspaceDir);
     await addUltramodernVertical({
       workspaceRoot: workspaceDir,
       name: 'catalog',
@@ -541,6 +547,7 @@ test('generated validator accepts an api-only (headless) workspace and rejects p
       enableTailwind: true,
       packageSource: { strategy: 'workspace' },
     });
+    linkInstalledEffectCompiler(workspaceDir);
     await addUltramodernVertical({
       workspaceRoot: workspaceDir,
       modernVersion: '3.2.1',

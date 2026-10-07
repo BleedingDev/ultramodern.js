@@ -9,7 +9,7 @@ const test = require('node:test');
 const generatorRequire = createRequire(
   path.resolve(
     __dirname,
-    '../../../packages/toolkit/ultramodern-create/package.json',
+    '../../../../packages/toolkit/ultramodern-create/package.json',
   ),
 );
 const {
@@ -22,15 +22,22 @@ const {
 } = generatorRequire('@modern-js/backend-federation-contracts');
 
 async function loadSmoke() {
-  return import('../run-browser-smoke.mjs');
+  return import('../../run-browser-smoke.mjs');
 }
 
 async function loadAcceptanceAssertions() {
-  return import('../published-create-proof/acceptance-assertions.mjs');
+  return import('../../published-create-proof/acceptance-assertions.mjs');
 }
 
 function tempRoot() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'ultramodern-browser-smoke-'));
+  return fs.realpathSync(
+    fs.mkdtempSync(
+      path.join(
+        process.env.OWNED_TEMP_DIR ?? os.tmpdir(),
+        'ultramodern-browser-smoke-',
+      ),
+    ),
+  );
 }
 
 function deliveryRecord(appId, version, buildMarker) {
@@ -61,7 +68,7 @@ function writeBuiltApp(root, app, sourceRevision, buildMarker) {
   const appRoot = path.join(root, app.path);
   const sdkDirectory = path.resolve(
     __dirname,
-    '../../../packages/solutions/ultramodern-app-tools',
+    '../../../../packages/solutions/ultramodern-app-tools',
   );
   const dependency = path.join(
     appRoot,
@@ -207,9 +214,11 @@ for (const [renderer, stamps] of [
   ['octane', ['e100cf585da1e1ac', 'fbc7c05363280d9e']],
 ]) {
   test(`browser smoke retains stamped ${renderer} identity across source and release versions`, async t => {
-    const { readSmokeContract } = await import('../browser-smoke/contract.mjs');
+    const { readSmokeContract } = await import(
+      '../../browser-smoke/contract.mjs'
+    );
     const { bindContractToExpectedReleaseIdentities } = await import(
-      '../browser-smoke/runtime-evidence.mjs'
+      '../../browser-smoke/runtime-evidence.mjs'
     );
     const root = tempRoot();
     t.after(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -326,9 +335,11 @@ for (const [label, change, expected] of [
   ],
 ]) {
   test(`browser smoke rejects finalized shell ${label}`, async t => {
-    const { readSmokeContract } = await import('../browser-smoke/contract.mjs');
+    const { readSmokeContract } = await import(
+      '../../browser-smoke/contract.mjs'
+    );
     const { bindContractToExpectedReleaseIdentities } = await import(
-      '../browser-smoke/runtime-evidence.mjs'
+      '../../browser-smoke/runtime-evidence.mjs'
     );
     const root = tempRoot();
     t.after(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -361,12 +372,14 @@ for (const [label, change, expected] of [
 }
 
 test('browser smoke compares executed shell SSR with its coherent finalized compiler marker', async t => {
-  const { readSmokeContract } = await import('../browser-smoke/contract.mjs');
+  const { readSmokeContract } = await import(
+    '../../browser-smoke/contract.mjs'
+  );
   const { bindContractToExpectedReleaseIdentities } = await import(
-    '../browser-smoke/runtime-evidence.mjs'
+    '../../browser-smoke/runtime-evidence.mjs'
   );
   const { validateHttpTarget } = await import(
-    '../browser-smoke/http-validate.mjs'
+    '../../browser-smoke/http-validate.mjs'
   );
   const { createSmokeTargets } = await loadSmoke();
   const root = tempRoot();
@@ -637,7 +650,9 @@ async function writeVerticalRelease(
 }
 
 test('browser smoke preserves and validates the topology declared UI-only surface profile', async t => {
-  const { readSmokeContract } = await import('../browser-smoke/contract.mjs');
+  const { readSmokeContract } = await import(
+    '../../browser-smoke/contract.mjs'
+  );
   const root = tempRoot();
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const topology = writeStampedShell(
@@ -662,7 +677,7 @@ test('browser smoke preserves and validates the topology declared UI-only surfac
 
 test('browser smoke reads the canonical public Cloudflare compiler manifest with strict release binding', async t => {
   const { releaseIdentity } = await import(
-    '../browser-smoke/runtime-evidence.mjs'
+    '../../browser-smoke/runtime-evidence.mjs'
   );
   const root = tempRoot();
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -695,7 +710,7 @@ test('browser smoke reads the canonical public Cloudflare compiler manifest with
 
 test('browser smoke rejects wrong-path or symbolic-link Cloudflare compiler manifests without a Node fallback', async t => {
   const { releaseIdentity } = await import(
-    '../browser-smoke/runtime-evidence.mjs'
+    '../../browser-smoke/runtime-evidence.mjs'
   );
   const root = tempRoot();
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -720,7 +735,7 @@ test('browser smoke rejects wrong-path or symbolic-link Cloudflare compiler mani
 for (const uiOnly of [true, false]) {
   test(`browser smoke requires the declared ${uiOnly ? 'UI-only' : 'full-stack'} Cloudflare shell surface identities`, async t => {
     const { bindContractToExpectedReleaseIdentities } = await import(
-      '../browser-smoke/runtime-evidence.mjs'
+      '../../browser-smoke/runtime-evidence.mjs'
     );
     const root = tempRoot();
     t.after(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -780,9 +795,11 @@ for (const uiOnly of [true, false]) {
 }
 
 test('browser smoke requires the ordinary finalized renderer manifest instead of deriving a UI marker', async t => {
-  const { readSmokeContract } = await import('../browser-smoke/contract.mjs');
+  const { readSmokeContract } = await import(
+    '../../browser-smoke/contract.mjs'
+  );
   const { bindContractToExpectedReleaseIdentities } = await import(
-    '../browser-smoke/runtime-evidence.mjs'
+    '../../browser-smoke/runtime-evidence.mjs'
   );
   const root = tempRoot();
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -816,7 +833,7 @@ test('browser smoke requires the ordinary finalized renderer manifest instead of
 for (const apiOnly of [false, true]) {
   test(`browser smoke validates public ${apiOnly ? 'API-only' : 'renderer-bound'} release envelopes and their finalized marker`, async t => {
     const { bindContractToExpectedReleaseIdentities } = await import(
-      '../browser-smoke/runtime-evidence.mjs'
+      '../../browser-smoke/runtime-evidence.mjs'
     );
     const root = tempRoot();
     t.after(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -848,7 +865,7 @@ for (const apiOnly of [false, true]) {
 
 test('browser smoke verifies a public v5 UI-only shell envelope without API/backend evidence', async t => {
   const { releaseIdentity } = await import(
-    '../browser-smoke/runtime-evidence.mjs'
+    '../../browser-smoke/runtime-evidence.mjs'
   );
   const root = tempRoot();
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -877,7 +894,7 @@ test('browser smoke verifies a public v5 UI-only shell envelope without API/back
 
 test('browser smoke rejects schema 4 and incomplete API/backend declarations', async t => {
   const { releaseIdentity } = await import(
-    '../browser-smoke/runtime-evidence.mjs'
+    '../../browser-smoke/runtime-evidence.mjs'
   );
   const root = tempRoot();
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -925,7 +942,7 @@ test('browser smoke rejects schema 4 and incomplete API/backend declarations', a
 
 test('browser smoke still rejects deployed artifact bytes changed after envelope stamping', async t => {
   const { bindContractToExpectedReleaseIdentities } = await import(
-    '../browser-smoke/runtime-evidence.mjs'
+    '../../browser-smoke/runtime-evidence.mjs'
   );
   const root = tempRoot();
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -947,7 +964,9 @@ test('browser smoke still rejects deployed artifact bytes changed after envelope
 });
 
 test('browser smoke rejects absent stamps and inconsistent stamped app identities', async t => {
-  const { readSmokeContract } = await import('../browser-smoke/contract.mjs');
+  const { readSmokeContract } = await import(
+    '../../browser-smoke/contract.mjs'
+  );
   const root = tempRoot();
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const topology = writeStampedShell(
@@ -989,7 +1008,9 @@ test('browser smoke rejects absent stamps and inconsistent stamped app identitie
 });
 
 test('browser smoke reads canonical topology, overlay and app security choices', async t => {
-  const { readSmokeContract } = await import('../browser-smoke/contract.mjs');
+  const { readSmokeContract } = await import(
+    '../../browser-smoke/contract.mjs'
+  );
   const root = tempRoot();
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const write = (relative, value) => {
@@ -1449,7 +1470,7 @@ test('Node browser continuation restores the accepted strict pnpm settings witho
 test('Node browser continuation pins prior observations and rejects stale identity or changed output bytes', async t => {
   const { readNodeBrowserContinuation } = await loadSmoke();
   const { bindContractToExpectedReleaseIdentities } = await import(
-    '../browser-smoke/runtime-evidence.mjs'
+    '../../browser-smoke/runtime-evidence.mjs'
   );
   const root = tempRoot();
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -1575,7 +1596,7 @@ test('Node browser continuation pins prior observations and rejects stale identi
 
 test('Node browser continuation reuses only a backend proof bound to the current artifact set', async t => {
   const { readNodeBackendFederationProof } = await import(
-    '../browser-smoke/backend-evidence.mjs'
+    '../../browser-smoke/backend-evidence.mjs'
   );
   const root = tempRoot();
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -1654,7 +1675,7 @@ test('orders remote consumers after their remote producers are ready', async () 
 
 test('shell federation proof matches each remote against its deployed target URL', async () => {
   const { remoteFederationNetworkEvidence } = await import(
-    '../browser-smoke/browser-validate.mjs'
+    '../../browser-smoke/browser-validate.mjs'
   );
   const remotes = [
     { id: 'inventory', manifestUrl: 'http://localhost:4101/mf-manifest.json' },
@@ -1958,7 +1979,7 @@ test('executes configured backend JSON smoke checks against the selected runtime
 
 test('extracts the rendered title from REST and RPC API response JSON', async () => {
   const { extractBackendDrivenTitle } = await import(
-    '../browser-smoke/browser-validate.mjs'
+    '../../browser-smoke/browser-validate.mjs'
   );
 
   assert.equal(
@@ -1985,7 +2006,7 @@ test('extracts the rendered title from REST and RPC API response JSON', async ()
 test('strict runtime evidence fails closed when executed results omit required dimensions', async () => {
   const { assertStrictRuntimeEvidence } = await loadSmoke();
   const { createRuntimeEvidence } = await import(
-    '../browser-smoke/runtime-evidence.mjs'
+    '../../browser-smoke/runtime-evidence.mjs'
   );
   const root = tempRoot();
   fs.writeFileSync(
@@ -2058,7 +2079,7 @@ test('strict runtime evidence fails closed when executed results omit required d
 
 test('Node backend evidence accepts only network-loaded federation with executed smoke checks', async () => {
   const { runNodeBackendFederationProof } = await import(
-    '../browser-smoke/backend-evidence.mjs'
+    '../../browser-smoke/backend-evidence.mjs'
   );
   const root = tempRoot();
   const reportPath = path.join(
@@ -2129,7 +2150,7 @@ test('Node backend evidence accepts only network-loaded federation with executed
 
 test('canonical backend proof shape contract rejects missing live correlation while executed-envelope verification owns digest recomputation', async () => {
   const { validateNodeBackendFederationProofResult } = await import(
-    '../browser-smoke/backend-proof-contract.mjs'
+    '../../browser-smoke/backend-proof-contract.mjs'
   );
   const valid = createNodeBackendProofResult();
   assert.equal(validateNodeBackendFederationProofResult(valid).ok, true);
@@ -2188,7 +2209,7 @@ test('canonical backend proof shape contract rejects missing live correlation wh
 
 test('Node backend proof accepts native RPC operations only when live URL, envelope, and backend artifacts remain bound', async () => {
   const { validateNodeBackendFederationProofResult } = await import(
-    '../browser-smoke/backend-proof-contract.mjs'
+    '../../browser-smoke/backend-proof-contract.mjs'
   );
   const valid = createNodeBackendProofResult();
   valid.liveApi = {
@@ -2237,7 +2258,7 @@ test('Node backend proof accepts native RPC operations only when live URL, envel
 
 test('workerd RPC response evidence requires the declared POST result without inventing a release marker', async () => {
   const { verifyWorkerdResponse } = await import(
-    '../browser-smoke/runtime-evidence.mjs'
+    '../../browser-smoke/runtime-evidence.mjs'
   );
   const app = {
     id: 'inventory',
@@ -2305,7 +2326,7 @@ test('workerd RPC response evidence requires the declared POST result without in
 
 test('workerd API proof requires the actual service binding or an unbound headless worker', async () => {
   const { assertWorkerdApiProofTarget } = await import(
-    '../browser-smoke/runtime-evidence.mjs'
+    '../../browser-smoke/runtime-evidence.mjs'
   );
   const app = { id: 'inventory', surfaceProfile: 'api-only' };
   const worker = 'fixture-inventory';
@@ -2360,7 +2381,7 @@ test('workerd API proof requires the actual service binding or an unbound headle
 
 test('workerd correlation accepts reordered exact identity and binds each mixed-topology shell', async t => {
   const { verifyWorkerdRuntimeCorrelation } = await import(
-    '../browser-smoke/runtime-evidence.mjs'
+    '../../browser-smoke/runtime-evidence.mjs'
   );
   const root = tempRoot();
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));

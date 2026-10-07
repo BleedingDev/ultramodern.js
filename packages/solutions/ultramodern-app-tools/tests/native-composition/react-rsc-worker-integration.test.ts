@@ -306,8 +306,10 @@ describe('actual native RSC configuration without compilation', () => {
 });
 
 it('compiles and runs Flight and HTML SSR with their own React exports in one worker', async () => {
-  const appDirectory = fs.mkdtempSync(
-    path.join(process.env.OWNED_TEMP_DIR ?? os.tmpdir(), 'worker-rsc-react-'),
+  const appDirectory = fs.realpathSync(
+    fs.mkdtempSync(
+      path.join(process.env.OWNED_TEMP_DIR ?? os.tmpdir(), 'worker-rsc-react-'),
+    ),
   );
   let closeBuild: (() => Promise<void>) | undefined;
   let compiler: Rspack.Compiler | Rspack.MultiCompiler | undefined;
