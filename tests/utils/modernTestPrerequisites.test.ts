@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -69,6 +69,72 @@ test('startup timeout rejects with output and terminates the unreturned child', 
     else process.env.MODERN_TEST_BOOTUP_TIMEOUT_MS = previousTimeout;
   }
 });
+
+test.each([
+  [
+    'stdout compile',
+    "console.log('Compile error: primary stdout failure');",
+    'Compile error: primary stdout failure',
+  ],
+  [
+    'stderr compile',
+    "console.error('Compile error: primary stderr failure');",
+    'Compile error: primary stderr failure',
+  ],
+  [
+    'port mismatch',
+    "console.log('> Local: http://127.0.0.1:' + (Number(process.env.PORT) + 1));",
+    'but started on',
+  ],
+  [
+    'TCP readiness',
+    "console.log('> Local: http://127.0.0.1:' + process.env.PORT);",
+    'did not accept TCP connections',
+  ],
+])(
+  'failed %s startup retires its actual child and grandchild before rejecting',
+  async (_name, report, message) => {
+    const options = command(`
+    const fs = require('node:fs');
+    const { spawn } = require('node:child_process');
+    const child = spawn(process.execPath, ['-e', "setInterval(() => {}, 1000); process.send('ready');"], {
+      stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
+    });
+    child.once('message', () => {
+      fs.writeFileSync('children.json', JSON.stringify([process.pid, child.pid]));
+      ${report}
+    });
+    setInterval(() => {}, 1000);
+  `);
+    let children: number[] = [];
+    try {
+      const failure = await launchApp(
+        options.cwd,
+        await getPort(),
+        options,
+      ).catch(error => error);
+      children = JSON.parse(
+        readFileSync(path.join(options.cwd, 'children.json'), 'utf8'),
+      );
+      expect(failure).toBeInstanceOf(Error);
+      expect(failure.message).toContain(message);
+      for (const pid of children) {
+        expect(Number.isInteger(pid)).toBe(true);
+        expect(() => process.kill(pid, 0)).toThrow();
+      }
+    } finally {
+      // Pre-fix failures must also retire only the fixture's recorded processes.
+      for (const pid of children) {
+        try {
+          process.kill(pid, 0);
+          await killApp({ pid });
+        } catch {
+          // The helper normally already retired this exact child.
+        }
+      }
+    }
+  },
+);
 
 test('parallel nested runners reuse their owner artifacts without invoking the package manager', async () => {
   const fixture = command('');
