@@ -27,6 +27,7 @@ export const octaneNativeRendererAdapter = Object.freeze<NativeRendererAdapter>(
       export: 'createOctaneCompilerPlugin',
     }),
     assertSupportedSource: assertOctaneEntrySource,
+    lazyStyles: 'document',
     createEntryGenerator: createOctaneNativeEntryGenerator,
     emitRouteModule: emitOctaneNativeRouteModule,
   },

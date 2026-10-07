@@ -257,7 +257,11 @@ async function nativeApp(renderer: 'solid' | 'octane', module: boolean) {
     {
       plugins: [
         nativeRendererIsolationPlugin(renderer),
-        nativeClientAssetsPlugin(renderer, () => session.identities),
+        nativeClientAssetsPlugin(
+          renderer,
+          () => session.identities,
+          renderer === 'octane' ? 'document' : 'renderer',
+        ),
         renderer === 'solid'
           ? pluginSolidRenderer({
               rendererIdentities: () => session.identities,
@@ -418,7 +422,11 @@ export async function nativeCSRRequestHandler() { return new Response(marker); }
     },
     {
       plugins: [
-        nativeClientAssetsPlugin('replacement', () => session.identities),
+        nativeClientAssetsPlugin(
+          'replacement',
+          () => session.identities,
+          'renderer',
+        ),
         owner,
         authority.plugin,
       ],

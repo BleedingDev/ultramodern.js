@@ -7,6 +7,7 @@ import type { DocumentAsset } from '@modern-js/renderer-core/document';
 import type { RsbuildPlugin, Rspack } from '@rsbuild/core';
 import { rspack } from '@rsbuild/core';
 import { NATIVE_APPLICATION_CLIENT_REQUEST } from './native-entry';
+import type { NativeRendererAdapter } from './renderer-registration';
 
 const assetOrder: readonly DocumentAsset['kind'][] = [
   'stylesheet',
@@ -17,7 +18,7 @@ const assetOrder: readonly DocumentAsset['kind'][] = [
 /**
  * The chunk groups the generated entry's application import() loads, also
  * behind the Module Federation bootstrap import(). Lazy modules the
- * application imports later are not part of the document.
+ * application imports later are not part of them.
  */
 function applicationChunkGroups(
   entrypoint: Rspack.ChunkGroup,
@@ -41,10 +42,27 @@ function applicationChunkGroups(
   return found;
 }
 
+/** Every chunk group the application can load later through import(). */
+function lazyChunkGroups(
+  application: readonly Rspack.ChunkGroup[],
+): Rspack.ChunkGroup[] {
+  const found = new Set<Rspack.ChunkGroup>();
+  const visit = (group: Rspack.ChunkGroup) => {
+    for (const child of group.childrenIterable) {
+      if (found.has(child) || application.includes(child)) continue;
+      found.add(child);
+      visit(child);
+    }
+  };
+  for (const group of application) visit(group);
+  return [...found];
+}
+
 /** Produce document assets from the actual selected client compilation. */
 export function nativeClientAssetsPlugin(
   renderer: Exclude<Renderer, 'react'>,
   identities: () => Readonly<Record<string, RendererIdentity>>,
+  lazyStyles: NativeRendererAdapter['lazyStyles'],
 ): RsbuildPlugin {
   return {
     name: `ultramodern:${renderer}:client-assets`,
@@ -182,11 +200,29 @@ export function nativeClientAssetsPlugin(
                       // The entry loads the application (routes, layouts and
                       // their styles) through import(). Link its stylesheets
                       // so the first paint is styled, and preload its modules.
-                      const applicationFiles = applicationChunkGroups(
-                        entrypoint,
-                      )
-                        .flatMap(group => group.getFiles())
-                        .filter(file => !entryFiles.includes(file));
+                      const application = applicationChunkGroups(entrypoint);
+                      const applicationFiles = [
+                        ...new Set(
+                          application.flatMap(group => group.getFiles()),
+                        ),
+                      ].filter(file => !entryFiles.includes(file));
+                      // A server render that cannot link the styles of the
+                      // lazy components it renders gets them all up front.
+                      const lazyStyleFiles =
+                        lazyStyles === 'document'
+                          ? [
+                              ...new Set(
+                                lazyChunkGroups(application).flatMap(group =>
+                                  group.getFiles(),
+                                ),
+                              ),
+                            ].filter(
+                              file =>
+                                /\.css$/u.test(file) &&
+                                !entryFiles.includes(file) &&
+                                !applicationFiles.includes(file),
+                            )
+                          : [];
                       // Stylesheets come first, then module preloads; the
                       // stable sort keeps each kind in chunk order.
                       const assets = [
@@ -195,6 +231,7 @@ export function nativeClientAssetsPlugin(
                           applicationFiles,
                           scriptType === 'module' ? 'modulepreload' : undefined,
                         ),
+                        ...documentAssets(lazyStyleFiles, undefined),
                       ].sort(
                         (a, b) =>
                           assetOrder.indexOf(a.kind) -

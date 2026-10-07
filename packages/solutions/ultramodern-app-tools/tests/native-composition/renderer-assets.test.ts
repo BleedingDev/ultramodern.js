@@ -21,6 +21,7 @@ async function compile(options: {
   publicPath?: string;
   identity?: RendererIdentity;
   auxiliaryEntry?: boolean;
+  lazyStyles?: 'renderer' | 'document';
 }) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'um-native-assets-'));
   let compiler: Rspack.MultiCompiler | undefined;
@@ -60,8 +61,10 @@ async function compile(options: {
       rsbuildConfig: {
         mode: 'production',
         plugins: [
-          nativeClientAssetsPlugin('solid', () =>
-            options.identity ? { main: options.identity } : {},
+          nativeClientAssetsPlugin(
+            'solid',
+            () => (options.identity ? { main: options.identity } : {}),
+            options.lazyStyles ?? 'renderer',
           ),
           ...(options.auxiliaryEntry
             ? [
@@ -204,7 +207,11 @@ describe('compiler-owned native document assets', () => {
         rsbuildConfig: {
           mode: 'development',
           plugins: [
-            nativeClientAssetsPlugin('solid', () => ({ main: identity })),
+            nativeClientAssetsPlugin(
+              'solid',
+              () => ({ main: identity }),
+              'renderer',
+            ),
             {
               name: 'observe-genuine-native-hmr-assets',
               setup(api) {
@@ -398,6 +405,52 @@ describe('compiler-owned native document assets', () => {
     },
     30_000,
   );
+
+  it('links every lazy stylesheet when the server render cannot', async () => {
+    const build = await compile({ identity, lazyStyles: 'document' });
+    try {
+      const manifest = JSON.parse(
+        fs.readFileSync(
+          path.join(build.root, 'dist', 'renderer-assets.json'),
+          'utf8',
+        ),
+      );
+      const assets = validateNativeClientAssetManifest(manifest, identity);
+      const css = assets
+        .filter(asset => asset.kind === 'stylesheet')
+        .map(asset =>
+          fs.readFileSync(
+            path.join(build.root, 'dist', asset.href.slice('/assets/'.length)),
+            'utf8',
+          ),
+        );
+      expect(css).toEqual([
+        expect.stringContaining('body'),
+        expect.stringContaining('main'),
+        expect.stringContaining('aside'),
+      ]);
+      expect(assets.findIndex(asset => asset.kind !== 'stylesheet')).toBe(3);
+      // Only the lazy module's style: its script still loads on demand.
+      expect(
+        assets.some(
+          asset =>
+            asset.kind !== 'stylesheet' &&
+            fs
+              .readFileSync(
+                path.join(
+                  build.root,
+                  'dist',
+                  asset.href.slice('/assets/'.length),
+                ),
+                'utf8',
+              )
+              .includes('"later"'),
+        ),
+      ).toBe(false);
+    } finally {
+      await build.cleanup();
+    }
+  }, 30_000);
 
   it.each(['auto', './'])(
     'rejects nonauthoritative %s asset URLs before a document manifest can be emitted',

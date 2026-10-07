@@ -160,7 +160,11 @@ function composeNativeRenderer(
           });
           const builderPlugins = [
             nativeRendererIsolationPlugin(renderer),
-            nativeClientAssetsPlugin(renderer, () => rendererIdentities),
+            nativeClientAssetsPlugin(
+              renderer,
+              () => rendererIdentities,
+              adapter.lazyStyles,
+            ),
             compiler,
             ...(await resolveRendererBuilderPlugins(
               config.builderPlugins ?? [],

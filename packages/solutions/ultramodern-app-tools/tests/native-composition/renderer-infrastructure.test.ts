@@ -1037,7 +1037,11 @@ export const nativeCSRRequestHandler = nativeRequestHandler;
           mode: 'production',
           environments,
           plugins: [
-            nativeClientAssetsPlugin('replacement', () => build.identities),
+            nativeClientAssetsPlugin(
+              'replacement',
+              () => build.identities,
+              'renderer',
+            ),
             producer,
           ],
           output: { minify: false, sourceMap: false, filenameHash: false },
