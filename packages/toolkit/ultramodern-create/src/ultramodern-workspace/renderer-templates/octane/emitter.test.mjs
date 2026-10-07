@@ -22,7 +22,7 @@ function parseNativeRoutes(result) {
   }));
 }
 
-test('the emitted routes use native Octane signals and router bindings', () => {
+test('the emitted routes use native Octane hook state and router bindings', () => {
   const result = generateOctaneAppSources(options);
   const routes = parseNativeRoutes(result);
   assert.equal(result.sourceExtension, '.tsx');
@@ -51,7 +51,6 @@ test('the emitted routes use native Octane signals and router bindings', () => {
     new Set(importedModules),
     new Set([
       '@modern-js/renderer-octane/router',
-      'octane/signals/client',
       'octane',
       '@modern-js/renderer-core/data',
       '../components/Counter',
@@ -82,7 +81,7 @@ test('the emitted routes use native Octane signals and router bindings', () => {
     );
     assert.equal(
       component.program.body[0].specifiers[0].imported.name,
-      'useSignal$',
+      'useState',
     );
     assert.equal(
       component.program.body[1].declaration.body.body[0].type,

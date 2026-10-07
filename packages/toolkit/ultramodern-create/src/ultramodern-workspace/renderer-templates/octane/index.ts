@@ -177,17 +177,17 @@ export const head: NonNullable<FileSystemRouteModule['head']> = () => ({
       },
       {
         path: 'src/components/Counter.tsx',
-        content: `import { useSignal$ } from 'octane/signals/client';
+        content: `import { useState } from 'octane';
 
 export default function Counter() {
-  const count$ = useSignal$(0);
+  const [count, setCount] = useState(0);
   return (
     <section data-testid="native-edited-component">
       <span data-testid="native-hmr-marker">Counter before native edit</span>
-      <button type="button" onClick={() => count$.set(value => value + 1)}>
+      <button type="button" onClick={() => setCount(value => value + 1)}>
         Increment
       </button>
-      <output data-testid="native-count">{count$.get()}</output>
+      <output data-testid="native-count">{count}</output>
     </section>
   );
 }
@@ -195,16 +195,16 @@ export default function Counter() {
       },
       {
         path: 'src/components/Stable.tsx',
-        content: `import { useSignal$ } from 'octane/signals/client';
+        content: `import { useState } from 'octane';
 
 export default function Stable() {
-  const count$ = useSignal$(0);
+  const [count, setCount] = useState(0);
   return (
     <section data-testid="native-unaffected-component">
-      <button type="button" onClick={() => count$.set(value => value + 1)}>
+      <button type="button" onClick={() => setCount(value => value + 1)}>
         Increment stable state
       </button>
-      <output data-testid="native-unaffected-count">{count$.get()}</output>
+      <output data-testid="native-unaffected-count">{count}</output>
     </section>
   );
 }
