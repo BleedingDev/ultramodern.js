@@ -2311,6 +2311,9 @@ importers:
       '@modern-js/tsconfig':
         specifier: workspace:*
         version: link:../../tsconfig
+      '@rsbuild/core':
+        specifier: 2.2.11
+        version: 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
       '@rslib/core':
         specifier: 1.0.3
         version: 1.0.3(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)(typescript@7.0.2)
