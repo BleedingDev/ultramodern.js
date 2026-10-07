@@ -1719,9 +1719,9 @@ importers:
 
   packages/runtime/boundary-debugger:
     dependencies:
-      '@modern-js/plugin':
+      '@modern-js/runtime':
         specifier: workspace:*
-        version: link:../../toolkit/plugin
+        version: link:../plugin-runtime
     devDependencies:
       '@modern-js/rslib':
         specifier: workspace:*
