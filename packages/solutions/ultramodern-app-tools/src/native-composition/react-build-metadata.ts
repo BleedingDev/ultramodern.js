@@ -271,6 +271,7 @@ export function reactRendererBuildMetadataPlugin(
                 environment.performance,
                 'react',
                 profile,
+                api.getNormalizedConfig().performance?.buildCache,
               ),
             },
           ]),

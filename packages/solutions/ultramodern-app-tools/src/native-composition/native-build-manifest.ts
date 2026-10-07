@@ -178,14 +178,20 @@ type BuildCachePerformance = {
   buildCache?: boolean | { cacheDigest?: readonly unknown[] };
 };
 
-/** The persistent Rspack cache is always on, keyed by renderer and profile. */
+/**
+ * The persistent Rspack cache is on unless the app opts out, keyed by renderer
+ * and profile. An environment's own `buildCache` wins over the top-level one,
+ * as it does in Rsbuild.
+ */
 export function rendererBuildCachePerformance<T extends BuildCachePerformance>(
   performance: T | undefined,
   renderer: Renderer,
   profile: Parameters<typeof rendererProfileKey>[0],
+  topLevelBuildCache?: BuildCachePerformance['buildCache'],
 ): T & BuildCachePerformance {
   const authored = performance?.buildCache;
-  if (authored === false) return { ...performance } as T;
+  if ((authored ?? topLevelBuildCache) === false)
+    return { ...performance } as T;
   const options = typeof authored === 'object' ? authored : {};
   return {
     ...performance,

@@ -181,5 +181,19 @@ describe('persistent build cache', () => {
       rendererBuildCachePerformance({ buildCache: false }, 'solid', profile)
         .buildCache,
     ).toBe(false);
+    expect(
+      rendererBuildCachePerformance(undefined, 'solid', profile, false)
+        .buildCache,
+    ).toBeUndefined();
+    expect(
+      (
+        rendererBuildCachePerformance(
+          { buildCache: { cacheDigest: [] } },
+          'solid',
+          profile,
+          false,
+        ).buildCache as { cacheDigest: unknown[] }
+      ).cacheDigest[0],
+    ).toBe('solid');
   });
 });
