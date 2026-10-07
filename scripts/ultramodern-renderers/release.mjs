@@ -650,10 +650,14 @@ async function main() {
           qualifiedNode: process.execPath,
           applicationRoot: apps.react.appRoot,
           consumerRoot: apps.react.workspace,
-          generatorPackageRoot: path.join(
-            createRoot,
-            'node_modules',
-            release.createPackage.targetName,
+          // pnpm links node_modules/<name> to its store copy; the probe
+          // authenticates the generator's real package directory.
+          generatorPackageRoot: fs.realpathSync(
+            path.join(
+              createRoot,
+              'node_modules',
+              release.createPackage.targetName,
+            ),
           ),
           generatorConsumerRoot: createRoot,
           owner,
