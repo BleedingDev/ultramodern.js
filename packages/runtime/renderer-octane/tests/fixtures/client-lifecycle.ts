@@ -839,6 +839,52 @@ export async function assertNativeCompilationMismatchBeforeImport() {
   }
 }
 
+export async function assertHydrationImportFailuresReleaseOwnership() {
+  for (const synchronous of [true, false]) {
+    const element = container();
+    const importFailure = new Error('Hydration application import failed');
+    let recovered: OctaneApplicationHandle | undefined;
+    try {
+      prepareHydrationRoot(element);
+      const options = {
+        container: element,
+        identity,
+        nativeHydrationBuildId,
+        documentIdentity: identity,
+        documentNativeHydrationBuildId: nativeHydrationBuildId,
+        documentId: 'failed-hydration-import',
+      };
+      await assert.rejects(
+        hydrateOctaneApplication({
+          ...options,
+          load: () => {
+            if (synchronous) throw importFailure;
+            return Promise.reject(importFailure);
+          },
+        }),
+        error => error === importFailure,
+      );
+
+      prepareHydrationRoot(element);
+      const existingNode = element.querySelector('section');
+      assert.ok(existingNode);
+      recovered = await hydrateOctaneApplication({
+        ...options,
+        load: async () => ({ default: HydrationApplication }),
+      });
+      flush();
+      assert.equal(element.querySelector('section'), existingNode);
+      assert.equal(element.textContent, 'Native hydration');
+    } finally {
+      try {
+        recovered?.dispose();
+      } finally {
+        element.remove();
+      }
+    }
+  }
+}
+
 export async function assertHydrationFailuresReleaseNativeRoot() {
   const element = container();
   let disposals = 0;

@@ -282,7 +282,6 @@ function validateModule(application: OctaneApplicationModule): void {
 function createHandle(input: {
   root: Root;
   identity: RendererIdentity;
-  application: OctaneApplicationModule;
   releaseModule: () => void;
   release: () => void;
   bridge?: StreamedSignalHydration;
@@ -337,16 +336,14 @@ function createHandle(input: {
   return handle;
 }
 
-export async function mountOctaneApplication(
+async function startApplication(
   input: OctaneApplicationOptions,
+  release: () => void,
+  hydration?: { document: Document; documentId: string },
 ): Promise<OctaneApplicationHandle> {
-  assertOctaneIdentity(input.identity);
-  assertNativeHydrationBuildId(input.nativeHydrationBuildId);
-  input.signal?.throwIfAborted();
-  const release = claimRoot(input.container);
   const errors = observeRootErrors(input.options);
+  let bridge: StreamedSignalHydration | undefined;
   let root: Root | undefined;
-  let application: OctaneApplicationModule | undefined;
   let releaseModule: (() => void) | undefined;
   let handle: OctaneApplicationHandle | undefined;
   let cleaned = false;
@@ -357,23 +354,52 @@ export async function mountOctaneApplication(
     }
     if (cleaned) return;
     cleaned = true;
-    cleanupResources([() => root?.unmount(), () => releaseModule?.(), release]);
+    cleanupResources([
+      () => root?.unmount(),
+      () => releaseModule?.(),
+      () => bridge?.dispose(),
+      release,
+    ]);
   };
   try {
+    if (hydration) {
+      const { document, documentId } = hydration;
+      bridge = bootstrapStreamedSignalHydration({
+        buildId: input.nativeHydrationBuildId,
+        documentId,
+        ...(document.defaultView === null
+          ? {}
+          : {
+              target: document.defaultView as unknown as Record<
+                string,
+                unknown
+              >,
+            }),
+      });
+    }
     const loaded = await loadApplication(input, cleanup);
-    application = loaded.application;
+    const application = loaded.application;
     releaseModule = loaded.releaseModule;
     input.signal?.throwIfAborted();
-    root = createRoot(input.container, errors.options);
-    root.render(application.default, application.props);
+    if (bridge) {
+      root = hydrateRoot(
+        input.container,
+        application.default,
+        application.props,
+        { ...errors.options, signalOwner: bridge.signalOwner },
+      );
+    } else {
+      root = createRoot(input.container, errors.options);
+      root.render(application.default, application.props);
+    }
     errors.assertInitialRender();
     input.signal?.throwIfAborted();
     handle = createHandle({
       root,
       identity: input.identity,
-      application,
       releaseModule,
       release,
+      bridge,
       ...(input.signal === undefined ? {} : { signal: input.signal }),
       onCleanupError: error => reportCleanupError(input, error),
     });
@@ -383,6 +409,15 @@ export async function mountOctaneApplication(
     cleanup();
     throw error;
   }
+}
+
+export async function mountOctaneApplication(
+  input: OctaneApplicationOptions,
+): Promise<OctaneApplicationHandle> {
+  assertOctaneIdentity(input.identity);
+  assertNativeHydrationBuildId(input.nativeHydrationBuildId);
+  input.signal?.throwIfAborted();
+  return startApplication(input, claimRoot(input.container));
 }
 
 export async function hydrateOctaneApplication(
@@ -422,66 +457,8 @@ export async function hydrateOctaneApplication(
     releaseRoot();
     if (documents.get(document) === documentOwner) documents.delete(document);
   };
-  const errors = observeRootErrors(input.options);
-  let bridge: StreamedSignalHydration | undefined;
-  let root: Root | undefined;
-  let application: OctaneApplicationModule | undefined;
-  let releaseModule: (() => void) | undefined;
-  let handle: OctaneApplicationHandle | undefined;
-  let cleaned = false;
-  const cleanup = () => {
-    if (handle) {
-      handle.dispose();
-      return;
-    }
-    if (cleaned) return;
-    cleaned = true;
-    cleanupResources([
-      () => root?.unmount(),
-      () => releaseModule?.(),
-      () => bridge?.dispose(),
-      release,
-    ]);
-  };
-  try {
-    bridge = bootstrapStreamedSignalHydration({
-      buildId: input.nativeHydrationBuildId,
-      documentId: input.documentId,
-      ...(document.defaultView === null
-        ? {}
-        : {
-            target: document.defaultView as unknown as Record<string, unknown>,
-          }),
-    });
-    const loaded = await loadApplication(input, cleanup);
-    application = loaded.application;
-    releaseModule = loaded.releaseModule;
-    input.signal?.throwIfAborted();
-    root = hydrateRoot(
-      input.container,
-      application.default,
-      application.props,
-      {
-        ...errors.options,
-        signalOwner: bridge.signalOwner,
-      },
-    );
-    errors.assertInitialRender();
-    input.signal?.throwIfAborted();
-    handle = createHandle({
-      root,
-      identity: input.identity,
-      application,
-      releaseModule,
-      release,
-      bridge,
-      ...(input.signal === undefined ? {} : { signal: input.signal }),
-      onCleanupError: error => reportCleanupError(input, error),
-    });
-    errors.attach(handle);
-    return handle;
-  } catch (error) {
-    cleanup();
-    throw error;
-  }
+  return startApplication(input, release, {
+    document,
+    documentId: input.documentId,
+  });
 }
