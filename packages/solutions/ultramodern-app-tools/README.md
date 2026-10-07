@@ -46,11 +46,11 @@ Every renderer is a `RendererAdapter` from `@modern-js/renderer-core/adapter`.
   registers the Modern.js React graph.
 - `solid` and `octane` are native adapters exported from
   `@modern-js/renderer-<renderer>/plugin`. Each one carries its build profile,
-  owned packages, runtime entry modules, Rsbuild compiler plugin, compiler
-  artifact checks, Module Federation singletons, worker support and create
-  templates.
+  runtime entry modules, Rsbuild compiler plugin, compiler artifact checks,
+  Module Federation singletons, worker support and create templates.
 
-This package keeps the renderer-neutral parts: config selection, capability
+This package keeps the renderer-neutral parts: config selection, the
+registered renderers' package and source-extension ownership, capability
 checks, and one build, dev, SSG, worker and federation pipeline for every
 native adapter. The entries it generates hold only data: `index.ts` calls the
 renderer's `startNativeClient()`, `index.server.ts` calls

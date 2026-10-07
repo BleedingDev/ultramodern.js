@@ -50,14 +50,6 @@ export const reactRendererAdapter: ComposedRendererAdapter<
   kind: 'composed',
   profile: reactProfile,
   routerFrameworks: ['react-router', 'tanstack'],
-  ownedPackages: [
-    'react',
-    'react-dom',
-    '@modern-js/runtime',
-    '@modern-js/plugin-tanstack',
-    '@modern-js/plugin-i18n',
-    '@tanstack/react-router',
-  ],
   worker: { nativeDocuments: false, rsc: true },
   frameworkModules: [
     { specifier: '@modern-js/runtime', request: '@modern-js/runtime/cli' },

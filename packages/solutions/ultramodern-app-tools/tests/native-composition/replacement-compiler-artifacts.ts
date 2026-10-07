@@ -85,7 +85,6 @@ export function createReplacementAdapter(
     kind: 'native',
     profile,
     routerFrameworks: ['replacement'],
-    ownedPackages: ['@fixture/replacement-runtime'],
     runtime: {
       package: '@fixture/replacement-runtime',
       bootstrap: '@fixture/replacement-renderer',

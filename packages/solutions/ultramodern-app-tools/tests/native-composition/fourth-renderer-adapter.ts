@@ -46,7 +46,6 @@ export function createFourthAdapter(): NativeRendererAdapter {
     kind: 'native',
     profile,
     routerFrameworks: ['fourth-router'],
-    ownedPackages: ['fourth-runtime'],
     runtime: {
       package: 'fourth-runtime',
       bootstrap: '@modern-js/renderer-solid',

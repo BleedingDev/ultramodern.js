@@ -155,11 +155,6 @@ interface RendererAdapterDescriptor<TRenderer extends Renderer> {
   readonly name: TRenderer;
   readonly profile: RendererBuildProfile<TRenderer>;
   readonly routerFrameworks: readonly string[];
-  /**
-   * Packages whose imports mark a module as authored for this renderer. A
-   * trailing `/` names a whole scope.
-   */
-  readonly ownedPackages: readonly string[];
   readonly worker: RendererWorkerSupport;
   readonly create?: RendererCreateSupport;
 }
@@ -230,18 +225,6 @@ export function defineRendererAdapter<T extends RendererAdapter>(
       throw adapterError(name, 'federation support contradicts its profile');
   }
   return Object.freeze(adapter);
-}
-
-/** Whether `specifier` imports a package this renderer owns. */
-export function rendererOwnsSpecifier(
-  adapter: Pick<RendererAdapter, 'ownedPackages'>,
-  specifier: string,
-): boolean {
-  return adapter.ownedPackages.some(name =>
-    name.endsWith('/')
-      ? specifier.startsWith(name)
-      : specifier === name || specifier.startsWith(`${name}/`),
-  );
 }
 
 /** Third-party runtime packages a generated native application installs. */
