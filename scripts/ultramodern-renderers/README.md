@@ -77,11 +77,11 @@ test what a user sees. Target: about 3-4k lines total.
     4. pnpm install with the strict release-age policy: minimum_release_age
        1440, strict, plus resolveAcceptanceReleaseAgeExclusions only for our
        own cohort.
-    5. Inside each app: ultramodern build, a native TS 7 typecheck, and
-       bundle-check (d).
+    5. Inside each app: a native TS 7 typecheck.
     6. rstest run -c tests/rstest.config.mts renderer-specs with
        RENDERER_TARGET_DIR=<app> and RENDERER_TARGET_BIN=<installed bin>.
-       These are the same specs against the packed apps.
+       These are the same specs against the packed apps, including the
+       no-react-bundle spec (d).
     7. Separate steps, unchanged entry points: react-rsc-worker-proof/
        main.mjs, renderer-mf-lifecycle-proof, run-tractor-downstream-
        acceptance.mjs.
@@ -94,7 +94,8 @@ test what a user sees. Target: about 3-4k lines total.
       - import / export-from / import() / require() names react, react-dom,
         react-server-dom-*, scheduler or react/jsx-runtime;
       - Symbol.for('react.*') appears (inlined React runtime marker).
-    Used by (c) step 5 and by renderer-solid/-octane tests after the build.
+    The no-react-bundle spec in renderer-specs runs it on every Solid and
+    Octane build, in workspace and packed runs.
 
 Deleted: the acceptance/ harness (run.mjs, release*.mjs, artifacts.mjs and
 its digest/receipt layers, evidence/*.json.txt, the native-type-interop

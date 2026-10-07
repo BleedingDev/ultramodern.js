@@ -1,5 +1,6 @@
 import path from 'node:path';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
+import { checkBundle } from '../../../scripts/ultramodern-renderers/bundle-check.mjs';
 import {
   getPort,
   killApp,
@@ -24,7 +25,8 @@ export type SpecName =
   | 'redirect'
   | 'error-route'
   | 'head'
-  | 'deferred';
+  | 'deferred'
+  | 'no-react-bundle';
 
 export interface RendererSpecOptions {
   renderer: Renderer;
@@ -172,6 +174,11 @@ export function defineRendererSpecs(options: RendererSpecOptions) {
       });
       return { response, html: await response.text() };
     };
+
+    if (renderer !== 'react')
+      spec('no-react-bundle', async () => {
+        expect(checkBundle(path.join(appDir, 'dist'))).toEqual([]);
+      });
 
     spec('ssr-html', async () => {
       const { response, html } = await fetchHtml('/');

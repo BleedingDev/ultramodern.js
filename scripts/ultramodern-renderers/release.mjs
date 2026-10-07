@@ -12,8 +12,8 @@
 // For each renderer: generate a workspace with the packed create CLI, put the
 // tests/integration/renderer-<r> app into its shell, install from a local
 // registry under the strict release-age policy, check the installed cohort is
-// the packed bytes, typecheck, run the specs, and (Solid, Octane) check the
-// bundle holds no React.
+// the packed bytes, typecheck, and run the specs (for Solid and Octane they
+// include the no-React bundle check).
 // Then the React runners in scripts/ultramodern-production-readiness: worker
 // custom entries and RSC on workerd, Module Federation lifecycle, and (with
 // --tractor-source) the Tractor downstream adoption.
@@ -30,7 +30,6 @@ import { resolveAcceptanceReleaseAgeExclusions } from '../ultramodern-production
 import { runWorkerDispatchProbe } from '../ultramodern-production-readiness/renderer-worker-lifecycle-proof/probe.mjs';
 import { readReleaseManifest } from '../ultramodern-publish/lib/source-create-proof/release-manifest.mjs';
 import { startEphemeralRegistry } from '../ultramodern-publish/lib/source-create-proof/runtime-proof/registry.mjs';
-import { checkBundle } from './bundle-check.mjs';
 import { checkInstalledCohort, readCohort } from './installed-cohort.mjs';
 
 const root = path.resolve(
@@ -376,7 +375,7 @@ async function main() {
         ready,
       );
       // The specs build and serve the app with its installed bin.
-      const built = await step(
+      await step(
         `${renderer} specs`,
         () =>
           sh(
@@ -399,16 +398,6 @@ async function main() {
           ),
         ready,
       );
-      if (renderer !== 'react')
-        await step(
-          `${renderer} bundle-check`,
-          async () => {
-            const violations = checkBundle(path.join(appRoot, 'dist'));
-            if (violations.length)
-              throw new Error(`React in bundle: ${violations.join(', ')}`);
-          },
-          built || (ready && fs.existsSync(path.join(appRoot, 'dist'))),
-        );
     }
 
     // The React runners need a browser, the shared store and the release.
