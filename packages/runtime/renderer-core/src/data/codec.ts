@@ -195,13 +195,13 @@ export function parsePublicData(text: string): unknown {
     const record = envelope as Record<string, unknown>;
     if (
       Object.keys(record).length !== 2 ||
-      record['codec'] !== DATA_CODEC ||
+      record.codec !== DATA_CODEC ||
       !Object.hasOwn(record, 'data')
     ) {
       throw new DataProtocolError('Unsupported public data codec');
     }
-    validateSerializedData(record['data']);
-    const result: unknown = fromJSON(record['data']);
+    validateSerializedData(record.data);
+    const result: unknown = fromJSON(record.data);
     assertPublicData(result);
     return result;
   } catch (error) {

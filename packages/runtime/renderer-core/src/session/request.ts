@@ -244,59 +244,51 @@ export function createRequestSession<Bindings extends object>(input: {
       committedPolicy = policy;
       state = 'committed';
       const headers = policyHeaders(committedPolicy.headers);
+      let wrappedBody: ReadableStream<Uint8Array> | null = null;
       if (!reader) {
         void finish('completed');
-        const response = new Response(null, {
-          status: committedPolicy.status,
-          ...(committedPolicy.statusText === undefined
-            ? {}
-            : { statusText: committedPolicy.statusText }),
-          headers,
-        });
-        deliveredResponse = response;
-        deliveredHeaders = response.headers;
-        return response;
+      } else {
+        const sourceReader = reader;
+        wrappedBody = new ReadableStream<Uint8Array>(
+          {
+            start(controller) {
+              bodyController = controller;
+            },
+            async pull(controller) {
+              try {
+                const next = await sourceReader.read();
+                if (finishPromise) return;
+                if (!next.done) {
+                  controller.enqueue(next.value);
+                  return;
+                }
+                sourceReader.releaseLock();
+                const result = await finish('completed');
+                if (result.cleanupErrors.length > 0) {
+                  controller.error(
+                    new AggregateError(
+                      result.cleanupErrors,
+                      'Renderer request cleanup failed.',
+                    ),
+                  );
+                } else {
+                  controller.close();
+                }
+              } catch (error) {
+                if (!finishPromise) {
+                  await finish('failed', error);
+                  controller.error(error);
+                }
+              }
+            },
+            cancel(reason) {
+              abort(reason);
+              return completion.then(() => {});
+            },
+          },
+          { highWaterMark: 0 },
+        );
       }
-      const sourceReader = reader;
-      const wrappedBody = new ReadableStream<Uint8Array>(
-        {
-          start(controller) {
-            bodyController = controller;
-          },
-          async pull(controller) {
-            try {
-              const next = await sourceReader.read();
-              if (finishPromise) return;
-              if (!next.done) {
-                controller.enqueue(next.value);
-                return;
-              }
-              sourceReader.releaseLock();
-              const result = await finish('completed');
-              if (result.cleanupErrors.length > 0) {
-                controller.error(
-                  new AggregateError(
-                    result.cleanupErrors,
-                    'Renderer request cleanup failed.',
-                  ),
-                );
-              } else {
-                controller.close();
-              }
-            } catch (error) {
-              if (!finishPromise) {
-                await finish('failed', error);
-                controller.error(error);
-              }
-            }
-          },
-          cancel(reason) {
-            abort(reason);
-            return completion.then(() => {});
-          },
-        },
-        { highWaterMark: 0 },
-      );
       const response = new Response(wrappedBody, {
         status: committedPolicy.status,
         ...(committedPolicy.statusText === undefined

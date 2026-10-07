@@ -58,8 +58,8 @@ function nodeArray(value: unknown): unknown[] {
 function pairs(value: unknown): { k: unknown[]; v: unknown[] } {
   const entry = record(value);
   exactFields(entry, ['k', 'v']);
-  const keys = nodeArray(entry['k']);
-  const values = nodeArray(entry['v']);
+  const keys = nodeArray(entry.k);
+  const values = nodeArray(entry.v);
   if (keys.length !== values.length) {
     throw new TypeError('Public data keys and values have different lengths');
   }
@@ -72,10 +72,10 @@ export function validateSerializedData(
 ): asserts value is SerovalJSON {
   const tree = record(value);
   exactFields(tree, ['t', 'f', 'm']);
-  if (!integer(tree['f'], 127)) {
+  if (!integer(tree.f, 127)) {
     throw new TypeError('Malformed public data feature flags');
   }
-  const metadata = nodeArray(tree['m']);
+  const metadata = nodeArray(tree.m);
   if (
     metadata.some(id => !integer(id, MAX_NODES)) ||
     new Set(metadata).size !== metadata.length
@@ -115,36 +115,36 @@ export function validateSerializedData(
     switch (tag) {
       case 0:
         exactFields(node, ['t', 's']);
-        if (typeof node['s'] !== 'number' || !Number.isFinite(node['s'])) {
+        if (typeof node.s !== 'number' || !Number.isFinite(node.s)) {
           throw new TypeError('Malformed public data number');
         }
         return;
       case 1:
         exactFields(node, ['t', 's']);
-        if (typeof node['s'] !== 'string')
+        if (typeof node.s !== 'string')
           throw new TypeError('Malformed public data string');
         return;
       case 2:
         exactFields(node, ['t', 's']);
-        if (!integer(node['s'], 7))
+        if (!integer(node.s, 7))
           throw new TypeError('Malformed public data constant');
         return;
       case 3:
         exactFields(node, ['t', 's']);
         if (
-          typeof node['s'] !== 'string' ||
-          node['s'].length > 10_000 ||
-          !/^-?(?:0|[1-9]\d*)$/.test(node['s'])
+          typeof node.s !== 'string' ||
+          node.s.length > 10_000 ||
+          !/^-?(?:0|[1-9]\d*)$/.test(node.s)
         ) {
           throw new TypeError('Malformed public data bigint');
         }
         return;
       case 4: {
         exactFields(node, ['t', 'i']);
-        if (!integer(node['i'], MAX_NODES) || !declarations.has(node['i'])) {
+        if (!integer(node.i, MAX_NODES) || !declarations.has(node.i)) {
           throw new TypeError('Missing or forward public data reference');
         }
-        if ((declarations.get(node['i']) === 26) !== mapSentinel) {
+        if ((declarations.get(node.i) === 26) !== mapSentinel) {
           throw new TypeError(
             'Public data references a Map sentinel as a value',
           );
@@ -153,55 +153,55 @@ export function validateSerializedData(
       }
       case 5:
         exactFields(node, ['t', 'i', 's']);
-        if (typeof node['s'] !== 'string')
+        if (typeof node.s !== 'string')
           throw new TypeError('Malformed public data date');
-        if (node['s'] !== '') {
-          const timestamp = new Date(node['s']);
+        if (node.s !== '') {
+          const timestamp = new Date(node.s);
           if (
             !Number.isFinite(timestamp.getTime()) ||
-            timestamp.toISOString() !== node['s']
+            timestamp.toISOString() !== node.s
           ) {
             throw new TypeError('Malformed public data date');
           }
         }
-        declare(node['i'], tag);
+        declare(node.i, tag);
         return;
       case 6:
         exactFields(node, ['t', 'i', 'c', 'm']);
         if (
-          typeof node['c'] !== 'string' ||
-          typeof node['m'] !== 'string' ||
-          !/^[dgimsuvy]*$/.test(node['m']) ||
-          new Set(node['m']).size !== node['m'].length ||
-          (node['m'].includes('u') && node['m'].includes('v'))
+          typeof node.c !== 'string' ||
+          typeof node.m !== 'string' ||
+          !/^[dgimsuvy]*$/.test(node.m) ||
+          new Set(node.m).size !== node.m.length ||
+          (node.m.includes('u') && node.m.includes('v'))
         ) {
           throw new TypeError('Malformed public data regular expression');
         }
-        declare(node['i'], tag);
+        declare(node.i, tag);
         return;
       case 7:
         exactFields(node, ['t', 'i', 'a']);
-        declare(node['i'], tag);
-        for (const item of nodeArray(node['a'])) visit(item, depth + 1);
+        declare(node.i, tag);
+        for (const item of nodeArray(node.a)) visit(item, depth + 1);
         return;
       case 8: {
         exactFields(node, ['t', 'i', 'e', 'f']);
-        declare(node['i'], tag);
-        const entries = pairs(node['e']);
+        declare(node.i, tag);
+        const entries = pairs(node.e);
         // The native decoder visits each key then its value, not all keys first.
         for (let index = 0; index < entries.k.length; index++) {
           visit(entries.k[index], depth + 1);
           visit(entries.v[index], depth + 1);
         }
-        visit(node['f'], depth + 1, true);
+        visit(node.f, depth + 1, true);
         return;
       }
       case 9:
         exactFields(node, ['t', 'i', 'a', 'o']);
-        if (!integer(node['o'], 3))
+        if (!integer(node.o, 3))
           throw new TypeError('Malformed public data object flags');
-        declare(node['i'], tag);
-        for (const item of nodeArray(node['a'])) {
+        declare(node.i, tag);
+        for (const item of nodeArray(node.a)) {
           // Seroval encodes a sparse array hole as the literal 0, not a node.
           if (item === 0) {
             if (++count > MAX_NODES)
@@ -212,10 +212,10 @@ export function validateSerializedData(
       case 10:
       case 11: {
         exactFields(node, ['t', 'i', 'p', 'o']);
-        if (!integer(node['o'], 3))
+        if (!integer(node.o, 3))
           throw new TypeError('Malformed public data object flags');
-        declare(node['i'], tag);
-        const properties = pairs(node['p']);
+        declare(node.i, tag);
+        const properties = pairs(node.p);
         if (
           properties.k.some(key => typeof key !== 'string') ||
           new Set(properties.k).size !== properties.k.length
@@ -227,17 +227,17 @@ export function validateSerializedData(
       }
       case 26:
         exactFields(node, ['t', 'i', 's']);
-        if (!mapSentinel || node['s'] !== 0) {
+        if (!mapSentinel || node.s !== 0) {
           throw new TypeError('Unsupported public data special reference');
         }
-        declare(node['i'], tag);
+        declare(node.i, tag);
         return;
       default:
         throw new TypeError('Unsupported public data node');
     }
   };
 
-  visit(tree['t'], 0);
+  visit(tree.t, 0);
   if (metadata.some(id => !declarations.has(id as number))) {
     throw new TypeError('Missing public data metadata reference');
   }

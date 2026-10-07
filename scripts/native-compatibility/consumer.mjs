@@ -438,12 +438,15 @@ export function createNativeConsumer(
             react: '19.2.8',
             'react-dom': '19.2.8',
           },
-          // Native v3.8.2 BFF production compilation loads TypeScript from
-          // the application, independently of the browser type-checker.
-          devDependencies: {
-            typescript: '5.9.3',
-            '@typescript/native-preview': '7.0.0-dev.20260707.2',
-          },
+          // The audited upstream BFF compiler loads TypeScript 5 separately
+          // from its native browser checker. The fork uses TypeScript 7.
+          devDependencies:
+            target === 'fork'
+              ? { typescript: '7.0.2' }
+              : {
+                  typescript: '5.9.3',
+                  '@typescript/native-preview': '7.0.0-dev.20260707.2',
+                },
         },
         null,
         2,
