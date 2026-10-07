@@ -987,8 +987,8 @@ export async function nativeRouterInjectionStreamsBeforeRenderComplete() {
   const { router, session } = await serializingRouter(late.promise);
   const injection = createOctaneRouterInjection(router, session);
   const notified = deferred<void>();
-  // Octane subscribes once the shell carrying the barrier anchor is written.
   const stop = injection.subscribe(() => notified.resolve());
+  // Octane's first take follows the shell that carries the barrier anchor.
   let html = injection.take();
   late.resolve('streamed before document end');
   await notified.promise;
@@ -998,6 +998,26 @@ export async function nativeRouterInjectionStreamsBeforeRenderComplete() {
   assert.match(html, /\$_TSR\.router=/);
   assert.match(html, /streamed before document end/);
   stop();
+  injection.renderComplete?.();
+  await injection.done;
+  await session.abort('test complete');
+}
+
+export async function nativeRouterInjectionKeepsBootstrapForScripts() {
+  const late = deferred<string>();
+  const { router, session } = await serializingRouter(late.promise);
+  const injection = createOctaneRouterInjection(router, session);
+  // Octane's streamed-signal injection subscribes before the app renders.
+  const stop = injection.subscribe(() => {});
+  await Promise.resolve();
+  // The router's Scripts still takes the bootstrap into its barrier script.
+  assert.match(
+    router.serverSsr!.takeBufferedScripts()?.children ?? '',
+    /\$_TSR\.router=/,
+  );
+  assert.equal(injection.take(), '');
+  stop();
+  late.resolve('settled');
   injection.renderComplete?.();
   await injection.done;
   await session.abort('test complete');
@@ -1087,7 +1107,12 @@ export async function nativeRouterDocumentStream() {
   assert.equal(cleanup, 0);
   const html = await response.text();
   assert.match(html, /Native filesystem application/);
-  assert.match(html, /\$_TSR\.router=/);
+  // The bootstrap renders in the root's barrier script, which the client
+  // hydrates in place.
+  assert.match(
+    html,
+    /<script\b[^>]*id=["']\$tsr-stream-barrier["'][^>]*>[^<]*\$_TSR\.router=/,
+  );
   assert.equal(html.match(/<!doctype html>/gi)?.length, 1);
   assert.equal(html.match(/<html[\s>]/gi)?.length, 1);
   // Under a nonce CSP every executable script, including the $_TSR bootstrap

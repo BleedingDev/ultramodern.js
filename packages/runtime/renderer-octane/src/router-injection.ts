@@ -96,13 +96,18 @@ export function createOctaneRouterInjection(
   }
 
   return {
-    take: () => (released ? '' : (serverSsr.takeBufferedHtml() ?? '')),
+    take() {
+      if (released) return '';
+      // Octane takes injected HTML only once the shell is rendered, so the
+      // router's Scripts has already moved the $_TSR bootstrap into its
+      // barrier script. Lift the barrier here, not on subscribe: streamed
+      // signals subscribe before rendering. Deferred $_TSR chunks then stream
+      // as they settle instead of waiting for setRenderFinished.
+      serverSsr.liftScriptBarrier();
+      return serverSsr.takeBufferedHtml() ?? '';
+    },
     subscribe(notify) {
       if (released) return () => {};
-      // Octane subscribes after the shell carrying the barrier anchor is
-      // written. Lift the barrier so deferred $_TSR chunks stream as they
-      // settle instead of waiting for setRenderFinished at document end.
-      serverSsr.liftScriptBarrier();
       const stop = serverSsr.onInjectedHtml(notify);
       let subscribed = true;
       const unsubscribe = () => {
