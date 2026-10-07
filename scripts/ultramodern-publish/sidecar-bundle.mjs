@@ -22,36 +22,24 @@ import {
   sidecarContentProjection,
 } from './lib/prepare-bleedingdev-packages/sidecar-publication.mjs';
 import { validateAliasConsistency } from './lib/prepare-bleedingdev-packages/sidecars.mjs';
+import {
+  assertSidecarProfileDependencies,
+  sidecarProfile,
+} from './sidecar-profiles.mjs';
 
 export const sidecarBundleFile = 'sidecar-bundle.json';
 export const sidecarBundleSchema = 'bleedingdev.ultramodern.sidecar-bundle';
 export const sidecarQualificationSchema =
   'bleedingdev.ultramodern.sidecar-qualification';
-// This label records dependency ordering only; it is no cohort/version qualification.
-export const sidecarPublishBefore = '@bleedingdev/modern-js-utils';
-export const sidecarRecipeIds = Object.freeze([
-  'braces',
-  'chokidar',
-  'fast-glob',
-  'find-workspaces',
-  'micromatch',
-  'rsbuild-plugin-source-build',
-  'rsbuild-plugin-type-check',
-  'ts-checker-rspack-plugin',
-  'ultracite',
-]);
-export const sidecarQualificationProbeKeys = Object.freeze([
-  'packed-install',
-  'braces-api',
-  'braces-depth-guard',
-  'glob-api',
-  'chokidar-api',
-  'type-check-api',
-  'ultracite-api',
-]);
-const passedProbes = Object.fromEntries(
-  sidecarQualificationProbeKeys.map(key => [key, true]),
-);
+export {
+  sidecarProfile,
+  sidecarPublishBefore,
+  sidecarQualificationProbeKeys,
+  sidecarRecipeIds,
+} from './sidecar-profiles.mjs';
+
+const profileProbes = name =>
+  Object.fromEntries(sidecarProfile(name).probeKeys.map(key => [key, true]));
 const outputRoot = path.join(repoRoot, '.modern', 'bleedingdev-sidecars');
 const sha256 = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 
@@ -109,14 +97,14 @@ export function resolveSidecarOutput(value) {
   return output;
 }
 
-export function readSidecarBundleInputs() {
+export function readSidecarBundleInputs(profile = 'parser') {
   const recipes = JSON.parse(
     fs.readFileSync(
       new URL('../ultramodern-supply/sidecars.json', import.meta.url),
       'utf8',
     ),
   );
-  return sidecarRecipeIds.map(id => {
+  const inputs = sidecarProfile(profile).recipeIds.map(id => {
     const matches = recipes.filter(recipe => recipe.id === id);
     if (matches.length !== 1)
       throw new Error(`Expected exactly one reviewed sidecar recipe ${id}`);
@@ -142,6 +130,8 @@ export function readSidecarBundleInputs() {
       patch,
     };
   });
+  assertSidecarProfileDependencies(profile, inputs);
+  return inputs;
 }
 
 function producerIdentity(env) {
@@ -177,6 +167,7 @@ function assertBundleManifest(manifest, { env, source, tools, inputs }) {
       'schema',
       'schemaVersion',
       'mode',
+      'profile',
       'source',
       'producer',
       'tools',
@@ -199,6 +190,12 @@ function assertBundleManifest(manifest, { env, source, tools, inputs }) {
     manifest.mode !== 'sidecars'
   )
     throw new Error('Unknown independent sidecar bundle schema or mode');
+  sidecarProfile(manifest.profile);
+  if (
+    env.BLEEDINGDEV_SIDECAR_PROFILE !== undefined &&
+    manifest.profile !== env.BLEEDINGDEV_SIDECAR_PROFILE
+  )
+    throw new Error('Sidecar profile differs from the workflow selection');
   if (
     manifest.source.repository !== trustedPublishRepository ||
     !/^[a-f0-9]{40}$/u.test(manifest.source.commit)
@@ -237,7 +234,7 @@ export function verifySidecarBundle(
     env = process.env,
     source = resolveSourceIdentity({ env }),
     tools = resolveToolVersions(),
-    inputs = readSidecarBundleInputs(),
+    inputs,
   } = {},
 ) {
   const root = path.resolve(out);
@@ -254,11 +251,13 @@ export function verifySidecarBundle(
   const { bytes, value: manifest } = readCanonicalJson(
     path.join(root, sidecarBundleFile),
   );
+  inputs ??= readSidecarBundleInputs(manifest.profile);
   assertBundleManifest(manifest, { env, source, tools, inputs });
   // The closed v2 verifier owns all tarball paths, digests, identities and file sets.
   const sidecars = verifySidecarArtifacts(root, manifest.sidecars);
+  assertSidecarProfileDependencies(manifest.profile, sidecars.packages);
   assertSidecarStagingManifest(sidecars.manifest, {
-    publishBefore: sidecarPublishBefore,
+    publishBefore: sidecarProfile(manifest.profile).publishBefore,
   });
   const identities = sidecars.packages
     .map(item => ({
@@ -289,17 +288,18 @@ export function verifySidecarBundle(
 
 export function writeSidecarBundle(
   out,
-  { descriptor, source, tools, env = process.env },
+  { descriptor, source, tools, env = process.env, profile = 'parser' },
 ) {
   const producer = assertSidecarProducerContext(env, source);
   const manifest = {
     schema: sidecarBundleSchema,
     schemaVersion: 1,
     mode: 'sidecars',
+    profile,
     source,
     producer,
     tools,
-    inputs: readSidecarBundleInputs(),
+    inputs: readSidecarBundleInputs(profile),
     sidecars: descriptor,
   };
   fs.writeFileSync(
@@ -323,7 +323,10 @@ export function writeSidecarQualification(
       'Sidecar qualification receipt requires this repository GitHub workflow',
     );
   const accepted = verifySidecarBundle(out, { env });
-  if (canonicalJson(probes) !== canonicalJson(passedProbes))
+  if (
+    canonicalJson(probes) !==
+    canonicalJson(profileProbes(accepted.manifest.profile))
+  )
     throw new Error(
       'Sidecar qualification did not pass the complete required probe set',
     );
@@ -335,6 +338,7 @@ export function writeSidecarQualification(
   const receipt = {
     schema: sidecarQualificationSchema,
     schemaVersion: 1,
+    profile: accepted.manifest.profile,
     bundleSha256: accepted.bundleSha256,
     source: accepted.manifest.source,
     producer: accepted.manifest.producer,
@@ -358,13 +362,14 @@ export function verifySidecarQualification(out, receiptPath, options = {}) {
   const expected = {
     schema: sidecarQualificationSchema,
     schemaVersion: 1,
+    profile: accepted.manifest.profile,
     bundleSha256: accepted.bundleSha256,
     source: accepted.manifest.source,
     producer: accepted.manifest.producer,
     tools: accepted.manifest.tools,
     inputs: accepted.manifest.inputs,
     sidecars: accepted.manifest.sidecars,
-    probes: passedProbes,
+    probes: profileProbes(accepted.manifest.profile),
   };
   if (canonicalJson(receipt) !== canonicalJson(expected))
     throw new Error(

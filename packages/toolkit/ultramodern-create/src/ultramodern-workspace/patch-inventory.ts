@@ -89,4 +89,14 @@ export default [
     reason:
       'Add helpers.global.resetFederationRuntime() for rebuilt server bundles ([#5152](https://github.com/module-federation/core/pull/5152)).',
   },
+  {
+    packageName: '@module-federation/sdk',
+    version: '2.9.2',
+    path: 'patches/@module-federation__sdk@2.9.2.patch',
+    sha256: 'fb4b0dfd33a0588ad3821f1d56e2316044ae0b721c515a69080d7d9d9de72e3e',
+    repository: false,
+    workspace: null,
+    reason:
+      'Call the documented Node fetch hook with its URL/options tuple and declare it on loadScriptNode; preserve native response and fallback behavior. Retire only failed ESM modules so imported fetch, link and evaluation failures can retry while healthy shared modules remain cached.',
+  },
 ];

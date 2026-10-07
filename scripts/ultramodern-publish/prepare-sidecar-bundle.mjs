@@ -21,12 +21,15 @@ import {
   assertSidecarProducerContext,
   readSidecarBundleInputs,
   resolveSidecarOutput,
-  sidecarPublishBefore,
-  sidecarRecipeIds,
+  sidecarProfile,
   writeSidecarBundle,
 } from './sidecar-bundle.mjs';
 
-export async function prepareSidecarBundle(out, { env = process.env } = {}) {
+export async function prepareSidecarBundle(
+  out,
+  { env = process.env, profile = 'parser' } = {},
+) {
+  const selected = sidecarProfile(profile);
   const output = resolveSidecarOutput(out);
   if (fs.existsSync(output))
     throw new Error(
@@ -39,10 +42,10 @@ export async function prepareSidecarBundle(out, { env = process.env } = {}) {
       'Sidecar preparation must use the exact committed workflow source',
     );
   assertSidecarProducerContext(env, source);
-  readSidecarBundleInputs();
+  readSidecarBundleInputs(profile);
   const tools = resolveToolVersions();
   const sidecars = collectSidecarPackages(repoRoot, {
-    roots: sidecarRecipeIds.map(id => `packages/sidecar/${id}`),
+    roots: selected.recipeIds.map(id => `packages/sidecar/${id}`),
   });
   fs.mkdirSync(path.dirname(output), { recursive: true });
   const staging = fs.mkdtempSync(path.join(path.dirname(output), 'stage-'));
@@ -51,10 +54,16 @@ export async function prepareSidecarBundle(out, { env = process.env } = {}) {
     validateAliasConsistency([], staged);
     fs.mkdirSync(output);
     const { descriptor } = writeSidecarStagingManifest(output, staged, {
-      publishBefore: sidecarPublishBefore,
+      publishBefore: selected.publishBefore,
     });
     assertCleanCommittedSource(repoRoot, { expectedCommit: commit });
-    return writeSidecarBundle(output, { descriptor, source, tools, env });
+    return writeSidecarBundle(output, {
+      descriptor,
+      source,
+      tools,
+      env,
+      profile,
+    });
   } finally {
     fs.rmSync(staging, { recursive: true, force: true });
   }
@@ -64,16 +73,19 @@ if (isDirectRun(import.meta.url)) {
   try {
     const argv = process.argv.slice(2);
     rejectInlineOptionSyntax(argv, {
-      valueOptions: new Set(['--out']),
+      valueOptions: new Set(['--out', '--profile']),
       booleanOptions: new Set(),
     });
     const options = cliKit.parseCliArgs(argv, {
       defaults: {
         out: path.join(repoRoot, '.modern', 'bleedingdev-sidecars', 'bundle'),
+        profile: 'parser',
       },
-      options: { out: {} },
+      options: { out: {}, profile: {} },
     });
-    const accepted = await prepareSidecarBundle(options.out);
+    const accepted = await prepareSidecarBundle(options.out, {
+      profile: options.profile,
+    });
     console.log(
       `Prepared ${accepted.sidecars.packages.length} source-bound sidecars: ${accepted.bundleSha256}`,
     );

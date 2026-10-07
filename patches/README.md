@@ -14,6 +14,7 @@ Edit `packages/toolkit/ultramodern-create/src/ultramodern-workspace/patch-invent
 | @module-federation/node@2.7.52 | yes | none | Reset the federation runtime in performReload ([#5152](https://github.com/module-federation/core/pull/5152)) and guard the bundle-only module cache when called from plain Node ([#5158](https://github.com/module-federation/core/pull/5158)). |
 | @module-federation/rspack@2.9.2 | yes | none | Load dts-plugin lazily when DTS is disabled ([#5132](https://github.com/module-federation/core/pull/5132)). |
 | @module-federation/runtime-core@2.9.2 | yes | none | Add helpers.global.resetFederationRuntime() for rebuilt server bundles ([#5152](https://github.com/module-federation/core/pull/5152)). |
+| @module-federation/sdk@2.9.2 | no | none | Call the documented Node fetch hook with its URL/options tuple and declare it on loadScriptNode; preserve native response and fallback behavior. Retire only failed ESM modules so imported fetch, link and evaluation failures can retry while healthy shared modules remain cached. |
 
 Run the command without flags to verify integrity and all projections. `--write-assets` updates only packaged assets and this document; `--write` also regenerates the repository configuration. Regenerate the lockfile with pnpm when patch bytes or dependency selectors change. Never hand-edit packaged copies.
 

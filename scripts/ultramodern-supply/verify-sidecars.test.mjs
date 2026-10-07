@@ -43,8 +43,14 @@ test('a recipe consumed only through devDependencies or an unaliased edge is rej
   assertRecipeConsumers([orphan], consumers);
 });
 
-test('unpublished parser recipe roots require the exact consumer, dependency and upstream version', () => {
+test('unpublished recipe roots require the exact consumer, dependency and upstream version', () => {
   const roots = [
+    [
+      'packages/runtime/federation-runtime',
+      '@bleedingdev/modern-js-federation-runtime',
+      '@module-federation/sdk',
+      '2.9.2',
+    ],
     [
       'packages/toolkit/utils',
       '@bleedingdev/modern-js-utils',
@@ -181,6 +187,55 @@ test('only exact generator runtime pins of the recipe fork version are consumers
   assertRecipeConsumers(
     [recipe],
     consumers([{ pinned: 'npm:@bleedingdev/pinned@1.0.1' }]),
+  );
+});
+
+test('closed SDK qualification consumes only its declared exact fork and leaves unrelated recipes rejected', async () => {
+  const { sidecarProfile } = await import(
+    '../ultramodern-publish/sidecar-profiles.mjs'
+  );
+  const profile = sidecarProfile('mf-sdk');
+  const pins = Object.fromEntries(
+    Object.entries(profile.dependencies).map(([name, version]) => [
+      name,
+      `npm:${name}@${version}`,
+    ]),
+  );
+  const sdk = {
+    id: 'mf-sdk',
+    upstream: { name: '@module-federation/sdk', version: '2.9.2' },
+    fork: { name: '@bleedingdev/mf-sdk', version: '2.9.2' },
+    manifestChanges: {},
+  };
+  const consumers = { generatorPins: [pins], publishedManifests: [] };
+  assertRecipeConsumers([sdk], consumers);
+  for (const fork of [
+    { name: '@bleedingdev/mf-sdk', version: '2.9.3' },
+    { name: '@bleedingdev/mf-other', version: '2.9.2' },
+  ]) {
+    assert.throws(
+      () => assertRecipeConsumers([{ ...sdk, fork }], consumers),
+      /no runtime consumer/,
+    );
+  }
+  assert.throws(
+    () =>
+      assertRecipeConsumers(
+        [
+          sdk,
+          {
+            ...sdk,
+            id: 'unused',
+            fork: { name: '@bleedingdev/unused', version: '2.9.2' },
+          },
+        ],
+        consumers,
+      ),
+    /sidecar unused has no runtime consumer/,
+  );
+  assert.throws(
+    () => assertRecipeGraph([], { generatorPins: [pins] }),
+    /no sidecar recipe/,
   );
 });
 

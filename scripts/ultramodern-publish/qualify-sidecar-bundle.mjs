@@ -14,12 +14,14 @@ import { rejectInlineOptionSyntax } from './lib/option-syntax.mjs';
 import { repoRoot } from './lib/prepare-bleedingdev-packages/constants.mjs';
 import { assertAcceptedPublishToolchain } from './lib/prepare-bleedingdev-packages/npm-buffer-publisher.mjs';
 import { inspectNpmTarball } from './lib/prepare-bleedingdev-packages/release-artifacts.mjs';
+import { packedMfSdkProbeMain } from './packed-mf-sdk-probe.mjs';
 import {
   resolveSidecarOutput,
-  sidecarQualificationProbeKeys,
+  sidecarProfile,
   verifySidecarBundle,
   writeSidecarQualification,
 } from './sidecar-bundle.mjs';
+import { assertSidecarProfileDependencies } from './sidecar-profiles.mjs';
 
 const { parseCliArgs } = cliKit;
 const { createProcessEnv, killChild } = processKit;
@@ -632,6 +634,9 @@ export async function qualifyPackedSidecars(
   } = {},
 ) {
   signal?.throwIfAborted();
+  const profile = verified.manifest?.profile;
+  const selected = sidecarProfile(profile);
+  assertSidecarProfileDependencies(profile, verified.sidecars.packages);
   const workspace = fs.realpathSync(
     fs.mkdtempSync(path.join(scratchRoot, 'sidecar-qualification-')),
   );
@@ -650,10 +655,11 @@ export async function qualifyPackedSidecars(
         name: 'sidecar-qualification',
         version: '0.0.0',
         dependencies: {
-          ...Object.fromEntries(
-            verified.sidecars.packages.map(item => [item.name, item.version]),
-          ),
-          typescript: '7.0.2',
+          ...(selected.dependencies ??
+            Object.fromEntries(
+              verified.sidecars.packages.map(item => [item.name, item.version]),
+            )),
+          ...(profile === 'parser' ? { typescript: '7.0.2' } : {}),
         },
       }),
     );
@@ -703,7 +709,7 @@ export async function qualifyPackedSidecars(
     }
     signal?.throwIfAborted();
     console.log(
-      'Installing the nine accepted sidecars with strict npm peer resolution',
+      `Installing ${verified.sidecars.packages.length} accepted ${profile} sidecars with strict npm peer resolution`,
     );
     await run(
       'npm',
@@ -738,23 +744,28 @@ export async function qualifyPackedSidecars(
     const probePath = path.join(workspace, 'probe.mjs');
     fs.writeFileSync(
       probePath,
-      `await (${packedApiProbeMain.toString()})();\n`,
+      `await (${(profile === 'mf-sdk' ? packedMfSdkProbeMain : packedApiProbeMain).toString()})();\n`,
     );
-    await run(process.execPath, [probePath], {
-      cwd: workspace,
-      env: childEnv,
-      signal,
-      timeoutMs: 30_000,
-    });
+    await run(
+      process.execPath,
+      [
+        ...(profile === 'mf-sdk' ? ['--experimental-vm-modules'] : []),
+        probePath,
+      ],
+      {
+        cwd: workspace,
+        env: childEnv,
+        signal,
+        timeoutMs: 30_000,
+      },
+    );
     assertPackedSidecarInstall(
       workspace,
       verified.sidecars.packages,
       registry.registryUrl,
       registry.servedTarballs,
     );
-    probes = Object.fromEntries(
-      sidecarQualificationProbeKeys.map(key => [key, true]),
-    );
+    probes = Object.fromEntries(selected.probeKeys.map(key => [key, true]));
   } catch (error) {
     failures.push(error);
     processesClosed = !(error instanceof QualificationProcessCleanupError);

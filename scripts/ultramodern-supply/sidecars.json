@@ -634,5 +634,27 @@
     "provenance": {
       "grandfatheredVersions": []
     }
+  },
+  {
+    "id": "mf-sdk",
+    "upstream": {
+      "name": "@module-federation/sdk",
+      "version": "2.9.2",
+      "tarball": "https://registry.npmjs.org/@module-federation/sdk/-/sdk-2.9.2.tgz",
+      "integrity": "sha512-ILtBFPuYpVcRA/Qay1lJ2hMtZI8fDE/v1n7xiN17e5qx5rSBR3FaamTsmRpN1hIt+gVnoa76CzOP/Y73d8hHNg=="
+    },
+    "fork": {
+      "name": "@bleedingdev/mf-sdk",
+      "version": "2.9.2"
+    },
+    "license": "MIT",
+    "artifacts": ["*"],
+    "patch": {
+      "inventory": "@module-federation/sdk@2.9.2"
+    },
+    "manifestChanges": {},
+    "provenance": {
+      "grandfatheredVersions": []
+    }
   }
 ]

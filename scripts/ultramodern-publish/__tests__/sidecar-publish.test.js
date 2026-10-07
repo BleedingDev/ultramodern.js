@@ -186,7 +186,8 @@ test('recipe-only sidecar closure records exact publication identities and alias
   );
   const sidecars = sidecarsModule.collectSidecarPackages();
   const byName = new Map(sidecars.map(sidecar => [sidecar.name, sidecar]));
-  assert.equal(sidecars.length, 22);
+  assert.equal(sidecars.length, 23);
+  assert.equal(byName.get('@bleedingdev/mf-sdk').version, '2.9.2');
   assert.equal(byName.has('@bleedingdev/ipx'), false);
   assert.equal(byName.has('@bleedingdev/effect'), false);
   assert.equal(byName.has('@bleedingdev/msgpackr'), false);
@@ -365,7 +366,7 @@ test('alias targets must match a staged sidecar exactly', async () => {
   );
 });
 
-test('every repository recipe has a runtime consumer in the published cohort', async () => {
+test('every repository recipe has a cohort or independently qualified SDK consumer', async () => {
   const { collectModernPackages, targetPackageName } = await import(
     '../lib/prepare-bleedingdev-packages/rewrite.mjs'
   );

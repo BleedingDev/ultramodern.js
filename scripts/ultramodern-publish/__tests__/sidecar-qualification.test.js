@@ -7,7 +7,7 @@ const path = require('node:path');
 const test = require('node:test');
 const load = () => import('../qualify-sidecar-bundle.mjs');
 
-async function fixture(t) {
+async function fixture(t, { sdk = false } = {}) {
   const root = fs.mkdtempSync(
     path.join(
       process.env.OWNED_TEMP_DIR ?? os.tmpdir(),
@@ -21,14 +21,16 @@ async function fixture(t) {
   const { inspectNpmTarball, verifySidecarArtifacts } = await import(
     '../lib/prepare-bleedingdev-packages/release-artifacts.mjs'
   );
-  const definitions = [
-    { name: '@bleedingdev/braces', version: '3.0.4' },
-    {
-      name: '@bleedingdev/micromatch',
-      version: '4.0.8',
-      dependencies: { braces: 'npm:@bleedingdev/braces@3.0.4' },
-    },
-  ];
+  const definitions = sdk
+    ? [{ name: '@bleedingdev/mf-sdk', version: '2.9.2' }]
+    : [
+        { name: '@bleedingdev/braces', version: '3.0.4' },
+        {
+          name: '@bleedingdev/micromatch',
+          version: '4.0.8',
+          dependencies: { braces: 'npm:@bleedingdev/braces@3.0.4' },
+        },
+      ];
   const staged = definitions.map(definition => {
     const id = definition.name.split('/')[1];
     const stagedDir = path.join(root, id);
@@ -80,7 +82,7 @@ async function fixture(t) {
     };
     for (const item of sidecars.packages)
       copyPackage(item, `node_modules/${item.name}`);
-    copyPackage(sidecars.packages[0], 'node_modules/braces');
+    if (!sdk) copyPackage(sidecars.packages[0], 'node_modules/braces');
     fs.writeFileSync(
       path.join(workspace, 'package-lock.json'),
       JSON.stringify(lock),
@@ -267,7 +269,7 @@ test('early registry failure removes only the newly allocated consumer', async t
   await assert.rejects(
     () =>
       qualifyPackedSidecars(
-        { sidecars: f.sidecars },
+        { manifest: { profile: 'parser' }, sidecars: f.sidecars },
         {
           scratchRoot: f.root,
           startRegistry: async () => {
@@ -293,7 +295,7 @@ test('install failure stops the registry and removes the partial consumer', asyn
   await assert.rejects(
     () =>
       qualifyPackedSidecars(
-        { sidecars: f.sidecars },
+        { manifest: { profile: 'parser' }, sidecars: f.sidecars },
         {
           scratchRoot: f.root,
           startRegistry: async () => ({
@@ -331,7 +333,7 @@ test('mocked orchestration cleans a successful consumer without minting a receip
   let calls = 0;
   let stopped = 0;
   const probes = await qualifyPackedSidecars(
-    { sidecars: f.sidecars },
+    { manifest: { profile: 'parser' }, sidecars: f.sidecars },
     {
       scratchRoot: f.root,
       startRegistry: async () => ({
@@ -365,6 +367,70 @@ test('mocked orchestration cleans a successful consumer without minting a receip
   assert.equal(fs.existsSync(path.join(f.root, 'qualification.json')), false);
 });
 
+test('SDK profile installs only its closed dependency and runs native VM probes', async t => {
+  const f = await fixture(t, { sdk: true });
+  const { qualifyPackedSidecars } = await load();
+  const probes = await qualifyPackedSidecars(
+    { manifest: { profile: 'mf-sdk' }, sidecars: f.sidecars },
+    {
+      scratchRoot: f.root,
+      startRegistry: async () => ({
+        registryUrl: f.registryUrl,
+        servedTarballs: f.served,
+        stop: async () => {},
+      }),
+      run: async (command, args, options) => {
+        if (args[0] === 'install') {
+          const manifest = JSON.parse(
+            fs.readFileSync(path.join(options.cwd, 'package.json')),
+          );
+          assert.deepEqual(manifest.dependencies, {
+            '@bleedingdev/mf-sdk': '2.9.2',
+          });
+          f.install(options.cwd);
+        }
+        if (command === process.execPath) {
+          assert.equal(args[0], '--experimental-vm-modules');
+          assert.match(
+            fs.readFileSync(args[1], 'utf8'),
+            /packedMfSdkProbeMain/,
+          );
+        }
+        return '';
+      },
+    },
+  );
+  assert.deepEqual(probes, {
+    'packed-install': true,
+    'mf-sdk-cjs-api': true,
+    'mf-sdk-esm-api': true,
+  });
+  for (const manifest of [undefined, { profile: 'unknown' }]) {
+    await assert.rejects(
+      () =>
+        qualifyPackedSidecars(
+          { manifest, sidecars: f.sidecars },
+          { scratchRoot: f.root },
+        ),
+      /Unknown sidecar profile/,
+    );
+  }
+  await assert.rejects(
+    () =>
+      qualifyPackedSidecars(
+        {
+          manifest: { profile: 'mf-sdk' },
+          sidecars: {
+            ...f.sidecars,
+            packages: [{ name: '@bleedingdev/mf-sdk', version: '2.9.3' }],
+          },
+        },
+        { scratchRoot: f.root },
+      ),
+    /closed profile/,
+  );
+});
+
 test('unknown qualification flags cannot select a different registry or installation', async () => {
   const { runSidecarQualificationCli } = await load();
   for (const args of [
@@ -396,7 +462,7 @@ test('workspace lease covers the dependency directory and releases after registr
   await assert.rejects(
     () =>
       qualifyPackedSidecars(
-        { sidecars: f.sidecars },
+        { manifest: { profile: 'parser' }, sidecars: f.sidecars },
         {
           scratchRoot: f.root,
           onWorkspace: (workspace, { dependenciesPath, ownerPid }) => {
@@ -443,7 +509,7 @@ test('an already cancelled qualification allocates no workspace', async t => {
   await assert.rejects(
     () =>
       qualifyPackedSidecars(
-        { sidecars: f.sidecars },
+        { manifest: { profile: 'parser' }, sidecars: f.sidecars },
         { scratchRoot: f.root, signal: controller.signal },
       ),
     /cancelled before allocation/,
@@ -511,7 +577,7 @@ setInterval(() => {}, 1000);
     let released = false;
     let closed = false;
     const task = qualifyPackedSidecars(
-      { sidecars: f.sidecars },
+      { manifest: { profile: 'parser' }, sidecars: f.sidecars },
       {
         scratchRoot: f.root,
         signal: controller.signal,
@@ -587,7 +653,7 @@ test('cleanup preserves the original error and removes scratch after confirmed c
   await assert.rejects(
     () =>
       qualifyPackedSidecars(
-        { sidecars: f.sidecars },
+        { manifest: { profile: 'parser' }, sidecars: f.sidecars },
         {
           scratchRoot: f.root,
           startRegistry: async () => ({
@@ -626,7 +692,7 @@ test('unconfirmed registry closure retains owned scratch and reports its exact p
   await assert.rejects(
     () =>
       qualifyPackedSidecars(
-        { sidecars: f.sidecars },
+        { manifest: { profile: 'parser' }, sidecars: f.sidecars },
         {
           scratchRoot: f.root,
           onWorkspace: workspace => {
