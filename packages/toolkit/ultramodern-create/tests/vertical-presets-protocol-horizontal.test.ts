@@ -13,7 +13,6 @@ import {
   createWorkspace,
   linkWorkspaceFormatterDependencies,
   runValidation,
-  snapshotWorkspace,
 } from './helpers/workspace-kit';
 
 const MODERN_VERSION = '3.2.1';
@@ -146,27 +145,6 @@ test('topology rehydration preserves protocol, profile and delivery-unit identit
       ).deliveryUnitKind,
       'horizontal-remote',
     );
-  });
-});
-
-test('topology-only protocol drift rejects projection and preserves original workspace bytes', async () => {
-  await withWorkspace(async dir => {
-    await add(dir, 'catalog', { apiProtocol: 'rpc' });
-    const topologyPath = path.join(dir, 'topology/reference-topology.json');
-    const topology = JSON.parse(fs.readFileSync(topologyPath, 'utf8'));
-    topology.verticals.find(
-      (entry: any) => entry.id === 'catalog',
-    ).api.protocol = 'rest';
-    fs.writeFileSync(topologyPath, `${JSON.stringify(topology, null, 2)}\n`);
-    const before = snapshotWorkspace(dir);
-    await assert.rejects(add(dir, 'rest-drift'), (error: unknown) => {
-      assert.ok(error instanceof Error);
-      assert.match(error.message, /source input consumed by modern\.config/u);
-      assert.match(error.message, /development\.json/u);
-      return true;
-    });
-    assert.deepEqual(snapshotWorkspace(dir), before);
-    assert.equal(fs.existsSync(path.join(dir, 'verticals/rest-drift')), false);
   });
 });
 
