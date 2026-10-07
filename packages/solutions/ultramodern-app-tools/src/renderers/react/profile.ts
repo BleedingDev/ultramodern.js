@@ -1,6 +1,6 @@
-import type { RendererBuildProfile } from '../../native-composition/renderer-profile';
+import type { RendererBuildProfile } from '@modern-js/renderer-core/adapter';
 
-export const reactCandidateProfile: RendererBuildProfile = {
+export const reactProfile: RendererBuildProfile<'react'> = {
   renderer: 'react',
   status: 'stable',
   protocolVersion: 1,

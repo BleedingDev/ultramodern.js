@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import type { NativeRendererAdapter } from '@modern-js/renderer-core/adapter';
 import type { FileSystemRouteIR } from '@modern-js/renderer-core/data';
 import type { RendererIdentity } from '@modern-js/renderer-core/identity';
 import { findNativeFederationConfig } from './native-federation-files';
@@ -112,23 +113,16 @@ export async function emitNativeEntryApplication(
  */
 export const NATIVE_APPLICATION_CLIENT_REQUEST = './app.client';
 
-export interface NativeEntryStubOptions {
-  /** Extra client entry options: source declarations and option fields. */
-  readonly client?: {
-    readonly declarations: string;
-    readonly fields: Readonly<Record<string, string>>;
-  };
-}
-
 /**
  * The renderer runtime owns the entry lifecycle. Generated entries are stubs
- * that pass identity, the application importer and the bundler's HMR object.
+ * that pass identity, the application importer and the bundler's HMR object
+ * to the adapter's entry modules.
  */
 export function createNativeEntryStubGenerator(
-  renderer: NativeEntryGeneration['renderer'],
-  options: NativeEntryStubOptions = {},
+  adapter: NativeRendererAdapter,
 ): NativeEntryGenerator {
-  const runtime = `@modern-js/renderer-${renderer}`;
+  const renderer = adapter.name;
+  const extra = adapter.entryClient;
   return {
     async client(context) {
       const identity = resolveNativeEntryIdentity(context, renderer);
@@ -138,10 +132,10 @@ export function createNativeEntryStubGenerator(
         load: `() => import(${JSON.stringify(NATIVE_APPLICATION_CLIENT_REQUEST)})`,
         ...(context.i18n ? { i18n: 'i18n' } : {}),
         hot: 'import.meta.webpackHot',
-        ...options.client?.fields,
+        ...extra?.fields,
       };
-      return `import { startNativeClient } from ${JSON.stringify(`${runtime}/entry-client`)};
-${context.i18n ? 'import { i18n } from "./i18n";\n' : ''}${options.client?.declarations ?? ''}
+      return `import { startNativeClient } from ${JSON.stringify(adapter.runtime.entryClient)};
+${context.i18n ? 'import { i18n } from "./i18n";\n' : ''}${extra?.declarations ?? ''}
 startNativeClient({
 ${Object.entries(fields)
   .map(([name, value]) => `  ${name === value ? name : `${name}: ${value}`},`)
@@ -152,7 +146,7 @@ ${Object.entries(fields)
     async server(context) {
       const identity = resolveNativeEntryIdentity(context, renderer);
       const { directory } = await emitNativeEntryApplication(context, 'server');
-      const server = `import { createNativeServerEntry } from ${JSON.stringify(`${runtime}/entry-server`)};
+      const server = `import { createNativeServerEntry } from ${JSON.stringify(adapter.runtime.entryServer)};
 ${context.i18n ? 'import { i18n } from "./i18n";\n' : ''}
 export const { ${nativeServerHandlers.join(', ')} } = createNativeServerEntry({
   identity: ${JSON.stringify(identity)},
@@ -200,5 +194,5 @@ ${nativeServerHandlers
 export function createNativeEntryGenerator(
   renderer: NativeEntryGeneration['renderer'],
 ): NativeEntryGenerator {
-  return resolveNativeRendererAdapter(renderer).createEntryGenerator();
+  return createNativeEntryStubGenerator(resolveNativeRendererAdapter(renderer));
 }

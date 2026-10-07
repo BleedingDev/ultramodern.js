@@ -10,11 +10,9 @@ import type { RendererProfileMetadata } from './renderer-installed-profile';
 import {
   resolveCandidateRendererProfile,
   resolveRendererProfile,
+  resolveRendererRouterFrameworks,
 } from './renderer-profile';
-import {
-  resolveNativeRendererAdapter,
-  resolveRendererRegistration,
-} from './renderer-registration';
+import { nativeInfrastructurePluginName } from './renderer-registration';
 
 /** Describe the actual owning entry hooks; runtime provider choice stays native. */
 export async function resolveEntrypointRouterBindings(
@@ -28,10 +26,10 @@ export async function resolveEntrypointRouterBindings(
     return (await import('./react-router-bindings')).resolveReactRouterBindings(
       { entrypoints, pluginNames, appDirectory },
     );
-  const owner = resolveNativeRendererAdapter(renderer).infrastructurePluginName;
+  const owner = nativeInfrastructurePluginName(renderer);
   if (!pluginNames.includes(owner))
     throw new Error(`The ${renderer} entry router owner is not registered`);
-  const registration = resolveRendererRegistration(renderer);
+  const routerFrameworks = resolveRendererRouterFrameworks(renderer);
   const provider = {
     ...(
       metadata?.profile ??
@@ -39,7 +37,7 @@ export async function resolveEntrypointRouterBindings(
         ? resolveCandidateRendererProfile(renderer)
         : resolveRendererProfile(renderer))
     ).router,
-    framework: registration.routerFrameworks[0],
+    framework: routerFrameworks[0],
   };
   const bindings: RendererRouterBindings = Object.fromEntries(
     entrypoints.map(entry => [
@@ -56,7 +54,7 @@ export async function resolveEntrypointRouterBindings(
     bindings,
     entrypoints.map(entry => entry.entryName),
     'routerBindings',
-    registration.routerFrameworks,
+    routerFrameworks,
   );
   if (!validation.ok)
     throw new Error(

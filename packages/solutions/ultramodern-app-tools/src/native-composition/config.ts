@@ -9,7 +9,7 @@ import {
 import type { Renderer } from '@modern-js/renderer-core';
 import { CONFIG_FILE_EXTENSIONS } from '@modern-js/utils';
 import { withEntryMetadataRead } from './config-read-context';
-import { resolveRendererRegistration } from './renderer-registration';
+import { resolveRendererAdapter } from './renderer-registration';
 import { resolveEntrypointRouterBindings } from './renderer-router-resolution';
 import {
   assertCapturedRenderer,
@@ -51,7 +51,7 @@ function selectConfig(
   if (!config || typeof config !== 'object' || Array.isArray(config)) {
     throw new Error('UltraModern configuration must be an object');
   }
-  const renderer = resolveRendererRegistration(config.renderer).renderer;
+  const renderer = resolveRendererAdapter(config.renderer).name;
   const plugins = config.plugins ?? [];
   assertNoAdditionalBasePlugins(plugins);
   assertRendererCliPlugins(renderer, plugins);
@@ -87,7 +87,7 @@ export async function resolveUltramodernConfig(
 ): Promise<UltramodernAppUserConfig> {
   const resolved =
     typeof config === 'function' ? await config(context) : config;
-  const renderer = resolveRendererRegistration(resolved.renderer).renderer;
+  const renderer = resolveRendererAdapter(resolved.renderer).name;
   return resolved.renderer === undefined ? { ...resolved, renderer } : resolved;
 }
 
@@ -121,7 +121,7 @@ export async function loadUltramodernConfigFile({
     config,
     { env, command },
   );
-  const renderer = resolveRendererRegistration(loaded.config.renderer).renderer;
+  const renderer = resolveRendererAdapter(loaded.config.renderer).name;
   loaded.config = { ...loaded.config, renderer };
   const bases = (loaded.config.plugins ?? []).filter(
     plugin => plugin.name === ULTRAMODERN_BASE_PLUGIN,
@@ -135,7 +135,7 @@ export async function loadUltramodernConfigFile({
     }
   )[selectedRenderer];
   if (
-    resolveRendererRegistration(renderer).kind === 'native' &&
+    resolveRendererAdapter(renderer).kind === 'native' &&
     captured === undefined
   )
     throw new Error(
@@ -195,7 +195,7 @@ export async function resolveUltramodernEntryIdentities({
     const primary = entries.find(entry => entry.isMainEntry) ?? entries[0];
     if (!primary)
       throw new Error('UltraModern configuration has no application entries');
-    const renderer = resolveRendererRegistration(config.renderer).renderer;
+    const renderer = resolveRendererAdapter(config.renderer).name;
     const routerBindings = await resolveEntrypointRouterBindings(
       renderer,
       entrypoints,

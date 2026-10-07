@@ -1,116 +1,98 @@
+import { createRequire } from 'node:module';
 import type { AppTools, CliPlugin } from '@modern-js/app-tools/cli-config';
 import type { PolicyDefaultsOptions } from '@modern-js/app-tools-extensions/policy-defaults';
-import type { RouterFramework } from '@modern-js/backend-federation-contracts';
-import type { Renderer, RendererIdentity } from '@modern-js/renderer-core';
-import { octaneRendererRegistration } from '../renderers/octane/registration';
-import { reactRendererRegistration } from '../renderers/react/registration';
-import { solidRendererRegistration } from '../renderers/solid/registration';
-import type { NativeCompilerArtifacts } from './compiler-artifacts';
-import type { NativeEntryGenerator } from './native-infrastructure';
-import type { RendererBuildProfile } from './renderer-profile';
+import type { Renderer } from '@modern-js/renderer-core';
+import type {
+  ComposedRendererAdapter,
+  NativeRendererAdapter,
+} from '@modern-js/renderer-core/adapter';
+import { reactRendererAdapter } from '../renderers/react/adapter';
 
-export interface RendererIntegrationCapabilities {
-  readonly reactCliPlugins: boolean;
-  readonly reactRuntimeDescriptors: boolean;
-  readonly reactCompiler: boolean;
-  readonly cssDeclarations: boolean;
-}
+export type ComposedUltramodernRendererAdapter = ComposedRendererAdapter<
+  Renderer,
+  CliPlugin<AppTools>,
+  PolicyDefaultsOptions
+>;
 
-export interface NativeRendererCompilerOptions {
-  rendererIdentities(): Readonly<Record<string, RendererIdentity>>;
-  /** `component` also compiles default `.svg` script imports as components. */
-  readonly svgDefaultExport?: 'component' | 'url';
-}
+export type UltramodernRendererAdapter =
+  | NativeRendererAdapter
+  | ComposedUltramodernRendererAdapter;
 
-/** Source is provenance; activation loads the owning emitted Node compiler. */
-export interface NativeRendererCompilerActivation {
-  readonly schema: 'ultramodern-native-compiler-activation';
-  readonly version: 1;
-  readonly renderer: Renderer;
-  readonly operation: 'compiler';
-  readonly module: {
-    readonly source: string;
-    readonly import: string;
-    readonly require: string;
-  };
-  readonly export: string;
-}
+export type RegisteredRenderer = 'react' | 'solid' | 'octane';
 
-export interface NativeRendererAdapter {
-  readonly renderer: Renderer;
-  readonly infrastructurePluginName: string;
-  readonly profile: RendererBuildProfile;
-  readonly compilerArtifacts: NativeCompilerArtifacts;
-  readonly compiler: NativeRendererCompilerActivation;
-  /**
-   * Who links the stylesheets of lazy components in a server document.
-   * `'renderer'`: the server render links each one beside the markup it
-   * renders. `'document'`: the render cannot report which lazy modules it
-   * rendered, so the document links every lazy stylesheet up front.
-   */
-  readonly lazyStyles: 'renderer' | 'document';
-  assertSupportedSource?(source: string | false | undefined): Promise<void>;
-  createEntryGenerator(): NativeEntryGenerator;
-}
+const requireAdapter = createRequire(import.meta.url);
 
-interface RendererRegistrationMetadata {
-  readonly renderer: Renderer;
-  readonly candidateProfile: RendererBuildProfile;
-  readonly routerFrameworks: readonly RouterFramework[];
-  readonly frameworkModules: readonly {
-    readonly specifier: string;
-    readonly request: string;
-  }[];
-  readonly supports: RendererIntegrationCapabilities;
-}
-
-export type RendererRegistration = RendererRegistrationMetadata &
-  (
-    | {
-        readonly kind: 'native';
-        readonly nativeAdapter: NativeRendererAdapter;
-      }
-    | {
-        readonly kind: 'composed';
-        compose(
-          consumerPlugins: readonly CliPlugin<AppTools>[],
-          policy?: PolicyDefaultsOptions,
-        ): CliPlugin<AppTools>;
-      }
-  );
-
-// Adding a renderer requires its owner module and one explicit registration.
-const registrations = [
-  reactRendererRegistration,
-  solidRendererRegistration,
-  octaneRendererRegistration,
-] as const satisfies readonly RendererRegistration[];
+/**
+ * Renderer adapters by name. Native adapters live in their renderer package's
+ * build-only `./plugin` entry and load only when selected. Loading is
+ * synchronous (`require` of ESM) because configuration, metadata and
+ * scaffolding read renderer profiles synchronously.
+ */
+const rendererAdapters: Readonly<
+  Record<RegisteredRenderer, () => UltramodernRendererAdapter>
+> = {
+  react: () => reactRendererAdapter,
+  solid: () =>
+    requireAdapter('@modern-js/renderer-solid/plugin').rendererAdapter,
+  octane: () =>
+    requireAdapter('@modern-js/renderer-octane/plugin').rendererAdapter,
+};
 
 export const registeredRenderers = Object.freeze(
-  registrations.map(registration => registration.renderer),
+  Object.keys(rendererAdapters) as RegisteredRenderer[],
 );
 
+const loadedAdapters = new Map<
+  RegisteredRenderer,
+  UltramodernRendererAdapter
+>();
+
 /** Application admission is finite even though transport identities are generic. */
-export function resolveRendererRegistration(
+export function resolveRendererAdapter(
   value: unknown = 'react',
-): (typeof registrations)[number] {
-  const selected = registrations.find(
-    registration => registration.renderer === value,
-  );
-  if (!selected)
+): UltramodernRendererAdapter & { readonly name: RegisteredRenderer } {
+  const renderer = registeredRenderers.find(name => name === value);
+  if (!renderer)
     throw new Error(`Unsupported UltraModern renderer: ${String(value)}`);
-  return selected;
+  let adapter = loadedAdapters.get(renderer);
+  if (!adapter) {
+    adapter = rendererAdapters[renderer]();
+    if (adapter?.name !== renderer || adapter.profile?.renderer !== renderer)
+      throw new Error(
+        `The ${renderer} renderer package exports no matching renderer adapter`,
+      );
+    loadedAdapters.set(renderer, adapter);
+  }
+  return adapter as UltramodernRendererAdapter & {
+    readonly name: RegisteredRenderer;
+  };
 }
 
 export function resolveNativeRendererAdapter(
   renderer: Renderer,
 ): NativeRendererAdapter {
-  const registration = registrations.find(
-    candidate => candidate.renderer === renderer,
-  );
-  if (!registration || registration.kind !== 'native')
+  const adapter = resolveRendererAdapter(renderer);
+  if (adapter.kind !== 'native')
     throw new Error(
       `Unsupported UltraModern native renderer: ${String(renderer)}`,
     );
-  return registration.nativeAdapter;
+  return adapter;
+}
+
+/** Every adapter whose renderer package is installed, without failing on the rest. */
+export function resolveInstalledRendererAdapters(): UltramodernRendererAdapter[] {
+  return registeredRenderers.flatMap(renderer => {
+    try {
+      return [resolveRendererAdapter(renderer)];
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException)?.code === 'MODULE_NOT_FOUND')
+        return [];
+      throw error;
+    }
+  });
+}
+
+/** The infrastructure plugin that owns a native renderer's entries. */
+export function nativeInfrastructurePluginName(renderer: Renderer): string {
+  return `@modern-js/renderer-${renderer}-infrastructure`;
 }

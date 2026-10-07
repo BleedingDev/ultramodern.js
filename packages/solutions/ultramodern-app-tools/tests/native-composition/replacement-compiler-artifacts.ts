@@ -1,19 +1,20 @@
+import type {
+  NativeCompilerArtifactContext,
+  NativeCompilerArtifacts,
+  NativeRendererAdapter,
+  RendererBuildProfile,
+} from '@modern-js/renderer-core/adapter';
 import {
   assertRendererIdentity,
   type RendererIdentity,
 } from '@modern-js/renderer-core/identity';
 import { rstest } from '@rstest/core';
-import type {
-  NativeCompilerArtifactContext,
-  NativeCompilerArtifacts,
-} from '../../src/native-composition/compiler-artifacts';
 
 /** One replacement compiler ABI exercised by build, development and serving. */
 export function createReplacementCompilerArtifacts(
   validatedManifest?: unknown,
 ) {
   return {
-    routerFrameworks: ['replacement'],
     clientManifestFile: rstest.fn(
       (entryName: string) => `compiled-artifacts/${entryName}.replacement.json`,
     ),
@@ -72,4 +73,29 @@ export function createReplacementCompilerArtifacts(
         ),
     ),
   } satisfies NativeCompilerArtifacts;
+}
+
+/** A replacement native renderer adapter around the replacement compiler ABI. */
+export function createReplacementAdapter(
+  profile: RendererBuildProfile,
+  artifacts: NativeCompilerArtifacts = createReplacementCompilerArtifacts(),
+): NativeRendererAdapter {
+  return {
+    name: profile.renderer,
+    kind: 'native',
+    profile,
+    routerFrameworks: ['replacement'],
+    ownedPackages: ['@fixture/replacement-runtime'],
+    runtime: {
+      package: '@fixture/replacement-runtime',
+      bootstrap: '@fixture/replacement-renderer',
+      entryClient: '@fixture/replacement-renderer/entry-client',
+      entryServer: '@fixture/replacement-renderer/entry-server',
+      router: '@fixture/replacement-renderer/router',
+      manifest: '@fixture/replacement-renderer/manifest',
+    },
+    worker: { nativeDocuments: true, rsc: false },
+    compiler: () => ({ name: 'replacement-compiler', setup() {} }),
+    artifacts,
+  };
 }

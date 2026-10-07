@@ -19,6 +19,7 @@ import { yaml } from '@modern-js/utils';
 import { createBuildMarker, createDeliveryUnitRecord } from './delivery-unit';
 import { appEmitsBrowserUi } from './descriptors';
 import { captureWorkspaceRendererEvaluations } from './renderer-config-evaluation';
+import { isNativeRendererPackage } from './renderer-generations';
 import {
   getRendererGenerationProfile,
   isApplicationRenderer,
@@ -48,7 +49,7 @@ function bindRouterProviderReleaseVersions(
   generation: RendererGenerationProfile,
 ): RendererRouterBindings {
   const selected = generation.profile.router;
-  if (!/^@modern-js\/renderer-(solid|octane)$/u.test(selected.name))
+  if (!isNativeRendererPackage(selected.name))
     return immutableRendererRouterBindings(bindings);
   const evidence = readRendererFrameworkPackageEvidence(selected.name);
   if (evidence.kind !== 'release-cohort')

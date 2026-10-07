@@ -1,28 +1,14 @@
 import type {
+  RendererAppSourceOptions,
+  RendererAppSources,
+} from '@modern-js/renderer-core/adapter';
+import type {
   RegisteredRenderer,
   RendererBuildProfile,
 } from '@modern-js/ultramodern-app-tools';
 import { resolveRendererRouterFrameworks } from '@modern-js/ultramodern-app-tools';
 import type { RendererGenerationProfile } from './types';
 import { NODE_VERSION } from './versions';
-
-export type NativeAppSourceOptions = {
-  appId: string;
-  title: string;
-  entryName: string;
-  sourceExtension: RendererGenerationProfile['sourceExtension'];
-  jsxImportSource: string;
-  capabilities: {
-    ssr: boolean;
-    federation: boolean;
-  };
-};
-
-export type NativeAppSources = {
-  sourceExtension: RendererGenerationProfile['sourceExtension'];
-  jsxImportSource: string;
-  artifacts: { path: string; content: string }[];
-};
 
 export type RendererGenerationAdapter = {
   renderer: RegisteredRenderer;
@@ -31,7 +17,7 @@ export type RendererGenerationAdapter = {
   | { kind: 'react' }
   | {
       kind: 'native';
-      generateAppSources(options: NativeAppSourceOptions): NativeAppSources;
+      generateAppSources(options: RendererAppSourceOptions): RendererAppSources;
     }
 );
 
@@ -72,18 +58,5 @@ export function createRendererGenerationProfile(
         templates.federation && selected.capabilities.moduleFederation === true,
       rsc: selected.capabilities.rsc,
     },
-  };
-}
-
-export function nativeRendererDependencies(
-  selected: RendererBuildProfile,
-): Record<string, string> {
-  return {
-    ...Object.fromEntries(
-      Object.entries(selected.dependencies).filter(
-        ([name]) => !name.startsWith('@modern-js/'),
-      ),
-    ),
-    [selected.router.coreName]: selected.router.coreVersion,
   };
 }

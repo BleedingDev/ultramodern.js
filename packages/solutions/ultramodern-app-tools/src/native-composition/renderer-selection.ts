@@ -2,7 +2,7 @@ import type { AppTools, CliPlugin } from '@modern-js/app-tools/cli-config';
 import { resolveDeployTarget } from '@modern-js/app-tools-extensions/deploy-output/target';
 import { type Renderer, resolveRenderer } from '@modern-js/renderer-core';
 import type { RsbuildPlugin, RsbuildPlugins } from '@rsbuild/core';
-import { resolveRendererRegistration } from './renderer-registration';
+import { resolveRendererAdapter } from './renderer-registration';
 import { assertRouteSourcesMatchRenderer } from './renderer-source-ownership';
 import type { UltramodernAppUserConfig } from './types';
 
@@ -29,7 +29,7 @@ export function attachRendererCompilerClaim<T extends RsbuildPlugin>(
 ): T {
   resolveRenderer(claim.renderer);
   if (
-    resolveRendererRegistration(claim.renderer).kind !== 'native' ||
+    resolveRendererAdapter(claim.renderer).kind !== 'native' ||
     claim.transform !== 'native' ||
     claim.refresh !== 'native' ||
     (claim.svg !== 'url' && claim.svg !== 'component') ||
@@ -59,7 +59,7 @@ export function assertRendererCompilerOwnership(
     const claim = (plugin as ClaimedPlugin)[compilerClaim];
     return claim ? [claim] : [];
   });
-  if (resolveRendererRegistration(renderer).kind !== 'native') {
+  if (resolveRendererAdapter(renderer).kind !== 'native') {
     if (claims.length) {
       throw new Error('React configuration contains a native compiler owner');
     }
@@ -108,9 +108,9 @@ type ReactCliPluginName = (typeof REACT_CLI_PLUGIN_NAMES)[number];
 
 const reactOnlyPluginAdvice: Partial<Record<ReactCliPluginName, string>> = {
   '@modern-js/plugin-tanstack':
-    'remove tanstackRouterPlugin(); the {renderer} renderer routes src/routes through @modern-js/renderer-{renderer}/router',
+    'remove tanstackRouterPlugin(); the {renderer} renderer routes src/routes through {router}',
   '@modern-js/plugin-i18n':
-    "replace it with i18nPlugin() from @modern-js/ultramodern-app-tools (same localeDetection/backend options); the {renderer} renderer's components use @modern-js/renderer-{renderer}/i18n",
+    "replace it with i18nPlugin() from @modern-js/ultramodern-app-tools (same localeDetection/backend options); the {renderer} renderer's components use {i18n}",
   '@modern-js/i18n-integration':
     'replace the React i18n integration with i18nPlugin() from @modern-js/ultramodern-app-tools',
   '@modern-js/ultramodern-i18n-integration':
@@ -128,7 +128,8 @@ export function assertRendererCliPlugins(
   renderer: Renderer,
   plugins: readonly CliPlugin<AppTools>[],
 ): void {
-  if (resolveRendererRegistration(renderer).supports.reactCliPlugins) return;
+  const adapter = resolveRendererAdapter(renderer);
+  if (adapter.kind === 'composed') return;
   const reactOnly = new Set<string>(REACT_CLI_PLUGIN_NAMES);
   const found = [
     ...new Set(flattenPluginNames(plugins).filter(name => reactOnly.has(name))),
@@ -138,7 +139,10 @@ export function assertRendererCliPlugins(
     const advice =
       reactOnlyPluginAdvice[name as ReactCliPluginName] ??
       'remove it; the native renderer owns runtime, routing, SSR and the document';
-    return `  - ${name}: ${advice.replaceAll('{renderer}', renderer)}`;
+    return `  - ${name}: ${advice
+      .replaceAll('{renderer}', renderer)
+      .replaceAll('{router}', adapter.runtime.router)
+      .replaceAll('{i18n}', adapter.runtime.i18n ?? 'its own i18n runtime')}`;
   });
   throw new Error(
     [
@@ -188,17 +192,17 @@ export function assertCapturedRenderer(
   config: UltramodernAppUserConfig,
   renderer: Renderer,
 ): void {
-  const registration = resolveRendererRegistration(config.renderer);
-  const actual = registration.renderer;
+  const adapter = resolveRendererAdapter(config.renderer);
+  const actual = adapter.name;
+  const native = adapter.kind === 'native';
   if (actual !== renderer) {
     throw new Error(
       `Renderer changed from ${renderer} to ${actual} after plugin selection. Update the source configuration and restart the dev server.`,
     );
   }
   assertRendererCliPlugins(renderer, config.plugins ?? []);
-  if (registration.kind === 'native')
-    assertNativeExternalScripts(renderer, config.output);
-  const capabilities = registration.candidateProfile.capabilities;
+  if (native) assertNativeExternalScripts(renderer, config.output);
+  const capabilities = adapter.profile.capabilities;
   const reject = (capability: string): never => {
     throw new Error(
       `unsupported-renderer-capability: renderer ${renderer} does not support ${capability}`,
@@ -215,7 +219,7 @@ export function assertCapturedRenderer(
     reject('React i18n integration');
   // `runtime.i18n` is React's runtime-plugin configuration; native renderers
   // localize through i18nPlugin() instead of silently ignoring it.
-  if (registration.kind === 'native' && selected.runtime?.i18n)
+  if (native && selected.runtime?.i18n)
     throw new Error(
       `unsupported-renderer-capability: renderer ${renderer} does not read React runtime i18n configuration; register i18nPlugin() from @modern-js/ultramodern-app-tools in plugins instead`,
     );
@@ -230,18 +234,14 @@ export function assertCapturedRenderer(
     config.output?.svgDefaultExport === 'component'
   )
     reject('SVG components; import SVG URLs instead');
-  if (
-    !registration.supports.cssDeclarations &&
-    config.output?.enableCssModuleTSDeclaration
-  )
+  // CSS declarations and the React compiler belong to the React stack.
+  if (native && config.output?.enableCssModuleTSDeclaration)
     reject('CSS declaration generation beside authored source');
-  if (!registration.supports.reactCompiler && config.source?.reactCompiler)
-    reject('the React compiler');
+  if (native && config.source?.reactCompiler) reject('the React compiler');
   // The React MF plugin's application SSR stays React's; native renderers
   // federate through module-federation.config instead.
   if (
-    (capabilities.moduleFederation !== true ||
-      registration.kind === 'native') &&
+    (capabilities.moduleFederation !== true || native) &&
     (selected.moduleFederation ||
       (typeof config.server?.ssr === 'object' &&
         config.server.ssr.moduleFederationAppSSR) ||
@@ -262,7 +262,7 @@ export function assertCapturedRenderer(
     (config.deploy?.worker?.ssr || deployTarget !== 'node')
   )
     reject('worker or unadmitted deployment providers');
-  if (registration.kind === 'native') {
+  if (native) {
     // Native documents need a server dispatcher: the Node host, or the
     // Cloudflare module worker built from the same native server handler.
     if (deployTarget !== 'node' && deployTarget !== 'cloudflare')
@@ -313,7 +313,7 @@ export function rendererSelectionGuard(
         );
       };
       validate(api.getConfig() as UltramodernAppUserConfig);
-      if (!resolveRendererRegistration(renderer).supports.reactCliPlugins) {
+      if (resolveRendererAdapter(renderer).kind === 'native') {
         const forbidden = api
           .getAppContext()
           .plugins.filter(plugin =>
@@ -332,8 +332,7 @@ export function rendererSelectionGuard(
         assertRouteSourcesMatchRenderer(renderer, appDirectory, srcDirectory);
       api.modifyResolvedConfig(config => {
         validate(config as UltramodernAppUserConfig);
-        if (resolveRendererRegistration(renderer).kind !== 'native')
-          return config;
+        if (resolveRendererAdapter(renderer).kind !== 'native') return config;
         return {
           ...config,
           output: {

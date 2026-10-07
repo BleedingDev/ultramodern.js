@@ -4,6 +4,7 @@ import path from 'node:path';
 import type { AppTools, CliPlugin } from '@modern-js/app-tools/cli-config';
 import type { Renderer } from '@modern-js/renderer-core';
 import type { LocalisedUrlsOption } from '@modern-js/runtime-extensions/localised-urls';
+import { resolveRendererAdapter } from './renderer-registration';
 
 export const NATIVE_I18N_PLUGIN = '@modern-js/ultramodern-native-i18n';
 
@@ -164,8 +165,8 @@ function resolveOptions(options: NativeI18nPluginOptions): NativeI18nConfig {
 }
 
 /**
- * Localized routing and translations for the native Solid and Octane
- * renderers, with the same option shape as `@modern-js/plugin-i18n`:
+ * Localized routing and translations for native renderers whose adapter
+ * ships an i18n runtime, with the same option shape as `@modern-js/plugin-i18n`:
  *
  * ```ts
  * import { defineConfig, i18nPlugin } from '@modern-js/ultramodern-app-tools';
@@ -178,7 +179,7 @@ function resolveOptions(options: NativeI18nPluginOptions): NativeI18nConfig {
  *
  * Translations are read from `locales/<language>/<namespace>.json` and
  * bundled per language. Components use `useI18n`, `LocalizedLink` and
- * `I18nProvider` from `@modern-js/renderer-<renderer>/i18n`; the app installs
+ * `I18nProvider` from the adapter's i18n runtime module; the app installs
  * `i18next` and `@modern-js/i18n-runtime-extensions` next to its renderer.
  */
 export function i18nPlugin(
@@ -188,10 +189,12 @@ export function i18nPlugin(
   const plugin: NativeI18nPlugin = {
     name: NATIVE_I18N_PLUGIN,
     setup(api) {
-      const renderer = (api.getConfig() as { renderer?: Renderer }).renderer;
-      if (renderer === undefined || renderer === 'react')
+      const adapter = resolveRendererAdapter(
+        (api.getConfig() as { renderer?: Renderer }).renderer,
+      );
+      if (adapter.kind !== 'native' || !adapter.runtime.i18n)
         throw new Error(
-          "i18nPlugin() from @modern-js/ultramodern-app-tools serves the native Solid and Octane renderers; with renderer: 'react' use i18nPlugin() from @modern-js/plugin-i18n",
+          `i18nPlugin() from @modern-js/ultramodern-app-tools serves native renderers with an i18n runtime; with renderer: '${adapter.name}' use i18nPlugin() from @modern-js/plugin-i18n`,
         );
       const { appDirectory } = api.getAppContext();
       const require = createRequire(path.join(appDirectory, 'package.json'));

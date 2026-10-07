@@ -48,7 +48,10 @@ import {
   resolveRendererProfile,
 } from '../../src/native-composition/renderer-profile';
 import { nativeRendererIsolationPlugin } from '../../src/native-composition/renderer-selection';
-import { createReplacementCompilerArtifacts } from './replacement-compiler-artifacts';
+import {
+  createReplacementAdapter,
+  createReplacementCompilerArtifacts,
+} from './replacement-compiler-artifacts';
 
 type NativeRenderer = 'solid' | 'octane' | 'replacement';
 
@@ -948,9 +951,7 @@ export const nativeCSRRequestHandler = nativeRequestHandler;
         true,
         {
           profile,
-          compilerArtifacts,
-          infrastructurePluginName:
-            '@fixture/replacement-native-infrastructure',
+          adapter: createReplacementAdapter(profile, compilerArtifacts),
           resolveBuildIdentities: async () => build,
         },
       );
@@ -1079,7 +1080,7 @@ export const nativeCSRRequestHandler = nativeRequestHandler;
       expect(
         (
           await readRendererBuildManifest(distDirectory, profile, {
-            routerFrameworks: compilerArtifacts.routerFrameworks,
+            routerFrameworks: ['replacement'],
           })
         ).entries.main,
       ).toEqual(identity);

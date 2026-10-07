@@ -126,6 +126,10 @@ function builtManifest(
     version: 2,
     renderer,
     profile: resolveRendererProfile(renderer),
+    worker: {
+      nativeDocuments: renderer !== 'react',
+      rsc: renderer === 'react',
+    },
     routerBindings: identities.routerBindings,
     buildId: identities.buildId,
     sourceRevision: identities.sourceRevision,

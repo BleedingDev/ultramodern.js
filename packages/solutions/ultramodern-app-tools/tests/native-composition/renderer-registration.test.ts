@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import * as actualModule from 'node:module' with { rstest: 'importActual' };
 import os from 'node:os';
 import path from 'node:path';
 import type { AppTools, CliPlugin } from '@modern-js/app-tools/cli-config';
@@ -29,15 +30,13 @@ import {
   type NativeServerPluginOptions,
   nativeServerPlugin,
 } from '../../src/native-composition/native-server-plugin';
-import { activateNativeRendererCompiler } from '../../src/native-composition/renderer-compiler-activation';
+import { resolveCandidateRendererProfile } from '../../src/native-composition/renderer-profile';
 import {
-  type RendererBuildProfile,
-  resolveCandidateRendererProfile,
-} from '../../src/native-composition/renderer-profile';
-import {
+  nativeInfrastructurePluginName,
+  type RegisteredRenderer,
   registeredRenderers,
   resolveNativeRendererAdapter,
-  resolveRendererRegistration,
+  resolveRendererAdapter,
 } from '../../src/native-composition/renderer-registration';
 import { resolveEntrypointRouterBindings } from '../../src/native-composition/renderer-router-resolution';
 import {
@@ -45,99 +44,32 @@ import {
   assertRendererCompilerOwnership,
   resolveRendererBuilderPlugins,
 } from '../../src/native-composition/renderer-selection';
-import type { RegisteredRenderer } from '../../src/native-composition/renderer-selection-metadata';
 import type { UltramodernAppUserConfig } from '../../src/native-composition/types';
-import { createCompilerActivationFixture } from './compiler-activation-fixture';
+import { createFourthAdapter } from './fourth-renderer-adapter';
 
-// Replace one owner at its existing static registration, without a runtime registry API.
-rstest.mock('../../src/renderers/solid/registration', () => {
-  const { createReplacementCompilerArtifacts } = rstest.requireActual<
-    typeof import('./replacement-compiler-artifacts')
-  >('./replacement-compiler-artifacts');
-  const profile: RendererBuildProfile = {
-    renderer: 'fourth-native',
-    status: 'preview',
-    protocolVersion: 1,
-    minimumNode: '26.10.0',
-    hmr: {
-      editedBoundary: 'may-reset',
-      unaffectedComponents: 'preserved',
-      document: 'preserved',
-      roots: 'single',
-      cleanup: 'exactly-once',
-    },
-    compiler: { name: 'fourth-compiler', version: '1.0.0' },
-    hydration: { name: 'fourth-runtime', version: '1.0.0' },
-    router: {
-      name: '@fixture/fourth-router',
-      version: '1.0.0',
-      coreName: '@tanstack/router-core',
-      coreVersion: '1.171.34',
-    },
-    sourceExtensions: ['.tsx', '.ts'],
-    jsxImportSource: 'fourth-runtime',
-    dependencies: {},
-    capabilities: {
-      worker: false,
-      moduleFederation: false,
-      rsc: false,
-      ssg: false,
-      i18n: true,
-      svgComponent: false,
-    },
-  };
-  const routerFrameworks = ['fourth-router'];
-  const compilerArtifacts = {
-    ...createReplacementCompilerArtifacts(),
-    routerFrameworks,
-  };
-  const generator = {
-    client: () => 'fourth.client.ts',
-    server: () => 'fourth.server.ts',
+// Replace the Solid package's adapter with a different native renderer. Every
+// boundary below must follow the adapter's data rather than Solid's own.
+let fourthAdapter: ReturnType<typeof createFourthAdapter> | undefined;
+rstest.mock('node:module', () => {
+  const createRequire: typeof actualModule.createRequire = anchor => {
+    const require = actualModule.createRequire(anchor);
+    return Object.assign(
+      (id: string) =>
+        id === '@modern-js/renderer-solid/plugin'
+          ? { rendererAdapter: (fourthAdapter ??= createFourthAdapter()) }
+          : require(id),
+      require,
+    ) as NodeJS.Require;
   };
   return {
-    solidRendererRegistration: {
-      renderer: profile.renderer,
-      kind: 'native',
-      candidateProfile: profile,
-      routerFrameworks,
-      frameworkModules: [],
-      supports: {
-        reactCliPlugins: false,
-        reactRuntimeDescriptors: false,
-        reactCompiler: false,
-        cssDeclarations: false,
-      },
-      nativeAdapter: {
-        renderer: profile.renderer,
-        infrastructurePluginName: '@fixture/fourth-native-infrastructure',
-        profile,
-        compilerArtifacts,
-        compiler: Object.freeze({
-          schema: 'ultramodern-native-compiler-activation',
-          version: 1,
-          renderer: profile.renderer,
-          operation: 'compiler',
-          module: Object.freeze({
-            source: './src/renderers/fourth-native/compiler/index.ts',
-            import:
-              './dist/esm-node/renderers/fourth-native/compiler/index.mjs',
-            require: './dist/cjs/renderers/fourth-native/compiler/index.js',
-          }),
-          export: 'createFixtureCompiler',
-        }),
-        createEntryGenerator: () => generator,
-      },
-    },
+    ...actualModule,
+    createRequire,
+    default: { ...actualModule, createRequire },
   };
 });
 
-// The spy loads the real dispatcher graph after the replacement owner is installed.
-rstest.mock('../../src/native-composition/renderer-compiler-activation', {
-  spy: true,
-});
-
-const renderer = 'fourth-native' as RegisteredRenderer;
+const renderer: RegisteredRenderer = 'solid';
+const infrastructurePluginName = nativeInfrastructurePluginName(renderer);
 
 describe('static renderer owner admission', () => {
   it('records the fourth router adapter owner and rejects a manufactured plugin name', async () => {
@@ -153,20 +85,20 @@ describe('static renderer owner admission', () => {
     const bindings = await resolveEntrypointRouterBindings(
       renderer,
       entrypoints,
-      ['@fixture/fourth-native-infrastructure'],
+      [infrastructurePluginName],
       metadata,
     );
-    expect(bindings.main.owner).toBe('@fixture/fourth-native-infrastructure');
+    expect(bindings.main.owner).toBe(infrastructurePluginName);
     expect(bindings.main.defaultProvider.framework).toBe('fourth-router');
     expect(bindings.main.providers[0].framework).toBe('fourth-router');
     await expect(
       resolveEntrypointRouterBindings(
         renderer,
         entrypoints,
-        ['@modern-js/renderer-fourth-native-infrastructure'],
+        ['@fixture/fourth-native-infrastructure'],
         metadata,
       ),
-    ).rejects.toThrow('The fourth-native entry router owner is not registered');
+    ).rejects.toThrow('The solid entry router owner is not registered');
   });
 
   it('selects the replacement owner through config, profile, entry and route boundaries', async () => {
@@ -174,7 +106,6 @@ describe('static renderer owner admission', () => {
       env: 'test',
       command: 'build',
     });
-    const selected = resolveRendererRegistration(renderer);
     const adapter = resolveNativeRendererAdapter(renderer);
     expect(config.renderer).toBe(renderer);
     const selectedPlugins = config.plugins![0].usePlugins!;
@@ -182,79 +113,56 @@ describe('static renderer owner admission', () => {
       plugin => plugin.name === '@modern-js/renderer-build-artifact-stamp',
     )!;
     expect(
-      selectedPlugins.some(
-        plugin => plugin.name === adapter.infrastructurePluginName,
-      ),
+      selectedPlugins.some(plugin => plugin.name === infrastructurePluginName),
     ).toBe(true);
-    expect(stamp.pre).toEqual([adapter.infrastructurePluginName]);
-    expect(stamp.required).toEqual([adapter.infrastructurePluginName]);
+    expect(stamp.pre).toEqual([infrastructurePluginName]);
+    expect(stamp.required).toEqual([infrastructurePluginName]);
     expect(registeredRenderers).toContain(renderer);
     expect(resolveCandidateRendererProfile(renderer)).toEqual(adapter.profile);
-    expect(selected.candidateProfile.renderer).toBe(renderer);
-    expect(createNativeEntryGenerator(renderer)).toBe(
-      adapter.createEntryGenerator(),
-    );
+    expect(adapter.profile.compiler.name).toBe('fourth-compiler');
+    // Generated entries import the adapter's own runtime entry modules.
+    const generator = createNativeEntryGenerator(renderer);
+    expect(Object.keys(generator)).toEqual(['client', 'server']);
   });
 
-  it('delegates the selected owner to the fixed dispatcher and its Node factory', async () => {
+  it('compiles through the selected adapter and claims its compiler once', async () => {
     const config = await resolveUltramodernConfig(defineConfig({ renderer }), {
       env: 'test',
       command: 'build',
     });
-    const fixture = await createCompilerActivationFixture({
-      renderers: [renderer],
-    });
-    const compiler = rstest.mocked(activateNativeRendererCompiler);
-    compiler.mockClear();
-    compiler.mockImplementationOnce((selected, options) =>
-      fixture.activate(selected, options),
+    let transform:
+      | ((
+          config: UltramodernAppUserConfig,
+        ) => Promise<UltramodernAppUserConfig>)
+      | undefined;
+    const base = config.plugins![0];
+    await base.setup?.({
+      modifyResolvedConfig(callback: typeof transform) {
+        transform = callback;
+      },
+      _internalRuntimePlugins() {},
+    } as unknown as Parameters<NonNullable<CliPlugin<AppTools>['setup']>>[0]);
+    const selected = await transform!(config);
+    const owned = await resolveRendererBuilderPlugins(
+      selected.builderPlugins ?? [],
     );
-    try {
-      let transform:
-        | ((
-            config: UltramodernAppUserConfig,
-          ) => Promise<UltramodernAppUserConfig>)
-        | undefined;
-      const base = config.plugins![0];
-      await base.setup?.({
-        modifyResolvedConfig(callback: typeof transform) {
-          transform = callback;
-        },
-        _internalRuntimePlugins() {},
-      } as unknown as Parameters<NonNullable<CliPlugin<AppTools>['setup']>>[0]);
-      const selected = await transform!(config);
-      expect(compiler).toHaveBeenCalledTimes(1);
-      expect(compiler).toHaveBeenCalledWith(renderer, {
-        rendererIdentities: expect.any(Function),
-      });
-      expect(fixture.calls()).toEqual([
-        { renderer, format: 'import', action: 'loaded' },
-        { renderer, format: 'import', action: 'factory' },
-      ]);
-      const owned = await resolveRendererBuilderPlugins(
-        selected.builderPlugins ?? [],
-      );
-      expect(assertRendererCompilerOwnership(renderer, owned)).toMatchObject({
-        renderer,
-      });
-      expect(owned.map(plugin => plugin.name)).toContain(
-        'fixture:fourth-native:compiler',
-      );
-      expect(() => assertRendererCompilerOwnership(renderer, [])).toThrow(
-        'exactly one matching native compiler owner',
-      );
-      expect(() =>
-        assertRendererCompilerOwnership(renderer, [
-          ...owned,
-          owned.find(
-            plugin => plugin.name === 'fixture:fourth-native:compiler',
-          )!,
-        ]),
-      ).toThrow('exactly one matching native compiler owner');
-    } finally {
-      compiler.mockClear();
-      fixture.cleanup();
-    }
+    expect(assertRendererCompilerOwnership(renderer, owned)).toMatchObject({
+      renderer,
+      sourceExtensions: ['.tsx', '.ts'],
+      svg: 'url',
+    });
+    expect(owned.map(plugin => plugin.name)).toContain(
+      'fixture:fourth:compiler',
+    );
+    expect(() => assertRendererCompilerOwnership(renderer, [])).toThrow(
+      'exactly one matching native compiler owner',
+    );
+    expect(() =>
+      assertRendererCompilerOwnership(renderer, [
+        ...owned,
+        owned.find(plugin => plugin.name === 'fixture:fourth:compiler')!,
+      ]),
+    ).toThrow('exactly one matching native compiler owner');
   });
 
   it('consumes the registered fourth artifact owner from a production CLI server descriptor', async () => {
@@ -299,9 +207,8 @@ describe('static renderer owner admission', () => {
         defineConfig({ renderer }),
         { env: 'production', command: 'serve' },
       );
-      const adapter = resolveNativeRendererAdapter(renderer);
       const infrastructure = config.plugins![0].usePlugins!.find(
-        plugin => plugin.name === adapter.infrastructurePluginName,
+        plugin => plugin.name === infrastructurePluginName,
       )!;
       const identity: RendererIdentity = {
         renderer,
@@ -320,7 +227,7 @@ describe('static renderer owner admission', () => {
       const routerBindings = await resolveEntrypointRouterBindings(
         renderer,
         entrypoints,
-        [adapter.infrastructurePluginName],
+        [infrastructurePluginName],
       );
       const distDirectory = path.join(root, 'dist');
       fs.mkdirSync(distDirectory);
@@ -331,6 +238,7 @@ describe('static renderer owner admission', () => {
           version: 2,
           renderer,
           profile: resolveCandidateRendererProfile(renderer),
+          worker: { nativeDocuments: true, rsc: false },
           entries: { main: identity },
           routerBindings,
           buildId: identity.buildId,
@@ -511,19 +419,15 @@ describe('static renderer owner admission', () => {
     ).toThrow('does not support React Server Components');
   });
 
-  it.each([
-    'solid',
-    'fourth-nativ',
-    'vue',
-    'Fourth-native',
-    'fourth/native',
-    '',
-  ])('rejects unregistered or malformed %s before composition', value => {
-    expect(() => resolveRendererRegistration(value)).toThrow(
-      `Unsupported UltraModern renderer: ${value}`,
-    );
-    expect(() =>
-      defineConfig({ renderer: value as RegisteredRenderer }),
-    ).toThrow(`Unsupported UltraModern renderer: ${value}`);
-  });
+  it.each(['fourth-native', 'vue', 'Solid', 'solid/native', ''])(
+    'rejects unregistered or malformed %s before composition',
+    value => {
+      expect(() => resolveRendererAdapter(value)).toThrow(
+        `Unsupported UltraModern renderer: ${value}`,
+      );
+      expect(() =>
+        defineConfig({ renderer: value as RegisteredRenderer }),
+      ).toThrow(`Unsupported UltraModern renderer: ${value}`);
+    },
+  );
 });

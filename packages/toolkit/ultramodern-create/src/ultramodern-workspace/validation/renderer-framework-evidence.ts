@@ -6,6 +6,7 @@ import {
   readCreateReleaseCohort,
 } from '../../ultramodern-release-cohort';
 import { createPackageRoot } from '../fs-io';
+import { isNativeRendererPackage } from '../renderer-generations';
 import { assert } from './assertions';
 
 type FrameworkPackageEvidence = {
@@ -42,7 +43,7 @@ export function readRendererFrameworkPackageEvidence(
   sourceName: string,
 ): FrameworkPackageEvidence {
   assert(
-    /^@modern-js\/renderer-(solid|octane)$/u.test(sourceName),
+    isNativeRendererPackage(sourceName),
     `Unsupported renderer framework ABI package: ${sourceName}`,
   );
   if (hasCreateReleaseCohort()) {

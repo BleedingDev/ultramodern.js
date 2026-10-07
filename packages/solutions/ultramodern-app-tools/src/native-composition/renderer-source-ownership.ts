@@ -1,54 +1,45 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Renderer } from '@modern-js/renderer-core';
+import { rendererOwnsSpecifier } from '@modern-js/renderer-core/adapter';
+import { resolveInstalledRendererAdapters } from './renderer-registration';
 
-/** Packages that only exist for one renderer's authored components. */
-const rendererPackages: Record<Renderer, readonly string[]> = {
-  react: [
-    'react',
-    'react-dom',
-    '@modern-js/runtime',
-    '@modern-js/plugin-tanstack',
-    '@modern-js/plugin-i18n',
-    '@tanstack/react-router',
-  ],
-  solid: [
-    'solid-js',
-    '@solidjs/web',
-    '@solidjs/signals',
-    '@solidjs/router',
-    '@modern-js/renderer-solid',
-  ],
-  octane: ['octane', '@octanejs/', '@modern-js/renderer-octane'],
-};
-
-const sourceExtensions = new Set([
-  '.ts',
-  '.tsx',
-  '.js',
-  '.jsx',
-  '.mts',
-  '.mjs',
-  '.tsrx',
-]);
 const maxScannedFiles = 2000;
 const maxReportedFiles = 5;
 
-function packageRenderer(specifier: string): Renderer | undefined {
-  for (const [renderer, packages] of Object.entries(rendererPackages)) {
-    if (
-      packages.some(name =>
-        name.endsWith('/')
-          ? specifier.startsWith(name)
-          : specifier === name || specifier.startsWith(`${name}/`),
-      )
-    )
-      return renderer as Renderer;
-  }
-  return undefined;
+/** Renderers whose installed adapter claims a package or a source extension. */
+function sourceOwners() {
+  const adapters = resolveInstalledRendererAdapters();
+  const composed = new Set(
+    adapters.flatMap(adapter =>
+      adapter.kind === 'composed' ? adapter.profile.sourceExtensions : [],
+    ),
+  );
+  return {
+    extensions: new Set([
+      '.mts',
+      '.mjs',
+      ...adapters.flatMap(adapter => adapter.profile.sourceExtensions),
+    ]),
+    packageRenderer(specifier: string): Renderer | undefined {
+      return adapters.find(adapter => rendererOwnsSpecifier(adapter, specifier))
+        ?.name;
+    },
+    /** A dedicated extension only one renderer compiles, e.g. Octane `.tsrx`. */
+    extensionRenderer(extension: string): Renderer | undefined {
+      if (composed.has(extension)) return undefined;
+      const owners = adapters.filter(adapter =>
+        adapter.profile.sourceExtensions.includes(extension),
+      );
+      return owners.length === 1 ? owners[0].name : undefined;
+    },
+  };
 }
 
-function* routeSourceFiles(directory: string): Generator<string> {
+function* routeSourceFiles(
+  directory: string,
+  extensions: ReadonlySet<string>,
+): Generator<string> {
   let entries: fs.Dirent[];
   try {
     entries = fs.readdirSync(directory, { withFileTypes: true });
@@ -59,10 +50,10 @@ function* routeSourceFiles(directory: string): Generator<string> {
     const file = path.join(directory, entry.name);
     if (entry.isDirectory()) {
       if (entry.name !== 'node_modules' && !entry.name.startsWith('.'))
-        yield* routeSourceFiles(file);
+        yield* routeSourceFiles(file, extensions);
     } else if (
       entry.isFile() &&
-      sourceExtensions.has(path.extname(entry.name)) &&
+      extensions.has(path.extname(entry.name)) &&
       !entry.name.endsWith('.d.ts')
     ) {
       yield file;
@@ -74,11 +65,17 @@ function* routeSourceFiles(directory: string): Generator<string> {
 export function detectSourceRenderer(
   file: string,
   source: string,
+  owners = sourceOwners(),
 ): { renderer: Renderer; evidence: string } | undefined {
-  if (path.extname(file) === '.tsrx')
-    return { renderer: 'octane', evidence: 'is an Octane .tsrx module' };
+  const extension = path.extname(file);
+  const extensionRenderer = owners.extensionRenderer(extension);
+  if (extensionRenderer)
+    return {
+      renderer: extensionRenderer,
+      evidence: `is a ${extension} module`,
+    };
   const pragma = /@jsxImportSource\s+(\S+)/u.exec(source)?.[1];
-  const pragmaRenderer = pragma ? packageRenderer(pragma) : undefined;
+  const pragmaRenderer = pragma ? owners.packageRenderer(pragma) : undefined;
   if (pragmaRenderer)
     return {
       renderer: pragmaRenderer,
@@ -91,7 +88,7 @@ export function detectSourceRenderer(
     /\b(?:from|import)\s*\(?\s*['"]([^'"\n]+)['"]|\brequire\(\s*['"]([^'"\n]+)['"]\s*\)/gu;
   for (const match of code.matchAll(imports)) {
     const specifier = match[1] ?? match[2];
-    const renderer = specifier ? packageRenderer(specifier) : undefined;
+    const renderer = specifier ? owners.packageRenderer(specifier) : undefined;
     if (renderer) return { renderer, evidence: `imports '${specifier}'` };
   }
   return undefined;
@@ -109,7 +106,11 @@ export function assertRouteSourcesMatchRenderer(
   const mismatches: { file: string; renderer: Renderer; evidence: string }[] =
     [];
   let scanned = 0;
-  for (const file of routeSourceFiles(path.join(srcDirectory, 'routes'))) {
+  const owners = sourceOwners();
+  for (const file of routeSourceFiles(
+    path.join(srcDirectory, 'routes'),
+    owners.extensions,
+  )) {
     if (++scanned > maxScannedFiles) break;
     let source: string;
     try {
@@ -117,7 +118,7 @@ export function assertRouteSourcesMatchRenderer(
     } catch {
       continue;
     }
-    const detected = detectSourceRenderer(file, source);
+    const detected = detectSourceRenderer(file, source, owners);
     if (detected && detected.renderer !== renderer)
       mismatches.push({ file, ...detected });
   }

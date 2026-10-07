@@ -2409,6 +2409,9 @@ importers:
       '@octanejs/tanstack-router':
         specifier: https://github.com/bleedingdev/octane/releases/download/%40octanejs%2Ftanstack-router%400.1.60%2Bultramodern.6c31d4be4768/octanejs-tanstack-router-0.1.60%2Bultramodern.6c31d4be4768.tgz
         version: https://github.com/bleedingdev/octane/releases/download/%40octanejs%2Ftanstack-router%400.1.60%2Bultramodern.6c31d4be4768/octanejs-tanstack-router-0.1.60%2Bultramodern.6c31d4be4768.tgz(octane@https://github.com/bleedingdev/octane/releases/download/octane%400.7.1%2Bultramodern.f75bf12ac8be/octane-0.7.1%2Bultramodern.f75bf12ac8be.tgz(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(vite@8.3.2(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1(supports-color@10.2.2))(sass-embedded@1.105.1)(sass@1.105.1)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)))
+      '@rsbuild/core':
+        specifier: 2.2.11
+        version: 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
       '@rslib/core':
         specifier: 1.0.3
         version: 1.0.3(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)(typescript@7.0.2)
@@ -2427,6 +2430,12 @@ importers:
 
   packages/runtime/renderer-solid:
     dependencies:
+      '@babel/core':
+        specifier: 7.29.7
+        version: 7.29.7(supports-color@10.2.2)
+      '@jridgewell/remapping':
+        specifier: 2.3.5
+        version: 2.3.5
       '@modern-js/renderer-core':
         specifier: workspace:*
         version: link:../renderer-core
@@ -2461,6 +2470,9 @@ importers:
       '@modern-js/tsconfig':
         specifier: workspace:*
         version: link:../../tsconfig
+      '@rsbuild/core':
+        specifier: 2.2.11
+        version: 2.2.11(patch_hash=246cd34ea87324a7f9e481b61ed5efea3f1de0543b0fe6f0a1aa338e41087c05)(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)
       '@rslib/core':
         specifier: 1.0.3
         version: 1.0.3(@module-federation/runtime-tools@2.9.2)(core-js@3.50.0)(typescript@7.0.2)
@@ -3276,12 +3288,6 @@ importers:
 
   packages/solutions/ultramodern-app-tools:
     dependencies:
-      '@babel/core':
-        specifier: 7.29.7
-        version: 7.29.7(supports-color@10.2.2)
-      '@jridgewell/remapping':
-        specifier: 2.3.5
-        version: 2.3.5
       '@modern-js/app-tools':
         specifier: workspace:*
         version: link:../app-tools
@@ -3716,6 +3722,12 @@ importers:
       '@modern-js/renderer-core':
         specifier: workspace:*
         version: link:../../runtime/renderer-core
+      '@modern-js/renderer-octane':
+        specifier: workspace:*
+        version: link:../../runtime/renderer-octane
+      '@modern-js/renderer-solid':
+        specifier: workspace:*
+        version: link:../../runtime/renderer-solid
       '@modern-js/runtime':
         specifier: workspace:*
         version: link:../../runtime/plugin-runtime
@@ -3774,12 +3786,6 @@ importers:
       '@modern-js/i18n-runtime-extensions':
         specifier: workspace:*
         version: link:../../runtime/i18n-extensions
-      '@modern-js/renderer-octane':
-        specifier: workspace:*
-        version: link:../../runtime/renderer-octane
-      '@modern-js/renderer-solid':
-        specifier: workspace:*
-        version: link:../../runtime/renderer-solid
       '@modern-js/rslib':
         specifier: workspace:*
         version: link:../../../scripts/rslib

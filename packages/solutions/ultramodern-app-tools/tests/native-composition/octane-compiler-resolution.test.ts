@@ -1,9 +1,10 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { SERVICE_WORKER_ENVIRONMENT_NAME } from '@modern-js/builder';
 import { createRsbuild } from '@rsbuild/core';
 import { afterEach, describe, expect, it } from '@rstest/core';
-import { createOctaneCompilerPlugin } from '../../src/renderers/octane/compiler';
+import { resolveNativeRendererAdapter } from '../../src/native-composition/renderer-registration';
 
 const roots: string[] = [];
 
@@ -42,7 +43,10 @@ describe('Octane compiler module resolution', () => {
       rsbuildConfig: {
         source: { entry: { index: './src/index.ts' } },
         plugins: [
-          createOctaneCompilerPlugin({ rendererIdentities: () => ({}) }),
+          resolveNativeRendererAdapter('octane').compiler({
+            rendererIdentities: () => ({}),
+            workerEnvironmentName: SERVICE_WORKER_ENVIRONMENT_NAME,
+          }),
         ],
       },
     });

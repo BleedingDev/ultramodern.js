@@ -15,6 +15,7 @@ import type {
 import { escapeInlineDataJSON } from '@modern-js/renderer-core/data';
 import { getArgv } from '@modern-js/utils';
 import { type RsbuildPlugin, rspack } from '@rsbuild/core';
+import { reactRendererAdapter } from '../renderers/react/adapter';
 import { isEntryMetadataRead } from './config-read-context';
 import {
   createRendererBuildManifest,
@@ -327,7 +328,11 @@ export function reactRendererBuildMetadataPlugin(
           );
         await writeRendererBuildManifest(
           distDirectory,
-          createRendererBuildManifest(profile, identities),
+          createRendererBuildManifest(
+            profile,
+            identities,
+            reactRendererAdapter.worker,
+          ),
         );
       });
     },

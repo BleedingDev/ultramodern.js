@@ -1,9 +1,16 @@
 import assert from 'node:assert/strict';
 import { stripTypeScriptTypes } from 'node:module';
 import { posix } from 'node:path';
-import test from 'node:test';
 import { parse } from '@babel/parser';
-import { generateSolidAppSources } from './index.ts';
+import { resolveRendererAdapter } from '@modern-js/ultramodern-app-tools';
+
+/** The Solid adapter's create support generates these sources. */
+function generateSolidAppSources(options: any) {
+  const adapter = resolveRendererAdapter('solid');
+  if (adapter.kind !== 'native' || !adapter.create)
+    throw new Error('The solid adapter has no create support');
+  return adapter.create.generateAppSources(options);
+}
 
 const options = {
   appId: 'solid-shell',

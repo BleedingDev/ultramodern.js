@@ -6,11 +6,14 @@ import {
 } from '@modern-js/app-tools-extensions/deploy-output/plugin';
 import type { PolicyDefaultsOptions } from '@modern-js/app-tools-extensions/policy-defaults';
 import { rendererBuildArtifactStampPlugin } from '@modern-js/app-tools-extensions/release-envelope/renderer-output-stamp';
+import { SERVICE_WORKER_ENVIRONMENT_NAME } from '@modern-js/builder';
 import type { Renderer, RendererIdentity } from '@modern-js/renderer-core';
+import type { NativeRendererAdapter } from '@modern-js/renderer-core/adapter';
 import { createDefineConfig } from './config';
 import { isEntryMetadataRead } from './config-read-context';
 import { createRendererModuleFederationIntegration } from './module-federation-renderer-plugin';
 import { nativeClientAssetsPlugin } from './native-assets';
+import { createNativeEntryStubGenerator } from './native-entry';
 import { nativeEntryCommandPlugin } from './native-entry-command';
 import { findNativeI18nConfig } from './native-i18n';
 import type { NativeEntryGenerator } from './native-infrastructure';
@@ -20,17 +23,18 @@ import { nativePrerenderPlugin } from './native-prerender';
 import { ultramodernReleaseEnvelopePlugin } from './release-envelope-plugin';
 import { createRendererBuildOutputResolver } from './renderer-build-output';
 import { createRendererBuildIdentityResolver } from './renderer-build-resolution';
-import { activateNativeRendererCompiler } from './renderer-compiler-activation';
 import {
-  type RendererRegistration,
-  resolveRendererRegistration,
+  nativeInfrastructurePluginName,
+  resolveRendererAdapter,
 } from './renderer-registration';
 import {
   assertRendererCompilerOwnership,
+  attachRendererCompilerClaim,
   nativeRendererIsolationPlugin,
   rendererSelectionGuard,
   resolveRendererBuilderPlugins,
 } from './renderer-selection';
+import { nativeSvgComponentsPlugin } from './svg-components';
 import { rendererTypeCheckerPlugin } from './type-checker';
 
 export {
@@ -73,6 +77,10 @@ export {
   resolveRendererProfile,
   resolveRendererRouterFrameworks,
 } from './renderer-profile';
+export {
+  resolveRendererAdapter,
+  type UltramodernRendererAdapter,
+} from './renderer-registration';
 export type { AppUserConfig, UltramodernAppUserConfig } from './types';
 export {
   createPresetUltramodernWorkspaceConfig,
@@ -82,15 +90,16 @@ export {
 export type { PolicyDefaultsOptions };
 
 function composeNativeRenderer(
-  registration: Extract<RendererRegistration, { kind: 'native' }>,
+  adapter: NativeRendererAdapter,
   consumerPlugins: readonly CliPlugin<AppTools>[],
 ): CliPlugin<AppTools> {
-  const adapter = registration.nativeAdapter;
-  const renderer = registration.renderer;
+  const renderer = adapter.name;
+  const infrastructurePluginName = nativeInfrastructurePluginName(renderer);
   let rendererIdentities: Readonly<Record<string, RendererIdentity>> = {};
   const resolveBuildIdentities = createRendererBuildIdentityResolver(renderer);
   let generator: NativeEntryGenerator | undefined;
-  const resolveGenerator = () => (generator ??= adapter.createEntryGenerator());
+  const resolveGenerator = () =>
+    (generator ??= createNativeEntryStubGenerator(adapter));
   const federation = createRendererModuleFederationIntegration(renderer);
   const selected = [
     appTools({ rendererExtensions: false, serverExtensions: false }),
@@ -107,9 +116,7 @@ function composeNativeRenderer(
         },
       },
       {
-        infrastructurePluginName: adapter.infrastructurePluginName,
-        compilerArtifacts: adapter.compilerArtifacts,
-        assertSupportedSource: adapter.assertSupportedSource,
+        adapter,
         i18n: findNativeI18nConfig(consumerPlugins),
         async resolveBuildIdentities(context) {
           const resolved = await resolveBuildIdentities(context);
@@ -126,18 +133,13 @@ function composeNativeRenderer(
     ),
     {
       ...rendererBuildArtifactStampPlugin({
-        rendererBuildPlugin: adapter.infrastructurePluginName,
+        rendererBuildPlugin: infrastructurePluginName,
         resolveRendererBuild: createRendererBuildOutputResolver(renderer),
       }),
       post: ['@modern-js/ultramodern-release-envelope'],
     },
-    ...(registration.candidateProfile.capabilities.ssg
-      ? [
-          nativePrerenderPlugin(renderer, {
-            infrastructurePluginName: adapter.infrastructurePluginName,
-            compilerArtifacts: adapter.compilerArtifacts,
-          }),
-        ]
+    ...(adapter.profile.capabilities.ssg
+      ? [nativePrerenderPlugin(adapter)]
       : []),
     nativeModuleFederationPlugin(renderer),
     federation.plugin,
@@ -154,10 +156,23 @@ function composeNativeRenderer(
     setup(api) {
       if (!isEntryMetadataRead())
         api.modifyResolvedConfig(async config => {
-          const compiler = await activateNativeRendererCompiler(renderer, {
-            rendererIdentities: () => rendererIdentities,
-            svgDefaultExport: config.output?.svgDefaultExport,
-          });
+          const svgComponents =
+            adapter.profile.capabilities.svgComponent &&
+            adapter.svgComponentTemplate;
+          // The adapter compiles sources; UltraModern owns SVG and ownership.
+          const compiler = attachRendererCompilerClaim(
+            adapter.compiler({
+              rendererIdentities: () => rendererIdentities,
+              workerEnvironmentName: SERVICE_WORKER_ENVIRONMENT_NAME,
+            }),
+            {
+              renderer,
+              sourceExtensions: adapter.profile.sourceExtensions,
+              transform: 'native',
+              refresh: 'native',
+              svg: svgComponents ? 'component' : 'url',
+            },
+          );
           const builderPlugins = [
             nativeRendererIsolationPlugin(renderer),
             nativeClientAssetsPlugin(
@@ -166,6 +181,15 @@ function composeNativeRenderer(
               adapter.lazyStyles,
             ),
             compiler,
+            ...(svgComponents
+              ? [
+                  nativeSvgComponentsPlugin({
+                    renderer,
+                    template: svgComponents,
+                    defaultExport: config.output?.svgDefaultExport,
+                  }),
+                ]
+              : []),
             ...(await resolveRendererBuilderPlugins(
               config.builderPlugins ?? [],
             )),
@@ -174,7 +198,7 @@ function composeNativeRenderer(
           return { ...config, builderPlugins };
         });
       api._internalRuntimePlugins(({ entrypoint, plugins }) => {
-        if (!registration.supports.reactRuntimeDescriptors && plugins.length) {
+        if (plugins.length) {
           throw new Error(
             `Renderer ${renderer} does not support React runtime descriptors: ${plugins.map(plugin => plugin.path).join(', ')}`,
           );
@@ -193,11 +217,11 @@ const composeUltramodernAppTools = (
     policy?: PolicyDefaultsOptions;
   } = {},
 ): CliPlugin<AppTools> => {
-  const registration = resolveRendererRegistration(options.renderer);
+  const adapter = resolveRendererAdapter(options.renderer);
   const consumers = options.consumerPlugins ?? [];
-  return registration.kind === 'native'
-    ? composeNativeRenderer(registration, consumers)
-    : registration.compose(consumers, options.policy);
+  return adapter.kind === 'native'
+    ? composeNativeRenderer(adapter, consumers)
+    : adapter.compose(consumers, options.policy);
 };
 
 /**

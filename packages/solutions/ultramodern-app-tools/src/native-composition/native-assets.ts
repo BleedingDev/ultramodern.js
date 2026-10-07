@@ -3,11 +3,11 @@ import {
   type Renderer,
   type RendererIdentity,
 } from '@modern-js/renderer-core';
+import type { NativeRendererAdapter } from '@modern-js/renderer-core/adapter';
 import type { DocumentAsset } from '@modern-js/renderer-core/document';
 import type { RsbuildPlugin, Rspack } from '@rsbuild/core';
 import { rspack } from '@rsbuild/core';
 import { NATIVE_APPLICATION_CLIENT_REQUEST } from './native-entry';
-import type { NativeRendererAdapter } from './renderer-registration';
 
 const assetOrder: readonly DocumentAsset['kind'][] = [
   'stylesheet',

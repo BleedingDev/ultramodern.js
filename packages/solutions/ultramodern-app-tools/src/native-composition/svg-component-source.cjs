@@ -97,31 +97,33 @@ function writeSvgComponentModule(options) {
   return file;
 }
 
-/** Shared loader body; each renderer supplies only its component template. */
-function createSvgComponentLoader(template) {
-  return function svgComponentLoader(source) {
-    // The emitted module points at a generated file; always regenerate it.
-    this.cacheable(false);
-    const { outputDirectory } = this.getOptions();
-    const { attributes, markup } = parseSvgDocument(source, this.resourcePath);
-    const file = writeSvgComponentModule({
-      resourcePath: this.resourcePath,
-      outputDirectory,
-      source: template({
-        attributes: JSON.stringify(attributes, null, 2),
-        markup: JSON.stringify(markup),
-        origin: path.relative(
-          this.rootContext ?? process.cwd(),
-          this.resourcePath,
-        ),
-      }),
-    });
-    return `export { default } from ${JSON.stringify(file)};\n`;
-  };
+/**
+ * Generate a `?component` SVG module from the selected renderer's template,
+ * a CommonJS module exporting `({ attributes, markup, origin }) => source`.
+ */
+function svgComponentLoader(source) {
+  // The emitted module points at a generated file; always regenerate it.
+  this.cacheable(false);
+  const { outputDirectory, template } = this.getOptions();
+  const render = require(template);
+  const { attributes, markup } = parseSvgDocument(source, this.resourcePath);
+  const file = writeSvgComponentModule({
+    resourcePath: this.resourcePath,
+    outputDirectory,
+    source: render({
+      attributes: JSON.stringify(attributes, null, 2),
+      markup: JSON.stringify(markup),
+      origin: path.relative(
+        this.rootContext ?? process.cwd(),
+        this.resourcePath,
+      ),
+    }),
+  });
+  return `export { default } from ${JSON.stringify(file)};\n`;
 }
 
 module.exports = {
-  createSvgComponentLoader,
+  svgComponentLoader,
   parseSvgDocument,
   writeSvgComponentModule,
 };

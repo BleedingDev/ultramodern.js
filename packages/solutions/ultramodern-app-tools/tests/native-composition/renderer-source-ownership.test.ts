@@ -35,29 +35,29 @@ const solidRoutes = {
 };
 
 describe('route source renderer ownership', () => {
-  it.each([
-    'octane',
-    'react',
-  ] as const)('names Solid route modules when renderer %s is selected', renderer => {
-    const root = app(solidRoutes);
-    let message = '';
-    try {
-      assertRouteSourcesMatchRenderer(renderer, root, path.join(root, 'src'));
-    } catch (error) {
-      message = (error as Error).message;
-    }
-    expect(message).toContain(
-      `renderer-source-mismatch: modern.config selects renderer ${renderer}, but these route modules are authored for solid:`,
-    );
-    expect(message).toContain(
-      "src/routes/layout.tsx imports '@modern-js/renderer-solid/router' (solid)",
-    );
-    expect(message).toContain(
-      "src/routes/about/page.tsx imports '@modern-js/renderer-solid/router' (solid)",
-    );
-    expect(message).not.toContain('page.data.ts');
-    expect(message).toContain("or set renderer: 'solid' in modern.config.");
-  });
+  it.each(['octane', 'react'] as const)(
+    'names Solid route modules when renderer %s is selected',
+    renderer => {
+      const root = app(solidRoutes);
+      let message = '';
+      try {
+        assertRouteSourcesMatchRenderer(renderer, root, path.join(root, 'src'));
+      } catch (error) {
+        message = (error as Error).message;
+      }
+      expect(message).toContain(
+        `renderer-source-mismatch: modern.config selects renderer ${renderer}, but these route modules are authored for solid:`,
+      );
+      expect(message).toContain(
+        "src/routes/layout.tsx imports '@modern-js/renderer-solid/router' (solid)",
+      );
+      expect(message).toContain(
+        "src/routes/about/page.tsx imports '@modern-js/renderer-solid/router' (solid)",
+      );
+      expect(message).not.toContain('page.data.ts');
+      expect(message).toContain("or set renderer: 'solid' in modern.config.");
+    },
+  );
 
   it('accepts route modules authored for the selected renderer', () => {
     const root = app(solidRoutes);
@@ -91,7 +91,7 @@ describe('route source renderer ownership', () => {
     ).toEqual({ renderer: 'octane', evidence: "imports 'octane'" });
     expect(detectSourceRenderer('page.tsrx', '')).toEqual({
       renderer: 'octane',
-      evidence: 'is an Octane .tsrx module',
+      evidence: 'is a .tsrx module',
     });
     expect(
       detectSourceRenderer('page.tsx', '/** @jsxImportSource solid-js */'),

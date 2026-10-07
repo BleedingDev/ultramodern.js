@@ -170,6 +170,13 @@ export interface NativeRendererAdapter<TRenderer extends Renderer = Renderer>
   readonly runtime: NativeRendererRuntime;
   readonly federation?: NativeRendererFederation;
   readonly entryClient?: NativeEntryClientStub;
+  /**
+   * Who links the stylesheets of lazy components in a server document.
+   * `'renderer'`: the server render links each one beside the markup it
+   * renders. `'document'`: the render cannot report which lazy modules it
+   * rendered, so the document links every lazy stylesheet up front.
+   */
+  readonly lazyStyles: 'renderer' | 'document';
   /** CommonJS module exporting `(parts) => source` for `?component` SVGs. */
   readonly svgComponentTemplate?: string;
   /** The renderer compiler; UltraModern applies SVG and ownership policy. */

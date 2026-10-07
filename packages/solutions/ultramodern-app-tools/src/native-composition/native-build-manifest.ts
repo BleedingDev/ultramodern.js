@@ -16,8 +16,9 @@ import {
   type Renderer,
   type RendererIdentity,
 } from '@modern-js/renderer-core';
+import type { RendererWorkerSupport } from '@modern-js/renderer-core/adapter';
 import type { RendererBuildProfile } from './renderer-profile';
-import type { RegisteredRenderer } from './renderer-selection-metadata';
+import type { RegisteredRenderer } from './renderer-registration';
 
 export const RENDERER_BUILD_MANIFEST_FILE = 'renderer-build.json';
 export const RENDERER_DEVELOPMENT_DIRECTORY = '.ultramodern-dev';
@@ -30,6 +31,8 @@ export interface RendererBuildManifest<
   readonly version: 2;
   readonly renderer: TRenderer;
   readonly profile: RendererBuildProfile<TRenderer>;
+  /** How a worker serves this renderer's documents; deploy reads it. */
+  readonly worker: RendererWorkerSupport;
   readonly routerBindings: RendererRouterBindings;
   readonly buildId: string;
   readonly sourceRevision: string;
@@ -54,12 +57,14 @@ export interface RendererBuildManifestValidationOptions {
 export function createRendererBuildManifest<TRenderer extends Renderer>(
   profile: RendererBuildProfile<TRenderer>,
   identities: RendererBuildIdentities,
+  worker: RendererWorkerSupport,
 ): RendererBuildManifest<TRenderer> {
   return {
     schema: 'ultramodern-renderer-build',
     version: 2,
     renderer: profile.renderer,
     profile,
+    worker: { ...worker },
     routerBindings: identities.routerBindings,
     buildId: identities.buildId,
     sourceRevision: identities.sourceRevision,
