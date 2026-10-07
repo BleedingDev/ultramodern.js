@@ -1191,20 +1191,16 @@ jobs:
       # instead of before it, in "Await the exact registry cohort" — deliberate,
       # and the only ordering this trades away.
       - name: Start the exact registry cohort wait
+        id: registry-cohort-wait
+        background: true
         env:
           PUBLISH_CONCURRENCY: ${{ env.BLEEDINGDEV_PUBLISH_CONCURRENCY }}
           PUBLISH_TAG: ${{ env.BLEEDINGDEV_PUBLISH_TAG }}
           PUBLISH_VERSION: ${{ inputs.version }}
         run: |
-          (
-            status=0
-            bash scripts/ultramodern-publish/wait-for-registry-cohort.sh \
-              "$BLEEDINGDEV_RELEASE_DIR" "$PUBLISH_CONCURRENCY" \
-              "$PUBLISH_VERSION" "$PUBLISH_TAG" || status=$?
-            printf '%s\n' "$status" > "$RUNNER_TEMP/registry-cohort-wait.status"
-            exit "$status"
-          ) > "$RUNNER_TEMP/registry-cohort-wait.log" 2>&1 &
-          printf '%s\n' "$!" > "$RUNNER_TEMP/registry-cohort-wait.pid"
+          bash scripts/ultramodern-publish/wait-for-registry-cohort.sh \
+            "$BLEEDINGDEV_RELEASE_DIR" "$PUBLISH_CONCURRENCY" \
+            "$PUBLISH_VERSION" "$PUBLISH_TAG"
 
       - name: Resolve pnpm store path
         id: pnpm-store
@@ -1224,15 +1220,7 @@ jobs:
         run: mise exec -- pnpm install --frozen-lockfile --ignore-scripts --filter @scripts/ultramodern-production-readiness
 
       - name: Await the exact registry cohort
-        run: |
-          # The loop is not a child of this shell, so poll the pid and read the
-          # status it recorded rather than using `wait`.
-          pid="$(cat "$RUNNER_TEMP/registry-cohort-wait.pid")"
-          while kill -0 "$pid" 2>/dev/null; do
-            sleep 5
-          done
-          cat "$RUNNER_TEMP/registry-cohort-wait.log"
-          exit "$(cat "$RUNNER_TEMP/registry-cohort-wait.status")"
+        wait: registry-cohort-wait
 
       - name: Run published ERP-10 acceptance
         env:
