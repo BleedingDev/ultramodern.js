@@ -3,9 +3,18 @@ name: Publish BleedingDev Packages
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: "Package version to publish, for example 3.8.3-ultramodern.1"
+      mode:
+        description: "Publish the framework cohort or independently qualified stable sidecars"
         required: true
+        type: choice
+        options:
+          - cohort
+          - sidecars
+        default: cohort
+      version:
+        description: "Required only for cohort mode, for example 3.8.3-ultramodern.1"
+        required: false
+        default: ""
       dry_run:
         description: "Validate the exact release without authorizing publication"
         required: true
@@ -51,10 +60,9 @@ defaults:
 
 env:
   BLEEDINGDEV_PUBLISH_CONCURRENCY: "8"
-  # The cohort ships `latest` and nothing else. Trusted-publishing OIDC cannot
-  # mutate dist-tags (see the accept-published comment below), so the dispatch
-  # contract below pins the tag at publish time. The stale `ultramodern-canary`
-  # tag was retired on 2026-08-05 rather than kept alive by hand.
+  # Both publication modes ship only `latest`; no dispatch or package field
+  # may choose another tag. The stale `ultramodern-canary` tag was retired
+  # on 2026-08-05 rather than kept alive by hand.
   BLEEDINGDEV_PUBLISH_TAG: latest
   BLEEDINGDEV_RELEASE_BUNDLE_ARTIFACT: bleedingdev-release-bundle
   BLEEDINGDEV_RELEASE_ACCEPTANCE_ARTIFACT: bleedingdev-release-acceptance
@@ -71,6 +79,8 @@ env:
   BLEEDINGDEV_RELEASE_IDENTITY: .modern/bleedingdev-publish/release-identity.json
   BLEEDINGDEV_PUBLISH_OUTCOME: .modern/bleedingdev-publish/publish-outcome.json
   BLEEDINGDEV_SOURCE_QUALIFICATION: .modern/bleedingdev-publish/source-qualification.json
+  BLEEDINGDEV_SIDECAR_DIR: .modern/bleedingdev-sidecars/bundle
+  BLEEDINGDEV_SIDECAR_QUALIFICATION: .modern/bleedingdev-sidecars/qualification.json
 
 # Every live release shares one lock: a newer dispatch queues behind an active
 # release instead of cancelling or racing it. A dry run holds no publish
@@ -109,12 +119,21 @@ jobs:
       # Consumer: prepare-release passes this exact version to rewrite.mjs.
       - name: Validate publish inputs
         env:
+          PUBLISH_MODE: ${{ inputs.mode }}
           PUBLISH_VERSION: ${{ inputs.version }}
           RECOVERY_RUN_ID: ${{ inputs.recovery_run_id }}
           RECOVERY_RUN_ATTEMPT: ${{ inputs.recovery_run_attempt }}
           RECOVERY_QUALIFICATION_ATTEMPT: ${{ inputs.recovery_qualification_attempt }}
         run: |
-          [[ "$PUBLISH_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-ultramodern\.[1-9][0-9]*$ ]]
+          case "$PUBLISH_MODE" in
+            cohort)
+              [[ "$PUBLISH_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-ultramodern\.[1-9][0-9]*$ ]]
+              ;;
+            sidecars)
+              [[ -z "$PUBLISH_VERSION" && -z "$RECOVERY_RUN_ID" && -z "$RECOVERY_RUN_ATTEMPT" && -z "$RECOVERY_QUALIFICATION_ATTEMPT" ]]
+              ;;
+            *) exit 1 ;;
+          esac
           if [[ -n "$RECOVERY_RUN_ID" || -n "$RECOVERY_RUN_ATTEMPT" ]]; then
             [[ "$RECOVERY_RUN_ID" =~ ^[1-9][0-9]*$ ]]
             [[ "$RECOVERY_RUN_ATTEMPT" =~ ^[1-9][0-9]*$ ]]
@@ -143,6 +162,7 @@ jobs:
   integration:
     name: Integration suites on the release commit
     if: >-
+      inputs.mode == 'cohort' &&
       github.actor == github.repository_owner &&
       github.triggering_actor == github.repository_owner &&
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern')
@@ -158,6 +178,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     if: >-
+      inputs.mode == 'cohort' &&
       github.actor == github.repository_owner &&
       github.triggering_actor == github.repository_owner &&
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern')
@@ -329,6 +350,7 @@ jobs:
       - integration
       - qualify-source-compute
     if: >-
+      inputs.mode == 'cohort' &&
       github.actor == github.repository_owner &&
       github.triggering_actor == github.repository_owner &&
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern') &&
@@ -414,6 +436,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     if: >-
+      inputs.mode == 'cohort' &&
       github.actor == github.repository_owner &&
       github.triggering_actor == github.repository_owner &&
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern')
@@ -615,6 +638,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     if: >-
+      inputs.mode == 'cohort' &&
       github.actor == github.repository_owner &&
       github.triggering_actor == github.repository_owner &&
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern')
@@ -673,6 +697,7 @@ jobs:
     runs-on: ${{ fromJSON(vars.BLEEDINGDEV_ACCEPT_RUNNER_LABELS || '"ubuntu-latest"') }}
     timeout-minutes: 120
     if: >-
+      inputs.mode == 'cohort' &&
       github.actor == github.repository_owner &&
       github.triggering_actor == github.repository_owner &&
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern')
@@ -791,6 +816,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     if: >-
+      inputs.mode == 'cohort' &&
       github.actor == github.repository_owner &&
       github.triggering_actor == github.repository_owner &&
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern') &&
@@ -880,6 +906,7 @@ jobs:
   rehearse-tractor:
     name: Rehearse Tractor against the immutable bundle
     if: >-
+      inputs.mode == 'cohort' &&
       github.actor == github.repository_owner &&
       github.triggering_actor == github.repository_owner &&
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern')
@@ -894,6 +921,128 @@ jobs:
       mode: source
       release_bundle_artifact: bleedingdev-release-bundle-${{ needs.prepare-release.outputs.producer_artifact_identity }}
 
+  # This path qualifies only the reviewed sidecar recipes. It never builds a
+  # framework cohort, issues a cohort receipt, or invokes Tractor.
+  prepare-sidecars:
+    name: Prepare the immutable sidecar bundle
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    if: >-
+      inputs.mode == 'sidecars' &&
+      github.actor == github.repository_owner &&
+      github.triggering_actor == github.repository_owner &&
+      github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern')
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout the exact sidecar inputs
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup mise
+        uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
+        with:
+          version: 2026.9.18
+          cache: false
+
+      - name: Setup Node.js 26.10.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '26.10.0'
+
+      - name: Prepare the exact authenticated sidecar tarballs
+        run: node scripts/ultramodern-publish/prepare-sidecar-bundle.mjs --out "$BLEEDINGDEV_SIDECAR_DIR"
+
+      - name: Upload the immutable sidecar bundle
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: bleedingdev-sidecar-bundle-run-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: .modern/bleedingdev-sidecars/bundle
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+
+  qualify-sidecars:
+    name: Qualify the exact sidecar bundle
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    needs:
+      - publish-security
+      - prepare-sidecars
+    if: >-
+      inputs.mode == 'sidecars' &&
+      github.actor == github.repository_owner &&
+      github.triggering_actor == github.repository_owner &&
+      github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern') &&
+      needs.publish-security.result == 'success' &&
+      needs.prepare-sidecars.result == 'success'
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout the sidecar qualification tools
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup mise
+        uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
+        with:
+          version: 2026.9.18
+          cache: false
+
+      - name: Setup Node.js 26.10.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '26.10.0'
+
+      - name: Download the exact sidecar bundle
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          github-token: ${{ github.token }}
+          name: bleedingdev-sidecar-bundle-run-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: .modern/bleedingdev-sidecars/bundle
+          repository: ${{ github.repository }}
+          run-id: ${{ github.run_id }}
+
+      - name: Test sidecar artifact and qualification contracts
+        run: |
+          node --test scripts/ultramodern-publish/__tests__/sidecar-bundle.test.js \
+            scripts/ultramodern-publish/__tests__/sidecar-qualification.test.js \
+            scripts/ultramodern-publish/__tests__/sidecar-provenance.test.js \
+            scripts/ultramodern-publish/__tests__/sidecar-publish-lane.test.js
+
+      - name: Qualify the exact sidecar artifact
+        run: |
+          node scripts/ultramodern-publish/qualify-sidecar-bundle.mjs \
+            --out "$BLEEDINGDEV_SIDECAR_DIR" \
+            --receipt "$BLEEDINGDEV_SIDECAR_QUALIFICATION"
+
+      - name: Reconcile qualified sidecars without publication authority
+        run: |
+          node scripts/ultramodern-publish/publish-sidecars.mjs \
+            --mode sidecars \
+            --out "$BLEEDINGDEV_SIDECAR_DIR" \
+            --qualification "$BLEEDINGDEV_SIDECAR_QUALIFICATION" \
+            --tag "$BLEEDINGDEV_PUBLISH_TAG" \
+            --dry-run
+
+      - name: Upload the sidecar qualification receipt
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: bleedingdev-sidecar-qualification-run-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: .modern/bleedingdev-sidecars/qualification.json
+          if-no-files-found: error
+          retention-days: 7
+
   # Sidecars are NOT cohort members: they keep their own stable versions and
   # their own scope, and they are published from this dedicated job strictly
   # BEFORE the cohort. @bleedingdev/modern-js-image pins them through
@@ -904,7 +1053,7 @@ jobs:
   # image package cannot install. Trusted publishing only: id-token: write and
   # the npm-publish environment, no token secret.
   publish-sidecars:
-    name: Publish the stable sidecars before the cohort
+    name: Publish the qualified stable sidecars
     # npm provenance rejects self-hosted runners, including Namespace.
     runs-on: ubuntu-24.04
     environment: npm-publish
@@ -914,11 +1063,22 @@ jobs:
       id-token: write
     timeout-minutes: 45
     if: >-
+      always() &&
+      cancelled() == false &&
       github.actor == github.repository_owner &&
       github.triggering_actor == github.repository_owner &&
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern') &&
-      inputs.dry_run == false
+      inputs.dry_run == false &&
+      needs.publish-security.result == 'success' &&
+      (
+        (inputs.mode == 'cohort' && needs.integration.result == 'success' && needs.qualify-source-compute.result == 'success' && needs.qualify-source.result == 'success' && needs.accept-release.result == 'success' && needs.rehearse-tractor.result == 'success') ||
+        (inputs.mode == 'sidecars' && needs.prepare-sidecars.result == 'success' && needs.qualify-sidecars.result == 'success')
+      )
     needs:
+      - prepare-sidecars
+      - qualify-sidecars
+      - integration
+      - qualify-source-compute
       - publish-security
       - qualify-source
       - accept-release
@@ -952,6 +1112,7 @@ jobs:
           node-version: '26.10.0'
 
       - name: Download accepted release bundle
+        if: inputs.mode == 'cohort'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           github-token: ${{ github.token }}
@@ -961,6 +1122,7 @@ jobs:
           run-id: ${{ github.run_id }}
 
       - name: Download release acceptance receipt
+        if: inputs.mode == 'cohort'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           github-token: ${{ github.token }}
@@ -970,6 +1132,7 @@ jobs:
           run-id: ${{ github.run_id }}
 
       - name: Verify exact release acceptance receipt
+        if: inputs.mode == 'cohort'
         run: |
           node scripts/ultramodern-publish/run-release-acceptance.mjs \
             --verify-receipt \
@@ -979,6 +1142,7 @@ jobs:
             --run-identity "${{ needs.accept-release.outputs.producer_run_identity }}"
 
       - name: Publish the staged sidecars in alias order
+        if: inputs.mode == 'cohort'
         run: |
           # Publish the exact tarball bytes bound by the accepted release identity.
           # An already-published version is reused only when registry integrity
@@ -989,6 +1153,44 @@ jobs:
           # backwards republish - fails the job and therefore the cohort.
           node scripts/ultramodern-publish/publish-sidecars.mjs \
             --out "$BLEEDINGDEV_RELEASE_DIR" \
+            --tag "$BLEEDINGDEV_PUBLISH_TAG"
+
+      - name: Download independently qualified sidecar bundle
+        if: inputs.mode == 'sidecars'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          github-token: ${{ github.token }}
+          name: bleedingdev-sidecar-bundle-run-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: .modern/bleedingdev-sidecars/bundle
+          repository: ${{ github.repository }}
+          run-id: ${{ github.run_id }}
+
+      - name: Download sidecar qualification receipt
+        if: inputs.mode == 'sidecars'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          github-token: ${{ github.token }}
+          name: bleedingdev-sidecar-qualification-run-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: .modern/bleedingdev-sidecars
+          repository: ${{ github.repository }}
+          run-id: ${{ github.run_id }}
+
+      - name: Verify independently qualified sidecar bytes and receipt
+        if: inputs.mode == 'sidecars'
+        run: |
+          node scripts/ultramodern-publish/publish-sidecars.mjs \
+            --mode sidecars \
+            --out "$BLEEDINGDEV_SIDECAR_DIR" \
+            --qualification "$BLEEDINGDEV_SIDECAR_QUALIFICATION" \
+            --check-staging
+
+      - name: Publish independently qualified sidecars
+        if: inputs.mode == 'sidecars'
+        run: |
+          node scripts/ultramodern-publish/publish-sidecars.mjs \
+            --mode sidecars \
+            --out "$BLEEDINGDEV_SIDECAR_DIR" \
+            --qualification "$BLEEDINGDEV_SIDECAR_QUALIFICATION" \
             --tag "$BLEEDINGDEV_PUBLISH_TAG"
 
   publish:
@@ -1004,11 +1206,23 @@ jobs:
     outputs:
       publication_run_attempt: ${{ steps.release-identity.outputs.publication_run_attempt }}
     if: >-
+      always() &&
+      cancelled() == false &&
+      inputs.mode == 'cohort' &&
       github.actor == github.repository_owner &&
       github.triggering_actor == github.repository_owner &&
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern') &&
-      inputs.dry_run == false
+      inputs.dry_run == false &&
+      needs.publish-security.result == 'success' &&
+      needs.integration.result == 'success' &&
+      needs.qualify-source-compute.result == 'success' &&
+      needs.qualify-source.result == 'success' &&
+      needs.accept-release.result == 'success' &&
+      needs.rehearse-tractor.result == 'success' &&
+      needs.publish-sidecars.result == 'success'
     needs:
+      - integration
+      - qualify-source-compute
       - publish-security
       - qualify-source
       - accept-release
@@ -1114,9 +1328,9 @@ jobs:
           if-no-files-found: error
           include-hidden-files: true
 
-  # npm trusted-publishing OIDC cannot mutate dist-tags or approve a staged
-  # cohort. `latest` is therefore already public here; this job is an immediate
-  # same-workflow registry-byte gate, not a pre-exposure gate or rollback.
+  # This workflow publishes the cohort directly at `latest`. It is already
+  # public here; this job immediately verifies the registry bytes in the same
+  # workflow. It does not approve a staged cohort or roll publication back.
   # accept-release already built and ran the exact tarballs npm now serves.
   # This job builds and runs nothing: it scaffolds ERP-10 from npm, resolves
   # the lock, and requires the source receipt's closure. A closure drift fails
@@ -1127,10 +1341,15 @@ jobs:
     runs-on: ${{ fromJSON(vars.BLEEDINGDEV_ACCEPT_RUNNER_LABELS || '"ubuntu-latest"') }}
     timeout-minutes: 30
     if: >-
+      always() &&
+      cancelled() == false &&
+      inputs.mode == 'cohort' &&
       github.actor == github.repository_owner &&
       github.triggering_actor == github.repository_owner &&
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern') &&
-      inputs.dry_run == false
+      inputs.dry_run == false &&
+      needs.publish.result == 'success' &&
+      needs.accept-release.result == 'success'
     needs:
       - publish
       - accept-release
@@ -1251,10 +1470,15 @@ jobs:
   tractor-downstream:
     name: Accept the exact published cohort in Tractor
     if: >-
+      always() &&
+      cancelled() == false &&
+      inputs.mode == 'cohort' &&
       github.actor == github.repository_owner &&
       github.triggering_actor == github.repository_owner &&
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern') &&
-      inputs.dry_run == false
+      inputs.dry_run == false &&
+      needs.prepare-release.result == 'success' &&
+      needs.publish.result == 'success'
     # Runs beside accept-published rather than behind it. record-publish-outcome
     # below still requires both, so evidence ordering is unchanged; only the
     # scheduling is. The callee re-runs the registry cohort gate itself
@@ -1290,10 +1514,15 @@ jobs:
       - rehearse-tractor
       - tractor-downstream
     if: >-
+      inputs.mode == 'cohort' &&
       always() &&
+      cancelled() == false &&
       github.actor == github.repository_owner &&
       github.triggering_actor == github.repository_owner &&
       github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern') &&
+      needs.publish-security.result == 'success' &&
+      needs.accept-release.result == 'success' &&
+      needs.rehearse-tractor.result == 'success' &&
       (
         (inputs.dry_run == true && needs.validate-release.result == 'success' && needs.rehearse-tractor.result == 'success' && needs.publish-sidecars.result == 'skipped' && needs.publish.result == 'skipped') ||
         (inputs.dry_run == false && needs.publish-sidecars.result == 'success' && needs.publish.result == 'success' && needs.accept-published.result == 'success' && needs.tractor-downstream.result == 'success' && needs.validate-release.result == 'skipped')
@@ -1465,7 +1694,9 @@ jobs:
     needs:
       - record-publish-outcome
     if: >-
+      inputs.mode == 'cohort' &&
       always() &&
+      cancelled() == false &&
       needs.record-publish-outcome.result == 'success' &&
       github.actor == github.repository_owner &&
       github.triggering_actor == github.repository_owner &&

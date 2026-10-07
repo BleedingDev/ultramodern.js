@@ -217,7 +217,11 @@ class Parser {
         'Function names cannot be dotted',
       );
     }
-    if (identifier.value !== 'always' && identifier.value !== 'format') {
+    if (
+      identifier.value !== 'always' &&
+      identifier.value !== 'cancelled' &&
+      identifier.value !== 'format'
+    ) {
       throw syntaxError(
         this.source,
         identifier.offset,
@@ -232,11 +236,14 @@ class Parser {
       } while (this.take(','));
       this.expect(')', "Expected ')' after function arguments");
     }
-    if (identifier.value === 'always' && args.length !== 0) {
+    if (
+      (identifier.value === 'always' || identifier.value === 'cancelled') &&
+      args.length !== 0
+    ) {
       throw syntaxError(
         this.source,
         identifier.offset,
-        'always() takes no arguments',
+        `${identifier.value}() takes no arguments`,
       );
     }
     if (identifier.value === 'format' && args.length === 0) {
@@ -418,6 +425,9 @@ function evaluateAst(ast, environment) {
     if (ast.name === 'always') {
       return true;
     }
+    if (ast.name === 'cancelled') {
+      return environment.cancelled;
+    }
     if (ast.name === 'format') {
       const [template, ...values] = ast.args.map(argument =>
         evaluateAst(argument, environment),
@@ -453,8 +463,12 @@ export function evaluateJobSchedule({
   jobId,
   results = {},
   context = {},
+  cancelled = false,
 }) {
   try {
+    if (typeof cancelled !== 'boolean') {
+      return false;
+    }
     const job = workflow?.jobs?.[jobId];
     if (!job || typeof job !== 'object') {
       return false;
@@ -477,9 +491,10 @@ export function evaluateJobSchedule({
     }
     if (
       !hasStatusFunction &&
-      [...ancestors].some(
-        ancestor => resultFor(results, ancestor) !== 'success',
-      )
+      (cancelled ||
+        [...ancestors].some(
+          ancestor => resultFor(results, ancestor) !== 'success',
+        ))
     ) {
       return false;
     }
@@ -488,6 +503,7 @@ export function evaluateJobSchedule({
       context,
       directNeeds: new Set(directNeeds),
       results,
+      cancelled,
     });
     return value !== MISSING && Boolean(value);
   } catch {

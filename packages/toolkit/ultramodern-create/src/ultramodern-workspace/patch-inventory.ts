@@ -1,5 +1,25 @@
 export default [
   {
+    packageName: 'ultracite',
+    version: '7.12.2',
+    path: 'patches/ultracite@7.12.2.patch',
+    sha256: 'a18b2c7be68a6823a793f0def8ce13d7655c67c56c2200978a2be600cb29ba74',
+    repository: false,
+    workspace: null,
+    reason:
+      'Include the upstream MIT notice omitted from the npm artifact, preserving the exact license.md bytes at registry source commit e948def3e0b1bdba2c4264c183d960f6a05ed61f.',
+  },
+  {
+    packageName: 'braces',
+    version: '3.0.3',
+    path: 'patches/braces@3.0.3.patch',
+    sha256: 'e14af28f138a243a283deed5e9f26275891ad6eedc02e964d8ec7ae7efc6783a',
+    repository: false,
+    workspace: null,
+    reason:
+      'Bound parser and AST walker nesting before recursive traversal ([braces#78](https://github.com/micromatch/braces/pull/78), commit 97308a01d091b211cf015314a2d0696da28a5392); the corrected sidecar carries the public fix without repository or generated-workspace patches.',
+  },
+  {
     packageName: '@module-federation/bridge-react',
     version: '2.9.2',
     path: 'patches/@module-federation__bridge-react@2.9.2.patch',

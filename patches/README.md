@@ -5,6 +5,8 @@ Edit `packages/toolkit/ultramodern-create/src/ultramodern-workspace/patch-invent
 
 | Package | Repository | Workspace | Purpose |
 | --- | --- | --- | --- |
+| ultracite@7.12.2 | no | none | Include the upstream MIT notice omitted from the npm artifact, preserving the exact license.md bytes at registry source commit e948def3e0b1bdba2c4264c183d960f6a05ed61f. |
+| braces@3.0.3 | no | none | Bound parser and AST walker nesting before recursive traversal ([braces#78](https://github.com/micromatch/braces/pull/78), commit 97308a01d091b211cf015314a2d0696da28a5392); the corrected sidecar carries the public fix without repository or generated-workspace patches. |
 | @module-federation/bridge-react@2.9.2 | yes | none | Portable React declaration specifiers ([#5130](https://github.com/module-federation/core/pull/5130)). |
 | @module-federation/dts-plugin@2.9.2 | yes | none | Bind the type server to port 0 and yield a busy broker port ([#5159](https://github.com/module-federation/core/pull/5159)); execute absolute compilerInstance paths without a shell ([#5131](https://github.com/module-federation/core/pull/5131)); pass the inferred rootDir to the list-files config (the rootDir hunk of [#4947](https://github.com/module-federation/core/pull/4947)). |
 | @module-federation/manifest@2.9.2 | yes | none | Load dts-plugin lazily when DTS is disabled ([#5132](https://github.com/module-federation/core/pull/5132)). |

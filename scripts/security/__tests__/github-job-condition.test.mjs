@@ -1,18 +1,14 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { createRequire } from 'node:module';
 import test from 'node:test';
+import yaml from '../../../packages/toolkit/utils/compiled/js-yaml/index.js';
 
 import {
   evaluateJobSchedule,
   parseJobCondition,
 } from '../github-job-condition.mjs';
 
-const requireFromPrebundle = createRequire(
-  new URL('../../prebundle/package.json', import.meta.url),
-);
-const { load: parseYaml } = requireFromPrebundle('js-yaml');
-const publishWorkflow = parseYaml(
+const publishWorkflow = yaml.load(
   fs.readFileSync(
     new URL(
       '../../../.github/workflows/publish-bleedingdev.yml',
@@ -23,6 +19,7 @@ const publishWorkflow = parseYaml(
 );
 
 const publishConditionWithoutAlways = `
+  inputs.mode == 'cohort' &&
   needs.record-publish-outcome.result == 'success' &&
   github.actor == github.repository_owner &&
   github.triggering_actor == github.repository_owner &&
@@ -37,7 +34,7 @@ const successfulContext = {
     repository_owner: 'bleedingdev',
     triggering_actor: 'bleedingdev',
   },
-  inputs: { dry_run: false },
+  inputs: { mode: 'cohort', dry_run: false },
   vars: {},
 };
 
@@ -54,12 +51,44 @@ const resultsWithSkippedAncestor = {
 
 test('rejects conditions outside the restricted grammar', () => {
   assert.throws(() => parseJobCondition('!cancelled()'), SyntaxError);
+  assert.throws(() => parseJobCondition('cancelled(true)'), SyntaxError);
+  assert.throws(() => parseJobCondition('cancelled(false, true)'), SyntaxError);
   assert.throws(
     () => parseJobCondition("contains(github.ref, 'main')"),
     SyntaxError,
   );
   assert.throws(() => parseJobCondition("github.ref != 'main'"), SyntaxError);
   assert.throws(() => parseJobCondition("'unterminated"), SyntaxError);
+});
+
+test('native cancellation suppresses implicit success while always requires an explicit guard', () => {
+  const workflow = {
+    jobs: {
+      implicit: {},
+      always: { if: 'always()' },
+      guarded: { if: 'always() && cancelled() == false' },
+      cancelled: { if: 'cancelled()' },
+    },
+  };
+  for (const [cancelled, expected] of [
+    [false, { implicit: true, always: true, guarded: true, cancelled: false }],
+    [true, { implicit: false, always: true, guarded: false, cancelled: true }],
+  ]) {
+    for (const [jobId, scheduled] of Object.entries(expected)) {
+      assert.equal(
+        evaluateJobSchedule({ workflow, jobId, cancelled }),
+        scheduled,
+        jobId + ' cancelled=' + cancelled,
+      );
+    }
+  }
+  for (const cancelled of ['false', 'true', null]) {
+    assert.equal(
+      evaluateJobSchedule({ workflow, jobId: 'always', cancelled }),
+      false,
+      'invalid cancellation state ' + String(cancelled),
+    );
+  }
 });
 
 test('implicit success suppresses a job with a skipped transitive ancestor', () => {
@@ -98,7 +127,7 @@ test('dry runs and unsuccessful direct needs fail closed', () => {
       results: resultsWithSkippedAncestor,
       context: {
         ...successfulContext,
-        inputs: { dry_run: true },
+        inputs: { mode: 'cohort', dry_run: true },
       },
     }),
     false,

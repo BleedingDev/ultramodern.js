@@ -428,10 +428,12 @@ const nodePreloadOptions = new Set([
 
 // `node [options] <script>` invocations in a run block, parsed as shell
 // words (quotes, continuations, `$(node ...)` also inside a quoted word).
-// The script is the first `.mjs`/`.cjs`/`.js` argument that is not a glob,
-// so separate option values are skipped.
+const normalizeShellContinuations = run => run.replace(/\\\r?\n/gu, ' ');
+
+// Ordinary Node commands load the first script; node --test loads every fixed
+// script argument. Globs and separate option values are excluded.
 const nodeInvocations = run =>
-  shellCommandWords(run).flatMap(command => {
+  shellCommandWords(normalizeShellContinuations(run)).flatMap(command => {
     const words = command.filter(word => word !== '');
     const substituted = words.flatMap(word =>
       word.startsWith('$(')
@@ -450,15 +452,21 @@ const nodeInvocations = run =>
     const preloads = args
       .map(arg => arg.split('=')[0])
       .filter(option => nodePreloadOptions.has(option));
-    const script = args.find(
+    const scriptArguments = args.filter(
       arg =>
         !arg.startsWith('-') &&
         !/[*?[]/u.test(arg) &&
         /\.(?:mjs|cjs|js)$/u.test(arg),
     );
+    const scripts = args.includes('--test')
+      ? scriptArguments
+      : scriptArguments.slice(0, 1);
     return [
       ...substituted,
-      { preloads, script: script?.replace(/^\.\//u, '') },
+      ...(scripts.length > 0 ? scripts : [undefined]).map(script => ({
+        preloads,
+        script: script?.replace(/^\.\//u, ''),
+      })),
     ];
   });
 
@@ -668,7 +676,10 @@ function collectBareJobImportErrors(workflow, relativePath, options) {
 }
 
 function collectPublishOutcomeErrors(workflow, relativePath) {
-  if (!hasDryRunPublishBranches(workflow)) {
+  if (
+    relativePath !== bleedingdevPublishWorkflowPath &&
+    !hasDryRunPublishBranches(workflow)
+  ) {
     return [];
   }
   const errors = [];
@@ -844,7 +855,7 @@ function collectPublishOutcomeErrors(workflow, relativePath) {
       repository_owner: 'BleedingDev',
       triggering_actor: 'BleedingDev',
     },
-    inputs: { dry_run: false },
+    inputs: { mode: 'cohort', dry_run: false },
     vars: {},
   };
   const schedulesChangeRecord = ({ context, results } = {}) =>
@@ -861,7 +872,7 @@ function collectPublishOutcomeErrors(workflow, relativePath) {
     schedulesChangeRecord({
       context: {
         ...successfulPublishContext,
-        inputs: { dry_run: true },
+        inputs: { mode: 'cohort', dry_run: true },
       },
     }) ||
     ['failure', 'cancelled', 'skipped'].some(result =>
@@ -906,12 +917,14 @@ const bleedingdevPublishJobs = Object.freeze([
   'accept-release',
   'integration',
   'prepare-release',
+  'prepare-sidecars',
   'publish',
   'publish-change-record',
   'publish-sidecars',
   'publish-security',
   'qualify-source',
   'qualify-source-compute',
+  'qualify-sidecars',
   'reconcile-sidecars',
   'record-publish-outcome',
   'rehearse-tractor',
@@ -924,8 +937,26 @@ const bleedingdevPublishJobs = Object.freeze([
 // dry run is green only when the Tractor rehearsal is.
 const bleedingdevRequiredNeeds = Object.freeze({
   'accept-release': ['reconcile-sidecars'],
-  publish: ['qualify-source'],
-  'publish-sidecars': ['qualify-source'],
+  publish: [
+    'publish-security',
+    'integration',
+    'qualify-source-compute',
+    'qualify-source',
+    'accept-release',
+    'rehearse-tractor',
+    'publish-sidecars',
+  ],
+  'publish-sidecars': [
+    'publish-security',
+    'integration',
+    'qualify-source-compute',
+    'qualify-source',
+    'accept-release',
+    'rehearse-tractor',
+    'prepare-sidecars',
+    'qualify-sidecars',
+  ],
+  'qualify-sidecars': ['publish-security', 'prepare-sidecars'],
   'reconcile-sidecars': ['prepare-release', 'publish-security'],
   'validate-release': ['qualify-source', 'rehearse-tractor'],
 });
@@ -940,11 +971,566 @@ const elevatedPermissionScopes = (permissions, scopes) =>
       ? scopes.filter(scope => permissionIsWrite(permissions[scope]))
       : [];
 
+// A sidecar receipt authorizes only its exact third-party bundle. The shared
+// OIDC job has skipped prerequisites in either mode, so its status checks must
+// remain explicit instead of inheriting GitHub's implicit success().
+const bleedingdevCohortJobs = Object.freeze([
+  'integration',
+  'qualify-source-compute',
+  'qualify-source',
+  'prepare-release',
+  'reconcile-sidecars',
+  'accept-release',
+  'validate-release',
+  'rehearse-tractor',
+  'publish',
+  'accept-published',
+  'tractor-downstream',
+  'record-publish-outcome',
+  'publish-change-record',
+]);
+const bleedingdevSidecarJobs = Object.freeze([
+  'prepare-sidecars',
+  'qualify-sidecars',
+]);
+
+function collectBleedingdevModeInputErrors(workflow, relativePath) {
+  const errors = [];
+  const jobs = workflow.jobs ?? {};
+  const inputs = workflow.on?.workflow_dispatch?.inputs ?? {};
+  if (
+    inputs.mode?.type !== 'choice' ||
+    inputs.mode?.required !== true ||
+    inputs.mode?.default !== 'cohort' ||
+    JSON.stringify(inputs.mode?.options) !==
+      JSON.stringify(['cohort', 'sidecars']) ||
+    inputs.version?.required !== false ||
+    inputs.version?.default !== ''
+  ) {
+    errors.push(
+      `${relativePath} dispatch mode must be the required cohort/sidecars choice with cohort default and a conditional cohort version`,
+    );
+  }
+  const expression = value => ['${{', value, '}}'].join(' ');
+  const expectedConcurrency = expression(
+    "inputs.dry_run == true && format('publish-bleedingdev-dry-run-{0}', github.run_id) || 'publish-bleedingdev'",
+  );
+  if (
+    workflow.concurrency?.group !== expectedConcurrency ||
+    workflow.concurrency?.['cancel-in-progress'] !== false
+  ) {
+    errors.push(
+      `${relativePath} must keep one live-publication concurrency group across both modes and never cancel an active release`,
+    );
+  }
+  if (workflow.env?.BLEEDINGDEV_PUBLISH_TAG !== 'latest') {
+    errors.push(
+      `${relativePath} both publication modes must pin the registry tag to latest`,
+    );
+  }
+  const validation = jobs['publish-security']?.steps?.find(
+    step => step.name === 'Validate publish inputs',
+  );
+  const validationRun = stripShellComments(String(validation?.run ?? ''));
+  if (
+    validation?.env?.PUBLISH_MODE !== expression('inputs.mode') ||
+    validation?.env?.PUBLISH_VERSION !== expression('inputs.version') ||
+    validation?.env?.RECOVERY_RUN_ID !== expression('inputs.recovery_run_id') ||
+    validation?.env?.RECOVERY_RUN_ATTEMPT !==
+      expression('inputs.recovery_run_attempt') ||
+    validation?.env?.RECOVERY_QUALIFICATION_ATTEMPT !==
+      expression('inputs.recovery_qualification_attempt') ||
+    !validationRun.includes('case "$PUBLISH_MODE" in') ||
+    !validationRun.includes('cohort)') ||
+    !validationRun.includes('sidecars)') ||
+    !validationRun.includes(
+      '[[ -z "$PUBLISH_VERSION" && -z "$RECOVERY_RUN_ID" && -z "$RECOVERY_RUN_ATTEMPT" && -z "$RECOVERY_QUALIFICATION_ATTEMPT" ]]',
+    ) ||
+    !validationRun.includes('*) exit 1 ;;')
+  ) {
+    errors.push(
+      `${relativePath} publish-security must reject unknown modes and cohort version/recovery inputs in sidecars mode`,
+    );
+  }
+
+  for (const jobId of bleedingdevSidecarJobs) {
+    const permissions = jobs[jobId]?.permissions ?? workflow.permissions;
+    if (
+      !isObject(permissions) ||
+      Object.values(permissions).some(
+        value => value !== 'read' && value !== 'none',
+      )
+    ) {
+      errors.push(
+        `${relativePath} job ${jobId} must keep every permission read-only during sidecar preparation and qualification`,
+      );
+    }
+  }
+  for (const jobId of ['publish', 'publish-sidecars']) {
+    const job = jobs[jobId];
+    if (
+      job?.['runs-on'] !== 'ubuntu-24.04' ||
+      job?.environment !== 'npm-publish' ||
+      JSON.stringify(Object.entries(job?.permissions ?? {}).sort()) !==
+        JSON.stringify(
+          Object.entries({
+            actions: 'read',
+            contents: 'read',
+            'id-token': 'write',
+          }).sort(),
+        )
+    ) {
+      errors.push(
+        `${relativePath} job ${jobId} must use the hosted runner, npm-publish environment and only read permissions plus OIDC`,
+      );
+    }
+  }
+
+  return errors;
+}
+
+function collectBleedingdevModeScheduleErrors(workflow, relativePath) {
+  const errors = [];
+  const jobs = workflow.jobs ?? {};
+  const successfulResults = Object.fromEntries(
+    Object.keys(jobs).map(jobId => [jobId, 'success']),
+  );
+  const context = {
+    github: {
+      actor: 'BleedingDev',
+      triggering_actor: 'BleedingDev',
+      repository_owner: 'BleedingDev',
+      ref: 'refs/heads/main-ultramodern',
+    },
+    inputs: { mode: 'cohort', dry_run: false, recovery_run_id: '' },
+    vars: {},
+  };
+  const schedule = (
+    jobId,
+    mode,
+    overrides = {},
+    contextOverrides = {},
+    cancelled = false,
+  ) =>
+    evaluateJobSchedule({
+      workflow,
+      jobId,
+      results: {
+        ...successfulResults,
+        ...(jobId === 'record-publish-outcome'
+          ? { 'validate-release': 'skipped' }
+          : {}),
+        ...overrides,
+      },
+      context: {
+        ...context,
+        inputs: {
+          ...context.inputs,
+          mode,
+          dry_run: jobId === 'validate-release',
+        },
+        ...contextOverrides,
+      },
+      cancelled,
+    });
+  for (const [ids, ownMode, otherMode] of [
+    [bleedingdevCohortJobs, 'cohort', 'sidecars'],
+    [bleedingdevSidecarJobs, 'sidecars', 'cohort'],
+  ]) {
+    for (const jobId of ids) {
+      if (
+        schedule(jobId, otherMode) ||
+        schedule(jobId, '') ||
+        schedule(jobId, 'unknown')
+      ) {
+        errors.push(
+          `${relativePath} job ${jobId} must reject the other publication mode and unknown or missing modes`,
+        );
+      }
+      if (
+        ['actor', 'triggering_actor'].some(field =>
+          schedule(
+            jobId,
+            ownMode,
+            {},
+            {
+              github: { ...context.github, [field]: 'someone-else' },
+            },
+          ),
+        ) ||
+        schedule(
+          jobId,
+          ownMode,
+          {},
+          {
+            github: { ...context.github, ref: 'refs/heads/untrusted' },
+          },
+        )
+      ) {
+        errors.push(
+          `${relativePath} job ${jobId} must require the owner, triggering owner and trusted branch`,
+        );
+      }
+    }
+  }
+  for (const jobId of [
+    ...bleedingdevCohortJobs,
+    ...bleedingdevSidecarJobs,
+    'publish-sidecars',
+  ]) {
+    const mode = bleedingdevSidecarJobs.includes(jobId) ? 'sidecars' : 'cohort';
+    if (schedule(jobId, mode, {}, {}, true)) {
+      errors.push(
+        `${relativePath} job ${jobId} must reject a cancelled run even when its prerequisites succeeded`,
+      );
+    }
+  }
+  if (schedule('publish-sidecars', 'sidecars', {}, {}, true)) {
+    errors.push(
+      `${relativePath} standalone publish-sidecars must reject a cancelled run even when its prerequisites succeeded`,
+    );
+  }
+  const badResults = ['failure', 'cancelled', 'skipped', undefined];
+  const inactiveSidecars = Object.fromEntries(
+    bleedingdevSidecarJobs.map(jobId => [jobId, 'skipped']),
+  );
+  const inactiveCohort = Object.fromEntries(
+    bleedingdevCohortJobs.map(jobId => [jobId, 'skipped']),
+  );
+  const publicationPrerequisites = {
+    cohort: [
+      'publish-security',
+      'integration',
+      'qualify-source-compute',
+      'qualify-source',
+      'accept-release',
+      'rehearse-tractor',
+    ],
+    sidecars: ['publish-security', 'prepare-sidecars', 'qualify-sidecars'],
+  };
+  for (const [mode, prerequisites] of Object.entries(
+    publicationPrerequisites,
+  )) {
+    const inactive = mode === 'cohort' ? inactiveSidecars : inactiveCohort;
+    if (
+      !schedule('publish-sidecars', mode, inactive) ||
+      prerequisites.some(jobId =>
+        badResults.some(result =>
+          schedule('publish-sidecars', mode, { ...inactive, [jobId]: result }),
+        ),
+      )
+    ) {
+      errors.push(
+        `${relativePath} publish-sidecars must require every ${mode} prerequisite to succeed while surviving only the inactive branch skips`,
+      );
+    }
+    if (
+      schedule('publish-sidecars', mode, inactive, {
+        inputs: { ...context.inputs, mode, dry_run: true },
+      })
+    ) {
+      errors.push(
+        `${relativePath} publish-sidecars must reject dry runs in both modes`,
+      );
+    }
+  }
+  if (
+    schedule('publish-sidecars', 'unknown') ||
+    schedule('publish-sidecars', '') ||
+    ['actor', 'triggering_actor'].some(field =>
+      ['cohort', 'sidecars'].some(mode =>
+        schedule(
+          'publish-sidecars',
+          mode,
+          {},
+          {
+            github: { ...context.github, [field]: 'someone-else' },
+          },
+        ),
+      ),
+    ) ||
+    ['cohort', 'sidecars'].some(mode =>
+      schedule(
+        'publish-sidecars',
+        mode,
+        {},
+        {
+          github: { ...context.github, ref: 'refs/heads/untrusted' },
+        },
+      ),
+    )
+  ) {
+    errors.push(
+      `${relativePath} publish-sidecars must require an explicit mode, owner, triggering owner and trusted branch`,
+    );
+  }
+  for (const [jobId, prerequisites] of Object.entries({
+    publish: [...publicationPrerequisites.cohort, 'publish-sidecars'],
+    'accept-published': ['publish', 'accept-release'],
+    'tractor-downstream': ['prepare-release', 'publish'],
+    'qualify-sidecars': ['publish-security', 'prepare-sidecars'],
+  })) {
+    const mode = jobId === 'qualify-sidecars' ? 'sidecars' : 'cohort';
+    const inactive = mode === 'cohort' ? inactiveSidecars : inactiveCohort;
+    if (
+      !schedule(jobId, mode, inactive) ||
+      prerequisites.some(need =>
+        badResults.some(result =>
+          schedule(jobId, mode, { ...inactive, [need]: result }),
+        ),
+      )
+    ) {
+      errors.push(
+        `${relativePath} job ${jobId} must require successful prerequisites; failure, cancellation or skip must never authorize publication or a sidecar qualification receipt`,
+      );
+    }
+  }
+  const liveCohort = { ...inactiveSidecars, 'validate-release': 'skipped' };
+  const dryCohort = {
+    ...inactiveSidecars,
+    'validate-release': 'success',
+    'publish-sidecars': 'skipped',
+    publish: 'skipped',
+    'accept-published': 'skipped',
+    'tractor-downstream': 'skipped',
+  };
+  for (const [dryRun, results, prerequisites] of [
+    [
+      false,
+      liveCohort,
+      [
+        'publish-security',
+        'accept-release',
+        'rehearse-tractor',
+        'publish-sidecars',
+        'publish',
+        'accept-published',
+        'tractor-downstream',
+      ],
+    ],
+    [
+      true,
+      dryCohort,
+      [
+        'publish-security',
+        'accept-release',
+        'rehearse-tractor',
+        'validate-release',
+      ],
+    ],
+  ]) {
+    const overrides = { inputs: { ...context.inputs, dry_run: dryRun } };
+    if (
+      !schedule('record-publish-outcome', 'cohort', results, overrides) ||
+      prerequisites.some(need =>
+        badResults.some(result =>
+          schedule(
+            'record-publish-outcome',
+            'cohort',
+            { ...results, [need]: result },
+            overrides,
+          ),
+        ),
+      )
+    ) {
+      errors.push(
+        `${relativePath} cohort publish outcome must require every successful branch prerequisite and reject failed, cancelled, skipped or missing results`,
+      );
+    }
+  }
+
+  return errors;
+}
+
+function collectSidecarArtifactFlowErrors(workflow, relativePath) {
+  const errors = [];
+  const jobs = workflow.jobs ?? {};
+  const expression = value => ['${{', value, '}}'].join(' ');
+  const normalizedRun = step =>
+    normalizeShellContinuations(stripShellComments(String(step?.run ?? '')))
+      .replace(/\s+/gu, ' ')
+      .trim();
+  const sidecarBundleName =
+    'bleedingdev-sidecar-bundle-run-' +
+    expression('github.run_id') +
+    '-attempt-' +
+    expression('github.run_attempt');
+  const sidecarReceiptName =
+    'bleedingdev-sidecar-qualification-run-' +
+    expression('github.run_id') +
+    '-attempt-' +
+    expression('github.run_attempt');
+  const bundlePath = '.modern/bleedingdev-sidecars/bundle';
+  const receiptPath = '.modern/bleedingdev-sidecars/qualification.json';
+  const validDownload = (step, name, destination) =>
+    actionMatches(step, 'actions/download-artifact') &&
+    step.with?.name === name &&
+    step.with?.path === destination &&
+    step.with?.repository === expression('github.repository') &&
+    step.with?.['run-id'] === expression('github.run_id') &&
+    step.with?.['github-token'] === expression('github.token');
+  const validUpload = (step, name, location) =>
+    actionMatches(step, 'actions/upload-artifact') &&
+    step.if === undefined &&
+    step.with?.name === name &&
+    step.with?.path === location &&
+    step.with?.['if-no-files-found'] === 'error';
+  const prepareSteps = jobs['prepare-sidecars']?.steps ?? [];
+  const prepareCommand =
+    'node scripts/ultramodern-publish/prepare-sidecar-bundle.mjs --out "$BLEEDINGDEV_SIDECAR_DIR"';
+  if (
+    normalizeNeeds(jobs['prepare-sidecars']).length !== 0 ||
+    prepareSteps.filter(
+      step => normalizedRun(step) === prepareCommand && step.if === undefined,
+    ).length !== 1 ||
+    prepareSteps.filter(step =>
+      validUpload(step, sidecarBundleName, bundlePath),
+    ).length !== 1
+  ) {
+    errors.push(
+      `${relativePath} prepare-sidecars must prepare and upload exactly one immutable sidecar bundle bound to this run and attempt`,
+    );
+  }
+  const qualifySteps = jobs['qualify-sidecars']?.steps ?? [];
+  const qualifyCommand =
+    'node scripts/ultramodern-publish/qualify-sidecar-bundle.mjs --out "$BLEEDINGDEV_SIDECAR_DIR" --receipt "$BLEEDINGDEV_SIDECAR_QUALIFICATION"';
+  const publishBase =
+    'node scripts/ultramodern-publish/publish-sidecars.mjs --mode sidecars --out "$BLEEDINGDEV_SIDECAR_DIR" --qualification "$BLEEDINGDEV_SIDECAR_QUALIFICATION"';
+  const publishCommand = `${publishBase} --tag "$BLEEDINGDEV_PUBLISH_TAG"`;
+  const verifyCommand = `${publishBase} --check-staging`;
+  const dryCommand = `${publishCommand} --dry-run`;
+  const contractTestCommand =
+    'node --test scripts/ultramodern-publish/__tests__/sidecar-bundle.test.js scripts/ultramodern-publish/__tests__/sidecar-qualification.test.js scripts/ultramodern-publish/__tests__/sidecar-provenance.test.js scripts/ultramodern-publish/__tests__/sidecar-publish-lane.test.js';
+  const testAt = qualifySteps.findIndex(
+    step =>
+      normalizedRun(step) === contractTestCommand && step.if === undefined,
+  );
+  const qualifyAt = qualifySteps.findIndex(
+    step => normalizedRun(step) === qualifyCommand && step.if === undefined,
+  );
+  const dryAt = qualifySteps.findIndex(
+    step => normalizedRun(step) === dryCommand && step.if === undefined,
+  );
+  const uploadAt = qualifySteps.findIndex(step =>
+    validUpload(step, sidecarReceiptName, receiptPath),
+  );
+  if (
+    qualifySteps.filter(step =>
+      validDownload(step, sidecarBundleName, bundlePath),
+    ).length !== 1 ||
+    testAt === -1 ||
+    !(testAt < qualifyAt && qualifyAt < dryAt && dryAt < uploadAt)
+  ) {
+    errors.push(
+      `${relativePath} qualify-sidecars must test and qualify the exact sidecar bundle, reconcile without publication, then upload its same-run qualification receipt`,
+    );
+  }
+  const receiptSteps = workflowSteps(workflow).filter(
+    ({ step }) =>
+      runIncludes(step, 'qualify-sidecar-bundle.mjs') ||
+      (actionMatches(step, 'actions/upload-artifact') &&
+        String(step.with?.name).includes('bleedingdev-sidecar-qualification-')),
+  );
+  if (
+    receiptSteps.length !== 2 ||
+    receiptSteps.some(({ jobId }) => jobId !== 'qualify-sidecars')
+  ) {
+    errors.push(
+      `${relativePath} sidecar qualification receipts must be issued only by qualify-sidecars`,
+    );
+  }
+  const publisherSteps = jobs['publish-sidecars']?.steps ?? [];
+  const sidecarSteps = publisherSteps.filter(
+    step => step.if === "inputs.mode == 'sidecars'",
+  );
+  if (
+    sidecarSteps.filter(step =>
+      validDownload(step, sidecarBundleName, bundlePath),
+    ).length !== 1 ||
+    sidecarSteps.filter(step =>
+      validDownload(step, sidecarReceiptName, '.modern/bleedingdev-sidecars'),
+    ).length !== 1 ||
+    sidecarSteps.filter(step => normalizedRun(step) === verifyCommand)
+      .length !== 1 ||
+    sidecarSteps.filter(step => normalizedRun(step) === publishCommand)
+      .length !== 1
+  ) {
+    errors.push(
+      `${relativePath} publish-sidecars must download and verify the exact sidecar bundle and qualification receipt before standalone publication`,
+    );
+  }
+  const verifyAt = publisherSteps.findIndex(
+    step =>
+      normalizedRun(step) === verifyCommand &&
+      step.if === "inputs.mode == 'sidecars'",
+  );
+  const publishAt = publisherSteps.findIndex(
+    step =>
+      normalizedRun(step) === publishCommand &&
+      step.if === "inputs.mode == 'sidecars'",
+  );
+  const bundleDownloadAt = publisherSteps.findIndex(
+    step =>
+      validDownload(step, sidecarBundleName, bundlePath) &&
+      step.if === "inputs.mode == 'sidecars'",
+  );
+  const receiptDownloadAt = publisherSteps.findIndex(
+    step =>
+      validDownload(step, sidecarReceiptName, '.modern/bleedingdev-sidecars') &&
+      step.if === "inputs.mode == 'sidecars'",
+  );
+  if (
+    !(
+      bundleDownloadAt >= 0 &&
+      receiptDownloadAt >= 0 &&
+      bundleDownloadAt < verifyAt &&
+      receiptDownloadAt < verifyAt &&
+      verifyAt < publishAt
+    )
+  ) {
+    errors.push(
+      `${relativePath} standalone sidecar publication must follow both exact artifact downloads and qualification verification`,
+    );
+  }
+  for (const step of publisherSteps) {
+    const name = String(step.with?.name ?? '');
+    if (
+      (name.includes('BLEEDINGDEV_RELEASE_BUNDLE_ARTIFACT') ||
+        name.includes('BLEEDINGDEV_RELEASE_ACCEPTANCE_ARTIFACT') ||
+        runIncludes(step, 'run-release-acceptance.mjs') ||
+        (runIncludes(step, 'publish-sidecars.mjs') &&
+          !runIncludes(step, '--mode sidecars'))) &&
+      step.if !== "inputs.mode == 'cohort'"
+    ) {
+      errors.push(
+        `${relativePath} publish-sidecars must read cohort artifacts and receipts only in cohort mode`,
+      );
+    }
+  }
+  if (
+    workflow.env?.BLEEDINGDEV_SIDECAR_DIR !== bundlePath ||
+    workflow.env?.BLEEDINGDEV_SIDECAR_QUALIFICATION !== receiptPath
+  ) {
+    errors.push(
+      `${relativePath} must pin sidecar artifact and qualification paths independently of the cohort`,
+    );
+  }
+  return errors;
+}
+
+function collectBleedingdevModeErrors(workflow, relativePath) {
+  return [
+    ...collectBleedingdevModeInputErrors(workflow, relativePath),
+    ...collectBleedingdevModeScheduleErrors(workflow, relativePath),
+    ...collectSidecarArtifactFlowErrors(workflow, relativePath),
+  ];
+}
+
 function collectBleedingdevPublishStructureErrors(workflow, relativePath) {
   if (relativePath !== bleedingdevPublishWorkflowPath) {
     return [];
   }
-  const errors = [];
+  const errors = collectBleedingdevModeErrors(workflow, relativePath);
   const jobs = isObject(workflow.jobs) ? workflow.jobs : {};
 
   for (const scope of elevatedPermissionScopes(
@@ -1025,7 +1611,7 @@ function collectBleedingdevPublishStructureErrors(workflow, relativePath) {
       repository_owner: 'BleedingDev',
       triggering_actor: 'BleedingDev',
     },
-    inputs: { dry_run: false, recovery_run_id: '' },
+    inputs: { mode: 'cohort', dry_run: false, recovery_run_id: '' },
     vars: {},
   };
   const qualificationResults = {
@@ -1112,14 +1698,20 @@ function collectBleedingdevPublishStructureErrors(workflow, relativePath) {
   for (const { jobId, step } of workflowSteps(workflow)) {
     if (typeof step.run !== 'string') continue;
     const command = stripShellComments(step.run);
-    const hasInlineNode = shellCommandWords(command).some(words => {
+    const hasInlineNode = shellCommandWords(
+      normalizeShellContinuations(command),
+    ).some(words => {
       const index = words.findIndex(word =>
         /(?:^|[/(])node(?:\.exe)?$/u.test(word),
       );
-      return (
-        index !== -1 &&
-        !/^scripts\/[A-Za-z0-9_./-]+\.m?js$/u.test(words[index + 1] ?? '')
-      );
+      if (index === -1) return false;
+      const args = words.slice(index + 1);
+      const fixedScript = value =>
+        /^scripts\/[A-Za-z0-9_./-]+\.m?js$/u.test(value);
+      if (args[0] === '--test') {
+        return args.length < 2 || args.slice(1).some(arg => !fixedScript(arg));
+      }
+      return !fixedScript(args[0]);
     });
     if (command.includes('<<') || hasInlineNode) {
       errors.push(
