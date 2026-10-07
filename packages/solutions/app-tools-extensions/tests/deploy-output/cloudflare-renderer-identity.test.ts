@@ -12,6 +12,7 @@ type FixtureRoute = {
   entryName?: unknown;
   urlPath: string;
   entryPath: string;
+  isApi?: unknown;
   isSSR?: unknown;
   worker?: unknown;
   bundle?: unknown;
@@ -273,6 +274,40 @@ it('accepts a native public route whose URL was remapped by publicRoutes', async
     },
   });
   await input.preset.writeOutput?.();
+});
+
+const apiRoute = (): FixtureRoute => ({
+  urlPath: '/main-api',
+  isApi: true,
+  entryPath: '',
+  isSPA: false,
+  isSSR: false,
+});
+
+it('accepts the BFF API route without assigning a renderer identity', async () => {
+  const input = await fixture({
+    mutateRoutes(routes) {
+      routes.push(apiRoute());
+    },
+  });
+  await input.preset.writeOutput?.();
+});
+
+it.each([
+  { name: 'renderer entry', patch: { entryName: 'unbuilt' } },
+  { name: 'SSR marker', patch: { isSSR: true } },
+  { name: 'malformed API marker', patch: { isApi: 'true' } },
+  { name: 'document path', patch: { entryPath: 'html/main/index.html' } },
+  { name: 'worker dispatch', patch: { worker: 'worker/main.js' } },
+  { name: 'server bundle', patch: { bundle: 'bundles/main.js' } },
+  { name: 'stream marker', patch: { isStream: true } },
+])('rejects an API-looking route with $name', async row => {
+  const input = await fixture({
+    mutateRoutes(routes) {
+      routes.push({ ...apiRoute(), ...row.patch });
+    },
+  });
+  await expect(input.preset.writeOutput?.()).rejects.toThrow();
 });
 
 it.each([
