@@ -106,11 +106,83 @@ export function preserveConsumerWorkspaceArtifacts(
   const preservedPaths = new Set<string>();
   const recognizedPaths = new Map<string, boolean>();
   const physicalRoot = fs.realpathSync(workspaceRoot);
-  const canonicalSources = formatGeneratedSourceCandidates(
+  const formattedSources = new Map<string, Map<string, string>>();
+  const consumerSources = new Map<string, Map<string, string>>();
+  const remember = (
+    cache: Map<string, Map<string, string>>,
+    relativePath: string,
+    source: string,
+    formatted: string,
+  ) => {
+    let sources = cache.get(relativePath);
+    if (!sources) {
+      sources = new Map();
+      cache.set(relativePath, sources);
+    }
+    sources.set(source, formatted);
+    sources.set(formatted, formatted);
+  };
+  const formatSources = (
+    sources: readonly (readonly [relativePath: string, source: string])[],
+    protectInvalidSources = false,
+  ) => {
+    // Consumer filenames retain native ignore rules; generated comparisons use
+    // canonical paths. Evidence from those contexts must not share a cache.
+    const cache = protectInvalidSources ? consumerSources : formattedSources;
+    const missing = new Map<string, Set<string>>();
+    for (const [relativePath, source] of sources) {
+      if (cache.get(relativePath)?.has(source)) continue;
+      let pending = missing.get(relativePath);
+      if (!pending) {
+        pending = new Set();
+        missing.set(relativePath, pending);
+      }
+      pending.add(source);
+    }
+    const batches: (readonly [relativePath: string, source: string])[][] = [];
+    for (const [relativePath, pending] of missing) {
+      [...pending].forEach((source, index) => {
+        // Literal consumer paths cannot hold two source variants in one batch.
+        const batchIndex = protectInvalidSources ? index : 0;
+        (batches[batchIndex] ??= []).push([relativePath, source]);
+      });
+    }
+    for (const inputs of batches) {
+      const targets = protectInvalidSources
+        ? inputs
+        : inputs.map(
+            ([relativePath, source], index) =>
+              [`canonical/${index}/${relativePath}`, source] as const,
+          );
+      try {
+        const formatted = formatGeneratedSourceCandidates(targets);
+        inputs.forEach(([relativePath, source], index) =>
+          remember(cache, relativePath, source, formatted[index]!),
+        );
+      } catch (error) {
+        if (!protectInvalidSources) throw error;
+        // A malformed authored file must not prevent recognizing its neighbors.
+        for (const [index, [relativePath, source]] of inputs.entries()) {
+          try {
+            const [formatted] = formatGeneratedSourceCandidates([
+              targets[index]!,
+            ]);
+            remember(cache, relativePath, source, formatted!);
+          } catch {
+            // Unparseable consumer source remains consumer-owned.
+          }
+        }
+      }
+    }
+    return sources.map(([relativePath, source]) =>
+      cache.get(relativePath)?.get(source),
+    );
+  };
+  const canonicalSources = formatSources(
     candidates.map(
-      (candidate, index) =>
+      candidate =>
         [
-          `canonical/${index}/${candidate.relativePath}`,
+          candidate.relativePath,
           withoutGeneratedData(
             candidate.content,
             candidate.generatedDataBinding,
@@ -118,6 +190,12 @@ export function preserveConsumerWorkspaceArtifacts(
         ] as const,
     ),
   );
+  const inspected: {
+    relativePath: string;
+    recognized: boolean;
+    normalized?: string;
+    canonical?: string;
+  }[] = [];
   for (const [index, candidate] of candidates.entries()) {
     const relativePath = candidate.relativePath;
     const filePath = path.join(workspaceRoot, relativePath);
@@ -136,23 +214,39 @@ export function preserveConsumerWorkspaceArtifacts(
       );
     }
     const source = fs.readFileSync(filePath, 'utf8');
-    let recognized = source === candidate.content;
-    if (!recognized) {
+    const inspection: (typeof inspected)[number] = {
+      relativePath,
+      recognized: source === candidate.content,
+      canonical: canonicalSources[index],
+    };
+    if (!inspection.recognized) {
       try {
         const normalized = withoutGeneratedData(
           source,
           candidate.generatedDataBinding,
         );
-        const canonical = canonicalSources[index];
-        recognized =
-          normalized === canonical ||
-          formatGeneratedSourceCandidates([[relativePath, normalized]])[0] ===
-            canonical;
+        inspection.normalized = normalized;
+        inspection.recognized = normalized === inspection.canonical;
       } catch {
         // An authored file that the generator cannot parse is still owned
         // by its author, not an invitation to overwrite it.
       }
     }
+    inspected.push(inspection);
+  }
+  const pending = inspected.filter(
+    inspection => !inspection.recognized && inspection.normalized !== undefined,
+  );
+  const normalizedSources = formatSources(
+    pending.map(
+      inspection => [inspection.relativePath, inspection.normalized!] as const,
+    ),
+    true,
+  );
+  pending.forEach((inspection, index) => {
+    inspection.recognized = normalizedSources[index] === inspection.canonical;
+  });
+  for (const { relativePath, recognized } of inspected) {
     recognizedPaths.set(
       relativePath,
       recognizedPaths.get(relativePath) === true || recognized,
@@ -193,11 +287,10 @@ export function preserveConsumerWorkspaceArtifacts(
         if (recognizedPaths.get(relativePath) && fs.existsSync(filePath)) {
           const current = fs.readFileSync(filePath, 'utf8');
           if (current === content) return false;
-          const [canonicalCurrent, canonicalNext] =
-            formatGeneratedSourceCandidates([
-              [`canonical/current/${relativePath}`, current],
-              [`canonical/next/${relativePath}`, content],
-            ]);
+          const [canonicalCurrent, canonicalNext] = formatSources([
+            [relativePath, current],
+            [relativePath, content],
+          ]);
           if (canonicalCurrent === canonicalNext) return false;
         }
         writeFileReplacing(workspaceRoot, relativePath, content);
