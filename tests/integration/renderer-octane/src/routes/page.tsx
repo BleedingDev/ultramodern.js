@@ -8,6 +8,7 @@ import {
 import { useActionState, useMemo } from 'octane';
 import Counter from '../components/Counter';
 import Deferred from '../components/Deferred';
+import Message from '../components/Message';
 
 export default function Home() {
   const router = useRouter();
@@ -23,6 +24,7 @@ export default function Home() {
     <section data-testid="native-route" data-renderer="octane">
       <h1>Octane renderer fixture</h1>
       <Counter />
+      <Message />
       <Deferred />
       <pre data-testid="native-loader-value">{JSON.stringify(data)}</pre>
       <form action={action}>

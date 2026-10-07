@@ -9,6 +9,8 @@ defineRendererSpecs({
   appDir: path.resolve(__dirname, '..'),
   skip: {
     lazy: 'the Octane fixture has no lazy component',
+    'dev-hmr':
+      'an edit reloads the document: the streamed signal client build changes',
     'ssr-css':
       'route CSS loads only with the client bundle, so the first paint is unstyled',
   },

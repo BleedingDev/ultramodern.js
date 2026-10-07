@@ -61,6 +61,10 @@ test what a user sees. Target: about 3-4k lines total.
       head            per-route <title>/meta in SSR HTML and after client nav
       deferred        ?case=deferred streams native-deferred-pending, then
                       native-deferred-late after the held control is released
+      no-hmr-client   the production page opens no HMR websocket
+      dev-hmr         under modern dev, editing a sibling of Counter updates
+                      it in place: same document, Counter keeps its count,
+                      the layout stylesheet still applies
     Each renderer-<x>/tests/index.test.ts is about 15 lines: build, serve,
     defineRendererSpecs. A spec a renderer cannot meet is skipped in that
     one file, with a reason.

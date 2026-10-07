@@ -7,6 +7,7 @@ import type { JSX } from '@solidjs/web';
 import { Loading, lazy } from 'solid-js';
 import Counter from '../components/Counter';
 import Deferred from '../components/Deferred';
+import Message from '../components/Message';
 
 const Lazy = lazy(() => import('../components/Lazy'));
 
@@ -17,6 +18,7 @@ export default function Home(): JSX.Element {
     <section data-testid="native-route" data-renderer="solid">
       <h1>Solid renderer fixture</h1>
       <Counter />
+      <Message />
       <Deferred />
       <Loading fallback={<p data-testid="native-lazy-pending">Waiting lazy</p>}>
         <Lazy />

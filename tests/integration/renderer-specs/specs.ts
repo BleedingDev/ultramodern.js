@@ -1,9 +1,11 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import puppeteer, { type Browser, type Page } from 'puppeteer';
 import { checkBundle } from '../../../scripts/ultramodern-renderers/bundle-check.mjs';
 import {
   getPort,
   killApp,
+  launchApp,
   launchOptions,
   modernBuild,
   modernServe,
@@ -26,7 +28,9 @@ export type SpecName =
   | 'error-route'
   | 'head'
   | 'deferred'
-  | 'no-react-bundle';
+  | 'no-react-bundle'
+  | 'no-hmr-client'
+  | 'dev-hmr';
 
 export interface RendererSpecOptions {
   renderer: Renderer;
@@ -64,27 +68,33 @@ export function defineRendererSpecs(options: RendererSpecOptions) {
     else test(name, body);
   };
 
-  describe(`renderer ${renderer}`, () => {
-    let origin: string;
-    let app: unknown;
-    let browser: Browser;
-    let page: Page;
-    let pageErrors: string[];
-    let documentRequests: string[];
+  let origin: string;
+  let browser: Browser;
+  let page: Page;
+  let pageErrors: string[];
+  let documentRequests: string[];
+  let sockets: string[];
 
+  /** Starts a server for one describe block and stops it afterwards. */
+  function useServer(start: (port: number) => Promise<unknown>) {
+    let app: unknown;
     beforeAll(async () => {
-      const build = await modernBuild(appDir, [], { modernBin });
-      if (build.code !== 0)
-        throw new Error(`build failed\n${build.stdout}\n${build.stderr}`);
       const port = await getPort();
-      app = await modernServe(appDir, port, { modernBin });
+      app = await start(port);
       origin = `http://localhost:${port}`;
+    });
+    afterAll(async () => {
+      if (app) await killApp(app);
+    });
+  }
+
+  /** One browser per describe block, one fresh page per spec. */
+  function usePages() {
+    beforeAll(async () => {
       browser = await puppeteer.launch(launchOptions as any);
     });
-
     afterAll(async () => {
       await browser?.close();
-      if (app) await killApp(app);
     });
 
     beforeEach(async () => {
@@ -99,6 +109,10 @@ export function defineRendererSpecs(options: RendererSpecOptions) {
         if (request.resourceType() === 'document')
           documentRequests.push(request.url());
       });
+      sockets = [];
+      const cdp = await page.createCDPSession();
+      await cdp.send('Network.enable');
+      cdp.on('Network.webSocketCreated', event => sockets.push(event.url));
       // Keep the first native-layout the document gets: the parser inserts
       // the server one before any bundle can render its own, so hydration
       // must leave that same node in place.
@@ -123,62 +137,81 @@ export function defineRendererSpecs(options: RendererSpecOptions) {
     afterEach(async () => {
       await page?.close();
     });
+  }
 
-    const text = (testId: string) =>
-      page.$eval(id(testId), element => element.textContent ?? '');
+  async function build(env: Record<string, string> = {}) {
+    const result = await modernBuild(appDir, [], { modernBin, env });
+    if (result.code !== 0)
+      throw new Error(`build failed\n${result.stdout}\n${result.stderr}`);
+  }
 
-    const waitForText = (testId: string, expected: string) =>
-      page.waitForFunction(
-        (selector, value) =>
-          document.querySelector(selector)?.textContent?.includes(value),
-        { timeout: 15_000 },
-        id(testId),
-        expected,
-      );
+  const text = (testId: string) =>
+    page.$eval(id(testId), element => element.textContent ?? '');
 
-    const waitForStyle = (testId: string, property: string, value: string) =>
-      page.waitForFunction(
-        (selector, name, expected) => {
-          const element = document.querySelector(selector);
-          return (
-            element !== null &&
-            getComputedStyle(element).getPropertyValue(name) === expected
-          );
-        },
-        { timeout: 15_000 },
-        id(testId),
-        property,
-        value,
-      );
+  const waitForText = (testId: string, expected: string) =>
+    page.waitForFunction(
+      (selector, value) =>
+        document.querySelector(selector)?.textContent?.includes(value),
+      { timeout: 15_000 },
+      id(testId),
+      expected,
+    );
 
-    /** Clicking the counter only updates once the page is hydrated. */
-    async function openHydrated(pathname: string) {
-      const response = await page.goto(`${origin}${pathname}`, {
-        waitUntil: 'domcontentloaded',
-      });
-      await page.waitForSelector(id('native-increment'));
-      await page.click(id('native-increment'));
-      await waitForText('native-count', '1');
-      return response;
-    }
+  const waitForStyle = (testId: string, property: string, value: string) =>
+    page.waitForFunction(
+      (selector, name, expected) => {
+        const element = document.querySelector(selector);
+        return (
+          element !== null &&
+          getComputedStyle(element).getPropertyValue(name) === expected
+        );
+      },
+      { timeout: 15_000 },
+      id(testId),
+      property,
+      value,
+    );
 
-    async function clickAndWait(testId: string, target: string) {
-      await page.click(id(testId));
-      await page.waitForSelector(id(target), { timeout: 15_000 });
-    }
+  /** Clicking the counter only updates once the page is hydrated. */
+  async function openHydrated(pathname: string) {
+    const response = await page.goto(`${origin}${pathname}`, {
+      waitUntil: 'domcontentloaded',
+    });
+    await page.waitForSelector(id('native-increment'));
+    await page.click(id('native-increment'));
+    await waitForText('native-count', '1');
+    return response;
+  }
 
-    const fetchHtml = async (pathname: string) => {
-      const response = await fetch(`${origin}${pathname}`, {
-        redirect: 'manual',
-        headers: { accept: 'text/html' },
-      });
-      return { response, html: await response.text() };
-    };
+  async function clickAndWait(testId: string, target: string) {
+    await page.click(id(testId));
+    await page.waitForSelector(id(target), { timeout: 15_000 });
+  }
+
+  const fetchHtml = async (pathname: string) => {
+    const response = await fetch(`${origin}${pathname}`, {
+      redirect: 'manual',
+      headers: { accept: 'text/html' },
+    });
+    return { response, html: await response.text() };
+  };
+
+  describe(`renderer ${renderer}`, () => {
+    useServer(async port => {
+      await build();
+      return modernServe(appDir, port, { modernBin });
+    });
+    usePages();
 
     if (renderer !== 'react')
       spec('no-react-bundle', async () => {
         expect(checkBundle(path.join(appDir, 'dist'))).toEqual([]);
       });
+
+    spec('no-hmr-client', async () => {
+      await openHydrated('/');
+      expect(sockets).toEqual([]);
+    });
 
     spec('ssr-html', async () => {
       const { response, html } = await fetchHtml('/');
@@ -365,6 +398,47 @@ export function defineRendererSpecs(options: RendererSpecOptions) {
       await page.waitForSelector(id('native-deferred-pending'));
       await waitForText('native-deferred-late', 'Native late value');
       expect(pageErrors).toEqual([]);
+    });
+  });
+
+  describe(`renderer ${renderer} dev`, () => {
+    const messageFile = path.join(appDir, 'src/components/Message.tsx');
+    const original = fs.readFileSync(messageFile, 'utf8');
+    useServer(port => launchApp(appDir, port, { modernBin }));
+    usePages();
+    afterAll(() => fs.writeFileSync(messageFile, original));
+
+    spec('dev-hmr', async () => {
+      await openHydrated('/');
+      await page.evaluate(() => {
+        (window as any).__sameWindow = true;
+      });
+      const before = documentRequests.length;
+      try {
+        fs.writeFileSync(
+          messageFile,
+          original.replace('Native message', 'Native message edited'),
+        );
+        // A dev rebuild can take tens of seconds on a busy machine.
+        await page.waitForFunction(
+          selector =>
+            document.querySelector(selector)?.textContent ===
+            'Native message edited',
+          { timeout: 60_000 },
+          id('native-message'),
+        );
+        // Counter is a sibling of the edited module and keeps its state.
+        expect(await text('native-count')).toBe('1');
+        expect(documentRequests.length).toBe(before);
+        expect(await page.evaluate(() => (window as any).__sameWindow)).toBe(
+          true,
+        );
+        await waitForStyle('native-layout', 'color', 'rgb(20, 40, 60)');
+        expect(sockets.length).toBeGreaterThan(0);
+        expect(pageErrors).toEqual([]);
+      } finally {
+        fs.writeFileSync(messageFile, original);
+      }
     });
   });
 }
