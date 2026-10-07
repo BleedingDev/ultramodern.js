@@ -136,18 +136,13 @@ function writeBuiltApp(root, app, sourceRevision, buildMarker) {
   const manifest = sdk.validateRendererBuildManifest(
     {
       schema: 'ultramodern-renderer-build',
-      version: 1,
+      version: 2,
+      renderer,
       profile,
       routerBindings,
-      buildMarker,
+      buildId: buildMarker,
       sourceRevision,
-      inputDigest: 'b'.repeat(64),
-      profileDigest: 'c'.repeat(64),
-      compilerDigest: 'd'.repeat(64),
-      frameworkCohortDigest: 'e'.repeat(64),
-      cacheAllowed: true,
-      promotable: true,
-      identities: { main: rendererIdentity },
+      entries: { main: rendererIdentity },
     },
     profile,
   );
@@ -288,7 +283,7 @@ for (const [label, change, expected] of [
     built => {
       built.manifest.profile.compiler.version = '999.0.0';
     },
-    /manifest profile conflicts/u,
+    /different react renderer profile/u,
   ],
   [
     'foreign router ownership',
@@ -300,8 +295,8 @@ for (const [label, change, expected] of [
   [
     'foreign primary entry',
     built => {
-      built.manifest.identities = {
-        other: { ...built.manifest.identities.main, entryName: 'other' },
+      built.manifest.entries = {
+        other: { ...built.manifest.entries.main, entryName: 'other' },
       };
       built.manifest.routerBindings = {
         other: built.manifest.routerBindings.main,
@@ -312,15 +307,15 @@ for (const [label, change, expected] of [
   [
     'foreign app identity',
     built => {
-      built.manifest.identities.main.appId = 'another-app';
+      built.manifest.entries.main.appId = 'another-app';
     },
     /finalized renderer provenance conflicts/u,
   ],
   [
     'extra entry',
     built => {
-      built.manifest.identities.other = {
-        ...built.manifest.identities.main,
+      built.manifest.entries.other = {
+        ...built.manifest.entries.main,
         entryName: 'other',
       };
       built.manifest.routerBindings.other = structuredClone(
@@ -393,8 +388,8 @@ test('browser smoke compares executed shell SSR with its coherent finalized comp
     false,
   );
   const manifest = structuredClone(built.manifest);
-  manifest.buildMarker = '0'.repeat(64);
-  manifest.identities.main.buildId = manifest.buildMarker;
+  manifest.buildId = '0'.repeat(64);
+  manifest.entries.main.buildId = manifest.buildId;
   writeJson(built.appRoot, '.output/renderer-build.json', manifest);
   const contract = bindContractToExpectedReleaseIdentities({
     contract: readSmokeContract(root).contract,
@@ -402,13 +397,13 @@ test('browser smoke compares executed shell SSR with its coherent finalized comp
     platform: 'node',
     projectDir: root,
   });
-  assert.equal(contract.apps[0].marker.build, manifest.buildMarker);
+  assert.equal(contract.apps[0].marker.build, manifest.buildId);
   const [target] = createSmokeTargets(contract).targets;
   await assert.rejects(
     () =>
       validateHttpTarget(target, {
         fetchImpl: async () =>
-          response(200, html({ marker: built.manifest.buildMarker })),
+          response(200, html({ marker: built.manifest.buildId })),
       }),
     /shell SSR UI marker mismatch/u,
   );
@@ -679,11 +674,8 @@ test('browser smoke reads the canonical public Cloudflare compiler manifest with
   const identity = releaseIdentity(root, built.app, 'workerd', {
     verifyRuntime: false,
   });
-  assert.equal(
-    identity.surfaces.frontend.buildMarker,
-    built.manifest.buildMarker,
-  );
-  assert.equal(identity.surfaces.api.buildMarker, built.manifest.buildMarker);
+  assert.equal(identity.surfaces.frontend.buildMarker, built.manifest.buildId);
+  assert.equal(identity.surfaces.api.buildMarker, built.manifest.buildId);
   const original = fs.readFileSync(
     path.join(built.outputRoot, 'public/renderer-build.json'),
   );
@@ -745,7 +737,7 @@ for (const uiOnly of [true, false]) {
         platform: 'workerd',
         projectDir: root,
       });
-    assert.equal(bind().apps[0].marker.buildMarker, built.manifest.buildMarker);
+    assert.equal(bind().apps[0].marker.buildMarker, built.manifest.buildId);
     assert.deepEqual(
       Object.keys(built.workerManifest.deliveryUnit.surfaces).sort(),
       uiOnly ? ['ui'] : ['api', 'ui'],

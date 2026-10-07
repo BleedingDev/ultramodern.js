@@ -248,12 +248,6 @@ if (!workerProbe) {
     );
     assert.deepEqual(Object.keys(sourceHostMetadata.routerBindings), ['main']);
     checkpoint();
-    const packageDirectories = {
-      '@modern-js/ultramodern-app-tools': tools,
-      '@modern-js/builder': path.join(workspace, 'packages/cli/builder'),
-      '@modern-js/renderer-core': core,
-      '@modern-js/renderer-octane': adapter,
-    };
     const identityOptions = {
       projectRoot: probe,
       renderer: 'octane',
@@ -261,37 +255,6 @@ if (!workerProbe) {
       entryNames: ['main'],
       routerBindings: sourceHostMetadata.routerBindings,
       mode: 'production',
-      packageName: 'ultramodern-octane-generated-admission',
-      inputDirectories: ['src'],
-      excludedDirectories: [
-        path.join(probe, 'internal'),
-        path.join(probe, 'internal-hmr'),
-        path.join(probe, 'dist'),
-      ],
-      configuration: {
-        renderer: 'octane',
-        source: sourceHostConfigInput.source,
-        output: {
-          targets: ['web', 'node'],
-          distPath: 'dist',
-          assetPrefix: '/assets/',
-          minimize: false,
-        },
-        server: { ssr: true },
-        html: { mountId: 'root' },
-        router: null,
-        bff: null,
-        deploy: null,
-        experiments: {},
-      },
-      packageDirectories,
-      packageResolutionRoots: [tools, adapter],
-      frameworkPackages: [
-        '@modern-js/ultramodern-app-tools',
-        '@modern-js/builder',
-        '@modern-js/renderer-core',
-        '@modern-js/renderer-octane',
-      ],
     };
     const resolved = await resolveRendererBuildIdentities(identityOptions);
     assert.deepEqual(
@@ -629,13 +592,6 @@ if (!workerProbe) {
     const devResolved = await resolveRendererBuildIdentities({
       ...identityOptions,
       mode: 'development',
-      configuration: {
-        renderer: 'octane',
-        source: sourceHostConfigInput.source,
-        output: { target: 'web', distPath: 'dist/hmr' },
-        server: { host: '127.0.0.1', port: 0 },
-        html: { mountId: 'root' },
-      },
     });
     assert.deepEqual(
       devResolved.routerBindings,
@@ -756,10 +712,7 @@ if (!workerProbe) {
       actualGeneratedEntries: true,
       actualFrameworkCohortIdentity: true,
       immutableProductionCohortRechecked: true,
-      frameworkCohortDigest: resolved.frameworkCohortDigest,
-      compilerDigest: resolved.compilerDigest,
-      cacheAllowed: resolved.cacheAllowed,
-      promotable: resolved.promotable,
+      profileKey: resolved.profileKey,
       sharedBuildId: identity.buildId,
       nativeHydrationBuildId: nativeBuild.buildId,
       ssrCounterAndLazyNodesRetained: true,

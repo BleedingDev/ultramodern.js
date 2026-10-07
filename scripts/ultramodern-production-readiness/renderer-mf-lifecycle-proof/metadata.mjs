@@ -23,7 +23,6 @@ const build = sdk.validateRendererBuildManifest(
   { routerFrameworks: sdk.resolveRendererRouterFrameworks('react') },
 );
 assert.equal(build.sourceRevision, input.expectedSourceRevision);
-assert.equal(build.promotable, true);
 const manifestPath = path.join(input.root, 'dist/mf-manifest.json');
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 // Resolve the owning public package directly from this consumer. Its native
@@ -50,7 +49,7 @@ const recoveryEntry = requireSdk.resolve(
 const contract = requireSdk(contractEntry).readRendererFederationContract(
   manifest.metaData.ultramodernRenderer,
 );
-assert.deepEqual({ ...contract.identities }, { ...build.identities });
+assert.deepEqual({ ...contract.identities }, { ...build.entries });
 const installed = checkInstalledCohort({
   appRoot: input.root,
   cohort: readCohort(input.manifestPath),

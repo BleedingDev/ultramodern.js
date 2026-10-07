@@ -120,7 +120,7 @@ test('source-workerd continuation retains the failed build and separate shell fi
   const finalization = JSON.parse(cloudflare.shellFinalization.text);
   assert.equal(finalization.originalBuildSucceeded, false);
   assert.equal(finalization.compilerReplayed, false);
-  assert.equal(finalization.command.actions.length, 12);
+  assert.equal(finalization.command.actions.length, 11);
   assert.deepEqual(finalization.descriptors.priorNodeReport, {
     path: record.runtimeReports.node.path,
     byteLength: record.runtimeReports.node.byteLength,
@@ -511,7 +511,7 @@ test('continuation rejects different native renderer identity tuples between tar
   const output = record.runtimeOutputs.workerd.find(
     output => output.appId === 'inventory',
   );
-  output.rendererManifest.identities.main.protocolVersion = 2;
+  output.rendererManifest.entries.main.protocolVersion = 2;
   output.releaseEnvelope.ui.rendererIdentity.protocolVersion = 2;
   output.rendererManifest.profile.protocolVersion = 2;
   output.releaseEnvelope.ui.rendererProfile.protocolVersion = 2;
@@ -794,8 +794,9 @@ test('continuation rejects a renderer marker that differs from the retained enve
   const { assertAcceptanceContinuation } = await import(continuationModule);
   const { record, release, runIdentity } =
     await createAcceptanceContinuationFixture();
-  record.reusedEvidence.nodeOutputs[1].rendererManifest.buildMarker =
-    'e'.repeat(64);
+  record.reusedEvidence.nodeOutputs[1].rendererManifest.buildId = 'e'.repeat(
+    64,
+  );
 
   assert.throws(
     () => assertAcceptanceContinuation(record, { release, runIdentity }),
