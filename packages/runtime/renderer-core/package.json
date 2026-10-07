@@ -92,6 +92,28 @@
         "types": "./dist/types/server/index.d.ts",
         "default": "./dist/cjs/server/index.js"
       }
+    },
+    "./entry-client": {
+      "modern:source": "./src/entry-client.ts",
+      "import": {
+        "types": "./dist/types/entry-client.d.ts",
+        "default": "./dist/esm/entry-client.mjs"
+      },
+      "require": {
+        "types": "./dist/types/entry-client.d.ts",
+        "default": "./dist/cjs/entry-client.js"
+      }
+    },
+    "./entry-server": {
+      "modern:source": "./src/entry-server.ts",
+      "import": {
+        "types": "./dist/types/entry-server.d.ts",
+        "default": "./dist/esm/entry-server.mjs"
+      },
+      "require": {
+        "types": "./dist/types/entry-server.d.ts",
+        "default": "./dist/cjs/entry-server.js"
+      }
     }
   },
   "scripts": {
