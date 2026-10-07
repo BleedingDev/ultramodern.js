@@ -21,7 +21,11 @@ import {
 } from '../descriptors';
 import { readJsonFile, writeJsonFile } from '../fs-io';
 import { createAppPublicLocaleMessages } from '../locales';
-import { createShellModuleFederationConfig } from '../module-federation';
+import {
+  createAppModernConfig,
+  createShellModuleFederationConfig,
+} from '../module-federation';
+import { createNativeFederationArtifacts } from '../native-federation';
 import {
   createAppMfTypesTsConfig,
   createAppPackage,
@@ -119,6 +123,14 @@ function shellAppArtifacts(
         null,
         2,
       )}\n`,
+      ...Object.fromEntries(
+        createNativeFederationArtifacts(scope, shellHost, remotes).map(
+          artifact => [
+            `${shellHost.directory}/${artifact.path}`,
+            artifact.content,
+          ],
+        ),
+      ),
       ...(remotes.some(appHasApi)
         ? {
             [`${shellHost.directory}/src/api/vertical-clients.ts`]:
@@ -240,10 +252,10 @@ export function rewriteShellAppFiles(
     bridge,
     shell,
   );
-  const { io } = preserveConsumerWorkspaceArtifacts(
-    workspaceRoot,
-    before.artifacts,
-  );
+  const { io } = preserveConsumerWorkspaceArtifacts(workspaceRoot, [
+    ...before.artifacts,
+    ...next.artifacts,
+  ]);
   for (const artifact of next.artifacts) {
     io.write(path.join(workspaceRoot, artifact.relativePath), artifact.content);
   }

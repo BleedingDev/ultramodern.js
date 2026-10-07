@@ -116,7 +116,7 @@ const reactOnlyPluginAdvice: Partial<Record<ReactCliPluginName, string>> = {
   '@modern-js/ultramodern-i18n-integration':
     'replace the React i18n integration with i18nPlugin() from @modern-js/ultramodern-app-tools',
   '@modern-js/plugin-module-federation':
-    'remove moduleFederationPlugin(); the {renderer} renderer does not support Module Federation',
+    'remove moduleFederationPlugin(); configure native federation in module-federation.config.ts',
 };
 
 /**

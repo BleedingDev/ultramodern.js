@@ -13,6 +13,11 @@ import {
   isApplicationRenderer,
 } from '../renderer-profile';
 import type { RendererGenerationProfile, WorkspaceRenderer } from '../types';
+import {
+  MODULE_FEDERATION_NODE_VERSION,
+  MODULE_FEDERATION_VERSION,
+  ULTRAMODERN_PACKAGE_PINS,
+} from '../versions';
 import { assert, sameJson } from './assertions';
 import { readRendererFrameworkPackageEvidence } from './renderer-framework-evidence';
 import type { JsonRecord, WorkspaceValidationContract } from './types';
@@ -23,6 +28,86 @@ type RendererDependencyCatalogs = {
   catalog?: Readonly<Record<string, string>>;
   catalogs?: Readonly<Record<string, Readonly<Record<string, string>>>>;
 };
+
+const NATIVE_FEDERATION_PINS: Readonly<Record<string, string>> = {
+  '@module-federation/enhanced': MODULE_FEDERATION_VERSION,
+  '@module-federation/node': MODULE_FEDERATION_NODE_VERSION,
+  '@module-federation/runtime':
+    ULTRAMODERN_PACKAGE_PINS.appDependencies['@module-federation/runtime'],
+};
+
+function assertRendererFrameworkDependencyRequest(
+  label: string,
+  name: string,
+  request: string,
+  expected?: string,
+): void {
+  const evidence = readRendererFrameworkPackageEvidence(name);
+  if (expected !== undefined) {
+    assert(
+      evidence.version === expected,
+      `${label} renderer profile version ${expected} disagrees with producer cohort evidence ${evidence.version}`,
+    );
+  }
+  const alias = parseNpmAlias(request);
+  assert(
+    (request === 'workspace:*' && evidence.kind === 'source-checkout') ||
+      (request === evidence.version && evidence.targetName === name) ||
+      (alias?.name === evidence.targetName && alias.range === evidence.version),
+    `${label} declared renderer ABI ${request} disagrees with the authenticated producer package ${evidence.targetName}@${evidence.version}`,
+  );
+}
+
+function assertNativeRendererCapabilityDependency(
+  label: string,
+  name: string,
+  request: string | undefined,
+  generation: RendererGenerationProfile,
+): void {
+  const alias = request === undefined ? undefined : parseNpmAlias(request);
+  for (const target of [name, ...(alias ? [alias.name] : [])]) {
+    assert(
+      (!target.startsWith('@module-federation/') ||
+        (generation.capabilities.federation &&
+          Object.hasOwn(NATIVE_FEDERATION_PINS, target))) &&
+        (!target.startsWith('@bleedingdev/mf-') ||
+          (generation.capabilities.federation &&
+            target === '@bleedingdev/mf-runtime' &&
+            name === '@module-federation/runtime' &&
+            request === NATIVE_FEDERATION_PINS[name])) &&
+        (target !== '@modern-js/federation-runtime' ||
+          generation.capabilities.federation) &&
+        (target !== 'wrangler' || generation.capabilities.workers),
+      `${label} claims an unsupported ${generation.renderer} capability: ${target}`,
+    );
+  }
+  const pinName = Object.hasOwn(NATIVE_FEDERATION_PINS, name)
+    ? name
+    : alias && Object.hasOwn(NATIVE_FEDERATION_PINS, alias.name)
+      ? alias.name
+      : undefined;
+  const expected =
+    pinName === undefined ? undefined : NATIVE_FEDERATION_PINS[pinName];
+  if (expected !== undefined) {
+    assert(
+      request === expected ||
+        (semver.valid(expected) !== null &&
+          alias?.name === name &&
+          alias.range === expected),
+      `${label} declared federation ABI ${request} disagrees with the selected pin ${expected}`,
+    );
+  }
+  if (
+    name === '@modern-js/federation-runtime' ||
+    alias?.name === '@modern-js/federation-runtime'
+  ) {
+    assert(
+      name === '@modern-js/federation-runtime' && typeof request === 'string',
+      `${label} must declare the canonical federation runtime dependency`,
+    );
+    assertRendererFrameworkDependencyRequest(label, name, request);
+  }
+}
 
 function resolveDependencyRequest(
   name: string,
@@ -278,6 +363,10 @@ export function assertRendererDependencies(
   generation?: RendererGenerationProfile,
   options: RendererDependencyCatalogs = {},
 ): void {
+  const nativeGeneration =
+    renderer !== 'react' && renderer !== 'none'
+      ? (generation ?? getRendererGenerationProfile(renderer))
+      : undefined;
   const groups = [
     'dependencies',
     'devDependencies',
@@ -286,23 +375,23 @@ export function assertRendererDependencies(
   ];
   for (const group of groups) {
     for (const [name, request] of Object.entries(manifest[group] ?? {})) {
-      const alias =
+      const resolved =
         typeof request === 'string'
-          ? parseNpmAlias(resolveDependencyRequest(name, request, options))
+          ? resolveDependencyRequest(name, request, options)
           : undefined;
+      const alias =
+        resolved === undefined ? undefined : parseNpmAlias(resolved);
       assert(
         !isForeignRendererPackage(name, renderer) &&
           (!alias || !isForeignRendererPackage(alias.name, renderer)),
         `${manifest.name} ${group} contains foreign renderer package ${name}`,
       );
-      if (renderer !== 'react' && renderer !== 'none') {
-        assert(
-          !name.startsWith('@module-federation/') &&
-            name !== 'wrangler' &&
-            (!alias ||
-              (!alias.name.startsWith('@module-federation/') &&
-                alias.name !== 'wrangler')),
-          `${manifest.name} ${group} claims an unsupported ${renderer} capability: ${name}`,
+      if (nativeGeneration) {
+        assertNativeRendererCapabilityDependency(
+          `${manifest.name} ${group}.${name}`,
+          name,
+          resolved,
+          nativeGeneration,
         );
       }
     }
@@ -315,8 +404,18 @@ export function assertRendererDependencies(
     ['devDependencies', generation.devDependencies],
   ] as const) {
     for (const [name, version] of Object.entries(pins)) {
+      const request = manifest[group]?.[name];
+      const resolved =
+        typeof request === 'string'
+          ? resolveDependencyRequest(name, request, options)
+          : undefined;
+      const alias =
+        resolved === undefined ? undefined : parseNpmAlias(resolved);
       assert(
-        manifest[group]?.[name] === version,
+        resolved === version ||
+          (semver.valid(version) !== null &&
+            alias?.name === name &&
+            alias.range === version),
         `${manifest.name} ${group}.${name} must use the selected renderer pin ${version}`,
       );
     }
@@ -368,28 +467,21 @@ export function assertAuthoredRendererDependencyPins(
         `${manifest.name} ${group}.${name} conflicts with the selected ${generation.renderer} renderer`,
       );
       if (generation.renderer !== 'react') {
-        assert(
-          !name.startsWith('@module-federation/') &&
-            name !== 'wrangler' &&
-            (!alias ||
-              (!alias.name.startsWith('@module-federation/') &&
-                alias.name !== 'wrangler')),
-          `${manifest.name} ${group}.${name} claims an unsupported ${generation.renderer} capability`,
+        assertNativeRendererCapabilityDependency(
+          `${manifest.name} ${group}.${name}`,
+          name,
+          resolved,
+          generation,
         );
       }
       const expected = pins[name] ?? (alias ? pins[alias.name] : undefined);
       if (expected === undefined) continue;
       if (name.startsWith('@modern-js/')) {
-        const evidence = readRendererFrameworkPackageEvidence(name);
-        assert(
-          evidence.version === expected,
-          `${manifest.name} ${group}.${name} renderer profile version ${expected} disagrees with producer cohort evidence ${evidence.version}`,
-        );
-        assert(
-          (resolved === 'workspace:*' && evidence.kind === 'source-checkout') ||
-            (resolved === expected && evidence.targetName === name) ||
-            (alias?.name === evidence.targetName && alias.range === expected),
-          `${manifest.name} ${group}.${name} declared renderer ABI ${request} disagrees with the authenticated producer package ${evidence.targetName}@${expected}`,
+        assertRendererFrameworkDependencyRequest(
+          `${manifest.name} ${group}.${name}`,
+          name,
+          resolved,
+          expected,
         );
         continue;
       }
@@ -404,7 +496,9 @@ export function assertAuthoredRendererDependencyPins(
       }
       assert(
         resolved === expected ||
-          (alias?.range === expected && alias.name === name),
+          (semver.valid(expected) !== null &&
+            alias?.range === expected &&
+            alias.name === name),
         `${manifest.name} ${group}.${name} declared renderer ABI ${request} disagrees with the selected pin ${expected}`,
       );
     }
@@ -501,10 +595,22 @@ export function assertNativeRendererSourceSurface(
     );
   }
   for (const relative of [
-    'module-federation.config.ts',
-    'module-federation.config.tsx',
+    ...(!generation.capabilities.federation
+      ? [
+          'module-federation.config.ts',
+          'module-federation.config.tsx',
+          'module-federation.config.js',
+          'module-federation.config.mjs',
+          'module-federation.config.cjs',
+          'module-federation.config.mts',
+          'module-federation.config.cts',
+          'src/federation-entry.ts',
+          'src/federation-entry.tsx',
+          'src/federation-entry.tsrx',
+          'src/federation-entry.gtsx',
+        ]
+      : []),
     'src/modern.runtime.ts',
-    'src/federation-entry.tsx',
     'src/routes/ultramodern-route-head.tsx',
     'src/routes/ultramodern-route-metadata.ts',
     'src/routes/[lang]',
@@ -528,7 +634,9 @@ export function assertNativeRendererSourceSurface(
   for (const script of Object.values(manifest.scripts ?? {})) {
     assert(
       typeof script === 'string' &&
-        !/wrangler|module-federation|i18n/iu.test(script),
+        !/wrangler|i18n/iu.test(script) &&
+        (generation.capabilities.federation ||
+          !/module-federation/iu.test(script)),
       `${app.id} native renderer scripts claim an unsupported capability`,
     );
   }

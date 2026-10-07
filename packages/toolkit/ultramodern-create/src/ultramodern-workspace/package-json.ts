@@ -119,6 +119,10 @@ export function appDependencies(
     dependencies['@modern-js/plugin-bff'] = frameworkRequest(packageSource);
     dependencies['@modern-js/bff-effect'] = frameworkRequest(packageSource);
     Object.assign(dependencies, ULTRAMODERN_PACKAGE_PINS.bffEffectDependencies);
+    if (renderer === 'none') {
+      dependencies['@module-federation/runtime'] =
+        ULTRAMODERN_PACKAGE_PINS.appDependencies['@module-federation/runtime'];
+    }
   }
 
   return dependencies;
@@ -403,7 +407,7 @@ export function createAppPackage(
       topology: `${relativeRootFor(app.directory)}/topology/reference-topology.json`,
       ...(appHasApi(app) ? { apiRuntime: 'effect' } : {}),
     },
-    ...(appSupportsFederation(app)
+    ...(resolveWorkspaceRenderer(app) === 'react' && appSupportsFederation(app)
       ? { 'zephyr:dependencies': createZephyrDependencies(scope, app, remotes) }
       : {}),
     dependencies: appDependencies(scope, packageSource, app, remotes, bridge),

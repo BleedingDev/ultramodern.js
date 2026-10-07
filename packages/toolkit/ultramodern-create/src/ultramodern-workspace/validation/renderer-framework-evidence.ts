@@ -43,7 +43,8 @@ export function readRendererFrameworkPackageEvidence(
   sourceName: string,
 ): FrameworkPackageEvidence {
   assert(
-    isNativeRendererPackage(sourceName),
+    isNativeRendererPackage(sourceName) ||
+      sourceName === '@modern-js/federation-runtime',
     `Unsupported renderer framework ABI package: ${sourceName}`,
   );
   if (hasCreateReleaseCohort()) {

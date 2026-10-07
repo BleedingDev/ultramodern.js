@@ -39,12 +39,6 @@ export function generateSolidAppSources(
   ) {
     throw new Error('The Solid app template requires admitted capabilities.');
   }
-  if (options.capabilities.federation) {
-    throw new Error(
-      'The Solid app template does not support federation. Select a standalone app until native federation templates are admitted.',
-    );
-  }
-
   const title = JSON.stringify(options.title);
   const aboutTitle = JSON.stringify(`${options.title} - About`);
   const appId = JSON.stringify(options.appId);
@@ -69,6 +63,7 @@ export default function Layout(): JSX.Element {
         <nav aria-label="Application">
           <Link to="/">Home</Link>
           <Link to="/about">About</Link>
+${options.capabilities.federation ? '          <Link to="/remotes">Federated applications</Link>\n' : ''}
         </nav>
       </header>
       <Stable />

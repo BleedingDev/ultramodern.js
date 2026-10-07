@@ -64,6 +64,7 @@ patchedDependencies:
   '@module-federation/node@2.7.52': patches/@module-federation__node@2.7.52.patch
   '@module-federation/rspack@2.9.2': patches/@module-federation__rspack@2.9.2.patch
   '@module-federation/runtime-core@2.9.2': patches/@module-federation__runtime-core@2.9.2.patch
+  '@module-federation/sdk@2.9.2': patches/@module-federation__sdk@2.9.2.patch
 overrides:
   # Minimum versions that contain the October 2026 advisory fixes.
   'source-map-js@>=1.0.0 <1.2.2': 1.2.2

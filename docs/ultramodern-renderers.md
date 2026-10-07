@@ -162,7 +162,7 @@ Source of truth: each renderer's build profile
 | Worker (Cloudflare) SSR | Yes | Yes | Yes |
 | SSG (`output.ssg`) | Yes | Yes | Yes |
 | SVG components (`?component` import) | Yes | Yes | Yes |
-| Module Federation | Full, including app SSR | Federated components, including SSR | No |
+| Module Federation | Full, including app SSR | Same-renderer components, browser and Node SSR | Same-renderer components, browser and Node SSR |
 | RSC | Yes | No | No |
 | i18n | Yes | Yes | Yes |
 
@@ -170,7 +170,14 @@ SSR/streaming and CSR carry no per-renderer gate in
 `renderer-selection.ts`; worker, SSG, i18n and SVG components are declared
 `true` in all three profiles' `capabilities`.
 
-Solid federates components between same-renderer apps:
+Solid and Octane federate native components between apps using the same
+renderer and matching compiler, hydration, router and runtime identities.
+Configure the host and remote in `module-federation.config.ts`; the native
+adapter supplies their shared modules and container formats. Generated
+Octane entries retain their own federation instance, and each server request
+has a separate native component-loading scope.
+
+For Solid,
 `federatedComponent()` from `@bleedingdev/modern-js-renderer-solid/federation`
 loads a remote by its `remote/Expose` id through the host's server federation
 instance, renders it into the document with its stylesheets and preloads, and
@@ -184,6 +191,29 @@ const RemoteWidget = federatedComponent('remote/Widget', {
   fallback: () => <p>Loading…</p>,
 });
 ```
+
+Octane exposes the same component-loading API through its own adapter:
+
+```tsx
+import { federatedComponent } from '@bleedingdev/modern-js-renderer-octane/federation';
+
+const RemoteWidget = federatedComponent<{ title: string }>('remote/Widget', {
+  fallback: () => <p>Loading…</p>,
+  timeout: 3000,
+});
+```
+
+Octane's native `lazy` and `Suspense` handle loading, streamed styles and
+hydration. Remote components use the host's native router and application
+context, and retain state when host props change. Server failures render the
+fallback; the browser retries through its own federation instance. Browser
+failures reach the nearest native `ErrorBoundary`.
+
+Native Worker SSR and native Module Federation are separate capabilities.
+Their combination is currently unsupported: it needs a remote-worker
+transport and native hydration ownership rather than the Node container
+loader. Native federation also rejects React application-SSR options and
+mixed-renderer component remotes.
 
 Unsupported combinations fail when the config is evaluated, before the build
 starts:

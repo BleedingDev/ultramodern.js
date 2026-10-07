@@ -17,7 +17,8 @@
 // the packed bytes, typecheck, and run the specs. Solid and Octane also install
 // an ordinary fixture outside the generated topology to prove portable Node
 // deployment; this does not qualify the generated shell's release envelope.
-// Then the React runners in scripts/ultramodern-production-readiness: worker
+// Native Module Federation proofs separately install the host and remote from
+// the candidate cohort. Then the React runners in scripts/ultramodern-production-readiness: worker
 // custom entries and RSC on workerd, Module Federation lifecycle, and (with
 // --tractor-source, a Tractor repository containing the pinned
 // scripts/ultramodern-publish/tractor-baseline-revision) the Tractor
@@ -39,6 +40,11 @@ import { readReleaseManifest } from '../ultramodern-publish/lib/source-create-pr
 import { startEphemeralRegistry } from '../ultramodern-publish/lib/source-create-proof/runtime-proof/registry.mjs';
 import { defaultReleaseAgePolicyPath } from '../ultramodern-publish/run-release-acceptance.mjs';
 import { checkInstalledCohort, readCohort } from './installed-cohort.mjs';
+import { runPackedNativeFederationGeneratedProof } from './native-federation-generated.mjs';
+import {
+  installedBin,
+  runPackedNativeFederationProof,
+} from './native-federation-packed.mjs';
 
 const root = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -87,6 +93,8 @@ const logs = path.join(workDir, 'logs');
 fs.mkdirSync(logs, { recursive: true });
 
 const children = new Set();
+const nativeFederationCancellation = new AbortController();
+let activeNativeFederation;
 let registry;
 async function stopAll() {
   for (const child of children) child.kill('SIGTERM');
@@ -264,15 +272,6 @@ function overlayFixture(appRoot, renderer, release) {
       typescript: written.typescript,
     },
   });
-}
-
-/** Resolves the installed ultramodern bin of the app (an npm: alias). */
-function installedBin(appRoot) {
-  const packageRoot = fs.realpathSync(
-    path.join(appRoot, 'node_modules/@modern-js/ultramodern-app-tools'),
-  );
-  const { bin } = readJson(path.join(packageRoot, 'package.json'));
-  return path.join(packageRoot, bin.ultramodern);
 }
 
 /** Resolves the create CLI the generated workspace installed (an npm: alias). */
@@ -653,7 +652,7 @@ async function main() {
 
     // The React runners need a browser, the shared store and the release.
     const owner = `renderer-release-${process.pid}`;
-    const proof = (name, script, extraArgs = () => []) =>
+    const proof = (name, script, extraArgs = () => [], enabled = true) =>
       step(
         name,
         async () => {
@@ -689,7 +688,7 @@ async function main() {
             { env, log: name },
           );
         },
-        Boolean(storeDir) && runners.includes(name),
+        Boolean(storeDir) && runners.includes(name) && enabled,
       );
     await step(
       'worker',
@@ -734,14 +733,67 @@ async function main() {
       Boolean(apps.react) && runners.includes('worker'),
     );
     await proof('rsc', 'react-rsc-worker-proof/main.mjs');
-    await proof('mf', 'renderer-mf-lifecycle-proof/index.mjs', () => [
-      '--qualified-node',
-      process.execPath,
-      '--pnpm-executable',
-      execFileSync('which', ['pnpm'], { encoding: 'utf8' }).trim(),
-      '--browser-dependency-root',
-      playwrightRoot(),
-    ]);
+    await proof(
+      'mf',
+      'renderer-mf-lifecycle-proof/index.mjs',
+      () => [
+        '--qualified-node',
+        process.execPath,
+        '--pnpm-executable',
+        execFileSync('which', ['pnpm'], { encoding: 'utf8' }).trim(),
+        '--browser-dependency-root',
+        playwrightRoot(),
+      ],
+      renderers.includes('react'),
+    );
+    const nativeFederationProofs = [
+      {
+        label: 'mf',
+        folder: 'mf',
+        run: runPackedNativeFederationProof,
+        context: () => ({}),
+      },
+      {
+        label: 'generated mf',
+        folder: 'generated-mf',
+        run: runPackedNativeFederationGeneratedProof,
+        context: () => ({
+          generatorConsumerRoot: createRoot,
+          browserDependencyRoot: playwrightRoot(),
+          browserExecutable: browserExecutable(),
+        }),
+      },
+    ];
+    for (const renderer of renderers.filter(name => name !== 'react'))
+      for (const nativeProof of nativeFederationProofs)
+        await step(
+          `${renderer} ${nativeProof.label}`,
+          async () => {
+            const { allowBuilds } = parseYaml(
+              fs.readFileSync(path.join(root, 'pnpm-workspace.yaml'), 'utf8'),
+            );
+            activeNativeFederation = nativeProof.run({
+              ...nativeProof.context(),
+              renderer,
+              consumerRoot: apps[renderer].appRoot,
+              manifestPath: release.manifestPath,
+              pnpmExecutable: execFileSync('which', ['pnpm'], {
+                encoding: 'utf8',
+              }).trim(),
+              workDir: path.join(workDir, `${nativeProof.folder}-${renderer}`),
+              log: path.join(logs, `${renderer}-${nativeProof.folder}.log`),
+              env,
+              signal: nativeFederationCancellation.signal,
+              allowBuilds,
+            });
+            try {
+              await activeNativeFederation;
+            } finally {
+              activeNativeFederation = undefined;
+            }
+          },
+          Boolean(apps[renderer]) && runners.includes('mf'),
+        );
     await step(
       'tractor',
       async () => {
@@ -789,6 +841,8 @@ async function main() {
             'source',
             '--manifest',
             release.manifestPath,
+            '--store-dir',
+            storeDir,
             '--workspace',
             clone,
             '--out',
@@ -812,6 +866,14 @@ async function main() {
 }
 
 for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'])
-  process.once(signal, () => stopAll().finally(() => process.exit(130)));
+  process.once(signal, () => {
+    nativeFederationCancellation.abort(
+      new Error(`Renderer release received ${signal}`),
+    );
+    Promise.resolve(activeNativeFederation)
+      .catch(() => {})
+      .then(stopAll)
+      .finally(() => process.exit(130));
+  });
 
 process.exitCode = await main();

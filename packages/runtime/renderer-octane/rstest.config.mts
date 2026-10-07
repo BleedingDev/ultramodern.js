@@ -11,6 +11,7 @@ export default withTestPreset({
       globals: true,
       include: [
         'tests/client.test.ts',
+        'tests/federation-client.test.ts',
         'tests/route-completion-browser.test.ts',
       ],
       testEnvironment: 'happy-dom',
@@ -68,6 +69,7 @@ export default withTestPreset({
       globals: true,
       include: [
         'tests/server.test.ts',
+        'tests/federation-server.test.ts',
         'tests/component-i18n-server.test.ts',
         'tests/routes.test.ts',
         'tests/manifest.test.ts',

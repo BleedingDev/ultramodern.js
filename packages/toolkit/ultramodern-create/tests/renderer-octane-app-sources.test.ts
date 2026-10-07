@@ -266,16 +266,26 @@ test('unadmitted profiles and capabilities fail before emitting artifacts', () =
     () =>
       generateOctaneAppSources({
         ...options,
-        capabilities: { ssr: false, federation: true },
-      }),
-    /does not support federation/,
-  );
-  assert.throws(
-    () =>
-      generateOctaneAppSources({
-        ...options,
         capabilities: { ssr: undefined, federation: false },
       }),
     /requires admitted capabilities/,
+  );
+});
+
+test('admitted federation templates retain the native action and route sources', () => {
+  const sources = parseNativeRoutes(
+    generateOctaneAppSources({
+      ...options,
+      capabilities: { ssr: true, federation: true },
+    }),
+  );
+  assert.equal(
+    sources.length,
+    generateOctaneAppSources(options).artifacts.length,
+  );
+  assert.equal(
+    sources.find(route => route.path === 'src/routes/page.tsx').program.body[0]
+      .source.value,
+    '@modern-js/renderer-octane/router',
   );
 });

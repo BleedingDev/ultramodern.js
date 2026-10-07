@@ -1,3 +1,4 @@
+import type { NativeFederationBinding } from '@modern-js/renderer-core/federation';
 import {
   assertRendererIdentity,
   type RendererIdentity,
@@ -18,6 +19,11 @@ import {
   assertNativeHydrationBuildId,
   assertOctaneIdentity,
 } from './bootstrap';
+import {
+  createFederationScope,
+  FederationApplication,
+  type OctaneFederationScope,
+} from './federation-context';
 
 export type { OctaneDocumentBootstrap } from './bootstrap';
 export { readOctaneDocumentBootstrap } from './bootstrap';
@@ -45,6 +51,8 @@ export interface OctaneApplicationOptions {
   /** Hydration installs the native signal bridge before invoking this importer. */
   readonly load: () => Promise<OctaneApplicationModule>;
   readonly options?: Omit<RootOptions, 'signalOwner'>;
+  /** This browser compilation's native Module Federation runtime. */
+  readonly federation?: NativeFederationBinding;
 }
 
 export interface OctaneHydrationOptions extends OctaneApplicationOptions {
@@ -287,6 +295,7 @@ function createHandle(input: {
   bridge?: StreamedSignalHydration;
   signal?: AbortSignal;
   onCleanupError?: (error: unknown) => void;
+  federation?: OctaneFederationScope;
 }): OctaneApplicationHandle {
   let releaseModule = input.releaseModule;
   let disposed = false;
@@ -301,7 +310,12 @@ function createHandle(input: {
       const nextRelease = claimModuleResources(next);
       releaseModule = nextRelease;
       try {
-        input.root.render(next.default, next.props);
+        input.federation
+          ? input.root.render(FederationApplication, {
+              scope: input.federation,
+              application: next,
+            })
+          : input.root.render(next.default, next.props);
         previousRelease();
       } catch (error) {
         cleanupResources([previousRelease, () => handle.dispose()]);
@@ -362,6 +376,10 @@ async function startApplication(
     ]);
   };
   try {
+    // Capture the selected host before asynchronous application imports.
+    const federation = input.federation
+      ? createFederationScope(input.federation, false)
+      : undefined;
     if (hydration) {
       const { document, documentId } = hydration;
       bridge = bootstrapStreamedSignalHydration({
@@ -384,13 +402,15 @@ async function startApplication(
     if (bridge) {
       root = hydrateRoot(
         input.container,
-        application.default,
-        application.props,
+        federation ? FederationApplication : application.default,
+        federation ? { scope: federation, application } : application.props,
         { ...errors.options, signalOwner: bridge.signalOwner },
       );
     } else {
       root = createRoot(input.container, errors.options);
-      root.render(application.default, application.props);
+      federation
+        ? root.render(FederationApplication, { scope: federation, application })
+        : root.render(application.default, application.props);
     }
     errors.assertInitialRender();
     input.signal?.throwIfAborted();
@@ -400,6 +420,7 @@ async function startApplication(
       releaseModule,
       release,
       bridge,
+      federation,
       ...(input.signal === undefined ? {} : { signal: input.signal }),
       onCleanupError: error => reportCleanupError(input, error),
     });

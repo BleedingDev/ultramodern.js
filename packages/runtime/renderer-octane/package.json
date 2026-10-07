@@ -22,6 +22,11 @@
       "import": { "types": "./dist/types/client.d.ts", "default": "./dist/esm/client.mjs" },
       "require": { "types": "./dist/types/client.d.ts", "default": "./dist/cjs/client.js" }
     },
+    "./federation": {
+      "modern:source": "./src/federation.ts",
+      "import": { "types": "./dist/types/federation.d.ts", "default": "./dist/esm/federation.mjs" },
+      "require": { "types": "./dist/types/federation.d.ts", "default": "./dist/cjs/federation.js" }
+    },
     "./server": {
       "modern:source": "./src/server.ts",
       "import": { "types": "./dist/types/server.d.ts", "default": "./dist/esm/server.mjs" },

@@ -5,10 +5,11 @@ import * as contracts from './fixtures/routes-lifecycle';
 
 describe('native Octane filesystem routes and serialization', () => {
   for (const [name, contract] of Object.entries(contracts)) {
-    // This contract uses native reactive stores and belongs to the browser project.
+    // Native mounts and parameterized action redirects run in the browser project.
     if (
       [
         'nativeDataCompletionCommitFailure',
+        'nativeRouterActionRedirect',
         'nativeRouterPreloadAndInvalidationCounts',
         'nativeRouterReversedPendingNavigation',
         'nativeRouterRouteChainHydration',

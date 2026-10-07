@@ -51,6 +51,7 @@ export const rendererAdapter: NativeRendererAdapter<'solid'> =
     compiler: pluginSolidRenderer,
     artifacts: compilerArtifacts,
     create: {
+      templates: { federation: true, workers: false },
       dependencies: profile => ({
         frameworkDependencies: [
           '@modern-js/renderer-core',

@@ -2,6 +2,8 @@ import {
   appEmitsBrowserUi,
   appHasApi,
   createBackendFederationName,
+  createCloudflarePublicUrlEnv,
+  createRemoteManifestEnv,
   resolveApiPrefix,
   resolveApiProtocol,
   resolveRemoteRefs,
@@ -35,11 +37,42 @@ export function createAppModernConfig(
   const renderer = resolveWorkspaceRenderer(app);
   if (hasNativeAppGeneration(renderer)) {
     const generation = resolveAppGenerationProfile(app)!;
+    const exposes = Object.keys(app.exposes ?? {}).length > 0;
     return `import { defineConfig } from '@modern-js/ultramodern-app-tools';
+${exposes ? "import { createRemoteManifestUrl } from '@modern-js/app-tools-extensions/config';\n" : ''}
+${appHasApi(app) ? "import { bffPlugin } from '@modern-js/plugin-bff-build-extensions';\n" : ''}
 ${enableTailwind ? "import { pluginTailwindcss } from '@rsbuild/plugin-tailwindcss';\n" : ''}
+${
+  exposes
+    ? `// Set ${createCloudflarePublicUrlEnv(app)} to this remote's public origin when deploying.
+const remoteAddress = createRemoteManifestUrl({
+  manifestEnv: ${JSON.stringify(createRemoteManifestEnv(app))},
+  publicUrlEnv: ${JSON.stringify(createCloudflarePublicUrlEnv(app))},
+  mfName: ${JSON.stringify(app.mfName)},
+  port: ${app.port},
+});
+const assetPrefix = new URL('.', remoteAddress.replace(/^[^@]+@(?=https?:\\/\\/)/u, '')).href;
+
+`
+    : ''
+}
 export default defineConfig({
 ${enableTailwind ? '  builderPlugins: [pluginTailwindcss()],\n' : ''}  renderer: ${JSON.stringify(renderer)},
-  server: { port: ${app.port}, ssr: ${generation.capabilities.ssr} },
+${appHasApi(app) ? '  plugins: [bffPlugin()],\n' : ''}
+${exposes ? '  output: { assetPrefix },\n' : ''}
+  server: { port: ${app.port}, ssr: ${generation.capabilities.ssr}${
+    appHasApi(app)
+      ? `,
+    bff: {
+      effect: {
+        entry: './api/index',
+${resolveApiProtocol(app) === 'rest' ? "        openapi: { path: '/openapi.json' },\n" : ''}        strictEffectApproach: true,
+      },
+      prefix: ${JSON.stringify(resolveApiPrefix(app))},
+      runtimeFramework: 'effect',
+    }`
+      : ''
+  } },
   source: { mainEntryName: 'main' },
 });
 `;
@@ -245,9 +278,10 @@ export default moduleFederationConfig;
 }
 
 export function createBackendModuleFederationConfig(app: WorkspaceApp): string {
+  const plainConfig = resolveWorkspaceRenderer(app) !== 'react';
   return `import { createRequire } from 'node:module';
-import { createModuleFederationConfig } from '@module-federation/modern-js-v3';
-import { dependencies } from './package.json';
+${plainConfig ? '' : "import { createModuleFederationConfig } from '@module-federation/modern-js-v3';\n"}
+${plainConfig ? '' : "import { dependencies } from './package.json';\n"}
 
 const require = createRequire(import.meta.url);
 const bffVersion = (
@@ -256,10 +290,22 @@ const bffVersion = (
 const effectVersion = (
   require('effect/package.json') as { version: string }
 ).version;
+${
+  plainConfig
+    ? `const federationRuntimeVersion = (
+  require('@module-federation/runtime/package.json') as { version: string }
+).version;
+`
+    : ''
+}
 
-const moduleFederationConfig: Parameters<
+const moduleFederationConfig${
+    plainConfig
+      ? ''
+      : `: Parameters<
   typeof createModuleFederationConfig
->[0] = createModuleFederationConfig({
+>[0]`
+  } = ${plainConfig ? '' : 'createModuleFederationConfig('}{
   dts: false,
   exposes: {
     './effect-api': './api/effect-api.ts',
@@ -276,7 +322,7 @@ const moduleFederationConfig: Parameters<
       treeShaking: false,
     },
     '@module-federation/runtime': {
-      requiredVersion: dependencies['@module-federation/runtime'],
+      requiredVersion: ${plainConfig ? 'federationRuntimeVersion' : "dependencies['@module-federation/runtime']"},
       singleton: true,
       treeShaking: false,
     },
@@ -286,9 +332,23 @@ const moduleFederationConfig: Parameters<
       treeShaking: false,
     },
   },
-});
+}${plainConfig ? '' : ')'};
 
 export default moduleFederationConfig;
+`;
+}
+
+/** Native MF owns runtime sharing through the selected renderer adapter. */
+export function createNativeModuleFederationConfig(
+  scope: string,
+  app: WorkspaceApp,
+  remotes: WorkspaceApp[] = [],
+): string {
+  return `${createModuleFederationRemoteUrlHelpers(app, remotes)}export default {
+  name: ${JSON.stringify(app.mfName)},
+  filename: 'remoteEntry.js',
+  exposes: ${formatTsObjectLiteral(app.exposes ?? {})},
+${createModuleFederationRemotesConfig(scope, app, remotes)}};
 `;
 }
 

@@ -1,3 +1,8 @@
+import {
+  type FederationInstance,
+  loadFederatedModule,
+  remoteBrowserAssets,
+} from '@modern-js/renderer-core/federation';
 import { isServer, type JSX } from '@solidjs/web';
 import * as solid from 'solid-js';
 import {
@@ -34,32 +39,6 @@ export interface FederatedComponentOptions {
 
 const DEFAULT_SERVER_TIMEOUT = 3000;
 
-interface RemoteSnapshot {
-  readonly publicPath?: unknown;
-  readonly remoteEntry?: unknown;
-  readonly modules?: readonly {
-    readonly modulePath?: unknown;
-    readonly assets?: {
-      readonly js?: { readonly sync?: readonly string[] };
-      readonly css?: {
-        readonly sync?: readonly string[];
-        readonly async?: readonly string[];
-      };
-    };
-  }[];
-}
-
-interface FederationInstance {
-  loadRemote<T>(id: string): Promise<T | null>;
-  readonly remoteHandler?: {
-    readonly idToRemoteMap?: Record<string, { name: string; expose: string }>;
-  };
-  readonly moduleCache?: Map<string, { readonly remoteInfo: unknown }>;
-  readonly snapshotHandler?: {
-    getGlobalRemoteInfo(info: unknown): { remoteSnapshot?: RemoteSnapshot };
-  };
-}
-
 /** Published by the host build's native federation runtime plugin. */
 const HOST_INSTANCE = Symbol.for('ultramodern.federation.host-instance');
 
@@ -67,22 +46,6 @@ function hostInstance(): FederationInstance | undefined {
   return (globalThis as Record<symbol, unknown>)[HOST_INSTANCE] as
     | FederationInstance
     | undefined;
-}
-
-function loadFederatedModule<P extends object>(
-  id: string,
-): Promise<FederatedModule<P>> {
-  const instance = hostInstance();
-  if (!instance)
-    return Promise.reject(
-      new Error(
-        `Cannot load ${id}: this application has no Module Federation runtime. Add module-federation.config.ts with its remotes.`,
-      ),
-    );
-  return instance.loadRemote<FederatedModule<P>>(id).then(module => {
-    if (!module) throw new Error(`Remote module ${id} is unavailable`);
-    return module;
-  });
 }
 
 function withTimeout<T>(
@@ -112,47 +75,6 @@ function withTimeout<T>(
       },
     );
   });
-}
-
-/**
- * The browser assets of a loaded remote module, read from the snapshot the
- * federation runtime resolved from the remote's manifest.
- */
-function remoteBrowserAssets(
-  instance: FederationInstance,
-  id: string,
-): FederatedAssets | undefined {
-  const target = instance.remoteHandler?.idToRemoteMap?.[id];
-  const loaded = target && instance.moduleCache?.get(target.name);
-  const snapshot =
-    loaded &&
-    instance.snapshotHandler?.getGlobalRemoteInfo(loaded.remoteInfo)
-      .remoteSnapshot;
-  if (
-    !snapshot ||
-    typeof snapshot.publicPath !== 'string' ||
-    !snapshot.publicPath ||
-    typeof snapshot.remoteEntry !== 'string' ||
-    !snapshot.remoteEntry
-  )
-    return undefined;
-  const expose = snapshot.modules?.find(
-    module => module.modulePath === target.expose,
-  );
-  if (!expose?.assets) return undefined;
-  const publicPath = snapshot.publicPath;
-  const url = (file: string) => `${publicPath}${file}`;
-  return {
-    js: [url(snapshot.remoteEntry), ...(expose.assets.js?.sync ?? []).map(url)],
-    css: [
-      ...new Set(
-        [
-          ...(expose.assets.css?.sync ?? []),
-          ...(expose.assets.css?.async ?? []),
-        ].map(url),
-      ),
-    ],
-  };
 }
 
 /** Record a server-rendered remote's browser assets under its asset key. */
@@ -224,7 +146,9 @@ export function federatedComponent<P extends object = Record<string, never>>(
       );
     const module = await withTimeout(
       Promise.resolve().then(() =>
-        id ? loadFederatedModule<P>(id) : (remote as () => Promise<never>)(),
+        id
+          ? loadFederatedModule<FederatedModule<P>>(hostInstance(), id)
+          : (remote as () => Promise<never>)(),
       ),
       timeout,
       id ?? 'loader',

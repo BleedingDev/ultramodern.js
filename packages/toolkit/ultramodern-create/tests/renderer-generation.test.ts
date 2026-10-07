@@ -23,9 +23,9 @@ import { snapshotWorkspace } from './helpers/workspace-kit';
 const renderers: ApplicationRenderer[] = ['react', 'solid', 'octane'];
 const appDirectory = 'apps/shell-super-app';
 const unsupportedNativeArtifact =
-  /(?:worker|workerd|cloudflare|module-federation|federated|federation-entry|mf-types|i18n|locales)/iu;
+  /(?:worker|workerd|cloudflare|mf-types|i18n|locales)/iu;
 const unsupportedNativeSource =
-  /(?:['"](?:react(?:-dom)?(?:\/[^'"]*)?|@types\/react(?:-dom)?|@tanstack\/react-router|@modern-js\/(?:runtime(?:\/[^'"]*)?|runtime-renderer-extensions|runtime-extensions\/build-identity|plugin-(?:i18n|tanstack)(?:\/[^'"]*)?)|@module-federation\/[^'"]*)['"]|moduleFederationPlugin|i18nPlugin|MODERNJS_DEPLOY|reactI18next)/u;
+  /(?:['"](?:react(?:-dom)?(?:\/[^'"]*)?|@types\/react(?:-dom)?|@tanstack\/react-router|@modern-js\/(?:runtime(?:\/[^'"]*)?|runtime-renderer-extensions|runtime-extensions\/build-identity|plugin-(?:i18n|tanstack)(?:\/[^'"]*)?)|@module-federation\/(?:modern-js-v3|bridge-react))['"]|moduleFederationPlugin|i18nPlugin|MODERNJS_DEPLOY|reactI18next)/u;
 
 for (const renderer of renderers) {
   test(`fresh ${renderer} generation projects its selected native profile`, async () => {
@@ -153,14 +153,21 @@ declare const ULTRAMODERN_SITE_URL: string;
         ssr: true,
         streaming: true,
         workers: false,
-        federation: false,
+        federation: true,
         rsc: false,
       });
       assert.match(config, /server:\s*\{\s*port:\s*\d+,\s*ssr:\s*true\s*\}/u);
       assert.doesNotMatch(config, /output:\s*\{\s*ssr:/u);
-      assert.equal(Object.hasOwn(app, 'moduleFederationName'), false);
+      assert.equal(
+        app.moduleFederationName,
+        topology.shell.moduleFederation.name,
+      );
+      assert.equal(app.moduleFederationName, shellApp.mfName);
       assert.equal(Object.hasOwn(app, 'exposes'), false);
-      assert.equal(Object.hasOwn(topology.shell, 'moduleFederation'), false);
+      assert.equal(topology.shell.moduleFederation.role, 'host');
+      assert.equal(topology.shell.moduleFederation.ssr, true);
+      assert.ok(files[`${appDirectory}/module-federation.config.ts`]);
+      assert.ok(files[`${appDirectory}/src/routes/remotes/page.tsx`]);
       assert.equal(Object.hasOwn(topology.shell, 'cloudflare'), false);
       assert.equal(Object.hasOwn(manifest, 'zephyr:dependencies'), false);
       assert.equal(
@@ -214,7 +221,7 @@ declare const ULTRAMODERN_SITE_URL: string;
           ]) {
             assert.doesNotMatch(
               name,
-              /^(?:react(?:-dom)?|@types\/react(?:-dom)?|@tanstack\/react-router|@module-federation\/|@modern-js\/(?:runtime$|runtime-renderer-extensions$|plugin-(?:i18n|tanstack)$)|wrangler$|miniflare$|zephyr)/u,
+              /^(?:react(?:-dom)?|@types\/react(?:-dom)?|@tanstack\/react-router|@module-federation\/(?!(?:enhanced|node|runtime)$)|@modern-js\/(?:runtime$|runtime-renderer-extensions$|plugin-(?:i18n|tanstack)$)|wrangler$|miniflare$|zephyr)/u,
               `${relativePath}: ${name}`,
             );
             assert.doesNotMatch(

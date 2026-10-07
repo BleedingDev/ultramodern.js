@@ -37,7 +37,7 @@ export const octaneProfile: RendererBuildProfile<'octane'> = {
   },
   capabilities: {
     worker: true,
-    moduleFederation: false,
+    moduleFederation: true,
     rsc: false,
     ssg: true,
     i18n: true,

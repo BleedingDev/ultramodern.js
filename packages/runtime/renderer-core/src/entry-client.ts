@@ -1,5 +1,6 @@
 import { createDataClient, invokeRouteData } from './data';
 import { type DocumentBootstrap, RENDERER_BOOTSTRAP_ID } from './document';
+import type { NativeFederationBinding } from './federation';
 import type { RendererIdentity } from './identity';
 import {
   type NativeEntryI18n,
@@ -27,6 +28,7 @@ export interface NativeClientEntryOptions<
   LocalisedUrls = unknown,
 > {
   readonly identity: RendererIdentity;
+  readonly federation?: NativeFederationBinding;
   /** The generated application module, imported after startup begins. */
   readonly load: () => Promise<NativeApplicationModule>;
   readonly i18n?: NativeEntryI18n<Instance, LocalisedUrls>;

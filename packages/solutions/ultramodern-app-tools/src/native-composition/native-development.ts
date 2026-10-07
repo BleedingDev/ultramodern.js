@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import { TLSSocket } from 'node:tls';
 import { pathToFileURL } from 'node:url';
 import type { RendererBuildIdentities } from '@modern-js/app-tools-extensions/renderer-build-identity';
 import type {
@@ -21,6 +22,11 @@ import {
   RENDERER_DEVELOPMENT_DIRECTORY,
   validateRendererDevelopmentBuildManifest,
 } from './native-build-manifest';
+import {
+  collectNativeFederationDevAssets,
+  type NativeDevelopmentAsset,
+  resolveNativeFederationDevAsset,
+} from './native-federation-dev-assets';
 import type { NativeDevelopmentSnapshot } from './native-server-plugin';
 import type { RendererBuildProfile } from './renderer-profile';
 import { resolveNativeRendererAdapter } from './renderer-registration';
@@ -57,11 +63,6 @@ export function nativeDevelopmentOutputDirectory(
 
 const serverModules = createRequire(import.meta.url);
 
-interface RetainedAsset {
-  readonly bytes: Buffer;
-  readonly contentType: string;
-}
-
 /** Read an asset from the compiler's own output filesystem. */
 function emittedBytes(result: Rspack.Stats, name: string): Promise<Buffer> {
   const output = result.compilation.outputOptions.path;
@@ -87,13 +88,20 @@ export class NativeDevelopment {
   readonly plugin: RsbuildPlugin;
   /** Bumped by every invalidation; a compile publishes only if still current. */
   private epoch = 0;
-  private compileEpoch = 0;
+  private readonly compilerVersions = new WeakMap<Rspack.Compiler, number>();
+  private readonly compilationVersions = new WeakMap<
+    Rspack.Compilation,
+    number
+  >();
   private generation = 0;
   private closed = false;
   private ready: ReadonlyMap<string, NativeDevelopmentSnapshot> | undefined;
   private failure: { readonly error: unknown } | undefined;
   /** Client assets of earlier compiles stay reachable for already-open pages. */
-  private readonly retained = new Map<string, RetainedAsset>();
+  private readonly retained = new Map<string, NativeDevelopmentAsset>();
+  /** Node containers and their chunks belong to the latest completed build. */
+  private federationAssets: ReadonlyMap<string, NativeDevelopmentAsset> =
+    new Map();
   private readonly mutableClientAssets = new Set(['renderer-assets.json']);
   private readonly adapter: NativeRendererAdapter;
   private readonly compilerArtifacts: NativeCompilerArtifacts;
@@ -154,7 +162,15 @@ export class NativeDevelopment {
                 request.url ?? '/',
                 'http://native-dev.invalid',
               )?.pathname;
-              const asset = pathname && this.retained.get(pathname);
+              const protocol =
+                request.socket instanceof TLSSocket ? 'https:' : 'http:';
+              const asset =
+                resolveNativeFederationDevAsset(
+                  this.federationAssets,
+                  request.url ?? '/',
+                  `${protocol}//${request.headers.host}`,
+                ) ||
+                (pathname && this.retained.get(pathname));
               if (!asset) return next();
               response.setHeader('Content-Type', asset.contentType);
               response.setHeader('Content-Length', asset.bytes.length);
@@ -182,29 +198,60 @@ export class NativeDevelopment {
           const compilers =
             'compilers' in compiler ? compiler.compilers : [compiler];
           for (const candidate of compilers) {
-            candidate.hooks.invalid.tap('UltraModernNativeDevelopment', () =>
-              this.invalidate(),
+            this.compilerVersions.set(candidate, 0);
+            let runVersion = 0;
+            const captureRun = () => {
+              runVersion = this.compilerVersions.get(candidate)!;
+            };
+            const runHook = {
+              name: 'UltraModernNativeDevelopment',
+              stage: Number.NEGATIVE_INFINITY,
+            };
+            candidate.hooks.watchRun.tap(runHook, captureRun);
+            candidate.hooks.run.tap(runHook, captureRun);
+            candidate.hooks.thisCompilation.tap(
+              'UltraModernNativeDevelopment',
+              compilation => {
+                this.compilationVersions.set(compilation, runVersion);
+              },
             );
+            candidate.hooks.invalid.tap('UltraModernNativeDevelopment', () => {
+              this.compilerVersions.set(
+                candidate,
+                this.compilerVersions.get(candidate)! + 1,
+              );
+              this.invalidate();
+            });
             candidate.hooks.failed.tap('UltraModernNativeDevelopment', error =>
               this.fail(error),
             );
           }
         });
-        api.onBeforeDevCompile(() => {
-          this.compileEpoch = this.epoch;
-        });
         api.onDevCompileDone(async ({ stats }) => {
-          const epoch = this.compileEpoch;
-          if (this.closed || epoch !== this.epoch) return;
+          const epoch = this.epoch;
+          const results = 'stats' in stats ? stats.stats : [stats];
+          if (
+            this.closed ||
+            results.some(result => {
+              const version = this.compilationVersions.get(result.compilation);
+              return (
+                version === undefined ||
+                version !==
+                  this.compilerVersions.get(result.compilation.compiler)
+              );
+            })
+          )
+            return;
           // Rsbuild already reports compile errors; requests surface them too.
           if (stats.hasErrors())
             return this.fail(
               new Error('Native development compilation failed'),
             );
           try {
-            const entries = await this.publish(stats);
+            const publication = await this.publish(stats);
             if (this.closed || epoch !== this.epoch) return;
-            this.ready = entries;
+            this.federationAssets = publication.federationAssets;
+            this.ready = publication.entries;
             this.failure = undefined;
             this.notify();
           } catch (error) {
@@ -272,9 +319,10 @@ export class NativeDevelopment {
     }
   }
 
-  private async publish(
-    stats: Rspack.Stats | Rspack.MultiStats,
-  ): Promise<ReadonlyMap<string, NativeDevelopmentSnapshot>> {
+  private async publish(stats: Rspack.Stats | Rspack.MultiStats): Promise<{
+    readonly entries: ReadonlyMap<string, NativeDevelopmentSnapshot>;
+    readonly federationAssets: ReadonlyMap<string, NativeDevelopmentAsset>;
+  }> {
     const results = 'stats' in stats ? stats.stats : [stats];
     const client = results.find(result => result.compilation.name === 'client');
     const server = results.find(result => result.compilation.name === 'server');
@@ -285,6 +333,11 @@ export class NativeDevelopment {
       );
     const session = this.options.getSessionIdentities();
     const entryNames = Object.keys(session.identities);
+    const federationAssets = await collectNativeFederationDevAssets(
+      server,
+      entryNames,
+      name => emittedBytes(server, name),
+    );
     const publicPath = client.compilation.outputOptions.publicPath;
     const prefix =
       typeof publicPath === 'string' && publicPath !== 'auto'
@@ -395,7 +448,7 @@ export class NativeDevelopment {
     await fs.mkdir(path.dirname(manifestFile), { recursive: true });
     await fs.writeFile(temporary, JSON.stringify(metadata));
     await fs.rename(temporary, manifestFile);
-    return entries;
+    return { entries, federationAssets };
   }
 
   async close(): Promise<void> {
@@ -404,6 +457,7 @@ export class NativeDevelopment {
     this.ready = undefined;
     this.notify();
     this.retained.clear();
+    this.federationAssets = new Map();
     if (this.manifestFile) await fs.rm(this.manifestFile, { force: true });
   }
 }

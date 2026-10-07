@@ -139,6 +139,7 @@ function createTractorPackageManagerContext({
   minimumReleaseAgeExclude,
   packageManagerRoot,
   registryEnv,
+  storeDir,
   resolveExactPnpmExecutableImpl = resolveExactPnpmExecutable,
   runImpl = run,
 }) {
@@ -155,6 +156,7 @@ function createTractorPackageManagerContext({
     browsers: 'isolated',
     expectedPnpmVersion,
     registryEnv,
+    storeDir,
     resolveExactPnpmExecutableImpl,
     runImpl,
     workDir: packageManagerRoot,
@@ -269,6 +271,7 @@ function parseArgs(argv) {
     '--out',
     '--registry-url',
     '--release-age-policy',
+    '--store-dir',
     '--workspace',
   ]);
   for (let index = 0; index < argv.length; index += 1) {
@@ -307,6 +310,15 @@ function parseArgs(argv) {
     );
   }
   const manifestPath = path.resolve(values.get('--manifest'));
+  const storeDir = values.get('--store-dir');
+  if (
+    storeDir !== undefined &&
+    (storeDir.trim() !== storeDir ||
+      storeDir.includes('\0') ||
+      !path.isAbsolute(storeDir))
+  ) {
+    throw new Error('--store-dir must be an absolute path');
+  }
   return {
     manifestPath,
     mode,
@@ -322,6 +334,7 @@ function parseArgs(argv) {
       values.get('--release-age-policy') ?? defaultReleaseAgePolicyPath,
     ),
     releaseDir: path.dirname(manifestPath),
+    storeDir: storeDir === undefined ? undefined : path.resolve(storeDir),
     workspace: fs.realpathSync(path.resolve(values.get('--workspace'))),
   };
 }
@@ -763,6 +776,7 @@ async function runTractorDownstreamAcceptance(
     minimumReleaseAgeExclude,
     packageManagerRoot,
     registryEnv,
+    storeDir: options.storeDir,
     runImpl,
   });
   const env = packageManager.env;
@@ -1065,6 +1079,7 @@ async function withSourceCandidateRegistry(
         release,
         releaseDir: options.releaseDir,
         rootDir,
+        storeDir: options.storeDir,
       }),
     );
     // The seeder's own scoped user config, not a global registry override: the

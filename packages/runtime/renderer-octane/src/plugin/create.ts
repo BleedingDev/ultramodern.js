@@ -50,12 +50,6 @@ export function generateOctaneAppSources(
   ) {
     throw new Error('The Octane app template requires admitted capabilities.');
   }
-  if (options.capabilities.federation) {
-    throw new Error(
-      'The Octane app template does not support federation. Select a standalone app until native federation templates are admitted.',
-    );
-  }
-
   const title = JSON.stringify(options.title);
   const aboutTitle = JSON.stringify(`${options.title} - About`);
   const appId = JSON.stringify(options.appId);
@@ -79,6 +73,7 @@ export default function Layout() {
         <nav aria-label="Application">
           <Link to="/">Home</Link>
           <Link to="/about">About</Link>
+${options.capabilities.federation ? '          <Link to="/remotes">Federated applications</Link>\n' : ''}
         </nav>
       </header>
       <Stable />
