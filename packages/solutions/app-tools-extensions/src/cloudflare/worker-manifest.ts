@@ -22,11 +22,8 @@ import {
 } from './constants';
 import type { DeliveryUnitStamp } from './delivery-unit';
 import { createI18nWorkerManifest } from './i18n-worker';
-import {
-  NATIVE_WORKER_RENDERERS,
-  readNativeRendererWorkerResources,
-} from './native-renderer';
-import { readWorkerRendererIdentities } from './renderer-identity';
+import { readNativeRendererWorkerResources } from './native-renderer';
+import { readWorkerRendererBuild } from './renderer-identity';
 import { createCloudflareWorkerSecurityPolicy } from './security-policies';
 import type { CloudflareAppContext, CloudflareModernConfig } from './types';
 import { isRecord, normalizeRelativePath } from './utils';
@@ -194,16 +191,17 @@ export const createWorkerManifest = async (
       };
     }),
   );
-  const rendererIdentities = await readWorkerRendererIdentities(
+  const rendererBuild = await readWorkerRendererBuild(
     appContext.distDirectory,
     routeSpec.routes,
     deliveryUnitStamp,
   );
+  const rendererIdentities = rendererBuild?.identities;
   const nativeRenderer = await readNativeRendererWorkerResources(
     appContext.distDirectory,
-    rendererIdentities,
+    rendererBuild,
   );
-  // Solid and Octane documents exist only through their native server
+  // Native-document renderers serve pages only through their native server
   // handler. Fail deploy before emitting an entry that could only reject.
   for (const route of routes) {
     const renderer =
@@ -214,8 +212,7 @@ export const createWorkerManifest = async (
         : undefined;
     if (
       renderer !== undefined &&
-      (NATIVE_WORKER_RENDERERS.includes(renderer) ||
-        nativeRenderer?.renderer === renderer) &&
+      rendererBuild?.renderer.nativeDocuments &&
       (nativeRenderer?.renderer !== renderer || !route.workerExists)
     )
       throw new Error(
@@ -287,7 +284,9 @@ export const createWorkerManifest = async (
     security: createCloudflareWorkerSecurityPolicy(modernConfig),
     ...(moduleFederation === undefined ? {} : { moduleFederation }),
     ...(deliveryUnitStamp ? { deliveryUnit: deliveryUnitStamp } : {}),
-    ...(rendererIdentities ? { rendererIdentities } : {}),
+    ...(rendererBuild
+      ? { renderer: rendererBuild.renderer, rendererIdentities }
+      : {}),
     ...(nativeRenderer ? { nativeRenderer } : {}),
     i18n: createI18nWorkerManifest(routeSpec, appContext),
     bff:

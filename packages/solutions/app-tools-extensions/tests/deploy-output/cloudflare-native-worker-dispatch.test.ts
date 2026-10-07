@@ -77,6 +77,14 @@ function emittedWorker(
         routeManifest: 'routes-manifest.json',
         loadableStats: 'loadable-stats.json',
       },
+      // A native build's manifest names its native-document renderer.
+      renderer: {
+        name: Object.values(
+          manifest.rendererIdentities as Record<string, { renderer: string }>,
+        )[0].renderer,
+        nativeDocuments: true,
+        rsc: false,
+      },
       ...manifest,
     },
     loaders,
@@ -122,138 +130,17 @@ function nativeBundle(
   };
 }
 
-describe.each([
-  'solid',
-  'octane',
-] as const)('%s native worker dispatch', renderer => {
-  it('streams the native document with env and ctx as the worker platform', async () => {
-    const { pending, context } = executionContext();
-    const env = { ASSETS: assetBinding(), DB: { name: 'd1' } };
-    let observed: any;
-    let release!: () => void;
-    const held = new Promise<void>(resolve => {
-      release = resolve;
-    });
-    const worker = emittedWorker(
-      {
-        rendererIdentities: { main: identity(renderer) },
-        nativeRenderer: nativeResources(renderer),
-      },
-      {
-        [route.worker]: async () =>
-          nativeBundle(renderer, (request, nativeContext) => {
-            observed = {
-              url: request.url,
-              platform: nativeContext.session.platform,
-              assets: nativeContext.assets,
-              nativeManifest: nativeContext.nativeManifest,
-              serverConfig: nativeContext.serverConfig,
-            };
-            const encoder = new TextEncoder();
-            return new Response(
-              new ReadableStream({
-                async start(controller) {
-                  controller.enqueue(encoder.encode('<html><body>shell'));
-                  await held;
-                  controller.enqueue(encoder.encode(' late</body></html>'));
-                  controller.close();
-                },
-              }),
-              { headers: { 'content-type': 'text/html; charset=utf-8' } },
-            );
-          }),
-      },
-    );
-    const response = await worker.fetch(
-      new Request('https://example.com/items/1?__loader=x'),
-      env,
-      context,
-    );
-    expect(response.status).toBe(200);
-    expect(response.headers.get('content-type')).toBe(
-      'text/html; charset=utf-8',
-    );
-    expect(
-      JSON.parse(response.headers.get('x-ultramodern-renderer-identity')!),
-    ).toEqual(identity(renderer));
-    expect(observed.platform.kind).toBe('worker');
-    expect(observed.platform.bindings).toBe(env);
-    expect(observed.assets).toEqual([
-      { kind: 'script', href: '/static/js/main.js' },
-    ]);
-    expect(observed.nativeManifest).toEqual({ compiler: 'fixture' });
-    expect(observed.serverConfig).toEqual({ ssr: 'stream', forceCSR: false });
-    const reader = response.body!.getReader();
-    const first = await reader.read();
-    expect(new TextDecoder().decode(first.value)).toBe('<html><body>shell');
-    release();
-    let rest = '';
-    for (;;) {
-      const part = await reader.read();
-      if (part.done) break;
-      rest += new TextDecoder().decode(part.value);
-    }
-    expect(rest).toBe(' late</body></html>');
-    expect(pending).toHaveLength(1);
-    await expect(pending[0]).resolves.toMatchObject({ state: 'completed' });
-  });
-
-  it.each([
-    'x-rsc-tree',
-    'x-rsc-action',
-  ])('rejects %s before importing the native bundle', async header => {
-    let evaluations = 0;
-    const worker = emittedWorker(
-      {
-        rendererIdentities: { main: identity(renderer) },
-        nativeRenderer: nativeResources(renderer),
-      },
-      {
-        [route.worker]: async () => {
-          evaluations += 1;
-          return {};
-        },
-      },
-    );
-    const response = await worker.fetch(
-      new Request('https://example.com/', { headers: { [header]: '1' } }),
-      { ASSETS: assetBinding() },
-    );
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({
-      code: 'unsupported-renderer-capability',
-      capability: 'rsc',
-    });
-    expect(evaluations).toBe(0);
-  });
-
-  it('serves static assets without the native bundle', async () => {
-    const served: string[] = [];
-    const worker = emittedWorker(
-      {
-        rendererIdentities: { main: identity(renderer) },
-        nativeRenderer: nativeResources(renderer),
-      },
-      {
-        [route.worker]: async () => {
-          throw new Error('asset requests must not import the SSR bundle');
-        },
-      },
-    );
-    const response = await worker.fetch(
-      new Request('https://example.com/static/js/main.js'),
-      { ASSETS: assetBinding(served) },
-    );
-    expect(response.status).toBe(200);
-    await expect(response.text()).resolves.toBe('asset:/static/js/main.js');
-    expect(served).toEqual(['/static/js/main.js']);
-  });
-
-  it('turns a pre-commit native failure into a controlled 500', async () => {
-    const errors: unknown[] = [];
-    const originalError = console.error;
-    console.error = (error: unknown) => errors.push(error);
-    try {
+describe.each(['solid', 'octane'] as const)(
+  '%s native worker dispatch',
+  renderer => {
+    it('streams the native document with env and ctx as the worker platform', async () => {
+      const { pending, context } = executionContext();
+      const env = { ASSETS: assetBinding(), DB: { name: 'd1' } };
+      let observed: any;
+      let release!: () => void;
+      const held = new Promise<void>(resolve => {
+        release = resolve;
+      });
       const worker = emittedWorker(
         {
           rendererIdentities: { main: identity(renderer) },
@@ -261,9 +148,155 @@ describe.each([
         },
         {
           [route.worker]: async () =>
-            nativeBundle(renderer, () => {
-              throw new Error('native handler failed');
+            nativeBundle(renderer, (request, nativeContext) => {
+              observed = {
+                url: request.url,
+                platform: nativeContext.session.platform,
+                assets: nativeContext.assets,
+                nativeManifest: nativeContext.nativeManifest,
+                serverConfig: nativeContext.serverConfig,
+              };
+              const encoder = new TextEncoder();
+              return new Response(
+                new ReadableStream({
+                  async start(controller) {
+                    controller.enqueue(encoder.encode('<html><body>shell'));
+                    await held;
+                    controller.enqueue(encoder.encode(' late</body></html>'));
+                    controller.close();
+                  },
+                }),
+                { headers: { 'content-type': 'text/html; charset=utf-8' } },
+              );
             }),
+        },
+      );
+      const response = await worker.fetch(
+        new Request('https://example.com/items/1?__loader=x'),
+        env,
+        context,
+      );
+      expect(response.status).toBe(200);
+      expect(response.headers.get('content-type')).toBe(
+        'text/html; charset=utf-8',
+      );
+      expect(
+        JSON.parse(response.headers.get('x-ultramodern-renderer-identity')!),
+      ).toEqual(identity(renderer));
+      expect(observed.platform.kind).toBe('worker');
+      expect(observed.platform.bindings).toBe(env);
+      expect(observed.assets).toEqual([
+        { kind: 'script', href: '/static/js/main.js' },
+      ]);
+      expect(observed.nativeManifest).toEqual({ compiler: 'fixture' });
+      expect(observed.serverConfig).toEqual({ ssr: 'stream', forceCSR: false });
+      const reader = response.body!.getReader();
+      const first = await reader.read();
+      expect(new TextDecoder().decode(first.value)).toBe('<html><body>shell');
+      release();
+      let rest = '';
+      for (;;) {
+        const part = await reader.read();
+        if (part.done) break;
+        rest += new TextDecoder().decode(part.value);
+      }
+      expect(rest).toBe(' late</body></html>');
+      expect(pending).toHaveLength(1);
+      await expect(pending[0]).resolves.toMatchObject({ state: 'completed' });
+    });
+
+    it.each(['x-rsc-tree', 'x-rsc-action'])(
+      'rejects %s before importing the native bundle',
+      async header => {
+        let evaluations = 0;
+        const worker = emittedWorker(
+          {
+            rendererIdentities: { main: identity(renderer) },
+            nativeRenderer: nativeResources(renderer),
+          },
+          {
+            [route.worker]: async () => {
+              evaluations += 1;
+              return {};
+            },
+          },
+        );
+        const response = await worker.fetch(
+          new Request('https://example.com/', { headers: { [header]: '1' } }),
+          { ASSETS: assetBinding() },
+        );
+        expect(response.status).toBe(400);
+        await expect(response.json()).resolves.toEqual({
+          code: 'unsupported-renderer-capability',
+          capability: 'rsc',
+        });
+        expect(evaluations).toBe(0);
+      },
+    );
+
+    it('serves static assets without the native bundle', async () => {
+      const served: string[] = [];
+      const worker = emittedWorker(
+        {
+          rendererIdentities: { main: identity(renderer) },
+          nativeRenderer: nativeResources(renderer),
+        },
+        {
+          [route.worker]: async () => {
+            throw new Error('asset requests must not import the SSR bundle');
+          },
+        },
+      );
+      const response = await worker.fetch(
+        new Request('https://example.com/static/js/main.js'),
+        { ASSETS: assetBinding(served) },
+      );
+      expect(response.status).toBe(200);
+      await expect(response.text()).resolves.toBe('asset:/static/js/main.js');
+      expect(served).toEqual(['/static/js/main.js']);
+    });
+
+    it('turns a pre-commit native failure into a controlled 500', async () => {
+      const errors: unknown[] = [];
+      const originalError = console.error;
+      console.error = (error: unknown) => errors.push(error);
+      try {
+        const worker = emittedWorker(
+          {
+            rendererIdentities: { main: identity(renderer) },
+            nativeRenderer: nativeResources(renderer),
+          },
+          {
+            [route.worker]: async () =>
+              nativeBundle(renderer, () => {
+                throw new Error('native handler failed');
+              }),
+          },
+        );
+        const response = await worker.fetch(
+          new Request('https://example.com/'),
+          {
+            ASSETS: assetBinding(),
+          },
+        );
+        expect(response.status).toBe(500);
+        await expect(response.json()).resolves.toEqual({
+          code: 'native-render-failed',
+          entryName: 'main',
+        });
+        expect(String(errors[0])).toContain('native handler failed');
+      } finally {
+        console.error = originalError;
+      }
+    });
+
+    it('rejects a native route whose build has no worker resources', async () => {
+      const worker = emittedWorker(
+        { rendererIdentities: { main: identity(renderer) } },
+        {
+          [route.worker]: async () => {
+            throw new Error('missing resources must not import the bundle');
+          },
         },
       );
       const response = await worker.fetch(new Request('https://example.com/'), {
@@ -271,31 +304,9 @@ describe.each([
       });
       expect(response.status).toBe(500);
       await expect(response.json()).resolves.toEqual({
-        code: 'native-render-failed',
+        code: 'missing-native-renderer-resources',
         entryName: 'main',
       });
-      expect(String(errors[0])).toContain('native handler failed');
-    } finally {
-      console.error = originalError;
-    }
-  });
-
-  it('rejects a native route whose build has no worker resources', async () => {
-    const worker = emittedWorker(
-      { rendererIdentities: { main: identity(renderer) } },
-      {
-        [route.worker]: async () => {
-          throw new Error('missing resources must not import the bundle');
-        },
-      },
-    );
-    const response = await worker.fetch(new Request('https://example.com/'), {
-      ASSETS: assetBinding(),
     });
-    expect(response.status).toBe(500);
-    await expect(response.json()).resolves.toEqual({
-      code: 'missing-native-renderer-resources',
-      entryName: 'main',
-    });
-  });
-});
+  },
+);

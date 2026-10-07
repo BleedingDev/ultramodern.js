@@ -26,6 +26,7 @@ function buildMetadata() {
     schema: 'ultramodern-renderer-build',
     version: 2,
     renderer: 'fixture-renderer',
+    worker: { nativeDocuments: false, rsc: true },
     buildId: buildMarker,
     // This fixture qualifies transfer of compiler metadata, not compilation.
     profile: {
@@ -467,6 +468,7 @@ it('rejects malformed existing metadata and preserves output without a renderer 
 describe('native worker resources', () => {
   const asSolid = (build: ReturnType<typeof buildMetadata>) => {
     build.renderer = build.profile.renderer = 'solid';
+    build.worker = { nativeDocuments: true, rsc: false };
     for (const identity of Object.values(build.entries))
       identity.renderer = 'solid';
   };

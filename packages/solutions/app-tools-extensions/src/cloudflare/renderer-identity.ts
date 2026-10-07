@@ -14,8 +14,21 @@ export type WorkerRendererIdentities = Readonly<
   Record<string, RendererIdentity>
 >;
 
+/** The built renderer and how its adapter serves worker documents. */
+export interface WorkerRenderer {
+  readonly name: string;
+  /** Documents come only from the renderer's native server handler. */
+  readonly nativeDocuments: boolean;
+  readonly rsc: boolean;
+}
+
+export interface WorkerRendererBuild {
+  readonly renderer: WorkerRenderer;
+  readonly identities: WorkerRendererIdentities;
+}
+
 /** Bind response metadata to the finalized build and its generated entries. */
-export async function readWorkerRendererIdentities(
+export async function readWorkerRendererBuild(
   distDirectory: string,
   routes: readonly {
     entryName?: unknown;
@@ -28,7 +41,7 @@ export async function readWorkerRendererIdentities(
     isStream?: unknown;
   }[],
   deliveryUnit?: DeliveryUnitStamp,
-): Promise<WorkerRendererIdentities | undefined> {
+): Promise<WorkerRendererBuild | undefined> {
   let bytes: string;
   try {
     bytes = await fs.readFile(
@@ -49,6 +62,9 @@ export async function readWorkerRendererIdentities(
     !/^[a-f0-9]{64}$/u.test(build.buildId) ||
     !isRecord(build.profile) ||
     build.renderer !== build.profile.renderer ||
+    !isRecord(build.worker) ||
+    typeof build.worker.nativeDocuments !== 'boolean' ||
+    typeof build.worker.rsc !== 'boolean' ||
     !isRecord(build.entries) ||
     !Object.keys(build.entries).length
   )
@@ -144,5 +160,12 @@ export async function readWorkerRendererIdentities(
     throw new Error(
       'Cloudflare built renderer identity conflicts with its finalized delivery unit',
     );
-  return Object.freeze(identities);
+  return Object.freeze({
+    renderer: Object.freeze({
+      name: renderer as string,
+      nativeDocuments: build.worker.nativeDocuments,
+      rsc: build.worker.rsc,
+    }),
+    identities: Object.freeze(identities),
+  });
 }

@@ -98,6 +98,16 @@ function createManifest(renderer?: Renderer) {
   }
   return {
     deliveryUnit: { ...deliveryUnit, surfaces },
+    // The built renderer's adapter worker support, from renderer-build.json.
+    ...(renderer
+      ? {
+          renderer: {
+            name: renderer,
+            nativeDocuments: renderer !== 'react',
+            rsc: renderer === 'react',
+          },
+        }
+      : {}),
     routeSpec: { routes: [route] },
     resources: {
       routeManifest: 'routes-manifest.json',
@@ -213,6 +223,7 @@ function createPublishedReactManifest() {
       version: 2,
       renderer,
       profile,
+      worker: { nativeDocuments: false, rsc: true },
       routerBindings,
       buildId: buildMarker,
       sourceRevision,
