@@ -118,6 +118,57 @@ function sh(command, args, { cwd = root, env = process.env, log }) {
 }
 
 const results = [];
+
+// A bare `assert(value)` reports only "The expression evaluated to a falsy
+// value". Name the failing assertion by its source location and lines.
+function assertionSource(error) {
+  const frame = /(?:file:\/\/)?(\/[^\s():]+):(\d+):\d+/u.exec(
+    String(error.stack ?? '')
+      .split('\n')
+      .slice(1)
+      .join('\n'),
+  );
+  if (!frame) return undefined;
+  const [, file, line] = frame;
+  const at = Number(line);
+  let excerpt = [];
+  try {
+    excerpt = fs
+      .readFileSync(file, 'utf8')
+      .split('\n')
+      .slice(Math.max(0, at - 3), at + 2)
+      .map((text, index) => {
+        const number = Math.max(1, at - 2) + index;
+        return `${number === at ? '>' : ' '} ${number} | ${text}`;
+      });
+  } catch {}
+  return {
+    location: `${path.relative(root, file)}:${at}`,
+    excerpt: excerpt.join('\n'),
+  };
+}
+
+function describeFailure(error) {
+  const failures = [
+    error,
+    ...(error instanceof AggregateError ? error.errors : []),
+  ];
+  const sources = failures
+    .filter(item => item?.code === 'ERR_ASSERTION')
+    .map(assertionSource)
+    .filter(Boolean);
+  const message = String(error?.message ?? error).split('\n')[0];
+  return {
+    summary: sources.length ? `${sources[0].location}: ${message}` : message,
+    detail: [
+      ...failures.map(item => String(item?.stack ?? item)),
+      ...sources.map(
+        ({ location, excerpt }) => `Assertion at ${location}\n${excerpt}`,
+      ),
+    ].join('\n'),
+  };
+}
+
 /** Runs one table row. Returns false (and runs nothing) once `when` fails. */
 async function step(name, body, when = true) {
   if (!when) {
@@ -131,9 +182,9 @@ async function step(name, body, when = true) {
     results.push({ name, status: 'PASS', seconds: 0, error: '' });
     return true;
   } catch (error) {
-    const message = String(error?.message ?? error);
-    results.push({ name, status: 'FAIL', error: message.split('\n')[0] });
-    process.stdout.write(`[release] ${name} FAIL\n${message}\n`);
+    const { summary, detail } = describeFailure(error);
+    results.push({ name, status: 'FAIL', error: summary });
+    process.stdout.write(`[release] ${name} FAIL\n${detail}\n`);
     return false;
   } finally {
     results.at(-1).seconds = (performance.now() - started) / 1000;
