@@ -17,7 +17,6 @@ export const rendererAdapter: NativeRendererAdapter<'octane'> =
     kind: 'native',
     profile: octaneProfile,
     routerFrameworks: ['octane'],
-    ownedPackages: ['octane', '@octanejs/', '@modern-js/renderer-octane'],
     runtime: {
       package: 'octane',
       bootstrap: '@modern-js/renderer-octane',

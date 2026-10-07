@@ -16,13 +16,6 @@ export const rendererAdapter: NativeRendererAdapter<'solid'> =
     kind: 'native',
     profile: solidProfile,
     routerFrameworks: ['solid'],
-    ownedPackages: [
-      'solid-js',
-      '@solidjs/web',
-      '@solidjs/signals',
-      '@solidjs/router',
-      '@modern-js/renderer-solid',
-    ],
     runtime: {
       package: 'solid-js',
       bootstrap: '@modern-js/renderer-solid',

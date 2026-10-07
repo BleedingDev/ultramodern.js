@@ -67,7 +67,6 @@ const paper = rstest.hoisted(() => {
     kind: 'native',
     profile: candidate,
     routerFrameworks: ['paper'],
-    ownedPackages: ['paper-runtime', '@modern-js/renderer-paper'],
     runtime: {
       package: 'paper-runtime',
       bootstrap: '@modern-js/renderer-paper',

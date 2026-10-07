@@ -1,11 +1,34 @@
 import fs from 'node:fs';
+import * as actualModule from 'node:module' with { rstest: 'importActual' };
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it } from '@rstest/core';
+import { afterEach, describe, expect, it, rstest } from '@rstest/core';
 import {
   assertRouteSourcesMatchRenderer,
   detectSourceRenderer,
 } from '../../src/native-composition/renderer-source-ownership';
+
+// No native renderer package is installed: ownership must not need them.
+const adapterRequests: string[] = [];
+rstest.mock('node:module', () => {
+  const createRequire: typeof actualModule.createRequire = anchor => {
+    const require = actualModule.createRequire(anchor);
+    return Object.assign((id: string) => {
+      if (/^@modern-js\/renderer-[^/]+\/plugin$/u.test(id)) {
+        adapterRequests.push(id);
+        throw Object.assign(new Error(`Cannot find module '${id}'`), {
+          code: 'MODULE_NOT_FOUND',
+        });
+      }
+      return require(id);
+    }, require) as NodeJS.Require;
+  };
+  return {
+    ...actualModule,
+    createRequire,
+    default: { ...actualModule, createRequire },
+  };
+});
 
 const roots: string[] = [];
 
@@ -58,6 +81,28 @@ describe('route source renderer ownership', () => {
       expect(message).toContain("or set renderer: 'solid' in modern.config.");
     },
   );
+
+  it('names routes of an uninstalled renderer without loading any adapter', () => {
+    const root = app({
+      'routes/page.tsrx': 'export default component Page() {}\n',
+      'routes/solid/page.tsx': "import { createSignal } from 'solid-js';\n",
+      'routes/react/page.tsx': "import { Link } from 'react-router';\n",
+    });
+    let message = '';
+    try {
+      assertRouteSourcesMatchRenderer('react', root, path.join(root, 'src'));
+    } catch (error) {
+      message = (error as Error).message;
+    }
+    expect(message).toContain(
+      'src/routes/page.tsrx is a .tsrx module (octane)',
+    );
+    expect(message).toContain(
+      "src/routes/solid/page.tsx imports 'solid-js' (solid)",
+    );
+    expect(message).not.toContain('react/page.tsx');
+    expect(adapterRequests).toEqual([]);
+  });
 
   it('accepts route modules authored for the selected renderer', () => {
     const root = app(solidRoutes);

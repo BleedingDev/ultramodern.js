@@ -210,7 +210,7 @@ renderer: 'octane'  -> @bleedingdev/modern-js-renderer-octane/plugin  (kind: 'na
 - A **composed** adapter (React) registers the existing Modern.js React graph
   through `compose()`.
 - A **native** adapter is data plus a compiler. It names its build profile,
-  the packages it owns, its runtime modules (`entry-client`, `entry-server`,
+  its runtime modules (`entry-client`, `entry-server`,
   `router`, `i18n`, `manifest`), Module Federation singletons, worker support,
   the Rsbuild compiler plugin, the compiler artifacts to verify, and the create
   templates. app-tools runs the same build, dev, SSG, worker and federation
@@ -240,7 +240,9 @@ Remove these plugins for the native renderer, or keep renderer: 'react'.
 Route files still authored for the previous renderer
 (`assertRouteSourcesMatchRenderer`, detected by a `.tsrx` extension, an
 `@jsxImportSource` pragma, or an import of a renderer-owned package such as
-`react-router` or `solid-js`):
+`react-router` or `solid-js`). Renderer ownership is a static table in
+`renderer-registration.ts`, so routes are still named after the previous
+renderer's package was uninstalled, and the check loads no adapter:
 
 ```
 renderer-source-mismatch: modern.config selects renderer solid, but these route modules are authored for react:

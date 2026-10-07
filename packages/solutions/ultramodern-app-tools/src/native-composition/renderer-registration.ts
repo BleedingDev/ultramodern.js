@@ -22,24 +22,61 @@ export type RegisteredRenderer = 'react' | 'solid' | 'octane';
 
 const requireAdapter = createRequire(import.meta.url);
 
-/**
- * Renderer adapters by name. Native adapters live in their renderer package's
- * build-only `./plugin` entry and load only when selected. Loading is
- * synchronous (`require` of ESM) because configuration, metadata and
- * scaffolding read renderer profiles synchronously.
- */
-const rendererAdapters: Readonly<
-  Record<RegisteredRenderer, () => UltramodernRendererAdapter>
+interface RendererRegistration {
+  /**
+   * Native adapters live in their renderer package's build-only `./plugin`
+   * entry and load only when selected. Loading is synchronous (`require` of
+   * ESM) because configuration, metadata and scaffolding read renderer
+   * profiles synchronously.
+   */
+  load(): UltramodernRendererAdapter;
+  /**
+   * Packages whose imports mark a module as authored for this renderer. A
+   * trailing `/` names a whole scope. Kept here, not on the adapter, so route
+   * and dependency ownership checks work without loading or even installing
+   * the renderer package.
+   */
+  readonly ownedPackages: readonly string[];
+  /** Source extensions only this renderer compiles. */
+  readonly ownedExtensions: readonly string[];
+}
+
+const rendererRegistrations: Readonly<
+  Record<RegisteredRenderer, RendererRegistration>
 > = {
-  react: () => reactRendererAdapter,
-  solid: () =>
-    requireAdapter('@modern-js/renderer-solid/plugin').rendererAdapter,
-  octane: () =>
-    requireAdapter('@modern-js/renderer-octane/plugin').rendererAdapter,
+  react: {
+    load: () => reactRendererAdapter,
+    ownedPackages: [
+      'react',
+      'react-dom',
+      '@modern-js/runtime',
+      '@modern-js/plugin-tanstack',
+      '@modern-js/plugin-i18n',
+      '@tanstack/react-router',
+    ],
+    ownedExtensions: [],
+  },
+  solid: {
+    load: () =>
+      requireAdapter('@modern-js/renderer-solid/plugin').rendererAdapter,
+    ownedPackages: [
+      'solid-js',
+      '@solidjs/',
+      '@tanstack/solid-router',
+      '@modern-js/renderer-solid',
+    ],
+    ownedExtensions: [],
+  },
+  octane: {
+    load: () =>
+      requireAdapter('@modern-js/renderer-octane/plugin').rendererAdapter,
+    ownedPackages: ['octane', '@octanejs/', '@modern-js/renderer-octane'],
+    ownedExtensions: ['.tsrx'],
+  },
 };
 
 export const registeredRenderers = Object.freeze(
-  Object.keys(rendererAdapters) as RegisteredRenderer[],
+  Object.keys(rendererRegistrations) as RegisteredRenderer[],
 );
 
 const loadedAdapters = new Map<
@@ -56,7 +93,7 @@ export function resolveRendererAdapter(
     throw new Error(`Unsupported UltraModern renderer: ${String(value)}`);
   let adapter = loadedAdapters.get(renderer);
   if (!adapter) {
-    adapter = rendererAdapters[renderer]();
+    adapter = rendererRegistrations[renderer].load();
     if (adapter?.name !== renderer || adapter.profile?.renderer !== renderer)
       throw new Error(
         `The ${renderer} renderer package exports no matching renderer adapter`,
@@ -79,18 +116,34 @@ export function resolveNativeRendererAdapter(
   return adapter;
 }
 
-/** Every adapter whose renderer package is installed, without failing on the rest. */
-export function resolveInstalledRendererAdapters(): UltramodernRendererAdapter[] {
-  return registeredRenderers.flatMap(renderer => {
-    try {
-      return [resolveRendererAdapter(renderer)];
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException)?.code === 'MODULE_NOT_FOUND')
-        return [];
-      throw error;
-    }
-  });
+/** The registered renderer that owns an imported package, without loading it. */
+export function specifierRenderer(
+  specifier: string,
+): RegisteredRenderer | undefined {
+  return registeredRenderers.find(renderer =>
+    rendererRegistrations[renderer].ownedPackages.some(name =>
+      name.endsWith('/')
+        ? specifier.startsWith(name)
+        : specifier === name || specifier.startsWith(`${name}/`),
+    ),
+  );
 }
+
+/** The registered renderer that alone compiles a source extension, e.g. Octane `.tsrx`. */
+export function extensionRenderer(
+  extension: string,
+): RegisteredRenderer | undefined {
+  return registeredRenderers.find(renderer =>
+    rendererRegistrations[renderer].ownedExtensions.includes(extension),
+  );
+}
+
+/** Source extensions any registered renderer compiles on its own. */
+export const ownedSourceExtensions: readonly string[] = Object.freeze(
+  registeredRenderers.flatMap(
+    renderer => rendererRegistrations[renderer].ownedExtensions,
+  ),
+);
 
 /** The infrastructure plugin that owns a native renderer's entries. */
 export function nativeInfrastructurePluginName(renderer: Renderer): string {
