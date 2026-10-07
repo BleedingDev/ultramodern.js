@@ -65,6 +65,8 @@ jobs:
           version: 2026.9.18
           cache_save: false
 
-      # pnpm audit reads only pnpm-lock.yaml, so no install is needed.
+      - name: Install the frozen production graph
+        run: mise exec -- pnpm install --prod --frozen-lockfile --ignore-scripts
+
       - name: Fail on high or critical advisories
         run: mise exec -- node scripts/security/advisory-gate.mjs

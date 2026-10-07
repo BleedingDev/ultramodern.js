@@ -19,7 +19,7 @@ const receiptCliPath = path.resolve(
 
 const digest = value => crypto.createHash('sha256').update(value).digest('hex');
 
-async function createReceiptFixture(root) {
+async function createReceiptFixture(root, mode = 'source') {
   const receiptApi = await import(pathToFileURL(receiptCliPath));
   const { bindSupplyChainEvidence, createAcceptanceReceipt } = receiptApi;
   const release = {
@@ -52,7 +52,7 @@ async function createReceiptFixture(root) {
   const runIdentity = 'github:BleedingDev/ultramodern.js:run:123:attempt:1';
   const receipt = createAcceptanceReceipt({
     release,
-    mode: 'source',
+    mode,
     profile: { id: 'erp-10', verticalCount: 10 },
     createPackage: {
       packageName: release.createPackage.targetName,
@@ -126,6 +126,7 @@ async function createReceiptFixture(root) {
     operationalEvidenceSource: operationalEvidence.evidenceSource,
     receiptPath,
     receiptSource: fs.readFileSync(receiptPath, 'utf8'),
+    receiptApi,
     runIdentity,
   };
 }
@@ -150,6 +151,70 @@ function verifyReceipt({ manifestPath, receiptPath, runIdentity }) {
 function replaceOperationalEvidence(fixture, evidence) {
   const evidenceSource = `${JSON.stringify(evidence, null, 2)}\n`;
   fs.writeFileSync(fixture.operationalEvidencePath, evidenceSource);
+}
+
+for (const mode of ['source', 'published']) {
+  test(`${mode} ERP acceptance requires a high-severity audit without acknowledged advisories`, async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'ultramodern-receipt-'));
+    try {
+      const fixture = await createReceiptFixture(root, mode);
+      const { assertAcceptanceReceipt } = fixture.receiptApi;
+      const valid = JSON.parse(fixture.receiptSource);
+      assertAcceptanceReceipt(valid, { expectedMode: mode });
+
+      for (const [name, advisories, message] of [
+        ['missing audit', undefined, /advisories must be a JSON object/u],
+        ['null audit', null, /advisories must be a JSON object/u],
+        ['array audit', [], /advisories must be a JSON object/u],
+        ['empty audit', {}, /advisories has unknown or missing fields/u],
+        [
+          'missing acknowledgements',
+          { auditLevel: 'high' },
+          /advisories has unknown or missing fields/u,
+        ],
+        [
+          'malformed acknowledgements',
+          { auditLevel: 'high', acknowledged: {} },
+          /empty acknowledged advisory list/u,
+        ],
+        [
+          'critical-only audit',
+          { auditLevel: 'critical', acknowledged: [] },
+          /must audit high and critical/u,
+        ],
+        [
+          'acknowledged braces advisory',
+          { auditLevel: 'high', acknowledged: ['GHSA-grv7-fg5c-xmjg'] },
+          /empty acknowledged advisory list/u,
+        ],
+        [
+          'unreviewed repository correction field',
+          { auditLevel: 'high', acknowledged: [], repositoryCorrection: true },
+          /advisories has unknown or missing fields/u,
+        ],
+      ]) {
+        const receipt = JSON.parse(fixture.receiptSource);
+        const details = receipt.results.find(
+          result => result.id === 'dependency-closure-audit',
+        ).details;
+        if (advisories === undefined) delete details.advisories;
+        else details.advisories = advisories;
+        assert.throws(
+          () => assertAcceptanceReceipt(receipt, { expectedMode: mode }),
+          message,
+          name,
+        );
+        if (mode === 'source') {
+          fs.writeFileSync(fixture.receiptPath, `${JSON.stringify(receipt)}\n`);
+          const result = verifyReceipt(fixture);
+          assert.notEqual(result.status, 0, name);
+          assert.match(result.stderr, message, name);
+        }
+      }
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
 }
 
 test('producer receipt passes the shared workflow receipt validator', async () => {

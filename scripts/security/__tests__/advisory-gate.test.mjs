@@ -16,12 +16,14 @@ const imageSizeReport = fs.readFileSync(
 );
 const now = new Date('2026-09-27T00:00:00Z');
 
-function withExceptions(entries, run) {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'advisory-gate-'));
+async function withExceptions(entries, run) {
+  const directory = fs.mkdtempSync(
+    path.join(process.env.OWNED_TEMP_DIR ?? os.tmpdir(), 'advisory-gate-'),
+  );
   const exceptionsPath = path.join(directory, 'exceptions.json');
   fs.writeFileSync(exceptionsPath, JSON.stringify(entries));
   try {
-    return run(exceptionsPath);
+    return await run(exceptionsPath);
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
@@ -36,10 +38,10 @@ function auditReturning(stdout, exitCode = 1) {
   return { calls, runCommandImpl };
 }
 
-test('a lockfile pinning image-size 2.0.2 fails with the advisory and the fix', () => {
+test('a lockfile pinning image-size 2.0.2 fails with the advisory and the fix', async () => {
   const { calls, runCommandImpl } = auditReturning(imageSizeReport);
-  withExceptions([], exceptionsPath => {
-    assert.throws(
+  await withExceptions([], async exceptionsPath => {
+    await assert.rejects(
       () =>
         assertNoHighAdvisories({
           cwd: '/scratch',
@@ -63,7 +65,7 @@ test('a lockfile pinning image-size 2.0.2 fails with the advisory and the fix', 
   ]);
 });
 
-test('an unexpired exception acknowledges exactly its advisory', () => {
+test('an unexpired exception acknowledges exactly its advisory', async () => {
   const { runCommandImpl } = auditReturning(imageSizeReport);
   const exception = (id, parents = ['.']) => ({
     id,
@@ -72,11 +74,11 @@ test('an unexpired exception acknowledges exactly its advisory', () => {
     reason: 'test',
     expires: '2026-10-01',
   });
-  withExceptions(
+  await withExceptions(
     [exception('GHSA-5p2g-fcmc-qvqq'), exception('GHSA-w3rx-r6r6-pgpr')],
-    exceptionsPath => {
+    async exceptionsPath => {
       assert.deepEqual(
-        assertNoHighAdvisories({
+        await assertNoHighAdvisories({
           cwd: '/scratch',
           exceptionsPath,
           now,
@@ -89,26 +91,29 @@ test('an unexpired exception acknowledges exactly its advisory', () => {
       );
     },
   );
-  withExceptions([exception('GHSA-5p2g-fcmc-qvqq')], exceptionsPath => {
-    assert.throws(
-      () =>
-        assertNoHighAdvisories({
-          cwd: '/scratch',
-          exceptionsPath,
-          now,
-          runCommandImpl,
-        }),
-      /found 1 high or critical advisory:\nhigh GHSA-w3rx-r6r6-pgpr/u,
-    );
-  });
+  await withExceptions(
+    [exception('GHSA-5p2g-fcmc-qvqq')],
+    async exceptionsPath => {
+      await assert.rejects(
+        () =>
+          assertNoHighAdvisories({
+            cwd: '/scratch',
+            exceptionsPath,
+            now,
+            runCommandImpl,
+          }),
+        /found 1 high or critical advisory:\nhigh GHSA-w3rx-r6r6-pgpr/u,
+      );
+    },
+  );
   // Same advisory, but pulled in by a parent the exception does not name.
-  withExceptions(
+  await withExceptions(
     [
       exception('GHSA-5p2g-fcmc-qvqq', ['some-parent']),
       exception('GHSA-w3rx-r6r6-pgpr'),
     ],
-    exceptionsPath => {
-      assert.throws(
+    async exceptionsPath => {
+      await assert.rejects(
         () =>
           assertNoHighAdvisories({
             cwd: '/scratch',
@@ -122,9 +127,9 @@ test('an unexpired exception acknowledges exactly its advisory', () => {
   );
 });
 
-test('an expired exception fails before auditing', () => {
+test('an expired exception fails before auditing', async () => {
   const { calls, runCommandImpl } = auditReturning(imageSizeReport);
-  withExceptions(
+  await withExceptions(
     [
       {
         id: 'GHSA-5p2g-fcmc-qvqq',
@@ -134,8 +139,8 @@ test('an expired exception fails before auditing', () => {
         expires: '2026-09-26',
       },
     ],
-    exceptionsPath => {
-      assert.throws(
+    async exceptionsPath => {
+      await assert.rejects(
         () =>
           assertNoHighAdvisories({
             cwd: '/scratch',
@@ -150,10 +155,10 @@ test('an expired exception fails before auditing', () => {
   assert.equal(calls.length, 0);
 });
 
-test('a missing audit report fails closed', () => {
+test('a missing audit report fails closed', async () => {
   const { runCommandImpl } = auditReturning('', 1);
-  withExceptions([], exceptionsPath => {
-    assert.throws(
+  await withExceptions([], async exceptionsPath => {
+    await assert.rejects(
       () =>
         assertNoHighAdvisories({
           cwd: '/scratch',
@@ -166,15 +171,15 @@ test('a missing audit report fails closed', () => {
   });
 });
 
-test('moderate advisories do not fail the gate', () => {
+test('moderate advisories do not fail the gate', async () => {
   const report = JSON.parse(imageSizeReport);
   for (const advisory of Object.values(report.advisories)) {
     advisory.severity = 'moderate';
   }
   const { runCommandImpl } = auditReturning(JSON.stringify(report), 0);
-  withExceptions([], exceptionsPath => {
+  await withExceptions([], async exceptionsPath => {
     assert.deepEqual(
-      assertNoHighAdvisories({
+      await assertNoHighAdvisories({
         cwd: '/scratch',
         exceptionsPath,
         now,
@@ -185,6 +190,88 @@ test('moderate advisories do not fail the gate', () => {
   });
 });
 
-test('the committed exceptions are well formed', () => {
+test('the committed exceptions are well formed', async () => {
   assert.ok(readAdvisoryExceptions() instanceof Map);
+});
+
+test('release contexts cannot acknowledge the repository braces correction', async () => {
+  const report = JSON.stringify({
+    advisories: {
+      braces: {
+        github_advisory_id: 'GHSA-vfj7-8cjw-p6xm',
+        module_name: 'braces',
+        severity: 'high',
+        findings: [{ version: '3.0.3', paths: ['root>micromatch>braces'] }],
+      },
+    },
+  });
+  const { runCommandImpl } = auditReturning(report);
+  await assert.rejects(
+    assertNoHighAdvisories({
+      cwd: '/scratch',
+      now,
+      runCommandImpl,
+      allowRepositoryCorrections: false,
+    }),
+    /found 1 high or critical advisory/u,
+  );
+});
+
+test('legacy broad exceptions cannot substitute for the closed braces correction', async () => {
+  await withExceptions(
+    [
+      {
+        id: 'GHSA-vfj7-8cjw-p6xm',
+        package: 'braces',
+        parents: ['micromatch'],
+        reason: 'test',
+        expires: '2026-11-06',
+      },
+    ],
+    async exceptionsPath => {
+      assert.throws(
+        () => readAdvisoryExceptions(exceptionsPath),
+        /closed fields/u,
+      );
+    },
+  );
+});
+
+test('an empty finding cannot be acknowledged and policy mutation during audit fails', async () => {
+  await withExceptions(
+    [
+      {
+        id: 'GHSA-5p2g-fcmc-qvqq',
+        package: 'image-size',
+        parents: ['.'],
+        reason: 'test',
+        expires: '2026-10-01',
+      },
+    ],
+    async exceptionsPath => {
+      const report = JSON.parse(imageSizeReport);
+      for (const value of Object.values(report.advisories)) value.findings = [];
+      await assert.rejects(
+        assertNoHighAdvisories({
+          cwd: '/scratch',
+          exceptionsPath,
+          now,
+          ...auditReturning(JSON.stringify(report)),
+        }),
+        /found 2 high or critical advisories/u,
+      );
+      await assert.rejects(
+        assertNoHighAdvisories({
+          cwd: '/scratch',
+          exceptionsPath,
+          now,
+          runCommandImpl() {
+            fs.writeFileSync(exceptionsPath, '[]');
+            return { stdout: JSON.stringify({ advisories: {} }) };
+          },
+        }),
+        /policy changed during audit/u,
+      );
+    },
+  );
 });
