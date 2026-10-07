@@ -272,7 +272,7 @@ test('explicit offline provenance fails closed on missing or tampered tarballs',
     path.join(os.tmpdir(), 'sidecar-integrity-'),
   );
   try {
-    for (const id of ['mf-cli', 'jiti', 'rsbuild-core']) {
+    for (const id of ['mf-cli', 'rsbuild-core']) {
       await assert.rejects(
         verifySidecar(id, { artifactsDir: directory }),
         /ENOENT/,

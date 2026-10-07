@@ -57,7 +57,6 @@ allowBuilds:
 
 patchedDependencies:
   '@rsbuild/core@2.2.11': patches/@rsbuild__core@2.2.11.patch
-  'jiti@2.7.0': patches/jiti@2.7.0.patch
   '@module-federation/bridge-react@2.9.2': patches/@module-federation__bridge-react@2.9.2.patch
   '@module-federation/dts-plugin@2.9.2': patches/@module-federation__dts-plugin@2.9.2.patch
   '@module-federation/manifest@2.9.2': patches/@module-federation__manifest@2.9.2.patch

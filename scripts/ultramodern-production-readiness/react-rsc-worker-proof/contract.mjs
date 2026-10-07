@@ -363,7 +363,7 @@ export function releaseConsumerInputs(release, template) {
     }
     // A sidecar alias is the owning framework package's own dependency; it
     // must not silently replace another authenticated package's exact pin
-    // (MF sidecars pin jiti 2.4.2 while the plugin aliases @bleedingdev/jiti).
+    // (an MF sidecar may pin an older version of the same dependency).
     // Generated workspaces carry no such override, so neither does the proof.
     for (const { name, specifier } of exactDeclarations) {
       const sidecar = sidecarAliases.get(name);
