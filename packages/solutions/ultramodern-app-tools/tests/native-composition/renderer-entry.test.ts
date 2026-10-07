@@ -5,12 +5,11 @@ import type { RendererIdentity } from '@modern-js/renderer-core/identity';
 import { rspack } from '@rsbuild/core';
 import {
   createNativeEntryGenerator,
+  createNativeEntryStubGenerator,
   emitNativeEntryApplication,
-  type NativeApplicationEmission,
 } from '../../src/native-composition/native-entry';
 import type { NativeEntryGeneration } from '../../src/native-composition/native-infrastructure';
 import { resolveRendererProfile } from '../../src/native-composition/renderer-profile';
-import { createSolidNativeEntryGenerator } from '../../src/renderers/solid/entry';
 
 describe('native owning entry generation', () => {
   const fixtures: string[] = [];
@@ -119,14 +118,14 @@ describe('native owning entry generation', () => {
   it('rejects a context owned by another renderer before writing source', async () => {
     const generation = await context('octane');
     await expect(
-      createSolidNativeEntryGenerator().client(generation),
+      createNativeEntryStubGenerator('solid').client(generation),
     ).rejects.toThrow('Native generator renderer conflict');
     await expect(fs.stat(generation.internalDirectory)).rejects.toMatchObject({
       code: 'ENOENT',
     });
   });
 
-  it('passes the hook-modified graph and analyzed base path to the selected source emitter', async () => {
+  it('passes the hook-modified graph and analyzed base path to the generated application module', async () => {
     const generation = await context('solid', true);
     generation.basePath = '/catalog';
     let projections = 0;
@@ -148,166 +147,177 @@ describe('native owning entry generation', () => {
         },
       ];
     };
-    const applications: Parameters<
-      NativeApplicationEmission['applicationSource']
-    >[0][] = [];
-    const routeEmissions: Parameters<
-      NativeApplicationEmission['routeSource']
-    >[0][] = [];
-    const emission: NativeApplicationEmission = {
-      applicationSource(options) {
-        applications.push(options);
-        return `selected application ${options.mode}`;
-      },
-      routeSource(options) {
-        routeEmissions.push(options);
-        return `selected routes ${options.mode}`;
-      },
-    };
+    const sources: Record<string, string> = {};
     for (const mode of ['client', 'server'] as const) {
-      const { directory } = await emitNativeEntryApplication(
+      const { directory, routed } = await emitNativeEntryApplication(
         generation,
         mode,
-        emission,
       );
-      expect(
-        await fs.readFile(path.join(directory, `routes.${mode}.ts`), 'utf8'),
-      ).toBe(`selected routes ${mode}`);
-      expect(
-        await fs.readFile(
-          path.join(directory, `application.${mode}.tsx`),
-          'utf8',
-        ),
-      ).toBe(`selected application ${mode}`);
-    }
-    expect(projections).toBe(1);
-    expect(applications).toEqual(
-      ['client', 'server'].map(mode => ({
-        source: generation.entrypoint.entry,
-        routed: true,
-        mode,
-        i18n: false,
-      })),
-    );
-    expect(
-      routeEmissions.map(({ mode, basePath, i18n }) => ({
-        mode,
-        basePath,
-        i18n,
-      })),
-    ).toEqual([
-      { mode: 'client', basePath: '/catalog', i18n: false },
-      { mode: 'server', basePath: '/catalog', i18n: false },
-    ]);
-    expect(routeEmissions[0].routes).toBe(routeEmissions[1].routes);
-    expect(routeEmissions[0].routes).toMatchObject([
-      {
-        id: 'selected-layout',
-        children: [
-          {
-            id: 'hook-product',
-            path: ':product',
-            file: '/selected/product.tsx',
-            modules: { data: '/selected/product.data.ts' },
-          },
-        ],
-      },
-    ]);
-  });
-
-  it.each([
-    'solid',
-    'octane',
-  ] as const)('emits syntactically valid %s native entry modules without rewriting the authored view', async renderer => {
-    const generation = await context(renderer);
-    const before = await fs.readFile(generation.entrypoint.entry, 'utf8');
-    const generator = createNativeEntryGenerator(renderer);
-    const client = await generator.client(generation);
-    const server = await generator.server(generation);
-    await expectValidNativeSource(client);
-    await expectValidNativeSource(server);
-    const generated = path.join(generation.internalDirectory, renderer, 'main');
-    for (const file of ['application.client.tsx', 'application.server.tsx']) {
-      const source = await fs.readFile(path.join(generated, file), 'utf8');
-      await expectValidNativeSource(source, true);
-      expect(source).toContain(JSON.stringify(generation.entrypoint.entry));
-    }
-    expect(await fs.readFile(generation.entrypoint.entry, 'utf8')).toBe(before);
-    expect(server).toContain('nativeRequestHandler');
-    expect(server).toContain('nativeCSRRequestHandler');
-    expect(server).toContain(JSON.stringify(generation.rendererIdentity));
-    expect(client).not.toMatch(/react-router|react-dom|@tanstack\/react/u);
-    if (renderer === 'octane') {
-      expect(server).toContain(
-        'validateOctaneModuleManifest(context.nativeManifest, rendererIdentity)',
-      );
-      expect(server.match(/validateOctaneModuleManifest\(/gu)).toHaveLength(1);
-    }
-  });
-
-  it.each([
-    'solid',
-    'octane',
-  ] as const)('projects the %s route hook once for a single client/server emission transaction', async renderer => {
-    const generation = await context(renderer, true);
-    let projections = 0;
-    generation.modifyRoutes = async routes => {
-      projections += 1;
-      return [
-        {
-          ...routes[0],
-          children: routes[0].children.map(route => ({
-            ...route,
-            id: `hook-${route.id}`,
-          })),
-        },
-      ];
-    };
-    const generator = createNativeEntryGenerator(renderer);
-    const client = await generator.client(generation);
-    const server = await generator.server(generation);
-    expect(projections).toBe(1);
-    await expectValidNativeSource(client);
-    await expectValidNativeSource(server);
-    for (const mode of ['client', 'server']) {
-      const source = await fs.readFile(
-        path.join(
-          generation.internalDirectory,
-          renderer,
-          'main',
-          `routes.${mode}.ts`,
-        ),
+      expect(routed).toBe(true);
+      sources[mode] = await fs.readFile(
+        path.join(directory, `app.${mode}.ts`),
         'utf8',
       );
-      expect(source).toContain('hook-page');
-      await expectValidNativeSource(source);
+      await expectValidNativeSource(sources[mode]);
+      expect(sources[mode]).toContain('export const basePath = "/catalog";');
+      expect(sources[mode]).toContain('"hook-product"');
+      expect(sources[mode]).toContain(
+        `import * as routeModule1 from ${JSON.stringify('/selected/product.tsx')};`,
+      );
     }
-    expect(server).toContain('selectApplicationDataRoute');
-    expect(server).toContain('nativeMatchRouteIds');
-    // Route ids must be matched through the router's basepath rewrite.
-    expect(server).toContain('matchApplicationRouteIds(router, new URL(');
-    expect(server).not.toContain('router.matchRoutes(');
-    if (renderer === 'octane') {
-      // The request CSP nonce reaches the router that emits $_TSR scripts.
-      expect(server).toContain('}, nonce: context.nonce });');
-    }
+    expect(projections).toBe(1);
+    // Server data stays out of the client graph.
+    expect(sources.server).toContain(
+      JSON.stringify('/selected/product.data.ts'),
+    );
+    expect(sources.client).not.toContain('/selected/product.data.ts');
+    expect(sources.client).toContain('server-data:hook-product');
+    expect(sources.client).toContain(
+      'export const serverDataRoutes = ["hook-product"];',
+    );
   });
 
-  it('matches Solid SSR route ids from the basepath-rewritten native location', async () => {
-    const generation = await context('solid', true);
-    generation.basePath = '/admin';
-    const server = await createSolidNativeEntryGenerator().server(generation);
-    await expectValidNativeSource(server);
-    // A raw request pathname keeps the basepath the native router rewrites away.
-    expect(server).toContain(
-      'matchApplicationRouteIds(router, new URL(request.url))',
-    );
-    expect(server).not.toContain('new URL(request.url).pathname');
-    // The document nonce reaches the per-request router's emitted scripts.
-    expect(server).toContain(
-      'session: context.session, nonce: context.nonce }',
-    );
-  });
+  it.each(['solid', 'octane'] as const)(
+    'emits %s entry stubs that pass only data to the renderer runtime',
+    async renderer => {
+      const generation = await context(renderer);
+      const before = await fs.readFile(generation.entrypoint.entry, 'utf8');
+      const generator = createNativeEntryGenerator(renderer);
+      const client = await generator.client(generation);
+      const server = await generator.server(generation);
+      await expectValidNativeSource(client);
+      await expectValidNativeSource(server);
+      const generated = path.join(
+        generation.internalDirectory,
+        renderer,
+        'main',
+      );
+      for (const file of ['app.client.ts', 'app.server.ts']) {
+        const source = await fs.readFile(path.join(generated, file), 'utf8');
+        await expectValidNativeSource(source);
+        expect(source).toBe(
+          `export { default } from ${JSON.stringify(generation.entrypoint.entry)};\n`,
+        );
+      }
+      expect(await fs.readFile(generation.entrypoint.entry, 'utf8')).toBe(
+        before,
+      );
+      const identity = JSON.stringify(generation.rendererIdentity);
+      expect(client).toContain(
+        `import { startNativeClient } from "@modern-js/renderer-${renderer}/entry-client";`,
+      );
+      expect(client).toContain(`identity: ${identity},`);
+      expect(client).toContain('load: () => import("./app.client"),');
+      expect(client).toContain('hot: import.meta.webpackHot,');
+      expect(server).toContain(
+        `import { createNativeServerEntry } from "@modern-js/renderer-${renderer}/entry-server";`,
+      );
+      expect(server).toContain(
+        'export const { rendererIdentity, nativeRequestHandler, nativeCSRRequestHandler, nativeMatchRouteIds } = createNativeServerEntry({',
+      );
+      expect(server).toContain(`identity: ${identity},`);
+      expect(server).toContain('app: () => import("./app.server"),');
+      for (const source of [client, server]) {
+        expect(source).not.toMatch(/react-router|react-dom|@tanstack\/react/u);
+        expect(source).not.toContain('i18n');
+        // Lifecycle and request handling live in typed runtime modules.
+        expect(source).not.toMatch(/assertRendererIdentity|function |=>\s*\{/u);
+      }
+      if (renderer === 'octane') {
+        // Octane hydration bytes belong to this exact native client compilation.
+        expect(client).toContain('declare const __webpack_hash__: string;');
+        expect(client).toContain('nativeHydrationBuildId: __webpack_hash__,');
+      } else {
+        expect(client).not.toContain('__webpack_hash__');
+      }
+    },
+  );
+
+  it.each(['solid', 'octane'] as const)(
+    'projects the %s route hook once for a single client/server emission transaction',
+    async renderer => {
+      const generation = await context(renderer, true);
+      let projections = 0;
+      generation.modifyRoutes = async routes => {
+        projections += 1;
+        return [
+          {
+            ...routes[0],
+            children: routes[0].children.map(route => ({
+              ...route,
+              id: `hook-${route.id}`,
+            })),
+          },
+        ];
+      };
+      const generator = createNativeEntryGenerator(renderer);
+      const client = await generator.client(generation);
+      const server = await generator.server(generation);
+      expect(projections).toBe(1);
+      await expectValidNativeSource(client);
+      await expectValidNativeSource(server);
+      for (const mode of ['client', 'server']) {
+        const source = await fs.readFile(
+          path.join(
+            generation.internalDirectory,
+            renderer,
+            'main',
+            `app.${mode}.ts`,
+          ),
+          'utf8',
+        );
+        expect(source).toContain('hook-page');
+        expect(source).toContain('export const routeModules = {');
+        await expectValidNativeSource(source);
+      }
+    },
+  );
+
+  it.each(['solid', 'octane'] as const)(
+    'passes the generated %s i18n module to both entries',
+    async renderer => {
+      const generation = await context(renderer, true);
+      await fs.mkdir(path.join(generation.appDirectory, 'locales/en'), {
+        recursive: true,
+      });
+      const translation = path.join(
+        generation.appDirectory,
+        'locales/en/translation.json',
+      );
+      await fs.writeFile(translation, '{"title":"Hello"}');
+      generation.i18n = {
+        languages: ['en', 'cs'],
+        fallbackLanguage: 'en',
+        detect: true,
+        detection: {},
+        ignoreRedirectRoutes: [],
+        backend: { enabled: true },
+        initOptions: {},
+        basePath: '/',
+        resources: { en: { translation } },
+      };
+      const generator = createNativeEntryGenerator(renderer);
+      for (const source of [
+        await generator.client(generation),
+        await generator.server(generation),
+      ]) {
+        await expectValidNativeSource(source);
+        expect(source).toContain('import { i18n } from "./i18n";');
+        expect(source).toMatch(/^ {2}i18n,$/mu);
+      }
+      const i18n = await fs.readFile(
+        path.join(generation.internalDirectory, renderer, 'main', 'i18n.ts'),
+        'utf8',
+      );
+      await expectValidNativeSource(i18n);
+      expect(i18n).toContain(
+        'import { createNativeI18n } from "@modern-js/i18n-runtime-extensions/native";',
+      );
+      expect(i18n).toContain(
+        `"translation": () => import(${JSON.stringify(translation)}),`,
+      );
+    },
+  );
 
   it('starts a federated Solid server entry through an import() boundary', async () => {
     const generation = await context('solid', true);
@@ -315,11 +325,14 @@ describe('native owning entry generation', () => {
       path.join(generation.appDirectory, 'module-federation.config.ts'),
       "export default { name: 'host' };",
     );
-    const server = await createSolidNativeEntryGenerator().server(generation);
+    const server = await createNativeEntryGenerator('solid').server(generation);
     await expectValidNativeSource(server);
     // The facade imports no shared runtime before the share scope starts.
     expect(server).not.toMatch(/^import (?!type )/mu);
     expect(server).toContain("import('./handlers.server')");
+    expect(server).toContain(
+      `export const rendererIdentity = Object.freeze(${JSON.stringify(generation.rendererIdentity)});`,
+    );
     for (const handler of [
       'nativeCSRRequestHandler',
       'nativeRequestHandler',
@@ -331,10 +344,10 @@ describe('native owning entry generation', () => {
         generation.internalDirectory,
         'solid',
         'main',
-        'handlers.server.tsx',
+        'handlers.server.ts',
       ),
       'utf8',
     );
-    expect(handlers).toContain('export async function nativeRequestHandler(');
+    expect(handlers).toContain('createNativeServerEntry({');
   });
 });

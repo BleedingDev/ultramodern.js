@@ -7,6 +7,7 @@ import { validateNativeClientAssetManifest } from '@modern-js/renderer-core/serv
 import { createRsbuild, type Rspack, rspack } from '@rsbuild/core';
 import { describe, expect, it } from '@rstest/core';
 import { nativeClientAssetsPlugin } from '../../src/native-composition/native-assets';
+import { NATIVE_APPLICATION_CLIENT_REQUEST } from '../../src/native-composition/native-entry';
 
 const identity: RendererIdentity = {
   renderer: 'solid',
@@ -32,7 +33,7 @@ async function compile(options: {
     );
     fs.writeFileSync(
       path.join(root, 'client.ts'),
-      'import "./style.css"; globalThis.assetProof = true; void import("./application.client");',
+      `import "./style.css"; globalThis.assetProof = true; void import(${JSON.stringify(NATIVE_APPLICATION_CLIENT_REQUEST)});`,
     );
     fs.writeFileSync(
       path.join(root, 'style.css'),
@@ -40,7 +41,7 @@ async function compile(options: {
     );
     // The generated entry loads routes and layouts through this import().
     fs.writeFileSync(
-      path.join(root, 'application.client.ts'),
+      path.join(root, `${NATIVE_APPLICATION_CLIENT_REQUEST}.ts`),
       'import "./layout.css"; export const later = () => import("./later");',
     );
     fs.writeFileSync(

@@ -24,7 +24,6 @@ import { resolveUltramodernConfig } from '../../src/native-composition/config';
 import { defineConfig } from '../../src/native-composition/index';
 import { RENDERER_BUILD_MANIFEST_FILE } from '../../src/native-composition/native-build-manifest';
 import { createNativeEntryGenerator } from '../../src/native-composition/native-entry';
-import { emitNativeRouteModule } from '../../src/native-composition/native-routes';
 import {
   type NativeNodeBindings,
   type NativeServerPluginOptions,
@@ -128,12 +127,6 @@ rstest.mock('../../src/renderers/solid/registration', () => {
           export: 'createFixtureCompiler',
         }),
         createEntryGenerator: () => generator,
-        emitRouteModule: (options: {
-          mode: string;
-          basePath: string;
-          routes: unknown[];
-        }) =>
-          `fourth-route:${options.mode}:${options.basePath}:${options.routes.length}`,
       },
     },
   };
@@ -201,14 +194,6 @@ describe('static renderer owner admission', () => {
     expect(createNativeEntryGenerator(renderer)).toBe(
       adapter.createEntryGenerator(),
     );
-    expect(
-      emitNativeRouteModule({
-        renderer,
-        mode: 'server',
-        basePath: '/catalog',
-        routes: [],
-      }),
-    ).toBe('fourth-route:server:/catalog:0');
   });
 
   it('delegates the selected owner to the fixed dispatcher and its Node factory', async () => {

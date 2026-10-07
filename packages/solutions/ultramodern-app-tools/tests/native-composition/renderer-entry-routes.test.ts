@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   discoverNativeFileSystemRoutes,
-  emitNativeRouteModule,
+  emitNativeApplicationModule,
 } from '../../src/native-composition/native-routes';
 
 describe('native filesystem route source emission', () => {
@@ -125,24 +125,7 @@ describe('native filesystem route source emission', () => {
     ).rejects.toThrow('require a bracketed parameter: product$');
   });
 
-  it('rejects an unknown renderer before emitting another native runtime', () => {
-    const options = {
-      renderer: 'unknown-renderer',
-      routes: [],
-      mode: 'server',
-      basePath: '/',
-    } as const;
-    expect(() => {
-      // Runtime inputs must fail closed even when they bypass the renderer type.
-      // @ts-expect-error Exercise an unsupported runtime renderer.
-      emitNativeRouteModule(options);
-    }).toThrow(/renderer.*unknown-renderer/iu);
-  });
-
-  it.each([
-    'solid',
-    'octane',
-  ] as const)('separates %s server data source from client graph and preserves native data authorization metadata', async renderer => {
+  it('separates server data source from the client graph and preserves native data authorization metadata', async () => {
     const routesDirectory = await fixture([
       'layout.tsx',
       'page.tsx',
@@ -158,14 +141,12 @@ describe('native filesystem route source emission', () => {
       entryName: 'main',
       extensions: ['.tsx', '.ts'],
     });
-    const client = emitNativeRouteModule({
-      renderer,
+    const client = emitNativeApplicationModule({
       routes,
       mode: 'client',
       basePath: '/admin',
     });
-    const server = emitNativeRouteModule({
-      renderer,
+    const server = emitNativeApplicationModule({
       routes,
       mode: 'server',
       basePath: '/admin',
@@ -182,27 +163,29 @@ describe('native filesystem route source emission', () => {
       ),
     );
     expect(client).toContain('server-data:page');
-    expect(client).toContain('createDataClient(route.id, identity).loader');
+    expect(client).toContain(
+      'export const serverDataRoutes = ["page","(product)/page"];',
+    );
     expect(server).toContain(
       JSON.stringify(path.join(routesDirectory, 'page.data.ts')),
     );
+    // Server structure names the client loader file but never imports it.
     expect(server).not.toContain(
       `from ${JSON.stringify(path.join(routesDirectory, '[product]/page.data.client.ts'))}`,
     );
-    expect(server).toContain('invokeRouteData(module.loader, input)');
+    expect(server).not.toContain('serverDataRoutes');
     for (const source of [client, server]) {
-      expect(source).toContain('basepath: "/admin"');
-      if (renderer === 'octane') {
-        // TanStack only stamps $_TSR scripts with router.options.ssr.nonce.
-        expect(source).toContain('nonce?: string;');
-        expect(source).toContain('{ ssr: { nonce } }');
-      }
-      expect(source).toContain('notFoundComponent:');
-      expect(source).toContain('head:');
-      expect(source).toContain(`@modern-js/renderer-${renderer}/router`);
-      expect(source).not.toMatch(
-        /react-router|@tanstack\/react|react\/|react-dom/u,
-      );
+      expect(source).toContain('export const basePath = "/admin";');
+      expect(source).toMatch(/notFoundComponent: routeModule\d+/u);
+      expect(source).toMatch(/head: routeModule\d+/u);
+      // The application module carries data and imports, never runtime code.
+      expect(source).not.toMatch(/@modern-js|function |=>/u);
     }
+  });
+
+  it('rejects an application module without its analyzed base path', () => {
+    expect(() =>
+      emitNativeApplicationModule({ routes: [], mode: 'server', basePath: '' }),
+    ).toThrow('analyzed public base path');
   });
 });

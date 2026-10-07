@@ -1,11 +1,10 @@
+import { createNativeEntryStubGenerator } from '../../native-composition/native-entry';
 import type {
   NativeRendererAdapter,
   RendererRegistration,
 } from '../../native-composition/renderer-registration';
 import { solidCompilerArtifacts } from './artifacts';
-import { createSolidNativeEntryGenerator } from './entry';
 import { solidCandidateProfile } from './profile';
-import { emitSolidNativeRouteModule } from './routes';
 
 export const solidNativeRendererAdapter = Object.freeze<NativeRendererAdapter>({
   renderer: 'solid',
@@ -25,8 +24,7 @@ export const solidNativeRendererAdapter = Object.freeze<NativeRendererAdapter>({
     export: 'pluginSolidRenderer',
   }),
   lazyStyles: 'renderer',
-  createEntryGenerator: createSolidNativeEntryGenerator,
-  emitRouteModule: emitSolidNativeRouteModule,
+  createEntryGenerator: () => createNativeEntryStubGenerator('solid'),
 });
 
 export const solidRendererRegistration = Object.freeze({

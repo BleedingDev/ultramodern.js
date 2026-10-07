@@ -7,7 +7,6 @@ import { reactRendererRegistration } from '../renderers/react/registration';
 import { solidRendererRegistration } from '../renderers/solid/registration';
 import type { NativeCompilerArtifacts } from './compiler-artifacts';
 import type { NativeEntryGenerator } from './native-infrastructure';
-import type { NativeRouteEmissionOptions } from './native-routes';
 import type { RendererBuildProfile } from './renderer-profile';
 
 export interface RendererIntegrationCapabilities {
@@ -52,7 +51,6 @@ export interface NativeRendererAdapter {
   readonly lazyStyles: 'renderer' | 'document';
   assertSupportedSource?(source: string | false | undefined): Promise<void>;
   createEntryGenerator(): NativeEntryGenerator;
-  emitRouteModule(options: NativeRouteEmissionOptions): string;
 }
 
 interface RendererRegistrationMetadata {

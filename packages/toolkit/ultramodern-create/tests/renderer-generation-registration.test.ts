@@ -69,7 +69,6 @@ const paper = rstest.hoisted(() => {
       isMutableDevelopmentAsset: unusedNativeRuntime,
     },
     createEntryGenerator: unusedNativeRuntime,
-    emitRouteModule: unusedNativeRuntime,
     compiler: Object.freeze({
       schema: 'ultramodern-native-compiler-activation',
       version: 1,

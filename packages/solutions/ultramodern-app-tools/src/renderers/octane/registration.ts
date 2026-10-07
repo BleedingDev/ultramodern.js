@@ -1,11 +1,10 @@
+import { createNativeEntryStubGenerator } from '../../native-composition/native-entry';
 import type {
   NativeRendererAdapter,
   RendererRegistration,
 } from '../../native-composition/renderer-registration';
 import { octaneCompilerArtifacts } from './artifacts';
-import { createOctaneNativeEntryGenerator } from './entry';
 import { octaneCandidateProfile } from './profile';
-import { emitOctaneNativeRouteModule } from './routes';
 import { assertOctaneEntrySource } from './source';
 
 export const octaneNativeRendererAdapter = Object.freeze<NativeRendererAdapter>(
@@ -28,8 +27,14 @@ export const octaneNativeRendererAdapter = Object.freeze<NativeRendererAdapter>(
     }),
     assertSupportedSource: assertOctaneEntrySource,
     lazyStyles: 'document',
-    createEntryGenerator: createOctaneNativeEntryGenerator,
-    emitRouteModule: emitOctaneNativeRouteModule,
+    createEntryGenerator: () =>
+      createNativeEntryStubGenerator('octane', {
+        // Hydration bytes belong to this exact native client compilation.
+        client: {
+          declarations: 'declare const __webpack_hash__: string;\n',
+          fields: { nativeHydrationBuildId: '__webpack_hash__' },
+        },
+      }),
   },
 );
 
