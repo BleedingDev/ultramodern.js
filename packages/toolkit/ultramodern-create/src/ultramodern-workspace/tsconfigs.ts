@@ -38,7 +38,7 @@ export function createTsConfigBase(): JsonValue {
           name: '@effect/language-service',
           diagnostics: true,
           includeSuggestionsInTsc: true,
-          ignoreEffectSuggestionsInTscExitCode: false,
+          ignoreEffectSuggestionsInTscExitCode: true,
           ignoreEffectWarningsInTscExitCode: false,
           ignoreEffectErrorsInTscExitCode: false,
           skipDisabledOptimization: true,

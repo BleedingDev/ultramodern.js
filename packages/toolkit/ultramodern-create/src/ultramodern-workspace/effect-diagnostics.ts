@@ -13,7 +13,6 @@ export const effectDiagnostics = [
   'nonObjectEffectServiceType',
   'outdatedApi',
   'experimentalApiUsage',
-  'unstableApiUsage',
   'obsoleteMatchImport',
   'obsoleteSchemaImport',
   'promiseInEffectSuccess',
@@ -81,6 +80,9 @@ export const effectDiagnostics = [
   'unnecessaryPipeChain',
 ];
 
-export const effectDiagnosticSeverity = Object.fromEntries(
-  effectDiagnostics.map(name => [name, 'error']),
-);
+// Supported Effect HTTP/RPC APIs carry `@stability unstable`. Keep their
+// notices visible; generated typechecks exclude messages from exit failures.
+export const effectDiagnosticSeverity = {
+  ...Object.fromEntries(effectDiagnostics.map(name => [name, 'error'])),
+  unstableApiUsage: 'message',
+};
