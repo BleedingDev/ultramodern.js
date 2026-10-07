@@ -284,16 +284,21 @@ describe('React router owner bindings', () => {
       } finally {
         fs.rmSync(uninstalled, { recursive: true, force: true });
       }
-      // A framework owner installed without the router core is broken.
+      // A framework owner whose router cannot resolve its core is broken.
       const broken = fs.mkdtempSync(
         path.join(os.tmpdir(), 'react-router-bindings-'),
       );
       try {
-        install(
+        const brokenRouter = install(
           install(broken, tanstack, '3.9.0'),
           '@tanstack/react-router',
           '1.170.39',
         );
+        // Block pnpm's test-runner NODE_PATH from supplying an ambient core.
+        install(brokenRouter, '@tanstack/router-core', '0.0.0', {
+          name: '@tanstack/router-core',
+          exports: {},
+        });
         expect(() =>
           resolveReactRouterBindings({
             entrypoints: [entry('main')],

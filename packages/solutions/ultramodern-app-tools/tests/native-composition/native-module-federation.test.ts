@@ -29,8 +29,11 @@ afterEach(() => {
 function app(files: Record<string, string>): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'native-mf-'));
   roots.push(root);
-  for (const [file, content] of Object.entries(files))
-    fs.writeFileSync(path.join(root, file), content);
+  for (const [file, content] of Object.entries(files)) {
+    const target = path.join(root, file);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, content);
+  }
   return root;
 }
 
@@ -412,6 +415,11 @@ describe('native Module Federation plugin', () => {
     const root = app({
       'package.json': '{}',
       'module-federation.config.mjs': `export default { name: 'remote', exposes: { './Widget': './Widget.tsx' } };`,
+      // Block the test runner's ambient package lookup outside the application.
+      'node_modules/@module-federation/node/package.json': JSON.stringify({
+        name: '@module-federation/node',
+        exports: {},
+      }),
     });
     installPackages(root);
     const hooks = setup('solid', root);
@@ -516,6 +524,12 @@ describe('native Module Federation plugin', () => {
       app({
         'package.json': '{}',
         'module-federation.config.mjs': 'export default { name: "x" }',
+        'node_modules/@module-federation/enhanced/package.json': JSON.stringify(
+          {
+            name: '@module-federation/enhanced',
+            exports: {},
+          },
+        ),
       }),
     );
     await expect(
