@@ -26,18 +26,22 @@ const shared = `const shared = Object.fromEntries(
 `;
 
 function modernConfig(port, origin) {
-  return `import { defineConfig } from '@modern-js/ultramodern-app-tools';
+  // Generated apps compose over presetUltramodern, which shares the framework
+  // contexts (for example the head resolver) across federated remotes.
+  return `import { defineConfig, presetUltramodern } from '@modern-js/ultramodern-app-tools';
 import { moduleFederationPlugin } from '@module-federation/modern-js-v3';
 
-export default defineConfig({
-  renderer: 'react',
-  server: {
-    port: ${port},
-    ssr: { mode: 'stream', moduleFederationAppSSR: true },
-  },
-  output: { assetPrefix: ${JSON.stringify(`${origin}/`)} },
-  plugins: [moduleFederationPlugin()],
-});
+export default defineConfig(
+  presetUltramodern({
+    renderer: 'react',
+    server: {
+      port: ${port},
+      ssr: { mode: 'stream', moduleFederationAppSSR: true },
+    },
+    output: { assetPrefix: ${JSON.stringify(`${origin}/`)} },
+    plugins: [moduleFederationPlugin()],
+  }),
+);
 `;
 }
 
