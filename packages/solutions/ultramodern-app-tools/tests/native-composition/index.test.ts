@@ -169,17 +169,12 @@ async function withSavedReactBuild<T>(
     path.join(savedDist, RENDERER_BUILD_MANIFEST_FILE),
     JSON.stringify({
       schema: 'ultramodern-renderer-build',
-      version: 1,
+      version: 2,
+      renderer: 'react',
       profile,
-      identities: entries,
-      buildMarker,
+      entries,
+      buildId: buildMarker,
       sourceRevision: 'workspace',
-      inputDigest: 'b'.repeat(64),
-      profileDigest: 'c'.repeat(64),
-      compilerDigest: 'd'.repeat(64),
-      frameworkCohortDigest: 'e'.repeat(64),
-      cacheAllowed: false,
-      promotable: false,
       routerBindings: Object.fromEntries(
         entryNames.map(entryName => [
           entryName,

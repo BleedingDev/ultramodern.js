@@ -37,7 +37,6 @@ import {
 } from '../../src/native-composition/index';
 import { nativeClientAssetsPlugin } from '../../src/native-composition/native-assets';
 import { readRendererBuildManifest } from '../../src/native-composition/native-build-manifest';
-import { NativeDevelopment } from '../../src/native-composition/native-development';
 import {
   type NativeEntryGenerator,
   type NativeInfrastructureOptions,
@@ -1072,58 +1071,6 @@ export const nativeCSRRequestHandler = nativeRequestHandler;
   }, 30_000);
 
   it.each(['solid', 'octane'] as const)(
-    'pins %s development output ownership only at actual Rsbuild setup',
-    async renderer => {
-      const root = createFixture();
-      let distDirectory = '';
-      let directoryReads = 0;
-      try {
-        const authority = new NativeDevelopment({
-          renderer,
-          profile: resolveRendererProfile(renderer),
-          get distDirectory() {
-            directoryReads++;
-            return distDirectory;
-          },
-          getSessionIdentities() {
-            throw new Error(
-              'Config generation must not resolve build identities',
-            );
-          },
-          async resolveWaveInputs() {
-            throw new Error(
-              'Config generation must not resolve compiler waves',
-            );
-          },
-        });
-        expect(directoryReads).toBe(0);
-        distDirectory = path.join(root, 'dist');
-        const rsbuild = await createRsbuild({
-          cwd: root,
-          rsbuildConfig: {
-            mode: 'development',
-            plugins: [authority.plugin],
-            environments: {
-              client: { output: { target: 'web' } },
-              server: { output: { target: 'node' } },
-            },
-          },
-        });
-        const configs = await rsbuild.initConfigs({ action: 'dev' });
-        expect(directoryReads).toBe(1);
-        expect(
-          configs.find(config => config.name === 'client')?.output?.path,
-        ).toBe(path.join(distDirectory, '.ultramodern-dev', 'client'));
-        expect(
-          configs.find(config => config.name === 'server')?.output?.path,
-        ).toBe(path.join(distDirectory, '.ultramodern-dev', 'bundles'));
-      } finally {
-        fs.rmSync(root, { recursive: true, force: true });
-      }
-    },
-  );
-
-  it.each(['solid', 'octane'] as const)(
     'registers the full public %s SDK plugin graph without a dependency cycle',
     async renderer => {
       const config = await resolveUltramodernConfig(
@@ -1202,7 +1149,7 @@ export const nativeCSRRequestHandler = nativeRequestHandler;
         expect(api.getAppContext().distDirectory).toBe(distDirectory);
         const builderPlugins = resolved.builderPlugins as RsbuildPlugin[];
         expect(builderPlugins.map(plugin => plugin.name)).toContain(
-          `ultramodern:${renderer}:development-authority`,
+          `ultramodern:${renderer}:development`,
         );
 
         const { entrypoints } = await api.getHooks().modifyEntrypoints.call({
