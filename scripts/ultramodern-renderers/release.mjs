@@ -298,6 +298,9 @@ function playwrightRoot() {
 
 async function main() {
   let cohortDir = opts['cohort-dir'] && path.resolve(opts['cohort-dir']);
+  // The publish preparer only writes under .modern/bleedingdev-publish; a
+  // cohort this run builds is removed again when the run ends.
+  let ownedCohortRoot;
   let release;
   let cohort;
   let storeDir;
@@ -307,7 +310,13 @@ async function main() {
   try {
     await step('cohort', async () => {
       if (!cohortDir) {
-        cohortDir = path.join(workDir, 'cohort');
+        ownedCohortRoot = path.join(
+          root,
+          '.modern/bleedingdev-publish/build',
+          `renderer-release-${opts.version}`,
+        );
+        fs.rmSync(ownedCohortRoot, { recursive: true, force: true });
+        cohortDir = path.join(ownedCohortRoot, 'build');
         await sh('pnpm', ['ultramodern:build-bleedingdev-publish'], {
           log: 'cohort-build',
         });
@@ -607,6 +616,8 @@ async function main() {
     );
   } finally {
     await stopAll();
+    if (ownedCohortRoot)
+      fs.rmSync(ownedCohortRoot, { recursive: true, force: true });
   }
   const failed = results.some(r => r.status === 'FAIL');
   process.stdout.write(
