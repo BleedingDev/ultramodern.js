@@ -553,7 +553,13 @@ test('checked metadata reconciles per-entry partitions without replaying authore
     const apps = workspace.apps;
     const [shell, catalog, headless] = apps;
     assert.ok(workspace.config.topology.apps[0].moduleFederation);
-    assert.equal(workspace.config.topology.apps[1].moduleFederation, undefined);
+    assert.deepEqual(workspace.config.topology.apps[1].moduleFederation, {
+      name: 'verticalCatalog',
+      role: 'remote',
+      exposes: [],
+      exposePaths: undefined,
+      verticalRefs: undefined,
+    });
     assert.equal(workspace.config.topology.apps[2].moduleFederation, undefined);
     assert.equal(shell.rendererIdentity!.entryName, 'index');
     assert.equal(catalog.rendererIdentity!.entryName, 'dashboard');

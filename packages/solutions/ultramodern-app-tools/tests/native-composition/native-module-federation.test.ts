@@ -327,7 +327,7 @@ export default { name, remotes: { remote: '${manifestRemote}' } };`,
       '@modern-js/renderer-octane/client',
     ]) {
       expect(bindings.imports[request]).toBe(
-        path.join(root, owner, 'published.mjs'),
+        fs.realpathSync(path.join(root, owner, 'published.mjs')),
       );
       expect(bindings.aliases[`${request}$`]).toBe(bindings.imports[request]);
     }
@@ -366,10 +366,16 @@ export default { name, remotes: { remote: '${manifestRemote}' } };`,
       path.resolve(__dirname, '../..'),
       'client',
     );
-    expect(client.imports['octane/signals/client']).toMatch(
-      /\/dist\/signals\/client\.js$/u,
+    const selected = fs.realpathSync(
+      path.resolve(
+        __dirname,
+        '../../../../runtime/renderer-octane/node_modules/octane',
+      ),
     );
-    expect(client.imports.octane).toMatch(/\/dist\/index\.js$/u);
+    expect(client.imports['octane/signals/client']).toBe(
+      path.join(selected, 'dist/signals/client.js'),
+    );
+    expect(client.imports.octane).toBe(path.join(selected, 'dist/index.js'));
     expect(client.imports['octane/signals/server']).toBeUndefined();
   });
 
