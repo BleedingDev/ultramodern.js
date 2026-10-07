@@ -281,9 +281,15 @@ function browserExecutable() {
     return path.resolve(opts['browser-executable']);
   if (process.env.PUPPETEER_EXECUTABLE_PATH)
     return process.env.PUPPETEER_EXECUTABLE_PATH;
-  return createRequire(path.join(root, 'tests/package.json'))(
-    'puppeteer',
-  ).executablePath();
+  // The same Playwright Chromium the shared renderer specs launch.
+  const executable = createRequire(path.join(root, 'tests/package.json'))(
+    'playwright',
+  ).chromium.executablePath();
+  if (!fs.existsSync(executable))
+    throw new Error(
+      `Playwright Chromium is not installed at ${executable}; run \`pnpm --dir tests exec playwright install chromium\``,
+    );
+  return executable;
 }
 
 /** A directory that resolves the workspace's playwright-core (MF runner). */
