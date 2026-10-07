@@ -1,7 +1,9 @@
+import { spawnSync } from 'node:child_process';
 import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
@@ -18,7 +20,9 @@ const temporaryRoots: string[] = [];
 
 /** A vertical's on-disk shape: sources under `src/` and a BFF under `api/`. */
 const createVerticalApp = (compilerOptions: Record<string, unknown>) => {
-  const appDirectory = mkdtempSync(path.join(tmpdir(), 'tsgo-vertical-'));
+  const appDirectory = realpathSync.native(
+    mkdtempSync(path.join(tmpdir(), 'tsgo-vertical-')),
+  );
   temporaryRoots.push(appDirectory);
   mkdirSync(path.join(appDirectory, 'src'), { recursive: true });
   mkdirSync(path.join(appDirectory, 'api'), { recursive: true });
@@ -136,25 +140,28 @@ describe('withTsgoDefaults', () => {
     '7.0.2-rc.1',
     '7.1.0',
     '8.0.0',
-  ])('rejects app compiler %s without replacing it with another provider', version => {
-    const appDirectory = createVerticalApp({ strict: true });
-    const packageJsonPath = path.join(
-      appDirectory,
-      'node_modules/typescript/package.json',
-    );
-    mkdirSync(path.dirname(packageJsonPath), { recursive: true });
-    writeFileSync(
-      packageJsonPath,
-      JSON.stringify({ name: 'typescript', version }),
-    );
+  ])(
+    'rejects app compiler %s without replacing it with another provider',
+    version => {
+      const appDirectory = createVerticalApp({ strict: true });
+      const packageJsonPath = path.join(
+        appDirectory,
+        'node_modules/typescript/package.json',
+      );
+      mkdirSync(path.dirname(packageJsonPath), { recursive: true });
+      writeFileSync(
+        packageJsonPath,
+        JSON.stringify({ name: 'typescript', version }),
+      );
 
-    expect(() => withTsgoDefaults(undefined, appDirectory)).toThrow(
-      `requires typescript@7.0.2; found typescript@${version}`,
-    );
-    expect(readFileSync(packageJsonPath, 'utf8')).toBe(
-      JSON.stringify({ name: 'typescript', version }),
-    );
-  });
+      expect(() => withTsgoDefaults(undefined, appDirectory)).toThrow(
+        `requires typescript@7.0.2; found typescript@${version}`,
+      );
+      expect(readFileSync(packageJsonPath, 'utf8')).toBe(
+        JSON.stringify({ name: 'typescript', version }),
+      );
+    },
+  );
 
   test('rejects a different package posing as the canonical compiler', () => {
     const appDirectory = createVerticalApp({ strict: true });
@@ -259,10 +266,7 @@ describe('withTsgoDefaults', () => {
     );
   });
 
-  test('leaves rootDir unset for a non-composite project without one', () => {
-    // TypeScript infers the root from the input files here, which is correct
-    // and must not be overridden - an app may legitimately include sources
-    // from outside its own directory.
+  test('keeps the project root for a non-composite project without rootDir', () => {
     const appDirectory = createVerticalApp({ baseUrl: '.' });
     const config = applyChain(
       withTsgoDefaults(
@@ -272,7 +276,100 @@ describe('withTsgoDefaults', () => {
     );
     const generated = readGeneratedCheckerConfig(appDirectory, config);
 
-    expect('rootDir' in generated.compilerOptions).toBe(false);
+    expect(generated.compilerOptions.rootDir).toBe(
+      appDirectory.replaceAll(path.sep, '/'),
+    );
+  });
+
+  test('preserves an inherited rootDir relative to its declaring config', () => {
+    const appDirectory = createVerticalApp({});
+    mkdirSync(path.join(appDirectory, 'config'));
+    writeFileSync(
+      path.join(appDirectory, 'config/base.json'),
+      JSON.stringify({ compilerOptions: { rootDir: '..' } }),
+    );
+    writeFileSync(
+      path.join(appDirectory, 'tsconfig.json'),
+      JSON.stringify({
+        extends: './config/base.json',
+        include: ['src', 'api'],
+      }),
+    );
+    const config = applyChain(
+      withTsgoDefaults(
+        { typescript: { configFile: 'tsconfig.json' } },
+        appDirectory,
+      ),
+    );
+    const generated = readGeneratedCheckerConfig(appDirectory, config);
+
+    expect(generated.compilerOptions.rootDir).toBe(
+      appDirectory.replaceAll(path.sep, '/'),
+    );
+  });
+
+  test('builds ordinary app sources with the stable native compiler and keeps strict errors', () => {
+    const appDirectory = createVerticalApp({
+      strict: true,
+      types: [],
+      target: 'ES2022',
+      module: 'ESNext',
+      moduleResolution: 'bundler',
+      outDir: 'dist',
+    });
+    const projectConfigFile = path.join(appDirectory, 'tsconfig.json');
+    const authoredConfig = readFileSync(projectConfigFile, 'utf8');
+    const config = applyChain(
+      withTsgoDefaults(
+        { typescript: { configFile: 'tsconfig.json' } },
+        appDirectory,
+      ),
+    );
+    const packageJsonPath = config.typescript?.typescriptPath;
+    if (!packageJsonPath) throw new Error('The compiler provider is absent');
+    const provider = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
+    const compiler = path.resolve(
+      path.dirname(packageJsonPath),
+      provider.bin.tsc,
+    );
+    const args = [
+      compiler,
+      '--build',
+      config.typescript?.configFile as string,
+      '--pretty',
+      'false',
+    ];
+
+    // Build mode checks root containment; --noEmit alone cannot catch TS6059.
+    const valid = spawnSync(process.execPath, args, {
+      cwd: appDirectory,
+      encoding: 'utf8',
+      timeout: 20_000,
+    });
+    expect(valid.error).toBeUndefined();
+    expect(valid.stdout + valid.stderr).toBe('');
+    expect(valid.status).toBe(0);
+    expect(
+      readFileSync(path.join(appDirectory, 'dist/src/index.js'), 'utf8'),
+    ).toContain('export const a = 1;');
+    expect(
+      readFileSync(path.join(appDirectory, 'dist/api/index.js'), 'utf8'),
+    ).toContain('export const b = 2;');
+
+    writeFileSync(
+      path.join(appDirectory, 'src/index.ts'),
+      'export const a: string = 1;\n',
+    );
+    const invalid = spawnSync(process.execPath, [...args, '--force'], {
+      cwd: appDirectory,
+      encoding: 'utf8',
+      timeout: 20_000,
+    });
+    expect(invalid.error).toBeUndefined();
+    expect(invalid.status).not.toBe(0);
+    expect(invalid.stdout + invalid.stderr).toContain('TS2322');
+    expect(invalid.stdout + invalid.stderr).not.toContain('TS6059');
+    expect(readFileSync(projectConfigFile, 'utf8')).toBe(authoredConfig);
   });
 
   test('restates project references so a referenced sibling stays a project boundary', () => {

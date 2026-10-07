@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { expect, it } from '@rstest/core';
@@ -9,7 +10,12 @@ it('checks native builder configuration without React or SVGR compiler declarati
     path.join(os.tmpdir(), 'modern-neutral-builder-types-'),
   );
   const builderDirectory = path.resolve(__dirname, '..');
-  const repository = path.resolve(builderDirectory, '../../..');
+  const packageRequire = createRequire(__filename);
+  const compilerPackage = packageRequire.resolve('typescript/package.json');
+  const compilerPath = path.resolve(
+    path.dirname(compilerPackage),
+    packageRequire(compilerPackage).bin.tsc,
+  );
   try {
     await fs.writeFile(
       path.join(fixture, 'optional-compiler.d.ts'),
@@ -60,8 +66,8 @@ export { native, react, invalidCompiler, invalidSvg };
       }),
     );
     const result = spawnSync(
-      path.join(repository, 'node_modules/.bin/tsgo'),
-      ['--project', path.join(fixture, 'tsconfig.json')],
+      process.execPath,
+      [compilerPath, '--project', path.join(fixture, 'tsconfig.json')],
       {
         cwd: fixture,
         encoding: 'utf8',

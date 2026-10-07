@@ -1,5 +1,12 @@
-import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { createAppEnvDts } from '../../../toolkit/ultramodern-create/src/ultramodern-workspace/app-files';
@@ -27,6 +34,13 @@ describe('app-tools types', () => {
       join(__dirname, '.tmp-app-tools-types-contract-'),
     );
     try {
+      const packageScope = join(fixture, 'node_modules/@modern-js');
+      mkdirSync(packageScope, { recursive: true });
+      symlinkSync(
+        join(repoRoot, 'packages/solutions/ultramodern-app-tools'),
+        join(packageScope, 'ultramodern-app-tools'),
+        'junction',
+      );
       writeFileSync(
         join(fixture, 'modern-app-env.d.ts'),
         createAppEnvDts(shellApp, [], 'tractor-store'),
@@ -62,16 +76,16 @@ describe('app-tools types', () => {
         }),
       );
 
-      expect(() =>
-        execFileSync(
-          process.execPath,
-          [compilerLauncher, '-p', 'tsconfig.json'],
-          {
-            cwd: fixture,
-            stdio: 'pipe',
-          },
-        ),
-      ).not.toThrow();
+      const result = spawnSync(
+        process.execPath,
+        [compilerLauncher, '-p', 'tsconfig.json'],
+        {
+          cwd: fixture,
+          encoding: 'utf8',
+        },
+      );
+      expect(result.error).toBeUndefined();
+      expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
     } finally {
       rmSync(fixture, { recursive: true, force: true });
     }

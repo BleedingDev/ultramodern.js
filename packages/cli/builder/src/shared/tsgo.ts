@@ -225,16 +225,14 @@ const createTsgoCheckerConfig = (
     baseUrl: null,
   };
 
-  // `rootDir` must name the project's own directory, never the generated
-  // config's. An explicit value has already been made absolute while the
-  // extends chain was merged; with `composite` and no explicit value
-  // TypeScript defaults `rootDir` to the directory holding the config, which
-  // here would be `.modern-js/tsgo/` and would put every source file outside
-  // the root (TS6059). Pin what the default would have produced in place.
+  // TypeScript 7 defaults `rootDir` to the config directory for ordinary and
+  // composite projects. Preserve the project's root when moving its checker
+  // config into `.modern-js/tsgo/`, or build checks reject app sources (TS6059).
+  // Explicit and inherited roots are already absolute after merging extends.
   const declaredRootDir = tsConfig.compilerOptions?.rootDir;
   if (typeof declaredRootDir === 'string') {
     compilerOptions.rootDir = toPosixPath(declaredRootDir);
-  } else if (tsConfig.compilerOptions?.composite === true) {
+  } else {
     compilerOptions.rootDir = toPosixPath(configDirectory);
   }
   const moduleResolution = String(
