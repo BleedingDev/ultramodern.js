@@ -382,11 +382,15 @@ describe('renderer-neutral HTTP data outcomes', () => {
           headers: {
             'content-length': '99',
             'content-encoding': 'gzip',
+            'Content-Digest': 'sha-256=:bG9hZGVyLWJvZHk=:',
+            'rEpR-DiGeSt': 'sha-256=:bG9hZGVyLXJlcHJlc2VudGF0aW9u=:',
+            DIGEST: 'sha-256=bG9hZGVyLWJvZHk=',
             etag: 'data-etag',
             'last-modified': 'yesterday',
             'content-range': 'bytes 1-2/3',
             'cache-control': 'public, max-age=60, s-maxage=120',
             'x-owner': 'route',
+            'content-security-policy': "default-src 'self'",
           },
         },
       ),
@@ -401,12 +405,17 @@ describe('renderer-neutral HTTP data outcomes', () => {
     for (const name of [
       'content-length',
       'content-encoding',
+      'content-digest',
+      'repr-digest',
+      'digest',
       'etag',
       'last-modified',
       'content-range',
     ])
       expect(headers.has(name)).toBe(false);
     expect(headers.get('x-owner')).toBe('route');
+    expect(headers.get('content-security-policy')).toBe("default-src 'self'");
+    expect(headers.get('cache-control')).toBe('public, max-age=60');
     expect(policy.cache).toEqual({ mode: 'public', maxAgeSeconds: 60 });
     const unsafe = dataMetadataToDocumentPolicy({
       ...value.response,
@@ -428,6 +437,9 @@ describe('renderer-neutral HTTP data outcomes', () => {
       location: '/next',
       'content-type': 'text/plain',
       'x-native': 'native',
+      'Content-Digest': 'sha-256=:bmF0aXZlLWJvZHk=:',
+      'Repr-Digest': 'sha-256=:bmF0aXZlLXJlcHJlc2VudGF0aW9u=:',
+      Digest: 'sha-256=bmF0aXZlLWJvZHk=',
     });
     headers.append('set-cookie', 'child=1');
     headers.append('set-cookie', 'native=2');
@@ -438,7 +450,15 @@ describe('renderer-neutral HTTP data outcomes', () => {
     const root = await normalizeDataResult(
       Response.json(
         {},
-        { headers: { 'set-cookie': 'layout=1', 'x-layout': 'layout' } },
+        {
+          headers: {
+            'set-cookie': 'layout=1',
+            'x-layout': 'layout',
+            'Content-Digest': 'sha-256=:bGF5b3V0LWJvZHk=:',
+            'Repr-Digest': 'sha-256=:bGF5b3V0LXJlcHJlc2VudGF0aW9u=:',
+            Digest: 'sha-256=bGF5b3V0LWJvZHk=',
+          },
+        },
       ),
     );
     const child = await normalizeDataResult(
@@ -456,6 +476,13 @@ describe('renderer-neutral HTTP data outcomes', () => {
     expect(response.headers.get('content-type')).toBe('text/plain');
     expect(response.headers.get('x-native')).toBe('native');
     expect(response.headers.get('x-layout')).toBe('layout');
+    expect(response.headers.get('content-digest')).toBe(
+      'sha-256=:bmF0aXZlLWJvZHk=:',
+    );
+    expect(response.headers.get('repr-digest')).toBe(
+      'sha-256=:bmF0aXZlLXJlcHJlc2VudGF0aW9u=:',
+    );
+    expect(response.headers.get('digest')).toBe('sha-256=bmF0aXZlLWJvZHk=');
     expect(response.headers.getSetCookie()).toEqual([
       'layout=1',
       'child=1',
@@ -558,11 +585,15 @@ describe('renderer-neutral HTTP data outcomes', () => {
         'transfer-encoding': 'chunked',
         'content-range': 'bytes 1-2/3',
         'accept-ranges': 'bytes',
+        'Content-Digest': 'sha-256=:bG9hZGVyLWJvZHk=:',
+        'rEpR-DiGeSt': 'sha-256=:bG9hZGVyLXJlcHJlc2VudGF0aW9u=:',
+        DIGEST: 'sha-256=bG9hZGVyLWJvZHk=',
         etag: 'original-etag',
         'last-modified': 'Wed, 07 Oct 2026 09:00:00 GMT',
         location: '/original',
         'cache-control': 'private, max-age=5',
         'x-owner': 'route',
+        'content-security-policy': "default-src 'self'",
       });
       headers.append('set-cookie', 'session=1; HttpOnly');
       headers.append('set-cookie', 'csrf=2; Secure');
@@ -580,6 +611,9 @@ describe('renderer-neutral HTTP data outcomes', () => {
         'transfer-encoding',
         'content-range',
         'accept-ranges',
+        'content-digest',
+        'repr-digest',
+        'digest',
         'etag',
         'last-modified',
         'location',
@@ -589,6 +623,9 @@ describe('renderer-neutral HTTP data outcomes', () => {
         'application/vnd.ultramodern.data+json; charset=utf-8',
       );
       expect(response.headers.get('x-owner')).toBe('route');
+      expect(response.headers.get('content-security-policy')).toBe(
+        "default-src 'self'",
+      );
       expect(response.headers.get('cache-control')).toBe('no-store');
       expect(response.headers.getSetCookie()).toEqual([
         'session=1; HttpOnly',
