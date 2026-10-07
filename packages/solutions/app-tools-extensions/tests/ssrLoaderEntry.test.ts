@@ -1,4 +1,4 @@
-import { applySSRLoaderEntry } from '../../src/builder/shared/builderPlugins/adapterSSR';
+import { applySSRLoaderEntry } from '../../app-tools/src/builder/shared/builderPlugins/adapterSSR';
 
 const collectLoaderEntries = async (
   isServer: boolean,

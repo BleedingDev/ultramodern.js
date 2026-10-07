@@ -1,5 +1,6 @@
 import type { CLIPlugin, CLIPluginExtends } from '@modern-js/plugin/cli';
 import type { NestedRouteForCli, PageRoute } from '@modern-js/types/cli';
+import type { ReactNode } from 'react';
 import type {
   AppToolsExtendAPI,
   AppToolsExtendContext,
@@ -9,6 +10,12 @@ import type {
   AppToolsUserConfigBase,
   AppToolsNormalizedConfig as BaseNormalizedConfig,
 } from './base';
+
+declare module './base' {
+  interface CLIElementTypes {
+    react: ReactNode;
+  }
+}
 
 export type { AppToolsBuilderPlugins } from './base';
 export * from './output';

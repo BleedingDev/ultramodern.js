@@ -404,6 +404,37 @@ const callbackReact = defineConfig(context => {
 void defaultReact; void explicitReact; void callbackReact;
 `;
 
+const legacyReactFactoryConsumer = `${sharedConsumer}
+import {
+  defineConfig as defineReactConfig,
+  type AppTools as ReactAppTools,
+  type CliPlugin,
+} from '@modern-js/app-tools';
+import { ultramodernAppTools } from '@modern-js/ultramodern-app-tools';
+import type { ReactNode } from 'react';
+
+export type ReactRootRegistry = Assert<Same<keyof CLIElementTypes, 'react'>>;
+export type ReactRootNode = Assert<Same<CLIElementTypes['react'], ReactNode>>;
+const base: CliPlugin<ReactAppTools> = ultramodernAppTools();
+const typedReactConfig = defineReactConfig({ plugins: [base] });
+const inferredReactConfig = defineReactConfig({ plugins: [ultramodernAppTools()] });
+type BaseAPI = Parameters<NonNullable<ReturnType<typeof ultramodernAppTools>['setup']>>[0];
+function verifyBaseRoutes(api: BaseAPI) {
+  api.modifyFileSystemRoutes(event => {
+    // @ts-expect-error React CLI route callbacks keep their typed collection.
+    event.routes = 'invalid routes';
+    const route: CLIFileSystemRoute<CLIElement> = {
+      type: 'nested', origin: 'config', component: './page.tsx',
+      element: 'React route child', errorElement: 123,
+    };
+    // @ts-expect-error React route elements cannot contain arbitrary objects.
+    route.element = { invalidReactNode: true };
+    return { ...event, routes: [route] };
+  });
+}
+void base; void typedReactConfig; void inferredReactConfig; void verifyBaseRoutes;
+`;
+
 describe('installed renderer-neutral public declarations', () => {
   it.each(consumers)(
     'keeps native root, CLI, and Rsbuild consumers renderer-free with $name $extension',
@@ -430,6 +461,32 @@ describe('installed renderer-neutral public declarations', () => {
           file.endsWith('/app-tools/dist/types/types/config/base.d.ts'),
         ),
       ).toBe(true);
+    },
+    60_000,
+  );
+
+  it.each(consumers)(
+    'admits the explicit React factory through the React root without an environment opt-in with $name $extension',
+    consumer => {
+      const graph = checkInstalledDeclarations(
+        consumer,
+        legacyReactFactoryConsumer,
+        { react: true },
+      );
+      expect(
+        graph.some(file =>
+          file.endsWith('/app-tools/dist/types/types/config/index.d.ts'),
+        ),
+      ).toBe(true);
+      expect(
+        graph.filter(
+          file =>
+            file.includes('/renderers/react/composition.d.') ||
+            file.includes('/renderers/react/types.d.') ||
+            (file.includes('ultramodern-app-tools') &&
+              file.endsWith('/lib/react-types.d.ts')),
+        ),
+      ).toEqual([]);
     },
     60_000,
   );
