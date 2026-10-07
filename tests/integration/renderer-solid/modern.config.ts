@@ -1,3 +1,7 @@
 import { defineConfig } from '@modern-js/ultramodern-app-tools';
 
-export default defineConfig({ renderer: 'solid', server: { ssr: true } });
+// The csr specs build the same app without SSR.
+export default defineConfig({
+  renderer: 'solid',
+  server: { ssr: process.env.RENDERER_CSR !== 'true' },
+});
