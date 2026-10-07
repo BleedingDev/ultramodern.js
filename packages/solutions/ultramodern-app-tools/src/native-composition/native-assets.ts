@@ -6,6 +6,40 @@ import {
 import type { DocumentAsset } from '@modern-js/renderer-core/document';
 import type { RsbuildPlugin, Rspack } from '@rsbuild/core';
 import { rspack } from '@rsbuild/core';
+import { NATIVE_APPLICATION_CLIENT_REQUEST } from './native-entry';
+
+const assetOrder: readonly DocumentAsset['kind'][] = [
+  'stylesheet',
+  'modulepreload',
+  'script',
+];
+
+/**
+ * The chunk groups the generated entry's application import() loads, also
+ * behind the Module Federation bootstrap import(). Lazy modules the
+ * application imports later are not part of the document.
+ */
+function applicationChunkGroups(
+  entrypoint: Rspack.ChunkGroup,
+): Rspack.ChunkGroup[] {
+  const found: Rspack.ChunkGroup[] = [];
+  const visited = new Set<Rspack.ChunkGroup>();
+  const visit = (group: Rspack.ChunkGroup) => {
+    for (const child of group.childrenIterable) {
+      if (visited.has(child)) continue;
+      visited.add(child);
+      if (
+        child.origins.some(
+          origin => origin.request === NATIVE_APPLICATION_CLIENT_REQUEST,
+        )
+      )
+        found.push(child);
+      else visit(child);
+    }
+  };
+  visit(entrypoint);
+  return found;
+}
 
 /** Produce document assets from the actual selected client compilation. */
 export function nativeClientAssetsPlugin(
@@ -113,9 +147,11 @@ export function nativeClientAssetsPlugin(
                         ...rendererIdentity,
                         entryName,
                       });
-                      const assets = entrypoint
-                        .getFiles()
-                        .flatMap<DocumentAsset>(file => {
+                      const documentAssets = (
+                        files: readonly string[],
+                        scripts: 'script' | 'modulepreload' | undefined,
+                      ) =>
+                        files.flatMap<DocumentAsset>(file => {
                           const emitted = compilation.getAsset(file);
                           if (!emitted)
                             throw new Error(
@@ -129,12 +165,41 @@ export function nativeClientAssetsPlugin(
                             href,
                             ...(crossOrigin ? { crossOrigin } : {}),
                           };
-                          if (/\.[cm]?js$/u.test(file))
-                            return [{ kind: 'script', ...common, scriptType }];
+                          if (/\.[cm]?js$/u.test(file)) {
+                            if (scripts === 'script')
+                              return [
+                                { kind: 'script', ...common, scriptType },
+                              ];
+                            if (scripts === 'modulepreload')
+                              return [{ kind: 'modulepreload', ...common }];
+                            return [];
+                          }
                           if (/\.css$/u.test(file))
                             return [{ kind: 'stylesheet', ...common }];
                           return [];
                         });
+                      const entryFiles = entrypoint.getFiles();
+                      // The entry loads the application (routes, layouts and
+                      // their styles) through import(). Link its stylesheets
+                      // so the first paint is styled, and preload its modules.
+                      const applicationFiles = applicationChunkGroups(
+                        entrypoint,
+                      )
+                        .flatMap(group => group.getFiles())
+                        .filter(file => !entryFiles.includes(file));
+                      // Stylesheets come first, then module preloads; the
+                      // stable sort keeps each kind in chunk order.
+                      const assets = [
+                        ...documentAssets(entryFiles, 'script'),
+                        ...documentAssets(
+                          applicationFiles,
+                          scriptType === 'module' ? 'modulepreload' : undefined,
+                        ),
+                      ].sort(
+                        (a, b) =>
+                          assetOrder.indexOf(a.kind) -
+                          assetOrder.indexOf(b.kind),
+                      );
                       entries[entryName] = { rendererIdentity, assets };
                     }
                     compilation.emitAsset(

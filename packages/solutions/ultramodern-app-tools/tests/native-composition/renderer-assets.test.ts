@@ -31,12 +31,26 @@ async function compile(options: {
     );
     fs.writeFileSync(
       path.join(root, 'client.ts'),
-      'import "./style.css"; globalThis.assetProof = true;',
+      'import "./style.css"; globalThis.assetProof = true; void import("./application.client");',
     );
     fs.writeFileSync(
       path.join(root, 'style.css'),
       'body { color: rebeccapurple; }',
     );
+    // The generated entry loads routes and layouts through this import().
+    fs.writeFileSync(
+      path.join(root, 'application.client.ts'),
+      'import "./layout.css"; export const later = () => import("./later");',
+    );
+    fs.writeFileSync(
+      path.join(root, 'layout.css'),
+      'main { color: rgb(20, 40, 60); }',
+    );
+    fs.writeFileSync(
+      path.join(root, 'later.ts'),
+      'import "./later.css"; export default "later";',
+    );
+    fs.writeFileSync(path.join(root, 'later.css'), 'aside { color: teal; }');
     fs.writeFileSync(
       path.join(root, 'server.ts'),
       'export const artifactProof = "native-server";',
@@ -293,72 +307,107 @@ describe('compiler-owned native document assets', () => {
     }
   }, 30_000);
 
-  it.each([
-    false,
-    true,
-  ])('records actual scripts, styles and server format, module=%s', async module => {
-    const build = await compile({
-      module,
-      identity,
-      publicPath: 'https://cdn.example.test/static/',
-    });
-    try {
-      const client = build.stats.stats.find(
-        stats => stats.compilation.name === 'client',
-      )!;
-      const manifest = JSON.parse(
-        fs.readFileSync(
-          path.join(build.root, 'dist', 'renderer-assets.json'),
-          'utf8',
-        ),
-      );
-      const assets = validateNativeClientAssetManifest(manifest, identity);
-      expect(assets.map(asset => asset.href)).toEqual(
-        client.compilation.entrypoints
-          .get('main')!
-          .getFiles()
-          .filter(file => /\.(?:css|[cm]?js)$/u.test(file))
-          .map(file => `https://cdn.example.test/static/${file}`),
-      );
-      expect(assets.some(asset => asset.kind === 'stylesheet')).toBe(true);
-      expect(
-        assets
-          .filter(asset => asset.kind === 'script')
-          .every(asset => asset.scriptType === (module ? 'module' : 'classic')),
-      ).toBe(true);
-      const server = build.stats.stats.find(
-        stats => stats.compilation.name === 'server',
-      )!;
-      const file = [
-        ...server.compilation.entrypoints.get('main')!.getEntrypointChunk()
-          .files,
-      ].find(file => /\.[cm]?js$/u.test(file))!;
-      const output = server.compilation.outputOptions.path!;
-      expect(
-        JSON.parse(fs.readFileSync(path.join(output, 'package.json'), 'utf8'))
-          .type,
-      ).toBe(module ? 'module' : 'commonjs');
-      const exports = await import(pathToFileURL(path.join(output, file)).href);
-      expect((exports.default ?? exports).artifactProof).toBe('native-server');
-      expect(() =>
-        validateNativeClientAssetManifest(manifest, {
-          ...identity,
-          buildId: 'b'.repeat(64),
-        }),
-      ).toThrow();
-    } finally {
-      await build.cleanup();
-    }
-  }, 30_000);
+  it.each([false, true])(
+    'records actual scripts, styles and server format, module=%s',
+    async module => {
+      const build = await compile({
+        module,
+        identity,
+        publicPath: 'https://cdn.example.test/static/',
+      });
+      try {
+        const client = build.stats.stats.find(
+          stats => stats.compilation.name === 'client',
+        )!;
+        const manifest = JSON.parse(
+          fs.readFileSync(
+            path.join(build.root, 'dist', 'renderer-assets.json'),
+            'utf8',
+          ),
+        );
+        const assets = validateNativeClientAssetManifest(manifest, identity);
+        const prefix = 'https://cdn.example.test/static/';
+        const hrefs = (kind: string) =>
+          assets.filter(asset => asset.kind === kind).map(asset => asset.href);
+        expect(hrefs('script')).toEqual(
+          client.compilation.entrypoints
+            .get('main')!
+            .getFiles()
+            .filter(file => /\.[cm]?js$/u.test(file))
+            .map(file => `${prefix}${file}`),
+        );
+        // Entry and application styles are linked, ahead of every module;
+        // a lazy module's style loads with that module.
+        const css = hrefs('stylesheet').map(href =>
+          fs.readFileSync(
+            path.join(build.root, 'dist', href.slice(prefix.length)),
+            'utf8',
+          ),
+        );
+        expect(css).toEqual([
+          expect.stringContaining('body'),
+          expect.stringContaining('main'),
+        ]);
+        expect(assets.findIndex(asset => asset.kind !== 'stylesheet')).toBe(
+          css.length,
+        );
+        // Module scripts preload the application; classic scripts cannot.
+        const preloads = hrefs('modulepreload');
+        expect(preloads.length > 0).toBe(module);
+        for (const href of preloads)
+          expect(
+            fs.readFileSync(
+              path.join(build.root, 'dist', href.slice(prefix.length)),
+              'utf8',
+            ),
+          ).not.toContain('"later"');
+        expect(
+          assets
+            .filter(asset => asset.kind === 'script')
+            .every(
+              asset => asset.scriptType === (module ? 'module' : 'classic'),
+            ),
+        ).toBe(true);
+        const server = build.stats.stats.find(
+          stats => stats.compilation.name === 'server',
+        )!;
+        const file = [
+          ...server.compilation.entrypoints.get('main')!.getEntrypointChunk()
+            .files,
+        ].find(file => /\.[cm]?js$/u.test(file))!;
+        const output = server.compilation.outputOptions.path!;
+        expect(
+          JSON.parse(fs.readFileSync(path.join(output, 'package.json'), 'utf8'))
+            .type,
+        ).toBe(module ? 'module' : 'commonjs');
+        const exports = await import(
+          pathToFileURL(path.join(output, file)).href
+        );
+        expect((exports.default ?? exports).artifactProof).toBe(
+          'native-server',
+        );
+        expect(() =>
+          validateNativeClientAssetManifest(manifest, {
+            ...identity,
+            buildId: 'b'.repeat(64),
+          }),
+        ).toThrow();
+      } finally {
+        await build.cleanup();
+      }
+    },
+    30_000,
+  );
 
-  it.each([
-    'auto',
-    './',
-  ])('rejects nonauthoritative %s asset URLs before a document manifest can be emitted', async publicPath => {
-    await expect(compile({ publicPath, identity })).rejects.toThrow(
-      'explicit output.assetPrefix',
-    );
-  }, 30_000);
+  it.each(['auto', './'])(
+    'rejects nonauthoritative %s asset URLs before a document manifest can be emitted',
+    async publicPath => {
+      await expect(compile({ publicPath, identity })).rejects.toThrow(
+        'explicit output.assetPrefix',
+      );
+    },
+    30_000,
+  );
 
   it('rejects a compiled entry without an owning immutable identity', async () => {
     await expect(compile({})).rejects.toThrow('no resolved identity for main');
