@@ -30,6 +30,17 @@ export { collectDataHeaders };
 const DEFERRED = Symbol('ultramodern.data.deferred');
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 const BODYLESS_STATUSES = new Set([204, 205, 304]);
+const REPRESENTATION_HEADERS = new Set([
+  'content-type',
+  'content-length',
+  'content-encoding',
+  'transfer-encoding',
+  'content-range',
+  'accept-ranges',
+  'etag',
+  'last-modified',
+  'location',
+]);
 const outcomePolicies = new WeakMap<DataOutcome, RequestDataPolicy>();
 
 /**
@@ -84,9 +95,14 @@ export function deferData(
   };
 }
 
-function publicCacheLifetime(cacheControl: string): number | undefined {
+function cacheLifetime(
+  cacheControl: string,
+  privateCache = false,
+): number | undefined {
   const directives = [
-    ...cacheControl.matchAll(/(?:^|,)\s*(s-maxage|max-age)\s*=\s*([^,]*)/gi),
+    ...cacheControl.matchAll(
+      /(?:^|,)\s*(s-maxage|max-age)(?=\s*(?:=|,|$))\s*(?:=\s*([^,]*))?/gi,
+    ),
   ];
   const names = new Set<string>();
   const ages: number[] = [];
@@ -100,6 +116,8 @@ function publicCacheLifetime(cacheControl: string): number | undefined {
     names.add(name);
     ages.push(age);
   }
+  // Shared-cache freshness cannot establish a private-cache lifetime.
+  if (privateCache && !names.has('max-age')) return undefined;
   return ages.length > 0 ? Math.min(...ages) : undefined;
 }
 
@@ -144,25 +162,27 @@ export function mergeDataResponseMetadata(
     nativeResponse.status >= 400
   )
     cachePolicy = 'no-store';
-  if (cachePolicy === 'public') {
+  if (cachePolicy !== 'no-store') {
     const ages = outcomes.map(outcome =>
-      publicCacheLifetime(
+      cacheLifetime(
         new Headers(outcome.response.headers).get('cache-control') ?? '',
+        cachePolicy === 'private',
       ),
     );
-    if (ages.some(age => age === undefined)) cachePolicy = 'no-store';
-    else
+    if (cachePolicy === 'public' && ages.some(age => age === undefined))
+      cachePolicy = 'no-store';
+    else {
+      // An absent or invalid private lifetime requires immediate revalidation.
+      const maxAge = Math.min(...ages.map(age => age ?? 0));
       headers.set(
         'cache-control',
-        `public, max-age=${Math.min(...(ages as number[]))}`,
+        cachePolicy === 'private'
+          ? `private, max-age=${maxAge}, must-revalidate`
+          : `public, max-age=${maxAge}`,
       );
+    }
   }
   if (cachePolicy === 'no-store') headers.set('cache-control', 'no-store');
-  else if (
-    cachePolicy === 'private' &&
-    !/\bprivate\b/i.test(headers.get('cache-control') ?? '')
-  )
-    headers.set('cache-control', 'private');
   return {
     status: nativeResponse.status,
     statusText: nativeResponse.statusText ?? '',
@@ -176,19 +196,8 @@ export function dataMetadataToDocumentPolicy(
   metadata: DataResponseMetadata,
 ): ResponsePolicy {
   const headers = new Headers();
-  const representationHeaders = new Set([
-    'content-type',
-    'content-length',
-    'content-encoding',
-    'transfer-encoding',
-    'content-range',
-    'accept-ranges',
-    'etag',
-    'last-modified',
-    'location',
-  ]);
   for (const [name, value] of metadata.headers) {
-    if (!representationHeaders.has(name.toLowerCase()))
+    if (!REPRESENTATION_HEADERS.has(name.toLowerCase()))
       headers.append(name, value);
   }
   headers.set('content-type', 'text/html; charset=utf-8');
@@ -205,7 +214,7 @@ export function dataMetadataToDocumentPolicy(
       ?.split(',')
       .some(value => value.trim() === '*')
   ) {
-    const maxAgeSeconds = publicCacheLifetime(cacheControl);
+    const maxAgeSeconds = cacheLifetime(cacheControl);
     if (maxAgeSeconds !== undefined) cache = { mode: 'public', maxAgeSeconds };
   }
   if (headers.has('set-cookie') || metadata.status >= 400)
@@ -667,12 +676,10 @@ export function createDataResponse(
     options.operation,
   );
   const headers = new Headers();
+  // The envelope owns new bytes. Original validators, ranges and redirects do not.
   for (const [name, value] of outcome.response.headers)
-    headers.append(name, value);
-  // Redirects use an inert envelope so Fetch does not navigate before the native router.
-  headers.delete('location');
-  headers.delete('content-length');
-  headers.delete('content-encoding');
+    if (!REPRESENTATION_HEADERS.has(name.toLowerCase()))
+      headers.append(name, value);
   headers.set('x-modernjs-response', 'yes');
   if (
     !headers.has('cache-control') ||

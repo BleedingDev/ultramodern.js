@@ -373,20 +373,110 @@ describe('production native Node Fetch dispatch', () => {
     { headers: { authorization: 'Bearer token' } },
     { headers: { 'cache-control': 'no-cache' } },
     { headers: { 'cache-control': 'no-store' } },
+    { headers: { 'cache-control': 'max-age=0' } },
+    { headers: { 'Cache-Control': 'public, MaX-aGe = 0 , max-stale=30' } },
+    { headers: { 'cache-control': 'max-age="0"' } },
+    { headers: { 'cache-control': 'max-age=000' } },
+    { headers: { 'If-None-Match': 'W/"current"' } },
+    { headers: { 'if-none-match': '' } },
+    { headers: { 'If-Modified-Since': 'Wed, 07 Oct 2026 10:00:00 GMT' } },
+    { headers: { 'if-modified-since': '' } },
     { headers: { pragma: 'no-cache' } },
     { headers: { range: 'bytes=0-5' } },
   ])(
     'bypasses cache before lookup for private or non-document request %j',
     async requestOptions => {
       const cache = store();
-      const response = await dispatchNativeNodeRequest(
-        new Request('https://example.test/', requestOptions),
-        options((_request, context) => publicDocument('uncached', context), {
-          cache,
-        }),
+      let renders = 0;
+      const handler = rstest.fn(
+        (_request: Request, context: NativeRequestContext) =>
+          publicDocument(`render ${++renders}`, context),
       );
-      await response.text();
+      const selected = options(handler, { cache });
+      const first = await dispatchNativeNodeRequest(
+        new Request('https://example.test/'),
+        selected,
+      );
+      expect(await first.text()).toBe('render 1');
+      expect(cache.set).toHaveBeenCalledTimes(1);
+      cache.get.mockClear();
+      cache.set.mockClear();
+      const request = new Request('https://example.test/', requestOptions);
+      const response = await dispatchNativeNodeRequest(request, selected);
+      expect(await response.text()).toBe('render 2');
+      expect(handler).toHaveBeenCalledTimes(2);
+      expect([...handler.mock.calls[1][0].headers]).toEqual([
+        ...request.headers,
+      ]);
       expect(cache.get).not.toHaveBeenCalled();
+      expect(cache.set).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ['If-None-Match', 'W/"current"'],
+    ['If-Modified-Since', 'Wed, 07 Oct 2026 10:00:00 GMT'],
+  ])('preserves live native validation for %s', async (name, value) => {
+    const cache = store();
+    const handler = rstest.fn(
+      (request: Request, context: NativeRequestContext) => {
+        if (request.headers.has(name)) {
+          expect(request.headers.get(name)).toBe(value);
+          return new Response(null, {
+            status: 304,
+            headers: { etag: 'W/"current"', 'x-native-validation': name },
+          });
+        }
+        return publicDocument('cached document', context);
+      },
+    );
+    const selected = options(handler, { cache });
+    const first = await dispatchNativeNodeRequest(
+      new Request('https://example.test/'),
+      selected,
+    );
+    expect(await first.text()).toBe('cached document');
+    expect(cache.set).toHaveBeenCalledTimes(1);
+    cache.get.mockClear();
+    cache.set.mockClear();
+    const response = await dispatchNativeNodeRequest(
+      new Request('https://example.test/', { headers: { [name]: value } }),
+      selected,
+    );
+    expect(response.status).toBe(304);
+    expect(response.body).toBeNull();
+    expect(response.headers.get('etag')).toBe('W/"current"');
+    expect(response.headers.get('x-native-validation')).toBe(name);
+    expect(handler).toHaveBeenCalledTimes(2);
+    expect(cache.get).not.toHaveBeenCalled();
+    expect(cache.set).not.toHaveBeenCalled();
+  });
+
+  it.each(['public, max-age=60', 'max-age=01', 'x-max-age=0'])(
+    'retains cache reuse for request Cache-Control %s',
+    async cacheControl => {
+      const cache = store();
+      const handler = rstest.fn(
+        (_request: Request, context: NativeRequestContext) =>
+          publicDocument('cached document', context),
+      );
+      const selected = options(handler, { cache });
+      const first = await dispatchNativeNodeRequest(
+        new Request('https://example.test/'),
+        selected,
+      );
+      expect(await first.text()).toBe('cached document');
+      cache.get.mockClear();
+      cache.set.mockClear();
+      const response = await dispatchNativeNodeRequest(
+        new Request('https://example.test/', {
+          headers: { 'cache-control': cacheControl },
+        }),
+        selected,
+      );
+      expect(await response.text()).toBe('cached document');
+      expect(handler).toHaveBeenCalledTimes(1);
+      expect(cache.get).toHaveBeenCalledTimes(1);
       expect(cache.set).not.toHaveBeenCalled();
     },
   );

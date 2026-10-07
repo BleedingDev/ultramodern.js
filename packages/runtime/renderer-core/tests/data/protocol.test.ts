@@ -495,6 +495,113 @@ describe('renderer-neutral HTTP data outcomes', () => {
     }
   });
 
+  it.each([
+    ['private, max-age=5', 'private, max-age=3600', 5],
+    ['private, max-age=3600', 'private, max-age=5', 5],
+    ['public, max-age=3', 'private, max-age=5', 3],
+    ['private, max-age=5', 'public, max-age=3600', 5],
+    ['private, max-age=5, s-maxage=1', 'private, max-age=3600', 1],
+    ['private', 'private, max-age=3600', 0],
+    ['private, max-age=wrong', 'private, max-age=3600', 0],
+    ['private, max-age=5, max-age=60', 'private, max-age=3600', 0],
+    ['private, max-age=5, max-age', 'private, max-age=3600', 0],
+    ['private, max-age=5, s-maxage', 'private, max-age=3600', 0],
+    ['private, max-age, s-maxage=3600', 'private, max-age=5', 0],
+    ['private, s-maxage=3600', 'private, max-age=5', 0],
+    ['public, s-maxage=3600', 'private, max-age=5', 0],
+  ] satisfies [string, string, number][])(
+    'bounds private loader freshness from %s and %s to %s seconds',
+    async (root, leaf, maxAge) => {
+      const outcomes = await Promise.all(
+        [root, leaf].map(cacheControl =>
+          normalizeDataResult(
+            Response.json({}, { headers: { 'cache-control': cacheControl } }),
+          ),
+        ),
+      );
+      const metadata = mergeDataResponseMetadata(outcomes, { status: 200 });
+      expect(metadata.cachePolicy).toBe('private');
+      expect(new Headers(metadata.headers).get('cache-control')).toBe(
+        `private, max-age=${maxAge}, must-revalidate`,
+      );
+      expect(dataMetadataToDocumentPolicy(metadata).cache).toEqual({
+        mode: 'private',
+      });
+    },
+  );
+
+  it.each(['no-store', 'no-cache'])(
+    'keeps %s stricter than bounded private loader freshness',
+    async cacheControl => {
+      const outcomes = await Promise.all(
+        ['private, max-age=5', cacheControl].map(control =>
+          normalizeDataResult(
+            Response.json({}, { headers: { 'cache-control': control } }),
+          ),
+        ),
+      );
+      const metadata = mergeDataResponseMetadata(outcomes, { status: 200 });
+      expect(metadata.cachePolicy).toBe('no-store');
+      expect(new Headers(metadata.headers).get('cache-control')).toBe(
+        'no-store',
+      );
+    },
+  );
+
+  it.each([200, 206, 304])(
+    'removes replaced representation metadata from a data envelope for HTTP %s',
+    async status => {
+      const headers = new Headers({
+        'content-type': 'application/json',
+        'content-length': '99',
+        'content-encoding': 'gzip',
+        'transfer-encoding': 'chunked',
+        'content-range': 'bytes 1-2/3',
+        'accept-ranges': 'bytes',
+        etag: 'original-etag',
+        'last-modified': 'Wed, 07 Oct 2026 09:00:00 GMT',
+        location: '/original',
+        'cache-control': 'private, max-age=5',
+        'x-owner': 'route',
+      });
+      headers.append('set-cookie', 'session=1; HttpOnly');
+      headers.append('set-cookie', 'csrf=2; Secure');
+      const outcome = await normalizeDataResult(
+        new Response(status === 304 ? null : '{"value":true}', {
+          status,
+          headers,
+        }),
+      );
+      const response = createDataResponse(outcome, identity, expected);
+      expect(response.status).toBe(status === 304 ? 200 : status);
+      for (const name of [
+        'content-length',
+        'content-encoding',
+        'transfer-encoding',
+        'content-range',
+        'accept-ranges',
+        'etag',
+        'last-modified',
+        'location',
+      ])
+        expect(response.headers.has(name), name).toBe(false);
+      expect(response.headers.get('content-type')).toBe(
+        'application/vnd.ultramodern.data+json; charset=utf-8',
+      );
+      expect(response.headers.get('x-owner')).toBe('route');
+      expect(response.headers.get('cache-control')).toBe('no-store');
+      expect(response.headers.getSetCookie()).toEqual([
+        'session=1; HttpOnly',
+        'csrf=2; Secure',
+      ]);
+      expect(await readDataResponse(response, expected)).toEqual({
+        kind: 'success',
+        value: status === 304 ? undefined : { value: true },
+        status,
+      });
+    },
+  );
+
   it('bounds actual response body bytes and cancels oversized producers', async () => {
     let cancelled = false;
     const body = new ReadableStream<Uint8Array>({
