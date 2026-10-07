@@ -12,7 +12,8 @@
 // For each renderer: generate a workspace with the packed create CLI,
 // (Solid, Octane) build and serve its untouched starter, put the
 // tests/integration/renderer-<r> app into its shell, install from a local
-// registry under the strict release-age policy, check the installed cohort is
+// registry under the strict release-age policy, recapture the shell's delivery
+// unit from the fixture config (sync-delivery-unit), check the installed cohort is
 // the packed bytes, typecheck, and run the specs (for Solid and Octane they
 // include the no-React bundle check).
 // Then the React runners in scripts/ultramodern-production-readiness: worker
@@ -209,6 +210,15 @@ function installedBin(appRoot) {
   );
   const { bin } = readJson(path.join(packageRoot, 'package.json'));
   return path.join(packageRoot, bin.ultramodern);
+}
+
+/** Resolves the create CLI the generated workspace installed (an npm: alias). */
+function installedCreateBin(workspace) {
+  const packageRoot = fs.realpathSync(
+    path.join(workspace, 'node_modules/@modern-js/ultramodern-create'),
+  );
+  const { bin } = readJson(path.join(packageRoot, 'package.json'));
+  return path.join(packageRoot, bin['ultramodern-create']);
 }
 
 /** A free local port. */
@@ -452,6 +462,24 @@ async function main() {
             env,
             log: `${renderer}-install`,
           }),
+        ready,
+      );
+      // The fixture config replaces the one the generator captured the shell's
+      // entries from (the starter names its main entry `main`, the fixture
+      // keeps the default `index`). A user who edits modern.config that way
+      // recaptures the delivery unit with the installed create CLI; so do we.
+      ready = await step(
+        `${renderer} sync delivery unit`,
+        () =>
+          sh(
+            process.execPath,
+            [
+              installedCreateBin(workspace),
+              'ultramodern',
+              'sync-delivery-unit',
+            ],
+            { cwd: workspace, env, log: `${renderer}-sync` },
+          ),
         ready,
       );
       ready = await step(
