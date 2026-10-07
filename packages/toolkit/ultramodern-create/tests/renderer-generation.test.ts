@@ -7,6 +7,7 @@ import {
   validateUltramodernBuildArtifact,
 } from '@modern-js/backend-federation-contracts';
 import { generateUltramodernWorkspace } from '../src/ultramodern-workspace';
+import { createBuildMarker } from '../src/ultramodern-workspace/delivery-unit';
 import {
   createVerticalDescriptor,
   shellApp,
@@ -623,11 +624,30 @@ test('invalid renderer and unsupported native bridge leave no target output', as
 
 test('initial identities are deterministic and separate React index from native main', () => {
   const identities = renderers.map(renderer => {
-    const source = { ...shellApp, renderer };
+    const source = {
+      ...shellApp,
+      renderer,
+      deliveryUnit: { version: '0.0.0', sourceRevision: 'initial-source' },
+    };
     const initialized = initializeGeneratedRendererIdentity(
       'identity-workspace',
       source,
     );
+    const entryName = renderer === 'react' ? 'index' : 'main';
+    const identity = initialized.rendererIdentity!;
+    assert.deepEqual(identity, {
+      renderer,
+      appId: source.id,
+      entryName,
+      protocolVersion: 1,
+      buildId: createBuildMarker('identity-workspace', initialized),
+    });
+    assert.equal(initialized.rendererIdentities![entryName], identity);
+    assert.deepEqual(initialized.deliveryUnit, {
+      ...source.deliveryUnit,
+      version: '0.1.0',
+      buildMarker: identity.buildId,
+    });
     assert.deepEqual(
       initialized,
       initializeGeneratedRendererIdentity('identity-workspace', source),

@@ -280,6 +280,31 @@ test('explicit multi-entry config projects every identity and its actual primary
       catalog.rendererIdentities!.dashboard.buildId,
     );
     assert.notEqual(
+      catalog.rendererIdentity,
+      catalog.rendererIdentities!.dashboard,
+    );
+    for (const [entryName, identity] of Object.entries(
+      catalog.rendererIdentities!,
+    )) {
+      assert.deepEqual(identity, {
+        renderer: 'solid',
+        appId: catalog.id,
+        entryName,
+        protocolVersion: 1,
+        buildId: createBuildMarker(
+          'identity',
+          { ...catalog, rendererIdentity: { ...identity, entryName } },
+          '1.0.0',
+        ),
+      });
+    }
+    assert.equal(
+      catalog.deliveryUnit!.buildMarker,
+      catalog.rendererIdentity!.buildId,
+    );
+    assert.equal(catalog.deliveryUnit!.appId, catalog.id);
+    assert.equal(catalog.deliveryUnit!.version, '1.0.0');
+    assert.notEqual(
       catalog.rendererIdentities!.dashboard.buildId,
       catalog.rendererIdentities!.checkout.buildId,
     );

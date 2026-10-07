@@ -16,10 +16,11 @@ import {
 } from '@modern-js/backend-federation-contracts';
 import { resolveCandidateRendererProfile } from '@modern-js/ultramodern-app-tools';
 import { yaml } from '@modern-js/utils';
-import { createBuildMarker, createDeliveryUnitRecord } from './delivery-unit';
+import { createDeliveryUnitRecord } from './delivery-unit';
 import { appEmitsBrowserUi } from './descriptors';
 import { captureWorkspaceRendererEvaluations } from './renderer-config-evaluation';
 import { isNativeRendererPackage } from './renderer-generations';
+import { createRendererEntryIdentity } from './renderer-initial-identity';
 import {
   getRendererGenerationProfile,
   isApplicationRenderer,
@@ -226,41 +227,33 @@ export async function reconcileWorkspaceRendererIdentities(
         rendererGenerationProfile: generation,
         rendererCapabilities: { ...generation.capabilities },
         routerBindings,
-        rendererIdentity: {
-          renderer: evaluation.renderer,
-          appId: app.id,
-          entryName,
-          protocolVersion: 1,
-          buildId: '',
-        },
       };
+      resolved.rendererIdentity = createRendererEntryIdentity(
+        scope,
+        resolved,
+        evaluation.renderer,
+        entryName,
+        manifest.version,
+      );
     }
-    const buildMarker = createBuildMarker(scope, resolved, manifest.version);
     resolved.deliveryUnit = createDeliveryUnitRecord(
       scope,
       resolved,
       manifest.version,
     );
     if (resolved.rendererIdentity) {
-      resolved.rendererIdentity = {
-        ...resolved.rendererIdentity,
-        buildId: buildMarker,
-      };
+      const renderer = resolved.rendererIdentity.renderer;
       resolved.rendererIdentities = Object.fromEntries(
-        entryNames.map(entryName => {
-          const identity = { ...resolved.rendererIdentity!, entryName };
-          return [
+        entryNames.map(entryName => [
+          entryName,
+          createRendererEntryIdentity(
+            scope,
+            resolved,
+            renderer,
             entryName,
-            {
-              ...identity,
-              buildId: createBuildMarker(
-                scope,
-                { ...resolved, rendererIdentity: identity },
-                manifest.version,
-              ),
-            },
-          ];
-        }),
+            manifest.version,
+          ),
+        ]),
       );
     }
     const immutable = options.immutableArtifacts?.get(app.id);
