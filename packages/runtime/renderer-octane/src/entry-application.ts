@@ -17,6 +17,22 @@ import {
 
 export type OctaneI18nView = NativeI18nView<unknown, LocalisedUrlsOption>;
 
+/** Wrap a component entry in its request's or document's i18n provider. */
+export function componentView(
+  component: unknown,
+  i18n?: OctaneI18nView,
+): ComponentBody {
+  const App = component as ComponentBody;
+  if (!i18n) return App;
+  return () =>
+    createElement(I18nProvider, {
+      instance: i18n.instance as I18nInstanceLike,
+      languages: i18n.languages,
+      localisedUrls: i18n.localisedUrls,
+      children: createElement(App),
+    });
+}
+
 /** The Octane route tree and router of a generated entry. */
 export const octaneRouterFactory: NativeRouterFactory<AnyRoute, AnyRouter> = {
   routeTree: (routes, modules, options) =>

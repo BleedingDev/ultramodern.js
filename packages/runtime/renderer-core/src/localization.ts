@@ -42,7 +42,7 @@ export interface NativeEntryI18n<
   syncWithRouter(router: object, instance: Instance): void;
 }
 
-/** What a renderer needs to provide localization to its router view. */
+/** What a renderer needs to provide localization to its application view. */
 export interface NativeI18nView<Instance, LocalisedUrls> {
   readonly instance: Instance;
   readonly languages: readonly string[];

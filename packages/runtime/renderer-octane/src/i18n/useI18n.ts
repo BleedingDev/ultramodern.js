@@ -1,6 +1,6 @@
 import { localizePath } from '@modern-js/i18n-runtime-extensions/paths';
-import { hookSlots, useContext } from 'octane';
-import { useNavigate, useRouter } from '../router';
+import { useContext } from 'octane';
+import { useRouter } from '../router';
 import { I18nContext } from './context';
 import type { I18nInstanceLike } from './types';
 
@@ -12,16 +12,11 @@ export interface UseI18nReturn {
   /** The raw per-request instance, for advanced use (namespaces, `exists`, ...). */
   instance: I18nInstanceLike;
   /**
-   * Switches the i18next instance's language and navigates to the localized
-   * path for the current location under the new language, so the URL and the
-   * active language never disagree.
+   * Switches the i18next instance's language. With a router, also navigates to
+   * the localized path so the URL and active language stay aligned.
    */
   changeLanguage: (language: string) => Promise<void>;
 }
-
-// Plain TypeScript is not rewritten by the Octane compiler: router hooks take
-// their stable slot explicitly.
-const navigateSlot = Symbol(hookSlots(1));
 
 /**
  * Must render under `I18nProvider`; throws rather than silently reading a
@@ -40,17 +35,17 @@ export function useI18n(): UseI18nReturn {
 
   const t: I18nInstanceLike['t'] = (key, options) => instance.t(key, options);
 
-  const router = useRouter();
-  const navigate = useNavigate(undefined, navigateSlot);
+  const router = useRouter({ warn: false });
 
   const changeLanguage = async (nextLanguage: string): Promise<void> => {
     await instance.changeLanguage?.(nextLanguage);
+    if (!router) return;
     const currentPathname = router.state.location.pathname;
     const href = localizePath(currentPathname, nextLanguage, {
       languages: [...languages],
       localisedUrls,
     });
-    await navigate({ to: '.', href, replace: true });
+    await router.navigate({ to: '.', href, replace: true });
   };
 
   return { t, language, languages, instance, changeLanguage };

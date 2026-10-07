@@ -39,9 +39,21 @@ export const solidRouterFactory: NativeRouterFactory<AnyRoute, AnyRouter> = {
     }),
 };
 
-export function componentView(component: unknown): () => JSX.Element {
+export function componentView(
+  component: unknown,
+  i18n?: SolidI18nView,
+): () => JSX.Element {
   const App = component as Component;
-  return () => <App />;
+  if (!i18n) return () => <App />;
+  return () => (
+    <I18nProvider
+      instance={i18n.instance as I18nInstanceLike}
+      languages={i18n.languages}
+      localisedUrls={i18n.localisedUrls}
+    >
+      <App />
+    </I18nProvider>
+  );
 }
 
 export function routerView(

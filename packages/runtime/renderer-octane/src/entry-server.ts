@@ -13,7 +13,11 @@ import {
 } from '@modern-js/renderer-core/entry-server';
 import { createNativeRouter } from '@modern-js/renderer-core/router';
 import type { ServerRenderNode } from 'octane/server';
-import { localizedRouterRoot, octaneRouterFactory } from './entry-application';
+import {
+  componentView,
+  localizedRouterRoot,
+  octaneRouterFactory,
+} from './entry-application';
 import { validateOctaneModuleManifest } from './manifest';
 import {
   createOctaneRequestHandler,
@@ -48,10 +52,10 @@ export function createNativeServerEntry(
       createNativeRouter(application, routerOptions, octaneRouterFactory),
     renderCSR: ({ session }, document) =>
       renderOctaneCSRDocument({ session, document }),
-    renderComponent: ({ session }, component, document) =>
+    renderComponent: ({ session }, component, document, i18n) =>
       renderOctaneApplication({
         session,
-        App: component as ServerRenderNode,
+        App: componentView(component, i18n) as ServerRenderNode,
         document,
       }),
     async renderRoutes({
