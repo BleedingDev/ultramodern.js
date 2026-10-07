@@ -4,13 +4,17 @@ import type {
   RendererRouterBindings,
 } from '@modern-js/backend-federation-contracts';
 
-export const MICROVERTICAL_RELEASE_ENVELOPE_SCHEMA_VERSION = 5 as const;
+import {
+  MICROVERTICAL_RELEASE_ENVELOPE_KIND,
+  MICROVERTICAL_RELEASE_ENVELOPE_SCHEMA_VERSION,
+  SHELL_RELEASE_ENVELOPE_KIND,
+} from './contract.mjs';
 
-export const MICROVERTICAL_RELEASE_ENVELOPE_KIND =
-  'ultramodern-target-microvertical-release-envelope' as const;
-
-export const SHELL_RELEASE_ENVELOPE_KIND =
-  'ultramodern-target-shell-release-envelope' as const;
+export {
+  MICROVERTICAL_RELEASE_ENVELOPE_KIND,
+  MICROVERTICAL_RELEASE_ENVELOPE_SCHEMA_VERSION,
+  SHELL_RELEASE_ENVELOPE_KIND,
+};
 
 export type ReleaseEnvelopeKind =
   | typeof MICROVERTICAL_RELEASE_ENVELOPE_KIND

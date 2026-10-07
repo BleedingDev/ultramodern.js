@@ -1,15 +1,8 @@
-import { createRequire } from 'node:module';
-
-const ownerRequire = createRequire(
-  new URL('../../../packages/solutions/ultramodern-app-tools/package.json', import.meta.url),
-);
-const {
-  MICROVERTICAL_RELEASE_ENVELOPE_KIND: releaseEnvelopeKind,
-  MICROVERTICAL_RELEASE_ENVELOPE_SCHEMA_VERSION: releaseEnvelopeSchemaVersion,
-} = ownerRequire('@modern-js/app-tools-extensions/release-envelope');
-const { releaseEnvelopePayload } = ownerRequire(
-  '@modern-js/app-tools-extensions/release-envelope/canonical',
-);
+import {
+  MICROVERTICAL_RELEASE_ENVELOPE_KIND as releaseEnvelopeKind,
+  MICROVERTICAL_RELEASE_ENVELOPE_SCHEMA_VERSION as releaseEnvelopeSchemaVersion,
+  releaseEnvelopePayload,
+} from '../../../packages/solutions/app-tools-extensions/src/release-envelope/contract.mjs';
 const renderers = ['react', 'solid', 'octane'];
 const sourceRevisionPattern = /^(?:[a-f\d]{40}|[a-f\d]{64})$/u;
 const exactPackageVersion =

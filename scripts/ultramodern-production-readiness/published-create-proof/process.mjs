@@ -67,8 +67,93 @@ function createCleanPnpmDlxEnv(root, { storeDir } = {}) {
   };
 }
 
+function acceptancePackageManagerRoot(workDir) {
+  return path.join(workDir, 'package-manager');
+}
+
+function createAcceptancePackageManagerEnv(
+  workDir,
+  registryEnv = {},
+  pnpmExecutable,
+  environment = process.env,
+  { storeDir } = {},
+) {
+  const packageManagerEnv = createCleanPnpmDlxEnv(
+    acceptancePackageManagerRoot(workDir),
+    { storeDir },
+  );
+  if (storeDir !== undefined) {
+    const relative = path.relative(
+      workDir,
+      packageManagerEnv.pnpm_config_store_dir,
+    );
+    if (
+      relative === '' ||
+      (relative !== '..' &&
+        !relative.startsWith(`..${path.sep}`) &&
+        !path.isAbsolute(relative))
+    ) {
+      throw new Error(
+        'Acceptance external store must be outside its work directory',
+      );
+    }
+  }
+  const env = {
+    ...packageManagerEnv,
+    ...registryEnv,
+    CI: 'true',
+    npm_config_fetch_retries: '5',
+    npm_config_fetch_timeout: '600000',
+    MODERN_CREATE_ULTRAMODERN_FRAMEWORK_VERSION: undefined,
+    pnpm_config_fetch_retries: '5',
+    pnpm_config_fetch_timeout: '600000',
+    pnpm_config_network_concurrency: '8',
+    ULTRAMODERN_CREATE_BIN: undefined,
+    ZE_CI_TOKEN: undefined,
+  };
+  if (storeDir !== undefined) {
+    for (const name of [
+      'npm_config_store_dir',
+      'pnpm_config_store_dir',
+      'npm_config_package_import_method',
+      'pnpm_config_package_import_method',
+    ]) {
+      for (const inheritedName of Object.keys(env)) {
+        if (inheritedName.toLowerCase() === name) {
+          delete env[inheritedName];
+        }
+      }
+      env[name] = packageManagerEnv[name];
+    }
+  }
+  if (pnpmExecutable !== undefined) {
+    if (!path.isAbsolute(pnpmExecutable)) {
+      throw new Error(
+        `Acceptance pnpm executable must be absolute: ${pnpmExecutable}`,
+      );
+    }
+    // The PATH the caller injected, never the ambient parent PATH: a runtime
+    // context is only hermetic if its own environment decides what the child
+    // can execute.
+    env.PATH = [path.dirname(pnpmExecutable), environment.PATH]
+      .filter(Boolean)
+      .join(path.delimiter);
+  }
+  // The clean room performs no Zephyr Cloud deploy, so ZE_CI_TOKEN is absent
+  // and the generated build never engages Zephyr (it stays a registered but
+  // inactive plugin). This tests "builds without a Zephyr Cloud account".
+  return env;
+}
+
 function roundDurationMs(value) {
   return Math.round(value * 100) / 100;
 }
 
-export { createCleanPnpmDlxEnv, roundDurationMs, run, runAsync };
+export {
+  acceptancePackageManagerRoot,
+  createAcceptancePackageManagerEnv,
+  createCleanPnpmDlxEnv,
+  roundDurationMs,
+  run,
+  runAsync,
+};
