@@ -417,5 +417,222 @@
         }
       ]
     }
+  },
+  {
+    "id": "braces",
+    "upstream": {
+      "name": "braces",
+      "version": "3.0.3",
+      "tarball": "https://registry.npmjs.org/braces/-/braces-3.0.3.tgz",
+      "integrity": "sha512-yQbXgO/OSZVD2IsiLlro+7Hf6Q18EJrKSEsdoMzKePKXct3gvD8oLcOQdIzGupr5Fj+EDe8gO/lxc1BzfMpxvA=="
+    },
+    "fork": {
+      "name": "@bleedingdev/braces",
+      "version": "3.0.4"
+    },
+    "license": "MIT",
+    "artifacts": ["*"],
+    "patch": {
+      "inventory": "braces@3.0.3"
+    },
+    "manifestChanges": {},
+    "provenance": {
+      "grandfatheredVersions": []
+    }
+  },
+  {
+    "id": "micromatch",
+    "upstream": {
+      "name": "micromatch",
+      "version": "4.0.8",
+      "tarball": "https://registry.npmjs.org/micromatch/-/micromatch-4.0.8.tgz",
+      "integrity": "sha512-PXwfBhYu0hBCPw8Dn0E+WDYb7af3dSLVWKi3HGv84IdF4TyFoC0ysxFd0Goxw7nSv4T/PzEJQxsYsEiFCKo2BA=="
+    },
+    "fork": {
+      "name": "@bleedingdev/micromatch",
+      "version": "4.0.8"
+    },
+    "license": "MIT",
+    "artifacts": ["*"],
+    "patch": null,
+    "manifestChanges": {
+      "dependencies": {
+        "braces": "npm:@bleedingdev/braces@3.0.4"
+      }
+    },
+    "provenance": {
+      "grandfatheredVersions": []
+    }
+  },
+  {
+    "id": "fast-glob",
+    "upstream": {
+      "name": "fast-glob",
+      "version": "3.3.3",
+      "tarball": "https://registry.npmjs.org/fast-glob/-/fast-glob-3.3.3.tgz",
+      "integrity": "sha512-7MptL8U0cqcFdzIzwOTHoilX9x5BrNqye7Z/LuC7kCMRio1EMSyqRK3BEAUD7sXRq4iT4AzTVuZdhgQ2TCvYLg=="
+    },
+    "fork": {
+      "name": "@bleedingdev/fast-glob",
+      "version": "3.3.3"
+    },
+    "license": "MIT",
+    "artifacts": ["*"],
+    "patch": null,
+    "manifestChanges": {
+      "dependencies": {
+        "micromatch": "npm:@bleedingdev/micromatch@4.0.8"
+      }
+    },
+    "provenance": {
+      "grandfatheredVersions": []
+    }
+  },
+  {
+    "id": "chokidar",
+    "upstream": {
+      "name": "chokidar",
+      "version": "3.6.0",
+      "tarball": "https://registry.npmjs.org/chokidar/-/chokidar-3.6.0.tgz",
+      "integrity": "sha512-7VT13fmjotKpGipCW9JEQAusEPE+Ei8nl6/g4FBAmIm0GOOLMua9NDDo/DWp0ZAxCr3cPq5ZpBqmPAQgDda2Pw=="
+    },
+    "fork": {
+      "name": "@bleedingdev/chokidar",
+      "version": "3.6.0"
+    },
+    "license": "MIT",
+    "artifacts": ["*"],
+    "patch": null,
+    "manifestChanges": {
+      "dependencies": {
+        "braces": "npm:@bleedingdev/braces@3.0.4"
+      }
+    },
+    "provenance": {
+      "grandfatheredVersions": []
+    }
+  },
+  {
+    "id": "ts-checker-rspack-plugin",
+    "upstream": {
+      "name": "ts-checker-rspack-plugin",
+      "version": "1.6.1",
+      "tarball": "https://registry.npmjs.org/ts-checker-rspack-plugin/-/ts-checker-rspack-plugin-1.6.1.tgz",
+      "integrity": "sha512-9bnsisnBiPfVzONCMWjHpmc4I4ND+LFw+5qY/saKXiP+fhMvicgEmwTLjMGWnxPrOOsRre9IgROGtCPwhhSj0A=="
+    },
+    "fork": {
+      "name": "@bleedingdev/ts-checker-rspack-plugin",
+      "version": "1.6.1"
+    },
+    "license": "MIT",
+    "artifacts": ["*"],
+    "patch": null,
+    "manifestChanges": {
+      "dependencies": {
+        "chokidar": "npm:@bleedingdev/chokidar@3.6.0"
+      }
+    },
+    "provenance": {
+      "grandfatheredVersions": []
+    }
+  },
+  {
+    "id": "rsbuild-plugin-type-check",
+    "upstream": {
+      "name": "@rsbuild/plugin-type-check",
+      "version": "1.6.0",
+      "tarball": "https://registry.npmjs.org/@rsbuild/plugin-type-check/-/plugin-type-check-1.6.0.tgz",
+      "integrity": "sha512-AZDLYGUfqAqwn50pkliVgI9UN4+AsM8yh0XqySCianYUeftSPa4By7tyP7+TBXpnJ6Ev3xaha/cS/462MNT18w=="
+    },
+    "fork": {
+      "name": "@bleedingdev/rsbuild-plugin-type-check",
+      "version": "1.6.0"
+    },
+    "license": "MIT",
+    "artifacts": ["*"],
+    "patch": null,
+    "manifestChanges": {
+      "dependencies": {
+        "ts-checker-rspack-plugin": "npm:@bleedingdev/ts-checker-rspack-plugin@1.6.1"
+      }
+    },
+    "provenance": {
+      "grandfatheredVersions": []
+    }
+  },
+  {
+    "id": "rsbuild-plugin-source-build",
+    "upstream": {
+      "name": "@rsbuild/plugin-source-build",
+      "version": "1.0.7",
+      "tarball": "https://registry.npmjs.org/@rsbuild/plugin-source-build/-/plugin-source-build-1.0.7.tgz",
+      "integrity": "sha512-nsTWZSIU7fJfwrdCJKijL0XzWTyOXDsfCP6S3d01X3tRhejn3Xv4NjKbTpfwPyN7932YFkawQHWnAyBTKA1ADg=="
+    },
+    "fork": {
+      "name": "@bleedingdev/rsbuild-plugin-source-build",
+      "version": "1.0.7"
+    },
+    "license": "MIT",
+    "artifacts": ["*"],
+    "patch": null,
+    "manifestChanges": {
+      "dependencies": {
+        "fast-glob": "npm:@bleedingdev/fast-glob@3.3.3"
+      }
+    },
+    "provenance": {
+      "grandfatheredVersions": []
+    }
+  },
+  {
+    "id": "find-workspaces",
+    "upstream": {
+      "name": "find-workspaces",
+      "version": "0.3.1",
+      "tarball": "https://registry.npmjs.org/find-workspaces/-/find-workspaces-0.3.1.tgz",
+      "integrity": "sha512-UDkGILGJSA1LN5Aa7McxCid4sqW3/e+UYsVwyxki3dDT0F8+ym0rAfnCkEfkL0rO7M+8/mvkim4t/s3IPHmg+w=="
+    },
+    "fork": {
+      "name": "@bleedingdev/find-workspaces",
+      "version": "0.3.1"
+    },
+    "license": "MIT",
+    "artifacts": ["*"],
+    "patch": null,
+    "manifestChanges": {
+      "dependencies": {
+        "fast-glob": "npm:@bleedingdev/fast-glob@3.3.3"
+      }
+    },
+    "provenance": {
+      "grandfatheredVersions": []
+    }
+  },
+  {
+    "id": "ultracite",
+    "upstream": {
+      "name": "ultracite",
+      "version": "7.12.2",
+      "tarball": "https://registry.npmjs.org/ultracite/-/ultracite-7.12.2.tgz",
+      "integrity": "sha512-0FQE7EuVFnX1FjtlIBklkfBTiZ5bJxknXSxcsjKos5Y73FlkasubWH7uVLS8jgOAI204B7xaIq+buE3vUybuwQ=="
+    },
+    "fork": {
+      "name": "@bleedingdev/ultracite",
+      "version": "7.12.2"
+    },
+    "license": "MIT",
+    "artifacts": ["*"],
+    "patch": {
+      "inventory": "ultracite@7.12.2"
+    },
+    "manifestChanges": {
+      "dependencies": {
+        "fast-glob": "npm:@bleedingdev/fast-glob@3.3.3",
+        "find-workspaces": "npm:@bleedingdev/find-workspaces@0.3.1"
+      }
+    },
+    "provenance": {
+      "grandfatheredVersions": []
+    }
   }
 ]

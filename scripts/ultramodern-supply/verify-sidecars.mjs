@@ -33,6 +33,29 @@ const forkSpecifier = /^npm:(@bleedingdev\/[\w.-]+)@(.+)$/u;
  * plugin-bff-extensions creates its own instance and never calls it.
  */
 export const unpublishedForkEdges = [
+  // These exact source consumers declare the parser-correction recipes until
+  // their new fork names are published. This validates recipe reachability;
+  // it does not correct the current installation or compiled utility bytes.
+  {
+    importer: 'packages/toolkit/utils',
+    published: '@bleedingdev/modern-js-utils',
+    dependency: 'fast-glob',
+  },
+  {
+    importer: 'packages/cli/builder',
+    published: '@bleedingdev/modern-js-builder',
+    dependency: '@rsbuild/plugin-source-build',
+  },
+  {
+    importer: 'packages/cli/builder',
+    published: '@bleedingdev/modern-js-builder',
+    dependency: '@rsbuild/plugin-type-check',
+  },
+  {
+    importer: 'packages/toolkit/ultramodern-create',
+    published: '@bleedingdev/modern-js-ultramodern-create',
+    dependency: 'ultracite',
+  },
   {
     importer: 'packages/cli/plugin-bff-extensions',
     published: '@bleedingdev/modern-js-plugin-bff-extensions',
@@ -40,14 +63,18 @@ export const unpublishedForkEdges = [
   },
 ];
 
-/** Whether `consumer`'s `dependency` edge may still be the upstream `specifier`. */
+/**
+ * Whether `consumer`'s `dependency` edge may still be the upstream `specifier`.
+ * A lockfile version may carry its peer suffix, e.g. `1.6.0(@rsbuild/core@2.2.11)`.
+ */
 export const isUnpublishedForkEdge = (
   consumer,
   dependency,
   specifier,
   recipe,
 ) =>
-  specifier === recipe.upstream.version &&
+  (specifier === recipe.upstream.version ||
+    String(specifier).startsWith(`${recipe.upstream.version}(`)) &&
   unpublishedForkEdges.some(
     edge =>
       edge.dependency === dependency &&
@@ -97,12 +124,16 @@ export function assertRecipeConsumers(
         const recipe = recipeByUpstream.get(name);
         const expected =
           recipe && `npm:${recipe.fork.name}@${recipe.fork.version}`;
+        const unpublished =
+          recipe &&
+          isUnpublishedForkEdge(manifest.name, name, specifier, recipe);
         assert.ok(
-          !recipe ||
-            specifier === expected ||
-            isUnpublishedForkEdge(manifest.name, name, specifier, recipe),
+          !recipe || specifier === expected || unpublished,
           `${manifest.name} ${block}.${name} is ${specifier}; declare ${expected} in source`,
         );
+        // A listed unpublished fork edge is the recipe's declared consumer
+        // until the fork is on npm and the edge becomes its exact alias.
+        if (unpublished) reach(recipe);
       }
     }
   }

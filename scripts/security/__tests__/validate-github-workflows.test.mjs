@@ -30,6 +30,87 @@ jobs:
 
 const githubExpression = expression => ['${{', expression, '}}'].join(' ');
 
+const publishWorkflowPath = '.github/workflows/publish-bleedingdev.yml';
+const readPublishWorkflow = () =>
+  yaml.load(
+    fs.readFileSync(
+      new URL(`../../../${publishWorkflowPath}`, import.meta.url),
+      'utf8',
+    ),
+  );
+const cohortJobs = [
+  'accept-published',
+  'accept-release',
+  'integration',
+  'prepare-release',
+  'publish',
+  'publish-change-record',
+  'qualify-source',
+  'qualify-source-compute',
+  'reconcile-sidecars',
+  'record-publish-outcome',
+  'rehearse-tractor',
+  'tractor-downstream',
+  'validate-release',
+];
+const sidecarJobs = ['prepare-sidecars', 'qualify-sidecars'];
+const oidcJobs = ['publish', 'publish-sidecars'];
+const publicationResults = (workflow, mode, dryRun = false) => {
+  const results = Object.fromEntries(
+    Object.keys(workflow.jobs).map(jobId => [jobId, 'skipped']),
+  );
+  results['publish-security'] = 'success';
+  for (const jobId of mode === 'cohort' ? cohortJobs : sidecarJobs) {
+    results[jobId] = 'success';
+  }
+  if (mode === 'cohort') {
+    results['validate-release'] = dryRun ? 'success' : 'skipped';
+    if (dryRun) {
+      for (const jobId of [
+        'publish',
+        'accept-published',
+        'tractor-downstream',
+        'publish-change-record',
+      ]) {
+        results[jobId] = 'skipped';
+      }
+    }
+  }
+  results['publish-sidecars'] = dryRun ? 'skipped' : 'success';
+  return results;
+};
+const publicationContext = (mode, dryRun = false) => ({
+  github: {
+    actor: 'BleedingDev',
+    triggering_actor: 'BleedingDev',
+    repository_owner: 'BleedingDev',
+    ref: 'refs/heads/main-ultramodern',
+    run_id: '42',
+  },
+  inputs: {
+    mode,
+    dry_run: dryRun,
+    recovery_run_id: '',
+    recovery_run_attempt: '',
+    recovery_qualification_attempt: '',
+  },
+  vars: {},
+});
+const assertPublishMutationRejected = (label, mutate, pattern) => {
+  const workflow = readPublishWorkflow();
+  const original = structuredClone(workflow);
+  mutate(workflow);
+  assert.notDeepEqual(workflow, original, `${label} must change the workflow`);
+  const errors = validateWorkflowContent(
+    publishWorkflowPath,
+    yaml.dump(workflow),
+  );
+  assert.ok(
+    errors.some(error => pattern.test(error)),
+    `${label}: ${errors.join('\n') || 'mutation was accepted'}`,
+  );
+};
+
 const workflowRunCheckoutWorkflow = ({
   branchPolicy = '    branches:\n      - main-ultramodern\n',
   ref = githubExpression('github.event.workflow_run.head_sha'),
@@ -372,27 +453,25 @@ test('release gates keep their fail-fast needs edges', () => {
 });
 
 test('release qualification needs integration on its own commit', () => {
-  const workflowPath = '.github/workflows/publish-bleedingdev.yml';
-  const content = fs.readFileSync(
-    new URL(`../../../${workflowPath}`, import.meta.url),
-    'utf8',
+  assertPublishMutationRejected(
+    'source qualification loses its own integration prerequisite',
+    workflow => {
+      const job = workflow.jobs['qualify-source'];
+      assert.ok(job.needs.includes('integration'));
+      job.needs = job.needs.filter(need => need !== 'integration');
+    },
+    /must need an integration job/u,
   );
-  const integrationErrors = source =>
-    validateWorkflowContent(workflowPath, source).filter(error =>
-      error.includes('must need an integration job'),
-    );
-  assert.deepEqual(integrationErrors(content), []);
-  const edge =
-    '    needs:\n      - integration\n      - qualify-source-compute\n';
-  assert.equal(content.split(edge).length, 2);
-  assert.equal(integrationErrors(content.replace(edge, '')).length, 1);
-  const uses = 'uses: ./.github/workflows/integration-test.yml';
-  assert.equal(content.split(uses).length, 2);
-  assert.equal(
-    integrationErrors(
-      content.replace(uses, 'uses: ./.github/workflows/ut-Linux.yml'),
-    ).length,
-    1,
+  assertPublishMutationRejected(
+    'source qualification calls a different suite',
+    workflow => {
+      assert.equal(
+        workflow.jobs.integration.uses,
+        './.github/workflows/integration-test.yml',
+      );
+      workflow.jobs.integration.uses = './.github/workflows/ut-Linux.yml';
+    },
+    /must need an integration job/u,
   );
 });
 
@@ -413,7 +492,7 @@ test('release qualification overlaps integration and issues no receipt before bo
       repository_owner: 'BleedingDev',
       ref: 'refs/heads/main-ultramodern',
     },
-    inputs: { dry_run: false, recovery_run_id: '' },
+    inputs: { mode: 'cohort', dry_run: false, recovery_run_id: '' },
     vars: {},
   };
   const schedules = (jobId, overrides = {}, inputs = context.inputs) =>
@@ -457,6 +536,7 @@ test('release qualification overlaps integration and issues no receipt before bo
       'qualify-source',
       {},
       {
+        mode: 'cohort',
         dry_run: true,
         recovery_run_id: '',
       },
@@ -469,6 +549,7 @@ test('release qualification overlaps integration and issues no receipt before bo
       'qualify-source',
       {},
       {
+        mode: 'cohort',
         dry_run: false,
         recovery_run_id: '77',
       },
@@ -476,6 +557,756 @@ test('release qualification overlaps integration and issues no receipt before bo
     true,
     'recovery still qualifies its current publication tooling',
   );
+});
+
+const modePrerequisites = {
+  cohort: [
+    'publish-security',
+    'integration',
+    'qualify-source-compute',
+    'qualify-source',
+    'accept-release',
+    'rehearse-tractor',
+  ],
+  sidecars: ['publish-security', 'prepare-sidecars', 'qualify-sidecars'],
+};
+const requiredPublicationNeeds = {
+  'qualify-sidecars': ['publish-security', 'prepare-sidecars'],
+  'publish-sidecars': [...modePrerequisites.cohort, ...sidecarJobs],
+  publish: [...modePrerequisites.cohort, 'publish-sidecars'],
+  'accept-published': ['publish', 'accept-release'],
+  'tractor-downstream': ['prepare-release', 'publish'],
+};
+const identityGuards = [
+  'github.actor == github.repository_owner',
+  'github.triggering_actor == github.repository_owner',
+  "github.ref == format('refs/heads/{0}', vars.BLEEDINGDEV_PUBLISH_BRANCH || 'main-ultramodern')",
+];
+const publicationSchedules = (workflow, mode, dryRun = false) => {
+  const defaults = {
+    workflow,
+    results: publicationResults(workflow, mode, dryRun),
+    context: publicationContext(mode, dryRun),
+  };
+  return (jobId, overrides = {}) =>
+    evaluateJobSchedule({ ...defaults, jobId, ...overrides });
+};
+const publishStep = (workflow, jobId, name) => {
+  const step = workflow.jobs[jobId].steps.find(
+    candidate => candidate.name === name,
+  );
+  assert.ok(step, jobId + ': ' + name);
+  return step;
+};
+const setField = (field, value) => object => {
+  object[field] = value;
+};
+const removeField = field => object => {
+  delete object[field];
+};
+const replaceGuard =
+  (expression, replacement = 'true') =>
+  job => {
+    assert.ok(job.if.includes(expression), expression);
+    job.if = job.if.replace(expression, replacement);
+  };
+const assertJobMutationRejected = (jobId, label, mutate, pattern) =>
+  assertPublishMutationRejected(
+    jobId + ': ' + label,
+    workflow => mutate(workflow.jobs[jobId]),
+    pattern ?? new RegExp(jobId + '|mode|publication', 'u'),
+  );
+const assertStepMutationRejected = (jobId, name, label, mutate) =>
+  assertPublishMutationRejected(
+    name + ': ' + label,
+    workflow => mutate(publishStep(workflow, jobId, name)),
+    /sidecar|qualification|artifact|cohort|mode|publication/iu,
+  );
+
+test('publication modes run their selected path with the inactive path skipped', () => {
+  const workflow = readPublishWorkflow();
+  for (const mode of ['cohort', 'sidecars']) {
+    for (const dryRun of [false, true]) {
+      const results = publicationResults(workflow, mode, dryRun);
+      const schedules = publicationSchedules(workflow, mode, dryRun);
+      for (const jobId of Object.keys(workflow.jobs)) {
+        assert.equal(
+          schedules(jobId),
+          results[jobId] === 'success',
+          [mode, dryRun ? 'dry' : 'live', jobId].join(' '),
+        );
+      }
+    }
+  }
+});
+
+test('a cancelled dispatch cannot schedule publication or qualification with successful prerequisites', () => {
+  const workflow = readPublishWorkflow();
+  for (const mode of ['cohort', 'sidecars']) {
+    for (const dryRun of [false, true]) {
+      const schedules = publicationSchedules(workflow, mode, dryRun);
+      for (const jobId of Object.keys(workflow.jobs)) {
+        assert.equal(
+          schedules(jobId, { cancelled: true }),
+          false,
+          [mode, dryRun ? 'dry' : 'live', jobId, 'cancelled dispatch'].join(
+            ' ',
+          ),
+        );
+      }
+    }
+  }
+});
+
+test('each active publication gate rejects unsuccessful or absent required results', () => {
+  const workflow = readPublishWorkflow();
+  const outcomeNeeds = [
+    'publish-security',
+    'accept-release',
+    'rehearse-tractor',
+  ];
+  const requirements = [
+    [
+      'cohort',
+      false,
+      'qualify-source',
+      ['integration', 'qualify-source-compute'],
+    ],
+    [
+      'sidecars',
+      false,
+      'qualify-sidecars',
+      requiredPublicationNeeds['qualify-sidecars'],
+    ],
+    ['cohort', false, 'publish-sidecars', modePrerequisites.cohort],
+    ['sidecars', false, 'publish-sidecars', modePrerequisites.sidecars],
+    ['cohort', false, 'publish', requiredPublicationNeeds.publish],
+    [
+      'cohort',
+      false,
+      'accept-published',
+      requiredPublicationNeeds['accept-published'],
+    ],
+    [
+      'cohort',
+      false,
+      'tractor-downstream',
+      requiredPublicationNeeds['tractor-downstream'],
+    ],
+    [
+      'cohort',
+      false,
+      'record-publish-outcome',
+      [
+        ...outcomeNeeds,
+        'publish-sidecars',
+        'publish',
+        'accept-published',
+        'tractor-downstream',
+      ],
+    ],
+    [
+      'cohort',
+      true,
+      'record-publish-outcome',
+      [...outcomeNeeds, 'validate-release'],
+    ],
+    ['cohort', false, 'publish-change-record', ['record-publish-outcome']],
+  ];
+  for (const [mode, dryRun, jobId, required] of requirements) {
+    const schedules = publicationSchedules(workflow, mode, dryRun);
+    assert.equal(
+      schedules(jobId),
+      true,
+      [mode, jobId, 'successful prerequisites'].join(' '),
+    );
+    for (const prerequisite of required) {
+      for (const result of ['failure', 'cancelled', 'skipped', undefined]) {
+        const results = publicationResults(workflow, mode, dryRun);
+        if (result === undefined) delete results[prerequisite];
+        else results[prerequisite] = result;
+        assert.equal(
+          schedules(jobId, { results }),
+          false,
+          [mode, jobId, prerequisite, result ?? 'missing'].join(' '),
+        );
+      }
+    }
+  }
+});
+
+test('publication guards reject the wrong identity, ref, mode, and dry-run type', () => {
+  const workflow = readPublishWorkflow();
+  for (const mode of ['cohort', 'sidecars']) {
+    const context = publicationContext(mode);
+    const schedules = publicationSchedules(workflow, mode);
+    const activeJobs = [
+      'publish-security',
+      ...(mode === 'cohort'
+        ? cohortJobs.filter(id => id !== 'validate-release')
+        : sidecarJobs),
+      'publish-sidecars',
+    ];
+    for (const jobId of activeJobs) {
+      for (const [field, value] of [
+        ['actor', 'someone-else'],
+        ['triggering_actor', 'someone-else'],
+        ['ref', 'refs/pull/211/merge'],
+        ['ref', 'refs/heads/unreviewed'],
+      ]) {
+        assert.equal(
+          schedules(jobId, {
+            context: {
+              ...context,
+              github: { ...context.github, [field]: value },
+            },
+          }),
+          false,
+          [mode, jobId, field, value].join(' '),
+        );
+      }
+      const configuredBranch = {
+        ...context,
+        github: { ...context.github, ref: 'refs/heads/release-approved' },
+        vars: { BLEEDINGDEV_PUBLISH_BRANCH: 'release-approved' },
+      };
+      assert.equal(
+        schedules(jobId, { context: configuredBranch }),
+        true,
+        [mode, jobId, 'configured publication branch'].join(' '),
+      );
+      assert.equal(
+        schedules(jobId, {
+          context: { ...configuredBranch, github: context.github },
+        }),
+        false,
+        [mode, jobId, 'default branch cannot replace configured branch'].join(
+          ' ',
+        ),
+      );
+    }
+    for (const inputMode of [undefined, '', 'unknown', 'SIDECARS']) {
+      for (const jobId of [...cohortJobs, ...sidecarJobs, 'publish-sidecars']) {
+        assert.equal(
+          schedules(jobId, {
+            context: {
+              ...context,
+              inputs: { ...context.inputs, mode: inputMode },
+            },
+          }),
+          false,
+          [jobId, 'mode', inputMode ?? 'missing'].join(' '),
+        );
+      }
+    }
+    for (const dryRun of [true, undefined, 'false', 'true']) {
+      for (const jobId of [...oidcJobs, 'publish-change-record']) {
+        assert.equal(
+          schedules(jobId, {
+            context: {
+              ...context,
+              inputs: { ...context.inputs, dry_run: dryRun },
+            },
+          }),
+          false,
+          [mode, jobId, 'dry_run', String(dryRun)].join(' '),
+        );
+      }
+    }
+  }
+});
+
+test('cohort outcomes require the exact inactive publication or validation skips', () => {
+  const workflow = readPublishWorkflow();
+  for (const [dryRun, inactive] of [
+    [false, ['validate-release']],
+    [true, ['publish-sidecars', 'publish']],
+  ]) {
+    const schedules = publicationSchedules(workflow, 'cohort', dryRun);
+    for (const jobId of inactive) {
+      for (const result of ['success', 'failure', 'cancelled', undefined]) {
+        const results = publicationResults(workflow, 'cohort', dryRun);
+        if (result === undefined) delete results[jobId];
+        else results[jobId] = result;
+        assert.equal(
+          schedules('record-publish-outcome', { results }),
+          false,
+          [dryRun ? 'dry' : 'live', jobId, result ?? 'missing'].join(' '),
+        );
+      }
+    }
+  }
+});
+
+test('successful inactive jobs cannot authorize the other publication mode', () => {
+  const workflow = readPublishWorkflow();
+  const allSuccessful = Object.fromEntries(
+    Object.keys(workflow.jobs).map(id => [id, 'success']),
+  );
+  for (const dryRun of [false, true]) {
+    for (const [mode, inactive] of [
+      ['sidecars', cohortJobs],
+      ['cohort', sidecarJobs],
+    ]) {
+      const schedules = publicationSchedules(workflow, mode, dryRun);
+      for (const jobId of inactive) {
+        const results =
+          jobId === 'record-publish-outcome'
+            ? {
+                ...allSuccessful,
+                'validate-release': dryRun ? 'success' : 'skipped',
+                'publish-sidecars': dryRun ? 'skipped' : 'success',
+                publish: dryRun ? 'skipped' : 'success',
+              }
+            : allSuccessful;
+        assert.equal(
+          schedules(jobId, { results }),
+          false,
+          [mode, jobId, 'forged successful inactive jobs'].join(' '),
+        );
+      }
+    }
+  }
+  for (const [mode, failedGate] of [
+    ['cohort', 'accept-release'],
+    ['cohort', 'rehearse-tractor'],
+    ['sidecars', 'prepare-sidecars'],
+    ['sidecars', 'qualify-sidecars'],
+  ]) {
+    assert.equal(
+      publicationSchedules(workflow, mode)('publish-sidecars', {
+        results: { ...allSuccessful, [failedGate]: 'failure' },
+      }),
+      false,
+      [mode, failedGate, 'cannot fall back to inactive successful branch'].join(
+        ' ',
+      ),
+    );
+  }
+});
+
+test('release validator rejects changes to the explicit publication mode contract', () => {
+  const {
+    required,
+    type,
+    options,
+    default: defaultMode,
+  } = readPublishWorkflow().on.workflow_dispatch.inputs.mode;
+  assert.deepEqual(
+    { required, type, options, defaultMode },
+    {
+      required: true,
+      type: 'choice',
+      options: ['cohort', 'sidecars'],
+      defaultMode: 'cohort',
+    },
+  );
+  const mutations = [
+    ['mode', 'missing mode', removeField('mode'), true],
+    ['mode', 'optional mode', setField('required', false)],
+    ['mode', 'unrestricted mode', setField('type', 'string')],
+    ['mode', 'sidecar default', setField('default', 'sidecars')],
+    ['mode', 'unknown default', setField('default', 'other')],
+    ['mode', 'missing cohort option', setField('options', ['sidecars'])],
+    ['mode', 'missing sidecar option', setField('options', ['cohort'])],
+    [
+      'mode',
+      'unknown option',
+      setField('options', ['cohort', 'sidecars', 'unqualified']),
+    ],
+    [
+      'mode',
+      'duplicated option',
+      setField('options', ['cohort', 'sidecars', 'cohort']),
+    ],
+    [
+      'version',
+      'sidecars require a cohort version',
+      setField('required', true),
+    ],
+    [
+      'version',
+      'sidecars default to a cohort version',
+      setField('default', '3.8.3-ultramodern.1'),
+    ],
+  ];
+  for (const [input, label, mutate, root] of mutations) {
+    assertPublishMutationRejected(
+      label,
+      candidate => {
+        const inputs = candidate.on.workflow_dispatch.inputs;
+        mutate(root ? inputs : inputs[input]);
+      },
+      /mode|publication/iu,
+    );
+  }
+});
+
+test('release validator keeps publication input validation bound to dispatch values', () => {
+  const jobId = 'publish-security';
+  const name = 'Validate publish inputs';
+  for (const field of [
+    'PUBLISH_MODE',
+    'PUBLISH_VERSION',
+    'RECOVERY_RUN_ID',
+    'RECOVERY_RUN_ATTEMPT',
+    'RECOVERY_QUALIFICATION_ATTEMPT',
+  ]) {
+    assertStepMutationRejected(
+      jobId,
+      name,
+      'preflight ignores ' + field,
+      step => {
+        step.env[field] = '';
+      },
+    );
+  }
+  for (const expression of [
+    '[[ -z "$PUBLISH_VERSION" && -z "$RECOVERY_RUN_ID" && -z "$RECOVERY_RUN_ATTEMPT" && -z "$RECOVERY_QUALIFICATION_ATTEMPT" ]]',
+    '*) exit 1 ;;',
+  ]) {
+    assertStepMutationRejected(
+      jobId,
+      name,
+      'preflight removes ' + expression,
+      step => {
+        assert.ok(step.run.includes(expression));
+        step.run = step.run.replace(expression, 'true');
+      },
+    );
+  }
+});
+
+test('release validator rejects missing mode and identity guards', () => {
+  for (const [mode, jobIds] of [
+    ['cohort', cohortJobs],
+    ['sidecars', sidecarJobs],
+  ]) {
+    for (const jobId of jobIds) {
+      for (const expression of [
+        "inputs.mode == '" + mode + "'",
+        ...identityGuards,
+      ]) {
+        assertJobMutationRejected(
+          jobId,
+          'remove ' + expression,
+          replaceGuard(expression),
+        );
+      }
+      assertJobMutationRejected(jobId, 'has no job guard', removeField('if'));
+    }
+  }
+  for (const expression of [
+    'cancelled() == false',
+    ...identityGuards,
+    'inputs.dry_run == false',
+    "inputs.mode == 'cohort'",
+    "inputs.mode == 'sidecars'",
+  ]) {
+    assertJobMutationRejected(
+      'publish-sidecars',
+      'remove ' + expression,
+      replaceGuard(expression),
+    );
+  }
+  for (const jobId of [
+    'publish-sidecars',
+    'publish',
+    'accept-published',
+    'tractor-downstream',
+  ]) {
+    assertJobMutationRejected(
+      jobId,
+      'loses status functions across inactive skipped ancestors',
+      job => {
+        replaceGuard('always()')(job);
+        replaceGuard('cancelled() == false')(job);
+      },
+    );
+  }
+  for (const jobId of [
+    'publish',
+    'accept-published',
+    'tractor-downstream',
+    'record-publish-outcome',
+    'publish-change-record',
+  ]) {
+    assertJobMutationRejected(
+      jobId,
+      'loses its cancellation guard',
+      replaceGuard('cancelled() == false'),
+      /cancelled|cancellation/u,
+    );
+  }
+});
+
+test('release validator preserves sidecar qualification, Tractor, and publication order edges', () => {
+  for (const [jobId, needs] of Object.entries(requiredPublicationNeeds)) {
+    for (const need of needs) {
+      assertJobMutationRejected(jobId, 'must retain ' + need, job => {
+        assert.ok(job.needs.includes(need));
+        job.needs = job.needs.filter(candidate => candidate !== need);
+      });
+      assertJobMutationRejected(
+        jobId,
+        'must require successful ' + need,
+        job => {
+          replaceGuard('needs.' + need + ".result == 'success'")(job);
+          // Exercise an unsafe change instead of relying on implicit success.
+          if (jobId === 'qualify-sidecars') job.if = 'always() && ' + job.if;
+        },
+      );
+    }
+  }
+});
+
+test('release validator confines sidecar preparation and qualification to read-only known jobs', () => {
+  for (const scope of ['contents', 'id-token', 'actions', 'packages']) {
+    for (const jobId of sidecarJobs) {
+      assertJobMutationRejected(
+        jobId,
+        scope + ' write',
+        setField('permissions', { [scope]: 'write' }),
+        /permission|write|read-only/iu,
+      );
+    }
+    assertPublishMutationRejected(
+      'inherited ' + scope + ' write',
+      workflow => {
+        workflow.permissions[scope] = 'write';
+      },
+      /permission|write|read-only/iu,
+    );
+  }
+  for (const jobId of sidecarJobs) {
+    assertPublishMutationRejected(
+      'missing ' + jobId,
+      workflow => delete workflow.jobs[jobId],
+      /closed|job graph|publication|sidecar/iu,
+    );
+  }
+  assertPublishMutationRejected(
+    'unknown read-only release job',
+    workflow => {
+      workflow.jobs['unqualified-sidecars'] = {
+        'runs-on': 'ubuntu-24.04',
+        permissions: { contents: 'read' },
+        steps: [{ run: 'echo unqualified' }],
+      };
+    },
+    /closed|job graph|unqualified-sidecars/iu,
+  );
+  for (const jobId of oidcJobs) {
+    for (const [field, value] of [
+      ['runs-on', 'self-hosted'],
+      ['environment', 'unprotected'],
+      [
+        'permissions',
+        { contents: 'read', 'id-token': 'write', packages: 'write' },
+      ],
+    ]) {
+      assertJobMutationRejected(
+        jobId,
+        'invalid ' + field,
+        setField(field, value),
+        new RegExp(jobId + '.*hosted runner|OIDC|permissions', 'u'),
+      );
+    }
+  }
+});
+
+test('release validator requires sidecar receipt checks and exact artifact identities', () => {
+  const names = {
+    prepare: 'Upload the immutable sidecar bundle',
+    qualifyDownload: 'Download the exact sidecar bundle',
+    qualify: 'Qualify the exact sidecar artifact',
+    reconcile: 'Reconcile qualified sidecars without publication authority',
+    receiptUpload: 'Upload the sidecar qualification receipt',
+    publishDownload: 'Download independently qualified sidecar bundle',
+    receiptDownload: 'Download sidecar qualification receipt',
+    verify: 'Verify independently qualified sidecar bytes and receipt',
+    publish: 'Publish independently qualified sidecars',
+  };
+  for (const [jobId, name] of [
+    ['qualify-sidecars', names.qualify],
+    ['qualify-sidecars', names.reconcile],
+    ['qualify-sidecars', names.receiptUpload],
+    ['publish-sidecars', names.verify],
+    ['publish-sidecars', names.publish],
+  ]) {
+    assertStepMutationRejected(jobId, name, 'disabled', setField('if', false));
+    assertJobMutationRejected(jobId, name + ' removed', job => {
+      job.steps = job.steps.filter(step => step.name !== name);
+    });
+  }
+  for (const [jobId, name] of [
+    ['qualify-sidecars', names.reconcile],
+    ['publish-sidecars', names.verify],
+    ['publish-sidecars', names.publish],
+  ]) {
+    assertStepMutationRejected(
+      jobId,
+      name,
+      'omits the qualification receipt',
+      step => {
+        assert.ok(step.run.includes('--qualification'));
+        step.run = step.run.replace('--qualification', '--unverified-receipt');
+      },
+    );
+  }
+  assertPublishMutationRejected(
+    'preparation issues an early sidecar qualification receipt',
+    workflow => {
+      workflow.jobs['prepare-sidecars'].steps.push(
+        structuredClone(
+          publishStep(workflow, 'qualify-sidecars', names.qualify),
+        ),
+      );
+    },
+    /sidecar|qualification/iu,
+  );
+  for (const name of [
+    'Test sidecar artifact and qualification contracts',
+    names.qualify,
+    names.reconcile,
+  ]) {
+    assertStepMutationRejected(
+      'qualify-sidecars',
+      name,
+      'replaced with an echo',
+      setField('run', 'echo skipped'),
+    );
+  }
+  const uploadMutations = [
+    ['name', 'bleedingdev-sidecars-mutable'],
+    ['path', '.modern/unverified'],
+    ['if-no-files-found', 'warn'],
+  ];
+  const downloadMutations = [
+    ['name', 'bleedingdev-sidecars-latest'],
+    ['path', '.modern/unverified'],
+    ['repository', 'someone-else/ultramodern.js'],
+    ['run-id', '41'],
+    ['github-token', ''],
+  ];
+  for (const [jobId, name, mutations] of [
+    ['prepare-sidecars', names.prepare, uploadMutations],
+    ['qualify-sidecars', names.receiptUpload, uploadMutations],
+    ['qualify-sidecars', names.qualifyDownload, downloadMutations],
+    ['publish-sidecars', names.publishDownload, downloadMutations],
+    ['publish-sidecars', names.receiptDownload, downloadMutations],
+  ]) {
+    for (const [field, value] of mutations) {
+      assertStepMutationRejected(jobId, name, 'invalid ' + field, step => {
+        step.with[field] = value;
+      });
+    }
+  }
+  for (const name of [
+    names.publishDownload,
+    names.receiptDownload,
+    names.verify,
+    names.publish,
+  ]) {
+    assertStepMutationRejected(
+      'publish-sidecars',
+      name,
+      'can run in cohort mode',
+      setField('if', 'always()'),
+    );
+  }
+  for (const name of [
+    'Download accepted release bundle',
+    'Download release acceptance receipt',
+    'Verify exact release acceptance receipt',
+    'Publish the staged sidecars in alias order',
+  ]) {
+    for (const condition of [
+      undefined,
+      'always()',
+      "inputs.mode == 'sidecars'",
+    ]) {
+      assertStepMutationRejected(
+        'publish-sidecars',
+        name,
+        'loses its cohort mode guard',
+        condition === undefined ? removeField('if') : setField('if', condition),
+      );
+    }
+  }
+  assertPublishMutationRejected(
+    'publication precedes verification',
+    workflow => {
+      const steps = workflow.jobs['publish-sidecars'].steps;
+      const publish = publishStep(workflow, 'publish-sidecars', names.publish);
+      steps.splice(steps.indexOf(publish), 1);
+      steps.splice(
+        steps.indexOf(publishStep(workflow, 'publish-sidecars', names.verify)),
+        0,
+        publish,
+      );
+    },
+    /sidecar|qualification|order/iu,
+  );
+});
+
+test('live publication modes share a non-cancelling lock and dry runs use independent locks', () => {
+  const workflow = readPublishWorkflow();
+  const group = workflow.concurrency.group.replace(
+    /^\s*\$\{\{\s*|\s*\}\}\s*$/gu,
+    '',
+  );
+  assert.equal(workflow.concurrency['cancel-in-progress'], false);
+  for (const mode of ['cohort', 'sidecars']) {
+    for (const dryRun of [false, true]) {
+      for (const runId of ['42', '43']) {
+        const context = publicationContext(mode, dryRun);
+        context.github.run_id = runId;
+        const expected = dryRun
+          ? 'publish-bleedingdev-dry-run-' + runId
+          : 'publish-bleedingdev';
+        const probe = {
+          jobs: {
+            group: { if: githubExpression(group + " == '" + expected + "'") },
+          },
+        };
+        assert.equal(
+          evaluateJobSchedule({ workflow: probe, jobId: 'group', context }),
+          true,
+          [mode, dryRun ? 'dry' : 'live', runId].join(' '),
+        );
+      }
+    }
+  }
+  const mutations = [
+    ['missing publication lock', removeField('concurrency'), true],
+    ['cancels a live publication', setField('cancel-in-progress', true)],
+    ...[
+      [
+        'separate live mode locks',
+        "format('publish-bleedingdev-{0}', inputs.mode)",
+      ],
+      [
+        'each live run gets an independent lock',
+        "format('publish-bleedingdev-{0}', github.run_id)",
+      ],
+      [
+        'dry runs share each other lock',
+        "inputs.dry_run == true && 'publish-bleedingdev-dry-run' || 'publish-bleedingdev'",
+      ],
+    ].map(([label, expression]) => [
+      label,
+      setField('group', githubExpression(expression)),
+    ]),
+    ['dry runs share the live lock', setField('group', 'publish-bleedingdev')],
+  ];
+  for (const [label, mutate, root] of mutations) {
+    assertPublishMutationRejected(
+      label,
+      candidate => mutate(root ? candidate : candidate.concurrency),
+      /concurrency|lock|cancel/iu,
+    );
+  }
 });
 
 test('release validator rejects unsafe qualification splits and receipt shortcuts', () => {
@@ -1117,6 +1948,31 @@ test('release gates reject node:test filter flags', () => {
       .length,
     1,
   );
+});
+
+test('a later fixed test file cannot load an eager dependency before install', () => {
+  const first = 'scripts/security/__tests__/advisory-gate.test.mjs';
+  const later = 'scripts/security/__tests__/github-job-condition.test.mjs';
+  const command = 'node --test ' + first;
+  const options = {
+    rootDir: repoRoot,
+    trackedFiles: listTrackedFiles(repoRoot),
+  };
+  const validate = run =>
+    validateWorkflowContent(
+      '.github/workflows/later-test.yml',
+      compliantWorkflow.replace(
+        'run: echo ok',
+        () => 'run: |\n          ' + run,
+      ),
+      options,
+    );
+  assert.deepEqual(validate(command), []);
+  const errors = validate(command + ' \\\n          ' + later);
+  assert.equal(errors.length, 1);
+  assert.ok(errors[0].includes('job example runs ' + later));
+  assert.ok(errors[0].includes('before any dependency install'));
+  assert.ok(errors[0].includes('compiled/js-yaml/index.js'));
 });
 
 test('release jobs and steps reject continue-on-error', () => {

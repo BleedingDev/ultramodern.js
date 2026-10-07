@@ -22,6 +22,9 @@ const {
   isPlainObject,
 } = validationKit;
 
+// Only an absent attestation endpoint is a registry propagation state.
+class RegistryProvenancePendingError extends Error {}
+
 const dsseInTotoPayloadType = 'application/vnd.in-toto+json';
 const githubActionsBuildType =
   'https://slsa-framework.github.io/github-actions-buildtypes/workflow/v1';
@@ -271,6 +274,14 @@ function assertProvenanceExpectation(
       expectation.invocation.runId,
       'Registry provenance expected invocation run ID',
     );
+    if (
+      Object.hasOwn(expectation.invocation, 'exactAttempt') &&
+      typeof expectation.invocation.exactAttempt !== 'boolean'
+    ) {
+      throw new Error(
+        'Registry provenance exact invocation attempt policy must be Boolean',
+      );
+    }
     assertCanonicalPositiveDecimal(
       expectation.invocation.runAttempt,
       'Registry provenance expected invocation run attempt',
@@ -365,6 +376,14 @@ function assertInvocationBinding(statement, expectation, packageLabel) {
   if (invocation.runId !== expectation.invocation.runId) {
     throw new Error(
       `${packageLabel} SLSA invocation belongs to workflow run ${invocation.runId}, expected ${expectation.invocation.runId}`,
+    );
+  }
+  if (
+    expectation.invocation.exactAttempt &&
+    invocation.attempt !== expectation.invocation.runAttempt
+  ) {
+    throw new Error(
+      `${packageLabel} SLSA invocation attempt ${invocation.attempt} does not match fresh producer attempt ${expectation.invocation.runAttempt}`,
     );
   }
   if (
@@ -646,7 +665,9 @@ async function verifyRegistryProvenance(
     );
   }
   if (!response?.ok) {
-    throw new Error(
+    const ErrorType =
+      response?.status === 404 ? RegistryProvenancePendingError : Error;
+    throw new ErrorType(
       `${packageLabel} registry provenance returned HTTP ${String(
         response?.status ?? '<unknown>',
       )}`,
@@ -792,6 +813,7 @@ async function verifyRegistryProvenance(
 }
 
 export {
+  RegistryProvenancePendingError,
   createRegistryProvenanceExpectation,
   githubActionsBuildType,
   inTotoStatementV1,
