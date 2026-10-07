@@ -266,6 +266,7 @@ type FederationPluginOptions = {
   exposes?: unknown;
   mfConfig?: unknown;
   runtimePlugins?: unknown[];
+  shareStrategy?: unknown;
 };
 
 /**
@@ -323,6 +324,9 @@ const withDefaults = (
           withReactJsxRuntimeShared(options.shared),
           packages,
         ),
+        // A host must start without contacting remotes it has not rendered
+        // yet. Version-first sharing loads every remote entry on start.
+        shareStrategy: options.shareStrategy ?? 'loaded-first',
         ...(runtimePlugin
           ? {
               runtimePlugins: withRuntimePlugin(
@@ -417,7 +421,8 @@ export class FederationPrivateContextsPlugin {
 /**
  * Apply UltraModern's Module Federation defaults to the federation plugins
  * that `@module-federation/modern-js-v3` registered on the chain: the shares,
- * and on the server the manifest-recovery runtime plugin.
+ * the loaded-first share strategy, and on the server the manifest-recovery
+ * runtime plugin.
  */
 export const ultramodernModuleFederationSharedPlugin =
   (): CliPlugin<AppTools> => ({

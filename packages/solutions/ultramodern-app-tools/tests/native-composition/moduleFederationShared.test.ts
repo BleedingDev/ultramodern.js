@@ -274,6 +274,41 @@ describe('Module Federation React JSX runtime sharing', () => {
       ...jsxRuntimes('19.2.0'),
       ...runtimeShare,
     });
+    // A host starts without loading remote entries it has not rendered.
+    expect(browser._options.shareStrategy).toBe('loaded-first');
+    expect(server.options.mfConfig.shareStrategy).toBe('loaded-first');
+  });
+
+  it('keeps an authored share strategy', async () => {
+    const { appDirectory } = createAppDirectory();
+    let modifyBundlerChain: ((chain: RspackChain) => void) | undefined;
+    ultramodernModuleFederationSharedPlugin().setup({
+      getAppContext: () => ({ appDirectory }),
+      modifyBundlerChain: (handler: typeof modifyBundlerChain) => {
+        modifyBundlerChain = handler;
+      },
+    } as any);
+    const rsbuild = await createRsbuild({
+      rsbuildConfig: {
+        source: { entry: { index: './src/index.js' } },
+        tools: {
+          bundlerChain: chain => {
+            chain
+              .plugin('plugin-module-federation')
+              .use(rspack.container.ModuleFederationPlugin, [
+                { name: 'host', shareStrategy: 'version-first' },
+              ]);
+            modifyBundlerChain!(chain);
+          },
+        },
+      },
+    });
+    const [config] = await rsbuild.initConfigs();
+    rmSync(appDirectory, { recursive: true, force: true });
+    const browser = config.plugins!.find(
+      plugin => plugin instanceof rspack.container.ModuleFederationPlugin,
+    ) as any;
+    expect(browser._options.shareStrategy).toBe('version-first');
   });
 
   it('registers the manifest-recovery runtime plugin on the server federation plugin only', async () => {
