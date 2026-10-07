@@ -5,10 +5,12 @@ import {
   useLoaderData,
   useRouter,
 } from '@modern-js/renderer-octane/router';
-import { useActionState, useMemo } from 'octane';
+import { lazy, Suspense, useActionState, useMemo } from 'octane';
 import Counter from '../components/Counter';
 import Deferred from '../components/Deferred';
 import Message from '../components/Message';
+
+const Lazy = lazy(() => import('../components/Lazy'));
 
 export default function Home() {
   const router = useRouter();
@@ -26,6 +28,11 @@ export default function Home() {
       <Counter />
       <Message />
       <Deferred />
+      <Suspense
+        fallback={<p data-testid="native-lazy-pending">Waiting lazy</p>}
+      >
+        <Lazy />
+      </Suspense>
       <pre data-testid="native-loader-value">{JSON.stringify(data)}</pre>
       <form action={action}>
         <label>

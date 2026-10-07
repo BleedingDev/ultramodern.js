@@ -7,7 +7,4 @@ setSuiteTimeout(1000 * 60 * 5);
 defineRendererSpecs({
   renderer: 'octane',
   appDir: path.resolve(__dirname, '..'),
-  skip: {
-    lazy: 'the Octane fixture has no lazy component',
-  },
 });
