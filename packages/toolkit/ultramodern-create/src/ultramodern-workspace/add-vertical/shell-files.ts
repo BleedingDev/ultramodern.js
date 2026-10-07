@@ -90,7 +90,7 @@ export function updateRootWorkspaceScripts(
   writeJsonFile(packagePath, rootPackage as JsonValue);
 }
 
-export function shellAppArtifacts(
+function shellAppArtifacts(
   scope: string,
   packageSource: ResolvedPackageSource,
   enableTailwind: boolean,
