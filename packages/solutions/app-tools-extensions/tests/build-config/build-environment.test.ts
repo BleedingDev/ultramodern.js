@@ -5,6 +5,7 @@ import {
   accessSync,
   chmodSync,
   constants,
+  copyFileSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -224,6 +225,63 @@ function writeCompiler(compilerPath: string, mode: number): void {
   chmodSync(compilerPath, mode);
 }
 
+for (const format of ['cjs', 'esm-node']) {
+  test(`loads ${format} config from a renamed package with URL-sensitive paths`, () => {
+    const directory = mkdtempSync(join(tmpdir(), 'app-tools-owning-url #%-'));
+    const moduleFilename =
+      format === 'cjs' ? 'build-environment.js' : 'build-environment.mjs';
+    const builtDirectory = join(import.meta.dirname, '../../dist');
+
+    try {
+      writeFileSync(
+        join(directory, 'package.json'),
+        JSON.stringify({
+          name: '@ultramodern/renamed-build-config',
+          exports: {
+            './internal-effect-discovery': './internal-effect-discovery.cjs',
+          },
+        }),
+      );
+      copyFileSync(
+        join(builtDirectory, format, 'build-config', moduleFilename),
+        join(directory, moduleFilename),
+      );
+      copyFileSync(
+        join(builtDirectory, 'cjs/build-config/internal-effect-discovery.js'),
+        join(directory, 'internal-effect-discovery.cjs'),
+      );
+      const environment = {
+        ...process.env,
+        BUILD_CONFIG_PACKAGE_URL_FIXTURE: 'recognized',
+      };
+      delete environment.NODE_OPTIONS;
+      execFileSync(
+        process.execPath,
+        [
+          '--input-type=module',
+          '--eval',
+          `
+            import assert from 'node:assert/strict';
+            import { createRequire } from 'node:module';
+            const [format, filename] = process.argv.slice(1);
+            const config = format === 'cjs'
+              ? createRequire(import.meta.url)(filename)
+              : await import(filename);
+            assert.equal(config.getBuildConfigEnvironment('BUILD_CONFIG_PACKAGE_URL_FIXTURE'), 'recognized');
+          `,
+          format,
+          format === 'cjs'
+            ? join(directory, moduleFilename)
+            : pathToFileURL(join(directory, moduleFilename)).href,
+        ],
+        { env: environment, encoding: 'utf8', stdio: 'pipe' },
+      );
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+}
+
 test('reads build config environment without process-global state', async () => {
   await withEnvironment('ZE_FAIL_BUILD', 'true', () => {
     assert.equal(getBuildConfigEnvironment('ZE_FAIL_BUILD'), 'true');
@@ -237,6 +295,42 @@ test('reads build config environment without process-global state', async () => 
     ),
     [],
   );
+});
+
+test('resolves only the packaged TypeScript compiler with Oxlint installed', async () => {
+  const directory = mkdtempSync(
+    join(tmpdir(), 'app-tools-effect-tsgo-oxlint-'),
+  );
+  const compilerPath = effectCompilerPath(directory);
+
+  try {
+    writeEffectTsgoPackage(directory);
+    writeCompiler(compilerPath, 0o700);
+    // `effect-tsgo get-exe-path` discovered every integration first, so an
+    // Oxlint without a musl binding failed the TypeScript lookup on Alpine.
+    for (const [name, version] of [
+      ['oxlint', '1.85.0'],
+      ['oxlint-tsgolint', '7.0.2003'],
+    ]) {
+      mkdirSync(join(directory, 'node_modules', name), { recursive: true });
+      writeFileSync(
+        join(directory, 'node_modules', name, 'package.json'),
+        JSON.stringify({ name, version }),
+      );
+    }
+
+    await withEnvironment('EFFECT_TSGO_BIN', undefined, () => {
+      assert.equal(
+        resolveEffectTsgoCompiler({
+          from: pathToFileURL(join(directory, 'modern.config.ts')),
+        }),
+        realpathSync(compilerPath),
+      );
+      assert.equal(existsSync(join(directory, 'cli-started')), false);
+    });
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 test('repairs Unix execute bits and preserves Windows package paths without mutation', async () => {
@@ -363,11 +457,9 @@ test('resolves Effect TS-Go from the requesting module origin', async () => {
     await withEnvironment('EFFECT_TSGO_BIN', undefined, () => {
       withWorkingDirectory(workingDirectory, () => {
         assert.equal(
-          realpathSync(
-            resolveEffectTsgoCompiler({
-              from: pathToFileURL(join(originDirectory, 'modern.config.ts')),
-            }),
-          ),
+          resolveEffectTsgoCompiler({
+            from: pathToFileURL(join(originDirectory, 'modern.config.ts')),
+          }),
           realpathSync(originCompilerPath),
         );
       });
@@ -414,7 +506,7 @@ test('selects the installed native alias from the original anchor without runnin
               join(appDirectory, 'module-federation.config.ts'),
             ),
           }),
-          compilerPath,
+          realpathSync(compilerPath),
         );
         assert.equal(existsSync(join(appDirectory, 'cli-started')), false);
         assert.equal(process.cwd(), realpathSync(stagingDirectory));
@@ -457,7 +549,7 @@ test('selects the exact canonical native version instead of another artifact wit
         resolveEffectTsgoCompiler({
           from: pathToFileURL(join(directory, 'modern.config.ts')),
         }),
-        effectCompilerPath(directory),
+        realpathSync(effectCompilerPath(directory)),
       );
       assert.equal(existsSync(join(directory, 'cli-started')), false);
     });
@@ -503,22 +595,43 @@ test('preserves an invalid installed TypeScript package instead of choosing the 
   }
 });
 
-test('rejects a provider with no installed native backend without starting its CLI', async () => {
+test('rejects a provider with no installed native backend without starting its CLI', () => {
   const directory = mkdtempSync(
     join(tmpdir(), 'app-tools-effect-tsgo-no-backend-'),
   );
   try {
     writeEffectTsgoPackage(directory);
     writeTypeScriptPackage(join(directory, 'node_modules/typescript'), '5.9.3');
-    await withEnvironment('EFFECT_TSGO_BIN', undefined, () => {
-      assert.throws(
-        () =>
-          resolveEffectTsgoCompiler({
-            from: pathToFileURL(join(directory, 'modern.config.ts')),
-          }),
-        /Native TypeScript package resolution failed.*No native TypeScript backend/su,
-      );
-    });
+    // Keep the absent-backend fixture independent of the test runner's
+    // workspace resolution and any inherited native compiler override.
+    const environment = { ...process.env };
+    for (const key of ['EFFECT_TSGO_BIN', 'NODE_OPTIONS', 'NODE_PATH']) {
+      delete environment[key];
+    }
+    execFileSync(
+      process.execPath,
+      [
+        '--input-type=module',
+        '--eval',
+        `
+          import assert from 'node:assert/strict';
+          const { resolveEffectTsgoCompiler } = await import(process.argv[1]);
+          assert.throws(
+            () => resolveEffectTsgoCompiler({ from: process.argv[2] }),
+            /Native TypeScript package resolution failed.*No native TypeScript backend/su,
+          );
+        `,
+        pathToFileURL(
+          join(
+            import.meta.dirname,
+            '../../dist/esm-node/build-config/build-environment.mjs',
+          ),
+        ).href,
+        pathToFileURL(join(directory, 'modern.config.ts')).href,
+      ],
+      { env: environment, encoding: 'utf8', stdio: 'pipe', timeout: 10_000 },
+    );
+    assert.equal(existsSync(join(directory, 'cli-started')), false);
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }

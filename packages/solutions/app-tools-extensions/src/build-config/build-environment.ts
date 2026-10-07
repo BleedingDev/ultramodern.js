@@ -14,16 +14,15 @@ import {
 import { createRequire, findPackageJSON } from 'node:module';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
-import { fileURLToPath, type URL } from 'node:url';
-import type { Rspack } from '@rsbuild/core';
+import { pathToFileURL, type URL } from 'node:url';
 
 // CJS and ESM consumers share the selected-cohort validator in one owning
 // module, including packages whose public name changes during publication.
-const owningModuleFile =
+const owningModuleUrl =
   process.env.MODERN_LIB_FORMAT === 'esm'
-    ? fileURLToPath(import.meta.url)
-    : __filename;
-const owningManifest = findPackageJSON(owningModuleFile, owningModuleFile);
+    ? import.meta.url
+    : pathToFileURL(__filename).href;
+const owningManifest = findPackageJSON(owningModuleUrl, owningModuleUrl);
 if (!owningManifest)
   throw new Error('Cannot find owning build-config package manifest');
 const owningName: unknown = JSON.parse(
@@ -38,7 +37,7 @@ const {
   effectCompilerDiscoveryFailureStage,
   resolveInstalledEffectCompiler,
 }: typeof import('./internal-effect-discovery') = createRequire(
-  owningModuleFile,
+  owningModuleUrl,
 )(`${owningName}/internal-effect-discovery`);
 
 const EFFECT_TSGO_RESOLUTION_ERROR =
