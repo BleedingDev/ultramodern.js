@@ -7,6 +7,7 @@ import { Helmet } from '@modern-js/runtime/head';
 import { lazy, Suspense } from 'react';
 import Counter from '../components/Counter';
 import Deferred from '../components/Deferred';
+import Message from '../components/Message';
 import type { PageLoaderData } from './page.data';
 
 const Lazy = lazy(() => import('../components/Lazy'));
@@ -26,6 +27,7 @@ export default function Home() {
       </Helmet>
       <h1>React renderer fixture</h1>
       <Counter />
+      <Message />
       <Deferred late={data?.late} />
       <Suspense
         fallback={<p data-testid="native-lazy-pending">Waiting lazy</p>}
