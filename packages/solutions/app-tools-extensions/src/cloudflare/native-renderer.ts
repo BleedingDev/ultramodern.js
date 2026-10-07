@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { WORKER_BUNDLE_DIRECTORY } from './constants';
-import type { WorkerRendererIdentities } from './renderer-identity';
+import type { WorkerRendererBuild } from './renderer-identity';
 import { isRecord } from './utils';
 
 /**
@@ -26,7 +26,7 @@ export interface NativeRendererWorkerEntry {
 export interface NativeRendererWorkerResources {
   readonly schema: 'ultramodern-native-worker-resources';
   readonly version: 1;
-  /** A native (non-React) renderer name from the built renderer profile. */
+  /** The built renderer, whose adapter serves native documents. */
   readonly renderer: string;
   readonly entries: Readonly<Record<string, NativeRendererWorkerEntry>>;
 }
@@ -63,16 +63,13 @@ function validateEntry(entryName: string, value: unknown) {
       throw invalid(`entry ${entryName} has an invalid ${field}`);
 }
 
-/** Renderers whose documents are served only by their native server handler. */
-export const NATIVE_WORKER_RENDERERS: readonly string[] = ['solid', 'octane'];
-
 /**
  * Read the native worker resources for a built application. Every built entry
  * of the resources' renderer must have validated document inputs.
  */
 export async function readNativeRendererWorkerResources(
   distDirectory: string,
-  identities: WorkerRendererIdentities | undefined,
+  build: WorkerRendererBuild | undefined,
 ): Promise<NativeRendererWorkerResources | undefined> {
   let bytes: string;
   try {
@@ -92,12 +89,18 @@ export async function readNativeRendererWorkerResources(
     value.version !== 1 ||
     typeof value.renderer !== 'string' ||
     !value.renderer ||
-    value.renderer === 'react' ||
     !isRecord(value.entries)
   )
     throw invalid('unknown schema');
+  if (
+    value.renderer !== build?.renderer.name ||
+    !build.renderer.nativeDocuments
+  )
+    throw invalid(
+      `renderer ${value.renderer} is not the built native-document renderer`,
+    );
   const entries = value.entries;
-  const nativeEntries = Object.entries(identities ?? {}).filter(
+  const nativeEntries = Object.entries(build.identities).filter(
     ([, identity]) => identity.renderer === value.renderer,
   );
   for (const [entryName] of nativeEntries)

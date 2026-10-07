@@ -23,9 +23,11 @@ function createWorkerRendererGuardResponse(request) {
   const ui = surfaces.ui;
   const identity = ui?.rendererIdentity;
   const profile = ui?.rendererProfile;
-  const isNative = [identity?.renderer, profile?.renderer].some(
-    renderer => renderer === 'solid' || renderer === 'octane',
-  );
+  // The built renderer's adapter decides whether documents are native.
+  const builtRenderer = MODERN_WORKER_MANIFEST.renderer;
+  const isNative =
+    builtRenderer?.nativeDocuments === true &&
+    [identity?.renderer, profile?.renderer].includes(builtRenderer.name);
   if (
     isNative &&
     (request.headers.has('x-rsc-tree') || request.headers.has('x-rsc-action'))
@@ -72,7 +74,7 @@ function createWorkerRendererGuardResponse(request) {
       'protocolVersion',
       'buildId',
     ]) &&
-    ['react', 'solid', 'octane'].includes(identity.renderer) &&
+    identity.renderer === builtRenderer?.name &&
     identity.protocolVersion === 1 &&
     ['appId', 'entryName', 'buildId'].every(field =>
       isCanonicalString(identity[field]),
@@ -163,10 +165,11 @@ function getNativeRouteIdentity(route) {
     identities && Object.hasOwn(identities, route.entryName)
       ? identities[route.entryName]
       : undefined;
-  // Solid and Octane, or any renderer that shipped native worker resources.
+  // The built native-document renderer, or one that shipped native resources.
+  const builtRenderer = MODERN_WORKER_MANIFEST.renderer;
   return identity &&
-    (identity.renderer === 'solid' ||
-      identity.renderer === 'octane' ||
+    ((builtRenderer?.nativeDocuments === true &&
+      identity.renderer === builtRenderer.name) ||
       hasNativeWorkerRenderer(identity.renderer))
     ? identity
     : undefined;
@@ -192,7 +195,7 @@ function createWorkerRendererErrorResponse(code, entryName) {
   );
 }
 
-// Solid and Octane bundle their native server handler with the renderer-core
+// Native-document renderers bundle their server handler with the renderer-core
 // worker dispatcher. Build-validated document inputs come from the manifest.
 async function invokeNativeRouteWorker(route, identity, request, env, ctx) {
   const nativeRenderer = MODERN_WORKER_MANIFEST.nativeRenderer;
