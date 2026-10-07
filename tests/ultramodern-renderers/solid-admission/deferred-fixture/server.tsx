@@ -1,4 +1,4 @@
-import type { DocumentAsset } from '@modern-js/renderer-core/session';
+import type { DocumentAsset } from '@modern-js/renderer-core/document';
 import { createRequestSession } from '@modern-js/renderer-core/session';
 import {
   ApplicationRouter,
