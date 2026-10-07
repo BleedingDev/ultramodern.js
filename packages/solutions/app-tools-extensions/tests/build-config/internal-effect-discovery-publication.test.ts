@@ -45,36 +45,12 @@ const expectedSelection = {
   nativePlatformManifest: proof.nativePlatformManifest,
   effectPlatformManifest: proof.effectPlatformManifest,
   compilerPath: proof.artifactPath,
-  nativeCompilerDigest: proof.nativeCompilerDigest,
-  compilerDigest: proof.artifactDigest,
 };
-const selections = [];
-const release = cjsSelection.installEffectCompilerSelectionValidator(function (selection) {
-  assert.equal(arguments.length, 1);
-  assert.equal(Object.isFrozen(selection), true);
-  assert.deepEqual(selection, expectedSelection);
-  selections.push(selection);
-});
-let cjsCompiler;
-let esmCompiler;
-try {
-  assert.throws(() => esmSelection.default.installEffectCompilerSelectionValidator(() => {}), /already has/u);
-  assert.deepEqual(cjsSelection.resolveEffectCompilerSelection(import.meta.url), expectedSelection);
-  assert.equal(selections.length, 0);
-  cjsCompiler = cjsConfig.resolveEffectTsgoCompiler({ from: import.meta.url });
-  esmCompiler = esmConfig.resolveEffectTsgoCompiler({ from: import.meta.url });
-  assert.equal(selections.length, 2);
-} finally {
-  release();
-  release();
-}
-const rejection = new Error('The active read-only validator rejected this cohort');
-const releaseRejection = esmSelection.default.installEffectCompilerSelectionValidator(() => { throw rejection; });
-try {
-  assert.throws(() => cjsConfig.resolveEffectTsgoCompiler({ from: import.meta.url }), error => error.cause === rejection);
-} finally {
-  releaseRejection();
-}
+const selection = cjsSelection.resolveEffectCompilerSelection(import.meta.url);
+assert.equal(Object.isFrozen(selection), true);
+assert.deepEqual(selection, expectedSelection);
+const cjsCompiler = cjsConfig.resolveEffectTsgoCompiler({ from: import.meta.url });
+const esmCompiler = esmConfig.resolveEffectTsgoCompiler({ from: import.meta.url });
 assert.equal(cjsConfig.resolveEffectTsgoCompiler({ from: import.meta.url }), cjsCompiler);
 assert.equal(cjsCompiler, esmCompiler);
 accessSync(cjsCompiler, constants.X_OK);

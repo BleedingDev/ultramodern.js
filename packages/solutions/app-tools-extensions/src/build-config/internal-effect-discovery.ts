@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { lstatSync, readFileSync, realpathSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
@@ -21,31 +20,6 @@ export interface EffectCompilerSelection {
   readonly nativePlatformManifest: string;
   readonly effectPlatformManifest: string;
   readonly compilerPath: string;
-  readonly nativeCompilerDigest: string;
-  readonly compilerDigest: string;
-}
-type SelectionValidator = (selection: EffectCompilerSelection) => void;
-let selectionValidator: SelectionValidator | undefined;
-
-/** Binds selection to the original consumer's installed compiler cohort. */
-export function installEffectCompilerSelectionValidator(
-  validator: SelectionValidator,
-): () => void {
-  if (selectionValidator)
-    throw new Error('Effect compiler selection already has a validator');
-  if (typeof validator !== 'function')
-    throw new TypeError(
-      'Effect compiler selection validator must be a function',
-    );
-  selectionValidator = validator;
-  let active = true;
-  return () => {
-    if (!active) return;
-    active = false;
-    if (selectionValidator !== validator)
-      throw new Error('Effect compiler selection validator lost ownership');
-    selectionValidator = undefined;
-  };
 }
 
 export function effectCompilerDiscoveryFailureStage(
@@ -181,20 +155,14 @@ function resolveNativeTypeScriptManifest(from: string | URL): string {
   return packageJsonPath;
 }
 
-function readCompilerArtifact(filename: string): {
-  path: string;
-  digest: string;
-} {
+function readCompilerArtifact(filename: string): string {
   const canonicalPath = realpathSync(filename);
-  if (!lstatSync(canonicalPath).isFile())
+  const stats = lstatSync(canonicalPath);
+  if (!stats.isFile())
     throw new Error(`Compiler artifact is not a regular file: ${filename}`);
-  const bytes = readFileSync(canonicalPath);
-  if (bytes.length === 0)
+  if (stats.size === 0)
     throw new Error(`Compiler artifact is empty: ${filename}`);
-  return {
-    path: canonicalPath,
-    digest: createHash('sha256').update(bytes).digest('hex'),
-  };
+  return canonicalPath;
 }
 
 /** Selects the exact native replacement without invoking the provider. */
@@ -230,9 +198,7 @@ export function resolveEffectCompilerSelection(
       );
     }
     const binaryName = process.platform === 'win32' ? 'tsc.exe' : 'tsc';
-    const nativeArtifact = readCompilerArtifact(
-      join(dirname(nativeManifest), 'lib', binaryName),
-    );
+    readCompilerArtifact(join(dirname(nativeManifest), 'lib', binaryName));
     stage = 'Compiler backend lookup';
     const effectName = `@effect/tsgo-${process.platform}-${process.arch}`;
     const effectManifest = createRequire(effect.cliPath).resolve(
@@ -267,7 +233,7 @@ export function resolveEffectCompilerSelection(
         `Effect replacement metadata does not match the selected native TypeScript backend: ${metadataPath}`,
       );
     }
-    const replacement = readCompilerArtifact(
+    const compilerPath = readCompilerArtifact(
       join(
         dirname(effectManifest),
         'artifacts',
@@ -276,8 +242,6 @@ export function resolveEffectCompilerSelection(
         binaryName,
       ),
     );
-    // Artifact reads and digests use actual installed bytes, as in provider
-    // discovery, and remain visible to config authority capture.
     return Object.freeze({
       from:
         typeof from === 'string' && !from.startsWith('file:')
@@ -287,9 +251,7 @@ export function resolveEffectCompilerSelection(
       backendManifest: realpathSync(typeScriptManifest),
       nativePlatformManifest: realpathSync(nativeManifest),
       effectPlatformManifest: realpathSync(effectManifest),
-      compilerPath: replacement.path,
-      nativeCompilerDigest: nativeArtifact.digest,
-      compilerDigest: replacement.digest,
+      compilerPath,
     });
   } catch (error) {
     if (error && typeof error === 'object' && !failureStages.has(error))
@@ -298,9 +260,6 @@ export function resolveEffectCompilerSelection(
   }
 }
 
-/** Validates the selected cohort while retaining ordinary filesystem observation. */
 export function resolveInstalledEffectCompiler(from: string | URL): string {
-  const selection = resolveEffectCompilerSelection(from);
-  selectionValidator?.(selection);
-  return selection.compilerPath;
+  return resolveEffectCompilerSelection(from).compilerPath;
 }
