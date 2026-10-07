@@ -217,8 +217,10 @@ const writeJson = (file, value) =>
 
 /**
  * Moves the fixture app into the generated shell: its src/, config and
- * tsconfig replace the starter ones. Each dependency keeps the specifier the
- * generator wrote; framework packages it did not write get the cohort alias.
+ * tsconfig replace the starter ones. The shell keeps the dependencies the
+ * generator wrote (the worker probe builds against them), the fixture's are
+ * added, and framework packages the generator did not write get the cohort
+ * alias.
  */
 function overlayFixture(appRoot, renderer, release) {
   const fixture = path.join(root, 'tests/integration', `renderer-${renderer}`);
@@ -252,8 +254,12 @@ function overlayFixture(appRoot, renderer, release) {
   const app = readJson(path.join(fixture, 'package.json'));
   writeJson(path.join(appRoot, 'package.json'), {
     ...generated,
-    dependencies: resolve(app.dependencies),
+    dependencies: {
+      ...generated.dependencies,
+      ...resolve(app.dependencies),
+    },
     devDependencies: {
+      ...generated.devDependencies,
       ...resolve(app.devDependencies),
       typescript: written.typescript,
     },
