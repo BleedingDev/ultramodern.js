@@ -11,7 +11,8 @@ export const MODULE_FEDERATION_VERSION = '2.9.2';
 // fork version moves past 2.9.2 because published sidecar versions are
 // immutable: 2.9.2 carries upstream 2.9.1 bytes and 2.9.3 predates the
 // renderer hunks (router-free `/base` bridge entry). 2.9.4 also pins the
-// dts-plugin 2.9.3 cascade (native DTS worker witness, onDevWorkerCreated).
+// dts-plugin 2.9.3 cascade. Its DTS worker witness and onDevWorkerCreated
+// hunks no longer have a consumer; they drop at the next dts-plugin version.
 export const MODULE_FEDERATION_MODERN_JS_V3_FORK_VERSION = '2.9.4';
 export const ZEPHYR_RSPACK_PLUGIN_VERSION = '1.4.2';
 export const ZEPHYR_AGENT_VERSION = '1.4.2';
