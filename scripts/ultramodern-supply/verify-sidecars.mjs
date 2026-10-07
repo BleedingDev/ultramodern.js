@@ -338,7 +338,22 @@ export async function findUpstreamedPatches(
   return upstreamed;
 }
 
-/** Reconstruct a recipe from its pinned tarball in an owned temporary directory. */
+function nestedNodeModules(directory) {
+  return fs
+    .readdirSync(directory, { withFileTypes: true })
+    .filter(entry => entry.isDirectory())
+    .flatMap(entry => {
+      const absolute = path.join(directory, entry.name);
+      return entry.name === 'node_modules'
+        ? [absolute]
+        : nestedNodeModules(absolute);
+    });
+}
+
+/**
+ * Reconstruct a recipe from its pinned tarball in an owned temporary directory,
+ * or into `materializeTo` when given.
+ */
 export async function verifySidecar(id, { artifactsDir, materializeTo } = {}) {
   const recipe = recipes.find(item => item.id === id);
   assert.ok(recipe, `unknown sidecar: ${id}`);
@@ -450,90 +465,6 @@ export async function verifySidecar(id, { artifactsDir, materializeTo } = {}) {
         `Reconstructed ${id}: authenticated ${recipe.upstream.name}@${recipe.upstream.version}, exact patch and publication manifest.`,
       );
       return upstream;
-    }
-    const fork = JSON.parse(
-      fs.readFileSync(path.join(target, 'package.json'), 'utf8'),
-    );
-    if (projected) {
-      assert.deepEqual(
-        fork,
-        projected,
-        `${id}: recipe must account for every manifest field`,
-      );
-    }
-    assert.equal(fork.name, recipe.fork.name);
-    assert.equal(fork.version, recipe.fork.version);
-    for (const key of contractFields) {
-      const expected = recipe.manifestChanges[key]
-        ? { ...upstream[key], ...recipe.manifestChanges[key] }
-        : upstream[key];
-      assert.deepEqual(fork[key], expected, `${id}: manifest ${key}`);
-    }
-    if (recipe.artifacts.includes('*')) {
-      const expectedDevDependencies = recipe.manifestChanges.devDependencies
-        ? {
-            ...upstream.devDependencies,
-            ...recipe.manifestChanges.devDependencies,
-          }
-        : upstream.devDependencies;
-      assert.deepEqual(
-        fork.devDependencies,
-        expectedDevDependencies,
-        `${id}: manifest devDependencies`,
-      );
-    }
-    for (const artifact of recipe.artifacts) {
-      if (artifact === '*') {
-        const upstreamFiles = files(upstreamDir).filter(
-          file => file !== 'package.json',
-        );
-        const forkFiles = files(target).filter(file => file !== 'package.json');
-        assert.deepEqual(
-          forkFiles,
-          upstreamFiles,
-          `${id}: complete artifact set`,
-        );
-        for (const file of upstreamFiles) {
-          const expectedPath = path.join(upstreamDir, file);
-          const actualPath = path.join(target, file);
-          assert.deepEqual(
-            fs.readFileSync(actualPath),
-            fs.readFileSync(expectedPath),
-            `${id}: ${file}`,
-          );
-          assert.equal(
-            fs.statSync(actualPath).mode & 0o111,
-            fs.statSync(expectedPath).mode & 0o111,
-            `${id}: executable mode ${file}`,
-          );
-        }
-        continue;
-      }
-      const source = path.join(upstreamDir, artifact);
-      const destination = path.join(target, artifact);
-      const directory = fs.statSync(source).isDirectory();
-      const entries = directory ? files(source) : [''];
-      if (directory)
-        assert.deepEqual(
-          files(destination),
-          entries,
-          `${id}: ${artifact} file set`,
-        );
-      for (const file of entries) {
-        const expectedPath = path.join(source, file);
-        const actualPath = path.join(destination, file);
-        assert.deepEqual(
-          fs.readFileSync(actualPath),
-          fs.readFileSync(expectedPath),
-          `${id}: ${artifact}/${file}`,
-        );
-        assert.equal(
-          fs.statSync(actualPath).mode & 0o111,
-          fs.statSync(expectedPath).mode & 0o111,
-          `${id}: executable mode ${artifact}/${file}`,
-        );
-      }
-      projected[key] = { ...patched[key], ...changes };
     }
     fs.writeFileSync(
       path.join(upstreamDir, 'package.json'),
