@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parse as parseYaml } from 'yaml';
 import {
   inspectNpmTarball,
   readVerifiedPackageArtifactBytes,
@@ -77,6 +78,33 @@ function compareInstalled(directory, artifact) {
   );
 }
 
+/** The nearest directory at or above `start` that holds `file`. */
+function findUp(start, file) {
+  for (let dir = start; ; dir = path.dirname(dir)) {
+    if (fs.existsSync(path.join(dir, file))) return dir;
+    assert.notEqual(dir, path.dirname(dir), `No ${file} above ${start}`);
+  }
+}
+
+/** Resolves `catalog:<name>` through the owning pnpm-workspace.yaml. */
+function resolveCatalog(appRoot, name, spec) {
+  if (!spec.startsWith('catalog:')) return spec;
+  const workspace = parseYaml(
+    fs.readFileSync(
+      path.join(findUp(appRoot, 'pnpm-workspace.yaml'), 'pnpm-workspace.yaml'),
+      'utf8',
+    ),
+  );
+  const catalogName = spec.slice('catalog:'.length) || 'default';
+  const catalog =
+    catalogName === 'default'
+      ? (workspace?.catalog ?? workspace?.catalogs?.default)
+      : workspace?.catalogs?.[catalogName];
+  const resolved = catalog?.[name];
+  assert(resolved, `${name} uses ${spec}, which has no entry for it`);
+  return resolved;
+}
+
 /**
  * Checks the app's direct cohort dependencies and every cohort copy in the
  * pnpm virtual store above it. Returns the number of installed copies checked.
@@ -99,7 +127,7 @@ export function checkInstalledCohort({ appRoot, cohort }) {
     const artifact = byTarget.get(name) ?? bySource.get(name);
     if (!artifact) continue;
     assert.equal(
-      spec,
+      resolveCatalog(appRoot, name, spec),
       name === artifact.targetName
         ? artifact.version
         : `npm:${artifact.targetName}@${artifact.version}`,
@@ -108,12 +136,10 @@ export function checkInstalledCohort({ appRoot, cohort }) {
     compareInstalled(path.join(appRoot, 'node_modules', name), artifact);
     checked += 1;
   }
-  let store;
-  for (let dir = appRoot; !store; dir = path.dirname(dir)) {
-    if (fs.existsSync(path.join(dir, 'node_modules/.pnpm')))
-      store = path.join(dir, 'node_modules/.pnpm');
-    assert.notEqual(dir, path.dirname(dir), `No pnpm store above ${appRoot}`);
-  }
+  const store = path.join(
+    findUp(appRoot, 'node_modules/.pnpm'),
+    'node_modules/.pnpm',
+  );
   for (const entry of fs.readdirSync(store)) {
     const scope = path.join(store, entry, 'node_modules/@bleedingdev');
     if (!fs.existsSync(scope)) continue;

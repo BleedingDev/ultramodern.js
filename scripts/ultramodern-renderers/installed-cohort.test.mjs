@@ -27,7 +27,10 @@ const cohort = {
   ],
 };
 
-function app(t, { link } = {}) {
+function app(
+  t,
+  { link, spec = 'npm:@bleedingdev/modern-js-runtime@1.0.0' } = {},
+) {
   const root = fs.realpathSync(
     fs.mkdtempSync(path.join(os.tmpdir(), 'installed-cohort-')),
   );
@@ -43,9 +46,7 @@ function app(t, { link } = {}) {
   fs.writeFileSync(
     path.join(root, 'package.json'),
     JSON.stringify({
-      dependencies: {
-        '@modern-js/runtime': 'npm:@bleedingdev/modern-js-runtime@1.0.0',
-      },
+      dependencies: { '@modern-js/runtime': spec },
     }),
   );
   fs.mkdirSync(path.join(root, 'node_modules/@modern-js'));
@@ -59,6 +60,24 @@ function app(t, { link } = {}) {
 test('accepts packages installed from the packed tarballs', t => {
   const { root } = app(t);
   assert.equal(checkInstalledCohort({ appRoot: root, cohort }), 2);
+});
+
+test('resolves the catalog specifiers the generator writes', t => {
+  const { root } = app(t, { spec: 'catalog:ultramodern' });
+  const workspace = path.join(root, 'pnpm-workspace.yaml');
+  fs.writeFileSync(
+    workspace,
+    'catalogs:\n  ultramodern:\n    "@modern-js/runtime": "npm:@bleedingdev/modern-js-runtime@1.0.0"\n',
+  );
+  assert.equal(checkInstalledCohort({ appRoot: root, cohort }), 2);
+  fs.writeFileSync(
+    workspace,
+    'catalogs:\n  ultramodern:\n    "@modern-js/runtime": "1.0.0"\n',
+  );
+  assert.throws(
+    () => checkInstalledCohort({ appRoot: root, cohort }),
+    /must depend on the packed cohort/u,
+  );
 });
 
 test('rejects an installed file that differs from the tarball', t => {
