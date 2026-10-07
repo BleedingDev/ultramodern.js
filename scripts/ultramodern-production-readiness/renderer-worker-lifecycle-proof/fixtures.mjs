@@ -328,16 +328,25 @@ function requestSource({
   return (
     `import { Suspense } from 'react';
 import { registerPlugin } from ${JSON.stringify(`${runtimeSpecifier}/plugin`)};
-import { setGlobalContext } from ${JSON.stringify(`${runtimeSpecifier}/context`)};
+import { routerProviderRegistryHooks, setGlobalContext } from ${JSON.stringify(`${runtimeSpecifier}/context`)};
 import { createRequestHandler, renderStreaming } from ${JSON.stringify(`${runtimeSpecifier}/ssr/server`)};
 import { applyRouterRuntimeState, getRouterRuntimeState } from ${JSON.stringify(`${runtimeExtensionsSpecifier}/router-state`)};
+import { createRouterStatePlugin } from ${JSON.stringify(`${runtimeExtensionsSpecifier}/router-state-plugin`)};
 import { isCloudflareWorkerRequestHandlerOptions, type CloudflareWorkerRequestHandlerOptions } from ${JSON.stringify(`${cloudflareSpecifier}/cloudflare/worker-options`)};
 ${diagnosticSource(input)}
 const fixtureEntryName = ${JSON.stringify(entryName)};
 ` +
     String.raw`
 const stateKey: unique symbol = Symbol('request-owned-lifecycle-state');
-const runtime = registerPlugin([]);
+// Apps get this plugin from the SDK; it runs the router runtime state's
+// cleanup when the request ends. Generated apps register it from untyped
+// code; its router hook extension does not narrow to the base plugin type.
+type RegisteredPlugin = Parameters<typeof registerPlugin>[0][number];
+const runtime = registerPlugin([
+  createRouterStatePlugin({
+    registryHooks: routerProviderRegistryHooks,
+  }) as unknown as RegisteredPlugin,
+]);
 setGlobalContext({ App: () => null, entryName: fixtureEntryName, enableRsc: false });
 runtime.hooks.extendStreamSSR.tap(info => {
   if (!(stateKey in info.runtimeContext) || !isState(info.runtimeContext[stateKey]))
