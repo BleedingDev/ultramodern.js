@@ -1374,6 +1374,7 @@ function collectSidecarArtifactFlowErrors(workflow, relativePath) {
     step.if === undefined &&
     step.with?.name === name &&
     step.with?.path === location &&
+    step.with?.['include-hidden-files'] === true &&
     step.with?.['if-no-files-found'] === 'error';
   const prepareSteps = jobs['prepare-sidecars']?.steps ?? [];
   const prepareCommand =
