@@ -6,7 +6,11 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { inspectNpmTarball } from '../../ultramodern-publish/lib/prepare-bleedingdev-packages/release-artifacts.mjs';
 import { readReleaseManifest } from '../../ultramodern-publish/lib/source-create-proof/release-manifest.mjs';
-import { readCohort } from '../../ultramodern-renderers/installed-cohort.mjs';
+import {
+  readCohort,
+  readInstalledPackageFiles,
+  verifyInstalledPackage,
+} from '../../ultramodern-renderers/installed-cohort.mjs';
 import { isUnpublishedForkEdge } from '../../ultramodern-supply/verify-sidecars.mjs';
 import {
   fileEvidence,
@@ -66,44 +70,7 @@ function authenticatePackage(record, artifacts, packedArtifact) {
     `Installed framework owner is absent from C2 artifacts: ${record.manifest.name}`,
   );
   assert.equal(record.manifest.version, artifact.version);
-  const expected = new Map(artifact.files.map(file => [file.path, file]));
-  const files = [];
-  function visit(directory) {
-    for (const item of fs.readdirSync(directory, { withFileTypes: true })) {
-      if (item.name === 'node_modules' && item.isDirectory()) continue;
-      const file = path.join(directory, item.name);
-      assert(
-        !item.isSymbolicLink(),
-        `Packed owner contains an injected symlink: ${file}`,
-      );
-      if (item.isDirectory()) visit(file);
-      else {
-        assert(item.isFile(), `Packed owner contains a non-file: ${file}`);
-        const evidence = fileEvidence(file, record.directory);
-        const packed = expected.get(evidence.path);
-        assert(packed, `Packed owner contains an injected file: ${file}`);
-        assert.equal(
-          evidence.byteLength,
-          packed.size,
-          `Installed owner size differs: ${file}`,
-        );
-        assert.equal(
-          evidence.sha256,
-          packed.sha256,
-          `Installed owner bytes differ: ${file}`,
-        );
-        expected.delete(evidence.path);
-        files.push(evidence);
-      }
-    }
-  }
-  visit(record.directory);
-  assert.equal(
-    expected.size,
-    0,
-    'Installed owner is missing authenticated candidate files',
-  );
-  files.sort((left, right) => left.path.localeCompare(right.path));
+  const files = verifyInstalledPackage(record.directory, artifact);
   return {
     name: record.manifest.name,
     version: record.manifest.version,
@@ -121,24 +88,7 @@ function authenticatePackage(record, artifacts, packedArtifact) {
  * build did not change it.
  */
 function recordInstalledOwner(record) {
-  const files = [];
-  function visit(directory) {
-    for (const item of fs.readdirSync(directory, { withFileTypes: true })) {
-      if (item.name === 'node_modules' && item.isDirectory()) continue;
-      const file = path.join(directory, item.name);
-      assert(
-        !item.isSymbolicLink(),
-        `Installed owner contains a symlink: ${file}`,
-      );
-      if (item.isDirectory()) visit(file);
-      else {
-        assert(item.isFile(), `Installed owner contains a non-file: ${file}`);
-        files.push(fileEvidence(file, record.directory));
-      }
-    }
-  }
-  visit(record.directory);
-  files.sort((left, right) => left.path.localeCompare(right.path));
+  const files = readInstalledPackageFiles(record.directory);
   return {
     name: record.manifest.name,
     version: record.manifest.version,
