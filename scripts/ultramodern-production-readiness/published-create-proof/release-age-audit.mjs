@@ -142,10 +142,19 @@ function parseYaml(source, spawnImpl = spawnSync) {
   }
 }
 
-function parseYamlFile(filePath, spawnImpl = spawnSync) {
+function parseYamlFile(
+  filePath,
+  spawnImpl = spawnSync,
+  { singleDocument = false } = {},
+) {
   const output = runYamlCli([filePath], { spawnImpl });
   try {
-    return mergePnpmLockfileDocuments(JSON.parse(output));
+    const value = JSON.parse(output);
+    assertCondition(
+      !singleDocument || !Array.isArray(value),
+      `Expected one YAML document in ${filePath}`,
+    );
+    return mergePnpmLockfileDocuments(value);
   } catch (error) {
     throw new Error(
       `Pinned YAML parser returned invalid JSON: ${

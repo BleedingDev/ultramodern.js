@@ -1,10 +1,10 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { parse as parseYaml } from 'yaml';
 import { canonicalJson } from '../../ultramodern-publish/lib/prepare-bleedingdev-packages/release-artifacts.mjs';
 import { assertStableSidecarVersion } from '../../ultramodern-publish/lib/prepare-bleedingdev-packages/sidecar-publication.mjs';
 import { readJsonFile } from './constants.mjs';
+import { parseYamlFile } from './release-age-audit.mjs';
 
 const releaseCohortPath = 'release-cohort.json';
 const retiredMetadataPaths = Object.freeze([
@@ -545,8 +545,10 @@ function assertGeneratedCohort(projectDir, release) {
   assertNoRetiredMetadata(projectDir);
   assertInstalledProducerCohort(projectDir, release);
   const expected = expectedReleaseCohort(release);
-  const workspace = parseYaml(
-    fs.readFileSync(path.join(projectDir, 'pnpm-workspace.yaml'), 'utf8'),
+  const workspace = parseYamlFile(
+    path.join(projectDir, 'pnpm-workspace.yaml'),
+    undefined,
+    { singleDocument: true },
   );
   assertCondition(
     isPlainObject(workspace),
