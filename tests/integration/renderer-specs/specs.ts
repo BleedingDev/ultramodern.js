@@ -298,7 +298,12 @@ export function defineRendererSpecs(options: RendererSpecOptions) {
           pendingBeforeLate = true;
       }
       expect(pendingBeforeLate).toBe(true);
-      expect(html).toContain('Native late value');
+      // The resolved value also arrives in a data script, so match the
+      // streamed boundary markup (Octane streams it JSON-encoded).
+      const late = html.search(
+        /data-testid=\\?"native-deferred-late\\?"[^>]*>Native late value/,
+      );
+      expect(late).toBeGreaterThan(html.indexOf('native-deferred-pending'));
 
       await openHydrated('/');
       await clickAndWait('nav-about', 'native-about');
