@@ -16,7 +16,6 @@ import { nativeClientAssetsPlugin } from './native-assets';
 import { createNativeEntryStubGenerator } from './native-entry';
 import { nativeEntryCommandPlugin } from './native-entry-command';
 import { findNativeI18nConfig } from './native-i18n';
-import type { NativeEntryGenerator } from './native-infrastructure';
 import { nativeRendererInfrastructurePlugin } from './native-infrastructure';
 import { nativeModuleFederationPlugin } from './native-module-federation';
 import { nativePrerenderPlugin } from './native-prerender';
@@ -98,9 +97,6 @@ function composeNativeRenderer(
   const infrastructurePluginName = nativeInfrastructurePluginName(renderer);
   let rendererIdentities: Readonly<Record<string, RendererIdentity>> = {};
   const resolveBuildIdentities = createRendererBuildIdentityResolver(renderer);
-  let generator: NativeEntryGenerator | undefined;
-  const resolveGenerator = () =>
-    (generator ??= createNativeEntryStubGenerator(adapter));
   const federation = createRendererModuleFederationIntegration(renderer);
   const selected = [
     appTools({ rendererExtensions: false, serverExtensions: false }),
@@ -108,14 +104,7 @@ function composeNativeRenderer(
     nativeEntryCommandPlugin(),
     nativeRendererInfrastructurePlugin(
       renderer,
-      {
-        async client(context) {
-          return (await resolveGenerator()).client(context);
-        },
-        async server(context) {
-          return (await resolveGenerator()).server(context);
-        },
-      },
+      createNativeEntryStubGenerator(adapter),
       {
         adapter,
         i18n: findNativeI18nConfig(consumerPlugins),
