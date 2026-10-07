@@ -38,7 +38,7 @@ export function createRendererBuildIdentityResolver(
         (process.env.NODE_ENV === 'production' ? 'production' : 'development'),
       ...(delivery
         ? {
-            appId: delivery.surfaces.ui!.rendererIdentity.appId,
+            appId: delivery.appId,
             sourceRevision: delivery.sourceRevision,
           }
         : { appId: context.packageName || undefined }),

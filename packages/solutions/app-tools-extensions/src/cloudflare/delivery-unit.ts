@@ -35,6 +35,42 @@ export type DeliveryUnitStamp = DeliveryUnitIdentity & {
   };
 };
 
+/**
+ * The topology's declaration of one delivery unit. A UI surface may omit the
+ * renderer projection entirely (a React workspace authored before renderer
+ * selection); the build then resolves its renderer identity from the app
+ * config alone, and there is no declared projection to verify it against.
+ */
+export type TopologyUiSurface = DeliveryUnitIdentity & { surface: 'ui' } & (
+    | {
+        rendererIdentity: RendererIdentity;
+        rendererProfile: RendererProfile;
+        routerBindings: RendererRouterBindings;
+      }
+    | {
+        rendererIdentity?: undefined;
+        rendererProfile?: undefined;
+        routerBindings?: undefined;
+      }
+  );
+
+export type TopologyDeliveryUnit = DeliveryUnitIdentity & {
+  /** The declaring topology app. */
+  appId: string;
+  surfaces: {
+    ui?: TopologyUiSurface;
+    api?: DeliveryUnitIdentity & { surface: 'api' };
+  };
+};
+
+const RENDERER_PROJECTION_FIELDS = [
+  'renderer',
+  'rendererIdentity',
+  'rendererIdentities',
+  'rendererProfile',
+  'routerBindings',
+] as const;
+
 type TopologyAppResolution = {
   app?: Record<string, unknown>;
   workspaceRoot: string;
@@ -129,7 +165,7 @@ const resolveTopologyApp = async (
 const createTopologyDeliveryUnitStamp = (
   identity: DeliveryUnitIdentity,
   app: Record<string, unknown>,
-): DeliveryUnitStamp => {
+): TopologyDeliveryUnit => {
   const surfaceProfile = nonEmptyString(app.surfaceProfile);
   if (
     surfaceProfile !== undefined &&
@@ -141,51 +177,61 @@ const createTopologyDeliveryUnitStamp = (
   }
   const emitsUi = surfaceProfile !== 'api-only';
   const emitsApi = surfaceProfile !== 'ui-only';
-  let ui: DeliveryUnitStamp['surfaces']['ui'];
+  const appId = nonEmptyString(app.id);
+  if (!appId)
+    throw new Error('[cloudflare-delivery-unit] Declared app requires an id.');
+  let ui: TopologyUiSurface | undefined;
   if (emitsUi) {
-    const routerBindings = isRecord(app.routerBindings)
-      ? app.routerBindings
-      : {};
-    const errors = [
-      ...validateRendererIdentity(app.rendererIdentity).errors,
-      ...validateRendererProfile(app.rendererProfile).errors,
-      ...validateRendererRouterBindings(
-        app.routerBindings,
-        Object.keys(routerBindings),
-        'routerBindings',
-      ).errors,
-    ];
-    if (errors.length) {
-      throw new Error(
-        `[cloudflare-delivery-unit] ${formatBackendFederationValidationErrors(errors)}`,
-      );
+    if (RENDERER_PROJECTION_FIELDS.every(field => !Object.hasOwn(app, field))) {
+      ui = { ...identity, surface: 'ui' };
+    } else {
+      const routerBindings = isRecord(app.routerBindings)
+        ? app.routerBindings
+        : {};
+      const errors = [
+        ...validateRendererIdentity(app.rendererIdentity).errors,
+        ...validateRendererProfile(app.rendererProfile).errors,
+        ...validateRendererRouterBindings(
+          app.routerBindings,
+          Object.keys(routerBindings),
+          'routerBindings',
+        ).errors,
+      ];
+      if (errors.length) {
+        throw new Error(
+          `[cloudflare-delivery-unit] ${formatBackendFederationValidationErrors(errors)}`,
+        );
+      }
+      const rendererIdentity = app.rendererIdentity as RendererIdentity;
+      const rendererProfile = app.rendererProfile as RendererProfile;
+      if (!Object.hasOwn(routerBindings, rendererIdentity.entryName))
+        throw new Error(
+          '[cloudflare-delivery-unit] Topology routerBindings must include the primary renderer identity entry.',
+        );
+      const declaredIdentity = toDeliveryUnitIdentity(app.deliveryUnit);
+      if (
+        rendererIdentity.renderer !== app.renderer ||
+        rendererIdentity.renderer !== rendererProfile.renderer ||
+        rendererIdentity.appId !== app.id ||
+        rendererIdentity.buildId !== declaredIdentity?.buildMarker
+      ) {
+        throw new Error(
+          '[cloudflare-delivery-unit] Topology UI renderer metadata must match its app and delivery-unit identity.',
+        );
+      }
+      ui = {
+        ...identity,
+        surface: 'ui',
+        rendererIdentity: {
+          ...rendererIdentity,
+          buildId: identity.buildMarker,
+        },
+        rendererProfile,
+        routerBindings: immutableRendererRouterBindings(
+          routerBindings as RendererRouterBindings,
+        ),
+      };
     }
-    const rendererIdentity = app.rendererIdentity as RendererIdentity;
-    const rendererProfile = app.rendererProfile as RendererProfile;
-    if (!Object.hasOwn(routerBindings, rendererIdentity.entryName))
-      throw new Error(
-        '[cloudflare-delivery-unit] Topology routerBindings must include the primary renderer identity entry.',
-      );
-    const declaredIdentity = toDeliveryUnitIdentity(app.deliveryUnit);
-    if (
-      rendererIdentity.renderer !== app.renderer ||
-      rendererIdentity.renderer !== rendererProfile.renderer ||
-      rendererIdentity.appId !== app.id ||
-      rendererIdentity.buildId !== declaredIdentity?.buildMarker
-    ) {
-      throw new Error(
-        '[cloudflare-delivery-unit] Topology UI renderer metadata must match its app and delivery-unit identity.',
-      );
-    }
-    ui = {
-      ...identity,
-      surface: 'ui',
-      rendererIdentity: { ...rendererIdentity, buildId: identity.buildMarker },
-      rendererProfile,
-      routerBindings: immutableRendererRouterBindings(
-        routerBindings as RendererRouterBindings,
-      ),
-    };
   } else if (
     app.rendererIdentity !== undefined ||
     app.rendererProfile !== undefined ||
@@ -198,6 +244,7 @@ const createTopologyDeliveryUnitStamp = (
 
   return {
     ...identity,
+    appId,
     surfaces: {
       ...(ui ? { ui } : {}),
       ...(emitsApi ? { api: { ...identity, surface: 'api' as const } } : {}),
@@ -212,7 +259,7 @@ const createTopologyDeliveryUnitStamp = (
  */
 export const resolveTopologyDeliveryUnit = async (
   appDirectory: string,
-): Promise<DeliveryUnitStamp | undefined> => {
+): Promise<TopologyDeliveryUnit | undefined> => {
   const resolved = await resolveTopologyApp(appDirectory);
   if (!resolved?.app) {
     return undefined;
@@ -288,7 +335,7 @@ export const resolveWorkerDeliveryUnitStamp = async (
         '[cloudflare-delivery-unit] Build artifact UI surface must match the declared topology surface profile.',
       );
     }
-    if (expected.surfaces.ui && ui) {
+    if (expected.surfaces.ui?.rendererIdentity && ui) {
       if (
         !isDeepStrictEqual(
           expected.surfaces.ui.routerBindings,

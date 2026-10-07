@@ -97,10 +97,13 @@ const writeWorkspace = async ({
   surfaceProfile = 'full-stack',
   renderer = 'react',
   artifact,
+  rendererProjection = true,
 }: {
   surfaceProfile?: 'api-only' | 'ui-only' | 'full-stack';
   renderer?: RendererName;
   artifact?: unknown;
+  /** False for a topology authored before renderer selection. */
+  rendererProjection?: boolean;
 } = {}) => {
   const appId = 'catalog';
   const workspaceRoot = await fs.mkdtemp(
@@ -121,7 +124,7 @@ const writeWorkspace = async ({
           path: `verticals/${appId}`,
           surfaceProfile,
           deliveryUnit: createDeliveryUnit(appId),
-          ...(surfaceProfile === 'api-only'
+          ...(surfaceProfile === 'api-only' || !rendererProjection
             ? {}
             : {
                 renderer,
@@ -188,6 +191,48 @@ it.each(['api-only', 'ui-only', 'full-stack'] as const)(
     expect(issues).toEqual([]);
   },
 );
+
+it('accepts a UI topology authored without a renderer projection', async () => {
+  const { appDirectory } = await writeWorkspace({ rendererProjection: false });
+  const topology = await resolveTopologyDeliveryUnit(appDirectory);
+  expect(topology?.appId).toBe('catalog');
+  expect(topology?.surfaces.ui).toMatchObject({
+    unitId: createDeliveryUnit('catalog').unitId,
+    surface: 'ui',
+  });
+  expect(topology?.surfaces.ui?.rendererIdentity).toBeUndefined();
+  const worker = await resolveWorkerDeliveryUnitStamp(
+    appDirectory,
+    path.join(appDirectory, 'dist'),
+  );
+  // The finalized build carries the identity the app config resolved.
+  expect(worker?.surfaces.ui).toMatchObject({
+    rendererIdentity: uiOptions('catalog').identity,
+    rendererProfile: profiles.react,
+  });
+  const issues: Parameters<typeof verifyDeliveryUnitIdentity>[0] = [];
+  verifyDeliveryUnitIdentity(
+    issues,
+    { deliveryUnit: worker },
+    'modern-worker-manifest.json',
+    topology,
+  );
+  expect(issues).toEqual([]);
+});
+
+it('rejects a partial UI renderer projection in the topology', async () => {
+  const { appDirectory } = await writeWorkspace();
+  const topologyPath = path.join(
+    appDirectory,
+    '../../topology/reference-topology.json',
+  );
+  const topology = JSON.parse(await fs.readFile(topologyPath, 'utf8'));
+  delete topology.verticals[0].rendererIdentity;
+  await fs.writeFile(topologyPath, JSON.stringify(topology));
+  await expect(resolveTopologyDeliveryUnit(appDirectory)).rejects.toThrow(
+    /cloudflare-delivery-unit/,
+  );
+});
 
 it.each(['react', 'solid', 'octane'] as const)(
   'preserves the actual %s UI renderer identity and profile in the worker stamp',

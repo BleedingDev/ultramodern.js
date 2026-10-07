@@ -101,6 +101,31 @@ function overlayFixture(renderer: 'solid' | 'octane') {
   return { root, app, manifest, write };
 }
 
+test('React topology authored before renderer selection needs no persisted projection', () => {
+  const app = { id: 'shell-super-app', path: 'apps/shell-super-app' };
+  const expected = {
+    id: app.id,
+    kind: 'shell',
+    path: app.path,
+    renderer: 'react',
+    emitsUi: true,
+  } as unknown as Parameters<typeof assertRendererProjection>[1];
+  assert.equal(assertRendererProjection(app, expected)?.renderer, 'react');
+  // A native selection, or any partial projection, still has to be persisted.
+  assert.throws(
+    () =>
+      assertRendererProjection(app, {
+        ...expected!,
+        renderer: 'solid',
+      } as typeof expected),
+    /renderer disagrees with modern.config/,
+  );
+  assert.throws(
+    () => assertRendererProjection({ ...app, renderer: 'react' }, expected),
+    /renderer profile disagrees/,
+  );
+});
+
 test('native renderer projections reject a mismatched tuple, identity and capability claim', () => {
   for (const renderer of ['solid', 'octane'] as const) {
     const app = nativeProjection(renderer);

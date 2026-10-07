@@ -125,6 +125,15 @@ export function isForeignRendererPackage(
   );
 }
 
+const RENDERER_PROJECTION_FIELDS = [
+  'renderer',
+  'rendererIdentity',
+  'rendererIdentities',
+  'rendererProfile',
+  'routerBindings',
+  'rendererCapabilities',
+] as const;
+
 /** Validate a projection against the selected tuple, never derive selection from it. */
 export function assertRendererProjection(
   app: JsonRecord,
@@ -159,6 +168,15 @@ export function assertRendererProjection(
     );
     return undefined;
   }
+  // A React workspace authored before renderer selection persists no renderer
+  // projection. Its React selection is still reconciled from modern.config
+  // and its dependencies are checked against the React profile; there is
+  // simply no stored projection to compare.
+  if (
+    expected?.renderer === 'react' &&
+    RENDERER_PROJECTION_FIELDS.every(field => !Object.hasOwn(app, field))
+  )
+    return getRendererGenerationProfile('react');
   assert(isApplicationRenderer(renderer), `${label} has an invalid renderer`);
   assert(
     app.renderer === renderer,
