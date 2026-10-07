@@ -85,6 +85,16 @@ export const unpublishedForkEdges = [
       '@bleedingdev/modern-js-ultramodern-app-tools',
     ],
     ['packages/toolkit/plugin', '@bleedingdev/modern-js-plugin'],
+    // Renderer adapters type their compiler plugins against an optional peer.
+    ['packages/runtime/renderer-core', '@bleedingdev/modern-js-renderer-core'],
+    [
+      'packages/runtime/renderer-octane',
+      '@bleedingdev/modern-js-renderer-octane',
+    ],
+    [
+      'packages/runtime/renderer-solid',
+      '@bleedingdev/modern-js-renderer-solid',
+    ],
   ].map(([importer, published]) => ({
     importer,
     published,
