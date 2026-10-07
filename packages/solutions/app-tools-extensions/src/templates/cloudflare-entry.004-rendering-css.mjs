@@ -1086,6 +1086,24 @@ function collectLocalFragmentCssAssets(html, request) {
     }
   }
 
+  // This app's own route rendered the fragment, so the fragment depends on
+  // that route's stylesheets too (for example a global Tailwind sheet the
+  // exposed component never imports). Report the deploy-time route CSS so
+  // the composing shell links it without fetching this app's manifests, as
+  // the Node composition does.
+  const fragmentRequest = readDistributedSsrFragmentRequest(request);
+  if (
+    fragmentRequest &&
+    (!containerName || fragmentRequest.boundaryId === containerName) &&
+    findRemoteExpose(localManifest, fragmentRequest.expose)
+  ) {
+    for (const asset of Array.isArray(localManifest.routeCss)
+      ? localManifest.routeCss
+      : []) {
+      assets.add(asset);
+    }
+  }
+
   return [...assets];
 }
 
