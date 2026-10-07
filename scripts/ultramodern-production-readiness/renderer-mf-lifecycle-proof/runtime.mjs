@@ -460,8 +460,11 @@ export async function recoveryTimeoutProof(hostOrigin, control, signal) {
     html.includes('fragile-pending') || html.includes('fragile-fallback'),
     'Native React must render the failed remote Suspense/error fallback',
   );
+  // Production React marks a boundary it hands to the client with <!--$!-->
+  // (or $RX once the shell is out); data-msg is development-only and
+  // data-dgst needs an onError digest the framework does not return.
   assert(
-    /<template\b[^>]*data-(?:msg|dgst)/u.test(html),
+    /<!--\$!-->|\$RX\(/u.test(html),
     'Native React must emit its actual failed Suspense marker',
   );
   const attempts = control.evidence.filter(
