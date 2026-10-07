@@ -1,6 +1,7 @@
 import type { RendererIdentity } from '@modern-js/renderer-core/identity';
 import {
   emitNativeEntryApplication,
+  NATIVE_APPLICATION_CLIENT_REQUEST,
   type NativeApplicationSourceOptions,
   resolveNativeEntryIdentity,
   writeNativeEntryModules,
@@ -70,7 +71,7 @@ const hot = (import.meta as ImportMeta & { readonly webpackHot?: unknown }).webp
 if (isNativeEntryHot(hot)) hot.dispose(() => { disposed = true; startupController.abort(new DOMException('The application entry was disposed', 'AbortError')); dispose?.(); });
 
 async function start(): Promise<void> {
-  const module = await import('./application.client');
+  const module = await import(${JSON.stringify(NATIVE_APPLICATION_CLIENT_REQUEST)});
   const application = await module.loadApplication(rendererIdentity, bootstrap?.hydrating ?? false);
   if (disposed) return;
   dispose = (bootstrap?.hydrating ? hydrateApplication : mountApplication)(application.view, root, bootstrap ? { renderId: bootstrap.documentId } : {});

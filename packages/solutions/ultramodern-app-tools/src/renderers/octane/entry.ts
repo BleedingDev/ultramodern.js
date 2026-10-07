@@ -1,6 +1,7 @@
 import type { RendererIdentity } from '@modern-js/renderer-core/identity';
 import {
   emitNativeEntryApplication,
+  NATIVE_APPLICATION_CLIENT_REQUEST,
   type NativeApplicationSourceOptions,
   resolveNativeEntryIdentity,
 } from '../../native-composition/native-entry';
@@ -83,7 +84,7 @@ async function start(): Promise<void> {
     nativeHydrationBuildId,
     signal: startupController.signal,
     load: async () => {
-      const module = await import('./application.client');
+      const module = await import(${JSON.stringify(NATIVE_APPLICATION_CLIENT_REQUEST)});
       if (disposed) throw new Error('The application entry was disposed while loading');
       return module.loadApplication(rendererIdentity, bootstrap?.hydrating ?? false, startupController.signal);
     },

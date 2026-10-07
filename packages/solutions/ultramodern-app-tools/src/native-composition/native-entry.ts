@@ -122,6 +122,13 @@ export async function emitNativeEntryApplication(
   return { routed, directory };
 }
 
+/**
+ * The request a generated client entry passes to import() to load the
+ * application: the routes, layouts and their styles. Every document needs it,
+ * so its stylesheets belong in the server document head.
+ */
+export const NATIVE_APPLICATION_CLIENT_REQUEST = './application.client';
+
 /** Select the renderer-owned implementation of the existing entry contract. */
 export function createNativeEntryGenerator(
   renderer: NativeEntryGeneration['renderer'],
