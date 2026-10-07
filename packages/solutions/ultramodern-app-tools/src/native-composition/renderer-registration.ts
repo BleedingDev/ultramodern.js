@@ -42,6 +42,13 @@ export interface NativeRendererAdapter {
   readonly profile: RendererBuildProfile;
   readonly compilerArtifacts: NativeCompilerArtifacts;
   readonly compiler: NativeRendererCompilerActivation;
+  /**
+   * Who links the stylesheets of lazy components in a server document.
+   * `'renderer'`: the server render links each one beside the markup it
+   * renders. `'document'`: the render cannot report which lazy modules it
+   * rendered, so the document links every lazy stylesheet up front.
+   */
+  readonly lazyStyles: 'renderer' | 'document';
   assertSupportedSource?(source: string | false | undefined): Promise<void>;
   createEntryGenerator(): NativeEntryGenerator;
   emitRouteModule(options: NativeRouteEmissionOptions): string;

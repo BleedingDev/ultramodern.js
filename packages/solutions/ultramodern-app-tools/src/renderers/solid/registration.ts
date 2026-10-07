@@ -24,6 +24,7 @@ export const solidNativeRendererAdapter = Object.freeze<NativeRendererAdapter>({
     }),
     export: 'pluginSolidRenderer',
   }),
+  lazyStyles: 'renderer',
   createEntryGenerator: createSolidNativeEntryGenerator,
   emitRouteModule: emitSolidNativeRouteModule,
 });
