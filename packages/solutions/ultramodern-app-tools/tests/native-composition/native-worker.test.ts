@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import type { RendererIdentity } from '@modern-js/renderer-core';
-import type { NativeCompilerArtifacts } from '../../src/native-composition/compiler-artifacts';
+import type { NativeCompilerArtifacts } from '@modern-js/renderer-core/adapter';
 import {
   isNativeWorkerBuild,
   nativeWorkerEntrySource,
