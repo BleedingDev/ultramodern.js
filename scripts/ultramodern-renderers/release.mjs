@@ -18,7 +18,9 @@
 // include the no-React bundle check).
 // Then the React runners in scripts/ultramodern-production-readiness: worker
 // custom entries and RSC on workerd, Module Federation lifecycle, and (with
-// --tractor-source) the Tractor downstream adoption.
+// --tractor-source, a Tractor repository containing the pinned
+// scripts/ultramodern-publish/tractor-baseline-revision) the Tractor
+// downstream adoption of that exact baseline.
 // Prints a PASS/FAIL/SKIP table and exits 1 on any failure.
 import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
@@ -496,7 +498,11 @@ async function main() {
           sh(
             process.execPath,
             ['node_modules/typescript/bin/tsc', '-p', 'tsconfig.json'],
-            { cwd: appRoot, env, log: `${renderer}-typecheck` },
+            {
+              cwd: appRoot,
+              env,
+              log: `${renderer}-typecheck`,
+            },
           ),
         ready,
       );
@@ -616,17 +622,26 @@ async function main() {
     await step(
       'tractor',
       async () => {
+        // Accept the pinned Tractor baseline the CI lane checks out, not
+        // whatever the source checkout happens to have at HEAD.
+        const source = path.resolve(opts['tractor-source']);
+        const revision = fs
+          .readFileSync(
+            path.join(
+              root,
+              'scripts/ultramodern-publish/tractor-baseline-revision',
+            ),
+            'utf8',
+          )
+          .trim();
+        if (!/^[0-9a-f]{40}$/u.test(revision))
+          throw new Error(`Invalid Tractor baseline revision: ${revision}`);
         const clone = path.join(workDir, 'tractor');
-        if (process.platform === 'darwin')
-          execFileSync('cp', [
-            '-cR',
-            path.resolve(opts['tractor-source']),
-            clone,
-          ]);
-        else
-          fs.cpSync(path.resolve(opts['tractor-source']), clone, {
-            recursive: true,
-          });
+        const git = (...args) =>
+          execFileSync('git', args, { stdio: ['ignore', 'ignore', 'inherit'] });
+        git('clone', '--quiet', '--no-checkout', source, clone);
+        git('-C', clone, 'fetch', '--quiet', '--no-tags', source, revision);
+        git('-C', clone, 'checkout', '--quiet', '--detach', revision);
         await sh(
           process.execPath,
           [
