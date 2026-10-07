@@ -151,6 +151,39 @@ export function createFileSystemRouteTree<Context = unknown>(
     'validateSearch',
   ]);
 
+  function projectModuleContext(
+    authored: unknown,
+    source: 'search',
+  ): Record<string, unknown>;
+  function projectModuleContext(
+    authored: unknown,
+    source: 'context' | 'beforeLoad',
+  ): unknown;
+  function projectModuleContext(
+    authored: unknown,
+    source: 'context' | 'search' | 'beforeLoad',
+  ): unknown {
+    try {
+      const value = preparePublicContextData(
+        authored,
+        options.session ?? completionScope.hydrationOwner,
+        [options.context],
+      );
+      if (source === 'context' && value !== undefined && !isPublicRecord(value))
+        throw new DataProtocolError(
+          'Native Solid route context must return a synchronous public record',
+        );
+      if (source === 'search' && !isPublicRecord(value))
+        throw new DataProtocolError(
+          'Native Solid search validation must return a public record',
+        );
+      return value;
+    } catch (error) {
+      options.session?.fail(error);
+      throw error;
+    }
+  }
+
   function routeModuleOptions(id: string): FileSystemRouteModule {
     const module = modules[id] ?? {};
     const prototype = Object.getPrototypeOf(module);
@@ -176,44 +209,14 @@ export function createFileSystemRouteTree<Context = unknown>(
     const contextOptions = context
       ? {
           context(...args: Parameters<typeof context>) {
-            const authored = context(...args);
-            try {
-              const value = preparePublicContextData(
-                authored,
-                options.session ?? completionScope.hydrationOwner,
-                [options.context],
-              );
-              if (value !== undefined && !isPublicRecord(value))
-                throw new DataProtocolError(
-                  'Native Solid route context must return a synchronous public record',
-                );
-              return value;
-            } catch (error) {
-              options.session?.fail(error);
-              throw error;
-            }
+            return projectModuleContext(context(...args), 'context');
           },
         }
       : {};
     const searchOptions = validateSearch
       ? {
           validateSearch(search: Record<string, unknown>) {
-            const authored = validateSearch(search);
-            try {
-              const value = preparePublicContextData(
-                authored,
-                options.session ?? completionScope.hydrationOwner,
-                [options.context],
-              );
-              if (!isPublicRecord(value))
-                throw new DataProtocolError(
-                  'Native Solid search validation must return a public record',
-                );
-              return value;
-            } catch (error) {
-              options.session?.fail(error);
-              throw error;
-            }
+            return projectModuleContext(validateSearch(search), 'search');
           },
         }
       : {};
@@ -277,16 +280,7 @@ export function createFileSystemRouteTree<Context = unknown>(
           }
           throw Object.freeze(diagnostic);
         }
-        try {
-          return preparePublicContextData(
-            value,
-            options.session ?? completionScope.hydrationOwner,
-            [options.context],
-          );
-        } catch (error) {
-          options.session?.fail(error);
-          throw error;
-        }
+        return projectModuleContext(value, 'beforeLoad');
       },
     };
   }

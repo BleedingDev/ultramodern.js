@@ -32,7 +32,7 @@ export interface SolidLatestLanguageSyncOptions<TTarget extends object> {
  * tracked, `effect(next)` runs imperatively and may return a cleanup run
  * before the next invocation or on disposal) rather than Solid 1's
  * single-phase `createEffect(fn)` — reactive reads happen in `compute`,
- * `onCleanup`/subscriptions happen in `effect`.
+ * subscriptions happen in `effect`, which returns their cleanup.
  *
  * Returns a function to request a language change (e.g. from a language
  * switcher), independent of the reactive `desiredLanguage` source.
@@ -62,7 +62,7 @@ export function createLatestLanguageSync<TTarget extends object>(
         return;
       }
       binding.activate(target);
-      Solid.onCleanup(() => binding.deactivate());
+      return () => binding.deactivate();
     },
   );
 
@@ -102,10 +102,10 @@ export function createLatestLanguageSync<TTarget extends object>(
       };
       window.addEventListener('online', retryCurrentIntent);
       document.addEventListener('visibilitychange', retryVisibleIntent);
-      Solid.onCleanup(() => {
+      return () => {
         window.removeEventListener('online', retryCurrentIntent);
         document.removeEventListener('visibilitychange', retryVisibleIntent);
-      });
+      };
     },
   );
 
