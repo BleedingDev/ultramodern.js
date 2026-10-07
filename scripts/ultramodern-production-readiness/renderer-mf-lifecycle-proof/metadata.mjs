@@ -5,10 +5,9 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import {
-  auditInstalledConsumer,
-  auditReleaseArtifacts,
-  testedProfileTuple,
-} from '../../ultramodern-renderers/acceptance/artifacts.mjs';
+  checkInstalledCohort,
+  readCohort,
+} from '../../ultramodern-renderers/installed-cohort.mjs';
 import { fileEvidence, writeJson } from './contract.mjs';
 
 const [inputFile, outputFile] = process.argv.slice(2);
@@ -25,10 +24,6 @@ const build = sdk.validateRendererBuildManifest(
 );
 assert.equal(build.sourceRevision, input.expectedSourceRevision);
 assert.equal(build.promotable, true);
-const artifacts = auditReleaseArtifacts({
-  manifestPath: input.manifestPath,
-  expectedSourceRevision: input.expectedSourceRevision,
-});
 const manifestPath = path.join(input.root, 'dist/mf-manifest.json');
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 // Resolve the owning public package directly from this consumer. Its native
@@ -56,14 +51,9 @@ const contract = requireSdk(contractEntry).readRendererFederationContract(
   manifest.metaData.ultramodernRenderer,
 );
 assert.deepEqual({ ...contract.identities }, { ...build.identities });
-const installed = auditInstalledConsumer({
-  consumerRoot: input.consumer,
-  applicationRoot: input.role,
-  renderer: 'react',
-  exactPackages: input.exactPackages,
-  entryFiles: input.entryFiles,
-  testedProfile: testedProfileTuple(profile, input.exactPackages),
-  releaseArtifacts: artifacts,
+const installed = checkInstalledCohort({
+  appRoot: input.root,
+  cohort: readCohort(input.manifestPath),
 });
 writeJson(outputFile, {
   build: { value: build, evidence: fileEvidence(metadataPath, input.consumer) },

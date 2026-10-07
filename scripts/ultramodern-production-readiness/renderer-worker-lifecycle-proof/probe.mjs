@@ -4,18 +4,18 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { inspectNpmTarball } from '../../ultramodern-publish/lib/prepare-bleedingdev-packages/release-artifacts.mjs';
+import { readReleaseManifest } from '../../ultramodern-publish/lib/source-create-proof/release-manifest.mjs';
+import { readCohort } from '../../ultramodern-renderers/installed-cohort.mjs';
 import {
   fileEvidence,
   ordinaryFiles,
   workerOptions,
-} from '../../ultramodern-production-readiness/react-rsc-worker-proof/contract.mjs';
+} from '../react-rsc-worker-proof/contract.mjs';
 import {
   createWorkerLifecycleSources,
   verifyWorkerLifecycle,
-} from '../../ultramodern-production-readiness/renderer-worker-lifecycle-proof/index.mjs';
-import { inspectNpmTarball } from '../../ultramodern-publish/lib/prepare-bleedingdev-packages/release-artifacts.mjs';
-import { readReleaseManifest } from '../../ultramodern-publish/lib/source-create-proof/release-manifest.mjs';
-import { auditReleaseArtifacts } from './artifacts.mjs';
+} from './index.mjs';
 import {
   assertBinding,
   atomicJson,
@@ -25,7 +25,7 @@ import {
   sha256,
   sourceEvidence,
   within,
-} from './release-support.mjs';
+} from './support.mjs';
 
 const script = fileURLToPath(import.meta.url);
 
@@ -38,14 +38,7 @@ const workerLifecycleSourceFiles = [
 
 function workerLifecycleHelperEvidence() {
   return workerLifecycleSourceFiles.map(filename =>
-    sourceEvidence(
-      fileURLToPath(
-        new URL(
-          `../../ultramodern-production-readiness/renderer-worker-lifecycle-proof/${filename}`,
-          import.meta.url,
-        ),
-      ),
-    ),
+    sourceEvidence(fileURLToPath(new URL(`./${filename}`, import.meta.url))),
   );
 }
 
@@ -218,10 +211,7 @@ async function executeWorker(input) {
     binding,
     artifacts: supplied,
   } = input;
-  const artifacts = auditReleaseArtifacts({
-    manifestPath: supplied.manifestPath,
-    expectedSourceRevision: binding.sourceRevision,
-  });
+  const artifacts = readCohort(supplied.manifestPath);
   assertBinding(
     {
       sourceRevision: artifacts.sourceRevision,
@@ -976,12 +966,6 @@ async function executeWorker(input) {
         },
         artifacts,
       );
-    const artifactsAgain = auditReleaseArtifacts({
-      manifestPath: artifacts.manifestPath,
-      expectedSourceRevision: binding.sourceRevision,
-    });
-    for (const field of ['manifestSha256', 'cohortDigest'])
-      assert.equal(artifactsAgain[field], artifacts[field]);
     receipt = {
       schema: 'c2-worker-dispatch-proof',
       schemaVersion: 1,

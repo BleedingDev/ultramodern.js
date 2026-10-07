@@ -357,10 +357,6 @@ export async function runProof(provided) {
           role === 'host'
             ? `${origins.host}/mf-manifest.json`
             : `${control.url}/manifest/${role}.json`,
-        exactPackages: inputs.exactPackages,
-        entryFiles: ordinaryFiles(path.join(root, 'src'))
-          .filter(file => /\.[cm]?tsx?$/u.test(file))
-          .map(file => path.relative(root, file)),
       });
       await command(
         options.qualifiedNode,
