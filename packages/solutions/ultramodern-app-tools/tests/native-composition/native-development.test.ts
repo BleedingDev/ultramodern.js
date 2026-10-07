@@ -353,6 +353,7 @@ export async function nativeCSRRequestHandler() { return new Response(marker); }
     },
   };
   let poison = false;
+  let duringNextCompile: (() => void) | undefined;
   const compilerArtifacts = createReplacementCompilerArtifacts();
   const authority = new NativeDevelopment({
     renderer: 'replacement',
@@ -376,6 +377,9 @@ export async function nativeCSRRequestHandler() { return new Response(marker); }
                   stage: rspack.Compilation.PROCESS_ASSETS_STAGE_REPORT,
                 },
                 () => {
+                  const during = duringNextCompile;
+                  duringNextCompile = undefined;
+                  during?.();
                   const manifest = {
                     abi: 'replacement-compiler/v1',
                     owner: 'replacement-compiler',
@@ -451,6 +455,10 @@ export async function nativeCSRRequestHandler() { return new Response(marker); }
     poison(value: boolean) {
       poison = value;
     },
+    /** Run `callback` while the next client compile is in flight. */
+    duringNextCompile(callback: () => void) {
+      duringNextCompile = callback;
+    },
   };
 }
 
@@ -492,10 +500,26 @@ describe('native development', () => {
       expect(retained.status).toBe(200);
       expect(Buffer.from(await retained.arrayBuffer())).toEqual(firstScript);
 
-      // Saving again during a compile just leads to another compile.
+      // Saving during a compile just leads to another compile. The failure
+      // is recorded directly: the next compile would clear it before a poll.
+      const failures: unknown[] = [];
+      const authority = app.authority as unknown as {
+        fail(error: unknown): void;
+      };
+      const fail = authority.fail.bind(app.authority);
+      authority.fail = error => {
+        failures.push(error);
+        fail(error);
+      };
+      let savedMidCompile = false;
+      app.duringNextCompile(() => {
+        app.edit('mid');
+        savedMidCompile = true;
+      });
       app.edit('third');
-      app.edit('fourth');
-      await until(app, 'fourth:replacement-compiler');
+      await until(app, 'mid:replacement-compiler');
+      expect(savedMidCompile).toBe(true);
+      expect(failures).toEqual([]);
     },
     300_000,
   );
