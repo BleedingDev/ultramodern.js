@@ -13,15 +13,6 @@ type PackageJson = {
   gitHead?: string;
 };
 const failureStages = new WeakMap<object, string>();
-export interface EffectCompilerSelection {
-  readonly from: string;
-  readonly cliPath: string;
-  readonly backendManifest: string;
-  readonly nativePlatformManifest: string;
-  readonly effectPlatformManifest: string;
-  readonly compilerPath: string;
-}
-
 export function effectCompilerDiscoveryFailureStage(
   error: unknown,
 ): string | undefined {
@@ -166,9 +157,7 @@ function readCompilerArtifact(filename: string): string {
 }
 
 /** Selects the exact native replacement without invoking the provider. */
-export function resolveEffectCompilerSelection(
-  from: string | URL,
-): EffectCompilerSelection {
+export function resolveInstalledEffectCompiler(from: string | URL): string {
   let stage = 'Package CLI resolution';
   try {
     const effect = resolveEffectTsgoPackage(from);
@@ -233,7 +222,7 @@ export function resolveEffectCompilerSelection(
         `Effect replacement metadata does not match the selected native TypeScript backend: ${metadataPath}`,
       );
     }
-    const compilerPath = readCompilerArtifact(
+    return readCompilerArtifact(
       join(
         dirname(effectManifest),
         'artifacts',
@@ -242,24 +231,9 @@ export function resolveEffectCompilerSelection(
         binaryName,
       ),
     );
-    return Object.freeze({
-      from:
-        typeof from === 'string' && !from.startsWith('file:')
-          ? from
-          : fileURLToPath(from),
-      cliPath: effect.cliPath,
-      backendManifest: realpathSync(typeScriptManifest),
-      nativePlatformManifest: realpathSync(nativeManifest),
-      effectPlatformManifest: realpathSync(effectManifest),
-      compilerPath,
-    });
   } catch (error) {
     if (error && typeof error === 'object' && !failureStages.has(error))
       failureStages.set(error, stage);
     throw error;
   }
-}
-
-export function resolveInstalledEffectCompiler(from: string | URL): string {
-  return resolveEffectCompilerSelection(from).compilerPath;
 }
