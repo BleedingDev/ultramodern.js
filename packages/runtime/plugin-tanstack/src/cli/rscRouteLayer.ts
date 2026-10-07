@@ -1,3 +1,5 @@
+// @effect-diagnostics nodeBuiltinImport:off
+// Rsbuild invokes this compiler hook synchronously with native filesystem paths.
 import path from 'node:path';
 import type { AppNormalizedConfig } from '@modern-js/app-tools/cli-config';
 
@@ -36,7 +38,9 @@ export function createTanstackRscRouteLayerPlugin(
           { environment, rspack, target }: Parameters<ModifyRspackConfig>[1],
         ) {
           const { entryNames, internalDirectory, rsc } = getContext();
-          if (!rsc || entryNames.length === 0) return;
+          if (rsc === false || rsc === undefined || entryNames.length === 0) {
+            return;
+          }
           const rscServerEnvironment =
             typeof rsc === 'object'
               ? (rsc.environments?.server ?? 'server')

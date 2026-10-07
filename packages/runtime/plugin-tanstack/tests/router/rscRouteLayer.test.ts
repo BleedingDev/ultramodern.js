@@ -136,6 +136,12 @@ describe('TanStack native RSC compiler route phase', () => {
 
   test.each([
     {
+      rsc: undefined,
+      entryNames: ['index'],
+      environment: 'service-worker',
+      target: 'web',
+    },
+    {
       rsc: false,
       entryNames: ['index'],
       environment: 'service-worker',
@@ -149,27 +155,25 @@ describe('TanStack native RSC compiler route phase', () => {
       environment: 'unrelated-worker',
       target: 'web',
     },
-  ])('preserves an unselected compiler: $environment/$target/$rsc', ({
-    rsc,
-    entryNames,
-    environment,
-    target,
-  }) => {
-    const hook = collectConfigHook(() => ({
-      internalDirectory,
-      entryNames,
-      rsc,
-    }));
-    const { config, existingPlugin, routeRule, loaderRule } =
-      createCompilerConfig();
-    hook(config, {
-      ...serverUtils,
-      environment: { name: environment },
-      target,
-    });
-    expect(config.plugins).toEqual([existingPlugin]);
-    expect(config.module.rules).toEqual([routeRule, loaderRule]);
-  });
+  ])(
+    'preserves an unselected compiler: $environment/$target/$rsc',
+    ({ rsc, entryNames, environment, target }) => {
+      const hook = collectConfigHook(() => ({
+        internalDirectory,
+        entryNames,
+        rsc,
+      }));
+      const { config, existingPlugin, routeRule, loaderRule } =
+        createCompilerConfig();
+      hook(config, {
+        ...serverUtils,
+        environment: { name: environment },
+        target,
+      });
+      expect(config.plugins).toEqual([existingPlugin]);
+      expect(config.module.rules).toEqual([routeRule, loaderRule]);
+    },
+  );
 
   test('uses the current selected entries and native Node SSR compiler', () => {
     let entryNames = ['index'];

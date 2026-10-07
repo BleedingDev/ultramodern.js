@@ -4,7 +4,7 @@ import type {
   AppNormalizedConfig,
   AppTools,
   CliPlugin,
-} from '@modern-js/app-tools/cli-config';
+} from '@modern-js/app-tools';
 import type { CLIPluginAPI } from '@modern-js/plugin';
 import type {
   Entrypoint,
