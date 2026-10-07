@@ -1011,7 +1011,32 @@ function collectBleedingdevModeInputErrors(workflow, relativePath) {
       `${relativePath} dispatch mode must be the required cohort/sidecars choice with cohort default and a conditional cohort version`,
     );
   }
+  if (
+    inputs.sidecar_profile?.type !== 'choice' ||
+    inputs.sidecar_profile?.required !== true ||
+    inputs.sidecar_profile?.default !== 'parser' ||
+    JSON.stringify(inputs.sidecar_profile?.options) !==
+      JSON.stringify(['parser', 'mf-sdk'])
+  ) {
+    errors.push(
+      `${relativePath} sidecar profile must be the required parser/mf-sdk choice with parser default`,
+    );
+  }
   const expression = value => ['${{', value, '}}'].join(' ');
+  const profileExpression = expression('inputs.sidecar_profile');
+  const overridesProfile = env =>
+    isObject(env) &&
+    Object.hasOwn(env, 'BLEEDINGDEV_SIDECAR_PROFILE') &&
+    env.BLEEDINGDEV_SIDECAR_PROFILE !== profileExpression;
+  if (
+    workflow.env?.BLEEDINGDEV_SIDECAR_PROFILE !== profileExpression ||
+    Object.values(jobs).some(job => overridesProfile(job?.env)) ||
+    workflowSteps(workflow).some(({ step }) => overridesProfile(step.env))
+  ) {
+    errors.push(
+      `${relativePath} must bind the sidecar profile to dispatch through preparation, qualification and publication without job or step overrides`,
+    );
+  }
   const expectedConcurrency = expression(
     "inputs.dry_run == true && format('publish-bleedingdev-dry-run-{0}', github.run_id) || 'publish-bleedingdev'",
   );
@@ -1032,24 +1057,35 @@ function collectBleedingdevModeInputErrors(workflow, relativePath) {
     step => step.name === 'Validate publish inputs',
   );
   const validationRun = stripShellComments(String(validation?.run ?? ''));
+  const modeCase = [
+    'case "$PUBLISH_MODE" in',
+    'cohort)',
+    '[[ "$SIDECAR_PROFILE" == parser ]]',
+    '[[ "$PUBLISH_VERSION" =~ ^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)-ultramodern\\.[1-9][0-9]*$ ]]',
+    ';;',
+    'sidecars)',
+    '[[ "$SIDECAR_PROFILE" == parser || "$SIDECAR_PROFILE" == mf-sdk ]]',
+    '[[ -z "$PUBLISH_VERSION" && -z "$RECOVERY_RUN_ID" && -z "$RECOVERY_RUN_ATTEMPT" && -z "$RECOVERY_QUALIFICATION_ATTEMPT" ]]',
+    ';;',
+    '*) exit 1 ;;',
+    'esac',
+  ].join(' ');
   if (
+    validation?.if !== undefined ||
     validation?.env?.PUBLISH_MODE !== expression('inputs.mode') ||
+    validation?.env?.SIDECAR_PROFILE !== profileExpression ||
     validation?.env?.PUBLISH_VERSION !== expression('inputs.version') ||
     validation?.env?.RECOVERY_RUN_ID !== expression('inputs.recovery_run_id') ||
     validation?.env?.RECOVERY_RUN_ATTEMPT !==
       expression('inputs.recovery_run_attempt') ||
     validation?.env?.RECOVERY_QUALIFICATION_ATTEMPT !==
       expression('inputs.recovery_qualification_attempt') ||
-    !validationRun.includes('case "$PUBLISH_MODE" in') ||
-    !validationRun.includes('cohort)') ||
-    !validationRun.includes('sidecars)') ||
-    !validationRun.includes(
-      '[[ -z "$PUBLISH_VERSION" && -z "$RECOVERY_RUN_ID" && -z "$RECOVERY_RUN_ATTEMPT" && -z "$RECOVERY_QUALIFICATION_ATTEMPT" ]]',
-    ) ||
-    !validationRun.includes('*) exit 1 ;;')
+    !normalizeShellContinuations(validationRun)
+      .replace(/\s+/gu, ' ')
+      .includes(modeCase)
   ) {
     errors.push(
-      `${relativePath} publish-security must reject unknown modes and cohort version/recovery inputs in sidecars mode`,
+      `${relativePath} publish-security must reject unknown modes or sidecar profiles, mf-sdk in cohort mode and cohort version/recovery inputs in sidecars mode`,
     );
   }
 
@@ -1378,7 +1414,7 @@ function collectSidecarArtifactFlowErrors(workflow, relativePath) {
     step.with?.['if-no-files-found'] === 'error';
   const prepareSteps = jobs['prepare-sidecars']?.steps ?? [];
   const prepareCommand =
-    'node scripts/ultramodern-publish/prepare-sidecar-bundle.mjs --out "$BLEEDINGDEV_SIDECAR_DIR"';
+    'node scripts/ultramodern-publish/prepare-sidecar-bundle.mjs --profile "$BLEEDINGDEV_SIDECAR_PROFILE" --out "$BLEEDINGDEV_SIDECAR_DIR"';
   if (
     normalizeNeeds(jobs['prepare-sidecars']).length !== 0 ||
     prepareSteps.filter(
@@ -1401,7 +1437,7 @@ function collectSidecarArtifactFlowErrors(workflow, relativePath) {
   const verifyCommand = `${publishBase} --check-staging`;
   const dryCommand = `${publishCommand} --dry-run`;
   const contractTestCommand =
-    'node --test scripts/ultramodern-publish/__tests__/sidecar-bundle.test.js scripts/ultramodern-publish/__tests__/sidecar-qualification.test.js scripts/ultramodern-publish/__tests__/sidecar-provenance.test.js scripts/ultramodern-publish/__tests__/sidecar-publish-lane.test.js';
+    'node --test scripts/ultramodern-publish/__tests__/sidecar-bundle.test.js scripts/ultramodern-publish/__tests__/sidecar-qualification.test.js scripts/ultramodern-publish/__tests__/sidecar-provenance.test.js scripts/ultramodern-publish/__tests__/sidecar-publish-lane.test.js scripts/ultramodern-publish/__tests__/packed-mf-sdk-probe.test.js';
   const testAt = qualifySteps.findIndex(
     step =>
       normalizedRun(step) === contractTestCommand && step.if === undefined,

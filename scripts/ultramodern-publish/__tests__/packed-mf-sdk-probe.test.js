@@ -2,6 +2,7 @@
 const assert = require('node:assert/strict');
 const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 
@@ -11,9 +12,13 @@ async function probeSource(format) {
 }
 
 function fixture(t) {
-  assert.ok(process.env.OWNED_TEMP_DIR, 'Run through owned-temp-dir');
-  const root = fs.mkdtempSync(
-    path.join(process.env.OWNED_TEMP_DIR, 'packed-mf-sdk-probe-test-'),
+  const root = fs.realpathSync(
+    fs.mkdtempSync(
+      path.join(
+        process.env.OWNED_TEMP_DIR ?? os.tmpdir(),
+        'packed-mf-sdk-probe-test-',
+      ),
+    ),
   );
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const workspace = path.join(root, 'consumer');
