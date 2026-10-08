@@ -124,7 +124,9 @@ function serverRouteLoader(
   return async (route, input) => {
     const loader = application.dataModules[route.id]?.loader;
     if (!loader) return { kind: 'success', value: undefined, status: 200 };
-    return invokeRouteData(loader, input);
+    return invokeRouteData(loader, input, {
+      production: process.env.NODE_ENV !== 'development',
+    });
   };
 }
 
@@ -331,6 +333,8 @@ export function createNativeServerEntry<
         identity: rendererIdentity,
         context: bindings,
         privateValues: [context, session, session.platform, bindings],
+        // Only development keeps loader errors' messages; an unset mode stays private.
+        production: process.env.NODE_ENV !== 'development',
         selectRoute: (dataRequest, routeId, operation) =>
           selectApplicationDataRoute(
             router,

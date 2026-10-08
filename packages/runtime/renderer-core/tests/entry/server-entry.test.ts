@@ -391,6 +391,51 @@ describe('generated native server entry', () => {
     ]);
   });
 
+  it('keeps loader error details only in development', async () => {
+    const failing: NativeApplicationModule = {
+      ...routed,
+      dataModules: {
+        page: {
+          loader: () => {
+            throw new Error('loader detail');
+          },
+        },
+      },
+    };
+    const previous = process.env.NODE_ENV;
+    try {
+      for (const [mode, kept] of [
+        ['development', true],
+        ['production', false],
+        // Any other mode stays private.
+        ['test', false],
+      ] as const) {
+        process.env.NODE_ENV = mode;
+        const { adapter: recording, routers } = adapter();
+        const entry = createNativeServerEntry(
+          { identity, app: async () => failing },
+          recording,
+        );
+        const data = new Request('https://example.test/items?__loader=page');
+        const body = await (
+          await entry.nativeRequestHandler(data, context(data))
+        ).text();
+        expect(body.includes('loader detail')).toBe(kept);
+        const request = new Request('https://example.test/items');
+        await entry.nativeRequestHandler(request, context(request));
+        const outcome = await routers
+          .at(-1)!
+          .options.loadRoute(
+            { id: 'page' } as never,
+            { request, params: {}, context: {} } as never,
+          );
+        expect(JSON.stringify(outcome).includes('loader detail')).toBe(kept);
+      }
+    } finally {
+      process.env.NODE_ENV = previous;
+    }
+  });
+
   it('keeps loader outcomes in route order when the leaf settles first', async () => {
     const { adapter: recording } = adapter();
     const outcome = (order: string): DataOutcome => ({
