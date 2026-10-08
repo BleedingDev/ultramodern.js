@@ -234,6 +234,43 @@ describe.each(['solid', 'octane'] as const)(
       },
     );
 
+    it('leaves locale resolution to the native handler', async () => {
+      const requests: string[] = [];
+      const worker = emittedWorker(
+        {
+          rendererIdentities: { main: identity(renderer) },
+          nativeRenderer: nativeResources(renderer),
+          i18n: {
+            entries: {
+              main: {
+                languages: ['en-US', 'fr-FR'],
+                fallbackLanguage: 'fr-FR',
+              },
+            },
+          },
+        },
+        {
+          [route.worker]: async () =>
+            nativeBundle(renderer, request => {
+              requests.push(request.url);
+              return new Response('native', {
+                headers: { 'content-type': 'text/html; charset=utf-8' },
+              });
+            }),
+        },
+      );
+      const response = await worker.fetch(
+        new Request('https://example.com/items', {
+          headers: { 'accept-language': 'en' },
+        }),
+        { ASSETS: assetBinding() },
+        executionContext().context,
+      );
+      expect(response.status).toBe(200);
+      expect(await response.text()).toBe('native');
+      expect(requests).toEqual(['https://example.com/items']);
+    });
+
     it('serves static assets without the native bundle', async () => {
       const served: string[] = [];
       const worker = emittedWorker(
