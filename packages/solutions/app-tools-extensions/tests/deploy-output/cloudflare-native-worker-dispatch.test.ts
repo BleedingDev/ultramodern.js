@@ -284,6 +284,7 @@ describe.each(['solid', 'octane'] as const)(
                   'x-route': 'configured',
                   'content-type': 'application/json',
                   'server-timing': 'route;dur=1',
+                  link: '</r.css>; rel=preload; as=style',
                   'content-security-policy': "script-src 'self'",
                   vary: 'Origin',
                 },
@@ -301,6 +302,7 @@ describe.each(['solid', 'octane'] as const)(
                     'content-type': 'text/html; charset=utf-8',
                     'content-security-policy': "default-src 'self'",
                     'server-timing': 'render;dur=2',
+                    link: '<https://cdn.test>; rel=preconnect',
                     vary: 'Cookie',
                   },
                 }),
@@ -322,6 +324,9 @@ describe.each(['solid', 'octane'] as const)(
       );
       expect(response.headers.get('server-timing')).toBe(
         'render;dur=2, route;dur=1',
+      );
+      expect(response.headers.get('link')).toBe(
+        '<https://cdn.test>; rel=preconnect, </r.css>; rel=preload; as=style',
       );
       expect(await response.text()).toBe('native');
     });

@@ -249,13 +249,14 @@ async function dispatchRouteWorker(route, request, env, ctx) {
 const CUMULATIVE_RESPONSE_HEADERS = new Set([
   'content-security-policy',
   'content-security-policy-report-only',
+  'link',
   'server-timing',
   'set-cookie',
 ]);
 
 /**
  * Merge a route's configured `responseHeaders` into a native response, as the
- * Node host does: CSP, Server-Timing and cookies append, `Vary` unions, the
+ * Node host does: CSP, Link, Server-Timing and cookies append, `Vary` unions, the
  * renderer's Content-Type stays, and other fields take the configured value.
  */
 function applyRouteResponseHeaders(response, route) {

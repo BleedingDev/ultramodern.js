@@ -10,6 +10,7 @@ describe('native server middleware headers', () => {
       'content-security-policy': "script-src 'self'",
       'content-security-policy-report-only': "style-src 'self'",
       'server-timing': 'middleware;dur=1',
+      link: '</m.css>; rel=preload; as=style',
       vary: 'Origin, cookie',
       'cache-control': 'private, no-store',
       'content-type': 'application/json',
@@ -19,6 +20,7 @@ describe('native server middleware headers', () => {
       'content-security-policy': "default-src 'self'",
       'content-security-policy-report-only': "img-src 'self'",
       'server-timing': 'render;dur=2',
+      link: '<https://cdn.test>; rel=preconnect',
       vary: 'Cookie',
       'cache-control': 'public, max-age=60',
       'content-type': 'text/html; charset=utf-8',
@@ -34,6 +36,9 @@ describe('native server middleware headers', () => {
     );
     expect(native.get('vary')).toBe('Cookie, Origin');
     expect(native.get('server-timing')).toBe('render;dur=2, middleware;dur=1');
+    expect(native.get('link')).toBe(
+      '<https://cdn.test>; rel=preconnect, </m.css>; rel=preload; as=style',
+    );
     expect(native.get('cache-control')).toBe('private, no-store');
     expect(native.get('content-type')).toBe('text/html; charset=utf-8');
     expect(native.getSetCookie()).toEqual([]);

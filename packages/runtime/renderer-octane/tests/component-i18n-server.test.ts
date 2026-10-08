@@ -2,7 +2,10 @@ import type { RendererIdentity } from '@modern-js/renderer-core/identity';
 import { createRequestSession } from '@modern-js/renderer-core/session';
 import { expect, rstest, test } from '@rstest/core';
 import { createElement } from 'octane/server';
-import { createNativeServerEntry } from '../src/entry-server';
+import {
+  createNativeServerEntry,
+  withOctaneDocumentFields,
+} from '../src/entry-server';
 import { useI18n } from '../src/i18n/useI18n';
 import {
   OCTANE_COMPILER_VERSION,
@@ -88,4 +91,25 @@ test('a component-only entry renders with its request localization instance and 
   expect(html).toContain('<html lang="cs">');
   expect(html).toContain('<main>cs: Ahoj</main>');
   expect(html).toContain('"resources":{"translation":{"greeting":"Ahoj"}}');
+});
+
+test('keeps document fields an Octane route declares after loader projection', () => {
+  const policy = {
+    kind: 'document' as const,
+    status: 200,
+    headers: [['content-type', 'text/html; charset=utf-8']] as [
+      string,
+      string,
+    ][],
+    cache: { mode: 'no-store' as const },
+  };
+  const merged = withOctaneDocumentFields(
+    policy,
+    new Headers({ 'content-language': 'cs', etag: '"route"', 'x-other': '1' }),
+  );
+  expect(merged.headers).toEqual([
+    ['content-type', 'text/html; charset=utf-8'],
+    ['content-language', 'cs'],
+  ]);
+  expect(withOctaneDocumentFields(policy, new Headers())).toBe(policy);
 });

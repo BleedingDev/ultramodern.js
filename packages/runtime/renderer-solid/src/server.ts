@@ -29,10 +29,14 @@ import {
 import { withFederatedAssets } from './federation-ssr';
 import { nativePromiseSerializationPlugin } from './native-promise-serialization';
 
-/** Browsers enforce every CSP field, so components add to loader policies. */
+/**
+ * List fields components add to: browsers enforce every CSP field, and links
+ * from loaders and components are all hints for the document.
+ */
 const CSP_HEADERS = new Set([
   'content-security-policy',
   'content-security-policy-report-only',
+  'link',
 ]);
 
 type NativeStreamOptions = NonNullable<Parameters<typeof renderToStream>[1]>;
