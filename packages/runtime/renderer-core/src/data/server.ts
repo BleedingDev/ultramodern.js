@@ -40,6 +40,7 @@ const REPRESENTATION_HEADERS = new Set([
   'transfer-encoding',
   'content-range',
   'accept-ranges',
+  'content-disposition',
   'etag',
   'last-modified',
   'location',

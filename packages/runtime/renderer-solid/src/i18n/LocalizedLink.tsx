@@ -62,9 +62,26 @@ export function LocalizedLink(props: LocalizedLinkProps): JSX.Element {
   );
   const crossLanguage = () => targetLanguage() !== context.language();
   const masked = () => rewrite && crossLanguage();
+  // Declared `data-*` attributes reach the anchor through getters, so each
+  // keeps its own reactivity like the explicitly forwarded props.
+  const dataAttributes = Object.defineProperties(
+    {},
+    Object.fromEntries(
+      Object.keys(props)
+        .filter(key => key.startsWith('data-'))
+        .map(key => [
+          key,
+          {
+            enumerable: true,
+            get: () => props[key as `data-${string}`],
+          },
+        ]),
+    ),
+  );
 
   return (
     <Link
+      {...dataAttributes}
       // A masked link routes to the canonical `to`. Otherwise `href` wins over
       // `to` in router-core's `buildLocation` (it checks `dest.href` first);
       // `to="."` only satisfies the type-level requirement that a `to` be

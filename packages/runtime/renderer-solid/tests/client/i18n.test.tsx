@@ -234,6 +234,7 @@ describe('Solid i18n binding', () => {
     try {
       const link = root.querySelector('a');
       expect(link?.getAttribute('href')).toBe('/en/products');
+      expect(link?.getAttribute('data-testid')).toBe('products-link');
 
       instance.emit('cs');
       flush();
