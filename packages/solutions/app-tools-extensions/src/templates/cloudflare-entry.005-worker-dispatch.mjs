@@ -354,6 +354,26 @@ async function invokeNativeRouteWorker(route, identity, request, env, ctx) {
   }
 }
 
+/**
+ * The Node host's ASCII-only identity header bytes: fixed field order and
+ * non-ASCII code units escaped, since Fetch header values are ByteStrings.
+ */
+function serializeRendererIdentityHeader(identity) {
+  return JSON.stringify({
+    renderer: identity.renderer,
+    appId: identity.appId,
+    entryName: identity.entryName,
+    protocolVersion: identity.protocolVersion,
+    buildId: identity.buildId,
+  }).replace(/[\u007f-\u{10ffff}]/gu, character =>
+    Array.from(
+      { length: character.length },
+      (_, index) =>
+        `\\u${character.charCodeAt(index).toString(16).padStart(4, '0')}`,
+    ).join(''),
+  );
+}
+
 function withWorkerRendererIdentity(response, route) {
   const identities = MODERN_WORKER_MANIFEST.rendererIdentities;
   if (!identities) return response;
@@ -368,7 +388,7 @@ function withWorkerRendererIdentity(response, route) {
   const headers = new Headers(response.headers);
   headers.set(
     'x-ultramodern-renderer-identity',
-    JSON.stringify(identities[route.entryName]),
+    serializeRendererIdentityHeader(identities[route.entryName]),
   );
   return new Response(response.body, {
     headers,

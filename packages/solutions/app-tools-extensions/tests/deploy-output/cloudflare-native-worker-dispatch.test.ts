@@ -365,6 +365,34 @@ describe.each(['solid', 'octane'] as const)(
       expect(legacy).not.toHaveBeenCalled();
     });
 
+    it('writes a non-ASCII renderer identity as an ASCII header', async () => {
+      const unicode = { ...identity(renderer), appId: '店舗-🛒' };
+      const worker = emittedWorker(
+        {
+          rendererIdentities: { main: unicode },
+          nativeRenderer: nativeResources(renderer),
+        },
+        {
+          [route.worker]: async () =>
+            nativeBundle(
+              renderer,
+              () =>
+                new Response('native', {
+                  headers: { 'content-type': 'text/html; charset=utf-8' },
+                }),
+            ),
+        },
+      );
+      const response = await worker.fetch(
+        new Request('https://example.com/items'),
+        { ASSETS: assetBinding() },
+        executionContext().context,
+      );
+      const header = response.headers.get('x-ultramodern-renderer-identity')!;
+      expect(/^[\x20-\x7e]*$/u.test(header)).toBe(true);
+      expect(JSON.parse(header)).toEqual(unicode);
+    });
+
     it('passes HEAD to the native dispatcher unchanged', async () => {
       const methods: string[] = [];
       const worker = emittedWorker(
