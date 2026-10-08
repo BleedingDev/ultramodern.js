@@ -489,7 +489,8 @@ describe('production native Node Fetch dispatch', () => {
   it.each([
     ['max-age=10', false],
     ['max-age="10"', false],
-    ['public, max-age=30', true],
+    ['public, max-age=30', false],
+    ['public, max-age=31', true],
     ['max-age=60', true],
   ])(
     'compares the cached age with request Cache-Control %s',
