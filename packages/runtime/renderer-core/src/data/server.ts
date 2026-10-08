@@ -1,5 +1,8 @@
 import { identityCacheKey, type RendererIdentity } from '../identity';
-import { responseHeaders as collectDataHeaders } from '../session/cache';
+import {
+  responseHeaders as collectDataHeaders,
+  parseCacheControl,
+} from '../session/cache';
 import type { DocumentCachePolicy, ResponsePolicy } from '../session/types';
 import { readBoundedDataText } from './body';
 import {
@@ -47,6 +50,28 @@ const REPRESENTATION_HEADERS = new Set([
   'last-modified',
   'location',
 ]);
+/**
+ * Combine header fields from two sources for one document: list fields
+ * (cookies, `Vary`, `Link`, `Server-Timing`, CSP) keep both sources' values,
+ * while a singleton field from `primary` replaces the `secondary` one.
+ */
+export function mergeHeaderFields(
+  primary: readonly (readonly [string, string])[],
+  secondary: readonly (readonly [string, string])[],
+): [string, string][] {
+  const primaryNames = new Set(primary.map(([name]) => name.toLowerCase()));
+  return [
+    ...primary.map(([name, value]) => [name, value] as [string, string]),
+    ...secondary
+      .filter(
+        ([name]) =>
+          ACCUMULATED_HEADERS.has(name.toLowerCase()) ||
+          !primaryNames.has(name.toLowerCase()),
+      )
+      .map(([name, value]) => [name, value] as [string, string]),
+  ];
+}
+
 /** RFC 9110 connection-specific fields; they never describe a new response. */
 const HOP_BY_HOP_HEADERS = new Set([
   'connection',
@@ -126,24 +151,12 @@ export function deferData(
   };
 }
 
-/**
- * Cache-Control directives in order, names lowercased. Quoted values are
- * consumed whole, so text inside an extension value is never a directive.
- */
-function cacheDirectives(
-  cacheControl: string,
-): { name: string; value: string | undefined }[] {
-  return [
-    ...cacheControl.matchAll(
-      /(?:^|,)\s*([!#$%&'*+.^_`|~\w-]+)\s*(?:=\s*("(?:[^"\\]|\\.)*"|[^,]*))?/gu,
-    ),
-  ].map(match => ({ name: match[1].toLowerCase(), value: match[2]?.trim() }));
-}
-
 function cacheLifetime(cacheControl: string): number | undefined {
+  const directives = parseCacheControl(cacheControl);
+  if (!directives) return undefined;
   const names = new Set<string>();
   const ages: number[] = [];
-  for (const { name, value: raw } of cacheDirectives(cacheControl)) {
+  for (const { name, value: raw } of directives) {
     if (name !== 'max-age' && name !== 's-maxage') continue;
     if (raw === undefined) return undefined;
     if (names.has(name) || !/^\d+$/.test(raw)) return undefined;
@@ -332,7 +345,11 @@ export function mergeDataResponseIntoResponse(
  * extension such as `x-public` or a quoted `"public"` value never opts in.
  */
 function cacheDirectiveNames(cacheControl: string): Set<string> {
-  return new Set(cacheDirectives(cacheControl).map(({ name }) => name));
+  const directives = parseCacheControl(cacheControl);
+  // A malformed field fails closed.
+  return directives
+    ? new Set(directives.map(({ name }) => name))
+    : new Set(['no-store']);
 }
 
 function responseMetadata(init: ResponseInit = {}): DataResponseMetadata {
