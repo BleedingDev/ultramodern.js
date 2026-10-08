@@ -224,13 +224,14 @@ export function matchNativeServerRoute(
 const CSP_HEADERS = new Set([
   'content-security-policy',
   'content-security-policy-report-only',
+  'server-timing',
 ]);
 
 /**
  * Apply middleware or route-config fields to native response headers. The
  * applied source keeps precedence for singleton fields, so a middleware
- * private/no-store policy survives a public native response. CSP fields are
- * enforced cumulatively and `Vary` is a union, so both keep the native values
+ * private/no-store policy survives a public native response. CSP and
+ * Server-Timing fields are cumulative and `Vary` is a union, so both keep the native values
  * too. Middleware cookies merge separately; route-config cookies append.
  */
 export function applyMiddlewareHeaders(

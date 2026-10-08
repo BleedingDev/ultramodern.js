@@ -126,18 +126,26 @@ export function deferData(
   };
 }
 
-function cacheLifetime(cacheControl: string): number | undefined {
-  const directives = [
+/**
+ * Cache-Control directives in order, names lowercased. Quoted values are
+ * consumed whole, so text inside an extension value is never a directive.
+ */
+function cacheDirectives(
+  cacheControl: string,
+): { name: string; value: string | undefined }[] {
+  return [
     ...cacheControl.matchAll(
-      /(?:^|,)\s*(s-maxage|max-age)(?=\s*(?:=|,|$))\s*(?:=\s*([^,]*))?/gi,
+      /(?:^|,)\s*([!#$%&'*+.^_`|~\w-]+)\s*(?:=\s*("(?:[^"\\]|\\.)*"|[^,]*))?/gu,
     ),
-  ];
+  ].map(match => ({ name: match[1].toLowerCase(), value: match[2]?.trim() }));
+}
+
+function cacheLifetime(cacheControl: string): number | undefined {
   const names = new Set<string>();
   const ages: number[] = [];
-  for (const directive of directives) {
-    const name = directive[1]?.toLowerCase();
-    const raw = directive[2]?.trim();
-    if (name === undefined || raw === undefined) return undefined;
+  for (const { name, value: raw } of cacheDirectives(cacheControl)) {
+    if (name !== 'max-age' && name !== 's-maxage') continue;
+    if (raw === undefined) return undefined;
     if (names.has(name) || !/^\d+$/.test(raw)) return undefined;
     const age = Number(raw);
     if (!Number.isSafeInteger(age)) return undefined;
@@ -320,12 +328,7 @@ export function mergeDataResponseIntoResponse(
  * extension such as `x-public` or a quoted `"public"` value never opts in.
  */
 function cacheDirectiveNames(cacheControl: string): Set<string> {
-  const names = new Set<string>();
-  for (const match of cacheControl.matchAll(
-    /(?:^|,)\s*([!#$%&'*+.^_`|~\w-]+)\s*(?:=\s*(?:"(?:[^"\\]|\\.)*"|[^,]*))?/gu,
-  ))
-    names.add(match[1].toLowerCase());
-  return names;
+  return new Set(cacheDirectives(cacheControl).map(({ name }) => name));
 }
 
 function responseMetadata(init: ResponseInit = {}): DataResponseMetadata {

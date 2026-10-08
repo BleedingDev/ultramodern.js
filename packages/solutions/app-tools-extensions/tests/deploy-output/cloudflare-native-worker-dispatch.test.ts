@@ -282,6 +282,8 @@ describe.each(['solid', 'octane'] as const)(
                 ...route,
                 responseHeaders: {
                   'x-route': 'configured',
+                  'content-type': 'application/json',
+                  'server-timing': 'route;dur=1',
                   'content-security-policy': "script-src 'self'",
                   vary: 'Origin',
                 },
@@ -298,6 +300,7 @@ describe.each(['solid', 'octane'] as const)(
                   headers: {
                     'content-type': 'text/html; charset=utf-8',
                     'content-security-policy': "default-src 'self'",
+                    'server-timing': 'render;dur=2',
                     vary: 'Cookie',
                   },
                 }),
@@ -314,6 +317,12 @@ describe.each(['solid', 'octane'] as const)(
         "default-src 'self', script-src 'self'",
       );
       expect(response.headers.get('vary')).toBe('Cookie, Origin');
+      expect(response.headers.get('content-type')).toBe(
+        'text/html; charset=utf-8',
+      );
+      expect(response.headers.get('server-timing')).toBe(
+        'render;dur=2, route;dur=1',
+      );
       expect(await response.text()).toBe('native');
     });
 
