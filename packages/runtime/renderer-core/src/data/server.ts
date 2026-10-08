@@ -298,6 +298,39 @@ export function dataMetadataToDocumentPolicy(
   };
 }
 
+/**
+ * The elements of a comma-separated list field. Commas inside a quoted
+ * string or a `<URI-reference>` (Link) belong to the element.
+ */
+function listFieldElements(value: string): string[] {
+  const elements: string[] = [];
+  let current = '';
+  let quoted = false;
+  let bracketed = false;
+  for (let index = 0; index < value.length; index++) {
+    const char = value[index];
+    if (quoted) {
+      current += char;
+      if (char === '\\' && index + 1 < value.length) current += value[++index];
+      else if (char === '"') quoted = false;
+    } else if (char === '"') {
+      quoted = true;
+      current += char;
+    } else if (char === '<') {
+      bracketed = true;
+      current += char;
+    } else if (char === '>') {
+      bracketed = false;
+      current += char;
+    } else if (char === ',' && !bracketed) {
+      if (current.trim()) elements.push(current.trim());
+      current = '';
+    } else current += char;
+  }
+  if (current.trim()) elements.push(current.trim());
+  return elements;
+}
+
 /** Preserve a native terminal response while adding all matched loader cookies. */
 export function mergeDataResponseIntoResponse(
   response: Response,
@@ -314,13 +347,10 @@ export function mergeDataResponseIntoResponse(
     // the redirecting loader's own fields on a terminal redirect, so only
     // elements the response does not carry yet are added.
     else if (ACCUMULATED_HEADERS.has(headerName) && headerName !== 'vary') {
-      const present = new Set(
-        (headers.get(name) ?? '').split(',').map(item => item.trim()),
+      const present = new Set(listFieldElements(headers.get(name) ?? ''));
+      const missing = listFieldElements(value).filter(
+        item => !present.has(item),
       );
-      const missing = value
-        .split(',')
-        .map(item => item.trim())
-        .filter(item => item && !present.has(item));
       if (missing.length) headers.append(name, missing.join(', '));
     } else if (headerName === 'vary') {
       const fields = new Map<string, string>();
