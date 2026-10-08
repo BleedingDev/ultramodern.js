@@ -126,6 +126,45 @@ const sameLanguageHref = (root: HTMLElement) =>
   root.querySelector('a:not([hreflang])')?.getAttribute('href');
 
 describe('Octane i18n binding', () => {
+  test('changeLanguage keeps the query and fragment of the current URL', async () => {
+    const instance = createFakeI18nInstance('en');
+    let binding: ReturnType<typeof useI18n> | undefined;
+    const Capture = () => {
+      binding = useI18n();
+      return null;
+    };
+    const router = createRouter({
+      routeTree: createRootRoute({
+        component: () =>
+          createElement(I18nProvider, {
+            instance,
+            languages: ['en', 'cs'],
+            children: createElement(Capture),
+          }),
+      }),
+      history: createMemoryHistory({
+        initialEntries: ['/en/products?sort=price#reviews'],
+      }),
+      isServer: false,
+    });
+    await router.load();
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const octaneRoot = createRoot(root);
+    flushSync(() =>
+      octaneRoot.render(createElement(ApplicationRouter as any, { router })),
+    );
+    try {
+      await binding!.changeLanguage('cs');
+      expect(router.state.location.href).toBe(
+        '/cs/products?sort=price#reviews',
+      );
+    } finally {
+      octaneRoot.unmount();
+      root.remove();
+    }
+  });
+
   test('a link to another language is the native Link with its router props', async () => {
     const instance = createFakeI18nInstance('en');
     const { router, root, dispose } = await mount(instance, true, '/store', {

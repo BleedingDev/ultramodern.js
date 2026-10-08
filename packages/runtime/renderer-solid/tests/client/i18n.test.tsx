@@ -90,6 +90,46 @@ async function mountConsumer(
 }
 
 describe('Solid i18n binding', () => {
+  test('changeLanguage keeps the query and fragment of the current URL', async () => {
+    const instance = createFakeI18nInstance('en');
+    let binding: ReturnType<typeof useI18n> | undefined;
+    function Capture() {
+      binding = useI18n();
+      return null;
+    }
+    const router = createRouter({
+      routeTree: createRootRoute(),
+      history: createMemoryHistory({
+        initialEntries: ['/en/products?sort=price#reviews'],
+      }),
+      isServer: false,
+    });
+    await router.load();
+    const root = document.createElement('div');
+    const dispose = mountApplication(
+      () => (
+        <RouterContextProvider router={router}>
+          {() => (
+            <I18nProvider instance={instance} languages={['en', 'cs']}>
+              <Capture />
+            </I18nProvider>
+          )}
+        </RouterContextProvider>
+      ),
+      root,
+    );
+    try {
+      flush();
+      await binding!.changeLanguage('cs');
+      expect(router.state.location.href).toBe(
+        '/cs/products?sort=price#reviews',
+      );
+    } finally {
+      dispose();
+      flush();
+    }
+  });
+
   test('provider replacement releases the old language subscription and disposal releases the current one', () => {
     const first = createFakeI18nInstance('en');
     const second = createFakeI18nInstance('cs');

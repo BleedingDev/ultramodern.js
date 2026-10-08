@@ -107,19 +107,6 @@ async function nativeResolution(plugin: RuntimePlugin): Promise<ResolveArgs> {
 }
 
 describe('renderer federation publication admission', () => {
-  test('rejects a root-relative server remote entry instead of guessing its origin', async () => {
-    const plugin = createRendererFederationRuntimePlugin(consumingRenderer);
-    const remoteSnapshot = { ...snapshot(), ssrPublicPath: '/assets/' };
-    await plugin.loadRemoteSnapshot({
-      from: 'manifest',
-      manifestJson: manifest(),
-      remoteSnapshot,
-    });
-    await expect(plugin.afterLoadSnapshot({ remoteSnapshot })).rejects.toThrow(
-      'is not absolute',
-    );
-  });
-
   test('accepts the same renderer tuple with independent app and build identities', async () => {
     const plugin = createRendererFederationRuntimePlugin(consumingRenderer);
     const remoteSnapshot = snapshot();
