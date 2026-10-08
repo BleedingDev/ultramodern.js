@@ -381,6 +381,8 @@ describe('production native Node Fetch dispatch', () => {
     { headers: { 'if-none-match': '' } },
     { headers: { 'If-Modified-Since': 'Wed, 07 Oct 2026 10:00:00 GMT' } },
     { headers: { 'if-modified-since': '' } },
+    { headers: { 'If-Match': '"other"' } },
+    { headers: { 'If-Unmodified-Since': 'Wed, 07 Oct 2026 10:00:00 GMT' } },
     { headers: { pragma: 'no-cache' } },
     { headers: { range: 'bytes=0-5' } },
   ])(
