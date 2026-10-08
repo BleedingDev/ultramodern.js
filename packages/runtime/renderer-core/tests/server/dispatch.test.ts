@@ -740,10 +740,45 @@ describe('production native Node Fetch dispatch', () => {
     await delivery;
     await Promise.resolve();
     expect(cache.set).toHaveBeenCalledTimes(1);
-    expect([...cache.documents.values()][0].headers).toContainEqual([
-      'x-wire',
-      'final',
+    const [stored] = cache.documents.values();
+    expect(stored.headers).toContainEqual([
+      'content-type',
+      'text/html; charset=utf-8',
     ]);
+    expect(stored.headers.map(([name]) => name)).not.toContain('x-wire');
+  });
+
+  it('stores the renderer fields so a cache hit does not repeat host headers', async () => {
+    const cache = store();
+    let renders = 0;
+    const host = (response: Response) => {
+      // The Node host merges configured cumulative fields in place.
+      response.headers.append('link', '</host.css>; rel=preload; as=style');
+      return response;
+    };
+    const selected = options(
+      (_request, context) => publicDocument(`render ${++renders}`, context),
+      {
+        cache,
+        confirmDelivery: async response => new Headers(response.headers),
+      },
+    );
+    const first = host(
+      await dispatchNativeNodeRequest(
+        new Request('https://example.test/'),
+        selected,
+      ),
+    );
+    await first.text();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const hit = host(
+      await dispatchNativeNodeRequest(
+        new Request('https://example.test/'),
+        selected,
+      ),
+    );
+    expect(await hit.text()).toBe('render 1');
+    expect(hit.headers.get('link')).toBe('</host.css>; rel=preload; as=style');
   });
 
   it.each([

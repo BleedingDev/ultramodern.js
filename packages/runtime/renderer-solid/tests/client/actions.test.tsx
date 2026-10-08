@@ -62,9 +62,9 @@ function success(value: unknown, status = 200) {
   });
 }
 
-function request() {
+function request(method = 'POST') {
   return new Request('http://localhost/items/42', {
-    method: 'POST',
+    method,
     body: new URLSearchParams({ name: 'tractor' }),
   });
 }
@@ -718,9 +718,14 @@ describe('native Solid route actions', () => {
     expect(action.error()).toBeUndefined();
   });
 
-  test.each([307, 308])(
-    'a method-preserving %s action redirect fails instead of navigating',
-    async status => {
+  test.each([
+    [307, 'POST'],
+    [308, 'POST'],
+    [302, 'PUT'],
+    [301, 'DELETE'],
+  ])(
+    'a method-preserving %s action redirect after %s fails instead of navigating',
+    async (status, method) => {
       const { router, action } = actionFixture(async () =>
         response({
           kind: 'redirect',
@@ -730,7 +735,7 @@ describe('native Solid route actions', () => {
       );
       await router.load();
       const before = router.state.location.pathname;
-      await action.submit(request());
+      await action.submit(request(method));
       flush();
       expect(router.state.location.pathname).toBe(before);
       expect(action.error()).toBeDefined();

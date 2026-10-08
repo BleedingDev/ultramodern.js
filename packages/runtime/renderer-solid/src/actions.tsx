@@ -262,11 +262,16 @@ export function createRouteAction(options: RouteActionOptions): RouteAction {
         ) {
           setError(new RouteActionError(routeId, publicResult));
         } else if (result.kind === 'redirect') {
-          // A 307/308 asks to repeat the mutation elsewhere; a navigation would
-          // silently turn it into a GET.
-          if (result.status === 307 || result.status === 308)
+          // A navigation is a GET. HTTP allows that for 303, and for 301/302
+          // only after POST; other redirects keep the method and body.
+          if (
+            result.status === 307 ||
+            result.status === 308 ||
+            ((result.status === 301 || result.status === 302) &&
+              request.method !== 'POST')
+          )
             throw new Error(
-              `A native action redirect must not preserve the method (HTTP ${result.status}); redirect with 303 to navigate after the mutation`,
+              `A native action redirect must not preserve the method (HTTP ${result.status} after ${request.method}); redirect with 303 to navigate after the mutation`,
             );
           // HTTP Location is relative to the mutation URL. Native resolution
           // retains protocol policy and chooses document versus route navigation.
