@@ -7,7 +7,6 @@ import { castArray } from '@modern-js/builder';
 import { getLocaleLanguage } from '@modern-js/i18n-utils/language-detector';
 import { createAsyncHook } from '@modern-js/plugin';
 import {
-  cleanRequireCache,
   deprecatedCommands,
   emptyDir,
   getArgv,
@@ -186,10 +185,6 @@ export const appTools = (
         await closeServer();
         await restart(api.getHooks(), filename);
       }
-    });
-
-    api.onBeforeRestart(() => {
-      cleanRequireCache([require.resolve('./plugins/analyze')]);
     });
   },
 });

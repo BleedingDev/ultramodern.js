@@ -1,9 +1,6 @@
 // @effect-diagnostics asyncFunction:off nodeBuiltinImport:off processEnv:off strictBooleanExpressions:off unnecessaryArrowBlock:off
 import type { AppTools, CliPlugin } from '@modern-js/app-tools';
-import {
-  isReact18 as checkIsReact18,
-  cleanRequireCache,
-} from '@modern-js/utils';
+import { isReact18 as checkIsReact18 } from '@modern-js/utils';
 import path from 'path';
 import { documentPlugin } from '../document/cli';
 import { routerPlugin } from '../router/cli';
@@ -115,13 +112,6 @@ export const runtimePlugin = (params?: {
           },
         },
       };
-    });
-
-    api.onBeforeRestart(() => {
-      cleanRequireCache([
-        require.resolve('../router/cli'),
-        require.resolve('./ssr'),
-      ]);
     });
   },
 });

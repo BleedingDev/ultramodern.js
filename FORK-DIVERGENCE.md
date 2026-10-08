@@ -33,6 +33,10 @@ every PR.
 
 ---
 
+### 2026-10-09 dev restart under the ESM builds
+
+`appTools()` and the React runtime plugin cleared their statically imported `./plugins/analyze`, `../router/cli` and `./ssr` modules from the CommonJS require cache before a dev restart. The ESM builds resolve those paths through `createRequire`, which finds no `index.js` in a bundleless directory, so editing `modern.config.ts` during `dev` crashed the server. The steps had no effect even in CommonJS, because nothing re-reads the cleared entries, so they are removed. The defect is upstream behavior of both ESM builds.
+
 ### 2026-09-27 late streamed Helmet reporting
 
 The fork-owned streaming head drops a `<Helmet>` whose Suspense boundary commits after the shell end mark, because the document head is already written. The drop was silent. The head plugin now reports it once per render (an error in development, a warning in production) through the request monitors. The renderers already hold those monitors, but `SSRRenderInfo` had no field for them, so the three upstream-owned renderers pass `monitors` into the render info that the upstream-owned hook type declares. Reading `AsyncLocalStorage` from the extension instead would be an ambient global. This is an inline patch.
@@ -1014,6 +1018,8 @@ five previously invalid advisory rows remain non-authorizing historical prose.
 {
   "schemaVersion": 1,
   "entries": [
+    {"path":"packages/solutions/app-tools/src/index.ts","owner":"bleedingdev","reason":"Drop the onBeforeRestart step that cleared ./plugins/analyze from the CommonJS require cache. The ESM build resolves it through createRequire, which finds no index.js in the bundleless directory, so every modern.config.ts edit during dev crashed with Cannot find module './plugins/analyze'. The plugin is imported statically, so the cache entry was never re-read. Upstream ships the same ESM build and defect.","dispositions":["fixed-in-fork","upstream-PR"]},
+    {"path":"packages/runtime/plugin-runtime/src/cli/index.ts","owner":"bleedingdev","reason":"Drop the same CommonJS require-cache restart step for ../router/cli and ./ssr, which the runtime plugin's ESM build cannot resolve either. Both modules are imported statically, so the cleared entries were never re-read.","dispositions":["fixed-in-fork","upstream-PR"]},
     {"path":"packages/toolkit/plugin/src/cli/run/utils/createFileWatcher.ts","owner":"bleedingdev","reason":"Name the existing public FSWatcher return type explicitly so declaration emission does not infer a nonportable reference into generated utils/compiled/chokidar. Runtime watcher behavior is unchanged.","dispositions":["inline-patch"]},
     {"path":"packages/cli/builder/src/types.ts","owner":"bleedingdev","reason":"Document that source.reactCompiler only compiles browser (web-target) environments. Scope React Compiler to browser (web-target) environments; node, workerSSR and BFF graphs never get jsc.transform.reactCompiler, whose recursive pass overflowed the default thread stack on long .addHttpApi chains and aborted Rspack.","dispositions":["inline-patch"]},
     {"path":"packages/cli/builder/tests/reactCompiler.test.ts","owner":"bleedingdev","reason":"Prove web environments get reactCompiler while node and web-worker environments do not. Scope React Compiler to browser (web-target) environments; node, workerSSR and BFF graphs never get jsc.transform.reactCompiler, whose recursive pass overflowed the default thread stack on long .addHttpApi chains and aborted Rspack.","dispositions":["inline-patch"]},
@@ -2246,6 +2252,8 @@ five previously invalid advisory rows remain non-authorizing historical prose.
 <!-- fork-evidence:table -->
 | Upstream-owned path | Owner | Reason | Disposition |
 | --- | --- | --- | --- |
+| `packages/solutions/app-tools/src/index.ts` | bleedingdev | Drop the onBeforeRestart step that cleared ./plugins/analyze from the CommonJS require cache. The ESM build resolves it through createRequire, which finds no index.js in the bundleless directory, so every modern.config.ts edit during dev crashed with Cannot find module './plugins/analyze'. The plugin is imported statically, so the cache entry was never re-read. Upstream ships the same ESM build and defect. | `fixed-in-fork` + `upstream-PR` |
+| `packages/runtime/plugin-runtime/src/cli/index.ts` | bleedingdev | Drop the same CommonJS require-cache restart step for ../router/cli and ./ssr, which the runtime plugin's ESM build cannot resolve either. Both modules are imported statically, so the cleared entries were never re-read. | `fixed-in-fork` + `upstream-PR` |
 | `packages/toolkit/plugin/src/cli/run/utils/createFileWatcher.ts` | bleedingdev | Name the existing public FSWatcher return type explicitly so declaration emission does not infer a nonportable reference into generated utils/compiled/chokidar. Runtime watcher behavior is unchanged. | `inline-patch` |
 | `packages/cli/builder/src/types.ts` | bleedingdev | Document that source.reactCompiler only compiles browser (web-target) environments. Scope React Compiler to browser (web-target) environments; node, workerSSR and BFF graphs never get jsc.transform.reactCompiler, whose recursive pass overflowed the default thread stack on long .addHttpApi chains and aborted Rspack. | `inline-patch` |
 | `packages/cli/builder/tests/reactCompiler.test.ts` | bleedingdev | Prove web environments get reactCompiler while node and web-worker environments do not. Scope React Compiler to browser (web-target) environments; node, workerSSR and BFF graphs never get jsc.transform.reactCompiler, whose recursive pass overflowed the default thread stack on long .addHttpApi chains and aborted Rspack. | `inline-patch` |
