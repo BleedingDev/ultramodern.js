@@ -1,5 +1,6 @@
 export {
   documentCacheKey,
+  headerMaxAgeSeconds,
   permitsDocumentCache,
   policyHeaders,
   responseHeaders,
