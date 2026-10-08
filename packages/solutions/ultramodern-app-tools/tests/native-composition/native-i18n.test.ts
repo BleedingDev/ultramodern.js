@@ -90,6 +90,11 @@ describe('native i18nPlugin()', () => {
         }),
         'initOptions.lazy',
       ],
+      [{ nested: { [Symbol('x')]: 1 } }, 'initOptions.nested[symbol]'],
+      [
+        Object.defineProperty({}, 'hidden', { enumerable: false, value: 1 }),
+        'initOptions.hidden',
+      ],
     ] as const)
       expect(() =>
         i18nPlugin({ localeDetection, initOptions: initOptions as never }),
