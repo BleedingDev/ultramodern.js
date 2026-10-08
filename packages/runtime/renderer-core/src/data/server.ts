@@ -250,12 +250,15 @@ export function dataMetadataToDocumentPolicy(
   headers.set('content-type', 'text/html; charset=utf-8');
   let cache: DocumentCachePolicy = { mode: 'no-store' };
   const cacheControl = headers.get('cache-control') ?? '';
+  const directives = cacheDirectiveNames(cacheControl);
   if (metadata.cachePolicy === 'private') cache = { mode: 'private' };
   if (
     metadata.cachePolicy === 'public' &&
     metadata.status === 200 &&
     !headers.has('set-cookie') &&
-    !/\b(?:private|no-store|no-cache)\b/i.test(cacheControl) &&
+    !directives.has('private') &&
+    !directives.has('no-store') &&
+    !directives.has('no-cache') &&
     !headers
       .get('vary')
       ?.split(',')
@@ -267,7 +270,7 @@ export function dataMetadataToDocumentPolicy(
   if (headers.has('set-cookie') || metadata.status >= 400)
     cache = { mode: 'no-store' };
   if (cache.mode === 'no-store') headers.set('cache-control', 'no-store');
-  else if (cache.mode === 'private' && !/\bprivate\b/i.test(cacheControl))
+  else if (cache.mode === 'private' && !directives.has('private'))
     headers.set('cache-control', 'private');
   return {
     kind: 'document',

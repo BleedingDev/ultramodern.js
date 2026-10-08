@@ -126,6 +126,7 @@ describe('native Solid response metadata before session commit', () => {
       headers: [
         ['content-security-policy', "default-src 'self'"],
         ['content-security-policy-report-only', "img-src 'self'"],
+        ['link', '<https://cdn.test>; rel=preconnect'],
       ],
     });
     const response = await renderApplication({
@@ -133,6 +134,7 @@ describe('native Solid response metadata before session commit', () => {
       view: () => {
         httpHeader('content-security-policy', "script-src 'self'");
         httpHeader('content-security-policy-report-only', "style-src 'self'");
+        httpHeader('link', '</c.css>; rel=preload; as=style');
         return ssr('<p>csp</p>');
       },
     });
@@ -141,6 +143,9 @@ describe('native Solid response metadata before session commit', () => {
     );
     expect(response.headers.get('content-security-policy-report-only')).toBe(
       "img-src 'self', style-src 'self'",
+    );
+    expect(response.headers.get('link')).toBe(
+      '<https://cdn.test>; rel=preconnect, </c.css>; rel=preload; as=style',
     );
     await response.text();
   });

@@ -12,6 +12,7 @@ import {
   type NativeServerEntryOptions,
 } from '@modern-js/renderer-core/entry-server';
 import { createNativeRouter } from '@modern-js/renderer-core/router';
+import type { ResponsePolicy } from '@modern-js/renderer-core/session';
 import type { ServerRenderNode } from 'octane/server';
 import {
   componentView,
@@ -26,6 +27,29 @@ import {
   OctaneRouterServer,
 } from './router-server';
 import { renderOctaneApplication, renderOctaneCSRDocument } from './server';
+
+/** Document-describing fields an Octane route's `headers()` may set. */
+const OCTANE_DOCUMENT_FIELDS = new Set([
+  'content-language',
+  'content-location',
+  'content-disposition',
+]);
+
+/**
+ * The loader projection strips representation fields; the ones an Octane route
+ * declares for the document itself are kept, as Solid document headers are.
+ */
+export function withOctaneDocumentFields(
+  policy: ResponsePolicy,
+  responseHeaders: Headers,
+): ResponsePolicy {
+  const fields = collectDataHeaders(responseHeaders).filter(([name]) =>
+    OCTANE_DOCUMENT_FIELDS.has(name.toLowerCase()),
+  );
+  return fields.length
+    ? { ...policy, headers: [...policy.headers, ...fields] }
+    : policy;
+}
 
 export type OctaneServerEntryOptions = NativeServerEntryOptions<
   NativeI18nInstance,
@@ -77,14 +101,15 @@ export function createNativeServerEntry(
         const metadata = mergeDataResponseMetadata(outcomes, {
           status: router.state.statusCode ?? 200,
         });
+        const policy = dataMetadataToDocumentPolicy({
+          ...metadata,
+          headers: [
+            ...collectDataHeaders(responseHeaders),
+            ...metadata.headers,
+          ],
+        });
         session.resolveResponse(
-          dataMetadataToDocumentPolicy({
-            ...metadata,
-            headers: [
-              ...collectDataHeaders(responseHeaders),
-              ...metadata.headers,
-            ],
-          }),
+          withOctaneDocumentFields(policy, responseHeaders),
         );
         const rendered = await renderOctaneApplication({
           session,

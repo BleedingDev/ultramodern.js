@@ -55,6 +55,7 @@ test('native matching and document callback follow guarded serialization', async
       vary: 'Cookie',
       'content-security-policy': "default-src 'self'",
       'server-timing': 'root;dur=1',
+      link: '<https://cdn.test>; rel=preconnect',
     }),
   });
   const product = createRoute({
@@ -67,6 +68,7 @@ test('native matching and document callback follow guarded serialization', async
         vary: 'Accept-Language, cookie',
         'content-security-policy': "script-src 'self'",
         'server-timing': 'product;dur=2',
+        link: '</product.css>; rel=preload; as=style',
       });
       headers.append('set-cookie', 'a=1; Path=/');
       headers.append('set-cookie', 'b=2; Path=/');
@@ -87,6 +89,9 @@ test('native matching and document callback follow guarded serialization', async
       );
       expect(responseHeaders.get('server-timing')).toBe(
         'root;dur=1, product;dur=2',
+      );
+      expect(responseHeaders.get('link')).toBe(
+        '<https://cdn.test>; rel=preconnect, </product.css>; rel=preload; as=style',
       );
       expect(responseHeaders.getSetCookie()).toEqual([
         'a=1; Path=/',
