@@ -240,12 +240,13 @@ export function applyMiddlewareHeaders(
   native: Headers,
 ): void {
   prepared.forEach((value, name) => {
-    // The renderer owns its body framing; another source's length or
-    // transfer coding would describe different bytes.
+    // The renderer owns its body framing; another source's length, transfer
+    // coding or content coding would describe different bytes.
     if (
       name === 'set-cookie' ||
       name === 'content-length' ||
-      name === 'transfer-encoding'
+      name === 'transfer-encoding' ||
+      name === 'content-encoding'
     )
       return;
     if (CSP_HEADERS.has(name)) native.append(name, value);
@@ -257,10 +258,7 @@ export function applyMiddlewareHeaders(
           fields.set(item.toLowerCase(), item);
       }
       native.set('vary', [...fields.values()].join(', '));
-    } else if (
-      (name !== 'content-type' && name !== 'content-encoding') ||
-      !native.has(name)
-    )
+    } else if (name !== 'content-type' || !native.has(name))
       native.set(name, value);
   });
 }
