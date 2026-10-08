@@ -385,6 +385,7 @@ describe('production native Node Fetch dispatch', () => {
     { headers: { 'If-Match': '"other"' } },
     { headers: { 'If-Unmodified-Since': 'Wed, 07 Oct 2026 10:00:00 GMT' } },
     { headers: { pragma: 'no-cache' } },
+    { headers: { pragma: 'extension, No-Cache' } },
     { headers: { range: 'bytes=0-5' } },
   ])(
     'bypasses cache before lookup for private or non-document request %j',
@@ -744,12 +745,14 @@ describe('production native Node Fetch dispatch', () => {
   });
 
   it.each([
-    ['public, max-age=10', 10_000],
-    ['public, max-age=30, s-maxage=5', 5_000],
-    ['public, max-age=0', undefined],
+    ['public, max-age=10', undefined, 10_000],
+    ['public, max-age=30, s-maxage=5', undefined, 5_000],
+    ['public, max-age=0', undefined, undefined],
+    ['public, max-age=60', '50', 10_000],
+    ['public, max-age=60', '60', undefined],
   ])(
-    'stores no longer than confirmed Cache-Control %s allows',
-    async (cacheControl, lifetime) => {
+    'stores no longer than confirmed Cache-Control %s with Age %s allows',
+    async (cacheControl, age, remaining) => {
       const cache = store();
       const response = await dispatchNativeNodeRequest(
         new Request('https://example.test/'),
@@ -761,6 +764,7 @@ describe('production native Node Fetch dispatch', () => {
               new Headers({
                 'content-type': 'text/html',
                 'cache-control': cacheControl,
+                ...(age === undefined ? {} : { age }),
               }),
           },
         ),
@@ -768,7 +772,12 @@ describe('production native Node Fetch dispatch', () => {
       await response.text();
       await new Promise(resolve => setTimeout(resolve, 0));
       const [stored] = cache.documents.values();
-      expect(stored && stored.expiresAt - stored.storedAt).toBe(lifetime);
+      if (remaining === undefined) expect(stored).toBeUndefined();
+      else {
+        const left = stored.expiresAt - Date.now();
+        expect(left).toBeGreaterThan(remaining - 1_000);
+        expect(left).toBeLessThanOrEqual(remaining);
+      }
     },
   );
 
