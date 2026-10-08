@@ -79,7 +79,10 @@ export default {
           routeDataResponse ??
             (await dispatchRouteWorker(
               route,
-              createRenderableRequest(request),
+              // The native dispatcher handles HEAD itself, as on Node.
+              getNativeRouteIdentity(route)
+                ? request
+                : createRenderableRequest(request),
               env,
               ctx,
             )),

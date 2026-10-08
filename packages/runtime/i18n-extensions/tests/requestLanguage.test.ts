@@ -208,7 +208,18 @@ describe('resolveRequestLanguage', () => {
         ...options,
         ignoreRedirectRoutes: ['/health'],
       }),
-    ).toEqual({ kind: 'language', language: 'cs' });
+    ).toEqual({
+      kind: 'language',
+      language: 'cs',
+      vary: ['Cookie', 'Accept-Language'],
+    });
+    expect(
+      resolveRequestLanguage(request('/health', { 'accept-language': 'cs' }), {
+        ...options,
+        detect: false,
+        ignoreRedirectRoutes: ['/health'],
+      }),
+    ).toEqual({ kind: 'language', language: 'en' });
     expect(
       resolveRequestLanguage(request('/static/js/main.js'), options).kind,
     ).toBe('language');

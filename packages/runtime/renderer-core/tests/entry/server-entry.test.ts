@@ -411,6 +411,33 @@ describe('generated native server entry', () => {
     expect(create).not.toHaveBeenCalled();
   });
 
+  it('varies a routed document whose language came from request headers', async () => {
+    const { adapter: recording, calls } = adapter();
+    const entry = createNativeServerEntry(
+      {
+        identity,
+        app: async () => routed,
+        i18n: {
+          ...localization(),
+          resolveRequest: () => ({
+            kind: 'language',
+            language: 'cs',
+            vary: ['Cookie', 'Accept-Language'],
+          }),
+        },
+      },
+      recording,
+    );
+    const request = new Request('https://example.test/items');
+    await entry.nativeRequestHandler(request, context(request));
+    const { outcomes } = calls[0].value as { outcomes: DataOutcome[] };
+    expect(
+      outcomes.map(outcome =>
+        new Headers(outcome.response.headers).get('vary'),
+      ),
+    ).toEqual(['Cookie, Accept-Language']);
+  });
+
   it('localizes CSR and SSR documents and redirects unprefixed URLs', async () => {
     const { adapter: recording, calls } = adapter();
     const entry = createNativeServerEntry(
