@@ -182,10 +182,55 @@ async function dispatchRouteWorker(route, request, env, ctx) {
   const nativeIdentity = getNativeRouteIdentity(route);
   return withWorkerRendererIdentity(
     nativeIdentity
-      ? await invokeNativeRouteWorker(route, nativeIdentity, request, env, ctx)
+      ? applyRouteResponseHeaders(
+          await invokeNativeRouteWorker(
+            route,
+            nativeIdentity,
+            request,
+            env,
+            ctx,
+          ),
+          route,
+        )
       : await invokeRouteWorker(route, request, env, ctx),
     route,
   );
+}
+
+const CUMULATIVE_RESPONSE_HEADERS = new Set([
+  'content-security-policy',
+  'content-security-policy-report-only',
+  'set-cookie',
+]);
+
+/**
+ * Merge a route's configured `responseHeaders` into a native response, as the
+ * Node host does: CSP fields and cookies append, `Vary` unions, and other
+ * fields take the configured value.
+ */
+function applyRouteResponseHeaders(response, route) {
+  const configured = Object.entries(route.responseHeaders ?? {});
+  if (configured.length === 0) return response;
+  const headers = new Headers(response.headers);
+  for (const [rawName, rawValue] of configured) {
+    const name = rawName.toLowerCase();
+    const value = String(rawValue);
+    if (CUMULATIVE_RESPONSE_HEADERS.has(name)) headers.append(name, value);
+    else if (name === 'vary') {
+      const fields = new Map();
+      for (const field of `${headers.get('vary') ?? ''},${value}`.split(',')) {
+        const item = field.trim();
+        if (item && !fields.has(item.toLowerCase()))
+          fields.set(item.toLowerCase(), item);
+      }
+      headers.set('vary', [...fields.values()].join(', '));
+    } else headers.set(name, value);
+  }
+  return new Response(response.body, {
+    headers,
+    status: response.status,
+    statusText: response.statusText,
+  });
 }
 
 function createWorkerRendererErrorResponse(code, entryName) {
