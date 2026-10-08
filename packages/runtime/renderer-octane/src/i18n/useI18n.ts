@@ -40,8 +40,8 @@ export function useI18n(): UseI18nReturn {
   const changeLanguage = async (nextLanguage: string): Promise<void> => {
     await instance.changeLanguage?.(nextLanguage);
     if (!router) return;
-    const currentPathname = router.state.location.pathname;
-    const href = localizePath(currentPathname, nextLanguage, {
+    // The full href keeps the query and fragment across the language switch.
+    const href = localizePath(router.state.location.href, nextLanguage, {
       languages: [...languages],
       localisedUrls,
     });
