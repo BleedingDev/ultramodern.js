@@ -19,6 +19,11 @@ type ModuleFederationManifest = {
       name?: string;
     };
     publicPath?: string;
+    ssrRemoteEntry?: {
+      path?: string;
+      name?: string;
+    };
+    ssrPublicPath?: string;
     types?: {
       path?: string;
       zip?: string;
@@ -106,11 +111,111 @@ const appendModuleFederationAsset = (set: Set<string>, assetPath?: string) => {
 const appendModuleFederationAssets = (
   set: Set<string>,
   assets?: ModuleFederationAssets,
+  directory = '',
 ) => {
-  assets?.js?.sync?.forEach(asset => appendModuleFederationAsset(set, asset));
-  assets?.js?.async?.forEach(asset => appendModuleFederationAsset(set, asset));
-  assets?.css?.sync?.forEach(asset => appendModuleFederationAsset(set, asset));
-  assets?.css?.async?.forEach(asset => appendModuleFederationAsset(set, asset));
+  for (const asset of [
+    ...(assets?.js?.sync ?? []),
+    ...(assets?.js?.async ?? []),
+    ...(assets?.css?.sync ?? []),
+    ...(assets?.css?.async ?? []),
+  ]) {
+    appendModuleFederationAsset(
+      set,
+      joinModuleFederationAssetPath(directory, asset),
+    );
+  }
+};
+
+const appendModuleFederationManifestAssets = (
+  set: Set<string>,
+  manifest: ModuleFederationManifest,
+  directory?: string,
+) => {
+  for (const item of [
+    ...(manifest.shared ?? []),
+    ...(manifest.remotes ?? []),
+    ...(manifest.exposes ?? []),
+  ]) {
+    appendModuleFederationAssets(set, item.assets, directory);
+  }
+};
+
+/**
+ * The output directory of the Node container a server-rendering host loads,
+ * which the browser manifest publishes as its SSR snapshot: `ssrRemoteEntry`
+ * resolved against `ssrPublicPath`. A container published elsewhere has no
+ * files here.
+ */
+const getServerContainerDirectory = (
+  metaData: ModuleFederationManifest['metaData'],
+) => {
+  const { publicPath, ssrPublicPath } = metaData ?? {};
+  if (
+    typeof publicPath !== 'string' ||
+    typeof ssrPublicPath !== 'string' ||
+    !ssrPublicPath.startsWith(publicPath)
+  ) {
+    return undefined;
+  }
+  const directory = ssrPublicPath
+    .slice(publicPath.length)
+    .replace(/^\/+|\/+$/gu, '');
+  return directory &&
+    directory
+      .split('/')
+      .every(segment => segment && segment !== '.' && segment !== '..')
+    ? directory
+    : undefined;
+};
+
+const readModuleFederationManifest = async (manifestPath: string) => {
+  const manifestBuffer = await fileReader.readFileFromSystem(
+    manifestPath,
+    'buffer',
+  );
+  if (manifestBuffer === null) {
+    return undefined;
+  }
+  try {
+    return JSON.parse(
+      manifestBuffer.toString('utf-8'),
+    ) as ModuleFederationManifest;
+  } catch {
+    return undefined;
+  }
+};
+
+/**
+ * Serve the Node container's entry and the chunks its own manifest names, as
+ * native development does. The application's server bundles share that
+ * directory and stay private.
+ */
+const appendServerContainerAssets = async (
+  pwd: string,
+  set: Set<string>,
+  metaData: ModuleFederationManifest['metaData'],
+) => {
+  const directory = getServerContainerDirectory(metaData);
+  const remoteEntry = joinModuleFederationAssetPath(
+    metaData?.ssrRemoteEntry?.path,
+    metaData?.ssrRemoteEntry?.name,
+  );
+  if (!directory || !remoteEntry) {
+    return;
+  }
+  set.add(joinModuleFederationAssetPath(directory, remoteEntry));
+  const manifestPath = path.join(
+    pwd,
+    directory,
+    MODULE_FEDERATION_MANIFEST_FILE,
+  );
+  if (!(await fs.pathExists(manifestPath))) {
+    return;
+  }
+  const manifest = await readModuleFederationManifest(manifestPath);
+  if (manifest) {
+    appendModuleFederationManifestAssets(set, manifest, directory);
+  }
 };
 
 const hasAbsoluteProtocol = (value: string) =>
@@ -197,18 +302,12 @@ export const getModuleFederationAssetList = async (
 
     manifestFound = true;
     assets.add(manifestFile);
-    const manifestBuffer = await fileReader.readFileFromSystem(
-      manifestPath,
-      'buffer',
-    );
-    if (manifestBuffer === null) {
+    const manifest = await readModuleFederationManifest(manifestPath);
+    if (!manifest) {
       continue;
     }
 
     try {
-      const manifest = JSON.parse(
-        manifestBuffer.toString('utf-8'),
-      ) as ModuleFederationManifest;
       const remoteEntry = joinModuleFederationAssetPath(
         manifest.metaData?.remoteEntry?.path,
         manifest.metaData?.remoteEntry?.name,
@@ -228,15 +327,10 @@ export const getModuleFederationAssetList = async (
       }
       appendModuleFederationAsset(assets, dtsZip);
       appendModuleFederationAsset(assets, dtsApi);
-      manifest.shared?.forEach(item =>
-        appendModuleFederationAssets(assets, item.assets),
-      );
-      manifest.remotes?.forEach(item =>
-        appendModuleFederationAssets(assets, item.assets),
-      );
-      manifest.exposes?.forEach(item =>
-        appendModuleFederationAssets(assets, item.assets),
-      );
+      appendModuleFederationManifestAssets(assets, manifest);
+      if (manifestFile === MODULE_FEDERATION_MANIFEST_FILE) {
+        await appendServerContainerAssets(pwd, assets, manifest.metaData);
+      }
     } catch {}
   }
 

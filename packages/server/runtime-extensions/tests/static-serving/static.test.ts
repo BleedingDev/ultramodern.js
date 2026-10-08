@@ -362,6 +362,66 @@ describe('static plugin Module Federation backend assets', () => {
     expect(validResponse.status).toBe(200);
     expect(misplacedPrefixResponse.status).toBe(404);
   });
+
+  it('serves only the Node container the browser manifest publishes for SSR', async () => {
+    const pwd = await createTempDir();
+    const bundles = path.join(pwd, 'bundles');
+    await mkdir(bundles, { recursive: true });
+    await writeFile(
+      path.join(pwd, 'mf-manifest.json'),
+      JSON.stringify({
+        metaData: {
+          publicPath: 'http://localhost:3043/',
+          remoteEntry: { path: '', name: 'remoteEntry.js' },
+          ssrRemoteEntry: { path: '', name: 'remoteEntry.js' },
+          ssrPublicPath: 'http://localhost:3043/bundles/',
+        },
+      }),
+    );
+    await writeFile(
+      path.join(bundles, 'mf-manifest.json'),
+      JSON.stringify({
+        metaData: { publicPath: 'http://localhost:3043/bundles/' },
+        exposes: [
+          {
+            assets: {
+              js: { sync: ['__federation_expose_Widget.js'], async: ['a.js'] },
+            },
+          },
+        ],
+        shared: [{ assets: { js: { sync: ['octane.js'] } } }],
+      }),
+    );
+    for (const name of [
+      'remoteEntry.js',
+      '__federation_expose_Widget.js',
+      'a.js',
+      'octane.js',
+      'main.js',
+    ]) {
+      await writeFile(path.join(bundles, name), 'module.exports = {};');
+    }
+
+    const server = await createStaticServer(pwd);
+    for (const name of [
+      'remoteEntry.js',
+      '__federation_expose_Widget.js',
+      'a.js',
+      'octane.js',
+    ]) {
+      const response = await server.request(`/bundles/${name}`);
+      expect(response.status).toBe(200);
+      expect(response.headers.get('access-control-allow-origin')).toBe('*');
+      expect(response.headers.get('content-type')).toMatch(/^text\/javascript/);
+      expect(await response.text()).toBe('module.exports = {};');
+    }
+    // The application's own server bundle and the container's private
+    // manifest share the directory and stay unpublished.
+    expect((await server.request('/bundles/main.js')).status).toBe(404);
+    expect((await server.request('/bundles/mf-manifest.json')).status).toBe(
+      404,
+    );
+  });
 });
 
 describe('static plugin generated public directory assets', () => {
