@@ -83,10 +83,12 @@ function nonJsonPath(
   if (typeof value !== 'object') return at;
   if (seen.has(value)) return at;
   const prototype = Object.getPrototypeOf(value);
+  // The emitted literal recreates objects with Object.prototype, so a
+  // null-prototype object would change too.
   if (
     Array.isArray(value)
       ? prototype !== Array.prototype
-      : prototype !== Object.prototype && prototype !== null
+      : prototype !== Object.prototype
   )
     return at;
   // JSON turns an array hole into null, so a sparse array is altered too.

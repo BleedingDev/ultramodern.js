@@ -117,6 +117,10 @@ describe('native i18nPlugin()', () => {
         'initOptions.list',
       ],
       [
+        { backendOptions: Object.assign(Object.create(null), { a: 1 }) },
+        'initOptions.backendOptions',
+      ],
+      [
         JSON.parse('{"__proto__": {"polluted": true}}'),
         'initOptions.__proto__',
       ],

@@ -91,8 +91,9 @@ export function flattenPrerenderRoutes(
       parent === undefined ? own : `${parent}/${own}`.replace(/\/+/gu, '/')
     ).replace(/(.)\/$/u, '$1');
     const view = route.file ?? route._component ?? route.component;
-    if (view && (routePath !== '/' || parent === undefined))
-      paths.add(routePath || '/');
+    // The Set dedupes `/`; a page-only entry's root index sits under a
+    // fileless root and is still a document.
+    if (view) paths.add(routePath || '/');
     for (const child of route.children ?? []) visit(child, routePath);
   };
   for (const route of routes) visit(route, undefined);
