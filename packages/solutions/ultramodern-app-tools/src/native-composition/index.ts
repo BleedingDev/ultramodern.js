@@ -125,7 +125,7 @@ function composeNativeRenderer(
       post: ['@modern-js/ultramodern-release-envelope'],
     },
     ...(adapter.profile.capabilities.ssg
-      ? [nativePrerenderPlugin(adapter)]
+      ? [nativePrerenderPlugin(adapter, findNativeI18nConfig(consumerPlugins))]
       : []),
     nativeModuleFederationPlugin(renderer),
     federation.plugin,
