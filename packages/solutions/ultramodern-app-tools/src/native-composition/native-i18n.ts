@@ -76,7 +76,9 @@ function nonJsonPath(
 ): string | undefined {
   if (value === null || typeof value === 'string' || typeof value === 'boolean')
     return undefined;
-  if (typeof value === 'number') return Number.isFinite(value) ? undefined : at;
+  // JSON writes -0 as 0.
+  if (typeof value === 'number')
+    return Number.isFinite(value) && !Object.is(value, -0) ? undefined : at;
   if (typeof value !== 'object') return at;
   if (seen.has(value)) return at;
   const prototype = Object.getPrototypeOf(value);

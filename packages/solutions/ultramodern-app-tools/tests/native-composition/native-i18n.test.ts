@@ -104,6 +104,7 @@ describe('native i18nPlugin()', () => {
         { list: Object.assign([1], { '4294967295': true }) },
         'initOptions.list.4294967295',
       ],
+      [{ offset: -0 }, 'initOptions.offset'],
       [
         JSON.parse('{"__proto__": {"polluted": true}}'),
         'initOptions.__proto__',
