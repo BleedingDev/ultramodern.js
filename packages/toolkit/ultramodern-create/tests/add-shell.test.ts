@@ -634,7 +634,7 @@ describe('workspace-wide port allocation', () => {
     );
     overlay.ports.catalog = 3120;
     fs.writeFileSync(overlayPath, `${JSON.stringify(overlay, null, 2)}\n`);
-  }, 30000);
+  });
 
   beforeAll(async () => {
     await addUltramodernShell({
@@ -647,7 +647,7 @@ describe('workspace-wide port allocation', () => {
       name: 'partner',
       modernVersion: '3.2.1',
     });
-  }, 30000);
+  });
 
   afterAll(() => {
     if (tempRoot) fs.rmSync(tempRoot, { recursive: true, force: true });
