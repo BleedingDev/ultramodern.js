@@ -3,6 +3,7 @@ import {
   type LocalisedUrlsOption,
   localiseTargetPathname,
 } from '@modern-js/runtime-extensions/localised-urls';
+import { languageFromPathname } from './requestLanguage';
 
 /**
  * Structurally identical to `@tanstack/router-core`'s `LocationRewriteFunction`.
@@ -23,7 +24,10 @@ export interface I18nLocationRewrite {
 export interface CreateI18nUrlRewriteOptions {
   /** Supported language codes, e.g. `['en', 'cs']`. */
   languages: readonly string[];
-  /** The language every outgoing (internal -> public) location is localized to. */
+  /**
+   * The language an outgoing (internal -> public) location is localized to
+   * when its pathname does not already start with a supported language.
+   */
   getLanguage: () => string;
   /**
    * Canonical-path -> per-language path map; mirrors
@@ -42,7 +46,9 @@ export interface CreateI18nUrlRewriteOptions {
  * Build a TanStack router-core `LocationRewrite` from the fork's localized-URL
  * pathname helpers: the router matches against canonical (language-agnostic)
  * paths internally, while every public href it produces carries the current
- * language prefix (and any mapped locale slug).
+ * language prefix (and any mapped locale slug). An outgoing pathname that
+ * already starts with a supported language keeps that language, which is how
+ * a route mask such as `LocalizedLink`'s publishes another language's URL.
  *
  * Pass the result directly as a router's `rewrite` option:
  *
@@ -91,7 +97,7 @@ export const createI18nUrlRewrite = (
     output: ({ url }) => {
       url.pathname = localiseTargetPathname(
         url.pathname,
-        getLanguage(),
+        languageFromPathname(url.pathname, languageList) ?? getLanguage(),
         languageList,
         localisedUrls,
       );

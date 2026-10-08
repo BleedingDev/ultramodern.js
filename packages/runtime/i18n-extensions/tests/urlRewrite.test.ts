@@ -105,6 +105,26 @@ describe('createI18nUrlRewrite', () => {
     );
   });
 
+  test('output keeps a language already present in the outgoing pathname', () => {
+    const rewrite = createI18nUrlRewrite({
+      languages,
+      getLanguage: () => 'en',
+      localisedUrls: {
+        '/products/:slug': { en: '/products/:slug', cs: '/produkty/:slug' },
+      },
+    });
+    // A route mask to another language publishes that language's URL.
+    expect(runOutput(rewrite, 'https://example.com/cs/produkty/red')).toBe(
+      '/cs/produkty/red',
+    );
+    expect(runOutput(rewrite, 'https://example.com/cs/products/red')).toBe(
+      '/cs/produkty/red',
+    );
+    expect(runOutput(rewrite, 'https://example.com/products/red')).toBe(
+      '/en/products/red',
+    );
+  });
+
   test('reports the detected language segment on input without mutating callers', () => {
     const detected: string[] = [];
     const rewrite = createI18nUrlRewrite({

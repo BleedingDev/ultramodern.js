@@ -7,14 +7,12 @@ import {
   Link,
   type LinkComponentProps,
   useLocation,
-  useNavigate,
   useRouter,
 } from '../router';
 import { I18nContext } from './context';
 
 // Plain TypeScript is not rewritten by the Octane compiler: router hooks take
 // their stable slot explicitly.
-const navigateSlot = Symbol(hookSlots(1));
 const locationSlot = Symbol(hookSlots(1));
 
 export interface LocalizedLinkProps {
@@ -37,14 +35,16 @@ export interface LocalizedLinkProps {
  * canonical `to` for the current (or an explicit) language before handing it
  * to the real link — the same contract as `@modern-js/plugin-i18n`'s React
  * `Link`. It resolves the href itself via the shared pathname helpers, so it
- * works with or without the router's i18n `rewrite`.
+ * works with or without the router's i18n `rewrite`. Every link, including
+ * one to another language, is the native `Link`: navigation, preloading and
+ * active state stay with the router.
  *
- * A link to another language cannot go through the router alone: the i18n
- * `rewrite` localizes every outgoing location to the *current* language. It
- * renders a plain anchor (correct href for crawlers and new tabs) whose click
- * first switches the i18next language and then navigates client-side, the
- * same order `useI18n().changeLanguage` uses. If loading that language fails,
- * native document navigation follows the anchor's URL instead.
+ * Under the i18n `rewrite` the router matches canonical paths and localizes
+ * outgoing locations to the current language, so a link to another language
+ * routes to the canonical `to` and publishes the target language's URL as a
+ * route mask (the rewrite keeps a mask's explicit language). The entry's
+ * router language synchronization (`syncWithRouter`) switches the i18next
+ * instance from the navigated URL, as it does for history navigation.
  *
  * No JSX: built with `createElement`, matching this package's existing
  * style (see `src/routes.ts`).
@@ -57,55 +57,14 @@ export function LocalizedLink(props: LocalizedLinkProps): OctaneNode {
     );
   }
   const router = useRouter();
-  const navigate = useNavigate(undefined, navigateSlot);
 
   const language = props.language ?? context.language;
   const href = localizePath(props.to, language, {
     languages: [...context.languages],
     localisedUrls: context.localisedUrls,
   });
-
-  if (language !== context.language) {
-    const basepath = router.options.basepath ?? '/';
-    const documentHref =
-      basepath === '/' ? href : `${basepath.replace(/\/$/u, '')}${href}`;
-    const instance = context.instance;
-    return createElement(
-      'a',
-      {
-        href: documentHref,
-        hreflang: language,
-        class: props.class,
-        onClick: (event: MouseEvent) => {
-          if (
-            event.defaultPrevented ||
-            event.button !== 0 ||
-            event.metaKey ||
-            event.ctrlKey ||
-            event.shiftKey ||
-            event.altKey
-          )
-            return;
-          event.preventDefault();
-          void (async () => {
-            try {
-              await instance.changeLanguage?.(language);
-            } catch {
-              // Omit `to` so the current language rewrite cannot alter the anchor URL.
-              await router.navigate({
-                href: documentHref,
-                reloadDocument: true,
-                replace: props.replace,
-              });
-              return;
-            }
-            await navigate({ to: '.', href, replace: props.replace });
-          })();
-        },
-      },
-      props.children,
-    );
-  }
+  const crossLanguage = language !== context.language;
+  const rewrite = Boolean(router.options.rewrite);
 
   return createElement(
     Link,
@@ -113,7 +72,9 @@ export function LocalizedLink(props: LocalizedLinkProps): OctaneNode {
       // Octane's `Link` builds its location from `to` alone. Under the i18n
       // router rewrite the router matches canonical paths and localizes the
       // public href itself; without it, the localized path is the route path.
-      to: router.options.rewrite ? props.to : href,
+      to: rewrite ? props.to : href,
+      ...(rewrite && crossLanguage ? { mask: { to: href } } : {}),
+      ...(crossLanguage ? { hreflang: language } : {}),
       class: props.class,
       activeProps: props.activeProps,
       inactiveProps: props.inactiveProps,
