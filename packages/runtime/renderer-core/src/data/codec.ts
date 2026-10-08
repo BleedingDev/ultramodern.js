@@ -122,6 +122,16 @@ export function assertPublicData(
         'Public data native containers must not override their built-in properties',
       );
     }
+    // A decoded RegExp starts at lastIndex 0, so a global or sticky RegExp
+    // advanced by exec/test would silently lose its position.
+    if (
+      prototype === RegExp.prototype &&
+      Object.getOwnPropertyDescriptor(object, 'lastIndex')?.value !== 0
+    ) {
+      throw new DataProtocolError(
+        'Public data RegExp values must have lastIndex 0',
+      );
+    }
     if (prototype === Map.prototype) {
       for (const [key, entry] of Map.prototype.entries.call(object)) {
         visit(key, depth + 1);
