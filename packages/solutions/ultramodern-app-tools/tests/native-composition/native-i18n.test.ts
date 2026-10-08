@@ -72,6 +72,25 @@ describe('native i18nPlugin()', () => {
     expect(() =>
       i18nPlugin({ localeDetection, initOptions: { lng: 'cs' } }),
     ).toThrow('owns these i18next options');
+    for (const [initOptions, path] of [
+      [{ format: () => '' }, 'initOptions.format'],
+      [{ missing: undefined }, 'initOptions.missing'],
+      [
+        { interpolation: { limit: Number.POSITIVE_INFINITY } },
+        'initOptions.interpolation.limit',
+      ],
+      [{ list: [1, Symbol('x')] }, 'initOptions.list.1'],
+      [{ when: new Date(0) }, 'initOptions.when'],
+    ] as const)
+      expect(() =>
+        i18nPlugin({ localeDetection, initOptions: initOptions as never }),
+      ).toThrow(`${path} is not`);
+    expect(() =>
+      i18nPlugin({
+        localeDetection,
+        initOptions: { returnNull: false, nested: { list: [1, 'a', null] } },
+      }),
+    ).not.toThrow();
   });
 
   it('is found once among nested consumer plugins', () => {

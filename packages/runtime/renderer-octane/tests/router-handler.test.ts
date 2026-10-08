@@ -54,6 +54,7 @@ test('native matching and document callback follow guarded serialization', async
       'x-root': 'native',
       vary: 'Cookie',
       'content-security-policy': "default-src 'self'",
+      'server-timing': 'root;dur=1',
     }),
   });
   const product = createRoute({
@@ -65,6 +66,7 @@ test('native matching and document callback follow guarded serialization', async
         'x-product': '7',
         vary: 'Accept-Language, cookie',
         'content-security-policy': "script-src 'self'",
+        'server-timing': 'product;dur=2',
       });
       headers.append('set-cookie', 'a=1; Path=/');
       headers.append('set-cookie', 'b=2; Path=/');
@@ -82,6 +84,9 @@ test('native matching and document callback follow guarded serialization', async
       expect(responseHeaders.get('vary')).toBe('Cookie, Accept-Language');
       expect(responseHeaders.get('content-security-policy')).toBe(
         "default-src 'self', script-src 'self'",
+      );
+      expect(responseHeaders.get('server-timing')).toBe(
+        'root;dur=1, product;dur=2',
       );
       expect(responseHeaders.getSetCookie()).toEqual([
         'a=1; Path=/',
