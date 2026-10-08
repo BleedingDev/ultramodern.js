@@ -67,7 +67,8 @@ export interface NativeI18nPluginOptions {
 /**
  * The path of the first value JSON would drop or alter (a function, symbol,
  * `undefined`, non-finite number, array hole, accessor, symbol key,
- * non-enumerable property, non-plain object or cycle).
+ * non-enumerable property, non-plain object, cycle or shared reference, which
+ * the emitted JSON would split into separate copies).
  */
 function nonJsonPath(
   value: unknown,
@@ -114,7 +115,6 @@ function nonJsonPath(
     const path = nonJsonPath(descriptor.value, `${at}.${key}`, seen);
     if (path) return path;
   }
-  seen.delete(value);
   return undefined;
 }
 

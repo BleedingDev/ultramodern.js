@@ -106,6 +106,13 @@ describe('native i18nPlugin()', () => {
       ],
       [{ offset: -0 }, 'initOptions.offset'],
       [
+        (() => {
+          const shared = { escape: false };
+          return { interpolation: shared, nested: { interpolation: shared } };
+        })(),
+        'initOptions.nested.interpolation',
+      ],
+      [
         JSON.parse('{"__proto__": {"polluted": true}}'),
         'initOptions.__proto__',
       ],
