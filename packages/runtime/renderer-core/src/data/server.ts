@@ -316,7 +316,9 @@ export function mergeDataResponseIntoResponse(
           fields.set(item.toLowerCase(), item);
       }
       headers.set('vary', [...fields.values()].join(', '));
-    } else if (headerName !== 'content-type') headers.set(name, value);
+      // The terminal response owns its singleton fields; loader metadata only
+      // fills fields it does not set.
+    } else if (!headers.has(name)) headers.set(name, value);
   }
   if (metadataCookies.length > 0) {
     headers.delete('set-cookie');

@@ -74,6 +74,7 @@ export default withTestPreset({
         'tests/routes.test.ts',
         'tests/manifest.test.ts',
         'tests/router-handler.test.ts',
+        'tests/action-redirect.test.ts',
         'tests/router-{client,server-snapshot}.test.ts',
       ],
       testEnvironment: 'node',

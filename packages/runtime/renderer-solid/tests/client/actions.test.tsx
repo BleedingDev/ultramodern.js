@@ -718,6 +718,25 @@ describe('native Solid route actions', () => {
     expect(action.error()).toBeUndefined();
   });
 
+  test.each([307, 308])(
+    'a method-preserving %s action redirect fails instead of navigating',
+    async status => {
+      const { router, action } = actionFixture(async () =>
+        response({
+          kind: 'redirect',
+          location: '/done',
+          response: { ...metadata, status },
+        }),
+      );
+      await router.load();
+      const before = router.state.location.pathname;
+      await action.submit(request());
+      flush();
+      expect(router.state.location.pathname).toBe(before);
+      expect(action.error()).toBeDefined();
+    },
+  );
+
   test('query-only mutation redirects refresh long-lived native loader data', async () => {
     const { router, action, loads } = actionFixture(async () =>
       response({
