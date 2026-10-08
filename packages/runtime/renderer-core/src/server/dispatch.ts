@@ -47,7 +47,10 @@ function permitsCacheLookup(request: Request): boolean {
     !/(?:^|,)\s*max-age\s*=\s*(?:0+|"0+")\s*(?:,|$)/i.test(cacheControl) &&
     // Conflicting request lifetimes have no single limit to compare against.
     (cacheControl.match(/(?:^|,)\s*max-age\s*=/gi)?.length ?? 0) <= 1 &&
-    request.headers.get('pragma')?.toLowerCase() !== 'no-cache' &&
+    !request.headers
+      .get('pragma')
+      ?.split(',')
+      .some(directive => directive.trim().toLowerCase() === 'no-cache') &&
     !url.searchParams.has('__loader') &&
     !url.searchParams.has('__ssrDirect')
   );
@@ -231,9 +234,13 @@ function captureDocument<Bindings extends object>(
                 maxAgeSeconds,
                 ...headerMaxAgeSeconds(headers),
               );
-              if (lifetimeSeconds <= 0) return;
+              // An upstream Age already spent part of that lifetime. Backdating
+              // storedAt keeps both the expiry and the replayed Age honest.
+              const age = headers.get('age')?.trim() ?? '0';
+              const ageSeconds = /^\d+$/u.test(age) ? Number(age) : 0;
+              if (lifetimeSeconds - ageSeconds <= 0) return;
               try {
-                const storedAt = Date.now();
+                const storedAt = Date.now() - ageSeconds * 1000;
                 await options.cache?.set(key, {
                   identityKey,
                   storedAt,
