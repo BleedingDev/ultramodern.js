@@ -230,8 +230,15 @@ export function createRendererFederationRuntimePlugin(
         snapshot as Parameters<typeof getResourceUrl>[0],
         entry,
       );
-      if (!isBrowserEnvValue && !entryUrl.startsWith('http'))
+      if (!isBrowserEnvValue && !entryUrl.startsWith('http')) {
+        // Node can only load an absolute or protocol-relative server entry;
+        // a root-relative one has no origin to resolve against.
+        if (!entryUrl.startsWith('//'))
+          throw rendererFederationError(
+            `native server remote entry ${entryUrl} is not absolute; give the remote an absolute output.assetPrefix.`,
+          );
         entryUrl = `https:${entryUrl}`;
+      }
       acceptedEntries.add(
         entryCoordinates({
           name: args.moduleInfo?.name ?? snapshot.globalName,

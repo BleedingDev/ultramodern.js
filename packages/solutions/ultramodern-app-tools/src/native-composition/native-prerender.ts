@@ -21,6 +21,10 @@ import {
   type NativeServerManifest,
   validateNativeClientAssetManifest,
 } from '@modern-js/renderer-core/server';
+import {
+  localiseTargetPathname,
+  shouldSkipLocaleRedirect,
+} from '@modern-js/runtime-extensions/localised-urls';
 import type {
   ServerRoute,
   SSGConfig,
@@ -34,6 +38,7 @@ import {
   SERVER_BUNDLE_DIRECTORY,
 } from '@modern-js/utils';
 import { readRendererBuildManifest } from './native-build-manifest';
+import type { NativeI18nConfig } from './native-i18n';
 import {
   resolveRendererProfile,
   resolveRendererRouterFrameworks,
@@ -221,6 +226,58 @@ export function resolvePrerenderRoutes(options: {
   return selected;
 }
 
+function defaultOutput(base: ServerRoute, url: string): string {
+  return path.join(base.entryPath, `..${url === '/' ? '' : url}`, 'index.html');
+}
+
+/**
+ * Native i18n redirects unprefixed page URLs, so each selected canonical
+ * document renders once per configured language at its localized URL.
+ * Routes that already carry a language prefix, and ignored redirect routes,
+ * render as selected. A custom output gains a language directory.
+ */
+export function localizePrerenderRoutes(
+  routes: readonly PrerenderRoute[],
+  i18n:
+    | Pick<
+        NativeI18nConfig,
+        'languages' | 'ignoreRedirectRoutes' | 'localisedUrls'
+      >
+    | undefined,
+): PrerenderRoute[] {
+  if (!i18n) return [...routes];
+  const { languages, ignoreRedirectRoutes, localisedUrls } = i18n;
+  return routes.flatMap(route => {
+    const canonical = relativeRoutePath(route);
+    const first = canonical.split('/').filter(Boolean)[0];
+    if (
+      (first && languages.includes(first)) ||
+      shouldSkipLocaleRedirect(canonical, languages, ignoreRedirectRoutes)
+    )
+      return [route];
+    const customOutput = route.output !== defaultOutput(route.base, canonical);
+    return languages.map(language => {
+      const localized = localiseTargetPathname(
+        canonical,
+        language,
+        languages,
+        localisedUrls,
+      );
+      return {
+        ...route,
+        urlPath: joinUrl(route.base.urlPath, localized),
+        output: customOutput
+          ? path.join(
+              path.dirname(route.output),
+              language,
+              path.basename(route.output),
+            )
+          : defaultOutput(route.base, localized),
+      };
+    });
+  });
+}
+
 /** Mark the document so the data client replays static loader payloads. */
 export function markPrerenderedDocument(html: string): string {
   const marker = `<meta name="${PRERENDERED_DOCUMENT_META}" content="static-data">`;
@@ -374,6 +431,7 @@ async function loadPrerenderEntry(options: {
 /** Prerender output.ssg documents after the native build has been validated. */
 export function nativePrerenderPlugin(
   adapter: NativeRendererAdapter,
+  i18n?: NativeI18nConfig,
 ): CliPlugin<AppTools> {
   const renderer = adapter.name;
   return {
@@ -414,11 +472,10 @@ export function nativePrerenderPlugin(
           baseUrl: config.server?.baseUrl,
         });
         if (!entryOptions) return;
-        const routes = resolvePrerenderRoutes({
-          pageRoutes,
-          entryOptions,
-          routeTrees,
-        });
+        const routes = localizePrerenderRoutes(
+          resolvePrerenderRoutes({ pageRoutes, entryOptions, routeTrees }),
+          i18n,
+        );
         if (!routes.length) return;
         const build = await readRendererBuildManifest(
           distDirectory,

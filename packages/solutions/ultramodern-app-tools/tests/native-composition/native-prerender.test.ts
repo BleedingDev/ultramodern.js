@@ -10,6 +10,7 @@ import type { ServerRoute } from '@modern-js/types';
 import {
   collectLoaderRouteIds,
   flattenPrerenderRoutes,
+  localizePrerenderRoutes,
   markPrerenderedDocument,
   nativePrerenderPlugin,
   type PrerenderRouteNode,
@@ -134,6 +135,41 @@ describe('native prerender route selection', () => {
         { 'x-shop': '1' },
       ],
       ['/shop/feed', 'feed.html', { 'x-shop': '1', 'x-feed': '1' }],
+    ]);
+  });
+
+  it('expands canonical documents per native i18n language', () => {
+    const routes = localizePrerenderRoutes(
+      resolvePrerenderRoutes({
+        pageRoutes: [pageRoute('index', '/')],
+        entryOptions: {
+          index: {
+            routes: [
+              '/',
+              '/about',
+              '/health',
+              '/cs/kontakt',
+              { url: '/feed', output: 'feed.html' },
+            ],
+          },
+        },
+        routeTrees: new Map([['index', tree]]),
+      }),
+      {
+        languages: ['en', 'cs'],
+        ignoreRedirectRoutes: ['/health'],
+        localisedUrls: { about: { en: 'about', cs: 'o-nas' } },
+      },
+    );
+    expect(routes.map(route => [route.urlPath, route.output])).toEqual([
+      ['/en', path.join('html/index/en/index.html')],
+      ['/cs', path.join('html/index/cs/index.html')],
+      ['/en/about', path.join('html/index/en/about/index.html')],
+      ['/cs/o-nas', path.join('html/index/cs/o-nas/index.html')],
+      ['/health', path.join('html/index/health/index.html')],
+      ['/cs/kontakt', path.join('html/index/cs/kontakt/index.html')],
+      ['/en/feed', path.join('en', 'feed.html')],
+      ['/cs/feed', path.join('cs', 'feed.html')],
     ]);
   });
 
