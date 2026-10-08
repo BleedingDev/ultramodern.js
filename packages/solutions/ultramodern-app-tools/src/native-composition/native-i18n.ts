@@ -63,7 +63,8 @@ export interface NativeI18nPluginOptions {
 
 /**
  * The path of the first value JSON would drop or alter (a function, symbol,
- * `undefined`, non-finite number, array hole, non-plain object or cycle).
+ * `undefined`, non-finite number, array hole, accessor, non-plain object or
+ * cycle).
  */
 function nonJsonPath(
   value: unknown,
@@ -87,8 +88,15 @@ function nonJsonPath(
     for (let index = 0; index < value.length; index++)
       if (!(index in value)) return `${at}.${index}`;
   seen.add(value);
-  for (const [key, item] of Object.entries(value)) {
-    const path = nonJsonPath(item, `${at}.${key}`, seen);
+  // Read descriptors, never getters: an accessor could answer differently
+  // when the module is emitted.
+  for (const [key, descriptor] of Object.entries(
+    Object.getOwnPropertyDescriptors(value),
+  )) {
+    if (!descriptor.enumerable || (key === 'length' && Array.isArray(value)))
+      continue;
+    if (!('value' in descriptor)) return `${at}.${key}`;
+    const path = nonJsonPath(descriptor.value, `${at}.${key}`, seen);
     if (path) return path;
   }
   seen.delete(value);
