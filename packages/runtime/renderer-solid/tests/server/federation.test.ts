@@ -101,6 +101,22 @@ describe('federated Solid components on the server', () => {
     expect(state.assets.size).toBe(0);
   });
 
+  test('load the remote again on a later request after a failure', async () => {
+    let attempts = 0;
+    installHost(async () => {
+      attempts += 1;
+      if (attempts === 1) throw new Error('remote offline');
+      return { default: () => ssr(['<b data-remote="">back</b>']) };
+    });
+    const Widget = federatedComponent('remote/Widget', { fallback });
+    const first = await render(document(() => createComponent(Widget, {})));
+    expect(first).toContain('data-fallback');
+    const second = await render(document(() => createComponent(Widget, {})));
+    expect(attempts).toBe(2);
+    expect(second).toContain('<b data-remote="">back</b>');
+    expect(second).not.toContain('data-fallback');
+  });
+
   test('a remote that exceeds its timeout renders the fallback in time', async () => {
     installHost(() => new Promise(() => {}));
     const Widget = federatedComponent('remote/Widget', {

@@ -291,6 +291,29 @@ describe('production native Node Fetch dispatch', () => {
     expect(handler).toHaveBeenCalledTimes(1);
   });
 
+  it('renders HEAD without a body even when GET has warmed the cache', async () => {
+    const cache = store();
+    const handler = rstest.fn((_request, context: NativeRequestContext) =>
+      publicDocument('<html>native</html>', context),
+    );
+    const warm = await dispatchNativeNodeRequest(
+      new Request('https://example.test/'),
+      options(handler, { cache }),
+    );
+    expect(await warm.text()).toBe('<html>native</html>');
+    expect(cache.set).toHaveBeenCalledTimes(1);
+    const head = await dispatchNativeNodeRequest(
+      new Request('https://example.test/', { method: 'HEAD' }),
+      options(handler, { cache }),
+    );
+    expect(head.status).toBe(200);
+    expect(head.body).toBeNull();
+    expect(head.headers.get('content-type')).toBe('text/html; charset=utf-8');
+    // Only GET reads the cache; HEAD renders and discards its own body.
+    expect(cache.get).toHaveBeenCalledTimes(1);
+    expect(handler).toHaveBeenCalledTimes(2);
+  });
+
   it('replays a cached document with the Age elapsed since it was stored', async () => {
     const cache = store();
     const handler = rstest.fn((_request, context: NativeRequestContext) => {
