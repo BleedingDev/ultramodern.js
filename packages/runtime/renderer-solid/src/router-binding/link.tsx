@@ -487,8 +487,18 @@ export function useLinkProps<
     }
   };
 
-  linkProps.ref = composedRef;
-  linkProps.onClick = onClick;
+  // The Link owns ref and onClick. Define them over any getter a state prop
+  // installed above; a plain assignment to a getter-only key throws.
+  for (const [key, value] of [
+    ['ref', composedRef],
+    ['onClick', onClick],
+  ] as const)
+    Object.defineProperty(linkProps, key, {
+      value,
+      writable: true,
+      enumerable: true,
+      configurable: true,
+    });
 
   // Intent preloading is the only thing these handlers do, and each of them
   // already bails at a `preload() !== 'intent'` gate. Handing them out anyway
