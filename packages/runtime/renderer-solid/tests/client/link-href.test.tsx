@@ -210,4 +210,35 @@ describe('native Link reactive target', () => {
       warn.mockRestore();
     }
   });
+
+  test('a download link leaves the click to the browser', async () => {
+    const view = await renderLink(() => (
+      <Link to="/report" download="report.csv">
+        Report
+      </Link>
+    ));
+    try {
+      const event = click(view.anchor());
+      expect(event.defaultPrevented).toBe(false);
+      expect(view.navigate).not.toHaveBeenCalled();
+    } finally {
+      view.cleanup();
+    }
+  });
+
+  test('reloadDocument reaches the router, which performs a full page load', async () => {
+    const view = await renderLink(() => (
+      <Link to="/fresh" reloadDocument>
+        Fresh
+      </Link>
+    ));
+    try {
+      click(view.anchor());
+      expect(view.navigate).toHaveBeenCalledWith(
+        expect.objectContaining({ to: '/fresh', reloadDocument: true }),
+      );
+    } finally {
+      view.cleanup();
+    }
+  });
 });
