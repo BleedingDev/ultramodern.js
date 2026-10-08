@@ -242,15 +242,18 @@ export function defineRendererSpecs(options: RendererSpecOptions) {
     );
 
   /**
-   * Clicking the counter only updates once the page is hydrated; an early
-   * click is replayed then. A cold dev server compiles the client on first
-   * request, so dev specs allow it longer.
+   * Clicking the counter only updates once the page is hydrated, which the
+   * counter marks. A click before then is not guaranteed to be replayed. A
+   * cold dev server compiles the client on first request, so dev specs allow
+   * it longer.
    */
   async function openHydrated(pathname: string, timeout = 15_000) {
     const response = await page.goto(`${origin}${pathname}`, {
       waitUntil: 'domcontentloaded',
     });
-    await page.waitForSelector(id('native-increment'), { timeout });
+    await page.waitForSelector(`${id('native-increment')}[data-hydrated]`, {
+      timeout,
+    });
     await page.click(id('native-increment'));
     await waitForText('native-count', '1', timeout);
     return response;
