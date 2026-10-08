@@ -6,6 +6,26 @@ import {
 } from '../../../scripts/native-compatibility/consumer.mjs';
 import { getPort } from '../../utils/modernTestUtils';
 
+/**
+ * A dev server can accept TCP before it answers HTTP. Poll until it responds
+ * (any status) so the first assertion never races server startup.
+ */
+async function waitForHttp(origin: string, timeoutMs = 60_000) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    try {
+      const response = await fetch(origin, {
+        signal: AbortSignal.timeout(5_000),
+      });
+      await response.body?.cancel();
+      return;
+    } catch (error) {
+      if (Date.now() > deadline) throw error;
+      await new Promise(resolve => setTimeout(resolve, 250));
+    }
+  }
+}
+
 // Both targets execute the same application source and observable assertions.
 // Tests use the installed native CLI; the upstream target never sees fork code.
 export function registerNativeCompatibilityCases(target: 'upstream' | 'fork') {
@@ -22,7 +42,10 @@ export function registerNativeCompatibilityCases(target: 'upstream' | 'fork') {
           }
           const port = await getPort();
           app = await consumer.start(phase, mode, port);
-          const origin = `http://localhost:${port}`;
+          // The readiness probe connects to 127.0.0.1; `localhost` can
+          // resolve to ::1 first on Windows, so requests use the same host.
+          const origin = `http://127.0.0.1:${port}`;
+          await waitForHttp(origin);
           const home = await fetch(origin);
           expect(home.status).toBe(200);
           expect(await home.text()).toMatch(
