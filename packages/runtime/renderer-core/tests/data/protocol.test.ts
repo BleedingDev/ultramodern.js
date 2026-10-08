@@ -672,6 +672,51 @@ describe('renderer-neutral HTTP data outcomes', () => {
     expect(() => deferData({}, { later: pending })).not.toThrow();
   });
 
+  it('cancels a discarded redirect body', async () => {
+    let cancelled = false;
+    const body = new ReadableStream({
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const outcome = await normalizeDataResult(
+      new Response(body, { status: 302, headers: { location: '/next' } }),
+    );
+    expect(outcome.kind).toBe('redirect');
+    expect(cancelled).toBe(true);
+  });
+
+  it('does not repeat list fields the terminal redirect already carries', async () => {
+    const native = new Response(null, {
+      status: 302,
+      headers: {
+        location: '/next',
+        link: '</leaf.css>; rel=preload; as=style',
+      },
+    });
+    const layout = await normalizeDataResult(
+      new Response(null, {
+        headers: { link: '</layout.css>; rel=preload; as=style' },
+      }),
+    );
+    const leaf = await normalizeDataResult(
+      new Response(null, {
+        status: 302,
+        headers: {
+          location: '/next',
+          link: '</leaf.css>; rel=preload; as=style',
+        },
+      }),
+    );
+    const response = mergeDataResponseIntoResponse(
+      native,
+      mergeDataResponseMetadata([layout, leaf], { status: 302 }),
+    );
+    expect(response.headers.get('link')).toBe(
+      '</leaf.css>; rel=preload; as=style, </layout.css>; rel=preload; as=style',
+    );
+  });
+
   it('keeps terminal singleton fields over loader metadata', async () => {
     const native = new Response(null, {
       status: 302,

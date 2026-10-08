@@ -310,10 +310,19 @@ export function mergeDataResponseIntoResponse(
   for (const [name, value] of metadataHeaders) {
     const headerName = name.toLowerCase();
     if (headerName === 'set-cookie') metadataCookies.push(value);
-    // CSP and Server-Timing are list fields the native response keeps too.
-    else if (ACCUMULATED_HEADERS.has(headerName) && headerName !== 'vary')
-      headers.append(name, value);
-    else if (headerName === 'vary') {
+    // List fields keep the native values too. The native router already put
+    // the redirecting loader's own fields on a terminal redirect, so only
+    // elements the response does not carry yet are added.
+    else if (ACCUMULATED_HEADERS.has(headerName) && headerName !== 'vary') {
+      const present = new Set(
+        (headers.get(name) ?? '').split(',').map(item => item.trim()),
+      );
+      const missing = value
+        .split(',')
+        .map(item => item.trim())
+        .filter(item => item && !present.has(item));
+      if (missing.length) headers.append(name, missing.join(', '));
+    } else if (headerName === 'vary') {
       const fields = new Map<string, string>();
       for (const field of `${headers.get('vary') ?? ''},${value}`.split(',')) {
         const item = field.trim();
@@ -457,6 +466,9 @@ export async function normalizeDataResult(
         throw new DataProtocolError(
           'A redirect data Response requires Location',
         );
+      // The outcome replaces this body; release a live producer such as an
+      // upstream fetch instead of leaving it open.
+      await value.body?.cancel().catch(() => undefined);
       return { kind: 'redirect', location, response };
     }
     const data = await responseValue(value, options.signal);
