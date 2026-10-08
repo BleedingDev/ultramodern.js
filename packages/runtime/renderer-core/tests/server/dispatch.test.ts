@@ -386,6 +386,7 @@ describe('production native Node Fetch dispatch', () => {
     { headers: { 'If-Unmodified-Since': 'Wed, 07 Oct 2026 10:00:00 GMT' } },
     { headers: { pragma: 'no-cache' } },
     { headers: { pragma: 'extension, No-Cache' } },
+    { headers: { 'cache-control': 'min-fresh=10' } },
     { headers: { range: 'bytes=0-5' } },
   ])(
     'bypasses cache before lookup for private or non-document request %j',
@@ -750,6 +751,7 @@ describe('production native Node Fetch dispatch', () => {
     ['public, max-age=0', undefined, undefined],
     ['public, max-age=60', '50', 10_000],
     ['public, max-age=60', '60', undefined],
+    ['public, max-age=60', 'date-50', 10_000],
   ])(
     'stores no longer than confirmed Cache-Control %s with Age %s allows',
     async (cacheControl, age, remaining) => {
@@ -764,7 +766,15 @@ describe('production native Node Fetch dispatch', () => {
               new Headers({
                 'content-type': 'text/html',
                 'cache-control': cacheControl,
-                ...(age === undefined ? {} : { age }),
+                ...(age === undefined
+                  ? {}
+                  : age.startsWith('date-')
+                    ? {
+                        date: new Date(
+                          Date.now() - Number(age.slice(5)) * 1000,
+                        ).toUTCString(),
+                      }
+                    : { age }),
               }),
           },
         ),
