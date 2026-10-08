@@ -326,6 +326,36 @@ describe.each(['solid', 'octane'] as const)(
       expect(await response.text()).toBe('native');
     });
 
+    it('answers loader requests through the native dispatcher, not the legacy route-data worker', async () => {
+      const urls: string[] = [];
+      const legacy = rstest.fn(async () => ({}));
+      const worker = emittedWorker(
+        {
+          rendererIdentities: { main: identity(renderer) },
+          nativeRenderer: nativeResources(renderer),
+          routeSpec: {
+            routes: [{ ...route, routeDataWorker: 'worker/main-data.js' }],
+          },
+        },
+        {
+          'worker/main-data.js': legacy,
+          [route.worker]: async () =>
+            nativeBundle(renderer, request => {
+              urls.push(request.url);
+              return Response.json({ native: true });
+            }),
+        },
+      );
+      const response = await worker.fetch(
+        new Request('https://example.com/items?__loader=page'),
+        { ASSETS: assetBinding() },
+        executionContext().context,
+      );
+      expect(await response.json()).toEqual({ native: true });
+      expect(urls).toEqual(['https://example.com/items?__loader=page']);
+      expect(legacy).not.toHaveBeenCalled();
+    });
+
     it('passes HEAD to the native dispatcher unchanged', async () => {
       const methods: string[] = [];
       const worker = emittedWorker(

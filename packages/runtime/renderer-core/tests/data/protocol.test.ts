@@ -384,6 +384,7 @@ describe('renderer-neutral HTTP data outcomes', () => {
               'content-security-policy': csp,
               'content-security-policy-report-only': reportOnly,
               'server-timing': timing,
+              link: `</${timing.split(';')[0]}.css>; rel=preload; as=style`,
             },
           },
         ),
@@ -403,6 +404,9 @@ describe('renderer-neutral HTTP data outcomes', () => {
       "img-src 'self', style-src 'self'",
     );
     expect(headers.get('server-timing')).toBe('layout;dur=3, page;dur=5');
+    expect(headers.get('link')).toBe(
+      '</layout.css>; rel=preload; as=style, </page.css>; rel=preload; as=style',
+    );
   });
 
   it('projects loader metadata to HTML without data representation headers', async () => {

@@ -161,6 +161,7 @@ function cacheLifetime(cacheControl: string): number | undefined {
 const ACCUMULATED_HEADERS = new Set([
   'set-cookie',
   'vary',
+  'link',
   'server-timing',
   'content-security-policy',
   'content-security-policy-report-only',

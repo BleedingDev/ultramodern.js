@@ -182,8 +182,11 @@ const ROUTE_DATA_REQUEST_PARAM = '__loader';
 // falls through to page rendering, as it does on Node.
 async function dispatchRouteDataRequest(route, request) {
   const routeDataWorkerPath = route.routeDataWorker;
+  // Native entries answer their own data protocol through the native
+  // dispatcher; the legacy route-data worker speaks the React encoding.
   if (
     !routeDataWorkerPath ||
+    getNativeRouteIdentity(route) ||
     !new URL(request.url).searchParams.has(ROUTE_DATA_REQUEST_PARAM)
   ) {
     return undefined;
