@@ -168,6 +168,13 @@ describe('public data codec', () => {
     }
   });
 
+  it('rejects a RegExp whose lastIndex has advanced', () => {
+    const advanced = /a/g;
+    advanced.test('aa');
+    expect(() => serializePublicData(advanced)).toThrow(/lastIndex 0/);
+    expect(() => serializePublicData(/a/g)).not.toThrow();
+  });
+
   it('rejects private context hidden in nonenumerable properties', () => {
     for (const context of [
       new Headers({ authorization: 'secret' }),
