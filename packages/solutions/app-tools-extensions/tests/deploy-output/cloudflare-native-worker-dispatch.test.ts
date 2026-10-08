@@ -271,6 +271,52 @@ describe.each(['solid', 'octane'] as const)(
       expect(requests).toEqual(['https://example.com/items']);
     });
 
+    it('merges configured route response headers into the native response', async () => {
+      const worker = emittedWorker(
+        {
+          rendererIdentities: { main: identity(renderer) },
+          nativeRenderer: nativeResources(renderer),
+          routeSpec: {
+            routes: [
+              {
+                ...route,
+                responseHeaders: {
+                  'x-route': 'configured',
+                  'content-security-policy': "script-src 'self'",
+                  vary: 'Origin',
+                },
+              },
+            ],
+          },
+        },
+        {
+          [route.worker]: async () =>
+            nativeBundle(
+              renderer,
+              () =>
+                new Response('native', {
+                  headers: {
+                    'content-type': 'text/html; charset=utf-8',
+                    'content-security-policy': "default-src 'self'",
+                    vary: 'Cookie',
+                  },
+                }),
+            ),
+        },
+      );
+      const response = await worker.fetch(
+        new Request('https://example.com/items'),
+        { ASSETS: assetBinding() },
+        executionContext().context,
+      );
+      expect(response.headers.get('x-route')).toBe('configured');
+      expect(response.headers.get('content-security-policy')).toBe(
+        "default-src 'self', script-src 'self'",
+      );
+      expect(response.headers.get('vary')).toBe('Cookie, Origin');
+      expect(await response.text()).toBe('native');
+    });
+
     it('passes HEAD to the native dispatcher unchanged', async () => {
       const methods: string[] = [];
       const worker = emittedWorker(

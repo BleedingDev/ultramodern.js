@@ -188,6 +188,10 @@ export const createWorkerManifest = async (
           ? await fse.pathExists(path.join(outputDirectory, worker))
           : false,
         ...(hasRouteDataWorker ? { routeDataWorker } : {}),
+        // Native workers apply configured route headers as the Node host does.
+        ...(route.responseHeaders && typeof route.responseHeaders === 'object'
+          ? { responseHeaders: route.responseHeaders }
+          : {}),
       };
     }),
   );
