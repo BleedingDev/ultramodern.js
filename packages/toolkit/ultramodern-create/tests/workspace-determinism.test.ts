@@ -233,8 +233,8 @@ if (kind) {
     const started = processes.filter(record => record.event === 'start');
     assert.equal(
       started.filter(record => record.kind === 'formatter').length,
-      8,
-      'each workspace uses generation, one canonical batch, consumer comparison, and final formatting',
+      6,
+      'each workspace uses generation, one canonical batch, and final formatting',
     );
     const metadata = started.filter(record => record.kind === 'metadata');
     assert.equal(metadata.length, 6);

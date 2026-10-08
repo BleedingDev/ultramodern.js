@@ -325,14 +325,14 @@ test('ownership batches duplicate candidates and reuses exact sources while chec
     );
     assert.equal(
       format.mock.calls.length,
-      2,
-      'candidate and consumer sources each share one formatter process',
+      1,
+      'a matching candidate for each duplicate path needs only canonical formatting',
     );
     assert.equal(guarded.io.write(path.join(root, 'first.ts'), before), false);
     assert.equal(guarded.io.write(path.join(root, 'second.ts'), next), false);
     assert.equal(
       format.mock.calls.length,
-      2,
+      1,
       'validated exact source bytes need no additional process',
     );
 
@@ -343,17 +343,73 @@ test('ownership batches duplicate candidates and reuses exact sources while chec
     assert.equal(fs.readFileSync(firstPath, 'utf8'), next);
     assert.equal(
       format.mock.calls.length,
-      3,
+      2,
       'a changed current source is formatted again',
     );
     assert.equal(guarded.io.write(firstPath, next), false);
-    assert.equal(format.mock.calls.length, 3);
+    assert.equal(format.mock.calls.length, 2);
     preserveConsumerWorkspaceArtifacts(root, candidates);
     assert.equal(
       format.mock.calls.length,
-      5,
+      3,
       'formatter evidence is local to one ownership check',
     );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('duplicate paths still format and preserve authored source when no candidate matches', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'um-artifact-unmatched-'));
+  try {
+    const relativePath = 'generated.ts';
+    const filename = path.join(root, relativePath);
+    const before = 'export const port = {value: 3000};\n';
+    const next = before.replace('3000', '3001');
+    const authored = `${before}console.log('consumer policy');\n`;
+    fs.writeFileSync(filename, authored);
+    const format = rstest.spyOn(fileIO, 'formatGeneratedSourceCandidates');
+    const guarded = preserveConsumerWorkspaceArtifacts(root, [
+      { relativePath, content: before },
+      { relativePath, content: next },
+    ]);
+
+    assert.deepEqual([...guarded.canonicalGeneratedPaths], []);
+    assert.deepEqual([...guarded.preservedPaths], [relativePath]);
+    assert.equal(
+      format.mock.calls.length,
+      2,
+      'nonmatching duplicates still format canonical and consumer sources',
+    );
+    assert.deepEqual(format.mock.calls[1]?.[0], [[relativePath, authored]]);
+    assert.equal(guarded.io.write(filename, before), false);
+    assert.equal(guarded.io.write(filename, next), false);
+    assert.equal(fs.readFileSync(filename, 'utf8'), authored);
+    assert.equal(format.mock.calls.length, 2);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('a matching duplicate never hides a malformed canonical candidate', () => {
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'um-artifact-invalid-dup-'),
+  );
+  try {
+    const relativePath = 'generated.ts';
+    const filename = path.join(root, relativePath);
+    const generated = 'export const value = 1;\n';
+    fs.writeFileSync(filename, generated);
+
+    assert.throws(
+      () =>
+        preserveConsumerWorkspaceArtifacts(root, [
+          { relativePath, content: generated },
+          { relativePath, content: 'export const value = {' },
+        ]),
+      /Failed to format generated UltraModern workspace output/u,
+    );
+    assert.equal(fs.readFileSync(filename, 'utf8'), generated);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
