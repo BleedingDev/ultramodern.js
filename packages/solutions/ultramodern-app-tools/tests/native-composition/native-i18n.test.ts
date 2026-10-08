@@ -9,6 +9,7 @@ import {
   findNativeI18nConfig,
   i18nPlugin,
   resolveNativeI18nEntry,
+  validateNativeLocalisedUrls,
 } from '../../src/native-composition/native-i18n';
 
 const localeDetection = { languages: ['en', 'cs'], fallbackLanguage: 'en' };
@@ -218,5 +219,62 @@ describe('native i18n entry modules', () => {
     } finally {
       fs.rmSync(appDirectory, { recursive: true, force: true });
     }
+  });
+});
+
+describe('native localised URL validation', () => {
+  const routes = [
+    {
+      path: '/',
+      children: [{ path: 'about' }, { path: 'contact' }, { index: true }],
+    },
+  ];
+
+  it('accepts a complete map and rejects missing languages and collisions', () => {
+    expect(() =>
+      validateNativeLocalisedUrls(
+        {
+          languages: ['en', 'cs'],
+          localisedUrls: {
+            '/about': { en: '/about', cs: '/o-nas' },
+            '/contact': { en: '/contact', cs: '/kontakt' },
+          },
+        },
+        routes,
+      ),
+    ).not.toThrow();
+    expect(() =>
+      validateNativeLocalisedUrls(
+        {
+          languages: ['en', 'cs'],
+          localisedUrls: {
+            '/about': { en: '/about' },
+            '/contact': { en: '/contact', cs: '/kontakt' },
+          },
+        },
+        routes,
+      ),
+    ).toThrow('is missing languages: cs');
+    expect(() =>
+      validateNativeLocalisedUrls(
+        {
+          languages: ['en', 'cs'],
+          localisedUrls: {
+            '/about': { en: '/about', cs: '/stranka' },
+            '/contact': { en: '/contact', cs: '/stranka' },
+          },
+        },
+        routes,
+      ),
+    ).toThrow('generate the same physical route pattern');
+    expect(() =>
+      validateNativeLocalisedUrls(
+        {
+          languages: ['en', 'cs'],
+          localisedUrls: { '/about': { en: '/about', cs: '/o-nas' } },
+        },
+        routes,
+      ),
+    ).toThrow('route "/contact" does not define localised URLs');
   });
 });

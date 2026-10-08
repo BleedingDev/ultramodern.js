@@ -3,7 +3,10 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import type { AppTools, CliPlugin } from '@modern-js/app-tools/cli-config';
 import type { Renderer } from '@modern-js/renderer-core';
-import type { LocalisedUrlsOption } from '@modern-js/runtime-extensions/localised-urls';
+import {
+  type LocalisedUrlsOption,
+  validateLocalisedUrls,
+} from '@modern-js/runtime-extensions/localised-urls';
 import { resolveRendererAdapter } from './renderer-registration';
 
 export const NATIVE_I18N_PLUGIN = '@modern-js/ultramodern-native-i18n';
@@ -329,6 +332,32 @@ export function resolveNativeI18nEntry(
       );
   }
   return { ...config, basePath, resources };
+}
+
+interface LocalisableRouteNode {
+  path?: string;
+  children?: readonly LocalisableRouteNode[];
+}
+
+/**
+ * Check a `localisedUrls` map against an entry's file-system routes with the
+ * React i18n tooling's rules: every localisable route maps every language,
+ * and no two routes claim the same physical path.
+ */
+export function validateNativeLocalisedUrls(
+  entry: Pick<NativeI18nConfig, 'languages' | 'localisedUrls'>,
+  routes: readonly LocalisableRouteNode[],
+): void {
+  const map = entry.localisedUrls;
+  if (!map || typeof map !== 'object') return;
+  const toLocalised = (
+    route: LocalisableRouteNode,
+  ): Parameters<typeof validateLocalisedUrls>[0][number] => ({
+    type: 'nested',
+    ...(route.path === undefined ? {} : { path: route.path }),
+    children: (route.children ?? []).map(toLocalised),
+  });
+  validateLocalisedUrls(routes.map(toLocalised), [...entry.languages], map);
 }
 
 /**

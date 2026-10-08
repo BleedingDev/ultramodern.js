@@ -4,7 +4,10 @@ import type { NativeRendererAdapter } from '@modern-js/renderer-core/adapter';
 import type { FileSystemRouteIR } from '@modern-js/renderer-core/data';
 import type { RendererIdentity } from '@modern-js/renderer-core/identity';
 import { findNativeFederationConfig } from './native-federation-files';
-import { emitNativeI18nModule } from './native-i18n';
+import {
+  emitNativeI18nModule,
+  validateNativeLocalisedUrls,
+} from './native-i18n';
 import type {
   NativeEntryGeneration,
   NativeEntryGenerator,
@@ -93,8 +96,10 @@ export async function emitNativeEntryApplication(
       }).then(routes => context.modifyRoutes(routes));
       entryRoutes.set(context, discovery);
     }
+    const routes = await discovery;
+    if (context.i18n) validateNativeLocalisedUrls(context.i18n, routes);
     sources[`app.${mode}.ts`] = emitNativeApplicationModule({
-      routes: await discovery,
+      routes,
       mode,
       basePath: context.basePath,
     });
