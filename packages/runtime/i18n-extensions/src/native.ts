@@ -155,23 +155,33 @@ export function createNativeI18n(
         reportFailure: () => window.location.reload(),
       });
       sync.activate(instance);
-      (router as LanguageRouter).subscribe('onBeforeLoad', ({ toLocation }) => {
-        const publicHref =
-          toLocation.maskedLocation?.publicHref ?? toLocation.publicHref;
-        const pathname = new URL(publicHref, window.location.origin).pathname;
-        const language = languageFromPathname(
-          pathname,
-          routing.languages,
-          routing.basePath,
-        );
-        if (language) sync.request(language);
-      });
+      const unsubscribe = (router as LanguageRouter).subscribe(
+        'onBeforeLoad',
+        ({ toLocation }) => {
+          const publicHref =
+            toLocation.maskedLocation?.publicHref ?? toLocation.publicHref;
+          const pathname = new URL(publicHref, window.location.origin).pathname;
+          const language = languageFromPathname(
+            pathname,
+            routing.languages,
+            routing.basePath,
+          );
+          if (language) sync.request(language);
+        },
+      );
       // Switches persist.
-      instance.on('languageChanged', language => {
+      const persist = (language: string) => {
         document.documentElement.lang = language;
         // biome-ignore lint/suspicious/noDocumentCookie: the server's language detector reads this cookie; CookieStore is not in every browser.
         document.cookie = `${cookie}=${encodeURIComponent(language)}; path=/; max-age=31536000; samesite=lax`;
-      });
+      };
+      instance.on('languageChanged', persist);
+      // A retired entry stops listening, retrying and persisting.
+      return () => {
+        unsubscribe();
+        sync.deactivate();
+        instance.off('languageChanged', persist);
+      };
     },
   };
 }

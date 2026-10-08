@@ -284,6 +284,15 @@ describe('native document parts', () => {
     [{ rootId: RENDERER_BOOTSTRAP_ID }, 'bootstrap id'],
     [{ inlineData: [{ id: 'root', payload: '1' }] }, 'root or bootstrap id'],
     [
+      {
+        inlineData: [
+          { id: 'handoff', payload: '1' },
+          { id: 'handoff', payload: '2' },
+        ],
+      },
+      'inline data id handoff is repeated',
+    ],
+    [
       { inlineData: [{ id: RENDERER_BOOTSTRAP_ID, payload: '1' }] },
       'root or bootstrap id',
     ],

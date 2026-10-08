@@ -22,7 +22,8 @@ function fakeInstance(changeLanguage: (language: string) => Promise<unknown>) {
   return {
     language: 'en',
     changeLanguage: rstest.fn(changeLanguage),
-    on() {},
+    on: rstest.fn(),
+    off: rstest.fn(),
   };
 }
 
@@ -68,5 +69,21 @@ describe('native router language synchronization', () => {
     expect(instance.changeLanguage.mock.calls.length).toBeGreaterThan(1);
     expect(instance.language).toBe('en');
     expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('detaches the router listener, retries and persistence when stopped', async () => {
+    const unsubscribe = rstest.fn();
+    const router = {
+      subscribe: rstest.fn(() => unsubscribe),
+    };
+    const instance = fakeInstance(async () => {});
+    const stop = createNativeI18n(
+      { languages: ['en', 'cs'], fallbackLanguage: 'en', basePath: '/' },
+      {},
+    ).syncWithRouter(router, instance as never);
+    const persist = instance.on.mock.calls[0][1];
+    stop();
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+    expect(instance.off).toHaveBeenCalledWith('languageChanged', persist);
   });
 });

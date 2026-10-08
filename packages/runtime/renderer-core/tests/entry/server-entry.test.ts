@@ -166,7 +166,7 @@ function localization(): NativeEntryI18n<I18nInstance, never> {
       payload: JSON.stringify({ language, bundles: Boolean(instance) }),
     }),
     clientHandoff: () => ({ language: 'en' }),
-    syncWithRouter() {},
+    syncWithRouter: () => () => {},
   };
 }
 
