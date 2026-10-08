@@ -242,30 +242,33 @@ export function createNativeServerEntry<
       const language = i18n?.resolveRequest(nativeRequest);
       if (!routed && i18n && language?.kind === 'redirect')
         return adapter.respond(session, i18n.redirect(language.location));
-      const instance =
-        i18n && language ? await i18n.create(language.language) : undefined;
-      const localization =
-        i18n && instance ? nativeI18nView(i18n, instance) : undefined;
-      const localizedDocument = (
+      // Data requests and redirects never read translations, so the instance
+      // is created only once a document is about to render.
+      const localize = async (
         inlineData: readonly DocumentInlineData[] = [],
-      ) =>
-        i18n && instance
-          ? {
-              ...document,
-              lang: instance.language,
-              inlineData: [
-                ...inlineData,
-                i18n.handoff(instance.language, instance),
-              ],
-            }
-          : document;
+      ) => {
+        if (!i18n || !language) return { document, localization: undefined };
+        const instance = await i18n.create(language.language);
+        return {
+          document: {
+            ...document,
+            lang: instance.language,
+            inlineData: [
+              ...inlineData,
+              i18n.handoff(instance.language, instance),
+            ],
+          },
+          localization: nativeI18nView(i18n, instance),
+        };
+      };
       if (!routed) {
+        const localized = await localize(document.inlineData);
         resolveDocumentPolicy(session);
         return adapter.renderComponent(
           context,
           application.default,
-          localizedDocument(document.inlineData),
-          localization,
+          localized.document,
+          localized.localization,
         );
       }
       const bindings = session.platform.bindings;
@@ -285,8 +288,8 @@ export function createNativeServerEntry<
         },
         session,
         ...(context.nonce === undefined ? {} : { nonce: context.nonce }),
-        ...(i18n && instance
-          ? { rewrite: i18n.rewrite(() => instance.language) }
+        ...(i18n && language
+          ? { rewrite: i18n.rewrite(() => language.language) }
           : {}),
       });
       const dataResponse = await handleDataRequest({
@@ -306,12 +309,13 @@ export function createNativeServerEntry<
       if (dataResponse) return adapter.respond(session, dataResponse);
       if (i18n && language?.kind === 'redirect')
         return adapter.respond(session, i18n.redirect(language.location));
+      const localized = await localize();
       return adapter.renderRoutes({
         request: nativeRequest,
         context,
         router,
         outcomes,
-        document: localizedDocument(),
+        document: localized.document,
         forbiddenValues: [
           context,
           session,
@@ -319,7 +323,7 @@ export function createNativeServerEntry<
           bindings,
           nativeRequest,
         ],
-        ...(localization ? { i18n: localization } : {}),
+        ...(localized.localization ? { i18n: localized.localization } : {}),
       });
     });
 

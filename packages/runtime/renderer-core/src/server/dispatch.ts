@@ -38,6 +38,8 @@ function permitsCacheLookup(request: Request): boolean {
     !request.headers.has('range') &&
     !request.headers.has('if-none-match') &&
     !request.headers.has('if-modified-since') &&
+    !request.headers.has('if-match') &&
+    !request.headers.has('if-unmodified-since') &&
     !/(?:^|,)\s*(?:private|no-store|no-cache)(?:\s|,|=|$)/i.test(
       cacheControl,
     ) &&

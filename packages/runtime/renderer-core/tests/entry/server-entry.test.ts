@@ -379,13 +379,14 @@ describe('generated native server entry', () => {
   it('answers routed data requests before localized redirects or document handoff', async () => {
     const { adapter: recording, calls } = adapter();
     const i18n = localization();
+    const create = rstest.fn(i18n.create);
     const handoff = rstest.fn(i18n.handoff);
     const redirect = rstest.fn(i18n.redirect);
     const entry = createNativeServerEntry(
       {
         identity,
         app: async () => routed,
-        i18n: { ...i18n, handoff, redirect },
+        i18n: { ...i18n, create, handoff, redirect },
       },
       recording,
     );
@@ -398,7 +399,16 @@ describe('generated native server entry', () => {
     expect(response.headers.get('content-type')).toContain('json');
     expect(redirect).not.toHaveBeenCalled();
     expect(handoff).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
     expect(calls).toEqual([]);
+
+    const unprefixed = new Request('https://example.test/items');
+    const redirected = await entry.nativeRequestHandler(
+      unprefixed,
+      context(unprefixed),
+    );
+    expect(redirected.status).toBe(302);
+    expect(create).not.toHaveBeenCalled();
   });
 
   it('localizes CSR and SSR documents and redirects unprefixed URLs', async () => {
