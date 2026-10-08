@@ -70,6 +70,11 @@ function cacheDirectives(value: string | null): {
   return { mode, ages };
 }
 
+/** The `max-age` and `s-maxage` lifetimes these headers declare. */
+export function headerMaxAgeSeconds(headers: Headers): number[] {
+  return cacheDirectives(headers.get('cache-control')).ages;
+}
+
 /** The most shareable mode these headers allow; lifetimes go into `ages`. */
 function headerCacheMode(headers: Headers, ages: number[]): CacheMode {
   const control = cacheDirectives(headers.get('cache-control'));

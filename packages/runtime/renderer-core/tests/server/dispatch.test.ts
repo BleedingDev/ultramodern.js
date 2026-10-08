@@ -377,6 +377,7 @@ describe('production native Node Fetch dispatch', () => {
     { headers: { 'Cache-Control': 'public, MaX-aGe = 0 , max-stale=30' } },
     { headers: { 'cache-control': 'max-age="0"' } },
     { headers: { 'cache-control': 'max-age=000' } },
+    { headers: { 'cache-control': 'max-age=3600, max-age=10' } },
     { headers: { 'If-None-Match': 'W/"current"' } },
     { headers: { 'if-none-match': '' } },
     { headers: { 'If-Modified-Since': 'Wed, 07 Oct 2026 10:00:00 GMT' } },
@@ -741,6 +742,35 @@ describe('production native Node Fetch dispatch', () => {
       'final',
     ]);
   });
+
+  it.each([
+    ['public, max-age=10', 10_000],
+    ['public, max-age=30, s-maxage=5', 5_000],
+    ['public, max-age=0', undefined],
+  ])(
+    'stores no longer than confirmed Cache-Control %s allows',
+    async (cacheControl, lifetime) => {
+      const cache = store();
+      const response = await dispatchNativeNodeRequest(
+        new Request('https://example.test/'),
+        options(
+          (_request, context) => publicDocument('delivered shell', context),
+          {
+            cache,
+            confirmDelivery: async () =>
+              new Headers({
+                'content-type': 'text/html',
+                'cache-control': cacheControl,
+              }),
+          },
+        ),
+      );
+      await response.text();
+      await new Promise(resolve => setTimeout(resolve, 0));
+      const [stored] = cache.documents.values();
+      expect(stored && stored.expiresAt - stored.storedAt).toBe(lifetime);
+    },
+  );
 
   it('does not cache complete source bytes after interrupted transport delivery', async () => {
     const cache = store();

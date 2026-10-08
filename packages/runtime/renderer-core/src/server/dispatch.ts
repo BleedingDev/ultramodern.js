@@ -2,6 +2,7 @@ import { assertRendererIdentity, identityCacheKey } from '../identity';
 import {
   createRequestSession,
   documentCacheKey,
+  headerMaxAgeSeconds,
   permitsDocumentCache,
   policyHeaders,
   type RequestSession,
@@ -44,6 +45,8 @@ function permitsCacheLookup(request: Request): boolean {
       cacheControl,
     ) &&
     !/(?:^|,)\s*max-age\s*=\s*(?:0+|"0+")\s*(?:,|$)/i.test(cacheControl) &&
+    // Conflicting request lifetimes have no single limit to compare against.
+    (cacheControl.match(/(?:^|,)\s*max-age\s*=/gi)?.length ?? 0) <= 1 &&
     request.headers.get('pragma')?.toLowerCase() !== 'no-cache' &&
     !url.searchParams.has('__loader') &&
     !url.searchParams.has('__ssrDirect')
@@ -222,12 +225,19 @@ function captureDocument<Bindings extends object>(
                 })
               )
                 return;
+              // Middleware may shorten the committed lifetime; the stored
+              // entry never outlives what the delivered headers allow.
+              const lifetimeSeconds = Math.min(
+                maxAgeSeconds,
+                ...headerMaxAgeSeconds(headers),
+              );
+              if (lifetimeSeconds <= 0) return;
               try {
                 const storedAt = Date.now();
                 await options.cache?.set(key, {
                   identityKey,
                   storedAt,
-                  expiresAt: storedAt + maxAgeSeconds * 1000,
+                  expiresAt: storedAt + lifetimeSeconds * 1000,
                   status: 200,
                   statusText: delivered.statusText,
                   headers: responseHeaders(headers),
