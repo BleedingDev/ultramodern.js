@@ -124,6 +124,13 @@ function cacheLifetime(
   return ages.length > 0 ? Math.min(...ages) : undefined;
 }
 
+const ACCUMULATED_HEADERS = new Set([
+  'set-cookie',
+  'vary',
+  'content-security-policy',
+  'content-security-policy-report-only',
+]);
+
 /** The native router supplies status after resolving its own route outcomes. */
 export function mergeDataResponseMetadata(
   outcomes: readonly DataOutcome[],
@@ -133,8 +140,9 @@ export function mergeDataResponseMetadata(
   let cachePolicy: DataResponseMetadata['cachePolicy'] = 'public';
   for (const outcome of outcomes) {
     for (const [name, value] of outcome.response.headers) {
-      const headerName = name.toLowerCase();
-      if (headerName === 'set-cookie' || headerName === 'vary')
+      // Browsers enforce every CSP field, so a nested loader adds to the
+      // layout's policies instead of replacing them.
+      if (ACCUMULATED_HEADERS.has(name.toLowerCase()))
         headers.append(name, value);
       else headers.set(name, value);
     }

@@ -374,6 +374,35 @@ describe('renderer-neutral HTTP data outcomes', () => {
     },
   );
 
+  it('keeps every nested loader Content-Security-Policy', async () => {
+    const outcome = (csp: string, reportOnly: string) =>
+      normalizeDataResult(
+        Response.json(
+          { value: true },
+          {
+            headers: {
+              'content-security-policy': csp,
+              'content-security-policy-report-only': reportOnly,
+            },
+          },
+        ),
+      );
+    const merged = mergeDataResponseMetadata(
+      [
+        await outcome("default-src 'self'", "img-src 'self'"),
+        await outcome("script-src 'self'", "style-src 'self'"),
+      ],
+      { status: 200 },
+    );
+    const headers = new Headers(merged.headers);
+    expect(headers.get('content-security-policy')).toBe(
+      "default-src 'self', script-src 'self'",
+    );
+    expect(headers.get('content-security-policy-report-only')).toBe(
+      "img-src 'self', style-src 'self'",
+    );
+  });
+
   it('projects loader metadata to HTML without data representation headers', async () => {
     const value = await normalizeDataResult(
       Response.json(

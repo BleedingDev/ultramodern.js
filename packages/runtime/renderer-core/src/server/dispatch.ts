@@ -45,6 +45,8 @@ function permitsCacheLookup(request: Request): boolean {
       cacheControl,
     ) &&
     !/(?:^|,)\s*max-age\s*=\s*(?:0+|"0+")\s*(?:,|$)/i.test(cacheControl) &&
+    // A cached entry cannot promise the remaining freshness min-fresh asks for.
+    !/(?:^|,)\s*min-fresh(?:\s|,|=|$)/i.test(cacheControl) &&
     // Conflicting request lifetimes have no single limit to compare against.
     (cacheControl.match(/(?:^|,)\s*max-age\s*=/gi)?.length ?? 0) <= 1 &&
     !request.headers
@@ -234,10 +236,17 @@ function captureDocument<Bindings extends object>(
                 maxAgeSeconds,
                 ...headerMaxAgeSeconds(headers),
               );
-              // An upstream Age already spent part of that lifetime. Backdating
-              // storedAt keeps both the expiry and the replayed Age honest.
+              // Upstream Age and an older Date already spent part of that
+              // lifetime. Backdating storedAt by the larger one keeps both the
+              // expiry and the replayed Age honest.
               const age = headers.get('age')?.trim() ?? '0';
-              const ageSeconds = /^\d+$/u.test(age) ? Number(age) : 0;
+              const date = Date.parse(headers.get('date') ?? '');
+              const ageSeconds = Math.max(
+                /^\d+$/u.test(age) ? Number(age) : 0,
+                Number.isFinite(date)
+                  ? Math.floor((Date.now() - date) / 1000)
+                  : 0,
+              );
               if (lifetimeSeconds - ageSeconds <= 0) return;
               try {
                 const storedAt = Date.now() - ageSeconds * 1000;
