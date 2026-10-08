@@ -9,7 +9,7 @@
 // publishing OIDC exchange. There is no token path.
 //
 // Modes:
-//   --check-registry bundle-free: every recipe's package name exists on npm
+//   --check-registry bundle-free: cohort recipes or one closed sidecar profile
 //   --check-staging  offline validation of the staged sidecar lane (no network)
 //   --dry-run        plan against the live registry without publishing
 //   (default)        publish, then re-verify the exact registry state
@@ -58,8 +58,9 @@ import {
 } from './lib/prepare-bleedingdev-packages/sidecar-publication.mjs';
 import { sidecarProvenancePolicy } from './lib/prepare-bleedingdev-packages/sidecars.mjs';
 import {
+  readSidecarBundleInputs,
   resolveSidecarOutput,
-  sidecarPublishBefore,
+  sidecarProfile,
   verifySidecarQualification,
 } from './sidecar-bundle.mjs';
 
@@ -94,6 +95,7 @@ const cliValueOptions = new Set([
   '--out',
   '--tag',
   '--mode',
+  '--profile',
   '--qualification',
 ]);
 const cliBooleanOptions = new Set([
@@ -116,6 +118,7 @@ function parseArgs(argv) {
   const options = parseCliArgs(argv, {
     defaults: {
       mode: 'cohort',
+      profile: undefined,
       qualification: undefined,
       checkRegistry: false,
       checkStaging: false,
@@ -131,6 +134,7 @@ function parseArgs(argv) {
       out: {},
       tag: {},
       mode: {},
+      profile: {},
       qualification: {},
     },
   });
@@ -151,6 +155,25 @@ function parseArgs(argv) {
   }
   if (!['cohort', 'sidecars'].includes(options.mode))
     throw new Error('--mode must be cohort or sidecars');
+  if (options.checkRegistry) {
+    const incompatible = ['--out', '--qualification', '--tag'].filter(option =>
+      argv.includes(option),
+    );
+    if (incompatible.length > 0)
+      throw new Error(
+        `--check-registry is bundle-free and cannot use ${incompatible.join(', ')}`,
+      );
+    if (options.mode === 'sidecars') {
+      if (options.profile === undefined)
+        throw new Error('--mode sidecars --check-registry requires --profile');
+      sidecarProfile(options.profile);
+    } else if (options.profile !== undefined) {
+      throw new Error('--profile requires --mode sidecars --check-registry');
+    }
+    return options;
+  }
+  if (options.profile !== undefined)
+    throw new Error('--profile requires --mode sidecars --check-registry');
   if (options.mode === 'sidecars') {
     if (!argv.includes('--out'))
       options.out = path.join(
@@ -158,10 +181,6 @@ function parseArgs(argv) {
         '.modern',
         'bleedingdev-sidecars',
         'bundle',
-      );
-    if (options.checkRegistry)
-      throw new Error(
-        'Independent sidecars require the qualified bundle; --check-registry is cohort-only',
       );
     if (!options.qualification)
       throw new Error('Independent sidecars require --qualification');
@@ -199,7 +218,7 @@ function readStagedSidecars(
   const manifest = assertSidecarStagingManifest(release.sidecars.manifest, {
     publishBefore:
       mode === 'sidecars'
-        ? sidecarPublishBefore
+        ? sidecarProfile(release.manifest.profile).publishBefore
         : sidecarAliasConsumerTargetName,
   });
   const byName = new Map(
@@ -289,8 +308,23 @@ function readRecipeSidecars(recipesUrl = sidecarRecipesUrl) {
  * this workflow holds no stored token. A missing trusted publisher still fails
  * at the OIDC exchange in publish-sidecars.
  */
-async function checkSidecarRegistry(dependencies = {}) {
-  const sidecars = (dependencies.readRecipes ?? readRecipeSidecars)();
+async function checkSidecarRegistry(
+  dependencies = {},
+  { mode = 'cohort', profile } = {},
+) {
+  if (!['cohort', 'sidecars'].includes(mode))
+    throw new Error('--mode must be cohort or sidecars');
+  if (mode === 'sidecars') {
+    if (profile === undefined)
+      throw new Error('--mode sidecars --check-registry requires --profile');
+    sidecarProfile(profile);
+  } else if (profile !== undefined) {
+    throw new Error('--profile requires --mode sidecars --check-registry');
+  }
+  const sidecars =
+    mode === 'sidecars'
+      ? readSidecarBundleInputs(profile)
+      : (dependencies.readRecipes ?? readRecipeSidecars)();
   const readPackument = dependencies.readPackument ?? readSidecarPackument;
   const packuments = await Promise.all(
     sidecars.map(sidecar => readPackument(sidecar.name)),
@@ -798,7 +832,7 @@ async function publishSidecars(options, dependencies = {}) {
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   await (options.checkRegistry
-    ? checkSidecarRegistry()
+    ? checkSidecarRegistry({}, options)
     : publishSidecars(options));
 }
 

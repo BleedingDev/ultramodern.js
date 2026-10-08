@@ -8,6 +8,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import inventory from '../../packages/toolkit/ultramodern-create/src/ultramodern-workspace/patch-inventory.ts';
 import { ULTRAMODERN_PACKAGE_PINS } from '../../packages/toolkit/ultramodern-create/src/ultramodern-workspace/versions.ts';
+import { sidecarProfile } from '../ultramodern-publish/sidecar-profiles.mjs';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const recipes = JSON.parse(
@@ -195,13 +196,26 @@ export function assertRecipeConsumers(
 
 /** Check the repository recipes against the generator's runtime pins and the published cohort manifests. */
 export function assertRepositoryRecipeConsumers(publishedManifests) {
+  const qualifiedSdkPins = Object.fromEntries(
+    Object.entries(sidecarProfile('mf-sdk').dependencies).map(
+      ([name, version]) => [name, `npm:${name}@${version}`],
+    ),
+  );
   assertRecipeGraph(recipes, {
-    generatorPins: Object.values(ULTRAMODERN_PACKAGE_PINS),
+    generatorPins: [
+      ...Object.values(ULTRAMODERN_PACKAGE_PINS),
+      qualifiedSdkPins,
+    ],
   });
   assertRecipeConsumers(recipes, {
-    generatorPins: Object.entries(ULTRAMODERN_PACKAGE_PINS)
-      .filter(([block]) => !block.endsWith('DevDependencies'))
-      .map(([, pins]) => pins),
+    // The standalone SDK qualifier is a direct installed public API consumer.
+    // Its immutable profile also drives the exact installer dependencies.
+    generatorPins: [
+      ...Object.entries(ULTRAMODERN_PACKAGE_PINS)
+        .filter(([block]) => !block.endsWith('DevDependencies'))
+        .map(([, pins]) => pins),
+      qualifiedSdkPins,
+    ],
     publishedManifests,
   });
 }

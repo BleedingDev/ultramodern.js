@@ -186,10 +186,26 @@ test('recipe-only sidecar closure records exact publication identities and alias
   );
   const sidecars = sidecarsModule.collectSidecarPackages();
   const byName = new Map(sidecars.map(sidecar => [sidecar.name, sidecar]));
-  assert.equal(sidecars.length, 24);
+  const recipes = JSON.parse(
+    fs.readFileSync(
+      path.join(__dirname, '../../ultramodern-supply/sidecars.json'),
+      'utf8',
+    ),
+  );
+  assert.equal(
+    new Set(recipes.map(recipe => recipe.fork.name)).size,
+    recipes.length,
+    'recipes must have unique publication identities',
+  );
+  assert.equal(byName.size, sidecars.length);
+  assert.deepEqual(
+    sidecars.map(({ name, version }) => [name, version]).sort(),
+    recipes.map(({ fork }) => [fork.name, fork.version]).sort(),
+  );
   assert.equal(byName.get('@bleedingdev/rsbuild-core').version, '2.2.11');
   assert.equal(byName.get('@bleedingdev/rsbuild-core').recipeOnly, true);
   assert.equal(byName.has('@bleedingdev/jiti'), false);
+  assert.equal(byName.get('@bleedingdev/mf-sdk').version, '2.9.2');
   assert.equal(byName.has('@bleedingdev/ipx'), false);
   assert.equal(byName.has('@bleedingdev/effect'), false);
   assert.equal(byName.has('@bleedingdev/msgpackr'), false);
@@ -366,7 +382,7 @@ test('alias targets must match a staged sidecar exactly', async () => {
   );
 });
 
-test('every repository recipe has a runtime consumer in the published cohort', async () => {
+test('every repository recipe has a cohort or independently qualified SDK consumer', async () => {
   const { collectModernPackages, targetPackageName } = await import(
     '../lib/prepare-bleedingdev-packages/rewrite.mjs'
   );

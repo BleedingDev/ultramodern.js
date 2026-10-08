@@ -155,6 +155,7 @@ const publicationContext = (mode, dryRun = false) => ({
   },
   inputs: {
     mode,
+    sidecar_profile: 'parser',
     dry_run: dryRun,
     recovery_run_id: '',
     recovery_run_attempt: '',
@@ -1013,6 +1014,7 @@ test('release validator keeps publication input validation bound to dispatch val
   const name = 'Validate publish inputs';
   for (const field of [
     'PUBLISH_MODE',
+    'SIDECAR_PROFILE',
     'PUBLISH_VERSION',
     'RECOVERY_RUN_ID',
     'RECOVERY_RUN_ATTEMPT',
@@ -1041,6 +1043,267 @@ test('release validator keeps publication input validation bound to dispatch val
       },
     );
   }
+});
+
+test('release validator requires the closed sidecar profile choice and parser default', () => {
+  const input =
+    readPublishWorkflow().on.workflow_dispatch.inputs.sidecar_profile;
+  assert.deepEqual(
+    {
+      required: input.required,
+      type: input.type,
+      options: input.options,
+      default: input.default,
+    },
+    {
+      required: true,
+      type: 'choice',
+      options: ['parser', 'mf-sdk'],
+      default: 'parser',
+    },
+  );
+  const mutations = [
+    ['missing profile', removeField('sidecar_profile'), true],
+    ['optional profile', setField('required', false)],
+    ['unrestricted profile', setField('type', 'string')],
+    ['SDK default', setField('default', 'mf-sdk')],
+    ['unknown default', setField('default', 'other')],
+    ['missing parser option', setField('options', ['mf-sdk'])],
+    ['missing SDK option', setField('options', ['parser'])],
+    ['unknown option', setField('options', ['parser', 'mf-sdk', 'other'])],
+    ['duplicate option', setField('options', ['parser', 'mf-sdk', 'parser'])],
+  ];
+  for (const [label, mutate, root] of mutations) {
+    assertPublishMutationRejected(
+      label,
+      workflow => {
+        const inputs = workflow.on.workflow_dispatch.inputs;
+        mutate(root ? inputs : inputs.sidecar_profile);
+      },
+      /sidecar profile.*parser\/mf-sdk.*parser default/u,
+    );
+  }
+});
+
+test('release validator binds every sidecar consumer to the dispatched profile', () => {
+  const field = 'BLEEDINGDEV_SIDECAR_PROFILE';
+  for (const value of [undefined, '', 'parser', 'mf-sdk', 'other']) {
+    assertPublishMutationRejected(
+      'global profile binding ' + String(value),
+      workflow => {
+        if (value === undefined) delete workflow.env[field];
+        else workflow.env[field] = value;
+      },
+      /bind the sidecar profile to dispatch/u,
+    );
+  }
+  for (const jobId of [...sidecarJobs, 'publish-sidecars']) {
+    for (const value of [
+      '',
+      'parser',
+      'mf-sdk',
+      githubExpression('inputs.mode'),
+    ]) {
+      assertJobMutationRejected(
+        jobId,
+        'overrides dispatched profile with ' + value,
+        job => {
+          job.env = { ...job.env, [field]: value };
+        },
+        /bind the sidecar profile to dispatch/u,
+      );
+    }
+  }
+  for (const [jobId, name] of [
+    ['prepare-sidecars', 'Prepare the exact authenticated sidecar tarballs'],
+    ['qualify-sidecars', 'Qualify the exact sidecar artifact'],
+    [
+      'qualify-sidecars',
+      'Reconcile qualified sidecars without publication authority',
+    ],
+    [
+      'publish-sidecars',
+      'Verify independently qualified sidecar bytes and receipt',
+    ],
+    ['publish-sidecars', 'Publish independently qualified sidecars'],
+  ]) {
+    for (const value of [
+      '',
+      'parser',
+      'mf-sdk',
+      githubExpression('inputs.mode'),
+    ]) {
+      assertStepMutationRejected(
+        jobId,
+        name,
+        'overrides dispatched profile',
+        step => {
+          step.env = { ...step.env, [field]: value };
+        },
+      );
+    }
+  }
+});
+
+test('release validator accepts matching profile overrides and inherited profile bindings', () => {
+  const workflow = readPublishWorkflow();
+  const field = 'BLEEDINGDEV_SIDECAR_PROFILE';
+  const expression = githubExpression('inputs.sidecar_profile');
+  for (const jobId of [...sidecarJobs, 'publish-sidecars']) {
+    const job = workflow.jobs[jobId];
+    job.env = { ...job.env, [field]: expression };
+    for (const step of job.steps) {
+      if (step.env && Object.hasOwn(step.env, field)) delete step.env[field];
+    }
+  }
+  assert.deepEqual(
+    validateWorkflowContent(publishWorkflowPath, yaml.dump(workflow)),
+    [],
+  );
+});
+
+test('release validator rejects SDK cohort inputs and unknown sidecar profiles', () => {
+  const parserGuard = '[[ "$SIDECAR_PROFILE" == parser ]]';
+  const sidecarGuard =
+    '[[ "$SIDECAR_PROFILE" == parser || "$SIDECAR_PROFILE" == mf-sdk ]]';
+  for (const [label, guard, replacement] of [
+    ['SDK in cohort mode', parserGuard, sidecarGuard],
+    ['unguarded cohort profile', parserGuard, 'true'],
+    ['unguarded sidecar profile', sidecarGuard, 'true'],
+    ['unknown sidecar profile', sidecarGuard, '[[ -n "$SIDECAR_PROFILE" ]]'],
+  ]) {
+    assertStepMutationRejected(
+      'publish-security',
+      'Validate publish inputs',
+      label,
+      step => {
+        assert.ok(step.run.includes(guard));
+        step.run = step.run.replace(guard, replacement);
+      },
+    );
+  }
+  assertStepMutationRejected(
+    'publish-security',
+    'Validate publish inputs',
+    'conditionally skips input validation',
+    setField('if', "inputs.sidecar_profile == 'parser'"),
+  );
+});
+
+test('release validator requires preparation to pass the dispatched profile explicitly', () => {
+  const argument = '--profile "$BLEEDINGDEV_SIDECAR_PROFILE"';
+  for (const replacement of [
+    '',
+    '--profile parser',
+    '--profile mf-sdk',
+    '--profile "$PUBLISH_MODE"',
+  ]) {
+    assertStepMutationRejected(
+      'prepare-sidecars',
+      'Prepare the exact authenticated sidecar tarballs',
+      'changes the selected profile argument',
+      step => {
+        assert.ok(step.run.includes(argument));
+        step.run = step.run.replace(argument, replacement);
+      },
+    );
+  }
+});
+
+test('release validator requires SDK probe tests before qualification', () => {
+  const name = 'Test sidecar artifact and qualification contracts';
+  assertStepMutationRejected(
+    'qualify-sidecars',
+    name,
+    'omits SDK probes',
+    step => {
+      const file =
+        'scripts/ultramodern-publish/__tests__/packed-mf-sdk-probe.test.js';
+      assert.ok(step.run.includes(file));
+      step.run = step.run.replace(file, '');
+    },
+  );
+  assertStepMutationRejected(
+    'qualify-sidecars',
+    name,
+    'runs SDK probes only in parser mode',
+    setField('if', "inputs.sidecar_profile == 'parser'"),
+  );
+  assertJobMutationRejected(
+    'qualify-sidecars',
+    'tests follow qualification',
+    job => {
+      const tests = job.steps.find(step => step.name === name);
+      const qualify = job.steps.find(
+        step => step.name === 'Qualify the exact sidecar artifact',
+      );
+      job.steps.splice(job.steps.indexOf(tests), 1);
+      job.steps.splice(job.steps.indexOf(qualify) + 1, 0, tests);
+    },
+  );
+});
+
+test('release validator binds registry preflights to the selected publication mode and profile', () => {
+  const cohort = 'Check every sidecar name exists on npm';
+  const sidecars = 'Check selected sidecar names exist on npm';
+  for (const name of [cohort, sidecars]) {
+    assertPublishMutationRejected(
+      'missing registry preflight ' + name,
+      workflow => {
+        const job = workflow.jobs['publish-security'];
+        assert.ok(job.steps.some(step => step.name === name));
+        job.steps = job.steps.filter(step => step.name !== name);
+      },
+      /registry preflights/u,
+    );
+    for (const mutate of [
+      removeField('if'),
+      setField('if', "inputs.mode == 'cohort' || inputs.mode == 'sidecars'"),
+    ]) {
+      assertStepMutationRejected(
+        'publish-security',
+        name,
+        'checks recipes for another publication mode',
+        mutate,
+      );
+    }
+  }
+  for (const replacement of [
+    '',
+    '--profile parser',
+    '--profile mf-sdk',
+    '--profile "$PUBLISH_MODE"',
+  ]) {
+    assertStepMutationRejected(
+      'publish-security',
+      sidecars,
+      'changes the dispatched registry profile',
+      step => {
+        const argument = '--profile "$BLEEDINGDEV_SIDECAR_PROFILE"';
+        assert.ok(step.run.includes(argument));
+        step.run = step.run.replace(argument, replacement);
+      },
+    );
+  }
+  assertStepMutationRejected(
+    'publish-security',
+    cohort,
+    'narrows the cohort registry check to one profile',
+    step => {
+      step.run += ' --mode sidecars --profile parser';
+    },
+  );
+  assertPublishMutationRejected(
+    'extra registry preflight outside publish-security',
+    workflow => {
+      const step = workflow.jobs['publish-security'].steps.find(
+        item => item.name === sidecars,
+      );
+      assert.ok(step);
+      workflow.jobs['qualify-sidecars'].steps.push(structuredClone(step));
+    },
+    /registry preflights/u,
+  );
 });
 
 test('release validator rejects missing mode and identity guards', () => {

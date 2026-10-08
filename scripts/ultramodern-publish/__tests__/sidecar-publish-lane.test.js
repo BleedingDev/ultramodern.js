@@ -828,6 +828,171 @@ test('--check-registry fails on a missing sidecar name before any bundle exists'
   assert.deepEqual(checked, committed);
 });
 
+test('bundle-free sidecar registry checks read only their closed profile', async () => {
+  const { checkSidecarRegistry, parseArgs } = await importCli();
+  const parserNames = [
+    '@bleedingdev/braces',
+    '@bleedingdev/chokidar',
+    '@bleedingdev/fast-glob',
+    '@bleedingdev/find-workspaces',
+    '@bleedingdev/micromatch',
+    '@bleedingdev/rsbuild-plugin-source-build',
+    '@bleedingdev/rsbuild-plugin-type-check',
+    '@bleedingdev/ts-checker-rspack-plugin',
+    '@bleedingdev/ultracite',
+  ];
+  for (const [profile, expected] of [
+    ['mf-sdk', ['@bleedingdev/mf-sdk']],
+    ['parser', parserNames],
+  ]) {
+    const options = parseArgs([
+      '--mode',
+      'sidecars',
+      '--profile',
+      profile,
+      '--check-registry',
+    ]);
+    const reads = [];
+    const result = await checkSidecarRegistry(
+      {
+        readPackument: async name => {
+          reads.push(name);
+          // Every name outside this profile is uncreated on the registry.
+          return expected.includes(name) ? { name } : null;
+        },
+        readRecipes: () => {
+          throw new Error('Profile preflight must validate producer inputs');
+        },
+      },
+      options,
+    );
+    assert.deepEqual(reads, expected);
+    assert.deepEqual(result.checked, expected);
+  }
+});
+
+test('registry preflight rejects mixed CLI inputs before output resolution', async () => {
+  const { parseArgs } = await importCli();
+  const preflight = [
+    '--mode',
+    'sidecars',
+    '--profile',
+    'mf-sdk',
+    '--check-registry',
+  ];
+  assert.throws(
+    () => parseArgs(['--mode', 'sidecars', '--check-registry']),
+    /requires --profile/u,
+  );
+  assert.throws(
+    () =>
+      parseArgs([
+        '--mode',
+        'sidecars',
+        '--profile',
+        'other',
+        '--check-registry',
+      ]),
+    /Unknown sidecar profile/u,
+  );
+  for (const [option, value] of [
+    ['--out', '/outside-owned-output'],
+    ['--qualification', '/outside-owned-receipt'],
+    ['--tag', 'latest'],
+  ])
+    assert.throws(
+      () => parseArgs([...preflight, option, value]),
+      /--check-registry is bundle-free/u,
+    );
+  for (const argv of [
+    ['--check-registry', '--profile', 'mf-sdk'],
+    ['--mode', 'sidecars', '--profile', 'mf-sdk'],
+    ['--mode', 'sidecars', '--profile', 'parser', '--check-staging'],
+    [
+      '--mode',
+      'sidecars',
+      '--profile',
+      'mf-sdk',
+      '--qualification',
+      path.join(repoRoot, '.modern/bleedingdev-sidecars/qualification.json'),
+      '--dry-run',
+    ],
+  ])
+    assert.throws(
+      () => parseArgs(argv),
+      /--profile requires --mode sidecars --check-registry/u,
+    );
+  assert.throws(() => parseArgs(['--mode', 'sidecars']), /--qualification/u);
+});
+
+test('SDK registry preflight rejects recipe drift before any network read', async t => {
+  const { checkSidecarRegistry } = await importCli();
+  const recipesPath = path.join(
+    repoRoot,
+    'scripts/ultramodern-supply/sidecars.json',
+  );
+  const recipes = JSON.parse(fs.readFileSync(recipesPath, 'utf8'));
+  const originalRead = fs.readFileSync;
+  let selectedRecipes = recipes;
+  t.mock.method(fs, 'readFileSync', (file, ...args) => {
+    const filePath =
+      file instanceof URL ? require('node:url').fileURLToPath(file) : file;
+    if (filePath === recipesPath) return JSON.stringify(selectedRecipes);
+    return originalRead.call(fs, file, ...args);
+  });
+  let reads = 0;
+  const dependencies = {
+    readPackument: async () => {
+      reads += 1;
+      throw new Error('Invalid profile reached the network');
+    },
+  };
+  for (const [mutate, expected] of [
+    [
+      values =>
+        values.map(recipe =>
+          recipe.id === 'mf-sdk'
+            ? {
+                ...recipe,
+                fork: { ...recipe.fork, name: '@bleedingdev/other-sdk' },
+              }
+            : recipe,
+        ),
+      /dependencies differ from the closed profile/u,
+    ],
+    [
+      values =>
+        values.map(recipe =>
+          recipe.id === 'mf-sdk'
+            ? { ...recipe, fork: { ...recipe.fork, version: '2.9.3' } }
+            : recipe,
+        ),
+      /dependencies differ from the closed profile/u,
+    ],
+    [
+      values => values.filter(recipe => recipe.id !== 'mf-sdk'),
+      /Expected exactly one reviewed sidecar recipe mf-sdk/u,
+    ],
+  ]) {
+    selectedRecipes = mutate(structuredClone(recipes));
+    await assert.rejects(
+      checkSidecarRegistry(dependencies, {
+        mode: 'sidecars',
+        profile: 'mf-sdk',
+      }),
+      expected,
+    );
+    assert.equal(reads, 0);
+  }
+  for (const profile of [undefined, 'other']) {
+    await assert.rejects(
+      checkSidecarRegistry(dependencies, { mode: 'sidecars', profile }),
+      /requires --profile|Unknown sidecar profile/u,
+    );
+    assert.equal(reads, 0);
+  }
+});
+
 test('the packed-consumer proof publishes to loopback registries only', async () => {
   const { assertLocalRegistry } = await import(
     '../verify-sidecar-consumer.mjs'
