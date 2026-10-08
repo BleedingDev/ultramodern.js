@@ -115,6 +115,8 @@ const readCookie = (header: string | null, name: string): string | null => {
   return null;
 };
 
+const QVALUE = /^(?:0(?:\.\d{0,3})?|1(?:\.0{0,3})?)$/;
+
 /** Ordered `Accept-Language` tags, highest quality first; `q=0` is excluded. */
 const acceptedLanguages = (header: string | null): string[] =>
   (header ?? '')
@@ -124,8 +126,12 @@ const acceptedLanguages = (header: string | null): string[] =>
       const quality = parameters
         .map(parameter => parameter.trim())
         .find(parameter => parameter.toLowerCase().startsWith('q='));
-      const q = quality ? Number(quality.slice(2)) : 1;
-      return { tag: tag.trim(), q: Number.isFinite(q) ? q : 0, index };
+      // RFC 9110 qvalue: 0 to 1 with at most three decimals. A malformed
+      // weight drops the item instead of reordering preferences.
+      const value = quality?.slice(2).trim();
+      const q =
+        value === undefined ? 1 : QVALUE.test(value) ? Number(value) : 0;
+      return { tag: tag.trim(), q, index };
     })
     .filter(item => item.tag && item.tag !== '*' && item.q > 0)
     .sort((left, right) => right.q - left.q || left.index - right.index)
