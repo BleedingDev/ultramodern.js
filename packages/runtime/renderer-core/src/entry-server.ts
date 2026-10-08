@@ -44,6 +44,8 @@ export interface NativeServerEntryOptions<
   /** The generated application module, imported per request. */
   readonly app: () => Promise<NativeApplicationModule>;
   readonly i18n?: NativeEntryI18n<Instance, LocalisedUrls>;
+  /** The document mount element id; the client entry must use the same. */
+  readonly rootId?: string;
 }
 
 /** The renderer-neutral part of one response document. */
@@ -176,7 +178,7 @@ export function createNativeServerEntry<
     return adapter.document(
       {
         documentId: crypto.randomUUID(),
-        rootId: 'root',
+        rootId: options.rootId ?? 'root',
         ...(context.nonce === undefined ? {} : { nonce: context.nonce }),
         ...(context.assets === undefined ? {} : { assets: context.assets }),
       },

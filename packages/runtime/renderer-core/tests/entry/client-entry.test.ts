@@ -22,10 +22,10 @@ const identity: RendererIdentity = {
 
 const root = { id: 'root' } as unknown as HTMLElement;
 
-function installDocument(bootstrap: boolean, mount = true) {
+function installDocument(bootstrap: boolean, mount = true, rootId = 'root') {
   Reflect.set(globalThis, 'document', {
     getElementById: (id: string) =>
-      id === 'root' && mount
+      id === rootId && mount
         ? root
         : id === RENDERER_BOOTSTRAP_ID && bootstrap
           ? {}
@@ -282,5 +282,23 @@ describe('generated native client entry', () => {
     expect(stop).not.toHaveBeenCalled();
     dispose();
     expect(stop).toHaveBeenCalledTimes(1);
+  });
+
+  it('mounts into a configured root id', async () => {
+    installDocument(false, true, 'application');
+    const { adapter, ready } = recordingAdapter(false);
+    expect(() =>
+      startNativeClientEntry(
+        { identity, load: async () => routed, rootId: 'application' },
+        adapter,
+      ),
+    ).not.toThrow();
+    await ready;
+    expect(() =>
+      startNativeClientEntry(
+        { identity, load: async () => routed },
+        recordingAdapter(false).adapter,
+      ),
+    ).toThrow('The native application mount element is missing');
   });
 });
