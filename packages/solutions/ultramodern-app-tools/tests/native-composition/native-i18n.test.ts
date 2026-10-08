@@ -100,6 +100,10 @@ describe('native i18nPlugin()', () => {
         'initOptions.list.extra',
       ],
       [
+        { list: Object.assign([1], { '4294967295': true }) },
+        'initOptions.list.4294967295',
+      ],
+      [
         JSON.parse('{"__proto__": {"polluted": true}}'),
         'initOptions.__proto__',
       ],
