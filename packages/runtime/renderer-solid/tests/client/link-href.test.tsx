@@ -28,9 +28,7 @@ async function renderLink(
   const root = document.createElement('div');
   document.body.appendChild(root);
   const dispose = mountApplication(
-    () => (
-      <RouterContextProvider router={router}>{view}</RouterContextProvider>
-    ),
+    () => <RouterContextProvider router={router}>{view}</RouterContextProvider>,
     root,
   );
   flush();
