@@ -98,6 +98,21 @@ describe('detectRequestLanguage', () => {
     ).toBe('en');
   });
 
+  test.each([
+    ['en;q=0, *;q=1', 'cs'],
+    ['*', 'en'],
+    ['de, *;q=0.5', 'en'],
+    ['en;q=0, cs;q=0, *', undefined],
+    ['*;q=0', undefined],
+  ])('expands wildcard ranges in %s', (header, expected) => {
+    expect(
+      detectRequestLanguage(request('/', { 'accept-language': header }), [
+        'en',
+        'cs',
+      ]),
+    ).toBe(expected);
+  });
+
   test('excludes uppercase quality parameters when every language has zero quality', () => {
     expect(
       detectRequestLanguage(

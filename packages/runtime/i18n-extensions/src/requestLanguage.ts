@@ -117,9 +117,16 @@ const readCookie = (header: string | null, name: string): string | null => {
 
 const QVALUE = /^(?:0(?:\.\d{0,3})?|1(?:\.0{0,3})?)$/;
 
-/** Ordered `Accept-Language` tags, highest quality first; `q=0` is excluded. */
-const acceptedLanguages = (header: string | null): string[] =>
-  (header ?? '')
+/**
+ * Ordered `Accept-Language` matches, highest quality first. A `*` range stands
+ * for every supported language not named elsewhere in the header, so a
+ * specific `q=0` still excludes its language.
+ */
+const acceptedLanguages = (
+  header: string | null,
+  languages: readonly string[],
+): (string | undefined)[] => {
+  const items = (header ?? '')
     .split(',')
     .map((item, index) => {
       const [tag, ...parameters] = item.trim().split(';');
@@ -133,9 +140,21 @@ const acceptedLanguages = (header: string | null): string[] =>
         value === undefined ? 1 : QVALUE.test(value) ? Number(value) : 0;
       return { tag: tag.trim(), q, index };
     })
-    .filter(item => item.tag && item.tag !== '*' && item.q > 0)
+    .filter(item => item.tag);
+  const named = new Set(
+    items
+      .filter(item => item.tag !== '*')
+      .map(item => matchLanguage(item.tag, languages)),
+  );
+  return items
+    .filter(item => item.q > 0)
     .sort((left, right) => right.q - left.q || left.index - right.index)
-    .map(item => item.tag);
+    .flatMap(item =>
+      item.tag === '*'
+        ? languages.filter(language => !named.has(language))
+        : [matchLanguage(item.tag, languages)],
+    );
+};
 
 /**
  * Detect a supported language from the request alone (no path), in the
@@ -163,12 +182,10 @@ export function detectRequestLanguage(
         languages,
       );
     } else if (detector === 'header') {
-      for (const tag of acceptedLanguages(
+      language = acceptedLanguages(
         request.headers.get(detection.lookupHeader ?? 'accept-language'),
-      )) {
-        language = matchLanguage(tag, languages);
-        if (language) break;
-      }
+        languages,
+      ).find(Boolean);
     }
     if (language) return language;
   }
