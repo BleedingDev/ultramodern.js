@@ -126,11 +126,16 @@ export function deferData(
         'Deferred data requires plain critical and deferred records',
       );
     }
-    for (const descriptor of Object.values(
-      Object.getOwnPropertyDescriptors(record),
-    )) {
+    // The wire format keeps only enumerable string keys, so anything else
+    // would silently drop a value the loader returned.
+    for (const key of Reflect.ownKeys(record)) {
+      const descriptor = Object.getOwnPropertyDescriptor(record, key)!;
       if (descriptor.get || descriptor.set)
         throw new DataProtocolError('Deferred data must not contain accessors');
+      if (typeof key === 'symbol' || !descriptor.enumerable)
+        throw new DataProtocolError(
+          'Deferred data keys must be enumerable strings',
+        );
     }
   }
   assertPublicData(critical);

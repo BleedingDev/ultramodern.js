@@ -289,14 +289,30 @@ export function createNativeServerEntry<
       }
       const bindings = session.platform.bindings;
       const outcomes: DataOutcome[] = [];
+      // Loaders settle in any order, but later metadata wins singleton
+      // fields, so outcomes stay in matched parent-to-leaf route order.
+      const outcomeRanks: number[] = [];
+      let routeOrder: readonly string[] | undefined;
+      const addOutcome = (rank: number, outcome: DataOutcome) => {
+        const at = outcomeRanks.findIndex(other => other > rank);
+        const index = at < 0 ? outcomes.length : at;
+        outcomes.splice(index, 0, outcome);
+        outcomeRanks.splice(index, 0, rank);
+      };
       const router = adapter.createRouter(application, {
         identity: rendererIdentity,
         loadRoute: serverRouteLoader(application),
         request: nativeRequest,
         context: bindings,
-        onOutcome: (_routeId, outcome) => {
-          if ('response' in outcome) outcomes.push(outcome);
-          else if (outcome.completion) {
+        onOutcome: (routeId, outcome) => {
+          if ('response' in outcome) {
+            routeOrder ??= matchApplicationRouteIds(
+              router,
+              new URL(nativeRequest.url),
+            );
+            const rank = routeOrder.indexOf(routeId);
+            addOutcome(rank < 0 ? Number.POSITIVE_INFINITY : rank, outcome);
+          } else if (outcome.completion) {
             const completion = outcome.completion;
             void completion.catch(error => session.fail(error));
             session.registerCleanup(() => completion);
@@ -329,7 +345,8 @@ export function createNativeServerEntry<
       // the header-only outcome adds `Vary` and keeps it out of public caches.
       const vary = detectedVary(language);
       if (vary?.length)
-        outcomes.push(
+        addOutcome(
+          Number.POSITIVE_INFINITY,
           await normalizeDataResult(
             new Response(null, { headers: { vary: vary.join(', ') } }),
           ),

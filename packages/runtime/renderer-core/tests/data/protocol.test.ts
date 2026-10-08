@@ -655,6 +655,23 @@ describe('renderer-neutral HTTP data outcomes', () => {
     }
   });
 
+  it('rejects deferred keys the wire format would drop', () => {
+    const pending = Promise.resolve(1);
+    expect(() =>
+      deferData({}, { [Symbol('later')]: pending } as never),
+    ).toThrow('Deferred data keys must be enumerable strings');
+    expect(() =>
+      deferData(
+        {},
+        Object.defineProperty({}, 'hidden', {
+          enumerable: false,
+          value: pending,
+        }),
+      ),
+    ).toThrow('Deferred data keys must be enumerable strings');
+    expect(() => deferData({}, { later: pending })).not.toThrow();
+  });
+
   it('keeps terminal singleton fields over loader metadata', async () => {
     const native = new Response(null, {
       status: 302,
