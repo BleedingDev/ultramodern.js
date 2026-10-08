@@ -29,6 +29,12 @@ import {
 import { withFederatedAssets } from './federation-ssr';
 import { nativePromiseSerializationPlugin } from './native-promise-serialization';
 
+/** Browsers enforce every CSP field, so components add to loader policies. */
+const CSP_HEADERS = new Set([
+  'content-security-policy',
+  'content-security-policy-report-only',
+]);
+
 type NativeStreamOptions = NonNullable<Parameters<typeof renderToStream>[1]>;
 
 type ApplicationRequestEvent = ReturnType<
@@ -185,7 +191,8 @@ function respondApplicationBody<Bindings extends object>(
         statusText = native.statusText ?? statusText;
         native.headers.forEach((value, name) => {
           // Cookies and timing merge through the native commit operation below.
-          if (
+          if (CSP_HEADERS.has(name)) outgoing.append(name, value);
+          else if (
             name !== 'set-cookie' &&
             name !== 'server-timing' &&
             name !== 'vary'

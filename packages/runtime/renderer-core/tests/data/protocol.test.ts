@@ -543,6 +543,7 @@ describe('renderer-neutral HTTP data outcomes', () => {
       'public, max-age=wrong',
       'public, max-age=60, s-maxage=wrong',
       'public, max-age=60, max-age=120',
+      'public, s-maxage=3600',
     ]) {
       const invalid = await normalizeDataResult(
         Response.json({}, { headers: { 'cache-control': cacheControl } }),

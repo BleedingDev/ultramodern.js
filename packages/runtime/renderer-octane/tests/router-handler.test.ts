@@ -50,14 +50,22 @@ test('native matching and document callback follow guarded serialization', async
   }));
   const root = createRootRoute({
     beforeLoad: () => ({ publicTitle: 'native public context' }),
-    headers: () => ({ 'x-root': 'native' }),
+    headers: () => ({
+      'x-root': 'native',
+      vary: 'Cookie',
+      'content-security-policy': "default-src 'self'",
+    }),
   });
   const product = createRoute({
     getParentRoute: () => root,
     path: 'product/$id',
     loader,
     headers: () => {
-      const headers = new Headers({ 'x-product': '7' });
+      const headers = new Headers({
+        'x-product': '7',
+        vary: 'Accept-Language, cookie',
+        'content-security-policy': "script-src 'self'",
+      });
       headers.append('set-cookie', 'a=1; Path=/');
       headers.append('set-cookie', 'b=2; Path=/');
       return headers;
@@ -71,6 +79,10 @@ test('native matching and document callback follow guarded serialization', async
     async ({ responseHeaders }: { responseHeaders: Headers }) => {
       expect(responseHeaders.get('x-root')).toBe('native');
       expect(responseHeaders.get('x-product')).toBe('7');
+      expect(responseHeaders.get('vary')).toBe('Cookie, Accept-Language');
+      expect(responseHeaders.get('content-security-policy')).toBe(
+        "default-src 'self', script-src 'self'",
+      );
       expect(responseHeaders.getSetCookie()).toEqual([
         'a=1; Path=/',
         'b=2; Path=/',

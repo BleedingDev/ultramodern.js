@@ -121,6 +121,30 @@ describe('native Solid response metadata before session commit', () => {
     expect((await session.completion).cacheEligible).toBe(false);
   });
 
+  test('keeps loader and component Content-Security-Policy fields', async () => {
+    const session = sessionFor({
+      headers: [
+        ['content-security-policy', "default-src 'self'"],
+        ['content-security-policy-report-only', "img-src 'self'"],
+      ],
+    });
+    const response = await renderApplication({
+      session,
+      view: () => {
+        httpHeader('content-security-policy', "script-src 'self'");
+        httpHeader('content-security-policy-report-only', "style-src 'self'");
+        return ssr('<p>csp</p>');
+      },
+    });
+    expect(response.headers.get('content-security-policy')).toBe(
+      "default-src 'self', script-src 'self'",
+    );
+    expect(response.headers.get('content-security-policy-report-only')).toBe(
+      "img-src 'self', style-src 'self'",
+    );
+    await response.text();
+  });
+
   test('keeps original and native Vary dimensions when native declarations overwrite', async () => {
     const session = sessionFor({ headers: [['vary', 'Accept-Encoding']] });
     const response = await renderApplication({
