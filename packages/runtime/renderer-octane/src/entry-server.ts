@@ -4,6 +4,7 @@ import {
   dataMetadataToDocumentPolicy,
   mergeDataResponseIntoResponse,
   mergeDataResponseMetadata,
+  mergeHeaderFields,
 } from '@modern-js/renderer-core/data';
 import {
   createNativeServerEntry as createServerEntry,
@@ -101,12 +102,14 @@ export function createNativeServerEntry(
         const metadata = mergeDataResponseMetadata(outcomes, {
           status: router.state.statusCode ?? 200,
         });
+        // Route headers() take precedence over loader singleton fields; list
+        // fields keep both.
         const policy = dataMetadataToDocumentPolicy({
           ...metadata,
-          headers: [
-            ...collectDataHeaders(responseHeaders),
-            ...metadata.headers,
-          ],
+          headers: mergeHeaderFields(
+            collectDataHeaders(responseHeaders),
+            metadata.headers,
+          ),
         });
         session.resolveResponse(
           withOctaneDocumentFields(policy, responseHeaders),

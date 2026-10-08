@@ -38,6 +38,29 @@ export function policyHeaders(headers: ResponseHeaders): Headers {
 
 const NO_STORE = { mode: 'no-store' as const, ages: [] };
 
+const CACHE_DIRECTIVE =
+  /\s*([!#$%&'*+.^_`|~\w-]+)\s*(?:=\s*([!#$%&'*+.^_`|~\w-]+|"(?:[^"\\]|\\.)*"))?\s*(?:,|$)/uy;
+
+/**
+ * Every Cache-Control directive in order, names lowercased, or `undefined`
+ * when any part is malformed (an unterminated quote, trailing syntax). Quoted
+ * values are consumed whole, so their text is never read as a directive.
+ */
+export function parseCacheControl(
+  value: string,
+): { name: string; value: string | undefined }[] | undefined {
+  const directives: { name: string; value: string | undefined }[] = [];
+  let index = 0;
+  while (index < value.length) {
+    CACHE_DIRECTIVE.lastIndex = index;
+    const match = CACHE_DIRECTIVE.exec(value);
+    if (!match || CACHE_DIRECTIVE.lastIndex === index) return undefined;
+    directives.push({ name: match[1].toLowerCase(), value: match[2] });
+    index = CACHE_DIRECTIVE.lastIndex;
+  }
+  return directives;
+}
+
 /** Read Cache-Control. Malformed or repeated lifetimes never cache. */
 function cacheDirectives(value: string | null): {
   mode: CacheMode;
@@ -46,19 +69,16 @@ function cacheDirectives(value: string | null): {
   let mode: CacheMode = 'public';
   const ages: number[] = [];
   const ageNames = new Set<string>();
-  for (const part of value?.split(',') ?? []) {
-    const match = /^\s*([!#$%&'*+.^_`|~\w-]+)(?:\s*=\s*([^\s]+))?\s*$/u.exec(
-      part,
-    );
-    if (!match) return NO_STORE;
-    const name = match[1].toLowerCase();
+  const parsed = parseCacheControl(value ?? '');
+  if (!parsed) return NO_STORE;
+  for (const { name, value: raw } of parsed) {
     if (name === 'no-store' || name === 'no-cache') mode = 'no-store';
     else if (name === 'private' && mode !== 'no-store') mode = 'private';
     if (name === 'max-age' || name === 's-maxage') {
-      const age = Number(match[2]);
+      const age = Number(raw);
       if (
         ageNames.has(name) ||
-        !/^\d+$/u.test(match[2] ?? '') ||
+        !/^\d+$/u.test(raw ?? '') ||
         !Number.isSafeInteger(age)
       ) {
         return NO_STORE;

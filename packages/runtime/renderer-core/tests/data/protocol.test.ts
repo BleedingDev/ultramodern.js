@@ -13,6 +13,7 @@ import {
   invokeRouteData,
   mergeDataResponseIntoResponse,
   mergeDataResponseMetadata,
+  mergeHeaderFields,
   normalizeDataResult,
   publicDataError,
 } from '../../src/data/server';
@@ -548,6 +549,47 @@ describe('renderer-neutral HTTP data outcomes', () => {
       expect(outcome.response.cachePolicy).toBe(policy);
     },
   );
+
+  it.each([
+    'foo="x,public,max-age=3600',
+    'public, max-age=3600 junk',
+    'public; max-age=3600',
+  ])('fails closed on malformed Cache-Control %s', async cacheControl => {
+    const outcome = await normalizeDataResult(
+      Response.json({}, { headers: { 'cache-control': cacheControl } }),
+    );
+    expect(outcome.response.cachePolicy).toBe('no-store');
+    expect(
+      dataMetadataToDocumentPolicy(
+        mergeDataResponseMetadata([outcome], { status: 200 }),
+      ).cache,
+    ).toEqual({ mode: 'no-store' });
+  });
+
+  it('lets primary singleton fields win while list fields keep both sources', () => {
+    expect(
+      mergeHeaderFields(
+        [
+          ['Cross-Origin-Opener-Policy', 'same-origin'],
+          ['vary', 'Cookie'],
+          ['link', '</a.css>; rel=preload'],
+        ],
+        [
+          ['cross-origin-opener-policy', 'unsafe-none'],
+          ['vary', 'Accept-Language'],
+          ['link', '</b.css>; rel=preload'],
+          ['x-loader', '1'],
+        ],
+      ),
+    ).toEqual([
+      ['Cross-Origin-Opener-Policy', 'same-origin'],
+      ['vary', 'Cookie'],
+      ['link', '</a.css>; rel=preload'],
+      ['vary', 'Accept-Language'],
+      ['link', '</b.css>; rel=preload'],
+      ['x-loader', '1'],
+    ]);
+  });
 
   it('ignores lifetimes inside quoted Cache-Control extension values', async () => {
     const outcome = await normalizeDataResult(
