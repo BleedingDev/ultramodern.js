@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { TLSSocket } from 'node:tls';
@@ -30,6 +31,70 @@ import {
 import type { NativeDevelopmentSnapshot } from './native-server-plugin';
 import type { RendererBuildProfile } from './renderer-profile';
 import { resolveNativeRendererAdapter } from './renderer-registration';
+
+interface DevServerHeaderConfig {
+  readonly cors?: unknown;
+  readonly headers?: Readonly<Record<string, string | string[]>>;
+}
+
+interface DevCorsOptions {
+  readonly origin?: unknown;
+  readonly credentials?: boolean;
+  readonly exposedHeaders?: string | readonly string[];
+}
+
+const allowsOrigin = (allowed: unknown, origin: string): boolean =>
+  Array.isArray(allowed)
+    ? allowed.some(entry => allowsOrigin(entry, origin))
+    : allowed instanceof RegExp
+      ? allowed.test(origin)
+      : typeof allowed === 'string'
+        ? allowed === origin
+        : Boolean(allowed);
+
+/**
+ * Federation assets are answered before Rsbuild's own middlewares, so they
+ * apply the configured `server.headers` and `server.cors` themselves, as the
+ * `cors` package does: a host on another origin loads these containers and
+ * chunks as module scripts.
+ */
+export async function applyDevServerHeaders(
+  request: IncomingMessage,
+  response: ServerResponse,
+  server: DevServerHeaderConfig | undefined,
+): Promise<void> {
+  for (const [name, value] of Object.entries(server?.headers ?? {}))
+    response.setHeader(name, value);
+  if (!server?.cors) return;
+  const options: DevCorsOptions =
+    server.cors === true ? {} : (server.cors as DevCorsOptions);
+  const requestOrigin = request.headers.origin;
+  let allowed: unknown = options.origin ?? '*';
+  if (typeof allowed === 'function')
+    allowed = await new Promise<unknown>((resolve, reject) =>
+      (
+        allowed as (origin: unknown, done: (...args: unknown[]) => void) => void
+      )(requestOrigin, (error, value) =>
+        error ? reject(error) : resolve(value),
+      ),
+    );
+  if (allowed === '*') response.setHeader('Access-Control-Allow-Origin', '*');
+  else {
+    response.setHeader('Vary', 'Origin');
+    if (typeof allowed === 'string')
+      response.setHeader('Access-Control-Allow-Origin', allowed);
+    else if (requestOrigin && allowsOrigin(allowed, requestOrigin))
+      response.setHeader('Access-Control-Allow-Origin', requestOrigin);
+  }
+  if (options.credentials === true)
+    response.setHeader('Access-Control-Allow-Credentials', 'true');
+  const exposed = options.exposedHeaders;
+  if (exposed?.length)
+    response.setHeader(
+      'Access-Control-Expose-Headers',
+      typeof exposed === 'string' ? exposed : exposed.join(','),
+    );
+}
 
 export interface NativeDevelopmentOptions {
   readonly renderer: Exclude<Renderer, 'react'>;
@@ -172,10 +237,18 @@ export class NativeDevelopment {
                 ) ||
                 (pathname && this.retained.get(pathname));
               if (!asset) return next();
-              response.setHeader('Content-Type', asset.contentType);
-              response.setHeader('Content-Length', asset.bytes.length);
-              response.setHeader('Cache-Control', 'no-store');
-              response.end(request.method === 'HEAD' ? undefined : asset.bytes);
+              applyDevServerHeaders(
+                request,
+                response,
+                api.getNormalizedConfig().server,
+              ).then(() => {
+                response.setHeader('Content-Type', asset.contentType);
+                response.setHeader('Content-Length', asset.bytes.length);
+                response.setHeader('Cache-Control', 'no-store');
+                response.end(
+                  request.method === 'HEAD' ? undefined : asset.bytes,
+                );
+              }, next);
             });
           };
           config.dev = {

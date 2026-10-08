@@ -24,6 +24,7 @@ import {
   readRendererDevelopmentBuildManifest,
 } from '../../src/native-composition/native-build-manifest';
 import {
+  applyDevServerHeaders,
   NativeDevelopment,
   nativeDevelopmentOutputDirectory,
 } from '../../src/native-composition/native-development';
@@ -609,6 +610,56 @@ ${federation ? 'export const privateLazy = () => import("./private-lazy.js");' :
   };
 }
 
+describe('native development asset headers', () => {
+  const answer = async (cors: unknown, origin?: string) => {
+    const headers = new Map<string, unknown>();
+    await applyDevServerHeaders(
+      { headers: origin ? { origin } : {} } as never,
+      {
+        setHeader: (name: string, value: unknown) =>
+          headers.set(name.toLowerCase(), value),
+      } as never,
+      { cors, headers: { 'x-dev': 'yes' } },
+    );
+    return Object.fromEntries(headers);
+  };
+
+  it('applies server.headers and the cors origin policy', async () => {
+    const local = /^https?:\/\/localhost(?::\d+)?$/u;
+    expect(await answer({ origin: local }, 'http://localhost:3030')).toEqual({
+      'x-dev': 'yes',
+      vary: 'Origin',
+      'access-control-allow-origin': 'http://localhost:3030',
+    });
+    expect(
+      await answer({ origin: local }, 'https://elsewhere.example'),
+    ).toEqual({ 'x-dev': 'yes', vary: 'Origin' });
+    expect(await answer(true, 'https://elsewhere.example')).toMatchObject({
+      'access-control-allow-origin': '*',
+    });
+    expect(
+      await answer(
+        {
+          origin: (
+            origin: string,
+            done: (error: null, value: boolean) => void,
+          ) => done(null, origin.endsWith('.example')),
+          credentials: true,
+          exposedHeaders: ['x-a', 'x-b'],
+        },
+        'https://app.example',
+      ),
+    ).toMatchObject({
+      'access-control-allow-origin': 'https://app.example',
+      'access-control-allow-credentials': 'true',
+      'access-control-expose-headers': 'x-a,x-b',
+    });
+    expect(await answer(false, 'http://localhost:3030')).toEqual({
+      'x-dev': 'yes',
+    });
+  });
+});
+
 describe('native development', () => {
   it('discards an old aggregate done callback after a sibling starts another compile', async () => {
     const app = await replacementApp(false, true);
@@ -696,6 +747,21 @@ describe('native development', () => {
     expect(head.status).toBe(200);
     expect(Number(head.headers.get('content-length'))).toBeGreaterThan(0);
     expect(await head.text()).toBe('');
+    // Answered before Rsbuild's middlewares, the assets still carry its CORS
+    // policy, so a host page on another local origin can load them.
+    for (const [origin, allowed] of [
+      ['http://localhost:3030', 'http://localhost:3030'],
+      ['https://elsewhere.example', null],
+    ] as const) {
+      const crossOrigin = await fetch(
+        new URL('/bundles/remoteEntry.js', app.address),
+        { headers: { origin } },
+      );
+      expect(crossOrigin.headers.get('access-control-allow-origin')).toBe(
+        allowed,
+      );
+      expect(crossOrigin.headers.get('vary')).toMatch(/origin/iu);
+    }
     const privateNames = compilation
       .getAssets()
       .map(asset => asset.name)

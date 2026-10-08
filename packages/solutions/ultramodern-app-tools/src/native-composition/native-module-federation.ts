@@ -491,6 +491,14 @@ export function createNativeSharedConfig(
   return result;
 }
 
+/** Whether a configuration exposes modules; an empty `exposes` is host-only. */
+export function exposesNativeModules(authored: FederationOptions): boolean {
+  const { exposes } = authored;
+  if (Array.isArray(exposes)) return exposes.length > 0;
+  if (record(exposes)) return Object.keys(exposes).length > 0;
+  return Boolean(exposes);
+}
+
 /**
  * Publish the server container beside the browser one, as the MF SSR snapshot
  * expects: the manifest's ssrRemoteEntry and ssrPublicPath name the Node
@@ -562,7 +570,7 @@ export function createNativeClientFederationOptions(
     // A host must start without contacting remotes it has not rendered yet.
     shareStrategy: authored.shareStrategy ?? 'loaded-first',
     manifest:
-      serverDirectory && authored.exposes !== undefined
+      serverDirectory && exposesNativeModules(authored)
         ? withNativeServerContainer(
             authored.manifest,
             serverDirectory,
@@ -927,7 +935,7 @@ export function nativeModuleFederationPlugin(
         // Client-only federation never publishes or consumes Node containers.
         if (!resolveNativeRendererAdapter(renderer).federation?.ssr)
           return false;
-        if (authored.exposes !== undefined) return true;
+        if (exposesNativeModules(authored)) return true;
         const { server } = api.getNormalizedConfig();
         return Boolean(
           server?.ssr ||
@@ -985,7 +993,7 @@ export function nativeModuleFederationPlugin(
         if (server) {
           if (
             api.getAppContext().command === 'dev' &&
-            authored.exposes !== undefined
+            exposesNativeModules(authored)
           )
             chain
               .plugin('ultramodern-federation-dev-assets')

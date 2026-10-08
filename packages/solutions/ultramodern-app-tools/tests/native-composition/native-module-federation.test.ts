@@ -517,6 +517,31 @@ export default { name, remotes: { remote: '${manifestRemote}' } };`,
   );
 
   it.each(nativeRenderers)(
+    '%s treats an empty exposes as a host without a server container',
+    renderer => {
+      for (const exposes of [{}, []])
+        expect(
+          createNativeClientFederationOptions(
+            renderer,
+            { name: 'host', exposes },
+            versions(renderer),
+            undefined,
+            'bundles',
+          ).manifest,
+        ).toBe(true);
+      expect(
+        createNativeClientFederationOptions(
+          renderer,
+          { name: 'remote', exposes: { './Widget': './src/Widget.tsx' } },
+          versions(renderer),
+          undefined,
+          'bundles',
+        ).manifest,
+      ).toMatchObject({ additionalData: expect.any(Function) });
+    },
+  );
+
+  it.each(nativeRenderers)(
     '%s publishes a Node container whose shares wait for the host scope',
     renderer => {
       const options = createNativeServerFederationOptions(
