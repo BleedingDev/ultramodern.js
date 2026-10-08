@@ -79,8 +79,9 @@ function isReusableDocument(
     document.identityKey === key &&
     Number.isFinite(document.storedAt) &&
     document.storedAt <= Date.now() &&
+    // RFC 9111 freshness needs the lifetime to exceed the unrounded age.
     (maxAgeSeconds === undefined ||
-      documentAgeSeconds(document) <= maxAgeSeconds) &&
+      Date.now() - document.storedAt < maxAgeSeconds * 1000) &&
     document.expiresAt > Date.now() &&
     document.status === 200 &&
     document.bytes instanceof Uint8Array &&
