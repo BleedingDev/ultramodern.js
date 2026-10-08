@@ -283,6 +283,25 @@ describe('native prerender output', () => {
     ).rejects.toThrow();
   });
 
+  it('rejects a file-style URL whose document has loader data', async () => {
+    await expect(
+      prerenderRoute({
+        route: { ...route, urlPath: '/guide.html', output: 'guide.html' },
+        entry: {} as never,
+        loaderRouteIds: ['page'],
+        distDirectory,
+        dispatch: async (_entry, request) =>
+          new URL(request.url).searchParams.has('__loader')
+            ? new Response('{}', {
+                headers: { 'content-type': DATA_CONTENT_TYPE },
+              })
+            : new Response('<html><head></head><body></body></html>', {
+                headers: { 'content-type': 'text/html; charset=utf-8' },
+              }),
+      }),
+    ).rejects.toThrow('needs a directory-style URL (for example /guide');
+  });
+
   it('fails the build when a document does not render', async () => {
     await expect(
       prerenderRoute({

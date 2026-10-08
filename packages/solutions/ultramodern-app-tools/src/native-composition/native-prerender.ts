@@ -370,6 +370,14 @@ export async function prerenderRoute(options: {
       await data.body?.cancel();
       continue;
     }
+    // Payloads live under the document URL's directory, which a file-style
+    // URL such as /guide.html does not have.
+    if (path.posix.extname(relativeRoutePath(route))) {
+      await data.body?.cancel();
+      throw new Error(
+        `Prerendered route ${route.urlPath} has loader data, so it needs a directory-style URL (for example ${route.urlPath.replace(/\.[^./]+$/u, '')} instead of ${route.urlPath})`,
+      );
+    }
     const payload: StaticDataPayload = {
       status: data.status,
       contentType: type,
