@@ -34,25 +34,24 @@ export const EFFECT_VERSION = '4.0.0';
 export const EFFECT_TSGO_VERSION = '0.47.2';
 export const TYPESCRIPT_STABLE_VERSION = '7.0.2';
 export const TYPESCRIPT_VERSION = TYPESCRIPT_STABLE_VERSION;
-export const OXLINT_VERSION = '1.85.0';
-export const OXFMT_VERSION = '0.70.0';
-export const ULTRACITE_VERSION = '7.12.0';
-export const CROSS_ENV_VERSION = '10.1.0';
-export const LEFTHOOK_VERSION = '^2.1.14';
+export const OXLINT_VERSION = '1.86.0';
+export const OXFMT_VERSION = '0.71.0';
+export const ULTRACITE_VERSION = '7.12.2';
+export const LEFTHOOK_VERSION = '2.1.17';
 export const I18NEXT_VERSION = '26.4.2';
 export const MODULE_FEDERATION_NODE_VERSION = '2.7.52';
 export const MINIFLARE_VERSION = '5.20260930.0-alpha';
 export const WORKERD_VERSION = '1.20260930.2';
 export const CLOUDFLARE_WORKERS_TYPES_VERSION = '5.20261001.1';
-export const NODE_FETCH_VERSION = '^3.3.2';
+export const NODE_FETCH_VERSION = '3.3.2';
 // Platform Baseline producer pins are exact (CONTEXT.md: "pinned platform-wide";
 // baseline reclassification MV-G16-R). Composition-time singletons like React
 // never float; the cohort advances centrally as an exact bump.
 export const REACT_VERSION = '19.3.0';
 export const REACT_DOM_VERSION = '19.3.0';
-export const TYPES_NODE_VERSION = '^26.6.3';
-export const TYPES_REACT_VERSION = '^19.3.0';
-export const TYPES_REACT_DOM_VERSION = '^19.3.0';
+export const TYPES_NODE_VERSION = '26.6.4';
+export const TYPES_REACT_VERSION = '19.3.0';
+export const TYPES_REACT_DOM_VERSION = '19.3.0';
 export const NODE_VERSION = '26.10.0';
 export const PNPM_VERSION = '12.8.1';
 

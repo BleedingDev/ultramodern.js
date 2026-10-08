@@ -90,8 +90,9 @@ pnpm --filter "./apps/shell-super-app" serve
 Run these as separate commands. Use the matching app directory in the filter
 to serve an added app.
 
-The generated toolchain pins Node `26.7.0`, pnpm `11.27.1`, and
-`@types/node@^26.6.2`; the generator requires Node `>=26.7.0` with pnpm `11+`.
+The generated toolchain pins Node `26.10.0`, pnpm `12.8.1`, and
+`@types/node@26.6.4`; the generator requires Node `>=26.10.0`, and generated
+workspaces declare an engine baseline of Node `>=26` with pnpm `12+`.
 `packageManager`, `.mise.toml`, generated validation, and CI should all agree
 on those values; do not reintroduce Corepack or older pnpm aliases.
 
