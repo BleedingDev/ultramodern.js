@@ -422,6 +422,35 @@ describe('static plugin Module Federation backend assets', () => {
       404,
     );
   });
+
+  it('publishes a root-relative SSR public path at the serving origin', async () => {
+    const pwd = await createTempDir();
+    await mkdir(path.join(pwd, 'bundles'), { recursive: true });
+    await writeFile(
+      path.join(pwd, 'mf-manifest.json'),
+      JSON.stringify({
+        metaData: {
+          publicPath: '/',
+          remoteEntry: { path: '', name: 'remoteEntry.js' },
+          ssrRemoteEntry: { path: '', name: 'remoteEntry.js' },
+          ssrPublicPath: '/bundles/',
+        },
+      }),
+    );
+    await writeFile(
+      path.join(pwd, 'bundles', 'remoteEntry.js'),
+      'module.exports = {};',
+    );
+
+    const server = await createStaticServer(pwd);
+    const manifest = await server.request('/mf-manifest.json');
+    expect(manifest.status).toBe(200);
+    expect((await manifest.json()).metaData).toMatchObject({
+      publicPath: 'http://localhost/',
+      ssrPublicPath: 'http://localhost/bundles/',
+    });
+    expect((await server.request('/bundles/remoteEntry.js')).status).toBe(200);
+  });
 });
 
 describe('static plugin generated public directory assets', () => {

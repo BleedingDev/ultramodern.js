@@ -250,9 +250,20 @@ export const patchModuleFederationManifestPublicPath = (
     const prefixPath = ensureTrailingSlash(
       ensureLeadingSlash(pathPrefix || '/'),
     );
+    const servedPublicPath = `${requestURL.origin}${prefixPath}`;
+    // A native remote publishes its Node container under the browser public
+    // path; a server-rendering host needs that path absolute too.
+    const { ssrPublicPath } = manifest.metaData ?? {};
     manifest.metaData = {
       ...manifest.metaData,
-      publicPath: `${requestURL.origin}${prefixPath}`,
+      publicPath: servedPublicPath,
+      ...(typeof ssrPublicPath === 'string' &&
+      !hasAbsoluteProtocol(ssrPublicPath) &&
+      ssrPublicPath.startsWith(publicPath)
+        ? {
+            ssrPublicPath: `${servedPublicPath}${ssrPublicPath.slice(publicPath.length).replace(/^\/+/u, '')}`,
+          }
+        : {}),
     };
 
     return Buffer.from(JSON.stringify(manifest), 'utf-8');
