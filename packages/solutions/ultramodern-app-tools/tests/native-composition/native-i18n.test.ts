@@ -81,6 +81,8 @@ describe('native i18nPlugin()', () => {
       ],
       [{ list: [1, Symbol('x')] }, 'initOptions.list.1'],
       [{ when: new Date(0) }, 'initOptions.when'],
+      // biome-ignore lint/suspicious/noSparseArray: the hole is the case under test.
+      [{ list: [1, , 3] }, 'initOptions.list.1'],
     ] as const)
       expect(() =>
         i18nPlugin({ localeDetection, initOptions: initOptions as never }),

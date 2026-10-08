@@ -149,6 +149,7 @@ describe('native prerender route selection', () => {
               '/about',
               '/health',
               '/cs/kontakt',
+              '/CS/velka',
               { url: '/feed', output: 'feed.html' },
             ],
           },
@@ -168,6 +169,7 @@ describe('native prerender route selection', () => {
       ['/cs/o-nas', path.join('html/index/cs/o-nas/index.html')],
       ['/health', path.join('html/index/health/index.html')],
       ['/cs/kontakt', path.join('html/index/cs/kontakt/index.html')],
+      ['/CS/velka', path.join('html/index/CS/velka/index.html')],
       ['/en/feed', path.join('en', 'feed.html')],
       ['/cs/feed', path.join('cs', 'feed.html')],
     ]);

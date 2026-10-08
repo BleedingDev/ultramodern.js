@@ -63,7 +63,7 @@ export interface NativeI18nPluginOptions {
 
 /**
  * The path of the first value JSON would drop or alter (a function, symbol,
- * `undefined`, non-finite number, non-plain object or cycle), if any.
+ * `undefined`, non-finite number, array hole, non-plain object or cycle).
  */
 function nonJsonPath(
   value: unknown,
@@ -82,6 +82,10 @@ function nonJsonPath(
     prototype !== null
   )
     return at;
+  // JSON turns an array hole into null, so a sparse array is altered too.
+  if (Array.isArray(value))
+    for (let index = 0; index < value.length; index++)
+      if (!(index in value)) return `${at}.${index}`;
   seen.add(value);
   for (const [key, item] of Object.entries(value)) {
     const path = nonJsonPath(item, `${at}.${key}`, seen);

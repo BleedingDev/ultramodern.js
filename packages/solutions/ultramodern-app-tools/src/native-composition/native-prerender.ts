@@ -249,9 +249,9 @@ export function localizePrerenderRoutes(
   const { languages, ignoreRedirectRoutes, localisedUrls } = i18n;
   return routes.flatMap(route => {
     const canonical = relativeRoutePath(route);
-    const first = canonical.split('/').filter(Boolean)[0];
+    const first = canonical.split('/').filter(Boolean)[0]?.toLowerCase();
     if (
-      (first && languages.includes(first)) ||
+      (first && languages.some(language => language.toLowerCase() === first)) ||
       shouldSkipLocaleRedirect(canonical, languages, ignoreRedirectRoutes)
     )
       return [route];
