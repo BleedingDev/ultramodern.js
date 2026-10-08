@@ -282,7 +282,16 @@ export function localizePrerenderRoutes(
 /** Mark the document so the data client replays static loader payloads. */
 export function markPrerenderedDocument(html: string): string {
   const marker = `<meta name="${PRERENDERED_DOCUMENT_META}" content="static-data">`;
-  const close = html.search(/<\/head\s*>/iu);
+  // Skip raw-text elements and comments: a `</head>` inside an inline
+  // script, style or comment is text, not the closing tag.
+  let close = -1;
+  for (const match of html.matchAll(
+    /<script\b[\s\S]*?<\/script\s*>|<style\b[\s\S]*?<\/style\s*>|<!--[\s\S]*?-->|<\/head\s*>/giu,
+  ))
+    if (/^<\/head/iu.test(match[0])) {
+      close = match.index;
+      break;
+    }
   if (close < 0)
     throw new Error('A prerendered native document requires a <head> element');
   return `${html.slice(0, close)}${marker}${html.slice(close)}`;
