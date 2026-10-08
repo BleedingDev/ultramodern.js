@@ -180,6 +180,10 @@ function captureDocument<Bindings extends object>(
   let total = 0;
   let canCapture = Number.isSafeInteger(maximum) && maximum > 0;
   let delivered!: Response;
+  // The renderer's own fields, before the host merges route and middleware
+  // headers into the returned response in place. A cache hit goes through
+  // the host again, so storing the merged wire fields would repeat them.
+  const nativeHeaders = responseHeaders(response.headers);
   const body = new ReadableStream<Uint8Array>(
     {
       async pull(controller) {
@@ -220,6 +224,7 @@ function captureDocument<Bindings extends object>(
               bytes.set(chunk, offset);
               offset += chunk.byteLength;
             }
+            // Final wire headers decide admission and lifetime only.
             const commit = async (headers: Headers | undefined) => {
               if (
                 !headers ||
@@ -257,7 +262,7 @@ function captureDocument<Bindings extends object>(
                   expiresAt: storedAt + lifetimeSeconds * 1000,
                   status: 200,
                   statusText: delivered.statusText,
-                  headers: responseHeaders(headers),
+                  headers: nativeHeaders,
                   bytes,
                 });
               } catch (error) {

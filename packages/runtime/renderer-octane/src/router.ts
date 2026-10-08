@@ -63,14 +63,18 @@ export function useApplicationRouteId(): string {
 }
 
 /**
- * Native actions follow a redirect as a navigation. A 307/308 asks to repeat
- * the mutation at another URL, which a navigation would silently turn into a
- * GET, so it fails instead.
+ * Native actions follow a redirect as a navigation, a GET. HTTP lets that
+ * happen for 303, and for 301/302 only after POST; any other redirect keeps
+ * the method and body, which a navigation would silently drop, so it fails.
  */
-function assertNavigableActionRedirect(status: number): void {
-  if (status === 307 || status === 308)
+function assertNavigableActionRedirect(status: number, method: string): void {
+  if (
+    status === 307 ||
+    status === 308 ||
+    ((status === 301 || status === 302) && method !== 'POST')
+  )
     throw new Error(
-      `A native action redirect must not preserve the method (HTTP ${status}); redirect with 303 to navigate after the mutation`,
+      `A native action redirect must not preserve the method (HTTP ${status} after ${method}); redirect with 303 to navigate after the mutation`,
     );
 }
 
@@ -108,7 +112,7 @@ export function createOctaneRouteAction(input: OctaneRouteActionOptions) {
     await outcome.completion;
     input.signal?.throwIfAborted();
     if (outcome.kind === 'redirect') {
-      assertNavigableActionRedirect(outcome.status);
+      assertNavigableActionRedirect(outcome.status, request.method);
       const resolved = input.router.resolveRedirect(
         redirect({
           href: new URL(outcome.location, request.url).href,

@@ -10,9 +10,14 @@ const identity = {
   buildId: 'action-build',
 } as const;
 
-test.each([307, 308])(
-  'a method-preserving %s action redirect fails instead of navigating',
-  async status => {
+test.each([
+  [307, 'POST'],
+  [308, 'POST'],
+  [302, 'PUT'],
+  [301, 'DELETE'],
+] as const)(
+  'a method-preserving %s action redirect after %s fails instead of navigating',
+  async (status, method) => {
     let navigated = false;
     const router = {
       latestLocation: { publicHref: '/products/42' },
@@ -29,6 +34,7 @@ test.each([307, 308])(
       router: router as never,
       routeId: 'product',
       identity,
+      method: method as 'POST' | 'PUT' | 'DELETE',
       fetch: async () =>
         createDataResponse(
           {
