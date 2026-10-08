@@ -63,8 +63,8 @@ export interface NativeI18nPluginOptions {
 
 /**
  * The path of the first value JSON would drop or alter (a function, symbol,
- * `undefined`, non-finite number, array hole, accessor, non-plain object or
- * cycle).
+ * `undefined`, non-finite number, array hole, accessor, symbol key,
+ * non-enumerable property, non-plain object or cycle).
  */
 function nonJsonPath(
   value: unknown,
@@ -87,15 +87,17 @@ function nonJsonPath(
   if (Array.isArray(value))
     for (let index = 0; index < value.length; index++)
       if (!(index in value)) return `${at}.${index}`;
+  // JSON silently drops symbol-keyed and non-enumerable properties.
+  if (Object.getOwnPropertySymbols(value).length) return `${at}[symbol]`;
   seen.add(value);
   // Read descriptors, never getters: an accessor could answer differently
   // when the module is emitted.
   for (const [key, descriptor] of Object.entries(
     Object.getOwnPropertyDescriptors(value),
   )) {
-    if (!descriptor.enumerable || (key === 'length' && Array.isArray(value)))
-      continue;
-    if (!('value' in descriptor)) return `${at}.${key}`;
+    if (key === 'length' && Array.isArray(value)) continue;
+    if (!descriptor.enumerable || !('value' in descriptor))
+      return `${at}.${key}`;
     const path = nonJsonPath(descriptor.value, `${at}.${key}`, seen);
     if (path) return path;
   }
