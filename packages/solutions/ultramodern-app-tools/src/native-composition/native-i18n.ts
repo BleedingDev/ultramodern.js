@@ -61,6 +61,36 @@ export interface NativeI18nPluginOptions {
   initOptions?: Record<string, unknown>;
 }
 
+/**
+ * The path of the first value JSON would drop or alter (a function, symbol,
+ * `undefined`, non-finite number, non-plain object or cycle), if any.
+ */
+function nonJsonPath(
+  value: unknown,
+  at: string,
+  seen = new Set<object>(),
+): string | undefined {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean')
+    return undefined;
+  if (typeof value === 'number') return Number.isFinite(value) ? undefined : at;
+  if (typeof value !== 'object') return at;
+  if (seen.has(value)) return at;
+  const prototype = Object.getPrototypeOf(value);
+  if (
+    !Array.isArray(value) &&
+    prototype !== Object.prototype &&
+    prototype !== null
+  )
+    return at;
+  seen.add(value);
+  for (const [key, item] of Object.entries(value)) {
+    const path = nonJsonPath(item, `${at}.${key}`, seen);
+    if (path) return path;
+  }
+  seen.delete(value);
+  return undefined;
+}
+
 export interface NativeI18nConfig {
   languages: string[];
   fallbackLanguage: string;
@@ -140,11 +170,11 @@ function resolveOptions(options: NativeI18nPluginOptions): NativeI18nConfig {
     throw new Error(
       `i18nPlugin() owns these i18next options; configure them through localeDetection/backend instead: ${owned.join(', ')}`,
     );
-  try {
-    JSON.stringify(initOptions);
-  } catch {
-    throw new Error('i18nPlugin() initOptions must be JSON-serializable');
-  }
+  const invalid = nonJsonPath(initOptions, 'initOptions');
+  if (invalid)
+    throw new Error(
+      `i18nPlugin() initOptions must be JSON-serializable; ${invalid} is not`,
+    );
   return {
     languages: [...languages],
     fallbackLanguage,

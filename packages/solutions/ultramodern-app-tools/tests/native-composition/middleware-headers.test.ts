@@ -1,4 +1,8 @@
-import { applyMiddlewareHeaders } from '../../src/native-composition/native-server-plugin';
+import type { ServerRoute } from '@modern-js/types/server';
+import {
+  applyMiddlewareHeaders,
+  matchNativeServerRoute,
+} from '../../src/native-composition/native-server-plugin';
 
 describe('native server middleware headers', () => {
   it('keeps cumulative CSP and Vary while middleware wins singleton fields', () => {
@@ -39,5 +43,27 @@ describe('native server middleware headers', () => {
       native,
     );
     expect(native.get('x-frame-options')).toBe('SAMEORIGIN');
+  });
+});
+
+describe('native server rewrite routes', () => {
+  const routes = [
+    { urlPath: '/', entryName: 'main', entryPath: 'main.html' },
+    { urlPath: '/admin', entryName: 'admin', entryPath: 'admin.html' },
+    { urlPath: '/api', entryName: 'main', entryPath: '', isApi: true },
+  ] as ServerRoute[];
+
+  it('matches the longest page route and honors a rewritten entry', () => {
+    expect(matchNativeServerRoute(routes, '/admin/users')?.entryName).toBe(
+      'admin',
+    );
+    expect(matchNativeServerRoute(routes, '/administrator')?.entryName).toBe(
+      'main',
+    );
+    expect(matchNativeServerRoute(routes, '/api/x')?.entryName).toBe('main');
+    expect(
+      matchNativeServerRoute(routes, '/admin/users', 'main')?.urlPath,
+    ).toBe('/');
+    expect(matchNativeServerRoute(routes, '/x', 'missing')).toBeUndefined();
   });
 });

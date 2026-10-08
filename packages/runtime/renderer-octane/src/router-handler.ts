@@ -44,10 +44,11 @@ function withAbort<T>(pending: Promise<T>, signal: AbortSignal): Promise<T> {
   });
 }
 
-/** Browsers enforce every CSP field, so nested matches add policies. */
+/** List fields that nested matches add to: CSP policies and timing metrics. */
 const CSP_HEADERS = new Set([
   'content-security-policy',
   'content-security-policy-report-only',
+  'server-timing',
 ]);
 
 /**

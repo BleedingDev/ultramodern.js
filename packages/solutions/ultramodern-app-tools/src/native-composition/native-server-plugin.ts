@@ -201,6 +201,26 @@ function makeRenderOptions(context: Context): RenderOptions {
   };
 }
 
+/**
+ * The server route a pathname renders through, as the React render matches
+ * rewrites: the longest page route prefix, limited to `entryName` when given.
+ */
+export function matchNativeServerRoute(
+  routes: readonly ServerRoute[],
+  pathname: string,
+  entryName?: string,
+): ServerRoute | undefined {
+  let best: ServerRoute | undefined;
+  for (const route of routes) {
+    if (route.isApi || !route.entryName) continue;
+    if (entryName && route.entryName !== entryName) continue;
+    const base = route.urlPath.replace(/\/$/u, '');
+    if (base && pathname !== base && !pathname.startsWith(`${base}/`)) continue;
+    if (!best || route.urlPath.length > best.urlPath.length) best = route;
+  }
+  return best;
+}
+
 const CSP_HEADERS = new Set([
   'content-security-policy',
   'content-security-policy-report-only',
@@ -512,12 +532,21 @@ export function nativeServerPlugin(
         ),
       onError: options.onError,
     });
+    // A middleware rewrite to another entry renders with that entry's route.
     const matchedRoute = requestOptions.serverContext?.get('route');
-    const selectedRoute = serverRoutes.find(
-      route =>
-        route.entryName === entryName &&
-        (!matchedRoute || route.urlPath === matchedRoute.urlPath),
-    );
+    const selectedRoute =
+      (matchedRoute?.entryName === entryName
+        ? serverRoutes.find(
+            route =>
+              route.entryName === entryName &&
+              route.urlPath === matchedRoute.urlPath,
+          )
+        : undefined) ??
+      matchNativeServerRoute(
+        serverRoutes,
+        requestOptions.matchPathname ?? new URL(request.url).pathname,
+        entryName,
+      );
     const routeHeaders = new Headers();
     for (const [name, value] of Object.entries(
       selectedRoute?.responseHeaders ?? {},
@@ -631,10 +660,20 @@ export function nativeServerPlugin(
               if (middleware.name !== 'render') continue;
               middleware.handler = async (context: Context, next: Next) => {
                 const route = context.get('route');
-                if (!route?.entryName || !entries[route.entryName])
-                  return next();
                 const renderOptions = makeRenderOptions(context);
-                renderOptions.matchEntryName = route.entryName;
+                // Keep a middleware rewrite (matchEntryName/matchPathname), as
+                // the React render does; otherwise render the mounted entry.
+                const entryName =
+                  renderOptions.matchEntryName ??
+                  (renderOptions.matchPathname
+                    ? matchNativeServerRoute(
+                        serverRoutes,
+                        renderOptions.matchPathname,
+                      )?.entryName
+                    : undefined) ??
+                  route?.entryName;
+                if (!entryName || !entries[entryName]) return next();
+                renderOptions.matchEntryName = entryName;
                 return bindContextResponse(
                   context,
                   await dispatch(context.req.raw, renderOptions),
