@@ -1,19 +1,16 @@
-import { createRequire } from 'node:module';
-import path from 'node:path';
 import { type AppTools, appTools, type CliPlugin } from '@modern-js/app-tools';
 import { createBuilderGenerator } from '@modern-js/app-tools/builder';
 import backendFederationBuildPlugin from '@modern-js/app-tools-extensions/backend-federation-build';
 import { createCloudflareBuilderPlugin } from '@modern-js/app-tools-extensions/cloudflare-builder';
-import { createDeployOutputAliasesPlugin } from '@modern-js/app-tools-extensions/deploy-output/plugin';
-import { resolveDeployTarget } from '@modern-js/app-tools-extensions/deploy-output/target';
 import {
-  RENDERER_EXTENSIONS_PACKAGE,
-  SERVER_EXTENSIONS_PLUGIN_NAME,
+  createDeployOutputAliasesPlugin,
+  createDeployOutputPublicAssetsPlugin,
+} from '@modern-js/app-tools-extensions/deploy-output/plugin';
+import {
+  createPolicyDefaultsPlugin,
+  type PolicyDefaultsOptions,
+  ULTRAMODERN_SERVER_EXTENSIONS_PLUGIN_NAME,
 } from '@modern-js/app-tools-extensions/policy-defaults';
-import {
-  collectRuntimePackageModuleDirectories,
-  createRuntimePackageResolutionPlugin,
-} from '@modern-js/app-tools-extensions/runtime-package-resolution';
 import { ultramodernI18nIntegrationPlugin } from '@modern-js/i18n-integration';
 import { runtimePlugin } from '@modern-js/runtime/cli';
 import { createRendererModuleFederationIntegration } from '../../native-composition/module-federation-renderer-plugin';
@@ -47,13 +44,13 @@ const headlessCloudflareWorkerPlugin = (): CliPlugin<AppTools> => ({
   setup(api) {
     api.onAfterBuild(async () => {
       const appContext = api.getAppContext();
-      const normalizedConfig = api.getNormalizedConfig();
       if (
         !appContext.apiOnly ||
-        resolveDeployTarget(normalizedConfig) !== 'cloudflare'
+        appContext.deployTarget.target !== 'cloudflare'
       ) {
         return;
       }
+      const normalizedConfig = api.getNormalizedConfig();
 
       // Native API-only builds intentionally skip their UI builder. Reuse the
       // same builder generator with the Cloudflare plugin's worker-only entry.
@@ -73,13 +70,28 @@ const headlessCloudflareWorkerPlugin = (): CliPlugin<AppTools> => ({
 
 /** Existing React composition, loaded only when React is selected. */
 export const composeReactRenderer = (
-  options: { consumerPlugins?: readonly CliPlugin<AppTools>[] } = {},
+  options: {
+    consumerPlugins?: readonly CliPlugin<AppTools>[];
+    policy?: PolicyDefaultsOptions;
+  } = {},
 ): CliPlugin<AppTools> => {
   const policy = options.policy ?? {};
   const federationRenderer = createRendererModuleFederationIntegration('react');
   const selected = [
     nativeEntryCommandPlugin(),
-    appTools(),
+    appTools({
+      ...policy,
+      rendererExtensions: false,
+      serverExtensions: false,
+    }),
+    // The fork's renderer and server policy belong to this composition, which
+    // also hosts the runtime packages it registers.
+    createPolicyDefaultsPlugin(policy, {
+      pluginName: '@modern-js/ultramodern-app-tools/policy-defaults',
+      serverPluginName: ULTRAMODERN_SERVER_EXTENSIONS_PLUGIN_NAME,
+      runtimePackages: ['@modern-js/i18n-integration'],
+      registrarUrl: import.meta.url,
+    }) as CliPlugin<AppTools>,
     rendererTypeCheckerPlugin('react'),
     runtimePlugin(),
     reactRendererBuildMetadataPlugin({
@@ -99,6 +111,7 @@ export const composeReactRenderer = (
     createReactRscWorkerIntegrationPlugin(),
     headlessCloudflareWorkerPlugin(),
     createDeployOutputAliasesPlugin(),
+    createDeployOutputPublicAssetsPlugin(),
     ultramodernReleaseEnvelopePlugin(),
   ];
   return {
@@ -108,21 +121,9 @@ export const composeReactRenderer = (
       ...selected,
     ],
     setup(api) {
-      // The composed runtime packages are dependencies of this package, not of
-      // the app that composes it. Contribute the directories that host them so
-      // the generated `runtime-register.js` resolves them under an isolated
-      // (pnpm) linker without the app having to declare them itself.
-      const runtimeModuleDirectories = collectRuntimePackageModuleDirectories(
-        [RENDERER_EXTENSIONS_PACKAGE, '@modern-js/i18n-integration'],
-        import.meta.url,
-      );
-
       api.modifyResolvedConfig(config => {
         const builderPlugins = [
           ...(config.builderPlugins ?? []),
-          ...(runtimeModuleDirectories.length > 0
-            ? [createRuntimePackageResolutionPlugin(runtimeModuleDirectories)]
-            : []),
           ...(config.server?.rsc ? [] : [rscDisabledRuntimePlugin()]),
         ];
         return { ...config, builderPlugins };

@@ -26,13 +26,10 @@ type TsgoConfig = {
   references?: Array<{ path: string }>;
 };
 
-type NativePreviewPackageJson = {
-  bin?:
-    | string
-    | {
-        tsc?: string;
-        tsgo?: string;
-      };
+type TypeScriptPackageJson = {
+  name?: string;
+  version?: string;
+  bin?: { tsc?: string };
 };
 
 // Distinguishes concurrent compiles within the same process (plugin-bff and
@@ -184,58 +181,56 @@ export const runTsgo = (
     },
   );
 
-const getTsgoBinEntry = (pkg: NativePreviewPackageJson) => {
-  if (typeof pkg.bin === 'string') {
-    return pkg.bin;
+// Resolve the stable compiler from the app first, then this package's declared
+// production dependency. The `resolvePaths` parameter exists for tests.
+const resolveTypeScriptPackage = (resolvePaths: string[]) => {
+  try {
+    return require.resolve('typescript/package.json', { paths: resolvePaths });
+  } catch {
+    throw new Error(
+      'TypeScript 7.0.2 could not be found! Please install "typescript@7.0.2" in your project to type-check BFF/server code.',
+    );
   }
-  return pkg.bin?.tsc ?? pkg.bin?.tsgo;
-};
-
-const TSGO_PACKAGES = ['@typescript/native', '@typescript/native-preview'];
-
-// Resolve the TS-Go package from the app first (so apps control the compiler
-// version), then from this package's own dependency tree (covering hoisted
-// installs). The `resolvePaths` parameter exists for tests.
-const resolveTsgoPackage = (resolvePaths: string[]) => {
-  for (const name of TSGO_PACKAGES) {
-    try {
-      const pkgPath = require.resolve(`${name}/package.json`, {
-        paths: resolvePaths,
-      });
-      return { name, pkgPath };
-    } catch {}
-  }
-  throw new Error(
-    'tsgo could not be found! Please install "@typescript/native" (or legacy "@typescript/native-preview") in your project to type-check BFF/server code.',
-  );
 };
 
 export const getTsgoBinPath = (
   appDirectory: string,
   resolvePaths: string[] = [appDirectory, __dirname],
 ) => {
-  const { pkgPath } = resolveTsgoPackage(resolvePaths);
+  const pkgPath = resolveTypeScriptPackage(resolvePaths);
   const pkgDir = path.dirname(pkgPath);
-  const pkg = require(pkgPath) as NativePreviewPackageJson;
-  const declaredBinEntry = getTsgoBinEntry(pkg);
-  const candidates = [
-    declaredBinEntry ? path.resolve(pkgDir, declaredBinEntry) : undefined,
-    path.join(pkgDir, 'bin/tsgo.js'),
-  ].filter((candidate): candidate is string => Boolean(candidate));
-
-  return (
-    candidates.find(candidate => fs.existsSync(candidate)) ?? candidates[0]
-  );
+  const pkg: TypeScriptPackageJson = require(pkgPath);
+  if (pkg.name !== 'typescript' || pkg.version !== '7.0.2') {
+    throw new Error(
+      `Server compilation requires typescript@7.0.2; found ${pkg.name ?? 'unnamed package'}@${pkg.version ?? 'unknown version'} at ${pkgPath}.`,
+    );
+  }
+  if (typeof pkg.bin?.tsc !== 'string' || !pkg.bin.tsc) {
+    throw new Error(`typescript@7.0.2 declares no tsc executable: ${pkgPath}.`);
+  }
+  const binPath = path.resolve(pkgDir, pkg.bin.tsc);
+  const relativeBinPath = path.relative(pkgDir, binPath);
+  if (
+    relativeBinPath.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relativeBinPath) ||
+    !fs.existsSync(binPath) ||
+    !fs.statSync(binPath).isFile()
+  ) {
+    throw new Error(
+      `typescript@7.0.2 declared tsc executable is missing or outside its package: ${binPath}.`,
+    );
+  }
+  return binPath;
 };
 
 /**
- * The TS-Go package entry that Rslib's declaration emitter loads to read the
+ * The TypeScript 7 package entry that Rslib's declaration emitter loads to read the
  * compiler version and locate its executable.
  */
 export const getTsgoModulePath = (
   appDirectory: string,
   resolvePaths: string[] = [appDirectory, __dirname],
 ) => {
-  const { name } = resolveTsgoPackage(resolvePaths);
-  return require.resolve(name, { paths: resolvePaths });
+  resolveTypeScriptPackage(resolvePaths);
+  return require.resolve('typescript', { paths: resolvePaths });
 };

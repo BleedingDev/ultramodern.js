@@ -254,7 +254,9 @@ export function assertCapturedRenderer(
       ))
   )
     reject('Module Federation application SSR');
-  const deployTarget = resolveDeployTarget(config);
+  const deployTarget = resolveDeployTarget({
+    configTarget: config.deploy?.target,
+  }).target;
   if (
     !capabilities.worker &&
     (config.deploy?.worker?.ssr || deployTarget !== 'node')

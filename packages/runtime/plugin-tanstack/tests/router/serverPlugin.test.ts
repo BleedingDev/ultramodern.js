@@ -1,7 +1,11 @@
 import { runtime } from '@modern-js/plugin/runtime';
 import type { TInternalRuntimeContext } from '@modern-js/runtime/context';
 import * as runtimeContext from '@modern-js/runtime/context';
-import { routerProviderRegistryHooks } from '@modern-js/runtime/context';
+import {
+  routerProviderRegistryHooks,
+  setGlobalContext,
+  setGlobalInternalRuntimeContext,
+} from '@modern-js/runtime/context';
 import { storage } from '@modern-js/runtime-utils/node';
 import {
   type AnyRouter,
@@ -13,11 +17,6 @@ import { renderToString } from 'react-dom/server';
 import { routerStatePlugin } from '../../../../solutions/ultramodern-app-tools/src/renderers/react/router-state-runtime';
 import type { ResponseProxy } from '../../../plugin-runtime/src/core/server/requestHandler';
 import { SSRErrors } from '../../../plugin-runtime/src/core/server/tracer';
-import {
-  finalizeRenderResponse,
-  type ResponseProxy,
-} from '../../../plugin-runtime/src/core/server/requestResponse';
-import { createRouterCleanup } from '../../../plugin-runtime/src/core/server/routerCleanup';
 import {
   getRouterRuntimeState,
   getRouterServerSnapshot,
@@ -219,40 +218,38 @@ describe('TanStack Flight response protocol', () => {
     { enableRsc: true, tree: '', action: false, expected: false },
     { enableRsc: true, tree: 'false', action: false, expected: false },
     { enableRsc: true, tree: undefined, action: true, expected: false },
-  ])('sets Flight MIME only for native tree navigation: $enableRsc/$tree/$action', async ({
-    enableRsc,
-    tree,
-    action,
-    expected,
-  }) => {
-    rstest
-      .spyOn(runtimeContext, 'getGlobalEnableRsc')
-      .mockReturnValue(enableRsc);
-    const headers = new Headers();
-    if (tree !== undefined) headers.set('x-rsc-tree', tree);
-    if (action) headers.set('x-rsc-action', 'compiled-action');
-    const { context, setHeader, responseProxy } = createServerContext('/', {
-      headers,
-      method: action ? 'POST' : 'GET',
-    });
-    const beforeRender = collectBeforeRender(() => [
-      { id: 'root', path: '/', Component: () => null },
-    ]);
+  ])(
+    'sets Flight MIME only for native tree navigation: $enableRsc/$tree/$action',
+    async ({ enableRsc, tree, action, expected }) => {
+      rstest
+        .spyOn(runtimeContext, 'getGlobalEnableRsc')
+        .mockReturnValue(enableRsc);
+      const headers = new Headers();
+      if (tree !== undefined) headers.set('x-rsc-tree', tree);
+      if (action) headers.set('x-rsc-action', 'compiled-action');
+      const { context, setHeader, responseProxy } = createServerContext('/', {
+        headers,
+        method: action ? 'POST' : 'GET',
+      });
+      const beforeRender = collectBeforeRender(() => [
+        { id: 'root', path: '/', Component: () => null },
+      ]);
 
-    await storage.run({ responseProxy }, () =>
-      beforeRender(context, value => value),
-    );
-
-    if (expected) {
-      expect(setHeader).toHaveBeenCalledExactlyOnceWith(
-        'Content-Type',
-        'text/x-component',
+      await storage.run({ responseProxy }, () =>
+        beforeRender(context, value => value),
       );
-    } else {
-      expect(setHeader).not.toHaveBeenCalled();
-    }
-    await getRouterRuntimeState(context)?.cleanup?.();
-  });
+
+      if (expected) {
+        expect(setHeader).toHaveBeenCalledExactlyOnceWith(
+          'Content-Type',
+          'text/x-component',
+        );
+      } else {
+        expect(setHeader).not.toHaveBeenCalled();
+      }
+      await getRouterRuntimeState(context)?.cleanup?.();
+    },
+  );
 
   test('preserves native RSC redirects without declaring a Flight body', async () => {
     rstest.spyOn(runtimeContext, 'getGlobalEnableRsc').mockReturnValue(true);
@@ -297,76 +294,85 @@ describe('TanStack Flight response protocol', () => {
     await getRouterRuntimeState(context)?.cleanup?.();
   });
 
-  test.each([
-    'eof',
-    'cancel',
-  ] as const)('native finalization preserves Flight headers, status and streamed %s', async terminal => {
-    rstest.spyOn(runtimeContext, 'getGlobalEnableRsc').mockReturnValue(true);
-    const beforeRender = collectBeforeRender(() => [
-      { id: 'root', path: '/', Component: () => null },
-    ]);
-    const { context, responseProxy } = createServerContext('/', {
-      headers: { 'x-rsc-tree': 'true' },
-    });
-    await storage.run({ responseProxy }, () =>
-      beforeRender(context, value => value),
-    );
-    const router = getRouterRuntimeState(context)!.instance as AnyRouter;
-    const cleanup = rstest.spyOn(router.serverSsr!, 'cleanup');
-    const onError = rstest.fn();
-    const cancel = rstest.fn();
-    let controller!: ReadableStreamDefaultController<Uint8Array>;
-    const body = new ReadableStream<Uint8Array>({
-      start(nextController) {
-        controller = nextController;
-      },
-      cancel,
-    });
-    context.ssrContext!.response.setHeader('X-Consumer-Header', 'kept');
-    context.ssrContext!.response.status(202);
-    const response = await finalizeRenderResponse(
-      new Response(body, {
-        status: 200,
-        headers: { 'Cache-Control': 'private, no-store' },
-      }),
-      responseProxy,
-      { enableRsc: true, isRSCNavigation: true, basename: '/' },
-      createRouterCleanup(context, onError),
-    );
+  test.each(['eof', 'cancel'] as const)(
+    'native finalization preserves Flight headers, status and streamed %s',
+    async terminal => {
+      rstest.spyOn(runtimeContext, 'getGlobalEnableRsc').mockReturnValue(true);
+      const beforeRender = collectBeforeRender(() => [
+        { id: 'root', path: '/', Component: () => null },
+      ]);
+      const { context, responseProxy } = createServerContext('/', {
+        headers: { 'x-rsc-tree': 'true' },
+      });
+      await storage.run({ responseProxy }, () =>
+        beforeRender(context, value => value),
+      );
+      const router = getRouterRuntimeState(context)!.instance as AnyRouter;
+      const cleanup = rstest.spyOn(router.serverSsr!, 'cleanup');
+      const onError = rstest.fn();
+      const cancel = rstest.fn();
+      let controller!: ReadableStreamDefaultController<Uint8Array>;
+      const body = new ReadableStream<Uint8Array>({
+        start(nextController) {
+          controller = nextController;
+        },
+        cancel,
+      });
+      context.ssrContext!.response.setHeader('X-Consumer-Header', 'kept');
+      context.ssrContext!.response.status(202);
+      const { createRequestLifecycle, finalizeRenderResponse } = await import(
+        '../../../plugin-runtime/src/core/server/requestHandler'
+      );
+      const response = await finalizeRenderResponse(
+        new Response(body, {
+          status: 200,
+          headers: { 'Cache-Control': 'private, no-store' },
+        }),
+        responseProxy,
+        { enableRsc: true, isRSCNavigation: true, basename: '/' },
+        createRequestLifecycle(
+          () => getRouterRuntimeState(context)?.cleanup?.(),
+          onError,
+        ),
+      );
 
-    expect(response.status).toBe(202);
-    expect(response.headers.get('Content-Type')).toBe('text/x-component');
-    expect(response.headers.get('X-Consumer-Header')).toBe('kept');
-    expect(response.headers.get('Cache-Control')).toBe('private, no-store');
-    expect(response.bodyUsed).toBe(false);
-    expect(cleanup).not.toHaveBeenCalled();
-    const reader = response.body!.getReader();
-    const first = new TextEncoder().encode('0:{"type":"render"}\n');
-    controller.enqueue(first);
-    await expect(reader.read()).resolves.toEqual({ done: false, value: first });
-    expect(cleanup).not.toHaveBeenCalled();
-    if (terminal === 'eof') {
-      const tail = new TextEncoder().encode('1:"server tree"\n');
-      controller.enqueue(tail);
-      controller.close();
+      expect(response.status).toBe(202);
+      expect(response.headers.get('Content-Type')).toBe('text/x-component');
+      expect(response.headers.get('X-Consumer-Header')).toBe('kept');
+      expect(response.headers.get('Cache-Control')).toBe('private, no-store');
+      expect(response.bodyUsed).toBe(false);
+      expect(cleanup).not.toHaveBeenCalled();
+      const reader = response.body!.getReader();
+      const first = new TextEncoder().encode('0:{"type":"render"}\n');
+      controller.enqueue(first);
       await expect(reader.read()).resolves.toEqual({
         done: false,
-        value: tail,
+        value: first,
       });
-      await expect(reader.read()).resolves.toEqual({
-        done: true,
-        value: undefined,
-      });
-      expect(cancel).not.toHaveBeenCalled();
-    } else {
-      await reader.cancel('client disconnected');
-      expect(cancel).toHaveBeenCalledExactlyOnceWith('client disconnected');
-    }
-    expect(cleanup).toHaveBeenCalledTimes(1);
-    await getRouterRuntimeState(context)?.cleanup?.();
-    expect(cleanup).toHaveBeenCalledTimes(1);
-    expect(onError).not.toHaveBeenCalled();
-  });
+      expect(cleanup).not.toHaveBeenCalled();
+      if (terminal === 'eof') {
+        const tail = new TextEncoder().encode('1:"server tree"\n');
+        controller.enqueue(tail);
+        controller.close();
+        await expect(reader.read()).resolves.toEqual({
+          done: false,
+          value: tail,
+        });
+        await expect(reader.read()).resolves.toEqual({
+          done: true,
+          value: undefined,
+        });
+        expect(cancel).not.toHaveBeenCalled();
+      } else {
+        await reader.cancel('client disconnected');
+        expect(cancel).toHaveBeenCalledExactlyOnceWith('client disconnected');
+      }
+      expect(cleanup).toHaveBeenCalledTimes(1);
+      await getRouterRuntimeState(context)?.cleanup?.();
+      expect(cleanup).toHaveBeenCalledTimes(1);
+      expect(onError).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe('TanStack preparation resource lifetime', () => {

@@ -62,14 +62,15 @@ function createEnvelopeFixture(
     uiEnabled = true,
     apiEnabled = true,
     target = 'node',
+    appId = 'catalog',
     buildMarker = '0123456789abcdef',
+    identity = createIdentity('a'.repeat(40), buildMarker),
   } = {},
 ) {
-  const identity = createIdentity('a'.repeat(40), buildMarker);
   const ui = {
     rendererIdentity: {
       renderer: 'react',
-      appId: 'catalog',
+      appId,
       entryName: 'main',
       protocolVersion: 1,
       buildId: identity.buildMarker,
@@ -81,9 +82,9 @@ function createEnvelopeFixture(
       hydration: { name: 'react-dom', version: '19.3.0' },
       router: {
         name: '@tanstack/react-router',
-        version: '1.170.39',
+        version: '1.170.41',
         coreName: '@tanstack/router-core',
-        coreVersion: '1.171.32',
+        coreVersion: '1.171.34',
       },
     },
   };
@@ -102,7 +103,7 @@ function createEnvelopeFixture(
     buildMarker: identity.buildMarker,
     deployProfile: 'cloudflare-ssr-mf-effect-v1',
     kind: 'microvertical-delivery-unit',
-    packageName: '@fixture/catalog',
+    packageName: `@fixture/${appId}`,
     schemaVersion: 1,
     sourceRevision: identity.sourceRevision,
     unitId: identity.unitId,
@@ -791,14 +792,14 @@ test('operational proof fails when the sibling differs from its C0 build snapsho
 
   const outputOf = appPath => path.join(root, appPath, '.output');
   writeFile(root, 'apps/shell/.output/index.js', 'served');
-  createEnvelopeFixture(
-    outputOf('verticals/catalog'),
-    createIdentity(c0, '1111111111111111'),
-  );
-  createEnvelopeFixture(
-    outputOf('verticals/checkout'),
-    createIdentity(c0, '2222222222222222'),
-  );
+  createEnvelopeFixture(outputOf('verticals/catalog'), {
+    appId: 'catalog',
+    identity: createIdentity(c0, '1111111111111111'),
+  });
+  createEnvelopeFixture(outputOf('verticals/checkout'), {
+    appId: 'checkout',
+    identity: createIdentity(c0, '2222222222222222'),
+  });
   const ids = { shell: 'shell', changed: 'catalog', sibling: 'checkout' };
   const baseline = captureOperationalBaseline({
     workspace: root,
@@ -808,10 +809,10 @@ test('operational proof fails when the sibling differs from its C0 build snapsho
 
   // A sibling rebuilt after the snapshot: valid envelope, different bytes.
   fs.rmSync(outputOf('verticals/checkout'), { recursive: true });
-  createEnvelopeFixture(
-    outputOf('verticals/checkout'),
-    createIdentity(c0, '3333333333333333'),
-  );
+  createEnvelopeFixture(outputOf('verticals/checkout'), {
+    appId: 'checkout',
+    identity: createIdentity(c0, '3333333333333333'),
+  });
 
   writeFile(root, 'verticals/catalog/api.ts', 'export const title = "C1";');
   gitIn(root, ['add', '--all']);
@@ -828,10 +829,10 @@ test('operational proof fails when the sibling differs from its C0 build snapsho
       expectedUiValue: 'C1 UI',
       run: (command, args) => {
         builds.push([command, ...args].join(' '));
-        createEnvelopeFixture(
-          outputOf('verticals/catalog'),
-          createIdentity(c1, '4444444444444444'),
-        );
+        createEnvelopeFixture(outputOf('verticals/catalog'), {
+          appId: 'catalog',
+          identity: createIdentity(c1, '4444444444444444'),
+        });
       },
     }),
     /node checkout final output bytes changed unexpectedly/,

@@ -215,9 +215,9 @@ function operationalEvidence(options) {
       hydration: { name: 'react-dom', version: '19.3.0' },
       router: {
         name: '@tanstack/react-router',
-        version: '1.170.39',
+        version: '1.170.41',
         coreName: '@tanstack/router-core',
-        coreVersion: '1.171.32',
+        coreVersion: '1.171.34',
       },
     },
     routerBindings: {
@@ -227,17 +227,17 @@ function operationalEvidence(options) {
         defaultProvider: {
           framework: 'tanstack',
           name: '@tanstack/react-router',
-          version: '1.170.39',
+          version: '1.170.41',
           coreName: '@tanstack/router-core',
-          coreVersion: '1.171.32',
+          coreVersion: '1.171.34',
         },
         providers: [
           {
             framework: 'tanstack',
             name: '@tanstack/react-router',
-            version: '1.170.39',
+            version: '1.170.41',
             coreName: '@tanstack/router-core',
-            coreVersion: '1.171.32',
+            coreVersion: '1.171.34',
           },
         ],
       },

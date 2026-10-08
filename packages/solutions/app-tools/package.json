@@ -168,14 +168,20 @@
     "@rslib/core": "1.0.3",
     "@scripts/rstest-config": "workspace:*",
     "@types/babel__traverse": "7.28.0",
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.3",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
     "typescript": "7.0.2",
     "@loadable/component": "5.16.7"
   },
   "peerDependencies": {
+    "@loadable/component": "5.16.7",
     "react": "^19.2.8"
   },
   "peerDependenciesMeta": {
+    "@loadable/component": {
+      "optional": true
+    },
     "react": {
       "optional": true
     }
@@ -185,13 +191,5 @@
     "registry": "https://registry.npmjs.org/",
     "access": "public",
     "types": "./dist/types/index.d.ts"
-  },
-  "peerDependencies": {
-    "@loadable/component": "5.16.7"
-  },
-  "peerDependenciesMeta": {
-    "@loadable/component": {
-      "optional": true
-    }
   }
 }

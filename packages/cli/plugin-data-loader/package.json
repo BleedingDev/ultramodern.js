@@ -62,7 +62,7 @@
     "@scripts/rstest-config": "workspace:*",
     "@types/node": "^26.6.3",
     "@types/supertest": "^7.2.1",
-    "memfs": "^4.79.0",
+    "memfs": "^4.80.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "server-only": "^0.0.1",

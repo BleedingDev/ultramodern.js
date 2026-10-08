@@ -63,7 +63,6 @@ const JS_OR_TS_EXTENSIONS = new Set([
 
 export interface CloudflareBuilderNormalizedConfig {
   bff?: BffUserConfig;
-  deploy?: { target?: string };
   server?: { rsc?: unknown };
 }
 
@@ -853,6 +852,7 @@ const createCloudflareBundlerChain = (
 
   return chain => {
     applyCloudflareWorkerRspackConfig(chain, entryNames);
+    removeCloudflareWorkerDataLoaderClientTransform(chain);
     // Native RSC manifests belong to each entry's runtime. A shared runtime
     // can replace the page's client references with a loader-only manifest.
     if (rscEnabled) chain.optimization.runtimeChunk(false);
@@ -890,35 +890,15 @@ const createCloudflareBundlerChain = (
       .plugin('cloudflare-worker-absent-optional-dependencies')
       .use(AbsentOptionalDependencyPlugin);
 
-    applyCloudflareWorkerMfRuntimeBoundary(chain);
-    if (tanstackRouterSsrServerFile) {
-      chain.resolve.alias.set(
-        '@tanstack/router-core/ssr/server$',
-        tanstackRouterSsrServerFile,
-      );
-      chain.resolve.alias.set(
-        '@tanstack/router-core/ssr/server',
-        tanstackRouterSsrServerFile,
-      );
-    }
-    if (runtimeRscWorkerFile) {
-      chain.resolve.alias.set(
-        '@modern-js/runtime/rsc/server$',
-        runtimeRscWorkerFile,
-      );
-      chain.resolve.alias.set(
-        '@modern-js/runtime/rsc/server',
-        runtimeRscWorkerFile,
-      );
-    }
-    if (renderRscWorkerFile) {
-      chain.resolve.alias.set('@modern-js/render/rsc$', renderRscWorkerFile);
-      chain.resolve.alias.set('@modern-js/render/rsc', renderRscWorkerFile);
-      chain.resolve.alias.set(
-        '@modern-js/render/rsc-worker$',
-        renderRscWorkerFile,
-      );
-    }
+    // The worker environment still uses the web target, so
+    // @module-federation/modern-js-v3 registers its browser federation plugin
+    // on it; Cloudflare workers load no native remotes. The `worker` export
+    // condition keeps MF's SSR runtime plugins out of the bundle
+    // (module-federation/core#5155). This deletion goes with the web-worker
+    // target, which needs @rsbuild/core 2.2.10 (web-infra-dev/rsbuild#8557).
+    // RSC entries resolve `@modern-js/render/rsc` and React through the
+    // `workerd`/`worker` export conditions instead of pinned files.
+    chain.plugins.delete('plugin-module-federation');
     if (!rscEnabled) {
       setAliasIfPresent(chain.resolve.alias, 'react$', reactFile);
       setAliasIfPresent(

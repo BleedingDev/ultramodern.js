@@ -38,10 +38,7 @@ import {
   createGenerationResult,
   diffFileSnapshots,
 } from './generation-result';
-import {
-  createAppModernConfig,
-  createUltramodernBuildArtifactJson,
-} from './module-federation';
+import { createUltramodernBuildArtifactJson } from './module-federation';
 import {
   assertUniqueTailwindPrefixes,
   packageName,
@@ -307,7 +304,7 @@ async function executeAddUltramodernShell(
   ];
   const { io: ownedIo } = preserveConsumerWorkspaceArtifacts(
     options.workspaceRoot,
-    workspaceArtifactCandidates(scope, previousApps, enableTailwind),
+    workspaceArtifactCandidates(scope, previousApps),
   );
 
   writeApp(

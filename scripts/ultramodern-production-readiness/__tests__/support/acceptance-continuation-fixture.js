@@ -125,9 +125,9 @@ async function createAcceptanceContinuationFixture({
     const provider = {
       framework: 'tanstack',
       name: '@tanstack/react-router',
-      version: '1.170.39',
+      version: '1.170.41',
       coreName: '@tanstack/router-core',
-      coreVersion: '1.171.32',
+      coreVersion: '1.171.34',
     };
     const routerBindings = {
       main: {

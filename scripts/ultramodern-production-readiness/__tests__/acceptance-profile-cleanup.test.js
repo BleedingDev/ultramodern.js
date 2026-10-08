@@ -149,6 +149,7 @@ test('retains a caller-owned workspace and its outputs on failure', async () => 
         options,
         outPath: path.join(callerRoot, 'receipt.json'),
         runIdentity: 'test:acceptance-caller-owned-failure',
+        releaseAgePolicyPath,
         workDir,
         runImpl() {
           fs.mkdirSync(path.dirname(deployedEntry), { recursive: true });

@@ -37,23 +37,23 @@ describe('getTsgoBinPath', () => {
     expect(getTsgoBinPath(tmpDir)).toBe(path.join(pkgDir, 'bin/tsc'));
   });
 
-  it.each([
-    '@typescript/native-preview',
-    '@typescript/native',
-  ])('does not select %s instead of the canonical stable package', async name => {
-    const pkgDir = path.join(tmpDir, 'node_modules', name);
-    await fs.outputJSON(path.join(pkgDir, 'package.json'), {
-      name: 'typescript',
-      version: '7.0.2',
-      exports: { './package.json': './package.json' },
-      bin: { tsc: './bin/tsc' },
-    });
-    await fs.outputFile(path.join(pkgDir, 'bin/tsc'), '// stub\n');
+  it.each(['@typescript/native-preview', '@typescript/native'])(
+    'does not select %s instead of the canonical stable package',
+    async name => {
+      const pkgDir = path.join(tmpDir, 'node_modules', name);
+      await fs.outputJSON(path.join(pkgDir, 'package.json'), {
+        name: 'typescript',
+        version: '7.0.2',
+        exports: { './package.json': './package.json' },
+        bin: { tsc: './bin/tsc' },
+      });
+      await fs.outputFile(path.join(pkgDir, 'bin/tsc'), '// stub\n');
 
-    expect(() => getTsgoBinPath(tmpDir, [tmpDir])).toThrow(
-      'Please install "typescript@7.0.2"',
-    );
-  });
+      expect(() => getTsgoBinPath(tmpDir, [tmpDir])).toThrow(
+        'Please install "typescript@7.0.2"',
+      );
+    },
+  );
 
   it('uses the declared stable production compiler when the app has none', () => {
     const binPath = getTsgoBinPath(tmpDir);
@@ -66,23 +66,22 @@ describe('getTsgoBinPath', () => {
     expect(fs.existsSync(binPath)).toBe(true);
   });
 
-  it.each([
-    '5.9.3',
-    '6.0.2',
-    '7.0.0-dev.20260707.2',
-  ])('rejects an app-local incompatible compiler %s without falling back', async version => {
-    const pkgDir = path.join(tmpDir, 'node_modules/typescript');
-    await fs.outputJSON(path.join(pkgDir, 'package.json'), {
-      name: 'typescript',
-      version,
-      bin: { tsc: './bin/tsc' },
-    });
-    await fs.outputFile(path.join(pkgDir, 'bin/tsc'), '// stub\n');
+  it.each(['5.9.3', '6.0.2', '7.0.0-dev.20260707.2'])(
+    'rejects an app-local incompatible compiler %s without falling back',
+    async version => {
+      const pkgDir = path.join(tmpDir, 'node_modules/typescript');
+      await fs.outputJSON(path.join(pkgDir, 'package.json'), {
+        name: 'typescript',
+        version,
+        bin: { tsc: './bin/tsc' },
+      });
+      await fs.outputFile(path.join(pkgDir, 'bin/tsc'), '// stub\n');
 
-    expect(() => getTsgoBinPath(tmpDir)).toThrow(
-      `requires typescript@7.0.2; found typescript@${version}`,
-    );
-  });
+      expect(() => getTsgoBinPath(tmpDir)).toThrow(
+        `requires typescript@7.0.2; found typescript@${version}`,
+      );
+    },
+  );
 
   it('does not guess an undeclared compiler launcher', async () => {
     const pkgDir = path.join(tmpDir, 'node_modules/typescript');

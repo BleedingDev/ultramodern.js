@@ -42,7 +42,13 @@ export async function runRoutesGenerate(
   ultramodern-create ultramodern routes-generate [--app <id>] [--manifest-only]
 
 Regenerates routes and entries through each application's configured renderer
-without running dev or build.
+without running dev or build. React apps also regenerate
+src/routes/ultramodern-route-metadata.ts from their route.meta.ts files.
+Without --app, every generated workspace app with a UI is regenerated.
+
+--manifest-only writes only the route metadata manifest. It never loads the
+app config, so app dev and build scripts run it before \`ultramodern dev\` and
+\`ultramodern build\`, which regenerate the router artifacts themselves.
 `);
     return 0;
   }

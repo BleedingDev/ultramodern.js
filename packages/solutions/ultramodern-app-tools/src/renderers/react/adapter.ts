@@ -12,6 +12,7 @@ import { reactProfile } from './profile';
 
 function compose(
   consumerPlugins: readonly CliPlugin<AppTools>[],
+  policy?: PolicyDefaultsOptions,
 ): CliPlugin<AppTools> {
   let directory = path.dirname(fileURLToPath(import.meta.url));
   for (;;) {

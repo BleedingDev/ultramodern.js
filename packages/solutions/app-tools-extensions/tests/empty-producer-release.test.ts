@@ -8,8 +8,9 @@ import {
   DELIVERY_UNIT_KIND,
   DELIVERY_UNIT_SCHEMA_VERSION,
   isUltramodernBuildArtifact,
+  stampUltramodernBuildArtifactIdentity,
 } from '@modern-js/backend-federation-contracts';
-import { resolveWorkerDeliveryUnitStamp } from '../src/cloudflare/delivery-unit';
+import { resolveTopologyDeliveryUnit } from '../src/cloudflare/delivery-unit';
 import {
   createMicroVerticalReleaseEnvelope,
   MICROVERTICAL_RELEASE_ENVELOPE_KIND,
@@ -17,7 +18,11 @@ import {
   verifyMicroVerticalReleaseEnvelope,
 } from '../src/release-envelope';
 import * as sourceFramework from '../src/release-envelope/framework-output';
-import { uiBuildArtifactOptions } from './renderer-release-fixture';
+import { resolveUltramodernReleaseIdentity } from '../src/release-identity';
+import {
+  reactReleaseUi,
+  uiBuildArtifactOptions,
+} from './renderer-release-fixture';
 
 const roots: string[] = [];
 const client = 'static/js/index.js';
@@ -79,16 +84,29 @@ async function fixture(
       remoteEntry: { name: '', path: '', type: 'global' },
     },
   };
-  await json(
-    'ultramodern-build.json',
-    createUltramodernBuildArtifact(
-      deliveryUnit,
-      uiBuildArtifactOptions(deliveryUnit.buildMarker, deliveryUnit.appId),
-    ),
+  const artifact = createUltramodernBuildArtifact(
+    unit,
+    uiBuildArtifactOptions(unit.buildMarker, unit.appId),
   );
-  await json('backend-mf-manifest.json', {
-    backendFederation: { deliveryUnit, versionBoundary: { deliveryUnit } },
-  });
+  if (role === 'shell') {
+    // The generated Shell carrier, and the build artifact the renderer build
+    // finalized from it. A Shell has no backend producer to restamp it.
+    await fs.mkdir(path.join(root, 'shared'), { recursive: true });
+    await fs.writeFile(
+      path.join(root, 'shared/ultramodern-build.json'),
+      JSON.stringify(artifact),
+    );
+    await json('ultramodern-build.json', artifact);
+  } else {
+    await json('ultramodern-build.json', artifact);
+    await json('backend-mf-manifest.json', {
+      backendFederation: {
+        deliveryUnit: unit,
+        versionBoundary: { deliveryUnit: unit },
+      },
+    });
+    await put('backendRemoteEntry.cjs', 'console.log("compiled fixture");');
+  }
   await json('mf-manifest.json', manifest);
   const routes = (assets: unknown[]) =>
     json('routes-manifest.json', {
@@ -184,7 +202,7 @@ describe('workspace source revision', () => {
 describe('Shell consumer release', () => {
   const framework = sourceFramework;
 
-  test('restamps every generated Shell build identity from workspace to clean Git', async () => {
+  test('binds the clean-Git Shell identity the renderer build stamped on every record', async () => {
     const configuredSourceRevision = process.env.ULTRAMODERN_SOURCE_REVISION;
     delete process.env.ULTRAMODERN_SOURCE_REVISION;
     try {
@@ -212,9 +230,13 @@ describe('Shell consumer release', () => {
         packageName: '@test/shell',
         unitId: 'test/shell',
       };
+      const generatedArtifact = createUltramodernBuildArtifact(
+        generatedUnit,
+        uiBuildArtifactOptions(generatedUnit.buildMarker, 'shell'),
+      );
       await fs.writeFile(
         path.join(f.root, 'shared/ultramodern-build.json'),
-        JSON.stringify(createUltramodernBuildArtifact(generatedUnit)),
+        JSON.stringify(generatedArtifact),
       );
       await fs.mkdir(path.join(f.root, 'topology'), { recursive: true });
       await fs.writeFile(
@@ -226,6 +248,8 @@ describe('Shell consumer release', () => {
             path: '.',
             surfaceProfile: 'full-stack',
             deliveryUnit: generatedUnit,
+            renderer: 'react',
+            ...reactReleaseUi(generatedUnit.buildMarker, 'shell'),
           },
           verticals: [],
         }),
@@ -265,12 +289,29 @@ describe('Shell consumer release', () => {
           },
         ).trim(),
       ).toBe('');
-      const stamp = await resolveWorkerDeliveryUnitStamp(f.root);
+      // The renderer build finalizes the generated carrier from the declared
+      // delivery unit, which resolves the clean Git identity.
+      const stamp = await resolveTopologyDeliveryUnit(f.root);
       if (!stamp) {
         throw new Error('Expected the native clean Shell delivery-unit stamp.');
       }
       expect(stamp.sourceRevision).toBe(cleanRevision);
       expect(stamp.buildMarker).not.toBe(generatedIdentity.buildMarker);
+      const finalized = stampUltramodernBuildArtifactIdentity(
+        generatedArtifact,
+        stamp,
+      );
+      await f.json('ultramodern-build.json', {
+        ...finalized,
+        surfaces: {
+          ...finalized.surfaces,
+          api: { ...finalized.surfaces.api, sourceRevision: 'b'.repeat(40) },
+        },
+      });
+      await expect(f.emit()).rejects.toThrow(
+        /surfaces\.api\.sourceRevision: must match artifact\.deliveryUnit\.sourceRevision/u,
+      );
+      await f.json('ultramodern-build.json', finalized);
       const envelope = await f.emit();
       expect(envelope?.identity).toMatchObject({
         buildMarker: stamp.buildMarker,
@@ -285,7 +326,7 @@ describe('Shell consumer release', () => {
       expect(isUltramodernBuildArtifact(emitted)).toBe(true);
       if (!isUltramodernBuildArtifact(emitted)) {
         throw new Error(
-          'Expected a valid native restamped Shell build artifact.',
+          'Expected a valid native stamped Shell build artifact.',
         );
       }
       for (const identity of [
@@ -345,6 +386,7 @@ describe('Shell consumer release', () => {
       kind: SHELL_RELEASE_ENVELOPE_KIND,
       target: 'node',
       identity: envelope.identity,
+      ...(envelope.ui ? { ui: envelope.ui } : {}),
       artifacts: envelope.artifacts.map(({ logicalPath, runtime }) => ({
         logicalPath,
         runtime,

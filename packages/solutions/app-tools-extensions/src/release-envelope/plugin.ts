@@ -1,5 +1,15 @@
 import path from 'node:path';
 import type { RendererProfile } from '@modern-js/backend-federation-contracts';
+import type { NodePublicAssetConfig } from '../config';
+import {
+  NODE_PUBLIC_ASSET_SCOPE,
+  normalizeDeclaredPublicAssets,
+  resolveAddedDeclaredPublicAssetPaths,
+} from '../deploy-output/public-assets';
+import {
+  getDeployingTarget,
+  type ResolvedDeployTarget,
+} from '../deploy-output/target';
 import {
   emitFrameworkMicroVerticalReleaseEnvelope,
   emitNodeStagedReleaseEnvelope,
@@ -44,12 +54,10 @@ export interface ReleaseEnvelopePlugin<
 export const createUltramodernReleaseEnvelopePlugin = <
   Config extends ReleaseEnvelopeConfig,
 >({
-  resolveDeployTarget,
   resolveRendererProfile,
 }: {
-  resolveDeployTarget: ResolveDeployTarget<Config>;
   resolveRendererProfile?: (config: Config) => RendererProfile;
-}): ReleaseEnvelopePlugin<Config> => {
+} = {}): ReleaseEnvelopePlugin<Config> => {
   return {
     name: '@modern-js/ultramodern-release-envelope',
     pre: [

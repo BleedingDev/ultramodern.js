@@ -44,7 +44,7 @@
   },
   "dependencies": {
     "@modern-js/utils": "workspace:*",
-    "@swc/core": "1.16.2",
+    "@rslib/core": "1.0.3",
     "@swc/helpers": "^0.5.23",
     "typescript": "7.0.2"
   },
@@ -52,7 +52,7 @@
     "@modern-js/rslib": "workspace:*",
     "@modern-js/server-core": "workspace:*",
     "@scripts/rstest-config": "workspace:*",
-    "@types/node": "^26.6.2"
+    "@types/node": "^26.6.3"
   },
   "sideEffects": false,
   "publishConfig": {

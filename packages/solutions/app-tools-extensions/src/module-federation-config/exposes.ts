@@ -1,7 +1,5 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import type { WorkspaceSourceReadObserver } from '../publication-inputs';
-
 import { inspectModuleFederationConfigSource } from './inspect';
 import type { ModuleFederationConfigInspection } from './types';
 

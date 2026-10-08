@@ -239,6 +239,9 @@ test('an optional acceptance store preserves release bindings in every mode', as
       '--scale-profile',
       'erp-10',
       ...(mode === 'verify' ? ['--expected-mode', 'source'] : []),
+      ...(mode === 'published'
+        ? ['--source-receipt', path.resolve('release', 'source-receipt.json')]
+        : []),
     ];
     const defaults = parseArgs(argv);
     assert.equal(defaults.storeDir, undefined);
@@ -379,7 +382,12 @@ test('a caller-owned work directory is rejected for published and verify modes',
     path.resolve('retained'),
   ];
   for (const modeArgs of [
-    ['--mode', 'published'],
+    [
+      '--mode',
+      'published',
+      '--source-receipt',
+      path.resolve('release', 'source-receipt.json'),
+    ],
     ['--mode', 'verify'],
     ['--verify-receipt'],
   ]) {

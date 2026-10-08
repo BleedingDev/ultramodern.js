@@ -202,7 +202,7 @@
         "./dist/compiled/commander/index.d.mts"
       ],
       "ora": [
-        "./dist/compiled/ora/index.d.ts"
+        "./dist/compiled/ora/index.d.mts"
       ],
       "route-component-files": [
         "./dist/types/cli/routeComponentFiles.d.ts"
@@ -235,9 +235,16 @@
         },
         "dependsOn": [
           "^build",
-          { "projects": ["@scripts/prebundle"], "target": "bundle" }
+          {
+            "projects": [
+              "@scripts/prebundle"
+            ],
+            "target": "bundle"
+          }
         ],
-        "outputs": ["{projectRoot}/dist"]
+        "outputs": [
+          "{projectRoot}/dist"
+        ]
       }
     }
   },
@@ -256,7 +263,7 @@
     "@modern-js/types": "workspace:*",
     "@rslib/core": "1.0.3",
     "@scripts/rstest-config": "workspace:*",
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.3",
     "happy-dom": "^20.14.5",
     "rxjs": "7.8.2"
   },

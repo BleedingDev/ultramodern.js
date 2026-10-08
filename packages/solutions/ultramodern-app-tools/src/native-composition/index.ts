@@ -1,6 +1,10 @@
 import { appTools } from '@modern-js/app-tools';
 import type { AppTools, CliPlugin } from '@modern-js/app-tools/cli-config';
-import { createDeployOutputAliasesPlugin } from '@modern-js/app-tools-extensions/deploy-output/plugin';
+import {
+  createDeployOutputAliasesPlugin,
+  createDeployOutputPublicAssetsPlugin,
+} from '@modern-js/app-tools-extensions/deploy-output/plugin';
+import type { PolicyDefaultsOptions } from '@modern-js/app-tools-extensions/policy-defaults';
 import { rendererBuildArtifactStampPlugin } from '@modern-js/app-tools-extensions/release-envelope/renderer-output-stamp';
 import { SERVICE_WORKER_ENVIRONMENT_NAME } from '@modern-js/builder';
 import type { Renderer, RendererIdentity } from '@modern-js/renderer-core';
@@ -139,6 +143,7 @@ function composeNativeRenderer(
     nativeModuleFederationPlugin(renderer),
     federation.plugin,
     createDeployOutputAliasesPlugin(),
+    createDeployOutputPublicAssetsPlugin(),
     ultramodernReleaseEnvelopePlugin(renderer),
   ];
   return {
@@ -208,6 +213,7 @@ const composeUltramodernAppTools = (
   options: {
     renderer?: Renderer;
     consumerPlugins?: readonly CliPlugin<AppTools>[];
+    policy?: PolicyDefaultsOptions;
   } = {},
 ): CliPlugin<AppTools> => {
   const adapter = resolveRendererAdapter(options.renderer);
@@ -217,9 +223,14 @@ const composeUltramodernAppTools = (
     : adapter.compose(consumers, options.policy);
 };
 
-/** The explicit default base is React; renderer selection belongs to config. */
-export const ultramodernAppTools = (): CliPlugin<AppTools> =>
-  composeUltramodernAppTools({ renderer: 'react' });
+/**
+ * The explicit default base is React; renderer selection belongs to config.
+ * `policy` opts out of the fork's React renderer or server policy.
+ */
+export const ultramodernAppTools = (
+  policy: PolicyDefaultsOptions = {},
+): CliPlugin<AppTools> =>
+  composeUltramodernAppTools({ renderer: 'react', policy });
 
 /** Select one base plugin graph during config evaluation, before registration. */
 export const defineConfig = createDefineConfig((renderer, consumerPlugins) =>

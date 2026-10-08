@@ -18,9 +18,9 @@ const reactRouter = {
 const tanstackRouter = {
   framework: 'tanstack',
   name: '@tanstack/react-router',
-  version: '1.170.39',
+  version: '1.170.41',
   coreName: '@tanstack/router-core',
-  coreVersion: '1.171.32',
+  coreVersion: '1.171.34',
 };
 type RouterEntrypoint = Entrypoint & {
   __modernRoutesOwner?: string;
@@ -107,15 +107,18 @@ describe('React router owner bindings', () => {
     { __modernRoutesDir: 'routes' },
     { pageRoutesEntry: '/fixture/src/pages' },
     { __modernRoutesOwner: legacy, __modernRoutesDir: 'owned-custom-routes' },
-  ])('preserves the legacy route owner with TanStack registered: %o', metadata => {
-    const bindings = resolveReactRouterBindings({
-      entrypoints: [entry('main', metadata)],
-      pluginNames: [legacy, tanstack],
-    });
-    expect(bindings.main.evidence).toBe('owned-default');
-    expect(bindings.main.owner).toBe(legacy);
-    expect(bindings.main.providers).toEqual([reactRouter]);
-  });
+  ])(
+    'preserves the legacy route owner with TanStack registered: %o',
+    metadata => {
+      const bindings = resolveReactRouterBindings({
+        entrypoints: [entry('main', metadata)],
+        pluginNames: [legacy, tanstack],
+      });
+      expect(bindings.main.evidence).toBe('owned-default');
+      expect(bindings.main.owner).toBe(legacy);
+      expect(bindings.main.providers).toEqual([reactRouter]);
+    },
+  );
 
   it('rejects a foreign explicit owner before considering a legacy convention', () => {
     expect(() =>
@@ -141,21 +144,21 @@ describe('React router owner bindings', () => {
     ).toThrow(/without a supported owner/);
   });
 
-  it.each([
-    '__modernRoutesOwner',
-    '__modernRoutesDir',
-  ])('rejects non-string canonical metadata for %s', key => {
-    for (const value of [null, false, 42, {}, []]) {
-      const entrypoint = entry('main');
-      Object.defineProperty(entrypoint, key, { value });
-      expect(() =>
-        resolveReactRouterBindings({
-          entrypoints: [entrypoint],
-          pluginNames: [legacy, tanstack],
-        }),
-      ).toThrow(`invalid ${key} metadata; expected a string`);
-    }
-  });
+  it.each(['__modernRoutesOwner', '__modernRoutesDir'])(
+    'rejects non-string canonical metadata for %s',
+    key => {
+      for (const value of [null, false, 42, {}, []]) {
+        const entrypoint = entry('main');
+        Object.defineProperty(entrypoint, key, { value });
+        expect(() =>
+          resolveReactRouterBindings({
+            entrypoints: [entrypoint],
+            pluginNames: [legacy, tanstack],
+          }),
+        ).toThrow(`invalid ${key} metadata; expected a string`);
+      }
+    },
+  );
 
   it('preserves Unicode entry names and freezes every returned binding level', () => {
     const entries = Object.freeze([
@@ -203,18 +206,17 @@ describe('React router owner bindings', () => {
     ).toThrow(/expected entry "main" must be unique/);
   });
 
-  it.each([
-    '',
-    ' main ',
-    '__proto__',
-  ])('rejects unsafe final entry name %j', name => {
-    expect(() =>
-      resolveReactRouterBindings({
-        entrypoints: [entry(name)],
-        pluginNames: [legacy],
-      }),
-    ).toThrow(/Invalid React router bindings/);
-  });
+  it.each(['', ' main ', '__proto__'])(
+    'rejects unsafe final entry name %j',
+    name => {
+      expect(() =>
+        resolveReactRouterBindings({
+          entrypoints: [entry(name)],
+          pluginNames: [legacy],
+        }),
+      ).toThrow(/Invalid React router bindings/);
+    },
+  );
 
   it('accepts an empty final entry set without adding inferred bindings', () => {
     const bindings = resolveReactRouterBindings({

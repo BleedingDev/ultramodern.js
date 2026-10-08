@@ -10,6 +10,7 @@ import {
   runChecked,
   startEphemeralRegistry,
 } from '../../ultramodern-publish/lib/source-create-proof/runtime-proof/registry.mjs';
+import { defaultReleaseAgePolicyPath } from '../../ultramodern-publish/run-release-acceptance.mjs';
 import {
   assertCohortResolutionProvenance,
   createAcceptancePackageManagerEnv,
@@ -193,9 +194,10 @@ export async function runProof(provided) {
       };
     const registryUrl = registry?.registryUrl ?? options.registryUrl;
     const registryEnv = registry?.env ?? options.env ?? {};
-    const releaseAgeExclusions = resolveAcceptanceReleaseAgeExclusions({
-      release,
-      mode: 'source',
+    // Every lane passes the one exemption set derived from the manifest and
+    // the reviewed exception policy.
+    const releaseAgeExclusions = releaseAgeExemptions(release, {
+      policyPath: defaultReleaseAgePolicyPath,
     });
     const packageEnv = createAcceptanceReleaseAgeEnv(
       createAcceptancePackageManagerEnv(

@@ -1311,6 +1311,145 @@ describe('cloudflare deploy preset', () => {
     });
   });
 
+  it('dispatches encoded spellings of the BFF prefix to the BFF, never to Worker Static Assets', async () => {
+    const { outputDirectory } = await createFixture({
+      distFiles: {
+        'commerce-api/orders.json': '{"secret":"static"}',
+      },
+    });
+    const worker = await loadWorker(outputDirectory);
+    const requestedAssets: string[] = [];
+    const assetBinding = createAssetBinding(
+      path.join(outputDirectory, 'public'),
+    );
+    const env = {
+      ASSETS: {
+        fetch: async (request: Request) => {
+          requestedAssets.push(new URL(request.url).pathname);
+          return assetBinding.fetch(request);
+        },
+      },
+    };
+    const dispatch = async (pathname: string) => {
+      const executionContext = createExecutionContext();
+      const response = await worker.fetch(
+        new Request(`https://example.com${pathname}`),
+        env,
+        executionContext,
+      );
+      expect(response.status).toBe(200);
+      const { pathname: dispatchedPathname } = (await response.json()) as {
+        pathname: string;
+      };
+      await Promise.all(executionContext.pending);
+      return dispatchedPathname;
+    };
+
+    for (const pathname of [
+      '/commerce-api/orders.json',
+      '/%63ommerce-api/orders.json',
+      '/%2563ommerce-api/orders.json',
+      '/%252563ommerce-api/orders.json',
+      '/commerce-api%2forders.json',
+      '/commerce-api%2Forders.json',
+      '/commerce-api%252Forders.json',
+    ]) {
+      await expect(dispatch(pathname)).resolves.toBe(
+        '/commerce-api/orders.json',
+      );
+    }
+    for (const pathname of [
+      '/commerce-api%5Corders.json',
+      '/commerce-api%5corders.json',
+      '/commerce-api%ZZ/orders.json',
+      '/COMMERCE-API%ZZ/orders.json',
+    ]) {
+      await expect(dispatch(pathname)).resolves.toBe(
+        '/commerce-api/__invalid_encoded_path__',
+      );
+    }
+    expect(requestedAssets).toEqual([]);
+
+    const assetResponse = await worker.fetch(
+      new Request('https://example.com/static/app.1234abcd.css'),
+      env,
+    );
+    expect(assetResponse.status).toBe(200);
+    expect(requestedAssets).toEqual(['/static/app.1234abcd.css']);
+  });
+
+  it('dispatches a Workers VPC service prefix through the VPC binding', async () => {
+    const { outputDirectory } = await createFixture({
+      vpcServices: [
+        {
+          binding: 'VERTICAL_PRICING_WORKER',
+          prefix: '/pricing-api',
+          serviceId: '0199f0aa-0000-7000-8000-00000000c0de',
+        },
+      ],
+    });
+    const worker = await loadWorker(outputDirectory);
+    const vpcRequests: string[] = [];
+
+    const response = await worker.fetch(
+      new Request('https://example.com/pricing-api/prices?sku=1'),
+      {
+        ASSETS: {
+          fetch: async () => new Response('asset', { status: 200 }),
+        },
+        VERTICAL_PRICING_WORKER: {
+          fetch: async (request: Request) => {
+            const url = new URL(request.url);
+            vpcRequests.push(`${url.pathname}${url.search}`);
+            return new Response('pricing', { status: 200 });
+          },
+        },
+      },
+    );
+
+    await expect(response.text()).resolves.toBe('pricing');
+    expect(vpcRequests).toEqual(['/pricing-api/prices?sku=1']);
+  });
+
+  it('dispatches encoded spellings of a service binding prefix to the binding', async () => {
+    const { outputDirectory } = await createFixture({
+      services: [
+        {
+          binding: 'VERTICAL_CATALOG_WORKER',
+          prefix: '/catalog-api',
+          service: 'tractor-catalog-worker',
+        },
+      ],
+    });
+    const worker = await loadWorker(outputDirectory);
+    const serviceRequests: string[] = [];
+
+    for (const pathname of [
+      '/%63atalog-api/items.json',
+      '/catalog-api%2Fitems.json',
+    ]) {
+      const response = await worker.fetch(
+        new Request(`https://example.com${pathname}`),
+        {
+          ASSETS: {
+            fetch: async () => new Response('asset', { status: 200 }),
+          },
+          VERTICAL_CATALOG_WORKER: {
+            fetch: async (request: Request) => {
+              serviceRequests.push(new URL(request.url).pathname);
+              return new Response('catalog', { status: 200 });
+            },
+          },
+        },
+      );
+      await expect(response.text()).resolves.toBe('catalog');
+    }
+    expect(serviceRequests).toEqual([
+      '/%63atalog-api/items.json',
+      '/catalog-api%2Fitems.json',
+    ]);
+  });
+
   it('serves fingerprinted Cloudflare assets with immutable cache headers', async () => {
     const { outputDirectory } = await createFixture();
     const worker = await loadWorker(outputDirectory);

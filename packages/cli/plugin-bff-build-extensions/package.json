@@ -107,8 +107,8 @@
     "@rsbuild/core": "2.2.11",
     "@rslib/core": "1.0.3",
     "@scripts/rstest-config": "workspace:*",
-    "@types/node": "^26.6.2",
-    "effect": "4.0.0-rc.117",
+    "@types/node": "^26.6.3",
+    "effect": "4.0.0",
     "esbuild": "^0.28.2",
     "typescript": "7.0.2",
     "zod": "^4.6.5"

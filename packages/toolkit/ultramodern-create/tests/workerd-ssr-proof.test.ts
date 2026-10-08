@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { createMicroVerticalReleaseEnvelope } from '@modern-js/app-tools-extensions/release-envelope';
+import { reactReleaseUi } from '../../../solutions/app-tools-extensions/tests/renderer-release-fixture';
 
 const packageRoot = path.resolve(__dirname, '..');
 const templatePath = path.join(
@@ -196,8 +197,6 @@ describe('workerd SSR proof topology planning', () => {
   });
 });
 
-const sha256 = (bytes: Buffer) =>
-  crypto.createHash('sha256').update(bytes).digest('hex');
 const writeFile = (filePath: string, content: string) => {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, content);
@@ -251,7 +250,7 @@ const contactsWorker = `export default {
 };
 `;
 
-function createFixtureWorkspace(options: {
+async function createFixtureWorkspace(options: {
   renderBoundary: boolean;
   shellCloudflare?: Record<string, unknown>;
   contactsWrangler?: Record<string, unknown>;
@@ -271,6 +270,7 @@ function createFixtureWorkspace(options: {
         kind: 'shell',
         path: 'apps/shell',
         portEnv: 'SHELL_PORT',
+        deliveryUnit: { unitId: 'app/shell' },
         verticalRefs: ['contacts'],
         cloudflare: {
           routes: { ssr: '/en' },
@@ -330,35 +330,91 @@ function createFixtureWorkspace(options: {
     path.join(contactsOutput, '.dev.vars'),
     `PROOF_SECRET=local\n${options.contactsDevVars ?? ''}`,
   );
-  const workerBytes = fs.readFileSync(
-    path.join(contactsOutput, 'server/index.mjs'),
+  // Each executed Worker is bound to an owner-verified release envelope
+  // resolved through the app's own @modern-js/ultramodern-app-tools.
+  const sdkRoot = path.resolve(
+    packageRoot,
+    '../../solutions/ultramodern-app-tools',
   );
-  writeFile(
-    path.join(contactsOutput, 'release/microvertical-release-envelope.json'),
-    JSON.stringify({
-      schemaVersion: 3,
+  for (const app of [
+    { id: 'shell', path: 'apps/shell', unitId: 'app/shell', hasApi: false },
+    {
+      id: 'contacts',
+      path: 'verticals/contacts',
+      unitId: 'app/contacts',
+      hasApi: true,
+    },
+  ]) {
+    const appRoot = path.join(root, app.path);
+    const outputRoot = path.join(appRoot, '.output');
+    writeFile(
+      path.join(appRoot, 'package.json'),
+      JSON.stringify({ name: `@test/${app.id}` }),
+    );
+    fs.mkdirSync(path.join(appRoot, 'node_modules/@modern-js'), {
+      recursive: true,
+    });
+    fs.symlinkSync(
+      sdkRoot,
+      path.join(appRoot, 'node_modules/@modern-js/ultramodern-app-tools'),
+      process.platform === 'win32' ? 'junction' : 'dir',
+    );
+    const files: Record<string, string> = {
+      'public/client.js': 'globalThis.ui = true;',
+      ...(app.hasApi
+        ? {
+            'worker/__modern_bff_effect.js': 'export const api = true;',
+            'public/backend-mf-manifest.json': '{"name":"contacts"}',
+            'public/backendRemoteEntry.cjs': 'module.exports = {};',
+          }
+        : {}),
+    };
+    for (const [logicalPath, content] of Object.entries(files))
+      writeFile(path.join(outputRoot, logicalPath), content);
+    const envelope = await createMicroVerticalReleaseEnvelope({
+      artifactRoot: outputRoot,
       target: 'cloudflare',
-      envelopeDigest: 'b'.repeat(64),
       identity: {
-        unitId: 'app/contacts',
+        unitId: app.unitId,
         buildMarker: 'b1',
+        sourceRevision: 'a'.repeat(40),
         releaseVersion: '1.0.0',
       },
-      artifacts: [
-        {
-          logicalPath: 'server/index.mjs',
-          kind: 'file',
-          byteLength: workerBytes.byteLength,
-          sha256: sha256(workerBytes),
-          runtime: 'workerd',
-        },
-      ],
+      ui: reactReleaseUi('b1', app.id),
+      artifacts: ['server/index.mjs', ...Object.keys(files)].map(
+        logicalPath => ({
+          logicalPath,
+          runtime:
+            logicalPath === 'worker/__modern_bff_effect.js'
+              ? 'workerd-effect'
+              : logicalPath.endsWith('backend-mf-manifest.json')
+                ? 'module-federation-manifest'
+                : logicalPath.endsWith('.cjs')
+                  ? 'commonjs-module'
+                  : logicalPath.startsWith('public/')
+                    ? 'browser'
+                    : 'workerd',
+        }),
+      ),
       surfaces: {
+        uiClient: ['public/client.js'],
         ssr: ['server/index.mjs'],
-        apiBackend: ['server/index.mjs'],
+        apiBackend: app.hasApi ? ['worker/__modern_bff_effect.js'] : [],
+        ...(app.hasApi
+          ? {
+              backendFederation: {
+                manifest: 'public/backend-mf-manifest.json',
+                container: 'public/backendRemoteEntry.cjs',
+              },
+            }
+          : {}),
       },
-    }),
-  );
+    });
+    writeFile(
+      path.join(outputRoot, 'release/microvertical-release-envelope.json'),
+      JSON.stringify(envelope),
+    );
+  }
   return root;
 }
 
@@ -385,8 +441,8 @@ function readReport(root: string) {
 }
 
 describe('workerd SSR proof fixture execution', () => {
-  test('proves a shell-rendered boundary and the vertical on its own Worker', () => {
-    const root = createFixtureWorkspace({ renderBoundary: true });
+  test('proves a shell-rendered boundary and the vertical on its own Worker', async () => {
+    const root = await createFixtureWorkspace({ renderBoundary: true });
     try {
       const { status, output } = runProof(root);
       assert.equal(status, 0, output);
@@ -420,8 +476,8 @@ describe('workerd SSR proof fixture execution', () => {
     }
   }, 60_000);
 
-  test('binds a Worker Hyperdrive to its local PostgreSQL as Wrangler does', () => {
-    const root = createFixtureWorkspace({
+  test('binds a Worker Hyperdrive to its local PostgreSQL as Wrangler does', async () => {
+    const root = await createFixtureWorkspace({
       renderBoundary: true,
       contactsWrangler: {
         hyperdrive: [{ binding: 'HYPERDRIVE', id: '0'.repeat(32) }],
@@ -445,8 +501,8 @@ describe('workerd SSR proof fixture execution', () => {
     }
   }, 60_000);
 
-  test("reads a Hyperdrive local connection string from the app's .dev.vars", () => {
-    const root = createFixtureWorkspace({
+  test("reads a Hyperdrive local connection string from the app's .dev.vars", async () => {
+    const root = await createFixtureWorkspace({
       renderBoundary: true,
       contactsWrangler: {
         hyperdrive: [{ binding: 'HYPERDRIVE', id: '0'.repeat(32) }],
@@ -464,8 +520,8 @@ describe('workerd SSR proof fixture execution', () => {
     }
   }, 60_000);
 
-  test('names the missing local connection string of a Hyperdrive binding', () => {
-    const root = createFixtureWorkspace({
+  test('names the missing local connection string of a Hyperdrive binding', async () => {
+    const root = await createFixtureWorkspace({
       renderBoundary: true,
       contactsWrangler: {
         hyperdrive: [{ binding: 'HYPERDRIVE', id: '0'.repeat(32) }],
@@ -485,8 +541,8 @@ describe('workerd SSR proof fixture execution', () => {
     }
   }, 60_000);
 
-  test('keeps requiring server-rendered boundaries on the default shell SSR route', () => {
-    const root = createFixtureWorkspace({ renderBoundary: false });
+  test('keeps requiring server-rendered boundaries on the default shell SSR route', async () => {
+    const root = await createFixtureWorkspace({ renderBoundary: false });
     try {
       const { status, output } = runProof(root);
       assert.equal(status, 1, output);
@@ -499,8 +555,8 @@ describe('workerd SSR proof fixture execution', () => {
     }
   }, 60_000);
 
-  test('rejects server-rendered boundaries from a client-composed shell', () => {
-    const root = createFixtureWorkspace({
+  test('rejects server-rendered boundaries from a client-composed shell', async () => {
+    const root = await createFixtureWorkspace({
       renderBoundary: true,
       shellCloudflare: { distributedSsrProofRoutes: [] },
     });
@@ -516,8 +572,8 @@ describe('workerd SSR proof fixture execution', () => {
     }
   }, 60_000);
 
-  test('proves a client-composed shell through each vertical Worker', () => {
-    const root = createFixtureWorkspace({
+  test('proves a client-composed shell through each vertical Worker', async () => {
+    const root = await createFixtureWorkspace({
       renderBoundary: false,
       shellCloudflare: { distributedSsrProofRoutes: [] },
     });

@@ -177,7 +177,6 @@ async function executeWorker(input) {
     consumerRoot,
     generatorPackageRoot,
     generatorConsumerRoot,
-    kind,
     leaf,
     resultPath,
     binding,

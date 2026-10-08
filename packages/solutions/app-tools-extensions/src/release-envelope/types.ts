@@ -77,6 +77,17 @@ export type MicroVerticalReleaseUi = {
   routerBindings: RendererRouterBindings;
 };
 
+/** A Shell consumes remotes; it never publishes a backend federation pair. */
+export type ShellReleaseSurfaces = {
+  uiClient: string[];
+  ssr: string[];
+  apiBackend: string[];
+};
+
+export type ReleaseSurfaces =
+  | MicroVerticalReleaseSurfaces
+  | ShellReleaseSurfaces;
+
 export type MicroVerticalReleaseEnvelopePayload = {
   schemaVersion: typeof MICROVERTICAL_RELEASE_ENVELOPE_SCHEMA_VERSION;
   kind: typeof MICROVERTICAL_RELEASE_ENVELOPE_KIND;
@@ -97,6 +108,7 @@ export type ShellReleaseEnvelopePayload = {
   kind: typeof SHELL_RELEASE_ENVELOPE_KIND;
   target: MicroVerticalReleaseTarget;
   identity: MicroVerticalReleaseIdentity;
+  ui?: MicroVerticalReleaseUi;
   artifacts: MicroVerticalReleaseArtifact[];
   surfaces: ShellReleaseSurfaces;
 };
@@ -134,6 +146,7 @@ export type VerifyMicroVerticalReleaseEnvelopeOptions = {
   artifactRoot: string;
   logicalPathForArtifact?: (artifact: MicroVerticalReleaseArtifact) => string;
   expectedTarget?: MicroVerticalReleaseTarget;
+  expectedKind?: ReleaseEnvelopeKind;
   expectedRendererIdentity?: RendererIdentity;
   expectedRendererProfile?: RendererProfile;
 };

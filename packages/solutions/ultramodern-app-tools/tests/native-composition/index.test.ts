@@ -11,9 +11,7 @@ import type { PolicyDefaultsOptions } from '@modern-js/app-tools-extensions/poli
 import type { CLIPluginAPI } from '@modern-js/plugin';
 import { createCli, createConfigOptions } from '@modern-js/plugin/cli';
 import {
-  defineConfig,
   presetUltramodern,
-  resolveUltramodernConfig,
   ultramodernAppTools,
 } from '@modern-js/ultramodern-app-tools';
 import { createRsbuild, rspack } from '@rsbuild/core';

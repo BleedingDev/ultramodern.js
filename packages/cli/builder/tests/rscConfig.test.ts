@@ -181,9 +181,10 @@ describe('RSC configured environment compiler configuration', () => {
     nativeRscEnvironment = true,
   ) {
     expect(entry(config).layer).toBe(layers.ssr);
-    expect(config.resolve?.alias).toMatchObject({
-      '@modern-js/render/rsc$': '@modern-js/render/rsc-worker',
-    });
+    // Export conditions select the Flight runtime; no server alias pins it.
+    expect(config.resolve?.alias ?? {}).not.toHaveProperty(
+      '@modern-js/render/rsc$',
+    );
     const configuredRules = rules(config);
     expect(JSON.stringify(configuredRules)).toContain(
       'rsc-server-entry-loader',

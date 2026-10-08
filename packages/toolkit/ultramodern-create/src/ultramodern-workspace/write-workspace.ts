@@ -146,14 +146,31 @@ function writeSharedPackages(
 // on), so a workspace created on the day the cohort is published installs.
 // A catalog for any other release gets no exemption: this package cannot
 // authenticate that cohort, so it installs once it is 24h old.
-function renderCatalogPolicy(packageSource: ResolvedPackageSource) {
+function renderCatalogPolicy(
+  packageSource: ResolvedPackageSource,
+  primaryShell: WorkspaceApp,
+) {
   if (packageSource.strategy !== 'install') {
     return '';
   }
-  const catalog = ULTRAMODERN_WORKSPACE_MODERN_PACKAGES.map(
-    name =>
-      `    ${JSON.stringify(name)}: ${JSON.stringify(modernPackageSpecifier(name, packageSource))}`,
-  ).join('\n');
+  // The catalog is workspace policy: it must not offer packages that belong
+  // to another renderer than the one the workspace was generated for.
+  const renderer = resolveWorkspaceRenderer(primaryShell);
+  const catalog = [
+    ...new Set([
+      ...ULTRAMODERN_WORKSPACE_MODERN_PACKAGES,
+      '@modern-js/backend-federation-contracts',
+      '@modern-js/renderer-core',
+      ...(resolveAppGenerationProfile(primaryShell)?.frameworkDependencies ??
+        []),
+    ]),
+  ]
+    .filter(name => !isForeignRendererPackage(name, renderer))
+    .map(
+      name =>
+        `    ${JSON.stringify(name)}: ${JSON.stringify(modernPackageSpecifier(name, packageSource))}`,
+    )
+    .join('\n');
   const cohort = hasCreateReleaseCohort()
     ? readCreateReleaseCohort()
     : undefined;
@@ -187,31 +204,10 @@ function writePnpmWorkspacePackages(
   ];
   const renderedPackages = packages.map(pattern => `  - ${pattern}`).join('\n');
 
-  // The catalog is workspace policy: it must not offer packages that belong
-  // to another renderer than the one the workspace was generated for.
-  const renderer = resolveWorkspaceRenderer(primaryShell);
-  const catalog =
-    packageSource.strategy === 'install'
-      ? `catalogs:\n  ultramodern:\n${[
-          ...new Set([
-            ...ULTRAMODERN_WORKSPACE_MODERN_PACKAGES,
-            '@modern-js/backend-federation-contracts',
-            '@modern-js/renderer-core',
-            ...(resolveAppGenerationProfile(primaryShell)
-              ?.frameworkDependencies ?? []),
-          ]),
-        ]
-          .filter(name => !isForeignRendererPackage(name, renderer))
-          .map(
-            name =>
-              `    ${JSON.stringify(name)}: ${JSON.stringify(modernPackageSpecifier(name, packageSource))}`,
-          )
-          .join('\n')}\n\n`
-      : '';
   writeFileReplacing(
     targetDir,
     'pnpm-workspace.yaml',
-    `${renderCatalogPolicy(packageSource)}${pnpmWorkspace.replace(
+    `${renderCatalogPolicy(packageSource, primaryShell)}${pnpmWorkspace.replace(
       /^packages:\r?\n(?: {2}- .+\r?\n)+/u,
       `packages:\n${renderedPackages}\n`,
     )}`,

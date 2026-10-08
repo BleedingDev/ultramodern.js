@@ -215,6 +215,10 @@ test('CLI --dry-run prints a MicroVertical plan without writing files', async ()
       '--dry-run',
     ]);
     assert.equal(dryRunResult.status, 0, dryRunResult.stderr);
+    assert.doesNotMatch(
+      dryRunResult.stderr,
+      /preserved consumer-owned artifact/,
+    );
     const plan = JSON.parse(dryRunResult.stdout);
     assert.equal(plan.dryRun, true);
     assert.equal(

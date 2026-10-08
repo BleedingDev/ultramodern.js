@@ -3,7 +3,10 @@ import type {
   AppUserConfig as NativeAppUserConfig,
 } from '@modern-js/app-tools/cli-config';
 import type { PrecompressConfig } from '@modern-js/app-tools-extensions/build-config/precompress/plugin';
-import type { CloudflareDeployConfig } from '@modern-js/app-tools-extensions/config';
+import type {
+  CloudflareDeployConfig,
+  NodeDeployConfig,
+} from '@modern-js/app-tools-extensions/config';
 import type {
   BffRuntimeUserConfig,
   ServerTelemetryUserConfig,

@@ -97,7 +97,7 @@ workspaces declare an engine baseline of Node `>=26` with pnpm `12+`.
 on those values; do not reintroduce Corepack or older pnpm aliases.
 
 The current React dependency cohort also pins `@effect/tsgo@0.45.0`,
-`@tanstack/react-router@1.170.39`, `@tanstack/router-core@1.171.32`,
+`@tanstack/react-router@1.170.41`, `@tanstack/router-core@1.171.34`,
 `@tanstack/history@1.162.4`, and the Module Federation integration `2.9.2`
 cohort, `@module-federation/node@2.7.52`. Move these only through the
 generator-owned version policy so templates, validation, and the published
@@ -340,6 +340,23 @@ Use this decision table before adding a vertical:
 | Feature composites or workflow state shared across verticals | No | Revisit ownership; do not hide it in shared code |
 
 ## SuperApp Architecture Contracts
+
+Generated React `modern.config.ts` files declare their app identity through
+`presetUltramodernWorkspace(config, { appId, from: import.meta.url })` inside
+the renderer-selecting `defineConfig` from `@modern-js/ultramodern-app-tools`,
+and keep ordinary Modern.js plugins and authored configuration. The preset
+resolves `topology/reference-topology.json` and the development overlay when
+the config loads. Fork-owned packages apply deployment targets, ports, asset
+origins, CORS, Cloudflare bindings, build/cache directories, release identity,
+and Zephyr deployment policy. Authored values override preset defaults; native
+builder hooks and plugins compose normally. Solid and Octane apps select their
+renderer directly with `defineConfig({ renderer })`.
+
+Adding a shell or vertical updates topology, overlays, and generated workspace
+metadata without rewriting any existing `modern.config.ts`. Application
+configs belong to their authors from the moment they are created. New apps
+receive a config scaffold with their own stable `appId`; changing a port or
+shell composition takes effect through the canonical workspace inputs.
 
 The React SuperApp shell owns route assembly and policy. Each React vertical added with
 `--vertical` owns its route subtree, Module Federation exposes, Effect BFF

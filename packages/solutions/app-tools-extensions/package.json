@@ -212,6 +212,7 @@
     "@modern-js/builder": "workspace:*",
     "@modern-js/plugin": "workspace:*",
     "@modern-js/prod-server": "workspace:*",
+    "@modern-js/runtime-utils": "workspace:*",
     "@modern-js/server-core": "workspace:*",
     "@modern-js/server-runtime-extensions": "workspace:*",
     "@modern-js/surface-resolution": "workspace:*",
@@ -222,10 +223,10 @@
     "compression-webpack-plugin": "^12.0.0",
     "esbuild": "^0.28.2",
     "jsonc-parser": "3.3.1",
-    "std-env": "4.2.0"
+    "std-env": "4.3.0"
   },
   "peerDependencies": {
-    "@rsbuild/core": "2.2.9",
+    "@rsbuild/core": "2.2.11",
     "@loadable/component": "5.16.7",
     "@modern-js/runtime-renderer-extensions": "workspace:^3.8.3",
     "react": "^19.2.8"
@@ -242,6 +243,7 @@
     }
   },
   "devDependencies": {
+    "@modern-js/bff-effect": "workspace:*",
     "@modern-js/plugin-bff-extensions": "workspace:*",
     "@modern-js/plugin-data-loader": "workspace:*",
     "@modern-js/rslib": "workspace:*",
@@ -251,25 +253,21 @@
     "@rslib/core": "1.0.3",
     "@scripts/rstest-config": "workspace:*",
     "@types/babel__traverse": "7.28.0",
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.3",
     "core-js": "^3.50.0",
-    "effect": "4.0.0-rc.117",
+    "effect": "4.0.0",
+    "miniflare": "5.20260930.0-alpha",
     "ndepe": "^0.1.13",
     "@loadable/component": "5.16.7",
-    "@modern-js/runtime-renderer-extensions": "workspace:*"
+    "@modern-js/runtime-renderer-extensions": "workspace:*",
+    "pg": "8.23.1",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
   },
   "sideEffects": false,
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",
     "access": "public",
     "types": "./dist/types/index.d.ts"
-  },
-  "peerDependenciesMeta": {
-    "@loadable/component": {
-      "optional": true
-    },
-    "@modern-js/runtime-renderer-extensions": {
-      "optional": true
-    }
   }
 }

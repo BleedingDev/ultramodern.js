@@ -86,7 +86,7 @@
     "@solidjs/signals": "2.0.0-rc.13",
     "@solidjs/web": "2.0.0-rc.13",
     "@tanstack/history": "1.162.4",
-    "@tanstack/router-core": "1.171.32",
+    "@tanstack/router-core": "1.171.34",
     "isbot": "5.2.2",
     "seroval": "1.6.8",
     "seroval-plugins": "1.6.8",

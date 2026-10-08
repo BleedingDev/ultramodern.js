@@ -120,3 +120,70 @@ Generate a workspace with the selected dependencies through
 Build and document identities bind the application source and installed
 compiler/runtime cohort; stale manifests or hydration identities fail before
 application startup.
+
+## Workspace applications
+
+Generated workspace applications declare their identity and authored options:
+
+```ts
+import {
+  defineConfig,
+  presetUltramodernWorkspace,
+} from '@modern-js/ultramodern-app-tools';
+
+export default defineConfig(
+  presetUltramodernWorkspace(
+    { html: { title: 'Catalog' } },
+    { appId: 'catalog', from: import.meta.url },
+  ),
+);
+```
+
+The workspace preset reads `topology/reference-topology.json` and
+`topology/local-overlays/development.json` relative to that config. Those records
+provide app identity, renderer, development ports, composed remote references
+and delivery unit identity. An authored `renderer` must match the topology.
+Adding a shell or vertical changes the records; existing application configs
+keep their authored contents.
+
+The native package resolves build output and cache directories, remote asset
+origins, canonical site origins, local CORS and Cloudflare service bindings and
+fragment routes. Deploy target selection uses Modern.js's native resolver.
+`deployTarget` and `environment` options allow explicit programmatic build inputs.
+`createPresetUltramodernWorkspaceConfig(options)` exposes the resolved config for
+inspection.
+
+Cloudflare fragment bindings use the expose names from each remote's authored
+Module Federation config. The shared config inspector accepts literal objects
+and string arrays. Dynamic declarations use Modern.js's native config loader
+during config resolution, including async functions, environment and command
+arguments. Authored worker settings and services remain part of the merged
+config; dynamic bindings use the loaded exposes.
+
+The old generated `performance.rsdoctor` setting was not part of Modern.js's
+supported config and had no effect. The native preset omits it.
+
+Zephyr registers only for browser applications. It loads the application's
+declared `zephyr-rspack-plugin` only when `ZE_CI_TOKEN` is present, and requires
+`ZE_FAIL_BUILD=true` in that deploy environment. Ordinary builds require no
+Zephyr account. The preset does not mutate environment variables.
+The Zephyr SDK reads credentials and its fail-build flag from `process.env`.
+When supplying `environment` explicitly, enabled Zephyr inputs must match those
+process values; a mismatch fails during plugin setup before registration.
+
+Authored config merges after native policy. Scalars and `false` override defaults;
+nested records are preserved; arrays and hooks compose in preset-first order.
+The existing typed preset options, including `enableTelemetry`,
+`enableTelemetryExporters`, `enableBffRequestId` and
+`enableModuleFederationSSR`, also apply to workspace presets.
+
+Standalone applications can continue using `presetUltramodern(config, options)`.
+
+## React base plugin
+
+`defineConfig` is the entry for every renderer. A React application that keeps
+`defineConfig` from `@modern-js/app-tools` registers the same React graph with
+`plugins: [ultramodernAppTools()]` instead. It keeps the fork's default React
+renderer and server behavior; pass `rendererExtensions: false` or
+`serverExtensions: false` to `ultramodernAppTools()` to opt out of either
+policy. Use one base: never combine it with this package's `defineConfig`.

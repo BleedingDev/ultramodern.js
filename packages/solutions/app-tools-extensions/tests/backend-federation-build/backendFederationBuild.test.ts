@@ -9,7 +9,7 @@ import {
 } from '@modern-js/backend-federation-contracts';
 import { loadBackendFederatedEffectApiFromManifest } from '@modern-js/plugin-bff-extensions/backend-federation-manifest/node';
 import { Effect, ManagedRuntime } from 'effect';
-import { HttpApi } from 'effect/unstable/httpapi';
+import { HttpApi } from 'effect/http-api';
 import backendFederationBuildPlugin, {
   emitBackendFederationArtifacts,
 } from '../../src/backend-federation-build';

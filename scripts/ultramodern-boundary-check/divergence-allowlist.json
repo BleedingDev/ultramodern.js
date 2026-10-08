@@ -3175,8 +3175,8 @@
     },
     {
       "file": "packages/server/utils/src/compilers/typescript/index.ts",
-      "hunks": 18,
-      "changedLines": 504
+      "hunks": 1,
+      "changedLines": 151
     },
     {
       "file": "packages/server/utils/src/compilers/typescript/tsconfigPathsPlugin.ts",
@@ -3981,12 +3981,7 @@
     {
       "file": "packages/toolkit/plugin/tests/commanderVersion.test.ts",
       "hunks": 1,
-      "changedLines": 86
-    },
-    {
-      "file": "packages/toolkit/plugin/tests/configEvaluationContext.test.ts",
-      "hunks": 1,
-      "changedLines": 639
+      "changedLines": 32
     },
     {
       "file": "packages/toolkit/plugin/tests/configEvaluationContext.test.ts",
@@ -4224,12 +4219,7 @@
       "changedLines": 2
     },
     {
-      "file": "packages/toolkit/utils/compiled/import-lazy/index.js",
-      "hunks": 1,
-      "changedLines": 2
-    },
-    {
-      "file": "packages/toolkit/utils/compiled/js-yaml/index.js",
+      "file": "packages/toolkit/utils/compiled/address/index.js",
       "hunks": 1,
       "changedLines": 1
     },
@@ -4734,9 +4724,169 @@
       "changedLines": 2
     },
     {
-      "file": "packages/toolkit/utils/package.json",
-      "hunks": 16,
-      "changedLines": 122
+      "file": "packages/toolkit/utils/compiled/js-yaml/license",
+      "hunks": 4,
+      "changedLines": 12
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/js-yaml/package.json",
+      "hunks": 1,
+      "changedLines": 1
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/json5/index.js",
+      "hunks": 1,
+      "changedLines": 1
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/json5/lib/index.d.ts",
+      "hunks": 1,
+      "changedLines": 4
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/json5/lib/parse.d.ts",
+      "hunks": 1,
+      "changedLines": 15
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/json5/lib/stringify.d.ts",
+      "hunks": 1,
+      "changedLines": 89
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/json5/package.json",
+      "hunks": 1,
+      "changedLines": 1
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/lodash/common/array.d.ts",
+      "hunks": 1,
+      "changedLines": 2126
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/lodash/common/collection.d.ts",
+      "hunks": 1,
+      "changedLines": 1930
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/lodash/common/common.d.ts",
+      "hunks": 1,
+      "changedLines": 280
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/lodash/common/date.d.ts",
+      "hunks": 1,
+      "changedLines": 23
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/lodash/common/function.d.ts",
+      "hunks": 1,
+      "changedLines": 1446
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/lodash/common/lang.d.ts",
+      "hunks": 1,
+      "changedLines": 1693
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/lodash/common/math.d.ts",
+      "hunks": 1,
+      "changedLines": 405
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/lodash/common/number.d.ts",
+      "hunks": 1,
+      "changedLines": 131
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/lodash/common/object.d.ts",
+      "hunks": 1,
+      "changedLines": 2519
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/lodash/common/seq.d.ts",
+      "hunks": 1,
+      "changedLines": 210
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/lodash/common/string.d.ts",
+      "hunks": 1,
+      "changedLines": 788
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/lodash/common/util.d.ts",
+      "hunks": 1,
+      "changedLines": 1220
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/lodash/index.d.ts",
+      "hunks": 1,
+      "changedLines": 46
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/lodash/index.js",
+      "hunks": 1,
+      "changedLines": 5
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/lodash/index.mjs",
+      "hunks": 1,
+      "changedLines": 5
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/lodash/license",
+      "hunks": 1,
+      "changedLines": 47
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/lodash/package.json",
+      "hunks": 1,
+      "changedLines": 1
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/mime-types/index.d.ts",
+      "hunks": 1,
+      "changedLines": 14
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/mime-types/index.js",
+      "hunks": 1,
+      "changedLines": 14
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/mime-types/license",
+      "hunks": 1,
+      "changedLines": 23
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/mime-types/package.json",
+      "hunks": 1,
+      "changedLines": 1
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/minimist/index.d.ts",
+      "hunks": 1,
+      "changedLines": 95
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/minimist/index.js",
+      "hunks": 1,
+      "changedLines": 1
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/minimist/license",
+      "hunks": 1,
+      "changedLines": 18
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/minimist/package.json",
+      "hunks": 1,
+      "changedLines": 1
+    },
+    {
+      "file": "packages/toolkit/utils/compiled/nanoid/index.d.ts",
+      "hunks": 1,
+      "changedLines": 91
     },
     {
       "file": "packages/toolkit/utils/compiled/nanoid/index.js",

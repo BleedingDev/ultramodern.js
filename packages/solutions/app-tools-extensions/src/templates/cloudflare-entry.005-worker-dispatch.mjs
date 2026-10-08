@@ -648,7 +648,24 @@ async function createEffectBffDispatcher(bff, runtime) {
   return effectDispatcher;
 }
 
-async function dispatchBffRequest(request, env) {
+function disposeEffectBffDispatcherAfterResponse(response, dispatcher, ctx) {
+  if (response.body === null) {
+    ctx.waitUntil(dispatcher.dispose());
+    return response;
+  }
+  const { readable, writable } = new TransformStream();
+  // The body pipe settles when the client has the whole body or the stream failed; a failure
+  // already reached the client through `readable`, so it only has to release the runtime here.
+  ctx.waitUntil(
+    response.body
+      .pipeTo(writable)
+      .catch(() => undefined)
+      .then(() => dispatcher.dispose()),
+  );
+  return new Response(readable, response);
+}
+
+async function dispatchBffRequest(request, env, ctx) {
   const rendererRejection = createWorkerRendererGuardResponse(request);
   if (rendererRejection) return rendererRejection;
   const bff = MODERN_WORKER_MANIFEST.bff;

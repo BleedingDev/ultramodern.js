@@ -344,6 +344,18 @@ const resolveWorkspaceConfig = (
       `[ultramodern-workspace] Delivery unit version for ${options.appId} does not match package.json.`,
     );
   }
+  // Topology declares each UI app's renderer. The authored config may restate
+  // it for `defineConfig`, but cannot select a different renderer.
+  const declaredRenderer = (app as { renderer?: unknown }).renderer;
+  if (
+    declaredRenderer !== undefined &&
+    config.renderer !== undefined &&
+    config.renderer !== declaredRenderer
+  ) {
+    throw new Error(
+      `[ultramodern-workspace] Renderer for ${options.appId} does not match topology.`,
+    );
+  }
   const portEnv = portEnvironment(app);
   const port = developmentPort(
     environment[portEnv] ?? overlay.ports[options.appId],
@@ -465,6 +477,9 @@ const resolveWorkspaceConfig = (
     `${options.appId}.moduleFederation.name`,
   );
   const workspaceConfig: AppUserConfig = {
+    ...(declaredRenderer !== undefined
+      ? { renderer: declaredRenderer as AppUserConfig['renderer'] }
+      : {}),
     ...(cloudflare
       ? {
           deploy: {

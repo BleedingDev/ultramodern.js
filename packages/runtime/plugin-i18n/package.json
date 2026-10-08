@@ -173,7 +173,7 @@
     "@modern-js/runtime-extensions": "workspace:*",
     "@rslib/core": "1.0.3",
     "@scripts/rstest-config": "workspace:*",
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.3",
     "esbuild": "^0.28.2",
     "i18next": "26.4.2",
     "react": "^19.3.0",

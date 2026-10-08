@@ -254,9 +254,15 @@ const createRendererPreset = (
       // Keep build artifacts predictable across apps.
       precompress: true,
     },
-    plugins: [ultramodernModuleFederationSharedPlugin()],
+    // React's Module Federation shares its JSX runtimes and framework
+    // contexts; native renderers own their federation shares.
+    ...(renderer === 'react'
+      ? { plugins: [ultramodernModuleFederationSharedPlugin()] }
+      : {}),
     server,
     source: {
+      // Client code only: the builder applies React Compiler to `web`
+      // environments and never to node/workerSSR/BFF graphs.
       ...(renderer === 'react' ? { reactCompiler: true } : {}),
       ...(deliveryUnit
         ? {

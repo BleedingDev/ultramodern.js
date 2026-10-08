@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { yaml } from '@modern-js/utils';
-import { ULTRAMODERN_PACKAGE_PINS } from './policy';
 import { getRendererGenerationProfile } from './renderer-profile';
 import type { JsonValue, WorkspaceRenderer } from './types';
 import { isRecord } from './types';
@@ -21,6 +20,7 @@ import {
   TAILWIND_VERSION,
   TANSTACK_ROUTER_CORE_VERSION,
   TANSTACK_ROUTER_VERSION,
+  ULTRAMODERN_PACKAGE_PINS,
 } from './versions';
 
 /**

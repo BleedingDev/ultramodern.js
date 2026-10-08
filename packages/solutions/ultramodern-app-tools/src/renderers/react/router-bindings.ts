@@ -26,9 +26,9 @@ const DECLARED_REACT_ROUTER = Object.freeze<RouterPackageBinding>({
 const DECLARED_TANSTACK_ROUTER = Object.freeze<RouterPackageBinding>({
   framework: 'tanstack',
   name: '@tanstack/react-router',
-  version: '1.170.39',
+  version: '1.170.41',
   coreName: '@tanstack/router-core',
-  coreVersion: '1.171.32',
+  coreVersion: '1.171.34',
 });
 
 type InstalledPackage = { directory: string; version: string };

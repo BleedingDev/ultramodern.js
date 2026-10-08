@@ -3,7 +3,6 @@ const MODERN_WORKER_MANIFEST = p_workerManifest;
 export const modernWorkerManifest = MODERN_WORKER_MANIFEST;
 const WORKER_MODULE_LOADERS = p_workerModuleLoaders;
 const workerModulePromises = new Map();
-const effectBffDispatcherPromises = new Map();
 // workerd forbids awaiting I/O (a `fetch()` Promise) that was started by a
 // different request's execution context. This worker isolate outlives any
 // single request, so this map may only ever hold settled, plain JSON values

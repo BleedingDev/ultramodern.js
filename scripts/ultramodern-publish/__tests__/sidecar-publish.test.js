@@ -186,10 +186,26 @@ test('recipe-only sidecar closure records exact publication identities and alias
   );
   const sidecars = sidecarsModule.collectSidecarPackages();
   const byName = new Map(sidecars.map(sidecar => [sidecar.name, sidecar]));
-  assert.equal(sidecars.length, 15);
+  const recipes = JSON.parse(
+    fs.readFileSync(
+      path.join(__dirname, '../../ultramodern-supply/sidecars.json'),
+      'utf8',
+    ),
+  );
+  assert.equal(
+    new Set(recipes.map(recipe => recipe.fork.name)).size,
+    recipes.length,
+    'recipes must have unique publication identities',
+  );
+  assert.equal(byName.size, sidecars.length);
+  assert.deepEqual(
+    sidecars.map(({ name, version }) => [name, version]).sort(),
+    recipes.map(({ fork }) => [fork.name, fork.version]).sort(),
+  );
   assert.equal(byName.get('@bleedingdev/rsbuild-core').version, '2.2.11');
   assert.equal(byName.get('@bleedingdev/rsbuild-core').recipeOnly, true);
   assert.equal(byName.has('@bleedingdev/jiti'), false);
+  assert.equal(byName.get('@bleedingdev/mf-sdk').version, '2.9.2');
   assert.equal(byName.has('@bleedingdev/ipx'), false);
   assert.equal(byName.has('@bleedingdev/effect'), false);
   assert.equal(byName.has('@bleedingdev/msgpackr'), false);
@@ -252,8 +268,6 @@ test('recipe-only sidecar closure records exact publication identities and alias
     assert.equal(sidecar.recipeOnly, true);
     assert.deepEqual(sidecar.packageJson.dependencies ?? {}, dependencies);
   }
-  assert.equal(byName.has('@bleedingdev/rsbuild-core'), false);
-
   const ordered = sidecarsModule.sidecarPublishOrder(sidecars);
   sidecarsModule.validateAliasConsistency([], ordered);
   publication.assertSidecarPublishOrder(ordered);
@@ -275,40 +289,6 @@ test('recipe-only sidecar closure records exact publication identities and alias
       ),
     /neither a staged sidecar nor a cohort package/u,
   );
-});
-
-test('Rsbuild aliases preserve canonical keys and peers and require the staged maintained package', async () => {
-  const { collectSidecarPackages, rewriteSidecarConsumerAliases } =
-    await import('../lib/prepare-bleedingdev-packages/sidecars.mjs');
-  const sidecars = collectSidecarPackages();
-  const consumer = {
-    name: '@bleedingdev/modern-js-ultramodern-app-tools',
-    dependencies: { '@rsbuild/core': '2.2.9' },
-    devDependencies: { '@rsbuild/core': '2.2.9', typescript: '7.0.2' },
-    optionalDependencies: { '@rsbuild/core': '2.2.9' },
-    peerDependencies: { '@rsbuild/core': '2.2.9' },
-  };
-  const source = structuredClone(consumer);
-  assert.throws(
-    () =>
-      rewriteSidecarConsumerAliases(
-        structuredClone(source),
-        sidecars.filter(item => item.name !== '@bleedingdev/rsbuild-core'),
-      ),
-    /staged sidecar @bleedingdev\/rsbuild-core is missing/u,
-  );
-  rewriteSidecarConsumerAliases(consumer, sidecars);
-  assert.deepEqual(consumer, {
-    ...source,
-    dependencies: { '@rsbuild/core': 'npm:@bleedingdev/rsbuild-core@2.2.9' },
-    devDependencies: {
-      '@rsbuild/core': 'npm:@bleedingdev/rsbuild-core@2.2.9',
-      typescript: '7.0.2',
-    },
-    optionalDependencies: {
-      '@rsbuild/core': 'npm:@bleedingdev/rsbuild-core@2.2.9',
-    },
-  });
 });
 
 test('prerelease sidecar versions are rejected', async () => {

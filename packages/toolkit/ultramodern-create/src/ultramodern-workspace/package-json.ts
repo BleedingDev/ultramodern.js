@@ -15,10 +15,7 @@ import {
 } from './descriptors';
 import { readFileTemplate } from './fs-io';
 import { packageName, relativeRootFor } from './naming';
-import {
-  ULTRAMODERN_PACKAGE_PINS,
-  ULTRAMODERN_WORKSPACE_POLICY,
-} from './policy';
+import { ULTRAMODERN_WORKSPACE_POLICY } from './policy';
 import { hasNativeAppGeneration } from './renderer-generations';
 import {
   appSupportsFederation,
@@ -26,7 +23,7 @@ import {
   resolveWorkspaceRenderer,
 } from './renderer-profile';
 import type { JsonValue, ResolvedPackageSource, WorkspaceApp } from './types';
-import { NODE_VERSION } from './versions';
+import { NODE_VERSION, ULTRAMODERN_PACKAGE_PINS } from './versions';
 import {
   createStrictTsgoTypecheckCommand,
   createWorkspaceAppPackageScripts,

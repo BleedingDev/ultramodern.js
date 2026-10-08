@@ -93,7 +93,7 @@
     "@modern-js/utils": "workspace:*",
     "@rsbuild/core": "2.2.11",
     "@swc/helpers": "^0.5.23",
-    "jiti": "^2.7.0"
+    "jiti": "2.7.0"
   },
   "devDependencies": {
     "@modern-js/builder": "workspace:*",

@@ -88,7 +88,8 @@ export function createReactRscWorkerIntegrationPlugin(): CliPlugin<AppTools> {
     setup(api) {
       api.modifyResolvedConfig(config => {
         if (
-          resolveDeployTarget(config) !== 'cloudflare' ||
+          resolveDeployTarget({ configTarget: config.deploy?.target })
+            .target !== 'cloudflare' ||
           !config.server?.rsc
         ) {
           return config;

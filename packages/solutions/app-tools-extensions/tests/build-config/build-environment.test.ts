@@ -31,21 +31,6 @@ const nativeGitHead = '2bd066d87f5bafd315be9f40889d0a60b9e58e0b';
 const nativeVersion = '7.0.2';
 const effectVersion = '0.45.0';
 
-const LIFECYCLE_HOOK_NAMES = [
-  'run',
-  'watchRun',
-  'done',
-  'afterDone',
-  'failed',
-  'shutdown',
-  'watchClose',
-] as const;
-
-type LifecycleHookName = (typeof LIFECYCLE_HOOK_NAMES)[number];
-type TestRspackConfig = {
-  plugins?: Rspack.Plugin[];
-};
-
 async function withEnvironment<T>(
   name: string,
   value: string | undefined,
@@ -108,30 +93,6 @@ function writeEffectTsgoPackage(directory: string): void {
   mkdirSync(join(packageDirectory, 'bin'), { recursive: true });
   writeFileSync(
     join(packageDirectory, 'package.json'),
-    JSON.stringify({ name: packageName, ...packageJson }),
-  );
-  return packageDirectory;
-}
-
-/**
- * Lays out an installed Effect TS-Go with its platform package and a native
- * TypeScript install, and returns the packaged TypeScript compiler path.
- */
-function writeEffectTsgoPackage(
-  directory: string,
-  platformTarget = `${process.platform}-${process.arch}`,
-): string {
-  writePackageJson(directory, '@effect/tsgo', {
-    bin: { 'effect-tsgo': './dist/effect-tsgo.cjs' },
-  });
-  const platformDirectory = writePackageJson(
-    directory,
-    `@effect/tsgo-${platformTarget}`,
-    { version: '0.46.1' },
-  );
-  mkdirSync(join(platformDirectory, 'lib'));
-  writeFileSync(
-    join(platformDirectory, 'lib/upstream.json'),
     JSON.stringify({
       name: '@effect/tsgo',
       version: effectVersion,
@@ -340,7 +301,6 @@ test('repairs Unix execute bits and preserves Windows package paths without muta
 
   try {
     mkdirSync(temporaryRoot);
-    const compilerPath = writeEffectTsgoPackage(directory);
     writeCompiler(compilerPath, 0o600);
     writeEffectTsgoPackage(directory);
     await withEnvironment('TMPDIR', temporaryRoot, () =>
@@ -390,8 +350,6 @@ test('deduplicates Unix executable copies while retaining native Windows paths',
 
   try {
     mkdirSync(temporaryRoot);
-    const firstCompiler = writeEffectTsgoPackage(firstPackage);
-    const secondCompiler = writeEffectTsgoPackage(secondPackage);
     writeCompiler(firstCompiler, 0o600);
     writeCompiler(secondCompiler, 0o600);
     writeEffectTsgoPackage(firstPackage);
@@ -720,7 +678,10 @@ test('selects the actual declared generator Effect artifact from an empty stagin
     const nativeManifest = JSON.parse(
       readFileSync(nativeManifestPath, 'utf-8'),
     );
-    assert.ok(generatorManifest.dependencies['@effect/tsgo']);
+    assert.equal(
+      effectManifest.version,
+      generatorManifest.dependencies['@effect/tsgo'],
+    );
     assert.ok(generatorManifest.dependencies['@typescript/native']);
     assert.equal(generatorManifest.dependencies.typescript, '7.0.2');
     assert.equal(nativeManifest.name, 'typescript');

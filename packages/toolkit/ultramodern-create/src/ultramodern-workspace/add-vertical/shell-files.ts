@@ -51,7 +51,7 @@ export function updateRootWorkspaceScripts(
   bridge?: UltramodernBridgeConfig,
   additionalShells: WorkspaceApp[] = [],
   previousRemotes: WorkspaceApp[] = remotes,
-  _primaryShell: WorkspaceApp = shellApp,
+  primaryShell: WorkspaceApp = shellApp,
   previousAdditionalShells: WorkspaceApp[] = additionalShells,
   previousPrimaryShell: WorkspaceApp = primaryShell,
 ) {
@@ -115,11 +115,8 @@ export function shellAppArtifacts(
   if (resolveWorkspaceRenderer(shellHost) !== 'react') {
     const files = {
       [`${shellHost.directory}/modern.config.ts`]: createAppModernConfig(
-        scope,
         shellHost,
-        shellRemotes,
         enableTailwind,
-        devPorts,
       ),
       [`${shellHost.directory}/tsconfig.json`]: `${JSON.stringify(
         createAppTsConfig(shellHost, shellRemotes),

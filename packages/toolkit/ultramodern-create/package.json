@@ -87,7 +87,7 @@
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "dev": "rslib build -c rslib.config.mts -w",
     "start": "node ./dist/esm-node/index.js",
-    "test": "pnpm build && rstest --passWithNoTests",
+    "test": "pnpm build && rstest",
     "type-check": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
@@ -102,7 +102,7 @@
     "miniflare": "5.20260930.0-alpha",
     "oxfmt": "0.71.0",
     "tsx": "^4.23.15",
-    "ultracite": "7.12.0",
+    "ultracite": "7.12.2",
     "@modern-js/renderer-core": "workspace:*",
     "@modern-js/renderer-octane": "workspace:*",
     "@modern-js/renderer-solid": "workspace:*",
@@ -122,7 +122,7 @@
     "i18next": "26.4.2",
     "@babel/core": "7.29.7",
     "typescript": "7.0.2",
-    "@effect/tsgo": "0.45.0",
+    "@effect/tsgo": "0.47.2",
     "@typescript/native": "npm:typescript@7.0.2"
   },
   "devDependencies": {
@@ -134,8 +134,7 @@
     "@modern-js/rslib": "workspace:*",
     "@rslib/core": "1.0.3",
     "@scripts/rstest-config": "workspace:*",
-    "@types/node": "^26.6.2",
-    "drizzle-orm": "1.0.0-rc.4",
+    "@types/node": "^26.6.3",
     "js-yaml": "5.4.2"
   },
   "publishConfig": {

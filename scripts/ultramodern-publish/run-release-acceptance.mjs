@@ -44,6 +44,7 @@ const valueOptions = new Set([
   '--run-identity',
   '--scale-profile',
   '--shell-finalization',
+  '--source-receipt',
   '--store-dir',
   '--work-dir',
 ]);
@@ -211,6 +212,8 @@ function parseArgs(argv) {
     shellFinalizationPath: values.has('--shell-finalization')
       ? path.resolve(values.get('--shell-finalization'))
       : undefined,
+    sourceReceiptPath:
+      sourceReceipt === undefined ? undefined : path.resolve(sourceReceipt),
     storeDir: storeValue === undefined ? undefined : path.resolve(storeValue),
     workDir:
       workDirValue === undefined ? undefined : path.resolve(workDirValue),
@@ -411,6 +414,11 @@ async function runPublished({ release, options, runIdentity }) {
     runIdentity,
     expectedMode: 'source',
   });
+  if (sourceReceipt.schema === acceptanceContinuationSchema) {
+    throw new Error(
+      '--source-receipt must be a complete source acceptance receipt; a source continuation carries no accepted resolution',
+    );
+  }
   return executeAcceptanceProfile({
     mode: 'published',
     acceptedResolution: acceptedResolution(sourceReceipt),

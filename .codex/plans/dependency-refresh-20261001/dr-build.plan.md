@@ -4,7 +4,7 @@ overview: Upgrade the Rstack and Module Federation dependency graph and reconstr
 todos:
   - id: update-rstack-cohort
     content: Upgrade Rsbuild Rspack Rslib Rspress Rstest and compatible plugins with working compiler adapter and declaration output.
-    status: pending
+    status: in_progress
   - id: update-federation-cohort
     content: Move Module Federation packages to the frozen compatible versions and prove CSR SSR DTS lazy-loading and manifest behavior.
     status: pending

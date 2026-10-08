@@ -1,6 +1,6 @@
 # Dependency refresh for one UltraModern release
 
-Researched on 2026-10-01 against `4d606d0203fe4c67585cbff5d3f72a0e80de402f`. Research task `modernjs-s2xwc`; implementation epic `modernjs-h8xqq`. Dependency files have not been changed.
+Researched on 2026-10-01 against `4d606d0203fe4c67585cbff5d3f72a0e80de402f`. Research task `modernjs-s2xwc`; implementation epic `modernjs-h8xqq`. This section records the original research baseline; implementation uses current main at `27d3bcea8b` and refreshed registry metadata.
 
 ## Recommendation
 

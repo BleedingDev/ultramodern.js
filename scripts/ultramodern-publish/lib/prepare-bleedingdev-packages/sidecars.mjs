@@ -79,39 +79,6 @@ const dependencyBlockNames = [
   'peerDependencies',
 ];
 
-const requiredImageDependencyTargets = Object.freeze({
-  '@rsbuild-image/core': '@bleedingdev/rsbuild-image-core',
-  ipx: '@bleedingdev/ipx',
-});
-
-const correctedDependencyTargets = Object.freeze({
-  '@rsbuild/core': '@bleedingdev/rsbuild-core',
-  jiti: '@bleedingdev/jiti',
-  effect: '@bleedingdev/effect',
-  'drizzle-orm': '@bleedingdev/drizzle-orm',
-  zod: '@bleedingdev/zod',
-  ...Object.fromEntries(
-    [
-      'bridge-react',
-      'cli',
-      'dts-plugin',
-      'enhanced',
-      'manifest',
-      'modern-js-v3',
-      'node',
-      'rsbuild-plugin',
-      'rspack',
-      'runtime',
-      'runtime-core',
-      'runtime-tools',
-      'webpack-bundler-runtime',
-    ].map(name => [
-      `@module-federation/${name}`,
-      `@bleedingdev/mf-${name}`,
-    ]),
-  ),
-});
-
 const stagedDirectoryName = name => name.replaceAll('/', '__');
 
 function unscopedName(name) {

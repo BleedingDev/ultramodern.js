@@ -20,12 +20,6 @@ export function createWorkspaceScriptArtifacts(
     ...(renderer === 'react'
       ? [
           {
-            relativePath: 'scripts/check-ultramodern-i18n-boundaries.mts',
-            content: readFileTemplate(
-              'workspace-scripts/check-ultramodern-i18n-boundaries.mts',
-            ),
-          },
-          {
             relativePath:
               'scripts/ultramodern-performance-readiness.config.mjs',
             content: readFileTemplate(

@@ -86,10 +86,6 @@ export function pluginRscConfig(
       api.modifyBundlerChain({
         handler: (chain, { isServer, environment }) => {
           if (isServer || environment.name === serverEnvironment) {
-            chain.resolve.alias.set(
-              `${RENDER_RSC_RUNTIME}$`,
-              RENDER_RSC_WORKER_RUNTIME,
-            );
             let emptyModulePath: string;
             try {
               emptyModulePath = require.resolve('../shared/rsc/rscEmptyModule');

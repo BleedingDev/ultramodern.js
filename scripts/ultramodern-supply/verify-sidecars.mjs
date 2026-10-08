@@ -45,6 +45,29 @@ export const unpublishedForkEdges = [
     published: '@bleedingdev/modern-js-federation-runtime',
     dependency: '@module-federation/sdk',
   },
+  // These exact source consumers declare the parser-correction recipes until
+  // their new fork names are published. This validates recipe reachability;
+  // it does not correct the current installation or compiled utility bytes.
+  {
+    importer: 'packages/toolkit/utils',
+    published: '@bleedingdev/modern-js-utils',
+    dependency: 'fast-glob',
+  },
+  {
+    importer: 'packages/cli/builder',
+    published: '@bleedingdev/modern-js-builder',
+    dependency: '@rsbuild/plugin-source-build',
+  },
+  {
+    importer: 'packages/cli/builder',
+    published: '@bleedingdev/modern-js-builder',
+    dependency: '@rsbuild/plugin-type-check',
+  },
+  {
+    importer: 'packages/toolkit/ultramodern-create',
+    published: '@bleedingdev/modern-js-ultramodern-create',
+    dependency: 'ultracite',
+  },
   {
     importer: 'packages/cli/plugin-bff-extensions',
     published: '@bleedingdev/modern-js-plugin-bff-extensions',
@@ -89,7 +112,7 @@ export const unpublishedForkEdges = [
 
 /**
  * Whether `consumer`'s `dependency` edge may still be the upstream `specifier`.
- * A lockfile version may carry its peer suffix, e.g. `1.6.0(@rsbuild/core@2.2.11)`.
+ * A lockfile version may carry its peer suffix, e.g. `2.2.11(core-js@3.50.0)`.
  */
 export const isUnpublishedForkEdge = (
   consumer,
@@ -171,22 +194,132 @@ export function assertRecipeConsumers(
   );
 }
 
-function nestedNodeModules(directory) {
-  return fs
-    .readdirSync(directory, { withFileTypes: true })
-    .filter(entry => entry.isDirectory())
-    .flatMap(entry => {
-      const absolute = path.join(directory, entry.name);
-      return entry.name === 'node_modules'
-        ? [absolute]
-        : nestedNodeModules(absolute);
-    });
+/** Check the repository recipes against the generator's runtime pins and the published cohort manifests. */
+export function assertRepositoryRecipeConsumers(publishedManifests) {
+  const qualifiedSdkPins = Object.fromEntries(
+    Object.entries(sidecarProfile('mf-sdk').dependencies).map(
+      ([name, version]) => [name, `npm:${name}@${version}`],
+    ),
+  );
+  assertRecipeGraph(recipes, {
+    generatorPins: [
+      ...Object.values(ULTRAMODERN_PACKAGE_PINS),
+      qualifiedSdkPins,
+    ],
+  });
+  assertRecipeConsumers(recipes, {
+    // The standalone SDK qualifier is a direct installed public API consumer.
+    // Its immutable profile also drives the exact installer dependencies.
+    generatorPins: [
+      ...Object.entries(ULTRAMODERN_PACKAGE_PINS)
+        .filter(([block]) => !block.endsWith('DevDependencies'))
+        .map(([, pins]) => pins),
+      qualifiedSdkPins,
+    ],
+    publishedManifests,
+  });
 }
 
-/** Reconstruct from a pinned tarball in an owned temporary directory, then compare every artifact. */
-export async function verifySidecar(
-  id,
-  { artifactsDir, packageDir, materializeTo } = {},
+/**
+ * Resolve the recipe graph. Every `npm:@bleedingdev/<fork>@<version>` alias in
+ * a recipe or a generator pin must name a recipe at exactly that version, so
+ * deleting a recipe fails here instead of publishing a dangling alias. A
+ * runtime, optional or peer alias is a graph edge; any other manifest change
+ * is a correction the recipe carries itself, like a patch.
+ */
+function recipeGraph(recipeList, generatorPins) {
+  const byFork = new Map(
+    recipeList.map(item => [`${item.fork.name}@${item.fork.version}`, item]),
+  );
+  const resolve = (owner, specifier) => {
+    const [, fork, version] = forkSpecifier.exec(String(specifier)) ?? [];
+    if (!fork) return undefined;
+    const target = byFork.get(`${fork}@${version}`);
+    assert.ok(
+      target,
+      `${owner} aliases ${specifier}, which no sidecar recipe publishes; restore the recipe or drop the alias`,
+    );
+    return target;
+  };
+  for (const pins of generatorPins)
+    for (const [name, specifier] of Object.entries(pins))
+      resolve(`generator pin ${name}`, specifier);
+  const edges = new Map();
+  const corrections = new Set();
+  for (const recipe of recipeList) {
+    const aliases = [];
+    for (const [block, changes] of Object.entries(recipe.manifestChanges)) {
+      for (const [name, specifier] of Object.entries(changes)) {
+        const target = resolve(
+          `sidecar ${recipe.id} ${block}.${name}`,
+          specifier,
+        );
+        if (!target) corrections.add(recipe);
+        else if (consumerBlocks.includes(block))
+          aliases.push({ block, name, specifier, target });
+      }
+    }
+    edges.set(recipe, aliases);
+  }
+  return { corrections, edges };
+}
+
+/**
+ * Split the recipes into those that still carry or reach a correction and the
+ * retirable rest, treating the `upstreamed` recipes' patches as already
+ * shipped by upstream.
+ */
+function partitionRecipes(recipeList, { generatorPins, upstreamed }) {
+  const { corrections, edges } = recipeGraph(recipeList, generatorPins);
+  const parents = new Map(recipeList.map(item => [item, []]));
+  for (const [recipe, aliases] of edges)
+    for (const { target } of aliases) parents.get(target).push(recipe);
+  const required = new Set(
+    recipeList.filter(
+      item => corrections.has(item) || (item.patch && !upstreamed.has(item)),
+    ),
+  );
+  const pending = [...required];
+  while (pending.length) {
+    for (const parent of parents.get(pending.pop())) {
+      if (!required.has(parent)) {
+        required.add(parent);
+        pending.push(parent);
+      }
+    }
+  }
+  return {
+    edges,
+    required,
+    retirable: recipeList.filter(item => !required.has(item)),
+  };
+}
+
+/**
+ * A recipe without a patch exists only to rewire a runtime dependency onto a
+ * corrected recipe. Reject any recipe that neither carries a correction nor
+ * reaches one through its runtime aliases, and any alias whose recipe is gone.
+ */
+export function assertRecipeGraph(recipeList, { generatorPins = [] } = {}) {
+  const [orphan] = partitionRecipes(recipeList, {
+    generatorPins,
+    upstreamed: new Set(),
+  }).retirable;
+  assert.ok(
+    !orphan,
+    `sidecar ${orphan?.id} has no patched descendant; delete recipe`,
+  );
+}
+
+/**
+ * Report what upstream releases make retirable: each upstreamed patch, every
+ * recipe that no longer reaches a correction, and every alias a remaining
+ * recipe must drop.
+ */
+export function assertNoUpstreamedPatches(
+  recipeList,
+  upstreamed,
+  { generatorPins = [] } = {},
 ) {
   const { edges, required, retirable } = partitionRecipes(recipeList, {
     generatorPins,
@@ -351,10 +484,7 @@ export async function verifySidecar(id, { artifactsDir, materializeTo } = {}) {
   );
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'ultramodern-sidecar-'));
   try {
-    const target = packageDir ?? path.join(root, 'packages/sidecar', id);
-    if (!materializeTo && !packageDir && recipe.artifacts.includes('*')) {
-      materializeTo = path.join(temp, 'reconstructed');
-    }
+    const target = materializeTo ?? path.join(temp, 'reconstructed');
     let bytes;
     if (artifactsDir) {
       // Explicit offline input must exist and is held to the same integrity check.
@@ -400,58 +530,35 @@ export async function verifySidecar(id, { artifactsDir, materializeTo } = {}) {
         stdio: ['pipe', 'pipe', 'pipe'],
       });
     }
-    let projected;
-    if (recipe.artifacts.includes('*')) {
-      projected = {
-        ...upstream,
-        name: recipe.fork.name,
-        version: recipe.fork.version,
-        publishConfig: {
-          registry: 'https://registry.npmjs.org/',
-          access: 'public',
-        },
-        repository: {
-          type: 'git',
-          url: 'git+https://github.com/BleedingDev/ultramodern.js.git',
-          directory: 'scripts/ultramodern-supply',
-        },
-      };
-      for (const [key, changes] of Object.entries(recipe.manifestChanges)) {
-        for (const dependencyName of Object.keys(changes)) {
-          assert.ok(
-            Object.hasOwn(upstream[key] ?? {}, dependencyName),
-            `${id}: recipe changes absent upstream ${key}.${dependencyName}`,
-          );
-        }
-        projected[key] = { ...upstream[key], ...changes };
-      }
-    }
-    if (materializeTo) {
-      assert.deepEqual(
-        recipe.artifacts,
-        ['*'],
-        `${id}: reconstruction requires the complete upstream artifact`,
-      );
-      if (packageDir) {
-        const fork = JSON.parse(
-          fs.readFileSync(path.join(target, 'package.json'), 'utf8'),
-        );
-        assert.deepEqual(
-          fork,
-          projected,
-          `${id}: recipe must account for every manifest field`,
+    // A carried upstream PR can change the manifest too (for example its
+    // `exports`), so the publication manifest projects the patched one.
+    const patched = JSON.parse(
+      fs.readFileSync(path.join(upstreamDir, 'package.json'), 'utf8'),
+    );
+    assert.equal(patched.name, upstream.name);
+    assert.equal(patched.version, upstream.version);
+    const projected = {
+      ...patched,
+      name: recipe.fork.name,
+      version: recipe.fork.version,
+      publishConfig: {
+        registry: 'https://registry.npmjs.org/',
+        access: 'public',
+      },
+      repository: {
+        type: 'git',
+        url: 'git+https://github.com/BleedingDev/ultramodern.js.git',
+        directory: 'scripts/ultramodern-supply',
+      },
+    };
+    for (const [key, changes] of Object.entries(recipe.manifestChanges)) {
+      for (const dependencyName of Object.keys(changes)) {
+        assert.ok(
+          Object.hasOwn(patched[key] ?? {}, dependencyName),
+          `${id}: recipe changes absent upstream ${key}.${dependencyName}`,
         );
       }
-      fs.writeFileSync(
-        path.join(upstreamDir, 'package.json'),
-        `${JSON.stringify(projected, null, 2)}\n`,
-      );
-      fs.rmSync(materializeTo, { recursive: true, force: true });
-      fs.cpSync(upstreamDir, materializeTo, { recursive: true });
-      console.log(
-        `Reconstructed ${id}: authenticated ${recipe.upstream.name}@${recipe.upstream.version}, exact patch and publication manifest.`,
-      );
-      return upstream;
+      projected[key] = { ...patched[key], ...changes };
     }
     fs.writeFileSync(
       path.join(upstreamDir, 'package.json'),

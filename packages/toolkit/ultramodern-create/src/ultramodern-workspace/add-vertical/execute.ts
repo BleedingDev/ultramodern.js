@@ -11,7 +11,6 @@ import { stampDeliveryUnitIdentity } from '../delivery-unit-stamp';
 import {
   appEmitsBrowserUi,
   createModuleFederationRemoteContracts,
-  resolveRemoteRefs,
 } from '../descriptors';
 import {
   projectAddedVerticalDevelopmentOverlay,
@@ -29,10 +28,7 @@ import {
   createGenerationResult,
   diffFileSnapshots,
 } from '../generation-result';
-import {
-  createAppModernConfig,
-  createUltramodernBuildArtifactJson,
-} from '../module-federation';
+import { createUltramodernBuildArtifactJson } from '../module-federation';
 import { runCodeSmithOverlays } from '../overlays';
 import { createRootTsConfig } from '../package-json';
 import { captureWorkspaceRendererEvaluations } from '../renderer-config-evaluation';

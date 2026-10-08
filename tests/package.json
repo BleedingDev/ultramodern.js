@@ -22,8 +22,10 @@
     "@modern-js/app-tools": "workspace:*",
     "@modern-js/plugin-polyfill": "workspace:*",
     "@modern-js/utils": "workspace:*",
-    "@swc/core": "1.16.2",
-    "@types/node": "^26.6.2",
+    "@rstest/core": "0.12.3",
+    "@scripts/rstest-config": "workspace:*",
+    "@swc/core": "1.16.13",
+    "@types/node": "^26.6.3",
     "cross-spawn": "^7.0.6",
     "enhanced-resolve": "5.26.0",
     "fs-extra": "^11.4.1",
@@ -33,8 +35,6 @@
     "puppeteer": "^25.12.0",
     "rimraf": "^6.1.3",
     "tree-kill": "^1.2.2",
-    "ts-node": "^10.9.2",
-    "tsm": "2.3.0",
     "typescript": "7.0.2"
   }
 }

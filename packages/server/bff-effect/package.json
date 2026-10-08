@@ -166,7 +166,8 @@
     "@scripts/rstest-config": "workspace:*",
     "@types/node": "^26.6.3",
     "@types/react": "^19.3.0",
-    "effect": "4.0.0-rc.117"
+    "effect": "4.0.0",
+    "esbuild": "^0.28.2"
   },
   "sideEffects": false,
   "publishConfig": {

@@ -143,29 +143,39 @@ function createWorkspaceAppScriptPlan(
   // Deploy targets are CLI flags, not env wrappers: cross-env reports a build
   // that died from a signal (a native stack overflow) as a plain exit 1.
   const buildSteps = [
-    `${createPublicSurfaceGenerationCommand(app, 'dist')} --sync-route-metadata`,
-    'ultramodern build',
+    routesGenerate,
+    'ultramodern build --deploy-target node',
     createPublicSurfaceGenerationCommand(app, 'dist'),
-    'cross-env MODERNJS_DEPLOY=node ultramodern deploy --skip-build',
-    // NOTE: the Module Federation DTS archive is emitted by `modern build`
+    'ultramodern deploy --skip-build --deploy-target node',
+    // NOTE: the Module Federation DTS archive is emitted by `ultramodern build`
     // above; verifying it (assert-mf-types) is done ONCE at the workspace root
     // (`pnpm mf:types`) AFTER every app has built. A per-app verify here races
     // under parallel `pnpm -r build` — an early app would assert a sibling's
     // not-yet-emitted archive — so it is intentionally omitted.
   ].filter((step): step is string => Boolean(step));
-  const cloudflareBuildSteps = [
-    `${createPublicSurfaceGenerationCommand(app, 'cloudflare-dist')} --sync-route-metadata`,
-    'cross-env MODERNJS_DEPLOY=cloudflare ultramodern build',
-    createPublicSurfaceGenerationCommand(app, 'cloudflare-dist'),
-    'cross-env MODERNJS_DEPLOY=cloudflare ultramodern deploy --skip-build',
-    `${packageToolingWrapperCommand(
-      app.directory,
-      'cloudflareOutputVerify',
-    )} --app ${app.id}`,
-  ].filter((step): step is string => Boolean(step));
+  const cloudflareOutputVerify = `${packageToolingWrapperCommand(
+    app.directory,
+    'cloudflareOutputVerify',
+  )} --app ${app.id}`;
+  const cloudflareBuildSteps = (requirePublicUrls: boolean) =>
+    [
+      routesGenerate,
+      'ultramodern build --deploy-target cloudflare',
+      createPublicSurfaceGenerationCommand(
+        app,
+        'cloudflare-dist',
+        requirePublicUrls,
+      ),
+      'ultramodern deploy --skip-build --deploy-target cloudflare',
+      requirePublicUrls
+        ? `${cloudflareOutputVerify} --require-public-urls`
+        : cloudflareOutputVerify,
+    ].filter((step): step is string => Boolean(step));
 
   return {
-    dev: `${createPublicSurfaceGenerationCommand(app, 'dist')} --sync-route-metadata && ultramodern dev`,
+    dev: [routesGenerate, 'ultramodern dev']
+      .filter((step): step is string => Boolean(step))
+      .join(' && '),
     build: buildSteps.join(' && '),
     cloudflareBuild: cloudflareBuildSteps(false).join(' && '),
     cloudflareDeploy: [

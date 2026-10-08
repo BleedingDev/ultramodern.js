@@ -11,6 +11,21 @@ async function main(): Promise<void> {
       throw new Error('Route generation requires an app directory and label.');
     }
     const appRequire = createRequire(path.join(appDirectory, 'package.json'));
+    if (mode === 'manifest') {
+      // The manifest is plain route metadata. It never loads the app config,
+      // so dev and build scripts can run it before the owning CLI starts.
+      const pluginUrl = pathToFileURL(
+        appRequire.resolve('@modern-js/plugin-tanstack'),
+      ).href;
+      const { writeRouteMetadataManifest } = (await import(pluginUrl)) as {
+        writeRouteMetadataManifest(options: {
+          appDirectory: string;
+        }): Promise<void>;
+      };
+      await writeRouteMetadataManifest({ appDirectory });
+      console.log(`[ultramodern] Route metadata manifest generated: ${label}`);
+      return;
+    }
     const cliUrl = pathToFileURL(
       appRequire.resolve('@modern-js/ultramodern-app-tools/cli'),
     ).href;

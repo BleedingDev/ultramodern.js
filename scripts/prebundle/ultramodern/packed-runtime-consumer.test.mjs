@@ -233,7 +233,13 @@ test('packed runtime registry and TanStack runtime declarations resolve for a Ty
     );
     writeFileSync(
       join(consumerDirectory, 'pnpm-workspace.yaml'),
-      stringify({ packages: ['.'], overrides }),
+      stringify({
+        packages: ['.'],
+        overrides,
+        minimumReleaseAgeExclude: parse(
+          readFileSync(join(root, 'pnpm-workspace.yaml'), 'utf8'),
+        ).minimumReleaseAgeExclude.filter(selector => !selector.includes('*')),
+      }),
     );
 
     const install = spawnSync(

@@ -43,7 +43,14 @@ class ProofLog extends Log {
   }
 }
 
-const assertSuccessfulSsrResponse = (appId, route, response, html, log) => {
+const assertSuccessfulSsrResponse = (
+  appId,
+  route,
+  response,
+  html,
+  log,
+  outboundRequests,
+) => {
   if (response.status === 200) return;
   const bytes = Buffer.from(html, "utf8");
   throw new Error(
@@ -54,6 +61,7 @@ const assertSuccessfulSsrResponse = (appId, route, response, html, log) => {
         status: response.status,
         contentType: response.headers.get("content-type"),
         responseBody: { ...diagnosticText(html, 8192), sha256: sha256(bytes) },
+        outboundRequests,
         workerErrors: log.errors,
       }),
   );
@@ -162,84 +170,100 @@ const bindExecutedModule = (app, envelope, module) => {
   };
 };
 
-const topology = readJson(path.join(workspaceRoot, "topology/reference-topology.json"));
-const overlay = readJson(path.join(workspaceRoot, "topology/local-overlays/development.json"));
-assert(topology.schemaVersion === 1 && topology.shell && Array.isArray(topology.verticals), "Invalid topology/reference-topology.json");
-const apps = await Promise.all([topology.shell, ...topology.verticals, ...(topology.shells ?? [])].map(async (rawApp) => {
-  const kind = rawApp.kind === "vertical" ? "vertical" : "shell";
-  const hasApiSurface = kind === "vertical" && rawApp.surfaceProfile !== "ui-only";
-  const appPath = rawApp.path;
-  assert(typeof appPath === "string" && appPath.length > 0, `${rawApp.id} topology path is missing`);
-  const moduleFederation =
-    rawApp.moduleFederation && typeof rawApp.moduleFederation === "object"
-      ? rawApp.moduleFederation
-      : {};
-  const configuredProofRoutes = rawApp.cloudflare?.distributedSsrProofRoutes;
-  const proofRoutes = Array.isArray(configuredProofRoutes)
-    ? [...new Set(configuredProofRoutes.filter(
-        (route) => typeof route === "string" && route.startsWith("/"),
-      ))]
-    : [];
-  const outputRoot = path.join(workspaceRoot, appPath, ".output");
-  const wranglerPath = path.join(outputRoot, "wrangler.json");
-  assert(
-    fs.existsSync(wranglerPath),
-    `${rawApp.id} Cloudflare output is missing; run pnpm cloudflare:build first`,
-  );
-  const wrangler = readJson(wranglerPath);
-  const domain = rawApp.domain ?? rawApp.id;
-  const portEnv = rawApp.portEnv ??
-    (kind === "vertical"
-      ? `VERTICAL_${String(domain).replace(/[^a-zA-Z0-9]/gu, "_").toUpperCase()}_PORT`
-      : undefined);
-  assert(typeof portEnv === "string" && portEnv.length > 0, `${rawApp.id} has no declared port environment name`);
-  const configuredPort = process.env[portEnv];
-  const port = configuredPort === undefined
-    ? Number(overlay.ports?.[rawApp.id])
-    : Number(configuredPort);
-  assert(
-    Number.isInteger(port) && port > 0 && port <= 65535,
-    `${rawApp.id} has an invalid local proof port from ${portEnv}`,
-  );
-  const executedEnvelope = await readExecutionEnvelope(
-    String(rawApp.id),
-    outputRoot,
-    rawApp.deliveryUnit?.unitId,
-  );
-  const { surfaces } = executedEnvelope.envelope;
-  assert(
-    (surfaces.apiBackend.length > 0) === hasApiSurface &&
-      Boolean(surfaces.backendFederation) === hasApiSurface &&
-      (surfaces.uiClient.length > 0) === (rawApp.surfaceProfile !== "api-only"),
-    `${rawApp.id} executed envelope surfaces differ from its declared application profile`,
+const normalizeRoutes = (routes) => [
+  ...new Set(
+    (Array.isArray(routes) ? routes : []).filter(
+      (route) => typeof route === "string" && route.startsWith("/"),
+    ),
+  ),
+];
+
+// The generator's distributed SSR contract: every expose except the page
+// route is a fragment a host can server-render (see distributedSsrExposes).
+const declaresDistributedSsrExpose = (rawApp) =>
+  Array.isArray(rawApp?.moduleFederation?.exposes) &&
+  rawApp.moduleFederation.exposes.some(
+    (expose) => typeof expose === "string" && expose !== "./Route",
   );
 
-  return {
-    id: String(rawApp.id),
-    kind,
-    hasApiSurface,
-    apiOnly: rawApp.surfaceProfile === "api-only",
-    path: appPath,
-    mfName: typeof moduleFederation.name === "string" ? moduleFederation.name : String(rawApp.id),
-    verticalRefs: Array.isArray(rawApp.verticalRefs ?? moduleFederation.verticalRefs)
-      ? (rawApp.verticalRefs ?? moduleFederation.verticalRefs).filter((ref) => typeof ref === "string")
-      : [],
-    apiPrefix:
-      typeof rawApp.api?.bff?.prefix === "string"
-        ? rawApp.api.bff.prefix.replace(/\/+$/u, "")
-        : undefined,
-    apiProtocol: rawApp.api?.protocol ?? "rest",
-    rpcRoute: rawApp.api?.protocol === "rpc" ? rawApp.cloudflare?.routes?.rpc : undefined,
-    proofRoutes: proofRoutes.length > 0 ? proofRoutes : defaultProofRoutes,
-    jsonSmokeChecks: Array.isArray(rawApp.cloudflare?.jsonSmokeChecks)
-      ? rawApp.cloudflare.jsonSmokeChecks
-      : [],
-    ...executedEnvelope,
-    outputRoot,
-    port,
-    wrangler,
-  };
-}));
+/**
+ * Derive what the proof must execute from topology/reference-topology.json.
+ *
+ * - `ssrRoutes`: every route the app itself must server-render on its own
+ *   Worker (`cloudflare.routes.ssr` plus `cloudflare.distributedSsrProofRoutes`).
+ * - `serverRenderedRoutes`: shell routes that must compose distributed SSR
+ *   boundaries. `cloudflare.distributedSsrProofRoutes` declares them; without
+ *   it the shell's `cloudflare.routes.ssr` is the composition route. An empty
+ *   array declares a shell whose MicroVerticals load on the client only.
+ * - `serverRenderedRemoteIds`: shell `verticalRefs` whose topology declares a
+ *   distributed SSR expose, i.e. the boundaries the shell must server-render.
+ */
+export const planWorkerdSsrProof = (topology) => {
+  assert(
+    topology?.schemaVersion === 1 && topology.shell && Array.isArray(topology.verticals),
+    "Invalid topology/reference-topology.json",
+  );
+  const rawApps = [topology.shell, ...topology.verticals, ...(topology.shells ?? [])];
+  const rawAppsById = new Map(rawApps.map((rawApp) => [String(rawApp.id), rawApp]));
+  const plans = rawApps.map((rawApp) => {
+    const id = String(rawApp.id);
+    const kind = rawApp.kind === "vertical" ? "vertical" : "shell";
+    const cloudflare = rawApp.cloudflare ?? {};
+    const declaredServerRenderedRoutes = cloudflare.distributedSsrProofRoutes;
+    const rawVerticalRefs = rawApp.verticalRefs ?? rawApp.moduleFederation?.verticalRefs;
+    const verticalRefs = Array.isArray(rawVerticalRefs)
+      ? rawVerticalRefs.filter((ref) => typeof ref === "string")
+      : [];
+    for (const ref of verticalRefs) {
+      assert(rawAppsById.has(ref), `${id} references missing MicroVertical ${ref}`);
+    }
+    const serverRenderedRemoteIds =
+      kind === "shell"
+        ? verticalRefs.filter((ref) => declaresDistributedSsrExpose(rawAppsById.get(ref)))
+        : [];
+    assert(
+      declaredServerRenderedRoutes === undefined ||
+        (Array.isArray(declaredServerRenderedRoutes) &&
+          normalizeRoutes(declaredServerRenderedRoutes).length ===
+            declaredServerRenderedRoutes.length),
+      `${id} cloudflare.distributedSsrProofRoutes must list unique absolute routes`,
+    );
+    const serverRenderedRoutes =
+      kind !== "shell"
+        ? []
+        : Array.isArray(declaredServerRenderedRoutes)
+          ? normalizeRoutes(declaredServerRenderedRoutes)
+          : normalizeRoutes([cloudflare.routes?.ssr]);
+    const ssrRoutes = normalizeRoutes([
+      ...(Array.isArray(declaredServerRenderedRoutes) ? declaredServerRenderedRoutes : []),
+      cloudflare.routes?.ssr,
+    ]);
+    const apiOnly = rawApp.surfaceProfile === "api-only";
+    assert(
+      apiOnly || normalizeRoutes([cloudflare.routes?.ssr]).length === 1,
+      `${id} declares no cloudflare.routes.ssr to prove on its own Worker`,
+    );
+    return {
+      apiOnly,
+      id,
+      kind,
+      serverRenderedRemoteIds:
+        serverRenderedRoutes.length > 0 ? serverRenderedRemoteIds : [],
+      serverRenderedRoutes,
+      ssrRoutes,
+      verticalRefs,
+    };
+  });
+  assert(
+    plans.some((plan) => plan.kind === "shell"),
+    "Workerd SSR proof requires at least one shell",
+  );
+  assert(
+    plans.some((plan) => plan.kind === "vertical"),
+    "Workerd SSR proof requires at least one MicroVertical or headless API",
+  );
+  return { plans, rawApps };
+};
 
 const readDevVars = (outputRoot) => {
   // Wrangler's local-secret convention: `.dev.vars` beside the executed config.
@@ -247,9 +271,9 @@ const readDevVars = (outputRoot) => {
   return fs.existsSync(devVarsPath) ? parseEnv(fs.readFileSync(devVarsPath, "utf8")) : {};
 };
 
-const loadApps = (workspaceRoot, topology, overlay) => {
+const loadApps = async (workspaceRoot, topology, overlay) => {
   const { plans, rawApps } = planWorkerdSsrProof(topology);
-  return rawApps.map((rawApp, index) => {
+  return Promise.all(rawApps.map(async (rawApp, index) => {
     const plan = plans[index];
     const hasApiSurface = plan.kind === "vertical" && rawApp.surfaceProfile !== "ui-only";
     const appPath = rawApp.path;
@@ -261,9 +285,6 @@ const loadApps = (workspaceRoot, topology, overlay) => {
       `${plan.id} Cloudflare output is missing; run pnpm cloudflare:build first`,
     );
     const wrangler = readJson(wranglerPath);
-    const executedEnvelope = hasApiSurface
-      ? readExecutionEnvelope(plan.id, outputRoot, rawApp.deliveryUnit?.unitId)
-      : {};
     const domain = rawApp.domain ?? rawApp.id;
     const portEnv = rawApp.portEnv ??
       (plan.kind === "vertical"
@@ -277,6 +298,20 @@ const loadApps = (workspaceRoot, topology, overlay) => {
     assert(
       Number.isInteger(port) && port > 0 && port <= 65535,
       `${plan.id} has an invalid local proof port from ${portEnv}`,
+    );
+    // Every executed Worker is bound to its owner-verified release envelope,
+    // and the envelope surfaces must match the declared application profile.
+    const executedEnvelope = await readExecutionEnvelope(
+      plan.id,
+      outputRoot,
+      rawApp.deliveryUnit?.unitId,
+    );
+    const { surfaces } = executedEnvelope.envelope;
+    assert(
+      (surfaces.apiBackend.length > 0) === hasApiSurface &&
+        Boolean(surfaces.backendFederation) === hasApiSurface &&
+        (surfaces.uiClient.length > 0) === (rawApp.surfaceProfile !== "api-only"),
+      `${plan.id} executed envelope surfaces differ from its declared application profile`,
     );
 
     return {
@@ -302,7 +337,7 @@ const loadApps = (workspaceRoot, topology, overlay) => {
       port,
       wrangler,
     };
-  });
+  }));
 };
 
 const workerName = (app) => {
@@ -378,12 +413,10 @@ const createWorkerOptions = (app, workspaceRoot, extra = {}) => {
   return {
     executionEvidence: {
       appId: app.id,
-      apiBackend: apiBackend ?? [],
-      envelopeDigest: app.envelope?.envelopeDigest ?? null,
-      envelopePath: app.envelopePath
-        ? normalizePath(path.relative(workspaceRoot, app.envelopePath))
-        : null,
-      identity: app.envelope?.identity ?? null,
+      apiBackend,
+      envelopeDigest: app.envelope.envelopeDigest,
+      envelopePath: normalizePath(path.relative(workspaceRoot, app.envelopePath)),
+      identity: app.envelope.identity,
       main: mainLogicalPath,
       modules: boundModules,
       modulesRoot: normalizePath(path.relative(workspaceRoot, app.outputRoot)),
@@ -610,7 +643,7 @@ const startWorkerdTargetServers = async (
       );
       const runtime =
         app.kind === "vertical"
-          ? createIsolatedRuntime(workerConfigurations[index])
+          ? createIsolatedRuntime(workerConfigurations[index], new ProofLog())
           : miniflare;
       if (runtime !== miniflare) {
         isolatedVerticalRuntimes.push(runtime);
@@ -763,10 +796,10 @@ const decodeDistributedSsrFragmentRequest = (request) => {
 // requested MicroVertical its own runtime so its static assets and MF manifest
 // cannot resolve from a sibling Worker. Its service bindings still resolve
 // through the shared composition runtime.
-const createIsolatedRuntime = (workerOptions) =>
+const createIsolatedRuntime = (workerOptions, log) =>
   new Miniflare(
     convertV4MiniflareOptions({
-      log: new Log(LogLevel.ERROR),
+      log,
       workers: [workerOptions],
     }),
   );
@@ -836,7 +869,7 @@ const createServiceBindings = (
   );
 };
 
-const proveRoute = async (app, route, fetchRoute, apps, recorders) => {
+const proveRoute = async (app, route, fetchRoute, apps, recorders, log) => {
   const apiBindingRequestStart = recorders.apiBindingRequests.length;
   const fragmentBindingRequestStart = recorders.fragmentBindingRequests.length;
   const outboundRequestStart = recorders.outboundRequests.length;
@@ -846,10 +879,7 @@ const proveRoute = async (app, route, fetchRoute, apps, recorders) => {
   const html = await response.text();
   const htmlBytes = Buffer.byteLength(html);
   const routeOutboundRequests = recorders.outboundRequests.slice(outboundRequestStart);
-  assert(
-    response.status === 200,
-    `${app.id} returned HTTP ${response.status} for ${route} in workerd; outbound requests: ${JSON.stringify(routeOutboundRequests)}; response: ${html.slice(0, 500)}`,
-  );
+  assertSuccessfulSsrResponse(app.id, route, response, html, log, routeOutboundRequests);
   assert(
     response.headers.get("content-type")?.includes("text/html") === true,
     `${app.id} did not return HTML for ${route} in workerd`,
@@ -946,7 +976,7 @@ const main = async () => {
   const workspaceRoot = path.resolve(process.env.ULTRAMODERN_WORKSPACE_ROOT ?? process.cwd());
   const reportPath = path.join(workspaceRoot, reportRelativePath);
   const keepWorkerd = process.env.ULTRAMODERN_KEEP_WORKERD === "1";
-  const apps = loadApps(
+  const apps = await loadApps(
     workspaceRoot,
     readJson(path.join(workspaceRoot, "topology/reference-topology.json")),
     readJson(path.join(workspaceRoot, "topology/local-overlays/development.json")),
@@ -989,40 +1019,18 @@ const main = async () => {
   const report = { executions, apiProofs: [], proofs: [], verticalProofs: [] };
 
   try {
-    for (const route of shell.proofRoutes) {
-      const apiBindingRequestStart = apiBindingRequests.length;
-      const fragmentBindingRequestStart = fragmentBindingRequests.length;
-      const outboundRequestStart = outboundRequests.length;
-      const response = await miniflare.dispatchFetch(
-        `https://${workerName(shell)}.invalid${route}`,
-        { headers: { accept: "text/html" } },
-      );
-      const html = await response.text();
-      assertSuccessfulSsrResponse(shell.id, route, response, html, log);
-      assert(
-        !html.includes('data-modern-distributed-ssr-status="degraded"'),
-        `${shell.id} rendered a degraded MicroVertical fallback for ${route} in workerd`,
-      );
-
-      const boundaries = collectDistributedBoundaries(html);
-      assert(
-        expectedRemotes.length > 0 ? boundaries.length > 0 : boundaries.length === 0,
-        expectedRemotes.length > 0
-          ? `${shell.id} rendered no distributed SSR boundaries for ${route}`
-          : `${shell.id} rendered unexpected distributed SSR boundaries for ${route}`,
-      );
-      const routeApiBindingRequests = apiBindingRequests.slice(
-        apiBindingRequestStart,
-      );
-      const routeFragmentBindingRequests = fragmentBindingRequests.slice(
-        fragmentBindingRequestStart,
-      );
-      const routeOutboundRequests = outboundRequests.slice(outboundRequestStart);
-      for (const boundary of boundaries) {
-        renderedRemoteIds.add(boundary.remote);
-        assert(
-          boundary.status === "ready",
-          `${shell.id} did not mark ${boundary.key} as ready for ${route}`,
+    for (const shell of shells) {
+      // Shell routes compose declared server-rendered boundaries through the
+      // shell's entry Worker exactly as a browser request would.
+      const renderedRemoteIds = new Set();
+      for (const route of shell.ssrRoutes) {
+        const proof = await proveRoute(
+          shell,
+          route,
+          (url, init) => miniflare.dispatchFetch(url, init),
+          apps,
+          recorders,
+          log,
         );
         assert(
           shell.serverRenderedRoutes.length > 0 || proof.boundaries.length === 0,
@@ -1056,7 +1064,8 @@ const main = async () => {
       if (vertical.kind !== "vertical" || vertical.ssrRoutes.length === 0) {
         continue;
       }
-      const runtime = createIsolatedRuntime(workers[index]);
+      const runtimeLog = new ProofLog();
+      const runtime = createIsolatedRuntime(workers[index], runtimeLog);
       try {
         for (const route of vertical.ssrRoutes) {
           report.verticalProofs.push({
@@ -1067,6 +1076,7 @@ const main = async () => {
               (url, init) => runtime.dispatchFetch(url, init),
               apps,
               recorders,
+              runtimeLog,
             )),
           });
         }

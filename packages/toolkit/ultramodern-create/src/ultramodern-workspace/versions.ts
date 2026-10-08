@@ -106,7 +106,6 @@ export const ULTRAMODERN_PACKAGE_PINS = {
     '@module-federation/node': MODULE_FEDERATION_NODE_VERSION,
     '@tanstack/history': TANSTACK_HISTORY_VERSION,
     '@tanstack/router-core': TANSTACK_ROUTER_CORE_VERSION,
-    '@typescript/native-preview': TYPESCRIPT_NATIVE_PREVIEW_VERSION,
     miniflare: MINIFLARE_VERSION,
     workerd: WORKERD_VERSION,
   },

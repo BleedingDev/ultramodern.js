@@ -417,10 +417,7 @@ test('bootstrap admits only the exact reachable sidecar runtime and optional clo
   const jiti = makeBootstrapSidecar('@bleedingdev/jiti', '2.7.0');
   const runtime = makeBootstrapSidecar('@bleedingdev/mf-runtime', '2.9.1');
   const node = makeBootstrapSidecar('@bleedingdev/mf-node', '2.7.51');
-  const image = makeBootstrapSidecar(
-    '@bleedingdev/rsbuild-image-core',
-    '0.1.4',
-  );
+  const image = makeBootstrapSidecar('@bleedingdev/optional-native', '0.1.4');
   const modern = makeBootstrapSidecar('@bleedingdev/mf-modern-js-v3', '2.9.1', {
     dependencies: {
       '@module-federation/runtime': `npm:${runtime.name}@${runtime.version}`,
@@ -572,8 +569,8 @@ test('bootstrap rejects invalid sidecar observations and cannot forge sidecar ex
   );
 });
 
-test('fresh-release installs use exact command-scoped cohort and source sidecar selectors', async () => {
-  const { resolveAcceptanceReleaseAgeExclusions } = await import(
+test('fresh-release installs use one exact cohort and sidecar selector set', async t => {
+  const { releaseAgeExemptions } = await import(
     '../published-create-proof/release-age-audit.mjs'
   );
   const { createAcceptanceReleaseAgeEnv } = await import(

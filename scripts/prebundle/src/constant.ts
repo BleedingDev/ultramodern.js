@@ -1,4 +1,4 @@
-import { copySync, statSync } from 'fs-extra';
+import { copySync, readFileSync, statSync, writeFileSync } from 'fs-extra';
 import { dirname, join } from 'path';
 import type { TaskConfig } from './types';
 
@@ -39,7 +39,29 @@ export const TASKS: TaskConfig[] = [
       'minimist',
       'pkg-up',
       'commander',
-      'import-lazy',
+      {
+        name: 'import-lazy',
+        afterBundle(task) {
+          // import-lazy drops `new.target`, so a subclass of a lazy export
+          // (`class Derived extends Signale`) loses its prototype. Forward it.
+          const entry = join(task.distPath, 'index.js');
+          const source = readFileSync(entry, 'utf8');
+          const construct =
+            /construct:\((\w+),(\w+)\)=>\{(\w+)=lazy\(\3,(\w+),(\w+)\);return Reflect\.construct\(\3,\2\)\}/;
+          if (!construct.test(source)) {
+            throw new Error(
+              'import-lazy construct trap changed; review the newTarget fix',
+            );
+          }
+          writeFileSync(
+            entry,
+            source.replace(
+              construct,
+              'construct:($1,$2,newTarget)=>{$3=lazy($3,$4,$5);return Reflect.construct($3,$2,newTarget)}',
+            ),
+          );
+        },
+      },
       'dotenv-expand',
       'url-join',
       'slash',

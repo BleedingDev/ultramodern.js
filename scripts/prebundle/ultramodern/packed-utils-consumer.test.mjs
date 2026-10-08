@@ -15,6 +15,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import tsgoInvocation from '../../lib/tsgo-invocation.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const utils = join(root, 'packages/toolkit/utils');
@@ -216,11 +217,11 @@ test('packed utils contains generated bundles and works without workspace source
         include: ['types.mts', 'types.cts'],
       }),
     );
-    run(
-      join(root, 'node_modules/.bin/tsgo'),
-      ['--project', join(consumer, 'tsconfig.json')],
-      consumer,
-    );
+    const invocation = tsgoInvocation.createTsgoInvocation({
+      args: ['--project', join(consumer, 'tsconfig.json')],
+      requireFrom: createRequire(join(root, 'package.json')),
+    });
+    run(invocation.command, invocation.argv, consumer);
   } finally {
     rmSync(fixture, { recursive: true, force: true });
   }

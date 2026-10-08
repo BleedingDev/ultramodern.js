@@ -4,7 +4,7 @@
   "type": "module",
   "devDependencies": {
     "@modern-js/renderer-octane": "workspace:*",
-    "@rsbuild/core": "2.2.9",
+    "@rsbuild/core": "2.2.11",
     "@tsrx/oxc": "0.20.0",
     "@types/node": "26.6.4",
     "playwright-core": "1.63.0"

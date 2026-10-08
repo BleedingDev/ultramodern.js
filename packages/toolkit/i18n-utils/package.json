@@ -62,7 +62,7 @@
     "@modern-js/rslib": "workspace:*",
     "@rslib/core": "1.0.3",
     "@scripts/rstest-config": "workspace:*",
-    "@types/node": "^26.6.2"
+    "@types/node": "^26.6.3"
   },
   "sideEffects": false,
   "publishConfig": {

@@ -290,17 +290,35 @@ export async function parseCommonConfig(
     );
   }
 
-  const reactOptions =
-    options?.disableReactCompiler || reactCompiler === undefined
-      ? {}
-      : { reactCompiler };
   rsbuildPlugins.push({
     name: 'rsbuild:react',
     async setup(api) {
       const { pluginReact } = await import('@rsbuild/plugin-react');
-      return pluginReact(reactOptions).setup(api);
+      return pluginReact().setup(api);
     },
   });
+
+  if (!options?.disableReactCompiler && reactCompiler !== undefined) {
+    // Browser code only: server graphs (node, workerSSR, BFF) render once per
+    // request, and the compiler overflows the stack on long fluent chains.
+    // Cloudflare deploys build workerSSR with target 'web', so the target
+    // alone does not identify a browser environment.
+    rsbuildPlugins.push({
+      name: 'builder:react-compiler',
+      setup(api) {
+        api.modifyEnvironmentConfig(
+          (config, { name, mergeEnvironmentConfig }) =>
+            config.output.target === 'web' &&
+            name !== SERVICE_WORKER_ENVIRONMENT_NAME
+              ? mergeEnvironmentConfig(
+                  { tools: { swc: { jsc: { transform: { reactCompiler } } } } },
+                  config,
+                )
+              : config,
+        );
+      },
+    });
+  }
 
   if (!disableSvgr) {
     rsbuildPlugins.push({

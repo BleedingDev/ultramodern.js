@@ -60,8 +60,12 @@ describe('headless Cloudflare worker build', () => {
 
     const onAfterBuild = createAsyncHook<() => Promise<void>>();
     const api = {
-      getAppContext: () => ({ apiOnly: true, appDirectory: '/app' }),
-      getNormalizedConfig: () => ({ deploy: { target: 'cloudflare' } }),
+      getAppContext: () => ({
+        apiOnly: true,
+        appDirectory: '/app',
+        deployTarget: { target: 'cloudflare', explicit: true },
+      }),
+      getNormalizedConfig: () => ({}),
       onAfterBuild: onAfterBuild.tap,
     } as unknown as CLIPluginAPI<AppTools>;
     for (const plugin of plugins) {

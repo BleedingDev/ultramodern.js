@@ -61,7 +61,7 @@
     "postcss-nesting": "14.0.2",
     "postcss-page-break": "3.0.4",
     "rspack-manifest-plugin": "5.2.2",
-    "sass-embedded": "1.105.0",
+    "sass-embedded": "1.105.1",
     "ts-deepmerge": "8.0.0",
     "typescript": "7.0.2",
     "webpack": "5.111.1"
@@ -78,13 +78,13 @@
     "react-server-dom-rspack": "0.1.0",
     "rsbuild-plugin-rsc": "0.1.1",
     "terser": "^5.51.2",
-    "@rsbuild/plugin-react": "2.1.0",
+    "@rsbuild/plugin-react": "2.1.1",
     "@rsbuild/plugin-svgr": "2.0.5"
   },
   "peerDependencies": {
     "react-server-dom-rspack": "0.1.0",
     "rsbuild-plugin-rsc": "0.1.1",
-    "@rsbuild/plugin-react": "2.1.0",
+    "@rsbuild/plugin-react": "2.1.1",
     "@rsbuild/plugin-svgr": "2.0.5"
   },
   "peerDependenciesMeta": {

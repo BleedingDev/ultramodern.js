@@ -243,6 +243,29 @@ index f4933bc..c6c43da 100644
                      ],
                      dev: {
                          setupMiddlewares: [
+diff --git a/dist/cjs/react/index.js b/dist/cjs/react/index.js
+index 9951597..18e8d96 100644
+--- a/dist/cjs/react/index.js
++++ b/dist/cjs/react/index.js
+@@ -1,7 +1,7 @@
+ "use strict";
+ var __webpack_modules__ = {
+-    "@module-federation/bridge-react" (module) {
+-        module.exports = require("@module-federation/bridge-react");
++    "@module-federation/bridge-react/base" (module) {
++        module.exports = require("@module-federation/bridge-react/base");
+     }
+ };
+ var __webpack_module_cache__ = {};
+@@ -51,7 +51,7 @@ function __webpack_require__(moduleId) {
+ var __webpack_exports__ = {};
+ (()=>{
+     __webpack_require__.r(__webpack_exports__);
+-    var _module_federation_bridge_react__rspack_import_0 = __webpack_require__("@module-federation/bridge-react");
++    var _module_federation_bridge_react__rspack_import_0 = __webpack_require__("@module-federation/bridge-react/base");
+     var __rspack_reexport = {};
+     for(const __rspack_import_key in _module_federation_bridge_react__rspack_import_0)if ("default" !== __rspack_import_key) __rspack_reexport[__rspack_import_key] = ()=>_module_federation_bridge_react__rspack_import_0[__rspack_import_key];
+     __webpack_require__.d(__webpack_exports__, __rspack_reexport);
 diff --git a/dist/cjs/server/index.js b/dist/cjs/server/index.js
 index dfa8e4d..e6ce9ca 100644
 --- a/dist/cjs/server/index.js
@@ -653,6 +676,13 @@ index f57adf2..074ab6c 100644
                      ],
                      dev: {
                          setupMiddlewares: [
+diff --git a/dist/esm-node/react/index.mjs b/dist/esm-node/react/index.mjs
+index 7135f3a..795b7d0 100644
+--- a/dist/esm-node/react/index.mjs
++++ b/dist/esm-node/react/index.mjs
+@@ -1 +1 @@
+-export * from "@module-federation/bridge-react";
++export * from "@module-federation/bridge-react/base";
 diff --git a/dist/esm-node/server/index.mjs b/dist/esm-node/server/index.mjs
 index b8ec857..6704fbf 100644
 --- a/dist/esm-node/server/index.mjs
@@ -1030,6 +1060,13 @@ index c3c277d..829fd60 100644
                              dev: {
                                  setupMiddlewares: [
                                      function(middlewares) {
+diff --git a/dist/esm/react/index.mjs b/dist/esm/react/index.mjs
+index 7135f3a..795b7d0 100644
+--- a/dist/esm/react/index.mjs
++++ b/dist/esm/react/index.mjs
+@@ -1 +1 @@
+-export * from "@module-federation/bridge-react";
++export * from "@module-federation/bridge-react/base";
 diff --git a/dist/esm/server/index.mjs b/dist/esm/server/index.mjs
 index 22720a3..e00044d 100644
 --- a/dist/esm/server/index.mjs
@@ -1188,6 +1225,13 @@ index 0000000..19785c6
 +export declare const createRemoteRevalidateMiddleware: (sockWrite: RsbuildDevServer['sockWrite'], revalidate?: Revalidate, flush?: FlushRemoteState) => (req: IncomingMessage, _res: ServerResponse, next: () => void) => void;
 +export declare const mfSSRDevReloadPlugin: () => RsbuildPlugin;
 +export {};
+diff --git a/dist/types/react/index.d.ts b/dist/types/react/index.d.ts
+index 7aedf02..50376c4 100644
+--- a/dist/types/react/index.d.ts
++++ b/dist/types/react/index.d.ts
+@@ -1 +1 @@
+-export * from '@module-federation/bridge-react';
++export * from '@module-federation/bridge-react/base';
 diff --git a/dist/types/ssr-runtime/SSRLiveReload.d.ts b/dist/types/ssr-runtime/SSRLiveReload.d.ts
 deleted file mode 100644
 index bd27634..0000000

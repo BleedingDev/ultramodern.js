@@ -64,6 +64,8 @@ test('published acceptance remains valid without continuation', async () => {
     ...requiredArgs,
     '--mode',
     'published',
+    '--source-receipt',
+    'acceptance/source-receipt.json',
     '--registry-url',
     'https://registry.example.test/',
     '--run-identity',
@@ -71,6 +73,10 @@ test('published acceptance remains valid without continuation', async () => {
   ]);
 
   assert.equal(options.mode, 'published');
+  assert.equal(
+    options.sourceReceiptPath,
+    path.resolve('acceptance/source-receipt.json'),
+  );
   assert.equal(options.registryUrl, 'https://registry.example.test/');
   assert.equal(options.runIdentity, 'published-acceptance-run');
   assert.equal(options.continueFrom, undefined);
@@ -173,6 +179,8 @@ test('continuation rejects published acceptance', async () => {
         ...requiredArgs,
         '--mode',
         'published',
+        '--source-receipt',
+        'acceptance/source-receipt.json',
         '--continue-from',
         'source-node',
         '--prior-run-log',
@@ -421,7 +429,17 @@ for (const [flag, evidencePath] of [
       const { parseArgs } = await import(cliModule);
 
       assert.throws(
-        () => parseArgs([...requiredArgs, '--mode', mode, flag, evidencePath]),
+        () =>
+          parseArgs([
+            ...requiredArgs,
+            '--mode',
+            mode,
+            ...(mode === 'published'
+              ? ['--source-receipt', 'acceptance/source-receipt.json']
+              : []),
+            flag,
+            evidencePath,
+          ]),
         /source-workerd/u,
       );
     });
@@ -429,7 +447,15 @@ for (const [flag, evidencePath] of [
 }
 
 for (const [description, modeArgs] of [
-  ['published acceptance', ['--mode', 'published']],
+  [
+    'published acceptance',
+    [
+      '--mode',
+      'published',
+      '--source-receipt',
+      'acceptance/source-receipt.json',
+    ],
+  ],
   ['explicit receipt verification mode', ['--mode', 'verify']],
   ['the receipt verification flag', ['--verify-receipt']],
 ]) {

@@ -325,5 +325,9 @@
   "dependencies": {
     "@modern-js/create-request": "workspace:*",
     "@modern-js/runtime-utils": "workspace:*"
-  }
+  },
+  "files": [
+    "dist",
+    "src"
+  ]
 }

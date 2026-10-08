@@ -8,7 +8,6 @@ import {
   chokidar,
   cleanRequireCache,
   compatibleRequire,
-  dynamicImport,
   type FSWatcher,
   tryResolve,
 } from '../src';
@@ -321,21 +320,34 @@ const writeFromNode = async (filename, changed) => {
   }
 })().catch(error => { console.error(error.stack); process.exitCode = 1; });
 `;
-    try {
-      const output = await new Promise<string>((resolve, reject) => {
-        const child = spawn(
-          process.execPath,
-          ['--input-type=commonjs', '-e', script],
-          {
-            cwd: path.dirname(owner),
-            stdio: ['ignore', 'pipe', 'pipe'],
-          },
-        );
-        let stdout = '';
-        let stderr = '';
-        const timer = setTimeout(() => child.kill('SIGKILL'), 25000);
-        child.stdout.on('data', value => {
-          stdout += value;
+      try {
+        const output = await new Promise<string>((resolve, reject) => {
+          const child = spawn(
+            process.execPath,
+            ['--input-type=commonjs', '-e', script],
+            {
+              cwd: path.dirname(owner),
+              stdio: ['ignore', 'pipe', 'pipe'],
+            },
+          );
+          let stdout = '';
+          let stderr = '';
+          const timer = setTimeout(() => child.kill('SIGKILL'), 25000);
+          child.stdout.on('data', value => {
+            stdout += value;
+          });
+          child.stderr.on('data', value => {
+            stderr += value;
+          });
+          child.once('error', reject);
+          child.once('close', code => {
+            clearTimeout(timer);
+            if (code === 0) resolve(stdout);
+            else
+              reject(
+                new Error(`Cold ${format} watcher failed (${code}): ${stderr}`),
+              );
+          });
         });
         const result = JSON.parse(output);
         expect(result).toEqual({

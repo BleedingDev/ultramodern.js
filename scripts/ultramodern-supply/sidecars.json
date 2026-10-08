@@ -1,70 +1,25 @@
 [
   {
-    "id": "ipx",
-    "upstream": {
-      "name": "ipx",
-      "version": "3.1.1",
-      "tarball": "https://registry.npmjs.org/ipx/-/ipx-3.1.1.tgz",
-      "integrity": "sha512-7Xnt54Dco7uYkfdAw0r2vCly3z0rSaVhEXMzPvl3FndsTVm5p26j+PO+gyinkYmcsEUvX2Rh7OGK7KzYWRu6BA=="
-    },
-    "fork": {
-      "name": "@bleedingdev/ipx",
-      "version": "3.2.2"
-    },
-    "license": "MIT",
-    "artifacts": ["dist", "LICENSE", "bin"],
-    "patch": {
-      "path": "scripts/ultramodern-supply/ipx.patch",
-      "sha256": "773490785d226e44f96c80bf6c2ac4533b55487baac31b1f5b467e584a0c512c"
-    },
-    "manifestChanges": {
-      "dependencies": {
-        "sharp": "^0.35.4"
-      }
-    }
-  },
-  {
-    "id": "rsbuild-image-core",
-    "upstream": {
-      "name": "@rsbuild-image/core",
-      "version": "0.0.1-next.36",
-      "tarball": "https://registry.npmjs.org/@rsbuild-image/core/-/core-0.0.1-next.36.tgz",
-      "integrity": "sha512-GfYFL8JyqFZIZUzq7jGz6t+oWAaS3gOd8NqL7SIJCgLqeWJtVx5fE54sxhMfzINCi/Sy/r+BR5XizMBqGPOO9Q=="
-    },
-    "fork": {
-      "name": "@bleedingdev/rsbuild-image-core",
-      "version": "0.1.4"
-    },
-    "license": "MIT",
-    "artifacts": ["dist", "LICENSE"],
-    "patch": null,
-    "manifestChanges": {
-      "dependencies": {
-        "image-size": "^2.0.3"
-      },
-      "peerDependencies": {
-        "sharp": ">=0.35.4"
-      }
-    }
-  },
-  {
     "id": "rsbuild-core",
     "upstream": {
       "name": "@rsbuild/core",
-      "version": "2.2.9",
-      "tarball": "https://registry.npmjs.org/@rsbuild/core/-/core-2.2.9.tgz",
-      "integrity": "sha512-ZeOYQYIBOtYkfvmbNUiKEYBK1aMGE03mhuHKVcHiWk+Y63FuUTnuQtlr1RyLErh0E7F/KyDTIaraDVH3g3GNkA=="
+      "version": "2.2.11",
+      "tarball": "https://registry.npmjs.org/@rsbuild/core/-/core-2.2.11.tgz",
+      "integrity": "sha512-avPW0j6RaEbtV2mfl0AzTAJEimPX4Xj0pCcZyxNCrE9vkS91HmweM5V7XQj3kI5iTYfHRp9Y6To8RRHYLEvG7A=="
     },
     "fork": {
       "name": "@bleedingdev/rsbuild-core",
-      "version": "2.2.9"
+      "version": "2.2.11"
     },
     "license": "MIT",
     "artifacts": ["*"],
     "patch": {
-      "inventory": "@rsbuild/core@2.2.9"
+      "inventory": "@rsbuild/core@2.2.11"
     },
-    "manifestChanges": {}
+    "manifestChanges": {},
+    "provenance": {
+      "grandfatheredVersions": []
+    }
   },
   {
     "id": "mf-bridge-react",
@@ -739,28 +694,6 @@
         "find-workspaces": "npm:@bleedingdev/find-workspaces@0.3.1"
       }
     },
-    "provenance": {
-      "grandfatheredVersions": []
-    }
-  },
-  {
-    "id": "mf-sdk",
-    "upstream": {
-      "name": "@module-federation/sdk",
-      "version": "2.9.2",
-      "tarball": "https://registry.npmjs.org/@module-federation/sdk/-/sdk-2.9.2.tgz",
-      "integrity": "sha512-ILtBFPuYpVcRA/Qay1lJ2hMtZI8fDE/v1n7xiN17e5qx5rSBR3FaamTsmRpN1hIt+gVnoa76CzOP/Y73d8hHNg=="
-    },
-    "fork": {
-      "name": "@bleedingdev/mf-sdk",
-      "version": "2.9.2"
-    },
-    "license": "MIT",
-    "artifacts": ["*"],
-    "patch": {
-      "inventory": "@module-federation/sdk@2.9.2"
-    },
-    "manifestChanges": {},
     "provenance": {
       "grandfatheredVersions": []
     }
