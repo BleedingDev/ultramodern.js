@@ -201,22 +201,45 @@ function makeRenderOptions(context: Context): RenderOptions {
   };
 }
 
+const CSP_HEADERS = new Set([
+  'content-security-policy',
+  'content-security-policy-report-only',
+]);
+
+/**
+ * Apply pre-render middleware fields to native response headers. Middleware
+ * keeps Hono's precedence for singleton fields, so its private/no-store policy
+ * survives a public native response. CSP fields are enforced cumulatively and
+ * `Vary` is a union, so both keep the native values too. Cookies merge
+ * separately.
+ */
+export function applyMiddlewareHeaders(
+  prepared: Headers,
+  native: Headers,
+): void {
+  prepared.forEach((value, name) => {
+    if (name === 'set-cookie') return;
+    if (CSP_HEADERS.has(name)) native.append(name, value);
+    else if (name === 'vary') {
+      const fields = new Map<string, string>();
+      for (const field of `${native.get('vary') ?? ''},${value}`.split(',')) {
+        const item = field.trim();
+        if (item && !fields.has(item.toLowerCase()))
+          fields.set(item.toLowerCase(), item);
+      }
+      native.set('vary', [...fields.values()].join(', '));
+    } else if (name !== 'content-type' || !native.has(name))
+      native.set(name, value);
+  });
+}
+
 function bindContextResponse(context: Context, response: Response): Response {
   // Hono keeps pre-render context.header() fields in a prepared Response.
   // Merge them through its public context API without reducing cookies to a map.
   const prepared = context.res.headers;
   const nativeCookies = response.headers.getSetCookie();
   const preparedCookies = prepared.getSetCookie();
-  prepared.forEach((value, name) => {
-    if (
-      name !== 'set-cookie' &&
-      (name !== 'content-type' || !response.headers.has(name))
-    ) {
-      // Context middleware retains Hono's precedence over native headers.
-      // Its private/no-store policy must survive a public native response.
-      response.headers.set(name, value);
-    }
-  });
+  applyMiddlewareHeaders(prepared, response.headers);
   response.headers.delete('set-cookie');
   for (const cookie of [...preparedCookies, ...nativeCookies]) {
     response.headers.append('set-cookie', cookie);

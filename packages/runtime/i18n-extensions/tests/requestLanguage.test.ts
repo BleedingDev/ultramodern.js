@@ -113,6 +113,18 @@ describe('detectRequestLanguage', () => {
     ).toBe(expected);
   });
 
+  test.each(['fr;q=2, *;q=1', 'fr;q=abc, *'])(
+    'ignores a malformed range so it cannot shadow the wildcard in %s',
+    header => {
+      expect(
+        detectRequestLanguage(request('/', { 'accept-language': header }), [
+          'fr',
+          'en',
+        ]),
+      ).toBe('fr');
+    },
+  );
+
   test.each([
     ['en', 'en-US'],
     ['fr;q=0.5, en', 'en-US'],

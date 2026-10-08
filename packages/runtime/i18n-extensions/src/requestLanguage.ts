@@ -165,13 +165,13 @@ const acceptedLanguages = (
         .map(parameter => parameter.trim())
         .find(parameter => parameter.toLowerCase().startsWith('q='));
       // RFC 9110 qvalue: 0 to 1 with at most three decimals. A malformed
-      // weight drops the item instead of reordering preferences.
+      // weight drops the item, so it neither ranks nor shadows other ranges.
       const value = quality?.slice(2).trim();
       const q =
-        value === undefined ? 1 : QVALUE.test(value) ? Number(value) : 0;
+        value === undefined ? 1 : QVALUE.test(value) ? Number(value) : NaN;
       return { tag: tag.trim(), q, index };
     })
-    .filter(item => item.tag);
+    .filter(item => item.tag && !Number.isNaN(item.q));
   // Each supported language takes the quality of its most specific range, so
   // `en;q=0, en-US` keeps en-US while excluding the other English locales.
   const ranked = languages.flatMap((language, position) => {
