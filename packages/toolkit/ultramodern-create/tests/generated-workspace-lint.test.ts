@@ -212,7 +212,7 @@ describe.each([
       }
     })();
     return setup;
-  }, 30000);
+  });
 
   afterAll(async () => {
     // A hook timeout leaves setup running; drain it before removing the fixture.

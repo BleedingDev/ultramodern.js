@@ -623,7 +623,9 @@ export default { name, remotes: { remote: '${manifestRemote}' } };`,
       file,
       nativeFederationRuntimePluginSource([], {
         hydrationModule: NATIVE_FEDERATION_HYDRATION_MODULE,
-        requestTimeout: 50,
+        // Long enough for a cold runner's first connection to answer /ok;
+        // /hang and /body still exceed it.
+        requestTimeout: 1_000,
       }),
     );
     const { default: createPlugin } = await import(pathToFileURL(file).href);
