@@ -331,10 +331,11 @@ export function useLinkProps<
   const handleClick = (e: MouseEvent) => {
     // The browser follows external hrefs; blocked links have none to follow.
     if (externalLink() || linkDisabled()) return;
+    const element = e.currentTarget as HTMLAnchorElement | SVGAElement;
+    // A download link fetches its resource; the browser handles that click.
+    if (element.hasAttribute('download')) return;
     // Check actual element's target attribute as fallback
-    const elementTarget = (
-      e.currentTarget as HTMLAnchorElement | SVGAElement
-    ).getAttribute('target');
+    const elementTarget = element.getAttribute('target');
     const effectiveTarget =
       local.target !== undefined ? local.target : elementTarget;
 
