@@ -4,6 +4,7 @@ import type {
   AnyRouter,
   Constrain,
   LinkOptions,
+  ParsedLocation,
   RegisteredRouter,
   RoutePaths,
 } from '@tanstack/router-core';
@@ -11,6 +12,7 @@ import {
   deepEqual,
   exactPathTest,
   functionalUpdate,
+  getUrlScheme,
   hasKeys,
   isDangerousProtocol,
   preloadWarning,
@@ -150,65 +152,48 @@ export function useLinkProps<
     },
   );
 
+  // A `to` with a URL scheme skips route resolution: the URL itself when the
+  // router allows its protocol, `null` when it is blocked, `undefined` for a
+  // route path. Read through the accessor so a reactive `to` can move between
+  // the three states after setup.
+  const directExternalLink = Solid.createMemo(
+    () => resolveExternalLink(_options().to, router.protocolAllowlist),
+    { lazy: true },
+  );
+
+  // The rendered href. `undefined` means disabled or blocked; a blocked link
+  // never renders an href, so the browser cannot follow it either.
   const hrefOption = Solid.createMemo(
     () => {
+      const direct = directExternalLink();
+      if (direct !== undefined) return direct ?? undefined;
       if (_options().disabled) return undefined;
-      // Use publicHref - it contains the correct href for display
-      // When a rewrite changes the origin, publicHref is the full URL
-      // Otherwise it's the origin-stripped path
-      // This avoids constructing URL objects in the hot path
-      const location = next().maskedLocation ?? next();
-      const publicHref = location.publicHref;
-      const external = location.external;
-
-      if (external) {
-        return { href: publicHref, external: true };
-      }
-
-      return {
-        href: router.history.createHref(publicHref) || '/',
-        external: false,
-      };
+      return getHrefOption(next(), router);
     },
     { lazy: true },
   );
 
   const externalLink = Solid.createMemo(
     () => {
-      const _href = hrefOption();
-      if (_href?.external) {
-        // Block dangerous protocols for external links
-        if (isDangerousProtocol(_href.href, router.protocolAllowlist)) {
-          if (process.env.NODE_ENV !== 'production') {
-            console.warn(`Blocked Link with dangerous protocol: ${_href.href}`);
-          }
-          return undefined;
-        }
-        return _href.href;
-      }
-      const to = _options().to;
-      const safeInternal = isSafeInternal(to);
-      if (safeInternal) return undefined;
-      if (typeof to !== 'string' || to.indexOf(':') === -1) return undefined;
-      try {
-        new URL(to as any);
-        // Block dangerous protocols like javascript:, blob:, data:
-        if (isDangerousProtocol(to, router.protocolAllowlist)) {
-          if (process.env.NODE_ENV !== 'production') {
-            console.warn(`Blocked Link with dangerous protocol: ${to}`);
-          }
-          return undefined;
-        }
-        return to;
-      } catch {}
-      return undefined;
+      const direct = directExternalLink();
+      if (direct !== undefined) return direct ?? undefined;
+      const href = hrefOption();
+      return href && getUrlScheme(href) ? href : undefined;
     },
     { lazy: true },
   );
 
+  // Disabled and blocked internal links render without an href, do not
+  // preload and do not navigate. External links stay plain anchors.
+  const linkDisabled = Solid.createMemo(
+    () => !externalLink() && (!!local.disabled || hrefOption() === undefined),
+    { lazy: true },
+  );
+  const blockedLink = () => linkDisabled() && !local.disabled;
+
   const preload = Solid.createMemo(
     () => {
-      if (_options().reloadDocument || externalLink() || local.disabled) {
+      if (_options().reloadDocument || externalLink() || linkDisabled()) {
         return false;
       }
       return local.preload ?? router.options.defaultPreload;
@@ -220,7 +205,7 @@ export function useLinkProps<
 
   const isActive = Solid.createMemo(
     () => {
-      if (externalLink()) return false;
+      if (externalLink() || blockedLink()) return false;
       const activeOptions = local.activeOptions;
       const current = currentLocation();
       const nextLocation = next();
@@ -339,33 +324,13 @@ export function useLinkProps<
     }
   });
 
-  if (Solid.untrack(externalLink)) {
-    const externalHref = Solid.untrack(externalLink);
-    return Solid.merge(
-      propsSafeToSpread,
-      {
-        ref: mergeRefs(setRef, options.ref),
-        href: externalHref,
-      },
-      splitProps(local, [
-        'target',
-        'disabled',
-        'style',
-        'class',
-        'onClick',
-        'onBlur',
-        'onFocus',
-        'onMouseEnter',
-        'onMouseLeave',
-        'onMouseOut',
-        'onMouseOver',
-        'onTouchStart',
-      ])[0],
-    ) as any;
-  }
+  // External and internal links share one props object whose getters follow
+  // `externalLink()`, so a reactive `to` can switch between the two kinds.
 
   // The click handler
   const handleClick = (e: MouseEvent) => {
+    // The browser follows external hrefs; blocked links have none to follow.
+    if (externalLink() || linkDisabled()) return;
     // Check actual element's target attribute as fallback
     const elementTarget = (
       e.currentTarget as HTMLAnchorElement | SVGAElement
@@ -374,7 +339,6 @@ export function useLinkProps<
       local.target !== undefined ? local.target : elementTarget;
 
     if (
-      !local.disabled &&
       !isCtrlEvent(e) &&
       !e.defaultPrevented &&
       (!effectiveTarget || effectiveTarget === '_self') &&
@@ -441,9 +405,12 @@ export function useLinkProps<
     style?: JSX.CSSProperties;
   };
 
+  // External links keep the caller's props as given, without state props.
   const resolvedStateProps = Solid.createMemo(
     (): ResolvedLinkStateProps =>
-      (isActive()
+      externalLink()
+        ? EMPTY_OBJECT
+        : (isActive()
         ? functionalUpdate(activeProps() as any, {})
         : functionalUpdate(inactiveProps(), {})) ?? EMPTY_OBJECT,
     { lazy: true },
@@ -548,11 +515,11 @@ export function useLinkProps<
   });
 
   defineGetters({
-    href: () => hrefOption()?.href,
-    disabled: () => !!local.disabled,
+    href: hrefOption,
+    disabled: () => !!local.disabled || linkDisabled(),
     target: () => local.target,
-    role: () => (local.disabled ? 'link' : propsSafeToSpread.role),
-    'aria-disabled': () => (local.disabled ? 'true' : undefined),
+    role: () => (linkDisabled() ? 'link' : propsSafeToSpread.role),
+    'aria-disabled': () => (linkDisabled() ? 'true' : undefined),
     'data-status': () => (isActive() ? 'active' : undefined),
     'aria-current': () => (isActive() ? 'page' : undefined),
     class: resolvedClass,
@@ -755,11 +722,52 @@ function isCtrlEvent(e: MouseEvent) {
   return !!(e.metaKey || e.altKey || e.ctrlKey || e.shiftKey);
 }
 
-function isSafeInternal(to: unknown) {
-  if (typeof to !== 'string') return false;
-  const zero = to.charCodeAt(0);
-  if (zero === 47) return to.charCodeAt(1) !== 47; // '/' but not '//'
-  return zero === 46; // '.', '..', './', '../'
+function warnBlockedLink(href: string) {
+  if (process.env.NODE_ENV !== 'production') {
+    console.warn(`Blocked Link with dangerous protocol: ${href}`);
+  }
+}
+
+/**
+ * Classifies a `to` by URL scheme, as upstream router Links do: the URL when
+ * the router's protocol allowlist admits it, `null` when it is blocked, and
+ * `undefined` for a route path that still needs route resolution.
+ */
+function resolveExternalLink(
+  to: unknown,
+  protocolAllowlist: AnyRouter['protocolAllowlist'],
+): string | null | undefined {
+  const scheme = typeof to === 'string' ? getUrlScheme(to) : undefined;
+  if (!scheme) return undefined;
+  if (!protocolAllowlist.has(scheme)) {
+    warnBlockedLink(to as string);
+    return null;
+  }
+  return to as string;
+}
+
+/**
+ * The display href of a built location. publicHref is the full URL when a
+ * rewrite changed the origin and the origin-stripped path otherwise, so no URL
+ * is constructed in the hot path. A rewritten or history-formatted href with a
+ * disallowed protocol resolves to `undefined` and the link renders blocked.
+ */
+function getHrefOption(
+  next: ParsedLocation,
+  router: AnyRouter,
+): string | undefined {
+  const location = next.maskedLocation ?? next;
+  const href = location.external
+    ? location.publicHref
+    : router.history.createHref(location.publicHref) || '/';
+  if (
+    (location.external || href !== location.publicHref) &&
+    isDangerousProtocol(href, router.protocolAllowlist)
+  ) {
+    warnBlockedLink(href);
+    return undefined;
+  }
+  return href;
 }
 
 export type LinkOptionsFnOptions<
