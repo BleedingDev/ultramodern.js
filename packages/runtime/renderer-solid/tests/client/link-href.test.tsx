@@ -260,4 +260,36 @@ describe('native Link reactive target', () => {
       view.cleanup();
     }
   });
+
+  test('an onClick from state props runs and can prevent navigation', async () => {
+    const stateClick = rstest.fn();
+    const view = await renderLink(() => (
+      <Link to="/next" inactiveProps={{ onClick: stateClick } as any}>
+        Next
+      </Link>
+    ));
+    try {
+      click(view.anchor());
+      expect(stateClick).toHaveBeenCalledTimes(1);
+      expect(view.navigate).toHaveBeenCalledTimes(1);
+    } finally {
+      view.cleanup();
+    }
+    const preventing = await renderLink(() => (
+      <Link
+        to="/next"
+        inactiveProps={
+          { onClick: (event: MouseEvent) => event.preventDefault() } as any
+        }
+      >
+        Next
+      </Link>
+    ));
+    try {
+      click(preventing.anchor());
+      expect(preventing.navigate).not.toHaveBeenCalled();
+    } finally {
+      preventing.cleanup();
+    }
+  });
 });

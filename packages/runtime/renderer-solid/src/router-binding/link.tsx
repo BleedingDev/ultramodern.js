@@ -381,7 +381,29 @@ export function useLinkProps<
     { lazy: true },
   );
 
-  const onClick = createComposedHandler(() => local.onClick, handleClick);
+  // activeProps/inactiveProps may supply onClick too. It runs after the
+  // caller's handler and, like it, can prevent the router navigation.
+  const onClick = createComposedHandler(
+    () => local.onClick,
+    (event: MouseEvent) => {
+      const stateClick = (resolvedStateProps() as Record<string, unknown>)
+        .onClick as
+        | JSX.EventHandlerUnion<HTMLAnchorElement, MouseEvent>
+        | undefined;
+      if (
+        stateClick &&
+        callHandler(
+          event as MouseEvent & {
+            currentTarget: HTMLAnchorElement;
+            target: Element;
+          },
+          stateClick,
+        )
+      )
+        return;
+      handleClick(event);
+    },
+  );
   const onBlur = createComposedHandler(() => local.onBlur, handleLeave);
   const onFocus = createComposedHandler(() => local.onFocus, enqueuePreload);
   const onMouseEnter = createComposedHandler(
