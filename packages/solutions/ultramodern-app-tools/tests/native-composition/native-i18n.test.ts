@@ -95,6 +95,14 @@ describe('native i18nPlugin()', () => {
         Object.defineProperty({}, 'hidden', { enumerable: false, value: 1 }),
         'initOptions.hidden',
       ],
+      [
+        { list: Object.assign([1, 2], { extra: true }) },
+        'initOptions.list.extra',
+      ],
+      [
+        JSON.parse('{"__proto__": {"polluted": true}}'),
+        'initOptions.__proto__',
+      ],
     ] as const)
       expect(() =>
         i18nPlugin({ localeDetection, initOptions: initOptions as never }),
