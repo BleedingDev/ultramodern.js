@@ -172,6 +172,116 @@ function fixture(t) {
   };
 }
 
+function addRemoteProductionBranch(f, protocol = 'https:') {
+  const routerName = '@octanejs/tanstack-router';
+  const routerUrl = `${protocol}//github.com/bleedingdev/octane/releases/download/%40octanejs%2Ftanstack-router%400.1.60%2Bultramodern.0b9f76ee3003/octanejs-tanstack-router-0.1.60%2Bultramodern.0b9f76ee3003.tgz`;
+  const octaneUrl = `${protocol}//github.com/bleedingdev/octane/releases/download/octane%400.7.1%2Bultramodern.1331985ea3b0/octane-0.7.1%2Bultramodern.1331985ea3b0.tgz`;
+  const octaneVersion = `${octaneUrl}(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(typescript@7.0.2)(vite@8.3.2(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(less@4.9.1(supports-color@10.2.2))(sass-embedded@1.105.1)(sass@1.105.1)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))`;
+  const routerVersion = `${routerUrl}(octane@${octaneVersion})`;
+  const routerSnapshot = `${routerName}@${routerVersion}`;
+  const octaneSnapshot = `octane@${octaneVersion}`;
+  const routerDirectory = path.join(f.root, 'node_modules/remote-router');
+  const octaneDirectory = path.join(f.root, 'node_modules/remote-octane');
+  writePackage(routerDirectory, {
+    name: routerName,
+    version: '0.1.60+ultramodern.0b9f76ee3003',
+    dependencies: { octane: octaneUrl },
+  });
+  writePackage(octaneDirectory, {
+    name: 'octane',
+    version: '0.7.1+ultramodern.1331985ea3b0',
+    dependencies: { 'parent-alias': 'npm:micromatch@4.0.8' },
+  });
+  link(routerDirectory, path.join(f.root, 'node_modules', routerName));
+  link(routerDirectory, path.join(f.root, 'node_modules/router-alias'));
+  link(octaneDirectory, path.join(routerDirectory, 'node_modules/octane'));
+  link(f.parents[0], path.join(octaneDirectory, 'node_modules/parent-alias'));
+  const manifestPath = path.join(f.root, 'package.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  Object.assign(manifest.dependencies, {
+    [routerName]: routerUrl,
+    'router-alias': routerUrl,
+    '@typescript/native': 'npm:typescript@7.0.2',
+    '@rspack/core': '2.2.8',
+  });
+  writeJson(manifestPath, manifest);
+  Object.assign(f.lock.importers['.'].dependencies, {
+    [routerName]: { specifier: routerUrl, version: routerVersion },
+    'router-alias': { specifier: routerUrl, version: routerSnapshot },
+    '@typescript/native': {
+      specifier: 'npm:typescript@7.0.2',
+      version: 'typescript@7.0.2',
+    },
+    '@rspack/core': {
+      specifier: '2.2.8',
+      version:
+        '2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23)',
+    },
+  });
+  const octanePackage = `octane@${octaneUrl}`;
+  f.lock.packages[`${routerName}@${routerUrl}`] = {
+    version: '0.1.60+ultramodern.0b9f76ee3003',
+  };
+  f.lock.packages[octanePackage] = {
+    version: '0.7.1+ultramodern.1331985ea3b0',
+  };
+  Object.assign(f.lock.snapshots, {
+    [routerSnapshot]: { dependencies: { octane: octaneVersion } },
+    [octaneSnapshot]: { dependencies: { 'parent-alias': f.contexts[0] } },
+    'typescript@7.0.2': {},
+    '@rspack/core@2.2.8(@module-federation/runtime-tools@2.9.2)(@swc/helpers@0.5.23)':
+      {},
+  });
+  f.save();
+  return { routerSnapshot, octaneSnapshot, octanePackage };
+}
+
+test('remote tarball snapshot references retain exact nested URL peer and native contexts', async t => {
+  for (const protocol of ['https:', 'http:'])
+    await t.test(protocol, subtest => {
+      const f = fixture(subtest);
+      const { routerSnapshot, octaneSnapshot } = addRemoteProductionBranch(
+        f,
+        protocol,
+      );
+      const proof = f.inspect();
+      assert.deepEqual(proof.targets, [...f.targets].sort());
+      const remote = proof.identities.filter(row =>
+        ['@octanejs/tanstack-router', 'octane'].includes(row.name),
+      );
+      assert.deepEqual(
+        new Set(remote.map(row => row.snapshot)),
+        new Set([routerSnapshot, octaneSnapshot]),
+      );
+      assert.deepEqual(
+        new Set(remote.map(row => row.dependencyKey)),
+        new Set(['@octanejs/tanstack-router', 'router-alias', 'octane']),
+      );
+      proof.assertUnchanged();
+    });
+});
+
+test('remote references cannot borrow another peer context or installed version', async t => {
+  await t.test('missing exact nested context', subtest => {
+    const f = fixture(subtest);
+    const { octaneSnapshot, octanePackage } = addRemoteProductionBranch(f);
+    delete f.lock.snapshots[octaneSnapshot];
+    f.lock.snapshots[octanePackage] = {};
+    f.save();
+    assert.throws(f.inspect, /Missing raw lock snapshot: octane@https:/u);
+  });
+  await t.test('installed remote version differs', subtest => {
+    const f = fixture(subtest);
+    const { octanePackage } = addRemoteProductionBranch(f);
+    f.lock.packages[octanePackage].version = '0.7.0';
+    f.save();
+    assert.throws(
+      f.inspect,
+      /Installed dependency version differs from raw snapshot: octane@https:/u,
+    );
+  });
+});
+
 test('raw aliases, optional paths and distinct patch/peer contexts resolve from each physical consumer', t => {
   const f = fixture(t);
   const proof = f.inspect();

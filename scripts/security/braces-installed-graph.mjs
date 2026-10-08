@@ -37,7 +37,7 @@ function snapshotKey(name, version) {
     'string',
     `Missing raw dependency version for ${name}`,
   );
-  return /^\d/u.test(version) ? `${name}@${version}` : version;
+  return /^(?:\d|https?:\/\/)/u.test(version) ? `${name}@${version}` : version;
 }
 
 function yamlDocuments(source, label) {
