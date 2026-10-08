@@ -411,6 +411,37 @@ describe('generated native server entry', () => {
     expect(create).not.toHaveBeenCalled();
   });
 
+  it.each(['csr', 'component'] as const)(
+    'varies a %s document whose language came from request headers',
+    async kind => {
+      const { adapter: recording } = adapter();
+      const entry = createNativeServerEntry(
+        {
+          identity,
+          app: async () => ({ default: component }),
+          i18n: {
+            ...localization(),
+            resolveRequest: () => ({
+              kind: 'language',
+              language: 'cs',
+              vary: ['Cookie', 'Accept-Language'],
+            }),
+          },
+        },
+        recording,
+      );
+      const request = new Request('https://example.test/items');
+      const requestContext = context(request);
+      await (kind === 'csr'
+        ? entry.nativeCSRRequestHandler
+        : entry.nativeRequestHandler)(request, requestContext);
+      expect(requestContext.session.responsePolicy?.headers).toContainEqual([
+        'vary',
+        'Cookie, Accept-Language',
+      ]);
+    },
+  );
+
   it('varies a routed document whose language came from request headers', async () => {
     const { adapter: recording, calls } = adapter();
     const entry = createNativeServerEntry(

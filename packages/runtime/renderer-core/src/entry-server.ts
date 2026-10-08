@@ -11,6 +11,7 @@ import {
   type NativeEntryI18n,
   type NativeI18nInstance,
   type NativeI18nView,
+  type NativeRequestLanguage,
   nativeI18nView,
 } from './localization';
 import {
@@ -125,15 +126,25 @@ function serverRouteLoader(
   };
 }
 
-function resolveDocumentPolicy(session: RequestSession): void {
+/** `vary` names the request headers a detected document language came from. */
+function resolveDocumentPolicy(
+  session: RequestSession,
+  vary?: readonly string[],
+): void {
   if (!session.responsePolicy)
     session.resolveResponse({
       kind: 'document',
       status: 200,
-      headers: [['content-type', 'text/html; charset=utf-8']],
+      headers: [
+        ['content-type', 'text/html; charset=utf-8'],
+        ...(vary?.length ? [['vary', vary.join(', ')] as const] : []),
+      ],
       cache: { mode: 'no-store' },
     });
 }
+
+const detectedVary = (language: NativeRequestLanguage | undefined) =>
+  language?.kind === 'language' ? language.vary : undefined;
 
 /**
  * Create the native transport handlers of a generated server entry: identity
@@ -199,7 +210,7 @@ export function createNativeServerEntry<
           context.session,
           i18n.redirect(language.location),
         );
-      resolveDocumentPolicy(context.session);
+      resolveDocumentPolicy(context.session, detectedVary(language));
       return adapter.renderCSR(context, {
         ...document,
         lang: language.language,
@@ -268,7 +279,7 @@ export function createNativeServerEntry<
       };
       if (!routed) {
         const localized = await localize(document.inlineData);
-        resolveDocumentPolicy(session);
+        resolveDocumentPolicy(session, detectedVary(language));
         return adapter.renderComponent(
           context,
           application.default,
@@ -316,12 +327,11 @@ export function createNativeServerEntry<
         return adapter.respond(session, i18n.redirect(language.location));
       // A header-detected language makes the document depend on those headers:
       // the header-only outcome adds `Vary` and keeps it out of public caches.
-      if (language?.kind === 'language' && language.vary?.length)
+      const vary = detectedVary(language);
+      if (vary?.length)
         outcomes.push(
           await normalizeDataResult(
-            new Response(null, {
-              headers: { vary: language.vary.join(', ') },
-            }),
+            new Response(null, { headers: { vary: vary.join(', ') } }),
           ),
         );
       const localized = await localize();

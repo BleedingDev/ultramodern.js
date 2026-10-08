@@ -251,8 +251,20 @@ export function mergeDataResponseIntoResponse(
   const metadataHeaders = dataMetadataToDocumentPolicy(metadata).headers;
   const metadataCookies: string[] = [];
   for (const [name, value] of metadataHeaders) {
-    if (name.toLowerCase() === 'set-cookie') metadataCookies.push(value);
-    else if (name.toLowerCase() !== 'content-type') headers.set(name, value);
+    const headerName = name.toLowerCase();
+    if (headerName === 'set-cookie') metadataCookies.push(value);
+    // CSP and Server-Timing are list fields the native response keeps too.
+    else if (ACCUMULATED_HEADERS.has(headerName) && headerName !== 'vary')
+      headers.append(name, value);
+    else if (headerName === 'vary') {
+      const fields = new Map<string, string>();
+      for (const field of `${headers.get('vary') ?? ''},${value}`.split(',')) {
+        const item = field.trim();
+        if (item && !fields.has(item.toLowerCase()))
+          fields.set(item.toLowerCase(), item);
+      }
+      headers.set('vary', [...fields.values()].join(', '));
+    } else if (headerName !== 'content-type') headers.set(name, value);
   }
   if (metadataCookies.length > 0) {
     headers.delete('set-cookie');
