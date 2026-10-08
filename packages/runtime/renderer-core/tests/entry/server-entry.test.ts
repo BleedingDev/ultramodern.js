@@ -194,6 +194,21 @@ describe('generated native server entry', () => {
     ).rejects.toThrow('Native request/session ownership mismatch');
   });
 
+  it('renders into a configured root id', async () => {
+    const { adapter: recording, calls } = adapter();
+    const entry = createNativeServerEntry(
+      {
+        identity,
+        app: async () => ({ default: component }),
+        rootId: 'application',
+      },
+      recording,
+    );
+    const request = new Request('https://example.test/');
+    await entry.nativeRequestHandler(request, context(request));
+    expect(calls[0].document).toMatchObject({ rootId: 'application' });
+  });
+
   it('renders a component application into a renderer document', async () => {
     const { adapter: recording, calls } = adapter();
     const entry = createNativeServerEntry(

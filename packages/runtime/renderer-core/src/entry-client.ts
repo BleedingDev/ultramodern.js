@@ -34,6 +34,8 @@ export interface NativeClientEntryOptions<
   readonly i18n?: NativeEntryI18n<Instance, LocalisedUrls>;
   /** The entry module's bundler HMR object, `import.meta.webpackHot`. */
   readonly hot?: unknown;
+  /** The mount element id; must match the server entry's `rootId`. */
+  readonly rootId?: string;
 }
 
 /** The application view a renderer mounts or hydrates. */
@@ -134,7 +136,7 @@ export function startNativeClientEntry<
   adapter: NativeClientAdapter<Bootstrap, Router, Instance, LocalisedUrls>,
 ): void {
   const identity = Object.freeze({ ...options.identity });
-  const root = document.getElementById('root');
+  const root = document.getElementById(options.rootId ?? 'root');
   if (!root) throw new Error('The native application mount element is missing');
   const bootstrap = document.getElementById(RENDERER_BOOTSTRAP_ID)
     ? adapter.readBootstrap(document, identity)
