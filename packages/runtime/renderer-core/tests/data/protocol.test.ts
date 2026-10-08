@@ -545,6 +545,35 @@ describe('renderer-neutral HTTP data outcomes', () => {
     },
   );
 
+  it('ignores lifetimes inside quoted Cache-Control extension values', async () => {
+    const outcome = await normalizeDataResult(
+      Response.json(
+        {},
+        { headers: { 'cache-control': 'public, foo="x,max-age=3600,y"' } },
+      ),
+    );
+    expect(
+      dataMetadataToDocumentPolicy(
+        mergeDataResponseMetadata([outcome], { status: 200 }),
+      ).cache,
+    ).toEqual({ mode: 'no-store' });
+    const quoted = await normalizeDataResult(
+      Response.json(
+        {},
+        {
+          headers: {
+            'cache-control': 'public, foo="x,max-age=3600,y", max-age=60',
+          },
+        },
+      ),
+    );
+    expect(
+      dataMetadataToDocumentPolicy(
+        mergeDataResponseMetadata([quoted], { status: 200 }),
+      ).cache,
+    ).toEqual({ mode: 'public', maxAgeSeconds: 60 });
+  });
+
   it('drops hop-by-hop and Connection-named loader fields', async () => {
     const outcome = await normalizeDataResult(
       Response.json(

@@ -9,6 +9,7 @@ describe('native server middleware headers', () => {
     const prepared = new Headers({
       'content-security-policy': "script-src 'self'",
       'content-security-policy-report-only': "style-src 'self'",
+      'server-timing': 'middleware;dur=1',
       vary: 'Origin, cookie',
       'cache-control': 'private, no-store',
       'content-type': 'application/json',
@@ -17,6 +18,7 @@ describe('native server middleware headers', () => {
     const native = new Headers({
       'content-security-policy': "default-src 'self'",
       'content-security-policy-report-only': "img-src 'self'",
+      'server-timing': 'render;dur=2',
       vary: 'Cookie',
       'cache-control': 'public, max-age=60',
       'content-type': 'text/html; charset=utf-8',
@@ -31,6 +33,7 @@ describe('native server middleware headers', () => {
       "img-src 'self', style-src 'self'",
     );
     expect(native.get('vary')).toBe('Cookie, Origin');
+    expect(native.get('server-timing')).toBe('render;dur=2, middleware;dur=1');
     expect(native.get('cache-control')).toBe('private, no-store');
     expect(native.get('content-type')).toBe('text/html; charset=utf-8');
     expect(native.getSetCookie()).toEqual([]);
