@@ -119,6 +119,8 @@ describe('detectRequestLanguage', () => {
     ['en;q=0, *;q=1', 'fr-FR'],
     ['en-US;q=0, en', 'en-GB'],
     ['cs-CZ, fr', 'fr-FR'],
+    ['en;q=0, en-US;q=1, fr', 'en-US'],
+    ['en-GB;q=0.5, en;q=0.9', 'en-US'],
   ])('matches %s against regional supported languages', (header, expected) => {
     expect(
       detectRequestLanguage(request('/', { 'accept-language': header }), [

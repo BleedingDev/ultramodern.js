@@ -131,9 +131,27 @@ const readCookie = (header: string | null, name: string): string | null => {
 const QVALUE = /^(?:0(?:\.\d{0,3})?|1(?:\.0{0,3})?)$/;
 
 /**
- * Ordered `Accept-Language` matches, highest quality first. A `*` range stands
- * for every supported language not named elsewhere in the header, so a
- * specific `q=0` still excludes its language.
+ * How specifically a range covers a supported language: the exact tag, then
+ * longer prefix ranges (`en` for `en-US`), then a regional range naming the
+ * base language (`cs-CZ` for `cs`), then `*`. `undefined` when it does not.
+ */
+const rangeSpecificity = (
+  range: string,
+  language: string,
+): number | undefined => {
+  const value = range.toLowerCase().replaceAll('_', '-');
+  const supported = language.toLowerCase().replaceAll('_', '-');
+  if (value === '*') return 0;
+  if (value === supported) return Number.MAX_SAFE_INTEGER;
+  if (supported.startsWith(`${value}-`)) return 1 + value.split('-').length;
+  if (baseLanguage(value) === supported) return 1;
+  return undefined;
+};
+
+/**
+ * Supported languages in `Accept-Language` order, highest quality first. A
+ * language's quality comes from the most specific range covering it, and `*`
+ * covers every language no other range names.
  */
 const acceptedLanguages = (
   header: string | null,
@@ -154,24 +172,29 @@ const acceptedLanguages = (
       return { tag: tag.trim(), q, index };
     })
     .filter(item => item.tag);
-  const specific = items.filter(item => item.tag !== '*');
-  const named = new Set(
-    specific.flatMap(item => compatibleLanguages(item.tag, languages)),
-  );
-  const excluded = new Set(
-    specific
-      .filter(item => item.q === 0)
-      .flatMap(item => compatibleLanguages(item.tag, languages)),
-  );
-  return items
-    .filter(item => item.q > 0)
-    .sort((left, right) => right.q - left.q || left.index - right.index)
-    .flatMap(item =>
-      item.tag === '*'
-        ? languages.filter(language => !named.has(language))
-        : compatibleLanguages(item.tag, languages),
+  // Each supported language takes the quality of its most specific range, so
+  // `en;q=0, en-US` keeps en-US while excluding the other English locales.
+  const ranked = languages.flatMap((language, position) => {
+    let best: { q: number; index: number; specificity: number } | undefined;
+    for (const item of items) {
+      const specificity = rangeSpecificity(item.tag, language);
+      if (
+        specificity !== undefined &&
+        (!best || specificity > best.specificity)
+      )
+        best = { q: item.q, index: item.index, specificity };
+    }
+    return best && best.q > 0 ? [{ language, position, ...best }] : [];
+  });
+  return ranked
+    .sort(
+      (left, right) =>
+        right.q - left.q ||
+        left.index - right.index ||
+        right.specificity - left.specificity ||
+        left.position - right.position,
     )
-    .filter(language => !excluded.has(language));
+    .map(entry => entry.language);
 };
 
 /**
