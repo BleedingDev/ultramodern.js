@@ -21,6 +21,29 @@ import type {
   WorkspaceApp,
 } from '../src/ultramodern-workspace/types';
 
+function waitForFiles(directory: string, names: readonly string[]) {
+  return new Promise<void>((resolve, reject) => {
+    const finish = (error?: Error) => {
+      clearTimeout(timer);
+      watcher.close();
+      if (error) reject(error);
+      else resolve();
+    };
+    const check = () => {
+      if (names.every(name => fs.existsSync(path.join(directory, name))))
+        finish();
+    };
+    const watcher = fs.watch(directory, check);
+    const timer = setTimeout(
+      () =>
+        finish(new Error(`Missing config worker markers: ${names.join(', ')}`)),
+      10000,
+    );
+    watcher.once('error', finish);
+    check();
+  });
+}
+
 function fixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'um-renderer-identity-'));
   const write = (relative: string, content: string) => {
@@ -101,12 +124,47 @@ function fixture() {
       ),
       overlay,
     }).apps;
+  const barriers = path.join(root, 'worker-barriers');
+  const gatedConfig = (
+    id: string,
+    renderer: ApplicationRenderer,
+    error?: string,
+  ) => {
+    fs.mkdirSync(barriers, { recursive: true });
+    write(`${id}/.env`, `MODERN_EVALUATION_APP=${id}\n`);
+    write(
+      `${id}/modern.config.mjs`,
+      `${defineConfigImport}import fs from 'node:fs';
+import path from 'node:path';
+export default defineConfig(async ({env,command}) => {
+  const directory = ${JSON.stringify(barriers)};
+  const marker = name => path.join(directory, '${id}.' + name);
+  if (globalThis.metadataApp !== undefined) throw new Error('shared config context');
+  globalThis.metadataApp = '${id}';
+  process.once('exit', () => fs.writeFileSync(marker('closed'), 'closed'));
+  fs.writeFileSync(marker('started'), JSON.stringify({pid: process.pid, cwd: process.cwd(), env, command, app: process.env.MODERN_EVALUATION_APP}));
+  await new Promise(resolve => {
+    const check = () => {
+      if (fs.existsSync(marker('release'))) { watcher.close(); resolve(); }
+    };
+    const watcher = fs.watch(directory, check);
+    check();
+  });
+  ${error ? `throw new Error(${JSON.stringify(error)});` : `return {renderer: '${renderer}', source: {disableDefaultEntries: true, entries: {main: {entry: './src/entry.ts', disableMount: true}}}};`}
+});`,
+    );
+  };
+  const release = (id: string) =>
+    fs.writeFileSync(path.join(barriers, `${id}.release`), 'release');
   return {
     root,
     write,
     config,
     apps,
     defineConfigImport,
+    barriers,
+    gatedConfig,
+    release,
     clean: () => {
       for (const key of Object.keys(__transactionTestHooks))
         delete __transactionTestHooks[
@@ -167,6 +225,161 @@ test('owning config loader resolves object/sync/async selection; headless has no
     f.clean();
   }
 });
+
+test('metadata overlaps isolated app processes, bounds active pairs and preserves input order', async () => {
+  const f = fixture();
+  const originalAppEnv = process.env.MODERN_EVALUATION_APP;
+  let settled: Promise<unknown> = Promise.resolve();
+  try {
+    const [shell, catalog, headless] = f.apps();
+    const checkout = { ...catalog, id: 'checkout', directory: 'checkout' };
+    for (const [id, renderer] of [
+      ['shell', 'react'],
+      ['catalog', 'solid'],
+      ['checkout', 'octane'],
+    ] as const) {
+      f.write(
+        `${id}/package.json`,
+        JSON.stringify({ name: `@identity/${id}`, version: '1.0.0' }),
+      );
+      f.write(`${id}/src/entry.ts`, 'export default () => "metadata entry";');
+      f.gatedConfig(id, renderer);
+    }
+    f.write(
+      'api/modern.config.mjs',
+      "throw new Error('headless config must not load');",
+    );
+    const captured = captureWorkspaceRendererEvaluations(
+      f.root,
+      [shell, headless, catalog, checkout],
+      { env: 'production', command: 'validate' },
+    );
+    // Attach a rejection handler before waiting for worker observations.
+    settled = captured.then(
+      value => ({ value }),
+      error => ({ error }),
+    );
+    await waitForFiles(f.barriers, ['shell.started', 'catalog.started']);
+    assert.equal(
+      fs.existsSync(path.join(f.barriers, 'checkout.started')),
+      false,
+    );
+    f.release('catalog');
+    await waitForFiles(f.barriers, ['catalog.closed']);
+    assert.equal(
+      fs.existsSync(path.join(f.barriers, 'checkout.started')),
+      false,
+    );
+    f.release('shell');
+    await waitForFiles(f.barriers, ['checkout.started']);
+    assert.equal(fs.existsSync(path.join(f.barriers, 'shell.closed')), true);
+    f.release('checkout');
+    const evaluations = await captured;
+    assert.deepEqual([...evaluations.keys()], ['shell', 'catalog', 'checkout']);
+    assert.deepEqual(
+      [...evaluations.values()].map(value => value.renderer),
+      ['react', 'solid', 'octane'],
+    );
+    const observations = ['shell', 'catalog', 'checkout'].map(id =>
+      JSON.parse(
+        fs.readFileSync(path.join(f.barriers, `${id}.started`), 'utf8'),
+      ),
+    );
+    assert.equal(new Set(observations.map(value => value.pid)).size, 3);
+    for (const [index, id] of ['shell', 'catalog', 'checkout'].entries()) {
+      assert.notEqual(observations[index].pid, process.pid);
+      assert.deepEqual(observations[index], {
+        pid: observations[index].pid,
+        cwd: fs.realpathSync(path.join(f.root, id)),
+        env: 'production',
+        command: 'validate',
+        app: id,
+      });
+      assert.equal(fs.existsSync(path.join(f.barriers, `${id}.closed`)), true);
+      assert.throws(() => process.kill(observations[index].pid, 0), {
+        code: 'ESRCH',
+      });
+    }
+    assert.equal(process.env.MODERN_EVALUATION_APP, originalAppEnv);
+  } finally {
+    if (fs.existsSync(f.barriers))
+      for (const id of ['shell', 'catalog', 'checkout']) f.release(id);
+    await settled;
+    f.clean();
+  }
+});
+
+test.each(['shell', 'catalog'])(
+  'metadata chooses the first input error and drains the held %s process',
+  async held => {
+    const f = fixture();
+    let settled: Promise<unknown> = Promise.resolve();
+    try {
+      const [shell, catalog] = f.apps();
+      f.gatedConfig('shell', 'react', 'first app failed');
+      f.gatedConfig('catalog', 'solid', 'second app failed');
+      f.write(
+        'unstarted/package.json',
+        JSON.stringify({ name: '@identity/unstarted', version: '1.0.0' }),
+      );
+      f.write(
+        'unstarted/src/entry.ts',
+        'export default () => "metadata entry";',
+      );
+      f.gatedConfig('unstarted', 'octane');
+      let finished = false;
+      const captured = captureWorkspaceRendererEvaluations(f.root, [
+        shell,
+        catalog,
+        { ...catalog, id: 'unstarted', directory: 'unstarted' },
+      ]);
+      const closedAtSettlement = captured.then(
+        () => {
+          finished = true;
+          return [];
+        },
+        () => {
+          finished = true;
+          return ['shell', 'catalog'].map(id =>
+            fs.existsSync(path.join(f.barriers, `${id}.closed`)),
+          );
+        },
+      );
+      settled = closedAtSettlement;
+      await waitForFiles(f.barriers, ['shell.started', 'catalog.started']);
+      const released = held === 'shell' ? 'catalog' : 'shell';
+      f.release(released);
+      await waitForFiles(f.barriers, [`${released}.closed`]);
+      assert.equal(finished, false);
+      assert.equal(
+        fs.existsSync(path.join(f.barriers, `${held}.closed`)),
+        false,
+      );
+      f.release(held);
+      await assert.rejects(captured, /first app failed/);
+      assert.deepEqual(await closedAtSettlement, [true, true]);
+      assert.equal(
+        fs.existsSync(path.join(f.barriers, 'unstarted.started')),
+        false,
+      );
+      for (const id of ['shell', 'catalog']) {
+        assert.equal(
+          fs.existsSync(path.join(f.barriers, `${id}.closed`)),
+          true,
+        );
+        const { pid } = JSON.parse(
+          fs.readFileSync(path.join(f.barriers, `${id}.started`), 'utf8'),
+        );
+        assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
+      }
+    } finally {
+      if (fs.existsSync(f.barriers))
+        for (const id of ['shell', 'catalog', 'unstarted']) f.release(id);
+      await settled;
+      f.clean();
+    }
+  },
+);
 
 test('immutable artifacts reject renderer/ABI conflicts while local projection regenerates', async () => {
   const f = fixture();
@@ -509,10 +722,11 @@ export default defineConfig(async ({env,command}) => {
         .readFileSync(observedPath, 'utf8')
         .trim()
         .split('\n')
-        .map(line => JSON.parse(line)),
+        .map(line => JSON.parse(line))
+        .sort((left, right) => left.id.localeCompare(right.id)),
       [
-        { id: 'shell', env: 'development', command: 'dev' },
         { id: 'catalog', env: 'development', command: 'dev' },
+        { id: 'shell', env: 'development', command: 'dev' },
       ],
     );
   } finally {
