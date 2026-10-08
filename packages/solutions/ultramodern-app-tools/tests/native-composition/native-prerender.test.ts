@@ -67,6 +67,18 @@ describe('native prerender route selection', () => {
     ]);
   });
 
+  it('prerenders the root index page of a page-only entry', () => {
+    expect(
+      flattenPrerenderRoutes([
+        {
+          id: 'root',
+          path: '/',
+          children: [{ id: 'page', index: true, file: 'routes/page.tsx' }],
+        },
+      ]),
+    ).toEqual(['/']);
+  });
+
   it('normalizes ssg and ssgByEntries options like plugin-ssg', () => {
     const pageRoutes = [pageRoute('index', '/'), pageRoute('admin', '/admin')];
     expect(
