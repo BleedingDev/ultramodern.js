@@ -1,6 +1,6 @@
 import os from 'node:os';
 import path from 'node:path';
-import { type NodeFileTraceResult, nodeFileTrace } from '@vercel/nft';
+import type { NodeFileTraceResult } from '@vercel/nft';
 
 // Directories owned by the build host rather than the app. nft statically
 // evaluates `os.homedir()`, `os.tmpdir()` and literal system paths, so code
@@ -59,9 +59,22 @@ export const traceDeployFiles = ({
   entryFiles: string[];
   sourceDir: string;
   base?: string;
-}): Promise<NodeFileTraceResult> =>
-  nodeFileTrace(entryFiles, {
-    base,
-    processCwd: sourceDir,
-    ignore: createBuildHostIgnore(base),
-  });
+}): Promise<NodeFileTraceResult> => {
+  const resolvedBase = path.resolve(base);
+  const ignore = createBuildHostIgnore(resolvedBase);
+  try {
+    // NFT resolves roots and maps entries before its first await. Capture the
+    // same invocation here so loading it cannot observe a later cwd or edit.
+    const options = {
+      base: resolvedBase,
+      processCwd: path.resolve(sourceDir || resolvedBase),
+      ignore,
+    };
+    const entries = entryFiles.map(file => path.resolve(file));
+    return import('@vercel/nft').then(({ nodeFileTrace }) =>
+      nodeFileTrace(entries, options),
+    );
+  } catch (error) {
+    return Promise.reject(error);
+  }
+};
