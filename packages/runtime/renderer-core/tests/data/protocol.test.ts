@@ -717,6 +717,31 @@ describe('renderer-neutral HTTP data outcomes', () => {
     );
   });
 
+  it('keeps commas inside quoted and bracketed list elements', async () => {
+    const timing = 'db;desc="read, write";dur=3';
+    const link = '</a,b.css>; rel=preload; title="x, y"';
+    const native = new Response(null, {
+      status: 302,
+      headers: { location: '/next', 'server-timing': timing, link },
+    });
+    const loader = await normalizeDataResult(
+      new Response(null, {
+        headers: {
+          'server-timing': `${timing}, cache;dur=1`,
+          link,
+        },
+      }),
+    );
+    const response = mergeDataResponseIntoResponse(
+      native,
+      mergeDataResponseMetadata([loader], { status: 302 }),
+    );
+    expect(response.headers.get('server-timing')).toBe(
+      `${timing}, cache;dur=1`,
+    );
+    expect(response.headers.get('link')).toBe(link);
+  });
+
   it('keeps terminal singleton fields over loader metadata', async () => {
     const native = new Response(null, {
       status: 302,
