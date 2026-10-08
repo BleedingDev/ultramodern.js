@@ -108,6 +108,23 @@ describe('native Link href safety', () => {
     }
   });
 
+  test('a disabled external URL renders without an href', async () => {
+    const view = await renderLink(() => (
+      <Link to={'https://example.com/docs' as any} disabled>
+        External
+      </Link>
+    ));
+    try {
+      const anchor = view.anchor();
+      expect(anchor.hasAttribute('href')).toBe(false);
+      expect(anchor.getAttribute('aria-disabled')).toBe('true');
+      click(anchor);
+      expect(view.navigate).not.toHaveBeenCalled();
+    } finally {
+      view.cleanup();
+    }
+  });
+
   test('an allowed external URL renders as a plain anchor', async () => {
     const view = await renderLink(() => (
       <Link to={'https://example.com/docs' as any}>External</Link>

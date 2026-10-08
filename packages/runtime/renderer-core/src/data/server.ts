@@ -697,9 +697,12 @@ export function createDataResponse(
     'content-type',
     `${outcome.kind === 'deferred' ? DATA_STREAM_CONTENT_TYPE : DATA_CONTENT_TYPE}; charset=utf-8`,
   );
-  // Bodyless statuses need a body-bearing transport; the envelope keeps the status.
+  // Bodyless statuses need a body-bearing transport, and the envelope is never
+  // partial content even when the loader answered 206. The envelope keeps the
+  // original status.
   const status =
     outcome.kind === 'redirect' ||
+    outcome.response.status === 206 ||
     BODYLESS_STATUSES.has(outcome.response.status)
       ? 200
       : outcome.response.status;
