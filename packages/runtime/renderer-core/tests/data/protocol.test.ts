@@ -529,6 +529,57 @@ describe('renderer-neutral HTTP data outcomes', () => {
     expect(await response.text()).toBe('native redirect body');
   });
 
+  it.each([
+    ['x-public, max-age=60', 'no-store'],
+    ['foo="public", max-age=60', 'no-store'],
+    ['public, max-age=60', 'public'],
+    ['Public, x-no-cache, max-age=60', 'public'],
+    ['no-cache="set-cookie, x-a", public, max-age=60', 'no-store'],
+  ])(
+    'classifies Cache-Control %s by exact directive',
+    async (cacheControl, policy) => {
+      const outcome = await normalizeDataResult(
+        new Response(null, { headers: { 'cache-control': cacheControl } }),
+      );
+      expect(outcome.response.cachePolicy).toBe(policy);
+    },
+  );
+
+  it('drops hop-by-hop and Connection-named loader fields', async () => {
+    const outcome = await normalizeDataResult(
+      Response.json(
+        { value: true },
+        {
+          headers: {
+            connection: 'close, x-hop',
+            'keep-alive': 'timeout=5',
+            trailer: 'x-checksum',
+            upgrade: 'websocket',
+            'x-hop': '1',
+            'x-owner': 'route',
+          },
+        },
+      ),
+    );
+    const document = new Headers(
+      dataMetadataToDocumentPolicy(
+        mergeDataResponseMetadata([outcome], { status: 200 }),
+      ).headers.map(([name, value]) => [name, value]),
+    );
+    const envelope = createDataResponse(outcome, identity, expected).headers;
+    for (const headers of [document, envelope]) {
+      for (const name of [
+        'connection',
+        'keep-alive',
+        'trailer',
+        'upgrade',
+        'x-hop',
+      ])
+        expect(headers.has(name), name).toBe(false);
+      expect(headers.get('x-owner')).toBe('route');
+    }
+  });
+
   it('accumulates CSP, Server-Timing and Vary into a terminal response', async () => {
     const native = new Response('native error', {
       status: 500,

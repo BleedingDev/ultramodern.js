@@ -47,6 +47,31 @@ const REPRESENTATION_HEADERS = new Set([
   'last-modified',
   'location',
 ]);
+/** RFC 9110 connection-specific fields; they never describe a new response. */
+const HOP_BY_HOP_HEADERS = new Set([
+  'connection',
+  'keep-alive',
+  'proxy-connection',
+  'te',
+  'trailer',
+  'upgrade',
+]);
+
+/**
+ * Loader fields a generated envelope or document must not inherit: its
+ * representation metadata, hop-by-hop fields and any field `Connection` names.
+ */
+function projectedHeaderFilter(
+  headers: Iterable<readonly [string, string]>,
+): (name: string) => boolean {
+  const stripped = new Set([...REPRESENTATION_HEADERS, ...HOP_BY_HOP_HEADERS]);
+  for (const [name, value] of headers)
+    if (name.toLowerCase() === 'connection')
+      for (const field of value.split(','))
+        if (field.trim()) stripped.add(field.trim().toLowerCase());
+  return name => !stripped.has(name.toLowerCase());
+}
+
 const outcomePolicies = new WeakMap<DataOutcome, RequestDataPolicy>();
 
 /**
@@ -208,9 +233,10 @@ export function dataMetadataToDocumentPolicy(
   metadata: DataResponseMetadata,
 ): ResponsePolicy {
   const headers = new Headers();
-  for (const [name, value] of metadata.headers) {
-    if (!REPRESENTATION_HEADERS.has(name.toLowerCase()))
-      headers.append(name, value);
+  const fields = [...metadata.headers];
+  const keep = projectedHeaderFilter(fields);
+  for (const [name, value] of fields) {
+    if (keep(name)) headers.append(name, value);
   }
   headers.set('content-type', 'text/html; charset=utf-8');
   let cache: DocumentCachePolicy = { mode: 'no-store' };
@@ -289,6 +315,19 @@ export function mergeDataResponseIntoResponse(
   });
 }
 
+/**
+ * Cache-Control directive names, lowercased. Only whole tokens count, so an
+ * extension such as `x-public` or a quoted `"public"` value never opts in.
+ */
+function cacheDirectiveNames(cacheControl: string): Set<string> {
+  const names = new Set<string>();
+  for (const match of cacheControl.matchAll(
+    /(?:^|,)\s*([!#$%&'*+.^_`|~\w-]+)\s*(?:=\s*(?:"(?:[^"\\]|\\.)*"|[^,]*))?/gu,
+  ))
+    names.add(match[1].toLowerCase());
+  return names;
+}
+
 function responseMetadata(init: ResponseInit = {}): DataResponseMetadata {
   const status = init.status ?? 200;
   if (!Number.isInteger(status) || status < 200 || status > 599) {
@@ -297,18 +336,19 @@ function responseMetadata(init: ResponseInit = {}): DataResponseMetadata {
     );
   }
   const headers = new Headers(init.headers);
-  const cacheControl = headers.get('cache-control') ?? '';
+  const directives = cacheDirectiveNames(headers.get('cache-control') ?? '');
   return {
     status,
     statusText: init.statusText ?? '',
     headers: collectDataHeaders(headers),
-    cachePolicy: /\b(?:no-store|no-cache)\b/i.test(cacheControl)
-      ? 'no-store'
-      : /\bprivate\b/i.test(cacheControl)
-        ? 'private'
-        : /\bpublic\b/i.test(cacheControl)
-          ? 'public'
-          : 'no-store',
+    cachePolicy:
+      directives.has('no-store') || directives.has('no-cache')
+        ? 'no-store'
+        : directives.has('private')
+          ? 'private'
+          : directives.has('public')
+            ? 'public'
+            : 'no-store',
   };
 }
 
@@ -701,9 +741,11 @@ export function createDataResponse(
   );
   const headers = new Headers();
   // The envelope owns new bytes. Original validators, ranges and redirects do not.
-  for (const [name, value] of outcome.response.headers)
-    if (!REPRESENTATION_HEADERS.has(name.toLowerCase()))
-      headers.append(name, value);
+  // Read the loader fields once; the private-value check counts iterations.
+  const fields = [...outcome.response.headers];
+  const keep = projectedHeaderFilter(fields);
+  for (const [name, value] of fields)
+    if (keep(name)) headers.append(name, value);
   headers.set('x-modernjs-response', 'yes');
   if (
     !headers.has('cache-control') ||
