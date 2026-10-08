@@ -655,6 +655,32 @@ describe('renderer-neutral HTTP data outcomes', () => {
     }
   });
 
+  it('keeps terminal singleton fields over loader metadata', async () => {
+    const native = new Response(null, {
+      status: 302,
+      headers: {
+        location: '/next',
+        'cross-origin-opener-policy': 'same-origin',
+      },
+    });
+    const loader = await normalizeDataResult(
+      new Response(null, {
+        headers: {
+          'cross-origin-opener-policy': 'unsafe-none',
+          'x-loader': '1',
+        },
+      }),
+    );
+    const response = mergeDataResponseIntoResponse(
+      native,
+      mergeDataResponseMetadata([loader], { status: 302 }),
+    );
+    expect(response.headers.get('cross-origin-opener-policy')).toBe(
+      'same-origin',
+    );
+    expect(response.headers.get('x-loader')).toBe('1');
+  });
+
   it('accumulates CSP, Server-Timing and Vary into a terminal response', async () => {
     const native = new Response('native error', {
       status: 500,

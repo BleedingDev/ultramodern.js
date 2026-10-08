@@ -62,6 +62,18 @@ export function useApplicationRouteId(): string {
   return id;
 }
 
+/**
+ * Native actions follow a redirect as a navigation. A 307/308 asks to repeat
+ * the mutation at another URL, which a navigation would silently turn into a
+ * GET, so it fails instead.
+ */
+function assertNavigableActionRedirect(status: number): void {
+  if (status === 307 || status === 308)
+    throw new Error(
+      `A native action redirect must not preserve the method (HTTP ${status}); redirect with 303 to navigate after the mutation`,
+    );
+}
+
 export interface OctaneRouteActionOptions {
   readonly router: AnyRouter;
   readonly routeId: string;
@@ -96,6 +108,7 @@ export function createOctaneRouteAction(input: OctaneRouteActionOptions) {
     await outcome.completion;
     input.signal?.throwIfAborted();
     if (outcome.kind === 'redirect') {
+      assertNavigableActionRedirect(outcome.status);
       const resolved = input.router.resolveRedirect(
         redirect({
           href: new URL(outcome.location, request.url).href,
