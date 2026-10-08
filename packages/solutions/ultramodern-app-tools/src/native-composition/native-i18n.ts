@@ -96,7 +96,14 @@ function nonJsonPath(
     Object.getOwnPropertyDescriptors(value),
   )) {
     if (key === 'length' && Array.isArray(value)) continue;
-    if (!descriptor.enumerable || !('value' in descriptor))
+    if (
+      !descriptor.enumerable ||
+      !('value' in descriptor) ||
+      // JSON keeps only an array's indexes, and an emitted object literal
+      // would read `__proto__` as a prototype, not data.
+      (Array.isArray(value) && !/^(?:0|[1-9]\d*)$/u.test(key)) ||
+      key === '__proto__'
+    )
       return `${at}.${key}`;
     const path = nonJsonPath(descriptor.value, `${at}.${key}`, seen);
     if (path) return path;
