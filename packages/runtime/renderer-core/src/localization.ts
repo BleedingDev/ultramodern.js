@@ -5,7 +5,12 @@ import type { NativeLocationRewrite } from './router';
 export type NativeI18nResources = Record<string, Record<string, unknown>>;
 
 export type NativeRequestLanguage =
-  | { readonly kind: 'language'; readonly language: string }
+  | {
+      readonly kind: 'language';
+      readonly language: string;
+      /** Request headers the language was detected from, for `Vary`. */
+      readonly vary?: readonly string[];
+    }
   | {
       readonly kind: 'redirect';
       readonly language: string;

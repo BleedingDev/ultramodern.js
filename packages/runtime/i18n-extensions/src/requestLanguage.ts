@@ -42,7 +42,7 @@ export interface ResolveRequestLanguageOptions {
 }
 
 export type ResolvedRequestLanguage =
-  | { kind: 'language'; language: string }
+  | { kind: 'language'; language: string; vary?: readonly string[] }
   | { kind: 'redirect'; language: string; location: string };
 
 const DEFAULT_ORDER: readonly RequestLanguageDetector[] = [
@@ -268,7 +268,22 @@ export function resolveRequestLanguage(
         | undefined,
     )
   ) {
-    return { kind: 'language', language: detected };
+    // An unprefixed page that is not redirected still renders in a language
+    // read from request headers, so its response depends on them.
+    const vary = (
+      options.detect === false
+        ? []
+        : (options.detection?.order ?? DEFAULT_ORDER)
+    ).flatMap(detector =>
+      detector === 'header'
+        ? [options.detection?.lookupHeader ?? 'Accept-Language']
+        : detector === 'cookie'
+          ? ['Cookie']
+          : [],
+    );
+    return vary.length
+      ? { kind: 'language', language: detected, vary }
+      : { kind: 'language', language: detected };
   }
   const localized = localiseTargetPathname(
     remaining,

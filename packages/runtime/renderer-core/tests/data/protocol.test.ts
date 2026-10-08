@@ -374,8 +374,8 @@ describe('renderer-neutral HTTP data outcomes', () => {
     },
   );
 
-  it('keeps every nested loader Content-Security-Policy', async () => {
-    const outcome = (csp: string, reportOnly: string) =>
+  it('keeps every nested loader Content-Security-Policy and Server-Timing', async () => {
+    const outcome = (csp: string, reportOnly: string, timing: string) =>
       normalizeDataResult(
         Response.json(
           { value: true },
@@ -383,14 +383,15 @@ describe('renderer-neutral HTTP data outcomes', () => {
             headers: {
               'content-security-policy': csp,
               'content-security-policy-report-only': reportOnly,
+              'server-timing': timing,
             },
           },
         ),
       );
     const merged = mergeDataResponseMetadata(
       [
-        await outcome("default-src 'self'", "img-src 'self'"),
-        await outcome("script-src 'self'", "style-src 'self'"),
+        await outcome("default-src 'self'", "img-src 'self'", 'layout;dur=3'),
+        await outcome("script-src 'self'", "style-src 'self'", 'page;dur=5'),
       ],
       { status: 200 },
     );
@@ -401,6 +402,7 @@ describe('renderer-neutral HTTP data outcomes', () => {
     expect(headers.get('content-security-policy-report-only')).toBe(
       "img-src 'self', style-src 'self'",
     );
+    expect(headers.get('server-timing')).toBe('layout;dur=3, page;dur=5');
   });
 
   it('projects loader metadata to HTML without data representation headers', async () => {

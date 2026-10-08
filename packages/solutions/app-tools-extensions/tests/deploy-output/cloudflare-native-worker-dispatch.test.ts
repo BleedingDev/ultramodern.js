@@ -271,6 +271,32 @@ describe.each(['solid', 'octane'] as const)(
       expect(requests).toEqual(['https://example.com/items']);
     });
 
+    it('passes HEAD to the native dispatcher unchanged', async () => {
+      const methods: string[] = [];
+      const worker = emittedWorker(
+        {
+          rendererIdentities: { main: identity(renderer) },
+          nativeRenderer: nativeResources(renderer),
+        },
+        {
+          [route.worker]: async () =>
+            nativeBundle(renderer, request => {
+              methods.push(request.method);
+              return new Response('native', {
+                headers: { 'content-type': 'text/html; charset=utf-8' },
+              });
+            }),
+        },
+      );
+      const response = await worker.fetch(
+        new Request('https://example.com/items', { method: 'HEAD' }),
+        { ASSETS: assetBinding() },
+        executionContext().context,
+      );
+      expect(response.status).toBe(200);
+      expect(methods).toEqual(['HEAD']);
+    });
+
     it('serves static assets without the native bundle', async () => {
       const served: string[] = [];
       const worker = emittedWorker(

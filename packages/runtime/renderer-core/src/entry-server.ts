@@ -1,4 +1,9 @@
-import { type DataOutcome, handleDataRequest, invokeRouteData } from './data';
+import {
+  type DataOutcome,
+  handleDataRequest,
+  invokeRouteData,
+  normalizeDataResult,
+} from './data';
 import type { DocumentAsset, DocumentInlineData } from './document';
 import type { NativeFederationBinding } from './federation';
 import { assertRendererIdentity, type RendererIdentity } from './identity';
@@ -309,6 +314,16 @@ export function createNativeServerEntry<
       if (dataResponse) return adapter.respond(session, dataResponse);
       if (i18n && language?.kind === 'redirect')
         return adapter.respond(session, i18n.redirect(language.location));
+      // A header-detected language makes the document depend on those headers:
+      // the header-only outcome adds `Vary` and keeps it out of public caches.
+      if (language?.kind === 'language' && language.vary?.length)
+        outcomes.push(
+          await normalizeDataResult(
+            new Response(null, {
+              headers: { vary: language.vary.join(', ') },
+            }),
+          ),
+        );
       const localized = await localize();
       return adapter.renderRoutes({
         request: nativeRequest,
