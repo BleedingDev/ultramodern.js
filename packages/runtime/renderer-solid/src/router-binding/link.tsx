@@ -410,9 +410,9 @@ export function useLinkProps<
     (): ResolvedLinkStateProps =>
       externalLink()
         ? EMPTY_OBJECT
-        : (isActive()
-        ? functionalUpdate(activeProps() as any, {})
-        : functionalUpdate(inactiveProps(), {})) ?? EMPTY_OBJECT,
+        : ((isActive()
+            ? functionalUpdate(activeProps() as any, {})
+            : functionalUpdate(inactiveProps(), {})) ?? EMPTY_OBJECT),
     { lazy: true },
   );
 
