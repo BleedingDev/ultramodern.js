@@ -94,6 +94,8 @@ function composeNativeRenderer(
   let rendererIdentities: Readonly<Record<string, RendererIdentity>> = {};
   const resolveBuildIdentities = createRendererBuildIdentityResolver(renderer);
   const federation = createRendererModuleFederationIntegration(renderer);
+  // Prerendering derives paths from the same final trees the build generates.
+  const routeTrees = new Map<string, readonly unknown[]>();
   const selected = [
     appTools({ rendererExtensions: false, serverExtensions: false }),
     rendererTypeCheckerPlugin(renderer),
@@ -104,6 +106,7 @@ function composeNativeRenderer(
       {
         adapter,
         i18n: findNativeI18nConfig(consumerPlugins),
+        onRoutes: (entryName, routes) => routeTrees.set(entryName, routes),
         async resolveBuildIdentities(context) {
           const resolved = await resolveBuildIdentities(context);
           if (
@@ -125,7 +128,13 @@ function composeNativeRenderer(
       post: ['@modern-js/ultramodern-release-envelope'],
     },
     ...(adapter.profile.capabilities.ssg
-      ? [nativePrerenderPlugin(adapter, findNativeI18nConfig(consumerPlugins))]
+      ? [
+          nativePrerenderPlugin(
+            adapter,
+            findNativeI18nConfig(consumerPlugins),
+            routeTrees,
+          ),
+        ]
       : []),
     nativeModuleFederationPlugin(renderer),
     federation.plugin,

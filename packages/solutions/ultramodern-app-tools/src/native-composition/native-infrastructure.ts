@@ -84,6 +84,11 @@ export interface NativeInfrastructureOptions {
   readonly profile?: RendererBuildProfile;
   /** The renderer adapter this plugin runs; defaults to the registered one. */
   readonly adapter?: NativeRendererAdapter;
+  /**
+   * Receives each entry's route tree after every modifyFileSystemRoutes
+   * plugin ran, the same tree the generated application uses.
+   */
+  onRoutes?(entryName: string, routes: readonly unknown[]): void;
   resolveBuildIdentities?(context: {
     entrypoints: readonly Entrypoint[];
     appDirectory: string;
@@ -384,7 +389,9 @@ export function nativeRendererInfrastructurePlugin(
                     Parameters<typeof api.modifyFileSystemRoutes>[0]
                   >[0]['routes'],
                 });
-              return projectFileSystemRoutes(modified);
+              const projected = projectFileSystemRoutes(modified);
+              options.onRoutes?.(entrypoint.entryName, modified);
+              return projected;
             },
           };
           const client = entrypoint.customEntry

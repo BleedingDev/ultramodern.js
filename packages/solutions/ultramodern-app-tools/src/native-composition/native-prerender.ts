@@ -441,6 +441,8 @@ async function loadPrerenderEntry(options: {
 export function nativePrerenderPlugin(
   adapter: NativeRendererAdapter,
   i18n?: NativeI18nConfig,
+  /** Final per-entry route trees, shared by the infrastructure plugin. */
+  finalRouteTrees?: ReadonlyMap<string, readonly unknown[]>,
 ): CliPlugin<AppTools> {
   const renderer = adapter.name;
   return {
@@ -451,14 +453,21 @@ export function nativePrerenderPlugin(
       '@modern-js/ultramodern-release-envelope',
     ],
     setup(api) {
-      const routeTrees = new Map<string, readonly PrerenderRouteNode[]>();
-      api.modifyFileSystemRoutes(({ entrypoint, routes }) => {
-        routeTrees.set(
-          entrypoint.entryName,
-          routes as unknown as PrerenderRouteNode[],
-        );
-        return { entrypoint, routes };
-      });
+      // Without the shared final trees, fall back to this hook's view, which
+      // later route modifiers can still change.
+      const captured = new Map<string, readonly PrerenderRouteNode[]>();
+      if (!finalRouteTrees)
+        api.modifyFileSystemRoutes(({ entrypoint, routes }) => {
+          captured.set(
+            entrypoint.entryName,
+            routes as unknown as PrerenderRouteNode[],
+          );
+          return { entrypoint, routes };
+        });
+      const routeTrees = (finalRouteTrees ?? captured) as ReadonlyMap<
+        string,
+        readonly PrerenderRouteNode[]
+      >;
       api.onAfterBuild(async ({ stats }) => {
         const appContext = api.getAppContext();
         if (appContext.command === 'dev' || appContext.apiOnly) return;

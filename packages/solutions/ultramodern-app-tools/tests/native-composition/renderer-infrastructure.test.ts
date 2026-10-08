@@ -753,6 +753,56 @@ describe('native infrastructure in the owning CLI hooks', () => {
     },
   );
 
+  it('reports the route tree after downstream route modifiers', async () => {
+    const root = createFixture();
+    try {
+      const entry = path.join(root, 'src', 'App.tsx');
+      fs.writeFileSync(entry, 'export default () => <main />;\n');
+      const reported: [string, readonly unknown[]][] = [];
+      const generator: NativeEntryGenerator = {
+        async client(context) {
+          await context.modifyRoutes([
+            { id: 'page', path: '/', file: 'routes/page.tsx', children: [] },
+          ]);
+          return 'export const client = true;';
+        },
+        server: () => 'export const server = true;',
+      };
+      const { api } = await initializeInfrastructure(
+        'solid',
+        root,
+        generator,
+        true,
+        { onRoutes: (entryName, routes) => reported.push([entryName, routes]) },
+      );
+      api.modifyFileSystemRoutes(({ entrypoint, routes }) => ({
+        entrypoint,
+        routes: [
+          ...routes,
+          {
+            id: 'added',
+            path: 'added',
+            file: 'routes/added/page.tsx',
+            children: [],
+          } as never,
+        ],
+      }));
+      const { entrypoints } = await api
+        .getHooks()
+        .modifyEntrypoints.call({
+          entrypoints: [{ entryName: 'main', entry }],
+        });
+      await api.getHooks().generateEntryCode.call({ entrypoints });
+      expect(reported).toHaveLength(1);
+      expect(reported[0][0]).toBe('main');
+      expect(
+        (reported[0][1] as { id: string }[]).map(route => route.id),
+      ).toEqual(['page', 'added']);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it.each(['solid', 'octane'] as const)(
     'emits %s adapter-owned plain TypeScript and maps only server environments',
     async renderer => {
