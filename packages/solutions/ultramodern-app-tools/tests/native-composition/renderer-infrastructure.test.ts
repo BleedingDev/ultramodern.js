@@ -787,11 +787,9 @@ describe('native infrastructure in the owning CLI hooks', () => {
           } as never,
         ],
       }));
-      const { entrypoints } = await api
-        .getHooks()
-        .modifyEntrypoints.call({
-          entrypoints: [{ entryName: 'main', entry }],
-        });
+      const { entrypoints } = await api.getHooks().modifyEntrypoints.call({
+        entrypoints: [{ entryName: 'main', entry }],
+      });
       await api.getHooks().generateEntryCode.call({ entrypoints });
       expect(reported).toHaveLength(1);
       expect(reported[0][0]).toBe('main');
