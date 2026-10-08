@@ -53,6 +53,7 @@ import {
   validateApiOnlySourceSurface,
 } from '../validation/renderer';
 import {
+  createCanonicalWorkspaceArtifactFormatter,
   preserveConsumerWorkspaceArtifacts,
   workspaceArtifactCandidates,
 } from '../workspace-artifact-ownership';
@@ -70,6 +71,7 @@ import {
 } from './preflight';
 import {
   rewriteShellAppFiles,
+  shellAppArtifacts,
   updateRootWorkspaceScripts,
 } from './shell-files';
 import { ownershipEntry, verticalTopologyEntry } from './topology';
@@ -150,14 +152,9 @@ export async function executeAddUltramodernVertical(
     ...existingVerticals,
     ...additionalShells,
   ];
-  const previousDevPorts = workspaceDevelopmentPorts(previousApps);
-  const { io: ownedIo } = preserveConsumerWorkspaceArtifacts(
-    options.workspaceRoot,
-    workspaceArtifactCandidates(
-      scope,
-      previousProjection(previousApps),
-      previousTailwind,
-    ),
+  const previousRootCandidates = workspaceArtifactCandidates(
+    scope,
+    previousProjection(previousApps),
   );
 
   const nextTargetShell = {
@@ -174,6 +171,44 @@ export async function executeAddUltramodernVertical(
       : primaryShell;
   const nextAdditionalShells = additionalShells.map(shell =>
     shell.id === nextTargetShell.id ? nextTargetShell : shell,
+  );
+  const canonicalFormatter = createCanonicalWorkspaceArtifactFormatter([
+    ...previousRootCandidates,
+    ...workspaceArtifactCandidates(scope, [
+      nextPrimaryShell,
+      ...updatedVerticals,
+      ...nextAdditionalShells,
+    ]),
+    ...[nextPrimaryShell, ...nextAdditionalShells].flatMap(shellToRefresh => {
+      const previousShell = previousProjection(previousApps).find(
+        app => app.id === shellToRefresh.id,
+      )!;
+      return [
+        ...shellAppArtifacts(
+          scope,
+          packageSource,
+          previousTailwind,
+          existingVerticals,
+          bridge,
+          previousShell,
+        ).artifacts,
+        ...shellAppArtifacts(
+          scope,
+          packageSource,
+          enableTailwind,
+          updatedVerticals,
+          bridge,
+          shellToRefresh.id === nextTargetShell.id
+            ? nextTargetShell
+            : shellToRefresh,
+        ).artifacts,
+      ];
+    }),
+  ]);
+  const { io: ownedIo } = preserveConsumerWorkspaceArtifacts(
+    options.workspaceRoot,
+    previousRootCandidates,
+    canonicalFormatter,
   );
 
   writeApp(
@@ -362,6 +397,7 @@ export async function executeAddUltramodernVertical(
         remotes: existingVerticals,
         enableTailwind: previousTailwind,
       },
+      canonicalFormatter,
     );
   }
   writeGeneratedWorkspaceScripts(options.workspaceRoot, {

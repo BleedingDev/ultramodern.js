@@ -98,18 +98,9 @@ function withoutGeneratedData(source: string, binding?: string) {
   return source;
 }
 
-/** Protect authored replacements before any stage can delete or regenerate them. */
-export function preserveConsumerWorkspaceArtifacts(
-  workspaceRoot: string,
-  candidates: readonly ArtifactCandidate[],
-) {
-  const preservedPaths = new Set<string>();
-  const recognizedPaths = new Map<string, boolean>();
-  const physicalRoot = fs.realpathSync(workspaceRoot);
-  const formattedSources = new Map<string, Map<string, string>>();
-  const consumerSources = new Map<string, Map<string, string>>();
+function createArtifactSourceFormatter(protectInvalidSources = false) {
+  const cache = new Map<string, Map<string, string>>();
   const remember = (
-    cache: Map<string, Map<string, string>>,
     relativePath: string,
     source: string,
     formatted: string,
@@ -122,13 +113,11 @@ export function preserveConsumerWorkspaceArtifacts(
     sources.set(source, formatted);
     sources.set(formatted, formatted);
   };
-  const formatSources = (
+  return (
     sources: readonly (readonly [relativePath: string, source: string])[],
-    protectInvalidSources = false,
   ) => {
     // Consumer filenames retain native ignore rules; generated comparisons use
     // canonical paths. Evidence from those contexts must not share a cache.
-    const cache = protectInvalidSources ? consumerSources : formattedSources;
     const missing = new Map<string, Set<string>>();
     for (const [relativePath, source] of sources) {
       if (cache.get(relativePath)?.has(source)) continue;
@@ -157,7 +146,7 @@ export function preserveConsumerWorkspaceArtifacts(
       try {
         const formatted = formatGeneratedSourceCandidates(targets);
         inputs.forEach(([relativePath, source], index) =>
-          remember(cache, relativePath, source, formatted[index]!),
+          remember(relativePath, source, formatted[index]!),
         );
       } catch (error) {
         if (!protectInvalidSources) throw error;
@@ -167,7 +156,7 @@ export function preserveConsumerWorkspaceArtifacts(
             const [formatted] = formatGeneratedSourceCandidates([
               targets[index]!,
             ]);
-            remember(cache, relativePath, source, formatted!);
+            remember(relativePath, source, formatted!);
           } catch {
             // Unparseable consumer source remains consumer-owned.
           }
@@ -178,7 +167,44 @@ export function preserveConsumerWorkspaceArtifacts(
       cache.get(relativePath)?.get(source),
     );
   };
-  const canonicalSources = formatSources(
+}
+
+/** Share only generated-source formatting evidence within one operation. */
+export function createCanonicalWorkspaceArtifactFormatter(
+  candidates: readonly ArtifactCandidate[],
+) {
+  const formatSources = createArtifactSourceFormatter();
+  try {
+    formatSources(
+      candidates.flatMap(candidate => {
+        const original = [candidate.relativePath, candidate.content] as const;
+        const normalized = withoutGeneratedData(
+          candidate.content,
+          candidate.generatedDataBinding,
+        );
+        return normalized === candidate.content
+          ? [original]
+          : [original, [candidate.relativePath, normalized] as const];
+      }),
+    );
+  } catch {
+    // Future artifacts may be preserved without formatting. Priming is optional;
+    // required ownership checks and writes still report their own format errors.
+  }
+  return formatSources;
+}
+
+/** Protect authored replacements before any stage can delete or regenerate them. */
+export function preserveConsumerWorkspaceArtifacts(
+  workspaceRoot: string,
+  candidates: readonly ArtifactCandidate[],
+  formatCanonicalSources = createCanonicalWorkspaceArtifactFormatter([]),
+) {
+  const preservedPaths = new Set<string>();
+  const recognizedPaths = new Map<string, boolean>();
+  const physicalRoot = fs.realpathSync(workspaceRoot);
+  const formatConsumerSources = createArtifactSourceFormatter(true);
+  const canonicalSources = formatCanonicalSources(
     candidates.map(
       candidate =>
         [
@@ -237,11 +263,10 @@ export function preserveConsumerWorkspaceArtifacts(
   const pending = inspected.filter(
     inspection => !inspection.recognized && inspection.normalized !== undefined,
   );
-  const normalizedSources = formatSources(
+  const normalizedSources = formatConsumerSources(
     pending.map(
       inspection => [inspection.relativePath, inspection.normalized!] as const,
     ),
-    true,
   );
   pending.forEach((inspection, index) => {
     inspection.recognized = normalizedSources[index] === inspection.canonical;
@@ -287,7 +312,7 @@ export function preserveConsumerWorkspaceArtifacts(
         if (recognizedPaths.get(relativePath) && fs.existsSync(filePath)) {
           const current = fs.readFileSync(filePath, 'utf8');
           if (current === content) return false;
-          const [canonicalCurrent, canonicalNext] = formatSources([
+          const [canonicalCurrent, canonicalNext] = formatCanonicalSources([
             [relativePath, current],
             [relativePath, content],
           ]);
