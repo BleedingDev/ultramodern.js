@@ -80,10 +80,14 @@ export function defineRendererSpecs(options: RendererSpecOptions) {
     );
   const nodeDeployDir = process.env.RENDERER_NODE_DEPLOY_DIR ?? appDir;
   const nodeDeployBin = process.env.RENDERER_NODE_DEPLOY_BIN ?? modernBin;
-  const spec = (name: SpecName, body: () => Promise<void>) => {
+  const spec = (
+    name: SpecName,
+    body: () => Promise<void>,
+    timeout?: number,
+  ) => {
     const reason = options.skip?.[name];
     if (reason) test.skip(`${name} (${reason})`, body);
-    else test(name, body);
+    else test(name, body, timeout);
   };
 
   let origin: string;
@@ -213,11 +217,11 @@ export function defineRendererSpecs(options: RendererSpecOptions) {
   const text = (testId: string) =>
     page.$eval(id(testId), element => element.textContent ?? '');
 
-  const waitForText = (testId: string, expected: string) =>
+  const waitForText = (testId: string, expected: string, timeout = 15_000) =>
     page.waitForFunction(
       (selector, value) =>
         document.querySelector(selector)?.textContent?.includes(value),
-      { timeout: 15_000 },
+      { timeout },
       id(testId),
       expected,
     );
@@ -237,14 +241,18 @@ export function defineRendererSpecs(options: RendererSpecOptions) {
       value,
     );
 
-  /** Clicking the counter only updates once the page is hydrated. */
-  async function openHydrated(pathname: string) {
+  /**
+   * Clicking the counter only updates once the page is hydrated; an early
+   * click is replayed then. A cold dev server compiles the client on first
+   * request, so dev specs allow it longer.
+   */
+  async function openHydrated(pathname: string, timeout = 15_000) {
     const response = await page.goto(`${origin}${pathname}`, {
       waitUntil: 'domcontentloaded',
     });
-    await page.waitForSelector(id('native-increment'));
+    await page.waitForSelector(id('native-increment'), { timeout });
     await page.click(id('native-increment'));
-    await waitForText('native-count', '1');
+    await waitForText('native-count', '1', timeout);
     return response;
   }
 
@@ -571,38 +579,43 @@ export function defineRendererSpecs(options: RendererSpecOptions) {
     useApp(port => launchApp(appDir, port, { modernBin }));
     afterAll(() => fs.writeFileSync(messageFile, original));
 
-    spec('dev-hmr', async () => {
-      await openHydrated('/');
-      await page.evaluate(() => {
-        (window as any).__sameWindow = true;
-      });
-      const before = documentRequests.length;
-      try {
-        fs.writeFileSync(
-          messageFile,
-          original.replace('Native message', 'Native message edited'),
-        );
-        // A dev rebuild can take tens of seconds on a busy machine.
-        await page.waitForFunction(
-          selector =>
-            document.querySelector(selector)?.textContent ===
-            'Native message edited',
-          { timeout: 60_000 },
-          id('native-message'),
-        );
-        // Counter is a sibling of the edited module and keeps its state.
-        expect(await text('native-count')).toBe('1');
-        expect(documentRequests.length).toBe(before);
-        expect(await page.evaluate(() => (window as any).__sameWindow)).toBe(
-          true,
-        );
-        await waitForStyle('native-layout', 'color', 'rgb(20, 40, 60)');
-        expect(sockets.length).toBeGreaterThan(0);
-        expect(pageErrors).toEqual([]);
-      } finally {
-        fs.writeFileSync(messageFile, original);
-      }
-    });
+    spec(
+      'dev-hmr',
+      async () => {
+        await openHydrated('/', 60_000);
+        await page.evaluate(() => {
+          (window as any).__sameWindow = true;
+        });
+        const before = documentRequests.length;
+        try {
+          fs.writeFileSync(
+            messageFile,
+            original.replace('Native message', 'Native message edited'),
+          );
+          // A dev rebuild can take tens of seconds on a busy machine.
+          await page.waitForFunction(
+            selector =>
+              document.querySelector(selector)?.textContent ===
+              'Native message edited',
+            { timeout: 60_000 },
+            id('native-message'),
+          );
+          // Counter is a sibling of the edited module and keeps its state.
+          expect(await text('native-count')).toBe('1');
+          expect(documentRequests.length).toBe(before);
+          expect(await page.evaluate(() => (window as any).__sameWindow)).toBe(
+            true,
+          );
+          await waitForStyle('native-layout', 'color', 'rgb(20, 40, 60)');
+          expect(sockets.length).toBeGreaterThan(0);
+          expect(pageErrors).toEqual([]);
+        } finally {
+          fs.writeFileSync(messageFile, original);
+        }
+      },
+      // Cold dev compilation plus a rebuild can each take tens of seconds.
+      150_000,
+    );
   });
 
   // The node deploy output must serve from any directory: it may only use
