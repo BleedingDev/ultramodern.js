@@ -101,7 +101,8 @@ function nonJsonPath(
       !('value' in descriptor) ||
       // JSON keeps only an array's indexes, and an emitted object literal
       // would read `__proto__` as a prototype, not data.
-      (Array.isArray(value) && !/^(?:0|[1-9]\d*)$/u.test(key)) ||
+      (Array.isArray(value) &&
+        !(/^(?:0|[1-9]\d*)$/u.test(key) && Number(key) < value.length)) ||
       key === '__proto__'
     )
       return `${at}.${key}`;
