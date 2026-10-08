@@ -527,6 +527,37 @@ describe('renderer-neutral HTTP data outcomes', () => {
     expect(await response.text()).toBe('native redirect body');
   });
 
+  it('accumulates CSP, Server-Timing and Vary into a terminal response', async () => {
+    const native = new Response('native error', {
+      status: 500,
+      headers: {
+        'content-security-policy': "default-src 'self'",
+        'server-timing': 'render;dur=2',
+        vary: 'Cookie',
+      },
+    });
+    const loader = await normalizeDataResult(
+      new Response(null, {
+        headers: {
+          'content-security-policy': "script-src 'self'",
+          'server-timing': 'loader;dur=4',
+          vary: 'Accept-Language, cookie',
+        },
+      }),
+    );
+    const response = mergeDataResponseIntoResponse(
+      native,
+      mergeDataResponseMetadata([loader], { status: 500 }),
+    );
+    expect(response.headers.get('content-security-policy')).toBe(
+      "default-src 'self', script-src 'self'",
+    );
+    expect(response.headers.get('server-timing')).toBe(
+      'render;dur=2, loader;dur=4',
+    );
+    expect(response.headers.get('vary')).toBe('Cookie, Accept-Language');
+  });
+
   it('uses the shortest public lifetime and rejects malformed cache ages', async () => {
     const outcomes = await Promise.all(
       [60, 3600].map(maxAge =>
