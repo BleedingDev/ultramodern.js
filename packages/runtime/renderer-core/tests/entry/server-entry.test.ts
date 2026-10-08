@@ -376,6 +376,39 @@ describe('generated native server entry', () => {
     ]);
   });
 
+  it('keeps loader outcomes in route order when the leaf settles first', async () => {
+    const { adapter: recording } = adapter();
+    const outcome = (order: string): DataOutcome => ({
+      kind: 'success',
+      value: undefined,
+      response: {
+        status: 200,
+        statusText: '',
+        headers: [['x-order', order]],
+        cachePolicy: 'no-store',
+      },
+    });
+    let collected: DataOutcome[] = [];
+    const entry = createNativeServerEntry(
+      { identity, app: async () => routed },
+      {
+        ...recording,
+        async renderRoutes(input) {
+          const { onOutcome } = (input.router as Router).options;
+          onOutcome?.('page', outcome('page'));
+          onOutcome?.('layout', outcome('layout'));
+          collected = [...input.outcomes];
+          return recording.renderRoutes(input);
+        },
+      },
+    );
+    const request = new Request('https://example.test/items');
+    await entry.nativeRequestHandler(request, context(request));
+    expect(
+      collected.map(item => new Headers(item.response.headers).get('x-order')),
+    ).toEqual(['layout', 'page']);
+  });
+
   it('answers routed data requests before localized redirects or document handoff', async () => {
     const { adapter: recording, calls } = adapter();
     const i18n = localization();
