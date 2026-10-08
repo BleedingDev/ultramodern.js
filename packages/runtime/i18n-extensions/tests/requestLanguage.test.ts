@@ -82,6 +82,22 @@ describe('detectRequestLanguage', () => {
     ).toBe('en');
   });
 
+  test.each([
+    'fr;q=2,en;q=1',
+    'fr;q=1.5,en',
+    'fr;q=-1,en;q=0.1',
+    'fr;q=0.1234,en;q=0.1',
+    'fr;q=abc,en;q=0.1',
+    'fr;q=,en;q=0.1',
+  ])('drops items with malformed quality values in %s', header => {
+    expect(
+      detectRequestLanguage(request('/', { 'accept-language': header }), [
+        'fr',
+        'en',
+      ]),
+    ).toBe('en');
+  });
+
   test('excludes uppercase quality parameters when every language has zero quality', () => {
     expect(
       detectRequestLanguage(

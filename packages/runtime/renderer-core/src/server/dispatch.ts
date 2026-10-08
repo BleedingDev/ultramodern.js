@@ -50,14 +50,29 @@ function permitsCacheLookup(request: Request): boolean {
   );
 }
 
+/** The request's `max-age` limit in seconds, when it sets a valid one. */
+function requestMaxAgeSeconds(request: Request): number | undefined {
+  const match = /(?:^|,)\s*max-age\s*=\s*(?:(\d+)|"(\d+)")\s*(?:,|$)/i.exec(
+    request.headers.get('cache-control') ?? '',
+  );
+  return match ? Number(match[1] ?? match[2]) : undefined;
+}
+
+function documentAgeSeconds(document: CachedNativeDocument): number {
+  return Math.floor((Date.now() - document.storedAt) / 1000);
+}
+
 function isReusableDocument(
   document: CachedNativeDocument,
   key: string,
+  maxAgeSeconds: number | undefined,
 ): boolean {
   return (
     document.identityKey === key &&
     Number.isFinite(document.storedAt) &&
     document.storedAt <= Date.now() &&
+    (maxAgeSeconds === undefined ||
+      documentAgeSeconds(document) <= maxAgeSeconds) &&
     document.expiresAt > Date.now() &&
     document.status === 200 &&
     document.bytes instanceof Uint8Array &&
@@ -336,10 +351,13 @@ export async function dispatchNativeRequest<Bindings extends object>(
     if (cacheAllowed && options.cache) {
       try {
         const cached = await options.cache.get(cacheKey);
-        if (cached && isReusableDocument(cached, identityKey)) {
+        if (
+          cached &&
+          isReusableDocument(cached, identityKey, requestMaxAgeSeconds(request))
+        ) {
           // The replayed cache-control lifetime started when the document was
           // stored. Age keeps downstream caches from extending its freshness.
-          const age = Math.floor((Date.now() - cached.storedAt) / 1000);
+          const age = documentAgeSeconds(cached);
           session.resolveResponse({
             kind: 'terminal',
             status: cached.status,

@@ -8,6 +8,7 @@ import i18next, {
   type i18n as I18nInstance,
   type InitOptions,
 } from 'i18next';
+import { createLatestLanguageSyncBinding } from './language-sync/controller';
 import {
   createRequestLanguageRedirect,
   languageFromPathname,
@@ -142,7 +143,18 @@ export function createNativeI18n(
     syncWithRouter(router, instance) {
       // Navigation to another language prefix switches the instance. A
       // masked location (LocalizedLink to another language) publishes its
-      // language on the mask; the unmasked location stays canonical.
+      // language on the mask; the unmasked location stays canonical. Switches
+      // run through the shared sync policy: the latest URL language wins and
+      // rejected loads retry. When retries run out the router has already
+      // committed the URL, so a reload lets the server render that language.
+      const sync = createLatestLanguageSyncBinding<I18nInstance>();
+      sync.updateCallbacks({
+        changeLanguage: (target, language) => target.changeLanguage(language),
+        commitLanguage() {},
+        readLanguage: target => target.language,
+        reportFailure: () => window.location.reload(),
+      });
+      sync.activate(instance);
       (router as LanguageRouter).subscribe('onBeforeLoad', ({ toLocation }) => {
         const publicHref =
           toLocation.maskedLocation?.publicHref ?? toLocation.publicHref;
@@ -152,8 +164,7 @@ export function createNativeI18n(
           routing.languages,
           routing.basePath,
         );
-        if (language && language !== instance.language)
-          void instance.changeLanguage(language);
+        if (language) sync.request(language);
       });
       // Switches persist.
       instance.on('languageChanged', language => {

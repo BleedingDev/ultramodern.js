@@ -483,6 +483,43 @@ describe('production native Node Fetch dispatch', () => {
     },
   );
 
+  it.each([
+    ['max-age=10', false],
+    ['max-age="10"', false],
+    ['public, max-age=30', true],
+    ['max-age=60', true],
+  ])(
+    'compares the cached age with request Cache-Control %s',
+    async (cacheControl, reused) => {
+      const cache = store();
+      let renders = 0;
+      const handler = rstest.fn(
+        (_request: Request, context: NativeRequestContext) =>
+          publicDocument(`render ${++renders}`, context),
+      );
+      const selected = options(handler, { cache });
+      await (
+        await dispatchNativeNodeRequest(
+          new Request('https://example.test/'),
+          selected,
+        )
+      ).text();
+      for (const [key, document] of cache.documents)
+        cache.documents.set(key, {
+          ...document,
+          storedAt: document.storedAt - 30_000,
+        });
+      const response = await dispatchNativeNodeRequest(
+        new Request('https://example.test/', {
+          headers: { 'cache-control': cacheControl },
+        }),
+        selected,
+      );
+      expect(await response.text()).toBe(reused ? 'render 1' : 'render 2');
+      expect(handler).toHaveBeenCalledTimes(reused ? 1 : 2);
+    },
+  );
+
   it.each(['__loader=route', '__ssrDirect=1'])(
     'bypasses loader protocol cache before lookup: %s',
     async query => {
