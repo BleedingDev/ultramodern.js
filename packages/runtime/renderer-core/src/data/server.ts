@@ -99,10 +99,7 @@ export function deferData(
   };
 }
 
-function cacheLifetime(
-  cacheControl: string,
-  privateCache = false,
-): number | undefined {
+function cacheLifetime(cacheControl: string): number | undefined {
   const directives = [
     ...cacheControl.matchAll(
       /(?:^|,)\s*(s-maxage|max-age)(?=\s*(?:=|,|$))\s*(?:=\s*([^,]*))?/gi,
@@ -120,8 +117,9 @@ function cacheLifetime(
     names.add(name);
     ages.push(age);
   }
-  // Shared-cache freshness cannot establish a private-cache lifetime.
-  if (privateCache && !names.has('max-age')) return undefined;
+  // Shared-cache freshness cannot establish the browser max-age the merged
+  // document emits; it can only shorten one.
+  if (!names.has('max-age')) return undefined;
   return ages.length > 0 ? Math.min(...ages) : undefined;
 }
 
@@ -178,7 +176,6 @@ export function mergeDataResponseMetadata(
     const ages = outcomes.map(outcome =>
       cacheLifetime(
         new Headers(outcome.response.headers).get('cache-control') ?? '',
-        cachePolicy === 'private',
       ),
     );
     if (cachePolicy === 'public' && ages.some(age => age === undefined))

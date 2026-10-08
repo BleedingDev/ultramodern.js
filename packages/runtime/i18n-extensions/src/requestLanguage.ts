@@ -69,20 +69,33 @@ const entryPathname = (
     : undefined;
 };
 
+const baseLanguage = (tag: string) => tag.toLowerCase().split(/[-_]/u)[0];
+
+/**
+ * Supported languages a range covers, best first: the exact tag, the range's
+ * base language (`cs-CZ` -> `cs`), then regional languages under a base range
+ * (`en` -> `en-US`, `en-GB`).
+ */
+const compatibleLanguages = (
+  candidate: string | null | undefined,
+  languages: readonly string[],
+): string[] => {
+  const value = candidate?.trim().toLowerCase();
+  if (!value) return [];
+  const base = baseLanguage(value);
+  return [
+    ...languages.filter(language => language.toLowerCase() === value),
+    ...languages.filter(language => language.toLowerCase() === base),
+    ...(base === value
+      ? languages.filter(language => baseLanguage(language) === value)
+      : []),
+  ].filter((language, index, all) => all.indexOf(language) === index);
+};
+
 const matchLanguage = (
   candidate: string | null | undefined,
   languages: readonly string[],
-): string | undefined => {
-  if (!candidate) return undefined;
-  const value = candidate.trim().toLowerCase();
-  if (!value) return undefined;
-  return (
-    languages.find(language => language.toLowerCase() === value) ??
-    languages.find(
-      language => language.toLowerCase() === value.split(/[-_]/u)[0],
-    )
-  );
-};
+): string | undefined => compatibleLanguages(candidate, languages)[0];
 
 /** The supported language carried by a public pathname's first segment. */
 export function languageFromPathname(
@@ -125,7 +138,7 @@ const QVALUE = /^(?:0(?:\.\d{0,3})?|1(?:\.0{0,3})?)$/;
 const acceptedLanguages = (
   header: string | null,
   languages: readonly string[],
-): (string | undefined)[] => {
+): string[] => {
   const items = (header ?? '')
     .split(',')
     .map((item, index) => {
@@ -141,10 +154,14 @@ const acceptedLanguages = (
       return { tag: tag.trim(), q, index };
     })
     .filter(item => item.tag);
+  const specific = items.filter(item => item.tag !== '*');
   const named = new Set(
-    items
-      .filter(item => item.tag !== '*')
-      .map(item => matchLanguage(item.tag, languages)),
+    specific.flatMap(item => compatibleLanguages(item.tag, languages)),
+  );
+  const excluded = new Set(
+    specific
+      .filter(item => item.q === 0)
+      .flatMap(item => compatibleLanguages(item.tag, languages)),
   );
   return items
     .filter(item => item.q > 0)
@@ -152,8 +169,9 @@ const acceptedLanguages = (
     .flatMap(item =>
       item.tag === '*'
         ? languages.filter(language => !named.has(language))
-        : [matchLanguage(item.tag, languages)],
-    );
+        : compatibleLanguages(item.tag, languages),
+    )
+    .filter(language => !excluded.has(language));
 };
 
 /**

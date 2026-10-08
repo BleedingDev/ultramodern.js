@@ -44,13 +44,35 @@ function withAbort<T>(pending: Promise<T>, signal: AbortSignal): Promise<T> {
   });
 }
 
-/** Match headers are server HTTP policy, never part of the public router snapshot. */
+/** Browsers enforce every CSP field, so nested matches add policies. */
+const CSP_HEADERS = new Set([
+  'content-security-policy',
+  'content-security-policy-report-only',
+]);
+
+/**
+ * Match headers are server HTTP policy, never part of the public router
+ * snapshot. Nested matches union `Vary` and append CSP fields; other
+ * singleton fields stay last-writer-wins.
+ */
 function appendHeaders(destination: Headers, value: unknown): void {
   if (value == null) return;
   const source =
     value instanceof Headers ? value : new Headers(value as HeadersInit);
   for (const [key, item] of Headers.prototype.entries.call(source)) {
-    if (key !== 'set-cookie') destination.set(key, item);
+    if (key === 'set-cookie') continue;
+    if (CSP_HEADERS.has(key)) destination.append(key, item);
+    else if (key === 'vary') {
+      const fields = new Map<string, string>();
+      for (const field of `${destination.get('vary') ?? ''},${item}`.split(
+        ',',
+      )) {
+        const name = field.trim();
+        if (name && !fields.has(name.toLowerCase()))
+          fields.set(name.toLowerCase(), name);
+      }
+      destination.set('vary', [...fields.values()].join(', '));
+    } else destination.set(key, item);
   }
   for (const cookie of Headers.prototype.getSetCookie.call(source)) {
     destination.append('set-cookie', cookie);

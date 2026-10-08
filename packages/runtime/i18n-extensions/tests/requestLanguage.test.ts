@@ -113,6 +113,22 @@ describe('detectRequestLanguage', () => {
     ).toBe(expected);
   });
 
+  test.each([
+    ['en', 'en-US'],
+    ['fr;q=0.5, en', 'en-US'],
+    ['en;q=0, *;q=1', 'fr-FR'],
+    ['en-US;q=0, en', 'en-GB'],
+    ['cs-CZ, fr', 'fr-FR'],
+  ])('matches %s against regional supported languages', (header, expected) => {
+    expect(
+      detectRequestLanguage(request('/', { 'accept-language': header }), [
+        'en-US',
+        'en-GB',
+        'fr-FR',
+      ]),
+    ).toBe(expected);
+  });
+
   test('excludes uppercase quality parameters when every language has zero quality', () => {
     expect(
       detectRequestLanguage(
