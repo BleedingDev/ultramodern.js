@@ -113,6 +113,10 @@ describe('native i18nPlugin()', () => {
         'initOptions.nested.interpolation',
       ],
       [
+        { list: Object.setPrototypeOf([1], Object.create(Array.prototype)) },
+        'initOptions.list',
+      ],
+      [
         JSON.parse('{"__proto__": {"polluted": true}}'),
         'initOptions.__proto__',
       ],
