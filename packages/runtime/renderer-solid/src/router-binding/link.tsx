@@ -161,13 +161,13 @@ export function useLinkProps<
     { lazy: true },
   );
 
-  // The rendered href. `undefined` means disabled or blocked; a blocked link
-  // never renders an href, so the browser cannot follow it either.
+  // The rendered href. `undefined` means disabled or blocked; neither renders
+  // an href, so the browser cannot follow it either.
   const hrefOption = Solid.createMemo(
     () => {
+      if (_options().disabled) return undefined;
       const direct = directExternalLink();
       if (direct !== undefined) return direct ?? undefined;
-      if (_options().disabled) return undefined;
       return getHrefOption(next(), router);
     },
     { lazy: true },
@@ -183,10 +183,10 @@ export function useLinkProps<
     { lazy: true },
   );
 
-  // Disabled and blocked internal links render without an href, do not
-  // preload and do not navigate. External links stay plain anchors.
+  // Disabled and blocked links render without an href, do not preload and do
+  // not navigate. Enabled external links stay plain anchors.
   const linkDisabled = Solid.createMemo(
-    () => !externalLink() && (!!local.disabled || hrefOption() === undefined),
+    () => !!local.disabled || (!externalLink() && hrefOption() === undefined),
     { lazy: true },
   );
   const blockedLink = () => linkDisabled() && !local.disabled;

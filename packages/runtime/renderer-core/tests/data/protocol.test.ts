@@ -604,7 +604,7 @@ describe('renderer-neutral HTTP data outcomes', () => {
         }),
       );
       const response = createDataResponse(outcome, identity, expected);
-      expect(response.status).toBe(status === 304 ? 200 : status);
+      expect(response.status).toBe(200);
       for (const name of [
         'content-length',
         'content-encoding',
