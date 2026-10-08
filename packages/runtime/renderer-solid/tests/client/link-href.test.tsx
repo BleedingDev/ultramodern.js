@@ -292,4 +292,29 @@ describe('native Link reactive target', () => {
       preventing.cleanup();
     }
   });
+
+  test('intent handlers from state props run with and without intent preload', async () => {
+    for (const preload of ['intent', false] as const) {
+      const onFocus = rstest.fn();
+      const onMouseEnter = rstest.fn();
+      const view = await renderLink(() => (
+        <Link
+          to="/next"
+          preload={preload}
+          inactiveProps={{ onFocus, onMouseEnter } as any}
+        >
+          Next
+        </Link>
+      ));
+      try {
+        const anchor = view.anchor();
+        anchor.dispatchEvent(new FocusEvent('focus'));
+        anchor.dispatchEvent(new MouseEvent('mouseenter'));
+        expect(onFocus).toHaveBeenCalledTimes(1);
+        expect(onMouseEnter).toHaveBeenCalledTimes(1);
+      } finally {
+        view.cleanup();
+      }
+    }
+  });
 });

@@ -381,46 +381,33 @@ export function useLinkProps<
     { lazy: true },
   );
 
-  // activeProps/inactiveProps may supply onClick too. It runs after the
-  // caller's handler and, like it, can prevent the router navigation.
-  const onClick = createComposedHandler(
-    () => local.onClick,
-    (event: MouseEvent) => {
-      const stateClick = (resolvedStateProps() as Record<string, unknown>)
-        .onClick as
-        | JSX.EventHandlerUnion<HTMLAnchorElement, MouseEvent>
-        | undefined;
-      if (
-        stateClick &&
-        callHandler(
-          event as MouseEvent & {
-            currentTarget: HTMLAnchorElement;
-            target: Element;
-          },
-          stateClick,
-        )
-      )
-        return;
-      handleClick(event);
-    },
-  );
-  const onBlur = createComposedHandler(() => local.onBlur, handleLeave);
-  const onFocus = createComposedHandler(() => local.onFocus, enqueuePreload);
+  // activeProps/inactiveProps may supply event handlers too. Each runs after
+  // the caller's own and, like it, can prevent the Link's behavior.
+  const stateHandler =
+    (key: string) => (): JSX.EventHandlerUnion<any, any> | undefined =>
+      (resolvedStateProps() as Record<string, any>)[key];
+  const handlers = (key: keyof typeof local & string) => [
+    () => local[key] as JSX.EventHandlerUnion<any, any> | undefined,
+    stateHandler(key),
+  ];
+  const onClick = createComposedHandler(handlers('onClick'), handleClick);
+  const onBlur = createComposedHandler(handlers('onBlur'), handleLeave);
+  const onFocus = createComposedHandler(handlers('onFocus'), enqueuePreload);
   const onMouseEnter = createComposedHandler(
-    () => local.onMouseEnter,
+    handlers('onMouseEnter'),
     enqueuePreload,
   );
   const onMouseOver = createComposedHandler(
-    () => local.onMouseOver,
+    handlers('onMouseOver'),
     enqueuePreload,
   );
   const onMouseLeave = createComposedHandler(
-    () => local.onMouseLeave,
+    handlers('onMouseLeave'),
     handleLeave,
   );
-  const onMouseOut = createComposedHandler(() => local.onMouseOut, handleLeave);
+  const onMouseOut = createComposedHandler(handlers('onMouseOut'), handleLeave);
   const onTouchStart = createComposedHandler(
-    () => local.onTouchStart,
+    handlers('onTouchStart'),
     handleTouchStart,
   );
 
@@ -533,18 +520,26 @@ export function useLinkProps<
   // user passed (or undefined), and spread()/assign() installs nothing. The
   // getters keep this reactive: flipping `preload` back to 'intent' re-runs
   // the consuming spread, which attaches the composed handler then.
-  const onIntent =
-    (composed: (event: any) => void, user: () => unknown) => () =>
-      preload() === 'intent' ? composed : user();
+  // Without intent preloading only the caller's and state handlers remain, so
+  // nothing is installed unless one of them exists.
+  const onIntent = (composed: (event: any) => void, key: string) => {
+    const passthrough = createComposedHandler(handlers(key as never));
+    return () =>
+      preload() === 'intent'
+        ? composed
+        : (local as Record<string, unknown>)[key] || stateHandler(key)()
+          ? passthrough
+          : undefined;
+  };
 
   defineGetters({
-    onBlur: onIntent(onBlur, () => local.onBlur),
-    onFocus: onIntent(onFocus, () => local.onFocus),
-    onMouseEnter: onIntent(onMouseEnter, () => local.onMouseEnter),
-    onMouseOver: onIntent(onMouseOver, () => local.onMouseOver),
-    onMouseLeave: onIntent(onMouseLeave, () => local.onMouseLeave),
-    onMouseOut: onIntent(onMouseOut, () => local.onMouseOut),
-    onTouchStart: onIntent(onTouchStart, () => local.onTouchStart),
+    onBlur: onIntent(onBlur, 'onBlur'),
+    onFocus: onIntent(onFocus, 'onFocus'),
+    onMouseEnter: onIntent(onMouseEnter, 'onMouseEnter'),
+    onMouseOver: onIntent(onMouseOver, 'onMouseOver'),
+    onMouseLeave: onIntent(onMouseLeave, 'onMouseLeave'),
+    onMouseOut: onIntent(onMouseOut, 'onMouseOut'),
+    onTouchStart: onIntent(onTouchStart, 'onTouchStart'),
   });
 
   defineGetters({
@@ -580,13 +575,17 @@ function callHandler<T, TEvent extends Event>(
   return event.defaultPrevented;
 }
 
+/** Run each handler in order; one that prevents default skips the rest. */
 function createComposedHandler<T, TEvent extends Event>(
-  getHandler: () => JSX.EventHandlerUnion<T, TEvent> | undefined,
-  fallback: (event: TEvent) => void,
+  getHandlers: readonly (() => JSX.EventHandlerUnion<T, TEvent> | undefined)[],
+  fallback?: (event: TEvent) => void,
 ) {
   return (event: TEvent & { currentTarget: T; target: Element }) => {
-    const handler = getHandler();
-    if (!handler || !callHandler(event, handler)) fallback(event);
+    for (const getHandler of getHandlers) {
+      const handler = getHandler();
+      if (handler && callHandler(event, handler)) return;
+    }
+    fallback?.(event);
   };
 }
 
