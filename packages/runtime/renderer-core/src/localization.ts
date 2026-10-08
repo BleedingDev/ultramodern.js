@@ -43,8 +43,11 @@ export interface NativeEntryI18n<
   handoff(language: string, instance?: Instance): DocumentInlineData;
   /** The server's language and bundles, read before the browser router starts. */
   clientHandoff(): { language: string; resources?: NativeI18nResources };
-  /** History navigation to another language prefix switches the instance. */
-  syncWithRouter(router: object, instance: Instance): void;
+  /**
+   * History navigation to another language prefix switches the instance.
+   * Returns the cleanup that detaches it when the client entry is disposed.
+   */
+  syncWithRouter(router: object, instance: Instance): () => void;
 }
 
 /** What a renderer needs to provide localization to its application view. */

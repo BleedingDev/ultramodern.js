@@ -236,12 +236,17 @@ export function prepareDocument(
     throw new TypeError('A document root cannot reuse the bootstrap id.');
   }
   const { script, style } = options.nonce ?? {};
+  const inlineIds = new Set<string>();
   const inlineData = (options.inlineData ?? []).map(item => {
     if (item.id === RENDERER_BOOTSTRAP_ID || item.id === rootId) {
       throw new TypeError(
         'Document inline data cannot reuse the root or bootstrap id.',
       );
     }
+    // Readers use getElementById, so a repeated id hides one payload.
+    if (inlineIds.has(item.id))
+      throw new TypeError(`Document inline data id ${item.id} is repeated.`);
+    inlineIds.add(item.id);
     return serializeInlineData({ ...item, nonce: script });
   });
   const assets = collectDocumentAssets(options.assets ?? []);

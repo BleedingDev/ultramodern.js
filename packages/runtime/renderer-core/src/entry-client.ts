@@ -182,9 +182,17 @@ export function startNativeClientEntry<
         ? { rewrite: i18n.rewrite(() => current.language) }
         : {}),
     });
-    if (i18n && current) i18n.syncWithRouter(router, current);
-    await adapter.prepareRouter(router, hydrating, signal);
-    signal.throwIfAborted();
+    // HMR disposal aborts the signal; a failed start stops the sync too.
+    const stopSync =
+      i18n && current ? i18n.syncWithRouter(router, current) : undefined;
+    if (stopSync) signal.addEventListener('abort', stopSync, { once: true });
+    try {
+      await adapter.prepareRouter(router, hydrating, signal);
+      signal.throwIfAborted();
+    } catch (error) {
+      stopSync?.();
+      throw error;
+    }
     return {
       kind: 'router',
       router,
@@ -199,6 +207,8 @@ export function startNativeClientEntry<
       if (disposed) release();
     })
     .catch(error => {
+      // Release what a failed start left attached, such as i18n sync.
+      if (!signal.aborted) controller.abort(error);
       if (!disposed)
         queueMicrotask(() => {
           throw error;

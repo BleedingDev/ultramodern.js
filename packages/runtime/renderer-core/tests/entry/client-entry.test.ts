@@ -127,7 +127,10 @@ describe('generated native client entry', () => {
         language: 'cs',
         resources: { translation: { title: 'Ahoj' } },
       }),
-      syncWithRouter: (router, instance) => synced.push(router, instance),
+      syncWithRouter: (router, instance) => {
+        synced.push(router, instance);
+        return () => {};
+      },
     };
     startNativeClientEntry(
       { identity, load: async () => routed, i18n },
@@ -236,5 +239,48 @@ describe('generated native client entry', () => {
     await new Promise(resolve => setTimeout(resolve, 0));
     expect(prepared).toEqual([]);
     expect(disposed).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops i18n router sync when the entry is replaced', async () => {
+    installDocument(false);
+    const { adapter } = recordingAdapter();
+    const stop = rstest.fn();
+    let dispose!: () => void;
+    let started!: () => void;
+    const ready = new Promise<void>(resolve => {
+      started = resolve;
+    });
+    startNativeClientEntry(
+      {
+        identity,
+        load: async () => routed,
+        hot: { dispose: (callback: () => void) => (dispose = callback) },
+        i18n: {
+          languages: ['en', 'cs'],
+          resolveRequest: () => ({ kind: 'language', language: 'en' }),
+          redirect: () => new Response(null),
+          create: async language => ({ language }),
+          rewrite: () => ({}),
+          handoff: () => ({ id: 'handoff', payload: '{}' }),
+          clientHandoff: () => ({ language: 'en' }),
+          syncWithRouter: () => stop,
+        },
+      },
+      {
+        ...adapter,
+        readBootstrap: () => {
+          throw new Error('A CSR document has no bootstrap');
+        },
+        async start(input) {
+          await input.load();
+          started();
+          return () => {};
+        },
+      },
+    );
+    await ready;
+    expect(stop).not.toHaveBeenCalled();
+    dispose();
+    expect(stop).toHaveBeenCalledTimes(1);
   });
 });
