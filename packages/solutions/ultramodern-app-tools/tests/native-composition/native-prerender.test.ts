@@ -199,6 +199,17 @@ describe('native prerender route selection', () => {
     );
   });
 
+  it('ignores a closing head tag inside inline scripts, styles and comments', () => {
+    const html =
+      '<html><head><script>const s = "</head>";</script><style>a::after{content:"</head>"}</style><!-- </head> --></head><body></body></html>';
+    expect(markPrerenderedDocument(html)).toBe(
+      html.replace(
+        '--></head>',
+        `--><meta name="${PRERENDERED_DOCUMENT_META}" content="static-data"></head>`,
+      ),
+    );
+  });
+
   it('marks the document head for static payload replay', () => {
     expect(
       markPrerenderedDocument(
